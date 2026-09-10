@@ -1417,37 +1417,25 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   UNPROTECT(2);  // the slot index and the factor level tables
 }
 
-void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
-  SEXP slotExpr;
-  PROTECT_INDEX slotIndex;
-  PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
-
-  REPROTECT_SLOT(slotExpr, modelExpr, "p.birth_death", slotIndex);
-  // a monotone forest is birth/death-only (p.birth_death == 1); permit it
-  model.birthOrDeathProbability = rc_getDouble(
-    slotExpr, "probability of birth/death rule", RC_LENGTH | RC_EQ,
-    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LEQ, 1.0, RC_END);
-
-  REPROTECT_SLOT(slotExpr, modelExpr, "p.swap", slotIndex);
-  model.swapProbability = rc_getDouble(
-    slotExpr, "probability of swap rule", RC_LENGTH | RC_EQ,
-    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
-
-  REPROTECT_SLOT(slotExpr, modelExpr, "p.change", slotIndex);
-  model.changeProbability = rc_getDouble(
-    slotExpr, "probability of change rule", RC_LENGTH | RC_EQ,
-    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
-
-  REPROTECT_SLOT(slotExpr, modelExpr, "p.perturb", slotIndex);
-  model.perturbProbability = rc_getDouble(
-    slotExpr, "probability of perturb rule", RC_LENGTH | RC_EQ,
-    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
-
-  REPROTECT_SLOT(slotExpr, modelExpr, "p.rule_gibbs", slotIndex);
-  model.ruleGibbsProbability = rc_getDouble(
-    slotExpr, "probability of rule_gibbs rule", RC_LENGTH | RC_EQ,
-    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
-
+/// The tree-move mixture is a control setting: `proposal.probs` carries the six
+/// canonical names in order, resolved R-side, so the read is positional.
+void parseProposalProbs(ParsedModel& model, SEXP controlExpr) {
+  SEXP slotExpr =
+    PROTECT(Rf_getAttrib(controlExpr, Rf_install("proposal.probs")));
+  rc_assertDoubleConstraints(slotExpr, "proposal probabilities",
+                             RC_LENGTH | RC_EQ, rc_asRLength(6), RC_END);
+  const double* probs = REAL(slotExpr);
+  // the five structural moves, then birth against death within a birth/death
+  // move; a monotone forest is birth/death-only (birth_death == 1), permitted
+  for (std::size_t i = 0; i < 5; ++i)
+    if (ISNAN(probs[i]) || probs[i] < 0.0 || probs[i] > 1.0)
+      Rf_error("rule proposal probabilities must be in [0, 1]");
+  model.birthOrDeathProbability = probs[0];
+  model.swapProbability = probs[1];
+  model.changeProbability = probs[2];
+  model.perturbProbability = probs[3];
+  model.ruleGibbsProbability = probs[4];
+  model.birthProbability = probs[5];
   // all five exactly zero is the frozen mixture: no structural proposal is
   // made and the tree structures stand, so there is no share to normalize
   const double structuralProbability =
@@ -1457,11 +1445,15 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   if (structuralProbability != 0.0 &&
       std::fabs(structuralProbability - 1.0) >= sumToOneTolerance)
     Rf_error("rule proposal probabilities must sum to 1.0");
+  if (!(model.birthProbability > 0.0) || !(model.birthProbability < 1.0))
+    Rf_error("probability of birth in birth/death rule must be in (0, 1)");
+  UNPROTECT(1);
+}
 
-  REPROTECT_SLOT(slotExpr, modelExpr, "p.birth", slotIndex);
-  model.birthProbability = rc_getDouble(
-    slotExpr, "probability of birth in birth/death rule", RC_LENGTH | RC_EQ,
-    rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
+  SEXP slotExpr;
+  PROTECT_INDEX slotIndex;
+  PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
 
   REPROTECT_SLOT(slotExpr, modelExpr, "node.scale", slotIndex);
   model.nodeScale = rc_getDouble(
@@ -2779,6 +2771,7 @@ bartcore::ResponseFamily parseSamplerSpecification(
   parseControl(control, controlExpr);
   parseData(data, dataExpr);
   parseModel(model, modelExpr, data.numPredictors);
+  parseProposalProbs(model, controlExpr);
 
   bartcore::ResponseFamily family = resolveFamily(control, familyName);
   sigmaIsFixed = !control.responseIsBinary && model.sigmaIsFixed;
@@ -5456,7 +5449,8 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
 
 /// Prior replacement; installing a model before any run matches creating
 /// with it.
-SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr) {
+SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
+                       SEXP controlExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
@@ -5465,9 +5459,13 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr) {
   if (!Rf_inherits(modelExpr, "dbartsModel"))
     Rf_error("'model' argument to bartcore_setModel not of class "
              "'dbartsModel'");
+  if (!Rf_inherits(controlExpr, "dbartsControl"))
+    Rf_error("'control' argument to bartcore_setModel not of class "
+             "'dbartsControl'");
 
   return unwindProtect([&, model = ParsedModel{}]() mutable -> SEXP {
     parseModel(model, modelExpr, shape.numPredictors);
+    parseProposalProbs(model, controlExpr);
 
     // the leaf model is a template instantiation: the designation and its
     // kind are fixed at creation, so a replacement prior must carry the same

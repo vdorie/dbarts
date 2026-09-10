@@ -58,12 +58,22 @@ expect_match(
 )
 expect_inherits(warnings.ordinalResidPrior[[1L]], "dbartsFamilyGatedWarning")
 
+# 'sigquant' rides '...' for the transition release, so the retirement's own
+# once-per-session warning stands beside the gating one; the gated names are
+# still read off what the CALLER wrote
+source(
+  system.file("common", "countWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 warnings.nbinomSigquant <- captureWarnings(
   fit2(y.count, family = "nbinom", sigquant = 0.8)
 )
-expect_equal(length(warnings.nbinomSigquant), 1L)
-expect_match(conditionMessage(warnings.nbinomSigquant[[1L]]), "sigquant")
-expect_inherits(warnings.nbinomSigquant[[1L]], "dbartsFamilyGatedWarning")
+gated.nbinomSigquant <- Filter(
+  function(w) inherits(w, "dbartsFamilyGatedWarning"),
+  warnings.nbinomSigquant
+)
+expect_equal(length(gated.nbinomSigquant), 1L)
+expect_match(conditionMessage(gated.nbinomSigquant[[1L]]), "sigquant")
 
 # counter-tests: live families stay silent
 expect_silent(fit2(y.gaussian, family = "gaussian", sigest = 5))
@@ -73,10 +83,6 @@ expect_silent(fit2(y.aft, family = "aft", sigest = 5))
 expect_silent(fit2(y.binary, family = "probit"))
 
 # two gated names supplied together still emit exactly one warning
-source(
-  system.file("common", "countWarnings.R", package = "dbarts"),
-  local = TRUE
-)
 expect_equal(
   countWarnings(
     fit2(y.binary, family = "probit", sigest = 5, sigdf = 5),
@@ -210,16 +216,11 @@ diverged <- Filter(
 expect_equal(diverged, character(0))
 
 # split.probs is not a shared-default-text exception (nor a candidate row):
-# dbarts() has no split.probs formal of its own (its tree.prior = cgm takes
-# the value through the object instead), so the shared-default-text loop
-# above never compares it. bart's own default text moves to NULL,
-# identical by construction to the old 1 / num.vars (resolveSplitProbabilities
-# treats a NULL spec and a length-one spec the same way: uniform, dropped).
-# existence asserted before the value: formals(f)[["nosuch"]] is also NULL,
-# so the identity check alone would pass just as well if the formal were
-# removed outright
-expect_true("split.probs" %in% names(formals(dbarts::bart)))
-expect_identical(formals(dbarts::bart)[["split.probs"]], NULL)
+# neither dbarts() nor bart() has a split.probs formal of its own - the tree
+# prior takes the value through the object instead - so the shared-default-text
+# loop above never compares it
+expect_false("split.probs" %in% names(formals(dbarts::bart)))
+expect_false("split.probs" %in% names(formals(dbarts::dbarts)))
 
 # match.arg error messages for bad tokens: bart resolves factors in its own
 # frame before forwarding, so a bad token errors here, naming the choices,
@@ -228,9 +229,8 @@ expect_error(fit2(y.gaussian, factors = "bogus"), pattern = "should be one of")
 
 # Interaction with family gating: the suppliedNames snapshot (argNames,
 # R/bart.R) precedes the resolve-and-forward step, so making
-# factors/proposal.probs unconditionally forwarded does not make
-# them look "supplied" to family gating - a defaulted factors call
-# under a gating family stays silent
+# 'factors' unconditionally forwarded does not make it look "supplied" to
+# family gating - a defaulted factors call under a gating family stays silent
 expect_silent(fit2(y.multi, family = "multinomial"))
 expect_silent(fit2(y.count, family = "nbinom"))
 
@@ -242,13 +242,15 @@ sameDraws <- function(a, b) {
 defaultedProbs <- fit2(y.gaussian, seed = 77L)
 explicitProbs <- fit2(
   y.gaussian,
-  proposal.probs = c(
-    birth_death = 0.6,
-    swap = 0,
-    change = 0.4,
-    perturb = 0,
-    rule_gibbs = 0,
-    birth = 0.5
+  control = dbarts::dbartsControl(
+    proposal.probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.4,
+      perturb = 0,
+      rule_gibbs = 0,
+      birth = 0.5
+    )
   ),
   seed = 77L
 )
@@ -280,11 +282,11 @@ explicitNaAction <- fit2(
 )
 expect_true(sameDraws(defaultedNaAction, explicitNaAction))
 
-# proposal.probs' default is now the named vector, always forwarded - a
-# defaulted bart call still composes with monotone
+# the mixture rides the control now - a defaulted bart call still composes
+# with monotone
 expect_silent(fit2(y.gaussian, monotone = c(a = "+")))
 
-# keepFits/callback are the last two NAMED formals, added after
+# callback/control are the last two NAMED formals, added after
 # storage/updateState; the trailing '...' exists for the transition release
 # alone, to carry a retired spelling to a message naming its successor
 # rather than to R's own "unused argument".
@@ -293,7 +295,7 @@ lastTwoNamed <- function(fn) {
   fnFormals <- setdiff(names(formals(fn)), "...")
   fnFormals[length(fnFormals) - c(1L, 0L)]
 }
-expect_equal(lastTwoNamed(dbarts::bart), c("keepFits", "callback"))
+expect_equal(lastTwoNamed(dbarts::bart), c("callback", "control"))
 expect_identical(
   names(formals(dbarts::bart))[length(formals(dbarts::bart))],
   "..."
@@ -370,7 +372,8 @@ controlFormalsAdded <- c(
   "categoricalExhaustiveCap",
   "testFitParallelCutoff",
   "predictParallelCutoff",
-  "sparseDensityThreshold"
+  "sparseDensityThreshold",
+  "proposal.probs"
 )
 # '...' is the transition release's retired-spelling channel on this entry
 # point, not a control field
@@ -796,10 +799,9 @@ expect_true(reconstructionIdentityError(binaryBasisFit) < 1e-12)
 factorBasisFit <- fitMultiForest(~tezf)
 expect_true(reconstructionIdentityError(factorBasisFit) < 1e-12)
 
-# xbart loses control = entirely; n.cuts/useQuantiles/n.thin/storage/
-# tree.prior are appended flat formals instead. xbart has no dots (the
-# rejection-only dots channel never reached it), so control = is a native
-# unused-argument error.
+# xbart takes control = again (dec-B116), beside the flat
+# n.cuts/useQuantiles/n.thin/storage/tree.prior formals: a flat one the
+# caller named wins over the control's slot of the same name.
 xbartKnobs <- c("n.cuts", "useQuantiles", "n.thin", "storage")
 expect_true(setequal(
   intersect(xbartKnobs, names(formals(dbarts::xbart))),
@@ -811,46 +813,28 @@ for (knob in xbartKnobs) {
     deparse(formals(dbarts::dbartsControl)[[knob]])
   )
 }
-expect_false("control" %in% names(formals(dbarts::xbart)))
+expect_true("control" %in% names(formals(dbarts::xbart)))
 # '...' is the transition release's retired-spelling channel; a name it does
-# not carry is refused as unused, and 'control', which it does, is refused by
-# a message naming the flat arguments its settings became
+# not carry is refused as unused
 expect_identical(
   names(formals(dbarts::xbart))[length(formals(dbarts::xbart))],
   "..."
 )
-expect_equal(length(formals(dbarts::xbart)), 31L)
-expect_error(
-  dbarts::xbart(
-    x,
-    y.gaussian,
-    control = dbarts::dbartsControl(),
-    n.reps = 1L,
-    n.threads = 1L
-  ),
-  pattern = "'control' has left 'xbart'"
-)
-expect_error(
-  dbarts::xbart(
-    x,
-    y.gaussian,
-    control = dbarts::dbartsControl(),
-    n.reps = 1L,
-    n.threads = 1L
-  ),
-  pattern = "n.cuts, useQuantiles, n.thin, storage"
-)
+expect_equal(length(formals(dbarts::xbart)), 32L)
 # The two-door contract (dec-B83): the legacy door is a strict compatibility
 # mode carrying 0.9-34's argument list and nothing else, and every capability
 # the branch had briefly appended to it lives at the modern door instead.
 legacyOnly <- c(
   "subset",
   "storage",
-  "family",
-  "prior.scale"
+  "family"
 )
 expect_false(any(legacyOnly %in% names(formals(dbarts::bartBT))))
 expect_true(all(legacyOnly %in% names(formals(dbarts::bart))))
+# the named leaf calibration is one of them too, spelled on the node prior
+# rather than as a formal of either door
+expect_false("prior.scale" %in% names(formals(dbarts::bartBT)))
+expect_false("prior.scale" %in% names(formals(dbarts::bart)))
 # the residual law is one of those capabilities, spelled as a family rather
 # than as a formal of its own on either door
 expect_false("resid.dist" %in% names(formals(dbarts::bart)))

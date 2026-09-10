@@ -357,7 +357,7 @@ expect_error(
 host.mn <- dbarts(x, as.double(labels), test = x.test, control = control)
 expect_error(bartcoreSetData(bc.mn, host.mn$data), "multi-forest")
 expect_error(
-  bartcoreSetModel(bc.mn, host.mn$model, host.mn$data),
+  bartcoreSetModel(bc.mn, host.mn$model, host.mn$data, host.mn$control),
   "multi-forest"
 )
 expect_error(

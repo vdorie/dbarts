@@ -19,19 +19,87 @@ defaultProposalProbs <- c(
 ## they resolve ahead of the fill below and never enter it.
 zeroDefaultProposalNames <- c("perturb", "rule_gibbs")
 
-## A caller vector that omits a move whose default is a number rather than a
-## share still spells the default mixture, so any comparison against
-## `defaultProposalProbs` must fill those names before it reads NA and refuses
-## a documented spelling.
-fillZeroDefaultProposalProbs <- function(probs) {
-  if (!is.null(probs)) {
-    for (name in zeroDefaultProposalNames) {
-      if (is.na(probs[name])) {
-        probs[name] <- defaultProposalProbs[[name]]
+## Resolves a caller's `proposal.probs` into the canonical six-name mixture the
+## control slot carries and the bridge reads. NULL is the shipped default; a
+## partial vector is filled by the rules below. No branch may leave an NA.
+resolveProposalProbs <- function(proposal.probs) {
+  if (is.null(proposal.probs)) {
+    proposal.probs <- defaultProposalProbs
+  }
+  ## Perturb and rule_gibbs resolve AHEAD of the fill and never enter it.
+  ## Their defaults are numbers rather than shares, so an unnamed one is
+  ## zero and the residual below is taken against 1 minus their sum.
+  ## Widening the fill's name set instead would silently re-resolve every
+  ## vector leaving two of the widened set unnamed:
+  ## c(birth_death = 0.5, change = 0.4) resolves swap to 0.1 and would
+  ## resolve the zero-default moves to it as well.
+  zeroDefaults <- vapply(
+    zeroDefaultProposalNames,
+    function(name) {
+      value <- proposal.probs[name]
+      if (is.na(value)) {
+        value <- defaultProposalProbs[name]
       }
+      value[[1L]]
+    },
+    0.0
+  )
+
+  ## The fill, over the three structural names. One unnamed element takes
+  ## the residual. Two unnamed, one of them swap, resolve as well: swap is
+  ## the one whose default is a number rather than a share, so it takes its
+  ## zero and the other takes the residual. Naming only the moves that
+  ## default to a number leaves the split between birth/death and change
+  ## undetermined and is an error rather than a silent choice, and naming
+  ## none of them is the default.
+  ##
+  ## The residual is a share of structural mass and an all-zero mixture has
+  ## none: with birth/death and change both named zero and the zero-default
+  ## moves zero there is nothing to distribute, so an unnamed swap keeps its
+  ## zero rather than taking the whole of it, and the mixture stays frozen -
+  ## no structural proposal is made at all. An unnamed birth/death or change
+  ## still takes the residual, so c(change = 0) is birth/death 1 as before.
+  zeroDefaultTotal <- sum(zeroDefaults)
+  probs <- proposal.probs[c("birth_death", "swap", "change")]
+  names(probs) <- c("birth_death", "swap", "change")
+  unnamed <- is.na(probs)
+  if (all(unnamed) && zeroDefaultTotal == 0) {
+    probs <- defaultProposalProbs[c("birth_death", "swap", "change")]
+  } else if (unnamed[["birth_death"]] && unnamed[["change"]]) {
+    stop(
+      "'proposal.probs' names only the zero-default moves 'swap', ",
+      "'perturb' and 'rule_gibbs'; name at least one of 'birth_death' ",
+      "and 'change'"
+    )
+  } else {
+    if (sum(unnamed) == 2L) {
+      probs[["swap"]] <- 0
+    }
+    named <- probs[!is.na(probs)]
+    frozen <- zeroDefaultTotal == 0 &&
+      !unnamed[["birth_death"]] &&
+      !unnamed[["change"]] &&
+      all(named == 0)
+    probs[is.na(probs)] <- if (frozen) {
+      0
+    } else {
+      1 - (zeroDefaultTotal + sum(named))
     }
   }
-  probs
+
+  birth <- proposal.probs["birth"]
+  if (is.na(birth)) {
+    birth <- defaultProposalProbs["birth"]
+  }
+
+  c(
+    birth_death = probs[["birth_death"]],
+    swap = probs[["swap"]],
+    change = probs[["change"]],
+    perturb = zeroDefaults[["perturb"]],
+    rule_gibbs = zeroDefaults[["rule_gibbs"]],
+    birth = birth[[1L]]
+  )
 }
 
 setMethod(
@@ -43,7 +111,6 @@ setMethod(
     node.prior,
     node.hyperprior,
     resid.prior,
-    proposal.probs = defaultProposalProbs,
     node.scale = 0.5,
     prior.scale = NA_real_,
     family = "auto"
@@ -81,86 +148,6 @@ setMethod(
     if (!missing(resid.prior)) {
       .Object@resid.prior <- resid.prior
     }
-
-    if (is.null(proposal.probs)) {
-      proposal.probs <- defaultProposalProbs
-    }
-
-    ## Perturb and rule_gibbs resolve AHEAD of the fill and never enter it.
-    ## Their defaults are numbers rather than shares, so an unnamed one is
-    ## zero and the residual below is taken against 1 minus their sum.
-    ## Widening the fill's name set instead would silently re-resolve every
-    ## vector leaving two of the widened set unnamed:
-    ## c(birth_death = 0.5, change = 0.4) resolves swap to 0.1 and would
-    ## resolve the zero-default moves to it as well.
-    zeroDefaults <- vapply(
-      zeroDefaultProposalNames,
-      function(name) {
-        value <- proposal.probs[name]
-        if (is.na(value)) {
-          value <- defaultProposalProbs[name]
-        }
-        value[[1L]]
-      },
-      0.0
-    )
-    perturb <- zeroDefaults[["perturb"]]
-    rule_gibbs <- zeroDefaults[["rule_gibbs"]]
-
-    ## The fill, over the three structural names. One unnamed element takes
-    ## the residual. Two unnamed, one of them swap, resolve as well: swap is
-    ## the one whose default is a number rather than a share, so it takes its
-    ## zero and the other takes the residual. Naming only the moves that
-    ## default to a number leaves the split between birth/death and change
-    ## undetermined and is an error rather than a silent choice, and naming
-    ## none of them is the default. No branch may leave an NA for a slot.
-    ##
-    ## The residual is a share of structural mass and an all-zero mixture has
-    ## none: with birth/death and change both named zero and the zero-default
-    ## moves zero there is nothing to distribute, so an unnamed swap keeps its
-    ## zero rather than taking the whole of it, and the mixture stays frozen -
-    ## no structural proposal is made at all. An unnamed birth/death or change
-    ## still takes the residual, so c(change = 0) is birth/death 1 as before.
-    zeroDefaultTotal <- sum(zeroDefaults)
-    probs <- proposal.probs[c("birth_death", "swap", "change")]
-    names(probs) <- c("birth_death", "swap", "change")
-    unnamed <- is.na(probs)
-    if (all(unnamed) && zeroDefaultTotal == 0) {
-      probs <- defaultProposalProbs[c("birth_death", "swap", "change")]
-    } else if (unnamed[["birth_death"]] && unnamed[["change"]]) {
-      stop(
-        "'proposal.probs' names only the zero-default moves 'swap', ",
-        "'perturb' and 'rule_gibbs'; name at least one of 'birth_death' ",
-        "and 'change'"
-      )
-    } else {
-      if (sum(unnamed) == 2L) {
-        probs[["swap"]] <- 0
-      }
-      named <- probs[!is.na(probs)]
-      frozen <- zeroDefaultTotal == 0 &&
-        !unnamed[["birth_death"]] &&
-        !unnamed[["change"]] &&
-        all(named == 0)
-      probs[is.na(probs)] <- if (frozen) {
-        0
-      } else {
-        1 - (zeroDefaultTotal + sum(named))
-      }
-    }
-
-    .Object@p.birth_death <- probs[["birth_death"]]
-    .Object@p.swap <- probs[["swap"]]
-    .Object@p.change <- probs[["change"]]
-    .Object@p.perturb <- perturb
-    .Object@p.rule_gibbs <- rule_gibbs
-
-    probs <- proposal.probs["birth"]
-    if (is.na(probs)) {
-      probs <- defaultProposalProbs["birth"]
-    }
-
-    .Object@p.birth <- probs[["birth"]]
 
     .Object@node.scale <- node.scale
     .Object@prior.scale <- as.double(prior.scale)
@@ -507,8 +494,16 @@ defaultAmplitudePriorScale <- function(family) {
 ## power/base, xbart deliberately does not, since there they are grid axes
 ## that override any supplied object every cell (man/xbart.Rd). Presence in
 ## the matched call, not an explicit-NULL value, is what collides.
-refuseColliding <- function(matchedCall, objectName, shorthands) {
-  hit <- shorthands[shorthands %in% names(matchedCall)]
+## 'supplied' names the shorthands that reached the caller through '...'
+## rather than as formals: a retired name is cleared from the matched call
+## before anything is forwarded, so the call alone no longer sees it.
+refuseColliding <- function(
+  matchedCall,
+  objectName,
+  shorthands,
+  supplied = character()
+) {
+  hit <- shorthands[shorthands %in% c(names(matchedCall), supplied)]
   if (length(hit) > 0L) {
     stop(
       "'",

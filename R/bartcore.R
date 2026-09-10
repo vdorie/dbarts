@@ -1179,8 +1179,16 @@ refuseMultiForestWarmStart <- function(ptr, what) {
   invisible(NULL)
 }
 
-bartcoreSetModel <- function(bcSampler, model, data) {
-  invisible(.Call(C_dbarts_bartcore_setModel, bcSampler$ptr, model, data))
+# The control travels with the model: the tree-move mixture is a control slot
+# the prior install reads.
+bartcoreSetModel <- function(bcSampler, model, data, control) {
+  invisible(.Call(
+    C_dbarts_bartcore_setModel,
+    bcSampler$ptr,
+    model,
+    data,
+    control
+  ))
 }
 
 # Drives a low-level bartcore handle (a bcSampler env holding $ptr) directly,

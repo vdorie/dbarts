@@ -127,8 +127,8 @@ rm(xvalFolds, foldSizeXbartMethod)
 rm(testData)
 
 
-# control = is removed: the driver runs fine without it, and the name is
-# refused by a tombstone naming the flat arguments its settings became
+# control = is optional: the driver runs fine without it, and a supplied one
+# reaches the settings xbart spells no flat name for
 xval <- dbarts::xbart(
   x,
   y,
@@ -142,16 +142,20 @@ xval <- dbarts::xbart(
 )
 expect_equal(dim(xval), c(2L, 2L))
 expect_true(all(is.finite(xval)))
-expect_error(
-  dbarts::xbart(
-    x,
-    y,
-    n.reps = 1L,
-    n.threads = 1L,
-    control = dbarts::dbartsControl()
-  ),
-  pattern = "'control' has left 'xbart'"
+xvalControl <- dbarts::xbart(
+  x,
+  y,
+  n.samples = 6L,
+  n.burn = c(5L, 3L),
+  method = "k-fold",
+  n.test = 5,
+  n.reps = 2L,
+  k = c(1, 4),
+  n.threads = 1L,
+  control = dbarts::dbartsControl()
 )
+expect_equal(dim(xvalControl), c(2L, 2L))
+rm(xvalControl)
 
 rm(xval)
 

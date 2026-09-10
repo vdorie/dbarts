@@ -152,17 +152,15 @@ rm(fitOn, fitOff, fitDefault)
 
 # ---- automatic: a frozen mixture switches the step on, and nothing else ----
 
-# the mixture is mutable between samples while the control slot is fixed at
+# the mixture is mutable between samples while the levelGibbs slot is fixed at
 # creation, so the decision is taken per sweep: a sampler grown under the
 # shipped mixture takes no step, and takes one from the sweep its structures
 # are frozen at
-freeze <- function(model) {
-  model@p.birth_death <- 0
-  model@p.swap <- 0
-  model@p.change <- 0
-  model@p.perturb <- 0
-  model@p.rule_gibbs <- 0
-  model
+freeze <- function(control) {
+  control@proposal.probs[
+    c("birth_death", "swap", "change", "perturb", "rule_gibbs")
+  ] <- 0
+  control
 }
 frozenTail <- function(...) {
   control <- dbarts::dbartsControl(
@@ -177,7 +175,7 @@ frozenTail <- function(...) {
   )
   sampler <- dbarts::dbarts(y ~ x, testData, control = control)
   invisible(sampler$run(50L, 0L))
-  sampler$setModel(freeze(sampler$model))
+  sampler$setControl(freeze(sampler$control))
   sampler$run(0L, 25L)$train
 }
 # the two arms share every growing sweep - the default takes no step while
@@ -203,17 +201,15 @@ frozenThroughout <- function(...) {
     seed = 31L,
     ...
   )
-  sampler <- dbarts::dbarts(
-    y ~ x,
-    testData,
-    control = control,
-    proposal.probs = c(
-      birth_death = 0,
-      swap = 0,
-      change = 0,
-      perturb = 0
-    )
+  control@proposal.probs <- c(
+    birth_death = 0,
+    swap = 0,
+    change = 0,
+    perturb = 0,
+    rule_gibbs = 0,
+    birth = 0.5
   )
+  sampler <- dbarts::dbarts(y ~ x, testData, control = control)
   sampler$run(25L, 25L)$train
 }
 alwaysFrozen <- frozenThroughout()

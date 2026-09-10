@@ -12,13 +12,14 @@ monotoneOf <- function(...) {
     control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L),
     resid.prior = fixed(1)
   )
+  probs <- sampler$control@proposal.probs
   list(
     directions = attr(sampler$model, "monotone"),
-    p.birth_death = sampler$model@p.birth_death,
-    p.swap = sampler$model@p.swap,
-    p.change = sampler$model@p.change,
-    p.perturb = sampler$model@p.perturb,
-    p.rule_gibbs = sampler$model@p.rule_gibbs,
+    p.birth_death = probs[["birth_death"]],
+    p.swap = probs[["swap"]],
+    p.change = probs[["change"]],
+    p.perturb = probs[["perturb"]],
+    p.rule_gibbs = probs[["rule_gibbs"]],
     k = sampler$model@node.hyperprior
   )
 }

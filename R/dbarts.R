@@ -236,6 +236,14 @@ dbartsControl <- function(
   testFitParallelCutoff = 65536L,
   predictParallelCutoff = 50000L,
   sparseDensityThreshold = 0.2,
+  proposal.probs = c(
+    birth_death = 0.6,
+    swap = 0,
+    change = 0.4,
+    perturb = 0,
+    rule_gibbs = 0,
+    birth = 0.5
+  ),
   seed = NA_integer_,
   updateState = TRUE,
   ...
@@ -293,9 +301,67 @@ dbartsControl <- function(
     testFitParallelCutoff = coerceOrError(testFitParallelCutoff, "integer"),
     predictParallelCutoff = coerceOrError(predictParallelCutoff, "integer"),
     sparseDensityThreshold = coerceOrError(sparseDensityThreshold, "numeric"),
+    # the partial spellings are filled here rather than at the slot, so the
+    # stored mixture is always the resolved six the bridge reads
+    proposal.probs = resolveProposalProbs(proposal.probs),
     seed = coerceOrError(seed, "integer"),
     updateState = as.logical(updateState)
   )
+}
+
+## The one precedence rule bart() and xbart() apply to a supplied control: a
+## flat formal the caller named wins over the control's slot of the same name,
+## and a slot they did not name flat stands. 'flat' names each shared setting
+## and holds its flat value; the resolved list comes back under the same names,
+## for the door to read and to write onto the control where it keeps one.
+## A slot still holding dbartsControl()'s own default names nothing: each door
+## carries its own defaults for the settings it also spells flat (bart's 500
+## samples against the control's unset one), so a control built to reach one
+## engine setting must not silently move every other one with it.
+mergeFrontDoorControl <- function(control, matchedCall, flat) {
+  supplied <- names(matchedCall)
+  # no control named, nothing to merge: the door's own defaults stand, and the
+  # reference control below (which probes the core count) is never built
+  if ("control" %not_in% supplied) {
+    return(flat)
+  }
+  fresh <- dbarts::dbartsControl()
+  for (name in names(flat)) {
+    if (
+      name %not_in%
+        supplied &&
+        !identical(methods::slot(control, name), methods::slot(fresh, name))
+    ) {
+      flat[[name]] <- methods::slot(control, name)
+    }
+  }
+  flat
+}
+
+## A control taken from a fitted sampler carries that fit's model configuration
+## on bartcore.* attributes - the variance forest, the dispersion, the survival
+## status, the forest map - which a new fit over new data has no claim to.
+## Refused by name rather than carried or silently stripped, since either would
+## fit a model the caller never asked for.
+refuseFitStateControl <- function(control, caller) {
+  if (!inherits(control, "dbartsControl")) {
+    stop(
+      "'control' argument to ",
+      caller,
+      " must be of class dbartsControl; use dbartsControl() to create one",
+      call. = FALSE
+    )
+  }
+  if (any(startsWith(names(attributes(control)), "bartcore."))) {
+    stop(
+      "'control' carries the model configuration of the fit it was taken ",
+      "from; '",
+      caller,
+      "' builds its own - pass a fresh dbartsControl() instead",
+      call. = FALSE
+    )
+  }
+  control
 }
 
 validateArgumentsInEnvironment <- function(
@@ -383,14 +449,6 @@ dbarts <- function(
   tree.prior = cgm,
   node.prior = normal,
   resid.prior = chisq,
-  proposal.probs = c(
-    birth_death = 0.6,
-    swap = 0,
-    change = 0.4,
-    perturb = 0,
-    rule_gibbs = 0,
-    birth = 0.5
-  ),
   monotone = NULL,
   interactions = NULL,
   blocks = NULL,
@@ -434,6 +492,9 @@ dbarts <- function(
     "dbarts",
     evalEnv
   )
+  # the tree-move mixture is a control setting now; the retired spelling is
+  # honored where the control's own slot would otherwise stand
+  proposal.probs <- consolidated[["proposal.probs"]]
 
   # dbarts() never runs the sampler itself, so 'callback' has nothing to
   # drive here; it is validated anyway, ahead of the (possibly expensive)
@@ -1471,6 +1532,9 @@ dbartsSampler <- setRefClass(
       # is created and never again. Accepting one here would leave the stored
       # control disagreeing with the engine, and a re-creation from that stored
       # control would then move the draws under categoricalExhaustiveCap.
+      # proposal.probs is NOT among them: the mixture is installed with the
+      # priors and has always been changeable mid-run through $setModel, so it
+      # is honored here through that same install (below).
       for (slotName in c(
         "n.trees",
         "n.chains",
@@ -1482,7 +1546,12 @@ dbartsSampler <- setRefClass(
         "sparseDensityThreshold",
         "seed"
       )) {
-        if (!identical(slot(newControl, slotName), slot(control, slotName))) {
+        if (
+          !identical(
+            methods::slot(newControl, slotName),
+            methods::slot(control, slotName)
+          )
+        ) {
           stop(
             "changing '",
             slotName,
@@ -1494,9 +1563,20 @@ dbartsSampler <- setRefClass(
         stop("keepTrees requires 'n.samples' to be specified")
       }
 
+      mixtureMoved <- !identical(
+        newControl@proposal.probs,
+        control@proposal.probs
+      )
+
       ptr <- getPointer()
       selfEnv$control <- newControl
       .Call(C_dbarts_bartcore_setControl, ptr, control)
+      # the engine reads the mixture off the control when the priors are
+      # installed, so a changed one is pushed through the prior install and
+      # meets every refusal that install already carries
+      if (mixtureMoved) {
+        .self$setModel(model)
+      }
 
       invisible(NULL)
     },
@@ -1535,14 +1615,15 @@ dbartsSampler <- setRefClass(
       oldModel <- model
       selfEnv$model <- newModel
       tryResult <- tryCatch(
-        .Call(C_dbarts_bartcore_setModel, ptr, selfEnv$model, data),
+        .Call(C_dbarts_bartcore_setModel, ptr, selfEnv$model, data, control),
         error = function(e) {
           selfEnv$model <- oldModel
           e$call <- quote(.Call(
             C_dbarts_bartcore_setModel,
             ptr,
             selfEnv$model,
-            data
+            data,
+            control
           ))
           e
         }

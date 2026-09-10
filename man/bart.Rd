@@ -36,9 +36,7 @@ BART is a Bayesian \dQuote{sum-of-trees} model in which each tree is constrained
 \usage{
 bart(
     formula, data, test, subset, weights, offset, offset.test = offset,
-    sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
-    k = NULL, prior.scale = NA_real_,
-    power = 2.0, base = 0.95, split.probs = NULL,
+    sigest = NA_real_, k = NULL,
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
@@ -49,9 +47,6 @@ bart(
     verbose = TRUE, keepTrees = FALSE,
     keepCall = TRUE, samplerOnly = FALSE,
     seed = NA_integer_,
-    proposal.probs = c(
-        birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
-        rule_gibbs = 0, birth = 0.5),
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -66,7 +61,8 @@ bart(
     na.action = dbarts::na.keepPredictors,
     tree.prior = NULL, node.prior = NULL, resid.prior = NULL,
     storage = c("double", "single"), updateState = TRUE,
-    keepFits = is.null(callback), callback = NULL, \dots)
+    keepFits = is.null(callback), callback = NULL,
+    control = dbarts::dbartsControl(), \dots)
 
 \method{extract}{bartMultinomial}(
     object,
@@ -194,26 +190,8 @@ bart(
    \item{sigest}{
      For continuous response models, an estimate of the residual standard deviation (residual standard error), \eqn{\sigma}, used to calibrate an inverse-chi-squared prior on the error variance. If not supplied, the least-squares estimate is derived instead. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class \code{dbartsSigmaFallbackWarning}); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class \code{dbartsSparseSigmaFallbackWarning}, a \code{dbartsSigmaFallbackWarning}). See \code{sigquant} for more information. Not applicable when \eqn{y} is binary. Same concept as \code{sigma} in \code{\link{dbarts}}; \code{\link{xbart}} spells it \code{sigest} too.
    }
-   \item{sigdf}{
-     Degrees of freedom for error variance prior. Not applicable when \eqn{y} is binary. Default 3, Chipman, George, and McCulloch's calibration (see References); an aggressive choice rather than a derived one.
-   }
-   \item{sigquant}{
-     The quantile of the error variance prior that the rough estimate (\code{sigest}) is placed at. The closer the quantile is to 1, the more aggressive the fit will be as you are putting more prior weight on error standard deviations (\eqn{\sigma}) less than the rough estimate. Not applicable when \eqn{y} is binary. Default 0.90, from the same source as \code{sigdf}.
-   }
    \item{k}{
      For numeric \eqn{y}, \code{k} is the number of prior standard deviations \eqn{E(Y|x) = f(x)} is away from \eqn{\pm 0.5}{+/- 0.5}. The response is internally scaled to range from \eqn{-0.5} to \eqn{0.5}. For binary \eqn{y} fit with the default probit link, \code{k} is the number of prior standard deviations \eqn{f(x)} is away from \eqn{\pm 3}{+/- 3}, the probit reference scale; \code{family = "logistic"} widens this to \eqn{\pm \pi \sqrt{3}}{+/- pi*sqrt(3)}, three standard deviations of the standard logistic latent variable. The value can be either a fixed number, or a \emph{hyperprior} of the form \code{chi(degreesOfFreedom = 1.5, scale = 2)}. The default, \code{NULL}, uses the value 2 for continuous responses and the \code{chi(1.5, 2)} hyperprior for binary ones, which centers the sampled \code{k} near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass \code{k = 2} for the fixed BART-package default, or \code{chi(1.5, Inf)} for the old improper prior. See \code{\link{bartBT}}'s \code{k} item, and the \sQuote{End-node prior parameter \code{k}} details there, for the full calibration argument and its outlier-sensitivity caveat.
-   }
-   \item{prior.scale}{
-     Names the leaf calibration in response units instead of inheriting it from the range of the response: the prior standard deviation of the forest total \eqn{f} at \code{k = 1}, so the prior standard deviation in force is \code{prior.scale / k} and the prior mean is the response transform's shift. \code{NA} (the default) leaves the family's own calibration in place and nothing changes. Useful when the fit is one block of a larger sampler and the response it is handed varies in scale between sweeps. For the leaf-model qualifications on what the named quantity bounds, and for the \code{sd} spelling and its refusal under a sampled \code{k}, see \code{\link{dbarts}}'s Details and \code{\link{dbartsPriors}}.
-   }
-   \item{power}{
-     Power parameter for tree prior. Default 2, Chipman, George, and McCulloch's empirical recommendation (see References) for the split-probability decay \eqn{base (1 + depth)^{-power}}{base * (1 + depth)^(-power)}, not derived from a formula.
-   }
-   \item{base}{
-     Base parameter for tree prior. Default 0.95, from the same source as \code{power}.
-   }
-   \item{split.probs}{
-     Prior and transition probabilities of variables used to generate splits. \code{NULL} (the default) requests equiprobability; can also be a numeric vector of length equal to the number of variables, or a named numeric vector with only a subset of the variables specified and a \code{.default} named value. Values given for factor variables are replicated for each resulting column in the generated model matrix. The symbol \code{num.vars} is rebound before execution to the number of columns in the model matrix. Collides with a supplied \code{tree.prior} (see below).
    }
    \item{n.trees}{
      The number of trees in the sum-of-trees formulation.
@@ -267,9 +245,6 @@ bart(
    }
    \item{seed}{
      Optional integer specifying the desired pRNG \link[=set.seed]{seed}. A \code{\link{set.seed}} beforehand suffices for reproducibility; supplying \code{seed} instead gives reproducible results without touching R's stream. See \code{\link{bartBT}}'s Reproducibility section.
-   }
-   \item{proposal.probs}{
-     Named numeric vector, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"swap"}, \code{"change"}, \code{"perturb"} and \code{"rule_gibbs"} to control tree structure proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step. The default is the named vector \code{c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5)}, identical to \code{\link{dbarts}}'s own default. All four structural probabilities zero is the frozen mixture: no structural proposal is made, the tree structures stand where they are, and only the leaf values, \code{sigma} and the family's latents keep being drawn, which is how a fitted forest is re-sampled as a fixed basis. Under \code{\link{dbartsControl}}'s default \code{levelGibbs = NA} a frozen forest additionally takes the level-shifting Gibbs step each iteration, the leaf values then being the only thing left to move. A \code{"swap"} element exchanges a parent's split rule with a child's; it defaults to zero because at production forest sizes it measures as a no-op, but with \code{n.trees = 1} it is the only move that rotates a rule up the tree, so single-tree fits should set it positive (0.1 was the historical default). A \code{"perturb"} element displaces one node's split point by a single cut position while keeping its variable and the tree's shape; it defaults to zero, and only ordinal (numeric) columns can be perturbed. A \code{"rule_gibbs"} element replaces one nog node's rule - a node whose two children are both leaves - with a draw from that rule's own full conditional over the available ordinal variables and their admissible cuts, so its acceptance is one; it defaults to zero, it acts only where the node's own rule is ordinal, and it is inert on an all-categorical design.
    }
    \item{monotone}{
      Optional per-predictor monotonicity constraints, passed through to \code{\link{dbarts}}; see its \code{monotone} argument. A named vector selects predictors by model-matrix column name, each direction one of \code{"+"}/\code{"increasing"}/\code{1} or \code{"-"}/\code{"decreasing"}/\code{-1} - matching is case-insensitive, so \code{"Increasing"} is accepted; only numeric and ordered columns are eligible. A constraint forces birth/death-only proposals and a fixed \code{k = 2}. \code{NULL} (the default) fits the unconstrained model.
@@ -326,8 +301,11 @@ bart(
    \item{callback}{
      \code{NULL} (the default, no hook) or a list with two elements, \code{fn} and \code{context}, each an R external pointer (\code{externalptr}): \code{fn} the address of a compiled \code{dbarts_draw_callback} (\code{inst/include/dbarts/dbarts.h}) and \code{context} an opaque pointer handed back to it unchanged, or \code{NULL}. Only that both are external pointers is checked - the address is dereferenced exactly as handed, on the worker thread that owns the draw's chain, so the callback and its context must already be alive and of the right shape; nothing here can verify either. Registering one is a compiled task (\pkg{Rcpp} or plain C), not an R closure: see \code{vignette("dbarts-as-a-component")} for a worked example and the recipe for building the two pointers. \strong{Three warnings.} A callback that crashes takes the whole R session down with it - no R condition is raised, there is nothing to \code{tryCatch}. An interrupt (\code{Ctrl-C}) cannot land while a call is running, so a callback that blocks or loops hangs the session. And the automatic \code{keepFits = FALSE} this argument triggers means a fit built with only the default settings and a \code{callback} returns NO fitted values at all (no \code{yhat.train}, no \code{yhat.test}, ...) - whatever the callback itself accumulated is the only answer, unless \code{keepFits = TRUE} is also given explicitly. On \code{family = "hazard"}/\code{"hazard.probit"}/\code{"hazard.logistic"}, the draw struct's \code{numObservations} counts the person-period-EXPANDED rows the R layer builds (one per subject per at-risk period), not the original subjects - the row-to-(subject, period) mapping is R-side and is not carried across to the callback. \code{bartBT} (the 0.9-34 legacy door) does not take this argument.
    }
+   \item{control}{
+     A \code{\link{dbartsControl}} object carrying the sampler and engine settings, including the ones \code{bart} spells no flat name for: \code{categoricalExhaustiveCap}, \code{testFitParallelCutoff}, \code{predictParallelCutoff}, \code{sparseDensityThreshold}, \code{levelGibbs}, and the tree-move mixture \code{proposal.probs}. Precedence, one rule: a flat argument named in the call wins over the control's slot of the same name, and a slot left at \code{dbartsControl()}'s own default leaves this function's default standing. A control taken from a fitted sampler carries that fit's model configuration and is refused by name - pass a fresh \code{dbartsControl()}.
+   }
    \item{\dots}{
-     Present on the \code{bartMultinomial}/\code{bartOrdinal}/\code{bartNegbin}/\code{bartHurdle} methods below for S3 generic compatibility, but not silently discarded: a name foreign to the method called is refused by name, and any other unrecognized name warns (class \code{dbartsUnusedArgsWarning}). On \code{bart} itself \code{\dots} is instead the transition release's retired-spelling channel, as on \code{\link{dbarts}}: a retired name (\code{resid.dist}, \code{dispersion}, \code{breaks}, \code{max.rows}, all of which now ride \code{family}; \code{dart} and \code{levelGibbs}, which now ride \code{tree.prior}) reaches a message naming its successor instead of R's own \dQuote{unused argument} error, and any other name is refused. Removed in dbarts 1.1-0.
+     Present on the \code{bartMultinomial}/\code{bartOrdinal}/\code{bartNegbin}/\code{bartHurdle} methods below for S3 generic compatibility, but not silently discarded: a name foreign to the method called is refused by name, and any other unrecognized name warns (class \code{dbartsUnusedArgsWarning}). On \code{bart} itself \code{\dots} is instead the transition release's retired-spelling channel, as on \code{\link{dbarts}}: a retired name (\code{resid.dist}, \code{dispersion}, \code{breaks}, \code{max.rows}, all of which now ride \code{family}; \code{dart} and \code{levelGibbs}, which now ride \code{tree.prior}; \code{power}, \code{base}, \code{split.probs}, which ride \code{tree.prior} too; \code{prior.scale}, which rides \code{node.prior}; \code{sigdf} and \code{sigquant}, which ride \code{resid.prior}; \code{proposal.probs}, which rides \code{control}) reaches a message naming its successor instead of R's own \dQuote{unused argument} error, and any other name is refused. Removed in dbarts 1.1-0.
    }
    \item{object}{
      An object of class \code{bartMultinomial}, \code{bartOrdinal}, \code{bartNegbin}, or \code{bartHurdle}, returned by \code{bart} under the corresponding \code{family}.

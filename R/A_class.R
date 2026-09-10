@@ -254,6 +254,10 @@ methods::setClass(
     testFitParallelCutoff = "integer",
     predictParallelCutoff = "integer",
     sparseDensityThreshold = "numeric",
+    ## the tree-move mixture, resolved to its six canonical names: it selects
+    ## the structure move a sweep proposes and, within a birth/death move,
+    ## birth against death
+    proposal.probs = "numeric",
     seed = "integer",
     updateState = "logical",
     call = "language"
@@ -280,6 +284,14 @@ methods::setClass(
     testFitParallelCutoff = 65536L,
     predictParallelCutoff = 50000L,
     sparseDensityThreshold = 0.2,
+    proposal.probs = c(
+      birth_death = 0.6,
+      swap = 0,
+      change = 0.4,
+      perturb = 0,
+      rule_gibbs = 0,
+      birth = 0.5
+    ),
     seed = NA_integer_,
     updateState = TRUE,
     call = quote(call("NA"))
@@ -425,6 +437,39 @@ methods::setValidity("dbartsControl", function(object) {
     return("'sparseDensityThreshold' must be a single number in [0, 1]")
   }
 
+  ## the tree-move mixture, resolved by dbartsControl() before it lands here
+  ## and read from this slot by the bridge
+  if (
+    length(object@proposal.probs) != 6L ||
+      !identical(
+        names(object@proposal.probs),
+        c("birth_death", "swap", "change", "perturb", "rule_gibbs", "birth")
+      )
+  ) {
+    return(paste0(
+      "'proposal.probs' must name 'birth_death', 'swap', 'change', ",
+      "'perturb', 'rule_gibbs' and 'birth', in that order"
+    ))
+  }
+  proposalProbs <- object@proposal.probs[
+    c("birth_death", "swap", "change", "perturb", "rule_gibbs")
+  ]
+  if (anyNA(proposalProbs) || any(proposalProbs < 0.0 | proposalProbs > 1.0)) {
+    return("rule proposal probabilities must be in [0, 1]")
+  }
+  ## all five exactly zero is the frozen mixture: no structural proposal is
+  ## made, so there is no share to normalize
+  if (
+    sum(proposalProbs) != 0.0 &&
+      abs(sum(proposalProbs) - 1.0) >= sqrt(.Machine$double.eps)
+  ) {
+    return("rule proposal probabilities must sum to 1")
+  }
+  birth <- object@proposal.probs[["birth"]]
+  if (is.na(birth) || birth <= 0.0 || birth >= 1.0) {
+    return("birth probability for birth/death step must be in (0, 1)")
+  }
+
   if (is.na(object@updateState)) {
     return("'updateState' must be TRUE/FALSE")
   }
@@ -448,14 +493,6 @@ methods::setValidity("dbartsControl", function(object) {
 methods::setClass(
   "dbartsModel",
   slots = list(
-    p.birth_death = "numeric",
-    p.swap = "numeric",
-    p.change = "numeric",
-    p.perturb = "numeric",
-    p.rule_gibbs = "numeric",
-
-    p.birth = "numeric",
-
     node.scale = "numeric",
     # The NAMED leaf calibration, in response units: the forest total's prior
     # sd at k = 1, or NA to inherit node.scale's family-keyed internal-unit
@@ -472,12 +509,6 @@ methods::setClass(
     resid.prior = "dbartsResidPrior"
   ),
   prototype = list(
-    p.birth_death = 1.0,
-    p.swap = 0.0,
-    p.change = 0.0,
-    p.perturb = 0.0,
-    p.rule_gibbs = 0.0,
-    p.birth = 0.5,
     node.scale = 0.5,
     prior.scale = NA_real_,
     family = "auto",
@@ -488,29 +519,6 @@ methods::setClass(
   )
 )
 methods::setValidity("dbartsModel", function(object) {
-  proposalProbs <- c(
-    object@p.birth_death,
-    object@p.swap,
-    object@p.change,
-    object@p.perturb,
-    object@p.rule_gibbs
-  )
-  if (any(proposalProbs < 0.0) || any(proposalProbs > 1.0)) {
-    return("rule proposal probabilities must be in [0, 1]")
-  }
-  # all five exactly zero is the frozen mixture: no structural proposal is
-  # made, so there is no share to normalize
-  if (
-    sum(proposalProbs) != 0.0 &&
-      abs(sum(proposalProbs) - 1.0) >= sqrt(.Machine$double.eps)
-  ) {
-    return("rule proposal probabilities must sum to 1")
-  }
-
-  if (object@p.birth <= 0.0 || object@p.birth >= 1.0) {
-    return("birth probability for birth/death step must be in (0, 1)")
-  }
-
   if (object@node.scale <= 0.0) {
     return("node.scale must be > 0")
   }

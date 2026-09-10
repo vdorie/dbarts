@@ -192,10 +192,59 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
-    name = "control",
+    name = "power",
     kind = "argument",
-    owner = "xbart",
-    successor = "n.cuts = , useQuantiles = , n.thin = , storage =",
+    owner = "bart",
+    successor = "tree.prior = cgm(power)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "base",
+    kind = "argument",
+    owner = "bart",
+    successor = "tree.prior = cgm(base)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "split.probs",
+    kind = "argument",
+    owner = "bart",
+    successor = "tree.prior = cgm(split.probs)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "prior.scale",
+    kind = "argument",
+    owner = "bart",
+    successor = "node.prior = normal(scale)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "sigdf",
+    kind = "argument",
+    owner = "bart",
+    successor = "resid.prior = chisq(df)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "sigquant",
+    kind = "argument",
+    owner = "bart",
+    successor = "resid.prior = chisq(quantile)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "proposal.probs",
+    kind = "argument",
+    owner = "bart",
+    successor = "control = dbartsControl(proposal.probs)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "proposal.probs",
+    kind = "argument",
+    owner = "dbarts",
+    successor = "control = dbartsControl(proposal.probs)",
     expires = tombstoneExpiry
   ),
   list(
@@ -298,15 +347,6 @@ residuals.rbart <- function(object, ...) {
 ## ------------------------------------------------------------------
 ## The BayesTree-spelled bart() call
 ## ------------------------------------------------------------------
-
-## The names that select the legacy door: a formal of bartBT that bart
-## does not itself take. Derived, so a name added to either signature
-## cannot leave the shim behind; the list is pinned by
-## inst/tinytest/test-tombstones.R.
-bartBTOnlyFormals <- setdiff(
-  names(formals(bartBT)),
-  names(formals(bart))
-)
 
 ## Fires on an exact BayesTree spelling only. A modern call that merely
 ## looks 0.9-x - three positional arguments, or nothing but shared names
@@ -412,8 +452,62 @@ consolidatedArgReasons <- list(
     "write tree.prior = cgm(levelGibbs = ); 'levelGibbs' is removed in ",
     "dbarts ",
     tombstoneExpiry
+  ),
+  power = paste0(
+    "the branching decay is a tree prior: write tree.prior = cgm(power = ) ",
+    "or tree.prior = dart(power = ); 'power' is removed in dbarts ",
+    tombstoneExpiry
+  ),
+  base = paste0(
+    "the branching base is a tree prior: write tree.prior = cgm(base = ) or ",
+    "tree.prior = dart(base = ); 'base' is removed in dbarts ",
+    tombstoneExpiry
+  ),
+  split.probs = paste0(
+    "the per-predictor split probabilities are a tree prior: write ",
+    "tree.prior = cgm(split.probs = ); 'split.probs' is removed in dbarts ",
+    tombstoneExpiry
+  ),
+  prior.scale = paste0(
+    "the named leaf calibration is a node prior: write ",
+    "node.prior = normal(k, scale = ); 'prior.scale' is removed in dbarts ",
+    tombstoneExpiry
+  ),
+  sigdf = paste0(
+    "the residual prior's degrees of freedom is a residual prior: write ",
+    "resid.prior = chisq(df = ); 'sigdf' is removed in dbarts ",
+    tombstoneExpiry
+  ),
+  sigquant = paste0(
+    "the residual prior's quantile is a residual prior: write ",
+    "resid.prior = chisq(quantile = ); 'sigquant' is removed in dbarts ",
+    tombstoneExpiry
+  ),
+  proposal.probs = paste0(
+    "the tree-move mixture is a sampler setting: write ",
+    "control = dbartsControl(proposal.probs = ); 'proposal.probs' is ",
+    "removed in dbarts ",
+    tombstoneExpiry
   )
 )
+
+## The prior scalars dec-B116 moved onto the prior objects and the control.
+## Named as a set because bart's hurdle arc has to hand them back to each
+## component call, where the family-only names never travel.
+consolidatedPriorScalars <- c(
+  "power",
+  "base",
+  "split.probs",
+  "prior.scale",
+  "sigdf",
+  "sigquant",
+  "proposal.probs"
+)
+
+## The consolidated names whose value must reach its object UNEVALUATED: the
+## split probabilities are written in a vocabulary only the prior resolver
+## holds (num.vars, numvars), which does not resolve in the caller's frame.
+unevaluatedConsolidatedArgs <- "split.probs"
 
 ## Which of them each entry point used to carry.
 consolidatedArgsFor <- list(
@@ -423,22 +517,24 @@ consolidatedArgsFor <- list(
     "breaks",
     "max.rows",
     "dart",
-    "levelGibbs"
+    "levelGibbs",
+    "power",
+    "base",
+    "split.probs",
+    "prior.scale",
+    "sigdf",
+    "sigquant",
+    "proposal.probs"
   ),
-  dbarts = c("resid.dist", "dispersion", "breaks", "max.rows"),
+  dbarts = c(
+    "resid.dist",
+    "dispersion",
+    "breaks",
+    "max.rows",
+    "proposal.probs"
+  ),
   dbartsSpec = c("resid.dist", "dispersion"),
   xbart = "dart"
-)
-
-## xbart builds its own control rather than accepting one: every setting a
-## 0.9-x caller reached through one is a formal of xbart itself now, so there
-## is no control left to honour and the name is refused rather than mapped.
-xbartControlReason <- paste0(
-  "the settings it carried are xbart's own arguments now (n.cuts, ",
-  "useQuantiles, n.thin, storage), and the sampler fields it shared with ",
-  "the sweep (n.trees, n.burn, seed) are grid axes here; 'control' is ",
-  "removed in dbarts ",
-  tombstoneExpiry
 )
 
 tombstoneDotsReasons <- list(
@@ -449,20 +545,8 @@ tombstoneDotsReasons <- list(
   dbarts = consolidatedArgReasons[consolidatedArgsFor$dbarts],
   dbartsSpec = consolidatedArgReasons[consolidatedArgsFor$dbartsSpec],
   dbartsControl = list(rngSeed = seedRenameReason),
-  xbart = c(
-    consolidatedArgReasons[consolidatedArgsFor$xbart],
-    list(control = xbartControlReason)
-  )
+  xbart = consolidatedArgReasons[consolidatedArgsFor$xbart]
 )
-
-## 'control' reaches xbart's '...' only so that it lands on this message
-## instead of R's own "unused argument", which fires before any body runs.
-refuseRetiredXbartControl <- function(supplied) {
-  if ("control" %in% supplied) {
-    stop("'control' has left 'xbart': ", xbartControlReason, ".", call. = FALSE)
-  }
-  invisible(NULL)
-}
 
 ## 0.9-x's xbart read a third n.burn element as a per-replication burn-in.
 ## Chains are never carried between replications now, so the element names
@@ -482,6 +566,15 @@ refuseThreeElementBurn <- function(n.burn) {
   }
   invisible(NULL)
 }
+
+## The names that select the legacy door: a formal of bartBT that bart
+## neither takes as a formal nor carries on its own '...'. Derived, so a name
+## added to either signature cannot leave the shim behind; the list is pinned
+## by inst/tinytest/test-tombstones.R.
+bartBTOnlyFormals <- setdiff(
+  names(formals(bartBT)),
+  c(names(formals(bart)), consolidatedArgsFor$bart)
+)
 
 ## Reads the consolidated names out of an entry point's '...', warning once
 ## per name and per entry point. The values come back under their old
@@ -510,7 +603,13 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
       dart = vocabularyEnv(dbartsPriors, evalEnv),
       evalEnv
     )
-    values[name] <- list(eval(matchedCall[[name]], env))
+    values[name] <- list(
+      if (name %in% unevaluatedConsolidatedArgs) {
+        matchedCall[[name]]
+      } else {
+        eval(matchedCall[[name]], env)
+      }
+    )
   }
   values
 }

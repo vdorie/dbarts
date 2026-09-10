@@ -210,19 +210,8 @@ expect_error(
   pattern = "student residuals require a continuous gaussian response"
 )
 
-# --- xbart's own two (front-door S3) ---
+# --- xbart's own (front-door S3) ---
 
-# 'control' is refused by a message naming the flat arguments its settings
-# became, not by R's own "unused argument": xbart builds its own control, so
-# there is nothing to honour and the tombstone adds no capability
-expect_error(
-  dbarts::xbart(xCons, yCons, n.reps = 1L, control = consControl),
-  pattern = "'control' has left 'xbart'"
-)
-expect_error(
-  dbarts::xbart(xCons, yCons, n.reps = 1L, control = consControl),
-  pattern = "n.cuts, useQuantiles, n.thin, storage"
-)
 # a three-element n.burn was 0.9-x's per-replication burn-in; chains are
 # never carried between replications now, so the element is named and gone
 expect_error(
@@ -238,6 +227,16 @@ for (name in c("resid.dist", "dispersion", "breaks", "max.rows")) {
 expect_false("dart" %in% names(formals(dbarts::bart)))
 expect_false("dart" %in% names(formals(dbarts::xbart)))
 expect_false("levelGibbs" %in% names(formals(dbarts::bart)))
+
+# the prior scalars dec-B116 moved onto the prior objects and the control
+for (name in dbarts:::consolidatedPriorScalars) {
+  expect_false(name %in% names(formals(dbarts::bart)))
+}
+expect_false("proposal.probs" %in% names(formals(dbarts::dbarts)))
+# 'control' is a formal of both front doors again: xbart's refusal is reversed
+expect_true("control" %in% names(formals(dbarts::bart)))
+expect_true("control" %in% names(formals(dbarts::xbart)))
+expect_true("proposal.probs" %in% names(formals(dbarts::dbartsControl)))
 
 # --- the registry agrees with the news file ---
 # The 1.0-0 news entry is the user-facing half of this list; the assertion

@@ -63,10 +63,10 @@ expect_equal(
   c(1, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 )
 ## the constraint forces birth/death-only proposals, as it does in dbarts()
-expect_equal(monotoneSpec$model@p.birth_death, 1.0)
-expect_equal(monotoneSpec$model@p.swap, 0.0)
-expect_equal(monotoneSpec$model@p.perturb, 0.0)
-expect_equal(monotoneSpec$model@p.rule_gibbs, 0.0)
+expect_equal(monotoneSpec$control@proposal.probs[["birth_death"]], 1.0)
+expect_equal(monotoneSpec$control@proposal.probs[["swap"]], 0.0)
+expect_equal(monotoneSpec$control@proposal.probs[["perturb"]], 0.0)
+expect_equal(monotoneSpec$control@proposal.probs[["rule_gibbs"]], 0.0)
 
 additiveSpec <- dbarts::dbartsSpec(
   data,

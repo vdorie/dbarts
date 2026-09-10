@@ -117,7 +117,8 @@ expect_error(
   bartcoreSetModel(
     bc.bcf,
     sampler.bcf.host$model,
-    sampler.bcf.host$data
+    sampler.bcf.host$data,
+    sampler.bcf.host$control
   ),
   "multi-forest"
 )
@@ -352,7 +353,12 @@ expect_silent(
   bartcoreSetOffset(bc.one, rep(0.2, n), updateScale = TRUE)
 )
 expect_silent(
-  bartcoreSetModel(bc.one, sampler.one$model, sampler.one$data)
+  bartcoreSetModel(
+    bc.one,
+    sampler.one$model,
+    sampler.one$data,
+    sampler.one$control
+  )
 )
 expect_true(bartcoreSetPredictor(bc.one, x + 0))
 

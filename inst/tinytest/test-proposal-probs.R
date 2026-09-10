@@ -15,18 +15,29 @@ control <- dbarts::dbartsControl(
   n.trees = 5L,
   updateState = FALSE
 )
+# the mixture is a control setting; a fit's resolved copy is read back off the
+# sampler's own control
+mixtureControl <- function(probs) {
+  dbarts::dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 5L,
+    updateState = FALSE,
+    proposal.probs = probs
+  )
+}
 fit <- function(probs, ...) {
-  dbarts::dbarts(x, y, control = control, proposal.probs = probs, ...)
+  dbarts::dbarts(x, y, control = mixtureControl(probs), ...)
 }
 
 # ---- the shipped default ---------------------------------------------------
 
-defaulted <- dbarts::dbarts(x, y, control = control)$model
-expect_equal(defaulted@p.birth_death, 0.6)
-expect_equal(defaulted@p.swap, 0)
-expect_equal(defaulted@p.change, 0.4)
-expect_equal(defaulted@p.perturb, 0)
-expect_equal(defaulted@p.rule_gibbs, 0)
+defaulted <- dbarts::dbarts(x, y, control = control)$control
+expect_equal(defaulted@proposal.probs[["birth_death"]], 0.6)
+expect_equal(defaulted@proposal.probs[["swap"]], 0)
+expect_equal(defaulted@proposal.probs[["change"]], 0.4)
+expect_equal(defaulted@proposal.probs[["perturb"]], 0)
+expect_equal(defaulted@proposal.probs[["rule_gibbs"]], 0)
 
 # spelling the default explicitly agrees with defaulting it
 explicit <- fit(
@@ -38,18 +49,23 @@ explicit <- fit(
     rule_gibbs = 0,
     birth = 0.5
   )
-)$model
-expect_equal(explicit@p.birth_death, 0.6)
-expect_equal(explicit@p.swap, 0)
-expect_equal(explicit@p.change, 0.4)
-expect_equal(explicit@p.perturb, 0)
-expect_equal(explicit@p.rule_gibbs, 0)
+)$control
+expect_equal(explicit@proposal.probs[["birth_death"]], 0.6)
+expect_equal(explicit@proposal.probs[["swap"]], 0)
+expect_equal(explicit@proposal.probs[["change"]], 0.4)
+expect_equal(explicit@proposal.probs[["perturb"]], 0)
+expect_equal(explicit@proposal.probs[["rule_gibbs"]], 0)
 
 # and so does the four-name spelling that omits both moves shipping at zero,
 # which is the one every consumer forwarding the documented default writes
-omitted <- fit(c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5))$model
-expect_equal(omitted@p.perturb, 0)
-expect_equal(omitted@p.rule_gibbs, 0)
+omitted <- fit(c(
+  birth_death = 0.6,
+  swap = 0,
+  change = 0.4,
+  birth = 0.5
+))$control
+expect_equal(omitted@proposal.probs[["perturb"]], 0)
+expect_equal(omitted@proposal.probs[["rule_gibbs"]], 0)
 
 # ---- a caller-supplied three-move mixture ----------------------------------
 
@@ -62,19 +78,20 @@ oneTree <- dbarts::dbartsControl(
   n.trees = 1L,
   n.burn = 0L,
   n.samples = 20L,
-  updateState = FALSE
+  updateState = FALSE,
+  proposal.probs = threeMove
 )
-sampler <- dbarts::dbarts(x, y, control = oneTree, proposal.probs = threeMove)
-expect_equal(sampler$model@p.birth_death, 0.5)
-expect_equal(sampler$model@p.swap, 0.1)
-expect_equal(sampler$model@p.change, 0.4)
+sampler <- dbarts::dbarts(x, y, control = oneTree)
+expect_equal(sampler$control@proposal.probs[["birth_death"]], 0.5)
+expect_equal(sampler$control@proposal.probs[["swap"]], 0.1)
+expect_equal(sampler$control@proposal.probs[["change"]], 0.4)
 
 set.seed(9L)
 samples <- sampler$run()
 expect_true(all(is.finite(samples$train)))
 expect_true(all(is.finite(samples$sigma)))
 # the mixture the sampler was created with survives the run
-expect_equal(sampler$model@p.swap, 0.1)
+expect_equal(sampler$control@proposal.probs[["swap"]], 0.1)
 
 # the creation printout names all three probabilities
 printed <- capture.output(
@@ -86,9 +103,9 @@ printed <- capture.output(
       n.threads = 1L,
       n.trees = 1L,
       updateState = FALSE,
-      verbose = TRUE
-    ),
-    proposal.probs = threeMove
+      verbose = TRUE,
+      proposal.probs = threeMove
+    )
   )
 )
 expect_true(any(grepl(
@@ -103,21 +120,24 @@ expect_true(any(grepl(
 # ---- the fill and the sum --------------------------------------------------
 
 # one unnamed element takes the residual, whichever it is
-partial <- fit(c(birth_death = 0.7, swap = 0))$model
-expect_equal(partial@p.birth_death, 0.7)
-expect_equal(partial@p.swap, 0)
-expect_equal(partial@p.change, 0.3)
-expect_equal(fit(c(birth_death = 0.5, change = 0.4))$model@p.swap, 0.1)
+partial <- fit(c(birth_death = 0.7, swap = 0))$control
+expect_equal(partial@proposal.probs[["birth_death"]], 0.7)
+expect_equal(partial@proposal.probs[["swap"]], 0)
+expect_equal(partial@proposal.probs[["change"]], 0.3)
+expect_equal(
+  fit(c(birth_death = 0.5, change = 0.4))$control@proposal.probs[["swap"]],
+  0.1
+)
 
 # two unnamed, one of them swap: swap takes its zero and the other the residual
-bdOnly <- fit(c(birth_death = 0.7))$model
-expect_equal(bdOnly@p.birth_death, 0.7)
-expect_equal(bdOnly@p.swap, 0)
-expect_equal(bdOnly@p.change, 0.3)
-changeOnly <- fit(c(change = 0.25))$model
-expect_equal(changeOnly@p.birth_death, 0.75)
-expect_equal(changeOnly@p.swap, 0)
-expect_equal(changeOnly@p.change, 0.25)
+bdOnly <- fit(c(birth_death = 0.7))$control
+expect_equal(bdOnly@proposal.probs[["birth_death"]], 0.7)
+expect_equal(bdOnly@proposal.probs[["swap"]], 0)
+expect_equal(bdOnly@proposal.probs[["change"]], 0.3)
+changeOnly <- fit(c(change = 0.25))$control
+expect_equal(changeOnly@proposal.probs[["birth_death"]], 0.75)
+expect_equal(changeOnly@proposal.probs[["swap"]], 0)
+expect_equal(changeOnly@proposal.probs[["change"]], 0.25)
 
 # a zero-default move named alone leaves the birth/death-versus-change split
 # undetermined, whichever one it is
@@ -131,34 +151,34 @@ expect_error(
 )
 
 # all three unnamed falls back to the default
-expect_equal(fit(c(birth = 0.25))$model@p.birth_death, 0.6)
-expect_equal(fit(c(birth = 0.25))$model@p.swap, 0)
-expect_equal(fit(c(birth = 0.25))$model@p.change, 0.4)
-expect_equal(fit(c(birth = 0.25))$model@p.perturb, 0)
-expect_equal(fit(c(birth = 0.25))$model@p.rule_gibbs, 0)
-expect_equal(fit(c(birth = 0.25))$model@p.birth, 0.25)
+expect_equal(fit(c(birth = 0.25))$control@proposal.probs[["birth_death"]], 0.6)
+expect_equal(fit(c(birth = 0.25))$control@proposal.probs[["swap"]], 0)
+expect_equal(fit(c(birth = 0.25))$control@proposal.probs[["change"]], 0.4)
+expect_equal(fit(c(birth = 0.25))$control@proposal.probs[["perturb"]], 0)
+expect_equal(fit(c(birth = 0.25))$control@proposal.probs[["rule_gibbs"]], 0)
+expect_equal(fit(c(birth = 0.25))$control@proposal.probs[["birth"]], 0.25)
 
 # perturb resolves BEFORE the fill: it takes its zero rather than the
 # residual, so the residual is taken against 1 - perturb
-withPerturb <- fit(c(birth_death = 0.5, change = 0.34, perturb = 0.16))$model
-expect_equal(withPerturb@p.swap, 0)
-expect_equal(withPerturb@p.perturb, 0.16)
-twoUnnamed <- fit(c(birth_death = 0.84, perturb = 0.16))$model
-expect_equal(twoUnnamed@p.swap, 0)
-expect_equal(twoUnnamed@p.change, 0)
-expect_equal(twoUnnamed@p.perturb, 0.16)
+withPerturb <- fit(c(birth_death = 0.5, change = 0.34, perturb = 0.16))$control
+expect_equal(withPerturb@proposal.probs[["swap"]], 0)
+expect_equal(withPerturb@proposal.probs[["perturb"]], 0.16)
+twoUnnamed <- fit(c(birth_death = 0.84, perturb = 0.16))$control
+expect_equal(twoUnnamed@proposal.probs[["swap"]], 0)
+expect_equal(twoUnnamed@proposal.probs[["change"]], 0)
+expect_equal(twoUnnamed@proposal.probs[["perturb"]], 0.16)
 
 # and the same for rule_gibbs, alone and beside perturb: the residual is
 # taken against 1 minus their sum
-withGibbs <- fit(c(birth_death = 0.5, change = 0.34, rule_gibbs = 0.16))$model
-expect_equal(withGibbs@p.swap, 0)
-expect_equal(withGibbs@p.rule_gibbs, 0.16)
+withGibbs <- fit(c(birth_death = 0.5, change = 0.34, rule_gibbs = 0.16))$control
+expect_equal(withGibbs@proposal.probs[["swap"]], 0)
+expect_equal(withGibbs@proposal.probs[["rule_gibbs"]], 0.16)
 bothZeroDefault <- fit(
   c(birth_death = 0.5, change = 0.18, perturb = 0.16, rule_gibbs = 0.16)
-)$model
-expect_equal(bothZeroDefault@p.swap, 0)
-expect_equal(bothZeroDefault@p.perturb, 0.16)
-expect_equal(bothZeroDefault@p.rule_gibbs, 0.16)
+)$control
+expect_equal(bothZeroDefault@proposal.probs[["swap"]], 0)
+expect_equal(bothZeroDefault@proposal.probs[["perturb"]], 0.16)
+expect_equal(bothZeroDefault@proposal.probs[["rule_gibbs"]], 0.16)
 
 # all four named must sum to one
 expect_error(
@@ -180,12 +200,12 @@ expect_error(
 forced <- fit(
   c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5),
   monotone = c(a = "+")
-)$model
-expect_equal(forced@p.birth_death, 1)
-expect_equal(forced@p.swap, 0)
-expect_equal(forced@p.change, 0)
-expect_equal(forced@p.perturb, 0)
-expect_equal(forced@p.rule_gibbs, 0)
+)$control
+expect_equal(forced@proposal.probs[["birth_death"]], 1)
+expect_equal(forced@proposal.probs[["swap"]], 0)
+expect_equal(forced@proposal.probs[["change"]], 0)
+expect_equal(forced@proposal.probs[["perturb"]], 0)
+expect_equal(forced@proposal.probs[["rule_gibbs"]], 0)
 expect_error(fit(threeMove, monotone = c(a = "+")), "proposal.probs")
 
 # the refusal must not fire on a caller who spells the documented default and
@@ -200,10 +220,10 @@ forcedFull <- fit(
     birth = 0.5
   ),
   monotone = c(a = "+")
-)$model
-expect_equal(forcedFull@p.birth_death, 1)
-expect_equal(forcedFull@p.perturb, 0)
-expect_equal(forcedFull@p.rule_gibbs, 0)
+)$control
+expect_equal(forcedFull@proposal.probs[["birth_death"]], 1)
+expect_equal(forcedFull@proposal.probs[["perturb"]], 0)
+expect_equal(forcedFull@proposal.probs[["rule_gibbs"]], 0)
 
 # ---- a perturb-dominant run --------------------------------------------
 
@@ -218,12 +238,7 @@ perturbControl <- dbarts::dbartsControl(
   n.burn = 0L,
   n.samples = 60L,
   keepTrees = TRUE,
-  updateState = FALSE
-)
-perturbSampler <- dbarts::dbarts(
-  x,
-  y,
-  control = perturbControl,
+  updateState = FALSE,
   proposal.probs = c(
     birth_death = 0.2,
     swap = 0,
@@ -232,6 +247,7 @@ perturbSampler <- dbarts::dbarts(
     birth = 0.5
   )
 )
+perturbSampler <- dbarts::dbarts(x, y, control = perturbControl)
 set.seed(41L)
 perturbSamples <- perturbSampler$run()
 expect_true(all(is.finite(perturbSamples$train)))
@@ -265,29 +281,29 @@ expect_true(cutMoves > 0L)
 # sigma keep being drawn, which is how a fitted forest is re-sampled as a
 # fixed basis.
 frozen <- c(birth_death = 0, swap = 0, change = 0, perturb = 0)
-frozenModel <- fit(frozen)$model
-expect_equal(frozenModel@p.birth_death, 0)
-expect_equal(frozenModel@p.swap, 0)
-expect_equal(frozenModel@p.change, 0)
-expect_equal(frozenModel@p.perturb, 0)
+frozenModel <- fit(frozen)$control
+expect_equal(frozenModel@proposal.probs[["birth_death"]], 0)
+expect_equal(frozenModel@proposal.probs[["swap"]], 0)
+expect_equal(frozenModel@proposal.probs[["change"]], 0)
+expect_equal(frozenModel@proposal.probs[["perturb"]], 0)
 # birth is unread when nothing is proposed and keeps its default
-expect_equal(frozenModel@p.birth, 0.5)
+expect_equal(frozenModel@proposal.probs[["birth"]], 0.5)
 
 # the residual is a share of structural mass, and an all-zero mixture has
 # none: an unnamed swap keeps its zero rather than taking the whole of it
-bothZero <- fit(c(birth_death = 0, change = 0))$model
-expect_equal(bothZero@p.birth_death, 0)
-expect_equal(bothZero@p.swap, 0)
-expect_equal(bothZero@p.change, 0)
-expect_equal(bothZero@p.perturb, 0)
+bothZero <- fit(c(birth_death = 0, change = 0))$control
+expect_equal(bothZero@proposal.probs[["birth_death"]], 0)
+expect_equal(bothZero@proposal.probs[["swap"]], 0)
+expect_equal(bothZero@proposal.probs[["change"]], 0)
+expect_equal(bothZero@proposal.probs[["perturb"]], 0)
 
 # an unnamed birth/death or change still takes the residual, so a single
 # named zero fills exactly as before
-singleZero <- fit(c(change = 0))$model
-expect_equal(singleZero@p.birth_death, 1)
-expect_equal(singleZero@p.swap, 0)
-expect_equal(singleZero@p.change, 0)
-expect_equal(singleZero@p.perturb, 0)
+singleZero <- fit(c(change = 0))$control
+expect_equal(singleZero@proposal.probs[["birth_death"]], 1)
+expect_equal(singleZero@proposal.probs[["swap"]], 0)
+expect_equal(singleZero@proposal.probs[["change"]], 0)
+expect_equal(singleZero@proposal.probs[["perturb"]], 0)
 
 # only exact zero freezes: a mixture that merely rounds to nothing is still a
 # mixture, and must sum to one
@@ -306,9 +322,11 @@ frozenControl <- dbarts::dbartsControl(
   updateState = FALSE
 )
 frozenSampler <- dbarts::dbarts(x, y, control = frozenControl)
+frozenAfter <- frozenControl
+frozenAfter@proposal.probs <- frozenModel@proposal.probs
 set.seed(23L)
 invisible(frozenSampler$run())
-frozenSampler$setModel(frozenModel)
+frozenSampler$setControl(frozenAfter)
 frozenSamples <- frozenSampler$run(0L, 25L)
 
 frozenTrees <- frozenSampler$getTrees()
@@ -347,19 +365,21 @@ expect_true(all(is.finite(frozenSamples$train)))
 # and this is the mixture that switches the level-fibre Gibbs step on:
 # dbartsControl's levelGibbs defaults to NA, which takes the step for a
 # forest exactly where that forest's structures are frozen. The freeze
-# arrives by setModel after fifty growing sweeps, so the decision is taken
+# arrives by setControl after fifty growing sweeps, so the decision is taken
 # per sweep and not once at creation - the run above and the arm below stand
 # at the same forest when it lands, and part only from the sweep after it.
 frozenOff <- frozenControl
 frozenOff@levelGibbs <- FALSE
 frozenOffSampler <- dbarts::dbarts(x, y, control = frozenOff)
+frozenOffAfter <- frozenOff
+frozenOffAfter@proposal.probs <- frozenModel@proposal.probs
 set.seed(23L)
 invisible(frozenOffSampler$run())
-frozenOffSampler$setModel(frozenModel)
+frozenOffSampler$setControl(frozenOffAfter)
 expect_false(
   identical(frozenOffSampler$run(0L, 25L)$train, frozenSamples$train)
 )
-rm(frozenOff, frozenOffSampler)
+rm(frozenOff, frozenOffAfter, frozenOffSampler)
 
 # ---- the default replays bitwise ------------------------------------------
 
@@ -378,18 +398,15 @@ replayControl <- dbarts::dbartsControl(
 set.seed(59L)
 replayA <- dbarts::dbarts(x, y, control = replayControl)$run()
 set.seed(59L)
-replayB <- dbarts::dbarts(
-  x,
-  y,
-  control = replayControl,
-  proposal.probs = c(
-    birth_death = 0.6,
-    swap = 0,
-    change = 0.4,
-    perturb = 0,
-    birth = 0.5
-  )
-)$run()
+replayControlSpelled <- replayControl
+replayControlSpelled@proposal.probs <- dbarts:::resolveProposalProbs(c(
+  birth_death = 0.6,
+  swap = 0,
+  change = 0.4,
+  perturb = 0,
+  birth = 0.5
+))
+replayB <- dbarts::dbarts(x, y, control = replayControlSpelled)$run()
 expect_identical(replayA$train, replayB$train)
 expect_identical(replayA$sigma, replayB$sigma)
 
@@ -419,19 +436,15 @@ gibbsControl <- dbarts::dbartsControl(
   keepTrees = TRUE,
   updateState = FALSE
 )
-gibbsSampler <- dbarts::dbarts(
-  gibbsY ~ .,
-  gibbsX,
-  control = gibbsControl,
-  proposal.probs = c(
-    birth_death = 0.2,
-    swap = 0,
-    change = 0,
-    perturb = 0,
-    rule_gibbs = 0.8,
-    birth = 0.5
-  )
-)
+gibbsControl@proposal.probs <- dbarts:::resolveProposalProbs(c(
+  birth_death = 0.2,
+  swap = 0,
+  change = 0,
+  perturb = 0,
+  rule_gibbs = 0.8,
+  birth = 0.5
+))
+gibbsSampler <- dbarts::dbarts(gibbsY ~ ., gibbsX, control = gibbsControl)
 set.seed(43L)
 gibbsSamples <- gibbsSampler$run()
 expect_true(all(is.finite(gibbsSamples$train)))

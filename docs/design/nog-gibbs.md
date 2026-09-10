@@ -274,7 +274,7 @@ The pattern is [2. What is removed](swap-removal.md#2-what-is-removed) and
 (R/bart.R) and [`dbartsSpec`](../../R/spec.R) formals; and the two literals in the monotone branch of
 [`resolveSamplerSpec`](../../R/spec.R), the comparison default and the birth/death-only rewrite. Both `all.equal` comparisons - the
 monotone one and the treatment-forest one - route through
-[`fillZeroDefaultProposalProbs`](../../R/model.R), which gains the new name or every caller passing the documented default is refused
+[`resolveProposalProbs`](../../R/model.R), which gains the new name or every caller passing the documented default is refused
 spuriously. [`dbartsModel`](../../R/A_class.R) gains a `p.rule_gibbs` slot, a prototype of 0 and a fifth term in validity's sum.
 **The fill rule takes a SECOND zero-default name, and the rule perturb landed generalizes to it verbatim**: `rule_gibbs` resolves
 ahead of the three-name fill and never enters it, the residual becoming `1 - (perturb + rule_gibbs + sum(named))` as one subtraction;

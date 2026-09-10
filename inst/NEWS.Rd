@@ -343,10 +343,16 @@
             and \code{dbarts} (successor \code{family = hazard(max.rows)});
             \code{dart} on \code{bart} and \code{xbart} (successor
             \code{tree.prior = dart()}); \code{levelGibbs} on \code{bart}
-            (successor \code{tree.prior = cgm(levelGibbs)}); \code{control}
-            on \code{xbart} (refused outright, naming the flat arguments its
-            settings became: \code{n.cuts}, \code{useQuantiles},
-            \code{n.thin}, \code{storage}); a three-element \code{n.burn} on
+            (successor \code{tree.prior = cgm(levelGibbs)}); \code{power},
+            \code{base}, and \code{split.probs} on \code{bart} (successor
+            \code{tree.prior = cgm()} or \code{tree.prior = dart()});
+            \code{prior.scale} on \code{bart} (successor
+            \code{node.prior = normal(scale)}); \code{sigdf} and
+            \code{sigquant} on \code{bart} (successor
+            \code{resid.prior = chisq()}); \code{proposal.probs} on
+            \code{bart} and \code{dbarts} (successor
+            \code{control = dbartsControl(proposal.probs)}); a
+            three-element \code{n.burn} on
             \code{xbart} (refused outright, naming \code{n.burn = c(fresh,
             warm)}); and \code{family = "twopart"} (refused outright, naming
             \code{family = "hurdle.lognormal"}).

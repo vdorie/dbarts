@@ -31,7 +31,7 @@ bartcoreRun(bc, 20L, 0L)
 # --- refuses: a whole-data or whole-model mutation rebuilds forest 0 alone ---
 expect_error(bartcoreSetData(bc, host$data), "multi-forest")
 expect_error(
-  bartcoreSetModel(bc, host$model, host$data),
+  bartcoreSetModel(bc, host$model, host$data, host$control),
   "multi-forest"
 )
 

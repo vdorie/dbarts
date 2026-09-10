@@ -359,32 +359,31 @@ resolveSamplerSpec <- function(
     control@levelGibbs <- priors$tree.prior@levelGibbs
   }
 
+  # The tree-move mixture rides the control. A caller that named it flat -
+  # dbartsSpec's own argument, or the retired spelling on an entry point that
+  # shed it - wins over the control's slot; NULL leaves the slot standing.
+  defaultProbs <- defaultProposalProbs
+  if (!is.null(proposal.probs)) {
+    control@proposal.probs <- resolveProposalProbs(proposal.probs)
+  }
+
   # A monotone constraint restricts the forest to birth/death proposals (change
   # and swap would need a > 2-D constrained integral): a defaulted
   # proposal.probs is forced to birth/death-only, an explicit
   # non-default one conflicts and errors.
   if (!is.null(monotoneDirections)) {
-    defaultProbs <- c(
-      birth_death = 0.6,
-      swap = 0,
-      change = 0.4,
-      perturb = 0,
-      rule_gibbs = 0,
-      birth = 0.5
-    )
     if (
-      !is.null(proposal.probs) &&
-        !isTRUE(all.equal(
-          fillZeroDefaultProposalProbs(proposal.probs)[names(defaultProbs)],
-          defaultProbs
-        ))
+      !isTRUE(all.equal(
+        control@proposal.probs[names(defaultProbs)],
+        defaultProbs
+      ))
     ) {
       stop(
         "'monotone' forces birth/death-only proposals; a non-default ",
         "'proposal.probs' cannot be honored under the constraint"
       )
     }
-    proposal.probs <- c(
+    control@proposal.probs <- c(
       birth_death = 1,
       swap = 0,
       change = 0,
@@ -393,6 +392,7 @@ resolveSamplerSpec <- function(
       birth = 0.5
     )
   }
+  validObject(control)
 
   model <- newValidated(
     "dbartsModel",
@@ -400,7 +400,6 @@ resolveSamplerSpec <- function(
     priors$node.prior,
     priors$node.hyperprior,
     priors$resid.prior,
-    proposal.probs = proposal.probs,
     family = family,
     # a named calibration (node.prior's scale = / sd =) overrides the
     # family default below in the engine, which converts it out of response
@@ -663,7 +662,6 @@ resolveSamplerSpec <- function(
     # residual, a per-column cut cap, nor the Student-t error law. Every one of
     # those would otherwise be dropped in silence, changing the fitted model
     # without a word; name each one instead.
-    defaultProbs <- defaultProposalProbs
     unsupported <- c(
       "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),
       "'split.probs'" = length(priors$tree.prior@splitProbabilities) > 0L,
@@ -688,7 +686,7 @@ resolveSamplerSpec <- function(
       # unconstrained fit's is the caller's own
       "a non-default 'proposal.probs'" = is.null(monotoneDirections) &&
         !isTRUE(all.equal(
-          fillZeroDefaultProposalProbs(proposal.probs)[names(defaultProbs)],
+          control@proposal.probs[names(defaultProbs)],
           defaultProbs
         )),
       "Student-t residuals" = !is.null(residDf),
@@ -953,7 +951,13 @@ dbartsSpec <- function(
     requestedFamily = familySpec@token,
     dispersion = dispersion,
     residDf = residDf,
-    proposal.probs = proposal.probs,
+    # the flat argument wins where the caller named it, and leaves the
+    # control's own slot standing where they did not
+    proposal.probs = if ("proposal.probs" %in% names(matchedCall)) {
+      proposal.probs
+    } else {
+      NULL
+    },
     monotone = monotone,
     interactions = interactions,
     blocks = blocks,

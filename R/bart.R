@@ -504,7 +504,9 @@ packageBartResults <- function(
 ## matched call, evaluated for those that forward through do.call from
 ## internal frames - or NULL for no node prior. dart may be FALSE, TRUE, or
 ## a dbartsDartPrior spec; splitProbsName is the caller's argument spelling
-## and splitProbsDefault its formal default.
+## and splitProbs the expression it carries, NULL for an unsupplied one.
+## shorthandSupplied names the shorthands that reached the caller through
+## '...' rather than as formals, which the matched call no longer shows.
 buildSamplerPriors <- function(
   matchedCall,
   power,
@@ -515,7 +517,9 @@ buildSamplerPriors <- function(
   priorScale = NA_real_,
   dart = FALSE,
   splitProbsName = "split.probs",
-  splitProbsDefault = NULL
+  splitProbs = NULL,
+  splitProbsDefault = NULL,
+  shorthandSupplied = character()
 ) {
   priorScale <- validateNamedScale(priorScale, "prior.scale")
 
@@ -531,17 +535,21 @@ buildSamplerPriors <- function(
   nodePriorObj <- matchedCall[["node.prior"]]
   residPriorObj <- matchedCall[["resid.prior"]]
 
+  splitProbsSupplied <- splitProbsName %in%
+    c(names(matchedCall), shorthandSupplied)
+
   if (!is.null(treePriorObj)) {
     refuseColliding(
       matchedCall,
       "tree.prior",
-      c("power", "base", splitProbsName, "dart")
+      c("power", "base", splitProbsName, "dart"),
+      shorthandSupplied
     )
     tree.prior <- treePriorObj
   } else {
     tree.prior <- resolveDartShorthand(
       dart,
-      splitProbsName %in% names(matchedCall),
+      splitProbsSupplied,
       splitProbsName,
       function() {
         priorCall <- quote(dart(power, base))
@@ -553,8 +561,8 @@ buildSamplerPriors <- function(
         priorCall <- quote(cgm(power, base, split.probs))
         priorCall[[2L]] <- power
         priorCall[[3L]] <- base
-        priorCall[[4L]] <- if (splitProbsName %in% names(matchedCall)) {
-          matchedCall[[splitProbsName]]
+        priorCall[[4L]] <- if (splitProbsSupplied) {
+          splitProbs
         } else {
           splitProbsDefault
         }
@@ -564,7 +572,12 @@ buildSamplerPriors <- function(
   }
 
   if (!is.null(nodePriorObj)) {
-    refuseColliding(matchedCall, "node.prior", c("k", "prior.scale"))
+    refuseColliding(
+      matchedCall,
+      "node.prior",
+      c("k", "prior.scale"),
+      shorthandSupplied
+    )
     node.prior <- nodePriorObj
     # a named prior.scale needs a node prior to ride even when k is left to the
     # family default, so it builds one; the k slot then drops out of the call and
@@ -583,7 +596,8 @@ buildSamplerPriors <- function(
     refuseColliding(
       matchedCall,
       "resid.prior",
-      c("sigdf", "sigquant", "sigest")
+      c("sigdf", "sigquant", "sigest"),
+      shorthandSupplied
     )
     resid.prior <- residPriorObj
   } else {
@@ -774,13 +788,7 @@ bart <- function(
   offset,
   offset.test = offset,
   sigest = NA_real_,
-  sigdf = 3.0,
-  sigquant = 0.90,
   k = NULL,
-  prior.scale = NA_real_,
-  power = 2.0,
-  base = 0.95,
-  split.probs = NULL,
   n.trees = 75L,
   n.samples = 500L,
   n.burn = 500L,
@@ -798,14 +806,6 @@ bart <- function(
   keepCall = TRUE,
   samplerOnly = FALSE,
   seed = NA_integer_,
-  proposal.probs = c(
-    birth_death = 0.6,
-    swap = 0,
-    change = 0.4,
-    perturb = 0,
-    rule_gibbs = 0,
-    birth = 0.5
-  ),
   monotone = NULL,
   interactions = NULL,
   blocks = NULL,
@@ -837,6 +837,7 @@ bart <- function(
   updateState = TRUE,
   keepFits = is.null(callback),
   callback = NULL,
+  control = dbarts::dbartsControl(),
   ...
 ) {
   matchedCall <- match.call()
@@ -874,11 +875,31 @@ bart <- function(
     "bart",
     callingEnv
   )
+  # cleared from the matched call before anything is forwarded: dbarts() and
+  # dbartsControl() both carry a '...', so a name left here would reach one of
+  # them as a foreign argument
   if (length(consolidated) > 0L) {
     matchedCall[names(consolidated)] <- NULL
   }
   dart <- if (is.null(consolidated[["dart"]])) FALSE else consolidated[["dart"]]
   levelGibbs <- consolidated[["levelGibbs"]]
+  # the prior scalars dec-B116 moved onto the prior objects, under their own
+  # 0.9-x defaults: read here, applied through the same shorthand ladder that
+  # built the priors when they were formals. split.probs alone stays
+  # UNEVALUATED - its vocabulary (num.vars, numvars) resolves in the prior
+  # resolver, not the caller's frame.
+  consolidatedScalar <- function(name, default) {
+    if (name %in% names(consolidated)) consolidated[[name]] else default
+  }
+  # the shorthand names the caller wrote, for the collision refusals: they no
+  # longer stand in the matched call the prior builder reads
+  shorthandSupplied <- names(consolidated)
+  power <- consolidatedScalar("power", 2.0)
+  base <- consolidatedScalar("base", 0.95)
+  split.probs <- consolidated[["split.probs"]]
+  prior.scale <- consolidatedScalar("prior.scale", NA_real_)
+  sigdf <- consolidatedScalar("sigdf", 3.0)
+  sigquant <- consolidatedScalar("sigquant", 0.90)
   # the collision the tree-prior shorthand ladder would otherwise catch by
   # name; 'dart' has already left the matched call it reads
   if (!is.null(matchedCall[["tree.prior"]]) && !isFALSE(dart)) {
@@ -966,18 +987,24 @@ bart <- function(
     }
   }
 
-  argNames <- names(matchedCall)[-1L]
+  # the retired names have left the matched call, and the family gating below
+  # reads what the CALLER wrote
+  argNames <- unique(c(names(matchedCall)[-1L], supplied))
 
-  # factors/missing/proposal.probs are forwarded formal defaults:
-  # redirectCall only carries a name into the host dbarts() call when the
-  # caller supplied it, so an unsupplied one must be resolved here, in
-  # this function's own frame, and stamped onto matchedCall unconditionally,
-  # or it would silently take dbarts()'s own default rather than the
-  # token/value this signature advertises.
+  # 'factors' is a forwarded formal default: redirectCall only carries a name
+  # into the host dbarts() call when the caller supplied it, so an unsupplied
+  # one must be resolved here, in this function's own frame, and stamped onto
+  # matchedCall unconditionally, or it would silently take dbarts()'s own
+  # default rather than the token this signature advertises.
   factors <- match.arg(factors)
   matchedCall$factors <- factors
-  matchedCall$proposal.probs <- proposal.probs
 
+  controlSupplied <- "control" %in% names(matchedCall)
+  suppliedControl <- if (controlSupplied) {
+    refuseFitStateControl(control, "bart")
+  } else {
+    NULL
+  }
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
   # '...' is a formal of both and names no value, so it is excluded before
   # the shared names are evaluated as defaults
@@ -989,13 +1016,39 @@ bart <- function(
   ]
   if (length(missingDefaultArgs) > 0L) {
     currentEnv <- sys.frame(sys.nframe())
-    controlCall[missingDefaultArgs] <- lapply(
-      formals(dbarts::bart)[missingDefaultArgs],
-      eval,
-      envir = currentEnv
+    controlCall[missingDefaultArgs] <- mergeFrontDoorControl(
+      suppliedControl,
+      matchedCall,
+      lapply(
+        formals(dbarts::bart)[missingDefaultArgs],
+        eval,
+        envir = currentEnv
+      )
+    )
+  }
+  # the settings bart spells no flat name for - the four engine limits, the
+  # level Gibbs step, the tree-move mixture - reach the fit through the
+  # supplied control alone; with none supplied dbartsControl()'s own defaults
+  # already stand, so the call is left as it is
+  if (controlSupplied) {
+    controlOnlyArgs <- setdiff(
+      names(formals(dbarts::dbartsControl)),
+      c(sharedFormals, "...")
+    )
+    controlCall[controlOnlyArgs] <- lapply(
+      controlOnlyArgs,
+      function(name) methods::slot(suppliedControl, name)
     )
   }
   control <- eval(controlCall, envir = callingEnv)
+  # the retired flat spelling of the mixture wins over the control's slot,
+  # as every other flat name does
+  if (!is.null(consolidated[["proposal.probs"]])) {
+    control@proposal.probs <- resolveProposalProbs(
+      consolidated[["proposal.probs"]]
+    )
+    validObject(control)
+  }
   # the level Gibbs step is declared on the tree prior now; the retired
   # spelling lands where a declared one lands, on the control the bridge
   # reads (R/spec.R copies the prior's own declaration there)
@@ -1214,6 +1267,8 @@ bart <- function(
         combineChains,
         offset = multinomialOffset,
         prior.scale = prior.scale,
+        split.probs = split.probs,
+        shorthandSupplied = shorthandSupplied,
         keepSampler = keepSampler,
         samplerOnly = samplerOnly
       ))
@@ -1255,6 +1310,8 @@ bart <- function(
       combineChains,
       offset = multinomialOffset,
       prior.scale = prior.scale,
+      split.probs = split.probs,
+      shorthandSupplied = shorthandSupplied,
       keepSampler = keepSampler,
       samplerOnly = samplerOnly
     ))
@@ -1287,6 +1344,8 @@ bart <- function(
       dart,
       combineChains,
       prior.scale = prior.scale,
+      split.probs = split.probs,
+      shorthandSupplied = shorthandSupplied,
       keepSampler = keepSampler,
       samplerOnly = samplerOnly
     ))
@@ -1320,6 +1379,8 @@ bart <- function(
       dart,
       combineChains,
       prior.scale = prior.scale,
+      split.probs = split.probs,
+      shorthandSupplied = shorthandSupplied,
       keepSampler = keepSampler,
       samplerOnly = samplerOnly
     ))
@@ -1369,7 +1430,15 @@ bart <- function(
         "positive-part fit is given the full training x as its own x.test"
       )
     }
-    return(bart2Hurdle(matchedCall, callingEnv, control, formula, data, seed))
+    return(bart2Hurdle(
+      matchedCall,
+      callingEnv,
+      control,
+      formula,
+      data,
+      seed,
+      consolidated
+    ))
   }
 
   keepSampler <- keepSampler || control@keepTrees
@@ -1392,7 +1461,8 @@ bart <- function(
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
-    splitProbsDefault = formals(dbarts::bart)[["split.probs"]]
+    splitProbs = split.probs,
+    shorthandSupplied = shorthandSupplied
   )
 
   samplerCall <- buildHostSamplerCall(
@@ -1664,6 +1734,8 @@ bart2Multinomial <- function(
   combineChains,
   offset = NULL,
   prior.scale = NA_real_,
+  split.probs = NULL,
+  shorthandSupplied = character(),
   keepSampler = FALSE,
   samplerOnly = FALSE
 ) {
@@ -1678,7 +1750,8 @@ bart2Multinomial <- function(
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
-    splitProbsDefault = formals(dbarts::bart)[["split.probs"]]
+    splitProbs = split.probs,
+    shorthandSupplied = shorthandSupplied
   )
 
   # one bartcore_create, through the public multinomial dispatch: the factor
@@ -1755,6 +1828,8 @@ bart2MultinomialCounts <- function(
   combineChains,
   offset = NULL,
   prior.scale = NA_real_,
+  split.probs = NULL,
+  shorthandSupplied = character(),
   keepSampler = FALSE,
   samplerOnly = FALSE
 ) {
@@ -1769,7 +1844,8 @@ bart2MultinomialCounts <- function(
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
-    splitProbsDefault = formals(dbarts::bart)[["split.probs"]]
+    splitProbs = split.probs,
+    shorthandSupplied = shorthandSupplied
   )
 
   samplerCall <- buildHostSamplerCall(
@@ -1985,6 +2061,8 @@ bart2Ordinal <- function(
   dart,
   combineChains,
   prior.scale = NA_real_,
+  split.probs = NULL,
+  shorthandSupplied = character(),
   keepSampler = FALSE,
   samplerOnly = FALSE
 ) {
@@ -1997,7 +2075,8 @@ bart2Ordinal <- function(
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
-    splitProbsDefault = formals(dbarts::bart)[["split.probs"]]
+    splitProbs = split.probs,
+    shorthandSupplied = shorthandSupplied
   )
 
   samplerCall <- buildHostSamplerCall(
@@ -2237,6 +2316,8 @@ bart2Negbin <- function(
   dart,
   combineChains,
   prior.scale = NA_real_,
+  split.probs = NULL,
+  shorthandSupplied = character(),
   keepSampler = FALSE,
   samplerOnly = FALSE
 ) {
@@ -2249,7 +2330,8 @@ bart2Negbin <- function(
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
-    splitProbsDefault = formals(dbarts::bart)[["split.probs"]]
+    splitProbs = split.probs,
+    shorthandSupplied = shorthandSupplied
   )
 
   samplerCall <- buildHostSamplerCall(
@@ -2526,7 +2608,15 @@ refuseHurdlePositiveMissingness <- function(x, positive) {
 # only: the response is split before any dbartsData ingestion runs (the
 # discrete-time hazard precedent, R/dbarts.R's extractSurvivalTimes), which
 # a formula LHS cannot supply.
-bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
+bart2Hurdle <- function(
+  matchedCall,
+  callingEnv,
+  control,
+  formula,
+  data,
+  seed,
+  consolidated = list()
+) {
   if (
     is.formula(formula) ||
       inherits(formula, "dbartsData") ||
@@ -2564,7 +2654,16 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   # component call replaces with its own, so nothing is left to strip.
   gatedOnOccupancyOnly <- c("sigest", "sigdf", "sigquant", "resid.prior")
 
-  occupancyCall <- redirectCall(matchedCall, dbarts::bart)
+  # the retired shorthands were cleared from the matched call before anything
+  # was forwarded; each component takes them back under the spelling the
+  # caller wrote, so both halves are the fit the old spelling asked for
+  restoreConsolidated <- function(componentCall) {
+    restored <- intersect(names(consolidated), consolidatedPriorScalars)
+    componentCall[restored] <- consolidated[restored]
+    componentCall
+  }
+
+  occupancyCall <- restoreConsolidated(redirectCall(matchedCall, dbarts::bart))
   occupancyCall[gatedOnOccupancyOnly] <- NULL
   occupancyCall$formula <- formula
   occupancyCall$data <- split$z
@@ -2573,7 +2672,7 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   occupancyCall$keepTrees <- control@keepTrees
   occupancy <- eval(occupancyCall, callingEnv)
 
-  positiveCall <- redirectCall(matchedCall, dbarts::bart)
+  positiveCall <- restoreConsolidated(redirectCall(matchedCall, dbarts::bart))
   positiveCall$formula <- xPositive
   positiveCall$data <- split$logPositive
   positiveCall$test <- formula
@@ -2951,7 +3050,9 @@ bartBT <- function(
     printEvery = printevery,
     printCutoffs = printcutoffs,
     n.cuts = numcut,
-    seed = seed
+    seed = seed,
+    # the tree-move mixture is a control setting; NULL is the shipped default
+    proposal.probs = proposalprobs
   )
   matchedCall <- if (keepcall) match.call() else call("NULL")
   control@call <- matchedCall
@@ -2986,6 +3087,7 @@ bartBT <- function(
     nodeK = if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k,
     priorScale = NA_real_,
     splitProbsName = "splitprobs",
+    splitProbs = matchedCall[["splitprobs"]],
     splitProbsDefault = formals(dbarts::bartBT)[["splitprobs"]]
   )
   tree.prior <- priors$tree.prior
@@ -3007,7 +3109,6 @@ bartBT <- function(
     tree.prior = tree.prior,
     node.prior = node.prior,
     resid.prior = resid.prior,
-    proposal.probs = proposalprobs,
     control = control,
     sigest = as.numeric(sigest),
     factors = "indicators",

@@ -29,6 +29,7 @@ xbart <- function(
   n.thin = 1L,
   storage = c("double", "single"),
   tree.prior = NULL,
+  control = dbarts::dbartsControl(),
   ...
 ) {
   matchedCall <- match.call()
@@ -36,7 +37,6 @@ xbart <- function(
   # its successor; R refuses an unknown name before any body runs
   supplied <- dotNames(...)
   refuseForeignFrontDoorArgs(supplied, "xbart", names(formals(dbarts::xbart)))
-  refuseRetiredXbartControl(supplied)
   consolidated <- resolveConsolidatedArgs(
     matchedCall,
     supplied,
@@ -68,26 +68,43 @@ xbart <- function(
   }
   storage <- match.arg(storage)
 
-  # xbart builds its own control rather than accepting one, the knobs above
-  # landing where the flat formals' values land, alongside six fields xbart
-  # forces regardless of what a caller-supplied control would carry.
-  # n.trees/n.burn are xbart's own
-  # grid axes (cellControl/cellModel overwrite them per cell below), seed is
-  # handled by xbart's own RNG block, and printEvery/printCutoffs are inert
-  # under verbose = FALSE, so control's copies of those five fields are left
-  # at dbartsControl()'s own defaults.
-  control <- dbartsControl(
-    useQuantiles = useQuantiles,
-    storage = storage,
-    n.cuts = n.cuts,
-    n.thin = n.thin,
-    n.chains = 1L,
-    n.threads = 1L,
-    keepTrees = FALSE,
-    keepTrainingFits = FALSE,
-    updateState = FALSE,
-    verbose = FALSE
+  # One precedence rule: a flat formal the caller named wins over the control's
+  # slot, and a slot they did not name flat stands. n.burn is xbart's own grid
+  # axis and n.threads its sweep width - neither is the control field of the
+  # same name - so they are excluded. The six fields below are forced after
+  # both: a sweep runs one chain per cell, keeps no trees or training fits,
+  # stores no state and prints nothing.
+  control <- refuseFitStateControl(control, "xbart")
+  resolved <- mergeFrontDoorControl(
+    control,
+    matchedCall,
+    list(
+      n.cuts = n.cuts,
+      useQuantiles = useQuantiles,
+      n.thin = n.thin,
+      storage = storage,
+      n.trees = n.trees,
+      seed = seed
+    )
   )
+  n.cuts <- resolved$n.cuts
+  useQuantiles <- resolved$useQuantiles
+  n.thin <- resolved$n.thin
+  storage <- resolved$storage
+  # the grid and the RNG block read these; only the four knobs above are the
+  # control's own copies
+  n.trees <- resolved$n.trees
+  seed <- resolved$seed
+  control@n.cuts <- n.cuts
+  control@useQuantiles <- useQuantiles
+  control@n.thin <- n.thin
+  control@storage <- storage
+  control@n.chains <- 1L
+  control@n.threads <- 1L
+  control@keepTrees <- FALSE
+  control@keepTrainingFits <- FALSE
+  control@updateState <- FALSE
+  control@verbose <- FALSE
 
   validateCall <- redirectCall(
     matchedCall,
@@ -222,8 +239,8 @@ xbart <- function(
     }
   }
 
-  # a custom control could once supply an n.trees a caller left unnamed;
-  # control = is gone, so this grid always comes from the formal itself
+  # the grid comes from the formal where the caller named it and from the
+  # control's own slot where they did not, one value either way
   n.trees <- coerceOrError(n.trees, "integer")
   if (anyNA(n.trees) || any(n.trees <= 0L)) {
     stop("'n.trees' must contain only positive integers")
@@ -786,7 +803,7 @@ xbartRunChunk <- function(spec, unitRows, unitSeeds) {
         currentTrees <- spec$n.trees[cells$iTrees[cell]]
         numBurnIn <- spec$n.burn[1L]
       } else {
-        bartcoreSetModel(sampler, cellModel(cell), data)
+        bartcoreSetModel(sampler, cellModel(cell), data, cellControl)
         numBurnIn <- spec$n.burn[2L]
       }
 
