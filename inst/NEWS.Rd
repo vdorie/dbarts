@@ -466,6 +466,11 @@
             second time when no row is dropped for missing values, which is
             the usual case. Peak memory of a 100,000-observation,
             50-predictor fit falls by a further 42 MB.
+      \item \code{fitted}, \code{predict} and
+            \code{\link{pdbart}}/\code{\link{pd2bart}} take their
+            posterior means over the prediction channel in place rather than
+            through \code{\link[base]{apply}}, which permuted the whole
+            channel first. Every reported mean is unchanged.
       \item \code{\link{dbartsControl}} gains \code{levelGibbs}, a logical
             adding one Gibbs step per sampler iteration, taken before the
             trees are updated: a constant is added to every occupied leaf of

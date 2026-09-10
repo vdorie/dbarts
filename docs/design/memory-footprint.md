@@ -229,8 +229,9 @@ library built before the packaging copies came out and once after. Case 1:
 5847.0 MB before, 4234.8 MB after. Case 2: 15172.7 MB before, 11161.5 MB
 after. Both readings predate the ingestion guard above, which takes a
 further 8*n*p off each - 16.0 MB in case 1 and 400.0 MB in case 2 - and
-neither has been re-measured since. Each drop is one whole prediction array to within a megabyte -
-1612.2 MB against a derived 1600.0, and 4011.2 MB against 4000.0 - which is
+neither has been re-measured since. Each drop is one whole prediction array
+to within a megabyte - 1612.2 MB against a derived 1600.0, and 4011.2 MB
+against 4000.0 - which is
 what a copy count, and not a coefficient, predicts. Both peaks read 4 to 6 pct
 above the derived totals above, the same direction and size as the grid's own
 residuals.

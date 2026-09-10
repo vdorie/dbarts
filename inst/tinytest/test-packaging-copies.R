@@ -112,3 +112,65 @@ newMeans <- dbarts:::channelMeans(newCombined)
 newMeanPeak <- maxUsedMiB()
 expect_identical(newMeans, oldMeans)
 expect_true(newMeanPeak < oldMeanPeak - 0.5 * arrayMiB)
+
+# --- the same reduction at the summary generics and at a partial-dependence
+# replay ---
+# Those sites called apply() over the kept axes, so apply() is the reference
+# here too. Two shapes the packaging channels never reach: a category-widened
+# channel, whose observation margin is next-to-last and whose category margin
+# is last (two kept axes), and a predict() replay, whose observations are the
+# FIRST margin and whose draws are the trailing ones.
+applyMeans <- function(x, trailing) {
+  d <- dim(x)
+  apply(x, seq.int(length(d) - trailing + 1L, length(d)), mean)
+}
+reduced <- list(
+  list(x = matrix(rnorm(40L * 7L), 40L, 7L), trailing = 1L),
+  list(x = array(rnorm(20L * 3L * 5L), c(20L, 3L, 5L)), trailing = 1L),
+  list(x = array(rnorm(20L * 3L * 5L), c(20L, 3L, 5L)), trailing = 2L),
+  list(x = array(rnorm(11L * 4L * 6L * 3L), c(11L, 4L, 6L, 3L)), trailing = 2L),
+  list(x = array(rnorm(9L * 1L * 4L), c(9L, 1L, 4L)), trailing = 1L)
+)
+for (case in reduced) {
+  expect_identical(
+    dbarts:::channelMeans(case$x, case$trailing),
+    applyMeans(case$x, case$trailing)
+  )
+}
+# and with names on the kept margins, which apply() carries through
+named <- array(rnorm(6L * 4L * 3L), c(6L, 4L, 3L))
+dimnames(named) <- list(NULL, paste0("o", 1:4), c("a", "b", "c"))
+expect_identical(dbarts:::channelMeans(named, 1L), applyMeans(named, 1L))
+expect_identical(dbarts:::channelMeans(named, 2L), applyMeans(named, 2L))
+
+# the partial-dependence helper, against the expression it replaced
+oldDrawMeans <- function(pred, n.chains) {
+  if (n.chains > 1L) {
+    as.vector(apply(pred, c(2L, 3L), mean))
+  } else {
+    apply(pred, 2L, mean)
+  }
+}
+predOne <- matrix(rnorm(50L * 8L), 50L, 8L)
+predMany <- array(rnorm(50L * 8L * 3L), c(50L, 8L, 3L))
+expect_identical(
+  dbarts:::pdbart.drawMeans(predOne, 1L),
+  oldDrawMeans(predOne, 1L)
+)
+expect_identical(
+  dbarts:::pdbart.drawMeans(predMany, 3L),
+  oldDrawMeans(predMany, 3L)
+)
+
+# the allocation, on the shape apply() permutes hardest: a three-margin
+# channel reduced over its last
+wide <- array(rnorm(200000L), c(10000L, 5L, 4L))
+wideMiB <- 8 * length(wide) / 1048576
+invisible(gc(reset = TRUE))
+oldWide <- applyMeans(wide, 1L)
+oldWidePeak <- maxUsedMiB()
+invisible(gc(reset = TRUE))
+newWide <- dbarts:::channelMeans(wide, 1L)
+newWidePeak <- maxUsedMiB()
+expect_identical(newWide, oldWide)
+expect_true(newWidePeak < oldWidePeak - 0.5 * wideMiB)

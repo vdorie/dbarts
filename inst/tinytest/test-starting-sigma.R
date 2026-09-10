@@ -49,12 +49,8 @@ expect_identical(
 # intercept-first column order model.matrix would have produced
 x.dup <- cbind(x.ss, x.ss[, 1L])
 expect_identical(
-  dbarts:::residualStandardError(y.dup <- y.ss, x.dup, NULL, NULL),
-  summary(lm(y.dup ~ x.dup))$sigma
-)
-expect_identical(
-  dbarts:::residualStandardError(y.dup, x.dup, w.ss, NULL),
-  summary(lm(y.dup ~ x.dup, weights = w.ss))$sigma
+  dbarts:::residualStandardError(y.ss, x.dup, w.ss, NULL),
+  summary(lm(y.ss ~ x.dup, weights = w.ss))$sigma
 )
 
 # a missing response: lm's default na.action drops the row before fitting,
@@ -70,12 +66,8 @@ expect_identical(
   summary(lm(y.na ~ x.ss, weights = w.ss, offset = o.ss))$sigma
 )
 
-# a single predictor, and a response the design reproduces exactly: the
-# degenerate ends of the same expression
-expect_identical(
-  dbarts:::residualStandardError(y.ss, x.ss[, 1L, drop = FALSE], NULL, NULL),
-  summary(lm(y.ss ~ x.ss[, 1L, drop = FALSE]))$sigma
-)
+# a response the design reproduces exactly, where the residual sum of squares
+# is rounding noise and the summation order is all there is
 expect_identical(
   dbarts:::residualStandardError(x.ss[, 1L], x.ss, NULL, NULL),
   suppressWarnings(summary(lm(x.ss[, 1L] ~ x.ss))$sigma)

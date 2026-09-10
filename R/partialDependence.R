@@ -173,6 +173,20 @@ pdbart.defaultLevs <- function(x, xind, levquants, numVariables, cmp) {
   levs
 }
 
+# The per-draw mean over the observation margin of a prediction channel: the
+# observations are the channel's FIRST margin and the draw (and chain) margins
+# the trailing ones, so each draw's observations are one contiguous slab and
+# the reduction takes them without permuting the channel, which is n times the
+# result. Several chains flatten in the array's own order - each chain's whole
+# run in turn - which is the layout fdr's columns already held.
+pdbart.drawMeans <- function(pred, n.chains) {
+  if (n.chains > 1L) {
+    as.vector(channelMeans(pred, 2L))
+  } else {
+    channelMeans(pred)
+  }
+}
+
 # Assemble the returned pdbart/pd2bart result list. Identical between the two
 # entry points except for the S3 class stamped on it ('className').
 pdbart.buildResult <- function(sampler, fit, fdr, levs, xind, className) {
@@ -259,12 +273,10 @@ pdbart <- function(
         x.test <- x
         x.test[, xind[j]] <- levs[[j]][i]
 
-        pred <-
-          if (sampler$control@n.chains > 1L) {
-            as.vector(apply(sampler$predict(x.test), c(2L, 3L), mean))
-          } else {
-            apply(sampler$predict(x.test), 2L, mean)
-          }
+        pred <- pdbart.drawMeans(
+          sampler$predict(x.test),
+          sampler$control@n.chains
+        )
 
         .Call(C_dbarts_assignInPlace, fdr[[j]], i, pred)
       }
@@ -304,12 +316,14 @@ pdbart <- function(
           offset + i * numObservations
         )
 
-        pred <-
+        pred <- pdbart.drawMeans(
           if (sampler$control@n.chains > 1L) {
-            as.vector(apply(samples$test[indices, , ], c(2L, 3L), mean))
+            samples$test[indices, , ]
           } else {
-            apply(samples$test[indices, ], 2L, mean)
-          }
+            samples$test[indices, ]
+          },
+          sampler$control@n.chains
+        )
 
         .Call(C_dbarts_assignInPlace, fdr[[j]], i, pred)
       }
@@ -366,13 +380,7 @@ pd2bart <- function(
     if (ncol(sampler$data@x) == 2L) {
       x.test <- if (xind[1L] < xind[2L]) xValues else xValues[, c(2L, 1L)]
       pred <- suppressWarnings(sampler$predict(x.test))
-      fdr <- as.matrix(
-        if (sampler$control@n.chains > 1L) {
-          as.vector(apply(pred, c(2L, 3L), mean))
-        } else {
-          apply(pred, 2L, mean)
-        }
-      )
+      fdr <- as.matrix(pdbart.drawMeans(pred, sampler$control@n.chains))
     } else {
       fdr <- matrix(NA_real_, numSamples, numXValues)
       for (i in seq_len(numXValues)) {
@@ -380,12 +388,10 @@ pd2bart <- function(
         x.test[, xind[1L]] <- xValues[i, 1L]
         x.test[, xind[2L]] <- xValues[i, 2L]
 
-        pred <-
-          if (sampler$control@n.chains > 1L) {
-            as.vector(apply(sampler$predict(x.test), c(2L, 3L), mean))
-          } else {
-            apply(sampler$predict(x.test), 2L, mean)
-          }
+        pred <- pdbart.drawMeans(
+          sampler$predict(x.test),
+          sampler$control@n.chains
+        )
 
         .Call(C_dbarts_assignInPlace, fdr, i, pred)
       }
@@ -396,11 +402,7 @@ pd2bart <- function(
       sampler$setTestPredictor(x.test)
       samples <- sampler$run(0L, sampler$control@n.samples)
       fdr <- as.matrix(
-        if (sampler$control@n.chains > 1L) {
-          as.vector(apply(samples$test, c(2L, 3L), mean))
-        } else {
-          apply(samples$test, 2L, mean)
-        }
+        pdbart.drawMeans(samples$test, sampler$control@n.chains)
       )
     } else {
       x.test <- NULL
@@ -418,12 +420,14 @@ pd2bart <- function(
       fdr <- matrix(NA_real_, numSamples, numXValues)
       for (i in seq_len(numXValues)) {
         indices <- seq.int((i - 1) * numObservations + 1, i * numObservations)
-        pred <-
+        pred <- pdbart.drawMeans(
           if (sampler$control@n.chains > 1L) {
-            as.vector(apply(samples$test[indices, , ], c(2L, 3L), mean))
+            samples$test[indices, , ]
           } else {
-            apply(samples$test[indices, ], 2L, mean)
-          }
+            samples$test[indices, ]
+          },
+          sampler$control@n.chains
+        )
         .Call(C_dbarts_assignInPlace, fdr, i, pred)
       }
     }

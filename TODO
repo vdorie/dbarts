@@ -366,11 +366,16 @@ memory footprint at large n (VD concern, 2026-09-08; LANDED: note
   chains (owned conditioning vectors, cut codes, tree storage, per-chain
   state, test slabs) and record it in the manual; VD wants larger
   datasets to fit and has had memory trouble before. Plan:
-  docs/plans/memory-footprint-audit.md. Post-release, same item at other
-  call sites: apply(..., mean) still reduces over full-size prediction
-  channels at four sites in R/generics.R and in R/partialDependence.R,
-  each permuting the whole channel for a per-observation mean that
-  channelMeans' shape takes without a copy.
+  docs/plans/memory-footprint-audit.md. The same item at the other call
+  sites is TAKEN: channelMeans carries a trailing-margin count and now
+  serves the summary generics and the partial-dependence replays, so no
+  apply(..., mean) permutes a full-size prediction channel any more.
+  Two further follow-ons are taken with it: the starting sigma no longer
+  goes through lm's model frame and model matrix, and dbartsData skips
+  the complete-cases row selection when no row is dropped. The footprint
+  model's ingestion allowance and starting-sigma rows moved with them, so
+  a re-record of benchmarks/baselines/memory-footprint-b184b6b2.csv is
+  owed.
 
 per-draw callbacks (decided, VD 2026-09-10; docs/decisions.md dec-B114;
   priority raised on the memory audit: the R-side prediction array and

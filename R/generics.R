@@ -226,7 +226,7 @@ posteriorInterval <- function(draws, ci.level, trailing = 1L) {
   }
   d <- dim(draws)
   keepAxes <- seq.int(length(d) - trailing + 1L, length(d))
-  est <- apply(draws, keepAxes, mean)
+  est <- channelMeans(draws, trailing)
   bounds <- apply(draws, keepAxes, quantile, probs = probs, names = FALSE)
   if (trailing == 1L) {
     result <- cbind(est, bounds[1L, ], bounds[2L, ])
@@ -992,7 +992,7 @@ fitted.bart <- function(
   }
 
   if (!is.null(dim(result))) {
-    padded(apply(result, length(dim(result)), mean))
+    padded(channelMeans(result))
   } else {
     padded(mean(result))
   }
@@ -1082,8 +1082,7 @@ refuseMultinomialLatentType <- function(type) {
 # layout), and its argmax as a factor over the fit's own levels - the class
 # prediction fitted() and predict() share, so the two cannot drift.
 meanCategoryProbabilities <- function(probs, levels) {
-  d <- length(dim(probs))
-  meanProbs <- apply(probs, c(d - 1L, d), mean)
+  meanProbs <- channelMeans(probs, 2L)
   dimnames(meanProbs) <- list(NULL, levels)
   meanProbs
 }
@@ -1592,7 +1591,7 @@ fitted.bartOrdinal <- function(
     if (!is.null(ci.level)) {
       return(posteriorInterval(latent, ci.level, trailing = 1L))
     }
-    return(apply(latent, length(dim(latent)), mean))
+    return(channelMeans(latent))
   }
   probs <- extract.bartOrdinal(object, type = "ev", sample = "train")
   if (!is.null(ci.level)) {
@@ -1890,7 +1889,7 @@ fitted.bartNegbin <- function(
   if (!is.null(ci.level)) {
     return(posteriorInterval(channel, ci.level, trailing = 1L))
   }
-  apply(channel, length(dim(channel)), mean)
+  channelMeans(channel)
 }
 
 negbinResidualsTypeReason <- list(
@@ -2467,7 +2466,7 @@ fitted.bartHurdle <- function(
   if (!is.null(ci.level)) {
     return(posteriorInterval(draws, ci.level))
   }
-  apply(draws, length(dim(draws)), mean)
+  channelMeans(draws)
 }
 
 residuals.bartHurdle <- function(object, type = "ev", ...) {

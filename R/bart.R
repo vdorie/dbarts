@@ -55,23 +55,37 @@ convertSamplesFromDbartsToBart <-
     }
   }
 
-# The per-parameter posterior mean of a channel already in the returned
-# layout, where the parameter margin is the LAST one and each parameter's
-# draws are therefore one contiguous slab. apply() would do the same
-# reduction, but it aperms its argument first - even when the permutation is
-# the identity - so on a channel the size of yhat.train it allocates a second
-# full-size array while the engine's own is still bound. The slab order is
-# load-bearing: mean() sums in the order it is handed, so reducing here
-# rather than over the engine's observation-major array is what keeps every
-# value bit-for-bit what apply() returned.
-channelMeans <- function(samples) {
-  numDims <- length(dim(samples))
-  means <- if (numDims == 2L) {
-    vapply(seq_len(dim(samples)[2L]), function(i) mean(samples[, i]), 0)
+# The posterior mean of a channel over its LAST 'trailing' margins - the
+# reported ones (an observation, or an observation and a category), which the
+# returned layout puts outermost, so each reported cell's draws are one
+# contiguous slab. apply() would do the same reduction, but it aperms its
+# argument first - even when the permutation is the identity - so on a
+# channel the size of yhat.train it allocates a second full-size array while
+# the engine's own is still bound. Reducing a slab at a time allocates the
+# slab. The slab ORDER is load-bearing: mean() sums in the order it is handed
+# and corrects over the same order, so reducing here rather than over the
+# engine's own observation-major array is what keeps every value bit-for-bit
+# what apply() returned. The result matches apply()'s shape too: a named vector
+# over the last margin at trailing = 1, an array over the last 'trailing'
+# margins otherwise.
+channelMeans <- function(samples, trailing = 1L) {
+  d <- dim(samples)
+  numDims <- length(d)
+  kept <- seq.int(numDims - trailing + 1L, numDims)
+  blockLength <- prod(d[seq_len(numDims - trailing)])
+  means <- vapply(
+    seq_len(prod(d[kept])),
+    function(i) {
+      mean(samples[seq.int(i * blockLength - blockLength + 1, i * blockLength)])
+    },
+    0
+  )
+  if (trailing == 1L) {
+    names(means) <- dimnames(samples)[[numDims]]
   } else {
-    vapply(seq_len(dim(samples)[3L]), function(i) mean(samples[,, i]), 0)
+    dim(means) <- d[kept]
+    dimnames(means) <- dimnames(samples)[kept]
   }
-  names(means) <- dimnames(samples)[[numDims]]
   means
 }
 
