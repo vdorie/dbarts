@@ -356,6 +356,25 @@
             \code{xbart} (refused outright, naming \code{n.burn = c(fresh,
             warm)}); and \code{family = "twopart"} (refused outright, naming
             \code{family = "hurdle.lognormal"}).
+      \item \code{bart} and \code{xbart} gain a
+            \code{control = \link{dbartsControl}()} formal, reaching every
+            engine and sampler setting neither door spells flatly
+            (\code{categoricalExhaustiveCap}, \code{testFitParallelCutoff},
+            \code{predictParallelCutoff}, \code{sparseDensityThreshold},
+            \code{levelGibbs}, and the tree-move mixture
+            \code{proposal.probs}), under one precedence rule: a flat
+            argument named in the call wins over the control's slot of the
+            same name, and a slot the control speaks for wins over the
+            door's own default. A control carrying a fitted sampler's
+            state is refused by name. This reverses \code{xbart}'s earlier
+            retirement of \code{control} (above); the retired-control
+            tombstone and its refusal are removed.
+      \item \code{\link{dbartsControl}} gains a \code{proposal.probs}
+            formal and slot, the tree-move mixture moved off
+            \code{dbartsModel} (successor of \code{bart}'s and
+            \code{dbarts}'s own retired \code{proposal.probs}, above); its
+            default, validity rule, and meaning are unchanged, and it can
+            be changed between runs through \code{setControl}.
       \item \code{dbarts(sigma = )} and \code{dbartsSpec(sigma = )} are
             renamed \code{sigest}, matching \code{bart}, \code{bartBT}, and
             \code{xbart}; \code{sigma} is still accepted for one release
@@ -2101,8 +2120,7 @@
       \item \code{xbart} loses its \code{control} argument; \code{n.cuts},
             \code{useQuantiles}, \code{n.thin}, and \code{storage} become
             ordinary formals instead, spelled and defaulted exactly as
-            \code{\link{dbartsControl}}'s own (\code{xbart(control = )} is now
-            an unused-argument error). A new \code{tree.prior} formal takes
+            \code{\link{dbartsControl}}'s own. A new \code{tree.prior} formal takes
             the same \code{cgm}/DART objects \code{dbarts} does; unlike
             \code{bart}'s, it does not collide with \code{power}/\code{base}
             - they are \code{xbart}'s own swept grid, overriding a supplied
