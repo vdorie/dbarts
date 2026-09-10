@@ -405,22 +405,23 @@ worker wait loop (decided, VD 2026-09-08; docs/decisions.md dec-B88; S3
   Plan: docs/plans/engine-performance.md.
 
 within-chain threading (decided, VD 2026-09-08; docs/decisions.md
-  dec-B89)
-  pre-release: warn when n.threads exceeds n.chains; manual note that
-  within-chain threading was measured (0.9-34 about 10 percent at 4
-  threads on one chain, the barrier prototype 12 percent at best).
-  pre-release (VD 2026-09-08: a regression, so not deferred): revive
-  archive/within-chain-threading as an explicit opt-in; first time the
-  prototype against the tip on this machine, single chain at 1, 2 and 4
-  threads, and let the memory audit inform the default. Plan:
-  docs/plans/engine-performance.md; lands after the reference-build
-  item so both share one gate matrix.
+  dec-B89; CLOSED without shipping 2026-09-10, dec-B115, S4 of
+  docs/plans/engine-performance.md)
+  Re-measured against the tip first, per the plan (best 1.03x anywhere,
+  losses at two and eight workers); VD then closed the opt-in rather than
+  reviving it: n.threads keeps its own meaning as a total thread budget,
+  dbartsControl's default becomes min(guessNumCores(), n.chains), and a
+  budget above n.chains warns once per fit rather than dividing into the
+  chains. Archived on origin/archive/within-chain-threading-2026-09
+  (94ae3793), beside the July prototype on
+  origin/archive/within-chain-threading. No further pre-release action.
 
 vectorized draw path with a reference build (decided, VD 2026-09-08;
   docs/decisions.md dec-B90; S1 167e2c62, S3 70305575 landed; S2 closed
   without shipping, dec-B113, code archived on
   origin/archive/engine-s2-weighted-kernels; the weighted fused pass
-  lands instead; S4, S5 open)
+  lands instead; S4 closed without shipping, dec-B115, see the
+  within-chain threading item above; S5 open)
   pre-release: wire the measured SIMD node-sum kernels into the engine
   gather; a configure flag selects the scalar fixed-order reference
   build; CI runs the bitwise, exact-posterior and snapshot gates on the

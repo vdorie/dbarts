@@ -3,8 +3,17 @@
 Status: CLOSED - NO-GO on every tested hardware (x86 and Apple Silicon),
 2026-07-21; re-measured on the current engine 2026-09-09 and the verdict
 STANDS - best 1.03x anywhere, a loss at two workers and at eight (section
-12). The opt-in ships under dec-B89 because losing it regresses 0.9-34, not
-on a speed win.
+12). The dec-B89 opt-in itself is CLOSED, 2026-09-10 (dec-B115): on that
+re-measurement VD ruled to archive rather than revive it - "Close it
+(archive it?). I dislike treating n.threads as n.chains and would like to
+keep that distinction, but we can simple warn that excess threads won't be
+used and default to setting n.threads to n.chains." n.threads keeps its own
+meaning as a total thread budget, dbartsControl's default becomes
+min(guessNumCores(), n.chains), and a budget above n.chains warns rather
+than dividing into the chains. The prototype (correctness half banked,
+speed half NO-GO) is archived on
+origin/archive/within-chain-threading-2026-09 (94ae3793), beside the July
+prototype on origin/archive/within-chain-threading.
 
 Summary: Single-chain large-n sweeps (n >= 1e5) are DRAM/latency-bound over a
 handful of O(n) passes per tree. This note parallelizes those passes (suffstat

@@ -186,6 +186,15 @@ choice; none remains open.
    each. Supplying more threads than chains is the explicit opt-in; no
    new argument and no warning; `dbartsControl`'s default budget stays
    the core count as in 0.9-34. Step 11 changes accordingly.
+   RULED OUT (VD 2026-09-10, dec-B115), after step 9's re-measurement:
+   "Close it (archive it?). I dislike treating n.threads as n.chains
+   and would like to keep that distinction, but we can simple warn
+   that excess threads won't be used and default to setting n.threads
+   to n.chains." The opt-in this fork spelled does not ship; n.threads
+   still keeps its own meaning, but the surplus above n.chains is never
+   divided into the chains - it warns instead. The default moves from
+   the raw core count to `min(guessNumCores(), n.chains)`. Steps 10
+   through 13 as written are not built; see the S4 outcome note below.
 5. The summation law under within-chain threading (VD 2026-09-08, "I
    don't care about recreating the exact result, but I do care about
    preserving its speed"): two implementations. At or below the chain
@@ -741,6 +750,47 @@ S4, within-chain threading (dec-B89):
     serial at eight threads on both hosts measured), that multi-chain
     parallelism is the effective use of cores, and (fork 5) that
     enabling it changes draws.
+
+### S4 outcome (2026-09-10)
+
+Step 9's re-measurement is recorded in
+[12. Re-measured on the current engine (2026-09-09): the verdict stands](../design/within-chain-threading.md#12-re-measured-on-the-current-engine-2026-09-09-the-verdict-stands):
+best 1.03x anywhere (four workers, n = 1e6), a loss of about 5 percent at
+two workers and about 15 percent at eight, at both n = 1e5 and n = 1e6.
+Against the >= 1.4x go / < 1.3x no-go gate this is not close, and it is
+worse than the two earlier real-engine results (0.91x x86, 1.10x M1)
+because the serial engine got faster in the meantime - the fused pass and
+the mu-table compaction deleted the two O(n) passes this mechanism existed
+to parallelize.
+
+VD closed the item on that measurement rather than letting steps 10
+through 13 proceed (dec-B115): "Close it (archive it?). I dislike
+treating n.threads as n.chains and would like to keep that distinction,
+but we can simple warn that excess threads won't be used and default to
+setting n.threads to n.chains." Steps 10 through 13 as written - the
+revival, the `min(n.threads, n.chains)` chain fan-out with a within-chain
+remainder, and the manual language for an opt-in that turns on - are NOT
+built. What ships instead:
+
+- `n.threads` keeps its own meaning, a total thread budget distinct from
+  `n.chains`, rather than collapsing onto it or gaining a divided
+  within-chain remainder.
+- `dbartsControl`'s default becomes `min(guessNumCores(), n.chains)`
+  (R/dbarts.R), evaluated against the same call's `n.chains`; a bare
+  `new("dbartsControl")` keeps the class prototype's conservative `1L`.
+  `bart()`'s own `n.threads` default was already this shape.
+- A budget above `n.chains`, supplied explicitly, is not silently wasted -
+  it still reaches the test-fit pool
+  ([`testFitParallelCutoff`](../../src/bartcore/chain.hpp), 65536 test
+  rows) and predict's fan-out
+  ([`predictParallelCutoff`](../../src/bartcore/sampler.hpp)) - but it
+  warns once per fit, naming both counts, that tree sampling itself never
+  sees more than one thread per chain.
+- The archived prototype's correctness half (byte-identical draws across
+  worker counts, section 3 of the design note) is banked but not revived;
+  it stays recoverable on origin/archive/within-chain-threading-2026-09
+  (94ae3793), beside the July prototype on
+  origin/archive/within-chain-threading.
 
 S5, the constants audit (dec-B91, B93, B110):
 
