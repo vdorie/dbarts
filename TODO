@@ -372,13 +372,20 @@ memory footprint at large n (VD concern, 2026-09-08; LANDED: note
   sites is TAKEN: channelMeans carries a trailing-margin count and now
   serves the summary generics and the partial-dependence replays, so no
   apply(..., mean) permutes a full-size prediction channel any more.
-  Two further follow-ons are taken with it: the starting sigma no longer
-  goes through lm's model frame and model matrix (ee03fbcd), and
-  dbartsData skips the complete-cases row selection when no row is
-  dropped (6571eae1). The footprint model's ingestion allowance and
-  starting-sigma rows moved with them, so a re-record of
+  Three further follow-ons are taken with it: the starting sigma no longer
+  goes through lm's model frame and model matrix (ee03fbcd), dbartsData
+  skips the complete-cases row selection when no row is dropped
+  (6571eae1), and the leaf statistics cache is pruned at the draw - the
+  slots that are no longer live leaves give their member lists back, and
+  a store caps retained capacity at twice the membership, so the cache
+  holds one leaf partition per tree instead of about three. Measured at
+  n = 1e5, T = 200, C = 1 on the linear leaf: peak RSS 689.0 MB to
+  518.2 MB, the fit 1.8 pct slower. The footprint model's ingestion
+  allowance, starting-sigma and leaf statistics cache rows moved with
+  them, so a re-record of
   benchmarks/baselines/memory-footprint-b184b6b2.csv, on a quiet
-  machine and named after ee03fbcd, is owed.
+  machine, is owed, and the cache's level multiplier rests on one
+  post-prune cell until it is.
 
 per-draw callbacks (decided, VD 2026-09-10; docs/decisions.md dec-B114;
   priority raised on the memory audit: the R-side prediction array and

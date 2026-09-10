@@ -78,7 +78,7 @@ differently.
 | raw predictors, caller's | the matrix the caller passes | sampler | 8 | n*p | always, beside the store's 2*n*p codes |
 | raw predictors, ingestion high-water | [`dbartsData`](../../R/data.R)'s subset copy | sampler | 8 | up to n*p, plus nTest*p | always: the subset copy is persistent and fires on a matrix with no subset. The transient complete-cases copy beside it fired unconditionally too until this arc, and now only when a row is actually dropped. Measured per host and shape, not derived - see below |
 | starting-sigma linear model | [`estimateSigmaFromLinearModel`](../../R/utility.R), [`residualStandardError`](../../R/utility.R) | sampler | 8 | about 2*n*(p+1) transiently - the design matrix and the QR's own copy of it | no `sigest` given and the family estimates a residual sd (not binary) |
-| leaf statistics cache | [`LinearGaussianLeaf`](../../src/bartcore/model.hpp)'s per-tree crossproduct cache | chain | 4 | n per POPULATED ARENA DEPTH LEVEL per tree per chain, about 3.2 levels measured | a designated-covariate leaf (linear, gp) |
+| leaf statistics cache | [`LinearGaussianLeaf`](../../src/bartcore/model.hpp)'s per-tree crossproduct cache | chain | 4 | n per tree per chain - one live partition, the draw's prune having released everything else - plus up to as much again in retained capacity; 1.1 levels measured | a designated-covariate leaf (linear, gp) |
 | fit-path warm-up | the R session itself | sampler | not a byte count | one-off: byte-compiling the fit closures and populating the S4 dispatch tables | the first fit of a session |
 | ingestion transients | [`makeModelMatrixFromDataFrame`](../../R/data.R) | sampler | 8 | up to 2*n*p live at once - the model frame's columns and the numeric matrix built from them, before the store quantizes | the formula and data-frame doors |
 | quantile collector | [`QuantileGrid`](../../src/bartcore/data.hpp)'s [`sortedUnique`](../../src/bartcore/data.hpp) | sampler | 8 | n reserved per column, one column at a time | usequants |
@@ -161,27 +161,49 @@ live count, and 56*T*m is a LOWER bound on the live-tree row, not an upper one.
 Step 2 can measure only the flattened count; the arena high-water is not
 observable from R, and no channel reports it.
 
-The leaf statistics cache's level count is the second. The mechanism, not a
-node count: a cached entry is one leaf's ordered member list plus an inline
-81-double crossproduct, and the cache is indexed by ARENA slot
-(`TreeStatisticsCache::nodes`, resized to the slot index and never pruned).
-Leaf memberships partition the observations, so the lists LIVE in one tree
-sum to at most 4*n - and that, `statisticsEntryBytes` over the live
-`members.size()`, is the only thing the 256 MiB budget counts. What is
-RESIDENT is larger, for two reasons the budget does not see: `assign` leaves
-each slot's member vector at the capacity of the largest membership that slot
-ever held, so a run that starts from stumps parks 4*n in the root's slot and
-4*n more across each depth level below it; and each populated slot carries
-648 bytes of inline crossproduct plus its vector header whatever q is. The
-resident total is therefore 4*n per populated arena depth level per tree per
-chain. Measured over six cells (n in {1e4, 1e5, 2e5}, T in {75, 200}, C in
-{1, 2}; a hand excursion of the script's linear cell at those shapes, not
-part of its grid) it is 11.0 to 14.5 bytes per n*T*C, mean 12.9, so 3.2
-levels; the
-model carries 3.2 and the grid's two linear cells land 10.0 MB high at
-T = 200 and 1.4 MB low at T = 75. The budget never bound at any cell
-measured: at the largest, n = 2e5, T = 200, C = 1, the tracked figure is
-160 MB against a 256 MiB ceiling while the resident cache is 453 MB.
+The leaf statistics cache's level count was the second, and is no longer one:
+the cache is pruned, and what stays resident is one partition per tree. The
+mechanism, not a node count: a cached entry is one leaf's ordered member list
+plus an inline 81-double crossproduct, and the cache is indexed by ARENA slot
+([`TreeStatisticsCache`](../../src/bartcore/model.hpp)). Leaf memberships
+partition the observations, so the lists live in one tree sum to at most 4*n -
+and that, [`statisticsEntryBytes`](../../src/bartcore/model.hpp) over
+`members.size()`, is the only thing the 256 MiB budget counts.
+
+What the audit found resident was three times that, for two reasons the budget
+did not see. `assign` leaves each slot's member vector at the capacity of the
+largest membership that slot ever held, and nothing released a slot when its
+node stopped being a leaf, so a run that started from stumps parked 4*n in the
+root's slot and 4*n more across each depth level below it; separately, each
+populated slot carries 648 bytes of inline crossproduct plus its vector header
+whatever q is. The first dominates and the second is noise: instrumented at
+n = 1e5, T = 200, C = 1 on the linear leaf, the member lists held 248.3 MB
+resident against 178.1 MB counted, over 1097 populated slots whose inline
+crossproducts came to 0.8 MB - 99.7 pct of the cache was member lists, live
+and stale together, and 0.3 pct was the inline entry. An honest budget alone
+would not have helped: it would have started refusing at a ceiling the cache
+was already near, trading the megabytes for rescans.
+
+Both are now bounded at the source.
+[`drawFromPosteriorForNode`](../../src/bartcore/model.hpp) runs on the settled
+tree - a rejected move has already rolled back - and releases the slots that
+are not live leaves, which is what the interior nodes an accepted grow leaves
+behind and the pairs an accepted death frees have in common;
+[`storeCrossproduct`](../../src/bartcore/model.hpp) reallocates rather than
+reuse a capacity that has run past twice its membership. Neither can move a
+value: every lookup re-validates its member list, so a released entry costs a
+rescan and a rescan is bitwise what the entry would have served. What remains
+resident is the live partition, 4*n per tree per chain, plus at most as much
+again in retained capacity and `sizeof(CachedNodeStatistics)` per arena slot
+ever touched. The same instrumented cell reads 86.1 MB of member lists against
+80.0 MB counted (exactly 4*n*T) over 447 populated slots, so the model's
+multiplier is 1.1 levels rather than 3.2, and process peak RSS for that fit
+fell from 689.0 MB to 518.2 MB, medians of nine and six runs. The six-cell
+excursion behind the old 3.2 (n in {1e4, 1e5, 2e5}, T in {75, 200}, C in
+{1, 2}) has not been re-run, and neither has the grid; the multiplier
+[`memory-footprint.R`](../../benchmarks/R/memory-footprint.R) carries is the
+post-prune measurement at the one cell. The budget still never bound at any
+cell measured, and now bounds residency within the factor above when it does.
 
 ## Reference cases
 
@@ -292,15 +314,17 @@ could have been read off without it.
   when the row was written, at about 4*n*(p+1) for the model frame, the na
   filter, the model matrix and the QR; it is now the QR alone, over a design
   matrix built directly (below).
-- The leaf statistics cache is a new row and the largest single term of a
-  designated-covariate fit: 276 MB at n = 1e5, T = 200, C = 1, where the
+- The leaf statistics cache is a new row and was the largest single term of
+  a designated-covariate fit: 276 MB at n = 1e5, T = 200, C = 1, where the
   whole rest of the fit is 350 MB. Without it the linear cell missed by
   274 MB, the only cell that missed at all. The first formula tried, 4*n per
   cached NODE, was wrong and only looked right because it saturated the
   256 MiB budget; leaf memberships partition the observations, so the live
-  lists are at most 4*n per tree, and what makes the cache large is retained
-  vector capacity across an arena-indexed store that is never pruned. The
-  budget counts the live lists only and bound no cell measured.
+  lists are at most 4*n per tree, and what made the cache large was retained
+  vector capacity across an arena-indexed store that was never pruned. The
+  budget counts the live lists only and bound no cell measured. The prune
+  above took the row to one partition per tree and the cell's peak RSS from
+  689.0 MB to 518.2 MB.
 - Gathered leaf raw doubled, 8*n*q to 16*n*q: the leaf keeps its own
   standardized copy beside the store's gather.
 - Two rows are not byte counts at all and are measured per host: the
@@ -356,7 +380,7 @@ second row is its own TODO entry rather than a change in this arc.
 | name `keepTrainingFits = FALSE` (legacy `keeptrainfits`) in the manual as the large-n lever | 3200 MB | 8000 MB | one sentence | taken, in the manual's Memory section; the figures are the two live copies, down from three |
 | take the column means over the returned layout and build that layout in one permutation, so neither extra copy exists | 1600 MB | 4000 MB | the R reshape and mean | TAKEN, measured 1612.2 MB and 4011.2 MB; the last copy would need the bridge to allocate the channel draw-major and the engine to write into it strided, which is its own item |
 | drop the transient complete-cases copy of the predictor matrix when nothing is missing | 16 MB | 400 MB | one branch in [`dbartsData`](../../R/data.R) | TAKEN, one guard in [`dbartsData`](../../R/data.R): the row selection runs only when a row is actually dropped. Measured at n = 1e5, p = 50, T = 200, S = 10 with `sigest` supplied, 410.0 MB to 367.6 MB - 42.4 MB against the derived 8*n*p of 40.0 |
-| prune the leaf statistics cache, or bound it by resident bytes rather than by tracked member bytes | 0 (constant leaf) | 0 (constant leaf) | the store and its accounting | own TODO entry; CONDITIONAL on a designated-covariate leaf, where it is 4*n per arena level per tree per chain, 276 MB measured at n = 1e5, T = 200, C = 1 and the single largest allocation of such a fit. The 256 MiB budget does not bound it, because it counts only the live member lists |
+| prune the leaf statistics cache, or bound it by resident bytes rather than by tracked member bytes | 0 (constant leaf) | 0 (constant leaf) | the store and the draw | TAKEN, as the prune: [`drawFromPosteriorForNode`](../../src/bartcore/model.hpp) releases the slots that are not live leaves and [`storeCrossproduct`](../../src/bartcore/model.hpp) caps retained capacity at twice the membership. CONDITIONAL on a designated-covariate leaf, where the cache was 4*n per arena level per tree per chain and is now one partition per tree. Measured at n = 1e5, T = 200, C = 1 on the linear leaf: peak RSS 689.0 MB to 518.2 MB, member lists 248.3 MB to 86.1 MB, the fit 1.8 pct slower on the same cell. The honest-budget alternative was declined: it would have refused entries at a ceiling the cache was already near instead of giving the bytes back |
 | a cheaper starting sigma than an `lm` over the whole design | 0 today (packaging peaks higher) | 0 today | a few lines in [`estimateSigmaFromLinearModel`](../../R/utility.R) | TAKEN: [`residualStandardError`](../../R/utility.R) calls the QR routine `lm` calls, on the design matrix `model.matrix` would have built, and takes `summary.lm`'s own expression for sigma over it, so the estimate is bitwise unchanged with no model frame and no second design. Measured at n = 1e5, T = 200, S = 10 with no `sigest`: 348.9 to 318.5 MB at p = 10, 411.8 to 357.3 MB at p = 20, 588.5 to 511.2 MB at p = 50. Zero at either reference case, which supplies `sigest` |
 | a flat arena for saved trees instead of a vector per tree (keepTrees only) | 4 MB/chain at keepTrees TRUE | 4 MB/chain at keepTrees TRUE | one engine struct | own TODO entry, post-release |
 | drop the raw x when no mutation surface is in use | 16 MB | 400 MB | ingestion and predict both touched | not recommended; re-quantization needs it |

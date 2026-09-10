@@ -57,10 +57,14 @@ mode <- if (length(args) >= 1L) args[[1L]] else "print"
 MEAN.NODES <- 5.73
 
 # Mean number of populated arena depth levels per tree in the designated-leaf
-# statistics cache: 12.9 measured bytes per n*T*C over 4 bytes per index_t.
-# See the leaf statistics cache row of the design note for why a level count
-# rather than a node count is the right multiplier.
-CACHE.LEVELS <- 3.2
+# statistics cache: 4.3 measured bytes per n*T*C over 4 bytes per index_t.
+# The draw now releases the slots that are not live leaves, so what stays is
+# one leaf partition per tree plus the capacity the store leaves behind; the
+# figure is the post-prune instrumented reading at n = 1e5, T = 200, C = 1,
+# not the six-cell excursion that gave the pre-prune 3.2. See the leaf
+# statistics cache row of the design note for why a level count rather than
+# a node count is the right multiplier.
+CACHE.LEVELS <- 1.1
 
 baseCell <- function() {
   list(

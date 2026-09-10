@@ -1081,6 +1081,18 @@ struct LinearGaussianLeaf {
   /// regather paths above.
   void invalidateStatistics() const { clearStatisticsCache(); }
 
+  /// Bytes the crossproduct cache holds resident in member lists - vector
+  /// capacity, not the live member count the budget prices. A footprint read
+  /// for tests; the draw's prune and the store's capacity bound are what keep
+  /// the two within a factor of two of each other.
+  std::size_t statisticsCacheResidentBytes() const {
+    std::size_t bytes = 0;
+    for (const TreeStatisticsCache& cache : statisticsCaches_)
+      for (const CachedNodeStatistics& entry : cache.nodes)
+        bytes += entry.members.capacity() * sizeof(index_t);
+    return bytes;
+  }
+
   /// Regather the test covariates under the training standardization; called
   /// whenever the store's test data changes.
   void rebuildTestCovariates(const ColumnStore& data) {
@@ -1161,6 +1173,10 @@ struct LinearGaussianLeaf {
                                 double k, double residualVariance,
                                 int32_t nodeIndex, double* out) const {
     std::size_t p = numParams();
+    // the draw runs on the settled tree (a rejected move has already rolled
+    // back), so this is the one point where a slot that is not a live leaf
+    // really is dead rather than mid-proposal
+    releaseStaleStatisticsEntries(tree);
     if (tree.at(nodeIndex).numObservations() == 0) {
       for (std::size_t a = 0; a < p; ++a) out[a] = 0.0;
       return;
@@ -1266,7 +1282,13 @@ private:
   /// Leaves below this rescan; their U'WU is cheap and churns fast.
   static constexpr std::size_t minCachedLeafSize = 32;
   /// Byte ceiling over cached member lists, split across chains at initialize;
-  /// when spent, further leaves rescan (still correct, just uncached).
+  /// when spent, further leaves rescan (still correct, just uncached). The
+  /// ceiling counts live member bytes, so it bounds residency only because
+  /// the two sources of untracked bytes are bounded in turn: dead slots are
+  /// released at the draw, and a live slot's retained vector capacity is
+  /// held under twice its member count by the store below. What escapes is
+  /// sizeof(CachedNodeStatistics) per arena slot ever touched, the inline
+  /// crossproduct included - kilobytes per tree, not megabytes.
   static constexpr std::size_t statisticsCacheTotalBudgetBytes =
     static_cast<std::size_t>(256) << 20;
 
@@ -1319,13 +1341,64 @@ private:
         statisticsCacheBudget_) {
       if (!entry.members.empty()) {
         statisticsCacheUsedBytes_ -= oldBytes;
-        entry.members.clear();
+        // give the pages back, not just the count: over the budget is
+        // exactly where a retained capacity would be least affordable
+        std::vector<index_t>().swap(entry.members);
       }
       return;
     }
     statisticsCacheUsedBytes_ += newBytes - oldBytes;
+    // assign alone would park the largest membership this slot ever held for
+    // the life of the run - a recycled arena slot that once held half the
+    // data keeps 4*n/2 bytes behind a member list of 40. Reallocating when
+    // the retained capacity has run to twice the membership bounds the
+    // untracked excess at one times the tracked bytes while leaving the
+    // common re-store, where membership barely moves, allocation-free.
+    if (entry.members.capacity() > 2 * numObs)
+      std::vector<index_t>().swap(entry.members);
     entry.members.assign(tree.indices + node.begin, tree.indices + node.end);
     std::memcpy(entry.crossproduct, crossproduct, p * p * sizeof(double));
+  }
+
+  /// True when the arena slot holds a bottom node of the live tree: it is in
+  /// the arena, has no children, and its parent chain reaches the root
+  /// through links that still claim it. A slot freed by an accepted death
+  /// keeps both its invalid left child and its stale parent index, so the
+  /// walk up - not isBottom alone - is what tells the two apart.
+  static bool isLiveBottomNode(const Tree& tree, std::size_t index) {
+    if (index >= tree.nodes.size()) return false;
+    int32_t node = static_cast<int32_t>(index);
+    if (!tree.at(node).isBottom()) return false;
+    while (node != 0) {
+      int32_t parent = tree.at(node).parent;
+      if (parent == invalidNode) return false;
+      int32_t left = tree.at(parent).leftChild;
+      if (left != node && left + 1 != node) return false;
+      node = parent;
+    }
+    return true;
+  }
+
+  /// Release the entries of slots that are no longer live leaves - interior
+  /// nodes an accepted grow left behind, slots an accepted death freed - and
+  /// with them the member-list capacity that would otherwise sit in the
+  /// arena until the cache is cleared wholesale. Bytes tracked against the
+  /// budget go back with them, so the budget prices live leaves only.
+  ///
+  /// Capacity policy, never a value: every lookup re-validates its member
+  /// list, so a released entry can only cost a rescan, and a rescan is
+  /// bitwise what the entry would have served.
+  void releaseStaleStatisticsEntries(const Tree& tree) const {
+    for (TreeStatisticsCache& cache : statisticsCaches_) {
+      if (cache.tree != &tree) continue;
+      for (std::size_t index = 0; index < cache.nodes.size(); ++index) {
+        CachedNodeStatistics& entry = cache.nodes[index];
+        if (entry.members.empty() || isLiveBottomNode(tree, index)) continue;
+        statisticsCacheUsedBytes_ -= statisticsEntryBytes(entry.members.size());
+        std::vector<index_t>().swap(entry.members);
+      }
+      return;
+    }
   }
 
   std::size_t numCovariates_ = 0;

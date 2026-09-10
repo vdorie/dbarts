@@ -1507,6 +1507,115 @@ static void testLinearLeafStatisticsCache() {
   printf("ok: linear leaf statistics cache\n");
 }
 
+// The crossproduct cache is indexed by arena slot, so left alone it parks the
+// largest membership a slot ever held for the life of the run: a stump's
+// whole index buffer under the root, a big leaf's under a slot a later, much
+// smaller leaf recycles. The draw releases slots that are not live leaves and
+// the store caps a live slot's retained capacity at twice its membership.
+// Both are capacity policy only, so the pinned values below must not move.
+static void testLinearLeafStatisticsCachePrune() {
+  const size_t n = 400, p = 2;  // column 0 splits, column 1 is the leaf basis
+  std::vector<double> x(n * p), z(n), w(n);
+  for (size_t i = 0; i < n; ++i) {
+    double t = (double) i / (double) n;
+    x[i] = t;
+    x[i + n] = std::sin(3.0 * t);
+    z[i] = 0.3 * t - 0.15;
+    w[i] = 0.5 + (i % 4 == 0 ? 1.0 : 0.25);
+  }
+  const double scale = 0.5 / std::sqrt(10.0), k = 2.0, sigmaSq = 0.04;
+  const size_t indexBytes = sizeof(index_t);
+  size_t columns[] = {1};
+
+  ColumnStore store;
+  built(store.build(x.data(), n, p, 100, false, nullptr, columns, 1));
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  tree.initialize(indexBuffer.data(), n);
+
+  LinearGaussianLeaf leaf;
+  leaf.scale = scale;
+  leaf.initialize(store, columns, 1);
+
+  leaf.logIntegratedLikelihoodForNode(tree, z.data(), w.data(), k, sigmaSq, 0);
+  check(leaf.statisticsCacheResidentBytes() == n * indexBytes,
+        "the stump caches one member list");
+
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(50);
+  tree.birth(store, 0, rule, z.data(), w.data());
+  int32_t left = tree.at(0).leftChild, right = left + 1;
+  size_t leftObs = tree.at(left).numObservations();
+  check(leftObs >= 32 && tree.at(right).numObservations() >= 32,
+        "both grown children are cacheable");
+  leaf.logIntegratedLikelihoodForNode(tree, z.data(), w.data(), k, sigmaSq,
+                                      left);
+  leaf.logIntegratedLikelihoodForNode(tree, z.data(), w.data(), k, sigmaSq,
+                                      right);
+  check(leaf.statisticsCacheResidentBytes() == 2 * n * indexBytes,
+        "the children cache beside the root's now-dead entry");
+
+  // the draw runs on the settled tree, where the root really is interior
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 8123u);
+  double draw[2];
+  leaf.drawFromPosteriorForNode(rng, tree, z.data(), w.data(), k, sigmaSq,
+                                left, draw);
+  check(leaf.statisticsCacheResidentBytes() == n * indexBytes,
+        "the draw releases the interior root's entry");
+
+  // a slot recycled onto a much smaller leaf gives the old capacity back
+  tree.undoBirth(0);
+  rule.setSplitIndex(10);
+  tree.birth(store, 0, rule, z.data(), w.data());
+  int32_t small = tree.at(0).leftChild;
+  size_t smallObs = tree.at(small).numObservations();
+  check(smallObs >= 32 && 2 * smallObs < leftObs,
+        "the recycled slot's membership shrank past the capacity bound");
+  leaf.logIntegratedLikelihoodForNode(tree, z.data(), w.data(), k, sigmaSq,
+                                      small);
+  leaf.logIntegratedLikelihoodForNode(tree, z.data(), w.data(), k, sigmaSq,
+                                      small + 1);
+  check(leaf.statisticsCacheResidentBytes() == n * indexBytes,
+        "the recycled slot holds its membership, not its old capacity");
+
+  // an accepted death frees the pair without touching either freed node, so
+  // both still read as bottom; only the walk to the root tells them apart
+  int32_t freed = tree.at(0).leftChild;
+  tree.orphanChildren(0);
+  tree.releasePair(freed);
+  leaf.drawFromPosteriorForNode(rng, tree, z.data(), w.data(), k, sigmaSq, 0,
+                                draw);
+  check(leaf.statisticsCacheResidentBytes() == n * indexBytes,
+        "the draw releases the pair the death freed");
+
+  // capacity policy, never a value: what the pruned cache serves is bitwise
+  // what a leaf that never cached anything computes
+  LinearGaussianLeaf cold;
+  cold.scale = scale;
+  cold.initialize(store, columns, 1);
+  check(leaf.logIntegratedLikelihoodForNode(tree, z.data(), w.data(), k,
+                                            sigmaSq, 0) ==
+        cold.logIntegratedLikelihoodForNode(tree, z.data(), w.data(), k,
+                                            sigmaSq, 0),
+        "the pruned cache scores the scanned score");
+  ext_rng* rngCold = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 4231u);
+  ext_rng_setSeed(rngCold, 4231u);
+  double drawWarm[2], drawCold[2];
+  leaf.drawFromPosteriorForNode(rng, tree, z.data(), w.data(), k, sigmaSq, 0,
+                                drawWarm);
+  cold.drawFromPosteriorForNode(rngCold, tree, z.data(), w.data(), k, sigmaSq,
+                                0, drawCold);
+  check(drawWarm[0] == drawCold[0] && drawWarm[1] == drawCold[1],
+        "the pruned cache draws the scanned draw");
+  ext_rng_destroy(rngCold);
+  ext_rng_destroy(rng);
+
+  printf("ok: linear leaf statistics cache prune\n");
+}
+
 static void testLinearLeafEndToEnd(ext_rng* rng) {
   const size_t n = 400, p = 2;
   std::vector<double> x(n * p), f(n), y(n);
@@ -7180,6 +7289,7 @@ void runModelTests(ext_rng* rng) {
   testLinearLeafMarginal();
   testLinearLeafDraw(rng);
   testLinearLeafStatisticsCache();
+  testLinearLeafStatisticsCachePrune();
   testLinearLeafEndToEnd(rng);
   testLinearLeafFormats(rng);
   testLinearLeafViews();
