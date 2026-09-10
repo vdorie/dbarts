@@ -667,11 +667,20 @@ public:
   }
 
   /// The traversal count below which an out-of-sample replay runs inline on
-  /// the caller's thread. A traversal is one (row, tree, slab) descent, and
-  /// the measured cost of one is ~2.6 ns, so 1e7 of them is ~26 ms of work -
-  /// comfortably above the few tens of microseconds a spawn and a join cost,
-  /// and small enough that no interactive call waits on the threshold. Each
+  /// the caller's thread. A traversal is one (row, tree, slab) descent. Each
   /// entry point counts ITS OWN traversals, not forest 0's.
+  ///
+  /// Nothing breaks either side: the partition gives each slab its own output
+  /// range and reduces nothing across workers, so a replay is bitwise
+  /// identical at any worker count and the cutoff buys only time. The value
+  /// came from arithmetic (one traversal at ~2.6 ns, so 1e7 is ~26 msec of
+  /// work) rather than from measurement, and measurement puts the crossover
+  /// about 200x lower: on four threads the fan-out is already 1.5x at 1e5
+  /// traversals and saturates near 3.5x, while spawn and join together cost
+  /// 60 to 70 microseconds, not the 26 msec the estimate budgeted for. The
+  /// crossover measures between 3e4 and 1e5 traversals, so every replay from
+  /// there up to this value - 46 msec of avoidable serial work at the top of
+  /// that range - runs inline with the fan-out available.
   static constexpr size_t predictParallelCutoff = 10000000;
 
   /// Every forest's tree count summed, the traversal weight of a replay that

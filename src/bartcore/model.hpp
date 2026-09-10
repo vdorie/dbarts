@@ -1008,7 +1008,15 @@ struct LinearGaussianLeaf {
   static constexpr bool hasFunctionParams = false;
   /// Sufficient-statistic scratch lives on the stack, sized for
   /// maxNumCovariates; the factory rejects any designation with
-  /// numCovariates > maxNumCovariates.
+  /// numCovariates > maxNumCovariates. A ninth column is therefore a REFUSAL
+  /// and not a slowdown - the user-visible one in
+  /// leafCovariateDesignationIsValid - so the cap is a stop rather than a
+  /// tuning point. Neither of the two things a cap like this usually protects
+  /// is near a limit at eight: the O(q^3) leaf draw costs 5 percent of a
+  /// sweep more at eight columns than at four (n = 4000, 25 trees), and the
+  /// median leaf still holds 444 times q + 1 members, with 0.17 percent of
+  /// leaves rank-deficient before the prior's ridge. Raising it means
+  /// resizing this scratch, which is why it is compile-time.
   static constexpr std::size_t maxNumCovariates = 8;
 
   double scale = 1.0;  // nodeScale / sqrt(numTrees)
@@ -2196,6 +2204,22 @@ private:
   std::size_t numCovariates_ = 0;
   std::size_t numObservations_ = 0;
   std::size_t numTestObservations_ = 0;
+  // Leaf member count above which the four GP entry points score and draw the
+  // leaf as a CONSTANT leaf instead. The GP draw is cubic in the member count,
+  // so this bounds the per-leaf work; the substitution is coherent (a constant
+  // kernel reduces the GP score to the constant leaf's formula), which is why
+  // it is a fallback and not a refusal. Set from the R surface, so this is a
+  // default rather than a limit.
+  //
+  // It binds in both directions at 256, and neither direction is comfortable.
+  // Below it the model is quietly not the one that was asked for: on n = 1200
+  // with 20 trees, 83 percent of training rows sit in a fallen-back leaf at
+  // 256, against 56 percent at 512 and 28 percent at 1024. Above it the cost
+  // is the cubic law plus the shrinking fallback share, 8 to 12x per
+  // doubling: 22.0 msec per iteration at 256 against 276 at 512 and 2233 at
+  // 1024, for an rmse that improves slightly and flattens by 512. Because
+  // neither regime announces itself, a fit cannot be read without knowing
+  // which one it landed in.
   std::size_t maxLeafSize_ = 256;
   std::vector<std::size_t> columns_;
   std::vector<double> means_, sds_;

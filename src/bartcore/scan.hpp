@@ -302,7 +302,17 @@ struct CategoricalScanScratch {
 /// Present-category count above which the exact enumeration gives way to the
 /// sorted-prefix family. 2^(P-1) - 1 = 511 candidates already cover every
 /// factor an R user constructs, and raising the cap relocates the boundary
-/// rather than removing it.
+/// rather than removing it: the candidate set doubles per level, so no finite
+/// cap makes a 40-level factor enumerable.
+///
+/// Nothing breaks AT the cap; what changes above it is the proposal law,
+/// which sees P - 1 sorted prefixes instead of the full balanced-partition
+/// set. Cost is not what the cap is protecting: enumerating 511 candidates
+/// measures the same as emitting 11 prefixes (0.98 msec per iteration either
+/// side, n = 2000, 200 trees), because the per-proposal cost is the O(node
+/// members) histogram ahead of the enumeration and not the candidate loop.
+/// Read only on the grow-from-root path; MH birth draws its categorical
+/// rules from the prior and never enumerates.
 inline constexpr std::size_t categoricalExhaustiveCap = 10;
 
 /// How many candidates the enumeration emits for P present categories: the

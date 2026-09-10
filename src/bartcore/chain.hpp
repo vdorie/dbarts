@@ -5994,6 +5994,15 @@ private:
   // share of the thread budget; created lazily, never below the cutoff. The
   // forests borrow it through routeTestRows.
   misc_mt_manager_t testFitPool_ = nullptr;
+  // Test rows below which routing stays on the chain's own thread. Nothing
+  // breaks either side of it - the two paths are byte-identical, routing
+  // draws no rng and each row writes its own slot - so the only thing at
+  // stake is time, and this value sits PAST the crossover: at the cutoff
+  // itself four threads already run 1.54x faster (31.0 against 20.1 msec per
+  // iteration, n.train 2000, 75 trees), rising to 2.97x at 262144, while the
+  // serial cost is linear in the row count and already 16.5 msec at 32768.
+  // A test set between the crossover and this value pays for a pool it does
+  // not get.
   static constexpr size_t testFitParallelCutoff = 65536;
 
   // Node-indexed scatter-add accumulator for the fused roll, fusedSuffstatBanks

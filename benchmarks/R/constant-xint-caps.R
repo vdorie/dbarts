@@ -125,10 +125,9 @@ if (!quick) {
 }
 
 cat(
-  "\nnote: a cut request past its cap is accepted and silently clamped where",
-  "\nthe store sizes its grid (ColumnStore, maxNumCutsRepresentable), while a",
-  "\nlevel count past its cap is a named refusal at the bridge",
-  "(refuseLevelCountPastCeiling).\n"
+  "\nnote: a cut request past its cap and a level count past its cap are both",
+  "\nnamed refusals now; the cut request was accepted and silently clamped",
+  "\nwhen this probe was first run.\n"
 )
 cat(sprintf(
   "\ncaps: %d cuts, %d categorical levels, %d ordered-factor levels\n",

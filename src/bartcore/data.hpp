@@ -33,6 +33,19 @@ using index_t = std::uint32_t;
 /// Reserved code for a missing ordinal value; cut counts cap below it so
 /// real codes (which reach numCuts) never collide.
 constexpr xint_t naCode = 0xFFFFu;
+
+/// The most cuts one ordinal column's grid can carry, 65533. It is not a
+/// tuning choice: an ordinal cell holds a rank in [0, numCuts], naCode is
+/// spent on missing, and 16 bits leave exactly this many cuts. ABOVE it the
+/// store REFUSES the build rather than quantizing onto a grid the caller did
+/// not ask for - the level caps below have always refused by name and the cut
+/// cap now matches them. Reaching it takes a deliberate request: the
+/// per-column count is min(n.cuts, distinct values - 1) against a default
+/// n.cuts of 100, and a full 65533-cut grid is not itself expensive (0.68
+/// against 0.72 msec per iteration at n = 70000, five trees), so nothing but
+/// an explicit ask arrives here. Widening the code past 16 bits is a separate
+/// change: misc_xint_t static-asserts the width and the per-ISA partition
+/// units carry it.
 constexpr std::uint32_t maxNumCutsRepresentable = 0xFFFDu;
 
 /// The missing marker of a HOST's int32 code channel (PredictorSource's
@@ -165,14 +178,24 @@ constexpr bool kindSplitsBySubset(ColumnKind kind) {
   return kind == ColumnKind::categorical;
 }
 
+/// The most levels a categorical column can carry, 65535: codes 0..K-1 plus
+/// the missing position above them, which is all a 16-bit code holds. Above
+/// it the R surface refuses by name before the store is touched, and
+/// levelCodeIsRepresentable refuses for a host that drives the engine
+/// directly. No design that arrives on its own is near it - a 65535-level
+/// factor needs at least that many rows to be non-degenerate - so this bounds
+/// the representation rather than a workload.
 constexpr std::uint32_t maxCategories = 0xFFFFu;
 
 /// The most levels a factor column of a kind can carry. A categorical column
 /// spends codes 0..K-1 plus a missing position above them, which xint_t holds
 /// while K reaches maxCategories. An ordered factor spends one more: the
 /// upper bin of its K - 1 midpoint grid, so that grid must fit
-/// maxNumCutsRepresentable and the kind's ceiling stops one lower. Read only
-/// for a factor column.
+/// maxNumCutsRepresentable and the kind's ceiling stops one lower - 65534.
+/// Read only for a factor column. Above either ceiling the R surface refuses
+/// by name, and a host driving the engine directly is refused at the build's
+/// own level-count check; neither ceiling is reachable by a design that was
+/// not built to reach it.
 constexpr std::uint32_t maxLevelsForKind(ColumnKind kind) {
   return kindSplitsBySubset(kind) ? maxCategories
                                   : maxNumCutsRepresentable + 1u;
@@ -210,7 +233,14 @@ inline bool levelCodeIsRepresentable(std::int32_t code) {
 }
 
 /// CSC-built columns at or below this nonzero fraction take rank-bitmap
-/// storage; denser ones densify their codes.
+/// storage; denser ones densify their codes. It buys predictor memory with gather time, and both halves are real at
+/// 0.2: at n = 1e5 over 100 columns the rank decode costs 38 percent of a
+/// sweep (13.3 msec just below the threshold against 9.6 just above, the
+/// dense side flat in density), and the sparse store holds 3.5x less than the
+/// dense one there. Raising it trades more time for less memory and lowering
+/// it the reverse, and the right price depends on the workload rather than on
+/// anything the engine can measure for itself. Read at BUILD, so it fixes a
+/// column's layout for the store's life.
 constexpr double sparseDensityThreshold = 0.2;
 
 /// Rank-bitmap hot storage of a sparse ordinal column: code(i) is zeroCode
@@ -1538,7 +1568,8 @@ struct ColumnStore {
   /// at all.
   ///
   /// False REFUSES the build: some cell of a factor column is not a level code
-  /// the store can represent. The store is left partly built and the caller
+  /// the store can represent, or some column asks for more than
+  /// maxNumCutsRepresentable cuts. The store is left partly built and the caller
   /// discards it - a creation build has nothing to preserve - and the refusal
   /// travels out as a status rather than an exception, since the hosts that
   /// raise on it cross a C boundary.
@@ -1566,10 +1597,13 @@ struct ColumnStore {
     } else {
       maxNumCuts.assign(p, maxNumCutsScalar);
     }
-    // keep the reserved missing code out of the real code range
+    // keep the reserved missing code out of the real code range. A request
+    // past the ceiling is REFUSED rather than quantized onto a grid the
+    // caller did not ask for: silently returning 65533 cuts for 100000 is a
+    // different model with no notice, and the level counts a few lines below
+    // have always refused by name.
     for (size_t j = 0; j < p; ++j)
-      if (maxNumCuts[j] > maxNumCutsRepresentable)
-        maxNumCuts[j] = maxNumCutsRepresentable;
+      if (maxNumCuts[j] > maxNumCutsRepresentable) return false;
     train.codeOffsets.assign(p, 0);
     resetTrainStorage();
     if (mapped) {

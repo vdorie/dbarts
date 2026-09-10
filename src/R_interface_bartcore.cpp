@@ -1374,8 +1374,18 @@ void parseData(ParsedData& data, SEXP dataExpr) {
                           rc_asRLength(data.numPredictors), RC_END);
   int* maxNumCuts = INTEGER(slotExpr);
   data.maxNumCuts.resize(data.numPredictors);
-  for (size_t j = 0; j < data.numPredictors; ++j)
+  for (size_t j = 0; j < data.numPredictors; ++j) {
+    // named here rather than left to the store's own refusal, which travels
+    // as a status and would reach the caller as the generic specification
+    // error; the factor level ceilings refuse by name the same way
+    if (static_cast<uint32_t>(maxNumCuts[j]) >
+        bartcore::maxNumCutsRepresentable)
+      Rf_error("'n.cuts' of %d for predictor %d is over the cap of %u, the "
+               "most cuts a predictor's grid can carry",
+               maxNumCuts[j], static_cast<int>(j + 1),
+               bartcore::maxNumCutsRepresentable);
     data.maxNumCuts[j] = static_cast<uint32_t>(maxNumCuts[j]);
+  }
 
   UNPROTECT(2);  // the slot index and the factor level tables
 }
