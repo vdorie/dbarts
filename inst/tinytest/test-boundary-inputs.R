@@ -78,8 +78,9 @@ y.const <- rep(3.0, n)
 warnings.const <- captureWarnings(
   sampler.const <- dbarts(y.const ~ x.const, control = control)
 )
-# The starting-sigma linear fit's own "essentially perfect fit" warning is
-# muffled at its source (see estimateSigmaFromLinearModel), so only the
+# The starting-sigma least squares raises no warning of its own - it takes
+# summary.lm's expression for sigma without going through summary.lm, so that
+# function's "essentially perfect fit" is not on the path - and only the
 # degenerate-response warning should reach here.
 expect_equal(length(warnings.const), 1L)
 expect_true(grepl("indistinguishable", conditionMessage(warnings.const[[1L]])))

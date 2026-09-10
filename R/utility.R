@@ -761,16 +761,63 @@ rawPredictorMatrix <- function(x) {
   }
 }
 
+## The residual standard error of a least-squares fit of y on an intercept
+## plus the columns of x - `summary(lm(y ~ x))$sigma`, to the last bit, for
+## every input this is given. It reaches the same number by calling the QR
+## routine lm itself calls, on the design matrix model.matrix would have
+## built (the intercept column first, so the pivoting order is the same), and
+## by then taking summary.lm's own expression for sigma: the weighted
+## residual sum of squares over the residual degrees of freedom, summed in
+## that order. What it does NOT do is go through lm(), which builds a model
+## frame and a model matrix on top of the matrix already in hand; at the
+## sizes this is called on those are the largest transient allocation of the
+## whole fit.
+##
+## lm()'s default na.action drops any row whose response, weight or offset is
+## missing before fitting, so the same rows are dropped here; x itself
+## carries no NA at this point (the caller imputes them).
+residualStandardError <- function(y, x, weights, offset) {
+  keep <- !is.na(y)
+  if (!is.null(weights)) {
+    keep <- keep & !is.na(weights)
+  }
+  if (!is.null(offset)) {
+    keep <- keep & !is.na(offset)
+  }
+  if (!all(keep)) {
+    y <- y[keep]
+    x <- x[keep, , drop = FALSE]
+    if (!is.null(weights)) {
+      weights <- weights[keep]
+    }
+    if (!is.null(offset)) offset <- offset[keep]
+  }
+  fit <- if (is.null(weights)) {
+    lm.fit(cbind(1, x), y, offset = offset)
+  } else {
+    lm.wfit(cbind(1, x), y, weights, offset = offset)
+  }
+  residual <- fit$residuals
+  # fit$weights, not the argument: lm.wfit restores the zero-weight rows it
+  # dropped, and summary.lm reads the restored vector
+  rss <- if (is.null(weights)) {
+    sum(residual^2)
+  } else {
+    sum(fit$weights * residual^2)
+  }
+  sqrt(rss / fit$df.residual)
+}
+
 ## Starting sigma estimate from a linear fit. NAs in the predictors are
 ## mean-imputed for this estimate only: complete cases can be scarce when
 ## missingness is scattered, and the estimate just anchors the residual
 ## variance prior.
 estimateSigmaFromLinearModel <- function(data) {
   x <- data@x
-  # a sparse design would densify under lm and is typically wide anyway;
-  # the marginal estimate still anchors the residual variance prior. A dense
-  # container (a frame with factors) still fits lm; only CSC-backed columns
-  # fall back to the marginal estimate.
+  # a sparse design would densify under the linear fit and is typically wide
+  # anyway; the marginal estimate still anchors the residual variance prior.
+  # A dense container (a frame with factors) still fits; only CSC-backed
+  # columns fall back to the marginal estimate.
   if (predictorSourceIsSparse(x)) {
     warning(warningCondition(
       paste0(
@@ -797,21 +844,7 @@ estimateSigmaFromLinearModel <- function(data) {
       }
     }
   }
-  # summary.lm's "essentially perfect fit" warning is a BLAS/architecture
-  # property of this internal fit (residual variance can land within a
-  # factor of two of its 1e-30 threshold), leaks an implementation detail
-  # meaningless at the dbarts() call site, and duplicates the user-facing
-  # signal dbarts already gives for a degenerate response (the
-  # "response values are indistinguishable..." warning in R/data.R). Muffle
-  # only that exact condition; everything else passes through.
-  sigma <- withCallingHandlers(
-    summary(lm(data@y ~ x, weights = data@weights, offset = data@offset))$sigma,
-    warning = function(w) {
-      if (grepl("essentially perfect fit", conditionMessage(w), fixed = TRUE)) {
-        invokeRestart("muffleWarning")
-      }
-    }
-  )
+  sigma <- residualStandardError(data@y, x, data@weights, data@offset)
   residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
   # A design with no residual degrees of freedom (or another reason the
   # fit's residual variance comes out undefined) leaves sigma non-finite; a

@@ -103,7 +103,7 @@ S3method(as.matrix, dbartsMixedMatrix)
 importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, new, setValidity, setMethod, is, show)
 
 importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, naresid)
-importFrom(stats, lm, pnorm, plogis, quantile)
+importFrom(stats, lm.fit, lm.wfit, pnorm, plogis, quantile)
 importFrom(stats, as.formula, setNames)
 
 importFrom(parallel, makeCluster, clusterExport, clusterEvalQ, clusterMap, stopCluster, splitIndices)

@@ -454,6 +454,13 @@
             one whole prediction array - 1.6 GB on a 100,000-observation,
             four-chain, 500-draw fit and 4.0 GB on a 1,000,000-observation,
             500-draw one. Every returned value is unchanged.
+      \item The starting estimate of sigma, taken when \code{sigest} is not
+            supplied, no longer builds a model frame and a model matrix on
+            top of the predictor matrix already in hand: it calls the same
+            least-squares routine \code{\link[stats]{lm}} calls, on the
+            same design and in the same arithmetic order, so the estimate is
+            bitwise what it was. Peak memory of a 100,000-observation,
+            50-predictor fit falls by 77 MB.
       \item \code{\link{dbartsControl}} gains \code{levelGibbs}, a logical
             adding one Gibbs step per sampler iteration, taken before the
             trees are updated: a constant is added to every occupied leaf of

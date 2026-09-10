@@ -71,7 +71,7 @@ differently.
 | ordinal probability array | [`probsTrain`](../../R/bart.R) | saved sample | 8 | n*K*S*C, beside the n*S*C latent channel | ordinal, built R-side |
 | raw predictors, caller's | the matrix the caller passes | sampler | 8 | n*p | always, beside the store's 2*n*p codes |
 | raw predictors, ingestion high-water | [`dbartsData`](../../R/data.R)'s subset copy and its complete-cases copy | sampler | 8 | up to 2*n*p, plus 2*nTest*p | always: the subset copy is persistent and the complete-cases copy transient, and both fire on a matrix with no subset and no missing values. Measured per host and shape, not derived - see below |
-| starting-sigma linear model | [`estimateSigmaFromLinearModel`](../../R/utility.R) | sampler | 8 | about 4*n*(p+1) transiently, at the `summary.lm` instant - base R's model frame, na filter, model matrix and QR | no `sigest` given and the family estimates a residual sd (not binary) |
+| starting-sigma linear model | [`estimateSigmaFromLinearModel`](../../R/utility.R), [`residualStandardError`](../../R/utility.R) | sampler | 8 | about 2*n*(p+1) transiently - the design matrix and the QR's own copy of it | no `sigest` given and the family estimates a residual sd (not binary) |
 | leaf statistics cache | [`LinearGaussianLeaf`](../../src/bartcore/model.hpp)'s per-tree crossproduct cache | chain | 4 | n per POPULATED ARENA DEPTH LEVEL per tree per chain, about 3.2 levels measured | a designated-covariate leaf (linear, gp) |
 | fit-path warm-up | the R session itself | sampler | not a byte count | one-off: byte-compiling the fit closures and populating the S4 dispatch tables | the first fit of a session |
 | ingestion transients | [`makeModelMatrixFromDataFrame`](../../R/data.R) | sampler | 8 | up to 2*n*p live at once - the model frame's columns and the numeric matrix built from them, before the store quantizes | the formula and data-frame doors |
@@ -95,10 +95,12 @@ starting-sigma linear model are live, and packaging, where the result channels
 and their copies are. On the matrix door a short run (n.burn = 0, small
 n.samples, as the audit's cells are) peaks at PACKAGING, not at ingestion: the
 per-chain n*T pair is already resident by then and dominates both. Ingestion
-wins only when no `sigest` is given, and then by base R's `lm`, not by the
-store: on this host that estimate raised the peak by 21.0 MB at p = 10,
-58.3 MB at p = 20 and 147.7 MB at p = 50 (n = 1e5, T = 200, S = 10), about
-30 further bytes per n*p as p grows. The formula and data-frame doors add
+wins only when no `sigest` is given, and then by the starting-sigma least
+squares, not by the store: on this host that estimate raises the peak by
+18.2 MB at p = 10, 16.2 MB at p = 20 and 101.3 MB at p = 50 (n = 1e5,
+T = 200, S = 10, each the paired difference between the same call with and
+without `sigest`). It was 48.0, 70.8 and 178.0 MB while the estimate went
+through `lm` (below). The formula and data-frame doors add
 their own model-frame transients on top; the audit measures the matrix door,
 where they do not exist.
 
@@ -272,9 +274,12 @@ could have been read off without it.
   two-copy model gives and the 26 a three-copy one does; the single-copy
   model the note started with gave 10 and was wrong everywhere.
 - The starting-sigma linear model is a new row and, on a short run with no
-  `sigest`, the largest single R-side term. It is base R's `lm`, not a
-  sampler allocation, which is why the audit's cells supply `sigest` and
-  price it on a paired excursion instead.
+  `sigest`, the largest single R-side term. It is a least-squares fit over
+  the whole design, not a sampler allocation, which is why the audit's cells
+  supply `sigest` and price it on a paired excursion instead. It was `lm`
+  when the row was written, at about 4*n*(p+1) for the model frame, the na
+  filter, the model matrix and the QR; it is now the QR alone, over a design
+  matrix built directly (below).
 - The leaf statistics cache is a new row and the largest single term of a
   designated-covariate fit: 276 MB at n = 1e5, T = 200, C = 1, where the
   whole rest of the fit is 350 MB. Without it the linear cell missed by
@@ -340,7 +345,7 @@ second row is its own TODO entry rather than a change in this arc.
 | take the column means over the returned layout and build that layout in one permutation, so neither extra copy exists | 1600 MB | 4000 MB | the R reshape and mean | TAKEN, measured 1612.2 MB and 4011.2 MB; the last copy would need the bridge to allocate the channel draw-major and the engine to write into it strided, which is its own item |
 | drop the transient complete-cases copy of the predictor matrix when nothing is missing | 16 MB | 400 MB | one branch in [`dbartsData`](../../R/data.R) | own TODO entry; unconditional but small |
 | prune the leaf statistics cache, or bound it by resident bytes rather than by tracked member bytes | 0 (constant leaf) | 0 (constant leaf) | the store and its accounting | own TODO entry; CONDITIONAL on a designated-covariate leaf, where it is 4*n per arena level per tree per chain, 276 MB measured at n = 1e5, T = 200, C = 1 and the single largest allocation of such a fit. The 256 MiB budget does not bound it, because it counts only the live member lists |
-| a cheaper starting sigma than an `lm` over the whole design | 0 today (packaging peaks higher) | 0 today | a few lines in [`estimateSigmaFromLinearModel`](../../R/utility.R) | own TODO entry; CONDITIONAL - worth 67 MB in case 1 and 1632 MB in case 2, but only once the returned array above stops setting the peak |
+| a cheaper starting sigma than an `lm` over the whole design | 0 today (packaging peaks higher) | 0 today | a few lines in [`estimateSigmaFromLinearModel`](../../R/utility.R) | TAKEN: [`residualStandardError`](../../R/utility.R) calls the QR routine `lm` calls, on the design matrix `model.matrix` would have built, and takes `summary.lm`'s own expression for sigma over it, so the estimate is bitwise unchanged with no model frame and no second design. Measured at n = 1e5, T = 200, S = 10 with no `sigest`: 348.9 to 318.5 MB at p = 10, 411.8 to 357.3 MB at p = 20, 588.5 to 511.2 MB at p = 50. Zero at either reference case, which supplies `sigest` |
 | a flat arena for saved trees instead of a vector per tree (keepTrees only) | 4 MB/chain at keepTrees TRUE | 4 MB/chain at keepTrees TRUE | one engine struct | own TODO entry, post-release |
 | drop the raw x when no mutation surface is in use | 16 MB | 400 MB | ingestion and predict both touched | not recommended; re-quantization needs it |
 | leafOf as uint16 | 40 MB/chain | 400 MB/chain | declined by measurement | do not reopen |
