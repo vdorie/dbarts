@@ -962,3 +962,61 @@ diagnostics on the full suite. Mutation: widening
 the wait's timeout to 100 seconds fails both of the new checks. tests/cpp
 only, no engine file touched, so the equivalence and speed compares are not
 owed and `air format --check` is n/a.
+
+## Landing note, weighted fused pass (2026-09-10)
+
+LANDED at 046c35d7083f01e6260e9f6d2a6371e589a03c42, eight commits, in
+place of S2's vector kernels (dec-B113):
+
+- f02360827eaa7fc03dda1c45458b36671fabee81 Extend the fused roll + suffstat pass to weighted families
+- adffa9fa73c41fc7b162eb7735676c3bbf823fb5 Record the weighted fused-pass measurement
+- b5d4e3c8bb373df60483ca5f469fb4bc47e6d110 Warm the tree index permutation from the fused pass
+- edcb60c9f25be250a3338d39cd66a3c209898ebb Record the n = 1e4 mechanism and the prefetch fix
+- d156b88b1eb15003914bd3f451801331130deca9 Record the crossover grid for a size gate
+- 0b3fecac5907b7daf9adf000fc36a0ce7abd3073 Guard the prefetch hint, pace it per cache line, fix the record
+- 037fa9b6573b5a720431984dba261fc03985a700 Re-record the three equivalence baselines at f0236082
+- 046c35d7083f01e6260e9f6d2a6371e589a03c42 Record the shipping ruling in NEWS, TODO and the plan
+
+[`rollAndSetNodeAveragesFused`](../../src/bartcore/chain.hpp) no longer
+declines `weights != nullptr`: a second bank set (sum w beside sum w r)
+under the same positional assignment and combine order, the product named
+before it is accumulated so no FMA contraction can occur, the body
+templated on the weighted flag so the unweighted arithmetic is textually
+unchanged. A prefetch of the tree's index permutation, one hint per
+64-byte line, issued from the pass, restores the warm-up the stock gather
+used to give the move phase's partition; it moves no value. Measured
+(Steps, the three dated sections above): weighted gaussian 26 to 29
+percent faster at n = 1e5, 18 percent at 3e4, 3 percent at 1e4; BCF 17
+percent, logistic 7 percent; the prefetch alone 6 to 16 percent on the
+unweighted path with draws unchanged. Below the crossover (weighted about
+1e4, unweighted about 2e4 rows at 200 trees) fusion loses up to 8
+percent; VD ruled to ship without a size gate and revisit one after the
+release with corpus scenarios sized above it (TODO).
+
+Shifting class, both builds alike: the 15 weighted and latent-weight
+gaussian scenarios, all 12 BCF and all 11 multinomial scenarios move at
+the last bit (every draws-axis channel at max |z| 0.00; the 37 unweighted
+gaussian scenarios bitwise unchanged). Re-recorded on the reference build
+as equivalence-f0236082.rds, bcf-equivalence-f0236082.rds and
+multinomial-equivalence-f0236082.rds, the P17 oracle being tests/cpp's
+weighted `testFusedSuffstatMatchesStock` twin (4.4e-15 against a 1e-9
+bound, poisoned to 0.53 by a counting mutation) and the twelve
+exact-posterior gates, none at |z| above 2.7; both builds reproduce all
+three files bitwise; two continuous-response snapshot tripwires moved by
+1.7e-14 relative and were regenerated. Every live pin repointed;
+deb144d2 and the two fbff1989 rows demoted.
+
+Gates (second reader's own libs): gaussian 37 identical / 15 statistical
+against deb144d2, 52 compared / 0 skipped; BCF 12/12 and multinomial
+11/11 moved at max |z| 0.00; tests/cpp 290 ok, ASan/UBSan 0 diagnostics,
+TSan 78 ok 0 warnings; disassembly of the weighted body 0 fmadd/fmla;
+tinytest shipped 8223/0 and reference 8250/0 at the tip; check-win-drift
+and doc-freshness exit 0; CI on 046c35d7 green on every workflow including
+equivalence and exact-gates against the new files.
+
+Review findings fixed before landing: a symbol cite pointed at the wrong
+partition source file (failed doc-freshness); the prefetch builtin had no
+fallback for other compilers; the pacing comment described a lookahead
+that is a warm-up (hint now once per cache line); four record numbers were
+stale.
+
