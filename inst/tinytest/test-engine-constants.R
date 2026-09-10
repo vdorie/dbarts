@@ -92,8 +92,11 @@ testFitWorkers <- function(cutoff, nTest) {
   )
   fits <- sampler$run(0L, 2L)
   partition <- .Call(dbarts:::C_dbarts_bartcore_lastTestFitPartition)
-  list(workers = partition[["n.workers"]], rows = partition[["n.rows"]],
-       test = fits$test)
+  list(
+    workers = partition[["n.workers"]],
+    rows = partition[["n.rows"]],
+    test = fits$test
+  )
 }
 
 atDefault <- testFitWorkers(65536L, 2000L)
@@ -218,7 +221,11 @@ fitAt <- function(control) {
   sampler$run(0L, 3L)$train
 }
 expect_identical(
-  fitAt(dbarts::dbartsControl(n.trees = 5L, n.chains = 1L, updateState = FALSE)),
+  fitAt(dbarts::dbartsControl(
+    n.trees = 5L,
+    n.chains = 1L,
+    updateState = FALSE
+  )),
   fitAt(dbarts::dbartsControl(
     n.trees = 5L,
     n.chains = 1L,
@@ -231,11 +238,26 @@ expect_identical(
 )
 
 ## each refuses what it cannot mean
-expect_error(dbarts::dbartsControl(categoricalExhaustiveCap = 1L), "integer >= 2")
-expect_error(dbarts::dbartsControl(categoricalExhaustiveCap = 31L), "at most 30")
-expect_error(dbarts::dbartsControl(testFitParallelCutoff = 0L), "positive integer")
-expect_error(dbarts::dbartsControl(predictParallelCutoff = 0L), "positive integer")
-expect_error(dbarts::dbartsControl(sparseDensityThreshold = 1.5), "in \\[0, 1\\]")
+expect_error(
+  dbarts::dbartsControl(categoricalExhaustiveCap = 1L),
+  "integer >= 2"
+)
+expect_error(
+  dbarts::dbartsControl(categoricalExhaustiveCap = 31L),
+  "at most 30"
+)
+expect_error(
+  dbarts::dbartsControl(testFitParallelCutoff = 0L),
+  "positive integer"
+)
+expect_error(
+  dbarts::dbartsControl(predictParallelCutoff = 0L),
+  "positive integer"
+)
+expect_error(
+  dbarts::dbartsControl(sparseDensityThreshold = 1.5),
+  "in \\[0, 1\\]"
+)
 
 rm(defaults, fitAt, growTrees, testFitWorkers, predictWorkers)
 
@@ -333,6 +355,16 @@ expect_equal(names(packaged$gp.fallback), c("evaluations", "fallbacks"))
 expect_true(packaged$gp.fallback[["fallbacks"]] > 0)
 
 rm(
-  degenerate, degenerateSamples, healthy, healthySamples, plainSamples,
-  packaged, tally, warned, quiet, gpControl, gpFrame, gpY
+  degenerate,
+  degenerateSamples,
+  healthy,
+  healthySamples,
+  plainSamples,
+  packaged,
+  tally,
+  warned,
+  quiet,
+  gpControl,
+  gpFrame,
+  gpY
 )
