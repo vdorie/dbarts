@@ -93,7 +93,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | engine-performance.md | PARTLY LANDED (S1 167e2c62, S3 70305575, weighted fused pass 046c35d7, S5 step 15 d06fbe5e landed; S2 measured and closed without shipping, dec-B113; S4 measured and closed without shipping, dec-B115; S5 steps 14, 16-18 open) | One gate matrix for the four engine items: a scalar reference build behind a configure flag with the vectorized draw path shipped, the multi-worker wait loop, within-chain threading re-measured and closed (an honest thread count ships instead), and the audit of the fixed engine constants with measurements and control settings. |
-| memory-footprint-audit.md | LANDED (note 13cb7e8a; steps 2-6 2f25e3d1; step 7 fd104888, 2026-09-10) | Derives and measures the per-sampler memory footprint in n, p, trees, chains and test rows, prices the R-layer duplicates beside the engine, records the model in the manual and ranks the avoidable allocations. |
+| memory-footprint-audit.md | LANDED (note 13cb7e8a; steps 2-6 2f25e3d1; step 7 fd104888; follow-ons 5a05d799, 2026-09-10) | Derives and measures the per-sampler memory footprint in n, p, trees, chains and test rows, prices the R-layer duplicates beside the engine, records the model in the manual and ranks the avoidable allocations. |
 | repo-modernization.md | MIXED (recurring/standing item) | CI/tooling hygiene: widened concurrency and path filters landed; no codecov integration - coverage stays local-on-demand. |
 
 ## Review / retrospective programs

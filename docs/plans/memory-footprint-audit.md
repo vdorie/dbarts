@@ -422,3 +422,58 @@ been dark on every run but one. Whole `bart` results were also compared
 across the two installed libraries out of band, identical on all four cases
 (gaussian and probit, `combineChains` TRUE and FALSE).
 
+## Landing note, follow-ons (2026-09-10)
+
+LANDED at 5a05d7999cb92f5234e535a4d38e8ab26f43c778, three commits:
+
+- ee03fbcdc245c74f174a990d5d2cf0cbf7eae642 Take the starting sigma
+  without lm's model frame and model matrix
+- 6571eae1cde67903b0b62e07ae75f789067427fc Skip the complete-cases row
+  selection when every row is complete
+- 5a05d7999cb92f5234e535a4d38e8ab26f43c778 Reduce the summary and
+  partial dependence means without apply
+
+Three of the ranked list's declined-or-deferred rows are taken. The
+starting-sigma estimate is now
+[`residualStandardError`](../../R/utility.R): it calls `lm.fit`/`lm.wfit`
+directly on the design `model.matrix` would have built (intercept
+column first) and takes `summary.lm`'s own expression for sigma over
+it, dropping the model frame and second design `lm()` built on top of
+the matrix already in hand; the estimate is bitwise what `lm()` gave.
+[`dbartsData`](../../R/data.R) now runs its complete-cases row
+selection (and the weights/offset/basis slices beside it) only when a
+row is actually dropped, instead of unconditionally copying `x`, `y`
+and the rest even when nothing is missing. `channelMeans`
+([`R/bart.R`](../../R/bart.R)) gained a `trailing` argument generalizing
+it from two fixed shapes to any trailing-margin count, and now backs
+[`posteriorInterval`](../../R/generics.R),
+`fitted.bart`/`fitted.bartOrdinal`/`fitted.bartNegbin`/`fitted.bartHurdle`,
+`meanCategoryProbabilities` and a new
+[`pdbart.drawMeans`](../../R/partialDependence.R) helper used by
+`pdbart` and `pd2bart`'s four call sites - each site's own
+`apply(..., mean)` is gone, so none of them permutes a full-size
+prediction channel to take a per-observation or per-category mean.
+
+Gates: implementer tinytest full suite 8255 of 8255, zero failures.
+Equivalence trio against the f0236082 baselines this arc's Verification
+block names, run independently by the implementer and by the reviewer:
+gaussian 52 of 52 "identical draws (same RNG stream)" lines, BCF 12 of
+12 and multinomial 11 of 11 "identical (all N channels: ...)" lines,
+zero "max |z|" lines and zero skipped, in both runs (the reviewer's
+first BCF and multinomial invocations errored on a baseline-settings
+mismatch and were re-run to the 12/12 and 11/11 above). `R CMD check
+--as-cran` Status OK; `check-doc-freshness` and `check-rc-codoc` OK;
+`lintr::lint()` no lints on every touched R file (`R/utility.R`,
+`R/data.R`, `R/generics.R`, `R/partialDependence.R`, `R/bart.R`). The
+slice is RNG-neutral, consistent with every gate above.
+
+The note's model rows moved with the code: the starting-sigma row is
+now the QR alone rather than `lm()`'s model frame plus model matrix,
+and the ingestion allowance's transient complete-cases copy is now
+conditional on a dropped row rather than unconditional. Both moves are
+downward and touch no engine row, so
+benchmarks/baselines/memory-footprint-b184b6b2.csv - recorded against
+the pre-follow-on model - is stale; a re-record on a quiet machine,
+named after ee03fbcd, is owed and not done by this landing note (a
+records-only pass, no benchmark run).
+

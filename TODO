@@ -359,9 +359,11 @@ pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84; LANDED
   (dec-B111). Plan: docs/plans/pure-c-header.md.
 memory footprint at large n (VD concern, 2026-09-08; LANDED: note
   13cb7e8a, script and validation 2f25e3d1, step 7's two-copy removal
-  fd104888, baseline benchmarks/baselines/memory-footprint-b184b6b2.csv. Follow-on, its own entry when opened: the last
-  full-size copy needs the bridge to allocate the prediction channel
-  draw-major and the engine to write it strided)
+  fd104888, the follow-ons below at 5a05d799, baseline
+  benchmarks/baselines/memory-footprint-b184b6b2.csv (stale since the
+  follow-ons; re-record owed, below). Further follow-on, its own entry
+  when opened: the last full-size copy needs the bridge to allocate the
+  prediction channel draw-major and the engine to write it strided)
   audit the per-sampler footprint as a function of n, p, trees and
   chains (owned conditioning vectors, cut codes, tree storage, per-chain
   state, test slabs) and record it in the manual; VD wants larger
@@ -371,11 +373,12 @@ memory footprint at large n (VD concern, 2026-09-08; LANDED: note
   serves the summary generics and the partial-dependence replays, so no
   apply(..., mean) permutes a full-size prediction channel any more.
   Two further follow-ons are taken with it: the starting sigma no longer
-  goes through lm's model frame and model matrix, and dbartsData skips
-  the complete-cases row selection when no row is dropped. The footprint
-  model's ingestion allowance and starting-sigma rows moved with them, so
-  a re-record of benchmarks/baselines/memory-footprint-b184b6b2.csv is
-  owed.
+  goes through lm's model frame and model matrix (ee03fbcd), and
+  dbartsData skips the complete-cases row selection when no row is
+  dropped (6571eae1). The footprint model's ingestion allowance and
+  starting-sigma rows moved with them, so a re-record of
+  benchmarks/baselines/memory-footprint-b184b6b2.csv, on a quiet
+  machine and named after ee03fbcd, is owed.
 
 per-draw callbacks (decided, VD 2026-09-10; docs/decisions.md dec-B114;
   priority raised on the memory audit: the R-side prediction array and
