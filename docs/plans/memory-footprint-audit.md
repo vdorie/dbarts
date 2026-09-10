@@ -477,3 +477,47 @@ the pre-follow-on model - is stale; a re-record on a quiet machine,
 named after ee03fbcd, is owed and not done by this landing note (a
 records-only pass, no benchmark run).
 
+## Landing note, leaf-cache prune (2026-09-10)
+
+LANDED at 8394ddbe4e612352969068c94b4e06c7364522f7, one commit, with the note rows and the TODO entry.
+
+The ranked list's leaf-cache item is taken as the prune rather than as an
+honest budget. [`drawFromPosteriorForNode`](../../src/bartcore/model.hpp)
+releases the cache slots that are not live leaves, which is what an
+accepted grow's interior nodes and an accepted death's freed pairs have in
+common, and [`storeCrossproduct`](../../src/bartcore/model.hpp) reallocates
+rather than reuse a capacity that has run past twice its membership. The
+draw is the hook because it alone runs on the settled tree: a proposal is
+scored with the tree mutated, so a prune during scoring would drop the
+parent of every rejected grow and pay a rescan for it.
+
+Counting resident bytes against the existing budget was the alternative and
+was declined by the measurement: instrumented at n = 1e5, T = 200, C = 1 on
+the linear leaf, the cache held 248.3 MB of member lists against 178.1 MB
+tracked, so an honest budget would have started refusing entries just under
+its own ceiling and traded the megabytes for rescans instead of giving them
+back. The same reading settles which mechanism dominates - member lists,
+live and stale together, are 99.7 pct of the cache; the inline crossproduct
+the budget also misses is 0.8 MB over 1097 populated slots, and is left
+alone.
+
+After: 86.1 MB of member lists against 80.0 MB tracked (exactly 4*n*T, one
+partition per tree) over 447 populated slots, process peak RSS 689.0 MB to
+518.2 MB, and the fit 1.8 pct slower - 6.70 s to 6.82 s, medians of nine
+and six interleaved runs on this host. The 1.8 pct is the prune's own O(arena)
+walk per drawn leaf plus the rescans the released entries force; it is
+reported, not hidden.
+
+Gate: `testLinearLeafStatisticsCachePrune` in
+[tests/cpp/test_model.cpp](../../tests/cpp/test_model.cpp) pins the resident
+byte count through a stump, an accepted grow, a slot recycled onto a much
+smaller leaf and an accepted death, and pins that the pruned cache still
+scores and draws bitwise what a leaf that never cached anything computes.
+Three mutations were shown to fail it: the prune call removed (3 checks),
+the capacity bound removed (1), and the parent walk that tells a freed slot
+from a live leaf removed (1). Equivalence is bitwise across all three
+harnesses (52 gaussian, 12 BCF, 11 multinomial scenarios), as a cache that
+only decides whether a value is recomputed must be. The 30-cell footprint
+grid was not re-recorded; the model's cache multiplier is the post-prune
+reading at the one cell, and the re-record already owed for the earlier
+follow-ons covers it.
