@@ -601,6 +601,86 @@ it; a signal-carrying p = 20 cell one scale down was never measured and
 is four times worse. That belongs to the shipped fusion's own ledger,
 not to this measurement, and it is not decided here.
 
+#### Crossover grid for a size gate (2026-09-09)
+
+VD has taken the weighted fusion plus prefetch; open is whether a size
+threshold below which the sampler declines the fusion, for weighted and
+unweighted alike, rides the same landing. This prices that gate, and
+does not implement it.
+
+Legs. The fused leg is the PREFETCHED build, which is what would ship.
+The no-fusion leg carries no prefetch and needs none: its stock
+`setNodeAverages` gathers over the whole of `indices[]`, which IS the
+warm-up the prefetch reinstates, and adding a hint over an array the
+leg already reads would only add work. That the two legs are equally
+warm is measured above, not assumed - `misc_partitionRange_neon` sits
+at 1321 ms in the stock leg against 1961 to 2110 in every fused leg.
+
+M1 Max, shipped build, one chain one thread, `sampler$run` only,
+p = 20, five interleaved repeats, median ms per sample, spread
+max - min. Gain is the fused-plus-prefetch build against no fusion, so
+a NEGATIVE number is a cell the gate would want to catch.
+
+| family | trees | n | no fusion | fused + prefetch | spread nf / pf | gain |
+|---|---|---|---|---|---|---|
+| unweighted | 200 |  2000 |  0.787 |  0.853 | 0.007 / 0.012 |  -7.8% |
+| unweighted | 200 |  5000 |  1.877 |  2.010 | 0.050 / 0.055 |  -6.6% |
+| unweighted | 200 | 10000 |  3.853 |  4.017 | 0.057 / 0.050 |  -4.1% |
+| unweighted | 200 | 20000 |  8.385 |  8.245 | 0.185 / 0.110 |  +1.7% |
+| unweighted | 200 | 30000 | 12.913 | 12.427 | 0.253 / 0.133 |  +3.9% |
+| unweighted | 200 | 50000 | 21.950 | 20.067 | 0.417 / 0.100 |  +9.4% |
+| weighted   | 200 |  2000 |  0.868 |  0.942 | 0.015 / 0.007 |  -7.8% |
+| weighted   | 200 |  5000 |  2.155 |  2.320 | 0.058 / 0.025 |  -7.1% |
+| weighted   | 200 | 10000 |  4.923 |  4.730 | 0.103 / 0.013 |  +4.1% |
+| weighted   | 200 | 20000 | 10.755 |  9.605 | 0.240 / 0.070 | +12.0% |
+| weighted   | 200 | 30000 | 17.027 | 14.347 | 0.253 / 0.107 | +18.7% |
+| weighted   | 200 | 50000 | 29.500 | 23.792 | 0.533 / 0.042 | +24.0% |
+| unweighted |  75 | 10000 |  1.403 |  1.470 | 0.015 / 0.010 |  -4.6% |
+| unweighted |  75 | 30000 |  4.707 |  4.380 | 0.053 / 0.017 |  +7.5% |
+| weighted   |  75 | 10000 |  1.845 |  1.748 | 0.020 / 0.197 |  +5.6% |
+| weighted   |  75 | 30000 |  6.410 |  5.233 | 0.133 / 0.023 | +22.5% |
+
+Crossovers. Weighted at 200 trees crosses between n = 5e3 and 1e4;
+unweighted at 200 trees between 1e4 and 2e4; weighted at 75 trees is
+already positive at the smallest n measured, so below 1e4; unweighted
+at 75 trees between 1e4 and 3e4. The loss below the crossover is
+bounded at about 8 percent; the gain above reaches 24.
+
+Does ONE threshold on n separate the two regimes? No. Weighted crosses
+about one octave earlier than unweighted at the same tree count, so any
+single n misclassifies a measured cell: at n = 1e4 a gate would have to
+fuse weighted (+4.1 and +5.6 percent at 200 and 75 trees) and decline
+unweighted (-4.1 and -4.6) in the same breath. TWO thresholds do
+separate the grid cleanly - fuse weighted at n >= 1e4, unweighted at
+n >= 2e4 - with no measured cell on the wrong side.
+
+Does n per tree, what a leaf-occupancy gate keys on, do better? No,
+worse: it is not even monotone in the gain. Unweighted at 200 trees and
+n = 2e4 is n/m = 100 and WINS (+1.7); unweighted at 75 trees and
+n = 1e4 is n/m = 133 and LOSES (-4.6). Occupancy orders those two the
+wrong way round, where plain n orders them correctly. The mechanism
+says why: what the fusion trades is a random gather for a scatter plus
+a transferred prefetch, and what decides the trade is whether the
+gathered arrays fit in cache - a function of n, not of how many rows
+share a leaf.
+
+What the gate would do to draws. Every fit in all three equivalence
+corpora is SMALLER than the smallest cell above: the gaussian corpus
+tops out at n = 1000 (one scenario; the rest are 150 to 600), the
+hazard scenario's person-period expansion is 300 subjects over K = 6
+periods so at most 1800 rows, and BCF and multinomial are n = 200
+throughout. So at ANY threshold this grid could support - 1e4, 2e4, or
+even 2e3 - all 52 gaussian, all 12 BCF and all 11 multinomial
+scenarios, 75 of 75, fall below it and revert to the stock
+association. Two consequences, and the second is the larger: every one
+of the 75 moves, so all three baselines re-record wholesale rather than
+the 15 + 12 + 11 the weighted extension alone moves; and afterwards the
+corpora would exercise the fused pass on NOTHING, leaving tests/cpp and
+the exact-posterior gates as its only coverage. A gate would therefore
+have to arrive with corpus scenarios sized above it, or the equivalence
+harnesses stop being a gate on the kernel this arc exists to build.
+
+
 
 
 S3, the run loop (dec-B88):
