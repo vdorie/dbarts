@@ -447,14 +447,18 @@ regardless of thread count. Two execution paths:
   exception, because it is RNG-free and output-disjoint, and so bitwise
   identical at any thread count.
 
-**Callback restriction**: the per-sweep conditioning callback (`SweepCallback`
-in the engine, `dbarts_sampler_callback` on the C ABI) fires on the calling
-thread before every sweep and lets the host mutate conditioning state between
-sweeps without a round trip. It is usable only when chains run inline:
-`Sampler::run` requires the caller not to set `onSweep` alongside
-worker-thread chains, and `dbarts_sampler_setCallback` raises an error when
-`numThreads > 1 && numChains > 1`. Which mutations are legal there is
-docs/design/bart-as-a-component.md's subject.
+**Callback restriction**: the per-sweep conditioning callback
+(`SweepCallback` in the engine) fires on the calling thread before every
+sweep and lets the host mutate conditioning state between sweeps without a
+round trip. It is usable only when chains run inline: `Sampler::run` requires
+the caller not to set `onSweep` alongside worker-thread chains. The flat C
+ABI carries no callback entry - `dbarts_sampler_setCallback` was trimmed out
+of `inst/include/dbarts/dbarts.h` with the other entries no consumer calls
+(docs/decisions.md dec-B86) - so the only caller today is the internal
+`bartcore_runWithCallback`, which refuses more than one chain outright. Which
+mutations are legal there is docs/design/bart-as-a-component.md's subject; a
+per-draw observer hook that would run ON the worker threads is proposed in
+docs/design/per-draw-callbacks.md.
 
 **Prediction** (`Sampler::predictColumns`, sampler.hpp) mirrors `run`'s
 worker-thread design: a per-call `n.threads` partitions the (chain, draw)

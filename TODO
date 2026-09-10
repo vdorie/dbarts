@@ -382,11 +382,11 @@ per-draw callbacks (VD 2026-09-10, priority raised on the memory audit:
   non-blocking default); the storage opt-out that composes with it
   (supplying a callback stops keeping the fitted-value channels); a
   worked Rcpp example writing each draw into a preallocated array; and
-  the tests. The blocking R-closure variant and the flat-header setter
-  wait - the internal bartcore_runWithCallback is single-chain and
-  blocks, and dbarts_sampler_setCallback is retired under dec-B86 until
-  a consumer names it. RNG class neutral. Design:
-  docs/design/per-draw-callbacks.md; forks 1-7 there are open for VD.
+  the tests. Reverses dec-B62's worker-thread refusal for an OBSERVER
+  hook (the conditioning hook keeps it) and re-opens the header entry
+  under dec-B86 with the example and stan4bart as named consumers; the
+  blocking R-closure variant waits. RNG class neutral. Design:
+  docs/design/per-draw-callbacks.md; forks 1-9 there are open for VD.
 
 host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   post-release: internal plain-C spec stage in the bridge; the engine's
