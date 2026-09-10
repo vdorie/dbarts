@@ -1,6 +1,10 @@
 # Within-chain threading for large-n single-chain sweeps: engineering design
 
-Status: CLOSED - NO-GO on every tested hardware (x86 and Apple Silicon), 2026-07-21.
+Status: CLOSED - NO-GO on every tested hardware (x86 and Apple Silicon),
+2026-07-21; re-measured on the current engine 2026-09-09 and the verdict
+STANDS - best 1.03x anywhere, a loss at two workers and at eight (section
+12). The opt-in ships under dec-B89 because losing it regresses 0.9-34, not
+on a speed win.
 
 Summary: Single-chain large-n sweeps (n >= 1e5) are DRAM/latency-bound over a
 handful of O(n) passes per tree. This note parallelizes those passes (suffstat
@@ -509,3 +513,106 @@ Final state:
   reusable knowledge, not a shippable win).
 - Multi-chain parallelism remains the effective way to use additional cores
   for this workload.
+
+## 12. Re-measured on the current engine (2026-09-09): the verdict stands
+
+dec-B89 brings within-chain threading back before the release as an explicit
+opt-in, because 0.9-34 had it and dropping it is a regression. A claim about
+what the opt-in buys has to rest on the engine as it is now, so the archived
+prototype was rebased onto the current tip and re-measured before any revival
+code was written. It was not rebuilt as-is: the engine moved under it.
+
+WHAT MOVED. The prototype threaded two passes, and one of them no longer
+exists.
+
+- The O(n) FIT SCATTER is gone. A constant-leaf tree's fits are now a per-tree
+  mu table plus a leaf map (`muByTree`, `leafOf`), so
+  [`sampleParametersAndSetFits`](../../src/bartcore/chain.hpp) writes O(#leaves)
+  and there is no slab to scatter into. Nothing to parallelize, so the scatter
+  half of the prototype was dropped rather than rebased.
+- The O(n) SUFFSTAT GATHER is gone as a separate pass. The random gather over
+  `indices[]` that section 1 called the #1 hotspot was replaced by
+  [`rollAndSetNodeAveragesFused`](../../src/bartcore/chain.hpp): one
+  observation-order pass that rolls the residual and scatter-adds it into a
+  node-indexed four-bank accumulator, weighted families included.
+
+So the entire parallelizable body of the tree loop is now that ONE fused pass,
+which is what the rebase threads. The gather blocking of section 3 was
+re-derived over it, exactly as the plan for this step called for: a fixed block
+map over the observation loop, a private bank accumulator per block, and a
+combine per bank in BLOCK-INDEX order before the banks combine left to right.
+Block 0 carries the n % 4 prologue and every later block starts at head + g *
+4096, so a block never starts mid-bank-phase and an element's bank stays a
+function of its index alone. The size cutoff is unchanged (n >= 1e5) and the
+pool is parked between sweeps. The re-derivation was a few hours, not a
+redesign; the design of section 3 survived the move intact.
+
+CORRECTNESS, CHECKED DIRECTLY. sha256 over sigma and yhat.train, friedman
+n = 1e5, m = 75, one chain, fixed seed, 20 burn-in and 40 kept draws:
+
+- 1, 2, 4 and 8 within-chain workers give the IDENTICAL digest. The byte
+  identity across worker count is reconfirmed on the current engine.
+- That digest is NOT the tip's. Grouping a bank's addition chain by block
+  regroups it, which is a different association and so a different draw. The
+  blocked law is taken at every worker count above the cutoff, one included,
+  so the threaded path has one law rather than one law per budget - which is
+  what makes the invariance hold at all.
+- Below the cutoff (n = 1e4) the prototype at eight workers is byte-identical
+  to the tip, so the serial pass is genuinely untouched.
+- The C++ component suite passes on the prototype build.
+- ThreadSanitizer, run once over the component suite with four within-chain
+  workers and the cutoff and block size temporarily lowered so the parallel
+  path actually engages: CLEAN, zero diagnostics. It is clean only because the
+  pool states its own ordering under the sanitizer: TSan does not model
+  libc++'s std::barrier as establishing happens-before on this toolchain, and
+  a 25-line two-thread barrier program reproduces the same false report class
+  (without the annotation the same suite raised 6158 reports, most of them
+  main-thread work against a worker from an earlier region). The annotation
+  does not blind the sanitizer to a real overlap: a deliberately overlapping
+  partition under the same annotation is still reported.
+
+MEASURED. arm64 M1 Max class, 10 cores, macOS, otherwise idle; one chain,
+friedman, m = 75, p = 10; `sampler$run` only, with data generation, ingestion
+and burn-in outside the timer; 200 timed iterations per cell at n = 1e5 after
+60 burn-in sweeps and 60 after 40 at n = 1e6 (sweep time is flat past ~50
+sweeps); six rounds, each round visiting every cell with the tip build
+measured immediately beside each prototype cell and the worker order reversed
+on alternate rounds; per-cell MINIMUM below. One-minute load average 1.97
+before and 2.65 after; nothing else was running. Whole sweep, 15 minutes.
+
+  msec/iteration          tip 1T   proto 1T    2T      4T      8T
+  n = 1e5                  13.28     13.32   13.97   13.19   15.56
+  n = 1e6                 127.4     128.0   134.1   124.6   127.0
+
+  ratio vs tip 1T, 1e5               1.00    0.95    1.01    0.85
+  ratio vs tip 1T, 1e6               0.99    0.95    1.02    1.00
+  ratio vs proto 1T, 1e5                     0.95    1.01    0.86
+  ratio vs proto 1T, 1e6                     0.95    1.03    1.01
+
+- BEST ANYWHERE: 1.03x, at four workers and n = 1e6. Against the section-7
+  gate (GO at >= 1.4x at n = 1e5 x 4T, NO-GO under 1.3x) this is not close.
+- Two workers LOSE about 5% at both sizes, consistently across all six rounds.
+  The likely cause is scheduling: with one helper the barrier partner often
+  lands on an efficiency core, which then sets the pace for every region.
+- Eight workers lose 15% at n = 1e5 and are neutral at n = 1e6 - the same
+  shape section 10 measured, for the same reason.
+- The serial fixed-block regroup costs nothing measurable: proto 1T sits
+  within 0.5% of the tip at both sizes.
+
+THE READING. This is WORSE than both earlier real-engine results (0.91x on
+x86, 1.10x on the M1), and the reason is that the serial engine got much
+faster. The same two cells cost 64.2 and 691 msec/iteration in section 10 and
+cost 13.3 and 127 now - roughly 5x, though that is a cross-machine comparison
+and only indicative. The speedup came precisely from deleting the two O(n)
+passes this mechanism existed to parallelize: the fused pass removed the
+random gather, and the mu-table compaction removed the fit scatter. Amdahl's
+p, ~0.47 when section 6 wrote it down, is now much smaller, and the ceiling
+falls with it. Every optimization that lands on the serial passes makes
+within-chain threading worth LESS, not more - the same direction section 9
+found for fp32 storage, and for the same reason.
+
+Section 8's revival preconditions are therefore further from being met than
+they were, and no measurement here reopens the question. What ships is the
+opt-in dec-B89 calls for, on the regression argument rather than on speed,
+and the manual has to say what it measured: at four threads on one chain,
+low single digits at best, and slower than serial at two and at eight.
