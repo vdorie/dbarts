@@ -498,6 +498,36 @@ documented here and in man/dbartsPriors.Rd rather than fixed, since
 matching predict to the jittered fit would mean re-adding a nugget
 nobody asked predict to draw.
 
+## Stage 4 addendum: the kernel-cache pin's vehicle (2026-09-10)
+
+The kernel-caching note above pins both invisibility surfaces bitwise
+against a cold state-restored clone handed the identical mutation. That
+vehicle is gone. `repartitionSubtree` now partitions a dense root in
+place, so a predictor update no longer normalizes a warm sampler's spans
+and a restored clone's onto one permutation; a gp kernel depends on the
+member list's ORDER, so the two draw over different permutations of the
+same members. The equality was manufactured by the old identity rewrite,
+not by any round-trip property: measured before the change, the same pair
+already diverged with NO update at all, about 0.1 relative on the first
+continued sigma.
+
+`testGPLeafKernelCache` pins the two surfaces without a clone:
+
+- covariate values move under standing members: two identically seeded
+  warm samplers, one given an update that changes nothing and one a
+  within-bin designated-column perturbation, must separate - a leaf
+  serving a stale kernel would keep them equal. On one leaf, directly:
+  the cached score stands through a covariate move (members are the key,
+  so the cache cannot see it), and after `regatherTrainingCovariates` the
+  score is bitwise what a cold leaf over the moved covariates computes.
+- members re-route: a leaf warmed over one member set then routed onto a
+  disjoint one serves a score bitwise equal to the post-invalidate
+  rescan.
+
+The state round trip over a gp forest keeps its install assertion there;
+what a restored sampler then draws is a different question, its spans
+carrying the order the rebuild left rather than the order the sweeps did.
+
 ## Status
 
 Stages 1 (engine), 2 (formats), and 3 (R surface) LANDED, and stage

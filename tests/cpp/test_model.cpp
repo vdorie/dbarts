@@ -4185,6 +4185,19 @@ static void testGPLeafKernelCache(ext_rng*) {
     leafTree, y.data(), nullptr, k, sigmaSq, 0);
   check(shiftedScore != rescannedScore,
         "the regather rebuilds the kernel over the moved covariates");
+  // and what it rebuilds is bitwise what a leaf that never cached computes -
+  // the invisibility half, which "the score moved" alone does not carry. The
+  // cold leaf takes the SAME calibration (initialize over the original store,
+  // then regather), the constants being sticky across a value change, so only
+  // the cache history separates the two.
+  GPGaussianLeaf coldLeaf;
+  coldLeaf.scale = leaf.scale;
+  coldLeaf.initialize(leafStore, leafColumns, 1, nullptr, 60);
+  coldLeaf.regatherTrainingCovariates(shiftedStore);
+  double coldScore = coldLeaf.logIntegratedLikelihoodForNode(
+    leafTree, y.data(), nullptr, k, sigmaSq, 0);
+  check(shiftedScore == coldScore,
+        "the regathered kernel is bitwise an uncached leaf's");
 
   printf("ok: gp leaf kernel cache\n");
 }
