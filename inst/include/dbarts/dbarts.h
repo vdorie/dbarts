@@ -141,7 +141,7 @@
 /// It folds, in fixed order: the stringized DBARTS_C_API_LIST signatures
 /// (return types, names, parameter lists), the three ABI enums' enumerator
 /// names and values, and the LAYOUT of every struct that crosses the ABI -
-/// dbarts_results, dbarts_predictor_source - as the compiler
+/// dbarts_results, dbarts_predictor_source, dbarts_draw - as the compiler
 /// reports it: each struct's size, and each field's name paired with its
 /// offset, both in pointer units so the token is one number on every supported
 /// platform. So a field appended, removed, reordered or retyped to a different
@@ -171,7 +171,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0xab4909b71853c7dfULL
+#  define DBARTS_C_API_HASH 0x6380bf095d5cae3fULL
 #endif
 
 #ifdef __cplusplus
@@ -265,6 +265,111 @@ typedef struct dbarts_results_t {
 #define DBARTS_RESULTS_INIT \
   { sizeof(dbarts_results), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, \
     NULL }
+
+/// One SAVED draw of one chain, handed to a dbarts_draw_callback while the
+/// engine holds it. The LIBRARY fills structSize with its own sizeof here (the
+/// other direction from dbarts_results, which the caller fills), so a consumer
+/// compiled against a NEWER header reads a field the installed library may not
+/// have through DBARTS_DRAW_HAS, and one compiled against an older header
+/// simply reads the prefix it knows. Fields append monotonically below the
+/// marked boundary and never reorder.
+///
+/// ABSENCE. A channel pointer is NULL wherever the fit does not carry that
+/// channel (the variance pair off a heteroscedastic model, the forest pair and
+/// glue off a multi-forest coupling, ordinalThresholds off ordinal,
+/// splitProbabilities off DART) and wherever the model cannot define it for
+/// this draw - the test blend of a coupling with no test treatment vector, the
+/// log-likelihood of one whose blended location the response cannot score. A
+/// scalar that does not apply is NaN, since a double has no absent value. So a
+/// callback tests the channel, never the family.
+///
+/// LAYOUT, observation fastest throughout: train is numObservations x
+/// numReportedLocations (L is 1 on every model but a multi-location one, which
+/// folds the offset in at L = 1), test the same over numTestObservations,
+/// varianceFits and logLikelihood numObservations, varianceTestFits
+/// numTestObservations, forestFits numObservations x numForests forest-major,
+/// glue the ragged per-forest amplitude vector numAmplitudes long and
+/// forest-major, splitProbabilities numPredictors, ordinalThresholds
+/// numOrdinalThresholds, and varcount numPredictors x numVariableCountForests
+/// forest-major within the draw (one slab for a single-forest model, K for a
+/// multinomial or multi-forest one). Both indices are 0-based, and drawIndex
+/// counts the saved draws of THIS run call rather than the sampler's life.
+///
+/// VALIDITY IS THE CALL AND NO LONGER. A stored channel's pointer is into the
+/// caller's own result buffer and outlives the call, but a channel the caller
+/// opted out of storing is per-chain SCRATCH that the chain's next draw
+/// overwrites, and nothing in this struct tells the two apart. Copy or reduce
+/// inside the call.
+typedef struct dbarts_draw_t {
+  size_t structSize;    ///< the library sets it; read fields through DBARTS_DRAW_HAS
+  size_t chainIndex;
+  size_t drawIndex;     ///< 0-based over the saved draws of THIS run call
+  size_t numObservations;
+  size_t numTestObservations;
+  size_t numPredictors;
+  size_t numReportedLocations;    ///< L: 1, or K for a multi-location model
+  size_t numVariableCountForests; ///< varcount slabs in this draw
+  size_t numForests;
+  size_t numAmplitudes;           ///< glue entries in this draw
+  size_t numOrdinalThresholds;
+  const double* train;
+  const double* test;
+  const double* varianceFits;
+  const double* varianceTestFits;
+  const double* forestFits;
+  const double* glue;
+  const double* splitProbabilities;
+  const double* logLikelihood;
+  const double* ordinalThresholds;
+  const uint32_t* varcount;
+  double sigma;
+  double k;
+  double dispersion;   ///< NaN off a count (nbinom) response
+  double residualDf;   ///< NaN off a Student-t residual law
+  /* 1.0-0 field boundary: every future append goes below this line, never
+     above, and bumps DBARTS_C_API_MINOR after 1.0-0. */
+} dbarts_draw;
+
+/// The dbarts_draw spelling of DBARTS_HAS_FIELD: true when the LIBRARY that
+/// filled this draw carries `field`. A consumer reads it only for a field
+/// appended after the header it was built against.
+#define DBARTS_DRAW_HAS(d, field) DBARTS_HAS_FIELD(dbarts_draw, d, field)
+
+/// A per-draw observer, registered with dbarts_sampler_setDrawCallback and
+/// called once per SAVED draw per chain, immediately after the engine settles
+/// that draw, with the context registered beside it. A sweep discarded as
+/// burn-in never reaches it. It observes: nothing in the draw may be written
+/// through, and no sampler state may be mutated from inside it.
+///
+/// RETURN. 0 continues. NONZERO ABORTS the run: every chain stops at its next
+/// sweep boundary, and the sampler is then INCONSISTENT with the results - the
+/// sample cursors have not advanced past draws already written into the slots
+/// they count - so the caller discards both the results and any saved trees,
+/// exactly as on the interrupt path. dbarts_sampler_run reports no status, so
+/// a callback that wants to say WHY records it in its own context and the
+/// caller reads that after the run; a callback that merely disagrees with a
+/// draw records and returns 0.
+///
+/// CONCURRENCY. Calls for different chains may run CONCURRENTLY, on whichever
+/// worker thread owns each chain, and the engine takes NO lock around the
+/// call: one would make every chain wait on the slowest callback, which is the
+/// cost this mechanism exists to avoid. A callback touching shared state owns
+/// its own synchronization; the discipline that needs none is a write
+/// addressed by (chainIndex, drawIndex), disjoint by construction. Calls
+/// within one chain are ordered by drawIndex.
+///
+/// NO R API INSIDE THE CALLBACK, EVER - not Rf_allocVector, not PROTECT, not
+/// Rf_error, and in C++ not the CONSTRUCTION OR DESTRUCTION of an Rcpp proxy
+/// type (Rcpp::NumericVector and its siblings touch the protection stack on
+/// both, allocation visible or not; take the raw double* out before the run).
+/// R's evaluator, allocator and protection stack are single-threaded, any R
+/// allocation may collect objects nothing protected on the worker's behalf,
+/// and the callback MUST NOT LONGJMP: Rf_error unwinds a context the main
+/// thread established, skipping every C++ destructor between raise and catch
+/// even when it is reached from the main thread. An interrupt cannot land
+/// while a call is running either, so a callback that blocks hangs the session
+/// with no Ctrl-C.
+typedef int (*dbarts_draw_callback)(void* context, const dbarts_draw* draw);
 
 /// A predictor column's type. Ordinal columns are cut on their values;
 /// categorical ones carry 0-based category codes and split by subset mask;
@@ -445,6 +550,9 @@ typedef enum { DBARTS_FAMILY_LIST(DBARTS_ENUMERATOR) } dbarts_family;
     (sampler, numBurnIn, numSamples, results)) \
   X(void, dbarts_sampler_sampleTreesFromPrior, (dbarts_sampler* sampler), \
     (sampler)) \
+  X(void, dbarts_sampler_setDrawCallback, \
+    (dbarts_sampler* sampler, dbarts_draw_callback fn, void* context), \
+    (sampler, fn, context)) \
   X(int, dbarts_sampler_setResponse, \
     (dbarts_sampler* sampler, const double* y, int updateScale), \
     (sampler, y, updateScale)) \
@@ -639,9 +747,34 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// is not reading this round. It is not an error, so a null passed by mistake
 /// under a positive numSamples returns cleanly with the caller's buffers
 /// untouched.
+///
+/// A callback registered with dbarts_sampler_setDrawCallback fires once per
+/// recorded draw of each chain, whether or not results is null - which is how
+/// a host reduces draws as they are produced instead of materializing them.
+/// One that returns nonzero stops the run early and this entry STILL RETURNS
+/// NORMALLY, so a caller that registered one discards these buffers and any
+/// saved trees on the status its own context carries.
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results);
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
+
+/// Registers a per-draw observer, or clears one with a null fn. fn and context
+/// are COPIED into the sampler on the copy-on-set rule above and stay in force
+/// for every later dbarts_sampler_run until the next call here; a second
+/// registration REPLACES both, and clearing drops the context with the
+/// function. Nothing is called through the pointer at registration time, so a
+/// wrong one crashes at the first draw of the next run rather than here.
+/// context is handed back untouched and may be null; the sampler neither reads
+/// nor frees what it points at.
+///
+/// The callback fires once per SAVED draw per chain (see dbarts_draw_callback
+/// for the contract the callback must keep, which is the whole of what makes
+/// this safe from a worker thread). A run it aborts returns NORMALLY, having
+/// stopped early: this entry and dbarts_sampler_run both report no status, so
+/// the caller learns of an abort from its own context and discards the
+/// results and any saved trees it holds.
+void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
+                                    dbarts_draw_callback fn, void* context);
 
 /// y has numObservations values, which must lie in the family's support: 0/1
 /// for probit and logistic, an integer category index in [1, K] for ordinal, a

@@ -340,6 +340,56 @@ static_assert(sizeof(dbarts_predictor_source) ==
                 5 * sizeof(size_t) + 9 * sizeof(double*),
               "dbarts_predictor_source layout changed; update these offsets");
 
+// The same lock for the struct the library fills PER DRAW and the callback
+// only reads. Its eleven counts and ten channel pointers are one width, so
+// their offsets are pinned exactly; the four trailing scalars are pinned
+// against sigma instead, since a host that aligns a double more strictly than
+// a pointer pads before it - the one thing about this layout that is not the
+// same everywhere, and the reason the fold below does not carry their offsets.
+static_assert(offsetof(dbarts_draw, structSize) == 0);
+static_assert(offsetof(dbarts_draw, chainIndex) == 1 * sizeof(size_t));
+static_assert(offsetof(dbarts_draw, drawIndex) == 2 * sizeof(size_t));
+static_assert(offsetof(dbarts_draw, numObservations) == 3 * sizeof(size_t));
+static_assert(offsetof(dbarts_draw, numTestObservations) == 4 * sizeof(size_t));
+static_assert(offsetof(dbarts_draw, numPredictors) == 5 * sizeof(size_t));
+static_assert(offsetof(dbarts_draw, numReportedLocations) == 6 * sizeof(size_t));
+static_assert(offsetof(dbarts_draw, numVariableCountForests) ==
+              7 * sizeof(size_t));
+static_assert(offsetof(dbarts_draw, numForests) == 8 * sizeof(size_t));
+static_assert(offsetof(dbarts_draw, numAmplitudes) == 9 * sizeof(size_t));
+static_assert(offsetof(dbarts_draw, numOrdinalThresholds) ==
+              10 * sizeof(size_t));
+static_assert(offsetof(dbarts_draw, train) ==
+              11 * sizeof(size_t) + 0 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, test) ==
+              11 * sizeof(size_t) + 1 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, varianceFits) ==
+              11 * sizeof(size_t) + 2 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, varianceTestFits) ==
+              11 * sizeof(size_t) + 3 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, forestFits) ==
+              11 * sizeof(size_t) + 4 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, glue) ==
+              11 * sizeof(size_t) + 5 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, splitProbabilities) ==
+              11 * sizeof(size_t) + 6 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, logLikelihood) ==
+              11 * sizeof(size_t) + 7 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, ordinalThresholds) ==
+              11 * sizeof(size_t) + 8 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, varcount) ==
+              11 * sizeof(size_t) + 9 * sizeof(double*));
+static_assert(offsetof(dbarts_draw, k) ==
+              offsetof(dbarts_draw, sigma) + 1 * sizeof(double));
+static_assert(offsetof(dbarts_draw, dispersion) ==
+              offsetof(dbarts_draw, sigma) + 2 * sizeof(double));
+static_assert(offsetof(dbarts_draw, residualDf) ==
+              offsetof(dbarts_draw, sigma) + 3 * sizeof(double));
+static_assert(sizeof(dbarts_draw) ==
+                offsetof(dbarts_draw, sigma) + 4 * sizeof(double),
+              "dbarts_draw layout changed; update these offsets, and bump "
+              "DBARTS_C_API_MINOR if a field was appended after 1.0-0");
+
 // Compile-time ABI token, checked against the baked DBARTS_C_API_HASH: FNV-1a
 // over the stringized DBARTS_C_API_LIST signatures, then the ABI enums'
 // enumerator lists, then the layout the compiler gives the two structs that
@@ -393,6 +443,22 @@ constexpr std::uint64_t dbarts_fnv1aValue(std::uint64_t hash,
   X(cscColumnPointers) X(cscRowIndices) X(cscValues) X(columnSources) \
   X(columnTypes) X(categoryCounts) X(referenceCodes) X(denseCodes) \
   X(numDenseCodeColumns)
+// dbarts_draw splits in two. Its counts and channel pointers fold like the
+// other structs' fields, being one width; its four by-value doubles fold by
+// NAME, DECLARATION POSITION and sizeof instead, because a double is two
+// pointer units on ILP32 and one on LP64 - an offset fold would make the token
+// a different number per platform, and the header bakes ONE literal. Position
+// plus sizeof still moves the token on a rename, a reorder, an insertion and a
+// retype, which is what the offsets buy for the fields above.
+#define DBARTS_DRAW_POINTER_FIELDS(X) \
+  X(structSize) X(chainIndex) X(drawIndex) X(numObservations) \
+  X(numTestObservations) X(numPredictors) X(numReportedLocations) \
+  X(numVariableCountForests) X(numForests) X(numAmplitudes) \
+  X(numOrdinalThresholds) X(train) X(test) X(varianceFits) \
+  X(varianceTestFits) X(forestFits) X(glue) X(splitProbabilities) \
+  X(logLikelihood) X(ordinalThresholds) X(varcount)
+#define DBARTS_DRAW_SCALAR_FIELDS(X) \
+  X(sigma, 0) X(k, 1) X(dispersion, 2) X(residualDf, 3)
 #define DBARTS_ALIGN_ASSERT(type, field) \
   static_assert(offsetof(type, field) % sizeof(void*) == 0, \
                 "flat C API field is not pointer-aligned; the token folds " \
@@ -403,11 +469,29 @@ DBARTS_RESULTS_FIELDS(X)
 #define X(field) DBARTS_ALIGN_ASSERT(dbarts_predictor_source, field)
 DBARTS_PREDICTOR_SOURCE_FIELDS(X)
 #undef X
+#define X(field) DBARTS_ALIGN_ASSERT(dbarts_draw, field)
+DBARTS_DRAW_POINTER_FIELDS(X)
+#undef X
 #define DBARTS_FOLD_STRUCT(hash, type) \
   dbarts_fnv1aValue(dbarts_fnv1a(hash, #type), sizeof(type) / sizeof(void*))
 #define DBARTS_FOLD_FIELD(hash, type, field) \
   dbarts_fnv1aValue(dbarts_fnv1a(hash, #field), \
                     offsetof(type, field) / sizeof(void*))
+// name, declaration position, width in bytes: the platform-free fold, for a
+// member whose offset is not the same number of pointer units everywhere.
+#define DBARTS_FOLD_SCALAR(hash, type, field, position) \
+  dbarts_fnv1aValue( \
+    dbarts_fnv1aValue(dbarts_fnv1a(hash, #field), position), \
+    sizeof(((type*) nullptr)->field))
+
+constexpr std::uint64_t dbarts_drawNumFields = 0
+#define X(field) + 1
+  DBARTS_DRAW_POINTER_FIELDS(X)
+#undef X
+#define X(field, position) + 1
+  DBARTS_DRAW_SCALAR_FIELDS(X)
+#undef X
+  ;
 
 constexpr std::uint64_t dbarts_foldLayout(std::uint64_t hash) {
   hash = DBARTS_FOLD_STRUCT(hash, dbarts_results);
@@ -417,6 +501,18 @@ constexpr std::uint64_t dbarts_foldLayout(std::uint64_t hash) {
   hash = DBARTS_FOLD_STRUCT(hash, dbarts_predictor_source);
 #define X(field) hash = DBARTS_FOLD_FIELD(hash, dbarts_predictor_source, field);
   DBARTS_PREDICTOR_SOURCE_FIELDS(X)
+#undef X
+  // the per-draw struct: its name and FIELD COUNT rather than its sizeof, for
+  // the same reason its scalars fold by position - the size is not one number
+  // of pointer units across platforms once a by-value double is in it
+  hash = dbarts_fnv1aValue(dbarts_fnv1a(hash, "dbarts_draw"),
+                           dbarts_drawNumFields);
+#define X(field) hash = DBARTS_FOLD_FIELD(hash, dbarts_draw, field);
+  DBARTS_DRAW_POINTER_FIELDS(X)
+#undef X
+#define X(field, position) \
+  hash = DBARTS_FOLD_SCALAR(hash, dbarts_draw, field, position);
+  DBARTS_DRAW_SCALAR_FIELDS(X)
 #undef X
   return hash;
 }
@@ -439,7 +535,7 @@ constexpr std::uint64_t dbarts_apiToken() {
   return dbarts_foldLayout(hash);
 }
 } // namespace
-static_assert(dbarts_apiSignatureToken == 0x05f19de0e216c463ULL,
+static_assert(dbarts_apiSignatureToken == 0xb6f41cfcbd996897ULL,
               "dbarts.h C API signatures moved (the entry-point list, not the "
               "layout fold); re-bake this literal here and DBARTS_C_API_HASH "
               "with it");
@@ -510,7 +606,19 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
   // from R's stream once at creation), never from R's stream during a run, so
   // no GetRNGstate/PutRNGstate bracket is needed here - and none is left
   // unbalanced by a longjmp out of the engine.
-  samplerOf(sampler).run(numBurnIn, numSamples, engineResults, {}, {});
+  // the registered observer, adapted to the shipped draw struct one draw at a
+  // time; an empty hook when nothing is registered, which is the run this
+  // entry made before the callback existed
+  samplerOf(sampler).run(numBurnIn, numSamples, engineResults, {}, {},
+                         sampler->drawHook.engineHook());
+}
+
+/// The setter copies the pair into the sampler and nothing else: no call is
+/// made through fn here, and the sampler neither reads nor frees the context.
+/// A null fn clears, dropping the context with it.
+void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
+                                    dbarts_draw_callback fn, void* context) {
+  sampler->drawHook.set(fn, context);
 }
 
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler) {

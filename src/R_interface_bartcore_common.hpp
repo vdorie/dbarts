@@ -13,7 +13,88 @@
 #include <external/Rinternals.h> // SEXP
 #include <external/random.h>     // ext_rng
 
+#include <dbarts/dbarts.h> // dbarts_draw, dbarts_draw_callback
+
 #include "bartcore/bartcore.hpp"
+
+namespace bartcore_bridge {
+
+/// Copies the engine's per-draw struct into the SHIPPED one, field for field.
+/// The engine never sees dbarts.h and the shipped layout is frozen, so this is
+/// the one place the two meet: a channel added to one and not the other leaves
+/// a stale value here, and nothing downstream would say so. structSize is the
+/// LIBRARY's sizeof, which is how a consumer built against a newer header
+/// learns that a field it knows is not filled.
+inline void fillShippedDraw(dbarts_draw& draw, const bartcore::DrawInfo& info) {
+  draw.structSize = sizeof(dbarts_draw);
+  draw.chainIndex = info.chainIndex;
+  draw.drawIndex = info.drawIndex;
+  draw.numObservations = info.numObservations;
+  draw.numTestObservations = info.numTestObservations;
+  draw.numPredictors = info.numPredictors;
+  draw.numReportedLocations = info.numReportedLocations;
+  draw.numVariableCountForests = info.numVariableCountForests;
+  draw.numForests = info.numForests;
+  draw.numAmplitudes = info.numAmplitudes;
+  draw.numOrdinalThresholds = info.numOrdinalThresholds;
+  draw.train = info.train;
+  draw.test = info.test;
+  draw.varianceFits = info.varianceFits;
+  draw.varianceTestFits = info.varianceTestFits;
+  draw.forestFits = info.forestFits;
+  draw.glue = info.glue;
+  draw.splitProbabilities = info.splitProbabilities;
+  draw.logLikelihood = info.logLikelihood;
+  draw.ordinalThresholds = info.ordinalThresholds;
+  draw.varcount = info.varcount;
+  draw.sigma = info.sigma;
+  draw.k = info.k;
+  draw.dispersion = info.dispersion;
+  draw.residualDf = info.residualDf;
+}
+
+/// A registered flat-C draw callback and the context handed back to it: what
+/// dbarts_sampler_setDrawCallback copies into the sampler, and what the R run
+/// entry builds for the length of one run out of its two external pointers.
+/// BOTH routes go through it, so a callback sees one layout however it was
+/// registered.
+struct ShippedDrawHook {
+  dbarts_draw_callback fn = nullptr;
+  void* context = nullptr;
+
+  /// The setter's whole semantics: a null function CLEARS, dropping the
+  /// context with it so nothing cleared still holds a caller's pointer, and a
+  /// second registration REPLACES both. Nothing is called through fn here, so
+  /// a wrong pointer crashes at the first draw of the next run.
+  void set(dbarts_draw_callback function, void* callerContext) {
+    fn = function;
+    context = function == nullptr ? nullptr : callerContext;
+  }
+
+  /// The engine-facing hook, empty while nothing is registered. It borrows
+  /// THIS object, so it must not outlive it: the sampler owns the flat-C
+  /// route's, and the run call's own frame owns the R route's.
+  bartcore::DrawHook engineHook();
+};
+
+/// The adapter itself: one per-draw stack copy into the shipped layout, which
+/// is what keeps the engine header-agnostic. It allocates nothing and takes no
+/// lock - it runs on whichever worker thread owns the chain - and hands the
+/// callback's return straight back to the engine, where nonzero aborts.
+inline int shippedDrawTrampoline(void* context,
+                                 const bartcore::DrawInfo* info) {
+  ShippedDrawHook& hook = *static_cast<ShippedDrawHook*>(context);
+  dbarts_draw draw;
+  fillShippedDraw(draw, *info);
+  return hook.fn(hook.context, &draw);
+}
+
+inline bartcore::DrawHook ShippedDrawHook::engineHook() {
+  if (fn == nullptr) return bartcore::DrawHook();
+  return bartcore::DrawHook{shippedDrawTrampoline, this};
+}
+
+} // namespace bartcore_bridge
 
 /// The bridge's per-sampler holder, and - under this exact name - the opaque
 /// handle the flat C API declares (inst/include/dbarts/dbarts.h), so the
@@ -29,6 +110,13 @@ struct dbarts_sampler_t {
   std::unique_ptr<bartcore::SamplerBase> sampler;
   std::vector<ext_rng*> rngs; // one per chain
   bool keepTrainingFits;
+
+  // The flat C API's registered per-draw observer (dbarts_sampler_setDrawCallback),
+  // in force for every run through the handle until it is cleared or replaced.
+  // Empty by default, so a sampler nobody registered against installs no hook
+  // and runs exactly as it did before the entry existed. It is NOT part of a
+  // saved state: a re-created engine starts with nothing registered.
+  bartcore_bridge::ShippedDrawHook drawHook{};
 
   // COPY-ON-SET: the four value vectors the engine borrows for the sampler's
   // lifetime. No R vector and no flat caller's array is ever retained. Every

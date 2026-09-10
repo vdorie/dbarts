@@ -4582,8 +4582,9 @@ static bool bartcore_userInterrupted() {
 // rows the test channel's NATURAL per-draw stride is zero, which is also the
 // opt-out sentinel - harmless, because the same condition leaves the pointer
 // null and nothing addresses it.
-static bartcore::DrawHook bartcore_drawHook(SEXP fnExpr, SEXP contextExpr) {
-  bartcore::DrawHook hook;
+static bartcore_bridge::ShippedDrawHook bartcore_drawHook(SEXP fnExpr,
+                                                          SEXP contextExpr) {
+  bartcore_bridge::ShippedDrawHook hook;
   if (Rf_isNull(fnExpr)) return hook;
   if (TYPEOF(fnExpr) != EXTPTRSXP)
     Rf_error("callback function must be an external pointer");
@@ -4591,9 +4592,11 @@ static bartcore::DrawHook bartcore_drawHook(SEXP fnExpr, SEXP contextExpr) {
     Rf_error("callback context must be an external pointer or NULL");
   DL_FUNC address = R_ExternalPtrAddrFn(fnExpr);
   if (address == NULL) return hook;
-  hook.fn = reinterpret_cast<bartcore::DrawCallback>(address);
-  hook.context =
-    Rf_isNull(contextExpr) ? NULL : R_ExternalPtrAddr(contextExpr);
+  // the SHIPPED signature, not the engine's: this route and
+  // dbarts_sampler_setDrawCallback hand the same struct to the same kind of
+  // function, so one compiled callback serves both
+  hook.set(reinterpret_cast<dbarts_draw_callback>(address),
+           Rf_isNull(contextExpr) ? NULL : R_ExternalPtrAddr(contextExpr));
   return hook;
 }
 
@@ -4605,7 +4608,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
 
   size_t numBurnIn = static_cast<size_t>(Rf_asInteger(numBurnInExpr));
   size_t numSamples = static_cast<size_t>(Rf_asInteger(numSamplesExpr));
-  bartcore::DrawHook drawHook =
+  // per RUN, and the engine hook below borrows it, so it lives in this frame
+  // for as long as the run does
+  bartcore_bridge::ShippedDrawHook drawHook =
     bartcore_drawHook(callbackFnExpr, callbackContextExpr);
   // FALSE keeps no per-observation channel: each becomes a per-chain one-draw
   // scratch buffer the observer reads and the next draw overwrites, and the
@@ -4868,7 +4873,8 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   GetRNGstate();
   bool cancelled =
     sampler.run(numBurnIn, numSamples, results, bartcore_userInterrupted,
-                bartcore::SweepCallback(), drawHook, &stoppedByCallback);
+                bartcore::SweepCallback(), drawHook.engineHook(),
+                &stoppedByCallback);
   PutRNGstate();
   if (cancelled) {
     // free before longjmp: Rf_error runs no destructor between here and the
