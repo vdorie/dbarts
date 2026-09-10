@@ -63,7 +63,7 @@ answer. Four rows carry neither, and each says what it does instead.
 
 | state | who breaks | loud or silent | what happens |
 |---|---|---|---|
-| after the dbarts merge, GitHub | a 0.9-x user script | loud | rbart_vi, xbart's control argument, a three-element burn-in, a factor response of three or more levels and fractional counts error |
+| after the dbarts merge, GitHub | a 0.9-x user script | loud | rbart_vi, a three-element burn-in, a factor response of three or more levels and fractional counts error |
 | after the dbarts merge, GitHub | a 0.9-x user script | silent | the proposal mixture, the binary k prior, categorical factors, missing-data incorporation and combined chains change the answer |
 | after the dbarts merge, GitHub | a 0.9-x user script | silent | a fitting call with two or three unnamed arguments takes the new front door, at the new defaults, rather than the old function |
 | after the dbarts merge, GitHub | a 0.9-x user script | warns once per session | a second positional argument to setResponse means updateScale; a renamed argument, a retired thread method and a call in the old vocabulary each name their successor and then do the right thing |
@@ -127,7 +127,8 @@ Decisions with maintainer evidence: 115
   categorical enumeration limit a split proposal cuts the sorted level list
   rather than choosing a subset. Four constants became settings on the
   maintainer's ruling (B91). Whether they belong on the fitting function instead
-  is an open agent-made fork.
+  is settled by B116: control-only, reached from bart() and xbart() through
+  control = dbartsControl().
 - **Empty-leaf veto law** (A12): a leaf holding no positively weighted row is
   vetoed by rank rather than penalised. A vetoed chain mixes
   at constant likelihood, and the draw law differs from 0.9-x.
@@ -153,6 +154,9 @@ Decisions with maintainer evidence: 115
   replaces its threaded fold loop with a cluster. A consumer passing a prebuilt
   control breaks. The maintainer kept the redesign and required a deterministic
   stream per grid cell (B77), so results no longer depend on the thread count.
+  control later returns as an xbart formal under B116, reversing the tombstone;
+  a consumer's prebuilt control now merges in under that formal's precedence
+  rule instead of breaking, unless it carries fit-state attributes.
 - **Family detection** (A16): family = "auto" reads a factor response and
   routes it to probit, ordinal or multinomial. 0.9-x fit gaussian on the same
   level codes.
@@ -340,7 +344,7 @@ completion register.
 | a removed name reaches a marker rather than an error | chg-U71, dec-B76 |
 | the exact-hash flag is already out of all five consumer files | cmp-U16, chg-C32, dec-B111 |
 | the two named items inside the sister-verification step | cmp-U49, cmp-U50 |
-| the four engine settings, and the open fork above them | chg-U84, chg-U85, cmp-U47, dec-B91 |
+| the four engine settings, and their control-only resolution | chg-U84, chg-U85, chg-U96, cmp-U47, dec-B91, dec-B116 |
 | the memory reductions, and the copy that is left | chg-U92, chg-I15, cmp-D27 |
 | the fused pass, and the size gate it owes | chg-U94, cmp-D26, dec-B113 |
 | within-chain threading closed, and the thread default capped | chg-U83, cmp-K21, dec-B115 |
