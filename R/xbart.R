@@ -791,6 +791,10 @@ xbartRunChunk <- function(spec, unitRows, unitSeeds) {
       }
 
       samples <- bartcoreRun(sampler, numBurnIn, spec$n.samples)
+      # bartcoreRun does not warn on its own (unlike bartcoreSamplerRun); each
+      # call here is one complete cell/fold fit, so this is that fit's one
+      # warning, not a per-sweep one
+      warnOnGPFallback(samples)
       lossValue <- spec$lossFunction(y.test, samples$test, weights.test)
 
       if (

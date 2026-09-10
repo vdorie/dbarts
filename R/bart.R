@@ -1707,6 +1707,8 @@ bart2Multinomial <- function(
     control@n.burn,
     control@n.samples
   )
+  # bartcoreRun does not warn on its own; one call drives this whole fit
+  warnOnGPFallback(samples)
 
   result <- packageMultinomialResults(
     control,
@@ -1792,6 +1794,8 @@ bart2MultinomialCounts <- function(
     control@n.burn,
     control@n.samples
   )
+  # bartcoreRun does not warn on its own; one call drives this whole fit
+  warnOnGPFallback(samples)
 
   result <- packageMultinomialResults(
     control,
@@ -2039,6 +2043,8 @@ bart2Ordinal <- function(
   # (r$thresholds, present because the ordinal family carries them), aligned with
   # each kept sweep's latent draw, so no per-sample state read is needed
   r <- bartcoreRun(bc, control@n.burn, n.samples)
+  # bartcoreRun does not warn on its own; one call drives this whole fit
+  warnOnGPFallback(r)
 
   varWidth <- if (n.chains == 1L) {
     nrow(as.matrix(r$varcount))
@@ -2285,10 +2291,22 @@ bart2Negbin <- function(
   # r is a scalar per (sample, chain), so it rides a sigma-shaped matrix
   dispersionRaw <- matrix(0, n.samples, n.chains)
   varcountRaw <- NULL
+  # bartcoreRun does not warn on its own, and this fit takes one call per
+  # kept sample (the dispersion MH step needs it), so the per-call tallies
+  # are summed here and warned on once below, not once per sample
+  gpFallbackTally <- NULL
 
   for (s in seq_len(n.samples)) {
     # the first kept sample absorbs the burn-in, so every run keeps one sample
     r <- bartcoreRun(bc, if (s == 1L) control@n.burn else 0L, 1L)
+    tally <- attr(r, "gp.fallback")
+    if (!is.null(tally)) {
+      gpFallbackTally <- if (is.null(gpFallbackTally)) {
+        tally
+      } else {
+        gpFallbackTally + tally
+      }
+    }
     # sigma-shaped, so a single-sample run's channel is exactly this row
     dispersionRaw[s, ] <- r$dispersion
     if (is.null(varcountRaw)) {
@@ -2311,6 +2329,9 @@ bart2Negbin <- function(
       }
       varcountRaw[, s, chain] <- channelColumn(r$varcount, 1L, chain, n.chains)
     }
+  }
+  if (!is.null(gpFallbackTally)) {
+    warnOnGPFallback(structure(list(), "gp.fallback" = gpFallbackTally))
   }
 
   # drop the trailing singleton chain margin so the reshapers see the

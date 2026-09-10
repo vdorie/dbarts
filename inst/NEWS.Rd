@@ -2570,6 +2570,12 @@
             predictive sampling needs. \code{extract(type = "ppd")} was
             already unaffected, reading the fit's stored channels rather
             than replaying the sampler.
+      \item The Gaussian-process leaf fallback warning
+            (\code{gp.fallback}) now fires on \code{xbart} and on
+            \code{bart}'s \code{multinomial}, \code{ordinal} and
+            \code{nbinom} families, which drive the engine through a
+            different entry point than the standard fit path and
+            previously tallied the fallback without ever warning on it.
     }
   }
 }

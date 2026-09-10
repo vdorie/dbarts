@@ -417,6 +417,53 @@ expect_equal(gpWarnings, 1L)
 
 rm(gpWarnings)
 
+## bartcoreRun (unlike bartcoreSamplerRun) does not warn on its own; xbart
+## drives every cell/fold fit through it directly, one call per fit, so the
+## same guard applies there
+gpWarnings <- 0L
+invisible(withCallingHandlers(
+  dbarts::xbart(
+    gpY ~ x1 + x2,
+    gpFrame,
+    n.trees = 10L,
+    n.samples = 5L,
+    n.burn = c(0L, 0L),
+    n.reps = 1L,
+    n.test = 5L,
+    n.threads = 1L,
+    node.prior = gp("x1", max.leaf.size = 8L),
+    verbose = FALSE
+  ),
+  dbartsGPFallbackWarning = function(w) {
+    gpWarnings <<- gpWarnings + 1L
+    invokeRestart("muffleWarning")
+  }
+))
+expect_true(gpWarnings > 0L)
+
+gpWarnings <- 0L
+invisible(withCallingHandlers(
+  dbarts::xbart(
+    gpY ~ x1 + x2,
+    gpFrame,
+    n.trees = 10L,
+    n.samples = 5L,
+    n.burn = c(0L, 0L),
+    n.reps = 1L,
+    n.test = 5L,
+    n.threads = 1L,
+    node.prior = gp("x1", max.leaf.size = 4096L),
+    verbose = FALSE
+  ),
+  dbartsGPFallbackWarning = function(w) {
+    gpWarnings <<- gpWarnings + 1L
+    invokeRestart("muffleWarning")
+  }
+))
+expect_equal(gpWarnings, 0L)
+
+rm(gpWarnings)
+
 rm(
   degenerate,
   degenerateSamples,
