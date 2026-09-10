@@ -776,3 +776,70 @@ SEXP capi_draw_report(void) {
   UNPROTECT(5);
   return result;
 }
+
+/* ------------------------------------------------------------------------
+ * A plain-C copy of the running-mean recipe in
+ * vignettes/dbarts-as-a-component.Rmd (docs/design/per-draw-callbacks.md
+ * section 5), driven by test-callback-example.R against the SAME seeded
+ * fit's yhat.train mean - proof the recipe is correct, not merely that it
+ * compiles. One running mean per chain slice of a caller-owned accumulator:
+ * chainIndex addresses a disjoint slice, so concurrent chains need no lock,
+ * and drawIndex only ever counts up within a call, which is what makes the
+ * incremental update exact rather than approximate.
+ * ------------------------------------------------------------------------ */
+
+typedef struct {
+  double* out;   /* REAL() of the R accumulator, taken BEFORE the run: a
+                  * reassignment of that vector in R would make a DIFFERENT
+                  * one and leave this pointing at the old backing store */
+  size_t n, numChains;
+  size_t counts[CAPI_DRAW_MAX_CHAINS]; /* per chain; no chain reads another's */
+  int status; /* 0 ok; a disagreement records here and returns 0 - nonzero
+               * from the callback itself would ABORT the run */
+} capi_mean_context;
+
+static capi_mean_context capi_meanCtx;
+
+/* NO R API IN HERE, for the same three reasons dbarts.h states: worker
+ * threads, the allocator/GC and longjmp all belong to the main thread. */
+static int capi_meanDraw(void* context, const dbarts_draw* draw)
+{
+  capi_mean_context* ctx = (capi_mean_context*) context;
+  double* out;
+  double m;
+  size_t i;
+  if (draw->train == NULL || draw->numObservations != ctx->n ||
+      draw->chainIndex >= ctx->numChains) {
+    ctx->status = 1;
+    return 0;
+  }
+  out = ctx->out + draw->chainIndex * ctx->n;    /* disjoint slice */
+  m = (double) (++ctx->counts[draw->chainIndex]);
+  for (i = 0; i < ctx->n; ++i)
+    out[i] += (draw->train[i] - out[i]) / m;     /* running mean */
+  return 0;
+}
+
+/* the function pointer through R_MakeExternalPtrFn, as dbarts.h requires -
+ * casting a function pointer to void* is what -Wpedantic flags */
+SEXP capi_mean_function(void) {
+  return R_MakeExternalPtrFn((DL_FUNC) capi_meanDraw, R_NilValue, R_NilValue);
+}
+
+/* accExpr goes in the external pointer's PROTECTED slot: that is what keeps
+ * the accumulator alive as long as the context is, the same rule the
+ * vignette's makeMeanContext states. A context is per run, since drawIndex
+ * restarts at 0 each time - this test builds one context per fit. */
+SEXP capi_mean_context_new(SEXP accExpr, SEXP nExpr, SEXP numChainsExpr) {
+  int numChains = Rf_asInteger(numChainsExpr);
+  if (numChains > CAPI_DRAW_MAX_CHAINS) Rf_error("numChains past this consumer's cap");
+  memset(&capi_meanCtx, 0, sizeof(capi_meanCtx));
+  capi_meanCtx.out = REAL(accExpr);
+  capi_meanCtx.n = (size_t) Rf_asInteger(nExpr);
+  capi_meanCtx.numChains = (size_t) numChains;
+  return R_MakeExternalPtr(&capi_meanCtx, R_NilValue, accExpr);
+}
+
+SEXP capi_mean_status(void) {
+  return Rf_ScalarInteger(capi_meanCtx.status);
+}
