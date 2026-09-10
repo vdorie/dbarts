@@ -396,8 +396,10 @@ memory footprint at large n (VD concern, 2026-09-08; LANDED: note
   post-prune cell until it is.
 
 per-draw callbacks (decided, VD 2026-09-10; docs/decisions.md dec-B114;
-  priority raised on the memory audit: the R-side prediction array and
-  its packaging copy are five sixths of a large fit's peak)
+  LANDED 2026-09-11: S1 711942ad, S2 e4063140, S3 db3bd084, S4 4cf56b69,
+  S5 1e24bd55, cost recorded 9171ff64; priority raised on the memory
+  audit: the R-side prediction array and its packaging copy are five
+  sixths of a large fit's peak)
   pre-release: a per-draw C callback invoked once per saved draw per
   chain from that chain's worker thread, over const pointers into engine
   buffers and with no R API allowed inside it; an R callback argument on

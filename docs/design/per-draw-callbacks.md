@@ -6,9 +6,9 @@ and revised the same day after an independent verification against the code
 found sixteen defects in the first draft; the core proposal stands and the
 specifics below replace it. All nine forks of section 9 are settled - see
 Decision below and dec-B114 in [docs/decisions.md](../decisions.md). Section
-7's per-draw cost is UNMEASURED: the bench-sampler.R scenario landed with S4
-but its numbers await a maintainer run on a quiet machine ("measured at
-landing:" placeholder, section 7). Anchor: bartcore 4cf56b69.
+7's per-draw cost is now measured, on a quiet machine, at both reference
+shapes (section 7): a fraction of a percent at n = 1e5 and within
+run-to-run noise at n = 1e6. Anchor: bartcore 4cf56b69.
 
 ## Decision
 
@@ -446,8 +446,12 @@ either way. `benchmarks/R/bench-sampler.R`'s `callback` scenario times a
 no-op C callback and the vignette's running-mean recipe against no callback
 at all, at both reference shapes (`callback-none-*`, `callback-noop-*`,
 `callback-mean-*`); maintainer-run on a quiet machine, per Verification.
-measured at landing: [pending - the orchestrator records the compared
-numbers here once bench-sampler.R has run on a quiet machine].
+measured at landing: benchmarks/baselines/bench-sampler-callback-1456e999.csv
+(2026-09-11, quiet arm64 macOS host, 1-minute loadavg under 3, nothing else
+running), ms per iteration for none/noop/mean - at n = 1e5, p = 20: 38.978 /
+39.134 / 39.256 (noop +0.4 pct, running mean +0.7 pct); at n = 1e6, p = 50:
+378.308 / 375.130 / 374.116 (both within run-to-run noise, nominally -0.8
+and -1.1 pct). The claim holds at both scales.
 
 The load-bearing point is the one VD named: a C callback is the only kind
 that can run under `n.threads > 1` without serializing the chains, an R
