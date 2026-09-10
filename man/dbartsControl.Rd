@@ -82,7 +82,7 @@ dbartsControl(
      A positive integer giving the number of tree traversals (rows times trees times draws) at or above which \code{\link[=dbartsSampler-class]{predict}} spreads a replay over \code{n.threads} workers instead of running it inline. Time only: each worker owns its own output range and nothing is summed across workers, so a replay is identical however it is dealt out. The default is calibrated - the crossover measures between 3e4 and 1e5 traversals, the fan-out reaching 1.5 times at 1e5 and saturating near 3.5 times on four threads - and replaces an uncalibrated estimate of 1e7 that left mid-sized replays serial. Fixed when the sampler is created.
    }
    \item{sparseDensityThreshold}{
-     A number in \eqn{[0, 1]}{[0, 1]} giving the nonzero fraction at or below which a column of a sparse (\code{dgCMatrix}) design is stored as a rank bitmap rather than as one code per row. Memory against time, with no effect on the answers: at the default a rank-stored column costs about 38 percent of a sweep in decode and holds about 3.5 times less than the dense layout. Which side of that trade is worth taking depends on the design and the machine, which is why it is a setting. Read once, when the sampler's data are built; a later change does not relayout anything.
+     A number in \eqn{[0, 1]}{[0, 1]} giving the nonzero fraction at or below which a column of a sparse (\code{dgCMatrix}) design is stored as a rank bitmap rather than as one code per row. Memory against time, with no effect on the answers: at the default a rank-stored column costs about 38 percent of a sweep in decode and holds about 3.5 times less than the dense layout. Which side of that trade is worth taking depends on the design and the machine, which is why it is a setting. Read once, when the sampler's data are built, and fixed thereafter: a change through \code{setControl} is refused by name rather than silently relayouting nothing.
    }
    \item{seed}{
      Random number generator seed. Every chain runs its own generator; the seed drives a dedicated generator that in turn hands each chain its own seed, leaving R's stream untouched. Seeded results do not depend on the thread count, and a single-chain run with a given seed reproduces the first chain of a multi-chain run with the same seed. If equal to \code{NA}, chain generators are seeded from R's stream at creation, so \code{\link[=Random]{set.seed}} beforehand suffices for reproducibility; sampling itself never advances R's stream.
@@ -92,7 +92,7 @@ dbartsControl(
    }
 }
 \section{Engine limits}{
-  Nine fixed values decide what the engine will represent and where it
+  Eleven fixed values decide what the engine will represent and where it
   switches strategy. Each was measured on one machine (arm64 macOS, 10 cores);
   the four that a workload can profitably move are settings here, and the rest
   are limits of the representation or of a proposal family, with nothing found

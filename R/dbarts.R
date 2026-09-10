@@ -1466,13 +1466,20 @@ dbartsSampler <- setRefClass(
         attr(newControl, attrName) <- attr(control, attrName)
       }
 
-      # settings fixed at creation: the generators and anything shaping
-      # the cut grid
+      # settings fixed at creation: the generators, anything shaping the cut
+      # grid, and the four engine limits, which the sampler reads once when it
+      # is created and never again. Accepting one here would leave the stored
+      # control disagreeing with the engine, and a re-creation from that stored
+      # control would then move the draws under categoricalExhaustiveCap.
       for (slotName in c(
         "n.trees",
         "n.chains",
         "useQuantiles",
         "levelGibbs",
+        "categoricalExhaustiveCap",
+        "testFitParallelCutoff",
+        "predictParallelCutoff",
+        "sparseDensityThreshold",
         "seed"
       )) {
         if (!identical(slot(newControl, slotName), slot(control, slotName))) {

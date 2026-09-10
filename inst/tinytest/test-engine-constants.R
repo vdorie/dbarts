@@ -259,6 +259,34 @@ expect_error(
   "in \\[0, 1\\]"
 )
 
+## and each is fixed once the sampler exists: the engine reads all four at
+## creation, so setControl refuses rather than storing a value the engine will
+## never see (and that a re-creation from the stored control would then act on)
+fixedSampler <- dbarts::dbarts(
+  y ~ x,
+  control = dbartsControl(n.trees = 5L, n.chains = 1L, updateState = FALSE)
+)
+for (change in list(
+  c("categoricalExhaustiveCap", 12),
+  c("testFitParallelCutoff", 1024),
+  c("predictParallelCutoff", 1024),
+  c("sparseDensityThreshold", 0.5)
+)) {
+  moved <- fixedSampler$control
+  methods::slot(moved, change[1L]) <- if (
+    change[1L] == "sparseDensityThreshold"
+  ) {
+    as.numeric(change[2L])
+  } else {
+    as.integer(change[2L])
+  }
+  expect_error(
+    fixedSampler$setControl(moved),
+    paste0("changing '", change[1L], "' is not available")
+  )
+}
+rm(fixedSampler, moved, change)
+
 rm(defaults, fitAt, growTrees, testFitWorkers, predictWorkers)
 
 
