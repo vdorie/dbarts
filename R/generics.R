@@ -190,8 +190,8 @@ pointwiseLogLikelihood <- function(object, ev) {
 # rather than a 3-column matrix, since a plain matrix cannot carry both an
 # observation and a category index.
 posteriorInterval <- function(draws, ci.level, trailing = 1L) {
-  # ci.level is fitted's fourth argument; a "train"/"test" string here is a
-  # positional call written for 'sample', which precedes it - name the
+  # ci.level is fitted's third argument, the slot 'sample' held in 0.9-x; a
+  # "train"/"test" string here is that older positional call - name the
   # argument that value belongs to rather than one the caller never wrote
   if (
     is.character(ci.level) &&

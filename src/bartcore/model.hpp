@@ -2937,8 +2937,8 @@ public:
   virtual void restoreResidualDf(double /*nu*/) {}
 
   /// Ordinal (cumulative-probit) responses (OrdinalResponse) carry a length-
-  /// (K-1) cutpoint vector the state block serializes as a by-name "cutpoints"
-  /// slot; other families carry none, so their states omit it and an ordinal
+  /// (K-1) threshold vector the state block serializes as a by-name
+  /// "thresholds" slot; other families carry none, so their states omit it and an ordinal
   /// sampler refuses a state lacking one. numOrdinalThresholds() is the block
   /// length, the residualDf trio's vector analog (a scalar needed no length).
   virtual bool carriesOrdinalThresholds() const { return false; }
@@ -3485,8 +3485,8 @@ public:
   double fitShift() const override { return 0.0; }
   double sigmaScale() const override { return 1.0; }
 
-  /// The K - 1 finite cutpoints gamma_1..gamma_{K-1} (gamma_1 pinned at 0), the
-  /// by-name "cutpoints" state block: getState reads numOrdinalThresholds()
+  /// The K - 1 finite thresholds gamma_1..gamma_{K-1} (gamma_1 pinned at 0),
+  /// the by-name "thresholds" state block: getState reads numOrdinalThresholds()
   /// values from ordinalThresholds(), stateIsValid refuses a state of the wrong
   /// length, and setState restoreOrdinalThresholds() reinstalls them. The
   /// one-based category index rides the existing latents block. Also read by

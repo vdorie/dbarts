@@ -51,9 +51,9 @@ struct SamplerShape {
   /// bridge sizes the glue channel by it, and numForestAmplitudes reads the
   /// per-forest widths. Internal, invisible to dbarts.h.
   std::size_t numAmplitudes;
-  /// Per-sample cutpoints the recorded cutpoint channel carries: 0 for every
+  /// Per-sample thresholds the recorded threshold channel carries: 0 for every
   /// family but ordinal (K-1). The run bridge reads it to size and name the
-  /// cutpoints channel, present only when nonzero; internal, invisible to
+  /// "thresholds" channel, present only when nonzero; internal, invisible to
   /// dbarts.h.
   std::size_t numOrdinalThresholds;
   /// Whether the response family carries a dispersion r (nbinom alone). The run
@@ -951,7 +951,7 @@ inline std::unique_ptr<SamplerBase> createAmplitudeSampler(
   // createSampler does
   if (options.numVarianceTrees > 0) return nullptr;
   // the doors: aft draws sigma and needs its censoring status threaded here,
-  // ordinal its cutpoint block and nbinom its dispersion block shown to
+  // ordinal its threshold block and nbinom its dispersion block shown to
   // interleave with the amplitude block. Each is refused rather than built as
   // the default arm's gaussian
   if (spec.family != ResponseFamily::gaussian &&

@@ -74,9 +74,9 @@ struct ChainStateData {
   // capture. NaN marks absent, so gaussian and every non-t state carry no nu
   // block and a t sampler refuses a state lacking one.
   double residualDf = std::numeric_limits<double>::quiet_NaN();
-  // ordinal (cumulative-probit) responses only: the length-(K-1) cutpoint
+  // ordinal (cumulative-probit) responses only: the length-(K-1) threshold
   // vector at capture. Empty marks absent, so every non-ordinal state carries
-  // no cutpoint block and an ordinal sampler refuses a state lacking one.
+  // no threshold block and an ordinal sampler refuses a state lacking one.
   std::vector<double> ordinalThresholds;
   // negative-binomial counts (NBResponse) only: the dispersion r at capture.
   // NaN marks absent, so every non-NB state carries no dispersion block and

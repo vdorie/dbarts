@@ -50,7 +50,7 @@
 ///   required input vector are dereferenced as handed, so a null (or
 ///   destroyed, or short) one crashes rather than raising. The one exception
 ///   is dbarts_sampler_destroy itself, which is idempotent.
-/// - A non-void return is one of three things, and each entry's own doc says
+/// - A non-void return is one of two things, and each entry's own doc says
 ///   which. A VALUE: the number IS the answer and carries no refusal, which is
 ///   what the counts, dbarts_sampler_kIsSampled, dbarts_sampler_usesDart,
 ///   dbarts_sampler_family and the version accessors report - an int here is
@@ -828,8 +828,8 @@ int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
 ///
 /// WHAT the variable is depends on the family and is not uniform. A LOCATION,
 /// on the sampler's own latent scale, for probit (the truncated normal z),
-/// ordinal (the same z under the cut points) and aft (the imputed log survival
-/// time): a host regresses on these directly. A PRECISION, one per
+/// ordinal (the same z under the ordinal thresholds) and aft (the imputed log
+/// survival time): a host regresses on these directly. A PRECISION, one per
 /// observation, for logistic and nbinom (the Polya-Gamma omega) and for a
 /// Student-t residual distribution (the scale-mixing lambda): these WEIGHT a
 /// working response and are not on the response scale at all. Note the last

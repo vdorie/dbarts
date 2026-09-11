@@ -2129,7 +2129,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     getLatents = function(result) {
-      "Returns the current draw of the augmentation variable, whose meaning is per family and not uniform. A LOCATION, on the sampler's own latent scale, for probit (the truncated normal z), ordinal (the same z under the cut points) and aft (the imputed log survival time): these are regressed on directly. A PRECISION, one per observation, for logistic and nbinom (the Polya-Gamma omega) and Student-t (the scale-mixing lambda): these WEIGHT a working response and are not on the response scale at all. NULL for a plain gaussian sampler and for a multinomial one, neither of which augments. Note that a gaussian-family sampler built with resid.dist = student() DOES report latents, and they are precisions."
+      "Returns the current draw of the augmentation variable, whose meaning is per family and not uniform. A LOCATION, on the sampler's own latent scale, for probit (the truncated normal z), ordinal (the same z under the ordinal thresholds) and aft (the imputed log survival time): these are regressed on directly. A PRECISION, one per observation, for logistic and nbinom (the Polya-Gamma omega) and Student-t (the scale-mixing lambda): these WEIGHT a working response and are not on the response scale at all. NULL for a plain gaussian sampler and for a multinomial one, neither of which augments. Note that a gaussian-family sampler built with resid.dist = student() DOES report latents, and they are precisions."
       resultIsMissing <- missing(result)
 
       ptr <- getPointer()
