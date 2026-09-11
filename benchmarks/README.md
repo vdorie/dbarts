@@ -62,8 +62,10 @@ scenarios the baseline predates. baselines/MANIFEST records each baseline's
 role (current, historical, or historical-classic), recording commit,
 machine, and scenario list. The scheduled workflow
 (.github/workflows/equivalence.yaml) runs `compare` in this statistical
-mode against the current baseline; bitwise exactness stays a local,
-same-machine check.
+mode against the current baseline. Bitwise exactness is not local-only:
+cpp-tests.yaml runs all three compares per push on the reference build,
+pinned to macos-latest arm64 because the baselines are recorded there, so
+off that architecture bitwise remains a same-machine check.
 
 R/bcf-equivalence.R and R/multinomial-equivalence.R are sibling harnesses
 for the two multi-forest samplers, with their own current baselines named

@@ -8,8 +8,11 @@
 #
 # Admission: sbc.R Bonferroni's the ecdf band's alpha to 0.05/M over the
 # matrix's TOTAL functional count (M = 39), so a full matrix passes with
-# probability ~0.95 on a fresh stream rather than each of the six arms alarming
-# independently at 5%. fail-fast is off so one arm's FLAG never hides another's.
+# probability ~0.95 on a fresh stream rather than each arm alarming
+# independently at 5%. M sums the six Bonferroni'd arms (gaussian, ordinal,
+# nbinom, t, multinomial, aft); the matrix runs a seventh job,
+# discrete-selfcheck, which is outside that count. fail-fast is off so one arm's
+# FLAG never hides another's.
 # A widening M can only turn a recorded FLAG into a PASS, so admitting an arm
 # never invalidates a verdict already read.
 #

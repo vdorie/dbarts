@@ -18,8 +18,11 @@ below reads accordingly, and the gate lifts the moment a valuable
 enabled model or use comes to mind. An existing consumer is
 sufficient evidence of value, never necessary.
 
-Standing fact (VD, 2026-07-06): single-chain n >= 1e5 workloads are
-common. The large-n performance items are live, not consumer-gated.
+Standing fact (VD): large datasets are common, and multiple chains
+remain the default. The "single-chain n >= 1e5" spelling this entry
+used to carry is an agent paraphrase VD disowns (docs/decisions.md
+dec-B50, VD 2026-09-08). The large-n performance items are live, not
+consumer-gated.
 
 Standing discipline (from the 2026-08-07 census): verify an entry's
 status claims against git and live code before scoping from it;
@@ -108,7 +111,9 @@ items
     plus a prior change. Value gate lifted: it enables
     functional-ANOVA BART (arXiv 2509.03317), for which dbarts already
     ships the hard-constraint half. Post-release, no fixed position: it
-    happens, when is open (VD 2026-09-08, dec-B95). Soft path-dependent
+    happens, when is open (VD 2026-09-08, dec-B95). Owed there and not
+    yet written: man/interactions.Rd states the two-stage workaround
+    meanwhile, which today only the design doc does. Soft path-dependent
     penalties: gate STANDS, no model surfaced. Records:
     docs/design/interaction-constraints.md,
     docs/plans/archive/interaction-constraints.md.
@@ -152,8 +157,9 @@ items
     is the pattern to adopt if wanted. A dbarts.h creation path -
     construction is R-bridge-only (docs/design/feature-matrix.md
     [f4]); opens on a flat-C consumer wanting multinomial. The family
-    token in bart and xbart - per-entry-point scoping choices, xbart
-    additionally needing a multinomial loss defined.
+    token in xbart - bart has carried it since the front-door arc,
+    and xbart additionally needs a multinomial loss defined, every
+    loss it evaluates being written against one location.
     Per-forest masking is NOT a door - permanently refused, a
     category's margin being a log-sum-exp over the other K - 1
     forests. consumer-gated.
@@ -179,7 +185,8 @@ items
     decision-gated.
   rc-gate: VD's own read of docs/plans/bartcore-review-tour.md, then
     the RC declaration. Both VD-held. The pre-RC surface decisions and
-    their sequencing are docs/plans/prerc-surface-freeze.md.
+    their sequencing are docs/plans/prerc-surface-freeze.md. The binary
+    k prior evaluation completes before the declaration (dec-B118).
   repo-modernization: standing hygiene bundle
     (docs/plans/repo-modernization.md): recheck the CI action pins on
     each push and bump when GitHub deprecates a runtime; wire codecov
@@ -318,10 +325,12 @@ removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76;
 
 xbart follow-through (decided, VD 2026-09-08; docs/decisions.md dec-B77,
   B102; LANDED 2026-09-09: S3 cb5d4ef2, S4 28431413)
-  tombstones for control= and a three-element n.burn (error naming the
-  flat fields); distribute grid cells and folds across workers, not
-  replications (today k-fold with n.reps = 1 runs on one worker: 2.1x
-  slower wall than 0.9-34 at 4 threads while 33 percent less CPU,
+  a tombstone for a three-element n.burn (error naming the flat fields);
+  the control= tombstone is reversed by dec-B116, which gives xbart back
+  control = dbartsControl(); distribute grid cells and folds across
+  workers, not replications (today k-fold with n.reps = 1 runs on one
+  worker: 2.1x slower wall than 0.9-34 at 4 threads while 33 percent
+  less CPU,
   measured 2026-09-08); per-cell deterministic RNG streams so a seed
   reproduces at any n.threads. Warm starts across folds stay out. The
   k axis accepts fixed values and a "leave k modelled" entry (the
@@ -429,13 +438,6 @@ host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   Rmath, print and error touchpoints through src/external host hooks
   (bit-identical under R); a plain-spec creation entry and a
   host-neutral error contract in 1.x. Rewords the Python-binding entry.
-
-worker wait loop (decided, VD 2026-09-08; docs/decisions.md dec-B88; S3
-  LANDED 70305575)
-  pre-release: the multi-chain run loop in src/bartcore/sampler.hpp waits
-  on a completion signal instead of sleeping 100 ms per poll; keep the
-  timed wake for the interrupt poll and progress flush.
-  Plan: docs/plans/engine-performance.md.
 
 within-chain threading (decided, VD 2026-09-08; docs/decisions.md
   dec-B89; CLOSED without shipping 2026-09-10, dec-B115, S4 of
@@ -560,13 +562,6 @@ rule draw default weight (decided, VD 2026-09-08; docs/decisions.md
   a rationale, pre- or post-1.0-0 as time allows. Manual documents the
   kernel and its cost.
 
-survival interface (decided, VD 2026-09-08; docs/decisions.md dec-B97;
-  S1 01634227, S2 c38f02d0, S3 7165c352, S4 a98c4cad landed)
-  pre-release, R layer only: Surv on the formula left-hand side for aft
-  and hazard; subset honoured; a test path for the hazard family that
-  person-period expands held-out subjects. Plan:
-  docs/plans/interfaces-and-dependencies.md.
-
 family objects and front-door consolidation (decided, VD 2026-09-08;
   docs/decisions.md dec-B98; LANDED 2026-09-09: S2 44b3fa6d, S4
   28431413)
@@ -614,6 +609,15 @@ sparse factors on the formula interface (decided, VD 2026-09-08;
   Audit: docs/plans/sparse-formula-audit.md. Plan:
   docs/plans/interfaces-and-dependencies.md.
 
+keepTrees documentation (decided, VD 2026-09-08; docs/decisions.md
+  dec-B104; the default and the storeState rule already hold, the two
+  documentation clauses do not)
+  pre-release, documentation only: the keepTrees entries in man/bart.Rd
+  and man/dbartsControl.Rd say in their first sentence that a fit saved
+  and reloaded needs $storeState first, and the refusal a saved fit
+  raises names it. Today refuseWithoutTrees names keepTrees alone and
+  neither manual entry mentions storeState.
+
 rbart_vi removal (decided, VD 2026-09-08; docs/decisions.md dec-B105)
   stays removed; tombstone names stan4bart and says the group-spread
   prior differs there. Condition: stan4bart clears its group-spread
@@ -622,7 +626,8 @@ rbart_vi removal (decided, VD 2026-09-08; docs/decisions.md dec-B105)
   intercept over the plain sampler's setOffset, no engine block.
 
 binary k prior evaluation (decided, VD 2026-09-08; docs/decisions.md
-  dec-B106)
+  dec-B106, B118; PRE-RELEASE-CANDIDATE: it completes before the RC is
+  declared, VD 2026-09-11)
   the July chi-default study (48 simulated cells, 4 DGPs, df fixed at
   1.5, artifacts lost) is re-run with a checked-in harness under
   benchmarks/R: vary df in {1, 1.5, 2, 3} and scale in {1, 2, 3, 5},
@@ -631,8 +636,10 @@ binary k prior evaluation (decided, VD 2026-09-08; docs/decisions.md
   separable and noisy signals, many and few predictors, factor-heavy
   designs, class imbalance, and misspecified truths; report worst-cell
   and average log loss, calibration, latent RMSE and coverage. Confirm
-  or change chi(1.5, 2) on that evidence, before 1.0-0 if time allows.
-  First item of the resumed research programme.
+  or change chi(1.5, 2) on that evidence. It gates the release candidate
+  (dec-B118, replacing dec-B106's "before 1.0-0 if time allows"): still
+  the first item of the resumed research programme, now finished before
+  the RC is declared rather than as time allows.
 
 BayesTree claim and build flags (decided, VD 2026-09-08;
   docs/decisions.md dec-B107; LANDED a98c4cad)
@@ -651,8 +658,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     and tests fit bart() with a three-level factor response, which
     0.9-x silently coded as 0/1/2 and 1.0-0 refuses (VD 2026-09-08:
     let it break, ask for the example to change; docs/decisions.md
-    dec-B74). insight's dbarts test breaks on NA responses the same way
-    but is skipped on CRAN (dec-A70, undecided). The July sweep covered
+    dec-B74). insight's dbarts test fit NA responses, which dec-A70 broke
+    and dec-B108 answered: na.action defaults to na.keepPredictors, which
+    drops missing-response rows, so re-check the break before the
+    submission rather than warning anyone about it. The July sweep covered
     24 reverse dependencies; CRAN lists 27 now.
   validate the schedule/dispatch-only workflows (equivalence, rchk,
     revdep-smoke, sbc, valgrind) on their first live runs, which
@@ -671,10 +680,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     184/184, bairrtt main 206/206; every dbarts.h entry each C consumer
     calls is present with its signature. Repeat only if dbarts.h moves
     again.
-    bartCause's bcf() defaults n.threads to guessNumCores() with its own
-    n.chains, so under dec-B115 every multi-core fit warns about the
-    excess; cap its default at min(cores, n.chains) on its dbarts-1.0
-    branch (agent-noted 2026-09-10).
+    bartCause's bcf() and fitBCF now default n.threads to
+    min(dbarts::guessNumCores(), n.chains), capped on its dbarts-1.0
+    branch at bdaae47, so no multi-core fit warns under dec-B115;
+    nothing to do at the merge.
     treatSens reaches dbarts:::parsePriors and
     dbarts:::estimateSigmaFromLinearModel through asNamespace (its
     resid.dist argument broke silently when front-door S2 retired the

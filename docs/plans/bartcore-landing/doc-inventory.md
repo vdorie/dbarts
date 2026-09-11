@@ -367,7 +367,7 @@ Each bullet gives the path and one line. Grouped by where the drift sits.
 
 - docs/plans/review-2026-08-24/sbc-logs/summary.txt records 11 calibration arms including two grouped ones; the grouped path was deleted at 1e5f80b2 and the workflow's matrix now has seven arms, none grouped. The summary's grouped flag describes code that no longer exists.
 - benchmarks/baselines/MANIFEST marks the three equivalence baselines recorded at fbff1989 current, but the engine tip is nine source commits later, and the manifest carries no row saying they were revalidated at the tip.
-- .github/workflows/sanitizers.yaml states its per-file floors are set at 60 to 65 percent of measured; the total floor of 5200 is 65 percent of the 8037 the same job reports, so the guard tolerates deleting a third of the suite.
+- .github/workflows/sanitizers.yaml states its per-file floors are set at 60 to 65 percent of measured; the total floor of 5200 is 61 percent of the 8539 the same job reports, so the guard tolerates deleting well over a third of the suite.
 - benchmarks/R/mutation-battery.R's header and docs/plans/release-candidate-review.md both describe an inventory of 23 entries; the file now holds 25.
 - The build slice reported that none of the five schedule-and-dispatch workflows has ever executed. The gates slice's run history shows each of the five has run at least once. Verified: all five carry, in addition to a schedule and a dispatch trigger, a push trigger on this branch limited to their own workflow file, and that is how each ran. The accurate statement is that no schedule or dispatch trigger has ever fired, because GitHub binds both to the default branch.
 
