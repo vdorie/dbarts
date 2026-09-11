@@ -1,73 +1,100 @@
 # Rubric for maintainer-facing documents
 
-Written for the bartcore landing memo; the standard for any document the maintainer reads, including the docs/ triage rewrite. Item 14 is the exit criterion: a fresh reader with only the document answers its questions correctly.
+The standard a document must meet before the maintainer reads it. Written
+for the bartcore landing memo; it applies to any document the maintainer
+will act on. Every item is pass/fail. A reviewer reports each failure as
+the quoted line plus the item number, and the completed grade sheet is
+committed beside the document. A refresh regrades every item, not only
+the lines the refresh touched. "Improve clarity" is not a finding.
 
-The document under review is named at the top of each review. Its reader is the
-package maintainer (VD): a statistician who knows BART, R, and dbarts
-0.9-x, has not read anything under docs/, and will read the memo once,
-in one sitting, to decide whether to merge the bartcore branch onto main.
-Its sources of truth are docs/decisions.md and
-docs/plans/bartcore-landing/{changes,completion}.md (the registers).
+The reader is the package maintainer: a statistician who knows BART, R
+and dbarts 0.9-x, who has read nothing under docs/, and who reads the
+document once, in one sitting, to make a decision. They adjudicate the
+decision register with the document open, so a decision bullet may end
+with its row id. The document is graded on what that reader can do after
+one reading, not on what it contains.
 
-Every item is pass/fail. A reviewer reports each failure as the quoted
-line plus the item number. "Improve clarity" is not a finding.
+## What the document must do
 
-## Content
+1. The opening paragraph states the decision being asked for, the
+   writer's recommendation, what the release gains, and what the reader
+   would have to learn to change the recommendation.
+2. Directly after the opening, the facts that could change the
+   recommendation are listed, each stated whole, ordered by how much of
+   the release each one blocks. If a fact is split across sections, it is
+   stated whole where it bears on the decision and referred back to
+   elsewhere.
+3. The body answers the questions the decision turns on. For the landing
+   memo: whether the branch can merge and in what order with the consumer
+   packages; what breaks for whom at each intermediate state, and whether
+   loudly (a compile or load error) or silently (a wrong result); how much
+   is known about whether the release computes the same answers as
+   0.9-x, and where that is not known; what the agents decided without
+   you and what each costs; and what is unfinished, abandoned, or proven
+   only by a gate not run at the tip, with who does it and before which
+   step.
+4. Every set the document reasons over (consumer packages,
+   prerequisites, gates, intermediate states) is listed in full before it
+   is used.
+5. A count appears only with what it counts and where the list is.
 
-1. The memo answers exactly four questions, in this order, each under
-   its own plain noun-phrase heading: (a) can bartcore merge onto main,
-   and in what order with the consumer packages; (b) what breaks for
-   GitHub and CRAN installers in each intermediate state; (c) what did
-   agents decide that the maintainer did not, and what does each cost;
-   (d) what is unfinished, abandoned, or proven only by a stale gate,
-   and why.
-2. Every completeness claim traces to a completion-register row whose
-   gate evidence is not "none".
-3. Every decision named in the memo traces to a decision-register row,
-   states who made it per that row's evidence class, and names what it
-   forecloses or costs. No decision is presented as the maintainer's
-   unless its row is class quote or choice.
-4. No claim rests only on a prior design or plan document. Each has a
-   register row, and each register row has a code or git anchor.
-5. The merge order and the installer breakage appear as one table each.
-   Every intermediate state names who is broken and whether the failure
-   is loud (compile or load error) or silent (wrong result).
-6. Nothing in the memo is process history: no "we first tried", "now",
-   "no longer", "retired", review provenance, run numbers, finding
-   codes, hashes, agent names, or dates except a dated maintainer ruling
-   that a decision row quotes. Exception: in the decisions section only,
-   a decision-register id in a short parenthetical such as "(A06)" is
-   allowed, because the maintainer adjudicates that register with the
-   memo open. Completion-register ids appear only in the appendix.
-7. Nothing in the memo is a judgement of quality: no robust, clean,
-   comprehensive, thorough, careful, ensures, seamlessly, leverages,
-   elegant, powerful, or their kin. Facts and consequences only.
+## What must be true
 
-## Form
+6. The reviewer re-checks against the tree at the tip every claim about
+   what the package exports, refuses, errors on, returns or defaults to,
+   and what any gate or check does and when it runs. A register row is
+   evidence, not truth: where they disagree, the document states the tree
+   and the row is corrected in the same commit. For any claim using
+   every, only, none or nothing, the reviewer names the case that would
+   break it and confirms it does not exist.
+7. Every decision named traces to a decision-register row and is
+   described in its standing form. A row marked superseded is described
+   from the superseding row, with the reversal named. A row you have
+   marked as yours is not presented as agent-made, and a decision is
+   presented as yours only when its row says so. Decision bullets are
+   ordered by cost.
+8. Every completeness claim states whether its gate ran at the tip and
+   names the commit or run it did prove. Every other claim has a register
+   row, every cited row has a code or git anchor, and no claim rests only
+   on a design or plan document.
+9. The body, the tables and the appendix agree on every fact they share.
+10. The evidence appendix maps each claim to register ids that exist at
+    the tip and whose status supports the claim.
 
-8. At most 2500 words in the body, at most four numbered sections plus
-   one lettered evidence appendix. No other appendix. The appendix maps
-   memo claims to register ids and holds nothing else.
-9. Every named thing (function, argument, package, gate, branch) is
-   either something the maintainer would type in R or at a shell, or is
-   glossed in plain words on first mention. No codename, slice label,
-   gate name, or plan title appears unglossed. No path into src/, R/,
-   tests, or benchmarks appears in the body.
-10. No em-dashes, no arrows, no parentheticals longer than a few words,
-    ASCII only. Sentences about 20 words, one idea each, with a verb.
-    No semicolon-joined clauses. No bullet that runs longer than two
-    sentences. Bold only the first few words of a bullet, never a
-    sentence.
-11. Numbers appear in tables or on their own line, and only where they
-    change what the reader would do. No number in running prose except
-    a version number the reader must type.
-12. No triplets for rhythm, no "not X but Y" framing, no headings that
-    argue, no closing summary or offer, no restating an earlier section.
-13. Per-paragraph test: if the paragraph were deleted, would the reader
-    judge anything differently? If not, it fails.
+## How it must read
 
-## Cold-reader test
+11. The reader is addressed as you and the writer speaks as I. The phrase
+    "the maintainer" does not appear. Every action names who does it.
+12. Ordinary words, one idea per sentence, each with its verb. A term
+    coined for this project is replaced by plain words or defined where
+    it first appears. Anything the reader has not met in a released
+    dbarts, in R, or earlier in the document is glossed; anything they
+    have met is not. A register id never appears inside a sentence as its
+    subject or object; it may close a decision bullet, and otherwise
+    lives in the appendix.
+13. The document describes the state at the tip, not how it got there:
+    no review provenance, finding codes, agent names, or dates except a
+    maintainer ruling quoted from the register.
+14. Facts and consequences only. No judgement of quality (robust, clean,
+    thorough, careful, ensures, and their kin). No general verb (carry,
+    hold, cover, admit, discharge) where a specific one (needs, costs,
+    breaks, fails) would say it. No paragraph whose deletion would leave
+    the reader's judgement unchanged.
+15. A table only where each row differs in every column and every cell is
+    a phrase; otherwise short headed sections. Every silent-breakage case
+    says what the wrong answer looks like.
+16. The body is at most 3000 words. Appendices hold the evidence mapping
+    and any list the body counts, and nothing else.
+17. ASCII only, no em-dashes, no arrows.
 
-14. A reader who has only the memo, no repository, can answer the four
-    questions in item 1 and their answers agree with the registers.
-    Any disagreement is a memo failure, not a reader failure.
+## Exit test
+
+18. Run once before the document is sent, by a reader matching the
+    profile who has not read the registers. With only the document, they
+    write down what they would do, the recommendation, the facts of
+    item 2, and the answers to item 3, without re-reading any sentence,
+    and list every term they had to guess. Each answer they cannot
+    produce, produce wrongly, or produce only after re-reading is a
+    numbered failure, and "I cannot decide" is a failure. Their answers
+    are then checked against the tree and the registers, and any
+    disagreement is a failure of the document, not of the reader.
