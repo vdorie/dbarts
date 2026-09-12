@@ -1296,15 +1296,15 @@ when there is a single chain, or an observations-by-chains matrix
 otherwise, written into `result` when one was supplied. **What that
 variable IS depends on the family and is not uniform.** It is a
 LOCATION, on the sampler's own latent scale, for `"probit"` (the
-truncated normal \\z_i\\), `"ordinal"` (the same \\z_i\\ under the cut
-points) and `"aft"` (the imputed log survival time), all of which a host
-regresses on directly. It is a PRECISION, one per observation, for
-`"logistic"` and `"nbinom"` (the Polya-Gamma \\\omega_i\\) and for a
-Student-t residual distribution (the scale-mixing \\\lambda_i\\); these
-WEIGHT a working response and are not on the response scale at all, so
-differencing them against a fit is meaningless. Note the last case: a
-sampler whose `family` is `"gaussian"` but built with
-`family = student()` (see
+truncated normal \\z_i\\), `"ordinal"` (the same \\z_i\\ under the
+ordinal thresholds) and `"aft"` (the imputed log survival time), all of
+which a host regresses on directly. It is a PRECISION, one per
+observation, for `"logistic"` and `"nbinom"` (the Polya-Gamma
+\\\omega_i\\) and for a Student-t residual distribution (the
+scale-mixing \\\lambda_i\\); these WEIGHT a working response and are not
+on the response scale at all, so differencing them against a fit is
+meaningless. Note the last case: a sampler whose `family` is
+`"gaussian"` but built with `family = student()` (see
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)) does
 report latents, and they are precisions.
 
