@@ -17,13 +17,12 @@ one reading, not on what it contains.
 ## What the document must do
 
 1. The opening paragraph states the decision being asked for, the
-   writer's recommendation, what the release gains, and what the reader
-   would have to learn to change the recommendation.
+   writer's recommendation, and what the release gains.
 2. Directly after the opening, the facts that could change the
-   recommendation are listed, each stated whole, ordered by how much of
-   the release each one blocks. If a fact is split across sections, it is
-   stated whole where it bears on the decision and referred back to
-   elsewhere.
+   recommendation are listed once, each stated whole, ordered by how much
+   of the release each one blocks. The opening does not preview them. If
+   a fact is split across sections, it is stated whole where it bears on
+   the decision and referred back to elsewhere.
 3. The body answers the questions the decision turns on. For the landing
    memo: whether the branch can merge and in what order with the consumer
    packages; what breaks for whom at each intermediate state, and whether
@@ -36,7 +35,8 @@ one reading, not on what it contains.
 4. Every set the document reasons over (consumer packages,
    prerequisites, gates, intermediate states) is listed in full before it
    is used.
-5. A count appears only with what it counts and where the list is.
+5. A count appears only with what it counts and where the list is. A
+   measurement appears only with what it means for the decision.
 
 ## What must be true
 
@@ -53,10 +53,11 @@ one reading, not on what it contains.
    marked as yours is not presented as agent-made, and a decision is
    presented as yours only when its row says so. Decision bullets are
    ordered by cost.
-8. Every completeness claim states whether its gate ran at the tip and
-   names the commit or run it did prove. Every other claim has a register
-   row, every cited row has a code or git anchor, and no claim rests only
-   on a design or plan document.
+8. Every completeness claim states whether its gate ran at the tip. The
+   body names a gate by what it checks; the commit or run id it proved
+   goes in the appendix. Every other claim has a register row, every
+   cited row has a code or git anchor, and no claim rests only on a
+   design or plan document.
 9. The body, the tables and the appendix agree on every fact they share.
 10. The evidence appendix maps each claim to register ids that exist at
     the tip and whose status supports the claim.
@@ -65,7 +66,8 @@ one reading, not on what it contains.
 
 11. The reader is addressed as you and the writer speaks as I. The phrase
     "the maintainer" does not appear. Every action names who does it.
-12. Ordinary words, one idea per sentence, each with its verb. A term
+12. Ordinary words, one idea per sentence, each with its verb, and the
+    actor of each verb as its subject. A term
     coined for this project is replaced by plain words or defined where
     it first appears. Anything the reader has not met in a released
     dbarts, in R, or earlier in the document is glossed; anything they

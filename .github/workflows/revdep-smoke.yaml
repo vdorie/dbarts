@@ -14,9 +14,11 @@
 # stan4bart's build against dbarts.h takes tens of minutes, hence the
 # generous timeout and monthly (not per-push) cadence.
 #
-# NOTE: GitHub binds `schedule` and `workflow_dispatch` to the repository
-# DEFAULT branch, so neither fires until the workflow lands on main; on
-# bartcore the only trigger is a push touching this file. See valgrind.yaml.
+# NOTE: GitHub binds only `schedule` to the repository DEFAULT branch, so the
+# monthly cadence does not start until this workflow lands on main.
+# `workflow_dispatch` fires from any branch this file is on: run 34665457872
+# was dispatched from bartcore while this file was absent from main. A push
+# touching this file is the third trigger.
 on:
   schedule:
     - cron: '0 8 1 * *'
