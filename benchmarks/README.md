@@ -88,6 +88,29 @@ over, so even with an ESS-adjusted denominator its |z| = 4 bar tolerates a
 per-cell shift of over a posterior sd. A tier-2 pass says the failure is not
 gross, never that the two builds agree.
 
+## R/classic-compare.R - the 0.9-34 comparison (measurement, not a gate)
+
+Widens the cross-release evidence past equivalence.R's nine-scenario
+classic record: 25 scenarios written in the 0.9-x vocabulary, so ONE script
+runs under an installed dbarts 0.9-34 and under this one. It records rather
+than compares live - 0.9-34 is a released package, not a build of this tree,
+so neither side can host the other - and `compare` then takes two recordings.
+
+    R_LIBS=<lib-0.9-34> Rscript benchmarks/R/classic-compare.R record old.rds
+    R_LIBS=<lib-1.0-0>  Rscript benchmarks/R/classic-compare.R record new.rds mixture=classic
+    Rscript benchmarks/R/classic-compare.R compare old.rds new.rds
+
+Every prior and control setting whose DEFAULT moved is pinned on both sides;
+`mixture=classic` additionally pins 0.9-x's tree-move mixture, so the compare
+isolates the engine, and `mixture=default` leaves 1.0-0 at its own new one,
+which measures the kernel change instead. Same Welch-z and disjoint-range
+verdict as equivalence.R, at 20 seeds and 1000 draws after 500 burn-in.
+`CLASSIC_COMPARE_SCENARIOS` restricts the run, `CLASSIC_COMPARE_SEED_OFFSET`
+shifts the seed block (for re-checking a marginal flag), `CLASSIC_COMPARE_CORES`
+sets the worker count, and `merge` joins chunked recordings. The 0.9-34 side
+is kept as baselines/classic-compare-0.9-34.rds; the 1.0-0 side is the compare
+side and is not. Findings: docs/plans/classic-compare.md.
+
 ## R/*-exact.R, *-balance.R - deterministic exact-posterior gates
 
 The exact-posterior gates (aft-exact, bcf-exact[-weak, -restricted],
