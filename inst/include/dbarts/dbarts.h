@@ -363,17 +363,45 @@ typedef struct dbarts_draw_t {
 /// addressed by (chainIndex, drawIndex), disjoint by construction. Calls
 /// within one chain are ordered by drawIndex.
 ///
-/// NO R API INSIDE THE CALLBACK, EVER - not Rf_allocVector, not PROTECT, not
-/// Rf_error, and in C++ not the CONSTRUCTION OR DESTRUCTION of an Rcpp proxy
+/// NO R ALLOCATION INSIDE THE CALLBACK, EVER - not Rf_allocVector, not
+/// PROTECT, and in C++ not the CONSTRUCTION OR DESTRUCTION of an Rcpp proxy
 /// type (Rcpp::NumericVector and its siblings touch the protection stack on
 /// both, allocation visible or not; take the raw double* out before the run).
-/// R's evaluator, allocator and protection stack are single-threaded, any R
-/// allocation may collect objects nothing protected on the worker's behalf,
-/// and the callback MUST NOT LONGJMP: Rf_error unwinds a context the main
-/// thread established, skipping every C++ destructor between raise and catch
-/// even when it is reached from the main thread. An interrupt cannot land
-/// while a call is running either, so a callback that blocks hangs the session
-/// with no Ctrl-C.
+/// R's evaluator, allocator and protection stack are single-threaded, and any
+/// R allocation may collect objects nothing protected on the worker's behalf.
+/// An interrupt cannot land while a call is running either, so a callback that
+/// blocks hangs the session with no Ctrl-C.
+///
+/// RAISING. The callback MAY raise an R error (Rf_error) on an INLINE run -
+/// one where the callback reaches this thread rather than a worker, which is
+/// any run with min(numThreads, numChains) <= 1 (set the thread count with
+/// dbarts_sampler_setNumThreads and read the chain count with
+/// dbarts_sampler_numChains). That raise is the one R call the ban above
+/// admits, its own allocation included, and it must be R's error jump: a
+/// longjmp to a setjmp of the caller's own abandons the context R establishes
+/// around this call and leaves R reading a dead one. A C++ EXCEPTION thrown
+/// out of the callback is caught at the call instead and handed back to R as
+/// an error carrying its what(), so a C++ host may refuse in its own idiom
+/// (Rcpp::stop and the like) and the run ends exactly as a raise ends it.
+/// The call into the callback is made under
+/// R_UnwindProtect, so the jump becomes a C++ unwind AT THE CALLBACK:
+/// the run stops there and every frame between the callback and this entry,
+/// the library's own included, is destroyed before the error is handed back to
+/// R, so the entry does NOT return. The sampler is left exactly as a nonzero
+/// return leaves it - the sample cursors have not advanced past draws already
+/// written into the slots they count - so the caller discards these results
+/// and any saved trees; the handle itself stays valid, and a later run or a
+/// destroy is safe.
+///
+/// What no jump can undo is the CALLER's own frames above dbarts_sampler_run:
+/// they are skipped just as they would be under any other R error, so a caller
+/// holding C++ objects across the run wraps its own call in R_UnwindProtect,
+/// exactly as this entry wraps the callback.
+///
+/// From a WORKER thread a raise is still undefined - the jump would leave a
+/// context the main thread established, on a stack that is not the main
+/// thread's - so a callback that cannot know which run it is in records the
+/// disagreement and returns nonzero instead.
 typedef int (*dbarts_draw_callback)(void* context, const dbarts_draw* draw);
 
 /// A predictor column's type. Ordinal columns are cut on their values;
@@ -758,7 +786,16 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// a host reduces draws as they are produced instead of materializing them.
 /// One that returns nonzero stops the run early and this entry STILL RETURNS
 /// NORMALLY, so a caller that registered one discards these buffers and any
-/// saved trees on the status its own context carries.
+/// saved trees on the status its own context carries. One that RAISES an R
+/// error instead stops the run and does not return here at all; the conditions
+/// under which that is allowed, and what the sampler looks like afterwards,
+/// are dbarts_draw_callback's.
+///
+/// No error raised under this call strands anything the library owns: the
+/// callback's jump is caught at the callback, an engine failure travels out as
+/// a C++ exception and becomes an R error only at this boundary, once its
+/// unwind has run, and this entry's own refusals are raised where it holds
+/// nothing.
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results);
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);

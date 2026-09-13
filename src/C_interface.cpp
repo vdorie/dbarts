@@ -20,6 +20,8 @@
 
 using std::size_t;
 using bartcore_bridge::adoptVector;
+using bartcore_bridge::callConvertingExceptions;
+using bartcore_bridge::DrawCallbackProtection;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseEmptyTreeStore;
 using bartcore_bridge::refuseMultiForestResponseMutation;
@@ -29,6 +31,7 @@ using bartcore_bridge::responseConduitIsFixed;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::sigmaIsPinned;
 using bartcore_bridge::testFitsAreUndefined;
+using bartcore_bridge::UnwindJump;
 using bartcore_bridge::validateResponseSupport;
 using bartcore_bridge::validateTestContainerAgainstStore;
 
@@ -541,52 +544,79 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler) {
 
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results) {
-  bartcore::SamplerShape shape = samplerOf(sampler).shape();
-  bartcore::Results engineResults;
-  // the internal location stride (invisible to the frozen dbarts_results ABI):
-  // 1 for every dbarts.h-created sampler, since the flat C API builds no
-  // multi-location model, so the caller's n x numSamples train/test hold
-  //
-  // numVariableCountForests is deliberately NOT set: dbarts_results declares no
-  // forest count, so the field stays at its default 1 and the engine writes the
-  // single numPredictors slab per sample this struct documents - the reported
-  // (prognostic) forest - even on the BCF samplers this entry point can create
-  engineResults.numReportedLocations = shape.numReportedLocations;
-  // A zero structSize means the caller forgot to set it (see DBARTS_RESULTS_INIT):
-  // reject loudly instead of silently skipping every field and handing back an
-  // uninitialized buffer - the flat-API footgun that fed garbage draws to a
-  // consumer's Gibbs loop. A nonzero older/smaller structSize stays valid.
+  // A zero structSize means the caller forgot to set it (see
+  // DBARTS_RESULTS_INIT): reject loudly instead of silently skipping every
+  // field and handing back an uninitialized buffer - the flat-API footgun that
+  // fed garbage draws to a consumer's Gibbs loop. A nonzero older/smaller
+  // structSize stays valid.
   if (results != NULL && results->structSize == 0)
     Rf_error("dbarts_sampler_run: results.structSize is 0 - set it to "
-             "sizeof(dbarts_results) (e.g. dbarts_results r = DBARTS_RESULTS_INIT)");
+             "sizeof(dbarts_results) (e.g. dbarts_results r = "
+             "DBARTS_RESULTS_INIT)");
 
-  if (results != NULL && numSamples > 0) {
-    // A field is filled only when present-by-size AND non-null. offsetof is
-    // against the library's (newest) layout; fields only append, so it
-    // equals the caller's offset and structSize bounds the buffer.
+  // The run's two error paths meet here. A registered draw callback that
+  // raises jumps at the LEAF - the one call into the host - which converts it
+  // into an UnwindJump, so the engine's whole run unwinds with its destructors
+  // before this frame catches it and hands the jump back to R. An engine
+  // failure arrives as an ordinary exception and becomes an R error, raised
+  // below where nothing is in flight.
+  bartcore_bridge::CapturedError error;
+  SEXP continuation = NULL;
+  try {
+    DrawCallbackProtection armed(sampler->drawHook);
+    bartcore_bridge::captureExceptions(error, [&]() {
+      bartcore::SamplerShape shape = samplerOf(sampler).shape();
+      bartcore::Results engineResults;
+      // the internal location stride (invisible to the frozen dbarts_results
+      // ABI): 1 for every dbarts.h-created sampler, since the flat C API
+      // builds no multi-location model, so the caller's n x numSamples
+      // train/test hold
+      //
+      // numVariableCountForests is deliberately NOT set: dbarts_results
+      // declares no forest count, so the field stays at its default 1 and the
+      // engine writes the single numPredictors slab per sample this struct
+      // documents - the reported (prognostic) forest - even on the BCF
+      // samplers this entry point can create
+      engineResults.numReportedLocations = shape.numReportedLocations;
+
+      if (results != NULL && numSamples > 0) {
+        // A field is filled only when present-by-size AND non-null. offsetof
+        // is against the library's (newest) layout; fields only append, so it
+        // equals the caller's offset and structSize bounds the buffer.
 #define FILL(field, member) \
   engineResults.member = DBARTS_RESULTS_HAS(results, field) ? results->field : NULL
-    FILL(sigma, sigma);
-    FILL(train, trainingFits);
-    FILL(test, testFits);
-    FILL(varcount, variableCounts);
-    FILL(k, k);
-    FILL(varprobs, splitProbabilities);
-    FILL(logLikelihood, logLikelihood);
-    FILL(dispersion, dispersion);
-    FILL(residualDf, residualDf);
+        FILL(sigma, sigma);
+        FILL(train, trainingFits);
+        FILL(test, testFits);
+        FILL(varcount, variableCounts);
+        FILL(k, k);
+        FILL(varprobs, splitProbabilities);
+        FILL(logLikelihood, logLikelihood);
+        FILL(dispersion, dispersion);
+        FILL(residualDf, residualDf);
 #undef FILL
-  }
+      }
 
-  // The engine samples only from each chain's own Mersenne Twister (seeded
-  // from R's stream once at creation), never from R's stream during a run, so
-  // no GetRNGstate/PutRNGstate bracket is needed here - and none is left
-  // unbalanced by a longjmp out of the engine.
-  // the registered observer, adapted to the shipped draw struct one draw at a
-  // time; an empty hook when nothing is registered, which is the run this
-  // entry made before the callback existed
-  samplerOf(sampler).run(numBurnIn, numSamples, engineResults, {}, {},
-                         sampler->drawHook.engineHook());
+      // The engine samples only from each chain's own Mersenne Twister (seeded
+      // from R's stream once at creation), never from R's stream during a run,
+      // so no GetRNGstate/PutRNGstate bracket is needed here - and none is
+      // left unbalanced by a longjmp out of the engine.
+      // the registered observer, adapted to the shipped draw struct one draw
+      // at a time; an empty hook when nothing is registered, which is the run
+      // this entry made before the callback existed
+      samplerOf(sampler).run(numBurnIn, numSamples, engineResults, {}, {},
+                             sampler->drawHook.engineHook());
+    });
+  } catch (const UnwindJump& jump) {
+    // the protection is disarmed by now: the throw ran every destructor
+    // between the callback and here, this frame's guard included
+    continuation = jump.continuation;
+  }
+  // the handler is left before the jump resumes: a longjmp out of a live catch
+  // block strands the exception on this thread's caught-exception stack, the
+  // same reason captureExceptions copies its message out before raising
+  if (continuation != NULL) R_ContinueUnwind(continuation); // does not return
+  if (error.failed) Rf_error("dbarts_sampler_run: %s", error.message);
 }
 
 /// The setter copies the pair into the sampler and nothing else: no call is
@@ -598,8 +628,15 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 }
 
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler) {
+  // The prior draw refuses from the bottom of a deep call stack (a tree whose
+  // every draw left an empty leaf), and growing a whole forest allocates. Both
+  // reach here as C++ exceptions, so the engine's frames unwind first and only
+  // this one raises.
+  //
   // draws from the chain RNG only, not R's stream (see dbarts_sampler_run)
-  samplerOf(sampler).sampleTreesFromPrior();
+  callConvertingExceptions("dbarts_sampler_sampleTreesFromPrior", [&]() {
+    samplerOf(sampler).sampleTreesFromPrior();
+  });
 }
 
 int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
@@ -677,28 +714,35 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
   // first forest's fit labelled as the whole; see
   // dbarts_sampler_setTestPredictors
   if (testFitsAreUndefined(engine)) return 0;
-  refuseEmptyTreeStore(engine, "dbarts_sampler_predict");
-  bartcore::SamplerShape shape = engine.shape();
-  void* scratch = vmaxget();
-  TranslatedSource source = translateSource(
-    engine.data(), xTest, NULL, shape.numPredictors, 0,
-    "dbarts_sampler_predict");
-  // a read-only replay builds no store, so the leaf-covariate rule is checked
-  // on the view itself rather than answered by a store build
-  validateTestSource(engine, source, "dbarts_sampler_predict");
-  size_t numTestObservations = source.view.numRows;
+  // The replay builds the CSC rank bitmaps a sparse view reads through and
+  // fans across threads, so a worker failure arrives as a C++ exception whose
+  // unwind frees both before this frame reports it to R.
+  int filled = 0;
+  callConvertingExceptions("dbarts_sampler_predict", [&]() {
+    refuseEmptyTreeStore(engine, "dbarts_sampler_predict");
+    bartcore::SamplerShape shape = engine.shape();
+    void* scratch = vmaxget();
+    TranslatedSource source = translateSource(
+      engine.data(), xTest, NULL, shape.numPredictors, 0,
+      "dbarts_sampler_predict");
+    // a read-only replay builds no store, so the leaf-covariate rule is
+    // checked on the view itself rather than answered by a store build
+    validateTestSource(engine, source, "dbarts_sampler_predict");
+    size_t numTestObservations = source.view.numRows;
 
-  engine.predict(source.view, numTestObservations, NULL, numThreads, out);
-  vmaxset(scratch);
+    engine.predict(source.view, numTestObservations, NULL, numThreads, out);
+    vmaxset(scratch);
 
-  if (offsetTest != NULL) {
-    size_t capacity = shape.savedTreeCapacity;
-    size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;
-    for (size_t slab = 0; slab < numSamples * shape.numChains; ++slab)
-      misc_addVectorsInPlace(offsetTest, numTestObservations,
-                             out + slab * numTestObservations);
-  }
-  return 1;
+    if (offsetTest != NULL) {
+      size_t capacity = shape.savedTreeCapacity;
+      size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;
+      for (size_t slab = 0; slab < numSamples * shape.numChains; ++slab)
+        misc_addVectorsInPlace(offsetTest, numTestObservations,
+                               out + slab * numTestObservations);
+    }
+    filled = 1;
+  });
+  return filled;
 }
 
 void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,

@@ -14,6 +14,7 @@
 #ifndef _WIN32
 #include <csignal>  // block SIGINT in worker threads; see run()
 #endif
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -729,7 +730,14 @@ public:
   /// count. Worker bodies must not call into R: an
   /// exception escaping a std::thread body is std::terminate, and a large
   /// replay is exactly where bad_alloc is plausible, so each body catches and
-  /// the first message is raised after the join, on the caller's thread.
+  /// the first message is rethrown after the join, on the caller's thread.
+  ///
+  /// That rethrow is a C++ exception and not an R error on purpose. Raising
+  /// through R here would longjmp from the bottom of the replay, past this
+  /// frame's worker buffers and past the rank bitmaps a sparse view built two
+  /// frames up; throwing unwinds both. Every entrance that can reach this
+  /// converts the exception back into an R error at its own boundary, where
+  /// nothing is left to free.
   ///
   /// There is no interrupt poll inside the fan-out. R's unix SIGINT handler
   /// only sets a pending flag; the longjmp happens in R_CheckUserInterrupt,
@@ -806,8 +814,8 @@ public:
     for (std::thread& worker : workers) worker.join();
     for (size_t w = 0; w < numWorkers; ++w)
       if (failed[w] != 0)
-        ext_throwError("predict worker %lu failed: %s",
-                       static_cast<unsigned long>(w), firstError[w].c_str());
+        throw std::runtime_error("predict worker " + std::to_string(w) +
+                                 " failed: " + firstError[w]);
   }
 
   /// Fits for raw column-major test rows, on the original response scale

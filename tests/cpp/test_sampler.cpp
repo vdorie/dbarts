@@ -672,6 +672,66 @@ static void testDrawCallbackStride() {
 
 // A nonzero return aborts the run, and the return path says the observer did
 // it rather than the interrupt poll.
+// A draw hook that THROWS. The bridge turns a host callback's R error into
+// exactly this at the callback itself, so the run has to be transparent to it:
+// the exception must reach the caller, every frame between the hook and the
+// caller must unwind (the per-chain results vector and the cancel closure live
+// there), and the sampler must be left usable. Multi-chain on one thread, so
+// the throw comes out of the middle of the chain loop rather than its first
+// iteration.
+static int throwingDrawCallback(void* context, const DrawInfo* draw) {
+  size_t& calls = *static_cast<size_t*>(context);
+  ++calls;
+  if (draw->drawIndex == 1) throw std::runtime_error("hook refused");
+  return 0;
+}
+
+static void testDrawHookThrowUnwindsRun() {
+  const size_t n = 150, numSamples = 6, numChains = 2;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::vector<ext_rng*> rngs = makeDrawRngs(numChains, 3700);
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numChains = numChains;
+  options.numThreads = 1; // inline: every call is on this thread
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, rngs.data());
+
+  std::vector<double> sigma(numSamples * numChains, 0.0);
+  Results results;
+  results.sigma = sigma.data();
+
+  size_t calls = 0;
+  DrawHook hook;
+  hook.fn = &throwingDrawCallback;
+  hook.context = &calls;
+
+  std::string message;
+  try {
+    sampler.run(2, numSamples, results, {}, {}, hook);
+  } catch (const std::exception& error) {
+    message = error.what();
+  }
+  check(message == "hook refused",
+        "draw hook throw: the exception reaches the caller unchanged");
+  check(calls == 2, "draw hook throw: the run stopped at the refused draw");
+
+  // and the sampler still runs: the throw left its chains on settled draws and
+  // advanced no cursor, exactly as a nonzero return does
+  std::vector<double> after(numSamples * numChains, 0.0);
+  Results afterResults;
+  afterResults.sigma = after.data();
+  sampler.run(0, numSamples, afterResults);
+  bool usable = true;
+  for (double value : after) usable &= std::isfinite(value) && value > 0.0;
+  check(usable, "draw hook throw: the sampler is usable afterwards");
+
+  destroyDrawRngs(rngs);
+  printf("ok: draw hook throw unwinds the run\n");
+}
+
 static void testDrawCallbackStop() {
   const size_t n = 150, numSamples = 400, stopAt = 3;
   std::vector<double> x, y;
@@ -1500,6 +1560,76 @@ static void testTestFitThreadInvariance() {
 // cutoff is overridden for the duration so a fixture this small still fans
 // out; without that every count would collapse to one worker and an
 // identity-across-counts check would prove nothing.
+// The replay fan-out's failure channel. A worker body that throws must not
+// take the process down (an exception escaping a std::thread body is
+// std::terminate) and must not be reported by raising through R either: R's
+// longjmp would abandon this frame's worker buffers and whatever the caller
+// built two frames up. It surfaces as a C++ exception naming the worker and
+// carrying the body's own message, and every scope between the failure and the
+// catch unwinds - which is the whole reason the engine reports it this way.
+static void testPredictFanOutRethrowsWorkerFailure() {
+  const size_t n = 120;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rng == NULL || ext_rng_setSeed(rng, 8812) != 0) {
+    check(false, "fan-out failure: rng creation");
+    return;
+  }
+  SamplerOptions options;
+  options.numTrees = 10;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+
+  // an owner in the frame BETWEEN the failure and the catch: its destructor is
+  // the observable difference between an unwind and a longjmp
+  struct Sentry {
+    bool* destroyed;
+    ~Sentry() { *destroyed = true; }
+  };
+
+  size_t savedCutoff = predictPartition.cutoffOverride;
+  predictPartition.cutoffOverride = 1; // force the threaded arm at this size
+
+  bool threw = false, unwound = false;
+  std::string message;
+  try {
+    Sentry sentry{&unwound};
+    sampler.fanOutPredictSlabs(
+      4, 4, 1000, [](size_t slab, PredictScratch&) {
+        if (slab == 3) throw std::runtime_error("slab refused");
+      });
+  } catch (const std::exception& error) {
+    threw = true;
+    message = error.what();
+  }
+  check(threw, "a worker failure leaves the fan-out as an exception");
+  check(message.find("predict worker") != std::string::npos &&
+          message.find("slab refused") != std::string::npos,
+        "the rethrow names the worker and carries the body's message");
+  check(unwound, "the frames between the failure and the catch unwound");
+
+  // and the inline arm propagates the body's own exception unchanged
+  predictPartition.cutoffOverride = 0;
+  bool inlineThrew = false;
+  std::string inlineMessage;
+  try {
+    sampler.fanOutPredictSlabs(1, 1, 1, [](size_t, PredictScratch&) {
+      throw std::runtime_error("inline refused");
+    });
+  } catch (const std::exception& error) {
+    inlineThrew = true;
+    inlineMessage = error.what();
+  }
+  predictPartition.cutoffOverride = savedCutoff;
+  check(inlineThrew && inlineMessage == "inline refused",
+        "a one-worker replay lets the body's own exception out");
+
+  ext_rng_destroy(rng);
+  printf("ok: predict fan-out worker failure\n");
+}
+
 static void testPredictThreadPartition() {
   const size_t n = 200, nTest = 40, numChains = 2, numSamples = 11;
   const size_t numSlabs = numChains * numSamples;
@@ -7551,6 +7681,7 @@ void runSamplerTests(ext_rng* rng) {
   testDrawCallbackFiring();
   testDrawCallbackStride();
   testDrawCallbackStop();
+  testDrawHookThrowUnwindsRun();
   testDrawCallbackNeutrality();
   testDrawCallbackVarcountForests();
   testDrawCallbackBCFNullChannels();
@@ -7558,6 +7689,7 @@ void runSamplerTests(ext_rng* rng) {
   testMultiChain();
   testTestFitThreadInvariance();
   testPredictThreadPartition();
+  testPredictFanOutRethrowsWorkerFailure();
   testSetData(rng);
   testSetResponseScaleLock(rng);
   testSetDataResize(rng);

@@ -70,14 +70,17 @@ items
     variable-selection inference. A fourth item the same record named,
     random-effects breadth, is moot since the grouped-effects path was
     deleted. Record: docs/plans/prerc-surface-freeze.md.
-  capi-unwind-protect: three raise sites hold C++ heap owners across a
-    longjmp and leak on the error path, none reachable by an ordinary
-    refusal: dbarts_sampler_run's sweep callback (a host callback that
-    raises, or an engine throw, needs R_UnwindProtect around the whole
-    run); createChainRngs' vector buffer on an allocation failure; and
-    the engine's own throws from deep frames (fanOutPredictSlabs,
-    chain.hpp). Fix shape: unwind-protect the run entry; the rest are
-    out-of-memory paths.
+  capi-unwind-protect: closed but for one arm. A host draw callback's R
+    error is now caught at the callback itself, where R_UnwindProtect can
+    still turn it into a C++ unwind, so the engine's run frames run their
+    destructors before the jump resumes; the engine raises into R nowhere
+    (the prior draws and the predict fan-out throw, and the bridge and the
+    flat entries convert), and the chain rng buffer is released before its
+    own raise. What is left is not the engine's: the rng library's
+    unimplemented-kind refusals in external/randomBase.c and randomNorm.c
+    are C and still raise through R from under a run. Both are default
+    arms over kinds the library implements, so nothing reaches them
+    today; closing them means an error channel out of the C rng API.
   correlated-outcomes: AR-1 / serially-correlated errors. Longitudinal,
     panel, ITS and DiD compose today via a latent AR-state + nugget in
     the outer sampler, driven through the setOffset conduit; EXACT

@@ -13,10 +13,11 @@
 #include <limits>
 #include <memory>
 #include <numbers>
+#include <stdexcept>
+#include <string>
 #include <type_traits>
 #include <vector>
 
-#include <external/io.h> // ext_throwError
 #include <external/random.h>
 #include <misc/linearAlgebra.h>
 #include <misc/thread.h>
@@ -2131,10 +2132,15 @@ public:
           if (!anyWeight) break;
           growSubtreeFromPrior(forest, tree, 0, y, forestWeights);
           if (tree.bottomNodesHaveWeight(forestWeights)) break;
+          // a C++ throw, never a raise into R: the engine is R-agnostic, and
+          // a longjmp from here would abandon every frame between this
+          // recursion and the entry point. The bridge converts it.
           if (++rejected == priorTreeDrawMaxAttempts)
-            ext_throwError("tree prior draw: every one of %d draws left an "
-                           "empty leaf, against a weight vector carrying a "
-                           "positive entry", priorTreeDrawMaxAttempts);
+            throw std::runtime_error(
+              "tree prior draw: every one of " +
+              std::to_string(priorTreeDrawMaxAttempts) +
+              " draws left an empty leaf, against a weight vector carrying a "
+              "positive entry");
         }
         // fresh structures carry zero parameter blocks until the next draw
         if constexpr (L::hasVectorParams)
@@ -2298,8 +2304,9 @@ public:
             if (!forest.leaf.drawFromPriorForTree(rng_, tree, tree.bottomScratch,
                                                   forest.k,
                                                   forest.paramByNode.data()))
-              ext_throwError("monotone prior draw: no feasible leaf vector in "
-                             "%d attempts", L::priorDrawMaxAttempts);
+              throw std::runtime_error(
+                "monotone prior draw: no feasible leaf vector in " +
+                std::to_string(L::priorDrawMaxAttempts) + " attempts");
           } else {
             for (int32_t i : tree.bottomScratch)
               forest.paramByNode[static_cast<size_t>(i)] =

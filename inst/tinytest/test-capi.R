@@ -222,6 +222,85 @@ expect_equal(sum(CALL("capi_draw_report")$calls), 3L)
 rm(ptrDraw, specDraw)
 invisible(gc(FALSE))
 
+# A RAISING callback, on a fresh sampler because a run that stops mid-stream
+# is not reused. dbarts_draw_callback admits an R error from an INLINE run -
+# one chain here, so every call reaches this thread - and dbarts_sampler_run
+# protects itself against the jump: the run stops at the raising draw, the
+# entry does NOT return, and the condition reaches R carrying the callback's
+# own message.
+specRaise <- dbarts(x, y, control = control)
+ptrRaise <- specRaise$getPointer()
+
+# registered but idle first, so raising is the only difference between the two
+# runs below
+CALL("capi_set_raising_callback", ptrRaise, -1L)
+invisible(CALL("capi_run_raising", ptrRaise, 0L, 4L))
+idleReport <- CALL("capi_raise_report")
+expect_equal(idleReport$calls, 4L)
+expect_true(idleReport$returned)
+
+CALL("capi_set_raising_callback", ptrRaise, 2L)
+expect_error(
+  CALL("capi_run_raising", ptrRaise, 0L, 6L),
+  "callback refused draw 2"
+)
+raiseReport <- CALL("capi_raise_report")
+# three draws arrived and the sixth never did, and the entry never returned:
+# the jump really came out of the middle of the run rather than after it
+expect_equal(raiseReport$calls, 3L)
+expect_false(raiseReport$returned)
+
+# and the handle survives it. The callback is cleared and the SAME sampler
+# runs again - the "a later run or a destroy is safe" half of the contract -
+# and the cleared hook fires nothing.
+CALL("capi_set_draw_callback", ptrRaise, FALSE)
+CALL("capi_draw_reset", -1L)
+afterRaise <- CALL("capi_run", ptrRaise, 0L, 3L, TRUE, FALSE)
+expect_equal(length(afterRaise$sigma), 3L)
+expect_true(all(is.finite(afterRaise$sigma)) && all(afterRaise$sigma > 0))
+expect_equal(sum(CALL("capi_draw_report")$calls), 0L)
+
+# an explicit destroy after the raise, which is the other way out
+CALL("capi_destroy", ptrRaise)
+rm(ptrRaise, specRaise)
+invisible(gc(FALSE))
+
+# and the same from a MULTI-CHAIN inline run: two chains on one thread, so
+# every call still reaches this thread, and the jump comes out of the middle of
+# the engine's chain loop rather than its first iteration - where the per-chain
+# results vector and the cancel closure are live. Chains run in order, so the
+# refused draw is chain 0's.
+controlRaiseChains <- dbartsControl(
+  n.chains = 2L,
+  n.threads = 1L,
+  n.trees = 25L,
+  updateState = FALSE,
+  seed = 11L
+)
+specRaiseChains <- dbarts(x, y, control = controlRaiseChains)
+ptrRaiseChains <- specRaiseChains$getPointer()
+CALL("capi_set_raising_callback", ptrRaiseChains, 1L)
+expect_error(
+  CALL("capi_run_raising", ptrRaiseChains, 1L, 5L),
+  "callback refused draw 1"
+)
+chainRaiseReport <- CALL("capi_raise_report")
+expect_equal(chainRaiseReport$calls, 2L)
+expect_false(chainRaiseReport$returned)
+
+# the session is intact afterwards, which is the check standing in for a
+# memory-check run here: a FRESH sampler builds and runs ...
+specAfterRaise <- dbarts(x, y, control = control)
+ptrAfterRaise <- specAfterRaise$getPointer()
+afterFresh <- CALL("capi_run", ptrAfterRaise, 2L, 3L, TRUE, FALSE)
+expect_true(all(is.finite(afterFresh$sigma)) && all(afterFresh$sigma > 0))
+rm(ptrAfterRaise, specAfterRaise)
+
+# ... and the sampler the raise came out of destroys cleanly
+CALL("capi_destroy", ptrRaiseChains)
+rm(ptrRaiseChains, specRaiseChains, controlRaiseChains)
+invisible(gc(FALSE))
+
 # two chains on two threads: each chain counts its own draws, and each chain
 # writes only its own slot - the header's (chainIndex, drawIndex) discipline,
 # which is what makes a callback safe with no engine lock
