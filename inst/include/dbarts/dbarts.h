@@ -376,17 +376,20 @@ typedef struct dbarts_draw_t {
 /// longjmps) on an INLINE run - one where the callback reaches this thread
 /// rather than a worker, which is any run with min(numThreads, numChains) <= 1
 /// (set the thread count with dbarts_sampler_setNumThreads and read the chain
-/// count with dbarts_sampler_numChains). dbarts_sampler_run catches the jump
-/// at its own boundary: the run stops there, the entry releases what it holds,
-/// and the error then propagates to the caller unchanged, so the entry does
-/// NOT return. The sampler is left exactly as a nonzero return leaves it -
-/// the sample cursors have not advanced past draws already written into the
-/// slots they count - so the caller discards these results and any saved
-/// trees; the handle itself stays valid, and a later run or a destroy is safe.
-/// A longjmp cannot be undone, so anything the CALLER owns between its own
-/// dbarts_sampler_run call and the raise is skipped just as it would be under
-/// any other R error: a caller holding C++ objects across the run wraps its
-/// own call in R_UnwindProtect, exactly as this entry does.
+/// count with dbarts_sampler_numChains). The call into the callback is made
+/// under R_UnwindProtect, so the jump becomes a C++ unwind AT THE CALLBACK:
+/// the run stops there and every frame between the callback and this entry,
+/// the library's own included, is destroyed before the error is handed back to
+/// R, so the entry does NOT return. The sampler is left exactly as a nonzero
+/// return leaves it - the sample cursors have not advanced past draws already
+/// written into the slots they count - so the caller discards these results
+/// and any saved trees; the handle itself stays valid, and a later run or a
+/// destroy is safe.
+///
+/// What no jump can undo is the CALLER's own frames above dbarts_sampler_run:
+/// they are skipped just as they would be under any other R error, so a caller
+/// holding C++ objects across the run wraps its own call in R_UnwindProtect,
+/// exactly as this entry wraps the callback.
 ///
 /// From a WORKER thread a raise is still undefined - the jump would leave a
 /// context the main thread established, on a stack that is not the main
@@ -781,11 +784,11 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// under which that is allowed, and what the sampler looks like afterwards,
 /// are dbarts_draw_callback's.
 ///
-/// Every error raised under this call - the callback's, a refusal of the
-/// arguments, an engine failure - passes through an unwind-protected boundary
-/// here, so this entry's own frames are released before the jump resumes. An
-/// engine failure is reported internally as a C++ exception for that reason
-/// and becomes an R error only once its unwind has run.
+/// No error raised under this call strands anything the library owns: the
+/// callback's jump is caught at the callback, an engine failure travels out as
+/// a C++ exception and becomes an R error only at this boundary, once its
+/// unwind has run, and this entry's own refusals are raised where it holds
+/// nothing.
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results);
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);

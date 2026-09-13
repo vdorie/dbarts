@@ -10,6 +10,8 @@
 #include <cstdio>    // snprintf
 #include <exception> // exception
 #include <memory>    // unique_ptr
+#include <thread>    // thread::id
+#include <utility>   // forward
 #include <vector>
 
 #include <external/Rinternals.h> // SEXP
@@ -21,34 +23,85 @@
 
 namespace bartcore_bridge {
 
-/// Runs \p body and turns a C++ exception escaping it into an R error labelled
-/// \p caller. An exception must never cross into R's own C frames - they run
-/// no destructors and keep context bookkeeping an unwind past them abandons,
-/// and nothing above catches, so the session aborts - and every entrance the
-/// engine can throw through therefore ends in this.
+/// R's continuation for an error longjmp caught at the LEAF that raised it -
+/// today the one call into a host's code, a registered draw callback.
+/// R_UnwindProtect's cleanup throws this instead of letting R resume the jump,
+/// so every C++ frame between that leaf and the entry point unwinds with its
+/// destructors, and the entry point resumes the jump with R_ContinueUnwind.
 ///
-/// The message is copied out and the handler LEFT before Rf_error runs: a
-/// longjmp out of a live catch block would strand the exception on the
-/// thread's caught-exception stack and skip the unwind's remaining
-/// destructors, so the raise happens where nothing is in flight and every
-/// owner the unwind reached is already gone. The buffer is sized for the
-/// engine's own messages (ext_throwError formats into 8 KiB and R truncates at
-/// BUFSIZE regardless); a longer one is truncated rather than allocated for,
-/// since this path is already failing.
-template <typename Body>
-void callConvertingExceptions(const char* caller, Body&& body) {
+/// A longjmp cannot be undone, which is why the protection sits at the leaf
+/// rather than at the entry: an entry-level R_UnwindProtect would catch the
+/// jump only after the frames beneath it were already abandoned.
+struct UnwindJump {
+  SEXP continuation;
+};
+
+/// The process's one unwind continuation, created and preserved on first use.
+/// R fills it on the jump and R_ContinueUnwind consumes it immediately, and
+/// only the thread that entered a run ever installs the protection, so one
+/// token serves every entrance without per-call allocation or protection-stack
+/// bookkeeping.
+inline SEXP unwindContinuation() {
+  static SEXP token = []() -> SEXP {
+    SEXP made = R_MakeUnwindCont();
+    R_PreserveObject(made);
+    return made;
+  }();
+  return token;
+}
+
+/// A failed call's message, copied out of the exception that carried it. Sized
+/// for the engine's own sentences; a longer one truncates rather than
+/// allocating, since this path is already failing.
+struct CapturedError {
   char message[512];
   bool failed = false;
+};
+
+/// Runs \p body, recording a C++ exception escaping it in \p into instead of
+/// letting it out. An exception must never cross into R's own C frames - they
+/// run no destructors and keep context bookkeeping an unwind past them
+/// abandons, and nothing above catches, so the session aborts - and every
+/// entrance the engine can throw through therefore ends in this.
+///
+/// The message is copied out and the handler LEFT before any caller raises: a
+/// longjmp out of a live catch block would strand the exception on the
+/// thread's caught-exception stack, so the raise happens where nothing is in
+/// flight and every owner the unwind reached is already gone. An UnwindJump is
+/// NOT an error and passes straight through: it belongs to the entry point,
+/// which resumes the jump it carries.
+template <typename Body>
+void captureExceptions(CapturedError& into, Body&& body) {
   try {
     body();
+  } catch (const UnwindJump&) {
+    throw;
   } catch (const std::exception& error) {
-    std::snprintf(message, sizeof(message), "%s", error.what());
-    failed = true;
+    std::snprintf(into.message, sizeof(into.message), "%s", error.what());
+    into.failed = true;
   } catch (...) {
-    std::snprintf(message, sizeof(message), "unknown C++ exception");
-    failed = true;
+    std::snprintf(into.message, sizeof(into.message), "unknown C++ exception");
+    into.failed = true;
   }
-  if (failed) Rf_error("%s: %s", caller, message);
+}
+
+/// captureExceptions, then the raise, labelled with \p caller. For the flat C
+/// API, whose errors are read by a compiled consumer that needs to know which
+/// entry point refused.
+template <typename Body>
+void callConvertingExceptions(const char* caller, Body&& body) {
+  CapturedError error;
+  captureExceptions(error, std::forward<Body>(body));
+  if (error.failed) Rf_error("%s: %s", caller, error.message);
+}
+
+/// The same for the R surface, where the raise carries the engine's own
+/// sentence alone: an entry point's C name says nothing to the user reading it.
+template <typename Body>
+void callRaisingEngineError(Body&& body) {
+  CapturedError error;
+  captureExceptions(error, std::forward<Body>(body));
+  if (error.failed) Rf_error("%s", error.message);
 }
 
 /// Copies the engine's per-draw struct into the SHIPPED one, field for field.
@@ -94,6 +147,14 @@ struct ShippedDrawHook {
   dbarts_draw_callback fn = nullptr;
   void* context = nullptr;
 
+  /// The thread a run entered on, for as long as that run lasts (see
+  /// DrawCallbackProtection). Only that thread may install an unwind context:
+  /// R's context stack is its own, and a worker pushing onto it would corrupt
+  /// R, so a worker's call goes through unprotected and must not raise - which
+  /// is what dbarts_draw_callback's contract states. The default id matches no
+  /// running thread, so an unarmed hook protects nothing.
+  std::thread::id protectedThread{};
+
   /// The setter's whole semantics: a null function CLEARS, dropping the
   /// context with it so nothing cleared still holds a caller's pointer, and a
   /// second registration REPLACES both. Nothing is called through fn here, so
@@ -103,22 +164,70 @@ struct ShippedDrawHook {
     context = function == nullptr ? nullptr : callerContext;
   }
 
+  /// One call into the host under R_UnwindProtect: the LEAF, and the only
+  /// place a jump out of a callback can still be turned into a C++ unwind.
+  /// Costs one setjmp per saved draw and allocates nothing (the continuation
+  /// is the process's own), which is why it is installed only where a callback
+  /// is registered and the call is on the run's own thread.
+  int callProtected(const dbarts_draw* draw) {
+    struct Frame {
+      ShippedDrawHook* hook;
+      const dbarts_draw* draw;
+      int result;
+    } frame{this, draw, 0};
+    R_UnwindProtect(
+      [](void* p) -> SEXP {
+        Frame& held = *static_cast<Frame*>(p);
+        held.result = held.hook->fn(held.hook->context, held.draw);
+        return R_NilValue;
+      }, &frame,
+      [](void*, Rboolean jumped) {
+        if (jumped) throw UnwindJump{unwindContinuation()};
+      }, &frame,
+      unwindContinuation());
+    return frame.result;
+  }
+
   /// The engine-facing hook, empty while nothing is registered. It borrows
   /// THIS object, so it must not outlive it: the sampler owns the flat-C
   /// route's, and the run call's own frame owns the R route's.
   bartcore::DrawHook engineHook();
 };
 
+/// Arms a hook's unwind protection for the length of one run, and disarms it
+/// however the run ends. An entry point that constructs this promises to catch
+/// UnwindJump and resume the jump with R_ContinueUnwind; one that does not
+/// leaves its callbacks unprotected, which is the behaviour a registered
+/// callback had before this existed.
+class DrawCallbackProtection {
+public:
+  explicit DrawCallbackProtection(ShippedDrawHook& hook) : hook_(hook) {
+    hook_.protectedThread = std::this_thread::get_id();
+  }
+  ~DrawCallbackProtection() { hook_.protectedThread = std::thread::id(); }
+  DrawCallbackProtection(const DrawCallbackProtection&) = delete;
+  DrawCallbackProtection& operator=(const DrawCallbackProtection&) = delete;
+
+private:
+  ShippedDrawHook& hook_;
+};
+
 /// The adapter itself: one per-draw stack copy into the shipped layout, which
 /// is what keeps the engine header-agnostic. It allocates nothing and takes no
 /// lock - it runs on whichever worker thread owns the chain - and hands the
-/// callback's return straight back to the engine, where nonzero aborts.
+/// callback's return straight back to the engine, where nonzero aborts. It is
+/// also where an error raised by the callback is caught, on the one thread
+/// that may catch it (callProtected).
 inline int shippedDrawTrampoline(void* context,
                                  const bartcore::DrawInfo* info) {
   ShippedDrawHook& hook = *static_cast<ShippedDrawHook*>(context);
   dbarts_draw draw;
   fillShippedDraw(draw, *info);
-  return hook.fn(hook.context, &draw);
+  // one predictable comparison on the hot path, and the protected arm only
+  // where an entry armed this hook and the call is on that entry's own thread
+  if (std::this_thread::get_id() != hook.protectedThread)
+    return hook.fn(hook.context, &draw);
+  return hook.callProtected(&draw);
 }
 
 inline bartcore::DrawHook ShippedDrawHook::engineHook() {

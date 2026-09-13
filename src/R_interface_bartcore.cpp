@@ -35,8 +35,10 @@ using bartcore_bridge::AugmentationInputs;
 using bartcore_bridge::augmentationLaw;
 using bartcore_bridge::AugmentationLaw;
 using bartcore_bridge::BartcoreHolder;
-using bartcore_bridge::callConvertingExceptions;
+using bartcore_bridge::callRaisingEngineError;
+using bartcore_bridge::captureExceptions;
 using bartcore_bridge::computeWorkingResponse;
+using bartcore_bridge::DrawCallbackProtection;
 using bartcore_bridge::drawAugmentation;
 using bartcore_bridge::enforceBinaryWeightPolicy;
 using bartcore_bridge::lawDrawsPrecision;
@@ -51,6 +53,7 @@ using bartcore_bridge::refuseNonBinaryMask;
 using bartcore_bridge::refusePinnedSigmaChange;
 using bartcore_bridge::refuseSparseLeafCovariate;
 using bartcore_bridge::refuseVarianceForestScaleUpdate;
+using bartcore_bridge::UnwindJump;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::supportFamily;
 using bartcore_bridge::validateColumnValues;
@@ -4610,11 +4613,13 @@ static bool bartcore_userInterrupted() {
 // null function clears the hook. The address is dereferenced exactly as handed
 // - nothing here can check that it points at a callable of the right shape.
 //
-// The callback must RETURN; it must never longjmp. Inline it would skip
-// PutRNGstate and the scratch destructors below; on a worker thread it would
-// unwind a setjmp context this (the main) thread established, which is
-// undefined behaviour and in practice a crash. A callback that wants the run
-// to end records its own status and returns nonzero.
+// The callback may RAISE, but only where the run is inline on this thread
+// (min(numThreads, numChains) <= 1): the call is then made under
+// R_UnwindProtect, which turns the jump into a C++ unwind, and this entry
+// frees its own buffers and resumes the jump. From a worker thread a raise
+// would unwind a setjmp context this (the main) thread established, which is
+// undefined behaviour and in practice a crash, so a callback that cannot know
+// which run it is in records its own status and returns nonzero.
 //
 // Two facts about what the observer sees through this entry. The
 // log-likelihood channel is never allocated here, so draw.logLikelihood is
@@ -4910,12 +4915,34 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   results.glue = hasForestReporting ? REAL(glueExpr) : NULL;
 
   bool stoppedByCallback = false;
+  bool cancelled = false;
+  bartcore_bridge::CapturedError error;
   GetRNGstate();
-  bool cancelled =
-    sampler.run(numBurnIn, numSamples, results, bartcore_userInterrupted,
-                bartcore::SweepCallback(), drawHook.engineHook(),
-                &stoppedByCallback);
+  // The R route's callback gets the same protection the flat one's does: a
+  // raise inside it jumps at the leaf and arrives here as an UnwindJump, the
+  // engine's own frames already unwound. This frame's two buffers are freed by
+  // hand on that path, exactly as the cancel path below frees them, since a
+  // catch cannot unwind the frame it sits in.
+  try {
+    DrawCallbackProtection armed(drawHook);
+    captureExceptions(error, [&]() {
+      cancelled =
+        sampler.run(numBurnIn, numSamples, results, bartcore_userInterrupted,
+                    bartcore::SweepCallback(), drawHook.engineHook(),
+                    &stoppedByCallback);
+    });
+  } catch (const UnwindJump& jump) {
+    PutRNGstate();
+    std::vector<std::uint32_t>().swap(variableCounts);
+    std::vector<double>().swap(scratch);
+    R_ContinueUnwind(jump.continuation); // does not return
+  }
   PutRNGstate();
+  if (error.failed) {
+    std::vector<std::uint32_t>().swap(variableCounts);
+    std::vector<double>().swap(scratch);
+    Rf_error("%s", error.message);
+  }
   if (cancelled) {
     // free before longjmp: Rf_error runs no destructor between here and the
     // handler
@@ -5029,19 +5056,28 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   return R_NilValue;
 }
 
+// Both prior draws refuse from the bottom of the grow recursion, by throwing:
+// the engine never raises into R, so the exception unwinds its frames and the
+// raise happens here, with R's stream handed back first - a longjmp out of the
+// bracket would leave it checked out.
 SEXP bartcore_sampleTreesFromPrior(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore_bridge::CapturedError error;
   GetRNGstate();
-  holder.sampler->sampleTreesFromPrior();
+  captureExceptions(error, [&]() { holder.sampler->sampleTreesFromPrior(); });
   PutRNGstate();
+  if (error.failed) Rf_error("%s", error.message);
   return R_NilValue;
 }
 
 SEXP bartcore_sampleNodeParametersFromPrior(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore_bridge::CapturedError error;
   GetRNGstate();
-  holder.sampler->sampleNodeParametersFromPrior();
+  captureExceptions(error,
+                    [&]() { holder.sampler->sampleNodeParametersFromPrior(); });
   PutRNGstate();
+  if (error.failed) Rf_error("%s", error.message);
   return R_NilValue;
 }
 
@@ -6274,7 +6310,7 @@ static SEXP predictFromSource(bartcore::SamplerBase& sampler,
   // The fan-out reports a worker's failure as a C++ exception so its unwind
   // frees the replay's buffers; it becomes an R error here, where nothing of
   // the engine's is left live. See Sampler::fanOutPredictSlabs.
-  callConvertingExceptions("bartcore_predict", [&]() {
+  callRaisingEngineError([&]() {
     sampler.predict(source, numTestObservations, categoryOffset, numThreads,
                     REAL(resultExpr));
   });
@@ -6291,7 +6327,7 @@ static SEXP predictFromSource(bartcore::SamplerBase& sampler,
   // needs saved trees, so a null-capacity variance forest has nothing to replay.
   if (shape.hasVarianceForest && capacity > 0) {
     SEXP varianceExpr = PROTECT(Rf_duplicate(resultExpr));  // clone the shape
-    callConvertingExceptions("bartcore_predict", [&]() {
+    callRaisingEngineError([&]() {
       sampler.predictVariance(source, numTestObservations, numThreads,
                               REAL(varianceExpr));
     });
@@ -6408,7 +6444,7 @@ static SEXP predictPerForestFromSource(bartcore::SamplerBase& sampler,
   for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
   Rf_setAttrib(resultExpr, R_DimSymbol, dimExpr);
 
-  callConvertingExceptions("bartcore_predictPerForest", [&]() {
+  callRaisingEngineError([&]() {
     sampler.predictPerForest(source, numTestObservations, numThreads,
                              REAL(resultExpr));
   });
