@@ -1,32 +1,33 @@
-# Evaluations of the not-mine decision rows
+# Evaluations of the not-mine decision entries
 
-This file consolidates four neutral evaluations of every row in
-docs/decisions.md marked `not mine`, plus an independent critic pass over
-those evaluations. Method: an evaluator judged each row from the code and
+This file consolidates four neutral evaluations of every entry in
+docs/decisions.md marked `not mine` on its Marked line, plus an independent
+critic pass over those evaluations. Method: an evaluator judged each entry from
+the code and
 the cited record on its own merits, independent of the record's framing;
 a critic then checked the evaluator's factual claims a second time.
 `evaluator` and `critic` are those two passes; `final` is the verdict that
 stands - the evaluator's, unless the critic marked it OVERTURNED, in which
 case the critic's; a critic finding that falls short of overturning
 (WEAKENED, STANDS) leaves the evaluator's verdict as `final` and its
-substance in `reason`. CLOSED means a later row in this register, or the
+substance in `reason`. CLOSED means a later entry in the register, or the
 register's own adjudication process, already answers the question; that
-row or process is named in `reason`.
+entry or process is named in `reason`.
 
 Rows cover docs/decisions.md's `not mine` set as it stood when the evaluations
-were made. Every row the register has gained since - dec-B74 onward, the
+were made. Every entry the register has gained since - dec-B74 onward, the
 maintainer's own adjudication of this file's questions and of the six arcs that
 followed - is marked `mine`, so the table gains no members there. One
-earlier row has since turned `not mine` without gaining one: dec-B50, which
+earlier entry has since turned `not mine` without gaining one: dec-B50, which
 the maintainer disowned as a misattributed standing fact rather than a
-decision, so it has nothing to evaluate. What the later rows changed is
+decision, so it has nothing to evaluate. What the later entries changed is
 recorded under the two headings below.
 
 ## All rows
 
 | id | decision | evaluator | critic | final | reason |
 |---|---|---|---|---|---|
-| dec-A03 | remove startThreads/stopThreads | KEEP, add an UPGRADING line | OVERTURNED to CHANGE, citing dec-B76 | CLOSED | dec-B76 is a VD ruling dated 2026-09-08 that the thread methods stay as no-ops; the removal is reversed by that row, not by a merits argument |
+| dec-A03 | remove startThreads/stopThreads | KEEP, add an UPGRADING line | OVERTURNED to CHANGE, citing dec-B76 | CLOSED | dec-B76 is a VD ruling dated 2026-09-08 that the thread methods stay as no-ops; the removal is reversed by that entry, not by a merits argument |
 | dec-A04 | drop rngKind/rngNormalKind, rename rngSeed to seed | DISCUSS a deprecated rngSeed alias | OVERTURNED to CHANGE, citing dec-B76 | CLOSED | dec-B76 rules rngSeed accepted with a warning for one release, closing the alias question the evaluator raised |
 | dec-A09 | ordered factors get K-1 midpoint cuts above the cut cap | KEEP | not reviewed | KEEP | K-1 is the full candidate-split set an ordered factor has at any K; the large-K memory bound is worth revisiting only if bart later defaults to ordinal coding |
 | dec-A10 | prior forest is rejection-sampled to carry no empty leaf | KEEP | not reviewed | KEEP | rejection sampling draws from the law the move kernels score; main's collapse targeted a different distribution |
@@ -56,7 +57,7 @@ recorded under the two headings below.
 | dec-A62 | gate policy is prose: self-declared RNG class, unenforced oracle rule | CHANGE, script the oracle-naming half | WEAKENED | CHANGE | the MANIFEST header allows the oracle to be named in the commit body, so a MANIFEST-diff check would flag legitimate commits and would test for the token rather than for an oracle |
 | dec-A63 | tinytest count floor of 5200 with six per-file floors | CHANGE to per-file non-emptiness plus a total floor near the measured count | STANDS on diagnosis, WEAKENED on remedy | CHANGE | 5200 sits below the 5478 static expect_ call sites; nine files can exit_file() with no skip marker, so a non-emptiness allowlist needs to name them or it unguards test-capi.R |
 | dec-A64 | keep superseded baselines and the near-duplicate test file names | CHANGE the file names | OVERTURNED to KEEP | KEEP | each paired file's header already states what separates it and names its sibling; renaming would break those cross-references and the per-file floors in sanitizers.yaml |
-| dec-A65 | a standing discretion grant settled user-facing forks | DISCUSS - ratify the adopted defaults, narrow the grant | WEAKENED | CLOSED | the register is itself the ratification mechanism the discussion asks for; rows dec-B74 through dec-B77 are VD rulings it has already produced |
+| dec-A65 | a standing discretion grant settled user-facing forks | DISCUSS - ratify the adopted defaults, narrow the grant | WEAKENED | CLOSED | the register is itself the ratification mechanism the discussion asks for; entries dec-B74 through dec-B77 are VD rulings it has already produced |
 | dec-A67 | four bare noun exports; priors bundled into one list | DISCUSS - one rule for both vocabularies | OVERTURNED to KEEP | KEEP | the prior constructors are captured unevaluated and resolved against a layered environment, which is why bundling costs them nothing; interactions and blocks are evaluated in the caller's frame before the function is entered, so export is the only way to write them inline |
 | dec-A68 | documented-but-inert arguments ship | CHANGE, drop tau and align the multinomial vars formals | WEAKENED | CHANGE | man/summary.bart.Rd already documents tau as a token silently dropped when absent, so it is not undocumented dead vocabulary; the multinomial vars asymmetry is real but the cheaper fix gives summary.bartMultinomial the vars formal its siblings carry |
 | dec-A69 | R5 forest index 1-based, C API 0-based | KEEP | WEAKENED | KEEP | 1-based R over 0-based C is the conversion at both named call sites; a third origin exists beyond those - sparseFactor takes 1-based positions and stores them 0-based in the exported S4 i slot |
@@ -68,7 +69,7 @@ recorded under the two headings below.
 | dec-B18 | BCF prognostic forest takes a half-Cauchy amplitude | KEEP | not reviewed | KEEP | the half-Cauchy fixture is bcf's own prior and what its ridge needs; the disagreement with the R-side family-aware default is unreachable, since no flat-C entry creates the amplitude sampler |
 | dec-B20 | ordinal: scheme A identification, Cowles-style updates, auto-dispatch | KEEP | STANDS; register cost line disputed | KEEP | main fit an ordered-factor response as as.integer(y) - 1, a continuous response on the level codes; register cell corrected below |
 | dec-B25 | no 8-bit hot layer or standalone per-column widths | KEEP | not reviewed | KEEP | phase-1 measurement showed no partition win for 8-bit codes on arm64; per-column widths remain structural to the container work still ahead |
-| dec-B26 | archive the support library's two thread managers, cut them | KEEP | not reviewed | KEEP | the removed managers had no callers and are preserved on a branch ref; the manager that remains (dec-A39) is the open question, not this row |
+| dec-B26 | archive the support library's two thread managers, cut them | KEEP | not reviewed | KEEP | the removed managers had no callers and are preserved on a branch ref; the manager that remains (dec-A39) is the open question, not this entry |
 | dec-B28 | de-scale the sum of squared residuals by range squared | KEEP | not reviewed | KEEP | the fix multiplies by the response-scale factor squared, matching the residuals' own scale; main's single-range multiplier was a units error, fixed in both engines the same day |
 | dec-B29 | getTrees reports NA plus directions for every categorical rule | KEEP | not reviewed | KEEP | the packed 32-bit mask 0.9-x used cannot represent 65535 levels, so one vocabulary (NA plus per-level directions) is the only choice stable across the new range |
 | dec-B31 | saved states carry a format version, refuse on mismatch | DISCUSS a 0.9-x recognition message | WEAKENED | CLOSED | settled as dec-B109: a 0.9-x fit is recognized by the absent format field and refused by name at restore and predict |
@@ -86,7 +87,7 @@ recorded under the two headings below.
 | dec-B61 | item 1 covers seven entries; the basis setter is renamed, not transposed | KEEP item 1; CHANGE item 4 | STANDS | CLOSED | moot at the tip: dec-B86 took the seven entries and setForestBasis out of dbarts.h, so neither item has a header to shape |
 | dec-B62 | a per-sweep callback ships inline-multi-chain only | KEEP | not reviewed | KEEP | the conditioning setters a callback exists to call are sampler-wide, so per-sweep conditioning under threaded multi-chain runs has no meaning to preserve |
 | dec-B66 | multi-forest veto-rate thresholds ratified as judged, not measured | KEEP | not reviewed | KEEP | no benchmarks script, tinytest file or workflow re-runs the bands, so nothing can fail on a misjudged one; the provenance table already labels each as judged rather than measured |
-| dec-B73 | bit-identity of the draw path is a toggle (never built) | CHANGE to superseded | WEAKENED | CLOSED | the shipped rule and its opposite are already cross-referenced in dec-A42's and dec-B73's own cost columns; both rows are now superseded by dec-B90, which made the reference build a configure flag rather than a runtime toggle |
+| dec-B73 | bit-identity of the draw path is a toggle (never built) | CHANGE to superseded | WEAKENED | CLOSED | the shipped rule and its opposite are already cross-referenced in dec-A42's and dec-B73's own accounts of what the choice costs; both entries are now superseded by dec-B90, which made the reference build a configure flag rather than a runtime toggle |
 | dec-C01 | register the C callables under the full symbol names | KEEP | not reviewed | KEEP | matches xts, Matrix and data.table, which all register callables under the symbol's own name; the registration key cannot drift from the symbol by construction |
 | dec-C02 | bind the provider side at compile time | KEEP | not reviewed | KEEP | catches in-package ABI drift at dbarts's own build, before any consumer exists, at no registration or runtime cost |
 | dec-C03 | rename every .Call registration to a bartcore-specific prefix | KEEP | not reviewed | KEEP | R_useDynamicSymbols(FALSE) means .Call by string never resolved externally, so the prefix change has no R-visible effect |
@@ -111,7 +112,7 @@ recorded under the two headings below.
 - dec-B31: settled 2026-09-08 as dec-B109, recognize a 0.9-x fit by the missing format field and refuse by name.
 - dec-B41: settled 2026-09-08 as dec-B110, a warning keyed on the realized constant-leaf fallback share; landed with the engine-constants slice, and the warning fires through the cross-validation, multinomial, ordinal and negative-binomial doors too.
 - dec-B58: settled 2026-09-08 as dec-B111, flag off after the merge with a CI assertion tying hash changes to minor bumps; the assertion landed, and both consumers have already dropped the flag.
-- the four engine limits that became settings under dec-B91 (categoricalExhaustiveCap, testFitParallelCutoff, predictParallelCutoff, sparseDensityThreshold), no register row when raised: settled 2026-09-10 as dec-B116, control-only; bart() and xbart() gain control = dbarts::dbartsControl() reaching all four through the control rather than through new formals, matching the landing note's recommendation over putting categoricalExhaustiveCap on cgm().
+- the four engine limits that became settings under dec-B91 (categoricalExhaustiveCap, testFitParallelCutoff, predictParallelCutoff, sparseDensityThreshold), no register entry when raised: settled 2026-09-10 as dec-B116, control-only; bart() and xbart() gain control = dbarts::dbartsControl() reaching all four through the control rather than through new formals, matching the landing note's recommendation over putting categoricalExhaustiveCap on cgm().
 
 ## Register cost lines corrected
 

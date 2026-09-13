@@ -2,7 +2,7 @@
 
 Every user-visible, C-consumer-visible or behavioural change the merge brings, merged and deduplicated from the five code-side slices and, from chg-U66, chg-C27, chg-B09 and chg-I15 on, from the eight arcs that landed after b7266da9: the pure C header, the front-door rename, interfaces and dependencies, engine performance, the memory-footprint audit, per-draw callbacks, the front-door formals consolidation and the setPredictor partition. Base is main at cb290550, tip is bartcore at fb34e15d; there are still no main-only commits, so the diff between them is exactly what a merge brings.
 
-`visibility` is user, C-consumer, build or internal. `breaking` is yes, no, or behavioural, meaning the same call returns a different result. `anchor` names a symbol or a path, never a line. `decision` points at the row in docs/decisions.md that settles the change where one applies.
+`visibility` is user, C-consumer, build or internal. `breaking` is yes, no, or behavioural, meaning the same call returns a different result. `anchor` names a symbol or a path, never a line. `decision` points at the entry in docs/decisions.md that settles the change where one applies.
 
 ## 1. User-visible
 

@@ -116,7 +116,7 @@ package. bartCause calls dbarts from R only. treatSens compiles against the C
 header and also calls two unexported dbarts functions by name, one resolving
 its priors and one estimating the creation-time sigma. A rename of either
 breaks it with no signature for a check to catch. You either export a public
-route before the release or leave it calling internals; a decision row defers
+route before the release or leave it calling internals; a decision entry defers
 that choice to after the release. The ids below name rows in three registers:
 decisions (dec-), user-visible changes (chg-) and completion (cmp-). bairrtt
 needed no branch: I renamed dbartsSampler$run's fourth argument and added
@@ -293,7 +293,7 @@ sanitizer job added and removed the same day, has a decision behind it.
 CI on a push, so nothing catches a dbarts change there before a user does.
 treatSens runs none either, and its 3.0-1 needs a fresh CRAN review.
 
-## Appendix A. Claims and the register rows behind them
+## Appendix A. Claims and the register entries behind them
 
 Prefixes: dec- is docs/decisions.md, chg- and cmp- are the changes and
 completion registers beside this memo.
@@ -339,8 +339,8 @@ completion registers beside this memo.
 | 25 exact scripts, 23 of them independent of dbarts | cmp-S06, .github/workflows/exact-gates.yaml, benchmarks/R/hazard-reduction.R, benchmarks/R/hurdle-reduction.R |
 | all 25 C entries driven by a compiled caller | cmp-K07, cmp-K08, inst/tinytest/capi/consumer.c |
 | the five schedule-only workflows and their three triggers | cmp-L02, cmp-L03, cmp-S02, cmp-K09; the five workflow files' on blocks, each carrying schedule, workflow_dispatch and a push on its own path; run 34665457872, dispatched from this branch |
-| 70 costed decisions of mine, 28 replaced, 9 yours, 1 deferred, 32 standing | decisions register section A, VD column; Appendix B |
-| 27 rows marked not yours, 22 of them unsuperseded | decisions register section B, VD column; Appendix B |
+| 70 costed decisions of mine, 28 replaced, 9 yours, 1 deferred, 32 standing | decisions register section A, Marked lines; Appendix B |
+| 27 entries marked not yours, 22 of them unsuperseded | decisions register section B, Marked lines; Appendix B |
 | the eight costliest standing decisions, the seventh pairing two rows | dec-A04, dec-A09, dec-A14, dec-A16, dec-A17, dec-A31, dec-A34, dec-A61, dec-A65; dbartsControl's formals in R/dbarts.R against git show main:R/dbarts.R's rngKind, rngNormalKind and rngSeed; fillCutsAtLevelMidpoints in src/bartcore/data.hpp; the updateState formal on the sampler class in R/A_class.R and the four methods in R/dbarts.R that still read NA from the control slot; the family = "auto" branch in R/spec.R; R/bart.R's drop of NULL elements from the fit; the Rf_error exits in src/C_interface.cpp and the contract block in inst/include/dbarts/dbarts.h; benchmarks/baselines/MANIFEST; the "every 'counts' row must have at least one trial" refusal in R/data.R and R/A_class.R |
 | the four pre-candidate items | cmp-V09, cmp-U14, cmp-U13, cmp-D07; benchmarks/R/composition-matrix.R against docs/design/feature-matrix.md |
 | the submission items | cmp-U19, cmp-L05, cmp-U02, cmp-K01, cmp-L08, cmp-U18 |

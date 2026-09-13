@@ -26,10 +26,11 @@ decision - it explains where decisions live and how to find one.
   checklist, gate hygiene, and what CI runs. HOW plans get written,
   gated, and reviewed - not a listing of the directory's contents; that
   is `docs/plans/INDEX.md`'s job.
-- `docs/decisions.md` - the decision register: one row per design
-  decision the bartcore branch carries, with who made it and on what
-  evidence. Any claim that the maintainer decided something cites a row
-  here; a claim with no row has no attribution.
+- `docs/decisions.md` - the decision register: one entry per design
+  decision the bartcore branch carries, in prose, with who made it and
+  on what evidence, and a Marked line the maintainer writes on. Any
+  claim that the maintainer decided something cites an entry id here; a
+  claim with no entry has no attribution.
 - `docs/plans/bartcore-landing/` - the landing memo for merging bartcore
   onto main (`memo.md`), and the registers behind it: changes against
   main, completion status of everything planned, a doc inventory for
