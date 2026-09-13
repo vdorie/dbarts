@@ -690,8 +690,13 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     8. Owed pre-RC engine items: three latent bcf-equivalence scenarios
       plus re-record; aft slices 3 and 4; BCF two-forest proposal.probs
       pass-through; the same-host bcf-equivalence refresh at the RC tip.
-    9. Ledger: no item carries an "abandoned" status; every open item
-      has a home in TODO.
+    9. Repo-state docs refreshed at the tip, after items 1 to 8 land:
+      docs/design/INDEX.md and docs/plans/INDEX.md (every status
+      re-read from its document, stamp moved), docs/README.md,
+      docs/architecture.md, docs/design/feature-matrix.md,
+      docs/decisions.md, benchmarks/baselines/MANIFEST. Every piece of
+      retired or unscheduled work is findable from an index with its
+      status; TODO holds only work still intended.
     10. VD reviews docs/plans/bartcore-landing/rubric.md.
     11. The landing memo is rewritten from a blank page to the rubric
       after items 1 to 9, and the decision ledger (docs/decisions.md) is
