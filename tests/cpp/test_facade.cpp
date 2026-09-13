@@ -48,7 +48,7 @@ enum class FacadeVirtual {
   setForestWeights, forestCalibration, setForestPriorScale, setActiveRows,
   setCounts, setCategoryOffset, setCategoryTestOffset, totalAmplitudes,
   numForestAmplitudes, amplitudes, forestTotalFits, fitsWithoutOffset,
-  forestVariableCounts, numTreesInForest,
+  currentVarianceFits, forestVariableCounts, numTreesInForest,
   count
 };
 
@@ -216,6 +216,8 @@ public:
   SPY_VOID(forestTotalFits,
            (std::size_t c, std::size_t f, double* o) const, (c, f, o))
   SPY_RET(bool, fitsWithoutOffset, (std::size_t c, double* o), (c, o))
+  SPY_RET(bool, currentVarianceFits, (std::size_t c, bool t, double* o),
+          (c, t, o))
   SPY_VOID(forestVariableCounts,
            (std::size_t c, std::size_t f, std::uint32_t* o) const, (c, f, o))
   SPY_RET(std::size_t, numTreesInForest, (std::size_t f) const, (f))
@@ -1230,6 +1232,15 @@ const Row rows[] = {
           "facade fitsWithoutOffset: the named chain's location is written");
     check(!f.m.base().fitsWithoutOffset(0, viaBase.data()),
           "facade fitsWithoutOffset: a multi-location coupling refuses");
+  }},
+  {FacadeVirtual::currentVarianceFits, "currentVarianceFits", [](Fixtures& f) {
+    std::vector<double> viaBase(Fixtures::n, 0.0), viaImpl(Fixtures::n, 1.0);
+    check(f.v.base().currentVarianceFits(0, false, viaBase.data()) &&
+            f.v.impl().currentVarianceFits(0, false, viaImpl.data()) &&
+            viaBase == viaImpl,
+          "facade currentVarianceFits: the named chain's surface is written");
+    check(!f.g.base().currentVarianceFits(0, false, viaBase.data()),
+          "facade currentVarianceFits: a homoscedastic sampler refuses");
   }},
   {FacadeVirtual::forestVariableCounts, "forestVariableCounts",
    [](Fixtures& f) {

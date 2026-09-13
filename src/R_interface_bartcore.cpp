@@ -4507,6 +4507,28 @@ SEXP bartcore_getFitsWithoutOffset(SEXP ptrExpr) {
   return result;
 }
 
+// The current heteroscedastic variance surface s^2(x) on the ORIGINAL response
+// scale, numObservations (or numTestObservations) x numChains - the mid-sweep
+// read of the run's own variance and varianceTest channels. Null where those
+// channels report nothing: off a variance forest, and at a test read with no
+// test rows. Both refusals are the ENGINE'S, reported here as the null rather
+// than re-tested on this side.
+SEXP bartcore_getVariance(SEXP ptrExpr, SEXP testExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  bool test = Rf_asLogical(testExpr) == TRUE;
+  if (!shape.hasVarianceForest) return R_NilValue;
+  size_t n = test ? shape.numTestObservations : shape.numObservations;
+  if (test && n == 0) return R_NilValue;
+  size_t numChains = shape.numChains;
+  SEXP result = PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(n),
+                                       static_cast<int>(numChains)));
+  for (size_t c = 0; c < numChains; ++c)
+    holder.sampler->currentVarianceFits(c, test, REAL(result) + c * n);
+  UNPROTECT(1);
+  return result;
+}
+
 static const char* leafModelName(bartcore::LeafModelKind kind) {
   switch (kind) {
   case bartcore::LeafModelKind::monotone: return "monotone";

@@ -426,6 +426,16 @@ public:
   /// is the only refusal, and it lives in the engine. Non-const because the
   /// read refills the combiner's scratch buffer.
   virtual bool fitsWithoutOffset(std::size_t chainNum, double* out) = 0;
+  /// Chain chainNum's CURRENT variance surface s^2(x) on the ORIGINAL response
+  /// scale over the training rows (test false, numObservations doubles) or the
+  /// test rows (test true, numTestObservations doubles) - the quantity a
+  /// recorded sweep's variance channel carries, read without a run. False,
+  /// writing nothing, off a variance forest and at a test read with no test
+  /// rows, which are the two states in which those channels report nothing;
+  /// both refusals live in the engine. Non-const because the test read
+  /// rebuilds a surface only a recorded sweep maintains.
+  virtual bool currentVarianceFits(std::size_t chainNum, bool test,
+                                   double* out) = 0;
   /// Forest forestIndex's per-predictor split usage into out (numPredictors
   /// entries); the per-forest analog of the recorded variable-count channel.
   virtual void forestVariableCounts(std::size_t chainNum,
@@ -707,6 +717,10 @@ public:
   }
   bool fitsWithoutOffset(std::size_t chainNum, double* out) override {
     return impl_.fitsWithoutOffset(chainNum, out);
+  }
+  bool currentVarianceFits(std::size_t chainNum, bool test,
+                           double* out) override {
+    return impl_.currentVarianceFits(chainNum, test, out);
   }
   void forestVariableCounts(std::size_t chainNum, std::size_t forestIndex,
                             std::uint32_t* out) const override {

@@ -602,6 +602,16 @@
             and a frozen one holds every forest's structures. Fits at the
             default mixture are unchanged.
       \item \code{\linkS4class{dbartsSampler}} gains
+            \code{getVariance(test = FALSE)}, a heteroscedastic sampler's
+            current variance surface \eqn{s^2(x)}{s^2(x)} on the original
+            response scale, an observations-by-chains matrix (test rows at
+            \code{test = TRUE}). It is the mid-sweep read of the channels
+            \code{run()} records as \code{variance} and \code{varianceTest},
+            and it addresses the trees in force rather than the saved samples
+            \code{predict} replays, so it answers after a prior draw and needs
+            no \code{keepTrees}. \code{NULL} on a homoscedastic sampler, and
+            at \code{test = TRUE} with no test rows.
+      \item \code{\linkS4class{dbartsSampler}} gains
             \code{sampleVarianceForestFromPrior}, the variance forest's own
             prior draw. \code{sampleTreesFromPrior} and
             \code{sampleNodeParametersFromPrior} are mean-forest entries by
@@ -1127,9 +1137,9 @@
             \code{updateScale = TRUE}, the variance forest's scale leaf being
             calibrated once against the response transform fixed at creation;
             \code{updateScale = FALSE} is the supported swap.
-            \code{samplePriorPredictive(type = "ppd")} is refused on a
-            heteroscedastic sampler, whose residual scale is a variance forest
-            rather than a single sigma; \code{type = "ev"} is unaffected.
+            \code{samplePriorPredictive(type = "ppd")} draws its noise at a
+            prior draw of \eqn{s(x)}{s(x)} at the rows being predicted, there
+            being no single sigma to draw; \code{type = "ev"} is unaffected.
       \item A variance forest composes with \code{family = "aft"}, giving the
             log-normal survival model a covariate-dependent dispersion:
             \eqn{\log T = f(x) + s(x)\epsilon}{log T = f(x) + s(x) eps}, so
