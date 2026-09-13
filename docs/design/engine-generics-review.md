@@ -306,7 +306,7 @@ What a proposal asks of a leaf - a veto rank and a log marginal:
 
 The host dependencies of section 6: the four mathematical functions
 ([`Rf_pnorm5`, `Rf_dnorm4`, `Rf_dt`](../../src/bartcore/model.hpp)), the two
-terminating rejection samplers ([`ext_throwError`](../../src/bartcore/chain.hpp)),
+terminating rejection samplers, which throw ([`std::runtime_error`](../../src/bartcore/chain.hpp)),
 and the output sink ([`ext_printf`](../../src/bartcore/sampler.hpp),
 [`ProgressSink`](../../src/bartcore/chain.hpp)).
 
