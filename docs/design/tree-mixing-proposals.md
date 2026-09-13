@@ -1750,8 +1750,9 @@ tables below read, and once under
 perturb-carrying mixture (birth_death 0.5, change 0.34, perturb 0.16) - the
 only way a signed displacement is ever recorded, since perturb never fires
 at its shipped zero - which the perturb table reads; `bcf`'s treatment
-forest refuses a non-default `proposal.probs` outright, so it has no
-perturb row. The `default` cell reproduces the second 2026-09-07 addendum's
+forest refused a non-default `proposal.probs` when this ran, so it has no
+perturb row; that refusal has since been removed -
+[The tree-move mixture reaches every forest of a coupling (2026-09-13)](../plans/release-candidate-review.md#the-tree-move-mixture-reaches-every-forest-of-a-coupling-2026-09-13). The `default` cell reproduces the second 2026-09-07 addendum's
 per-move table exactly.
 
 Closed rule neighbourhood at a nog node, sampled sweeps only (`nog%` the

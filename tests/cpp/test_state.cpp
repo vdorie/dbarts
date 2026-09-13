@@ -1320,10 +1320,6 @@ static void testStateLeafScale(ext_rng* rng) {
   printf("ok: per-forest leaf scale rides the state\n");
 }
 
-// The variance forest's SAVED (keepTrees) trees ride the state: a re-created
-// sampler must replay the recorded s^2(x) slot for slot rather than the
-// multiplicative identity initializeSavedTrees left in the buffer. The live
-// trees alone are not enough - predict addresses the saved buffer, never them.
 // The variance forest's own prior draw (docs/design/aft-status-setter.md
 // slice 3). The two forest prior-draw entries are mean-only by contract, so
 // before this entry a heteroscedastic chain had no path to a prior-drawn
@@ -1461,6 +1457,10 @@ static void testVarianceForestPriorDraw() {
          "df %.3f)\n", numDraws, mean, 2.0 / variance);
 }
 
+// The variance forest's SAVED (keepTrees) trees ride the state: a re-created
+// sampler must replay the recorded s^2(x) slot for slot rather than the
+// multiplicative identity initializeSavedTrees left in the buffer. The live
+// trees alone are not enough - predict addresses the saved buffer, never them.
 static void testVarianceSavedTreeState() {
   std::uint64_t savedRngState = rngState;
   rngState = 828282u;

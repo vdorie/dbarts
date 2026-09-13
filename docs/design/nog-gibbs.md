@@ -199,7 +199,8 @@ The last column is `3 m L`, three full passes over `n` per tree for the residual
 estimate, not a measurement. A cut-scan unit is a pass over `n/L` rows, so `L` cancels out of the move's own column and the units are
 not commensurable ACROSS cells; only the ratio to a cell's own traffic is. **At C1 the move costs about 1690 cut-scan units a sweep at
 the full change share and 676 at `d = 0.16`, so a sweep at the dosage section 6 runs costs 2.19 times what it costs today.** `bcf` is
-absent because its treatment forest refuses a non-default `proposal.probs` outright.
+absent because its treatment forest refused a non-default `proposal.probs` when this ran; that refusal has
+since been removed - [The tree-move mixture reaches every forest of a coupling (2026-09-13)](../plans/release-candidate-review.md#the-tree-move-mixture-reaches-every-forest-of-a-coupling-2026-09-13).
 
 **Two restricted variants, both priced by the same probe.** *Cut-only Gibbs* holds the incumbent variable and enumerates its cuts: ONE
 scan, the pass change already makes, acceptance still one - the variable is a deterministic function of the state and the restricted
