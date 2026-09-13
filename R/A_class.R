@@ -695,10 +695,18 @@ methods::setValidity("dbartsData", function(object) {
     if (any(object@weights < 0.0)) {
       return("'weights' must all be non-negative")
     }
-    if (any(object@weights == 0.0)) {
+    if (
+      any(object@weights == 0.0) &&
+        !all(object@weights == 0.0 | object@weights == 1.0)
+    ) {
       # a supplied value with no effect in the current context is the same
       # condition wherever it recurs - shared with sampleNums/verbose/weights
-      # sites elsewhere that are likewise ignored rather than refused
+      # sites elsewhere that are likewise ignored rather than refused. A
+      # vector of nothing but 0s and 1s is exempt, on every family: there the
+      # zeros ARE the statement being made - which rows are in the data set -
+      # rather than an inert value among real weights, and a probit or
+      # ordinal fit reads such a vector as its active-row mask outright, so
+      # calling the zeros ignored would be false as well as unwanted
       warning(warningCondition(
         "'weights' of 0 will be ignored but increase computation time",
         class = c("dbartsIgnoredArgWarning", "dbartsWarning")

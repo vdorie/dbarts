@@ -329,7 +329,9 @@ expect_identical(
 # --- dbartsSpec() reaches the same model, and carries the basis column on the
 # data object rather than on the control ---
 specSampler <- do.call(
-  function(control, model, data, family) {
+  # the spec's own elements by name, the trailing ones (family, the active-row
+  # mask a latent family's 0/1 weights resolve to) absorbed rather than listed
+  function(control, model, data, ...) {
     new("dbartsSampler", control, model, data)
   },
   dbartsSpec(
@@ -1185,7 +1187,9 @@ specBuild <- dbartsSpec(
   forests = list(forest(), forest(basis = ~ factor(z)))
 )
 specSampler2 <- do.call(
-  function(control, model, data, family) {
+  # the spec's own elements by name, the trailing ones (family, the active-row
+  # mask a latent family's 0/1 weights resolve to) absorbed rather than listed
+  function(control, model, data, ...) {
     new("dbartsSampler", control, model, data)
   },
   specBuild

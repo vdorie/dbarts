@@ -145,10 +145,13 @@
             between-replication burn-in is gone, and a length greater than
             two is refused by name. 0.9-34's own default was three elements
             and honored the third as the per-replication burn-in.
-      \item A \code{probit} fit refuses \code{weights}. 0.9-x accepted them
-            and fit a weighted probit, which was incorrect and is not carried
-            forward; a vector identically 1 is treated as absent, and integer
-            count weights belong on \code{family = "logistic"}.
+      \item A \code{probit} fit refuses a weighted likelihood. 0.9-x
+            accepted one and fit a weighted probit, which was incorrect and
+            is not carried forward; a vector identically 1 is treated as
+            absent, a vector of 0s and 1s names the rows in the data set and
+            is installed as the fit's active-row mask (\code{ordinal} the
+            same), and integer count weights belong on
+            \code{family = "logistic"}.
       \item On the \code{x.train}/\code{y.train} interface a \code{weights}
             vector whose length is neither the number of observations nor
             one is an error instead of being recycled; the formula interface
@@ -649,7 +652,8 @@
             reproducing an uninterrupted run to within floating-point
             reassociation rather than bit for bit; the stored state is opaque
             and incompatible with states saved by previous versions). Not
-            supported: weights with a \code{probit} response, and
+            supported: a weighted likelihood under a \code{probit}
+            response (0/1 weights install as the active-row mask), and
             \code{setControl} changes to settings fixed at creation
             (chain/tree counts, generators, and \code{useQuantiles}; a changed
             \code{n.cuts} is ignored, the grid being fixed with the data).
@@ -685,15 +689,21 @@
             a probit refuses weights (the weighted probit the pre-1.0
             engine fit was incorrect and is not carried forward), except
             that weights identically 1 are treated as absent, as
-            SuperLearner-style callers pass unit weights unconditionally.
+            SuperLearner-style callers pass unit weights unconditionally,
+            and that weights of 0 and 1 state membership rather than
+            precision and install as the active-row mask, a 0 row leaving
+            the likelihood while keeping its leaf occupancy, its latent and
+            its fitted value.
             A logistic sampler's counts can be replaced between runs with
             \code{$setWeights} or \code{$setData}, which redraw the
             Polya-Gamma latents against the new counts before returning,
             so an outer sampler can vary exposure from sweep to sweep.
             \code{probit}, \code{ordinal}, \code{nbinom}, and
             \code{multinomial} take no case weights, unit weights aside, and
-            \code{aft} none at all; none of the five accepts a weight change
-            after creation, on any conduit.
+            \code{aft} none at all; of the five only \code{probit} and
+            \code{ordinal} accept a weight change after creation, and only
+            of 0s and 1s, which \code{$setWeights} and \code{$setData}
+            install as the active-row mask rather than as weights.
             Fits returned by \code{bartBT} and \code{bart} record the
             resolved family in a \code{family} element, and \code{predict},
             \code{extract}, \code{fitted}, and \code{plot} transform latent draws

@@ -454,7 +454,9 @@ void refuseVarianceForestScaleUpdate(const bartcore::SamplerBase& sampler,
                                      ResponseConduit conduit, int updateScale);
 
 /// Errors on a weight vector its family cannot carry: probit outright (a
-/// weighted probit has no tractable latent-variable form), logistic on any
+/// weighted probit has no tractable latent-variable form; the R layer resolves
+/// a probit or ordinal vector of 0s and 1s to an active-row mask before it
+/// reaches here, so what arrives is a weighted likelihood), logistic on any
 /// element that is not a positive integer, since its weights are observation
 /// counts and PG(w, psi) is the sum of w PG(1, psi) draws, and gaussian on any
 /// element that is not finite and non-negative, since a case weight is a
@@ -468,7 +470,9 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                                std::size_t numObservations);
 
 /// Errors on a post-creation case-weight change under a family that carries no
-/// weights at all: probit, ordinal, aft and nbinom. gaussian and logistic are
+/// weights at all: probit, ordinal, aft and nbinom. A probit or ordinal 0/1
+/// vector states membership, not precision, and the R layer routes it to the
+/// active-row mask ahead of this, so only a weighted likelihood arrives here. gaussian and logistic are
 /// accepted - a logistic swap is a model change with a defined meaning, since
 /// the counts are the Polya-Gamma shape and the engine redraws the latents
 /// against them - and are held to the creation policy by

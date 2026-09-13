@@ -613,6 +613,30 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   newData@n.cuts <- sampler$data@n.cuts
   newData@sigma <- sampler$data@sigma
 
+  # a probit or ordinal sampler carries no weight channel for the whole-data
+  # conduit to fill, and 0/1 weights there name the rows in the data set: pull
+  # them off the object and install them as the active-row mask instead, sized
+  # by the replacement's own n. The mask goes in AFTER the swap, which clears
+  # whatever was in force (n may change with the data); all-ones resolves to
+  # no mask at all, as it does at creation.
+  active <- NULL
+  if (isMaskedWeightFamily(sampler$model@family) && !is.null(newData@weights)) {
+    w <- newData@weights
+    if (anyNA(w) || any(w != 0 & w != 1)) {
+      stop(
+        sampler$model@family,
+        " models do not support case weights other than 0 and 1, which mark ",
+        "rows in and out of the likelihood: such a vector installs as the ",
+        "active-row mask, and a weighted truncated-normal latent likelihood ",
+        "is not a coherent model"
+      )
+    }
+    if (!all(w == 1)) {
+      active <- w
+    }
+    newData@weights <- NULL
+  }
+
   ptr <- sampler$getPointer()
 
   oldData <- sampler$data
@@ -626,6 +650,13 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   )
   if (inherits(tryResult, "error")) {
     stop(tryResult)
+  }
+  # the swap cleared whatever mask was in force, so the mirror that would
+  # otherwise re-apply one at re-creation goes with it; setActiveRows records
+  # the replacement's own below
+  sampler$activeRows <- NULL
+  if (!is.null(active)) {
+    sampler$setActiveRows(active)
   }
 
   invisible(NULL)

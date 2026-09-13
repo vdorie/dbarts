@@ -1556,6 +1556,12 @@ bart <- function(
       result$weights.test <- sampler$data@weights.test
     }
   }
+  # the active-row mask a probit or ordinal fit's 0/1 case weights install,
+  # which no data slot carries: the log-likelihood channel reports NaN at a
+  # masked row, as the engine's own does, and cannot find the rows otherwise
+  if (!is.null(sampler$activeRows)) {
+    result$active <- sampler$activeRows
+  }
 
   result
 }
@@ -3176,6 +3182,9 @@ bartBT <- function(
     ) {
       result$weights.test <- sampler$data@weights.test
     }
+  }
+  if (!is.null(sampler$activeRows)) {
+    result$active <- sampler$activeRows
   }
 
   result

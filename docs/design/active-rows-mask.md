@@ -35,7 +35,15 @@ each refuses them at creation, and refuses a post-creation change by name
 ([`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp)), each for its own
 reason: a weighted truncated-normal latent likelihood is not a coherent model
 for probit and ordinal, count exposure belongs in the offset for negative
-binomial, and AFT is a gaussian on log-time that simply carries none. Logistic
+binomial, and AFT is a gaussian on log-time that simply carries none. Probit
+and ordinal, which do implement the mask, take the one weight vector that is
+not a weighted likelihood: all elements 0 or 1 says which rows are in the data
+set, so the R layer installs it here and clears the weights slot, at creation
+([`enforceWeightPolicy`](../../R/spec.R)) and on both mutation conduits
+([`setWeights`](../../R/dbarts.R),
+[`bartcoreSamplerSetData`](../../R/bartcore.R)); all-ones resolves to no mask,
+as it resolves to no weights. The bridge, which the R layer never hands such a
+vector, keeps refusing weights on those families outright. Logistic
 does take a weight change, but its weights are Polya-Gamma copy counts, which
 must be positive integers on every surface, so no count expresses "not in the
 data set" ([`enforceBinaryWeightPolicy`](../../src/R_interface_bartcore.cpp)).
@@ -165,24 +173,36 @@ variance surface ([`formMeanWeights`](../../src/bartcore/chain.hpp)).
 The pointwise log-likelihood reports NaN at an inactive row - the channel's own
 "not in the model" flag - rather than the finite value the row's fit would
 still give ([`GaussianResponse::computeLogLikelihood`](../../src/bartcore/model.hpp)),
-so anything summing that channel must decide what to do with the NaNs.
+so anything summing that channel must decide what to do with the NaNs. The R
+side says the same on its own recomputation: a `bart()` fit whose 0/1 case
+weights installed a mask carries it, and reports NaN at those rows rather than
+the finite value its stored weights alone would give
+([`pointwiseLogLikelihood`](../../R/generics.R)).
 
 The mask is not saved state. The serialized state carries derived quantities
-and no raw conditioning vector, and the reference-class sampler mirrors no mask
-onto its data object, so a sampler RE-CREATED from a stored state - what
-`$getPointer` does when the external pointer has gone stale across a save and
-load - has none and must be given one again
+and no raw conditioning vector, so nothing in it names a mask. The
+reference-class sampler mirrors the mask in force on a field of its own
+instead, and re-applies it every time it builds an engine - `$getPointer`'s
+re-creation when the external pointer has gone stale across a save and load,
+`$setState`, and `$copy` ([`reapplyActiveRows`](../../R/dbarts.R)) - so a masked
+sampler that is saved and reloaded goes on masked, and a probit or ordinal fit
+whose 0/1 case weights installed the mask does not silently return those rows
+to the likelihood. A flat C consumer, having no such holder, reinstalls for
+itself
 ([3. What engine state does not carry, and who reinstalls it](bart-as-a-component.md#3-what-engine-state-does-not-carry-and-who-reinstalls-it)).
 Installing a state into a live sampler is a different thing:
 [`Chain::setState`](../../src/bartcore/chain.hpp) touches no mask, so one already
-installed stays in force across `$setState`. Nor is there a getter, so what is
-installed is the caller's own record.
+installed stays in force across `$setState` - and the mirror is the holder's own
+record rather than the state's, so it does not travel with a state installed
+into some other sampler. There is no engine getter; what is installed is that
+record.
 
 ## The surfaces
 
 Three, all reaching the same scan. The reference-class method
 [`setActiveRows`](../../R/dbarts.R) validates length and values in R first, for the
-message. The bridge entry
+message, and is where a probit or ordinal 0/1 case-weight vector lands, whichever
+entry point it arrived at. The bridge entry
 [`bartcore_setActiveRows`](../../src/R_interface_bartcore.cpp) and the flat C entry
 retired: [`dbarts_sampler_setActiveRows`](../../src/C_interface.cpp) each probe
 [`SamplerShape::supportsActiveRows`](../../src/bartcore/facade.hpp) and never the

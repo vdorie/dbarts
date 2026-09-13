@@ -19,6 +19,17 @@ isBinaryFamily <- function(family) {
   family %in% c("probit", "logistic")
 }
 
+## The latent-variable families that carry no case weight at all but do
+## implement the active-row mask. A weight vector of 0s and 1s there is
+## membership rather than precision - the row leaves the likelihood, keeps its
+## leaf occupancy, its latent and its fitted value - which is exactly the mask,
+## so such a vector installs as one instead of being refused. Any other value
+## is a weighted latent likelihood, which these families have no coherent form
+## for, and stays refused.
+isMaskedWeightFamily <- function(family) {
+  family %in% c("probit", "ordinal")
+}
+
 ## Wraps estimateSigmaFromLinearModel so every caller needing a starting sigma
 ## estimate raises the same failure message instead of a bare lm() error.
 estimateStartingSigma <- function(data) {
@@ -36,24 +47,43 @@ estimateStartingSigma <- function(data) {
 ## can reach these families: a probit has no tractable weighted latent-
 ## variable form and is refused, except that weights identically 1 are the
 ## unweighted likelihood and are treated as absent (SuperLearner-style
-## callers pass obsWeights = rep(1, n) unconditionally); a logistic model
-## treats weights as observation counts (its Polya-Gamma latent is a sum of
-## per-copy draws), so they must be positive integers; ordinal refuses for
-## probit's reason, with the same all-ones courtesy; nbinom refuses outright
-## (exposure belongs in the offset, not observation replication). Gaussian
-## weights are unrestricted and reach here as a no-op.
+## callers pass obsWeights = rep(1, n) unconditionally), and weights that are
+## all 0 or 1 name the rows in the data set and resolve to the active-row mask
+## (isMaskedWeightFamily above); a logistic model treats weights as
+## observation counts (its Polya-Gamma latent is a sum of per-copy draws), so
+## they must be positive integers; ordinal follows probit, mask included;
+## nbinom refuses outright (exposure belongs in the offset, not observation
+## replication). Gaussian weights are unrestricted and reach here as a no-op.
+##
+## Returns the data with the policy applied and the mask the weights resolved
+## to, NULL where they resolved to none: the weights slot is cleared in both
+## the all-ones and the mask case, since neither family carries a weight
+## channel, so the caller must install the mask on the sampler it builds.
 enforceWeightPolicy <- function(data, family) {
   if (is.null(data@weights)) {
-    return(data)
+    return(list(data = data, active = NULL))
   }
-  if (family == "probit") {
-    if (all(data@weights == 1)) {
+  active <- NULL
+  if (isMaskedWeightFamily(family)) {
+    w <- data@weights
+    if (!anyNA(w) && all(w == 1)) {
       data@weights <- NULL
+    } else if (!anyNA(w) && all(w == 0 | w == 1)) {
+      active <- w
+      data@weights <- NULL
+    } else if (family == "probit") {
+      stop(
+        "probit models do not support weights other than 0 and 1, which mark ",
+        "rows in and out of the likelihood as the sampler's $setActiveRows ",
+        "does; fit integer count weights with family = \"logistic\", or ",
+        "model continuous weights' latents directly"
+      )
     } else {
       stop(
-        "probit models do not support weights; fit integer count weights ",
-        "with family = \"logistic\", or model continuous weights' latents ",
-        "directly"
+        "ordinal models do not support weights other than 0 and 1, which ",
+        "mark rows in and out of the likelihood as the sampler's ",
+        "$setActiveRows does: a weighted truncated-normal latent likelihood ",
+        "is not a coherent model"
       )
     }
   } else if (family == "logistic") {
@@ -63,15 +93,6 @@ enforceWeightPolicy <- function(data, family) {
         "logistic weights are observation counts and must be positive ",
         "integers; drop zero-count rows, and use a gaussian model for ",
         "continuous weights"
-      )
-    }
-  } else if (family == "ordinal") {
-    if (all(data@weights == 1)) {
-      data@weights <- NULL
-    } else {
-      stop(
-        "ordinal models do not support weights: a weighted truncated-normal ",
-        "latent likelihood is not a coherent model"
       )
     }
   } else if (family == "nbinom") {
@@ -94,7 +115,7 @@ enforceWeightPolicy <- function(data, family) {
       )
     }
   }
-  data
+  list(data = data, active = active)
 }
 
 ## survivalStatus and hazardPeriods carry the two survival markers the entry
@@ -229,11 +250,15 @@ resolveSamplerSpec <- function(
     identical(family, "multinomial")
 
   # binary/ordinal/nbinom weight policy, enforced here in the R layer (the
-  # bridge keeps the same checks as a backstop for direct-API consumers) -
-  # see enforceWeightPolicy's own doc comment for the rule each family
-  # follows. Gaussian weights, including a gaussian fit of a 0/1 response,
-  # are unrestricted and pass through untouched.
-  data <- enforceWeightPolicy(data, family)
+  # bridge keeps the same checks as a backstop) - see enforceWeightPolicy's
+  # own doc comment for the rule each family follows. Gaussian weights,
+  # including a gaussian fit of a 0/1 response, are unrestricted and pass
+  # through untouched. A latent family's 0/1 weights resolve to an active-row
+  # mask the caller installs on the sampler it builds from this spec; the
+  # weights slot is cleared either way, since the bridge takes none there.
+  weightPolicy <- enforceWeightPolicy(data, family)
+  data <- weightPolicy$data
+  active <- weightPolicy$active
 
   if (is.na(data@sigma) && !fixedUnitScale) {
     data@sigma <- estimateStartingSigma(data)
@@ -788,7 +813,7 @@ resolveSamplerSpec <- function(
     )
   }
 
-  namedList(control, model, data, family)
+  namedList(control, model, data, family, active)
 }
 
 ## The exported consumer surface: resolves
