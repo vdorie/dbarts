@@ -438,6 +438,35 @@ makeScenarios <- function() {
     binary = FALSE
   )
 
+  # --- the tree-structure posterior ---------------------------------------
+  # Three predictors with a hundred cut points against three with one, and a
+  # response that is pure noise, so nothing in the data prefers one predictor
+  # over another and the split counts read the tree-structure posterior
+  # directly. That posterior is what the change move's repaired acceptance
+  # ratio governs, and the unequal cut counts are the condition under which
+  # the old ratio's missing proposal-density term fails to cancel. Every
+  # other scenario here gives every predictor the same number of cut points,
+  # where the term cancels and the repair is invisible.
+  set.seed(6119L)
+  n <- 500L
+  xmixed <- cbind(
+    matrix(runif(n * 3L), n),
+    matrix(rbinom(n * 3L, 1L, 0.5), n)
+  )
+  colnames(xmixed) <- c("c1", "c2", "c3", "b1", "b2", "b3")
+  xmixedTest <- cbind(
+    matrix(runif(n.test * 3L), n.test),
+    matrix(rbinom(n.test * 3L, 1L, 0.5), n.test)
+  )
+  colnames(xmixedTest) <- colnames(xmixed)
+  result$mixedcuts <- list(
+    kind = "bart",
+    x = xmixed,
+    y = rnorm(n),
+    x.test = xmixedTest,
+    binary = FALSE
+  )
+
   # a cutoff for the nonlinear functional, fixed with the data: the fraction
   # of fitted values above it is a posterior quantity no linear summary of
   # the fits pins down

@@ -91,7 +91,7 @@ gross, never that the two builds agree.
 ## R/classic-compare.R - the 0.9-34 comparison (measurement, not a gate)
 
 Widens the cross-release evidence past equivalence.R's nine-scenario
-classic record: 25 scenarios written in the 0.9-x vocabulary, so ONE script
+classic record: 26 scenarios written in the 0.9-x vocabulary, so ONE script
 runs under an installed dbarts 0.9-34 and under this one. It records rather
 than compares live - 0.9-34 is a released package, not a build of this tree,
 so neither side can host the other - and `compare` then takes two recordings.
@@ -109,7 +109,11 @@ verdict as equivalence.R, at 20 seeds and 1000 draws after 500 burn-in.
 shifts the seed block (for re-checking a marginal flag), `CLASSIC_COMPARE_CORES`
 sets the worker count, and `merge` joins chunked recordings. The 0.9-34 side
 is kept as baselines/classic-compare-0.9-34.rds; the 1.0-0 side is the compare
-side and is not. Findings: docs/plans/classic-compare.md.
+side and is not. A full recording takes under two minutes on seven cores;
+re-record the 0.9-34 side only when a scenario is added. Findings:
+docs/plans/classic-compare.md - 22 scenarios agree at the null's own rate,
+and the four that do not are the zero-weight fit, the two crossvalidation
+rows and the unequal-cut-point probe of the change move.
 
 ## R/*-exact.R, *-balance.R - deterministic exact-posterior gates
 
