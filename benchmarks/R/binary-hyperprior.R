@@ -44,9 +44,13 @@
 # outdir defaults to benchmarks/results/binary-hyperprior. `quick` cuts the
 # repetitions and the draws for a smoke run; a quick rds is marked as such and
 # summarize refuses to mix the two. BINARY_HYPERPRIOR_CORES sets the worker
-# count (default 4), BINARY_HYPERPRIOR_REPS the simulated repetitions and
-# BINARY_HYPERPRIOR_SPLITS the real-data splits. No baseline and no pass/fail exit status: this is a
-# measurement whose verdict a person writes, in docs/plans/binary-hyperprior.md.
+# count (default 4), BINARY_HYPERPRIOR_REPS the simulated repetitions,
+# BINARY_HYPERPRIOR_SPLITS the real-data splits, and BINARY_HYPERPRIOR_BURN,
+# _DRAWS and _CHAINS the MCMC length a fit gets - the last three are how the
+# convergence check reported in the plan doc was run, and they ride the saved
+# settings so summarize says which length produced a directory. No baseline
+# and no pass/fail exit status: this is a measurement whose verdict a person
+# writes, in docs/plans/binary-hyperprior.md.
 #
 # Findings live in docs/plans/binary-hyperprior.md. Nothing here changes a
 # package default.
@@ -59,6 +63,7 @@ suppressPackageStartupMessages(library(parallel))
 nTrees <- 75L
 nBurn <- 500L
 nSamples <- 500L
+nChains <- 1L
 nTestSim <- 1000L
 simReps <- 8L
 realSplits <- 60L
@@ -83,6 +88,9 @@ envCount <- function(name, fallback) {
 applyEnvironmentOverrides <- function() {
   simReps <<- envCount("BINARY_HYPERPRIOR_REPS", simReps)
   realSplits <<- envCount("BINARY_HYPERPRIOR_SPLITS", realSplits)
+  nBurn <<- envCount("BINARY_HYPERPRIOR_BURN", nBurn)
+  nSamples <<- envCount("BINARY_HYPERPRIOR_DRAWS", nSamples)
+  nChains <<- envCount("BINARY_HYPERPRIOR_CHAINS", nChains)
 }
 
 defaultCores <- function() {
@@ -240,7 +248,7 @@ simulatedCase <- function(dgp, n, p, rate, seed) {
 ## ------------------------------------------------------------- real data
 
 # Six binary-outcome datasets from R and its recommended packages: small to
-# moderate n, base rates from 0.17 to 0.50, numeric and factor predictors,
+# moderate n, base rates from 0.21 to 0.40, numeric and factor predictors,
 # one dichotomized survival outcome.
 realDatasets <- list(
   pima = function() {
@@ -325,7 +333,7 @@ fitAndScore <- function(arm, case, mcmcSeed) {
       n.trees = nTrees,
       n.samples = nSamples,
       n.burn = nBurn,
-      n.chains = 1L,
+      n.chains = nChains,
       n.threads = 1L,
       keepTrees = FALSE,
       verbose = FALSE,
@@ -352,7 +360,11 @@ fitAndScore <- function(arm, case, mcmcSeed) {
     probRmse <- sqrt(mean((pHat - case$pTest)^2))
   }
 
-  kDraws <- if (is.null(fit$k)) rep(arm$fixed.k, nSamples) else fit$k
+  kDraws <- if (is.null(fit$k)) {
+    rep(arm$fixed.k, nSamples * nChains)
+  } else {
+    as.vector(fit$k)
+  }
   data.frame(
     arm = arm$name,
     df = arm$df,
@@ -533,6 +545,7 @@ runBlock <- function(block, outDir, cores, quick) {
     nTrees = nTrees,
     nBurn = nBurn,
     nSamples = nSamples,
+    nChains = nChains,
     nTestSim = nTestSim,
     simReps = simReps,
     realSplits = realSplits
@@ -653,13 +666,14 @@ summarizeRun <- function(outDir) {
   settings <- attr(pieces[[1L]], "settings")
 
   cat(sprintf(
-    "%d rows, %d arms, %d cells (%d simulated, %d real), %d trees, %d draws after %d burn%s\n\n",
+    "%d rows, %d arms, %d cells (%d simulated, %d real), %d trees, %d chain(s) of %d draws after %d burn%s\n\n",
     nrow(rows),
     length(unique(rows$arm)),
     length(unique(rows$cell)),
     length(unique(rows$cell[rows$kind == "sim"])),
     length(unique(rows$cell[rows$kind == "real"])),
     settings$nTrees,
+    if (is.null(settings$nChains)) 1L else settings$nChains,
     settings$nSamples,
     settings$nBurn,
     if (any(quickFlags)) "  [QUICK]" else ""

@@ -140,12 +140,16 @@ across a session; a large simulated block narrows further by appending a
 predictor count (`sim:weak:2000:50`). A full run is 24 blocks, 38,088 fits and
 about ninety minutes on four cores, each block well under ten minutes.
 `BINARY_HYPERPRIOR_CORES`, `_REPS` and `_SPLITS` set the worker count, the
-simulated repetitions and the real-data splits; `quick` is a smoke run and its
+simulated repetitions and the real-data splits, and `_BURN`, `_DRAWS` and
+`_CHAINS` the MCMC length a fit gets (the plan doc's convergence refits use
+2000/2000/4 against the defaults of 500/500/1); `quick` is a smoke run and its
 files are marked so summarize will not mix them with a real one. No baseline
 and no pass/fail exit: the verdict is written by a person. Findings:
 docs/plans/binary-hyperprior.md - keep chi(1.5, 2); the finite-scale
 hyperpriors are interchangeable on point prediction, and the improper scale
-and every fixed k are worse.
+and every fixed k are worse. The default chain length is too short at
+n = 2000, which the doc's convergence section quantifies; the coverage levels
+it reports are depressed by that, the arm-to-arm comparisons are not.
 
 ## R/*-exact.R, *-balance.R - deterministic exact-posterior gates
 
