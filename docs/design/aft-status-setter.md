@@ -1,9 +1,9 @@
 # An AFT censoring-status setter, and the SBC arms it enables
 
-Status: LANDED - slice 1 (section 8), 2026-09-07 (fcd60feb, e20c6462, f9bc9260), slice 2's harness half, 2026-09-07,
-slice 3's prior-draw entry, 2026-09-13, and slice 3's variance-surface accessor, 2026-09-13 (31149f5b); the aft arm's
-matrix admission remains PROPOSED, and so do slice 3's heteroscedastic gaussian SBC arm and slice 4 - no longer
-blocked, the accessor the arms read s(x) with having been ruled on and landed.
+Status: LANDED - slice 1 (section 8), 2026-09-07 (fcd60feb, e20c6462, f9bc9260), slice 2, 2026-09-07 (5125f7cd,
+2c766437), slice 3's prior-draw entry and variance-surface accessor, 2026-09-13 (31149f5b), and slices 3 and 4's
+heteroscedastic SBC arms, 2026-09-13 (4424e69a). Every slice has landed, and all three arms - aft and the two
+heteroscedastic ones - are in the SBC matrix.
 
 Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
 no longer declares the predictor, test-data, weight, active-row, per-forest, state,
@@ -345,3 +345,84 @@ reports at those rows. ["ppd.variance"](../../inst/tinytest/test-prior-predictiv
 **The SBC arms follow.** Slice 3's heteroscedastic gaussian arm and slice 4's heteroscedastic aft arm are harness-only
 now, at section 6's shape with the generator reading the drawn `s(x)` here; nothing in either is blocked on an engine or
 R-surface entry any more.
+
+**Slices 3 and 4 landed: the two heteroscedastic SBC arms.** Harness only, at section 6's shape. `hetero` is the
+gaussian arm plus a variance forest and `hetero-aft` is the aft arm with the surface where its shared sigma was;
+neither ranks sigma, a variance forest pinning it, and both rank the surface in its place.
+[`sbcConfigHetero`](../../benchmarks/R/sbc.R) and [`sbcConfigHeteroAft`](../../benchmarks/R/sbc.R) carry the designs,
+[`sbcMakeHeteroSampler`](../../benchmarks/R/sbc.R) builds the one pinned sampler each reuses - a variance forest takes
+`setResponse` only at `updateScale = FALSE`, which is the pin a reused arm wants anyway, and refuses `setSigma`, which
+is why no branch calls it - and [`sbcHeteroPriorDraw`](../../benchmarks/R/sbc.R) is the prior draw the composition
+needs: THREE entries, the two mean-forest ones being mean-forest ones by contract, reading the drawn f through
+`predict` and the drawn `s^2` through [`dbartsSampler$getVariance`](../../man/dbartsSampler-class.Rd) at the training
+rows, where it sets the simulated noise, and at the test rows, where it is a functional.
+
+Functionals, [`sbcHeteroFunctionals`](../../benchmarks/R/sbc.R) carrying the two the arms share: `avg.f` and three
+`f.star`, as the gaussian arm's; three `s.star`, the run's `varianceTest` channel square-rooted, that channel
+reporting a VARIANCE; and `avg.log.s`, the mean of log s(x) over the training rows off the train-side `variance`
+channel - a LOG because the leaf factors are multiplicative and their product is heavy-tailed, so the level of the
+surface is ranked rather than the few rows carrying its tail. `hetero-aft` adds the aft arm's own two, both now read
+at the row's own scale rather than a shared one: `S(t0 | x*)`, which is what the composition is for, and `logT.cens`.
+Three test points rather than the gaussian arm's five: each carries two functionals here, and the matrix's band pays
+for every one.
+
+Wiring, [`sbcCheckVarianceChannel`](../../benchmarks/R/sbc.R) beside the other arms' checks. theta0's s comes from the
+accessor while its posterior draws come from the run's channels, so accessor and channel must agree at one state: both
+agree to 0, train and test. And the generator draws the mean forest before the variance forest, so what it reads of
+the mean draw must not move when the variance draw follows: 0. `hetero-aft` runs
+[`sbcCheckAftLatents`](../../benchmarks/R/sbc.R) as well, its fixture censoring 32 of 150 rows at the checked draw.
+
+The ladders, 40000 sweeps over 24 prior-drawn datasets each, the aft arm's own resolution. Both arms read the same
+transient: at 400-sweep blocks only `avg.log.s` carries a block-1 offset - mean signed z 1.56 on `hetero` and 1.88 on
+`hetero-aft` over the 24 datasets, 0.38 and 0.69 at block 2, flat after - so both take 4000 sweeps of burn in
+[`sbcBurnSweeps`](../../benchmarks/R/sbc.R), a 10x margin. Thinning is where they part. `hetero` clears ACF 0.1 by lag
+39 worst-case over the 24 (`avg.f` 2, the three `f.star` 30 to 39, the three `s.star` 7 to 12, `avg.log.s` 22), with
+no dataset leaving any functional above lag 40, so thin 40. `hetero-aft` reaches lag 97 (`f.star3`, on 2 of the 24;
+`avg.f` 45 and `f.star1` 49 on 1 each, the three `s.star` 21 to 28, `avg.log.s` 38, `S.star1` 22, `logT.cens` 24), so
+thin 100: censoring costs the MEAN surface roughly twice the lag at the same design, and costs the variance surface
+nothing.
+
+The verdicts, R = 200 and L = 150 at those thins. Every functional PASSES, and at the per-functional 5% band (0.0924),
+which is stricter than the Bonferroni'd one (0.1347) the arms are admitted under.
+
+| functional | `hetero` | `hetero-aft` |
+|---|---|---|
+| `avg.f` | 0.0479 | 0.0285 |
+| `f.star1` | 0.0600 | 0.0559 |
+| `f.star2` | 0.0641 | 0.0374 |
+| `f.star3` | 0.0551 | 0.0344 |
+| `s.star1` | 0.0494 | 0.0849 |
+| `s.star2` | 0.0548 | 0.0541 |
+| `s.star3` | 0.0711 | 0.0440 |
+| `avg.log.s` | 0.0483 | 0.0427 |
+| `S.star1` | - | 0.0595 |
+| `logT.cens` | - | 0.0366 |
+
+No replication drew an empty censored set, so `hetero-aft`'s `logT.cens` carried all 200 ranks. The runs measure 2.2
+and 4.4 minutes single-threaded. Both arms are in [`sbcMatrixConfigs`](../../benchmarks/R/sbc.R),
+[`sbcMatrixFunctionals`](../../benchmarks/R/sbc.R) is 57, and the workflow rows
+(["config: hetero"](../../.github/workflows/sbc.yaml), ["config: hetero-aft"](../../.github/workflows/sbc.yaml)) take
+the gaussian row's 15 minutes rather than the ~3x rule's, the aft row's reason: under a quarter hour the job's floor
+is the dependency install and the package build.
+
+The poisons, [`sbcHeteroPoisons`](../../benchmarks/R/sbc.R), opt-in through `SBC_POISON` as the latent BCF arms' are
+and by-hand discrimination runs rather than recorded verdicts. "s-scale" simulates at TWICE the drawn s(x), the
+surface's level wrong: on `hetero` it reddens every surface functional at once - `s.star` 0.8055, 0.7707 and 0.8919,
+`avg.log.s` 0.9934 against the 0.1347 band - and leaves all four mean functionals inside it (0.0311 to 0.0870).
+"s-shuffle" permutes the drawn scales across the training rows, so the level and the whole multiset are untouched and
+only the row-to-row ASSIGNMENT is wrong - the per-observation channel the composition is made of: on `hetero-aft`
+`avg.log.s` FLAGS at 0.2776 and `s.star3` at 0.1409, `s.star1` and `s.star2` press the band at 0.1004 and 0.1175 with
+chi-square p 0.000 on all four, and every mean functional stays inside (0.0287 to 0.0884). The asymmetry is the
+poison's own: theta0's `avg.log.s` is permutation-invariant, so what it catches is the posterior collapsing toward a
+flat surface under scrambled data.
+
+A third mismatch is NOT offered, having been measured not to redden either arm: skipping only the GENERATOR's variance
+prior draw, so theta0's surface is what the last replication's chain left. That is a data-augmentation step on (s, y)
+rather than a mismatch - the surface it carries is still marginally a prior draw - so it costs rank independence
+across replications and nothing else, and a run of it reads clean on every functional.
+
+What closes. The honest gap [6. Gates](aft-variance-forest.md#6-gates) records - the joint calibration of (mean
+forest, variance forest, censored latents), untested while aft was out of the matrix - is tested by `hetero-aft` and
+closes. Section 6's list of what stays unvalidated after all three arms stands unchanged: the R-level survival
+packaging, left and interval censoring, the flat header's log-likelihood channel, and, SBC being statistical at finite
+R, anything under the band.

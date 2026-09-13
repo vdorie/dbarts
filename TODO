@@ -689,11 +689,7 @@ release (deferred; the one ordered procedure, run when VD triggers it)
       docs/design/re-scale-and-grouped-cost.md section 4,
       pre-registered acceptance bar), gating the CRAN submission, not
       the merge to main; the interim for users is skip = c(bart = 1,
-      stan = 16). (b) the heteroscedastic gaussian SBC arm and the
-      heteroscedastic aft arm (docs/design/aft-status-setter.md
-      slices 3 and 4), harness only now that the variance-surface
-      reader ($getVariance) and the ppd lift have landed; pre-merge.
-      (c) the extended binary hyperprior study (long chains on the
+      stan = 16). (b) the extended binary hyperprior study (long chains on the
       whole grid, scales below 1, mixing diagnostics on the sampled
       k), its verdict written into docs/plans/binary-hyperprior.md and
       a default chosen for 1.0-0; pre-merge.
