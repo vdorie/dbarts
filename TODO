@@ -48,12 +48,6 @@ items
     updateScale = FALSE). Record:
     docs/plans/archive/bcf-sigma-residual.md sec 4 item 2.
     research-open, decision-gated.
-  bcf-treatment-rescale: post-release, no backlog entry until now. The
-    causal forest's treatment-scale joint rescale - a likelihood-invariant
-    move on the treatment forest's amplitude and leaf values together -
-    is derived and prototype-checked but never implemented; the combiner
-    ships with that forest's ridge flag off. The prognostic forest's twin
-    move landed at 5109b669. Record: docs/plans/archive/bcf-b-ridge.md.
   binary-kforest-k1-reachability: open K = 1 as a shipped multi-forest
     configuration - one varying-coefficient forest with no prognostic
     partner, which is VCBART's shape (D4 of
@@ -64,12 +58,6 @@ items
     owes its own, which is why
     docs/plans/archive/binary-kforest-prior-default.md refused rather
     than opened it.
-  capi-post-release-surface: post-release additive C API surface recorded
-    by rule and never given a backlog entry: a flat-C sigma getter (a
-    setter exists, no getter), data-handle serialization, and
-    variable-selection inference. A fourth item the same record named,
-    random-effects breadth, is moot since the grouped-effects path was
-    deleted. Record: docs/plans/prerc-surface-freeze.md.
   capi-unwind-protect: closed but for one arm. A host draw callback's R
     error is now caught at the callback itself, where R_UnwindProtect can
     still turn it into a C++ unwind, so the engine's run frames run their
@@ -115,12 +103,6 @@ items
     1203.1078), where a FIXED lengthscale asks the user to know the
     thing they are estimating, and low-rank kernels serve the standing
     n >= 1e5 fact. decision-gated on cost, not on value.
-  gp-leaf-nonconjugate-moves: post-release, no backlog entry until now. A
-    non-conjugate move strategy for Gaussian-process leaves under a
-    non-Gaussian likelihood - phase 6 of the founding engine design,
-    designed but never built. gp-followups above covers only lengthscales
-    and low-rank kernels, both under the Gaussian leaf. Records:
-    docs/design/gp-leaves.md, docs/design/core-generalization.md.
   gpu-bart: the backend-seam design waits on frontier items 4-5, the
     informed-kernel and preconditioned-CG prototypes
     (docs/design/parallel-bart-frontier.md sec 5). Memo and falsifiers:

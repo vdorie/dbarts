@@ -534,7 +534,10 @@ Stages 1 (engine), 2 (formats), and 3 (R surface) LANDED, and stage
 4's chi-k coupling and Cholesky caching are in; see the landing notes
 above. Remaining follow-ups (sampled lengthscales - see the addendum,
 they need decisions and are NOT cheap - low-rank kernels, and
-score-to-draw chol(V) reuse) wait on demand, and the part-2
-non-conjugate strategy remains designed-for; the open decisions were
-implemented per their recommendations, with the over-cap fallback
-replacing the veto in decision 1's scope.
+score-to-draw chol(V) reuse) wait on demand. Part 2, the non-conjugate
+move strategy for GP leaves under a non-Gaussian likelihood, is
+designed but not built and not scheduled: the derivation stays in this
+document and becomes a TODO entry only if the maintainer asks for it
+(dec-A71). The open decisions were implemented per their
+recommendations, with the over-cap fallback replacing the veto in
+decision 1's scope.

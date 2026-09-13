@@ -111,3 +111,7 @@ Post-1.0 by rule (additive): flat-API readers for heteroscedastic,
 ordinal cutpoints, groupEffects count, setSigma getter; data-handle
 serialization; pdbart on the new fit classes; variable-selection
 inference and random-effects breadth (docs/plans/archive/roadmap-survey.md).
+Of these, the flat-C sigma getter, data-handle serialization, and
+variable-selection inference are designed and recorded but not built
+and not scheduled; the derivation stays here and becomes a TODO entry
+only if the maintainer asks for it (dec-A73).

@@ -1,5 +1,12 @@
 # BCF b-ridge (treatment-scale) interweaving / rescale move: derivation
 
+Status: designed, not built, not scheduled. The treatment-scale rescale
+is cleared as the cause of the BCF sigma residual (both controls in
+section 6 point away from it) and is derived and prototype-checked as
+a separate mixing improvement, but it has never been implemented; the
+derivation stays in this file and becomes a TODO entry only if the
+maintainer asks for it (dec-A72).
+
 Note (added 2026-08-28): the recommendation below still holds - the
 treatment-scale ridge is not implemented; `AmplitudeForestCombiner` in
 src/bartcore/combiner.hpp defaults `ridgeB = false`. The code citations
