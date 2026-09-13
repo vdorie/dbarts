@@ -13,9 +13,9 @@ budget: ~25 lines in one tinytest file, plus this note.
 
 The nightly valgrind job is green at the tip, and the seven assertions
 that failed under it on its last recorded run are explained: six in
-[`test-xbart-reproducibility.R`](../../inst/tinytest/test-xbart-reproducibility.R)
+["expectSameSweep"](../../inst/tinytest/test-xbart-reproducibility.R)
 and one convergence-diagnostic snapshot in
-[`test-convergence-diagnostics.R`](../../inst/tinytest/test-convergence-diagnostics.R).
+["splitRhat"](../../inst/tinytest/test-convergence-diagnostics.R).
 Neither is a defect in the package. Both come from one property of the
 tool: valgrind emulates the x87 unit at 64 bits, so anything R accumulates
 in a long double rounds differently under it than on the hardware.
@@ -124,7 +124,7 @@ place - nowhere near the 1e-12 the assertions allow.
 ## The fix
 
 A test change, in
-[`test-xbart-reproducibility.R`](../../inst/tinytest/test-xbart-reproducibility.R)
+["expectSameSweep"](../../inst/tinytest/test-xbart-reproducibility.R)
 only. The two one-against-many comparisons go through a small helper that
 compares bitwise everywhere and to a 1e-12 tolerance when the process is
 running under valgrind, detected by the preload valgrind puts in the
