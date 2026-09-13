@@ -1,6 +1,6 @@
 # Completion register: what is finished, what is not
 
-Merged and deduplicated from the five code-side slices, the plans-versus-code sweep and the downstream sweep. Rows are grouped by status in this order: unfinished, abandoned, blocked, deferred with no maintainer evidence, deferred by the maintainer with a quote, done but with a stale gate, and done. `gate evidence` names the test file, C++ test, baseline, workflow or run that proves "done", and reads "none" otherwise. Ids are stable handles, not status codes: a row that changes status keeps the id it was first given. Names that are shorthand are unpacked in the row that uses them.
+Merged and deduplicated from the five code-side slices, the plans-versus-code sweep and the downstream sweep. Rows are grouped by status in this order: unfinished, blocked, deferred with no maintainer evidence, deferred by the maintainer with a quote, done but with a stale gate, and done. `gate evidence` names the test file, C++ test, baseline, workflow or run that proves "done", and reads "none" otherwise. Ids are stable handles, not status codes: a row that changes status keeps the id it was first given. Names that are shorthand are unpacked in the row that uses them.
 
 Branch tip is 3ac244a7. The last commit to touch src/, inst/include and R/ is e7d762f1, which changes comments in all three and deletes guessNumCores's Solaris probe, a platform configure no longer supports; the last commit before it to change engine behaviour is the setPredictor merge 28b3ac2a, which is where the per-push green readings below were taken. The four commits after cb77c9d9 had no CI run of their own until the tip was pushed; at 3ac244a7 all seven per-push workflows are green, a dispatched revdep-smoke run is green, and the sbc run the push woke finished green on all seven arms. Rows from cmp-U47, cmp-D25, cmp-V08, cmp-K30 and cmp-K36 on come from the seven arcs that landed after b7266da9.
 
@@ -55,12 +55,7 @@ Branch tip is 3ac244a7. The last commit to touch src/, inst/include and R/ is e7
 | cmp-U50 | A public route to the resolved prior quadruple and to the creation-time sigma estimate, so treatSens need not reach two internals through asNamespace | TODO release block | unfinished | none | Recorded post-release. Its resid.dist call broke silently when the family-objects slice retired the formal, fixed on its branch at aeb4bb0; no dbarts-side gate would have caught it, an internal name carrying no signature promise |
 | cmp-V09 | Confirm or change the binary node hyperprior default on additional evidence: a checked-in harness, the degrees of freedom varied, and a much wider range of use cases than four simulated data-generating processes, real datasets included | dec-B106; dec-B118 | unfinished | none; no such harness is in the tree | Gates the release candidate under dec-B118, which makes it a pre-release requirement rather than the time-permitting one dec-B106 scheduled. The July study rejects the infinite scale clearly, prefers scale 2 over 5 narrowly, and says nothing about the degrees of freedom |
 
-## 2. Abandoned
-
-| id | item | source | status | gate evidence | note |
-|---|---|---|---|---|---|
-
-## 3. Blocked
+## 2. Blocked
 
 | id | item | source | status | gate evidence | note |
 |---|---|---|---|---|---|
@@ -72,7 +67,7 @@ Branch tip is 3ac244a7. The last commit to touch src/, inst/include and R/ is e7
 | cmp-L07 | Push dbarts 1.0-0 and stan4bart 0.0-14 and submit both to CRAN | TODO release block | blocked | none | VD's action by the standing scope rule. CRAN reviews one submission at a time, so "together" is not available |
 | cmp-L08 | Contact lorax's maintainer: its two Rd examples fit bart() with a three-level factor response, spelled x.train and y.train, which 1.0-0 forwards to bartBT, which refuses it with a pointer to bart(family = "multinomial"); 0.9-x silently coded the levels as the numbers 0, 1, 2. The suite's 2 failures have another cause: no lorax test passes a factor response, every dbarts::bart() call in tests/testthat/test-bart.R giving a numeric y.train | docs/plans/archive/cran-readiness.md, revdep sweep with Suggests; lorax 0.1.0 run at the tip 2026-09-11, its suite 2 failing of 724 and both Rd examples erroring | blocked | none; sister-author action | VD 2026-09-08: let it break and ask the author to adjust the example or test. lorax lists dbarts in Suggests, so its CRAN check fails once dbarts 1.0-0 is on CRAN |
 
-## 4. Deferred, no maintainer evidence
+## 3. Deferred, no maintainer evidence
 
 | id | item | source | status | gate evidence | note |
 |---|---|---|---|---|---|
@@ -106,7 +101,7 @@ Branch tip is 3ac244a7. The last commit to touch src/, inst/include and R/ is e7
 | cmp-X03 | The post-1.0 additive surface recorded by rule: a flat-C sigma getter; data-handle serialization; variable-selection inference; random-effects breadth | docs/plans/prerc-surface-freeze.md | deferred | none; the header has a sigma setter and no getter | Recorded once, never given a backlog entry until now; random-effects breadth is moot since the grouped path was deleted. The heteroscedastic and cutpoint readers this row used to name are out of it: dbarts_draw_t carries varianceFits, varianceTestFits and ordinalThresholds, landed incidentally by the per-draw callback arc. TODO's capi-post-release-surface entry gives the remaining three a home, post-release |
 | cmp-X04 | Cross-repository sanitizer contract CI | docs/plans/archive/capi-dispatch-table.md | deferred | none | Landed at 9fe39856 then removed at 99b356d8 the same day, a recorded decision, dec-A36; the monthly reverse-dependency smoke test (cmp-S08) replaced it, so no TODO entry follows |
 
-## 5. Deferred by the maintainer
+## 4. Deferred by the maintainer
 
 | id | item | source | status | gate evidence | note |
 |---|---|---|---|---|---|
@@ -120,7 +115,7 @@ Branch tip is 3ac244a7. The last commit to touch src/, inst/include and R/ is e7
 | cmp-V08 | Restore xbart's warm starts across folds, opt-in, if the timing against 0.9-34 proves bad | dec-B77 | deferred-by-VD | the S3 landing's wall time: 2.53x over serial at four threads for a 10-fold, one-replication call, results bitwise identical between thread counts | Conditional in the ruling's own words, with the least invasive shape named. The one recorded comparison against 0.9-34, 2.1x slower wall at four threads on a one-replication k-fold, predates the slices that redistributed cells and folds, so the condition has never been tested at the shipping shape |
 | cmp-D25 | Make the sparse layout bitwise: the sparse root path would write the identity order before partitioning, about three engine lines | TODO engine constants audit | deferred-by-VD | the x86-and-arm64 replicated measurement in TODO: bitwise agreement costs sparse-tier fits 3.2 to 7.1 percent, moving five equivalence scenarios at maximum absolute z 0.00 | Measured both ways alongside the setPredictor partition change and put to VD as a land-now-versus-defer choice; VD: "Land it before release." Settles decision row dec-B117: the sparse layout stays as it is, the cost of bitwise agreement there being a property no user observes |
 
-## 6. Done, with a stale gate
+## 5. Done, with a stale gate
 
 | id | item | source | status | gate evidence | note |
 |---|---|---|---|---|---|
@@ -130,7 +125,7 @@ Branch tip is 3ac244a7. The last commit to touch src/, inst/include and R/ is e7
 | cmp-S08 | Reverse-dependency smoke test over stan4bart, bartCause and treatSens | .github/workflows/revdep-smoke.yaml | done-but-stale-gate | run 34665457872 at the tip 3ac244a7, success, dispatched on this branch, superseding run 34392264258 at 1622aafa | Pinned to the three compat branches, not to CRAN; the refs must flip at the lockstep release. No longer stale against the tip; what it does not cover is the CRAN copies users will pair with 1.0-0 |
 | cmp-S09 | CRAN reverse-dependency sweep: every package declaring dbarts checked against a 1.0-0 build | docs/plans/archive/cran-readiness.md, revdep sweep with Suggests | done-but-stale-gate | 22 of 24 OK on 2026-07-25 at an engine well before the tip; lorax and insight the two breaks | No sweep script is in the tree. CRAN now lists 27 packages declaring dbarts, so three have appeared since the sweep and have never been checked. The CI smoke test covers only the three sister packages |
 
-## 7. Done
+## 6. Done
 
 | id | item | source | status | gate evidence | note |
 |---|---|---|---|---|---|
