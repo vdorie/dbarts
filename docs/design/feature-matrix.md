@@ -196,7 +196,7 @@ K-forest chain takes its response model from `AmplitudeSpec::family`
 
 The per-model equivalence baseline, SBC verdict and tinytest inventory are
 [9. Per-model evidence](../plans/review-2026-08-24/gate-ledger.md#9-per-model-evidence). Three canonical baselines:
-`equivalence-80b1c8d4.rds` (52 scenarios), `bcf-equivalence-80b1c8d4.rds` (12 scenarios) and
+`equivalence-80b1c8d4.rds` (52 scenarios), `bcf-equivalence-329e3db9.rds` (15 scenarios) and
 `multinomial-equivalence-80b1c8d4.rds` (11 scenarios), all in benchmarks/baselines/MANIFEST.
 
 ## Gaps
@@ -217,7 +217,7 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 | Register the exact oracle in the baseline MANIFEST | aft | benchmarks/R/aft-exact.R |
 | An engine per-observation log-likelihood channel | multinomial | [`multinomialLogLik`](../../R/generics.R) |
 | Whole-data `setData` | bcf, multinomial | docs/design/model-space-survey.md, Doors 1 and 3 |
-| Equivalence scenarios and active-rows-mask evidence for the latent sub-families | bcf | docs/plans/bcf-latent-evidence.md; the exact gate is recorded and SBC is measured, both latent arms a chain-length finding rather than a matrix member |
+| Active-rows-mask evidence for the latent sub-families | bcf | docs/plans/bcf-latent-evidence.md; the exact gate is recorded, SBC is measured (both latent arms a chain-length finding rather than a matrix member) and the three equivalence scenarios are in the baseline, so the mask is what is left |
 | SBC coverage, deferred not blocked; liftable via `setState` | hetero | docs/plans/sbc-family-tiers.md |
 
 **Not gaps** - structurally impossible or settled by decision, not open work:

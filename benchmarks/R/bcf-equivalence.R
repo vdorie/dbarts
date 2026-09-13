@@ -117,6 +117,23 @@ makeData <- function(n, p, seed) {
   list(x = x, y = y, z = z)
 }
 
+# The latent analogue: the same two-forest index, drawn through a link rather
+# than observed with gaussian noise. The index is centred so neither class is
+# rare (a rare-class draw would leave the treatment forest almost nothing to
+# split on and the scenario little to guard). `link` is pnorm or plogis;
+# `trials` returns a positive integer count per row, the frequency weight a
+# logistic fit reads as that many copies of the row.
+makeBinaryData <- function(n, p, seed, link) {
+  set.seed(seed)
+  x <- matrix(runif(n * p), n, p)
+  z <- rbinom(n, 1L, 0.5)
+  mu <- 2 * sin(pi * x[, 1L]) + x[, 2L]
+  tau <- 1 + 2 * x[, 3L]
+  index <- mu + z * tau - 2.5
+  y <- rbinom(n, 1L, link(index))
+  list(x = x, y = y, z = z)
+}
+
 makeControl <- function() {
   dbartsControl(
     n.chains = 1L,
@@ -449,6 +466,83 @@ runScenarios <- function() {
     )
     bartcoreRun(bc, n.burn, n.samples)
     bartcoreSetActiveRows(bc, mask)
+    res <- bartcoreRun(bc, n.burn, n.samples)
+    recordChannels(bc, res)
+  })
+
+  # (m)-(o) the LATENT sub-families (docs/plans/bcf-latent-evidence.md). Four
+  # things a gaussian BCF never reaches are live under probit and logistic:
+  # the latent refresh runs against the COMBINED location a mu + b_z tau
+  # rather than one forest's fits, the amplitude draw consumes the working
+  # response and weights (under logistic a Polya-Gamma precision redrawn every
+  # sweep), sigma is pinned at exactly 1, and the calibration map's anchor is
+  # the link's latent scale - 1 under probit, pi/sqrt(3) under logistic - at a
+  # half-Cauchy scale of 1 rather than gaussian's 2. The recorded `sigma`
+  # channel is therefore a constant here and pins the pinning: a build that
+  # began drawing sigma under a latent family fails on it. Seeds are LITERALS
+  # kept out of the guarded `seeds` vector, as (f)-(l)'s are, so settingsList()
+  # stays identical to the 80b1c8d4 baseline and its neutrality compare still
+  # runs; each runs after the scenarios above with its own set.seed and
+  # perturbs none of them.
+  #
+  # (m) probit: the anchor-1 link, sigma fixed, glue drawn as under gaussian.
+  result$latent_probit <- local({
+    d <- makeBinaryData(n, p, 8013L, pnorm)
+    sampler <- dbarts(d$x, d$y, control = makeControl())
+    set.seed(9013L)
+    bc <- dbarts:::bartcoreBCFSampler(
+      sampler,
+      d$z,
+      n.trees.treatment = n.trees.tau
+    )
+    res <- bartcoreRun(bc, n.burn, n.samples)
+    recordChannels(bc, res)
+  })
+
+  # (n) logistic: the anchor moves to pi/sqrt(3) and the amplitude draw's
+  # precision becomes a Polya-Gamma variate redrawn every sweep, so this is
+  # the only BCF scenario whose glue block consumes that stream. The family is
+  # named at the internal route, which writes it into the model copy the
+  # bridge reads.
+  result$latent_logistic <- local({
+    d <- makeBinaryData(n, p, 8014L, plogis)
+    sampler <- dbarts(d$x, d$y, control = makeControl())
+    set.seed(9014L)
+    bc <- dbarts:::bartcoreBCFSampler(
+      sampler,
+      d$z,
+      family = "logistic",
+      n.trees.treatment = n.trees.tau
+    )
+    res <- bartcoreRun(bc, n.burn, n.samples)
+    recordChannels(bc, res)
+  })
+
+  # (o) weighted logistic: integer counts read as copies, omega ~ PG(w, psi)
+  # (docs/design/weighted-logistic.md). The trial-count path is the one latent
+  # channel probit cannot reach at all - it refuses any weight other than 0/1
+  # - and the one place a two-forest fit carries a non-unit shape parameter
+  # into the Polya-Gamma draw and into both forests' residual weights. The
+  # host sampler is built AT the logistic family rather than converted, since
+  # the weights are validated against the family at creation.
+  result$latent_logistic_weighted <- local({
+    d <- makeBinaryData(n, p, 8015L, plogis)
+    set.seed(8115L)
+    weights <- as.double(rpois(n, 2) + 1L)
+    sampler <- dbarts(
+      d$x,
+      d$y,
+      weights = weights,
+      family = "logistic",
+      control = makeControl()
+    )
+    set.seed(9015L)
+    bc <- dbarts:::bartcoreBCFSampler(
+      sampler,
+      d$z,
+      family = "logistic",
+      n.trees.treatment = n.trees.tau
+    )
     res <- bartcoreRun(bc, n.burn, n.samples)
     recordChannels(bc, res)
   })

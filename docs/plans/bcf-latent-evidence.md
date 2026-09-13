@@ -1,7 +1,8 @@
 # bcf-latent-evidence
 
-Status: LANDED the exact gate, the derivation and the SBC measurement, 2026-09-07; neither latent arm was admitted to
-the SBC matrix, both being a recorded chain-length finding, and the three latent equivalence scenarios remain PROPOSED
+Status: LANDED the exact gate, the derivation and the SBC measurement, 2026-09-07, and the three latent equivalence
+scenarios, 2026-09-13; neither latent arm was admitted to the SBC matrix, both being a recorded chain-length finding, and
+the active-rows-mask evidence named out of scope below remains PROPOSED
 agent: opus for the oracle and the arms; the derivation check is a second, independent pass
 rng: neutral - `benchmarks/` and `.github/` only, so every baseline replays
 budget: one harness (~600 lines), ~160 lines in `sbc.R`, ~20 lines in `sbc.yaml` plus one word in
@@ -405,3 +406,21 @@ gates every push, and it forces the derivation the SBC generator then reuses.
 Expected: every exact-gate quantity inside `|z| <= 4` at both links and in all four arms, the glue-axis refinement under
 1e-6, the runner-up configuration at or above 0.02 posterior weight; every SBC functional PASS but the two ill-posed
 glue ones.
+
+## Landing note - the three equivalence scenarios (2026-09-13)
+
+[`runScenarios`](../../benchmarks/R/bcf-equivalence.R) gains `latent_probit`, `latent_logistic` and
+`latent_logistic_weighted`, built on a new [`makeBinaryData`](../../benchmarks/R/bcf-equivalence.R) that draws the same
+two-forest index through a link at a shift chosen to keep both classes common. Between them they carry the four things
+Context names as new under a latent family - the combined-location refresh, the amplitude draw's working-response
+precision (a Polya-Gamma variate under logistic), sigma pinned at 1, and the link's own calibration anchor - plus the
+trial-count path, which probit refuses by name and only a weighted logistic fit reaches. Their seeds are literals kept
+out of the guarded `seeds` vector, the (f)-(l) precedent, so `settingsList()` is unchanged.
+
+An ADDITION, not a re-record: all 12 predecessors reproduce `bcf-equivalence-80b1c8d4.rds` bitwise on every channel at
+this tip, and the two recordings agree elementwise on every shared scenario. The new baseline is
+`bcf-equivalence-329e3db9.rds`, 15 scenarios, its predecessor demoted to historical, and the two workflow pins
+([cpp-tests.yaml](../../.github/workflows/cpp-tests.yaml),
+[exact-gates.yaml](../../.github/workflows/exact-gates.yaml)) moved with it. The
+[Gaps](../design/feature-matrix.md#gaps) row now names the active-rows mask alone, which is what Constraints puts out of
+scope here.
