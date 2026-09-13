@@ -85,6 +85,8 @@ getSumsOfSquaredResiduals(result)
 # S4 method for class 'dbartsSampler'
 getFitsWithoutOffset()
 # S4 method for class 'dbartsSampler'
+getVariance(test = FALSE)
+# S4 method for class 'dbartsSampler'
 getForestFits(forest = NULL)
 # S4 method for class 'dbartsSampler'
 getForestAmplitudes(forest = NULL)
@@ -750,6 +752,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   readers allocate their own vector, and filling a caller's buffer in
   place is `getLatents`'s contract alone.
 
+- test:
+
+  For `getVariance`, a logical; `FALSE`, the default, reads the variance
+  surface at the training rows and `TRUE` at the installed test rows.
+
 - treeNum:
 
   An integer listing the indices of the tree to plot.
@@ -1359,6 +1366,20 @@ whose reported channels are per-category softmax probabilities rather
 than one additive location; `predict(x)` serves that read, but reports
 the SAVED samples rather than the current state when the sampler was
 built with `keepTrees`.
+
+For `getVariance`, a heteroscedastic (`variance` forest) sampler's
+current variance surface \\s^2(x_i)\\ on the original response scale, an
+n.observations x n.chains matrix at the default `test = FALSE` and an
+n.test x n.chains matrix at `test = TRUE`. It is the mid-sweep read of
+the channels `run()` records as `variance` and `varianceTest`: at the
+state a recorded sweep left, the accessor and the channel agree exactly.
+What it reports is a VARIANCE, so a residual scale is its square root -
+it is the surface analogue of `getSigmas`, which reports the scalar
+\\\sigma\\ a homoscedastic sampler carries. `NULL` where those channels
+report nothing: on a homoscedastic sampler, and at `test = TRUE` with no
+test rows installed. Unlike `predict`, which addresses the saved
+samples, it reads the trees currently in force, so it answers after
+`$sampleVarianceForestFromPrior()` and needs no `keepTrees`.
 
 For `getForestFits`, a multi-forest sampler's requested forest's current
 internal-scale fitted values, an n.observations x n.chains matrix, or,

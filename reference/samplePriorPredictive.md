@@ -51,7 +51,9 @@ samplePriorPredictive(
   gaussian noise with sigma freshly drawn from its own prior for each
   sample, or a bernoulli draw from the `"ev"` probabilities for a binary
   sampler; on an aft (survival) sampler the draw is on the log-time
-  scale (the model fits \\\log T\\). Unlike
+  scale (the model fits \\\log T\\), and on a heteroscedastic one the
+  noise is drawn at a prior draw of that observation's own \\s(x)\\
+  rather than at a scalar sigma. Unlike
   [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   posterior `"ppd"`, prior predictive draws are weight-blind: they use
   unit weights rather than a weighted precision (\\\sigma / \sqrt{w}\\
@@ -85,6 +87,15 @@ calibrated so that \\P(\sigma \< \code{sigest}) = \code{quantile}\\ when
 the prior is `chisq` (see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
 or the sampler's fixed value when the prior is `fixed`.
+
+A heteroscedastic sampler
+([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+`variance`) has no single sigma to draw, so the noise is its own
+surface: each sample additionally redraws the variance forest from its
+prior (`sampleVarianceForestFromPrior`) and adds \\s(x)\epsilon\\ at the
+rows being predicted, \\s^2(x)\\ read there through
+[`getVariance`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
+The mean draws, and every `type = "ev"` draw, are unaffected.
 
 If `sampler` has more than one chain, prior draws are chain-free: each
 of the `n.samples` draws only keeps the first chain's stream (the other

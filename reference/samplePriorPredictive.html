@@ -82,7 +82,9 @@
     matching what <code><a href="bartBT.html">extract</a></code> and <code>predict</code> call <code>"ev"</code>. <code>"ppd"</code> adds the
     observation model on top: gaussian noise with sigma freshly drawn from its own prior for each
     sample, or a bernoulli draw from the <code>"ev"</code> probabilities for a binary sampler; on an aft
-    (survival) sampler the draw is on the log-time scale (the model fits \(\log T\)).
+    (survival) sampler the draw is on the log-time scale (the model fits \(\log T\)), and
+    on a heteroscedastic one the noise is drawn at a prior draw of that observation's own
+    \(s(x)\) rather than at a scalar sigma.
     Unlike <code><a href="bartBT.html">extract</a></code>'s posterior <code>"ppd"</code>, prior predictive draws are weight-blind:
     they use unit weights rather than a weighted precision (\(\sigma / \sqrt{w}\)
     for gaussian) or a \(\mathrm{Binomial}(w, p)\) success count (weighted
@@ -108,6 +110,12 @@
   \(P(\sigma &lt; \code{sigest}) = \code{quantile}\) when the prior is
   <code>chisq</code> (see <code><a href="dbartsPriors.html">dbartsPriors</a></code>), or the sampler's fixed value when the prior is
   <code>fixed</code>.</p>
+<p>A heteroscedastic sampler (<code><a href="dbarts.html">dbarts</a></code>'s <code>variance</code>) has no single sigma to draw,
+  so the noise is its own surface: each sample additionally redraws the variance forest from its
+  prior (<code>sampleVarianceForestFromPrior</code>) and adds \(s(x)\epsilon\) at the rows
+  being predicted, \(s^2(x)\) read there through
+  <code><a href="dbartsSampler-class.html">getVariance</a></code>. The mean draws, and every <code>type = "ev"</code>
+  draw, are unaffected.</p>
 <p>If <code>sampler</code> has more than one chain, prior draws are chain-free: each of the <code>n.samples</code>
   draws only keeps the first chain's stream (the other chains still advance their own independent
   engine RNGs, but their draws are discarded), since there is no mixing or convergence concept for
