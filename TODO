@@ -48,6 +48,12 @@ items
     updateScale = FALSE). Record:
     docs/plans/archive/bcf-sigma-residual.md sec 4 item 2.
     research-open, decision-gated.
+  bcf-treatment-rescale: post-release, no backlog entry until now. The
+    causal forest's treatment-scale joint rescale - a likelihood-invariant
+    move on the treatment forest's amplitude and leaf values together -
+    is derived and prototype-checked but never implemented; the combiner
+    ships with that forest's ridge flag off. The prognostic forest's twin
+    move landed at 5109b669. Record: docs/plans/archive/bcf-b-ridge.md.
   binary-kforest-k1-reachability: open K = 1 as a shipped multi-forest
     configuration - one varying-coefficient forest with no prognostic
     partner, which is VCBART's shape (D4 of
@@ -58,6 +64,12 @@ items
     owes its own, which is why
     docs/plans/archive/binary-kforest-prior-default.md refused rather
     than opened it.
+  capi-post-release-surface: post-release additive C API surface recorded
+    by rule and never given a backlog entry: a flat-C sigma getter (a
+    setter exists, no getter), data-handle serialization, and
+    variable-selection inference. A fourth item the same record named,
+    random-effects breadth, is moot since the grouped-effects path was
+    deleted. Record: docs/plans/prerc-surface-freeze.md.
   capi-unwind-protect: three raise sites hold C++ heap owners across a
     longjmp and leak on the error path, none reachable by an ordinary
     refusal: dbarts_sampler_run's sweep callback (a host callback that
@@ -100,6 +112,12 @@ items
     1203.1078), where a FIXED lengthscale asks the user to know the
     thing they are estimating, and low-rank kernels serve the standing
     n >= 1e5 fact. decision-gated on cost, not on value.
+  gp-leaf-nonconjugate-moves: post-release, no backlog entry until now. A
+    non-conjugate move strategy for Gaussian-process leaves under a
+    non-Gaussian likelihood - phase 6 of the founding engine design,
+    designed but never built. gp-followups above covers only lengthscales
+    and low-rank kernels, both under the Gaussian leaf. Records:
+    docs/design/gp-leaves.md, docs/design/core-generalization.md.
   gpu-bart: the backend-seam design waits on frontier items 4-5, the
     informed-kernel and preconditioned-CG prototypes
     (docs/design/parallel-bart-frontier.md sec 5). Memo and falsifiers:
@@ -653,6 +671,47 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
   Plan: docs/plans/interfaces-and-dependencies.md.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
+  pre-release sequence (VD 2026-09-12; done in this order, pre-merge
+    unless marked)
+    1. C API unwind-protect: the run and predict entries wrapped in
+      R_UnwindProtect so an R error in the sweep callback or an engine
+      throw frees the C++ owners; the header's callback contract allows
+      the callback to raise. Pre-merge: it changes the header's contract
+      text. See capi-unwind-protect above.
+    2. Sister-package defects: stan4bart passing the renamed engine seed
+      through on its compat path; bartCause deriving the chain count
+      from the fit's control rather than yhat.train's dimensions
+      (defeated by combineChains = TRUE); each suite green against the
+      tip. Either side of the merge.
+    3. Probit and ordinal accept weights in {0, 1}: a zero weight routes
+      through the active-row mask (docs/design/active-rows-mask.md),
+      all-ones stays the unweighted fit. Pre-merge: a surface change.
+    4. Wider comparison against 0.9-34: install main (0.9-34) into a
+      private library and run scenarios inside 0.9-34's feature set
+      (weights, offsets, sampled k, n.cuts, indicator factors, xbart, a
+      setPredictor loop) through the statistical equivalence harness
+      against the tip; record the result under benchmarks/baselines with
+      a MANIFEST row. The nine-scenario cutover record is not the
+      ceiling. Before the RC.
+    5. stan4bart's mixing standard (dec-B105) measured: lag-one
+      autocorrelation and effective sample size on the group-spread
+      parameter. Before the CRAN submission.
+    6. Binary node hyperprior harness (dec-B118): checked in, degrees of
+      freedom varied, wider cases including real data. Before the RC.
+    7. Memory check: explain the six xbart cross-thread assertions that
+      failed under valgrind (inst/tinytest/test-xbart-reproducibility.R)
+      and get a green valgrind run on the x86 box after item 1. Before
+      the RC.
+    8. Owed pre-RC engine items: three latent bcf-equivalence scenarios
+      plus re-record; aft slices 3 and 4; BCF two-forest proposal.probs
+      pass-through; the same-host bcf-equivalence refresh at the RC tip.
+    9. Ledger: no item carries an "abandoned" status; every open item
+      has a home in TODO.
+    10. VD reviews docs/plans/bartcore-landing/rubric.md.
+    11. The landing memo is rewritten from a blank page to the rubric
+      after items 1 to 9, and the decision ledger (docs/decisions.md) is
+      made readable to the rubric's ledger items.
+    12. VD's own: lorax contact, GitHub issue #80, CRAN submission.
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
     and tests fit bart() with a three-level factor response, which

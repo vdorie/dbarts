@@ -33,7 +33,8 @@ decision - it explains where decisions live and how to find one.
   onto main (`memo.md`), and the registers behind it: changes against
   main, completion status of everything planned, a doc inventory for
   triage, the neutral evaluations of agent-made decisions, and the
-  rubric every maintainer-facing document is reviewed against.
+  standard for documents the maintainer reads, reviewed by the
+  maintainer before use.
 - repo-root `TODO` - the live, unordered backlog of OPEN work, forward-
   facing only. Most entries name an implementation plan in `docs/plans/`;
   a few record instead in a design doc or a differently-named plan.
