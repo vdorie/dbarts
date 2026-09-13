@@ -5106,6 +5106,22 @@ SEXP bartcore_sampleNodeParametersFromPrior(SEXP ptrExpr) {
   return R_NilValue;
 }
 
+// The variance forest's prior draw. A homoscedastic sampler has no variance
+// forest and the engine returns without drawing, so the entry is a no-op there
+// rather than a refusal: a caller sweeping every family calls it
+// unconditionally, and a family that cannot be heteroscedastic is not an error
+// to ask.
+SEXP bartcore_sampleVarianceForestFromPrior(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore_bridge::CapturedError error;
+  GetRNGstate();
+  captureExceptions(
+    error, [&]() { holder.sampler->sampleVarianceForestFromPrior(); });
+  PutRNGstate();
+  if (error.failed) Rf_error("%s", error.message);
+  return R_NilValue;
+}
+
 SEXP bartcore_growFromRoot(SEXP ptrExpr, SEXP numSweepsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();

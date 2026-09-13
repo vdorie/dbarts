@@ -1412,6 +1412,11 @@ public:
   void sampleNodeParametersFromPrior() {
     for (auto& chain : chains_) chain->sampleNodeParametersFromPrior();
   }
+  /// The variance forest's own prior draw, structures and leaf factors; a
+  /// no-op on every homoscedastic sampler.
+  void sampleVarianceForestFromPrior() {
+    for (auto& chain : chains_) chain->sampleVarianceForestFromPrior();
+  }
 
   /// Warm-start initializer: run numSweeps of grow-from-root in place on every
   /// chain, fanning across chains on up to min(numThreads, numChains) workers

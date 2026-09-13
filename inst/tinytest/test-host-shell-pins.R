@@ -40,9 +40,9 @@ inherited <- c(
 own <- setdiff(names(ownMethods), inherited)
 substantiveMethods <- sort(setdiff(own, infrastructure))
 
-expect_equal(length(own), 49L)
+expect_equal(length(own), 50L)
 expect_equal(length(infrastructure), 6L)
-expect_equal(length(substantiveMethods), 43L)
+expect_equal(length(substantiveMethods), 44L)
 
 expect_identical(
   substantiveMethods,
@@ -50,6 +50,7 @@ expect_identical(
     "run",
     "sampleTreesFromPrior",
     "sampleNodeParametersFromPrior",
+    "sampleVarianceForestFromPrior",
     "growFromRoot",
     "setControl",
     "setModel",

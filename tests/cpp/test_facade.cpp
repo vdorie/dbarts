@@ -40,7 +40,8 @@ enum class FacadeVirtual {
   beginPredictorUpdate, currentSampleNum, savedSlotForDraw, savedTree,
   savedTreeSlopes, savedTreeMasks, flattenTree, predict, predictPerForest,
   predictVariance, getState, setState, installForests, sampleTreesFromPrior,
-  sampleNodeParametersFromPrior, growFromRoot, setNumThreads, setNumThin,
+  sampleNodeParametersFromPrior, sampleVarianceForestFromPrior, growFromRoot,
+  setNumThreads, setNumThin,
   setVerbose, fitScale, gpFallbackTally, setTreeStorage, setModel,
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, dispersion, setForestBasis,
@@ -179,6 +180,7 @@ public:
           (d, m))
   SPY_VOID(sampleTreesFromPrior, (), ())
   SPY_VOID(sampleNodeParametersFromPrior, (), ())
+  SPY_VOID(sampleVarianceForestFromPrior, (), ())
   SPY_VOID(growFromRoot, (std::size_t s), (s))
   SPY_VOID(setNumThreads, (std::size_t t), (t))
   SPY_VOID(setNumThin, (std::size_t t), (t))
@@ -930,6 +932,18 @@ const Row rows[] = {
             forestSignature(f.d) == structure,
           "facade nodeParametersFromPrior: the leaf values move and the "
           "structure does not");
+  }},
+  {FacadeVirtual::sampleVarianceForestFromPrior, "varianceForestFromPrior",
+   [](Fixtures& f) {
+    std::vector<double> before(f.v.impl().chain(0).varianceFits(),
+                              f.v.impl().chain(0).varianceFits() +
+                                Fixtures::n);
+    f.v.base().sampleVarianceForestFromPrior();
+    std::vector<double> after(f.v.impl().chain(0).varianceFits(),
+                             f.v.impl().chain(0).varianceFits() + Fixtures::n);
+    check(after != before,
+          "facade sampleVarianceForestFromPrior: the impl's scale surface is "
+          "redrawn");
   }},
   {FacadeVirtual::growFromRoot, "growFromRoot", [](Fixtures& f) {
     std::uint64_t before = forestSignature(f.d);
