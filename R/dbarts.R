@@ -1135,7 +1135,15 @@ dbarts <- function(
     }
   }
 
-  new("dbartsSampler", spec$control, spec$model, spec$data)
+  sampler <- new("dbartsSampler", spec$control, spec$model, spec$data)
+  # a latent family's 0/1 case weights are membership, which the sampler
+  # carries as its active-row mask rather than as weights: the spec has
+  # already cleared the weights slot, so this is the only place the vector
+  # lands. All-ones never reaches here, having resolved to no mask at all.
+  if (!is.null(spec$active)) {
+    sampler$setActiveRows(spec$active)
+  }
+  sampler
 }
 
 # Coerces a warm-start donor (a sampler, a bart fit with a kept sampler, or a
@@ -1790,7 +1798,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setWeights = function(weights, updateState = NA) {
-      "Changes the weights with which the sampler is fitted. updateState is opt-in; see setData."
+      "Changes the weights with which the sampler is fitted. A probit or ordinal sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. updateState is opt-in; see setData."
       refuseCountsMutation(
         .self,
         "$setWeights",
@@ -1806,6 +1814,24 @@ dbartsSampler <- setRefClass(
       # is itself NA in R, not FALSE)
       if (any(is.na(weights) | weights < 0.0)) {
         stop("'weights' must all be non-negative")
+      }
+      # the latent families that carry no weight at all but do carry the mask:
+      # a 0/1 vector there is membership, not precision, so it goes to the
+      # channel that means it - all-ones included, which the mask normalizes
+      # to no mask and so also clears one already installed. The weights slot
+      # is left empty, as creation leaves it.
+      if (isMaskedWeightFamily(model@family)) {
+        if (any(weights != 0 & weights != 1)) {
+          stop(
+            model@family,
+            " models do not support case weights other than 0 and 1, which ",
+            "mark rows in and out of the likelihood: such a vector installs ",
+            "as the active-row mask, and a weighted truncated-normal latent ",
+            "likelihood is not a coherent model"
+          )
+        }
+        setActiveRows(weights, updateState = updateState)
+        return(invisible(NULL))
       }
 
       ptr <- getPointer()

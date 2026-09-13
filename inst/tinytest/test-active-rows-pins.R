@@ -19,21 +19,18 @@ control <- dbarts::dbartsControl(
   seed = 7L
 )
 
-# Pin: $setWeights on a probit sampler refuses post-creation, unconditionally
-# on the value - even the all-ones vector that dbarts(..., weights = rep(1, n))
-# accepts and normalizes away at creation is refused here
-# (refuseBinaryWeightChange, R_interface_bartcore.cpp, reached from
-# bartcore_setWeights before its length or value checks run).
+# Pin: $setWeights on a probit sampler carries no precision, so it takes only
+# the values that state membership - 0 and 1, which it routes to the mask
+# below, the all-ones vector installing nothing as it does at creation - and
+# refuses every other value.
 sampler.probit <- dbarts::dbarts(
   x,
   y.binary,
   family = "probit",
   control = control
 )
-expect_error(
-  sampler.probit$setWeights(rep(1, n)),
-  "probit models do not support case weights"
-)
+expect_silent(sampler.probit$setWeights(rep(1, n)))
+expect_true(is.null(sampler.probit$data@weights))
 expect_error(
   sampler.probit$setWeights(runif(n, 0.5, 1.5)),
   "probit models do not support case weights"

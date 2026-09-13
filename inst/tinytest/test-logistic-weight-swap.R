@@ -197,30 +197,47 @@ expect_false(isTRUE(all.equal(pinned$getLatents(), 0.25 * w2)))
 expect_true(all(pinned$getLatents() > 0))
 
 # --- the families that decline by identification ---------------------------
-declined <- list(
+# probit and ordinal carry no precision but do carry the mask, so a 0/1 vector
+# is membership and lands there; w2 is a count vector and stays refused on both
+# conduits. nbinom has no mask route and declines either vector.
+masked <- list(
   probit = list(
     y = y,
-    text = "probit models do not support case weights"
+    text = "probit models do not support case weights other than 0 and 1"
   ),
   ordinal = list(
     y = as.double(1L + (seq_len(n) %% 3L)),
-    text = "ordinal models do not support case weights"
-  ),
-  nbinom = list(
-    y = as.double(seq_len(n) %% 5L),
-    text = "nbinom \\(count\\) models do not support case weights"
+    text = "ordinal models do not support case weights other than 0 and 1"
   )
 )
-for (name in names(declined)) {
-  cell <- declined[[name]]
+for (name in names(masked)) {
+  cell <- masked[[name]]
   fit <- dbarts(x, cell$y, family = name, control = logisticControl())
-  expect_error(fit$setWeights(w1), cell$text, info = name)
+  expect_silent(fit$setWeights(w1))
+  expect_true(is.null(fit$data@weights), info = name)
+  expect_silent(fit$setData(dbartsData(x, cell$y, weights = w1)))
+  expect_true(is.null(fit$data@weights), info = name)
+  expect_error(fit$setWeights(w2), cell$text, info = name)
   expect_error(
-    fit$setData(dbartsData(x, cell$y, weights = w1)),
+    fit$setData(dbartsData(x, cell$y, weights = w2)),
     cell$text,
     info = name
   )
 }
+nbinomFit <- dbarts(
+  x,
+  as.double(seq_len(n) %% 5L),
+  family = "nbinom",
+  control = logisticControl()
+)
+expect_error(
+  nbinomFit$setWeights(w1),
+  "nbinom \\(count\\) models do not support case weights"
+)
+expect_error(
+  nbinomFit$setData(dbartsData(x, as.double(seq_len(n) %% 5L), weights = w1)),
+  "nbinom \\(count\\) models do not support case weights"
+)
 aftFit <- dbarts(
   x,
   cbind(exp(f + rnorm(n)), rep_len(c(1L, 0L), n)),

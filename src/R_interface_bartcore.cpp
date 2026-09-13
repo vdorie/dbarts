@@ -3001,7 +3001,10 @@ void refuseVarianceForestScaleUpdate(const bartcore::SamplerBase& sampler,
 }
 
 // The weight policy, stated once for creation and every mutation conduit: a
-// probit has no tractable weighted latent-variable form and is refused;
+// probit has no tractable weighted latent-variable form and is refused - the
+// R layer resolves a probit or ordinal vector of 0s and 1s to an active-row
+// mask before it reaches here, membership being the one thing those families
+// can read off a weight, so what arrives is always a weighted likelihood;
 // logistic treats weights as observation counts (its PG(w, psi) latent is the
 // sum of w PG(1, psi) draws), so they must be positive integers; gaussian
 // takes any finite non-negative weight. The R layer mirrors this, so these
@@ -3013,8 +3016,10 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
   if (weights == NULL) return;
   if (family == bartcore::ResponseFamily::probit)
     Rf_error("probit models do not support weights: a weighted probit has no "
-             "tractable latent-variable form; use family = \"logistic\" for "
-             "weighted binary regression, or model the latents directly");
+             "tractable latent-variable form; a vector of 0s and 1s states "
+             "membership rather than precision and installs as the sampler's "
+             "active-row mask, and weighted binary regression is family = "
+             "\"logistic\"");
   if (family == bartcore::ResponseFamily::logistic)
     for (size_t i = 0; i < numObservations; ++i)
       if (!(weights[i] > 0.0) || weights[i] != std::floor(weights[i]))
@@ -3056,8 +3061,11 @@ void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
   if (family == bartcore::ResponseFamily::aft) name = "aft (survival)";
   else if (family == bartcore::ResponseFamily::ordinal) name = "ordinal";
   else if (family == bartcore::ResponseFamily::nbinom) name = "nbinom (count)";
-  Rf_error("%s models do not support case weights, so none can be set after "
-           "creation; fit a gaussian model for a weighted likelihood", name);
+  Rf_error("%s models do not support case weights, so no weighted likelihood "
+           "can be set after creation; a probit or ordinal vector of 0s and 1s "
+           "states membership rather than precision and is installed as the "
+           "sampler's active-row mask before it reaches here, and a gaussian "
+           "model fits a weighted likelihood", name);
 }
 
 // The largest count any surface accepts for nbinom. The bound is an ALLOCATION

@@ -35,7 +35,15 @@ each refuses them at creation, and refuses a post-creation change by name
 ([`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp)), each for its own
 reason: a weighted truncated-normal latent likelihood is not a coherent model
 for probit and ordinal, count exposure belongs in the offset for negative
-binomial, and AFT is a gaussian on log-time that simply carries none. Logistic
+binomial, and AFT is a gaussian on log-time that simply carries none. Probit
+and ordinal, which do implement the mask, take the one weight vector that is
+not a weighted likelihood: all elements 0 or 1 says which rows are in the data
+set, so the R layer installs it here and clears the weights slot, at creation
+([`enforceWeightPolicy`](../../R/spec.R)) and on both mutation conduits
+([`setWeights`](../../R/dbarts.R),
+[`bartcoreSamplerSetData`](../../R/bartcore.R)); all-ones resolves to no mask,
+as it resolves to no weights. The bridge, which the R layer never hands such a
+vector, keeps refusing weights on those families outright. Logistic
 does take a weight change, but its weights are Polya-Gamma copy counts, which
 must be positive integers on every surface, so no count expresses "not in the
 data set" ([`enforceBinaryWeightPolicy`](../../src/R_interface_bartcore.cpp)).
@@ -182,7 +190,8 @@ installed is the caller's own record.
 
 Three, all reaching the same scan. The reference-class method
 [`setActiveRows`](../../R/dbarts.R) validates length and values in R first, for the
-message. The bridge entry
+message, and is where a probit or ordinal 0/1 case-weight vector lands, whichever
+entry point it arrived at. The bridge entry
 [`bartcore_setActiveRows`](../../src/R_interface_bartcore.cpp) and the flat C entry
 retired: [`dbarts_sampler_setActiveRows`](../../src/C_interface.cpp) each probe
 [`SamplerShape::supportsActiveRows`](../../src/bartcore/facade.hpp) and never the
