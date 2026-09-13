@@ -546,3 +546,74 @@ expect_true(all(varianceRatio > 0.5 & varianceRatio < 2))
 
 # the "ev" surface carries no noise at all, so it is untouched by the lift
 expect_true(all(is.finite(evDraws)))
+
+# ---- getVariance at the other reachable states ----
+# A state a sweep produced has the channel as its oracle; anywhere else the
+# oracle is the test read, which rebuilds from the trees in force - and the
+# test rows here are training rows, so the two must agree entry for entry.
+
+stateRows <- 41:50
+stateControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 2L,
+  updateState = TRUE,
+  seed = 28L
+)
+makeStateSampler <- function(control) {
+  dbarts(
+    xAcc,
+    yAcc,
+    test = xAcc[stateRows, , drop = FALSE],
+    variance = varianceForest(n.trees = 5L),
+    control = control
+  )
+}
+
+# updateState = TRUE serializes after every sweep; the read is still of the
+# live trees, not of the stored blob
+stateSampler <- makeStateSampler(stateControl)
+stateRun <- stateSampler$run(10L, 2L)
+expect_identical(as.vector(stateSampler$getVariance()), stateRun$variance[, 2L])
+expect_identical(
+  stateSampler$getVariance()[stateRows, 1L],
+  as.vector(stateSampler$getVariance(test = TRUE))
+)
+
+# a state round trip carries the surface entry for entry, on both arms: the
+# test product is rebuilt from the restored trees, setState leaving it stale
+donorTrain <- stateSampler$getVariance()
+donorTest <- stateSampler$getVariance(test = TRUE)
+restored <- makeStateSampler(stateControl)
+invisible(restored$run(5L, 1L))
+restored$setState(stateSampler$state)
+expect_identical(restored$getVariance(), donorTrain)
+expect_identical(restored$getVariance(test = TRUE), donorTest)
+
+# and so does copy(), which installs that same state
+copied <- stateSampler$copy()
+expect_identical(copied$getVariance(), donorTrain)
+expect_identical(copied$getVariance(test = TRUE), donorTest)
+
+# keepTrees puts the saved draws in front of predict; the accessor still reads
+# the trees in force, so a prior draw moves it
+keepControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 2L,
+  updateState = FALSE,
+  keepTrees = TRUE,
+  seed = 29L
+)
+keepSampler <- makeStateSampler(keepControl)
+keepRun <- keepSampler$run(10L, 2L)
+expect_identical(as.vector(keepSampler$getVariance()), keepRun$variance[, 2L])
+keepBefore <- keepSampler$getVariance()
+keepSampler$sampleVarianceForestFromPrior()
+expect_false(identical(keepBefore, keepSampler$getVariance()))
+expect_identical(
+  keepSampler$getVariance()[stateRows, 1L],
+  as.vector(keepSampler$getVariance(test = TRUE))
+)
