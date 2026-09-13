@@ -378,9 +378,12 @@ typedef struct dbarts_draw_t {
 /// dbarts_sampler_setNumThreads and read the chain count with
 /// dbarts_sampler_numChains). That raise is the one R call the ban above
 /// admits, its own allocation included, and it must be R's error jump: a
-/// longjmp to a setjmp of the caller's own, or a C++ exception thrown out of
-/// the callback, abandons the context R establishes around this call and
-/// leaves R reading a dead one. The call into the callback is made under
+/// longjmp to a setjmp of the caller's own abandons the context R establishes
+/// around this call and leaves R reading a dead one. A C++ EXCEPTION thrown
+/// out of the callback is caught at the call instead and handed back to R as
+/// an error carrying its what(), so a C++ host may refuse in its own idiom
+/// (Rcpp::stop and the like) and the run ends exactly as a raise ends it.
+/// The call into the callback is made under
 /// R_UnwindProtect, so the jump becomes a C++ unwind AT THE CALLBACK:
 /// the run stops there and every frame between the callback and this entry,
 /// the library's own included, is destroyed before the error is handed back to

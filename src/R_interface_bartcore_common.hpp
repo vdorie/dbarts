@@ -174,17 +174,28 @@ struct ShippedDrawHook {
       ShippedDrawHook* hook;
       const dbarts_draw* draw;
       int result;
-    } frame{this, draw, 0};
+      std::exception_ptr thrown;
+    } frame{this, draw, 0, {}};
     R_UnwindProtect(
       [](void* p) -> SEXP {
         Frame& held = *static_cast<Frame*>(p);
-        held.result = held.hook->fn(held.hook->context, held.draw);
+        // A C++ exception out of the callback - a host using Rcpp::stop, say -
+        // must not cross R_UnwindProtect's own frame: R runs no destructor
+        // there, so its unwind context would be abandoned on R_GlobalContext
+        // pointing into a dead stack frame. Held here and rethrown once that
+        // frame has returned, where the entry converts it to an R error.
+        try {
+          held.result = held.hook->fn(held.hook->context, held.draw);
+        } catch (...) {
+          held.thrown = std::current_exception();
+        }
         return R_NilValue;
       }, &frame,
       [](void*, Rboolean jumped) {
         if (jumped) throw UnwindJump{unwindContinuation()};
       }, &frame,
       unwindContinuation());
+    if (frame.thrown) std::rethrow_exception(frame.thrown);
     return frame.result;
   }
 
