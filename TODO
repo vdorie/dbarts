@@ -697,7 +697,7 @@ release (deferred; the one ordered procedure, run when VD triggers it)
       docs/decisions.md, benchmarks/baselines/MANIFEST. Every piece of
       retired or unscheduled work is findable from an index with its
       status; TODO holds only work still intended.
-    10. VD reviews docs/plans/bartcore-landing/rubric.md.
+    10. VD reviewed docs/plans/bartcore-landing/rubric.md (done 2026-09-12).
     11. The landing memo is rewritten from a blank page to the rubric
       after items 1 to 9, and the decision ledger (docs/decisions.md) is
       made readable to the rubric's ledger items.
