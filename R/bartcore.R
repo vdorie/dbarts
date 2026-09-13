@@ -651,6 +651,10 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   if (inherits(tryResult, "error")) {
     stop(tryResult)
   }
+  # the swap cleared whatever mask was in force, so the mirror that would
+  # otherwise re-apply one at re-creation goes with it; setActiveRows records
+  # the replacement's own below
+  sampler$activeRows <- NULL
   if (!is.null(active)) {
     sampler$setActiveRows(active)
   }

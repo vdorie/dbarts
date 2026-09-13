@@ -1293,9 +1293,16 @@ dbartsSampler <- setRefClass(
     # The per-forest, per-observation precision weight installed by
     # setForestWeights, mirrored here because it does not ride the engine's
     # saved state: forestWeights[[forest]] (1-based) holds the last vector
-    # installed on that forest, NULL where none is. getPointer and setState
-    # both re-apply it on every re-creation.
-    forestWeights = "list"
+    # installed on that forest, NULL where none is. getPointer, setState,
+    # adoptPointer and copy all re-apply it on every re-creation.
+    forestWeights = "list",
+    # The active-row mask installed by setActiveRows, mirrored here for the
+    # same reason and re-applied on the same paths: NULL where no mask is in
+    # force, an all-ones vector installing none. Without the mirror a masked
+    # sampler re-created from its stored state - what getPointer does after a
+    # save and load - would silently return every masked row to the
+    # likelihood.
+    activeRows = "ANY"
   ),
   methods = list(
     initialize = function(control, model, data, ...) {
@@ -1312,6 +1319,7 @@ dbartsSampler <- setRefClass(
       .self$model <- model
       .self$data <- data
       .self$forestWeights <- list()
+      .self$activeRows <- NULL
 
       # "auto" (a hand-built model) keeps the bridge's own dispatch
       .self$pointer <- .Call(
@@ -1344,12 +1352,18 @@ dbartsSampler <- setRefClass(
       callSuper(...)
     },
     adoptPointer = function(ptr) {
-      "Rebinds this sampler to ptr, an externalptr already built from this sampler's own (control, model, data) triple by a caller that ran it, in place of the engine this object created at construction. The abandoned engine becomes unreachable and its own finalizer releases it once (each externalptr carries its own holder, so there is no double free); ptr's protection slot already pins this sampler's own data, so getPointer's re-creation branch, the delayed state promise, and every method below see the adopted engine exactly as if it had been this object's own from the start. Only sound when ptr was built from this object's own (control, model, data), which the caller - not this method - is responsible for."
+      "Rebinds this sampler to ptr, an externalptr already built from this sampler's own (control, model, data) triple by a caller that ran it, in place of the engine this object created at construction. The abandoned engine becomes unreachable and its own finalizer releases it once (each externalptr carries its own holder, so there is no double free); ptr's protection slot already pins this sampler's own data, so getPointer's re-creation branch, the delayed state promise, and every method below see the adopted engine exactly as if it had been this object's own from the start. The mirrored channels the triple does not carry - the forest weights and the active-row mask - are re-applied to ptr here, as on every other re-creation. Only sound when ptr was built from this object's own (control, model, data), which the caller - not this method - is responsible for."
       if (!is(ptr, "externalptr")) {
         stop("'ptr' must be an externalptr")
       }
       selfEnv <- parent.env(environment())
       selfEnv$pointer <- ptr
+      # ptr was built from (control, model, data), which carry neither the
+      # per-forest weights nor the mask: without this the adopted engine - the
+      # one the caller then runs - would silently answer to a different
+      # conditioning than the one this object describes
+      reapplyForestWeights(ptr)
+      reapplyActiveRows(ptr)
       invisible(NULL)
     },
     run = function(
@@ -1466,6 +1480,10 @@ dbartsSampler <- setRefClass(
       # lets this skip getPointer's re-creation branch
       dupe$forestWeights <- forestWeights
       dupe$reapplyForestWeights(dupe$pointer)
+      # the mask rides neither the state nor the data object either, so the
+      # copy takes it from the same mirror by the same route
+      dupe$activeRows <- activeRows
+      dupe$reapplyActiveRows(dupe$pointer)
       dupe
     },
     show = function() {
@@ -1883,7 +1901,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setActiveRows = function(active, updateState = NA) {
-      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. NULL clears, and an all-ones mask installs nothing. updateState is opt-in; see setData."
+      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState is opt-in; see setData."
       if (!is.null(active)) {
         active <- as.double(active)
         if (length(active) != length(data@y)) {
@@ -1899,6 +1917,15 @@ dbartsSampler <- setRefClass(
 
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_setActiveRows, ptr, active)
+      # mirrored only once the engine has taken it, and normalized the way the
+      # engine normalizes: an all-ones vector installs nothing, so it records
+      # as no mask rather than as a vector to re-apply
+      selfEnv <- parent.env(environment())
+      selfEnv$activeRows <- if (is.null(active) || all(active == 1)) {
+        NULL
+      } else {
+        active
+      }
       if (identical(updateState, TRUE)) {
         storeState(ptr)
       }
@@ -2382,12 +2409,19 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     reapplyForestWeights = function(ptr) {
-      "Re-installs every forest weight mirrored on this sampler onto ptr, a freshly (re-)created or restated engine pointer that carries none of them. Called from getPointer and setState, never recursing through getPointer."
+      "Re-installs every forest weight mirrored on this sampler onto ptr, a freshly (re-)created, restated or adopted engine pointer that carries none of them. Called from getPointer, setState, adoptPointer and copy, never recursing through getPointer."
       for (forest in seq_along(forestWeights)) {
         weights <- forestWeights[[forest]]
         if (!is.null(weights)) {
           .Call(C_dbarts_bartcore_setForestWeights, ptr, forest - 1L, weights)
         }
+      }
+      invisible(NULL)
+    },
+    reapplyActiveRows = function(ptr) {
+      "Re-installs the active-row mask mirrored on this sampler onto ptr, a freshly (re-)created, restated or adopted engine pointer that carries none. Called from getPointer, setState, adoptPointer and copy, never recursing through getPointer."
+      if (!is.null(activeRows)) {
+        .Call(C_dbarts_bartcore_setActiveRows, ptr, activeRows)
       }
       invisible(NULL)
     },
@@ -2420,6 +2454,7 @@ dbartsSampler <- setRefClass(
           rawPredictorMatrix(data@x)
         )
         reapplyForestWeights(ptr)
+        reapplyActiveRows(ptr)
         # the replacement is bound only once it carries the state: a refused
         # install must leave the object exactly as it was rather than holding
         # a live but unfitted engine that the next run would silently sample
@@ -2453,6 +2488,7 @@ dbartsSampler <- setRefClass(
         rawPredictorMatrix(data@x)
       )
       reapplyForestWeights(ptr)
+      reapplyActiveRows(ptr)
       # as in getPointer: a re-created engine is bound only after the install
       # succeeds, so a refusal leaves a dead pointer dead instead of live and
       # unfitted, and leaves 'state' the one that is still installed

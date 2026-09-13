@@ -162,17 +162,19 @@ them again, and who does that depends on the layer:
 - The R5 sampler mirrors each raw vector onto its `data` object as the
   mutation lands (`data@y`, `data@offset`, `data@weights`, `data@x`,
   `data@bases`), so re-creation re-supplies them by construction, and mirrors
-  the per-forest weight on an R5 field that `getPointer` and `setState`
-  re-apply afterwards (`reapplyForestWeights`, [`reapplyForestWeights`](../../R/dbarts.R)). There is no
+  the per-forest weight and the active-row mask on R5 fields that
+  `getPointer`, `setState` and `copy` re-apply afterwards
+  ([`reapplyForestWeights`](../../R/dbarts.R), [`reapplyActiveRows`](../../R/dbarts.R)). There is no
   treatment slot: a Bayesian causal forest's z rides `data@bases` as forest
   2's basis, and moves only through `$setForestBasis`.
-- Two holes remain. A per-forest weight is not part of the state, so a
-  pipeline that discards the R5 holder and installs a DONOR's state into a
-  fresh engine starts with no per-forest weight whatever the donor had, and
-  the two stored states compare equal while the fits diverge. This is a
+- One hole remains, on two channels. Neither the per-forest weight nor the
+  mask is part of the state, so a pipeline that discards the R5 holder and
+  installs a DONOR's state into a fresh engine starts with neither, whatever
+  the donor had, and the two stored states compare equal while the fits
+  diverge. This is a
   contract item, decided in [The multiplier snap and the per-forest weight (2026-08-10)](bcf.md#the-multiplier-snap-and-the-per-forest-weight-2026-08-10) and pinned for the same-holder
-  round trip in `inst/tinytest/test-forest-weights.R`. An active-row mask is
-  mirrored nowhere at all and is lost on re-creation. The channel's own reference -
+  round trip in `inst/tinytest/test-forest-weights.R` and, for the mask, in
+  `inst/tinytest/test-binary-weight-mask.R`. The mask channel's own reference -
   its contract, per-family composition and surfaces - is
   [The contract](active-rows-mask.md#the-contract).
 - A flat C consumer owns every one of them, having no R5 layer to mirror

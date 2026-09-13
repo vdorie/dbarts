@@ -16,6 +16,7 @@ infrastructure <- c(
   "initialize",
   "adoptPointer",
   "reapplyForestWeights",
+  "reapplyActiveRows",
   "getPointer",
   "show"
 )
@@ -39,8 +40,8 @@ inherited <- c(
 own <- setdiff(names(ownMethods), inherited)
 substantiveMethods <- sort(setdiff(own, infrastructure))
 
-expect_equal(length(own), 48L)
-expect_equal(length(infrastructure), 5L)
+expect_equal(length(own), 49L)
+expect_equal(length(infrastructure), 6L)
 expect_equal(length(substantiveMethods), 43L)
 
 expect_identical(

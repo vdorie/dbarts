@@ -26,6 +26,17 @@ control <- dbarts::dbartsControl(
 probitSampler <- function(...) {
   dbarts::dbarts(x, y.binary, family = "probit", control = control, ...)
 }
+countWarnings <- function(expr) {
+  count <- 0L
+  withCallingHandlers(
+    expr,
+    warning = function(w) {
+      count <<- count + 1L
+      invokeRestart("muffleWarning")
+    }
+  )
+  count
+}
 ordinalSampler <- function(...) {
   dbarts::dbarts(x, y.ordinal, family = "ordinal", control = control, ...)
 }
@@ -134,7 +145,7 @@ rm(bySetData, byMask)
 # dbartsSpec() resolves the same rule but builds no sampler, so it hands the
 # mask back on its own element for the caller to install
 spec <- dbarts::dbartsSpec(
-  suppressWarnings(dbarts::dbartsData(x, y.binary, weights = a)),
+  dbarts::dbartsData(x, y.binary, weights = a),
   control = control,
   family = "probit"
 )
@@ -153,7 +164,7 @@ rm(spec, specSampler, byMask)
 # --- the front doors ------------------------------------------------------
 # bart() and bartBT() reach the rule through dbarts(); a masked fit reports
 # every row, and survives a save/load round trip well enough to predict
-fit <- suppressWarnings(dbarts::bart(
+fit <- dbarts::bart(
   x,
   y.binary,
   weights = a,
@@ -165,18 +176,67 @@ fit <- suppressWarnings(dbarts::bart(
   seed = 11L,
   verbose = FALSE,
   keepTrees = TRUE
-))
+)
 expect_identical(ncol(fit$yhat.train), n)
 expect_true(all(is.finite(fit$yhat.train)))
 predicted <- predict(fit, x[1:5, , drop = FALSE])
-# the store-then-save flow every kept sampler takes; the mask itself is not
-# saved state, and predict reads the stored forests rather than the training
-# rows, so a reloaded masked fit predicts what the live one does
+# the store-then-save flow every kept sampler takes; predict reads the stored
+# forests rather than the training rows, so a reloaded masked fit predicts
+# what the live one does
 fit$fit$storeState()
 reloaded <- unserialize(serialize(fit, NULL))
 expect_identical(predict(reloaded, x[1:5, , drop = FALSE]), predicted)
 expect_identical(ncol(predicted), 5L)
 expect_true(all(is.finite(predicted)))
+
+# the fit carries the mask its weights installed, and the log-likelihood
+# channel reports NaN at a masked row - the engine's own convention for a row
+# that is not in the model - rather than the finite value its fit would give
+expect_identical(fit$active, a)
+loglik <- dbarts::extract(fit, "loglik")
+expect_identical(ncol(loglik), n)
+expect_true(all(is.nan(loglik[, a == 0])))
+expect_true(all(is.finite(loglik[, a == 1])))
+
+# the run itself must carry the mask, not merely the sampler bart() built:
+# substituting arbitrary labels at the INACTIVE rows leaves every active row's
+# draw bitwise. An ordinal fit reaches its engine by a second route - the run
+# adopts an engine built separately from the data object, which carries no
+# weights at all - so it is pinned here too.
+frontDoor <- function(y, family, weights) {
+  dbarts::bart(
+    x,
+    y,
+    family = family,
+    weights = weights,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.trees = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 11L,
+    verbose = FALSE
+  )$yhat.train
+}
+expect_identical(
+  frontDoor(y.binary, "probit", a)[, a == 1],
+  frontDoor(ifelse(a == 0, 1 - y.binary, y.binary), "probit", a)[, a == 1]
+)
+expect_false(identical(
+  frontDoor(y.binary, "probit", a),
+  frontDoor(y.binary, "probit", rep(1, n))
+))
+y.ordinal.flipped <- y.ordinal
+y.ordinal.flipped[a == 0] <- (y.ordinal.flipped[a == 0] %% 3) + 1
+expect_identical(
+  frontDoor(y.ordinal, "ordinal", a)[, a == 1, , drop = FALSE],
+  frontDoor(y.ordinal.flipped, "ordinal", a)[, a == 1, , drop = FALSE]
+)
+expect_false(identical(
+  frontDoor(y.ordinal, "ordinal", a),
+  frontDoor(y.ordinal, "ordinal", rep(1, n))
+))
+rm(frontDoor, y.ordinal.flipped)
 
 expect_error(
   dbarts::bart(
@@ -206,7 +266,7 @@ expect_error(
   ),
   "probit models do not support weights other than 0 and 1"
 )
-expect_silent(suppressWarnings(dbarts::bartBT(
+expect_silent(dbarts::bartBT(
   x,
   y.binary,
   weights = a,
@@ -216,7 +276,7 @@ expect_silent(suppressWarnings(dbarts::bartBT(
   nchain = 1L,
   nthread = 1L,
   verbose = FALSE
-)))
+))
 
 # cross-validation partitions the rows itself and has no sampler to install a
 # mask on, so it refuses the vector every other entry point takes
@@ -232,6 +292,67 @@ expect_error(
   "xbart does not accept weights of 0 and 1"
 )
 
+# --- the mask survives the sampler's re-creation --------------------------
+# The mask is not saved state, so a sampler whose external pointer has died
+# across a save and load is re-created from its data object - which for these
+# families carries no weights at all. Were the mask not mirrored and
+# re-applied, every masked row would silently rejoin the likelihood there. An
+# inactive row's latent is not drawn, so a sweep that leaves the inactive
+# latents exactly as they were is the mask still in force.
+inactiveFrozen <- function(sampler) {
+  before <- sampler$getLatents()
+  invisible(sampler$run(0L, 1L))
+  identical(before[a == 0], sampler$getLatents()[a == 0])
+}
+saved <- probitSampler(weights = a)
+invisible(saved$run(20L, 5L))
+saved$storeState()
+kept <- saved$state
+expect_identical(saved$activeRows, a)
+expect_true(inactiveFrozen(saved))
+
+restored <- unserialize(serialize(saved, NULL))
+expect_false(.Call(dbarts:::C_dbarts_bartcore_isValidPointer, restored$pointer))
+expect_identical(restored$activeRows, a)
+expect_true(inactiveFrozen(restored))
+
+# $setState re-creates the same way, and $copy builds a second engine
+restated <- unserialize(serialize(saved, NULL))
+restated$setState(kept)
+expect_true(inactiveFrozen(restated))
+expect_true(inactiveFrozen(saved$copy()))
+
+# $setData clears the mask, and the record of it with it: a sampler swapped
+# onto weightless data must not have one re-applied at its next re-creation
+swapped <- probitSampler(weights = a)
+swapped$setData(dbarts::dbartsData(x, y.binary))
+expect_null(swapped$activeRows)
+rm(swapped)
+
+# the detector is not vacuous: clearing the mask unfreezes those latents
+unmasked <- probitSampler(weights = a)
+invisible(unmasked$run(20L, 5L))
+unmasked$setActiveRows(NULL)
+expect_null(unmasked$activeRows)
+expect_false(inactiveFrozen(unmasked))
+rm(saved, kept, restored, restated, unmasked, inactiveFrozen)
+
+# --- the zero-weight warning ----------------------------------------------
+# a vector of nothing but 0s and 1s states which rows are in the data set, so
+# the zeros are not an inert value to warn about - they are the whole point,
+# and on these families they are the mask outright
+expect_identical(
+  countWarnings(dbarts::dbartsData(x, y.binary, weights = a)),
+  0L
+)
+expect_identical(countWarnings(probitSampler(weights = a)), 0L)
+expect_identical(countWarnings(ordinalSampler(weights = a)), 0L)
+# a real weight vector with an inert zero among it still warns
+expect_warning(
+  dbarts::dbartsData(x, y.binary, weights = replace(runif(n, 0.5, 1.5), 1L, 0)),
+  "'weights' of 0 will be ignored"
+)
+
 rm(
   n,
   x,
@@ -241,7 +362,9 @@ rm(
   control,
   probitSampler,
   ordinalSampler,
+  countWarnings,
   fit,
   reloaded,
-  predicted
+  predicted,
+  loglik
 )

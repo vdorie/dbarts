@@ -545,9 +545,11 @@ mandated, when cheap.
 37 R + 16 C "not support" hits use this exact verb). Conformance: `"a
 treatment forest does not support %s"`
 (["a treatment forest does not support %s"](../../src/R_interface_bartcore.cpp));
-`"probit models do not support weights; fit integer count weights with
-family = \"logistic\", or model continuous weights' latents directly"`
-(["probit models do not support weights; fit integer count weights"](../../R/spec.R)).
+`"probit models do not support weights other than 0 and 1, which mark rows
+in and out of the likelihood as the sampler's $setActiveRows does; fit
+integer count weights with family = \"logistic\", or model continuous
+weights' latents directly"`
+(["probit models do not support weights other than 0 and 1, which mark"](../../R/spec.R)).
 Violation, since reworded to exactly this rule's proposal: `"sample =
 \"test\" is not available for type = \"forest\": an ..."` is now
 `"type = \"forest\" does not support sample = \"test\": no test-sample
