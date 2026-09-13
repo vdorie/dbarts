@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (43 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (44 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -97,6 +97,7 @@ Columns: `file | STATUS | one-liner`.
 | engine-performance.md | LANDED (S1 167e2c62, S3 70305575, weighted fused pass 046c35d7, S5 step 15 d06fbe5e, S5 steps 14, 16-18 1456e999 (follow-up b7802bfa); S2 measured and closed without shipping, dec-B113; S4 measured and closed without shipping, dec-B115) | One gate matrix for the four engine items: a scalar reference build behind a configure flag with the vectorized draw path shipped, the multi-worker wait loop, within-chain threading re-measured and closed (an honest thread count ships instead), and the audit of the fixed engine constants with measurements and control settings. |
 | memory-footprint-audit.md | LANDED (note 13cb7e8a; steps 2-6 2f25e3d1; step 7 fd104888; follow-ons 5a05d799, 2026-09-10) | Derives and measures the per-sampler memory footprint in n, p, trees, chains and test rows, prices the R-layer duplicates beside the engine, records the model in the manual and ranks the avoidable allocations. |
 | repo-modernization.md | MIXED (recurring/standing item) | CI/tooling hygiene: widened concurrency and path filters landed; no codecov integration - coverage stays local-on-demand. |
+| valgrind-xbart.md | RUN AND REPORTED, 2026-09-13 | Records the memory check at the tip and diagnoses the seven assertions that failed under valgrind on the nightly job's last recorded run. Nothing is lost and no access is invalid; all seven come from valgrind emulating the x87 unit at 64 bits, so R's long-double accumulators round differently under it. The six xbart ones compare a one-worker sweep, which valgrind executes, against a many-worker sweep, whose worker processes it does not trace, and differ by one or two units in the last place with the sampler's own draws bitwise identical; they are fixed here by comparing to a tolerance under valgrind and bitwise everywhere else. The convergence-diagnostic snapshot is a rank tie broken by accumulator width, already fixed at the tip by the dyadic fixtures. |
 
 ## Review / retrospective programs
 
