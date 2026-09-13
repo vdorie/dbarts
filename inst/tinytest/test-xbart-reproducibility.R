@@ -43,6 +43,26 @@ expect_equal(xval.1, xval.2)
 # unit - and how many there were - reaches no draw. Under R CMD check
 # --as-cran more than two simultaneous worker processes are refused, so the
 # four-thread arm runs everywhere else.
+
+# One worker runs the units in THIS process and several run them in worker
+# processes, so a one-vs-many comparison crosses a process boundary. Under
+# valgrind that boundary is also an arithmetic boundary: valgrind emulates the
+# x87 unit at 64 bits, and the workers, which it does not trace, keep the
+# hardware's 80. The sampler draws are bitwise identical either way - it does
+# its own arithmetic in double - but the loss is built from them by R's mean()
+# and rowMeans(), whose accumulators are long double on x86_64, so the two
+# arms land a couple of ulp apart. Compare to a tolerance there and bitwise
+# everywhere else, which is every real thread-count dependence: a seeding or
+# fold-assignment difference moves a whole fit, not its last bits.
+underValgrind <- grepl("vgpreload", Sys.getenv("LD_PRELOAD"), fixed = TRUE)
+expectSameSweep <- function(target, current, info) {
+  if (underValgrind) {
+    expect_equal(current, target, tolerance = 1e-12, info = info)
+  } else {
+    expect_identical(current, target, info = info)
+  }
+}
+
 maxWorkers <- if (
   nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_", "")) ||
     parallel::detectCores() < 4L
@@ -57,7 +77,7 @@ for (n.threads in threadCounts) {
   xval.threaded <- runXval(n.threads)
   expect_true(all(!is.na(xval.threaded)))
   expect_equal(dim(xval.threaded), c(4L, length(k)))
-  expect_identical(
+  expectSameSweep(
     xval.1,
     xval.threaded,
     info = paste("n.threads =", n.threads)
@@ -86,7 +106,7 @@ runFolds <- function(n.threads) {
 folds.1 <- runFolds(1L)
 expect_true(all(!is.na(folds.1)))
 for (n.threads in threadCounts) {
-  expect_identical(
+  expectSameSweep(
     folds.1,
     runFolds(n.threads),
     info = paste("10 folds at n.threads =", n.threads)
@@ -143,6 +163,8 @@ unseeded <- function() {
 expect_true(any(unseeded() != unseeded()))
 
 rm(
+  expectSameSweep,
+  underValgrind,
   unseededAt,
   seedBefore,
   unseeded,
