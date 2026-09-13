@@ -2438,6 +2438,20 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
     forest.amplitudePriorScale = params[6];
     forest.updateAmplitude = params[7] != 0.0;
     forest.ridge = forest.amplitudePriorScale > 0.0;
+    // The tree-move mixture is a property of the FIT, not of a forest: one
+    // control slot, so every forest of a coupling proposes from the same
+    // mixture. Carried here because the K-forest chain builds each forest from
+    // its own spec and never reads the sampler options, so a mixture left
+    // unset would silently stand at the ForestStructureSpec defaults - which
+    // are the model's own defaults, so a defaulted fit is bitwise unchanged.
+    // An all-zero mixture freezes EVERY forest's structure, the sweep reading
+    // the frozen flag per forest.
+    forest.forest.birthOrDeathProbability = model.birthOrDeathProbability;
+    forest.forest.swapProbability = model.swapProbability;
+    forest.forest.changeProbability = model.changeProbability;
+    forest.forest.perturbProbability = model.perturbProbability;
+    forest.forest.ruleGibbsProbability = model.ruleGibbsProbability;
+    forest.forest.birthProbability = model.birthProbability;
 
     // the forest's optional column restriction: 1-based indices resolved
     // R-side, or NULL for an unrestricted forest reading the full store.
@@ -2572,8 +2586,10 @@ double defaultNodeScale(bartcore::ResponseFamily family) {
 // constant leaf is the single instantiation, the variance forest is built
 // only by the single-forest constructor, the cut cap
 // and the test surface are left undefined, and the gaussian response law is
-// not the Student-t mixture. The R surface refuses the same list ahead of this
-// backstop, which is what a direct dbarts.h consumer meets.
+// not the Student-t mixture. The tree-move mixture is NOT on the list: every
+// forest of the coupling is built with the control's own mixture. The R
+// surface refuses the same list ahead of this backstop, which is what a direct
+// dbarts.h consumer meets.
 void refuseUnsupportedAmplitudeComposition(
     bartcore::ResponseFamily family, const ParsedModel& model,
     const ParsedData& data, const bartcore::SamplerOptions& options) {
@@ -2595,12 +2611,6 @@ void refuseUnsupportedAmplitudeComposition(
   // calibration in response units instead, and the calibration map would drop
   // it in silence, so it is its own offender
   else if (std::isfinite(model.priorScale)) offender = "a named 'prior.scale'";
-  else if (model.birthOrDeathProbability != 0.6 ||
-           model.swapProbability != 0.0 || model.changeProbability != 0.4 ||
-           model.perturbProbability != 0.0 ||
-           model.ruleGibbsProbability != 0.0 ||
-           model.birthProbability != 0.5)
-    offender = "non-default proposal probabilities";
   else if (std::isfinite(model.residualDf)) offender = "Student-t residuals";
   else if (options.numVarianceTrees > 0) offender = "a variance forest";
   else if (options.fp32Residual) offender = "single-precision storage";

@@ -577,69 +577,71 @@ expect_error(
   ),
   "storage = \"single\""
 )
-expect_error(
-  dbarts(
-    x,
-    y,
-    forests = twoForests,
-    proposal.probs = c(
-      birth_death = 0.6,
-      swap = 0.1,
-      change = 0.3,
-      birth = 0.5
-    ),
-    control = control
-  ),
-  "non-default 'proposal.probs'"
-)
-# a caller who spells the documented default and omits the move that ships at
-# zero is passing the default, not a non-default one: the refusal fills the
-# missing name before comparing, so this creates
+# the tree-move mixture is NOT on the refusal list: it is a property of the
+# fit, carried onto every forest of the declaration, so each of these creates.
+# That the mixture reaches BOTH forests rather than only the prognostic one is
+# pinned in test-proposal-probs.R, which reads the two forests' split counts.
 expect_silent(
   dbarts(
     x,
     y,
     forests = twoForests,
-    proposal.probs = c(
-      birth_death = 0.6,
-      swap = 0,
-      change = 0.4,
-      birth = 0.5
-    ),
-    control = control
+    control = seededControlBcfCreation(
+      proposal.probs = c(
+        birth_death = 0.6,
+        swap = 0.1,
+        change = 0.3,
+        birth = 0.5
+      )
+    )
   )
 )
-expect_error(
+expect_silent(
   dbarts(
     x,
     y,
     forests = twoForests,
-    proposal.probs = c(
-      birth_death = 0.6,
-      swap = 0,
-      change = 0.24,
-      perturb = 0.16,
-      birth = 0.5
-    ),
-    control = control
-  ),
-  "non-default 'proposal.probs'"
+    control = seededControlBcfCreation(
+      proposal.probs = c(
+        birth_death = 0.6,
+        swap = 0,
+        change = 0.4,
+        birth = 0.5
+      )
+    )
+  )
 )
-expect_error(
+expect_silent(
   dbarts(
     x,
     y,
     forests = twoForests,
-    proposal.probs = c(
-      birth_death = 0.6,
-      swap = 0,
-      change = 0.24,
-      rule_gibbs = 0.16,
-      birth = 0.5
-    ),
-    control = control
-  ),
-  "non-default 'proposal.probs'"
+    control = seededControlBcfCreation(
+      proposal.probs = c(
+        birth_death = 0.6,
+        swap = 0,
+        change = 0.24,
+        perturb = 0.16,
+        birth = 0.5
+      )
+    )
+  )
+)
+expect_silent(
+  dbarts(
+    x,
+    y,
+    forests = twoForests,
+    control = seededControlBcfCreation(
+      proposal.probs = c(
+        birth_death = 0.6,
+        swap = 0,
+        change = 0.24,
+        rule_gibbs = 0.16,
+        birth = 0.5
+      )
+    )
+  )
 )
 expect_error(
   dbarts(

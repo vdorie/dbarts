@@ -595,6 +595,12 @@
             other mixture must still sum to one, and an all-zero named
             vector stays all-zero rather than handing the residual to an
             unnamed \code{"swap"}.
+      \item A multi-forest declaration (\code{forests}, the two-forest
+            Bayesian causal forest among them) honors the
+            \code{proposal.probs} mixture on every one of its forests
+            rather than refusing it: the mixture is a property of the fit,
+            and a frozen one holds every forest's structures. Fits at the
+            default mixture are unchanged.
       \item The rewritten engine replaces the pre-1.0 engine: every
             fitting function runs on it. Fits are not draw-for-draw
             identical to the pre-1.0 engine's, and the corrections listed
