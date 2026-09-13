@@ -163,6 +163,14 @@ A list with components
 
   the resolved family token, never `"auto"`.
 
+- active:
+
+  the active-row mask a `"probit"` or `"ordinal"` fit's 0/1 case weights
+  resolved to, `NULL` when they resolved to none; the `data` object's
+  weights slot is cleared either way, since neither family carries one,
+  so a caller building a sampler from this list must install the mask on
+  it.
+
 ## See also
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),

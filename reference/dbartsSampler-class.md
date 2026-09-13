@@ -417,29 +417,34 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   the Polya-Gamma latents, which are redrawn against the new counts
   before the call returns - from the sampler's own generators, not R's
   stream - so an outer sampler can vary exposure between runs. `probit`,
-  `ordinal`, `aft` and `nbinom` refuse it by identification: a weighted
-  probit has no tractable latent-variable form, `ordinal` inherits that,
-  `aft` fixes its censoring structure at creation, and `nbinom`'s
-  Polya-Gamma shape is \\y_i + r\\ with no weight slot. `setData`
-  carries the same rule on the whole-data conduit, and redraws the
-  latents against the counts the replacement data carries; replacement
-  data given without weights is single-trial, as at creation, so a
-  logistic sampler built with counts and handed weightless data becomes
-  an unweighted one. Under an installed mask a swap redraws only the
-  ACTIVE rows - an inactive row consumes no random numbers and returns
-  to its deterministic cold start against the new count. The weights
-  themselves are not part of the saved `state`, but a digest of the ones
-  in force when it was stored is: `setState` compares it against the
-  destination's own weights and, where the two disagree, re-derives the
-  weight-dependent latents against the DESTINATION's - so a restore
-  lands where the same `setWeights` call would rather than pairing one
-  vector's latents with another's counts, silently and off the restored
-  generators. A matched round trip re-derives nothing and installs the
-  stored state unchanged. Only a family whose augmentation is stated
-  against the weights moves under it (`logistic`); for gaussian,
-  Student-t and every weight-refusing family it is a no-op. See
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
-  the family-specific weight rules that apply at creation time.
+  `ordinal`, `aft` and `nbinom` refuse a weighted likelihood by
+  identification: a weighted probit has no tractable latent-variable
+  form, `ordinal` inherits that, `aft` fixes its censoring structure at
+  creation, and `nbinom`'s Polya-Gamma shape is \\y_i + r\\ with no
+  weight slot. On a `probit` or `ordinal` sampler a vector of 0s and 1s
+  is accepted all the same: it names the rows in the data set rather
+  than a precision, so `setWeights` routes it to `active` below -
+  installing the mask, all-ones clearing it - and leaves the data
+  object's `weights` slot empty; any other value keeps the refusal.
+  `setData` carries the same rule on the whole-data conduit, and redraws
+  the latents against the counts the replacement data carries;
+  replacement data given without weights is single-trial, as at
+  creation, so a logistic sampler built with counts and handed
+  weightless data becomes an unweighted one. Under an installed mask a
+  swap redraws only the ACTIVE rows - an inactive row consumes no random
+  numbers and returns to its deterministic cold start against the new
+  count. The weights themselves are not part of the saved `state`, but a
+  digest of the ones in force when it was stored is: `setState` compares
+  it against the destination's own weights and, where the two disagree,
+  re-derives the weight-dependent latents against the DESTINATION's - so
+  a restore lands where the same `setWeights` call would rather than
+  pairing one vector's latents with another's counts, silently and off
+  the restored generators. A matched round trip re-derives nothing and
+  installs the stored state unchanged. Only a family whose augmentation
+  is stated against the weights moves under it (`logistic`); for
+  gaussian, Student-t and every weight-refusing family it is a no-op.
+  See [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+  for the family-specific weight rules that apply at creation time.
 
   For `setForestWeights`, a distinct per-FOREST case weight on a
   Bayesian causal forest (built with `forests = `, see
@@ -486,7 +491,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   where an all-ones vector installs and is measurably distinct from
   carrying no weights at all. One channel states membership, the other
   precision, and the two deliberately carry opposite degenerate-value
-  policies.
+  policies. A `probit` or `ordinal` sampler, which carries no precision
+  channel at all, reaches this one through `setWeights` and `setData` as
+  well: 0/1 weights there install the mask rather than being refused.
 
   An inactive row (`active[i] == 0`) contributes nothing to any leaf
   sufficient statistic, branch log-likelihood, birth-scan weight total,
@@ -545,14 +552,20 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   the number of rows - so a caller replacing the data must reinstall any
   mask it wants kept.
 
-  The mask does not ride a sampler's saved `state`: a sampler rebuilt
-  with `setState` from a stored state silently drops the mask and
-  computes different draws while `statesAgree` still reports agreement.
-  It is DROPPED rather than reconciled, which is where it parts from the
-  case weights: a destination that never had a mask has no other mask
-  for the restore to re-derive against, only an absent channel, so a
-  caller that wants one reinstalls it by hand. Conversely, the latents
-  DO ride the state, and under an installed mask they are stale at every
+  The mask does not ride a sampler's saved `state` - the state carries
+  derived quantities and no raw conditioning vector - so, exactly as
+  `setForestWeights`'s per-forest weight is, it is mirrored on an R5
+  field that `getPointer`, `setState` and `copy` all reinstall on every
+  re-creation: a masked sampler saved and reloaded goes on masked, and a
+  caller never reinstalls it by hand. What the mirror cannot do is
+  travel with the state itself. Installing a stored state into a
+  DIFFERENT sampler object leaves that object's own mask in force,
+  whatever the donor's was - a destination that never had one stays
+  unmasked and computes different draws while `statesAgree` still
+  reports agreement - since the state holds no mask for the restore to
+  re-derive against. That is where the mask parts from the case weights,
+  which the state carries a digest of. Conversely, the latents DO ride
+  the state, and under an installed mask they are stale at every
   inactive row for a skipping family, so two samplers at the same
   posterior state but different mask histories carry different stored
   latents and `statesAgree` correctly reports DISAGREEMENT; a Student-t
@@ -991,20 +1004,24 @@ it for validity first. If the engine the cached pointer refers to is no
 longer live (typically after a
 [`load`](https://rdrr.io/r/base/load.html)), it transparently re-creates
 one from `control`, `model`, `data` and the stored `state`, reinstalls
-every recorded forest weight (see `reapplyForestWeights` below, since
-forest weights do not ride the saved state) so the replacement matches a
-freshly built engine, and only then replaces the cached pointer; a
-re-creation that fails leaves the sampler exactly as it was.
-`adoptPointer(ptr)` is the write side of the same relationship: it
-rebinds the sampler onto `ptr`, an `externalptr` some caller built
-directly, outside this object, from this sampler's own
+every recorded forest weight and any recorded active-row mask (see
+`reapplyForestWeights` below, since neither rides the saved state) so
+the replacement matches a freshly built engine, and only then replaces
+the cached pointer; a re-creation that fails leaves the sampler exactly
+as it was. `adoptPointer(ptr)` is the write side of the same
+relationship: it rebinds the sampler onto `ptr`, an `externalptr` some
+caller built directly, outside this object, from this sampler's own
 `(control, model, data)` triple, in place of the engine this object
 created at construction; the abandoned engine becomes unreachable and is
 released once by its own finalizer. `adoptPointer` trusts the caller
 that `ptr` was built from this object's own triple and performs no
-independent check. `reapplyForestWeights(ptr)` re-installs every
-per-forest weight mirrored on the sampler onto a freshly (re-)created
-`ptr`; it is called only from `getPointer` and `setState`, never
+independent check, and re-installs onto `ptr` the two channels that
+triple does not carry - the forest weights and the active-row mask - so
+the adopted engine conditions on what this object says it does.
+`reapplyForestWeights(ptr)` re-installs every per-forest weight mirrored
+on the sampler onto a freshly (re-)created `ptr`, and
+`reapplyActiveRows(ptr)` the mirrored active-row mask; they are called
+only from `getPointer`, `setState`, `adoptPointer` and `copy`, never
 directly.
 
 These three are the only R-level primitives for exchanging engine

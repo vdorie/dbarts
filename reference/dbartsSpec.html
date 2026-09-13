@@ -106,6 +106,9 @@
   <dt>family</dt>
 <dd><p>the resolved family token, never <code>"auto"</code>.</p></dd>
 
+  <dt>active</dt>
+<dd><p>the active-row mask a <code>"probit"</code> or <code>"ordinal"</code> fit's 0/1 case weights resolved to, <code>NULL</code> when they resolved to none; the <code>data</code> object's weights slot is cleared either way, since neither family carries one, so a caller building a sampler from this list must install the mask on it.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

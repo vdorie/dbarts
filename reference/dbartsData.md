@@ -33,7 +33,11 @@ dbartsData(
   flat vector (or single number) is accepted, and a matrix is refused.
   `formula` may itself be a `dbartsData` object, in which case it is
   returned as-is; any other argument supplied alongside it is then
-  ignored, with a warning (class `dbartsIgnoredArgWarning`).
+  ignored, with a warning (class `dbartsIgnoredArgWarning`). `weights`
+  are held as given, validated here only for length, `NA` and
+  non-negativity; the family's own rule applies when a sampler is built
+  from the object, where a `"probit"` or `"ordinal"` fit accepts only
+  weights of 0 and 1 and installs them as its active-row mask.
 
 - bases:
 

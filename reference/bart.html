@@ -216,7 +216,7 @@
 <dd><p>An optional vector of logicals or indices used to subset the data. Can be missing. A <code><a href="forest.html">forest()</a></code> term's basis is evaluated inside the same subsetted model frame as every other predictor (‘Formula Terms’); a basis given directly through <code><a href="dbarts.html">dbarts</a></code>'s <code>forests =</code> instead follows that argument's own subsetting rule (see <code><a href="forest.html">forest</a></code>'s <code>basis</code> item).</p></dd>
 
    <dt id="arg-weights">weights<a class="anchor" aria-label="anchor" href="#arg-weights"></a></dt>
-<dd><p>An optional vector of weights to be used in the fitting process. For a gaussian response, BART fits a model with observations \(y \mid x \sim N(f(x), \sigma^2 / w)\), where \(f(x)\) is the unknown function. A probit fit (the default binary family here, and <code><a href="bartBT.html">bartBT</a></code>'s) does not support weights, except that weights identically 1 are treated as absent; a <code>family = "logistic"</code> fit treats them as observation counts and requires positive integers. For a weighted logistic fit, the <code>"ppd"</code> draw at an observation with weight \(w\) is the number of successes among \(w\) trials, \(\mathrm{Binomial}(w, p)\) with \(p\) the fitted probability.</p></dd>
+<dd><p>An optional vector of weights to be used in the fitting process. For a gaussian response, BART fits a model with observations \(y \mid x \sim N(f(x), \sigma^2 / w)\), where \(f(x)\) is the unknown function. A probit fit (the default binary family here, and <code><a href="bartBT.html">bartBT</a></code>'s) does not support weights, except that weights identically 1 are treated as absent, and weights that are all 0 and 1 name the rows in the data set and install as the fit's active-row mask, a 0 row leaving the likelihood but keeping its leaf occupancy, its latent and its fitted value (the same holds for <code>family = "ordinal"</code>); a <code>family = "logistic"</code> fit treats them as observation counts and requires positive integers. For a weighted logistic fit, the <code>"ppd"</code> draw at an observation with weight \(w\) is the number of successes among \(w\) trials, \(\mathrm{Binomial}(w, p)\) with \(p\) the fitted probability.</p></dd>
 
    <dt id="arg-offset">offset<a class="anchor" aria-label="anchor" href="#arg-offset"></a></dt>
 <dd><p>An additive offset entering the family's mean or link, applied to training data; see <code><a href="dbarts.html">dbarts</a></code>'s <code>offset</code> item for the exact per-family formula. The same concept as <code><a href="bartBT.html">bartBT</a></code>'s <code>binaryOffset</code> (which only ever applies to that function's probit/logistic default family). Can be missing.</p>
@@ -469,7 +469,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001600</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001544</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 </span>
@@ -517,7 +517,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001928</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001970</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 2 2 3 3 2 2 2 2 </span>

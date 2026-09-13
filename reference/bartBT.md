@@ -214,11 +214,15 @@ residuals(object, type = "ev", ...)
   probit fit (`bartBT`, or
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) with the
   default binary family) does not support weights, except that weights
-  identically 1 are treated as absent; a `family = "logistic"` fit
-  treats them as observation counts and requires positive integers. For
-  a weighted logistic fit, the `"ppd"` draw at an observation with
-  weight \\w\\ is the number of successes among \\w\\ trials,
-  \\\mathrm{Binomial}(w, p)\\ with \\p\\ the fitted probability.
+  identically 1 are treated as absent, and weights that are all 0 and 1
+  name the rows in the data set and install as the fit's active-row
+  mask, a 0 row leaving the likelihood but keeping its leaf occupancy,
+  its latent and its fitted value (the same holds for
+  `family = "ordinal"`); a `family = "logistic"` fit treats them as
+  observation counts and requires positive integers. For a weighted
+  logistic fit, the `"ppd"` draw at an observation with weight \\w\\ is
+  the number of successes among \\w\\ trials, \\\mathrm{Binomial}(w,
+  p)\\ with \\p\\ the fitted probability.
 
 - ntree:
 
@@ -1044,25 +1048,25 @@ bartFit <- bart(x, y)
 #> Running mcmc loop:
 #> [1] iteration: 100 (of 500)
 #> [2] iteration: 100 (of 500)
-#> [2] iteration: 200 (of 500)
 #> [1] iteration: 200 (of 500)
-#> [2] iteration: 300 (of 500)
+#> [2] iteration: 200 (of 500)
 #> [1] iteration: 300 (of 500)
-#> [2] iteration: 400 (of 500)
+#> [2] iteration: 300 (of 500)
 #> [1] iteration: 400 (of 500)
-#> [2] iteration: 500 (of 500)
+#> [2] iteration: 400 (of 500)
 #> [1] iteration: 500 (of 500)
-#> [4] iteration: 100 (of 500)
+#> [2] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
-#> [4] iteration: 200 (of 500)
+#> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
-#> [4] iteration: 300 (of 500)
+#> [4] iteration: 200 (of 500)
 #> [3] iteration: 300 (of 500)
-#> [4] iteration: 400 (of 500)
+#> [4] iteration: 300 (of 500)
 #> [3] iteration: 400 (of 500)
-#> [4] iteration: 500 (of 500)
+#> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
-#> total seconds in loop: 0.149378
+#> [4] iteration: 500 (of 500)
+#> total seconds in loop: 0.146955
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

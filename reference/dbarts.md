@@ -94,14 +94,22 @@ dbarts(
   An optional vector of weights to be used in the fitting process. For a
   gaussian response, BART fits a model with observations \\y \mid x \sim
   N(f(x), \sigma^2 / w)\\, where \\f(x)\\ is the unknown function.
-  Binary responses differ: a `"probit"` model does not support weights
-  (a weighted probit has no tractable latent-variable form), except that
-  weights identically 1 are treated as absent; a `"logistic"` model
-  treats them as observation counts and so requires positive integers
-  (its Polya-Gamma latent for a count \\w\\ is a sum of \\w\\ unit
-  draws). A weight of 0 is honored but adds no information while still
-  costing computation, and is warned about (class
-  `dbartsIgnoredArgWarning`); the same class covers `weights` going
+  Binary responses differ: a `"probit"` model does not support a
+  weighted likelihood (a weighted probit has no tractable
+  latent-variable form), except that weights identically 1 are treated
+  as absent. A `"probit"` or `"ordinal"` fit does accept weights that
+  are all 0 and 1: those name the rows in the data set rather than a
+  precision, so they install as the sampler's active-row mask, where a 0
+  row leaves the likelihood but keeps its leaf occupancy, its latent and
+  its fitted value. A `"logistic"` model differs again: it treats them
+  as observation counts and so requires positive integers (its
+  Polya-Gamma latent for a count \\w\\ is a sum of \\w\\ unit draws). A
+  weight of 0 is honored but adds no information while still costing
+  computation, and is warned about (class `dbartsIgnoredArgWarning`)
+  unless every weight is 0 or 1 - a vector of nothing but those states
+  which rows are in the data set rather than carrying an inert value
+  among real weights, and is the active-row mask outright for a
+  `"probit"` or `"ordinal"` fit; the same class covers `weights` going
   unused for `test` - when the model is not specified as a formula, and
   when `weights` names a column `test` does not carry.
 

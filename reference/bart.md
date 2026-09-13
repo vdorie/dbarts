@@ -236,11 +236,15 @@ print(x, ...)
   probit fit (the default binary family here, and
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s)
   does not support weights, except that weights identically 1 are
-  treated as absent; a `family = "logistic"` fit treats them as
-  observation counts and requires positive integers. For a weighted
-  logistic fit, the `"ppd"` draw at an observation with weight \\w\\ is
-  the number of successes among \\w\\ trials, \\\mathrm{Binomial}(w,
-  p)\\ with \\p\\ the fitted probability.
+  treated as absent, and weights that are all 0 and 1 name the rows in
+  the data set and install as the fit's active-row mask, a 0 row leaving
+  the likelihood but keeping its leaf occupancy, its latent and its
+  fitted value (the same holds for `family = "ordinal"`); a
+  `family = "logistic"` fit treats them as observation counts and
+  requires positive integers. For a weighted logistic fit, the `"ppd"`
+  draw at an observation with weight \\w\\ is the number of successes
+  among \\w\\ trials, \\\mathrm{Binomial}(w, p)\\ with \\p\\ the fitted
+  probability.
 
 - offset:
 
@@ -1529,7 +1533,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001600
+#> total seconds in loop: 0.001544
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1577,7 +1581,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001928
+#> total seconds in loop: 0.001970
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 
