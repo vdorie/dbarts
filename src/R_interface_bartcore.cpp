@@ -4511,8 +4511,9 @@ SEXP bartcore_getFitsWithoutOffset(SEXP ptrExpr) {
 // scale, numObservations (or numTestObservations) x numChains - the mid-sweep
 // read of the run's own variance and varianceTest channels. Null where those
 // channels report nothing: off a variance forest, and at a test read with no
-// test rows. Both refusals are the ENGINE'S, reported here as the null rather
-// than re-tested on this side.
+// test rows. Both conditions are read off the engine's own shape, which is what
+// sizes the matrix anyway, so they are the same predicates
+// Chain::currentVarianceFits refuses on; its bool is redundant here and dropped.
 SEXP bartcore_getVariance(SEXP ptrExpr, SEXP testExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
