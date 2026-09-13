@@ -4917,6 +4917,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   bool stoppedByCallback = false;
   bool cancelled = false;
   bartcore_bridge::CapturedError error;
+  SEXP continuation = NULL;
   GetRNGstate();
   // The R route's callback gets the same protection the flat one's does: a
   // raise inside it jumps at the leaf and arrives here as an UnwindJump, the
@@ -4932,10 +4933,16 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
                     &stoppedByCallback);
     });
   } catch (const UnwindJump& jump) {
+    continuation = jump.continuation;
+  }
+  // the handler is left before the jump resumes: a longjmp out of a live catch
+  // block strands the exception on this thread's caught-exception stack, the
+  // same reason captureExceptions copies its message out before raising
+  if (continuation != NULL) {
     PutRNGstate();
     std::vector<std::uint32_t>().swap(variableCounts);
     std::vector<double>().swap(scratch);
-    R_ContinueUnwind(jump.continuation); // does not return
+    R_ContinueUnwind(continuation); // does not return
   }
   PutRNGstate();
   if (error.failed) {

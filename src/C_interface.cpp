@@ -561,6 +561,7 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
   // failure arrives as an ordinary exception and becomes an R error, raised
   // below where nothing is in flight.
   bartcore_bridge::CapturedError error;
+  SEXP continuation = NULL;
   try {
     DrawCallbackProtection armed(sampler->drawHook);
     bartcore_bridge::captureExceptions(error, [&]() {
@@ -609,10 +610,15 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
   } catch (const UnwindJump& jump) {
     // the protection is disarmed by now: the throw ran every destructor
     // between the callback and here, this frame's guard included
-    R_ContinueUnwind(jump.continuation); // does not return
+    continuation = jump.continuation;
   }
+  // the handler is left before the jump resumes: a longjmp out of a live catch
+  // block strands the exception on this thread's caught-exception stack, the
+  // same reason captureExceptions copies its message out before raising
+  if (continuation != NULL) R_ContinueUnwind(continuation); // does not return
   if (error.failed) Rf_error("dbarts_sampler_run: %s", error.message);
 }
+
 /// The setter copies the pair into the sampler and nothing else: no call is
 /// made through fn here, and the sampler neither reads nor frees the context.
 /// A null fn clears, dropping the context with it.
@@ -738,6 +744,7 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
   });
   return filled;
 }
+
 void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
                                    size_t numSamplesToStore) {
   samplerOf(sampler).setTreeStorage(keepTrees != 0, numSamplesToStore);

@@ -372,12 +372,16 @@ typedef struct dbarts_draw_t {
 /// An interrupt cannot land while a call is running either, so a callback that
 /// blocks hangs the session with no Ctrl-C.
 ///
-/// RAISING. The callback MAY raise an R error (Rf_error, or anything that
-/// longjmps) on an INLINE run - one where the callback reaches this thread
-/// rather than a worker, which is any run with min(numThreads, numChains) <= 1
-/// (set the thread count with dbarts_sampler_setNumThreads and read the chain
-/// count with dbarts_sampler_numChains). The call into the callback is made
-/// under R_UnwindProtect, so the jump becomes a C++ unwind AT THE CALLBACK:
+/// RAISING. The callback MAY raise an R error (Rf_error) on an INLINE run -
+/// one where the callback reaches this thread rather than a worker, which is
+/// any run with min(numThreads, numChains) <= 1 (set the thread count with
+/// dbarts_sampler_setNumThreads and read the chain count with
+/// dbarts_sampler_numChains). That raise is the one R call the ban above
+/// admits, its own allocation included, and it must be R's error jump: a
+/// longjmp to a setjmp of the caller's own, or a C++ exception thrown out of
+/// the callback, abandons the context R establishes around this call and
+/// leaves R reading a dead one. The call into the callback is made under
+/// R_UnwindProtect, so the jump becomes a C++ unwind AT THE CALLBACK:
 /// the run stops there and every frame between the callback and this entry,
 /// the library's own included, is destroyed before the error is handed back to
 /// R, so the entry does NOT return. The sampler is left exactly as a nonzero

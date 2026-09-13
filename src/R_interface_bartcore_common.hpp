@@ -199,17 +199,24 @@ struct ShippedDrawHook {
 /// UnwindJump and resume the jump with R_ContinueUnwind; one that does not
 /// leaves its callbacks unprotected, which is the behaviour a registered
 /// callback had before this existed.
+///
+/// The previous value is RESTORED rather than cleared: a callback may enter a
+/// run of its own on the same sampler, which nests two of these over one hook,
+/// and clearing would leave the outer run's remaining draws unprotected once
+/// the inner run returned.
 class DrawCallbackProtection {
 public:
-  explicit DrawCallbackProtection(ShippedDrawHook& hook) : hook_(hook) {
+  explicit DrawCallbackProtection(ShippedDrawHook& hook)
+    : hook_(hook), previous_(hook.protectedThread) {
     hook_.protectedThread = std::this_thread::get_id();
   }
-  ~DrawCallbackProtection() { hook_.protectedThread = std::thread::id(); }
+  ~DrawCallbackProtection() { hook_.protectedThread = previous_; }
   DrawCallbackProtection(const DrawCallbackProtection&) = delete;
   DrawCallbackProtection& operator=(const DrawCallbackProtection&) = delete;
 
 private:
   ShippedDrawHook& hook_;
+  std::thread::id previous_;
 };
 
 /// The adapter itself: one per-draw stack copy into the shipped layout, which
