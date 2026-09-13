@@ -1042,6 +1042,34 @@ public:
     return varianceForest_ ? varianceForest_->combinedVarianceTest.data()
                            : nullptr;
   }
+  /// The current variance surface s^2(x) on the ORIGINAL response scale - the
+  /// working product times sigmaScale^2 - over the training rows (test false,
+  /// numObservations doubles) or the test rows (test true,
+  /// numTestObservations doubles). That is exactly what a recorded sweep's
+  /// variance channel carries, read mid-sweep and without serializing state.
+  /// False, writing nothing, off a variance forest and at a test read with no
+  /// test rows: those are the states in which the channels report nothing
+  /// either. The test read REBUILDS the test surface first, because it is
+  /// maintained only at a recorded sweep - a state reached any other way, a
+  /// prior draw or a test-predictor swap, leaves the stored product stale.
+  /// Non-const for that rebuild; the training surface is maintained
+  /// continuously and is a straight read.
+  bool currentVarianceFits(bool test, double* out) {
+    if (!varianceForest_) return false;
+    const VarianceForest& vf = *varianceForest_;
+    double varScale = response_->sigmaScale() * response_->sigmaScale();
+    if (!test) {
+      for (std::size_t i = 0; i < data_.numObservations; ++i)
+        out[i] = varScale * vf.combinedVariance[i];
+      return true;
+    }
+    std::size_t nTest = data_.numTestObservations;
+    if (nTest == 0) return false;
+    refreshVarianceTestFits();
+    for (std::size_t i = 0; i < nTest; ++i)
+      out[i] = varScale * vf.combinedVarianceTest[i];
+    return true;
+  }
   bool hasVarianceForest() const { return varianceForest_ != nullptr; }
   std::size_t numVarianceTrees() const {
     return varianceForest_ ? varianceForest_->numTrees : 0;

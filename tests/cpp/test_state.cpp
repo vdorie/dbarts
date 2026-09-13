@@ -1457,6 +1457,106 @@ static void testVarianceForestPriorDraw() {
          "df %.3f)\n", numDraws, mean, 2.0 / variance);
 }
 
+// The CURRENT-state read of the variance surface: the same quantity a recorded
+// sweep's variance and varianceTest channels carry, on the original scale and
+// with no run. The test arm rebuilds before it reports, which is what makes the
+// read correct at a state no recorded sweep produced - here a test-predictor
+// swap, whose new rows the stored test product knows nothing about.
+static void testCurrentVarianceRead() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 838383u;
+
+  const size_t n = 300, p = 2, numTrees = 20, numVarianceTrees = 5;
+  const size_t numSamples = 4, nTest = 6, testBase = 11, testBase2 = 97;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = 3.0 * x[i] + (x[i + n] < 0.5 ? 0.2 : 1.4) * z;
+  }
+  // the test rows ARE training rows, so the two reads must agree entry for
+  // entry: one surface, addressed two ways
+  auto testRowsFrom = [&](size_t base) {
+    std::vector<double> block(nTest * p);
+    for (size_t i = 0; i < nTest; ++i) {
+      block[i] = x[base + i];
+      block[i + nTest] = x[base + i + n];
+    }
+    return block;
+  };
+  std::vector<double> xTest = testRowsFrom(testBase);
+  std::vector<double> xTest2 = testRowsFrom(testBase2);
+
+  std::vector<ext_rng*> rngs;
+  auto makeSampler = [&](std::uint32_t seed, size_t numVariance) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numVarianceTrees = numVariance;
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+      3.0, 0.37804942330213542, options, &r);
+  };
+
+  auto sampler = makeSampler(3131, numVarianceTrees);
+  sampler->setTestPredictors(xTest.data(), nTest);
+  std::vector<double> sigma(numSamples), recordedTrain(n * numSamples),
+    recordedTest(nTest * numSamples);
+  Results results;
+  results.sigma = sigma.data();
+  results.varianceFits = recordedTrain.data();
+  results.varianceTestFits = recordedTest.data();
+  sampler->run(40, numSamples, results);
+
+  std::vector<double> train(n), test(nTest);
+  check(sampler->currentVarianceFits(0, false, train.data()),
+        "current variance: a heteroscedastic sampler answers the train read");
+  check(sampler->currentVarianceFits(0, true, test.data()),
+        "current variance: and the test read with test rows installed");
+  bool trainAgrees = true, testAgrees = true, rowsAgree = true;
+  const double* lastTrain = recordedTrain.data() + (numSamples - 1) * n;
+  const double* lastTest = recordedTest.data() + (numSamples - 1) * nTest;
+  for (size_t i = 0; i < n; ++i)
+    if (train[i] != lastTrain[i]) trainAgrees = false;
+  for (size_t i = 0; i < nTest; ++i) {
+    if (test[i] != lastTest[i]) testAgrees = false;
+    if (test[i] != train[testBase + i]) rowsAgree = false;
+  }
+  check(trainAgrees,
+        "current variance: the train read is the recorded channel bitwise");
+  check(testAgrees,
+        "current variance: the test read is the recorded channel bitwise");
+  check(rowsAgree,
+        "current variance: a test row that is a training row reads the same");
+
+  // the swap: the stored test product was built for the OLD rows, so a read
+  // that did not rebuild would report them
+  sampler->setTestPredictors(xTest2.data(), nTest);
+  check(sampler->currentVarianceFits(0, true, test.data()),
+        "current variance: the test read answers after a predictor swap");
+  bool swapped = true;
+  for (size_t i = 0; i < nTest; ++i)
+    if (test[i] != train[testBase2 + i]) swapped = false;
+  check(swapped, "current variance: the test read follows the new test rows");
+
+  // and the two refusals, which are the two states the channels report
+  // nothing in
+  auto plain = makeSampler(4141, 0);
+  check(!plain->currentVarianceFits(0, false, train.data()),
+        "current variance: a homoscedastic sampler refuses");
+  auto noTest = makeSampler(5151, numVarianceTrees);
+  check(!noTest->currentVarianceFits(0, true, test.data()),
+        "current variance: a test read with no test rows refuses");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: current variance-surface read\n");
+}
+
 // The variance forest's SAVED (keepTrees) trees ride the state: a re-created
 // sampler must replay the recorded s^2(x) slot for slot rather than the
 // multiplicative identity initializeSavedTrees left in the buffer. The live
@@ -1886,6 +1986,7 @@ void runStateTests(ext_rng* rng) {
   testVarianceWarmStart();
   testVarianceWarmStartSlot();
   testVarianceForestPriorDraw();
+  testCurrentVarianceRead();
   testVarianceSavedTreeState();
   testStateLeafScale(rng);
   testWeightsDigest();

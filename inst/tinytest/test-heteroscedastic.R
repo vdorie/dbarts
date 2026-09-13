@@ -354,3 +354,266 @@ homoBefore <- homo$run(5L, 4L)
 homoAgain <- dbarts(xPrior, yPrior, control = homoControl)
 expect_silent(homoAgain$sampleVarianceForestFromPrior())
 expect_identical(homoAgain$run(5L, 4L)$train, homoBefore$train)
+
+# ---- getVariance: the current variance surface, read without a run ----
+# The accessor reports exactly what a run records as `variance` and
+# `varianceTest`, at the state the read finds rather than at a kept sample, so
+# a host driving the sampler one sweep at a time - or drawing the surface from
+# its prior - reads s^2(x) here instead of through a recorded channel.
+
+set.seed(23L)
+nAcc <- 200L
+xAcc <- matrix(
+  runif(nAcc * 2L),
+  nAcc,
+  2L,
+  dimnames = list(NULL, c("a", "b"))
+)
+sAcc <- ifelse(xAcc[, 1L] < 0.5, 0.3, 1.5)
+yAcc <- 2 * xAcc[, 2L] + sAcc * rnorm(nAcc)
+xAccTest <- xAcc[1:10, , drop = FALSE]
+accControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 4L,
+  updateState = FALSE,
+  seed = 23L
+)
+accSampler <- dbarts(
+  xAcc,
+  yAcc,
+  test = xAccTest,
+  variance = varianceForest(n.trees = 5L),
+  control = accControl
+)
+accRun <- accSampler$run(20L, 4L)
+
+# the state a recorded sweep left: the accessor and the channel agree bitwise,
+# one column per chain
+expect_equal(dim(accSampler$getVariance()), c(nAcc, 1L))
+expect_equal(dim(accSampler$getVariance(test = TRUE)), c(10L, 1L))
+expect_identical(as.vector(accSampler$getVariance()), accRun$variance[, 4L])
+expect_identical(
+  as.vector(accSampler$getVariance(test = TRUE)),
+  accRun$varianceTest[, 4L]
+)
+
+# several chains report per chain, the channel's own chain margin
+multiControl <- dbartsControl(
+  n.chains = 3L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 2L,
+  updateState = FALSE,
+  seed = 24L
+)
+multiSampler <- dbarts(
+  xAcc,
+  yAcc,
+  test = xAccTest,
+  variance = varianceForest(n.trees = 5L),
+  control = multiControl
+)
+multiRun <- multiSampler$run(10L, 2L)
+expect_identical(multiSampler$getVariance(), multiRun$variance[, 2L, ])
+expect_identical(
+  multiSampler$getVariance(test = TRUE),
+  multiRun$varianceTest[, 2L, ]
+)
+
+# NULL exactly where the channels report nothing: no variance forest, and a
+# test read with no test rows
+homoAccessor <- dbarts(xAcc, yAcc, test = xAccTest, control = accControl)
+expect_null(homoAccessor$getVariance())
+expect_null(homoAccessor$getVariance(test = TRUE))
+noTestSampler <- dbarts(
+  xAcc,
+  yAcc,
+  variance = varianceForest(n.trees = 5L),
+  control = accControl
+)
+noTestSampler$run(5L, 1L)
+expect_null(noTestSampler$getVariance(test = TRUE))
+expect_true(all(noTestSampler$getVariance() > 0))
+
+# the test read REBUILDS: it is maintained only at a recorded sweep, so a
+# test-predictor swap has to move it. The new rows are training rows, so the
+# two reads must agree entry for entry.
+accSampler$setTestPredictor(xAcc[21:30, , drop = FALSE])
+expect_identical(
+  as.vector(accSampler$getVariance(test = TRUE)),
+  accSampler$getVariance()[21:30, 1L]
+)
+
+# a prior draw moves the surface, and the accessor - unlike predict(), which
+# addresses saved samples - answers at the drawn trees
+beforePriorDraw <- accSampler$getVariance()
+accSampler$sampleVarianceForestFromPrior()
+afterPriorDraw <- accSampler$getVariance()
+expect_true(!identical(beforePriorDraw, afterPriorDraw))
+expect_true(all(afterPriorDraw > 0))
+
+# and the drawn factor is the calibrated one. One variance tree under a
+# structure prior that practically never grows is a bare root, so the whole
+# surface IS one leaf factor h, whose reciprocal is exactly
+# chisq(nu) / (nu lambda^2) at the nu and lambda^2 the sigma prior is
+# calibrated to: mean 1 and variance 2 / nu after scaling, so the band below is
+# a closed-form standard error rather than a guess.
+flatControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 1L,
+  updateState = FALSE,
+  seed = 25L
+)
+flatSampler <- dbarts(
+  xAcc,
+  yAcc,
+  variance = varianceForest(n.trees = 1L, base = 1e-10),
+  control = flatControl
+)
+# the seeded surface before any draw is the variance the calibration is stated
+# against, so nothing here assumes a response transform
+initialVariance <- flatSampler$getVariance()[1L]
+residDf <- flatSampler$model@resid.prior@df
+rawScale <- qchisq(1 - flatSampler$model@resid.prior@quantile, residDf) /
+  residDf
+leafScale <- initialVariance * rawScale
+numLeafDraws <- 2000L
+leafDraws <- numeric(numLeafDraws)
+bareRoot <- TRUE
+for (i in seq_len(numLeafDraws)) {
+  flatSampler$sampleVarianceForestFromPrior()
+  surface <- flatSampler$getVariance()
+  # a bare root is one factor: every row carries it
+  bareRoot <- bareRoot && all(surface == surface[1L])
+  leafDraws[i] <- leafScale / surface[1L]
+}
+expect_true(bareRoot)
+standardError <- sqrt(2 / (residDf * numLeafDraws))
+expect_true(abs(mean(leafDraws) - 1) < 5 * standardError)
+expect_true(abs(2 / var(leafDraws) - residDf) < 0.6)
+
+# ---- samplePriorPredictive(type = "ppd") on a heteroscedastic sampler ----
+# The noise is the drawn s(x) itself, read at the rows being predicted. With
+# the leaf prior tightened the mean forest's own prior spread is negligible, so
+# the ppd's variance IS the prior mean of s^2(x) - which the accessor reports
+# directly, and against which the draws are scored here.
+ppdControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 4L,
+  updateState = FALSE,
+  seed = 26L
+)
+ppdTest <- xAcc[1:4, , drop = FALSE]
+ppdSampler <- dbarts(
+  xAcc,
+  yAcc,
+  test = ppdTest,
+  variance = varianceForest(n.trees = 5L),
+  node.prior = normal(k = 40),
+  control = ppdControl
+)
+set.seed(27L)
+ppdDraws <- samplePriorPredictive(
+  ppdSampler,
+  x.test = ppdTest,
+  n.samples = 500L,
+  type = "ppd"
+)
+evDraws <- samplePriorPredictive(
+  ppdSampler,
+  x.test = ppdTest,
+  n.samples = 500L,
+  type = "ev"
+)
+expect_equal(dim(ppdDraws), c(500L, 4L))
+expect_true(all(is.finite(ppdDraws)))
+
+priorVariance <- replicate(500L, {
+  ppdSampler$sampleVarianceForestFromPrior()
+  ppdSampler$getVariance(test = TRUE)[, 1L]
+})
+# the mean forest contributes almost nothing at k = 40, and what remains is
+# the drawn surface: a heavy-tailed mean, hence the factor-of-two band
+expect_true(all(apply(evDraws, 2L, var) < 0.1 * apply(ppdDraws, 2L, var)))
+varianceRatio <- apply(ppdDraws, 2L, var) / rowMeans(priorVariance)
+expect_true(all(varianceRatio > 0.5 & varianceRatio < 2))
+
+# the "ev" surface carries no noise at all, so it is untouched by the lift
+expect_true(all(is.finite(evDraws)))
+
+# ---- getVariance at the other reachable states ----
+# A state a sweep produced has the channel as its oracle; anywhere else the
+# oracle is the test read, which rebuilds from the trees in force - and the
+# test rows here are training rows, so the two must agree entry for entry.
+
+stateRows <- 41:50
+stateControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 2L,
+  updateState = TRUE,
+  seed = 28L
+)
+makeStateSampler <- function(control) {
+  dbarts(
+    xAcc,
+    yAcc,
+    test = xAcc[stateRows, , drop = FALSE],
+    variance = varianceForest(n.trees = 5L),
+    control = control
+  )
+}
+
+# updateState = TRUE serializes after every sweep; the read is still of the
+# live trees, not of the stored blob
+stateSampler <- makeStateSampler(stateControl)
+stateRun <- stateSampler$run(10L, 2L)
+expect_identical(as.vector(stateSampler$getVariance()), stateRun$variance[, 2L])
+expect_identical(
+  stateSampler$getVariance()[stateRows, 1L],
+  as.vector(stateSampler$getVariance(test = TRUE))
+)
+
+# a state round trip carries the surface entry for entry, on both arms: the
+# test product is rebuilt from the restored trees, setState leaving it stale
+donorTrain <- stateSampler$getVariance()
+donorTest <- stateSampler$getVariance(test = TRUE)
+restored <- makeStateSampler(stateControl)
+invisible(restored$run(5L, 1L))
+restored$setState(stateSampler$state)
+expect_identical(restored$getVariance(), donorTrain)
+expect_identical(restored$getVariance(test = TRUE), donorTest)
+
+# and so does copy(), which installs that same state
+copied <- stateSampler$copy()
+expect_identical(copied$getVariance(), donorTrain)
+expect_identical(copied$getVariance(test = TRUE), donorTest)
+
+# keepTrees puts the saved draws in front of predict; the accessor still reads
+# the trees in force, so a prior draw moves it
+keepControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 2L,
+  updateState = FALSE,
+  keepTrees = TRUE,
+  seed = 29L
+)
+keepSampler <- makeStateSampler(keepControl)
+keepRun <- keepSampler$run(10L, 2L)
+expect_identical(as.vector(keepSampler$getVariance()), keepRun$variance[, 2L])
+keepBefore <- keepSampler$getVariance()
+keepSampler$sampleVarianceForestFromPrior()
+expect_false(identical(keepBefore, keepSampler$getVariance()))
+expect_identical(
+  keepSampler$getVariance()[stateRows, 1L],
+  as.vector(keepSampler$getVariance(test = TRUE))
+)

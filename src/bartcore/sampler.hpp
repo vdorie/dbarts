@@ -970,6 +970,13 @@ public:
     return chains_[chainNum]->varianceTree(j);
   }
 
+  /// Chain chainNum's CURRENT variance surface on the original scale, training
+  /// or test rows; Chain::currentVarianceFits states the contract and owns the
+  /// two refusals.
+  bool currentVarianceFits(size_t chainNum, bool test, double* out) {
+    return chains_[chainNum]->currentVarianceFits(test, out);
+  }
+
   /// The variance surface s^2(x) for raw column-major new rows, original scale,
   /// mirroring predict: out is numTestObservations x filledSavedDraws() x
   /// numChains, chain-major, same draw order. Requires saved trees

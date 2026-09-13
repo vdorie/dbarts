@@ -255,6 +255,7 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_getForestFits", bartcore_getForestFits, 2),
   DEF_FUNC("dbarts_bartcore_getFitsWithoutOffset",
            bartcore_getFitsWithoutOffset, 1),
+  DEF_FUNC("dbarts_bartcore_getVariance", bartcore_getVariance, 2),
   DEF_FUNC("dbarts_bartcore_getCalibration", bartcore_getCalibration, 2),
   DEF_FUNC("dbarts_bartcore_setCalibration", bartcore_setCalibration, 3),
   DEF_FUNC("dbarts_bartcore_getForestVariableCounts",

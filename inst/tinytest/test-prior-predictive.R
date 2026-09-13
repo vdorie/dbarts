@@ -135,9 +135,10 @@ expect_error(
 )
 
 # (f) a heteroscedastic sampler has no scalar sigma to add as observation
-# noise - s(x) comes from a prior draw of the variance forest, which the ppd
-# path does not make - so "ppd" is refused. "ev" never reaches that draw and
-# is a legitimate mean-surface prior draw, so it keeps working.
+# noise: "ppd" draws the variance forest from its prior too and adds
+# s(x) eps at the predicted rows. "ev" never reaches that draw and is a
+# mean-surface prior draw either way. The law of the added noise is pinned in
+# test-heteroscedastic.R, beside the accessor it reads s(x) with.
 sampler.variance <- dbarts(
   y ~ x,
   control = control.plain,
@@ -155,10 +156,13 @@ expect_error(
   "'n.trees' must be a whole number; got '5.5'",
   fixed = TRUE
 )
-expect_error(
-  samplePriorPredictive(sampler.variance, n.samples = 5L, type = "ppd"),
-  pattern = "heteroscedastic sampler"
+ppd.variance <- samplePriorPredictive(
+  sampler.variance,
+  n.samples = 5L,
+  type = "ppd"
 )
+expect_equal(dim(ppd.variance), c(5L, n))
+expect_true(all(is.finite(ppd.variance)))
 ev.variance <- samplePriorPredictive(
   sampler.variance,
   n.samples = 5L,
@@ -169,6 +173,7 @@ expect_true(all(is.finite(ev.variance)))
 
 rm(
   sampler.variance,
+  ppd.variance,
   ev.variance,
   n,
   p,

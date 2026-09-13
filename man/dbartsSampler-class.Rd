@@ -37,6 +37,7 @@
 \alias{\S4method{getLatents}{dbartsSampler}}
 \alias{\S4method{getSumsOfSquaredResiduals}{dbartsSampler}}
 \alias{\S4method{getFitsWithoutOffset}{dbartsSampler}}
+\alias{\S4method{getVariance}{dbartsSampler}}
 \alias{\S4method{getForestFits}{dbartsSampler}}
 \alias{\S4method{getForestAmplitudes}{dbartsSampler}}
 \alias{\S4method{getForestVariableCounts}{dbartsSampler}}
@@ -98,6 +99,7 @@
 \S4method{getLatents}{dbartsSampler}(result)
 \S4method{getSumsOfSquaredResiduals}{dbartsSampler}(result)
 \S4method{getFitsWithoutOffset}{dbartsSampler}()
+\S4method{getVariance}{dbartsSampler}(test = FALSE)
 \S4method{getForestFits}{dbartsSampler}(forest = NULL)
 \S4method{getForestAmplitudes}{dbartsSampler}(forest = NULL)
 \S4method{getForestVariableCounts}{dbartsSampler}(forest = NULL)
@@ -307,6 +309,11 @@
     and filling a caller's buffer in place is \code{getLatents}'s contract
     alone.
   }
+  \item{test}{
+    For \code{getVariance}, a logical; \code{FALSE}, the default, reads the
+    variance surface at the training rows and \code{TRUE} at the installed
+    test rows.
+  }
   \item{treeNum}{
     An integer listing the indices of the tree to plot.
   }
@@ -443,6 +450,8 @@
   For \code{getLatents}, \code{NULL} when the model augments nothing - a plain gaussian response - and, deliberately, on a multinomial one, which augments but reports nothing: its \eqn{K \times n}{K x n} Polya-Gamma \eqn{\omega}{omega} matrix is drawn every sweep, but each \eqn{\omega_{ik}}{omega_ik} is an interleaved ONE-VS-REST augmentation variable refreshed against a margin that the other \eqn{K-1}{K - 1} forests move within the same sweep, so a host reading it between sweeps reads a quantity whose conditioning it cannot reproduce, and the composition recipes reach the same posterior through the fits and the category offset without touching it. That decline is scoped to the augmentation families whose latent is a PRECISION refreshed against a moving margin; the location-valued latents below - probit's and ordinal's \eqn{z_i}{z_i}, and aft's imputed log survival time - are reported as documented. Otherwise the sampler's current draw of the augmentation variable, a plain vector of length equal to the number of observations when there is a single chain, or an observations-by-chains matrix otherwise, written into \code{result} when one was supplied. \strong{What that variable IS depends on the family and is not uniform.} It is a LOCATION, on the sampler's own latent scale, for \code{"probit"} (the truncated normal \eqn{z_i}{z_i}), \code{"ordinal"} (the same \eqn{z_i}{z_i} under the ordinal thresholds) and \code{"aft"} (the imputed log survival time), all of which a host regresses on directly. It is a PRECISION, one per observation, for \code{"logistic"} and \code{"nbinom"} (the Polya-Gamma \eqn{\omega_i}{omega_i}) and for a Student-t residual distribution (the scale-mixing \eqn{\lambda_i}{lambda_i}); these WEIGHT a working response and are not on the response scale at all, so differencing them against a fit is meaningless. Note the last case: a sampler whose \code{family} is \code{"gaussian"} but built with \code{family = student()} (see \code{\link{dbarts}}) does report latents, and they are precisions.
 
   For \code{getFitsWithoutOffset}, the sampler's combined per-observation location on the response scale and \emph{without} the installed offset, an n.observations x n.chains matrix. \code{run()$train} reports the same quantity with the offset folded in, so this value plus the installed offset is that one; there is deliberately no with-offset twin, since the offset is the caller's own. It is the read a host driving the sampler one sweep at a time needs: an incremental scheme updates its outer block against \eqn{f(x_i)}{f(x_i)}, and taking \code{getLatents()} minus \code{run()$train} instead is BIASED, because the training channel carries the offset the latent scale does not. On a multi-forest (\code{forests}) sampler this is the only route, short of running the sampler, from R to the combined fit - \code{getForestFits} gives one forest's internal-scale totals and \code{predict} is refused. It is refused, naming the reason, on a multinomial sampler, whose reported channels are per-category softmax probabilities rather than one additive location; \code{predict(x)} serves that read, but reports the SAVED samples rather than the current state when the sampler was built with \code{keepTrees}.
+
+  For \code{getVariance}, a heteroscedastic (\code{variance} forest) sampler's current variance surface \eqn{s^2(x_i)}{s^2(x_i)} on the original response scale, an n.observations x n.chains matrix at the default \code{test = FALSE} and an n.test x n.chains matrix at \code{test = TRUE}. It is the mid-sweep read of the channels \code{run()} records as \code{variance} and \code{varianceTest}: at the state a recorded sweep left, the accessor and the channel agree exactly. What it reports is a VARIANCE, so a residual scale is its square root - it is the surface analogue of \code{getSigmas}, which reports the scalar \eqn{\sigma}{sigma} a homoscedastic sampler carries. \code{NULL} where those channels report nothing: on a homoscedastic sampler, and at \code{test = TRUE} with no test rows installed. Unlike \code{predict}, which addresses the saved samples, it reads the trees currently in force, so it answers after \code{$sampleVarianceForestFromPrior()} and needs no \code{keepTrees}.
 
   For \code{getForestFits}, a multi-forest sampler's requested forest's current internal-scale fitted values, an n.observations x n.chains matrix, or, at the default \code{forest = NULL}, every forest stacked with the forest margin between the observations and the chains, n.observations x n.forests x n.chains (bitwise the \code{forest = 1} read on a single-forest sampler). For \code{getForestAmplitudes}, the named forest's amplitudes - one per basis column - as a q x n.chains matrix, or, at the default \code{forest = NULL}, every forest's stacked forest-major into a sum(q) x n.chains matrix. The vector is \emph{ragged}: a Bayesian causal forest's forest \code{1} carries the single \eqn{a}{a} on its implicit intercept and its forest \code{2} the pair \eqn{(b_0, b_1)}{(b0, b1)}, so the stacked read is the \eqn{(a, b_0, b_1)}{(a, b0, b1)} of \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) + b_z tau(x) + eps}. For \code{getForestVariableCounts}, the requested forest's current per-predictor split counts, an n.predictors x n.chains integer matrix, or, at the default \code{forest = NULL}, every forest stacked the same way as \code{getForestFits}, n.predictors x n.forests x n.chains; its rows are named by the training matrix's column names when that matrix carries them (on margin 1 in both shapes), and left unnamed otherwise.
 

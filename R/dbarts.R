@@ -1208,19 +1208,22 @@ samplePriorPredictive <- function(
   xt <- if (is.null(x.test)) extract(draw, "predictors") else x.test
   responseIsBinary <- draw$control@binary
 
+  # the noise a heteroscedastic prior predictive adds is s(x) eps, with s^2(x)
+  # drawn from the variance forest's own prior once per sample and read at the
+  # rows being predicted; the scalar draws below would report a homoscedastic
+  # prior predictive instead. "ev" needs no noise term and is unaffected.
+  drawsVariance <- type == "ppd" &&
+    !responseIsBinary &&
+    !is.null(attr(draw$control, "bartcore.variance"))
+  if (drawsVariance) {
+    # the surface is read through the draw sampler's own test rows, which is
+    # where the variance forest evaluates off the training data; predict()
+    # cannot serve it, keepTrees being off and these trees never recorded
+    draw$setTestPredictorAndOffset(xt, NULL)
+  }
+
   sigmaDraws <- NULL
-  if (type == "ppd" && !responseIsBinary) {
-    # the noise a heteroscedastic prior predictive adds is s(x) eps, drawn
-    # from the variance forest's own prior; the scalar draws below would
-    # report a homoscedastic prior predictive instead. "ev" needs no noise
-    # term and is unaffected.
-    if (!is.null(attr(draw$control, "bartcore.variance"))) {
-      stop(
-        "samplePriorPredictive(type = \"ppd\") is not defined for a ",
-        "heteroscedastic sampler: its residual scale is a variance forest, ",
-        "not a single sigma"
-      )
-    }
+  if (type == "ppd" && !responseIsBinary && !drawsVariance) {
     residPrior <- draw$model@resid.prior
     if (inherits(residPrior, "dbartsChiSqPrior")) {
       # reported-scale scaled-inverse-chi-squared, matching the engine's own
@@ -1244,6 +1247,7 @@ samplePriorPredictive <- function(
   }
 
   results <- vector("list", n.samples)
+  varianceResults <- if (drawsVariance) vector("list", n.samples) else NULL
   for (i in seq_len(n.samples)) {
     draw$sampleTreesFromPrior(updateState = FALSE)
     draw$sampleNodeParametersFromPrior(updateState = FALSE)
@@ -1254,6 +1258,10 @@ samplePriorPredictive <- function(
       fit <- fit[, 1L]
     }
     results[[i]] <- fit
+    if (drawsVariance) {
+      draw$sampleVarianceForestFromPrior(updateState = FALSE)
+      varianceResults[[i]] <- draw$getVariance(test = TRUE)[, 1L]
+    }
   }
   result <- do.call(rbind, results)
 
@@ -1268,6 +1276,16 @@ samplePriorPredictive <- function(
         nrow(result),
         ncol(result)
       )
+    } else if (drawsVariance) {
+      # s^2(x) is a variance on the response scale, one row per prior draw and
+      # one column per predicted row, so the noise scale is its square root
+      result <- result +
+        sqrt(do.call(rbind, varianceResults)) *
+          matrix(
+            rnorm(length(result)),
+            nrow(result),
+            ncol(result)
+          )
     } else {
       result <- result +
         matrix(
@@ -2279,6 +2297,11 @@ dbartsSampler <- setRefClass(
       )
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getFitsWithoutOffset, ptr)
+    },
+    getVariance = function(test = FALSE) {
+      "Returns a heteroscedastic sampler's current variance surface s^2(x) on the ORIGINAL response scale, an n.observations x n.chains matrix at the default test = FALSE and an n.test x n.chains matrix at test = TRUE. This is the mid-sweep read of the channels run() records as 'variance' and 'varianceTest': at the state a recorded sweep left, the two agree exactly. It reports a VARIANCE, so a residual scale is its square root, and it is the surface analog of getSigmas(), which reports the scalar sigma a homoscedastic sampler carries. NULL where those channels report nothing: on a homoscedastic sampler, and at test = TRUE with no test rows installed. Unlike predict(), it reads the trees currently in force, so it answers after a prior draw and needs no keepTrees."
+      ptr <- getPointer()
+      .Call(C_dbarts_bartcore_getVariance, ptr, isTRUE(test))
     },
     getForestAmplitudes = function(forest = NULL) {
       "Returns the named forest's amplitudes - the scalars its basis columns are multiplied by, one per column - as a q x n.chains matrix, or, at the default forest = NULL, every forest's stacked forest-major into a sum(q) x n.chains matrix, which is the row order the run's own glue channel carries. The vector is RAGGED, forest by forest, which is why a forest can be named: a Bayesian causal forest's forest 1 carries the single a on its implicit intercept and its forest 2 the pair (b0, b1) on its two level indicators, so the stacked read is its shipped (a, b0, b1). forest indexes from 1, as with setForestBasis/setForestWeights/getCalibration."

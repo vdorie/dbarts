@@ -26,6 +26,7 @@ SEXP bartcore_numForests(SEXP ptr);
 SEXP bartcore_getForestAmplitudes(SEXP ptr, SEXP forest);
 SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);
 SEXP bartcore_getFitsWithoutOffset(SEXP ptr);
+SEXP bartcore_getVariance(SEXP ptr, SEXP test);
 SEXP bartcore_getCalibration(SEXP ptr, SEXP forest);
 SEXP bartcore_setCalibration(SEXP ptr, SEXP forest, SEXP priorScale);
 SEXP bartcore_getForestVariableCounts(SEXP ptr, SEXP forest);

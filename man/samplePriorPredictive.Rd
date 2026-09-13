@@ -34,7 +34,9 @@ samplePriorPredictive(
     matching what \code{\link{extract}} and \code{predict} call \code{"ev"}. \code{"ppd"} adds the
     observation model on top: gaussian noise with sigma freshly drawn from its own prior for each
     sample, or a bernoulli draw from the \code{"ev"} probabilities for a binary sampler; on an aft
-    (survival) sampler the draw is on the log-time scale (the model fits \eqn{\log T}{log T}).
+    (survival) sampler the draw is on the log-time scale (the model fits \eqn{\log T}{log T}), and
+    on a heteroscedastic one the noise is drawn at a prior draw of that observation's own
+    \eqn{s(x)}{s(x)} rather than at a scalar sigma.
     Unlike \code{\link{extract}}'s posterior \code{"ppd"}, prior predictive draws are weight-blind:
     they use unit weights rather than a weighted precision (\eqn{\sigma / \sqrt{w}}{sigma / sqrt(w)}
     for gaussian) or a \eqn{\mathrm{Binomial}(w, p)}{Binomial(w, p)} success count (weighted
@@ -60,6 +62,13 @@ samplePriorPredictive(
   \eqn{P(\sigma < \code{sigest}) = \code{quantile}}{P(sigma < sigest) = quantile} when the prior is
   \code{chisq} (see \code{\link{dbartsPriors}}), or the sampler's fixed value when the prior is
   \code{fixed}.
+
+  A heteroscedastic sampler (\code{\link{dbarts}}'s \code{variance}) has no single sigma to draw,
+  so the noise is its own surface: each sample additionally redraws the variance forest from its
+  prior (\code{sampleVarianceForestFromPrior}) and adds \eqn{s(x)\epsilon}{s(x) eps} at the rows
+  being predicted, \eqn{s^2(x)}{s^2(x)} read there through
+  \code{\link[=dbartsSampler-class]{getVariance}}. The mean draws, and every \code{type = "ev"}
+  draw, are unaffected.
 
   If \code{sampler} has more than one chain, prior draws are chain-free: each of the \code{n.samples}
   draws only keeps the first chain's stream (the other chains still advance their own independent
