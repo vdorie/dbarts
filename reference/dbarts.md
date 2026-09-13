@@ -293,25 +293,29 @@ dbarts(
   forest's `sd` is stated in latent standard deviations, `sigma` is
   pinned and there is no response transform to re-anchor. `"aft"`,
   `"ordinal"` and `"nbinom"` are refused at creation, each naming what
-  it is missing. The result is an ordinary `dbartsSampler`; per-forest
-  fits and the per-forest amplitudes are read off the sampler rather
-  than from the run's combined `train` channel. The columns a basis
-  expands to are stored on the data object, so they are subset by
-  `subset` and survive a sampler's re-creation. A basis declared here
-  has nowhere to ride when `formula` is already a `dbartsData` object:
-  `dbarts()` refuses that combination by name rather than silently
-  discarding the declaration and fitting a single-forest model - build
-  the data object with the bases already on it, `dbartsData(bases = )`,
-  or declare them through
+  it is missing. The `control`'s `proposal.probs` mixture is a property
+  of the fit and reaches every forest of the declaration, the frozen
+  mixture included: an all-zero mixture holds every forest's tree
+  structures and leaves only the leaf values, the per-forest amplitudes,
+  `sigma` and the family's latents moving. The result is an ordinary
+  `dbartsSampler`; per-forest fits and the per-forest amplitudes are
+  read off the sampler rather than from the run's combined `train`
+  channel. The columns a basis expands to are stored on the data object,
+  so they are subset by `subset` and survive a sampler's re-creation. A
+  basis declared here has nowhere to ride when `formula` is already a
+  `dbartsData` object: `dbarts()` refuses that combination by name
+  rather than silently discarding the declaration and fitting a
+  single-forest model - build the data object with the bases already on
+  it, `dbartsData(bases = )`, or declare them through
   [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
   which always takes a pre-built data object and installs the
   declaration, replacing whatever bases it carried. Options a two-forest
   model does not read - `monotone`, `variance`, a DART tree prior,
   `split.probs`, a linear or Gaussian-process node prior, a `k`
-  hyperprior or non-default `k`, a `control` naming a non-default
-  `proposal.probs`, Student-t residuals, `storage = "single"`,
-  per-column cut counts, and a `test` set - are refused at creation
-  rather than ignored, as is any declaration the engine cannot honour.
+  hyperprior or non-default `k`, Student-t residuals,
+  `storage = "single"`, per-column cut counts, and a `test` set - are
+  refused at creation rather than ignored, as is any declaration the
+  engine cannot honour.
 
 - control:
 

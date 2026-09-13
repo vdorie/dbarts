@@ -17,6 +17,8 @@ sampleTreesFromPrior(updateState = NA)
 # S4 method for class 'dbartsSampler'
 sampleNodeParametersFromPrior(updateState = NA)
 # S4 method for class 'dbartsSampler'
+sampleVarianceForestFromPrior(updateState = NA)
+# S4 method for class 'dbartsSampler'
 growFromRoot(n.sweeps = 2L, updateState = NA)
 # S4 method for class 'dbartsSampler'
 copy(shallow = FALSE)
@@ -174,8 +176,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   A logical determining if the local cache of the sampler's state should
   be updated after the call completes. Two conventions apply, by method:
-  for `run`, `sampleTreesFromPrior`, and
-  `sampleNodeParametersFromPrior`, `NA` (the default) fills in the
+  for `run`, `sampleTreesFromPrior`, `sampleNodeParametersFromPrior`,
+  and `sampleVarianceForestFromPrior`, `NA` (the default) fills in the
   sampler's
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   object's `updateState`, and explicit `TRUE`/`FALSE` override it. For
@@ -1074,6 +1076,21 @@ string, or
 [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md)'s
 shared-column match - continues to resolve against
 `colnames(sampler$data@x)` as it did before the replacement.
+
+### Prior draws
+
+`sampleTreesFromPrior` and `sampleNodeParametersFromPrior` are
+MEAN-forest entries by contract: each leaves the variance forest of a
+heteroscedastic (`variance`) sampler exactly as it finds it, along with
+`sigma`, `k` and the family's latent block.
+`sampleVarianceForestFromPrior` is the variance forest's own, drawing
+its tree structures from the tree prior conditioned on carrying no empty
+leaf - the law the variance moves themselves price - and each leaf's
+factor from the calibrated inverse-chi-squared scale prior, then
+rebuilding \\s^2(x)\\ from the drawn factors. A caller wanting a whole
+heteroscedastic chain at its prior calls all three; on a homoscedastic
+sampler this one draws nothing and returns, so a loop over families
+needs no guard.
 
 ### Warm starts
 
