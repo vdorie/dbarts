@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (42 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (43 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -108,6 +108,7 @@ Columns: `file | STATUS | one-liner`.
 | prerc-surface-freeze.md | DECIDED, 2026-08-25 (nine rulings, work items in TODO) | Records nine pre-release-candidate decisions on the public surface: the `predict()` signature order, the `keepTrees` refusal wording, the stub version check, `dbarts.h` type/naming fixes, deprecation shims, composition refusals, the BCF baseline format, and the NA-at-predict refusal. |
 | mixing-program-report.md | RECORD, 2026-09-08 | Records the tree-mixing program for the maintainer: the coverage deficit and why it is a mixing question, the evaluation battery and its accept rule, the five kernels built and measured (swap, perturb, the nog-node rule draw and its cut-only variant, the level-fibre step), what each verdict was, and the decision of 2026-09-08 adopting the cut-only rule draw at `d` = 0.16 after the first release, with what adoption still owes. |
 | bartcore-review-tour.md | Current at 127f04ee | The merge review: what bartcore replaces, what breaks for R users and for linked packages, what the gates prove and what nothing checks, the decided and open scope questions, the surface that gets more expensive after release, and an appendix that is the tour itself: what to read, in order. |
+| classic-compare.md | RUN AND REPORTED, 2026-09-13 | Widens the cross-release evidence past equivalence.R's nine-scenario classic record: 26 scenarios written in the 0.9-x vocabulary, recorded under an installed dbarts 0.9-34 and under this release with every moved default pinned on both sides, and compared by the same Welch-z and disjoint-range verdict. Twenty-two scenarios agree at the null's own rate; the four that do not are the zero-weight fit (the sigma draw's degrees of freedom counted rows that contributed nothing to its residual sum, with a drop-the-rows reference showing 1.0-0 is the one that reproduces it), the two crossvalidation rows (no chain carried across folds, with a hand-rolled fold-by-fold CV as the control), and the split counts of a fit whose predictors have unequal cut counts (the change move's repaired acceptance ratio, with a dose response on the change move's proposal mass as the control). |
 | pre-review-cleanup.md | LANDED 7cd71f2d, 2026-08-26 | Four documentation passes (staleness, completeness, YAGNI, agent accumulation) and the cleanup they produced. |
 
 ## Research doors / decision-gated (no or minimal code; open per TODO)
