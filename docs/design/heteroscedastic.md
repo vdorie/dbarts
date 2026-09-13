@@ -782,3 +782,21 @@ at `createHolder`. Grouped random intercepts have since been removed from
 dbarts entirely
 ([The decision](retire-grouped-random-effects.md#the-decision)), so both the
 composition and its refusal are gone; multilevel structure is stan4bart's.
+
+## 18. Post-landing: the current-state surface read, and the ppd
+
+The variance surface is readable without a run.
+[`dbartsSampler$getVariance`](../../man/dbartsSampler-class.Rd) reports `s^2(x)` on the
+original response scale at the training rows, or at the installed test rows at
+`test = TRUE`, one column per chain - the mid-sweep read of the `variance` and
+`varianceTest` channels section 7 named, NULL on a homoscedastic sampler and at a
+test read with no test rows. It addresses the trees IN FORCE rather than the saved
+samples `predict` replays, so it answers at a state no recorded sweep produced;
+the test arm rebuilds the test product before reporting, that product being
+maintained only at a recorded sweep.
+
+With it, `samplePriorPredictive(type = "ppd")` no longer refuses a heteroscedastic
+sampler: it draws the variance forest from its prior beside the mean forest and
+adds `s(x) eps` at the rows being predicted. The ruling that folded the accessor
+into the SBC slice, and the contract it landed with, are recorded in the landing
+notes under [6. SBC](aft-status-setter.md#6-sbc).

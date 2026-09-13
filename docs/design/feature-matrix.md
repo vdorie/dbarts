@@ -216,7 +216,7 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 | Real-valued (continuous) dispersion | nbinom | TODO `negbin-real-dispersion` |
 | SBC at full chain length (r/agg.psi ridge) | nbinom | docs/plans/sbc-family-tiers.md |
 | SBC gamma3 re-run at full chain length | ordinal | docs/plans/sbc-family-tiers.md |
-| The heteroscedastic SBC arms: the variance-forest prior draw is built, the current-state reader the generator needs is not | hetero, heteroscedastic aft | docs/design/aft-status-setter.md, slices 3-4 and the open question in its landing note |
+| The heteroscedastic SBC arms themselves: the variance-forest prior draw and the current-state reader the generator needs are both built, so both arms are harness-only | hetero, heteroscedastic aft | docs/design/aft-status-setter.md, slices 3-4 and its landing notes |
 | Register the exact oracle in the baseline MANIFEST | aft | benchmarks/R/aft-exact.R |
 | An engine per-observation log-likelihood channel | multinomial | [`multinomialLogLik`](../../R/generics.R) |
 | Whole-data `setData` | bcf, multinomial | docs/design/model-space-survey.md, Doors 1 and 3 |

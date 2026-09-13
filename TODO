@@ -285,11 +285,10 @@ items
     the old scale; the rescale factor is unverified against
     GaussianResponse, and scheduling it before that is scheduling
     unverified algebra. The variance forest's own prior draw
-    (Chain::sampleVarianceForestFromPrior) has landed
-    (docs/design/aft-status-setter.md slice 3); what a correct
-    heteroscedastic samplePriorPredictive(type = "ppd") still needs is a
-    reader for the drawn variance surface at the training rows before
-    any sweep - see the release block's owed decisions below.
+    (Chain::sampleVarianceForestFromPrior), the current-state reader of
+    the drawn surface ($getVariance) and the heteroscedastic
+    samplePriorPredictive(type = "ppd") that reads it have all landed
+    (docs/design/aft-status-setter.md slice 3).
   veto-arc-doors: a per-sweep vetoed-leaf diagnostics counter,
     R-readable - none exists in src/bartcore, so it is an additive new
     channel (docs/plans/release-candidate-review.md wave-5a landing
@@ -685,11 +684,11 @@ release (deferred; the one ordered procedure, run when VD triggers it)
       docs/design/re-scale-and-grouped-cost.md section 4,
       pre-registered acceptance bar), gating the CRAN submission, not
       the merge to main; the interim for users is skip = c(bart = 1,
-      stan = 16). (b) How the drawn variance surface is read back for aft
-      slice 4 and its heteroscedastic SBC arm
-      (docs/design/aft-status-setter.md): a reader over the variance
-      channels slice 3's prior draw populates, routing the drawn trees
-      in R instead, or deferring both arms.
+      stan = 16). (b) Answered: the drawn variance surface is read back
+      through a current-state reader over the variance channels
+      ($getVariance), which has landed with the ppd lift, so slice 4 and
+      the heteroscedastic SBC arm are harness-only
+      (docs/design/aft-status-setter.md).
     2. The landing memo is rewritten from a blank page to the rubric,
       the pre-release engine and docs items now landed, and the
       decision ledger (docs/decisions.md) made readable to the rubric's

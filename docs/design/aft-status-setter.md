@@ -1,8 +1,9 @@
 # An AFT censoring-status setter, and the SBC arms it enables
 
 Status: LANDED - slice 1 (section 8), 2026-09-07 (fcd60feb, e20c6462, f9bc9260), slice 2's harness half, 2026-09-07,
-and slice 3's prior-draw entry, 2026-09-13; the aft arm's matrix admission remains PROPOSED, and so do slice 3's
-heteroscedastic gaussian SBC arm and slice 4, both blocked on the open question in the landing note below.
+slice 3's prior-draw entry, 2026-09-13, and slice 3's variance-surface accessor, 2026-09-13 (31149f5b); the aft arm's
+matrix admission remains PROPOSED, and so do slice 3's heteroscedastic gaussian SBC arm and slice 4 - no longer
+blocked, the accessor the arms read s(x) with having been ruled on and landed.
 
 Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
 no longer declares the predictor, test-data, weight, active-row, per-forest, state,
@@ -193,7 +194,8 @@ documented contract), so `s(x)` has no prior-draw path. Three ways to get one:
 RECOMMEND C, priced at that tree half rather than as one entry. It does NOT lift
 [`samplePriorPredictive`](../../R/dbarts.R)'s heteroscedastic `type = "ppd"` refusal: that function harvests through
 `predict`, a mean-fit accessor, and the surface is readable only through a run's `variance` and `varianceTest` channels, so
-lifting it needs a variance-surface accessor priced separately. The arm is the gaussian arm plus a variance-forest prior
+lifting it needs a variance-surface accessor priced separately (landed: the accessor was folded into this slice by the
+ruling below and the refusal went with it). The arm is the gaussian arm plus a variance-forest prior
 draw per replication, ranking `s(x*)` off `varianceTest`, a VARIANCE on the original scale the functional square-roots
 (`s.test` is the bart-object name, not the run channel's). A heteroscedastic aft arm follows once both land, reaching the
 three-block cycle that [6. Gates](aft-variance-forest.md#6-gates) records as the honest gap. Unvalidated after all three:
@@ -299,15 +301,47 @@ closed-form standard error - and by the variance section of
 [test-heteroscedastic.R](../../inst/tinytest/test-heteroscedastic.R). Poisons run: doubling the drawn factor fails both
 moment arms; suppressing the structure draw fails both structure arms.
 
-**Open, and not guessed at: what the arm reads `s(x)` with.** Section 6 specifies the heteroscedastic gaussian arm as
-the gaussian arm plus this prior draw per replication, but a generator needs the drawn `s(x)` at the TRAIN rows to
-simulate `y0` and at the test rows for its functionals, and section 6 itself records that the surface is readable only
-through a run's `variance` and `varianceTest` channels - which report the state AFTER a sweep, not the prior draw - and
-that a current-state variance-surface accessor is priced separately. The gaussian arm's own precedent does not settle
-it: that arm draws `sigma` in R because no engine entry draws it, whereas here the draw IS in the engine and only the
-READ is missing. So the arm needs one of three things, and which is a maintainer's call, not an implementer's: a
-current-state accessor over [`Chain::varianceFits`](../../src/bartcore/chain.hpp) and
-[`Chain::varianceTestFits`](../../src/bartcore/chain.hpp), folded into this slice rather than priced separately (a
-handful of lines, and it lifts the `type = "ppd"` refusal section 6 lists as out of scope); routing the drawn trees in R
-off the reported state, which is option B's duplication moved from the calibration to the surface; or deferring the arm
-until the accessor lands on its own. Slice 4 follows the arm, so it is blocked on the same question.
+**The arm reads `s(x)` with a current-state accessor: the ruling, and what landed.** Section 6 specifies the
+heteroscedastic gaussian arm as the gaussian arm plus this prior draw per replication, but a generator needs the drawn
+`s(x)` at the TRAIN rows to simulate `y0` and at the test rows for its functionals, and section 6 itself records that the
+surface is readable only through a run's `variance` and `varianceTest` channels - which report the state AFTER a sweep,
+not the prior draw. The gaussian arm's own precedent did not settle it: that arm draws `sigma` in R because no engine
+entry draws it, whereas here the draw IS in the engine and only the READ was missing. The maintainer ruled on 2026-09-13
+for the first of the three candidates - a current-state accessor over [`Chain::varianceFits`](../../src/bartcore/chain.hpp)
+and [`Chain::varianceTestFits`](../../src/bartcore/chain.hpp), folded into this slice rather than priced separately, with
+[`samplePriorPredictive`](../../R/dbarts.R)'s heteroscedastic `type = "ppd"` refusal lifted in the same change. NOT taken:
+routing the drawn trees in R off the reported state, which is option B's duplication moved from the calibration to the
+surface; and deferring the arm until the accessor lands on its own.
+
+**What landed.** [`dbartsSampler$getVariance`](../../man/dbartsSampler-class.Rd), `getVariance(test = FALSE)`: the
+current variance surface `s^2(x)` on the ORIGINAL response scale, an n.observations x n.chains matrix at the default and
+an n.test x n.chains matrix at `test = TRUE`. It reports exactly what a recorded sweep's `variance` and `varianceTest`
+channels carry - the working product times `sigmaScale^2`, the scaling storeSample applies - at the same per-chain shape
+the other current-state reads use ([`getFitsWithoutOffset`](../../R/dbarts.R)), and NULL exactly where those channels
+report nothing: off a variance forest, and at a test read with no test rows. It addresses the trees IN FORCE rather than
+the saved samples `predict` replays, which is what makes it answer after a prior draw with no `keepTrees`. The test arm
+REBUILDS the test product before reporting it, that product being maintained only at a recorded sweep - so a
+test-predictor swap or a prior draw cannot be reported stale. [`Chain::currentVarianceFits`](../../src/bartcore/chain.hpp)
+owns both refusals, [`SamplerBase`](../../src/bartcore/facade.hpp) carries the virtual and
+[`bartcore_getVariance`](../../src/R_interface_bartcore.cpp) is the one bridge entry; the shipped header gains nothing, a
+state read being an R method under the pure-C rule
+([pure-c-header](../plans/pure-c-header.md#pure-c-header)).
+
+**The ppd lift.** [`samplePriorPredictive`](../../R/dbarts.R) at `type = "ppd"` on a heteroscedastic sampler draws the
+variance forest from its prior beside the mean forest each sample and adds `s(x) eps` at the rows being predicted,
+reading `s^2(x)` there through the accessor over the draw sampler's own test rows. `predict` cannot serve that read:
+the private draw sampler forces `keepTrees` off and the drawn trees are never recorded. The homoscedastic path is
+untouched and bit-identical, and no draw moves anywhere - all three equivalence baselines replay bitwise.
+
+Gated by [`testCurrentVarianceRead`](../../tests/cpp/test_state.cpp), whose swap arm is the rebuild's own poison; the
+facade coverage row ([`FacadeVirtual::currentVarianceFits`](../../tests/cpp/test_facade.cpp)); and the accessor section
+of [test-heteroscedastic.R](../../inst/tinytest/test-heteroscedastic.R), which pins the channel agreement bitwise at one
+and at three chains, both NULLs, the rebuild after a test-predictor swap, and the drawn factor's two moments against the
+calibrated degrees of freedom and scale - the closed-form standard error
+[`testVarianceForestPriorDraw`](../../tests/cpp/test_state.cpp) uses, read here through the accessor at a one-tree
+near-zero-growth variance prior - plus the ppd's own per-column variance against the prior mean of `s^2(x)` the accessor
+reports at those rows. ["ppd.variance"](../../inst/tinytest/test-prior-predictive.R) replaces the refusal's test.
+
+**The SBC arms follow.** Slice 3's heteroscedastic gaussian arm and slice 4's heteroscedastic aft arm are harness-only
+now, at section 6's shape with the generator reading the drawn `s(x)` here; nothing in either is blocked on an engine or
+R-surface entry any more.
