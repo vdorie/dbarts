@@ -685,11 +685,11 @@ release (deferred; the one ordered procedure, run when VD triggers it)
       docs/design/re-scale-and-grouped-cost.md section 4,
       pre-registered acceptance bar), gating the CRAN submission, not
       the merge to main; the interim for users is skip = c(bart = 1,
-      stan = 16). (b) How the drawn variance surface is read back for aft
-      slice 4 and its heteroscedastic SBC arm
-      (docs/design/aft-status-setter.md): a reader over the variance
-      channels slice 3's prior draw populates, routing the drawn trees
-      in R instead, or deferring both arms.
+      stan = 16). (b) the current-state variance-surface accessor on
+      the sampler and the samplePriorPredictive ppd lift (in
+      progress), then the heteroscedastic gaussian SBC arm and the
+      heteroscedastic aft arm (docs/design/aft-status-setter.md
+      slices 3 and 4), pre-merge.
     2. The landing memo is rewritten from a blank page to the rubric,
       the pre-release engine and docs items now landed, and the
       decision ledger (docs/decisions.md) made readable to the rubric's
