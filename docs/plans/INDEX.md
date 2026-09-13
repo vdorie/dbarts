@@ -4,7 +4,7 @@ Manifest of every `docs/plans/*.md` implementation plan (46 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
-849f08ea, 2026-09-02 -
+8f928f5c, 2026-09-13 -
 see `docs/README.md` for how this index relates to the other navigation
 surfaces. See `docs/design/INDEX.md`
 for the paired design docs. 132 further plans that are LANDED/CLOSED/NO-GO
@@ -18,7 +18,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | bcf-cross-host.md | LANDED 3f532af2, 2026-08-26 | Adds a `--cross-host` compare mode to the bcf and multinomial equivalence harnesses, gating cross-platform draws under a two-tier verdict (a tight bound as the real gate, a weaker statistical fallback labeled as such). |
-| bcf-latent-evidence.md | LANDED the exact gate, the derivation and the SBC measurement, 2026-09-07; neither latent arm admitted (a recorded chain-length finding), the three equivalence scenarios PROPOSED | Extends the BCF calibration and exactness evidence to the probit and logistic sub-families: two SBC arms whose burn and matrix admission are earned from a repriced ladder rather than inherited, and an adaptive-quadrature exact-posterior gate over a two-cell design whose single-tree forests carry at most two leaves, with an aggregated arm for logistic trial counts. |
+| bcf-latent-evidence.md | LANDED the exact gate, the derivation, the SBC measurement and the three latent equivalence scenarios, 2026-09-13; neither latent arm admitted to the SBC matrix (a recorded chain-length finding); the active-rows-mask evidence stays PROPOSED | Extends the BCF calibration and exactness evidence to the probit and logistic sub-families: two SBC arms whose burn and matrix admission are earned from a repriced ladder rather than inherited, an adaptive-quadrature exact-posterior gate over a two-cell design whose single-tree forests carry at most two leaves, with an aggregated arm for logistic trial counts, and three latent equivalence scenarios (probit, logistic, weighted logistic) against the bcf-equivalence baseline. |
 
 ## Forest / multi-forest infrastructure
 
@@ -127,7 +127,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | purpose |
 |---|---|
-| README.md | Process/contract doc: roles (Fable/Opus/Sonnet), the plan-file template, RNG gate classes and their required gates, brevity rubric, review checklist. Does not enumerate the directory's contents - that is this INDEX's job. |
+| README.md | Process/contract doc: the plan-file template, the cross-reference/citation grammar, RNG gate classes and their required gates, the landing procedure, the reviewer checklist. Does not enumerate the directory's contents - that is this INDEX's job. |
 
 ## Archived (landed; records only)
 

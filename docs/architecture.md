@@ -452,13 +452,24 @@ regardless of thread count. Two execution paths:
 sweep and lets the host mutate conditioning state between sweeps without a
 round trip. It is usable only when chains run inline: `Sampler::run` requires
 the caller not to set `onSweep` alongside worker-thread chains. The flat C
-ABI carries no callback entry - `dbarts_sampler_setCallback` was trimmed out
+ABI carries no entry for it - `dbarts_sampler_setCallback` was trimmed out
 of `inst/include/dbarts/dbarts.h` with the other entries no consumer calls
 (docs/decisions.md dec-B86) - so the only caller today is the internal
 `bartcore_runWithCallback`, which refuses more than one chain outright. Which
-mutations are legal there is docs/design/bart-as-a-component.md's subject; a
-per-draw observer hook that would run ON the worker threads is proposed in
-docs/design/per-draw-callbacks.md.
+mutations are legal there is docs/design/bart-as-a-component.md's subject.
+A second, per-draw callback (`dbarts_sampler_setDrawCallback`) carries no
+such restriction: it fires once per saved draw on each chain's own worker
+thread over every channel `storeSample` settles (docs/design/per-draw-callbacks.md).
+
+Either callback may raise. A C++ exception the callback throws is caught at
+the call, which is made under `R_UnwindProtect` so the jump unwinds through
+the callback's own frame rather than crossing it uncaught, and is rethrown
+once that frame has returned; an exception the engine itself raises travels
+out the same way. Both are converted to an R error only at the bridge entry
+point, after the unwind has run, never by a raw `Rf_error`/longjmp out of
+engine or callback code. A run that errors this way strands nothing the
+sampler owns: the sample cursors are left where they stood before the run,
+and the handle stays valid for a later run or a destroy.
 
 **Prediction** (`Sampler::predictColumns`, sampler.hpp) mirrors `run`'s
 worker-thread design: a per-call `n.threads` partitions the (chain, draw)

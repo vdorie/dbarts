@@ -20,11 +20,12 @@ decision - it explains where decisions live and how to find one.
   [`docs/plans/INDEX.md`](plans/INDEX.md) - every plan doc, grouped by
   cluster, with current status and a one-liner. Same use as the design
   index, for `docs/plans/`.
-- `docs/plans/README.md` - the process/contract doc: roles (who plans, who
-  implements, who reviews), the plan-file template, RNG gate classes and
-  the gates each requires, the brevity rubric, the review checklist. HOW
-  plans get written, gated, and reviewed - not a listing of the
-  directory's contents; that is `docs/plans/INDEX.md`'s job.
+- `docs/plans/README.md` - the process/contract doc: the plan-file
+  template, the cross-reference/citation grammar, RNG gate classes and
+  the gates each requires, the landing procedure, the reviewer
+  checklist, gate hygiene, and what CI runs. HOW plans get written,
+  gated, and reviewed - not a listing of the directory's contents; that
+  is `docs/plans/INDEX.md`'s job.
 - `docs/decisions.md` - the decision register: one row per design
   decision the bartcore branch carries, with who made it and on what
   evidence. Any claim that the maintainer decided something cites a row

@@ -262,16 +262,19 @@ items
     stay unscheduled, alongside the two brainstorm rounds (sec 15,
     16). Durable record docs/design/tree-mixing-proposals.md (ranking
     sec 4.1 as amended, specialization addendum sec 12).
-  variance-forest-mutation-routing: two doors held open
+  variance-forest-mutation-routing: one door held open
     (docs/plans/archive/variance-forest-mutation-routing.md).
     Scale-leaf calibration staleness under updateScale = TRUE: the leaf
     is calibrated once at creation and nothing rescales it when
     sigmaScale moves, so a response or offset swap leaves the PRIOR on
     the old scale; the rescale factor is unverified against
     GaussianResponse, and scheduling it before that is scheduling
-    unverified algebra. And a prior draw of the variance forest, which
-    is what a correct heteroscedastic
-    samplePriorPredictive(type = "ppd") needs.
+    unverified algebra. The variance forest's own prior draw
+    (Chain::sampleVarianceForestFromPrior) has landed
+    (docs/design/aft-status-setter.md slice 3); what a correct
+    heteroscedastic samplePriorPredictive(type = "ppd") still needs is a
+    reader for the drawn variance surface at the training rows before
+    any sweep - see the release block's owed decisions below.
   veto-arc-doors: a per-sweep vetoed-leaf diagnostics counter,
     R-readable - none exists in src/bartcore, so it is an additive new
     channel (docs/plans/release-candidate-review.md wave-5a landing
@@ -629,20 +632,22 @@ rbart_vi removal (decided, VD 2026-09-08; docs/decisions.md dec-B105)
   intercept over the plain sampler's setOffset, no engine block.
 
 binary k prior evaluation (decided, VD 2026-09-08; docs/decisions.md
-  dec-B106, B118; PRE-RELEASE-CANDIDATE: it completes before the RC is
-  declared, VD 2026-09-11)
+  dec-B106, B118; HARNESS RUN AND REPORTED 2026-09-13,
+  docs/plans/binary-hyperprior.md; verdict awaits the maintainer)
   the July chi-default study (48 simulated cells, 4 DGPs, df fixed at
-  1.5, artifacts lost) is re-run with a checked-in harness under
-  benchmarks/R: vary df in {1, 1.5, 2, 3} and scale in {1, 2, 3, 5},
-  compare fixed k; widen the use cases well beyond four DGPs: real
-  datasets across domains and sizes, rare and common outcomes,
-  separable and noisy signals, many and few predictors, factor-heavy
-  designs, class imbalance, and misspecified truths; report worst-cell
-  and average log loss, calibration, latent RMSE and coverage. Confirm
-  or change chi(1.5, 2) on that evidence. It gates the release candidate
-  (dec-B118, replacing dec-B106's "before 1.0-0 if time allows"): still
-  the first item of the resumed research programme, now finished before
-  the RC is declared rather than as time allows.
+  1.5, artifacts lost) has been re-run with a checked-in harness under
+  benchmarks/R: df and scale both varied over 23 priors plus three
+  fixed k, across 162 simulated cells (six processes, three sizes,
+  three predictor counts, three base rates) and six real datasets,
+  38,088 fits, scored by held-out log score, Brier, interval coverage
+  and width, sampled k and time. Recommendation: keep chi(1.5, 2) -
+  every finite-scale hyperprior scores alike on point prediction, the
+  one score that separates them names no optimum, and the six real
+  datasets prefer a fixed k over any scale. Caveat: the one-chain,
+  five-hundred-draw fit is not converged at n = 2000, which depresses
+  the reported coverage and reverses the n = 2000 fixed-k comparison.
+  VD confirms or changes chi(1.5, 2) on this evidence before the RC
+  (dec-B118).
 
 BayesTree claim and build flags (decided, VD 2026-09-08;
   docs/decisions.md dec-B107; LANDED a98c4cad)
@@ -658,50 +663,21 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
 release (deferred; the one ordered procedure, run when VD triggers it)
   pre-release sequence (VD 2026-09-12; done in this order, pre-merge
     unless marked)
-    1. C API unwind-protect: the run and predict entries wrapped in
-      R_UnwindProtect so an R error in the sweep callback or an engine
-      throw frees the C++ owners; the header's callback contract allows
-      the callback to raise. Pre-merge: it changes the header's contract
-      text. See capi-unwind-protect above.
-    2. Sister-package defects: stan4bart passing the renamed engine seed
-      through on its compat path; bartCause deriving the chain count
-      from the fit's control rather than yhat.train's dimensions
-      (defeated by combineChains = TRUE); each suite green against the
-      tip. Either side of the merge.
-    3. Probit and ordinal accept weights in {0, 1}: a zero weight routes
-      through the active-row mask (docs/design/active-rows-mask.md),
-      all-ones stays the unweighted fit. Pre-merge: a surface change.
-    4. Wider comparison against 0.9-34: install main (0.9-34) into a
-      private library and run scenarios inside 0.9-34's feature set
-      (weights, offsets, sampled k, n.cuts, indicator factors, xbart, a
-      setPredictor loop) through the statistical equivalence harness
-      against the tip; record the result under benchmarks/baselines with
-      a MANIFEST row. The nine-scenario cutover record is not the
-      ceiling. Before the RC.
-    5. stan4bart's mixing standard (dec-B105) measured: lag-one
-      autocorrelation and effective sample size on the group-spread
-      parameter. Before the CRAN submission.
-    6. Binary node hyperprior harness (dec-B118): checked in, degrees of
-      freedom varied, wider cases including real data. Before the RC.
-    7. Memory check: explain the six xbart cross-thread assertions that
-      failed under valgrind (inst/tinytest/test-xbart-reproducibility.R)
-      and get a green valgrind run on the x86 box after item 1. Before
-      the RC.
-    8. Owed pre-RC engine items: three latent bcf-equivalence scenarios
-      plus re-record; aft slices 3 and 4; BCF two-forest proposal.probs
-      pass-through; the same-host bcf-equivalence refresh at the RC tip.
-    9. Repo-state docs refreshed at the tip, after items 1 to 8 land:
-      docs/design/INDEX.md and docs/plans/INDEX.md (every status
-      re-read from its document, stamp moved), docs/README.md,
-      docs/architecture.md, docs/design/feature-matrix.md,
-      docs/decisions.md, benchmarks/baselines/MANIFEST. Every piece of
-      retired or unscheduled work is findable from an index with its
-      status; TODO holds only work still intended.
-    10. VD reviewed docs/plans/bartcore-landing/rubric.md (done 2026-09-12).
-    11. The landing memo is rewritten from a blank page to the rubric
-      after items 1 to 9, and the decision ledger (docs/decisions.md) is
-      made readable to the rubric's ledger items.
-    12. VD's own: lorax contact, GitHub issue #80, CRAN submission.
+    1. Decisions the maintainer owes before the release candidate:
+      (a) stan4bart's group-spread mixing bar (dec-B105) is met in no
+      case at its defaults, measured (stan4bart docs/mixing-group-sd.md):
+      choose between building the interweaving move in stan4bart, the
+      R-level setOffset fallback in dbarts, or shipping with the bar
+      unmet. (b) How the drawn variance surface is read back for aft
+      slice 4 and its heteroscedastic SBC arm
+      (docs/design/aft-status-setter.md): a reader over the variance
+      channels slice 3's prior draw populates, routing the drawn trees
+      in R instead, or deferring both arms.
+    2. The landing memo is rewritten from a blank page to the rubric,
+      the pre-release engine and docs items now landed, and the
+      decision ledger (docs/decisions.md) made readable to the rubric's
+      ledger items.
+    3. VD's own: lorax contact, GitHub issue #80, CRAN submission.
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
     and tests fit bart() with a three-level factor response, which

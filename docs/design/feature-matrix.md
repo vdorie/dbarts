@@ -101,7 +101,10 @@ follow from no column:
 
 Two capabilities are universal, not columns: the mid-chain active-rows mask
 ([`Chain::setActiveRows`](../../src/bartcore/chain.hpp), every family except hurdle, multinomial's being GLOBAL,
-[The contract](active-rows-mask.md#the-contract)), and `extract(type = "loglik")` (every row,
+[The contract](active-rows-mask.md#the-contract)) - which is also where a probit or ordinal 0/1 weight
+vector goes, at creation, on `setWeights` and on the whole-data conduit, rather than into the
+refusal those two rows' case-weights cell otherwise names
+([`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp)) - and `extract(type = "loglik")` (every row,
 including hurdle's composed density and bcf's combined-fit score; multinomial's engine-side
 channel stays undefined, see Gaps). Named calibration (`$getCalibration`/`$setCalibration`, a
 per-forest `prior.scale`, [2. The surface](nameable-calibration.md#2-the-surface)) is open on
