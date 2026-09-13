@@ -120,6 +120,21 @@ items
     penalties: gate STANDS, no model surfaced. Records:
     docs/design/interaction-constraints.md,
     docs/plans/archive/interaction-constraints.md.
+  level-shift-capi: two flat C API entries so a host can move a constant
+    between the forest and its own intercepts - a read of the occupied
+    leaves' count and value sum (original response units) and an apply
+    that adds c/m to every occupied leaf of every tree and c to the
+    cached totals. stan4bart needs it for the shared level of its group
+    intercepts, which is confounded with the forest's level and mixes at
+    lag-one 0.97 to 0.99 (stan4bart docs/plans/re-scale-mixing.md); the
+    host's draw is conjugate Gaussian, Jacobian one. The engine already
+    performs the move internally (Chain::drawLevelShift, the
+    multinomial combiner's afterCombine); constant leaf only, refused
+    under a stale partition or a constrained leaf, empty leaves skipped.
+    About 360 lines with tests. Post-1.0 minor append: the header is
+    built for it and stan4bart gates on major equality plus a minor
+    floor, so it does not precede the freeze. Do it after stan4bart's
+    ridge move lands, when the shared level is the remaining failure.
   manual-gate-runs: benchmarks/R/composition-matrix.R, an executable
     oracle against docs/design/feature-matrix.md, runs in no workflow -
     run it once at the release candidate. Growing sbc.yaml past its
