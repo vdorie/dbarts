@@ -664,11 +664,13 @@ release (deferred; the one ordered procedure, run when VD triggers it)
   pre-release sequence (VD 2026-09-12; done in this order, pre-merge
     unless marked)
     1. Decisions the maintainer owes before the release candidate:
-      (a) stan4bart's group-spread mixing bar (dec-B105) is met in no
-      case at its defaults, measured (stan4bart docs/mixing-group-sd.md):
-      choose between building the interweaving move in stan4bart, the
-      R-level setOffset fallback in dbarts, or shipping with the bar
-      unmet. (b) How the drawn variance surface is read back for aft
+      (a) in stan4bart: refresh vendored WALNUTS to upstream head,
+      re-run the mixing bar as a control, then build the ridge slice
+      move by rebuilding the frozen sampler (stan4bart
+      docs/design/re-scale-and-grouped-cost.md section 4,
+      pre-registered acceptance bar), gating the CRAN submission, not
+      the merge to main; the interim for users is skip = c(bart = 1,
+      stan = 16). (b) How the drawn variance surface is read back for aft
       slice 4 and its heteroscedastic SBC arm
       (docs/design/aft-status-setter.md): a reader over the variance
       channels slice 3's prior draw populates, routing the drawn trees
