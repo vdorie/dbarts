@@ -5,9 +5,11 @@
 // (R_interface_bartcore.cpp) and the flat C API (C_interface.cpp);
 // definitions live in R_interface_bartcore.cpp
 
-#include <cstddef> // size_t
-#include <cstdint> // int32_t
-#include <memory>  // unique_ptr
+#include <cstddef>   // size_t
+#include <cstdint>   // int32_t
+#include <cstdio>    // snprintf
+#include <exception> // exception
+#include <memory>    // unique_ptr
 #include <vector>
 
 #include <external/Rinternals.h> // SEXP
@@ -18,6 +20,36 @@
 #include "bartcore/bartcore.hpp"
 
 namespace bartcore_bridge {
+
+/// Runs \p body and turns a C++ exception escaping it into an R error labelled
+/// \p caller. An exception must never cross into R's own C frames - they run
+/// no destructors and keep context bookkeeping an unwind past them abandons,
+/// and nothing above catches, so the session aborts - and every entrance the
+/// engine can throw through therefore ends in this.
+///
+/// The message is copied out and the handler LEFT before Rf_error runs: a
+/// longjmp out of a live catch block would strand the exception on the
+/// thread's caught-exception stack and skip the unwind's remaining
+/// destructors, so the raise happens where nothing is in flight and every
+/// owner the unwind reached is already gone. The buffer is sized for the
+/// engine's own messages (ext_throwError formats into 8 KiB and R truncates at
+/// BUFSIZE regardless); a longer one is truncated rather than allocated for,
+/// since this path is already failing.
+template <typename Body>
+void callConvertingExceptions(const char* caller, Body&& body) {
+  char message[512];
+  bool failed = false;
+  try {
+    body();
+  } catch (const std::exception& error) {
+    std::snprintf(message, sizeof(message), "%s", error.what());
+    failed = true;
+  } catch (...) {
+    std::snprintf(message, sizeof(message), "unknown C++ exception");
+    failed = true;
+  }
+  if (failed) Rf_error("%s: %s", caller, message);
+}
 
 /// Copies the engine's per-draw struct into the SHIPPED one, field for field.
 /// The engine never sees dbarts.h and the shipped layout is frozen, so this is

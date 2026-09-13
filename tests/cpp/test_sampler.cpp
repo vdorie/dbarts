@@ -1500,6 +1500,76 @@ static void testTestFitThreadInvariance() {
 // cutoff is overridden for the duration so a fixture this small still fans
 // out; without that every count would collapse to one worker and an
 // identity-across-counts check would prove nothing.
+// The replay fan-out's failure channel. A worker body that throws must not
+// take the process down (an exception escaping a std::thread body is
+// std::terminate) and must not be reported by raising through R either: R's
+// longjmp would abandon this frame's worker buffers and whatever the caller
+// built two frames up. It surfaces as a C++ exception naming the worker and
+// carrying the body's own message, and every scope between the failure and the
+// catch unwinds - which is the whole reason the engine reports it this way.
+static void testPredictFanOutRethrowsWorkerFailure() {
+  const size_t n = 120;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rng == NULL || ext_rng_setSeed(rng, 8812) != 0) {
+    check(false, "fan-out failure: rng creation");
+    return;
+  }
+  SamplerOptions options;
+  options.numTrees = 10;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+
+  // an owner in the frame BETWEEN the failure and the catch: its destructor is
+  // the observable difference between an unwind and a longjmp
+  struct Sentry {
+    bool* destroyed;
+    ~Sentry() { *destroyed = true; }
+  };
+
+  size_t savedCutoff = predictPartition.cutoffOverride;
+  predictPartition.cutoffOverride = 1; // force the threaded arm at this size
+
+  bool threw = false, unwound = false;
+  std::string message;
+  try {
+    Sentry sentry{&unwound};
+    sampler.fanOutPredictSlabs(
+      4, 4, 1000, [](size_t slab, PredictScratch&) {
+        if (slab == 3) throw std::runtime_error("slab refused");
+      });
+  } catch (const std::exception& error) {
+    threw = true;
+    message = error.what();
+  }
+  check(threw, "a worker failure leaves the fan-out as an exception");
+  check(message.find("predict worker") != std::string::npos &&
+          message.find("slab refused") != std::string::npos,
+        "the rethrow names the worker and carries the body's message");
+  check(unwound, "the frames between the failure and the catch unwound");
+
+  // and the inline arm propagates the body's own exception unchanged
+  predictPartition.cutoffOverride = 0;
+  bool inlineThrew = false;
+  std::string inlineMessage;
+  try {
+    sampler.fanOutPredictSlabs(1, 1, 1, [](size_t, PredictScratch&) {
+      throw std::runtime_error("inline refused");
+    });
+  } catch (const std::exception& error) {
+    inlineThrew = true;
+    inlineMessage = error.what();
+  }
+  predictPartition.cutoffOverride = savedCutoff;
+  check(inlineThrew && inlineMessage == "inline refused",
+        "a one-worker replay lets the body's own exception out");
+
+  ext_rng_destroy(rng);
+  printf("ok: predict fan-out worker failure\n");
+}
+
 static void testPredictThreadPartition() {
   const size_t n = 200, nTest = 40, numChains = 2, numSamples = 11;
   const size_t numSlabs = numChains * numSamples;
@@ -7558,6 +7628,7 @@ void runSamplerTests(ext_rng* rng) {
   testMultiChain();
   testTestFitThreadInvariance();
   testPredictThreadPartition();
+  testPredictFanOutRethrowsWorkerFailure();
   testSetData(rng);
   testSetResponseScaleLock(rng);
   testSetDataResize(rng);

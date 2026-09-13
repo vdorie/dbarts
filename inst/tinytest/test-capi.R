@@ -222,6 +222,49 @@ expect_equal(sum(CALL("capi_draw_report")$calls), 3L)
 rm(ptrDraw, specDraw)
 invisible(gc(FALSE))
 
+# A RAISING callback, on a fresh sampler because a run that stops mid-stream
+# is not reused. dbarts_draw_callback admits an R error from an INLINE run -
+# one chain here, so every call reaches this thread - and dbarts_sampler_run
+# protects itself against the jump: the run stops at the raising draw, the
+# entry does NOT return, and the condition reaches R carrying the callback's
+# own message.
+specRaise <- dbarts(x, y, control = control)
+ptrRaise <- specRaise$getPointer()
+
+# registered but idle first, so raising is the only difference between the two
+# runs below
+CALL("capi_set_raising_callback", ptrRaise, -1L)
+invisible(CALL("capi_run_raising", ptrRaise, 0L, 4L))
+idleReport <- CALL("capi_raise_report")
+expect_equal(idleReport$calls, 4L)
+expect_true(idleReport$returned)
+
+CALL("capi_set_raising_callback", ptrRaise, 2L)
+expect_error(
+  CALL("capi_run_raising", ptrRaise, 0L, 6L),
+  "callback refused draw 2"
+)
+raiseReport <- CALL("capi_raise_report")
+# three draws arrived and the sixth never did, and the entry never returned:
+# the jump really came out of the middle of the run rather than after it
+expect_equal(raiseReport$calls, 3L)
+expect_false(raiseReport$returned)
+
+# and the handle survives it. The callback is cleared and the SAME sampler
+# runs again - the "a later run or a destroy is safe" half of the contract -
+# and the cleared hook fires nothing.
+CALL("capi_set_draw_callback", ptrRaise, FALSE)
+CALL("capi_draw_reset", -1L)
+afterRaise <- CALL("capi_run", ptrRaise, 0L, 3L, TRUE, FALSE)
+expect_equal(length(afterRaise$sigma), 3L)
+expect_true(all(is.finite(afterRaise$sigma)) && all(afterRaise$sigma > 0))
+expect_equal(sum(CALL("capi_draw_report")$calls), 0L)
+
+# an explicit destroy after the raise, which is the other way out
+CALL("capi_destroy", ptrRaise)
+rm(ptrRaise, specRaise)
+invisible(gc(FALSE))
+
 # two chains on two threads: each chain counts its own draws, and each chain
 # writes only its own slot - the header's (chainIndex, drawIndex) discipline,
 # which is what makes a callback safe with no engine lock

@@ -778,6 +778,73 @@ SEXP capi_draw_report(void) {
 }
 
 /* ------------------------------------------------------------------------
+ * The RAISING callback: dbarts_draw_callback's clause that a callback may
+ * raise an R error on an INLINE run - one chain, or one thread - where the
+ * call reaches the calling thread rather than a worker. Rf_error longjmps out
+ * of the middle of the engine's sweep loop; dbarts_sampler_run catches the
+ * jump at its own boundary and hands the error back to R, so capi_run_raising
+ * below does not return and the condition surfaces in R unchanged.
+ * ------------------------------------------------------------------------ */
+
+typedef struct {
+  long raiseAt;   /* draw index to raise at; negative never raises */
+  size_t calls;   /* draws that arrived, so the R side can see the run stopped
+                   * AT that draw rather than after the rest of them */
+  int returned;   /* set after dbarts_sampler_run returns; a raise must leave
+                   * it 0, since the entry must not return at all */
+} capi_raise_context;
+
+static capi_raise_context capi_raiseCtx;
+
+static int capi_raisingDraw(void* context, const dbarts_draw* draw)
+{
+  capi_raise_context* ctx = (capi_raise_context*) context;
+  ctx->calls += 1;
+  if (ctx->raiseAt >= 0 && draw->drawIndex >= (size_t) ctx->raiseAt)
+    Rf_error("capi consumer: callback refused draw %d",
+             (int) draw->drawIndex);
+  return 0;
+}
+
+/* arms the raising callback at a draw index (negative: registered but never
+ * raising, which is how the R side proves the plumbing itself is inert) */
+SEXP capi_set_raising_callback(SEXP ptrExpr, SEXP raiseAtExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  capi_raiseCtx.raiseAt = (long) Rf_asInteger(raiseAtExpr);
+  capi_raiseCtx.calls = 0;
+  capi_raiseCtx.returned = 0;
+  dbarts_sampler_setDrawCallback(sampler, &capi_raisingDraw, &capi_raiseCtx);
+  return R_NilValue;
+}
+
+/* a run with the raising callback armed. sigma rides R's transient storage,
+ * which the error jump releases along with everything the entry held. */
+SEXP capi_run_raising(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
+  size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
+  size_t chains = dbarts_sampler_numChains(sampler);
+  double* sigma =
+    (double*) R_alloc(numSamples * chains, sizeof(double));
+
+  dbarts_results results = DBARTS_RESULTS_INIT;
+  results.sigma = sigma;
+
+  dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
+  capi_raiseCtx.returned = 1;
+  return Rf_ScalarLogical(1);
+}
+
+SEXP capi_raise_report(void) {
+  const char* names[] = { "calls", "returned", "" };
+  SEXP result = PROTECT(Rf_mkNamed(VECSXP, names));
+  SET_VECTOR_ELT(result, 0, Rf_ScalarInteger((int) capi_raiseCtx.calls));
+  SET_VECTOR_ELT(result, 1, Rf_ScalarLogical(capi_raiseCtx.returned));
+  UNPROTECT(1);
+  return result;
+}
+
+/* ------------------------------------------------------------------------
  * A plain-C copy of the running-mean recipe in
  * vignettes/dbarts-as-a-component.Rmd, driven by test-callback-example.R
  * against the SAME seeded fit's yhat.train mean - proof the recipe is correct, not merely that it

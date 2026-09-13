@@ -20,6 +20,7 @@
 
 using std::size_t;
 using bartcore_bridge::adoptVector;
+using bartcore_bridge::callConvertingExceptions;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseEmptyTreeStore;
 using bartcore_bridge::refuseMultiForestResponseMutation;
@@ -42,6 +43,59 @@ inline bartcore::SamplerBase& samplerOf(dbarts_sampler* sampler) {
 }
 inline const bartcore::SamplerBase& samplerOf(const dbarts_sampler* sampler) {
   return *sampler->sampler;
+}
+
+
+/// R's continuation for an error longjmp that an entry caught at its own
+/// boundary. R_UnwindProtect's cleanup throws it, so every C++ frame between
+/// the cleanup and the entry's catch unwinds - destructors run - before
+/// R_ContinueUnwind resumes the jump towards R.
+///
+/// Only frames ABOVE the protected call are recovered. A longjmp cannot be
+/// undone, so whatever the engine held below it is already abandoned when the
+/// cleanup runs; that is why the engine reports its own failures as C++
+/// exceptions (converted back into an R error here, once the unwind has run
+/// the destructors) rather than by raising through R from the bottom of a
+/// call stack.
+struct UnwindJump {
+  SEXP continuation;
+};
+
+/// Runs \p body under one R_UnwindProtect: one setjmp per entry CALL and
+/// nothing per sweep or per draw, which is what keeps it off the sampling
+/// path. Two jumps end here. A C++ exception out of the engine becomes an R
+/// error labelled \p caller, raised after the unwind has destroyed everything
+/// the engine owned. An R error raised inside \p body - the engine's own
+/// refusals, and a host draw callback's, which the run entry's contract
+/// admits - lands in the cleanup, which rethrows it as a C++ exception so the
+/// frames above unwind, and is then handed back to R unchanged.
+template <typename Body>
+void callUnwindProtected(const char* caller, Body body) {
+  // allocated before anything of ours is live: R_MakeUnwindCont can itself
+  // raise on an allocation failure, and that jump must find nothing to free
+  SEXP continuation = PROTECT(R_MakeUnwindCont());
+  struct Frame {
+    Body* body;
+    const char* caller;
+    SEXP continuation;
+  } frame{&body, caller, continuation};
+  try {
+    R_UnwindProtect(
+      [](void* p) -> SEXP {
+        Frame& held = *static_cast<Frame*>(p);
+        callConvertingExceptions(held.caller, *held.body);
+        return R_NilValue;
+      }, &frame,
+      [](void* p, Rboolean jumped) {
+        if (jumped) throw UnwindJump{static_cast<Frame*>(p)->continuation};
+      }, &frame,
+      continuation);
+  } catch (const UnwindJump& jump) {
+    // the jump's target context restores the protection stack itself, so the
+    // PROTECT above needs no balancing on this path
+    R_ContinueUnwind(jump.continuation); // does not return
+  }
+  UNPROTECT(1);
 }
 
 
@@ -541,52 +595,62 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler) {
 
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results) {
-  bartcore::SamplerShape shape = samplerOf(sampler).shape();
-  bartcore::Results engineResults;
-  // the internal location stride (invisible to the frozen dbarts_results ABI):
-  // 1 for every dbarts.h-created sampler, since the flat C API builds no
-  // multi-location model, so the caller's n x numSamples train/test hold
-  //
-  // numVariableCountForests is deliberately NOT set: dbarts_results declares no
-  // forest count, so the field stays at its default 1 and the engine writes the
-  // single numPredictors slab per sample this struct documents - the reported
-  // (prognostic) forest - even on the BCF samplers this entry point can create
-  engineResults.numReportedLocations = shape.numReportedLocations;
-  // A zero structSize means the caller forgot to set it (see DBARTS_RESULTS_INIT):
-  // reject loudly instead of silently skipping every field and handing back an
-  // uninitialized buffer - the flat-API footgun that fed garbage draws to a
-  // consumer's Gibbs loop. A nonzero older/smaller structSize stays valid.
+  // A zero structSize means the caller forgot to set it (see
+  // DBARTS_RESULTS_INIT): reject loudly instead of silently skipping every
+  // field and handing back an uninitialized buffer - the flat-API footgun that
+  // fed garbage draws to a consumer's Gibbs loop. A nonzero older/smaller
+  // structSize stays valid. Ahead of the protected scope because it holds
+  // nothing: a refusal on a caller's own mistake costs no setjmp.
   if (results != NULL && results->structSize == 0)
     Rf_error("dbarts_sampler_run: results.structSize is 0 - set it to "
-             "sizeof(dbarts_results) (e.g. dbarts_results r = DBARTS_RESULTS_INIT)");
+             "sizeof(dbarts_results) (e.g. dbarts_results r = "
+             "DBARTS_RESULTS_INIT)");
 
-  if (results != NULL && numSamples > 0) {
-    // A field is filled only when present-by-size AND non-null. offsetof is
-    // against the library's (newest) layout; fields only append, so it
-    // equals the caller's offset and structSize bounds the buffer.
+  // The whole run is protected: this is the entry a registered draw callback
+  // fires from, and the one contract in dbarts.h that admits an R error raised
+  // by the CALLER's own code (dbarts_draw_callback states when).
+  callUnwindProtected("dbarts_sampler_run", [&]() {
+    bartcore::SamplerShape shape = samplerOf(sampler).shape();
+    bartcore::Results engineResults;
+    // the internal location stride (invisible to the frozen dbarts_results
+    // ABI): 1 for every dbarts.h-created sampler, since the flat C API builds
+    // no multi-location model, so the caller's n x numSamples train/test hold
+    //
+    // numVariableCountForests is deliberately NOT set: dbarts_results declares
+    // no forest count, so the field stays at its default 1 and the engine
+    // writes the single numPredictors slab per sample this struct documents -
+    // the reported (prognostic) forest - even on the BCF samplers this entry
+    // point can create
+    engineResults.numReportedLocations = shape.numReportedLocations;
+
+    if (results != NULL && numSamples > 0) {
+      // A field is filled only when present-by-size AND non-null. offsetof is
+      // against the library's (newest) layout; fields only append, so it
+      // equals the caller's offset and structSize bounds the buffer.
 #define FILL(field, member) \
   engineResults.member = DBARTS_RESULTS_HAS(results, field) ? results->field : NULL
-    FILL(sigma, sigma);
-    FILL(train, trainingFits);
-    FILL(test, testFits);
-    FILL(varcount, variableCounts);
-    FILL(k, k);
-    FILL(varprobs, splitProbabilities);
-    FILL(logLikelihood, logLikelihood);
-    FILL(dispersion, dispersion);
-    FILL(residualDf, residualDf);
+      FILL(sigma, sigma);
+      FILL(train, trainingFits);
+      FILL(test, testFits);
+      FILL(varcount, variableCounts);
+      FILL(k, k);
+      FILL(varprobs, splitProbabilities);
+      FILL(logLikelihood, logLikelihood);
+      FILL(dispersion, dispersion);
+      FILL(residualDf, residualDf);
 #undef FILL
-  }
+    }
 
-  // The engine samples only from each chain's own Mersenne Twister (seeded
-  // from R's stream once at creation), never from R's stream during a run, so
-  // no GetRNGstate/PutRNGstate bracket is needed here - and none is left
-  // unbalanced by a longjmp out of the engine.
-  // the registered observer, adapted to the shipped draw struct one draw at a
-  // time; an empty hook when nothing is registered, which is the run this
-  // entry made before the callback existed
-  samplerOf(sampler).run(numBurnIn, numSamples, engineResults, {}, {},
-                         sampler->drawHook.engineHook());
+    // The engine samples only from each chain's own Mersenne Twister (seeded
+    // from R's stream once at creation), never from R's stream during a run,
+    // so no GetRNGstate/PutRNGstate bracket is needed here - and none is left
+    // unbalanced by a longjmp out of the engine.
+    // the registered observer, adapted to the shipped draw struct one draw at
+    // a time; an empty hook when nothing is registered, which is the run this
+    // entry made before the callback existed
+    samplerOf(sampler).run(numBurnIn, numSamples, engineResults, {}, {},
+                           sampler->drawHook.engineHook());
+  });
 }
 
 /// The setter copies the pair into the sampler and nothing else: no call is
@@ -598,8 +662,15 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 }
 
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler) {
+  // Protected because the prior draw is one of the two engine paths that
+  // refuses from the bottom of a deep call stack (a tree whose every draw left
+  // an empty leaf, a monotone leaf vector with no feasible draw), and because
+  // growing a whole forest allocates.
+  //
   // draws from the chain RNG only, not R's stream (see dbarts_sampler_run)
-  samplerOf(sampler).sampleTreesFromPrior();
+  callUnwindProtected("dbarts_sampler_sampleTreesFromPrior", [&]() {
+    samplerOf(sampler).sampleTreesFromPrior();
+  });
 }
 
 int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
@@ -677,30 +748,37 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
   // first forest's fit labelled as the whole; see
   // dbarts_sampler_setTestPredictors
   if (testFitsAreUndefined(engine)) return 0;
-  refuseEmptyTreeStore(engine, "dbarts_sampler_predict");
-  bartcore::SamplerShape shape = engine.shape();
-  void* scratch = vmaxget();
-  TranslatedSource source = translateSource(
-    engine.data(), xTest, NULL, shape.numPredictors, 0,
-    "dbarts_sampler_predict");
-  // a read-only replay builds no store, so the leaf-covariate rule is checked
-  // on the view itself rather than answered by a store build
-  validateTestSource(engine, source, "dbarts_sampler_predict");
-  size_t numTestObservations = source.view.numRows;
+  // The replay is protected from here down: it builds the CSC rank bitmaps a
+  // sparse view reads through, and it fans across threads, so a worker failure
+  // arrives as a C++ exception whose unwind must run before anything is
+  // reported to R.
+  int filled = 0;
+  callUnwindProtected("dbarts_sampler_predict", [&]() {
+    refuseEmptyTreeStore(engine, "dbarts_sampler_predict");
+    bartcore::SamplerShape shape = engine.shape();
+    void* scratch = vmaxget();
+    TranslatedSource source = translateSource(
+      engine.data(), xTest, NULL, shape.numPredictors, 0,
+      "dbarts_sampler_predict");
+    // a read-only replay builds no store, so the leaf-covariate rule is
+    // checked on the view itself rather than answered by a store build
+    validateTestSource(engine, source, "dbarts_sampler_predict");
+    size_t numTestObservations = source.view.numRows;
 
-  engine.predict(source.view, numTestObservations, NULL, numThreads, out);
-  vmaxset(scratch);
+    engine.predict(source.view, numTestObservations, NULL, numThreads, out);
+    vmaxset(scratch);
 
-  if (offsetTest != NULL) {
-    size_t capacity = shape.savedTreeCapacity;
-    size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;
-    for (size_t slab = 0; slab < numSamples * shape.numChains; ++slab)
-      misc_addVectorsInPlace(offsetTest, numTestObservations,
-                             out + slab * numTestObservations);
-  }
-  return 1;
+    if (offsetTest != NULL) {
+      size_t capacity = shape.savedTreeCapacity;
+      size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;
+      for (size_t slab = 0; slab < numSamples * shape.numChains; ++slab)
+        misc_addVectorsInPlace(offsetTest, numTestObservations,
+                               out + slab * numTestObservations);
+    }
+    filled = 1;
+  });
+  return filled;
 }
-
 void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
                                    size_t numSamplesToStore) {
   samplerOf(sampler).setTreeStorage(keepTrees != 0, numSamplesToStore);

@@ -35,6 +35,7 @@ using bartcore_bridge::AugmentationInputs;
 using bartcore_bridge::augmentationLaw;
 using bartcore_bridge::AugmentationLaw;
 using bartcore_bridge::BartcoreHolder;
+using bartcore_bridge::callConvertingExceptions;
 using bartcore_bridge::computeWorkingResponse;
 using bartcore_bridge::drawAugmentation;
 using bartcore_bridge::enforceBinaryWeightPolicy;
@@ -2195,6 +2196,9 @@ std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
   if (rngFailed) {
     for (size_t c = rngs.size(); c > 0; --c)
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
+    // Rf_error longjmps past ~vector, so the buffer that held the generators
+    // is released here rather than left to a destructor that never runs
+    std::vector<ext_rng*>().swap(rngs);
     Rf_error("could not allocate rng");
   }
   return rngs;
@@ -6267,8 +6271,13 @@ static SEXP predictFromSource(bartcore::SamplerBase& sampler,
                                static_cast<int>(numChains)));
   }
 
-  sampler.predict(source, numTestObservations, categoryOffset, numThreads,
-                  REAL(resultExpr));
+  // The fan-out reports a worker's failure as a C++ exception so its unwind
+  // frees the replay's buffers; it becomes an R error here, where nothing of
+  // the engine's is left live. See Sampler::fanOutPredictSlabs.
+  callConvertingExceptions("bartcore_predict", [&]() {
+    sampler.predict(source, numTestObservations, categoryOffset, numThreads,
+                    REAL(resultExpr));
+  });
 
   if (offset != NULL) {
     for (size_t slab = 0; slab < numSamples * numChains; ++slab)
@@ -6282,8 +6291,10 @@ static SEXP predictFromSource(bartcore::SamplerBase& sampler,
   // needs saved trees, so a null-capacity variance forest has nothing to replay.
   if (shape.hasVarianceForest && capacity > 0) {
     SEXP varianceExpr = PROTECT(Rf_duplicate(resultExpr));  // clone the shape
-    sampler.predictVariance(source, numTestObservations, numThreads,
-                            REAL(varianceExpr));
+    callConvertingExceptions("bartcore_predict", [&]() {
+      sampler.predictVariance(source, numTestObservations, numThreads,
+                              REAL(varianceExpr));
+    });
     SEXP listExpr = PROTECT(Rf_allocVector(VECSXP, 2));
     SET_VECTOR_ELT(listExpr, 0, resultExpr);
     SET_VECTOR_ELT(listExpr, 1, varianceExpr);
@@ -6397,8 +6408,10 @@ static SEXP predictPerForestFromSource(bartcore::SamplerBase& sampler,
   for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
   Rf_setAttrib(resultExpr, R_DimSymbol, dimExpr);
 
-  sampler.predictPerForest(source, numTestObservations, numThreads,
-                           REAL(resultExpr));
+  callConvertingExceptions("bartcore_predictPerForest", [&]() {
+    sampler.predictPerForest(source, numTestObservations, numThreads,
+                             REAL(resultExpr));
+  });
   UNPROTECT(1);
   return resultExpr;
 }

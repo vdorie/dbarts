@@ -363,17 +363,35 @@ typedef struct dbarts_draw_t {
 /// addressed by (chainIndex, drawIndex), disjoint by construction. Calls
 /// within one chain are ordered by drawIndex.
 ///
-/// NO R API INSIDE THE CALLBACK, EVER - not Rf_allocVector, not PROTECT, not
-/// Rf_error, and in C++ not the CONSTRUCTION OR DESTRUCTION of an Rcpp proxy
+/// NO R ALLOCATION INSIDE THE CALLBACK, EVER - not Rf_allocVector, not
+/// PROTECT, and in C++ not the CONSTRUCTION OR DESTRUCTION of an Rcpp proxy
 /// type (Rcpp::NumericVector and its siblings touch the protection stack on
 /// both, allocation visible or not; take the raw double* out before the run).
-/// R's evaluator, allocator and protection stack are single-threaded, any R
-/// allocation may collect objects nothing protected on the worker's behalf,
-/// and the callback MUST NOT LONGJMP: Rf_error unwinds a context the main
-/// thread established, skipping every C++ destructor between raise and catch
-/// even when it is reached from the main thread. An interrupt cannot land
-/// while a call is running either, so a callback that blocks hangs the session
-/// with no Ctrl-C.
+/// R's evaluator, allocator and protection stack are single-threaded, and any
+/// R allocation may collect objects nothing protected on the worker's behalf.
+/// An interrupt cannot land while a call is running either, so a callback that
+/// blocks hangs the session with no Ctrl-C.
+///
+/// RAISING. The callback MAY raise an R error (Rf_error, or anything that
+/// longjmps) on an INLINE run - one where the callback reaches this thread
+/// rather than a worker, which is any run with min(numThreads, numChains) <= 1
+/// (set the thread count with dbarts_sampler_setNumThreads and read the chain
+/// count with dbarts_sampler_numChains). dbarts_sampler_run catches the jump
+/// at its own boundary: the run stops there, the entry releases what it holds,
+/// and the error then propagates to the caller unchanged, so the entry does
+/// NOT return. The sampler is left exactly as a nonzero return leaves it -
+/// the sample cursors have not advanced past draws already written into the
+/// slots they count - so the caller discards these results and any saved
+/// trees; the handle itself stays valid, and a later run or a destroy is safe.
+/// A longjmp cannot be undone, so anything the CALLER owns between its own
+/// dbarts_sampler_run call and the raise is skipped just as it would be under
+/// any other R error: a caller holding C++ objects across the run wraps its
+/// own call in R_UnwindProtect, exactly as this entry does.
+///
+/// From a WORKER thread a raise is still undefined - the jump would leave a
+/// context the main thread established, on a stack that is not the main
+/// thread's - so a callback that cannot know which run it is in records the
+/// disagreement and returns nonzero instead.
 typedef int (*dbarts_draw_callback)(void* context, const dbarts_draw* draw);
 
 /// A predictor column's type. Ordinal columns are cut on their values;
@@ -758,7 +776,16 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// a host reduces draws as they are produced instead of materializing them.
 /// One that returns nonzero stops the run early and this entry STILL RETURNS
 /// NORMALLY, so a caller that registered one discards these buffers and any
-/// saved trees on the status its own context carries.
+/// saved trees on the status its own context carries. One that RAISES an R
+/// error instead stops the run and does not return here at all; the conditions
+/// under which that is allowed, and what the sampler looks like afterwards,
+/// are dbarts_draw_callback's.
+///
+/// Every error raised under this call - the callback's, a refusal of the
+/// arguments, an engine failure - passes through an unwind-protected boundary
+/// here, so this entry's own frames are released before the jump resumes. An
+/// engine failure is reported internally as a C++ exception for that reason
+/// and becomes an R error only once its unwind has run.
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results);
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
