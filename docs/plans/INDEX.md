@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (43 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (45 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -63,6 +63,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
+| binary-hyperprior.md | RUN AND REPORTED, 2026-09-13 | Re-evaluates the binary node hyperprior default chi(1.5, 2) with the degrees of freedom varied for the first time and a case set three and a half times the size of the one that set it: 23 priors (five df crossed with four scales, plus fixed k at 1, 2 and 3) over 162 simulated cells and six real datasets, 38,088 fits, scored by held-out log score and Brier, interval coverage and width against known truth, sampled k and time. Verdict: keep chi(1.5, 2) - every finite-scale hyperprior scores alike on point prediction, the only separating score orders the arms monotonically in interval width and so names no optimum, and the two criteria that do have one (coverage, and the real datasets' preference for more shrinkage) pull opposite ways; the improper scale and every fixed k are decisively worse. |
 | weighted-binary.md | ACTIVE (parked memo) | Preserves analysis for integer-weight probit and arbitrary-real-weight logistic; not implemented in 1.0-0, decision-gated rather than scheduled. |
 
 ## Grouped-effects singletons

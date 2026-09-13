@@ -115,6 +115,38 @@ docs/plans/classic-compare.md - 22 scenarios agree at the null's own rate,
 and the four that do not are the zero-weight fit, the two crossvalidation
 rows and the unequal-cut-point probe of the change move.
 
+## R/binary-hyperprior.R - the binary k prior study (measurement, not a gate)
+
+Re-evaluates the binary (probit) end-node hyperprior default, chi(1.5, 2),
+over a grid of priors and a case set far wider than the study that set the
+default: twenty chi(df, scale) arms (df in {1, 1.25, 1.5, 2, 3} crossed with
+scale in {1, 2, 5, Inf}) plus fixed k at 1, 2 and 3, over 162 simulated cells
+(six data-generating processes by three sample sizes by three predictor counts
+by three base rates) and six real datasets from R and its recommended packages
+scored by repeated 80/20 splits. Arms are paired inside a case and repetition
+(same data, same seed). Scores, all on held-out rows: log score and Brier
+against the outcome; against the known truth on the simulated cells, the
+coverage and width of the 90 percent interval for the true probability and the
+RMSE of the posterior mean probability; plus the sampled k and the fit time.
+
+    Rscript benchmarks/R/binary-hyperprior.R blocks           # list the blocks
+    Rscript benchmarks/R/binary-hyperprior.R sim:weak:500 DIR # one block
+    Rscript benchmarks/R/binary-hyperprior.R real:biopsy DIR
+    Rscript benchmarks/R/binary-hyperprior.R all DIR          # every block
+    Rscript benchmarks/R/binary-hyperprior.R summarize DIR    # the tables
+
+One block is one invocation and writes one rds into DIR, so a full run splits
+across a session; a large simulated block narrows further by appending a
+predictor count (`sim:weak:2000:50`). A full run is 24 blocks, 38,088 fits and
+about ninety minutes on four cores, each block well under ten minutes.
+`BINARY_HYPERPRIOR_CORES`, `_REPS` and `_SPLITS` set the worker count, the
+simulated repetitions and the real-data splits; `quick` is a smoke run and its
+files are marked so summarize will not mix them with a real one. No baseline
+and no pass/fail exit: the verdict is written by a person. Findings:
+docs/plans/binary-hyperprior.md - keep chi(1.5, 2); the finite-scale
+hyperpriors are interchangeable on point prediction, and the improper scale
+and every fixed k are worse.
+
 ## R/*-exact.R, *-balance.R - deterministic exact-posterior gates
 
 The exact-posterior gates (aft-exact, bcf-exact[-weak, -restricted],
