@@ -1,102 +1,86 @@
-# Rubric for maintainer-facing documents
+# Rubric for documents the maintainer reads
 
-The standard a document must meet before the maintainer reads it. Written
-for the bartcore landing memo; it applies to any document the maintainer
-will act on. Every item is pass/fail. A reviewer reports each failure as
-the quoted line plus the item number, and the completed grade sheet is
-committed beside the document. A refresh regrades every item, not only
-the lines the refresh touched. "Improve clarity" is not a finding.
+Applies to the landing memo, the decision ledger, and any brief written for
+the maintainer to act on. The maintainer reviews this rubric before it is
+used and can change it at any time.
 
-The reader is the package maintainer: a statistician who knows BART, R
-and dbarts 0.9-x, who has read nothing under docs/, and who reads the
-document once, in one sitting, to make a decision. They adjudicate the
-decision register with the document open, so a decision bullet may end
-with its row id. The document is graded on what that reader can do after
-one reading, not on what it contains.
+## Who reads and why
 
-## What the document must do
+The reader is the maintainer: a statistician who knows BART, R and dbarts
+0.9-x, has not read anything under docs/, and reads once to decide what to
+do next. The document exists to show what the maintainer needs to know and
+what the agents assumed on their behalf, so that gaps can be seen.
 
-1. The opening paragraph states the decision being asked for, the
-   writer's recommendation, and what the release gains.
-2. Directly after the opening, the facts that could change the
-   recommendation are listed once, each stated whole, ordered by how much
-   of the release each one blocks. The opening does not preview them. If
-   a fact is split across sections, it is stated whole where it bears on
-   the decision and referred back to elsewhere.
-3. The body answers the questions the decision turns on. For the landing
-   memo: whether the branch can merge and in what order with the consumer
-   packages; what breaks for whom at each intermediate state, and whether
-   loudly (a compile or load error) or silently (a wrong result); how much
-   is known about whether the release computes the same answers as
-   0.9-x, and where that is not known; what the agents decided without
-   you and what each costs; and what is unfinished, abandoned, or proven
-   only by a gate not run at the tip, with who does it and before which
-   step.
-4. Every set the document reasons over (consumer packages,
-   prerequisites, gates, intermediate states) is listed in full before it
-   is used.
-5. A count appears only with what it counts and where the list is. A
-   measurement appears only with what it means for the decision.
+## Before writing
+
+1. The writer puts the questions the document will answer to the maintainer
+   in chat, as a short list, and gets them confirmed. The confirmed list
+   opens the document. Nothing else appears in the body.
+2. Every version is written from a blank page against that list. A refresh
+   is a rewrite, not an edit of the last version. A section that answers no
+   question on the list is not written.
+
+## What the landing memo answers
+
+3. What 1.0-0 is, in one paragraph: what it adds, what it repairs, and how
+   it is faster, with the one or two numbers a user would quote.
+4. What breaks for someone using 0.9-34 as they use it today. For each
+   break: whether it is loud (an error at install, load or the call) or
+   silent (a different answer), and for a silent one what the different
+   answer looks like. The most common cases come first. Downstream packages
+   are covered the same way, by package.
+5. What is missing or wrong that should be fixed before a release
+   candidate, and before 1.0-0: features not built, known defects,
+   measurements not made, and downstream packages not yet working. Each
+   item says whether it goes before or after the merge to main and why in
+   one clause.
+6. How much is known about whether 1.0-0 agrees with 0.9-34, and what
+   it would take to know more.
+7. The work ledger: every open item, with its status. Statuses are done,
+   open, and deferred with a stated reason. Nothing is abandoned; an item
+   with no home gets one in TODO.
+8. Not in the memo: how to merge, how to submit to CRAN, who does which
+   step, run ids, commit hashes, counts of register rows, tallies of who
+   decided what.
+
+## What the decision ledger must do
+
+9. Each entry can be read on its own by the reader above: what was decided
+   in plain words, what the alternatives were, what a user of the package
+   notices, and the maintainer's ruling if there is one. Codenames, slice
+   labels and finding codes are unpacked or dropped.
+10. An entry the maintainer has ruled on shows the ruling as the current
+    state. The earlier agent position appears only as the alternative that
+    was not taken.
 
 ## What must be true
 
-6. The reviewer re-checks against the tree at the tip every claim about
-   what the package exports, refuses, errors on, returns or defaults to,
-   and what any gate or check does and when it runs. A register row is
-   evidence, not truth: where they disagree, the document states the tree
-   and the row is corrected in the same commit. For any claim using
-   every, only, none or nothing, the reviewer names the case that would
-   break it and confirms it does not exist.
-7. Every decision named traces to a decision-register row and is
-   described in its standing form. A row marked superseded is described
-   from the superseding row, with the reversal named. A row you have
-   marked as yours is not presented as agent-made, and a decision is
-   presented as yours only when its row says so. Decision bullets are
-   ordered by cost.
-8. Every completeness claim states whether its gate ran at the tip. The
-   body names a gate by what it checks; the commit or run id it proved
-   goes in the appendix. Every other claim has a register row, every
-   cited row has a code or git anchor, and no claim rests only on a
-   design or plan document.
-9. The body, the tables and the appendix agree on every fact they share.
-10. The evidence appendix maps each claim to register ids that exist at
-    the tip and whose status supports the claim.
+11. A claim about what the package does, refuses, returns or defaults to is
+    checked against the code at the commit the document describes.
+12. A claim about what can or cannot be done is checked against everything
+    the maintainer has to hand: git history, CRAN, R itself and the sister
+    packages. "Impossible", "nothing can", and "no fix" are used only after
+    the obvious route has been tried or named and ruled out in the text.
+13. A number appears only where it changes what the reader would do, and
+    then with what it means. Lists the reader must act on go in an
+    appendix; lists that only justify a count are not included.
 
 ## How it must read
 
-11. The reader is addressed as you and the writer speaks as I. The phrase
-    "the maintainer" does not appear. Every action names who does it.
-12. Ordinary words, one idea per sentence, each with its verb, and the
-    actor of each verb as its subject. A term
-    coined for this project is replaced by plain words or defined where
-    it first appears. Anything the reader has not met in a released
-    dbarts, in R, or earlier in the document is glossed; anything they
-    have met is not. A register id never appears inside a sentence as its
-    subject or object; it may close a decision bullet, and otherwise
-    lives in the appendix.
-13. The document describes the state at the tip, not how it got there:
-    no review provenance, finding codes, agent names, or dates except a
-    maintainer ruling quoted from the register.
-14. Facts and consequences only. No judgement of quality (robust, clean,
-    thorough, careful, ensures, and their kin). No general verb (carry,
-    hold, cover, admit, discharge) where a specific one (needs, costs,
-    breaks, fails) would say it. No paragraph whose deletion would leave
-    the reader's judgement unchanged.
-15. A table only where each row differs in every column and every cell is
-    a phrase; otherwise short headed sections. Every silent-breakage case
-    says what the wrong answer looks like.
-16. The body is at most 3000 words. Appendices hold the evidence mapping
-    and any list the body counts, and nothing else.
-17. ASCII only, no em-dashes, no arrows.
+14. Plain prose a statistician follows in one read. Headings are phrases
+    the reader could say aloud. Each sentence has a clear subject, usually
+    the package, a function, a user, or the maintainer. Anything not met in
+    a released dbarts, in R, or earlier in the document is explained where
+    it first appears. Register ids may close a ledger entry or a bullet;
+    they do not appear inside sentences.
+15. The document describes the current state, not how it got there. No
+    review history, agent names or dates other than a maintainer ruling.
+16. The body of the landing memo is at most 2000 words. ASCII only.
 
-## Exit test
+## Checking
 
-18. Run once before the document is sent, by a reader matching the
-    profile who has not read the registers. With only the document, they
-    write down what they would do, the recommendation, the facts of
-    item 2, and the answers to item 3, without re-reading any sentence,
-    and list every term they had to guess. Each answer they cannot
-    produce, produce wrongly, or produce only after re-reading is a
-    numbered failure, and "I cannot decide" is a failure. Their answers
-    are then checked against the tree and the registers, and any
-    disagreement is a failure of the document, not of the reader.
+17. An agent checks items 3 to 13 against the code and the ledger and
+    leaves a written sheet beside the document, one line per item, naming
+    any failing sentence. An agent's pass on items 14 to 16 does not count;
+    readability is judged by the maintainer's read, and what the maintainer
+    flags is fixed by rewriting the section, not the sentence.
