@@ -265,3 +265,92 @@ expect_inherits(
   ),
   "dbartsSampler"
 )
+
+# ---- the variance forest's own prior draw -----------------------------------
+#
+# sampleTreesFromPrior and sampleNodeParametersFromPrior are MEAN-forest
+# entries by contract, so a heteroscedastic chain had no path to a prior-drawn
+# s(x) before sampleVarianceForestFromPrior. What is pinned here is the R
+# surface: the draw moves the scale surface, leaves it live (positive, and a
+# state that restores), leaves the mean forest and sigma where it found them,
+# and does nothing at all - not even a generator call - on a homoscedastic
+# sampler.
+
+set.seed(41L)
+nPrior <- 200L
+xPrior <- matrix(
+  runif(nPrior * 2L),
+  nPrior,
+  2L,
+  dimnames = list(NULL, c("a", "b"))
+)
+sPrior <- ifelse(xPrior[, 1L] < 0.5, 0.3, 1.5)
+yPrior <- 2 * xPrior[, 2L] + sPrior * rnorm(nPrior)
+priorControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 4L,
+  updateState = FALSE,
+  seed = 41L
+)
+priorSampler <- dbarts(
+  xPrior,
+  yPrior,
+  test = xPrior[1:10, , drop = FALSE],
+  variance = varianceForest(n.trees = 5L),
+  control = priorControl
+)
+beforeDraw <- priorSampler$run(20L, 4L)
+beforeTrees <- priorSampler$getTrees()
+priorSampler$sampleVarianceForestFromPrior()
+afterDraw <- priorSampler$run(0L, 1L)
+
+# the surface moved, and it is still a legal scale surface
+expect_true(
+  !identical(
+    afterDraw$variance[, 1L],
+    beforeDraw$variance[, 4L]
+  )
+)
+expect_true(all(afterDraw$variance > 0))
+expect_true(all(afterDraw$varianceTest > 0))
+# the mean forest and the fixed sigma are untouched by a variance-forest entry
+expect_identical(
+  beforeTrees[beforeTrees$sample == 4L, c("var", "value")],
+  priorSampler$getTrees()[
+    priorSampler$getTrees()$sample == 4L,
+    c("var", "value")
+  ]
+)
+expect_equal(afterDraw$sigma[[1L]], beforeDraw$sigma[[4L]])
+
+# and the drawn state is live state: the validation a restore runs demands
+# every variance leaf a positive scale and every bottom occupied
+priorSampler$sampleVarianceForestFromPrior()
+priorSampler$storeState()
+drawnState <- priorSampler$state
+restored <- dbarts(
+  xPrior,
+  yPrior,
+  test = xPrior[1:10, , drop = FALSE],
+  variance = varianceForest(n.trees = 5L),
+  control = priorControl
+)
+expect_silent(restored$setState(drawnState))
+
+# a homoscedastic sampler has nothing to draw: not a refusal, and not a
+# generator call either, so the next draws are the ones it would have made
+homoControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 4L,
+  updateState = FALSE,
+  seed = 41L
+)
+homo <- dbarts(xPrior, yPrior, control = homoControl)
+homoBefore <- homo$run(5L, 4L)
+homoAgain <- dbarts(xPrior, yPrior, control = homoControl)
+expect_silent(homoAgain$sampleVarianceForestFromPrior())
+expect_identical(homoAgain$run(5L, 4L)$train, homoBefore$train)

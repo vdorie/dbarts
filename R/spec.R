@@ -686,7 +686,9 @@ resolveSamplerSpec <- function(
     # non-constant leaf, a variance forest, an fp32
     # residual, a per-column cut cap, nor the Student-t error law. Every one of
     # those would otherwise be dropped in silence, changing the fitted model
-    # without a word; name each one instead.
+    # without a word; name each one instead. 'proposal.probs' is NOT among them:
+    # the chain carries the control's mixture onto every forest it builds, so a
+    # coupling honors it rather than dropping it.
     unsupported <- c(
       "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),
       "'split.probs'" = length(priors$tree.prior@splitProbabilities) > 0L,
@@ -707,13 +709,6 @@ resolveSamplerSpec <- function(
       # own latent scale, so a named prior.scale has nowhere to land and the
       # node.scale gate above does not fire on it
       "a named 'prior.scale'" = !is.na(model@prior.scale),
-      # a monotone constraint rewrites proposal.probs above, so only an
-      # unconstrained fit's is the caller's own
-      "a non-default 'proposal.probs'" = is.null(monotoneDirections) &&
-        !isTRUE(all.equal(
-          control@proposal.probs[names(defaultProbs)],
-          defaultProbs
-        )),
       "Student-t residuals" = !is.null(residDf),
       "'variance'" = !is.null(varianceColumns),
       "storage = \"single\"" = identical(control@storage, "single"),

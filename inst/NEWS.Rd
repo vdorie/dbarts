@@ -595,6 +595,20 @@
             other mixture must still sum to one, and an all-zero named
             vector stays all-zero rather than handing the residual to an
             unnamed \code{"swap"}.
+      \item A multi-forest declaration (\code{forests}, the two-forest
+            Bayesian causal forest among them) honors the
+            \code{proposal.probs} mixture on every one of its forests
+            rather than refusing it: the mixture is a property of the fit,
+            and a frozen one holds every forest's structures. Fits at the
+            default mixture are unchanged.
+      \item \code{\linkS4class{dbartsSampler}} gains
+            \code{sampleVarianceForestFromPrior}, the variance forest's own
+            prior draw. \code{sampleTreesFromPrior} and
+            \code{sampleNodeParametersFromPrior} are mean-forest entries by
+            contract and leave a heteroscedastic sampler's scale surface
+            alone, so a whole heteroscedastic chain at its prior now takes
+            all three; on a homoscedastic sampler the new method draws
+            nothing and returns.
       \item The rewritten engine replaces the pre-1.0 engine: every
             fitting function runs on it. Fits are not draw-for-draw
             identical to the pre-1.0 engine's, and the corrections listed

@@ -513,3 +513,95 @@ expect_true(length(unique(vapply(byGibbsDraw, nrow, 0L))) > 1L)
 expect_true(heldShape > 10L)
 expect_true(ruleMoves > 0L)
 expect_true(categoricalRules > 0L)
+
+# ---- a coupling honors the mixture on EVERY forest --------------------------
+#
+# The mixture is a property of the fit, but a multi-forest (causal) sampler
+# builds each forest from its own specification rather than from the sampler
+# options, so it is the one composition where a mixture could reach the
+# prognostic forest and not the modulating one. Every arm below reads BOTH
+# forests' split counts: an install that stopped at the first forest leaves the
+# second splitting exactly as it would at the default mixture.
+
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
+set.seed(3L)
+nBcf <- 200L
+xBcf <- matrix(
+  runif(nBcf * 4L),
+  nBcf,
+  4L,
+  dimnames = list(NULL, paste0("x", 1:4))
+)
+zBcf <- rbinom(nBcf, 1L, 0.5)
+yBcf <- 2 *
+  sin(pi * xBcf[, 1L]) +
+  xBcf[, 2L] +
+  zBcf * (1 + 2 * xBcf[, 3L]) +
+  rnorm(nBcf, 0, 0.2)
+bcfForests <- list(dbarts::forest(), dbarts::forest(basis = ~ factor(zBcf)))
+bcfFit <- function(probs) {
+  dbarts::dbarts(
+    xBcf,
+    yBcf,
+    forests = bcfForests,
+    control = dbarts::dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 25L,
+      updateState = FALSE,
+      seed = 17L,
+      proposal.probs = probs
+    )
+  )
+}
+# total splits in each forest, read off the live sampler after its run
+splitsPerForest <- function(sampler) {
+  handle <- list(ptr = sampler$getPointer())
+  c(
+    sum(bartcoreForestVariableCounts(handle, 0L)),
+    sum(bartcoreForestVariableCounts(handle, 1L))
+  )
+}
+
+# the discriminator: at the shipped mixture both forests grow structure, so a
+# zero below is a fact about the mixture and not about the fixture
+defaultBcf <- bcfFit(NULL)
+defaultBcfDraws <- defaultBcf$run(20L, 20L)
+defaultBcfSplits <- splitsPerForest(defaultBcf)
+expect_true(all(defaultBcfSplits > 0L))
+
+# birth/death at zero and every proposal a change: the forests start as stumps
+# and a change proposes nothing on one, so NEITHER forest can ever split
+changeOnlyBcf <- bcfFit(c(birth_death = 0, change = 1))
+changeOnlyBcf$run(20L, 20L)
+expect_identical(splitsPerForest(changeOnlyBcf), c(0L, 0L))
+
+# the frozen mixture holds both forests' structures while the leaf values,
+# sigma and the combining amplitudes keep moving
+frozenBcf <- bcfFit(c(
+  birth_death = 0,
+  swap = 0,
+  change = 0,
+  perturb = 0,
+  rule_gibbs = 0
+))
+frozenBcfDraws <- frozenBcf$run(20L, 20L)
+expect_identical(splitsPerForest(frozenBcf), c(0L, 0L))
+expect_true(length(unique(frozenBcfDraws$sigma)) > 1L)
+expect_true(
+  !identical(
+    frozenBcfDraws$train[, 1L],
+    frozenBcfDraws$train[, 20L]
+  )
+)
+
+# and an ordinary non-default mixture reaches the sampler at all: same seed,
+# same data, different draws from the shipped mixture's
+tiltedBcf <- bcfFit(c(birth_death = 0.8, change = 0.2))
+tiltedBcfDraws <- tiltedBcf$run(20L, 20L)
+expect_true(all(splitsPerForest(tiltedBcf) > 0L))
+expect_true(!identical(tiltedBcfDraws$train, defaultBcfDraws$train))

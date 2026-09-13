@@ -1320,6 +1320,143 @@ static void testStateLeafScale(ext_rng* rng) {
   printf("ok: per-forest leaf scale rides the state\n");
 }
 
+// The variance forest's own prior draw (docs/design/aft-status-setter.md
+// slice 3). The two forest prior-draw entries are mean-only by contract, so
+// before this entry a heteroscedastic chain had no path to a prior-drawn
+// s(x) at all. Three things are gated here: that the draw leaves LIVE state -
+// the surface is the product of the drawn factors, every bottom is occupied
+// and the state restores - that it is FOREST-LOCAL, leaving the mean forest,
+// sigma and the leaf calibration where it found them, and that both halves
+// really are the priors: the structure varies draw to draw and the leaf factor
+// matches the calibrated inverse-chi-squared in a moment whose standard error
+// is known exactly.
+static void testVarianceForestPriorDraw() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 818181u;
+
+  const size_t n = 300, p = 2, numTrees = 20, numVarianceTrees = 5;
+  const double sigmaDf = 3.0, sigmaRawScale = 0.37804942330213542;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = 3.0 * x[i] + (x[i + n] < 0.5 ? 0.2 : 1.4) * z;
+  }
+
+  std::vector<ext_rng*> rngs;
+  auto makeSampler = [&](std::uint32_t seed, size_t m, double varianceBase) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numVarianceTrees = m;
+    options.varianceBase = varianceBase;
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+      sigmaDf, sigmaRawScale, options, &r);
+  };
+
+  Results empty;
+  auto sampler = makeSampler(3131, numVarianceTrees, 0.95);
+  sampler->run(60, 0, empty);
+  SamplerStateData before;
+  sampler->getState(before);
+  std::vector<double> surfaceBefore(
+    sampler->chain(0).varianceFits(),
+    sampler->chain(0).varianceFits() + n);
+
+  sampler->sampleVarianceForestFromPrior();
+
+  const auto& chain = sampler->chain(0);
+  const double* factors = chain.varianceFactorsForTesting();
+  const double* surface = chain.varianceFits();
+  bool surfaceMoved = false, productHolds = true, positive = true;
+  for (size_t i = 0; i < n; ++i) {
+    double product = 1.0;
+    for (size_t j = 0; j < numVarianceTrees; ++j) product *= factors[j * n + i];
+    if (std::fabs(product - surface[i]) > 1.0e-12 * std::fabs(product))
+      productHolds = false;
+    if (!(surface[i] > 0.0)) positive = false;
+    if (surface[i] != surfaceBefore[i]) surfaceMoved = true;
+  }
+  check(surfaceMoved, "variance prior draw: the surface moves");
+  check(productHolds,
+        "variance prior draw: s^2(x) is the product of the drawn factors");
+  check(positive, "variance prior draw: every drawn scale is positive");
+  for (size_t j = 0; j < numVarianceTrees; ++j)
+    check(chain.varianceTree(j).bottomNodesAreOccupied(),
+          "variance prior draw: the empty-leaf veto holds on every drawn tree");
+
+  SamplerStateData after;
+  sampler->getState(after);
+  check(sameFlatTrees(after.chains[0].forests[0].trees,
+                      before.chains[0].forests[0].trees),
+        "variance prior draw: the mean forest is untouched");
+  check(after.chains[0].sigma == before.chains[0].sigma,
+        "variance prior draw: sigma is untouched");
+  auto restored = makeSampler(4141, numVarianceTrees, 0.95);
+  check(restored->setState(after, nullptr),
+        "variance prior draw: the drawn state is live state and restores");
+
+  // the tree half really runs: repeated draws do not agree on a node count,
+  // and at least one carries a split. A leaf-only entry would report the same
+  // count every time.
+  size_t firstCount = chain.varianceTree(0).nodes.size();
+  bool countVaries = false, anySplit = false;
+  for (int rep = 0; rep < 40; ++rep) {
+    sampler->sampleVarianceForestFromPrior();
+    for (size_t j = 0; j < numVarianceTrees; ++j) {
+      size_t nodes = chain.varianceTree(j).nodes.size();
+      if (nodes != firstCount) countVaries = true;
+      if (nodes > 1) anySplit = true;
+    }
+  }
+  check(anySplit, "variance prior draw: the structure draw grows trees");
+  check(countVaries, "variance prior draw: the structure varies by draw");
+
+  // the leaf half is ConstantVarianceLeaf's own prior. One tree and a tree
+  // prior that never grows leaves a bare root, so each draw IS one leaf factor
+  // h ~ chi^-2(nu, lambda^2) at the m = 1 calibration (nu = sigmaDf, lambda^2 =
+  // initialVariance * rawScale). Score the reciprocal, whose law is exactly
+  // chisq(nu) / (nu lambda^2): mean 1 / lambda^2 and variance 2 / (nu
+  // lambda^4), so the Monte Carlo error of the mean is known in closed form
+  // and the bound below is five standard errors rather than a guess.
+  auto flat = makeSampler(5151, 1, 0.0);
+  // the seeded surface before any draw IS the initial variance the
+  // calibration is stated against, on the WORKING scale the chain holds it in,
+  // so the target below assumes nothing about the response transform
+  const double initialVariance = flat->chain(0).varianceFits()[0];
+  const double leafScale = initialVariance * sigmaRawScale;
+  const int numDraws = 4000;
+  double sum = 0.0, sumSquares = 0.0;
+  for (int rep = 0; rep < numDraws; ++rep) {
+    flat->sampleVarianceForestFromPrior();
+    check(flat->chain(0).varianceTree(0).nodes.size() == 1,
+          "variance prior draw: a zero-growth prior leaves a bare root");
+    // u = lambda^2 / h is chisq(nu) / nu: mean 1, variance 2 / nu, both free
+    // of the scale, so the two moments below pin lambda^2 and nu separately
+    double u = leafScale / flat->chain(0).varianceFits()[0];
+    sum += u;
+    sumSquares += u * u;
+  }
+  double mean = sum / numDraws;
+  double variance = (sumSquares - numDraws * mean * mean) / (numDraws - 1);
+  double standardError = std::sqrt(2.0 / (sigmaDf * numDraws));
+  check(std::fabs(mean - 1.0) < 5.0 * standardError,
+        "variance prior draw: the leaf factor's scale is the calibrated one");
+  check(std::fabs(2.0 / variance - sigmaDf) < 0.6,
+        "variance prior draw: the leaf factor's degrees of freedom are the "
+        "calibrated ones");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: variance-forest prior draw (%d leaf draws, mean %.4f, "
+         "df %.3f)\n", numDraws, mean, 2.0 / variance);
+}
+
 // The variance forest's SAVED (keepTrees) trees ride the state: a re-created
 // sampler must replay the recorded s^2(x) slot for slot rather than the
 // multiplicative identity initializeSavedTrees left in the buffer. The live
@@ -1748,6 +1885,7 @@ void runStateTests(ext_rng* rng) {
   testCrossGridWarmStart();
   testVarianceWarmStart();
   testVarianceWarmStartSlot();
+  testVarianceForestPriorDraw();
   testVarianceSavedTreeState();
   testStateLeafScale(rng);
   testWeightsDigest();

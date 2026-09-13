@@ -554,6 +554,26 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The tree-move mixture reaches every forest of a coupling (2026-09-13)
+
+A multi-forest declaration built each forest from its own
+[`ForestStructureSpec`](../../src/bartcore/combiner.hpp) and never carried
+the control's mixture onto it, so the fields stood at their struct defaults
+and a non-default `proposal.probs` was dropped; the R surface and the
+bridge's own backstop both refused it by name instead, and a frozen mixture
+was refused with the rest. [`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)
+now carries all six probabilities onto every forest, and the two refusals
+are gone. The struct defaults ARE the model defaults, so a defaulted fit is
+bitwise unchanged: all three equivalence baselines replay identical.
+
+What is pinned, in [test-proposal-probs.R](../../inst/tinytest/test-proposal-probs.R),
+reading BOTH forests' split counts so a first-forest-only install fails:
+birth/death at zero with every proposal a change leaves two stump forests
+unsplit; the frozen mixture holds both structures while sigma and the fits
+keep moving; the shipped mixture splits both, which is what keeps those
+zeros meaningful. Gates: tinytest 8624/0; tests/cpp 301; equivalence
+52/15/11 bitwise. NEWS carries the item.
+
 ### The cut-only rule_gibbs dose response and the equal-cost arm (17505c50, 2026-09-08)
 
 C1-he-hahn.R gains two arms, 48 added lines and no engine change, every

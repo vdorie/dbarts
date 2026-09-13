@@ -1421,6 +1421,20 @@ dbartsSampler <- setRefClass(
 
       invisible(NULL)
     },
+    sampleVarianceForestFromPrior = function(updateState = NA) {
+      "Draws the variance forest's tree structures and leaf factors from their priors; a no-op on a homoscedastic sampler."
+      ptr <- getPointer()
+      .Call(C_dbarts_bartcore_sampleVarianceForestFromPrior, ptr)
+
+      if (
+        (is.na(updateState) && control@updateState == TRUE) ||
+          identical(updateState, TRUE)
+      ) {
+        storeState(ptr)
+      }
+
+      invisible(NULL)
+    },
     growFromRoot = function(n.sweeps = 2L, updateState = NA) {
       "Builds an initial forest by XBART-style grow-from-root (He, Yalov and Hahn 2019) as a warm start, running n.sweeps grow sweeps in place; the exact MCMC sampler owns the forest once run() begins. Constant-leaf models only. See ?dbartsSampler."
       if (

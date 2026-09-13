@@ -139,7 +139,7 @@ jobs:
           echo "::endgroup::"
           echo "::group::bcf-equivalence"
           if Rscript benchmarks/R/bcf-equivalence.R compare \
-            benchmarks/baselines/bcf-equivalence-80b1c8d4.rds; then
+            benchmarks/baselines/bcf-equivalence-329e3db9.rds; then
             echo "PASS bcf-equivalence"
           else
             echo "::error::bitwise gate bcf-equivalence FAILED"

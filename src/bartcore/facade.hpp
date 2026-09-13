@@ -329,6 +329,7 @@ public:
       const std::vector<std::pair<std::size_t, int>>& sampleMap) = 0;
   virtual void sampleTreesFromPrior() = 0;
   virtual void sampleNodeParametersFromPrior() = 0;
+  virtual void sampleVarianceForestFromPrior() = 0;
   virtual void growFromRoot(std::size_t numSweeps) = 0;
   virtual void setNumThreads(std::size_t numThreads) = 0;
   virtual void setNumThin(std::size_t numThin) = 0;
@@ -614,6 +615,9 @@ public:
   void sampleTreesFromPrior() override { impl_.sampleTreesFromPrior(); }
   void sampleNodeParametersFromPrior() override {
     impl_.sampleNodeParametersFromPrior();
+  }
+  void sampleVarianceForestFromPrior() override {
+    impl_.sampleVarianceForestFromPrior();
   }
   void growFromRoot(std::size_t numSweeps) override {
     impl_.growFromRoot(numSweeps);

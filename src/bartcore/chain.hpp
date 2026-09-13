@@ -2281,6 +2281,83 @@ public:
     }
   }
 
+  /// Replace the VARIANCE forest's structures and leaf factors with draws from
+  /// their own priors, and rebuild the surface those two determine. The third
+  /// prior-draw entry: sampleTreesFromPrior and sampleNodeParametersFromPrior
+  /// are forest-only by contract and leave the variance forest exactly as they
+  /// find it, so before this there was no path to a prior-drawn s(x) at all.
+  /// A homoscedastic chain has nothing to draw and returns.
+  ///
+  /// Both halves are the sweep's own laws. The structure is the CGM prior
+  /// CONDITIONED on carrying no empty leaf, drawn by whole-tree rejection
+  /// against the USER weights - the same predicate the variance moves veto on,
+  /// since their MoveContext carries those weights - under
+  /// sampleTreesFromPrior's attempt cap and its one-scan settlement of the
+  /// empty conditioning event. The leaf factors are ConstantVarianceLeaf's
+  /// prior draw, the chi^-2(nu', lambda'^2) the per-tree calibration states,
+  /// one per bottom.
+  ///
+  /// The rebuild is what Chain::setState's validation demands of live variance
+  /// state: every leaf a positive scale and every bottom occupied. factorByTree
+  /// is scattered through the fresh partition and combinedVariance recomputed
+  /// as the product over trees - refreshVarianceForest's own order and
+  /// arithmetic - so the maintained surface equals the reporting recompute
+  /// exactly. combinedVariance is reused in place, so the pointer the response
+  /// model borrows stays live and needs no reinstall.
+  ///
+  /// Untouched, as the two forest entries leave them: the mean forests, sigma
+  /// (pinned at 1 under a variance forest), k, the glue, the saved-tree buffers
+  /// and the response's latent block. A caller wanting the whole chain at its
+  /// prior calls all three.
+  void sampleVarianceForestFromPrior() {
+    if (!varianceForest_) return;
+    VarianceForest& vf = *varianceForest_;
+    size_t n = data_.numObservations;
+    const double* weights = response_->workingWeights();
+    // One O(n) scan settles the empty conditioning event for the whole forest,
+    // exactly as sampleTreesFromPrior's does: with no row carrying positive
+    // weight no tree is admissible, so every tree takes the bare root.
+    bool anyWeight = weights == nullptr;
+    for (size_t i = 0; !anyWeight && i < n; ++i)
+      if (weights[i] > 0.0) anyWeight = true;
+    for (size_t j = 0; j < vf.numTrees; ++j) {
+      Tree& tree = vf.trees[j];
+      int rejected = 0;
+      while (true) {
+        tree.initialize(vf.indexBuffer.data() + j * n, n);
+        if (!anyWeight) break;
+        // treeResidual is the sweep's own per-tree scratch and is refilled by
+        // formTreeResidual before anything reads it again; birth caches node
+        // statistics off it, which no structural draw reads.
+        growSubtreeFromPrior(vf.treePrior, tree, 0, vf.treeResidual.data(),
+                             weights);
+        if (tree.bottomNodesHaveWeight(weights)) break;
+        if (++rejected == priorTreeDrawMaxAttempts)
+          throw std::runtime_error(
+            "variance tree prior draw: every one of " +
+            std::to_string(priorTreeDrawMaxAttempts) +
+            " draws left an empty leaf, against a weight vector carrying a "
+            "positive entry");
+      }
+      double* factor = vf.factorByTree.data() + j * n;
+      tree.bottomScratch.clear();
+      tree.fillBottom(0, tree.bottomScratch);
+      for (int32_t b : tree.bottomScratch) {
+        double h = vf.leaf.drawFromPrior(rng_);
+        const Node& node = tree.at(b);
+        for (size_t m = node.begin; m < node.end; ++m)
+          factor[tree.indices[m]] = h;
+      }
+    }
+    for (size_t i = 0; i < n; ++i) {
+      double product = 1.0;
+      for (size_t j = 0; j < vf.numTrees; ++j)
+        product *= vf.factorByTree[j * n + i];
+      vf.combinedVariance[i] = product;
+    }
+    if (data_.numTestObservations > 0) refreshVarianceTestFits();
+  }
+
   /// Replace every leaf parameter with a draw from the node prior and
   /// rebuild the tree, total, and test fits to match.
   void sampleNodeParametersFromPrior() {
@@ -4352,18 +4429,27 @@ private:
   /// no-empty-leaf conditioning and applies it by rejecting the whole draw.
   void growSubtreeFromPrior(Forest<L, ResidT>& forest, Tree& tree, int32_t nodeIndex,
                             const double* y, const double* weights) {
+    growSubtreeFromPrior(forest.treePrior, tree, nodeIndex, y, weights);
+  }
+
+  /// The recursion itself, over a bare tree prior: the mean forests reach it
+  /// through the overload above and the variance forest - which owns a
+  /// CGMTreePrior but no Forest<L, ResidT> - directly. Draw for draw the same
+  /// call sequence either way, so the mean path is unmoved.
+  void growSubtreeFromPrior(const CGMTreePrior& treePrior, Tree& tree,
+                            int32_t nodeIndex, const double* y,
+                            const double* weights) {
     double growthProbability =
-      forest.treePrior.growthProbability(tree, data_, nodeIndex);
+      treePrior.growthProbability(tree, data_, nodeIndex);
     if (growthProbability <= 0.0 ||
         ext_rng_simulateBernoulli(rng_, growthProbability) == 0)
       return;
 
-    Rule rule =
-      forest.treePrior.drawRuleAndVariable(tree, data_, rng_, nodeIndex);
+    Rule rule = treePrior.drawRuleAndVariable(tree, data_, rng_, nodeIndex);
     tree.birth(data_, nodeIndex, rule, y, weights);
     int32_t leftChild = tree.at(nodeIndex).leftChild;
-    growSubtreeFromPrior(forest, tree, leftChild, y, weights);
-    growSubtreeFromPrior(forest, tree, leftChild + 1, y, weights);
+    growSubtreeFromPrior(treePrior, tree, leftChild, y, weights);
+    growSubtreeFromPrior(treePrior, tree, leftChild + 1, y, weights);
   }
 
   /// Constant-leaf fit storage sizing: node-indexed mu tables (one zero-value

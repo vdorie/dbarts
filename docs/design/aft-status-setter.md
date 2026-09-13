@@ -1,7 +1,8 @@
 # An AFT censoring-status setter, and the SBC arms it enables
 
-Status: LANDED - slice 1 (section 8), 2026-09-07 (fcd60feb, e20c6462, f9bc9260), and slice 2's harness half, 2026-09-07;
-the aft arm's matrix admission and slices 3-4 remain PROPOSED.
+Status: LANDED - slice 1 (section 8), 2026-09-07 (fcd60feb, e20c6462, f9bc9260), slice 2's harness half, 2026-09-07,
+and slice 3's prior-draw entry, 2026-09-13; the aft arm's matrix admission remains PROPOSED, and so do slice 3's
+heteroscedastic gaussian SBC arm and slice 4, both blocked on the open question in the landing note below.
 
 Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
 no longer declares the predictor, test-data, weight, active-row, per-forest, state,
@@ -282,3 +283,31 @@ gaussian arm replays its ranks against the wider band unchanged. The workflow ro
 runs thin 40 at a 15-minute timeout: section 6 priced 5-10 minutes at thin 30 and the run measures 79 s at the thin 40 the
 ladder requires, so the timeout is the gaussian row's rather than the ~3x rule's, that job's floor being the dependency
 install and the package build.
+
+**Slice 3's prior-draw entry landed.** `Chain::sampleVarianceForestFromPrior`, recommendation C built at the price
+section 6 states: the structure is the CGM prior conditioned on carrying no empty leaf, drawn by whole-tree rejection
+against the user weights under `sampleTreesFromPrior`'s attempt cap and its one-scan settlement of the empty
+conditioning event, and the factors are [`ConstantVarianceLeaf`](../../src/bartcore/model.hpp)'s own prior draw. The
+rebuild is `refreshVarianceForest`'s order and arithmetic, so the entry leaves live state: the state a drawn chain
+reports restores through [`Chain::setState`](../../src/bartcore/chain.hpp)'s variance validation. Both contracts stay
+true - the two forest entries are untouched and every equivalence baseline replays bitwise. One deviation from section 6:
+the recursion `sampleTreesFromPrior` uses was split so the variance forest, which owns a `CGMTreePrior` but no forest
+object, reaches it directly; the mean path's call sequence is unmoved. Gated by
+[`testVarianceForestPriorDraw`](../../tests/cpp/test_state.cpp), whose leaf arm scores the reciprocal factor - exactly
+`chisq(nu) / nu` after scaling, so its two moments pin the calibrated scale and the calibrated degrees of freedom with a
+closed-form standard error - and by the variance section of
+[test-heteroscedastic.R](../../inst/tinytest/test-heteroscedastic.R). Poisons run: doubling the drawn factor fails both
+moment arms; suppressing the structure draw fails both structure arms.
+
+**Open, and not guessed at: what the arm reads `s(x)` with.** Section 6 specifies the heteroscedastic gaussian arm as
+the gaussian arm plus this prior draw per replication, but a generator needs the drawn `s(x)` at the TRAIN rows to
+simulate `y0` and at the test rows for its functionals, and section 6 itself records that the surface is readable only
+through a run's `variance` and `varianceTest` channels - which report the state AFTER a sweep, not the prior draw - and
+that a current-state variance-surface accessor is priced separately. The gaussian arm's own precedent does not settle
+it: that arm draws `sigma` in R because no engine entry draws it, whereas here the draw IS in the engine and only the
+READ is missing. So the arm needs one of three things, and which is a maintainer's call, not an implementer's: a
+current-state accessor over [`Chain::varianceFits`](../../src/bartcore/chain.hpp) and
+[`Chain::varianceTestFits`](../../src/bartcore/chain.hpp), folded into this slice rather than priced separately (a
+handful of lines, and it lifts the `type = "ppd"` refusal section 6 lists as out of scope); routing the drawn trees in R
+off the reported state, which is option B's duplication moved from the calibration to the surface; or deferring the arm
+until the accessor lands on its own. Slice 4 follows the arm, so it is blocked on the same question.
