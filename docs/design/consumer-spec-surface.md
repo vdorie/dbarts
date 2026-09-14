@@ -59,7 +59,7 @@ call the same function, so a family can never resolve two ways.
 
 One internal rather than three (response / priors / model assembly, the obvious
 split) because the three stages share half a dozen locals - `fixedUnitScale` feeds
-the resid.prior override, which feeds `node.scale`; `monotoneDirections` feeds both
+the family's sigma override, which feeds `node.scale`; `monotoneDirections` feeds both
 the prior parse and the model attributes - and threading those through three
 signatures buys nothing but an opportunity to thread one wrong. The move is then a
 single contiguous block of code, which is what makes it verifiable against the
@@ -93,7 +93,7 @@ documentation names the trap.
   family costs a consumer-side commit that duplicates a dbarts internal.
 - A HELPER THAT DUPLICATES the attribute wiring rather than sharing it. Drifts by
   construction; the ordinal/nbinom/aft resolution order is subtle (fixedUnitScale
-  feeds the resid.prior override, which feeds node.scale) and would be re-derived
+  feeds the family's sigma override, which feeds node.scale) and would be re-derived
   wrong.
 - EXPORTING A SAMPLER-BUILDING function instead. Does not serve the motivating
   consumer, which holds its sampler C-side through the flat API and needs the

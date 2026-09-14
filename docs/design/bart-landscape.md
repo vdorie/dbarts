@@ -492,7 +492,7 @@ random effects. *Unique:* nothing in the integrand - Polya-Gamma augmentation
 plus a Gaussian forest. *Built:* **reuse**, by the same author who abandoned
 every engine for clbart, which makes the pair a natural experiment.
 `R/nbbart.R` builds one `dbarts::dbarts(x, z, offset = offset,
-weights = omega, resid.prior = fixed(1), sigma = 1)`; the loop draws
+weights = omega, family = gaussian(sigma = fixed(1)))`; the loop draws
 `omega ~ PG(y + xi, eta)`, forms `z = (y - xi) / (2 omega)`, then
 `setResponse(z)` / `setWeights(omega)` / `run(0L, 1L)` (same file).
 `spanbbart` builds its sampler with NO offset argument (`spanbbart.R`), residualizing

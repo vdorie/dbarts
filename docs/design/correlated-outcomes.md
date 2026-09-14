@@ -33,9 +33,9 @@ conditioning conduit:
 - setResponse / setOffset / setWeights / setSigma (dbarts_sampler_setResponse /
   _setOffset / _setWeights / _setSigma): swap response, additive offset,
   per-observation PRECISION weights (y_i ~ N(f(x_i)+offset_i, sigma^2 / w_i),
-  gaussian family only), and the held residual sd between sweeps. resid.prior =
-  fixed() (dbartsFixedPrior) suppresses the internal sigma draw so the outer
-  sampler owns sigma.
+  gaussian family only), and the held residual sd between sweeps.
+  family = gaussian(sigma = fixed()) (dbartsFixedPrior) suppresses the
+  internal sigma draw so the outer sampler owns sigma.
 - run(0, 1) / dbarts_sampler_run: one sweep, returns the train fits the outer
   sampler differences into residuals.
 - A per-sweep conditioning callback: dbarts_sampler_setCallback in dbarts.h,
@@ -60,7 +60,7 @@ other outcomes' residuals,
     v_k = Sigma_kk - Sigma_{k,-k} Sigma_{-k,-k}^-1 Sigma_{-k,k}.
 
 m_ik is a per-observation OFFSET, v_k a scalar sd - both already conduit inputs.
-So the recipe is q dbartsSampler objects with resid.prior = fixed(), per-sweep
+So the recipe is q dbartsSampler objects with family = gaussian(sigma = fixed()), per-sweep
 setOffset(m_k) / setSigma(sqrt(v_k)) / run(0,1), and a conjugate inverse-Wishart
 Sigma draw in the outer sampler. Mediation is the triangular special case (Y's
 equation conditions on observed m; rho on a sensitivity grid or with a prior).
@@ -122,7 +122,7 @@ covariance belongs in the WALNUTS outer sampler.
 
 ## Open questions (verify at build time)
 
-- setSigma composed with resid.prior = fixed(): the dbarts.h contract holds
+- setSigma composed with family = gaussian(sigma = fixed()): the dbarts.h contract holds
   sigma "until the next call or gaussian draw"; confirm a per-sweep setSigma
   cleanly overrides a fixed() creation value.
 - Scale anchoring: the internal [-0.5, 0.5] response rescale keys off
@@ -146,7 +146,7 @@ covariance belongs in the WALNUTS outer sampler.
 
 mvbart() in stan4bart (commit e27a7c3, branch bartcore) implements the
 Priority section's (B) recipe exactly: q dbartsSampler objects with
-resid.prior = fixed(), a pure-R outer Gibbs doing per-sweep setOffset
+family = gaussian(sigma = fixed()), a pure-R outer Gibbs doing per-sweep setOffset
 (conditional mean) + setSigma (conditional sd) + run(0,1), and a
 conjugate inverse-Wishart draw of Sigma over the residual cross-products.
 ZERO dbarts engine change - the conditional-mean conduit this doc

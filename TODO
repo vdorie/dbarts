@@ -272,15 +272,14 @@ items
     16). Durable record docs/design/tree-mixing-proposals.md (ranking
     sec 4.1 as amended, specialization addendum sec 12).
   variance-forest-mutation-routing (decided, VD 2026-09-14;
-    docs/decisions.md dec-B122): the recalibration slice is in
-    progress. A setResponse/setOffset swap with updateScale = TRUE is to
-    recalibrate the variance forest's leaf prior, reusing the
-    recalibration the engine already performs on a setModel swap, gated
-    on an identity test against a sampler built fresh on the rescaled
-    response; if that test fails, the swap is refused for a
-    heteroscedastic sampler under updateScale = TRUE for 1.0-0 and the
-    rescale algebra becomes a post-release item. Owed: the
-    recalibration and its identity test
+    docs/decisions.md dec-B122): the setResponse/setOffset recalibration
+    slice LANDED 42e949fe - a swap with updateScale = TRUE recalibrates
+    the variance forest's leaf prior, reusing the recalibration the
+    engine already performs on a setModel swap, gated on an identity
+    test against a sampler built fresh on the rescaled response. Owed:
+    the same recalibration on setData's whole-data swap, which still
+    mis-pins sigma to the creation-time scale; a parallel slice is
+    fixing it before the merge
     (docs/plans/archive/variance-forest-mutation-routing.md). The
     variance forest's own prior draw
     (Chain::sampleVarianceForestFromPrior), the current-state reader of

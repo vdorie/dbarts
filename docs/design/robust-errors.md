@@ -147,10 +147,10 @@ concept in two. Recommend only paired with (b)/(c) for the df.
 
 (b) A residual-distribution constructor, resid.dist = student(df = 4), default
 gaussian(). Precedent: the priors-as-objects vocabulary (tree.prior = cgm,
-node.prior = normal, resid.prior = chisq; [`dbarts`](../../R/dbarts.R)) resolved by
+node.prior = normal, family = gaussian(sigma = chisq); [`dbarts`](../../R/dbarts.R)) resolved by
 [`parsePriors`](../../R/model.R) from [`dbartsPriors`](../../R/model.R). student() composes df
 now and a sampled-nu spec later with no new top-level argument. Do NOT overload
-resid.prior -- that is the sigma^2 PRIOR (chisq/fixed, [`dbartsPriors`](../../R/model.R)),
+the family's sigma -- that is the sigma^2 PRIOR (chisq/fixed, [`dbartsPriors`](../../R/model.R)),
 orthogonal to the error law. Recommend: cleanest and most future-proof, a new
 resid.dist slot.
 

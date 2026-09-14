@@ -171,7 +171,7 @@ baseline stays valid.
 working-versus-original scale Chain-wide: make the surface degenerate at a known scalar and reduce
 to benchmarks/R/aft-exact.R's enumeration - one variance tree with [`chisq`](../../R/model.R) at a large
 `df` and `data@sigma` anchored at the known sigma, so the scale leaf's posterior is prior-dominated.
-NOT `resid.prior = fixed()`, which under a variance forest fixes nothing: the bridge's fixed arm
+NOT `family = aft(sigma = fixed())`, which under a variance forest fixes nothing: the bridge's fixed arm
 sets only `sigmaIsFixed` and `fixedSigmaSq`, leaving `sigmaDf`/`sigmaRawScale` at their defaults, so
 `buildVarianceForest` still calibrates a df-3 leaf the data dominates. On that fixture the mean
 censored latent moves from 0.221 at the correct internal sd to 0.843 at a pinned 1, against a

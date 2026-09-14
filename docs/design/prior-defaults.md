@@ -29,11 +29,11 @@ decay `base * (1 + depth)^-power`, tuned in their experiments to favor
 shallow trees without forbidding deeper ones. Not derived; adopted as-is
 across BayesTree/BART/bartMachine/dbarts.
 
-## sigdf, sigquant (residual variance prior, `chisq()`)
+## df, quant (residual variance prior, `chisq()`, `family = gaussian(sigma = )`)
 
 3 and 0.9. CGM's calibration: the inverse-chi-squared prior's scale is
-picked so a rough sigma estimate sits at the `sigquant` quantile with
-`sigdf` degrees of freedom - an aggressive default (substantial prior
+picked so a rough sigma estimate sits at the `quant` quantile with
+`df` degrees of freedom - an aggressive default (substantial prior
 mass below the naive estimate), not a derived one. The engine's
 `ChiSquaredScalePrior` (`src/bartcore/model.hpp`) inherits the mechanics
 verbatim from the classic engine; the calibration itself is CGM's.
