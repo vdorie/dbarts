@@ -334,7 +334,10 @@ confirmed)
    routing's four, invisible from R. A refusal keyed on
    hasVarianceForest (mirroring the BCF one) needs no algebra. FIXED
    at 33f6fdc: `refuseVarianceForestScaleUpdate`, on setResponse and
-   setOffset, both surfaces.
+   setOffset, both surfaces. SUPERSEDED: the swap is supported now -
+   the scale leaf is re-derived from the residual prior on the new
+   working scale and the drawn surface moves into those units with it -
+   and the refusal is gone from both surfaces.
 4. refuseBinaryWeightChange tells aft/ordinal/nbinom users about "a
    binary response" (~6 lines). FIXED at 33f6fdc: reworded per family.
    FOLLOW-ON CLOSED: the flat C `dbarts_sampler_setWeights` took the

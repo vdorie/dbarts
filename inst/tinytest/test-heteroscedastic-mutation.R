@@ -289,7 +289,85 @@ stateRun <- stateSampler$run(0L, 3L)
 expect_true(all(is.finite(stateRun$variance)))
 expect_true(all(stateRun$variance > 0))
 
+# ---- setResponse / setOffset at updateScale = TRUE: the prior moves with the
+# ---- transform, not just the surface ----
+# The scale leaf is calibrated on the WORKING scale, so a swap that re-anchors
+# the response transform has to restate it; the drawn surface is an
+# original-scale quantity held in those same units and moves with it. The gate
+# is an identity: the swapped sampler must be the sampler creation on the new
+# response would have built. sigest is named on both so the residual prior is
+# the same original-scale triple, which is what updateScale = TRUE holds fixed.
+# Its own samplers, at the end of the file, so no assertion above sees a
+# different rng stream; the leaf's own two parameters are compared in
+# tests/cpp, which can read them.
+set.seed(53, sample.kind = "Rejection")
+nScale <- 200L
+xScale <- cbind(x1 = runif(nScale), x2 = runif(nScale))
+yScale <- 2 *
+  xScale[, 1L] +
+  ifelse(xScale[, 2L] < 0.5, 0.4, 1.5) * rnorm(nScale)
+scaleSampler <- function(response, offset = NULL) {
+  dbarts::dbarts(
+    xScale,
+    response,
+    offset = offset,
+    control = control,
+    variance = dbarts::varianceForest(n.trees = 8L),
+    sigest = 1.3,
+    seed = 77L
+  )
+}
+
+scaleSwapped <- scaleSampler(yScale)
+scaleSwapped$setResponse(3 * yScale, updateScale = TRUE)
+scaleFresh <- scaleSampler(3 * yScale)
+# the same transform is in force on both, which is what the calibration is
+# stated against
+expect_identical(
+  scaleSwapped$getCalibration()[1L, "response.scale"],
+  scaleFresh$getCalibration()[1L, "response.scale"]
+)
+swappedDraws <- scaleSwapped$run(0L, 3L)
+freshDraws <- scaleFresh$run(0L, 3L)
+expect_equal(swappedDraws$variance, freshDraws$variance, tolerance = 1e-10)
+expect_equal(swappedDraws$train, freshDraws$train, tolerance = 1e-10)
+# non-vacuity: what the identity compares moves by the square of the factor, so
+# a swap that left either the prior or the surface on the old scale fails it by
+# orders of magnitude rather than by rounding
+unswappedDraws <- scaleSampler(yScale)$run(0L, 3L)
+expect_true(mean(freshDraws$variance) > 4 * mean(unswappedDraws$variance))
+
+# the offset conduit carries the same swap under a different pointer
+offsetSwapped <- scaleSampler(yScale, rep(0.25, nScale))
+offsetSwapped$setOffset(3 * xScale[, 1L], updateScale = TRUE)
+offsetFresh <- scaleSampler(yScale, 3 * xScale[, 1L])
+offsetSwappedDraws <- offsetSwapped$run(0L, 3L)
+offsetFreshDraws <- offsetFresh$run(0L, 3L)
+expect_equal(
+  offsetSwappedDraws$variance,
+  offsetFreshDraws$variance,
+  tolerance = 1e-10
+)
+expect_equal(
+  offsetSwappedDraws$train,
+  offsetFreshDraws$train,
+  tolerance = 1e-10
+)
+
 rm(
+  nScale,
+  xScale,
+  yScale,
+  scaleSampler,
+  scaleSwapped,
+  scaleFresh,
+  swappedDraws,
+  freshDraws,
+  unswappedDraws,
+  offsetSwapped,
+  offsetFresh,
+  offsetSwappedDraws,
+  offsetFreshDraws,
   n,
   x,
   y,

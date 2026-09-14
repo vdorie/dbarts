@@ -103,8 +103,8 @@ header comment is load-bearing.
 Refusals that stay: `sigmaIsPinned` is `hasVarianceForest || (family != gaussian && family != aft)`,
 so a heteroscedastic aft loses `setSigma` as a heteroscedastic gaussian does,
 [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) naming the variance forest before the family;
-[`refuseVarianceForestScaleUpdate`](../../src/R_interface_bartcore.cpp) is family-blind, so `setResponse`/`setOffset` are taken only
-at `updateScale = FALSE`; `setWeights` stays refused ([`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp)), the
+`setResponse`/`setOffset` are taken at either `updateScale`, the re-anchoring flavor restating the scale leaf and its
+surface family-blind ([`Chain::reanchorVarianceForest`](../../src/bartcore/chain.hpp)); `setWeights` stays refused ([`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp)), the
 declined user channel being what frees the internal one; `setData` likewise.
 
 Four channels change meaning without changing code. [`Chain::setModel`](../../src/bartcore/chain.hpp) under a variance forest
