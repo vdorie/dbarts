@@ -630,9 +630,15 @@
             \code{rngNormalKind} arguments; explicit generator kinds were a
             pre-1.0-engine feature. Saved sampler states from previous
             versions cannot be restored.
-      \item Sampling is faster: the benchmark run scenarios measure 25 to
-            30 percent faster per iteration than the pre-1.0 engine,
-            the gap widening with the number of observations. The run
+      \item Sampling is faster. Measured on a four-core x86-64 Linux
+            machine against dbarts 0.9-34 installed beside it, fitting
+            Friedman data through the BayesTree-style door with 200 trees,
+            1000 draws after 500 discarded and every default that moved
+            between the releases pinned to 0.9-x's: 1.7 times faster at
+            1000 observations, 2.6 times faster at 10,000, 1.7 times
+            faster for four chains on four threads, and 1.6 times faster
+            for a probit fit. The gap widens with the number of
+            observations. The run
             loop keeps a running residual across each sweep, and change
             and swap proposals score the tree prior on the modified
             subtree alone. For large problems, \code{storage = "single"}

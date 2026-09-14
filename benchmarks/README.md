@@ -115,6 +115,37 @@ docs/plans/classic-compare.md - 22 scenarios agree at the null's own rate,
 and the four that do not are the zero-weight fit, the two crossvalidation
 rows and the unequal-cut-point probe of the change move.
 
+## R/classic-timing.R - 0.9-34 wall time (measurement, not a gate)
+
+The timing half of the same comparison: classic-compare.R records posteriors
+and times nothing, and bench-sampler.R times this tree against itself, so
+neither answers "how much faster than the released package". This one fits
+one design cell through the BayesTree-style door under whichever dbarts
+`R_LIBS` points at and prints the fit's wall-clock seconds. It cannot run in
+CI - it needs two INSTALLED releases - and it needs an idle machine.
+
+Four cells, Friedman data at ten predictors, 200 trees, 1000 draws after
+500: `a` n = 1000 one chain, `b` n = 10000 one chain, `c` n = 1000 four
+chains on four threads, `d` n = 1000 probit. A fresh process per fit, so
+only one dbarts ever loads; alternate which library goes first on each
+repetition so drift over the run falls on both alike:
+
+    for cell in a b c d; do
+      for rep in 1 2 3 4 5; do
+        if [ $((rep % 2)) -eq 1 ]; then libs="$LIB_NEW $LIB_OLD";
+                                   else libs="$LIB_OLD $LIB_NEW"; fi
+        for lib in $libs; do
+          R_LIBS="$lib" Rscript benchmarks/R/classic-timing.R "$cell"
+        done
+      done
+    done
+
+Take the median over the repetitions per (cell, library) and report the
+ratio. Recorded run and numbers: docs/plans/classic-compare.md, "Wall time"
+- 1.7x at n = 1000, 2.6x at n = 10000, 1.7x on four chains and 1.6x on a
+probit fit, on a four-core x86-64 box. Re-time on the x86 leg below rather
+than on the arm64 development machine, and check `/proc/loadavg` first.
+
 ## R/binary-hyperprior.R - the binary k prior study (measurement, not a gate)
 
 Re-evaluates the binary (probit) end-node hyperprior default, chi(1.5, 2),

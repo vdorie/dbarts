@@ -309,6 +309,57 @@ the effect is a property of this design, not a general figure: it grows
 with the change move's share of the proposal mass and with how unequal
 the cut counts are.
 
+## Wall time
+
+Posterior agreement says nothing about speed, and the speed claim the
+release makes needs a measurement of both releases on one machine.
+This is that measurement, taken 2026-09-14 on the project's
+x86 box: an Intel Core i3-14100, four cores, 24 GiB, no swap, running
+x86-64 Linux, with a one-minute load average of 0.50 before the run and
+1.39 after. 1.0-0 was built from this branch and 0.9-34 from `git
+archive main` of this repository, each installed with
+`R CMD INSTALL --preclean` into its own private library, and each fit
+ran in a fresh `Rscript` process with `R_LIBS` pinned to one of the
+two, so only one dbarts ever loaded.
+
+Both releases fit through the BayesTree-style door in 0.9-x's own
+argument vocabulary - `bartBT` under 1.0-0, `bart` under 0.9-34 - with
+every default that moved between the releases pinned explicitly, the
+same pinning the scenarios above use:
+
+    bartFn(x.train = x, y.train = y,
+           sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
+           k = 2.0, power = 2.0, base = 0.95, binaryOffset = 0.0,
+           ntree = 200L, ndpost = 1000L, nskip = 500L, keepevery = 1L,
+           keeptrainfits = TRUE, usequants = FALSE, numcut = 100L,
+           verbose = FALSE, nchain = <1|4>, nthread = <1|4>,
+           combinechains = TRUE, keeptrees = FALSE, keepcall = FALSE,
+           proposalprobs = c(birth_death = 0.5, swap = 0.1,
+                             change = 0.4, birth = 0.5))
+
+The design is Friedman data at ten predictors, continuous except in the
+probit cell, with the data fixed per cell so only the fit is timed. No
+cell carries a factor predictor, so the indicator expansion both
+releases do at this door is inert here. Five repetitions per cell,
+alternating which library ran first each repetition, so any drift over
+the run falls on both alike. Medians of the five:
+
+| cell | design | median 1.0-0 (s) | median 0.9-34 (s) | ratio |
+| --- | --- | --- | --- | --- |
+| a | n = 1000, one chain | 0.573 | 0.994 | 1.73 |
+| b | n = 10000, one chain | 4.155 | 10.615 | 2.55 |
+| c | n = 1000, four chains on four threads | 0.659 | 1.130 | 1.71 |
+| d | n = 1000, probit, one chain | 0.646 | 1.038 | 1.61 |
+
+The spread within a cell is under two and a half per cent of its median
+on both sides, so the ratios are not close calls. The gap widens with
+the number of observations, which is what the engine's per-sweep work
+predicts: the run loop's running residual and the fused sufficient-
+statistic pass both save more where there is more data to sweep.
+
+One machine, one architecture, one design: these are the numbers a user
+would quote, not a scaling law.
+
 ## What stays unmeasured
 
 This is a comparison of what a user gets back from a fit, at the
@@ -359,6 +410,12 @@ The 0.9-34 recording is kept in `benchmarks/baselines` as
 `classic-compare-0.9-34.rds`, since the release it came from is fixed;
 it has to be taken again only if a scenario is added, and it reproduces
 bitwise when it is. The 1.0-0 side is the compare side and is not kept.
+The wall-time table above is taken separately, with
+`benchmarks/R/classic-timing.R`: one cell per invocation under one of the
+two libraries, five repetitions alternating which library goes first, the
+median of each (cell, library) pair. The driver loop is in
+benchmarks/README.md.
+
 `CLASSIC_COMPARE_SCENARIOS` restricts a run to named scenarios,
 `CLASSIC_COMPARE_SEED_OFFSET` shifts the seed block for re-checking a
 marginal flag, `CLASSIC_COMPARE_CORES` sets the worker count, `merge`
