@@ -4031,6 +4031,18 @@ public:
   /// stream is untouched.
   void refreshLatents(ext_rng* rng, const double* totalFits,
                       double sigma) override {
+    redrawCensored(rng, totalFits, sigma, gaussian_->fitScale());
+  }
+
+  /// refreshLatents with the transform the VARIANCE SURFACE is stated against
+  /// supplied separately from the one in force. The two differ for exactly one
+  /// caller - setResponse at updateScale = true under a variance forest, whose
+  /// host re-anchors the surface only after the call returns - and the surface
+  /// must be read in the units it still holds or every censored row is drawn
+  /// at a residual scale off by the ratio of the two transforms. Everywhere
+  /// else the caller passes fitScale() and this is refreshLatents.
+  void redrawCensored(ext_rng* rng, const double* totalFits, double sigma,
+                      double varianceScale) {
     if (censoredIndices_.empty()) return;
     double scale = gaussian_->fitScale();
     double shift = gaussian_->fitShift();
@@ -4041,7 +4053,8 @@ public:
       if (!isActive(i)) continue;
       double mean = scale * totalFits[i] + shift +
                     (offset != nullptr ? offset[i] : 0.0);
-      double rowSd = variance_ != nullptr ? std::sqrt(variance_[i]) * scale : sd;
+      double rowSd =
+        variance_ != nullptr ? std::sqrt(variance_[i]) * varianceScale : sd;
       double draw =
         ext_rng_simulateLowerTruncatedNormal(rng, mean, rowSd, censorBound_[k]);
       logT_[i] = !std::isnan(draw) ? draw : censorBound_[k];
@@ -4156,12 +4169,17 @@ public:
   /// censored latents redraw against the current fit (the probit pattern).
   void setResponse(const double* logTime, ext_rng* rng, const double* totalFits,
                    bool updateScale, double* sigmaInOut) override {
+    // the variance surface is the host's, restated only once this returns, so
+    // the redraw below reads it against the transform in force on ENTRY rather
+    // than the one an updateScale re-anchor is about to install (redrawCensored)
+    double varianceScale = gaussian_->fitScale();
     std::memcpy(logT_.data(), logTime, numObservations_ * sizeof(double));
     for (std::size_t k = 0; k < censoredIndices_.size(); ++k)
       censorBound_[k] = logT_[censoredIndices_[k]];
     gaussian_->setResponse(logT_.data(), rng, totalFits, updateScale,
                            sigmaInOut);
-    if (!censoredIndices_.empty()) refreshLatents(rng, totalFits, *sigmaInOut);
+    if (!censoredIndices_.empty())
+      redrawCensored(rng, totalFits, *sigmaInOut, varianceScale);
   }
 
   /// Offset shifts the fit location, not the (offset-independent) log-times, so

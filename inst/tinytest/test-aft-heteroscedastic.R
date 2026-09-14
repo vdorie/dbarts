@@ -247,3 +247,40 @@ expect_error(
   dbartsDrawLatents("aft", rep(0, 5L), rep(1, 5L), sigma = rep(0.5, 5L)),
   "single residual scale for every row"
 )
+
+# ---- a re-anchoring response swap keeps each censored row's residual scale ----
+# The variance surface is the host's and is restated on the new working scale
+# only after AFTResponse::setResponse returns, so the censored redraw inside
+# that call has to read it against the transform it was written under. Its own
+# sampler, at the end of the file, so no assertion above sees a different rng
+# stream. Every censored bound sits far below the fitted mean, leaving the
+# truncation slack, so the draws' spread IS the row's residual scale; the
+# surface is flat before any sweep, so that scale is sigest in response units
+# on both sides of the swap. A redraw against the re-anchored transform instead
+# would widen it by the ratio of the two scales - a factor of 3 here.
+set.seed(91, sample.kind = "Rejection")
+nSwap <- 1200L
+xSwap <- matrix(
+  runif(nSwap * 2L),
+  nSwap,
+  2L,
+  dimnames = list(NULL, c("x1", "x2"))
+)
+logTimeSwap <- 2 * xSwap[, 1L] + rnorm(nSwap)
+statusSwap <- rep(1, nSwap)
+censoredSwap <- seq_len(400L)
+statusSwap[censoredSwap] <- 0
+logTimeSwap[censoredSwap] <- -30
+swapSampler <- dbarts(
+  xSwap,
+  cbind(exp(logTimeSwap), statusSwap),
+  family = "aft",
+  variance = varianceForest(n.trees = 8L),
+  control = control,
+  sigest = 1.3,
+  seed = 77L
+)
+swapSampler$setResponse(3 * logTimeSwap, updateScale = TRUE)
+expect_true(
+  abs(sd(swapSampler$getLatents()[censoredSwap]) / 1.3 - 1) < 0.15
+)
