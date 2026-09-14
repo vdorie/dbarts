@@ -41,9 +41,11 @@
 # "link" simulates through the OTHER link, "glue-sd" draws the glue at
 # gaussian's sd.control = 2 while the sampler runs at the family default 1, and
 # "sigma" adds latent noise the fit cannot model. The two heteroscedastic arms
-# carry their own two (sbcHeteroPoisons): "s-scale" simulates at twice the
-# drawn s(x) and "s-shuffle" moves the drawn scales to the wrong rows. Each is
-# a by-hand discrimination run whose functionals must FLAG, never a recorded
+# carry their own three (sbcHeteroPoisons): "s-scale" simulates at twice the
+# drawn s(x), "s-shuffle" moves the drawn scales to the wrong rows, and "s-df"
+# draws the surface from a variance forest calibrated at the wrong residual df,
+# the only one of the three that mismatches the PRIOR rather than the data. Each
+# is a by-hand discrimination run whose functionals must FLAG, never a recorded
 # verdict; an unknown name refuses the run. SBC_FIXED_GLUE (env var, opt-in) holds a BCF
 # arm's glue at the engine's initial (1, 0, 1) - the control that isolates the
 # two-forest backfit from the glue draw, and the one "glue-sd" carries.
@@ -920,23 +922,34 @@ sbcAftSurvival <- function(t0, f, sigma) {
 # deliverable the composition is for, and logT.cens, the truncated-normal
 # imputation drawn at the censored row's OWN scale here.
 
-# The two deliberate generator/sampler mismatches these arms carry, opt-in
+# The three deliberate generator/sampler mismatches these arms carry, opt-in
 # through SBC_POISON exactly as the latent BCF arms' are: each must redden the
-# arm it names, so both are by-hand discrimination runs and never a recorded
-# verdict. "s-scale" simulates y0 at TWICE the drawn s(x), so the LEVEL of the
-# surface the fit ranks is not the one the data came from. "s-shuffle"
-# permutes the drawn s(x) across the training rows before simulating: the
-# level and the whole multiset of scales are untouched and only the row-to-row
-# ASSIGNMENT is wrong, which is the per-observation channel the composition is
-# made of and the one a shared scale would silently substitute for.
+# arm it names, so all three are by-hand discrimination runs and never a
+# recorded verdict. "s-scale" simulates y0 at TWICE the drawn s(x), so the
+# LEVEL of the surface the fit ranks is not the one the data came from.
+# "s-shuffle" permutes the drawn s(x) across the training rows before
+# simulating: the level and the whole multiset of scales are untouched and only
+# the row-to-row ASSIGNMENT is wrong, which is the per-observation channel the
+# composition is made of and the one a shared scale would silently substitute
+# for. Both of those leave the PRIOR right and move the data away from theta0.
+# "s-df" is the complement and the only one that reaches the prior-draw entry
+# itself: the surface comes from a second variance forest calibrated at four
+# times the arm's residual df, and theta0 records exactly the surface that made
+# the data, so the single mismatch is the prior that surface was drawn from.
+# Nothing else in the arm can tell a miscalibrated sampleVarianceForestFromPrior
+# from a correct one, every other channel being shared by generator and fit.
 #
-# A third mismatch that suggests itself is NOT offered, having been measured
-# not to redden either arm: skipping only the generator's variance prior draw,
-# so theta0's surface is what the last replication's chain left. That is a
-# data-augmentation step on (s, y) rather than a mismatch - the surface it
-# carries is still marginally a prior draw - so it costs rank independence
-# across replications and nothing else, and a run of it reads clean.
-sbcHeteroPoisons <- c("s-scale", "s-shuffle")
+# A fourth mismatch that suggests itself is NOT offered, and reads clean for a
+# reason that makes the reading vacuous rather than reassuring: skipping only
+# the generator's variance prior draw, so theta0's surface is what the last
+# replication's chain left. That REMOVES the prior-draw entry from the
+# generator instead of mismatching it. The carried surface is marginally a
+# prior draw only if the run's posterior draws are already exact and the
+# replication chain has reached its stationary law - which is what the arm
+# exists to test - and a miscalibrated entry reads clean under it precisely
+# because the generator never calls the entry. It costs rank independence
+# across replications besides, successive theta0 sharing a surface.
+sbcHeteroPoisons <- c("s-scale", "s-shuffle", "s-df")
 
 sbcHeteroPoison <- function(poison) {
   if (is.null(poison)) {
@@ -1938,6 +1951,16 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     sFactor <- if ("s-scale" %in% poison) 2 else 1
     # poison (ii): the drawn scales, right level and all, at the wrong rows
     shuffle <- "s-shuffle" %in% poison
+    # poison (iii): the surface off a SECOND variance forest whose calibration
+    # is wrong, the arm's residual df times four. Built only under the poison,
+    # so a clean run's stream is untouched
+    dfSampler <- if ("s-df" %in% poison) {
+      miscalibrated <- config
+      miscalibrated$sigDf <- 4 * config$sigDf
+      sbcMakeHeteroSampler(miscalibrated, thin)
+    } else {
+      NULL
+    }
     # the row the censored-latent functional reads, the aft arm's closure
     # state: only draw() knows the replication's status and only sample()
     # reads latents. NA_integer_ when nothing censored, the no-rank case
@@ -1945,6 +1968,13 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     spec <- list(
       draw = function() {
         p0 <- sbcHeteroPriorDraw(sampler, config)
+        if (!is.null(dfSampler)) {
+          # theta0's surface and the simulating surface both move to the
+          # miscalibrated prior's draw: the generator stays self-consistent
+          dfSampler$sampleVarianceForestFromPrior()
+          p0$s <- sqrt(dfSampler$getVariance()[, 1L])
+          p0$sTest <- sqrt(dfSampler$getVariance(test = TRUE)[, 1L])
+        }
         # the latent response at the drawn surface: one normal per row at that
         # row's own scale, which is the whole content of the composition
         sRow <- if (shuffle) p0$s[sample.int(config$n)] else p0$s
