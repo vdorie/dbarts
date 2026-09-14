@@ -277,14 +277,18 @@ items
     stay unscheduled, alongside the two brainstorm rounds (sec 15,
     16). Durable record docs/design/tree-mixing-proposals.md (ranking
     sec 4.1 as amended, specialization addendum sec 12).
-  variance-forest-mutation-routing: one door held open
-    (docs/plans/archive/variance-forest-mutation-routing.md).
-    Scale-leaf calibration staleness under updateScale = TRUE: the leaf
-    is calibrated once at creation and nothing rescales it when
-    sigmaScale moves, so a response or offset swap leaves the PRIOR on
-    the old scale; the rescale factor is unverified against
-    GaussianResponse, and scheduling it before that is scheduling
-    unverified algebra. The variance forest's own prior draw
+  variance-forest-mutation-routing (decided, VD 2026-09-14;
+    docs/decisions.md dec-B122): the recalibration slice is in
+    progress. A setResponse/setOffset swap with updateScale = TRUE is to
+    recalibrate the variance forest's leaf prior, reusing the
+    recalibration the engine already performs on a setModel swap, gated
+    on an identity test against a sampler built fresh on the rescaled
+    response; if that test fails, the swap is refused for a
+    heteroscedastic sampler under updateScale = TRUE for 1.0-0 and the
+    rescale algebra becomes a post-release item. Owed: the
+    recalibration and its identity test
+    (docs/plans/archive/variance-forest-mutation-routing.md). The
+    variance forest's own prior draw
     (Chain::sampleVarianceForestFromPrior), the current-state reader of
     the drawn surface ($getVariance) and the heteroscedastic
     samplePriorPredictive(type = "ppd") that reads it have all landed
