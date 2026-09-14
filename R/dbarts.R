@@ -608,6 +608,10 @@ dbarts <- function(
   dispersion <- familySetting(familySpec, "dispersion", NA_real_)
   breaks <- familySetting(familySpec, "breaks", NULL)
   max.rows <- familySetting(familySpec, "max.rows", 1e7)
+  # the residual scale's prior also rides the family; this signature keeps
+  # 'resid.prior' as the raw prior triple's third member, which wins where
+  # the caller named it
+  residPrior <- familySetting(familySpec, "sigma", NULL)
   # Student-t is its own family token and its own engine family; on this
   # side of the bridge it is a gaussian response carrying a degrees-of-
   # freedom attribute, so the remap happens here, once
@@ -1118,7 +1122,8 @@ dbarts <- function(
     # that knows which rows 'subset' kept
     bases = NULL,
     forests = forests,
-    evalEnv = evalEnv
+    evalEnv = evalEnv,
+    residPrior = residPrior
   )
 
   # a forest() term's basis is re-evaluable at NEW rows, which the expanded

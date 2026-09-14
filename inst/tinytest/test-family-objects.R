@@ -240,3 +240,119 @@ callObject <- dbarts::bart(
   verbose = FALSE
 )
 expect_identical(callObject$call$family, quote(student(3)))
+
+# --- the residual prior rides the family ------------------------------------
+
+# the setting completes dec-B98's rule: the residual scale's own prior is a
+# gaussian-family setting, so it is written inside the family call and not
+# beside it. The prior vocabulary resolves there, as it does inside
+# 'resid.prior' itself.
+expect_inherits(
+  dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(5, 0.75))@settings$sigma,
+  "dbartsChiSqPrior"
+)
+expect_null(dbartsFamilies$gaussian()@settings$sigma)
+expect_inherits(
+  dbartsFamilies$student(3, sigma = dbartsPriors$fixed(2))@settings$sigma,
+  "dbartsFixedPrior"
+)
+expect_equal(dbartsFamilies$student(3)@settings$df, 3)
+expect_null(dbartsFamilies$aft()@settings$sigma)
+# a bare constructor name means its defaults, as everywhere else
+expect_equal(
+  dbartsFamilies$gaussian(sigma = dbartsPriors$chisq)@settings$sigma@df,
+  3
+)
+expect_error(
+  dbartsFamilies$gaussian(sigma = 3),
+  pattern = "must be a residual prior"
+)
+expect_error(
+  dbartsFamilies$aft(sigma = dbartsPriors$normal()),
+  pattern = "must be a residual prior"
+)
+# it reads back as the call that wrote it, not as an S4 object dump
+expect_stdout(
+  show(dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(5, 0.75))),
+  pattern = "gaussian(sigma = chisq(5, 0.75))",
+  fixed = TRUE
+)
+
+residArgs <- list(
+  n.trees = 5L,
+  n.samples = 7L,
+  n.burn = 3L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 217L,
+  keepSampler = TRUE,
+  verbose = FALSE
+)
+residFit <- function(...) do.call(dbarts::bart, c(list(x, y), residArgs, ...))
+
+# the shipped default, written out: the same draws as writing nothing
+fitDefault <- residFit()
+fitDefaultNamed <- dbarts::bart(
+  x,
+  y,
+  family = gaussian(sigma = chisq(3, 0.9)),
+  n.trees = 5L,
+  n.samples = 7L,
+  n.burn = 3L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 217L,
+  keepSampler = TRUE,
+  verbose = FALSE
+)
+expect_identical(fitDefault$yhat.train, fitDefaultNamed$yhat.train)
+expect_identical(fitDefault$sigma, fitDefaultNamed$sigma)
+
+# a fixed residual scale suppresses the draw, reached through the family
+fitFixed <- dbarts::bart(
+  x,
+  y,
+  family = gaussian(sigma = fixed(1)),
+  n.trees = 5L,
+  n.samples = 7L,
+  n.burn = 3L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 217L,
+  keepSampler = TRUE,
+  verbose = FALSE
+)
+expect_inherits(fitFixed$fit$model@resid.prior, "dbartsFixedPrior")
+expect_true(all(abs(fitFixed$sigma - 1) < 1e-8))
+
+# the sampler constructor keeps 'resid.prior' as the raw prior triple's third
+# member, and reads the family's own where the caller names none; a flat one
+# the caller did name wins over it (dec-B116's rule)
+residControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 5L,
+  seed = 217L,
+  updateState = FALSE
+)
+samplerViaFamily <- dbarts::dbarts(
+  x,
+  y,
+  family = gaussian(sigma = fixed(2)),
+  control = residControl
+)
+expect_inherits(samplerViaFamily$model@resid.prior, "dbartsFixedPrior")
+expect_equal(samplerViaFamily$model@resid.prior@value, 2)
+samplerFlatWins <- dbarts::dbarts(
+  x,
+  y,
+  family = gaussian(sigma = fixed(2)),
+  resid.prior = fixed(3),
+  control = residControl
+)
+expect_equal(samplerFlatWins$model@resid.prior@value, 3)
+
+# and a binary family, which has no residual scale to give a prior to, has no
+# 'sigma' argument to write one in
+expect_error(dbartsFamilies$probit(sigma = dbartsPriors$fixed(2)))

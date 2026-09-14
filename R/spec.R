@@ -138,7 +138,8 @@ resolveSamplerSpec <- function(
   hazardPeriods,
   bases,
   forests,
-  evalEnv
+  evalEnv,
+  residPrior = NULL
 ) {
   # a factor/logical/character response declares a classification model. The
   # single-forest engine here fits only the 2-level (probit) case; 3+ levels
@@ -353,15 +354,23 @@ resolveSamplerSpec <- function(
   parsePriorsCall$multiForest <- !is.null(declaredBases)
   parsePriorsCall$parentEnv <- evalEnv
 
+  # The residual prior can ride the family object (gaussian(sigma = )). One
+  # precedence rule, dec-B116's: a flat 'resid.prior' the caller named beats
+  # the object's slot, so the family's own is taken only where the caller
+  # named none.
+  if (!is.null(residPrior) && !any(names(matchedCall) == "resid.prior")) {
+    parsePriorsCall <- setCallArgument(
+      parsePriorsCall,
+      "resid.prior",
+      residPrior
+    )
+  }
   if (fixedUnitScale) {
-    if (any(names(parsePriorsCall) == "resid.prior")) {
-      parsePriorsCall[[which(
-        names(parsePriorsCall) == "resid.prior"
-      )]] <- quote(fixed(1))
-    } else {
-      parsePriorsCall[[length(parsePriorsCall) + 1L]] <- quote(fixed(1))
-      names(parsePriorsCall)[length(parsePriorsCall)] <- "resid.prior"
-    }
+    parsePriorsCall <- setCallArgument(
+      parsePriorsCall,
+      "resid.prior",
+      quote(fixed(1))
+    )
   }
   priors <- eval(parsePriorsCall)
 
@@ -899,6 +908,9 @@ dbartsSpec <- function(
   familySpec <- applyConsolidatedFamilyArgs(familySpec, consolidated)
   family <- familySpec@token
   dispersion <- familySetting(familySpec, "dispersion", NA_real_)
+  # as on dbarts(): the residual prior rides the family, and the flat
+  # 'resid.prior' this signature keeps wins where the caller named it
+  residPrior <- familySetting(familySpec, "sigma", NULL)
   # Student-t is a gaussian response carrying a degrees-of-freedom attribute
   # on this side of the bridge; the remap happens once, here
   residDf <- NULL
@@ -986,6 +998,7 @@ dbartsSpec <- function(
     hazardPeriods = NULL,
     bases = basis,
     forests = forests,
-    evalEnv = parentEnv
+    evalEnv = parentEnv,
+    residPrior = residPrior
   )
 }

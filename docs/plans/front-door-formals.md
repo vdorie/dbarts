@@ -195,5 +195,37 @@ tests, 0 failures, no retired name in its sources; stan4bart bartcore
 through both constructors harmlessly. Gates: `R CMD check --as-cran`
 OK; doc-freshness, rc-codoc, pkgdown, air, NEWS parse clean;
 test-tombstones.R 139/0, test-front-door-control.R 100/0. The arc is
-complete; the residual prior onto the family object stays the recorded
-follow-on in the TODO.
+complete; the residual prior onto the family object landed after it, as
+S3 below.
+
+## Landing note, S3, the residual prior onto the family (2026-09-14)
+
+LANDED at 323fcd2402b0e8ac1e8a2dcbd0eecf47e1994a12, one commit:
+
+- 323fcd2402b0e8ac1e8a2dcbd0eecf47e1994a12 Move the residual prior onto the family object
+
+The recorded follow-on, closing dec-B98's rule. The residual scale's
+prior is spelled `sigma` on the four families that draw one -
+[`gaussian`](../../R/family.R), `student`, `aft` and
+`hurdle.lognormal` - and takes a `chisq(df, quant)` or `fixed(value)`
+residual prior; [`resolveFamily`](../../R/family.R) now resolves the
+prior vocabulary inside the family argument as well, the two name sets
+being disjoint. `bart` sheds `resid.prior`, and `sigdf`/`sigquant`
+retarget from `resid.prior = chisq()` to `family = gaussian(sigma = )`;
+all three ride [`consolidatedArgsFor`](../../R/tombstones.R). `sigest`
+stays (dec-B80). `dbarts`, `dbartsSpec` and `xbart` keep `resid.prior`
+as the raw prior triple's third member and read the family's own where
+the caller names none, through
+[`resolveSamplerSpec`](../../R/spec.R)'s new `residPrior` argument; one
+precedence rule throughout, dec-B116's, a supplied flat argument
+beating the object's slot. The retirement was NOT extended to those
+three: `resid.prior = fixed(1)` is the documented way to hand sigma to
+an outer sampler (man/dbarts-embedding.Rd, the component vignette,
+`$setSigma`'s contract), and `bartBT`, frozen at 0.9-34's formals,
+reaches `dbarts()` through it. The family-gating inventory
+([`familyGatingInventory`](../../R/utility.R)) stays: `sigest` is a
+live formal and is still gated by it, so a retired residual-prior name
+under a family with no residual scale draws both its retirement warning
+and the gating one. Gates at the tip: tinytest 8701/0; equivalence
+52/52, BCF 15/15, multinomial 11/11 all identical; `R CMD check
+--as-cran` OK; air and doc-freshness clean.

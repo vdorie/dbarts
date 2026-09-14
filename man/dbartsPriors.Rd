@@ -8,6 +8,11 @@
   \code{\link{dbarts}} and the fitting functions accept. Bundling them keeps
   generic names like \code{normal} out of the search path, where another
   package could mask them or be masked depending on attach order.
+
+  The residual priors \code{chisq} and \code{fixed} are also what a family
+  object's \code{sigma} setting takes - \code{family = gaussian(sigma =
+  chisq(3, 0.9))} - which is how \code{\link{bart}} reaches them; this
+  vocabulary resolves by bare name inside that argument too.
 }
 \format{
   A list of functions:

@@ -223,14 +223,21 @@ dbartsTombstones <- list(
     name = "sigdf",
     kind = "argument",
     owner = "bart",
-    successor = "resid.prior = chisq(df)",
+    successor = "family = gaussian(sigma = chisq(df))",
     expires = tombstoneExpiry
   ),
   list(
     name = "sigquant",
     kind = "argument",
     owner = "bart",
-    successor = "resid.prior = chisq(quantile)",
+    successor = "family = gaussian(sigma = chisq(quant))",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "resid.prior",
+    kind = "argument",
+    owner = "bart",
+    successor = "family = gaussian(sigma = )",
     expires = tombstoneExpiry
   ),
   list(
@@ -473,14 +480,22 @@ consolidatedArgReasons <- list(
     "node.prior = normal(k, scale = ); 'prior.scale' is removed in dbarts ",
     tombstoneExpiry
   ),
+  resid.prior = paste0(
+    "the residual scale's prior rides its family: write ",
+    "family = gaussian(sigma = chisq(df, quant)) or ",
+    "family = gaussian(sigma = fixed(value)); 'resid.prior' is removed in ",
+    "dbarts ",
+    tombstoneExpiry
+  ),
   sigdf = paste0(
-    "the residual prior's degrees of freedom is a residual prior: write ",
-    "resid.prior = chisq(df = ); 'sigdf' is removed in dbarts ",
+    "the residual prior's degrees of freedom rides its family: write ",
+    "family = gaussian(sigma = chisq(df = )); 'sigdf' is removed in dbarts ",
     tombstoneExpiry
   ),
   sigquant = paste0(
-    "the residual prior's quantile is a residual prior: write ",
-    "resid.prior = chisq(quantile = ); 'sigquant' is removed in dbarts ",
+    "the residual prior's quantile rides its family: write ",
+    "family = gaussian(sigma = chisq(quant = )); 'sigquant' is removed in ",
+    "dbarts ",
     tombstoneExpiry
   ),
   proposal.probs = paste0(
@@ -499,6 +514,7 @@ consolidatedPriorScalars <- c(
   "base",
   "split.probs",
   "prior.scale",
+  "resid.prior",
   "sigdf",
   "sigquant",
   "proposal.probs"
@@ -522,6 +538,7 @@ consolidatedArgsFor <- list(
     "base",
     "split.probs",
     "prior.scale",
+    "resid.prior",
     "sigdf",
     "sigquant",
     "proposal.probs"
@@ -600,7 +617,8 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
     env <- switch(
       name,
       resid.dist = vocabularyEnv(dbartsFamilies, evalEnv),
-      dart = vocabularyEnv(dbartsPriors, evalEnv),
+      dart = ,
+      resid.prior = vocabularyEnv(dbartsPriors, evalEnv),
       evalEnv
     )
     values[name] <- list(

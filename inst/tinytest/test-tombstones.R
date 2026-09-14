@@ -191,6 +191,113 @@ expect_warning(
 )
 expect_true(fitLevelGibbs$fit$control@levelGibbs)
 
+# the residual prior's three retired spellings: each warns once, each is
+# applied, and each lands the same prior the family object now carries
+residPriorFit <- function(...) {
+  dbarts::bart(
+    xCons,
+    yCons,
+    ...,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 313L,
+    keepSampler = TRUE,
+    verbose = FALSE
+  )
+}
+
+resetConsolidatedWarning("resid.prior", "bart")
+expect_warning(
+  fitResidPrior <- residPriorFit(resid.prior = dbarts::dbartsPriors$fixed(2)),
+  pattern = "family = gaussian\\(sigma"
+)
+expect_inherits(fitResidPrior$fit$model@resid.prior, "dbartsFixedPrior")
+expect_equal(fitResidPrior$fit$model@resid.prior@value, 2)
+# once per session: the second call is silent and still maps
+expect_silent(
+  fitResidPriorAgain <- residPriorFit(
+    resid.prior = dbarts::dbartsPriors$fixed(2)
+  )
+)
+expect_equal(fitResidPriorAgain$fit$model@resid.prior@value, 2)
+
+resetConsolidatedWarning("sigdf", "bart")
+resetConsolidatedWarning("sigquant", "bart")
+expect_warning(
+  fitSigdf <- residPriorFit(sigdf = 5, sigquant = 0.75),
+  pattern = "family = gaussian\\(sigma"
+)
+expect_equal(fitSigdf$fit$model@resid.prior@df, 5)
+expect_equal(fitSigdf$fit$model@resid.prior@quantile, 0.75)
+
+# the object spelling is the same fit, draw for draw. The family vocabulary
+# resolves in the argument the caller writes, so these calls are spelled out
+# rather than routed through the helper's '...'
+fitSigmaObject <- dbarts::bart(
+  xCons,
+  yCons,
+  family = gaussian(sigma = chisq(5, 0.75)),
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 313L,
+  keepSampler = TRUE,
+  verbose = FALSE
+)
+expect_identical(fitSigdf$yhat.train, fitSigmaObject$yhat.train)
+expect_identical(fitSigdf$sigma, fitSigmaObject$sigma)
+
+# precedence, dec-B116's rule: a flat argument the caller supplied wins over
+# the family object's slot, and says so once
+resetConsolidatedWarning("sigdf", "bart")
+resetConsolidatedWarning("sigquant", "bart")
+expect_warning(
+  fitFlatWins <- dbarts::bart(
+    xCons,
+    yCons,
+    family = gaussian(sigma = chisq(2, 0.5)),
+    sigdf = 5,
+    sigquant = 0.75,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 313L,
+    keepSampler = TRUE,
+    verbose = FALSE
+  ),
+  pattern = "family = gaussian\\(sigma"
+)
+expect_equal(fitFlatWins$fit$model@resid.prior@df, 5)
+expect_equal(fitFlatWins$fit$model@resid.prior@quantile, 0.75)
+expect_identical(fitFlatWins$sigma, fitSigdf$sigma)
+
+resetConsolidatedWarning("resid.prior", "bart")
+expect_warning(
+  fitFlatObjectWins <- dbarts::bart(
+    xCons,
+    yCons,
+    family = gaussian(sigma = chisq(2, 0.5)),
+    resid.prior = dbarts::dbartsPriors$fixed(2),
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 313L,
+    keepSampler = TRUE,
+    verbose = FALSE
+  ),
+  pattern = "family = gaussian\\(sigma"
+)
+expect_equal(fitFlatObjectWins$fit$model@resid.prior@value, 2)
+
 # an old spelling that names a family the call cannot fit is refused rather
 # than resolved one way in silence
 resetConsolidatedWarning("resid.dist", "bart")
