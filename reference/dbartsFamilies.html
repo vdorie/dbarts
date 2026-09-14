@@ -24,9 +24,11 @@ Every setting that only one family reads rides its family object rather
   resid.dist, dispersion, breaks, max.rows,
   resid.prior, sigdf and sigquant are accepted for
   one release with a once-per-session warning and are removed in dbarts
-  1.1-0. dbarts, dbartsSpec and
-  xbart keep resid.prior as a formal, which wins
-  over a family's sigma where the call names it."><meta property="og:description" content="A list of constructor functions building the response families that the
+  1.1-0; resid.prior is retired that way on dbarts,
+  dbartsSpec and xbart as well, so the family
+  object is the one home of the residual prior. A call that writes the prior
+  both ways is refused where the two disagree, naming both spellings, and
+  accepted in silence where they say the same thing."><meta property="og:description" content="A list of constructor functions building the response families that the
   family argument of bart, dbarts,
   dbartsSpec and xbart accepts. Bundling them
   keeps generic names like gaussian and probit out of the
@@ -51,9 +53,11 @@ Every setting that only one family reads rides its family object rather
   resid.dist, dispersion, breaks, max.rows,
   resid.prior, sigdf and sigquant are accepted for
   one release with a once-per-session warning and are removed in dbarts
-  1.1-0. dbarts, dbartsSpec and
-  xbart keep resid.prior as a formal, which wins
-  over a family's sigma where the call names it."></head><body>
+  1.1-0; resid.prior is retired that way on dbarts,
+  dbartsSpec and xbart as well, so the family
+  object is the one home of the residual prior. A call that writes the prior
+  both ways is refused where the two disagree, naming both spellings, and
+  accepted in silence where they say the same thing."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -118,9 +122,11 @@ Every setting that only one family reads rides its family object rather
   <code>resid.dist</code>, <code>dispersion</code>, <code>breaks</code>, <code>max.rows</code>,
   <code>resid.prior</code>, <code>sigdf</code> and <code>sigquant</code> are accepted for
   one release with a once-per-session warning and are removed in dbarts
-  1.1-0. <code><a href="dbarts.html">dbarts</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code> and
-  <code><a href="xbart.html">xbart</a></code> keep <code>resid.prior</code> as a formal, which wins
-  over a family's <code>sigma</code> where the call names it.</p>
+  1.1-0; <code>resid.prior</code> is retired that way on <code><a href="dbarts.html">dbarts</a></code>,
+  <code><a href="dbartsSpec.html">dbartsSpec</a></code> and <code><a href="xbart.html">xbart</a></code> as well, so the family
+  object is the one home of the residual prior. A call that writes the prior
+  both ways is refused where the two disagree, naming both spellings, and
+  accepted in silence where they say the same thing.</p>
     </div>
 
     <div class="section level2">
@@ -150,7 +156,8 @@ Every setting that only one family reads rides its family object rather
       <code>resid.prior</code>, <code>sigdf</code> and <code>sigquant</code> arguments.
       <code>sigest</code>, the estimate the <code>chisq</code> quantile is calibrated
       against, is not a family setting and stays a fitting-function
-      argument.</p></dd>
+      argument; it stands beside <code>chisq</code>, and is refused beside
+      <code>fixed</code>, which has no scale to calibrate.</p></dd>
 
     <dt><code>student(df = NULL, sigma = NULL)</code></dt>
 <dd><p>A continuous response with outlier-robust Student-t errors, drawn by

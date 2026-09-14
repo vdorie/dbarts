@@ -12,7 +12,6 @@ their own design matrix.
 dbartsSpec(
     data, control = dbarts::dbartsControl(),
     tree.prior = cgm, node.prior = normal,
-    resid.prior = chisq,
     proposal.probs = c(
         birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
         rule_gibbs = 0, birth = 0.5),
@@ -40,9 +39,9 @@ dbartsSpec(
   `"auto"` - the slot IS the declaration - and is refused under any
   other family.
 
-- control, tree.prior, node.prior, resid.prior, proposal.probs,
-  monotone, interactions, blocks, variance, forests, sigest, sigma,
-  seed, family, ...:
+- control, tree.prior, node.prior, proposal.probs, monotone,
+  interactions, blocks, variance, forests, sigest, sigma, seed, family,
+  ...:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
   including the frozen `proposal.probs` mixture - all four structural
@@ -50,7 +49,10 @@ dbartsSpec(
   leaf values, `sigma` and the family's latents. The prior arguments are
   evaluated in dbarts's own prior vocabulary, so bare expressions such
   as `normal(k = chi(1.25, Inf))` resolve regardless of what the caller
-  has attached. A
+  has attached. The residual prior rides `family` here as everywhere
+  (`family = gaussian(sigma = chisq(df, quant))`); the retired
+  `resid.prior` spelling reaches `...` for one release and is refused
+  where it disagrees with a family that named `sigma` too. A
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
   `basis` given as a one-sided formula is evaluated in `parentEnv`, this
   surface performing no data ingestion of its own; the data object's

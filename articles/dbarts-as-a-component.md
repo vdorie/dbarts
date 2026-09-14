@@ -54,11 +54,11 @@ ordinary gaussian sampler.
 
 Two details make it correct rather than merely runnable. The sampler’s
 residual standard deviation is pinned at 1 with
-`resid.prior = fixed(1)`, because the augmented model has no free
-residual scale. And the leaf prior is stated with `setCalibration`,
-because a gaussian sampler built on a cold-start vector would otherwise
-inherit its prior scale from that vector’s range – an accident of the
-starting values, not a modelling choice.
+`family = gaussian(sigma = fixed(1))`, because the augmented model has
+no free residual scale. And the leaf prior is stated with
+`setCalibration`, because a gaussian sampler built on a cold-start
+vector would otherwise inherit its prior scale from that vector’s range
+– an accident of the starting values, not a modelling choice.
 
 ``` r
 
@@ -70,7 +70,8 @@ y <- rbinom(n, 1L, pnorm(fTrue + o))
 control <- recipeControl(31L)
 
 # the host: a gaussian sampler on the working response, sigma pinned at 1
-host <- dbarts(x, 2 * y - 1 - o, control = control, resid.prior = fixed(1))
+host <- dbarts(x, 2 * y - 1 - o, control = control,
+               family = gaussian(sigma = fixed(1)))
 host$setCalibration(prior.scale = 2)
 
 composed <- matrix(0, n, nDraws)
@@ -175,7 +176,7 @@ sbcControl <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 10L,
 # leaf prior is then stated outright, so every replication shares one prior
 newSampler <- function() {
   s <- dbarts(xSbc, seq(-3, 3, length.out = nSbc), control = sbcControl,
-              resid.prior = fixed(sigma0^2))
+              family = gaussian(sigma = fixed(sigma0^2)))
   s$setCalibration(prior.scale = 2)
   s
 }
@@ -379,11 +380,11 @@ current state.
 
 ## 5. An outer sampler that owns sigma
 
-`resid.prior = fixed(value)` holds the residual variance at `value` and
-suppresses the sampler’s own draw, which is exactly what a host wants
-when sigma is drawn elsewhere – from a hierarchical prior, jointly with
-another outcome, or from a scale shared across several samplers.
-`setSigma` then writes it, and it stays written.
+`family = gaussian(sigma = fixed(value))` holds the residual variance at
+`value` and suppresses the sampler’s own draw, which is exactly what a
+host wants when sigma is drawn elsewhere – from a hierarchical prior,
+jointly with another outcome, or from a scale shared across several
+samplers. `setSigma` then writes it, and it stays written.
 
 ``` r
 
@@ -394,7 +395,8 @@ y <- rnorm(n, fTrue, 0.75)
 
 sigma <- 1
 control <- recipeControl(55L)
-sampler <- dbarts(x, y, control = control, resid.prior = fixed(sigma^2))
+sampler <- dbarts(x, y, control = control,
+                  family = gaussian(sigma = fixed(sigma^2)))
 
 keepSigma <- rep(NA_real_, nDraws)
 for (i in seq_len(nBurn + nDraws)) {

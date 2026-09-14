@@ -1,17 +1,16 @@
 # Prior Specification Constructors
 
 A list of constructor functions building the prior specifications that
-the `tree.prior`, `node.prior`, and `resid.prior` arguments of
+the `tree.prior` and `node.prior` arguments of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and the
 fitting functions accept. Bundling them keeps generic names like
 `normal` out of the search path, where another package could mask them
 or be masked depending on attach order.
 
-The residual priors `chisq` and `fixed` are also what a family object's
+The residual priors `chisq` and `fixed` are what a family object's
 `sigma` setting takes - `family = gaussian(sigma = chisq(3, 0.9))` -
-which is how [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
-reaches them; this vocabulary resolves by bare name inside that argument
-too.
+which is the one place every entry point reaches the residual prior;
+this vocabulary resolves by bare name inside that argument too.
 
 ## Format
 
@@ -130,17 +129,23 @@ A list of functions:
 
 - `chisq(df = 3, quant = 0.9)`:
 
-  Chi-squared prior on the residual variance, scaled so that an estimate
-  of the residual standard deviation falls at the given quantile.
+  Chi-squared prior on the residual variance. Its scale is set from
+  `sigest`, the residual-scale estimate supplied (or derived) at
+  creation: `quant` is the prior probability that the residual standard
+  deviation is below that estimate, so `sigest = 1` gives the prior
+  under which \\\sigma\\ is below 1 with probability `quant`.
 
 - `fixed(value = 1)`:
 
-  Fixed residual variance.
+  Fixed residual variance, in squared response units. It is the residual
+  scale rather than a law over one, so it ignores `sigest` - which is
+  refused beside it rather than accepted and overwritten - and
+  suppresses the sampler's own \\\sigma\\ draw.
 
 ## Details
 
-Inside the prior arguments of the fitting functions the same
-constructors are available by bare name, so
+Inside the prior arguments of the fitting functions - and inside a
+family's `sigma` - the same constructors are available by bare name, so
 `dbarts(..., node.prior = normal(chi(1.5)))` works regardless of what
 packages are attached: those arguments are evaluated with this
 vocabulary layered over the calling environment, along with `num.vars`,

@@ -10,7 +10,7 @@ as to be mutable.
 dbarts(
     formula, data, test, subset, weights, offset, offset.test = offset,
     verbose = FALSE, n.samples = 800L,
-    tree.prior = cgm, node.prior = normal, resid.prior = chisq,
+    tree.prior = cgm, node.prior = normal,
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -171,21 +171,6 @@ dbarts(
   “Response scaling” below for how `k` interacts with the response's
   internal scaling.
 
-- resid.prior:
-
-  An expression of the form `chisq` or `chisq(df, quant)` that sets the
-  prior used on the residual/error variance, or a prior object built
-  with
-  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
-  The same prior also rides the family object
-  (`family = gaussian(sigma = chisq(df, quant))`), which is how
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) reaches
-  it; this argument is the raw prior triple's third member and stays
-  here. One precedence rule: this argument, where the call names it,
-  wins over the family's own `sigma`. A family with no free residual
-  scale (`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`,
-  `"multinomial"`) overwrites either with `fixed(1)`.
-
 - monotone:
 
   Optional per-predictor monotonicity constraints (monotone BART;
@@ -269,13 +254,14 @@ dbarts(
   `variance` - unadjudicated (whether the variance forest's
   weight-channel routing composes with them) rather than unsupported by
   design. The per-tree leaf prior is calibrated from the residual
-  (`resid.prior`) hyperparameters so that a constant variance surface
-  reproduces the homoscedastic `sigma` posterior. The fit gains
-  posterior draws `s.train`/`s.test` of \\s(x)\\, and `predict` attaches
-  an `"s"` attribute with \\s(x)\\ at new predictors (requires
-  `keepTrees`). \\s(x)\\ is the fit's residual scale wherever one is
-  reported or drawn at: `extract(type = "loglik")` scores at
-  \\s(x_i)/\sqrt{w_i}\\, `type = "ppd"` draws its noise there, and
+  prior's (`family = gaussian(sigma = )`) hyperparameters so that a
+  constant variance surface reproduces the homoscedastic `sigma`
+  posterior. The fit gains posterior draws `s.train`/`s.test` of
+  \\s(x)\\, and `predict` attaches an `"s"` attribute with \\s(x)\\ at
+  new predictors (requires `keepTrees`). \\s(x)\\ is the fit's residual
+  scale wherever one is reported or drawn at: `extract(type = "loglik")`
+  scores at \\s(x_i)/\sqrt{w_i}\\, `type = "ppd"` draws its noise there,
+  and
   [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   summarizes `mean.s` in place of `sigma`, which under this
   parameterization is held fixed and carries no posterior content.
@@ -346,7 +332,11 @@ dbarts(
   warning as it does so (class `dbartsSigmaFallbackWarning`); a design
   with sparse-backed predictor columns skips the linear model altogether
   and falls back the same way (class `dbartsSparseSigmaFallbackWarning`,
-  a `dbartsSigmaFallbackWarning`).
+  a `dbartsSigmaFallbackWarning`). It is the estimate a `chisq` residual
+  prior's quantile is calibrated against, so it stands beside
+  `family = gaussian(sigma = chisq(df, quant))` and is refused beside
+  `family = gaussian(sigma = fixed(value))`, which fixes the residual
+  scale outright and would overwrite the estimate with its square root.
 
 - na.action:
 
@@ -365,8 +355,10 @@ dbarts(
 - ...:
 
   Not used for new code: the channel that lets a retired argument
-  spelling (`resid.dist`, `dispersion`, `breaks`, `max.rows`, all of
-  which now ride `family`; see
+  spelling (`resid.dist`, `dispersion`, `breaks`, `max.rows` and
+  `resid.prior`, all of which now ride `family` - the residual prior as
+  `family = gaussian(sigma = )`, which is its one home, so writing it
+  both ways is refused where the two disagree; see
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md);
   and `proposal.probs`, which now rides `control`, built with
   `dbartsControl(proposal.probs = )`) reach a message naming its
@@ -732,7 +724,7 @@ samples <- sampler$run()
 sampler <- dbarts(y ~ x, control = control,
                   tree.prior = cgm(power = 1.5),
                   node.prior = normal(k = chi(1.5, 2)),
-                  resid.prior = chisq(df = 5))
+                  family = gaussian(sigma = chisq(df = 5)))
 
 ## an additive fit that is monotone increasing in the first predictor
 sampler <- dbarts(y ~ x, control = control,

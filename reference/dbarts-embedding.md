@@ -37,7 +37,7 @@ at the next sweep. All of them are documented in
 | `$setResponse(y)` | the regression target | a partial residual, a working response, an imputed outcome |
 | `$setOffset(o)` | an additive term BART does not fit | another block's linear predictor, a fixed exposure |
 | `$setWeights(w)` | per-observation precision | a Polya-Gamma precision, a variance mixture, survey weights |
-| `$setSigma(s)` | the residual standard deviation | a scale drawn elsewhere; requires `resid.prior = fixed()` |
+| `$setSigma(s)` | the residual standard deviation | a scale drawn elsewhere; requires `family = gaussian(sigma = fixed())` |
 | `$setPredictor(x, column)` | one predictor column | a latent covariate, an imputed predictor |
 | `$setActiveRows(a)` | which rows enter the likelihood | a subset indicator drawn by another block |
 | `$setCalibration(prior.scale = )` | the leaf prior in force | restating the prior after a response swap |
@@ -111,9 +111,9 @@ draws the latent at a supplied fit and
 [`dbartsWorkingResponse`](https://vdorie.github.io/dbarts/reference/dbartsAugmentation.md)
 turns it into the quantity a host regresses on. A host that needs the
 latent for its own blocks runs the step itself over a gaussian sampler
-with `resid.prior = fixed(1)`, rather than reimplementing the family.
-Their `fit` argument is offset-free, as `$getFitsWithoutOffset()`
-reports it.
+with `family = gaussian(sigma = fixed(1))`, rather than reimplementing
+the family. Their `fit` argument is offset-free, as
+`$getFitsWithoutOffset()` reports it.
 
 ### Driving it from compiled code
 

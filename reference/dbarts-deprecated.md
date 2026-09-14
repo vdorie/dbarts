@@ -96,18 +96,22 @@ in dbarts 1.1-0.
 
 - `resid.prior`, `sigdf`, `sigquant`:
 
-  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md): the
-  residual scale's prior is a setting of the families that draw one, so
-  it rides the family object
+  The residual scale's prior is a setting of the families that draw one,
+  so it rides the family object
   (`family = gaussian(sigma = chisq(df, quant))`,
   `family = gaussian(sigma = fixed(value))`); likewise
   `student(df, sigma = )`, `aft(sigma = )` and
-  `hurdle.lognormal(sigma = )`.
+  `hurdle.lognormal(sigma = )`. `sigdf` and `sigquant` are retired on
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md);
+  `resid.prior` is retired the same way on
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
   `dbartsSpec` and
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) keep
-  `resid.prior` as a formal. `sigest`, the residual-scale estimate
-  supplied at creation, is unaffected.
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md), so the
+  prior has one home on every door. A call that writes it both ways - a
+  retired spelling and a family whose call named `sigma` - is refused
+  where the two disagree. `sigest`, the residual-scale estimate supplied
+  at creation, is unaffected.
 
 - `proposal.probs`:
 

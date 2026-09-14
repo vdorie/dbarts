@@ -16,7 +16,7 @@ xbart(
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, drop = TRUE,
-    resid.prior = chisq, sigest = NA_real_,
+    sigest = NA_real_,
     seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
@@ -30,9 +30,11 @@ xbart(
 - ...:
 
   Not used for new code: the channel that lets a retired argument
-  spelling reach a message naming its successor, instead of R's own
-  “unused argument” error. Any other name is refused. Removed in dbarts
-  1.1-0.
+  spelling (`dart`, now `tree.prior = dart()`; `resid.prior`, now
+  `family = gaussian(sigma = )`, its one home, so writing it both ways
+  is refused where the two disagree) reach a message naming its
+  successor, instead of R's own “unused argument” error. Any other name
+  is refused. Removed in dbarts 1.1-0.
 
 - control:
 
@@ -229,15 +231,6 @@ xbart(
   Logical, determining if dimensions with a single value are dropped
   from the result.
 
-- resid.prior:
-
-  An expression of the form `chisq` or `chisq(df, quant)` that sets the
-  prior used on the residual/error variance. It is held fixed across
-  every cell - it is not a grid axis. The same prior also rides the
-  family object (`family = gaussian(sigma = chisq(df, quant))`); this
-  argument, where the call names it, wins over the family's own `sigma`,
-  and a binary family overwrites either with `fixed(1)`.
-
 - sigest:
 
   A positive numeric estimate of the residual standard deviation. If
@@ -254,7 +247,11 @@ xbart(
   `dbartsSigmaFallbackWarning`); a design with sparse-backed predictor
   columns skips the linear model altogether and falls back the same way
   (class `dbartsSparseSigmaFallbackWarning`, a
-  `dbartsSigmaFallbackWarning`).
+  `dbartsSigmaFallbackWarning`). It is the estimate a `chisq` residual
+  prior's quantile is calibrated against, so it stands beside
+  `family = gaussian(sigma = chisq(df, quant))` and is refused beside
+  `family = gaussian(sigma = fixed(value))`, which fixes the residual
+  scale outright and would overwrite the estimate with its square root.
 
 - seed:
 

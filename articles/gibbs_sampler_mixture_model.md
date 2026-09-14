@@ -274,7 +274,7 @@ control.mf <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L,
 # by the outer loop
 samplers <- lapply(seq_len(K), function(f)
     dbarts(x.mf, y.mf, control = control.mf, node.prior = normal(k = 1),
-           resid.prior = fixed(1)))
+           family = gaussian(sigma = fixed(1))))
 # one prior budget divided among the forests, rather than K copies of the
 # budget for the whole of the sum
 base.mf <- samplers[[1L]]$getCalibration()[1L, "prior.scale"]

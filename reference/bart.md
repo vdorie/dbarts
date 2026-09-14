@@ -607,7 +607,12 @@ print(x, ...)
   `resid.prior`, `sigdf` and `sigquant`, which such a family overwrites
   with `fixed(1)` regardless. Same concept as `sigest` in
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md).
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md). It is
+  the estimate a `chisq` residual prior's quantile is calibrated
+  against, so it stands beside
+  `family = gaussian(sigma = chisq(df, quant))` and is refused beside
+  `family = gaussian(sigma = fixed(value))`, which fixes the residual
+  scale outright and would overwrite the estimate with its square root.
 
 - k:
 
@@ -1563,7 +1568,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001566
+#> total seconds in loop: 0.001581
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1611,7 +1616,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002023
+#> total seconds in loop: 0.001992
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 

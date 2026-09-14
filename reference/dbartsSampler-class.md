@@ -376,10 +376,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   is refused on a probit-, logistic-, multinomial-, ordinal-, or
   count-family sampler, which fix it at 1 by the model definition, and
   on a heteroscedastic (`variance`) sampler, whose variance forest owns
-  the residual scale. A gaussian sampler with `resid.prior = fixed()` is
-  not fixed in this sense and is still accepted: suppressing the
-  internal draw so an outer sampler owns `sigma` is what that prior is
-  for.
+  the residual scale. A gaussian sampler with
+  `family = gaussian(sigma = fixed())` is not fixed in this sense and is
+  still accepted: suppressing the internal draw so an outer sampler owns
+  `sigma` is what that prior is for.
 
 - counts:
 
