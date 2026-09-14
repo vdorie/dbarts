@@ -354,7 +354,79 @@ expect_equal(
   tolerance = 1e-10
 )
 
+# ---- setData: the whole-data conduit re-anchors the transform too ----
+# A replacement data set ALWAYS re-anchors the response transform - there is no
+# updateScale to pin it with - so the scale leaf and the drawn surface are owed
+# the restatement the response-side swaps take, and the pinned sigma, which the
+# response rewrites as the ratio of the two transforms on its way through, is
+# owed its 1 back. The same identity carries it, over a replacement that moves
+# the row count and the predictors as well as the scale: the swapped sampler
+# must be the sampler creation on the replacement data would have built. Its
+# own samplers, at the end of the file, so no assertion above sees a different
+# rng stream.
+set.seed(59, sample.kind = "Rejection")
+nDataSwap <- 150L
+nDataRepl <- 240L
+xDataSwap <- cbind(x1 = runif(nDataSwap), x2 = runif(nDataSwap))
+yDataSwap <- 2 *
+  xDataSwap[, 1L] +
+  ifelse(xDataSwap[, 2L] < 0.5, 0.4, 1.5) * rnorm(nDataSwap)
+xDataRepl <- cbind(x1 = runif(nDataRepl), x2 = runif(nDataRepl))
+yDataRepl <- 2 *
+  xDataRepl[, 1L] +
+  ifelse(xDataRepl[, 2L] < 0.5, 0.4, 1.5) * rnorm(nDataRepl)
+pinnedSampler <- function(predictors, response) {
+  dbarts::dbarts(
+    predictors,
+    response,
+    control = control,
+    variance = dbarts::varianceForest(n.trees = 8L),
+    sigest = 1.3,
+    seed = 77L
+  )
+}
+
+dataSwapped <- pinnedSampler(xDataSwap, yDataSwap)
+dataSwapped$setData(dbarts::dbartsData(xDataRepl, 3 * yDataRepl))
+dataFresh <- pinnedSampler(xDataRepl, 3 * yDataRepl)
+expect_identical(
+  dataSwapped$getCalibration()[1L, "response.scale"],
+  dataFresh$getCalibration()[1L, "response.scale"]
+)
+dataSwappedDraws <- dataSwapped$run(0L, 3L)
+dataFreshDraws <- dataFresh$run(0L, 3L)
+expect_equal(dataSwappedDraws$sigma, dataFreshDraws$sigma, tolerance = 1e-12)
+expect_equal(
+  dataSwappedDraws$variance,
+  dataFreshDraws$variance,
+  tolerance = 1e-10
+)
+expect_equal(dataSwappedDraws$train, dataFreshDraws$train, tolerance = 1e-10)
+# non-vacuity, on both halves of what the identity compares. The reported sigma
+# is the pinned 1 read through the transform in force, so a swap that left the
+# old one pinned reports the value the sampler had BEFORE it - a different
+# number here by more than half - and the surface, an original-scale quantity,
+# is off by the square of the response factor rather than by rounding.
+staleSigma <- pinnedSampler(xDataSwap, yDataSwap)$run(0L, 1L)$sigma
+expect_true(abs(dataFreshDraws$sigma[1L] / staleSigma - 1) > 0.5)
+expect_true(
+  mean(dataFreshDraws$variance) >
+    4 * mean(pinnedSampler(xDataRepl, yDataRepl)$run(0L, 3L)$variance)
+)
+
 rm(
+  nDataSwap,
+  nDataRepl,
+  xDataSwap,
+  yDataSwap,
+  xDataRepl,
+  yDataRepl,
+  pinnedSampler,
+  dataSwapped,
+  dataFresh,
+  dataSwappedDraws,
+  dataFreshDraws,
+  staleSigma,
   nScale,
   xScale,
   yScale,

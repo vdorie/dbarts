@@ -2823,6 +2823,11 @@ public:
   /// varianceParams carries recoverVarianceParameters' factors and is read
   /// only under a variance forest. SINGLE FOREST ONLY; recoverTreeParameters
   /// states what a multi-forest lift would take.
+  ///
+  /// A whole-data replacement ALWAYS re-anchors the gaussian transform - there
+  /// is no updateScale to pin it with - so a variance forest is re-anchored
+  /// with it, at the end, exactly as a re-anchoring response or offset swap
+  /// does it.
   void applyNewData(const double* y, const double* weights,
                     const double* offset,
                     const std::vector<std::vector<double>>& oldCutPoints,
@@ -2835,6 +2840,7 @@ public:
       n * forest.numTrees != forest.indexBuffer.size();
 
     weights_ = weights;
+    double previousSigmaScale = varianceScaleAnchor();
     response_->setData(y, offset, weights, n, &sigma_);
 
     if (numObservationsChanged) {
@@ -2895,6 +2901,16 @@ public:
       if (varianceCountChanged) resizeVarianceStorage(n);
       refreshVarianceForest(&oldCutPoints, &varianceParams,
                             varianceCountChanged);
+      // the refresh re-routes the recovered factors through the new partition,
+      // which is scale-free: they are still in the ABANDONED working units and
+      // the prior is still stated against them, while response_->setData has
+      // rewritten the pinned sigma as a ratio of the two transforms. The one
+      // re-anchor restates all three. It runs LAST because the carry
+      // multiplies the routed factors, which the refresh has to have written.
+      // The test surface is deliberately not carried: resizeTestStorage has
+      // already reset it to the identity the next recorded sweep rebuilds from
+      // the factors, which is what creation on the replacement data leaves.
+      reanchorVarianceForest(previousSigmaScale, /*carryTestSurface=*/false);
     }
   }
 
@@ -4638,10 +4654,11 @@ private:
   }
 
   /// Re-anchor the variance forest after the response model moved the working
-  /// scale (setResponse and setOffset at updateScale = true): the residual
-  /// prior and the drawn surface are ORIGINAL-scale quantities, so both are
-  /// restated in the new working units, exactly as the response re-anchors
-  /// sigma and its own sigma prior in the same call.
+  /// scale (setResponse and setOffset at updateScale = true, and setData,
+  /// which re-anchors unconditionally): the residual prior and the drawn
+  /// surface are ORIGINAL-scale quantities, so both are restated in the new
+  /// working units, exactly as the response re-anchors sigma and its own sigma
+  /// prior in the same call.
   ///
   /// The prior is re-derived rather than scaled (calibrateVarianceLeaf). The
   /// surface can only be scaled: s^2(x) holds its original-scale value when the
@@ -4650,9 +4667,15 @@ private:
   /// prior scale. sigma is re-pinned at the working-scale 1 the forest fixed it
   /// at, since the response wrote a rescaled sigma through the same call.
   ///
+  /// carryTestSurface must be false for a caller that has already REPLACED the
+  /// test surface - applyNewData, through resizeTestStorage - and true for one
+  /// whose maintained test rows still hold the old units; scaling a surface
+  /// just reset to the identity would install the ratio as a fictional s^2.
+  ///
   /// A transform that did not move (updateScale = false pins it) leaves every
   /// value untouched, so the supported pinned swap stays byte-identical.
-  void reanchorVarianceForest(double previousSigmaScale) {
+  void reanchorVarianceForest(double previousSigmaScale,
+                              bool carryTestSurface = true) {
     sigma_ = 1.0;  // the forest owns the residual scale; see buildVarianceForest
     double scale = response_->sigmaScale();
     if (scale == previousSigmaScale) return;
@@ -4664,7 +4687,8 @@ private:
     for (double& s : vf.combinedVariance) s *= f;
     // the maintained test surface is the same quantity over the test rows; a
     // recorded sweep rebuilds it from the factors, a reader before one sees it
-    for (double& s : vf.combinedVarianceTest) s *= f;
+    if (carryTestSurface)
+      for (double& s : vf.combinedVarianceTest) s *= f;
     calibrateVarianceLeaf();
   }
 

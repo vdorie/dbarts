@@ -1170,6 +1170,12 @@
             calibration creation on the new response would have stated - and
             the drawn \eqn{s(x)}{s(x)} moves into the same units with it, so
             the surface keeps its meaning in response units across the swap.
+            \code{$setData} carries the same restatement: a replacement
+            data set always re-anchors the response scale, so the scale leaf
+            and the drawn \eqn{s(x)}{s(x)} follow it into the replacement's
+            units and the residual scale the variance forest pins stays
+            pinned, leaving the swapped sampler the one creation on the
+            replacement data would have built.
             \code{samplePriorPredictive(type = "ppd")} draws its noise at a
             prior draw of \eqn{s(x)}{s(x)} at the rows being predicted, there
             being no single sigma to draw; \code{type = "ev"} is unaffected.
