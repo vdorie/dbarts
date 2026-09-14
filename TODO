@@ -651,22 +651,54 @@ rbart_vi removal (decided, VD 2026-09-08; docs/decisions.md dec-B105)
   intercept over the plain sampler's setOffset, no engine block.
 
 binary k prior evaluation (decided, VD 2026-09-08; docs/decisions.md
-  dec-B106, B118; HARNESS RUN AND REPORTED 2026-09-13,
+  dec-B106, B118; HARNESS RUN AND REPORTED 2026-09-14,
   docs/plans/binary-hyperprior.md; verdict awaits the maintainer)
   the July chi-default study (48 simulated cells, 4 DGPs, df fixed at
-  1.5, artifacts lost) has been re-run with a checked-in harness under
-  benchmarks/R: df and scale both varied over 23 priors plus three
-  fixed k, across 162 simulated cells (six processes, three sizes,
-  three predictor counts, three base rates) and six real datasets,
-  38,088 fits, scored by held-out log score, Brier, interval coverage
-  and width, sampled k and time. Recommendation: keep chi(1.5, 2) -
-  every finite-scale hyperprior scores alike on point prediction, the
-  one score that separates them names no optimum, and the six real
-  datasets prefer a fixed k over any scale. Caveat: the one-chain,
-  five-hundred-draw fit is not converged at n = 2000, which depresses
-  the reported coverage and reverses the n = 2000 fixed-k comparison.
-  VD confirms or changes chi(1.5, 2) on this evidence before the RC
-  (dec-B118).
+  1.5, artifacts lost) was re-run with a checked-in harness under
+  benchmarks/R, then extended on VD's 2026-09-13 ruling that the poor
+  probit coverage which motivated the hyperprior could have been poor
+  mixing. 28 priors - df and scale both varied, two scales below 1,
+  fixed k at 1, 1.5, 2 and 3 - over 162 simulated cells (six
+  processes, three sizes, three predictor counts, three base rates)
+  and 22 real datasets, six from R and sixteen from UCI, at three
+  chain lengths, 92,160 fits, scored by held-out log score, Brier,
+  interval coverage and width, split-Rhat and effective sample size
+  for the sampled k and for the held-out probability, and time.
+  Recommendation: keep chi(1.5, 2). The short leg's poor coverage is a
+  chain-length artefact for every hyperprior arm and almost none of it
+  for a fixed k; on converged chains the coverage criterion does name
+  an interior optimum, at scale 0.5 to 1, but the best improvement
+  anywhere on the grid is 0.0052 of coverage distance and every arm
+  offering it pays in log score or worst-cell regret; and the earlier
+  six-dataset result preferring a fixed k reverses five-fold once the
+  sixteen UCI datasets are added. Work remaining, and the only reason
+  this item stays: VD confirms or changes chi(1.5, 2) on this evidence
+  before the RC (dec-B118). The harness, the UCI loader and the note
+  are landed; nothing else here is owed.
+
+binary-hyperprior-revisit (raised by the study, 2026-09-14;
+  docs/plans/binary-hyperprior.md, "What to revisit after the mixing
+  work"; post-release, gated on the mixing line of inquiry)
+  the sampled k does not converge at any length that study could pay
+  for: 64,000 draws per fit reach an effective sample size of 29 and a
+  split-Rhat that never falls below 1.2. Three of its results rest on
+  that - every sampled-k number in the note is a chain-length summary
+  rather than a posterior one, the residual 0.008 of coverage
+  shortfall still showing at the probe could be the sampler or the
+  model, and the interior optimum is located by coverage-distance
+  differences of 0.002 to 0.005, the same order as the 0.012 the
+  incumbent's own coverage still moved between the long length and the
+  probe, so the optimum's location is not resolved to better than
+  about a factor of two in scale. To reopen the default, a mixing fix
+  has to show two things: the sampled k at a split-Rhat below 1.05
+  with an effective sample size in the hundreds at a length a user
+  would actually run, and then, at that length, either a spread in
+  coverage distance across the finite-scale arms larger than 0.02 or
+  an optimum somewhere other than scale 0.5 to 2. If the spread stays
+  at half a point of coverage, no mixing fix reopens the question; it
+  only makes the verdict better founded. Re-run with
+  benchmarks/R/binary-hyperprior.R. The fixed-k results, the largest
+  effects in the note, involve no sampled k and do not depend on this.
 
 BayesTree claim and build flags (decided, VD 2026-09-08;
   docs/decisions.md dec-B107; LANDED a98c4cad)

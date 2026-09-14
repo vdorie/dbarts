@@ -6,15 +6,35 @@
 # degrees of freedom at 1.5, varied only the scale, and ran four simulated
 # data-generating processes. This harness varies BOTH parameters and widens
 # the case set: six simulated processes crossed with sample size, predictor
-# count and base rate, plus six real datasets from R and its recommended
-# packages scored by repeated 80/20 splits.
+# count and base rate, plus twenty-two real datasets scored by repeated
+# splits: six from R and its recommended packages, and sixteen from the UCI
+# Machine Learning Repository loaded by benchmarks/R/uci-binary.R.
 #
-# ARMS. Twenty hyperprior arms, chi(df, scale) for df in {1, 1.25, 1.5, 2, 3}
-# crossed with scale in {1, 2, 5, Inf}, and three fixed-k arms, k in {1, 2, 3}.
-# k = 2 is the fixed value BayesTree used and the value the chi(1.5, 2) prior
-# is centered near. Arms are paired: within a case and a repetition every arm
-# sees the same data and starts from the same MCMC seed, so a difference
-# between arms is a difference in the prior, not in the draw.
+# REAL DATA. The real-data column is the one that could move the package
+# default, and the six R datasets are too few and too alike to settle it, so
+# the sixteen UCI datasets restore the breadth the original k-sensitivity work
+# had: 208 to 48,842 rows, 3 to 60 predictors, positive rates from 0.085 to
+# 0.65, and seven datasets with factor predictors. A split is 80/20 of the
+# whole dataset, as before, except that a dataset of more than 5,000 rows
+# draws 4,000 training rows and 1,000 held-out rows per split, so that the
+# cost of a fit stays bounded and the large datasets differ from the small
+# ones in their predictors rather than in what a forest can afford to see.
+# The recorded nTrain column says which rule a row got. The UCI files are
+# downloaded on first use into $DBARTS_BENCH_DATA, or into
+# tools::R_user_dir("dbarts", "cache") when that is unset, and verified
+# against a recorded sha256; nothing is fetched until a UCI block runs.
+#
+# ARMS. Twenty-four hyperprior arms, chi(df, scale) for df in
+# {1, 1.25, 1.5, 2, 3} crossed with scale in {1, 2, 5, Inf} plus df in
+# {1.5, 3} crossed with scale in {0.5, 0.25}, and four fixed-k arms, k in
+# {1, 1.5, 2, 3}. k = 2 is the fixed value BayesTree used and the value the
+# chi(1.5, 2) prior is centered near; the scales below 1 are there because
+# coverage rises monotonically in interval width across the rest of the grid,
+# so an interior optimum, if there is one, is below scale 1. Arms are paired:
+# within a case and a repetition every arm sees the same data and starts from
+# the same MCMC seed, so a difference between arms is a difference in the
+# prior, not in the draw. BINARY_HYPERPRIOR_ARMS narrows the set to a
+# semicolon-separated list of arm names or to a named subset ("mixing").
 #
 # SCORES, all on held-out rows. Log score and Brier score against the held-out
 # outcome; for the simulated cases, where the true probability is known, the
@@ -24,15 +44,22 @@
 # and maximum of the sampled k (a fixed arm reports its own k) and the fit's
 # elapsed seconds.
 #
+# MIXING. Every fit reports split-Rhat and effective sample size for two
+# scalar series: the sampled k, which is what the prior is about and which a
+# fixed arm leaves missing, and the held-out mean probability, which the
+# forest moves whether or not k is sampled. They say whether a score is a
+# property of the posterior or of the chain length, which is the whole point
+# of running the same cells at two lengths and calling `compare`.
+#
 # BLOCKS. One block is one invocation and writes one rds, so a full run splits
 # across a session. A simulated block is a data-generating process at one
 # sample size ("sim:friedman:500"), which is nine cells - three predictor
 # counts by three base rates - at the repetition count below; appending a
 # predictor count ("sim:friedman:2000:50") narrows it to that count's three
 # cells and its own rds, which is how the large-n blocks are kept short. A
-# real block is one dataset ("real:biopsy"). `blocks` lists them, `all` runs
-# every one in sequence, and `summarize` reads a directory of rds files and
-# prints the tables the plan doc reports.
+# real block is one dataset ("real:biopsy", "real:spambase"). `blocks` lists
+# them, `all` runs every one in sequence, and `summarize` reads a directory of
+# rds files and prints the tables the plan doc reports.
 #
 # Usage:
 #   Rscript benchmarks/R/binary-hyperprior.R blocks
@@ -40,6 +67,13 @@
 #   Rscript benchmarks/R/binary-hyperprior.R real:biopsy [outdir]
 #   Rscript benchmarks/R/binary-hyperprior.R all [outdir]
 #   Rscript benchmarks/R/binary-hyperprior.R summarize [outdir]
+#   Rscript benchmarks/R/binary-hyperprior.R compare [shortdir] [longdir]
+#
+# A simulated block also narrows to one base rate ("sim:separable:100:50:0.2"),
+# which is how a single cell is refit at a length the grid cannot afford.
+# `compare` pairs two directories on (cell, repetition, arm) and reports the
+# second minus the first, so with a short directory first and a long one
+# second it reports what the chain length does.
 #
 # outdir defaults to benchmarks/results/binary-hyperprior. `quick` cuts the
 # repetitions and the draws for a smoke run; a quick rds is marked as such and
@@ -99,35 +133,83 @@ defaultCores <- function() {
 
 ## -------------------------------------------------------------------- arms
 
+chiArm <- function(df, scale) {
+  list(
+    name = sprintf("chi(%s, %s)", format(df), format(scale)),
+    kind = "chi",
+    df = df,
+    scale = scale,
+    fixed.k = NA_real_
+  )
+}
+
+fixedArm <- function(k) {
+  list(
+    name = sprintf("k = %s", format(k)),
+    kind = "fixed",
+    df = NA_real_,
+    scale = NA_real_,
+    fixed.k = k
+  )
+}
+
 makeArms <- function() {
-  dfs <- c(1, 1.25, 1.5, 2, 3)
-  scales <- c(1, 2, 5, Inf)
   arms <- list()
-  for (scale in scales) {
-    for (df in dfs) {
-      arms[[length(arms) + 1L]] <- list(
-        name = sprintf("chi(%s, %s)", format(df), format(scale)),
-        kind = "chi",
-        df = df,
-        scale = scale,
-        fixed.k = NA_real_
-      )
+  for (scale in c(1, 2, 5, Inf)) {
+    for (df in c(1, 1.25, 1.5, 2, 3)) {
+      arms[[length(arms) + 1L]] <- chiArm(df, scale)
     }
   }
-  for (k in c(1, 2, 3)) {
-    arms[[length(arms) + 1L]] <- list(
-      name = sprintf("k = %s", format(k)),
-      kind = "fixed",
-      df = NA_real_,
-      scale = NA_real_,
-      fixed.k = k
-    )
+  # Scales below 1 at two degrees of freedom. chi(3, 0.5) and chi(3, 0.25)
+  # sit near the prior medians of chi(1.5, 1) and chi(1.5, 0.5), so the pairs
+  # test whether df and scale stay redundant through the prior median once
+  # the median drops below one.
+  for (scale in c(0.5, 0.25)) {
+    for (df in c(1.5, 3)) {
+      arms[[length(arms) + 1L]] <- chiArm(df, scale)
+    }
+  }
+  for (k in c(1, 1.5, 2, 3)) {
+    arms[[length(arms) + 1L]] <- fixedArm(k)
   }
   arms
 }
 
-arms <- makeArms()
 incumbent <- "chi(1.5, 2)"
+
+# A named arm subset, for legs too expensive to run at the full width. The
+# incumbent is always kept, since summarize pairs every arm against it.
+armSubsets <- list(
+  mixing = c(
+    "chi(1.5, 2)",
+    "chi(1.5, 0.5)",
+    "chi(1.5, 0.25)",
+    "chi(1.25, 1)",
+    "chi(1.5, Inf)",
+    "k = 2"
+  )
+)
+
+selectArms <- function(all) {
+  request <- Sys.getenv("BINARY_HYPERPRIOR_ARMS")
+  if (!nzchar(request) || request == "all") {
+    return(all)
+  }
+  wanted <- if (!is.null(armSubsets[[request]])) {
+    armSubsets[[request]]
+  } else {
+    trimws(strsplit(request, ";", fixed = TRUE)[[1L]])
+  }
+  wanted <- union(wanted, incumbent)
+  names <- vapply(all, function(a) a$name, character(1L))
+  unknown <- setdiff(wanted, names)
+  if (length(unknown) > 0L) {
+    stop("unknown arm(s): ", paste(unknown, collapse = ", "))
+  }
+  all[names %in% wanted]
+}
+
+arms <- selectArms(makeArms())
 
 nodePriorFor <- function(arm) {
   if (arm$kind == "chi") {
@@ -249,7 +331,8 @@ simulatedCase <- function(dgp, n, p, rate, seed) {
 
 # Six binary-outcome datasets from R and its recommended packages: small to
 # moderate n, base rates from 0.21 to 0.40, numeric and factor predictors,
-# one dichotomized survival outcome.
+# one dichotomized survival outcome. The sixteen UCI datasets are appended
+# below, after these, so the seed of an existing dataset does not move.
 realDatasets <- list(
   pima = function() {
     data("Pima.tr", package = "MASS", envir = environment())
@@ -321,7 +404,148 @@ realDatasets <- list(
   }
 )
 
+# The sixteen UCI datasets, in descending size. benchmarks/R/uci-binary.R
+# holds the urls, the sha256 of every file and the per-dataset cleaning; it is
+# sourced the first time a UCI block asks for data, so a simulated block or a
+# block on one of the six above needs no cache and no network. The names are
+# listed here rather than read from that file because `blocks` and the seed of
+# a real block are both functions of this order, and neither should depend on
+# whether anything has been downloaded yet.
+uciDatasetNames <- c(
+  "adult",
+  "bank",
+  "magic",
+  "mushroom",
+  "spambase",
+  "banknote",
+  "german",
+  "tictactoe",
+  "transfusion",
+  "creditapproval",
+  "wdbc",
+  "climate",
+  "ionosphere",
+  "haberman",
+  "cleveland",
+  "sonar"
+)
+
+uciLoaded <- FALSE
+
+harnessDir <- function() {
+  flag <- grep("^--file=", commandArgs(FALSE), value = TRUE)
+  if (length(flag) == 0L) {
+    "benchmarks/R"
+  } else {
+    dirname(sub("^--file=", "", flag[1L]))
+  }
+}
+
+ensureUci <- function() {
+  if (!uciLoaded) {
+    source(file.path(harnessDir(), "uci-binary.R"))
+    uciLoaded <<- TRUE
+  }
+}
+
+uciLoader <- function(name) {
+  force(name)
+  function() {
+    ensureUci()
+    d <- get("uciBinary")[[name]]()
+    list(x = d[, setdiff(names(d), "y"), drop = FALSE], y = d$y)
+  }
+}
+
+for (uciName in uciDatasetNames) {
+  realDatasets[[uciName]] <- uciLoader(uciName)
+}
+rm(uciName)
+
+# Above this many rows a split takes a fixed 4,000 training rows and 1,000
+# held-out rows instead of 80/20 of everything, which is what keeps adult and
+# bank inside the same per-fit budget as the rest.
+subsampleAbove <- 5000L
+subsampleTrain <- 4000L
+subsampleTest <- 1000L
+
+## ----------------------------------------------------- mixing diagnostics
+
+# Split-Rhat and effective sample size, on the usual definitions (Vehtari et
+# al. 2021), written out here so the harness needs no package beyond dbarts:
+# split every chain in half, compare the between-half and within-half
+# variances, and sum the averaged autocorrelations with Geyer's initial
+# monotone rule. `draws` is iterations by chains.
+splitSequences <- function(draws) {
+  draws <- as.matrix(draws)
+  n <- nrow(draws)
+  half <- n %/% 2L
+  if (half < 8L) {
+    return(NULL)
+  }
+  cbind(
+    draws[seq_len(half), , drop = FALSE],
+    draws[seq.int(n - half + 1L, n), , drop = FALSE]
+  )
+}
+
+# Autocovariance at every lag by FFT, divisor n, mean removed.
+autocovariance <- function(x) {
+  n <- length(x)
+  padded <- 2^ceiling(log2(2 * n))
+  spectrum <- fft(c(x - mean(x), rep(0, padded - n)))
+  Re(fft(spectrum * Conj(spectrum), inverse = TRUE))[seq_len(n)] / (padded * n)
+}
+
+mixingDiagnostics <- function(draws) {
+  none <- c(rhat = NA_real_, ess = NA_real_)
+  seqs <- splitSequences(draws)
+  if (is.null(seqs) || any(!is.finite(seqs))) {
+    return(none)
+  }
+  n <- nrow(seqs)
+  m <- ncol(seqs)
+  within <- apply(seqs, 2L, var)
+  if (any(!is.finite(within)) || min(within) <= 0) {
+    return(none)
+  }
+  W <- mean(within)
+  B <- if (m > 1L) n * var(colMeans(seqs)) else 0
+  varPlus <- ((n - 1) * W + B) / n
+  rhat <- sqrt(varPlus / W)
+
+  acov <- vapply(seq_len(m), function(j) autocovariance(seqs[, j]), numeric(n))
+  rho <- 1 - (W - rowMeans(acov)) / varPlus
+  rho[1L] <- 1
+  # Successive pairs, cut at the first non-positive one and then forced
+  # decreasing; this is what keeps the autocorrelation sum from running into
+  # the noise at long lags.
+  nPairs <- (n - 1L) %/% 2L
+  pairs <- rho[2L * seq_len(nPairs) - 1L] + rho[2L * seq_len(nPairs)]
+  nonPositive <- which(pairs <= 0)
+  if (length(nonPositive) > 0L && nonPositive[1L] > 1L) {
+    pairs <- pairs[seq_len(nonPositive[1L] - 1L)]
+  } else if (length(nonPositive) > 0L) {
+    pairs <- pairs[1L]
+  }
+  pairs <- cummin(pairs)
+  tau <- -1 + 2 * sum(pairs)
+  total <- n * m
+  ess <- if (tau > 0) min(total / tau, total * log10(total)) else NA_real_
+  c(rhat = rhat, ess = ess)
+}
+
 ## ------------------------------------------------------------ fit and score
+
+# Pools the chain margin of a draws array into a draws-by-column matrix, with
+# the draw index running within a chain, so a reshape by column recovers the
+# iterations-by-chains layout the diagnostics want.
+poolChains <- function(x) {
+  if (length(dim(x)) < 3L) {
+    return(x)
+  }
+  matrix(aperm(x, c(2L, 1L, 3L)), dim(x)[2L] * dim(x)[1L], dim(x)[3L])
+}
 
 fitAndScore <- function(arm, case, mcmcSeed) {
   elapsed <- system.time(
@@ -338,11 +562,12 @@ fitAndScore <- function(arm, case, mcmcSeed) {
       keepTrees = FALSE,
       verbose = FALSE,
       seed = mcmcSeed,
+      combineChains = FALSE,
       node.prior = nodePriorFor(arm)
     )
   )[["elapsed"]]
 
-  probabilities <- pnorm(fit$yhat.test)
+  probabilities <- pnorm(poolChains(fit$yhat.test))
   pHat <- colMeans(probabilities)
   clamped <- pmin(pmax(pHat, probClamp), 1 - probClamp)
   y <- case$yTest
@@ -360,11 +585,30 @@ fitAndScore <- function(arm, case, mcmcSeed) {
     probRmse <- sqrt(mean((pHat - case$pTest)^2))
   }
 
-  kDraws <- if (is.null(fit$k)) {
+  # Two scalar series per fit carry the mixing report: the sampled k, which is
+  # the quantity the prior is about, and the held-out mean probability, which
+  # is the forest's own summary and moves even when k is fixed.
+  kMatrix <- if (is.null(fit$k)) {
+    NULL
+  } else {
+    matrix(as.vector(t(as.matrix(fit$k))), nSamples, nChains)
+  }
+  kDraws <- if (is.null(kMatrix)) {
     rep(arm$fixed.k, nSamples * nChains)
   } else {
-    as.vector(fit$k)
+    as.vector(kMatrix)
   }
+  kMixing <- if (is.null(kMatrix)) {
+    c(rhat = NA_real_, ess = NA_real_)
+  } else {
+    mixingDiagnostics(kMatrix)
+  }
+  pMixing <- mixingDiagnostics(matrix(
+    rowMeans(probabilities),
+    nSamples,
+    nChains
+  ))
+
   data.frame(
     arm = arm$name,
     df = arm$df,
@@ -378,6 +622,10 @@ fitAndScore <- function(arm, case, mcmcSeed) {
     kMedian = median(kDraws),
     kQ90 = unname(quantile(kDraws, 0.9)),
     kMax = max(kDraws),
+    kRhat = unname(kMixing[["rhat"]]),
+    kEss = unname(kMixing[["ess"]]),
+    pRhat = unname(pMixing[["rhat"]]),
+    pEss = unname(pMixing[["ess"]]),
     seconds = elapsed,
     stringsAsFactors = FALSE
   )
@@ -443,10 +691,16 @@ simCaseIndex <- function(dgp, n, p, rate) {
     match(rate, baseRates)
 }
 
-runSimBlock <- function(dgp, n, cores, counts = predictorCounts) {
+runSimBlock <- function(
+  dgp,
+  n,
+  cores,
+  counts = predictorCounts,
+  rates = baseRates
+) {
   rows <- list()
   for (p in counts) {
-    for (rate in baseRates) {
+    for (rate in rates) {
       label <- sprintf("%s|%d|%d|%s", dgp, n, p, format(rate))
       seedBase <- 10L * simCaseIndex(dgp, n, p, rate)
       cat(sprintf("  %-28s ", label))
@@ -477,7 +731,8 @@ runSimBlock <- function(dgp, n, cores, counts = predictorCounts) {
 runRealBlock <- function(name, cores) {
   raw <- realDatasets[[name]]()
   n <- nrow(raw$x)
-  nTrain <- floor(0.8 * n)
+  subsampled <- n > subsampleAbove
+  nTrain <- if (subsampled) subsampleTrain else floor(0.8 * n)
   label <- sprintf(
     "%s|%d|%d|%s",
     name,
@@ -486,13 +741,23 @@ runRealBlock <- function(name, cores) {
     format(round(mean(raw$y), 3))
   )
   cat(sprintf("  %-28s ", label))
+  # A large dataset draws train and test together out of one permutation, so
+  # the held-out rows are a fixed 1,000 rather than the other 80 percent; a
+  # small one keeps the 80/20 rule the six R datasets were run under, down to
+  # the order of the random draws, so their earlier output still pairs.
   caseFor <- function(seed) {
     for (attempt in seq_len(100L)) {
       set.seed(seed + 1000000L * (attempt - 1L))
-      trainRows <- sample.int(n, nTrain)
+      if (subsampled) {
+        drawn <- sample.int(n, nTrain + subsampleTest)
+        trainRows <- drawn[seq_len(nTrain)]
+        testRows <- drawn[nTrain + seq_len(subsampleTest)]
+      } else {
+        trainRows <- sample.int(n, nTrain)
+        testRows <- setdiff(seq_len(n), trainRows)
+      }
       if (length(unique(raw$y[trainRows])) == 2L) break
     }
-    testRows <- setdiff(seq_len(n), trainRows)
     list(
       train = data.frame(
         raw$x[trainRows, , drop = FALSE],
@@ -534,7 +799,18 @@ runBlock <- function(block, outDir, cores, quick) {
     } else {
       predictorCounts
     }
-    runSimBlock(parts[2L], as.integer(parts[3L]), cores, counts)
+    rates <- if (length(parts) >= 5L) {
+      matched <- baseRates[
+        which.min(abs(baseRates - as.numeric(parts[5L])))
+      ]
+      if (!isTRUE(all.equal(matched, as.numeric(parts[5L])))) {
+        stop("no such base rate: ", parts[5L])
+      }
+      matched
+    } else {
+      baseRates
+    }
+    runSimBlock(parts[2L], as.integer(parts[3L]), cores, counts, rates)
   } else if (parts[1L] == "real") {
     runRealBlock(parts[2L], cores)
   } else {
@@ -542,6 +818,7 @@ runBlock <- function(block, outDir, cores, quick) {
   }
   attr(result, "quick") <- quick
   attr(result, "settings") <- list(
+    nArms = length(arms),
     nTrees = nTrees,
     nBurn = nBurn,
     nSamples = nSamples,
@@ -642,7 +919,23 @@ printTable <- function(x, digits = 4L) {
   cat("\n")
 }
 
-summarizeRun <- function(outDir) {
+# Blocks written before the mixing columns existed are missing them, so the
+# union of the column names is filled in rather than demanded.
+bindBlocks <- function(pieces) {
+  columns <- unique(unlist(lapply(pieces, names)))
+  do.call(
+    rbind,
+    lapply(pieces, function(p) {
+      attributes(p)[c("quick", "settings")] <- NULL
+      for (missing in setdiff(columns, names(p))) {
+        p[[missing]] <- NA
+      }
+      p[, columns, drop = FALSE]
+    })
+  )
+}
+
+readRun <- function(outDir) {
   files <- list.files(outDir, pattern = "\\.rds$", full.names = TRUE)
   if (length(files) == 0L) {
     stop("no rds files in ", outDir)
@@ -656,14 +949,40 @@ summarizeRun <- function(outDir) {
   if (length(unique(quickFlags)) > 1L) {
     stop("directory mixes quick and full blocks; separate them")
   }
-  rows <- do.call(
-    rbind,
-    lapply(pieces, function(p) {
-      attributes(p)[c("quick", "settings")] <- NULL
-      p
-    })
-  )
-  settings <- attr(pieces[[1L]], "settings")
+  # A directory is one leg. Blocks may differ in their repetition counts, an
+  # expensive stratum having been run at fewer, but a directory that mixed
+  # chain lengths would have summarize report the first block's length for
+  # all of them, so that is refused rather than labelled.
+  lengths <- unique(vapply(
+    pieces,
+    function(p) {
+      settings <- attr(p, "settings")
+      sprintf(
+        "%s chain(s) of %s after %s, %s trees",
+        settings$nChains,
+        settings$nSamples,
+        settings$nBurn,
+        settings$nTrees
+      )
+    },
+    character(1L)
+  ))
+  if (length(lengths) > 1L) {
+    stop(
+      "directory mixes chain lengths; separate them: ",
+      paste(lengths, collapse = " / ")
+    )
+  }
+  rows <- bindBlocks(pieces)
+  attr(rows, "settings") <- attr(pieces[[1L]], "settings")
+  attr(rows, "quick") <- any(quickFlags)
+  rows
+}
+
+summarizeRun <- function(outDir) {
+  rows <- readRun(outDir)
+  settings <- attr(rows, "settings")
+  quickFlags <- attr(rows, "quick")
 
   cat(sprintf(
     "%d rows, %d arms, %d cells (%d simulated, %d real), %d trees, %d chain(s) of %d draws after %d burn%s\n\n",
@@ -676,7 +995,7 @@ summarizeRun <- function(outDir) {
     if (is.null(settings$nChains)) 1L else settings$nChains,
     settings$nSamples,
     settings$nBurn,
-    if (any(quickFlags)) "  [QUICK]" else ""
+    if (isTRUE(quickFlags)) "  [QUICK]" else ""
   ))
 
   repCounts <- aggregate(rows$rep, by = list(n = rows$n), FUN = max)
@@ -726,6 +1045,65 @@ summarizeRun <- function(outDir) {
   names(kMax)[2L] <- "kMaxOverall"
   printTable(merge(kRows, kMax, by = "arm"))
 
+  if ("kRhat" %in% names(rows) && any(!is.na(rows$kRhat))) {
+    cat("=== mixing: sampled k and held-out mean probability ===\n")
+    mix <- rows[!is.na(rows$pRhat), ]
+    diagnostics <- do.call(
+      rbind,
+      lapply(split(mix, mix$arm), function(d) {
+        data.frame(
+          arm = d$arm[1L],
+          kRhatMean = mean(d$kRhat),
+          kRhatMax = suppressWarnings(max(d$kRhat)),
+          kRhatOver1.05 = mean(d$kRhat > 1.05),
+          kEssMedian = suppressWarnings(median(d$kEss)),
+          pRhatMean = mean(d$pRhat),
+          pRhatMax = max(d$pRhat),
+          pEssMedian = median(d$pEss),
+          stringsAsFactors = FALSE
+        )
+      })
+    )
+    printTable(diagnostics[order(diagnostics$pRhatMean), ])
+
+    cat("=== mixing by sample size: incumbent and the fixed arms ===\n")
+    focus <- mix[mix$arm %in% c(incumbent, "k = 2"), ]
+    printTable(aggregate(
+      focus[, c("kRhat", "kEss", "pRhat", "pEss", "coverage")],
+      by = list(arm = focus$arm, n = focus$n),
+      FUN = function(x) mean(x, na.rm = TRUE)
+    ))
+
+    cat("=== coverage against how well the fit mixed, simulated cases ===\n")
+    simMix <- mix[mix$kind == "sim" & !is.na(mix$coverage), ]
+    if (nrow(simMix) > 0L) {
+      simMix$band <- cut(
+        simMix$pRhat,
+        breaks = c(0, 1.01, 1.05, 1.2, Inf),
+        labels = c("<=1.01", "1.01-1.05", "1.05-1.2", ">1.2")
+      )
+      printTable(aggregate(
+        simMix[, c("coverage", "covGap", "width", "kRhat")],
+        by = list(band = simMix$band),
+        FUN = function(x) mean(x, na.rm = TRUE)
+      ))
+      kBand <- simMix[!is.na(simMix$kRhat), ]
+      if (nrow(kBand) > 0L) {
+        kBand$band <- cut(
+          kBand$kRhat,
+          breaks = c(0, 1.01, 1.05, 1.2, Inf),
+          labels = c("<=1.01", "1.01-1.05", "1.05-1.2", ">1.2")
+        )
+        cat("  banded on the sampled k instead:\n")
+        printTable(aggregate(
+          kBand[, c("coverage", "covGap", "width", "kEss")],
+          by = list(band = kBand$band),
+          FUN = function(x) mean(x, na.rm = TRUE)
+        ))
+      }
+    }
+  }
+
   cat("=== coverage by base rate, selected arms ===\n")
   byRate <- aggregate(
     sim[, c("coverage", "width", "logScore")],
@@ -761,13 +1139,130 @@ summarizeRun <- function(outDir) {
   invisible(rows)
 }
 
+## ----------------------------------------------------------------- compare
+
+settingsLine <- function(settings) {
+  sprintf(
+    "%d chain(s) of %d draws after %d burn",
+    if (is.null(settings$nChains)) 1L else settings$nChains,
+    settings$nSamples,
+    settings$nBurn
+  )
+}
+
+# Pairs two directories on (cell, repetition, arm). The data, the prior and
+# the seed are the same on both sides and only the chain length differs, so
+# the difference is what the length does and not what the prior does. Second
+# directory minus first, so a positive coverage difference is the second
+# configuration covering more.
+compareRuns <- function(dirA, dirB) {
+  a <- readRun(dirA)
+  b <- readRun(dirB)
+  scores <- c(
+    "logScore",
+    "brier",
+    "coverage",
+    "width",
+    "probRmse",
+    "kMedian",
+    "kRhat",
+    "kEss",
+    "pRhat",
+    "pEss"
+  )
+  scores <- intersect(scores, intersect(names(a), names(b)))
+  keep <- c("cell", "rep", "arm", "kind", "n", scores)
+  merged <- merge(
+    a[, keep],
+    b[, keep],
+    by = c("cell", "rep", "arm"),
+    suffixes = c(".a", ".b")
+  )
+  if (nrow(merged) == 0L) {
+    stop("the two directories share no (cell, repetition, arm)")
+  }
+  # The pairing is an intersection, so a leg run over fewer cells, arms or
+  # repetitions than the other contributes nothing for the rows it lacks.
+  # The unpaired counts are reported so a reader sees how much was dropped.
+  cat(sprintf(
+    "A %s: %s
+B %s: %s
+%d paired fits over %d cells and %d arms
+%d of A's %d rows and %d of B's %d rows had no partner
+
+",
+    dirA,
+    settingsLine(attr(a, "settings")),
+    dirB,
+    settingsLine(attr(b, "settings")),
+    nrow(merged),
+    length(unique(merged$cell)),
+    length(unique(merged$arm)),
+    nrow(a) - nrow(merged),
+    nrow(a),
+    nrow(b) - nrow(merged),
+    nrow(b)
+  ))
+
+  armTable <- function(rows, columns) {
+    parts <- split(rows, rows$arm)
+    out <- do.call(
+      rbind,
+      lapply(names(parts), function(armName) {
+        d <- parts[[armName]]
+        piece <- data.frame(arm = armName, stringsAsFactors = FALSE)
+        for (column in columns) {
+          x <- d[[paste0(column, ".a")]]
+          y <- d[[paste0(column, ".b")]]
+          ok <- !is.na(x) & !is.na(y)
+          piece[[paste0(column, ".a")]] <- mean(x[ok])
+          piece[[paste0(column, ".b")]] <- mean(y[ok])
+          piece[[paste0(column, ".diff")]] <- mean(y[ok] - x[ok])
+          piece[[paste0(column, ".diffSe")]] <- standardError(y[ok] - x[ok])
+        }
+        piece
+      })
+    )
+    out
+  }
+
+  sim <- merged[merged$kind.a == "sim", ]
+  real <- merged[merged$kind.a == "real", ]
+
+  if (nrow(sim) > 0L) {
+    cat("=== what the chain length does to coverage, simulated cases ===\n")
+    printTable(armTable(sim, "coverage"))
+    cat("=== and to interval width ===\n")
+    printTable(armTable(sim, "width"))
+    cat("=== and to log score, simulated cases ===\n")
+    printTable(armTable(sim, "logScore"))
+    cat("=== coverage by sample size ===\n")
+    bySize <- do.call(
+      rbind,
+      lapply(split(sim, sim$n.a), function(d) {
+        cbind(n = d$n.a[1L], armTable(d, "coverage"))
+      })
+    )
+    printTable(bySize[order(bySize$arm, bySize$n), ])
+    if ("kMedian" %in% scores) {
+      cat("=== and to the sampled k ===\n")
+      printTable(armTable(sim, "kMedian"))
+    }
+  }
+  if (nrow(real) > 0L) {
+    cat("=== what the chain length does to log score, real datasets ===\n")
+    printTable(armTable(real, "logScore"))
+  }
+  invisible(merged)
+}
+
 ## -------------------------------------------------------------------- main
 
 main <- function() {
   args <- commandArgs(trailingOnly = TRUE)
   if (length(args) == 0L) {
     cat(
-      "usage: binary-hyperprior.R <block|blocks|all|summarize> [outdir] [quick]\n"
+      "usage: binary-hyperprior.R <block|blocks|all|summarize|compare> [outdir] [outdir2] [quick]\n"
     )
     quit(status = 1L)
   }
@@ -789,6 +1284,11 @@ main <- function() {
     cat(paste(allBlockNames(), collapse = "\n"), "\n", sep = "")
   } else if (command == "summarize") {
     summarizeRun(outDir)
+  } else if (command == "compare") {
+    if (length(rest) < 2L) {
+      stop("compare needs two directories")
+    }
+    compareRuns(rest[1L], rest[2L])
   } else if (command == "all") {
     for (block in allBlockNames()) {
       runBlock(block, outDir, cores, quick)
