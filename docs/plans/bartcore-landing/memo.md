@@ -134,10 +134,6 @@ the merge is made on:
 - The maintainer's ruling on the binary leaf-scale prior. The extended
   study recommends keeping chi(1.5, 2); the default is draw-changing, so
   the ruling precedes the merge.
-- One untested regression. The one-replication k-fold cross-validation was
-  measured 2.1 times slower than 0.9-34 in wall time before the work that
-  redistributed folds across workers; it has not been re-measured since.
-  Regressions against 0.9-34 are not deferred past the release.
 - One known wrong answer in a corner: a variance forest's leaf calibration
   is fixed at creation, so swapping the response with rescaling on leaves
   that prior on the old scale. Either the rescale is verified and built or

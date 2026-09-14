@@ -420,21 +420,18 @@ from 5.513s to 1.896s. The spread within a cell is under 0.8 percent of
 its median on both releases at both thread counts, so neither ratio is a
 close call.
 
-The four-thread CPU column does not support a "less CPU" claim the way
-the 2026-09-08 measurement made one. 1.0-0's reading there (0.045s of a
-1.896s fit) does not reflect real CPU-seconds: an external wall/CPU
-wrapper around the whole process and system-wide per-core sampling taken
-during a run both corroborate the same low number, ruling out an
-R-side accounting bug specifically, but a four-thread, compute-bound
-control microbenchmark on the same box correctly reports the CPU its
-threads use, ruling out a container-wide accounting failure too - and
-the fit's own reported loss is bit-identical between one and four
-threads, so the same computation runs rather than being skipped. The
-likely cause is coarse timer-tick CPU accounting missing short, bursty
-per-thread execution on this virtualized box, not anything the engine
-does; read the wall-time ratio, not this CPU column, as the four-thread
-result. At one thread, where nothing is parallel, CPU tracks wall time
-on both releases and the ratio agrees with the wall-time one.
+The four-thread CPU column measures the wrong thing for 1.0-0 and is
+not a "less CPU" finding. 1.0-0's xbart runs its folds on separate
+worker processes started by the parallel package, and the parent
+process's CPU clock does not include their time, so the 0.045 s
+reading is the parent's own bookkeeping while the workers did the
+fitting. 0.9-34 threaded inside one process, so its clock counts
+everything. The fit's reported loss is bit-identical between one and
+four threads on 1.0-0, so the same computation ran. Read the wall-time
+ratio as the four-thread result; the 2026-09-08 "33 percent less CPU"
+reading was the same parent-only clock. At one thread, where nothing is
+parallel, CPU tracks wall time on both releases and the ratio agrees
+with the wall-time one.
 
 ## What stays unmeasured
 
