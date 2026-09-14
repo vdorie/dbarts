@@ -52,7 +52,8 @@ bartFn <- if (
 proposalProbs <- c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)
 
 friedman <- function(x) {
-  10 * sin(pi * x[, 1L] * x[, 2L]) +
+  10 *
+    sin(pi * x[, 1L] * x[, 2L]) +
     20 * (x[, 3L] - 0.5)^2 +
     10 * x[, 4L] +
     5 * x[, 5L]
@@ -85,9 +86,11 @@ y <- if (spec$binary) {
 # timed and would otherwise land mid-call
 muffleBenign <- function(w) {
   msg <- conditionMessage(w)
-  if (grepl("deprecated", msg) ||
-        grepl("bartBT", msg) ||
-        grepl("proposalprobs", msg)) {
+  if (
+    grepl("deprecated", msg) ||
+      grepl("bartBT", msg) ||
+      grepl("proposalprobs", msg)
+  ) {
     invokeRestart("muffleWarning")
   }
 }
