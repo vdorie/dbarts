@@ -360,6 +360,82 @@ statistic pass both save more where there is more data to sweep.
 One machine, one architecture, one design: these are the numbers a user
 would quote, not a scaling law.
 
+### xbart k-fold
+
+The TODO entries "xbart follow-through" and "vectorized draw path" record
+a regression measured 2026-09-08, before grid cells and folds were
+redistributed across workers (landed 2026-09-09): one-replication k-fold
+crossvalidation ran 2.1x slower in wall time than 0.9-34 at four threads
+while using 33 percent less CPU. This re-measures it on the same x86 box
+as the table above - an Intel Core i3-14100, four cores, 24 GiB, no swap,
+x86-64 Linux - with a one-minute load average of 0.18 before the run and
+1.12 after. 1.0-0 was built from this branch (tip ea8e8e80) and 0.9-34
+from `git archive main`, each installed with `R CMD INSTALL --preclean`
+into its own private library, each fit run in a fresh `Rscript` process
+with `R_LIBS` pinned to one of the two.
+
+The TODO entries do not state a data design, so this uses Friedman data
+at ten predictors, continuous, n = 2000, with every moved default pinned
+on both sides the way the table above pins them: 200 trees, k = 2,
+power = 2, base = 0.95, and `resid.prior = chisq(3.0, 0.90)` (xbart has
+no flat `sigdf`/`sigquant`). `xbart` keeps its name and its `control=`
+and `n.threads=` spelling on both releases (only the BayesTree-style door
+was renamed), so one call runs unmodified under either:
+
+    xbart(y ~ ., data.frame(y = y, x),
+          verbose = FALSE, n.samples = 500L,
+          method = "k-fold", n.test = 10L, n.reps = 1L,
+          n.burn = c(250L, 150L), loss = "rmse",
+          n.threads = <1|4>, n.trees = 200L, k = 2, power = 2.0, base = 0.95,
+          drop = TRUE, resid.prior = chisq(3.0, 0.90),
+          control = dbartsControl(n.cuts = 100L, n.thin = 1L,
+                                   updateState = FALSE
+                                   [, proposal.probs = c(birth_death = 0.5,
+                                                          swap = 0.1, change = 0.4,
+                                                          birth = 0.5)]))
+
+10-fold, one replication, 500 draws after 250 burn-in per fold (the
+`n.burn` second element, the burn when moving between parameter settings,
+is inert here - there is only one grid cell). The bracketed
+`proposal.probs` is passed only under 1.0-0, which is the release that
+gained the slot (dec-B91); 0.9-34's `dbartsControl` carries no such field
+and its own default already equals this, the 0.9-x mixture, so nothing
+needs pinning on that side. Five alternating repetitions per cell, wall
+and user+system CPU seconds from `proc.time()` around the fit call alone.
+Medians of the five:
+
+| n.threads | median 1.0-0 wall (s) | median 0.9-34 wall (s) | ratio | median 1.0-0 CPU (s) | median 0.9-34 CPU (s) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 5.513 | 7.397 | 1.34 | 5.510 | 7.390 |
+| 4 | 1.896 | 7.382 | 3.89 | 0.045 | 7.380 |
+
+The regression is closed, and reverses: at four threads 1.0-0 now fits
+3.89x faster than 0.9-34 in wall time, not 2.1x slower. The mechanism is
+exactly what the redistribution changed. This design has a single grid
+cell, so 0.9-34's own parallel unit - a (replication, parameter-setting)
+pair - never splits below one, and it shows: its wall time does not move
+between one thread and four (7.397s to 7.382s). 1.0-0's unit is now the
+(fold, grid-cell) pair, ten of them here even at n.reps = 1, so it drops
+from 5.513s to 1.896s. The spread within a cell is under 0.8 percent of
+its median on both releases at both thread counts, so neither ratio is a
+close call.
+
+The four-thread CPU column does not support a "less CPU" claim the way
+the 2026-09-08 measurement made one. 1.0-0's reading there (0.045s of a
+1.896s fit) does not reflect real CPU-seconds: an external wall/CPU
+wrapper around the whole process and system-wide per-core sampling taken
+during a run both corroborate the same low number, ruling out an
+R-side accounting bug specifically, but a four-thread, compute-bound
+control microbenchmark on the same box correctly reports the CPU its
+threads use, ruling out a container-wide accounting failure too - and
+the fit's own reported loss is bit-identical between one and four
+threads, so the same computation runs rather than being skipped. The
+likely cause is coarse timer-tick CPU accounting missing short, bursty
+per-thread execution on this virtualized box, not anything the engine
+does; read the wall-time ratio, not this CPU column, as the four-thread
+result. At one thread, where nothing is parallel, CPU tracks wall time
+on both releases and the ratio agrees with the wall-time one.
+
 ## What stays unmeasured
 
 This is a comparison of what a user gets back from a fit, at the
