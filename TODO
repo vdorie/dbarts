@@ -263,8 +263,9 @@ items
     has run and killed the move at the pre-registered w = 1, d = 0.16
     (d73fb4e0): the kernel stays at default weight zero as an opt-in
     with nil measured benefit, closing slice 4's nonzero default share;
-    whether the opt-in is removed before release is an open maintainer
-    decision. The nog-node rule Gibbs draw "rule_gibbs" is in the kernel
+    it stays through 1.0-0 by maintainer ruling 2026-09-14
+    (docs/decisions.md dec-A47), revisited by the mixing research. The
+    nog-node rule Gibbs draw "rule_gibbs" is in the kernel
     at default weight zero too (7fb166ca) and its benefit stage has run
     (50032833): it is the first kernel change to move C1's summed
     minimum ESS, +22 over twenty matched pairs at two seed blocks

@@ -200,7 +200,7 @@ Several engine constants are fixed in code: cut codes are 16 bits, so a column h
 Record: code only, in the data, scan, model, tree and moves headers; docs/design/public-surface.md states the opposite for a cut-width build option that was removed. Marked: blank. [dec-A46]
 
 **Two tree moves ship at weight zero**
-Two tree-move kernels, the perturb move and the rule redraw at nodes with no grandchildren, are compiled into every build with a default weight of zero. No alternative was weighed. No default fit reaches either, yet about 330 lines plus an enumerator ship, with a permanent documentation and test surface for code no user reaches. The maintainer has claimed the decision as their own, and the backlog still records removing them as an open maintainer decision, as does the design note for the extra level step.
+Two tree-move kernels, the perturb move and the rule redraw at nodes with no grandchildren, are compiled into every build with a default weight of zero. No default fit reaches either, yet about 330 lines plus an enumerator ship, with a permanent documentation and test surface for code no user reaches. The alternative not taken is removing both now that each has cleared its own kill criterion at zero measured benefit for a nonzero default share. The maintainer ruled on 2026-09-14 that both stay in the package at weight zero, unchanged, until the mixing research now scheduled has run; their removal is not an open pre-release question.
 Record: the TODO file's tree-mixing entry and docs/design/level-fibre.md. Marked: mine. [dec-A47]
 
 **The R version floor rises to 4.2.0**
