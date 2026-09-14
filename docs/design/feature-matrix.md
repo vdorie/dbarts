@@ -216,7 +216,6 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 | Real-valued (continuous) dispersion | nbinom | TODO `negbin-real-dispersion` |
 | SBC at full chain length (r/agg.psi ridge) | nbinom | docs/plans/sbc-family-tiers.md |
 | SBC gamma3 re-run at full chain length | ordinal | docs/plans/sbc-family-tiers.md |
-| Register the exact oracle in the baseline MANIFEST | aft | benchmarks/R/aft-exact.R |
 | An engine per-observation log-likelihood channel | multinomial | [`multinomialLogLik`](../../R/generics.R) |
 | Whole-data `setData` | bcf, multinomial | docs/design/model-space-survey.md, Doors 1 and 3 |
 | Active-rows-mask evidence for the latent sub-families | bcf | docs/plans/bcf-latent-evidence.md; the exact gate is recorded, SBC is measured (both latent arms a chain-length finding rather than a matrix member) and the three equivalence scenarios are in the baseline, so the mask is what is left |
@@ -233,6 +232,11 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
   grounds, not unbuilt ([Per family](active-rows-mask.md#per-family)).
 - Multinomial's `$getLatents()`: a decided decline - the augmentation is meaningless between
   sweeps (["reports nothing, by a DECIDED decline"](multinomial.md)).
+- aft's missing MANIFEST row for `benchmarks/R/aft-exact.R`: not a gap. The exact-gate scripts
+  (aft-exact.R and its siblings run from `.github/workflows/exact-gates.yaml`) compare the
+  engine's draws to an analytic or brute-force-enumerated target computed in-script, reading no
+  recorded baseline file, so none of them - not just aft's - carries a MANIFEST row; the file
+  documents only the `.rds`/`.csv` baselines under benchmarks/baselines/.
 
 ## Footnotes
 
