@@ -687,10 +687,9 @@ release (deferred; the one ordered procedure, run when VD triggers it)
       whole grid, scales below 1, mixing diagnostics on the sampled
       k), its verdict written into docs/plans/binary-hyperprior.md and
       a default chosen for 1.0-0; pre-merge.
-    2. The landing memo is rewritten from a blank page to the rubric,
-      the pre-release engine and docs items now landed, and the
-      decision ledger (docs/decisions.md) made readable to the rubric's
-      ledger items.
+    2. The landing memo is rewritten from a blank page to the rubric
+      (docs/plans/bartcore-landing/rubric.md), its four questions
+      confirmed by VD, once the hyperprior verdict is in.
     3. VD's own: lorax contact, GitHub issue #80, CRAN submission.
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
