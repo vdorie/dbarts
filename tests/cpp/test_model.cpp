@@ -4004,8 +4004,14 @@ static void testGPLeafDraw(ext_rng* rng) {
 // fit is 1.29x to 1.63x closer to the truth at every one of six data x chain
 // seed pairs probed (1.61 at the pair fixed here), against a spread of 0.96x
 // to 1.45x at 0.2; and the data and the chains both come from generators
-// seeded HERE, so no preceding suite or test can move either. The shared runif01 stream is left where this test's own draws
-// used to leave it, so no later test's data moves.
+// seeded HERE, so no preceding suite or test can move either.
+//
+// The shared runif01 stream is put back where this test's own draws used to
+// leave it, so no later test's runif01 data moves. The shared ext_rng is a
+// SECOND stream and this test no longer consumes it at all, so its position
+// for the tests that follow moved once, at this commit: 15 of them report
+// different numbers and every one still passes. From here on nothing done to
+// this test can reach them through either stream.
 static void testGPLeafEndToEnd(ext_rng*) {
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
   ext_rng_setSeed(rng, 7717u);
