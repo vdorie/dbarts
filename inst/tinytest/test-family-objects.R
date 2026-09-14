@@ -357,5 +357,5 @@ expect_equal(samplerFlatWins$model@resid.prior@value, 3)
 # 'sigma' argument to write one in
 expect_error(
   dbartsFamilies$probit(sigma = dbartsPriors$fixed(2)),
-  "unused argument"
+  pattern = "unused argument"
 )
