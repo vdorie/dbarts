@@ -262,7 +262,6 @@ fitSeed <- function(seed) {
   fit <- bart2(
     x,
     y,
-    family = "hurdle.lognormal",
     n.trees = 1L,
     n.cuts = nCells - 1L,
     n.burn = nburn,
