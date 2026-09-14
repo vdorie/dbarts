@@ -146,8 +146,8 @@ placed them there:
 
 - The scheduled workflows, equivalence, rchk, the reverse-dependency smoke
   test, SBC and valgrind, bind to the default branch and cannot run until
-  the merge. rchk and valgrind have never run anywhere, and they are the
-  checks CRAN itself runs.
+  the merge. rchk and valgrind have each run once by hand, rchk clean, and
+  they are the checks CRAN itself runs.
 - Deferred by ruling: the fused residual pass loses up to 8 percent below
   its crossover size and ships without a size gate; the rule-Gibbs move
   ships at zero weight and is adopted later; the binary prior is revisited

@@ -1463,7 +1463,9 @@ has no valgrind, and valgrind.yaml, like every schedule/dispatch workflow,
 is unregistered off bartcore - so the memory-safety gate was the local ASAN
 tests/cpp leg plus the per-push CI sanitizers workflow (full tinytest, this
 file included, under two instrumented R builds), with the memcheck leg
-riding the first nightly after bartcore reaches main. Recorded, not waived.
+riding the first nightly after bartcore reaches main. Recorded, not waived;
+that leg has since run by hand, 2026-09-13 on the x86 box over the whole
+tinytest suite including this file (docs/plans/valgrind-xbart.md).
 
 Budget, raw additions against f8e630fe, BOTH SIDES PAST THEIR STOPS -
 adjudicated, not slipped: non-test 517 (bridge 218 with the hpp and

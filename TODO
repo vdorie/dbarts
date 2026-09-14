@@ -31,13 +31,6 @@ re-run a full census before release.
 A "door" below means a recorded, undecided question, not a task.
 
 items
-  augmentation-helpers: run the valgrind leg over
-    inst/tinytest/test-augmentation.R on the first nightly after
-    bartcore reaches main. The file exercises new C code and no
-    memcheck host has ever seen it - darwin/arm64 has no valgrind and
-    valgrind.yaml is unregistered off the default branch; per-push CI
-    sanitizers cover the file under instrumented R meanwhile.
-    docs/plans/adoption-slate.md.
   bcf-sigma-tail-mixing: research door, no plan doc of its own. In the
     EXTREME tail (|a0| >= ~40, ~3% of the prior) the chain is
     frozen-structure mixing that no amount of burn fixes; a principled
@@ -674,11 +667,16 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     revdep-smoke, sbc, valgrind) on their first live runs, which
     happen when bartcore merges to main: GitHub binds BOTH schedule and
     workflow_dispatch to the default branch, so today they 404 even for
-    a manual run. rchk and valgrind have never run anywhere - macOS
-    arm64 supports neither - so the merge is what buys the
-    PROTECT-balance and memcheck passes CRAN itself runs. HELD
-    2026-07-25 (VD): main stays as it is until VD's own review of the
-    branch; revisit these checks then.
+    a manual run. rchk and valgrind have each run once by hand: rchk
+    clean over 077981f0 (15738 functions; the bridge's setState bails
+    out on both instantiations from state-space size and is left
+    unanalyzed, as CRAN's own rchk will be too), and valgrind over the
+    whole tinytest suite on the x86 box at 329e3db9
+    (docs/plans/valgrind-xbart.md). The first live CI runs after the
+    merge confirm rather than discover the PROTECT-balance and
+    memcheck passes CRAN itself runs. HELD 2026-07-25 (VD): main stays
+    as it is until VD's own review of the branch; revisit these checks
+    then.
   re-verify all four sister packages (stan4bart, treatSens, bartCause,
     bairrtt) against the final re-baked dbarts.h once, at the freeze.
     Verified 2026-09-11 against 9171ff64 (hash 0x6380bf095d5cae3f):
