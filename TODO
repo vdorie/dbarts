@@ -503,9 +503,6 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   ordinal, nbinom) now call warnOnGPFallback once per fit; BCF and
   survival already ran through runWithBurnIn. None of those doors
   packages gp.fallback onto its returned object; post-release if wanted.
-  pre-release, small: categoricalExhaustiveCap's validity ceiling of 30
-  admits a 2^29-candidate exact enumeration; the Rd's recommended range
-  of 8 to 14 warns against going that high, the error message does not.
   door (measured 2026-09-10 on the x86 box, replicated independently
   the same day on the box and on the arm64 Mac): making the sparse
   layout bitwise - the sparse root writes the identity order before

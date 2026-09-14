@@ -412,7 +412,9 @@ methods::setValidity("dbartsControl", function(object) {
   ## 2^(P - 1) - 1 candidates are enumerated at P present levels, so a cap
   ## past 30 asks for more candidates than an int can index
   if (object@categoricalExhaustiveCap > 30L) {
-    return("'categoricalExhaustiveCap' must be at most 30")
+    return(
+      "'categoricalExhaustiveCap' must be at most 30 (2^29 candidates at the cap; 8 to 14 is recommended)"
+    )
   }
   if (
     length(object@testFitParallelCutoff) != 1L ||

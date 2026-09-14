@@ -259,6 +259,10 @@ expect_error(
   "at most 30"
 )
 expect_error(
+  dbarts::dbartsControl(categoricalExhaustiveCap = 31L),
+  "8 to 14"
+)
+expect_error(
   dbarts::dbartsControl(testFitParallelCutoff = 0L),
   "positive integer"
 )
