@@ -58,11 +58,6 @@ items
     owes its own, which is why
     docs/plans/archive/binary-kforest-prior-default.md refused rather
     than opened it.
-  binary-hyperprior-revisit: revisit the binary node hyperprior
-    default after the mixing research (the tree-mixing-proposals
-    door), because the poor probit coverage that motivated it may have
-    been mixing rather than the prior (VD 2026-09-13); record
-    docs/plans/binary-hyperprior.md; post-release.
   capi-unwind-protect: closed but for one arm. A host draw callback's R
     error is now caught at the callback itself, where R_UnwindProtect can
     still turn it into a C++ unwind, so the engine's run frames run their
@@ -715,10 +710,9 @@ release (deferred; the one ordered procedure, run when VD triggers it)
   pre-release sequence (VD 2026-09-12; done in this order, pre-merge
     unless marked)
     1. Decisions the maintainer owes before the release candidate:
-      (a) the extended binary hyperprior study (long chains on the
-      whole grid, scales below 1, mixing diagnostics on the sampled
-      k), its verdict written into docs/plans/binary-hyperprior.md and
-      a default chosen for 1.0-0; pre-merge.
+      (a) VD confirms or changes the binary node hyperprior default
+      chi(1.5, 2) on the extended study's evidence
+      (docs/plans/binary-hyperprior.md); the study itself is landed.
     2. The landing memo is rewritten from a blank page to the rubric
       (docs/plans/bartcore-landing/rubric.md), its four questions
       confirmed by VD, once the hyperprior verdict is in.
