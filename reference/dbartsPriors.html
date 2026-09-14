@@ -3,11 +3,19 @@
   tree.prior, node.prior, and resid.prior arguments of
   dbarts and the fitting functions accept. Bundling them keeps
   generic names like normal out of the search path, where another
-  package could mask them or be masked depending on attach order."><meta property="og:description" content="A list of constructor functions building the prior specifications that the
+  package could mask them or be masked depending on attach order.
+The residual priors chisq and fixed are also what a family
+  object's sigma setting takes - family = gaussian(sigma =
+  chisq(3, 0.9)) - which is how bart reaches them; this
+  vocabulary resolves by bare name inside that argument too."><meta property="og:description" content="A list of constructor functions building the prior specifications that the
   tree.prior, node.prior, and resid.prior arguments of
   dbarts and the fitting functions accept. Bundling them keeps
   generic names like normal out of the search path, where another
-  package could mask them or be masked depending on attach order."></head><body>
+  package could mask them or be masked depending on attach order.
+The residual priors chisq and fixed are also what a family
+  object's sigma setting takes - family = gaussian(sigma =
+  chisq(3, 0.9)) - which is how bart reaches them; this
+  vocabulary resolves by bare name inside that argument too."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -52,6 +60,10 @@
   <code><a href="dbarts.html">dbarts</a></code> and the fitting functions accept. Bundling them keeps
   generic names like <code>normal</code> out of the search path, where another
   package could mask them or be masked depending on attach order.</p>
+<p>The residual priors <code>chisq</code> and <code>fixed</code> are also what a family
+  object's <code>sigma</code> setting takes - <code>family = gaussian(sigma =
+  chisq(3, 0.9))</code> - which is how <code><a href="bart.html">bart</a></code> reaches them; this
+  vocabulary resolves by bare name inside that argument too.</p>
     </div>
 
 

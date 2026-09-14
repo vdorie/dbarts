@@ -94,12 +94,20 @@ in dbarts 1.1-0.
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
   `normal()` (`node.prior = normal(scale = )`).
 
-- `sigdf`, `sigquant`:
+- `resid.prior`, `sigdf`, `sigquant`:
 
-  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md):
-  residual-prior-only settings, now arguments of
-  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
-  `chisq()` (`resid.prior = chisq(df, quant)`).
+  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md): the
+  residual scale's prior is a setting of the families that draw one, so
+  it rides the family object
+  (`family = gaussian(sigma = chisq(df, quant))`,
+  `family = gaussian(sigma = fixed(value))`); likewise
+  `student(df, sigma = )`, `aft(sigma = )` and
+  `hurdle.lognormal(sigma = )`.
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+  `dbartsSpec` and
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) keep
+  `resid.prior` as a formal. `sigest`, the residual-scale estimate
+  supplied at creation, is unaffected.
 
 - `proposal.probs`:
 

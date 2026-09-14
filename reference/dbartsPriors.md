@@ -7,6 +7,12 @@ fitting functions accept. Bundling them keeps generic names like
 `normal` out of the search path, where another package could mask them
 or be masked depending on attach order.
 
+The residual priors `chisq` and `fixed` are also what a family object's
+`sigma` setting takes - `family = gaussian(sigma = chisq(3, 0.9))` -
+which is how [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
+reaches them; this vocabulary resolves by bare name inside that argument
+too.
+
 ## Format
 
 A list of functions:

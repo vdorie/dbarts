@@ -23,9 +23,20 @@ family, not to its own value; name such a variable something else, or
 write `dbartsFamilies$student(3)`.
 
 Every setting that only one family reads rides its family object rather
-than a formal of the fitting function. The retired spellings
-`resid.dist`, `dispersion`, `breaks` and `max.rows` are accepted for one
-release with a once-per-session warning and are removed in dbarts 1.1-0.
+than a formal of the fitting function. That includes the residual
+scale's own prior, `sigma`, on the four families that draw a residual
+scale: it takes a
+[`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
+residual prior, `chisq(df, quant)` or `fixed(value)`, resolved in the
+prior vocabulary inside the family call. The retired spellings
+`resid.dist`, `dispersion`, `breaks`, `max.rows`, `resid.prior`, `sigdf`
+and `sigquant` are accepted for one release with a once-per-session
+warning and are removed in dbarts 1.1-0.
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+and [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) keep
+`resid.prior` as a formal, which wins over a family's `sigma` where the
+call names it.
 
 ## Usage
 
@@ -45,17 +56,25 @@ show(object)
 
 A list of functions:
 
-- [`gaussian()`](https://rdrr.io/r/stats/family.html):
+- `gaussian(sigma = NULL)`:
 
   A continuous response with normal errors; the default for a numeric
-  response under `family = "auto"`.
+  response under `family = "auto"`. `sigma` is the prior on the residual
+  scale: `NULL` is the shipped `chisq(3, 0.9)`, `chisq(df, quant)` names
+  another scaled-inverse-chi-squared, and `fixed(value)` pins the
+  residual variance and suppresses the sampler's own draw, which is what
+  an outer sampler owning \\\sigma\\ wants. The former `resid.prior`,
+  `sigdf` and `sigquant` arguments. `sigest`, the estimate the `chisq`
+  quantile is calibrated against, is not a family setting and stays a
+  fitting-function argument.
 
-- `student(df = NULL)`:
+- `student(df = NULL, sigma = NULL)`:
 
   A continuous response with outlier-robust Student-t errors, drawn by
   the Gaussian scale-mixture augmentation. `df = NULL` estimates the
   degrees of freedom on a capped grid; a positive number fixes them. The
-  former `resid.dist = student(df)` spelling.
+  former `resid.dist = student(df)` spelling. `sigma` is the
+  scale-mixture's own residual prior, as for `gaussian`.
 
 - `probit()`, `logistic()`:
 
@@ -71,9 +90,11 @@ A list of functions:
   capped positive-integer grid; a positive integer fixes it. The former
   `dispersion` argument.
 
-- `aft()`:
+- `aft(sigma = NULL)`:
 
-  Accelerated failure time (log-normal) survival.
+  Accelerated failure time (log-normal) survival. The log-time residual
+  scale is drawn as a gaussian one is, so `sigma` is its prior, as for
+  `gaussian`.
 
 - `hazard(breaks = NULL, max.rows = 1e7, link = c("probit", "logistic"))`:
 
@@ -86,11 +107,13 @@ A list of functions:
   the tokens `"hazard.probit"` and `"hazard.logistic"` name. The former
   `breaks` and `max.rows` arguments.
 
-- `hurdle.lognormal()`:
+- `hurdle.lognormal(sigma = NULL)`:
 
   A semicontinuous two-part response: an occupancy probit glued to a
   lognormal positive part. Composed from two samplers, so only
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) fits it.
+  `sigma` is the positive part's residual prior; the occupancy probit
+  has a fixed unit latent scale and takes none.
 
 ## Details
 
@@ -126,6 +149,10 @@ A family the entry point does not fit is refused by name. See
 f <- dbartsFamilies$student(df = 4)
 f
 #> dbarts response family: student(df = 4)
+
+## the residual prior rides the family too
+dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(df = 5, quant = 0.75))
+#> dbarts response family: gaussian(sigma = chisq(5, 0.75))
 
 set.seed(99)
 n <- 100L

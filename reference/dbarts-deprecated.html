@@ -86,8 +86,8 @@ rbart_vi and its methods fit a grouped random-intercept BART model. That model n
     <dt><code>prior.scale</code></dt>
 <dd><p>On <code><a href="bart.html">bart</a></code>: a node-prior-only setting, now an argument of <code><a href="dbartsPriors.html">dbartsPriors</a></code>'s <code>normal()</code> (<code>node.prior = normal(scale = )</code>).</p></dd>
 
-    <dt><code>sigdf</code>, <code>sigquant</code></dt>
-<dd><p>On <code><a href="bart.html">bart</a></code>: residual-prior-only settings, now arguments of <code><a href="dbartsPriors.html">dbartsPriors</a></code>'s <code>chisq()</code> (<code>resid.prior = chisq(df, quant)</code>).</p></dd>
+    <dt><code>resid.prior</code>, <code>sigdf</code>, <code>sigquant</code></dt>
+<dd><p>On <code><a href="bart.html">bart</a></code>: the residual scale's prior is a setting of the families that draw one, so it rides the family object (<code>family = gaussian(sigma = chisq(df, quant))</code>, <code>family = gaussian(sigma = fixed(value))</code>); likewise <code>student(df, sigma = )</code>, <code>aft(sigma = )</code> and <code>hurdle.lognormal(sigma = )</code>. <code><a href="dbarts.html">dbarts</a></code>, <code>dbartsSpec</code> and <code><a href="xbart.html">xbart</a></code> keep <code>resid.prior</code> as a formal. <code>sigest</code>, the residual-scale estimate supplied at creation, is unaffected.</p></dd>
 
     <dt><code>proposal.probs</code></dt>
 <dd><p>On <code><a href="bart.html">bart</a></code> and <code><a href="dbarts.html">dbarts</a></code>: the tree-move mixture, now a <code><a href="dbartsControl.html">dbartsControl</a></code> slot and formal (<code>control = dbartsControl(proposal.probs = )</code>).</p></dd>

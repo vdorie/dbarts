@@ -232,22 +232,28 @@ xbart(
 - resid.prior:
 
   An expression of the form `chisq` or `chisq(df, quant)` that sets the
-  prior used on the residual/error variance.
+  prior used on the residual/error variance. It is held fixed across
+  every cell - it is not a grid axis. The same prior also rides the
+  family object (`family = gaussian(sigma = chisq(df, quant))`); this
+  argument, where the call names it, wins over the family's own `sigma`,
+  and a binary family overwrites either with `fixed(1)`.
 
 - sigest:
 
   A positive numeric estimate of the residual standard deviation. If
   `NA`, a linear model is used with all of the predictors to obtain one.
-  Fitting functions (`xbart`,
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)/`bart`)
-  spell this `sigest`; sampler constructors
-  ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-  `dbartsSpec`) spell the same concept `sigma`. That estimate falls back
-  to the marginal standard deviation of the response when the linear
-  model's residual standard error comes out non-finite, warning as it
-  does so (class `dbartsSigmaFallbackWarning`); a design with
-  sparse-backed predictor columns skips the linear model altogether and
-  falls back the same way (class `dbartsSparseSigmaFallbackWarning`, a
+  Every entry point spells this `sigest` - `xbart`,
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)/`bart`
+  and the sampler constructors
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)/`dbartsSpec`
+  alike; `sigma` is the retired 0.9-x spelling on the constructors, and
+  a family object's own `sigma` is the prior this estimate calibrates,
+  not the estimate. That estimate falls back to the marginal standard
+  deviation of the response when the linear model's residual standard
+  error comes out non-finite, warning as it does so (class
+  `dbartsSigmaFallbackWarning`); a design with sparse-backed predictor
+  columns skips the linear model altogether and falls back the same way
+  (class `dbartsSparseSigmaFallbackWarning`, a
   `dbartsSigmaFallbackWarning`).
 
 - seed:

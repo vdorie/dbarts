@@ -177,6 +177,14 @@ dbarts(
   prior used on the residual/error variance, or a prior object built
   with
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
+  The same prior also rides the family object
+  (`family = gaussian(sigma = chisq(df, quant))`), which is how
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) reaches
+  it; this argument is the raw prior triple's third member and stays
+  here. One precedence rule: this argument, where the call names it,
+  wins over the family's own `sigma`. A family with no free residual
+  scale (`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`,
+  `"multinomial"`) overwrites either with `fixed(1)`.
 
 - monotone:
 

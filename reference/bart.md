@@ -47,7 +47,7 @@ bart(
                "multinomial", "ordinal", "nbinom", "hazard", "hazard.probit",
                "hazard.logistic", "hurdle.lognormal"),
     na.action = dbarts::na.keepPredictors,
-    tree.prior = NULL, node.prior = NULL, resid.prior = NULL,
+    tree.prior = NULL, node.prior = NULL,
     storage = c("double", "single"), updateState = TRUE,
     keepFits = is.null(callback), callback = NULL,
     control = dbarts::dbartsControl(), ...)
@@ -334,6 +334,29 @@ print(x, ...)
   no `family` argument at all: every fit it makes is the default
   gaussian/probit pair.
 
+  Every setting only one family reads rides the family object rather
+  than this signature, in [`glm`](https://rdrr.io/r/stats/glm.html)'s
+  idiom: a token string is the family at its defaults and a call is the
+  family with settings.
+  [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)
+  lists them. Among those settings is the residual scale's own prior, on
+  the four families that draw a residual scale: `gaussian(sigma = )`,
+  `student(df, sigma = )`, `aft(sigma = )`, and
+  `hurdle.lognormal(sigma = )` (the positive part's), where `sigma` is a
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
+  residual prior, `chisq(df, quant)` or `fixed(value)`, resolved in the
+  prior vocabulary inside the family call.
+  `family = gaussian(sigma = chisq(3, 0.9))` is the shipped default
+  written out; `family = gaussian(sigma = fixed(1))` pins the residual
+  variance and suppresses the sampler's own draw. The families with no
+  free residual scale (`probit`, `logistic`, `ordinal`, `nbinom`,
+  `multinomial`, the hazard families) take no `sigma` argument at all. A
+  family call has to be written in this argument to resolve the
+  constructor vocabulary; a wrapper forwarding one through its own `...`
+  should pass a prebuilt object
+  (`dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(3, 0.9))`)
+  instead.
+
   `family = "multinomial"` fits a K-category softmax classifier: K
   forests, one per category, coupled through an interleaved Polya-Gamma
   one-vs-rest augmentation. When `formula` is a formula, `data` is
@@ -574,11 +597,17 @@ print(x, ...)
   does so (class `dbartsSigmaFallbackWarning`); a design with
   sparse-backed predictor columns skips the linear model altogether and
   falls back the same way (class `dbartsSparseSigmaFallbackWarning`, a
-  `dbartsSigmaFallbackWarning`). See `sigquant` for more information.
-  Not applicable when \\y\\ is binary. Same concept as `sigma` in
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md);
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) spells
-  it `sigest` too.
+  `dbartsSigmaFallbackWarning`). The prior it calibrates is
+  `family = gaussian(sigma = chisq(df, quant))`, whose `quant` is the
+  prior probability that \\\sigma\\ is less than this estimate. Not
+  applicable when \\y\\ is binary: under a family with no free residual
+  scale (`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`, the hazard
+  families, `"multinomial"`) it is inert and is diagnosed rather than
+  silently dropped (a `dbartsFamilyGatedWarning`), as are the retired
+  `resid.prior`, `sigdf` and `sigquant`, which such a family overwrites
+  with `fixed(1)` regardless. Same concept as `sigest` in
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md).
 
 - k:
 
@@ -600,33 +629,29 @@ print(x, ...)
   item, and the ‘End-node prior parameter `k`’ details there, for the
   full calibration argument and its outlier-sensitivity caveat.
 
-- tree.prior, node.prior, resid.prior:
+- tree.prior, node.prior:
 
   The full
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) prior
-  objects, forwarded unevaluated so a bare
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) tree
+  and node prior objects, forwarded unevaluated so a bare
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
-  vocabulary name inside them (`cgm`, `dart`, `normal`, `linear`, `gp`,
-  `chisq`, `fixed`) resolves exactly as it does for `dbarts`:
-  `node.prior = linear(columns = 1:3)`, `gp(...)`, and
-  `resid.prior = fixed(1)` are reachable this way. `NULL` (the default
-  for all three) instead builds the tree/node/residual priors from
-  `power`/`base`/`split.probs`, `k`/`prior.scale`, and
-  `sigdf`/`sigquant` respectively, exactly as before this argument
-  existed. A DART prior is `tree.prior = dart()`, which also carries the
-  categorical-split `levelGibbs` setting; neither has a shorthand of its
-  own on this signature. Supplying an object alongside a shorthand that
-  would otherwise help build the same prior is an error naming both:
-  `tree.prior` collides with any of `power`/`base`/`split.probs`;
-  `node.prior` with `k`/`prior.scale`; `resid.prior` with
-  `sigdf`/`sigquant`/`sigest`. A supplied `resid.prior` under a
-  fixed-unit-scale family (`"probit"`, `"logistic"`, `"ordinal"`,
-  `"nbinom"`, the hazard families, `"multinomial"`) is diagnosed the
-  same way `sigest`/`sigdf`/`sigquant` already are - a
-  `dbartsFamilyGatedWarning`, since the family overwrites it with
-  `fixed(1)` regardless. `tree.prior`/`node.prior` are honored on every
-  family, including both component fits of
-  `family = "hurdle.lognormal"`.
+  vocabulary name inside them (`cgm`, `dart`, `normal`, `linear`, `gp`)
+  resolves exactly as it does for `dbarts`:
+  `node.prior = linear(columns = 1:3)` and `gp(...)` are reachable this
+  way. `NULL` (the default for both) instead builds the tree and node
+  priors from `power`/`base`/`split.probs` and `k`/`prior.scale`
+  respectively. A DART prior is `tree.prior = dart()`, which also
+  carries the categorical-split `levelGibbs` setting; neither has a
+  shorthand of its own on this signature. Supplying an object alongside
+  a shorthand that would otherwise help build the same prior is an error
+  naming both: `tree.prior` collides with any of
+  `power`/`base`/`split.probs`; `node.prior` with `k`/`prior.scale`.
+  Both are honored on every family, including both component fits of
+  `family = "hurdle.lognormal"`. The residual prior is not on this list:
+  it is a setting of the families that draw a residual scale and rides
+  the family object instead -
+  `family = gaussian(sigma = chisq(3, 0.9))`,
+  `family = gaussian(sigma = fixed(1))`; see `family` below.
 
 - monotone:
 
@@ -976,12 +1001,12 @@ print(x, ...)
   `tree.prior`, built with `dart()`/`cgm(levelGibbs = )`; `power`,
   `base`, and `split.probs`, which ride `tree.prior` too, built with
   `cgm()` or `dart()`; `prior.scale`, which rides `node.prior`, built
-  with `normal(scale = )`; `sigdf` and `sigquant`, which ride
-  `resid.prior`, built with `chisq(df, quant)`; `proposal.probs`, which
-  rides `control`, built with `dbartsControl(proposal.probs = )`)
-  reaches a message naming its successor instead of R's own “unused
-  argument” error, and any other name is refused. Removed in dbarts
-  1.1-0.
+  with `normal(scale = )`; `resid.prior`, `sigdf`, and `sigquant`, which
+  ride `family`, built with `gaussian(sigma = chisq(df, quant))` or
+  `gaussian(sigma = fixed(value))`; `proposal.probs`, which rides
+  `control`, built with `dbartsControl(proposal.probs = )`) reaches a
+  message naming its successor instead of R's own “unused argument”
+  error, and any other name is refused. Removed in dbarts 1.1-0.
 
 - object:
 
@@ -1538,7 +1563,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001585
+#> total seconds in loop: 0.001617
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1586,7 +1611,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001995
+#> total seconds in loop: 0.001959
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 

@@ -16,10 +16,17 @@ family takes either a token string (family = &quot;gaussian&quot;),
   to the gaussian family, not to its own value; name such a variable
   something else, or write dbartsFamilies$student(3).
 Every setting that only one family reads rides its family object rather
-  than a formal of the fitting function. The retired spellings
-  resid.dist, dispersion, breaks and max.rows
-  are accepted for one release with a once-per-session warning and are
-  removed in dbarts 1.1-0."><meta property="og:description" content="A list of constructor functions building the response families that the
+  than a formal of the fitting function. That includes the residual
+  scale's own prior, sigma, on the four families that draw a
+  residual scale: it takes a dbartsPriors residual prior,
+  chisq(df, quant) or fixed(value), resolved in the prior
+  vocabulary inside the family call. The retired spellings
+  resid.dist, dispersion, breaks, max.rows,
+  resid.prior, sigdf and sigquant are accepted for
+  one release with a once-per-session warning and are removed in dbarts
+  1.1-0. dbarts, dbartsSpec and
+  xbart keep resid.prior as a formal, which wins
+  over a family's sigma where the call names it."><meta property="og:description" content="A list of constructor functions building the response families that the
   family argument of bart, dbarts,
   dbartsSpec and xbart accepts. Bundling them
   keeps generic names like gaussian and probit out of the
@@ -36,10 +43,17 @@ family takes either a token string (family = &quot;gaussian&quot;),
   to the gaussian family, not to its own value; name such a variable
   something else, or write dbartsFamilies$student(3).
 Every setting that only one family reads rides its family object rather
-  than a formal of the fitting function. The retired spellings
-  resid.dist, dispersion, breaks and max.rows
-  are accepted for one release with a once-per-session warning and are
-  removed in dbarts 1.1-0."></head><body>
+  than a formal of the fitting function. That includes the residual
+  scale's own prior, sigma, on the four families that draw a
+  residual scale: it takes a dbartsPriors residual prior,
+  chisq(df, quant) or fixed(value), resolved in the prior
+  vocabulary inside the family call. The retired spellings
+  resid.dist, dispersion, breaks, max.rows,
+  resid.prior, sigdf and sigquant are accepted for
+  one release with a once-per-session warning and are removed in dbarts
+  1.1-0. dbarts, dbartsSpec and
+  xbart keep resid.prior as a formal, which wins
+  over a family's sigma where the call names it."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -96,10 +110,17 @@ Every setting that only one family reads rides its family object rather
   to the gaussian family, not to its own value; name such a variable
   something else, or write <code>dbartsFamilies$student(3)</code>.</p>
 <p>Every setting that only one family reads rides its family object rather
-  than a formal of the fitting function. The retired spellings
-  <code>resid.dist</code>, <code>dispersion</code>, <code>breaks</code> and <code>max.rows</code>
-  are accepted for one release with a once-per-session warning and are
-  removed in dbarts 1.1-0.</p>
+  than a formal of the fitting function. That includes the residual
+  scale's own prior, <code>sigma</code>, on the four families that draw a
+  residual scale: it takes a <code><a href="dbartsPriors.html">dbartsPriors</a></code> residual prior,
+  <code>chisq(df, quant)</code> or <code>fixed(value)</code>, resolved in the prior
+  vocabulary inside the family call. The retired spellings
+  <code>resid.dist</code>, <code>dispersion</code>, <code>breaks</code>, <code>max.rows</code>,
+  <code>resid.prior</code>, <code>sigdf</code> and <code>sigquant</code> are accepted for
+  one release with a once-per-session warning and are removed in dbarts
+  1.1-0. <code><a href="dbarts.html">dbarts</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code> and
+  <code><a href="xbart.html">xbart</a></code> keep <code>resid.prior</code> as a formal, which wins
+  over a family's <code>sigma</code> where the call names it.</p>
     </div>
 
     <div class="section level2">
@@ -118,15 +139,26 @@ Every setting that only one family reads rides its family object rather
 </dl></div>
     <div class="section level2">
     <h2 id="format">Format<a class="anchor" aria-label="anchor" href="#format"></a></h2>
-    <p>A list of functions:</p><dl><dt><code><a href="https://rdrr.io/r/stats/family.html" class="external-link">gaussian()</a></code></dt>
+    <p>A list of functions:</p><dl><dt><code>gaussian(sigma = NULL)</code></dt>
 <dd><p>A continuous response with normal errors; the default for a numeric
-      response under <code>family = "auto"</code>.</p></dd>
+      response under <code>family = "auto"</code>. <code>sigma</code> is the prior on
+      the residual scale: <code>NULL</code> is the shipped
+      <code>chisq(3, 0.9)</code>, <code>chisq(df, quant)</code> names another
+      scaled-inverse-chi-squared, and <code>fixed(value)</code> pins the
+      residual variance and suppresses the sampler's own draw, which is
+      what an outer sampler owning \(\sigma\) wants. The former
+      <code>resid.prior</code>, <code>sigdf</code> and <code>sigquant</code> arguments.
+      <code>sigest</code>, the estimate the <code>chisq</code> quantile is calibrated
+      against, is not a family setting and stays a fitting-function
+      argument.</p></dd>
 
-    <dt><code>student(df = NULL)</code></dt>
+    <dt><code>student(df = NULL, sigma = NULL)</code></dt>
 <dd><p>A continuous response with outlier-robust Student-t errors, drawn by
       the Gaussian scale-mixture augmentation. <code>df = NULL</code> estimates
       the degrees of freedom on a capped grid; a positive number fixes
-      them. The former <code>resid.dist = student(df)</code> spelling.</p></dd>
+      them. The former <code>resid.dist = student(df)</code> spelling.
+      <code>sigma</code> is the scale-mixture's own residual prior, as for
+      <code>gaussian</code>.</p></dd>
 
     <dt><code>probit()</code>, <code>logistic()</code></dt>
 <dd><p>Binary latent-variable models for a 0/1 response.</p></dd>
@@ -139,8 +171,10 @@ Every setting that only one family reads rides its family object rather
       \(r\) on a capped positive-integer grid; a positive integer fixes
       it. The former <code>dispersion</code> argument.</p></dd>
 
-    <dt><code>aft()</code></dt>
-<dd><p>Accelerated failure time (log-normal) survival.</p></dd>
+    <dt><code>aft(sigma = NULL)</code></dt>
+<dd><p>Accelerated failure time (log-normal) survival. The log-time
+      residual scale is drawn as a gaussian one is, so <code>sigma</code> is its
+      prior, as for <code>gaussian</code>.</p></dd>
 
     <dt><code>hazard(breaks = NULL, max.rows = 1e7,
                        link = c("probit", "logistic"))</code></dt>
@@ -154,10 +188,12 @@ Every setting that only one family reads rides its family object rather
       <code>"hazard.probit"</code> and <code>"hazard.logistic"</code> name. The former
       <code>breaks</code> and <code>max.rows</code> arguments.</p></dd>
 
-    <dt><code>hurdle.lognormal()</code></dt>
+    <dt><code>hurdle.lognormal(sigma = NULL)</code></dt>
 <dd><p>A semicontinuous two-part response: an occupancy probit glued to a
       lognormal positive part. Composed from two samplers, so only
-      <code><a href="bart.html">bart</a></code> fits it.</p></dd>
+      <code><a href="bart.html">bart</a></code> fits it. <code>sigma</code> is the positive part's
+      residual prior; the occupancy probit has a fixed unit latent scale
+      and takes none.</p></dd>
 
 
 </dl></div>
@@ -178,6 +214,10 @@ Every setting that only one family reads rides its family object rather
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="va">dbartsFamilies</span><span class="op">$</span><span class="fu">student</span><span class="op">(</span>df <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">f</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> dbarts response family: student(df = 4)</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">## the residual prior rides the family too</span></span></span>
+<span class="r-in"><span><span class="va">dbartsFamilies</span><span class="op">$</span><span class="fu">gaussian</span><span class="op">(</span>sigma <span class="op">=</span> <span class="va">dbartsPriors</span><span class="op">$</span><span class="fu">chisq</span><span class="op">(</span>df <span class="op">=</span> <span class="fl">5</span>, quant <span class="op">=</span> <span class="fl">0.75</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> dbarts response family: gaussian(sigma = chisq(5, 0.75))</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">99</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">100L</span></span></span>
