@@ -6,8 +6,23 @@
 # degrees of freedom at 1.5, varied only the scale, and ran four simulated
 # data-generating processes. This harness varies BOTH parameters and widens
 # the case set: six simulated processes crossed with sample size, predictor
-# count and base rate, plus six real datasets from R and its recommended
-# packages scored by repeated 80/20 splits.
+# count and base rate, plus twenty-two real datasets scored by repeated
+# splits: six from R and its recommended packages, and sixteen from the UCI
+# Machine Learning Repository loaded by benchmarks/R/uci-binary.R.
+#
+# REAL DATA. The real-data column is the one that could move the package
+# default, and the six R datasets are too few and too alike to settle it, so
+# the sixteen UCI datasets restore the breadth the original k-sensitivity work
+# had: 208 to 48,842 rows, 3 to 60 predictors, positive rates from 0.085 to
+# 0.65, and eight datasets with factor predictors. A split is 80/20 of the
+# whole dataset, as before, except that a dataset of more than 5,000 rows
+# draws 4,000 training rows and 1,000 held-out rows per split, so that the
+# cost of a fit stays bounded and the large datasets differ from the small
+# ones in their predictors rather than in what a forest can afford to see.
+# The recorded nTrain column says which rule a row got. The UCI files are
+# downloaded on first use into $DBARTS_BENCH_DATA, or into
+# tools::R_user_dir("dbarts", "cache") when that is unset, and verified
+# against a recorded sha256; nothing is fetched until a UCI block runs.
 #
 # ARMS. Twenty-four hyperprior arms, chi(df, scale) for df in
 # {1, 1.25, 1.5, 2, 3} crossed with scale in {1, 2, 5, Inf} plus df in
@@ -42,9 +57,9 @@
 # counts by three base rates - at the repetition count below; appending a
 # predictor count ("sim:friedman:2000:50") narrows it to that count's three
 # cells and its own rds, which is how the large-n blocks are kept short. A
-# real block is one dataset ("real:biopsy"). `blocks` lists them, `all` runs
-# every one in sequence, and `summarize` reads a directory of rds files and
-# prints the tables the plan doc reports.
+# real block is one dataset ("real:biopsy", "real:spambase"). `blocks` lists
+# them, `all` runs every one in sequence, and `summarize` reads a directory of
+# rds files and prints the tables the plan doc reports.
 #
 # Usage:
 #   Rscript benchmarks/R/binary-hyperprior.R blocks
@@ -316,7 +331,8 @@ simulatedCase <- function(dgp, n, p, rate, seed) {
 
 # Six binary-outcome datasets from R and its recommended packages: small to
 # moderate n, base rates from 0.21 to 0.40, numeric and factor predictors,
-# one dichotomized survival outcome.
+# one dichotomized survival outcome. The sixteen UCI datasets are appended
+# below, after these, so the seed of an existing dataset does not move.
 realDatasets <- list(
   pima = function() {
     data("Pima.tr", package = "MASS", envir = environment())
@@ -387,6 +403,71 @@ realDatasets <- list(
     )
   }
 )
+
+# The sixteen UCI datasets, in descending size. benchmarks/R/uci-binary.R
+# holds the urls, the sha256 of every file and the per-dataset cleaning; it is
+# sourced the first time a UCI block asks for data, so a simulated block or a
+# block on one of the six above needs no cache and no network. The names are
+# listed here rather than read from that file because `blocks` and the seed of
+# a real block are both functions of this order, and neither should depend on
+# whether anything has been downloaded yet.
+uciDatasetNames <- c(
+  "adult",
+  "bank",
+  "magic",
+  "mushroom",
+  "spambase",
+  "banknote",
+  "german",
+  "tictactoe",
+  "transfusion",
+  "creditapproval",
+  "wdbc",
+  "climate",
+  "ionosphere",
+  "haberman",
+  "cleveland",
+  "sonar"
+)
+
+uciLoaded <- FALSE
+
+harnessDir <- function() {
+  flag <- grep("^--file=", commandArgs(FALSE), value = TRUE)
+  if (length(flag) == 0L) {
+    "benchmarks/R"
+  } else {
+    dirname(sub("^--file=", "", flag[1L]))
+  }
+}
+
+ensureUci <- function() {
+  if (!uciLoaded) {
+    source(file.path(harnessDir(), "uci-binary.R"))
+    uciLoaded <<- TRUE
+  }
+}
+
+uciLoader <- function(name) {
+  force(name)
+  function() {
+    ensureUci()
+    d <- get("uciBinary")[[name]]()
+    list(x = d[, setdiff(names(d), "y"), drop = FALSE], y = d$y)
+  }
+}
+
+for (uciName in uciDatasetNames) {
+  realDatasets[[uciName]] <- uciLoader(uciName)
+}
+rm(uciName)
+
+# Above this many rows a split takes a fixed 4,000 training rows and 1,000
+# held-out rows instead of 80/20 of everything, which is what keeps adult and
+# bank inside the same per-fit budget as the rest.
+subsampleAbove <- 5000L
+subsampleTrain <- 4000L
+subsampleTest <- 1000L
 
 ## ----------------------------------------------------- mixing diagnostics
 
@@ -650,7 +731,8 @@ runSimBlock <- function(
 runRealBlock <- function(name, cores) {
   raw <- realDatasets[[name]]()
   n <- nrow(raw$x)
-  nTrain <- floor(0.8 * n)
+  subsampled <- n > subsampleAbove
+  nTrain <- if (subsampled) subsampleTrain else floor(0.8 * n)
   label <- sprintf(
     "%s|%d|%d|%s",
     name,
@@ -659,13 +741,23 @@ runRealBlock <- function(name, cores) {
     format(round(mean(raw$y), 3))
   )
   cat(sprintf("  %-28s ", label))
+  # A large dataset draws train and test together out of one permutation, so
+  # the held-out rows are a fixed 1,000 rather than the other 80 percent; a
+  # small one keeps the 80/20 rule the six R datasets were run under, down to
+  # the order of the random draws, so their earlier output still pairs.
   caseFor <- function(seed) {
     for (attempt in seq_len(100L)) {
       set.seed(seed + 1000000L * (attempt - 1L))
-      trainRows <- sample.int(n, nTrain)
+      if (subsampled) {
+        drawn <- sample.int(n, nTrain + subsampleTest)
+        trainRows <- drawn[seq_len(nTrain)]
+        testRows <- drawn[nTrain + seq_len(subsampleTest)]
+      } else {
+        trainRows <- sample.int(n, nTrain)
+        testRows <- setdiff(seq_len(n), trainRows)
+      }
       if (length(unique(raw$y[trainRows])) == 2L) break
     }
-    testRows <- setdiff(seq_len(n), trainRows)
     list(
       train = data.frame(
         raw$x[trainRows, , drop = FALSE],
