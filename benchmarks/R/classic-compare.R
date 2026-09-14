@@ -520,7 +520,7 @@ makeSampler <- function(scn, nChains = 1L) {
       control = quote(makeControl(scn, nChains)),
       tree.prior = quote(cgm(2.0, 0.95)),
       node.prior = nodePrior,
-      resid.prior = quote(chisq(3.0, 0.90)),
+      family = quote(gaussian(sigma = chisq(3.0, 0.90))),
       sigma = NA_real_
     ),
     # omitted, not passed as NULL, when the mixture is left to the release's
@@ -663,7 +663,7 @@ fitViaXbart <- function(scn) {
     k = kGrid,
     power = 2.0,
     base = 0.95,
-    resid.prior = chisq(3.0, 0.90),
+    family = gaussian(sigma = chisq(3.0, 0.90)),
     drop = TRUE,
     verbose = FALSE,
     control = do.call(dbartsControl, controlArgs)

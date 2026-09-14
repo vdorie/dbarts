@@ -257,7 +257,7 @@ sampler <- dbarts(
   control = ctl,
   tree.prior = cgm(power, base),
   node.prior = normal(kLeaf),
-  resid.prior = fixed(fixedVar),
+  family = gaussian(sigma = fixed(fixedVar)),
   proposal.probs = proposalProbs
 )
 stopifnot(is.null(sampler$data@offset))

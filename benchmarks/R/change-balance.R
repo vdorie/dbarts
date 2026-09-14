@@ -426,7 +426,7 @@ runEngine <- function(x, y, nCutsVec) {
     control = ctl,
     tree.prior = cgm(power, base),
     node.prior = normal(kLeaf),
-    resid.prior = fixed(1)
+    family = gaussian(sigma = fixed(1))
   )
   stopifnot(is.null(s$data@offset))
   nBatch <- as.integer(ceiling(nKept / batchSize))

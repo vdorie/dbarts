@@ -331,6 +331,17 @@ sbcSamplerFamily <- function(config) {
   switch(config$family, t = "gaussian", multinomial = "gaussian", config$family)
 }
 
+# The residual scale's prior rides the family object, and only the families
+# that draw a residual scale carry one; the rest hold it at 1 regardless, so
+# their token is returned untouched.
+sbcFamilyWithSigma <- function(family, sigma) {
+  token <- if (is.character(family)) family else family@token
+  if (!(token %in% c("gaussian", "student", "aft"))) {
+    return(family)
+  }
+  dbarts::dbartsFamilies[[token]](sigma = sigma)
+}
+
 # Inject NA values into designated columns of the fixed design (missing =
 # "incorporate", the default, handles them: rules carry a missing direction and
 # missing leaf covariates enter at the standardized mean, model.hpp:173). The
@@ -384,6 +395,16 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
     keepTrainingFits = TRUE
   )
   family <- sbcSamplerFamily(config)
+  # Student-t errors are a residual DISTRIBUTION on a gaussian response, not a
+  # family; the constructor vocabulary is unexported, so reach it by namespace
+  # exactly as the harness reaches the internal bartcore entry points.
+  if (config$family == "t") {
+    family <- "student"
+  }
+  family <- sbcFamilyWithSigma(
+    family,
+    dbartsPriors$chisq(config$sigDf, config$sigQuant)
+  )
   if (is.null(y)) {
     y <- config$yBuild
   }
@@ -400,7 +421,6 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
       )),
       data = df,
       test = as.data.frame(config$xTest),
-      resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
       node.prior = config$nodePrior,
       sigma = config$sigest,
       control = ctrl,
@@ -411,18 +431,11 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
       config$x,
       y,
       test = config$xTest,
-      resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
       node.prior = config$nodePrior,
       sigma = config$sigest,
       control = ctrl,
       family = family
     )
-  }
-  # Student-t errors are a residual DISTRIBUTION on a gaussian response, not a
-  # family; the constructor vocabulary is unexported, so reach it by namespace
-  # exactly as the harness reaches the internal bartcore entry points.
-  if (config$family == "t") {
-    args$family <- dbarts::dbartsFamilies$student()
   }
   if (!is.null(config$weights)) {
     args$weights <- config$weights
@@ -676,7 +689,9 @@ sbcMakeDartGenerator <- function(config, s0) {
     config$x,
     config$yBuild,
     test = config$xTest,
-    resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
+    family = gaussian(
+      sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)
+    ),
     node.prior = config$nodePrior,
     tree.prior = dbartsPriors$cgm(split.probs = s0),
     sigma = config$sigest,
@@ -702,7 +717,9 @@ sbcMakeDartFit <- function(config, L, thin) {
     config$x,
     config$yBuild,
     test = config$xTest,
-    resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
+    family = gaussian(
+      sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)
+    ),
     node.prior = config$nodePrior,
     tree.prior = dbartsPriors$dart(
       alpha = config$dartAlpha,
@@ -872,11 +889,10 @@ sbcMakeAftSampler <- function(config, thin) {
     config$x,
     cbind(exp(config$yBuild), rep_len(1, config$n)),
     test = config$xTest,
-    resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
+    family = aft(sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)),
     node.prior = config$nodePrior,
     sigma = config$sigest,
-    control = ctrl,
-    family = "aft"
+    control = ctrl
   )
 }
 
@@ -1020,12 +1036,15 @@ sbcMakeHeteroSampler <- function(config, thin) {
     config$x,
     y,
     test = config$xTest,
-    resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
     node.prior = config$nodePrior,
     sigest = config$sigest,
     control = ctrl,
     variance = varianceForest(n.trees = config$nVarianceTrees),
-    family = if (isAft) "aft" else "gaussian"
+    family = if (isAft) {
+      aft(sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant))
+    } else {
+      gaussian(sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant))
+    }
   )
 }
 
@@ -1281,7 +1300,9 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
   base <- dbarts(
     config$x,
     config$yBuild,
-    resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
+    family = gaussian(
+      sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)
+    ),
     node.prior = config$nodePrior,
     sigma = config$sigest,
     control = ctrl

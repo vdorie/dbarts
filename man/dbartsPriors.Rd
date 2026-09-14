@@ -4,15 +4,16 @@
 \title{Prior Specification Constructors}
 \description{
   A list of constructor functions building the prior specifications that the
-  \code{tree.prior}, \code{node.prior}, and \code{resid.prior} arguments of
-  \code{\link{dbarts}} and the fitting functions accept. Bundling them keeps
-  generic names like \code{normal} out of the search path, where another
-  package could mask them or be masked depending on attach order.
+  \code{tree.prior} and \code{node.prior} arguments of \code{\link{dbarts}}
+  and the fitting functions accept. Bundling them keeps generic names like
+  \code{normal} out of the search path, where another package could mask them
+  or be masked depending on attach order.
 
-  The residual priors \code{chisq} and \code{fixed} are also what a family
+  The residual priors \code{chisq} and \code{fixed} are what a family
   object's \code{sigma} setting takes - \code{family = gaussian(sigma =
-  chisq(3, 0.9))} - which is how \code{\link{bart}} reaches them; this
-  vocabulary resolves by bare name inside that argument too.
+  chisq(3, 0.9))} - which is the one place every entry point reaches the
+  residual prior; this vocabulary resolves by bare name inside that argument
+  too.
 }
 \format{
   A list of functions:
@@ -130,18 +131,24 @@
       capped at 1e6, a backstop that only engages at that improper scale.
     }
     \item{\code{chisq(df = 3, quant = 0.9)}}{
-      Chi-squared prior on the residual variance, scaled so that an
-      estimate of the residual standard deviation falls at the given
-      quantile.
+      Chi-squared prior on the residual variance. Its scale is set from
+      \code{sigest}, the residual-scale estimate supplied (or derived) at
+      creation: \code{quant} is the prior probability that the residual
+      standard deviation is below that estimate, so \code{sigest = 1} gives
+      the prior under which \eqn{\sigma} is below 1 with probability
+      \code{quant}.
     }
     \item{\code{fixed(value = 1)}}{
-      Fixed residual variance.
+      Fixed residual variance, in squared response units. It is the residual
+      scale rather than a law over one, so it ignores \code{sigest} - which
+      is refused beside it rather than accepted and overwritten - and
+      suppresses the sampler's own \eqn{\sigma} draw.
     }
   }
 }
 \details{
-  Inside the prior arguments of the fitting functions the same constructors
-  are available by bare name, so \code{dbarts(..., node.prior =
+  Inside the prior arguments of the fitting functions - and inside a family's
+  \code{sigma} - the same constructors are available by bare name, so \code{dbarts(..., node.prior =
   normal(chi(1.5)))} works regardless of what packages are attached: those
   arguments are evaluated with this vocabulary layered over the calling
   environment, along with \code{num.vars}, the number of predictor columns.

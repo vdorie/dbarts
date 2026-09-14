@@ -321,7 +321,7 @@ partB <- function() {
       y,
       control = ctl,
       tree.prior = cgm(power, base),
-      resid.prior = chisq(sigdf, sigquant),
+      family = gaussian(sigma = chisq(sigdf, sigquant)),
       proposal.probs = c(
         birth_death = 0.5,
         swap = 0.1,
