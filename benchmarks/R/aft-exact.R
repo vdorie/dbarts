@@ -187,7 +187,7 @@ fitSingleTree <- function(seed) {
       birth = 0.5
     ),
     tree.prior = cgm(power, base),
-    resid.prior = fixed(sigmaFixed^2)
+    family = gaussian(sigma = fixed(sigmaFixed^2))
   )
   sampler$model@node.scale <- nodeScale
   ctrl <- sampler$control
@@ -211,7 +211,7 @@ fitSingleTree <- function(seed) {
 # at a large df, with the data's sigma anchored at sigmaFixed, leaves the scale
 # leaf prior-dominated at sigmaFixed^2.
 #
-# NOT resid.prior = fixed(), which under a variance forest fixes nothing: the
+# NOT sigma = fixed(), which under a variance forest fixes nothing: the
 # fixed arm sets only the fixed-sigma flag and its value, leaving the degrees
 # of freedom and raw scale at their defaults, so the scale leaf would still be
 # calibrated at df 3 and the data would dominate it.
@@ -238,7 +238,7 @@ fitVarianceTree <- function(seed) {
       birth = 0.5
     ),
     tree.prior = cgm(power, base),
-    resid.prior = chisq(df = varianceDf, quant = 0.9),
+    family = gaussian(sigma = chisq(df = varianceDf, quant = 0.9)),
     variance = varianceForest(n.trees = 1L),
     sigma = sigmaFixed
   )

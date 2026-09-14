@@ -378,7 +378,12 @@ control.ls <- dbartsControl(
   updateState = FALSE
 )
 makeBC <- function(y) {
-  host <- dbarts(x.ls, y, control = control.ls, resid.prior = fixed(0.2))
+  host <- dbarts(
+    x.ls,
+    y,
+    control = control.ls,
+    family = gaussian(sigma = fixed(0.2))
+  )
   dbarts:::bartcoreBCFSampler(host, z.ls, n.trees.treatment = 15L)
 }
 

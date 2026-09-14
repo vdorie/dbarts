@@ -41,7 +41,11 @@ control <- dbarts::dbartsControl(
 
 # fixed(1e-6): a tiny residual variance forces the veto-crossing regime at
 # small n by inflating centeredSumOfSquares / residualVariance
-sampler <- dbarts::dbarts(y ~ x, control = control, resid.prior = fixed(1e-6))
+sampler <- dbarts::dbarts(
+  y ~ x,
+  control = control,
+  family = gaussian(sigma = fixed(1e-6))
+)
 invisible(sampler$run(100L, 60L))
 sampler$storeState()
 state <- sampler$state
@@ -52,7 +56,11 @@ expect_true(max(state[[1L]]$forests[[1L]]$tree.sizes) >= 30L)
 
 # restoring into a fresh sampler over the same data must succeed: any empty
 # leaf carried in the state trips "state is not consistent with this sampler"
-restored <- dbarts::dbarts(y ~ x, control = control, resid.prior = fixed(1e-6))
+restored <- dbarts::dbarts(
+  y ~ x,
+  control = control,
+  family = gaussian(sigma = fixed(1e-6))
+)
 expect_silent(restored$setState(state))
 
 # the restored trees round-trip exactly (a re-store reproduces the forests)

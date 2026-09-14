@@ -55,7 +55,7 @@
 #
 # A joint test names a disagreement, not a culprit, so a third arm does the
 # adjudication the tree-shaped functionals need. Pinning sigma enormous
-# (resid.prior = fixed) drives every structure move's marginal-likelihood ratio
+# (a fixed sigma prior) drives every structure move's marginal-likelihood ratio
 # to 1 within ~1e-6, so the sweep's stationary tree law IS the forest prior the
 # Metropolis ratio prices, with no response, no sigma draw and no leaf posterior
 # in the way. Held against sampleTreesFromPrior's law on the same design, that
@@ -197,13 +197,15 @@ gewekeSampler <- function(arm, flat = FALSE) {
   dbarts(
     arm$x,
     arm$yBuild,
-    resid.prior = if (flat) {
-      dbartsPriors$fixed(flatSigma^2)
+    family = if (flat) {
+      gaussian(sigma = dbartsPriors$fixed(flatSigma^2))
     } else {
-      dbartsPriors$chisq(sigDf, sigQuant)
+      gaussian(sigma = dbartsPriors$chisq(sigDf, sigQuant))
     },
     node.prior = dbartsPriors$normal(kLeaf),
-    sigma = if (flat) flatSigma else sigest,
+    # a fixed residual scale IS the estimate - the engine overwrites sigest
+    # with its square root - so only the chisq arm names one
+    sigma = if (flat) NA_real_ else sigest,
     control = control
   )
 }

@@ -36,7 +36,7 @@ host <- dbarts(
   x1,
   2 * y1 - 1 - o1,
   control = recipeControl(31L),
-  resid.prior = fixed(1)
+  family = gaussian(sigma = fixed(1))
 )
 host$setCalibration(prior.scale = 2)
 composed1 <- matrix(0, n, nDraws)
@@ -130,7 +130,7 @@ newSbcSampler <- function() {
     xSbc,
     seq(-3, 3, length.out = nSbc),
     control = sbcControl,
-    resid.prior = fixed(sigma0^2)
+    family = gaussian(sigma = fixed(sigma0^2))
   )
   s$setCalibration(prior.scale = 2)
   s
@@ -335,7 +335,7 @@ wrongTheta <- ifelse(log(u4) < llProposal - llCurrent, proposal, current)
 expect_true(sum(wrongTheta != theta4) > 0L)
 expect_true(all(which(wrongTheta != theta4) %in% which(!installMask)))
 
-## 5. OUTER-OWNED SIGMA: the pin and the guard. resid.prior = fixed() suppresses
+## 5. OUTER-OWNED SIGMA: the pin and the guard. sigma = fixed() suppresses
 ## the sampler's own draw, so what setSigma writes survives a sweep; without it
 ## the sampler redraws and the outer write is silently discarded.
 set.seed(505L)
@@ -347,7 +347,7 @@ sampler5 <- dbarts(
   x5,
   y5,
   control = recipeControl(55L),
-  resid.prior = fixed(sigma5^2)
+  family = gaussian(sigma = fixed(sigma5^2))
 )
 keepSigma <- rep(NA_real_, nDraws)
 for (i in seq_len(nBurn + nDraws)) {

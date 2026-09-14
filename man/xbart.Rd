@@ -12,7 +12,7 @@ xbart(
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, drop = TRUE,
-    resid.prior = chisq, sigest = NA_real_,
+    sigest = NA_real_,
     seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
@@ -22,7 +22,7 @@ xbart(
 }
 \arguments{
   \item{\dots}{
-    Not used for new code: the channel that lets a retired argument spelling reach a message naming its successor, instead of R's own \dQuote{unused argument} error. Any other name is refused. Removed in dbarts 1.1-0.
+    Not used for new code: the channel that lets a retired argument spelling (\code{dart}, now \code{tree.prior = dart()}; \code{resid.prior}, now \code{family = gaussian(sigma = )}, its one home, so writing it both ways is refused where the two disagree) reach a message naming its successor, instead of R's own \dQuote{unused argument} error. Any other name is refused. Removed in dbarts 1.1-0.
   }
   \item{control}{
     A \code{\link{dbartsControl}} object carrying the sampler and engine settings, including the ones \code{xbart} spells no flat name for: \code{categoricalExhaustiveCap}, \code{testFitParallelCutoff}, \code{predictParallelCutoff}, \code{sparseDensityThreshold}, \code{levelGibbs}, and the tree-move mixture \code{proposal.probs}. Precedence, one rule: a flat argument named in the call wins over the control's slot of the same name, and a slot the control speaks for - one its own \code{dbartsControl()} call named, or one edited afterwards to differ from a fresh control's - wins over this function's default, while a slot it never spoke for leaves that default standing. The fields a sweep forces - \code{n.chains}, the control's own \code{n.threads}, \code{keepTrees}, \code{keepTrainingFits}, \code{updateState}, \code{verbose} - are applied after both, and \code{n.burn} and \code{n.threads} here are the sweep's own grid axis and worker count rather than the control fields of the same name. A control taken from a fitted sampler carries that fit's model configuration and is refused by name - pass a fresh \code{dbartsControl()}.
@@ -84,11 +84,8 @@ xbart(
    \item{drop}{
      Logical, determining if dimensions with a single value are dropped from the result.
    }
-   \item{resid.prior}{
-     An expression of the form \code{chisq} or \code{chisq(df, quant)} that sets the prior used on the residual/error variance. It is held fixed across every cell - it is not a grid axis. The same prior also rides the family object (\code{family = gaussian(sigma = chisq(df, quant))}); this argument, where the call names it, wins over the family's own \code{sigma}, and a binary family overwrites either with \code{fixed(1)}.
-   }
    \item{sigest}{
-     A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Every entry point spells this \code{sigest} - \code{xbart}, \code{\link{bartBT}}/\code{bart} and the sampler constructors \code{\link{dbarts}}/\code{dbartsSpec} alike; \code{sigma} is the retired 0.9-x spelling on the constructors, and a family object's own \code{sigma} is the prior this estimate calibrates, not the estimate. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class \code{dbartsSigmaFallbackWarning}); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class \code{dbartsSparseSigmaFallbackWarning}, a \code{dbartsSigmaFallbackWarning}).
+     A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Every entry point spells this \code{sigest} - \code{xbart}, \code{\link{bartBT}}/\code{bart} and the sampler constructors \code{\link{dbarts}}/\code{dbartsSpec} alike; \code{sigma} is the retired 0.9-x spelling on the constructors, and a family object's own \code{sigma} is the prior this estimate calibrates, not the estimate. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class \code{dbartsSigmaFallbackWarning}); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class \code{dbartsSparseSigmaFallbackWarning}, a \code{dbartsSigmaFallbackWarning}). It is the estimate a \code{chisq} residual prior's quantile is calibrated against, so it stands beside \code{family = gaussian(sigma = chisq(df, quant))} and is refused beside \code{family = gaussian(sigma = fixed(value))}, which fixes the residual scale outright and would overwrite the estimate with its square root.
    }
    \item{seed}{
      Optional integer specifying the desired pRNG \link[=set.seed]{seed}. Each replication takes its data split, and each unit of work its fits, from a seed derived from this one and the unit's own index, so results are reproducible for a fixed \code{seed} at any \code{n.threads}; the caller's random stream is left untouched when a seed is given, and advanced only by the derivation of those seeds when one is not. Without one, \code{\link{set.seed}} beforehand suffices.

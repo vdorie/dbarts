@@ -156,8 +156,9 @@
       \item On the \code{x.train}/\code{y.train} interface a \code{weights}
             vector whose length is neither the number of observations nor
             one is an error instead of being recycled; the formula interface
-            always refused it. \code{resid.prior = fixed(value)} now holds
-            the residual variance at \code{value}, at creation and through
+            always refused it. \code{family = gaussian(sigma = fixed(value))}
+            now holds the residual variance at \code{value}, at creation and
+            through
             \code{setModel} alike; previously a fixed prior given at
             creation was ignored, sigma sitting at its starting estimate
             for the whole run, and one installed through \code{setModel}
@@ -354,8 +355,10 @@
             \code{tree.prior = cgm(split.probs)}, refused together with a
             DART tree prior, which draws its own); \code{prior.scale} on
             \code{bart} (successor
-            \code{node.prior = normal(scale)}); \code{resid.prior},
-            \code{sigdf} and \code{sigquant} on \code{bart} (successor
+            \code{node.prior = normal(scale)}); \code{sigdf} and
+            \code{sigquant} on \code{bart}, and \code{resid.prior} on
+            \code{bart}, \code{dbarts}, \code{dbartsSpec} and
+            \code{xbart} (successor
             \code{family = gaussian(sigma = chisq(df, quant))} or
             \code{family = gaussian(sigma = fixed(value))});
             \code{proposal.probs} on
@@ -411,15 +414,19 @@
             \code{hurdle.lognormal(sigma = )}, where \code{sigma} is a
             \code{\link{dbartsPriors}} residual prior -
             \code{chisq(df, quant)} or \code{fixed(value)}, resolved in
-            the prior vocabulary inside the family call. \code{bart} sheds
-            \code{resid.prior}, \code{sigdf}, and \code{sigquant}, which
-            are tombstones (above); \code{sigest}, the residual-scale
-            estimate supplied at creation, stays where it was.
-            \code{dbarts}, \code{dbartsSpec}, and \code{xbart} keep
-            \code{resid.prior} as the third member of the raw prior triple
-            and read the family's own where the caller names none, under the
-            same precedence rule the control follows: a flat argument named
-            in the call wins over the object's slot.
+            the prior vocabulary inside the family call. That is the
+            prior's one home on every door: \code{bart} sheds
+            \code{resid.prior}, \code{sigdf}, and \code{sigquant}, and
+            \code{dbarts}, \code{dbartsSpec}, and \code{xbart} shed
+            \code{resid.prior}, all of them tombstones (above). A call that
+            writes the prior both ways - a retired spelling and a family
+            whose call named \code{sigma} - is refused where the two
+            disagree, naming both spellings, and accepted where they say the
+            same thing. \code{sigest}, the residual-scale estimate supplied
+            at creation, stays where it was: it is what a \code{chisq}
+            prior's quantile calibrates against, so it stands beside one, and
+            it is refused beside \code{fixed(value)}, which is the residual
+            scale rather than a law over one.
       \item \code{bart}, \code{dbarts}, and \code{dbartsData} gain an
             \code{na.action} formal, defaulting to the new
             \code{\link{na.keepPredictors}}: it drops a row with a missing
@@ -1415,7 +1422,8 @@
             \code{dart}, \code{normal}, \code{linear}, \code{gp},
             \code{chi}, \code{chisq}, \code{fixed}), usable
             programmatically and passable to the
-            \code{tree.prior}/\code{node.prior}/\code{resid.prior} arguments;
+            \code{tree.prior}/\code{node.prior} arguments and a family's
+            \code{sigma};
             \code{dart}, \code{linear}, and \code{gp} are themselves new.
             The bare-name forms (\code{node.prior = normal(chi(1.5))}) keep
             working and, as in 0.9-x, resolve against dbarts' own vocabulary
@@ -1534,7 +1542,7 @@
             the sampler interface, so cross-validation reaches the sampler's
             own features rather than a separate engine path: \code{family},
             \code{factors},
-            \code{node.prior}, \code{tree.prior}, \code{resid.prior}, and
+            \code{node.prior}, \code{tree.prior}, and
             \code{storage} are all arguments of it, and it takes a sparse
             (\code{dgCMatrix}) design. Chains warm-start only
             across parameter settings that share a tree count over one data
@@ -2155,22 +2163,22 @@
       \item The sampler's \code{$run} spells its per-call thread count
             \code{n.threads}, matching every other entry point; the old
             \code{numThreads} is an unused-argument error.
-      \item \code{bart} gains \code{tree.prior}, \code{node.prior}, and
-            \code{resid.prior} formals (\code{NULL} by default, appended
-            after \code{breaks}/\code{max.rows}), taking the same full
+      \item \code{bart} gains \code{tree.prior} and \code{node.prior}
+            formals (\code{NULL} by default), taking the same full
             \code{\link{dbartsPriors}} objects \code{\link{dbarts}} already
             does: \code{node.prior = linear(columns = )} or \code{gp(...)}
-            leaf models and \code{resid.prior = fixed(value)} are now
-            reachable from \code{bart}, not only from \code{dbarts}.
+            leaf models, and - through \code{family = gaussian(sigma = )} -
+            a \code{fixed(value)} residual prior, are now reachable from
+            \code{bart}, not only from \code{dbarts}.
             Supplying one of these alongside a shorthand argument that would
             otherwise help build the same prior is now an error naming both:
             \code{tree.prior} with any of \code{power}/\code{base}/
             \code{split.probs}/\code{dart}; \code{node.prior} with \code{k}/
-            \code{prior.scale}; \code{resid.prior} with \code{sigdf}/
-            \code{sigquant}/\code{sigest}. Leaving all three \code{NULL}
-            builds the priors from the shorthand arguments exactly as
-            before this change, so no existing call's draws move.
-            \code{resid.prior} joins the \code{sigest}/\code{sigdf}/
+            \code{prior.scale}; the retired \code{resid.prior} with
+            \code{sigdf}/\code{sigquant}/\code{sigest}. Leaving both
+            \code{NULL} builds the priors from the shorthand arguments
+            exactly as before this change, so no existing call's draws move.
+            The residual prior joins the \code{sigest}/\code{sigdf}/
             \code{sigquant} family-gating row: supplied under a
             fixed-unit-scale family, it is silently overwritten with
             \code{fixed(1)} regardless (unchanged engine behavior) and now
@@ -2316,7 +2324,7 @@
             starting sigma cannot be estimated reports that same shared
             message (\dQuote{unable to obtain a starting estimate of
             sigma; provide one instead}) instead of a bare \code{lm}
-            error, and a \code{resid.prior} supplied under a binary family
+            error, and a residual prior supplied under a binary family
             is now always overridden to \code{fixed(1)} rather than only
             when left unsupplied.
       \item \code{bart} and \code{xbart} now restore the
@@ -2643,7 +2651,8 @@
             \code{ax_func_posix_memalign.m4}, which the build does not use;
             the remaining \code{m4} contributors' credited file lists are
             trimmed to the files still present.
-      \item \code{resid.prior = fixed(value)} now follows its documentation:
+      \item \code{family = gaussian(sigma = fixed(value))} now follows its
+            documentation:
             the residual standard deviation holds at \code{sqrt(value)}, at
             creation and through \code{setModel} alike. The pre-1.0 engine
             ignored the value at creation, holding sigma at its starting

@@ -24,7 +24,7 @@
       \code{$setResponse(y)} \tab the regression target \tab a partial residual, a working response, an imputed outcome \cr
       \code{$setOffset(o)} \tab an additive term BART does not fit \tab another block's linear predictor, a fixed exposure \cr
       \code{$setWeights(w)} \tab per-observation precision \tab a Polya-Gamma precision, a variance mixture, survey weights \cr
-      \code{$setSigma(s)} \tab the residual standard deviation \tab a scale drawn elsewhere; requires \code{resid.prior = fixed()} \cr
+      \code{$setSigma(s)} \tab the residual standard deviation \tab a scale drawn elsewhere; requires \code{family = gaussian(sigma = fixed())} \cr
       \code{$setPredictor(x, column)} \tab one predictor column \tab a latent covariate, an imputed predictor \cr
       \code{$setActiveRows(a)} \tab which rows enter the likelihood \tab a subset indicator drawn by another block \cr
       \code{$setCalibration(prior.scale = )} \tab the leaf prior in force \tab restating the prior after a response swap
@@ -86,7 +86,7 @@
     \code{\link{dbartsDrawLatents}} draws the latent at a supplied fit and
     \code{\link[=dbartsDrawLatents]{dbartsWorkingResponse}} turns it into the quantity a host
     regresses on. A host that needs the latent for its own blocks runs the step itself over a
-    gaussian sampler with \code{resid.prior = fixed(1)}, rather than reimplementing the family.
+    gaussian sampler with \code{family = gaussian(sigma = fixed(1))}, rather than reimplementing the family.
     Their \code{fit} argument is offset-free, as \code{$getFitsWithoutOffset()} reports it.
   }
 

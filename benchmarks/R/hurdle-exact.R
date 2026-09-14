@@ -28,7 +28,7 @@
 # exactly the two structures (a shared root leaf, prior 1 - base; one leaf per
 # cell, prior base), as in negbin-exact.R. The occupancy factor is then a 1-D
 # quadrature over the leaf log-probit; the positive factor, with sigma PINNED
-# by resid.prior = fixed(), is normal-normal conjugate in CLOSED FORM on the
+# by a fixed sigma prior, is normal-normal conjugate in CLOSED FORM on the
 # engine's internal [-0.5, 0.5] rescaling of log y (aft-exact.R's convention:
 # range * mu + shift returns the reported log-scale fit). Both cells hold zeros
 # and positives, so both fits see the same two-cell cut grid.
@@ -101,7 +101,7 @@ probitScale <- 3.0 # probit node.scale (R/model.R's defaultNodeScale)
 gaussianScale <- 0.5 # gaussian node.scale, in units of the response range
 tauProbit <- probitScale / k # one tree, so no sqrt(n.trees) divisor
 tauGaussian <- gaussianScale / k # on the internal [-0.5, 0.5] scale
-sigmaFixed <- 0.5 # resid.prior = fixed(sigmaFixed^2) on the log scale
+sigmaFixed <- 0.5 # sigma = fixed(sigmaFixed^2) on the log scale
 
 # ---- fixed data: two cells, both mixing zeros with positives ----
 
@@ -278,7 +278,7 @@ fitSeed <- function(seed) {
       change = 0.4,
       birth = 0.5
     ),
-    resid.prior = fixed(sigmaFixed^2),
+    family = hurdle.lognormal(sigma = fixed(sigmaFixed^2)),
     verbose = FALSE,
     seed = seed
   )

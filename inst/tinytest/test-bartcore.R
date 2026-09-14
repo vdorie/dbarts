@@ -959,7 +959,12 @@ expect_identical(r.sm1, r.sm2)
 
 # a fixed residual prior holds sigma at sqrt(value), the documented
 # variance semantics, at creation and through setModel alike
-sampler.fix <- dbarts(x, y, resid.prior = fixed(4), control = control.sm)
+sampler.fix <- dbarts(
+  x,
+  y,
+  family = gaussian(sigma = fixed(4)),
+  control = control.sm
+)
 r.fix <- sampler.fix$run(10L, 3L)
 expect_equal(unique(r.fix$sigma), 2)
 model.fixed <- sampler.sm1$model

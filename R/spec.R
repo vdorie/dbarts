@@ -342,8 +342,7 @@ resolveSamplerSpec <- function(
     parsePriorsCall,
     callFormals,
     "tree.prior",
-    "node.prior",
-    "resid.prior"
+    "node.prior"
   )
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data
@@ -354,17 +353,15 @@ resolveSamplerSpec <- function(
   parsePriorsCall$multiForest <- !is.null(declaredBases)
   parsePriorsCall$parentEnv <- evalEnv
 
-  # The residual prior can ride the family object (gaussian(sigma = )). One
-  # precedence rule, dec-B116's: a flat 'resid.prior' the caller named beats
-  # the object's slot, so the family's own is taken only where the caller
-  # named none.
-  if (!is.null(residPrior) && !any(names(matchedCall) == "resid.prior")) {
-    parsePriorsCall <- setCallArgument(
-      parsePriorsCall,
-      "resid.prior",
-      residPrior
-    )
-  }
+  # The residual prior has one home, the family object it rides, so it
+  # arrives here already resolved (the entry point reads it off that object,
+  # or off the retired flat spelling it still accepts) and NULL is the
+  # package default.
+  parsePriorsCall <- setCallArgument(
+    parsePriorsCall,
+    "resid.prior",
+    if (is.null(residPrior)) quote(chisq) else residPrior
+  )
   if (fixedUnitScale) {
     parsePriorsCall <- setCallArgument(
       parsePriorsCall,
@@ -831,7 +828,6 @@ dbartsSpec <- function(
   control = dbarts::dbartsControl(),
   tree.prior = cgm,
   node.prior = normal,
-  resid.prior = chisq,
   proposal.probs = c(
     birth_death = 0.6,
     swap = 0,
@@ -879,6 +875,12 @@ dbartsSpec <- function(
     "dbartsSpec",
     parentEnv
   )
+  # cleared before the matched call is redirected at the prior resolver,
+  # which still carries a 'resid.prior' formal a name left here would reach
+  # without the reconciliation below
+  if (length(consolidated) > 0L) {
+    matchedCall[names(consolidated)] <- NULL
+  }
 
   # the creation-time estimate is 'sigest' here as everywhere; 'sigma' is
   # the 0.9-x spelling, accepted for one release. Both flags are read before
@@ -908,9 +910,15 @@ dbartsSpec <- function(
   familySpec <- applyConsolidatedFamilyArgs(familySpec, consolidated)
   family <- familySpec@token
   dispersion <- familySetting(familySpec, "dispersion", NA_real_)
-  # as on dbarts(): the residual prior rides the family, and the flat
-  # 'resid.prior' this signature keeps wins where the caller named it
-  residPrior <- familySetting(familySpec, "sigma", NULL)
+  # as on dbarts(): the residual prior has one home, the family object, and
+  # the retired flat spelling beside a family that named 'sigma' too is
+  # refused unless the two agree
+  residPrior <- reconcileResidPrior(
+    consolidatedResidPrior(consolidated),
+    "resid.prior",
+    familySpec
+  )
+  refuseSigestUnderFixedPrior(residPrior, sigest)
   # Student-t is a gaussian response carrying a degrees-of-freedom attribute
   # on this side of the bridge; the remap happens once, here
   residDf <- NULL

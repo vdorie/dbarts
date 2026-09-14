@@ -82,7 +82,7 @@ buildSamplerCountsMutation <- function(counts, n.chains = 1L) {
 # swapping in B must be the same sampler, bitwise, on every recorded channel.
 # There is no response transform to pin (the multinomial leaf scale is the
 # data-independent pi*sqrt(3)/sqrt(2) anchor and sigma is fixed), so the parity
-# is exact and unconditional rather than conditional on a fixed resid.prior the
+# is exact and unconditional rather than conditional on a fixed residual prior the
 # way BCF's weight swap is. ---
 parityArmCountsMutation <- function(build, swap, n.chains = 1L) {
   set.seed(707)

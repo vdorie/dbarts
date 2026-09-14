@@ -252,7 +252,10 @@ expect_error(
   "'verbose' argument to xbart must be TRUE/FALSE"
 )
 
-expect_error(dbarts::xbart(y ~ x, resid.prior = NULL), "dbartsResidPrior")
+expect_error(
+  dbarts::xbart(y ~ x, family = gaussian(sigma = 3)),
+  "'sigma' must be a residual prior"
+)
 
 expect_error(
   dbarts::xbart(y ~ x, sigest = -1),

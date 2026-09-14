@@ -72,7 +72,7 @@ runSampler <- function(
     # fixed() takes the residual VARIANCE on the original scale, so the engine's
     # internal (range-scaled) residual variance is priorSigma^2 / yRange^2 =
     # (priorSigma / yRange)^2, matching residVar in the quadrature
-    resid.prior = fixed(priorSigma^2),
+    family = gaussian(sigma = fixed(priorSigma^2)),
     monotone = monotone
   )
   stopifnot(sampler$control@proposal.probs[["birth_death"]] == 1)

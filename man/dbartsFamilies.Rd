@@ -31,9 +31,11 @@
   \code{resid.dist}, \code{dispersion}, \code{breaks}, \code{max.rows},
   \code{resid.prior}, \code{sigdf} and \code{sigquant} are accepted for
   one release with a once-per-session warning and are removed in dbarts
-  1.1-0. \code{\link{dbarts}}, \code{\link{dbartsSpec}} and
-  \code{\link{xbart}} keep \code{resid.prior} as a formal, which wins
-  over a family's \code{sigma} where the call names it.
+  1.1-0; \code{resid.prior} is retired that way on \code{\link{dbarts}},
+  \code{\link{dbartsSpec}} and \code{\link{xbart}} as well, so the family
+  object is the one home of the residual prior. A call that writes the prior
+  both ways is refused where the two disagree, naming both spellings, and
+  accepted in silence where they say the same thing.
 }
 \usage{
 \S4method{show}{dbartsFamily}(object)
@@ -58,7 +60,8 @@
       \code{resid.prior}, \code{sigdf} and \code{sigquant} arguments.
       \code{sigest}, the estimate the \code{chisq} quantile is calibrated
       against, is not a family setting and stays a fitting-function
-      argument.
+      argument; it stands beside \code{chisq}, and is refused beside
+      \code{fixed}, which has no scale to calibrate.
     }
     \item{\code{student(df = NULL, sigma = NULL)}}{
       A continuous response with outlier-robust Student-t errors, drawn by

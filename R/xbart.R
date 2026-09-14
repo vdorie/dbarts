@@ -18,7 +18,6 @@ xbart <- function(
   base = 0.95,
   split.probs = NULL,
   drop = TRUE,
-  resid.prior = chisq,
   sigest = NA_real_,
   seed = NA_integer_,
   factors = c("categorical", "indicators"),
@@ -405,30 +404,24 @@ xbart <- function(
   }
 
   # a binary family runs on a fixed unit latent scale (R/spec.R's
-  # fixedUnitScale rule): any supplied resid.prior is overridden, not just a
-  # missing one, matching the shared resolver, so a caller cannot silently
-  # fit an unfixed residual scale under a family that has none. The DEFAULT
-  # value stays chisq rather than bart2's NULL-triggers-shorthand sentinel -
-  # xbart has no sigdf/sigquant shorthands for a NULL to build from.
-  # The residual prior can also ride the family object (gaussian(sigma = ));
-  # the flat argument wins where the caller named it, dec-B116's rule.
-  familySigma <- familySetting(familySpec, "sigma", NULL)
+  # fixedUnitScale rule): the residual prior is overridden where one is
+  # given, not just where one is missing, matching the shared resolver, so a
+  # caller cannot silently cross-validate an unfixed residual scale under a
+  # family that has none. Otherwise the prior comes off the family object it
+  # rides, or off the retired flat spelling this door still reads, which is
+  # refused beside a family that named 'sigma' too unless the two agree.
+  residPrior <- reconcileResidPrior(
+    consolidatedResidPrior(consolidated),
+    "resid.prior",
+    familySpec
+  )
+  refuseSigestUnderFixedPrior(residPrior, sigest)
   resid.prior <- if (control@binary) {
     fixed(1)
-  } else if (
-    !is.null(matchedCall$resid.prior) || "resid.prior" %in% names(matchedCall)
-  ) {
-    env <- new.env(parent = evalEnv)
-    env[["chisq"]] <- getNamespace("dbarts")[["chisq"]]
-    env[["fixed"]] <- getNamespace("dbarts")[["fixed"]]
-    eval(matchedCall$resid.prior, env)
-  } else if (!is.null(familySigma)) {
-    familySigma
+  } else if (!is.null(residPrior)) {
+    residPrior
   } else {
-    eval(formals(xbart)$resid.prior, getNamespace("dbarts"))()
-  }
-  if (is.call(resid.prior)) {
-    resid.prior <- eval(resid.prior, getNamespace("dbarts"))
+    chisq()
   }
   model <- newValidated(
     "dbartsModel",

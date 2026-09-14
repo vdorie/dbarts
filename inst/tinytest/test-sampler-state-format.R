@@ -125,7 +125,7 @@ makeSF <- function(x, y) {
     x,
     y,
     control = control.ls,
-    resid.prior = dbarts::dbartsPriors$fixed(0.3)
+    family = gaussian(sigma = dbarts::dbartsPriors$fixed(0.3))
   )
 }
 grabState <- function(s) {

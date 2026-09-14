@@ -19,7 +19,7 @@ expect_silent(
     n.test = 5,
     k = k,
     n.threads = 1L,
-    resid.prior = chisq(2.5, 0.9)
+    family = gaussian(sigma = chisq(2.5, 0.9))
   )
 )
 
@@ -34,14 +34,14 @@ expect_silent(
     n.test = 5,
     k = k,
     n.threads = 1L,
-    resid.prior = fixed(2)
+    family = gaussian(sigma = fixed(2))
   )
 )
 
-# xbart's own resid.prior default is the literal chisq() object - it has no
-# sigdf/sigquant shorthands for bart's NULL-triggers-shorthand sentinel to
-# build from - so an unsupplied resid.prior is byte-identical to naming the
-# default explicitly
+# xbart's own residual-prior default is the literal chisq() object - it has
+# no sigdf/sigquant shorthands for bart's NULL-triggers-shorthand sentinel to
+# build from - so an unsupplied one is byte-identical to naming the default
+# explicitly
 expect_identical(
   dbarts::xbart(
     x,
@@ -60,7 +60,7 @@ expect_identical(
     n.burn = c(10L, 5L),
     n.threads = 1L,
     seed = 15L,
-    resid.prior = chisq()
+    family = gaussian(sigma = chisq())
   )
 )
 

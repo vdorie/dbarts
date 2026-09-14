@@ -40,7 +40,7 @@
       On \code{\link{bart}}: a node-prior-only setting, now an argument of \code{\link{dbartsPriors}}'s \code{normal()} (\code{node.prior = normal(scale = )}).
     }
     \item{\code{resid.prior}, \code{sigdf}, \code{sigquant}}{
-      On \code{\link{bart}}: the residual scale's prior is a setting of the families that draw one, so it rides the family object (\code{family = gaussian(sigma = chisq(df, quant))}, \code{family = gaussian(sigma = fixed(value))}); likewise \code{student(df, sigma = )}, \code{aft(sigma = )} and \code{hurdle.lognormal(sigma = )}. \code{\link{dbarts}}, \code{dbartsSpec} and \code{\link{xbart}} keep \code{resid.prior} as a formal. \code{sigest}, the residual-scale estimate supplied at creation, is unaffected.
+      The residual scale's prior is a setting of the families that draw one, so it rides the family object (\code{family = gaussian(sigma = chisq(df, quant))}, \code{family = gaussian(sigma = fixed(value))}); likewise \code{student(df, sigma = )}, \code{aft(sigma = )} and \code{hurdle.lognormal(sigma = )}. \code{sigdf} and \code{sigquant} are retired on \code{\link{bart}}; \code{resid.prior} is retired the same way on \code{\link{bart}}, \code{\link{dbarts}}, \code{dbartsSpec} and \code{\link{xbart}}, so the prior has one home on every door. A call that writes it both ways - a retired spelling and a family whose call named \code{sigma} - is refused where the two disagree. \code{sigest}, the residual-scale estimate supplied at creation, is unaffected.
     }
     \item{\code{proposal.probs}}{
       On \code{\link{bart}} and \code{\link{dbarts}}: the tree-move mixture, now a \code{\link{dbartsControl}} slot and formal (\code{control = dbartsControl(proposal.probs = )}).

@@ -498,7 +498,7 @@ packageBartResults <- function(
   invisible(result)
 }
 
-## Builds the quoted tree/node/resid prior calls the entry points hand to
+## Builds the quoted tree/node prior calls the entry points hand to
 ## dbarts. nodeK is the node prior's k argument exactly as
 ## it should enter the call - unevaluated for functions that redirect their
 ## matched call, evaluated for those that forward through do.call from
@@ -511,16 +511,13 @@ buildSamplerPriors <- function(
   matchedCall,
   power,
   base,
-  sigdf,
-  sigquant,
   nodeK,
   priorScale = NA_real_,
   dart = FALSE,
   splitProbsName = "split.probs",
   splitProbs = NULL,
   splitProbsDefault = NULL,
-  shorthandSupplied = character(),
-  residPrior = NULL
+  shorthandSupplied = character()
 ) {
   priorScale <- validateNamedScale(priorScale, "prior.scale")
 
@@ -592,21 +589,9 @@ buildSamplerPriors <- function(
     node.prior <- NULL
   }
 
-  # the residual prior arrives already resolved - off the family object it
-  # rides, or off the retired flat spelling the caller wrote - and NULL means
-  # neither, so the sigdf/sigquant ladder builds it as it always did
-  if (!is.null(residPrior)) {
-    resid.prior <- residPrior
-  } else {
-    resid.prior <- quote(chisq(sigdf, sigquant))
-    resid.prior[[2L]] <- sigdf
-    resid.prior[[3L]] <- sigquant
-  }
-
   list(
     tree.prior = tree.prior,
-    node.prior = node.prior,
-    resid.prior = resid.prior
+    node.prior = node.prior
   )
 }
 
@@ -635,7 +620,6 @@ buildHostSamplerCall <- function(
   samplerCall$n.samples <- NULL
   samplerCall$tree.prior <- priors$tree.prior
   samplerCall$node.prior <- priors$node.prior
-  samplerCall$resid.prior <- priors$resid.prior
   if (!missing(family)) {
     # the caller's own family object is already stamped on the matched call
     # and carries that family's settings; an override that names the same
@@ -934,19 +918,16 @@ bart <- function(
   # resolved object below is a forwarding detail, and a fit whose call was
   # never written with a family should not print one
   suppliedFamily <- matchedCall$family
-  matchedCall$family <- familySpec
 
-  # The residual scale's prior rides the family object (gaussian(sigma = )),
-  # so it is resolved here rather than built from formals this signature no
-  # longer carries. One precedence rule, dec-B116's: a flat argument the
-  # caller supplied beats the object's slot, so a retired 'resid.prior'
-  # stands over the family's sigma, and so does a retired sigdf/sigquant
-  # pair, which the shorthand ladder below builds from. NULL leaves the
-  # package default (chisq(3, 0.9)) standing exactly where it did.
-  residPrior <- consolidated[["resid.prior"]]
-  if (is.function(residPrior)) {
-    residPrior <- residPrior()
-  }
+  # The residual scale's prior has one home, the family object it rides
+  # (gaussian(sigma = )), so it is resolved here rather than built from
+  # formals this signature no longer carries. The retired flat spellings are
+  # still read - 'resid.prior', and the sigdf/sigquant pair that builds a
+  # chisq - and one written beside a family that named 'sigma' too is
+  # refused unless the two say the same thing. NULL leaves the package
+  # default (chisq(3, 0.9)) standing exactly where it did.
+  residPrior <- consolidatedResidPrior(consolidated)
+  residPriorName <- "resid.prior"
   if (!is.null(residPrior)) {
     refuseColliding(
       matchedCall,
@@ -954,9 +935,16 @@ bart <- function(
       c("sigdf", "sigquant", "sigest"),
       shorthandSupplied
     )
-  } else if (!any(c("sigdf", "sigquant") %in% shorthandSupplied)) {
-    residPrior <- familySetting(familySpec, "sigma", NULL)
+  } else if (any(c("sigdf", "sigquant") %in% shorthandSupplied)) {
+    residPrior <- chisq(sigdf, sigquant)
+    residPriorName <- intersect(c("sigdf", "sigquant"), shorthandSupplied)[1L]
   }
+  residPrior <- reconcileResidPrior(residPrior, residPriorName, familySpec)
+  refuseSigestUnderFixedPrior(residPrior, sigest)
+  # every sampler this door builds reaches the prior through the family
+  # object it forwards, so a retired spelling is stamped onto it here
+  familySpec <- withResidPrior(familySpec, residPrior)
+  matchedCall$family <- familySpec
 
   # A data object carrying an n x K count matrix declares the multinomial
   # (softmax) model, whose fitted quantity is K probabilities per observation
@@ -1289,8 +1277,6 @@ bart <- function(
         levels,
         power,
         base,
-        sigdf,
-        sigquant,
         sigest,
         dart,
         combineChains,
@@ -1332,8 +1318,6 @@ bart <- function(
       y,
       power,
       base,
-      sigdf,
-      sigquant,
       sigest,
       dart,
       combineChains,
@@ -1368,8 +1352,6 @@ bart <- function(
       control,
       power,
       base,
-      sigdf,
-      sigquant,
       dart,
       combineChains,
       prior.scale = prior.scale,
@@ -1403,8 +1385,6 @@ bart <- function(
       control,
       power,
       base,
-      sigdf,
-      sigquant,
       dart,
       combineChains,
       prior.scale = prior.scale,
@@ -1486,14 +1466,11 @@ bart <- function(
     matchedCall,
     power,
     base,
-    sigdf,
-    sigquant,
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
     splitProbs = split.probs,
-    shorthandSupplied = shorthandSupplied,
-    residPrior = residPrior
+    shorthandSupplied = shorthandSupplied
   )
 
   samplerCall <- buildHostSamplerCall(
@@ -1764,8 +1741,6 @@ bart2Multinomial <- function(
   y,
   power,
   base,
-  sigdf,
-  sigquant,
   sigest,
   dart,
   combineChains,
@@ -1782,8 +1757,6 @@ bart2Multinomial <- function(
     matchedCall,
     power,
     base,
-    sigdf,
-    sigquant,
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
@@ -1858,8 +1831,6 @@ bart2MultinomialCounts <- function(
   levels,
   power,
   base,
-  sigdf,
-  sigquant,
   sigest,
   dart,
   combineChains,
@@ -1876,8 +1847,6 @@ bart2MultinomialCounts <- function(
     matchedCall,
     power,
     base,
-    sigdf,
-    sigquant,
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
@@ -2093,8 +2062,6 @@ bart2Ordinal <- function(
   control,
   power,
   base,
-  sigdf,
-  sigquant,
   dart,
   combineChains,
   prior.scale = NA_real_,
@@ -2107,8 +2074,6 @@ bart2Ordinal <- function(
     matchedCall,
     power,
     base,
-    sigdf,
-    sigquant,
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
@@ -2348,8 +2313,6 @@ bart2Negbin <- function(
   control,
   power,
   base,
-  sigdf,
-  sigquant,
   dart,
   combineChains,
   prior.scale = NA_real_,
@@ -2362,8 +2325,6 @@ bart2Negbin <- function(
     matchedCall,
     power,
     base,
-    sigdf,
-    sigquant,
     nodeK = matchedCall[["k"]],
     priorScale = prior.scale,
     dart = dart,
@@ -2714,9 +2675,11 @@ bart2Hurdle <- function(
   positiveCall$formula <- xPositive
   positiveCall$data <- split$logPositive
   positiveCall$test <- formula
-  # the residual prior is live on this half alone, and it rides the family
-  # object, so the component's own family carries it rather than a name this
-  # signature no longer has
+  # the residual prior is live on this half alone, and it has one home, so it
+  # reaches the component on the family object rather than through a retired
+  # spelling restored beside it - which the component would refuse as a
+  # residual prior written twice
+  positiveCall[c("resid.prior", "sigdf", "sigquant")] <- NULL
   positiveCall$family <- if (is.null(residPrior)) {
     "gaussian"
   } else {
@@ -3127,8 +3090,6 @@ bartBT <- function(
     matchedCall,
     power,
     base,
-    sigdf,
-    sigquant,
     nodeK = if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k,
     priorScale = NA_real_,
     splitProbsName = "splitprobs",
@@ -3137,7 +3098,14 @@ bartBT <- function(
   )
   tree.prior <- priors$tree.prior
   node.prior <- priors$node.prior
-  resid.prior <- priors$resid.prior
+  # 0.9-34's sigdf/sigquant name the residual prior, which rides the family
+  # object now; this door resolves no family of its own (a numeric or binary
+  # response is settled inside dbarts()), so the prior is stamped onto the
+  # "auto" family rather than pinning a response type here
+  family <- withResidPrior(
+    newValidated("dbartsFamily", token = "auto"),
+    chisq(sigdf, sigquant)
+  )
 
   # the frozen BayesTree-compatibility shim keeps dummy expansion. Every
   # setting 0.9-34 had no name for is left at dbarts()'s own default rather
@@ -3153,7 +3121,7 @@ bartBT <- function(
     n.samples = as.integer(ndpost),
     tree.prior = tree.prior,
     node.prior = node.prior,
-    resid.prior = resid.prior,
+    family = family,
     control = control,
     sigest = as.numeric(sigest),
     factors = "indicators",

@@ -264,7 +264,7 @@ augAgreement <- function(family, y, coldStart, link) {
     xAug,
     coldStart - augOffset,
     control = augControl(),
-    resid.prior = fixed(1)
+    family = gaussian(sigma = fixed(1))
   )
   host$setCalibration(prior.scale = native$getCalibration()[1L, "prior.scale"])
   fits <- matrix(0, nObs, nDraws)

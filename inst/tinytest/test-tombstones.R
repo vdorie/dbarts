@@ -252,12 +252,28 @@ fitSigmaObject <- dbarts::bart(
 expect_identical(fitSigdf$yhat.train, fitSigmaObject$yhat.train)
 expect_identical(fitSigdf$sigma, fitSigmaObject$sigma)
 
-# precedence, dec-B116's rule: a flat argument the caller supplied wins over
-# the family object's slot, and says so once
-resetConsolidatedWarning("sigdf", "bart")
-resetConsolidatedWarning("sigquant", "bart")
-expect_warning(
-  fitFlatWins <- dbarts::bart(
+# the residual prior written both ways: agreeing spellings are one statement
+# said twice and stand, disagreeing ones are refused naming both
+fitAgreed <- suppressWarnings(dbarts::bart(
+  xCons,
+  yCons,
+  family = gaussian(sigma = chisq(5, 0.75)),
+  sigdf = 5,
+  sigquant = 0.75,
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 313L,
+  keepSampler = TRUE,
+  verbose = FALSE
+))
+expect_equal(fitAgreed$fit$model@resid.prior@df, 5)
+expect_identical(fitAgreed$sigma, fitSigdf$sigma)
+
+expect_error(
+  suppressWarnings(dbarts::bart(
     xCons,
     yCons,
     family = gaussian(sigma = chisq(2, 0.5)),
@@ -269,18 +285,12 @@ expect_warning(
     n.chains = 1L,
     n.threads = 1L,
     seed = 313L,
-    keepSampler = TRUE,
     verbose = FALSE
-  ),
-  pattern = "family = gaussian\\(sigma"
+  )),
+  pattern = "'sigdf' and the family's own 'sigma' set different residual"
 )
-expect_equal(fitFlatWins$fit$model@resid.prior@df, 5)
-expect_equal(fitFlatWins$fit$model@resid.prior@quantile, 0.75)
-expect_identical(fitFlatWins$sigma, fitSigdf$sigma)
-
-resetConsolidatedWarning("resid.prior", "bart")
-expect_warning(
-  fitFlatObjectWins <- dbarts::bart(
+expect_error(
+  suppressWarnings(dbarts::bart(
     xCons,
     yCons,
     family = gaussian(sigma = chisq(2, 0.5)),
@@ -291,12 +301,125 @@ expect_warning(
     n.chains = 1L,
     n.threads = 1L,
     seed = 313L,
-    keepSampler = TRUE,
     verbose = FALSE
+  )),
+  pattern = "'resid.prior' and the family's own 'sigma' set different residual"
+)
+
+# the same retirement on the other three doors: warn once, forward the value,
+# and refuse a disagreement
+consControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 5L,
+  seed = 313L,
+  updateState = FALSE
+)
+resetConsolidatedWarning("resid.prior", "dbarts")
+expect_warning(
+  samplerRetired <- dbarts::dbarts(
+    xCons,
+    yCons,
+    resid.prior = dbarts::dbartsPriors$fixed(2),
+    control = consControl
   ),
   pattern = "family = gaussian\\(sigma"
 )
-expect_equal(fitFlatObjectWins$fit$model@resid.prior@value, 2)
+expect_equal(samplerRetired$model@resid.prior@value, 2)
+expect_silent(
+  samplerRetiredAgain <- dbarts::dbarts(
+    xCons,
+    yCons,
+    resid.prior = dbarts::dbartsPriors$fixed(2),
+    control = consControl
+  )
+)
+expect_equal(samplerRetiredAgain$model@resid.prior@value, 2)
+expect_error(
+  dbarts::dbarts(
+    xCons,
+    yCons,
+    family = gaussian(sigma = fixed(3)),
+    resid.prior = dbarts::dbartsPriors$fixed(2),
+    control = consControl
+  ),
+  pattern = "'resid.prior' and the family's own 'sigma' set different residual"
+)
+# a value that is not a residual prior is refused under the old spelling too
+expect_error(
+  dbarts::dbarts(xCons, yCons, resid.prior = NULL, control = consControl),
+  pattern = "must be a residual prior specification"
+)
+
+resetConsolidatedWarning("resid.prior", "dbartsSpec")
+expect_warning(
+  specRetired <- dbarts::dbartsSpec(
+    dbarts::dbartsData(xCons, yCons),
+    resid.prior = dbarts::dbartsPriors$fixed(2),
+    control = consControl
+  ),
+  pattern = "family = gaussian\\(sigma"
+)
+expect_equal(specRetired$model@resid.prior@value, 2)
+expect_error(
+  dbarts::dbartsSpec(
+    dbarts::dbartsData(xCons, yCons),
+    family = gaussian(sigma = fixed(3)),
+    resid.prior = dbarts::dbartsPriors$fixed(2),
+    control = consControl
+  ),
+  pattern = "'resid.prior' and the family's own 'sigma' set different residual"
+)
+
+resetConsolidatedWarning("resid.prior", "xbart")
+xbartRetiredArgs <- list(
+  xCons,
+  yCons,
+  n.reps = 1L,
+  n.samples = 5L,
+  n.burn = c(5L, 2L),
+  n.trees = 5L,
+  n.threads = 1L,
+  seed = 313L
+)
+expect_warning(
+  lossRetired <- do.call(
+    dbarts::xbart,
+    c(xbartRetiredArgs, list(resid.prior = dbarts::dbartsPriors$fixed(2)))
+  ),
+  pattern = "family = gaussian\\(sigma"
+)
+expect_identical(
+  lossRetired,
+  do.call(
+    dbarts::xbart,
+    c(
+      xbartRetiredArgs,
+      list(
+        family = dbarts::dbartsFamilies$gaussian(
+          sigma = dbarts::dbartsPriors$fixed(2)
+        )
+      )
+    )
+  )
+)
+expect_error(
+  do.call(
+    dbarts::xbart,
+    c(
+      xbartRetiredArgs,
+      list(
+        resid.prior = dbarts::dbartsPriors$fixed(2),
+        family = dbarts::dbartsFamilies$gaussian(
+          sigma = dbarts::dbartsPriors$fixed(3)
+        )
+      )
+    )
+  ),
+  pattern = "'resid.prior' and the family's own 'sigma' set different residual"
+)
+rm(consControl, xbartRetiredArgs)
 
 # an old spelling that names a family the call cannot fit is refused rather
 # than resolved one way in silence

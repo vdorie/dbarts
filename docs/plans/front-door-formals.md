@@ -229,3 +229,39 @@ under a family with no residual scale draws both its retirement warning
 and the gating one. Gates at the tip: tinytest 8701/0; equivalence
 52/52, BCF 15/15, multinomial 11/11 all identical; `R CMD check
 --as-cran` OK; air and doc-freshness clean.
+
+## Landing note, S4, the residual prior's one home (2026-09-14)
+
+LANDED at d89c9405f9cb5417ffa149622f851aea7ab7bb6d, two code commits
+plus this record:
+
+- bd92f90406bfca15e518a583da301eb81b0fb333 Retire resid.prior from dbarts, dbartsSpec and xbart
+- d89c9405f9cb5417ffa149622f851aea7ab7bb6d Move every manual page, vignette and benchmark harness onto the family spelling
+
+Two maintainer rulings (dec-B123). First, one home: `resid.prior`
+leaves [`dbarts`](../../R/dbarts.R), `dbartsSpec` and
+[`xbart`](../../R/xbart.R) as well, into the same one-release tombstone
+`bart`'s carried, so after 1.1-0 the residual prior is reached only
+through the family object. Each door reads the retired spelling off
+[`consolidatedArgsFor`](../../R/tombstones.R) and hands the resolved
+prior to [`resolveSamplerSpec`](../../R/spec.R), which now always sets
+the prior triple's third member itself rather than defaulting it from
+formals. `bart` no longer forwards a `resid.prior` at all: it stamps
+the prior it resolved onto the family object it already forwards
+([`withResidPrior`](../../R/family.R)), and `bartBT`, frozen at
+0.9-34's formals, does the same with an `auto` family, so
+`buildSamplerPriors` sheds `sigdf`/`sigquant` and its third member.
+Second, disagreement is an error: a retired flat spelling beside a
+family whose call named `sigma` is refused where the two disagree,
+naming both and saying which to delete
+([`reconcileResidPrior`](../../R/tombstones.R), modelled on
+`refuseCollidingMixture`; the family's settings record being sparse is
+what makes "the caller named sigma" knowable), and accepted where they
+say the same prior. `sigest` stays a flat argument beside a `chisq`
+prior, whose quantile calibrates against it, and is refused beside
+`fixed(value)`, which the engine reads as the residual scale itself
+([`refuseSigestUnderFixedPrior`](../../R/family.R)); the pre-existing
+refusal of `sigest` beside the retired `resid.prior` on `bart` stays
+for the tombstone's life. Gates at the tip: tinytest 8724/0;
+equivalence 52/52, BCF 15/15, multinomial 11/11 all identical; `R CMD
+check --as-cran` OK; air and doc-freshness clean.

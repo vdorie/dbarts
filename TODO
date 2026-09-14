@@ -303,19 +303,14 @@ items
     tractable weighted latent form. docs/plans/weighted-binary.md.
     decision-gated, scheduled after 1.0-0 (VD 2026-08-28).
 
-front-door formals (decided, VD 2026-09-10; docs/decisions.md dec-B116)
-  pre-release, R plus one bridge read: bart sheds the seven scalars that
-  mirror prior-object slots (power, base, split.probs, prior.scale,
-  sigdf, sigquant) and proposal.probs, which becomes a dbartsControl
-  slot; k and sigest stay; the retired names ride the dots as
-  tombstones expiring at 1.1-0; bart and xbart gain control =
-  dbartsControl() (a supplied flat formal wins; a control carrying fit
-  state is refused); the manual groups bart's arguments. The follow-on
-  landed with the arc: the residual prior rides the family object
-  (gaussian(sigma = chisq(3, 0.9))), and bart's resid.prior, sigdf and
-  sigquant are tombstones. The family-gating inventory stays - sigest,
-  a live formal, is still gated by it. Plan:
-  docs/plans/front-door-formals.md.
+absolute residual prior scale (decided, VD 2026-09-14)
+  post-release, R only: chisq gains an absolute spelling,
+  chisq(df, scale = lambda), which names the prior literally instead of
+  through the sigest its quantile calibrates against, and ignores
+  sigest as fixed() does. Additive - a new argument beside quant, no
+  spelling retired, so no tombstone. The residual prior's one home on
+  the family object is the surface it is added to (docs/decisions.md
+  dec-B123). scheduled after 1.0-0 (VD 2026-09-14).
 
 front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75;
   LANDED 2026-09-09: S1 ecb319aa, S2 44b3fa6d, S3 cb5d4ef2, S4 28431413)

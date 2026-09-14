@@ -419,7 +419,7 @@ runChains <- function(x, y, seed, numBurn, numKept, blockSize, mask) {
     control = ctl,
     tree.prior = cgm(power, base),
     node.prior = normal(kLeaf),
-    resid.prior = fixed(1),
+    family = gaussian(sigma = fixed(1)),
     proposal.probs = proposalProbs
   )
   stopifnot(is.null(sampler$data@offset))

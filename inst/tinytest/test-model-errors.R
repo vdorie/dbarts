@@ -75,15 +75,15 @@ expect_error(
 )
 
 expect_error(
-  dbarts::dbarts(y ~ x, testData, resid.prior = binomial),
-  "'resid.prior' must be a residual prior specification"
+  dbarts::dbarts(y ~ x, testData, family = gaussian(sigma = binomial)),
+  "'sigma' must be a residual prior"
 )
 expect_error(
-  dbarts::dbarts(y ~ x, testData, resid.prior = chisq(0, 0)),
+  dbarts::dbarts(y ~ x, testData, family = gaussian(sigma = chisq(0, 0))),
   "'df' must be positive"
 )
 expect_error(
-  dbarts::dbarts(y ~ x, testData, resid.prior = chisq(1, 0)),
+  dbarts::dbarts(y ~ x, testData, family = gaussian(sigma = chisq(1, 0))),
   "'quantile' must be positive"
 )
 

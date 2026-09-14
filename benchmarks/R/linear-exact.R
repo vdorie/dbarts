@@ -64,7 +64,7 @@ stopifnot(identical(findInterval(x, cuts) + 1L, cell))
 
 yRange <- max(y) - min(y)
 zScaled <- (y - min(y)) / yRange - 0.5
-residVar <- (1 / yRange)^2 # resid.prior = fixed(1)
+residVar <- (1 / yRange)^2 # sigma = fixed(1)
 ridge <- (kLeaf / nodeScale)^2 * residVar
 meanX <- mean(x)
 sdX <- sd(x) # sample sd, matching standardizationMomentsForColumn
@@ -181,7 +181,7 @@ sampler <- dbarts(
   tree.prior = cgm(power, base),
   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
   node.prior = linear(1L, k = kLeaf),
-  resid.prior = fixed(1)
+  family = gaussian(sigma = fixed(1))
 )
 stopifnot(is.null(sampler$data@offset))
 
