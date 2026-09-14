@@ -1,385 +1,351 @@
-# Is chi(1.5, 2) still the right binary k prior?
+# The binary node hyperprior: a default for now
 
-agent: measurement
-rng: neutral (nothing in the package changes; this is a measurement)
-budget: one benchmark script, this note
+This note answers a ruling of 2026-09-13:
 
-## Goal
+> The reason that motivated the hyperprior was that BART had poor coverage
+> on probit models. That could have been poor mixing. Let's extend the
+> study, find as reasonable a default as we can for now, and make sure we
+> revisit it after we pursue our mixing line of inquiry.
 
-The binary end-node prior on k moved from chi(1.25, Inf) to chi(1.5, 2)
-on the strength of a study that held the degrees of freedom at 1.5,
-varied only the scale, and ran four simulated data-generating
-processes (docs/plans/archive/chi-default-research.md, called the July
-study below). The degrees of freedom were never studied, and four
-simulated processes are a narrow base for a default every probit fit
-rides. This note re-opens the question with both parameters varied and
-a much wider case set, and says whether the shipped default should
-move. The harness is benchmarks/R/binary-hyperprior.R; it is checked in
-and nothing in it changes a package default.
+Poor mixing explains almost all of the poor coverage for a sampled k and
+almost none of it for a fixed k. The coverage criterion now has an interior
+optimum, but a shallow one sitting where chi(1.5, 2) already is. The
+earlier real-data result against the hyperprior reverses once that column
+is widened. chi(1.5, 2) should stay.
 
-## The grid
+## What was run
 
-Twenty-three priors. Twenty hyperpriors, chi(df, scale) for df in
-{1, 1.25, 1.5, 2, 3} crossed with scale in {1, 2, 5, Inf}, and three
-fixed values of k, 1, 2 and 3. Fixed k = 2 is what BayesTree used, what
-dbarts still uses for continuous responses, and the value chi(1.5, 2)
-is centered near.
+Twenty-eight priors: chi(df, scale) for df in {1, 1.25, 1.5, 2, 3} crossed
+with scale in {1, 2, 5, Inf}, plus df in {1.5, 3} crossed with scale in
+{0.5, 0.25}, and fixed k in {1, 1.5, 2, 3}. Within a case and a repetition
+every arm sees the same data and the same seed, so a difference between
+arms is a difference in the prior.
 
-A hundred and sixty-eight cases.
+Three chain lengths. Short is one chain of 500 draws after 500 discarded -
+the earlier study's configuration - on 162 simulated cells and 22 real
+datasets. Long is four chains of 2000 after 2000, on 108 simulated cells
+(n in {500, 2000}) and 17 real datasets. Probe is eight chains of 8000
+after 8000, on four simulated cells and a six-arm subset. Every fit records
+held-out log score and Brier, plus split-Rhat and effective sample size for
+the sampled k and for the held-out mean probability; the simulated fits
+also record the coverage and width of the 90 percent posterior interval for
+a held-out row's known true probability. In total 92,160 fits, 65
+core-hours.
 
-- A hundred and sixty-two simulated cells: six processes crossed with
-  n in {100, 500, 2000}, p in {5, 20, 50} and a base rate in
-  {0.05, 0.2, 0.5}, eight repetitions each. The processes are the
-  Friedman surface; a sparse linear one; a smooth additive one at a
-  high signal-to-noise ratio and the same surface at a low one (the
-  "strong" and "weak" pair); a near-separable linear one, scaled so
-  that almost every true probability sits within a hundredth of zero
-  or one; and one built from two-way interactions with no main effects
-  worth speaking of. Past the fifth column every predictor is noise, so
-  p = 20 and p = 50 are mostly noise. The base rate is set by an
-  intercept solved once on a large fixed pool, so a process is a fixed
-  truth rather than something that moves with the training draw. Each
-  repetition draws its own training set and its own thousand held-out
-  rows, and the true probability of every held-out row is known.
-- Six real datasets, scored by sixty repeated eighty-twenty splits:
-  Pima (532 rows, 7 predictors, 33 percent positive), biopsy (683, 9,
-  35), infert (248, 5, 33), kyphosis (81, 3, 21), pbc dichotomised at
-  death (276, 16, 40) and birthwt (189, 8, 31). Two of them carry
-  factor predictors. There is no ground truth here, so only the two
-  outcome-based scores are available.
+## Mixing against prior
 
-Within a case and a repetition every arm sees the same data and starts
-from the same seed, so the arms are paired and a difference between
-them is a difference in the prior. Each fit uses the package defaults
-except the chain count: seventy-five trees, five hundred draws kept
-after five hundred discarded, one chain, one thread. That is 38,088
-fits at about 0.42 seconds each, and the prior buys none of that time:
-0.416 seconds a fit at scale 2 against 0.427 at scale 1. That length
-is not enough at n = 2000, which matters for two of the findings
-below; "The chains are too short at n = 2000" says which and by how
-much.
+Take the coverage shortfall of an arm at the short length, 0.90 minus what
+it covers, and ask how much of it a longer chain recovers. Over the 540
+paired simulated fits per arm:
 
-The scores, all on held-out rows: log score and Brier against the
-held-out outcome everywhere; on the simulated cells, additionally the
-coverage and mean width of the 90 percent posterior interval for the
-true probability, and the root mean squared error of the posterior mean
-probability. Standard errors below are over the 1,296 simulated
-(cell, repetition) pairs or the 360 real (dataset, split) pairs. The
-paired standard error is the one to read: the unpaired one is dominated
-by how far apart the cases are from each other, which no prior affects.
-
-## What the scores say
-
-Each row is one score family. "Best" is the arm with the lowest
-average; the last column is that arm's paired difference from the
-incumbent, which is what says whether the gap is real. Interval
-coverage is scored as the distance from the nominal 0.90, so that
-over-coverage is not free, with the incumbent's mean width alongside
-for what the distance costs.
-
-| score | best arm | best (SE) | chi(1.5, 2) (SE) | paired difference (SE) |
+| arm | short | long | shortfall closed | long coverage |
 |---|---|---|---|---|
-| simulated log score | chi(3, 1) | 0.3020 (0.0047) | 0.3027 (0.0047) | -0.00068 (0.00028) |
-| simulated Brier | chi(3, 1) | 0.09521 (0.00172) | 0.09542 (0.00172) | -0.00021 (0.00008) |
-| simulated probability RMSE | chi(3, 2) | 0.1199 (0.0018) | 0.1203 (0.0017) | -0.00036 (0.00022) |
-| simulated coverage, distance from 0.90 | chi(1.25, 1) | 0.1362 (0.0042) | 0.1533 (0.0047) | -0.0170 (0.0026) |
-| simulated interval width, same two arms | chi(1.25, 1) | 0.3433 (0.0058) | 0.3276 (0.0054) | +0.0157 (0.0011) |
-| real log score | k = 2 | 0.4290 (0.0095) | 0.4325 (0.0095) | -0.00358 (0.00068) |
-| real Brier | k = 2 | 0.1406 (0.0034) | 0.1416 (0.0034) | -0.00106 (0.00021) |
+| chi(1, 1) | 0.828 | 0.930 | 141% | over-covers by 0.030 |
+| chi(1.5, 2) | 0.827 | 0.924 | 132% | over-covers by 0.024 |
+| chi(1.5, 0.25) | 0.812 | 0.902 | 102% | over-covers by 0.002 |
+| k = 1 | 0.792 | 0.855 | 58% | short by 0.045 |
+| k = 1.5 | 0.747 | 0.778 | 20% | short by 0.122 |
+| k = 2 | 0.679 | 0.700 | 9% | short by 0.200 |
+| k = 3 | 0.564 | 0.574 | 3% | short by 0.326 |
 
-Read down the first three rows first: on everything that scores a point
-prediction, the fifteen finite-scale hyperprior arms are one
-undifferentiated block. The best of them beats chi(1.5, 2) by two and a
-half standard errors on log score and by a quantity - seven
-ten-thousandths of a nat - that no user would notice, and the ordering
-within the block changes from score to score. What separates cleanly is
-everything outside that block. Every improper-scale arm is worse than
-the incumbent on log score - by 0.0028 at df = 3, and by 0.00045 at
-df = 1.25, which is 1.4 standard errors - and worse on
-coverage distance at every df, by three and a half standard errors at
-df = 1 and by more above it. Fixed k costs 0.0036 in log score at
-k = 2, 0.0047 at k = 1 and 0.0125 at k = 3, each many standard
-errors.
+That is the hypothesis, confirmed for the hyperprior and refuted for a
+fixed k. Every hyperprior arm's shortfall is a chain-length artefact - the
+long chains do not merely close it, they overshoot into mild over-coverage.
+The fixed arms keep essentially all of theirs.
 
-The fixed-k penalty is largest at small samples. Against chi(1.5, 2),
-fixed k = 2 is worse by 0.0102 in log score at n = 100 (SE 0.00093)
-and by 0.0033 at n = 500, and better by 0.0027 at n = 2000
-(SE 0.00038). That last reversal does not survive a longer chain. Run
-to convergence, fixed k = 2 is behind the hyperprior at n = 2000 as
-well; see "The chains are too short at n = 2000" below. Read the
-n = 2000 column as unsettled and the other two as reported.
+Going further does little. On the three cells run at all three lengths,
+chi(1.5, 2) covers 0.792 short, 0.880 long and 0.892 at the probe: 81
+percent of the shortfall closes by the long length and another 11 percent
+at the probe, a move of 0.012 with a standard error of 0.006, leaving 0.008
+outstanding. chi(1.5, 0.5) moves 0.807 to 0.890 to 0.891 and chi(1.25, 1)
+0.814 to 0.888 to 0.890, one and two percent of the shortfall between long
+and probe. Fixed k = 2 goes 0.719 to 0.754 to 0.761 and still sits 0.139
+short. The hyperprior's coverage has settled by the long length.
 
-The real datasets are the most uncomfortable result here. Fixed k = 2
-is the best arm on both outcome scores, better than chi(1.5, 2) on all
-six datasets and by more than two standard errors on three of them
-(infert, kyphosis, pbc), at a cost of about four thousandths of a nat,
-under one percent of the score.
+The fourth probe cell is the clearest case. In the near-separable cell at
+n = 100 with 50 predictors, chi(1.5, 2) covers 0.401 short and 0.956 at the
+probe. Fixed k = 2 covers 0.156 at both: a hundred and twenty-eight times
+the draws moves it by nothing.
 
-That cost is not a level error, and no change of scale would remove
-it. Under chi(1.5, 2) the average sampled k runs from 1.08 on biopsy
-to 2.85 on birthwt, and the size of the loss does not track it: infert
-samples 2.69 and kyphosis 1.90 and both lose heavily, while birthwt
-samples 2.85 and loses least. Across the fifteen finite-scale arms the
-real log score gets worse as the average sampled k rises, not better
-(correlation 0.74), which is the opposite of the arms shrinking too
-little. The direct test settles it: hold k fixed, per dataset, at the
-average the hyperprior itself sampled there, and that beats
-chi(1.5, 2) by 0.0039 (SE 0.00061) - slightly more than fixed k = 2
-does. What these six datasets charge for is letting k move within a
-fit at all, not where the prior puts it.
+No fixed k reaches nominal coverage at any length. The best at the long
+length is k = 1 at 0.855, and its average hides the shape: 0.95 to 0.96 on
+the Friedman, linear and weak-signal processes, 0.79 on the strong-signal
+one, 0.550 on the near-separable one. Fixed k = 2 reaches 0.90 in 37
+percent of the 108 cells against the incumbent's 78 percent.
 
-Coverage is where the arms genuinely differ. The interval scored is
-the 90 percent posterior interval for the true probability at a
-held-out row, against that row's true probability, so this is
-calibration against the data-generating truth and not against a drawn
-outcome. Against a nominal 0.90, chi(1.5, 2) averages 0.80, fixed
-k = 2 averages 0.66 and fixed k = 3 averages 0.54. The figure is not
-spread evenly over the processes: for chi(1.5, 2) it is 0.97 in the
-weak-signal cells and 0.92 in the linear ones, against 0.72 in the
-strong-signal cells and 0.54 in the near-separable ones, where the
-best-covering arm reaches 0.57.
+The sampled k itself, matched on cells and arms:
 
-How much of the shortfall belongs to the prior and how much to the
-chain length is answered below, and the answer is that most of the
-level is chain length: run long enough, chi(1.5, 2) covers at about
-nominal and the fixed arms still do not. What this column supports is
-the comparison between arms. The level it reports is too low.
+| length | draws per fit | k split-Rhat | k ESS | fits with k Rhat over 1.05 | probability Rhat | probability ESS |
+|---|---|---|---|---|---|---|
+| short | 500 | 1.25 | 6 | 69% | 1.034 | 52 |
+| long | 8,000 | 1.34 | 12 | 100% | 1.026 | 247 |
+| probe | 64,000 | 1.20 | 29 | 98% | 1.016 | 586 |
 
-One more fact governs how to read the coverage column. Rank the twenty
-hyperprior arms by mean coverage and by mean width and the two
-orderings agree almost exactly (rank correlation 0.99). Within the
-hyperprior family, covering better is being wider, and there is no
-interior optimum: the grid's widest prior is its best-covering prior,
-and a grid extended to smaller scales would keep going. The fixed arms
-are what break that relation and are therefore the argument for a
-hyperprior at all: fixed k = 1 has wider intervals than chi(1.25, 1)
-(0.368 against 0.343) and worse coverage (0.793 against 0.822),
-because it is wide everywhere instead of wide where the data ask.
+The sampled k does not converge at any length this study can pay for. A
+hundred and twenty-eight-fold increase in draws buys a five-fold increase
+in its effective sample size and no convergence; its split-Rhat sits
+between 1.2 and 1.4 throughout, and the best single fit at the probe
+reached 129. The held-out probability is close to converged at the long
+length and fully so at the probe.
 
-## Where each prior is worst
+Coverage depends on the second and not the first. Across fits it correlates
+with k's effective sample size at 0.22, but that is a correlation between
+cells rather than within them: remove each cell's mean and it is -0.01 over
+540 fits. Cells in which k mixes well are cells that are easy. The coverage
+story is about the forest, which the long length fixes, not about k, which
+no length fixes.
 
-Worst-cell regret: average each arm over a cell's repetitions, subtract
-the best arm's average in that cell, and report the largest shortfall
-any of the 168 cases imposes. This is the robustness column, and it is
-the one the July study decided on.
+## Scale below 1
 
-| prior | mean regret | worst regret | worst case |
-|---|---|---|---|
-| chi(3, 1) | 0.0047 | 0.0165 | weak, n = 100, p = 5, rate 0.5 |
-| chi(1.25, 2) | 0.0054 | 0.0193 | weak, n = 100, p = 5, rate 0.05 |
-| chi(1, 5) | 0.0055 | 0.0198 | strong, n = 100, p = 5, rate 0.2 |
-| chi(1, 2) | 0.0052 | 0.0200 | interaction, n = 2000, p = 50, rate 0.5 |
-| chi(1.5, 2) | 0.0054 | 0.0214 | separable, n = 100, p = 50, rate 0.2 |
-| chi(2, 2) | 0.0051 | 0.0217 | separable, n = 100, p = 50, rate 0.2 |
-| chi(1.5, 1) | 0.0050 | 0.0229 | weak, n = 100, p = 5, rate 0.5 |
-| chi(1.25, 5) | 0.0053 | 0.0251 | strong, n = 100, p = 5, rate 0.2 |
-| chi(3, 2) | 0.0055 | 0.0274 | separable, n = 100, p = 50, rate 0.2 |
-| chi(2, 5) | 0.0057 | 0.0277 | interaction, n = 100, p = 20, rate 0.5 |
-| chi(1.5, 5) | 0.0057 | 0.0322 | friedman, n = 100, p = 50, rate 0.5 |
-| chi(1, Inf) | 0.0061 | 0.0337 | friedman, n = 100, p = 50, rate 0.5 |
-| chi(2, 1) | 0.0053 | 0.0352 | weak, n = 100, p = 5, rate 0.05 |
-| chi(1, 1) | 0.0061 | 0.0352 | weak, n = 100, p = 5, rate 0.05 |
-| chi(1.25, 1) | 0.0054 | 0.0352 | weak, n = 100, p = 5, rate 0.05 |
-| chi(3, 5) | 0.0068 | 0.0453 | friedman, n = 100, p = 20, rate 0.5 |
-| chi(1.25, Inf) | 0.0059 | 0.0466 | friedman, n = 100, p = 50, rate 0.5 |
-| chi(1.5, Inf) | 0.0064 | 0.0499 | friedman, n = 100, p = 50, rate 0.5 |
-| k = 1 | 0.0102 | 0.0665 | weak, n = 100, p = 5, rate 0.5 |
-| k = 2 | 0.0087 | 0.0718 | separable, n = 100, p = 50, rate 0.5 |
-| chi(3, Inf) | 0.0083 | 0.0728 | friedman, n = 100, p = 50, rate 0.5 |
-| chi(2, Inf) | 0.0070 | 0.0941 | friedman, n = 100, p = 50, rate 0.5 |
-| k = 3 | 0.0174 | 0.1341 | separable, n = 100, p = 50, rate 0.5 |
+The earlier study reported that within the hyperprior family covering
+better was simply being wider - the rank correlation between mean width and
+mean coverage across arms was 0.99 - so the coverage criterion named no
+interior optimum and would have sent the default off the bottom of the
+grid. On converged chains that relation breaks: the same rank correlation
+is 0.53 over the 24 hyperprior arms and 0.26 over the 20 finite-scale ones.
 
-The column separates three groups and not more. Every finite-scale
-hyperprior's worst case costs under 0.036; every improper-scale arm
-except df = 1 costs more than that, up to 0.094; every fixed k costs
-0.066 or more, up to 0.134. The ordering inside the finite-scale group
-should not be read: it is a maximum over 168 cases at eight
-repetitions, the noisiest statistic in this note, and the arms it puts
-first and last are indistinguishable everywhere else.
+| arm | prior median k | sampled k | coverage | coverage distance | distance vs incumbent (SE) | log score vs incumbent (SE) | width |
+|---|---|---|---|---|---|---|---|
+| chi(1.5, 0.25) | 0.24 | 0.79 | 0.902 | 0.0829 | -0.0026 (0.0036) | +0.0052 (0.0004) | 0.323 |
+| chi(1.5, 0.5) | 0.48 | 1.07 | 0.926 | 0.0803 | -0.0052 (0.0022) | +0.0016 (0.0002) | 0.301 |
+| chi(1.5, 1) | 0.95 | 1.30 | 0.928 | 0.0815 | -0.0040 (0.0018) | +0.0005 (0.0001) | 0.287 |
+| chi(1.5, 2) | 1.91 | 1.48 | 0.924 | 0.0855 | 0 | 0 | 0.279 |
+| chi(1.5, 5) | 4.77 | 1.61 | 0.926 | 0.0836 | -0.0019 (0.0016) | -0.0002 (0.0001) | 0.275 |
+| chi(3, 0.25) | 0.38 | 0.82 | 0.907 | 0.0819 | -0.0036 (0.0033) | +0.0049 (0.0003) | 0.321 |
+| chi(3, 0.5) | 0.77 | 1.11 | 0.926 | 0.0820 | -0.0035 (0.0018) | +0.0013 (0.0002) | 0.299 |
+| chi(3, 1) | 1.54 | 1.37 | 0.924 | 0.0855 | -0.0001 (0.0019) | +0.0000 (0.0001) | 0.284 |
 
-Two other things the column shows. Every worst case but one is at
-n = 100 - which is what makes the small-sample finding above most of
-the robustness story - and they cluster in the near-separable,
-weak-signal and high-noise-predictor corners. And the worst cases of
-fixed k = 2 and k = 3 are both the near-separable cell, where forcing
-a large k over-shrinks a signal that is nearly deterministic. That is
-the same failure the July study reported at the same kind of cell.
+Coverage distance is the average over fits of the absolute gap from 0.90.
+So there is an interior optimum, at scale 0.5 to 1. Below it the arms get
+wider and cover worse: chi(1.5, 0.5) has intervals 0.021 narrower than
+chi(1.5, 0.25) (17.8 standard errors) and covers 0.023 more (7.3 standard
+errors). The wider-is-better-covering relation inverts.
 
-## What the degrees of freedom do
+Four things keep that optimum from deciding anything. It is shallow: the
+best improvement anywhere on the grid is 0.0052 of coverage distance on a
+base of 0.0855, half a point of coverage on a nominal 90. It is not
+resolved at its own bottom - chi(1.5, 0.5) against chi(1.5, 0.25) is 0.9
+standard errors. It moves with sample size: at n = 500 scale 0.25 is no
+better than the incumbent (+0.0017, SE 0.0055) and at n = 2000 it is the
+best arm on the ladder (-0.0092, SE 0.0036). And it is paid for elsewhere:
+chi(1.5, 0.5) costs 0.0016 nats of log score (8.4 standard errors) and
+doubles the worst-cell log-score regret from 0.0082 to 0.0156, while
+chi(1.5, 0.25) costs 0.0052 nats and quadruples it to 0.0354, worse than
+fixed k = 2 manages.
 
-At a finite scale, the degrees of freedom and the scale are close to
-redundant. Both move the same quantity, the prior median of k, which is
-the scale times the square root of the median of a chi-squared on df
-degrees of freedom: 0.67 at df = 1, 0.82 at 1.25, 0.95 at 1.5, 1.18 at
-2 and 1.54 at 3. The fit responds to the product and not to the two
-separately. Holding scale at 2 and raising df from 1 to 3 raises the
-average sampled k from 1.50 to 1.70, narrows the average interval from
-0.332 to 0.320 and lowers coverage from 0.809 to 0.784, while log score
-moves by 0.0003 and Brier by 0.00007, neither of them a standard error.
-chi(3, 2) and chi(1.5, 5) have nearly the same sampled k (1.70 and
-1.78), the same coverage to within a point, the same width to within
-about one percent and identical log scores, and they differ in both
-parameters. No df in the grid is distinguishable from 1.5 on any
-point-prediction score at any scale.
+Log score has no interior optimum below scale 1 at all: it is flat, 0.2724
+to 0.2731, for every arm whose sampled median k stays above about 1.27, and
+degrades steadily below - 0.2738 and 0.2742 at a sampled k near 1.1, 0.2774
+and 0.2777 near 0.8. Signed coverage at scale 0.25 does land on nominal,
+0.9020 against the incumbent's 0.9236, but that is an average of more
+over-coverage and more under-coverage rather than better calibration:
+15.6 percent of its fits cover below 0.80, against 12.4 percent for the
+incumbent.
 
-What df does on its own is set how much prior mass sits near zero. A
-chi with one degree of freedom has its mode at zero and lets k go small
-when the data ask; at df = 3 the mode is well away from zero and k
-cannot. That shows up where small k is right: in the near-separable
-cells at n = 100, chi(1.5, 1) samples a median k of 0.92 and chi(3, 2)
-of 1.27, and the low-df arms cover those cells better. It is a real
-effect and a small one, worth a percent or two of coverage at a
-comparable cost in width.
+One structural fact underlies all of this: a thirty-two-fold range of prior
+medians, 0.24 to 7.7, produces only a 2.2-fold range in the median k the
+sampler draws, 0.79 to 1.73. The data dominate the prior over the whole
+grid, which is why every finite-scale arm scores the same.
 
-At the improper scale df is the entire prior, and there it matters a
-great deal. The average sampled k is 5.3 at df = 1, 9.9 at 1.5, 65 at
-2 and 305 at 3, with df = 1.25 out of order at 25 because a handful of
-runaway chains dominate the average and the ordering among runaways is
-noise. Worst-case log-score regret is 0.034 at df = 1 and between
-0.047 and 0.094 at every df above it; the ordering among those four is
-noise, the step up from df = 1 is not. The 1e6 cap that the manual
-calls a backstop that only engages at the improper scale did engage:
-three of the 38,088 fits hit it, all of them chi(3, Inf), all in
-weak-signal cells. The manual's description is exactly right and the
-cap is not decorative.
+## Real data, twenty-two datasets
 
-So the degrees of freedom are a fine adjustment of the same thing the
-scale sets, with no value in the grid separable from another on
-predictive accuracy, plus a genuine but second-order effect on how far
-down k can go; and at an improper scale they are what decides how badly
-k runs away, larger being worse. Neither finding argues for moving off
-1.5.
+The earlier study's uncomfortable result was that its six real datasets
+preferred k held fixed, at about four thousandths of a nat, and it named
+this the live question. Sixteen UCI datasets answer it. Held-out log score,
+fixed arm minus chi(1.5, 2), so positive is the fixed arm losing:
 
-## The chains are too short at n = 2000
+| arm | 22 datasets, short (SE) | 17 datasets, long (SE) |
+|---|---|---|
+| k = 1 | +0.0085 (0.0008) | +0.0132 (0.0009) |
+| k = 1.5 | +0.0098 (0.0011) | +0.0164 (0.0014) |
+| k = 2 | +0.0145 (0.0014) | +0.0226 (0.0019) |
+| k = 3 | +0.0268 (0.0022) | +0.0382 (0.0029) |
 
-Every fit in the tables above is one chain of five hundred draws after
-five hundred discarded. That is enough at n = 100 and it is not enough
-at n = 2000. Nine cells were refit at four chains of two thousand
-draws after two thousand discarded, on the same data and the same
-seeds: the weak-signal cell at n = 100, the interaction cell at
-n = 2000, the near-separable cell at n = 100 with p = 50, and all six
-processes at n = 2000 with p = 20 and a base rate of 0.2.
+Brier agrees throughout; fixed k = 2 loses by 0.0039 (SE 0.0004) short and
+0.0059 (SE 0.0005) long. By source:
 
-- At n = 2000 the short configuration under-covers and the long one
-  does not. Averaged over the six processes, chi(1.5, 2) covers 0.80
-  short and 0.92 long, and its intervals widen by eleven percent. The
-  near-separable cell moves most, 0.57 to 0.93. Fixed k = 2 barely
-  moves, 0.72 to 0.76: its intervals are narrow for a prior reason,
-  not a mixing one.
-- The n = 2000 reversal in the first table goes with it. Over those
-  same cells fixed k = 2 beats chi(1.5, 2) by 0.0040 in log score
-  (SE 0.0020) at five hundred draws and loses to it by 0.0008
-  (SE 0.0009) at two thousand. The sign of that comparison is a
-  property of the chain length, not of the prior.
-- At n = 100 nothing moves. In the weak-signal cell the three arms'
-  log scores shift by under 0.003 and their coverage by under 0.005,
-  and the ordering is unchanged. In the near-separable cell at p = 50
-  the ordering also holds, but the coverage level does not: 0.37 to
-  0.63 for chi(1.5, 2), 0.54 to 0.80 for chi(1.25, 1), 0.150 to 0.151
-  for fixed k = 2.
-- The sampled k is not converged even in the long runs. Its split-Rhat
-  over four chains of two thousand draws averages 1.04 for chi(1.5, 2)
-  in the weak-signal cell at n = 100, 1.34 in the interaction cell at
-  n = 2000 and 1.47 in the near-separable cell at n = 100 with p = 50,
-  and runs higher for chi(1.25, 1). No sampled k in this note is a
-  posterior summary. They are comparable across arms because every arm
-  ran the same way, and that is the only weight they carry.
+| group | k = 2 against the incumbent, short | long |
+|---|---|---|
+| the six R datasets | -0.0044 (0.0009) | -0.0027 (0.0007) |
+| the sixteen UCI datasets | +0.0216 (0.0019) | +0.0364 (0.0027, eleven) |
 
-What this costs the note: the coverage level everywhere, the sampled-k
-figures as posterior quantities, and the n = 2000 column. What it does
-not cost: the comparison between arms at n = 100 and n = 500, which is
-two thirds of the case set and all of the worst-case regret; the real
-datasets, none of which exceeds 683 rows; and the gap between the
-fixed arms and the hyperprior on coverage, which the long runs widen
-rather than close. The whole grid was not rerun this way because the
-long configuration is sixteen times the iterations, which turns ninety
-minutes into about a day.
+The earlier result reproduces exactly on its own six datasets and reverses,
+five-fold, on the wider set. Longer chains sharpen it, because the
+hyperprior arms gain more from length on real data than the fixed arms do.
 
-## Recommendation
+What distinguishes the datasets is not size - the correlation between a
+dataset's difference and its log training size is 0.00, and the three
+largest datasets show differences under 0.001 - and not factors: ten of
+the 22 carry factor predictors and their median difference is -0.0004
+against +0.0031 for the twelve all-numeric ones. It is separability. Split
+the 22 by the median k the incumbent samples: on the ten where it falls
+below 1.2 - the well-separated datasets, mean held-out log score 0.15 -
+fixed k = 2 loses by 0.034 on average; on the twelve where it exceeds 1.2,
+mean log score 0.44, it wins by 0.0018. That is the failure the simulated grid
+reports in its near-separable cells - forcing k to 2 over-shrinks a surface
+that is nearly deterministic.
 
-Keep chi(1.5, 2). The evidence that decides it is the shape of the
-first table rather than any single number in it: across a case set
-three and a half times the size of the one that set the default, and
-with the degrees of freedom varied for the first time, every
-finite-scale hyperprior scores the same on everything that scores a
-point prediction, the incumbent included, and the only score that
-separates them - interval coverage - separates them monotonically in
-interval width, so it names no interior optimum and would send the
-default to the smallest scale on the grid - which buys 1.7 points of
-coverage distance for five percent wider intervals - and then off it.
-A default cannot be chosen on a criterion with no stopping point, and
-the other score that separates anything does not name a scale either:
-what the six real datasets prefer is k held fixed rather than k
-sampled, wherever the prior centres it, at a cost of four thousandths
-of a nat. Nothing in the grid, then, names a better finite scale than
-the one already shipped, and chi(1.5, 2) keeps the property that made
-it defensible in the first place: its prior median of 1.9 is the
-field's k = 2, sampled. What the wider
-evidence does settle, and settles more firmly than the July study
-could, is the two negatives: the improper scale is worse than the
-finite ones at every df - decisively on coverage and on worst-case
-regret, and on log score too once df reaches 1.5 - and no fixed k is
-tolerable across the size range, since fixed k = 2 pays 0.010 in log
-score at n = 100 and 0.09 to 0.17 in coverage distance at every size.
-The hyperprior earns its place; which finite scale and which df it
-uses does not matter nearly as much as the default's history
-suggests.
+The pooled figure is not a typical dataset. On a per-dataset median the
+split is eleven to eleven and the median difference is +0.0004; what
+decides is the asymmetry of the tails. The hyperprior's worst dataset costs
+it 0.0091 against fixed k = 2 (kyphosis), while fixed k = 2's worst costs
+it 0.184 (tic-tac-toe), 0.079 (sonar), 0.051 (ionosphere) and 0.033
+(banknote) at the long length. That twenty-fold asymmetry is the argument,
+and it is the worst-case argument that set the default originally.
 
-Three things would change this verdict, and nothing smaller should.
-One, a finite-scale arm that beat the incumbent by enough for a user
-to notice - a hundredth of a nat in log score, say, more than ten
-times the largest gap any finite-scale arm shows against the incumbent
-here - on a case set at least this size. Two, the real-data result
-holding up over a few dozen datasets: if letting k move really does
-cost four thousandths of a nat on real problems and buys nothing back,
-the change that argues for is
-dropping the hyperprior for a fixed k, not retuning the scale, and
-that is the live question this note leaves open. Three, an interior
-optimum in coverage, which would need a grid extended below scale 1
-and chains long enough for the coverage level to mean anything;
-neither condition is met here.
+## The default for now
 
-## What this cannot settle
+The decision rule, stated before it is applied. Move the shipped default
+only if some arm improves the criterion that motivated the hyperprior -
+coverage of the 90 percent interval, on converged chains - by an amount a
+user would see in a reported coverage figure, which is two points, or 0.02
+in mean coverage distance; and only if it does not lose noticeably on
+anything else, taking a hundredth of a nat as noticeable on log score,
+simulated or real, and a doubling as noticeable on worst-cell regret. If
+nothing clears the coverage bar, keep chi(1.5, 2): a default with a history
+should not move for a difference the next study would not reproduce.
 
-- Absolute coverage. The levels reported above are depressed by the
-  chain length, by a lot at n = 2000 and by some at n = 100, and the
-  refits that establish that cover nine cells rather than the grid.
-  Some residue survives mixing - the near-separable cell at n = 100
-  reaches only 0.63 in the long runs, and the strong-signal cells at
-  n = 2000 only 0.72 - and whether that is the leaf prior, the number
-  of trees, the probit link or the forest itself is not separated
-  here.
-- Whether letting k move costs anything on real data. Six datasets and
-  one dichotomised survival outcome, with no ground truth and only
-  outcome-based scores, is enough to notice the pattern and not enough
-  to act on. It is the one result that would change the
-  recommendation if it held up over a few dozen datasets, and the
-  change it would argue for is a fixed k, not a different scale.
-- The ordering among finite-scale arms, on any score. Eight
-  repetitions resolve the block-to-block differences reported above
-  and do not resolve the within-block ones; more repetitions would
-  narrow the paired standard errors but the differences they would
-  resolve are already smaller than a user could act on.
-- Anything off the fitted configuration: seventy-five trees, package
-  defaults otherwise. The tree count in particular interacts with k by
-  construction, and this note holds it fixed.
-- The logistic and weighted binary paths. Only the probit family was
-  fitted.
+| arm | coverage | distance vs incumbent (SE) | simulated log score (SE) | worst-cell regret | real log score, 22 (SE) |
+|---|---|---|---|---|---|
+| chi(1.5, 2) | 0.924 | 0 | 0 | 0.0082 | 0 |
+| chi(1.5, 5) | 0.925 | -0.0019 (0.0016) | -0.0002 (0.0001) | 0.0071 | +0.0004 (0.0004) |
+| chi(1.5, 1) | 0.928 | -0.0040 (0.0018) | +0.0005 (0.0001) | 0.0093 | -0.0003 (0.0005) |
+| chi(1, 1) | 0.930 | -0.0052 (0.0020) | +0.0005 (0.0001) | 0.0127 | +0.0003 (0.0005) |
+| chi(1.5, 0.5) | 0.925 | -0.0052 (0.0022) | +0.0016 (0.0002) | 0.0156 | +0.0021 (0.0006) |
+| chi(1.5, 0.25) | 0.902 | -0.0026 (0.0036) | +0.0052 (0.0004) | 0.0354 | +0.0068 (0.0009) |
+| k = 1 | 0.855 | +0.0418 (0.0049) | +0.0041 (0.0004) | 0.0390 | +0.0085 (0.0008) |
+| k = 2 | 0.700 | +0.1666 (0.0096) | +0.0054 (0.0004) | 0.0448 | +0.0145 (0.0014) |
+
+Nothing clears the bar. The largest coverage improvement available anywhere
+in the grid is 0.0052, a quarter of the threshold, and the two arms that
+offer it both pay for it - chi(1, 1) with a 55 percent rise in worst-cell
+regret, chi(1.5, 0.5) with a doubling of it plus 0.0021 nats on real data.
+Keep chi(1.5, 2).
+
+What has changed is the reason. The earlier note kept the incumbent because
+the coverage criterion had no stopping point; this study finds the stopping
+point, and it is where the incumbent already sits, to within half a point
+of coverage. The grid is flat on every point-prediction score for a prior
+median between about 0.8 and 7.7 and degrades below that, and
+chi(1.5, 2)'s prior median of 1.91 is comfortably inside. Both earlier
+negatives survive and one strengthens: the improper scale is worse at every
+degree of freedom, by 0.012 to 0.026 of coverage distance at df 1.5 and
+above, and no fixed k is tolerable, now on real data as well as simulated.
+
+## What to revisit after the mixing work
+
+Three results, and only three, rest on the sampled k's non-convergence.
+First, every sampled-k number quoted here is a chain-length-dependent
+summary rather than a posterior one; they are comparable across arms
+because every arm ran identically, and that is all the weight they carry.
+The appendix's per-dataset k medians in particular are labels for
+separability, not estimates. Second, the residual 0.008 of coverage
+shortfall the hyperprior still shows at the probe, and the process-level
+residues behind it - chi(1.5, 2) reaches only 0.873 on the strong-signal
+cells and 0.862 on the near-separable ones at the long length - could be
+the sampler or the model. Third, and most important for the default, the
+interior optimum is located by coverage-distance differences of 0.002 to
+0.005 between adjacent scales, the same order as the 0.012 the incumbent's
+own coverage still moved between the long length and the probe. The
+optimum's location is not resolved to better than about a factor of two in
+scale.
+
+To reopen the default, a mixing fix would have to take the sampled k to a
+split-Rhat below 1.05 with an effective sample size in the hundreds at a
+length a user would actually run - against the probe's 64,000 draws per fit
+reaching 29 - and then, at that length, produce either a spread in coverage
+distance across the finite-scale arms larger than 0.02 or an optimum
+somewhere other than scale 0.5 to 2. If the spread stays at half a point of
+coverage, no mixing fix reopens the question; it only makes this verdict
+better founded. The fixed-k results, the largest effects in this note,
+involve no sampled k at all.
+
+## What this study cannot settle
+
+- Whether the coverage residue in the strong-signal and near-separable
+  cells is the leaf prior, the tree count, the probit link or the forest.
+  It survives a 128-fold increase in draws, so it is not mixing, and
+  nothing here separates the rest.
+- Coverage at n = 100 on converged chains. The long leg drops that size and
+  only one n = 100 cell appears in the probe.
+- The sampled k as a posterior quantity, at any length.
+- Large real datasets at length. Five of the 22 exceed 2,000 rows and have
+  only the short leg, and every dataset over 5,000 rows is subsampled to
+  4,000 training rows per split.
+- The ordering among finite-scale arms on any score: within noise
+  everywhere, and it changes from score to score.
+- Anything off the fitted configuration of 75 trees and package defaults.
+  The tree count interacts with k by construction.
+- The logistic and weighted binary paths. Only probit was fitted.
 
 ## Re-running
 
     Rscript benchmarks/R/binary-hyperprior.R blocks
     Rscript benchmarks/R/binary-hyperprior.R sim:friedman:500 <outdir>
-    Rscript benchmarks/R/binary-hyperprior.R real:biopsy <outdir>
+    Rscript benchmarks/R/binary-hyperprior.R sim:strong:2000:20:0.2 <outdir>
+    Rscript benchmarks/R/binary-hyperprior.R real:sonar <outdir>
     Rscript benchmarks/R/binary-hyperprior.R summarize <outdir>
+    Rscript benchmarks/R/binary-hyperprior.R compare <shortdir> <longdir>
 
-One block is one invocation and writes one rds, so the grid splits
-across a session; `all` runs every block in sequence. The full run
-above is twenty-four blocks and about ninety minutes on four cores. The
-tables in this note are the `summarize` output, rounded.
+One block is one invocation and writes one rds, so a run splits across a
+session and a restart costs only the interrupted block. Appending a
+predictor count or a base rate narrows a simulated block, which is how the
+long and probe legs were kept affordable. `compare` pairs two directories
+on cell, repetition and arm, so with a short directory first it reports
+what the chain length does.
 
-`BINARY_HYPERPRIOR_BURN`, `_DRAWS` and `_CHAINS` set the MCMC length a
-fit gets, which is how the convergence section's refits were run
-(2000, 2000 and 4 against the defaults of 500, 500 and 1); the values
-ride the saved settings, so `summarize` reports which length produced
-a directory.
+The legs differ only in environment variables:
+
+| leg | variables |
+|---|---|
+| short | `BINARY_HYPERPRIOR_CHAINS=1 _BURN=500 _DRAWS=500` |
+| long | `BINARY_HYPERPRIOR_CHAINS=4 _BURN=2000 _DRAWS=2000` |
+| probe | `BINARY_HYPERPRIOR_CHAINS=8 _BURN=8000 _DRAWS=8000 BINARY_HYPERPRIOR_ARMS=mixing` |
+
+`BINARY_HYPERPRIOR_REPS` sets the simulated repetitions per cell (8 at
+n = 100 and n = 500 short, 6 at n = 2000 short and n = 500 long, 4 at
+n = 2000 long and at the probe), `BINARY_HYPERPRIOR_SPLITS` the real-data
+splits (40 throughout), `BINARY_HYPERPRIOR_ARMS` an arm list or the named
+`mixing` subset, and `BINARY_HYPERPRIOR_CORES` the worker count. The
+settings ride each rds, so `summarize` reports which length produced a
+directory and refuses to mix incompatible blocks. UCI files download on
+first use into `DBARTS_BENCH_DATA`, or the package's user cache when that
+is unset, and are checked against a recorded sha256.
+
+Cost in core-hours: five for the short leg, two for the probe, 44 for the
+simulated long leg, 14 for the UCI legs.
+
+## Appendix: the twenty-two real datasets
+
+Rows and predictors are after cleaning; "train" is the training rows per
+80/20 split, capped at 4,000; "factors" is how many predictors are factors.
+"k" and "log score" are the median k chi(1.5, 2) samples and the log score
+it attains; k orders the table because it is what predicts the result. The
+last column is fixed k = 2 minus chi(1.5, 2) on held-out log score at the
+short length, positive meaning fixed k loses. An asterisk marks the
+datasets that also ran at the long length.
+
+| dataset | source | rows | pred | rate | train | factors | log score | k | k = 2 - chi |
+|---|---|---|---|---|---|---|---|---|---|
+| tictactoe* | UCI | 958 | 9 | 0.653 | 766 | 9 | 0.066 | 0.32 | +0.1845 |
+| banknote* | UCI | 1372 | 4 | 0.445 | 1097 | - | 0.018 | 0.57 | +0.0283 |
+| mushroom | UCI | 8124 | 21 | 0.482 | 4000 | 21 | 0.003 | 0.59 | +0.0060 |
+| spambase | UCI | 4601 | 57 | 0.394 | 3680 | - | 0.193 | 0.63 | +0.0037 |
+| ionosphere* | UCI | 351 | 33 | 0.641 | 280 | - | 0.185 | 0.68 | +0.0391 |
+| sonar* | UCI | 208 | 60 | 0.534 | 166 | - | 0.373 | 0.76 | +0.0622 |
+| wdbc* | UCI | 569 | 30 | 0.373 | 455 | - | 0.101 | 0.82 | +0.0142 |
+| climate* | UCI | 540 | 18 | 0.085 | 432 | - | 0.148 | 0.84 | +0.0076 |
+| biopsy* | R | 683 | 9 | 0.350 | 546 | - | 0.096 | 1.04 | -0.0040 |
+| magic | UCI | 19020 | 10 | 0.352 | 4000 | - | 0.343 | 1.12 | -0.0007 |
+| bank | UCI | 45211 | 16 | 0.117 | 4000 | 9 | 0.224 | 1.21 | -0.0005 |
+| adult | UCI | 48842 | 14 | 0.239 | 4000 | 8 | 0.303 | 1.22 | -0.0004 |
+| creditapproval* | UCI | 653 | 15 | 0.453 | 522 | 9 | 0.329 | 1.45 | +0.0018 |
+| cleveland* | UCI | 297 | 13 | 0.461 | 237 | 4 | 0.364 | 1.68 | -0.0029 |
+| pbc* | R | 276 | 16 | 0.402 | 220 | 1 | 0.490 | 1.69 | -0.0066 |
+| kyphosis* | R | 81 | 3 | 0.210 | 64 | - | 0.397 | 1.86 | -0.0091 |
+| pima* | R | 532 | 7 | 0.333 | 425 | - | 0.455 | 1.87 | -0.0025 |
+| german* | UCI | 1000 | 20 | 0.300 | 800 | 13 | 0.485 | 2.16 | -0.0003 |
+| transfusion* | UCI | 748 | 4 | 0.238 | 598 | - | 0.478 | 2.53 | +0.0009 |
+| infert* | R | 248 | 5 | 0.335 | 198 | 1 | 0.589 | 2.73 | -0.0044 |
+| birthwt* | R | 189 | 8 | 0.312 | 151 | 2 | 0.588 | 2.78 | -0.0001 |
+| haberman* | UCI | 306 | 3 | 0.265 | 244 | - | 0.546 | 2.82 | +0.0025 |
