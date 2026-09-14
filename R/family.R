@@ -25,17 +25,53 @@ vocabularyEnv <- function(vocabulary, evalEnv) {
   env
 }
 
+## The residual scale's own prior, carried by every family that draws one.
+## NULL leaves the package default (chisq(3, 0.9)) standing; a bare
+## constructor name means its defaults; anything else must be a residual
+## prior object. The name is the PARAMETER, as 'dispersion' and 'df' are on
+## their families: 'sigest' is the estimate supplied at creation and
+## $setSigma writes the parameter itself, so 'sigma' here is the law that
+## parameter is drawn under.
+validateFamilySigma <- function(sigma, caller) {
+  if (is.null(sigma)) {
+    return(NULL)
+  }
+  if (is.function(sigma)) {
+    sigma <- sigma()
+  }
+  if (!is(sigma, "dbartsResidPrior")) {
+    stop(
+      caller,
+      " 'sigma' must be a residual prior - chisq(df, quant) or ",
+      "fixed(value); see ?dbartsPriors"
+    )
+  }
+  sigma
+}
+
+## The settings list is sparse, so an unsupplied residual prior adds no entry
+## at all and a family built from a token stays indistinguishable from one
+## built by its constructor.
+familySigmaSetting <- function(sigma, caller) {
+  sigma <- validateFamilySigma(sigma, caller)
+  if (is.null(sigma)) list() else list(sigma = sigma)
+}
+
 ## The Gaussian (continuous) response, the package default for a numeric
-## response under family = "auto".
-gaussian <- function() {
-  newValidated("dbartsFamily", token = "gaussian")
+## response under family = "auto". 'sigma' is the residual scale's prior.
+gaussian <- function(sigma = NULL) {
+  newValidated(
+    "dbartsFamily",
+    token = "gaussian",
+    settings = familySigmaSetting(sigma, "gaussian")
+  )
 }
 
 ## Outlier-robust Student-t errors, drawn by the Gaussian scale-mixture
 ## augmentation. df = NULL estimates the degrees of freedom on a capped
 ## grid; a finite positive value fixes them. A continuous response only:
 ## every other family has its own fixed latent scale.
-student <- function(df = NULL) {
+student <- function(df = NULL, sigma = NULL) {
   if (!is.null(df)) {
     if (
       !is.numeric(df) ||
@@ -53,7 +89,10 @@ student <- function(df = NULL) {
   newValidated(
     "dbartsFamily",
     token = "student",
-    settings = list(df = if (is.null(df)) NA_real_ else as.double(df))
+    settings = c(
+      list(df = if (is.null(df)) NA_real_ else as.double(df)),
+      familySigmaSetting(sigma, "student")
+    )
   )
 }
 
@@ -96,9 +135,14 @@ nbinom <- function(dispersion = NA) {
   )
 }
 
-## Accelerated failure time (log-normal) survival.
-aft <- function() {
-  newValidated("dbartsFamily", token = "aft")
+## Accelerated failure time (log-normal) survival. The log-time residual
+## scale is drawn as a gaussian one is, so it carries the same prior.
+aft <- function(sigma = NULL) {
+  newValidated(
+    "dbartsFamily",
+    token = "aft",
+    settings = familySigmaSetting(sigma, "aft")
+  )
 }
 
 ## Discrete-time hazard: (time, status) are person-period expanded onto a
@@ -142,8 +186,14 @@ hazard <- function(
 ## The semicontinuous two-part model: an occupancy probit on 1{y > 0} and a
 ## gaussian on log(y) over the positive part. A composition of two samplers,
 ## so only bart() fits it.
-hurdle.lognormal <- function() {
-  newValidated("dbartsFamily", token = "hurdle.lognormal")
+## 'sigma' is the positive part's residual prior; the occupancy probit has a
+## fixed unit latent scale and takes none.
+hurdle.lognormal <- function(sigma = NULL) {
+  newValidated(
+    "dbartsFamily",
+    token = "hurdle.lognormal",
+    settings = familySigmaSetting(sigma, "hurdle.lognormal")
+  )
 }
 
 ## The exported face of the family constructors: one object, so no generic
@@ -162,6 +212,18 @@ dbartsFamilies <- list(
   hurdle.lognormal = hurdle.lognormal
 )
 
+## A residual prior reads back as the constructor call that built it; the
+## default deparse of an S4 object would show its class and slots instead.
+formatResidPrior <- function(prior) {
+  if (is(prior, "dbartsChiSqPrior")) {
+    paste0("chisq(", prior@df, ", ", prior@quantile, ")")
+  } else if (is(prior, "dbartsFixedPrior")) {
+    paste0("fixed(", prior@value, ")")
+  } else {
+    class(prior)[1L]
+  }
+}
+
 formatFamilyCall <- function(token, settings) {
   ## hazard's link is folded into the token, so it is restated as the
   ## argument the caller would write rather than dropped from the display
@@ -173,7 +235,12 @@ formatFamilyCall <- function(token, settings) {
     names(settings),
     function(name) {
       value <- settings[[name]]
-      paste0(name, " = ", paste0(deparse(value), collapse = " "))
+      shown <- if (is(value, "dbartsResidPrior")) {
+        formatResidPrior(value)
+      } else {
+        paste0(deparse(value), collapse = " ")
+      }
+      paste0(name, " = ", shown)
     },
     character(1L)
   )
@@ -202,7 +269,11 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
     return(newValidated("dbartsFamily", token = tokens[1L]))
   }
 
-  value <- eval(expr, vocabularyEnv(dbartsFamilies, evalEnv))
+  ## the prior constructors join the family vocabulary: the residual prior
+  ## rides the family object, so gaussian(sigma = chisq(3, 0.9)) has to
+  ## resolve 'chisq' here the same way parsePriors resolves it inside
+  ## 'resid.prior'. The two name sets are disjoint.
+  value <- eval(expr, vocabularyEnv(c(dbartsFamilies, dbartsPriors), evalEnv))
   ## a bare constructor name (family = probit) means its defaults
   if (is.function(value)) {
     value <- value()

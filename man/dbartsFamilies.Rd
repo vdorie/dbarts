@@ -23,10 +23,17 @@
   something else, or write \code{dbartsFamilies$student(3)}.
 
   Every setting that only one family reads rides its family object rather
-  than a formal of the fitting function. The retired spellings
-  \code{resid.dist}, \code{dispersion}, \code{breaks} and \code{max.rows}
-  are accepted for one release with a once-per-session warning and are
-  removed in dbarts 1.1-0.
+  than a formal of the fitting function. That includes the residual
+  scale's own prior, \code{sigma}, on the four families that draw a
+  residual scale: it takes a \code{\link{dbartsPriors}} residual prior,
+  \code{chisq(df, quant)} or \code{fixed(value)}, resolved in the prior
+  vocabulary inside the family call. The retired spellings
+  \code{resid.dist}, \code{dispersion}, \code{breaks}, \code{max.rows},
+  \code{resid.prior}, \code{sigdf} and \code{sigquant} are accepted for
+  one release with a once-per-session warning and are removed in dbarts
+  1.1-0. \code{\link{dbarts}}, \code{\link{dbartsSpec}} and
+  \code{\link{xbart}} keep \code{resid.prior} as a formal, which wins
+  over a family's \code{sigma} where the call names it.
 }
 \usage{
 \S4method{show}{dbartsFamily}(object)
@@ -40,15 +47,26 @@
 \format{
   A list of functions:
   \describe{
-    \item{\code{gaussian()}}{
+    \item{\code{gaussian(sigma = NULL)}}{
       A continuous response with normal errors; the default for a numeric
-      response under \code{family = "auto"}.
+      response under \code{family = "auto"}. \code{sigma} is the prior on
+      the residual scale: \code{NULL} is the shipped
+      \code{chisq(3, 0.9)}, \code{chisq(df, quant)} names another
+      scaled-inverse-chi-squared, and \code{fixed(value)} pins the
+      residual variance and suppresses the sampler's own draw, which is
+      what an outer sampler owning \eqn{\sigma} wants. The former
+      \code{resid.prior}, \code{sigdf} and \code{sigquant} arguments.
+      \code{sigest}, the estimate the \code{chisq} quantile is calibrated
+      against, is not a family setting and stays a fitting-function
+      argument.
     }
-    \item{\code{student(df = NULL)}}{
+    \item{\code{student(df = NULL, sigma = NULL)}}{
       A continuous response with outlier-robust Student-t errors, drawn by
       the Gaussian scale-mixture augmentation. \code{df = NULL} estimates
       the degrees of freedom on a capped grid; a positive number fixes
       them. The former \code{resid.dist = student(df)} spelling.
+      \code{sigma} is the scale-mixture's own residual prior, as for
+      \code{gaussian}.
     }
     \item{\code{probit()}, \code{logistic()}}{
       Binary latent-variable models for a 0/1 response.
@@ -61,8 +79,10 @@
       \eqn{r} on a capped positive-integer grid; a positive integer fixes
       it. The former \code{dispersion} argument.
     }
-    \item{\code{aft()}}{
-      Accelerated failure time (log-normal) survival.
+    \item{\code{aft(sigma = NULL)}}{
+      Accelerated failure time (log-normal) survival. The log-time
+      residual scale is drawn as a gaussian one is, so \code{sigma} is its
+      prior, as for \code{gaussian}.
     }
     \item{\code{hazard(breaks = NULL, max.rows = 1e7,
                        link = c("probit", "logistic"))}}{
@@ -76,10 +96,12 @@
       \code{"hazard.probit"} and \code{"hazard.logistic"} name. The former
       \code{breaks} and \code{max.rows} arguments.
     }
-    \item{\code{hurdle.lognormal()}}{
+    \item{\code{hurdle.lognormal(sigma = NULL)}}{
       A semicontinuous two-part response: an occupancy probit glued to a
       lognormal positive part. Composed from two samplers, so only
-      \code{\link{bart}} fits it.
+      \code{\link{bart}} fits it. \code{sigma} is the positive part's
+      residual prior; the occupancy probit has a fixed unit latent scale
+      and takes none.
     }
   }
 }
@@ -111,6 +133,9 @@
 \examples{
 f <- dbartsFamilies$student(df = 4)
 f
+
+## the residual prior rides the family too
+dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(df = 5, quant = 0.75))
 
 set.seed(99)
 n <- 100L

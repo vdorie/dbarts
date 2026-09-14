@@ -137,12 +137,13 @@ xbart <- function(
 
   # named ahead of the data build, matching bart()/dbarts(), so
   # a bad family is refused before the response is ingested rather than after
-  family <- resolveFamily(
+  familySpec <- resolveFamily(
     matchedCall$family,
     eval(formals(dbarts::xbart)$family),
     "xbart",
     evalEnv
-  )@token
+  )
+  family <- familySpec@token
 
   dataCall <- redirectCall(
     matchedCall,
@@ -409,6 +410,9 @@ xbart <- function(
   # fit an unfixed residual scale under a family that has none. The DEFAULT
   # value stays chisq rather than bart2's NULL-triggers-shorthand sentinel -
   # xbart has no sigdf/sigquant shorthands for a NULL to build from.
+  # The residual prior can also ride the family object (gaussian(sigma = ));
+  # the flat argument wins where the caller named it, dec-B116's rule.
+  familySigma <- familySetting(familySpec, "sigma", NULL)
   resid.prior <- if (control@binary) {
     fixed(1)
   } else if (
@@ -418,6 +422,8 @@ xbart <- function(
     env[["chisq"]] <- getNamespace("dbarts")[["chisq"]]
     env[["fixed"]] <- getNamespace("dbarts")[["fixed"]]
     eval(matchedCall$resid.prior, env)
+  } else if (!is.null(familySigma)) {
+    familySigma
   } else {
     eval(formals(xbart)$resid.prior, getNamespace("dbarts"))()
   }

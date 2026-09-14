@@ -44,6 +44,8 @@ expect_equal(length(warnings.multiSigest), 1L)
 expect_match(conditionMessage(warnings.multiSigest[[1L]]), "sigest")
 expect_inherits(warnings.multiSigest[[1L]], "dbartsFamilyGatedWarning")
 
+# 'resid.prior' rides '...' for the transition release, so the retirement's
+# own once-per-session warning stands beside the gating one
 warnings.ordinalResidPrior <- captureWarnings(
   fit2(
     y.ordinal,
@@ -51,12 +53,15 @@ warnings.ordinalResidPrior <- captureWarnings(
     resid.prior = dbarts::dbartsPriors$chisq()
   )
 )
-expect_equal(length(warnings.ordinalResidPrior), 1L)
+gated.ordinalResidPrior <- Filter(
+  function(w) inherits(w, "dbartsFamilyGatedWarning"),
+  warnings.ordinalResidPrior
+)
+expect_equal(length(gated.ordinalResidPrior), 1L)
 expect_match(
-  conditionMessage(warnings.ordinalResidPrior[[1L]]),
+  conditionMessage(gated.ordinalResidPrior[[1L]]),
   "resid.prior"
 )
-expect_inherits(warnings.ordinalResidPrior[[1L]], "dbartsFamilyGatedWarning")
 
 # 'sigquant' rides '...' for the transition release, so the retirement's own
 # once-per-session warning stands beside the gating one; the gated names are
@@ -179,28 +184,29 @@ expect_equal(dim(rMultinomial$train), c(n, 3L, quick$n.samples))
 
 # The shared-default-text contract. For every name shared by bart and
 # dbarts, the deparsed default expressions agree, except the table below.
-# tree.prior/node.prior/resid.prior are bart formals too, so the loop now
-# walks all three; they stay excepted because bart's NULL means "build
-# from the shorthands" while dbarts's own defaults are the bare constructors.
+# tree.prior/node.prior are bart formals too, so the loop walks both; they
+# stay excepted because bart's NULL means "build from the shorthands" while
+# dbarts's own defaults are the bare constructors. 'resid.prior' is no
+# longer a bart formal at all - the residual prior rides the family object -
+# so it never reaches this comparison.
 tbExceptions <- data.frame(
   name = c(
     "verbose",
     "n.samples",
     "family",
     "tree.prior",
-    "node.prior",
-    "resid.prior"
+    "node.prior"
   ),
   reason = c(
     "fitters announce, constructors do not",
     "different roles; semantics differ (d2)",
     "multinomial is a bart-only composition",
     "bart's NULL means \"build from the shorthands\"",
-    "same",
     "same"
   ),
   stringsAsFactors = FALSE
 )
+expect_false("resid.prior" %in% names(formals(dbarts::bart)))
 bart2Formals <- formals(dbarts::bart)
 dbartsFormals <- formals(dbarts::dbarts)
 sharedFormalNames <- setdiff(
@@ -539,11 +545,11 @@ formatted <- format(
 expect_true(is.character(formatted))
 expect_true(any(grepl("base\\s*= 0.9", formatted)))
 
-# tree.prior/node.prior/resid.prior are bart formals (NULL, appended after
-# breaks/max.rows). A supplied object forwards unevaluated - exactly as k
-# already does - and a shorthand that would otherwise build the same prior is
-# a collision, refused by name; no object leaves the flat shorthand build
-# untouched.
+# tree.prior/node.prior are bart formals (NULL). A supplied object forwards
+# unevaluated - exactly as k already does - and a shorthand that would
+# otherwise build the same prior is a collision, refused by name; no object
+# leaves the flat shorthand build untouched. The residual prior rides the
+# family object, and its retired flat spelling is carried on '...'.
 
 # reachability: node.prior = linear()/gp() and resid.prior = fixed() were
 # unreachable from bart before (no route existed to hand dbarts() a prior
@@ -650,11 +656,14 @@ expect_error(
 # family gating: resid.prior joins the sigest/sigdf/sigquant trio - inert
 # (silently overwritten with fixed(1), R/spec.R) under a fixed-unit-scale
 # family, now diagnosed instead of silent
-warnings.residPrior <- captureWarnings(
-  fit2(
-    y.binary,
-    family = "probit",
-    resid.prior = dbarts::dbartsPriors$fixed(2)
+warnings.residPrior <- Filter(
+  function(w) inherits(w, "dbartsFamilyGatedWarning"),
+  captureWarnings(
+    fit2(
+      y.binary,
+      family = "probit",
+      resid.prior = dbarts::dbartsPriors$fixed(2)
+    )
   )
 )
 expect_equal(length(warnings.residPrior), 1L)
@@ -672,9 +681,8 @@ expect_equal(
   1L
 )
 
-# abbreviation breaks: 'tree.prior' now collides with 'test' on 't=', and
-# 'resid.prior' with 'resid.dist' on 'resid.='; R's own ambiguous
-# partial-match error fires, not a package one
+# abbreviation breaks: 'tree.prior' now collides with 'test' on 't='; R's
+# own ambiguous partial-match error fires, not a package one
 expect_error(
   dbarts::bart(
     x,

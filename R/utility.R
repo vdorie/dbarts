@@ -380,6 +380,19 @@ subTermInLanguage <- function(lang, oldTerm, newTerm) {
   lang
 }
 
+## Sets one named argument on a call, replacing the name where it already
+## stands and appending it where it does not.
+setCallArgument <- function(call, name, value) {
+  index <- which(names(call) == name)
+  if (length(index) > 0L) {
+    call[[index[1L]]] <- value
+  } else {
+    call[[length(call) + 1L]] <- value
+    names(call)[length(call)] <- name
+  }
+  call
+}
+
 setDefaultsFromFormals <- function(call, formals, ...) {
   argsToReplace <- list(...)
   matchIndices <- match(argsToReplace, names(call), nomatch = 0L)

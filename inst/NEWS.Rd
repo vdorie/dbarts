@@ -354,9 +354,11 @@
             \code{tree.prior = cgm(split.probs)}, refused together with a
             DART tree prior, which draws its own); \code{prior.scale} on
             \code{bart} (successor
-            \code{node.prior = normal(scale)}); \code{sigdf} and
-            \code{sigquant} on \code{bart} (successor
-            \code{resid.prior = chisq()}); \code{proposal.probs} on
+            \code{node.prior = normal(scale)}); \code{resid.prior},
+            \code{sigdf} and \code{sigquant} on \code{bart} (successor
+            \code{family = gaussian(sigma = chisq(df, quant))} or
+            \code{family = gaussian(sigma = fixed(value))});
+            \code{proposal.probs} on
             \code{bart} and \code{dbarts} (successor
             \code{control = dbartsControl(proposal.probs)}); a
             three-element \code{n.burn} on
@@ -403,6 +405,21 @@
             \code{breaks}, and \code{max.rows} are tombstones (above), and
             the ten-million-row hazard expansion cap moves to
             \code{hazard()}'s own \code{max.rows} default.
+      \item The residual scale's prior is a family setting too, and rides
+            the families that draw one: \code{gaussian(sigma = )},
+            \code{student(df, sigma = )}, \code{aft(sigma = )}, and
+            \code{hurdle.lognormal(sigma = )}, where \code{sigma} is a
+            \code{\link{dbartsPriors}} residual prior -
+            \code{chisq(df, quant)} or \code{fixed(value)}, resolved in
+            the prior vocabulary inside the family call. \code{bart} sheds
+            \code{resid.prior}, \code{sigdf}, and \code{sigquant}, which
+            are tombstones (above); \code{sigest}, the residual-scale
+            estimate supplied at creation, stays where it was.
+            \code{dbarts}, \code{dbartsSpec}, and \code{xbart} keep
+            \code{resid.prior} as the third member of the raw prior triple
+            and read the family's own where the caller names none, under the
+            same precedence rule the control follows: a flat argument named
+            in the call wins over the object's slot.
       \item \code{bart}, \code{dbarts}, and \code{dbartsData} gain an
             \code{na.action} formal, defaulting to the new
             \code{\link{na.keepPredictors}}: it drops a row with a missing

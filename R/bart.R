@@ -519,21 +519,21 @@ buildSamplerPriors <- function(
   splitProbsName = "split.probs",
   splitProbs = NULL,
   splitProbsDefault = NULL,
-  shorthandSupplied = character()
+  shorthandSupplied = character(),
+  residPrior = NULL
 ) {
   priorScale <- validateNamedScale(priorScale, "prior.scale")
 
-  # A caller-supplied tree.prior/node.prior/resid.prior object fully replaces
-  # the flat build below and is forwarded UNEVALUATED, exactly as k already
-  # is (nodeK), so a bare vocabulary name inside it (linear(), gp(), fixed(),
-  # ...) resolves in the caller's own frame, not here. A shorthand that would
+  # A caller-supplied tree.prior/node.prior object fully replaces the flat
+  # build below and is forwarded UNEVALUATED, exactly as k already is
+  # (nodeK), so a bare vocabulary name inside it (linear(), gp(), ...)
+  # resolves in the caller's own frame, not here. A shorthand that would
   # otherwise help build the same prior is a collision, refused by name
   # before anything is built. An explicit `tree.prior = NULL` is itself NULL
   # here (match.call() stores a literal NULL as NULL), indistinguishable
   # from not supplying one at all.
   treePriorObj <- matchedCall[["tree.prior"]]
   nodePriorObj <- matchedCall[["node.prior"]]
-  residPriorObj <- matchedCall[["resid.prior"]]
 
   splitProbsSupplied <- splitProbsName %in%
     c(names(matchedCall), shorthandSupplied)
@@ -592,14 +592,11 @@ buildSamplerPriors <- function(
     node.prior <- NULL
   }
 
-  if (!is.null(residPriorObj)) {
-    refuseColliding(
-      matchedCall,
-      "resid.prior",
-      c("sigdf", "sigquant", "sigest"),
-      shorthandSupplied
-    )
-    resid.prior <- residPriorObj
+  # the residual prior arrives already resolved - off the family object it
+  # rides, or off the retired flat spelling the caller wrote - and NULL means
+  # neither, so the sigdf/sigquant ladder builds it as it always did
+  if (!is.null(residPrior)) {
+    resid.prior <- residPrior
   } else {
     resid.prior <- quote(chisq(sigdf, sigquant))
     resid.prior[[2L]] <- sigdf
@@ -832,7 +829,6 @@ bart <- function(
   na.action = dbarts::na.keepPredictors,
   tree.prior = NULL,
   node.prior = NULL,
-  resid.prior = NULL,
   storage = c("double", "single"),
   updateState = TRUE,
   keepFits = is.null(callback),
@@ -939,6 +935,28 @@ bart <- function(
   # never written with a family should not print one
   suppliedFamily <- matchedCall$family
   matchedCall$family <- familySpec
+
+  # The residual scale's prior rides the family object (gaussian(sigma = )),
+  # so it is resolved here rather than built from formals this signature no
+  # longer carries. One precedence rule, dec-B116's: a flat argument the
+  # caller supplied beats the object's slot, so a retired 'resid.prior'
+  # stands over the family's sigma, and so does a retired sigdf/sigquant
+  # pair, which the shorthand ladder below builds from. NULL leaves the
+  # package default (chisq(3, 0.9)) standing exactly where it did.
+  residPrior <- consolidated[["resid.prior"]]
+  if (is.function(residPrior)) {
+    residPrior <- residPrior()
+  }
+  if (!is.null(residPrior)) {
+    refuseColliding(
+      matchedCall,
+      "resid.prior",
+      c("sigdf", "sigquant", "sigest"),
+      shorthandSupplied
+    )
+  } else if (!any(c("sigdf", "sigquant") %in% shorthandSupplied)) {
+    residPrior <- familySetting(familySpec, "sigma", NULL)
+  }
 
   # A data object carrying an n x K count matrix declares the multinomial
   # (softmax) model, whose fitted quantity is K probabilities per observation
@@ -1448,7 +1466,8 @@ bart <- function(
       formula,
       data,
       seed,
-      consolidated
+      consolidated,
+      residPrior
     ))
   }
 
@@ -1473,7 +1492,8 @@ bart <- function(
     priorScale = prior.scale,
     dart = dart,
     splitProbs = split.probs,
-    shorthandSupplied = shorthandSupplied
+    shorthandSupplied = shorthandSupplied,
+    residPrior = residPrior
   )
 
   samplerCall <- buildHostSamplerCall(
@@ -2632,7 +2652,8 @@ bart2Hurdle <- function(
   formula,
   data,
   seed,
-  consolidated = list()
+  consolidated = list(),
+  residPrior = NULL
 ) {
   if (
     is.formula(formula) ||
@@ -2693,7 +2714,14 @@ bart2Hurdle <- function(
   positiveCall$formula <- xPositive
   positiveCall$data <- split$logPositive
   positiveCall$test <- formula
-  positiveCall$family <- "gaussian"
+  # the residual prior is live on this half alone, and it rides the family
+  # object, so the component's own family carries it rather than a name this
+  # signature no longer has
+  positiveCall$family <- if (is.null(residPrior)) {
+    "gaussian"
+  } else {
+    gaussian(sigma = residPrior)
+  }
   positiveCall$seed <- seeds[2L]
   positiveCall$keepTrees <- control@keepTrees
   positive <- eval(positiveCall, callingEnv)
