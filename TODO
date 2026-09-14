@@ -613,15 +613,6 @@ sparse factors on the formula interface (decided, VD 2026-09-08;
   Audit: docs/plans/sparse-formula-audit.md. Plan:
   docs/plans/interfaces-and-dependencies.md.
 
-keepTrees documentation (decided, VD 2026-09-08; docs/decisions.md
-  dec-B104; the default and the storeState rule already hold, the two
-  documentation clauses do not)
-  pre-release, documentation only: the keepTrees entries in man/bart.Rd
-  and man/dbartsControl.Rd say in their first sentence that a fit saved
-  and reloaded needs $storeState first, and the refusal a saved fit
-  raises names it. Today refuseWithoutTrees names keepTrees alone and
-  neither manual entry mentions storeState.
-
 rbart_vi removal (decided, VD 2026-09-08; docs/decisions.md dec-B105)
   stays removed; tombstone names stan4bart and says the group-spread
   prior differs there. Condition: stan4bart clears its group-spread
