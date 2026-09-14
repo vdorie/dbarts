@@ -271,21 +271,6 @@ items
     stay unscheduled, alongside the two brainstorm rounds (sec 15,
     16). Durable record docs/design/tree-mixing-proposals.md (ranking
     sec 4.1 as amended, specialization addendum sec 12).
-  variance-forest-mutation-routing (decided, VD 2026-09-14;
-    docs/decisions.md dec-B122): the setResponse/setOffset recalibration
-    slice LANDED 42e949fe - a swap with updateScale = TRUE recalibrates
-    the variance forest's leaf prior, reusing the recalibration the
-    engine already performs on a setModel swap, gated on an identity
-    test against a sampler built fresh on the rescaled response. Owed:
-    the same recalibration on setData's whole-data swap, which still
-    mis-pins sigma to the creation-time scale; a parallel slice is
-    fixing it before the merge
-    (docs/plans/archive/variance-forest-mutation-routing.md). The
-    variance forest's own prior draw
-    (Chain::sampleVarianceForestFromPrior), the current-state reader of
-    the drawn surface ($getVariance) and the heteroscedastic
-    samplePriorPredictive(type = "ppd") that reads it have all landed
-    (docs/design/aft-status-setter.md slice 3).
   veto-arc-doors: a per-sweep vetoed-leaf diagnostics counter,
     R-readable - none exists in src/bartcore, so it is an additive new
     channel (docs/plans/release-candidate-review.md wave-5a landing

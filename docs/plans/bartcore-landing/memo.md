@@ -136,9 +136,6 @@ The sister packages we own each need their ported branch:
 Before the merge to main, because each is shipped surface or a decision
 the merge is made on:
 
-- One known wrong answer in a corner: the whole-data swap on a
-  heteroscedastic sampler still mis-pins sigma, and is being fixed before
-  the merge.
 - At the freeze: re-verify the four sister packages against the final
   header, since it has changed since the last pass even though its hash
   has not; bump the DESCRIPTION date; the maintainer's own items,
