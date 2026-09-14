@@ -118,15 +118,20 @@ dbartsControl(
 
 - keepTrees:
 
-  A logical that determines whether or not trees are cached as they are
-  sampled. In all cases, the current state of the sampler is stored as a
-  single set of `n.trees`. When `keepTrees` is `TRUE`, a set of
-  `n.trees * n.samples` trees are set aside and populated as the sampler
-  runs. If the sampler is stopped and restarted, samples proceed from
-  the previously stored tree, looping over if necessary. The store costs
-  about 24 bytes per node per tree per draw per chain - 23 MB per chain
-  at 200 trees, 500 draws, and the eight nodes a tree averages at large
-  \\n\\ - and does not grow with the number of observations.
+  A sampler saved to disk and reloaded needs its state stored first,
+  with `storeState()`; `predict` on a sampler reloaded without it
+  refuses, naming `storeState()` (see
+  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
+  ‘Saving’ section). A logical that determines whether or not trees are
+  cached as they are sampled. In all cases, the current state of the
+  sampler is stored as a single set of `n.trees`. When `keepTrees` is
+  `TRUE`, a set of `n.trees * n.samples` trees are set aside and
+  populated as the sampler runs. If the sampler is stopped and
+  restarted, samples proceed from the previously stored tree, looping
+  over if necessary. The store costs about 24 bytes per node per tree
+  per draw per chain - 23 MB per chain at 200 trees, 500 draws, and the
+  eight nodes a tree averages at large \\n\\ - and does not grow with
+  the number of observations.
 
 - storage:
 

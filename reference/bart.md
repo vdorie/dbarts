@@ -848,9 +848,14 @@ print(x, ...)
 
 - keepTrees:
 
-  Logical; must be `TRUE` in order to use `predict` with the result of a
-  fit. Note that for models with a large number of observations or a
-  large number of trees, keeping the trees can be very memory intensive.
+  A fit saved to disk and reloaded needs its sampler's state stored
+  first, with `fit$storeState()`; `predict` on a fit reloaded without it
+  refuses, naming `storeState()` (see
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+  ‘Saving’ section). Logical; must be `TRUE` in order to use `predict`
+  with the result of a fit. Note that for models with a large number of
+  observations or a large number of trees, keeping the trees can be very
+  memory intensive.
 
 - keepCall:
 
@@ -1533,7 +1538,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001565
+#> total seconds in loop: 0.001585
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1581,7 +1586,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001962
+#> total seconds in loop: 0.001995
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 
