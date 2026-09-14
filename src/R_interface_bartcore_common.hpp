@@ -441,18 +441,6 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
                                        ResponseConduit conduit,
                                        int updateScale);
 
-/// Errors when a heteroscedastic sampler's response-side conduit was asked to
-/// re-anchor the response transform (updateScale = TRUE): the variance forest's
-/// scale leaf is calibrated once, against the transform fixed at creation, and
-/// nothing re-states it, so a re-anchored transform leaves s^2(x) measured on
-/// the old scale and the fit runs away with getSigmas() reading unchanged. The
-/// fifth sigma door beyond the transactional ones; updateScale = FALSE pins the
-/// transform and stays allowed. Both the R bridge and the flat C API guard with
-/// this. caller labels the error.
-void refuseVarianceForestScaleUpdate(const bartcore::SamplerBase& sampler,
-                                     const char* caller,
-                                     ResponseConduit conduit, int updateScale);
-
 /// Errors on a weight vector its family cannot carry: probit outright (a
 /// weighted probit has no tractable latent-variable form; the R layer resolves
 /// a probit or ordinal vector of 0s and 1s to an active-row mask before it

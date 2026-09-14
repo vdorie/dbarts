@@ -185,17 +185,11 @@ sampler <- dbarts(
 # heteroscedastic refusal, which names the forest before the family
 expect_error(sampler$setSigma(2), "variance forest owns the residual scale")
 
-# the scale leaf is calibrated once against the response transform fixed at
-# creation, so a re-anchoring response or offset swap is refused
-expect_error(
-  sampler$setResponse(sampler$data@y, updateScale = TRUE),
-  "updateScale = FALSE"
-)
-expect_error(
-  sampler$setOffset(rep(0.1, n), updateScale = TRUE),
-  "updateScale = FALSE"
-)
-# and the pinned swap is taken
+# a re-anchoring response or offset swap restates the scale leaf and the drawn
+# surface on the new working scale, so both flavors are taken here as they are
+# under the gaussian family
+expect_silent(sampler$setResponse(sampler$data@y, updateScale = TRUE))
+expect_silent(sampler$setOffset(rep(0.1, n), updateScale = TRUE))
 sampler$setResponse(sampler$data@y, updateScale = FALSE)
 sampler$setOffset(rep(0.1, n), updateScale = FALSE)
 

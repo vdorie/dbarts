@@ -1162,6 +1162,111 @@ static void testVarianceM1Reduction() {
   printf("ok: variance m'=1 reduction (homo %.4f het %.4f)\n", homoMean, hetMean);
 }
 
+// A response or offset swap at updateScale = true re-anchors the gaussian
+// transform, so the variance forest's prior - stated on the working scale -
+// and its drawn surface - an original-scale quantity held in working units -
+// both have to be restated. The gate is an identity: the swapped chain must be
+// the chain creation on the new response would have built. The calibration is
+// RE-DERIVED from the retained residual prior, so it lands bitwise; the surface
+// can only be multiplied into the new units, so it lands within a few ulp,
+// which is the floor for any unit change whose ratio is not a power of two.
+static void testVarianceScaleReanchorIdentity() {
+  const std::size_t n = 240, p = 1, numVarianceTrees = 8, numSamples = 6;
+  const double sigEst = 1.3, sigDf = 3.0, sigRawScale = 0.37804942330213542;
+  const double c = 2.5;  // the response scale factor
+  std::vector<double> x(n * p), y(n), weights(n, 1.0), scaled(n);
+  std::vector<double> offsetA(n), offsetB(n);
+  ext_rng* dataRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(dataRng, 20260914u);
+  for (std::size_t i = 0; i < n; ++i) {
+    double xi = static_cast<double>(i) / static_cast<double>(n);
+    x[i] = xi;
+    y[i] = 2.0 * xi +
+           (xi < 0.5 ? 0.4 : 1.5) * ext_rng_simulateStandardNormal(dataRng);
+    scaled[i] = c * y[i];
+    offsetA[i] = 0.25;
+    offsetB[i] = 3.0 * xi;
+  }
+  ext_rng_destroy(dataRng);
+  ColumnStore store;
+  built(store.build(x.data(), n, p, 100));
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numVarianceTrees = numVarianceTrees;
+
+  // swapped is created on the old response and handed the re-anchoring swap;
+  // fresh is created on what the swap installed. Both draw from generators in
+  // the same state, since a gaussian swap consumes no variate.
+  auto identity = [&](bool offsetConduit, const char* label) {
+    ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(rngA, 4242u);
+    ext_rng_setSeed(rngB, 4242u);
+    const double* freshResponse = offsetConduit ? y.data() : scaled.data();
+    const double* offA = offsetConduit ? offsetA.data() : nullptr;
+    const double* offB = offsetConduit ? offsetB.data() : nullptr;
+    Chain<ConstantGaussianLeaf> swapped(store, y.data(), weights.data(), offA,
+                                        ResponseFamily::gaussian, sigEst, sigDf,
+                                        sigRawScale, options, rngA);
+    Chain<ConstantGaussianLeaf> fresh(store, freshResponse, weights.data(), offB,
+                                      ResponseFamily::gaussian, sigEst, sigDf,
+                                      sigRawScale, options, rngB);
+    double leafScaleBefore = swapped.varianceLeafForTesting().scale;
+    if (offsetConduit)
+      swapped.setOffset(offsetB.data(), true);
+    else
+      swapped.setResponse(scaled.data(), true);
+
+    const ConstantVarianceLeaf& leafSwapped = swapped.varianceLeafForTesting();
+    const ConstantVarianceLeaf& leafFresh = fresh.varianceLeafForTesting();
+    check(leafSwapped.scale != leafScaleBefore,
+          "the swap moved the scale leaf's calibration at all");
+    check(leafSwapped.degreesOfFreedom == leafFresh.degreesOfFreedom &&
+            leafSwapped.scale == leafFresh.scale,
+          "and it is bitwise the calibration creation on the new response "
+          "states");
+
+    std::vector<double> surfaceSwapped(n), surfaceFresh(n);
+    check(swapped.currentVarianceFits(false, surfaceSwapped.data()) &&
+            fresh.currentVarianceFits(false, surfaceFresh.data()),
+          "both chains report s^2(x)");
+    double worstSurface = 0.0;
+    for (std::size_t i = 0; i < n; ++i)
+      worstSurface =
+        std::max(worstSurface,
+                 std::fabs(surfaceSwapped[i] / surfaceFresh[i] - 1.0));
+    check(worstSurface < 1e-13,
+          "the re-anchored surface is the fresh one, restated in the new "
+          "working units");
+
+    std::vector<double> fitsSwapped(n * numSamples), fitsFresh(n * numSamples);
+    std::vector<double> varSwapped(n * numSamples), varFresh(n * numSamples);
+    Results resultsSwapped, resultsFresh;
+    resultsSwapped.trainingFits = fitsSwapped.data();
+    resultsSwapped.varianceFits = varSwapped.data();
+    resultsFresh.trainingFits = fitsFresh.data();
+    resultsFresh.varianceFits = varFresh.data();
+    swapped.run(0, numSamples, resultsSwapped);
+    fresh.run(0, numSamples, resultsFresh);
+    double worstFit = 0.0, worstVariance = 0.0;
+    for (std::size_t i = 0; i < n * numSamples; ++i) {
+      worstFit = std::max(worstFit, std::fabs(fitsSwapped[i] - fitsFresh[i]));
+      worstVariance =
+        std::max(worstVariance, std::fabs(varSwapped[i] / varFresh[i] - 1.0));
+    }
+    check(worstFit < 1e-10 && worstVariance < 1e-10,
+          "and every draw that follows agrees, from a common generator state");
+    ext_rng_destroy(rngB);
+    ext_rng_destroy(rngA);
+    printf("ok: variance scale re-anchor identity, %s conduit (surface %.2g, "
+           "fit %.2g, s^2 %.2g)\n", label, worstSurface, worstFit,
+           worstVariance);
+  };
+  identity(false, "response");
+  identity(true, "offset");
+}
+
 static void testSampleFromPrior(ext_rng* rng) {
   const size_t n = 200, numTrees = 50, numReplications = 200;
   std::vector<double> x, y;
@@ -7399,6 +7504,7 @@ void runModelTests(ext_rng* rng) {
   testVarianceEmptyBottomStateRoundTrip();
   testVarianceSavedPredict();
   testVarianceM1Reduction();
+  testVarianceScaleReanchorIdentity();
   testFlatFamilyCreatePaths();
   testOrdinalLogLikelihoodPin();
   testLogisticWeightSwapColdStart();

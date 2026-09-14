@@ -1140,10 +1140,12 @@
             \code{$installTrees(donor, samples = k)} installs sample
             \code{k}'s own variance surface, a donor whose saved variance
             block does not cover that sample being refused.
-            \code{$setResponse} and \code{$setOffset} refuse
-            \code{updateScale = TRUE}, the variance forest's scale leaf being
-            calibrated once against the response transform fixed at creation;
-            \code{updateScale = FALSE} is the supported swap.
+            \code{$setResponse} and \code{$setOffset} take
+            \code{updateScale = TRUE}: the variance forest's scale leaf is
+            re-derived from the residual prior on the new working scale - the
+            calibration creation on the new response would have stated - and
+            the drawn \eqn{s(x)}{s(x)} moves into the same units with it, so
+            the surface keeps its meaning in response units across the swap.
             \code{samplePriorPredictive(type = "ppd")} draws its noise at a
             prior draw of \eqn{s(x)}{s(x)} at the rows being predicted, there
             being no single sigma to draw; \code{type = "ev"} is unaffected.
@@ -1158,9 +1160,10 @@
             divide by that surface; survival curves at \code{newdata} need
             \code{keepTrees}, the replayed surface being the scale there. Such
             a fit carries the heteroscedastic refusals rather than aft's:
-            \code{$setSigma} and \code{updateScale = TRUE} are refused as on
-            any heteroscedastic sampler, and \code{$setWeights} and
-            \code{$setData} as on any aft one. The other latent families
+            \code{$setSigma} is refused as on any heteroscedastic sampler,
+            and \code{$setWeights} and \code{$setData} as on any aft one; a
+            re-anchoring response or offset swap restates the scale leaf here
+            too. The other latent families
             (\code{"probit"}, \code{"logistic"}, \code{"ordinal"},
             \code{"nbinom"}) still refuse a variance forest, routing their own
             precisions through the channel it divides into.

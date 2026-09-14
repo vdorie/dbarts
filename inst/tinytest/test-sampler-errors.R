@@ -308,21 +308,14 @@ expect_error(
 # trees now ride the install; the state-level gate is in tests/cpp
 expect_silent(sampler.variance$installTrees(donor.variance))
 
-# The response-side conduits carry the same scale pin the transactional
-# predictor paths carry: a variance forest's scale leaf is calibrated once,
-# against the response transform in force at creation, and updateScale = TRUE
-# re-anchors that transform under the calibration - the fit then runs away
-# while getSigmas(), which reads the pinned sigma rather than the forest, shows
-# nothing. updateScale = FALSE pins the transform and is the supported swap.
-varianceScaleRefusal <- "variance forest is calibrated against the response"
-expect_error(
-  sampler.variance$setResponse(train$y, updateScale = TRUE),
-  varianceScaleRefusal
-)
-expect_error(
-  sampler.variance$setOffset(rep(0.5, n), updateScale = TRUE),
-  varianceScaleRefusal
-)
+# The response-side conduits re-anchor the variance forest along with the
+# transform: the scale leaf is restated from the residual prior on the new
+# working scale and the drawn surface is carried into those units with it, so
+# updateScale = TRUE is supported here as it is homoscedastically. The
+# fresh-versus-swapped identity behind that is in
+# test-heteroscedastic-mutation.R.
+expect_silent(sampler.variance$setResponse(train$y, updateScale = TRUE))
+expect_silent(sampler.variance$setOffset(rep(0.5, n), updateScale = TRUE))
 expect_silent(sampler.variance$setResponse(train$y))
 expect_silent(sampler.variance$setOffset(rep(0.5, n)))
 
@@ -408,7 +401,6 @@ expect_equal(length(warnings.setResponseNamedFirst), 0L)
 
 rm(
   binaryRefusal,
-  varianceScaleRefusal,
   sampler.mutable,
   xVariance,
   xReplacement,

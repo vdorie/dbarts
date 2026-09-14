@@ -714,6 +714,13 @@ public:
   static constexpr bool leafIsConstant =
     !L::hasVectorParams && !L::hasFunctionParams;
 
+  /// Only the plain constant leaf ever builds a variance forest - the
+  /// constructor's own guard - so the re-anchoring paths below are compiled
+  /// out of every other instantiation rather than branching on a pointer that
+  /// is null by construction, and no other leaf model's code moves for them.
+  static constexpr bool leafSupportsVarianceForest =
+    std::is_same_v<L, ConstantGaussianLeaf>;
+
   Chain(const ColumnStore& data, const double* y, const double* weights,
         const double* offset, ResponseFamily family, double sigmaEstimate,
         double sigmaDf, double sigmaRawScale, const SamplerOptions& options,
@@ -875,7 +882,7 @@ public:
       if ((family == ResponseFamily::gaussian ||
            family == ResponseFamily::aft) &&
           options.numVarianceTrees > 0)
-        buildVarianceForest(options, sigmaDf, sigmaRawScale);
+        buildVarianceForest(options, sigmaEstimate, sigmaDf, sigmaRawScale);
 
     resizeTestStorage();
   }
@@ -1813,7 +1820,12 @@ public:
 
   // Between-sample mutation; new-vector lifetimes are the caller's problem.
   void setOffset(const double* offset, bool updateScale) {
+    double previousSigmaScale = varianceScaleAnchor();
     response_->setOffset(offset, updateScale, &sigma_);
+    // an offset moves the gaussian transform, so the variance forest's prior
+    // and surface are restated on the new working scale
+    if constexpr (leafSupportsVarianceForest)
+      if (varianceForest_) reanchorVarianceForest(previousSigmaScale);
   }
   /// Weights do not ride the tree state, so a vector zeroing rows a GROWN
   /// forest already split on can leave leaves the moves veto. That is a
@@ -1940,7 +1952,11 @@ public:
   /// totals are the whole fit only off a coupling, where combinedFits returns
   /// exactly that pointer.
   void setResponse(const double* y, bool updateScale) {
+    double previousSigmaScale = varianceScaleAnchor();
     response_->setResponse(y, rng_, combinedFits(), updateScale, &sigma_);
+    // see setOffset: the same re-anchoring under the other pointer
+    if constexpr (leafSupportsVarianceForest)
+      if (varianceForest_) reanchorVarianceForest(previousSigmaScale);
     // a latent family's setResponse refreshes the Polya-Gamma weights U'WU
     // depends on; a gaussian one moves only the residual
     if constexpr (L::hasVectorParams)
@@ -2011,19 +2027,18 @@ public:
 
     // Under a variance forest the residual prior calibrates the scale leaf
     // rather than sigma - the same numbers buildVarianceForest consumed,
-    // through the same conversion to the working scale (initialSigma =
-    // sigmaEstimate / sigmaScale). The next sweep redraws every factor under
+    // through the same conversion to the working scale. The incoming triple
+    // REPLACES the retained one, so a later re-anchoring swap restates this
+    // prior rather than creation's. The next sweep redraws every factor under
     // the new prior; the current surface is left alone, as a homoscedastic
     // setSigmaPrior leaves the current sigma.
-    // KNOWN GAP: sigmaScale() is read here and at creation, so an intervening
-    // updateScale response/offset swap recalibrates onto the NEW scale while an
-    // untouched leaf keeps the old one.
-    if (varianceForest_) {
-      double workingSigma = model.sigmaEstimate / response_->sigmaScale();
-      varianceForest_->leaf = ConstantVarianceLeaf::calibrated(
-        model.sigmaDf, workingSigma * workingSigma * model.sigmaRawScale,
-        varianceForest_->numTrees);
-    }
+    if constexpr (leafSupportsVarianceForest)
+      if (varianceForest_) {
+        varianceSigmaEstimate_ = model.sigmaEstimate;
+        varianceSigmaDf_ = model.sigmaDf;
+        varianceSigmaRawScale_ = model.sigmaRawScale;
+        calibrateVarianceLeaf();
+      }
 
     if (!forest.useDart) {
       if (model.splitProbabilities == nullptr) {
@@ -3942,8 +3957,12 @@ public:
                        nullptr,
                      ColumnStore* store = nullptr) {
     if (state.forests.size() != forests_.size()) return false;
-    if (state.fitMax > state.fitMin)
+    if (state.fitMax > state.fitMin) {
       response_->restoreScale(state.fitMin, state.fitMax);
+      // the scale leaf is stated on the working scale this transform defines
+      if constexpr (leafSupportsVarianceForest)
+        if (varianceForest_) calibrateVarianceLeaf();
+    }
     std::vector<double> params;
     for (size_t f = 0; f < forests_.size(); ++f) {
       const ForestStateData& fs = state.forests[f];
@@ -4029,8 +4048,11 @@ public:
     // the internal-scale tree parameters and fits below were recorded under
     // this transform; scale-free states leave creation's. restoreScale
     // re-anchors the variance prior through it.
-    if (state.fitMax > state.fitMin)
+    if (state.fitMax > state.fitMin) {
       response_->restoreScale(state.fitMin, state.fitMax);
+      if constexpr (leafSupportsVarianceForest)  // as in installForest
+        if (varianceForest_) calibrateVarianceLeaf();
+    }
     std::vector<double> params;
     for (size_t f = 0; f < forests_.size(); ++f) {
       Forest<L, ResidT>& forest = forests_[f];
@@ -4202,6 +4224,11 @@ public:
   /// varianceFits() reports. Nothing else exposes it to a test.
   const double* varianceFactorsForTesting() const {
     return varianceForest_->factorByTree.data();
+  }
+  /// Test hook: the scale leaf's calibration (nu', lambda'^2) in force, which
+  /// is what a re-anchoring swap must restate; nothing else reports it.
+  const ConstantVarianceLeaf& varianceLeafForTesting() const {
+    return varianceForest_->leaf;
   }
 
   /// Test hook: split forest 0's tree 0 at (variableIndex, splitIndex) and
@@ -4545,11 +4572,17 @@ private:
   /// derivation), seed s^2(x) at the initial variance, then fix the global
   /// sigma at 1 - the variance forest carries the residual variance from here.
   /// At numVarianceTrees == 1 the calibration reproduces the sigma prior exactly.
-  void buildVarianceForest(const SamplerOptions& options, double sigmaDf,
-                           double sigmaRawScale) {
+  ///
+  /// The triple is RETAINED (calibrateVarianceLeaf), which is what lets a later
+  /// re-anchoring of the response transform restate the calibration on the new
+  /// working scale.
+  void buildVarianceForest(const SamplerOptions& options, double sigmaEstimate,
+                           double sigmaDf, double sigmaRawScale) {
     std::size_t n = data_.numObservations;
     double initialVariance = sigma_ * sigma_;  // sigma_ still holds initialSigma
-    double priorScale = initialVariance * sigmaRawScale;
+    varianceSigmaEstimate_ = sigmaEstimate;
+    varianceSigmaDf_ = sigmaDf;
+    varianceSigmaRawScale_ = sigmaRawScale;
     varianceForest_ = std::make_unique<VarianceForest>();
     VarianceForest& vf = *varianceForest_;
     vf.birthOrDeathProbability = options.birthOrDeathProbability;
@@ -4560,9 +4593,8 @@ private:
     vf.birthProbability = options.birthProbability;
     vf.treePrior.base = options.varianceBase;
     vf.treePrior.power = options.variancePower;
-    vf.leaf = ConstantVarianceLeaf::calibrated(sigmaDf, priorScale,
-                                               options.numVarianceTrees);
     vf.initialize(options.numVarianceTrees, n, initialVariance);
+    calibrateVarianceLeaf();
     // restrict the variance trees to the `variance = ~ subset` columns; empty
     // leaves every column available, byte-for-byte the unrestricted path
     if (options.varianceForestColumns != nullptr &&
@@ -4577,6 +4609,63 @@ private:
     sigma_ = 1.0;
     meanWeights_.assign(n, 0.0);
     installVarianceSurface();
+  }
+
+  /// The working scale a re-anchoring mutation compares against, read only
+  /// where a variance forest can exist; every other instantiation takes the
+  /// compile-time 0 and pays no call, which is what keeps those builds
+  /// byte-identical to one with no heteroscedastic path at all.
+  double varianceScaleAnchor() const {
+    if constexpr (leafSupportsVarianceForest)
+      return response_->sigmaScale();
+    else
+      return 0.0;
+  }
+
+  /// The one scale-leaf calibration expression: the retained residual prior
+  /// converted to the transform IN FORCE (workingSigma = sigmaEstimate /
+  /// sigmaScale(), prior scale workingSigma^2 * rawScale) and split over the
+  /// forest's trees. Creation, setModel, a state install carrying its own
+  /// transform and a re-anchoring response or offset swap all run it, so no
+  /// two of them can state a different prior and a swap lands on exactly the
+  /// calibration creation on the new response would have produced. Requires
+  /// the forest, with its tree count set.
+  void calibrateVarianceLeaf() {
+    double workingSigma = varianceSigmaEstimate_ / response_->sigmaScale();
+    varianceForest_->leaf = ConstantVarianceLeaf::calibrated(
+      varianceSigmaDf_, workingSigma * workingSigma * varianceSigmaRawScale_,
+      varianceForest_->numTrees);
+  }
+
+  /// Re-anchor the variance forest after the response model moved the working
+  /// scale (setResponse and setOffset at updateScale = true): the residual
+  /// prior and the drawn surface are ORIGINAL-scale quantities, so both are
+  /// restated in the new working units, exactly as the response re-anchors
+  /// sigma and its own sigma prior in the same call.
+  ///
+  /// The prior is re-derived rather than scaled (calibrateVarianceLeaf). The
+  /// surface can only be scaled: s^2(x) holds its original-scale value when the
+  /// working product takes f = (previousScale / scale)^2 and each tree's factor
+  /// h_j takes f^(1/m'), which is the same split the calibration makes of the
+  /// prior scale. sigma is re-pinned at the working-scale 1 the forest fixed it
+  /// at, since the response wrote a rescaled sigma through the same call.
+  ///
+  /// A transform that did not move (updateScale = false pins it) leaves every
+  /// value untouched, so the supported pinned swap stays byte-identical.
+  void reanchorVarianceForest(double previousSigmaScale) {
+    sigma_ = 1.0;  // the forest owns the residual scale; see buildVarianceForest
+    double scale = response_->sigmaScale();
+    if (scale == previousSigmaScale) return;
+    VarianceForest& vf = *varianceForest_;
+    double ratio = previousSigmaScale / scale;
+    double f = ratio * ratio;
+    double g = std::pow(f, 1.0 / static_cast<double>(vf.numTrees));
+    for (double& h : vf.factorByTree) h *= g;
+    for (double& s : vf.combinedVariance) s *= f;
+    // the maintained test surface is the same quantity over the test rows; a
+    // recorded sweep rebuilds it from the factors, a reader before one sees it
+    for (double& s : vf.combinedVarianceTest) s *= f;
+    calibrateVarianceLeaf();
   }
 
   /// Hand the response model the combined-variance vector it reads the
@@ -6172,6 +6261,13 @@ private:
   // the variance forest is built.
   std::unique_ptr<VarianceForest> varianceForest_;
   std::vector<double> meanWeights_;
+  // The residual prior the scale leaf is calibrated from, on the ORIGINAL
+  // response scale: creation's triple until setModel replaces it. Retained
+  // because the calibration is stated on the WORKING scale, so every path that
+  // re-anchors the response transform has to re-derive it rather than rescale
+  // the old one. Unset (and unread) off a variance forest.
+  double varianceSigmaEstimate_ = 0.0, varianceSigmaDf_ = 0.0,
+         varianceSigmaRawScale_ = 0.0;
 
   // Persistent pool for parallel test-fit routing, sized to this chain's
   // share of the thread budget; created lazily, never below the cutoff. The

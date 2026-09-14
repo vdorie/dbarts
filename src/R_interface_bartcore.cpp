@@ -52,7 +52,6 @@ using bartcore_bridge::refuseMultiForestWarmStart;
 using bartcore_bridge::refuseNonBinaryMask;
 using bartcore_bridge::refusePinnedSigmaChange;
 using bartcore_bridge::refuseSparseLeafCovariate;
-using bartcore_bridge::refuseVarianceForestScaleUpdate;
 using bartcore_bridge::UnwindJump;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::supportFamily;
@@ -2987,29 +2986,6 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
              conduit == ResponseConduit::response ? "a response" : "an offset");
 }
 
-// The heteroscedastic analogue of the multi-forest scale pin above, and the
-// fifth sigma door: a variance forest's scale leaf is calibrated once, at
-// creation, against the response transform in force then, and no path re-states
-// it. updateScale = TRUE re-anchors that transform under the calibration, so
-// every s^2(x) the forest reports is measured on a scale the model no longer
-// uses and the fit runs away while getSigmas() - which reads the pinned sigma,
-// not the forest - shows nothing. There is no algebra that would rescue it
-// short of recalibrating the scale leaf, so refuse; updateScale = FALSE pins
-// the transform and is the supported heteroscedastic response swap. Weights
-// carry no transform and never reach here.
-// External linkage: the flat C API reuses this guard on its own setResponse and
-// setOffset entries.
-void refuseVarianceForestScaleUpdate(const bartcore::SamplerBase& sampler,
-                                     const char* caller,
-                                     ResponseConduit conduit, int updateScale) {
-  if (conduit == ResponseConduit::weights || updateScale == FALSE) return;
-  if (!sampler.shape().hasVarianceForest) return;
-  Rf_error("%s: a heteroscedastic sampler's variance forest is calibrated "
-           "against the response transform fixed at creation, so %s swap is "
-           "supported only with updateScale = FALSE, which pins it", caller,
-           conduit == ResponseConduit::response ? "a response" : "an offset");
-}
-
 // The weight policy, stated once for creation and every mutation conduit: a
 // probit has no tractable weighted latent-variable form and is refused - the
 // R layer resolves a probit or ordinal vector of 0s and 1s to an active-row
@@ -5168,8 +5144,6 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   int updateScale = Rf_asLogical(updateScaleExpr);
   refuseMultiForestResponseMutation(*holder.sampler, "bartcore_setOffset",
                                     ResponseConduit::offset, updateScale);
-  refuseVarianceForestScaleUpdate(*holder.sampler, "bartcore_setOffset",
-                                  ResponseConduit::offset, updateScale);
   if (!Rf_isNull(offsetExpr) &&
       (!Rf_isReal(offsetExpr) ||
        static_cast<size_t>(Rf_xlength(offsetExpr)) != shape.numObservations))
@@ -5193,8 +5167,6 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
   int updateScale = Rf_asLogical(updateScaleExpr);
   refuseMultiForestResponseMutation(*holder.sampler, "bartcore_setResponse",
                                     ResponseConduit::response, updateScale);
-  refuseVarianceForestScaleUpdate(*holder.sampler, "bartcore_setResponse",
-                                  ResponseConduit::response, updateScale);
   if (!Rf_isReal(yExpr) ||
       static_cast<size_t>(Rf_xlength(yExpr)) != shape.numObservations)
     Rf_error("y must be of length equal to %lu",

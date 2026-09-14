@@ -59,8 +59,9 @@ it: a live case-weight channel ([`familyCarriesNoWeights`](../../src/R_interface
 forest owning the scale, or by the family's own definition ([`sigmaIsPinned`](../../src/R_interface_bartcore.cpp),
 [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp)); a persisted per-observation augmentation vector, a
 `latents()` override ([`bartcore_getLatents`](../../src/R_interface_bartcore.cpp)); a non-trivial `fitScale`/`fitShift` at
-creation, which makes `updateScale = TRUE` a re-anchor rather than a no-op ([f7]) or a refusal
-([`refuseVarianceForestScaleUpdate`](../../src/R_interface_bartcore.cpp)); and a combined out-of-sample fit defined at all
+creation, which makes `updateScale = TRUE` a re-anchor rather than a no-op ([f7]) - and, under a variance forest, one that
+restates the scale leaf and its surface too ([`Chain::reanchorVarianceForest`](../../src/bartcore/chain.hpp)); and a
+combined out-of-sample fit defined at all
 ([`refuseUndefinedTestFits`](../../src/R_interface_bartcore.cpp)).
 
 | model | case weights | sigma | latents | unit-scale transform | test fits defined |
@@ -72,11 +73,11 @@ creation, which makes `updateScale = TRUE` a re-anchor rather than a no-op ([f7]
 | ordinal | R [`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp) | R [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | S [`OrdinalResponse::latents`](../../src/bartcore/model.hpp) | - [f7] | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
 | nbinom | R [`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp) | R [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | S [`NBResponse::latents`](../../src/bartcore/model.hpp) | - [f7] | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
 | multinom | R [`parseMultinomialData`](../../src/R_interface_bartcore.cpp) [f9] | R [`refuseCountsMutation`](../../R/bartcore.R) [f9] | R ["reports nothing, by a DECIDED decline"](multinomial.md) | R [`refuseCountsMutation`](../../R/bartcore.R) [f9] | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
-| aft | R [`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp) | S, no variance forest [`bartcore_setSigma`](../../src/R_interface_bartcore.cpp) / R, variance forest [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | S [`AFTResponse::latents`](../../src/bartcore/model.hpp) | S, no variance forest [`AFTResponse::setOffset`](../../src/bartcore/model.hpp) / R, variance forest [`refuseVarianceForestScaleUpdate`](../../src/R_interface_bartcore.cpp) | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
+| aft | R [`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp) | S, no variance forest [`bartcore_setSigma`](../../src/R_interface_bartcore.cpp) / R, variance forest [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | S [`AFTResponse::latents`](../../src/bartcore/model.hpp) | S [`AFTResponse::setOffset`](../../src/bartcore/model.hpp), a variance forest re-anchored with it [`Chain::reanchorVarianceForest`](../../src/bartcore/chain.hpp) | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
 | hazard | as probit [f5] | as probit | as probit | as probit | as probit |
 | hurdle | - [f10] | - | - | - | - |
 | bcf | S, gaussian/logistic [`bartcore_setWeights`](../../src/R_interface_bartcore.cpp) [f11] | S, gaussian only [`bartcore_setSigma`](../../src/R_interface_bartcore.cpp) [f11] | S, probit/logistic only [`Chain::latents`](../../src/bartcore/chain.hpp) [f11] | R [`refuseAmplitudeMutation`](../../R/bartcore.R) | R [`refuseUndefinedTestFits`](../../src/R_interface_bartcore.cpp) |
-| hetero | S, gaussian [`bartcore_setWeights`](../../src/R_interface_bartcore.cpp) / R, aft [`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp) [f13] | R [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | -, gaussian [`bartcore_getLatents`](../../src/R_interface_bartcore.cpp) / S, aft [`AFTResponse::latents`](../../src/bartcore/model.hpp) [f13] | R [`refuseVarianceForestScaleUpdate`](../../src/R_interface_bartcore.cpp) | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
+| hetero | S, gaussian [`bartcore_setWeights`](../../src/R_interface_bartcore.cpp) / R, aft [`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp) [f13] | R [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | -, gaussian [`bartcore_getLatents`](../../src/R_interface_bartcore.cpp) / S, aft [`AFTResponse::latents`](../../src/bartcore/model.hpp) [f13] | S [`Chain::reanchorVarianceForest`](../../src/bartcore/chain.hpp) | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
 
 Mutation channels and row subsetting read off the table: `setWeights`/`setSigma`/`getLatents`
 follow their columns; `updateScale = TRUE` follows the unit-scale column (a no-op where the

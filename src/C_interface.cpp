@@ -26,7 +26,6 @@ using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseEmptyTreeStore;
 using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refuseSparseLeafCovariate;
-using bartcore_bridge::refuseVarianceForestScaleUpdate;
 using bartcore_bridge::responseConduitIsFixed;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::sigmaIsPinned;
@@ -650,9 +649,6 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
   refuseMultiForestResponseMutation(samplerOf(sampler),
                                     "dbarts_sampler_setResponse",
                                     ResponseConduit::response, updateScale);
-  refuseVarianceForestScaleUpdate(samplerOf(sampler),
-                                  "dbarts_sampler_setResponse",
-                                  ResponseConduit::response, updateScale);
   // the one place minimal validation is not enough: an out-of-support y is a
   // silently garbage latent draw for probit/ordinal and, for nbinom, an
   // uncatchable crash inside the count histogram (see validateResponseSupport)
@@ -674,9 +670,6 @@ int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
   refuseMultiForestResponseMutation(samplerOf(sampler),
                                     "dbarts_sampler_setOffset",
                                     ResponseConduit::offset, updateScale);
-  refuseVarianceForestScaleUpdate(samplerOf(sampler),
-                                  "dbarts_sampler_setOffset",
-                                  ResponseConduit::offset, updateScale);
   samplerOf(sampler).setOffset(
     adoptVector(sampler->ownedOffset, offset,
                 samplerOf(sampler).shape().numObservations),

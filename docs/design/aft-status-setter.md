@@ -51,9 +51,9 @@ rather than invented:
   `attr(control, "bartcore.survival")` only after the `.Call` returns. Validate before mirror; the R5 `$setWeights`
   `tryCatch` rollback is unnecessary, a refusal installing nothing. The R5 method coerces with `as.double`, leaving the type
   refusal to the handle.
-- **updateScale.** The status re-anchors nothing and every refusal stands, so a heteroscedastic aft still takes only
-  `updateScale = FALSE` ([`refuseVarianceForestScaleUpdate`](../../src/R_interface_bartcore.cpp)), both R entry points
-  defaulting it FALSE. Not an invariant: the transform is over `logT_`, which equals the observed times only just after a `setResponse` -
+- **updateScale.** The status re-anchors nothing, and a heteroscedastic aft takes either flavor - a re-anchoring swap
+  restates the variance forest's scale leaf and surface ([`Chain::reanchorVarianceForest`](../../src/bartcore/chain.hpp)) -
+  with both R entry points defaulting it FALSE. Not an invariant: the transform is over `logT_`, which equals the observed times only just after a `setResponse` -
   [`AFTResponse::setOffset`](../../src/bartcore/model.hpp) at `updateScale = TRUE` re-anchors on latents.
 - **Latents.** The redraw stays, matching [`AFTResponse::setResponse`](../../src/bartcore/model.hpp) and the probit pattern:
   event to censored takes the row's own observed time as its new bound and redraws above it; censored to event restores that

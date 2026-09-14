@@ -404,12 +404,11 @@ a semantic question into a clamp.
   container" makes the sampler reject strictly more transactions and drops the
   partial-install rate by an unmeasured amount. Price it once, there, with one
   veto-rate measurement covering both.
-- **Scale-leaf calibration staleness under `updateScale = TRUE`.** The leaf is
-  calibrated once at creation and nothing rescales it when `sigmaScale` moves,
-  so a response or offset swap leaves the PRIOR on the old scale while the
-  surface self-heals. Same defect class as S5 step 5. Not scheduled: the
-  mechanism is certain, the rescale factor is not verified against
-  `GaussianResponse`, and scheduling it would be scheduling unverified algebra.
+- **Scale-leaf calibration staleness under `updateScale = TRUE`.** CLOSED: a
+  re-anchoring response or offset swap now re-derives the leaf from the
+  retained residual prior on the new working scale and carries the drawn
+  surface into those units, gated on the identity that the swapped sampler is
+  the one creation on the new response would have built.
 - **A prior draw of the variance forest**, which is what a correct
   heteroscedastic `samplePriorPredictive(type = "ppd")` needs. S1 refuses
   instead.
