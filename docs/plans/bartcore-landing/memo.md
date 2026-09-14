@@ -131,9 +131,6 @@ The sister packages we own each need their ported branch:
 Before the merge to main, because each is shipped surface or a decision
 the merge is made on:
 
-- The maintainer's ruling on the binary leaf-scale prior. The extended
-  study recommends keeping chi(1.5, 2); the default is draw-changing, so
-  the ruling precedes the merge.
 - One known wrong answer in a corner: a variance forest's leaf calibration
   is fixed at creation, so swapping the response with rescaling on leaves
   that prior on the old scale. Either the rescale is verified and built or
@@ -149,8 +146,8 @@ placed them there:
 
 - The scheduled workflows, equivalence, rchk, the reverse-dependency smoke
   test, SBC and valgrind, bind to the default branch and cannot run until
-  the merge. rchk and valgrind have never run anywhere, and they are the
-  checks CRAN itself runs.
+  the merge. rchk and valgrind have each run once by hand, rchk clean, and
+  they are the checks CRAN itself runs.
 - Deferred by ruling: the fused residual pass loses up to 8 percent below
   its crossover size and ships without a size gate; the rule-Gibbs move
   ships at zero weight and is adopted later; the binary prior is revisited

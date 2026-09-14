@@ -205,7 +205,7 @@ engine ships carry no flag; the cost is the whole re-record of section 7 taken b
 the benefit turns out nil. **B, an opt-in control flag at default off, bitwise neutral, flipped in slice 4 with the re-record then.**
 **B', a private compile-time switch and no R surface at all**, the shape perturb's width arm was to be run in: slices 2 and 3 then
 need a private library per arm, and nothing has to be un-shipped if the step is killed - which is exactly the residue perturb left,
-a shipped knob whose measured benefit is nil and whose removal is now a maintainer's call.
+a shipped knob whose measured benefit is nil and which stays, by maintainer ruling, until the mixing research has run.
 **C, on by default above some chain count**: refused, a hidden rule that makes the kernel a function of a run setting.
 **RECOMMEND B.** B' is cheaper if the step dies, but a compile-time switch is unreachable by the embedding consumers whose cells are
 not C1 - a driver loop that freezes structure between response swaps is exactly where a level step should be reachable - and one
