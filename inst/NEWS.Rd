@@ -39,9 +39,10 @@
             same law as \code{chi(1.5, Inf)} now. \code{chi()}'s own
             \code{scale} argument defaults to \code{2} rather than
             \code{Inf}, so an explicit \code{chi(df)} moves as well. Pass
-            \code{k = chi(1.5, Inf)} for the old prior. \code{xbart} instead
-            defaults to the fixed value \code{k = 2} on every family, where a
-            binary response previously inherited the hyperprior.
+            \code{k = chi(1.5, Inf)} for the old prior. \code{xbart} takes the
+            same per-family default: fixed \code{k = 2} for a continuous
+            response and \code{chi(1.5, 2)} for a binary one, matching
+            \code{bart}'s own (see the \code{xbart} entry below).
       \item Sampler states saved by earlier versions cannot be restored;
             refit anything you need to continue.
       \item A \code{dbartsData} object saved by an earlier version keeps the
@@ -87,7 +88,7 @@
             move for a fit with any factor predictor. \code{factors} is a
             new argument;
             pass \code{factors = "indicators"} for the previous expansion.
-            \code{bart} does not take it and expands as before.
+            \code{bartBT} does not take it and expands as before.
       \item 0.9-x silently dropped every row with a missing predictor, on
             the formula and matrix interfaces alike. \code{dbarts},
             \code{dbartsData}, \code{bart}, and \code{xbart} now keep the
@@ -95,9 +96,9 @@
             (Missingness Incorporated in Attributes; Twala et al. 2008);
             there is no argument to turn it off, only a
             \code{dbartsData} slot an embedding host can set directly to
-            refuse new predictors instead of routing them. \code{bart}
-            takes no such argument either, and refuses incomplete
-            predictors outright. An
+            refuse new predictors instead of routing them. \code{bartBT}
+            takes no such argument either, and keeps 0.9-34's row rule,
+            dropping an incomplete row rather than modelling it. An
             \code{NA} in test predictors or \code{newdata} is an error
             wherever the corresponding training column was complete: a split
             rule learns a missing-direction route only where its own column

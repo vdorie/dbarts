@@ -598,19 +598,6 @@ family objects and front-door consolidation (decided, VD 2026-09-08;
   their meaning. Plan: docs/plans/front-door.md; lands with the
   front-door rename.
 
-remove the posterior dependency (decided, VD 2026-09-08;
-  docs/decisions.md dec-B99; S1 LANDED 01634227; S2-S4 open)
-  pre-release: drop posterior from DESCRIPTION; summary computes split
-  R-hat and effective sample size in R/diagnostics.R itself; replace
-  the as_draws methods with a base-R draws extractor (iterations x
-  chains x variables array with dimnames, the layout posterior's
-  as_draws_array accepts); rewrite the five tinytest files and the
-  summary man page that call posterior. Matrix and survival stay
-  Suggests (recommended packages). Principle (VD): no bad
-  dependencies - recommended packages, or ones that understand less is
-  more.
-  Plan: docs/plans/interfaces-and-dependencies.md.
-
 sparse factors on the formula interface (decided, VD 2026-09-08;
   docs/decisions.md dec-B100; LANDED 7165c352)
   pre-release, R layer: no formula marker. A sparse Matrix or
