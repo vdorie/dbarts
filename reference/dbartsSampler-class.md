@@ -319,10 +319,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   the residual prior on the new scale, exactly as creation on the new
   response would have stated it, and the drawn \\s^2(x)\\ is carried
   into the same units, so the surface keeps its meaning in response
-  units across the swap. On `setResponse`, supplying this argument
-  positionally (`setResponse(y, TRUE)`) rather than by name warns once
-  per session (class `dbartsPositionalArgsWarning`) - it is the second
-  argument, where a caller porting code written before this order had
+  units across the swap. `setData` carries that restatement too,
+  unconditionally: the whole-data conduit has no `updateScale` to pin
+  the transform with, so a replacement data set always re-anchors it. On
+  `setResponse`, supplying this argument positionally
+  (`setResponse(y, TRUE)`) rather than by name warns once per session
+  (class `dbartsPositionalArgsWarning`) - it is the second argument,
+  where a caller porting code written before this order had
   `updateState` there instead.
 
 - offset.test:
