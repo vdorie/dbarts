@@ -792,6 +792,33 @@ makeScenarios <- function() {
     mutate = list(partial = list(index = 6L, values = runif(400L)))
   )
 
+  # a HETEROSCEDASTIC sampler taking the WHOLE-DATA replacement. setData is the
+  # one mutation conduit that re-anchors the response transform
+  # unconditionally - there is no updateScale to pin it with - so the variance
+  # forest's scale leaf is restated on the replacement's working scale and its
+  # drawn surface carried into the same units; a swap left on the abandoned
+  # scale moves every later variance draw, and the mean draws with it through
+  # the precision channel. The setdata scenario above is homoscedastic and the
+  # het scenarios above all mutate predictors, so this conduit had no coverage
+  # in this harness at all. The replacement's response range differs from the
+  # original's, which is what makes the re-anchor visible. binary = TRUE for
+  # hetforce's reason: sigma is structurally pinned under a variance forest.
+  set.seed(5150L)
+  x <- matrix(runif(400L * 10L), 400L)
+  x2 <- matrix(runif(500L * 10L), 500L)
+  result$hetsetdata <- list(
+    x = x,
+    y = friedman(x) + (0.5 + 2 * x[, 6L]) * rnorm(400L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
+    samplerApi = TRUE,
+    samplerArgs = list(variance = varianceForest(n.trees = 40L)),
+    setData = list(
+      x = x2,
+      y = 1.5 * friedman(x2) + (0.5 + 2 * x2[, 6L]) * rnorm(500L)
+    )
+  )
+
   # xbart's crossvalidation loop, the only scenario that drives it: each
   # replication draws a fold partition, every parameter cell is fit on the
   # training folds and scored on the held-out one, and the reported loss is

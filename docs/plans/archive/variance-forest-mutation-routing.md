@@ -408,7 +408,10 @@ a semantic question into a clamp.
   re-anchoring response or offset swap now re-derives the leaf from the
   retained residual prior on the new working scale and carries the drawn
   surface into those units, gated on the identity that the swapped sampler is
-  the one creation on the new response would have built.
+  the one creation on the new response would have built. The whole-data
+  conduit, which re-anchors the transform with no `updateScale` to pin it and
+  was left behind by that first pass, takes the same restatement and the same
+  identity.
 - **A prior draw of the variance forest**, which is what a correct
   heteroscedastic `samplePriorPredictive(type = "ppd")` needs. S1 refuses
   instead.

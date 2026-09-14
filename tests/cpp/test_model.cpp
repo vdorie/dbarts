@@ -1267,6 +1267,110 @@ static void testVarianceScaleReanchorIdentity() {
   identity(true, "offset");
 }
 
+// The whole-data conduit re-anchors the gaussian transform UNCONDITIONALLY -
+// there is no updateScale to pin it with - so the same restatement the
+// response and offset swaps take has to reach it: the scale leaf's prior, the
+// drawn surface, and the pinned sigma the response rewrites as a ratio of the
+// two transforms on its way through. Same identity as
+// testVarianceScaleReanchorIdentity, over a replacement that also moves the
+// observation count and the predictors, so the storage resize, the split remap
+// and the factor re-route all run underneath the carry.
+//
+// POISON: drop applyNewData's reanchorVarianceForest call (the defect this
+// covers) and the pinned sigma comes back a factor of c off - it is the old
+// transform reported through the new one - the surface a factor of c^2 off,
+// and the calibration stated against the abandoned scale; every check below
+// fails by that factor rather than by rounding. Local generators and a
+// restored global rngState leave the shared stream untouched.
+static void testVarianceDataSwapReanchorIdentity() {
+  std::uint64_t savedRngState = rngState;
+  const std::size_t n = 200, n2 = 320, p = 2, numVarianceTrees = 8,
+                    numSamples = 4;
+  const double sigEst = 1.3, sigDf = 3.0, sigRawScale = 0.37804942330213542;
+  const double c = 3.0;  // the response scale factor the replacement carries
+  std::vector<double> x, y, x2, y2;
+  makeMutationData(x, y, n);
+  makeMutationData(x2, y2, n2);
+  std::vector<double> scaled(n2);
+  for (std::size_t i = 0; i < n2; ++i) scaled[i] = c * y2[i];
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numVarianceTrees = numVarianceTrees;
+
+  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ConstantLeafSampler swapped(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, sigEst, sigDf,
+                              sigRawScale, options, &rngA);
+  ConstantLeafSampler fresh(x2.data(), scaled.data(), n2, p, nullptr, nullptr,
+                            ResponseFamily::gaussian, sigEst, sigDf,
+                            sigRawScale, options, &rngB);
+  // seeded AFTER construction: the two chains are built over different row
+  // counts, so only a re-seed here puts the draws that follow on a common
+  // generator state. A gaussian data swap consumes no variate.
+  ext_rng_setSeed(rngA, 4242u);
+  ext_rng_setSeed(rngB, 4242u);
+
+  double leafScaleBefore = swapped.chain(0).varianceLeafForTesting().scale;
+  double sigmaBefore = swapped.chain(0).sigma();
+  check(swapped.setData(x2.data(), scaled.data(), n2, nullptr, nullptr,
+                        nullptr, 0),
+        "setData ingests the rescaled replacement");
+
+  const ConstantVarianceLeaf& leafSwapped =
+    swapped.chain(0).varianceLeafForTesting();
+  const ConstantVarianceLeaf& leafFresh =
+    fresh.chain(0).varianceLeafForTesting();
+  check(leafSwapped.scale != leafScaleBefore,
+        "the data swap moved the scale leaf's calibration at all");
+  check(leafSwapped.degreesOfFreedom == leafFresh.degreesOfFreedom &&
+          leafSwapped.scale == leafFresh.scale,
+        "and it is bitwise the calibration creation on the replacement data "
+        "states");
+  // the sharpest read on the defect: the response rewrites the pinned sigma
+  // through the ratio of the two transforms, and nothing else re-pins it
+  check(swapped.chain(0).sigma() != sigmaBefore,
+        "the replacement moved the reported sigma at all");
+  check(swapped.chain(0).sigma() == fresh.chain(0).sigma(),
+        "and the pinned sigma is bitwise the fresh chain's");
+
+  std::vector<double> surfaceSwapped(n2), surfaceFresh(n2);
+  check(swapped.currentVarianceFits(0, false, surfaceSwapped.data()) &&
+          fresh.currentVarianceFits(0, false, surfaceFresh.data()),
+        "both chains report s^2(x) over the replacement rows");
+  double worstSurface = 0.0;
+  for (std::size_t i = 0; i < n2; ++i)
+    worstSurface = std::max(
+      worstSurface, std::fabs(surfaceSwapped[i] / surfaceFresh[i] - 1.0));
+  check(worstSurface < 1e-13,
+        "the carried surface is the fresh one, restated in the new working "
+        "units");
+
+  std::vector<double> fitsSwapped(n2 * numSamples), fitsFresh(n2 * numSamples);
+  std::vector<double> varSwapped(n2 * numSamples), varFresh(n2 * numSamples);
+  Results resultsSwapped, resultsFresh;
+  resultsSwapped.trainingFits = fitsSwapped.data();
+  resultsSwapped.varianceFits = varSwapped.data();
+  resultsFresh.trainingFits = fitsFresh.data();
+  resultsFresh.varianceFits = varFresh.data();
+  swapped.run(0, numSamples, resultsSwapped);
+  fresh.run(0, numSamples, resultsFresh);
+  double worstFit = 0.0, worstVariance = 0.0;
+  for (std::size_t i = 0; i < n2 * numSamples; ++i) {
+    worstFit = std::max(worstFit, std::fabs(fitsSwapped[i] - fitsFresh[i]));
+    worstVariance =
+      std::max(worstVariance, std::fabs(varSwapped[i] / varFresh[i] - 1.0));
+  }
+  check(worstFit < 1e-10 && worstVariance < 1e-10,
+        "and every draw that follows agrees, from a common generator state");
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
+  rngState = savedRngState;
+  printf("ok: variance data swap re-anchor identity (surface %.2g, fit %.2g, "
+         "s^2 %.2g)\n", worstSurface, worstFit, worstVariance);
+}
+
 static void testSampleFromPrior(ext_rng* rng) {
   const size_t n = 200, numTrees = 50, numReplications = 200;
   std::vector<double> x, y;
@@ -3889,17 +3993,36 @@ static void testGPLeafDraw(ext_rng* rng) {
   printf("ok: gp leaf draw\n");
 }
 
-static void testGPLeafEndToEnd(ext_rng* rng) {
+// The gp-versus-constant comparison at the bottom is a claim about two
+// posterior means, and it used to be decided by less than their own
+// variability: at sigma = 0.2 the constant leaf's steps fit a sine about as
+// well as the gp leaf's smooth draws do, so an unrelated engine change that
+// only moved the SHARED generator's position moved that chain's sse by a
+// quarter and flipped the check with nothing about either leaf model changed.
+// Two things make it a real comparison. The residual sd is 0.1, where the
+// constant leaf's error is its step approximation rather than noise and the gp
+// fit is 1.29x to 1.63x closer to the truth at every one of six data x chain
+// seed pairs probed (1.61 at the pair fixed here), against a spread of 0.96x
+// to 1.45x at 0.2; and the data and the chains both come from generators
+// seeded HERE, so no preceding suite or test can move either. The shared runif01 stream is left where this test's own draws
+// used to leave it, so no later test's data moves.
+static void testGPLeafEndToEnd(ext_rng*) {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 7717u);
   const size_t n = 250, p = 1;
   const double pi = 3.141592653589793;
+  std::uint64_t sharedRngState = rngState;
+  rngState = 0x1234567890ABCDEFull;
   std::vector<double> x(n), fTrue(n), y(n);
   for (size_t i = 0; i < n; ++i) {
     x[i] = runif01();
     fTrue[i] = std::sin(4.0 * pi * x[i]);
     double u1 = runif01(), u2 = runif01();
     double normal = std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * pi * u2);
-    y[i] = fTrue[i] + 0.2 * normal;
+    y[i] = fTrue[i] + 0.1 * normal;
   }
+  rngState = sharedRngState;
+  for (size_t i = 0; i < 3 * n; ++i) (void) runif01();
 
   double yMean = 0.0, ySd = 0.0;
   for (size_t i = 0; i < n; ++i) yMean += y[i];
@@ -3922,7 +4045,7 @@ static void testGPLeafEndToEnd(ext_rng* rng) {
   std::vector<double> xTest(x.begin(), x.begin() + numTest);
   gpSampler.setTestPredictors(xTest.data(), numTest);
 
-  const size_t numBurnIn = 150, numSamples = 200;
+  const size_t numBurnIn = 300, numSamples = 400;
   std::vector<double> sigmaDraws(numSamples);
   std::vector<double> trainingFits(n * numSamples);
   std::vector<double> testFits(numTest * numSamples);
@@ -3946,8 +4069,8 @@ static void testGPLeafEndToEnd(ext_rng* rng) {
 
   double sigmaPosteriorMean = 0.0;
   for (double sd : sigmaDraws) sigmaPosteriorMean += sd / (double) numSamples;
-  check(sigmaPosteriorMean > 0.15 && sigmaPosteriorMean < 0.3,
-        "gp end to end: sigma near truth (0.2)");
+  check(sigmaPosteriorMean > 0.075 && sigmaPosteriorMean < 0.15,
+        "gp end to end: sigma near truth (0.1)");
 
   // recorded test fits are the leaves' conditional means at the duplicated
   // rows: equal to the training fits up to the nugget
@@ -4037,6 +4160,7 @@ static void testGPLeafEndToEnd(ext_rng* rng) {
       std::isfinite(prediction) && prediction == predictions[0];
   check(predictionsCentered, "fresh gp live prediction sits at the center");
 
+  ext_rng_destroy(rng);
   printf("ok: gp leaf end to end (sse ratio %.3f, constant ratio %.3f, "
          "sigma %.3f, test gap %.4f)\n",
          sseGp / sseMean, sseConstant / sseMean, sigmaPosteriorMean,
@@ -7505,6 +7629,7 @@ void runModelTests(ext_rng* rng) {
   testVarianceSavedPredict();
   testVarianceM1Reduction();
   testVarianceScaleReanchorIdentity();
+  testVarianceDataSwapReanchorIdentity();
   testFlatFamilyCreatePaths();
   testOrdinalLogLikelihoodPin();
   testLogisticWeightSwapColdStart();
