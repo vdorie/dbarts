@@ -112,9 +112,7 @@ The sister packages we own each need their ported branch:
   resolves symbols the flat header no longer exports. The ported branch
   builds its sampler in R, drives it through the header, seeds correctly,
   and gains a slice move that fixes the group-spread mixing the removal of
-  rbart_vi was conditioned on. Until it is released, a user who passes 0/1
-  weights for a probit through its BART arguments loses the row mask
-  silently.
+  rbart_vi was conditioned on.
 - bartCause. The CRAN release installs, then errors on every response
   route, because it assigns into the predictor matrix of a data object in
   a way 1.0-0 refuses; its grouped route fails earlier on rbart_vi. The

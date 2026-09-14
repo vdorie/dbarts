@@ -684,11 +684,6 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     basis-alignment failures no longer reproduce), treatSens dbarts-1.0
     184/184, bairrtt main 206/206; every dbarts.h entry each C consumer
     calls is present with its signature. Repeat only if dbarts.h moves
-    At the same pass: stan4bart builds its sampler from dbartsSpec's
-    control, model and data and ignores the spec's active element, so a
-    user passing 0/1 weights for a probit through bart_args would lose
-    the mask silently; either forward the mask or refuse those weights
-    there.
     again.
     bartCause's bcf() and fitBCF now default n.threads to
     min(dbarts::guessNumCores(), n.chains), capped on its dbarts-1.0
