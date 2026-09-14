@@ -418,7 +418,12 @@ CALL("capi_set_offset", ptr2, offset, TRUE)
 rOffset <- CALL("capi_run", ptr2, 30L, 3L, TRUE, FALSE)
 expect_true(abs(mean(rOffset$train) - mean(y)) < 3)
 
-specFixed <- dbarts(x, y, resid.prior = fixed(1), control = control)
+specFixed <- dbarts(
+  x,
+  y,
+  family = gaussian(sigma = fixed(1)),
+  control = control
+)
 ptrFixed <- specFixed$getPointer()
 expect_equal(CALL("capi_set_sigma", ptrFixed, 0.37), 1L)
 rFixed <- CALL("capi_run", ptrFixed, 0L, 3L, FALSE, FALSE)
@@ -506,7 +511,7 @@ expect_equal(rBinLL$loglik[finite], twinLL[finite], tolerance = 1e-9)
 # would persist (no redraw corrects it) and rescale every leaf posterior
 # precision. The flat entry answers this in the capability channel rather than
 # by unwinding - no sigma would have worked - while the R5 twin still raises.
-# ptrFixed above is the permitted case - gaussian with resid.prior = fixed(),
+# ptrFixed above is the permitted case - gaussian with a fixed sigma prior,
 # the outer-Gibbs conduit - and answers 1 there
 expect_equal(CALL("capi_set_sigma", ptrBinary, 0.5), 0L)
 

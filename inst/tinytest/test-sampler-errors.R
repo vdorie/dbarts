@@ -159,7 +159,7 @@ expect_equal(sampler$getSigmas(), 2)
 # and a heteroscedastic sampler's variance forest owns the residual scale. In
 # both cases the value would be installed with the redraw that corrects it
 # gated off, silently rescaling every leaf posterior precision. The predicate
-# is the FAMILY, not "sigma is fixed": a gaussian resid.prior = fixed()
+# is the FAMILY, not "sigma is fixed": a gaussian sigma = fixed() prior
 # sampler pins sigma too, and driving it per sweep is the supported outer-Gibbs
 # conditioning idiom, asserted positively below.
 xErr <- cbind(x = testData$x)
@@ -196,13 +196,13 @@ expect_error(
   "variance forest owns the residual scale"
 )
 
-# the two permitted fixed-sigma cases: gaussian + resid.prior = fixed() (the
+# the two permitted fixed-sigma cases: gaussian + sigma = fixed() (the
 # outer-Gibbs conduit stan4bart's mvbart drives) and aft, whose sigma is drawn
 # conjugately like gaussian's
 sampler.fixed <- dbarts::dbarts(
   y ~ x + z,
   train,
-  resid.prior = fixed(1),
+  family = gaussian(sigma = fixed(1)),
   control = control
 )
 sampler.fixed$setSigma(0.4)
@@ -253,7 +253,7 @@ expect_true(any(dbarts::updatePredictorPerObservationJointly(
 )))
 expect_true(all(is.finite(sampler.mutable$run(0L, 2L)$variance)))
 
-# resid.prior calibrates the variance forest's scale leaf rather than a sigma
+# the residual prior calibrates the variance forest's scale leaf rather than a sigma
 # that is not a parameter here, so setModel recalibrates the leaf from the
 # incoming triple instead of refusing it. A prior
 # this tight swamps the residuals: every leaf factor is drawn at essentially

@@ -10,7 +10,7 @@ monotoneOf <- function(...) {
   sampler <- dbarts::dbarts(
     ...,
     control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L),
-    resid.prior = fixed(1)
+    family = gaussian(sigma = fixed(1))
   )
   probs <- sampler$control@proposal.probs
   list(

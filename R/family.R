@@ -224,6 +224,44 @@ formatResidPrior <- function(prior) {
   }
 }
 
+## The residual prior a door resolved from a retired flat spelling, stamped
+## onto the family object that door forwards: the prior has one home, so a
+## door that still reads an old spelling has to put it there. NULL leaves
+## the family untouched. A family with no free residual scale carries the
+## setting inertly - the fixed-unit-scale rule overwrites it downstream.
+withResidPrior <- function(family, residPrior) {
+  if (!is.null(residPrior)) {
+    family@settings$sigma <- residPrior
+  }
+  family
+}
+
+## 'sigest' is the residual-scale estimate a chisq prior calibrates against:
+## its quantile says where the estimate falls, so the two belong together.
+## A fixed residual scale has nothing to calibrate - the engine overwrites
+## the estimate with the square root of the fixed variance - so the pair is
+## refused rather than accepted and ignored.
+## The estimate itself is the test, not its name in the call: every entry
+## point forwards 'sigest' to the one below it, defaulted to NA, so a name
+## is no evidence a caller wrote one.
+refuseSigestUnderFixedPrior <- function(residPrior, sigest) {
+  if (
+    is(residPrior, "dbartsFixedPrior") &&
+      length(sigest) == 1L &&
+      !is.na(sigest)
+  ) {
+    stop(
+      "'sigest' has no effect under a fixed residual scale: sigma = ",
+      formatResidPrior(residPrior),
+      " IS the residual scale, and the estimate is overwritten with its ",
+      "square root. Drop 'sigest', or give a chisq prior for it to ",
+      "calibrate.",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 formatFamilyCall <- function(token, settings) {
   ## hazard's link is folded into the token, so it is restated as the
   ## argument the caller would write rather than dropped from the display

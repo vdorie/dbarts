@@ -72,11 +72,19 @@ retirements <- list(
   ),
   sigdf = list(
     old = list(sigdf = 5.0),
-    new = list(resid.prior = quote(dbarts::dbartsPriors$chisq(5.0, 0.90)))
+    new = list(
+      family = quote(dbarts::dbartsFamilies$gaussian(
+        sigma = dbarts::dbartsPriors$chisq(5.0, 0.90)
+      ))
+    )
   ),
   sigquant = list(
     old = list(sigquant = 0.75),
-    new = list(resid.prior = quote(dbarts::dbartsPriors$chisq(3.0, 0.75)))
+    new = list(
+      family = quote(dbarts::dbartsFamilies$gaussian(
+        sigma = dbarts::dbartsPriors$chisq(3.0, 0.75)
+      ))
+    )
   ),
   proposal.probs = list(
     old = list(proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4)),

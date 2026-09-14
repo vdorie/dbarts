@@ -244,9 +244,9 @@ expect_identical(callObject$call$family, quote(student(3)))
 # --- the residual prior rides the family ------------------------------------
 
 # the setting completes dec-B98's rule: the residual scale's own prior is a
-# gaussian-family setting, so it is written inside the family call and not
-# beside it. The prior vocabulary resolves there, as it does inside
-# 'resid.prior' itself.
+# gaussian-family setting, so it is written inside the family call and
+# nowhere else. The prior vocabulary resolves there, as it does inside
+# 'tree.prior' and 'node.prior'.
 expect_inherits(
   dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(5, 0.75))@settings$sigma,
   "dbartsChiSqPrior"
@@ -325,9 +325,8 @@ fitFixed <- dbarts::bart(
 expect_inherits(fitFixed$fit$model@resid.prior, "dbartsFixedPrior")
 expect_true(all(abs(fitFixed$sigma - 1) < 1e-8))
 
-# the sampler constructor keeps 'resid.prior' as the raw prior triple's third
-# member, and reads the family's own where the caller names none; a flat one
-# the caller did name wins over it (dec-B116's rule)
+# the sampler constructor reaches the prior the same way: it is the raw prior
+# triple's third member, read off the family object the caller wrote it on
 residControl <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
@@ -344,14 +343,62 @@ samplerViaFamily <- dbarts::dbarts(
 )
 expect_inherits(samplerViaFamily$model@resid.prior, "dbartsFixedPrior")
 expect_equal(samplerViaFamily$model@resid.prior@value, 2)
-samplerFlatWins <- dbarts::dbarts(
+expect_equal(
+  dbarts::dbartsSpec(
+    dbarts::dbartsData(x, y),
+    family = gaussian(sigma = fixed(2))
+  )$model@resid.prior@value,
+  2
+)
+
+# 'sigest' is the estimate a chisq prior calibrates against, so it stands
+# beside one; a fixed residual scale has nothing to calibrate and refuses it
+expect_silent(dbarts::dbarts(
   x,
   y,
-  family = gaussian(sigma = fixed(2)),
-  resid.prior = fixed(3),
+  family = gaussian(sigma = chisq(5, 0.9)),
+  sigest = 1.5,
   control = residControl
+))
+expect_error(
+  dbarts::dbarts(
+    x,
+    y,
+    family = gaussian(sigma = fixed(2)),
+    sigest = 1.5,
+    control = residControl
+  ),
+  pattern = "no effect under a fixed residual scale"
 )
-expect_equal(samplerFlatWins$model@resid.prior@value, 3)
+expect_silent(dbarts::bart(
+  x,
+  y,
+  family = gaussian(sigma = chisq(5, 0.9)),
+  sigest = 1.5,
+  n.trees = 5L,
+  n.samples = 7L,
+  n.burn = 3L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 217L,
+  verbose = FALSE
+))
+expect_error(
+  dbarts::bart(
+    x,
+    y,
+    family = gaussian(sigma = fixed(2)),
+    sigest = 1.5,
+    n.trees = 5L,
+    n.samples = 7L,
+    n.burn = 3L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 217L,
+    verbose = FALSE
+  ),
+  pattern = "no effect under a fixed residual scale"
+)
 
 # and a binary family, which has no residual scale to give a prior to, has no
 # 'sigma' argument to write one in

@@ -497,7 +497,6 @@ dbarts <- function(
   n.samples = 800L,
   tree.prior = cgm,
   node.prior = normal,
-  resid.prior = chisq,
   monotone = NULL,
   interactions = NULL,
   blocks = NULL,
@@ -541,6 +540,13 @@ dbarts <- function(
     "dbarts",
     evalEnv
   )
+  # cleared from the matched call before anything is forwarded: the prior
+  # resolver still carries a 'resid.prior' formal for the object to reach,
+  # and a name left standing here would reach it without the reconciliation
+  # below
+  if (length(consolidated) > 0L) {
+    matchedCall[names(consolidated)] <- NULL
+  }
   # the tree-move mixture is a control setting now; the retired spelling is
   # honored where the control's own slot would otherwise stand, and refused
   # where the control's own call named that slot too
@@ -608,10 +614,15 @@ dbarts <- function(
   dispersion <- familySetting(familySpec, "dispersion", NA_real_)
   breaks <- familySetting(familySpec, "breaks", NULL)
   max.rows <- familySetting(familySpec, "max.rows", 1e7)
-  # the residual scale's prior also rides the family; this signature keeps
-  # 'resid.prior' as the raw prior triple's third member, which wins where
-  # the caller named it
-  residPrior <- familySetting(familySpec, "sigma", NULL)
+  # The residual scale's prior has one home, the family object it rides; the
+  # retired flat spelling is still read for one release, and a flat spelling
+  # beside a family that named 'sigma' too is refused unless the two agree.
+  residPrior <- reconcileResidPrior(
+    consolidatedResidPrior(consolidated),
+    "resid.prior",
+    familySpec
+  )
+  refuseSigestUnderFixedPrior(residPrior, sigest)
   # Student-t is its own family token and its own engine family; on this
   # side of the bridge it is a gaussian response carrying a degrees-of-
   # freedom attribute, so the remap happens here, once

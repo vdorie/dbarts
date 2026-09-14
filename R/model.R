@@ -1811,7 +1811,8 @@ print.dbartsVarianceForest <- function(x, ...) {
 ## The exported face of the prior constructors: one object, so that no
 ## generic name (normal, chisq, fixed, chi) enters the search path to be
 ## masked by or to mask another package by attach order. Inside the
-## tree.prior/node.prior/resid.prior arguments of the fitting functions the
+## tree.prior and node.prior arguments of the fitting functions - and inside
+## the 'sigma' argument of the families that draw a residual scale - the
 ## same constructors are available by bare name.
 dbartsPriors <- list(
   cgm = cgm,

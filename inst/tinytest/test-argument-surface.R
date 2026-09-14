@@ -207,6 +207,10 @@ tbExceptions <- data.frame(
   stringsAsFactors = FALSE
 )
 expect_false("resid.prior" %in% names(formals(dbarts::bart)))
+# and it has left the other three doors too: the prior has one home
+expect_false("resid.prior" %in% names(formals(dbarts::dbarts)))
+expect_false("resid.prior" %in% names(formals(dbarts::dbartsSpec)))
+expect_false("resid.prior" %in% names(formals(dbarts::xbart)))
 bart2Formals <- formals(dbarts::bart)
 dbartsFormals <- formals(dbarts::dbarts)
 sharedFormalNames <- setdiff(
@@ -551,7 +555,7 @@ expect_true(any(grepl("base\\s*= 0.9", formatted)))
 # leaves the flat shorthand build untouched. The residual prior rides the
 # family object, and its retired flat spelling is carried on '...'.
 
-# reachability: node.prior = linear()/gp() and resid.prior = fixed() were
+# reachability: node.prior = linear()/gp() and a fixed residual prior were
 # unreachable from bart before (no route existed to hand dbarts() a prior
 # OBJECT). samplerOnly = TRUE returns bart's sampler before any tree
 # initialization, so it is a fair byte-identity comparison against a fresh
@@ -596,7 +600,7 @@ expect_identical(samplesViaBart2Linear$sigma, samplesViaDbartsLinear$sigma)
 samplerViaBart2Fixed <- dbarts::bart(
   x,
   y.gaussian,
-  resid.prior = dbarts::dbartsPriors$fixed(1),
+  family = gaussian(sigma = fixed(1)),
   n.trees = 3L,
   n.samples = 5L,
   n.burn = 0L,
@@ -609,7 +613,7 @@ samplerViaBart2Fixed <- dbarts::bart(
 samplerViaDbartsFixed <- dbarts::dbarts(
   x,
   y.gaussian,
-  resid.prior = dbarts::dbartsPriors$fixed(1),
+  family = gaussian(sigma = fixed(1)),
   control = dbarts::dbartsControl(
     n.trees = 3L,
     n.samples = 5L,
@@ -828,7 +832,7 @@ expect_identical(
   names(formals(dbarts::xbart))[length(formals(dbarts::xbart))],
   "..."
 )
-expect_equal(length(formals(dbarts::xbart)), 32L)
+expect_equal(length(formals(dbarts::xbart)), 31L)
 # The two-door contract (dec-B83): the legacy door is a strict compatibility
 # mode carrying 0.9-34's argument list and nothing else, and every capability
 # the branch had briefly appended to it lives at the modern door instead.

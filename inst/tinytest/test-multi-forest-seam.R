@@ -186,7 +186,7 @@ expect_equal(dim(result.bcf$train), c(n, 5L))
 expect_true(all(is.finite(result.bcf$train)))
 
 # the weight swap is not merely permitted, it lands the same sampler: under
-# resid.prior = fixed() (which removes the creation-time sigest, the one
+# a fixed residual prior (which removes the creation-time sigest, the one
 # quantity a post-creation swap cannot reproduce - and cannot on a
 # single-forest sampler either), building with w2 and building with w1 then
 # swapping in w2 agree BITWISE on every channel the coupling exposes
@@ -199,7 +199,7 @@ bcfWeightArm <- function(build, swap) {
     x,
     y.bcf,
     weights = build,
-    resid.prior = fixed(1),
+    family = gaussian(sigma = fixed(1)),
     control = control.one
   )
   bc <- dbarts:::bartcoreBCFSampler(host, z, n.trees.treatment = 20L)

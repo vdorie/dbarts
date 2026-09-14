@@ -50,8 +50,7 @@ composeProbit <- function(
     } else {
       dbartsPriors$normal(k = 2, scale = priorScale)
     },
-    resid.prior = dbartsPriors$fixed(1),
-    sigest = 1
+    family = gaussian(sigma = dbartsPriors$fixed(1))
   )
   if (useRecipe) {
     # the documented location lever: prior.mean is the response transform's

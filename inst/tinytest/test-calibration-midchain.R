@@ -596,7 +596,7 @@ repinned <- dbarts(
   y,
   control = midControl(),
   node.prior = normal(k = 2, scale = 1.5),
-  resid.prior = dbartsPriors$fixed(1)
+  family = gaussian(sigma = dbartsPriors$fixed(1))
 )
 repinned$setSigma(3.5)
 expect_equal(unname(repinned$getSigmas()[1L]), 3.5)

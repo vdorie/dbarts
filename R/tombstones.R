@@ -241,6 +241,27 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
+    name = "resid.prior",
+    kind = "argument",
+    owner = "dbarts",
+    successor = "family = gaussian(sigma = )",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "resid.prior",
+    kind = "argument",
+    owner = "dbartsSpec",
+    successor = "family = gaussian(sigma = )",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "resid.prior",
+    kind = "argument",
+    owner = "xbart",
+    successor = "family = gaussian(sigma = )",
+    expires = tombstoneExpiry
+  ),
+  list(
     name = "proposal.probs",
     kind = "argument",
     owner = "bart",
@@ -548,10 +569,11 @@ consolidatedArgsFor <- list(
     "dispersion",
     "breaks",
     "max.rows",
+    "resid.prior",
     "proposal.probs"
   ),
-  dbartsSpec = c("resid.dist", "dispersion"),
-  xbart = "dart"
+  dbartsSpec = c("resid.dist", "dispersion", "resid.prior"),
+  xbart = c("dart", "resid.prior")
 )
 
 tombstoneDotsReasons <- list(
@@ -677,6 +699,64 @@ applyConsolidatedFamilyArgs <- function(family, consolidated) {
     }
   }
   family
+}
+
+## The retired flat 'resid.prior', resolved to an object: a bare constructor
+## name means its defaults, and anything that is not a residual prior is
+## refused here, where the spelling the caller wrote is still known. An
+## explicit NULL is a supplied value, not an absent one, so it is refused
+## rather than read as the default.
+consolidatedResidPrior <- function(consolidated) {
+  if ("resid.prior" %not_in% names(consolidated)) {
+    return(NULL)
+  }
+  value <- consolidated[["resid.prior"]]
+  if (is.function(value)) {
+    value <- value()
+  }
+  if (!is(value, "dbartsResidPrior")) {
+    stop(
+      "'resid.prior' must be a residual prior specification; see ?dbartsPriors",
+      call. = FALSE
+    )
+  }
+  value
+}
+
+## The residual prior written twice: a retired flat spelling and a family
+## object whose own call named 'sigma'. Agreeing spellings are one statement
+## said twice and stand; disagreeing ones are a conflict no precedence rule
+## can settle, so the call is refused naming both and saying which to delete.
+## Priors agree when they read back as the same constructor call, which is
+## also how the message renders them, so the test and the message cannot
+## disagree. 'flatName' is the spelling the caller actually wrote: bart's
+## retired sigdf/sigquant build the same prior under two more names.
+reconcileResidPrior <- function(flat, flatName, family) {
+  familySigma <- familySetting(family, "sigma", NULL)
+  if (is.null(flat) || is.null(familySigma)) {
+    if (is.null(flat)) familySigma else flat
+  } else if (identical(formatResidPrior(flat), formatResidPrior(familySigma))) {
+    flat
+  } else {
+    stop(
+      "'",
+      flatName,
+      "' and the family's own 'sigma' set different residual priors: '",
+      flatName,
+      "' says ",
+      formatResidPrior(flat),
+      ", family = ",
+      family@token,
+      "(sigma = ) says ",
+      formatResidPrior(familySigma),
+      ". Delete '",
+      flatName,
+      "', which is removed in dbarts ",
+      tombstoneExpiry,
+      ", and keep the prior on the family.",
+      call. = FALSE
+    )
+  }
 }
 
 ## The names in a '...', without forcing one of them: a retired argument may

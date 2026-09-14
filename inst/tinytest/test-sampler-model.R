@@ -12,7 +12,7 @@ expect_inherits(
     n.samples = 500,
     tree.prior = cgm(0.75, 0.5),
     node.prior = normal(3.5),
-    resid.prior = chisq(5, 0.9),
+    family = gaussian(sigma = chisq(5, 0.9)),
     sigest = 1.0,
     control = dbartsControl(n.threads = 1L, n.chains = 1L),
   ),
@@ -26,7 +26,7 @@ expect_inherits(
     n.samples = 500,
     tree.prior = cgm(0.75, 0.5),
     node.prior = normal(chi(1.0, Inf)),
-    resid.prior = chisq(5, 0.9),
+    family = gaussian(sigma = chisq(5, 0.9)),
     sigest = 1.0,
     control = dbartsControl(n.threads = 1L, n.chains = 1L)
   ),
@@ -41,7 +41,7 @@ expect_inherits(
     n.samples = 500,
     tree.prior = cgm(0.75, 0.5),
     node.prior = normal(k),
-    resid.prior = chisq(5, 0.9),
+    family = gaussian(sigma = chisq(5, 0.9)),
     sigest = 1.0,
     control = dbartsControl(n.threads = 1L, n.chains = 1L)
   ),
