@@ -402,4 +402,7 @@ expect_error(
 
 # and a binary family, which has no residual scale to give a prior to, has no
 # 'sigma' argument to write one in
-expect_error(dbartsFamilies$probit(sigma = dbartsPriors$fixed(2)))
+expect_error(
+  dbartsFamilies$probit(sigma = dbartsPriors$fixed(2)),
+  pattern = "unused argument"
+)
