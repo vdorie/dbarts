@@ -729,8 +729,10 @@ consolidatedResidPrior <- function(consolidated) {
 ## can settle, so the call is refused naming both and saying which to delete.
 ## Priors agree when they read back as the same constructor call, which is
 ## also how the message renders them, so the test and the message cannot
-## disagree. 'flatName' is the spelling the caller actually wrote: bart's
-## retired sigdf/sigquant build the same prior under two more names.
+## disagree. 'flatName' is every retired spelling the caller actually wrote,
+## named together in one message: bart's retired sigdf/sigquant build the
+## same prior under two names at once, and naming only one would have the
+## caller delete it, rerun, and hit the same refusal on the other.
 reconcileResidPrior <- function(flat, flatName, family) {
   familySigma <- familySetting(family, "sigma", NULL)
   if (is.null(flat) || is.null(familySigma)) {
@@ -738,20 +740,25 @@ reconcileResidPrior <- function(flat, flatName, family) {
   } else if (identical(formatResidPrior(flat), formatResidPrior(familySigma))) {
     flat
   } else {
+    names <- paste0("'", flatName, "'", collapse = " and ")
+    plural <- length(flatName) > 1L
     stop(
-      "'",
-      flatName,
-      "' and the family's own 'sigma' set different residual priors: '",
-      flatName,
-      "' says ",
+      names,
+      " and the family's own 'sigma' set different residual priors: ",
+      names,
+      if (plural) " together say " else " says ",
       formatResidPrior(flat),
       ", family = ",
       family@token,
       "(sigma = ) says ",
       formatResidPrior(familySigma),
-      ". Delete '",
-      flatName,
-      "', which is removed in dbarts ",
+      ". Delete ",
+      names,
+      if (plural) {
+        ", both removed in dbarts "
+      } else {
+        ", which is removed in dbarts "
+      },
       tombstoneExpiry,
       ", and keep the prior on the family.",
       call. = FALSE

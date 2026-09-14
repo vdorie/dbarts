@@ -363,8 +363,8 @@ combiner extraction followed (forest-combiner.md).
 ## 7. Decision (fork 5) - the R surface
 
 Declare the variance forest on dbarts()/bart2() with a dedicated argument group; no
-collision with the mean-side sigma/tree args (sigest, sigdf, sigquant, k, n.trees,
-power, base, R/dbarts.R).
+collision with the mean-side sigma/tree args (sigest, k, n.trees, power, base, the
+family's sigma prior, R/dbarts.R).
 
 - **Which predictors drive variance.** Default the SAME x as the mean forest (the
   common case and stochtree's default). Allow a SUBSET or a distinct set via a
@@ -382,8 +382,8 @@ power, base, R/dbarts.R).
 - **Variance prior hypers.** The (nu', lambda') calibration derives from a
   homoscedastic-style spec: recommend `power.variance` / `base.variance` for the
   variance tree prior and a `k.variance`-or-df spec for the leaf prior spread,
-  calibrated through paper Section 3.4 from the same sigquant/sigdf vocabulary the
-  mean sigma prior uses. Keep the names suffixed `.variance` so they never shadow
+  calibrated through paper Section 3.4 from the same df/quantile vocabulary the
+  family's sigma prior uses. Keep the names suffixed `.variance` so they never shadow
   the mean-side hypers.
 
 - **Naming rationale (collision trap).** Do NOT overload `sigma`/`sigest` (scalar,

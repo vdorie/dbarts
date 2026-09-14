@@ -272,6 +272,9 @@ fitAgreed <- suppressWarnings(dbarts::bart(
 expect_equal(fitAgreed$fit$model@resid.prior@df, 5)
 expect_identical(fitAgreed$sigma, fitSigdf$sigma)
 
+# both retired shorthands are named together, in one message: naming only
+# the first would have a caller delete it, rerun, and hit the same refusal
+# on the other
 expect_error(
   suppressWarnings(dbarts::bart(
     xCons,
@@ -287,7 +290,24 @@ expect_error(
     seed = 313L,
     verbose = FALSE
   )),
-  pattern = "'sigdf' and the family's own 'sigma' set different residual"
+  pattern = "'sigdf' and 'sigquant' and the family's own 'sigma' set different residual"
+)
+expect_error(
+  suppressWarnings(dbarts::bart(
+    xCons,
+    yCons,
+    family = gaussian(sigma = chisq(2, 0.5)),
+    sigdf = 5,
+    sigquant = 0.75,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 313L,
+    verbose = FALSE
+  )),
+  pattern = "Delete 'sigdf' and 'sigquant'"
 )
 expect_error(
   suppressWarnings(dbarts::bart(
@@ -295,6 +315,80 @@ expect_error(
     yCons,
     family = gaussian(sigma = chisq(2, 0.5)),
     resid.prior = dbarts::dbartsPriors$fixed(2),
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 313L,
+    verbose = FALSE
+  )),
+  pattern = "'resid.prior' and the family's own 'sigma' set different residual"
+)
+
+# the disagreement rule compares the RESOLVED prior objects, not the
+# spelling that built them: two constructor calls read back the same when
+# their arguments are supplied differently (positional vs named), and a
+# prebuilt object or a variable holding one agrees the same way an inline
+# constructor call would. Spelled out rather than routed through
+# residPriorFit's '...', as fitSigmaObject above is.
+fitSameByName <- suppressWarnings(dbarts::bart(
+  xCons,
+  yCons,
+  family = gaussian(sigma = chisq(df = 3, quant = 0.9)),
+  resid.prior = dbarts::dbartsPriors$chisq(3, 0.9),
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 313L,
+  keepSampler = TRUE,
+  verbose = FALSE
+))
+expect_equal(fitSameByName$fit$model@resid.prior@df, 3)
+
+prebuiltChisq <- dbarts::dbartsPriors$chisq(3, 0.9)
+fitPrebuilt <- suppressWarnings(dbarts::bart(
+  xCons,
+  yCons,
+  family = gaussian(sigma = dbarts::dbartsPriors$chisq(3, 0.9)),
+  resid.prior = prebuiltChisq,
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 313L,
+  keepSampler = TRUE,
+  verbose = FALSE
+))
+expect_equal(fitPrebuilt$fit$model@resid.prior@df, 3)
+
+chisqVar <- prebuiltChisq
+fitVariable <- suppressWarnings(dbarts::bart(
+  xCons,
+  yCons,
+  family = gaussian(sigma = dbarts::dbartsPriors$chisq(3, 0.9)),
+  resid.prior = chisqVar,
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 313L,
+  keepSampler = TRUE,
+  verbose = FALSE
+))
+expect_equal(fitVariable$fit$model@resid.prior@df, 3)
+rm(fitSameByName, prebuiltChisq, fitPrebuilt, chisqVar, fitVariable)
+
+expect_error(
+  suppressWarnings(dbarts::bart(
+    xCons,
+    yCons,
+    family = gaussian(sigma = chisq(3, 0.95)),
+    resid.prior = dbarts::dbartsPriors$chisq(3, 0.9),
     n.trees = 5L,
     n.samples = 5L,
     n.burn = 2L,

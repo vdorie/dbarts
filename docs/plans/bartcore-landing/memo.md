@@ -80,6 +80,13 @@ usage is:
   scale's posterior no longer counts the zero-weight rows, and on the
   comparison design 0.9-34 reported a residual scale of 0.29 where 1.0-0
   and an unweighted fit on the remaining rows both report about 0.7.
+- Residual prior shorthand. A warning, once per session, and the value is
+  honoured: bart's sigdf, sigquant and resid.prior, and dbarts's and
+  xbart's resid.prior, all still work, spelled now on the family object,
+  family = gaussian(sigma = chisq(...)) or fixed(...), removed in dbarts
+  1.1-0. Loud where the two spellings collide: giving the prior both ways
+  is refused if they disagree, and sigest beside a fixed residual scale is
+  now an error, where 0.9-34 accepted it and silently ignored it.
 - Cross-validation with xbart. Loud for a three-element burn-in, which is
   refused with an explanation. Silent otherwise: reported losses rise
   because no fold is warm-started on its own rows, and sigma is renamed
@@ -129,10 +136,9 @@ The sister packages we own each need their ported branch:
 Before the merge to main, because each is shipped surface or a decision
 the merge is made on:
 
-- One known wrong answer in a corner: a variance forest's leaf calibration
-  is fixed at creation, so swapping the response with rescaling on leaves
-  that prior on the old scale. Either the rescale is verified and built or
-  the swap is refused there.
+- One known wrong answer in a corner: the whole-data swap on a
+  heteroscedastic sampler still mis-pins sigma, and is being fixed before
+  the merge.
 - At the freeze: re-verify the four sister packages against the final
   header, since it has changed since the last pass even though its hash
   has not; bump the DESCRIPTION date; the maintainer's own items,
