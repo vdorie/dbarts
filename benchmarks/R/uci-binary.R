@@ -8,9 +8,9 @@
 # real-data column is the one that could move the package default, and six
 # datasets cannot settle it. These sixteen widen that column to the breadth
 # the original k-sensitivity work had: two hundred to fifty thousand rows,
-# three to sixty predictors, positive rates from 0.085 to 0.65, five datasets
-# whose predictors are wholly or partly factors, and three with an imbalance
-# strong enough to matter.
+# three to sixty predictors, positive rates from 0.085 to 0.65, seven
+# datasets whose predictors are wholly or partly factors, and three with an
+# imbalance strong enough to matter.
 #
 # WHAT EACH ONE IS. Rows and predictors are after the per-dataset cleaning
 # described in its function; "rate" is the fraction of rows with y == 1.

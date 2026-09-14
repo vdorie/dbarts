@@ -14,7 +14,7 @@
 # default, and the six R datasets are too few and too alike to settle it, so
 # the sixteen UCI datasets restore the breadth the original k-sensitivity work
 # had: 208 to 48,842 rows, 3 to 60 predictors, positive rates from 0.085 to
-# 0.65, and eight datasets with factor predictors. A split is 80/20 of the
+# 0.65, and seven datasets with factor predictors. A split is 80/20 of the
 # whole dataset, as before, except that a dataset of more than 5,000 rows
 # draws 4,000 training rows and 1,000 held-out rows per split, so that the
 # cost of a fit stays bounded and the large datasets differ from the small
@@ -949,6 +949,30 @@ readRun <- function(outDir) {
   if (length(unique(quickFlags)) > 1L) {
     stop("directory mixes quick and full blocks; separate them")
   }
+  # A directory is one leg. Blocks may differ in their repetition counts, an
+  # expensive stratum having been run at fewer, but a directory that mixed
+  # chain lengths would have summarize report the first block's length for
+  # all of them, so that is refused rather than labelled.
+  lengths <- unique(vapply(
+    pieces,
+    function(p) {
+      settings <- attr(p, "settings")
+      sprintf(
+        "%s chain(s) of %s after %s, %s trees",
+        settings$nChains,
+        settings$nSamples,
+        settings$nBurn,
+        settings$nTrees
+      )
+    },
+    character(1L)
+  ))
+  if (length(lengths) > 1L) {
+    stop(
+      "directory mixes chain lengths; separate them: ",
+      paste(lengths, collapse = " / ")
+    )
+  }
   rows <- bindBlocks(pieces)
   attr(rows, "settings") <- attr(pieces[[1L]], "settings")
   attr(rows, "quick") <- any(quickFlags)
@@ -1157,10 +1181,14 @@ compareRuns <- function(dirA, dirB) {
   if (nrow(merged) == 0L) {
     stop("the two directories share no (cell, repetition, arm)")
   }
+  # The pairing is an intersection, so a leg run over fewer cells, arms or
+  # repetitions than the other contributes nothing for the rows it lacks.
+  # The unpaired counts are reported so a reader sees how much was dropped.
   cat(sprintf(
     "A %s: %s
 B %s: %s
 %d paired fits over %d cells and %d arms
+%d of A's %d rows and %d of B's %d rows had no partner
 
 ",
     dirA,
@@ -1169,7 +1197,11 @@ B %s: %s
     settingsLine(attr(b, "settings")),
     nrow(merged),
     length(unique(merged$cell)),
-    length(unique(merged$arm))
+    length(unique(merged$arm)),
+    nrow(a) - nrow(merged),
+    nrow(a),
+    nrow(b) - nrow(merged),
+    nrow(b)
   ))
 
   armTable <- function(rows, columns) {
