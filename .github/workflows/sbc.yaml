@@ -37,10 +37,10 @@
 # whose amplitude functionals are measured undecorrelated past lag 200 at
 # |a| >= 5, a stratum the prior gives mass 0.126 (bcf-latent-evidence.md
 # Decision 1) -- a finding on chain length, the R=200 verdicts being near-clean.
-# And the hazard / hurdle / monotone families, which are ill-posed or not yet
-# liftable for SBC (sbc-family-tiers.md). The heteroscedastic pair left that
-# list once the variance forest gained a prior-draw entry and a current-state
-# surface accessor (aft-status-setter.md).
+# And the hazard / hurdle / monotone families: the first two are ill-posed for
+# SBC, monotone is liftable but not yet run (sbc-family-tiers.md). The
+# heteroscedastic pair left that list once the variance forest gained a
+# prior-draw entry and a current-state surface accessor (aft-status-setter.md).
 #
 # NOTE: GitHub binds `schedule` and `workflow_dispatch` to the repository
 # DEFAULT branch, so neither fires until the workflow lands on main; on

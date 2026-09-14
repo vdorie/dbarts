@@ -383,7 +383,9 @@ thin 100: censoring costs the MEAN surface roughly twice the lag at the same des
 nothing.
 
 The verdicts, R = 200 and L = 150 at those thins. Every functional PASSES, and at the per-functional 5% band (0.0924),
-which is stricter than the Bonferroni'd one (0.1347) the arms are admitted under.
+which is stricter than the Bonferroni'd one (0.1347) the arms are admitted under. The ecdf statistic is what the verdict
+reads; the rank histogram's chi-square sits beside it and is inside the matrix's alpha everywhere, `hetero`'s
+`avg.log.s` closest at p 0.003.
 
 | functional | `hetero` | `hetero-aft` |
 |---|---|---|
@@ -416,10 +418,22 @@ chi-square p 0.000 on all four, and every mean functional stays inside (0.0287 t
 poison's own: theta0's `avg.log.s` is permutation-invariant, so what it catches is the posterior collapsing toward a
 flat surface under scrambled data.
 
-A third mismatch is NOT offered, having been measured not to redden either arm: skipping only the GENERATOR's variance
-prior draw, so theta0's surface is what the last replication's chain left. That is a data-augmentation step on (s, y)
-rather than a mismatch - the surface it carries is still marginally a prior draw - so it costs rank independence
-across replications and nothing else, and a run of it reads clean on every functional.
+Both of those leave the PRIOR right and move the data away from theta0, so neither reaches the prior-draw entry
+itself. "s-df" is the complement and the only one that does: the surface comes from a SECOND variance forest
+calibrated at four times the arm's residual df while the fit keeps its own, and theta0 records exactly the surface the
+data came from, so the single mismatch is the prior that surface was drawn from. On `hetero` it reddens the surface
+and nothing else - `avg.log.s` 0.2118, `s.star2` 0.1717 and `s.star3` 0.1480 against the 0.1347 band, `s.star1`
+pressing it at 0.1227, chi-square p 0.000 on the three and 0.004 on the fourth - with every mean functional inside
+(0.0326 to 0.0647). It is what discriminates a miscalibrated
+[`dbartsSampler$sampleVarianceForestFromPrior`](../../man/dbartsSampler-class.Rd), the one channel generator and fit
+do not share.
+
+A fourth mismatch is NOT offered, and its clean reading would be vacuous rather than reassuring: skipping only the
+GENERATOR's variance prior draw, so theta0's surface is what the last replication's chain left. That REMOVES the
+prior-draw entry from the generator rather than mismatching it. The surface it carries is marginally a prior draw only
+if the run's posterior draws are already exact and the chain over replications has reached its stationary law - which
+is what the arm exists to test - and a miscalibrated entry reads clean under it precisely because the generator never
+calls the entry. It costs rank independence across replications besides, successive theta0 sharing a surface.
 
 What closes. The honest gap [6. Gates](aft-variance-forest.md#6-gates) records - the joint calibration of (mean
 forest, variance forest, censored latents), untested while aft was out of the matrix - is tested by `hetero-aft` and

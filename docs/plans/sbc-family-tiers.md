@@ -330,6 +330,8 @@ at alpha = 0.05, so nothing previously recorded is invalidated.
 - Third ladder points (thin ~300) at full R=200 for ordinal, nbinom and
   multinomial, if a stronger monotone-shrinkage statement is wanted than two
   points support.
-- Still OUT, unchanged: aft (needs a status setter), hazard and hurdle (design
-  depends on y0), heteroscedastic (liftable R-side via setState, deferred),
-  monotone (now liftable after 173a710, the first follow-on arm).
+- Out of the matrix still: hazard and hurdle, whose design depends on y0.
+  aft and the two heteroscedastic arms have since been admitted, their enablers
+  being the status setter and the variance-forest prior draw and surface
+  accessor; monotone, liftable after 173a710, is the first follow-on arm not
+  yet run.
