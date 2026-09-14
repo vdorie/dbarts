@@ -134,10 +134,6 @@ the merge is made on:
 - The maintainer's ruling on the binary leaf-scale prior. The extended
   study recommends keeping chi(1.5, 2); the default is draw-changing, so
   the ruling precedes the merge.
-- Two documentation debts: the manual pages for bart and the control
-  constructor must say that a saved fit needs its state stored first; and
-  the error for the exhaustive categorical split cap must warn, as the
-  manual does, that the ceiling of 30 admits a 2^29 enumeration.
 - One untested regression. The one-replication k-fold cross-validation was
   measured 2.1 times slower than 0.9-34 in wall time before the work that
   redistributed folds across workers; it has not been re-measured since.
@@ -171,9 +167,7 @@ placed them there:
   families; the negative binomial has no continuous dispersion; the
   alternate families have no warm start; the multinomial family has no
   per-observation log-likelihood channel; the negative binomial SBC arm
-  passes only with two functionals waived as an identifiability ridge; and
-  the survival family's exact-posterior check runs in continuous
-  integration but carries no row in the baseline manifest.
+  passes only with two functionals waived as an identifiability ridge.
 
 ## Whether 1.0-0 and 0.9-34 give the same posterior
 
