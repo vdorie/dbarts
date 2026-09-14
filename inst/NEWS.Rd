@@ -61,7 +61,7 @@
             A consumer builds the sampler in R (\code{dbarts},
             \code{\link{dbartsSpec}}) and reads the handle out of the
             object's external pointer with \code{R_ExternalPtrAddr}; that
-            handle is what the twenty-four remaining entry points take. Gone
+            handle is what the twenty-two remaining entry points take. Gone
             with the four \code{SEXP} entries
             (\code{dbarts_sampler_create}, \code{_getTrees},
             \code{_storeState}, \code{_setState}) are the predictor, test
