@@ -14,12 +14,14 @@
 #   Rscript benchmarks/R/sbc.R ordinal 200 150 30   # family tiers, plan
 #   Rscript benchmarks/R/sbc.R nbinom|t|multinom 200 150 30
 #   Rscript benchmarks/R/sbc.R aft 200 150 30 <burn> # aft/survival, reused
+#   Rscript benchmarks/R/sbc.R hetero|hetero-aft 200 150 <thin> # variance forest
 #   Rscript benchmarks/R/sbc.R gp-mixed 200 150 60 3000 # GP/constant mix
 #   Rscript benchmarks/R/sbc.R bcf-probit 200 150 30 <burn> # latent BCF arms
 #   Rscript benchmarks/R/sbc.R discrete-selfcheck   # the discrete-rank gate
 #   Rscript benchmarks/R/sbc.R burn-ordinal 20000 3 # the burn/cost ladder
 #   Rscript benchmarks/R/sbc.R burn-bcf-probit 40000 24 # its repriced ladder
 #   Rscript benchmarks/R/sbc.R burn-aft 20000 3     # the aft arm's own
+#   Rscript benchmarks/R/sbc.R burn-hetero 40000 24 # the two hetero arms' own
 # Positional args: config R L thin, plus an optional 5th, the burn in absolute
 # sweeps, and an optional 6th, the driver seed. Or source() the file to reuse
 # the API:
@@ -38,9 +40,13 @@
 # mismatches for the two latent BCF arms, comma-separated (sbcBCFPoisons):
 # "link" simulates through the OTHER link, "glue-sd" draws the glue at
 # gaussian's sd.control = 2 while the sampler runs at the family default 1, and
-# "sigma" adds latent noise the fit cannot model. Each is a by-hand
-# discrimination run whose functionals must FLAG, never a recorded verdict; an
-# unknown name refuses the run. SBC_FIXED_GLUE (env var, opt-in) holds a BCF
+# "sigma" adds latent noise the fit cannot model. The two heteroscedastic arms
+# carry their own three (sbcHeteroPoisons): "s-scale" simulates at twice the
+# drawn s(x), "s-shuffle" moves the drawn scales to the wrong rows, and "s-df"
+# draws the surface from a variance forest calibrated at the wrong residual df,
+# the only one of the three that mismatches the PRIOR rather than the data. Each
+# is a by-hand discrimination run whose functionals must FLAG, never a recorded
+# verdict; an unknown name refuses the run. SBC_FIXED_GLUE (env var, opt-in) holds a BCF
 # arm's glue at the engine's initial (1, 0, 1) - the control that isolates the
 # two-forest backfit from the glue draw, and the one "glue-sd" carries.
 #
@@ -877,6 +883,213 @@ sbcMakeAftSampler <- function(config, thin) {
 # S(t | x) under the log-normal model, the arm's reported deliverable.
 sbcAftSurvival <- function(t0, f, sigma) {
   1 - pnorm((log(t0) - f) / sigma)
+}
+
+# --- heteroscedastic (variance forest) --------------------------------------
+
+# A variance forest (docs/design/heteroscedastic.md) replaces the scalar
+# residual sd with a multiplicative surface: y = f(x) + s(x) eps, with sigma
+# pinned on the working scale and s^2 carrying the residual variance. So an
+# arm carrying one has NO sigma functional - $setSigma is refused and the
+# reported sigma is a constant - and ranks the surface in its place. Both arms
+# here are an existing arm plus that surface: the gaussian one plus s(x), and
+# the aft one with s(x) where its shared sigma was. Together they are the
+# joint calibration of two forests, which is what the composition exists for.
+#
+# theta0 needs the DRAWN surface at the training rows to simulate y0 and at the
+# test rows for its functionals, and $sampleVarianceForestFromPrior leaves no
+# reported channel behind until a sweep records one. $getVariance reads the
+# trees in force, so the generator reads s^2 there while the posterior draws
+# read the run's own `variance`/`varianceTest`; sbcCheckVarianceChannel pins
+# that those two maps agree at one state, the wiring check every arm has.
+#
+# The prior draw is three calls, not two: the two forest entries are
+# MEAN-forest ones by contract and leave the variance forest where they find
+# it, so a whole heteroscedastic chain at its prior is
+# sampleTreesFromPrior + sampleNodeParametersFromPrior +
+# sampleVarianceForestFromPrior. That contract is what makes the composition
+# self-consistent, and sbcCheckVarianceChannel asserts it directly: the mean
+# draw a generator reads must not move when the variance draw follows it.
+#
+# Functionals: avg.f and f.star as the gaussian arm's; s.star_j = sqrt of the
+# varianceTest channel at the test points, that channel being a VARIANCE the
+# functional square-roots; and avg.log.s = mean_i log s(x_i), the one global
+# read of the surface, off the run's train-side `variance` channel. A LOG
+# because the leaf factors are multiplicative and their product is
+# heavy-tailed: the mean of log s ranks the level of the surface rather than
+# the few rows that carry its tail. The aft arm adds its own two - S(t0 | x*),
+# which now divides by s(x*) rather than a shared sigma and is the
+# deliverable the composition is for, and logT.cens, the truncated-normal
+# imputation drawn at the censored row's OWN scale here.
+
+# The three deliberate generator/sampler mismatches these arms carry, opt-in
+# through SBC_POISON exactly as the latent BCF arms' are: each must redden the
+# arm it names, so all three are by-hand discrimination runs and never a
+# recorded verdict. "s-scale" simulates y0 at TWICE the drawn s(x), so the
+# LEVEL of the surface the fit ranks is not the one the data came from.
+# "s-shuffle" permutes the drawn s(x) across the training rows before
+# simulating: the level and the whole multiset of scales are untouched and only
+# the row-to-row ASSIGNMENT is wrong, which is the per-observation channel the
+# composition is made of and the one a shared scale would silently substitute
+# for. Both of those leave the PRIOR right and move the data away from theta0.
+# "s-df" is the complement and the only one that reaches the prior-draw entry
+# itself: the surface comes from a second variance forest calibrated at four
+# times the arm's residual df, and theta0 records exactly the surface that made
+# the data, so the single mismatch is the prior that surface was drawn from.
+# Nothing else in the arm can tell a miscalibrated sampleVarianceForestFromPrior
+# from a correct one, every other channel being shared by generator and fit.
+#
+# A fourth mismatch that suggests itself is NOT offered, and reads clean for a
+# reason that makes the reading vacuous rather than reassuring: skipping only
+# the generator's variance prior draw, so theta0's surface is what the last
+# replication's chain left. That REMOVES the prior-draw entry from the
+# generator instead of mismatching it. The carried surface is marginally a
+# prior draw only if the run's posterior draws are already exact and the
+# replication chain has reached its stationary law - which is what the arm
+# exists to test - and a miscalibrated entry reads clean under it precisely
+# because the generator never calls the entry. It costs rank independence
+# across replications besides, successive theta0 sharing a surface.
+sbcHeteroPoisons <- c("s-scale", "s-shuffle", "s-df")
+
+sbcHeteroPoison <- function(poison) {
+  if (is.null(poison)) {
+    return(character(0))
+  }
+  poison <- trimws(poison[nzchar(trimws(poison))])
+  unknown <- setdiff(poison, sbcHeteroPoisons)
+  if (length(unknown) > 0L) {
+    stop(
+      "unknown SBC poison(s): ",
+      paste(unknown, collapse = ", "),
+      "; known: ",
+      paste(sbcHeteroPoisons, collapse = ", ")
+    )
+  }
+  poison
+}
+
+# The heteroscedastic gaussian arm's config: the gaussian arm's design and
+# priors at nTest = 3 (every test point carries TWO functionals here, f.star
+# and s.star, so three points is what keeps the matrix's Bonferroni band from
+# paying for five), plus the variance forest's own tree count. hasSigma is
+# FALSE: sigma is pinned under a variance forest, so no sigma is drawn, ranked
+# or installed anywhere in the arm.
+sbcConfigHetero <- function(n = 150L, nTrees = 50L, nVarianceTrees = 20L) {
+  config <- sbcConfig(family = "gaussian", n = n, nTrees = nTrees, nTest = 3L)
+  config$nVarianceTrees <- nVarianceTrees
+  config$family <- "hetero"
+  config$hasSigma <- FALSE
+  config
+}
+
+# The heteroscedastic aft arm's: the above composed with the aft arm's pinned
+# censoring fixture and its survival time, so the only difference from the
+# homoscedastic aft arm is where the scale comes from.
+sbcConfigHeteroAft <- function(n = 150L, nTrees = 50L, nVarianceTrees = 20L) {
+  config <- sbcConfigHetero(n, nTrees, nVarianceTrees)
+  config <- sbcAddCensoring(config)
+  config$t0 <- 1
+  config$family <- "hetero-aft"
+  config
+}
+
+# One sampler serves generator and fit, the shape every reused arm has. The
+# gaussian arm builds off the symmetric build response; the aft one off
+# (exp(yBuild), all events), sbcMakeAftSampler's pair. Under a variance forest
+# setResponse is taken only at updateScale = FALSE, which is the same pin the
+# reused arms want anyway, and setSigma is refused, which is why no branch
+# here calls it.
+sbcMakeHeteroSampler <- function(config, thin) {
+  ctrl <- dbartsControl(
+    n.trees = config$nTrees,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 1L,
+    n.thin = thin,
+    updateState = FALSE,
+    verbose = FALSE,
+    keepTrainingFits = TRUE
+  )
+  isAft <- config$family == "hetero-aft"
+  y <- if (isAft) {
+    cbind(exp(config$yBuild), rep_len(1, config$n))
+  } else {
+    config$yBuild
+  }
+  dbarts(
+    config$x,
+    y,
+    test = config$xTest,
+    resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
+    node.prior = config$nodePrior,
+    sigest = config$sigest,
+    control = ctrl,
+    variance = varianceForest(n.trees = config$nVarianceTrees),
+    family = if (isAft) "aft" else "gaussian"
+  )
+}
+
+# The three prior entries in the order the prior-predictive path uses, then the
+# four quantities a heteroscedastic generator needs: f at the training and test
+# rows through predict, and s at both through the accessor.
+sbcHeteroPriorDraw <- function(sampler, config) {
+  sampler$sampleTreesFromPrior()
+  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleVarianceForestFromPrior()
+  list(
+    f = as.numeric(sampler$predict(config$x)),
+    fTest = as.numeric(sampler$predict(config$xTest)),
+    s = sqrt(sampler$getVariance()[, 1L]),
+    sTest = sqrt(sampler$getVariance(test = TRUE)[, 1L])
+  )
+}
+
+# The surface functionals shared by both arms, from one (s, sTest) pair -
+# theta0's or a posterior draw's, which is what makes the two comparable.
+sbcHeteroFunctionals <- function(s, sTest) {
+  c(
+    setNames(sTest, paste0("s.star", seq_along(sTest))),
+    avg.log.s = mean(log(s))
+  )
+}
+
+# The arms' wiring check, on the channels only they read. Two claims, both of
+# which would silently make the ranks compare different quantities: theta0's
+# s(x) comes from $getVariance while its posterior draws come from the run's
+# `variance`/`varianceTest`, so the accessor and the two channels must agree
+# exactly at one state; and the generator draws the mean forest before the
+# variance forest, so the MEAN draw it reads must be unmoved by the variance
+# draw that follows - the contract that makes drawing all three a prior draw
+# from the joint rather than a sequence of conditionals.
+sbcCheckVarianceChannel <- function(config, seed = 99L) {
+  set.seed(seed)
+  sampler <- sbcMakeHeteroSampler(config, 1L)
+  sampler$sampleTreesFromPrior()
+  sampler$sampleNodeParametersFromPrior()
+  meanBefore <- as.numeric(sampler$predict(config$x))
+  meanBeforeTest <- as.numeric(sampler$predict(config$xTest))
+  sampler$sampleVarianceForestFromPrior()
+  meanAfter <- as.numeric(sampler$predict(config$x))
+  meanAfterTest <- as.numeric(sampler$predict(config$xTest))
+  spec <- sbcFamilySpec(config, 1L, seed)
+  drawn <- spec$draw()
+  fit <- spec$fit(drawn$y)
+  res <- fit$run(0L, 1L)
+  maxDiff <- max(abs(res$variance[, 1L] - fit$getVariance()[, 1L]))
+  maxDiffTest <- max(abs(
+    res$varianceTest[, 1L] - fit$getVariance(test = TRUE)[, 1L]
+  ))
+  meanDiff <- max(
+    abs(meanAfter - meanBefore),
+    abs(meanAfterTest - meanBeforeTest)
+  )
+  list(
+    maxDiff = maxDiff,
+    maxDiffTest = maxDiffTest,
+    meanDiff = meanDiff,
+    sRange = range(sqrt(res$variance[, 1L])),
+    pass = maxDiff == 0 && maxDiffTest == 0 && meanDiff == 0
+  )
 }
 
 # --- BCF (Bayesian causal forest glue) -------------------------------------
@@ -1724,6 +1937,108 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
         )
       }
     )
+  } else if (config$family %in% c("hetero", "hetero-aft")) {
+    # ONE pinned sampler serves as generator and fit, the Student-t arm's
+    # shape. A variance forest takes setResponse only at updateScale = FALSE,
+    # which is the pin a reused arm wants anyway, so the build transform the
+    # prior draw shares is never disturbed; and nothing calls setSigma, which
+    # a pinned sigma refuses. The fresh three-entry prior draw before each fit
+    # is the overdispersed start, in the SURFACE as well as the mean.
+    isAft <- config$family == "hetero-aft"
+    sampler <- sbcMakeHeteroSampler(config, thin)
+    poison <- sbcHeteroPoison(config$poison)
+    # poison (i): the data carries twice the surface the fit ranks
+    sFactor <- if ("s-scale" %in% poison) 2 else 1
+    # poison (ii): the drawn scales, right level and all, at the wrong rows
+    shuffle <- "s-shuffle" %in% poison
+    # poison (iii): the surface off a SECOND variance forest whose calibration
+    # is wrong, the arm's residual df times four. Built only under the poison,
+    # so a clean run's stream is untouched
+    dfSampler <- if ("s-df" %in% poison) {
+      miscalibrated <- config
+      miscalibrated$sigDf <- 4 * config$sigDf
+      sbcMakeHeteroSampler(miscalibrated, thin)
+    } else {
+      NULL
+    }
+    # the row the censored-latent functional reads, the aft arm's closure
+    # state: only draw() knows the replication's status and only sample()
+    # reads latents. NA_integer_ when nothing censored, the no-rank case
+    censoredRow <- NA_integer_
+    spec <- list(
+      draw = function() {
+        p0 <- sbcHeteroPriorDraw(sampler, config)
+        if (!is.null(dfSampler)) {
+          # theta0's surface and the simulating surface both move to the
+          # miscalibrated prior's draw: the generator stays self-consistent
+          dfSampler$sampleVarianceForestFromPrior()
+          p0$s <- sqrt(dfSampler$getVariance()[, 1L])
+          p0$sTest <- sqrt(dfSampler$getVariance(test = TRUE)[, 1L])
+        }
+        # the latent response at the drawn surface: one normal per row at that
+        # row's own scale, which is the whole content of the composition
+        sRow <- if (shuffle) p0$s[sample.int(config$n)] else p0$s
+        z0 <- p0$f + sFactor * sRow * rnorm(config$n)
+        theta <- c(
+          avg.f = mean(p0$f),
+          setNames(p0$fTest, paste0("f.star", seq_along(p0$fTest))),
+          sbcHeteroFunctionals(p0$s, p0$sTest)
+        )
+        if (!isAft) {
+          return(list(y = z0, theta = theta))
+        }
+        # what the pinned censoring fixture leaves observable of the drawn log
+        # times, the aft arm's own step
+        status0 <- as.numeric(z0 <= config$logC)
+        censored <- which(status0 == 0)
+        censoredRow <<- if (length(censored) > 0L) {
+          censored[1L]
+        } else {
+          NA_integer_
+        }
+        list(
+          y = cbind(pmin(z0, config$logC), status0),
+          theta = c(
+            theta,
+            S.star1 = sbcAftSurvival(config$t0, p0$fTest[1L], p0$sTest[1L]),
+            logT.cens = if (is.na(censoredRow)) {
+              NA_real_
+            } else {
+              z0[censoredRow]
+            }
+          )
+        )
+      },
+      fit = function(y) {
+        sbcHeteroPriorDraw(sampler, config)
+        if (isAft) {
+          sampler$setResponse(y[, 1L], updateScale = FALSE, status = y[, 2L])
+        } else {
+          sampler$setResponse(y, updateScale = FALSE)
+        }
+        sampler
+      },
+      burnRun = function(f, burn) f$run(burn, 0L),
+      sample = function(f) {
+        res <- f$run(0L, 1L)
+        sTest <- sqrt(res$varianceTest[, 1L])
+        out <- c(
+          mean(res$train[, 1L]),
+          res$test[, 1L],
+          sbcHeteroFunctionals(sqrt(res$variance[, 1L]), sTest)
+        )
+        if (!isAft) {
+          return(out)
+        }
+        c(
+          out,
+          sbcAftSurvival(config$t0, res$test[1L, 1L], sTest[1L]),
+          # the imputed log survival time at the censored row, drawn at that
+          # row's own scale here
+          if (is.na(censoredRow)) NA_real_ else f$getLatents()[censoredRow]
+        )
+      }
+    )
   } else {
     stop("no family spec for \"", config$family, "\"")
   }
@@ -1777,6 +2092,8 @@ sbcFamilyConfig <- function(family) {
     multinom = ,
     multinomial = sbcConfig(family = "multinomial", numCategories = 3L),
     aft = sbcConfigAft(),
+    hetero = sbcConfigHetero(),
+    "hetero-aft" = sbcConfigHeteroAft(),
     "bcf-probit" = sbcBCFLatentConfig("probit"),
     "bcf-logistic" = sbcBCFLatentConfig("logistic"),
     "bcf-probit-weak" = sbcBCFLatentConfig("probit", n = 40L),
@@ -1864,10 +2181,15 @@ sbcCheckMultinomialProbs <- function(config, seed = 99L) {
 # agg.psi mirror each other block for block; avg.mu clears 0.1 at LAG 1). The
 # Student-t settles in a couple of thousand sweeps with sigma/nu at lag ~40-60,
 # and multinomial mixes fastest of all (every functional under lag 10).
-# The aft arm and the two latent BCF arms were measured at 40000 sweeps x 24
-# prior-drawn datasets, the BCF pair with their four prescribed |a| strata
-# beside them. aft's transient lives entirely in the first 400-sweep block and
-# every functional clears ACF 0.1 by lag 39 across the 24 datasets. The two
+# The aft arm, the two heteroscedastic arms and the two latent BCF arms were
+# measured at 40000 sweeps x 24 prior-drawn datasets, the BCF pair with their
+# four prescribed |a| strata beside them. aft's transient lives entirely in the first 400-sweep block and
+# every functional clears ACF 0.1 by lag 39 across the 24 datasets. Both
+# heteroscedastic arms read the same shape: at 400-sweep blocks only
+# avg.log.s carries a block-1 offset (mean signed z 1.6 and 1.9 over the 24
+# datasets, flat from block 2), and every functional decorrelates well inside
+# lag 200 - the surface functionals fastest of all, s.star under lag 28 and
+# avg.log.s under 38 on both arms, the mean surface being what mixes slowest. The two
 # latent BCF arms do NOT clear: the reported p_j deliverable is under lag 47
 # everywhere, but a, abs.a and prog_j stay above 0.1 past lag 200 in half the
 # prior draws and at every |a| >= 5 stratum, whose block means do not settle in
@@ -1885,6 +2207,13 @@ sbcBurnSweeps <- c(
   # 10x the transient the 400-sweep-block ladder resolves; thin 40 covers the
   # worst ACF-under-0.1 lag, 39 over the 24 datasets
   aft = 4000,
+  # both heteroscedastic arms: 10x the transient the 400-sweep-block ladder
+  # resolves, which is avg.log.s's alone and lives in the first block. thin 40
+  # covers the gaussian one's worst lag, 39 over the 24 datasets; the aft one
+  # needs thin 100, its f.star3 reaching lag 97 on 2 of the 24 - censoring
+  # costs the mean surface roughly twice the lag at the same design
+  hetero = 4000,
+  "hetero-aft" = 4000,
   # 7x the ~1600-sweep amplitude transient; thin 50 covers p_j, worst lag 47,
   # and nothing affordable covers prog_j
   "bcf-probit" = 12000,
@@ -2220,7 +2549,8 @@ rankUniformity <- function(
 # the ecdf band's alpha Bonferroni'd over the matrix's TOTAL functional count,
 # so a full-matrix pass has probability ~0.95 on a fresh stream rather than each
 # arm alarming independently at its own nominal 5%. M is
-# gaussian 7 + ordinal 10 + nbinom 3 + t 4 + multinomial 6 + aft 9. aft counts
+# gaussian 7 + ordinal 10 + nbinom 3 + t 4 + multinomial 6 + aft 9 +
+# hetero 8 + hetero-aft 10. aft counts
 # its censored-latent functional even though a replication that draws an empty
 # censored set contributes no rank there: the count is of functionals READ, not
 # of ranks collected, and an arm whose R varies by replication would otherwise
@@ -2232,9 +2562,11 @@ sbcMatrixConfigs <- c(
   "t",
   "multinom",
   "multinomial",
-  "aft"
+  "aft",
+  "hetero",
+  "hetero-aft"
 )
-sbcMatrixFunctionals <- 7L + 10L + 3L + 4L + 6L + 9L
+sbcMatrixFunctionals <- 7L + 10L + 3L + 4L + 6L + 9L + 8L + 10L
 sbcMatrixAlpha <- 0.05 / sbcMatrixFunctionals
 
 # A compact ASCII rank histogram with the +/- band around the uniform mean.
@@ -2461,8 +2793,10 @@ if (sys.nframe() == 0L) {
   isLinear <- which %in%
     c("linear", "linear-na-leaf", "linear-na-split", "linear-weighted")
   isGP <- which %in% c("gp", "gp-na-leaf", "gp-weighted", "gp-mixed")
-  isFamilyTier <- which %in%
-    c("ordinal", "nbinom", "t", "multinom", "multinomial", "aft")
+  isHetero <- which %in% c("hetero", "hetero-aft")
+  isFamilyTier <- isHetero ||
+    which %in%
+      c("ordinal", "nbinom", "t", "multinom", "multinomial", "aft")
 
   config <- if (isFamilyTier || isLatentBCF) {
     sbcFamilyConfig(which)
@@ -2536,9 +2870,20 @@ if (sys.nframe() == 0L) {
   # The BCF arms' two by-hand controls, both opt-in and both off by default.
   # A poison must redden the arm it names, so an unknown name or an arm that
   # cannot carry one refuses the run rather than reporting a clean result.
-  poison <- sbcBCFPoison(strsplit(Sys.getenv("SBC_POISON", ""), ",")[[1]])
-  if (length(poison) > 0L && !isLatentBCF) {
-    stop("SBC_POISON applies to the latent BCF arms (bcf-probit, bcf-logistic)")
+  poisonNames <- strsplit(Sys.getenv("SBC_POISON", ""), ",")[[1]]
+  poison <- if (isHetero) {
+    sbcHeteroPoison(poisonNames)
+  } else {
+    sbcBCFPoison(poisonNames)
+  }
+  if (length(poison) > 0L && !isLatentBCF && !isHetero) {
+    stop(
+      "SBC_POISON applies to the latent BCF arms (bcf-probit, bcf-logistic) ",
+      "and the heteroscedastic ones (hetero, hetero-aft)"
+    )
+  }
+  if (isHetero) {
+    config$poison <- poison
   }
   if (isBCF) {
     config$poison <- poison
@@ -2622,7 +2967,31 @@ if (sys.nframe() == 0L) {
       ))
       selfCheckPass["grid"] <- isTRUE(gp$pass)
     }
+    if (isHetero) {
+      vc <- sbcCheckVarianceChannel(config)
+      cat(sprintf(
+        "  variance channel: train %.2e, test %.2e; mean draw moved %.2e; s in [%.3f, %.3f] -> %s\n",
+        vc$maxDiff,
+        vc$maxDiffTest,
+        vc$meanDiff,
+        vc$sRange[1L],
+        vc$sRange[2L],
+        if (vc$pass) "PASS" else "FAIL"
+      ))
+      selfCheckPass["variance"] <- isTRUE(vc$pass)
+    }
     if (config$family == "aft") {
+      al <- sbcCheckAftLatents(config)
+      cat(sprintf(
+        "  latents: max |event - y| %.2e; min censored gap %.4f over %d rows -> %s\n",
+        al$maxEventDiff,
+        al$minCensoredGap,
+        al$nCensored,
+        if (al$pass) "PASS" else "FAIL"
+      ))
+      selfCheckPass["latents"] <- isTRUE(al$pass)
+    }
+    if (config$family == "hetero-aft") {
       al <- sbcCheckAftLatents(config)
       cat(sprintf(
         "  latents: max |event - y| %.2e; min censored gap %.4f over %d rows -> %s\n",

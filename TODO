@@ -683,11 +683,7 @@ release (deferred; the one ordered procedure, run when VD triggers it)
   pre-release sequence (VD 2026-09-12; done in this order, pre-merge
     unless marked)
     1. Decisions the maintainer owes before the release candidate:
-      (a) the heteroscedastic gaussian SBC arm and the
-      heteroscedastic aft arm (docs/design/aft-status-setter.md
-      slices 3 and 4), harness only now that the variance-surface
-      reader ($getVariance) and the ppd lift have landed; pre-merge.
-      (b) the extended binary hyperprior study (long chains on the
+      (a) the extended binary hyperprior study (long chains on the
       whole grid, scales below 1, mixing diagnostics on the sampled
       k), its verdict written into docs/plans/binary-hyperprior.md and
       a default chosen for 1.0-0; pre-merge.

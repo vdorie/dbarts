@@ -189,9 +189,12 @@ U(0,1), so a per-cell `ks.test(v, "punif")` passes - the idiom ["ks.test"](../..
 already uses. Poison arm, the substitution (b) makes: drive the redraw at a scale constant across
 rows and the low-s cell's v pile at 0 while the high-s cell's pile at 1, which the per-cell KS must
 reject. It is the only gate sensitive to a wrong per-observation scale INSTALLED BY THE CHAIN, and
-needs no oracle. HONEST GAP after all four: the joint calibration of (mean forest, variance forest,
-censored latents) is still not SBC-tested, aft being out of that matrix until a censoring-status
-setter lands ([Decision - scope](../plans/sbc-family-tiers.md#decision---scope)).
+needs no oracle. The gap these four left - the joint calibration of (mean forest, variance forest,
+censored latents), untested while aft was out of the SBC matrix
+([Decision - scope](../plans/sbc-family-tiers.md#decision---scope)) - is CLOSED: the censoring-status
+setter admitted aft, and the heteroscedastic aft arm ranks that joint calibration directly, mean
+surface, variance surface and censored latent alike ([8. Slices](aft-status-setter.md#8-slices)).
+What is left is SBC's own limit, anything under the band at finite R.
 
 **(e) Matrix cells.** In [4. Composition rules](feature-matrix.md#4-composition-rules) the variance
 forest's family rule names gaussian or aft, the four latent families refused for owning the weight
