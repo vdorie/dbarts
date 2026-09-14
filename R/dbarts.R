@@ -622,7 +622,11 @@ dbarts <- function(
     "resid.prior",
     familySpec
   )
-  refuseSigestUnderFixedPrior(residPrior, sigest)
+  refuseSigestUnderFixedPrior(
+    residPrior,
+    sigest,
+    if (sigmaSupplied) "sigma" else "sigest"
+  )
   # Student-t is its own family token and its own engine family; on this
   # side of the bridge it is a gaussian response carrying a degrees-of-
   # freedom attribute, so the remap happens here, once

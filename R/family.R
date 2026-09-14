@@ -243,19 +243,29 @@ withResidPrior <- function(family, residPrior) {
 ## refused rather than accepted and ignored.
 ## The estimate itself is the test, not its name in the call: every entry
 ## point forwards 'sigest' to the one below it, defaulted to NA, so a name
-## is no evidence a caller wrote one.
-refuseSigestUnderFixedPrior <- function(residPrior, sigest) {
+## is no evidence a caller wrote one. 'sigestName' is the spelling the
+## caller actually wrote - dbarts()/dbartsSpec() still read the retired
+## 'sigma =' for one release - and defaults to 'sigest' at doors that carry
+## no other spelling for it.
+refuseSigestUnderFixedPrior <- function(
+  residPrior,
+  sigest,
+  sigestName = "sigest"
+) {
   if (
     is(residPrior, "dbartsFixedPrior") &&
       length(sigest) == 1L &&
       !is.na(sigest)
   ) {
     stop(
-      "'sigest' has no effect under a fixed residual scale: sigma = ",
+      "'",
+      sigestName,
+      "' has no effect under a fixed residual scale: sigma = ",
       formatResidPrior(residPrior),
       " IS the residual scale, and the estimate is overwritten with its ",
-      "square root. Drop 'sigest', or give a chisq prior for it to ",
-      "calibrate.",
+      "square root. Drop '",
+      sigestName,
+      "', or give a chisq prior for it to calibrate.",
       call. = FALSE
     )
   }

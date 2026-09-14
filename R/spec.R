@@ -918,7 +918,11 @@ dbartsSpec <- function(
     "resid.prior",
     familySpec
   )
-  refuseSigestUnderFixedPrior(residPrior, sigest)
+  refuseSigestUnderFixedPrior(
+    residPrior,
+    sigest,
+    if (sigmaSupplied) "sigma" else "sigest"
+  )
   # Student-t is a gaussian response carrying a degrees-of-freedom attribute
   # on this side of the bridge; the remap happens once, here
   residDf <- NULL

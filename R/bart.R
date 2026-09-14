@@ -937,7 +937,9 @@ bart <- function(
     )
   } else if (any(c("sigdf", "sigquant") %in% shorthandSupplied)) {
     residPrior <- chisq(sigdf, sigquant)
-    residPriorName <- intersect(c("sigdf", "sigquant"), shorthandSupplied)[1L]
+    # both, when both are supplied: reconcileResidPrior names every entry
+    # of residPriorName in its one refusal, rather than the first
+    residPriorName <- intersect(c("sigdf", "sigquant"), shorthandSupplied)
   }
   residPrior <- reconcileResidPrior(residPrior, residPriorName, familySpec)
   refuseSigestUnderFixedPrior(residPrior, sigest)
