@@ -617,32 +617,6 @@ rbart_vi removal (decided, VD 2026-09-08; docs/decisions.md dec-B105)
   1000 draws) before dbarts ships; fallback if not: an R-only grouped
   intercept over the plain sampler's setOffset, no engine block.
 
-binary k prior evaluation (decided, VD 2026-09-08; docs/decisions.md
-  dec-B106, B118; HARNESS RUN AND REPORTED 2026-09-14,
-  docs/plans/binary-hyperprior.md; verdict awaits the maintainer)
-  the July chi-default study (48 simulated cells, 4 DGPs, df fixed at
-  1.5, artifacts lost) was re-run with a checked-in harness under
-  benchmarks/R, then extended on VD's 2026-09-13 ruling that the poor
-  probit coverage which motivated the hyperprior could have been poor
-  mixing. 28 priors - df and scale both varied, two scales below 1,
-  fixed k at 1, 1.5, 2 and 3 - over 162 simulated cells (six
-  processes, three sizes, three predictor counts, three base rates)
-  and 22 real datasets, six from R and sixteen from UCI, at three
-  chain lengths, 92,160 fits, scored by held-out log score, Brier,
-  interval coverage and width, split-Rhat and effective sample size
-  for the sampled k and for the held-out probability, and time.
-  Recommendation: keep chi(1.5, 2). The short leg's poor coverage is a
-  chain-length artefact for every hyperprior arm and almost none of it
-  for a fixed k; on converged chains the coverage criterion does name
-  an interior optimum, at scale 0.5 to 1, but the best improvement
-  anywhere on the grid is 0.0052 of coverage distance and every arm
-  offering it pays in log score or worst-cell regret; and the earlier
-  six-dataset result preferring a fixed k reverses five-fold once the
-  sixteen UCI datasets are added. Work remaining, and the only reason
-  this item stays: VD confirms or changes chi(1.5, 2) on this evidence
-  before the RC (dec-B118). The harness, the UCI loader and the note
-  are landed; nothing else here is owed.
-
 binary-hyperprior-revisit (raised by the study, 2026-09-14;
   docs/plans/binary-hyperprior.md, "What to revisit after the mixing
   work"; post-release, gated on the mixing line of inquiry)
@@ -679,16 +653,8 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
   Plan: docs/plans/interfaces-and-dependencies.md.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
-  pre-release sequence (VD 2026-09-12; done in this order, pre-merge
-    unless marked)
-    1. Decisions the maintainer owes before the release candidate:
-      (a) VD confirms or changes the binary node hyperprior default
-      chi(1.5, 2) on the extended study's evidence
-      (docs/plans/binary-hyperprior.md); the study itself is landed.
-    2. The landing memo is rewritten from a blank page to the rubric
-      (docs/plans/bartcore-landing/rubric.md), its four questions
-      confirmed by VD, once the hyperprior verdict is in.
-    3. VD's own: lorax contact, GitHub issue #80, CRAN submission.
+  pre-release sequence (VD 2026-09-12): VD's own items before the
+    merge - lorax contact, GitHub issue #80, CRAN submission.
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
     and tests fit bart() with a three-level factor response, which

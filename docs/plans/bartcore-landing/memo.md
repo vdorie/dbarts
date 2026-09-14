@@ -131,9 +131,6 @@ The sister packages we own each need their ported branch:
 Before the merge to main, because each is shipped surface or a decision
 the merge is made on:
 
-- The maintainer's ruling on the binary leaf-scale prior. The extended
-  study recommends keeping chi(1.5, 2); the default is draw-changing, so
-  the ruling precedes the merge.
 - One known wrong answer in a corner: a variance forest's leaf calibration
   is fixed at creation, so swapping the response with rescaling on leaves
   that prior on the old scale. Either the rescale is verified and built or
