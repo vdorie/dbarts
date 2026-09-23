@@ -670,12 +670,12 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     then.
   re-verify all four sister packages (stan4bart, treatSens, bartCause,
     bairrtt) against the final re-baked dbarts.h once, at the freeze.
-    Verified 2026-09-11 against 9171ff64 (hash 0x6380bf095d5cae3f):
-    stan4bart bartcore 458/458, bartCause dbarts-1.0 737/737 (the three
-    basis-alignment failures no longer reproduce), treatSens dbarts-1.0
-    184/184, bairrtt main 206/206; every dbarts.h entry each C consumer
-    calls is present with its signature. Repeat only if dbarts.h moves
-    again.
+    Verified 2026-09-23 against f62ec0ef (hash 0x6380bf095d5cae3f),
+    full suites with the CRAN skips off: stan4bart bartcore 559/559 at
+    441c212, bartCause dbarts-1.0 790/790 at 579fde6, treatSens
+    dbarts-1.0 186/186, bairrtt main 206/206; every dbarts.h entry each
+    C consumer calls is present with its signature. Repeat if dbarts.h
+    or the R surface the R-level consumers call moves again.
     bartCause's bcf() and fitBCF now default n.threads to
     min(dbarts::guessNumCores(), n.chains), capped on its dbarts-1.0
     branch at bdaae47, so no multi-core fit warns under dec-B115;
