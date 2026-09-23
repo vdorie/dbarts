@@ -170,22 +170,20 @@ parsePriors <- function(
 ) {
   matchedCall <- match.call()
 
-  # the prior vocabulary shadows the caller's environment inside these
+  # a bare constructor name (tree.prior = cgm) means its defaults; a value
+  # that is already a prior object passes through. The prior vocabulary
+  # shadows the environment the argument was written in, inside these
   # arguments only: bare names like normal(chi(1.5)) resolve here no matter
   # what packages are attached, and nothing is exported under generic names
-  evalEnv <- new.env(parent = parentEnv)
-  for (name in names(dbartsPriors)) {
-    assign(name, dbartsPriors[[name]], envir = evalEnv)
-  }
-  # both spellings are exposed for the split.probs vocabulary: num.vars is the
-  # current name, numvars the backward-compatible alias, so a bare 1 / num.vars
-  # or 1 / numvars in a split.probs expression resolves either way
-  evalEnv$num.vars <- evalEnv$numvars <- ncol(data@x)
-
-  # a bare constructor name (tree.prior = cgm) means its defaults; a value
-  # that is already a prior object passes through
   resolveSpec <- function(expr) {
-    result <- eval(expr, evalEnv)
+    written <- recoverForwardedArgument(expr, parentEnv)
+    evalEnv <- vocabularyEnv(dbartsPriors, written$env)
+    # both spellings are exposed for the split.probs vocabulary: num.vars is
+    # the current name, numvars the backward-compatible alias, so a bare
+    # 1 / num.vars or 1 / numvars in a split.probs expression resolves either
+    # way
+    evalEnv$num.vars <- evalEnv$numvars <- ncol(data@x)
+    result <- eval(written$expr, evalEnv)
     if (is.function(result)) {
       result <- result()
     }

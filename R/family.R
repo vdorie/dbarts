@@ -14,15 +14,60 @@
 ## (resolveFamily below), and dbartsFamilies is their exported face.
 
 ## An environment in which a package vocabulary resolves by bare name and
-## everything else falls through to the caller's own frame. The prior
-## constructors already do this inside the prior arguments (parsePriors);
-## the family constructors need it inside 'family'.
+## everything else falls through to the caller's own frame: the prior
+## constructors inside the prior arguments (parsePriors), the family
+## constructors inside 'family'.
 vocabularyEnv <- function(vocabulary, evalEnv) {
   env <- new.env(parent = evalEnv)
   for (name in names(vocabulary)) {
     assign(name, vocabulary[[name]], envir = env)
   }
   env
+}
+
+## An argument's expression as written, and the environment it was written
+## in. match.call() records an argument forwarded through a wrapper's dots as
+## ..N, and evaluating that forces the wrapper caller's promise outside any
+## vocabulary. Each forwarding frame's own call names the Nth dots element,
+## so the walk back reaches the original expression; it stops where that is
+## not possible and leaves the reference to evaluate as an ordinary one.
+recoverForwardedArgument <- function(expr, env) {
+  while (is.symbol(expr) && grepl("^\\.\\.[1-9][0-9]*$", expr)) {
+    recovered <- tryCatch(
+      {
+        ## a closure can reference dots its enclosing function owns
+        while (!exists("...", envir = env, inherits = FALSE)) {
+          env <- parent.env(env)
+        }
+        ## the frame's first place on the stack is its own call; later ones
+        ## are evaluations in it (eval(call, env)), whose caller is not the
+        ## one that wrote the dots
+        frame <- Position(function(f) identical(f, env), sys.frames())
+        parent <- sys.parents()[frame]
+        ## a caller that is no frame on the stack, do.call(envir = ), numbers
+        ## as the frame itself and is its most recent context's caller
+        caller <- if (parent < frame) {
+          sys.frame(parent)
+        } else {
+          do.call(parent.frame, list(), envir = env)
+        }
+        dots <- match.call(
+          sys.function(frame),
+          sys.call(frame),
+          expand.dots = FALSE,
+          envir = caller
+        )$...
+        list(dots[[as.integer(substring(expr, 3L))]], caller)
+      },
+      error = function(e) NULL
+    )
+    if (is.null(recovered)) {
+      break
+    }
+    expr <- recovered[[1L]]
+    env <- recovered[[2L]]
+  }
+  list(expr = expr, env = env)
 }
 
 ## The residual scale's own prior, carried by every family that draws one.
@@ -310,7 +355,8 @@ methods::setMethod("show", "dbartsFamily", function(object) {
 ## bare constructor call resolves in the family vocabulary no matter what the
 ## caller has attached - the rule the prior vocabulary already follows - and
 ## an ordinary variable holding a token or an object still resolves in the
-## caller's frame. `tokens` is the entry point's own admissible list, its
+## caller's frame. Both hold for an argument forwarded through a wrapper's
+## dots, which resolves where it was written. `tokens` is the entry point's own admissible list, its
 ## first element the default.
 resolveFamily <- function(expr, tokens, caller, evalEnv) {
   if (is.null(expr)) {
@@ -321,7 +367,11 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
   ## rides the family object, so gaussian(sigma = chisq(3, 0.9)) has to
   ## resolve 'chisq' here the same way parsePriors resolves it inside
   ## 'resid.prior'. The two name sets are disjoint.
-  value <- eval(expr, vocabularyEnv(c(dbartsFamilies, dbartsPriors), evalEnv))
+  written <- recoverForwardedArgument(expr, evalEnv)
+  value <- eval(
+    written$expr,
+    vocabularyEnv(c(dbartsFamilies, dbartsPriors), written$env)
+  )
   ## a bare constructor name (family = probit) means its defaults
   if (is.function(value)) {
     value <- value()

@@ -7,6 +7,10 @@ source(
   system.file("common", "friedmanData.R", package = "dbarts"),
   local = TRUE
 )
+source(
+  system.file("common", "countWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 
 x <- testData$x
 y <- testData$y
@@ -125,6 +129,81 @@ expect_error(
   dbarts::bart(x, y, family = 1L),
   "family name or a family object"
 )
+
+# --- forwarded through a wrapper's dots -------------------------------------
+
+# a call forwarded through one or more wrappers' dots resolves as it would
+# written directly, at every entry point and in the prior arguments too
+residDf <- function(sampler) attr(sampler$model, "resid.df")
+viaDots <- function(...) dbarts::dbarts(x, y, control = control, ...)
+viaNested <- function(...) viaDots(...)
+viaBinary <- function(...) dbarts::dbarts(x, yBinary, control = control, ...)
+expect_equal(residDf(viaDots(family = student(3))), 3)
+expect_equal(residDf(viaNested(family = student(4))), 4)
+expect_equal(
+  viaNested(family = gaussian(sigma = chisq(5, 0.5)))$model@resid.prior@df,
+  5
+)
+expect_equal(viaBinary(family = probit)$model@family, "probit")
+expect_equal(viaNested(tree.prior = cgm(power = 3))$model@tree.prior@power, 3)
+viaClosure <- function(...) {
+  inner <- function() dbarts::dbarts(x, y, control = control, ...)
+  inner()
+}
+expect_equal(residDf(viaClosure(family = student(6))), 6)
+expect_error(
+  (function(...) {
+    dbarts::dbartsSpec(dbarts::dbartsData(x, y), control = control, ...)
+  })(family = hazard(breaks = 4)),
+  "does not fit family"
+)
+expect_error(
+  (function(...) dbarts::xbart(x, y, ...))(family = student(3)),
+  "does not fit family"
+)
+viaBart <- function(...) {
+  dbarts::bart(
+    x,
+    y,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    ...
+  )
+}
+expect_equal(
+  countWarnings(
+    fitViaBart <- viaBart(family = student(3), tree.prior = cgm(power = 3)),
+    "warning"
+  ),
+  0L
+)
+expect_equal(unique(fitViaBart$resid.df), 3)
+
+# ordinary variables still resolve where the call was written
+expect_equal(viaBinary(family = heldToken)$model@family, "probit")
+expect_equal(residDf(viaNested(family = dbartsFamilies$student(5))), 5)
+expect_equal(
+  (function() {
+    heldToken <- "logistic"
+    viaBinary(family = heldToken)$model@family
+  })(),
+  "logistic"
+)
+expect_equal(
+  residDf(do.call(viaDots, list(family = dbartsFamilies$student(8)))),
+  8
+)
+# a wrapper's own formal is an ordinary variable: it forwards a token or an
+# object, not a constructor call
+viaFormal <- function(fam) {
+  dbarts::dbarts(x, y, control = control, family = fam)
+}
+expect_equal(residDf(viaFormal(dbartsFamilies$student(7))), 7)
+expect_error(viaFormal(student(7)), "could not find function")
 
 # --- the settings reach the specification ----------------------------------
 
