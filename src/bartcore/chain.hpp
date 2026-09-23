@@ -111,9 +111,8 @@ struct SamplerOptions {
   // Test rows below which a chain routes its test matrix on its own thread
   // rather than borrowing its share of the thread budget. The two paths are
   // byte-identical - routing draws no rng and each row writes its own slot -
-  // so this buys time only. The default sits past the measured crossover:
-  // four threads already win 1.54x at 65536 rows and 2.97x at 262144, while
-  // the serial path costs 16.5 msec per iteration at 32768.
+  // so this buys time only. The default sits past the measured crossover
+  // where threading the test matrix starts to win over the serial path.
   std::size_t testFitParallelCutoff = 65536;
   // Traversals below which an out-of-sample replay runs inline on the
   // caller's thread; 0 takes Sampler::predictParallelCutoff, the calibrated
@@ -2082,9 +2081,7 @@ public:
   /// unlucky run. The one state that could exhaust it - an empty conditioning
   /// event, where no row carries positive weight - is settled before the loop
   /// by a scan that takes the bare root instead, so reaching the cap now says
-  /// that scan and this predicate disagree, a bug worth faulting on. Measured
-  /// rejection under the default prior: ~9% per tree at n = 30, ~1.3% at
-  /// n = 400.
+  /// that scan and this predicate disagree, a bug worth faulting on.
   static constexpr int priorTreeDrawMaxAttempts = 10000;
 
   /// Replace every tree's structure with a draw from the tree prior over the
@@ -5007,7 +5004,7 @@ private:
   /// iteration, so every element is bit-for-bit what the rolled form writes.
   /// ResidT = float deliberately keeps the rolled loop: clang already
   /// vectorizes it with NEON lane-insert gathers, and the unroll would only
-  /// bolt a scalar prologue onto that. Measured x86 run -3.0 to -3.9%.
+  /// bolt a scalar prologue onto that.
   ///
   /// leaf and leafPrev are two rows of one allocation; __restrict is sound on
   /// them because both are read-only through the block, not because the rows
@@ -5210,8 +5207,8 @@ private:
   /// observation-order pass: roll resid[i] exactly as rollTreeResidual does,
   /// then scatter-add it into acc[leafOf[i]], a node-indexed accumulator small
   /// enough to stay L1-resident, so setNodeAverages' random gather over
-  /// indices[] never runs. That gather is 39-40% of a sweep; the fusion
-  /// measures 1.41x to 1.54x on Zen2 and 1.07x to 1.25x on M1 Max.
+  /// indices[] never runs. That gather dominates a sweep, so removing it is
+  /// a real win rather than a marginal one.
   ///
   /// Weighted families ride the same pass with a SECOND bank set: sum w
   /// alongside sum w r, four-banked at the same positional assignment and

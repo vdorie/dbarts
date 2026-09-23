@@ -905,9 +905,10 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// absorbed forest 0's. Seeding the accumulator with the LAST forest leaves
   /// forest 0's product as the only bare multiply in the closing add, so it is
   /// the one contracted and bcf's K = 2 instance stays bitwise. Accumulating
-  /// FORWARD absorbs the last forest's product instead and moves ~30% of rows
-  /// by one ulp, which walks into the whole trajectory - measured, all 12
-  /// bcf-equivalence scenarios red on mu, tau, glue, sigma and train.
+  /// FORWARD absorbs the last forest's product instead, flipping a sizeable
+  /// fraction of rows by one ulp, and that one-ulp difference walks into the
+  /// whole trajectory - measured, every bcf-equivalence scenario turns red
+  /// on mu, tau, glue, sigma and train.
   ///
   /// The multiplier here is the EXACT contraction: the reparameterization's
   /// near-zero snap belongs to formForestResponse and must not be shared with
