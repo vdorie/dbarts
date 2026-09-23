@@ -333,6 +333,16 @@ fused residual pass, which loses up to 8 percent on small fits. The mixing
 research may also give the rule-Gibbs tree move a nonzero default weight,
 before or after 1.0-0.
 
+Decided for after the merge and before 1.0-0: the engine stops calling R
+for its density functions, printing and error reporting, taking them
+through hooks the host installs with draws unchanged under R, and the C
+interface gains an entry that creates a sampler from a plain-C
+specification, with an error contract that does not assume R. Today a compiled consumer creates
+its sampler through R and a host without R cannot create one at all. It is
+an interface change the sister packages build against, so it lands before
+the C interface becomes the 1.0 contract, and they are re-verified after
+it.
+
 Decided for 1.0-0: a scale update on a response swap is refused on BCF and
 other models with two or more mean forests. A heteroscedastic model has one
 mean forest plus a variance forest, and there the update recalibrates the

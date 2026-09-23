@@ -152,6 +152,11 @@ placed them there:
   test, SBC and valgrind, bind to the default branch and cannot run until
   the merge. rchk and valgrind have each run once by hand, rchk clean, and
   they are the checks CRAN itself runs.
+- Placed there by ruling, before the 1.0-0 submission: the engine stops
+  calling R for densities, printing and error reporting, and the C
+  interface gains an entry that creates a sampler from a plain-C
+  specification, so a host without R, such as Python, can build one. The
+  sister packages are re-verified after it.
 - Deferred by ruling: the fused residual pass loses up to 8 percent below
   its crossover size and ships without a size gate; the rule-Gibbs move
   ships at zero weight and is adopted later; the binary prior is revisited

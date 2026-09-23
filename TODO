@@ -439,10 +439,14 @@ per-draw callbacks (decided, VD 2026-09-10; docs/decisions.md dec-B114;
   docs/design/per-draw-callbacks.md.
 
 host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
-  post-release: internal plain-C spec stage in the bridge; the engine's
-  Rmath, print and error touchpoints through src/external host hooks
-  (bit-identical under R); a plain-spec creation entry and a
-  host-neutral error contract in 1.x. Rewords the Python-binding entry.
+  after the merge to main, before the 1.0-0 CRAN submission (VD
+  2026-09-23: an interface change consumers build against, so it lands
+  before the header becomes the 1.0 contract): internal plain-C spec
+  stage in the bridge; the engine's Rmath, print and error touchpoints
+  through src/external host hooks (bit-identical under R); a plain-spec
+  creation entry and a host-neutral
+  error contract in dbarts.h. The sister re-verification at the freeze
+  follows it. Rewords the Python-binding entry.
 
 within-chain threading (decided, VD 2026-09-08; docs/decisions.md
   dec-B89; CLOSED without shipping 2026-09-10, dec-B115, S4 of
@@ -643,7 +647,8 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
 release (deferred; the one ordered procedure, run when VD triggers it)
   pre-release sequence (VD 2026-09-12): VD's own items before the
     merge - lorax contact, WeightIt/MatchIt contact, GitHub issue #80,
-    CRAN submission.
+    CRAN submission. Between the merge and the submission, the
+    host-neutral engine arc (VD 2026-09-23), then the freeze.
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
     and tests fit bart() with a three-level factor response, which
