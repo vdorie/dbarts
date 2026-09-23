@@ -151,7 +151,8 @@
   \code{sigma} - the same constructors are available by bare name, so \code{dbarts(..., node.prior =
   normal(chi(1.5)))} works regardless of what packages are attached: those
   arguments are evaluated with this vocabulary layered over the calling
-  environment, along with \code{num.vars}, the number of predictor columns.
+  environment (for an argument a wrapper forwards through its \code{\dots},
+  the one it was written in), along with \code{num.vars}, the number of predictor columns.
   A prior object built ahead of time with \code{dbartsPriors$...} can be
   passed to the same arguments.
 }

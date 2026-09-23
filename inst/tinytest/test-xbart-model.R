@@ -312,23 +312,8 @@ binaryCV <- function(...) {
 }
 binaryDefault <- binaryCV()
 expect_identical(dimnames(binaryDefault)[["k"]], "chi(1.5, 2)")
-# the same run naming the hyperprior. Written out rather than forwarded
-# through the helper's '...': match.call() reports a dots argument as ..1,
-# which the prior vocabulary has no expression to resolve - the standing
-# limit of every vocabulary argument here, not one this axis adds
-binaryNamed <- dbarts::xbart(
-  x,
-  z,
-  n.samples = 5L,
-  n.burn = c(3L, 2L),
-  method = "k-fold",
-  n.test = 5,
-  n.reps = 1L,
-  n.threads = 1L,
-  seed = 41L,
-  drop = FALSE,
-  k = chi(1.5, 2)
-)
+# the same run naming the hyperprior, forwarded through the helper's '...'
+binaryNamed <- binaryCV(k = chi(1.5, 2))
 expect_identical(binaryDefault, binaryNamed)
 # and it is a different cell from the fixed 2 that used to be the default
 expect_true(all(binaryDefault != binaryCV(k = 2)))

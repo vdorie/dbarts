@@ -402,6 +402,9 @@
             \code{hurdle.lognormal()} - and \code{family} now takes either
             of these calls, resolving a bare token string
             (\code{family = "gaussian"}) to the object at its defaults.
+            A constructor call resolves whether written in \code{family} or
+            forwarded there through a wrapper's \code{\dots}, as do the
+            prior constructors in the prior arguments.
             Every setting that only one family reads moves off \code{bart},
             \code{dbarts}, \code{dbartsSpec}, and \code{xbart} onto the
             family object that owns it: \code{resid.dist}, \code{dispersion},

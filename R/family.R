@@ -14,15 +14,119 @@
 ## (resolveFamily below), and dbartsFamilies is their exported face.
 
 ## An environment in which a package vocabulary resolves by bare name and
-## everything else falls through to the caller's own frame. The prior
-## constructors already do this inside the prior arguments (parsePriors);
-## the family constructors need it inside 'family'.
+## everything else falls through to the caller's own frame: the prior
+## constructors inside the prior arguments (parsePriors), the family
+## constructors inside 'family'.
 vocabularyEnv <- function(vocabulary, evalEnv) {
   env <- new.env(parent = evalEnv)
   for (name in names(vocabulary)) {
     assign(name, vocabulary[[name]], envir = env)
   }
   env
+}
+
+## An argument's expression as written, and the environment it was written
+## in. match.call() records an argument forwarded through a wrapper's dots as
+## ..N, and evaluating that forces the wrapper caller's promise outside any
+## vocabulary. Each forwarding frame's own call names the Nth dots element,
+## so the walk back reaches the original expression; it stops where that is
+## not possible and leaves the reference to evaluate as an ordinary one.
+recoverForwardedArgument <- function(expr, env) {
+  while (isDotsReference(expr)) {
+    recovered <- tryCatch(
+      {
+        ## a closure can reference dots its enclosing function owns
+        while (!exists("...", envir = env, inherits = FALSE)) {
+          env <- parent.env(env)
+        }
+        ## the frame's first place on the stack is its own call; later ones
+        ## are evaluations in it (eval(call, env)), whose caller is not the
+        ## one that wrote the dots
+        frame <- Position(function(f) identical(f, env), sys.frames())
+        parent <- sys.parents()[frame]
+        ## NextMethod(name = value) replaces the method's dots, but the frame
+        ## still records the generic's call
+        if (frame > 1L && identical(sys.function(frame - 1L), NextMethod)) {
+          stop("dots replaced by NextMethod")
+        }
+        ## a caller that is no frame on the stack, do.call(envir = ), numbers
+        ## as the frame itself and cannot be named
+        if (parent >= frame) {
+          stop("unknown caller")
+        }
+        caller <- sys.frame(parent)
+        dots <- match.call(
+          sys.function(frame),
+          sys.call(frame),
+          expand.dots = FALSE,
+          envir = caller
+        )$...
+        list(dots[[as.integer(substring(expr, 3L))]], caller)
+      },
+      error = function(e) NULL
+    )
+    if (is.null(recovered)) {
+      break
+    }
+    expr <- recovered[[1L]]
+    env <- recovered[[2L]]
+  }
+  list(expr = expr, env = env)
+}
+
+isDotsReference <- function(expr) {
+  is.symbol(expr) && grepl("^\\.\\.[1-9][0-9]*$", expr)
+}
+
+## An entry point's unevaluated argument evaluated with a package vocabulary
+## layered over evalEnv, then passed through 'resolve', the site's own
+## normalization, which signals an error for a value the site refuses. A
+## forwarded reference (..N) is evaluated as it stands first; the expression
+## it was written as is recovered, and evaluated where it was written, only
+## when that fails. Recovery can turn a failure into a value but never changes
+## a value; the error raised is the recovered expression's own, or the first
+## one when there is nothing to recover. The cost is that an expression that failed part way is evaluated again, side
+## effects included, by every site that reads it; R's warning on forcing the
+## failed promise again is expected here and muffled.
+evalInVocabulary <- function(expr, vocabulary, evalEnv, resolve = identity) {
+  evalIn <- function(expr, env) {
+    resolve(eval(expr, vocabularyEnv(vocabulary, env)))
+  }
+  if (!isDotsReference(expr)) {
+    return(evalIn(expr, evalEnv))
+  }
+  restarted <- gettext(
+    "restarting interrupted promise evaluation",
+    domain = "R"
+  )
+  first <- function() {
+    withCallingHandlers(evalIn(expr, evalEnv), warning = function(w) {
+      if (identical(conditionMessage(w), restarted)) {
+        invokeRestart("muffleWarning")
+      }
+    })
+  }
+  tryCatch(first(), error = function(original) {
+    written <- recoverForwardedArgument(expr, evalEnv)
+    if (isDotsReference(written$expr)) {
+      stop(original)
+    }
+    evalIn(written$expr, written$env)
+  })
+}
+
+## A site's 'resolve' for evalInVocabulary: a bare constructor name means its
+## defaults, and a value of none of 'classes' is refused by name.
+resolvedAs <- function(name, classes, what, topic = "dbartsPriors") {
+  function(value) {
+    if (is.function(value)) {
+      value <- value()
+    }
+    if (!any(vapply(classes, is, NA, object = value))) {
+      stop("'", name, "' must be a ", what, "; see ?", topic, call. = FALSE)
+    }
+    value
+  }
 }
 
 ## The residual scale's own prior, carried by every family that draws one.
@@ -310,7 +414,8 @@ methods::setMethod("show", "dbartsFamily", function(object) {
 ## bare constructor call resolves in the family vocabulary no matter what the
 ## caller has attached - the rule the prior vocabulary already follows - and
 ## an ordinary variable holding a token or an object still resolves in the
-## caller's frame. `tokens` is the entry point's own admissible list, its
+## caller's frame. Both hold for an argument forwarded through a wrapper's
+## dots, which resolves where it was written. `tokens` is the entry point's own admissible list, its
 ## first element the default.
 resolveFamily <- function(expr, tokens, caller, evalEnv) {
   if (is.null(expr)) {
@@ -321,11 +426,17 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
   ## rides the family object, so gaussian(sigma = chisq(3, 0.9)) has to
   ## resolve 'chisq' here the same way parsePriors resolves it inside
   ## 'resid.prior'. The two name sets are disjoint.
-  value <- eval(expr, vocabularyEnv(c(dbartsFamilies, dbartsPriors), evalEnv))
-  ## a bare constructor name (family = probit) means its defaults
-  if (is.function(value)) {
-    value <- value()
-  }
+  value <- evalInVocabulary(
+    expr,
+    c(dbartsFamilies, dbartsPriors),
+    evalEnv,
+    resolvedAs(
+      "family",
+      c("character", "dbartsFamily"),
+      "family name or a family object",
+      "dbartsFamilies"
+    )
+  )
 
   if (is.character(value)) {
     if (length(value) == 0L) {
@@ -341,12 +452,6 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
     ## anything else is one token, matched partially as match.arg does
     token <- if (length(value) > 1L) value[1L] else match.arg(value, tokens)
     value <- newValidated("dbartsFamily", token = token)
-  }
-
-  if (!is(value, "dbartsFamily")) {
-    stop(
-      "'family' must be a family name or a family object; see ?dbartsFamilies"
-    )
   }
   refuseUnsupportedFamily(value@token, tokens, caller)
   value

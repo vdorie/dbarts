@@ -7,6 +7,10 @@ source(
   system.file("common", "friedmanData.R", package = "dbarts"),
   local = TRUE
 )
+source(
+  system.file("common", "countWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 
 x <- testData$x
 y <- testData$y
@@ -125,6 +129,195 @@ expect_error(
   dbarts::bart(x, y, family = 1L),
   "family name or a family object"
 )
+
+# --- forwarded through a wrapper's dots -------------------------------------
+
+# a call forwarded through one or more wrappers' dots resolves as it would
+# written directly, at every entry point and in the prior arguments too
+residDf <- function(sampler) attr(sampler$model, "resid.df")
+viaDots <- function(...) dbarts::dbarts(x, y, control = control, ...)
+viaNested <- function(...) viaDots(...)
+viaBinary <- function(...) dbarts::dbarts(x, yBinary, control = control, ...)
+expect_equal(residDf(viaDots(family = student(3))), 3)
+expect_equal(residDf(viaNested(family = student(4))), 4)
+expect_equal(
+  viaNested(family = gaussian(sigma = chisq(5, 0.5)))$model@resid.prior@df,
+  5
+)
+expect_equal(viaBinary(family = probit)$model@family, "probit")
+# a recovered call that fails reports its own error, as it would written
+# directly
+expect_error(
+  viaNested(family = student(df = -1)),
+  tryCatch(
+    dbarts::dbarts(x, y, control = control, family = student(df = -1)),
+    error = conditionMessage
+  ),
+  fixed = TRUE
+)
+expect_equal(viaNested(tree.prior = cgm(power = 3))$model@tree.prior@power, 3)
+viaClosure <- function(...) {
+  inner <- function() dbarts::dbarts(x, y, control = control, ...)
+  inner()
+}
+expect_equal(residDf(viaClosure(family = student(6))), 6)
+expect_error(
+  (function(...) {
+    dbarts::dbartsSpec(dbarts::dbartsData(x, y), control = control, ...)
+  })(family = hazard(breaks = 4)),
+  "does not fit family"
+)
+expect_error(
+  (function(...) dbarts::xbart(x, y, ...))(family = student(3)),
+  "does not fit family"
+)
+viaBart <- function(...) {
+  dbarts::bart(
+    x,
+    y,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    ...
+  )
+}
+expect_equal(
+  countWarnings(
+    fitViaBart <- viaBart(family = student(3), tree.prior = cgm(power = 3)),
+    "warning"
+  ),
+  0L
+)
+expect_equal(unique(fitViaBart$resid.df), 3)
+expect_error(
+  (function(...) {
+    dbarts::bart(x, factor(y > median(y)), family = "multinomial", ...)
+  })(tree.prior = dart()),
+  "DART 'tree.prior'"
+)
+viaXbart <- function(...) {
+  dbarts::xbart(
+    x,
+    y,
+    n.samples = 5L,
+    n.reps = 1L,
+    n.burn = c(3L, 2L),
+    n.threads = 1L,
+    ...
+  )
+}
+expect_true(
+  is.numeric(viaXbart(tree.prior = cgm(power = 3), node.prior = normal()))
+)
+
+# ordinary variables still resolve where the call was written
+expect_equal(viaBinary(family = heldToken)$model@family, "probit")
+expect_equal(residDf(viaNested(family = dbartsFamilies$student(5))), 5)
+expect_equal(
+  (function() {
+    heldToken <- "logistic"
+    viaBinary(family = heldToken)$model@family
+  })(),
+  "logistic"
+)
+expect_equal(
+  residDf(do.call(viaDots, list(family = dbartsFamilies$student(8)))),
+  8
+)
+# a wrapper re-entered by eval() after do.call(envir = ) has no caller the
+# stack can name, so its reference resolves as an ordinary one, in 'e'
+e <- new.env()
+e$treePrior <- dbartsPriors$cgm(power = 3)
+e$heldToken <- "logistic"
+treePrior <- dbartsPriors$cgm(power = 5)
+expect_equal(
+  do.call(
+    viaBart,
+    list(tree.prior = quote(treePrior), keepTrees = TRUE),
+    envir = e
+  )$fit$model@tree.prior@power,
+  3
+)
+viaEval <- function(...) {
+  eval(quote(dbarts::dbarts(x, yBinary, control = control, ...)))
+}
+expect_equal(
+  do.call(viaEval, list(family = quote(heldToken)), envir = e)$model@family,
+  "logistic"
+)
+# NextMethod(name = value) replaces the dots a method sees, which the
+# method's recorded call does not show, so a constructor call it writes
+# stays unresolved rather than read off the generic's call
+viaGeneric <- function(obj, ...) UseMethod("viaGeneric")
+viaGeneric.default <- function(obj, ...) {
+  dbarts::dbarts(x, yBinary, control = control, ...)
+}
+viaGeneric.token <- function(obj, ...) {
+  heldToken <- "logistic"
+  NextMethod(family = heldToken)
+}
+viaGeneric.prior <- function(obj, ...) {
+  treePrior <- dbartsPriors$cgm(power = 2)
+  NextMethod(tree.prior = treePrior)
+}
+viaGeneric.ctor <- function(obj, ...) NextMethod(family = student(3))
+expect_equal(
+  viaGeneric(structure(1, class = "token"), family = heldToken)$model@family,
+  "logistic"
+)
+expect_equal(
+  viaGeneric(
+    structure(1, class = "prior"),
+    tree.prior = treePrior
+  )$model@tree.prior@power,
+  2
+)
+expect_error(
+  viaGeneric(structure(1, class = "ctor"), family = student(9)),
+  "could not find function"
+)
+# recovery only turns a failure into a value: a forwarded value that
+# resolves as it stands is kept, where written directly the vocabulary would
+# read the name instead, and a value the site refuses - stats::gaussian's
+# glm family - counts as a failure
+expect_equal(
+  (function() {
+    probit <- "logistic"
+    viaBinary(family = probit)$model@family
+  })(),
+  "logistic"
+)
+expect_equal(viaDots(family = gaussian)$model@family, "gaussian")
+expect_equal(
+  countWarnings(
+    (function(...) {
+      dbarts::bart(
+        x,
+        factor(y > median(y)),
+        family = "multinomial",
+        n.trees = 5L,
+        n.samples = 5L,
+        n.burn = 5L,
+        n.chains = 1L,
+        n.threads = 1L,
+        verbose = FALSE,
+        ...
+      )
+    })(tree.prior = cgm(power = 3)),
+    "warning"
+  ),
+  0L
+)
+# a wrapper's own formal is an ordinary variable: it forwards a token or an
+# object, not a constructor call
+viaFormal <- function(fam) {
+  dbarts::dbarts(x, y, control = control, family = fam)
+}
+expect_equal(residDf(viaFormal(dbartsFamilies$student(7))), 7)
+expect_error(viaFormal(student(7)), "could not find function")
 
 # --- the settings reach the specification ----------------------------------
 

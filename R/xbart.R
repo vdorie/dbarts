@@ -270,18 +270,16 @@ xbart <- function(
   # in for a missing k argument
   node.spec <- NULL
   if (!is.null(matchedCall[["node.prior"]])) {
-    priorEnv <- new.env(parent = evalEnv)
-    priorEnv[["normal"]] <- getNamespace("dbarts")[["normal"]]
-    priorEnv[["linear"]] <- getNamespace("dbarts")[["linear"]]
-    priorEnv[["gp"]] <- getNamespace("dbarts")[["gp"]]
-    priorEnv[["chi"]] <- getNamespace("dbarts")[["chi"]]
-    node.spec <- eval(matchedCall[["node.prior"]], priorEnv)
-    if (is.function(node.spec)) {
-      node.spec <- node.spec()
-    }
-    if (!is.null(node.spec) && !is(node.spec, "dbartsNodePrior")) {
-      stop("'node.prior' must be a node prior specification; see ?dbartsPriors")
-    }
+    node.spec <- evalInVocabulary(
+      matchedCall[["node.prior"]],
+      dbartsPriors[c("normal", "linear", "gp", "chi")],
+      evalEnv,
+      resolvedAs(
+        "node.prior",
+        c("NULL", "dbartsNodePrior"),
+        "node prior specification"
+      )
+    )
   }
 
   # the k axis is 0.9-x's numeric vector or a list whose entries are numbers
@@ -296,7 +294,7 @@ xbart <- function(
   kSpec <- if (is.null(matchedCall[["k"]])) {
     if (!is.null(node.spec)) node.spec@k else NULL
   } else {
-    eval(matchedCall[["k"]], vocabularyEnv(dbartsPriors, evalEnv))
+    evalInVocabulary(matchedCall[["k"]], dbartsPriors, evalEnv)
   }
   kGrid <- resolveKGrid(kSpec, control@binary)
   # swept largest (most-shrunk) k first, so every warm start comes from a
@@ -338,18 +336,12 @@ xbart <- function(
         "either as an object or through its shorthand arguments, not both"
       )
     }
-    priorEnv <- new.env(parent = evalEnv)
-    priorEnv[["cgm"]] <- getNamespace("dbarts")[["cgm"]]
-    priorEnv[["dart"]] <- getNamespace("dbarts")[["dart"]]
-    tree.prior <- eval(matchedCall[["tree.prior"]], priorEnv)
-    if (is.function(tree.prior)) {
-      tree.prior <- tree.prior()
-    }
-    if (!is(tree.prior, "dbartsTreePrior")) {
-      stop(
-        "'tree.prior' must be a tree prior specification; see ?dbartsPriors"
-      )
-    }
+    tree.prior <- evalInVocabulary(
+      matchedCall[["tree.prior"]],
+      dbartsPriors[c("cgm", "dart")],
+      evalEnv,
+      resolvedAs("tree.prior", "dbartsTreePrior", "tree prior specification")
+    )
   } else {
     tree.prior <- resolveDartShorthand(
       dart,
