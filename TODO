@@ -638,7 +638,8 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   pre-release sequence (VD 2026-09-12): VD's own items before the
-    merge - lorax contact, GitHub issue #80, CRAN submission.
+    merge - lorax contact, WeightIt/MatchIt contact, GitHub issue #80,
+    CRAN submission.
   bump the DESCRIPTION Date at the RC.
   contact lorax's maintainer before the CRAN submission: its example
     and tests fit bart() with a three-level factor response, which
@@ -649,6 +650,16 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     drops missing-response rows, so re-check the break before the
     submission rather than warning anyone about it. The July sweep covered
     24 reverse dependencies; CRAN lists 27 now.
+  contact WeightIt's and MatchIt's maintainer (Noah Greifer, both) before
+    the CRAN submission (VD 2026-09-23). Measured at 093dd035 with
+    WeightIt 2.0.0 and MatchIt 4.8.0: both fit through dbarts::bart2,
+    which warns once per session and is removed in 1.1-0, so both break
+    then unless they call bart (bart under 0.9-34 is the BayesTree door,
+    so a version check is needed while they support both). Both filter
+    the arguments they forward on bart2's and dbartsControl's formals,
+    so a user's rngSeed is dropped with no warning and the fit runs
+    unseeded; seed, the argument both packages document, still seeds
+    and reproduces.
   validate the schedule/dispatch-only workflows (equivalence, rchk,
     revdep-smoke, sbc, valgrind) on their first live runs, which
     happen when bartcore merges to main: GitHub fires schedules only

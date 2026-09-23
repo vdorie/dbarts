@@ -139,9 +139,11 @@ the merge is made on:
 
 - At the freeze: re-verify the four sister packages against the final
   header. They passed on 2026-09-23, so this repeats only if the header or
-  the R functions they call change before then. Bump the DESCRIPTION date; the maintainer's own items, contacting lorax's
-  maintainer about its three-level factor response and closing the
-  setResponse issue.
+  the R functions they call change before then. Bump the DESCRIPTION date.
+  Then the maintainer's own items: contacting lorax's maintainer about its
+  three-level factor response, contacting WeightIt's and MatchIt's
+  maintainer about bart2's removal in 1.1-0 and the rngSeed argument their
+  filters drop, and closing the setResponse issue.
 
 After the merge, because they cannot run before it or the maintainer
 placed them there:

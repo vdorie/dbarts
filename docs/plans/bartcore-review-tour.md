@@ -317,7 +317,9 @@ Open before the merge:
   `forwarded-call-storage`).
 - **The release items the maintainer holds**: contacting lorax's
   maintainer (its example fits a three-level factor response, which 0.9-34
-  coded as 0, 1, 2 and 1.0-0 refuses), closing GitHub issue #80, and
+  coded as 0, 1, 2 and 1.0-0 refuses); contacting WeightIt's and
+  MatchIt's maintainer (both call `bart2`, which is removed in 1.1-0, and
+  both drop a user's `rngSeed`, item 4); closing GitHub issue #80; and
   submitting dbarts with stan4bart 0.0-14.
 
 Decided, and scheduled after 1.0-0: real-valued nbinom dispersion and
