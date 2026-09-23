@@ -110,6 +110,9 @@ rbart_vi and its methods fit a grouped random-intercept BART model. That model n
     <dt>The front-door startup message</dt>
 <dd><p>Attaching the package prints one <code>packageStartupMessage</code> naming both doors, once per session (<code>suppressPackageStartupMessages</code> silences it); no successor, since nothing replaces it.</p></dd>
 
+    <dt>The front-door defaults message</dt>
+<dd><p>A <code><a href="bart.html">bart</a></code> call that names no <code>bartBT</code> argument and whose first argument is not a formula - a 0.9-x call such as <code>bart(x.train, y.train, x.test)</code> - binds the same way under both doors, so nothing forwards it and it runs under <code>bart</code>'s own defaults. The first such call in a session prints a message of class <code>dbartsFrontDoorMessage</code> naming the change and <code><a href="bartBT.html">bartBT</a></code>; <code>suppressMessages</code> silences it, and a call made from package code prints nothing.</p></dd>
+
 
 </dl><p><code>control</code> on <code><a href="xbart.html">xbart</a></code> is no longer a tombstone: both <code>bart</code> and <code>xbart</code> now take a <code>control = <a href="dbartsControl.html">dbartsControl()</a></code> formal, reaching every setting neither door spells flatly, so the earlier retirement (which refused the argument outright) is reversed.</p>
 <p>Every entry above, and <code>bart2</code> and the <code>rbart_vi</code> stubs, is one row of <code>dbarts:::dbartsTombstones</code>, the registry this page documents by hand.</p>

@@ -161,6 +161,18 @@ in dbarts 1.1-0.
   doors, once per session (`suppressPackageStartupMessages` silences
   it); no successor, since nothing replaces it.
 
+- The front-door defaults message:
+
+  A [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) call
+  that names no `bartBT` argument and whose first argument is not a
+  formula - a 0.9-x call such as `bart(x.train, y.train, x.test)` -
+  binds the same way under both doors, so nothing forwards it and it
+  runs under `bart`'s own defaults. The first such call in a session
+  prints a message of class `dbartsFrontDoorMessage` naming the change
+  and [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md);
+  `suppressMessages` silences it, and a call made from package code
+  prints nothing.
+
 `control` on
 [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) is no
 longer a tombstone: both `bart` and `xbart` now take a
