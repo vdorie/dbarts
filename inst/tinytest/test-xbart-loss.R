@@ -75,6 +75,41 @@ xval <- dbarts::xbart(
 )
 expect_equal(as.vector(xval), rep_len(3.0, length(xval)))
 
+# a warning raised inside a fit reaches the caller the same way at any
+# n.threads, a worker's included: each distinct (class, message) once
+warningLoss <- function(y.test, y.test.hat, weights) {
+  warning(warningCondition("loss warned", class = "xbartTestWarning"))
+  sqrt(mean((y.test - rowMeans(y.test.hat))^2))
+}
+runWarned <- function(n.threads) {
+  warned <- character()
+  loss <- withCallingHandlers(
+    dbarts::xbart(
+      x,
+      y,
+      n.samples = 6L,
+      n.burn = c(5L, 3L),
+      n.test = 3,
+      n.reps = 2L,
+      n.trees = 5L,
+      loss = warningLoss,
+      n.threads = n.threads,
+      seed = 1L
+    ),
+    warning = function(w) {
+      warned <<- c(warned, paste(class(w)[1L], conditionMessage(w)))
+      invokeRestart("muffleWarning")
+    }
+  )
+  list(loss = loss, warned = warned)
+}
+warned.1 <- runWarned(1L)
+warned.2 <- runWarned(2L)
+expect_identical(warned.1$warned, "xbartTestWarning loss warned")
+expect_identical(warned.2$warned, warned.1$warned)
+expect_identical(warned.2$loss, warned.1$loss)
+
+rm(warned.2, warned.1, runWarned, warningLoss)
 rm(xval, constantLoss, mad, base, power, k, n.trees, n.reps, y, x)
 
 rm(testData)
