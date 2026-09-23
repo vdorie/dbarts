@@ -521,7 +521,8 @@ xbart <- function(
     cells,
     lossFunction,
     # a worker starts a fresh session; it is handed this one's warned-once
-    # keys so a warnOnce inside a fit fires there exactly when it would here
+    # keys so a key already warned here stays silent there. A new key fires
+    # once per worker, and the caller's deduplication reports it once
     onceKeys = warnedOnceKeys()
   )
 
@@ -858,21 +859,36 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
 ## xbartRunUnits with every warning its fits raise captured rather than
 ## signalled, so a chunk run in this process and one run on a worker, whose
 ## own warnings would never reach the caller, report the same way. Returns
-## the loss matrix, the warnings in the order raised, and the warned-once keys
-## the chunk set.
+## the loss matrix, the distinct warnings in the order first raised, and the
+## warned-once keys the chunk set. Under options(warn = 2) a warning is left
+## to abort the run where it is raised, and an error signals the warnings
+## captured before it ahead of propagating.
 xbartRunChunk <- function(spec, unitRows, unitSeeds) {
   for (key in spec$onceKeys) {
     onceWarnState[[key]] <- TRUE
   }
   captured <- list()
+  keys <- character()
   loss <- withCallingHandlers(
     xbartRunUnits(spec, unitRows, unitSeeds),
     warning = function(w) {
+      if (getOption("warn") >= 2L) {
+        return()
+      }
       # the call names this chunk's internals, not the caller's code, and can
       # carry a frame too large to send back from a worker
       w$call <- NULL
-      captured[[length(captured) + 1L]] <<- w
+      key <- warningKey(w)
+      if (key %not_in% keys) {
+        keys <<- c(keys, key)
+        captured[[length(captured) + 1L]] <<- w
+      }
       invokeRestart("muffleWarning")
+    },
+    error = function(e) {
+      for (w in captured) {
+        warning(w)
+      }
     }
   )
   list(
@@ -883,23 +899,23 @@ xbartRunChunk <- function(spec, unitRows, unitSeeds) {
 }
 
 ## Re-signals the chunks' captured warnings once all units have finished, in
-## unit order, each distinct (class, message) pair once: a condition that
-## recurs in every fold would otherwise crowd the others out of R's
-## 50-warning buffer. The chunks' warned-once keys are marked in this session.
+## unit order, each distinct (class, message) pair once, so a warning with a
+## fixed message that recurs in every fit is reported once. The chunks'
+## warned-once keys are marked in this session.
 signalChunkWarnings <- function(chunkResults) {
   for (key in unlist(lapply(chunkResults, `[[`, "onceKeys"))) {
     onceWarnState[[key]] <- TRUE
   }
   captured <- unlist(lapply(chunkResults, `[[`, "warnings"), recursive = FALSE)
-  keys <- vapply(
-    captured,
-    function(w) paste(c(class(w), conditionMessage(w)), collapse = "\n"),
-    ""
-  )
+  keys <- vapply(captured, warningKey, "")
   for (w in captured[!duplicated(keys)]) {
     warning(w)
   }
   invisible(NULL)
+}
+
+warningKey <- function(w) {
+  paste(c(class(w), conditionMessage(w)), collapse = "\n")
 }
 
 ## The k axis, normalized to one node hyperprior per grid cell: a numeric
