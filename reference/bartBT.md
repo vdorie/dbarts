@@ -344,9 +344,17 @@ residuals(object, type = "ev", ...)
   rules and their probabilities. Elements should be `"birth_death"`,
   `"swap"`, `"change"`, `"perturb"` and `"rule_gibbs"` to control tree
   structure proposals, and `"birth"` to give the relative frequency of
-  birth/death in the `"birth_death"` step. The default is
+  birth/death in the `"birth_death"` step. `NULL` (the default), or a
+  vector naming none of `"birth_death"`, `"swap"` and `"change"`, takes
+  BayesTree's mixture for those three,
+  `c(birth_death = 0.5, swap = 0.1, change = 0.4)`, as 0.9-x did
+  (`birth` defaults to 0.5 either way); any other vector is completed as
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  completes one.
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s default
+  differs:
   `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5)`.
-  All four structural probabilities zero is the frozen mixture: no
+  All five structural probabilities zero is the frozen mixture: no
   structural proposal is made, the tree structures stand where they are,
   and only the leaf values, `sigma` and the family's latents keep being
   drawn, which is how a fitted forest is re-sampled as a fixed basis.
@@ -355,18 +363,18 @@ residuals(object, type = "ev", ...)
   default `levelGibbs = NA` a frozen forest additionally takes the
   level-shifting Gibbs step each iteration, the leaf values then being
   the only thing left to move. A `"swap"` element exchanges a parent's
-  split rule with a child's; it defaults to zero because at production
-  forest sizes it measures as a no-op, but with `n.trees = 1` it is the
-  only move that rotates a rule up the tree, so single-tree fits should
-  set it positive (0.1 was the historical default). A `"perturb"`
-  element displaces one node's split point by a single cut position
-  while keeping its variable and the tree's shape; it defaults to zero,
-  and only ordinal (numeric) columns can be perturbed. A `"rule_gibbs"`
-  element replaces one nog node's rule - a node whose two children are
-  both leaves - with a draw from that rule's own full conditional over
-  the available ordinal variables and their admissible cuts, so its
-  acceptance is one; it defaults to zero, it acts only where the node's
-  own rule is ordinal, and it is inert on an all-categorical design.
+  split rule with a child's; `bart` ships it at zero because at
+  production forest sizes it measures as a no-op, and `bartBT` keeps it
+  at 0.1 to match BayesTree. With `n.trees = 1` it is the only move that
+  rotates a rule up the tree. A `"perturb"` element displaces one node's
+  split point by a single cut position while keeping its variable and
+  the tree's shape; it defaults to zero, and only ordinal (numeric)
+  columns can be perturbed. A `"rule_gibbs"` element replaces one nog
+  node's rule - a node whose two children are both leaves - with a draw
+  from that rule's own full conditional over the available ordinal
+  variables and their admissible cuts, so its acceptance is one; it
+  defaults to zero, it acts only where the node's own rule is ordinal,
+  and it is inert on an all-categorical design.
 
 - keepsampler:
 
@@ -682,13 +690,13 @@ at all: the seed drives a dedicated generator that hands each chain its
 own seed. A single-chain run with a given seed reproduces the first
 chain of a multi-chain run with the same seed.
 
-`bartBT` takes the default for
+`bartBT` has no formal for
 [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
-`levelGibbs`, the optional level-shifting Gibbs step: `NA`, which takes
-the step only where the tree structures are frozen. `bartBT` never
-freezes them, so it never takes it and its draws are those of previous
-versions; it has no formal for it. `TRUE` takes the step every iteration
-and `FALSE` never does, both reachable from
+`levelGibbs`, the optional level-shifting Gibbs step, and takes its
+default, `NA`: the step is taken only where the tree structures are
+frozen, which in `bartBT` happens only when `proposalprobs` sets every
+structural move to zero. `TRUE` takes the step every iteration and
+`FALSE` never does, both reachable from
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and from a
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
 sampler's control object, and turning it on changes the sampled values
@@ -1055,8 +1063,8 @@ bartFit <- bart(x, y)
 #> [2] iteration: 300 (of 500)
 #> [1] iteration: 400 (of 500)
 #> [2] iteration: 400 (of 500)
-#> [2] iteration: 500 (of 500)
 #> [1] iteration: 500 (of 500)
+#> [2] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
 #> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
@@ -1067,7 +1075,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.148417
+#> total seconds in loop: 0.148458
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

@@ -23,8 +23,9 @@ sampler to completion and returns posterior draws.
 
 - [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) - the
   BayesTree-compatible interface, kept at its historical defaults (200
-  trees, one chain, factors expanded to indicator columns, binary
-  responses probit, missing data rejected).
+  trees, one chain, BayesTree's tree-move mixture, factors expanded to
+  indicator columns, binary responses probit, rows with missing values
+  dropped).
 
 - [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) -
   crossvalidates over `k`, `power`, `base`, and the tree count.

@@ -321,16 +321,18 @@ dbartsControl(
   defaults to zero because at production forest sizes it measures as a
   no-op, but with `n.trees = 1` it is the only move that rotates a rule
   up the tree, so single-tree fits should set it positive (0.1 was the
-  historical default). A `"perturb"` element displaces one node's split
-  point by a single cut position while keeping its variable and the
-  tree's shape; it defaults to zero, and only ordinal (numeric) columns
-  can be perturbed. A `"rule_gibbs"` element replaces one nog node's
-  rule - a node whose two children are both leaves - with a draw from
-  that rule's own full conditional over the available ordinal variables
-  and their admissible cuts, so its acceptance is one; it defaults to
-  zero, it acts only where the node's own rule is ordinal, and it is
-  inert on an all-categorical design. Unlike the four engine settings
-  above, this one is not fixed at creation:
+  historical default, and is
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s). A
+  `"perturb"` element displaces one node's split point by a single cut
+  position while keeping its variable and the tree's shape; it defaults
+  to zero, and only ordinal (numeric) columns can be perturbed. A
+  `"rule_gibbs"` element replaces one nog node's rule - a node whose two
+  children are both leaves - with a draw from that rule's own full
+  conditional over the available ordinal variables and their admissible
+  cuts, so its acceptance is one; it defaults to zero, it acts only
+  where the node's own rule is ordinal, and it is inert on an
+  all-categorical design. Unlike the four engine settings above, this
+  one is not fixed at creation:
   [`setControl`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   accepts a changed mixture between runs, installing it with the priors
   exactly as at creation, and a refused install rolls the stored control
