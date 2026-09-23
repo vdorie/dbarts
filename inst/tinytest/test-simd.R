@@ -27,7 +27,7 @@ simdLevels <- if (architectureIsArm) {
 # to cut codes, so nothing short of a genuine kernel defect can move a draw.
 # Compares three independently-computed channels (yhat.train, sigma,
 # varcount), so a kernel defect confined to one has nowhere to hide. offset,
-# when supplied, is forwarded to bart()'s binaryOffset - which dbarts()
+# when supplied, is forwarded to bartBT()'s binaryOffset - which dbarts()
 # threads straight through as a per-observation offset regardless of family -
 # so chain.hpp's trainingFits offset-add pass routes addVectorsInPlace's
 # output into yhat.train too. That add is the ONLY addVectorsInPlace call the
@@ -46,7 +46,7 @@ fitAcrossLevels <- function(
 ) {
   .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 0L)
   set.seed(99L)
-  scalarFit <- dbarts::bart(
+  scalarFit <- dbarts::bartBT(
     x,
     y,
     ndpost = n.sims,
@@ -58,7 +58,7 @@ fitAcrossLevels <- function(
   for (level in simdLevels) {
     .Call(dbarts:::C_dbarts_setSIMDInstructionSet, level)
     set.seed(99L)
-    levelFit <- dbarts::bart(
+    levelFit <- dbarts::bartBT(
       x,
       y,
       ndpost = n.sims,

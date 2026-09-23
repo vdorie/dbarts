@@ -480,8 +480,9 @@ legal there is docs/design/bart-as-a-component.md's subject. It runs only
 when chains run inline, and `Sampler::run` requires the caller not to set it
 alongside worker-thread chains. The flat C API has no entry for it. The one
 bridge entry that installs it, `bartcore_runWithCallback`, evaluates an R
-closure through `R_tryEval` and refuses more than one chain; it is
-registered, but no R function calls it.
+closure through `R_tryEval` and refuses more than one chain. No function in
+dbarts calls it; it is kept as the entry host packages build on when they
+move work into per-sweep callbacks, for example to keep memory down.
 
 **Per-draw callback.** A compiled function of the shipped
 `dbarts_draw_callback` type, registered through

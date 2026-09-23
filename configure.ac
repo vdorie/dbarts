@@ -20,15 +20,15 @@ m4_include([tools/m4/ax_compiler_ext.m4])
 # uint16_t (src/bartcore/data.hpp) and asserts the match (src/bartcore/tree.hpp)
 AC_DEFINE_UNQUOTED(XINT_TYPE, uint16_t, [Define to the integer type used to represent feature map.])
 
-# The reference build compiles the scalar, fixed-order draw-path kernels; the
-# shipped build is free to re-associate them, so its draws are not bitwise
-# comparable across vector widths. The recorded equivalence baselines and the
-# seed-locked snapshot tests are pinned to the reference build and must run
-# there. Default off: the vector build is what ships. The macro has to reach
-# both the bridge (src/config.hpp) and the kernels (src/misc/config.h), which
-# one AC_DEFINE does because both are AC_CONFIG_HEADERS above. Windows has no
-# configure: src/Makevars.win defines the same macro from an environment
-# variable of the same name.
+# The reference build keeps the draw-path kernels scalar and fixed-order, so
+# its draws stay bitwise reproducible should the shipped build ever vectorize
+# those reductions. None does today, so the two builds compile the same
+# kernels. The recorded equivalence baselines and the seed-locked snapshot
+# tests are keyed to the reference build and run there. Default off. The
+# macro has to reach both the bridge (src/config.hpp) and the kernels
+# (src/misc/config.h), which one AC_DEFINE does because both are
+# AC_CONFIG_HEADERS above. Windows has no configure: src/Makevars.win defines
+# the same macro from an environment variable of the same name.
 AC_ARG_ENABLE([reference-build],
   [AS_HELP_STRING([--enable-reference-build],
     [compile the scalar, fixed-order draw-path kernels, whose draws are bitwise reproducible (default: no)])],
