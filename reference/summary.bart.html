@@ -125,7 +125,7 @@ draws returns the same fit's chain-dimensioned draws as
   <code>vars</code>. <code>stats</code> has columns <code>mean</code>, <code>median</code>,
   <code>sd</code>, <code>mad</code>, <code>q5</code>, <code>q95</code>, <code>rhat</code>,
   <code>ess_bulk</code>, and <code>ess_tail</code> - the same columns
-  <code><a href="https://mc-stan.org/posterior/reference/draws_summary.html" class="external-link">posterior::summarise_draws</a></code> reports for a plain array, computed
+  <code>posterior::summarise_draws</code> reports for a plain array, computed
   without that package. Its print method notes when any R-hat exceeds
   1.01; this does not withhold the rest of the summary or error, as
   dbarts does not refuse to summarize a non-converged fit.</p>

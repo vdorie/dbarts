@@ -148,9 +148,11 @@ Inside the prior arguments of the fitting functions - and inside a
 family's `sigma` - the same constructors are available by bare name, so
 `dbarts(..., node.prior = normal(chi(1.5)))` works regardless of what
 packages are attached: those arguments are evaluated with this
-vocabulary layered over the calling environment, along with `num.vars`,
-the number of predictor columns. A prior object built ahead of time with
-`dbartsPriors$...` can be passed to the same arguments.
+vocabulary layered over the calling environment (for an argument a
+wrapper forwards through its `...`, the one it was written in), along
+with `num.vars`, the number of predictor columns. A prior object built
+ahead of time with `dbartsPriors$...` can be passed to the same
+arguments.
 
 ## References
 

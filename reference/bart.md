@@ -351,11 +351,12 @@ print(x, ...)
   variance and suppresses the sampler's own draw. The families with no
   free residual scale (`probit`, `logistic`, `ordinal`, `nbinom`,
   `multinomial`, the hazard families) take no `sigma` argument at all. A
-  family call has to be written in this argument to resolve the
-  constructor vocabulary; a wrapper forwarding one through its own `...`
-  should pass a prebuilt object
-  (`dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(3, 0.9))`)
-  instead.
+  family call forwarded through a wrapper's own `...` resolves as if
+  written here, with ordinary variables in it read where the call was
+  written; a wrapper that takes the family as a named formal of its own
+  forwards an ordinary variable, which has to hold a token or a prebuilt
+  object
+  (`dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(3, 0.9))`).
 
   `family = "multinomial"` fits a K-category softmax classifier: K
   forests, one per category, coupled through an interleaved Polya-Gamma
@@ -1568,7 +1569,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001601
+#> total seconds in loop: 0.001602
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1616,7 +1617,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001973
+#> total seconds in loop: 0.001984
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 

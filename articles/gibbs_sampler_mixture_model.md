@@ -590,5 +590,5 @@ split-R-hat and effective sample size for the scalar parameters (`sigma`
 and `k`) unconditionally, and
 [`draws()`](https://vdorie.github.io/dbarts/reference/draws.md) returns
 its chain-dimensioned draws as a plain array, the shape
-[`posterior::as_draws_array`](https://mc-stan.org/posterior/reference/draws_array.html)
-accepts unchanged from a caller who has that package installed.
+`posterior::as_draws_array` accepts unchanged from a caller who has that
+package installed.

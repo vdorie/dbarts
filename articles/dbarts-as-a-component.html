@@ -561,7 +561,7 @@ a plain-C copy of the same callback, checked against a fit’s own
 <code>x</code>/<code>y</code> as in the recipes above, without ever
 holding the training draws at all.</p>
 <div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">Rcpp</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/Rcpp/man/sourceCpp.html" class="external-link">sourceCpp</a></span><span class="op">(</span><span class="st">"drawMean.cpp"</span><span class="op">)</span>     <span class="co"># makeMeanContext, meanCallbackPtr</span></span>
+<code class="sourceCode R"><span><span class="fu">Rcpp</span><span class="fu">::</span><span class="fu">sourceCpp</span><span class="op">(</span><span class="st">"drawMean.cpp"</span><span class="op">)</span>     <span class="co"># makeMeanContext, meanCallbackPtr</span></span>
 <span></span>
 <span><span class="va">nChains</span> <span class="op">&lt;-</span> <span class="fl">4L</span></span>
 <span><span class="va">acc</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="op">*</span> <span class="va">nChains</span><span class="op">)</span>   <span class="co"># the ONLY per-observation allocation</span></span>

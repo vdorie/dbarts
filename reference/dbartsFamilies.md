@@ -16,7 +16,8 @@ that family at its defaults, or one of these calls
 (`family = student(df = 4)`), meaning that family with settings. Inside
 the `family` argument the constructors resolve by bare name whatever the
 caller has attached, exactly as the prior vocabulary does inside
-`tree.prior`; elsewhere reach them through this list. That vocabulary
+`tree.prior`, including when a wrapper forwards the argument through its
+own `...`; elsewhere reach them through this list. That vocabulary
 shadows the caller's own frame for these ten names only, so a variable
 named `gaussian` holding `student(3)` resolves there to the gaussian
 family, not to its own value; name such a variable something else, or

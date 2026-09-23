@@ -66,12 +66,10 @@ An object of class `summary.bart` with elements `call`, `stats` (a data
 frame with one row per requested scalar, or `NULL` if none of `vars` are
 present on the fit), and `vars`. `stats` has columns `mean`, `median`,
 `sd`, `mad`, `q5`, `q95`, `rhat`, `ess_bulk`, and `ess_tail` - the same
-columns
-[`posterior::summarise_draws`](https://mc-stan.org/posterior/reference/draws_summary.html)
-reports for a plain array, computed without that package. Its print
-method notes when any R-hat exceeds 1.01; this does not withhold the
-rest of the summary or error, as dbarts does not refuse to summarize a
-non-converged fit.
+columns `posterior::summarise_draws` reports for a plain array, computed
+without that package. Its print method notes when any R-hat exceeds
+1.01; this does not withhold the rest of the summary or error, as dbarts
+does not refuse to summarize a non-converged fit.
 
 ## See also
 

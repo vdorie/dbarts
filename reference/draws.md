@@ -2,10 +2,8 @@
 
 Converts a fit's chain-dimensioned draws to a plain array with
 dimensions `(iteration, chain, variable)` and dimnames on the variable
-margin - the shape
-[`posterior::as_draws_array`](https://mc-stan.org/posterior/reference/draws_array.html)
-accepts unchanged from a caller who has that package installed
-(`as_draws_array(draws(fit))`).
+margin - the shape `posterior::as_draws_array` accepts unchanged from a
+caller who has that package installed (`as_draws_array(draws(fit))`).
 [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
 is built on the same array.
 
