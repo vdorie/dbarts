@@ -465,7 +465,10 @@
             its own index, so a seeded \code{xbart} call reproduces its
             draws bitwise at any \code{n.threads}; the whole dispatch runs
             under a preserved caller stream, so a seeded call leaves
-            \code{.Random.seed} exactly as it found it.
+            \code{.Random.seed} exactly as it found it. Warnings raised in
+            the fits, which a worker used to drop, are signalled in the
+            calling session after the last unit, each distinct warning once,
+            the same at any \code{n.threads}.
       \item The multi-worker \code{run()} loop returns as soon as the last
             chain finishes instead of waking on a 100ms poll: a worker
             signals a condition variable on its final decrement, and the
