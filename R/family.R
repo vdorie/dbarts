@@ -42,8 +42,7 @@ recoverForwardedArgument <- function(expr, env) {
         ## the frame's first place on the stack is its own call; later ones
         ## are evaluations in it (eval(call, env)), whose caller is not the
         ## one that wrote the dots
-        onStack <- vapply(sys.frames(), identical, NA, env)
-        frame <- which(onStack)[1L]
+        frame <- Position(function(f) identical(f, env), sys.frames())
         parent <- sys.parents()[frame]
         ## NextMethod(name = value) replaces the method's dots, but the frame
         ## still records the generic's call
@@ -51,17 +50,11 @@ recoverForwardedArgument <- function(expr, env) {
           stop("dots replaced by NextMethod")
         }
         ## a caller that is no frame on the stack, do.call(envir = ), numbers
-        ## as the frame itself. parent.frame() reads the most recent context
-        ## on the frame, which is its own call only when nothing has
-        ## evaluated in it since; otherwise the caller is unknown and the
-        ## reference is left as it is rather than guessed
-        caller <- if (parent < frame) {
-          sys.frame(parent)
-        } else if (sum(onStack) == 1L) {
-          do.call(parent.frame, list(), envir = env)
-        } else {
+        ## as the frame itself and cannot be named
+        if (parent >= frame) {
           stop("unknown caller")
         }
+        caller <- sys.frame(parent)
         dots <- match.call(
           sys.function(frame),
           sys.call(frame),
@@ -91,8 +84,8 @@ isDotsReference <- function(expr) {
 ## forwarded reference (..N) is evaluated as it stands first; the expression
 ## it was written as is recovered, and evaluated where it was written, only
 ## when that fails. Recovery can turn a failure into a value but never changes
-## a value, and when it fails as well the first error is the one raised. The
-## cost is that an expression that failed part way is evaluated again, side
+## a value; the error raised is the recovered expression's own, or the first
+## one when there is nothing to recover. The cost is that an expression that failed part way is evaluated again, side
 ## effects included, by every site that reads it; R's warning on forcing the
 ## failed promise again is expected here and muffled.
 evalInVocabulary <- function(expr, vocabulary, evalEnv, resolve = identity) {
@@ -115,13 +108,25 @@ evalInVocabulary <- function(expr, vocabulary, evalEnv, resolve = identity) {
   }
   tryCatch(first(), error = function(original) {
     written <- recoverForwardedArgument(expr, evalEnv)
-    if (identical(written$expr, expr)) {
+    if (isDotsReference(written$expr)) {
       stop(original)
     }
-    tryCatch(evalIn(written$expr, written$env), error = function(e) {
-      stop(original)
-    })
+    evalIn(written$expr, written$env)
   })
+}
+
+## A site's 'resolve' for evalInVocabulary: a bare constructor name means its
+## defaults, and a value of none of 'classes' is refused by name.
+resolvedAs <- function(name, classes, what, topic = "dbartsPriors") {
+  function(value) {
+    if (is.function(value)) {
+      value <- value()
+    }
+    if (!any(vapply(classes, is, NA, object = value))) {
+      stop("'", name, "' must be a ", what, "; see ?", topic, call. = FALSE)
+    }
+    value
+  }
 }
 
 ## The residual scale's own prior, carried by every family that draws one.
@@ -425,20 +430,12 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
     expr,
     c(dbartsFamilies, dbartsPriors),
     evalEnv,
-    function(value) {
-      ## a bare constructor name (family = probit) means its defaults
-      if (is.function(value)) {
-        value <- value()
-      }
-      if (!is.character(value) && !is(value, "dbartsFamily")) {
-        stop(
-          "'family' must be a family name or a family object; see ",
-          "?dbartsFamilies",
-          call. = FALSE
-        )
-      }
-      value
-    }
+    resolvedAs(
+      "family",
+      c("character", "dbartsFamily"),
+      "family name or a family object",
+      "dbartsFamilies"
+    )
   )
 
   if (is.character(value)) {

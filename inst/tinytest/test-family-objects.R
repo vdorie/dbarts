@@ -145,6 +145,16 @@ expect_equal(
   5
 )
 expect_equal(viaBinary(family = probit)$model@family, "probit")
+# a recovered call that fails reports its own error, as it would written
+# directly
+expect_error(
+  viaNested(family = student(df = -1)),
+  tryCatch(
+    dbarts::dbarts(x, y, control = control, family = student(df = -1)),
+    error = conditionMessage
+  ),
+  fixed = TRUE
+)
 expect_equal(viaNested(tree.prior = cgm(power = 3))$model@tree.prior@power, 3)
 viaClosure <- function(...) {
   inner <- function() dbarts::dbarts(x, y, control = control, ...)

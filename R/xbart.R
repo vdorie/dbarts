@@ -274,19 +274,11 @@ xbart <- function(
       matchedCall[["node.prior"]],
       dbartsPriors[c("normal", "linear", "gp", "chi")],
       evalEnv,
-      function(value) {
-        if (is.function(value)) {
-          value <- value()
-        }
-        if (!is.null(value) && !is(value, "dbartsNodePrior")) {
-          stop(
-            "'node.prior' must be a node prior specification; see ",
-            "?dbartsPriors",
-            call. = FALSE
-          )
-        }
-        value
-      }
+      resolvedAs(
+        "node.prior",
+        c("NULL", "dbartsNodePrior"),
+        "node prior specification"
+      )
     )
   }
 
@@ -348,19 +340,7 @@ xbart <- function(
       matchedCall[["tree.prior"]],
       dbartsPriors[c("cgm", "dart")],
       evalEnv,
-      function(value) {
-        if (is.function(value)) {
-          value <- value()
-        }
-        if (!is(value, "dbartsTreePrior")) {
-          stop(
-            "'tree.prior' must be a tree prior specification; see ",
-            "?dbartsPriors",
-            call. = FALSE
-          )
-        }
-        value
-      }
+      resolvedAs("tree.prior", "dbartsTreePrior", "tree prior specification")
     )
   } else {
     tree.prior <- resolveDartShorthand(

@@ -183,22 +183,12 @@ parsePriors <- function(
   # a bare constructor name (tree.prior = cgm) means its defaults; a value
   # that is already a prior object passes through
   resolveSpec <- function(expr, name, class, label) {
-    evalInVocabulary(expr, vocabulary, parentEnv, function(value) {
-      if (is.function(value)) {
-        value <- value()
-      }
-      if (!is(value, class)) {
-        stop(
-          "'",
-          name,
-          "' must be a ",
-          label,
-          " specification; see ?dbartsPriors",
-          call. = FALSE
-        )
-      }
-      value
-    })
+    evalInVocabulary(
+      expr,
+      vocabulary,
+      parentEnv,
+      resolvedAs(name, class, paste(label, "specification"))
+    )
   }
 
   tree.prior <- resolveSpec(
