@@ -203,8 +203,7 @@ items
     decision-gated.
   rc-gate: VD's own read of docs/plans/bartcore-review-tour.md, then
     the RC declaration. Both VD-held. The pre-RC surface decisions and
-    their sequencing are docs/plans/prerc-surface-freeze.md. The binary
-    k prior evaluation completes before the declaration (dec-B118).
+    their sequencing are docs/plans/prerc-surface-freeze.md.
   repo-modernization: standing hygiene bundle
     (docs/plans/repo-modernization.md): recheck the CI action pins on
     each push and bump when GitHub deprecates a runtime; wire codecov
@@ -652,12 +651,13 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     24 reverse dependencies; CRAN lists 27 now.
   validate the schedule/dispatch-only workflows (equivalence, rchk,
     revdep-smoke, sbc, valgrind) on their first live runs, which
-    happen when bartcore merges to main: GitHub binds BOTH schedule and
-    workflow_dispatch to the default branch, so today they 404 even for
-    a manual run. rchk and valgrind have each run once by hand: rchk
-    clean over 077981f0 (15738 functions; the bridge's setState bails
-    out on both instantiations from state-space size and is left
-    unanalyzed, as CRAN's own rchk will be too), and valgrind over the
+    happen when bartcore merges to main: GitHub fires schedules only
+    from the default branch, so on bartcore they run only when
+    dispatched by hand or when a push touches their own file. rchk
+    and valgrind have each run once by hand: rchk clean over 077981f0
+    (15738 functions; the bridge's setState bails out on both
+    instantiations from state-space size and is left unanalyzed, as
+    CRAN's own rchk will be too), and valgrind over the
     whole tinytest suite on the x86 box at 329e3db9
     (docs/plans/valgrind-xbart.md). The first live CI runs after the
     merge confirm rather than discover the PROTECT-balance and

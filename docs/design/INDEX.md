@@ -15,7 +15,7 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | bcf.md | LANDED | Adds a two-forest (prognostic + treatment) Bayesian Causal Forests sampler (Hahn/Murray/Carvalho 2020), reachable through `forests =`. |
 | forest-combiner.md | LANDED, 2026-07-14 | Generalizes BCF's forest-combining logic so multinomial and other multi-forest models can reuse it, at no cost to single-forest fits. |
-| multiplier-combiner.md | LANDED, gaussian/probit/logistic, 2026-08-13/14 | Generalizes BCF's two-forest coupling to K forests with a per-forest basis and amplitude, for gaussian, probit and logistic responses (aft/ordinal/nbinom refused by name); reachable via `forests =` or a `bart2()` formula `forest()` term. |
+| multiplier-combiner.md | LANDED, gaussian/probit/logistic, 2026-08-13/14 | Generalizes BCF's two-forest coupling to K forests with a per-forest basis and amplitude, for gaussian, probit and logistic responses (aft/ordinal/nbinom refused by name); reachable via `forests =` or a `bart()` formula `forest()` term. |
 | model-space-survey.md | COMPLETE (survey), 2026-08-08 | A research survey of which multi-forest mutation shapes (whole-data `setData`, per-forest row subsetting) are worth building; the multi-forest predictor-mutation door it surfaced shipped, and both surveyed data-swap shapes stay undesigned. |
 
 ## Response families

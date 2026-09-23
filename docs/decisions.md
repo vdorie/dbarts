@@ -467,7 +467,7 @@ Record: docs/plans/archive/data-ownership-3-mutation.md. Marked: not mine. [dec-
 
 **A heteroscedastic fit refuses a response rescale**
 A sampler whose leaves carry a variance scale refuses an update of the response scale rather than rescaling itself. The alternative was performing the rescale, which is left to an additive entry point after the release. A host embedding a heteroscedastic fit cannot re-anchor its scale in the middle of a chain. The maintainer ruled for the refusal after the alternatives, the tradeoffs and a recommendation were put.
-Record: docs/plans/release-candidate-review.md. Marked: mine. [dec-B40]
+Record: docs/plans/release-candidate-review.md. Marked: mine; superseded by dec-B122. [dec-B40]
 
 **Gaussian-process leaves want few trees**
 The manual recommends 10 to 25 trees for a fit with Gaussian-process leaves, rather than the ensemble-scale tree count the package defaults to. The alternative was letting the general default stand for this leaf model too. The package's own default is then wrong for one shipped leaf model, and a user has to override it. A later ruling adds a self-report as well: the fit counts leaf evaluations that fell back to constant leaves and warns when that share is high. See also: [dec-B110].
@@ -790,7 +790,7 @@ A 26-scenario statistical comparison against an installed dbarts 0.9-34 widens t
 Record: docs/plans/classic-compare.md. Marked: not put to the maintainer; landed 2026-09-13. [dec-B120]
 
 **The drawn variance surface is readable**
-A sampler fitting a heteroscedastic model is to expose the variance surface it has drawn through a current-state accessor on the sampler object, returning what a run's variance and test-variance channels report and NULL when the sampler is homoscedastic, and the refusal that blocks prior-predictive draws for such samplers is lifted with it. The ruling is from 2026-09-13 and the accessor is not built yet. The two alternatives not taken were rebuilding the surface in R from the reported trees, which duplicates engine arithmetic inside the check meant to test it, and deferring both arms of the simulation-based calibration check, which would ship with heteroscedastic calibration unchecked. A user can read the variance surface a heteroscedastic fit drew and can draw from its prior predictive. Three options were put and the maintainer said "Use option 1".
+A sampler fitting a heteroscedastic model is to expose the variance surface it has drawn through a current-state accessor on the sampler object, returning what a run's variance and test-variance channels report and NULL when the sampler is homoscedastic, and the refusal that blocks prior-predictive draws for such samplers is lifted with it. The ruling is from 2026-09-13, and the accessor and the prior-predictive draw landed the same day. The two alternatives not taken were rebuilding the surface in R from the reported trees, which duplicates engine arithmetic inside the check meant to test it, and deferring both arms of the simulation-based calibration check, which would ship with heteroscedastic calibration unchecked. A user can read the variance surface a heteroscedastic fit drew and can draw from its prior predictive. Three options were put and the maintainer said "Use option 1".
 Record: docs/design/aft-status-setter.md landing note. Marked: mine. [dec-B121]
 
 **The variance forest's leaf prior recalibrates on a rescaling swap**

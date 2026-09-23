@@ -32,10 +32,21 @@ depends on the chain state).
 
 `compare` exits nonzero if any metric is more than 5% slower. Record and
 compare on the same quiet machine; append `quick` only for smoke tests.
-An `engine=` flag is accepted and ignored: the installed package always
-runs the bartcore engine. Sub-millisecond metrics drift a few percent
-between invocations on a laptop; confirm a marginal flag by re-running
-before chasing it.
+Sub-millisecond metrics drift a few percent between invocations on a
+laptop; confirm a marginal flag by re-running before chasing it.
+
+Two more grids share the same record/compare/print grammar, each behind its
+own opt-in flag (or `BENCH_BIGGRID=1` / `BENCH_CALLBACK=1`) and default
+baseline name, and leave the grid above untouched: `biggrid` times n in
+{1e4, 1e5, 1e6} x numTrees in {75, 200} (not for routine/CI use - the full
+grid at full reps can run upwards of an hour; `biggrid quick` restricts it
+to the smallest cell as a smoke test), and `callback` times per-draw
+callback overhead (none/noop/running-mean at two sizes), recorded at
+benchmarks/baselines/bench-sampler-callback-1456e999.csv.
+
+    Rscript benchmarks/R/bench-sampler.R biggrid record biggrid.csv
+    Rscript benchmarks/R/bench-sampler.R callback compare \
+      benchmarks/baselines/bench-sampler-callback-1456e999.csv
 
 ## R/equivalence.R - statistical equivalence
 
@@ -150,15 +161,18 @@ than on the arm64 development machine, and check `/proc/loadavg` first.
 
 Re-evaluates the binary (probit) end-node hyperprior default, chi(1.5, 2),
 over a grid of priors and a case set far wider than the study that set the
-default: twenty chi(df, scale) arms (df in {1, 1.25, 1.5, 2, 3} crossed with
-scale in {1, 2, 5, Inf}) plus fixed k at 1, 2 and 3, over 162 simulated cells
-(six data-generating processes by three sample sizes by three predictor counts
-by three base rates) and six real datasets from R and its recommended packages
-scored by repeated 80/20 splits. Arms are paired inside a case and repetition
-(same data, same seed). Scores, all on held-out rows: log score and Brier
-against the outcome; against the known truth on the simulated cells, the
-coverage and width of the 90 percent interval for the true probability and the
-RMSE of the posterior mean probability; plus the sampled k and the fit time.
+default: twenty-four chi(df, scale) arms (df in {1, 1.25, 1.5, 2, 3} crossed
+with scale in {1, 2, 5, Inf}, plus df in {1.5, 3} crossed with scale in
+{0.5, 0.25}) and four fixed-k arms (k in {1, 1.5, 2, 3}), over 162 simulated
+cells (six data-generating processes by three sample sizes by three predictor
+counts by three base rates) and twenty-two real datasets scored by repeated
+80/20 splits - six from R and its recommended packages, sixteen from the UCI
+Machine Learning Repository, fetched on demand and cached, by
+benchmarks/R/uci-binary.R. Arms are paired inside a case and repetition (same
+data, same seed). Scores, all on held-out rows: log score and Brier against
+the outcome; against the known truth on the simulated cells, the coverage and
+width of the 90 percent interval for the true probability and the RMSE of the
+posterior mean probability; plus the sampled k and the fit time.
 
     Rscript benchmarks/R/binary-hyperprior.R blocks           # list the blocks
     Rscript benchmarks/R/binary-hyperprior.R sim:weak:500 DIR # one block
@@ -168,33 +182,40 @@ RMSE of the posterior mean probability; plus the sampled k and the fit time.
 
 One block is one invocation and writes one rds into DIR, so a full run splits
 across a session; a large simulated block narrows further by appending a
-predictor count (`sim:weak:2000:50`). A full run is 24 blocks, 38,088 fits and
-about ninety minutes on four cores, each block well under ten minutes.
-`BINARY_HYPERPRIOR_CORES`, `_REPS` and `_SPLITS` set the worker count, the
-simulated repetitions and the real-data splits, and `_BURN`, `_DRAWS` and
-`_CHAINS` the MCMC length a fit gets (the plan doc's convergence refits use
-2000/2000/4 against the defaults of 500/500/1); `quick` is a smoke run and its
-files are marked so summarize will not mix them with a real one. No baseline
-and no pass/fail exit: the verdict is written by a person. Findings:
-docs/plans/binary-hyperprior.md - keep chi(1.5, 2); the finite-scale
-hyperpriors are interchangeable on point prediction, and the improper scale
-and every fixed k are worse. The default chain length is too short at
-n = 2000, which the doc's convergence section quantifies; the coverage levels
-it reports are depressed by that, the arm-to-arm comparisons are not.
+predictor count (`sim:weak:2000:50`). A full run is 40 blocks (18 simulated,
+22 real), 73,248 fits at the default chain length; the real blocks vary
+widely in cost, since the UCI datasets run up to 48,842 rows (capped
+at 4,000 training rows per split past 5,000 rows), so time it on the machine
+you'll run it on rather than assuming a figure here. `BINARY_HYPERPRIOR_CORES`,
+`_REPS` and `_SPLITS` set the worker count, the simulated repetitions and the
+real-data splits, and `_BURN`, `_DRAWS` and `_CHAINS` the MCMC length a fit
+gets (the plan doc's three chain lengths are 500/500/1 "short", 2000/2000/4
+"long" and 8000/8000/8 "probe"); `quick` is a smoke run and its files are
+marked so summarize will not mix them with a real one. No baseline and no
+pass/fail exit: the verdict is written by a person. Findings:
+docs/plans/binary-hyperprior.md - keep chi(1.5, 2); nothing in the grid clears
+the doc's bar for moving the default, and the improper scale and every fixed
+k are worse at every chain length tried. Poor mixing explains most of the
+coverage shortfall for a sampled k and almost none of it for a fixed k, but a
+residual shortfall persists even at the doc's longest chains.
 
 ## R/*-exact.R, *-balance.R - deterministic exact-posterior gates
 
-The exact-posterior gates (aft-exact, bcf-exact[-weak, -restricted],
-categorical-exact, heteroscedastic-exact, linear-exact, multinomial-exact,
-negbin-exact, ordinal-exact, t-exact, logistic-reference, monotone-reference)
-and the detailed-balance gates (bd-balance = birth/death, change-balance =
-change, swap-balance = swap, perturb-balance = perturb, rule-gibbs-balance =
-rule_gibbs) each drive a long fixed-seed MCMC run and
+The exact-posterior gates (aft-exact, aft-hetero-pit, backfit-exact,
+bcf-exact[-weak, -restricted], bcf-latent-exact, categorical-exact,
+hazard-exact, heteroscedastic-exact, hurdle-exact, linear-exact,
+multinomial-exact, negbin-exact, ordinal-exact, t-exact, logistic-reference,
+monotone-reference) and the detailed-balance gates (bd-balance = birth/death,
+change-balance = change, swap-balance = swap, perturb-balance = perturb,
+rule-gibbs-balance = rule_gibbs) each drive a long fixed-seed MCMC run and
 compare the engine's draws to an analytic or brute-force-enumerated target with
 a z-score / tolerance bound computed IN-SCRIPT (no recorded baseline), then
 quit(status=1L) on deviation. Because the target is derived rather than a
 recorded draw, they are deterministic regression detectors that are
-host-portable (unlike the equivalence bitwise check).
+host-portable (unlike the equivalence bitwise check). Two further gates,
+hazard-reduction and hurdle-reduction, compare draws bitwise against a
+hand-built reference fit instead of an analytic target, take no `quick`
+argument, and otherwise run and exit like the rest.
 
     Rscript benchmarks/R/change-balance.R        # full
     Rscript benchmarks/R/change-balance.R quick  # fast smoke

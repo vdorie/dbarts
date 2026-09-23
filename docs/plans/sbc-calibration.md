@@ -34,8 +34,8 @@ a prior k draw), DART's alpha-sampling (held fixed for the same
 reason), and the grouped model's default half-Cauchy tau prior
 (SBC-intractable via the engine's slice sampler; a gamma prior
 substituted for A3). Two harness-level findings worth carrying
-forward: the matrix (xy) interface drops NA rows even under
-missing = "incorporate" (only the formula interface keeps them), and
+forward: at the time of these runs the matrix (xy) interface dropped NA
+rows (the shipped package keeps them on both interfaces), and
 GP-leaf predict() differs from stored training fits by ~2e-3
 (re-kriging jitter; the harness reads the stored fits instead). The
 gaussian constant-leaf baseline (~52s at R=200 unloaded) is a
