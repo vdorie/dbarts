@@ -184,7 +184,7 @@ expect_equal(
 expect_equal(unique(fitViaBart$resid.df), 3)
 expect_error(
   (function(...) {
-    dbarts::bart(x, factor(y > 0), family = "multinomial", ...)
+    dbarts::bart(x, factor(y > median(y)), family = "multinomial", ...)
   })(tree.prior = dart()),
   "DART 'tree.prior'"
 )
@@ -237,6 +237,69 @@ viaEval <- function(...) {
 expect_equal(
   do.call(viaEval, list(family = quote(heldToken)), envir = e)$model@family,
   "logistic"
+)
+# NextMethod(name = value) replaces the dots a method sees, which the
+# method's recorded call does not show, so a constructor call it writes
+# stays unresolved rather than read off the generic's call
+viaGeneric <- function(obj, ...) UseMethod("viaGeneric")
+viaGeneric.default <- function(obj, ...) {
+  dbarts::dbarts(x, yBinary, control = control, ...)
+}
+viaGeneric.token <- function(obj, ...) {
+  heldToken <- "logistic"
+  NextMethod(family = heldToken)
+}
+viaGeneric.prior <- function(obj, ...) {
+  treePrior <- dbartsPriors$cgm(power = 2)
+  NextMethod(tree.prior = treePrior)
+}
+viaGeneric.ctor <- function(obj, ...) NextMethod(family = student(3))
+expect_equal(
+  viaGeneric(structure(1, class = "token"), family = heldToken)$model@family,
+  "logistic"
+)
+expect_equal(
+  viaGeneric(
+    structure(1, class = "prior"),
+    tree.prior = treePrior
+  )$model@tree.prior@power,
+  2
+)
+expect_error(
+  viaGeneric(structure(1, class = "ctor"), family = student(9)),
+  "could not find function"
+)
+# recovery only turns a failure into a value: a forwarded value that
+# resolves as it stands is kept, where written directly the vocabulary would
+# read the name instead, and a value the site refuses - stats::gaussian's
+# glm family - counts as a failure
+expect_equal(
+  (function() {
+    probit <- "logistic"
+    viaBinary(family = probit)$model@family
+  })(),
+  "logistic"
+)
+expect_equal(viaDots(family = gaussian)$model@family, "gaussian")
+expect_equal(
+  countWarnings(
+    (function(...) {
+      dbarts::bart(
+        x,
+        factor(y > median(y)),
+        family = "multinomial",
+        n.trees = 5L,
+        n.samples = 5L,
+        n.burn = 5L,
+        n.chains = 1L,
+        n.threads = 1L,
+        verbose = FALSE,
+        ...
+      )
+    })(tree.prior = cgm(power = 3)),
+    "warning"
+  ),
+  0L
 )
 # a wrapper's own formal is an ordinary variable: it forwards a token or an
 # object, not a constructor call

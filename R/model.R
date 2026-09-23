@@ -170,30 +170,43 @@ parsePriors <- function(
 ) {
   matchedCall <- match.call()
 
-  # a bare constructor name (tree.prior = cgm) means its defaults; a value
-  # that is already a prior object passes through. The prior vocabulary
-  # shadows the environment the argument was written in, inside these
+  # the prior vocabulary shadows the caller's environment inside these
   # arguments only: bare names like normal(chi(1.5)) resolve here no matter
-  # what packages are attached, and nothing is exported under generic names
-  # both spellings are exposed for the split.probs vocabulary: num.vars is the
+  # what packages are attached, and nothing is exported under generic names.
+  # Both spellings are exposed for the split.probs vocabulary: num.vars is the
   # current name, numvars the backward-compatible alias, so a bare 1 / num.vars
   # or 1 / numvars in a split.probs expression resolves either way
   vocabulary <- c(
     dbartsPriors,
     list(num.vars = ncol(data@x), numvars = ncol(data@x))
   )
-  resolveSpec <- function(expr) {
-    result <- evalInVocabulary(expr, vocabulary, parentEnv)
-    if (is.function(result)) {
-      result <- result()
-    }
-    result
+  # a bare constructor name (tree.prior = cgm) means its defaults; a value
+  # that is already a prior object passes through
+  resolveSpec <- function(expr, name, class, label) {
+    evalInVocabulary(expr, vocabulary, parentEnv, function(value) {
+      if (is.function(value)) {
+        value <- value()
+      }
+      if (!is(value, class)) {
+        stop(
+          "'",
+          name,
+          "' must be a ",
+          label,
+          " specification; see ?dbartsPriors",
+          call. = FALSE
+        )
+      }
+      value
+    })
   }
 
-  tree.prior <- resolveSpec(matchedCall$tree.prior)
-  if (!is(tree.prior, "dbartsTreePrior")) {
-    stop("'tree.prior' must be a tree prior specification; see ?dbartsPriors")
-  }
+  tree.prior <- resolveSpec(
+    matchedCall$tree.prior,
+    "tree.prior",
+    "dbartsTreePrior",
+    "tree prior"
+  )
   tree.prior <- resolveSplitProbabilities(tree.prior, data)
   # BART package startdart convention: hold the Dirichlet updates until the
   # forest is likelihood-informed
@@ -201,17 +214,18 @@ parsePriors <- function(
     tree.prior@update.delay <- as.numeric(control@n.burn %/% 2L)
   }
 
-  resid.prior <- resolveSpec(matchedCall$resid.prior)
-  if (!is(resid.prior, "dbartsResidPrior")) {
-    stop(
-      "'resid.prior' must be a residual prior specification; see ?dbartsPriors"
-    )
-  }
-
-  node.prior <- resolveSpec(matchedCall$node.prior)
-  if (!is(node.prior, "dbartsNodePrior")) {
-    stop("'node.prior' must be a node prior specification; see ?dbartsPriors")
-  }
+  resid.prior <- resolveSpec(
+    matchedCall$resid.prior,
+    "resid.prior",
+    "dbartsResidPrior",
+    "residual prior"
+  )
+  node.prior <- resolveSpec(
+    matchedCall$node.prior,
+    "node.prior",
+    "dbartsNodePrior",
+    "node prior"
+  )
   if (is(node.prior, "dbartsLinearPrior") || is(node.prior, "dbartsGPPrior")) {
     node.prior <- resolveLeafCovariates(node.prior, data)
   }

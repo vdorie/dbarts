@@ -273,14 +273,21 @@ xbart <- function(
     node.spec <- evalInVocabulary(
       matchedCall[["node.prior"]],
       dbartsPriors[c("normal", "linear", "gp", "chi")],
-      evalEnv
+      evalEnv,
+      function(value) {
+        if (is.function(value)) {
+          value <- value()
+        }
+        if (!is.null(value) && !is(value, "dbartsNodePrior")) {
+          stop(
+            "'node.prior' must be a node prior specification; see ",
+            "?dbartsPriors",
+            call. = FALSE
+          )
+        }
+        value
+      }
     )
-    if (is.function(node.spec)) {
-      node.spec <- node.spec()
-    }
-    if (!is.null(node.spec) && !is(node.spec, "dbartsNodePrior")) {
-      stop("'node.prior' must be a node prior specification; see ?dbartsPriors")
-    }
   }
 
   # the k axis is 0.9-x's numeric vector or a list whose entries are numbers
@@ -340,16 +347,21 @@ xbart <- function(
     tree.prior <- evalInVocabulary(
       matchedCall[["tree.prior"]],
       dbartsPriors[c("cgm", "dart")],
-      evalEnv
+      evalEnv,
+      function(value) {
+        if (is.function(value)) {
+          value <- value()
+        }
+        if (!is(value, "dbartsTreePrior")) {
+          stop(
+            "'tree.prior' must be a tree prior specification; see ",
+            "?dbartsPriors",
+            call. = FALSE
+          )
+        }
+        value
+      }
     )
-    if (is.function(tree.prior)) {
-      tree.prior <- tree.prior()
-    }
-    if (!is(tree.prior, "dbartsTreePrior")) {
-      stop(
-        "'tree.prior' must be a tree prior specification; see ?dbartsPriors"
-      )
-    }
   } else {
     tree.prior <- resolveDartShorthand(
       dart,
