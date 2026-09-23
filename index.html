@@ -61,27 +61,33 @@
 <p>A package for R, with C/C++.</p>
 <p>Pre-built binaries of the package are built by <a href="https://cran.r-project.org/package=dbarts" class="external-link">CRAN</a>. These can be installed from within R using the typical <code><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages()</a></code> mechanism.</p>
 <div class="section level2">
+<h2 id="upgrading-from-09-x">Upgrading from 0.9-x<a class="anchor" aria-label="anchor" href="#upgrading-from-09-x"></a>
+</h2>
+<p><code>bart</code> is now the formula-first front door (it was <code>bart2</code>, which remains as an alias for one release). The BayesTree-style interface is <code>bartBT</code>, with 0.9-x’s argument names and defaults; a <code>bart</code> call spelled the old way is forwarded to it with a warning for this release. Results differ from 0.9-x. The UPGRADING section of <code>inst/NEWS.Rd</code> lists every change that can break existing code.</p>
+</div>
+<div class="section level2">
 <h2 id="features">Features<a class="anchor" aria-label="anchor" href="#features"></a>
 </h2>
 <ul>
-<li>Response families, via <code>family =</code> on <code><a href="reference/bart.html">bart()</a></code> and <code><a href="reference/dbarts.html">dbarts()</a></code>: <code>"gaussian"</code>, <code>"probit"</code>, <code>"logistic"</code>, accelerated-failure-time survival (<code>"aft"</code>), discrete-time survival hazard (<code>"hazard"</code>, <code>"hazard.probit"</code>, <code>"hazard.logistic"</code>), multinomial (<code>"multinomial"</code>), ordered categorical (<code>"ordinal"</code>), negative-binomial counts (<code>"nbinom"</code>), and semicontinuous two-part (<code>"hurdle.lognormal"</code>)</li>
-<li>Outlier-robust Student-t residuals (<code>family = student(...)</code>)</li>
+<li>Response families via <code>family =</code> on <code><a href="reference/bart.html">bart()</a></code>: <code>"gaussian"</code>, <code>"probit"</code>, <code>"logistic"</code>, accelerated-failure-time survival (<code>"aft"</code>), discrete-time survival hazard (<code>"hazard"</code>, <code>"hazard.probit"</code>, <code>"hazard.logistic"</code>), multinomial (<code>"multinomial"</code>), ordered categorical (<code>"ordinal"</code>), negative-binomial counts (<code>"nbinom"</code>), and semicontinuous two-part (<code>"hurdle.lognormal"</code>); family objects (<code><a href="reference/dbartsFamilies.html">?dbartsFamilies</a></code>) carry family settings, such as the residual prior <code>gaussian(sigma = chisq(3, 0.9))</code>
+</li>
+<li>Outlier-robust Student-t residuals (<code>family = student(df)</code>)</li>
 <li>Heteroscedastic variance forest (<code>variance = ~ x1 + x2</code>)</li>
 <li>Monotonicity (<code>monotone</code>), interaction (<code>interactions</code>), and block-additive (<code>blocks</code>) constraints</li>
-<li>Missing predictor values handled in place via MIA, unconditionally</li>
-<li>DART variable selection prior (<code>tree.prior = dart()</code>)</li>
-<li>Linear and Gaussian-process leaf models (<code>node.prior = linear(...)</code> or <code>gp(...)</code>)</li>
+<li>Missing predictor values modeled in place (MIA)</li>
+<li>Priors as objects (<code><a href="reference/dbartsPriors.html">?dbartsPriors</a></code>): the tree prior (<code>tree.prior = cgm(...)</code>, or DART variable selection with <code>dart(...)</code>) and the leaf prior (<code>node.prior = normal(...)</code>, or linear and Gaussian-process leaves with <code>linear(...)</code> and <code>gp(...)</code>)</li>
 <li>Categorical predictors split on level subsets (<code>factors = "categorical"</code>); sparse <code>Matrix::dgCMatrix</code> and mixed dense/sparse predictor input</li>
 <li>Warm starts from a previous fit (<code>warm.start</code>) or XBART-style grow-from-root (<code>n.grow.sweeps</code>)</li>
 <li>Reduced-precision residual storage for large problems (<code>storage = "single"</code>)</li>
+<li>A sampler object (<code><a href="reference/dbarts.html">dbarts()</a></code>) whose response, predictors, offset, and weights can be changed between draws, for use as one step of a larger Gibbs sampler; multi-forest models such as BCF through <code>dbarts(forests = )</code>
+</li>
 </ul>
-<p>See <code>inst/NEWS.Rd</code> for release notes.</p>
 <p>Steps to install from source:</p>
 <ol style="list-style-type: decimal">
-<li>Install development tools for your operating system:
+<li>Install development tools for your operating system (dbarts needs R 4.2.0 or newer and a C++20 compiler):
 <ol style="list-style-type: decimal">
 <li>Linux/Unix should already have this installed; if not, use your package manager to install a C/C++ compiler.</li>
-<li>OS X: <a href="https://developer.apple.com/xcode/resources/" class="external-link">XCode</a>
+<li>macOS: <a href="https://developer.apple.com/xcode/resources/" class="external-link">Xcode</a>
 </li>
 <li>Windows: <a href="https://cran.r-project.org/bin/windows/Rtools/" class="external-link">Rtools</a>
 </li>
@@ -100,7 +106,7 @@
 <div class="section level2">
 <h2 id="for-package-authors">For package authors<a class="anchor" aria-label="anchor" href="#for-package-authors"></a>
 </h2>
-<p>Using dbarts from R needs no special linkage. Packages that call into dbarts at the C level should link against the flat C API in <code>inst/include/dbarts/dbarts.h</code>; the old C++ ABI, <code>R_C_interface.hpp</code>, was removed in 1.0-0.</p>
+<p>Using dbarts from R needs no special linkage. Packages that call dbarts from compiled code use the flat C API in <code>inst/include/dbarts/dbarts.h</code> (<code>LinkingTo: dbarts</code>): the sampler is created in R and the C API works on its handle. The C++ headers of 0.9-x, <code>R_C_interface.hpp</code> among them, were removed in 1.0-0.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

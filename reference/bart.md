@@ -14,10 +14,9 @@ multinomial (`family = "multinomial"`), ordered categorical
 (`family = "hurdle.lognormal"`) - and, on its formula interface, an
 additional per-observation-modulated forest declared inline with a
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
-(see ‘Formula Terms’ below). These remaining own-class families are not
-reachable from
-[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md): naming
-one of them to `bartBT`'s own `family` is refused, pointing back here.
+(see ‘Formula Terms’ below). None of these families is reachable from
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md), which
+takes no `family` argument and always fits the gaussian or probit model.
 
 ## Usage
 
@@ -1569,7 +1568,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000950
+#> total seconds in loop: 0.001553
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1617,7 +1616,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001115
+#> total seconds in loop: 0.001993
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 
