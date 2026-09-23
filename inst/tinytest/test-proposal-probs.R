@@ -605,3 +605,44 @@ tiltedBcf <- bcfFit(c(birth_death = 0.8, change = 0.2))
 tiltedBcfDraws <- tiltedBcf$run(20L, 20L)
 expect_true(all(splitsPerForest(tiltedBcf) > 0L))
 expect_true(!identical(tiltedBcfDraws$train, defaultBcfDraws$train))
+
+# bartBT keeps BayesTree's mixture, 0.9-34's resolution of its NULL default,
+# where bart ships swap at zero. A vector naming no BayesTree move keeps it
+# too; one naming any resolves by the dbartsControl rules above.
+bartBTProbs <- function(proposalprobs) {
+  dbarts::bartBT(
+    x,
+    y,
+    ntree = 5L,
+    ndpost = 1L,
+    nskip = 0L,
+    verbose = FALSE,
+    sampleronly = TRUE,
+    proposalprobs = proposalprobs
+  )$control@proposal.probs
+}
+bayesTree <- c(
+  birth_death = 0.5,
+  swap = 0.1,
+  change = 0.4,
+  perturb = 0,
+  rule_gibbs = 0,
+  birth = 0.5
+)
+expect_null(formals(dbarts::bartBT)[["proposalprobs"]])
+expect_identical(bartBTProbs(NULL), bayesTree)
+expect_identical(
+  bartBTProbs(c(birth = 0.7)),
+  replace(bayesTree, "birth", 0.7)
+)
+expect_equal(
+  bartBTProbs(c(birth_death = 0.7)),
+  c(
+    birth_death = 0.7,
+    swap = 0,
+    change = 0.3,
+    perturb = 0,
+    rule_gibbs = 0,
+    birth = 0.5
+  )
+)

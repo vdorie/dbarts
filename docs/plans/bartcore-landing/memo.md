@@ -44,8 +44,9 @@ faster. A four-chain fit of 100,000 rows also holds 1.6 GB less in memory.
 
 Every fit gives different draws. That is silent and unavoidable: the
 engine draws a different stream, the change move is repaired, the initial
-forest is drawn without empty leaves, and the default proposal mixture
-retires the swap move. A script that compares against draws saved under
+forest is drawn without empty leaves, and the modern doors' default
+proposal mixture sets the swap move to zero, where bartBT keeps
+BayesTree's. A script that compares against draws saved under
 0.9-34 will not match. Beyond that, in roughly the order of how common the
 usage is:
 

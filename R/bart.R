@@ -2971,6 +2971,16 @@ refuseLegacyFactorResponse <- function() {
   )
 }
 
+# BayesTree's tree-move mixture, which 0.9-34 resolved proposalprobs = NULL
+# to. 1.0-0's shipped default gives swap's share to birth/death; this door
+# keeps the old one.
+bayesTreeProposalProbs <- c(
+  birth_death = 0.5,
+  swap = 0.1,
+  change = 0.4,
+  birth = 0.5
+)
+
 bartBT <- function(
   x.train,
   y.train,
@@ -3046,6 +3056,20 @@ bartBT <- function(
     refuseLegacyFactorResponse()
   }
 
+  # NULL, or a vector naming none of the three BayesTree moves, is BayesTree's
+  # mixture, as in 0.9-34; anything else, and a positive perturb or
+  # rule_gibbs share, resolves as dbartsControl() resolves it
+  structuralNames <- c("birth_death", "swap", "change")
+  if (
+    !any(structuralNames %in% names(proposalprobs)) &&
+      !any(proposalprobs[zeroDefaultProposalNames] > 0, na.rm = TRUE)
+  ) {
+    proposalprobs <- c(
+      bayesTreeProposalProbs[structuralNames],
+      proposalprobs
+    )
+  }
+
   control <- dbartsControl(
     keepTrainingFits = as.logical(keeptrainfits),
     useQuantiles = as.logical(usequants),
@@ -3059,7 +3083,6 @@ bartBT <- function(
     printCutoffs = printcutoffs,
     n.cuts = numcut,
     seed = seed,
-    # the tree-move mixture is a control setting; NULL is the shipped default
     proposal.probs = proposalprobs
   )
   matchedCall <- if (keepcall) match.call() else call("NULL")

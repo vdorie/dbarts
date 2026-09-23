@@ -62,12 +62,14 @@ pdb3 <- dbarts::pdbart(
   levs = list(seq(-1, 1, 0.2), seq(-1, 1, 0.2))
 )
 
+# bartBT's tree-move mixture, which the BayesTree-spelled fits above run under
 control <- dbarts::dbartsControl(
   n.trees = 5L,
   n.samples = 10L,
   n.burn = 5L,
   verbose = FALSE,
-  n.chains = 1L
+  n.chains = 1L,
+  proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)
 )
 set.seed(0L)
 sampler <- dbarts::dbarts(x, y, control = control)
@@ -197,12 +199,14 @@ pdb3 <- dbarts::pd2bart(
   levquants = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95)
 )
 
+# bartBT's tree-move mixture, which the BayesTree-spelled fits above run under
 control <- dbarts::dbartsControl(
   n.trees = 5L,
   n.samples = 10L,
   n.burn = 5L,
   verbose = FALSE,
-  n.chains = 1L
+  n.chains = 1L,
+  proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)
 )
 set.seed(0L)
 sampler <- dbarts::dbarts(x, y, control = control)

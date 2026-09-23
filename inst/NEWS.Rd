@@ -18,7 +18,8 @@
             unseeded ones follow \code{set.seed}. Sampling no longer advances
             R's stream (chain generators are seeded from it at creation), so
             R-level draws made after a fit also change.
-      \item The default tree-proposal mixture drops the swap proposal to
+      \item The default tree-proposal mixture of \code{bart},
+            \code{dbarts} and \code{dbartsControl} drops the swap proposal to
             zero: \code{proposal.probs} now defaults to
             \code{c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
             rule_gibbs = 0, birth = 0.5)} rather than 0.9-x's
@@ -31,7 +32,10 @@
             \code{"swap"} remains a legal name and the move remains in the
             kernel: it is the only proposal that rotates a child's split rule
             up the tree, so a \code{n.trees = 1} fit should still set it
-            positive. Draws move for every fit.
+            positive. \code{bartBT} keeps BayesTree's mixture: its
+            \code{proposalprobs = NULL}, or a vector naming none of
+            \code{"birth_death"}, \code{"swap"} and \code{"change"}, resolves
+            to the 0.9-x vector above.
       \item The binary default for \code{k} on \code{dbarts} and
             \code{bart} is the proper \code{chi(1.5, 2)} rather than
             the improper 0.9-x default, spelled \code{chi(1.25, Inf)} there
@@ -298,7 +302,9 @@
             all (every fit is the default gaussian/probit pair), and its
             result is an ordinary \code{"bart"}-class object, so
             \code{predict}, \code{extract}, and every other generic work on
-            it unchanged. A factor response of three or more levels is
+            it unchanged. Its \code{proposalprobs = NULL} is 0.9-34's
+            BayesTree mixture, swap 0.1, not \code{bart}'s. A factor
+            response of three or more levels is
             refused, naming both remedies:
             \code{bart(x, y, family = "multinomial")} or
             \code{as.integer(y) - 1L} to keep the numbers 0.9-x fit from the

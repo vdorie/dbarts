@@ -554,6 +554,30 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### bartBT keeps BayesTree's tree-move mixture (2026-09-23)
+
+VD asked that `bartBT` follow BayesTree more closely. Its
+`proposalprobs = NULL`, or a vector naming none of birth_death, swap and
+change, now resolves to birth/death 0.5, swap 0.1, change 0.4, birth 0.5,
+the vector 0.9-34 resolved NULL to; the formal stays `NULL`, so the 31
+formals are still 0.9-34's byte for byte. `bart`, `dbarts` and
+`dbartsControl` keep 0.6 / 0 / 0.4. No other cheap setting separates
+`bartBT` from 0.9-34: k, the tree and residual priors, the cut grid, factor
+expansion, the row rule and the chain count already match. What remains is
+engine-side and not a setting: the RNG stream, the change move's
+correction, and the initial forest's no-empty-leaf draw (BayesTree starts
+from stumps; 0.9-34 already did not).
+
+Posterior-changing for `bartBT` only; the kernel is untouched, and the
+one-tree exact gates already run this mixture. Snapshot oracle: the three
+BayesTree-door tripwires, regenerated on the reference build, replay
+bitwise on the pre-change reference build with the mixture passed
+explicitly; xbart's is unchanged. test-pdbart.R's raw-sampler arms, which
+must match its `bartBT`-routed ones, take the same mixture. The equivalence
+harness builds no `bartBT` fit; test-proposal-probs.R pins the resolution.
+Gates: tinytest 8816/0 (shipped build); the four tripwires pass on the
+reference build.
+
 ### The tree-move mixture reaches every forest of a coupling (2026-09-13)
 
 A multi-forest declaration built each forest from its own

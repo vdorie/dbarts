@@ -46,7 +46,7 @@ most likely first.
    forest is drawn without empty leaves, the chi hyperprior on `k` samples
    the degrees of freedom asked for, and the default tree-move mixture drops
    swap from 0.1 to 0, giving its mass to birth/death (0.6, 0, 0.4 for
-   birth/death, swap, change); the mixture change reaches `bartBT` too. A
+   birth/death, swap, change); `bartBT` keeps BayesTree's 0.5, 0.1, 0.4. A
    seeded script does not reproduce its 0.9-34 numbers. R's own random
    numbers change as well: an unseeded fit draws its chains' seeds from R's
    generator once, when it is created, and uses its own generators after
@@ -64,7 +64,7 @@ most likely first.
    BayesTree-style argument (`x.train`, `ntree`, `ndpost`, `nskip`,
    `keeptrees` and the rest) is recognized and forwarded whole to `bartBT`,
    with a once-per-session warning; `bartBT` keeps 0.9-34's 31 arguments
-   and their defaults, but samples with the new tree-move mixture of item 1.
+   and their defaults, the tree-move mixture included.
    A call that names none, such as `bart(x.train, y.train, x.test)`, reads
    the same under both versions, so nothing can forward it: it runs under
    the new defaults, and the first such call in a session prints an

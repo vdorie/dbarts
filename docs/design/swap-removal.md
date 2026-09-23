@@ -1,6 +1,7 @@
 # Removing the swap tree-proposal
 
-Status: LANDED, 2026-09-07; AMENDED 2026-09-07 (swap restored at default zero, section 9).
+Status: LANDED, 2026-09-07; AMENDED 2026-09-07 (swap restored at default zero, section 9). `bartBT` alone keeps BayesTree's
+mixture, swap 0.1 ([bartBT keeps BayesTree's tree-move mixture (2026-09-23)](../plans/release-candidate-review.md#bartbt-keeps-bayestrees-tree-move-mixture-2026-09-23)).
 
 Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
 no longer declares the predictor, test-data, weight, active-row, per-forest, state,
