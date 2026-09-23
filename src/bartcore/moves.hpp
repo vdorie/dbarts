@@ -1576,9 +1576,8 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 /// with the displacement and no caller can set it from evidence - and a width
 /// arm therefore needs a private build. That premise is measured: on a
 /// perturb-dominant mixture cut acceptance falls monotonically with the
-/// window (0.57, 0.54, 0.49 at widths 1, 2, 4 for n = 500; 0.47, 0.43, 0.39
-/// at n = 2000) and nothing is bought back - per-point effective sample size
-/// falls with width at n = 500 and is unordered at n = 2000. Nothing breaks
+/// window at every n tried, and nothing is bought back - effective sample
+/// size shows no consistent gain with a wider window either. Nothing breaks
 /// at a wider window; the mixing does not improve, which is why the width
 /// stays one and stays fixed.
 inline constexpr int32_t perturbWidth = 1;

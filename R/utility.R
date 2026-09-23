@@ -431,14 +431,12 @@ namedList <- function(...) {
 
 ## The level count past which an "indicators" factor's dummy expansion is
 ## built sparse (a dgCMatrix column per emitted level) instead of dense (the
-## C builder), automatically, no user-facing argument (dec-B100). One-hot
-## storage costs O(numObservations) no matter how many levels there are,
-## against the dense block's O(numObservations * numLevels), so the memory
-## gap widens linearly past the cutoff; benchmarks/R/sparse-indicator-cutoff.R
-## measures it directly and finds the dense block already ~65-70x the sparse
-## block's bytes at 100 levels, growing linearly beyond it, while
-## construction TIME keeps favoring the dense C builder throughout the range
-## swept - this is a memory choice, not a speed one.
+## C builder), automatically, no user-facing argument (dec-B100). Dense
+## storage is 8 bytes per observation per level; a dgCMatrix column store is
+## about 8 + 4 bytes (a value plus a row index) per observation regardless of
+## level count, so the memory gap widens linearly with the level count past
+## the cutoff, while construction TIME keeps favoring the dense C builder
+## throughout the range swept - this is a memory choice, not a speed one.
 sparseIndicatorLevelCutoff <- 100L
 
 ## dec-B100's internal override for a test that must force the SAME wide

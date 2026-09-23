@@ -662,9 +662,9 @@ struct MonotoneConstantGaussianLeaf {
   // only when the whole vector lands in the monotone cone. A sequential sweep
   // of the truncated full conditionals is NOT the joint truncated law, so
   // rejection is the exact route. Acceptance runs ~1/L! over L leaves chained
-  // on a constrained axis - measured 6.5% per try with every axis constrained,
-  // 63% with one of five - and prior-drawn trees average 2.5 leaves, so the
-  // cap only catches a pathologically deep structure. Empty leaves take mu = 0
+  // on a constrained axis, worst when every axis is constrained and best with
+  // only one, and prior-drawn trees average 2.5 leaves, so the cap only
+  // catches a pathologically deep structure. Empty leaves take mu = 0
   // as everywhere else, flagged by a zero prior sd.
   static constexpr int priorDrawMaxAttempts = 1000000;
   bool drawFromPriorForTree(ext_rng* rng, const Tree& tree,
@@ -963,8 +963,8 @@ inline void solveLowerTriangularTransposed(const double* l, std::size_t p,
 /// It exists beside choleskyDecompose because the two solve arithmetics differ
 /// exactly where the amplitude conditional (combiner.hpp) cannot afford them
 /// to. Through L L' a scalar system divides twice by sqrt(d), and
-/// (x / sqrt(d)) / sqrt(d) is not x / d - measured, 500345 of a million random
-/// (x, d) pairs. Through L D L' the unit triangles contribute nothing at p = 1
+/// (x / sqrt(d)) / sqrt(d) is not x / d - measured, about half of random
+/// pairs. Through L D L' the unit triangles contribute nothing at p = 1
 /// and nothing off the diagonal at an orthogonal design, so the solve reduces
 /// to the ONE division per coordinate the scalar conditional writes, and a
 /// q-variate draw over an orthogonal basis reproduces q scalar draws bitwise.
@@ -1028,11 +1028,11 @@ struct LinearGaussianLeaf {
   /// and not a slowdown - the user-visible one in
   /// leafCovariateDesignationIsValid - so the cap is a stop rather than a
   /// tuning point. Neither of the two things a cap like this usually protects
-  /// is near a limit at eight: the O(q^3) leaf draw costs 5 percent of a
-  /// sweep more at eight columns than at four (n = 4000, 25 trees), and the
-  /// median leaf still holds 444 times q + 1 members, with 0.17 percent of
-  /// leaves rank-deficient before the prior's ridge. Raising it means
-  /// resizing this scratch, which is why it is compile-time.
+  /// is near a limit at eight: the O(q^3) leaf draw is only marginally
+  /// costlier at eight columns than at four, the median leaf still holds far
+  /// more members than q + 1 needs, and rank-deficient leaves before the
+  /// prior's ridge are rare. Raising it means resizing this scratch, which is
+  /// why it is compile-time.
   static constexpr std::size_t maxNumCovariates = 8;
 
   double scale = 1.0;  // nodeScale / sqrt(numTrees)
@@ -2239,14 +2239,12 @@ private:
   // default rather than a limit.
   //
   // It binds in both directions at 256, and neither direction is comfortable.
-  // Below it the model is quietly not the one that was asked for: on n = 1200
-  // with 20 trees, 83 percent of training rows sit in a fallen-back leaf at
-  // 256, against 56 percent at 512 and 28 percent at 1024. Above it the cost
-  // is the cubic law plus the shrinking fallback share, 8 to 12x per
-  // doubling: 22.0 msec per iteration at 256 against 276 at 512 and 2233 at
-  // 1024, for an rmse that improves slightly and flattens by 512. Because
-  // neither regime announces itself, a fit cannot be read without knowing
-  // which one it landed in - which is what tally_ carries out.
+  // Below it the model is quietly not the one that was asked for: at the
+  // default most training rows can sit in a fallen-back leaf. Above it each
+  // doubling costs about an order of magnitude - the cubic law compounded by
+  // the shrinking fallback share - for accuracy gains that flatten out.
+  // Because neither regime announces itself, a fit cannot be read without
+  // knowing which one it landed in - which is what tally_ carries out.
   std::size_t maxLeafSize_ = 256;
   // Fallback census over the four entry points above. Plain counters, not
   // atomics: one leaf model belongs to one forest of one chain and no two

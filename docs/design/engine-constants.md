@@ -107,8 +107,8 @@ nothing measured says eight is the right place to stop; neither time nor
 conditioning is near a limit there.
 
 NOT exposed: the scratch is a fixed-size stack array sized from the constant,
-so moving it is a recompile and not a setting. The comment at the definition
-now carries the measurement.
+so moving it is a recompile and not a setting. This note carries the
+measurement; the comment at the definition states the constraint without it.
 
 ## Perturb width
 
@@ -142,8 +142,8 @@ Verdict: does NOT bind. The measurement reproduces the comment's premise and
 finds no mixing the wider window buys back.
 
 NOT exposed: nothing measured wants a wider window, and a setting no evidence
-supports is worse than a constant. The comment at the definition now carries
-the numbers.
+supports is worse than a constant. This note carries the numbers; the
+comment at the definition states the constraint without them.
 
 ## Test-fit parallel cutoff
 
@@ -371,8 +371,9 @@ its own; the 3e7 arm, which only runs with the cap raised, holds 5.7 GB.
 Verdict: BINDS at a defensible place. 1e7 rows is where the expansion stops
 being something a 16 GB machine absorbs, and the cap is already settable per
 fit, which is the right shape for a number that depends on the column count
-and the host. Already exposed, so nothing changed but the comment at
-[`hazard`](../../R/family.R), which now carries these numbers.
+and the host. Already exposed. This note carries these numbers; the comment
+at [`hazard`](../../R/family.R) states the constraint and the one figure that
+sets the default's trade-off (bytes per row per column) without them.
 
 ## The xint caps
 

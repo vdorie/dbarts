@@ -255,13 +255,12 @@ aft <- function(sigma = NULL) {
 ##
 ## max.rows caps the expansion, whose row count grows with the grid's
 ## resolution. Time is not what the cap protects: the expansion is linear and
-## runs in 0.57 seconds at the cap and 1.6 seconds at three times it. Memory
-## is - about 190 MB per million rows at ten predictor columns, and it scales
-## with the column count, so the default cap holds 1.9 GB of expanded design
-## before the sampler has allocated anything of its own, and a caller who
-## raises it to 3e7 holds 5.7 GB. Ten million rows is where the expansion
-## stops being something a 16 GB machine absorbs; above it the refusal names
-## both levers, coarsening the grid and raising the cap, because which one is
+## cheap even well past the cap. Memory is - about 190 MB per million rows at
+## ten predictor columns, and it scales with the column count, so the default
+## cap bounds the expanded design's memory before the sampler has allocated
+## anything of its own. Ten million rows is where that bound stops being
+## something a modest machine absorbs; above it the refusal names both
+## levers, coarsening the grid and raising the cap, because which one is
 ## right depends on the column count and the host.
 hazard <- function(
   breaks = NULL,

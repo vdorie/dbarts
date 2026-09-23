@@ -156,7 +156,8 @@ division per coordinate. Over an ORTHOGONAL basis - bcf's indicator pair, any
 factor basis - the unit triangles are exactly identity, so the q-variate draw
 is q scalar draws BITWISE, in coordinate order, one standard normal each
 ([`drawForestAmplitude`](../../src/bartcore/combiner.hpp)). The two-sqrt Cholesky
-solve gives `x/sqrt(d)/sqrt(d) != x/d` and breaks the q = 1 reduction.
+solve gives `x/sqrt(d)/sqrt(d) != x/d` and breaks the q = 1 reduction -
+measured, about half of random (x, d) pairs disagree at double precision.
 `testUnitLowerFactorization` (tests/cpp/test_model.cpp) is its teeth, with a
 p = 1 arm asserting the Cholesky route DIFFERS and a p = 2 orthogonal arm.
 

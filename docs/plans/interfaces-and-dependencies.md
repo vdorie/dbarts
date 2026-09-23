@@ -595,9 +595,12 @@ to re-attach by), as does bart2's multinomial formula ingestion. A
 `factors = "indicators"` fit auto-sparsifies a wide factor's dummy
 expansion past `sparseIndicatorLevelCutoff` (100 levels,
 [`R/utility.R`](../../R/utility.R), a memory choice from a level-count
-sweep, benchmarks/R/sparse-indicator-cutoff.R), automatic and unmarked
-(dec-B100); forcing "sparse" past the cutoff without Matrix installed
-falls back to dense, same as never touching the option. A wide-factor
+sweep, benchmarks/R/sparse-indicator-cutoff.R, which finds the dense block
+already about 65-70x the sparse block's bytes at 100 levels and growing
+linearly beyond it, with construction time favoring dense throughout),
+automatic and unmarked (dec-B100); forcing "sparse" past the cutoff
+without Matrix installed falls back to dense, same as never touching the
+option. A wide-factor
 auto-sparse scenario (wideFactorIndicators) joins the gaussian equivalence
 corpus, recorded from the reference build as
 [equivalence-deb144d2.rds](../../benchmarks/baselines/equivalence-deb144d2.rds)

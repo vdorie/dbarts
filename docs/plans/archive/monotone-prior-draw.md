@@ -93,9 +93,10 @@ constrained 1-D/2-D marginals to independent quadrature. Gates re-run
 independently at landing: tests/cpp all pass, tinytest 3474/0,
 equivalence 27/27 identical draws plus BCF and multinomial trios
 bitwise, air clean; implementer ASAN/UBSAN model suite clean. Measured
-per-tree acceptance: 63%/try with one of five axes constrained, ~1/L!
-over L leaves with all axes constrained (mean 2.5 leaves on prior
-trees), P(cap exhausted) ~2e-11 at 8 leaves. Follow-up in the landing
+per-tree acceptance: 63%/try with one of five axes constrained, 6.5%/try
+with every axis constrained, ~1/L! over L leaves with all axes
+constrained (mean 2.5 leaves on prior trees), P(cap exhausted) ~2e-11 at
+8 leaves. Follow-up in the landing
 batch: the pre-existing `testMonotoneInteractionCoexistence` monotone
 assertion was vacuous (`buildFromFlat` leaves partitions stale);
 `repartitionSubtree` now precedes the feasibility walk.
