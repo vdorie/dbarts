@@ -519,7 +519,11 @@ xbart <- function(
     power,
     base,
     cells,
-    lossFunction
+    lossFunction,
+    # a worker starts a fresh session; it is handed this one's warned-once
+    # keys so a key already warned here stays silent there. A new key fires
+    # once per worker, and the caller's deduplication reports it once
+    onceKeys = warnedOnceKeys()
   )
 
   # work is distributed over (replication, fold) UNITS rather than over
@@ -571,20 +575,20 @@ xbart <- function(
     }
 
     if (numChunks == 1L) {
-      return(xbartRunChunk(spec, unitRows, unitSeeds))
+      return(list(xbartRunChunk(spec, unitRows, unitSeeds)))
     }
     cluster <- parallel::makeCluster(numChunks)
     on.exit(parallel::stopCluster(cluster), add = TRUE)
     # passing the namespace function itself serializes it by reference,
     # loading dbarts on the workers without shipping this frame
-    chunkResults <- parallel::clusterMap(
+    parallel::clusterMap(
       cluster,
       xbartRunChunk,
       unitRows = lapply(chunkIndices, function(indices) unitRows[indices]),
       unitSeeds = lapply(chunkIndices, function(indices) unitSeeds[indices]),
-      MoreArgs = list(spec = spec)
+      MoreArgs = list(spec = spec),
+      SIMPLIFY = FALSE
     )
-    do.call(rbind, chunkResults)
   }
 
   if (verbose) {
@@ -609,7 +613,9 @@ xbart <- function(
   # unit-major, cells within; the folds of one replication are contiguous, so
   # the reported loss is their average, as it was when one worker ran every
   # fold of a replication in sequence
-  unitLoss <- withPreservedSeed(runUnits())
+  chunkResults <- withPreservedSeed(runUnits())
+  unitLoss <- do.call(rbind, lapply(chunkResults, `[[`, "loss"))
+  signalChunkWarnings(chunkResults)
   numResults <- ncol(unitLoss)
   lossValues <- matrix(
     apply(
@@ -750,7 +756,7 @@ xbartLossFunction <- function(loss, control, family) {
 ## than per chunk is what keeps a result independent of how the units were
 ## distributed.
 ## Returns a (units x cells) x numResults matrix, cells in spec$cells order.
-xbartRunChunk <- function(spec, unitRows, unitSeeds) {
+xbartRunUnits <- function(spec, unitRows, unitSeeds) {
   data <- spec$data
   cells <- spec$cells
   numCells <- nrow(cells)
@@ -848,6 +854,68 @@ xbartRunChunk <- function(spec, unitRows, unitSeeds) {
   }
 
   do.call(rbind, results)
+}
+
+## xbartRunUnits with every warning its fits raise captured rather than
+## signalled, so a chunk run in this process and one run on a worker, whose
+## own warnings would never reach the caller, report the same way. Returns
+## the loss matrix, the distinct warnings in the order first raised, and the
+## warned-once keys the chunk set. Under options(warn = 2) a warning is left
+## to abort the run where it is raised, and an error signals the warnings
+## captured before it ahead of propagating.
+xbartRunChunk <- function(spec, unitRows, unitSeeds) {
+  for (key in spec$onceKeys) {
+    onceWarnState[[key]] <- TRUE
+  }
+  captured <- list()
+  keys <- character()
+  loss <- withCallingHandlers(
+    xbartRunUnits(spec, unitRows, unitSeeds),
+    warning = function(w) {
+      if (getOption("warn") >= 2L) {
+        return()
+      }
+      # the call names this chunk's internals, not the caller's code, and can
+      # carry a frame too large to send back from a worker
+      w$call <- NULL
+      key <- warningKey(w)
+      if (key %not_in% keys) {
+        keys <<- c(keys, key)
+        captured[[length(captured) + 1L]] <<- w
+      }
+      invokeRestart("muffleWarning")
+    },
+    error = function(e) {
+      for (w in captured) {
+        warning(w)
+      }
+    }
+  )
+  list(
+    loss = loss,
+    warnings = captured,
+    onceKeys = setdiff(warnedOnceKeys(), spec$onceKeys)
+  )
+}
+
+## Re-signals the chunks' captured warnings once all units have finished, in
+## unit order, each distinct (class, message) pair once, so a warning with a
+## fixed message that recurs in every fit is reported once. The chunks'
+## warned-once keys are marked in this session.
+signalChunkWarnings <- function(chunkResults) {
+  for (key in unlist(lapply(chunkResults, `[[`, "onceKeys"))) {
+    onceWarnState[[key]] <- TRUE
+  }
+  captured <- unlist(lapply(chunkResults, `[[`, "warnings"), recursive = FALSE)
+  keys <- vapply(captured, warningKey, "")
+  for (w in captured[!duplicated(keys)]) {
+    warning(w)
+  }
+  invisible(NULL)
+}
+
+warningKey <- function(w) {
+  paste(c(class(w), conditionMessage(w)), collapse = "\n")
 }
 
 ## The k axis, normalized to one node hyperprior per grid cell: a numeric

@@ -466,7 +466,34 @@ invisible(withCallingHandlers(
 ))
 expect_equal(gpWarnings, 0L)
 
-rm(gpWarnings)
+## a worker's fits report the same fallback warnings the caller's own do
+gpWarned <- function(n.threads) {
+  warned <- character()
+  invisible(withCallingHandlers(
+    dbarts::xbart(
+      gpY ~ x1 + x2,
+      gpFrame,
+      n.trees = 10L,
+      n.samples = 5L,
+      n.burn = c(0L, 0L),
+      n.reps = 1L,
+      n.test = 2L,
+      n.threads = n.threads,
+      seed = 1L,
+      node.prior = gp("x1", max.leaf.size = 8L)
+    ),
+    dbartsGPFallbackWarning = function(w) {
+      warned <<- c(warned, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  ))
+  warned
+}
+gpWarned.1 <- gpWarned(1L)
+expect_true(length(gpWarned.1) > 0L)
+expect_identical(gpWarned(2L), gpWarned.1)
+
+rm(gpWarned.1, gpWarned, gpWarnings)
 
 rm(
   degenerate,
