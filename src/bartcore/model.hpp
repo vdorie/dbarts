@@ -963,8 +963,8 @@ inline void solveLowerTriangularTransposed(const double* l, std::size_t p,
 /// It exists beside choleskyDecompose because the two solve arithmetics differ
 /// exactly where the amplitude conditional (combiner.hpp) cannot afford them
 /// to. Through L L' a scalar system divides twice by sqrt(d), and
-/// (x / sqrt(d)) / sqrt(d) is not x / d - measured, 500345 of a million random
-/// (x, d) pairs. Through L D L' the unit triangles contribute nothing at p = 1
+/// (x / sqrt(d)) / sqrt(d) is not x / d - measured, about half of random
+/// pairs. Through L D L' the unit triangles contribute nothing at p = 1
 /// and nothing off the diagonal at an orthogonal design, so the solve reduces
 /// to the ONE division per coordinate the scalar conditional writes, and a
 /// q-variate draw over an orthogonal basis reproduces q scalar draws bitwise.
@@ -2239,12 +2239,12 @@ private:
   // default rather than a limit.
   //
   // It binds in both directions at 256, and neither direction is comfortable.
-  // Below it the model is quietly not the one that was asked for: a large
-  // share of training rows sit in a fallen-back leaf, shrinking only slowly
-  // as the cap rises. Above it the cubic law dominates the growing cost per
-  // doubling, for accuracy gains that flatten out. Because neither regime
-  // announces itself, a fit cannot be read without knowing which one it
-  // landed in - which is what tally_ carries out.
+  // Below it the model is quietly not the one that was asked for: at the
+  // default most training rows can sit in a fallen-back leaf. Above it each
+  // doubling costs about an order of magnitude - the cubic law compounded by
+  // the shrinking fallback share - for accuracy gains that flatten out.
+  // Because neither regime announces itself, a fit cannot be read without
+  // knowing which one it landed in - which is what tally_ carries out.
   std::size_t maxLeafSize_ = 256;
   // Fallback census over the four entry points above. Plain counters, not
   // atomics: one leaf model belongs to one forest of one chain and no two

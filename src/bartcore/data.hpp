@@ -234,13 +234,13 @@ inline bool levelCodeIsRepresentable(std::int32_t code) {
 
 /// CSC-built columns at or below this nonzero fraction take rank-bitmap
 /// storage; denser ones densify their codes. It buys predictor memory with
-/// gather time, and both halves are real at 0.2: the rank decode dominates a
-/// sweep just below the threshold, while the dense side's cost stays flat
-/// across density, and the sparse store holds several times less memory than
-/// the dense one there. Raising it trades more time for less memory and
-/// lowering it the reverse, and the right price depends on the workload
-/// rather than on anything the engine can measure for
-/// itself. Read at BUILD, so it fixes a column's layout for the store's life.
+/// gather time, and both halves are real at 0.2: the rank decode adds over a
+/// third to a sweep just below the threshold, while the dense side's cost
+/// stays flat across density, and the sparse store holds several times less
+/// memory than the dense one there. Raising it trades more time for less
+/// memory and lowering it the reverse, and the right price depends on the
+/// workload rather than on anything the engine can measure for itself. Read
+/// at BUILD, so it fixes a column's layout for the store's life.
 constexpr double sparseDensityThreshold = 0.2;
 
 /// Rank-bitmap hot storage of a sparse ordinal column: code(i) is zeroCode

@@ -1577,9 +1577,9 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 /// arm therefore needs a private build. That premise is measured: on a
 /// perturb-dominant mixture cut acceptance falls monotonically with the
 /// window at every n tried, and nothing is bought back - effective sample
-/// size does not improve with a wider window either. Nothing breaks at a
-/// wider window; the mixing does not improve, which is why the width stays
-/// one and stays fixed.
+/// size shows no consistent gain with a wider window either. Nothing breaks
+/// at a wider window; the mixing does not improve, which is why the width
+/// stays one and stays fixed.
 inline constexpr int32_t perturbWidth = 1;
 
 /// Perturb-move proposal kernel: displace one interior node's ordinal cut by

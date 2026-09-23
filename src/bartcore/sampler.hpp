@@ -686,12 +686,9 @@ public:
   ///
   /// Nothing breaks either side: the partition gives each slab its own output
   /// range and reduces nothing across workers, so a replay is bitwise
-  /// identical at any worker count and the cutoff buys only time. An earlier
-  /// value came from arithmetic on the per-traversal cost alone, treating
-  /// thread spawn and join as free; measurement found spawn and join to be
-  /// the dominant cost near the true crossover, so the earlier estimate ran
-  /// serial replays far past the point where the fan-out was already
-  /// worthwhile. This value comes from that measurement instead.
+  /// identical at any worker count and the cutoff buys only time. The value
+  /// is the measured crossover: spawn and join cost tens of microseconds, so
+  /// the fan-out pays once a replay's serial work is a small multiple of that.
   /// A caller who measures otherwise on their own machine moves it through
   /// SamplerOptions::predictParallelCutoff; this is the default that field's
   /// 0 selects.

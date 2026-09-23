@@ -111,8 +111,9 @@ struct SamplerOptions {
   // Test rows below which a chain routes its test matrix on its own thread
   // rather than borrowing its share of the thread budget. The two paths are
   // byte-identical - routing draws no rng and each row writes its own slot -
-  // so this buys time only. The default sits past the measured crossover
-  // where threading the test matrix starts to win over the serial path.
+  // so this buys time only. The default sits past the crossover: threading
+  // already wins at the cutoff, so test sets somewhat below it run serial
+  // where the pool would be faster.
   std::size_t testFitParallelCutoff = 65536;
   // Traversals below which an out-of-sample replay runs inline on the
   // caller's thread; 0 takes Sampler::predictParallelCutoff, the calibrated
@@ -5207,8 +5208,8 @@ private:
   /// observation-order pass: roll resid[i] exactly as rollTreeResidual does,
   /// then scatter-add it into acc[leafOf[i]], a node-indexed accumulator small
   /// enough to stay L1-resident, so setNodeAverages' random gather over
-  /// indices[] never runs. That gather dominates a sweep, so removing it is
-  /// a real win rather than a marginal one.
+  /// indices[] never runs. That gather is the largest single pass in a
+  /// sweep, which is what the fusion removes.
   ///
   /// Weighted families ride the same pass with a SECOND bank set: sum w
   /// alongside sum w r, four-banked at the same positional assignment and
