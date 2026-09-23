@@ -175,7 +175,11 @@ xbart(
   workers. The default uses
   [`guessNumCores`](https://vdorie.github.io/dbarts/reference/guessNumCores.md),
   which should work across the most common operating system/hardware
-  pairs.
+  pairs. Warnings raised while fitting or scoring, including by a
+  supplied `loss` function, are collected from every unit and signalled
+  in the calling session once all units have finished, in unit order and
+  each distinct warning once, so the same warnings are seen at any
+  `n.threads`.
 
 - n.trees:
 
