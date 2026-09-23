@@ -321,9 +321,16 @@
             fourth was \code{sigest}, where \code{bart}'s is \code{subset})
             is refused instead, naming both doors. Attaching the package
             prints a \code{packageStartupMessage} naming both doors once per
-            session; \code{suppressPackageStartupMessages} silences it. All
-            three - the shim, the positional guard, and the startup message
-            - are removed in dbarts 1.1-0.
+            session; \code{suppressPackageStartupMessages} silences it. A
+            \code{bart} call that names no \code{bartBT} argument and whose
+            first argument is not a formula - a 0.9-x call such as
+            \code{bart(x.train, y.train, x.test)} - binds the same way under
+            both doors, so it runs under \code{bart}'s defaults; the first
+            such call in a session, unless made from package code, prints a
+            message of class \code{dbartsFrontDoorMessage} naming the change
+            and \code{bartBT}, which \code{suppressMessages} silences. All
+            four - the shim, the positional guard, the startup message and
+            the defaults message - are removed in dbarts 1.1-0.
       \item Every name and argument kept reachable for this one release past
             its removal or rename is a TOMBSTONE, registered in
             \code{dbartsTombstones} and listed on

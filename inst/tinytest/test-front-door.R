@@ -369,6 +369,54 @@ expect_error(
   pattern = "refit with this version"
 )
 
+# --- a 0.9-x call with no BayesTree name runs here, and the first one in a
+# session says so with a classed message, not a warning ---
+messagesOf <- function(expr) {
+  seen <- list()
+  withCallingHandlers(
+    expr,
+    message = function(m) {
+      seen[[length(seen) + 1L]] <<- m
+      invokeRestart("muffleMessage")
+    }
+  )
+  seen
+}
+defaultsKey <- dbarts:::frontDoorDefaultsKey
+defaultsKeyOnEntry <- dbarts:::onceWarnState[[defaultsKey]]
+
+resetWarnKey(defaultsKey)
+seenFormula <- messagesOf(
+  do.call(dbarts::bart, c(list(y ~ x1 + x2 + x3, dfFD), modernFD))
+)
+expect_identical(length(seenFormula), 0L)
+
+seenFirst <- messagesOf(do.call(dbarts::bart, c(list(xFD, yFD), modernFD)))
+expect_identical(length(seenFirst), 1L)
+expect_inherits(seenFirst[[1L]], "dbartsFrontDoorMessage")
+expect_true(grepl("'bartBT'", conditionMessage(seenFirst[[1L]]), fixed = TRUE))
+seenSecond <- messagesOf(do.call(dbarts::bart, c(list(xFD, yFD), modernFD)))
+expect_identical(length(seenSecond), 0L)
+
+# a call made from package code is the package author's to change
+resetWarnKey(defaultsKey)
+packageFrame <- new.env(parent = asNamespace("stats"))
+packageFrame$args <- c(list(xFD, yFD), modernFD)
+seenPackage <- messagesOf(
+  eval(quote(do.call(dbarts::bart, args)), packageFrame)
+)
+expect_identical(length(seenPackage), 0L)
+
+# bart2's own warning already names the change, so its forward is quiet
+resetWarnKey(defaultsKey)
+resetWarnKey("tombstone.bart2")
+seenAlias <- messagesOf(suppressWarnings(
+  do.call(dbarts::bart2, c(list(xFD, yFD), modernFD))
+))
+expect_identical(length(seenAlias), 0L)
+warnState <- dbarts:::onceWarnState
+warnState[[defaultsKey]] <- defaultsKeyOnEntry
+
 rm(
   nFD,
   xFD,
@@ -396,5 +444,15 @@ rm(
   shimWarnings,
   seedWarnings,
   sigmaWarnings,
-  twopartMsgFD
+  twopartMsgFD,
+  messagesOf,
+  defaultsKey,
+  defaultsKeyOnEntry,
+  seenFormula,
+  seenFirst,
+  seenSecond,
+  packageFrame,
+  seenPackage,
+  seenAlias,
+  warnState
 )

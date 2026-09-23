@@ -63,6 +63,9 @@
     \item{The front-door startup message}{
       Attaching the package prints one \code{packageStartupMessage} naming both doors, once per session (\code{suppressPackageStartupMessages} silences it); no successor, since nothing replaces it.
     }
+    \item{The front-door defaults message}{
+      A \code{\link{bart}} call that names no \code{bartBT} argument and whose first argument is not a formula - a 0.9-x call such as \code{bart(x.train, y.train, x.test)} - binds the same way under both doors, so nothing forwards it and it runs under \code{bart}'s own defaults. The first such call in a session prints a message of class \code{dbartsFrontDoorMessage} naming the change and \code{\link{bartBT}}; \code{suppressMessages} silences it, and a call made from package code prints nothing.
+    }
   }
 
   \code{control} on \code{\link{xbart}} is no longer a tombstone: both \code{bart} and \code{xbart} now take a \code{control = \link{dbartsControl}()} formal, reaching every setting neither door spells flatly, so the earlier retirement (which refused the argument outright) is reversed.

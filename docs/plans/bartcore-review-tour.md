@@ -53,19 +53,26 @@ most likely first.
    that; a fit given `seed` leaves R's generator untouched. Where the two
    releases fit the same model with the same priors, the posteriors agree
    (section 4).
-2. **`bart` called positionally runs the modern fit.** A 0.9-34 call such as
-   `bart(x.train, y.train, x.test)` still runs, silently, under the new
-   defaults: 75 trees rather than 200, four chains of 500 kept draws after
-   500 burn-in rather than one chain of 1000 after 100, the chains merged,
-   and the factor, missing-value and binary-prior rules below. `yhat.train`
-   comes back with 2000 rows where it had 1000. The package startup message
-   is the only notice. A call that names any BayesTree-style argument
-   (`x.train`, `ntree`, `ndpost`, `nskip`, `keeptrees` and the rest) is
-   forwarded whole to `bartBT` with a once-per-session warning, and a fourth
-   positional argument is refused, since 0.9-34 read it as `sigest` and
-   `bart` would read it as `subset`. `bartBT` keeps 0.9-34's 31 arguments
+2. **The name `bart` now means a different function.** `bart` is the
+   formula-first function 0.9-34 called `bart2`, so a 0.9-34 `bart` script
+   runs under new defaults: 75 trees rather than 200, four chains of 500
+   kept draws after 500 burn-in rather than one chain of 1000 after 100, the
+   chains merged, and the factor, missing-value and binary-prior rules
+   below. `yhat.train` comes back with 2000 rows where it had 1000. The
+   arguments themselves still land where they were meant; what the user is
+   told depends on how the call is written. A call that names a
+   BayesTree-style argument (`x.train`, `ntree`, `ndpost`, `nskip`,
+   `keeptrees` and the rest) is recognized and forwarded whole to `bartBT`,
+   with a once-per-session warning; `bartBT` keeps 0.9-34's 31 arguments
    and their defaults, but samples with the new tree-move mixture of item 1.
-   Forwarding, the refusal and the startup message are removed in 1.1-0.
+   A call that names none, such as `bart(x.train, y.train, x.test)`, reads
+   the same under both versions, so nothing can forward it: it runs under
+   the new defaults, and the first such call in a session prints an
+   informational message naming the change and `bartBT` (a call from
+   another package's code does not). A fourth positional argument is
+   refused, since 0.9-34 read it as `sigest` and `bart` would read it as
+   `subset`. The forwarding, the message, the refusal and the package
+   startup message are removed in 1.1-0.
 3. **The binary leaf-scale prior moves.** For a binary response `k` is
    sampled under `chi(1.5, 2)`, a proper prior, where 0.9-34's `bart2` used
    the improper `chi(1.25, Inf)` and its `bart` fixed `k = 2`. `chi()`'s

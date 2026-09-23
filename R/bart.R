@@ -958,6 +958,7 @@ bart <- function(
   # and no branch below would see the token.
   refuseCountsCarryingData(formula, "bart()")
   refuseResponseFreeFormula(formula, "bart()")
+  noteFrontDoorDefaults(formula, callingEnv)
 
   # family = "auto" with a 3+-level UNORDERED factor/character response is
   # multinomial; a 3+-level ORDERED factor is ordinal (the disjoint

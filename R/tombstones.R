@@ -309,6 +309,13 @@ dbartsTombstones <- list(
     owner = ".onAttach",
     successor = NA_character_,
     expires = tombstoneExpiry
+  ),
+  list(
+    name = "front-door defaults message",
+    kind = "behaviour",
+    owner = "bart",
+    successor = "bartBT",
+    expires = tombstoneExpiry
   )
 )
 
@@ -331,6 +338,7 @@ bart2 <- function() {
     "in dbarts ",
     tombstoneExpiry
   )
+  onceWarnState[[frontDoorDefaultsKey]] <- TRUE
   eval(matchedCall, parent.frame())
 }
 formals(bart2) <- formals(bart)
@@ -428,6 +436,43 @@ refuseLegacyPositionalCall <- function(suppliedCall) {
       call. = FALSE
     )
   }
+  invisible(NULL)
+}
+
+## A 0.9-x 'bart' call that names no BayesTree argument - bart(x, y, x.test)
+## - binds the same way under both doors, so nothing forwards it and it runs
+## under this door's defaults. The first such call in a session says so, as
+## an informational message rather than a warning: the call is valid and its
+## arguments land where they were meant. Only a call whose first argument is
+## not a formula or data object qualifies, since 0.9-x's 'bart' took neither.
+## A call from package code is exempt: its user never wrote 'bart', and the
+## package's author is the one to act. bart2 sets the key before forwarding,
+## since its own warning already says what changed.
+frontDoorDefaultsKey <- "tombstone.bartDefaultsMessage"
+
+noteFrontDoorDefaults <- function(formula, callingEnv) {
+  if (is.formula(formula) || inherits(formula, "dbartsData")) {
+    return(invisible(NULL))
+  }
+  if (isNamespace(topenv(callingEnv))) {
+    return(invisible(NULL))
+  }
+  if (isTRUE(onceWarnState[[frontDoorDefaultsKey]])) {
+    return(invisible(NULL))
+  }
+  onceWarnState[[frontDoorDefaultsKey]] <- TRUE
+  message(messageCondition(
+    paste0(
+      "dbarts: 'bart' is the function 0.9-x called 'bart2', with its own ",
+      "defaults (75 trees; four chains, their draws merged) rather than ",
+      "those of 0.9-x's 'bart' (200 trees, one chain). Call 'bartBT' for ",
+      "the BayesTree-style fit and its defaults. Shown once per session ",
+      "until dbarts ",
+      tombstoneExpiry,
+      ".\n"
+    ),
+    class = c("dbartsFrontDoorMessage", "dbartsMessage")
+  ))
   invisible(NULL)
 }
 
