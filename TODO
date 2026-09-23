@@ -315,6 +315,10 @@ front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75;
   refusal names both remedies. Consumers: bartCause now calls bart
   directly (dbarts-1.0 b33ae4e); 17 CRAN reverse dependencies already
   called only bart. Settle before contacting lorax's maintainer.
+  bart2's removal in 1.1-0 is gated (VD 2026-09-23): before removing
+  it, check every CRAN reverse dependency for a bart2 call, and keep the
+  alias one more release if any remains. WeightIt and MatchIt call it
+  as of 2.0.0 and 4.8.0 (release block).
   Plan: docs/plans/front-door.md.
 
 removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76;
