@@ -75,11 +75,12 @@
 ///   carries no refusal a caller could tell from a legitimate answer, and
 ///   dbarts_sampler_printTrees, which carries no status channel at all.
 /// - The functions that draw (dbarts_sampler_run,
-///   dbarts_sampler_sampleTreesFromPrior) manage R's RNG state internally and
-///   must be called from the main R thread. Do not wrap them in a
-///   GetRNGstate/PutRNGstate bracket that spans your own draws through R's
-///   API. dbarts_sampler_predict is main-R-thread-only for a separate reason:
-///   it is R_alloc-backed internally, and R_alloc is unsafe off that thread.
+///   dbarts_sampler_sampleTreesFromPrior) draw from the sampler's own
+///   per-chain generators, never from R's stream, so they need no
+///   GetRNGstate/PutRNGstate bracket; they must be called from the main R
+///   thread. dbarts_sampler_predict is main-R-thread-only for a separate
+///   reason: it is R_alloc-backed internally, and R_alloc is unsafe off that
+///   thread.
 /// - THE HANDLE. There is no creation entry here: a dbarts_sampler* is the
 ///   address stored in an R dbartsSampler object's external pointer, which a
 ///   consumer builds from R and reads with R_ExternalPtrAddr in its own
@@ -822,11 +823,11 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 /// from the new response, as dbarts_sampler_setOffset's argument does (gaussian
 /// only); pass false once burnt in so fits stay comparable. true is refused on
 /// any multi-forest sampler, at any forest count, whose per-forest leaf
-/// calibrations are stated against the transform it was built with, and on a
-/// heteroscedastic one, whose variance forest is calibrated the same way. The
-/// swap itself is refused outright on a coupling that caches per-forest state
-/// across sweeps rather than re-deriving it. COPIED, on the copy-on-set rule
-/// above: the caller's y is free on return.
+/// calibrations are stated against the transform it was built with; on a
+/// heteroscedastic sampler it restates the variance forest on the new transform
+/// as well. The swap itself is refused outright on a coupling that caches
+/// per-forest state across sweeps rather than re-deriving it. COPIED, on the
+/// copy-on-set rule above: the caller's y is free on return.
 ///
 /// A CAPABILITY STATUS: 1 on a swap, or 0 touching nothing where the coupling
 /// admits no response conduit at all. The updateScale refusals above are the
@@ -836,9 +837,9 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
 /// offset has numObservations values or is null to remove. updateScale
 /// rescales the internal response transform to the offset-adjusted range
 /// (gaussian only); pass false once burnt in so fits stay comparable. A
-/// multi-forest sampler, at any forest count, or a heteroscedastic one refuses
-/// true (see setResponse). COPIED, on the copy-on-set rule above: the caller's
-/// offset is free on return.
+/// multi-forest sampler, at any forest count, refuses true (see setResponse).
+/// COPIED, on the copy-on-set rule above: the caller's offset is free on
+/// return.
 ///
 /// A CAPABILITY STATUS on dbarts_sampler_setResponse's rule: 1 on a swap, 0
 /// where the coupling carries no offset at all.

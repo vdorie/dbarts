@@ -3169,8 +3169,8 @@ void refuseEmptyTreeStore(const bartcore::SamplerBase& sampler,
 // and a heteroscedastic variance forest, which IS the residual variance
 // (buildVarianceForest leaves family_ gaussian, so the family test alone would
 // miss it). Keyed on the family, NOT on sigmaIsFixed_: a gaussian sampler with
-// resid.prior = fixed() pins sigma too, and driving it per sweep is the
-// supported outer-Gibbs conditioning idiom.
+// family = gaussian(sigma = fixed(value)) pins sigma too, and driving it per
+// sweep is the supported outer-Gibbs conditioning idiom.
 // External linkage: the flat C API answers the same condition on
 // dbarts_sampler_setSigma, through the predicate below.
 bool sigmaIsPinned(const bartcore::SamplerBase& sampler) {

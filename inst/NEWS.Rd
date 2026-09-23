@@ -92,13 +92,13 @@
       \item 0.9-x silently dropped every row with a missing predictor, on
             the formula and matrix interfaces alike. \code{dbarts},
             \code{dbartsData}, \code{bart}, and \code{xbart} now keep the
-            rows and model their missingness unconditionally
-            (Missingness Incorporated in Attributes; Twala et al. 2008);
-            there is no argument to turn it off, only a
-            \code{dbartsData} slot an embedding host can set directly to
-            refuse new predictors instead of routing them. \code{bartBT}
-            takes no such argument either, and keeps 0.9-34's row rule,
-            dropping an incomplete row rather than modelling it. An
+            rows and model their missingness (Missingness Incorporated in
+            Attributes; Twala et al. 2008). On the first three this is the
+            default \code{na.action = na.keepPredictors}, and
+            \code{na.action = na.omit} restores the old row rule;
+            \code{xbart} takes no \code{na.action}. \code{bartBT} keeps
+            0.9-34's row rule, dropping an incomplete row rather than
+            modelling it. An
             \code{NA} in test predictors or \code{newdata} is an error
             wherever the corresponding training column was complete: a split
             rule learns a missing-direction route only where its own column
@@ -111,8 +111,8 @@
             were matched by position.
       \item An unordered factor response with three or more levels is
             multinomial under \code{family = "auto"}: \code{bart} fits
-            \code{family = "multinomial"}, and \code{bart}, \code{dbarts},
-            and \code{xbart} refuse it, naming
+            \code{family = "multinomial"}, and \code{dbarts}, \code{xbart},
+            and \code{bartBT} refuse it, naming
             \code{bart(family = "multinomial")}. An ordered one is ordinal
             instead: \code{dbarts} and \code{bart} fit
             \code{family = "ordinal"}, and the other two refuse it, naming
