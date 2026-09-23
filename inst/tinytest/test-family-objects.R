@@ -189,7 +189,15 @@ expect_error(
   "DART 'tree.prior'"
 )
 viaXbart <- function(...) {
-  dbarts::xbart(x, y, n.samples = 5L, n.reps = 1L, n.burn = c(3L, 2L), ...)
+  dbarts::xbart(
+    x,
+    y,
+    n.samples = 5L,
+    n.reps = 1L,
+    n.burn = c(3L, 2L),
+    n.threads = 1L,
+    ...
+  )
 }
 expect_true(
   is.numeric(viaXbart(tree.prior = cgm(power = 3), node.prior = normal()))
