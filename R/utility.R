@@ -266,6 +266,12 @@ warnOnce <- function(key, ...) {
   invisible(NULL)
 }
 
+## The keys this session has warned under; a reset key may hold NULL.
+warnedOnceKeys <- function() {
+  keys <- ls(onceWarnState, all.names = TRUE)
+  keys[vapply(keys, function(key) isTRUE(onceWarnState[[key]]), FALSE)]
+}
+
 "%not_in%" <- function(x, table) match(x, table, nomatch = 0L) <= 0L
 
 ## Bare name of the function a stored call invoked. A namespace-qualified call
