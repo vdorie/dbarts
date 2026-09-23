@@ -659,7 +659,12 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     the arguments they forward on bart2's and dbartsControl's formals,
     so a user's rngSeed is dropped with no warning and the fit runs
     unseeded; seed, the argument both packages document, still seeds
-    and reproduces.
+    and reproduces. Nothing breaks in 1.0-0: WeightIt's BART tests
+    (test-method_bart.R 15, test-method_bart_re.R 5) and its method_bart
+    example pass, as does MatchIt's distance example (MatchIt has no BART
+    test); the one dbarts-visible effect is bart2's alias warning. The
+    other WeightIt failures are Suggests not installed and a cobalt
+    expectation, none reaching dbarts.
   validate the schedule/dispatch-only workflows (equivalence, rchk,
     revdep-smoke, sbc, valgrind) on their first live runs, which
     happen when bartcore merges to main: GitHub fires schedules only
