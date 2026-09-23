@@ -42,14 +42,20 @@ recoverForwardedArgument <- function(expr, env) {
         ## the frame's first place on the stack is its own call; later ones
         ## are evaluations in it (eval(call, env)), whose caller is not the
         ## one that wrote the dots
-        frame <- Position(function(f) identical(f, env), sys.frames())
+        onStack <- vapply(sys.frames(), identical, NA, env)
+        frame <- which(onStack)[1L]
         parent <- sys.parents()[frame]
         ## a caller that is no frame on the stack, do.call(envir = ), numbers
-        ## as the frame itself and is its most recent context's caller
+        ## as the frame itself. parent.frame() reads the most recent context
+        ## on the frame, which is its own call only when nothing has
+        ## evaluated in it since; otherwise the caller is unknown and the
+        ## reference is left as it is rather than guessed
         caller <- if (parent < frame) {
           sys.frame(parent)
-        } else {
+        } else if (sum(onStack) == 1L) {
           do.call(parent.frame, list(), envir = env)
+        } else {
+          stop("unknown caller")
         }
         dots <- match.call(
           sys.function(frame),
@@ -68,6 +74,13 @@ recoverForwardedArgument <- function(expr, env) {
     env <- recovered[[2L]]
   }
   list(expr = expr, env = env)
+}
+
+## An entry point's unevaluated argument evaluated with a package vocabulary
+## shadowing the environment the argument was written in.
+evalInVocabulary <- function(expr, vocabulary, evalEnv) {
+  written <- recoverForwardedArgument(expr, evalEnv)
+  eval(written$expr, vocabularyEnv(vocabulary, written$env))
 }
 
 ## The residual scale's own prior, carried by every family that draws one.
@@ -367,11 +380,7 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
   ## rides the family object, so gaussian(sigma = chisq(3, 0.9)) has to
   ## resolve 'chisq' here the same way parsePriors resolves it inside
   ## 'resid.prior'. The two name sets are disjoint.
-  written <- recoverForwardedArgument(expr, evalEnv)
-  value <- eval(
-    written$expr,
-    vocabularyEnv(c(dbartsFamilies, dbartsPriors), written$env)
-  )
+  value <- evalInVocabulary(expr, c(dbartsFamilies, dbartsPriors), evalEnv)
   ## a bare constructor name (family = probit) means its defaults
   if (is.function(value)) {
     value <- value()

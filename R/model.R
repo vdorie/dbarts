@@ -175,15 +175,15 @@ parsePriors <- function(
   # shadows the environment the argument was written in, inside these
   # arguments only: bare names like normal(chi(1.5)) resolve here no matter
   # what packages are attached, and nothing is exported under generic names
+  # both spellings are exposed for the split.probs vocabulary: num.vars is the
+  # current name, numvars the backward-compatible alias, so a bare 1 / num.vars
+  # or 1 / numvars in a split.probs expression resolves either way
+  vocabulary <- c(
+    dbartsPriors,
+    list(num.vars = ncol(data@x), numvars = ncol(data@x))
+  )
   resolveSpec <- function(expr) {
-    written <- recoverForwardedArgument(expr, parentEnv)
-    evalEnv <- vocabularyEnv(dbartsPriors, written$env)
-    # both spellings are exposed for the split.probs vocabulary: num.vars is
-    # the current name, numvars the backward-compatible alias, so a bare
-    # 1 / num.vars or 1 / numvars in a split.probs expression resolves either
-    # way
-    evalEnv$num.vars <- evalEnv$numvars <- ncol(data@x)
-    result <- eval(written$expr, evalEnv)
+    result <- evalInVocabulary(expr, vocabulary, parentEnv)
     if (is.function(result)) {
       result <- result()
     }

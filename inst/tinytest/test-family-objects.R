@@ -182,6 +182,18 @@ expect_equal(
   0L
 )
 expect_equal(unique(fitViaBart$resid.df), 3)
+expect_error(
+  (function(...) {
+    dbarts::bart(x, factor(y > 0), family = "multinomial", ...)
+  })(tree.prior = dart()),
+  "DART 'tree.prior'"
+)
+viaXbart <- function(...) {
+  dbarts::xbart(x, y, n.samples = 5L, n.reps = 1L, n.burn = c(3L, 2L), ...)
+}
+expect_true(
+  is.numeric(viaXbart(tree.prior = cgm(power = 3), node.prior = normal()))
+)
 
 # ordinary variables still resolve where the call was written
 expect_equal(viaBinary(family = heldToken)$model@family, "probit")
@@ -196,6 +208,27 @@ expect_equal(
 expect_equal(
   residDf(do.call(viaDots, list(family = dbartsFamilies$student(8)))),
   8
+)
+# a wrapper re-entered by eval() after do.call(envir = ) has no caller the
+# stack can name, so its reference resolves as an ordinary one, in 'e'
+e <- new.env()
+e$treePrior <- dbartsPriors$cgm(power = 3)
+e$heldToken <- "logistic"
+treePrior <- dbartsPriors$cgm(power = 5)
+expect_equal(
+  do.call(
+    viaBart,
+    list(tree.prior = quote(treePrior), keepTrees = TRUE),
+    envir = e
+  )$fit$model@tree.prior@power,
+  3
+)
+viaEval <- function(...) {
+  eval(quote(dbarts::dbarts(x, yBinary, control = control, ...)))
+}
+expect_equal(
+  do.call(viaEval, list(family = quote(heldToken)), envir = e)$model@family,
+  "logistic"
 )
 # a wrapper's own formal is an ordinary variable: it forwards a token or an
 # object, not a constructor call

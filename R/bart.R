@@ -1165,10 +1165,7 @@ bart <- function(
     treePrior <- if (missing(tree.prior)) {
       NULL
     } else {
-      eval(
-        matchedCall[["tree.prior"]],
-        list2env(dbartsPriors, parent = callingEnv)
-      )
+      evalInVocabulary(matchedCall[["tree.prior"]], dbartsPriors, callingEnv)
     }
     unsupported <- c(
       "'dart' or a DART 'tree.prior'" = !isFALSE(dart) ||

@@ -270,12 +270,11 @@ xbart <- function(
   # in for a missing k argument
   node.spec <- NULL
   if (!is.null(matchedCall[["node.prior"]])) {
-    priorEnv <- new.env(parent = evalEnv)
-    priorEnv[["normal"]] <- getNamespace("dbarts")[["normal"]]
-    priorEnv[["linear"]] <- getNamespace("dbarts")[["linear"]]
-    priorEnv[["gp"]] <- getNamespace("dbarts")[["gp"]]
-    priorEnv[["chi"]] <- getNamespace("dbarts")[["chi"]]
-    node.spec <- eval(matchedCall[["node.prior"]], priorEnv)
+    node.spec <- evalInVocabulary(
+      matchedCall[["node.prior"]],
+      dbartsPriors[c("normal", "linear", "gp", "chi")],
+      evalEnv
+    )
     if (is.function(node.spec)) {
       node.spec <- node.spec()
     }
@@ -296,7 +295,7 @@ xbart <- function(
   kSpec <- if (is.null(matchedCall[["k"]])) {
     if (!is.null(node.spec)) node.spec@k else NULL
   } else {
-    eval(matchedCall[["k"]], vocabularyEnv(dbartsPriors, evalEnv))
+    evalInVocabulary(matchedCall[["k"]], dbartsPriors, evalEnv)
   }
   kGrid <- resolveKGrid(kSpec, control@binary)
   # swept largest (most-shrunk) k first, so every warm start comes from a
@@ -338,10 +337,11 @@ xbart <- function(
         "either as an object or through its shorthand arguments, not both"
       )
     }
-    priorEnv <- new.env(parent = evalEnv)
-    priorEnv[["cgm"]] <- getNamespace("dbarts")[["cgm"]]
-    priorEnv[["dart"]] <- getNamespace("dbarts")[["dart"]]
-    tree.prior <- eval(matchedCall[["tree.prior"]], priorEnv)
+    tree.prior <- evalInVocabulary(
+      matchedCall[["tree.prior"]],
+      dbartsPriors[c("cgm", "dart")],
+      evalEnv
+    )
     if (is.function(tree.prior)) {
       tree.prior <- tree.prior()
     }
