@@ -162,7 +162,7 @@ Record: docs/plans/archive/capi-dispatch-table.md, which calls the drop the main
 
 **Threads run chains, not within a chain**
 Sampling is parallel across chains only, with a separate pool for the test fit and a fan-out for prediction. Within-chain threading is the alternative and it does not ship: re-measured on the current engine it reached at best 1.03 times, at four workers and a million observations, and lost about 5 percent at two workers and 15 percent at eight at a hundred thousand, so the maintainer ruled it closed and archived, with the correctness half of the prototype, byte-identical draws across worker counts, banked but not revived. A single-chain run therefore gets no sampling parallelism at any thread count, and the thread count is made honest instead: it keeps its own meaning as a total budget distinct from the number of chains, the default is the smaller of the core count and the chain count, and a budget above the chain count warns once per fit, naming both counts, that tree sampling uses at most one thread per chain and the excess reaches only the test-fit pool and prediction. The maintainer's standing view is that large datasets are common and multiple chains remain the default. See also: [dec-B50], [dec-B115].
-Record: docs/design/within-chain-threading.md, closed on measurement, with the maintainer framing the workload but not ruling the closure. Marked: blank. [dec-A37]
+Record: docs/design/within-chain-threading.md, closed on measurement; the closure itself is the maintainer's, quoted under dec-B115. Marked: blank. [dec-A37]
 
 **The run loop no longer sleeps between checks**
 A multi-chain run waits for its chains to finish and wakes as soon as the last one does, keeping a hundred-millisecond timeout only for the interrupt poll and the progress flush. The alternative, which shipped first, blocked the calling thread in hundred-millisecond sleeps until every chain finished, adding up to a hundred milliseconds of latency to every multi-chain run call, including the single-sweep call the embedding pattern makes inside an outer loop. The maintainer ruled the fixed sleep replaced before the release, and the replacement has landed with no change to the draws. See also: [dec-B88].
@@ -834,7 +834,7 @@ Record: code only, in the support library's input-output unit. Marked: blank. [d
 
 **The grown warm start stays opt-in**
 A sampler starts from a forest drawn from the prior, and the warm start that grows trees from the root first is available through an argument. The alternative, defaulting that warm start on, was measured against a criterion fixed in advance and killed, the measurement showing a cost in noise-heavy and large-sample designs. A user who wants it asks for it by name, and the manual says which families refuse the option. The maintainer was given three options and took this one. See also: [dec-B94].
-Record: docs/design/grow-from-root-default.md, whose status records the measured kill. Marked: blank. [dec-C05]
+Record: docs/design/grow-from-root-default.md, whose status records the measured kill. Marked: superseded by dec-B94. [dec-C05]
 
 **Two research switches ship unbuilt**
 Two compile-time switches meant for research measurements ship in the source and are defined by no shipped build. No alternative was weighed. Nothing is visible to a user; both say in the code that they are for private builds only. Not yet ruled on.
