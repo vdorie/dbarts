@@ -342,7 +342,8 @@ an interface change the sister packages build against, so it lands before
 the C interface becomes the 1.0 contract, and they are re-verified after
 it. In the same window, frequency weights arrive as an explicit choice
 beside the precision weights a gaussian fit takes today, on the families
-where they make a coherent model.
+where they make a coherent model, and stan4bart gains a `plot` method for
+its fits, the one 0.9-x `rbart` method with no counterpart there.
 
 Decided for 1.0-0: a scale update on a response swap is refused on BCF and
 other models with two or more mean forests. A heteroscedastic model has one

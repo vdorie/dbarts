@@ -59,6 +59,20 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
+    name = "plot.rbart",
+    kind = "method",
+    owner = "rbart",
+    successor = "stan4bart::stan4bart",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "print.rbart",
+    kind = "method",
+    owner = "rbart",
+    successor = "stan4bart::stan4bart",
+    expires = tombstoneExpiry
+  ),
+  list(
     name = "startThreads",
     kind = "rcMethod",
     owner = "dbartsSampler",
@@ -385,6 +399,25 @@ fitted.rbart <- function(object, ...) {
 
 residuals.rbart <- function(object, ...) {
   refuseGroupedRandomEffects("'residuals' on an rbart fit")
+}
+
+plot.rbart <- function(x, ...) {
+  refuseGroupedRandomEffects("'plot' on an rbart fit")
+}
+
+## Printing is what a console does to a loaded object unasked, so this stub
+## prints, as 0.9-x's method did, rather than erroring.
+print.rbart <- function(x, ...) {
+  printCall(x)
+  cat(
+    "A grouped random-effects fit from dbarts 0.9-x's 'rbart_vi', which was ",
+    "removed in dbarts 1.0-0; refit with stan4bart::stan4bart. This method ",
+    "is removed in dbarts ",
+    tombstoneExpiry,
+    ".\n",
+    sep = ""
+  )
+  invisible(x)
 }
 
 ## ------------------------------------------------------------------

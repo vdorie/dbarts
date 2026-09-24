@@ -348,8 +348,10 @@
             the rest in dbarts 1.1-0, when the release deletes the whole
             registry. The set: \code{bart2} (function, successor
             \code{bart}); \code{rbart_vi} and its \code{predict.rbart},
-            \code{extract.rbart}, \code{fitted.rbart}, and
-            \code{residuals.rbart} methods (error outright, naming
+            \code{extract.rbart}, \code{fitted.rbart},
+            \code{residuals.rbart}, and \code{plot.rbart} methods (error
+            outright, naming \code{stan4bart::stan4bart}), and
+            \code{print.rbart} (prints the stored call and a note naming
             \code{stan4bart::stan4bart}); \code{dbartsSampler}'s
             \code{$startThreads}/\code{$stopThreads} (no-op methods) and
             a thread count passed to \code{$run} (ignored, successor

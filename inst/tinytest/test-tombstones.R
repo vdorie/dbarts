@@ -89,6 +89,17 @@ fakeRbart <- structure(list(), class = "rbart")
 expect_error(predict(fakeRbart), pattern = "stan4bart")
 expect_error(fitted(fakeRbart), pattern = "stan4bart")
 expect_error(residuals(fakeRbart), pattern = "stan4bart")
+expect_error(plot(fakeRbart), pattern = "stan4bart")
+# print is what the console does unasked, so it prints rather than erroring
+printedRbart <- capture.output(
+  printResult <- print(structure(
+    list(call = quote(rbart_vi(y ~ x))),
+    class = "rbart"
+  ))
+)
+expect_true(any(grepl("rbart_vi(y ~ x)", printedRbart, fixed = TRUE)))
+expect_true(any(grepl("stan4bart", printedRbart, fixed = TRUE)))
+expect_inherits(printResult, "rbart")
 expect_error(dbarts::extract(fakeRbart), pattern = "stan4bart")
 
 # the two thread methods are no-ops, warned once, not errors: a 0.9-x Gibbs

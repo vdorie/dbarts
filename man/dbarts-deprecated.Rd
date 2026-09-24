@@ -6,13 +6,15 @@
 \alias{extract.rbart}
 \alias{fitted.rbart}
 \alias{residuals.rbart}
+\alias{plot.rbart}
+\alias{print.rbart}
 \title{Deprecated and Removed Functions in dbarts}
 \description{
   Names kept reachable for one release past their removal or rename, each pointing at its successor. They are removed in dbarts 1.1-0.
 
   \code{bart2} is the former name of the modern front door, which is now \code{\link{bart}}; a \code{bart2} call is forwarded unchanged, with a warning the first time in a session.
 
-  \code{rbart_vi} and its methods fit a grouped random-intercept BART model. That model now lives in the \pkg{stan4bart} package (\code{stan4bart::stan4bart}), whose prior on the group spread differs from the one dbarts drew from, so a refit moves the results rather than reproducing them. These stubs error.
+  \code{rbart_vi} and its methods fit a grouped random-intercept BART model. That model now lives in the \pkg{stan4bart} package (\code{stan4bart::stan4bart}), whose prior on the group spread differs from the one dbarts drew from, so a refit moves the results rather than reproducing them. These stubs error, except \code{print}, which prints the stored call, as 0.9-x did, and a note naming \pkg{stan4bart}.
 }
 \details{
   The rest of the registry is names still reachable on entry points that keep their own page, rather than functions of their own: each is accepted for one release, mapped onto its successor with a once-per-session warning (or refused by name, where noted), and removed in dbarts 1.1-0.
@@ -82,9 +84,11 @@ rbart_vi(\dots)
 \method{extract}{rbart}(object, \dots)
 \method{fitted}{rbart}(object, \dots)
 \method{residuals}{rbart}(object, \dots)
+\method{plot}{rbart}(x, \dots)
+\method{print}{rbart}(x, \dots)
 }
 \arguments{
-  \item{object}{
+  \item{object, x}{
     An \code{rbart} fit object saved by dbarts 0.9-x.
   }
   \item{\dots}{
@@ -92,7 +96,7 @@ rbart_vi(\dots)
   }
 }
 \value{
-  \code{bart2} returns whatever \code{\link{bart}} returns. The \code{rbart_vi} stubs do not return.
+  \code{bart2} returns whatever \code{\link{bart}} returns. The \code{rbart_vi} stubs do not return, except \code{print}, which returns \code{x} invisibly.
 }
 \seealso{
   \code{\link{bart}}, \code{\link{bartBT}}
