@@ -41,12 +41,25 @@ items
     updateScale = FALSE). Record:
     docs/plans/archive/bcf-sigma-residual.md sec 4 item 2.
     research-open, decision-gated.
-  bcf-latent-exact-host: benchmarks/R/bcf-latent-exact.R in quick mode
-    fails on arm64 macOS (mode 2a, the free amplitude under probit,
-    worst |z| 4.09) and passes on the CI Linux host at the same engine
-    code (1.16), 2026-09-24. Check whether quick mode's per-seed
-    standard errors understate the Monte Carlo error on that ridge
-    before trusting the gate's bar on any one host.
+  forest-cache-drift: DEFECT, the right fix wanted over speed (VD
+    2026-09-24: "I don't care about it being pre-merge, I want the right
+    fix"). A forest's cached per-observation fits (totalFits) are kept
+    by difference updates; the amplitude ridge move scales them and the
+    leaf tables separately by c each sweep, so the rounding gap between
+    cache and leaf sum is multiplied by c, never cleared, and compounds
+    (1e-11 to a 0.3 probit-scale shift). It biases every amplitude-coupled
+    family (latent bcf tau +0.005 in quick runs, +0.027 at full length,
+    pooled z 7.1 over 303 seeds; logistic shifts to 0.53, gaussian to
+    2.4e-3) and is what bcf-latent-exact.R's quick mode caught on arm64
+    (it is not host-specific). A scratch rebuild of totalFits from the
+    rescaled leaves zeroes the gap and restores the gate. Design first:
+    audit every site that bulk-transforms leaves and adjusts a cache
+    separately (ridge rescale, level shifts, recalibration, test fits),
+    choose the durable fix, measure its cost, add a component test of the
+    cache-equals-leaf-sum invariant; then revisit
+    docs/plans/bcf-latent-evidence.md's "metastable" explanation and the
+    calibration suite's latent-bcf exclusion. Investigation scripts
+    were in a session scratch directory and are not kept.
   binary-kforest-k1-reachability: open K = 1 as a shipped multi-forest
     configuration - one varying-coefficient forest with no prognostic
     partner, which is VCBART's shape (D4 of
