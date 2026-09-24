@@ -75,6 +75,8 @@ print(x, ...)
 
 # S3 method for class 'bartMultinomial'
 residuals(object, ...)
+# S3 method for class 'bartMultinomial'
+family(object, ...)
 
 # S3 method for class 'bartOrdinal'
 extract(
@@ -99,6 +101,8 @@ print(x, ...)
 
 # S3 method for class 'bartOrdinal'
 residuals(object, ...)
+# S3 method for class 'bartOrdinal'
+family(object, ...)
 
 # S3 method for class 'bartNegbin'
 extract(
@@ -123,6 +127,8 @@ print(x, ...)
 
 # S3 method for class 'bartNegbin'
 residuals(object, ...)
+# S3 method for class 'bartNegbin'
+family(object, ...)
 
 # S3 method for class 'bartHurdle'
 extract(
@@ -147,6 +153,8 @@ print(x, ...)
 
 # S3 method for class 'bartHurdle'
 residuals(object, type = "ev", ...)
+# S3 method for class 'bartHurdle'
+family(object, ...)
 
 # S3 method for class 'bartMultinomial'
 plot(x, plquants = c(0.05, 0.95), cols = NULL, ...)
@@ -1175,6 +1183,15 @@ would leave nothing to split on. See ‘Value’ below, and
 
 ## Value
 
+Every fit, of every class below, carries `family`, the engine's family
+token that the link and likelihood follow, and `family.spec`, the family
+as specified once `"auto"` has resolved, with its settings, which
+`family(fit)` returns (see
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+‘Value’ section). Ask a fit what it is through these, not through which
+components are present: a run's options decide which draw channels it
+keeps.
+
 Under the default and
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)-compatible
 families (`"gaussian"`, `"probit"`, `"logistic"`, `"aft"`, `"hazard"`
@@ -1199,10 +1216,12 @@ dispatches its survival-curve branch on it. Under `keepFits = FALSE`,
 `s.train`/`s.test`, and `forestFits`/`glue`/`bases` are all ABSENT (not
 `NULL` within the list) rather than present-but-empty;
 `plot`/`extract`/`fitted`/`residuals`/`predict` then name `keepFits` in
-their error rather than failing on a bare `NULL`. `n.forests` (a
-multi-forest fit) and `hasVariance` (a heteroscedastic one) are internal
-markers that survive `keepFits = FALSE` regardless, so the fit's own
-SHAPE stays readable even with every per-observation channel dropped.
+their error rather than failing on a bare `NULL`. The model
+descriptors - `family`, `family.spec`, `n.forests`, and on a family with
+a residual law `resid.dist` and `resid.scale` - are set by the model
+rather than by run options, so they survive `keepFits = FALSE` and the
+fit's own SHAPE stays readable even with every per-observation channel
+dropped.
 
 The remaining families - `"multinomial"`, `"ordinal"`, `"nbinom"`, and
 `"hurdle.lognormal"`/`"twopart"` - return their own list class instead,
@@ -1568,7 +1587,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001515
+#> total seconds in loop: 0.001543
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1616,7 +1635,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001968
+#> total seconds in loop: 0.001987
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 

@@ -78,6 +78,9 @@ fitted(
 
 # S3 method for class 'bart'
 residuals(object, type = "ev", ...)
+
+# S3 method for class 'bart'
+family(object, ...)
 ```
 
 ## Arguments
@@ -813,7 +816,7 @@ returned. In the numeric \\y\\ case, the list has components:
   probabilities, in the same layout as `varcount`. Each draw sums to one
   across variables.
 
-- `forestFits`, `glue`, `bases`, `n.forests`:
+- `forestFits`, `glue`, `bases`:
 
   Present only for an amplitude-coupled multi-forest fit: built through
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
@@ -821,15 +824,14 @@ returned. In the numeric \\y\\ case, the list has components:
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
   formula term (see its ‘Formula Terms’ section); not reachable from
-  `bartBT` directly, which has no multi-forest front door. `n.forests`
-  is the forest count K. `forestFits` is a (`n.chains` \\\times\\, when
-  uncombined) `n.samples` \\\times\\ number of training observations
-  \\\times\\ K array: forest k's own RESPONSE-scale raw total at each
-  draw, i.e. \\\mathrm{response.scale} \times f_k(x)\\, with NO
-  amplitude (`glue`) folded in - the same quantity the sampler's
-  `$getForestFits` reports, up to that one scalar. The trailing margin
-  is named `forest1`, ..., `forestK`; a declaration's own names
-  (`names(forests)` on the
+  `bartBT` directly, which has no multi-forest front door. `forestFits`
+  is a (`n.chains` \\\times\\, when uncombined) `n.samples` \\\times\\
+  number of training observations \\\times\\ K array: forest k's own
+  RESPONSE-scale raw total at each draw, i.e. \\\mathrm{response.scale}
+  \times f_k(x)\\, with NO amplitude (`glue`) folded in - the same
+  quantity the sampler's `$getForestFits` reports, up to that one
+  scalar. The trailing margin is named `forest1`, ..., `forestK`; a
+  declaration's own names (`names(forests)` on the
   [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md)
   route; a `bart`
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
@@ -870,19 +872,27 @@ returned. In the numeric \\y\\ case, the list has components:
   formulas and fit-time factor levels that re-derivation reads; it is
   absent when the bases arrived as values.
 
+- `n.forests`:
+
+  The forest count K, on every fit: 1 for a single forest.
+
 - `sigest`:
 
   The rough error standard deviation (\\\sigma\\) used in the prior.
 
-- `resid.dist`, `resid.df`:
+- `resid.dist`, `resid.scale`, `resid.df`:
 
-  The residual error law the fit was made under, `"gaussian"` or
-  `"student"` (see
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-  `family = student()`). `resid.df` is present only for a `student()`
-  fit: the degrees of freedom \\\nu\\ each draw was conditioned on, in
-  `sigma`'s layout - a fixed \\\nu\\ repeats its value, an estimated one
-  gives that draw's grid value. `extract(type = "loglik")` reads both.
+  Present only on a family with a residual law, `"gaussian"` and
+  `"aft"`. `resid.dist` is the law's shape, `"gaussian"` or `"student"`
+  (see [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  `family = student()`); `resid.scale` its scale model, `"constant"` or
+  `"forest"` for a heteroscedastic fit (`variance` on
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)), whose
+  draws are `s.train`/`s.test`. `resid.df` is present only for a
+  `student()` fit: the degrees of freedom \\\nu\\ each draw was
+  conditioned on, in `sigma`'s layout - a fixed \\\nu\\ repeats its
+  value, an estimated one gives that draw's grid value.
+  `extract(type = "loglik")` reads both.
 
 - `y`:
 
@@ -916,9 +926,11 @@ returned. In the numeric \\y\\ case, the list has components:
 
 - `family`:
 
-  The resolved response family (`"gaussian"`, `"probit"`, `"logistic"`,
-  or `"aft"`). `predict`, `extract`, `fitted`, and `plot` use it to
-  transform latent draws to probabilities. For an `"aft"` fit,
+  The engine's response family (`"gaussian"`, `"probit"`, `"logistic"`,
+  or `"aft"`): the token the link and likelihood follow, so a Student-t
+  fit reports `"gaussian"` and a discrete-time hazard fit its link's
+  `"probit"` or `"logistic"`. `predict`, `extract`, `fitted`, and `plot`
+  use it to transform latent draws to probabilities. For an `"aft"` fit,
   predictions and fitted values are on the LOG-TIME scale: these
   functions return the linear predictor \\E\[\log T \mid x\]\\, exactly
   as for a gaussian fit of \\\log T\\, and never the time scale that
@@ -937,11 +949,18 @@ returned. In the numeric \\y\\ case, the list has components:
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   dispatches its survival-curve branch on the `$periods` marker.
 
+- `family.spec`:
+
+  The family as specified, once `"auto"` has resolved: a family object
+  carrying its settings (a Student-t `df`, a hazard link and grid, a
+  residual prior), such as `student(df = 3)` or
+  `hazard(link = "probit")`. `family(object)` returns it.
+
 In the binary \\y\\ case, the returned list has the components
 `yhat.train`, `yhat.test`, and `varcount` as above, but not
-`yhat.train.mean`/`yhat.test.mean` - use `fitted` to get the posterior
-mean of \\P(Y = 1 \mid x)\\ instead. In addition the list has a
-`binaryOffset` component giving the value used.
+`yhat.train.mean`/`yhat.test.mean` or the residual-law descriptors - use
+`fitted` to get the posterior mean of \\P(Y = 1 \mid x)\\ instead. In
+addition the list has a `binaryOffset` component giving the value used.
 
 Note that in the binary \\y\\, case `yhat.train` and `yhat.test` are
 \\f(x) + \mathrm{binaryOffset}\\. For draws of the probability \\P(Y = 1
@@ -1057,25 +1076,25 @@ bartFit <- bart(x, y)
 #> Running mcmc loop:
 #> [1] iteration: 100 (of 500)
 #> [2] iteration: 100 (of 500)
-#> [1] iteration: 200 (of 500)
 #> [2] iteration: 200 (of 500)
-#> [1] iteration: 300 (of 500)
+#> [1] iteration: 200 (of 500)
 #> [2] iteration: 300 (of 500)
-#> [1] iteration: 400 (of 500)
+#> [1] iteration: 300 (of 500)
 #> [2] iteration: 400 (of 500)
+#> [1] iteration: 400 (of 500)
 #> [2] iteration: 500 (of 500)
 #> [1] iteration: 500 (of 500)
-#> [3] iteration: 100 (of 500)
 #> [4] iteration: 100 (of 500)
-#> [3] iteration: 200 (of 500)
+#> [3] iteration: 100 (of 500)
 #> [4] iteration: 200 (of 500)
-#> [3] iteration: 300 (of 500)
+#> [3] iteration: 200 (of 500)
 #> [4] iteration: 300 (of 500)
-#> [3] iteration: 400 (of 500)
+#> [3] iteration: 300 (of 500)
 #> [4] iteration: 400 (of 500)
-#> [3] iteration: 500 (of 500)
+#> [3] iteration: 400 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.150162
+#> [3] iteration: 500 (of 500)
+#> total seconds in loop: 0.147567
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 
