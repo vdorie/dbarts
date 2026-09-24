@@ -880,19 +880,18 @@ returned. In the numeric \\y\\ case, the list has components:
 
   The rough error standard deviation (\\\sigma\\) used in the prior.
 
-- `resid.dist`, `resid.scale`, `resid.df`:
+- `resid.scale`, `resid.df`:
 
-  Present only on a family with a residual law, `"gaussian"` and
-  `"aft"`. `resid.dist` is the law's shape, `"gaussian"` or `"student"`
-  (see [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-  `family = student()`); `resid.scale` its scale model, `"constant"` or
-  `"forest"` for a heteroscedastic fit (`variance` on
+  `resid.scale` is present only on a family with a residual law
+  (`"gaussian"`, `"student"`, `"aft"`): the law's scale model,
+  `"constant"` or `"forest"` for a heteroscedastic fit (`variance` on
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)), whose
-  draws are `s.train`/`s.test`. `resid.df` is present only for a
-  `student()` fit: the degrees of freedom \\\nu\\ each draw was
-  conditioned on, in `sigma`'s layout - a fixed \\\nu\\ repeats its
-  value, an estimated one gives that draw's grid value.
-  `extract(type = "loglik")` reads both.
+  draws are `s.train`/`s.test`. The law's shape is the family's own (see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  `family = student()`). `resid.df` is present only for a `student()`
+  fit: the degrees of freedom \\\nu\\ each draw was conditioned on, in
+  `sigma`'s layout - a fixed \\\nu\\ repeats its value, an estimated one
+  gives that draw's grid value. `extract(type = "loglik")` reads both.
 
 - `y`:
 
@@ -926,12 +925,13 @@ returned. In the numeric \\y\\ case, the list has components:
 
 - `family`:
 
-  The engine's response family (`"gaussian"`, `"probit"`, `"logistic"`,
-  or `"aft"`): the token the link and likelihood follow, so a Student-t
-  fit reports `"gaussian"` and a discrete-time hazard fit its link's
-  `"probit"` or `"logistic"`. `predict`, `extract`, `fitted`, and `plot`
-  use it to transform latent draws to probabilities. For an `"aft"` fit,
-  predictions and fitted values are on the LOG-TIME scale: these
+  The response family as specified, once `"auto"` has resolved:
+  `"gaussian"`, `"student"`, `"probit"`, `"logistic"`, `"aft"`,
+  `"hazard.probit"`, or `"hazard.logistic"` (the bare token `"hazard"`
+  is recorded as `"hazard.probit"`). `predict`, `extract`, `fitted`, and
+  `plot` look its link up from it to transform latent draws to
+  probabilities, and stop on a token they do not know. For an `"aft"`
+  fit, predictions and fitted values are on the LOG-TIME scale: these
   functions return the linear predictor \\E\[\log T \mid x\]\\, exactly
   as for a gaussian fit of \\\log T\\, and never the time scale that
   `survreg` or `flexsurv` users might expect. The `type` aliases
@@ -951,16 +951,16 @@ returned. In the numeric \\y\\ case, the list has components:
 
 - `family.spec`:
 
-  The family as specified, once `"auto"` has resolved: a family object
-  carrying its settings (a Student-t `df`, a hazard link and grid, a
-  residual prior), such as `student(df = 3)` or
-  `hazard(link = "probit")`. `family(object)` returns it.
+  The same family as a family object carrying its settings (a Student-t
+  `df`, a hazard link and grid, a residual prior), such as
+  `student(df = 3)` or `hazard(link = "probit")`. `family(object)`
+  returns it.
 
 In the binary \\y\\ case, the returned list has the components
 `yhat.train`, `yhat.test`, and `varcount` as above, but not
-`yhat.train.mean`/`yhat.test.mean` or the residual-law descriptors - use
-`fitted` to get the posterior mean of \\P(Y = 1 \mid x)\\ instead. In
-addition the list has a `binaryOffset` component giving the value used.
+`yhat.train.mean`/`yhat.test.mean` or `resid.scale` - use `fitted` to
+get the posterior mean of \\P(Y = 1 \mid x)\\ instead. In addition the
+list has a `binaryOffset` component giving the value used.
 
 Note that in the binary \\y\\, case `yhat.train` and `yhat.test` are
 \\f(x) + \mathrm{binaryOffset}\\. For draws of the probability \\P(Y = 1
@@ -1076,25 +1076,25 @@ bartFit <- bart(x, y)
 #> Running mcmc loop:
 #> [1] iteration: 100 (of 500)
 #> [2] iteration: 100 (of 500)
-#> [2] iteration: 200 (of 500)
 #> [1] iteration: 200 (of 500)
-#> [2] iteration: 300 (of 500)
+#> [2] iteration: 200 (of 500)
 #> [1] iteration: 300 (of 500)
-#> [2] iteration: 400 (of 500)
+#> [2] iteration: 300 (of 500)
 #> [1] iteration: 400 (of 500)
-#> [2] iteration: 500 (of 500)
+#> [2] iteration: 400 (of 500)
 #> [1] iteration: 500 (of 500)
-#> [4] iteration: 100 (of 500)
+#> [2] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
-#> [4] iteration: 200 (of 500)
+#> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
-#> [4] iteration: 300 (of 500)
+#> [4] iteration: 200 (of 500)
 #> [3] iteration: 300 (of 500)
-#> [4] iteration: 400 (of 500)
+#> [4] iteration: 300 (of 500)
 #> [3] iteration: 400 (of 500)
-#> [4] iteration: 500 (of 500)
+#> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
-#> total seconds in loop: 0.147567
+#> [4] iteration: 500 (of 500)
+#> total seconds in loop: 0.086728
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 
