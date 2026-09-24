@@ -101,6 +101,9 @@ rbart_vi and its methods fit a grouped random-intercept BART model. That model n
     <dt><code>dbartsSampler</code>'s <code>$startThreads</code>/<code>$stopThreads</code></dt>
 <dd><p>No-op methods (<code><a href="dbartsSampler-class.html">dbartsSampler</a></code>): the hierarchical thread manager they drove is gone, threads now owned per run, but a 0.9-x Gibbs loop that brackets its sweeps with them still runs.</p></dd>
 
+    <dt>A thread count on <code>dbartsSampler</code>'s <code>$run</code></dt>
+<dd><p>Ignored after a once-per-session warning, whether passed as <code>n.threads</code>, as 0.9-x's formal <code>numThreads</code>, or positionally after <code>updateState</code>: a run uses the sampler's own count, which <code>$setControl</code> changes, and its draws do not depend on it.</p></dd>
+
     <dt>A BayesTree-spelled <code><a href="bart.html">bart</a></code> call</dt>
 <dd><p>Forwarded to <code><a href="bartBT.html">bartBT</a></code> after a once-per-session warning, when the call carries a name from <code>bartBT</code>'s own formals that <code>bart</code> does not take.</p></dd>
 

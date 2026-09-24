@@ -9,8 +9,7 @@ started all while maintaining its own state.
 ``` r
 # S4 method for class 'dbartsSampler'
 run(
-  numBurnIn, numSamples, updateState = NA, n.threads = control@n.threads,
-  callback = NULL
+  numBurnIn, numSamples, updateState = NA, ..., callback = NULL
 )
 # S4 method for class 'dbartsSampler'
 sampleTreesFromPrior(updateState = NA)
@@ -368,8 +367,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   them: that variable is read only by `parallel:::.check_ncores`, which
   counts simultaneously spawned processes and never sees a thread.
 
-  For `run` the argument still has no effect: the sampler's own count
-  governs, and this one is reserved for a future per-call override.
+  `run` takes no thread count: a run uses the sampler's own, which
+  `setControl` changes, and its draws are the same at every count.
 
 - sigma:
 
@@ -821,8 +820,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - ...:
 
-  Extra arguments to
-  [`plot`](https://rdrr.io/r/graphics/plot.default.html).
+  For `plotTree`, extra arguments to
+  [`plot`](https://rdrr.io/r/graphics/plot.default.html). For `run`,
+  only 0.9-x's per-call thread count, as `n.threads`, `numThreads` or
+  the one unnamed argument after `updateState`, which is ignored with a
+  once-per-session warning until dbarts 1.1-0
+  ([`dbarts-deprecated`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md));
+  anything else is refused. A `callback` to `run` must therefore be
+  named.
 
 ## Fields
 

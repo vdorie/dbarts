@@ -141,6 +141,13 @@ in dbarts 1.1-0.
   per run, but a 0.9-x Gibbs loop that brackets its sweeps with them
   still runs.
 
+- A thread count on `dbartsSampler`'s `$run`:
+
+  Ignored after a once-per-session warning, whether passed as
+  `n.threads`, as 0.9-x's formal `numThreads`, or positionally after
+  `updateState`: a run uses the sampler's own count, which `$setControl`
+  changes, and its draws do not depend on it.
+
 - A BayesTree-spelled
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) call:
 

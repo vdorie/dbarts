@@ -46,8 +46,7 @@
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">run</span><span class="op">(</span></span>
-<span>  <span class="va">numBurnIn</span>, <span class="va">numSamples</span>, updateState <span class="op">=</span> <span class="cn">NA</span>, n.threads <span class="op">=</span> <span class="va">control</span><span class="op">@</span><span class="va">n.threads</span>,</span>
-<span>  callback <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  <span class="va">numBurnIn</span>, <span class="va">numSamples</span>, updateState <span class="op">=</span> <span class="cn">NA</span>, <span class="va">...</span>, callback <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">sampleTreesFromPrior</span><span class="op">(</span>updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
@@ -219,8 +218,8 @@
 <p>These are native threads, so <code>_R_CHECK_LIMIT_CORES_</code> does not govern
     them: that variable is read only by <code>parallel:::.check_ncores</code>, which
     counts simultaneously spawned processes and never sees a thread.</p>
-<p>For <code>run</code> the argument still has no effect: the sampler's own count
-    governs, and this one is reserved for a future per-call override.</p></dd>
+<p><code>run</code> takes no thread count: a run uses the sampler's own, which
+    <code>setControl</code> changes, and its draws are the same at every count.</p></dd>
 
   <dt id="arg-sigma">sigma<a class="anchor" aria-label="anchor" href="#arg-sigma"></a></dt>
 <dd><p>A single positive residual standard deviation, on the original response scale; it is assigned to every chain. <code>setSigma</code> only applies to a sampler whose residual standard deviation is a free parameter: it is refused on a probit-, logistic-, multinomial-, ordinal-, or count-family sampler, which fix it at 1 by the model definition, and on a heteroscedastic (<code>variance</code>) sampler, whose variance forest owns the residual scale. A gaussian sampler with <code>family = gaussian(sigma = fixed())</code> is not fixed in this sense and is still accepted: suppressing the internal draw so an outer sampler owns <code>sigma</code> is what that prior is for.</p></dd>
@@ -378,7 +377,12 @@
 <dd><p>For <code>setState</code>, a state object previously produced by this sampler over the same model: its <code>state</code> field, calling <code>storeState()</code> first to refresh it if a later mutation may have gone unstored (<code>storeState</code> itself returns <code>NULL</code> invisibly, so its return value cannot be passed here). Must inherit from <code>bartcoreState</code>.</p></dd>
 
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Extra arguments to <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></code>.</p></dd>
+<dd><p>For <code>plotTree</code>, extra arguments to <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></code>. For
+    <code>run</code>, only 0.9-x's per-call thread count, as <code>n.threads</code>,
+    <code>numThreads</code> or the one unnamed argument after <code>updateState</code>,
+    which is ignored with a once-per-session warning until dbarts 1.1-0
+    (<code><a href="dbarts-deprecated.html">dbarts-deprecated</a></code>); anything else is refused. A
+    <code>callback</code> to <code>run</code> must therefore be named.</p></dd>
 
 </dl></div>
     <div class="section level2">
