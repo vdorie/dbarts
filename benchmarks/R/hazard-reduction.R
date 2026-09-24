@@ -100,7 +100,9 @@ compareLink <- function(hazardToken, binaryFamily) {
     paste(sprintf("%s=%s", names(results), results), collapse = ", ")
   ))
   if (!markerOnly) {
-    cat("  marker check FAILED: the objects differ beyond $family and $periods\n")
+    cat(
+      "  marker check FAILED: the objects differ beyond $family and $periods\n"
+    )
   }
   bitwise
 }
