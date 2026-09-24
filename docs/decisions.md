@@ -4,14 +4,15 @@ This register lists every design decision the 1.0-0 work carries forward, so
 the maintainer can see what was decided on their behalf. Section A holds
 decisions the agents made that carry a cost and need the maintainer's
 adjudication. Section B holds decisions with maintainer evidence behind them.
-Section C holds agent-made decisions with no identified cost. Section A runs
-roughly from the costliest entry down, with the ones a later sweep added at the
-end. A decision counts as the maintainer's only where the record quotes them
-choosing, or lays out alternatives and records their pick; everything else,
-including approval after the fact and silence, is tacit and counts as
-agent-made. The maintainer marks each entry mine, not mine, or revisit on its
-Marked line. Later documents cite an entry's id rather than saying the
-maintainer decided.
+Section C holds agent-made decisions with no identified cost. An entry keeps
+the id it was first given when it moves between sections, so a B-numbered entry
+may sit in section A or C. Section A runs roughly from the costliest entry
+down, with the ones a later sweep added at the end. A decision counts as the
+maintainer's only where the record quotes them choosing, or lays out
+alternatives and records their pick; everything else, including approval after
+the fact and silence, is tacit and counts as agent-made. The maintainer marks
+each entry mine, not mine, or revisit on its Marked line. Later documents cite
+an entry's id rather than saying the maintainer decided.
 
 ## A. Agent-made decisions with a cost
 
@@ -311,6 +312,30 @@ Record: docs/plans/prerc-surface-freeze.md. Marked: blank. [dec-A73]
 Where the engine's progress output, messages and warnings go is fixed when the package is built, as the math is: R's console under R, standard output for a standalone build such as a prebuilt library, and whatever a future binding supplies in its own build, Python's output stream for instance so that notebooks show it. The support library's run-time print pointers, which every host installs and nothing calls, are removed with the rest of that work. The alternative was run-time hooks a host installs, which cost nothing in speed, since printing is not on any hot path, but leave a null pointer that crashes if a host forgets to install it, and which no current or planned host needs, since every host compiles the engine into its own build. The cost falls on a later host that loads a prebuilt library and wants output routed through its own streams rather than standard output, Julia being the likely one: it would need a run-time override added to the C interface then, an addition that breaks no one. Nothing is visible to an R user. The maintainer asked why printing should not be chosen at build time too, then left the decision to the agents, 2026-09-24: "I guess I don't mind eventually supporting Julia. I leave the decision up to you." See also: [dec-B85], [dec-C04].
 Record: this register. Marked: blank. [dec-A74]
 
+**The residual sum of squares is rescaled**
+The sum of squared residuals the sampler reports is de-scaled by the square of the response range, which is the correct conversion back to the data's own units. No alternative was weighed; it was a units slip with no consumers. The value returned differs from every released dbarts. Not yet ruled on.
+Record: docs/design/core-generalization.md, which puts the maintainer's name and a date on the fix but quotes no words and records no fork. Marked: not mine. [dec-B28]
+
+**A new missing value at predict is refused**
+Predicting on data whose column carries a missing value where the training column had none is refused by name. The alternative, documenting that such a row silently goes down the left branch, was rejected. A user's test frame with a new missing value errors where 0.9-x dropped the row. Not yet ruled on.
+Record: docs/plans/prerc-surface-freeze.md, which says the maintainer adopted a batch of recommendations as written and quotes no words. Marked: not mine. [dec-B34]
+
+**Two sampler accessors refuse a result argument**
+The sampler's accessor for the residual standard deviations and its accessor for the sums of squared residuals refuse an argument named result by name. The alternative was continuing to ignore it. Code from 0.9-x that passes that argument now errors instead of having it silently dropped. Not yet ruled on.
+Record: docs/plans/surface-refusals.md, which calls it a maintainer ruling but quotes no words and records no fork. Marked: not mine. [dec-B43]
+
+**The strict header check is opt-in**
+The exact hash check on the C interface is a documented opt-in for consumers that ship in lockstep with dbarts, not the default. The alternative, leaving lockstep as the default, was rejected. With the check off, a consumer built against any 1.x header sharing the major and minor number is admitted, and since those constants have never moved that window covers the whole pre-release history. A later ruling drops the flag from the sister packages and leaves it off, with the version pair as the guard. No maintainer ruling on this entry itself is on record. See also: [dec-B111].
+Record: docs/plans/prerc-surface-freeze.md; docs/plans/dbarts-h-freeze.md, which say the maintainer adopted the recommendations and settled the sub-choices but quote no words and show no fork. Marked: not mine; superseded by dec-B111. [dec-B58]
+
+**Errors unwind instead of jumping**
+A C++ exception thrown inside a callback is caught at the call and rethrown only after the callback's own frame has returned, the jump being made under R's unwind protection so that it unwinds through that frame rather than across it; an exception the engine itself raises travels the same path, and either becomes an R error only at the bridge entry point, once the unwind has run. No raw error call and no long jump leaves engine or callback code. No alternative was weighed. A host written in C++ still may not jump to a saved position of its own from inside a callback: only raising an R error or throwing is safe. The same change fixes three sites that leaked heap memory, since every path now unwinds through a frame instead of jumping past it. Not yet ruled on; it was never put to the maintainer. See also: [dec-A31].
+Record: inst/include/dbarts/dbarts.h; src/R_interface_bartcore_common.hpp. Marked: blank. [dec-B119]
+
+**A wider comparison against 0.9-34**
+A 26-scenario statistical comparison against an installed dbarts 0.9-34 widens the cross-engine record past the nine-scenario snapshot taken at the cutover: 22 of the 26 agree at the rate the null predicts, and the other four are diagnosed as decided engine changes rather than regressions, namely counting only positive-weight rows in the residual scale's degrees of freedom, together with the empty-leaf veto, the absence of a chain carried across cross-validation folds, and the repaired acceptance ratio in the change move. No alternative was weighed. It is a measurement run by hand, not a gate: it needs a hand-installed 0.9-34 library, while the per-push equivalence check still compares only against baselines recorded on this branch. A future engine change could therefore separate a scenario again and go unnoticed between manual runs. Not yet ruled on; it was never put to the maintainer. See also: [dec-A61], [dec-A11], [dec-A12], [dec-B03].
+Record: docs/plans/classic-compare.md. Marked: blank. [dec-B120]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modelled, not refused**
@@ -354,8 +379,8 @@ The modern front door takes no dots channel: an argument it does not name is ref
 Record: docs/plans/archive/bart2-argument-consolidation.md. Marked: mine; dec-B116 reverses the formals-only rule, giving bart and xbart control = dbartsControl(). [dec-B10]
 
 **xbart refuses a three-element n.burn**
-The cross-validation entry point refuses a burn-in vector longer than two elements by name, where 0.9-34 accepted three and ignored the third. No alternative was weighed. A user who copies the documented 0.9-x default gets an error.
-Record: docs/plans/release-candidate-review.md. Marked: not mine. [dec-B11]
+The cross-validation entry point refuses a burn-in vector longer than two elements by name, where 0.9-34 accepted three and ignored the third. No alternative was weighed. A user who copies the documented 0.9-x default gets an error. The maintainer's later ruling on cross-validation, three options put, kept the refusal as a tombstone until 1.1-0: "go ahead with your recommendation". See also: [dec-B77].
+Record: docs/plans/release-candidate-review.md; this register, for the ruling in dec-B77. Marked: not mine. [dec-B11]
 
 **The cross-validated k grid for binary fits**
 Cross-validation over the leaf-scale parameter k for a binary outcome was to use a grid of fixed values, matching the gaussian arm, rather than the hyperprior the modern default fits. The alternative was leaving the binary axis on its own semantics. The cross-validated k then no longer matches what the front door fits by default, and 0.9-x results on that axis are not comparable. A later ruling reopens it: the grid now accepts fixed values and an entry that leaves k modelled. See also: [dec-B102].
@@ -370,8 +395,8 @@ Every draw in 1.0 stays exact: an approximate Polya-Gamma draw, the data augment
 Record: docs/plans/release-candidate-review.md. Marked: mine. [dec-B14]
 
 **Heavy tails and overdispersion on capped grids**
-A Student-t residual law estimates its degrees of freedom on a capped grid with a floor of 3, and negative-binomial dispersion is drawn on a capped grid of integers. The alternative for dispersion was a continuous parameter, which needs an approximate draw; the resolution on record is "integer dispersion, fully exact". A user cannot have the degrees of freedom estimated below 3, which is where the residual variance stops existing, though a value below 3 supplied outright is accepted and fit; a non-integer or very large dispersion has no such escape.
-Record: docs/design/robust-errors.md; docs/design/negative-binomial.md. Marked: not mine. [dec-B15]
+A Student-t residual law estimates its degrees of freedom on a capped grid with a floor of 3, and negative-binomial dispersion is drawn on a capped grid of integers. The alternative for dispersion was a continuous parameter, which needs an approximate draw; the record lays out both forks and records the maintainer's pick: "RESOLVED (VD 2026-07-18): fork (A) - integer dispersion, fully exact". For the degrees of freedom the record credits a software and literature survey with settling the forks and quotes no maintainer pick of the grid or its floor. A user cannot have the degrees of freedom estimated below 3, which is where the residual variance stops existing, though a value below 3 supplied outright is accepted and fit; a non-integer or very large dispersion has no such escape.
+Record: docs/design/negative-binomial.md, for the dispersion pick; docs/design/robust-errors.md. Marked: not mine. [dec-B15]
 
 **Monotone leaves target the exact posterior**
 Leaves constrained to be monotone in a predictor sample the exact target, with a constrained joint marginal at the seam where a tree move changes which constraints apply. The alternatives traded that exactness for a simpler move at the seam. The cost is 600 to 1000 lines of engine code and an adaptive quadrature that dominates the run time of a monotone fit. The record has the maintainer resolving for the exact shape and for proceeding with the monotone work at that point.
@@ -382,16 +407,16 @@ A second forest modelling the residual variance enters the sampler through the o
 Record: docs/design/heteroscedastic.md. Marked: not mine. [dec-B17]
 
 **The causal model's prognostic scale is half-Cauchy**
-In the two-forest causal parameterization, which fits a prognostic forest and a treatment-effect forest, the prognostic forest's amplitude gets a half-Cauchy prior. The alternative was a different scale prior; parity with the bcf package was the stated goal. The R-side default is family-aware while the engine's own default is not, so the two disagree by design; no entry point, R or C, reaches the engine's default, so no user sees the plainer one today.
-Record: docs/design/bcf.md. Marked: not mine. [dec-B18]
+In the two-forest causal parameterization, which fits a prognostic forest and a treatment-effect forest, the prognostic forest's amplitude gets a half-Cauchy prior. The alternative was deferring the scale and fixing the amplitude at one. The record put the question "ship it with the b0/b1 expansion, or defer at a = 1?" and records the answer: "Questions 3 and 4 (VD, 2026-07-07): ship the half-Cauchy prognostic scalar a - parity with bcf is the goal". The R-side default is family-aware while the engine's own default is not, so the two disagree by design; no entry point, R or C, reaches the engine's default, so no user sees the plainer one today.
+Record: docs/design/bcf.md, under its open questions and their resolutions. Marked: not mine. [dec-B18]
 
 **Causal forests live in bartCause, not dbarts**
 dbarts exports no causal-forest entry point: the causal fit class and the causal argument vocabulary move to bartCause, and what stays in dbarts is the engine vocabulary for models with more than one forest. The alternative, a public creation route inside dbarts, existed during the pre-release and was withdrawn before it shipped. A dbarts user cannot fit a causal forest by name. The maintainer: "I don't think bcf belongs in the dbarts function."
 Record: docs/design/bcf.md; docs/plans/archive/bcf-public-surface.md. Marked: mine. [dec-B19]
 
 **An ordered factor now fits an ordinal model**
-An ordered-factor response is detected by its class and fit as an ordinal model, identified by fixing the scale, with the cutpoints updated one at a time by a Cowles-style Metropolis step. The alternatives were requiring the user to name the ordinal family and inferring it from the level names; the condition on record is detection by a concrete class, never by level names, with the fit announcing what it has done. A user whose 0.9-x code passed an ordered factor got a continuous fit on the integer level codes and now gets a different model class, announced at the call. The BayesTree-style door refuses such a response by name rather than changing the model under the user.
-Record: docs/plans/archive/ordinal-outcomes.md; docs/design/ordinal.md. Marked: not mine. [dec-B20]
+An ordered-factor response is detected by its class and fit as an ordinal model, identified by fixing the scale, with the cutpoints updated one at a time by a Cowles-style Metropolis step. The alternatives were requiring the user to name the ordinal family and inferring it from the level names. The record lays out each fork and records the maintainer's picks: "RESOLVED (VD 2026-07-18): scheme A.", "RESOLVED (VD 2026-07-18): as recommended - Cowles-style marginal MH", and "RESOLVED (VD 2026-07-18): auto-dispatch with announcement", with "VD's condition - detection by a concrete class, not level-name inference". A user whose 0.9-x code passed an ordered factor got a continuous fit on the integer level codes and now gets a different model class, announced at the call. The BayesTree-style door refuses such a response by name rather than changing the model under the user.
+Record: docs/design/ordinal.md, for the forks and picks; docs/plans/archive/ordinal-outcomes.md. Marked: not mine. [dec-B20]
 
 **Latent draws are not readable for multinomial fits**
 The sampler's latent accessor refuses with a message when the fit is multinomial, instead of returning the augmentation draws. The alternative was returning them. A host embedding a multinomial sampler inside a larger model cannot read those latents. The maintainer's criterion was usefulness: "latents are not persisted absent a compelling use case."
@@ -406,24 +431,20 @@ The sampler can hold residuals in single precision, asked for by a storage argum
 Record: docs/design/reduced-precision-storage.md; docs/plans/archive/bart2-argument-consolidation.md. Marked: mine. [dec-B23]
 
 **Observation indices narrow to 32 bits**
-The engine stores the indices it gathers observations through as 32-bit integers by default, and the narrowing preserves every draw bit for bit. No alternative was weighed; the maintainer directed it. The number of observations is capped just under four billion, and every support-library signature that takes an index changed with it.
-Record: docs/design/reduced-precision-storage.md. Marked: mine. [dec-B24]
+The engine stores the indices it gathers observations through as 32-bit integers by default, and the narrowing preserves every draw bit for bit. No alternative was weighed. The number of observations is capped just under four billion, and every support-library signature that takes an index changed with it. The record quotes the maintainer's directive for the storage work, "Build it, keep it optional, think about other ways to optionally decrease storage sizes at the same time.", which does not choose this narrowing. The maintainer marked the entry his in the marking pass of 2026-09-08.
+Record: docs/design/reduced-precision-storage.md; the maintainer's marking pass, commit 5fb09fae. Marked: mine. [dec-B24]
 
 **No eight-bit predictor codes**
-Quantized predictor values stay in 16-bit codes: an eight-bit layer for the hot data and per-column code widths are not pursued. The alternative was a standalone phase of work to build them. Nothing a user sees changes, and the memory-bound regime at large n keeps the wider codes. The go or no-go on record reads "NO standalone phase 2."
+Quantized predictor values stay in 16-bit codes: an eight-bit layer for the hot data and per-column code widths are not pursued. The alternative was a standalone phase of work to build them. Nothing a user sees changes, and the memory-bound regime at large n keeps the wider codes. The record leaves the go or no-go open and then records the maintainer's answer: "Go/no-go (VD, 2026-07-07): NO standalone phase 2."
 Record: docs/plans/archive/hot-layer-u8.md. Marked: not mine. [dec-B25]
 
 **The support library's thread managers are cut**
-The two thread managers in the support library and the threaded wrappers around the moment calculations are removed from the tree, after being archived on a branch. The alternative was keeping them against a future scheme that threads within a single chain. About 2470 lines of within-chain reduction machinery leave, so such a scheme would start over. Nothing a user sees changes.
-Record: docs/plans/pre-review-cleanup.md. Marked: not mine. [dec-B26]
+The two thread managers in the support library and the threaded wrappers around the moment calculations are removed from the tree, after being archived on a branch. The alternative was keeping them against a future scheme that threads within a single chain. About 2470 lines of within-chain reduction machinery leave, so such a scheme would start over. Nothing a user sees changes. The record lists every fork a pre-review audit put to the maintainer with its ruling; this one reads "ARCHIVE ..., then CUT from bartcore".
+Record: docs/plans/pre-review-cleanup.md, its rulings table. Marked: not mine. [dec-B26]
 
 **The response is still scaled by its range**
 A continuous response is still shifted and scaled to the interval from minus one half to one half before fitting, rather than standardized by its standard deviation. The alternative was standardization, which is less sensitive to a single extreme response value. Range scaling keeps that sensitivity and the internal-scale bookkeeping it forces, and was kept for compatibility with the package's lineage. The maintainer signed off to "keep, document", with a setter added on the sampler for the response.
 Record: docs/plans/archive/range-scaling.md. Marked: mine. [dec-B27]
-
-**The residual sum of squares is rescaled**
-The sum of squared residuals the sampler reports is de-scaled by the square of the response range, which is the correct conversion back to the data's own units. No alternative was weighed; it was a units slip with no consumers. The value returned differs from every released dbarts.
-Record: docs/design/core-generalization.md. Marked: not mine. [dec-B28]
 
 **Categorical rules report directions, not a mask**
 The tree reader returns a missing value in the split-value column for every categorical rule and gives the per-level directions instead, dropping the raw bit-mask value that narrow categorical rules used to carry. The alternative was keeping two vocabularies, one for narrow masks and one for wide ones. A 0.9-x script that read the value column for a narrow categorical rule now gets NA there. The maintainer signed off to "unify".
@@ -445,10 +466,6 @@ Record: docs/plans/archive/state-continuation.md. Marked: not mine. [dec-B32]
 Trees are not kept by default, a fit does not capture sampler state on its own, and predicting from a reloaded fit errors with a message naming what to call first. The alternatives were flipping the default to keep trees, rejected, and the eager state capture that was built and then reverted. A user who saves a fit and reloads it hits that error unless the state was stored before saving. The maintainer overruled the eager capture because the resulting bloat, roughly 2.8 times the size of the fitted values, is not acceptable as a default, and accepted the requirement to touch the state as a known cost. A later ruling restates this with the manual wording and a fallback. See also: [dec-B104].
 Record: docs/plans/archive/package-review-remediation.md; docs/plans/prerc-surface-freeze.md. Marked: superseded by dec-B104. [dec-B33]
 
-**A new missing value at predict is refused**
-Predicting on data whose column carries a missing value where the training column had none is refused by name. The alternative, documenting that such a row silently goes down the left branch, was rejected. A user's test frame with a new missing value errors where 0.9-x dropped the row.
-Record: docs/plans/prerc-surface-freeze.md. Marked: not mine. [dec-B34]
-
 **The data object's x slot is the source**
 The x slot on the data object accepts any type and means the predictors as they were handed in, not a maintained view of the engine's quantized state. The alternative was keeping it a matrix that mirrors what the engine holds. The S4 slot no longer states the contract, so a consumer that assumes a matrix is unguarded. The maintainer approved the reconciliation conditional on the model being a collection of mutations and explicitly "NOT a maintained public view of the engine's quantized state".
 Record: docs/plans/archive/data-ownership-3-mutation.md. Marked: mine. [dec-B35]
@@ -458,15 +475,15 @@ The engine borrows a predictor matrix read-only while the sampler is being const
 Record: docs/design/data-ownership.md. Marked: mine. [dec-B36]
 
 **sparseFactor ships under a Matrix-style name**
-The package exports a constructor for a sparse factor predictor, named to follow the Matrix package's own naming convention so that it reads familiarly to users of sparse data. No alternative spelling was weighed once the convention was chosen. The cost is one more generic-sounding name at the top level of the package.
-Record: docs/design/data-ownership.md. Marked: mine. [dec-B37]
+The package exports a constructor for a sparse factor predictor, named to follow the Matrix package's own naming convention so that it reads familiarly to users of sparse data. No alternative spelling was weighed once the convention was chosen. The cost is one more generic-sounding name at the top level of the package. The maintainer marked the entry his in the marking pass of 2026-09-08.
+Record: docs/design/data-ownership.md; the maintainer's marking pass, commit 5fb09fae. Marked: mine. [dec-B37]
 
 **Probability vectors snap to sum to one**
 Split and proposal probability vectors that sum to one within the square root of machine epsilon are snapped to exactly one. The alternative was the tighter fixed tolerance the released package uses. This tolerance is looser, so nothing that validated under 0.9-x is refused now, and some input that would have been refused is accepted. The maintainer asked for "the default tolerances from almost-equal type functions" and accepted that the change moves which user input is admitted. A separate site snaps near-zero multipliers to exact zero and shares only the constant with this one.
 Record: docs/plans/archive/zero-weight-exactness.md. Marked: not mine. [dec-B38]
 
 **The R mutation path pays its cost**
-Changing predictors, a response, an offset or weights between draws through the R layer collects the data on every update, and that cost is documented rather than removed. The alternative, a flag that opts out of the collection, was considered and not built. An embedding loop pays the collection cost per mutation; the documented escape, the C interface's setters, covers only the response and the offset, since predictor and weight updates have no C entry. The decision on record is to accept and document.
+Changing predictors, a response, an offset or weights between draws through the R layer collects the data on every update, and that cost is documented rather than removed. The alternative, a flag that opts out of the collection, was considered and not built. An embedding loop pays the collection cost per mutation; the documented escape, the C interface's setters, covers only the response and the offset, since predictor and weight updates have no C entry. The record lays out three options, accepting and documenting the cost, the opt-out flag, and a lazy reconcile already rejected, and records the pick: "Recovery DECISION (VD, 2026-07-14): ACCEPT + DOCUMENT."
 Record: docs/plans/archive/data-ownership-3-mutation.md. Marked: not mine. [dec-B39]
 
 **A heteroscedastic fit refuses a response rescale**
@@ -478,16 +495,12 @@ The manual recommends 10 to 25 trees for a fit with Gaussian-process leaves, rat
 Record: docs/plans/release-candidate-review.md. Marked: not mine; superseded by dec-B110. [dec-B41]
 
 **Student-t log-likelihood is the t marginal**
-Under Student-t residuals the reported log-likelihood is the observation-level t density, marginal over the augmentation variables, not the gaussian density conditional on them. The alternative was that conditional value. The marginal is what keeps the channel comparable across residual laws, being the observation-level density that the widely applicable information criterion and importance-sampling leave-one-out are defined on; the conditional would not be comparable with the gaussian channel. A user computing either criterion from the channel gets a number they can compare across families.
-Record: docs/plans/release-candidate-review.md. Marked: not mine. [dec-B42]
-
-**Two sampler accessors refuse a result argument**
-The sampler's accessor for the residual standard deviations and its accessor for the sums of squared residuals refuse an argument named result by name. The alternative was continuing to ignore it. Code from 0.9-x that passes that argument now errors instead of having it silently dropped.
-Record: docs/plans/surface-refusals.md. Marked: not mine. [dec-B43]
+Under Student-t residuals the reported log-likelihood is the observation-level t density, marginal over the augmentation variables, not the gaussian density conditional on them. The alternatives were leaving the value refused and that conditional value. The marginal is what keeps the channel comparable across residual laws, being the observation-level density that the widely applicable information criterion and importance-sampling leave-one-out are defined on; the conditional would not be comparable with the gaussian channel. A user computing either criterion from the channel gets a number they can compare across families. The three options were put to the maintainer in a batch of forks, and the record of the answers reads "2. Student-t loglik: T MARGINAL (option c)."
+Record: docs/plans/release-candidate-review.md, its forks and resolutions. Marked: not mine. [dec-B42]
 
 **makeind keeps a formal that does nothing**
-The design-matrix helper keeps the signature BayesTree gave it, including an argument named all that has no effect. The alternatives were implementing the argument or dropping it, and neither was done this round. A documented no-op argument ships, so a user who sets it sees no change in the result.
-Record: docs/plans/pre-review-cleanup.md; docs/plans/surface-refusals.md. Marked: mine. [dec-B44]
+The design-matrix helper keeps the signature BayesTree gave it, including an argument named all that has no effect. The alternatives were implementing the argument or dropping it, and neither was done this round. A documented no-op argument ships, so a user who sets it sees no change in the result. The record lists the fork, put to the maintainer as the worst of finishing, cutting or leaving it, with the ruling "KEEP as documented no-op; neither implemented nor dropped this round". The maintainer marked the entry his in the marking pass of 2026-09-08.
+Record: docs/plans/pre-review-cleanup.md, its rulings table; docs/plans/surface-refusals.md; the maintainer's marking pass, commit 5fb09fae. Marked: mine. [dec-B44]
 
 **The C header renames ordinal thresholds**
 In the shipped C header the ordinal model's latent thresholds are named as thresholds, leaving the term cut points for the split grid alone. The alternative was leaving the older name in place. A consumer compiled against the old symbol breaks, and the header's identity hash has to be recomputed. The maintainer ruled yes, rename.
@@ -506,8 +519,8 @@ The standing gate on what to build is whether anything valuable could follow fro
 Record: the root TODO file; docs/plans/archive/cheap-uniformity.md. Marked: superseded by dec-B86. [dec-B48]
 
 **Sister-package behaviour does not argue a design**
-A design fork is not argued from what a consuming package happens to do; breakage of the sister packages appears only in migration maps. No alternative was weighed. The maintainer owns bartCause and rejects consumer behaviour as a design input or precedent, so a fork's justification may not cite it.
-Record: docs/plans/archive/bart2-argument-consolidation.md. Marked: mine. [dec-B49]
+A design fork is not argued from what a consuming package happens to do; breakage of the sister packages appears only in migration maps. No alternative was weighed. The maintainer owns bartCause and rejects consumer behaviour as a design input or precedent, so a fork's justification may not cite it. The maintainer marked the entry his in the marking pass of 2026-09-08.
+Record: docs/plans/archive/bart2-argument-consolidation.md; the maintainer's marking pass, commit 5fb09fae. Marked: mine. [dec-B49]
 
 **Large datasets are common; chains stay the default**
 The standing fact is that large datasets are common and that multiple chains remain the default. The register had recorded, as the maintainer's, a claim that single-chain workloads at a hundred thousand observations or more are common; the maintainer says that was not said. No shipped path serves a single-chain speed-up, and the vectorized kernels, the last work argued from that claim, were measured and declined, so nothing waits on it. See also: [dec-B113], [dec-A37].
@@ -534,31 +547,23 @@ Inside a formula the token forest() marks a forest, with a colon spelling as its
 Record: docs/plans/archive/bart2-argument-consolidation.md. Marked: mine. [dec-B55]
 
 **The C interface detects its own drift**
-The shipped header carries a major and a minor version number, generates its list of entry points from one macro-driven source, and computes a hash of that list at compile time which it compares against a value baked into the header. The alternative shapes were a runtime table and a hand-maintained list. The header is dense with macros that every consumer's compiler expands, the hash moves even on a purely additive append so it can only gate consumers that ship in lockstep, and every edit to the interface needs the baked value recomputed by hand. All three parts were decided together.
+The shipped header carries a major and a minor version number, generates its list of entry points from one macro-driven source, and computes a hash of that list at compile time which it compares against a value baked into the header. The alternative shapes were a runtime table and a hand-maintained list. The header is dense with macros that every consumer's compiler expands, the hash moves even on a purely additive append so it can only gate consumers that ship in lockstep, and every edit to the interface needs the baked value recomputed by hand. The record lays out the options for each part, states that the fork is the maintainer's, and records the picks together: "DECIDED (VD 2026-07-16): Decision 0 two-component version encoding, Decision 1(i) X-macro single-source stubs, Decision 2(i) in-header constexpr hash + baked static_assert".
 Record: docs/plans/archive/capi-dispatch-table.md. Marked: not mine. [dec-B56]
 
 **Consumers still look up each symbol**
-A compiled consumer resolves each entry point by symbol, as before, rather than fetching one table of function pointers from a single query. The alternative was that table, and it was rejected. Nothing that a user or a consumer loses was identified.
+A compiled consumer resolves each entry point by symbol, as before, rather than fetching one table of function pointers from a single query. The alternative was that table, and it was rejected. Nothing that a user or a consumer loses was identified. The record heads its answer "Recommendation (the fork is VD's)", opens it "Do NOT adopt the get_api table", and records the maintainer's picks among the three decisions that follow from keeping per-symbol lookup: "DECIDED (VD 2026-07-16)". See also: [dec-B56].
 Record: docs/plans/archive/capi-dispatch-table.md. Marked: not mine. [dec-B57]
 
-**The strict header check is opt-in**
-The exact hash check on the C interface is a documented opt-in for consumers that ship in lockstep with dbarts, not the default. The alternative, leaving lockstep as the default, was rejected. With the check off, a consumer built against any 1.x header sharing the major and minor number is admitted, and since those constants have never moved that window covers the whole pre-release history. A later ruling drops the flag from the sister packages and leaves it off, with the version pair as the guard. See also: [dec-B111].
-Record: docs/plans/prerc-surface-freeze.md; docs/plans/dbarts-h-freeze.md. Marked: not mine; superseded by dec-B111. [dec-B58]
-
 **Structs crossing the interface carry their size**
-Every struct that crosses the C interface begins with a size field and, before 1.0-0, grows by appending fields at the bottom. The alternative was freezing the layouts at once and adding a new entry point for anything further. Removing a field is unprotected and possible only before 1.0-0, and every consumer must either set the size field or use the initializer macro the header provides. The resolution on record was to extend the struct then, with a freeze at release time, and later to fold the layouts together. The two halves of that freeze cover different kinds of addition, which the header states: a new function after 1.0-0 arrives under a new name and a minor bump, while a struct still grows by appending a field, and such an append bumps the minor version and re-bakes the header's hash together.
+Every struct that crosses the C interface begins with a size field and, before 1.0-0, grows by appending fields at the bottom. The alternative was freezing the layouts at once and adding a new entry point for anything further. Removing a field is unprotected and possible only before 1.0-0, and every consumer must either set the size field or use the initializer macro the header provides. The record put two shapes to the maintainer, extending the struct or freezing it at six fields with a separate setter, and records the pick: "Resolved (VD, 2026-07-07): extend the struct now, with the release-time freeze (post-1.0 additions use new entry points)". The layouts were later folded together. The two halves of that freeze cover different kinds of addition, which the header states: a new function after 1.0-0 arrives under a new name and a minor bump, while a struct still grows by appending a field, and such an append bumps the minor version and re-bakes the header's hash together.
 Record: docs/plans/archive/capi-callbacks.md; docs/plans/release-candidate-review.md; inst/include/dbarts/dbarts.h. Marked: not mine. [dec-B59]
 
 **The interface version stays put before release**
 The major and minor version constants on the C interface do not move during the pre-release. No alternative was weighed, since no version of this work has been released. The constants therefore carry no information about the pre-release history, and the baked hash is the only detector of drift. The maintainer: "No need to increment versions".
 Record: docs/plans/archive/dbarts-h-reshape.md; docs/plans/archive/bcf-public-surface.md. Marked: mine. [dec-B60]
 
-**Two header calls: scope and a parameter name**
-Two open questions about the header's shape were settled: the first cleanup item covers seven entries rather than the five originally named, and the basis setter's parameter is renamed to say that the data is row-major instead of transposing the contract to match the old name. The alternatives were the narrower five-entry scope and the transposition. A caller who lays the data out the other way still gets no error, only a parameter name that says which way round it goes. A later ruling took both entries this shaped out of the header. See also: [dec-B86].
-Record: docs/plans/capi-shape.md. Marked: not mine; superseded by dec-B86, which took both entries it shaped out of the header. [dec-B61]
-
 **A callback can run between sweeps**
-The engine can call a host function once per sweep, between sweeps, so the host can change what the sampler conditions on; it runs only when chains run inline, one after another. The package reaches it through a single internal entry that takes an R function and refuses more than one chain; the C header has no entry for it, and no dbarts function calls it now that rbart_vi, which it served, is retired. The alternative was a callback that also works when chains run on worker threads. A host package that wants per-sweep conditioning runs one chain per sampler and gets no thread parallelism across chains; the per-draw callback, which does run on worker threads, only observes. See also: [dec-B114].
+The engine can call a host function once per sweep, between sweeps, so the host can change what the sampler conditions on; it runs only when chains run inline, one after another. The package reaches it through a single internal entry that takes an R function and refuses more than one chain; the C header has no entry for it, and no dbarts function calls it now that rbart_vi, which it served, is retired. The alternative was a callback that also works when chains run on worker threads. A host package that wants per-sweep conditioning runs one chain per sampler and gets no thread parallelism across chains; the per-draw callback, which does run on worker threads, only observes. The record put the contract, refusal on worker threads included, to the maintainer with one fork, letting inline chains run one after another or restricting the callback to one chain, and records: "Resolved (VD, 2026-07-07): ... callback contract as recommended - inline multi-chain allowed with the chainIndex argument and the sequential order documented." The internal entry that stands today is narrower than that ruling: it refuses more than one chain. See also: [dec-B114].
 Record: docs/plans/archive/capi-callbacks.md. Marked: not mine. [dec-B62]
 
 **Error messages follow base-style R practice**
@@ -582,12 +587,12 @@ Test coverage is measured locally and on demand, with no badge published. The al
 Record: docs/plans/repo-modernization.md. Marked: mine. [dec-B67]
 
 **The release procedure has no submission comments**
-The release procedure carries no step that writes comments to accompany a CRAN submission. No alternative was weighed. Nothing conveys submission context to CRAN. The maintainer's reason: CRAN does not read it.
-Record: commit 6a97236d. Marked: mine. [dec-B68]
+The release procedure carries no step that writes comments to accompany a CRAN submission. No alternative was weighed. Nothing conveys submission context to CRAN. The maintainer's reason: CRAN does not read it. The maintainer marked the entry his in the marking pass of 2026-09-08.
+Record: commit 6a97236d; the maintainer's marking pass, commit 5fb09fae. Marked: mine. [dec-B68]
 
 **The BayesTree-matching build flag is gone**
-The build flags that made the old engine reproduce BayesTree's random number stream were not carried over and went with the old engine. No alternative was weighed. A user who built the package in the documented BayesTree-matching mode has no equivalent in 1.0-0.
-Record: docs/design/core-generalization.md. Marked: mine. [dec-B69]
+The build flags that made the old engine reproduce BayesTree's random number stream were not carried over and went with the old engine. No alternative was weighed. A user who built the package in the documented BayesTree-matching mode has no equivalent in 1.0-0. The maintainer marked the entry his in the marking pass of 2026-09-08.
+Record: docs/design/core-generalization.md; the maintainer's marking pass, commit 5fb09fae. Marked: mine. [dec-B69]
 
 **The package requires C++20**
 Building dbarts requires a C++20 toolchain, and the minimum R version follows from that. The alternative, a downgrade to C++17, was weighed during the release review and declined, even though the only C++20 features used are concept declarations and one bit-counting intrinsic, both of which could be expressed in C++17. A user on an older toolchain cannot build the package from source. The maintainer declined the downgrade because "the concept layer's if-constexpr seams and exact-match static_asserts do real work".
@@ -785,14 +790,6 @@ Record: docs/plans/setpredictor-partition.md; the root TODO's engine constants a
 The binary node hyperprior evaluation completes before a release candidate is declared, rather than before 1.0-0 if time allows. Only the timing moved from the earlier ruling: the study design and the shipped default stood throughout. That study reported on 2026-09-14, over 28 priors, 162 simulated cells and 22 real datasets, recommending that chi(1.5, 2) stay, and the maintainer confirmed that default the same day on the study's evidence. The maintainer, on 2026-09-11: "I'd like it to be considered pre-release, and even pre-release candidate". See also: [dec-A07], [dec-B106].
 Record: this register. Marked: mine. [dec-B118]
 
-**Errors unwind instead of jumping**
-A C++ exception thrown inside a callback is caught at the call and rethrown only after the callback's own frame has returned, the jump being made under R's unwind protection so that it unwinds through that frame rather than across it; an exception the engine itself raises travels the same path, and either becomes an R error only at the bridge entry point, once the unwind has run. No raw error call and no long jump leaves engine or callback code. No alternative was weighed. A host written in C++ still may not jump to a saved position of its own from inside a callback: only raising an R error or throwing is safe. The same change fixes three sites that leaked heap memory, since every path now unwinds through a frame instead of jumping past it. See also: [dec-A31].
-Record: inst/include/dbarts/dbarts.h; src/R_interface_bartcore_common.hpp. Marked: not put to the maintainer; landed 2026-09-13. [dec-B119]
-
-**A wider comparison against 0.9-34**
-A 26-scenario statistical comparison against an installed dbarts 0.9-34 widens the cross-engine record past the nine-scenario snapshot taken at the cutover: 22 of the 26 agree at the rate the null predicts, and the other four are diagnosed as decided engine changes rather than regressions, namely counting only positive-weight rows in the residual scale's degrees of freedom, together with the empty-leaf veto, the absence of a chain carried across cross-validation folds, and the repaired acceptance ratio in the change move. No alternative was weighed. It is a measurement run by hand, not a gate: it needs a hand-installed 0.9-34 library, while the per-push equivalence check still compares only against baselines recorded on this branch. A future engine change could therefore separate a scenario again and go unnoticed between manual runs. See also: [dec-A61], [dec-A11], [dec-A12], [dec-B03].
-Record: docs/plans/classic-compare.md. Marked: not put to the maintainer; landed 2026-09-13. [dec-B120]
-
 **The drawn variance surface is readable**
 A sampler fitting a heteroscedastic model exposes the variance surface it has drawn through a current-state accessor on the sampler object, returning what a run's variance and test-variance channels report and NULL when the sampler is homoscedastic, and prior-predictive draws for such samplers are no longer refused. Both landed with the ruling on 2026-09-13. The two alternatives not taken were rebuilding the surface in R from the reported trees, which duplicates engine arithmetic inside the check meant to test it, and deferring both arms of the simulation-based calibration check, which would ship with heteroscedastic calibration unchecked. A user can read the variance surface a heteroscedastic fit drew and can draw from its prior predictive. Three options were put and the maintainer said "Use option 1".
 Record: docs/design/aft-status-setter.md landing note. Marked: mine. [dec-B121]
@@ -846,3 +843,7 @@ Record: code only, in the moves header and the C++ test makefile. Marked: not mi
 **Two developer tools ship unwired**
 The stale-install detector and the snapshot regeneration script ship as local developer tools, wired into no workflow. No alternative was weighed. Nothing is visible to a user; both say so in their own headers. Not yet ruled on.
 Record: code only, in the tools directory. Marked: not mine. [dec-C07]
+
+**Two header calls: scope and a parameter name**
+Two open questions about the header's shape were settled: the first cleanup item covers seven entries rather than the five originally named, and the basis setter's parameter is renamed to say that the data is row-major instead of transposing the contract to match the old name. The alternatives were the narrower five-entry scope and the transposition. A caller who lays the data out the other way still gets no error, only a parameter name that says which way round it goes. A later ruling took both entries this shaped out of the header. No maintainer ruling on the two choices themselves is on record. See also: [dec-B86].
+Record: docs/plans/capi-shape.md, which lists both as open decisions for the maintainer and records the outcome with no attribution. Marked: not mine; superseded by dec-B86, which took both entries it shaped out of the header. [dec-B61]
