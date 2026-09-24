@@ -57,7 +57,7 @@
 }
 \usage{
 \S4method{run}{dbartsSampler}(
-  numBurnIn, numSamples, updateState = NA, \dots, callback = NULL
+  numBurnIn, numSamples, updateState = NA, ..., callback = NULL
 )
 \S4method{sampleTreesFromPrior}{dbartsSampler}(updateState = NA)
 \S4method{sampleNodeParametersFromPrior}{dbartsSampler}(updateState = NA)

@@ -501,17 +501,27 @@ noteFrontDoorDefaults <- function(formula, callingEnv) {
     return(invisible(NULL))
   }
   onceWarnState[[frontDoorDefaultsKey]] <- TRUE
-  message(messageCondition(
-    paste0(
-      "dbarts: 'bart' is the function 0.9-x called 'bart2', with its own ",
-      "defaults (75 trees; four chains, their draws merged) rather than ",
-      "those of 0.9-x's 'bart' (200 trees, one chain). Call 'bartBT' for ",
-      "the BayesTree-style fit and its defaults. Shown once per session ",
-      "until dbarts ",
-      tombstoneExpiry,
-      ".\n"
+  # built by hand: messageCondition() is newer than the R this package
+  # supports
+  message(structure(
+    class = c(
+      "dbartsFrontDoorMessage",
+      "dbartsMessage",
+      "message",
+      "condition"
     ),
-    class = c("dbartsFrontDoorMessage", "dbartsMessage")
+    list(
+      message = paste0(
+        "dbarts: 'bart' is the function 0.9-x called 'bart2', with its own ",
+        "defaults (75 trees; four chains, their draws merged) rather than ",
+        "those of 0.9-x's 'bart' (200 trees, one chain). Call 'bartBT' for ",
+        "the BayesTree-style fit and its defaults. Shown once per session ",
+        "until dbarts ",
+        tombstoneExpiry,
+        ".\n"
+      ),
+      call = NULL
+    )
   ))
   invisible(NULL)
 }
