@@ -131,7 +131,7 @@ xbart <- function(
   }
 
   if (control@call != call("NA")[[1L]]) {
-    control@call <- matchedCall
+    control@call <- expandForwardedCall(matchedCall, evalEnv)
   }
 
   # named ahead of the data build, matching bart()/dbarts(), so

@@ -74,6 +74,20 @@ recoverForwardedArgument <- function(expr, env) {
   list(expr = expr, env = env)
 }
 
+## A matched call as its caller wrote it, for storing on a fit: each argument
+## forwarded through a wrapper's dots (..N) is replaced by the expression it
+## was written as, so update() re-evaluates that rather than a reference to
+## dots that no longer exist. A reference the walk cannot resolve is left as
+## it stands. Must run while the forwarding frames are still on the stack.
+expandForwardedCall <- function(call, env) {
+  for (i in seq_along(call)[-1L]) {
+    if (isDotsReference(call[[i]])) {
+      call[i] <- list(recoverForwardedArgument(call[[i]], env)$expr)
+    }
+  }
+  call
+}
+
 isDotsReference <- function(expr) {
   is.symbol(expr) && grepl("^\\.\\.[1-9][0-9]*$", expr)
 }

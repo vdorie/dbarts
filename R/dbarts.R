@@ -891,7 +891,7 @@ dbarts <- function(
   eval(validateCall, evalEnv, getNamespace("dbarts"))
 
   if (length(control@call) == 1L && control@call == call("NA")) {
-    control@call <- matchedCall
+    control@call <- expandForwardedCall(matchedCall, evalEnv)
   }
   control@verbose <- verbose
   # a convenience mirror of dbartsControl(seed = ), as the wrappers expose;

@@ -2705,6 +2705,12 @@
             \code{nbinom} families, which drive the engine through a
             different entry point than the standard fit path and
             previously tallied the fallback without ever warning on it.
+      \item A fit made through a wrapper that passes its \code{...} on to
+            \code{bart}, \code{bartBT}, \code{dbarts} or \code{xbart} stores
+            the arguments as the wrapper's caller wrote them, so
+            \code{update} on it works. Previously the stored call held
+            references such as \code{..1}, and \code{update} failed with
+            \dQuote{..1 used in an incorrect context}.
     }
   }
 }

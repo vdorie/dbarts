@@ -86,13 +86,6 @@ items
     a shift of ~0.9 posterior sd per cell, which is why the statistical
     tier is decoupled from the gate. Record:
     docs/plans/bcf-cross-host.md sec 2.
-  forwarded-call-storage: a fit made through a wrapper's dots stores
-    family = ..1, tree.prior = ..N in its call, so update(fit, ...)
-    fails with "..1 used in an incorrect context". Fix: stamp the
-    recovered expression (recoverForwardedArgument) back onto the
-    stored call. Likewise a wrapper that forces its own dots after a
-    recovered fit (s <- dbarts(x, y, ...); list(...)) re-forces the
-    failed promise and errors. Agent-noted 2026-09-23.
   gp-followups: sampled lengthscales and low-rank kernels; gp() takes a
     fixed positive numeric lengthscale today. Sampling one needs a
     theta prior, per-sample theta channels in the state and flatten

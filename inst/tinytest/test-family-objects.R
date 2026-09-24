@@ -192,6 +192,15 @@ expect_equal(
   0L
 )
 expect_equal(unique(fitViaBart$resid.df), 3)
+# the stored call carries what the caller wrote, not the wrapper's ..N, so
+# update() can re-evaluate it
+expect_identical(fitViaBart$call$family, quote(student(3)))
+expect_identical(fitViaBart$call$tree.prior, quote(cgm(power = 3)))
+expect_equal(unique(update(fitViaBart, n.samples = 6L)$resid.df), 3)
+expect_identical(
+  viaNested(family = student(4))$control@call$family,
+  quote(student(4))
+)
 expect_error(
   (function(...) {
     dbarts::bart(x, factor(y > median(y)), family = "multinomial", ...)

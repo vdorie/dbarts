@@ -252,7 +252,7 @@ dbartsValidateComposition <- function(
   )
   structure(
     list(
-      call = matchedCall,
+      call = expandForwardedCall(matchedCall, parent.frame()),
       ranks = ranks,
       L = L,
       n.replications = n.replications,

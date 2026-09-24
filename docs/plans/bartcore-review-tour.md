@@ -312,9 +312,6 @@ Open before the merge:
   component names vary (dec-A17), four common nouns exported (dec-A67),
   documented arguments that do nothing (dec-A68), and 1-based forest
   indices in R (dec-A69).
-- **One known defect.** A fit made through a wrapper's `...` stores
-  `..1` in its call, so `update()` on it fails (`TODO`'s
-  `forwarded-call-storage`).
 - **The release items the maintainer holds**: contacting lorax's
   maintainer (its example fits a three-level factor response, which 0.9-34
   coded as 0, 1, 2 and 1.0-0 refuses); contacting WeightIt's and

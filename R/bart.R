@@ -1078,7 +1078,11 @@ bart <- function(
 
   storedCall <- matchedCall
   storedCall$family <- suppliedFamily
-  control@call <- if (keepCall) storedCall else call("NULL")
+  control@call <- if (keepCall) {
+    expandForwardedCall(storedCall, callingEnv)
+  } else {
+    call("NULL")
+  }
   control@n.burn <- control@n.burn %/% control@n.thin
   control@n.samples <- control@n.samples %/% control@n.thin
   # printEvery counts post-thinning samples and must stay positive: thinning
@@ -3086,7 +3090,7 @@ bartBT <- function(
     proposal.probs = proposalprobs
   )
   matchedCall <- if (keepcall) match.call() else call("NULL")
-  control@call <- matchedCall
+  control@call <- expandForwardedCall(matchedCall, parent.frame())
   control@n.burn <- control@n.burn %/% control@n.thin
   # printEvery counts post-thinning samples and must stay positive: thinning
   # heavier than it would otherwise drive it to 0, which the sampler refuses
