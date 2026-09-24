@@ -29,9 +29,8 @@ for (i in c(1L, 37L, 100L)) {
   expect_identical(ll[, i], dnorm(y[i], ev[, i], fit$sigma, log = TRUE))
 }
 
-# every packaged fit carries resid.dist, gaussian fits included (a field
-# present only on student fits would be its own silent-wrong-answer risk)
-expect_identical(fit$resid.dist, "gaussian")
+# the family, not a separate field, says which residual law is scored
+expect_identical(fit$family, "gaussian")
 
 # 7. the type is extract-only: predict and fitted reject it with their
 # standard vocabulary error, and there is no test response to evaluate
@@ -317,11 +316,11 @@ expect_error(
   pattern = "does not support the log-likelihood"
 )
 
-# 10. resid.dist: a student() fit records its own token AND the per-draw
+# 10. a student() fit records its own family token AND the per-draw
 # degrees of freedom it conditioned each draw on, and its log-likelihood is
 # the marginal t density at that draw's (ev, sigma, df) - the quantity
 # loo/waic are defined on - rather than the gaussian density. The ppd draw
-# stays refused: its noise is drawn gaussian regardless of resid.dist.
+# stays refused: its noise would be drawn gaussian.
 set.seed(3, sample.kind = "Rejection")
 n.t <- 60L
 x.t <- matrix(runif(n.t * 2L), n.t, 2L)
@@ -337,7 +336,7 @@ fit.t <- bart(
   n.threads = 1L,
   verbose = FALSE
 )
-expect_identical(fit.t$resid.dist, "student")
+expect_identical(fit.t$family, "student")
 # the df channel takes sigma's own shape, one scalar per draw, and a FIXED
 # df repeats the value supplied to student()
 expect_identical(dim(fit.t$resid.df), dim(fit.t$sigma))
@@ -405,12 +404,13 @@ expect_error(
   pattern = "does not store the per-draw residual degrees of freedom"
 )
 
-# an unrecognized residual law is still refused rather than scored
+# a family the lookup does not name is refused rather than scored under some
+# default law
 fit.other <- fit.t
-fit.other$resid.dist <- "laplace"
+fit.other$family <- "laplace"
 expect_error(
   dbarts:::pointwiseLogLikelihood(fit.other, ev.t),
-  pattern = "pointwise log-likelihood does not support laplace residuals"
+  pattern = "unknown family 'laplace'"
 )
 
 rm(
@@ -427,8 +427,7 @@ rm(
   n.t
 )
 
-# 11. absent resid.dist (a fit predating the field) reads as gaussian, the
-# historical behavior, and is not refused by the guard
+# 11. a gaussian fit scores the normal density at its per-draw sigma
 fakeFit.legacy <- list(
   y = c(0.1, -0.2, 0.3),
   family = "gaussian",

@@ -1,10 +1,10 @@
 # The discrete-time hazard R surface: person-period ingestion sugar over
 # the binary families. The family
 # adds no engine code - a hazard fit remaps to probit/logistic before any
-# family-keyed switch, so $family reads the binary token and every link-keyed
-# generic stays correct; the hazard provenance is family(fit), the family as
-# specified, which survivalProbabilities dispatches on, and $periods carries
-# the grid. The bitwise reduction gate lives
+# family-keyed switch in the engine; the fit's $family records the hazard
+# token as specified, every link-keyed generic looks its link up from that
+# token, survivalProbabilities dispatches on it, and $periods carries the
+# grid. The bitwise reduction gate lives
 # in benchmarks/R/hazard-reduction.R; this file covers the surface.
 
 set.seed(517L)
@@ -146,13 +146,13 @@ rm(
   k
 )
 
-# ---- both tokens, marker, and the remap ($family reads the binary token) ----
+# ---- both tokens, the grid, and $family as specified ----
 
 fit.probit <- do.call(
   bart,
   c(list(x, cbind(d$time, d$status), family = "hazard"), fitArgs)
 )
-expect_identical(fit.probit[["family"]], "probit")
+expect_identical(fit.probit[["family"]], "hazard.probit")
 expect_false(is.null(fit.probit[["periods"]]))
 expect_equal(fit.probit$periods, sort(unique(d$time)))
 # a hazard fit carries no sigma (it is a binary fit under the hood)
@@ -162,7 +162,7 @@ fit.logit <- do.call(
   bart,
   c(list(x, cbind(d$time, d$status), family = "hazard.logistic"), fitArgs)
 )
-expect_identical(fit.logit[["family"]], "logistic")
+expect_identical(fit.logit[["family"]], "hazard.logistic")
 expect_false(is.null(fit.logit[["periods"]]))
 
 # hazard.probit is an accepted alias for the probit link
@@ -170,7 +170,7 @@ fit.alias <- do.call(
   bart,
   c(list(x, cbind(d$time, d$status), family = "hazard.probit"), fitArgs)
 )
-expect_identical(fit.alias[["family"]], "probit")
+expect_identical(fit.alias[["family"]], "hazard.probit")
 # same seed/design, so byte-identical to the "hazard" token
 expect_equal(fit.alias$yhat.train, fit.probit$yhat.train)
 
@@ -194,7 +194,7 @@ surv <- structure(
   type = "right"
 )
 fit.surv <- do.call(bart, c(list(x, surv, family = "hazard"), fitArgs))
-expect_identical(fit.surv[["family"]], "probit")
+expect_identical(fit.surv[["family"]], "hazard.probit")
 expect_equal(fit.surv$yhat.train, fit.probit$yhat.train)
 
 # ---- survivalProbabilities shape, range, monotonicity (training) ----
@@ -311,7 +311,7 @@ fit.wt <- do.call(
     fitArgs
   )
 )
-expect_identical(fit.wt[["family"]], "logistic")
+expect_identical(fit.wt[["family"]], "hazard.logistic")
 
 # ---- refusals: conflicting family, a non-Surv formula response ----
 # family = "hazard" with a formula response never wrapped in Surv() is
@@ -336,7 +336,7 @@ if (requireNamespace("survival", quietly = TRUE)) {
     bart,
     c(list(surv ~ x1 + x2 + x3, hazard.df, family = "hazard"), fitArgs)
   )
-  expect_identical(fit.formula[["family"]], "probit")
+  expect_identical(fit.formula[["family"]], "hazard.probit")
   expect_identical(fit.formula[["periods"]], fit.probit[["periods"]])
   expect_identical(fit.formula$yhat.train, fit.probit$yhat.train)
 
@@ -426,7 +426,7 @@ if (requireNamespace("survival", quietly = TRUE)) {
     bart,
     c(list(dataObj, family = "hazard"), fitArgs)
   )
-  expect_identical(fit.dataObj.hazard[["family"]], "probit")
+  expect_identical(fit.dataObj.hazard[["family"]], "hazard.probit")
   expect_identical(fit.dataObj.hazard$yhat.train, fit.formula$yhat.train)
   # the same route with NO Surv attributes still refuses an explicit hazard
   dataObjPlain <- dbartsData(x1 ~ x2, hazard.df)

@@ -496,10 +496,11 @@ familySetting <- function(family, name, default) {
 }
 
 ## The family a fit was specified with once "auto" has resolved, with its
-## settings: what family() on the fit returns. A fit's own $family is the
-## engine's token instead, which a Student-t fit ("gaussian") and a hazard
-## fit ("probit" or "logistic") remap, and which the link and likelihood
-## follow. 'resolved' is the engine token "auto" resolved to.
+## settings: what family() on the fit returns, and whose token is the fit's
+## $family. The engine family the link and likelihood follow, which a
+## Student-t fit ("gaussian") and a hazard fit ("probit" or "logistic")
+## remap, is looked up from it (fitEngineFamily). 'resolved' is the engine
+## token "auto" resolved to.
 specifiedFamily <- function(familySpec, resolved) {
   token <- familySpec@token
   if (identical(token, "auto")) {

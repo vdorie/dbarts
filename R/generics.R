@@ -16,11 +16,26 @@ survivalProbabilities <- function(object, ...) {
 }
 
 # What a fit is, read off its descriptors rather than off which draw
-# channels a run happened to keep. $family is the engine's token, the one the
-# link and likelihood follow; family() is the family as specified. A fit
-# saved by dbarts 0.9-x carries no family element, and in that release only a
-# gaussian fit drew sigma, so the fallback below is the one place a channel's
-# presence still decides anything.
+# channels a run happened to keep. $family is the family as specified; the
+# engine family its link and likelihood follow is looked up from it below, so
+# a family this table does not name stops rather than taking some default
+# link. A fit saved by dbarts 0.9-x carries no family element, and in that
+# release only a gaussian fit drew sigma, so the fallback in fitFamily is the
+# one place a channel's presence still decides anything.
+familyEngineTokens <- c(
+  gaussian = "gaussian",
+  student = "gaussian",
+  probit = "probit",
+  logistic = "logistic",
+  aft = "aft",
+  hazard.probit = "probit",
+  hazard.logistic = "logistic",
+  multinomial = "multinomial",
+  ordinal = "ordinal",
+  nbinom = "nbinom",
+  hurdle.lognormal = "hurdle.lognormal"
+)
+
 fitFamily <- function(object) {
   family <- object[["family"]]
   if (!is.null(family)) {
@@ -29,14 +44,31 @@ fitFamily <- function(object) {
   if (is.null(object[["sigma"]])) "probit" else "gaussian"
 }
 
-fitIsBinary <- function(object) {
-  fitFamily(object) %in% c("probit", "logistic")
+fitEngineFamily <- function(object) {
+  family <- fitFamily(object)
+  engine <- familyEngineTokens[family]
+  if (is.na(engine)) {
+    stop("fit has an unknown family '", family, "'")
+  }
+  unname(engine)
 }
 
-# a family with a residual law, and so the resid.dist and resid.scale
-# descriptors
+fitIsBinary <- function(object) {
+  fitEngineFamily(object) %in% c("probit", "logistic")
+}
+
+# a family with a residual law, and so the resid.scale descriptor
 fitHasResidual <- function(object) {
-  fitFamily(object) %in% c("gaussian", "aft")
+  fitEngineFamily(object) %in% c("gaussian", "aft")
+}
+
+# the residual law's shape, which the family fixes
+fitIsStudent <- function(object) {
+  identical(fitFamily(object), "student")
+}
+
+fitIsHazard <- function(object) {
+  fitFamily(object) %in% c("hazard.probit", "hazard.logistic")
 }
 
 fitIsHeteroscedastic <- function(object) {
@@ -60,13 +92,14 @@ family.bartOrdinal <- family.bart
 family.bartNegbin <- family.bart
 family.bartHurdle <- family.bart
 
-# latent-scale draws to probabilities for a binary fit
+# latent-scale draws to probabilities for a binary fit, by its link
 probabilityFromLatents <- function(latents, object) {
-  if (identical(fitFamily(object), "logistic")) {
-    plogis(latents)
-  } else {
-    pnorm(latents)
-  }
+  switch(
+    fitEngineFamily(object),
+    probit = pnorm(latents),
+    logistic = plogis(latents),
+    stop("fit's family '", fitFamily(object), "' has no binary link")
+  )
 }
 
 # A heteroscedastic fit's residual scale is the per-observation surface s(x),
@@ -112,7 +145,7 @@ pointwiseLogLikelihood <- function(object, ev) {
       "cannot compute the log-likelihood; fit does not store the training response"
     )
   }
-  family <- fitFamily(object)
+  family <- fitEngineFamily(object)
   weights <- object[["weights"]]
   n.draws <- length(ev) %/% length(y)
   y <- rep(y, each = n.draws)
@@ -122,25 +155,12 @@ pointwiseLogLikelihood <- function(object, ev) {
   }
 
   if (identical(family, "gaussian")) {
-    # resid.dist records the fitted residual law; a fit predating the field
-    # carries no element at all and is read as gaussian, so old serialized
-    # fits keep working. "student" scores the
+    # the family fixes the residual law. A student() fit scores the
     # MARGINAL t density - the observation-level likelihood loo/waic are
     # defined on, and the density the engine itself reports - rather than the
     # gaussian working likelihood conditional on the latent precisions, which
-    # is a different quantity. Any other token is refused rather than silently
-    # scored against a formula that does not fit it.
-    residDist <- object[["resid.dist"]]
-    isStudent <- identical(residDist, "student")
-    if (
-      !is.null(residDist) && !isStudent && !identical(residDist, "gaussian")
-    ) {
-      stop(
-        "pointwise log-likelihood does not support ",
-        residDist,
-        " residuals"
-      )
-    }
+    # is a different quantity.
+    isStudent <- fitIsStudent(object)
     # s(x) is one value per draw AND observation, so it pairs with ev directly
     # rather than recycling across the observation margin as sigma does; a
     # length mismatch means the two channels were not written by the same run
@@ -2848,19 +2868,10 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
     sigma <- uncombineChains(as.vector(sigma), n.chains)
   }
 
-  # the noise added below is always gaussian (rnorm); resid.dist is absent
-  # on a binary fit and on a 0.9-x one, whose residuals were gaussian; a
-  # present non-"gaussian" token (student residuals) means that noise is
-  # wrong, so the draw is refused rather than taken
-  if (!responseIsBinary) {
-    residDist <- object[["resid.dist"]]
-    if (!is.null(residDist) && !identical(residDist, "gaussian")) {
-      stop(
-        "posterior predictive sampling does not support ",
-        residDist,
-        " residuals"
-      )
-    }
+  # the noise added below is always gaussian (rnorm), which is wrong for
+  # student residuals, so the draw is refused rather than taken
+  if (fitIsStudent(object)) {
+    stop("posterior predictive sampling does not support student residuals")
   }
 
   if (is.null(weights)) {

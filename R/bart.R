@@ -345,22 +345,25 @@ packageBartResults <- function(
 
   # The model descriptors: which ones a fit carries is fixed by its family,
   # never by run options, and each always holds a value, so no reader infers
-  # the model from which draw channels a run kept. resid.dist and resid.scale
-  # describe the residual law's shape and scale model, and exist only on a
-  # family that has one (gaussian and aft); student() residuals are refused
-  # unless family == "gaussian" (R/spec.R), so the model's resid.df attribute
-  # being non-NULL already records which law was fit.
-  residDist <- if (is.null(attr(fit$model, "resid.df"))) {
-    "gaussian"
-  } else {
-    "student"
-  }
+  # the model from which draw channels a run kept. $family is the family as
+  # specified, and whatever follows from it - the link, the engine family,
+  # the residual law's shape - is looked up from it (fitEngineFamily) rather
+  # than stored. resid.scale, the residual law's scale model, is set by the
+  # variance argument rather than by the family, and exists only on a family
+  # with a residual law (gaussian and aft).
   residScale <- if (hasVariance) "forest" else "constant"
-  # the family as specified, for family(); a sampler whose model was built
-  # outside dbarts()/dbartsSpec() carries only the engine token
+  # a sampler whose model was built outside dbarts()/dbartsSpec() carries
+  # only the engine token, and a Student-t law only on its resid.df attribute
   familySpec <- attr(fit$model, "family.spec")
   if (is.null(familySpec)) {
-    familySpec <- newValidated("dbartsFamily", token = fit$model@family)
+    familySpec <- newValidated(
+      "dbartsFamily",
+      token = if (is.null(attr(fit$model, "resid.df"))) {
+        fit$model@family
+      } else {
+        "student"
+      }
+    )
   }
 
   # what the fit's na.action dropped, in base R's own shape and under base
@@ -370,7 +373,7 @@ packageBartResults <- function(
   if (responseIsBinary) {
     result <- list(
       call = fit$control@call,
-      family = fit$model@family,
+      family = familySpec@token,
       family.spec = familySpec,
       yhat.train = yhat.train,
       yhat.test = yhat.test,
@@ -383,9 +386,8 @@ packageBartResults <- function(
   } else {
     result <- list(
       call = fit$control@call,
-      family = fit$model@family,
+      family = familySpec@token,
       family.spec = familySpec,
-      resid.dist = residDist,
       resid.scale = residScale,
       first.sigma = burnInSigma,
       sigma = sigma,
@@ -1591,8 +1593,9 @@ bart <- function(
 }
 
 # The specified family, stamped on a fit packaged away from dbarts() - the
-# multinomial, ordinal, count and hurdle arcs - beside its engine token, where
-# family() reads it; the packaged-in-dbarts() fits carry it off their model.
+# multinomial, ordinal, count and hurdle arcs, whose $family token already
+# names it - where family() reads it; the packaged-in-dbarts() fits carry it
+# off their model.
 # A sampler (samplerOnly) passes through untouched.
 withFamilySpec <- function(familySpec, family, result) {
   if (!is.list(result)) {
@@ -2939,9 +2942,7 @@ survivalProbabilities.bart <- function(
       names(formals(survivalProbabilities.bart))
     )
   )
-  # a hazard fit's $family is its link's binary token, so the specified
-  # family is what says it is one
-  if (startsWith(family(object)@token, "hazard.")) {
+  if (fitIsHazard(object)) {
     return(hazardSurvivalProbabilities(
       object,
       if (missing(times)) NULL else times,
@@ -2949,7 +2950,7 @@ survivalProbabilities.bart <- function(
       combineChains
     ))
   }
-  if (!identical(fitFamily(object), "aft")) {
+  if (!identical(fitEngineFamily(object), "aft")) {
     stop("survivalProbabilities requires an aft (survival) fit")
   }
   times <- as.double(times)

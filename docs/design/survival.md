@@ -575,11 +575,15 @@ log-likelihood, by the section-1 identity). The rejected alternative -
 recording a hazard token in $family and teaching each consumer the new
 tokens' links - is real new code in every $family consumer, and any
 missed one fails silently in the transform rather than loudly. So the
-rule is: LINK dispatch keys on $family (the binary token); HAZARD
-dispatch (survivalProbabilities, any hazard-aware printing) keys on
-family(fit), the family as specified ("hazard.probit" or
-"hazard.logistic"), never on $family, and $periods carries the grid. No
-new S3 class: a plain bart object with $periods.
+rule was: LINK dispatch keys on $family (the binary token); HAZARD
+dispatch keys on the $periods marker. Superseded 2026-09-24 (dec-B126):
+$family records the token as specified ("hazard.probit" or
+"hazard.logistic"), and every link-keyed reader looks the link up from it
+in one table that stops on a token it does not name - which answers the
+silent-transform risk above more strongly than keeping the token binary,
+since the old default sent any non-logistic token through pnorm. HAZARD
+dispatch keys on the same token; $periods carries the grid. No new S3
+class: a plain bart object with $periods.
 
 **Hazards are the native output; the survival curve is the new code.**
 Because the fit is a binary fit on the expanded rows, the ordinary
@@ -593,8 +597,8 @@ S(t | x) = prod_{k<=t} (1 - h(k | x)), a cumulative product of
 
 **survivalProbabilities: same entry point and shape, DIFFERENT evaluation
 path than aft's.** The generic ([`survivalProbabilities`](../../R/generics.R)) gains a hazard branch in
-survivalProbabilities.bart, keyed on family(fit) beside the aft
-$family gate ([`survivalProbabilities.bart`](../../R/bart.R)), computing S by cumulative hazard products
+survivalProbabilities.bart, keyed on the hazard $family token beside
+the aft gate ([`survivalProbabilities.bart`](../../R/bart.R)), computing S by cumulative hazard products
 instead of the log-normal tail. The SHAPE convention matches aft's
 exactly - draws x times x observations, a chain margin under
 combineChains = FALSE, the extract-draws / fitted-mean / ci.level tiers -
