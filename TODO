@@ -441,8 +441,11 @@ host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   Rmath under R (bit-identical), a vendored copy of R's nmath pnorm,
   qnorm, dnorm and dt otherwise (VD 2026-09-24: no run-time reason for
   hooks, no SIMD variant and no BLAS use); qchisq stays host-side, the
-  spec carrying the resolved residual-prior scale; printing keeps its
-  run-time hooks; a plain-spec creation entry and a host-neutral
+  spec carrying the resolved residual-prior scale; printing likewise
+  build-time (dec-A74): ext_printf, ext_fflush_stdout and the message
+  and warning entries map per host (R console, stdio for a standalone
+  build), and the unused misc_printf/misc_flushOutput pointers and
+  their installers go; a plain-spec creation entry and a host-neutral
   error contract in dbarts.h. The sister re-verification at the freeze
   follows it. Rewords the Python-binding entry.
   Predictor source consolidation (decided, VD 2026-09-24; dec-B124),

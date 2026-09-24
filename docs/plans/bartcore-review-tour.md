@@ -332,8 +332,9 @@ before or after 1.0-0.
 
 Decided for after the merge and before 1.0-0: the engine stops calling R
 for its density functions, printing and error reporting - the math
-through R's own routines under R and a copy of them elsewhere, chosen when
-the package is built, so draws are unchanged under R - and the C
+through R's own routines under R and a copy of them elsewhere, and printing
+to the host's own output, both chosen when the package is built, so draws
+are unchanged under R - and the C
 interface gains an entry that creates a sampler from a plain-C
 specification, with an error contract that does not assume R. Today a compiled consumer creates
 its sampler through R and a host without R cannot create one at all. It is
