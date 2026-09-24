@@ -647,7 +647,7 @@
             vector stays all-zero rather than handing the residual to an
             unnamed \code{"swap"}.
       \item A multi-forest declaration (\code{forests}, the two-forest
-            Bayesian causal forest among them) honors the
+            Bayesian causal forest (BCF) among them) honors the
             \code{proposal.probs} mixture on every one of its forests
             rather than refusing it: the mixture is a property of the fit,
             and a frozen one holds every forest's structures. Fits at the
@@ -1521,12 +1521,6 @@
             including after a \code{$setForestBasis} swap re-derives the
             row norm (\code{NaN} on a forest whose scale the map does not
             own, as on every single-forest sampler).
-            \code{dbarts_sampler_getForestCalibration} reports the same
-            quantities to a C consumer through a
-            \code{dbarts_forest_calibration} struct that carries its own
-            \code{structSize} and a documented 1.0-0 field boundary, below
-            which every later append goes, so a caller compiled against the
-            1.0-0 header keeps reading as before.
       \item \code{\link{samplePriorPredictive}} draws repeatedly from a
             sampler's prior - tree structure, end-node parameters, and
             optionally response noise - and evaluates the resulting forest
@@ -1803,138 +1797,72 @@
   }
   \subsection{C API}{
     \itemize{
-      \item The C++ interface in \code{dbarts/R_C_interface.hpp} is removed with
-            the pre-1.0 engine it exposed; packages compiling against
-            dbarts use the flat C interface in \code{dbarts/dbarts.h} instead.
-      \item \code{dbarts_sampler_run} rejects a non-null
-            \code{dbarts_results} whose \code{structSize} is zero. A
-            \code{DBARTS_RESULTS_INIT} initializer in \code{dbarts/dbarts.h}
-            sets \code{structSize} and zeroes the field pointers, so the size
-            cannot be forgotten:
-            \code{dbarts_results r = DBARTS_RESULTS_INIT;}.
-      \item \code{dbarts/dbarts.h} documents the specification attributes a
-            flat-C consumer sets on the control or model object to reach a
-            family or a composition, in one block on
-            \code{dbarts_sampler_create}: \code{bartcore.n.categories}
-            (ordinal), \code{bartcore.dispersion} (negative binomial),
-            \code{bartcore.survival} (AFT event status),
-            \code{bartcore.variance} (the heteroscedastic variance forest),
-            \code{bartcore.forests} (the K-forest amplitude model), and the
-            model-side \code{resid.df}, \code{monotone}, interaction and
-            block attributes. Each entry names the object the attribute lives
-            on, its type and shape, its allowed values, the family or
-            composition it selects, and what a malformed value does.
-            Documentation only: no signature, struct, enumerator or callback
-            changed, and \code{dbarts_apiHash()} is unmoved.
-      \item The C API reaches Bayesian causal forests:
-            \code{dbarts_sampler_numForests} reports the model's forest count,
-            \code{dbarts_sampler_setForestBasis} swaps a forest's basis, and
-            \code{dbarts_sampler_getForestFits} and the amplitude pair
-            (\code{dbarts_sampler_numForestAmplitudes},
-            \code{dbarts_sampler_getForestAmplitudes}) read the per-forest fits
-            and the amplitudes the two combine through.
-            \code{dbarts_sampler_setResponse} takes an explicit
-            \code{updateScale} argument matching
-            \code{dbarts_sampler_setOffset}, and the mutation entries carry
-            the same per-model rules as their R counterparts: a two-forest
-            sampler takes a scale-pinned response, offset or weight swap and
-            refuses its whole test surface.
-      \item The flat C API's predictor entries
-            (\code{dbarts_sampler_setPredictor},
-            \code{dbarts_sampler_updatePredictor},
-            \code{dbarts_sampler_setTestPredictors} and
-            \code{dbarts_sampler_predict}) take a single self-describing source
-            struct, \code{dbarts_predictor_source}, so a C consumer hands the
-            sampler compressed-column storage for prediction and test data
-            without densifying it and without an R container class, and every
-            predictor argument declares its own width and its own CSC column
-            count. \code{dbarts_column_type} has three enumerators,
-            \code{DBARTS_COLUMN_ORDINAL}, \code{DBARTS_COLUMN_CATEGORICAL} and
-            \code{DBARTS_COLUMN_ORDERED_FACTOR}; a column the sampler holds
-            as an ordered factor carries 0-based level codes whose order is
-            meaningful, so it splits at a threshold on those codes rather than
-            by a subset mask. A source's own \code{columnTypes} are checked
-            for well-formedness and otherwise unread.
-      \item \code{dbarts_sampler_numTrees}, \code{dbarts_sampler_getTrees} and
-            \code{dbarts_sampler_printTrees} take a forest index, so they are
-            unambiguous on a two-forest sampler; \code{dbarts_apiHash()} gives
-            a consumer an opt-in exact-ABI lockstep check alongside the
-            major/minor handshake; and \code{dbarts_sampler_setForestWeights},
-            \code{dbarts_sampler_setActiveRows},
-            \code{dbarts_sampler_getForestCalibration} and
-            \code{dbarts_sampler_setForestPriorScale} reach the per-forest
-            weight, active-row mask and leaf-prior calibration channels from C.
-      \item A C host reads the negative-binomial dispersion \eqn{r}{r} without
-            an R round trip: \code{dbarts_results} gains a \code{dispersion}
-            field shaped as \code{sigma}, and \code{dbarts_sampler_getDispersion}
-            reads the value in force mid-sweep, returning 0 and touching
-            nothing off a family carrying none. The field is appended, so a
-            consumer compiled against the smaller struct is unaffected.
-      \item \code{dbarts_drawLatents} and \code{dbarts_workingResponse} mirror
-            \code{\link{dbartsDrawLatents}} and \code{dbartsWorkingResponse}
-            over caller-supplied arrays: the same laws, the same family rules
-            and response-support validation, drawn from R's own stream.
-      \item \code{dbarts_sampler_predict} takes a \code{numThreads} argument
-            before its output pointer: a per-call worker count that does not
-            persist, where 0 means the sampler's own count and a resolved count
-            below 1 - including a sampler whose own count was set to 0 - is
-            treated as 1, so the output buffer is always written. The replay is
-            identical bit for bit at every value.
-      \item \code{dbarts_sampler_create}, \code{dbarts_drawLatents} and
-            \code{dbarts_workingResponse} take a \code{dbarts_family}
-            enumerator, and \code{dbarts_sampler_family} reports the family a
-            sampler was built with (or what \code{DBARTS_FAMILY_AUTO} resolved
-            to). The \code{DBARTS_USE_STUBS} handshake enforces
-            \code{dbarts_apiMajorVersion}/\code{dbarts_apiMinorVersion} on
-            every stub's first resolution; the exact-ABI hash check is opt-in,
-            behind \code{DBARTS_REQUIRE_EXACT_ABI} defined before including
-            the header.
-      \item Where a refusal is a fixed property of the sampler,
-            \code{dbarts_sampler_setResponse}, \code{dbarts_sampler_setOffset},
-            \code{dbarts_sampler_setWeights}, \code{dbarts_sampler_setSigma},
-            \code{dbarts_sampler_setTestPredictors},
-            \code{dbarts_sampler_setTestOffset} and
-            \code{dbarts_sampler_predict} answer 0 in an \code{int} return
-            without touching the sampler - a probit or heteroscedastic sampler
-            handed a sigma, a family that carries no case weights, a coupling
-            whose test blend is undefined - so a host driving a sampler it did
-            not build probes instead of unwinding through its own frames. What
-            a different argument would have fixed raises instead: a response
-            outside its family's support, a logistic count that is not a
-            positive integer, a scale update against a pinned transform, a
-            malformed source. \code{dbarts_sampler_setActiveRows}'s 0 means
-            the family implements no mask; a non-binary mask raises.
-            \code{dbarts_sampler_setWeights} answers 0 on a \code{probit},
-            \code{ordinal}, \code{aft} or \code{nbinom} sampler, none of
-            which carries weights to change, and raises on a logistic count
-            that is not a positive integer or a gaussian case weight that is
-            not finite and non-negative.
-            \code{dbarts_sampler_getTrees} and
-            \code{dbarts_sampler_printTrees} take \code{forest} as the
-            argument after the sampler, where every other forest-naming entry
-            has it and where it precedes the tree indices it qualifies, and
-            \code{dbarts_sampler_setForestBasis}'s \code{basisRowMajor} is
-            the one exception to the header's column-major rule.
-            \code{dbarts/dbarts.h} neither defines \code{USE_FC_LEN_T} nor
-            includes \code{<Rversion.h>}; a consumer that relied on the
-            removed \code{R_C_interface.hpp} for either includes or defines it
-            itself.
-      \item \code{dbarts_predictor_source} carries a \code{denseCodes} block
-            and the \code{numDenseCodeColumns} width that bounds it, so a
-            caller whose factor columns are already integer level codes hands
-            them over as \code{int32_t}; \code{INT_MIN} (R's
-            \code{NA_INTEGER}) marks a missing code. The mutation entries
-            widen that block once internally, so there the field saves the
-            caller the loop and the buffer rather than the conversion; the
-            test-side entries read the codes where they lie and build no
-            double block at all. Both channels are indexed by the same
-            \code{columnSources[j]}, within the channel the sampler's kind
-            for that column selects: the
-            double index is bounded by \code{numColumns} and the code index
-            by \code{numDenseCodeColumns}, and an entry refuses a source that
-            breaks either bound or that leaves out a channel its columns
-            read. A caller that does not know which columns the sampler holds
-            as factors leaves \code{denseCodes} null.
+      \item The C++ headers of 0.9-x (\code{dbarts/R_C_interface.hpp} and
+            the engine headers beside it) are removed with the engine they
+            exposed. A package compiling against dbarts uses one flat C
+            header, \code{dbarts/dbarts.h}: it defines
+            \code{DBARTS_USE_STUBS} before including it and calls each entry
+            by name, and the stubs resolve the symbols on first use and check
+            \code{dbarts_apiMajorVersion} and \code{dbarts_apiMinorVersion}
+            against the header it compiled with. \code{dbarts_apiHash} adds
+            an opt-in exact-ABI check, behind \code{DBARTS_REQUIRE_EXACT_ABI}.
+            The header neither defines \code{USE_FC_LEN_T} nor includes
+            \code{<Rversion.h>}; a consumer that relied on the old header for
+            either now does it itself.
+      \item The header has no creation entry. A consumer builds the sampler
+            through the R interface - \code{\link{dbarts}}, or
+            \code{new("dbartsSampler", ...)} on the specification
+            \code{\link{dbartsSpec}} returns - and reads its handle with the
+            sampler object's \code{$getPointer()}; saving and restoring
+            state, reading trees and changing predictors or weights go
+            through the R methods. The C entries run the sampler
+            (\code{dbarts_sampler_run},
+            \code{dbarts_sampler_sampleTreesFromPrior}), swap its response,
+            offset and residual scale (\code{dbarts_sampler_setResponse},
+            \code{dbarts_sampler_setOffset}, \code{dbarts_sampler_setSigma}),
+            read its latent variables (\code{dbarts_sampler_getLatents}),
+            predict (\code{dbarts_sampler_predict}), set tree storage,
+            threads and printing (\code{dbarts_sampler_setTreeStorage},
+            \code{dbarts_sampler_setNumThreads},
+            \code{dbarts_sampler_setVerbose},
+            \code{dbarts_sampler_printTrees}), report its shape and model
+            (\code{dbarts_sampler_numObservations} and the other counts,
+            \code{dbarts_sampler_kIsSampled},
+            \code{dbarts_sampler_usesDart}, \code{dbarts_sampler_family}),
+            and release it (\code{dbarts_sampler_destroy}).
+            \code{dbarts_sampler_numTrees} and
+            \code{dbarts_sampler_printTrees} take a forest index, 0 for a
+            single-forest sampler.
+      \item \code{dbarts_sampler_run} fills a caller-owned
+            \code{dbarts_results} whose leading \code{structSize} the caller
+            sets, most simply with
+            \code{dbarts_results r = DBARTS_RESULTS_INIT;}; a zero
+            \code{structSize} is refused. Fields are only ever appended, so a
+            consumer compiled against a smaller struct is unaffected. Beside
+            the residual scale and the training and test fits, the struct
+            carries \code{k}, DART's split probabilities, the
+            per-observation log-likelihood, the negative-binomial dispersion
+            and the Student-t degrees of freedom.
+      \item \code{dbarts_sampler_predict} takes a self-describing
+            \code{dbarts_predictor_source}: a dense column-major block,
+            compressed-column storage, or a mix of the two, with an optional
+            block of \code{int32_t} level codes for factor columns, so a
+            consumer hands over sparse or coded predictors without
+            densifying them. It also takes a per-call thread count; the
+            replay is identical bit for bit at every count.
+      \item Where a request is impossible for the sampler as built - a
+            residual scale handed to a probit sampler, say -
+            \code{dbarts_sampler_setResponse},
+            \code{dbarts_sampler_setOffset}, \code{dbarts_sampler_setSigma},
+            \code{dbarts_sampler_getLatents} and
+            \code{dbarts_sampler_predict} return 0 without touching the
+            sampler, so a host driving a sampler it did not build can probe
+            rather than unwind through its own frames. A bad argument raises
+            an R error.
+      \item \code{dbarts_sampler_setDrawCallback} registers a compiled
+            callback that fires once per saved draw per chain, on that
+            chain's thread, over a read-only \code{dbarts_draw} view of the
+            draw.
     }
   }
   \subsection{BUG FIXES}{
@@ -2044,9 +1972,9 @@
             builtin function is now named in the error instead of reported as
             "invalid type (builtin)". An unnamed-matrix \code{newdata} with
             swapped columns now warns naming the assumed column mapping.
-      \item \code{$setPredictor} and \code{$updatePredictor} accept
-            transactional (rollback) updates on BCF and multinomial
-            samplers, which previously refused them. A replacement is
+      \item \code{$setPredictor} accepts transactional (rollback) updates
+            on BCF and multinomial samplers, which previously refused
+            them. A replacement is
             installed only if no leaf of any tree of any forest of any
             chain would empty; otherwise the whole change rolls back and
             the call reports \code{FALSE}, exactly as on a single-forest
@@ -2674,10 +2602,8 @@
             refused (\sQuote{printEvery must be at least 1}) instead of
             dividing by zero inside the sampler's print condition.
       \item Gaussian case weights that are negative or not finite are now
-            refused wherever weights are installed, including
-            \code{dbarts_sampler_setWeights} in the flat C API, which
-            previously installed them unchecked; a negative or non-finite
-            weight enters a leaf's sufficient statistics as a corrupt
+            refused wherever weights are installed; a negative or non-finite
+            weight would enter a leaf's sufficient statistics as a corrupt
             precision, silently.
       \item \code{DESCRIPTION}'s \code{Authors@R} no longer credits code
             that is not in the tree: the classic engine's adaptive radix

@@ -89,9 +89,10 @@ finalizer is a no-op (bartcore samplers free through per-pointer R
 finalizers). Build system: SUBDIRS/PKG_LIBS drop dbarts.a on both
 platforms, configure loses match-bayes-tree, thread-safe-unload, the
 dbarts config headers, and the generated inst/include/dbarts/types.hpp;
---with-xint-size STAYS - misc's partition kernels (used by bartcore)
-consume XINT_TYPE through src/include/misc/types.h. The cutover is
-complete: stan4bart ports to dbarts.h in lockstep (Vincent publishes
+--with-xint-size STAYS (superseded: later removed alongside
+match-bayes-tree and thread-safe-unload) - misc's partition kernels (used
+by bartcore) consume XINT_TYPE through src/include/misc/types.h. The
+cutover is complete: stan4bart ports to dbarts.h in lockstep (Vincent publishes
 both).
 
 Landed 2026-07-03 (step 3, R surface): the `engine` argument is gone from
@@ -410,7 +411,8 @@ create-time verbose summary replaces the printInitialSummary entry point.
 DECIDED, v1 surface of `inst/include/dbarts/dbarts.h`:
 
 - Flat C ABI: opaque `dbarts_sampler*`, `DBARTS_C_API_VERSION` plus
-  `dbarts_apiVersion()`, everything reached via `R_GetCCallable`. Symbol
+  `dbarts_apiVersion()` (superseded below by the major/minor pair plus
+  `dbarts_apiHash()`), everything reached via `R_GetCCallable`. Symbol
   names are `dbarts_sampler_*` (camelCase methods after the prefix):
   classic already exports `dbarts_setResponse` et al. until removal, and
   handle-prefixed names stay defensible after it.

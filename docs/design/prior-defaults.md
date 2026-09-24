@@ -17,10 +17,9 @@ Summed over the forest, `Var(f(x)) = m sigma_mu^2 = 0.25 / k^2`
 independent of `m`, so `k` prior standard deviations of `f(x)` always
 span the coded response range `[-0.5, 0.5]`; `k = 2` puts that range at
 roughly a 95% prior interval. Binary responses (probit/logistic) default
-instead to the `chi(1.25, Inf)` hyperprior - an empirical choice
-(improper, mildly penalizes small `k`), not independently derived. See
-"Response scaling" below for the interaction with the response transform
-and `node.scale`.
+instead to the `chi(1.5, 2)` hyperprior - an empirical choice, proper,
+not independently derived. See "Response scaling" below for the
+interaction with the response transform and `node.scale`.
 
 ## power, base (tree prior, `cgm()`)
 
@@ -77,11 +76,11 @@ The known failure mode is outlier sensitivity: two extreme `y` values
 stretch the range and compress the effective leaf prior for everything
 else. bartMachine's JSS paper names the same issue and recommends the
 fix dbarts offers no automation for: log-transform or winsorize extreme
-values before fitting. The in-package alternative is the `chi(1.25,
-Inf)` hyperprior on `k` (default for binary responses, available for
-continuous ones too via `node.prior = normal(chi(1.25))`) - letting the
-leaf scale adapt some of the outlier's effect away rather than letting a
-fixed `k` absorb it.
+values before fitting. The in-package alternative is the `chi(1.5, 2)`
+hyperprior on `k` (default for binary responses, available for
+continuous ones too via `node.prior = normal(chi(1.5, 2))`) - letting
+the leaf scale adapt some of the outlier's effect away rather than
+letting a fixed `k` absorb it.
 
 Because the anchor is fixed from the data at creation, a Gibbs sampler
 that swaps `y` or the offset between draws (the `dbartsSampler` use

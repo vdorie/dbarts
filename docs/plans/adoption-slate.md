@@ -970,12 +970,13 @@ is a HARD GATE on S8, not a follow-up.
 
 ## Tickets drafted out of the arc
 
-Two items are DECIDED-AND-TICKETED, priced into no slice: TODO
-`latent-family-weight-channel` (census G4, adjudicated as a PARTIAL BUILD -
-logistic built, the other four declined by identification, with the decline
-recorded in `docs/design/r-c-division.md`) and TODO `host-shell-read-guards`
-(whether the four shipped readers that answer from a `hostFor` placeholder
-shell should refuse as the new accessor does). S1's Rd cross-references the
+Two items were DECIDED-AND-TICKETED, priced into no slice, and both have
+since closed: TODO `latent-family-weight-channel` (census G4, adjudicated as
+a PARTIAL BUILD - logistic built, the other four declined by identification,
+with the decline recorded in `docs/design/r-c-division.md`) landed at
+d0701a6a, and TODO `host-shell-read-guards` (whether the four shipped
+readers that answer from a `hostFor` placeholder shell should refuse as the
+new accessor does) closed OBVIATED. S1's Rd cross-references the
 second by name so its asymmetry reads as a decision.
 
 ## Verification

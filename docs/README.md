@@ -28,10 +28,9 @@ records no decision itself.
   main, with a reading order for the code.
 - `docs/plans/bartcore-landing/` - the landing memo (`memo.md`) and the
   registers behind it: changes against main (`changes.md`), completion
-  status (`completion.md`), a doc inventory for triage (`doc-inventory.md`),
-  neutral evaluations of agent-made decisions (`evaluations.md`), the rubric
-  for documents the maintainer reads (`rubric.md`), and the check sheets for
-  the memo and the register (`memo-check.md`, `ledger-check.md`).
+  status (`completion.md`), neutral evaluations of agent-made decisions
+  (`evaluations.md`), and the rubric for documents the maintainer reads
+  (`rubric.md`).
 - `docs/plans/review-2026-08-24/` - the working records of the 2026-08-24
   whole-branch review: findings, evidence, and the scripts and logs behind
   them. Historical; TODO cites a few of its memos.

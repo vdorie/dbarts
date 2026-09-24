@@ -110,7 +110,9 @@ with the full gate battery; D4 an Opus design read on the enum first.
 Post-1.0 by rule (additive): flat-API readers for heteroscedastic,
 ordinal cutpoints, groupEffects count, setSigma getter; data-handle
 serialization; pdbart on the new fit classes; variable-selection
-inference and random-effects breadth (docs/plans/archive/roadmap-survey.md).
+inference and random-effects breadth (docs/plans/archive/roadmap-survey.md;
+random-effects breadth is now moot - grouped random effects were retired,
+see docs/design/retire-grouped-random-effects.md).
 Of these, the flat-C sigma getter, data-handle serialization, and
 variable-selection inference are designed and recorded but not built
 and not scheduled; the derivation stays here and becomes a TODO entry

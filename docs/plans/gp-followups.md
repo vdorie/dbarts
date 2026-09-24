@@ -22,8 +22,11 @@ consumer or a decision memo.
 
 ## Constraints
 
-- Blocked on: flat-format-v2 (channel shape), a named consumer or VD
-  wanting it for its own sake.
+- Blocked on: a named consumer or VD wanting it for its own sake.
+  flat-format-v2 (channel shape) has since landed; the state format's
+  internal numbering was later flattened back to 1 for the first
+  release, since no released version ever wrote the pre-release
+  encodings.
 - Out of scope until the memo is approved: any code.
 
 ## Steps

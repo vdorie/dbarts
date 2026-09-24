@@ -2,10 +2,12 @@
 
 agent: opus
 rng: posterior-changing (new likelihood support)
-budget: decision memo exists below; decision-gated (2026-08-06: the
-  post-1.0 framing is retired - no item is deferred to post-release,
-  VD 2026-07-17; "Neither lands in 1.0-0" below is history, a
-  statement of 1.0-0's content, not a standing gate)
+budget: decision memo exists below; decision-gated. 2026-08-06: the
+  post-1.0 framing was retired - no item deferred to post-release,
+  VD 2026-07-17. Reversed by TODO's current stamp: decision-gated,
+  scheduled after 1.0-0 (VD 2026-08-28). "Neither lands in 1.0-0"
+  below is history, a statement of 1.0-0's content, not a standing
+  gate.
 
 ## Goal
 

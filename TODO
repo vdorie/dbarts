@@ -193,12 +193,16 @@ items
     docs/plans/archive/negative-binomial.md,
     docs/design/negative-binomial.md sec 2 and sec 7. decision-gated,
     scheduled after 1.0-0 (VD 2026-08-28).
-  python-bindings: a pybind11 facade wrapper is prototype-scale now
-    that the engine is R-free below the bridge. Horizon, likely
-    out-of-repo. Two contracts a non-R host would have to take over:
-    host-side ingestion validation (CSC structure, categorical bounds,
-    sparse metadata assembly) lives in the R bridge, and mixed/CSC
-    stores hold lifetime borrows anchored by R protection.
+  python-bindings: a pybind11 facade wrapper is prototype-scale.
+    Horizon, likely out-of-repo. The engine is not R-free below the
+    bridge: model.hpp calls three Rmath density functions
+    (Rf_dnorm4, Rf_pnorm5, Rf_dt), and the sampler and chain headers
+    reach R's print and error entry points through the external IO
+    unit, so a non-R host also has to supply those. Two further
+    contracts it would have to take over: host-side ingestion
+    validation (CSC structure, categorical bounds, sparse metadata
+    assembly) lives in the R bridge, and mixed/CSC stores hold
+    lifetime borrows anchored by R protection.
     decision-gated.
   rc-gate: VD's own read of docs/plans/bartcore-review-tour.md, then
     the RC declaration. Both VD-held. The pre-RC surface decisions and
@@ -267,13 +271,16 @@ items
     (50032833): it is the first kernel change to move C1's summed
     minimum ESS, +22 over twenty matched pairs at two seed blocks
     against a +8 bar and at 2.21 cut-scan sweep-equivalents, so its kill
-    does not fire, but it regresses that cell's 95 percent coverage by
-    -0.024 against a -0.010 margin, which blocks a nonzero default
-    share. Owed there: the equal-cost arm on a quiet machine, and slice
-    2's rule-gibbs-balance.R. Rotation, a Stage R0 generator-only regrow census,
-    the re-specified reallocation census and heated companion chains
-    stay unscheduled, alongside the two brainstorm rounds (sec 15,
-    16). Durable record docs/design/tree-mixing-proposals.md (ranking
+    does not fire; its coverage regression against the control was a
+    reference-arm artifact, dissolved by the 2026-09-08 re-measurement;
+    the rule draw's default weight stays zero until the mixing research
+    sets one (dec-B96, below).
+    Owed there: the equal-cost arm on a quiet machine (slice 2's
+    rule-gibbs-balance.R has landed). Rotation, a Stage R0
+    generator-only regrow census, the re-specified reallocation census
+    and heated companion chains stay unscheduled, alongside the two
+    brainstorm rounds (sec 15, 16). Durable record
+    docs/design/tree-mixing-proposals.md (ranking
     sec 4.1 as amended, specialization addendum sec 12).
   veto-arc-doors: a per-sweep vetoed-leaf diagnostics counter,
     R-readable - none exists in src/bartcore, so it is an additive new
