@@ -10,8 +10,8 @@
 # control. This makes the "hazard is sugar" thesis testable: the two fits
 # consume the identical RNG stream, so the trees, latent fits, and varcount
 # draws are BITWISE identical. The comparison is over the draw components (not
-# the packaged objects, which differ by construction in the hazard-only
-# $periods marker). Both links are covered.
+# the packaged objects, which differ by construction in the hazard $family
+# token and the hazard-only $periods grid). Both links are covered.
 #
 # Usage: Rscript benchmarks/R/hazard-reduction.R
 
@@ -79,12 +79,15 @@ compareLink <- function(hazardToken, binaryFamily) {
       extract(fitBinary, type = "trees")
     )
   )
-  # the packaged objects differ ONLY in the hazard marker: $periods present on
-  # the hazard fit, absent on the binary one, and $family reads the same binary
-  # token on both
+  # the packaged objects differ ONLY in what says the fit is a hazard one:
+  # $family records the hazard token as specified and $periods the grid, on
+  # the hazard fit alone, while the engine family its link follows is the
+  # same binary token on both
   markerOnly <-
-    identical(fitHazard$family, binaryFamily) &&
+    identical(fitHazard$family, paste0("hazard.", binaryFamily)) &&
     identical(fitBinary$family, binaryFamily) &&
+    identical(dbarts:::fitEngineFamily(fitHazard), binaryFamily) &&
+    identical(dbarts:::fitEngineFamily(fitBinary), binaryFamily) &&
     !is.null(fitHazard[["periods"]]) &&
     is.null(fitBinary[["periods"]])
 
@@ -97,7 +100,7 @@ compareLink <- function(hazardToken, binaryFamily) {
     paste(sprintf("%s=%s", names(results), results), collapse = ", ")
   ))
   if (!markerOnly) {
-    cat("  marker check FAILED: the objects differ beyond $periods\n")
+    cat("  marker check FAILED: the objects differ beyond $family and $periods\n")
   }
   bitwise
 }

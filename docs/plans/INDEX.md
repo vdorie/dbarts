@@ -3,8 +3,7 @@
 Manifest of every `docs/plans/*.md` implementation plan (45 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
-`Status:`/`## Status` section (or its equivalent closing Landing note) as of
-8f928f5c, 2026-09-13 -
+`Status:`/`## Status` section (or its equivalent closing Landing note) -
 see `docs/README.md` for how this index relates to the other navigation
 surfaces. See `docs/design/INDEX.md`
 for the paired design docs. 132 further plans that are LANDED/CLOSED/NO-GO
@@ -57,7 +56,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | sbc-calibration.md | DONE (all tiers complete) | The simulation-based-calibration harness and its running log; found and diagnosed a BCF sigma-mixing issue and a cauchy-tau tooling gap along the way. |
-| sbc-family-tiers.md | BUILT d094675 (2026-08-04) | Extends SBC calibration to ordinal, nbinom, Student-t and multinomial responses; all pass except a known ordinal ridge-mixing flag, with heteroscedastic and monotone left for a later run. |
+| sbc-family-tiers.md | BUILT d094675 (2026-08-04); aft and heteroscedastic arms admitted 2026-09-13 | Extends SBC calibration to ordinal, nbinom, Student-t and multinomial responses; all pass except a known ordinal ridge-mixing flag. aft and the two heteroscedastic arms have since been admitted to sbc.yaml's matrix; monotone, liftable since 173a710, is the one arm still not run. |
 
 ## Response-family / model-surface singletons
 

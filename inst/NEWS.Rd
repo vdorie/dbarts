@@ -479,7 +479,7 @@
             response, \code{chi(1.5, 2)} for a binary one - so a default
             \code{xbart} call scores the model a default \code{bart} call
             fits; a binary crossvalidation's default cell therefore moves
-            off the old fixed value of 2. \code{xbart} also distributes
+            off 0.9-34's \code{chi(1.25, Inf)} hyperprior. \code{xbart} also distributes
             (replication, fold) units across workers rather than
             replication ranges, each unit seeded from the call's seed and
             its own index, so a seeded \code{xbart} call reproduces its

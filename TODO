@@ -41,6 +41,12 @@ items
     updateScale = FALSE). Record:
     docs/plans/archive/bcf-sigma-residual.md sec 4 item 2.
     research-open, decision-gated.
+  bcf-latent-exact-host: benchmarks/R/bcf-latent-exact.R in quick mode
+    fails on arm64 macOS (mode 2a, the free amplitude under probit,
+    worst |z| 4.09) and passes on the CI Linux host at the same engine
+    code (1.16), 2026-09-24. Check whether quick mode's per-seed
+    standard errors understate the Monte Carlo error on that ridge
+    before trusting the gate's bar on any one host.
   binary-kforest-k1-reachability: open K = 1 as a shipped multi-forest
     configuration - one varying-coefficient forest with no prognostic
     partner, which is VCBART's shape (D4 of
@@ -202,10 +208,9 @@ items
     each push and bump when GitHub deprecates a runtime; wire codecov
     only if a public badge is wanted. The optional roxygen2 and NEWS.md
     migrations do not start unasked.
-  sbc-family-tiers: three open arms (docs/plans/sbc-family-tiers.md,
+  sbc-family-tiers: two open arms (docs/plans/sbc-family-tiers.md,
     docs/plans/archive/runsbcbcf-repair.md): the monotone follow-on,
-    the first arm the constrained prior draw unblocks; the
-    heteroscedastic setState lift, liftable R-side; and the full-R
+    the first arm the constrained prior draw unblocks; and the full-R
     ladder re-runs, whose commands the plan records.
   sbc-ordered-factor-arm: benchmarks/R/sbc.R carries no ordered-factor
     PREDICTOR arm - its ordered factors are ordinal RESPONSES - so the
@@ -296,140 +301,35 @@ absolute residual prior scale (decided, VD 2026-09-14)
   dec-B123). scheduled after 1.0-0 (VD 2026-09-14).
 
 front-door rename (decided, VD 2026-09-08; docs/decisions.md dec-B75;
-  LANDED 2026-09-09: S1 ecb319aa, S2 44b3fa6d, S3 cb5d4ef2, S4 28431413)
-  bart takes bart2's interface and defaults; bart2 becomes an alias for
-  one release; the BayesTree-style names and defaults move to a new
-  function, bartBT (VD 2026-09-08); for one release bart forwards
-  a legacy-style call (x.train/y.train, ntree, ndpost, nskip, keeptrees)
-  to that function with a once-per-session warning. The legacy door is a
-  strict compatibility mode: BayesTree's arguments and defaults, no new
-  1.0 features (dec-B83); whether its pre-1.0 extras (logistic, aft,
-  chains, threads) stay is settled in the plan. Its factor-response
-  refusal names both remedies. Consumers: bartCause now calls bart
-  directly (dbarts-1.0 b33ae4e); 17 CRAN reverse dependencies already
-  called only bart. Settle before contacting lorax's maintainer.
+  LANDED 2026-09-09; plan docs/plans/front-door.md)
   bart2's removal in 1.1-0 is gated (VD 2026-09-23): before removing
   it, check every CRAN reverse dependency for a bart2 call, and keep the
   alias one more release if any remains. WeightIt and MatchIt call it
   as of 2.0.0 and 4.8.0 (release block).
-  Plan: docs/plans/front-door.md.
+  Every other tombstone expires at 1.1-0 too (dec-B76; the registry in
+  R/tombstones.R, which inst/tinytest/test-tombstones.R fails once the
+  version reaches its expiry): in that release delete the file, the
+  stubs, forwards and once-per-session warnings it lists, the
+  .onAttach message, and their NAMESPACE entries.
 
-removal tombstones (decided, VD 2026-09-08; docs/decisions.md dec-B76;
-  LANDED 2026-09-09: S1 ecb319aa, S4 28431413)
-  rbart_vi and its methods return as stubs that error naming stan4bart;
-  the sampler's startThreads/stopThreads become no-ops; rngSeed is
-  accepted with a once-per-session warning for one release. All expire
-  in the release after 1.0-0. Land with the front-door rename. A saved
-  0.9-x fit (no state format field) is refused by name at restore and
-  predict (dec-B109).
-  Plan: docs/plans/front-door.md.
-
-xbart follow-through (decided, VD 2026-09-08; docs/decisions.md dec-B77,
-  B102; LANDED 2026-09-09: S3 cb5d4ef2, S4 28431413)
-  a tombstone for a three-element n.burn (error naming the flat fields);
-  the control= tombstone is reversed by dec-B116, which gives xbart back
-  control = dbartsControl(); distribute grid cells and folds across
-  workers, not replications; per-cell deterministic RNG streams so a
-  seed reproduces at any n.threads. Warm starts across folds stay out. The
-  k axis accepts fixed values and a "leave k modelled" entry (the
-  family's hyperprior default) as grid points (dec-B102).
-  Plan: docs/plans/front-door.md.
-
-factor encoding (decided, VD 2026-09-08; docs/decisions.md dec-B78)
+factor encoding (decided, VD 2026-09-08; docs/decisions.md dec-B78;
+  LANDED; plan docs/plans/front-door.md)
   subset splits stay the modern default; the manual states the
   difference from BayesTree and why. Post-release research item:
   weighting a factor column's split probability by its level count,
   which the indicator encoding gave implicitly.
-  Plan: docs/plans/front-door.md.
-
-front-door vocabulary (decided, VD 2026-09-08; docs/decisions.md
-  dec-B79, B80, B81; LANDED 2026-09-09: sigest S1 ecb319aa, manual table
-  S2 44b3fa6d, table consolidated to one page S4 28431413)
-  names may change until the CRAN push, then lock; sigest replaces
-  dbarts()'s sigma argument (the creation-time estimate only; setSigma
-  is untouched), with a one-release warning; the manual gets one table
-  mapping front-door family tokens to engine families and entry points.
-  Plan: docs/plans/front-door.md.
 
 hurdle tokens (decided, VD 2026-09-08; docs/decisions.md dec-B82;
-  LANDED 2026-09-09: S1 ecb319aa, S4 28431413)
-  remove hurdle.lognormal and twopart from dbarts()'s family list and
-  intercept the hurdle case in the front door before it forwards; drop
-  the twopart alias (tombstone for one release). Post-release: a
-  correlated hurdle family in the engine.
-  Plan: docs/plans/front-door.md.
+  LANDED; plan docs/plans/front-door.md)
+  removed hurdle.lognormal and twopart from dbarts()'s family list and
+  intercepted the hurdle case in the front door before it forwards.
+  Post-release: a correlated hurdle family in the engine.
 
-pure-C header (decided, VD 2026-09-08; docs/decisions.md dec-B84; LANDED
-  2026-09-09: S1 2d0b6d90, S3 56398169; ports stan4bart 4ace376,
-  treatSens 6b274fb; revdep-smoke green)
-  pre-release: drop dbarts_sampler_create, storeState, setState and
-  getTrees from inst/include/dbarts/dbarts.h; consumers create through
-  the R interface and read the handle from the sampler object's
-  external pointer; re-bake the hash; port stan4bart (init.cpp, three
-  sites) and treatSens (bartTreatmentModel.cpp, sensitivityAnalysis.cpp)
-  on their compat branches; drop the null-pointer refusal channel with
-  the entry. Trim the header to the entries a consumer calls plus the
-  buffer-sizing queries (dec-B86): the multi-forest block, mutation
-  pair, callback, active rows, weights, test predictors/offset, thinning
-  and latent readers wait for a consumer; batch later additions into
-  planned releases. Setters copy into buffers allocated once at
-  creation, never retain a caller pointer (dec-B87). The exact-ABI
-  flag comes off both consumers at the merge and stays off; a dbarts CI
-  assertion fails a build whose API hash changed without a minor bump
-  (dec-B111). Plan: docs/plans/pure-c-header.md.
-memory footprint at large n (VD concern, 2026-09-08; LANDED: note
-  13cb7e8a, script and validation 2f25e3d1, step 7's two-copy removal
-  fd104888, the follow-ons below at 5a05d799, baseline
-  benchmarks/baselines/memory-footprint-3388dc15.csv, recorded at
-  9171ff64 and scored below. Further follow-on, its own entry
-  when opened: the last full-size copy needs the bridge to allocate the
-  prediction channel draw-major and the engine to write it strided)
-  audit the per-sampler footprint as a function of n, p, trees and
-  chains (owned conditioning vectors, cut codes, tree storage, per-chain
-  state, test slabs) and record it in the manual; VD wants larger
-  datasets to fit and has had memory trouble before. Plan:
-  docs/plans/memory-footprint-audit.md. The same item at the other call
-  sites is TAKEN: channelMeans carries a trailing-margin count and now
-  serves the summary generics and the partial-dependence replays, so no
-  apply(..., mean) permutes a full-size prediction channel any more.
-  Three further follow-ons are taken with it: the starting sigma no longer
-  goes through lm's model frame and model matrix (ee03fbcd), dbartsData
-  skips the complete-cases row selection when no row is dropped
-  (6571eae1), and the leaf statistics cache is pruned at the draw - the
-  slots that are no longer live leaves give their member lists back, and
-  a store caps retained capacity at twice the membership, so the cache
-  holds one leaf partition per tree instead of about three. Measured at
-  n = 1e5, T = 200, C = 1 on the linear leaf: peak RSS 689.0 MB to
-  518.2 MB, the fit 1.8 pct slower. The footprint model's ingestion
-  allowance, starting-sigma and leaf statistics cache rows moved with
-  them and the grid was re-recorded on a quiet machine, which put the
-  posterior-mean reduction's collector churn back in the model (180
-  bytes per reduced observation to a 20 MB ceiling, measured gaussian
-  against probit) - the ingestion allowance had been standing in for it.
-  The grid scores 3.7 pct median absolute relative residual with no cell
-  outside max(10 pct, 20 MB), and the cache's level multiplier now has
-  the whole grid behind it.
-
-per-draw callbacks (decided, VD 2026-09-10; docs/decisions.md dec-B114;
-  LANDED 2026-09-11: S1 711942ad, S2 e4063140, S3 db3bd084, S4 4cf56b69,
-  S5 1e24bd55, cost recorded 9171ff64; priority raised on the memory
-  audit: the R-side prediction array and its packaging copy are five
-  sixths of a large fit's peak)
-  pre-release: a per-draw C callback invoked once per saved draw per
-  chain from that chain's worker thread, over const pointers into engine
-  buffers and with no R API allowed inside it; an R callback argument on
-  bart/dbarts/$run taking a function and a context external pointer (the
-  non-blocking default); the keepFits storage opt-out over every
-  per-observation channel, set FALSE automatically when a callback is
-  supplied; the flat C header's draw struct, callback typedef and setter
-  entry, with one ABI hash re-bake; a worked Rcpp example writing each
-  draw into a preallocated array, plus a plain-C copy the suite compiles;
-  and the tests. Reverses dec-B62's worker-thread refusal for an OBSERVER
-  hook (the conditioning hook keeps it) and re-opens the header entry
-  under dec-B86 with the example and stan4bart as named consumers; the
-  blocking R-closure variant waits. RNG class neutral. Plan:
-  docs/plans/per-draw-callbacks.md. Design:
-  docs/design/per-draw-callbacks.md.
+memory footprint at large n (VD concern, 2026-09-08; LANDED, plan
+  docs/plans/memory-footprint-audit.md)
+  Open follow-on, its own entry when opened: the last full-size
+  prediction copy needs the bridge to allocate the prediction channel
+  draw-major and the engine to write it strided.
 
 host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   after the merge to main, before the 1.0-0 CRAN submission (VD
@@ -477,95 +377,12 @@ frequency weights (decided, VD 2026-09-24; docs/decisions.md dec-B125)
   whether non-integer frequency weights are refused, and zero weights
   (excluded, as now). The weights docs say which a weight is.
 
-within-chain threading (decided, VD 2026-09-08; docs/decisions.md
-  dec-B89; CLOSED without shipping 2026-09-10, dec-B115, S4 of
-  docs/plans/engine-performance.md)
-  Re-measured against the tip first, per the plan (best 1.03x anywhere,
-  losses at two and eight workers); VD then closed the opt-in rather than
-  reviving it: n.threads keeps its own meaning as a total thread budget,
-  dbartsControl's default becomes min(guessNumCores(), n.chains), and a
-  budget above n.chains warns once per fit rather than dividing into the
-  chains. Archived on origin/archive/within-chain-threading-2026-09
-  (94ae3793), beside the July prototype on
-  origin/archive/within-chain-threading. No further pre-release action.
-
-vectorized draw path with a reference build (decided, VD 2026-09-08;
-  docs/decisions.md dec-B90; S1 167e2c62, S3 70305575 landed; S2 closed
-  without shipping, dec-B113, code archived on
-  origin/archive/engine-s2-weighted-kernels; the weighted fused pass
-  lands instead; S4 closed without shipping, dec-B115, see the
-  within-chain threading item above; S5 open)
-  pre-release: wire the measured SIMD node-sum kernels into the engine
-  gather; a configure flag selects the scalar fixed-order reference
-  build; CI runs the bitwise, exact-posterior and snapshot gates on the
-  reference build and tinytest, sanitizers and statistical equivalence
-  on the shipped build; a deterministic vector-vs-scalar sum test; the
-  four snapshot files skip unless the build reports reference mode.
-  Plan: docs/plans/engine-performance.md. Principle (VD): regressions
-  against 0.9-34 are not deferred past the release.
-
 engine constants audit (decided, VD 2026-09-08; docs/decisions.md
-  dec-B91)
-  pre-release: for each of the seven fixed constants (16-bit cut codes,
-  exact categorical enumeration up to ten levels, eight leaf-regression
-  columns, perturb width one, serial cutoffs at 65536 test rows and 1e7
-  predict cells, sparse storage below 0.2 density) record its origin,
-  what it limits, and a measurement where one is possible; document all
-  seven in the manual with recommended values; expose the enumeration
-  limit and the parallel cutoffs as control settings, plus any the
-  measurements show binding; add gp()'s max.leaf.size to the audit and
-  a post-fit warning keyed on the share of GP leaf evaluations that
-  fell back to constant leaves (dec-B110). VD: "extremely worried that
-  they're artificially limiting".
-  DONE 2026-09-11 (cdecec90): bartcoreRun's doors (xbart, multinomial,
-  ordinal, nbinom) now call warnOnGPFallback once per fit; BCF and
-  survival already ran through runWithBurnIn. None of those doors
-  packages gp.fallback onto its returned object; post-release if wanted.
-  door (measured 2026-09-10 on the x86 box, replicated independently
-  the same day on the box and on the arm64 Mac): making the sparse
-  layout bitwise - the sparse root writes the identity order before
-  partitioning in place, 3 engine lines - costs 3.2 to 3.4 percent of
-  sampler time on x86 and 7.1 percent on arm64 for a 120-sparse-column
-  n = 1e5 fit (floor 1 to 2 percent), nothing on dense fits, and moves
-  five equivalence scenarios (sparse, mixedmatrix, leaffactormixed,
-  factorpartial, wideFactorIndicators), all at max |z| = 0.00. The
-  reverse - the dense root partitioning in place instead of rewriting
-  the identity - regresses the standard bench 1.6 to 3.5 percent (x86)
-  and 3 to 4.6 percent (arm64) at n = 1000, fading toward zero by
-  n = 1e5 as the root's share of partition work shrinks: during
-  sampling the root's span is almost never already partitioned (75 of
-  about 7400 root partitions per 100 sweeps at 75 trees), so both
-  kernels swap alike and the identity rewrite wins on sequential
-  column reads over gathers through the index span (typed kernel
-  bench: range 15 to 30 percent faster on a shuffled span, 2.4 to 4.7x
-  slower on a pre-partitioned one). Bitwise agreement is a testing
-  property no user observes, so the sparse path stays as it is; the
-  sparse-layout test should run 20 sweeps, not one, to discriminate
-  the layouts (the tip passes bitwise at one sweep and differs by
-  6e-16 to 9e-16 at twenty).
-  LANDED 2026-09-10 (28b3ac2a; VD dec-B117; plan
-  docs/plans/setpredictor-partition.md; baselines re-recorded at
-  80b1c8d4): setPredictor's
-  re-partition (repartitionSubtree from the root) always receives a
-  span already partitioned under the live rules - 7400 of 7400 root
-  partitions on the accept path had zero misplaced elements - so the
-  in-place kernel does one comparison scan and no index writes where
-  the identity rewrite writes the whole span (9.9M writes per 100
-  updates at n = 1000, 75 trees; callgrind: partition cost 14.8 to
-  7.6 percent of the program on accept, 21.3 to 11.4 on reject). Taking
-  the in-place root ONLY on that path (about 30 lines, no sampling
-  change) makes setPredictor updates 19 percent (accept) and 30
-  percent (reject) faster on x86, 25 and 37 percent on arm64, at no
-  cost elsewhere (1.000 on every run scenario). It is NOT bitwise with
-  the current draws: the member order differs and leaf sums
-  reassociate at the last bit, varcount identical, so it needs a
-  re-record of every equivalence scenario that calls setPredictor and
-  its own oracle.
-  fixed 2026-09-10 (b129e21f): benchmarks/kernels/bench.c declares its index arrays
-  size_t where the partition kernels take misc_index_t (uint32), so
-  its correctness check aborts on both arm64 and x86 and its
-  range-vs-indices rows read half-zero index words; the typed rerun
-  above supersedes them until the bench is fixed.
+  dec-B91; LANDED; plan docs/plans/engine-performance.md)
+  Open: the sparse-layout test in inst/tinytest/test-engine-constants.R
+  runs one sweep, where the layouts still agree bitwise; at twenty they
+  differ by 6e-16 to 9e-16, so it should run twenty to discriminate them
+  (measured 2026-09-10; the layout itself stays non-bitwise, dec-B117).
   post-release: a size gate on the fused roll + suffstat pass, two
   thresholds rather than one - fuse weighted at n >= 1e4, unweighted at
   n >= 2e4 - since the fusion loses up to 8 percent below those and
@@ -578,7 +395,6 @@ engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   fused pass with no equivalence coverage at all. Crossover grid and
   corpus count: docs/plans/engine-performance.md, "Crossover grid for
   a size gate".
-  Plan: docs/plans/engine-performance.md.
 
 engine generics deep dive (decided, VD 2026-09-08; docs/decisions.md
   dec-B92)
@@ -596,47 +412,6 @@ rule draw default weight (decided, VD 2026-09-08; docs/decisions.md
   without rationale. The post-merge mixing research sets the weight with
   a rationale, pre- or post-1.0-0 as time allows. Manual documents the
   kernel and its cost.
-
-family objects and front-door consolidation (decided, VD 2026-09-08;
-  docs/decisions.md dec-B98; LANDED 2026-09-09: S2 44b3fa6d, S4
-  28431413)
-  pre-release: family accepts a token or a family object carrying its
-  settings (hazard(breaks, max.rows), nbinom(dispersion), later aft and
-  others); the three family-only formals leave bart with tombstones;
-  audit every remaining front-door formal and move family-only or
-  feature-only ones onto their objects (the August consolidation left
-  these); fold resid.dist into the family objects (Student-t errors as
-  a variant or setting), retiring dbartsResidDists, else export it to
-  match dbartsPriors (dec-B101); add na.action with a package default
-  that drops missing-response rows only, keeps missing predictors, and
-  records dropped rows for padding (dec-B108); base na.* functions keep
-  their meaning. Plan: docs/plans/front-door.md; lands with the
-  front-door rename.
-
-sparse factors on the formula interface (decided, VD 2026-09-08;
-  docs/decisions.md dec-B100; LANDED 7165c352)
-  pre-release, R layer: no formula marker. A sparse Matrix or
-  sparseFactor is assigned into the data frame as a column (d$dtm <- M;
-  the frame already subsets and na.omits it correctly) and named in the
-  formula like any column, or reached through the dot; ingestion
-  detects S4 columns by class, lifts them out before model.frame,
-  expands the dot itself, and re-attaches by row. Wide factors are
-  stored sparse by the engine from the level count, no user marker;
-  the sparseFactor constructor stays for forcing it. The audit's
-  sparse() term is rejected (VD: the class already says it is sparse).
-  Verify VD's recollection that only printing breaks for a sparse
-  Matrix column in a data frame: the audit checked nrow, row
-  subsetting and na.omit; also check order, split, merge, rbind,
-  head, str, saveRDS round trip, and model.frame's subset path.
-  Audit: docs/plans/sparse-formula-audit.md. Plan:
-  docs/plans/interfaces-and-dependencies.md.
-
-rbart_vi removal (decided, VD 2026-09-08; docs/decisions.md dec-B105)
-  stays removed; tombstone names stan4bart and says the group-spread
-  prior differs there. Condition: stan4bart clears its group-spread
-  mixing bar (lag-1 autocorrelation below 0.8, ESS at least 100 per
-  1000 draws) before dbarts ships; fallback if not: an R-only grouped
-  intercept over the plain sampler's setOffset, no engine block.
 
 binary-hyperprior-revisit (raised by the study, 2026-09-14;
   docs/plans/binary-hyperprior.md, "What to revisit after the mixing
@@ -663,15 +438,12 @@ binary-hyperprior-revisit (raised by the study, 2026-09-14;
   effects in the note, involve no sampled k and do not depend on this.
 
 BayesTree claim and build flags (decided, VD 2026-09-08;
-  docs/decisions.md dec-B107; LANDED a98c4cad)
-  DESCRIPTION and man/dbarts-package.Rd say "provides a
-  BayesTree-compatible interface"; configure.ac's
-  --enable-match-bayes-tree, --enable-thread-safe-unload and
-  --with-xint-size stop with a removal message and no replacement.
-  All three stubs expire after one release (1.0-0): delete them
-  outright, and configure.ac's comment naming them, in the release
-  after 1.0-0.
-  Plan: docs/plans/interfaces-and-dependencies.md.
+  docs/decisions.md dec-B107; LANDED a98c4cad; plan
+  docs/plans/interfaces-and-dependencies.md)
+  configure.ac's --enable-match-bayes-tree, --enable-thread-safe-unload
+  and --with-xint-size stop with a removal message for one release
+  (1.0-0). Open: delete the three stubs outright, and configure.ac's
+  comment naming them, in the release after 1.0-0.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   pre-release sequence (VD 2026-09-12): VD's own items before the

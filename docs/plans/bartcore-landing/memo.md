@@ -22,7 +22,7 @@ forest for heteroscedastic residuals under the gaussian and survival
 families, a multi-forest family in the shape of Bayesian causal forests,
 monotone and interaction constraints, linear and Gaussian-process leaves,
 the DART sparsity prior, sparse predictor matrices, in-model handling of
-missing predictors, per-draw callbacks from R or C, an active-row mask,
+missing predictors, per-draw callbacks into compiled code, an active-row mask,
 and a flat C header that other packages compile against in place of the
 old C++ headers. The cross-validation function is now an R driver over the
 sampler, so it reaches the sampler's own priors and settings and
@@ -53,10 +53,10 @@ usage is:
 - Calling bart with the old argument names. Loud, once: a call that names
   a BayesTree-style argument is forwarded to bartBT, which carries
   0.9-34's 31 arguments and defaults unchanged, after a once-per-session
-  warning. Calling bart positionally with a matrix and a vector is silent
-  and changes the answer: bart is now the modern door, formerly bart2, and
-  fits four chains of 500 draws with 75 trees where 0.9-34 fit one chain
-  of 1000 draws with 200 trees.
+  warning. Calling bart positionally with a matrix and a vector changes
+  the answer with only a message, once per session: bart is now the modern
+  door, formerly bart2, and fits four chains of 500 draws with 75 trees
+  where 0.9-34 fit one chain of 1000 draws with 200 trees.
 - Factor predictors. Silent. Unordered factors split on subsets of levels
   as one column and ordered factors become one ordinal column, where
   0.9-34 expanded both into indicators. The design matrix, the variable
@@ -92,23 +92,25 @@ usage is:
   refused with an explanation. Silent otherwise: reported losses rise
   because no fold is warm-started on its own rows, and sigma is renamed
   sigest.
-- Sampler methods. Loud: a thread count passed to run is ignored with a warning naming setControl. Silent:
-  setResponse gains updateScale as its second positional argument, so
-  setResponse(y, TRUE) now rescales instead of storing state, with a once-
-  per-session warning; the mutators refresh the stored state only when
-  asked, so a fit saved after a mutation may not reflect it.
-- rngSeed. A warning, and the value is honoured; but a package that
-  filters control arguments against the control constructor's formals
-  drops it silently and runs unseeded.
+- Sampler methods. A warning: run ignores a thread count and names
+  setControl, which sets it. Silent: setResponse gains updateScale as its
+  second positional argument, so setResponse(y, TRUE) now rescales instead
+  of storing state, with a once-per-session warning; the mutators refresh
+  the stored state only when asked, so a fit saved after a mutation may
+  not reflect it.
+- rngSeed. A warning, and the value is honoured. A package that passes on
+  only the control constructor's own arguments drops it silently; seed
+  passes through.
 - Saved objects. Loud for a saved sampler state, which cannot be restored.
   Silent for a saved data object, which keeps its old design and fits
   differently from a fresh one; an ordered factor in it has no upgrade
   path.
-- Removed functions. Loud: rbart_vi points to stan4bart and its plot and
-  print methods are gone; a three-or-more-level factor response through
-  bartBT is refused with the multinomial route named; the control
-  constructor loses its RNG-kind arguments; startThreads and stopThreads
-  warn and do nothing.
+- Removed functions. Loud: rbart_vi and its methods stop with an error
+  naming stan4bart, except print on a saved rbart fit, which prints the
+  call and a note; a three-or-more-level factor response through bartBT is
+  refused with the multinomial route named; the control constructor loses
+  its RNG-kind arguments; startThreads and stopThreads warn and do
+  nothing.
 - Smaller silent changes: NULL components are dropped from the fit object;
   the third positional argument of fitted is the interval level.
 - Installation. Loud: R 4.2.0 and a C++20 compiler are required, and any
@@ -119,8 +121,8 @@ The sister packages we own each need their ported branch:
 - stan4bart. The CRAN release fails to load against 1.0-0, since it
   resolves symbols the flat header no longer exports. The ported branch
   builds its sampler in R, drives it through the header, seeds correctly,
-  and gains a slice move that fixes the group-spread mixing the removal of
-  rbart_vi was conditioned on.
+  gains a slice move that fixes the group-spread mixing the removal of
+  rbart_vi was conditioned on, and gains residuals() for its fits.
 - bartCause. The CRAN release installs, then errors on every response
   route, because it assigns into the predictor matrix of a data object in
   a way 1.0-0 refuses; its grouped route fails earlier on rbart_vi. The
@@ -134,42 +136,45 @@ The sister packages we own each need their ported branch:
 
 ## What is missing or wrong before a release candidate and before 1.0-0
 
-Before the merge to main, because each is shipped surface or a decision
-the merge is made on:
+Before the merge to main, because the maintainer placed them there:
 
-- At the freeze: re-verify the four sister packages against the final
-  header. They passed on 2026-09-23, so this repeats only if the header or
-  the R functions they call change before then. Bump the DESCRIPTION date.
-  Then the maintainer's own items: contacting lorax's maintainer about its
-  three-level factor response, contacting WeightIt's and MatchIt's
-  maintainer about bart2's removal in 1.1-0 and the rngSeed argument their
-  filters drop, and closing the setResponse issue.
+- lorax's examples fit a three-level factor response, which 0.9-34
+  silently coded as 0, 1 and 2 and 1.0-0 refuses; its maintainer is to be
+  asked to change them.
+- WeightIt and MatchIt fit through bart2; their tests and examples pass
+  under 1.0-0 with bart2's alias warning, bart2 is removed in 1.1-0 only
+  if no CRAN package still calls it, and their maintainer is to be told.
 
 After the merge, because they cannot run before it or the maintainer
 placed them there:
 
 - The scheduled workflows, equivalence, rchk, the reverse-dependency smoke
-  test, SBC and valgrind, bind to the default branch and cannot run until
-  the merge. rchk and valgrind have each run once by hand, rchk clean, and
-  they are the checks CRAN itself runs.
-- Placed there by ruling, before the 1.0-0 submission: the engine stops
-  calling R for densities, printing and error reporting, and the C
-  interface gains an entry that creates a sampler from a plain-C
-  specification, so a host without R, such as Python, can build one. The
-  sister packages are re-verified after it.
-- Deferred by ruling: the fused residual pass loses up to 8 percent below
-  its crossover size and ships without a size gate; the rule-Gibbs move
-  ships at zero weight and is adopted later; the binary prior is revisited
-  after the mixing research, since the sampled k never converges at any
-  affordable length even though the fitted probabilities do; and C entries
-  to shift a constant between the forest and a host's intercepts, which
-  stan4bart's remaining mixing failure needs, land as a minor header
-  addition.
+  test, SBC and valgrind, run only from the default branch. rchk and
+  valgrind, the checks CRAN itself runs, are clean in runs by hand.
+- Placed there by ruling, before the 1.0-0 submission. The engine will
+  stop calling R for its math and printing, which will be chosen when the
+  package is built: R's own under R, so draws under R do not change, and a
+  copy of R's routines and standard output elsewhere. The C interface
+  gains an entry that creates a sampler from a plain-C specification, so
+  a host without R, such as Python, can build one. Frequency weights, where a row stands for w identical
+  observations, arrive as an explicit choice beside today's precision
+  weights, so no existing fit moves. stan4bart gains a plot method to
+  replace rbart's. The four sister packages are then re-verified against
+  the final header.
+- Deferred by ruling to after 1.0-0: the fused residual pass loses up to
+  8 percent below its crossover size and ships without a size gate; the
+  binary prior is revisited after the mixing research, since the sampled
+  k never converges at any affordable length; C entries to shift a
+  constant between the forest and a host's intercepts, which stan4bart
+  needs, land as a minor header addition; and real-valued negative
+  binomial dispersion and real weights on binary responses wait on a
+  decision to admit an approximate draw. The rule-Gibbs move ships at zero
+  weight until the mixing research sets one, before or after 1.0-0.
 - Gaps with no decision yet: xbart reaches only the gaussian and binary
-  families; the negative binomial has no continuous dispersion; the
-  alternate families have no warm start; the multinomial family has no
-  per-observation log-likelihood channel; the negative binomial SBC arm
-  passes only with two functionals waived as an identifiability ridge.
+  families; the alternate families have no warm start; the multinomial
+  family has no per-observation log-likelihood channel; the negative
+  binomial SBC arm passes only with two functionals waived as an
+  identifiability ridge.
 
 ## Whether 1.0-0 and 0.9-34 give the same posterior
 
@@ -189,8 +194,8 @@ weighted answer; the change move under unequal cut counts, where removing
 the move makes them agree and 0.9-34's answer drifts with the move's share
 while 1.0-0's does not; and cross-validation, where a fold-by-fold loop
 through the plain fitting function agrees with 1.0-0 and not with 0.9-34.
-Two expected shifts, the empty-leaf initial forest and the chi degrees-of-
-freedom relabel, are below what this comparison can resolve, which is
+Two expected shifts, the empty-leaf initial forest and the corrected chi
+degrees of freedom, are below what this comparison can resolve, which is
 about a third of a posterior standard deviation on a fitted value. The
 comparison does not reach the sampler's accessors, state saving or
 prediction from a saved sampler.

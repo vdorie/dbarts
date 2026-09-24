@@ -1,10 +1,9 @@
 # bartcore: the merge review
 
-Current at a92f8c9b (bartcore), 2026-09-23.
-
-The case for merging bartcore into main, the step before the 1.0-0
-release, is sections 1 to 6; Appendix A is a reading order for the code.
-Differences are stated against dbarts 0.9-34, the release on main.
+The case for merging bartcore into main is sections 1 to 6; Appendix A is
+a reading order for the code. Differences are stated against dbarts
+0.9-34, the release on main. Work scheduled between the merge and the
+1.0-0 release is in section 6.
 
 ## 1. What the merge replaces
 
@@ -14,9 +13,9 @@ shipped header, `inst/include/dbarts/dbarts.h`, a C interface.
 
 The R entry points. `bart` becomes the formula-first function that 0.9-34
 called `bart2`, with its defaults. The BayesTree-style function with
-0.9-34's argument names and defaults moves to `bartBT`. `bart2` stays for
-one release as an alias of `bart`. `rbart_vi` is removed; grouped random
-effects are stan4bart's.
+0.9-34's argument names and defaults moves to `bartBT`. `bart2` stays as
+an alias of `bart`, removed in 1.1-0 if no CRAN package still calls it.
+`rbart_vi` is removed; grouped random effects are stan4bart's.
 
 What the new engine adds, none of which 0.9-34 could fit: Student-t,
 logistic, ordinal, multinomial, negative binomial, log-normal accelerated
@@ -82,7 +81,7 @@ most likely first.
    fit with monotone constraints or several forests, keep `k = 2`. Every
    other probit posterior moves.
 4. **`bart2` becomes an alias, and its arguments move.** `bart2` forwards to
-   `bart` with a once-per-session warning until 1.1-0. `combineChains` now
+   `bart` with a once-per-session warning. `combineChains` now
    defaults to `TRUE`, so `yhat.train` and the other draw arrays come back
    with chains and samples merged. In the merged `sigma` and `k` vectors all
    of chain 1's draws come first, then chain 2's; 0.9-34 alternated chains
@@ -93,10 +92,9 @@ most likely first.
    `control = dbartsControl(proposal.probs = )`. The old names still work
    until 1.1-0, with a once-per-session warning. New arguments include
    `family`, `factors`, `na.action`, `tree.prior`, `node.prior` and
-   `control`. `rngSeed` is spelled `seed`; the old name still works, but a
-   package that passes on only the names `dbartsControl` itself accepts, as
-   the released stan4bart, WeightIt and MatchIt do, drops it and runs
-   unseeded.
+   `control`. `rngSeed` is spelled `seed`; the old name still works, with a
+   once-per-session warning, but a package that passes on only the names
+   `dbartsControl` itself accepts drops it and runs unseeded.
 5. **Factor predictors enter as one column.** An unordered factor is split
    on subsets of its levels and an ordered factor is split at thresholds
    between its levels, where 0.9-34 expanded both into indicator columns.
@@ -120,8 +118,9 @@ most likely first.
    `weights` or `n.threads` passed to `extract`, `fitted` or `residuals` -
    are refused by name, where 0.9-34 dropped them silently. Other unknown
    names still pass silently, except on `predict`, which warns. A fractional
-   count (`n.trees = 2.5`) is refused rather than truncated. A `weights` vector of the wrong length is an error rather than
-   recycled. `fitted`'s third positional argument is now `ci.level`.
+   count (`n.trees = 2.5`) is refused rather than truncated. A `weights`
+   vector of the wrong length is an error rather than recycled. `fitted`'s
+   third positional argument is now `ci.level`.
 9. **Weights.** A probit fit refuses a weighted likelihood, which 0.9-34 fit
    incorrectly; a 0/1 vector marks rows in or out, and integer counts belong
    on `family = "logistic"`. On a gaussian fit, rows at weight zero no
@@ -135,10 +134,12 @@ most likely first.
 Less common: the sampler's `setResponse(y, TRUE)` now sets `updateScale`;
 its mutators refresh `$state` only when passed `updateState = TRUE`; `run`
 takes no thread count (either spelling, or a fourth positional argument,
-is ignored with a warning; `setControl` sets the count). `xbart` renames `sigma` to `sigest`, takes a two-element `n.burn`,
-and no longer carries a chain across folds, so reported losses rise.
-`rbart_vi` stops with an error naming stan4bart. R 4.2.0 and a C++20
-compiler are required.
+is ignored with a warning; `setControl` sets the count). `xbart` renames
+`sigma` to `sigest`, takes a two-element `n.burn`, and no longer carries a
+chain across folds, so reported losses rise. `rbart_vi` and its methods
+stop with an error naming stan4bart, except `print` on a saved rbart fit,
+which prints the call and a note. R 4.2.0 and a C++20 compiler are
+required.
 
 ## 3. Breaking changes for linked packages
 
@@ -158,7 +159,8 @@ setters. All of it is gone. Instead:
   Predictor and test-data updates, weights, active rows, per-forest
   settings, state save and restore, and tree extraction are R methods on
   that object. The C surface is 22 sampler entries plus three version
-  queries ([`DBARTS_C_API_LIST`](../../inst/include/dbarts/dbarts.h)).
+  queries ([`DBARTS_C_API_LIST`](../../inst/include/dbarts/dbarts.h)). A C
+  creation entry is scheduled before 1.0-0 (section 6).
 - **Setters copy.** `dbarts_sampler_setResponse` and `_setOffset` copy into
   buffers the sampler owns. Writing through the caller's array afterwards
   has no effect; call the setter again.
@@ -195,9 +197,11 @@ setters. All of it is gone. Instead:
   CI fails an ABI change without a minor bump.
 
 The four packages we maintain that use dbarts. Their full test suites
-passed on 2026-09-23 against dbarts as of 2026-09-14; the C header has not
-changed since, but R code has (argument forwarding through `...`, xbart
-warnings).
+passed on 2026-09-23 against dbarts as of 2026-09-14. The C header's
+declarations have not changed since; R code has, including `run`'s thread
+count and the fit object's components, and a search of their R code finds
+none that passes a thread count to `run` or reads a fit component that
+changed.
 
 | consumer, branch | how it uses dbarts | state |
 |---|---|---|
@@ -206,7 +210,8 @@ warnings).
 | bartCause, `dbarts-1.0` | R functions only | 790 of 790; releases from this branch |
 | bairrtt, `main` | R functions only | 206 of 206 unchanged; its posteriors move with item 1 of section 2 |
 
-`TODO`'s `release` item re-runs this against the final header.
+All four are re-run against the final header after the interface work
+scheduled in section 6.
 
 ## 4. What is checked
 
@@ -245,13 +250,13 @@ comparison resolves about a third of a posterior standard deviation.
 ## 5. What is not checked
 
 The five scheduled workflows have never run on schedule: GitHub runs
-schedules only from the default branch, so on bartcore each ran only when
-forced. `equivalence`, `sbc` and `revdep-smoke` last ran green. The forced
-`rchk` and `valgrind` runs failed - rchk on protection errors in the
-model-matrix code, since fixed, valgrind on test assertions - and later
-hand runs are clean: rchk except for the bridge's state-restore entry, too
-large for it to analyse (as it will be for CRAN's run), and valgrind over
-the whole suite on x86 (`docs/plans/valgrind-xbart.md`).
+schedules only from the default branch, so on bartcore each has run only
+when started by hand. `equivalence`, `sbc` and `revdep-smoke` last ran
+green. `rchk` and `valgrind` have no green workflow run; the checks
+themselves are clean when run by hand: rchk over all compiled code except
+the bridge's state-restore entry, too large for it to analyse (as it will
+be for CRAN's run), and valgrind over the whole suite on x86
+(`docs/plans/valgrind-xbart.md`).
 
 Things that could be wrong and would not be caught:
 
@@ -287,37 +292,62 @@ Things that could be wrong and would not be caught:
   installed from a donor into a fresh sampler silently starts without them,
   and comparing the saved states will not reveal it
   ([3. What engine state does not carry, and who reinstalls it](../design/bart-as-a-component.md#3-what-engine-state-does-not-carry-and-who-reinstalls-it)).
-- **Mutation records are dated.** The C++ tests caught 63 of 80 planted
-  engine mutations on 2026-08-24
-  (`docs/plans/review-2026-08-24/mutation-B-findings.md`), not re-run since;
-  the package-level mutation battery documents three malformed-state
-  refusals no test catches. `benchmarks/R/composition-matrix.R`, which
-  checks the feature matrix's cells, runs in no workflow.
+- **Mutation records are old.** The C++ tests caught 63 of 80 planted
+  engine mutations when last measured, a month of engine changes ago; the
+  package-level mutation battery documents three malformed-state refusals
+  no test catches. `benchmarks/R/composition-matrix.R`, which checks the
+  feature matrix's cells, runs in no workflow.
 
-## 6. Decided, open, and more expensive after the merge
+## 6. Open and scheduled work
 
 Open before the merge:
 
 - **The release-candidate declaration** (`TODO`'s `rc-gate`), after the
   maintainer's read of this document.
-- **31 agent-made decisions carry no ruling on whether they stand**: the
-  entries in section A of `docs/decisions.md` that say "Not yet ruled on",
-  superseded ones aside. For 28 of them the maintainer has recorded that the
-  choice was an agent's, but not yet whether it stands.
-  Those fixing user-visible surface cost a deprecation cycle to change
-  after release: the single `seed` and lost generator options (dec-A04),
-  ordered-factor cuts at level midpoints (dec-A09), mutators that store
-  state only when told (dec-A14), `fitted`'s `ci.level` (dec-A15),
-  automatic response-family detection (dec-A16), fit objects whose
-  component names vary (dec-A17), four common nouns exported (dec-A67),
-  documented arguments that do nothing (dec-A68), and 1-based forest
-  indices in R (dec-A69).
-- **The release items the maintainer holds**: contacting lorax's
-  maintainer (its example fits a three-level factor response, which 0.9-34
-  coded as 0, 1, 2 and 1.0-0 refuses); contacting WeightIt's and
-  MatchIt's maintainer (both call `bart2`, which is removed in 1.1-0, and
-  both drop a user's `rngSeed`, item 4); closing GitHub issue #80; and
-  submitting dbarts with stan4bart 0.0-14.
+- **Agent-made decisions not yet ruled on**: 32 entries in section A of
+  `docs/decisions.md`. Those that fix user-visible surface cost a
+  deprecation cycle to change after release:
+  - one `seed` argument, with no choice of generator (dec-A04)
+  - ordered-factor cuts at level midpoints (dec-A09)
+  - mutators that store state only when told (dec-A14)
+  - `fitted`'s `ci.level` (dec-A15)
+  - automatic response-family detection (dec-A16)
+  - fit objects that leave out any draw component a run did not keep, so
+    their names vary (dec-A17)
+  - four common nouns exported (dec-A67)
+  - two documented arguments that do nothing, the multinomial draws
+    method's variable selector and one default variable name in the
+    summary and draws methods (dec-A68)
+  - 1-based forest indices in R (dec-A69)
+- **Three CRAN packages outside ours.** lorax's examples fit a three-level
+  factor response, which 0.9-34 coded as 0, 1, 2 and 1.0-0 refuses; its
+  maintainer is to be asked to change them. WeightIt and MatchIt fit
+  through `bart2`; their BART tests and examples pass under 1.0-0 with the
+  alias warning, and their maintainer is to be told that `bart2` goes in
+  1.1-0 if no CRAN package still calls it.
+- **GitHub issue #80**, answered by `setResponse`'s `updateScale` switch,
+  is still open.
+
+Decided for after the merge and before 1.0-0, with the sister packages
+re-verified against the final header afterwards:
+
+- **A host-neutral engine.** The engine's density functions and printing
+  will be chosen when the package is built: R's own routines and console under
+  R, so draws are unchanged, and a copy of R's routines and standard
+  output elsewhere. The C interface gains an entry that creates a sampler
+  from a plain-C specification, with an error contract that does not
+  assume R; today a compiled consumer creates its sampler through R, and a
+  host without R cannot create one at all. The specification's predictor
+  part is the struct `dbarts_sampler_predict` already takes, which gains a
+  per-column statement of whether a column's values are doubles or
+  integer codes. It lands before 1.0-0 because the sister packages build
+  against the interface it changes, which becomes the 1.0 contract.
+- **Frequency weights**, where a row stands for w identical observations,
+  as an explicit choice beside the precision weights a gaussian fit takes
+  today, on the families where they make a coherent model. Precision
+  stays the default, so no existing fit moves.
+- **A `plot` method in stan4bart**, the one 0.9-x `rbart` method with no
+  counterpart there; its ported branch already has `residuals()`.
 
 Decided, and scheduled after 1.0-0: real-valued nbinom dispersion and
 weighted binary responses, which share one open question about approximate
@@ -330,27 +360,7 @@ fused residual pass, which loses up to 8 percent on small fits. The mixing
 research may also give the rule-Gibbs tree move a nonzero default weight,
 before or after 1.0-0.
 
-Decided for after the merge and before 1.0-0: the engine stops calling R
-for its density functions, printing and error reporting - the math
-through R's own routines under R and a copy of them elsewhere, and printing
-to the host's own output, both chosen when the package is built, so draws
-are unchanged under R - and the C
-interface gains an entry that creates a sampler from a plain-C
-specification, with an error contract that does not assume R. Today a compiled consumer creates
-its sampler through R and a host without R cannot create one at all. It is
-an interface change the sister packages build against, so it lands before
-the C interface becomes the 1.0 contract, and they are re-verified after
-it. In the same window, frequency weights arrive as an explicit choice
-beside the precision weights a gaussian fit takes today, on the families
-where they make a coherent model, and stan4bart gains a `plot` method for
-its fits, the one 0.9-x `rbart` method with no counterpart there.
-
-Decided for 1.0-0: a scale update on a response swap is refused on BCF and
-other models with two or more mean forests. A heteroscedastic model has one
-mean forest plus a variance forest, and there the update recalibrates the
-variance forest.
-
-More expensive after the merge, because the release fixes them:
+Costlier to change after the release, because the release fixes them:
 
 - **R names** lock at the CRAN submission; after it, a rename costs a
   deprecation cycle. The names deprecated now expire in 1.1-0.
@@ -371,7 +381,7 @@ the sections named describe the current design - about 4,900 of their
 
 ### A.1 Orientation
 
-Read `docs/architecture.md` (about 4,560 words) whole before any code; it
+Read `docs/architecture.md` (about 4,600 words) whole before any code; it
 states the current design, and outranks any paraphrase.
 
 ### A.2 The C interface
