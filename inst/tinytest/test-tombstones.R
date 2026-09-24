@@ -112,6 +112,18 @@ expect_warning(threadSampler$stopThreads(), pattern = "does nothing")
 expect_null(suppressWarnings(threadSampler$startThreads()))
 expect_null(suppressWarnings(threadSampler$stopThreads()))
 
+# run's thread count, by either name or as 0.9-x's fourth positional
+# argument, is ignored after a warning; anything else in its dots is refused
+warnEnv[["tombstone.run.n.threads"]] <- NULL
+expect_warning(
+  threadSampler$run(0L, 2L, n.threads = 2L),
+  pattern = "setControl"
+)
+expect_silent(threadSampler$run(0L, 2L, numThreads = 2L))
+expect_silent(threadSampler$run(0L, 2L, NA, 2L))
+expect_error(threadSampler$run(0L, 2L, nthreads = 2L), pattern = "'nthreads'")
+expect_error(threadSampler$run(0L, 2L, NA, 2L, NULL), pattern = "<unnamed>")
+
 # --- the consolidated argument names (dec-B98) ---
 
 # each is accepted for one release, warned about once, and MAPPED onto the

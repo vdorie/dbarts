@@ -134,8 +134,8 @@ most likely first.
 
 Less common: the sampler's `setResponse(y, TRUE)` now sets `updateScale`;
 its mutators refresh `$state` only when passed `updateState = TRUE`; `run`
-takes no per-run thread count (`numThreads` is an error, `n.threads` is
-ignored). `xbart` renames `sigma` to `sigest`, takes a two-element `n.burn`,
+takes no thread count (either spelling, or a fourth positional argument,
+is ignored with a warning; `setControl` sets the count). `xbart` renames `sigma` to `sigest`, takes a two-element `n.burn`,
 and no longer carries a chain across folds, so reported losses rise.
 `rbart_vi` stops with an error naming stan4bart. R 4.2.0 and a C++20
 compiler are required.

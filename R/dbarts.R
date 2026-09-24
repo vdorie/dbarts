@@ -1408,10 +1408,11 @@ dbartsSampler <- setRefClass(
       numBurnIn,
       numSamples,
       updateState = NA,
-      n.threads = control@n.threads,
+      ...,
       callback = NULL
     ) {
       "Runs the posterior sampler and returns a list with the results."
+      ignoreRunThreadCount(...)
       if (missing(numBurnIn)) {
         numBurnIn <- NA_integer_
       }

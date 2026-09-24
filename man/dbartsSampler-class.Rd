@@ -57,8 +57,7 @@
 }
 \usage{
 \S4method{run}{dbartsSampler}(
-  numBurnIn, numSamples, updateState = NA, n.threads = control@n.threads,
-  callback = NULL
+  numBurnIn, numSamples, updateState = NA, \dots, callback = NULL
 )
 \S4method{sampleTreesFromPrior}{dbartsSampler}(updateState = NA)
 \S4method{sampleNodeParametersFromPrior}{dbartsSampler}(updateState = NA)
@@ -182,8 +181,8 @@
     them: that variable is read only by \code{parallel:::.check_ncores}, which
     counts simultaneously spawned processes and never sees a thread.
 
-    For \code{run} the argument still has no effect: the sampler's own count
-    governs, and this one is reserved for a future per-call override.
+    \code{run} takes no thread count: a run uses the sampler's own, which
+    \code{setControl} changes, and its draws are the same at every count.
   }
   \item{sigma}{
     A single positive residual standard deviation, on the original response scale; it is assigned to every chain. \code{setSigma} only applies to a sampler whose residual standard deviation is a free parameter: it is refused on a probit-, logistic-, multinomial-, ordinal-, or count-family sampler, which fix it at 1 by the model definition, and on a heteroscedastic (\code{variance}) sampler, whose variance forest owns the residual scale. A gaussian sampler with \code{family = gaussian(sigma = fixed())} is not fixed in this sense and is still accepted: suppressing the internal draw so an outer sampler owns \code{sigma} is what that prior is for.
@@ -347,7 +346,12 @@
     For \code{setState}, a state object previously produced by this sampler over the same model: its \code{state} field, calling \code{storeState()} first to refresh it if a later mutation may have gone unstored (\code{storeState} itself returns \code{NULL} invisibly, so its return value cannot be passed here). Must inherit from \code{bartcoreState}.
   }
   \item{...}{
-    Extra arguments to \code{\link{plot}}.
+    For \code{plotTree}, extra arguments to \code{\link{plot}}. For
+    \code{run}, only 0.9-x's per-call thread count, as \code{n.threads},
+    \code{numThreads} or the one unnamed argument after \code{updateState},
+    which is ignored with a once-per-session warning until dbarts 1.1-0
+    (\code{\link{dbarts-deprecated}}); anything else is refused. A
+    \code{callback} to \code{run} must therefore be named.
   }
 }
 \section{Fields}{

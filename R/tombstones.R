@@ -304,6 +304,13 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
+    name = "thread count on $run",
+    kind = "behaviour",
+    owner = "dbartsSampler",
+    successor = "setControl",
+    expires = tombstoneExpiry
+  ),
+  list(
     name = "front-door startup message",
     kind = "behaviour",
     owner = ".onAttach",
@@ -942,6 +949,47 @@ noOpThreadMethod <- function(name) {
     name,
     "' does nothing in dbarts 1.0-0: threads are owned by each run. The ",
     "method is removed in dbarts ",
+    tombstoneExpiry,
+    "."
+  )
+  invisible(NULL)
+}
+
+## ------------------------------------------------------------------
+## dbartsSampler$run's thread count
+## ------------------------------------------------------------------
+
+## 0.9-x's run took a per-call thread count as its fourth argument, a formal
+## spelled numThreads and documented as n.threads. A run now uses the
+## sampler's own count, which setControl changes, and the draws do not depend
+## on it, so a value passed either way - by name, or as the one unnamed
+## argument after updateState - is ignored after saying so once. Anything
+## else in the dots is refused, as an unused argument would be.
+ignoreRunThreadCount <- function(...) {
+  supplied <- dotNames(...)
+  if (length(supplied) == 0L) {
+    return(invisible(NULL))
+  }
+  legacy <- supplied %in%
+    c("n.threads", "numThreads") |
+    (!nzchar(supplied) & seq_along(supplied) == 1L)
+  if (!all(legacy)) {
+    foreign <- supplied[!legacy]
+    foreign[!nzchar(foreign)] <- "<unnamed>"
+    stop(
+      "unused argument",
+      if (length(foreign) > 1L) "s" else "",
+      " ",
+      paste0("'", foreign, "'", collapse = ", "),
+      " passed to '$run'",
+      call. = FALSE
+    )
+  }
+  warnOnce(
+    "tombstone.run.n.threads",
+    "'$run' no longer takes a thread count; the value was ignored. A run ",
+    "uses the sampler's own, control@n.threads, which $setControl changes, ",
+    "and the draws do not depend on it. The argument is removed in dbarts ",
     tombstoneExpiry,
     "."
   )

@@ -54,6 +54,9 @@
     \item{\code{dbartsSampler}'s \code{$startThreads}/\code{$stopThreads}}{
       No-op methods (\code{\linkS4class{dbartsSampler}}): the hierarchical thread manager they drove is gone, threads now owned per run, but a 0.9-x Gibbs loop that brackets its sweeps with them still runs.
     }
+    \item{A thread count on \code{dbartsSampler}'s \code{$run}}{
+      Ignored after a once-per-session warning, whether passed as \code{n.threads}, as 0.9-x's formal \code{numThreads}, or positionally after \code{updateState}: a run uses the sampler's own count, which \code{$setControl} changes, and its draws do not depend on it.
+    }
     \item{A BayesTree-spelled \code{\link{bart}} call}{
       Forwarded to \code{\link{bartBT}} after a once-per-session warning, when the call carries a name from \code{bartBT}'s own formals that \code{bart} does not take.
     }

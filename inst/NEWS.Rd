@@ -182,9 +182,12 @@
             \code{updateState = TRUE}. \code{run},
             \code{sampleTreesFromPrior}, and
             \code{sampleNodeParametersFromPrior} keep the old convention.
-      \item The sampler's \code{run} renames its \code{numThreads} argument
-            to \code{n.threads}; the old spelling is an unused-argument
-            error.
+      \item The sampler's \code{run} no longer takes a thread count: a run
+            uses the sampler's own, which \code{setControl} changes, and
+            its draws are the same at every count. \code{numThreads}, the
+            documented spelling \code{n.threads}, or a fourth positional
+            argument is ignored with a once-per-session warning until
+            dbarts 1.1-0, and \code{callback} must be passed by name.
       \item The sampler's \code{setResponse} gains an \code{updateScale}
             argument defaulting to \code{FALSE}: the response transform -
             the location and range that map the response into the tree
@@ -348,7 +351,9 @@
             \code{extract.rbart}, \code{fitted.rbart}, and
             \code{residuals.rbart} methods (error outright, naming
             \code{stan4bart::stan4bart}); \code{dbartsSampler}'s
-            \code{$startThreads}/\code{$stopThreads} (no-op methods);
+            \code{$startThreads}/\code{$stopThreads} (no-op methods) and
+            a thread count passed to \code{$run} (ignored, successor
+            \code{$setControl});
             \code{rngSeed} on \code{bart} and \code{dbartsControl}
             (successor \code{seed}); \code{sigma} on \code{dbarts} and
             \code{dbartsSpec} (successor \code{sigest}); \code{resid.dist}
@@ -2185,9 +2190,6 @@
             \code{dbartsSpec}) keep \code{sigma}. A caller still naming
             \code{sigma} now gets an unused-argument error from
             \code{xbart}.
-      \item The sampler's \code{$run} spells its per-call thread count
-            \code{n.threads}, matching every other entry point; the old
-            \code{numThreads} is an unused-argument error.
       \item \code{bart} gains \code{tree.prior} and \code{node.prior}
             formals (\code{NULL} by default), taking the same full
             \code{\link{dbartsPriors}} objects \code{\link{dbarts}} already

@@ -92,7 +92,7 @@ usage is:
   refused with an explanation. Silent otherwise: reported losses rise
   because no fold is warm-started on its own rows, and sigma is renamed
   sigest.
-- Sampler methods. Loud: run's thread argument is renamed. Silent:
+- Sampler methods. Loud: a thread count passed to run is ignored with a warning naming setControl. Silent:
   setResponse gains updateScale as its second positional argument, so
   setResponse(y, TRUE) now rescales instead of storing state, with a once-
   per-session warning; the mutators refresh the stored state only when
