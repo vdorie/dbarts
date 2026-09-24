@@ -518,8 +518,11 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     The reshape is the last planned pre-release breaking change, and
     the C ABI constants (DBARTS_C_API_MAJOR/MINOR) read 1.0 through the
     window and become the initial contract at this release.
-  push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-14; submit both
-    to CRAN together. bartCause releases from its dbarts-1.0 branch,
+  push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-14 and submit
+    them together with bartCause from its dbarts-1.0 branch, the
+    submission note saying the packages go in as a set and that checks
+    of each against the others' CRAN versions are expected to fail (VD
+    2026-09-24: CRAN handles such sets routinely). bartCause is
     re-verified against the final header at the freeze.
   DBARTS_REQUIRE_EXACT_ABI is already off stan4bart's and treatSens's
     compat branches (pure-c-header S2); nothing to drop at the merge.
