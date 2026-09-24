@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (45 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (46 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) -
@@ -18,6 +18,7 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | bcf-cross-host.md | LANDED 3f532af2, 2026-08-26 | Adds a `--cross-host` compare mode to the bcf and multinomial equivalence harnesses, gating cross-platform draws under a two-tier verdict (a tight bound as the real gate, a weaker statistical fallback labeled as such). |
 | bcf-latent-evidence.md | LANDED the exact gate, the derivation, the SBC measurement and the three latent equivalence scenarios, 2026-09-13; neither latent arm admitted to the SBC matrix (a recorded chain-length finding); the active-rows-mask evidence stays PROPOSED | Extends the BCF calibration and exactness evidence to the probit and logistic sub-families: two SBC arms whose burn and matrix admission are earned from a repriced ladder rather than inherited, an adaptive-quadrature exact-posterior gate over a two-cell design whose single-tree forests carry at most two leaves, with an aggregated arm for logistic trial counts, and three latent equivalence scenarios (probit, logistic, weighted logistic) against the bcf-equivalence baseline. |
+| forest-cache-drift.md | PROPOSED, 2026-09-24 (decision-gated) | Fixes a correctness defect in the amplitude ridge move, which scales a forest's cached fits and its leaf tables separately, so the rounding gap between them compounds and biases every amplitude-coupled family. After the move the cache is re-derived from the leaves, and a rule plus component tests guard against any cache gap being multiplied. The latent BCF exact gates, calibration arms and equivalence baselines are re-run against the fix. |
 
 ## Forest / multi-forest infrastructure
 
