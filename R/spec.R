@@ -139,7 +139,8 @@ resolveSamplerSpec <- function(
   bases,
   forests,
   evalEnv,
-  residPrior = NULL
+  residPrior = NULL,
+  familySpec = NULL
 ) {
   # a factor/logical/character response declares a classification model. The
   # single-forest engine here fits only the 2-level (probit) case; 3+ levels
@@ -454,6 +455,11 @@ resolveSamplerSpec <- function(
   }
   if (!is.null(residDf)) {
     attr(model, "resid.df") <- if (is.na(residDf)) 0.0 else as.double(residDf)
+  }
+  # the family as the caller specified it, which a packaged fit carries for
+  # family(); model@family is the engine's token
+  if (!is.null(familySpec)) {
+    attr(model, "family.spec") <- specifiedFamily(familySpec, family)
   }
 
   # the resolved per-column monotone directions ride the model attribute the C
@@ -1011,6 +1017,7 @@ dbartsSpec <- function(
     bases = basis,
     forests = forests,
     evalEnv = parentEnv,
-    residPrior = residPrior
+    residPrior = residPrior,
+    familySpec = familySpec
   )
 }

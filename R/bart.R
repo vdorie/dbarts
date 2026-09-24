@@ -297,9 +297,9 @@ packageBartResults <- function(
   # hasVariance is whether the MODEL is heteroscedastic, which survives
   # keepFits = FALSE where !is.null(samples$variance) would not: the bridge
   # names the "variance" slot in samples whenever the model carries the
-  # channel, even when keepFits nulls its VALUE, so a caller reading
-  # object$hasVariance below can still tell a homoscedastic fit from a
-  # heteroscedastic one whose s.train/s.test keepFits dropped - predict()'s
+  # channel, even when keepFits nulls its VALUE, so the resid.scale
+  # descriptor below still tells a homoscedastic fit from a heteroscedastic
+  # one whose s.train/s.test keepFits dropped - predict()'s
   # posterior-predictive guard needs exactly that (see predict.bart)
   hasVariance <- "variance" %in% names(samples)
   s.train <- NULL
@@ -343,14 +343,24 @@ packageBartResults <- function(
     )
   }
 
-  # the residual-distribution token every packaged fit carries: student()
-  # residuals are refused unless family == "gaussian" (R/spec.R), so the
-  # model's resid.df attribute (residDistDf, R/model.R) being non-NULL
-  # already records which law was fit.
+  # The model descriptors: which ones a fit carries is fixed by its family,
+  # never by run options, and each always holds a value, so no reader infers
+  # the model from which draw channels a run kept. resid.dist and resid.scale
+  # describe the residual law's shape and scale model, and exist only on a
+  # family that has one (gaussian and aft); student() residuals are refused
+  # unless family == "gaussian" (R/spec.R), so the model's resid.df attribute
+  # being non-NULL already records which law was fit.
   residDist <- if (is.null(attr(fit$model, "resid.df"))) {
     "gaussian"
   } else {
     "student"
+  }
+  residScale <- if (hasVariance) "forest" else "constant"
+  # the family as specified, for family(); a sampler whose model was built
+  # outside dbarts()/dbartsSpec() carries only the engine token
+  familySpec <- attr(fit$model, "family.spec")
+  if (is.null(familySpec)) {
+    familySpec <- newValidated("dbartsFamily", token = fit$model@family)
   }
 
   # what the fit's na.action dropped, in base R's own shape and under base
@@ -361,7 +371,7 @@ packageBartResults <- function(
     result <- list(
       call = fit$control@call,
       family = fit$model@family,
-      resid.dist = residDist,
+      family.spec = familySpec,
       yhat.train = yhat.train,
       yhat.test = yhat.test,
       varcount = varcount,
@@ -374,7 +384,9 @@ packageBartResults <- function(
     result <- list(
       call = fit$control@call,
       family = fit$model@family,
+      family.spec = familySpec,
       resid.dist = residDist,
+      resid.scale = residScale,
       first.sigma = burnInSigma,
       sigma = sigma,
       sigest = fit$data@sigma,
@@ -419,26 +431,17 @@ packageBartResults <- function(
   # element stays absent) for every non-survival family
   result$status <- attr(fit$control, "bartcore.survival")
 
-  # the discrete-time hazard marker: the ordered period grid, present only
-  # on hazard fits (parked on the control attribute by dbarts()).
-  # survivalProbabilities dispatches its hazard branch on THIS marker
-  # instead of $family. NULL - and so the element stays absent - for every
-  # non-hazard fit.
+  # the discrete-time hazard period grid, present on every hazard fit (parked
+  # on the control attribute by dbarts()) and NULL - so absent - on every
+  # other; survivalProbabilities reads it once family() has said the fit is
+  # a hazard one
   result$periods <- attr(fit$control, "bartcore.hazard.periods")
 
-  # the forest count the widened varcount channel's trailing margin carries,
-  # the multi-forest analog of the multinomial packager's K; absent at one
-  # forest, so every single-forest fit keeps exactly the elements it had.
-  # fitSynopsis reads it to tell a forest margin from a chain margin, which
-  # the packaged rank alone cannot do
-  if (numForests > 1L) {
-    result$n.forests <- numForests
-  }
-  # absent (not FALSE) off a homoscedastic fit, the same "absent, not NULL"
-  # convention the rest of this list uses
-  if (hasVariance) {
-    result$hasVariance <- TRUE
-  }
+  # the forest count, a descriptor every fit carries (1 for a single forest):
+  # the widened varcount channel's trailing margin, the multi-forest analog
+  # of the multinomial packager's K. fitSynopsis reads it to tell a forest
+  # margin from a chain margin, which the packaged rank alone cannot do
+  result$n.forests <- numForests
   if (hasForestReporting) {
     result$forestFits <- forestFits
     result$glue <- glue
@@ -1273,23 +1276,27 @@ bart <- function(
         levels <- as.character(seq_len(ncol(y)))
       }
 
-      return(bart2MultinomialCounts(
-        matchedCall,
-        callingEnv,
-        control,
-        y,
-        levels,
-        power,
-        base,
-        sigest,
-        dart,
-        combineChains,
-        offset = multinomialOffset,
-        prior.scale = prior.scale,
-        split.probs = split.probs,
-        shorthandSupplied = shorthandSupplied,
-        keepSampler = keepSampler,
-        samplerOnly = samplerOnly
+      return(withFamilySpec(
+        familySpec,
+        family,
+        bart2MultinomialCounts(
+          matchedCall,
+          callingEnv,
+          control,
+          y,
+          levels,
+          power,
+          base,
+          sigest,
+          dart,
+          combineChains,
+          offset = multinomialOffset,
+          prior.scale = prior.scale,
+          split.probs = split.probs,
+          shorthandSupplied = shorthandSupplied,
+          keepSampler = keepSampler,
+          samplerOnly = samplerOnly
+        )
       ))
     }
     if (is.character(y)) {
@@ -1315,22 +1322,26 @@ bart <- function(
       )
     }
 
-    return(bart2Multinomial(
-      matchedCall,
-      callingEnv,
-      control,
-      y,
-      power,
-      base,
-      sigest,
-      dart,
-      combineChains,
-      offset = multinomialOffset,
-      prior.scale = prior.scale,
-      split.probs = split.probs,
-      shorthandSupplied = shorthandSupplied,
-      keepSampler = keepSampler,
-      samplerOnly = samplerOnly
+    return(withFamilySpec(
+      familySpec,
+      family,
+      bart2Multinomial(
+        matchedCall,
+        callingEnv,
+        control,
+        y,
+        power,
+        base,
+        sigest,
+        dart,
+        combineChains,
+        offset = multinomialOffset,
+        prior.scale = prior.scale,
+        split.probs = split.probs,
+        shorthandSupplied = shorthandSupplied,
+        keepSampler = keepSampler,
+        samplerOnly = samplerOnly
+      )
     ))
   }
 
@@ -1350,19 +1361,23 @@ bart <- function(
       allow.samplerOnly = TRUE
     )
     warnFamilyGatedArgs(argNames, "ordinal")
-    return(bart2Ordinal(
-      matchedCall,
-      callingEnv,
-      control,
-      power,
-      base,
-      dart,
-      combineChains,
-      prior.scale = prior.scale,
-      split.probs = split.probs,
-      shorthandSupplied = shorthandSupplied,
-      keepSampler = keepSampler,
-      samplerOnly = samplerOnly
+    return(withFamilySpec(
+      familySpec,
+      family,
+      bart2Ordinal(
+        matchedCall,
+        callingEnv,
+        control,
+        power,
+        base,
+        dart,
+        combineChains,
+        prior.scale = prior.scale,
+        split.probs = split.probs,
+        shorthandSupplied = shorthandSupplied,
+        keepSampler = keepSampler,
+        samplerOnly = samplerOnly
+      )
     ))
   }
 
@@ -1383,19 +1398,23 @@ bart <- function(
       allow.samplerOnly = TRUE
     )
     warnFamilyGatedArgs(argNames, "nbinom")
-    return(bart2Negbin(
-      matchedCall,
-      callingEnv,
-      control,
-      power,
-      base,
-      dart,
-      combineChains,
-      prior.scale = prior.scale,
-      split.probs = split.probs,
-      shorthandSupplied = shorthandSupplied,
-      keepSampler = keepSampler,
-      samplerOnly = samplerOnly
+    return(withFamilySpec(
+      familySpec,
+      family,
+      bart2Negbin(
+        matchedCall,
+        callingEnv,
+        control,
+        power,
+        base,
+        dart,
+        combineChains,
+        prior.scale = prior.scale,
+        split.probs = split.probs,
+        shorthandSupplied = shorthandSupplied,
+        keepSampler = keepSampler,
+        samplerOnly = samplerOnly
+      )
     ))
   }
 
@@ -1443,15 +1462,19 @@ bart <- function(
         "positive-part fit is given the full training x as its own x.test"
       )
     }
-    return(bart2Hurdle(
-      matchedCall,
-      callingEnv,
-      control,
-      formula,
-      data,
-      seed,
-      consolidated,
-      residPrior
+    return(withFamilySpec(
+      familySpec,
+      family,
+      bart2Hurdle(
+        matchedCall,
+        callingEnv,
+        control,
+        formula,
+        data,
+        seed,
+        consolidated,
+        residPrior
+      )
     ))
   }
 
@@ -1565,6 +1588,22 @@ bart <- function(
   }
 
   result
+}
+
+# The specified family, stamped on a fit packaged away from dbarts() - the
+# multinomial, ordinal, count and hurdle arcs - beside its engine token, where
+# family() reads it; the packaged-in-dbarts() fits carry it off their model.
+# A sampler (samplerOnly) passes through untouched.
+withFamilySpec <- function(familySpec, family, result) {
+  if (!is.list(result)) {
+    return(result)
+  }
+  at <- match("family", names(result))
+  spec <- list(family.spec = specifiedFamily(familySpec, family))
+  structure(
+    c(result[seq_len(at)], spec, result[-seq_len(at)]),
+    class = class(result)
+  )
 }
 
 # Formula ingestion for bart2's family = "multinomial" branch, above. y is
@@ -2900,7 +2939,9 @@ survivalProbabilities.bart <- function(
       names(formals(survivalProbabilities.bart))
     )
   )
-  if (!is.null(object[["periods"]])) {
+  # a hazard fit's $family is its link's binary token, so the specified
+  # family is what says it is one
+  if (startsWith(family(object)@token, "hazard.")) {
     return(hazardSurvivalProbabilities(
       object,
       if (missing(times)) NULL else times,
@@ -2908,7 +2949,7 @@ survivalProbabilities.bart <- function(
       combineChains
     ))
   }
-  if (!identical(object[["family"]], "aft")) {
+  if (!identical(fitFamily(object), "aft")) {
     stop("survivalProbabilities requires an aft (survival) fit")
   }
   times <- as.double(times)

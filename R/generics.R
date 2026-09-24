@@ -15,10 +15,54 @@ survivalProbabilities <- function(object, ...) {
   UseMethod("survivalProbabilities")
 }
 
-# latent-scale draws to probabilities for a binary fit; fits saved before
-# the family element existed are all probit
+# What a fit is, read off its descriptors rather than off which draw
+# channels a run happened to keep. $family is the engine's token, the one the
+# link and likelihood follow; family() is the family as specified. A fit
+# saved by dbarts 0.9-x carries no family element, and in that release only a
+# gaussian fit drew sigma, so the fallback below is the one place a channel's
+# presence still decides anything.
+fitFamily <- function(object) {
+  family <- object[["family"]]
+  if (!is.null(family)) {
+    return(family)
+  }
+  if (is.null(object[["sigma"]])) "probit" else "gaussian"
+}
+
+fitIsBinary <- function(object) {
+  fitFamily(object) %in% c("probit", "logistic")
+}
+
+# a family with a residual law, and so the resid.dist and resid.scale
+# descriptors
+fitHasResidual <- function(object) {
+  fitFamily(object) %in% c("gaussian", "aft")
+}
+
+fitIsHeteroscedastic <- function(object) {
+  identical(object[["resid.scale"]], "forest")
+}
+
+fitNumForests <- function(object) {
+  if (is.null(object[["n.forests"]])) 1L else object[["n.forests"]]
+}
+
+# the family as specified: the resolved family object, with its settings
+family.bart <- function(object, ...) {
+  familySpec <- object[["family.spec"]]
+  if (is.null(familySpec)) {
+    familySpec <- newValidated("dbartsFamily", token = fitFamily(object))
+  }
+  familySpec
+}
+family.bartMultinomial <- family.bart
+family.bartOrdinal <- family.bart
+family.bartNegbin <- family.bart
+family.bartHurdle <- family.bart
+
+# latent-scale draws to probabilities for a binary fit
 probabilityFromLatents <- function(latents, object) {
-  if (identical(object[["family"]], "logistic")) {
+  if (identical(fitFamily(object), "logistic")) {
     plogis(latents)
   } else {
     pnorm(latents)
@@ -68,7 +112,7 @@ pointwiseLogLikelihood <- function(object, ev) {
       "cannot compute the log-likelihood; fit does not store the training response"
     )
   }
-  family <- object[["family"]]
+  family <- fitFamily(object)
   weights <- object[["weights"]]
   n.draws <- length(ev) %/% length(y)
   y <- rep(y, each = n.draws)
@@ -443,7 +487,7 @@ predict.bart <- function(
   }
 
   if (!is.null(bases)) {
-    numForests <- if (is.null(object[["n.forests"]])) 1L else object$n.forests
+    numForests <- fitNumForests(object)
     stop(
       "'bases' is only meaningful on an amplitude-coupled multi-forest fit; ",
       "this fit has ",
@@ -469,20 +513,18 @@ predict.bart <- function(
   result <- convertSamplesFromDbartsToBart(result, n.chains, combineChains)
 
   if (type != "bart") {
-    # nolint next: object_usage_linter. named for readability; value drives if.
-    if ((responseIsBinary <- is.null(object[["sigma"]]))) {
+    if (fitIsBinary(object)) {
       result <- probabilityFromLatents(result, object)
     }
 
     if (type == "ppd") {
-      # object$s.train is the "is this fit heteroscedastic" signal below,
-      # but keepFits = FALSE nulls it on a heteroscedastic fit too - checked
-      # first, by object$hasVariance, which survives that drop, so this
-      # refuses rather than silently sampling as if homoscedastic
+      # keepFits = FALSE drops a heteroscedastic fit's s.train, which its
+      # resid.scale descriptor survives, so this refuses rather than silently
+      # sampling as if homoscedastic
       if (
         is.null(s) &&
           is.null(object[["s.train"]]) &&
-          isTRUE(object[["hasVariance"]])
+          fitIsHeteroscedastic(object)
       ) {
         stop(
           "posterior predictive sampling needs this heteroscedastic fit's ",
@@ -673,20 +715,19 @@ extract.bart <- function(
     return(result)
   }
 
-  # nolint next: object_usage_linter. named for readability; value drives if.
-  if ((responseIsBinary <- is.null(object[["sigma"]]))) {
+  if (fitIsBinary(object)) {
     result <- probabilityFromLatents(result, object)
   }
 
   if (type == "ppd") {
     s <- if (sample == "train") object[["s.train"]] else object[["s.test"]]
-    # object$hasVariance survives keepFits = FALSE where object$s.train
-    # would not, so this catches a heteroscedastic fit whose s.train/s.test
-    # keepFits dropped before the narrower "no s.test at all" check below
+    # resid.scale survives keepFits = FALSE where object$s.train would not,
+    # so this catches a heteroscedastic fit whose s.train/s.test keepFits
+    # dropped before the narrower "no s.test at all" check below
     if (
       is.null(s) &&
         is.null(object[["s.train"]]) &&
-        isTRUE(object[["hasVariance"]])
+        fitIsHeteroscedastic(object)
     ) {
       stop(
         "posterior predictive sampling needs this heteroscedastic fit's ",
@@ -739,14 +780,15 @@ resolveForestSelection <- function(forest, forestNames) {
   idx
 }
 
-# keepFits = FALSE drops forestFits but not n.forests, which is set off the
-# fit's own bases: a fit carrying n.forests with no forestFits is therefore an
-# amplitude-coupled one whose per-forest channel was opted out. Every arm that
+# keepFits = FALSE drops forestFits but not the n.forests descriptor, which is
+# set off the fit's own bases: a fit with more than one forest and no
+# forestFits is therefore an amplitude-coupled one whose per-forest channel
+# was opted out. Every arm that
 # reads the channel names that here, rather than falling through to "this fit
 # has none" (which is wrong - it had one) or, on the combined arm, to the
 # engine's own off-sample refusal, which names neither keepFits nor callback.
 refuseDroppedForestChannel <- function(object) {
-  if (is.null(object[["forestFits"]]) && !is.null(object[["n.forests"]])) {
+  if (is.null(object[["forestFits"]]) && fitNumForests(object) > 1L) {
     stop(
       "this amplitude-coupled fit's per-forest channel was dropped by ",
       "'keepFits' == FALSE (set automatically when 'callback' is supplied, ",
@@ -1026,7 +1068,7 @@ predictBlend <- function(
   result <- combineOrUncombineChains(result, n.chains, combineChains)
 
   if (type != "bart") {
-    if (is.null(object[["sigma"]])) {
+    if (fitIsBinary(object)) {
       result <- probabilityFromLatents(result, object)
     }
     if (type == "ppd") {
@@ -2800,14 +2842,14 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
     .GlobalEnv$.Random.seed <- object$seed
   }
 
-  responseIsBinary <- is.null(object$sigma)
+  responseIsBinary <- fitIsBinary(object)
   sigma <- object$sigma
   if (!responseIsBinary && is.null(dim(sigma))) {
     sigma <- uncombineChains(as.vector(sigma), n.chains)
   }
 
   # the noise added below is always gaussian (rnorm); resid.dist is absent
-  # for a fit predating the field or a binary fit and reads as gaussian; a
+  # on a binary fit and on a 0.9-x one, whose residuals were gaussian; a
   # present non-"gaussian" token (student residuals) means that noise is
   # wrong, so the draw is refused rather than taken
   if (!responseIsBinary) {
@@ -2933,12 +2975,12 @@ fitSynopsis <- function(x) {
   # higher throughout and the single-forest arms below would read the predictor
   # count as the draw count. n.forests, not the rank, is what separates the two
   # - a single-forest uncombined varcount is rank 3 as well.
-  n.forests <- x[["n.forests"]]
+  n.forests <- fitNumForests(x)
   n.kept <- if (!is.null(control)) {
     control@n.samples
   } else if (is.null(varcountDims)) {
     NA_integer_
-  } else if (!is.null(n.forests) && n.forests > 1L) {
+  } else if (n.forests > 1L) {
     if (length(varcountDims) == 4L) {
       varcountDims[2L]
     } else {

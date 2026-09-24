@@ -786,10 +786,19 @@
             of 0s and 1s, which \code{$setWeights} and \code{$setData}
             install as the active-row mask rather than as weights.
             Fits returned by \code{bartBT} and \code{bart} record the
-            resolved family in a \code{family} element, and \code{predict},
+            engine's family in a \code{family} element, and \code{predict},
             \code{extract}, \code{fitted}, and \code{plot} transform latent draws
             through that family's link; fits saved by earlier versions
-            lack the element and are treated as probit. \code{family = "auto"}
+            lack the element and are treated as probit, or as gaussian when
+            they carry \code{sigma}. Every fit also records the family as
+            specified, with its settings, in \code{family.spec}, which the
+            new \code{family()} methods return for every fit class: a
+            Student-t fit's \code{family} is \code{"gaussian"} and its
+            \code{family()} is \code{student(df)}, a hazard fit's
+            \code{family} its link's \code{"probit"} or
+            \code{"logistic"} and its \code{family()} \code{hazard(link)}.
+            \code{n.forests} is on every \code{bart} fit, 1 for a single
+            forest. \code{family = "auto"}
             extends past probit and gaussian to detect a factor, logical,
             or character response directly: two levels resolve to probit,
             three or more ordered levels to \code{"ordinal"} (\code{dbarts}
@@ -2333,9 +2342,12 @@
             name a call whose sample count thins to zero (e.g.
             \code{ndpost} smaller than \code{keepevery}), rather than
             faulting deep in the result-array reshape.
-      \item Every fit built through \code{bartBT}/\code{bart} now records
-            its residual law (\code{$resid.dist}, \code{"gaussian"} or
-            \code{"student"}). The posterior-predictive draw
+      \item Every fit built through \code{bartBT}/\code{bart} with a
+            residual law (gaussian, aft) now records its shape
+            (\code{$resid.dist}, \code{"gaussian"} or \code{"student"}) and
+            its scale model (\code{$resid.scale}, \code{"constant"} or
+            \code{"forest"} for a heteroscedastic fit); binary fits carry
+            neither. The posterior-predictive draw
             (\code{extract(type = "ppd")}) refuses a \code{student()} fit
             by name instead of silently drawing gaussian noise regardless of
             \code{resid.dist}. A fit predating the field is read as

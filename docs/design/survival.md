@@ -505,7 +505,7 @@ column is an ordinary ordinal column, and a test subject's period column
 bins identically to training by the shared-grid construction,
 data-store.md). New, all R-side: the expander, the family token(s) and
 their remap, the Surv-guard extension, the `breaks`/grid argument, the N'
-guard, the packaged $periods marker, and the survival-curve reporting
+guard, the packaged $periods grid, and the survival-curve reporting
 branch (section 4).
 
 ### 3. Link (probit vs logistic; cloglog)
@@ -576,9 +576,10 @@ recording a hazard token in $family and teaching each consumer the new
 tokens' links - is real new code in every $family consumer, and any
 missed one fails silently in the transform rather than loudly. So the
 rule is: LINK dispatch keys on $family (the binary token); HAZARD
-dispatch (survivalProbabilities, any hazard-aware printing) keys on the
-$periods marker, never on $family. No new S3 class: a plain bart object
-with $periods.
+dispatch (survivalProbabilities, any hazard-aware printing) keys on
+family(fit), the family as specified ("hazard.probit" or
+"hazard.logistic"), never on $family, and $periods carries the grid. No
+new S3 class: a plain bart object with $periods.
 
 **Hazards are the native output; the survival curve is the new code.**
 Because the fit is a binary fit on the expanded rows, the ordinary
@@ -592,7 +593,7 @@ S(t | x) = prod_{k<=t} (1 - h(k | x)), a cumulative product of
 
 **survivalProbabilities: same entry point and shape, DIFFERENT evaluation
 path than aft's.** The generic ([`survivalProbabilities`](../../R/generics.R)) gains a hazard branch in
-survivalProbabilities.bart, keyed on the $periods marker beside the aft
+survivalProbabilities.bart, keyed on family(fit) beside the aft
 $family gate ([`survivalProbabilities.bart`](../../R/bart.R)), computing S by cumulative hazard products
 instead of the log-normal tail. The SHAPE convention matches aft's
 exactly - draws x times x observations, a chain margin under

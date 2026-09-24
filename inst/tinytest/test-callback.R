@@ -208,8 +208,8 @@ expect_error(plot(fitTrainingFitsOnly), "keepTrainingFits")
 # heteroscedastic + keepFits = FALSE: predict(type = "ppd") cannot tell this
 # fit apart from a homoscedastic one once s.train is dropped and keepTrees
 # is FALSE (its live replay carries no variance surface either) - refused
-# by name rather than silently sampling without s(x). hasVariance is the
-# fix: it survives keepFits = FALSE where s.train does not.
+# by name rather than silently sampling without s(x). The resid.scale
+# descriptor is the fix: it survives keepFits = FALSE where s.train does not.
 fitHetero <- bart(
   x,
   y,
@@ -223,7 +223,7 @@ fitHetero <- bart(
   n.samples = 4L,
   verbose = FALSE
 )
-expect_true(fitHetero$hasVariance)
+expect_identical(fitHetero$resid.scale, "forest")
 expect_null(fitHetero$s.train)
 expect_error(
   predict(fitHetero, x, type = "ppd"),

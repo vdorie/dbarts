@@ -282,7 +282,8 @@ expect_identical(
 )
 expect_identical(combinedFit$n.forests, 2L)
 expect_identical(uncombinedFit$n.forests, 2L)
-expect_null(
+# a descriptor every fit carries, 1 for a single forest
+expect_identical(
   bart(
     x,
     y,
@@ -293,7 +294,8 @@ expect_null(
     n.threads = 1L,
     verbose = FALSE,
     seed = 51L
-  )$n.forests
+  )$n.forests,
+  1L
 )
 
 # the forest-1 slab really is the prognostic forest's, and the combined chain

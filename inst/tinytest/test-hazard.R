@@ -2,8 +2,9 @@
 # the binary families. The family
 # adds no engine code - a hazard fit remaps to probit/logistic before any
 # family-keyed switch, so $family reads the binary token and every link-keyed
-# generic stays correct; the hazard provenance lives on the $periods marker,
-# which survivalProbabilities dispatches on. The bitwise reduction gate lives
+# generic stays correct; the hazard provenance is family(fit), the family as
+# specified, which survivalProbabilities dispatches on, and $periods carries
+# the grid. The bitwise reduction gate lives
 # in benchmarks/R/hazard-reduction.R; this file covers the surface.
 
 set.seed(517L)

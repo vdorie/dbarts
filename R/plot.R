@@ -71,12 +71,13 @@ plot.bart <- function(
   oldpar <- par(no.readonly = TRUE)
   on.exit(par(oldpar), add = TRUE)
 
-  if ("sigma" %in% names(x)) {
+  hasResidual <- fitHasResidual(x)
+  if (hasResidual) {
     par(mfrow = c(1L, 2L))
     plotSigmaTrace(x$first.sigma, x$sigma, ..., setLayout = FALSE)
   }
 
-  if ("sigma" %in% names(x)) {
+  if (hasResidual) {
     ql <- apply(
       x$yhat.train,
       length(dim(x$yhat.train)),

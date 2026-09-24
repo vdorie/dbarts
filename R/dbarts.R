@@ -1138,7 +1138,8 @@ dbarts <- function(
     bases = NULL,
     forests = forests,
     evalEnv = evalEnv,
-    residPrior = residPrior
+    residPrior = residPrior,
+    familySpec = familySpec
   )
 
   # a forest() term's basis is re-evaluable at NEW rows, which the expanded
