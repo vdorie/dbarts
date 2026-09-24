@@ -340,7 +340,9 @@ specification, with an error contract that does not assume R. Today a compiled c
 its sampler through R and a host without R cannot create one at all. It is
 an interface change the sister packages build against, so it lands before
 the C interface becomes the 1.0 contract, and they are re-verified after
-it.
+it. In the same window, frequency weights arrive as an explicit choice
+beside the precision weights a gaussian fit takes today, on the families
+where they make a coherent model.
 
 Decided for 1.0-0: a scale update on a response swap is refused on BCF and
 other models with two or more mean forests. A heteroscedastic model has one

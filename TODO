@@ -462,6 +462,21 @@ host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   in-tree C consumer test, an ABI hash re-bake, a stan4bart rebuild
   (dense helper only, no source change).
 
+frequency weights (decided, VD 2026-09-24; docs/decisions.md dec-B125)
+  after the merge to main, before the 1.0-0 CRAN submission: an explicit
+  opt-in to frequency weights (a row stands for w identical
+  observations) beside the precision default, on the families where
+  that is a coherent model. Gaussian is certain: sigma's posterior df
+  nu + sum(w) over the weighted SSR, the sigest df sum(w) - p, the ppd
+  and log-likelihood at sd sigma with each row counted w times; leaf
+  updates unchanged. A design note first settles the family list
+  (Student-t, heteroscedastic, AFT, probit and ordinal carry a per-row
+  latent or scale, so w copies are not one row reweighted; logistic's
+  counts are already binomial trials, a different thing), the
+  argument's name and shape on bart, dbarts, the sampler and dbarts.h,
+  whether non-integer frequency weights are refused, and zero weights
+  (excluded, as now). The weights docs say which a weight is.
+
 within-chain threading (decided, VD 2026-09-08; docs/decisions.md
   dec-B89; CLOSED without shipping 2026-09-10, dec-B115, S4 of
   docs/plans/engine-performance.md)
