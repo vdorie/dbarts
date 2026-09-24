@@ -447,6 +447,19 @@ host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   creation entry and a host-neutral
   error contract in dbarts.h. The sister re-verification at the freeze
   follows it. Rewords the Python-binding entry.
+  Predictor source consolidation (decided, VD 2026-09-24; dec-B124),
+  same arc: the spec's predictor part is dbarts_predictor_source, so the
+  R parse and the flat entries fill one struct and pass one
+  translate-and-validate stage (translateSource, today flat-only) into
+  bartcore::PredictorSource. The header takes the engine's addressing:
+  dbarts_predictor_source gains denseChannels (per column, >= 0 double
+  column, < 0 code column ~k), denseCodes is read only through it, and
+  the kind-selected single columnSources index goes. Retires the
+  per-bridge bounds and channel sweeps and the int32 -> ColumnKind /
+  xint_t copies; columnTypes and categoryCounts gain a reader. Refusals
+  that name a column by its R name stay in the R bridge. Owed: the
+  in-tree C consumer test, an ABI hash re-bake, a stan4bart rebuild
+  (dense helper only, no source change).
 
 within-chain threading (decided, VD 2026-09-08; docs/decisions.md
   dec-B89; CLOSED without shipping 2026-09-10, dec-B115, S4 of
