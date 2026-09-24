@@ -11,7 +11,8 @@ call is forwarded unchanged, with a warning the first time in a session.
 That model now lives in the stan4bart package (`stan4bart::stan4bart`),
 whose prior on the group spread differs from the one dbarts drew from,
 so a refit moves the results rather than reproducing them. These stubs
-error.
+error, except `print`, which prints the stored call, as 0.9-x did, and a
+note naming stan4bart.
 
 ## Usage
 
@@ -26,6 +27,10 @@ extract(object, ...)
 fitted(object, ...)
 # S3 method for class 'rbart'
 residuals(object, ...)
+# S3 method for class 'rbart'
+plot(x, ...)
+# S3 method for class 'rbart'
+print(x, ...)
 ```
 
 ## Details
@@ -192,7 +197,7 @@ Every entry above, and `bart2` and the `rbart_vi` stubs, is one row of
 
 ## Arguments
 
-- object:
+- object, x:
 
   An `rbart` fit object saved by dbarts 0.9-x.
 
@@ -207,7 +212,8 @@ Every entry above, and `bart2` and the `rbart_vi` stubs, is one row of
 
 `bart2` returns whatever
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) returns. The
-`rbart_vi` stubs do not return.
+`rbart_vi` stubs do not return, except `print`, which returns `x`
+invisibly.
 
 ## See also
 

@@ -173,6 +173,8 @@ Names kept reachable for one release past their removal or rename.
   [`extract(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
   [`fitted(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
   [`residuals(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  [`plot(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  [`print(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
   : Deprecated and Removed Functions in dbarts
 
 ## Utilities
