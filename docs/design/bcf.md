@@ -211,11 +211,23 @@ Without the amplitude rescaling move (2026-09-24, dec-B127) every BCF exact
 gate passes in full mode: bcf-exact.R's mode 2a matches E[a mu] and E[tau] to
 0.0002, bcf-exact-weak.R's prior-dominated a posterior to 0.0005 on both means
 and 0.0051 on P(|a| <= 0.25, 0.5, 1), bcf-exact-restricted.R to 0.0003, and
-the latent gate (benchmarks/R/bcf-latent-exact.R) sits at worst |z| 2.08 over
+the latent gate (benchmarks/R/bcf-latent-exact.R) sits at worst |z| 2.11 over
 its nine configurations (mode 1, fixed glue, logistic), its quick mode at
-mode 2a worst |z| 0.99 (probit) and 1.98 (logistic). Its `pooled` run, 300 independent seeds of mode 2a,
+mode 2a worst |z| 1.03 (probit) and 2.03 (logistic). Its `pooled` run, 300 independent seeds of mode 2a,
 matches the quadrature at |z| 0.63 (probit) and 1.12 (logistic) or under on
 every channel; the move's compounding cache gap had put E[tau] at z 7.1.
+
+The latent gate scores each channel by a batch-means z at |z| <= 4. Its seven
+two-cell configurations take 400 batches a chain with no seed-spread floor:
+there that se matches the spread of independent seeds, and over 100
+independent quick runs their z's scale at 0.99 of a standard normal, a
+false-failure rate near 3e-3 a run. A floor would read a drifting chain's
+offset as sampling error: against an engine whose mode 2a chains each drift
+to their own offset, the gate fails 38 quick runs in 50, and a statistic
+floored everywhere 3. Its two K = 3 arms hold a tree partition longer than a
+batch sees, so they lengthen their batches, inflate by the residual lag-1
+correlation and floor by the seed spread; the K = 3 probit arm still fails
+about 3 quick runs in 100 of a correct sampler.
 
 ## Mutation surface
 

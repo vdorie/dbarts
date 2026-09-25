@@ -38,13 +38,25 @@
 # Gating statistic: a per-channel batch-means z at |z| <= 4, not an
 # absolute tolerance - the binary leaf posteriors are 0.13 to 0.31 wide by
 # channel against the gaussian gate's 0.0034, so an absolute bound carries
-# no fixed meaning across the two. Standard errors are formed per seed and
-# pooled as sqrt(sum se_s^2) / S, never batched across a chain seam, and the
-# batch LENGTH is raised until the batch means decorrelate: several channels
-# here mix far too slowly for a fixed batch count to report their own error
-# honestly. About 80 tests at |z| <= 4 is a family-wise false-failure rate
-# near 5e-3, accepted in advance. Failure means the backfit, the glue draw,
-# the latent refresh or the calibration map is wrong.
+# no fixed meaning across the two. Each seed's chain gives a batch-means
+# standard error and the seeds pool as sqrt(sum se_s^2) / S, never batched
+# across a chain seam. The seven two-cell configurations take 400 batches
+# and nothing else: there the batch se matches the spread of independent
+# seeds (0.92x to 1.08x on every channel over 300 seeds of the quick shape),
+# and over 100 independent quick runs their 56 z's scale at 0.99 (95% 0.96
+# to 1.02) of a standard normal, a false-failure rate near 3e-3 a run. They
+# carry no seed-spread floor because a floor absorbs a per-chain offset
+# into its own error: against a sampler whose chains each drift to their
+# own offset the plain statistic fails 38 quick runs in 50, the floored one
+# 3. The two K = 3 arms hold a tree partition for longer than any
+# within-chain batch sees (the probit arm's seed spread is up to 7x its
+# 400-batch se and 3x its 25-batch se), so they are `slow`: batch length
+# raised until the batch means decorrelate, the residual lag-1 correlation
+# charged as an AR(1) inflation, and the pooled se floored by the spread of
+# the seed means. Even so the K = 3 probit arm fails about 3 quick runs in
+# 100 of a correct sampler, the gate's one known false-failure source.
+# Failure means the backfit, the glue draw, the latent refresh or the
+# calibration map is wrong.
 #
 # A `pooled` run is an oracle for re-recording the latent equivalence
 # baselines rather than a per-push gate: it runs mode 2a, the mode whose
@@ -666,18 +678,14 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
   channels
 }
 
-# A batch-means standard error whose batch LENGTH is raised until the batch
-# means decorrelate, with any residual lag-1 correlation charged to the
-# estimate as an AR(1) inflation. A fixed 400 batches is not honest here:
-# the K = 3 arms switch tree partitions slowly, so at 400 batches those
-# channels understate their own error by 2x to 3x - measured against the
-# spread of independent seeds - and the gate would fail a correct sampler.
-# Mode 2a's batch se matches its seed spread (0.7x to 1.2x over 20 seeds at
-# the quick shape, the `pooled` run's spread column); the adaptive length
-# costs it nothing. The lag-1 autocorrelation of the batch means
-# is reported beside every z, so a mixing-limited channel says so; the
-# correlation is capped at 0.95 rather than allowed to make the gate vacuous.
-batchStats <- function(v) {
+# A chain's batch-means standard error. The plain form, every two-cell arm's,
+# takes 400 batches, or the most of 400, 200, 100, 50 and 25 that leaves
+# 10 draws a batch in a shorter chain (mode 2b's 750 quick draws take 50). The
+# `slow` form, the K = 3 arms', raises the batch LENGTH until the batch means
+# decorrelate and charges any residual lag-1 correlation as an AR(1)
+# inflation capped at 0.95. The lag-1 autocorrelation of the batch means is
+# reported beside every z either way.
+batchStats <- function(v, slow) {
   best <- NULL
   for (nBatches in c(400L, 200L, 100L, 50L, 25L)) {
     if (length(v) %/% nBatches < 10L) {
@@ -687,14 +695,14 @@ batchStats <- function(v) {
     bm <- colMeans(matrix(v[seq_len(len)], ncol = nBatches))
     acf1 <- if (sd(bm) > 0) cor(bm[-nBatches], bm[-1L]) else 0
     best <- list(bm = bm, nBatches = nBatches, acf1 = acf1)
-    if (abs(acf1) < 0.1) {
+    if (!slow || abs(acf1) < 0.1) {
       break
     }
   }
   if (is.null(best)) {
     stop("too few kept draws for a batch-means standard error")
   }
-  r <- min(max(best$acf1, 0), 0.95)
+  r <- if (slow) min(max(best$acf1, 0), 0.95) else 0
   list(
     mean = mean(v),
     se = sd(best$bm) / sqrt(best$nBatches) * sqrt((1 + r) / (1 - r)),
@@ -703,10 +711,10 @@ batchStats <- function(v) {
 }
 
 # Seeds are pooled as the mean of per-seed means with sqrt(sum se_s^2) / S,
-# never batched across a chain seam, and floored by the spread of the seed
-# means themselves - the one estimator that sees a state no single chain
-# leaves. The floor is purely protective: it can only widen the interval.
-samplerChannels <- function(arm, updateA, updateB, ndpost, thin, seeds) {
+# never batched across a chain seam. A `slow` arm's se is floored by the
+# spread of the seed means, the one estimator that sees a partition no single
+# chain leaves; the floor can only widen the interval.
+samplerChannels <- function(arm, updateA, updateB, ndpost, thin, seeds, slow) {
   fits <- lapply(
     seq_len(seeds),
     samplerFit,
@@ -718,10 +726,10 @@ samplerChannels <- function(arm, updateA, updateB, ndpost, thin, seeds) {
   )
   out <- list()
   for (nm in names(fits[[1L]])) {
-    stats <- lapply(fits, function(f) batchStats(f[[nm]]))
+    stats <- lapply(fits, function(f) batchStats(f[[nm]], slow))
     means <- vapply(stats, function(s) s$mean, numeric(1L))
     within <- sqrt(sum(vapply(stats, function(s) s$se^2, numeric(1L)))) / seeds
-    between <- if (seeds >= 3L) sd(means) / sqrt(seeds) else 0
+    between <- if (slow && seeds >= 3L) sd(means) / sqrt(seeds) else 0
     out[[nm]] <- list(
       mean = mean(means),
       se = max(within, between),
@@ -846,11 +854,12 @@ runMode <- function(
   updateB,
   ndpost,
   thin,
-  seeds
+  seeds,
+  slow = FALSE
 ) {
   fitted <- NULL
   elapsed <- system.time(
-    fitted <- samplerChannels(arm, updateA, updateB, ndpost, thin, seeds)
+    fitted <- samplerChannels(arm, updateA, updateB, ndpost, thin, seeds, slow)
   )[["elapsed"]]
   reportMode(name, arm, fitted, exact, matched, elapsed)
 }
@@ -951,7 +960,7 @@ runPooled <- function(name, arm, exact, matched) {
     seq_len(pooledSeeds),
     function(seed) {
       fit <- samplerFit(seed, arm, TRUE, FALSE, nKept, nThin)
-      stats <- lapply(fit, batchStats)
+      stats <- lapply(fit, batchStats, slow = FALSE)
       rbind(
         mean = vapply(stats, function(x) x$mean, numeric(1L)),
         se = vapply(stats, function(x) x$se, numeric(1L))
@@ -1108,7 +1117,8 @@ for (nm in c("probit3", "logistic3")) {
     FALSE,
     nKept,
     nThin,
-    nSeeds
+    nSeeds,
+    slow = TRUE
   ) ||
     anyFailure
 }

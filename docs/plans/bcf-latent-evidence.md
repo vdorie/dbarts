@@ -303,11 +303,44 @@ is not periodic, so the open trapezoid converges as `h^2`, and at 101 points the
 (probit) and 4.5e-7 (logistic) - both under the 1e-6 bar, the logistic one by a factor of two. The self-check runs over
 the whole configuration mixture rather than the dim-3 configuration alone: stricter, and no dearer to state.
 
-The gating statistic. A FIXED batch count is not honest at this design, and the pre-registered one fails a correct
-sampler: the `K = 3` probit arm switches tree partitions slowly, and its 400-batch se understates the spread of
-independent seeds by 2x to 3x. What landed raises the batch LENGTH until the batch means decorrelate (400, 200, 100, 50
-then 25 batches), charges the residual lag-1 correlation as an AR(1) inflation capped at 0.95, and floors the pooled se
-by the spread of the seed means themselves - a floor that can only widen the interval.
+The gating statistic. Each seed's chain gives a batch-means standard error, and the seeds pool as `sqrt(sum se_s^2) /
+S`. The seven two-cell configurations use 400 batches a chain and nothing more (mode 2b's 750 quick draws take 50, the
+most that leaves 10 draws a batch). The two `K = 3` arms hold a tree partition longer than any batch inside one chain
+sees, so they alone take the slow form: the batch length rises until the batch means decorrelate (400, 200, 100, 50,
+then 25 batches), any remaining lag-1 correlation is charged as an AR(1) inflation capped at 0.95, and the pooled se is
+floored by the spread of the seed means. The bound stays `|z| <= 4`.
+
+The measurement behind that split, on the engine without the amplitude rescaling move: 100 independent quick runs of
+the gate (300 seeds a configuration, 400 in mode 2b), each scored under every candidate statistic, and 50 of the same
+runs on an engine that still carried the move's cache defect, whose mode 2a chains each drift to their own offset. The
+rule: of the statistics whose false-failure rate on the correct engine stays at or below the 4e-3 a run this decision
+accepted in advance, the one that fails the defective engine most often. No candidate brings the `K = 3` probit arm
+under that rate (below), so the rule is applied to the configurations whose statistic the choice can change.
+
+    statistic                                          correct engine    defective engine
+                                                       runs failing      runs failing
+    400 batches, K = 3 arms slow (the gate)            4 in 100          38 in 50
+    adaptive length, K = 3 arms slow                   4 in 100          23 in 50
+    slow form on every configuration                   3 in 100           3 in 50
+    adaptive length and inflation, no floor anywhere   9 in 100          11 in 50
+    adaptive length and floor, no inflation            5 in 100           5 in 50
+    400 batches and floor                             13 in 100          10 in 50
+    initial-sequence (Geyer) se, no floor             50 in 100          38 in 50
+    400 batches everywhere, no floor                  58 in 100          47 in 50
+
+- On the two-cell configurations the 400-batch se matches the spread of independent seeds, 0.92x to 1.08x on every
+  channel, and their 56 z's a run scale at 0.99 of a standard normal (95% interval 0.96 to 1.02), with the tail where a
+  normal puts it: 0.14% beyond 3 against 0.27%. That is a false-failure rate near 3e-3 a run (1.8e-3 to 5.0e-3); one
+  run in 100 failed there, in mode 2b. Five full-length runs agree: scale 0.96, no `|z|` above 3.
+- The floor is what hides a drifting chain: it reads each chain's offset as sampling error. With it on every
+  configuration the defective engine fails 3 runs in 50, no more often than the correct one; without it on the two-cell
+  configurations, 38, every one in mode 2a.
+- The `K = 3` probit arm is genuinely slow: its seed spread is up to 7x its 400-batch se and 3x its 25-batch se, and
+  300 seeds pooled put every channel within `|z|` 1.1 of the quadrature, so the sampler is right and a single chain is
+  simply too short to see its own error. It needs every piece of the slow form, and even so it fails 3 runs in 100:
+  three seeds give the floor two degrees of freedom. That rate is above the 4e-3 accepted in advance, is the gate's one
+  known false-failure source, and is unchanged by the split; more seeds or longer chains on that arm would cut it, at
+  quick-mode cost.
 
 Mode 2a was first read as metastable: its `(a, mu)` state seemed to sit in one place for of order 1e5 kept draws, its
 400-batch se understated the seed spread by 8x to 30x, and the gate reported `|z|` up to 34. The cause was not mixing but
@@ -316,8 +349,8 @@ the amplitude rescaling move's compounding cache gap
 `E[tau]` by +0.027 at full length. With the move removed (dec-B127), mode 2a's batch se matches the seed spread - 0.7x to
 1.2x on every channel over 20 seeds at the quick shape (the gate's `pooled` run reports it) - and 300 seeds of that shape
 score every channel against the quadrature at `|z|` 0.63 or under (probit) and 1.12 or under (logistic). Its three-seed
-quick-mode se on `E[a mu]` is 6.4e-4, fifty times tighter than the 3e-2 the drift forced, so the arm now gates the `a`
-channel for errors of that size rather than gross ones only. Poison (ii) lands on the well-mixing fixed-`a` chain.
+quick-mode se on `E[a mu]` is 6.2e-4 (probit), fifty times tighter than the 3e-2 the drift forced, so the arm gates the
+`a` channel for errors of that size rather than gross ones only. Poison (ii) lands on the well-mixing fixed-`a` chain.
 
 Mode 2b keeps 5000 draws at thin 200, not 100000: 100000 at thin 200 would be 2e7 sweeps a seed and eight seeds a link.
 5000 by 200 holds the per-seed SWEEP budget equal to mode 1's 100000 by 10.
