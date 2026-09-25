@@ -304,7 +304,7 @@ Open before the merge:
 
 - **The release-candidate declaration** (`TODO`'s `rc-gate`), after the
   maintainer's read of this document.
-- **Agent-made decisions not yet ruled on**: 37 entries in section A of
+- **Agent-made decisions not yet ruled on**: 33 entries in section A of
   `docs/decisions.md`. Those that fix user-visible surface cost a
   deprecation cycle to change after release:
   - one `seed` argument, with no choice of generator (dec-A04)
