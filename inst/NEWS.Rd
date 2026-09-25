@@ -280,8 +280,9 @@
             silently accepting and ignoring it; both readers always allocate
             their own vector.
       \item \code{bart} is now the package's front door: it carries the
-            formula-first interface, today's defaults, and the extended
-            response families. \code{bart2} is a one-release alias - a real
+            formula-first interface and today's defaults, previously
+            reached through \code{bart2}, and the extended response
+            families. \code{bart2} is a one-release alias - a real
             closure over \code{bart}'s own formals, so
             \code{formals(bart2)} still reads the defaults - that forwards
             every call unchanged, with a once-per-session warning, and is
@@ -354,12 +355,24 @@
             \code{$setControl});
             \code{rngSeed} on \code{bart} and \code{dbartsControl}
             (successor \code{seed}); \code{sigma} on \code{dbarts} and
-            \code{dbartsSpec} (successor \code{sigest}); \code{power}
+            \code{dbartsSpec} (successor \code{sigest}); \code{resid.dist}
+            on \code{bart}, \code{dbarts}, and \code{dbartsSpec} (successor
+            \code{family = student(df)}); \code{dispersion} on \code{bart},
+            \code{dbarts}, and \code{dbartsSpec} (successor
+            \code{family = nbinom(dispersion)}); \code{breaks} on
+            \code{bart} and \code{dbarts} (successor
+            \code{family = hazard(breaks)}); \code{max.rows} on \code{bart}
+            and \code{dbarts} (successor \code{family = hazard(max.rows)});
+            \code{dart} on \code{bart} and \code{xbart} (successor
+            \code{tree.prior = dart()}); \code{levelGibbs} on \code{bart}
+            (successor \code{tree.prior = cgm(levelGibbs)}); \code{power}
             and \code{base} on \code{bart} (successor
             \code{tree.prior = cgm()} or \code{tree.prior = dart()});
             \code{split.probs} on \code{bart} (successor
             \code{tree.prior = cgm(split.probs)}, refused together with a
-            DART tree prior, which draws its own); \code{sigdf} and
+            DART tree prior, which draws its own); \code{prior.scale} on
+            \code{bart} (successor
+            \code{node.prior = normal(scale)}); \code{sigdf} and
             \code{sigquant} on \code{bart}, and \code{resid.prior} on
             \code{bart}, \code{dbarts}, \code{dbartsSpec} and
             \code{xbart} (successor
@@ -547,6 +560,25 @@
             \code{keepTrees}); the model behind it is validated against
             measured peak resident set size by
             \file{benchmarks/R/memory-footprint.R}.
+      \item Packaging a fit no longer holds a third copy of
+            \code{yhat.train} (and of \code{yhat.test}): the returned layout
+            is built in one permutation and the posterior means are reduced
+            over it rather than through \code{apply}. Peak memory falls by
+            one whole prediction array - 1.6 GB on a 100,000-observation,
+            four-chain, 500-draw fit and 4.0 GB on a 1,000,000-observation,
+            500-draw one. Every returned value is unchanged.
+      \item The starting estimate of sigma, taken when \code{sigest} is not
+            supplied, no longer builds a model frame and a model matrix on
+            top of the predictor matrix already in hand: it calls the same
+            least-squares routine \code{\link[stats]{lm}} calls, on the
+            same design and in the same arithmetic order, so the estimate is
+            bitwise what it was. Peak memory of a 100,000-observation,
+            50-predictor fit falls by 77 MB.
+      \item Building a \code{\link{dbartsData}} object no longer copies the
+            predictor matrix, the response, the weights and the offset a
+            second time when no row is dropped for missing values, which is
+            the usual case. Peak memory of a 100,000-observation,
+            50-predictor fit falls by a further 42 MB.
       \item \code{fitted}, \code{predict} and
             \code{\link{pdbart}}/\code{\link{pd2bart}} take their
             posterior means over the prediction channel in place rather than
@@ -2166,7 +2198,7 @@
             \code{monotone}, and \code{variance} by name: the K-forest
             engine copies only power/base/proposal-probability fields out
             of the host sampler these resolve against, so none of the
-            four reach it.
+            four could be honored.
       \item \code{bart}'s (and \code{dbarts}'s)
             \code{offset.test} argument was documented as defaulting to
             \code{NULL}; it has always defaulted to tracking \code{offset}
@@ -2237,8 +2269,7 @@
             to the marginal response sd because the predictor set has
             sparse-backed columns (a \code{Matrix::dgCMatrix}, or a data
             frame mixing dense columns with \code{Matrix::sparseVector}/
-            \code{dgCMatrix} ones); the fallback estimate itself is the
-            marginal response sd, as for any other design.
+            \code{dgCMatrix} ones).
       \item A \code{Matrix::sparseVector} or \code{dgCMatrix} column named
             in a \code{formula} refuses cleanly, the same guarded
             message \code{\link{sparseFactor}} columns get.
