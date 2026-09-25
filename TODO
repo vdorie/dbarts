@@ -31,6 +31,22 @@ re-run a full census before release.
 A "door" below means a recorded, undecided question, not a task.
 
 items
+  bcf-latent-mixing: research door, no plan doc of its own; for the
+    post-merge mixing research. The probit and logistic BCF chains mix
+    slowly at large prognostic amplitude, and two gates carry that as a
+    standing cost. The latent SBC arms stay out of the sbc.yaml matrix:
+    their ladders fail the admission clause at |a| >= 5 on both links,
+    with or without the amplitude rescaling move (docs/plans/
+    bcf-latent-evidence.md, Decision 1). bcf-latent-exact.R's K = 3
+    probit arm keeps the slow-chain statistic, its seed spread up to 7x
+    its 400-batch se while unbiased pooled over 300 seeds, and fails
+    about 3 quick runs in 100 on a correct sampler; left as is by VD
+    2026-09-25 ("Leave it for now, but keep in mind that we have mixing
+    work to do down the road and will perhaps want to revisit").
+    Revisit both when a mixing change lands. The removed rescaling move
+    is one candidate to re-measure there (docs/decisions.md dec-B127;
+    restoring it requires the cache rule in docs/design/
+    multiplier-combiner.md). research-open.
   bcf-sigma-tail-mixing: research door, no plan doc of its own. In the
     EXTREME tail (|a0| >= ~40, ~3% of the prior) the chain is
     frozen-structure mixing that no amount of burn fixes; a principled
