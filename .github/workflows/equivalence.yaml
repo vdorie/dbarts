@@ -1,6 +1,7 @@
 # Statistical-equivalence gate (benchmarks/R/equivalence.R compare), z-mode
-# only: bitwise exactness is RNG- and machine-dependent and stays a local,
-# same-machine check (see benchmarks/README.md). Any runner OS works here,
+# only, so no --bitwise: bitwise exactness is RNG- and machine-dependent and
+# stays a same-machine check, which cpp-tests.yaml runs per push on the
+# arm64 reference build (see benchmarks/README.md). Any runner OS works here,
 # so this runs on the cheaper ubuntu-latest rather than cpp-tests.yaml's
 # arch-pinned macos-latest. --strict-coverage turns a scenario the baseline
 # predates into a failure instead of a warning.

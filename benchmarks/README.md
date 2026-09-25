@@ -60,6 +60,11 @@ also detects unintended RNG shifts from refactors of the current engine.
     # ... install candidate build ...
     Rscript benchmarks/R/equivalence.R compare baseline-equivalence.rds
 
+Without a flag, `compare` exits 0 on a moved RNG stream whose posterior
+agrees, so a clean exit is not a bitwise pass. `--bitwise` makes it one: any
+compared scenario whose draws are not identical fails, whatever its |z|, and
+so does a baseline scenario the run did not produce.
+
 Baselines are RNG- and build-dependent, so a *bitwise* compare is a
 same-machine check. A baseline is still reusable off-host through the sibling
 harnesses' `--cross-host` flag (below), which exempts the channels that cannot
@@ -72,11 +77,12 @@ or, with `--strict-coverage`, fails - when the installed engine offers
 scenarios the baseline predates. baselines/MANIFEST records each baseline's
 role (current, historical, or historical-classic), recording commit,
 machine, and scenario list. The scheduled workflow
-(.github/workflows/equivalence.yaml) runs `compare` in this statistical
+(.github/workflows/equivalence.yaml) runs `compare` in the statistical
 mode against the current baseline. Bitwise exactness is not local-only:
 cpp-tests.yaml runs all three compares per push on the reference build,
-pinned to macos-latest arm64 because the baselines are recorded there, so
-off that architecture bitwise remains a same-machine check.
+this one with `--bitwise`, pinned to macos-latest arm64 because the
+baselines are recorded there, so off that architecture bitwise remains a
+same-machine check.
 
 R/bcf-equivalence.R and R/multinomial-equivalence.R are sibling harnesses
 for the two multi-forest samplers, with their own current baselines named

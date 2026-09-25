@@ -118,19 +118,23 @@ jobs:
             if (fail) quit(status = 1L)
           '
 
-      # The three baselines are bitwise on the reference build: every scenario
-      # must report "identical draws (same RNG stream)", which is what a zero
-      # exit status from each harness means here. --strict-coverage turns a
-      # scenario the baseline predates into a failure rather than a warning;
-      # the bcf and multinomial harnesses have no such flag and compare their
-      # whole recorded set on-host.
+      # The three baselines are bitwise on the reference build, and each
+      # harness exits nonzero here when a scenario is not. --bitwise fails any
+      # gaussian scenario whose draws are not identical, or that the run did
+      # not produce; without it equivalence.R passes a moved stream whose
+      # posterior agrees, which is equivalence.yaml's arm. --strict-coverage
+      # fails a scenario the baseline predates. The bcf and multinomial
+      # harnesses take neither flag: they fail a scenario they did not
+      # produce, and a moved RNG stream reaches their point-in-time snapshot
+      # channels, which fail on any mismatch.
       - name: Run the bitwise equivalence compares
         if: ${{ !cancelled() && steps.reference-install.outcome == 'success' }}
         run: |
           fail=0
           echo "::group::equivalence"
           if Rscript benchmarks/R/equivalence.R compare \
-            benchmarks/baselines/equivalence-6398a1e4.rds --strict-coverage; then
+            benchmarks/baselines/equivalence-6398a1e4.rds --bitwise \
+            --strict-coverage; then
             echo "PASS equivalence"
           else
             echo "::error::bitwise gate equivalence FAILED"

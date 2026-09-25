@@ -13,16 +13,23 @@
 #
 # Usage:
 #   Rscript equivalence.R record [out.rds]
-#   Rscript equivalence.R compare baseline.rds [--strict-coverage]
+#   Rscript equivalence.R compare baseline.rds [--bitwise] [--strict-coverage]
 # Append 'quick' for a fast smoke test (not comparable to full runs).
+# --bitwise makes compare the same-machine bitwise gate: any compared scenario
+# whose draws are not identical fails, however small its |z|, and so does a
+# baseline scenario this run did not produce (below). Without it compare is the
+# statistical gate, which passes a moved RNG stream whose posterior agrees -
+# the mode for a baseline recorded on another machine or build, and the one a
+# shifting change passes against its predecessor.
 # --strict-coverage fails compare (instead of warning) when the installed
 # engine has scenarios the baseline predates.
 # EQUIVALENCE_SCENARIOS (comma-separated names) restricts a run to a subset
 # of scenarios, for targeted record/compare passes; unset runs everything.
 # Compare treats scenarios missing on either side gracefully: baseline-only
-# ones report "skipped", run-only ones report as uncovered (a warning unless
-# --strict-coverage), and the exit code stays 0 when every compared scenario
-# is clean.
+# ones report "skipped" (a failure under --bitwise, unless
+# EQUIVALENCE_SCENARIOS left them out), run-only ones report as uncovered (a
+# warning unless --strict-coverage), and the exit code stays 0 when every
+# compared scenario is clean.
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -31,7 +38,12 @@ quick <- "quick" %in% args
 args <- setdiff(args, "quick")
 strictCoverage <- "--strict-coverage" %in% args
 args <- setdiff(args, "--strict-coverage")
+bitwise <- "--bitwise" %in% args
+args <- setdiff(args, "--bitwise")
 mode <- if (length(args) >= 1L) args[[1L]] else "record"
+if (bitwise && mode != "compare") {
+  stop("--bitwise applies to compare only")
+}
 
 n.seeds <- if (quick) 3L else 20L
 ndpost <- if (quick) 250L else 1000L
@@ -2300,7 +2312,9 @@ if (mode == "record") {
   )
 } else if (mode == "compare") {
   if (length(args) < 2L) {
-    stop("usage: equivalence.R compare baseline.rds")
+    stop(
+      "usage: equivalence.R compare baseline.rds [--bitwise] [--strict-coverage]"
+    )
   }
   baseline <- readRDS(args[[2L]])
   settings <- baseline$meta[c("quick", "n.seeds", "ndpost", "nskip", "ntree")]
@@ -2329,8 +2343,15 @@ if (mode == "record") {
     a <- baseline$results[[name]]
     b <- results[[name]]
     if (is.null(b)) {
-      # scenario absent this run (e.g. sparse when Matrix is not installed)
-      cat(sprintf("%-10s skipped (not produced this run)\n", name))
+      # scenario absent this run (e.g. sparse when Matrix is not installed);
+      # a bitwise gate that compares nothing must not pass, unless
+      # EQUIVALENCE_SCENARIOS asked for the omission
+      if (bitwise && !nzchar(scenarioFilter)) {
+        anyFailure <- TRUE
+        cat(sprintf("%-10s skipped (not produced this run) <- FAIL\n", name))
+      } else {
+        cat(sprintf("%-10s skipped (not produced this run)\n", name))
+      }
       next
     }
     compared <- c(compared, name)
@@ -2357,6 +2378,11 @@ if (mode == "record") {
         },
         TRUE
       )
+    }
+    # the z line below still prints under --bitwise, as the size of the move
+    if (bitwise) {
+      anyFailure <- TRUE
+      cat(sprintf("%-10s draws not bitwise identical <- FAIL\n", name))
     }
     n.warn <- sum(abs(z) > 3, na.rm = TRUE)
     n.fail <- sum(abs(z) > 4, na.rm = TRUE)
@@ -2436,7 +2462,13 @@ if (mode == "record") {
   if (anyFailure) {
     quit(status = 1L)
   }
-  cat("\nOK: posteriors statistically indistinguishable at |z| > 4\n")
+  cat(
+    if (bitwise) {
+      "\nOK: every scenario bitwise identical (same RNG stream)\n"
+    } else {
+      "\nOK: posteriors statistically indistinguishable at |z| > 4\n"
+    }
+  )
 } else {
   stop("unknown mode '", mode, "'; use record or compare")
 }
