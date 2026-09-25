@@ -86,7 +86,7 @@ cellSampler <- function(data, replicate, levelGibbs = FALSE) {
     n.threads = 1L,
     verbose = FALSE,
     seed = surfacesSamplerSeed(replicate),
-    levelGibbs = levelGibbs,
+    tree.prior = cgm(levelGibbs = levelGibbs),
     samplerOnly = TRUE
   )
 }
