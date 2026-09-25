@@ -129,8 +129,11 @@ criteria applied unchanged.
 - The latent SBC arms are admitted only if their ladders meet
   [Decision 1 - the SBC arms](bcf-latent-evidence.md#decision-1---the-sbc-arms)'s admission clause.
   They do not (see the Landing note), so they stay out of the matrix.
-- The exact gate's statistic (longer batches, AR(1) inflation, seed-spread floor) stays as landed.
-  Tightening it again is a follow-up, decided on Step 6's seed-spread measurement.
+- The exact gate's statistic was tightened as a follow-up, 1cd75d3a: its seven two-cell
+  configurations take a plain 400-batch se, and only the two `K = 3` arms keep the longer batches,
+  AR(1) inflation and seed-spread floor. It now fails the defective engine in 38 quick runs of 50,
+  against 3, at a false-failure rate near 3e-3 a run on those configurations
+  ([Decision 2 - the exact gate](bcf-latent-evidence.md#decision-2---the-exact-gate)).
 
 The rejected alternatives were lifting the exclusion because the gate passes (the admission clause
 is about chain length at large `|a|`, which the gate does not measure) and keeping the exclusion
