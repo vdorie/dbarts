@@ -207,15 +207,16 @@ double forestCacheGapRatio(const C& chain, std::size_t f, std::size_t sweeps,
   return gap / (std::numeric_limits<double>::epsilon() * scaleMax * root);
 }
 
-// C in that bound, shared by the drift pins (testAmplitudeCacheDrift,
-// testAmplitudeCacheRestore) and the fuzz invariant. Measured with no
-// multiplicative leaf transform in the engine: the pins' worst ratio was 5.0
-// (probit, the 50 + 25 tree ensemble) and the fuzz's 184 over 1000 seeds (a
-// bcf stream of predictor mutations ending in grow-from-root; 7.0 over 200);
-// C is ten times the larger, rounded up. The rescaling move the engine carried
-// until 1.0-0 multiplied the gap and reached 4.7e10 (probit) and 7.7e11
+// C in that bound, shared by the drift pin (testAmplitudeCacheDrift) and the
+// fuzz invariant. Measured with no multiplicative leaf transform in the
+// engine: the pin's worst ratio was 5.0 (probit, the 50 + 25 tree ensemble)
+// and the fuzz's 5.0 over 1000 seeds; C is ten times that. The fuzz once read
+// 184, when its running scale was sampled only after each op and so missed
+// the working response of all but the last sweep of a multi-sweep
+// grow-from-root; its grow op now runs a sweep at a time. The removed
+// rescaling move multiplied the gap and reached 4.7e10 (probit) and 7.7e11
 // (logistic) at the latent gate's shape within 5000 sweeps.
-constexpr double forestCacheGapBound = 2000.0;
+constexpr double forestCacheGapBound = 50.0;
 
 // ext_printf is Rprintf (external/io.h), whose real implementation needs a
 // live R session and segfaults without one, so this host defines the symbol

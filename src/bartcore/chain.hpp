@@ -1633,6 +1633,9 @@ public:
           forestY = fr.response;
           forestWeights = composeForestWeights(f, fr.weights);
         }
+#ifndef NDEBUG
+        noteForestResponseScale(f, forestY);
+#endif
         MoveContext ctx{data_,
                         forest.treePrior,
                         forest.birthOrDeathProbability,
@@ -1792,13 +1795,8 @@ public:
       }
 
 #ifndef NDEBUG
-      // The forest cache rule ForestCombiner::afterCombine states, checked at
-      // every sweep boundary. A float chain's residual is stored in fp32 and
-      // carries larger gaps by design, so it is exempt. R's build defines
-      // NDEBUG, so this is live only in tests/cpp.
-      if constexpr (leafIsConstant && std::is_same_v<ResidT, double>)
-        for (const Forest<L, ResidT>& forest : forests_)
-          assert(totalFitsMatchLeaves(forest));
+      // the forest cache rule, at the end of every sampling sweep
+      assertForestCachesMatchLeaves();
 #endif
 
       if (record) {
@@ -2263,6 +2261,9 @@ public:
             forestY = fr.response;
             forestWeights = composeForestWeights(f, fr.weights);
           }
+#ifndef NDEBUG
+          noteForestResponseScale(f, forestY);
+#endif
 
           forest.kSumSquaredParams = 0.0;
           forest.kNumLeaves = 0.0;
@@ -2316,6 +2317,10 @@ public:
             forest.dart.update(rng_, forest.splitCounts.data());
           }
         }
+#ifndef NDEBUG
+        // the forest cache rule, at the end of every grow-from-root sweep
+        assertForestCachesMatchLeaves();
+#endif
       }
     }
   }
@@ -5334,11 +5339,27 @@ private:
   }
 
 #ifndef NDEBUG
+  /// Folds forest f's working response for this sweep into its running
+  /// maximum of max_i |forestY_i|, the scale its cache's rounding grows with.
+  /// A combiner's response divides by the forest's multiplier, which the
+  /// amplitude snap lets reach 2^26 times the data's scale.
+  void noteForestResponseScale(size_t f, const double* forestY) {
+    if (forestResponseScale_.size() < forests_.size())
+      forestResponseScale_.resize(forests_.size(), 0.0);
+    double scale = forestResponseScale_[f];
+    for (size_t i = 0; i < data_.numObservations; ++i)
+      scale = std::max(scale, std::fabs(forestY[i]));
+    forestResponseScale_[f] = scale;
+  }
+
   /// Whether a constant-leaf forest's cached totalFits is within additive
-  /// rounding of its leaves gathered in tree order: 1e-8 (1 + |totalFits_i|)
-  /// on every row, far above the rounding a sweep's difference updates
-  /// accumulate and far below any gap a transform has multiplied.
-  bool totalFitsMatchLeaves(const Forest<L, ResidT>& forest) const {
+  /// rounding of its leaves gathered in tree order:
+  /// 1e-8 (1 + |totalFits_i| + scale) on every row, where scale is the
+  /// forest's running maximum of |forestY|. The sweep's difference updates
+  /// round at that scale, so the bound is far above what they accumulate
+  /// and far below any gap a transform has multiplied.
+  bool totalFitsMatchLeaves(const Forest<L, ResidT>& forest,
+                            double scale) const {
     size_t n = data_.numObservations;
     if (forest.totalFits.size() < n || forest.muByTree.size() < forest.numTrees ||
         forest.leafOf.size() < n * forest.numTrees)
@@ -5348,10 +5369,24 @@ private:
       for (size_t t = 0; t < forest.numTrees; ++t)
         gather += forest.muByTree[t][forest.leafOf[t * n + i]];
       double total = forest.totalFits[i];
-      if (!(std::fabs(total - gather) <= 1.0e-8 * (1.0 + std::fabs(total))))
+      if (!(std::fabs(total - gather) <=
+            1.0e-8 * (1.0 + std::fabs(total) + scale)))
         return false;
     }
     return true;
+  }
+
+  /// The forest cache rule ForestCombiner::afterCombine states, asserted at
+  /// the end of every sweep run() and growForestFromRoot() take. A float
+  /// chain's residual is stored in fp32 and carries larger gaps by design, so
+  /// it is exempt. R's build defines NDEBUG, so this is live only in
+  /// tests/cpp.
+  void assertForestCachesMatchLeaves() const {
+    if constexpr (leafIsConstant && std::is_same_v<ResidT, double>)
+      for (size_t f = 0; f < forests_.size(); ++f)
+        assert(totalFitsMatchLeaves(
+          forests_[f],
+          f < forestResponseScale_.size() ? forestResponseScale_[f] : 0.0));
   }
 #endif
 
@@ -6334,6 +6369,11 @@ private:
   // nothing after the first one; a mixture is mutable between sweeps, so this
   // is state of the sweep rather than of the chain.
   std::vector<unsigned char> structureFrozenByForest_;
+#ifndef NDEBUG
+  // The debug cache check's scale: per forest, the running maximum of
+  // max_i |forestY_i| over every sweep this chain has taken.
+  std::vector<double> forestResponseScale_;
+#endif
   // Diagnostic only, never read by the sampler: how many (tree, sweep) bodies
   // took the fused pass. Every eligibility clause is otherwise a silent
   // decline, which would let a refactor give back the gather unnoticed.

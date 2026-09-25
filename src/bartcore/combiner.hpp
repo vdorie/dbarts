@@ -589,10 +589,11 @@ struct ForestCombiner {
   /// An afterCombine that writes leaf values owns every cache derived from
   /// them: a forest's totalFits may leave the sweep differing from its leaves
   /// by additive rounding only. An additive move may update the cache in place,
-  /// its increment being rounding-level; a multiplicative one must re-derive
+  /// the rounding it adds being additive; a multiplicative one must re-derive
   /// the cache from the leaves before the sweep ends, since a gap it multiplies
-  /// compounds across sweeps and nothing short of a restore clears it. Chain::run
-  /// checks this under !NDEBUG.
+  /// compounds across sweeps and nothing short of a restore clears it. Chain
+  /// checks this under !NDEBUG at the end of every sweep, grow-from-root
+  /// included.
   virtual void drawGlue(ext_rng*, double, const double*, const double*,
                         const std::vector<Forest<L, ResidT>>&) {}
   virtual void afterCombine(std::vector<Forest<L, ResidT>>&, bool, std::size_t,

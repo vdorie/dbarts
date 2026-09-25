@@ -3495,10 +3495,11 @@ static void testBCFFixedGlue(ext_rng* rng) {
 // two-forest branch (per-forest residual formation, the glue draw); the
 // bridge's growFromRoot entry point places no multi-forest guard, so this path
 // is R-reachable, not engine-internal only. The fuzz mutation suite now walks
-// it too, but only against consistency oracles - this is the only gate that pins a hardcoded characteristic value: build the
-// two-forest sampler, grow every forest from the root, and pin the combined
-// output - both forests finite and off zero, glue finite, and a recorded
-// characteristic value of the combined internal fit a*mu + b_z*tau.
+// it too, but only against consistency oracles - this is the only gate that
+// pins a hardcoded characteristic value: build the two-forest sampler, grow
+// every forest from the root, and pin the combined output - both forests
+// finite and off zero, glue finite, and a recorded characteristic value of the
+// combined internal fit a*mu + b_z*tau.
 static void testBCFGrowForestFromRoot() {
   // A local stream and locally owned generator, so this test neither reads nor
   // shifts the shared runif01() state: its fixture, and so its hardcoded
@@ -4812,28 +4813,22 @@ static void testAmplitudeCacheDrift() {
 }
 
 // A restore at a sweep boundary re-derives every forest's cache from its
-// leaves in tree order, so it reproduces the gather bitwise and lands within
-// the additive-rounding bound of the cache the run carried. A gap a transform
-// had multiplied would be dropped here without warning.
+// leaves in tree order, so it reproduces the gather bitwise. Its distance from
+// the cache the run carried is then that cache's own gap, which
+// testAmplitudeCacheDrift bounds after every sweep; a gap a transform had
+// multiplied would be dropped here without warning.
 static void testAmplitudeCacheRestore() {
-  double worst = 0.0;
   bool rederived = true;
   for (std::size_t s = 0; s < 2; ++s) {
     const CacheDriftShape& shape = cacheDriftShapes[s];
-    std::size_t sweeps = cacheDriftSweeps[s];
     for (const CacheDriftFamily& family : cacheDriftFamilies) {
       CacheDriftFixture data =
         makeCacheDriftFixture(shape, family.family, 21u);
       ext_rng* rng = makeSeamRng(21u);
       auto sampler = makeCacheDriftSampler(shape, family.family, data, &rng);
       const auto& before = sampler->chain(0);
-      std::vector<double> scaleMax(before.numForests(), 1.0);
       Results results;
-      for (std::size_t sweep = 1; sweep <= sweeps; ++sweep) {
-        sampler->run(1, 0, results);
-        for (std::size_t f = 0; f < before.numForests(); ++f)
-          forestCacheGapRatio(before, f, sweep, scaleMax[f]);
-      }
+      sampler->run(cacheDriftSweeps[s], 0, results);
 
       SamplerStateData state;
       sampler->getState(state);
@@ -4842,10 +4837,8 @@ static void testAmplitudeCacheRestore() {
       check(restored->setState(state, nullptr),
             "an amplitude-coupled state restores");
 
-      // the restored cache is the live leaves gathered in tree order, bitwise,
-      // so its distance from the live cache IS the live cache's gap
+      // the restored cache is the live leaves gathered in tree order, bitwise
       const auto& after = restored->chain(0);
-      double restoreWorst = 0.0;
       for (std::size_t f = 0; f < before.numForests(); ++f) {
         std::size_t numTrees = before.numTreesInForest(f);
         std::vector<double> fits(shape.n * numTrees);
@@ -4857,23 +4850,81 @@ static void testAmplitudeCacheRestore() {
             gather += fits[t * shape.n + i];
           rederived &= rebuilt[i] == gather;
         }
-        restoreWorst =
-          std::max(restoreWorst,
-                   forestCacheGapRatio(before, f, sweeps, scaleMax[f]));
       }
-      if (restoreWorst > forestCacheGapBound)
-        printf("  restore %s %s: ratio %.3g\n", family.name, shape.name,
-               restoreWorst);
-      worst = std::max(worst, restoreWorst);
       ext_rng_destroy(rng2);
       ext_rng_destroy(rng);
     }
   }
   check(rederived, "a restore re-derives every forest's cache from its leaves");
-  check(worst <= forestCacheGapBound,
-        "a restore reproduces every forest's cached fits to additive rounding");
-  printf("ok: amplitude cache restore (worst %.3g of bound %.3g)\n", worst,
-         forestCacheGapBound);
+  printf("ok: amplitude cache restore\n");
+}
+
+// keepTrees slot addressing under thinning: a slot is (savedSlotBase +
+// sampleNum), sampleNum = iteration / numThin - numBurnIn, a thinned counter
+// numThin = 1 cannot exercise. Four slots at thin 3 are kept; the last is
+// recorded on the final sweep, so predicting from it reconstructs the live
+// prognostic fit up to the cache's additive rounding, where a misaddressed
+// store would leave it an earlier draw. Local generators, so the shared
+// runif01 stream neither shifts nor is shifted.
+static void testAmplitudeKeepTreesThinnedSlot() {
+  std::uint64_t state = 20260925u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  const std::size_t n = 300, p = 3, numSlots = 4, thin = 3;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = unif();
+  for (std::size_t i = 0; i < n; ++i) {
+    z[i] = unif() < 0.5 ? 1.0 : 0.0;
+    double mu = std::sin(3.0 * x[i]) + x[i + n];
+    double tau = 1.0 + 2.0 * x[i + 2 * n];
+    y[i] = mu + z[i] * tau + 0.2 * (unif() - 0.5);
+  }
+
+  SamplerOptions options;
+  options.keepTrees = true;
+  options.numSamplesToStore = numSlots;
+  options.numThin = thin;
+  AmplitudeSpec spec;
+  spec.mu.numTrees = 40;
+  spec.tau.numTrees = 20;
+  spec.z = z.data();
+  ext_rng* rng = makeSeamRng(24601u);
+  Sampler<ConstantGaussianLeaf> sampler(x.data(), y.data(), n, p, nullptr,
+                                        nullptr, 1.0, 3.0, 0.37804942330213542,
+                                        options, spec, &rng);
+  Results results;
+  sampler.run(50, numSlots, results);
+
+  // predict reads the saved prognostic slots: scale * mu_saved + shift
+  double scale = sampler.fitScale();
+  std::vector<double> muLive(n), pred(n * numSlots);
+  sampler.forestTotalFits(0, 0, muLive.data());
+  sampler.predict(x.data(), n, 1, pred.data());
+
+  const double* last = pred.data() + (numSlots - 1) * n;
+  const double* previous = pred.data() + (numSlots - 2) * n;
+  double d0 = last[0] - scale * muLive[0];
+  double dPrevious = previous[0] - scale * muLive[0];
+  double spread = 0.0, spreadPrevious = 0.0;
+  for (std::size_t i = 0; i < n; ++i) {
+    spread = std::max(spread, std::fabs((last[i] - scale * muLive[i]) - d0));
+    spreadPrevious =
+      std::max(spreadPrevious,
+               std::fabs((previous[i] - scale * muLive[i]) - dPrevious));
+  }
+  bool finite = true;
+  for (double v : pred) finite &= std::isfinite(v);
+  printf("  thinned slot spread %.3g (previous slot %.3g)\n", spread,
+         spreadPrevious);
+  check(finite, "keepTrees numThin > 1 stored slots stay finite");
+  check(spread < 1.0e-12,
+        "keepTrees numThin > 1 last saved slot tracks the live prognostic fit");
+  check(spreadPrevious > 1.0e-6,
+        "keepTrees numThin > 1 earlier slot holds an earlier draw");
+  ext_rng_destroy(rng);
+  printf("ok: amplitude keepTrees thinned slot\n");
 }
 
 // (4) The amplitude blocks are addressed THROUGH the per-forest offsets. With a
@@ -7435,6 +7486,7 @@ void runSamplerTests(ext_rng* rng) {
   testAmplitudeOffsetIndexing();
   testAmplitudeCacheDrift();
   testAmplitudeCacheRestore();
+  testAmplitudeKeepTreesThinnedSlot();
   testForestWeights();
   testMultinomial(rng);
   testMultinomialCombinerSeam();

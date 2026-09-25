@@ -746,21 +746,25 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         // one for the flat encoding of the rules grow places, categorical
         // masks included, on the configurations that carry them.
         size_t numSweeps = 1 + fuzzInt(opRng, 2);
-        s.growFromRoot(numSweeps);
-        sweeps += numSweeps;
         snprintf(line, sizeof line, "op%d grow sweeps=%zu", op, numSweeps);
         record(line);
-        // Before the round trip, not folded into the invariant call after
-        // the switch: setState below re-derives every fit from the
-        // deserialized trees, so it would silently heal a forest whose
-        // derived fits are left inconsistent with the trees growFromRoot
-        // just rebuilt - the defect class this line exists to catch. A
-        // stale leafOf index from the same kind of mid-grow slip never
-        // reaches this check: rollTreeResidual's own assertion aborts the
-        // process first, and only when assertions are live (no NDEBUG).
-        if (const char* v =
-              fuzzInvariantViolation(s, treatmentZ, sweeps, scaleMax))
-          fail(v);
+        // A sweep at a time, which draws exactly what one multi-sweep call
+        // does, so the cache rule's running scale sees each sweep's working
+        // response. Checked here, before the round trip, not folded into the
+        // invariant call after the switch: setState below re-derives every fit
+        // from the deserialized trees, so it would silently heal a forest
+        // whose derived fits are left inconsistent with the trees growFromRoot
+        // just rebuilt - the defect class this line exists to catch. A stale
+        // leafOf index from the same kind of mid-grow slip never reaches this
+        // check: rollTreeResidual's own assertion aborts the process first,
+        // and only when assertions are live (no NDEBUG).
+        for (size_t k = 0; k < numSweeps && ok; ++k) {
+          s.growFromRoot(1);
+          ++sweeps;
+          if (const char* v =
+                fuzzInvariantViolation(s, treatmentZ, sweeps, scaleMax))
+            fail(v);
+        }
         SamplerStateData grown;
         s.getState(grown);
         if (!s.setState(grown, curAll())) {
