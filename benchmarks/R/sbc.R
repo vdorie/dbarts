@@ -1297,16 +1297,29 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
     verbose = FALSE,
     keepTrainingFits = TRUE
   )
-  base <- dbarts(
-    config$x,
-    config$yBuild,
-    family = gaussian(
-      sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)
-    ),
-    node.prior = config$nodePrior,
-    sigma = config$sigest,
-    control = ctrl
-  )
+  # a latent arm's host is built under its own link, the one route by which a
+  # 0/1 build response reaches the bridge as binary; a gaussian host would
+  # carry it as continuous and the latent family would be refused at creation
+  base <- if (sbcBCFLatent(config)) {
+    dbarts(
+      config$x,
+      config$yBuild,
+      family = config$family,
+      node.prior = config$nodePrior,
+      control = ctrl
+    )
+  } else {
+    dbarts(
+      config$x,
+      config$yBuild,
+      family = gaussian(
+        sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)
+      ),
+      node.prior = config$nodePrior,
+      sigma = config$sigest,
+      control = ctrl
+    )
+  }
   bcf <- .bcfNew(
     base,
     config$z,

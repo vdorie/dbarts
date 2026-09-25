@@ -669,11 +669,12 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
 # A batch-means standard error whose batch LENGTH is raised until the batch
 # means decorrelate, with any residual lag-1 correlation charged to the
 # estimate as an AR(1) inflation. A fixed 400 batches is not honest here:
-# mode 2a's chain is metastable (its (a, mu) state sits in one place for
-# 1e5 kept draws at a time) and the K = 3 arms switch tree partitions
-# slowly, so at 400 batches those channels understate their own error by up
-# to 30x - measured against the spread of independent seeds - and the gate
-# would fail a correct sampler. The lag-1 autocorrelation of the batch means
+# the K = 3 arms switch tree partitions slowly, so at 400 batches those
+# channels understate their own error by 2x to 3x - measured against the
+# spread of independent seeds - and the gate would fail a correct sampler.
+# Mode 2a's batch se matches its seed spread (0.7x to 1.2x over 20 seeds at
+# the quick shape, the `pooled` run's spread column); the adaptive length
+# costs it nothing. The lag-1 autocorrelation of the batch means
 # is reported beside every z, so a mixing-limited channel says so; the
 # correlation is capped at 0.95 rather than allowed to make the gate vacuous.
 batchStats <- function(v) {
@@ -939,18 +940,27 @@ cat(sprintf(
 
 # Mode 2a at the quick shape over independent seeds: each seed contributes
 # its chain's channel means, and the pooled mean is scored against the
-# quadrature with sd(seed means) / sqrt(seeds) as its standard error.
+# quadrature with sd(seed means) / sqrt(seeds) as its standard error. Beside
+# each z, `spread` is sd(seed means) over the root mean square of the seeds'
+# own batch-means standard errors: near 1 when a single chain reports its own
+# error honestly, well above it when the chain holds a state for longer than
+# its batches see.
 runPooled <- function(name, arm, exact, matched) {
   started <- proc.time()[["elapsed"]]
   perSeed <- parallel::mclapply(
     seq_len(pooledSeeds),
     function(seed) {
       fit <- samplerFit(seed, arm, TRUE, FALSE, nKept, nThin)
-      vapply(fit, mean, numeric(1L))
+      stats <- lapply(fit, batchStats)
+      rbind(
+        mean = vapply(stats, function(x) x$mean, numeric(1L)),
+        se = vapply(stats, function(x) x$se, numeric(1L))
+      )
     },
     mc.cores = pooledCores
   )
-  means <- do.call(rbind, perSeed)
+  means <- do.call(rbind, lapply(perSeed, function(x) x["mean", ]))
+  batchSe <- do.call(rbind, lapply(perSeed, function(x) x["se", ]))
   cat(sprintf(
     "%s, %d seeds (%.1f s)\n",
     name,
@@ -958,12 +968,13 @@ runPooled <- function(name, arm, exact, matched) {
     proc.time()[["elapsed"]] - started
   ))
   cat(sprintf(
-    "  %-16s %9s %9s %9s %7s\n",
+    "  %-16s %9s %9s %9s %7s %7s\n",
     "quantity",
     "pooled",
     "exact",
     "se",
-    "z"
+    "z",
+    "spread"
   ))
   targets <- list()
   for (label in names(matched)) {
@@ -985,14 +996,16 @@ runPooled <- function(name, arm, exact, matched) {
     v <- means[, key]
     se <- sd(v) / sqrt(length(v))
     z <- (mean(v) - targets[[key]]) / se
+    spread <- sd(v) / sqrt(mean(batchSe[, key]^2))
     bad <- !is.finite(z) || abs(z) >= pooledBound
     cat(sprintf(
-      "  %-16s %+9.5f %+9.5f %9.2e %+7.2f%s\n",
+      "  %-16s %+9.5f %+9.5f %9.2e %+7.2f %7.2f%s\n",
       key,
       mean(v),
       targets[[key]],
       se,
       z,
+      spread,
       if (bad) " <- FAIL" else ""
     ))
     worst <- max(worst, abs(z))
