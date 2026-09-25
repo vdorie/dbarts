@@ -38,20 +38,29 @@
 # A baseline recorded before this mode existed carries no summaries and
 # degrades loudly rather than silently passing.
 #
+# Append '--bitwise' to remove that statistical fallback: a statChannels
+# mismatch fails outright, whatever z it lands at, matching equivalence.R's
+# --bitwise (c8ff7726). Snapshot channels already gate their mismatch
+# directly with or without the flag, and a baseline scenario this run does
+# not produce already fails unconditionally, so --bitwise only closes the
+# drawn channels' statistical escape hatch. Default stays statistical, for a
+# baseline recorded on another build.
+#
 # Usage:
 #   Rscript bcf-equivalence.R record [out.rds]
-#   Rscript bcf-equivalence.R compare baseline.rds
+#   Rscript bcf-equivalence.R compare baseline.rds [--bitwise] [--cross-host]
 # Append 'quick' for a fast smoke pass (fewer draws; not comparable to a full
 # baseline - the settings guard refuses the mixed comparison).
-# Append '--cross-host' to compare a baseline recorded on ANOTHER machine.
-# Bitwise is unavailable there by construction: makeData builds y through
-# sin(), which is the platform libm, so the input data already differ in the
-# last ulp before any engine code runs. The flag exempts the point-in-time
-# snapshot channels (one query of the live sampler after the last sweep, no
-# draws axis to reduce over) and gates the draws-axis channels under a
-# two-tier verdict - tier 1 a tight deviation bound that is the real gate,
-# tier 2 a decoupled statistical fallback that adjudicates and never
-# certifies. Compare only; a recording is host-local by definition.
+# Append '--cross-host' to compare a baseline recorded on ANOTHER machine;
+# refuses to combine with --bitwise, since bitwise is unavailable there by
+# construction: makeData builds y through sin(), which is the platform libm,
+# so the input data already differ in the last ulp before any engine code
+# runs. The flag exempts the point-in-time snapshot channels (one query of
+# the live sampler after the last sweep, no draws axis to reduce over) and
+# gates the draws-axis channels under a two-tier verdict - tier 1 a tight
+# deviation bound that is the real gate, tier 2 a decoupled statistical
+# fallback that adjudicates and never certifies. Compare only; a recording
+# is host-local by definition.
 
 source(
   system.file("common", "bartcoreHandle.R", package = "dbarts"),
@@ -72,9 +81,20 @@ quick <- "quick" %in% args
 args <- setdiff(args, "quick")
 crossHost <- "--cross-host" %in% args
 args <- setdiff(args, "--cross-host")
+bitwise <- "--bitwise" %in% args
+args <- setdiff(args, "--bitwise")
 mode <- if (length(args) >= 1L) args[[1L]] else "record"
 if (crossHost && mode != "compare") {
   stop("--cross-host applies to compare only; a recording is host-local")
+}
+if (bitwise && mode != "compare") {
+  stop("--bitwise applies to compare only")
+}
+if (bitwise && crossHost) {
+  stop(
+    "--bitwise is incompatible with --cross-host: cross-host inputs already ",
+    "differ in the last ulp before any engine code runs"
+  )
 }
 
 # Global run knobs. These are pinned in the baseline meta and re-checked at
@@ -580,7 +600,9 @@ if (mode == "record") {
   cat("wrote BCF baseline for", length(results), "scenarios to", out.file, "\n")
 } else if (mode == "compare") {
   if (length(args) < 2L) {
-    stop("usage: bcf-equivalence.R compare baseline.rds")
+    stop(
+      "usage: bcf-equivalence.R compare baseline.rds [--bitwise] [--cross-host]"
+    )
   }
   baseline <- readRDS(args[[2L]])
   guarded <- names(settingsList())
@@ -664,6 +686,13 @@ if (mode == "record") {
       next
     }
     usedStatistical <- TRUE
+    # --bitwise removes the statistical fallback for the drawn channels only;
+    # a snapshot-only mismatch still gates below via pointMismatch either way.
+    statMismatch <- intersect(channels[!ok], statChannels)
+    if (bitwise && length(statMismatch) > 0L) {
+      anyFailure <- TRUE
+      cat(sprintf("%-14s draws not bitwise identical <- FAIL\n", name))
+    }
     # summaries is a pure, deterministic reduction of the raw draws-axis
     # channels, so a baseline that predates the field but stores those channels
     # at full shape can still be compared: derive what it did not record.

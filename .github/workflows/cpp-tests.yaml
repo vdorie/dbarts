@@ -123,10 +123,11 @@ jobs:
       # gaussian scenario whose draws are not identical, or that the run did
       # not produce; without it equivalence.R passes a moved stream whose
       # posterior agrees, which is equivalence.yaml's arm. --strict-coverage
-      # fails a scenario the baseline predates. The bcf and multinomial
-      # harnesses take neither flag: they fail a scenario they did not
-      # produce, and a moved RNG stream reaches their point-in-time snapshot
-      # channels, which fail on any mismatch.
+      # fails a scenario the baseline predates. bcf-equivalence.R and
+      # multinomial-equivalence.R take the same --bitwise flag now: it fails
+      # any statChannels (drawn) mismatch outright instead of letting it
+      # through on Welch-z agreement; a scenario they did not produce, or a
+      # mismatched point-in-time snapshot channel, already failed either way.
       - name: Run the bitwise equivalence compares
         if: ${{ !cancelled() && steps.reference-install.outcome == 'success' }}
         run: |
@@ -143,7 +144,7 @@ jobs:
           echo "::endgroup::"
           echo "::group::bcf-equivalence"
           if Rscript benchmarks/R/bcf-equivalence.R compare \
-            benchmarks/baselines/bcf-equivalence-d49e2103.rds; then
+            benchmarks/baselines/bcf-equivalence-d49e2103.rds --bitwise; then
             echo "PASS bcf-equivalence"
           else
             echo "::error::bitwise gate bcf-equivalence FAILED"
@@ -152,7 +153,8 @@ jobs:
           echo "::endgroup::"
           echo "::group::multinomial-equivalence"
           if Rscript benchmarks/R/multinomial-equivalence.R compare \
-            benchmarks/baselines/multinomial-equivalence-80b1c8d4.rds; then
+            benchmarks/baselines/multinomial-equivalence-80b1c8d4.rds \
+            --bitwise; then
             echo "PASS multinomial-equivalence"
           else
             echo "::error::bitwise gate multinomial-equivalence FAILED"

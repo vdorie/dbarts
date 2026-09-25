@@ -80,9 +80,9 @@ machine, and scenario list. The scheduled workflow
 (.github/workflows/equivalence.yaml) runs `compare` in the statistical
 mode against the current baseline. Bitwise exactness is not local-only:
 cpp-tests.yaml runs all three compares per push on the reference build,
-this one with `--bitwise`, pinned to macos-latest arm64 because the
-baselines are recorded there, so off that architecture bitwise remains a
-same-machine check.
+each with `--bitwise`, pinned to macos-latest arm64 because the baselines
+are recorded there, so off that architecture bitwise remains a same-machine
+check.
 
 R/bcf-equivalence.R and R/multinomial-equivalence.R are sibling harnesses
 for the two multi-forest samplers, with their own current baselines named
@@ -104,6 +104,17 @@ autocorrelated chain rather than the independent seeds equivalence.R reduces
 over, so even with an ESS-adjusted denominator its |z| = 4 bar tolerates a
 per-cell shift of over a posterior sd. A tier-2 pass says the failure is not
 gross, never that the two builds agree.
+
+Both also take `--bitwise`, same-host compare only and refuses to combine
+with `--cross-host`. Without it, a `statChannels` (drawn) mismatch falls
+through to the same Welch-z adjudication as equivalence.R's default mode,
+which a small RNG-stream move can still pass; `--bitwise` removes that
+fallback, so any such mismatch fails outright, whatever its |z|. Point-in-time
+snapshot channels already gate their mismatch directly with no fallback in
+either mode, and a baseline scenario the run did not produce already fails
+either way, so `--bitwise` only closes the drawn channels' statistical escape
+hatch - the same effect equivalence.R's `--bitwise` has (c8ff7726). This is
+the mode cpp-tests.yaml uses for both siblings' per-push compares.
 
 ## R/classic-compare.R - the 0.9-34 comparison (measurement, not a gate)
 
