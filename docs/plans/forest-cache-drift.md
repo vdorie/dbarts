@@ -93,8 +93,8 @@ cache (no bulk transform of vector leaves exists), and combiner scratch.
 
 The rule, which stands with the move gone: a cache's gap from its derivation may never cross a
 sweep boundary multiplied. (i) A multiplicative transform of leaf values re-derives the cache
-before the sweep ends. (ii) An additive transform may update the cache in place: its increment is
-additive and rounding-level, the same class as the sweep's own difference updates. (iii) A cache
+before the sweep ends. (ii) An additive transform may update the cache in place: the rounding it adds
+is additive, the same class as the sweep's own difference updates. (iii) A cache
 that is rebuilt from scratch every sweep may be scaled in place between rebuilds; the variance
 surface and the recorded test fits are such caches. No multiplicative leaf transform remains, so
 rule (i) binds only a future one, a restored rescaling move included. The TODO item

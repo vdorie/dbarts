@@ -128,8 +128,8 @@ multiple chains it is per chain, inside each chain's own loop and on its own gen
 dependence.
 
 **Degenerate cases.** `m = 1` gives a zero-dimensional fibre and the step is a no-op; a tree with no occupied leaf drops out and the
-projection runs over the rest; fewer than two eligible trees is a no-op, mirroring `rescaleAmplitudeRidge`'s own `numLeaves < 2`
-guard. The step fires in the sampling loop only, not in the grow-from-root warm start, which is an initializer and not MH-exact.
+projection runs over the rest; fewer than two eligible trees is a no-op. The step fires in the sampling loop only, not in the
+grow-from-root warm start, which is an initializer and not MH-exact.
 
 ## 3. Leaf models and response families
 

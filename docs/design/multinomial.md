@@ -104,7 +104,8 @@ conditional is not shift-equivariant and pulls back against the move; at the
 intercept-only configuration the draw reduces to an exact independence sampler
 from the level's marginal N(0, tau^2/K). The move lives in afterCombine
 (MultinomialForestCombiner<L>, src/bartcore/combiner.hpp), the post-loop
-combiner move, the BCF-ridge-interweave analog for the softmax's flat direction.
+combiner move, for the softmax's flat direction what the removed BCF amplitude
+rescaling move (dec-B127) was for the amplitude ridge.
 
 The shift is GLOBAL, not per-observation, by necessity. A per-observation shift
 - the naive reading of the invariance - is not representable by shared-leaf

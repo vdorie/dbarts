@@ -2224,10 +2224,12 @@ sbcCheckMultinomialProbs <- function(config, seed = 99L) {
 # datasets, flat from block 2), and every functional decorrelates well inside
 # lag 200 - the surface functionals fastest of all, s.star under lag 28 and
 # avg.log.s under 38 on both arms, the mean surface being what mixes slowest. The two
-# latent BCF arms do NOT clear: the reported p_j deliverable is under lag 47
-# everywhere, but a, abs.a and prog_j stay above 0.1 past lag 200 in half the
-# prior draws and at every |a| >= 5 stratum, whose block means do not settle in
-# 40000 sweeps either. That is the (a, mu) amplitude ridge the gaussian BCF
+# latent BCF arms do NOT clear (2026-09-24 ladders): the reported p_j
+# deliverable clears ACF 0.1 by lag 50 on 20 of the 24 prior draws (probit) and
+# 22 (logistic), its worst finite lag 200 and 153 with one probit draw past 200,
+# while a stays above 0.1 past lag 200 on 15 of the 24 on each link, and a,
+# abs.a and prog_j do at every |a| >= 5 stratum, whose block means do not settle
+# in 40000 sweeps either. That is the (a, mu) amplitude ridge the gaussian BCF
 # arm's 72000 was read through sigma; pinning sigma removes the readout, not
 # the ridge, and the misfit it absorbed lands in the index these arms rank. So
 # their entries are the affordable point the R=200 verdict was recorded at, not
@@ -2248,8 +2250,10 @@ sbcBurnSweeps <- c(
   # costs the mean surface roughly twice the lag at the same design
   hetero = 4000,
   "hetero-aft" = 4000,
-  # 7x the ~1600-sweep amplitude transient; thin 50 covers p_j, worst lag 47,
-  # and nothing affordable covers prog_j
+  # the affordable point the R = 200 verdicts were recorded at, not a burn that
+  # discharges the amplitude ridge; thin 50 covers p_j on 20 of the 24 prior
+  # draws (probit) and 22 (logistic), not its worst lags, and nothing
+  # affordable covers prog_j
   "bcf-probit" = 12000,
   "bcf-logistic" = 12000
 )

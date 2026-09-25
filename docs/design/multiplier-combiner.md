@@ -210,13 +210,13 @@ full length. With that defect fixed by re-deriving the cache from the leaves,
 a comparison against the same model without the move - seven designs, two
 sample sizes, 20 seeds each - gave at most 1.30 times the effective draws per
 second on the residual scale or the treatment effect, against a bar of 1.5 set
-before the run, for about 5 percent of every sweep. The amplitude itself mixed
+before the run, for 4 to 6 percent of every sweep. The amplitude itself mixed
 better in some designs, but no quantity a user reads did, and without the move
 the amplitude still reaches its stationary level within a few hundred sweeps.
 The slow mixing in the strong-signal designs is the tree-structure limit,
 which the move does not touch.
 
-**Restoring it.** The last commit that carried the move is 6421b518: the
+**Restoring it.** The last commit that carried the move is 1a7dc96e: the
 rescale in `AmplitudeForestCombiner::rescaleAmplitudeRidge` and its call from
 `AmplitudeForestCombiner::afterCombine` (src/bartcore/combiner.hpp), the
 per-forest `ridge` flags and the bridge's derivation of them from
@@ -291,7 +291,7 @@ both structural and both prototype-confirmed:
 GIG generator: the move drew v with a Dagpunar noshift ratio-of-uniforms
 generator of density `x^(p-1) exp(-(A x + B/x)/2)`, with `B=0 -> Gamma(p,
 rate A/2)` and `A=0 -> inverse-gamma`; it was removed with the move and is in
-external/random.{h,c} at 6421b518. A single GIG draw covers every regime
+external/random.{h,c} at 1a7dc96e. A single GIG draw covers every regime
 below.
 
 **Pure-R prototype (adversarial check on the algebra) -- PASSED.**

@@ -185,6 +185,9 @@ prior draws; it did not move the stratum at which the clause fails.
 The verdicts, `R = 200`, `L = 150`, thin 50, burn 12000, band 0.0924. probit 10 of 13 without the move - `b1.minus.b0`
 0.0970, `p1` 0.1079 and `p2` 0.0994 FLAG - against 9 of 13 with it on the same host (`a` 0.0973, `abs.a` 0.0959,
 `abs.diff` 0.0979, `p1` 0.0947); logistic 12 of 13 both ways, `p1` 0.0971 without the move and `prog1` 0.0937 with it.
+The with-move run does not reproduce the 2026-09-07 record above (12 and 11 of 13, `p_j` worst lag 47 and 29, against 9
+and 12 of 13 and 194 and 71 here): the host sampler is now built under the arm's own link, which puts every arm on a new
+random stream, and the engine has changed since that record.
 Every functional of both arms sits inside the matrix band (0.1445), the worst at 0.75 of it. The `n = 40` controls pass
 13 of 13 on both links without the move. The chain-length reading stands and the admission clause is not met; whether
 that settles admission is forest-cache-drift's D4.
@@ -267,7 +270,7 @@ equals `base` for every power, so a poisoned power passes every mode and both li
 it under a latent family (the gaussian gates cover the cut factor at `K = 3` and the variable factor at two predictors).
 A `K = 3`, mode-1-only arm at each link - five trees per forest, 25 configurations, maximum block dimension 4 - costs
 148,752 integrand evaluations at its single glue point, under one percent of the free-glue grids, and restores
-depth-decay and cut-selection coverage. Left uncovered, by design: the basis forest's ridge (`ridgeB` ships off, and mode
+depth-decay and cut-selection coverage. Left uncovered, by design: the basis forest's ridge (no move ever ran on it, and mode
 2b holds the prognostic block) and the multiplier snap's near-tolerance boundary (mode 1 fires it on every control row,
 modes 2a and 2b never).
 Cost, measured in the slice on an arm64 laptop against the installed build. Quick is 3 min 20 s: 53 s of glue

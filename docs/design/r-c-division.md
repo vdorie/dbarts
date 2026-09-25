@@ -61,7 +61,7 @@ multinomial-counts-mutation plan.
 **What is genuinely engine-only, in any implementation:** couplings
 that are NOT additive on a quantity a channel can carry (the
 multinomial softmax margin needs a log-sum-exp over the other K-1
-forests); moves that write engine state (the per-forest ASIS rescale);
+forests); moves that write engine state (the multinomial level shift);
 likelihoods that do not factorise over observations given the forest
 (AR-1/spatial/copula errors - leaf statistics stop being within-leaf
 sums); and the CALIBRATION (below). Mixing loss from separate blocking

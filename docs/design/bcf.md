@@ -212,7 +212,8 @@ gate passes in full mode: bcf-exact.R's mode 2a matches E[a mu] and E[tau] to
 0.0002, bcf-exact-weak.R's prior-dominated a posterior to 0.0005 on both means
 and 0.0051 on P(|a| <= 0.25, 0.5, 1), bcf-exact-restricted.R to 0.0003, and
 the latent gate (benchmarks/R/bcf-latent-exact.R) sits at worst |z| 2.08 over
-its nine configurations. Its `pooled` run, 300 independent seeds of mode 2a,
+its nine configurations (mode 1, fixed glue, logistic), its quick mode at
+mode 2a worst |z| 0.99 (probit) and 1.98 (logistic). Its `pooled` run, 300 independent seeds of mode 2a,
 matches the quadrature at |z| 0.63 (probit) and 1.12 (logistic) or under on
 every channel; the move's compounding cache gap had put E[tau] at z 7.1.
 
@@ -400,14 +401,14 @@ docs/plans/archive/forest-split-bcf.md); the state format gained a forest
 dimension (4e6b206); and a sampler can warm-start from a donor fit's
 forests (933eed8). Mixing refinements landed 2026-07-10: an
 interweaving (ASIS) rescale move on the PROGNOSTIC glue ridge - the
-a-move (9617c94; docs/plans/archive/bcf-ridge-interweaving.md) - and the
+a-move (5109b669; docs/plans/archive/bcf-ridge-interweaving.md) - and the
 sigma burn-in calibration recorded above
 (docs/plans/archive/bcf-sigma-residual.md).
 bartCause is the intended consumer, over the public creation surface
 recorded below.
 
 **The a-move is removed (dec-B127).** It was generalized on
-2026-08-14 (M4.2, 1a2aaedc) into one per-forest ASIS rescale over the
+2026-08-14 (M4.2, a35ff7df) into one per-forest ASIS rescale over the
 amplitude blocks, with a b-move for the treatment forest that never
 shipped on. It multiplied a forest's cached fits separately from its
 leaves, which biased every amplitude-coupled fit, and with that fixed it

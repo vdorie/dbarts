@@ -142,9 +142,8 @@ What is combiner-hierarchy content, and stays here:
 - It holds `AmplitudeState` (the per-forest bases, the flat ragged amplitude
   vector and its offsets, the per-forest amplitude priors, and the per-sweep
   combined/forestResponse/forestWeights scratch) plus
-  a `const ColumnStore&` for the observation count and, in afterCombine, the
-  data the ridge move touches. Built from `(data, spec, numForests)` by Chain's
-  K-forest constructor.
+  a `const ColumnStore&` for the observation count. Built from
+  `(data, spec, numForests)` by Chain's K-forest constructor.
 - It is `static_assert`-gated to a constant leaf - a hierarchy constraint, not a
   model choice. The chain it is built by was Gaussian-only; M4.4 lifted that to
   gaussian, probit and logistic, the three families the calibration map has a
@@ -164,11 +163,10 @@ What is combiner-hierarchy content, and stays here:
 
 Everything else - the model, the amplitude layout, the reparameterization and
 its `0x1p-26` snap, the q-variate conditional and its LDL' factorization, the
-general per-forest ASIS ridge (which is no longer a PROGNOSTIC-only move: its
-q = 1 instance is bcf's a-move bitwise, its q = 2 fixed-variance instance the
-b-move, and both are one mechanism at exponent `p = (L - q)/2`), the canonical
-draw-path predicate, the single mutation route, the ragged persistence layout
-and the three accumulation contracts - is docs/design/multiplier-combiner.md.
+derivation of the removed per-forest rescaling move (dec-B127, "The ASIS
+ridge"), the canonical draw-path predicate, the single mutation route, the
+ragged persistence layout and the three accumulation contracts - is
+docs/design/multiplier-combiner.md.
 
 ## What still re-carves when a second combiner lands
 
