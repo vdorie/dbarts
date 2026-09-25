@@ -30,10 +30,10 @@ scale: it takes a
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
 residual prior, `chisq(df, quant)` or `fixed(value)`, resolved in the
 prior vocabulary inside the family call. The retired spellings
-`resid.dist`, `dispersion`, `breaks`, `max.rows`, `resid.prior`, `sigdf`
-and `sigquant` are accepted for one release with a once-per-session
-warning and are removed in dbarts 1.1-0; `resid.prior` is retired that
-way on [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+`resid.prior`, `sigdf` and `sigquant` are accepted for one release with
+a once-per-session warning and are removed in dbarts 1.1-0;
+`resid.prior` is retired that way on
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
 and [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) as
 well, so the family object is the one home of the residual prior. A call
@@ -76,9 +76,8 @@ A list of functions:
 
   A continuous response with outlier-robust Student-t errors, drawn by
   the Gaussian scale-mixture augmentation. `df = NULL` estimates the
-  degrees of freedom on a capped grid; a positive number fixes them. The
-  former `resid.dist = student(df)` spelling. `sigma` is the
-  scale-mixture's own residual prior, as for `gaussian`.
+  degrees of freedom on a capped grid; a positive number fixes them.
+  `sigma` is the scale-mixture's own residual prior, as for `gaussian`.
 
 - `probit()`, `logistic()`:
 
@@ -91,8 +90,7 @@ A list of functions:
 - `nbinom(dispersion = NA)`:
 
   Negative-binomial counts. `NA` estimates the dispersion \\r\\ on a
-  capped positive-integer grid; a positive integer fixes it. The former
-  `dispersion` argument.
+  capped positive-integer grid; a positive integer fixes it.
 
 - `aft(sigma = NULL)`:
 
@@ -108,8 +106,7 @@ A list of functions:
   boundary vector gives explicit right-closed intervals. `max.rows`
   refuses an over-large expansion, naming the coarsening levers. `link`
   selects the binary link the expanded rows are fit under, and is what
-  the tokens `"hazard.probit"` and `"hazard.logistic"` name. The former
-  `breaks` and `max.rows` arguments.
+  the tokens `"hazard.probit"` and `"hazard.logistic"` name.
 
 - `hurdle.lognormal(sigma = NULL)`:
 

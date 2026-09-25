@@ -53,28 +53,6 @@ in dbarts 1.1-0.
   [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md):
   the creation-time residual estimate, now `sigest`.
 
-- `resid.dist`, `dispersion`, `breaks`, `max.rows`:
-
-  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md), and
-  (the first two)
-  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md):
-  family-only settings, now arguments of the
-  [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)
-  constructor that owns each (`family = student(df)`,
-  `family = nbinom(dispersion)`, `family = hazard(breaks)`,
-  `family = hazard(max.rows)`).
-
-- `dart`, `levelGibbs`:
-
-  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) (`dart`
-  also on
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)):
-  tree-prior-only settings, now arguments of
-  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
-  tree priors (`tree.prior = dart()`,
-  `tree.prior = cgm(levelGibbs = )`).
-
 - `power`, `base`:
 
   On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md):
@@ -89,15 +67,8 @@ in dbarts 1.1-0.
   tree-prior-only setting, now an argument of
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
   `cgm()` only (`tree.prior = cgm(split.probs = )`); a DART tree prior
-  draws its own split probabilities, so combining it with `dart` or
+  draws its own split probabilities, so combining it with
   `tree.prior = dart()` is refused.
-
-- `prior.scale`:
-
-  On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md): a
-  node-prior-only setting, now an argument of
-  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
-  `normal()` (`node.prior = normal(scale = )`).
 
 - `resid.prior`, `sigdf`, `sigquant`:
 
@@ -132,11 +103,6 @@ in dbarts 1.1-0.
   Refused outright, naming `n.burn = c(fresh, warm)`: 0.9-x's third
   element was a per-replication burn-in, and a chain is never carried
   between replications now.
-
-- `family = "twopart"`:
-
-  Refused outright on every entry point that takes `family`, naming
-  `family = "hurdle.lognormal"`.
 
 - `dbartsSampler`'s `$startThreads`/`$stopThreads`:
 

@@ -355,9 +355,8 @@ dbarts(
 - ...:
 
   Not used for new code: the channel that lets a retired argument
-  spelling (`resid.dist`, `dispersion`, `breaks`, `max.rows` and
-  `resid.prior`, all of which now ride `family` - the residual prior as
-  `family = gaussian(sigma = )`, which is its one home, so writing it
+  spelling (`resid.prior`, which now rides `family` - the residual prior
+  as `family = gaussian(sigma = )`, which is its one home, so writing it
   both ways is refused where the two disagree; see
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md);
   and `proposal.probs`, which now rides `control`, built with
@@ -551,12 +550,11 @@ dbarts(
   then reads its hazards straight off the fit with no `keepTrees`
   needed.
 
-  `"hurdle.lognormal"` (alias `"twopart"`, which resolves and prints as
-  `"hurdle.lognormal"`) fits a semicontinuous two-part (hurdle) model
-  for a non-negative response with exact zeros: an occupancy probit fit
-  of \\z = 1\\y \> 0\\\\ over all n observations, glued at report time
-  to a lognormal positive-part fit - an ordinary gaussian fit of \\\log
-  y\\ - over the subset \\\\i : y_i \> 0\\\\; the two parts share no
+  `"hurdle.lognormal"` fits a semicontinuous two-part (hurdle) model for
+  a non-negative response with exact zeros: an occupancy probit fit of
+  \\z = 1\\y \> 0\\\\ over all n observations, glued at report time to a
+  lognormal positive-part fit - an ordinary gaussian fit of \\\log y\\ -
+  over the subset \\\\i : y_i \> 0\\\\; the two parts share no
   parameters and are composed from two ordinary fits at independently
   derived seeds, so no engine code is added and a shared
   variable-selection prior across the parts is not available (a recorded
@@ -635,10 +633,8 @@ response units: it is the prior standard deviation of the forest total
 `scale / k` and the prior mean is the response transform's shift
 (`(max(y) + min(y)) / 2`, net of `offset`, for a continuous response; 0
 for the latent-scale families). `normal(sd = )` names the same quantity
-at the resolved `k`, and is refused under a `k` hyperprior.
-[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) and
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) take it as a
-`prior.scale` argument directly. Unset, nothing changes.
+at the resolved `k`, and is refused under a `k` hyperprior. Unset,
+nothing changes.
 
 The named quantity is the LEAF-PARAMETER scale of the forest total. It
 equals the prior standard deviation of \\f(x)\\ at every \\x\\ for the

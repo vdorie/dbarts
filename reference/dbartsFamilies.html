@@ -22,7 +22,6 @@ Every setting that only one family reads rides its family object rather
   residual scale: it takes a dbartsPriors residual prior,
   chisq(df, quant) or fixed(value), resolved in the prior
   vocabulary inside the family call. The retired spellings
-  resid.dist, dispersion, breaks, max.rows,
   resid.prior, sigdf and sigquant are accepted for
   one release with a once-per-session warning and are removed in dbarts
   1.1-0; resid.prior is retired that way on dbarts,
@@ -52,7 +51,6 @@ Every setting that only one family reads rides its family object rather
   residual scale: it takes a dbartsPriors residual prior,
   chisq(df, quant) or fixed(value), resolved in the prior
   vocabulary inside the family call. The retired spellings
-  resid.dist, dispersion, breaks, max.rows,
   resid.prior, sigdf and sigquant are accepted for
   one release with a once-per-session warning and are removed in dbarts
   1.1-0; resid.prior is retired that way on dbarts,
@@ -122,7 +120,6 @@ Every setting that only one family reads rides its family object rather
   residual scale: it takes a <code><a href="dbartsPriors.html">dbartsPriors</a></code> residual prior,
   <code>chisq(df, quant)</code> or <code>fixed(value)</code>, resolved in the prior
   vocabulary inside the family call. The retired spellings
-  <code>resid.dist</code>, <code>dispersion</code>, <code>breaks</code>, <code>max.rows</code>,
   <code>resid.prior</code>, <code>sigdf</code> and <code>sigquant</code> are accepted for
   one release with a once-per-session warning and are removed in dbarts
   1.1-0; <code>resid.prior</code> is retired that way on <code><a href="dbarts.html">dbarts</a></code>,
@@ -166,8 +163,7 @@ Every setting that only one family reads rides its family object rather
 <dd><p>A continuous response with outlier-robust Student-t errors, drawn by
       the Gaussian scale-mixture augmentation. <code>df = NULL</code> estimates
       the degrees of freedom on a capped grid; a positive number fixes
-      them. The former <code>resid.dist = student(df)</code> spelling.
-      <code>sigma</code> is the scale-mixture's own residual prior, as for
+      them. <code>sigma</code> is the scale-mixture's own residual prior, as for
       <code>gaussian</code>.</p></dd>
 
     <dt><code>probit()</code>, <code>logistic()</code></dt>
@@ -179,7 +175,7 @@ Every setting that only one family reads rides its family object rather
     <dt><code>nbinom(dispersion = NA)</code></dt>
 <dd><p>Negative-binomial counts. <code>NA</code> estimates the dispersion
       \(r\) on a capped positive-integer grid; a positive integer fixes
-      it. The former <code>dispersion</code> argument.</p></dd>
+      it.</p></dd>
 
     <dt><code>aft(sigma = NULL)</code></dt>
 <dd><p>Accelerated failure time (log-normal) survival. The log-time
@@ -195,8 +191,7 @@ Every setting that only one family reads rides its family object rather
       intervals. <code>max.rows</code> refuses an over-large expansion, naming
       the coarsening levers. <code>link</code> selects the binary link the
       expanded rows are fit under, and is what the tokens
-      <code>"hazard.probit"</code> and <code>"hazard.logistic"</code> name. The former
-      <code>breaks</code> and <code>max.rows</code> arguments.</p></dd>
+      <code>"hazard.probit"</code> and <code>"hazard.logistic"</code> name.</p></dd>
 
     <dt><code>hurdle.lognormal(sigma = NULL)</code></dt>
 <dd><p>A semicontinuous two-part response: an occupancy probit glued to a

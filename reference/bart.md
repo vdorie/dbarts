@@ -335,8 +335,8 @@ print(x, ...)
   `"gaussian"`, `"probit"`, and `"logistic"` force those fits directly;
   `"aft"`, `"hazard"`, `"hazard.probit"` (an accepted alias for
   `"hazard"`), `"hazard.logistic"`, `"multinomial"`, `"ordinal"`,
-  `"nbinom"`, and `"hurdle.lognormal"` (alias `"twopart"`) reach the
-  extended families described below.
+  `"nbinom"`, and `"hurdle.lognormal"` reach the extended families
+  described below.
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
   no `family` argument at all: every fit it makes is the default
   gaussian/probit pair.
@@ -400,25 +400,24 @@ print(x, ...)
   count-matrix (`cbind(c1, ..., cK) ~ x`) response is only ever
   multinomial when `family = "multinomial"` is given explicitly - it is
   never inferred. `weights`, `subset`, `samplerOnly`, `warm.start`,
-  `n.grow.sweeps`, `dart` (or a DART `tree.prior`), `split.probs`,
-  `monotone`, and `variance` are all refused with an error naming the
-  limitation (an integer weight is already expressible as row-wise count
-  replication in the response, a non-integer one has no exact
-  augmentation sampler, and the K-forest engine copies only
-  power/base/proposal-probability fields from the host sampler it
-  briefly builds, so DART, fixed split probabilities, monotone direction
-  constraints, and a variance forest never reach it). `offset` is
-  accepted only as an n x K numeric matrix, entering the K forests' raw
-  fits before the softmax, one column per category, in the same layout
-  as a count-matrix `y.train`; a flat (length-n) offset is refused by
-  name, since a common per-observation shift is the softmax's own null
-  direction and is identically inert. `offset` is a TRAIN-side argument
-  only: `offset.test` is refused by name too, and `yhat.test` is always
-  computed WITHOUT any category offset, even when `offset` was supplied
-  for training - a caller comparing an offset-fitted `yhat.train`
-  against `yhat.test` should keep this asymmetry in mind. A category
-  test offset on the fit-time `test` rows is a sampler-level capability
-  only (a
+  `n.grow.sweeps`, a DART `tree.prior`, `split.probs`, `monotone`, and
+  `variance` are all refused with an error naming the limitation (an
+  integer weight is already expressible as row-wise count replication in
+  the response, a non-integer one has no exact augmentation sampler, and
+  the K-forest engine copies only power/base/proposal-probability fields
+  from the host sampler it briefly builds, so DART, fixed split
+  probabilities, monotone direction constraints, and a variance forest
+  never reach it). `offset` is accepted only as an n x K numeric matrix,
+  entering the K forests' raw fits before the softmax, one column per
+  category, in the same layout as a count-matrix `y.train`; a flat
+  (length-n) offset is refused by name, since a common per-observation
+  shift is the softmax's own null direction and is identically inert.
+  `offset` is a TRAIN-side argument only: `offset.test` is refused by
+  name too, and `yhat.test` is always computed WITHOUT any category
+  offset, even when `offset` was supplied for training - a caller
+  comparing an offset-fitted `yhat.train` against `yhat.test` should
+  keep this asymmetry in mind. A category test offset on the fit-time
+  `test` rows is a sampler-level capability only (a
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   own `$setCategoryTestOffset` method, reached through
   `keepSampler = TRUE`, or the internal creators' own `offset.test`
@@ -553,12 +552,11 @@ print(x, ...)
   \mathrm{periods}\[k\] \le t} (1 - h(k \mid x))\\. `xbart` does not fit
   hazard responses (a `cloglog` link is a recorded follow-up).
 
-  `family = "hurdle.lognormal"` (alias `"twopart"`, which resolves and
-  prints as `"hurdle.lognormal"`) fits a semicontinuous two-part
-  (hurdle) model for a non-negative response with exact zeros: an
-  OCCUPANCY probit fit of \\z = 1\\y \> 0\\\\ over all n observations,
-  glued at report time to a POSITIVE-PART gaussian fit of \\\log y\\
-  over the subset \\\\i : y_i \> 0\\\\. The two component fits share no
+  `family = "hurdle.lognormal"` fits a semicontinuous two-part (hurdle)
+  model for a non-negative response with exact zeros: an OCCUPANCY
+  probit fit of \\z = 1\\y \> 0\\\\ over all n observations, glued at
+  report time to a POSITIVE-PART gaussian fit of \\\log y\\ over the
+  subset \\\\i : y_i \> 0\\\\. The two component fits share no
   parameters and are composed entirely R-side from two ordinary `bart`
   fits at independently derived seeds - no engine code, and no coupling
   between the parts - so a shared variable-selection prior across the
@@ -652,17 +650,16 @@ print(x, ...)
   resolves exactly as it does for `dbarts`:
   `node.prior = linear(columns = 1:3)` and `gp(...)` are reachable this
   way. `NULL` (the default for both) instead builds the tree and node
-  priors from `power`/`base`/`split.probs` and `k`/`prior.scale`
-  respectively. A DART prior is `tree.prior = dart()`, which also
-  carries the categorical-split `levelGibbs` setting; neither has a
-  shorthand of its own on this signature. Supplying an object alongside
-  a shorthand that would otherwise help build the same prior is an error
-  naming both: `tree.prior` collides with any of
-  `power`/`base`/`split.probs`; `node.prior` with `k`/`prior.scale`.
-  Both are honored on every family, including both component fits of
-  `family = "hurdle.lognormal"`. The residual prior is not on this list:
-  it is a setting of the families that draw a residual scale and rides
-  the family object instead -
+  priors from `power`/`base`/`split.probs` and `k` respectively. A DART
+  prior is `tree.prior = dart()`, which also carries the
+  categorical-split `levelGibbs` setting; neither has a shorthand of its
+  own on this signature. Supplying an object alongside a shorthand that
+  would otherwise help build the same prior is an error naming both:
+  `tree.prior` collides with any of `power`/`base`/`split.probs`;
+  `node.prior` with `k`. Both are honored on every family, including
+  both component fits of `family = "hurdle.lognormal"`. The residual
+  prior is not on this list: it is a setting of the families that draw a
+  residual scale and rides the family object instead -
   `family = gaussian(sigma = chisq(3, 0.9))`,
   `family = gaussian(sigma = fixed(1))`; see `family` below.
 
@@ -1009,13 +1006,10 @@ print(x, ...)
   itself `...` is instead the transition release's retired-spelling
   channel, as on
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md): a
-  retired name (`resid.dist`, `dispersion`, `breaks`, `max.rows`, all of
-  which now ride `family`; `dart` and `levelGibbs`, which now ride
-  `tree.prior`, built with `dart()`/`cgm(levelGibbs = )`; `power`,
-  `base`, and `split.probs`, which ride `tree.prior` too, built with
-  `cgm()` or `dart()`; `prior.scale`, which rides `node.prior`, built
-  with `normal(scale = )`; `resid.prior`, `sigdf`, and `sigquant`, which
-  ride `family`, built with `gaussian(sigma = chisq(df, quant))` or
+  retired name (`power`, `base`, and `split.probs`, which ride
+  `tree.prior`, built with `cgm()` or `dart()`; `resid.prior`, `sigdf`,
+  and `sigquant`, which ride `family`, built with
+  `gaussian(sigma = chisq(df, quant))` or
   `gaussian(sigma = fixed(value))`; `proposal.probs`, which rides
   `control`, built with `dbartsControl(proposal.probs = )`) reaches a
   message naming its successor instead of R's own “unused argument”
@@ -1174,10 +1168,10 @@ member, a transformation, a multi-way `:` chain, or a second
 other side); `test` given together with a term (an amplitude-coupled fit
 has no per-observation test replay in this version); a family the
 multiplier model does not support (`"aft"`, `"ordinal"`, `"nbinom"`, the
-hazard families, `"multinomial"`, and `"hurdle.lognormal"`/`"twopart"` -
-gaussian, probit, and logistic are the only families a term can join);
-and a formula whose only right-hand-side content is the term, which
-would leave nothing to split on. See ‘Value’ below, and
+hazard families, `"multinomial"`, and `"hurdle.lognormal"` - gaussian,
+probit, and logistic are the only families a term can join); and a
+formula whose only right-hand-side content is the term, which would
+leave nothing to split on. See ‘Value’ below, and
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
 `type = "forest"`, for reading the resulting per-forest fits back out.
 
@@ -1222,10 +1216,10 @@ options, so they survive `keepFits = FALSE` and the fit's own SHAPE
 stays readable even with every per-observation channel dropped.
 
 The remaining families - `"multinomial"`, `"ordinal"`, `"nbinom"`, and
-`"hurdle.lognormal"`/`"twopart"` - return their own list class instead,
-never `"bart"`, each with its own generics, described below: precisely
-so a K-category or two-part fit cannot silently flow through a method
-that assumes the single-forest shape.
+`"hurdle.lognormal"` - return their own list class instead, never
+`"bart"`, each with its own generics, described below: precisely so a
+K-category or two-part fit cannot silently flow through a method that
+assumes the single-forest shape.
 
 `bart(family = "multinomial")` returns a *different* list, of class
 `"bartMultinomial"`. Components: `call`, `family` (`"multinomial"`),
@@ -1585,7 +1579,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001585
+#> total seconds in loop: 0.001542
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1633,7 +1627,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002014
+#> total seconds in loop: 0.001939
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 3 2 2 2 2 
