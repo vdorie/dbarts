@@ -1,6 +1,6 @@
 # forest-cache-drift
 
-Status: READY TO LAND, 2026-09-25. The amplitude rescaling move is removed (dec-B127 in
+Status: LANDED 53583db0, 2026-09-25. The amplitude rescaling move is removed (dec-B127 in
 [docs/decisions.md](../decisions.md)), D4 and D5 are ruled, and the gaussian and BCF equivalence baselines are recorded
 under d49e2103 (see the Landing note).
 agent: opus (engine, component tests, gate battery, re-records); sonnet (records: docs, INDEX, TODO)
