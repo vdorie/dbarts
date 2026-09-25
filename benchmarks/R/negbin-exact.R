@@ -166,8 +166,7 @@ fitSeed <- function(seed, dispersion) {
   host <- dbarts(
     x,
     y,
-    family = "nbinom",
-    dispersion = dispersion,
+    family = nbinom(dispersion = dispersion),
     control = control,
     tree.prior = cgm(power, base),
     proposal.probs = c(
