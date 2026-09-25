@@ -50,7 +50,7 @@ studentSampler <- function(weights) {
     yContinuous,
     weights = weights,
     control = stateControl,
-    resid.dist = dbarts:::student(5)
+    family = dbarts:::student(5)
   )
 }
 varianceSampler <- function(weights) {

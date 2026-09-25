@@ -4,8 +4,7 @@ source(
 )
 
 # The Student-t residual surface: the family = student() object, its
-# validation, the gaussian-only refusal the retired resid.dist spelling can
-# still reach, and that the resolved degrees of freedom ride the model's
+# validation, and that the resolved degrees of freedom ride the model's
 # resid.df attribute the C bridge reads (absent = gaussian, 0 = estimate,
 # positive = fixed). A tiny smoke fit in both df modes, predict/fitted
 # shapes, and a serialize+restore round-trip.
@@ -66,19 +65,8 @@ expect_equal(attr(samplerEstimate$model, "resid.df"), 0) # 0 signals estimate
 # --- family refusal --------------------------------------------------------
 
 # the Student-t law IS a family now, so no combination on the front door can
-# ask a probit fit for it; the retired resid.dist spelling can still name
-# both, and is refused rather than resolved one way in silence
+# ask a probit fit for it
 yBinary <- as.numeric(y > median(y))
-expect_error(
-  suppressWarnings(dbarts::dbarts(
-    x,
-    yBinary,
-    control = control,
-    family = "probit",
-    resid.dist = student(df = 4)
-  )),
-  "student residuals require a continuous gaussian response"
-)
 # a binary probit fit takes the gaussian latent scale and attaches no
 # resid.df attribute
 samplerBinary <- dbarts::dbarts(

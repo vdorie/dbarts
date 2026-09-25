@@ -163,12 +163,12 @@ expect_error(
   pattern = "changing a DART tree prior is not available"
 )
 
-# bart exposes DART through the dart flag and packages varprobs
+# bart exposes DART through tree.prior = dart() and packages varprobs
 # combineChains = FALSE pinned deliberately: the shape assertions below
 # expect the raw uncombined (n.chains x n.samples x n.vars) array
 fit.dart <- bart(
   y.dart ~ x.dart,
-  dart = TRUE,
+  tree.prior = dart(),
   n.samples = 25L,
   n.burn = 50L,
   n.trees = 25L,
@@ -183,15 +183,8 @@ expect_equal(
   matrix(1, 2L, 25L)
 )
 expect_error(
-  bart(y.dart ~ x.dart, dart = TRUE, split.probs = rep(0.1, 10L)),
-  pattern = paste0(
-    "'split.probs' cannot be combined with 'dart': a DART prior samples ",
-    "its split probabilities"
-  )
-)
-expect_error(
-  bart(y.dart ~ x.dart, dart = 2),
-  pattern = "'dart' must be TRUE, FALSE, or a prior created by dbartsPriors"
+  bart(y.dart ~ x.dart, tree.prior = dart(), split.probs = rep(0.1, 10L)),
+  pattern = "'tree.prior' cannot be combined with 'split.probs'"
 )
 expect_null(
   bart(
@@ -208,7 +201,7 @@ expect_null(
 # a full spec object overrides power/base with its own settings
 fit.spec <- bart(
   y.dart ~ x.dart,
-  dart = dbartsPriors$dart(a = 0.75, update.delay = 5),
+  tree.prior = dbartsPriors$dart(a = 0.75, update.delay = 5),
   n.samples = 5L,
   n.burn = 10L,
   n.trees = 10L,

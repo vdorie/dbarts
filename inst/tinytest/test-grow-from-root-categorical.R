@@ -87,7 +87,7 @@ fitDart <- function(growSweeps) {
   dbarts::bart(
     d$x,
     d$y,
-    dart = TRUE,
+    tree.prior = dart(),
     n.trees = 50L,
     n.samples = 5L,
     n.burn = 0L,

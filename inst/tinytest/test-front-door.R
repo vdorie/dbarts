@@ -298,6 +298,9 @@ expect_error(
   dbarts::dbarts(xFD, abs(yFD), family = "hurdle.lognormal"),
   pattern = "bart\\(x, y, family = \"hurdle.lognormal\"\\)"
 )
+# "twopart" was never a spelling on either door: unrecognized, refused
+# through match.arg, whose message lists "hurdle.lognormal" among the
+# choices
 twopartMsgFD <- tryCatch(
   dbarts::dbarts(xFD, abs(yFD), family = "twopart"),
   error = function(e) conditionMessage(e)

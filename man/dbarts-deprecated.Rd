@@ -26,20 +26,11 @@
     \item{\code{sigma}}{
       On \code{\link{dbarts}} and \code{\link{dbartsSpec}}: the creation-time residual estimate, now \code{sigest}.
     }
-    \item{\code{resid.dist}, \code{dispersion}, \code{breaks}, \code{max.rows}}{
-      On \code{\link{bart}}, \code{\link{dbarts}}, and (the first two) \code{\link{dbartsSpec}}: family-only settings, now arguments of the \code{\link{dbartsFamilies}} constructor that owns each (\code{family = student(df)}, \code{family = nbinom(dispersion)}, \code{family = hazard(breaks)}, \code{family = hazard(max.rows)}).
-    }
-    \item{\code{dart}, \code{levelGibbs}}{
-      On \code{\link{bart}} (\code{dart} also on \code{\link{xbart}}): tree-prior-only settings, now arguments of \code{\link{dbartsPriors}}'s tree priors (\code{tree.prior = dart()}, \code{tree.prior = cgm(levelGibbs = )}).
-    }
     \item{\code{power}, \code{base}}{
       On \code{\link{bart}}: tree-prior-only settings, now arguments of \code{\link{dbartsPriors}}'s \code{cgm()} or \code{dart()} (\code{tree.prior = cgm(power, base)} or \code{tree.prior = dart(power, base)}).
     }
     \item{\code{split.probs}}{
-      On \code{\link{bart}}: a tree-prior-only setting, now an argument of \code{\link{dbartsPriors}}'s \code{cgm()} only (\code{tree.prior = cgm(split.probs = )}); a DART tree prior draws its own split probabilities, so combining it with \code{dart} or \code{tree.prior = dart()} is refused.
-    }
-    \item{\code{prior.scale}}{
-      On \code{\link{bart}}: a node-prior-only setting, now an argument of \code{\link{dbartsPriors}}'s \code{normal()} (\code{node.prior = normal(scale = )}).
+      On \code{\link{bart}}: a tree-prior-only setting, now an argument of \code{\link{dbartsPriors}}'s \code{cgm()} only (\code{tree.prior = cgm(split.probs = )}); a DART tree prior draws its own split probabilities, so combining it with \code{tree.prior = dart()} is refused.
     }
     \item{\code{resid.prior}, \code{sigdf}, \code{sigquant}}{
       The residual scale's prior is a setting of the families that draw one, so it rides the family object (\code{family = gaussian(sigma = chisq(df, quant))}, \code{family = gaussian(sigma = fixed(value))}); likewise \code{student(df, sigma = )}, \code{aft(sigma = )} and \code{hurdle.lognormal(sigma = )}. \code{sigdf} and \code{sigquant} are retired on \code{\link{bart}}; \code{resid.prior} is retired the same way on \code{\link{bart}}, \code{\link{dbarts}}, \code{dbartsSpec} and \code{\link{xbart}}, so the prior has one home on every door. A call that writes it both ways - a retired spelling and a family whose call named \code{sigma} - is refused where the two disagree. \code{sigest}, the residual-scale estimate supplied at creation, is unaffected.
@@ -49,9 +40,6 @@
     }
     \item{A three-element \code{n.burn} on \code{\link{xbart}}}{
       Refused outright, naming \code{n.burn = c(fresh, warm)}: 0.9-x's third element was a per-replication burn-in, and a chain is never carried between replications now.
-    }
-    \item{\code{family = "twopart"}}{
-      Refused outright on every entry point that takes \code{family}, naming \code{family = "hurdle.lognormal"}.
     }
     \item{\code{dbartsSampler}'s \code{$startThreads}/\code{$stopThreads}}{
       No-op methods (\code{\linkS4class{dbartsSampler}}): the hierarchical thread manager they drove is gone, threads now owned per run, but a 0.9-x Gibbs loop that brackets its sweeps with them still runs.

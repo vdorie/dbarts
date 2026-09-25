@@ -233,7 +233,7 @@ expect_error(
     xRef,
     factor(labels),
     family = "multinomial",
-    prior.scale = 1.5,
+    node.prior = normal(scale = 1.5),
     n.samples = 5L,
     n.burn = 5L,
     n.chains = 1L,
@@ -252,13 +252,13 @@ expect_error(
   bart(
     xRef,
     yRef,
-    prior.scale = -1,
+    node.prior = normal(scale = -1),
     n.samples = 5L,
     n.burn = 5L,
     n.chains = 1L,
     verbose = FALSE
   ),
-  "'prior.scale' must be positive"
+  "'scale' must be positive"
 )
 
 # the sd spelling under a sampled k, with both remedies named. The binary

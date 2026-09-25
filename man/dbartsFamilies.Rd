@@ -29,7 +29,6 @@
   residual scale: it takes a \code{\link{dbartsPriors}} residual prior,
   \code{chisq(df, quant)} or \code{fixed(value)}, resolved in the prior
   vocabulary inside the family call. The retired spellings
-  \code{resid.dist}, \code{dispersion}, \code{breaks}, \code{max.rows},
   \code{resid.prior}, \code{sigdf} and \code{sigquant} are accepted for
   one release with a once-per-session warning and are removed in dbarts
   1.1-0; \code{resid.prior} is retired that way on \code{\link{dbarts}},
@@ -68,8 +67,7 @@
       A continuous response with outlier-robust Student-t errors, drawn by
       the Gaussian scale-mixture augmentation. \code{df = NULL} estimates
       the degrees of freedom on a capped grid; a positive number fixes
-      them. The former \code{resid.dist = student(df)} spelling.
-      \code{sigma} is the scale-mixture's own residual prior, as for
+      them. \code{sigma} is the scale-mixture's own residual prior, as for
       \code{gaussian}.
     }
     \item{\code{probit()}, \code{logistic()}}{
@@ -81,7 +79,7 @@
     \item{\code{nbinom(dispersion = NA)}}{
       Negative-binomial counts. \code{NA} estimates the dispersion
       \eqn{r} on a capped positive-integer grid; a positive integer fixes
-      it. The former \code{dispersion} argument.
+      it.
     }
     \item{\code{aft(sigma = NULL)}}{
       Accelerated failure time (log-normal) survival. The log-time
@@ -97,8 +95,7 @@
       intervals. \code{max.rows} refuses an over-large expansion, naming
       the coarsening levers. \code{link} selects the binary link the
       expanded rows are fit under, and is what the tokens
-      \code{"hazard.probit"} and \code{"hazard.logistic"} name. The former
-      \code{breaks} and \code{max.rows} arguments.
+      \code{"hazard.probit"} and \code{"hazard.logistic"} name.
     }
     \item{\code{hurdle.lognormal(sigma = NULL)}}{
       A semicontinuous two-part response: an occupancy probit glued to a

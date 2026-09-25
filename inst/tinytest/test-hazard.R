@@ -238,7 +238,10 @@ expect_error(
 # ---- breaks: integer count and explicit boundary vector ----
 fit.k <- do.call(
   bart,
-  c(list(x, cbind(d$time, d$status), family = "hazard", breaks = 3L), fitArgs)
+  c(
+    list(x, cbind(d$time, d$status), family = quote(hazard(breaks = 3L))),
+    fitArgs
+  )
 )
 expect_true(length(fit.k$periods) <= 3L)
 fit.b <- do.call(
@@ -247,8 +250,7 @@ fit.b <- do.call(
     list(
       x,
       cbind(d$time, d$status),
-      family = "hazard",
-      breaks = c(0, 2, 4, 6)
+      family = quote(hazard(breaks = c(0, 2, 4, 6)))
     ),
     fitArgs
   )
@@ -261,7 +263,11 @@ expect_error(
   do.call(
     bart,
     c(
-      list(x, cbind(d$time, d$status), family = "hazard", breaks = 3.5),
+      list(
+        x,
+        cbind(d$time, d$status),
+        family = quote(hazard(breaks = 3.5))
+      ),
       fitArgs
     )
   ),
@@ -274,7 +280,11 @@ expect_error(
   do.call(
     bart,
     c(
-      list(x, cbind(d$time, d$status), family = "hazard", max.rows = 50),
+      list(
+        x,
+        cbind(d$time, d$status),
+        family = quote(hazard(max.rows = 50))
+      ),
       fitArgs
     )
   ),

@@ -220,13 +220,13 @@ expect_error(
 )
 
 # ---- Student-t residuals: unadjudicated with 'variance' ----
-# resid.dist is NSE (parsed in
+# a bare family constructor is NSE (parsed in
 # dbarts's own vocabulary), so these stay literal calls rather than do.call.
 expect_error(
   bart(
     xHom,
     yHom,
-    resid.dist = student(3),
+    family = student(3),
     variance = TRUE,
     n.samples = 2L,
     n.burn = 2L,
@@ -239,7 +239,7 @@ expect_inherits(
   bart(
     xHom,
     yHom,
-    resid.dist = student(3),
+    family = student(3),
     n.samples = 2L,
     n.burn = 2L,
     n.chains = 1L,

@@ -156,63 +156,83 @@ consControl <- dbarts::dbartsControl(
   updateState = FALSE
 )
 
-resetConsolidatedWarning("resid.dist", "dbarts")
-expect_warning(
-  samplerResidDist <- dbarts::dbarts(
-    xCons,
-    yCons,
-    control = consControl,
-    resid.dist = student(df = 5)
-  ),
-  pattern = "family = student"
-)
-expect_equal(attr(samplerResidDist$model, "resid.df"), 5)
-# once per session: the second call is silent and still maps
-expect_silent(
-  samplerResidDistAgain <- dbarts::dbarts(
-    xCons,
-    yCons,
-    control = consControl,
-    resid.dist = student(df = 5)
-  )
-)
-expect_equal(attr(samplerResidDistAgain$model, "resid.df"), 5)
+# --- names that never reached main (dec-2026-09-24) ---
 
-resetConsolidatedWarning("dart", "bart")
-expect_warning(
-  fitDart <- dbarts::bart(
-    xCons,
-    yCons,
-    dart = TRUE,
-    n.trees = 5L,
-    n.samples = 5L,
-    n.burn = 2L,
-    n.chains = 1L,
-    n.threads = 1L,
-    keepSampler = TRUE,
-    verbose = FALSE
-  ),
-  pattern = "tree.prior = dart"
+# resid.dist, dispersion, breaks, max.rows, dart, levelGibbs and prior.scale
+# only ever existed on the development branch; none is in 0.9-x, so there is
+# no compatibility to preserve and each is simply an unknown argument now, on
+# whichever door used to carry it - a plain "unused argument" refusal, not a
+# silent drop
+expect_error(
+  dbarts::bart(xCons, yCons, resid.dist = 1, verbose = FALSE),
+  pattern = "unused argument 'resid.dist'"
 )
-expect_inherits(fitDart$fit$model@tree.prior, "dbartsDartPrior")
+expect_error(
+  dbarts::bart(xCons, yCons, dispersion = 1, verbose = FALSE),
+  pattern = "unused argument 'dispersion'"
+)
+expect_error(
+  dbarts::bart(xCons, yCons, breaks = 1, verbose = FALSE),
+  pattern = "unused argument 'breaks'"
+)
+expect_error(
+  dbarts::bart(xCons, yCons, max.rows = 1, verbose = FALSE),
+  pattern = "unused argument 'max.rows'"
+)
+expect_error(
+  dbarts::bart(xCons, yCons, dart = TRUE, verbose = FALSE),
+  pattern = "unused argument 'dart'"
+)
+expect_error(
+  dbarts::bart(xCons, yCons, levelGibbs = TRUE, verbose = FALSE),
+  pattern = "unused argument 'levelGibbs'"
+)
+expect_error(
+  dbarts::bart(xCons, yCons, prior.scale = 1, verbose = FALSE),
+  pattern = "unused argument 'prior.scale'"
+)
+expect_error(
+  dbarts::dbarts(xCons, yCons, resid.dist = 1, control = consControl),
+  pattern = "unused argument 'resid.dist'"
+)
+expect_error(
+  dbarts::dbarts(xCons, yCons, dispersion = 1, control = consControl),
+  pattern = "unused argument 'dispersion'"
+)
+expect_error(
+  dbarts::dbarts(xCons, yCons, breaks = 1, control = consControl),
+  pattern = "unused argument 'breaks'"
+)
+expect_error(
+  dbarts::dbarts(xCons, yCons, max.rows = 1, control = consControl),
+  pattern = "unused argument 'max.rows'"
+)
+consData <- dbarts::dbartsData(xCons, yCons)
+expect_error(
+  dbarts::dbartsSpec(consData, resid.dist = 1, control = consControl),
+  pattern = "unused argument 'resid.dist'"
+)
+expect_error(
+  dbarts::dbartsSpec(consData, dispersion = 1, control = consControl),
+  pattern = "unused argument 'dispersion'"
+)
+expect_error(
+  dbarts::xbart(xCons, yCons, dart = TRUE, n.reps = 1L),
+  pattern = "unused argument 'dart'"
+)
+rm(consData)
 
-resetConsolidatedWarning("levelGibbs", "bart")
-expect_warning(
-  fitLevelGibbs <- dbarts::bart(
-    xCons,
-    yCons,
-    levelGibbs = TRUE,
-    n.trees = 5L,
-    n.samples = 5L,
-    n.burn = 2L,
-    n.chains = 1L,
-    n.threads = 1L,
-    keepSampler = TRUE,
-    verbose = FALSE
-  ),
-  pattern = "tree.prior = cgm"
+# family = "twopart" is likewise gone: refused the same way any other
+# unrecognized family token is (through match.arg), rather than a named
+# retirement message
+expect_error(
+  dbarts::bart(xCons, yCons, family = "twopart", verbose = FALSE),
+  pattern = "should be one of"
 )
-expect_true(fitLevelGibbs$fit$control@levelGibbs)
+expect_error(
+  dbarts::dbarts(xCons, yCons, family = "twopart", control = consControl),
+  pattern = "should be one of"
+)
 
 # the residual prior's three retired spellings: each warns once, each is
 # applied, and each lands the same prior the family object now carries
@@ -538,25 +558,6 @@ expect_error(
 )
 rm(consControl, xbartRetiredArgs)
 
-# an old spelling that names a family the call cannot fit is refused rather
-# than resolved one way in silence
-resetConsolidatedWarning("resid.dist", "bart")
-expect_error(
-  suppressWarnings(dbarts::bart(
-    xCons,
-    as.numeric(yCons > 0),
-    family = "probit",
-    resid.dist = student(df = 5),
-    n.trees = 5L,
-    n.samples = 5L,
-    n.burn = 2L,
-    n.chains = 1L,
-    n.threads = 1L,
-    verbose = FALSE
-  )),
-  pattern = "student residuals require a continuous gaussian response"
-)
-
 # --- xbart's own (front-door S3) ---
 
 # a three-element n.burn was 0.9-x's per-replication burn-in; chains are
@@ -565,15 +566,6 @@ expect_error(
   dbarts::xbart(xCons, yCons, n.reps = 1L, n.burn = c(2L, 1L, 1L)),
   pattern = "per-replication burn-in"
 )
-
-# and the consolidated names are gone from the signatures they left
-for (name in c("resid.dist", "dispersion", "breaks", "max.rows")) {
-  expect_false(name %in% names(formals(dbarts::bart)))
-  expect_false(name %in% names(formals(dbarts::dbarts)))
-}
-expect_false("dart" %in% names(formals(dbarts::bart)))
-expect_false("dart" %in% names(formals(dbarts::xbart)))
-expect_false("levelGibbs" %in% names(formals(dbarts::bart)))
 
 # the prior scalars dec-B116 moved onto the prior objects and the control
 for (name in dbarts:::consolidatedPriorScalars) {

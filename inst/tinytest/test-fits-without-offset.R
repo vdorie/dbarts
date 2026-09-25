@@ -139,7 +139,7 @@ cell <- fitIdentity(dbarts(
   x,
   yGauss,
   offset = offGauss,
-  resid.dist = student(df = 4),
+  family = student(df = 4),
   control = samplerControlFitsWithoutOffset()
 ))
 expect_true(!is.null(cell$fits))

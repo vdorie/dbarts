@@ -913,7 +913,6 @@ dbartsSpec <- function(
     "dbartsSpec",
     parentEnv
   )
-  familySpec <- applyConsolidatedFamilyArgs(familySpec, consolidated)
   family <- familySpec@token
   dispersion <- familySetting(familySpec, "dispersion", NA_real_)
   # as on dbarts(): the residual prior has one home, the family object, and

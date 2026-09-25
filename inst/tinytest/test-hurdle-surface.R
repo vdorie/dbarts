@@ -31,8 +31,10 @@ expect_inherits(fit, "bartHurdle")
 expect_false(inherits(fit, "bart"))
 expect_equal(fit$family, "hurdle.lognormal")
 
-# "twopart" is a retired spelling of the same model: refused by name at both
-# doors rather than folded, so the package carries one token per model
+# "twopart" was never a spelling of this model on any released line: it is
+# refused the same way any other unrecognized family token is (through
+# match.arg, which lists "hurdle.lognormal" among the valid choices), not by
+# a named alias-retirement message
 expect_error(
   do.call(bart, c(list(x, y, family = "twopart"), fitArgs)),
   "hurdle.lognormal"
@@ -63,6 +65,7 @@ expect_error(
 # --- dbarts() cannot express the two-sampler composition; directs to the
 # front door ---
 expect_error(dbarts(x, y, family = "hurdle.lognormal"), "bart\\(x, y")
+# "twopart" is simply unrecognized here too, refused through match.arg
 expect_error(dbarts(x, y, family = "twopart"), "hurdle.lognormal")
 
 # --- xbart does not fit it (its family vector is the refusal, the

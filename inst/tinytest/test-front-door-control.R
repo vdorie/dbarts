@@ -1,4 +1,4 @@
-# dec-B116: bart() sheds the seven scalars that mirror slots on the prior
+# dec-B116: bart() sheds the six scalars that mirror slots on the prior
 # objects and the tree-move mixture, each riding '...' for one release, and
 # both front doors gain 'control ='. Covers the retirements (warned once,
 # draws identical to the object spelling), the collision refusals, the four
@@ -65,10 +65,6 @@ retirements <- list(
         c(0.5, 0.25, 0.25)
       ))
     )
-  ),
-  prior.scale = list(
-    old = list(prior.scale = 1.5),
-    new = list(node.prior = quote(dbarts::dbartsPriors$normal(scale = 1.5)))
   ),
   sigdf = list(
     old = list(sigdf = 5.0),
@@ -139,13 +135,6 @@ expect_error(
     split.probs = c(0.5, 0.25, 0.25)
   )),
   "cannot be combined with 'split.probs'"
-)
-expect_error(
-  suppressWarnings(fitFC(
-    node.prior = dbarts::dbartsPriors$normal(2),
-    prior.scale = 1.5
-  )),
-  "cannot be combined with 'prior.scale'"
 )
 expect_error(
   suppressWarnings(fitFC(

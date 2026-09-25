@@ -201,7 +201,7 @@ rm(combinedVc, uncombinedVc, sVcCombined, sVcUncombined)
 # margin into one spurious variable per sample.
 studentFit <- dbarts::bart(
   testData$y ~ testData$x,
-  resid.dist = student(5),
+  family = student(5),
   n.chains = 3L,
   n.samples = 10L,
   n.burn = 6L,

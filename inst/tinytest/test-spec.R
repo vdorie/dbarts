@@ -84,7 +84,7 @@ expect_equal(attr(varianceSpec$control, "bartcore.variance")$n.trees, 40L)
 studentSpec <- dbarts::dbartsSpec(
   data,
   control = control,
-  resid.dist = student(df = 5)
+  family = student(df = 5)
 )
 expect_equal(attr(studentSpec$model, "resid.df"), 5.0)
 

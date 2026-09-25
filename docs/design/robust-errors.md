@@ -5,7 +5,8 @@ Status: LANDED 2026-07-17 (b4f818e). Section 8 is AMENDED by
 (44b3fa6d): the Student-t spelling is `family = student(df)`, a
 [`dbartsFamily`](../../R/family.R) constructor object, not `resid.dist =
 student()`; `resid.dist` and the bare `student()`/`gaussian()` constructors
-below are retired to a tombstone (expiry 1.1-0). Plan: docs/plans/archive/robust-errors.md (this is its
+below are retired, and removed outright 2026-09-24 (never reached main, so no
+tombstone was warranted). Plan: docs/plans/archive/robust-errors.md (this is its
 step 1). Continuous responses gain a Student-t residual law by the classic
 Gaussian scale-mixture augmentation, riding the per-observation precisions the
 workingWeights hook already carries for logistic.

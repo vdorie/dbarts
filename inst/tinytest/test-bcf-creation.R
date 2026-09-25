@@ -648,7 +648,7 @@ expect_error(
     x,
     y,
     forests = twoForests,
-    resid.dist = student(5),
+    family = student(5),
     control = control
   ),
   "Student-t residuals"

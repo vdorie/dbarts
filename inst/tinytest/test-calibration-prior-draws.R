@@ -217,12 +217,13 @@ yOrdered <- factor(
 )
 anchorSamplers <- list(
   gaussian = anchorSampler(y, control = priorControl()),
-  # resid.dist is NSE and cannot be forwarded through a helper's dots
+  # a bare family constructor is NSE and cannot be forwarded through a
+  # helper's dots
   student = dbarts(
     x,
     y,
     control = priorControl(),
-    resid.dist = student(5),
+    family = student(5),
     node.prior = normal(k = fixedK, scale = namedScale)
   ),
   aft = anchorSampler(

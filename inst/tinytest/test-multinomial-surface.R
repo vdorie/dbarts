@@ -783,20 +783,15 @@ rm(samplerSigma, bcSigma)
 
 # --- argument leaks: buildMultinomialSampler
 # copies only power/base/proposal-probability fields into the K-forest
-# engine, so DART (on either formal), split.probs, monotone, and variance
-# are refused by name rather than silently dropped. The refusal sits ahead
-# of the factor/count-matrix dispatch and of any sampler creation, so no
-# n.trees/n.burn/n.samples are needed to reach it; 'dart' is checked on
-# both entry shapes to confirm that, the rest on the factor shape only.
+# engine, so a DART tree.prior, split.probs, monotone, and variance are
+# refused by name rather than silently dropped. The refusal sits ahead of
+# the factor/count-matrix dispatch and of any sampler creation, so no
+# n.trees/n.burn/n.samples are needed to reach it.
 multinomialRefuses <- function(x, y, pattern, ...) {
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
   expect_error(bart(x, y, family = "multinomial", ...), pattern)
 }
-multinomialRefuses(x2, y2, "'dart'", dart = TRUE)
-multinomialRefuses(x3c, counts3c, "'dart'", dart = TRUE)
-multinomialRefuses(x2, y2, "'dart'", dart = dbartsPriors$dart())
-# tree.prior = dart() is the second, formerly-unrefused route to DART; a
-# direct call (not the '...'-forwarding helper above, which would itself
+# a direct call (not the '...'-forwarding helper above, which would itself
 # break dart()'s deferred resolution)
 expect_error(
   bart(x2, y2, family = "multinomial", tree.prior = dart()),

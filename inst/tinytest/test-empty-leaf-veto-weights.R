@@ -56,7 +56,7 @@ expect_true(cor(rowMeans(gaussian$fits)[!kept], signal[!kept]) > 0.5)
 
 # Student-t: the composed weight w * lambda is zero wherever w is, so the same
 # law governs the family that carries the other shipped weight channel
-student <- fitAndReport(w, resid.dist = dbarts:::student(df = 4))
+student <- fitAndReport(w, family = dbarts:::student(df = 4))
 expect_true(all(student$leaves$n > 0L))
 expect_true(all(is.finite(student$fits)))
 

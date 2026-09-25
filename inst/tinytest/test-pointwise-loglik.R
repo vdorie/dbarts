@@ -328,7 +328,7 @@ y.t <- x.t[, 1L] - x.t[, 2L] + rt(n.t, 4) * 0.5
 
 fit.t <- bart(
   y.t ~ x.t,
-  resid.dist = student(df = 4),
+  family = student(df = 4),
   n.samples = 20L,
   n.burn = 20L,
   n.trees = 10L,
@@ -369,7 +369,7 @@ expect_error(
 set.seed(11, sample.kind = "Rejection")
 fit.te <- bart(
   y.t ~ x.t,
-  resid.dist = student(),
+  family = student(),
   n.samples = 15L,
   n.burn = 15L,
   n.trees = 10L,

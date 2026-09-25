@@ -253,7 +253,8 @@ refuses(
   "family = \"hurdle.lognormal\"",
   family = "hurdle.lognormal"
 )
-# "twopart" is refused as a retired spelling before the term is looked at
+# "twopart" is simply unrecognized, refused at family resolution (through
+# match.arg) before the term is looked at
 refuses(termFormula, "hurdle.lognormal", family = "twopart")
 for (family in c("aft", "ordinal", "nbinom")) {
   refuses(termFormula, paste0("family \"", family, "\""), family = family)

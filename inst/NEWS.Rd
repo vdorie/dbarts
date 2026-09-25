@@ -355,24 +355,12 @@
             \code{$setControl});
             \code{rngSeed} on \code{bart} and \code{dbartsControl}
             (successor \code{seed}); \code{sigma} on \code{dbarts} and
-            \code{dbartsSpec} (successor \code{sigest}); \code{resid.dist}
-            on \code{bart}, \code{dbarts}, and \code{dbartsSpec} (successor
-            \code{family = student(df)}); \code{dispersion} on \code{bart},
-            \code{dbarts}, and \code{dbartsSpec} (successor
-            \code{family = nbinom(dispersion)}); \code{breaks} on
-            \code{bart} and \code{dbarts} (successor
-            \code{family = hazard(breaks)}); \code{max.rows} on \code{bart}
-            and \code{dbarts} (successor \code{family = hazard(max.rows)});
-            \code{dart} on \code{bart} and \code{xbart} (successor
-            \code{tree.prior = dart()}); \code{levelGibbs} on \code{bart}
-            (successor \code{tree.prior = cgm(levelGibbs)}); \code{power}
+            \code{dbartsSpec} (successor \code{sigest}); \code{power}
             and \code{base} on \code{bart} (successor
             \code{tree.prior = cgm()} or \code{tree.prior = dart()});
             \code{split.probs} on \code{bart} (successor
             \code{tree.prior = cgm(split.probs)}, refused together with a
-            DART tree prior, which draws its own); \code{prior.scale} on
-            \code{bart} (successor
-            \code{node.prior = normal(scale)}); \code{sigdf} and
+            DART tree prior, which draws its own); \code{sigdf} and
             \code{sigquant} on \code{bart}, and \code{resid.prior} on
             \code{bart}, \code{dbarts}, \code{dbartsSpec} and
             \code{xbart} (successor
@@ -380,11 +368,10 @@
             \code{family = gaussian(sigma = fixed(value))});
             \code{proposal.probs} on
             \code{bart} and \code{dbarts} (successor
-            \code{control = dbartsControl(proposal.probs)}); a
+            \code{control = dbartsControl(proposal.probs)}); and a
             three-element \code{n.burn} on
             \code{xbart} (refused outright, naming \code{n.burn = c(fresh,
-            warm)}); and \code{family = "twopart"} (refused outright, naming
-            \code{family = "hurdle.lognormal"}).
+            warm)}).
       \item \code{bart} and \code{xbart} gain a
             \code{control = \link{dbartsControl}()} formal, reaching every
             engine and sampler setting neither door spells flatly
@@ -422,12 +409,11 @@
             A constructor call resolves whether written in \code{family} or
             forwarded there through a wrapper's \code{\dots}, as do the
             prior constructors in the prior arguments.
-            Every setting that only one family reads moves off \code{bart},
-            \code{dbarts}, \code{dbartsSpec}, and \code{xbart} onto the
-            family object that owns it: \code{resid.dist}, \code{dispersion},
-            \code{breaks}, and \code{max.rows} are tombstones (above), and
-            the ten-million-row hazard expansion cap moves to
-            \code{hazard()}'s own \code{max.rows} default.
+            Every setting that only one family reads lives on the family
+            object that owns it, never as a flat argument on \code{bart},
+            \code{dbarts}, \code{dbartsSpec}, or \code{xbart}: the
+            ten-million-row hazard expansion cap is \code{hazard()}'s own
+            \code{max.rows} default.
       \item The residual scale's prior is a family setting too, and rides
             the families that draw one: \code{gaussian(sigma = )},
             \code{student(df, sigma = )}, \code{aft(sigma = )}, and
@@ -900,7 +886,7 @@
             and also refuses a \code{Surv} response on either interface -
             it does not cross-validate a survival model at all.
       \item Semicontinuous two-part (hurdle) responses:
-            \code{family = "hurdle.lognormal"} (alias \code{"twopart"}) in
+            \code{family = "hurdle.lognormal"} in
             \code{bart} fits a non-negative response with
             exact zeros by composing, R-side, an occupancy probit fit of
             \eqn{z = 1\{y > 0\}}{z = 1{y > 0}} over all n observations with a
@@ -1248,10 +1234,8 @@
             calibration the way folds bin on the full-data cut grid.
       \item \code{tree.prior = dart(...)} runs DART (Linero 2018), a Dirichlet
             prior over the split-variable probabilities inducing variable
-            selection, with optional sampling of the concentration.
-            \code{bart} and \code{xbart} expose it through a
-            \code{dart} argument taking \code{TRUE} or a full prior specification,
-            along with \code{split.probs} for fixed, non-uniform variable
+            selection, with optional sampling of the concentration;
+            \code{split.probs} instead sets fixed, non-uniform variable
             weights. Runs return the per-sample probabilities alongside
             the variable counts, as \code{varprobs} in the sampler's results
             and on \code{bart} fits.
@@ -1284,7 +1268,7 @@
             it holds none the direction moves no statistic and is drawn after
             the fact. Either way the pair carries the prior mass of both
             rules, so such a column enters the node's choice at its full
-            weight relative to not splitting. With \code{dart = TRUE},
+            weight relative to not splitting. With a DART tree prior,
             categorical predictors accordingly receive real split counts
             during the grow sweeps, so factor
             signals inform the sampled split-variable probabilities from
@@ -1467,11 +1451,10 @@
             vector the sampler happened to be constructed on:
             \code{prior.scale} (the prior standard deviation of the forest
             total at \code{k = 1}) as a \code{dbartsModel} slot, as
-            \code{node.prior = normal(scale = )} on \code{dbarts} and
-            \code{xbart} (also \code{sd = }, the same quantity at the
-            resolved \code{k}, refused under a \code{k} hyperprior), and as
-            a \code{prior.scale} argument of \code{bartBT} and \code{bart};
-            it is re-derived at every \code{setModel}, so a
+            \code{node.prior = normal(scale = )} on \code{dbarts},
+            \code{bart}, and \code{xbart} (also \code{sd = }, the same
+            quantity at the resolved \code{k}, refused under a \code{k}
+            hyperprior); it is re-derived at every \code{setModel}, so a
             round trip through the model object holds it, and unset,
             nothing changes. A sampler reports the calibration actually IN
             FORCE, per chain and per forest, with \code{$getCalibration}:
@@ -2039,10 +2022,8 @@
             family: the residual-scale trio \code{sigest}/\code{sigdf}/
             \code{sigquant} off every fixed-scale family (\code{"probit"},
             \code{"logistic"}, \code{"ordinal"}, \code{"nbinom"}, the
-            discrete-time hazard families, and \code{"multinomial"}),
-            \code{dispersion} off any family but \code{"nbinom"}, and
-            \code{breaks}/\code{max.rows} off any family but the
-            discrete-time hazard ones. Previously these arguments were
+            discrete-time hazard families, and \code{"multinomial"}).
+            Previously these arguments were
             silently dropped. The warning is classed
             \code{dbartsFamilyGatedWarning} (itself a
             \code{dbartsWarning}), the package's first classed condition,
@@ -2107,8 +2088,8 @@
             Supplying one of these alongside a shorthand argument that would
             otherwise help build the same prior is now an error naming both:
             \code{tree.prior} with any of \code{power}/\code{base}/
-            \code{split.probs}/\code{dart}; \code{node.prior} with \code{k}/
-            \code{prior.scale}; the retired \code{resid.prior} with
+            \code{split.probs}; \code{node.prior} with \code{k}; the
+            retired \code{resid.prior} with
             \code{sigdf}/\code{sigquant}/\code{sigest}. Leaving both
             \code{NULL} builds the priors from the shorthand arguments
             exactly as before this change, so no existing call's draws move.
@@ -2131,7 +2112,7 @@
             - they are \code{xbart}'s own swept grid, overriding a supplied
             object's \code{power}/\code{base} every cell exactly as \code{k}
             already overrides a supplied \code{node.prior}'s \code{k} - but
-            does collide with \code{dart}/\code{split.probs}, which would
+            does collide with \code{split.probs}, which would
             only duplicate it. Every default reproduces prior behavior;
             \code{n.th=} no longer partial-matches \code{n.threads}.
       \item \code{xbart}'s default \code{k}, when absent, now matches
@@ -2193,8 +2174,8 @@
             \code{forests =} argument alongside a term - is refused by name.
             \code{bart} gains no \code{forests =} formal; the formula term
             is its only route to a second forest.
-      \item \code{bart(family = "multinomial")} refuses \code{dart}
-            (or a DART \code{tree.prior}), \code{split.probs},
+      \item \code{bart(family = "multinomial")} refuses a DART
+            \code{tree.prior}, \code{split.probs},
             \code{monotone}, and \code{variance} by name: the K-forest
             engine copies only power/base/proposal-probability fields out
             of the host sampler these resolve against, so none of the
@@ -2377,10 +2358,10 @@
             stand behind, and the one \code{dbartsSpec} is built with.
             \code{seed} is the only spelling.
       \item \code{bart}'s \code{family} argument refuses every one of
-            \code{bart}'s ten other-family tokens by name, including
-            \code{"twopart"}; every refusal echoes the token as typed,
-            never a resolved alias such as \code{"hurdle.lognormal"} or the
-            binary link a hazard token remaps to.
+            \code{bart}'s ten other-family tokens by name; every refusal
+            echoes the token as typed, never a resolved alias such as
+            \code{"hurdle.lognormal"} or the binary link a hazard token
+            remaps to.
       \item A matrix \code{offset}/\code{offset.test} on \code{dbartsData}
             installs the multinomial per-category shift when paired with
             \code{counts}, and is refused (naming the shape supplied) on

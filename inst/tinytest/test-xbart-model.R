@@ -123,24 +123,6 @@ expect_silent(
   )
 )
 expect_error(
-  dbarts::xbart(
-    x,
-    y,
-    n.reps = 1L,
-    n.threads = 1L,
-    dart = TRUE,
-    split.probs = c(5, rep(1, p - 1L))
-  ),
-  pattern = paste0(
-    "'split.probs' cannot be combined with 'dart': a DART prior samples ",
-    "its split probabilities"
-  )
-)
-expect_error(
-  dbarts::xbart(x, y, n.reps = 1L, n.threads = 1L, dart = "yes"),
-  pattern = "'dart' must be TRUE, FALSE, or a prior created by dbartsPriors"
-)
-expect_error(
   dbarts::xbart(x, y, n.reps = 1L, n.threads = 1L, split.probs = c(1, 2)),
   pattern = "does not equal number of columns"
 )
@@ -218,23 +200,9 @@ gridViaObject <- quickXbart(
 )
 expect_identical(gridDirect, gridViaObject)
 
-# dart-prior-via-tree.prior equals dart = <the same object>
-dartObj <- dbarts::dbartsPriors$dart(a = 1)
-expect_identical(
-  quickXbart(seed = 22L, dart = dartObj),
-  quickXbart(seed = 22L, tree.prior = dartObj)
-)
-
-# collision refusals: dart/split.probs would only duplicate what a supplied
+# collision refusals: split.probs would only duplicate what a supplied
 # tree.prior already specifies; power/base/k stay legal alongside it, since
 # they are grid axes, not duplicates (unlike bart's tree.prior)
-expect_error(
-  quickXbart(tree.prior = dbarts::dbartsPriors$cgm(), dart = TRUE),
-  pattern = paste0(
-    "'tree.prior' cannot be combined with 'dart': supply the prior either ",
-    "as an object or through its shorthand arguments, not both"
-  )
-)
 expect_error(
   quickXbart(
     tree.prior = dbarts::dbartsPriors$cgm(),

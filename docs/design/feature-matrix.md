@@ -176,7 +176,7 @@ has no such channel, so under aft each censored latent is instead redrawn at its
 ([`buildVarianceForest`](../../src/bartcore/chain.hpp) leaves `useDart` at its default false).
 
 DART is refused for both multi-forest couplings by name - bcf at
-["a DART tree prior"](../../R/spec.R), multinomial at ["'dart' or a DART 'tree.prior'"](../../R/bart.R) -
+["a DART tree prior"](../../R/spec.R), multinomial at ["a DART 'tree.prior'"](../../R/bart.R) -
 and each coupling's forest builder hard-sets `forest.useDart = false` whatever the route asked
 for ([`buildSpecifiedForest`](../../src/bartcore/chain.hpp), [`buildMultinomialForest`](../../src/bartcore/chain.hpp)). Warm start and
 grow-from-root are refused, as `M` rather than `R`, for the four alternate-family `bart` arcs
@@ -246,10 +246,9 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 gone (retired: [`bartRedirectedFamilies`](../../R/bart.R), [`bartOwnClassFamilies`](../../R/bart.R)); its one
 response refusal is a factor of three or more levels, whose message names both remedies
 ([`refuseLegacyFactorResponse`](../../R/bart.R)). `family = student()` is the separate Student-t
-lever, at the modern door alone (`resid.dist` is retired to a
-[`dbartsTombstones`](../../R/tombstones.R) entry). `"twopart"` is no
-longer an alias at either door: it is refused by name
-([`refuseTwopartFamily`](../../R/tombstones.R)).
+lever, at the modern door alone. `"twopart"` is not a family token at either door: it is refused
+the same way any other unrecognized token is
+([`resolveFamily`](../../R/family.R)).
 
 [f2] Student-t is no `family` token and not in the family admission list
 [`parseSamplerSpecification`](../../src/R_interface_bartcore.cpp) reads (retired: [`dbarts_sampler_create`](../../inst/include/dbarts/dbarts.h),

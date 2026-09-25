@@ -148,14 +148,10 @@ expect_silent(dbarts::bartBT(
   verbose = FALSE
 ))
 
-# monotonicity: already-loud refusals keep their severity and message
+# monotonicity: an already-loud refusal keeps its severity and message
 expect_error(
   fit2(y.multi, family = "multinomial", weights = rep(1, n)),
   pattern = "does not support 'weights'"
-)
-expect_error(
-  fit2(y.multi, family = "multinomial", prior.scale = 2),
-  pattern = "prior.scale"
 )
 
 # samplerOnly: unblocked for ordinal/nbinom now that pointer adoption makes

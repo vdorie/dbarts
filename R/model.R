@@ -519,40 +519,6 @@ refuseColliding <- function(
   invisible(NULL)
 }
 
-## The dart/cgm tree-prior shorthand ladder shared by bart2 and xbart: a full
-## dart() spec overrides the power/base arguments with its own, dart = TRUE
-## builds one from them, FALSE takes the cgm default, and anything else is
-## refused. buildDart/buildCgm construct the prior in the caller's own
-## currency - an unevaluated call for bart2, which forwards its priors to
-## dbarts() for evaluation in the caller's frame, an object for xbart, which
-## fits with them directly.
-resolveDartShorthand <- function(
-  dart,
-  splitProbsSupplied,
-  splitProbsName,
-  buildDart,
-  buildCgm
-) {
-  if (inherits(dart, "dbartsDartPrior")) {
-    return(dart)
-  }
-  if (isTRUE(dart)) {
-    if (splitProbsSupplied) {
-      stop(
-        "'",
-        splitProbsName,
-        "' cannot be combined with 'dart': a DART prior samples its split ",
-        "probabilities"
-      )
-    }
-    return(buildDart())
-  }
-  if (!isFALSE(dart)) {
-    stop("'dart' must be TRUE, FALSE, or a prior created by dbartsPriors$dart")
-  }
-  buildCgm()
-}
-
 ## Turn a normal prior's raw k into the model's node hyperprior: NULL is the
 ## family default (2 for continuous responses, chi(1.5, 2) for binary),
 ## a positive scalar is fixed, and a hyperprior object passes through. Under a

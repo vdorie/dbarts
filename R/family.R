@@ -455,11 +455,6 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
     if (length(value) == 0L) {
       stop("'family' must name one response family")
     }
-    ## one model, one token: "twopart" is a retired spelling, refused by name
-    ## ahead of the generic list rather than folded in silence
-    if (identical(value, "twopart")) {
-      refuseTwopartFamily(caller)
-    }
     ## a wrapper forwarding its own unevaluated formal hands over the whole
     ## default vector, whose first element is the default match.arg reads;
     ## anything else is one token, matched partially as match.arg does

@@ -183,8 +183,7 @@ expect_equal(
 fitFixed <- bart(
   x,
   y,
-  family = "nbinom",
-  dispersion = 4,
+  family = nbinom(dispersion = 4),
   n.samples = 20L,
   n.burn = 10L,
   n.trees = n.trees,
@@ -204,11 +203,11 @@ expect_error(
   pattern = "non-negative integer"
 )
 expect_error(
-  dbarts(x, y, family = "nbinom", dispersion = 2.5),
+  dbarts(x, y, family = nbinom(dispersion = 2.5)),
   pattern = "real dispersion is not yet supported"
 )
 expect_error(
-  dbarts(x, y, family = "nbinom", dispersion = -3),
+  dbarts(x, y, family = nbinom(dispersion = -3)),
   pattern = "positive"
 )
 expect_error(

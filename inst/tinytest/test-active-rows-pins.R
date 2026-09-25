@@ -74,11 +74,11 @@ rm(masked, composed, draws.masked, draws.composed)
 
 # Student-t, bitwise: both arms draw lambda at every row on the same build,
 # so the mask annihilates the composite without moving the stream
-masked.t <- makeSamplerActiveRowsPins(w, resid.dist = dbarts:::student(df = 4))
+masked.t <- makeSamplerActiveRowsPins(w, family = dbarts:::student(df = 4))
 masked.t$setActiveRows(a)
 composed.t <- makeSamplerActiveRowsPins(
   w * a,
-  resid.dist = dbarts:::student(df = 4)
+  family = dbarts:::student(df = 4)
 )
 draws.masked.t <- masked.t$run(20L, 10L)
 draws.composed.t <- composed.t$run(20L, 10L)

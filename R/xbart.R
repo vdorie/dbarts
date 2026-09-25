@@ -45,7 +45,6 @@ xbart <- function(
   if (length(consolidated) > 0L) {
     matchedCall[names(consolidated)] <- NULL
   }
-  dart <- if (is.null(consolidated[["dart"]])) FALSE else consolidated[["dart"]]
 
   currEnv <- sys.frame(sys.nframe())
   evalEnv <- parent.frame(1L)
@@ -322,20 +321,14 @@ xbart <- function(
   # rule as node.prior/k above - power and base are xbart's grid axes, so
   # cellModel overwrites them on the object every cell regardless of what is
   # supplied here, while the object's non-grid content (a cgm's split.probs,
-  # a dart's Dirichlet hyperparameters) rides every cell unchanged. dart/
+  # a dart's Dirichlet hyperparameters) rides every cell unchanged.
   # split.probs would only duplicate what a supplied tree.prior already
-  # specifies, so they collide with it; power/base/k do not, since they are
+  # specifies, so it collides with it; power/base/k do not, since they are
   # grid axes rather than duplicates - this deliberately differs from
   # bart2's tree.prior, which does collide with power/base (R/bart.R's
   # buildSamplerPriors), because there they are ordinary scalars, not a grid.
   if (!is.null(matchedCall[["tree.prior"]])) {
     refuseColliding(matchedCall, "tree.prior", "split.probs")
-    if (!isFALSE(dart)) {
-      stop(
-        "'tree.prior' cannot be combined with 'dart': supply the prior ",
-        "either as an object or through its shorthand arguments, not both"
-      )
-    }
     tree.prior <- evalInVocabulary(
       matchedCall[["tree.prior"]],
       dbartsPriors[c("cgm", "dart")],
@@ -343,13 +336,7 @@ xbart <- function(
       resolvedAs("tree.prior", "dbartsTreePrior", "tree prior specification")
     )
   } else {
-    tree.prior <- resolveDartShorthand(
-      dart,
-      "split.probs" %in% names(matchedCall),
-      "split.probs",
-      function() dbartsPriors$dart(power[1L], base[1L]),
-      function() cgm(power[1L], base[1L], split.probs)
-    )
+    tree.prior <- cgm(power[1L], base[1L], split.probs)
   }
   tree.prior <- resolveSplitProbabilities(tree.prior, data)
 

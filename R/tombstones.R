@@ -115,97 +115,6 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
-    name = "resid.dist",
-    kind = "argument",
-    owner = "bart",
-    successor = "family = student(df)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "resid.dist",
-    kind = "argument",
-    owner = "dbarts",
-    successor = "family = student(df)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "resid.dist",
-    kind = "argument",
-    owner = "dbartsSpec",
-    successor = "family = student(df)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "dispersion",
-    kind = "argument",
-    owner = "bart",
-    successor = "family = nbinom(dispersion)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "dispersion",
-    kind = "argument",
-    owner = "dbarts",
-    successor = "family = nbinom(dispersion)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "dispersion",
-    kind = "argument",
-    owner = "dbartsSpec",
-    successor = "family = nbinom(dispersion)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "breaks",
-    kind = "argument",
-    owner = "bart",
-    successor = "family = hazard(breaks)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "breaks",
-    kind = "argument",
-    owner = "dbarts",
-    successor = "family = hazard(breaks)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "max.rows",
-    kind = "argument",
-    owner = "bart",
-    successor = "family = hazard(max.rows)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "max.rows",
-    kind = "argument",
-    owner = "dbarts",
-    successor = "family = hazard(max.rows)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "dart",
-    kind = "argument",
-    owner = "bart",
-    successor = "tree.prior = dart()",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "dart",
-    kind = "argument",
-    owner = "xbart",
-    successor = "tree.prior = dart()",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "levelGibbs",
-    kind = "argument",
-    owner = "bart",
-    successor = "tree.prior = cgm(levelGibbs)",
-    expires = tombstoneExpiry
-  ),
-  list(
     name = "power",
     kind = "argument",
     owner = "bart",
@@ -224,13 +133,6 @@ dbartsTombstones <- list(
     kind = "argument",
     owner = "bart",
     successor = "tree.prior = cgm(split.probs)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "prior.scale",
-    kind = "argument",
-    owner = "bart",
-    successor = "node.prior = normal(scale)",
     expires = tombstoneExpiry
   ),
   list(
@@ -294,13 +196,6 @@ dbartsTombstones <- list(
     kind = "behaviour",
     owner = "xbart",
     successor = "n.burn = c(fresh, warm)",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "twopart",
-    kind = "family",
-    owner = NA_character_,
-    successor = "hurdle.lognormal",
     expires = tombstoneExpiry
   ),
   list(
@@ -545,37 +440,6 @@ seedRenameReason <- paste0(
 ## onto the objects that own them. Each is still accepted for one release,
 ## carried on '...' and mapped onto its object after saying so once.
 consolidatedArgReasons <- list(
-  resid.dist = paste0(
-    "the residual law is a family: write family = student(df) or ",
-    "family = gaussian(); 'resid.dist' is removed in dbarts ",
-    tombstoneExpiry
-  ),
-  dispersion = paste0(
-    "the count dispersion rides its family: write ",
-    "family = nbinom(dispersion = ); 'dispersion' is removed in dbarts ",
-    tombstoneExpiry
-  ),
-  breaks = paste0(
-    "the hazard period grid rides its family: write ",
-    "family = hazard(breaks = ); 'breaks' is removed in dbarts ",
-    tombstoneExpiry
-  ),
-  max.rows = paste0(
-    "the hazard expansion cap rides its family: write ",
-    "family = hazard(max.rows = ); 'max.rows' is removed in dbarts ",
-    tombstoneExpiry
-  ),
-  dart = paste0(
-    "a DART prior is a tree prior: write tree.prior = dart(); 'dart' is ",
-    "removed in dbarts ",
-    tombstoneExpiry
-  ),
-  levelGibbs = paste0(
-    "the categorical-split level Gibbs step is declared on the tree prior: ",
-    "write tree.prior = cgm(levelGibbs = ); 'levelGibbs' is removed in ",
-    "dbarts ",
-    tombstoneExpiry
-  ),
   power = paste0(
     "the branching decay is a tree prior: write tree.prior = cgm(power = ) ",
     "or tree.prior = dart(power = ); 'power' is removed in dbarts ",
@@ -589,11 +453,6 @@ consolidatedArgReasons <- list(
   split.probs = paste0(
     "the per-predictor split probabilities are a tree prior: write ",
     "tree.prior = cgm(split.probs = ); 'split.probs' is removed in dbarts ",
-    tombstoneExpiry
-  ),
-  prior.scale = paste0(
-    "the named leaf calibration is a node prior: write ",
-    "node.prior = normal(k, scale = ); 'prior.scale' is removed in dbarts ",
     tombstoneExpiry
   ),
   resid.prior = paste0(
@@ -629,7 +488,6 @@ consolidatedPriorScalars <- c(
   "power",
   "base",
   "split.probs",
-  "prior.scale",
   "resid.prior",
   "sigdf",
   "sigquant",
@@ -644,31 +502,17 @@ unevaluatedConsolidatedArgs <- "split.probs"
 ## Which of them each entry point used to carry.
 consolidatedArgsFor <- list(
   bart = c(
-    "resid.dist",
-    "dispersion",
-    "breaks",
-    "max.rows",
-    "dart",
-    "levelGibbs",
     "power",
     "base",
     "split.probs",
-    "prior.scale",
     "resid.prior",
     "sigdf",
     "sigquant",
     "proposal.probs"
   ),
-  dbarts = c(
-    "resid.dist",
-    "dispersion",
-    "breaks",
-    "max.rows",
-    "resid.prior",
-    "proposal.probs"
-  ),
-  dbartsSpec = c("resid.dist", "dispersion", "resid.prior"),
-  xbart = c("dart", "resid.prior")
+  dbarts = c("resid.prior", "proposal.probs"),
+  dbartsSpec = c("resid.prior"),
+  xbart = c("resid.prior")
 )
 
 tombstoneDotsReasons <- list(
@@ -728,13 +572,10 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
       consolidatedArgReasons[[name]],
       ". The value was used."
     )
-    # each old spelling keeps the vocabulary it was written in: resid.dist
-    # took the residual-law constructors, now the family ones, and dart took
-    # the prior constructors, neither of which is exported
+    # the one old spelling still written in a vocabulary this package alone
+    # holds: resid.prior took the prior constructors, which are not exported
     env <- switch(
       name,
-      resid.dist = vocabularyEnv(dbartsFamilies, evalEnv),
-      dart = ,
       resid.prior = vocabularyEnv(dbartsPriors, evalEnv),
       evalEnv
     )
@@ -747,53 +588,6 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
     )
   }
   values
-}
-
-## Maps the family-only names onto the family object they now ride. A
-## 'resid.dist' of student() is the family itself, so it can only be
-## reconciled with an explicit family that is already gaussian.
-applyConsolidatedFamilyArgs <- function(family, consolidated) {
-  residDist <- consolidated[["resid.dist"]]
-  if (!is.null(residDist)) {
-    if (is.function(residDist)) {
-      residDist <- residDist()
-    }
-    if (
-      !is(residDist, "dbartsFamily") ||
-        residDist@token %not_in% c("gaussian", "student")
-    ) {
-      stop(
-        "'resid.dist' takes gaussian() or student(df), and is now spelled ",
-        "family = gaussian() or family = student(df)",
-        call. = FALSE
-      )
-    }
-    if (identical(residDist@token, "student")) {
-      if (family@token %not_in% c("auto", "gaussian", "student")) {
-        stop(
-          "student residuals require a continuous gaussian response; family ",
-          "\"",
-          family@token,
-          "\" has its own fixed error scale",
-          call. = FALSE
-        )
-      }
-      family@settings <- c(
-        family@settings,
-        residDist@settings[setdiff(
-          names(residDist@settings),
-          names(family@settings)
-        )]
-      )
-      family@token <- "student"
-    }
-  }
-  for (name in c("dispersion", "breaks", "max.rows")) {
-    if (name %in% names(consolidated)) {
-      family@settings[[name]] <- consolidated[[name]]
-    }
-  }
-  family
 }
 
 ## The retired flat 'resid.prior', resolved to an object: a bare constructor
@@ -862,8 +656,8 @@ reconcileResidPrior <- function(flat, flatName, family) {
 }
 
 ## The names in a '...', without forcing one of them: a retired argument may
-## be spelled in a vocabulary that only this package holds (resid.dist =
-## student()), so its promise must not be evaluated in the caller's frame.
+## be spelled in a vocabulary that only this package holds (resid.prior =
+## chisq(3, 0.9)), so its promise must not be evaluated in the caller's frame.
 dotNames <- function(...) {
   count <- ...length()
   if (count == 0L) {
@@ -959,23 +753,6 @@ resolveRenamedSigma <- function(
     "."
   )
   sigma
-}
-
-## ------------------------------------------------------------------
-## family = "twopart"
-## ------------------------------------------------------------------
-
-## One model, one token: the alias is gone rather than folded, so the
-## message names the surviving spelling instead of quietly fitting it.
-refuseTwopartFamily <- function(caller) {
-  stop(
-    "family = \"twopart\" is now family = \"hurdle.lognormal\" on '",
-    caller,
-    "'. The old token is removed in dbarts ",
-    tombstoneExpiry,
-    ".",
-    call. = FALSE
-  )
 }
 
 ## ------------------------------------------------------------------

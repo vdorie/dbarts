@@ -507,25 +507,21 @@ packageBartResults <- function(
 ## dbarts. nodeK is the node prior's k argument exactly as
 ## it should enter the call - unevaluated for functions that redirect their
 ## matched call, evaluated for those that forward through do.call from
-## internal frames - or NULL for no node prior. dart may be FALSE, TRUE, or
-## a dbartsDartPrior spec; splitProbsName is the caller's argument spelling
-## and splitProbs the expression it carries, NULL for an unsupplied one.
-## shorthandSupplied names the shorthands that reached the caller through
-## '...' rather than as formals, which the matched call no longer shows.
+## internal frames - or NULL for no node prior. splitProbsName is the
+## caller's argument spelling and splitProbs the expression it carries, NULL
+## for an unsupplied one. shorthandSupplied names the shorthands that reached
+## the caller through '...' rather than as formals, which the matched call
+## no longer shows.
 buildSamplerPriors <- function(
   matchedCall,
   power,
   base,
   nodeK,
-  priorScale = NA_real_,
-  dart = FALSE,
   splitProbsName = "split.probs",
   splitProbs = NULL,
   splitProbsDefault = NULL,
   shorthandSupplied = character()
 ) {
-  priorScale <- validateNamedScale(priorScale, "prior.scale")
-
   # A caller-supplied tree.prior/node.prior object fully replaces the flat
   # build below and is forwarded UNEVALUATED, exactly as k already is
   # (nodeK), so a bare vocabulary name inside it (linear(), gp(), ...)
@@ -544,52 +540,33 @@ buildSamplerPriors <- function(
     refuseColliding(
       matchedCall,
       "tree.prior",
-      c("power", "base", splitProbsName, "dart"),
+      c("power", "base", splitProbsName),
       shorthandSupplied
     )
     tree.prior <- treePriorObj
   } else {
-    tree.prior <- resolveDartShorthand(
-      dart,
-      splitProbsSupplied,
-      splitProbsName,
-      function() {
-        priorCall <- quote(dart(power, base))
-        priorCall[[2L]] <- power
-        priorCall[[3L]] <- base
-        priorCall
-      },
-      function() {
-        priorCall <- quote(cgm(power, base, split.probs))
-        priorCall[[2L]] <- power
-        priorCall[[3L]] <- base
-        priorCall[[4L]] <- if (splitProbsSupplied) {
-          splitProbs
-        } else {
-          splitProbsDefault
-        }
-        priorCall
-      }
-    )
+    priorCall <- quote(cgm(power, base, split.probs))
+    priorCall[[2L]] <- power
+    priorCall[[3L]] <- base
+    priorCall[[4L]] <- if (splitProbsSupplied) {
+      splitProbs
+    } else {
+      splitProbsDefault
+    }
+    tree.prior <- priorCall
   }
 
   if (!is.null(nodePriorObj)) {
     refuseColliding(
       matchedCall,
       "node.prior",
-      c("k", "prior.scale"),
+      "k",
       shorthandSupplied
     )
     node.prior <- nodePriorObj
-    # a named prior.scale needs a node prior to ride even when k is left to the
-    # family default, so it builds one; the k slot then drops out of the call and
-    # dbarts() resolves k exactly as it would have with no node prior at all
-  } else if (!is.null(nodeK) || !is.na(priorScale)) {
+  } else if (!is.null(nodeK)) {
     node.prior <- quote(normal(k))
     node.prior[[2L]] <- nodeK
-    if (!is.na(priorScale)) {
-      node.prior[["scale"]] <- priorScale
-    }
   } else {
     node.prior <- NULL
   }
@@ -845,7 +822,8 @@ bart <- function(
   refuseLegacyPositionalCall(suppliedCall)
   # the dots are inspected by NAME, never forced as a list: a retired
   # argument may be written in a vocabulary only this package holds
-  # (resid.dist = student()), which would not resolve in the caller's frame
+  # (resid.prior = chisq(3, 0.9)), which would not resolve in the caller's
+  # frame
   supplied <- dotNames(...)
   refuseForeignFrontDoorArgs(supplied, "bart", names(formals(dbarts::bart)))
   # ahead of sampler construction below, so a malformed pair fails here
@@ -866,8 +844,6 @@ bart <- function(
   if (length(consolidated) > 0L) {
     matchedCall[names(consolidated)] <- NULL
   }
-  dart <- if (is.null(consolidated[["dart"]])) FALSE else consolidated[["dart"]]
-  levelGibbs <- consolidated[["levelGibbs"]]
   # the prior scalars dec-B116 moved onto the prior objects, under their own
   # 0.9-x defaults: read here, applied through the same shorthand ladder that
   # built the priors when they were formals. split.probs alone stays
@@ -882,17 +858,8 @@ bart <- function(
   power <- consolidatedScalar("power", 2.0)
   base <- consolidatedScalar("base", 0.95)
   split.probs <- consolidated[["split.probs"]]
-  prior.scale <- consolidatedScalar("prior.scale", NA_real_)
   sigdf <- consolidatedScalar("sigdf", 3.0)
   sigquant <- consolidatedScalar("sigquant", 0.90)
-  # the collision the tree-prior shorthand ladder would otherwise catch by
-  # name; 'dart' has already left the matched call it reads
-  if (!is.null(matchedCall[["tree.prior"]]) && !isFALSE(dart)) {
-    stop(
-      "'tree.prior' cannot be combined with 'dart': supply the prior either ",
-      "as an object or through its shorthand arguments, not both"
-    )
-  }
   if ("rngSeed" %in% supplied) {
     seed <- resolveRenamedSeed(
       eval(matchedCall$rngSeed, callingEnv),
@@ -917,7 +884,6 @@ bart <- function(
     "bart",
     callingEnv
   )
-  familySpec <- applyConsolidatedFamilyArgs(familySpec, consolidated)
   family <- familySpec@token
   # the caller's own 'family' expression, kept for the stored call: the
   # resolved object below is a forwarding detail, and a fit whose call was
@@ -1066,13 +1032,6 @@ bart <- function(
     )
     validObject(control)
   }
-  # the level Gibbs step is declared on the tree prior now; the retired
-  # spelling lands where a declared one lands, on the control the bridge
-  # reads (R/spec.R copies the prior's own declaration there)
-  if (!is.null(levelGibbs)) {
-    control@levelGibbs <- validateLevelGibbs(levelGibbs)
-  }
-
   # the two shared settings this function reads again as LOCALS below - the
   # tree retention the burn-in split re-enables, and the seed the hurdle
   # split derives its two component seeds from - are taken off the merged
@@ -1166,10 +1125,10 @@ bart <- function(
     # buildMultinomialForest fixes its own CGM tree prior and copies only
     # power/base/proposal-probability fields from the host sampler it briefly
     # builds, so none of the following reach the K-forest engine: a DART
-    # flag on either formal ('tree.prior' is resolved with the same prior
-    # vocabulary parsePriors, R/model.R, uses, so 'tree.prior = dart()' is
-    # caught the same way 'tree.prior = dbartsPriors$dart()' is), fixed
-    # split probabilities, the monotone direction constraints (only their
+    # 'tree.prior' ('tree.prior' is resolved with the same prior vocabulary
+    # parsePriors, R/model.R, uses, so 'tree.prior = dart()' is caught the
+    # same way 'tree.prior = dbartsPriors$dart()' is), fixed split
+    # probabilities, the monotone direction constraints (only their
     # proposal-probability rewrite is copied), and a variance forest (the
     # host sampler that would resolve one is discarded).
     treePrior <- if (missing(tree.prior)) {
@@ -1178,8 +1137,7 @@ bart <- function(
       evalInVocabulary(matchedCall[["tree.prior"]], dbartsPriors, callingEnv)
     }
     unsupported <- c(
-      "'dart' or a DART 'tree.prior'" = !isFALSE(dart) ||
-        inherits(treePrior, "dbartsDartPrior"),
+      "a DART 'tree.prior'" = inherits(treePrior, "dbartsDartPrior"),
       "'split.probs'" = !is.null(split.probs),
       "'monotone'" = !is.null(monotone),
       "'variance'" = !is.null(variance)
@@ -1290,10 +1248,8 @@ bart <- function(
           power,
           base,
           sigest,
-          dart,
           combineChains,
           offset = multinomialOffset,
-          prior.scale = prior.scale,
           split.probs = split.probs,
           shorthandSupplied = shorthandSupplied,
           keepSampler = keepSampler,
@@ -1335,10 +1291,8 @@ bart <- function(
         power,
         base,
         sigest,
-        dart,
         combineChains,
         offset = multinomialOffset,
-        prior.scale = prior.scale,
         split.probs = split.probs,
         shorthandSupplied = shorthandSupplied,
         keepSampler = keepSampler,
@@ -1372,9 +1326,7 @@ bart <- function(
         control,
         power,
         base,
-        dart,
         combineChains,
-        prior.scale = prior.scale,
         split.probs = split.probs,
         shorthandSupplied = shorthandSupplied,
         keepSampler = keepSampler,
@@ -1409,9 +1361,7 @@ bart <- function(
         control,
         power,
         base,
-        dart,
         combineChains,
-        prior.scale = prior.scale,
         split.probs = split.probs,
         shorthandSupplied = shorthandSupplied,
         keepSampler = keepSampler,
@@ -1496,8 +1446,6 @@ bart <- function(
     power,
     base,
     nodeK = matchedCall[["k"]],
-    priorScale = prior.scale,
-    dart = dart,
     splitProbs = split.probs,
     shorthandSupplied = shorthandSupplied
   )
@@ -1788,10 +1736,8 @@ bart2Multinomial <- function(
   power,
   base,
   sigest,
-  dart,
   combineChains,
   offset = NULL,
-  prior.scale = NA_real_,
   split.probs = NULL,
   shorthandSupplied = character(),
   keepSampler = FALSE,
@@ -1804,8 +1750,6 @@ bart2Multinomial <- function(
     power,
     base,
     nodeK = matchedCall[["k"]],
-    priorScale = prior.scale,
-    dart = dart,
     splitProbs = split.probs,
     shorthandSupplied = shorthandSupplied
   )
@@ -1878,10 +1822,8 @@ bart2MultinomialCounts <- function(
   power,
   base,
   sigest,
-  dart,
   combineChains,
   offset = NULL,
-  prior.scale = NA_real_,
   split.probs = NULL,
   shorthandSupplied = character(),
   keepSampler = FALSE,
@@ -1894,8 +1836,6 @@ bart2MultinomialCounts <- function(
     power,
     base,
     nodeK = matchedCall[["k"]],
-    priorScale = prior.scale,
-    dart = dart,
     splitProbs = split.probs,
     shorthandSupplied = shorthandSupplied
   )
@@ -2108,9 +2048,7 @@ bart2Ordinal <- function(
   control,
   power,
   base,
-  dart,
   combineChains,
-  prior.scale = NA_real_,
   split.probs = NULL,
   shorthandSupplied = character(),
   keepSampler = FALSE,
@@ -2121,8 +2059,6 @@ bart2Ordinal <- function(
     power,
     base,
     nodeK = matchedCall[["k"]],
-    priorScale = prior.scale,
-    dart = dart,
     splitProbs = split.probs,
     shorthandSupplied = shorthandSupplied
   )
@@ -2359,9 +2295,7 @@ bart2Negbin <- function(
   control,
   power,
   base,
-  dart,
   combineChains,
-  prior.scale = NA_real_,
   split.probs = NULL,
   shorthandSupplied = character(),
   keepSampler = FALSE,
@@ -2372,8 +2306,6 @@ bart2Negbin <- function(
     power,
     base,
     nodeK = matchedCall[["k"]],
-    priorScale = prior.scale,
-    dart = dart,
     splitProbs = split.probs,
     shorthandSupplied = shorthandSupplied
   )
@@ -2694,8 +2626,8 @@ bart2Hurdle <- function(
   # (sigest/sigdf/sigquant/resid.prior a false "probit" diagnostic on the
   # occupancy call, since they are genuinely live on the positive half).
   # tree.prior/node.prior are NOT stripped from either list: they are live on
-  # both components, so they flow to both exactly as power/base/k/prior.scale
-  # already do. The family-only settings ride the family object, which each
+  # both components, so they flow to both exactly as power/base/k already do.
+  # The family-only settings ride the family object, which each
   # component call replaces with its own, so nothing is left to strip.
   gatedOnOccupancyOnly <- c("sigest", "sigdf", "sigquant", "resid.prior")
 
@@ -3160,7 +3092,6 @@ bartBT <- function(
     power,
     base,
     nodeK = if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k,
-    priorScale = NA_real_,
     splitProbsName = "splitprobs",
     splitProbs = matchedCall[["splitprobs"]],
     splitProbsDefault = formals(dbarts::bartBT)[["splitprobs"]]

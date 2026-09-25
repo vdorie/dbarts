@@ -43,8 +43,7 @@ nbinomSamplerDispersionChannel <- function(
   dbarts(
     x,
     yCount,
-    family = "nbinom",
-    dispersion = dispersion,
+    family = nbinom(dispersion = dispersion),
     control = samplerControlDispersionChannel(n.chains),
     verbose = FALSE
   )

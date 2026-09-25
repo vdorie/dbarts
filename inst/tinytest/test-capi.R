@@ -970,10 +970,10 @@ expect_false(identical(printSrcLive, printSrcSaved))
 
 # the Student-t df channel from C: the results slot appended to
 # dbarts_results after the dispersion one, on a sampler whose error law is
-# selected by the model's resid.dist rather than by the family string. The
-# slot is NA-poisoned before the run, so an unfilled channel cannot pass for
-# a filled one
-specT <- dbarts(x, y, resid.dist = student(df = 5), control = control)
+# selected by the model's resid.df attribute rather than by the family
+# string. The slot is NA-poisoned before the run, so an unfilled channel
+# cannot pass for a filled one
+specT <- dbarts(x, y, family = student(df = 5), control = control)
 ptrT <- specT$getPointer()
 dfT <- CALL("capi_run_residual_df", ptrT, 2L, 3L)
 expect_true(dfT$present)
@@ -987,8 +987,8 @@ expect_true(dfT$guarded)
 # leaves the poisoned slot exactly as it found it
 dfG <- CALL("capi_run_residual_df", ptr1, 2L, 3L)
 expect_true(all(is.na(dfG$recorded)))
-# a Student-t residual sampler's family IS gaussian: resid.dist selects the
-# error law, not a family of its own
+# a Student-t residual sampler's family IS gaussian: family = student()
+# selects the error law, not a family of its own
 expect_equal(CALL("capi_sampler_family", ptrT), familyConstants[["gaussian"]])
 rm(specT, ptrT, dfT, dfG)
 invisible(gc(FALSE))

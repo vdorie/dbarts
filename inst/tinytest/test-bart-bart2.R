@@ -41,9 +41,9 @@ rm(bart2Fit, bartFit, n.sims, n.burn)
 
 rm(testData)
 
-# The legacy door is 0.9-34's argument list exactly: the five settings it
-# briefly carried on this branch and never on CRAN are gone, so each is an
-# ordinary unused argument rather than a silently honoured extra.
+# The legacy door is 0.9-34's argument list exactly: the modern settings
+# never on CRAN's 'bart' are gone from it, so each is an ordinary unused
+# argument rather than a silently honoured extra.
 
 set.seed(202)
 nS10 <- 30L
@@ -61,9 +61,7 @@ quickS10 <- list(
 for (extra in list(
   list(subset = 1:10),
   list(storage = "single"),
-  list(family = "logistic"),
-  list(resid.dist = quote(gaussian)),
-  list(prior.scale = 2.0)
+  list(family = "logistic")
 )) {
   expect_error(
     do.call(dbarts::bartBT, c(list(xS10, yS10), extra, quickS10)),
@@ -71,7 +69,7 @@ for (extra in list(
   )
 }
 
-# every one of the five is still reachable at the modern door, which is
+# every one of the three is still reachable at the modern door, which is
 # where the message that names it points
 expect_inherits(
   dbarts::bart(
