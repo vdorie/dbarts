@@ -1,8 +1,8 @@
 # forest-cache-drift
 
-Status: IN PROGRESS, 2026-09-24. The removal (dec-B127 in [docs/decisions.md](../decisions.md)) is implemented
-(5eb0df0a, see the Landing note) and D4 and D5 are ruled; the gaussian equivalence baseline and the speed compare are
-owed.
+Status: IN PROGRESS, 2026-09-25. The removal (dec-B127 in [docs/decisions.md](../decisions.md)) is implemented
+(5eb0df0a, see the Landing note), D4 and D5 are ruled and the speed compare is done; the gaussian equivalence baseline
+is owed, and bartcore's own copy of it has been stale since 093dd035 (see the Landing note).
 agent: opus (engine, component tests, gate battery, re-records); sonnet (records: docs, INDEX, TODO)
 rng: posterior-changing. The amplitude rescaling move and its per-sweep GIG draw are removed, so
   every chain with an updating scale-mixture amplitude (bcf's prognostic forest, and each
@@ -241,7 +241,7 @@ development builds.
 ## Landing note (2026-09-24)
 
 The engine (5eb0df0a), the harness (73a33382), the BCF baseline (9a2db456) and these records; the gaussian
-equivalence baseline and the speed compare are owed, so the Status stays IN PROGRESS.
+equivalence baseline is owed, so the Status stays IN PROGRESS.
 
 Engine, 5eb0df0a. The move is gone from [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp), which no
 longer overrides `afterCombine`; with it went the per-forest `ridge` flags and the bridge's derivation of them, the
@@ -273,10 +273,22 @@ The full tinytest suite passes, 8887 tests, with no snapshot replayed.
 Equivalence, against baselines recorded on the previous tip on the same host: equivalence.R 52 of 53 identical under
 `--strict-coverage`, bart2twoforest moving at max `|z|` 1.00; multinomial 11 of 11 identical; bcf all 15 moving, every
 flag on an amplitude-coupled channel. bcf-equivalence is re-recorded as `bcf-equivalence-5eb0df0a.rds` (9a2db456), the
-exact gates its oracle; this host reproduces the stored BCF baseline bitwise at the previous tip. equivalence.R is NOT re-recorded:
-this host reproduces `equivalence-d2b9827a.rds` in 48 of 53 scenarios only, so a recording here would move five
-scenarios CI compares bitwise. It is owed from the stored baselines' recording host, and until then cpp-tests.yaml's
-bitwise compare fails on bart2twoforest.
+exact gates its oracle; this host reproduces the stored BCF baseline bitwise at the previous tip. equivalence.R is NOT re-recorded.
+
+Why (2026-09-25). `equivalence-d2b9827a.rds` is stale on bartcore itself, not host-bound. The five scenarios that
+differ (friedman, probit, weighted, splitprobs, quants) are the ones that fit through `bart()` with BayesTree-spelled
+arguments, which forward to `bartBT()`, and 093dd035 gave that door BayesTree's tree-move mixture, so they have drawn
+differently since. This host and CI agree: bartcore's tip (ecc6893e) reproduces the baseline in 48 of 53 scenarios as a
+reference build and as a shipped build, with the same five at the same max `|z|` (2.05, 2.59, 2.03, 2.14, 2.59) that
+CI's cpp-tests log reports on every run since 093dd035; 093dd035's parent reproduces it 53 of 53 here as a reference
+build. CI has stayed green because equivalence.R exits 0 on a statistical match, so cpp-tests.yaml's compare of that
+file is bitwise in name only (the BCF and multinomial harnesses do fail on a mismatch). The slice, as a reference build,
+is 47 of 53 identical: those five, and bart2twoforest at max `|z|` 1.00. It passes the CI step, so the earlier
+statement that the step fails on bart2twoforest was wrong. After the rebase onto ecc6893e the slice reproduces
+`bcf-equivalence-5eb0df0a.rds` 15 of 15 bitwise on the reference and shipped builds, and
+`multinomial-equivalence-80b1c8d4.rds` 11 of 11 on the reference build. A re-record now carries two draw changes, the
+bartBT mixture and this one, and needs an oracle for the first (093dd035's own, that the pre-change build replays the
+new draws with the mixture passed explicitly, is the candidate).
 
 Calibration. See [Decision 1 - the SBC arms](bcf-latent-evidence.md#decision-1---the-sbc-arms)'s re-measurement: the
 ladders still fail the admission clause at `|a| >= 5` on both links, with and without the move; the `R = 200` verdicts
@@ -284,7 +296,11 @@ are 10 of 13 (probit) and 12 of 13 (logistic), every functional inside the matri
 13 of 13. The gaussian arm at its recorded settings passes 13 of 15, sigma included, against 9 of 15 with the move on
 the same host ([Calibration (2026-07-07)](../design/bcf.md#calibration-2026-07-07)).
 
-Speed. Not measured: the host was loaded (1-minute load 6 to 7 from other work). `bench-sampler.R compare` against
-`bench-sampler-127f04ee.csv`, alternating three rounds on each build, flagged zero to four cells at 1.05 to 1.11 on
-the previous tip and one to four on the slice, `embedded-offset-run1-n1000-t75` the most often on both. The single-forest
-cells' code does not change, the check being compiled out under NDEBUG; the compare is owed on a quiet machine.
+Speed, on the idle x86 bench host (1-minute load under 1.1), shipped builds of bartcore's tip (ecc6893e) and the
+slice. `bench-sampler.R compare` against `bench-sampler-127f04ee.csv`, three alternating rounds per build: every cell
+passes on both, and the slice's median sits within 2 percent of the tip's in every cell (0.98 to 1.02), inside the
+round-to-round spread. BCF timed directly (p = 10, 75 prognostic and 50 treatment trees, one chain, one thread, five
+alternating pairs, median ms per sweep, tip then slice): gaussian 0.377 and 0.368 at n = 1000, 3.20 and 3.12 at
+n = 10000; probit 0.406 and 0.401, 3.52 and 3.43. The slice is 1.2 to 2.5 percent faster, every pair in its favour.
+That is below the 4 to 6 percent the Decision records, which was the move's cost with its fix, a full cache re-derivation
+every sweep; the tip carried the move without that re-derivation.
