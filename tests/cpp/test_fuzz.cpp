@@ -207,20 +207,21 @@ static bool fuzzTreeRoutesCorrectly(const Tree& t, const ColumnStore& data,
   return true;
 }
 
+// sweeps is an upper bound on the sweeps run since creation, which the
+// cache rule's rounding bound grows with, and scaleMax the running maximum of
+// each chain's forests' working response, chain-major.
 template <typename S>
-static const char* fuzzInvariantViolation(S& s, const double* z) {
+static const char* fuzzInvariantViolation(S& s, const double* z, size_t sweeps,
+                                          std::vector<double>& scaleMax) {
   size_t n = s.numObservations();
   for (size_t c = 0; c < s.numChains(); ++c) {
     const auto& ch(s.chain(c));
     // occupancy, coverage and the totalFits identity, per FOREST: the check
     // read forest 0 against forest 0's total, which is self-consistent and so
-    // would not misfire on a BCF - it simply left forest 1 uncovered
-    std::vector<double> fits;
+    // would not misfire on a BCF - it simply left forest 1 uncovered. The
+    // identity is the forest cache rule, on every row: additive rounding only
     for (size_t f = 0; f < ch.numForests(); ++f) {
       size_t numTrees = ch.numTreesInForest(f);
-      const std::vector<double>& total(ch.totalFitsInForest(f));
-      fits.resize(n * numTrees);
-      ch.forestTreeFits(f, fits.data());
       for (size_t t = 0; t < numTrees; ++t) {
         const Tree& tree(ch.treeInForest(f, t));
         if (!tree.bottomNodesAreOccupied()) return "empty leaf";
@@ -229,12 +230,11 @@ static const char* fuzzInvariantViolation(S& s, const double* z) {
             !fuzzSubtreeCovers(tree, 0, leafObs) || leafObs != n)
           return "partition does not cover n";
       }
-      for (size_t i = 0; i < n; i += 17) {
-        double acc = 0.0;
-        for (size_t t = 0; t < numTrees; ++t) acc += fits[t * n + i];
-        if (std::fabs(acc - total[i]) > 1e-8 * (1.0 + std::fabs(total[i])))
-          return "totalFits != tree-order sum";
-      }
+      size_t slot = c * ch.numForests() + f;
+      if (scaleMax.size() <= slot) scaleMax.resize(slot + 1, 1.0);
+      if (forestCacheGapRatio(ch, f, sweeps, scaleMax[slot]) >
+          forestCacheGapBound)
+        return "totalFits != tree-order sum";
     }
     if (!(std::isfinite(s.sigma(c)))) return "sigma not finite";
     // I2, amplitude parts identity: the combined location the accessor reports
@@ -413,6 +413,10 @@ static void fuzzFillResponse(ext_rng* r, ResponseFamily fam, const double* x,
   }
 }
 
+// Every fuzzed sampler burns in this many sweeps, one at a time, before its op
+// stream.
+static constexpr size_t fuzzBurnIn = 12;
+
 // The op loop, generic over the leaf model so the linear-leaf configuration
 // reuses it. Returns false (and prints the seed + a trailing op trace) on the
 // first invariant break.
@@ -431,6 +435,8 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
   char line[128];
   bool ok = true;
   int op = 0;
+  size_t sweeps = fuzzBurnIn;
+  std::vector<double> scaleMax;
   auto record = [&](const char* text) { trace.push_back(text); };
   auto fail = [&](const char* what) {
     ++failures;
@@ -463,9 +469,24 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
   const int* liveTrials = nullptr;
   const double* liveCategoryOffset = nullptr;
 
+  // the burn-in, a sweep at a time, so the invariants hold at every sweep
+  // boundary and the cache rule's running scale sees every sweep
+  {
+    Results empty;
+    for (size_t sweep = 1; sweep <= fuzzBurnIn && ok; ++sweep) {
+      s.run(1, 0, empty);
+      if (const char* v =
+            fuzzInvariantViolation(s, treatmentZ, sweep, scaleMax))
+        fail(v);
+    }
+  }
+
   for (op = 0; op < numOps && ok; ++op) {
     size_t n = s.numObservations();
     int kind = fuzzPickOp(opRng, spec.opMask);
+    // every op is at most one pass over each tree's cached fits beyond the
+    // sweeps it runs: a re-route subtracts and adds each tree once
+    ++sweeps;
     switch (kind) {
       case OP_SET_PREDICTOR: {
         std::vector<double> cand(n * p);
@@ -643,6 +664,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         r.sigma = sig.data();
         r.trainingFits = tf.data();
         s.run(0, 1, r);
+        ++sweeps;
         snprintf(line, sizeof line, "op%d %s", op, fuzzOpName[kind]);
         record(line);
         bool finite = true;
@@ -725,6 +747,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         // masks included, on the configurations that carry them.
         size_t numSweeps = 1 + fuzzInt(opRng, 2);
         s.growFromRoot(numSweeps);
+        sweeps += numSweeps;
         snprintf(line, sizeof line, "op%d grow sweeps=%zu", op, numSweeps);
         record(line);
         // Before the round trip, not folded into the invariant call after
@@ -735,7 +758,9 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         // stale leafOf index from the same kind of mid-grow slip never
         // reaches this check: rollTreeResidual's own assertion aborts the
         // process first, and only when assertions are live (no NDEBUG).
-        if (const char* v = fuzzInvariantViolation(s, treatmentZ)) fail(v);
+        if (const char* v =
+              fuzzInvariantViolation(s, treatmentZ, sweeps, scaleMax))
+          fail(v);
         SamplerStateData grown;
         s.getState(grown);
         if (!s.setState(grown, curAll())) {
@@ -837,7 +862,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
       default: break;
     }
     if (ok) {
-      const char* v = fuzzInvariantViolation(s, treatmentZ);
+      const char* v = fuzzInvariantViolation(s, treatmentZ, sweeps, scaleMax);
       if (v) fail(v);
     }
   }
@@ -896,8 +921,6 @@ static void fuzzRunConstant(const ConfigSpec& spec, std::uint32_t seed,
     spec.family == ResponseFamily::gaussian ? fuzzRawScale : 1.0;
   Sampler<ConstantGaussianLeaf> s(xb, yb, n0, p, nullptr, nullptr, spec.family,
                                   1.0, 3.0, rawScale, options, rngs.data());
-  Results empty;
-  s.run(12, 0, empty);
   fuzzDrive(s, spec, arena, opRng, seed, numOps, xb);
 
   for (size_t c = 0; c < spec.numChains; ++c) ext_rng_destroy(rngs[c]);
@@ -967,8 +990,6 @@ static void fuzzRunBCF(const ConfigSpec& spec, std::uint32_t seed, int numOps) {
   }
   Sampler<ConstantGaussianLeaf> s(xb, yb, n0, p, nullptr, nullptr, 1.0, 3.0,
                                   fuzzRawScale, options, bcf, rngs.data());
-  Results empty;
-  s.run(12, 0, empty);
   fuzzDrive(s, spec, arena, opRng, seed, numOps, xb, zb);
 
   for (size_t c = 0; c < spec.numChains; ++c) ext_rng_destroy(rngs[c]);
@@ -1024,8 +1045,6 @@ static void fuzzRunMultinomial(const ConfigSpec& spec, std::uint32_t seed,
     ext_rng_setSeed(rngs[c], seed * 2u + 1u + static_cast<std::uint32_t>(c));
   }
   Sampler<ConstantGaussianLeaf> s(xb, n0, p, options, mn, rngs.data());
-  Results empty;
-  s.run(12, 0, empty);
   fuzzDrive(s, spec, arena, opRng, seed, numOps, xb);
 
   for (size_t c = 0; c < spec.numChains; ++c) ext_rng_destroy(rngs[c]);
@@ -1058,8 +1077,6 @@ static void fuzzRunLinear(std::uint32_t seed, int numOps) {
   Sampler<LinearGaussianLeaf> s(xb, yb, n0, p, nullptr, nullptr,
                                 ResponseFamily::gaussian, 1.0, 3.0, fuzzRawScale,
                                 options, &rng);
-  Results empty;
-  s.run(12, 0, empty);
   fuzzDrive(s, spec, arena, opRng, seed, numOps, xb);
 
   ext_rng_destroy(rng);
@@ -1096,8 +1113,6 @@ static void fuzzRunSparse(std::uint32_t seed, int numOps) {
   Sampler<ConstantGaussianLeaf> s(nullptr, yb, n0, fixture.p, nullptr, nullptr,
                                   ResponseFamily::gaussian, 1.0, 3.0,
                                   fuzzRawScale, options, &rng);
-  Results empty;
-  s.run(12, 0, empty);
   // CSC-backed: the engine re-quantizes from its retained slices, so the driver
   // tracks no dense matrix
   fuzzDrive(s, spec, arena, opRng, seed, numOps, nullptr);

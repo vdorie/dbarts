@@ -1334,8 +1334,8 @@ public:
   /// omega_i and the caller's copy count has already been spent as that draw's
   /// shape, so this factor cannot move it. It reaches forest f's LEAF
   /// conditionals only - not the amplitude draw, which reads the response's
-  /// own weights, and not the ASIS rescale, which reads none - so m_f and f_f,
-  /// the two factors of one product, are drawn under three precision vectors.
+  /// own weights - so m_f and f_f, the two factors of one product, are drawn
+  /// under two precision vectors.
   ///
   /// Two edges a consumer is misled without: at s_i = 0 with a nonzero
   /// multiplier only the WEIGHT is zeroed - the response stays the
@@ -1494,18 +1494,6 @@ public:
       std::memcpy(out, forest.treeFits.data(),
                   n * forest.numTrees * sizeof(double));
     }
-  }
-
-  /// Fires the combiner's post-combine move (BCF: the per-forest interweaving
-  /// amplitude-ridge rescale, AmplitudeForestCombiner<L>::afterCombine) outside
-  /// a sweep, for the component tests; returns whatever that override reports,
-  /// which is NOT a moved/did-not-move flag (ForestCombiner::afterCombine
-  /// states each convention).
-  double interweaveGlueRidgeForTesting(bool record = false,
-                                       std::size_t sampleNum = 0) {
-    return combiner_
-      ? combiner_->afterCombine(forests_, record, sampleNum, rng_)
-      : 1.0;
   }
 
   /// Between-run reconfiguration; the test-fit pool is rebuilt lazily to
@@ -1802,6 +1790,16 @@ public:
           forest.dart.update(rng_, forest.splitCounts.data());
         }
       }
+
+#ifndef NDEBUG
+      // The forest cache rule ForestCombiner::afterCombine states, checked at
+      // every sweep boundary. A float chain's residual is stored in fp32 and
+      // carries larger gaps by design, so it is exempt. R's build defines
+      // NDEBUG, so this is live only in tests/cpp.
+      if constexpr (leafIsConstant && std::is_same_v<ResidT, double>)
+        for (const Forest<L, ResidT>& forest : forests_)
+          assert(totalFitsMatchLeaves(forest));
+#endif
 
       if (record) {
         storeSample(results, sampleNum);
@@ -4201,11 +4199,11 @@ public:
   std::uint8_t leafOfStaleForTesting(size_t t) const {
     return forests_[0].leafOfStale[t];
   }
-  /// Test hooks: the running residual forest 0 rolls across a sweep, and the
+  /// Test hooks: the running residual forest f rolls across a sweep, and the
   /// working response it is rolled against. Together with treeFits() they pin
   /// the unrolled mu[leafOf] gathers elementwise, tail included.
-  const std::vector<ResidT>& residualForTesting() const {
-    return forests_[0].treeY;
+  const std::vector<ResidT>& residualForTesting(std::size_t f = 0) const {
+    return forests_[f].treeY;
   }
   const double* workingResponseForTesting() const {
     return response_->workingResponse();
@@ -5335,6 +5333,28 @@ private:
     }
   }
 
+#ifndef NDEBUG
+  /// Whether a constant-leaf forest's cached totalFits is within additive
+  /// rounding of its leaves gathered in tree order: 1e-8 (1 + |totalFits_i|)
+  /// on every row, far above the rounding a sweep's difference updates
+  /// accumulate and far below any gap a transform has multiplied.
+  bool totalFitsMatchLeaves(const Forest<L, ResidT>& forest) const {
+    size_t n = data_.numObservations;
+    if (forest.totalFits.size() < n || forest.muByTree.size() < forest.numTrees ||
+        forest.leafOf.size() < n * forest.numTrees)
+      return true;
+    for (size_t i = 0; i < n; ++i) {
+      double gather = 0.0;
+      for (size_t t = 0; t < forest.numTrees; ++t)
+        gather += forest.muByTree[t][forest.leafOf[t * n + i]];
+      double total = forest.totalFits[i];
+      if (!(std::fabs(total - gather) <= 1.0e-8 * (1.0 + std::fabs(total))))
+        return false;
+    }
+    return true;
+  }
+#endif
+
   /// totalFits += tree t's fits (constant: gathered through mu[leafOf]).
   void addTreeFitsToTotal(Forest<L, ResidT>& forest, size_t t) {
     size_t n = data_.numObservations;
@@ -5505,8 +5525,7 @@ private:
   /// clearing at the next sweep. All of it holds only where tree t's
   /// obs-to-leaf map is current, which is what the decline below is for.
   ///
-  /// A no-op consuming no rng below two eligible trees, the shape
-  /// rescaleAmplitudeRidge's own two-leaf guard takes. shiftOut, when
+  /// A no-op consuming no rng below two eligible trees. shiftOut, when
   /// non-null, receives numTrees shifts, zero for a tree that declined.
   bool drawLevelShift(Forest<L, ResidT>& forest, double* shiftOut = nullptr) {
     if constexpr (!leafIsConstant) {

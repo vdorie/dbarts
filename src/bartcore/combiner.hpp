@@ -303,7 +303,6 @@ struct ForestSpec {
   double amplitudePriorVariance = 1.0;
   double amplitudePriorScale = 0.0;  // half-Cauchy median; 0 = fixed variance
   bool updateAmplitude = true;
-  bool ridge = true;
   const double* basis = nullptr;
   std::size_t numBasisColumns = 1;
 };
@@ -334,12 +333,6 @@ struct AmplitudeSpec {
   double bPriorVariance = 0.5;  // N(0, .) prior variance for b0, b1
   double sdModerate = 1.0;      // treatment effect scale, in units of s above
   bool updateA = true, updateB = true;  // false fixes the matching glue block
-  // Whether each forest's amplitude block travels its own likelihood-invariant
-  // ASIS ridge after the combination (AmplitudeForestCombiner::afterCombine).
-  // mu's is bcf's shipped a-move; tau's is the b-move the general rescale
-  // implements. It is OFF here because switching it on consumes a GIG draw per
-  // sweep, which re-records bcf-equivalence.
-  bool ridgeA = true, ridgeB = false;
   // The K-length reading. EMPTY leaves the mu/tau pair above authoritative and
   // the treatment forest's basis synthesized from z; non-empty supersedes both,
   // and z is then read by nothing.
@@ -358,13 +351,11 @@ inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
   forests[0].forest = spec.mu;
   forests[0].amplitudePriorScale = spec.aPriorScale;
   forests[0].updateAmplitude = spec.updateA;
-  forests[0].ridge = spec.ridgeA;
   forests[1].forest = spec.tau;
   forests[1].nodeScaleFactor = spec.sdModerate;
   forests[1].nodeScaleDivisor = 0.674;  // the half-normal median
   forests[1].amplitudePriorVariance = spec.bPriorVariance;
   forests[1].updateAmplitude = spec.updateB;
-  forests[1].ridge = spec.ridgeB;
   forests[1].numBasisColumns = 2;  // synthesized from z by the combiner
   return forests;
 }
@@ -423,7 +414,7 @@ struct ForestBasis {
   std::size_t numColumns = 0;
 };
 
-/// One forest's amplitude prior and the two switches its block carries. The
+/// One forest's amplitude prior and the switch its block carries. The
 /// prior is N(0, variance) on every coordinate of the block; a positive
 /// halfCauchyScale makes variance a LIVE inverse-gamma auxiliary refreshed
 /// after the block's draw, which is bcf's half-Cauchy a (the scale mixture),
@@ -432,7 +423,6 @@ struct ForestAmplitudePrior {
   double variance = 1.0;
   double halfCauchyScale = 0.0;
   bool update = true;  // false holds the whole block at its value
-  bool ridge = true;   // whether afterCombine travels this block's ASIS orbit
 };
 
 /// The combining response's glue: the per-forest amplitude
@@ -500,8 +490,7 @@ struct ForestResponse {
 /// location the response model and sigma draw read. A Chain builds a combiner
 /// only in a multi-forest mode (BCF today); a single-forest chain leaves
 /// combiner_ null and never pays a virtual call. Templated on the leaf because
-/// a combiner's post-combine move reaches Forest<L, ResidT>'s buffers and saved-tree
-/// nodes.
+/// a combiner's post-combine move reaches Forest<L, ResidT>'s buffers.
 ///
 /// The coupling draw (drawGlue), its post-combine move (afterCombine), the
 /// reporting-channel map, and glue (de)serialization are declared here so a
@@ -597,18 +586,17 @@ struct ForestCombiner {
   /// The coupling draw and its likelihood-invariant post-combine move, fired at
   /// the fixed sweep points; inert unless a subclass couples the forests.
   ///
-  /// afterCombine's return is a REPORTING channel, not a record of whether it
-  /// moved: each override states its own convention, the sweep discards the
-  /// value, and only the component tests read it (through
-  /// Chain::interweaveGlueRidgeForTesting). BCF's per-forest rescale returns
-  /// the scale it applied to the forest it reports, 1.0 if that one held while
-  /// another travelled; the multinomial shift returns 1.0 unconditionally,
-  /// HAVING moved, because an additive move has no scale to report. So 1.0
-  /// does not mean the state is unchanged, and no caller may read it that way.
+  /// An afterCombine that writes leaf values owns every cache derived from
+  /// them: a forest's totalFits may leave the sweep differing from its leaves
+  /// by additive rounding only. An additive move may update the cache in place,
+  /// its increment being rounding-level; a multiplicative one must re-derive
+  /// the cache from the leaves before the sweep ends, since a gap it multiplies
+  /// compounds across sweeps and nothing short of a restore clears it. Chain::run
+  /// checks this under !NDEBUG.
   virtual void drawGlue(ext_rng*, double, const double*, const double*,
                         const std::vector<Forest<L, ResidT>>&) {}
-  virtual double afterCombine(std::vector<Forest<L, ResidT>>&, bool, std::size_t,
-                              ext_rng*) { return 1.0; }
+  virtual void afterCombine(std::vector<Forest<L, ResidT>>&, bool, std::size_t,
+                            ext_rng*) {}
 
   /// A per-forest pre-update hook, fired inside the sweep just before forest f's
   /// tree update, with the partially updated forests (0..f-1 new this sweep,
@@ -758,7 +746,7 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
       if (f < forests.size())
         glue_.prior[f] = {forests[f].amplitudePriorVariance,
                           forests[f].amplitudePriorScale,
-                          forests[f].updateAmplitude, forests[f].ridge};
+                          forests[f].updateAmplitude};
     }
     // bcf's two-forest spelling names its treatment basis by the indicator it
     // contrasts on rather than by the pair; the pair is that indicator's
@@ -954,36 +942,6 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   void drawGlue(ext_rng* rng, double sigma, const double* y, const double* w,
                 const std::vector<Forest<L, ResidT>>& forests) override {
     drawAmplitudes(rng, sigma, y, w, forests);
-  }
-
-  /// Interweaving (ASIS, Yu & Meng 2011) rescale, per forest, of the amplitude
-  /// ridge each forest's block carries. After the amplitude draws and the leaf
-  /// draws, forest f's L + q scale coordinates (a_f, mu_1..mu_L) travel
-  /// (a_f/c, c mu_l) along the likelihood-invariant orbit
-  /// dot(a_f, B_f(i,.)) f_f(x_i) = dot(a_f/c, B_f(i,.)) (c f_f(x_i)), so the
-  /// move updates only the amplitude coordinates and preserves the posterior.
-  ///
-  /// The forests are travelled in index order, one GIG draw each; the blocks
-  /// are DISJOINT, so the moves commute and each is an exact Gibbs update given
-  /// the rest, and the order is a stream convention rather than a modelling
-  /// choice. Returns the scale applied to
-  /// the forest this combiner reports - 1.0 if that forest held, which does not
-  /// say that no forest moved.
-  ///
-  /// Instantiated at bcf's prognostic forest (q = 1, the scale mixture) this is
-  /// the shipped a-move exactly, and at its treatment forest (q = 2, a fixed
-  /// prior variance) it is the b-move - one mechanism, not two, by the same
-  /// general exponent rule.
-  double afterCombine(std::vector<Forest<L, ResidT>>& forests, bool record,
-                      std::size_t sampleNum, ext_rng* rng) override {
-    double reported = 1.0;
-    for (std::size_t f = 0; f < forests.size(); ++f) {
-      const ForestAmplitudePrior& prior = glue_.prior[f];
-      if (!prior.update || !prior.ridge) continue;
-      double c = rescaleAmplitudeRidge(f, forests[f], record, sampleNum, rng);
-      if (f == this->reportedForest()) reported = c;
-    }
-    return reported;
   }
 
   /// BCF reports the prognostic forest (forest 0, the base default) but leaves
@@ -1188,95 +1146,6 @@ private:
 
     double* amplitude = glue_.amplitudesOf(f);
     for (std::size_t j = 0; j < q; ++j) amplitude[j] = moments[j];
-  }
-
-  /// Forest f's ASIS ridge: draw c and travel (a_f, leaves) -> (a_f/c, c
-  /// leaves). c = sqrt(v), v ~ GIG((L - q)/2, M/leafVar, ||a_f||^2/priorVar)
-  /// with L and M the count and squared sum of f's OCCUPIED leaves. The
-  /// exponent follows a general rule: rescaling k leaf parameters against d
-  /// glue scalars gives p = (k - d)/2, so q = 1 is the shipped (L - 1)/2 and
-  /// q = 2 the b-move's (L - 2)/2; the naive move-map Jacobian's
-  /// (L - q + 1)/2 is off by one and its prototype rejects it at KS 1.6e-21.
-  /// B reads the LIVE prior variance, which for a scale mixture is the
-  /// auxiliary this move conditions on (refreshing it here would
-  /// re-randomize the coordinate just conditioned on and measurably
-  /// throttle the mixing gain - IACT 69 -> 196 on |a|); the one-sweep lag is
-  /// benign, the next drawGlue refreshing it | a_new.
-  ///
-  /// A no-op consuming no rng below two occupied leaves or at a zero leaf sum,
-  /// returning 1.0. record/sampleNum locate the keepTrees saved slot whose
-  /// leaves, flattened before this move, need the same c so a stored
-  /// amplitude * leaf keeps the identified product; the recorded test surface
-  /// travels for state self-consistency.
-  double rescaleAmplitudeRidge(std::size_t f, Forest<L, ResidT>& forest,
-                               bool record, std::size_t sampleNum,
-                               ext_rng* rng) {
-    std::size_t n = data_.numObservations;
-
-    // L, M over the occupied leaves. Recomputed unconditionally: the
-    // k-accumulator that would hold these is gated on updateK, which BCF
-    // leaves false. A forced-zero empty leaf is not a prior draw, so skip it.
-    double M = 0.0;
-    std::size_t numLeaves = 0;
-    for (std::size_t t = 0; t < forest.numTrees; ++t) {
-      Tree& tree = forest.trees[t];
-      const std::vector<double>& mu = forest.muByTree[t];
-      tree.bottomScratch.clear();
-      tree.fillBottom(0, tree.bottomScratch);
-      for (int32_t nodeIndex : tree.bottomScratch) {
-        const Node& node = tree.at(nodeIndex);
-        if (node.numObservations() == 0) continue;
-        double value = mu[static_cast<std::size_t>(nodeIndex)];
-        M += value * value;
-        ++numLeaves;
-      }
-    }
-    if (numLeaves < 2 || !(M > 0.0)) return 1.0;
-
-    double* amplitude = glue_.amplitudesOf(f);
-    std::size_t q = glue_.numAmplitudes(f);
-    double squaredNorm = amplitude[0] * amplitude[0];
-    for (std::size_t j = 1; j < q; ++j)
-      squaredNorm += amplitude[j] * amplitude[j];
-    double leafPrecision = (forest.k / forest.leaf.scale) *
-                           (forest.k / forest.leaf.scale);  // 1 / leafVar
-    double gigP =
-      0.5 * (static_cast<double>(numLeaves) - static_cast<double>(q));
-    double gigA = M * leafPrecision;
-    double gigB = squaredNorm / glue_.prior[f].variance;
-
-    double v = ext_rng_simulateGeneralizedInverseGaussian(rng, gigP, gigA,
-                                                          gigB);
-    if (!std::isfinite(v) || v <= 0.0) return 1.0;
-    double c = std::sqrt(v);
-    if (!std::isfinite(c) || c <= 0.0) return 1.0;
-
-    // travel the ridge: the amplitudes shrink, the forest's fits grow by c.
-    // Scaling every leaf value scales every gathered fit, so the leaf tables
-    // carry the rescale.
-    for (std::size_t j = 0; j < q; ++j) amplitude[j] = amplitude[j] / c;
-    for (std::size_t t = 0; t < forest.numTrees; ++t)
-      misc_scalarMultiplyVectorInPlace(forest.muByTree[t].data(),
-                                       forest.muByTree[t].size(), c);
-    misc_scalarMultiplyVectorInPlace(forest.totalFits.data(), n, c);
-
-    if (record && data_.numTestObservations > 0) {
-      misc_scalarMultiplyVectorInPlace(forest.totalTestFits.data(),
-                                       data_.numTestObservations, c);
-      misc_scalarMultiplyVectorInPlace(forest.currTestFits.data(),
-                                       data_.numTestObservations, c);
-    }
-    if (record && forest.savedTreeCapacity > 0) {
-      std::size_t slot =
-        (forest.savedSlotBase + sampleNum) % forest.savedTreeCapacity;
-      for (std::size_t t = 0; t < forest.numTrees; ++t) {
-        std::vector<FlatNode>& flat =
-          forest.savedTrees[slot * forest.numTrees + t];
-        for (FlatNode& node : flat)
-          if (node.variable == invalidVariable) node.value *= c;
-      }
-    }
-    return c;
   }
 
   /// The scale forest f's constant leaf carries into the combination: the
@@ -1763,9 +1632,8 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// only (a leaf value IS the fit). totalTestFits is deliberately untouched -
   /// the softmax blend is invariant to the common shift. keepTrees is out of
   /// scope here, so the saved (flattened) tree leaves are not touched.
-  /// Returns 1.0 (no multiplicative scale; the return feeds only BCF's test).
-  double afterCombine(std::vector<Forest<L, ResidT>>& forests, bool /*record*/,
-                      std::size_t /*sampleNum*/, ext_rng* rng) override {
+  void afterCombine(std::vector<Forest<L, ResidT>>& forests, bool /*record*/,
+                    std::size_t /*sampleNum*/, ext_rng* rng) override {
     std::size_t n = data_.numObservations;
     double prec = 0.0, num = 0.0;
     for (std::size_t k = 0; k < numCategories_; ++k) {
@@ -1790,7 +1658,7 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
       prec += leafCount * invV / (m * m);
       num += leafSum * invV / m;
     }
-    if (!(prec > 0.0)) return 1.0;
+    if (!(prec > 0.0)) return;
     double c = -num / prec +
                ext_rng_simulateStandardNormal(rng) / std::sqrt(prec);
 
@@ -1808,7 +1676,6 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
         }
       }
     }
-    return 1.0;
   }
 
 private:

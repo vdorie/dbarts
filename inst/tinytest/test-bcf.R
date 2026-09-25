@@ -95,17 +95,18 @@ restored <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
 bartcoreSetState(restored, state)
 
 # the glue rides the state exactly; the forests restore to a continuation
-# (structural, not bitwise: the dropped accumulation history is not reproduced)
+# whose fits are re-derived from the leaves, so they differ from the run's
+# running totals by the additive rounding those totals accumulated only
 expect_equal(bartcoreForestAmplitudes(restored), glueBefore)
 expect_equal(
   bartcoreForestFits(restored, 0L),
   muBefore,
-  tolerance = 1e-5
+  tolerance = 1e-12
 )
 expect_equal(
   bartcoreForestFits(restored, 1L),
   tauBefore,
-  tolerance = 1e-5
+  tolerance = 1e-12
 )
 
 result.restored <- bartcoreRun(restored, 0L, 50L)
@@ -146,14 +147,10 @@ expect_equal(dim(result.pi$train), c(n, 20L))
 expect_true(all(is.finite(result.pi$train)))
 expect_true(all(result.pi$sigma > 0))
 
-# --- interweaving glue-ridge move ---
-# The move rescales (a, mu) -> (a/c, c mu) along the likelihood ridge after
-# every glue draw under update.a = TRUE (the default), so the runs above
-# already exercise it. It is posterior-preserving; these checks pin its
-# behaviour through the R stack. The off path (update.a = FALSE) consumes no
-# rng and was verified bitwise identical to the pre-change build cross-build; update.a = FALSE sanity is
-# covered by bcFixed above. The exact invariance and keepTrees saved-slot
-# correctness are the C++ gates (tests/cpp).
+# --- a longer run under the amplitude draw ---
+# a and its half-Cauchy auxiliary are redrawn every sweep under update.a = TRUE
+# (the default); a longer run stays sane through the R stack, with and without
+# keepTrees. The cache and replay identities are the C++ gates (tests/cpp).
 set.seed(101)
 n.m <- 200L
 x.m <- matrix(runif(n.m * 3L), n.m, 3L)
@@ -169,7 +166,6 @@ control.m <- dbartsControl(
 )
 sampler.m <- dbarts(x.m, y.m, control = control.m)
 
-# move active: a longer run stays sane and the glue stays finite
 bcMove <- dbarts:::bartcoreBCFSampler(sampler.m, z.m, n.trees.treatment = 30L)
 res.move <- bartcoreRun(bcMove, 200L, 100L)
 expect_true(all(is.finite(res.move$train)))
@@ -178,8 +174,6 @@ expect_true(all(is.finite(bartcoreForestAmplitudes(bcMove))))
 muMove <- bartcoreForestFits(bcMove, 0L)
 expect_true(all(is.finite(muMove)) && sum(muMove^2) > 0)
 
-# keepTrees with the move: storing the mu forest's saved slots (each rescaled
-# by the sweep's c) leaves the run sane through the R stack
 control.k <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,

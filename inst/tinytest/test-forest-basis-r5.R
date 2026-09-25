@@ -191,41 +191,41 @@ expect_identical(
 expect_error(threeForests$getForestAmplitudes(4L), "out of range")
 expect_error(threeForests$getForestAmplitudes(0L), "single positive integer")
 
-# --- the per-forest ASIS ridge is DERIVED from the amplitude prior's kind at
-# the transport's own site (R_interface_bartcore.cpp applyAmplitudeSpec:
-# forest.ridge = forest.amplitudePriorScale > 0.0), which is what reproduces
-# bcf's a-move on and b-move off. Two halves. First the transported scale
-# itself: a forest carrying a basis has a FIXED-variance amplitude, so its
-# half-Cauchy scale is 0 and its ridge is off; a forest carrying none has the
-# scale mixture, so its scale is its `sd` and its ridge is on. ---
-ridgeSpec <- dbartsSpec(
+# --- the amplitude prior's kind is transported per forest. Two halves. First
+# the transported scale itself: a forest carrying a basis has a FIXED-variance
+# amplitude, so its half-Cauchy scale is 0; a forest carrying none has the
+# scale mixture, so its scale is its `sd`. ---
+priorSpec <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, cbind(1 - z, z))),
   seededControlForestBasisR5(),
   forests = list(forest(sd = 2.5), forest(sd = 1.25))
 )
-ridgeParams <- attr(ridgeSpec$control, "bartcore.forests")$params
-# forest 1: no basis -> variance 1, half-Cauchy median 2.5 -> ridge ON
-expect_equal(ridgeParams[[1L]][6:7], c(1, 2.5))
-# forest 2: a basis -> fixed variance 0.5, scale 0 -> ridge OFF
-expect_equal(ridgeParams[[2L]][6:7], c(0.5, 0))
+priorParams <- attr(priorSpec$control, "bartcore.forests")$params
+# forest 1: no basis -> variance 1, half-Cauchy median 2.5
+expect_equal(priorParams[[1L]][6:7], c(1, 2.5))
+# forest 2: a basis -> fixed variance 0.5, scale 0
+expect_equal(priorParams[[2L]][6:7], c(0.5, 0))
 
-# and second, the derivation is really READ: flipping the transported scale on
-# either forest flips that forest's ridge, and a ridge that travels consumes a
-# GIG draw per sweep, so every subsequent draw moves. A bridge that set the
-# flag by any other rule would leave these three fits identical.
+# and second, the scale is really READ: a positive scale on either forest makes
+# its prior variance a live auxiliary, redrawn after the amplitude every sweep,
+# and a zero holds it fixed, so flipping it moves every subsequent draw. A
+# bridge that ignored the transported scale would leave these fits identical.
 buildFromSpec <- function(spec) {
   new("dbartsSampler", spec$control, spec$model, spec$data)
 }
-baseline <- buildFromSpec(ridgeSpec)$run(0L, 4L)$train
+baseline <- buildFromSpec(priorSpec)$run(0L, 4L)$train
 
-ridgeOnBasis <- ridgeSpec
-attr(ridgeOnBasis$control, "bartcore.forests")$params[[2L]][7L] <- 2
-expect_false(identical(buildFromSpec(ridgeOnBasis)$run(0L, 4L)$train, baseline))
-
-ridgeOffFirst <- ridgeSpec
-attr(ridgeOffFirst$control, "bartcore.forests")$params[[1L]][7L] <- 0
+mixtureOnBasis <- priorSpec
+attr(mixtureOnBasis$control, "bartcore.forests")$params[[2L]][7L] <- 2
 expect_false(identical(
-  buildFromSpec(ridgeOffFirst)$run(0L, 4L)$train,
+  buildFromSpec(mixtureOnBasis)$run(0L, 4L)$train,
+  baseline
+))
+
+fixedFirst <- priorSpec
+attr(fixedFirst$control, "bartcore.forests")$params[[1L]][7L] <- 0
+expect_false(identical(
+  buildFromSpec(fixedFirst)$run(0L, 4L)$train,
   baseline
 ))
 

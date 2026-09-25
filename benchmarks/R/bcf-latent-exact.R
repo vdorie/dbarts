@@ -46,7 +46,15 @@
 # near 5e-3, accepted in advance. Failure means the backfit, the glue draw,
 # the latent refresh or the calibration map is wrong.
 #
-# Usage: Rscript bcf-latent-exact.R [quick]
+# A `pooled` run is an oracle for re-recording the latent equivalence
+# baselines rather than a per-push gate: it runs mode 2a, the mode whose
+# amplitude is drawn, at the quick shape over many independent seeds (300 by
+# default) and scores each channel's pooled mean against the quadrature with
+# the spread of the seed means as its standard error, which no within-chain
+# autocorrelation can understate. It requires |z| < 3 on every channel.
+# seeds=<n> and cores=<n> set the seed count and the forked workers.
+#
+# Usage: Rscript bcf-latent-exact.R [quick | pooled [seeds=<n>] [cores=<n>]]
 
 source(
   system.file("common", "bartcoreHandle.R", package = "dbarts"),
@@ -56,7 +64,18 @@ source(
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
-quick <- "quick" %in% args
+pooled <- "pooled" %in% args
+quick <- "quick" %in% args || pooled
+namedArg <- function(name, default) {
+  hit <- grep(sprintf("^%s=", name), args, value = TRUE)
+  if (length(hit) == 0L) {
+    return(default)
+  }
+  as.integer(sub(sprintf("^%s=", name), "", hit[length(hit)]))
+}
+pooledSeeds <- namedArg("seeds", 300L)
+pooledCores <- namedArg("cores", 1L)
+pooledBound <- 3
 
 zBound <- 4
 nBurn <- if (quick) 5000L else 20000L
@@ -915,6 +934,92 @@ cat(sprintf(
   "  free-glue oracles and refinement: %.1f s\n",
   proc.time()[["elapsed"]] - oracleStart
 ))
+
+# ---- the pooled mode ----
+
+# Mode 2a at the quick shape over independent seeds: each seed contributes
+# its chain's channel means, and the pooled mean is scored against the
+# quadrature with sd(seed means) / sqrt(seeds) as its standard error.
+runPooled <- function(name, arm, exact, matched) {
+  started <- proc.time()[["elapsed"]]
+  perSeed <- parallel::mclapply(
+    seq_len(pooledSeeds),
+    function(seed) {
+      fit <- samplerFit(seed, arm, TRUE, FALSE, nKept, nThin)
+      vapply(fit, mean, numeric(1L))
+    },
+    mc.cores = pooledCores
+  )
+  means <- do.call(rbind, perSeed)
+  cat(sprintf(
+    "%s, %d seeds (%.1f s)\n",
+    name,
+    nrow(means),
+    proc.time()[["elapsed"]] - started
+  ))
+  cat(sprintf(
+    "  %-16s %9s %9s %9s %7s\n",
+    "quantity",
+    "pooled",
+    "exact",
+    "se",
+    "z"
+  ))
+  targets <- list()
+  for (label in names(matched)) {
+    for (c in seq_len(arm$K)) {
+      targets[[sprintf("%s[%d]", label, c)]] <- matched[[label]][c]
+    }
+  }
+  for (c in seq_len(arm$K)) {
+    for (zg in 1:2) {
+      targets[[sprintf("F(eta[%d,%d])", c, zg - 1L)]] <- exact$probability[
+        c,
+        zg
+      ]
+    }
+  }
+  failed <- FALSE
+  worst <- 0
+  for (key in names(targets)) {
+    v <- means[, key]
+    se <- sd(v) / sqrt(length(v))
+    z <- (mean(v) - targets[[key]]) / se
+    bad <- !is.finite(z) || abs(z) >= pooledBound
+    cat(sprintf(
+      "  %-16s %+9.5f %+9.5f %9.2e %+7.2f%s\n",
+      key,
+      mean(v),
+      targets[[key]],
+      se,
+      z,
+      if (bad) " <- FAIL" else ""
+    ))
+    worst <- max(worst, abs(z))
+    failed <- failed || bad
+  }
+  cat(sprintf("  worst |z| %.2f\n", worst))
+  failed
+}
+
+if (pooled) {
+  cat("\n")
+  for (nm in c("probit", "logistic")) {
+    anyFailure <- runPooled(
+      sprintf("pooled mode 2a (a free), %s", nm),
+      arms[[nm]],
+      exactFreeA[[nm]],
+      list(`a mu` = exactFreeA[[nm]]$aMu, tau = exactFreeA[[nm]]$tau)
+    ) ||
+      anyFailure
+  }
+  if (anyFailure) {
+    cat("\nFAIL: pooled latent BCF means deviate from the exact posterior\n")
+    quit(status = 1L)
+  }
+  cat("\nOK: pooled latent BCF means match the exact posterior\n")
+  quit(status = 0L)
+}
 
 # ---- run the modes ----
 

@@ -226,9 +226,9 @@ runScenarios <- function() {
     result$restricted <- recordChannels(bc, res)
   }
 
-  # (c) asymmetric glue toggle: update.a on (a and its ridge move draw), b held
-  # at (b0, b1) = (0, 1). Isolates the b-block-fixed routing the both-on
-  # scenarios never exercise.
+  # (c) asymmetric glue toggle: update.a on (a and its scale auxiliary
+  # drawn), b held at (b0, b1) = (0, 1). Isolates the b-block-fixed routing
+  # the both-on scenarios never exercise.
   {
     d <- makeData(n, p, seeds[["glue.data"]])
     sampler <- dbarts(d$x, d$y, control = makeControl())

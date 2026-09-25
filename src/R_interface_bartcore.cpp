@@ -2398,12 +2398,6 @@ SEXP forestListElement(SEXP listExpr, size_t f) {
 // parallel. Shared by the internal entry, which passes these as arguments, and
 // the public creation path, which reads them off a control attribute - so the
 // two build the same sampler.
-//
-// A forest travels its amplitude's likelihood-invariant ASIS ridge exactly
-// when its prior is a SCALE MIXTURE. That reproduces bcf - the a-move on, the
-// b-move off - and it is the honest general rule: the fixed-variance ridge is
-// a held-off door, whose cost is a GIG draw per sweep and whose acceptance
-// gate has not been run.
 void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
                         SEXP blocksExpr, const ParsedModel& model,
                         size_t numTrees, size_t numPredictors,
@@ -2436,7 +2430,6 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
     forest.amplitudePriorVariance = params[5];
     forest.amplitudePriorScale = params[6];
     forest.updateAmplitude = params[7] != 0.0;
-    forest.ridge = forest.amplitudePriorScale > 0.0;
     // The tree-move mixture is a property of the FIT, not of a forest: one
     // control slot, so every forest of a coupling proposes from the same
     // mixture. Carried here because the K-forest chain builds each forest from

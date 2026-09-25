@@ -60,9 +60,9 @@ expect_identical(dimnames(predicted)[[3L]], c("forest1", "forest2"))
 expect_true(all(is.finite(predicted)))
 
 # --- the identity: replayed at the TRAINING rows, the per-forest channel is
-# the one the run recorded. Not bitwise - the amplitude ridge rescales each
-# forest's running total as c * sum(mu_t) while the saved leaves are rescaled
-# themselves, so the replay re-sums sum(c * mu_t) - so the same 1e-12 bar
+# the one the run recorded. Not bitwise - each forest's running total is kept
+# by difference updates and carries their additive rounding, while the replay
+# sums the saved leaves afresh - so the same 1e-12 bar
 # test-argument-surface.R's reconstruction identity uses.
 inSample <- extract(fit, type = "forest")
 atTraining <- predict(fit, x, type = "forest")

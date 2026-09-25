@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -167,6 +168,54 @@ struct CscFixture {
       allCscSources[j] = ~static_cast<std::int32_t>(j);
   }
 };
+
+// The forest cache rule's measure. A forest's cached totalFits may differ from
+// its tree fits summed in tree order by accumulated ADDITIVE rounding only: the
+// sweep keeps the cache by difference updates, each rounding at the scale of
+// the forest's working response at that sweep, so the gap is bounded by
+// C eps max_s max_i |forestY_i(s)| sqrt(sweeps). Returns forest f's worst gap
+// in units of eps scaleMax sqrt(sweeps), where scaleMax is the caller's
+// running maximum of max_i |forestY_i| over the sweeps it has seen, updated
+// here first: the gap keeps the rounding of a sweep whose multiplier was small
+// and whose response was large after the multiplier grows again. forestY is
+// recovered from the last sweep's residual as treeY + totalFits - the last
+// tree's fits, which is the response those updates rounded against, and is
+// floored at 1 so a forest with a tiny response is still held to an absolute
+// floor.
+template <typename C>
+double forestCacheGapRatio(const C& chain, std::size_t f, std::size_t sweeps,
+                           double& scaleMax) {
+  const std::vector<double>& total = chain.totalFitsInForest(f);
+  std::size_t n = total.size(), numTrees = chain.numTreesInForest(f);
+  if (numTrees == 0) return 0.0;
+  std::vector<double> fits(n * numTrees);
+  chain.forestTreeFits(f, fits.data());
+  const auto& resid = chain.residualForTesting(f);
+  const double* last = fits.data() + (numTrees - 1) * n;
+  double gap = 0.0;
+  scaleMax = std::max(scaleMax, 1.0);
+  for (std::size_t i = 0; i < n; ++i) {
+    double gather = 0.0;
+    for (std::size_t t = 0; t < numTrees; ++t) gather += fits[t * n + i];
+    gap = std::max(gap, std::fabs(total[i] - gather));
+    if (i < resid.size())
+      scaleMax =
+        std::max(scaleMax, std::fabs(static_cast<double>(resid[i]) + total[i] -
+                                     last[i]));
+  }
+  double root = std::sqrt(static_cast<double>(sweeps > 0 ? sweeps : 1));
+  return gap / (std::numeric_limits<double>::epsilon() * scaleMax * root);
+}
+
+// C in that bound, shared by the drift pins (testAmplitudeCacheDrift,
+// testAmplitudeCacheRestore) and the fuzz invariant. Measured with no
+// multiplicative leaf transform in the engine: the pins' worst ratio was 5.0
+// (probit, the 50 + 25 tree ensemble) and the fuzz's 184 over 1000 seeds (a
+// bcf stream of predictor mutations ending in grow-from-root; 7.0 over 200);
+// C is ten times the larger, rounded up. The rescaling move the engine carried
+// until 1.0-0 multiplied the gap and reached 4.7e10 (probit) and 7.7e11
+// (logistic) at the latent gate's shape within 5000 sweeps.
+constexpr double forestCacheGapBound = 2000.0;
 
 // ext_printf is Rprintf (external/io.h), whose real implementation needs a
 // live R session and segfaults without one, so this host defines the symbol
