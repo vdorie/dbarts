@@ -719,8 +719,8 @@
             logistic. Draws for those families change in the last bits - the
             pass sums each leaf's statistic in a different order, and nothing
             else about the kernel moves - so a seeded fit of any of them no
-            longer reproduces 0.9-x or an earlier 1.0-0 development build
-            exactly, though the posterior is unchanged. Separately, the pass
+            longer reproduces 0.9-x exactly, though the posterior is
+            unchanged. Separately, the pass
             now warms the tree's index permutation for the move phase that
             follows it, worth 6 to 16\% on unweighted fits with draws
             unchanged.
@@ -1985,11 +1985,6 @@
             multinomial samplers. A row is installed only if it empties no
             leaf of any tree of any forest of any chain, and the returned
             mask reports which rows were.
-      \item A BCF forest whose scale multiplier is zero now contributes
-            exactly zero weight and exactly zero response for the affected
-            rows instead of a near-zero floor, so the treatment surface
-            reported at control rows under a fixed glue is exact rather
-            than accurate to about seven digits.
       \item A BCF sampler accepts a per-forest, per-observation weight,
             so a caller can exclude rows from one forest's leaf
             conditionals without excluding them from the model, via
