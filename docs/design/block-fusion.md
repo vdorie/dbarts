@@ -450,8 +450,9 @@ forest. Generalization order, template = the U'WU cache:
   from the current working response -- no special handling; v1 covers binary BART.
 - BCF: each forest sub-sweeps its own residual
   (formForestResponse, [`Chain::run`](../../src/bartcore/chain.hpp)); blocks are per-forest, g uses the
-  forest's response net of the other forest's scaled contribution. The glue/ridge
-  interweave ([`Chain::interweaveGlueRidgeForTesting`](../../src/bartcore/chain.hpp)) runs once per sweep outside blocks. Compatible;
+  forest's response net of the other forest's scaled contribution. The glue draw
+  runs once per sweep outside blocks (the glue/ridge interweave that also did,
+  retired: [`Chain::interweaveGlueRidgeForTesting`](../../src/bartcore/chain.hpp), is removed). Compatible;
   block per forest.
 - MISSINGNESS (MIA): the partition already routes missing via the rule's
   missing-direction bit (partitionIndicesMIA in the worktree); atom split reuses

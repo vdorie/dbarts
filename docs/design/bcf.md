@@ -207,6 +207,15 @@ expansion on); the first gate fixes b0 = 0, b1 = 1. The matched quantity is the
 posterior predictive of (b1 - b0) tau(x) at the test cells; failure means the
 two-forest backfit or the glue draw is wrong.
 
+Without the amplitude rescaling move (2026-09-24, dec-B127) every BCF exact
+gate passes in full mode: bcf-exact.R's mode 2a matches E[a mu] and E[tau] to
+0.0002, bcf-exact-weak.R's prior-dominated a posterior to 0.0005 on both means
+and 0.0051 on P(|a| <= 0.25, 0.5, 1), bcf-exact-restricted.R to 0.0003, and
+the latent gate (benchmarks/R/bcf-latent-exact.R) sits at worst |z| 2.08 over
+its nine configurations. Its `pooled` run, 300 independent seeds of mode 2a,
+matches the quadrature at |z| 0.63 (probit) and 1.12 (logistic) or under on
+every channel; the move's compounding cache gap had put E[tau] at z 7.1.
+
 ## Mutation surface
 
 Correction (2026-09-03): the per-forest setModel and per-forest predict
@@ -351,12 +360,20 @@ has always been. benchmarks/R/bcf-exact.R
 reproduces the map and the range/sigma calibration to validate the
 implementation end to end.
 
+The gaussian SBC arm (benchmarks/R/sbc.R `bcf`: n = 200, R = 200, L = 200,
+thin 30, 72000-sweep burn) passes 13 of 15 functionals without the amplitude
+rescaling move (2026-09-24, dec-B127): sigma at 0.0602 against a 0.0917 band,
+every eff cell, abs.a and abs.diff PASS, and prog3 and prog4 flag at 0.1061 and
+0.1209, the prognostic cells the (a, mu) ridge grazes. The same host and
+settings with the move passed 9 of 15, sigma flagging at 0.0928. The arm stays
+out of the SBC matrix.
+
 ## Burn-in under strong prognostic signal (2026-07-10)
 
 BCF fits on data whose prognostic amplitude is large relative to sigma
 carry a long burn transient: the glue a reaches the right amplitude
-within ~10 sweeps, but the mu forest's split STRUCTURE mixes slowly at
-high SNR, and the shape misfit sits in sigma until it does. Measured
+within a few hundred sweeps, but the mu forest's split STRUCTURE mixes
+slowly at high SNR, and the shape misfit sits in sigma until it does. Measured
 settle time scales with |a|/sigma and reaches ~72k sweeps in the
 Cauchy(0, 2) prior's tail (|a| > 5; bias in E[sigma] up to ~1.2x at
 burn = 18k). Amplitude-aware initialization and no-glue warm starts
@@ -368,7 +385,11 @@ setResponse(updateScale = FALSE) path). The SBC harness pins its BCF
 burn to absolute sweeps accordingly. The |a| >= 40 extreme tail (~3%
 of the prior) is a structure-mixing limit no burn fixes; an engine
 remedy (tempered early sweeps) would be its own item. Records:
-docs/plans/archive/bcf-sigma-residual.md.
+docs/plans/archive/bcf-sigma-residual.md. The amplitude rescaling move
+(multiplier-combiner.md, "The ASIS ridge") is removed (dec-B127) but stays
+an option for a later mixing experiment; with it, a settled in about 10
+sweeps rather than a few hundred, and no quantity a user reads mixed
+measurably faster.
 
 ## Landing (2026-07-07 to 2026-07-10)
 
@@ -385,19 +406,14 @@ sigma burn-in calibration recorded above
 bartCause is the intended consumer, over the public creation surface
 recorded below.
 
-**The a-move is no longer a prognostic special case (M4.2, 1a2aaedc,
-2026-08-14).** It is now one instance of a GENERAL per-forest ASIS
-rescale over the amplitude blocks, run for every forest whose prior
-carries `ridge`; its q = 1 case reproduces the 2026-07-10 move
-BITWISE, which is what let the generalization land with no baseline
-moving. The mechanism - the GIG draw, the exponent, and the
-rescale-consistency set - is
-docs/design/multiplier-combiner.md, "The ASIS ridge", and is not
-restated here. bcf's TREATMENT forest now has its own move available
-in that same code (the b-move, docs/plans/archive/bcf-b-ridge.md), but it
-ships OFF: `AmplitudeSpec::ridgeB = false`, because enabling it consumes a
-GIG draw per sweep - a `bcf-equivalence` re-record - and the b-move's
-own acceptance gate ([docs/plans/archive/bcf-b-ridge.md:438-449](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/docs/plans/archive/bcf-b-ridge.md#L438-L449)) has not been run.
+**The a-move is removed (dec-B127).** It was generalized on
+2026-08-14 (M4.2, 1a2aaedc) into one per-forest ASIS rescale over the
+amplitude blocks, with a b-move for the treatment forest that never
+shipped on. It multiplied a forest's cached fits separately from its
+leaves, which biased every amplitude-coupled fit, and with that fixed it
+did not earn its cost; docs/design/multiplier-combiner.md, "The ASIS
+ridge", records what it was, why it went, and the rule a restoration must
+follow.
 
 ## Public creation surface (2026-08-10 to 2026-08-11)
 
@@ -479,4 +495,5 @@ dbarts, as the named causal verb.
 LANDED. Two-forest sampler and Forest split 2026-07-07; mixing
 refinements 2026-07-10; public creation, R5 mutation, a flat C surface and
 per-draw reporting 2026-08-10 to 2026-08-11 (see "Landing" and "Public
-creation surface" above).
+creation surface" above). The amplitude rescaling move removed 2026-09-24
+(dec-B127; docs/plans/forest-cache-drift.md).

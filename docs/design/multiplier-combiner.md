@@ -26,6 +26,10 @@ tree-extraction or augmentation entries - each is a method on the R sampler obje
 handle is now read from. The `retired:` cites below name constructs that are gone; what
 this record says about the R and engine sides still holds.
 
+Amended by [forest-cache-drift](../plans/forest-cache-drift.md#forest-cache-drift): the
+amplitude rescaling move is removed (dec-B127); "The ASIS ridge" below records
+what it was and how to restore it.
+
 This file documents ONE INSTANCE of the combiner hierarchy.
 docs/design/forest-combiner.md owns the abstraction - why `ForestCombiner<L>`
 exists beside `Forest<L>`, the null-short-circuit fast path, the
@@ -181,45 +185,51 @@ recorded against the one conditional every shape draws through.
 
 ## The ASIS ridge
 
-Per forest, at most one GIG draw each, in index order. The blocks are DISJOINT,
-so the moves commute and each is an exact Gibbs update given the rest, which
-makes the order a stream convention rather than a modelling choice
-([`afterCombine`](../../src/bartcore/combiner.hpp)). "At most" is exact: `afterCombine`
-skips a forest entirely on `!prior.update || !prior.ridge`, before any draw
-([`afterCombine`](../../src/bartcore/combiner.hpp)), and `rescaleAmplitudeRidge`
-returns 1.0 consuming NO rng below two occupied leaves or at a zero leaf sum
-([`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp)). Two further 1.0 returns
-guard a non-finite or non-positive draw, but those are reached only AFTER the
-GIG draw is taken, so the leaf-count/leaf-sum guard is the sole rng-free skip
-of the three ([`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp)). M4.0's pins
-hold all three inert on the stream.
+A removed move, kept on record as an option for a later mixing experiment
+(dec-B127 in [docs/decisions.md](../decisions.md)). No post-combine move runs
+on this combiner: the amplitude block and its half-Cauchy auxiliary are drawn
+from their exact conditionals every sweep, and nothing rescales them against
+the leaves afterwards.
 
-Forest f's `L + q` scale coordinates travel the likelihood-invariant orbit
-`(a_f, leaves) -> (a_f/c, c leaves)` with `c = sqrt(v)` and
+**What it was.** An interweaving (ASIS) rescale, once per sweep and per forest
+whose amplitude was an updating scale mixture, of forest f's `L + q` scale
+coordinates along the likelihood-invariant orbit
+`(a_f, leaves) -> (a_f/c, c leaves)`, with `c = sqrt(v)` and
 `v ~ GIG((L - q)/2, M/leafVar, ||a_f||^2/priorVar)`, L and M the count and
-squared sum of that forest's OCCUPIED leaves
-([`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp)). The exponent follows the
-general rule `p = (k - d)/2` for rescaling k leaf parameters against d glue
-scalars; the naive move-map Jacobian's `(L - q + 1)/2` is off by one and the
-b-move's prototype (q = 2) rejects it at KS 1.6e-21 - derived and evidenced
-below, "The exponent rule".
+squared sum of the forest's occupied leaves. It took one GIG draw per moved
+forest, in index order, and skipped a forest with fewer than two occupied
+leaves or a zero leaf sum. The exponent is derived below, "The exponent rule".
+A q = 2 instance on bcf's treatment forest (the b-move) was built but never
+switched on.
 
-**One mechanism, not two.** Instantiated at q = 1 it IS bcf's shipped a-move
-bitwise; at q = 2 with a fixed prior variance it IS the b-move
-docs/plans/archive/bcf-b-ridge.md derives
-([`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp)).
+**Why it was removed.** It multiplied the forest's cached fits by c separately
+from the leaves, so the rounding gap between the cache and its leaves was
+multiplied at every sweep and compounded. Every fit with an amplitude was
+biased, the latent causal-forest treatment effect by 0.027 at the exact gate's
+full length. With that defect fixed by re-deriving the cache from the leaves,
+a comparison against the same model without the move - seven designs, two
+sample sizes, 20 seeds each - gave at most 1.30 times the effective draws per
+second on the residual scale or the treatment effect, against a bar of 1.5 set
+before the run, for about 5 percent of every sweep. The amplitude itself mixed
+better in some designs, but no quantity a user reads did, and without the move
+the amplitude still reaches its stationary level within a few hundred sweeps.
+The slow mixing in the strong-signal designs is the tree-structure limit,
+which the move does not touch.
 
-B reads the LIVE prior variance, which for a scale mixture is the auxiliary
-this move conditions on. Refreshing it here would re-randomize the coordinate
-just conditioned on and throttle the mixing gain - measured, IACT 69 -> 196 on
-`|a|` ([docs/plans/bcf-ridge-interweaving.md:488-492](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-ridge-interweaving.md#L488-L492)); the
-one-sweep lag is benign, the next `drawGlue` refreshing it given the new
-amplitude ([`drawForestAmplitude`](../../src/bartcore/combiner.hpp)).
-
-The rescale-consistency set the move must carry, or a stored
-`amplitude * leaf` stops being the identified product: `muByTree`, `totalFits`,
-`totalTestFits`/`currTestFits` under `record`, and the keepTrees flattened slot
-([`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp)).
+**Restoring it.** The last commit that carried the move is 6421b518: the
+rescale in `AmplitudeForestCombiner::rescaleAmplitudeRidge` and its call from
+`AmplitudeForestCombiner::afterCombine` (src/bartcore/combiner.hpp), the
+per-forest `ridge` flags and the bridge's derivation of them from
+`amplitudePriorScale > 0`, and the GIG generator in external/random.{h,c}. A
+restoration must follow the forest cache rule
+([`ForestCombiner`](../../src/bartcore/combiner.hpp)'s `afterCombine`): after
+every rescale, re-derive the moved forest's cached fits from its leaves in
+tree order, and never multiply a cache separately from the leaves it
+summarizes. The move also rescaled the keepTrees slot flattened before it and,
+on a recorded sweep, the forest's test fits, so a stored amplitude times leaf
+kept the identified product. The prior variance it read was the live
+auxiliary, not a refreshed one; refreshing it inside the move measurably
+throttled the mixing gain (IACT 69 -> 196 on `|a|`).
 
 ## The exponent rule
 
@@ -278,11 +288,11 @@ both structural and both prototype-confirmed:
   (ii) B = (b0^2+b1^2)/bPriorVariance with a FIXED prior variance -- no
       auxiliary, no conditioning, no lag. Both b coordinates enter B.
 
-GIG generator: `ext_rng_simulateGeneralizedInverseGaussian(rng, p, A, B)`
-ALREADY SHIPS (density `x^(p-1) exp(-(A x + B/x)/2)`; Dagpunar noshift
-ratio-of-uniforms; the a-move added it, external/random.{h,c}). The b-move
-reuses it verbatim -- no new RNG. `B=0 -> Gamma(p, rate A/2)`,
-`A=0 -> inverse-gamma`. A single GIG draw covers every regime below.
+GIG generator: the move drew v with a Dagpunar noshift ratio-of-uniforms
+generator of density `x^(p-1) exp(-(A x + B/x)/2)`, with `B=0 -> Gamma(p,
+rate A/2)` and `A=0 -> inverse-gamma`; it was removed with the move and is in
+external/random.{h,c} at 6421b518. A single GIG draw covers every regime
+below.
 
 **Pure-R prototype (adversarial check on the algebra) -- PASSED.**
 An untracked prototype script, run and passed. Same logic as the a-memo:
@@ -315,31 +325,17 @@ parameterization the implementer will code is the one validated. PASSES.
 
 ## ridgeB is code that is OFF
 
-The b-move ships, but `AmplitudeSpec::ridgeB = false`
-([`AmplitudeSpec`](../../src/bartcore/combiner.hpp)). Enabling it costs a GIG draw
-per sweep, which re-records `bcf-equivalence`, and its own acceptance gate
-([docs/plans/archive/bcf-b-ridge.md:438-449](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/docs/plans/archive/bcf-b-ridge.md#L438-L449) - IACT payoff,
-bcf-exact mode-2b, keepTrees round trip) was not run. It is a DOOR, not a fork:
-it flips only on a named measured mixing case, plus that gate, plus a re-record
-with the `equivalence.yaml` bump in the same commit.
-
-**No silent enablement is possible**
-([docs/plans/multiforest-extension-surface.md:4967-4975](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/multiforest-extension-surface.md#L4967-L4975)).
-On every creation route the scale mixture holds if and only if a
-forest is basis-FREE. R writes the forest's amplitude prior SCALE as 0 whenever
-that forest declares a basis ([`forestParams`](../../R/model.R),
+The b-move, the q = 2 instance of the removed move on bcf's treatment forest,
+never ran in a shipped build and went with the move (dec-B127). On every
+creation route a forest's amplitude is a scale mixture if and only if it is
+basis-FREE: R writes the forest's amplitude prior SCALE as 0 whenever that
+forest declares a basis ([`forestParams`](../../R/model.R),
 `if (withBasis) 0 else declared(spec$sd, amplitudeScaleDefault)`, the
-family's own default scale - 2 under gaussian and aft, 1 otherwise); the
-bridge
-reads it into `ForestSpec::amplitudePriorScale`
-([`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)) and derives
-`forest.ridge = forest.amplitudePriorScale > 0.0`
-([`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)). So every
-basis-carrying forest gets `ridge = false`, and the combiner's own
-`halfCauchyScale` - the field `amplitudePriorScale` becomes - is zero there. The
-one reachable q > 1 scale-mixture state, a post-creation widening of a
-basis-free forest, consumes the SAME single GIG draw already taken at q = 1, at
-the M4.2-validated exponent, so no stream moves.
+family's own default scale - 2 under gaussian and aft, 1 otherwise), and the
+bridge reads it into `ForestSpec::amplitudePriorScale`
+([`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)), which the
+combiner's `halfCauchyScale` becomes. So every basis-carrying forest has a
+fixed prior variance.
 
 ## The basis is read, not classified
 
@@ -498,8 +494,8 @@ is capped at one forest, for any K: `resolveForests`
 ([`resolveForests`](../../R/model.R), refusal also in
 ["needs a 'basis': the amplitudes multiplying it"](../../R/model.R)) requires every forest past the first to carry a
 basis, and `forestParams` writes the LITERAL `0` for `amplitudePriorScale`
-whenever a basis is present ([`forestParams`](../../R/model.R)), from which the
-bridge derives `forest.ridge = false`
+whenever a basis is present ([`forestParams`](../../R/model.R)), which the
+bridge carries into the forest's spec
 ([`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)) - forests 2..K are
 ALWAYS fixed-variance. There is also NO per-K renormalization anywhere in the
 MAP, and `binary-kforest-prior-default` S2 added none: the map still disperses
@@ -750,5 +746,6 @@ reported raw nets against a dense band and appeared over budget when it was
 LANDED, gaussian, probit and logistic. M4.4 discharged the header's former
 "Gaussian responses only" - [inst/include/dbarts/dbarts.h:717-718](https://github.com/vdorie/dbarts/blob/e5e93f11603168cab9b54557df46a2ce997c079c/inst/include/dbarts/dbarts.h#L717-L718)
 now names gaussian, probit and logistic, with aft, ordinal and nbinom refused
-by name at creation. The ridgeB door is shut. The naming debt is discharged;
-see above.
+by name at creation. The amplitude rescaling move and its ridgeB door are
+removed (dec-B127, forest-cache-drift); see "The ASIS ridge". The naming debt
+is discharged; see above.

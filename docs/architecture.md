@@ -189,6 +189,14 @@ category forests through a softmax likelihood, with a one-vs-rest
 Polya-Gamma augmentation drawn against the current margins immediately
 before each category's own forest updates (`drawForestGlue`).
 
+A forest's cached fits (`totalFits`) are kept by difference updates, so they
+may differ from the forest's leaves gathered in tree order by additive
+rounding only. A transform that writes leaf values in bulk - the multinomial
+level shift in `afterCombine`, the level-fibre shift - updates the cache in
+place only when it is additive; a multiplicative one must re-derive the cache
+from the leaves before the sweep ends, since a gap it multiplies compounds.
+`Chain::run` checks the rule in debug builds.
+
 Two per-observation channels ride alongside, only one of them per-forest.
 `Chain::setForestWeights` installs a precision factor composed into forest f's
 leaf conditionals alone (`composeForestWeights`), admitted only by a combiner

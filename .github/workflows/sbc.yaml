@@ -32,11 +32,14 @@
 # the dependency install and the package build, not the arm.
 #
 # Not in the matrix: BCF, in both its gaussian arms (bcf / bcf-weak), whose
-# glue-on sigma channel is a recorded slow-mixing finding rather than a defect
-# (sbc-calibration.md A4e), and its two latent ones (bcf-probit / bcf-logistic),
-# whose amplitude functionals are measured undecorrelated past lag 200 at
-# |a| >= 5, a stratum the prior gives mass 0.126 (bcf-latent-evidence.md
-# Decision 1) -- a finding on chain length, the R=200 verdicts being near-clean.
+# prognostic cells are a recorded slow-mixing finding rather than a defect
+# (sbc-calibration.md A4e; sigma passes at the recorded settings, prog3 and
+# prog4 flag, docs/design/bcf.md Calibration), and its two latent ones
+# (bcf-probit / bcf-logistic), whose amplitude functionals are measured
+# undecorrelated past lag 200 at |a| >= 5, a stratum the prior gives mass 0.126
+# (bcf-latent-evidence.md Decision 1, re-measured without the amplitude
+# rescaling move) -- a finding on chain length, the R=200 verdicts being
+# near-clean.
 # And the hazard / hurdle / monotone families: the first two are ill-posed for
 # SBC, monotone is liftable but not yet run (sbc-family-tiers.md). The
 # heteroscedastic pair left that list once the variance forest gained a

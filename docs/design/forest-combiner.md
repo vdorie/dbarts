@@ -52,19 +52,16 @@ the BCF constructor. The landed virtual surface:
 - `drawGlue(rng, sigma, y, w, forests)` / `afterCombine(forests, record,
   sampleNum, rng)` - the coupling draw and its likelihood-invariant
   post-combine move, fired at the fixed sweep points in the fixed order (a,
-  aVariance, b0, b1, then the ridge rescale v). Both are inert by default (a
-  combiner that only forms an additive combination need not override them).
-  afterCombine's return is a REPORTING channel, not a record of whether it
-  moved: each override states its own convention, 1.0 does NOT mean the state
-  is unchanged, and no caller may read it that way (CORRECTED here; the base
-  Doxygen is authoritative, [`ForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp)). The per-forest amplitude
-  rescale returns the scale applied to the forest it reports, 1.0 if that one
-  held while another travelled; the multinomial level shift returns 1.0
-  unconditionally, HAVING moved, an additive move having no scale to report.
-  The sweep discards the value, but `Chain::interweaveGlueRidgeForTesting` - a public
-  forwarder kept for the component tests - passes it through, which is how
-  tests/cpp pins the ridge move's magnitude without reaching into the
-  combiner's private state.
+  aVariance, b0, b1 for the amplitude coupling, which has no post-combine
+  move since the rescaling move's removal, dec-B127). Both are inert by
+  default (a combiner that only forms an additive combination need not
+  override them); the multinomial level shift is the one afterCombine. An
+  afterCombine that writes leaf values owns the forest cache rule: a
+  forest's cached fits may leave the sweep differing from its leaves by
+  additive rounding only, so a multiplicative move re-derives the cache from
+  the leaves ([`ForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp); the
+  Doxygen is authoritative). [`Chain::run`](../../src/bartcore/chain.hpp) checks the rule under
+  `!NDEBUG`.
 - `drawForestGlue(f, rng, forests)` - a per-forest pre-update hook, fired inside
   the sweep just before forest f's tree update with the partially updated
   forests (0..f-1 new this sweep, f..K-1 old). A no-op consuming no rng by
@@ -107,7 +104,7 @@ constant-leaf model end to end).
 combiner_ is nullptr for every single-forest chain, and stays the ONLY test at
 every touchpoint - never a NullCombiner sentinel object, which would force a
 per-sweep virtual call the single-forest chain must not pay. The landed
-touchpoints (chain.hpp): setTreatment, bcfGlue, interweaveGlueRidgeForTesting,
+touchpoints (chain.hpp): setTreatment, bcfGlue,
 formForestResponse inside both sweep loops (run() and growForestFromRoot()),
 drawGlue+afterCombine at the sweep's glue point, combinedFits() (returns the
 bare `forests_[0].totalFits.data()` pointer off BCF, with no virtual call and

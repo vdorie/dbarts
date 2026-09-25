@@ -1,6 +1,8 @@
 # forest-cache-drift
 
-Status: IN PROGRESS, 2026-09-24. The removal is decided (dec-B127 in [docs/decisions.md](../decisions.md)); D4 and D5 below are open for VD.
+Status: IN PROGRESS, 2026-09-24. The removal (dec-B127 in [docs/decisions.md](../decisions.md)) is implemented
+(ac7f70b7, see the Landing note); D4 and D5 below are open for VD, and the gaussian equivalence baseline is owed from
+its recording host.
 agent: opus (engine, component tests, gate battery, re-records); sonnet (records: docs, INDEX, TODO)
 rng: posterior-changing. The amplitude rescaling move and its per-sweep GIG draw are removed, so
   every chain with an updating scale-mixture amplitude (bcf's prognostic forest, and each
@@ -156,7 +158,8 @@ precedent, and bartCause's 1.0 branch users did run the biased sampler.
 ## Steps
 
 1. Pins, written before the engine change, with their failure on tip recorded (tests/cpp,
-   new tests in test_sampler.cpp):
+   [`testAmplitudeCacheDrift`](../../tests/cpp/test_sampler.cpp),
+   [`testAmplitudeCacheRestore`](../../tests/cpp/test_sampler.cpp)):
    - (a) Drift: probit, logistic and gaussian amplitude samplers at the exact gate's shape (one
      tree per forest) and at an ensemble shape (n = 200, 50 and 25 trees), over several seeds.
      After every sweep, every forest's `totalFits` is within `C eps max_i |forestY_i| sqrt(sweeps)`
@@ -230,8 +233,8 @@ precedent, and bartCause's 1.0 branch users did run the biased sampler.
   mixing discussion that the move is an available option. [Exact-posterior gate](../design/bcf.md#exact-posterior-gate)
   gets the Step 6 result.
 - docs/plans/bcf-latent-evidence.md: its "metastable" explanation of mode 2a (under Decision 2)
-  becomes what Step 6 measured. Decision 1's finding is amended with Step 7. The comment in
-  ["metastable"](../../benchmarks/R/bcf-latent-exact.R) and the
+  becomes what Step 6 measured. Decision 1's finding is amended with Step 7. The comment on
+  [`batchStats`](../../benchmarks/R/bcf-latent-exact.R) and the
   ["Not in the matrix: BCF"](../../.github/workflows/sbc.yaml) exclusion note change to match.
 - docs/plans/bartcore-landing: rows that describe the move.
 - docs/architecture.md, benchmarks/README.md, the feature matrix if it lists the move.
@@ -239,3 +242,54 @@ precedent, and bartCause's 1.0 branch users did run the biased sampler.
   Step 7 result.
 - NEWS per D5. This file's Status line and Landing note, and its INDEX row.
 
+
+## Landing note (2026-09-24)
+
+The engine (ac7f70b7), the harness (af402611), the BCF baseline (90f9bccc) and these records; D4 and D5 stay open, so
+the Status stays IN PROGRESS.
+
+Engine, ac7f70b7. The move is gone from [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp), which no
+longer overrides `afterCombine`; with it went the per-forest `ridge` flags and the bridge's derivation of them, the
+keepTrees slot and test-fit rescale, the testing hook that fired the move, and the GIG generator. `afterCombine` returns
+nothing now, its value having been read only by the move's tests, and its Doxygen states the forest cache rule.
+[`Chain::run`](../../src/bartcore/chain.hpp) checks the rule under `!NDEBUG`, which tests/cpp compiles with; restoring
+the move verbatim trips it. Every amplitude-coupled chain draws differently from its first sweep; dbarts.h and the state
+format are unchanged.
+
+Pins. [`testAmplitudeCacheDrift`](../../tests/cpp/test_sampler.cpp) and
+[`testAmplitudeCacheRestore`](../../tests/cpp/test_sampler.cpp) measure each forest's gap in units of
+`eps max_s max_i |forestY_i(s)| sqrt(sweeps)`, the running maximum of the working response over the sweeps seen, since
+a gap keeps the rounding of a sweep whose multiplier was small. C = 2000: ten times the worst measured without the move,
+184, from 1000 fuzz seeds (the pins' own worst is 5.0). On the previous tip the drift pin fails at the latent gate's
+shape, probit at ratio 4.7e10 (first over the bound at sweep 1924) and logistic at 7.7e11 (sweep 2084), and the restore
+pin at 1.12e4 (probit, gate shape); gaussian and the ensemble shape stay under the bound there within the pins' sweep
+counts. [`fuzzInvariantViolation`](../../tests/cpp/test_fuzz.cpp) checks every row at the same bound, its burn-in run a
+sweep at a time. tests/cpp passes, and under ASAN and UBSAN with no diagnostic.
+
+Harness, af402611. The latent BCF SBC arms build their host under their own link; before it none of them ran. The
+latent gate's `pooled` run reports each channel's seed spread over its batch se.
+
+Gates. Every exact-gates.yaml gate passes in quick mode. bcf-exact.R, bcf-exact-weak.R and bcf-exact-restricted.R pass
+in full mode, bcf-latent-exact.R in quick and full mode, and its pooled run at 300 seeds sits at worst `|z|` 0.63
+(probit) and 1.12 (logistic), 7.1 at the previous tip. Mode 2a's seed spread is 0.7x to 1.2x its batch se over 20
+seeds; [Decision 2 - the exact gate](bcf-latent-evidence.md#decision-2---the-exact-gate) records what that retires.
+The full tinytest suite passes, 8887 tests, with no snapshot replayed.
+
+Equivalence, against baselines recorded on the previous tip on the same host: equivalence.R 52 of 53 identical under
+`--strict-coverage`, bart2twoforest moving at max `|z|` 1.00; multinomial 11 of 11 identical; bcf all 15 moving, every
+flag on an amplitude-coupled channel. bcf-equivalence is re-recorded as `bcf-equivalence-ac7f70b7.rds` (90f9bccc), the
+exact gates its oracle; this host reproduces the stored BCF baseline bitwise at the previous tip. equivalence.R is NOT re-recorded:
+this host reproduces `equivalence-d2b9827a.rds` in 48 of 53 scenarios only, so a recording here would move five
+scenarios CI compares bitwise. It is owed from the stored baselines' recording host, and until then cpp-tests.yaml's
+bitwise compare fails on bart2twoforest.
+
+Calibration. See [Decision 1 - the SBC arms](bcf-latent-evidence.md#decision-1---the-sbc-arms)'s re-measurement: the
+ladders still fail the admission clause at `|a| >= 5` on both links, with and without the move; the `R = 200` verdicts
+are 10 of 13 (probit) and 12 of 13 (logistic), every functional inside the matrix band, and the `n = 40` controls pass
+13 of 13. The gaussian arm at its recorded settings passes 13 of 15, sigma included, against 9 of 15 with the move on
+the same host ([Calibration (2026-07-07)](../design/bcf.md#calibration-2026-07-07)).
+
+Speed. Not measured: the host was loaded (1-minute load 6 to 7 from other work). `bench-sampler.R compare` against
+`bench-sampler-127f04ee.csv`, alternating three rounds on each build, flagged zero to four cells at 1.05 to 1.11 on
+the previous tip and one to four on the slice, `embedded-offset-run1-n1000-t75` the most often on both. The single-forest
+cells' code does not change, the check being compiled out under NDEBUG; the compare is owed on a quiet machine.

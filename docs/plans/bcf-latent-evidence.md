@@ -167,6 +167,28 @@ while the strata datasets swept too, so any arm carrying strata reported a cost 
 family-tiers numbers are unaffected, those arms having no strata. And `sbcMatrixFunctionals` moves 30 to 39 rather than
 to 56: the nine functionals admitted here are the aft arm's, not these twenty-six.
 
+Measured again (2026-09-24) with the amplitude rescaling move removed
+([forest-cache-drift](forest-cache-drift.md#forest-cache-drift), dec-B127), whose compounding cache gap biased both latent
+links while the measurements above were taken. Both builds were run on the same arm64 host through the same harness,
+whose host sampler is now built under the arm's own link; the gaussian-built host is refused by the bridge, so no arm
+ran on either build without that change.
+
+The ladders, 40000 sweeps over 24 prior-drawn datasets and the four strata. The admission clause fails at `|a| >= 5` on
+both links with and without the move: at `|a|` 5 and 10, `a`, `abs.a` and at least two `prog_j` stay above ACF 0.1 past
+lag 200, their block means drifting at z up to 251 (probit) and 103 (logistic) without the move and 91 and 284 with it.
+Over the 24 prior draws, `a` stays past lag 200 on 15 (probit; 10 with the move) and 15 (logistic; 14), `abs.a` on 7
+and 5 (4 and 4), and each `prog_j` on 6 and 5 (4 and 4); `p_j` decorrelates inside lag 200 on every draw but one
+(probit `p1` on the most extreme prior draw), its worst finite lag 200 (probit) and 153 (logistic) against 194 and 71
+with the move. The move bought the amplitude channels slightly faster decorrelation on the
+prior draws; it did not move the stratum at which the clause fails.
+
+The verdicts, `R = 200`, `L = 150`, thin 50, burn 12000, band 0.0924. probit 10 of 13 without the move - `b1.minus.b0`
+0.0970, `p1` 0.1079 and `p2` 0.0994 FLAG - against 9 of 13 with it on the same host (`a` 0.0973, `abs.a` 0.0959,
+`abs.diff` 0.0979, `p1` 0.0947); logistic 12 of 13 both ways, `p1` 0.0971 without the move and `prog1` 0.0937 with it.
+Every functional of both arms sits inside the matrix band (0.1445), the worst at 0.75 of it. The `n = 40` controls pass
+13 of 13 on both links without the move. The chain-length reading stands and the admission clause is not met; whether
+that settles admission is forest-cache-drift's D4.
+
 ## Decision 2 - the exact gate
 
 Alternatives: (A) keep the tree enumeration and integrate the leaf parameters by adaptive Gauss-Hermite quadrature; (B)
@@ -279,17 +301,20 @@ is not periodic, so the open trapezoid converges as `h^2`, and at 101 points the
 the whole configuration mixture rather than the dim-3 configuration alone: stricter, and no dearer to state.
 
 The gating statistic. A FIXED batch count is not honest at this design, and the pre-registered one fails a correct
-sampler. The mode-2a chain is metastable - its `(a, mu)` state sits in one place for of order 1e5 kept draws, and the
-conditional `E[a mu]` differs between such states by up to 0.32 - so at 100000 kept draws thinned by 10 a 400-batch se
-understates the spread of independent seeds by 8x to 30x, and the gate reports `|z|` up to 34 on a correct sampler. The
-`K = 3` probit arm understates by 2x to 3x for the same reason at the tree-partition scale. What landed raises the batch
-LENGTH until the batch means decorrelate (400, 200, 100, 50 then 25 batches), charges the residual lag-1 correlation as
-an AR(1) inflation capped at 0.95, and floors the pooled se by the spread of the seed means themselves - a floor that can
-only widen the interval. Against 20 independent seeds at 50000 kept draws mode 2a then sits at `z = 0.8` on `E[a mu]` and
-3.1 to 3.2 on `E[tau]`, the residual being the excursions' own upward pull on tau; at three seeds every channel of every
-configuration is under 2.3. The price is power: mode 2a's `E[a mu]` carries a three-seed se near 3e-2, so that arm gates
-gross errors in the `a` channel only. Poison (ii) is one, and it lands because the chain it scores is the well-mixing
-fixed-`a` one.
+sampler: the `K = 3` probit arm switches tree partitions slowly, and its 400-batch se understates the spread of
+independent seeds by 2x to 3x. What landed raises the batch LENGTH until the batch means decorrelate (400, 200, 100, 50
+then 25 batches), charges the residual lag-1 correlation as an AR(1) inflation capped at 0.95, and floors the pooled se
+by the spread of the seed means themselves - a floor that can only widen the interval.
+
+Mode 2a was first read as metastable: its `(a, mu)` state seemed to sit in one place for of order 1e5 kept draws, its
+400-batch se understated the seed spread by 8x to 30x, and the gate reported `|z|` up to 34. The cause was not mixing but
+the amplitude rescaling move's compounding cache gap
+([forest-cache-drift](forest-cache-drift.md#forest-cache-drift)), which biased each chain by its own drifting offset and
+`E[tau]` by +0.027 at full length. With the move removed (dec-B127), mode 2a's batch se matches the seed spread - 0.7x to
+1.2x on every channel over 20 seeds at the quick shape (the gate's `pooled` run reports it) - and 300 seeds of that shape
+score every channel against the quadrature at `|z|` 0.63 or under (probit) and 1.12 or under (logistic). Its three-seed
+quick-mode se on `E[a mu]` is 6.4e-4, fifty times tighter than the 3e-2 the drift forced, so the arm now gates the `a`
+channel for errors of that size rather than gross ones only. Poison (ii) lands on the well-mixing fixed-`a` chain.
 
 Mode 2b keeps 5000 draws at thin 200, not 100000: 100000 at thin 200 would be 2e7 sweeps a seed and eight seeds a link.
 5000 by 200 holds the per-seed SWEEP budget equal to mode 1's 100000 by 10.

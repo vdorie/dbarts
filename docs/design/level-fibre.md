@@ -21,8 +21,8 @@ from any structural move: the step is an addition to the sweep, not a redistribu
 **The house already ships two leaf-table moves, and they are HALF the template.**
 [`MultinomialForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp) draws the common level the softmax cannot identify
 from the leaf prior restricted to that direction and absorbs it uniformly over each forest's trees, skipping empty leaves;
-[`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp) travels the multiplicative amplitude ridge with a GIG draw on the same
-principle. What the first shares with this design is the ACCUMULATION: its `prec` and `num` are section 1's `(P_t, Q_t)` read
+the amplitude rescaling move, since removed (retired: [`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp)), travelled the
+multiplicative amplitude ridge with a GIG draw on the same principle. What the first shares with this design is the ACCUMULATION: its `prec` and `num` are section 1's `(P_t, Q_t)` read
 along the uniform-absorption direction, so reducing section 1's arithmetic to it is the cheapest check on that half. It is
 otherwise a different animal - one-dimensional, UNCONSTRAINED, with no projection at all - and it MOVES `f`
 (`forest.totalFits[i] += c`) rather than fixing it, being the identifiability step a softmax chain cannot run without. That is
@@ -141,8 +141,9 @@ than drawing it, so a shifted empty leaf sits outside the target's support and t
 test-row cost is then moot in the sweep, which is section 2's placement doing a second job: the shift is ahead of the tree loop,
 every leaf is re-assigned - an empty one back to `0` - before any test fit is written, so no reported prediction reads a shifted
 empty leaf. Training rows route only to occupied leaves, so the training fit is exact either way. `L_t`, `S_t`, `P_t` and `Q_t`
-are therefore over occupied leaves, the convention [`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp) and
-[`MultinomialForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp) already keep, in the same words.
+are therefore over occupied leaves, the convention
+[`MultinomialForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp) already keeps, and the removed amplitude rescaling
+move kept, in the same words.
 
 - **Constant gaussian leaf: YES**, unchanged, the derivation of section 1.
 - **Latent families (probit, logistic, multinomial, ordinal, nbinom, hurdle, t, AFT, hazard): YES**, unchanged. The leaves fit the
