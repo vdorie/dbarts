@@ -2302,15 +2302,13 @@
             stay open; per-forest masking is permanently refused, since a
             category's margin is a log-sum-exp over the other K - 1.
       \item Saved trees are now read oldest draw first, counting back from the
-            store's write position, by \code{$predict},
-            \code{$predictForests}, \code{$getTrees}, \code{$printTrees}, and
-            the \code{installTrees}/\code{warm.start} donor pool. Previously
-            every reader walked the circular store in slot order, so a
-            hand-driven sampler that recorded more than one \code{$run} - a
-            burn-in \code{$run(0, n.burn)} followed by
-            \code{$run(0, n.samples)} with \code{keepTrees} left on - replayed
-            its draws rotated against the \code{train}, \code{sigma} and
-            \code{glue} channels those runs returned. A store holding fewer
+            store's write position, by \code{$predict}, \code{$getTrees}
+            and \code{$printTrees}. 0.9-x walked the circular store in slot
+            order, so a hand-driven sampler that recorded more than one
+            \code{$run} - a burn-in \code{$run(0, n.burn)} followed by
+            \code{$run(0, n.samples)} with \code{keepTrees} left on -
+            replayed its draws rotated against the \code{train} and
+            \code{sigma} channels those runs returned. A store holding fewer
             draws than \code{n.samples} now reports the draws it holds instead
             of padding the sample axis with slots nothing wrote, and one
             holding none is refused rather than answered with a constant
@@ -2354,9 +2352,10 @@
             column-name match accepts it, including a data.frame training
             input once it is converted to a named matrix.
       \item \code{bart} raises R's own \dQuote{unused argument} error on an
-            unrecognized name, the same wall \code{dbarts} and \code{xbart}
-            stand behind, and the one \code{dbartsSpec} is built with.
-            \code{seed} is the only spelling.
+            unrecognized name, as \code{dbarts}, \code{xbart} and
+            \code{dbartsSpec} do. 0.9-x's \code{bart2} raised its own
+            \dQuote{unknown arguments} error instead, so code matching that
+            message needs updating.
       \item \code{bart}'s \code{family} argument refuses every one of
             \code{bart}'s ten other-family tokens by name; every refusal
             echoes the token as typed, never a resolved alias such as
