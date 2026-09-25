@@ -1,8 +1,8 @@
 # forest-cache-drift
 
-Status: IN PROGRESS, 2026-09-25. The removal (dec-B127 in [docs/decisions.md](../decisions.md)) is implemented
-(5eb0df0a, see the Landing note), D4 and D5 are ruled and the speed compare is done; the gaussian equivalence baseline
-is owed, and bartcore's own copy of it has been stale since 093dd035 (see the Landing note).
+Status: READY TO LAND, 2026-09-25. The amplitude rescaling move is removed (dec-B127 in
+[docs/decisions.md](../decisions.md)), D4 and D5 are ruled, and the gaussian and BCF equivalence baselines are recorded
+under d49e2103 (see the Landing note).
 agent: opus (engine, component tests, gate battery, re-records); sonnet (records: docs, INDEX, TODO)
 rng: posterior-changing. The amplitude rescaling move and its per-sweep GIG draw are removed, so
   every chain with an updating scale-mixture amplitude (bcf's prognostic forest, and each
@@ -238,57 +238,64 @@ development builds.
 - NEWS per D5. This file's Status line and Landing note, and its INDEX row.
 
 
-## Landing note (2026-09-24)
+## Landing note (2026-09-25)
 
-The engine (5eb0df0a), the harness (73a33382), the BCF baseline (9a2db456) and these records; the gaussian
-equivalence baseline is owed, so the Status stays IN PROGRESS.
+The plan (1a7dc96e), the engine (12bb1607), the harness (6668b64e), the BCF baseline (0a1822b4), a review's fixes
+(d49e2103), these records, and both baselines recorded under d49e2103.
 
-Engine, 5eb0df0a. The move is gone from [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp), which no
-longer overrides `afterCombine`; with it went the per-forest `ridge` flags and the bridge's derivation of them, the
+Engine, 12bb1607 and d49e2103. The move is gone from [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp), which
+no longer overrides `afterCombine`; with it went the per-forest `ridge` flags and the bridge's derivation of them, the
 keepTrees slot and test-fit rescale, the testing hook that fired the move, and the GIG generator. `afterCombine` returns
 nothing now, its value having been read only by the move's tests, and its Doxygen states the forest cache rule.
-[`Chain::run`](../../src/bartcore/chain.hpp) checks the rule under `!NDEBUG`, which tests/cpp compiles with; restoring
-the move verbatim trips it. Every amplitude-coupled chain draws differently from its first sweep; dbarts.h and the state
-format are unchanged.
+[`Chain::run`](../../src/bartcore/chain.hpp) and [`Chain::growForestFromRoot`](../../src/bartcore/chain.hpp) check the
+rule under `!NDEBUG`, which tests/cpp compiles with, at the end of every sweep: every constant-leaf forest of a
+double-precision chain within `1e-8 (1 + |totalFits_i| + s)` of its gather, s the forest's running maximum of
+`|forestY|`. Step 2's bound lacked s, which a combiner's response grows by dividing by the multiplier, and was checked
+in `Chain::run` only; d49e2103 added both. Restoring the move verbatim tripped the check as first written; at the move's
+measured gap (worst ratio 4.7e10 to `eps s sqrt(sweeps)`, probit) the scaled bound sits four to five orders of magnitude
+under it, so it still would. Every amplitude-coupled chain draws differently from its first sweep; dbarts.h and the
+state format are unchanged.
 
-Pins. [`testAmplitudeCacheDrift`](../../tests/cpp/test_sampler.cpp) and
-[`testAmplitudeCacheRestore`](../../tests/cpp/test_sampler.cpp) measure each forest's gap in units of
-`eps max_s max_i |forestY_i(s)| sqrt(sweeps)`, the running maximum of the working response over the sweeps seen, since
-a gap keeps the rounding of a sweep whose multiplier was small. C = 2000: ten times the worst measured without the move,
-184, from 1000 fuzz seeds (the pins' own worst is 5.0). On the previous tip the drift pin fails at the latent gate's
-shape, probit at ratio 4.7e10 (first over the bound at sweep 1924) and logistic at 7.7e11 (sweep 2084), and the restore
-pin at 1.12e4 (probit, gate shape); gaussian and the ensemble shape stay under the bound there within the pins' sweep
-counts. [`fuzzInvariantViolation`](../../tests/cpp/test_fuzz.cpp) checks every row at the same bound, its burn-in run a
-sweep at a time. tests/cpp passes, and under ASAN and UBSAN with no diagnostic.
+Pins. [`testAmplitudeCacheDrift`](../../tests/cpp/test_sampler.cpp) measures each forest's gap in units of `eps max_s
+max_i |forestY_i(s)| sqrt(sweeps)`, the running maximum of the working response over the sweeps seen, since a gap keeps
+the rounding of a sweep whose multiplier was small. C = 50: ten times the worst measured without the move, 5.0, in the
+pin and over 1000 fuzz seeds alike. The fuzz first read 184, its running scale being sampled after each op and so
+missing all but the last sweep of a multi-sweep grow-from-root; its grow op now runs a sweep at a time, which draws the
+same. On the previous tip the drift pin fails at the latent gate's shape, probit at ratio 4.7e10 and logistic at 7.7e11
+(first over the then C of 2000 at sweeps 1924 and 2084); gaussian and the ensemble shape stayed under that bound within
+the pin's sweep counts. [`testAmplitudeCacheRestore`](../../tests/cpp/test_sampler.cpp) checks that a restore re-derives
+every forest's cache from its leaves bitwise; the live gap it first bounded as well (1.12e4 on the previous tip, probit,
+gate shape) is the drift pin's measure and was dropped.
+[`testAmplitudeKeepTreesThinnedSlot`](../../tests/cpp/test_sampler.cpp) restores the thinned keepTrees slot coverage the
+move's own test carried: at `numThin = 3` the last saved slot reconstructs the live prognostic fit to 4e-15, where the
+move's test allowed 1e-9. [`fuzzInvariantViolation`](../../tests/cpp/test_fuzz.cpp) checks every row at the same bound,
+its burn-in run a sweep at a time. tests/cpp passes, and at 12bb1607 under ASAN and UBSAN with no diagnostic.
 
-Harness, 73a33382. The latent BCF SBC arms build their host under their own link; before it none of them ran. The
-latent gate's `pooled` run reports each channel's seed spread over its batch se.
+Harness, 6668b64e. The latent BCF SBC arms build their host under their own link; before it none of them ran. The latent
+gate's `pooled` run reports each channel's seed spread over its batch se.
 
-Gates. Every exact-gates.yaml gate passes in quick mode. bcf-exact.R, bcf-exact-weak.R and bcf-exact-restricted.R pass
-in full mode, bcf-latent-exact.R in quick and full mode, and its pooled run at 300 seeds sits at worst `|z|` 0.63
-(probit) and 1.12 (logistic), 7.1 at the previous tip. Mode 2a's seed spread is 0.7x to 1.2x its batch se over 20
-seeds; [Decision 2 - the exact gate](bcf-latent-evidence.md#decision-2---the-exact-gate) records what that retires.
-The full tinytest suite passes, 8887 tests, with no snapshot replayed.
+Gates, at 12bb1607. Every exact-gates.yaml gate passes in quick mode. bcf-exact.R, bcf-exact-weak.R and
+bcf-exact-restricted.R pass in full mode, bcf-latent-exact.R in quick and full mode (worst `|z|` 2.08, mode 1 logistic),
+and its pooled run at 300 seeds sits at worst `|z|` 0.63 (probit) and 1.12 (logistic), 7.1 at the previous tip. Mode
+2a's seed spread is 0.7x to 1.2x its batch se over 20 seeds; [Decision 2 - the exact
+gate](bcf-latent-evidence.md#decision-2---the-exact-gate) records what that retires.
 
-Equivalence, against baselines recorded on the previous tip on the same host: equivalence.R 52 of 53 identical under
-`--strict-coverage`, bart2twoforest moving at max `|z|` 1.00; multinomial 11 of 11 identical; bcf all 15 moving, every
-flag on an amplitude-coupled channel. bcf-equivalence is re-recorded as `bcf-equivalence-5eb0df0a.rds` (9a2db456), the
-exact gates its oracle; this host reproduces the stored BCF baseline bitwise at the previous tip. equivalence.R is NOT re-recorded.
+Gates, at the final tip. tests/cpp passes with the check live; the full tinytest suite passes, 8829 tests, with no
+snapshot replayed; and every exact-gates.yaml gate passes in quick mode, bcf-latent-exact.R at worst `|z|` 2.57 (mode
+2b, probit), negbin-exact.R once its fit passes the dispersion through `nbinom()` (6398a1e4 removed the argument it
+used).
 
-Why (2026-09-25). `equivalence-d2b9827a.rds` is stale on bartcore itself, not host-bound. The five scenarios that
-differ (friedman, probit, weighted, splitprobs, quants) are the ones that fit through `bart()` with BayesTree-spelled
-arguments, which forward to `bartBT()`, and 093dd035 gave that door BayesTree's tree-move mixture, so they have drawn
-differently since. This host and CI agree: bartcore's tip (ecc6893e) reproduces the baseline in 48 of 53 scenarios as a
-reference build and as a shipped build, with the same five at the same max `|z|` (2.05, 2.59, 2.03, 2.14, 2.59) that
-CI's cpp-tests log reports on every run since 093dd035; 093dd035's parent reproduces it 53 of 53 here as a reference
-build. CI has stayed green because equivalence.R exits 0 on a statistical match, so cpp-tests.yaml's compare of that
-file is bitwise in name only (the BCF and multinomial harnesses do fail on a mismatch). The slice, as a reference build,
-is 47 of 53 identical: those five, and bart2twoforest at max `|z|` 1.00. It passes the CI step, so the earlier
-statement that the step fails on bart2twoforest was wrong. After the rebase onto ecc6893e the slice reproduces
-`bcf-equivalence-5eb0df0a.rds` 15 of 15 bitwise on the reference and shipped builds, and
-`multinomial-equivalence-80b1c8d4.rds` 11 of 11 on the reference build. A re-record now carries two draw changes, the
-bartBT mixture and this one, and needs an oracle for the first (093dd035's own, that the pre-change build replays the
-new draws with the mixture passed explicitly, is the candidate).
+Equivalence. This slice found `equivalence-d2b9827a.rds` stale on bartcore: the five scenarios that fit through
+`bartBT()` have drawn under BayesTree's move mixture since 093dd035, and equivalence.R's compare passed them as a
+statistical match. bartcore re-recorded it as `equivalence-6398a1e4.rds` and made the per-push compare bitwise
+(c9fdaac2, c8ff7726). Against it, from a reference build under `--bitwise --strict-coverage`, the slice is 52 of 53
+identical, bart2twoforest moving at max `|z|` 1.00; multinomial-equivalence is 11 of 11 bitwise. The BCF baseline,
+re-recorded in 0a1822b4 with all 15 scenarios moving and every flag on an amplitude-coupled channel, reproduces 15 of 15
+bitwise. Both baselines are named after d49e2103, the newest commit that changes package code:
+`equivalence-d49e2103.rds`, recorded from the reference build and reproduced 53 of 53 bitwise by a second `--preclean`
+reference install, and `bcf-equivalence-d49e2103.rds`, the 0a1822b4 recording renamed, its draws unchanged (15 of 15
+bitwise from the final reference build). The oracle for both is the exact gates above; the MANIFEST rows carry the
+partition and build mode.
 
 Calibration. See [Decision 1 - the SBC arms](bcf-latent-evidence.md#decision-1---the-sbc-arms)'s re-measurement: the
 ladders still fail the admission clause at `|a| >= 5` on both links, with and without the move; the `R = 200` verdicts
@@ -296,11 +303,14 @@ are 10 of 13 (probit) and 12 of 13 (logistic), every functional inside the matri
 13 of 13. The gaussian arm at its recorded settings passes 13 of 15, sigma included, against 9 of 15 with the move on
 the same host ([Calibration (2026-07-07)](../design/bcf.md#calibration-2026-07-07)).
 
-Speed, on the idle x86 bench host (1-minute load under 1.1), shipped builds of bartcore's tip (ecc6893e) and the
-slice. `bench-sampler.R compare` against `bench-sampler-127f04ee.csv`, three alternating rounds per build: every cell
-passes on both, and the slice's median sits within 2 percent of the tip's in every cell (0.98 to 1.02), inside the
-round-to-round spread. BCF timed directly (p = 10, 75 prognostic and 50 treatment trees, one chain, one thread, five
-alternating pairs, median ms per sweep, tip then slice): gaussian 0.377 and 0.368 at n = 1000, 3.20 and 3.12 at
-n = 10000; probit 0.406 and 0.401, 3.52 and 3.43. The slice is 1.2 to 2.5 percent faster, every pair in its favour.
-That is below the 4 to 6 percent the Decision records, which was the move's cost with its fix, a full cache re-derivation
-every sweep; the tip carried the move without that re-derivation.
+Speed, on the idle x86 bench host (1-minute load under 1.1), shipped builds of bartcore's tip (ecc6893e) and the slice.
+`bench-sampler.R compare` against `bench-sampler-127f04ee.csv`, three alternating rounds per build: every cell passes on
+both, and the slice's median sits within 2 percent of the tip's in every cell (0.98 to 1.02), inside the round-to-round
+spread. BCF timed directly (p = 10, 75 prognostic and 50 treatment trees, one chain, one thread, five alternating pairs,
+median ms per sweep, tip then slice): gaussian 0.377 and 0.368 at n = 1000, 3.20 and 3.12 at n = 10000; probit 0.406 and
+0.401, 3.52 and 3.43. The slice is 1.2 to 2.5 percent faster, every pair in its favour. That is below the 4 to 6 percent
+the Decision records, which was the move's cost with its fix, a full cache re-derivation every sweep; the tip carried
+the move without that re-derivation.
+
+The seven-design comparison behind dec-B127 (the Decision above) was run from untracked scripts and is not reproducible
+from the tree.

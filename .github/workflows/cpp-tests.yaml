@@ -133,7 +133,7 @@ jobs:
           fail=0
           echo "::group::equivalence"
           if Rscript benchmarks/R/equivalence.R compare \
-            benchmarks/baselines/equivalence-6398a1e4.rds --bitwise \
+            benchmarks/baselines/equivalence-d49e2103.rds --bitwise \
             --strict-coverage; then
             echo "PASS equivalence"
           else
@@ -143,7 +143,7 @@ jobs:
           echo "::endgroup::"
           echo "::group::bcf-equivalence"
           if Rscript benchmarks/R/bcf-equivalence.R compare \
-            benchmarks/baselines/bcf-equivalence-5eb0df0a.rds; then
+            benchmarks/baselines/bcf-equivalence-d49e2103.rds; then
             echo "PASS bcf-equivalence"
           else
             echo "::error::bitwise gate bcf-equivalence FAILED"
