@@ -1,8 +1,8 @@
 # forest-cache-drift
 
 Status: IN PROGRESS, 2026-09-24. The removal (dec-B127 in [docs/decisions.md](../decisions.md)) is implemented
-(ac7f70b7, see the Landing note); D4 and D5 below are open for VD, and the gaussian equivalence baseline is owed from
-its recording host.
+(5eb0df0a, see the Landing note) and D4 and D5 are ruled; the gaussian equivalence baseline and the speed compare are
+owed.
 agent: opus (engine, component tests, gate battery, re-records); sonnet (records: docs, INDEX, TODO)
 rng: posterior-changing. The amplitude rescaling move and its per-sweep GIG draw are removed, so
   every chain with an updating scale-mixture amplitude (bcf's prognostic forest, and each
@@ -123,28 +123,23 @@ after every rescale and never multiply a cache separately.
 
 Two questions are open for VD.
 
-D4, what the evidence may reopen. Recommend Steps 6 and 7 as landing evidence, with the
-pre-registered criteria applied unchanged:
-- The latent SBC arms are admitted only if their ladders now meet
+D4, what the evidence may reopen. Ruled 2026-09-24, the recommendation adopted (VD: "Use your
+recommendation for this decision."): Steps 6 and 7 are landing evidence, with the pre-registered
+criteria applied unchanged.
+- The latent SBC arms are admitted only if their ladders meet
   [Decision 1 - the SBC arms](bcf-latent-evidence.md#decision-1---the-sbc-arms)'s admission clause.
-  The sbc.yaml matrix edit is then a follow-up commit.
-- The exact gate's statistic (longer batches, AR(1) inflation, seed-spread floor) stays as landed;
-  it can only widen. Tightening it again is a follow-up, decided on Step 6's seed-spread
-  measurement.
+  They do not (see the Landing note), so they stay out of the matrix.
+- The exact gate's statistic (longer batches, AR(1) inflation, seed-spread floor) stays as landed.
+  Tightening it again is a follow-up, decided on Step 6's seed-spread measurement.
 
-Two alternatives are rejected. Lifting the exclusion because the gate passes is wrong: the
-admission clause is about chain length at large `|a|`, which the gate does not measure. Keeping the
-exclusion without re-running is wrong too: the recorded finding may be this defect, and the doc
-would carry a false cause.
+The rejected alternatives were lifting the exclusion because the gate passes (the admission clause
+is about chain length at large `|a|`, which the gate does not measure) and keeping the exclusion
+without re-running (the recorded finding might have been this defect).
 
-D5, NEWS. The amplitude family is new in 1.0-0 (main, 0.9-34, has no amplitude code), so no release
-carried the defect or the move. But the 1.0-0 section already records changes only development
-builds saw: the BCF zero-multiplier bullet, and the fused-pass entry's note that seeded fits no
-longer reproduce "an earlier 1.0-0 development build". Recommend a bullet in the same register:
-amplitude-coupled fits (bcf, and formula-route multi-forest fits) no longer carry a compounding bias
-from the amplitude rescaling move, which is removed; their seeded draws change and each sweep is
-about 5 percent faster. Alternative: no bullet; that is inconsistent with the section's own
-precedent, and bartCause's 1.0 branch users did run the biased sampler.
+D5, NEWS. Ruled 2026-09-24: no entry. main (0.9-34) has no amplitude code, so no release carried the
+defect or the move, and NEWS covers only what reached main (VD: "No entry - this hadn't even been
+promoted to main."; dec-B128 in [docs/decisions.md](../decisions.md)). The rejected alternative was a bullet for users of
+development builds.
 
 ## Constraints
 
@@ -245,10 +240,10 @@ precedent, and bartCause's 1.0 branch users did run the biased sampler.
 
 ## Landing note (2026-09-24)
 
-The engine (ac7f70b7), the harness (af402611), the BCF baseline (90f9bccc) and these records; D4 and D5 stay open, so
-the Status stays IN PROGRESS.
+The engine (5eb0df0a), the harness (73a33382), the BCF baseline (9a2db456) and these records; the gaussian
+equivalence baseline and the speed compare are owed, so the Status stays IN PROGRESS.
 
-Engine, ac7f70b7. The move is gone from [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp), which no
+Engine, 5eb0df0a. The move is gone from [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp), which no
 longer overrides `afterCombine`; with it went the per-forest `ridge` flags and the bridge's derivation of them, the
 keepTrees slot and test-fit rescale, the testing hook that fired the move, and the GIG generator. `afterCombine` returns
 nothing now, its value having been read only by the move's tests, and its Doxygen states the forest cache rule.
@@ -266,7 +261,7 @@ pin at 1.12e4 (probit, gate shape); gaussian and the ensemble shape stay under t
 counts. [`fuzzInvariantViolation`](../../tests/cpp/test_fuzz.cpp) checks every row at the same bound, its burn-in run a
 sweep at a time. tests/cpp passes, and under ASAN and UBSAN with no diagnostic.
 
-Harness, af402611. The latent BCF SBC arms build their host under their own link; before it none of them ran. The
+Harness, 73a33382. The latent BCF SBC arms build their host under their own link; before it none of them ran. The
 latent gate's `pooled` run reports each channel's seed spread over its batch se.
 
 Gates. Every exact-gates.yaml gate passes in quick mode. bcf-exact.R, bcf-exact-weak.R and bcf-exact-restricted.R pass
@@ -277,7 +272,7 @@ The full tinytest suite passes, 8887 tests, with no snapshot replayed.
 
 Equivalence, against baselines recorded on the previous tip on the same host: equivalence.R 52 of 53 identical under
 `--strict-coverage`, bart2twoforest moving at max `|z|` 1.00; multinomial 11 of 11 identical; bcf all 15 moving, every
-flag on an amplitude-coupled channel. bcf-equivalence is re-recorded as `bcf-equivalence-ac7f70b7.rds` (90f9bccc), the
+flag on an amplitude-coupled channel. bcf-equivalence is re-recorded as `bcf-equivalence-5eb0df0a.rds` (9a2db456), the
 exact gates its oracle; this host reproduces the stored BCF baseline bitwise at the previous tip. equivalence.R is NOT re-recorded:
 this host reproduces `equivalence-d2b9827a.rds` in 48 of 53 scenarios only, so a recording here would move five
 scenarios CI compares bitwise. It is owed from the stored baselines' recording host, and until then cpp-tests.yaml's
