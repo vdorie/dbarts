@@ -167,7 +167,7 @@ than what it is. Nothing below is needed to review the merge.
 | archive/chi-default-research.md | LANDED | 48-cell simulation study picking the binary-outcome default chi(1.5, Inf) -> chi(1.5, 2); equivalence baselines re-pinned. |
 | archive/chi-hyperprior-df.md | LANDED | Fixes chi(df) to sample an actual chi distribution with the stated df instead of a silently-doubled shape; draw-neutral at the default. |
 | archive/chi-k-empty-leaf-count.md | LANDED | Excludes leaves stranded empty by a data mutation from the chi-k hyperprior's count/sum-of-squares accounting. |
-| archive/chi-k-runaway.md | LANDED | Caps the sampled end-node precision k so an improper/weak prior scale can't let the Gibbs draw run away; bit-identical below the cap. |
+| archive/chi-k-runaway.md | LANDED | Capped the sampled end-node precision k at 1e6 against a runaway draw under an improper prior scale; the cap was removed 2026-09-26 (dec-A13), the draw now exact. |
 | archive/tau-cauchy-exact-ig.md | LANDED | Replaces the cauchy-prior grouped tau slice sampler with an exact Makalic-Schmidt IG two-block Gibbs draw. |
 | archive/tau-slice-stepout-cap.md | LANDED | Bounds sliceSampleOnce's step-out loops to prevent hangs; reproduced a 2.5-minute pre-fix hang. |
 | archive/rbart-loop-profile.md | LANDED (measurement) | Measures rbart_vi custom-prior R loop overhead (12-77% by cell); surfaces the divergence bug as an out-of-scope flag. |

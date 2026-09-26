@@ -207,6 +207,10 @@ struct ConstantGaussianLeaf {
     if (!(sumWeights > 0.0)) return 0.0;
 
     double priorPrecision = (k / scale) * (k / scale);
+    // an infinite prior precision (k infinite, or large enough that its
+    // square overflows) pins the leaf at zero, so the data terms cancel and
+    // the marginal takes its limit, 0; the formula below gives Inf / Inf
+    if (!(priorPrecision <= DBL_MAX)) return 0.0;
     double posteriorPrecision = sumWeights / residualVariance;
     double mean = sumWeightedResponse / sumWeights;
     double explainedSumOfSquares = sumWeightedResponse * mean;
@@ -1171,6 +1175,10 @@ struct LinearGaussianLeaf {
                              projection);
 
     double ridge = (k / scale) * (k / scale) * residualVariance;
+    // an infinite ridge (k infinite, or large enough that it overflows) pins
+    // the coefficients at zero, so the marginal takes its limit, 0; the
+    // formula below gives Inf - Inf
+    if (!(ridge <= DBL_MAX)) return 0.0;
     for (std::size_t a = 0; a < p; ++a) crossproduct[a * p + a] += ridge;
     choleskyDecompose(crossproduct, p);
 
@@ -2652,18 +2660,14 @@ private:
 
 /// Chi hyperprior on the end-node precision parameter k. Since k ~ chi(nu)
 /// gives k^2 ~ Gamma(nu/2, 1/2), the posterior of k^2 is gamma with shape
-/// 0.5 (M + nu); a finite prior scale adds 0.5 / scale^2 to the rate.
+/// 0.5 (M + nu); a finite prior scale adds 0.5 / scale^2 to the rate. The
+/// draw is exact and uncapped: under an infinite scale the posterior is
+/// improper, and with little signal k can reach infinity, where the leaf
+/// models pin every leaf at zero and the k draw is skipped for want of a
+/// nonzero sum of squares.
 struct ChiKHyperprior {
   double degreesOfFreedom = 1.5;
   double scale = HUGE_VAL;  // infinite = flat in the rate term
-
-  /// Sentinel ceiling on the sampled k. An improper or weak prior scale leaves
-  /// the prior-dominated k Gibbs fixed point with a growth factor above 1, so
-  /// k can run away toward a leaf sd that is already statistically zero on the
-  /// standardized [-0.5, 0.5] response scale; capping the draw bounds the
-  /// excursion. Behavior-neutral outside that runaway regime: healthy draws
-  /// sit far below it, so the cap never engages.
-  static constexpr double maxDraw = 1.0e6;
 
   double draw(ext_rng* rng, double sumSquaredParams, double totalNumLeaves,
               double leafScale) const {
@@ -2671,8 +2675,11 @@ struct ChiKHyperprior {
     // classic form: numTrees * s_sq / nodeScale^2 == s_sq / leafScale^2
     double rate = 0.5 * sumSquaredParams / (leafScale * leafScale);
     if (std::fabs(scale) <= DBL_MAX) rate += 0.5 / (scale * scale);
-    double k = std::sqrt(ext_rng_simulateGamma(rng, shape, 1.0 / rate));
-    return k > maxDraw ? maxDraw : k;
+    // a rate below 1 / DBL_MAX leaves the gamma scale infinite, which the
+    // gamma draw refuses with a NaN; the draw's limit there is an infinite k
+    double gammaScale = 1.0 / rate;
+    if (!(gammaScale <= DBL_MAX)) return HUGE_VAL;
+    return std::sqrt(ext_rng_simulateGamma(rng, shape, gammaScale));
   }
 };
 

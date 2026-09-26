@@ -242,34 +242,46 @@ static void testChiKHyperprior(ext_rng* rng) {
   checkMoments(leafRate + 0.5 / (prior.scale * prior.scale),
                "chi-k posterior k^2 moments, finite prior scale");
 
-  // A prior-dominated leaf under an improper scale would draw k far past any
-  // finite bound; the sentinel caps it at exactly maxDraw. A tiny leaf scale
-  // and a tiny sum of squares put the gamma rate near zero, so the raw draw
-  // dwarfs the cap and every draw must clamp to it.
+  // The draw is exact and uncapped. A prior-dominated leaf under an improper
+  // scale draws k far past the old 1e6 ceiling: a tiny leaf scale and sum of
+  // squares put the gamma rate near zero. Seed a private rng, read the
+  // formula off it, rewind to the same seed, and confirm draw() reproduces
+  // that value exactly.
+  ext_rng* drawRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  auto checkExact = [&](const ChiKHyperprior& p, double sumSq, double leaves,
+                        double scale, const char* what) {
+    double rate = 0.5 * sumSq / (scale * scale);
+    ext_rng_setSeed(drawRng, 42);
+    double expected = std::sqrt(ext_rng_simulateGamma(
+      drawRng, 0.5 * (leaves + p.degreesOfFreedom), 1.0 / rate));
+    ext_rng_setSeed(drawRng, 42);
+    double got = p.draw(drawRng, sumSq, leaves, scale);
+    checkNear(got, expected, 0.0, what);
+    return got;
+  };
   ChiKHyperprior runaway;
   runaway.degreesOfFreedom = 1000.0;  // shape dominated by df, not by leaves
-  for (int i = 0; i < 1000; ++i) {
-    double k = runaway.draw(rng, 1e-30, 1.0, 1e-6);
-    check(k == ChiKHyperprior::maxDraw, "chi-k runaway draw capped at maxDraw");
-  }
-
-  // A healthy draw returns the uncapped sqrt-of-gamma verbatim, unclamped.
-  // Seed a private rng, read the inlined formula off it, rewind to the same
-  // seed, and confirm draw() reproduces that value exactly and stays below
-  // the cap.
-  ext_rng* healthyRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  check(checkExact(runaway, 1e-30, 1.0, 1e-6, "chi-k runaway draw exact") > 1e6,
+        "chi-k runaway draw passes the old ceiling");
   ChiKHyperprior healthy;  // df 1.5, infinite scale
-  double healthyShape = 0.5 * (numLeaves + healthy.degreesOfFreedom);
-  double healthyRate = 0.5 * sumSquaredParams / (leafScale * leafScale);
+  check(checkExact(healthy, sumSquaredParams, numLeaves, leafScale,
+                   "chi-k healthy draw exact") < 1e6,
+        "chi-k healthy draw is modest");
 
-  ext_rng_setSeed(healthyRng, 42);
-  double expectedK = std::sqrt(
-    ext_rng_simulateGamma(healthyRng, healthyShape, 1.0 / healthyRate));
-  ext_rng_setSeed(healthyRng, 42);
-  double gotK = healthy.draw(healthyRng, sumSquaredParams, numLeaves, leafScale);
-  check(gotK < ChiKHyperprior::maxDraw, "chi-k healthy draw below the cap");
-  checkNear(gotK, expectedK, 0.0, "chi-k healthy draw equals uncapped formula");
-  ext_rng_destroy(healthyRng);
+  // a rate below 1 / DBL_MAX leaves the gamma scale infinite, which the gamma
+  // draw refuses with a NaN; the draw takes its limit, an infinite k
+  check(runaway.draw(drawRng, 1e-320, 1.0, 1.0) == HUGE_VAL,
+        "chi-k draw with an infinite gamma scale is infinite");
+  ext_rng_destroy(drawRng);
+
+  // an infinite k pins a constant leaf at zero: its marginal takes the limit
+  // 0 and both of its draws are exactly zero
+  ConstantGaussianLeaf leaf{0.5};
+  check(leaf.logIntegratedLikelihood(HUGE_VAL, 1.0, 10.0, 3.0) == 0.0,
+        "constant leaf marginal at infinite k");
+  check(leaf.drawFromPosterior(rng, HUGE_VAL, 10.0, 3.0, 1.0) == 0.0 &&
+          leaf.drawFromPrior(rng, HUGE_VAL) == 0.0,
+        "constant leaf draws at infinite k");
 
   printf("ok: chi-k hyperprior\n");
 }
@@ -1455,6 +1467,10 @@ static void testLinearLeafMarginal() {
             -5.256174278535296 +
               droppedSumOfSquaresTerm(f.z, nullptr, 0, f.n, f.sigmaSq),
             1e-9, "linear marginal, unit-weight root");
+  // an infinite k pins the coefficients at zero: the marginal takes its limit
+  check(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
+                                            HUGE_VAL, f.sigmaSq, 0) == 0.0,
+        "linear marginal at infinite k");
 
   // q = 0 reduces exactly to the constant leaf's formula
   LinearGaussianLeaf interceptOnly;
@@ -1543,6 +1559,11 @@ static void testLinearLeafDraw(ext_rng* rng) {
             "posterior draw covariance");
   checkNear(sumSq[2] / numDraws - mean1 * mean1, expectedCov[2], 1e-4,
             "posterior draw variance, slope");
+
+  // an infinite k pins the coefficients at zero through the infinite ridge
+  leaf.drawFromPosteriorForNode(rng, f.tree, f.z.data(), f.w.data(), HUGE_VAL,
+                                f.sigmaSq, 0, draw);
+  check(draw[0] == 0.0 && draw[1] == 0.0, "linear leaf draw at infinite k");
 
   // an empty leaf zeroes its block without consuming generator draws; no
   // valid rule can empty a child of this fixture, so fabricate the range

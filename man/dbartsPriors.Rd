@@ -127,8 +127,10 @@
       of freedom and scale. The default, \code{chi(1.5, 2)}, centers the
       sampled \code{k} near the field-standard fixed value of 2 (prior
       median 1.9) while letting it adapt to the data. \code{scale = Inf}
-      remains accepted for the old improper prior; the sampled \code{k} is
-      capped at 1e6, a backstop that only engages at that improper scale.
+      remains accepted, but the posterior it gives \code{k} is improper:
+      with little signal, few trees or many degrees of freedom, \code{k}
+      can drift to infinity, where every leaf is zero and the trees add
+      nothing to the fit.
     }
     \item{\code{chisq(df = 3, quant = 0.9)}}{
       Chi-squared prior on the residual variance. Its scale is set from
