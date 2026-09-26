@@ -61,6 +61,7 @@ extract(
 # S3 method for class 'bartMultinomial'
 fitted(
     object, type = c("ev", "class", "bart"),
+    sample = c("train", "test"),
     ci.level = NULL, ...)
 
 # S3 method for class 'bartMultinomial'
@@ -87,6 +88,7 @@ extract(
 # S3 method for class 'bartOrdinal'
 fitted(
     object, type = c("ev", "class", "bart"),
+    sample = c("train", "test"),
     ci.level = NULL, ...)
 
 # S3 method for class 'bartOrdinal'
@@ -113,6 +115,7 @@ extract(
 # S3 method for class 'bartNegbin'
 fitted(
     object, type = c("ev", "ppd", "bart"),
+    sample = c("train", "test"),
     ci.level = NULL, ...)
 
 # S3 method for class 'bartNegbin'
@@ -331,12 +334,12 @@ print(x, ...)
   detected and fit as probit, an unordered factor (or character)
   response with three or more levels is detected and fit as multinomial,
   and an ordered factor with three or more levels is detected and fit as
-  ordinal - each reporting the choice in a one-line message.
-  `"gaussian"`, `"probit"`, and `"logistic"` force those fits directly;
-  `"aft"`, `"hazard"`, `"hazard.probit"` (an accepted alias for
-  `"hazard"`), `"hazard.logistic"`, `"multinomial"`, `"ordinal"`,
-  `"nbinom"`, and `"hurdle.lognormal"` reach the extended families
-  described below.
+  ordinal - each reporting the choice in a one-line message (suppressed
+  by `verbose = FALSE`). `"gaussian"`, `"probit"`, and `"logistic"`
+  force those fits directly; `"aft"`, `"hazard"`, `"hazard.probit"` (an
+  accepted alias for `"hazard"`), `"hazard.logistic"`, `"multinomial"`,
+  `"ordinal"`, `"nbinom"`, and `"hurdle.lognormal"` reach the extended
+  families described below.
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
   no `family` argument at all: every fit it makes is the default
   gaussian/probit pair.
@@ -879,7 +882,8 @@ print(x, ...)
 
 - verbose:
 
-  Logical; if `FALSE` suppress printing.
+  Logical; if `FALSE` suppress printing, including the one-line message
+  `family = "auto"` prints when it detects a factor response.
 
 - keepTrees:
 
@@ -1037,10 +1041,11 @@ print(x, ...)
 
 - sample:
 
-  Either `"train"` or `"test"`. It is `extract`'s own argument (and
-  `fitted`'s, on the families that still carry it - fitted is always the
-  training rows); refused by name on `predict`, whose stored train and
-  test channels are `extract`'s `sample` instead.
+  Either `"train"` or `"test"`. It is `extract`'s own argument, and
+  `fitted`'s too on every family with a test channel - every one here
+  except `bartHurdle`, which has none and so takes no `sample`; refused
+  by name on `predict`, whose stored train and test channels are
+  `extract`'s `sample` instead.
 
 - vars:
 
@@ -1579,7 +1584,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001268
+#> total seconds in loop: 0.001566
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1627,7 +1632,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001515
+#> total seconds in loop: 0.001986
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

@@ -134,8 +134,9 @@ dbarts(
 
 - verbose:
 
-  A logical determining if additional output is printed to the console.
-  See
+  A logical determining if additional output is printed to the console,
+  including the one-line message `family = "auto"` prints when it
+  detects a factor response. See
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
 
 - n.samples:
@@ -425,9 +426,9 @@ dbarts(
   The response model. `"auto"` fits gaussian models to continuous
   responses and probit models to those coded 0/1, as always; a two-level
   factor, logical, or two-level character response is also detected and
-  fit as probit, reporting the choice in a one-line message, while a
-  factor (or character) response with three or more levels is an error
-  directing to
+  fit as probit, reporting the choice in a one-line message (suppressed
+  by `verbose = FALSE`), while a factor (or character) response with
+  three or more levels is an error directing to
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
   `family = "multinomial"` (which `dbarts` does not fit). An explicit
   family that a factor response cannot support (e.g. `"gaussian"`) is

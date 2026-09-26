@@ -110,7 +110,9 @@ xbart(
 
 - verbose:
 
-  A logical determining if additional output is printed to the console.
+  A logical determining if additional output is printed to the console,
+  including the one-line message `family = "auto"` prints when it
+  detects a two-level factor response.
 
 - n.samples:
 

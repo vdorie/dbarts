@@ -72,8 +72,8 @@ extract(
 fitted(
     object,
     type = c("ev", "ppd", "bart"),
-    ci.level = NULL,
     sample = c("train", "test"),
+    ci.level = NULL,
     ...)
 
 # S3 method for class 'bart'
@@ -1080,10 +1080,10 @@ bartFit <- bart(x, y)
 #> [2] iteration: 200 (of 500)
 #> [1] iteration: 300 (of 500)
 #> [2] iteration: 300 (of 500)
-#> [1] iteration: 400 (of 500)
 #> [2] iteration: 400 (of 500)
-#> [1] iteration: 500 (of 500)
+#> [1] iteration: 400 (of 500)
 #> [2] iteration: 500 (of 500)
+#> [1] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
 #> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
@@ -1094,7 +1094,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.118986
+#> total seconds in loop: 0.149728
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 
