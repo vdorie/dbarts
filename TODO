@@ -468,16 +468,6 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
   (1.0-0). Open: delete the three stubs outright, and configure.ac's
   comment naming them, in the release after 1.0-0.
 
-chi-k-uncapped (decided, VD 2026-09-26; docs/decisions.md dec-A13):
-  before the merge, ChiKHyperprior::draw returns the exact draw and
-  maxDraw goes; draws below the old 1e6 ceiling are unchanged, so no
-  baseline moves. test-binaryResponse-hyperprior.R's runaway block
-  checks that a chain reaching an infinite k finishes with baseline
-  fits and no NaN; confirm storeState, setState and warm.start accept
-  an infinite k. The chi() entry in dbartsPriors.Rd says the
-  infinite scale's posterior is improper and k can drift to
-  infinity, flattening the fit.
-
 constructor-vocabulary (decided, VD 2026-09-26; docs/decisions.md
   dec-A67): before the merge, interactions, blocks, forest and
   varianceForest leave the exports and are evaluated in vocabulary
