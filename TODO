@@ -288,7 +288,9 @@ items
     does not fire; its coverage regression against the control was a
     reference-arm artifact, dissolved by the 2026-09-08 re-measurement;
     the rule draw's default weight stays zero until the mixing research
-    sets one (dec-B96, below).
+    sets one (dec-B96, below). The starting forest's law, an exact
+    rejection draw from the restricted prior, is revisited here too
+    (dec-A10, VD 2026-09-26).
     Owed there: the equal-cost arm on a quiet machine (slice 2's
     rule-gibbs-balance.R has landed). Rotation, a Stage R0
     generator-only regrow census, the re-specified reallocation census
@@ -465,6 +467,74 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
   and --with-xint-size stop with a removal message for one release
   (1.0-0). Open: delete the three stubs outright, and configure.ac's
   comment naming them, in the release after 1.0-0.
+
+auto-family-verbose (decided, VD 2026-09-26; docs/decisions.md
+  dec-A16): before the merge, verbose = FALSE suppresses the message
+  family = "auto" prints when it picks a family from a factor
+  response (announceAutoFamily and its callers in R/bart.R and
+  R/data.R); the manual's verbose and family entries say so.
+
+chi-k-uncapped (decided, VD 2026-09-26; docs/decisions.md dec-A13):
+  before the merge, ChiKHyperprior::draw returns the exact draw and
+  maxDraw goes; draws below the old 1e6 ceiling are unchanged, so no
+  baseline moves. test-binaryResponse-hyperprior.R's runaway block
+  checks that a chain reaching an infinite k finishes with baseline
+  fits and no NaN; confirm storeState, setState and warm.start accept
+  an infinite k. The chi() entry in dbartsPriors.Rd says the
+  infinite scale's posterior is improper and k can drift to
+  infinity, flattening the fit.
+
+constructor-vocabulary (decided, VD 2026-09-26; docs/decisions.md
+  dec-A67): before the merge, interactions, blocks, forest and
+  varianceForest leave the exports and are evaluated in vocabulary
+  (evalInVocabulary) inside the arguments that take them, with one
+  exported list for use outside a call, named in the dbartsPriors
+  manner; the manual pages, examples, vignettes and the sister
+  packages' calls follow; blocks stays beside interactions (dec-A56).
+
+predict-na-action (decided, VD 2026-09-26; docs/decisions.md
+  dec-B34): before the merge, predict gains na.action on every fit
+  class's method. The default predicts rows whose missing values sit
+  in columns that had missing values in training and refuses the
+  rest by name, as today; na.pass gives NA for the unroutable rows and
+  keeps the output aligned with newdata; na.omit drops any row with a
+  missing value; na.fail errors on any. The manual sets these against
+  the fit-time meanings (routable versus unroutable missingness).
+
+reproducibility-docs (decided, VD 2026-09-26; docs/decisions.md
+  dec-A04): before the merge, one user-facing Reproducibility section
+  on bart's page that the package page, bartBT, dbarts, dbartsControl,
+  xbart and the sampler class link to. Today the text sits in bartBT,
+  the package page points at a section bart does not have, the
+  sampler class page says nothing about generators, and bartBT's
+  section carries an unrelated levelGibbs paragraph. Cover, each
+  verified against the code: set.seed versus seed; chains and thread
+  count; repeated run() calls, copy, save and setState on an embedded
+  sampler; xbart's per-cell seeds; which helpers do advance R's
+  stream; same draws within a host but not promised across hosts,
+  compilers or dbarts versions, and not against 0.9-x.
+
+setter-update-state (decided, VD 2026-09-26; docs/decisions.md
+  dec-A14): before the merge, every dbartsSampler setter left without
+  updateState follows control@updateState (NA -> control, as run and
+  the prior draws do), restoring 0.9-x; the setters' docstrings and
+  the sampler class manual drop "updateState is opt-in".
+
+fitted argument order (decided, VD 2026-09-26; docs/decisions.md dec-A15)
+  before the merge, fitted's ci.level moves after sample on bart fits,
+  restoring 0.9-x's positional (object, type, sample); multinomial,
+  ordinal and negbin fits gain sample (passed through to extract,
+  which already serves their test channel), so every class with a test
+  channel reads fitted(object, type, sample, ci.level, ...). hurdle
+  stays (object, type, ci.level, ...) until it has a test channel.
+
+hurdle feature completion (VD 2026-09-26: part of feature completion,
+  not to be forgotten; docs/decisions.md dec-A15)
+  a hurdle.lognormal fit takes no test set, weights, subset or offset:
+  the R composition uses the positive part's test slot to hand that
+  sampler the full training x. Owed: a real test channel (extract and
+  fitted then take sample), and weights, subset and offset where the
+  two-part model defines them. Schedule not yet set by VD.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   pre-release sequence (VD 2026-09-12): VD's own items before the
