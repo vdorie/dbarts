@@ -468,12 +468,6 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
   (1.0-0). Open: delete the three stubs outright, and configure.ac's
   comment naming them, in the release after 1.0-0.
 
-auto-family-verbose (decided, VD 2026-09-26; docs/decisions.md
-  dec-A16): before the merge, verbose = FALSE suppresses the message
-  family = "auto" prints when it picks a family from a factor
-  response (announceAutoFamily and its callers in R/bart.R and
-  R/data.R); the manual's verbose and family entries say so.
-
 chi-k-uncapped (decided, VD 2026-09-26; docs/decisions.md dec-A13):
   before the merge, ChiKHyperprior::draw returns the exact draw and
   maxDraw goes; draws below the old 1e6 ceiling are unchanged, so no
@@ -513,20 +507,6 @@ reproducibility-docs (decided, VD 2026-09-26; docs/decisions.md
   sampler; xbart's per-cell seeds; which helpers do advance R's
   stream; same draws within a host but not promised across hosts,
   compilers or dbarts versions, and not against 0.9-x.
-
-setter-update-state (decided, VD 2026-09-26; docs/decisions.md
-  dec-A14): before the merge, every dbartsSampler setter left without
-  updateState follows control@updateState (NA -> control, as run and
-  the prior draws do), restoring 0.9-x; the setters' docstrings and
-  the sampler class manual drop "updateState is opt-in".
-
-fitted argument order (decided, VD 2026-09-26; docs/decisions.md dec-A15)
-  before the merge, fitted's ci.level moves after sample on bart fits,
-  restoring 0.9-x's positional (object, type, sample); multinomial,
-  ordinal and negbin fits gain sample (passed through to extract,
-  which already serves their test channel), so every class with a test
-  channel reads fitted(object, type, sample, ci.level, ...). hurdle
-  stays (object, type, ci.level, ...) until it has a test channel.
 
 extract scalar types (decided, VD 2026-09-26; docs/decisions.md dec-A68)
   before the merge, extract gains "sigma", "k" and "varcount" on bart
