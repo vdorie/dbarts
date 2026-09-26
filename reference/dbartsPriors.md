@@ -123,9 +123,10 @@ A list of functions:
   is given a chi distribution with the stated degrees of freedom and
   scale. The default, `chi(1.5, 2)`, centers the sampled `k` near the
   field-standard fixed value of 2 (prior median 1.9) while letting it
-  adapt to the data. `scale = Inf` remains accepted for the old improper
-  prior; the sampled `k` is capped at 1e6, a backstop that only engages
-  at that improper scale.
+  adapt to the data. `scale = Inf` remains accepted, but the posterior
+  it gives `k` is improper: with little signal, few trees or many
+  degrees of freedom, `k` can drift to infinity, where every leaf is
+  zero and the trees add nothing to the fit.
 
 - `chisq(df = 3, quant = 0.9)`:
 

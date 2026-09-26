@@ -179,8 +179,10 @@ The residual priors chisq and fixed are what a family
       of freedom and scale. The default, <code>chi(1.5, 2)</code>, centers the
       sampled <code>k</code> near the field-standard fixed value of 2 (prior
       median 1.9) while letting it adapt to the data. <code>scale = Inf</code>
-      remains accepted for the old improper prior; the sampled <code>k</code> is
-      capped at 1e6, a backstop that only engages at that improper scale.</p></dd>
+      remains accepted, but the posterior it gives <code>k</code> is improper:
+      with little signal, few trees or many degrees of freedom, <code>k</code>
+      can drift to infinity, where every leaf is zero and the trees add
+      nothing to the fit.</p></dd>
 
     <dt><code>chisq(df = 3, quant = 0.9)</code></dt>
 <dd><p>Chi-squared prior on the residual variance. Its scale is set from
