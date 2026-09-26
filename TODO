@@ -538,6 +538,19 @@ extract scalar types (decided, VD 2026-09-26; docs/decisions.md dec-A68)
   default vars; multinomial summary's meanProb[level] label becomes a
   plain one (prob[level]); tests calling draws() move to extract.
 
+test scaffolding consolidation (decided, VD 2026-09-26; docs/decisions.md
+  dec-A52, dec-A51)
+  before the merge: tests move onto the exported functions and the
+  dbartsSampler methods wherever those can do the job; R/bartcore.R's
+  handle layer folds into the exported path where it duplicates it,
+  and a function whose only callers are tests or benchmarks goes
+  unless it is truly additive (reaches what the exported surface
+  cannot). The engine's test-only accessors meet the same rule; a
+  kept one comes off the production classes where it can (the two
+  virtuals on the response base class first; --preclean after any
+  facade.hpp virtual change). Starting inventory: the review's VD-H
+  list (docs/plans/review-2026-08-24/consolidated-report.md).
+
 hurdle feature completion (VD 2026-09-26: part of feature completion,
   not to be forgotten; docs/decisions.md dec-A15)
   a hurdle.lognormal fit takes no test set, weights, subset or offset:
