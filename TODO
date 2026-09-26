@@ -649,6 +649,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     genuinely weighted binomial analyses lose the dbarts learners by
     design, and family routing on their side would need the matching
     inverse link.
+  at the freeze, dispatch stan4bart's sanitizers.yaml by hand against
+    the final dbarts.h (VD 2026-09-26, dec-A36). At the merge, stan4bart's
+    and treatSens's sanitizers.yaml move their dbarts ref from bartcore to
+    main, and treatSens's branch filters to its default branch.
   at submission, re-run the FULL battery on the tip: R CMD check
     --as-cran on a clean-copy tarball, the suite, the equivalence
     trio against the current baselines (details in
