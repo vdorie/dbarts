@@ -528,6 +528,16 @@ fitted argument order (decided, VD 2026-09-26; docs/decisions.md dec-A15)
   channel reads fitted(object, type, sample, ci.level, ...). hurdle
   stays (object, type, ci.level, ...) until it has a test channel.
 
+extract scalar types (decided, VD 2026-09-26; docs/decisions.md dec-A68)
+  before the merge, extract gains "sigma", "k" and "varcount" on bart
+  fits, "thresholds" on ordinal, "dispersion" on negbin and the
+  matching pieces on hurdle, shaped as stan4bart's and bartCause's
+  (combined vector; chains x samples with combineChains = FALSE); the
+  draws() generic and its five methods leave the exports and NAMESPACE,
+  summary keeping the array code internally; "tau" leaves summary's
+  default vars; multinomial summary's meanProb[level] label becomes a
+  plain one (prob[level]); tests calling draws() move to extract.
+
 hurdle feature completion (VD 2026-09-26: part of feature completion,
   not to be forgotten; docs/decisions.md dec-A15)
   a hurdle.lognormal fit takes no test set, weights, subset or offset:
@@ -627,6 +637,9 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     design, and family routing on their side would need the matching
     inverse link.
   at submission, re-run the FULL battery on the tip: R CMD check
-    --as-cran on a clean-copy tarball, the suite, and the equivalence
+    --as-cran on a clean-copy tarball, the suite, the equivalence
     trio against the current baselines (details in
-    docs/plans/archive/cran-readiness.md).
+    docs/plans/archive/cran-readiness.md), and the full 26-scenario
+    comparison against 0.9-34 (benchmarks/R/classic-compare.R, VD
+    2026-09-26, dec-B120): a scenario separating beyond the explained
+    differences in docs/plans/classic-compare.md blocks until diagnosed.
