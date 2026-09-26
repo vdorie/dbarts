@@ -108,9 +108,10 @@ all n rows. Once the status can move that loses data permanently: a row censored
 after the flip has its OBSERVED time overwritten by the donor's latent draw, unrecoverably - `refreshLatents` walks
 `censoredIndices_` only, `censorBound_` no longer holds the row, and
 [`AFTResponse::computeLogLikelihood`](../../src/bartcore/model.hpp) scores it at the fabricated time thereafter. The path is
-the DEFAULT one: `dbartsControl` defaults `updateState = TRUE` so `$run` stores state while the mutators store only on an
-explicit `TRUE`, so run, set status, save, load hands [`getPointer`](../../R/dbarts.R) a control with the new status and a
-state from before it. So restore the censored indices rather than the whole vector: an event row's log-time is data a state
+reachable one: every mutator resolves an unset `updateState` against `control@updateState`, as `$run` does, but a
+control built with `updateState = FALSE` (or an explicit per-call override) still lets a stored state predate a later
+status change, so run, set status under `updateState = FALSE`, save, load hands [`getPointer`](../../R/dbarts.R) a
+control with the new status and a state from before it. So restore the censored indices rather than the whole vector: an event row's log-time is data a state
 has no business overwriting. The RESTORE CONTRACT holds (a write plus a working rebuild reading neither sigma nor the
 surface), and section 3's reconstruction becomes valid everywhere.
 

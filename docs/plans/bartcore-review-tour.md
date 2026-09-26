@@ -131,9 +131,9 @@ most likely first.
     name at restore and at `predict`; refit. A saved `dbartsData` keeps its
     old design and fits differently from a fresh one; rebuild it.
 
-Less common: the sampler's `setResponse(y, TRUE)` now sets `updateScale`;
-its mutators refresh `$state` only when passed `updateState = TRUE`; `run`
-takes no thread count (either spelling, or a fourth positional argument,
+Less common: the sampler's `setResponse(y, TRUE)` now sets `updateScale`
+(its mutators refresh `$state` under `control@updateState`, as `run` does,
+restoring 0.9-x); `run` takes no thread count (either spelling, or a fourth positional argument,
 is ignored with a warning; `setControl` sets the count). `xbart` renames
 `sigma` to `sigest`, takes a two-element `n.burn`, and no longer carries a
 chain across folds, so reported losses rise. `rbart_vi` and its methods

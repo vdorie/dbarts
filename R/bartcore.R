@@ -655,8 +655,9 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   # otherwise re-apply one at re-creation goes with it; setActiveRows records
   # the replacement's own below
   sampler$activeRows <- NULL
+  # the caller's own updateState decides the store, once, after the swap
   if (!is.null(active)) {
-    sampler$setActiveRows(active)
+    sampler$setActiveRows(active, updateState = FALSE)
   }
 
   invisible(NULL)

@@ -1774,8 +1774,9 @@ bart2Multinomial <- function(
   samplerCall$data <- y
 
   sampler <- eval(samplerCall, envir = callingEnv)
+  # no store: the fresh sampler's state stays the promise read at first use
   if (!is.null(offset)) {
-    sampler$setCategoryOffset(offset)
+    sampler$setCategoryOffset(offset, updateState = FALSE)
   }
   if (isTRUE(samplerOnly)) {
     return(sampler)
@@ -1856,8 +1857,9 @@ bart2MultinomialCounts <- function(
   samplerCall$data <- y
 
   sampler <- eval(samplerCall, envir = callingEnv)
+  # no store: the fresh sampler's state stays the promise read at first use
   if (!is.null(offset)) {
-    sampler$setCategoryOffset(offset)
+    sampler$setCategoryOffset(offset, updateState = FALSE)
   }
   if (isTRUE(samplerOnly)) {
     return(sampler)

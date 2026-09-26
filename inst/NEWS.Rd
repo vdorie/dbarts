@@ -170,18 +170,6 @@
             \code{getSumsOfSquaredResiduals} returns the sum of
             squares itself, where it previously returned that sum divided by
             the response range.
-      \item The sampler's mutators - \code{setData}, \code{setResponse},
-            \code{setOffset}, \code{setWeights}, \code{setSigma},
-            \code{setPredictor}, \code{setCutPoints} - refresh the local
-            \code{state} cache only on an explicit \code{updateState = TRUE}.
-            \code{NA} no longer defers to the control's own
-            \code{updateState}, so the sampler's \code{$state} - and with it
-            a fit written by \code{saveRDS} after the usual
-            \code{invisible(fit$fit$state)} read - does not reflect a
-            mutation made after \code{run} unless that mutator was passed
-            \code{updateState = TRUE}. \code{run},
-            \code{sampleTreesFromPrior}, and
-            \code{sampleNodeParametersFromPrior} keep the old convention.
       \item The sampler's \code{run} no longer takes a thread count: a run
             uses the sampler's own, which \code{setControl} changes, and
             its draws are the same at every count. \code{numThreads}, the

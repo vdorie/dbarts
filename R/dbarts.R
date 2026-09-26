@@ -1160,8 +1160,10 @@ dbarts <- function(
   # carries as its active-row mask rather than as weights: the spec has
   # already cleared the weights slot, so this is the only place the vector
   # lands. All-ones never reaches here, having resolved to no mask at all.
+  # No store: a fresh sampler's state stays the promise that captures the
+  # state current at first read.
   if (!is.null(spec$active)) {
-    sampler$setActiveRows(spec$active)
+    sampler$setActiveRows(spec$active, updateState = FALSE)
   }
   sampler
 }
@@ -1319,6 +1321,13 @@ samplePriorPredictive <- function(
   result
 }
 
+## Whether a method that just changed the sampler should refresh its cached
+## state (the copy storeState/setState carry): an explicit TRUE or FALSE
+## wins, and NA - every one of these methods' own default - resolves against
+## control@updateState, exactly as run() has always resolved it.
+resolveUpdateState <- function(updateState, control) {
+  isTRUE(updateState) || (is.na(updateState) && control@updateState)
+}
 
 dbartsSampler <- setRefClass(
   "dbartsSampler",
@@ -1421,10 +1430,7 @@ dbartsSampler <- setRefClass(
       }
 
       samples <- bartcoreSamplerRun(.self, numBurnIn, numSamples, callback)
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
+      if (resolveUpdateState(updateState, control)) {
         storeState()
       }
       if (is.null(samples)) {
@@ -1437,10 +1443,7 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_sampleTreesFromPrior, ptr)
 
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
 
@@ -1451,10 +1454,7 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_sampleNodeParametersFromPrior, ptr)
 
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
 
@@ -1465,10 +1465,7 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_sampleVarianceForestFromPrior, ptr)
 
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
 
@@ -1493,10 +1490,7 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_growFromRoot, ptr, n.sweeps)
 
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
 
@@ -1781,7 +1775,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setData = function(newData, updateState = NA) {
-      "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots. updateState is opt-in: only explicit TRUE stores state afterwards (NA/FALSE store nothing) - mutators are called per-sweep in Gibbs loops, so the default must stay free of that cost; contrast run()'s NA -> control@updateState convention."
+      "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots. updateState follows control@updateState: NA, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies."
       refuseCountsMutation(
         .self,
         "$setData",
@@ -1798,7 +1792,7 @@ dbartsSampler <- setRefClass(
         )
       }
       bartcoreSamplerSetData(.self, newData)
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState()
       }
       invisible(NULL)
@@ -1809,7 +1803,7 @@ dbartsSampler <- setRefClass(
       updateState = NA,
       status = NULL
     ) {
-      "Changes the response against which the sampler is fitted, and, for an aft (survival) sampler given a non-null status, its censoring structure in the same call. updateState is opt-in; see setData."
+      "Changes the response against which the sampler is fitted, and, for an aft (survival) sampler given a non-null status, its censoring structure in the same call. updateState follows control@updateState; see setData."
       # a caller porting $setResponse(y, updateState) from before the
       # updateScale/updateState reorder gets the same TRUE/FALSE/NA in the
       # same position, now meaning updateScale; sys.call() carries the raw,
@@ -1848,13 +1842,13 @@ dbartsSampler <- setRefClass(
         "into; replace it with $setCounts"
       )
       bartcoreSamplerSetResponse(.self, y, updateScale, status)
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState()
       }
       invisible(NULL)
     },
     setOffset = function(offset, updateScale = FALSE, updateState = NA) {
-      "Changes the offset slot used to adjust the response. updateState is opt-in; see setData."
+      "Changes the offset slot used to adjust the response. updateState follows control@updateState; see setData."
       refuseCountsMutation(
         .self,
         "$setOffset",
@@ -1863,13 +1857,13 @@ dbartsSampler <- setRefClass(
         "matrix $setCategoryOffset takes"
       )
       bartcoreSamplerSetOffset(.self, offset, updateScale)
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState()
       }
       invisible(NULL)
     },
     setWeights = function(weights, updateState = NA) {
-      "Changes the weights with which the sampler is fitted. A probit or ordinal sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. updateState is opt-in; see setData."
+      "Changes the weights with which the sampler is fitted. A probit or ordinal sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. updateState follows control@updateState; see setData."
       refuseCountsMutation(
         .self,
         "$setWeights",
@@ -1921,40 +1915,40 @@ dbartsSampler <- setRefClass(
         stop(tryResult)
       }
 
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
       invisible(NULL)
     },
     setCounts = function(counts, updateState = NA) {
-      "Replaces a multinomial sampler's response: the n x K matrix of non-negative integer counts whose column k holds category k's successes, with trials n_i = sum_k counts[i, k] at least 1. n and K are fixed at creation - every combiner buffer is sized by n, and K is the forest count - so only the values change. The trees carry over, fitted to the previous counts exactly as setResponse leaves a single-forest sampler's, and the next run forms every category's working response against the new matrix. The matrix is mirrored into data@counts, and its row sums into data@y, so getPointer's transparent re-creation after save/load carries the current response rather than the one the sampler was created with. The sweep draws n_i Polya-Gamma variates per observation per category, so replacing single-trial labels with grouped counts multiplies sweep cost by mean(n_i). updateState is opt-in; see setData."
+      "Replaces a multinomial sampler's response: the n x K matrix of non-negative integer counts whose column k holds category k's successes, with trials n_i = sum_k counts[i, k] at least 1. n and K are fixed at creation - every combiner buffer is sized by n, and K is the forest count - so only the values change. The trees carry over, fitted to the previous counts exactly as setResponse leaves a single-forest sampler's, and the next run forms every category's working response against the new matrix. The matrix is mirrored into data@counts, and its row sums into data@y, so getPointer's transparent re-creation after save/load carries the current response rather than the one the sampler was created with. The sweep draws n_i Polya-Gamma variates per observation per category, so replacing single-trial labels with grouped counts multiplies sweep cost by mean(n_i). updateState follows control@updateState; see setData."
       requireCountsCapability(.self, "$setCounts")
       ptr <- bartcoreSamplerSetCounts(.self, counts)
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
       invisible(NULL)
     },
     setCategoryOffset = function(offset, updateState = NA) {
-      "Installs, or at NULL clears, a multinomial sampler's n x K category offset: the latent becomes f_ik + o_ik, so the offset enters the log-sum-exp margins, every category's working response and the reported softmax probabilities, and never a leaf value. This is the response-side counterpart of setCounts rather than of setOffset, whose flat shift is added after the categories are blended - the wrong side of the nonlinearity - and is the softmax's own null direction besides. Only the row-centred part is identified: adding a constant to a whole row leaves every reported probability unchanged, and the entrance leaves the matrix as given rather than re-centring it. It shifts the TRAIN latent only; the test rows are other rows and carry their own (setCategoryTestOffset), and predict takes its own matrix per call. Mirrored into data@offset.category, so a re-created sampler carries it. updateState is opt-in; see setData."
+      "Installs, or at NULL clears, a multinomial sampler's n x K category offset: the latent becomes f_ik + o_ik, so the offset enters the log-sum-exp margins, every category's working response and the reported softmax probabilities, and never a leaf value. This is the response-side counterpart of setCounts rather than of setOffset, whose flat shift is added after the categories are blended - the wrong side of the nonlinearity - and is the softmax's own null direction besides. Only the row-centred part is identified: adding a constant to a whole row leaves every reported probability unchanged, and the entrance leaves the matrix as given rather than re-centring it. It shifts the TRAIN latent only; the test rows are other rows and carry their own (setCategoryTestOffset), and predict takes its own matrix per call. Mirrored into data@offset.category, so a re-created sampler carries it. updateState follows control@updateState; see setData."
       requireCountsCapability(.self, "$setCategoryOffset")
       ptr <- bartcoreSamplerSetCategoryOffset(.self, offset)
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
       invisible(NULL)
     },
     setCategoryTestOffset = function(offset.test, updateState = NA) {
-      "Installs, or at NULL clears, a multinomial sampler's nTest x K category test offset: the recorded test channel becomes softmax(f_test + o_test), formed where the train blend forms softmax(f + o). The test fits enter no likelihood, so this moves the reported test probabilities and nothing else - no draw, no working response, no train channel. Its rows are the CURRENT test rows, so replacing those rows while it is installed is refused rather than silently reinterpreted; clear it first. Out-of-sample predict does not read it at all, taking its own matrix for the rows it is given. Mirrored into data@offset.category.test, so a re-created sampler carries it. updateState is opt-in; see setData."
+      "Installs, or at NULL clears, a multinomial sampler's nTest x K category test offset: the recorded test channel becomes softmax(f_test + o_test), formed where the train blend forms softmax(f + o). The test fits enter no likelihood, so this moves the reported test probabilities and nothing else - no draw, no working response, no train channel. Its rows are the CURRENT test rows, so replacing those rows while it is installed is refused rather than silently reinterpreted; clear it first. Out-of-sample predict does not read it at all, taking its own matrix for the rows it is given. Mirrored into data@offset.category.test, so a re-created sampler carries it. updateState follows control@updateState; see setData."
       requireCountsCapability(.self, "$setCategoryTestOffset")
       ptr <- bartcoreSamplerSetCategoryTestOffset(.self, offset.test)
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
       invisible(NULL)
     },
     setActiveRows = function(active, updateState = NA) {
-      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState is opt-in; see setData."
+      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState follows control@updateState; see setData."
       if (!is.null(active)) {
         active <- as.double(active)
         if (length(active) != length(data@y)) {
@@ -1979,13 +1973,13 @@ dbartsSampler <- setRefClass(
       } else {
         active
       }
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
       invisible(NULL)
     },
     setForestWeights = function(forest, weights, updateState = NA) {
-      "Sets a per-forest, per-observation weight: a multiplicative precision factor on the named forest's own leaf conditionals, composing with weights and active as (w_i * a_i) * m_f^2 * s_i rather than widening either channel. Only applies to a Bayesian causal forest built with forests = (see dbarts); forest indexes from 1, as with getCalibration/setCalibration (the basis forest is 2). The weight does not ride the sampler's saved state; it is mirrored on an R5 field that getPointer and setState both reinstall on every re-creation. updateState is opt-in; see setData."
+      "Sets a per-forest, per-observation weight: a multiplicative precision factor on the named forest's own leaf conditionals, composing with weights and active as (w_i * a_i) * m_f^2 * s_i rather than widening either channel. Only applies to a Bayesian causal forest built with forests = (see dbarts); forest indexes from 1, as with getCalibration/setCalibration (the basis forest is 2). The weight does not ride the sampler's saved state; it is mirrored on an R5 field that getPointer and setState both reinstall on every re-creation. updateState follows control@updateState; see setData."
       refuseCountsMutation(
         .self,
         "$setForestWeights",
@@ -2019,13 +2013,13 @@ dbartsSampler <- setRefClass(
         stop(tryResult)
       }
 
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
       invisible(NULL)
     },
     setForestBasis = function(forest, basis, updateState = NA) {
-      "Changes the basis the named forest's amplitudes multiply, at any forest and any width. forest indexes from 1, as with setForestWeights and getCalibration/setCalibration (a Bayesian causal forest's basis forest is 2). A factor (or a one-sided formula naming one) expands to its level indicators, one amplitude per level, with no reference level dropped; a numeric vector or matrix is already those columns. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState is opt-in; see setData."
+      "Changes the basis the named forest's amplitudes multiply, at any forest and any width. forest indexes from 1, as with setForestWeights and getCalibration/setCalibration (a Bayesian causal forest's basis forest is 2). A factor (or a one-sided formula naming one) expands to its level indicators, one amplitude per level, with no reference level dropped; a numeric vector or matrix is already those columns. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
       refuseCountsMutation(
         .self,
         "$setForestBasis",
@@ -2070,13 +2064,13 @@ dbartsSampler <- setRefClass(
         stop(tryResult)
       }
 
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
       invisible(NULL)
     },
     setSigma = function(sigma, updateState = NA) {
-      "Changes the residual standard deviation parameter for each chain. updateState is opt-in; see setData."
+      "Changes the residual standard deviation parameter for each chain. updateState follows control@updateState; see setData."
       refuseCountsMutation(
         .self,
         "$setSigma",
@@ -2092,7 +2086,7 @@ dbartsSampler <- setRefClass(
 
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_setSigma, ptr, sigma)
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
       invisible(NULL)
@@ -2104,7 +2098,7 @@ dbartsSampler <- setRefClass(
       updateCutPoints = FALSE,
       updateState = NA
     ) {
-      "Changes a single column of the predictor matrix, or the entire matrix if column is missing. updateState is opt-in; see setData."
+      "Changes a single column of the predictor matrix, or the entire matrix if column is missing. updateState follows control@updateState; see setData."
 
       checkMissingPolicy(data, sourceAnyNA(x), "predictors")
       result <- bartcoreSamplerSetPredictor(
@@ -2114,7 +2108,7 @@ dbartsSampler <- setRefClass(
         forceUpdate = if (missing(forceUpdate)) NULL else forceUpdate,
         updateCutPoints = updateCutPoints
       )
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState()
       }
       # bartcoreSamplerSetPredictor returns invisible(NULL) or a visible
@@ -2122,14 +2116,14 @@ dbartsSampler <- setRefClass(
       if (is.null(result)) invisible(NULL) else result
     },
     setCutPoints = function(cuts, column, updateState = NA) {
-      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty. updateState is opt-in; see setData."
+      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty. updateState follows control@updateState; see setData."
 
       bartcoreSamplerSetCutPoints(
         .self,
         cuts,
         column = if (missing(column)) NULL else column
       )
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState()
       }
       invisible(NULL)
@@ -2403,7 +2397,7 @@ dbartsSampler <- setRefClass(
       forest = 1L,
       updateState = NA
     ) {
-      "Restates a forest's leaf prior on every chain so that the forest total's prior standard deviation at k = 1 is prior.scale, in response units; prior.sd is the same statement at the current k and is refused when k is drawn from a hyperprior. Exactly one of the two is given. Nothing else moves - not k, not the response transform, not sigma, not the tree prior - and the write takes effect on the next sweep, reinterpreting no leaf value already drawn. updateState is opt-in; see setData."
+      "Restates a forest's leaf prior on every chain so that the forest total's prior standard deviation at k = 1 is prior.scale, in response units; prior.sd is the same statement at the current k and is refused when k is drawn from a hyperprior. Exactly one of the two is given. Nothing else moves - not k, not the response transform, not sigma, not the tree prior - and the write takes effect on the next sweep, reinterpreting no leaf value already drawn. updateState follows control@updateState; see setData."
       refuseCountsMutation(
         .self,
         "$setCalibration",
@@ -2461,7 +2455,7 @@ dbartsSampler <- setRefClass(
       }
 
       .Call(C_dbarts_bartcore_setCalibration, ptr, index, prior.scale)
-      if (identical(updateState, TRUE)) {
+      if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
       invisible(NULL)
