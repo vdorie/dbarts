@@ -156,6 +156,7 @@ resolveSamplerSpec <- function(
     family,
     "dbarts()/bartBT()/xbart",
     c("gaussian", "aft", "nbinom"),
+    verbose = control@verbose,
     splitMultinomialMessage = TRUE,
     allowOrdinal = TRUE
   )

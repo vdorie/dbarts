@@ -24,19 +24,22 @@ n.samples <- 60L
 n.burn <- 30L
 n.trees <- 15L
 
-# --- auto-dispatch on an ordered factor, with announcement ---
+# --- auto-dispatch on an ordered factor, with announcement (bart()'s own
+# default verbose is TRUE, so the message fires without asking; the sampler's
+# progress output is captured) ---
 
 expect_message(
-  fit <- bart(
-    x,
-    y,
-    test = x.test,
-    n.samples = n.samples,
-    n.burn = n.burn,
-    n.trees = n.trees,
-    n.chains = 1L,
-    verbose = FALSE,
-    keepTrees = TRUE
+  capture.output(
+    fit <- bart(
+      x,
+      y,
+      test = x.test,
+      n.samples = n.samples,
+      n.burn = n.burn,
+      n.trees = n.trees,
+      n.chains = 1L,
+      keepTrees = TRUE
+    )
   ),
   pattern = "ordinal"
 )

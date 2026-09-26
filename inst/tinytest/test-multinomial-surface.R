@@ -535,18 +535,21 @@ expect_identical(predFromFrame, predFromMatrix)
 # family = "auto" now detects a 3+-level factor response and fits multinomial:
 # the default-family formula fit reproduces the explicit-multinomial formula
 # fit bit for bit (the peek is RNG-neutral) and announces the verdict
+# (bart()'s own default verbose is TRUE, so the message fires without asking;
+# the sampler's progress output is captured)
 set.seed(seed3)
 expect_message(
-  fit3Auto <- bart(
-    y3 ~ x1 + x2 + x3 + x4,
-    data = df3,
-    keepTrees = TRUE,
-    n.trees = n.trees,
-    n.chains = 1L,
-    n.threads = 1L,
-    n.burn = n.burn,
-    n.samples = n.samples,
-    verbose = FALSE
+  capture.output(
+    fit3Auto <- bart(
+      y3 ~ x1 + x2 + x3 + x4,
+      data = df3,
+      keepTrees = TRUE,
+      n.trees = n.trees,
+      n.chains = 1L,
+      n.threads = 1L,
+      n.burn = n.burn,
+      n.samples = n.samples
+    )
   ),
   "multinomial"
 )

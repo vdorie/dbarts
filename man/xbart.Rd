@@ -43,7 +43,7 @@ xbart(
     An optional vector specifying an offset from 0 for the relationship between the underlying function, \eqn{f(x)}, and the response \eqn{y}. Useful for all three response families, though each applies it differently: for a gaussian response, \eqn{y = f(x) + \mathrm{offset} + \epsilon}{y = f(x) + offset + epsilon}, a fixed component of the mean (see \code{\link{dbarts}} for the interaction with BART's internal range-scaling); for binary responses it enters the link directly, \eqn{P(Y = 1 \mid X = x) = \Phi(f(x) + \mathrm{offset})}{P(Y = 1 | X = x) = \Phi(f(x) + offset)} for a \code{"probit"} fit and the analogous model on the logistic link for \code{"logistic"}.
   }
   \item{verbose}{
-    A logical determining if additional output is printed to the console.
+    A logical determining if additional output is printed to the console, including the one-line message \code{family = "auto"} prints when it detects a two-level factor response.
   }
   \item{n.samples}{
     A positive integer, setting the number of posterior samples drawn for each fit of training data and used by the loss function.

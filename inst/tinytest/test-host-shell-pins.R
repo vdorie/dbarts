@@ -244,7 +244,8 @@ expect_equal(fit2$fit$model@family, "multinomial")
 expect_false(fit2$fit$control@binary)
 
 # --- family = "auto" on a 2-level factor still never reaches multinomial -
-# it announces probit directly and returns class "bart" ---
+# it announces probit directly and returns class "bart"; verbose = FALSE
+# suppresses that announcement ---
 autoWarnings <- 0L
 fitAuto <- withCallingHandlers(
   bart(
@@ -263,8 +264,29 @@ fitAuto <- withCallingHandlers(
     invokeRestart("muffleMessage")
   }
 )
-expect_equal(autoWarnings, 1L)
+expect_equal(autoWarnings, 0L)
 expect_identical(class(fitAuto), "bart")
+
+autoWarningsVerbose <- 0L
+withCallingHandlers(
+  bart(
+    x2,
+    y2,
+    family = "auto",
+    n.trees = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.burn = 2L,
+    n.samples = 2L,
+    verbose = TRUE
+  ),
+  message = function(m) {
+    autoWarningsVerbose <<- autoWarningsVerbose + 1L
+    invokeRestart("muffleMessage")
+  }
+)
+expect_equal(autoWarningsVerbose, 1L)
+rm(autoWarningsVerbose)
 expect_false(inherits(fitAuto, "bartMultinomial"))
 
 # --- save/reload/predict round-trips for all three host-shell families now:

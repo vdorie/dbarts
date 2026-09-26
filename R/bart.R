@@ -949,6 +949,7 @@ bart <- function(
     if (!is.null(autoMultinomial)) {
       family <- "multinomial"
       announceAutoFamily(
+        verbose,
         autoMultinomial$type,
         autoMultinomial$n.levels,
         family
@@ -962,7 +963,12 @@ bart <- function(
       )
       if (!is.null(autoOrdinal)) {
         family <- "ordinal"
-        announceAutoFamily(autoOrdinal$type, autoOrdinal$n.levels, family)
+        announceAutoFamily(
+          verbose,
+          autoOrdinal$type,
+          autoOrdinal$n.levels,
+          family
+        )
       }
     }
   }

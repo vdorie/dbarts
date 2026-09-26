@@ -19,8 +19,12 @@ newValidated <- function(Class, ...) {
 # non-default family: probit for a 2-level response, multinomial for a 3+-level
 # UNORDERED factor/character, ordinal for a 3+-level ORDERED factor (the level
 # order is the category order - respected, not discarded). Set family
-# explicitly to override.
-announceAutoFamily <- function(responseType, nLevels, family) {
+# explicitly to override. verbose = FALSE suppresses it, since a package
+# calling bart()/dbarts() inside its own functions usually passes it already.
+announceAutoFamily <- function(verbose, responseType, nLevels, family) {
+  if (!verbose) {
+    return(invisible(NULL))
+  }
   message(
     "family = \"auto\": ",
     nLevels,

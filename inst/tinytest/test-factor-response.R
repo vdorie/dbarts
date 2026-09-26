@@ -46,11 +46,14 @@ s.xy <- suppressMessages(dbarts(x, yf2, control = controlFactorResponse()))
 expect_equal(s.xy$model@family, "probit")
 expect_identical(s.form$run(30L, 30L)$train, s.xy$run(30L, 30L)$train)
 
-# the verdict names the detected type and resolved family
+# the verdict names the detected type and resolved family; dbarts()'s own
+# default verbose is FALSE, so the message needs an explicit opt-in, and
+# verbose = FALSE (the default) stays silent
 expect_message(
-  dbarts(x, yf2, control = controlFactorResponse()),
+  dbarts(x, yf2, verbose = TRUE, control = controlFactorResponse()),
   "2-level factor response detected, fitting family = \"probit\""
 )
+expect_silent(dbarts(x, yf2, control = controlFactorResponse()))
 
 # --- logical response == 0/1-numeric probit, bit for bit ---
 set.seed(8)
@@ -74,9 +77,10 @@ expect_identical(s.char$run(30L, 30L)$train, s.charForm$run(30L, 30L)$train)
 # --- 2-level ordered factor: binary, so probit (a 3+-level ordered factor
 # --- auto-dispatches to ordinal instead; test-ordinal.R covers that) ---
 expect_message(
-  dbarts(x, ordered(yf2), control = controlFactorResponse()),
+  dbarts(x, ordered(yf2), verbose = TRUE, control = controlFactorResponse()),
   "2-level ordered factor response detected, fitting family = \"probit\""
 )
+expect_silent(dbarts(x, ordered(yf2), control = controlFactorResponse()))
 
 # --- an explicit family that contradicts a factor response errors ---
 expect_error(
@@ -138,13 +142,14 @@ expect_equal(b.form$family, "probit")
 expect_identical(b.form$yhat.train, b.xy$yhat.train)
 
 # --- bart: auto 3-level factor -> multinomial == explicit, with verdict ---
+# bart()'s own default verbose is TRUE (contrast dbarts()'s FALSE above), so
+# the message fires without asking; verbose = FALSE silences it
 m.args <- list(
   n.trees = 20L,
   n.chains = 1L,
   n.threads = 1L,
   n.burn = 12L,
-  n.samples = 12L,
-  verbose = FALSE
+  n.samples = 12L
 )
 set.seed(11)
 expect_message(
@@ -155,3 +160,10 @@ set.seed(11)
 m.exp <- do.call(bart, c(list(x, y3, family = "multinomial"), m.args))
 expect_inherits(m.auto, "bartMultinomial")
 expect_identical(m.auto$yhat.train, m.exp$yhat.train)
+
+set.seed(11)
+expect_silent(
+  m.autoQuiet <- do.call(bart, c(list(x, y3, verbose = FALSE), m.args))
+)
+expect_identical(m.autoQuiet$yhat.train, m.auto$yhat.train)
+rm(m.autoQuiet)

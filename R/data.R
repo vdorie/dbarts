@@ -772,6 +772,7 @@ resolveClassificationFamily <- function(
   family,
   caller,
   incompatibleFamilies,
+  verbose,
   splitMultinomialMessage = FALSE,
   allowOrdinal = FALSE
 ) {
@@ -791,7 +792,7 @@ resolveClassificationFamily <- function(
     # a 2-level ordered factor is binary (probit); only a 3+-level ordered
     # factor is a genuine ordinal scale worth auto-dispatching
     if (family == "auto" && responseType == "ordered factor" && K >= 3L) {
-      announceAutoFamily(responseType, K, "ordinal")
+      announceAutoFamily(verbose, responseType, K, "ordinal")
       return("ordinal")
     }
   }
@@ -855,7 +856,7 @@ resolveClassificationFamily <- function(
   }
   if (family == "auto") {
     family <- "probit"
-    announceAutoFamily(responseType, K, family)
+    announceAutoFamily(verbose, responseType, K, family)
   } else if (family %in% incompatibleFamilies) {
     stop(
       "family \"",

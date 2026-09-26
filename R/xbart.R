@@ -179,7 +179,13 @@ xbart <- function(
   # a factor/logical/character response is a classification; xbart cross-
   # validates the 2-level (probit) case only, never multinomial. A numeric
   # response takes the 0/1-vs-continuous path.
-  family <- resolveClassificationFamily(data, family, "xbart", "gaussian")
+  family <- resolveClassificationFamily(
+    data,
+    family,
+    "xbart",
+    "gaussian",
+    verbose = verbose
+  )
   if (data@response.type == "numeric") {
     uniqueResponses <- unique(data@y)
     responseIsBinary <- length(uniqueResponses) == 2L &&

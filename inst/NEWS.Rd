@@ -768,7 +768,8 @@
             three or more ordered levels to \code{"ordinal"} (\code{dbarts}
             and \code{bart}; see below), and three or more unordered levels
             to multinomial (\code{bart} only; elsewhere an error names the
-            limitation), each reporting the choice in a one-line message.
+            limitation), each reporting the choice in a one-line message
+            unless \code{verbose} is \code{FALSE}.
             Previously the x/y interface coerced a
             factor response to its zero-based level codes and fit those: at
             two levels its own 0/1 binary detection then fit them as probit -
