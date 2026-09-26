@@ -454,10 +454,12 @@ expect_error(
   "'forest' is not used by predict on a bartNegbin fit",
   fixed = TRUE
 )
-expect_error(
+# 'sample' is a real argument of fitted.bartNegbin now (test-fitted-sample-
+# order.R covers the general case); this fit carries a test channel, so it is
+# reachable rather than refused
+expect_equal(
   fitted(fit, sample = "test"),
-  "'sample' is not used by fitted on a bartNegbin fit",
-  fixed = TRUE
+  dbarts:::channelMeans(fit$yhat.test)
 )
 expect_error(
   residuals(fit, type = "bart"),

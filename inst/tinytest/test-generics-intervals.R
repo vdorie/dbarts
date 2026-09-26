@@ -67,17 +67,15 @@ expect_error(
   pattern = "must be a single number"
 )
 
-# fitted()'s positional slot 3 is now ci.level (it used to be sample): the
-# positional and named forms agree, and the old slot-3 usage - a train/test
-# string in that position - is refused by a message naming 'sample' and where
-# it went, instead of silently binding to it
+# fitted()'s positional slot 3 is 'sample' (0.9-x's order, restored); ci.level
+# is the fourth slot, and the positional and named forms agree at both
 expect_identical(
-  fitted(fit, "ev", 0.9),
-  fitted(fit, type = "ev", ci.level = 0.9)
-)
-expect_error(
   fitted(fit, "ev", "train"),
-  pattern = "'sample' is fitted's fourth argument"
+  fitted(fit, type = "ev", sample = "train")
+)
+expect_identical(
+  fitted(fit, "ev", "train", 0.9),
+  fitted(fit, type = "ev", sample = "train", ci.level = 0.9)
 )
 
 rm(fit, cred, pred, narrow, pci, x, y)
@@ -112,9 +110,9 @@ expect_true(any(lci[, "ci.lower"] < 0) || any(lci[, "ci.upper"] > 1))
 rm(fit, pci, lci, X, Z)
 rm(testData)
 
-# the remaining three classes' fitted() already had ci.level third before
-# this slice, so the identity below asserts nothing this slice could break -
-# a plain regression guard, kept for symmetry with the three above
+# multinomial, ordinal and negbin gain 'sample' as their third argument too,
+# matching every other family with a test channel; ci.level moves to the
+# fourth slot on each
 n <- 40L
 xSmall <- matrix(rnorm(n * 2L), n, 2L)
 
@@ -130,7 +128,11 @@ fitM <- bart(
   verbose = FALSE
 )
 expect_identical(
-  fitted(fitM, "ev", 0.9),
+  fitted(fitM, "ev", "train"),
+  fitted(fitM, type = "ev", sample = "train")
+)
+expect_identical(
+  fitted(fitM, "ev", "train", 0.9),
   fitted(fitM, type = "ev", ci.level = 0.9)
 )
 rm(fitM)
@@ -150,7 +152,11 @@ fitO <- bart(
   verbose = FALSE
 )
 expect_identical(
-  fitted(fitO, "ev", 0.9),
+  fitted(fitO, "ev", "train"),
+  fitted(fitO, type = "ev", sample = "train")
+)
+expect_identical(
+  fitted(fitO, "ev", "train", 0.9),
   fitted(fitO, type = "ev", ci.level = 0.9)
 )
 rm(fitO)
@@ -167,7 +173,11 @@ fitN <- bart(
   verbose = FALSE
 )
 expect_identical(
-  fitted(fitN, "ev", 0.9),
+  fitted(fitN, "ev", "train"),
+  fitted(fitN, type = "ev", sample = "train")
+)
+expect_identical(
+  fitted(fitN, "ev", "train", 0.9),
   fitted(fitN, type = "ev", ci.level = 0.9)
 )
 rm(fitN)

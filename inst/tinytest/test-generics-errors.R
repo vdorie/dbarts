@@ -478,16 +478,18 @@ expect_error(
   "'n.threads' is not used by residuals on a bart fit: residuals summarize stored channels and replay nothing",
   fixed = TRUE
 )
-# 'sample' was fitted's third argument, so the call written against that order
-# lands "test" in 'ci.level': the refusal names the argument that moved
-expect_error(
-  fitted(bartFitPlain, "ev", "test"),
-  "'sample' is fitted's fourth argument and is matched by name; write sample = \"test\"",
-  fixed = TRUE
-)
-expect_error(
+# 'sample' is fitted's third argument (0.9-x's position, restored): a
+# train/test string there is matched positionally rather than refused
+# (bartFitPlain carries no test data, so only 'train' is reachable here)
+expect_identical(
   fitted(bartFitPlain, "ev", "train"),
-  "'sample' is fitted's fourth argument and is matched by name; write sample = \"train\"",
+  fitted(bartFitPlain, type = "ev", sample = "train")
+)
+# a number in that slot is not a sample name, so it is refused the same way
+# any other mismatched 'sample' value is
+expect_error(
+  fitted(bartFitPlain, "ev", 0.9),
+  "sample must be in 'train', 'test'",
   fixed = TRUE
 )
 rm(bartFitPlain)

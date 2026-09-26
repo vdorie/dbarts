@@ -206,9 +206,6 @@
             and \code{n.threads} moves from seventh to tenth.
             \code{offset.test} is refused by name rather than dropped into
             \code{\dots}.
-      \item \code{fitted}'s positional third argument is \code{ci.level} on
-            \code{bart} fits, where it was \code{sample};
-            \code{sample} moves to the fourth position.
       \item Beyond \code{value}, every \code{predict} method now warns -
             once per call, classed \code{dbartsUnusedArgsWarning} - on any
             other argument that is neither a formal nor a recognized
@@ -219,8 +216,8 @@
             \code{\dots}: \code{sample} on \code{predict.bart};
             \code{newdata}, \code{offset}, \code{weights}, and
             \code{n.threads} on \code{extract}; the same four plus
-            \code{sample} and \code{combineChains} on \code{fitted}; and all
-            of those on \code{residuals}. \code{extract(type = "trees")}
+            \code{combineChains} on \code{fitted}, and \code{sample} on a
+            hurdle fit's; and all of those on \code{residuals}. \code{extract(type = "trees")}
             refuses \code{sample} and \code{combineChains}, where a numeric
             \code{sample} previously partial-matched the sampler's
             \code{getTrees(sampleNums)} and turned the train/test selector
@@ -2397,8 +2394,8 @@
             \code{bart(family = "multinomial"/"ordinal"/"nbinom"/
             "hurdle.lognormal")} fit refuse by name the
             \code{\link{bart}}-family arguments they do not implement -
-            \code{extract(forest = )}, \code{fitted(sample = )},
-            \code{residuals(type = )}, \code{summary(vars = )} on a
+            \code{extract(forest = )}, \code{fitted(sample = )} on a
+            hurdle fit, \code{residuals(type = )}, \code{summary(vars = )} on a
             multinomial fit, and \code{forest}/\code{contribution} on
             \code{fitted}, \code{residuals} and \code{predict}.
             \code{extract}'s \code{combineChains} and

@@ -266,22 +266,6 @@ pointwiseLogLikelihood <- function(object, ev) {
 # rather than a 3-column matrix, since a plain matrix cannot carry both an
 # observation and a category index.
 posteriorInterval <- function(draws, ci.level, trailing = 1L) {
-  # ci.level is fitted's third argument, the slot 'sample' held in 0.9-x; a
-  # "train"/"test" string here is that older positional call - name the
-  # argument that value belongs to rather than one the caller never wrote
-  if (
-    is.character(ci.level) &&
-      length(ci.level) == 1L &&
-      !is.na(ci.level) &&
-      ci.level %in% c("train", "test")
-  ) {
-    stop(
-      "'sample' is fitted's fourth argument and is matched by name; write ",
-      "sample = \"",
-      ci.level,
-      "\""
-    )
-  }
   if (
     !is.numeric(ci.level) ||
       length(ci.level) != 1L ||
@@ -1105,8 +1089,8 @@ predictBlend <- function(
 fitted.bart <- function(
   object,
   type = c("ev", "ppd", "bart"),
-  ci.level = NULL,
   sample = c("train", "test"),
+  ci.level = NULL,
   ...
 ) {
   type <- validateType(type, eval(formals(fitted.bart)$type))
@@ -1368,16 +1352,6 @@ multinomialPpdFromProbs <- function(probs) {
   array(codes, d[-length(d)])
 }
 
-# fitted values are always the training rows (extract's own 'sample' formal
-# reaches the test channel); a caller-supplied 'sample' is refused by name
-# instead of vanishing into '...' unused.
-multinomialFittedSampleReason <- list(
-  sample = paste0(
-    "fitted values are always the training rows; use extract(object, ",
-    "sample = \"test\")"
-  )
-)
-
 # The posterior-mean n x K probability matrix (colnames = levels(y)), or
 # (type = "class") the argmax category of that mean as a factor over the
 # original levels - the class-prediction convenience. ci.level opts into a
@@ -1387,10 +1361,15 @@ multinomialFittedSampleReason <- list(
 fitted.bartMultinomial <- function(
   object,
   type = c("ev", "class", "bart"),
+  sample = c("train", "test"),
   ci.level = NULL,
   ...
 ) {
   type <- validateType(type, eval(formals(fitted.bartMultinomial)$type))
+  sample <- validateSample(
+    sample,
+    eval(formals(fitted.bartMultinomial)$sample)
+  )
   refuseMultinomialLatentType(type)
   refuseUnusedGenericArgs(
     list(...),
@@ -1398,7 +1377,6 @@ fitted.bartMultinomial <- function(
     "bartMultinomial",
     c(
       multinomialUnusedArgs,
-      multinomialFittedSampleReason,
       foreignArgsFor(
         fittedForeignReasons,
         names(formals(fitted.bartMultinomial))
@@ -1406,7 +1384,7 @@ fitted.bartMultinomial <- function(
     )
   )
   refuseClassCiLevel(type, ci.level)
-  probs <- extract.bartMultinomial(object, type = "ev", sample = "train")
+  probs <- extract.bartMultinomial(object, type = "ev", sample = sample)
   if (!is.null(ci.level)) {
     return(posteriorInterval(probs, ci.level, trailing = 2L))
   }
@@ -1702,13 +1680,6 @@ ordinalLogLik <- function(object, probs) {
   array(result, d[-length(d)])
 }
 
-ordinalFittedSampleReason <- list(
-  sample = paste0(
-    "fitted values are always the training rows; use extract(object, ",
-    "sample = \"test\")"
-  )
-)
-
 # The posterior-mean n x K probability matrix (colnames = levels), or
 # (type = "class") the argmax category as an ordered factor over the original
 # levels, or (type = "bart") the posterior-mean latent eta per observation.
@@ -1717,29 +1688,36 @@ ordinalFittedSampleReason <- list(
 fitted.bartOrdinal <- function(
   object,
   type = c("ev", "class", "bart"),
+  sample = c("train", "test"),
   ci.level = NULL,
   ...
 ) {
   type <- validateType(type, eval(formals(fitted.bartOrdinal)$type))
+  sample <- validateSample(sample, eval(formals(fitted.bartOrdinal)$sample))
   refuseUnusedGenericArgs(
     list(...),
     "fitted",
     "bartOrdinal",
     c(
       ordinalUnusedArgs,
-      ordinalFittedSampleReason,
       foreignArgsFor(fittedForeignReasons, names(formals(fitted.bartOrdinal)))
     )
   )
   refuseClassCiLevel(type, ci.level)
   if (type == "bart") {
-    latent <- object$latent.train
+    latent <- if (sample == "test") object$latent.test else object$latent.train
+    if (is.null(latent)) {
+      stop(
+        "this ordinal fit carries no test channel; refit with 'test' to ",
+        "report out-of-sample latent fits"
+      )
+    }
     if (!is.null(ci.level)) {
       return(posteriorInterval(latent, ci.level, trailing = 1L))
     }
     return(channelMeans(latent))
   }
-  probs <- extract.bartOrdinal(object, type = "ev", sample = "train")
+  probs <- extract.bartOrdinal(object, type = "ev", sample = sample)
   if (!is.null(ci.level)) {
     return(posteriorInterval(probs, ci.level, trailing = 2L))
   }
@@ -1993,13 +1971,6 @@ negbinLogLik <- function(object, mu, n.chains) {
   array(result, dim(mu))
 }
 
-negbinFittedSampleReason <- list(
-  sample = paste0(
-    "fitted values are always the training rows; use extract(object, ",
-    "sample = \"test\")"
-  )
-)
-
 # The posterior-mean count per observation (type = "ev"), the posterior-mean
 # log-odds latent per observation (type = "bart"), or a Monte Carlo mean over
 # ppd draws (type = "ppd"). The observation margin is the array's last
@@ -2009,28 +1980,35 @@ negbinFittedSampleReason <- list(
 fitted.bartNegbin <- function(
   object,
   type = c("ev", "ppd", "bart"),
+  sample = c("train", "test"),
   ci.level = NULL,
   ...
 ) {
   type <- validateType(type, eval(formals(fitted.bartNegbin)$type))
+  sample <- validateSample(sample, eval(formals(fitted.bartNegbin)$sample))
   refuseUnusedGenericArgs(
     list(...),
     "fitted",
     "bartNegbin",
     c(
       negbinUnusedArgs,
-      negbinFittedSampleReason,
       foreignArgsFor(fittedForeignReasons, names(formals(fitted.bartNegbin)))
     )
   )
+  if (sample == "test" && is.null(object$yhat.test)) {
+    stop(
+      "this nbinom fit carries no test channel; refit with 'test' to report ",
+      "out-of-sample counts"
+    )
+  }
   channel <- switch(
     type,
-    bart = object$latent.train,
-    ev = object$yhat.train,
+    bart = if (sample == "test") object$latent.test else object$latent.train,
+    ev = if (sample == "test") object$yhat.test else object$yhat.train,
     # the ppd arm is a draw, not a stored channel; extract pairs each mu with
     # its own draw's dispersion, and the mean over the observation margin
     # below is invariant to the chain layout it returns
-    ppd = extract.bartNegbin(object, type = "ppd", sample = "train")
+    ppd = extract.bartNegbin(object, type = "ppd", sample = sample)
   )
   if (!is.null(ci.level)) {
     return(posteriorInterval(channel, ci.level, trailing = 1L))
@@ -2361,7 +2339,7 @@ extractForeignReasons <- list(
 fittedSummarizesNothingReason <- "fitted summarizes stored channels and replays nothing"
 fittedForeignReasons <- list(
   combineChains = "the per-chain draws are extract(object, combineChains = FALSE)",
-  sample = "fitted values are always the fit's training rows",
+  sample = "this fit carries no test channel; call predict on newdata",
   newdata = fittedSummarizesNothingReason,
   offset = fittedSummarizesNothingReason,
   weights = fittedSummarizesNothingReason,

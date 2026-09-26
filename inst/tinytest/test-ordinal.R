@@ -483,10 +483,12 @@ expect_error(
   "'forest' is not used by predict on a bartOrdinal fit",
   fixed = TRUE
 )
-expect_error(
+# 'sample' is a real argument of fitted.bartOrdinal now (test-fitted-sample-
+# order.R covers the general case); this fit carries a test channel, so it is
+# reachable rather than refused
+expect_equal(
   fitted(fit, sample = "test"),
-  "'sample' is not used by fitted on a bartOrdinal fit",
-  fixed = TRUE
+  dbarts:::meanCategoryProbabilities(fit$yhat.test, fit$levels)
 )
 # 'offset' holds the fourth position on every predict method, so a positional
 # fourth argument is an offset here as it is on bart, rather than binding

@@ -65,8 +65,8 @@ extract(object, \dots)
 \method{fitted}{bart}(
     object,
     type = c("ev", "ppd", "bart"),
-    ci.level = NULL,
     sample = c("train", "test"),
+    ci.level = NULL,
     \dots)
 
 \method{residuals}{bart}(object, type = "ev", \dots)

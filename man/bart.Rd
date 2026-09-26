@@ -76,6 +76,7 @@ bart(
 
 \method{fitted}{bartMultinomial}(
     object, type = c("ev", "class", "bart"),
+    sample = c("train", "test"),
     ci.level = NULL, \dots)
 
 \method{predict}{bartMultinomial}(
@@ -96,6 +97,7 @@ bart(
 
 \method{fitted}{bartOrdinal}(
     object, type = c("ev", "class", "bart"),
+    sample = c("train", "test"),
     ci.level = NULL, \dots)
 
 \method{predict}{bartOrdinal}(
@@ -116,6 +118,7 @@ bart(
 
 \method{fitted}{bartNegbin}(
     object, type = c("ev", "ppd", "bart"),
+    sample = c("train", "test"),
     ci.level = NULL, \dots)
 
 \method{predict}{bartNegbin}(
@@ -342,7 +345,7 @@ bart(
      The quantity to return; see \sQuote{Value} below for what each family's generics accept and produce. As on a \code{"bart"} fit (\code{\link{bartBT}}'s \code{type} item), \code{"response"} is a synonym for \code{"ev"} and \code{"link"} for \code{"bart"}, on every method here; a value a method does not offer is an error naming the ones it does, and one it names only to refuse is an error naming the reason.
    }
    \item{sample}{
-     Either \code{"train"} or \code{"test"}. It is \code{extract}'s own argument (and \code{fitted}'s, on the families that still carry it - fitted is always the training rows); refused by name on \code{predict}, whose stored train and test channels are \code{extract}'s \code{sample} instead.
+     Either \code{"train"} or \code{"test"}. It is \code{extract}'s own argument, and \code{fitted}'s too on every family with a test channel - every one here except \code{bartHurdle}, which has none and so takes no \code{sample}; refused by name on \code{predict}, whose stored train and test channels are \code{extract}'s \code{sample} instead.
    }
    \item{vars}{
      Character vector of fields to gather, as \code{\link{summary.bart}}'s own \code{vars}; requested fields absent from \code{object} are silently dropped. \code{summary.bartOrdinal}'s \code{"thresholds"} contributes one draws variable per threshold \eqn{\gamma_1, \ldots, \gamma_{K-1}}{gamma_1, ..., gamma_{K-1}}, the ordinal analog of \code{sigma}; \code{summary.bartNegbin}'s \code{"dispersion"} contributes the per-draw dispersion \eqn{r}, the count analog of \code{sigma}. \code{summary.bartHurdle} applies \code{vars} separately to its \code{$occupancy} and \code{$positive} component fits. \code{summary.bartMultinomial} has no \code{vars} formal at all: it always pools the per-category mean-probability channel (its only scalar convergence instrument), so a supplied \code{vars} is refused by name rather than silently ignored.

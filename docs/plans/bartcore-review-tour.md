@@ -120,7 +120,8 @@ most likely first.
    names still pass silently, except on `predict`, which warns. A fractional
    count (`n.trees = 2.5`) is refused rather than truncated. A `weights`
    vector of the wrong length is an error rather than recycled. `fitted`'s
-   third positional argument is now `ci.level`.
+   third positional argument is `sample`, as in 0.9-x (restored); `fitted`'s
+   `ci.level` is the fourth.
 9. **Weights.** A probit fit refuses a weighted likelihood, which 0.9-34 fit
    incorrectly; a 0/1 vector marks rows in or out, and integer counts belong
    on `family = "logistic"`. On a gaussian fit, rows at weight zero no

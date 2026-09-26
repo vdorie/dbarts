@@ -419,9 +419,12 @@ expect_error(
   "'forest' is not used by residuals on a bartMultinomial fit",
   fixed = TRUE
 )
+# 'sample' is a real argument of fitted.bartMultinomial now (it reaches
+# extract's own test channel); this fit was never given test data, so asking
+# for it fails the way extract's own 'sample = "test"' does, not by name
 expect_error(
   fitted(fitCombined, sample = "test"),
-  "'sample' is not used by fitted on a bartMultinomial fit",
+  "this multinomial fit carries no test channel",
   fixed = TRUE
 )
 expect_error(
