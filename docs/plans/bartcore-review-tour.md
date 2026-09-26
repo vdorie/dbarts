@@ -305,21 +305,15 @@ Open before the merge:
 
 - **The release-candidate declaration** (`TODO`'s `rc-gate`), after the
   maintainer's read of this document.
-- **Agent-made decisions not yet ruled on**: 33 entries in section A of
-  `docs/decisions.md`. Those that fix user-visible surface cost a
-  deprecation cycle to change after release:
-  - one `seed` argument, with no choice of generator (dec-A04)
-  - ordered-factor cuts at level midpoints (dec-A09)
-  - mutators that store state only when told (dec-A14)
-  - `fitted`'s `ci.level` (dec-A15)
-  - automatic response-family detection (dec-A16)
-  - fit objects that leave out any draw component a run did not keep, so
-    their names vary (dec-A17)
-  - four common nouns exported (dec-A67)
-  - two documented arguments that do nothing, the multinomial draws
-    method's variable selector and one default variable name in the
-    summary and draws methods (dec-A68)
-  - 1-based forest indices in R (dec-A69)
+- **Agent-made decisions not yet ruled on**: 31 unmarked entries in
+  section A of `docs/decisions.md`. The one that fixes user-visible
+  surface, and would cost a deprecation cycle to change after release, is
+  1-based forest indices in R (dec-A69).
+- **Work the maintainer's rulings of 2026-09-26 owe** (`TODO`'s decided
+  entries): constraint and forest constructors taken off the search path;
+  scalar draws through `extract`, with `draws` removed; `na.action` on
+  `predict`; one Reproducibility section; an uncapped k draw; and tests
+  moved onto the exported functions.
 - **Three CRAN packages outside ours.** lorax's examples fit a three-level
   factor response, which 0.9-34 coded as 0, 1, 2 and 1.0-0 refuses; its
   maintainer is to be asked to change them. WeightIt and MatchIt fit

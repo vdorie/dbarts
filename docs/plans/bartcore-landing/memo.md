@@ -95,9 +95,7 @@ usage is:
 - Sampler methods. A warning: run ignores a thread count and names
   setControl, which sets it. Silent: setResponse gains updateScale as its
   second positional argument, so setResponse(y, TRUE) now rescales instead
-  of storing state, with a once-per-session warning; the mutators refresh
-  the stored state only when asked, so a fit saved after a mutation may
-  not reflect it.
+  of storing state, with a once-per-session warning.
 - rngSeed. A warning, and the value is honoured. A package that passes on
   only the control constructor's own arguments drops it silently; seed
   passes through.
@@ -111,8 +109,7 @@ usage is:
   refused with the multinomial route named; the control constructor loses
   its RNG-kind arguments; startThreads and stopThreads warn and do
   nothing.
-- Smaller silent changes: NULL components are dropped from the fit object;
-  the third positional argument of fitted is the interval level.
+- Smaller silent changes: NULL components are dropped from the fit object.
 - Installation. Loud: R 4.2.0 and a C++20 compiler are required, and any
   package that compiled against the old C++ headers fails to compile.
 
