@@ -3223,7 +3223,7 @@ static void testBCFTwoForest(ext_rng* rng) {
   check(muSS > 0.0 && tauSS > 0.0, "both BCF forests move off zero");
 
   double a, b0, b1;
-  bool haveGlue = sampler.chain(0).bcfGlue(a, b0, b1);
+  bool haveGlue = TestPeer::bcfGlue(sampler.chain(0), a, b0, b1);
   check(haveGlue && std::isfinite(a) && std::isfinite(b0) &&
           std::isfinite(b1),
         "BCF glue is finite");
@@ -3385,8 +3385,8 @@ static void testBCFResponseSwap() {
     for (size_t i = 0; i < n; ++i) identical &= totals[i] == totalsB[i];
   }
   double a, b0, b1, a2, b02, b12;
-  samplerA.chain(0).bcfGlue(a, b0, b1);
-  samplerB.chain(0).bcfGlue(a2, b02, b12);
+  TestPeer::bcfGlue(samplerA.chain(0), a, b0, b1);
+  TestPeer::bcfGlue(samplerB.chain(0), a2, b02, b12);
   identical &= a == a2 && b0 == b02 && b1 == b12;
   check(identical, "BCF setResponse(yNew, false) is bitwise the "
                    "setOffset(yBuild - yNew) chain");
@@ -3480,7 +3480,7 @@ static void testBCFFixedGlue(ext_rng* rng) {
   sampler.run(50, 50, results);
 
   double a, b0, b1;
-  sampler.chain(0).bcfGlue(a, b0, b1);
+  TestPeer::bcfGlue(sampler.chain(0), a, b0, b1);
   check(a == 1.0 && b0 == 0.0 && b1 == 1.0, "BCF fixed glue holds");
 
   std::vector<double> tauFits(n);
@@ -3550,7 +3550,7 @@ static void testBCFGrowForestFromRoot() {
   check(muSS > 0.0 && tauSS > 0.0, "both grown BCF forests move off zero");
 
   double a, b0, b1;
-  bool haveGlue = sampler.chain(0).bcfGlue(a, b0, b1);
+  bool haveGlue = TestPeer::bcfGlue(sampler.chain(0), a, b0, b1);
   check(haveGlue && std::isfinite(a) && std::isfinite(b0) &&
           std::isfinite(b1),
         "BCF grow-from-root glue is finite");
@@ -3721,7 +3721,7 @@ static void testBCFZeroMultiplierSnap() {
   forests[1].totalFits = tauFits;
 
   double a, b0, b1;
-  combiner.bcfGlue(a, b0, b1);
+  TestPeer::bcfGlue(combiner, a, b0, b1);
   check(a == 1.0 && b0 == 0.0 && b1 == 1.0,
         "a constructed BCF combiner holds the neutral (1, 0, 1) glue");
 
@@ -4343,7 +4343,8 @@ static void testForestBasisOrdering() {
       combiner.drawGlue(rng, 1.0, drawY.data(), nullptr, drawForests);
       ext_rng_destroy(rng);
       double aOut = 0.0;
-      check(combiner.bcfGlue(aOut, out0, out1), "the K = 2 reading holds");
+      check(TestPeer::bcfGlue(combiner, aOut, out0, out1),
+            "the K = 2 reading holds");
     };
 
     double keptB0 = 0.0, keptB1 = 0.0, flippedB0 = 0.0, flippedB1 = 0.0;
@@ -4493,7 +4494,7 @@ static void testGeneralAmplitudeConditional() {
     double aOut = 0.0, b0Out = 0.0, b1Out = 0.0;
     for (size_t d = 0; d < draws; ++d) {
       combiner.drawGlue(rng, sigma, y.data(), w.data(), forests);
-      combiner.bcfGlue(aOut, b0Out, b1Out);
+      TestPeer::bcfGlue(combiner, aOut, b0Out, b1Out);
       sum0 += b0Out; sum1 += b1Out;
       sq0 += b0Out * b0Out; sq1 += b1Out * b1Out; cross += b0Out * b1Out;
     }
@@ -4978,7 +4979,7 @@ static void testAmplitudeOffsetIndexing() {
   // the bcf-shaped reading REFUSES this layout rather than answering for it,
   // which is what keeps a K = 2, q = (1, 2) reader off a wider model
   double aOut = 0.0, b0Out = 0.0, b1Out = 0.0;
-  check(!combiner.bcfGlue(aOut, b0Out, b1Out),
+  check(!TestPeer::bcfGlue(combiner, aOut, b0Out, b1Out),
         "the three-scalar reading refuses a layout that is not bcf's");
 
   // the SURFACE route reaches the same install: what the fixture reached

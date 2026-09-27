@@ -937,12 +937,13 @@ const Row rows[] = {
   }},
   {FacadeVirtual::sampleVarianceForestFromPrior, "varianceForestFromPrior",
    [](Fixtures& f) {
-    std::vector<double> before(f.v.impl().chain(0).varianceFits(),
-                              f.v.impl().chain(0).varianceFits() +
+    std::vector<double> before(TestPeer::varianceFits(f.v.impl().chain(0)),
+                              TestPeer::varianceFits(f.v.impl().chain(0)) +
                                 Fixtures::n);
     f.v.base().sampleVarianceForestFromPrior();
-    std::vector<double> after(f.v.impl().chain(0).varianceFits(),
-                             f.v.impl().chain(0).varianceFits() + Fixtures::n);
+    std::vector<double> after(TestPeer::varianceFits(f.v.impl().chain(0)),
+                             TestPeer::varianceFits(f.v.impl().chain(0)) +
+                               Fixtures::n);
     check(after != before,
           "facade sampleVarianceForestFromPrior: the impl's scale surface is "
           "redrawn");

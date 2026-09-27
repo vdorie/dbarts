@@ -132,7 +132,7 @@ two-forest object: it is the general K-forest basis/amplitude family, each
 forest contributing `m_{f,i} f_f(x_i)` with `m_{f,i} = dot(a_f, B_f(i, .))` a
 contraction of that forest's own n x q_f row-major basis with its own amplitude
 vector, of which bcf's `a mu + b_z tau` is the K = 2 instance
-([`AmplitudeForestCombiner::bcfGlue`](../../src/bartcore/combiner.hpp),
+([`TestPeer::bcfGlue`](../../tests/cpp/test_peer.hpp),
 [`Chain::Chain`](../../src/bartcore/chain.hpp),
 [`createAmplitudeSampler`](../../src/bartcore/facade.hpp)). The SPELLING
 followed: see that design note's discharged naming debt.

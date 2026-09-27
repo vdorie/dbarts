@@ -1146,7 +1146,7 @@ static void testVarianceWarmStart() {
         "variance warm start: the coarse destination is on another grid");
   check(coarse->installForests(donorState, liveMap) == WarmStartResult::ok,
         "variance warm start: a cross-grid donor installs by remapping");
-  const double* remapped = coarse->chain(0).varianceFits();
+  const double* remapped = TestPeer::varianceFits(coarse->chain(0));
   bool positive = true;
   for (size_t i = 0; i < n; ++i)
     positive &= std::isfinite(remapped[i]) && remapped[i] > 0.0;
@@ -1365,14 +1365,14 @@ static void testVarianceForestPriorDraw() {
   SamplerStateData before;
   sampler->getState(before);
   std::vector<double> surfaceBefore(
-    sampler->chain(0).varianceFits(),
-    sampler->chain(0).varianceFits() + n);
+    TestPeer::varianceFits(sampler->chain(0)),
+    TestPeer::varianceFits(sampler->chain(0)) + n);
 
   sampler->sampleVarianceForestFromPrior();
 
   const auto& chain = sampler->chain(0);
   const double* factors = TestPeer::varianceFactors(chain);
-  const double* surface = chain.varianceFits();
+  const double* surface = TestPeer::varianceFits(chain);
   bool surfaceMoved = false, productHolds = true, positive = true;
   for (size_t i = 0; i < n; ++i) {
     double product = 1.0;
@@ -1428,7 +1428,7 @@ static void testVarianceForestPriorDraw() {
   // the seeded surface before any draw IS the initial variance the
   // calibration is stated against, on the WORKING scale the chain holds it in,
   // so the target below assumes nothing about the response transform
-  const double initialVariance = flat->chain(0).varianceFits()[0];
+  const double initialVariance = TestPeer::varianceFits(flat->chain(0))[0];
   const double leafScale = initialVariance * sigmaRawScale;
   const int numDraws = 4000;
   double sum = 0.0, sumSquares = 0.0;
@@ -1438,7 +1438,7 @@ static void testVarianceForestPriorDraw() {
           "variance prior draw: a zero-growth prior leaves a bare root");
     // u = lambda^2 / h is chisq(nu) / nu: mean 1, variance 2 / nu, both free
     // of the scale, so the two moments below pin lambda^2 and nu separately
-    double u = leafScale / flat->chain(0).varianceFits()[0];
+    double u = leafScale / TestPeer::varianceFits(flat->chain(0))[0];
     sum += u;
     sumSquares += u * u;
   }

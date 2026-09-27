@@ -155,7 +155,7 @@ static FuzzSnapshot<S> fuzzCapture(S& s) {
         fuzzCaptureTree(ch.varianceTree(j), n));
     const double* factors = TestPeer::varianceFactors(ch);
     g.varianceFactors[c].assign(factors, factors + m * n);
-    const double* combined = ch.varianceFits();
+    const double* combined = TestPeer::varianceFits(ch);
     g.varianceFits[c].assign(combined, combined + n);
   }
   return snap;
@@ -293,7 +293,7 @@ static const char* fuzzInvariantViolation(S& s, const double* z, size_t sweeps,
     // s^2(x_i) is maintained incrementally across a sweep and recomputed as the
     // fresh product at its end, so it must equal that product exactly here; a
     // factor is a drawn scale and is strictly positive by construction.
-    const double* combined = ch.varianceFits();
+    const double* combined = TestPeer::varianceFits(ch);
     const double* factors = TestPeer::varianceFactors(ch);
     for (size_t i = 0; i < n; ++i) {
       double product = 1.0;
@@ -1679,7 +1679,7 @@ static F6Capture f6Capture(Sampler<ConstantGaussianLeaf>& s) {
         e.indices.assign(tree.indices, tree.indices + n);
         e.fits.assign(factors + j * n, factors + (j + 1) * n);
       }
-      const double* combined = ch.varianceFits();
+      const double* combined = TestPeer::varianceFits(ch);
       out.combinedVariance[c].assign(combined, combined + n);
     }
     for (size_t f = 0; f < ch.numForests(); ++f) {

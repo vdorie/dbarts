@@ -320,7 +320,7 @@ gated on arm A' too - the only coupled-forest regime.
   returns an element named `variance`
   ([`bartcore_run`](../../src/R_interface_bartcore.cpp)) filled from
   `varianceFits[i] = sigmaScale^2 * combinedVariance[i]`
-  ([`Chain::varianceFits`](../../src/bartcore/chain.hpp)), where `combinedVariance[i]` is the PRODUCT over
+  ([`TestPeer::varianceFits`](../../tests/cpp/test_peer.hpp)), where `combinedVariance[i]` is the PRODUCT over
   variance trees of row i's leaf factor ([`VarianceForest::applyLeafFactor`](../../src/bartcore/chain.hpp));
   the state's `variance.values` are those same working-scale factors
   ([`TestPeer::varianceFactors`](../../tests/cpp/test_peer.hpp)). So: decode `variance.*`, route every row, form

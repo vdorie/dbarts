@@ -661,7 +661,7 @@ static void testVarianceForestRecovery() {
   Results results;
   chain.run(300, 300, results);
 
-  const double* s2 = chain.varianceFits();
+  const double* s2 = TestPeer::varianceFits(chain);
   check(s2 != nullptr, "variance forest exposes s^2(x)");
   double lowMean = 0.0, highMean = 0.0;
   size_t nLow = 0, nHigh = 0;
@@ -938,8 +938,8 @@ static void testVarianceReportingStatePredict() {
 
   double s2scale = chain.sigmaScale() * chain.sigmaScale();
   double tol = 1e-9 * s2scale;
-  const double* combined = chain.varianceFits();
-  const double* combinedTest = chain.varianceTestFits();
+  const double* combined = TestPeer::varianceFits(chain);
+  const double* combinedTest = TestPeer::varianceTestFits(chain);
 
   // (a) reporting: the last recorded sample equals the live combined variance
   // (train) and the routed test product, both on the original scale
@@ -978,7 +978,7 @@ static void testVarianceReportingStatePredict() {
                                        0.37804942330213542, options, rng2);
   check(restored.stateIsValid(state), "heteroscedastic state validates");
   check(restored.setState(state), "heteroscedastic state restores");
-  const double* restoredCombined = restored.varianceFits();
+  const double* restoredCombined = TestPeer::varianceFits(restored);
   bool restoreMatch = true;
   for (size_t i = 0; i < n; ++i)
     if (std::fabs(restoredCombined[i] - combined[i]) > 1e-12) restoreMatch = false;
@@ -4519,7 +4519,7 @@ static void testVarianceSurfaceInstall(ext_rng* rng) {
                               nullptr, ResponseFamily::gaussian, 1.0, 3.0,
                               0.37804942330213542, options, &rng);
   check(TestPeer::installedVarianceSurface(sampler.chain(0)) ==
-          sampler.chain(0).varianceFits(),
+          TestPeer::varianceFits(sampler.chain(0)),
         "the variance surface is installed at creation");
   Results empty;
   sampler.run(50, 0, empty);
@@ -4529,7 +4529,7 @@ static void testVarianceSurfaceInstall(ext_rng* rng) {
   check(sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0),
         "setData ingests the longer replacement");
   check(TestPeer::installedVarianceSurface(sampler.chain(0)) ==
-          sampler.chain(0).varianceFits(),
+          TestPeer::varianceFits(sampler.chain(0)),
         "and is re-installed where the resize moved the storage");
 
   const size_t numSamples = 4;

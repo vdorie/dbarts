@@ -623,7 +623,7 @@ struct ForestCombiner {
   /// forests through such scalars (BCF: a mu + b_z tau, reported as the fits of
   /// both forests plus (a, b0, b1)); false otherwise, so a run over any other
   /// model allocates and computes nothing for either channel. storeSample fills
-  /// them from forestTotalFits and bcfGlue, and the run bridge reads this
+  /// them from forestTotalFits and amplitudes, and the run bridge reads this
   /// predicate to decide whether the channels exist at all.
   virtual bool forestReportingIsDefined() const { return false; }
 
@@ -782,17 +782,6 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
     glue_.basis[f].numColumns = numColumns;
     glue_.basis[f].values.assign(values, values + n * numColumns);
     rebuildAmplitudeLayout();
-    return true;
-  }
-
-  /// bcf's three amplitudes (a, b0, b1) off the general ragged channel: the
-  /// K = 2, q = (1, 2) instance, kept as a named reading beside the general
-  /// one for the conditionals and fixtures that speak it. False on any other
-  /// layout, which is how a caller learns it is not looking at bcf.
-  bool bcfGlue(double& a, double& b0, double& b1) const {
-    if (glue_.amplitudes.size() != 3 || glue_.numAmplitudes(0) != 1)
-      return false;
-    a = glue_.a(); b0 = glue_.b0(); b1 = glue_.b1();
     return true;
   }
 
@@ -1050,6 +1039,8 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   }
 
 private:
+  friend struct TestPeer;
+
   /// The general sweep over the amplitude blocks: forest by forest in INDEX
   /// order, each block's q-variate conditional drawn given the current value of
   /// every other block, so the pass is a Gibbs scan and a block sees the blocks

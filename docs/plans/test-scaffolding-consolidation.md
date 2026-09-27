@@ -425,6 +425,10 @@ follow the orchestrator's adjudication (S6): only a virtual moves.
 | bridge bartcore_runWithCallback | out of scope | - |
 | Chain::fusedSuffstatRuns_ member | stays: one non-atomic increment per fused tree-sweep | - |
 
+The Chain, response-model, leaf-model and ColumnStore rows above were
+superseded by the engine test peer step (dec-A81): see
+[Landing](#landing). The global and bridge rows are unchanged.
+
 ## Appendix A5. Handle sites whose engine differs from the sampler's
 
 The sweep covered every assignment to a `$control`, `$model@` or
@@ -939,9 +943,10 @@ dec-A81 set after S6: the test hooks of Appendix A4 that S6 left in
 place leave the production classes' public surface.
 [`TestPeer`](../../src/bartcore/data.hpp) is forward-declared once in
 the engine and defined only in
-[`TestPeer`](../../tests/cpp/test_peer.hpp); Chain,
-LinearGaussianLeaf, GaussianResponse, OrdinalResponse, AFTResponse,
-NBDispersionPrior and NBResponse each declare it a friend. A hook whose
+[test_peer.hpp](../../tests/cpp/test_peer.hpp); Chain,
+AmplitudeForestCombiner, LinearGaussianLeaf, GaussianResponse,
+OrdinalResponse, AFTResponse, NBDispersionPrior and NBResponse each
+declare it a friend. A hook whose
 body was a one-line read or a forward to a private kernel moved onto the
 peer as a static function taking the object, and
 the class lost it. The hooks with bodies of their own stay as private
@@ -952,7 +957,17 @@ and [`LinearGaussianLeaf::statisticsCacheResidentBytes`](../../src/bartcore/mode
 The ForTesting suffix is dropped throughout: a private member or a peer
 function is test-only by construction. The two dynamic_cast forwarders
 on Chain and AFT's forward to its contained Gaussian moved onto the peer,
-since a private member of one class cannot forward to another's.
+since a private member of one class cannot forward to another's. A
+second reader's fixup moved three more public reads with only test
+callers: Chain's varianceFits and varianceTestFits
+([`TestPeer::varianceFits`](../../tests/cpp/test_peer.hpp),
+[`TestPeer::varianceTestFits`](../../tests/cpp/test_peer.hpp)) and the
+bcfGlue reading on Chain and on AmplitudeForestCombiner
+([`TestPeer::bcfGlue`](../../tests/cpp/test_peer.hpp)); production reads
+the general amplitude channel
+([`Chain::amplitudes`](../../src/bartcore/chain.hpp)).
+[`Sampler::chain`](../../src/bartcore/sampler.hpp) stays public: it is
+test navigation to a chain, not a read of hidden state.
 ColumnStore declares no friend: its two test-storage reads were reads of
 its public test block, which the tests now call directly, keeping
 test_data.cpp off the engine stack the peer header pulls in. No hook had
@@ -962,6 +977,8 @@ can no longer name any of them.
 Gates: `--preclean` install of the shipped build; tests/cpp `make clean
 && make`, plain and under ASan/UBSan, 305 ok, no diagnostic;
 equivalence.R 53/53, bcf-equivalence.R 15/15 and
-multinomial-equivalence.R 11/11 bitwise on the shipped build, no |z|;
+multinomial-equivalence.R 11/11 bitwise on the shipped build and, run
+by the second reader, on the reference build (--enable-reference-build),
+no |z|; the seeded-drift snapshot files 27/0 (second reader);
 full tinytest 9198/0; lint_package, air, check-rc-codoc, check-win-drift
 and check-doc-freshness clean.

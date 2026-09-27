@@ -352,7 +352,7 @@ struct ForestCalibration {
 /// numVariableCountForests, prognostic first, so a caller leaving it at 1 gets
 /// that same prognostic slab and nothing else. The treatment forest's own fit
 /// is reached through the per-forest channels
-/// (forestTotalFits + bcfGlue). logLikelihood is likewise
+/// (forestTotalFits + amplitudes). logLikelihood is likewise
 /// NaN-filled under BCF (the blended per-observation location is not visible
 /// to the response model).
 struct Results {
@@ -1039,16 +1039,6 @@ public:
   std::size_t numTreesInForest(std::size_t f) const {
     return forests_[f].numTrees;
   }
-  /// The current combined variance s^2(x_i), working scale, over the training
-  /// (varianceFits) or test (varianceTestFits) rows, or null when homoscedastic.
-  /// Original-scale reporting multiplies by sigmaScale^2 (storeSample, predict).
-  const double* varianceFits() const {
-    return varianceForest_ ? varianceForest_->combinedVariance.data() : nullptr;
-  }
-  const double* varianceTestFits() const {
-    return varianceForest_ ? varianceForest_->combinedVarianceTest.data()
-                           : nullptr;
-  }
   /// The current variance surface s^2(x) on the ORIGINAL response scale - the
   /// working product times sigmaScale^2 - over the training rows (test false,
   /// numObservations doubles) or the test rows (test true,
@@ -1410,16 +1400,6 @@ public:
   /// writes the whole vector forest-major.
   std::size_t totalAmplitudes() const {
     return combiner_ ? combiner_->totalAmplitudes() : 0;
-  }
-  /// bcf's (a, b0, b1) reading of that channel, for the conditionals and
-  /// component pins written in its spelling; false off a chain whose amplitude
-  /// layout is not bcf's K = 2, q = (1, 2).
-  bool bcfGlue(double& a, double& b0, double& b1) const {
-    if (totalAmplitudes() != 3 || numForestAmplitudes(0) != 1) return false;
-    double out[3];
-    combiner_->amplitudes(out);
-    a = out[0]; b0 = out[1]; b1 = out[2];
-    return true;
   }
   std::size_t numForestAmplitudes(std::size_t f) const {
     return combiner_ ? combiner_->numForestAmplitudes(f) : 0;
@@ -6096,7 +6076,7 @@ private:
         // carries no test treatment vector, so only the bare prognostic
         // forest could be recorded, which silently misreports the fit.
         // Flag the channel as unusable; BCF consumers recombine per forest
-        // via forestTotalFits + the bcfGlue coefficients.
+        // via forestTotalFits + the amplitudes.
         for (size_t i = 0; i < nTest * numLocations; ++i)
           out[i] = std::numeric_limits<double>::quiet_NaN();
       } else {
@@ -6124,7 +6104,7 @@ private:
     // per-forest reporting, for a coupling that defines it (BCF): each forest's
     // own internal-scale function values, forest-major within a sample, and the
     // scalars that recombine them. Both are reads of state this sweep already
-    // settled on - the same values forestTotalFits and bcfGlue hand a caller
+    // settled on - the same values forestTotalFits and amplitudes hand a caller
     // that drives one sweep at a time - so the channels consume no rng and
     // mutate no state.
     if (combiner_ && combiner_->forestReportingIsDefined()) {

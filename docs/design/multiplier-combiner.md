@@ -554,9 +554,10 @@ Forest 0 takes the half-Cauchy amplitude over the implicit intercept and
 leaves its node scale at s; forest 1 takes the fixed-variance pair over the
 treatment indicator basis and carries `sdModerate` in its node scale.
 
-`bcfGlue(a, b0, b1)` is a named READING that returns false on any other
-layout, which is how a caller learns it is not looking at bcf
-([`bcfGlue`](../../src/bartcore/combiner.hpp), [`forestTotalFits`](../../src/bartcore/chain.hpp)).
+The tests' named READING of that channel, bcfGlue(a, b0, b1), returns false
+on any other layout, which is how a test learns it is not looking at bcf
+([`TestPeer::bcfGlue`](../../tests/cpp/test_peer.hpp)); production reads the
+general channel ([`Chain::amplitudes`](../../src/bartcore/chain.hpp), [`forestTotalFits`](../../src/bartcore/chain.hpp)).
 
 ## Surfaces
 

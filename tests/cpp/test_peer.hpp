@@ -66,7 +66,22 @@ struct TestPeer {
   static const double* workingResponse(const Chain<L, R>& chain) {
     return chain.response_->workingResponse();
   }
-  /// The surface the response model holds, which must be varianceFits() by
+  /// The current combined variance s^2(x_i), working scale, over the training
+  /// or test rows, or null when homoscedastic. Original-scale reporting
+  /// multiplies by sigmaScale^2.
+  template <IntegrableLeafModel L, typename R>
+  static const double* varianceFits(const Chain<L, R>& chain) {
+    return chain.varianceForest_
+             ? chain.varianceForest_->combinedVariance.data()
+             : nullptr;
+  }
+  template <IntegrableLeafModel L, typename R>
+  static const double* varianceTestFits(const Chain<L, R>& chain) {
+    return chain.varianceForest_
+             ? chain.varianceForest_->combinedVarianceTest.data()
+             : nullptr;
+  }
+  /// The surface the response model holds, which must be varianceFits by
   /// pointer identity after every allocation of the combined-variance storage
   /// (installVarianceSurface is what keeps it so). Null for a family that
   /// keeps no surface.
@@ -92,7 +107,7 @@ struct TestPeer {
     return 0.0;
   }
   /// The per-tree factor slab h_j(x_i), tree-major (numVarianceTrees x n),
-  /// whose product over j is the combined variance varianceFits() reports.
+  /// whose product over j is the combined variance varianceFits reports.
   template <IntegrableLeafModel L, typename R>
   static const double* varianceFactors(const Chain<L, R>& chain) {
     return chain.varianceForest_->factorByTree.data();
@@ -131,6 +146,29 @@ struct TestPeer {
   template <IntegrableLeafModel L, typename R>
   static FusedSuffstatCheck checkFusedSuffstatAgainstStock(Chain<L, R>& chain) {
     return chain.checkFusedSuffstatAgainstStock();
+  }
+
+  /// bcf's (a, b0, b1) reading of the amplitude channel, for the conditionals
+  /// and component pins written in its spelling; false off a chain or combiner
+  /// whose amplitude layout is not bcf's K = 2, q = (1, 2).
+  template <IntegrableLeafModel L, typename R>
+  static bool bcfGlue(const Chain<L, R>& chain, double& a, double& b0,
+                      double& b1) {
+    if (chain.totalAmplitudes() != 3 || chain.numForestAmplitudes(0) != 1)
+      return false;
+    double out[3];
+    chain.combiner_->amplitudes(out);
+    a = out[0]; b0 = out[1]; b1 = out[2];
+    return true;
+  }
+  template <IntegrableLeafModel L, typename R>
+  static bool bcfGlue(const AmplitudeForestCombiner<L, R>& combiner, double& a,
+                      double& b0, double& b1) {
+    const auto& glue = combiner.glue_;
+    if (glue.amplitudes.size() != 3 || glue.numAmplitudes(0) != 1)
+      return false;
+    a = glue.a(); b0 = glue.b0(); b1 = glue.b1();
+    return true;
   }
 
   // Leaf and response models
