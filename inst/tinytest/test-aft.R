@@ -274,12 +274,15 @@ if (requireNamespace("survival", quietly = TRUE)) {
   # explicit family = "aft"
   fit.formula.aft <- fitFormula(surv ~ x1 + x2 + x3, surv.df, family = "aft")
   expect_identical(fit.formula.aft[["family"]], "aft")
-  expect_identical(fit.formula.aft$yhat.train, fit.2col$yhat.train)
+  expect_identical(unname(fit.formula.aft$yhat.train), fit.2col$yhat.train)
 
   # family = "auto" dispatches identically
   fit.formula.autoFit <- fitFormula(surv ~ x1 + x2 + x3, surv.df)
   expect_identical(fit.formula.autoFit[["family"]], "aft")
-  expect_identical(fit.formula.autoFit$yhat.train, fit.2col$yhat.train)
+  expect_identical(
+    unname(fit.formula.autoFit$yhat.train),
+    fit.2col$yhat.train
+  )
 
   # 'subset' via the formula honours the same rows a hand-subsetted matrix
   # fit would use, bitwise
@@ -302,7 +305,10 @@ if (requireNamespace("survival", quietly = TRUE)) {
     seed = 7L,
     keepTrees = TRUE
   )
-  expect_identical(fit.formula.sub$yhat.train, fit.matrix.sub$yhat.train)
+  expect_identical(
+    unname(fit.formula.sub$yhat.train),
+    fit.matrix.sub$yhat.train
+  )
 
   # the matrix interface's own 'subset' argument (dbarts()'s aft block,
   # which subsets the status vector alongside dbartsData()'s own x/y

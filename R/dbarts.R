@@ -168,7 +168,7 @@ expandDiscreteTimeHazard <- function(
   }
   xExpanded <- appendHazardPeriodColumn(xExpanded, periodOf)
 
-  result <- list(x = xExpanded, y = y, periods = periods)
+  result <- list(x = xExpanded, y = y, periods = periods, subject = subjectOf)
   if (!is.null(offset)) {
     offset <- as.double(offset)
     if (length(offset) == 1L) {
@@ -184,6 +184,21 @@ expandDiscreteTimeHazard <- function(
     result$weights <- weights[subjectOf]
   }
   result
+}
+
+# Names the person-period rows of both channels by R's make.unique over the
+# subject names (dec-B34): a subject s1 at risk for three periods gives s1,
+# s1.1, s1.2. Training rows are subject-major, test rows period-major (every
+# test subject at each of the K periods).
+hazardRowNames <- function(trainNames, subject, testNames, K) {
+  list(
+    train = if (!is.null(trainNames)) {
+      make.unique(as.character(trainNames)[subject])
+    },
+    test = if (!is.null(testNames)) {
+      make.unique(rep(as.character(testNames), times = K))
+    }
+  )
 }
 
 # Append the ordinal period column (named "period") as the LAST column, the
@@ -724,6 +739,10 @@ dbarts <- function(
   # precedent). No status vector or attribute reaches C++ - the censoring is
   # baked into y'.
   hazardPeriods <- NULL
+  # the person-period row names, set on the data object once it exists, and
+  # whether the expansion ran before the na.action did
+  hazardNames <- NULL
+  hazardExpandedFirst <- FALSE
   if (family %in% hazardTokens && directResponse) {
     survival <- extractSurvivalTimes(data)
     if (is.null(survival)) {
@@ -773,6 +792,13 @@ dbarts <- function(
       matchedCall$weights <- expansion$weights
     }
     K <- length(expansion$periods)
+    hazardExpandedFirst <- TRUE
+    hazardNames <- hazardRowNames(
+      observationRowNames(xForExpansion),
+      expansion$subject,
+      if (!missing(test)) observationRowNames(test),
+      K
+    )
     # a held-out subject has no event time to place it by, so 'test' expands
     # to every one of the SAME K training periods (the shape
     # hazardSurvivalProbabilities's own newdata expansion builds, reused here
@@ -1041,6 +1067,14 @@ dbarts <- function(
       data@weights <- expansion$weights
       hazardPeriods <- expansion$periods
       K <- length(expansion$periods)
+      # the subject names are the ones dbartsData recorded for the
+      # unexpanded rows
+      hazardNames <- hazardRowNames(
+        dataRowNames(data, "train"),
+        expansion$subject,
+        dataRowNames(data, "test"),
+        K
+      )
       # dbartsData()'s own 'test' handling already built data@x.test (and
       # its offset/weights twins) family-agnostically, coded against the
       # SAME pre-expansion training columns data@x just was - a held-out
@@ -1086,6 +1120,21 @@ dbarts <- function(
       family,
       "\" needs a survival::Surv or two-column (time, status) response"
     )
+  }
+
+  if (!is.null(hazardNames)) {
+    # the matrix interface expands before the na.action runs, so any rows it
+    # dropped are person-period rows
+    omitted <- data@na.action
+    if (
+      hazardExpandedFirst && !is.null(omitted) && !is.null(hazardNames$train)
+    ) {
+      names(omitted) <- hazardNames$train[unclass(omitted)]
+      data@na.action <- omitted
+      hazardNames$train <- hazardNames$train[-unclass(omitted)]
+    }
+    data <- setDataRowNames(data, "train", hazardNames$train)
+    data <- setDataRowNames(data, "test", hazardNames$test)
   }
 
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
@@ -2159,6 +2208,7 @@ dbartsSampler <- setRefClass(
         return(bartcoreSamplerSetTestPredictor(.self, x.test, column = NULL))
       }
 
+      testRowNames <- observationRowNames(x.test)
       x.test <- validateXTest(x.test, data@x)
       if (is.null(x.test) && !is.null(offset.test)) {
         stop("when test matrix is NULL, test offset must be as well")
@@ -2200,6 +2250,7 @@ dbartsSampler <- setRefClass(
       if (inherits(tryResult, "error")) {
         stop(tryResult)
       }
+      selfEnv$data <- setDataRowNames(data, "test", testRowNames)
       invisible(NULL)
     },
     setTestOffset = function(offset.test) {

@@ -530,6 +530,9 @@ expect_equal(fit3Formula$levels, c("lo", "mid", "hi"))
 newdata3 <- as.data.frame(x3Named[seq_len(20L), , drop = FALSE])
 predFromFrame <- predict(fit3Formula, newdata3)
 predFromMatrix <- predict(fit3Formula, x3Named[seq_len(20L), , drop = FALSE])
+# the frame names its rows "1".."20"; the matrix has no row names
+expect_identical(dimnames(predFromFrame)[[2L]], as.character(seq_len(20L)))
+dimnames(predFromFrame)[2L] <- list(NULL)
 expect_identical(predFromFrame, predFromMatrix)
 
 # family = "auto" now detects a 3+-level factor response and fits multinomial:

@@ -2355,7 +2355,8 @@ if (mode == "record") {
       next
     }
     compared <- c(compared, name)
-    if (identical(a, b)) {
+    # values only: row names on the outputs are not draws
+    if (identical(unname(a), unname(b))) {
       cat(sprintf("%-10s identical draws (same RNG stream)\n", name))
       next
     }

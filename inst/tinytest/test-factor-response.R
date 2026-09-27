@@ -139,7 +139,7 @@ b.form <- suppressMessages(
 set.seed(9)
 b.xy <- suppressMessages(do.call(bart, c(list(x, yf2), b.args)))
 expect_equal(b.form$family, "probit")
-expect_identical(b.form$yhat.train, b.xy$yhat.train)
+expect_identical(unname(b.form$yhat.train), b.xy$yhat.train)
 
 # --- bart: auto 3-level factor -> multinomial == explicit, with verdict ---
 # bart()'s own default verbose is TRUE (contrast dbarts()'s FALSE above), so

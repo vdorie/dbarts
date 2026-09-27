@@ -72,9 +72,10 @@ fitPositive <- do.call(
 
 compareComponent <- function(wrapped, standalone, label, hasSigma) {
   results <- c(
+    # values only: row names on the outputs are not draws
     yhat.train = identical(
-      extract(wrapped, type = "bart", sample = "train"),
-      extract(standalone, type = "bart", sample = "train")
+      unname(extract(wrapped, type = "bart", sample = "train")),
+      unname(extract(standalone, type = "bart", sample = "train"))
     ),
     varcount = identical(wrapped$varcount, standalone$varcount),
     trees = identical(

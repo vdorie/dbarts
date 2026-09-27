@@ -665,7 +665,8 @@ if (mode == "record") {
     channels <- setdiff(names(a), "summaries")
     ok <- vapply(
       channels,
-      function(ch) identical(a[[ch]], b[[ch]]),
+      # values only: row names on the outputs are not draws
+      function(ch) identical(unname(a[[ch]]), unname(b[[ch]])),
       logical(1L)
     )
     if (all(ok)) {

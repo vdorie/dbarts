@@ -178,6 +178,10 @@ packageBartResults <- function(
 ) {
   responseIsBinary <- fit$control@binary
   n.chains <- fit$control@n.chains
+  # every observation margin is named in place, while its array is still
+  # unshared, so that extract can hand the stored array back uncopied
+  trainNames <- dataRowNames(fit$data, "train")
+  testNames <- dataRowNames(fit$data, "test")
 
   # the channel's own presence, not fit$control@keepTrainingFits alone: the
   # bridge nulls samples$train whenever EITHER keepTrainingFits or keepFits
@@ -191,6 +195,7 @@ packageBartResults <- function(
       n.chains,
       combineChains
     )
+    yhat.train <- nameObservationMargin(yhat.train, trainNames)
     if (!responseIsBinary) {
       yhat.train.mean <- padOmittedRows(
         fit$data@na.action,
@@ -210,6 +215,7 @@ packageBartResults <- function(
       n.chains,
       combineChains
     )
+    yhat.test <- nameObservationMargin(yhat.test, testNames)
     if (!responseIsBinary) {
       yhat.test.mean <- channelMeans(yhat.test)
     }
@@ -273,7 +279,8 @@ packageBartResults <- function(
       samples$forestFits * responseScale,
       forestNames,
       n.chains,
-      combineChains
+      combineChains,
+      leadNames = trainNames
     )
     glue <- convertSamplesFromDbartsToBart(
       samples$glue,
@@ -310,12 +317,14 @@ packageBartResults <- function(
       n.chains,
       combineChains
     ))
+    s.train <- nameObservationMargin(s.train, trainNames)
     if (!is.null(samples[["varianceTest"]])) {
       s.test <- sqrt(convertSamplesFromDbartsToBart(
         samples$varianceTest,
         n.chains,
         combineChains
       ))
+      s.test <- nameObservationMargin(s.test, testNames)
     }
   }
 
@@ -408,6 +417,9 @@ packageBartResults <- function(
   if (!is.null(naOmitted)) {
     result$na.action <- naOmitted
   }
+  # absent when the rows carry no names, as for a bare matrix
+  result$row.names.train <- trainNames
+  result$row.names.test <- testNames
 
   if (!is.null(varprobs)) {
     result$varprobs <- varprobs
@@ -640,6 +652,8 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
   if (control@n.burn > 0L) {
     oldX.test <- sampler$data@x.test
     oldOffset.test <- sampler$data@offset.test
+    # the coded test set restored below carries no row names of its own
+    oldTestNames <- dataRowNames(sampler$data, "test")
 
     oldKeepTrainingFits <- control@keepTrainingFits
     oldVerbose <- control@verbose
@@ -668,6 +682,7 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
 
     if (length(oldX.test) > 0L) {
       sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test)
+      sampler$data <- setDataRowNames(sampler$data, "test", oldTestNames)
     }
     control@keepTrainingFits <- oldKeepTrainingFits
     control@verbose <- oldVerbose
@@ -1799,7 +1814,8 @@ bart2Multinomial <- function(
     K,
     samples,
     combineChains,
-    predictorNames = colnames(sampler$data@x)
+    predictorNames = colnames(sampler$data@x),
+    data = sampler$data
   )
   # keepTrees retains the saved trees predict.bartMultinomial replays
   # through (the sampling sweeps wrote them regardless), and the sampler's
@@ -1882,7 +1898,8 @@ bart2MultinomialCounts <- function(
     K,
     samples,
     combineChains,
-    predictorNames = colnames(sampler$data@x)
+    predictorNames = colnames(sampler$data@x),
+    data = sampler$data
   )
   if (control@keepTrees || keepSampler) {
     result$fit <- sampler
@@ -1985,17 +2002,26 @@ packageMultinomialResults <- function(
   K,
   samples,
   combineChains,
-  predictorNames = NULL
+  predictorNames = NULL,
+  data = NULL
 ) {
   n.chains <- control@n.chains
+  trainNames <- if (!is.null(data)) dataRowNames(data, "train")
+  testNames <- if (!is.null(data)) dataRowNames(data, "test")
 
   # both the train (n.obs x K x n.samples (x n.chains)) and the test channel
   # reshape identically to the package's draws-first convention with levels
   # named on the trailing K margin; the test channel (yhat.test) is the same
   # softmax blend on the held-out rows, present only when 'test' was supplied.
   # predict.bartMultinomial reshapes its replayed channel through the same map.
-  shapeChannel <- function(raw) {
-    shapeMultinomialChannel(raw, levels, n.chains, combineChains)
+  shapeChannel <- function(raw, rowNames) {
+    shapeMultinomialChannel(
+      raw,
+      levels,
+      n.chains,
+      combineChains,
+      leadNames = rowNames
+    )
   }
 
   result <- list(
@@ -2006,7 +2032,7 @@ packageMultinomialResults <- function(
     n.chains = n.chains,
     n.trees = control@n.trees,
     y = y,
-    yhat.train = shapeChannel(samples$train),
+    yhat.train = shapeChannel(samples$train, trainNames),
     # the per-category varcount channel shares the fits' raw p x K x n.samples
     # shape, so the same reshape applies with predictor names on the p margin
     varcount = shapeMultinomialChannel(
@@ -2018,8 +2044,10 @@ packageMultinomialResults <- function(
     )
   )
   if (!is.null(samples$test)) {
-    result$yhat.test <- shapeChannel(samples$test)
+    result$yhat.test <- shapeChannel(samples$test, testNames)
   }
+  result$row.names.train <- trainNames
+  result$row.names.test <- testNames
   class(result) <- "bartMultinomial"
   result
 }
@@ -2207,6 +2235,8 @@ packageOrdinalResults <- function(
   combineChains
 ) {
   n.chains <- control@n.chains
+  trainNames <- dataRowNames(sampler$data, "train")
+  testNames <- dataRowNames(sampler$data, "test")
 
   varcount <- nameVarcount(
     varcountRaw,
@@ -2238,14 +2268,14 @@ packageOrdinalResults <- function(
       probsTrain,
       levels,
       n.chains,
-      combineChains
+      combineChains,
+      leadNames = trainNames
     ),
     # the latent eta = f(x) draws (type = "bart"/"link"), the single-column
     # probit-scale channel the K probabilities are formed from
-    latent.train = convertSamplesFromDbartsToBart(
-      latentTrain,
-      n.chains,
-      combineChains
+    latent.train = nameObservationMargin(
+      convertSamplesFromDbartsToBart(latentTrain, n.chains, combineChains),
+      trainNames
     ),
     varcount = varcount
   )
@@ -2254,14 +2284,16 @@ packageOrdinalResults <- function(
       probsTest,
       levels,
       n.chains,
-      combineChains
+      combineChains,
+      leadNames = testNames
     )
-    result$latent.test <- convertSamplesFromDbartsToBart(
-      latentTest,
-      n.chains,
-      combineChains
+    result$latent.test <- nameObservationMargin(
+      convertSamplesFromDbartsToBart(latentTest, n.chains, combineChains),
+      testNames
     )
   }
+  result$row.names.train <- trainNames
+  result$row.names.test <- testNames
   class(result) <- "bartOrdinal"
   result
 }
@@ -2284,7 +2316,8 @@ negbinPpd <- function(mu, r) {
   d <- dim(mu)
   array(
     rnbinom(length(mu), size = as.vector(array(r, d)), mu = as.vector(mu)),
-    d
+    d,
+    dimnames(mu)
   )
 }
 
@@ -2456,6 +2489,8 @@ packageNegbinResults <- function(
   combineChains
 ) {
   n.chains <- control@n.chains
+  trainNames <- dataRowNames(sampler$data, "train")
+  testNames <- dataRowNames(sampler$data, "test")
 
   varcount <- nameVarcount(
     varcountRaw,
@@ -2477,31 +2512,29 @@ packageNegbinResults <- function(
       combineChains
     ),
     # the mean counts mu = r exp(f + o) (type = "ev"/"response")
-    yhat.train = convertSamplesFromDbartsToBart(
-      meanTrain,
-      n.chains,
-      combineChains
+    yhat.train = nameObservationMargin(
+      convertSamplesFromDbartsToBart(meanTrain, n.chains, combineChains),
+      trainNames
     ),
     # the log-odds latent psi = f(x) + o draws (type = "bart"/"link")
-    latent.train = convertSamplesFromDbartsToBart(
-      latentTrain,
-      n.chains,
-      combineChains
+    latent.train = nameObservationMargin(
+      convertSamplesFromDbartsToBart(latentTrain, n.chains, combineChains),
+      trainNames
     ),
     varcount = varcount
   )
   if (!is.null(meanTest)) {
-    result$yhat.test <- convertSamplesFromDbartsToBart(
-      meanTest,
-      n.chains,
-      combineChains
+    result$yhat.test <- nameObservationMargin(
+      convertSamplesFromDbartsToBart(meanTest, n.chains, combineChains),
+      testNames
     )
-    result$latent.test <- convertSamplesFromDbartsToBart(
-      latentTest,
-      n.chains,
-      combineChains
+    result$latent.test <- nameObservationMargin(
+      convertSamplesFromDbartsToBart(latentTest, n.chains, combineChains),
+      testNames
     )
   }
+  result$row.names.train <- trainNames
+  result$row.names.test <- testNames
   class(result) <- "bartNegbin"
   result
 }
@@ -2689,6 +2722,7 @@ bart2Hurdle <- function(
     occupancy = occupancy,
     positive = positive
   )
+  result$row.names.train <- occupancy[["row.names.train"]]
   class(result) <- "bartHurdle"
   result
 }
@@ -2749,7 +2783,7 @@ survivalProbabilitiesFromDraws <- function(
     result <- aperm(result, c(2L, 1L, 3L, 4L))
     dim(result) <- c(prod(drawDims), numTimes, numObservations)
   }
-  result
+  nameObservationMargin(result, dimnames(linearPredictor)[[length(lpDims)]])
 }
 
 # Survival-probability draws from a discrete-time hazard fit. The fit is an
@@ -2787,6 +2821,9 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
     # applies the same probability transform predict(type = "ev") does
     haz <- extract(object, type = "ev", sample = "test", combineChains = FALSE)
     n <- dim(haz)[length(dim(haz))] %/% K
+    # the test rows are period-major, so the first n are the subjects, whose
+    # make.unique names are their own
+    subjectNames <- object[["row.names.test"]][seq_len(n)]
   } else {
     if (is.null(object[["fit"]])) {
       stop(
@@ -2801,8 +2838,11 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
       # are the subjects in order, their covariate columns the (coded)
       # per-subject x
       fitX <- extract(object$fit, "predictors")
-      subjectCov <- fitX[fitX[, periodCol] == 1L, -periodCol, drop = FALSE]
+      firstPeriod <- fitX[, periodCol] == 1L
+      subjectCov <- fitX[firstPeriod, -periodCol, drop = FALSE]
       n <- nrow(subjectCov)
+      # a subject's period-1 row carries its own name under make.unique
+      subjectNames <- object[["row.names.train"]][firstPeriod]
       # name the appended column "period" under the same rule the training
       # design used, so a named fit's re-expanded design matches by name
       bigX <- appendHazardPeriodColumn(
@@ -2811,9 +2851,11 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
       )
     } else if (is.data.frame(newdata)) {
       n <- nrow(newdata)
+      subjectNames <- rownames(newdata)
       bigX <- newdata[rep(seq_len(n), times = K), , drop = FALSE]
       bigX[["period"]] <- rep(seq_len(K), each = n)
     } else {
+      subjectNames <- observationRowNames(newdata)
       newdata <- as.matrix(newdata)
       n <- nrow(newdata)
       bigX <- appendHazardPeriodColumn(
@@ -2853,7 +2895,7 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
     out <- aperm(out, c(2L, 1L, 3L, 4L))
     dim(out) <- c(D, numTimes, n)
   }
-  out
+  nameObservationMargin(out, subjectNames)
 }
 
 # Survival-probability draws from an AFT fit. Under the log-normal model

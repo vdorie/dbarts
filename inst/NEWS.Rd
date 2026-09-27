@@ -486,10 +486,27 @@
             \code{--with-xint-size}, stop \code{configure} with a message
             naming the removal when passed explicitly; they are removed
             outright, with no replacement, in the release after this one.
+      \item Per-observation outputs now carry row names, so a comparison
+            against an unnamed vector or array made under 0.9-x can fail on
+            attributes alone.
     }
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Every output indexed by observation carries the rows' names on
+            its observation margin: \code{predict}, \code{extract},
+            \code{fitted}, \code{residuals} and
+            \code{survivalProbabilities} on every fit class, and the stored
+            draws \code{yhat.train}, \code{yhat.test} and their kin. 0.9-x
+            named none. A formula fit names its rows as its model frame
+            does, \code{"1"} to \code{"n"} when the data has none, as
+            \code{lm} does; the \code{x} interface takes the row names of
+            \code{x}, \code{test} and \code{newdata}, and leaves a matrix
+            without them unnamed. A discrete-time hazard fit names its
+            person-period rows by \code{make.unique} over the subject names.
+            A test set given as an integer matrix keeps its column names,
+            so its columns are matched to training's by name rather than by
+            position.
       \item \code{bart}, \code{dbarts}, and the sampler's \code{run} method
             gain \code{callback}: a compiled per-draw observer, registered
             as a pair of external pointers (\code{fn}, \code{context}), that

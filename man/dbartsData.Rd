@@ -42,7 +42,7 @@ dbartsData(
   }
 }
 \value{
-  An object of class \code{dbartsData}.
+  An object of class \code{dbartsData}. Its \code{rowNames} slot records the names of the kept training and test rows, as \code{list(train, test)}, or \code{NULL} when neither is named; a fit carries them on its outputs as the row names paragraph of \code{\link{bart}}'s \sQuote{Value} section describes.
 }
 \seealso{
   \code{\link{dbarts}}, \code{\link{extract.dbartsSampler}}, \code{\link{sparseFactor}}

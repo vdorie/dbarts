@@ -270,7 +270,7 @@ pointwiseLogLikelihood <- function(object, ev) {
   if (!is.null(active)) {
     result[rep(active, each = n.draws) == 0] <- NaN
   }
-  array(result, dim(ev))
+  array(result, dim(ev), dimnames(ev))
 }
 
 # per-observation posterior summary for the interval-returning generics: est
@@ -461,6 +461,7 @@ predict.bart <- function(
   n.threads <- validatePredictThreads(n.threads)
   refuseForestSelectionOutsideForestArm(type, forest)
   refuseDroppedForestChannel(object)
+  rowNames <- if (!missing(newdata)) observationRowNames(newdata)
 
   # both amplitude arms read the SAVED trees draw by draw, pairing each draw's
   # forests with that draw's own amplitudes; without the tree store only the
@@ -503,7 +504,8 @@ predict.bart <- function(
       offset,
       combineChains,
       forest,
-      n.threads
+      n.threads,
+      rowNames
     ))
   }
 
@@ -520,7 +522,8 @@ predict.bart <- function(
       combineChains,
       ci.level,
       bases,
-      n.threads
+      n.threads,
+      rowNames
     ))
   }
 
@@ -545,10 +548,12 @@ predict.bart <- function(
       n.chains,
       combineChains
     ))
+    s <- nameObservationMargin(s, rowNames)
     result <- result$mean
   }
   # result is n.obs x n.samples x n.chains
   result <- convertSamplesFromDbartsToBart(result, n.chains, combineChains)
+  result <- nameObservationMargin(result, rowNames)
 
   if (type != "bart") {
     if (fitIsBinary(object)) {
@@ -935,7 +940,7 @@ extractForest <- function(object, sample, combineChains, forest, contribution) {
   result <- array(
     0,
     c(dim(fits)[1L], n.obs, length(idx)),
-    dimnames = list(NULL, NULL, forestNames[idx])
+    dimnames = list(NULL, dimnames(fits)[[2L]], forestNames[idx])
   )
   for (j in seq_along(idx)) {
     k <- idx[j]
@@ -966,7 +971,8 @@ predictForest <- function(
   offset,
   combineChains,
   forest,
-  n.threads
+  n.threads,
+  rowNames = NULL
 ) {
   if (is.null(object[["forestFits"]])) {
     stop(
@@ -982,7 +988,13 @@ predictForest <- function(
   # than a fixed index
   forestNames <- dimnames(object$forestFits)[[length(dim(object$forestFits))]]
   idx <- resolveForestSelection(forest, forestNames)
-  result <- shapeMultinomialChannel(raw, forestNames, n.chains, TRUE)
+  result <- shapeMultinomialChannel(
+    raw,
+    forestNames,
+    n.chains,
+    TRUE,
+    leadNames = rowNames
+  )
   reshapeChainedChannel(
     result[,, idx, drop = FALSE],
     n.chains,
@@ -1109,7 +1121,8 @@ predictBlend <- function(
   combineChains,
   ci.level,
   bases,
-  n.threads
+  n.threads,
+  rowNames = NULL
 ) {
   n.chains <- object$fit$control@n.chains
   perForest <- predictForest(object, newdata, NULL, TRUE, NULL, n.threads)
@@ -1158,6 +1171,7 @@ predictBlend <- function(
   if (!is.null(offset)) {
     result <- result + rep(offset, each = nrow(result))
   }
+  result <- nameObservationMargin(result, rowNames)
   result <- combineOrUncombineChains(result, n.chains, combineChains)
 
   if (type != "bart") {
@@ -1302,14 +1316,17 @@ refuseMultinomialLatentType <- function(type) {
 # prediction fitted() and predict() share, so the two cannot drift.
 meanCategoryProbabilities <- function(probs, levels) {
   meanProbs <- channelMeans(probs, 2L)
-  dimnames(meanProbs) <- list(NULL, levels)
+  dimnames(meanProbs) <- list(rownames(meanProbs), levels)
   meanProbs
 }
 categoryFromMeanProbabilities <- function(meanProbs, levels, ordered = FALSE) {
-  factor(
-    levels[max.col(meanProbs, ties.method = "first")],
-    levels = levels,
-    ordered = ordered
+  nameObservationMargin(
+    factor(
+      levels[max.col(meanProbs, ties.method = "first")],
+      levels = levels,
+      ordered = ordered
+    ),
+    rownames(meanProbs)
   )
 }
 
@@ -1435,7 +1452,11 @@ multinomialLogLik <- function(object, probs) {
   dim(flat) <- c(n.draws * nObs, K)
   idx <- rep(seq_len(nObs), each = n.draws)
   term <- rowSums(counts[idx, , drop = FALSE] * log(flat))
-  array(rep(logCoef, each = n.draws) + term, d[-length(d)])
+  array(
+    rep(logCoef, each = n.draws) + term,
+    d[-length(d)],
+    dimnames(probs)[-length(d)]
+  )
 }
 
 # shared by extract.bartMultinomial (stored channels) and
@@ -1450,7 +1471,7 @@ multinomialPpdFromProbs <- function(probs) {
   flat <- probs
   dim(flat) <- c(prod(d[-length(d)]), K)
   codes <- apply(flat, 1L, function(p) sample.int(K, 1L, prob = p))
-  array(codes, d[-length(d)])
+  array(codes, d[-length(d)], dimnames(probs)[-length(d)])
 }
 
 # The posterior-mean n x K probability matrix (colnames = levels(y)), or
@@ -1535,7 +1556,9 @@ residuals.bartMultinomial <- function(object, ...) {
   } else {
     y / rowSums(y)
   }
-  observed - phat
+  result <- observed - phat
+  dimnames(result) <- dimnames(phat)
+  result
 }
 
 # Out-of-sample softmax probabilities by replaying the K forests' saved
@@ -1594,6 +1617,7 @@ predict.bartMultinomial <- function(
   # after the fit check, whose absence the default here would otherwise report
   # as a missing slot
   n.threads <- validatePredictThreads(n.threads)
+  rowNames <- observationRowNames(newdata)
   newdata <- validateXTest(newdata, object$fit$data@x)
   if (is.null(newdata)) {
     stop("newdata cannot be NULL")
@@ -1626,7 +1650,8 @@ predict.bartMultinomial <- function(
     raw,
     object$levels,
     object$n.chains,
-    combineChains
+    combineChains,
+    leadNames = rowNames
   )
   if (type == "ppd") {
     probs <- multinomialPpdFromProbs(probs)
@@ -1786,7 +1811,7 @@ ordinalLogLik <- function(object, probs) {
   k <- match(y, levels)
   idx <- rep(seq_len(nObs), each = n.draws)
   result <- log(flat[cbind(seq_len(n.draws * nObs), k[idx])])
-  array(result, d[-length(d)])
+  array(result, d[-length(d)], dimnames(probs)[-length(d)])
 }
 
 # The posterior-mean n x K probability matrix (colnames = levels), or
@@ -1909,6 +1934,7 @@ predict.bartOrdinal <- function(
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
+  rowNames <- observationRowNames(newdata)
   newdata <- validateXTest(newdata, object$fit$data@x)
   if (is.null(newdata)) {
     stop("newdata cannot be NULL")
@@ -1925,7 +1951,10 @@ predict.bartOrdinal <- function(
     n.threads = n.threads
   )
   if (type == "bart") {
-    result <- convertSamplesFromDbartsToBart(raw, n.chains, combineChains)
+    result <- nameObservationMargin(
+      convertSamplesFromDbartsToBart(raw, n.chains, combineChains),
+      rowNames
+    )
     if (!is.null(ci.level)) {
       return(posteriorInterval(result, ci.level, trailing = 1L))
     }
@@ -1952,7 +1981,8 @@ predict.bartOrdinal <- function(
     probs,
     object$levels,
     n.chains,
-    combineChains
+    combineChains,
+    leadNames = rowNames
   )
   if (type == "ppd") {
     probs <- multinomialPpdFromProbs(probs)
@@ -2067,7 +2097,8 @@ extract.bartNegbin <- function(
   disp <- scalarDrawVec(object$dispersion, n.chains, length(muSplit))
   result <- array(
     rnbinom(length(muSplit), size = disp, mu = as.vector(muSplit)),
-    dim(muSplit)
+    dim(muSplit),
+    dimnames(muSplit)
   )
   combineOrUncombineChains(result, n.chains, combineChains)
 }
@@ -2087,7 +2118,7 @@ negbinLogLik <- function(object, mu, n.chains) {
     mu = as.vector(mu),
     log = TRUE
   )
-  array(result, dim(mu))
+  array(result, dim(mu), dimnames(mu))
 }
 
 # The posterior-mean count per observation (type = "ev"), the posterior-mean
@@ -2197,6 +2228,7 @@ predict.bartNegbin <- function(
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
+  rowNames <- observationRowNames(newdata)
   newdata <- validateXTest(newdata, object$fit$data@x)
   if (is.null(newdata)) {
     stop("newdata cannot be NULL")
@@ -2213,7 +2245,10 @@ predict.bartNegbin <- function(
     n.threads
   )
   if (type == "bart") {
-    result <- convertSamplesFromDbartsToBart(raw, n.chains, combineChains)
+    result <- nameObservationMargin(
+      convertSamplesFromDbartsToBart(raw, n.chains, combineChains),
+      rowNames
+    )
     if (!is.null(ci.level)) {
       return(posteriorInterval(result, ci.level, trailing = 1L))
     }
@@ -2235,6 +2270,7 @@ predict.bartNegbin <- function(
     means <- matrix(means, n.new, n.samples)
   }
   means <- convertSamplesFromDbartsToBart(means, n.chains, combineChains)
+  means <- nameObservationMargin(means, rowNames)
   if (type == "ppd") {
     means <- negbinPpd(means, object$dispersion)
   }
@@ -2555,7 +2591,14 @@ scalarDrawVec <- function(x, n.chains, n.total) {
 # positive-sigma vectors into the requested channel and reshape to the fit's
 # uncombined draw layout ('shape'). Only "ppd" touches the RNG (Bernoulli then
 # lognormal), so the default "ev" is draw-neutral.
-combineHurdleChannel <- function(type, piVec, fVec, sigmaVec, shape) {
+combineHurdleChannel <- function(
+  type,
+  piVec,
+  fVec,
+  sigmaVec,
+  shape,
+  shapeNames = NULL
+) {
   channel <- switch(
     type,
     prob = piVec,
@@ -2564,7 +2607,7 @@ combineHurdleChannel <- function(type, piVec, fVec, sigmaVec, shape) {
     ppd = rbinom(length(piVec), 1L, piVec) *
       exp(fVec + sigmaVec * rnorm(length(fVec)))
   )
-  array(channel, shape)
+  array(channel, shape, shapeNames)
 }
 
 # The occupancy pi(x), positive log-mean f(x), and positive per-observation
@@ -2609,7 +2652,14 @@ hurdleParts <- function(object, newdata, n.threads = 1L) {
     hurdleNChains(object),
     length(f)
   )
-  list(pi = as.vector(pi), f = as.vector(f), sigma = sigmaVec, shape = dim(f))
+  list(
+    pi = as.vector(pi),
+    f = as.vector(f),
+    sigma = sigmaVec,
+    shape = dim(f),
+    # the positive part's names: its test rows are the full design
+    names = dimnames(f)
+  )
 }
 
 finishHurdle <- function(parts, type, n.chains, combineChains, ci.level) {
@@ -2618,7 +2668,8 @@ finishHurdle <- function(parts, type, n.chains, combineChains, ci.level) {
     parts$pi,
     parts$f,
     parts$sigma,
-    parts$shape
+    parts$shape,
+    parts$names
   )
   result <- combineOrUncombineChains(channel, n.chains, combineChains)
   if (!is.null(ci.level)) {
@@ -2735,7 +2786,7 @@ hurdleLogLik <- function(object) {
       log = TRUE
     ) -
     log(yRep[positive])
-  array(result, parts$shape)
+  array(result, parts$shape, parts$names)
 }
 
 fitted.bartHurdle <- function(

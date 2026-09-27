@@ -69,9 +69,11 @@ compareLink <- function(hazardToken, binaryFamily) {
   )
 
   results <- c(
+    # values only: the hazard fit names its person-period rows by
+    # make.unique, the binary one by the expanded matrix's repeated names
     yhat.train = identical(
-      extract(fitHazard, type = "bart", sample = "train"),
-      extract(fitBinary, type = "bart", sample = "train")
+      unname(extract(fitHazard, type = "bart", sample = "train")),
+      unname(extract(fitBinary, type = "bart", sample = "train"))
     ),
     varcount = identical(fitHazard$varcount, fitBinary$varcount),
     trees = identical(

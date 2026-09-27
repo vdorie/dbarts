@@ -596,6 +596,14 @@ methods::setClass(
     # "exclude") decides whether training fits pad back to the caller's own
     # row count through stats::naresid. NULL when nothing was dropped.
     na.action = "ANY",
+    # the row names every observation-indexed output of a fit carries:
+    # list(train, test), each a character vector or NULL, or NULL when
+    # neither set of rows is named. Recorded at entry from the raw inputs
+    # (the model frame's rows, or rownames(x) and rownames(test)) after
+    # 'subset' and the na.action, outside 'x' so that no container, builder
+    # or setter has to carry it. A data object saved before the slot existed
+    # lacks it, so every read goes through dataRowNames.
+    rowNames = "ANY",
     # the original response's type before it was coded to the doubles the
     # engine reads: "numeric", "factor", "ordered factor", "logical", or
     # "character". The fitters key family = "auto" and the categorical-response
@@ -651,6 +659,7 @@ methods::setClass(
     sigma = NA_real_,
     missing = "incorporate",
     na.action = NULL,
+    rowNames = NULL,
     response.type = "numeric",
     response.n.levels = NA_integer_,
     response.levels = NULL,

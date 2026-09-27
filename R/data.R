@@ -104,6 +104,16 @@ applyNaActionToXY <- function(na.action, y, x) {
   list(keep = keep, na.action = omit)
 }
 
+## applyNaActionToXY's record names its rows by position in a synthetic
+## frame; relabel them with the caller's own row names when there are any, as
+## a model frame's record would be, so padding fills those names back in.
+nameOmittedRows <- function(omit, rowNames) {
+  if (!is.null(omit) && !is.null(rowNames)) {
+    names(omit) <- rowNames[unclass(omit)]
+  }
+  omit
+}
+
 ## The rows a formula fit kept, in the caller's own row numbering, once the
 ## model frame's na.action has taken its share: 'subset' chose them and the
 ## na.action then dropped some by position within that choice. Anything the
@@ -176,6 +186,71 @@ padOmittedRows <- function(naOmitted, x) {
     return(x)
   }
   stats::naresid(naOmitted, x)
+}
+
+## The row names of a predictor set as given, before any coding: a data
+## frame's automatic names count as "1".."n", and a matrix, sparse matrix or
+## vector without them gives NULL, as lm.fit does.
+observationRowNames <- function(x) {
+  if (is.data.frame(x) || is.matrix(x) || inherits(x, "dgCMatrix")) {
+    rownames(x)
+  } else {
+    NULL
+  }
+}
+
+## One channel ("train" or "test") of a data object's row-name record. A data
+## object saved before the slot existed has none.
+dataRowNames <- function(data, channel) {
+  if (!methods::.hasSlot(data, "rowNames") || is.null(data@rowNames)) {
+    return(NULL)
+  }
+  data@rowNames[[channel]]
+}
+
+## Stores one channel's names on a data object, keeping the slot NULL when
+## neither channel is named.
+setDataRowNames <- function(data, channel, names) {
+  rowNames <- if (methods::.hasSlot(data, "rowNames")) data@rowNames
+  if (is.null(rowNames)) {
+    rowNames <- list(train = NULL, test = NULL)
+  }
+  rowNames[channel] <- list(names)
+  data@rowNames <- if (is.null(rowNames$train) && is.null(rowNames$test)) {
+    NULL
+  } else {
+    rowNames
+  }
+  data
+}
+
+## Names the observation margin of an output: a vector's elements, or
+## otherwise the margin 'trailing' places before the last (0 when the
+## observations are last, 1 when a category, forest or interval axis trails).
+## Set in place, so an unshared array is not copied.
+nameObservationMargin <- function(x, names, trailing = 0L) {
+  if (is.null(names) || is.null(x)) {
+    return(x)
+  }
+  d <- dim(x)
+  if (is.null(d)) {
+    if (length(x) != length(names)) {
+      stop("internal error: row names do not match the observations")
+    }
+    names(x) <- names
+    return(x)
+  }
+  margin <- length(d) - trailing
+  if (d[margin] != length(names)) {
+    stop("internal error: row names do not match the observations")
+  }
+  dn <- dimnames(x)
+  if (is.null(dn)) {
+    dn <- vector("list", length(d))
+  }
+  dn[margin] <- list(names)
+  dimnames(x) <- dn
+  x
 }
 
 # The multinomial capability probe: a data object carrying the n x K count
@@ -439,7 +514,8 @@ validateXTest <- function(x.test, x.train) {
     }
 
     if (is.integer(x.test)) {
-      x.test <- matrix(as.double(x.test), nrow(x.test))
+      # storage.mode<- keeps the dimnames that matrix() would drop
+      storage.mode(x.test) <- "double"
     }
   }
 
@@ -1260,6 +1336,9 @@ dbartsData <- function(
   # the rows an incomplete case costs, and the record of them the training
   # fits pad through; NULL until an na.action drops something
   naOmitted <- NULL
+  # the kept rows' names, captured from the raw inputs as they are subset
+  # (dataRowNames); NULL for unnamed rows
+  trainRowNames <- NULL
 
   # a Surv formula response's raw event/censoring time and 0/1 status,
   # parked as attributes on the returned object (below) rather than a slot -
@@ -1509,6 +1588,9 @@ dbartsData <- function(
 
     modelFrame <- eval(modelFrameCall, parent.frame())
     naOmitted <- attr(modelFrame, "na.action")
+    # a model frame always names its rows, "1".."n" when the data has none,
+    # as lm does
+    trainRowNames <- rownames(modelFrame)
     # the test frame built from this call below re-reads the test data, whose
     # rows this na.action never saw
     modelFrameCall$na.action <- stats::na.pass
@@ -1713,6 +1795,7 @@ dbartsData <- function(
     refuseOutOfRangeSubset(subset, initialNumObservations)
     y <- y[subset]
     x <- formula[subset, , drop = FALSE]
+    trainRowNames <- rownames(x)
     bases <- validateForestBases(bases, initialNumObservations, subset)
     countsRows <- initialNumObservations
     countsSubset <- subset
@@ -1745,9 +1828,10 @@ dbartsData <- function(
     # rowsWithMissingPredictors looks
     naResult <- applyNaActionToXY(na.action, y, x)
     if (!is.null(naResult)) {
-      naOmitted <- naResult$na.action
+      naOmitted <- nameOmittedRows(naResult$na.action, trainRowNames)
       if (!all(naResult$keep)) {
         keep <- naResult$keep
+        trainRowNames <- trainRowNames[keep]
         y <- y[keep]
         x <- x[keep, , drop = FALSE]
         bases <- restrictBasesToRows(bases, keep)
@@ -1792,8 +1876,13 @@ dbartsData <- function(
       stop("data has zero rows")
     }
 
+    # a data frame's automatic names stay a deferred string until indexed,
+    # so they are indexed only when rows are dropped
+    trainRowNames <- observationRowNames(formula)
     if (missing(subset) || is.null(subset)) {
       subset <- seq.int(length(y))
+    } else if (!is.null(trainRowNames)) {
+      trainRowNames <- trainRowNames[subset]
     }
     refuseOutOfRangeSubset(subset, initialNumObservations)
     y <- y[subset]
@@ -1840,7 +1929,10 @@ dbartsData <- function(
     # branch's attribute-preserving one
     naResult <- applyNaActionToXY(na.action, y, x)
     if (!is.null(naResult)) {
-      naOmitted <- naResult$na.action
+      naOmitted <- nameOmittedRows(naResult$na.action, trainRowNames)
+      if (!is.null(trainRowNames) && !all(naResult$keep)) {
+        trainRowNames <- trainRowNames[naResult$keep]
+      }
     }
     if (!xIsMixed) {
       # NULL means nothing was missing anywhere (applyNaActionToXY's own
@@ -1897,7 +1989,9 @@ dbartsData <- function(
   }
 
   x.test <- NULL
+  testRowNames <- NULL
   if (!testIsMissing && !is.null(test)) {
+    testRowNames <- observationRowNames(test)
     x.test <- validateXTest(test, x)
   }
 
@@ -2138,6 +2232,9 @@ dbartsData <- function(
     sigma = NA_real_
   )
   result@na.action <- naOmitted
+  if (!is.null(trainRowNames) || !is.null(testRowNames)) {
+    result@rowNames <- list(train = trainRowNames, test = testRowNames)
+  }
   result@response.type <- responseInfo$type
   result@response.n.levels <- as.integer(responseInfo$n.levels)
   result@response.levels <- responseInfo$levels

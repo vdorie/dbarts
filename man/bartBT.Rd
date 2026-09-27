@@ -298,6 +298,9 @@ extract(object, \dots)
   \item{\code{n.forests}}{
     The forest count K, on every fit: 1 for a single forest.
   }
+  \item{\code{row.names.train}, \code{row.names.test}}{
+    The names of the training and test rows, which every per-observation output carries; absent when the rows are unnamed. See the row names paragraph of \code{\link{bart}}'s \sQuote{Value} section.
+  }
   \item{\code{sigest}}{
     The rough error standard deviation (\eqn{\sigma}) used in the prior.
   }

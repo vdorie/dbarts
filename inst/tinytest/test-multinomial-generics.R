@@ -356,7 +356,7 @@ for (s in seq_len(nrow(llLabel))) {
     )
   }
 }
-expect_equal(llLabel, oracleLabel, tolerance = 1e-12)
+expect_equal(unname(llLabel), oracleLabel, tolerance = 1e-12)
 expect_equal(dim(llLabel), dim(evLabel)[-3L])
 
 llCounts <- extract(fitCounts, type = "loglik")

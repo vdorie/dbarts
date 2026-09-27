@@ -109,7 +109,8 @@ sp.named.df <- survivalProbabilities(
   fit.namedMat,
   newdata = as.data.frame(xn.named)
 )
-expect_equal(sp.named.df, sp.named.mat)
+# a data frame names its rows "1".."n"; the unnamed matrix does not
+expect_equal(unname(sp.named.df), sp.named.mat)
 
 # a data.frame training input is coerced to a named matrix by bart, so it
 # takes the same branch and must work identically
@@ -348,7 +349,7 @@ if (requireNamespace("survival", quietly = TRUE)) {
   )
   expect_identical(fit.formula[["family"]], "hazard.probit")
   expect_identical(fit.formula[["periods"]], fit.probit[["periods"]])
-  expect_identical(fit.formula$yhat.train, fit.probit$yhat.train)
+  expect_identical(unname(fit.formula$yhat.train), fit.probit$yhat.train)
 
   # 'subset' via the formula honours the same rows a hand-subsetted matrix
   # fit would use, bitwise (dec-B97: applied BEFORE person-period expansion,
@@ -372,7 +373,10 @@ if (requireNamespace("survival", quietly = TRUE)) {
       fitArgs
     )
   )
-  expect_identical(fit.formula.sub$yhat.train, fit.matrix.sub$yhat.train)
+  expect_identical(
+    unname(fit.formula.sub$yhat.train),
+    fit.matrix.sub$yhat.train
+  )
 
   # the matrix interface's own 'subset' argument (dbarts()'s hazard block,
   # which subsets covariates/time/status/offset/weights BEFORE the
@@ -412,10 +416,16 @@ if (requireNamespace("survival", quietly = TRUE)) {
       fitArgs
     )
   )
-  expect_identical(fit.formula.test$yhat.train, fit.matrix.test$yhat.train)
-  expect_identical(fit.formula.test$yhat.test, fit.matrix.test$yhat.test)
   expect_identical(
-    survivalProbabilities(fit.formula.test),
+    unname(fit.formula.test$yhat.train),
+    fit.matrix.test$yhat.train
+  )
+  expect_identical(
+    unname(fit.formula.test$yhat.test),
+    fit.matrix.test$yhat.test
+  )
+  expect_identical(
+    unname(survivalProbabilities(fit.formula.test)),
     survivalProbabilities(fit.matrix.test)
   )
 

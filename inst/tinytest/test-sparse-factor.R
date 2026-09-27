@@ -1172,7 +1172,11 @@ x.sf.sub$g <- sparseFactor(
   reference = g.sf@reference
 )
 fit.sf.xy.sub <- do.call(bart, c(list(x.sf.sub, y.sf[sub.sf]), sfFitArgs))
-expect_identical(fit.sf.formula.sub$yhat.train, fit.sf.xy.sub$yhat.train)
+# the formula names its rows by the data's; the hand-subset frame renumbers
+expect_identical(
+  unname(fit.sf.formula.sub$yhat.train),
+  unname(fit.sf.xy.sub$yhat.train)
+)
 
 # response-NA rows are dropped under the default na.action before the
 # sparseFactor column is re-attached, so the surviving rows still line up
@@ -1195,7 +1199,10 @@ fit.sf.xy.na <- do.call(
   bart,
   c(list(x.sf.na, y.sf.na[keep.sf.na]), sfFitArgs)
 )
-expect_identical(fit.sf.formula.na$yhat.train, fit.sf.xy.na$yhat.train)
+expect_identical(
+  unname(fit.sf.formula.na$yhat.train),
+  unname(fit.sf.xy.na$yhat.train)
+)
 
 rm(
   n.sf,

@@ -693,10 +693,13 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
     "current test predictor matrix"
   )
 
+  # a column update keeps the rows, and so their names
+  testRowNames <- dataRowNames(sampler$data, "test")
   if (is.null(column)) {
     # NULL removes the test data; a frame/sparse input becomes a container the
     # bridge codes against the training cuts. The bridge clears any test offset
     # with a NULL removal.
+    testRowNames <- observationRowNames(x.test)
     x.test <- validateXTest(x.test, sampler$data@x)
   } else {
     column <- coerceOrError(column, "integer")
@@ -759,6 +762,7 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
   if (inherits(tryResult, "error")) {
     stop(tryResult)
   }
+  sampler$data <- setDataRowNames(sampler$data, "test", testRowNames)
   invisible(NULL)
 }
 
