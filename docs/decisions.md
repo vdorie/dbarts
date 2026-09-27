@@ -268,10 +268,6 @@ Record: docs/plans/prerc-surface-freeze.md; docs/plans/dbarts-h-freeze.md, which
 A C++ exception thrown inside a callback is caught at the call and rethrown only after the callback's own frame has returned, the jump being made under R's unwind protection so that it unwinds through that frame rather than across it; an exception the engine itself raises travels the same path, and either becomes an R error only at the bridge entry point, once the unwind has run. No raw error call and no long jump leaves engine or callback code. No alternative was weighed. A host written in C++ still may not jump to a saved position of its own from inside a callback: only raising an R error or throwing is safe. The same change fixes three sites that leaked heap memory, since every path now unwinds through a frame instead of jumping past it. Not yet ruled on; it was never put to the maintainer. See also: [dec-A31].
 Record: inst/include/dbarts/dbarts.h; src/R_interface_bartcore_common.hpp. Marked: blank. [dec-B119]
 
-**varcount is offered on every fit class**
-extract(type = "varcount") works on multinomial, ordinal and negative binomial fits as well as the plain bart class, reading dec-A68's "bart fits" as every fit bart() returns. The alternative was the plain class only. The cost is three more documented shapes, with a forest or level margin where the fit has one.
-Record: docs/plans/extract-scalar-types.md. Marked: blank. [dec-A78]
-
 **Only the two virtual test hooks leave the engine's production classes**
 Of about thirty engine accessors that exist for tests, the two that are virtual on the response base class come off it, becoming ordinary members of the two final classes that use them with the test forwarders casting to reach them, since only virtual members shape the production vtables and object layout (dec-A51). The non-virtual test accessors stay where they are, following the maintainer's words "leave the internal functions when they're truly additive". The alternative was moving all of them into a separate test-access structure, about 130 call sites of churn. The cost is test-only members left on production classes.
 Record: the test scaffolding consolidation plan. Marked: blank. [dec-A81]
@@ -889,6 +885,10 @@ Record: this register; docs/plans/predict-na-action.md. Marked: mine. [dec-A84]
 **A formula hazard fit pads na.exclude rows**
 A discrete-time hazard fit through a formula rebuilds a dropped subject's person-period rows from its time and pads them under na.exclude, as the matrix path does; the matrix path builds its period grid from the kept subjects only, so the two agree and a dropped subject no longer shapes the grid. This is what the standard R workflow gives: expanding with survival's survSplit, discSurv's dataLong or pammtools' as_ped copies a subject's covariates onto every period row, and a glm or gam on the long data under na.exclude pads each of them, the same count and positions (checked on one design, 78 fitted values with 6 NA both ways). The alternative was to let na.exclude act as na.omit on the formula path and document it. The cost is a second evaluation of the model frame when rows drop. The maintainer, 2026-09-27, after asking whether it is the standard users would expect: "Go ahead with (a) then."
 Record: this register; docs/plans/predict-na-action.md. Marked: mine. [dec-A87]
+
+**varcount is offered on every fit class**
+extract(type = "varcount") works on multinomial, ordinal and negative binomial fits as well as the plain bart class, reading dec-A68's "bart fits" as every fit bart() returns: draws by predictors on the plain, ordinal and negative binomial classes, with a trailing category margin on a multinomial fit, and a leading chain margin under combineChains = FALSE; the hurdle fit returns its zero and positive list (dec-A77). The alternative was the plain class only, under which the other classes' users would reach the counts through the fit's fields. The cost is one more documented shape, the multinomial one. The maintainer, 2026-09-27, choosing between the two: "(a) - no reason not to be consistent with features."
+Record: this register; docs/plans/extract-scalar-types.md. Marked: mine. [dec-A78]
 
 ## C. Agent-made decisions with no identified cost
 
