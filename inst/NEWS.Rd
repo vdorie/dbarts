@@ -107,7 +107,13 @@
             wherever the corresponding training column was complete: a split
             rule learns a missing-direction route only where its own column
             had training \code{NA}s, so such a value had no route to take and
-            was previously answered silently.
+            was previously answered silently. Every \code{predict} method
+            and \code{survivalProbabilities} gain \code{na.action}:
+            \code{na.pass} returns \code{NA} for such rows,
+            \code{na.omit} drops any row with a missing value,
+            \code{na.exclude} drops it and pads it back as \code{NA}, and
+            \code{na.fail} refuses it. 0.9-34's \code{predict} dropped a
+            data frame's incomplete rows, returning fewer rows than given.
       \item Where the training and test matrices both carry column names and
             the design has more than one predictor, test column names that
             do not cover the training design's are an error naming the

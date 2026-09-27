@@ -438,6 +438,7 @@ predict.bart <- function(
   ci.level = NULL,
   forest = NULL,
   bases = NULL,
+  na.action = dbarts::na.keepPredictors,
   n.threads = object$fit$control@n.threads,
   ...
 ) {
@@ -461,7 +462,6 @@ predict.bart <- function(
   n.threads <- validatePredictThreads(n.threads)
   refuseForestSelectionOutsideForestArm(type, forest)
   refuseDroppedForestChannel(object)
-  rowNames <- if (!missing(newdata)) observationRowNames(newdata)
 
   # both amplitude arms read the SAVED trees draw by draw, pairing each draw's
   # forests with that draw's own amplitudes; without the tree store only the
@@ -498,36 +498,8 @@ predict.bart <- function(
         "each forest's own total before any basis"
       )
     }
-    return(predictForest(
-      object,
-      newdata,
-      offset,
-      combineChains,
-      forest,
-      n.threads,
-      rowNames
-    ))
   }
-
-  # an amplitude-coupled fit has no combined test surface in the engine - the
-  # sampler holds no basis at the caller's rows - so the combination is done
-  # here, from the per-forest replay and the fit's own glue
-  if (!is.null(object[["forestFits"]])) {
-    return(predictBlend(
-      object,
-      newdata,
-      offset,
-      weights,
-      type,
-      combineChains,
-      ci.level,
-      bases,
-      n.threads,
-      rowNames
-    ))
-  }
-
-  if (!is.null(bases)) {
+  if (type != "forest" && is.null(object[["forestFits"]]) && !is.null(bases)) {
     numForests <- fitNumForests(object)
     stop(
       "'bases' is only meaningful on an amplitude-coupled multi-forest fit; ",
@@ -537,8 +509,65 @@ predict.bart <- function(
     )
   }
 
+  # validated once, here; the rows na.action keeps are what every arm below
+  # predicts, and padPredictedRows puts them back on newdata's rows
+  rows <- preparePredictRows(newdata, object$fit$data@x, na.action)
+  if (isTRUE(rows$placeholder)) {
+    restoreSeed <- protectRandomSeed()
+    on.exit(restoreSeed(), add = TRUE)
+  }
+  offset <- subsetPredictInput(offset, rows, "offset")
+  weights <- subsetPredictInput(weights, rows, "weights")
+
+  if (type == "forest") {
+    return(padPredictedRows(
+      predictForest(
+        object,
+        rows$x,
+        offset,
+        combineChains,
+        forest,
+        n.threads,
+        rows$keptNames
+      ),
+      rows,
+      trailing = 1L
+    ))
+  }
+
+  # an amplitude-coupled fit has no combined test surface in the engine - the
+  # sampler holds no basis at the caller's rows - so the combination is done
+  # here, from the per-forest replay and the fit's own glue
+  if (!is.null(object[["forestFits"]])) {
+    bases <- subsetPredictBases(
+      bases,
+      rows,
+      lapply(object$bases, function(basis) {
+        if (is.null(basis)) NULL else basis[1L, , drop = FALSE]
+      })
+    )
+    return(padPredictedRows(
+      predictBlend(
+        object,
+        rows$x,
+        offset,
+        weights,
+        type,
+        combineChains,
+        ci.level,
+        bases,
+        n.threads,
+        rows$keptNames,
+        rows$newdata
+      ),
+      rows,
+      first = !is.null(ci.level)
+    ))
+  }
+
   n.chains <- object$fit$control@n.chains
-  result <- object$fit$predict(newdata, offset, n.threads)
+  rowNames <- rows$keptNames
+  result <- predictCodedTest(object$fit, rows$x, offset, n.threads)
   # a heteroscedastic fit returns list(mean, variance); s(x) rides back as an
   # attribute on the returned yhat so plain predict callers are unaffected
   s <- NULL
@@ -617,13 +646,13 @@ predict.bart <- function(
     if (!is.null(s)) {
       attr(interval, "s") <- s
     }
-    return(interval)
+    return(padPredictedRows(interval, rows, first = TRUE))
   }
 
   if (!is.null(s)) {
     attr(result, "s") <- s
   }
-  result
+  padPredictedRows(result, rows)
 }
 
 # extract(type = "trees") rewrites the matched call onto the sampler's
@@ -982,7 +1011,8 @@ predictForest <- function(
   }
   n.chains <- object$fit$control@n.chains
   responseScale <- object$fit$getCalibration(1L)[1L, "response.scale"]
-  raw <- object$fit$predictForests(newdata, offset, n.threads) * responseScale
+  raw <- predictForestsCodedTest(object$fit, newdata, offset, n.threads) *
+    responseScale
   # forestFits carries the fit's own combineChains shape (3-d combined, 4-d
   # split across chains), so the forest margin is always the LAST axis rather
   # than a fixed index
@@ -1122,13 +1152,14 @@ predictBlend <- function(
   ci.level,
   bases,
   n.threads,
-  rowNames = NULL
+  rowNames = NULL,
+  rawNewdata = newdata
 ) {
   n.chains <- object$fit$control@n.chains
   perForest <- predictForest(object, newdata, NULL, TRUE, NULL, n.threads)
   n.new <- dim(perForest)[2L]
   forestNames <- dimnames(perForest)[[3L]]
-  bases <- resolveForestBases(object, bases, newdata, n.new)
+  bases <- resolveForestBases(object, bases, rawNewdata, n.new)
 
   # the caller's own offset and weights at those rows, read as the sampler's
   # own predict reads them: numeric, length-1 recycled or one per row
@@ -1603,6 +1634,7 @@ predict.bartMultinomial <- function(
   offset = NULL,
   combineChains = TRUE,
   ci.level = NULL,
+  na.action = dbarts::na.keepPredictors,
   n.threads = object$fit$control@n.threads,
   ...
 ) {
@@ -1629,11 +1661,18 @@ predict.bartMultinomial <- function(
   # after the fit check, whose absence the default here would otherwise report
   # as a missing slot
   n.threads <- validatePredictThreads(n.threads)
-  rowNames <- observationRowNames(newdata)
-  newdata <- validateXTest(newdata, object$fit$data@x)
-  if (is.null(newdata)) {
-    stop("newdata cannot be NULL")
+  rows <- preparePredictRows(newdata, object$fit$data@x, na.action)
+  if (isTRUE(rows$placeholder)) {
+    restoreSeed <- protectRandomSeed()
+    on.exit(restoreSeed(), add = TRUE)
   }
+  newdata <- rows$x
+  offset <- subsetPredictInput(
+    offset,
+    rows,
+    "offset",
+    if (!is.null(object$fit$data@offset.category)) matrix(0, 1L, object$K)
+  )
   if (is.null(offset)) {
     if (!is.null(object$fit$data@offset.category)) {
       stop(
@@ -1654,32 +1693,37 @@ predict.bartMultinomial <- function(
       "'offset'"
     )
   }
-  # raw is n.new x K x n.samples (x n.chains), the run's test-channel shape;
-  # $fit$predict re-validates the coded newdata (idempotently) and shapes the
-  # offset against the same rows
-  raw <- object$fit$predict(newdata, offset, n.threads)
+  # raw is n.new x K x n.samples (x n.chains), the run's test-channel shape
+  raw <- predictCodedTest(object$fit, newdata, offset, n.threads)
   probs <- shapeMultinomialChannel(
     raw,
     object$levels,
     object$n.chains,
     combineChains,
-    leadNames = rowNames
+    leadNames = rows$keptNames
   )
   if (type == "ppd") {
     probs <- multinomialPpdFromProbs(probs)
   }
   if (!is.null(ci.level)) {
-    return(posteriorInterval(
-      probs,
-      ci.level,
-      trailing = if (type %in% c("ev", "class")) 2L else 1L
+    return(padPredictedRows(
+      posteriorInterval(
+        probs,
+        ci.level,
+        trailing = if (type %in% c("ev", "class")) 2L else 1L
+      ),
+      rows,
+      first = TRUE
     ))
   }
   if (type == "class") {
     meanProbs <- meanCategoryProbabilities(probs, object$levels)
-    return(categoryFromMeanProbabilities(meanProbs, object$levels))
+    return(padPredictedRows(
+      categoryFromMeanProbabilities(meanProbs, object$levels),
+      rows
+    ))
   }
-  probs
+  padPredictedRows(probs, rows, trailing = if (type == "ppd") 0L else 1L)
 }
 
 # Shared "Call:" preamble for the print methods. A fit kept with
@@ -1936,6 +1980,7 @@ predict.bartOrdinal <- function(
   offset = NULL,
   combineChains = TRUE,
   ci.level = NULL,
+  na.action = dbarts::na.keepPredictors,
   n.threads = object$fit$control@n.threads,
   ...
 ) {
@@ -1959,11 +2004,13 @@ predict.bartOrdinal <- function(
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
-  rowNames <- observationRowNames(newdata)
-  newdata <- validateXTest(newdata, object$fit$data@x)
-  if (is.null(newdata)) {
-    stop("newdata cannot be NULL")
+  rows <- preparePredictRows(newdata, object$fit$data@x, na.action)
+  if (isTRUE(rows$placeholder)) {
+    restoreSeed <- protectRandomSeed()
+    on.exit(restoreSeed(), add = TRUE)
   }
+  rowNames <- rows$keptNames
+  newdata <- rows$x
   if (!is.matrix(newdata)) {
     newdata <- as.matrix(newdata)
   }
@@ -1981,9 +2028,13 @@ predict.bartOrdinal <- function(
       rowNames
     )
     if (!is.null(ci.level)) {
-      return(posteriorInterval(result, ci.level, trailing = 1L))
+      return(padPredictedRows(
+        posteriorInterval(result, ci.level, trailing = 1L),
+        rows,
+        first = TRUE
+      ))
     }
-    return(result)
+    return(padPredictedRows(result, rows))
   }
   K <- object$K
   thresholds <- object$thresholds.raw # (K-1) x n.samples x n.chains
@@ -2014,17 +2065,20 @@ predict.bartOrdinal <- function(
   }
   if (!is.null(ci.level)) {
     trailing <- if (type %in% c("ev", "class")) 2L else 1L
-    return(posteriorInterval(probs, ci.level, trailing = trailing))
+    return(padPredictedRows(
+      posteriorInterval(probs, ci.level, trailing = trailing),
+      rows,
+      first = TRUE
+    ))
   }
   if (type == "class") {
     meanProbs <- meanCategoryProbabilities(probs, object$levels)
-    return(categoryFromMeanProbabilities(
-      meanProbs,
-      object$levels,
-      ordered = TRUE
+    return(padPredictedRows(
+      categoryFromMeanProbabilities(meanProbs, object$levels, ordered = TRUE),
+      rows
     ))
   }
-  probs
+  padPredictedRows(probs, rows, trailing = if (type == "ppd") 0L else 1L)
 }
 
 print.bartOrdinal <- function(x, ...) {
@@ -2240,6 +2294,7 @@ predict.bartNegbin <- function(
   offset = NULL,
   combineChains = TRUE,
   ci.level = NULL,
+  na.action = dbarts::na.keepPredictors,
   n.threads = object$fit$control@n.threads,
   ...
 ) {
@@ -2261,11 +2316,14 @@ predict.bartNegbin <- function(
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
-  rowNames <- observationRowNames(newdata)
-  newdata <- validateXTest(newdata, object$fit$data@x)
-  if (is.null(newdata)) {
-    stop("newdata cannot be NULL")
+  rows <- preparePredictRows(newdata, object$fit$data@x, na.action)
+  if (isTRUE(rows$placeholder)) {
+    restoreSeed <- protectRandomSeed()
+    on.exit(restoreSeed(), add = TRUE)
   }
+  rowNames <- rows$keptNames
+  newdata <- rows$x
+  offset <- subsetPredictInput(offset, rows, "offset")
   if (!is.matrix(newdata)) {
     newdata <- as.matrix(newdata)
   }
@@ -2283,9 +2341,13 @@ predict.bartNegbin <- function(
       rowNames
     )
     if (!is.null(ci.level)) {
-      return(posteriorInterval(result, ci.level, trailing = 1L))
+      return(padPredictedRows(
+        posteriorInterval(result, ci.level, trailing = 1L),
+        rows,
+        first = TRUE
+      ))
     }
-    return(result)
+    return(padPredictedRows(result, rows))
   }
   if (length(dim(raw)) == 2L) {
     dim(raw) <- c(dim(raw), 1L)
@@ -2308,9 +2370,13 @@ predict.bartNegbin <- function(
     means <- negbinPpd(means, object$dispersion)
   }
   if (!is.null(ci.level)) {
-    return(posteriorInterval(means, ci.level, trailing = 1L))
+    return(padPredictedRows(
+      posteriorInterval(means, ci.level, trailing = 1L),
+      rows,
+      first = TRUE
+    ))
   }
-  means
+  padPredictedRows(means, rows)
 }
 
 print.bartNegbin <- function(x, ...) {
@@ -2643,15 +2709,34 @@ combineHurdleChannel <- function(
   array(channel, shape, shapeNames)
 }
 
+# A single-forest fit's draws at coded rows, uncombined, as
+# predict(type = "ev") and predict(type = "bart") report them: a hurdle
+# component's, or a discrete-time hazard fit's per-period hazards.
+codedRowDraws <- function(component, x, type, n.threads, rowNames) {
+  raw <- predictCodedTest(component$fit, x, NULL, n.threads)
+  if (is.list(raw)) {
+    raw <- raw$mean
+  }
+  result <- convertSamplesFromDbartsToBart(
+    raw,
+    component$fit$control@n.chains,
+    FALSE
+  )
+  if (type == "ev") {
+    result <- probabilityFromLatents(result, component)
+  }
+  nameObservationMargin(result, rowNames)
+}
+
 # The occupancy pi(x), positive log-mean f(x), and positive per-observation
 # sigma draws for the combine, each a flat vector in the fit's uncombined
 # as.vector order, plus the uncombined 'shape' to fold back to. In-sample reads
 # the stored channels - the occupancy fit's ev over all n, and the positive
 # fit's log-scale (bart) fits at the FULL-n rows through its x.test channel (the
 # zero rows it never trained on included); out-of-sample replays both saved
-# forests at newdata.
-hurdleParts <- function(object, newdata, n.threads = 1L) {
-  if (missing(newdata)) {
+# forests at the rows preparePredictRows kept, coded once for each component.
+hurdleParts <- function(object, rows = NULL, n.threads = 1L) {
+  if (is.null(rows)) {
     pi <- extract(
       object$occupancy,
       type = "ev",
@@ -2665,19 +2750,31 @@ hurdleParts <- function(object, newdata, n.threads = 1L) {
       combineChains = FALSE
     )
   } else {
-    pi <- predict(
+    pi <- codedRowDraws(
       object$occupancy,
-      newdata,
-      type = "ev",
-      combineChains = FALSE,
-      n.threads = n.threads
+      rows$x,
+      "ev",
+      n.threads,
+      rows$keptNames
     )
-    f <- predict(
+    # the positive part codes the same rows against its own training design;
+    # the caller has already been warned about anything the coding says
+    positiveTrain <- object$positive$fit$data@x
+    positiveX <- suppressPositionalWarnings(validateXTest(
+      if (isTRUE(rows$placeholder)) {
+        positiveTrain[1L, , drop = FALSE]
+      } else {
+        rows$newdata
+      },
+      positiveTrain,
+      refuseMissing = FALSE
+    ))
+    f <- codedRowDraws(
       object$positive,
-      newdata,
-      type = "bart",
-      combineChains = FALSE,
-      n.threads = n.threads
+      positiveX,
+      "bart",
+      n.threads,
+      rows$keptNames
     )
   }
   sigmaVec <- scalarDrawVec(
@@ -2884,6 +2981,7 @@ predict.bartHurdle <- function(
   offset = NULL,
   combineChains = TRUE,
   ci.level = NULL,
+  na.action = dbarts::na.keepPredictors,
   n.threads = object$occupancy$fit$control@n.threads,
   ...
 ) {
@@ -2907,12 +3005,23 @@ predict.bartHurdle <- function(
   # otherwise report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
   n.chains <- hurdleNChains(object)
-  finishHurdle(
-    hurdleParts(object, newdata, n.threads),
-    type,
-    n.chains,
-    combineChains,
-    ci.level
+  # both parts share one routable set (refuseHurdlePositiveMissingness), so
+  # the rows are resolved once, against the occupancy part's design
+  rows <- preparePredictRows(newdata, object$occupancy$fit$data@x, na.action)
+  if (isTRUE(rows$placeholder)) {
+    restoreSeed <- protectRandomSeed()
+    on.exit(restoreSeed(), add = TRUE)
+  }
+  padPredictedRows(
+    finishHurdle(
+      hurdleParts(object, rows, n.threads),
+      type,
+      n.chains,
+      combineChains,
+      ci.level
+    ),
+    rows,
+    first = !is.null(ci.level)
   )
 }
 

@@ -81,10 +81,11 @@ extractSurvivalTimes <- parseSurvivalResponse
 # subject's terminal period index (1..K). Ties within a period are automatic:
 # equal times share a period. findInterval(..., left.open = TRUE) counts grid
 # points strictly below t, so a time exactly on grid point g_k lands in period
-# k (its own interval's right edge).
-resolveHazardGrid <- function(time, breaks) {
+# k (its own interval's right edge). The grid comes from 'gridTime', the
+# subjects the fit keeps, and a later time is placed in the last period.
+resolveHazardGrid <- function(time, breaks, gridTime = time) {
   if (is.null(breaks)) {
-    periods <- sort(unique(time))
+    periods <- sort(unique(gridTime))
   } else {
     breaks <- as.double(breaks)
     if (anyNA(breaks)) {
@@ -98,7 +99,7 @@ resolveHazardGrid <- function(time, breaks) {
         )
       }
       periods <- unique(as.double(
-        quantile(time, probs = seq_len(K) / K, names = FALSE)
+        quantile(gridTime, probs = seq_len(K) / K, names = FALSE)
       ))
     } else {
       if (is.unsorted(breaks, strictly = TRUE)) {
@@ -113,7 +114,10 @@ resolveHazardGrid <- function(time, breaks) {
       periods <- breaks[-1L]
     }
   }
-  terminal <- findInterval(time, periods, left.open = TRUE) + 1L
+  terminal <- pmin(
+    findInterval(time, periods, left.open = TRUE) + 1L,
+    length(periods)
+  )
   list(periods = periods, terminalPeriod = terminal)
 }
 
@@ -133,10 +137,11 @@ expandDiscreteTimeHazard <- function(
   breaks = NULL,
   max.rows = 1e7,
   offset = NULL,
-  weights = NULL
+  weights = NULL,
+  gridTime = time
 ) {
   n <- length(time)
-  grid <- resolveHazardGrid(time, breaks)
+  grid <- resolveHazardGrid(time, breaks, gridTime)
   periods <- grid$periods
   terminal <- grid$terminalPeriod
 
@@ -184,6 +189,52 @@ expandDiscreteTimeHazard <- function(
     result$weights <- weights[subjectOf]
   }
   result
+}
+
+# A formula-path hazard fit's na.action record, restated over person-period
+# rows. The na.action ran on the subjects, before expansion, so the dropped
+# subjects' rows are rebuilt from their own times on the kept subjects' grid,
+# as the matrix interface, which expands first, would have dropped them; a
+# subject with no time has no rows. Returns the record and the kept rows'
+# make.unique names, taken over every subject so that they match that path.
+hazardOmittedRows <- function(omitted, omittedTime, expansion, keptNames) {
+  K <- length(expansion$periods)
+  omittedSubjects <- unclass(omitted)
+  # every kept subject has at least one row
+  numSubjects <- max(expansion$subject) + length(omittedSubjects)
+  keptSubjects <- seq_len(numSubjects)[-omittedSubjects]
+  periodCounts <- integer(numSubjects)
+  periodCounts[keptSubjects] <- tabulate(
+    expansion$subject,
+    length(keptSubjects)
+  )
+  omittedCounts <- pmin(
+    findInterval(omittedTime, expansion$periods, left.open = TRUE) + 1L,
+    K
+  )
+  omittedCounts[is.na(omittedCounts)] <- 0L
+  periodCounts[omittedSubjects] <- omittedCounts
+  subjectOf <- rep.int(seq_len(numSubjects), periodCounts)
+  droppedRows <- which(subjectOf %in% omittedSubjects)
+  names <- NULL
+  if (!is.null(keptNames)) {
+    subjectNames <- character(numSubjects)
+    subjectNames[keptSubjects] <- keptNames
+    subjectNames[omittedSubjects] <- names(omitted)
+    names <- make.unique(subjectNames[subjectOf])
+  }
+  if (length(droppedRows) == 0L) {
+    return(list(record = NULL, names = names))
+  }
+  record <- structure(
+    droppedRows,
+    names = names[droppedRows],
+    class = class(omitted)
+  )
+  list(
+    record = record,
+    names = if (!is.null(names)) names[-droppedRows]
+  )
 }
 
 # Names the person-period rows of both channels by R's make.unique over the
@@ -771,6 +822,13 @@ dbarts <- function(
         weightsForExpansion <- weightsForExpansion[subset]
       }
     }
+    # the na.action drops a subject's rows together, and the grid must not
+    # depend on them, as on the formula path
+    keptSubjects <- applyNaActionToXY(
+      na.action,
+      timeForExpansion,
+      xForExpansion
+    )
     expansion <- expandDiscreteTimeHazard(
       xForExpansion,
       timeForExpansion,
@@ -778,7 +836,12 @@ dbarts <- function(
       breaks = breaks,
       max.rows = max.rows,
       offset = offsetForExpansion,
-      weights = weightsForExpansion
+      weights = weightsForExpansion,
+      gridTime = if (!is.null(keptSubjects)) {
+        timeForExpansion[keptSubjects$keep]
+      } else {
+        timeForExpansion
+      }
     )
     matchedCall$formula <- expansion$x
     matchedCall$data <- expansion$y
@@ -1036,10 +1099,13 @@ dbarts <- function(
   # decode its stashed status/time now, against the SAME conflict guard and
   # auto-dispatch-to-aft the direct-response form applies above
   formulaSurvivalStatus <- attr(data, "survivalStatus")
+  hazardFormulaRecord <- NULL
   if (!is.null(formulaSurvivalStatus)) {
     formulaSurvivalTime <- attr(data, "survivalTime")
+    formulaSurvivalTimeOmitted <- attr(data, "survivalTimeOmitted")
     attr(data, "survivalStatus") <- NULL
     attr(data, "survivalTime") <- NULL
+    attr(data, "survivalTimeOmitted") <- NULL
     if (family %not_in% c("auto", "aft", hazardTokens)) {
       stop(
         "a survival (Surv) response cannot be fit with family \"",
@@ -1075,6 +1141,16 @@ dbarts <- function(
         dataRowNames(data, "test"),
         K
       )
+      if (!is.null(data@na.action)) {
+        omittedRows <- hazardOmittedRows(
+          data@na.action,
+          formulaSurvivalTimeOmitted,
+          expansion,
+          dataRowNames(data, "train")
+        )
+        hazardFormulaRecord <- omittedRows$record
+        hazardNames$train <- omittedRows$names
+      }
       # dbartsData()'s own 'test' handling already built data@x.test (and
       # its offset/weights twins) family-agnostically, coded against the
       # SAME pre-expansion training columns data@x just was - a held-out
@@ -1132,15 +1208,11 @@ dbarts <- function(
         data@na.action <- omitted
         hazardNames$train <- hazardNames$train[-unclass(omitted)]
       }
-    } else if (!is.null(omitted)) {
+    } else {
       # the formula path's na.action ran on the SUBJECT-level model frame,
-      # before expansion: its record indexes subjects, not the
-      # person-period rows this fit's training outputs are shaped by (a
-      # dropped subject's own period count is unknown here, since only its
-      # position survives). Padding fitted()/residuals() with it would pad
-      # to the wrong length and misplace names, so it is dropped rather
-      # than carried into a domain it does not describe.
-      data@na.action <- NULL
+      # before expansion; hazardOmittedRows has restated its record over
+      # the person-period rows the dropped subjects would have had
+      data@na.action <- hazardFormulaRecord
     }
     data <- setDataRowNames(data, "train", hazardNames$train)
     data <- setDataRowNames(data, "test", hazardNames$test)
@@ -1405,6 +1477,80 @@ resolveUpdateState <- function(updateState, control) {
   isTRUE(updateState) || (is.na(updateState) && control@updateState)
 }
 
+## The sampler's predict after validation: 'x.test' is already coded by
+## validateXTest, so the predict methods that validate newdata themselves
+## (and resolve its na.action) call this directly, and no warning fires twice.
+predictCodedTest <- function(sampler, x.test, offset.test, n.threads) {
+  # a sparse-backed test set rides to the engine as the container
+  # validateXTest coded it; the engine routes its rows off that storage
+
+  # A multinomial predict surface reports K probabilities per row, so its
+  # offset takes the shape of that surface: the per-category matrix
+  # entering the raw fits BEFORE the softmax, one row per PREDICTED row.
+  # A flat vector stays refused there, and truthfully - after the blend it
+  # would move the values off the simplex, and before it a common
+  # per-observation shift is the softmax's own null direction. The rows are
+  # the caller's, so a sampler holding either resident category offset
+  # refuses a no-offset call rather than reporting the offset-free surface
+  # (an all-zero matrix asks for that surface on purpose).
+  counts <- dataCounts(sampler$data)
+  if (!is.null(offset.test) && !is.null(counts)) {
+    if (length(offset.test) == 1L) {
+      offset.test <- matrix(
+        as.double(offset.test),
+        nrow(x.test),
+        ncol(counts)
+      )
+    } else {
+      offset.test <- as.matrix(offset.test)
+      storage.mode(offset.test) <- "double"
+    }
+    if (!identical(dim(offset.test), c(nrow(x.test), ncol(counts)))) {
+      stop(
+        "'offset.test' must be a per-category matrix with one row per ",
+        "row of 'x.test' and ",
+        ncol(counts),
+        " categories"
+      )
+    }
+  } else if (!is.null(offset.test)) {
+    offset.test <- as.double(offset.test)
+    if (length(offset.test) == 1L) {
+      offset.test <- rep_len(offset.test, nrow(x.test))
+    }
+
+    if (!identical(length(offset.test), nrow(x.test))) {
+      stop(
+        "'offset.test' must have the same number of rows as 'x.test'"
+      )
+    }
+    # a lone NA on the flat path reads as "no offset"; the engine takes a
+    # null rather than a sentinel
+    if (length(offset.test) == 1L && is.na(offset.test)) {
+      offset.test <- NULL
+    }
+  }
+
+  .Call(
+    C_dbarts_bartcore_predict,
+    sampler$getPointer(),
+    x.test,
+    offset.test,
+    n.threads
+  )
+}
+
+## The same for predictForests.
+predictForestsCodedTest <- function(sampler, x.test, offset.test, n.threads) {
+  .Call(
+    C_dbarts_bartcore_predictPerForest,
+    sampler$getPointer(),
+    x.test,
+    offset.test,
+    n.threads
+  )
+}
+
 dbartsSampler <- setRefClass(
   "dbartsSampler",
   fields = list(
@@ -1621,65 +1767,16 @@ dbartsSampler <- setRefClass(
     },
     predict = function(x.test, offset.test, n.threads = control@n.threads) {
       "Using existing sampler to predict for new data without re-running. n.threads is a per-call worker count that does not persist, defaulting to the sampler's own: the replay is partitioned by (chain, saved draw), each partition writing its own rows, so the answer is identical bit for bit at every value."
-      ptr <- getPointer()
-
       x.test <- validateXTest(x.test, data@x)
       if (is.null(x.test)) {
         stop("x.test cannot be NULL")
       }
-      # a sparse-backed test set rides to the engine as the container
-      # validateXTest coded it; the engine routes its rows off that storage
-
-      # A multinomial predict surface reports K probabilities per row, so its
-      # offset takes the shape of that surface: the per-category matrix
-      # entering the raw fits BEFORE the softmax, one row per PREDICTED row.
-      # A flat vector stays refused there, and truthfully - after the blend it
-      # would move the values off the simplex, and before it a common
-      # per-observation shift is the softmax's own null direction. The rows are
-      # the caller's, so a sampler holding either resident category offset
-      # refuses a no-offset call rather than reporting the offset-free surface
-      # (an all-zero matrix asks for that surface on purpose).
-      counts <- dataCounts(data)
-      if (missing(offset.test) || is.null(offset.test)) {
-        offset.test <- NULL
-      } else if (!is.null(counts)) {
-        if (length(offset.test) == 1L) {
-          offset.test <- matrix(
-            as.double(offset.test),
-            nrow(x.test),
-            ncol(counts)
-          )
-        } else {
-          offset.test <- as.matrix(offset.test)
-          storage.mode(offset.test) <- "double"
-        }
-        if (!identical(dim(offset.test), c(nrow(x.test), ncol(counts)))) {
-          stop(
-            "'offset.test' must be a per-category matrix with one row per ",
-            "row of 'x.test' and ",
-            ncol(counts),
-            " categories"
-          )
-        }
-      } else {
-        offset.test <- as.double(offset.test)
-        if (length(offset.test) == 1L) {
-          offset.test <- rep_len(offset.test, nrow(x.test))
-        }
-
-        if (!identical(length(offset.test), nrow(x.test))) {
-          stop(
-            "'offset.test' must have the same number of rows as 'x.test'"
-          )
-        }
-        # a lone NA on the flat path reads as "no offset"; the engine takes a
-        # null rather than a sentinel
-        if (length(offset.test) == 1L && is.na(offset.test)) {
-          offset.test <- NULL
-        }
-      }
-
-      .Call(C_dbarts_bartcore_predict, ptr, x.test, offset.test, n.threads)
+      predictCodedTest(
+        .self,
+        x.test,
+        if (!missing(offset.test)) offset.test,
+        n.threads
+      )
     },
     predictForests = function(
       x.test,
@@ -1687,20 +1784,14 @@ dbartsSampler <- setRefClass(
       n.threads = control@n.threads
     ) {
       "Replays each forest separately at new data, without re-running: an n.new x n.forests x n.samples (x n.chains) array of each forest's own INTERNAL-scale total, the off-sample twin of getForestFits. Only a sampler that composes its forests through scalar amplitude glue reports per-forest fits; every other one, a multinomial sampler included, is refused by name. No glue, no response transform and no offset are folded in: the location an amplitude coupling reports is response.shift + sum_f (basis_f %*% glue_f) * (response.scale * f_f), and off the training rows the bases are the caller's, so the whole recombination is too. offset.test is refused for the same reason - a shift belongs to that recombination. Reports the saved samples under keepTrees, and otherwise the current trees, exactly as predict does. n.threads is predict's per-call worker count, with the same (chain, saved draw) partition and the same bitwise-identical result at every value."
-      ptr <- getPointer()
-
       x.test <- validateXTest(x.test, data@x)
       if (is.null(x.test)) {
         stop("x.test cannot be NULL")
       }
-      if (missing(offset.test)) {
-        offset.test <- NULL
-      }
-      .Call(
-        C_dbarts_bartcore_predictPerForest,
-        ptr,
+      predictForestsCodedTest(
+        .self,
         x.test,
-        offset.test,
+        if (!missing(offset.test)) offset.test,
         n.threads
       )
     },

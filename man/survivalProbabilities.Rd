@@ -27,6 +27,7 @@ survivalProbabilities(object, ...)
   times,
   newdata = NULL,
   combineChains = TRUE,
+  na.action = dbarts::na.keepPredictors,
   ...
 )
 
@@ -64,6 +65,12 @@ survivalProbabilities(object, ...)
   \item{combineChains}{
     A logical determining whether the chain dimension is collapsed into the
     draw dimension, as elsewhere in the package.
+  }
+  \item{na.action}{
+    What to do with the subjects in \code{newdata} that have missing
+    values, resolved per subject before a hazard fit's person-period
+    expansion; unused when \code{newdata} is \code{NULL}. See
+    \sQuote{At Prediction} in \code{\link{na.keepPredictors}}.
   }
   \item{...}{
     Not a formal on the method: a name belonging to a sibling generic

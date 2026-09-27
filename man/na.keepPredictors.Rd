@@ -45,6 +45,46 @@ na.keepPredictors(object, \dots)
   the (response, predictors) pair, so every one of these functions means on
   that interface what it means on the formula one.
 }
+\section{At Prediction}{
+  Every \code{predict} method on a fit (\code{\link{predict.bart}} and
+  \code{\link{bart}}'s four own classes) and
+  \code{\link{survivalProbabilities}} take an \code{na.action} for
+  \code{newdata}, defaulting to this function; \code{NULL} means the
+  default, and \code{getOption("na.action")} is never consulted.
+
+  A missing value in \code{newdata} is \emph{routable} when its column had
+  missing values in training: every split rule on that column then learned
+  a side for them, and the row predicts like any other. On a column that
+  was complete in training no rule learned a side, so the value is
+  \emph{unroutable}. Only the default and \code{\link{na.pass}} look at
+  this:
+  \itemize{
+    \item \code{na.keepPredictors} predicts every routable row and refuses
+    an unroutable one, naming its columns;
+    \item \code{na.pass} predicts every routable row and returns \code{NA}
+    for an unroutable one;
+    \item \code{\link{na.omit}} drops every row with a missing value;
+    \item \code{\link{na.exclude}} drops the same rows and pads them back
+    as \code{NA}, so the result stays aligned with \code{newdata}, as the
+    fit-time record does (\code{\link{predict.lm}} instead treats it as
+    \code{na.omit} on new data);
+    \item \code{\link{na.fail}} refuses any missing value, naming its
+    columns.
+  }
+  Any other function is applied to a one-column frame that is \code{NA} on
+  the rows with a missing value, on every interface, and the rows it keeps
+  then meet the default's refusal. The result carries \code{newdata}'s row
+  names and no \code{"na.action"} attribute. When no row survives, or
+  \code{newdata} has none, the result has the usual draw dimensions and
+  zero rows (\code{NA} rows under \code{na.exclude} and \code{na.pass}),
+  and R's random number stream is left as it was.
+
+  A per-row \code{offset}, \code{weights} or \code{bases} must match
+  \code{newdata}'s rows and loses the same rows; a single value passes
+  through. A missing value in a per-row \code{offset} or \code{weights} is
+  an error. The sampler's own \code{predict}, \code{predictForests} and
+  \code{getTrees} methods take no \code{na.action} and keep the default.
+}
 \value{
   \code{object} with the missing-response rows removed, carrying an
   \code{"na.action"} attribute of class \code{"exclude"} naming them; or
@@ -52,7 +92,8 @@ na.keepPredictors(object, \dots)
 }
 \seealso{
   \code{\link{na.omit}}, \code{\link{na.exclude}}, \code{\link{naresid}},
-  \code{\link{bart}}, \code{\link{dbartsData}}
+  \code{\link{bart}}, \code{\link{dbartsData}},
+  \code{\link{survivalProbabilities}}
 }
 \examples{
 df <- data.frame(y = c(1, NA, 3, 4), x = c(1, 2, NA, 4))

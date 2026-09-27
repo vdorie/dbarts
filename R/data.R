@@ -325,11 +325,13 @@ sourceHasNA <- function(source) {
   anyNA(source)
 }
 
-refuseTestMissingness <- function(x.test, x.train) {
+## The predictor columns a test set leaves without a route: missing there, and
+## complete in training.
+unroutableTestColumns <- function(x.test, x.train) {
   # the whole-object probe short-circuits, so complete test data - the usual
   # case - pays one scan and never touches the training side
   if (!sourceHasNA(x.test)) {
-    return(invisible(NULL))
+    return(integer(0L))
   }
   # validateXTest has already matched the two sides' column counts by here,
   # so one count serves both
@@ -346,31 +348,306 @@ refuseTestMissingness <- function(x.test, x.train) {
     }
     offending <- c(offending, j)
   }
+  offending
+}
+
+## The test rows missing a value in any of 'columns', read off the stored
+## entries so that a sparse container is never densified.
+testRowsMissingIn <- function(x.test, columns) {
+  numTest <- NROW(x.test)
+  numColumns <- NCOL(x.test)
+  rows <- rep_len(FALSE, numTest)
+  for (j in columns) {
+    column <- predictorSourceColumn(x.test, j, numColumns, numTest)
+    if (!is.list(column)) {
+      rows <- rows | is.na(column)
+    } else if (is.na(column$implicit)) {
+      missingRows <- rep_len(TRUE, numTest)
+      missingRows[column$i + 1L] <- is.na(column$x)
+      rows <- rows | missingRows
+    } else {
+      rows[column$i[is.na(column$x)] + 1L] <- TRUE
+    }
+  }
+  rows
+}
+
+unroutableTestRows <- function(x.test, x.train) {
+  testRowsMissingIn(x.test, unroutableTestColumns(x.test, x.train))
+}
+
+## Labels predictor columns by name, or by position when training had none.
+testColumnLabels <- function(columns, x.train) {
+  predictorNames <- colnames(x.train)
+  labels <- if (is.null(predictorNames)) {
+    paste0("column ", columns)
+  } else {
+    paste0("'", predictorNames[columns], "'")
+  }
+  shown <- labels[seq_len(min(5L, length(labels)))]
+  paste0(
+    toString(shown),
+    if (length(labels) > 5L) {
+      paste0(" and ", length(labels) - 5L, " more column(s)")
+    }
+  )
+}
+
+## 'naActionHint' is set by the predict methods, whose callers can choose
+## another na.action; the sampler's methods keep the default and say nothing.
+refuseTestMissingness <- function(x.test, x.train, naActionHint = FALSE) {
+  offending <- unroutableTestColumns(x.test, x.train)
   # every NA sits in a column that carried training NAs: every one has a
   # learned route, and nothing is refused
   if (length(offending) == 0L) {
     return(invisible(NULL))
   }
-  predictorNames <- colnames(x.train)
-  labels <- if (is.null(predictorNames)) {
-    paste0("column ", offending)
-  } else {
-    paste0("'", predictorNames[offending], "'")
-  }
-  shown <- labels[seq_len(min(5L, length(labels)))]
   stop(
     "test predictors have missing values in ",
-    toString(shown),
-    if (length(labels) > 5L) {
-      paste0(" and ", length(labels) - 5L, " more column(s)")
-    },
+    testColumnLabels(offending, x.train),
     ", which carried none in training: a split rule learns a route for NA ",
     "only on a column that had missing values when the trees were grown, ",
-    "so these rows have no route to take"
+    "so these rows have no route to take",
+    if (naActionHint) {
+      paste0(
+        "; use na.action = na.pass to return NA for them, or na.omit to ",
+        "drop them"
+      )
+    }
   )
 }
 
-validateXTest <- function(x.test, x.train) {
+## The predict methods' 'na.action' (dec-B34): a function or its name, with
+## NULL meaning the default, as predict.lm reads it - the option is never
+## consulted.
+resolvePredictNaAction <- function(na.action) {
+  if (is.null(na.action)) {
+    return(na.keepPredictors)
+  }
+  if (is.character(na.action) && length(na.action) == 1L) {
+    return(match.fun(na.action))
+  }
+  if (!is.function(na.action)) {
+    stop("'na.action' must be a function, the name of one, or NULL")
+  }
+  na.action
+}
+
+## Which rows of a coded test set a predict method answers (dec-B34). na.pass
+## drops only the unroutable rows and pads them back; na.fail refuses any
+## missing value, by column; every other function is applied to a one-column
+## frame that is NA on the incomplete rows, as applyNaActionToXY does for the
+## matrix interface, and whatever it keeps then meets the default's refusal.
+## Returns the logical 'keep' and whether the dropped rows 'pad' back as NA,
+## or NULL when every row is answered as it stands.
+resolvePredictRows <- function(na.action, x.test, x.train) {
+  numTest <- NROW(x.test)
+  if (identical(na.action, stats::na.pass)) {
+    dropped <- unroutableTestRows(x.test, x.train)
+    if (!any(dropped) && numTest > 0L) {
+      return(NULL)
+    }
+    return(list(keep = !dropped, pad = TRUE))
+  }
+  hasNA <- sourceHasNA(x.test)
+  if (identical(na.action, stats::na.fail)) {
+    if (hasNA) {
+      columns <- Filter(
+        function(j) any(testRowsMissingIn(x.test, j)),
+        seq_len(NCOL(x.test))
+      )
+      stop(
+        "test predictors have missing values in ",
+        testColumnLabels(columns, x.train),
+        ", which na.action = na.fail refuses"
+      )
+    }
+    return(if (numTest == 0L) list(keep = logical(0L), pad = FALSE))
+  }
+  if (!hasNA) {
+    # a function passes a complete frame through unchanged
+    return(if (numTest == 0L) list(keep = logical(0L), pad = FALSE))
+  }
+  incomplete <- testRowsMissingIn(x.test, seq_len(NCOL(x.test)))
+  frame <- data.frame(predictors = ifelse(incomplete, NA_real_, 0.0))
+  kept <- stats::model.frame(~predictors, frame, na.action = na.action)
+  omit <- attr(kept, "na.action")
+  # read off the kept rows' names, so a function that drops rows without
+  # recording them is still followed
+  keep <- rownames(frame) %in% rownames(kept)
+  # the default's refusal, on the rows kept
+  if (all(keep)) {
+    refuseTestMissingness(x.test, x.train, naActionHint = TRUE)
+    return(NULL)
+  }
+  refuseTestMissingness(
+    x.test[keep, , drop = FALSE],
+    x.train,
+    naActionHint = TRUE
+  )
+  list(keep = keep, pad = inherits(omit, "exclude"))
+}
+
+## The record padPredictedRows reads, from resolvePredictRows's answer over
+## 'names', the rows' names.
+keptRowsRecord <- function(resolved, names) {
+  keep <- resolved$keep
+  list(
+    n = length(keep),
+    keep = keep,
+    pad = resolved$pad,
+    names = names,
+    keptNames = if (any(keep)) names[keep],
+    placeholder = !any(keep)
+  )
+}
+
+## The shared front of every predict method: codes newdata once, resolves its
+## rows under 'na.action', and returns the rows to predict. When none
+## survives, or newdata has none, the fit's first training row stands in and
+## the caller slices its answer away, so the result keeps the draw
+## dimensions (dec-B34).
+preparePredictRows <- function(newdata, x.train, na.action) {
+  if (missing(newdata) || is.null(newdata)) {
+    stop("newdata cannot be NULL")
+  }
+  rowNames <- observationRowNames(newdata)
+  x <- validateXTest(newdata, x.train, refuseMissing = FALSE)
+  resolved <- resolvePredictRows(
+    resolvePredictNaAction(na.action),
+    x,
+    x.train
+  )
+  if (is.null(resolved)) {
+    return(list(x = x, newdata = newdata, n = NROW(x), keptNames = rowNames))
+  }
+  result <- keptRowsRecord(resolved, rowNames)
+  if (result$placeholder) {
+    result$x <- suppressPositionalWarnings(validateXTest(
+      x.train[1L, , drop = FALSE],
+      x.train,
+      refuseMissing = FALSE
+    ))
+  } else {
+    result$x <- x[result$keep, , drop = FALSE]
+    result$newdata <- if (is.null(dim(newdata))) {
+      newdata
+    } else {
+      newdata[result$keep, , drop = FALSE]
+    }
+  }
+  result
+}
+
+suppressPositionalWarnings <- function(expr) {
+  withCallingHandlers(
+    expr,
+    dbartsPositionalArgsWarning = function(w) invokeRestart("muffleWarning")
+  )
+}
+
+## A per-row input at the rows preparePredictRows kept: a length-one value
+## recycles and passes through, anything else must match newdata's rows. A
+## placeholder row takes 'stub'. A missing value would silently give an NA
+## or NaN prediction, so it is refused.
+subsetPredictInput <- function(value, rows, argument, stub = NULL) {
+  if (length(value) > 1L && anyNA(value)) {
+    stop("'", argument, "' has missing values")
+  }
+  if (is.null(rows$keep)) {
+    return(value)
+  }
+  if (rows$placeholder) {
+    return(stub)
+  }
+  if (is.null(value)) {
+    return(NULL)
+  }
+  if (is.null(dim(value)) && length(value) == 1L) {
+    return(value)
+  }
+  if (NROW(value) != rows$n) {
+    stop(
+      "'",
+      argument,
+      "' must have the same number of rows as 'newdata'"
+    )
+  }
+  if (is.null(dim(value))) {
+    value[rows$keep]
+  } else {
+    value[rows$keep, , drop = FALSE]
+  }
+}
+
+## The same for 'bases', a bare value or one entry per forest.
+subsetPredictBases <- function(bases, rows, stub) {
+  if (!is.list(bases) || is.data.frame(bases) || !isFALSE(rows$placeholder)) {
+    return(subsetPredictInput(bases, rows, "bases", stub))
+  }
+  lapply(bases, subsetPredictInput, rows = rows, argument = "bases")
+}
+
+## Puts a predicted result back on newdata's rows: under na.exclude and
+## na.pass the dropped rows return as NA in place, under anything else they
+## stay dropped, and a placeholder's answer is cut to zero width or all NA.
+## The row margin is the first ('first') or the one 'trailing' places before
+## the last. The "s" attribute, laid out as draws by rows, goes the same way.
+padPredictedRows <- function(x, rows, trailing = 0L, first = FALSE) {
+  if (is.null(rows$keep) || (!rows$pad && !rows$placeholder)) {
+    return(x)
+  }
+  index <- if (rows$pad) {
+    index <- rep_len(NA_integer_, rows$n)
+    if (!rows$placeholder) {
+      index[rows$keep] <- seq_len(sum(rows$keep))
+    }
+    index
+  } else {
+    integer(0L)
+  }
+  names <- if (rows$pad) rows$names else rows$names[rows$keep]
+  s <- attr(x, "s")
+  d <- dim(x)
+  if (is.null(d)) {
+    x <- x[index]
+    names(x) <- names
+  } else {
+    margin <- if (first) 1L else length(d) - trailing
+    indices <- rep(list(quote(expr = )), length(d))
+    indices[[margin]] <- index
+    x <- do.call(`[`, c(list(x), indices, list(drop = FALSE)))
+    dn <- dimnames(x)
+    if (!is.null(dn) || !is.null(names)) {
+      if (is.null(dn)) {
+        dn <- vector("list", length(d))
+      }
+      dn[margin] <- list(names)
+      dimnames(x) <- dn
+    }
+  }
+  if (!is.null(s)) {
+    attr(x, "s") <- padPredictedRows(s, rows)
+  }
+  x
+}
+
+## Leaves R's generator exactly as it was found, removing '.Random.seed' again
+## when it was absent: a placeholder row's answer is discarded, and so is any
+## draw it made. Returns the restoring function for on.exit.
+protectRandomSeed <- function() {
+  had <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
+  seed <- if (had) get(".Random.seed", envir = globalenv(), inherits = FALSE)
+  function() {
+    if (had) {
+      assign(".Random.seed", seed, envir = globalenv())
+    } else if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
+      rm(".Random.seed", envir = globalenv())
+    }
+  }
+}
+
+validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   termLabels <- attr(x.train, "term.labels")
   numPredictors <- ncol(x.train)
   predictorNames <- colnames(x.train)
@@ -612,7 +889,9 @@ validateXTest <- function(x.test, x.train) {
     }
   }
 
-  refuseTestMissingness(x.test, x.train)
+  if (refuseMissing) {
+    refuseTestMissingness(x.test, x.train)
+  }
 
   x.test
 }
@@ -1347,6 +1626,7 @@ dbartsData <- function(
   # family is known. NULL for every response that is not Surv.
   survivalStatus <- NULL
   survivalTime <- NULL
+  survivalTimeOmitted <- NULL
 
   offsetGivenAsScalar <- NA
   testUsesRegularOffset <- NA
@@ -1618,6 +1898,14 @@ dbartsData <- function(
       survival <- extractSurvivalTimes(y)
       survivalStatus <- survival$status
       survivalTime <- survival$time
+      # a hazard fit expands only the kept subjects, and its na.action record
+      # has to name the person-period rows the dropped ones would have had,
+      # which their own times decide
+      if (!is.null(naOmitted)) {
+        survivalTimeOmitted <- as.double(unclass(model.response(
+          eval(modelFrameCall, parent.frame())
+        ))[unclass(naOmitted), 1L])
+      }
       y <- log(survival$time)
       responseInfo <- list(
         type = "numeric",
@@ -2260,6 +2548,7 @@ dbartsData <- function(
   if (!is.null(survivalStatus)) {
     attr(result, "survivalStatus") <- survivalStatus
     attr(result, "survivalTime") <- survivalTime
+    attr(result, "survivalTimeOmitted") <- survivalTimeOmitted
   }
   result
 }

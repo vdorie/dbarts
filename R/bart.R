@@ -2845,7 +2845,13 @@ survivalProbabilitiesFromDraws <- function(
 # Returns draws per the package's three-tier convention, the shape aft's
 # method uses (draws x times x observations, a chain margin under
 # combineChains = FALSE).
-hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
+hazardSurvivalProbabilities <- function(
+  object,
+  times,
+  newdata,
+  combineChains,
+  na.action = na.keepPredictors
+) {
   periods <- object$periods
   K <- length(periods)
   if (is.null(times)) {
@@ -2856,6 +2862,7 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
     stop("'times' must be finite and positive")
   }
 
+  rows <- NULL
   usesStoredTest <- is.null(newdata) && !is.null(object[["yhat.test"]])
   if (usesStoredTest) {
     # extract() on the packaged fit, not object$fit (the dbartsSampler):
@@ -2907,10 +2914,22 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
       )
     }
 
-    # hazards through the correct link (type = "ev" keys on $family, the
-    # binary token); predict codes bigX to the training columns and replays
-    # the trees
-    haz <- predict(object, bigX, type = "ev", combineChains = FALSE)
+    if (is.null(newdata)) {
+      # hazards through the correct link (type = "ev" keys on $family, the
+      # binary token); predict codes bigX to the training columns and
+      # replays the trees
+      haz <- predict(object, bigX, type = "ev", combineChains = FALSE)
+    } else {
+      rows <- hazardPredictRows(object, bigX, n, K, subjectNames, na.action)
+      n <- rows$numPredicted
+      haz <- codedRowDraws(
+        object,
+        rows$x,
+        "ev",
+        object$fit$control@n.threads,
+        NULL
+      )
+    }
   }
   drawDims <- dim(haz)[-length(dim(haz))]
   D <- prod(drawDims)
@@ -2938,7 +2957,46 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
     out <- aperm(out, c(2L, 1L, 3L, 4L))
     dim(out) <- c(D, numTimes, n)
   }
-  nameObservationMargin(out, subjectNames)
+  if (is.null(rows)) {
+    return(nameObservationMargin(out, subjectNames))
+  }
+  padPredictedRows(nameObservationMargin(out, rows$keptNames), rows)
+}
+
+# The rows of a discrete-time hazard 'newdata' to predict, resolved under
+# 'na.action' at the subject level, before expansion: the n subjects are the
+# first n rows of the period-major expanded design, and each subject keeps or
+# loses all K of its rows. When no subject survives, the first training
+# subject stands in, at every period, as preparePredictRows's placeholder
+# does.
+hazardPredictRows <- function(object, bigX, n, K, subjectNames, na.action) {
+  x.train <- object$fit$data@x
+  coded <- validateXTest(bigX, x.train, refuseMissing = FALSE)
+  resolved <- resolvePredictRows(
+    resolvePredictNaAction(na.action),
+    coded[seq_len(n), , drop = FALSE],
+    x.train
+  )
+  if (is.null(resolved)) {
+    return(list(x = coded, numPredicted = n, keptNames = subjectNames))
+  }
+  rows <- keptRowsRecord(resolved, subjectNames)
+  rows$numPredicted <- sum(rows$keep)
+  if (rows$placeholder) {
+    # training rows are subject-major, so row 1 is the first subject's first
+    # period
+    first <- as.matrix(x.train[rep(1L, K), , drop = FALSE])
+    first[, ncol(first)] <- seq_len(K)
+    rows$x <- suppressPositionalWarnings(validateXTest(
+      first,
+      x.train,
+      refuseMissing = FALSE
+    ))
+    rows$numPredicted <- 1L
+  } else {
+    rows$x <- coded[rep(rows$keep, times = K), , drop = FALSE]
+  }
+  rows
 }
 
 # Survival-probability draws from an AFT fit. Under the log-normal model
@@ -2958,6 +3016,7 @@ survivalProbabilities.bart <- function(
   times,
   newdata = NULL,
   combineChains = TRUE,
+  na.action = dbarts::na.keepPredictors,
   ...
 ) {
   refuseUnusedGenericArgs(
@@ -2974,7 +3033,8 @@ survivalProbabilities.bart <- function(
       object,
       if (missing(times)) NULL else times,
       newdata,
-      combineChains
+      combineChains,
+      na.action
     ))
   }
   if (!identical(fitEngineFamily(object), "aft")) {
@@ -2994,7 +3054,13 @@ survivalProbabilities.bart <- function(
   linearPredictor <- if (is.null(newdata)) {
     extract(object, type = "bart", sample = "train", combineChains = FALSE)
   } else {
-    predict(object, newdata, type = "bart", combineChains = FALSE)
+    predict(
+      object,
+      newdata,
+      type = "bart",
+      combineChains = FALSE,
+      na.action = na.action
+    )
   }
 
   # The scale the normal tail divides by. A homoscedastic fit's is the stored

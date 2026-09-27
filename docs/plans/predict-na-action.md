@@ -382,3 +382,21 @@ padding tests exercise padOmittedRows directly on a fit already trained
 at the reduced row count instead. Fixing it for real means deciding
 what the positive component's 'test' should do under na.action - a
 design question, not a one-line fix.
+
+Slice B LANDED (pending hash): every predict method and
+survivalProbabilities.bart take na.action before n.threads (after
+combineChains on survivalProbabilities), resolved once in
+preparePredictRows (hazardPredictRows at the subject level) and put back
+by padPredictedRows; predict.bart, multinomial and hurdle call the
+sampler's factored bodies predictCodedTest and predictForestsCodedTest,
+so newdata is validated once. The unseen-level
+check is fixed in mapFactorColumnsToTrainingLevels and, found with it,
+in alignContainerFactorLevels, which had the same test. A formula-path
+hazard fit now restates its subject-level na.action over the dropped
+subjects' person-period rows, counted from their own times on the kept
+subjects' grid (a subject with no time has none); the matrix path now
+takes its grid from the subjects its na.action keeps too, so the two
+paths' grids, records and row names agree. A length-1 offset passes
+through, so negbin and multinomial still refuse one, as before; an NA in
+a per-row offset or weights is refused by name (review fixup). Tests in
+inst/tinytest/test-predict-na-action.R.

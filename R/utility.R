@@ -971,7 +971,9 @@ mapFactorColumnsToTrainingLevels <- function(
       next
     }
     refactored <- factor(as.character(column), levels = factorLevels[[j]])
-    if (anyNA(refactored) && !anyNA(column)) {
+    # an unseen level codes to NA; a value already missing is not one, and a
+    # missing value elsewhere in the column must not let one through
+    if (any(is.na(refactored) & !is.na(column))) {
       stop(
         "test data factor '",
         name,
@@ -1077,7 +1079,8 @@ alignContainerFactorLevels <- function(x.test, predictorNames, factorLevels) {
         next
       }
       refactored <- factor(as.character(column), levels = trainingLevels)
-      if (anyNA(refactored) && !anyNA(column)) {
+      # as in mapFactorColumnsToTrainingLevels
+      if (any(is.na(refactored) & !is.na(column))) {
         stop(
           "test data factor '",
           name,

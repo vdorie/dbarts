@@ -48,6 +48,7 @@ bartBT(
     ci.level = NULL,
     forest = NULL,
     bases = NULL,
+    na.action = dbarts::na.keepPredictors,
     n.threads,
     \dots)
 
@@ -202,6 +203,9 @@ extract(object, \dots)
    }
    \item{contribution}{
      For \code{extract(type = "forest")} only: \code{FALSE} (the default) returns the raw per-forest total \code{forestFits} already carries (see \sQuote{Value}). \code{TRUE} instead returns each selected forest's per-observation CONTRIBUTION to the fit, \eqn{(\mathrm{basis}_k \, \mathrm{glue}_k) \times \mathrm{forestFits}_k}{(basis_k \%*\% glue_k) * forestFits_k}, computed on demand from the stored \code{forestFits}, \code{glue}, and \code{bases} rather than stored itself.
+   }
+   \item{na.action}{
+     For \code{predict}: what to do with the rows of \code{newdata} that have missing values; see \sQuote{At Prediction} in \code{\link{na.keepPredictors}}.
    }
    \item{ci.level}{
      For \code{fitted} and \code{predict}, an optional single number in \eqn{(0, 1)}. When \code{NULL} (the default), each generic returns what it always has: \code{fitted} the posterior mean, \code{predict} the full array of posterior samples (see \code{type} above), unsummarized. When given, the result is instead a matrix with one row per observation and columns \code{est} (the posterior mean), \code{ci.lower}, and \code{ci.upper} giving a symmetric credible band at that level, pooled over all samples and chains. The kind of interval follows \code{type}: \code{"ev"} yields a credible interval for the conditional mean (a probability for binary responses), \code{"ppd"} a prediction interval that additionally carries the residual noise (and so is wider), and \code{"bart"} a credible interval on the latent scale. Refused, by name, with \code{type = "forest"} - that arm reports each forest's own total before any basis - and on \code{residuals}, where it would band a constant minus an increasing triple and so mislabel two of its three columns; take \code{y - fitted(object, ci.level = )} instead, where the reversal is visible at the call site.

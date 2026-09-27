@@ -138,6 +138,14 @@ the column lacks NAs).
   route reports in the missing column uniformly for both rule kinds).
   printTrees prints the direction with the rule. plotTree appends the
   route to the label ("NA->L").
+- Predict (dec-B34): the sampler's predict, predictForests and
+  getTrees(newdata) refuse a test NA in a training-complete column
+  (refuseTestMissingness). The fit-level predict methods and
+  survivalProbabilities take na.action (resolvePredictRows): the
+  default keeps that refusal, na.pass returns NA for those rows, and
+  na.omit, na.exclude (which pads) and na.fail act on any NA. A
+  prediction with no row left runs one placeholder training row and
+  cuts its answer away, restoring R's stream.
 
 ## Gates
 

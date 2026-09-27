@@ -83,7 +83,8 @@ bart(
     object, newdata,
     type = c("ev", "ppd", "bart", "forest", "class"),
     offset = NULL,
-    combineChains = TRUE, ci.level = NULL, n.threads, \dots)
+    combineChains = TRUE, ci.level = NULL,
+    na.action = dbarts::na.keepPredictors, n.threads, \dots)
 
 \method{print}{bartMultinomial}(x, \dots)
 
@@ -104,7 +105,8 @@ bart(
     object, newdata,
     type = c("ev", "ppd", "bart", "class"),
     offset = NULL,
-    combineChains = TRUE, ci.level = NULL, n.threads, \dots)
+    combineChains = TRUE, ci.level = NULL,
+    na.action = dbarts::na.keepPredictors, n.threads, \dots)
 
 \method{print}{bartOrdinal}(x, \dots)
 
@@ -125,7 +127,8 @@ bart(
     object, newdata,
     type = c("ev", "ppd", "bart"),
     offset = NULL,
-    combineChains = TRUE, ci.level = NULL, n.threads, \dots)
+    combineChains = TRUE, ci.level = NULL,
+    na.action = dbarts::na.keepPredictors, n.threads, \dots)
 
 \method{print}{bartNegbin}(x, \dots)
 
@@ -146,7 +149,8 @@ bart(
     object, newdata,
     type = c("ev", "ppd", "prob", "bart"),
     offset = NULL,
-    combineChains = TRUE, ci.level = NULL, n.threads, \dots)
+    combineChains = TRUE, ci.level = NULL,
+    na.action = dbarts::na.keepPredictors, n.threads, \dots)
 
 \method{print}{bartHurdle}(x, \dots)
 
@@ -203,6 +207,8 @@ bart(
    }
    \item{na.action}{
      A function that filters incomplete rows, as \code{\link{lm}} takes one. The default \code{\link{na.keepPredictors}} drops rows with a missing RESPONSE and keeps rows with missing predictors, which the trees route; the base functions keep their usual meaning. See \code{\link{na.keepPredictors}}.
+
+     For \code{predict}, what to do with the rows of \code{newdata} that have missing values; see \sQuote{At Prediction} in \code{\link{na.keepPredictors}}.
    }
    \item{factors}{
      How factor columns in a data frame enter the model, exactly as in \code{\link{dbarts}}. The default \code{"categorical"} keeps each unordered factor as a single predictor whose splits send a subset of its levels down each branch - a different model-matrix representation than \code{\link{bartBT}}'s, which always expands every factor into indicator columns; \code{"indicators"} instead expands each factor into binary indicator columns, matching \code{bartBT}. A factor-predictor fit therefore changes if moved between the two interfaces.

@@ -429,11 +429,9 @@ if (requireNamespace("survival", quietly = TRUE)) {
   expect_identical(as.vector(fitZU$na.action), 7:9)
   expect_identical(which(is.na(fitted(fitZU))), 7:9)
 
-  # defect: the formula path's na.action runs BEFORE expansion, at the
-  # subject level, so its record does not describe the person-period design
-  # the expansion produces; padding fitted() through it used to come back
-  # the wrong length with names out of order. It is dropped instead, and
-  # fitted() comes back at the fit's own (unpadded) person-period length.
+  # the formula path's na.action runs BEFORE expansion, at the subject
+  # level; its record is restated over the dropped subject's person-period
+  # rows, so fitted() pads as it does on the matrix path
   hazardFrameMissing <- hazardFrame
   hazardFrameMissing$a[4L] <- NA
   fitZFE <- quick(
@@ -442,10 +440,19 @@ if (requireNamespace("survival", quietly = TRUE)) {
     na.action = na.exclude,
     family = quote(hazard(breaks = c(0, 1, 2, 3)))
   )
-  keptNames <- make.unique(rep(subjectNames[-4L], periods[-4L]))
-  expect_null(fitZFE$na.action)
-  expect_identical(fitZFE$row.names.train, keptNames)
-  expect_identical(names(fitted(fitZFE)), keptNames)
+  expect_identical(names(fitZFE$na.action), dropped)
+  expect_identical(fitZFE$row.names.train, setdiff(allNames, dropped))
+  expect_identical(names(fitted(fitZFE)), allNames)
+  # a subject with no time has no rows to pad
+  hazardFrameMissing$time[4L] <- NA
+  fitZFN <- quick(
+    survival::Surv(time, status) ~ a + b,
+    hazardFrameMissing,
+    na.action = na.exclude,
+    family = quote(hazard(breaks = c(0, 1, 2, 3)))
+  )
+  expect_null(fitZFN$na.action)
+  expect_identical(fitZFN$row.names.train, setdiff(allNames, dropped))
 }
 
 # --- the sampler's test setters keep the record in step with the rows ---
