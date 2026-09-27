@@ -8,6 +8,10 @@
   declared ensembles. Every knob is per forest and carried on the one
   constructor, so the fitting functions grow exactly one argument however many
   forests a model has.
+
+  The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  \code{dbartsForests$forest(...)}; see \code{\link{dbartsForests}}.
 }
 \usage{
 forest(
@@ -196,6 +200,7 @@ forest(
   A \code{dbartsForest} specification object, resolved when a sampler is built.
 }
 \seealso{
+  \code{\link{dbartsForests}},
   \code{\link{dbarts}}, \code{\link{bart}}, \code{\link{dbartsSpec}},
   \code{\link{interactions}}, \code{\link{blocks}}
 

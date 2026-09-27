@@ -174,7 +174,7 @@ sampler.forests <- local({
   dbarts::dbarts(
     x,
     y,
-    forests = list(dbarts::forest(), dbarts::forest(basis = ~ factor(z))),
+    forests = list(forest(), forest(basis = ~ factor(z))),
     control = control
   )
 })

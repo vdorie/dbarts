@@ -194,7 +194,7 @@ fitHeteroscedastic <- growInit(dbarts::dbarts(
   xGrow,
   yGrow,
   control = growControl,
-  variance = dbarts::varianceForest(n.trees = 10L)
+  variance = varianceForest(n.trees = 10L)
 ))
 fitHomoscedastic <- growInit(dbarts::dbarts(
   xGrow,

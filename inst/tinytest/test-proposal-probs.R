@@ -542,7 +542,10 @@ yBcf <- 2 *
   xBcf[, 2L] +
   zBcf * (1 + 2 * xBcf[, 3L]) +
   rnorm(nBcf, 0, 0.2)
-bcfForests <- list(dbarts::forest(), dbarts::forest(basis = ~ factor(zBcf)))
+bcfForests <- list(
+  dbarts::dbartsForests$forest(),
+  dbarts::dbartsForests$forest(basis = ~ factor(zBcf))
+)
 bcfFit <- function(probs) {
   dbarts::dbarts(
     xBcf,

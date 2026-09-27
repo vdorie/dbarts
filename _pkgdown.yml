@@ -29,6 +29,7 @@ reference:
   - dbartsSpec
   - dbartsPriors
   - dbartsFamilies
+  - dbartsForests
   - interactions
   - blocks
   - forest

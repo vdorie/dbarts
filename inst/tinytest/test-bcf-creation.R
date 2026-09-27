@@ -44,7 +44,10 @@ handleOfBcfCreation <- function(sampler) list(ptr = sampler$getPointer())
 
 # the declaration every refusal below is attached to: a plain first forest and
 # a second one whose two-level factor basis carries the (b0, b1) amplitudes
-twoForests <- list(forest(), forest(basis = ~ factor(z)))
+twoForests <- list(
+  dbarts::dbartsForests$forest(),
+  dbarts::dbartsForests$forest(basis = ~ factor(z))
+)
 
 # --- the creation-reproduction contract, positive half: with control@seed
 # set every chain's generator is

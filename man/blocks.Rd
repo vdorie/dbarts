@@ -8,6 +8,10 @@
   decomposition). Pass the result as the \code{blocks} argument of
   \code{\link{dbarts}} or \code{\link{bart}}. The constraint is applied per
   forest, so in a multi-forest model each forest can carry its own partition.
+
+  The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  \code{dbartsForests$blocks(...)}; see \code{\link{dbartsForests}}.
 }
 \usage{
 blocks(groups, trees.per.group = NULL)
@@ -57,6 +61,7 @@ blocks(groups, trees.per.group = NULL)
   A \code{dbartsBlocks} specification object, resolved when a sampler is built.
 }
 \seealso{
+  \code{\link{dbartsForests}},
   \code{\link{interactions}}, \code{\link{dbarts}}, \code{\link{bart}}
 }
 \examples{

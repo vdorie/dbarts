@@ -172,7 +172,7 @@ yVar <- 2 * xVar[, 1L] + ifelse(xVar[, 1L] < 0.5, 0.3, 1.5) * rnorm(nVar)
 varianceFit <- dbarts::bart(
   xVar,
   yVar,
-  variance = dbarts::varianceForest(n.trees = 5L),
+  variance = varianceForest(n.trees = 5L),
   n.trees = 5L,
   n.samples = n.samples,
   n.burn = 5L,
@@ -206,7 +206,7 @@ yBcf <- 2 *
 bcfSampler <- dbarts::dbarts(
   xBcf,
   yBcf,
-  forests = list(dbarts::forest(), dbarts::forest(basis = ~ factor(zBcf))),
+  forests = list(forest(), forest(basis = ~ factor(zBcf))),
   control = dbarts::dbartsControl(
     n.threads = 1L,
     n.trees = 8L,

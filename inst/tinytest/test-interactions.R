@@ -97,63 +97,85 @@ expect_true(worstOrder(extract(doFitInteractions(), type = "trees")) >= 2L)
 
 # ---- max.order caps the distinct predictors on every path ---------------------
 
-fit1 <- doFitInteractions(interactions(max.order = 1))
+fit1 <- doFitInteractions(dbarts::dbartsForests$interactions(max.order = 1))
 expect_equal(worstOrder(extract(fit1, type = "trees")), 1L)
 
-fit2 <- doFitInteractions(interactions(max.order = 2))
+fit2 <- doFitInteractions(dbarts::dbartsForests$interactions(max.order = 2))
 expect_true(worstOrder(extract(fit2, type = "trees")) <= 2L)
 
 # ---- forbid bars a named pair from ever co-occurring --------------------------
 
-fitF <- doFitInteractions(interactions(forbid = list(c("x1", "x2"))))
+fitF <- doFitInteractions(dbarts::dbartsForests$interactions(
+  forbid = list(c("x1", "x2"))
+))
 expect_false(anyCoOccur(extract(fitF, type = "trees"), c(1L, 2L)))
 
 # ---- groups: named columns co-occur only with their group-mates ---------------
 
-fitG <- doFitInteractions(interactions(groups = list(c("x1", "x3"), "x2")))
+fitG <- doFitInteractions(dbarts::dbartsForests$interactions(
+  groups = list(c("x1", "x3"), "x2")
+))
 treesG <- extract(fitG, type = "trees")
 expect_false(anyCoOccur(treesG, c(1L, 2L))) # different groups
 expect_false(anyCoOccur(treesG, c(2L, 3L))) # different groups
 
 # ---- fit-time validation (safe over fast) -------------------------------------
 
-expect_error(interactions(), "at least one of")
-expect_error(doFitInteractions(interactions(max.order = 0)), "max.order")
-expect_error(doFitInteractions(interactions(max.order = -1L)), "max.order")
+expect_error(dbarts::dbartsForests$interactions(), "at least one of")
+expect_error(
+  doFitInteractions(dbarts::dbartsForests$interactions(max.order = 0)),
+  "max.order"
+)
+expect_error(
+  doFitInteractions(dbarts::dbartsForests$interactions(max.order = -1L)),
+  "max.order"
+)
 # a fractional max.order is refused, naming the argument, rather than
 # silently truncated (coerceOrError's integer branch)
 expect_error(
-  doFitInteractions(interactions(max.order = 1.5)),
+  doFitInteractions(dbarts::dbartsForests$interactions(max.order = 1.5)),
   "'max.order' must be a whole number; got '1.5'",
   fixed = TRUE
 )
 expect_error(
-  doFitInteractions(interactions(forbid = list(c("x1", "nope")))),
+  doFitInteractions(dbarts::dbartsForests$interactions(
+    forbid = list(c("x1", "nope"))
+  )),
   "unrecognized variable name 'nope'"
 )
 expect_error(
-  doFitInteractions(interactions(groups = list(character(0)))),
+  doFitInteractions(dbarts::dbartsForests$interactions(
+    groups = list(character(0))
+  )),
   "at least one column"
 )
 expect_error(
-  doFitInteractions(interactions(forbid = list("x1"))),
+  doFitInteractions(dbarts::dbartsForests$interactions(forbid = list("x1"))),
   "two or more columns"
 )
 # a fractional forbid/groups entry is refused, naming the argument, rather
 # than silently truncated (coerceOrError's integer branch); a whole-number
 # double entry is accepted the same as an integer or name
 expect_error(
-  doFitInteractions(interactions(forbid = list(c(1.9, 2)))),
+  doFitInteractions(dbarts::dbartsForests$interactions(
+    forbid = list(c(1.9, 2))
+  )),
   "'forbid' must be a whole number; got 'c(1.9, 2)'",
   fixed = TRUE
 )
 expect_error(
-  doFitInteractions(interactions(groups = list(c(1.9, 3), 2))),
+  doFitInteractions(dbarts::dbartsForests$interactions(
+    groups = list(c(1.9, 3), 2)
+  )),
   "'groups' must be a whole number; got 'c(1.9, 3)'",
   fixed = TRUE
 )
-expect_silent(doFitInteractions(interactions(forbid = list(c(1, 2)))))
-expect_silent(doFitInteractions(interactions(groups = list(c(1, 3), 2))))
+expect_silent(doFitInteractions(dbarts::dbartsForests$interactions(
+  forbid = list(c(1, 2))
+)))
+expect_silent(doFitInteractions(dbarts::dbartsForests$interactions(
+  groups = list(c(1, 3), 2)
+)))
 
 # ---- warm-start refusal: an unconstrained donor's order-2 trees cannot seed a
 #      max.order = 1 fit ---------------------------------------------------------
@@ -170,7 +192,7 @@ expect_error(
       list(
         y ~ x1 + x2 + x3,
         df,
-        interactions = interactions(max.order = 1),
+        interactions = dbarts::dbartsForests$interactions(max.order = 1),
         warm.start = donor
       ),
       fitArgs
@@ -197,8 +219,8 @@ bc <- dbarts:::bartcoreBCFSampler(
   bcSampler,
   z,
   n.trees.treatment = 30L,
-  mu.interactions = interactions(max.order = 3),
-  tau.interactions = interactions(max.order = 1)
+  mu.interactions = dbarts::dbartsForests$interactions(max.order = 3),
+  tau.interactions = dbarts::dbartsForests$interactions(max.order = 1)
 )
 invisible(bartcoreRun(bc, 150L, 0L))
 tauTrees <- bartcoreGetTrees(

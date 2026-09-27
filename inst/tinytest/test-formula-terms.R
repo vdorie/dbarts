@@ -146,7 +146,10 @@ expectSameForest(
 )
 # (16) the term grammar names forest only, so a dbarts::-qualified head is
 # not a term
-expect_error(fit(y ~ x1 + x2 + z:dbarts::forest(x1 + x2)), "forest")
+expect_error(
+  fit(y ~ x1 + x2 + z:dbarts::forest(x1 + x2)),
+  "not an exported object"
+)
 # (17) the symbolic slot vs vars = by name
 expectSameForest(
   y ~ x1 + x2 + forest(x1 + x2, basis = ~z),

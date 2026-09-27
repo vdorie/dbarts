@@ -748,7 +748,7 @@ makeScenarios <- function() {
     x.test = matrix(runif(n.test * 10L), n.test),
     binary = TRUE,
     samplerApi = TRUE,
-    samplerArgs = list(variance = varianceForest(n.trees = 40L)),
+    samplerArgs = list(variance = dbartsForests$varianceForest(n.trees = 40L)),
     mutate = list(forced = matrix(runif(400L * 10L), 400L))
   )
 
@@ -777,7 +777,7 @@ makeScenarios <- function() {
     binary = TRUE,
     samplerApi = TRUE,
     recordVerdict = TRUE,
-    samplerArgs = list(variance = varianceForest(n.trees = 40L)),
+    samplerArgs = list(variance = dbartsForests$varianceForest(n.trees = 40L)),
     mutate = list(
       predictor = pmin(
         pmax(x + matrix(rnorm(400L * 10L, 0, 0.005), 400L), 0),
@@ -800,7 +800,7 @@ makeScenarios <- function() {
     binary = TRUE,
     samplerApi = TRUE,
     recordVerdict = TRUE,
-    samplerArgs = list(variance = varianceForest(n.trees = 40L)),
+    samplerArgs = list(variance = dbartsForests$varianceForest(n.trees = 40L)),
     mutate = list(partial = list(index = 6L, values = runif(400L)))
   )
 
@@ -824,7 +824,7 @@ makeScenarios <- function() {
     x.test = matrix(runif(n.test * 10L), n.test),
     binary = TRUE,
     samplerApi = TRUE,
-    samplerArgs = list(variance = varianceForest(n.trees = 40L)),
+    samplerArgs = list(variance = dbartsForests$varianceForest(n.trees = 40L)),
     setData = list(
       x = x2,
       y = 1.5 * friedman(x2) + (0.5 + 2 * x2[, 6L]) * rnorm(500L)

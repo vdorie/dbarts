@@ -33,7 +33,7 @@ makeVarianceSampler <- function() {
     x,
     y,
     test = x.test,
-    variance = dbarts::varianceForest(n.trees = 10L),
+    variance = varianceForest(n.trees = 10L),
     control = dbarts::dbartsControl(
       n.chains = numChains,
       n.threads = numChains,
@@ -77,8 +77,8 @@ makeForestSampler <- function() {
     x,
     y,
     forests = list(
-      dbarts::forest(),
-      dbarts::forest(basis = ~ factor(z))
+      forest(),
+      forest(basis = ~ factor(z))
     ),
     control = dbarts::dbartsControl(
       n.chains = numChains,

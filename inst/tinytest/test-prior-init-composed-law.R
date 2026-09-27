@@ -47,8 +47,8 @@ makeBCF <- function(...) {
     control = control,
     tree.prior = treePrior,
     forests = list(
-      dbarts::forest(),
-      dbarts::forest(
+      forest(),
+      forest(
         basis = ~ factor(z),
         base = deep$base,
         power = deep$power,

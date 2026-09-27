@@ -1104,6 +1104,10 @@
             variance forest - running one predicate over every forest the
             state carries and reporting the same message, and refusing before
             any live state is touched. Fits made without either argument are unchanged.
+            Like the prior constructors, \code{interactions}, \code{blocks},
+            \code{forest} and \code{varianceForest} are not exported: they
+            resolve by bare name inside the arguments that take them, and
+            \code{\link{dbartsForests}} holds them for use elsewhere.
             See \code{?interactions} and \code{?blocks}.
       \item Monotone constraints: \code{monotone = c(x1 = "+", x3 = "-")}
             in \code{dbarts} and \code{bart} constrains the fit to be

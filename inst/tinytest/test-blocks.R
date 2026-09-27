@@ -67,20 +67,24 @@ doFitBlocks <- function(blocks = NULL) {
 
 # groups {x1} and {x2, x3} -> columns {1} and {2, 3}
 groups <- list(1L, c(2L, 3L))
-fit <- doFitBlocks(blocks(groups = list("x1", c("x2", "x3"))))
+fit <- doFitBlocks(dbarts::dbartsForests$blocks(
+  groups = list("x1", c("x2", "x3"))
+))
 trees <- extract(fit, type = "trees")
 expect_true(someSplit(trees))
 expect_true(allConfined(trees, groups))
 
 # an explicit trees.per.group runs and stays confined
-fitSplit <- doFitBlocks(blocks(
+fitSplit <- doFitBlocks(dbarts::dbartsForests$blocks(
   groups = list("x1", c("x2", "x3")),
   trees.per.group = c(5L, 15L)
 ))
 expect_true(allConfined(extract(fitSplit, type = "trees"), groups))
 
 # a numeric-index partition is equivalent
-fitIdx <- doFitBlocks(blocks(groups = list(1L, c(2L, 3L))))
+fitIdx <- doFitBlocks(dbarts::dbartsForests$blocks(
+  groups = list(1L, c(2L, 3L))
+))
 expect_true(allConfined(extract(fitIdx, type = "trees"), groups))
 
 # ---- a never-split tree is a subset of all blocks, not a violation -------
@@ -97,7 +101,7 @@ fitC3 <- do.call(
     list(
       y ~ x1 + x2 + x3 + x4,
       dfC3,
-      blocks = blocks(
+      blocks = dbarts::dbartsForests$blocks(
         groups = list("x1", c("x2", "x3"), "x4"),
         trees.per.group = c(7L, 7L, 7L)
       )
@@ -153,26 +157,30 @@ expect_true(checkFixedCapacity(
 
 # ---- fit-time validation (safe over fast) -------------------------------------
 
-expect_error(blocks(), "requires 'groups'")
+expect_error(dbarts::dbartsForests$blocks(), "requires 'groups'")
 
 # an un-named predictor would be masked out of every tree and go dead
 expect_error(
-  doFitBlocks(blocks(groups = list("x1", "x2"))),
+  doFitBlocks(dbarts::dbartsForests$blocks(groups = list("x1", "x2"))),
   "name every predictor"
 )
 # a predictor named in two groups
 expect_error(
-  doFitBlocks(blocks(groups = list(c("x1", "x2"), c("x2", "x3")))),
+  doFitBlocks(dbarts::dbartsForests$blocks(
+    groups = list(c("x1", "x2"), c("x2", "x3"))
+  )),
   "disjoint"
 )
 # an unrecognized name
 expect_error(
-  doFitBlocks(blocks(groups = list("x1", c("x2", "x3"), "nope"))),
+  doFitBlocks(dbarts::dbartsForests$blocks(
+    groups = list("x1", c("x2", "x3"), "nope")
+  )),
   "unrecognized variable name 'nope'"
 )
 # trees.per.group of the wrong length
 expect_error(
-  doFitBlocks(blocks(
+  doFitBlocks(dbarts::dbartsForests$blocks(
     groups = list("x1", c("x2", "x3")),
     trees.per.group = 20L
   )),
@@ -181,7 +189,7 @@ expect_error(
 # a fractional trees.per.group entry is refused, naming the argument, rather
 # than silently truncated (coerceOrError's integer branch)
 expect_error(
-  doFitBlocks(blocks(
+  doFitBlocks(dbarts::dbartsForests$blocks(
     groups = list("x1", c("x2", "x3")),
     trees.per.group = c(5.5, 15L)
   )),
@@ -192,14 +200,16 @@ expect_error(
 # silently truncated (coerceOrError's integer branch); a whole-number double
 # entry is accepted the same as an integer index
 expect_error(
-  doFitBlocks(blocks(groups = list(1.9, c(2L, 3L)))),
+  doFitBlocks(dbarts::dbartsForests$blocks(groups = list(1.9, c(2L, 3L)))),
   "'groups' must be a whole number; got '1.9'",
   fixed = TRUE
 )
-expect_silent(doFitBlocks(blocks(groups = list(1, c(2, 3)))))
+expect_silent(doFitBlocks(dbarts::dbartsForests$blocks(
+  groups = list(1, c(2, 3))
+)))
 # trees.per.group that does not sum to n.trees
 expect_error(
-  doFitBlocks(blocks(
+  doFitBlocks(dbarts::dbartsForests$blocks(
     groups = list("x1", c("x2", "x3")),
     trees.per.group = c(5L, 5L)
   )),
@@ -207,7 +217,7 @@ expect_error(
 )
 # a non-positive capacity
 expect_error(
-  doFitBlocks(blocks(
+  doFitBlocks(dbarts::dbartsForests$blocks(
     groups = list("x1", c("x2", "x3")),
     trees.per.group = c(0L, 20L)
   )),
@@ -221,7 +231,7 @@ expect_error(
       list(
         y ~ x1 + x2 + x3,
         df,
-        blocks = blocks(groups = list("x1", "x2", "x3"))
+        blocks = dbarts::dbartsForests$blocks(groups = list("x1", "x2", "x3"))
       ),
       modifyList(fitArgs, list(n.trees = 2L))
     )
@@ -237,8 +247,8 @@ fitBoth <- do.call(
     list(
       y ~ x1 + x2 + x3,
       df,
-      blocks = blocks(groups = list("x1", c("x2", "x3"))),
-      interactions = interactions(max.order = 1)
+      blocks = dbarts::dbartsForests$blocks(groups = list("x1", c("x2", "x3"))),
+      interactions = dbarts::dbartsForests$interactions(max.order = 1)
     ),
     fitArgs
   )
@@ -256,7 +266,7 @@ fitMono <- do.call(
     list(
       y ~ x1 + x2 + x3,
       df,
-      blocks = blocks(groups = list("x1", c("x2", "x3"))),
+      blocks = dbarts::dbartsForests$blocks(groups = list("x1", c("x2", "x3"))),
       monotone = c(x1 = "+", x3 = "+")
     ),
     fitArgs
@@ -267,9 +277,13 @@ expect_true(allConfined(extract(fitMono, type = "trees"), groups))
 # ---- a fixed blocks() config + seed reproduces draws ---------------------------
 
 set.seed(77L)
-fitRepA <- doFitBlocks(blocks(groups = list("x1", c("x2", "x3"))))
+fitRepA <- doFitBlocks(dbarts::dbartsForests$blocks(
+  groups = list("x1", c("x2", "x3"))
+))
 set.seed(77L)
-fitRepB <- doFitBlocks(blocks(groups = list("x1", c("x2", "x3"))))
+fitRepB <- doFitBlocks(dbarts::dbartsForests$blocks(
+  groups = list("x1", c("x2", "x3"))
+))
 expect_identical(
   extract(fitRepA, type = "trees"),
   extract(fitRepB, type = "trees")
@@ -296,7 +310,7 @@ bc <- dbarts:::bartcoreBCFSampler(
   z,
   n.trees.treatment = 20L,
   moderators = c(1L, 2L),
-  tau.blocks = blocks(groups = list("x1", "x2"))
+  tau.blocks = dbarts::dbartsForests$blocks(groups = list("x1", "x2"))
 )
 invisible(bartcoreRun(bc, 150L, 0L))
 tauTrees <- bartcoreGetTrees(
@@ -317,7 +331,9 @@ expect_error(
     z,
     n.trees.treatment = 20L,
     moderators = c(1L, 2L),
-    tau.blocks = blocks(groups = list("x1", c("x2", "x3")))
+    tau.blocks = dbarts::dbartsForests$blocks(
+      groups = list("x1", c("x2", "x3"))
+    )
   ),
   "available predictors"
 )

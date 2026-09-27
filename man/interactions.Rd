@@ -7,6 +7,10 @@
   argument of \code{\link{dbarts}} or \code{\link{bart}}. The constraint is
   applied per forest, so in a multi-forest model one forest can be held
   additive-or-low-order while another stays free.
+
+  The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  \code{dbartsForests$interactions(...)}; see \code{\link{dbartsForests}}.
 }
 \usage{
 interactions(max.order = NULL, groups = NULL, forbid = NULL)
@@ -73,6 +77,7 @@ interactions(max.order = NULL, groups = NULL, forbid = NULL)
   built.
 }
 \seealso{
+  \code{\link{dbartsForests}},
   \code{\link{dbarts}}, \code{\link{bart}}, \code{\link{blocks}}
 }
 \examples{

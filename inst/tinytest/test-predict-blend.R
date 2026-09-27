@@ -70,7 +70,10 @@ fitFromPredictBlend <- function(
 # ragged widths (1, 2): forest 1's implicit all-ones column beside a two-level
 # basis, the shape that tells reading the glue by its "forest" attribute apart
 # from reading it positionally
-twoForests <- list(forest(), forest(basis = ~ factor(z)))
+twoForests <- list(
+  dbarts::dbartsForests$forest(),
+  dbarts::dbartsForests$forest(basis = ~ factor(z))
+)
 fit <- fitFromPredictBlend(twoForests)
 
 # --- THE PRIMARY ORACLE. At the TRAINING rows, with the fit's OWN bases, the
@@ -130,15 +133,18 @@ expect_identical(
   dbarts:::uncombineChains(blendAtTraining(chainFit, type = "bart"), 2L)
 )
 # a three-column basis, so the ragged margin is (1, 3)
-wideFit <- fitFromPredictBlend(list(forest(), forest(basis = ~g3)))
+wideFit <- fitFromPredictBlend(list(
+  dbarts::dbartsForests$forest(),
+  dbarts::dbartsForests$forest(basis = ~g3)
+))
 expect_identical(dim(wideFit$bases[[2L]]), c(n, 3L))
 expect_true(
   max(abs(blendAtTraining(wideFit, type = "bart") - wideFit$yhat.train)) < 1e-12
 )
 # forest 1 carrying a basis of its own rather than the implicit column
 bothBasesFit <- fitFromPredictBlend(list(
-  forest(basis = ~w),
-  forest(basis = ~ factor(z))
+  dbarts::dbartsForests$forest(basis = ~w),
+  dbarts::dbartsForests$forest(basis = ~ factor(z))
 ))
 expect_identical(dim(bothBasesFit$bases[[1L]]), c(n, 1L))
 expect_true(

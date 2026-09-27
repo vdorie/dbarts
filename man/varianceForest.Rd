@@ -13,6 +13,10 @@
   the variance). This constructor is the other accepted type of that one
   argument, adding the variance forest's own tree count and structure prior
   alongside the column selection.
+
+  The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  \code{dbartsForests$varianceForest(...)}; see \code{\link{dbartsForests}}.
 }
 \usage{
 varianceForest(vars = NULL, n.trees = NULL, base = NULL, power = NULL)
@@ -58,6 +62,7 @@ Pratola, M.T., Chipman, H.A., George, E.I., and McCulloch, R.E. (2020)
         \emph{Journal of Computational and Graphical Statistics}, \bold{29}(2), 405--417.
 }
 \seealso{
+  \code{\link{dbartsForests}},
   \code{\link{dbarts}}, \code{\link{dbartsSpec}}, \code{\link{bart}}
 }
 \examples{
@@ -80,6 +85,6 @@ fit.restricted <- bart(x, y,
                         n.trees = 25L, n.samples = 20L, n.burn = 20L,
                         n.chains = 1L, verbose = FALSE)
 
-varianceForest(vars = ~x1, n.trees = 20L, base = 0.9, power = 1.5)
+dbartsForests$varianceForest(vars = ~x1, n.trees = 20L, base = 0.9, power = 1.5)
 }
 \keyword{models}

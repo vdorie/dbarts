@@ -38,7 +38,10 @@ packageFrom <- function(forests, n.chains = 1L, combineChains = TRUE) {
   )
 }
 
-twoForests <- list(forest(), forest(basis = ~ factor(z)))
+twoForests <- list(
+  dbarts::dbartsForests$forest(),
+  dbarts::dbartsForests$forest(basis = ~ factor(z))
+)
 
 # --- shapes and dimnames, combineChains = TRUE ---
 fit <- packageFrom(twoForests)
@@ -53,8 +56,8 @@ expect_null(attr(fit, "forest.labels"))
 
 # --- forest.labels rides the declaration's own names ---
 namedFit <- packageFrom(list(
-  prognostic = forest(),
-  treatment = forest(basis = ~ factor(z))
+  prognostic = dbarts::dbartsForests$forest(),
+  treatment = dbarts::dbartsForests$forest(basis = ~ factor(z))
 ))
 expect_identical(attr(namedFit, "forest.labels"), c("prognostic", "treatment"))
 

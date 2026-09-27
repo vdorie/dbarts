@@ -59,7 +59,7 @@ varianceSampler <- function(weights) {
     yContinuous,
     weights = weights,
     control = stateControl,
-    variance = dbarts::varianceForest(n.trees = 10L)
+    variance = varianceForest(n.trees = 10L)
   )
 }
 multinomialSampler <- function() {

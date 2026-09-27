@@ -268,14 +268,17 @@ buildBase <- function(family, seed, extra = list()) {
     bcf = list(
       d$x,
       d$y,
-      forests = list(forest(), forest(basis = ~ factor(d$z))),
+      forests = list(
+        dbartsForests$forest(),
+        dbartsForests$forest(basis = ~ factor(d$z))
+      ),
       control = ctl(seed)
     ),
     hetero = list(
       d$x,
       d$y,
       test = d$x[1:5, , drop = FALSE],
-      variance = varianceForest(n.trees = 3L),
+      variance = dbartsForests$varianceForest(n.trees = 3L),
       control = ctl(seed)
     ),
     stop("composition-matrix: no base fixture recipe for '", family, "'")
@@ -376,7 +379,11 @@ bart2Args <- function(family, d) {
       ifelse(d$yBin == 1L, exp(d$x[, 1L]) + 0.1, 0),
       family = "hurdle.lognormal"
     ),
-    hetero = list(d$x, d$y, variance = varianceForest(n.trees = 3L)),
+    hetero = list(
+      d$x,
+      d$y,
+      variance = dbartsForests$varianceForest(n.trees = 3L)
+    ),
     NULL
   )
 }
@@ -626,7 +633,7 @@ runProbe <- function(family, capability, seed) {
     return(attempt(buildBase(
       family,
       seed,
-      list(variance = varianceForest(n.trees = 3L))
+      list(variance = dbartsForests$varianceForest(n.trees = 3L))
     )))
   }
   if (identical(probe, "extra:dart")) {

@@ -19,7 +19,7 @@ buildVarianceSampler <- function(predictors, response) {
     predictors,
     response,
     control = control,
-    variance = dbarts::varianceForest(n.trees = 10L)
+    variance = varianceForest(n.trees = 10L)
   )
 }
 
@@ -31,7 +31,7 @@ expect_error(
     x,
     y,
     control = control,
-    variance = dbarts::varianceForest(vars = 2.9, n.trees = 10L)
+    variance = varianceForest(vars = 2.9, n.trees = 10L)
   ),
   "'vars' must be a whole number; got '2.9'",
   fixed = TRUE
@@ -40,7 +40,7 @@ expect_silent(dbarts::dbarts(
   x,
   y,
   control = control,
-  variance = dbarts::varianceForest(vars = 2, n.trees = 10L)
+  variance = varianceForest(vars = 2, n.trees = 10L)
 ))
 
 # distinct reported values, quantized well below any routing difference: the
@@ -312,7 +312,7 @@ scaleSampler <- function(response, offset = NULL) {
     response,
     offset = offset,
     control = control,
-    variance = dbarts::varianceForest(n.trees = 8L),
+    variance = varianceForest(n.trees = 8L),
     sigest = 1.3,
     seed = 77L
   )
@@ -380,7 +380,7 @@ pinnedSampler <- function(predictors, response) {
     predictors,
     response,
     control = control,
-    variance = dbarts::varianceForest(n.trees = 8L),
+    variance = varianceForest(n.trees = 8L),
     sigest = 1.3,
     seed = 77L
   )

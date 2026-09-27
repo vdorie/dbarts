@@ -604,7 +604,7 @@ expect_error(
 fitHetero <- dbarts::bart(
   runif(40L),
   rnorm(40L),
-  variance = dbarts::varianceForest(n.trees = 3L),
+  variance = varianceForest(n.trees = 3L),
   n.trees = 5L,
   n.samples = 8L,
   n.burn = 5L,

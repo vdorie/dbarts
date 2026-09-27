@@ -556,3 +556,9 @@ single-forest path. The `treatment=` and `setTreatment`/`bcfGlue` spellings
 floated here never landed: the shipped mechanism is `dbartsData(bases = )`
 (47cdb96a), the K-length list this section opens with.
 `bcf()` itself is expected to land in bartCause (same plan, fork 4).
+
+**Not exported.** `forest()`, `interactions()`, `blocks()` and
+`varianceForest()` follow section 3a's no-pollution rule (dec-A67): they
+resolve by bare name inside the arguments that take them, a bare name the
+caller has bound to a value taking that value, and the exported list
+`dbartsForests` holds them for use outside a call.

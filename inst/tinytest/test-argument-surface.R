@@ -461,16 +461,24 @@ varianceAttr <- function(variance, factors = "categorical") {
 # round-trip identity (one argument, two accepted types): a varianceForest
 # with no knobs declared resolves BYTE-IDENTICALLY to the shorthand it wraps,
 # both when it reads every column and when it is restricted
-expect_identical(varianceAttr(TRUE), varianceAttr(dbarts::varianceForest()))
+expect_identical(
+  varianceAttr(TRUE),
+  varianceAttr(dbarts::dbartsForests$varianceForest())
+)
 expect_identical(
   varianceAttr(~x1),
-  varianceAttr(dbarts::varianceForest(vars = ~x1))
+  varianceAttr(dbarts::dbartsForests$varianceForest(vars = ~x1))
 )
 
 # a declared n.trees/base/power on the object is honored and distinguishes it
 # from the plain shorthand's own defaults
 objectAttr <- varianceAttr(
-  dbarts::varianceForest(vars = ~x1, n.trees = 20L, base = 0.9, power = 1.5)
+  dbarts::dbartsForests$varianceForest(
+    vars = ~x1,
+    n.trees = 20L,
+    base = 0.9,
+    power = 1.5
+  )
 )
 expect_equal(objectAttr$n.trees, 20L)
 expect_equal(objectAttr$base, 0.9)
@@ -499,7 +507,7 @@ attrObjectZ <- attr(
     y ~ x1 + z,
     data.frame(y = varY, dfFactorVar),
     control = varControl,
-    variance = dbarts::varianceForest(vars = ~z),
+    variance = varianceForest(vars = ~z),
     factors = "indicators"
   )$control,
   "bartcore.variance"
@@ -535,12 +543,19 @@ expect_error(
 )
 
 # print/format smoke
-printed <- capture.output(print(dbarts::varianceForest(n.trees = 20L)))
+printed <- capture.output(print(dbarts::dbartsForests$varianceForest(
+  n.trees = 20L
+)))
 expect_true(any(grepl("variance forest", printed)))
 expect_true(any(grepl("n.trees = 20", printed, fixed = TRUE)))
 expect_true(any(grepl("<all columns>", printed, fixed = TRUE)))
 formatted <- format(
-  dbarts::varianceForest(vars = ~x1, n.trees = 20L, base = 0.9, power = 1.5)
+  dbarts::dbartsForests$varianceForest(
+    vars = ~x1,
+    n.trees = 20L,
+    base = 0.9,
+    power = 1.5
+  )
 )
 expect_true(is.character(formatted))
 expect_true(any(grepl("base\\s*= 0.9", formatted)))
@@ -766,7 +781,7 @@ fitMultiForest <- function(basis) {
   sampler <- dbarts::dbarts(
     tex,
     tey,
-    forests = list(dbarts::forest(), dbarts::forest(basis = basis)),
+    forests = list(forest(), forest(basis = basis)),
     control = teControl
   )
   burn <- dbarts:::runWithBurnIn(sampler, sampler$control, FALSE)

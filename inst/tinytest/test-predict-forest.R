@@ -15,7 +15,10 @@ nNew <- 25L
 xNew <- matrix(runif(nNew * p), nNew, p)
 
 n.samples <- 6L
-twoForests <- list(forest(), forest(basis = ~ factor(z)))
+twoForests <- list(
+  dbarts::dbartsForests$forest(),
+  dbarts::dbartsForests$forest(basis = ~ factor(z))
+)
 
 # keepTrees rides the SAMPLING run only, as bart() turns it on: the store is a
 # circular buffer, so recording burn-in sweeps too would rotate the saved slots

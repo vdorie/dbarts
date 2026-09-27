@@ -57,7 +57,10 @@ unitBases4 <- list(ones, zBasis, gBasis, hBasis)
 scaledBases <- list(ones, 4 * zBasis)
 # the product pin's own fixture, whose every factor discriminates; see (d)
 pinBases <- list(3 * ones, 5 * zBasis)
-pinScales <- list(forest(sd = 2.5), forest(sd = 0.4))
+pinScales <- list(
+  dbarts::dbartsForests$forest(sd = 2.5),
+  dbarts::dbartsForests$forest(sd = 0.4)
+)
 
 basisSampler <- function(y, bases, family = "auto", ...) {
   dbarts(
@@ -210,7 +213,10 @@ for (family in names(anchors)) {
 
 # --- positive builds on the shipped two-forest shape, where forest 1 carries
 # the half-Cauchy amplitude and forest 2 the fixed-variance pair ---
-twoForests <- list(forest(), forest(basis = ~ factor(z)))
+twoForests <- list(
+  dbarts::dbartsForests$forest(),
+  dbarts::dbartsForests$forest(basis = ~ factor(z))
+)
 kForest <- function(y, family = "auto", ...) {
   dbarts(
     x,
@@ -366,14 +372,22 @@ declaredAll <- transportParams(
   yBalanced,
   unitBases3,
   "probit",
-  forests = list(forest(sd = 1), forest(sd = 1), forest(sd = 1))
+  forests = list(
+    dbarts::dbartsForests$forest(sd = 1),
+    dbarts::dbartsForests$forest(sd = 1),
+    dbarts::dbartsForests$forest(sd = 1)
+  )
 )
 expect_equal(paramSlot(declaredAll, 4L), rep(1, 3L))
 declaredShape <- transportParams(
   yBalanced,
   freeBases3,
   "probit",
-  forests = list(forest(sd = 2), forest(sd = 1), forest(sd = 1))
+  forests = list(
+    dbarts::dbartsForests$forest(sd = 2),
+    dbarts::dbartsForests$forest(sd = 1),
+    dbarts::dbartsForests$forest(sd = 1)
+  )
 )
 expect_equal(paramSlot(declaredShape, 4L), c(1, 1, 1))
 expect_equal(paramSlot(declaredShape, 7L)[1L], 2)

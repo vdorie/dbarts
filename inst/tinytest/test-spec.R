@@ -74,7 +74,7 @@ expect_equal(monotoneSpec$control@proposal.probs[["rule_gibbs"]], 0.0)
 additiveSpec <- dbarts::dbartsSpec(
   data,
   control = control,
-  interactions = dbarts::interactions(max.order = 1L)
+  interactions = interactions(max.order = 1L)
 )
 expect_equal(attr(additiveSpec$model, "interaction.max.order"), 1L)
 
