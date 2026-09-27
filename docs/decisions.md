@@ -268,6 +268,70 @@ Record: docs/plans/prerc-surface-freeze.md; docs/plans/dbarts-h-freeze.md, which
 A C++ exception thrown inside a callback is caught at the call and rethrown only after the callback's own frame has returned, the jump being made under R's unwind protection so that it unwinds through that frame rather than across it; an exception the engine itself raises travels the same path, and either becomes an R error only at the bridge entry point, once the unwind has run. No raw error call and no long jump leaves engine or callback code. No alternative was weighed. A host written in C++ still may not jump to a saved position of its own from inside a callback: only raising an R error or throwing is safe. The same change fixes three sites that leaked heap memory, since every path now unwinds through a frame instead of jumping past it. Not yet ruled on; it was never put to the maintainer. See also: [dec-A31].
 Record: inst/include/dbarts/dbarts.h; src/R_interface_bartcore_common.hpp. Marked: blank. [dec-B119]
 
+**A constructor call passed through a wrapper's named argument is not recovered**
+A wrapper that takes an argument and passes it on, as in wrapper(interactions(max.order = 1)) where the wrapper calls bart(..., interactions = x), fails with R's own could-not-find-function error plus a hint to build the value with dbartsForests$interactions(). The constructors are found only inside the arguments that take them, or through dots a wrapper forwards unchanged. The alternative was a stack walk that recovers the call from the wrapper's caller; probes showed it silently picking the wrong environment through lapply and Map and on a wrapper argument with a default, and the prior and family arguments offer no such recovery either. The cost is that this wrapper pattern needs the exported list.
+Record: docs/plans/constructor-vocabulary.md. Marked: blank. [dec-A75]
+
+**Where the caller's variable is looked up for a shared name**
+Under the maintainer's ruling that a bare interactions or blocks given as the value takes the caller's variable of that name (dec-A67), the lookup considers only names used as values in the argument, never names in call position, and stops at the caller's top-level environment: the global environment for user code, the package namespace for code inside a package, so a package's wrapper never picks up a user's global variable. The alternative was to search up to the global environment from any caller. The cost is that a package function cannot deliberately rely on a user's global.
+Record: docs/plans/constructor-vocabulary.md. Marked: blank. [dec-A76]
+
+**A hurdle fit's k and varcount come back as a two-part list**
+extract(type = "k") and extract(type = "varcount") on a hurdle fit return a list with elements occupancy and positive, one per component, following bartCause's per-forest varcount; a component whose k was fixed is left out, and asking when both are fixed is an error. The alternative was four type names such as "occupancy.k". The cost is that these two types return a list on this one class where every other class returns an array.
+Record: docs/plans/extract-scalar-types.md. Marked: blank. [dec-A77]
+
+**varcount is offered on every fit class**
+extract(type = "varcount") works on multinomial, ordinal and negative binomial fits as well as the plain bart class, reading dec-A68's "bart fits" as every fit bart() returns. The alternative was the plain class only. The cost is three more documented shapes, with a forest or level margin where the fit has one.
+Record: docs/plans/extract-scalar-types.md. Marked: blank. [dec-A78]
+
+**Scalar draws with one chain drop the chain dimension**
+With combineChains = FALSE, extract returns scalar draws as chains by samples, as the maintainer approved; the record's claim that stan4bart shares that orientation was wrong, stan4bart returning samples by chains. At one chain the result is a plain vector of draws, as extract(type = "ev", combineChains = FALSE) already drops the chain dimension there. The alternative was bartCause's BCF convention, a one-row matrix. The cost is that code written for several chains must handle the one-chain vector.
+Record: docs/plans/extract-scalar-types.md. Marked: blank. [dec-A79]
+
+**Reading a non-first forest's trees stays test-only**
+The sampler's $getTrees reads only the first forest, so from R a causal forest's treatment forest and a multinomial fit's categories after the first cannot be read. The one test helper that reads them through the internal layer stays, as truly additive under dec-A52, and a public forest = argument waits as a door in TODO (sampler-gettrees-forest). The alternative was adding the argument before the merge, about 60 lines plus the manual. The cost is a gap in the public surface through 1.0-0.
+Record: the test scaffolding consolidation plan. Marked: blank. [dec-A80]
+
+**Only the two virtual test hooks leave the engine's production classes**
+Of about thirty engine accessors that exist for tests, the two that are virtual on the response base class come off it, becoming ordinary members of the two final classes that use them with the test forwarders casting to reach them, since only virtual members shape the production vtables and object layout (dec-A51). The non-virtual test accessors stay where they are, following the maintainer's words "leave the internal functions when they're truly additive". The alternative was moving all of them into a separate test-access structure, about 130 call sites of churn. The cost is test-only members left on production classes.
+Record: the test scaffolding consolidation plan. Marked: blank. [dec-A81]
+
+**A k chain that reaches infinity is summarized as is**
+With k uncapped (dec-A13), a chain under an infinite prior scale can reach k = Inf; summary then reports its mean as Inf, its standard deviation as NaN and its R-hat as NA. The alternative was special-casing non-finite traces. The cost is NaN and NA entries in a summary, which the manual's chi() entry explains.
+Record: this register. Marked: blank. [dec-A82]
+
+**seed = NA keeps two meanings**
+A seed = NA named in a call to bart or xbart runs unseeded even when the control carries a seed; in dbarts, seed = NA leaves the control's seed in force. The Reproducibility section documents both as they stand. The alternative is one rule for all three, which would change one of them. The cost is a rule a user can get wrong when moving between bart and dbarts.
+Record: this register; the Reproducibility section of bart's manual page. Marked: blank. [dec-A83]
+
+**Fit-time na.exclude pads on every fit class**
+Under the maintainer's ruling that every observation-indexed output carries row names (dec-B34), fitted and residuals on multinomial, ordinal, negative binomial and hurdle fits now pad rows dropped by na.exclude back as NA, as the plain bart class already did. The alternative was to leave those classes unpadded and record a TODO. The cost is one more stored field per fit.
+Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A84]
+
+**An unseen factor level is always refused**
+A factor level in new data that training never saw is refused by name. Before, when the column also held a missing value, the unseen level was silently turned into a missing value and predicted along the missing route. The alternative was to leave that behavior. The cost is an error where a prediction used to come back.
+Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A85]
+
+**Row names ride the stored draws**
+Row names are attached to the fit's stored draws arrays when the fit is packaged, while nothing else holds them, so extract and fitted hand back named results without copying; the raw fields such as $yhat.train therefore carry the names too. The names are kept in a new rowNames slot on the data object rather than inside the predictor container, which stan4bart subsets. The alternative, naming only in the accessors, costs a full copy of a draws array on the first computation after every extract. The cost is that the raw fields change shape against 0.9-x by gaining dimnames.
+Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A86]
+
+**A formula hazard fit pads na.exclude rows**
+A discrete-time hazard fit through a formula rebuilds a dropped subject's person-period rows from its time and pads them under na.exclude, as the matrix path does; the matrix path now builds its period grid from the kept subjects only, so the two agree and a dropped subject no longer shapes the grid. The alternative was to let na.exclude act as na.omit there and document it. The cost is a second evaluation of the model frame when rows drop.
+Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A87]
+
+**dbartsValidateComposition restores the caller's stream**
+dbartsValidateComposition(seed = ) now restores R's random number stream when it returns; it set the seed and left the stream there. The alternative was to document the side effect. No cost identified beyond the change itself.
+Record: this register. Marked: blank. [dec-A88]
+
+**A missing value in a predict offset or weight is refused**
+predict refuses a missing value inside an offset or weights given at prediction, naming the argument; before, it returned a missing row or NaN with a warning from R's normal generator. The alternative was a TODO. The cost is an error where output used to come back.
+Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A89]
+
+**xbart refuses parallel workers under a user-supplied generator**
+xbart gives the same results at any thread count by setting each worker's generator kind to the caller's; a "user-supplied" kind lives in compiled code the worker cannot load, so xbart refuses n.threads > 1 under it. The alternative was documenting that such runs differ by thread count. The cost is an error for the rare user of a custom generator.
+Record: this register; the Reproducibility section of bart's manual page. Marked: blank. [dec-A90]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modelled, not refused**

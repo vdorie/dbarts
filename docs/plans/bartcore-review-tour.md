@@ -305,15 +305,18 @@ Open before the merge:
 
 - **The release-candidate declaration** (`TODO`'s `rc-gate`), after the
   maintainer's read of this document.
-- **Agent-made decisions not yet ruled on**: 31 unmarked entries in
-  section A of `docs/decisions.md`. The one that fixes user-visible
-  surface, and would cost a deprecation cycle to change after release, is
-  1-based forest indices in R (dec-A69).
-- **Work the maintainer's rulings of 2026-09-26 owe** (`TODO`'s decided
-  entries): constraint and forest constructors taken off the search path;
-  scalar draws through `extract`, with `draws` removed; `na.action` on
-  `predict`; one Reproducibility section; an uncapped k draw; and tests
-  moved onto the exported functions.
+- **Agent-made decisions not yet ruled on**: 47 unmarked entries in
+  section A of `docs/decisions.md`. Those that fix user-visible surface,
+  and would cost a deprecation cycle to change after release:
+  - 1-based forest indices in R (dec-A69)
+  - a hurdle fit's `k` and `varcount` from `extract` as a two-part list
+    (dec-A77), and scalar draws with one chain as a plain vector (dec-A79)
+  - `seed = NA` meaning unseeded in `bart` and `xbart` but keeping the
+    control's seed in `dbarts` (dec-A83)
+  - row names on the fit's raw draws fields as well as on what the
+    accessors return (dec-A86)
+- **Work the maintainer's rulings of 2026-09-26 still owe** (`TODO`'s
+  decided entries): tests moved onto the exported functions.
 - **Three CRAN packages outside ours.** lorax's examples fit a three-level
   factor response, which 0.9-34 coded as 0, 1, 2 and 1.0-0 refuses; its
   maintainer is to be asked to change them. WeightIt and MatchIt fit
