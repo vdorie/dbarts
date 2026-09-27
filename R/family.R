@@ -104,10 +104,21 @@ isDotsReference <- function(expr) {
 ## failed promise again is expected here and muffled. A constructor call
 ## forced outside the argument that takes it - a wrapper's named formal
 ## passed on unevaluated, then forced where it was written - fails with R's
-## own message, extended by forceCallerCode's hint.
-evalInVocabulary <- function(expr, vocabulary, evalEnv, resolve = identity) {
+## own message, extended by forceCallerCode's hint, drawn only from
+## 'hintLists', the vocabulary list(s) this site actually reads constructors
+## from (every prior site but 'family' takes only dbartsPriors).
+evalInVocabulary <- function(
+  expr,
+  vocabulary,
+  evalEnv,
+  resolve = identity,
+  hintLists = "dbartsPriors"
+) {
   evalIn <- function(expr, env) {
-    resolve(forceCallerCode(eval(expr, vocabularyEnv(vocabulary, env))))
+    resolve(forceCallerCode(
+      eval(expr, vocabularyEnv(vocabulary, env)),
+      hintLists = hintLists
+    ))
   }
   if (!isDotsReference(expr)) {
     return(evalIn(expr, evalEnv))
@@ -164,29 +175,30 @@ evalInForestVocabulary <- function(expr, vocabulary, evalEnv) {
 }
 
 ## Forces caller code: R's warning on forcing a promise that failed before
-## is expected and muffled, and a failure to find a forest, prior or family
-## constructor gains the spelling that works outside its argument - the
-## exported list each one's name is reached through.
-forceCallerCode <- function(value) {
+## is expected and muffled, and a failure to find a constructor gains the
+## spelling that works outside its argument - the exported list its name is
+## reached through - but only among 'hintLists', the vocabulary list(s) the
+## calling site actually reads constructors from. A name from an unrelated
+## vocabulary (a family constructor forced at a prior argument, say) is left
+## as R's own message: a name that argument could never have meant is not a
+## hint, it is noise.
+forceCallerCode <- function(value, hintLists = "dbartsForests") {
   restarted <- gettext(
     "restarting interrupted promise evaluation",
     domain = "R"
   )
   withCallingHandlers(
     tryCatch(value, error = function(e) {
-      topic <- c(
-        rep_len("dbartsForests", length(dbartsForests)),
-        rep_len("dbartsPriors", length(dbartsPriors)),
-        rep_len("dbartsFamilies", length(dbartsFamilies))
-      )
-      names(topic) <- c(
-        names(dbartsForests),
-        names(dbartsPriors),
-        names(dbartsFamilies)
-      )
+      sources <- list(
+        dbartsForests = dbartsForests,
+        dbartsPriors = dbartsPriors,
+        dbartsFamilies = dbartsFamilies
+      )[hintLists]
+      name <- unlist(lapply(sources, names), use.names = FALSE)
+      topic <- rep(names(sources), lengths(sources))
       missingFunction <- gettextf(
         "could not find function \"%s\"",
-        names(topic),
+        name,
         domain = "R"
       )
       i <- match(conditionMessage(e), missingFunction)
@@ -196,7 +208,7 @@ forceCallerCode <- function(value) {
           "; outside the argument that takes it, write ",
           topic[i],
           "$",
-          names(topic)[i],
+          name[i],
           "(...)"
         )
       }
@@ -617,7 +629,8 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
       c("character", "dbartsFamily"),
       "family name or a family object",
       "dbartsFamilies"
-    )
+    ),
+    hintLists = c("dbartsFamilies", "dbartsPriors")
   )
 
   if (is.character(value)) {

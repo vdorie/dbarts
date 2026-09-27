@@ -315,6 +315,34 @@ expect_error(
   "outside the argument that takes it, write dbartsFamilies\\$student"
 )
 
+# a name from a vocabulary this site never reads gets no hint: tree.prior
+# only takes dbartsPriors, so a family constructor forced there (a wrapper's
+# named formal, as above) is left as R's own plain message, not a hint
+# naming dbartsFamilies - which tree.prior could never have meant
+studentAtTreePrior <- tryCatch(
+  passOnPrior(student(df = 6)),
+  error = conditionMessage
+)
+expect_true(grepl(
+  "could not find function \"student\"",
+  studentAtTreePrior,
+  fixed = TRUE
+))
+expect_false(grepl("dbartsFamilies", studentAtTreePrior, fixed = TRUE))
+expect_false(grepl("outside the argument", studentAtTreePrior, fixed = TRUE))
+
+# nor a forest constructor: tree.prior takes neither dbartsForests
+interactionsAtTreePrior <- tryCatch(
+  passOnPrior(interactions(max.order = 1)),
+  error = conditionMessage
+)
+expect_true(grepl(
+  "could not find function \"interactions\"",
+  interactionsAtTreePrior,
+  fixed = TRUE
+))
+expect_false(grepl("dbartsForests", interactionsAtTreePrior, fixed = TRUE))
+
 # --- forwarded through dots ---------------------------------------------------
 
 # (17) forwarded through one or more wrappers' dots
