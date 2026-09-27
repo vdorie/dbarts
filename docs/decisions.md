@@ -272,10 +272,6 @@ Record: inst/include/dbarts/dbarts.h; src/R_interface_bartcore_common.hpp. Marke
 Of about thirty engine accessors that exist for tests, the two that are virtual on the response base class come off it, becoming ordinary members of the two final classes that use them with the test forwarders casting to reach them, since only virtual members shape the production vtables and object layout (dec-A51). The non-virtual test accessors stay where they are, following the maintainer's words "leave the internal functions when they're truly additive". The alternative was moving all of them into a separate test-access structure, about 130 call sites of churn. The cost is test-only members left on production classes.
 Record: the test scaffolding consolidation plan. Marked: blank. [dec-A81]
 
-**A k chain that reaches infinity is summarized as is**
-With k uncapped (dec-A13), a chain under an infinite prior scale can reach k = Inf; summary then reports its mean as Inf, its standard deviation as NaN and its R-hat as NA. The alternative was special-casing non-finite traces. The cost is NaN and NA entries in a summary, which the manual's chi() entry explains.
-Record: this register. Marked: blank. [dec-A82]
-
 **dbartsValidateComposition restores the caller's stream**
 dbartsValidateComposition(seed = ) now restores R's random number stream when it returns; it set the seed and left the stream there. The alternative was to document the side effect. No cost identified beyond the change itself.
 Record: this register. Marked: blank. [dec-A88]
@@ -889,6 +885,10 @@ Record: this register; docs/plans/extract-scalar-types.md. Marked: mine. [dec-A7
 **xbart seeds its workers from the caller's draws**
 xbart's workers never draw from R's generator: the caller draws every per-unit seed in its own process, under whatever RNGkind() the user has set, and hands each sampler its seed through the control, whose seed path derives the chains' generators from a dbarts generator without reading R's stream; sampling itself runs on the chains' own generators, and the fold splits are already drawn in the caller. A user-supplied generator therefore works at any thread count and gives the same results at every one, and the step that sent the caller's RNGkind() to each worker goes. The agent had made xbart refuse more than one worker under a user-supplied generator, which a default call on a multicore machine reached, since n.threads defaults to the core count; running workers on R's default generator with results that then depend on the thread count, and falling back to one worker with a warning, were also weighed. The idea of seeding workers from the caller's draws is the maintainer's. xbart's draws under a given seed move once, and a user's loss function that draws random numbers draws on the worker's default generator, which the manual states. The maintainer, 2026-09-27: "Could we pre-seed somehow with the draws from the original, single threaded caller?", then "Do it."
 Record: this register; the Reproducibility section of bart's manual page. Marked: mine. [dec-A90]
+
+**A k chain that reaches infinity is summarized as is**
+With k uncapped (dec-A13), a chain under an infinite prior scale can drift to astronomically large k or overflow to k = Inf; summary reports whatever the arithmetic gives, a mean of Inf, a standard deviation of NaN or Inf and an R-hat of NA or far above 1, and the manual's chi() entry explains the symptoms. On one design, pure noise with one tree under chi(20, Inf), k reached about 1e154, the summary's k row read sd Inf, R-hat 2.35 and a tail effective sample size of NA, and the standing non-convergence note printed. The alternatives were labelling the row as diverged in summary, with a line saying the fit has collapsed to the baseline, and a warning at fit time when a chain's k reaches infinity. The maintainer, 2026-09-27, choosing among those: "(a) is fine."
+Record: this register. Marked: mine. [dec-A82]
 
 ## C. Agent-made decisions with no identified cost
 
