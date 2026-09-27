@@ -119,6 +119,11 @@
             do not cover the training design's are an error naming the
             missing columns; previously the mismatch warned and the columns
             were matched by position.
+      \item A factor level in \code{predict}'s new data that training never
+            saw is an error naming the factor. 0.9-34 built the new data's
+            indicator columns from its own levels and matched them by
+            position, predicting an unseen level as another one, or failed
+            on a column count when the factor also held a missing value.
       \item An unordered factor response with three or more levels is
             multinomial under \code{family = "auto"}: \code{bart} fits
             \code{family = "multinomial"}, and \code{dbarts}, \code{xbart},

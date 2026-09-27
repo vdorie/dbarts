@@ -300,10 +300,6 @@ Record: this register. Marked: blank. [dec-A82]
 Under the maintainer's ruling that every observation-indexed output carries row names (dec-B34), fitted and residuals on multinomial, ordinal, negative binomial and hurdle fits now pad rows dropped by na.exclude back as NA, as the plain bart class already did. The alternative was to leave those classes unpadded and record a TODO. The cost is one more stored field per fit.
 Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A84]
 
-**An unseen factor level is always refused**
-A factor level in new data that training never saw is refused by name. Before, when the column also held a missing value, the unseen level was silently turned into a missing value and predicted along the missing route. The alternative was to leave that behavior. The cost is an error where a prediction used to come back.
-Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A85]
-
 **A formula hazard fit pads na.exclude rows**
 A discrete-time hazard fit through a formula rebuilds a dropped subject's person-period rows from its time and pads them under na.exclude, as the matrix path does; the matrix path now builds its period grid from the kept subjects only, so the two agree and a dropped subject no longer shapes the grid. The alternative was to let na.exclude act as na.omit there and document it. The cost is a second evaluation of the model frame when rows drop.
 Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A87]
@@ -885,6 +881,10 @@ Record: this register; docs/plans/predict-na-action.md for the refusal it replac
 **A hurdle fit's k and varcount come back as a two-part list named zero and positive**
 extract(type = "k") and extract(type = "varcount") on a hurdle fit return a list with one element per component, following bartCause's per-forest varcount, and the components are named zero and positive, on the list and on the fit's component fields alike. The names follow the R hurdle packages: pscl's hurdle names its parts zero and count, GLMMadaptive's zero_part and main, glmmTMB's zi and cond, brms's hu for the zero probability; count does not fit a lognormal part, and positive is the two-part literature's term. The zero part reports P(y > 0), pscl's orientation and the complement of brms's hu, which the manual states. The alternatives were four type names such as "occupancy.k", refusing both types on the hurdle fit in favour of extracting from each component fit, and an array with a trailing component margin; for the names, keeping occupancy, the ecologists' presence term that no hurdle package uses, and GLMMadaptive's underscored style. The maintainer, 2026-09-27, after asking what use a single array would serve: "I think the list is right, but the names feel odd to me", then "Use (b) for the names." A component whose k is fixed stays left out of the k list, and asking when both are fixed is an error, as landed; that detail is agent-made. Hurdle fits are new in 1.0-0, so the rename needs no tombstone.
 Record: this register; docs/plans/extract-scalar-types.md for the list as first landed. Marked: mine. [dec-A77]
+
+**An unseen factor level is always refused**
+A factor level in predict's new data that training never saw is refused by name, whatever na.action says, as base R's predict.lm and randomForest refuse it. 0.9-34 built the new data's indicator columns from its own levels and matched them to the training columns by position, so an unseen level was predicted as another level with a column-name warning, or, when the factor also held a missing value, failed on a column count; the branch had refused it by name except when the column also held a missing value, and then sent it down the missing-value route. The alternatives were treating an unseen level as a missing value governed by predict's na.action, and keeping the branch's exception. The maintainer, 2026-09-27, choosing among those: "Missing isn't unknown, (a) is right." See also: [dec-B34].
+Record: this register; docs/plans/predict-na-action.md. Marked: mine. [dec-A85]
 
 ## C. Agent-made decisions with no identified cost
 
