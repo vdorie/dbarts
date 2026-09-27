@@ -515,6 +515,13 @@ hurdle-component-names (decided, VD 2026-09-27; docs/decisions.md dec-A77)
   lists, summary headers, plot labels, messages, manual, design doc and
   tests; no tombstone, the family being new in 1.0-0.
 
+one-chain-dimension (decided, VD 2026-09-27; docs/decisions.md dec-A79)
+  before the merge: extract and predict with combineChains = FALSE keep a
+  chain dimension of length 1 on a one-chain fit, for every type and fit
+  class (scalar 1 x samples, per-observation 1 x samples x n, category
+  and forest margins kept); stored fit fields unchanged; manual, NEWS
+  upgrading item and tests follow.
+
 hurdle feature completion (VD 2026-09-26: part of feature completion,
   not to be forgotten; docs/decisions.md dec-A15)
   a hurdle.lognormal fit takes no test set, weights, subset or offset:

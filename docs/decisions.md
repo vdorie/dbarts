@@ -280,10 +280,6 @@ Record: docs/plans/constructor-vocabulary.md. Marked: blank. [dec-A76]
 extract(type = "varcount") works on multinomial, ordinal and negative binomial fits as well as the plain bart class, reading dec-A68's "bart fits" as every fit bart() returns. The alternative was the plain class only. The cost is three more documented shapes, with a forest or level margin where the fit has one.
 Record: docs/plans/extract-scalar-types.md. Marked: blank. [dec-A78]
 
-**Scalar draws with one chain drop the chain dimension**
-With combineChains = FALSE, extract returns scalar draws as chains by samples, as the maintainer approved; the record's claim that stan4bart shares that orientation was wrong, stan4bart returning samples by chains. At one chain the result is a plain vector of draws, as extract(type = "ev", combineChains = FALSE) already drops the chain dimension there. The alternative was bartCause's BCF convention, a one-row matrix. The cost is that code written for several chains must handle the one-chain vector.
-Record: docs/plans/extract-scalar-types.md. Marked: blank. [dec-A79]
-
 **Reading a non-first forest's trees stays test-only**
 The sampler's $getTrees reads only the first forest, so from R a causal forest's treatment forest and a multinomial fit's categories after the first cannot be read. The one test helper that reads them through the internal layer stays, as truly additive under dec-A52, and a public forest = argument waits as a door in TODO (sampler-gettrees-forest). The alternative was adding the argument before the merge, about 60 lines plus the manual. The cost is a gap in the public surface through 1.0-0.
 Record: the test scaffolding consolidation plan. Marked: blank. [dec-A80]
@@ -885,6 +881,10 @@ Record: this register; docs/plans/extract-scalar-types.md for the list as first 
 **An unseen factor level is always refused**
 A factor level in predict's new data that training never saw is refused by name, whatever na.action says, as base R's predict.lm and randomForest refuse it. 0.9-34 built the new data's indicator columns from its own levels and matched them to the training columns by position, so an unseen level was predicted as another level with a column-name warning, or, when the factor also held a missing value, failed on a column count; the branch had refused it by name except when the column also held a missing value, and then sent it down the missing-value route. The alternatives were treating an unseen level as a missing value governed by predict's na.action, and keeping the branch's exception. The maintainer, 2026-09-27, choosing among those: "Missing isn't unknown, (a) is right." See also: [dec-B34].
 Record: this register; docs/plans/predict-na-action.md. Marked: mine. [dec-A85]
+
+**combineChains = FALSE always keeps the chain dimension**
+When a caller asks extract or predict for combineChains = FALSE, every type returns a chain dimension, of length 1 on a one-chain fit: scalar draws come back as a 1 by samples matrix and per-observation draws as a 1 by samples by observations array, chains first as the maintainer approved for scalar draws. The fit's stored fields are unchanged, a one-chain fit's sigma staying a vector as in 0.9-x. Among packages that expose chains separately this is the norm: rstan's extract(permuted = FALSE), posterior's draws_array as cmdstanr, brms and rstanarm return it, coda's chain lists, and the sister packages bartCause and stan4bart all keep a chain of length one, nimble's runMCMC alone switching from a list of matrices to one matrix; stochtree has no chain dimension at all. The agent had landed a plain vector for scalar draws at one chain, matching dbarts' own drop of the dimension there, inherited from 0.9-x; a 1-row matrix for scalar types alone was also weighed. extract or predict with combineChains = FALSE on a one-chain fit changes shape against 0.9-34. The maintainer, 2026-09-27, after asking about other Bayesian fitting packages: "Yes, let's do (c)." See also: [dec-A68].
+Record: this register; docs/plans/extract-scalar-types.md for the drop as first landed. Marked: mine. [dec-A79]
 
 ## C. Agent-made decisions with no identified cost
 
