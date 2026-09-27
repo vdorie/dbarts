@@ -1791,8 +1791,12 @@ bart2Multinomial <- function(
   samplerCall$data <- y
 
   sampler <- eval(samplerCall, envir = callingEnv)
-  # no store: the fresh sampler's state stays the promise read at first use
+  # no store: the fresh sampler's state stays the promise read at first use;
+  # the offset loses the rows the sampler's na.action dropped
   if (!is.null(offset)) {
+    if (!is.null(sampler$data@na.action)) {
+      offset <- offset[-unclass(sampler$data@na.action), , drop = FALSE]
+    }
     sampler$setCategoryOffset(offset, updateState = FALSE)
   }
   if (isTRUE(samplerOnly)) {
@@ -1806,6 +1810,14 @@ bart2Multinomial <- function(
   )
   # bartcoreRun does not warn on its own; one call drives this whole fit
   warnOnGPFallback(samples)
+
+  # 'subset' is refused for family = "multinomial" (above), so the sampler's
+  # own na.action indices index straight into this un-subsetted y; reduce it
+  # the same way before it is stored, so object$y and the fitted channels
+  # agree on length under na.omit/na.exclude
+  if (!is.null(sampler$data@na.action)) {
+    y <- y[-unclass(sampler$data@na.action)]
+  }
 
   result <- packageMultinomialResults(
     control,
@@ -1875,8 +1887,12 @@ bart2MultinomialCounts <- function(
   samplerCall$data <- y
 
   sampler <- eval(samplerCall, envir = callingEnv)
-  # no store: the fresh sampler's state stays the promise read at first use
+  # no store: the fresh sampler's state stays the promise read at first use;
+  # the offset loses the rows the sampler's na.action dropped
   if (!is.null(offset)) {
+    if (!is.null(sampler$data@na.action)) {
+      offset <- offset[-unclass(sampler$data@na.action), , drop = FALSE]
+    }
     sampler$setCategoryOffset(offset, updateState = FALSE)
   }
   if (isTRUE(samplerOnly)) {
@@ -1890,6 +1906,14 @@ bart2MultinomialCounts <- function(
   )
   # bartcoreRun does not warn on its own; one call drives this whole fit
   warnOnGPFallback(samples)
+
+  # 'subset' is refused for family = "multinomial" (above), so the sampler's
+  # own na.action indices index straight into this un-subsetted y; reduce it
+  # the same way before it is stored, so object$y and the fitted channels
+  # agree on length under na.omit/na.exclude
+  if (!is.null(sampler$data@na.action)) {
+    y <- y[-unclass(sampler$data@na.action), , drop = FALSE]
+  }
 
   result <- packageMultinomialResults(
     control,
@@ -2048,6 +2072,10 @@ packageMultinomialResults <- function(
   }
   result$row.names.train <- trainNames
   result$row.names.test <- testNames
+  # absent, not NULL, off a complete fit, as bart's own packager keeps it
+  if (!is.null(data) && !is.null(data@na.action)) {
+    result$na.action <- data@na.action
+  }
   class(result) <- "bartMultinomial"
   result
 }
@@ -2294,6 +2322,10 @@ packageOrdinalResults <- function(
   }
   result$row.names.train <- trainNames
   result$row.names.test <- testNames
+  # absent, not NULL, off a complete fit, as bart's own packager keeps it
+  if (!is.null(sampler$data@na.action)) {
+    result$na.action <- sampler$data@na.action
+  }
   class(result) <- "bartOrdinal"
   result
 }
@@ -2535,6 +2567,10 @@ packageNegbinResults <- function(
   }
   result$row.names.train <- trainNames
   result$row.names.test <- testNames
+  # absent, not NULL, off a complete fit, as bart's own packager keeps it
+  if (!is.null(sampler$data@na.action)) {
+    result$na.action <- sampler$data@na.action
+  }
   class(result) <- "bartNegbin"
   result
 }
@@ -2723,6 +2759,13 @@ bart2Hurdle <- function(
     positive = positive
   )
   result$row.names.train <- occupancy[["row.names.train"]]
+  # the occupancy component trains on all n rows, so its na.action is the
+  # one that describes the rows this hurdle fit as a whole dropped; the
+  # positive component's own na.action is over its y > 0 subset alone, a
+  # different domain that residuals()/fitted() padding here must not use
+  if (!is.null(occupancy[["na.action"]])) {
+    result$na.action <- occupancy[["na.action"]]
+  }
   class(result) <- "bartHurdle"
   result
 }

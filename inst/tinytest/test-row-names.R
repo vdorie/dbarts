@@ -229,6 +229,93 @@ expect_identical(names(residuals(fitH)), trainNames)
 expect_identical(lastNames(extract(fitH, "loglik")), trainNames)
 expect_identical(lastNames(predict(fitH, x.test, "ppd")), testNames)
 
+# --- fit-time na.exclude/na.omit parity: multinomial, ordinal and negbin ---
+# (dec-B34): the four packagers store the fit's na.action, as bart does, and
+# fitted/residuals pad through it the same way. A na.omit fit here also
+# regression-tests a defect: an NA in x used to fail with an x/y length
+# mismatch, since the derived count response was cut by 'subset' alone, not
+# by the na.action's own further drop.
+
+xMissing <- x
+xMissing[3L, "a"] <- NA
+
+fitMExclude <- quick(
+  xMissing,
+  category,
+  family = "multinomial",
+  na.action = na.exclude
+)
+fitMOmit <- quick(
+  xMissing,
+  category,
+  family = "multinomial",
+  na.action = na.omit
+)
+expect_identical(names(fitMExclude$na.action), "r3")
+expect_identical(rownames(fitted(fitMExclude)), trainNames)
+expect_true(all(is.na(fitted(fitMExclude)["r3", ])))
+expect_identical(rownames(residuals(fitMExclude)), trainNames)
+expect_identical(rownames(fitted(fitMOmit)), trainNames[-3L])
+expect_identical(rownames(residuals(fitMOmit)), trainNames[-3L])
+# a category offset loses the same rows
+fitMOffset <- quick(
+  xMissing,
+  category,
+  family = "multinomial",
+  offset = matrix(0.1, n, 3L),
+  na.action = na.exclude
+)
+expect_identical(rownames(fitted(fitMOffset)), trainNames)
+
+fitOExclude <- quick(
+  xMissing,
+  factor(category, ordered = TRUE),
+  family = "ordinal",
+  na.action = na.exclude
+)
+fitOOmit <- quick(
+  xMissing,
+  factor(category, ordered = TRUE),
+  family = "ordinal",
+  na.action = na.omit
+)
+expect_identical(names(fitted(fitOExclude, "bart")), trainNames)
+expect_true(is.na(fitted(fitOExclude, "bart")[["r3"]]))
+expect_identical(rownames(residuals(fitOExclude)), trainNames)
+expect_identical(names(fitted(fitOOmit, "bart")), trainNames[-3L])
+expect_identical(rownames(residuals(fitOOmit)), trainNames[-3L])
+
+fitNExclude <- quick(
+  xMissing,
+  counts,
+  family = "nbinom",
+  na.action = na.exclude
+)
+fitNOmit <- quick(xMissing, counts, family = "nbinom", na.action = na.omit)
+expect_identical(names(fitted(fitNExclude)), trainNames)
+expect_true(is.na(fitted(fitNExclude)[["r3"]]))
+expect_identical(names(residuals(fitNExclude)), trainNames)
+expect_identical(names(fitted(fitNOmit)), trainNames[-3L])
+expect_identical(names(residuals(fitNOmit)), trainNames[-3L])
+
+# hurdle stores the occupancy component's na.action and pads the same way.
+# A hurdle fit that genuinely drops a row this way hits an unrelated,
+# pre-existing routability refusal (the positive component's own 'test' is
+# always the full, un-reduced design matrix, so a row na.action removes from
+# training is still present, and now unroutable, in that 'test'), so this
+# checks the padding machinery on a fit already trained at the reduced row
+# count, its na.action attached by hand exactly as bart2Hurdle would have
+# set it from a working occupancy component.
+fitHDropped <- quick(x[-3L, ], positive[-3L], family = "hurdle.lognormal")
+fitHExclude <- fitHDropped
+fitHExclude$na.action <- structure(3L, class = "exclude", names = "r3")
+expect_identical(names(fitted(fitHExclude)), trainNames)
+expect_true(is.na(fitted(fitHExclude)[["r3"]]))
+expect_identical(names(residuals(fitHExclude)), trainNames)
+fitHOmit <- fitHDropped
+fitHOmit$na.action <- structure(3L, class = "omit", names = "r3")
+expect_identical(names(fitted(fitHOmit)), trainNames[-3L])
+
 # --- survival: AFT and the discrete-time hazard ---
 
 if (requireNamespace("survival", quietly = TRUE)) {
@@ -244,6 +331,20 @@ if (requireNamespace("survival", quietly = TRUE)) {
     lastNames(survivalProbabilities(fitA, times = 1, newdata = x.test)),
     testNames
   )
+
+  # defect: an NA in x under na.omit used to crash an aft fit with a status
+  # length mismatch, since the status vector was cut by 'subset' alone,
+  # outside dbartsData(), never by the na.action's own further drop
+  xAftMissing <- x
+  xAftMissing[3L, "a"] <- NA
+  fitAftOmit <- quick(
+    xAftMissing,
+    survival::Surv(time, status),
+    family = "aft",
+    na.action = na.omit
+  )
+  expect_identical(length(fitAftOmit$y), n - 1L)
+  expect_identical(names(fitted(fitAftOmit)), trainNames[-3L])
 
   # the person-period rows are named by make.unique over the subjects, on the
   # training and test channels alike; a subject named "r1.1" takes its own
@@ -316,6 +417,35 @@ if (requireNamespace("survival", quietly = TRUE)) {
   expect_identical(fitZE$row.names.train, setdiff(allNames, dropped))
   expect_identical(names(fitted(fitZE)), allNames)
   expect_identical(names(which(is.na(fitted(fitZE)))), dropped)
+
+  # the same record without row names still pads
+  hazardXUnnamed <- unname(hazardXMissing)
+  fitZU <- quick(
+    hazardXUnnamed,
+    survival::Surv(hazardTime, hazardStatus),
+    na.action = na.exclude,
+    family = quote(hazard(breaks = c(0, 1, 2, 3)))
+  )
+  expect_identical(as.vector(fitZU$na.action), 7:9)
+  expect_identical(which(is.na(fitted(fitZU))), 7:9)
+
+  # defect: the formula path's na.action runs BEFORE expansion, at the
+  # subject level, so its record does not describe the person-period design
+  # the expansion produces; padding fitted() through it used to come back
+  # the wrong length with names out of order. It is dropped instead, and
+  # fitted() comes back at the fit's own (unpadded) person-period length.
+  hazardFrameMissing <- hazardFrame
+  hazardFrameMissing$a[4L] <- NA
+  fitZFE <- quick(
+    survival::Surv(time, status) ~ a + b,
+    hazardFrameMissing,
+    na.action = na.exclude,
+    family = quote(hazard(breaks = c(0, 1, 2, 3)))
+  )
+  keptNames <- make.unique(rep(subjectNames[-4L], periods[-4L]))
+  expect_null(fitZFE$na.action)
+  expect_identical(fitZFE$row.names.train, keptNames)
+  expect_identical(names(fitted(fitZFE)), keptNames)
 }
 
 # --- the sampler's test setters keep the record in step with the rows ---

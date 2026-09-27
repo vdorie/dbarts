@@ -1506,15 +1506,22 @@ fitted.bartMultinomial <- function(
     )
   )
   refuseClassCiLevel(type, ci.level)
+  # a training-side quantity pads back to the caller's own row count through
+  # whatever the fit's na.action recorded; the test side never lost a row
+  padded <- if (identical(sample, "train")) {
+    function(value) padOmittedRows(object[["na.action"]], value)
+  } else {
+    identity
+  }
   probs <- extract.bartMultinomial(object, type = "ev", sample = sample)
   if (!is.null(ci.level)) {
-    return(posteriorInterval(probs, ci.level, trailing = 2L))
+    return(padded(posteriorInterval(probs, ci.level, trailing = 2L)))
   }
   meanProbs <- meanCategoryProbabilities(probs, object$levels)
   if (type == "ev") {
-    return(meanProbs)
+    return(padded(meanProbs))
   }
-  categoryFromMeanProbabilities(meanProbs, object$levels)
+  padded(categoryFromMeanProbabilities(meanProbs, object$levels))
 }
 
 # residuals.bart is y - fitted() on the response scale; a multinomial fit has
@@ -1547,15 +1554,20 @@ residuals.bartMultinomial <- function(object, ...) {
       )
     )
   )
+  # phat is already padded (fitted's own train-side na.action rule); build
+  # 'observed' at the fit's own (unpadded) length and pad it the same way,
+  # so the two align before differencing and before phat's own dimnames -
+  # already at the padded length - are copied onto the result
   phat <- fitted.bartMultinomial(object, type = "ev")
   y <- object$y
   observed <- if (is.factor(y)) {
-    indicator <- matrix(0, length(y), ncol(phat), dimnames = dimnames(phat))
+    indicator <- matrix(0, length(y), length(object$levels))
     indicator[cbind(seq_along(y), match(y, object$levels))] <- 1
     indicator
   } else {
     y / rowSums(y)
   }
+  observed <- padOmittedRows(object[["na.action"]], observed)
   result <- observed - phat
   dimnames(result) <- dimnames(phat)
   result
@@ -1838,6 +1850,13 @@ fitted.bartOrdinal <- function(
     )
   )
   refuseClassCiLevel(type, ci.level)
+  # a training-side quantity pads back to the caller's own row count through
+  # whatever the fit's na.action recorded; the test side never lost a row
+  padded <- if (identical(sample, "train")) {
+    function(value) padOmittedRows(object[["na.action"]], value)
+  } else {
+    identity
+  }
   if (type == "bart") {
     latent <- if (sample == "test") object$latent.test else object$latent.train
     if (is.null(latent)) {
@@ -1847,19 +1866,23 @@ fitted.bartOrdinal <- function(
       )
     }
     if (!is.null(ci.level)) {
-      return(posteriorInterval(latent, ci.level, trailing = 1L))
+      return(padded(posteriorInterval(latent, ci.level, trailing = 1L)))
     }
-    return(channelMeans(latent))
+    return(padded(channelMeans(latent)))
   }
   probs <- extract.bartOrdinal(object, type = "ev", sample = sample)
   if (!is.null(ci.level)) {
-    return(posteriorInterval(probs, ci.level, trailing = 2L))
+    return(padded(posteriorInterval(probs, ci.level, trailing = 2L)))
   }
   meanProbs <- meanCategoryProbabilities(probs, object$levels)
   if (type == "ev") {
-    return(meanProbs)
+    return(padded(meanProbs))
   }
-  categoryFromMeanProbabilities(meanProbs, object$levels, ordered = TRUE)
+  padded(categoryFromMeanProbabilities(
+    meanProbs,
+    object$levels,
+    ordered = TRUE
+  ))
 }
 
 ordinalResidualsTypeReason <- list(
@@ -1889,8 +1912,10 @@ residuals.bartOrdinal <- function(object, ...) {
   )
   phat <- fitted.bartOrdinal(object, type = "ev")
   y <- object$y
-  indicator <- matrix(0, length(y), ncol(phat), dimnames = dimnames(phat))
+  indicator <- matrix(0, length(y), length(object$levels))
   indicator[cbind(seq_along(y), match(y, object$levels))] <- 1
+  indicator <- padOmittedRows(object[["na.action"]], indicator)
+  dimnames(indicator) <- dimnames(phat)
   indicator - phat
 }
 
@@ -2160,10 +2185,17 @@ fitted.bartNegbin <- function(
     # below is invariant to the chain layout it returns
     ppd = extract.bartNegbin(object, type = "ppd", sample = sample)
   )
-  if (!is.null(ci.level)) {
-    return(posteriorInterval(channel, ci.level, trailing = 1L))
+  # a training-side quantity pads back to the caller's own row count through
+  # whatever the fit's na.action recorded; the test side never lost a row
+  padded <- if (identical(sample, "train")) {
+    function(value) padOmittedRows(object[["na.action"]], value)
+  } else {
+    identity
   }
-  channelMeans(channel)
+  if (!is.null(ci.level)) {
+    return(padded(posteriorInterval(channel, ci.level, trailing = 1L)))
+  }
+  padded(channelMeans(channel))
 }
 
 negbinResidualsTypeReason <- list(
@@ -2187,7 +2219,8 @@ residuals.bartNegbin <- function(object, ...) {
       )
     )
   )
-  object$y - fitted.bartNegbin(object, type = "ev")
+  padOmittedRows(object[["na.action"]], object$y) -
+    fitted.bartNegbin(object, type = "ev")
 }
 
 # Out-of-sample mean counts by replaying the saved forest's trees to the newdata
@@ -2806,12 +2839,17 @@ fitted.bartHurdle <- function(
     )
   )
   # a hurdle fit has no separate test channel (extract.bartHurdle refuses
-  # sample = "test" unconditionally), so the read is always the training rows
+  # sample = "test" unconditionally), so the read is always the training
+  # rows, which pad back to the caller's own row count through whatever
+  # the fit's na.action recorded
   draws <- extract(object, type = type, sample = "train", combineChains = TRUE)
   if (!is.null(ci.level)) {
-    return(posteriorInterval(draws, ci.level))
+    return(padOmittedRows(
+      object[["na.action"]],
+      posteriorInterval(draws, ci.level)
+    ))
   }
-  channelMeans(draws)
+  padOmittedRows(object[["na.action"]], channelMeans(draws))
 }
 
 residuals.bartHurdle <- function(object, type = "ev", ...) {
@@ -2831,7 +2869,8 @@ residuals.bartHurdle <- function(object, type = "ev", ...) {
       )
     )
   )
-  object$y - fitted.bartHurdle(object, type = type)
+  padOmittedRows(object[["na.action"]], object$y) -
+    fitted.bartHurdle(object, type = type)
 }
 
 # Out-of-sample combined draws by replaying BOTH saved forests at newdata and

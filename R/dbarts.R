@@ -1126,12 +1126,21 @@ dbarts <- function(
     # the matrix interface expands before the na.action runs, so any rows it
     # dropped are person-period rows
     omitted <- data@na.action
-    if (
-      hazardExpandedFirst && !is.null(omitted) && !is.null(hazardNames$train)
-    ) {
-      names(omitted) <- hazardNames$train[unclass(omitted)]
-      data@na.action <- omitted
-      hazardNames$train <- hazardNames$train[-unclass(omitted)]
+    if (hazardExpandedFirst) {
+      if (!is.null(omitted) && !is.null(hazardNames$train)) {
+        names(omitted) <- hazardNames$train[unclass(omitted)]
+        data@na.action <- omitted
+        hazardNames$train <- hazardNames$train[-unclass(omitted)]
+      }
+    } else if (!is.null(omitted)) {
+      # the formula path's na.action ran on the SUBJECT-level model frame,
+      # before expansion: its record indexes subjects, not the
+      # person-period rows this fit's training outputs are shaped by (a
+      # dropped subject's own period count is unknown here, since only its
+      # position survives). Padding fitted()/residuals() with it would pad
+      # to the wrong length and misplace names, so it is dropped rather
+      # than carried into a domain it does not describe.
+      data@na.action <- NULL
     }
     data <- setDataRowNames(data, "train", hazardNames$train)
     data <- setDataRowNames(data, "test", hazardNames$test)
@@ -1171,6 +1180,16 @@ dbarts <- function(
   # it does with no term at all
   if (!is.null(termIngestion)) {
     forests <- finalizeTermForests(termIngestion$pending, data)
+  }
+
+  # the matrix interface's own status vector rides outside (x, y) - it was
+  # cut by 'subset' alone, above - while dbartsData() has just applied
+  # na.action to x and the log-time response internally; mirror the same
+  # drop here, exactly as a term's basis is restricted above, or a
+  # predictor-NA row leaves the status vector one longer than data@y and
+  # the C bridge's own length check refuses the fit
+  if (directResponse && !is.null(survivalStatus) && !is.null(data@na.action)) {
+    survivalStatus <- survivalStatus[-unclass(data@na.action)]
   }
 
   spec <- resolveSamplerSpec(

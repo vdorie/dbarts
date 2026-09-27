@@ -1838,7 +1838,13 @@ dbartsData <- function(
         if (!is.null(weights)) {
           weights <- weights[keep]
         }
-        if (!is.null(offset)) offset <- offset[keep]
+        if (!is.null(offset)) {
+          offset <- offset[keep]
+        }
+        # 'counts' (family = "multinomial") is validated and row-selected
+        # against this same subset, below, once it is known; it loses
+        # exactly the rows y and x did
+        countsSubset <- countsSubset[keep]
       }
     }
   } else if (
@@ -1952,7 +1958,13 @@ dbartsData <- function(
         if (!is.null(weights)) {
           weights <- weights[completeCases]
         }
-        if (!is.null(offset)) offset <- offset[completeCases]
+        if (!is.null(offset)) {
+          offset <- offset[completeCases]
+        }
+        # 'counts' (family = "multinomial") is validated and row-selected
+        # against this same subset, below, once it is known; it loses
+        # exactly the rows y and x did
+        countsSubset <- countsSubset[completeCases]
       }
       if (length(attributes(formula)) > 0L) {
         for (attributeName in names(attributes(formula))) {
@@ -1973,7 +1985,10 @@ dbartsData <- function(
       if (!is.null(weights)) {
         weights <- weights[keep]
       }
-      if (!is.null(offset)) offset <- offset[keep]
+      if (!is.null(offset)) {
+        offset <- offset[keep]
+      }
+      countsSubset <- countsSubset[keep]
     }
   } else {
     stop(
