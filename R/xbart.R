@@ -529,6 +529,16 @@ xbart <- function(
   numChunks <- max(1L, min(n.threads, numUnits))
   chunkIndices <- parallel::splitIndices(numUnits, numChunks)
 
+  # a "user-supplied" generator lives as compiled state loaded into THIS
+  # session; a fresh worker session has no way to load it, so its draws could
+  # not be reproduced there whatever RNGkind() call is sent across
+  if (numChunks > 1L && RNGkind()[1L] == "user-supplied") {
+    stop(
+      "xbart() cannot reproduce a \"user-supplied\" RNGkind() on a parallel ",
+      "worker; call with n.threads = 1 or switch RNGkind() first"
+    )
+  }
+
   # each replication draws its data split from its own seed and each unit its
   # fits from its own, both derived from the call's seed alone, so a seed
   # reproduces at any 'n.threads': no draw depends on which worker ran a unit
@@ -548,8 +558,8 @@ xbart <- function(
   # whole dispatch rather than left wherever the last fold stopped
   runUnits <- function() {
     # the splits are drawn here rather than on the worker that runs them, so
-    # a non-default RNGkind() in this process governs them at every thread
-    # count - a worker starts at the default kind
+    # this process's RNGkind() governs them at every thread count regardless
+    # of what a worker is set to
     unitRows <- vector("list", numUnits)
     for (replication in seq_len(n.reps)) {
       set.seed(splitSeeds[replication])
@@ -572,6 +582,13 @@ xbart <- function(
     }
     cluster <- parallel::makeCluster(numChunks)
     on.exit(parallel::stopCluster(cluster), add = TRUE)
+    # a fresh worker starts at R's default RNGkind(); matching kind and
+    # normal.kind here is what lets a unit's unif_rand()-backed draws agree
+    # with an inline run under a non-default one. sample.kind is left alone:
+    # it only steers sample()/sample.int(), and those run in THIS process,
+    # never on a worker (see the fold/subsample split above)
+    rngKind <- RNGkind()
+    parallel::clusterCall(cluster, RNGkind, rngKind[1L], rngKind[2L])
     # passing the namespace function itself serializes it by reference,
     # loading dbarts on the workers without shipping this frame
     parallel::clusterMap(

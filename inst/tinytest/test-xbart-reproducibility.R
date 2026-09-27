@@ -113,6 +113,24 @@ for (n.threads in threadCounts) {
   )
 }
 
+# and holds under a non-default RNGkind() too, once a worker's kind and
+# normal.kind are set to match the caller's before it takes any unit. Needs a
+# genuine second worker process, so this only runs where R CMD check
+# --as-cran does not limit cores and the machine has at least two of them.
+if (
+  !nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_", "")) &&
+    parallel::detectCores() >= 2L
+) {
+  oldRNGkind <- RNGkind()
+  RNGkind("L'Ecuyer-CMRG")
+  lecuyer.1 <- runXval(1L)
+  lecuyer.2 <- runXval(2L)
+  suppressWarnings(RNGkind(oldRNGkind[1L], oldRNGkind[2L], oldRNGkind[3L]))
+  expect_true(all(!is.na(lecuyer.1)))
+  expectSameSweep(lecuyer.1, lecuyer.2, info = "RNGkind L'Ecuyer-CMRG")
+  rm(oldRNGkind, lecuyer.1, lecuyer.2)
+}
+
 # a seeded call leaves the caller's own stream where it found it, at every
 # thread count. At one worker the units run in THIS process, so without the
 # save across the dispatch the caller would be left wherever the last fold's
