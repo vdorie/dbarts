@@ -1,20 +1,11 @@
 # The public bart(family = "multinomial") surface. The REPRODUCTION GATE
 # below is the condition that matters most: bart's fit path must reproduce,
-# bit for bit, the internal bartcoreMultinomialSampler/bartcoreRun pattern
-# benchmarks/R/multinomial-equivalence.R exercises, on the same data and
-# seed. bart makes exactly one bartcore_create, so a comparator that first
-# builds and discards a throwaway host sampler (a SECOND create) no longer
-# shares its draw stream, no matter how carefully the two are seeded
-# together - that is precisely the bug this gate exists to catch, so the
-# comparator must not paper over it by construction. internalMultinomialFit
-# below resolves its (control, model, data) triple through dbartsSpec()
-# instead, which creates no engine at all, so bartcoreMultinomialSampler's
-# own create is the comparator's ONLY one too - independently reached
-# (dbartsSpec never runs bart's own code), through the same bartcore_create
-# dispatch. What the gate now proves: bart's direct construction and a
-# hand-built dbartsSpec()-then-handle construction resolve the identical
-# engine from the identical inputs. Everything else is level-threading,
-# shape, and refusal coverage.
+# bit for bit, a sampler built directly through dbarts(family =
+# "multinomial") on the same data and seed. bart makes exactly one
+# bartcore_create, so a comparator that first builds and discards a throwaway
+# host sampler (a SECOND create) no longer shares its draw stream - that is
+# precisely the bug this gate exists to catch. Everything else is
+# level-threading, shape, and refusal coverage.
 
 # The internal-path comparator: builds the sampler through dbarts()'s own
 # public multinomial dispatch - the same dispatch bart's direct construction
@@ -371,8 +362,8 @@ internalMultinomialCountFit <- function(
 }
 
 # K = 3, grouped counts (n_i > 1): the reproduction gate extended to the
-# count-matrix response form - a public count fit must reproduce the
-# internal bartcoreMultinomialCountSampler channel bit for bit.
+# count-matrix response form - a public count fit must reproduce
+# internalMultinomialCountFit bit for bit.
 set.seed(6304)
 n3c <- 150L
 x3c <- matrix(runif(n3c * p), n3c, p)
@@ -576,8 +567,8 @@ set.seed(seed3)
 fit3Char <- mfit(y3Char ~ x1 + x2 + x3 + x4, data = df3Char)
 expect_equal(fit3Char$levels, sort(levels(y3)))
 
-# --- category offset: bart's own n x K matrix 'offset', threaded to
-# the internal creator's own offset argument, never to the host dbarts()
+# --- category offset: bart's own n x K matrix 'offset', installed through
+# $setCategoryOffset after creation, never passed to the host dbarts()
 # call (whose flat offset stays refused separately, below). The
 # reproduction gate extends to it on both response forms: a public offset
 # fit must reproduce internalMultinomialFit/internalMultinomialCountFit's

@@ -364,9 +364,8 @@ s the sd(y) magnitude in internal units.
 - Both forests fix k = 1; the map overrides the host model's node prior
   and k for mu, since the adaptive magnitude lives entirely in the glue.
 
-The internal `bartcoreBCFSampler` wrapper exposes sd.control and sd.moderate
-(the two magnitudes in sd(y) units) and converts internally; the public
-`forest()` spelling of both is `sd`. A NULL sd.control takes the family
+sd.control and sd.moderate name the two magnitudes in sd(y) units; the
+public `forest()` spelling of both is `sd`. A NULL sd.control takes the family
 default above, and sd.moderate's 1 is the K-aware default's own K = 2
 value, sqrt(2/2), so this two-forest spelling states it as the literal it
 has always been. benchmarks/R/bcf-exact.R
@@ -430,8 +429,9 @@ follow.
 
 ## Public creation surface (2026-08-10 to 2026-08-11)
 
-BCF stopped being reachable only through `dbarts:::bartcoreBCFSampler`
-(docs/plans/archive/bcf-public-surface.md). `dbarts(x, y, forests = list(forest(),
+BCF stopped being reachable only through retired: [`bartcoreBCFSampler`](../../R/bartcore.R)
+(docs/plans/archive/bcf-public-surface.md; the internal creator was deleted
+in test scaffolding consolidation S5). `dbarts(x, y, forests = list(forest(),
 forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
 `dbartsSampler` (S1, a1dbde7): z rides `data@bases` (R/A_class.R,
 the `weights` precedent) and the treatment forest's configuration rides

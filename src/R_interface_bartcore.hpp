@@ -13,9 +13,6 @@ SEXP bartcore_createDataHandle(SEXP control, SEXP data,
 SEXP bartcore_createFromHandle(SEXP control, SEXP model, SEXP data,
                                SEXP handle, SEXP trainRows, SEXP testRows,
                                SEXP family, SEXP columns);
-SEXP bartcore_createBCF(SEXP control, SEXP model, SEXP data, SEXP bases,
-                        SEXP bcfParams, SEXP vars, SEXP interactions,
-                        SEXP blocks);
 SEXP bartcore_setCounts(SEXP ptr, SEXP counts);
 SEXP bartcore_setCategoryOffset(SEXP ptr, SEXP offset);
 SEXP bartcore_setCategoryTestOffset(SEXP ptr, SEXP offset);

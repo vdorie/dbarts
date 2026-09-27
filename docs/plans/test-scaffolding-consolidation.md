@@ -57,8 +57,7 @@ are.
 - Creation seeding: [`createChainRngs`](../../src/R_interface_bartcore.cpp)
   draws one R uniform per chain at every unseeded creation, so removing
   a second creation moves the chain seeds.
-- Public routes already bitwise (critique-confirmed):
-  [`bartcoreBCFSampler`](../../R/bartcore.R) equals
+- Public routes already bitwise (critique-confirmed): retired: [`bartcoreBCFSampler`](../../R/bartcore.R) (deleted in S5) equalled
   `dbarts(forests = list(forest(), forest(basis = ~ factor(z), ...)))`.
   Every creator argument has a `forest()` field. The multinomial
   creators equal `dbarts(x, factor(labels), family = "multinomial")` and
@@ -212,7 +211,7 @@ S5. Test-only creators, wrappers and bypass tests (R + bridge; neutral).
   - Delete `bartcoreBCFSampler`, `bartcoreMultinomialSampler`,
     `bartcoreMultinomialCountSampler`, `bartcoreMultinomialDataSampler`
     and `validateCategoryTestOffset`.
-  - Delete [`bartcore_createBCF`](../../src/R_interface_bartcore.cpp)
+  - Delete retired: [`bartcore_createBCF`](../../src/R_interface_bartcore.cpp)
     and its only callee `createBCFHolder` (about 110 lines), with the
     registration and declaration. `applyAmplitudeSpec` stays; the
     public route uses it.

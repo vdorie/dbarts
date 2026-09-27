@@ -1082,12 +1082,10 @@ bart <- function(
   # multinomial: a K-forest softmax model over a factor response or an n x K
   # count matrix, validated and dispatched here rather than threaded through
   # the rest of this function - it bypasses the standard single-forest
-  # packaging entirely, though bart2Multinomial/bart2MultinomialCounts
-  # build their
-  # sampler through dbarts()'s own family = "multinomial" dispatch, the same
-  # one bartcoreMultinomialSampler/bartcoreMultinomialCountSampler route
-  # through. Every refusal below names the limitation rather than silently
-  # reshaping around it.
+  # packaging entirely. bart2Multinomial/bart2MultinomialCounts build their
+  # sampler through dbarts()'s own family = "multinomial" dispatch. Every
+  # refusal below names the limitation rather than silently reshaping
+  # around it.
   if (family == "multinomial") {
     # a K-forest softmax has no amplitude-coupled slot for a forest() term to
     # declare; caught here since multinomial never reaches the shared
@@ -1105,9 +1103,9 @@ bart <- function(
       )
     }
     # the n x K category offset: a matrix enters the raw fits before the
-    # softmax and is threaded to
-    # bartcoreMultinomialSampler/bartcoreMultinomialCountSampler's own offset
-    # argument, never to the host dbarts() call below (matchedCall$offset is
+    # softmax and is threaded to bart2Multinomial/bart2MultinomialCounts' own
+    # offset argument, which installs it through $setCategoryOffset after
+    # creation, never to the host dbarts() call below (matchedCall$offset is
     # cleared so redirectCall does not forward it there, where it would be
     # read as a flat per-row offset). A flat vector stays refused - it points
     # exactly along the softmax's null direction (a common per-observation
@@ -1133,9 +1131,8 @@ bart <- function(
         "family = \"multinomial\" does not support 'offset.test'; yhat.test ",
         "is always computed without any category offset. A category test ",
         "offset is a sampler-level capability only - a dbartsSampler's own ",
-        "$setCategoryTestOffset method, reached through keepSampler = TRUE, ",
-        "or the internal creators' own offset.test argument - not reachable ",
-        "from bart()"
+        "$setCategoryTestOffset method, reached through keepSampler = TRUE - ",
+        "not reachable from bart()"
       )
     }
     if (!missing(subset)) {

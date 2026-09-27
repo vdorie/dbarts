@@ -1280,8 +1280,7 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
   # the treatment forest's basis is factor(z), the two-level indicator pair
   # (b0, b1); the prognostic forest declares none, so it gets the engine's
   # implicit intercept. n.trees/base/power stay at their forest() defaults
-  # (50, 0.25, 3), matching the internal creator's own n.trees.treatment,
-  # treatment.base and treatment.power defaults, which sbc.R never overrode.
+  # (50, 0.25, 3).
   forests <- list(
     dbarts::dbartsForests$forest(
       sd = config$sdControl,

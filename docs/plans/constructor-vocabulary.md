@@ -65,9 +65,10 @@ the search path.
   needs the vocabulary. Also, [`finalizeTermForests`](../../R/formulaTerms.R) calls
   `dbarts::forest()` and `do.call(dbarts::forest, args)`, and both fail once the name is unexported.
   That would break every formula-term fit.
-- Internal only: [`bartcoreBCFSampler`](../../R/bartcore.R) takes `mu.interactions`,
-  `tau.interactions`, `mu.blocks` and `tau.blocks` as values, and tests reach it through `dbarts:::`.
-  It stays value-typed.
+- Internal only, at the time: retired: [`bartcoreBCFSampler`](../../R/bartcore.R) took `mu.interactions`,
+  `tau.interactions`, `mu.blocks` and `tau.blocks` as values, and tests reached it through `dbarts:::`;
+  it stayed value-typed, and was later deleted once every caller moved to the public
+  `forests = ` route (test scaffolding consolidation S5).
 - No sites: `bart2` and `rbart_vi` are tombstones in [`rbart_vi`](../../R/tombstones.R). `xbart`,
   `bartBT` and [`dbartsControl`](../../R/dbarts.R) take none of the four.
 - Consumers downstream check by S3 class (`dbartsInteractions`, `dbartsBlocks`, `dbartsForest`,

@@ -472,8 +472,8 @@ defaultNodeScale <- function(family) {
 ##
 ## Total over the package's family vocabulary rather than over the three the
 ## multi-forest path builds: an unknown family ERRORS instead of switch()'s
-## invisible NULL, since the internal bartcoreBCFSampler route has no R-side
-## family gate to borrow.
+## invisible NULL, since the multi-forest creation path (dbarts(forests = ))
+## borrows this vocabulary rather than declaring a family gate of its own.
 ##
 ## No C twin, unlike defaultNodeScale: applyAmplitudeSpec always receives
 ## explicit per-forest parameter vectors, so there is nothing to backstop.

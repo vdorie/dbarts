@@ -52,8 +52,9 @@ is sign-flip invariant) and is reported to show it. The latent arms change five 
 
 1. `sbcAddBCF(sbcConfig(family = "probit"|"logistic", n = 200L, nTest = 3L), sdControl = 1)` - `n` the gaussian arm's,
    `sdControl` being `sbcAddBCF`'s argument and not `sbcConfig`'s - with [`sbcMakeBCF`](../../benchmarks/R/sbc.R)
-   passing `family` to [`bartcoreBCFSampler`](../../R/bartcore.R), whose `family` formal writes it into the model the
-   bridge reads. The transform is then the identity, so the regressed map becomes a self-check: scale 1, shift 0, R2 1.
+   passing `family` to retired: [`bartcoreBCFSampler`](../../R/bartcore.R) at the time (`sbcMakeBCF` has since
+   moved onto the public `forests =` route), whose `family` formal wrote it into the model the
+   bridge read. The transform is then the identity, so the regressed map becomes a self-check: scale 1, shift 0, R2 1.
 2. `y0 ~ Bernoulli(pnorm(index0))` / `Bernoulli(plogis(index0))`, no offset, no sigma drawn. That functional goes and
    the sigma moment check gives way to [`sbcCheckBCFGlue`](../../benchmarks/R/sbc.R) plus a latent consistency check:
    recorded combined train fits equal `a mu + b_z tau` to 1e-12.
@@ -228,9 +229,9 @@ dim-3 block moves 2.6e-13 against a 200-node reference. That is 3,888 integrand 
 configurations. (Three cells would raise the maximum block to 4 and that count 38-fold, to 148,752, unaffording the
 free-glue modes.)
 
-Modes and matched quantities, on the index scale, read through
-[`bartcoreForestFits`](../../inst/common/bartcoreHandle.R),
-[`bartcoreForestAmplitudes`](../../inst/common/bartcoreHandle.R):
+Modes and matched quantities, on the index scale, read through, at the time, retired: [`bartcoreForestFits`](../../inst/common/bartcoreHandle.R), retired: [`bartcoreForestAmplitudes`](../../inst/common/bartcoreHandle.R) (folded
+into `$getForestFits`/`$getForestAmplitudes`, test scaffolding
+consolidation S5):
 
     1   glue fixed (1, 0, 1)                E[mu_c], E[tau_c]
     2a  a ~ Cauchy(0, sd.control = 1)       E[a mu_c], E[tau_c]
@@ -377,7 +378,7 @@ check not sharing the quadrature's assumptions.
 Outcome (2026-09-07). Derived blind from the engine and then compared: the enumeration, the block dimensions 2/3/3/2+2,
 the integrand, the glue laws (`a` an inverse-gamma scale mixture whose marginal is Cauchy(0, 1), each `b` normal at 1/2,
 sigma nowhere), the leaf scales and the pinned sigma all match the engine. `getCalibration` agrees across the
-evaluated-basis route, the `~ factor(z)` route and [`bartcoreBCFSampler`](../../R/bartcore.R). A prior Monte Carlo of the
+evaluated-basis route, the `~ factor(z)` route and, at the time, retired: [`bartcoreBCFSampler`](../../R/bartcore.R). A prior Monte Carlo of the
 block marginals at 2e7 draws agrees with two independent quadratures to its own error, and the shipped sampler matches
 the derived oracle at fixed glue to 7e-4 (probit) and 1.6e-3 (logistic). The pass corrected this plan's design line (the
 treated cell-2 index is 1.10, not 0.80), its configuration weights and its weight guard, and added the `K = 3` arm; the

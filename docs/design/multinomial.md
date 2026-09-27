@@ -194,10 +194,7 @@ Creation runs through C_dbarts_bartcore_create's "multinomial" dispatch arm
 -> createMultinomialDataHolder -> createMultinomialCountsHolder
 (src/R_interface_bartcore.cpp), which builds a MultinomialSpec and calls
 createMultinomialSampler (a single ConstantGaussianLeaf instantiation, as BCF);
-data@counts and both category offsets ride the data object's own slots. The
-low-level bartcoreMultinomialSampler/bartcoreMultinomialCountSampler
-(R/bartcore.R) are thin wrappers over the same dispatch, for callers that
-already hold a plain host sampler (the equivalence/SBC harnesses).
+data@counts and both category offsets ride the data object's own slots.
 The public entry is bart2(family = "multinomial") (R/bart.R): a factor
 response, K from levels(y), the level names threaded onto every K-shaped
 output, probability-scale generics with an argmax class convenience, and a
@@ -246,8 +243,8 @@ both supported (below).
 - The run's train channel is the n x K x n.samples softmax probabilities, the
   identified deliverable (combinedFits writes the K location-major channels,
   log-sum-exp-safe). Per-category function values and split counts read through
-  the per-forest queries bartcoreForestFits / bartcoreForestVariableCounts
-  (0-based forest = category). The fit also carries a per-sample per-category
+  the per-forest methods $getForestFits / $getForestVariableCounts
+  (1-based forest = category). The fit also carries a per-sample per-category
   variable-count channel: bart2(family = "multinomial")$varcount is
   (n.chains x) n.samples x p x K, levels on the K margin and predictor names
   on the p margin, mirroring every other K-shaped fit field.

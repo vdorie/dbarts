@@ -425,43 +425,12 @@ expect_equal(
   tolerance = 1e-12
 )
 expect_true(all(recoveredAnchor(bcfCalibration) > 0))
+# refuseAmplitudeMutation refuses R-side, on any forest count, before the
+# bridge's own backstop
 expect_error(
   bcf$setCalibration(prior.scale = 1.5),
   "multi-forest calibration map"
 )
-# the engine's own refusal, which the bridge reaches past the R guard - a
-# raw pointer .Call, not the retired bartcoreSetForestPriorScale wrapper -
-# names the map by its coupling: the two-forest map at K = 2, and a generic
-# one above it, where no two-forest map owns the scale. $setCalibration
-# itself never reaches this: refuseAmplitudeMutation catches every
-# amplitude-carrying sampler R-side first, with the generic wording the
-# check just above pins, so this is the one route left to the bridge's own
-# more specific text.
-expect_error(
-  .Call(dbarts:::C_dbarts_bartcore_setCalibration, bcf$getPointer(), 0L, 1.5),
-  "two-forest calibration map"
-)
-threeForests <- dbarts(
-  x,
-  yBCF,
-  forests = list(
-    forest(),
-    forest(basis = ~ factor(zBCF)),
-    forest(basis = x[, 3L])
-  ),
-  control = midControl()
-)
-threeRefusal <- tryCatch(
-  .Call(
-    dbarts:::C_dbarts_bartcore_setCalibration,
-    threeForests$getPointer(),
-    0L,
-    1.5
-  ),
-  error = function(e) conditionMessage(e)
-)
-expect_true(grepl("multi-forest calibration map", threeRefusal, fixed = TRUE))
-expect_false(grepl("two-forest", threeRefusal, fixed = TRUE))
 
 # the multinomial coupling, through the public sampler its forests live on.
 # $getCalibration/$setCalibration index forests from 1

@@ -3458,125 +3458,6 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   return holder;
 }
 
-/// A K-forest amplitude sampler reached from the internal bcf constructor:
-/// bases supplies each forest's amplitude basis and
-/// bcfParams the K-length list of length-8 parameter vectors (tree count, base,
-/// power; the node-scale factor and divisor; the amplitude prior's variance and
-/// half-Cauchy scale; the amplitude update flag), the first forest taking its
-/// tree count and structure prior from the model spec instead. vars holds each
-/// forest's optional 1-based column restriction, and the two trailing
-/// expressions the per-forest interactions() and blocks() lists; each may be
-/// null. Family admission is refusedAmplitudeFamilyReason's. The public
-/// creation route reaches the same build through createHolder, which reads the
-/// same pieces off a control attribute, and is the only route the flat C API
-/// has here.
-BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
-                                SEXP dataExpr, SEXP basesExpr,
-                                SEXP bcfParamsExpr, SEXP varsExpr,
-                                SEXP interactionsExpr, SEXP blocksExpr) {
-  BartcoreHolder* holder = nullptr;
-  unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
-                 model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
-                 spec = bartcore::AmplitudeSpec{},
-                 ownedResponse = std::vector<double>{},
-                 ownedWeights = std::vector<double>{},
-                 ownedOffset = std::vector<double>{},
-                 ownedTestOffset = std::vector<double>{},
-                 storage = AmplitudeSpecStorage{}]() mutable -> SEXP {
-    bool sigmaIsFixed;
-    // the family is read off the model this route was handed rather than
-    // threaded beside it, which is what makes the two agree structurally:
-    // the R-level route already resolves dbartsModel@family away from
-    // "auto" and maps that lone remaining case to the bridge's own ""
-    // dispatch, so every
-    // existing caller derives exactly what it derived before
-    SEXP familyExpr = Rf_getAttrib(modelExpr, Rf_install("family"));
-    const char* familyName =
-      Rf_isString(familyExpr) && rc_getLength(familyExpr) >= 1 &&
-          STRING_ELT(familyExpr, 0) != NA_STRING &&
-          std::strcmp(CHAR(STRING_ELT(familyExpr, 0)), "auto") != 0
-        ? CHAR(STRING_ELT(familyExpr, 0))
-        : "";
-    bartcore::ResponseFamily family =
-      parseSamplerSpecification(controlExpr, modelExpr, dataExpr, familyName,
-                                control, model, data, sigmaIsFixed);
-    validateCategoricalPredictors(data);
-    if (const char* refused = refusedAmplitudeFamilyReason(family))
-      Rf_error("a treatment forest does not support %s", refused);
-    requireResolvedSigmaEstimate(family, data.sigmaEstimate);
-    if (!data.predictors.isDenseColumnar())
-      Rf_error("a treatment forest requires dense predictors");
-
-    bartcore::SamplerOptions options =
-      optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
-    if (options.fp32Residual)
-      Rf_error("%s", storageSingleUnsupportedMessage);
-
-    spec.family = family;
-    applyAmplitudeSpec(bcfParamsExpr, varsExpr, interactionsExpr, blocksExpr,
-                       model, options.numTrees, data.numPredictors, spec,
-                       storage);
-    // the bases arrive as an argument here rather than on the data object, so
-    // they are read into the same ParsedData channel the public route fills
-    // and transposed by the same helper
-    readForestBases(basesExpr, data);
-    if (data.bases.size() != spec.forests.size())
-      Rf_error("%lu forest bases were given but %lu forests were configured",
-               static_cast<unsigned long>(data.bases.size()),
-               static_cast<unsigned long>(spec.forests.size()));
-    applyForestBases(data, spec, storage);
-
-    // COPY-ON-SET (R_interface_bartcore_common.hpp): the engine borrows these
-    // for the sampler's lifetime, so it borrows buffers the holder owns rather
-    // than the R data object's vectors, and every one is sized to the
-    // sampler's own counts here whether the spec fills it or not - which is
-    // what leaves a later set a copy into storage that already exists. The
-    // vectors are moved into the holder below; a move keeps the buffer, so the
-    // pointers installed here stay valid.
-    ownedResponse.resize(data.numObservations);
-    ownedWeights.resize(data.numObservations);
-    ownedOffset.resize(data.numObservations);
-    ownedTestOffset.resize(data.numTestObservations);
-    const double* y =
-      adoptVector(ownedResponse, data.y, data.numObservations);
-    const double* weights =
-      adoptVector(ownedWeights, data.weights, data.numObservations);
-    const double* offset =
-      adoptVector(ownedOffset, data.offset, data.numObservations);
-    // no test offset is installed on this route, but the buffer is still
-    // sized so the R conduits that install one later copy rather than allocate
-    adoptVector(ownedTestOffset, data.testOffset, data.numTestObservations);
-
-    rngs = createChainRngs(control, options.numChains);
-
-    std::unique_ptr<bartcore::SamplerBase> sampler =
-      bartcore::createAmplitudeSampler(
-        data.predictors.denseValues, y, data.numObservations,
-        data.numPredictors, weights, offset, data.sigmaEstimate,
-        model.sigmaDf, model.sigmaRawScale, options, spec, rngs.data());
-    // the factory returns null on a composition it cannot build; storing that
-    // unchecked would hand back a live external pointer wrapping a null
-    // sampler, which every entry dereferences
-    if (sampler == NULL) {
-      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
-      Rf_error("invalid basis forest specification");
-    }
-
-    holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits};
-    // a move keeps each buffer, so the pointers the sampler holds stay valid
-    holder->ownedResponse = std::move(ownedResponse);
-    holder->ownedWeights = std::move(ownedWeights);
-    holder->ownedOffset = std::move(ownedOffset);
-    holder->ownedTestOffset = std::move(ownedTestOffset);
-    // one empty per-forest weight slot per forest; nothing is installed until
-    // a caller asks, so the engine keeps its pass-through
-    holder->ownedForestWeights.resize(holder->sampler->shape().numForests);
-    return R_NilValue;
-  });
-  return holder;
-}
-
 // The parse and validation both multinomial entries share: parse the sampler
 // spec, refuse the response combinations the single-trial softmax cannot carry
 // (case weights, an offset, a test offset, a mixed test store), and require
@@ -4103,19 +3984,14 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
   });
 }
 
-// A K-forest combining sampler; internal. The model spec is forest 0 - and
-// carries the family, which is read off its own slot rather
-// than passed beside it - bases the per-forest amplitude bases (a null entry
-// leaving that forest the implicit intercept), and bcfParams the K-length
-// per-forest parameter list.
-SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                        SEXP basesExpr, SEXP bcfParamsExpr, SEXP varsExpr,
-                        SEXP interactionsExpr, SEXP blocksExpr) {
-  return createExternalHolder(dataExpr, [&]() {
-    return bartcore_bridge::createBCFHolder(controlExpr, modelExpr, dataExpr,
-                                            basesExpr, bcfParamsExpr, varsExpr,
-                                            interactionsExpr, blocksExpr);
-  });
+// The counts-capability probe shared by bartcore_setCounts,
+// bartcore_setCategoryOffset and bartcore_setCategoryTestOffset. The R5
+// methods' own requireCountsCapability refuses first, so this backstops a
+// caller that skips the R5 layer.
+static void requireCountsMutationCapability(const bartcore::SamplerShape& shape,
+                                            const char* caller) {
+  if (!shape.supportsCountsMutation)
+    Rf_error("%s: requires a multinomial (softmax) sampler", caller);
 }
 
 // Replaces a multinomial (softmax) sampler's response: the n x K
@@ -4145,8 +4021,7 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
   // The capability probe comes FIRST, and it is not a forest count: BCF also
   // carries several forests and owns no counts, while a future coupling that
   // did would have to opt in here.
-  if (!shape.supportsCountsMutation)
-    Rf_error("bartcore_setCounts: requires a multinomial (softmax) sampler");
+  requireCountsMutationCapability(shape, "bartcore_setCounts");
   size_t n = shape.numObservations;
   // K for a counts-owning coupling; the reported-location count IS the category
   // count, so there is no second field to keep in step with it
@@ -4220,9 +4095,7 @@ SEXP bartcore_setCategoryOffset(SEXP ptrExpr, SEXP offsetExpr) {
   // the capability probe comes FIRST and is not a forest count, exactly as the
   // counts entrance's is: the coupling that owns an n x K count response is the
   // one with an n x K linear predictor to shift
-  if (!shape.supportsCountsMutation)
-    Rf_error("bartcore_setCategoryOffset: requires a multinomial (softmax) "
-             "sampler");
+  requireCountsMutationCapability(shape, "bartcore_setCategoryOffset");
   size_t n = shape.numObservations;
   size_t K = shape.numReportedLocations;
 
@@ -4253,9 +4126,7 @@ SEXP bartcore_setCategoryTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
   // the capability probe comes FIRST and is not a forest count: what makes a
   // per-category test shift meaningful is the softmax test blend, which arrived
   // with the count response
-  if (!shape.supportsCountsMutation)
-    Rf_error("bartcore_setCategoryTestOffset: requires a multinomial (softmax) "
-             "sampler");
+  requireCountsMutationCapability(shape, "bartcore_setCategoryTestOffset");
   size_t nTest = shape.numTestObservations;
   size_t K = shape.numReportedLocations;
 
@@ -4578,15 +4449,13 @@ SEXP bartcore_setCalibration(SEXP ptrExpr, SEXP forestExpr,
   double priorScale = Rf_asReal(priorScaleExpr);
   if (!std::isfinite(priorScale) || priorScale <= 0.0)
     Rf_error("'prior.scale' must be a positive finite number");
-  // The map is named so the refusal points at what fixed the scale rather than
-  // at the refusal itself. Only the K = 2 coupling is a two-forest map; above
-  // it the same map spans K forests, and naming it two-forest would be false.
+  // $setCalibration's refuseCountsMutation/refuseAmplitudeMutation refuse
+  // every combiner-carrying sampler first, so this generic message only
+  // backstops a caller that skips the R5 layer.
   if (!holder.sampler->setForestPriorScale(forestIndex, priorScale))
-    Rf_error("this forest's leaf scale comes from the %s, which owns both "
-             "halves of its calibration; make a new sampler instead",
-             shape.supportsCountsMutation ? "softmax calibration map"
-             : shape.numForests == 2      ? "two-forest calibration map"
-                                          : "multi-forest calibration map");
+    Rf_error("this forest's leaf scale comes from a multi-forest "
+             "calibration map, which owns both halves of its calibration; "
+             "make a new sampler instead");
   return R_NilValue;
 }
 

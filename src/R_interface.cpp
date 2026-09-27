@@ -242,7 +242,6 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_create", bartcore_create, 4),
   DEF_FUNC("dbarts_bartcore_createDataHandle", bartcore_createDataHandle, 3),
   DEF_FUNC("dbarts_bartcore_createFromHandle", bartcore_createFromHandle, 8),
-  DEF_FUNC("dbarts_bartcore_createBCF", bartcore_createBCF, 8),
   DEF_FUNC("dbarts_bartcore_setCounts", bartcore_setCounts, 2),
   DEF_FUNC("dbarts_bartcore_setCategoryOffset", bartcore_setCategoryOffset, 2),
   DEF_FUNC("dbarts_bartcore_setCategoryTestOffset",

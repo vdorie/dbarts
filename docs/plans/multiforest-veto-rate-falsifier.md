@@ -144,10 +144,11 @@ Three forks, in the order they bind. Only the first is decided here.
 The widened criterion does not exist in the engine, but it can be driven
 exactly from R without patching anything:
 
-1. Export every ensemble's live trees for the current sweep -
-   `bartcoreGetTrees(bc, chainNums, treeNums, current = TRUE, forest = f)`
-   - no longer a shipped `R/` helper; it survives as the tinytest harness
-   helper [`bartcoreGetTrees`](../../inst/common/bartcoreHandle.R), and the shipped
+1. Export every ensemble's live trees for the current sweep - retired:
+   `bartcoreGetTrees(bc, chainNums, treeNums, current = TRUE, forest = f)`,
+   the 0-based handle wrapper, is gone (test scaffolding consolidation S5);
+   its surviving tinytest analog is the 1-based
+   [`forestTrees`](../../inst/common/bartcoreHandle.R), and the shipped
    surface is the R5 [`dbartsSampler$getTrees`](../../R/dbarts.R)
    for `f = 0..numForests-1`, plus
    `state[[c]]$variance.{vars,values,sizes,flags}`
@@ -185,7 +186,8 @@ occupied). Establishes `r_1` and the transferable count law with no
 assumption at all, and cross-checks bairrtt's prose figure.
 
 **Arm A' - driven closed loop on real multi-ensemble fits (primary for
-shapes).** Real BCF (`dbarts:::bartcoreBCFSampler`, [`bartcoreBCFSampler`](../../R/bartcore.R))
+shapes).** Real BCF (at the time, `dbarts:::bartcoreBCFSampler`, retired: [`bartcoreBCFSampler`](../../R/bartcore.R); now the public `dbarts(forests = )`
+route)
 and real heteroscedastic (`dbarts(x, y, variance = TRUE,
 n.trees.variance =)`, [`dbarts`](../../R/dbarts.R)) samplers, driven by the
 emulation above. Right trees AND right dynamics.
@@ -213,7 +215,7 @@ inferred. This attributes per SAMPLER, not per FOREST inside a sampler.
 
 | factor | levels | grounding |
 |---|---|---|
-| ensemble config | (a) single forest 75 trees [BASELINE, E=1]; (b) BCF mu 75 / tau 50 [E=2]; (c) BCF mu 75 / tau 25 [E=2]; (d) het mean 75 / variance 40 [E=2]; (e) surrogate S=3 mu 75 / tau 50 / var 40 [E=3, arm B only, UNGATED]; (f) multinomial K=4 x 75 [E=4, UNGATED stress] | `n.trees = 75` default ([`dbartsControl`](../../R/A_class.R)); `n.trees.treatment = 50L`, `treatment.base = 0.25` / `treatment.power = 3` ([`bartcoreBCFSampler`](../../R/bartcore.R)); `n.trees.variance = 40L` ([`resolveSamplerSpec`](../../R/spec.R)); mu default `base = 0.95, power = 2` ([`cgm`](../../R/model.R)); bairrtt runs 75 (`irt_causal_bart.R` line 204) |
+| ensemble config | (a) single forest 75 trees [BASELINE, E=1]; (b) BCF mu 75 / tau 50 [E=2]; (c) BCF mu 75 / tau 25 [E=2]; (d) het mean 75 / variance 40 [E=2]; (e) surrogate S=3 mu 75 / tau 50 / var 40 [E=3, arm B only, UNGATED]; (f) multinomial K=4 x 75 [E=4, UNGATED stress] | `n.trees = 75` default ([`dbartsControl`](../../R/A_class.R)); `n.trees.treatment = 50L`, `treatment.base = 0.25` / `treatment.power = 3` (at the time, retired: [`bartcoreBCFSampler`](../../R/bartcore.R); now `forest(n.trees =, base =, power = )`); `n.trees.variance = 40L` ([`resolveSamplerSpec`](../../R/spec.R)); mu default `base = 0.95, power = 2` ([`cgm`](../../R/model.R)); bairrtt runs 75 (`irt_causal_bart.R` line 204) |
 | **column type** | {continuous, binary} gated separately; {multi-level categorical <= 64 levels} reported ungated | two of four motivating classes mutate discrete columns |
 | mutated column in the non-primary mask? | {yes, no} | "no" must measure exactly zero marginal (M1); "yes" is the gated cell |
 | n | {300, 500, 1000, 5000} (300 in arm 0 only) | bairrtt runs 200-1000 and its prose baseline is at 300; the motivating DGP is 1000 persons x 100 items (bairrtt's `docs/plans/multi-trait.md` lines 98-102); 5000 probes leaf-size scaling |

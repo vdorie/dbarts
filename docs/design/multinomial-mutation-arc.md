@@ -58,8 +58,8 @@ anchors below are re-derived to the successor constructions):
 
 | site | family | host built by | real engine |
 |---|---|---|---|
-| [`bart2Multinomial`](../../R/bart.R) | multinomial (labels) | [`buildHostSamplerCall`](../../R/bart.R) with `family = "multinomial"`, then `samplerCall$data <- y` (retired: the pre-arc call passed `family = NULL` and `as.double(labels)`) | the sampler built here IS the engine that runs (S4/F1); [`bartcoreMultinomialSampler`](../../R/bartcore.R) is now a thin wrapper over the same public path |
-| [`bart2MultinomialCounts`](../../R/bart.R) | multinomial (counts) | same, `family = "multinomial"`, then `samplerCall$data <- y` (retired: was `as.double(y[, 1L])`) | as above; [`bartcoreMultinomialCountSampler`](../../R/bartcore.R) |
+| [`bart2Multinomial`](../../R/bart.R) | multinomial (labels) | [`buildHostSamplerCall`](../../R/bart.R) with `family = "multinomial"`, then `samplerCall$data <- y` (retired: the pre-arc call passed `family = NULL` and `as.double(labels)`) | the sampler built here IS the engine that runs (S4/F1); retired: [`bartcoreMultinomialSampler`](../../R/bartcore.R), the thin wrapper it used to run alongside, is deleted (test scaffolding consolidation S5) |
+| [`bart2MultinomialCounts`](../../R/bart.R) | multinomial (counts) | same, `family = "multinomial"`, then `samplerCall$data <- y` (retired: was `as.double(y[, 1L])`) | as above; retired: [`bartcoreMultinomialCountSampler`](../../R/bartcore.R) |
 | [`bart2Ordinal`](../../R/bart.R) | ordinal | [`buildHostSamplerCall`](../../R/bart.R) with `family = "ordinal"` | the sampler built here IS the engine that runs (retired: [`bartcoreSampler`](../../R/bartcore.R), a second creation adopted into it, is deleted) |
 | [`bart2Negbin`](../../R/bart.R) | nbinom | `buildHostSamplerCall` with `family = "nbinom"` | as above |
 
@@ -139,7 +139,7 @@ except where it names another file:
 
 | capability | bridge entry | R wrapper | status |
 |---|---|---|---|
-| create (labels / counts) | [`bartcore_create`](../../src/R_interface_bartcore.cpp)'s multinomial arm -> [`createMultinomialDataHolder`](../../src/R_interface_bartcore.cpp) (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | [`bartcoreMultinomialSampler`](../../R/bartcore.R), [`bartcoreMultinomialCountSampler`](../../R/bartcore.R) | S, unexported |
+| create (labels / counts) | [`bartcore_create`](../../src/R_interface_bartcore.cpp)'s multinomial arm -> [`createMultinomialDataHolder`](../../src/R_interface_bartcore.cpp) (retired: the dedicated `bartcore_createMultinomial(Counts)` entries) | retired: [`bartcoreMultinomialSampler`](../../R/bartcore.R), [`bartcoreMultinomialCountSampler`](../../R/bartcore.R) (test scaffolding, deleted S5) | S, unexported |
 | run | [`bartcore_run`](../../src/R_interface_bartcore.cpp) | [`bartcoreRun`](../../R/bartcore.R) | S |
 | **response swap** | [`bartcore_setCounts`](../../src/R_interface_bartcore.cpp) | [`bartcoreSamplerSetCounts`](../../R/bartcore.R) | S, unexported |
 | **train offset** | [`bartcore_setCategoryOffset`](../../src/R_interface_bartcore.cpp) | [`bartcoreSamplerSetCategoryOffset`](../../R/bartcore.R) | S, unexported |
@@ -457,8 +457,8 @@ instead of two. MOVES DRAWS for `bart2(family = "multinomial")`.
 D3 does not have to move `benchmarks/R/multinomial-equivalence.R`: that
 harness reseeds between the host build and the handle build in every
 scenario ([`runScenarios`](../../benchmarks/R/multinomial-equivalence.R))
-and `bartcoreMultinomialSampler` makes exactly one `.Call`
-([`bartcoreMultinomialSampler`](../../R/bartcore.R)), so the 11 baselines are insulated - see Fork J
+and `bartcoreMultinomialSampler` made exactly one `.Call`
+(retired: [`bartcoreMultinomialSampler`](../../R/bartcore.R)), so the 11 baselines were insulated - see Fork J
 for what that implies and how to discharge it.
 
 What D3 breaks is `test-multinomial-surface.R`'s REPRODUCTION GATE

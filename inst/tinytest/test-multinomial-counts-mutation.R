@@ -260,19 +260,6 @@ expect_error(
   ),
   "multi-forest"
 )
-# likewise the bridge's "no off-sample basis" refusal on setTestOffset: a BCF
-# sampler can never carry test data through the public route (multi-forest
-# creation refuses 'test ='), so $setTestOffset's own "test matrix is NULL"
-# precondition always fires first R-side (test-bcf-mutation-pins.R). Pinned
-# directly on the raw pointer.
-expect_error(
-  .Call(
-    dbarts:::C_dbarts_bartcore_setTestOffset,
-    sampler.bcf$getPointer(),
-    rep(0.3, n)
-  ),
-  "have no off-sample basis"
-)
 
 # n and K are out of scope, and the refusal names both. A transposed matrix is
 # the case a length test alone would install into the wrong cells.
@@ -395,6 +382,6 @@ expect_error(
   "not available"
 )
 expect_error(
-  .Call(dbarts:::C_dbarts_bartcore_setSigma, sampler.mn$getPointer(), 5),
-  "response family fixes the residual standard deviation"
+  sampler.mn$setSigma(5),
+  "the softmax carries no residual scale to set"
 )

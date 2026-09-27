@@ -227,8 +227,9 @@ not the reported vocabulary.
 
 ## 3. Response families
 
-Current: binary responses silently mean probit; logistic (Polya-Gamma) is
-internal-only via `dbarts:::bartcoreSampler(sampler, family = "logistic")`.
+Before (superseded by "Landed 2026-07-03" below): binary responses silently
+meant probit; logistic (Polya-Gamma) was internal-only, through the since
+deleted retired: [`bartcoreSampler`](../../R/bartcore.R).
 
 Proposed:
 
