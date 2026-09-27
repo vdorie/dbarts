@@ -305,12 +305,11 @@ Open before the merge:
 
 - **The release-candidate declaration** (`TODO`'s `rc-gate`), after the
   maintainer's read of this document.
-- **Agent-made decisions not yet ruled on**: 44 unmarked entries in
+- **Agent-made decisions not yet ruled on**: 43 unmarked entries in
   section A of `docs/decisions.md`. Those that fix user-visible surface,
   and would cost a deprecation cycle to change after release:
   - 1-based forest indices in R (dec-A69)
-  - a hurdle fit's `k` and `varcount` from `extract` as a two-part list
-    (dec-A77), and scalar draws with one chain as a plain vector (dec-A79)
+  - scalar draws with one chain as a plain vector (dec-A79)
 - **Three CRAN packages outside ours.** lorax's examples fit a three-level
   factor response, which 0.9-34 coded as 0, 1, 2 and 1.0-0 refuses; its
   maintainer is to be asked to change them. WeightIt and MatchIt fit

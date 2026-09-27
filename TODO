@@ -509,6 +509,12 @@ predict-na-offset (decided, VD 2026-09-27; docs/decisions.md dec-A89)
   unconditional refusal; every predict method and survivalProbabilities;
   manual and tests follow.
 
+hurdle-component-names (decided, VD 2026-09-27; docs/decisions.md dec-A77)
+  before the merge: a hurdle fit's components are zero and positive, not
+  occupancy and positive - the fit's fields, extract's k and varcount
+  lists, summary headers, plot labels, messages, manual, design doc and
+  tests; no tombstone, the family being new in 1.0-0.
+
 hurdle feature completion (VD 2026-09-26: part of feature completion,
   not to be forgotten; docs/decisions.md dec-A15)
   a hurdle.lognormal fit takes no test set, weights, subset or offset:
