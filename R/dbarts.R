@@ -635,6 +635,14 @@ dbarts <- function(
     family <- "gaussian"
   }
 
+  # the forest constructors resolve by bare name inside their arguments, from
+  # the caller's own unevaluated arguments; nothing may force them before this
+  forestArguments <- resolveForestArguments(matchedCall, evalEnv)
+  forests <- forestArguments$forests
+  interactions <- forestArguments$interactions
+  blocks <- forestArguments$blocks
+  variance <- forestArguments$variance
+
   # a forest() formula term declares an additional amplitude-coupled forest
   # (R/formulaTerms.R); checked against the requested family HERE, before any
   # family-specific remap or dispatch below can make the token unrecoverable

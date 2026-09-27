@@ -973,6 +973,14 @@ dbartsSpec <- function(
     data@sigma <- coerceOrError(sigest, "numeric")
   }
 
+  # as on dbarts(): the forest constructors resolve by bare name inside their
+  # arguments, here in parentEnv
+  forestArguments <- resolveForestArguments(matchedCall, parentEnv)
+  forests <- forestArguments$forests
+  interactions <- forestArguments$interactions
+  blocks <- forestArguments$blocks
+  variance <- forestArguments$variance
+
   # this surface does no data ingestion of its own, so a declared basis is
   # evaluated here and reaches data@bases through the same validation
   # dbartsData() applies on the fitting path; the caller's data object has

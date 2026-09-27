@@ -355,10 +355,13 @@ processHit <- function(hit, env) {
   }
 
   list(
+    # a knob may carry the constraint constructors, which resolve by bare
+    # name as they do in the fitting function's own arguments
     knobArgs = lapply(
       named[namedNames %not_in% c("vars", "basis")],
-      eval,
-      envir = env
+      evalInForestVocabulary,
+      vocabulary = dbartsForests[c("interactions", "blocks")],
+      evalEnv = env
     ),
     varsArg = if ("vars" %in% namedNames) {
       eval(named[[which(namedNames == "vars")]], env)
@@ -516,7 +519,7 @@ finalizeTermForests <- function(pending, data) {
   colNames <- colnames(data@x)
   termLabels <- attr(data@x, "term.labels")
   forests <- vector("list", length(pending) + 1L)
-  forests[[1L]] <- dbarts::forest()
+  forests[[1L]] <- forest()
   for (i in seq_along(pending)) {
     p <- pending[[i]]
     vars <- p$varsArg
@@ -541,7 +544,7 @@ finalizeTermForests <- function(pending, data) {
     }
     args <- p$knobArgs
     args$vars <- vars
-    forests[[i + 1L]] <- do.call(dbarts::forest, args)
+    forests[[i + 1L]] <- do.call(forest, args)
   }
   forests
 }

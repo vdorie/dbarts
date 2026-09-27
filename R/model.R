@@ -1048,7 +1048,9 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
     !is.list(forests) ||
       !all(vapply(forests, inherits, logical(1L), "dbartsForest"))
   ) {
-    stop("'forests' must be a list of forest() specifications")
+    stop(
+      "'forests' must be a list of forest() specifications; see ?dbartsForests"
+    )
   }
   if (length(forests) == 0L) {
     stop("'forests' is empty; omit it to fit a single forest")
@@ -1167,7 +1169,10 @@ resolveInteractions <- function(interactions, data) {
     return(NULL)
   }
   if (!inherits(interactions, "dbartsInteractions")) {
-    stop("'interactions' must be an interactions() specification")
+    stop(
+      "'interactions' must be an interactions() specification; see ",
+      "?dbartsForests"
+    )
   }
   numColumns <- ncol(data@x)
   columnNames <- colnames(data@x)
@@ -1288,7 +1293,7 @@ resolveBlocks <- function(blocks, data, nTrees, availableColumns = NULL) {
     return(NULL)
   }
   if (!inherits(blocks, "dbartsBlocks")) {
-    stop("'blocks' must be a blocks() specification")
+    stop("'blocks' must be a blocks() specification; see ?dbartsForests")
   }
   numColumns <- ncol(data@x)
   columnNames <- colnames(data@x)
@@ -1655,7 +1660,9 @@ dart <- function(
 ## in resolveInteractions. max.order caps the number of DISTINCT split variables
 ## on any root-to-leaf path; groups is a co-occurrence allow-list (named columns
 ## may share a path only with group-mates); forbid names column sets barred from
-## sharing a path. Exported (a distinctive top-level name), unlike the priors.
+## sharing a path. Not exported, like the priors: it resolves by bare name
+## inside the arguments that take it (evalInForestVocabulary), and
+## dbartsForests is its exported face.
 interactions <- function(max.order = NULL, groups = NULL, forbid = NULL) {
   if (is.null(max.order) && is.null(groups) && is.null(forbid)) {
     stop("interactions() needs at least one of 'max.order', 'groups', 'forbid'")
@@ -1677,8 +1684,7 @@ interactions <- function(max.order = NULL, groups = NULL, forbid = NULL) {
 ## (a predictor named in no block would be masked out of every tree and go dead).
 ## trees.per.group optionally fixes how many of the n.trees trees each block
 ## gets; NULL distributes them as evenly as possible. Everything is validated at
-## fit time in resolveBlocks. Exported (a distinctive top-level name), like
-## interactions().
+## fit time in resolveBlocks. Not exported, like interactions().
 blocks <- function(groups, trees.per.group = NULL) {
   if (missing(groups) || is.null(groups)) {
     stop("blocks() requires 'groups', a list partitioning the predictors")
@@ -1704,8 +1710,9 @@ blocks <- function(groups, trees.per.group = NULL) {
 ## arguments of the same names on the fitting function are the FIRST forest's.
 ## Every knob defaults to NULL, "not declared", which is what lets a
 ## declaration that collides with one of those arguments refuse rather than
-## silently win. Validated at fit time, in resolveForests. Exported, like
-## interactions() and blocks().
+## silently win. Validated at fit time, in resolveForests. Not exported, like
+## interactions() and blocks(); a formula's forest() term is recognized by
+## name.
 forest <- function(
   basis = NULL,
   vars = NULL,
@@ -1745,7 +1752,7 @@ forest <- function(
 ## variance forest". n.trees/base/power default to NULL, "not declared",
 ## matching forest(); resolveSamplerSpec falls each back to a default when
 ## NULL (40 trees; the mean forest's tree.prior base/power). Validated
-## at fit time. Exported, like forest().
+## at fit time. Not exported, like forest().
 varianceForest <- function(
   vars = NULL,
   n.trees = NULL,
@@ -1792,3 +1799,49 @@ dbartsPriors <- list(
   fixed = fixed,
   chi = chi
 )
+
+## The exported face of the forest constructors, for the reason dbartsPriors
+## exists: 'forest' and 'blocks' are names other packages attach. Inside the
+## arguments that take them they resolve by bare name (resolveForestArguments).
+dbartsForests <- list(
+  interactions = interactions,
+  blocks = blocks,
+  forest = forest,
+  varianceForest = varianceForest
+)
+
+## Each door argument taking a forest constructor, and the vocabulary it
+## resolves over. In the order the doors forced them before they resolved by
+## name, so that an error names the same argument.
+FOREST_ARGUMENT_VOCABULARIES <- list(
+  forests = c("forest", "interactions", "blocks"),
+  interactions = "interactions",
+  blocks = "blocks",
+  variance = "varianceForest"
+)
+
+## The door arguments that take a forest constructor, resolved from the
+## caller's own unevaluated arguments in 'matchedCall'. An absent argument is
+## NULL, every door's default.
+resolveForestArguments <- function(
+  matchedCall,
+  evalEnv,
+  arguments = names(FOREST_ARGUMENT_VOCABULARIES)
+) {
+  resolved <- list()
+  for (name in arguments) {
+    expr <- matchedCall[[name]]
+    resolved[name] <- list(
+      if (is.null(expr)) {
+        NULL
+      } else {
+        evalInForestVocabulary(
+          expr,
+          dbartsForests[FOREST_ARGUMENT_VOCABULARIES[[name]]],
+          evalEnv
+        )
+      }
+    )
+  }
+  resolved
+}

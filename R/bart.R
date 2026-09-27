@@ -1146,7 +1146,9 @@ bart <- function(
       "a DART 'tree.prior'" = inherits(treePrior, "dbartsDartPrior"),
       "'split.probs'" = !is.null(split.probs),
       "'monotone'" = !is.null(monotone),
-      "'variance'" = !is.null(variance)
+      "'variance'" = !is.null(
+        resolveForestArguments(matchedCall, callingEnv, "variance")$variance
+      )
     )
     if (any(unsupported)) {
       stop(

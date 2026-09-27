@@ -129,6 +129,160 @@ evalInVocabulary <- function(expr, vocabulary, evalEnv, resolve = identity) {
   })
 }
 
+## An argument taking a forest constructor, evaluated over the site's
+## vocabulary. Unlike evalInVocabulary, a vocabulary name in value position is
+## the caller's when the caller binds it (callerBinding); every other
+## vocabulary name, and any in call position, is the constructor, so neither an
+## attached mask nor a caller's variable of the same name changes what a call
+## builds. A top-level value that is a constructor is called for its defaults.
+## A ..N anywhere in the expression is evaluated as it stands and, on failure,
+## recovered and resolved under the same rule where it was written. There is
+## no other recovery: a constructor evaluated outside the argument fails with
+## R's own message, extended by a hint where dbarts forces the code.
+evalInForestVocabulary <- function(expr, vocabulary, evalEnv) {
+  expr <- inlineForwardedArguments(expr, vocabulary, evalEnv)
+  env <- vocabularyEnv(vocabulary, evalEnv)
+  claimed <- character()
+  for (name in valueSymbols(expr, names(vocabulary))) {
+    binding <- callerBinding(name, evalEnv)
+    if (!is.null(binding)) {
+      claimed <- c(claimed, name)
+      assign(name, binding$value, envir = env)
+    }
+  }
+  ## a claimed name's call position is still the constructor, which 'env' no
+  ## longer binds
+  expr <- inlineConstructorCalls(expr, vocabulary[claimed])
+  value <- forceCallerCode(eval(expr, env))
+  if (is.function(value) && any(vapply(vocabulary, identical, NA, value))) {
+    value <- value()
+  }
+  value
+}
+
+## Forces caller code: R's warning on forcing a promise that failed before
+## is expected and muffled, and a failure to find a forest constructor gains
+## the spelling that works outside its argument.
+forceCallerCode <- function(value) {
+  restarted <- gettext(
+    "restarting interrupted promise evaluation",
+    domain = "R"
+  )
+  withCallingHandlers(
+    tryCatch(value, error = function(e) {
+      name <- names(dbartsForests)
+      missingFunction <- gettextf(
+        "could not find function \"%s\"",
+        name,
+        domain = "R"
+      )
+      i <- match(conditionMessage(e), missingFunction)
+      if (!is.na(i)) {
+        e$message <- paste0(
+          missingFunction[i],
+          "; outside the argument that takes it, write dbartsForests$",
+          name[i],
+          "(...)"
+        )
+      }
+      stop(e)
+    }),
+    warning = function(w) {
+      if (identical(conditionMessage(w), restarted)) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+}
+
+## The caller's value for a vocabulary name in value position, as list(value
+## = ), or NULL when the caller does not claim it. The lookup stops at
+## topenv(env), so neither the search path nor a package wrapper's user
+## globals count. An unsupplied formal with an empty default means NULL, the
+## door default; any other binding is forced, and a function is no site's
+## value, so it leaves the constructor. That also discounts the dbarts
+## namespace's own binding.
+callerBinding <- function(name, env) {
+  top <- topenv(env)
+  while (!exists(name, envir = env, inherits = FALSE)) {
+    if (identical(env, top) || identical(env, emptyenv())) {
+      return(NULL)
+    }
+    env <- parent.env(env)
+  }
+  frame <- Position(function(f) identical(f, env), sys.frames())
+  if (
+    !is.na(frame) &&
+      identical(formals(sys.function(frame))[[name]], quote(expr = )) &&
+      eval(call("missing", as.name(name)), env)
+  ) {
+    return(list(value = NULL))
+  }
+  value <- forceCallerCode(get(name, envir = env, inherits = FALSE))
+  if (is.function(value)) NULL else list(value = value)
+}
+
+## A formula, quote() or bquote() holds language rather than values, so the
+## walks below leave it as written.
+isQuotingCall <- function(expr) {
+  is.call(expr) &&
+    is.symbol(expr[[1L]]) &&
+    as.character(expr[[1L]]) %in% c("~", "quote", "bquote")
+}
+
+## The vocabulary names an expression uses in value position.
+valueSymbols <- function(expr, vocabularyNames) {
+  if (is.symbol(expr)) {
+    return(intersect(as.character(expr), vocabularyNames))
+  }
+  if (!is.call(expr) || isQuotingCall(expr)) {
+    return(character())
+  }
+  parts <- as.list(expr)
+  if (is.symbol(parts[[1L]])) {
+    parts <- parts[-1L]
+  }
+  unique(unlist(lapply(parts, valueSymbols, vocabularyNames)))
+}
+
+inlineConstructorCalls <- function(expr, constructors) {
+  if (length(constructors) == 0L || !is.call(expr) || isQuotingCall(expr)) {
+    return(expr)
+  }
+  head <- expr[[1L]]
+  if (is.symbol(head) && as.character(head) %in% names(constructors)) {
+    expr[[1L]] <- constructors[[as.character(head)]]
+  }
+  as.call(lapply(as.list(expr), inlineConstructorCalls, constructors))
+}
+
+## Replaces each ..N in an expression with its resolved value, quoted so that
+## a language value (a formula) is not evaluated again. A function literal's
+## ..N are its own dots.
+inlineForwardedArguments <- function(expr, vocabulary, env) {
+  if (isDotsReference(expr)) {
+    value <- tryCatch(
+      forceCallerCode(eval(expr, env)),
+      error = function(original) {
+        written <- recoverForwardedArgument(expr, env)
+        if (isDotsReference(written$expr)) {
+          stop(original)
+        }
+        evalInForestVocabulary(written$expr, vocabulary, written$env)
+      }
+    )
+    return(call("quote", value))
+  }
+  if (
+    !is.call(expr) ||
+      isQuotingCall(expr) ||
+      identical(expr[[1L]], as.name("function"))
+  ) {
+    return(expr)
+  }
+  as.call(lapply(as.list(expr), inlineForwardedArguments, vocabulary, env))
+}
+
 ## A site's 'resolve' for evalInVocabulary: a bare constructor name means its
 ## defaults, and a value of none of 'classes' is refused by name.
 resolvedAs <- function(name, classes, what, topic = "dbartsPriors") {
