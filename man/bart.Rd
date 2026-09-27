@@ -279,7 +279,7 @@ bart(
      Every \code{n.thin} draw is kept to be returned to the user. Useful for \dQuote{thinning} samples against serial correlation; see \code{n.samples} above for how the two combine.
    }
    \item{seed}{
-     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. A \code{\link{set.seed}} beforehand suffices for reproducibility; supplying \code{seed} instead gives reproducible results without touching R's stream. See \code{\link{bartBT}}'s Reproducibility section.
+     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. A \code{\link{set.seed}} beforehand suffices for reproducibility; supplying \code{seed} instead gives reproducible results without touching R's stream. See \sQuote{Reproducibility} below.
    }
    \item{warm.start}{
      A previous fit whose forests seed the initial state instead of drawing trees from the prior: either a \code{bart} object fit with \code{keepSampler = TRUE} or a \code{\link{dbartsSampler-class}}. The donor must share this fit's predictors, tree count, and DART setting; a donor fit on a different cut grid is supported, its splits remapped onto this fit's grid (collapsing any the grid starves), the same way a data replacement remaps existing splits. Only its trees, \code{sigma}, and \code{k} carry over, and each chain starts from a different donor sample so multiple chains stay overdispersed. A warm start biases early draws toward the donor, so it shortens burn-in rather than removing it; keep a non-zero \code{n.burn}. Multi-forest samplers refuse it: a fit whose forests carry amplitude bases (a \code{forest()} term, or a data object built with \code{bases}) errors by name, naming its forest count, because a donor install is not tested at more than one forest; \code{n.grow.sweeps} is the initialization such a fit can take. See \code{\link{dbartsSampler-class}}'s \code{installTrees} method for finer control.
@@ -381,6 +381,114 @@ A term's basis is evaluated inside the fit's own model frame, so \code{subset}, 
 
 A handful of shapes are refused outright rather than silently misinterpreted, each error naming the offending expression: a \code{forest()} term anywhere other than a top-level additive term or a \code{:} operand (inside \code{I()}, a removal, or the formula's left-hand side); a compound \code{:} operand containing anything other than bare numeric/logical symbols joined by \code{+} (a factor or character member, a transformation, a multi-way \code{:} chain, or a second \code{forest()} on the other side); \code{test} given together with a term (an amplitude-coupled fit has no per-observation test replay in this version); a family the multiplier model does not support (\code{"aft"}, \code{"ordinal"}, \code{"nbinom"}, the hazard families, \code{"multinomial"}, and \code{"hurdle.lognormal"} - gaussian, probit, and logistic are the only families a term can join); and a formula whose only right-hand-side content is the term, which would leave nothing to split on. See \sQuote{Value} below, and \code{\link{extract}}'s \code{type = "forest"}, for reading the resulting per-forest fits back out.
 }
+\section{Reproducibility}{
+  Every chain runs its own pseudo-random generator. A seeded fit never draws
+  from R's stream, though it may still create \code{\link{.Random.seed}} in
+  a session that has none yet.
+
+  \strong{\code{set.seed} versus \code{seed}.} Leave \code{seed} at its
+  default (\code{NA_integer_}) and call \code{\link{set.seed}} beforehand:
+  each chain's generator is then seeded from R's stream when the sampler is
+  created, one uniform draw per chain in chain order, and running the
+  sampler afterward never advances the stream further. Passing \code{seed}
+  instead drives the chain seeds from a separate, dedicated generator and
+  leaves R's stream untouched altogether. A \code{seed} named in the call
+  always wins over a seed already sitting in \code{control} - including
+  \code{seed = NA}, which discards a control seed and falls back to
+  \code{set.seed}. A \code{family = "hurdle.lognormal"} fit derives its two
+  component seeds from the one \code{seed} given; without one, the two
+  components draw their own chain seeds from R's stream in turn. Do not rely
+  on \code{bart(seed = S)} and \code{set.seed(S); bart()} giving the same
+  draws. They currently agree under R's default generator, but this is not
+  guaranteed; only \code{seed} gives the same draws under any
+  \code{\link{RNGkind}}.
+
+  \strong{Chains and \code{n.threads}.} Results never depend on the thread
+  count: a fit, its \code{predict}, and \code{\link{samplePriorPredictive}}
+  all give the same draws whatever \code{n.threads} is asked for. A given
+  chain's draws also do not depend on how many other chains ran alongside
+  it - chain 1 of a 1-chain seeded run reproduces chain 1 of a 4-chain run
+  at the same seed, and likewise for any other chain index. Adding a test
+  set, \code{keepTrees}, and \code{verbose} do not change the draws either;
+  \code{storage = "single"}, \code{\link{dbartsControl}}'s \code{levelGibbs},
+  and any change to the model or the data do.
+
+  \strong{Simulated outcomes.} A \code{type = "ppd"} draw on \code{predict},
+  \code{extract}, or \code{fitted}, and \code{\link{samplePriorPredictive}}'s
+  own \code{type = "ppd"}, adds observation noise drawn from R's stream
+  rather than from the fit's chain generators - even on a fit made with
+  \code{seed}. Call \code{set.seed} right before such a call to reproduce
+  it; \code{seed} does not cover this noise.
+  \code{samplePriorPredictive(type = "ev")} only touches R's stream when its
+  control is unseeded (building the private sampler it draws from); with a
+  seeded control it rebuilds the same sampler every time and so returns the
+  same draws on every call - vary the seed, or leave the control unseeded,
+  for different ones.
+
+  \strong{Continuing, copying, and restoring a sampler.} These apply to an
+  embedded \code{\link{dbarts}} sampler kept with \code{keepSampler} or
+  \code{samplerOnly}.
+  \itemize{
+    \item Calling \code{run()} more than once continues its chains' streams
+      exactly: \code{run(50, 20)} followed by \code{run(0, 20)} matches
+      \code{run(50, 40)} bitwise.
+    \item \code{storeState()} (what \code{\link{save}} needs) and
+      \code{setState()} (what restores it, including after
+      \code{\link{load}}) continue those same streams too: the draws
+      typically agree to the last few digits, not bitwise, since restoring
+      rebuilds the fitted values by re-summing the trees.
+    \item \code{copy()}, deep or shallow, installs the original's stored
+      state, so the copy continues the same streams as the original rather
+      than starting an independent chain - again typically to the last few
+      digits, not bitwise; create a new sampler with a different \code{seed}
+      for an independent one. \code{copy()} uses whatever \code{storeState()}
+      last captured (\code{run()} does this automatically unless
+      \code{updateState = FALSE}); a copy made with no stored state instead
+      starts over, drawing fresh trees from the prior.
+    \item An unseeded sampler draws fresh chain seeds from R's stream every
+      time its underlying engine is (re-)created - at \code{copy()}, and at
+      the first use after a reload, including a first \code{setState()} call
+      - exactly as building a new unseeded sampler would. A seeded sampler
+      never touches R's stream this way.
+    \item A \code{\link{bart}} fit made with \code{keepTrees = TRUE} does not
+      store its sampler's state automatically: call
+      \code{fit$fit$storeState()} before saving so a reload can
+      \code{predict} and keep running.
+  }
+
+  \strong{\code{xbart}.} An \code{\link{xbart}} call derives every seed it
+  uses - one split seed per replication, one seed per (replication, fold)
+  unit of work - with \code{\link{sample.int}} after \code{set.seed(seed)},
+  in one pass, restoring R's stream afterward; without a \code{seed},
+  \code{set.seed} beforehand reproduces the same run. For a fixed
+  \code{seed} and generator kind, results do not depend on \code{n.threads}:
+  a parallel worker's \code{\link{RNGkind}} is set to match the caller's
+  before it runs any unit. Unlike \code{bart}'s \code{seed}, which is built
+  to give the same draws under any \code{RNGkind}, \code{xbart} draws
+  straight from R's own generator, so its results change with
+  \code{RNGkind} too; a \code{RNGkind()} of \code{"user-supplied"} cannot be
+  handed to a worker at all, and \code{xbart} refuses \code{n.threads > 1}
+  under it.
+
+  \strong{What moves \code{\link{.Random.seed}}.} Unseeded, creating a
+  sampler (\code{n.chains} uniforms per sampler; a
+  \code{family = "hurdle.lognormal"} fit creates two), \code{xbart}, and
+  \code{copy()} or the first use after a reload of an unseeded sampler,
+  advance R's stream; the simulated-outcome draws above and
+  \code{\link[=dbartsAugmentation]{dbartsDrawLatents}} always do. Everything
+  else a sampler does after creation draws only from its chains' own
+  generators and leaves R's stream alone.
+
+  \strong{Across machines and versions.} A given seed reproduces the same
+  draws bitwise only on one machine, with one build of the package, on
+  whatever processor features it uses. It is not promised across different
+  machines, operating systems, or compilers: the math library and the
+  compiler's floating-point code can differ in the last bit. Expect the same
+  posterior elsewhere, not the same numbers. It is likewise not promised
+  across \code{dbarts} versions - a version that changes the sampler moves
+  the draws - nor against the 0.9-x series, whose engine and RNG were both
+  different.
+}
 \value{
 Every fit, of every class below, carries \code{family}, the family as specified once \code{"auto"} has resolved, and \code{family.spec}, the same family with its settings, which \code{family(fit)} returns (see \code{\link{bartBT}}'s \sQuote{Value} section). Ask a fit what it is through these, not through which components are present: a run's options decide which draw channels it keeps.
 
@@ -429,7 +537,7 @@ Robert McCulloch: \email{robert.mcculloch1@gmail.com},
 Vincent Dorie: \email{vdorie@gmail.com}.
 }
 \seealso{
-\code{\link{bartBT}} for the BayesTree-compatible interface and the shared \code{"bart"}-class Value/Details (Decision Rules, end-node \code{k}, Generics, Saving, Reproducibility, Extracting Trees).
+\code{\link{bartBT}} for the BayesTree-compatible interface and the shared \code{"bart"}-class Value/Details (Decision Rules, end-node \code{k}, Generics, Saving, Extracting Trees); this page's own \sQuote{Reproducibility} section above covers \code{bartBT} too.
 
 \code{\link{dbarts}} for the mutable sampler bart builds on, \code{\link{forest}} for the constructor \code{forest()} formula terms desugar to, and \code{\link{xbart}} for the other formula-first entry point.
 }

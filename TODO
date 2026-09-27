@@ -502,19 +502,6 @@ predict-na-action (decided, VD 2026-09-26; docs/decisions.md
   all-NA shape. survivalProbabilities gains na.action too; the sampler's
   $predict, $predictForests and $getTrees(newdata) keep the default.
 
-reproducibility-docs (decided, VD 2026-09-26; docs/decisions.md
-  dec-A04): before the merge, one user-facing Reproducibility section
-  on bart's page that the package page, bartBT, dbarts, dbartsControl,
-  xbart and the sampler class link to. Today the text sits in bartBT,
-  the package page points at a section bart does not have, the
-  sampler class page says nothing about generators, and bartBT's
-  section carries an unrelated levelGibbs paragraph. Cover, each
-  verified against the code: set.seed versus seed; chains and thread
-  count; repeated run() calls, copy, save and setState on an embedded
-  sampler; xbart's per-cell seeds; which helpers do advance R's
-  stream; same draws within a host but not promised across hosts,
-  compilers or dbarts versions, and not against 0.9-x.
-
 test scaffolding consolidation (decided, VD 2026-09-26; docs/decisions.md
   dec-A52, dec-A51)
   before the merge: tests move onto the exported functions and the
