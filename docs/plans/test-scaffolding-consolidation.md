@@ -519,7 +519,7 @@ and bcf-latent-exact.R, all OK; `lintr::lint_package()` clean;
 quoted-fragment cite in docs/plans/forest-cache-drift.md repointed to the
 respelled test-bcf.R line).
 
-Slice S2 LANDED (pending hash): PARTIAL. Eight of the ten tinytest files
+Slice S2 LANDED 2026-09-27 (07297fa8), in one commit with the second part below. Eight of the ten tinytest files
 migrated off `dbarts:::bartcoreMultinomialSampler`/
 `-MultinomialCountSampler` and the inst/common/bartcoreHandle.R wrappers,
 onto `dbarts(x, factor(labels), family = "multinomial")` /
@@ -609,7 +609,7 @@ test-multinomial-counts-mutation.R/test-calibration-midchain.R lines, and
 correcting docs/design/threaded-predict.md's raw-`.Call` site count
 (six to three, with the other two `retired:` - migrated onto `$predict`).
 
-Slice S2 LANDED (pending hash), second commit: test-forest-basis-r5.R,
+Slice S2, second part (same commit, 07297fa8): test-forest-basis-r5.R,
 test-bcf-reporting.R, multinomial-equivalence.R, multinomial-exact.R and
 composition-matrix.R migrated; sbc.R's BCF and multinomial arms are NOT -
 see below. test-forest-basis-r5.R's own A5 site (`attr(control,
