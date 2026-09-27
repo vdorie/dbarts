@@ -372,3 +372,35 @@ Sister suites, against the slice's library:
 - stan4bart: `Rscript -e 'tinytest::test_package("stan4bart")'`
 - bartCause: `Rscript -e 'testthat::test_local("~/Repositories/bartCause")'`
 - treatSens and bairrtt: one install and test run each, to confirm the zero-site finding.
+
+## Landing
+
+LANDED (pending hash), 2026-09-26, three commits: "Resolve the forest constructors by bare name
+inside the arguments that take them" (steps 1-4), "Recognize a formula's forest() term by its bare
+name only" (step 5), and "Unexport interactions, blocks, forest and varianceForest behind
+dbartsForests" (steps 6-10). The sister edits (step 11) are a separate pass against this build.
+
+Deviations:
+- Rule 1 inlines the constructor as a call head only for a name the caller also claims in value
+  position. Elsewhere a called name is bound to the constructor in the child environment, which
+  gives the same mask protection and keeps a constructor's own error naming `interactions(...)`
+  rather than a deparsed function.
+- Rule 4 leaves a `..N` inside a function literal in E alone: it names that function's own dots,
+  not the caller's.
+- `dbarts` resolves the four just before `ingestFormulaTerms`, after the hurdle refusal, so that
+  refusal still comes first.
+- test-formula-terms case (16) became a refusal of a `dbarts::forest` head. The plain-`forest`
+  rewrite would compare a formula with itself.
+- Matrix row 10 is written with `..1`, not `interactions = ...`.
+- The composition-matrix smoke run was not possible: the harness fails at its own table parse (it
+  looks for a `bart2()` header that feature-matrix.md no longer has), at the base commit too. Its
+  five edited sites are list spellings only.
+- The metafor probe was not run (metafor is not installed). Matrix row 2's attached mask of
+  `interactions`, `blocks` and `forest` covers the same case.
+
+Gates, on the slice's library: full tinytest 8927/0; lintr, air; check-rc-codoc.R,
+check-win-drift.R, check-doc-freshness.R; pkgdown::check_pkgdown; the NEWS parse gate; on a
+`--preclean` reference build, equivalence.R 53 of 53 "identical draws (same RNG stream)" with no
+"max |z|" line, bcf-equivalence 15/15 and multinomial-equivalence 11/11 bitwise; aft-exact.R,
+aft-hetero-pit.R and heteroscedastic-exact.R in quick mode; `R CMD check --as-cran` on a tarball
+built outside the tree.
