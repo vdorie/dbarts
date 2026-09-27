@@ -280,10 +280,6 @@ Record: this register. Marked: blank. [dec-A82]
 dbartsValidateComposition(seed = ) now restores R's random number stream when it returns; it set the seed and left the stream there. The alternative was to document the side effect. No cost identified beyond the change itself.
 Record: this register. Marked: blank. [dec-A88]
 
-**xbart refuses parallel workers under a user-supplied generator**
-xbart gives the same results at any thread count by setting each worker's generator kind to the caller's; a "user-supplied" kind lives in compiled code the worker cannot load, so xbart refuses n.threads > 1 under it. The alternative was documenting that such runs differ by thread count. The cost is an error for the rare user of a custom generator.
-Record: this register; the Reproducibility section of bart's manual page. Marked: blank. [dec-A90]
-
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modelled, not refused**
@@ -889,6 +885,10 @@ Record: this register; docs/plans/predict-na-action.md. Marked: mine. [dec-A87]
 **varcount is offered on every fit class**
 extract(type = "varcount") works on multinomial, ordinal and negative binomial fits as well as the plain bart class, reading dec-A68's "bart fits" as every fit bart() returns: draws by predictors on the plain, ordinal and negative binomial classes, with a trailing category margin on a multinomial fit, and a leading chain margin under combineChains = FALSE; the hurdle fit returns its zero and positive list (dec-A77). The alternative was the plain class only, under which the other classes' users would reach the counts through the fit's fields. The cost is one more documented shape, the multinomial one. The maintainer, 2026-09-27, choosing between the two: "(a) - no reason not to be consistent with features."
 Record: this register; docs/plans/extract-scalar-types.md. Marked: mine. [dec-A78]
+
+**xbart seeds its workers from the caller's draws**
+xbart's workers never draw from R's generator: the caller draws every per-unit seed in its own process, under whatever RNGkind() the user has set, and hands each sampler its seed through the control, whose seed path derives the chains' generators from a dbarts generator without reading R's stream; sampling itself runs on the chains' own generators, and the fold splits are already drawn in the caller. A user-supplied generator therefore works at any thread count and gives the same results at every one, and the step that sent the caller's RNGkind() to each worker goes. The agent had made xbart refuse more than one worker under a user-supplied generator, which a default call on a multicore machine reached, since n.threads defaults to the core count; running workers on R's default generator with results that then depend on the thread count, and falling back to one worker with a warning, were also weighed. The idea of seeding workers from the caller's draws is the maintainer's. xbart's draws under a given seed move once, and a user's loss function that draws random numbers draws on the worker's default generator, which the manual states. The maintainer, 2026-09-27: "Could we pre-seed somehow with the draws from the original, single threaded caller?", then "Do it."
+Record: this register; the Reproducibility section of bart's manual page. Marked: mine. [dec-A90]
 
 ## C. Agent-made decisions with no identified cost
 
