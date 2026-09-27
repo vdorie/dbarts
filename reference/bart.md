@@ -1205,6 +1205,25 @@ with its settings, which `family(fit)` returns (see
 components are present: a run's options decide which draw channels it
 keeps.
 
+Row names: every output indexed by observation carries the rows' names
+on its observation margin, on every class below. That covers the stored
+draws (`yhat.train`, `yhat.test`, their means, `s.train`, `s.test`,
+`forestFits` and the latent channels) and what `fitted`, `residuals`,
+`extract`, `predict` and
+[`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+return. Training rows are named after `subset` and `na.action`: a
+formula fit names them as its model frame does, `"1"` to `"n"` when the
+data has none, as [`lm`](https://rdrr.io/r/stats/lm.html) does; the `x`
+interface takes `rownames(x)`, a data frame's automatic names counting
+as `"1"` to `"n"`, and leaves a matrix without row names unnamed. Test
+rows and `newdata` take their own row names the same way. A
+discrete-time hazard fit names its person-period rows by
+[`make.unique`](https://rdrr.io/r/base/make.unique.html) over the
+subject names, so a subject `s1` at risk in three periods gives `s1`,
+`s1.1` and `s1.2`, and `survivalProbabilities` names subjects. A fit
+also keeps the names as `row.names.train` and `row.names.test`, absent
+when the rows are unnamed.
+
 Under the default and
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)-compatible
 families (`"gaussian"`, `"probit"`, `"logistic"`, `"aft"`, `"hazard"`
@@ -1597,7 +1616,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001269
+#> total seconds in loop: 0.001575
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1645,7 +1664,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001546
+#> total seconds in loop: 0.001986
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 
