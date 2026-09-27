@@ -85,9 +85,10 @@ dbartsValidateComposition(drawPrior, simulate, init, step, functionals,
 - seed:
 
   Seeds R's random number stream for the whole run, making it
-  reproducible; `NULL` uses the stream as it stands. The band's own
-  stream is fixed internally and restored on exit either way, so a call
-  never leaves that fix behind.
+  reproducible; `NULL` uses the stream as it stands, and `NA` is
+  accepted the same way, silently. The band's own stream is fixed
+  internally and restored on exit either way, so a call never leaves
+  that fix behind.
 
 ## Details
 

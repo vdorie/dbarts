@@ -56,7 +56,7 @@
 <span>    printEvery <span class="op">=</span> <span class="fl">100L</span>, printCutoffs <span class="op">=</span> <span class="fl">0L</span>,</span>
 <span>    verbose <span class="op">=</span> <span class="cn">TRUE</span>, keepTrees <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>    keepCall <span class="op">=</span> <span class="cn">TRUE</span>, samplerOnly <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>    seed <span class="op">=</span> <span class="cn">NA_integer_</span>,</span>
+<span>    seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    monotone <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    interactions <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    blocks <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -315,7 +315,7 @@
 <dd><p>Every <code>n.thin</code> draw is kept to be returned to the user. Useful for “thinning” samples against serial correlation; see <code>n.samples</code> above for how the two combine.</p></dd>
 
    <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
-<dd><p>Optional integer specifying the desired pRNG <a href="https://rdrr.io/r/base/Random.html" class="external-link">seed</a>. A <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code> beforehand suffices for reproducibility; supplying <code>seed</code> instead gives reproducible results without touching R's stream. See ‘Reproducibility’ below.</p></dd>
+<dd><p>Optional integer specifying the desired pRNG <a href="https://rdrr.io/r/base/Random.html" class="external-link">seed</a>. <code>NULL</code> (the default) means not given here and defers to a seed already sitting in <code>control</code>, if any; <code>NA</code> is accepted the same way, silently. A <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code> beforehand suffices for reproducibility when nothing ends up seeded; supplying <code>seed</code> instead gives reproducible results without touching R's stream. See ‘Reproducibility’ below.</p></dd>
 
    <dt id="arg-warm-start">warm.start<a class="anchor" aria-label="anchor" href="#arg-warm-start"></a></dt>
 <dd><p>A previous fit whose forests seed the initial state instead of drawing trees from the prior: either a <code>bart</code> object fit with <code>keepSampler = TRUE</code> or a <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>. The donor must share this fit's predictors, tree count, and DART setting; a donor fit on a different cut grid is supported, its splits remapped onto this fit's grid (collapsing any the grid starves), the same way a data replacement remaps existing splits. Only its trees, <code>sigma</code>, and <code>k</code> carry over, and each chain starts from a different donor sample so multiple chains stay overdispersed. A warm start biases early draws toward the donor, so it shortens burn-in rather than removing it; keep a non-zero <code>n.burn</code>. Multi-forest samplers refuse it: a fit whose forests carry amplitude bases (a <code><a href="forest.html">forest()</a></code> term, or a data object built with <code>bases</code>) errors by name, naming its forest count, because a donor install is not tested at more than one forest; <code>n.grow.sweeps</code> is the initialization such a fit can take. See <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>'s <code>installTrees</code> method for finer control.</p></dd>
@@ -419,16 +419,18 @@
   from R's stream, though it may still create <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">.Random.seed</a></code> in
   a session that has none yet.</p>
 <p><strong><code>set.seed</code> versus <code>seed</code>.</strong> Leave <code>seed</code> at its
-  default (<code>NA_integer_</code>) and call <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code> beforehand:
+  default (<code>NULL</code>) and call <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code> beforehand:
   each chain's generator is then seeded from R's stream when the sampler is
   created, one uniform draw per chain in chain order, and running the
   sampler afterward never advances the stream further. Passing <code>seed</code>
   instead drives the chain seeds from a separate, dedicated generator and
-  leaves R's stream untouched altogether. A <code>seed</code> named in the call
-  always wins over a seed already sitting in <code>control</code> - including
-  <code>seed = NA</code>, which discards a control seed and falls back to
-  <code>set.seed</code>. A <code>family = "hurdle.lognormal"</code> fit derives its two
-  component seeds from the one <code>seed</code> given; without one, the two
+  leaves R's stream untouched altogether. A single number named in the call
+  always wins over a seed already sitting in <code>control</code>; <code>NULL</code>
+  means not given here and defers to <code>control</code>'s own seed instead, and
+  <code>NA</code> is accepted as <code>NULL</code>, silently - neither discards a
+  control seed. A <code>family = "hurdle.lognormal"</code> fit derives its two
+  component seeds from the one <code>seed</code> in force (the call's, or
+  <code>control</code>'s); without one, the two
   components draw their own chain seeds from R's stream in turn. Do not rely
   on <code>bart(seed = S)</code> and <code>set.seed(S); bart()</code> giving the same
   draws. They currently agree under R's default generator, but this is not
@@ -588,7 +590,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001557</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001533</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 </span>
@@ -636,7 +638,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001977</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001958</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 1 2 2 2 3 2 </span>

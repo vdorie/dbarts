@@ -16,7 +16,7 @@ dbarts(
     blocks = NULL,
     variance = NULL,
     forests = NULL,
-    control = dbarts::dbartsControl(), sigest = NA_real_, seed = NA_integer_,
+    control = dbarts::dbartsControl(), sigest = NA_real_, seed = NULL,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal",
@@ -411,15 +411,14 @@ dbarts(
 - seed:
 
   Optional integer seed for the random number generator, a convenience
-  mirror of `dbartsControl(seed = )`. A non-`NA` value overrides the
-  seed in `control`; `NA` (the default) leaves `control`'s own seed in
-  force, seeded or not.
+  mirror of `dbartsControl(seed = )`. `NULL` (the default) means not
+  given here: it leaves `control`'s own seed in force, seeded or not;
+  `NA` is accepted the same way, silently. A single finite number
+  overrides the seed in `control`.
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accept
-  the same argument but resolve a named `seed = NA` differently: there
-  it overrides a seeded `control` and the fit runs unseeded. See the
-  Reproducibility section of
-  [bart](https://vdorie.github.io/dbarts/reference/bart.md).
+  the same argument and resolve it identically. See the Reproducibility
+  section of [bart](https://vdorie.github.io/dbarts/reference/bart.md).
 
 - factors:
 

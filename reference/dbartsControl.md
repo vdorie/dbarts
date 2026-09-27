@@ -28,7 +28,7 @@ dbartsControl(
     proposal.probs = c(
         birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
         rule_gibbs = 0, birth = 0.5),
-    seed = NA_integer_, updateState = TRUE, ...)
+    seed = NULL, updateState = TRUE, ...)
 ```
 
 ## Arguments
@@ -340,19 +340,22 @@ dbartsControl(
 
 - seed:
 
-  Random number generator seed. Every chain runs its own generator; the
-  seed drives a dedicated generator that in turn hands each chain its
-  own seed, leaving R's stream untouched. Seeded results do not depend
-  on the thread count, and a single-chain run with a given seed
-  reproduces the first chain of a multi-chain run with the same seed. If
-  equal to `NA`, chain generators are seeded from R's stream at
-  creation, so [`set.seed`](https://rdrr.io/r/base/Random.html)
-  beforehand suffices for reproducibility; sampling itself never
-  advances R's stream, though `copy()` of an unseeded sampler, and the
-  first use of an unseeded sampler reloaded from a saved state, each
-  draw fresh chain seeds from R's stream again. See the Reproducibility
-  section of [bart](https://vdorie.github.io/dbarts/reference/bart.md)
-  for the full picture.
+  Random number generator seed. `NULL` (the default) means not given
+  here and resolves, like an explicit `NA`, to the slot's unseeded
+  value; either leaves the object unseeded. Every chain then runs its
+  own generator; a seed given instead drives a dedicated generator that
+  in turn hands each chain its own seed, leaving R's stream untouched.
+  Seeded results do not depend on the thread count, and a single-chain
+  run with a given seed reproduces the first chain of a multi-chain run
+  with the same seed. Unseeded, chain generators are seeded from R's
+  stream at creation, so
+  [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices
+  for reproducibility; sampling itself never advances R's stream, though
+  `copy()` of an unseeded sampler, and the first use of an unseeded
+  sampler reloaded from a saved state, each draw fresh chain seeds from
+  R's stream again. See the Reproducibility section of
+  [bart](https://vdorie.github.io/dbarts/reference/bart.md) for the full
+  picture.
 
 - updateState:
 

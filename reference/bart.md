@@ -33,7 +33,7 @@ bart(
     printEvery = 100L, printCutoffs = 0L,
     verbose = TRUE, keepTrees = FALSE,
     keepCall = TRUE, samplerOnly = FALSE,
-    seed = NA_integer_,
+    seed = NULL,
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -833,10 +833,13 @@ print(x, ...)
 - seed:
 
   Optional integer specifying the desired pRNG
-  [seed](https://rdrr.io/r/base/Random.html). A
+  [seed](https://rdrr.io/r/base/Random.html). `NULL` (the default) means
+  not given here and defers to a seed already sitting in `control`, if
+  any; `NA` is accepted the same way, silently. A
   [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices
-  for reproducibility; supplying `seed` instead gives reproducible
-  results without touching R's stream. See ‘Reproducibility’ below.
+  for reproducibility when nothing ends up seeded; supplying `seed`
+  instead gives reproducible results without touching R's stream. See
+  ‘Reproducibility’ below.
 
 - warm.start:
 
@@ -1210,22 +1213,23 @@ draws from R's stream, though it may still create
 [`.Random.seed`](https://rdrr.io/r/base/Random.html) in a session that
 has none yet.
 
-**`set.seed` versus `seed`.** Leave `seed` at its default
-(`NA_integer_`) and call
-[`set.seed`](https://rdrr.io/r/base/Random.html) beforehand: each
+**`set.seed` versus `seed`.** Leave `seed` at its default (`NULL`) and
+call [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand: each
 chain's generator is then seeded from R's stream when the sampler is
 created, one uniform draw per chain in chain order, and running the
 sampler afterward never advances the stream further. Passing `seed`
 instead drives the chain seeds from a separate, dedicated generator and
-leaves R's stream untouched altogether. A `seed` named in the call
-always wins over a seed already sitting in `control` - including
-`seed = NA`, which discards a control seed and falls back to `set.seed`.
-A `family = "hurdle.lognormal"` fit derives its two component seeds from
-the one `seed` given; without one, the two components draw their own
-chain seeds from R's stream in turn. Do not rely on `bart(seed = S)` and
-`set.seed(S); bart()` giving the same draws. They currently agree under
-R's default generator, but this is not guaranteed; only `seed` gives the
-same draws under any [`RNGkind`](https://rdrr.io/r/base/Random.html).
+leaves R's stream untouched altogether. A single number named in the
+call always wins over a seed already sitting in `control`; `NULL` means
+not given here and defers to `control`'s own seed instead, and `NA` is
+accepted as `NULL`, silently - neither discards a control seed. A
+`family = "hurdle.lognormal"` fit derives its two component seeds from
+the one `seed` in force (the call's, or `control`'s); without one, the
+two components draw their own chain seeds from R's stream in turn. Do
+not rely on `bart(seed = S)` and `set.seed(S); bart()` giving the same
+draws. They currently agree under R's default generator, but this is not
+guaranteed; only `seed` gives the same draws under any
+[`RNGkind`](https://rdrr.io/r/base/Random.html).
 
 **Chains and `n.threads`.** Results never depend on the thread count: a
 fit, its `predict`, and
@@ -1741,7 +1745,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001557
+#> total seconds in loop: 0.001533
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1789,7 +1793,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001977
+#> total seconds in loop: 0.001958
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

@@ -17,7 +17,7 @@ xbart(
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, drop = TRUE,
     sigest = NA_real_,
-    seed = NA_integer_,
+    seed = NULL,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
     node.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
@@ -262,7 +262,9 @@ xbart(
 - seed:
 
   Optional integer specifying the desired pRNG
-  [seed](https://rdrr.io/r/base/Random.html). From this one `seed`,
+  [seed](https://rdrr.io/r/base/Random.html). `NULL` (the default) means
+  not given here and defers to a seed already sitting in `control`, if
+  any; `NA` is accepted the same way, silently. From the seed in force,
   [`set.seed`](https://rdrr.io/r/base/Random.html) draws a split seed
   for each replication and a seed for each (replication, fold) unit of
   work, with [`sample.int`](https://rdrr.io/r/base/sample.html), in one

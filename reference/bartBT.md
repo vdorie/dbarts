@@ -33,7 +33,7 @@ bartBT(
     usequants = FALSE, numcut = 100, printcutoffs = 0,
     verbose = TRUE, nchain = 1, nthread = 1, combinechains = TRUE,
     keeptrees = FALSE, keepcall = TRUE, sampleronly = FALSE,
-    seed = NA_integer_,
+    seed = NULL,
     proposalprobs = NULL,
     keepsampler = keeptrees)
 
@@ -337,11 +337,13 @@ family(object, ...)
 - seed:
 
   Optional integer specifying the desired pRNG
-  [seed](https://rdrr.io/r/base/Random.html). A
-  [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices
-  for reproducibility; supplying `seed` instead gives reproducible
-  results without touching R's stream. See the Reproducibility section
-  of [bart](https://vdorie.github.io/dbarts/reference/bart.md).
+  [seed](https://rdrr.io/r/base/Random.html). `NULL` (the default)
+  leaves the fit unseeded, and `NA` is accepted the same way, silently;
+  a [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand then
+  suffices for reproducibility. Supplying `seed` instead gives
+  reproducible results without touching R's stream. See the
+  Reproducibility section of
+  [bart](https://vdorie.github.io/dbarts/reference/bart.md).
 
 - proposalprobs:
 
@@ -1096,25 +1098,25 @@ bartFit <- bart(x, y)
 #> Running mcmc loop:
 #> [1] iteration: 100 (of 500)
 #> [2] iteration: 100 (of 500)
-#> [2] iteration: 200 (of 500)
 #> [1] iteration: 200 (of 500)
-#> [2] iteration: 300 (of 500)
+#> [2] iteration: 200 (of 500)
 #> [1] iteration: 300 (of 500)
-#> [2] iteration: 400 (of 500)
+#> [2] iteration: 300 (of 500)
 #> [1] iteration: 400 (of 500)
-#> [2] iteration: 500 (of 500)
+#> [2] iteration: 400 (of 500)
 #> [1] iteration: 500 (of 500)
-#> [4] iteration: 100 (of 500)
+#> [2] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
-#> [4] iteration: 200 (of 500)
+#> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
-#> [4] iteration: 300 (of 500)
+#> [4] iteration: 200 (of 500)
 #> [3] iteration: 300 (of 500)
-#> [4] iteration: 400 (of 500)
+#> [4] iteration: 300 (of 500)
 #> [3] iteration: 400 (of 500)
-#> [4] iteration: 500 (of 500)
+#> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
-#> total seconds in loop: 0.153877
+#> [4] iteration: 500 (of 500)
+#> total seconds in loop: 0.146187
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 
