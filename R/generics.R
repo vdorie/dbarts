@@ -510,8 +510,14 @@ predict.bart <- function(
   }
 
   # validated once, here; the rows na.action keeps are what every arm below
-  # predicts, and padPredictedRows puts them back on newdata's rows
-  rows <- preparePredictRows(newdata, object$fit$data@x, na.action)
+  # predicts, and padPredictedRows puts them back on newdata's rows. A
+  # missing offset or weight marks its row incomplete the same way (dec-A89).
+  rows <- preparePredictRows(
+    newdata,
+    object$fit$data@x,
+    na.action,
+    list(offset = offset, weights = weights)
+  )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
     on.exit(restoreSeed(), add = TRUE)
@@ -1661,7 +1667,14 @@ predict.bartMultinomial <- function(
   # after the fit check, whose absence the default here would otherwise report
   # as a missing slot
   n.threads <- validatePredictThreads(n.threads)
-  rows <- preparePredictRows(newdata, object$fit$data@x, na.action)
+  # a missing offset row is incomplete the same way an unroutable predictor
+  # is (dec-A89)
+  rows <- preparePredictRows(
+    newdata,
+    object$fit$data@x,
+    na.action,
+    list(offset = offset)
+  )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
     on.exit(restoreSeed(), add = TRUE)
@@ -2308,7 +2321,14 @@ predict.bartNegbin <- function(
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
-  rows <- preparePredictRows(newdata, object$fit$data@x, na.action)
+  # a missing offset row is incomplete the same way an unroutable predictor
+  # is (dec-A89)
+  rows <- preparePredictRows(
+    newdata,
+    object$fit$data@x,
+    na.action,
+    list(offset = offset)
+  )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
     on.exit(restoreSeed(), add = TRUE)

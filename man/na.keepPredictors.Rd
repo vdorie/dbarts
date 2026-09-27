@@ -80,10 +80,20 @@ na.keepPredictors(object, \dots)
   and R's random number stream is left as it was.
 
   A per-row \code{offset}, \code{weights} or \code{bases} must match
-  \code{newdata}'s rows and loses the same rows; a single value passes
-  through. A missing value in an \code{offset} or \code{weights}, alone
-  or in a vector, is an error. The sampler's own \code{predict}, \code{predictForests} and
-  \code{getTrees} methods take no \code{na.action} and keep the default.
+  \code{newdata}'s rows and loses the rows \code{na.action} drops; a single
+  value passes through unaffected. A missing value in a per-row
+  \code{offset} or \code{weights} (an \code{n x K} category shift counts as
+  one, on a multinomial fit) marks its row incomplete exactly as an
+  unroutable predictor does, and every \code{na.action} above governs it the
+  same way: the default and \code{na.fail} refuse it by name, \code{na.pass}
+  returns \code{NA} for it, and \code{na.omit}/\code{na.exclude} drop it
+  (\code{na.exclude} padding it back). A missing value in a single
+  (length-one) \code{offset} or \code{weights} is always an error, whatever
+  \code{na.action} is, since there is then no row for it to mark; the same
+  goes for any missing value in \code{bases}. The sampler's own
+  \code{predict}, \code{predictForests} and \code{getTrees} methods take no
+  \code{na.action}, keep the default, and read a missing \code{offset.test}
+  value as before.
 }
 \value{
   \code{object} with the missing-response rows removed, carrying an

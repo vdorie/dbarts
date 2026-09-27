@@ -114,6 +114,11 @@
             \code{na.exclude} drops it and pads it back as \code{NA}, and
             \code{na.fail} refuses it. 0.9-34's \code{predict} dropped a
             data frame's incomplete rows, returning fewer rows than given.
+            A missing value in a per-row \code{offset} or \code{weights}
+            given to \code{predict} marks its row incomplete the same way,
+            governed by the same \code{na.action}; a single (recycled)
+            \code{offset} or \code{weights} value is unaffected, and a
+            missing one there is always an error.
       \item Where the training and test matrices both carry column names and
             the design has more than one predictor, test column names that
             do not cover the training design's are an error naming the

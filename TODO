@@ -505,14 +505,6 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
   (1.0-0). Open: delete the three stubs outright, and configure.ac's
   comment naming them, in the release after 1.0-0.
 
-predict-na-offset (decided, VD 2026-09-27; docs/decisions.md dec-A89)
-  before the merge: a missing value in a per-row offset (vector or n x K)
-  or weights given to predict marks the row incomplete under predict's
-  na.action - default refuses by name, na.omit drops, na.exclude pads NA,
-  na.pass returns NA for the row, na.fail errors - replacing the
-  unconditional refusal; every predict method and survivalProbabilities;
-  manual and tests follow.
-
 one-chain-dimension (decided, VD 2026-09-27; docs/decisions.md dec-A79)
   before the merge: extract and predict with combineChains = FALSE keep a
   chain dimension of length 1 on a one-chain fit, for every type and fit

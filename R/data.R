@@ -446,34 +446,105 @@ resolvePredictNaAction <- function(na.action) {
   na.action
 }
 
-## Which rows of a coded test set a predict method answers (dec-B34). na.pass
-## drops only the unroutable rows and pads them back; na.fail refuses any
-## missing value, by column; every other function is applied to a one-column
-## frame that is NA on the incomplete rows, as applyNaActionToXY does for the
-## matrix interface, and whatever it keeps then meets the default's refusal.
-## Returns the logical 'keep' and whether the dropped rows 'pad' back as NA,
-## or NULL when every row is answered as it stands.
-resolvePredictRows <- function(na.action, x.test, x.train) {
+## A per-row 'offset' or 'weights' channel given to predict has no route an
+## na.action can assign it but its own (dec-A89): a length-one value recycles
+## and is out of scope, unconditionally refused if NA since there is then no
+## row for na.action to drop; anything else must match newdata's rows, and a
+## row with a missing cell anywhere in it (a flat NA, or any NA in a category
+## offset's row) joins the incomplete-row set resolvePredictRows resolves.
+## Returns a logical vector, or NULL when the channel is absent or complete.
+predictChannelIncomplete <- function(value, n, argument) {
+  if (is.null(value)) {
+    return(NULL)
+  }
+  if (is.null(dim(value)) && length(value) == 1L) {
+    if (anyNA(value)) {
+      stop("'", argument, "' has missing values")
+    }
+    return(NULL)
+  }
+  if (NROW(value) != n) {
+    stop("'", argument, "' must have the same number of rows as 'newdata'")
+  }
+  incomplete <- if (is.null(dim(value))) {
+    is.na(value)
+  } else {
+    rowSums(is.na(value)) > 0L
+  }
+  if (!any(incomplete)) NULL else incomplete
+}
+
+## The refusal a 'channels' entry earns when na.action keeps every row
+## despite it (dec-A89): unlike a predictor, an offset or weight is never
+## routable, so a survivor is refused outright, with the same hint
+## refuseTestMissingness gives a predictor's.
+refuseExtraMissingness <- function(extra, naActionHint) {
+  for (name in names(extra)) {
+    if (any(extra[[name]])) {
+      stop(
+        "'",
+        name,
+        "' has missing values",
+        if (naActionHint) {
+          paste0(
+            "; use na.action = na.pass to return NA for them, or na.omit ",
+            "to drop them"
+          )
+        }
+      )
+    }
+  }
+  invisible(NULL)
+}
+
+## na.fail's refusal, naming whichever of the predictor columns and the
+## 'extra' channels (dec-A89) carried a missing value.
+refuseNaFail <- function(x.test, x.train, extra) {
+  columns <- Filter(
+    function(j) any(testRowsMissingIn(x.test, j)),
+    seq_len(NCOL(x.test))
+  )
+  parts <- character(0L)
+  if (length(columns) > 0L) {
+    parts <- c(
+      parts,
+      paste0(
+        "test predictors have missing values in ",
+        testColumnLabels(columns, x.train)
+      )
+    )
+  }
+  for (name in names(extra)) {
+    if (any(extra[[name]])) {
+      parts <- c(parts, paste0("'", name, "' has missing values"))
+    }
+  }
+  stop(paste(parts, collapse = ", and "), ", which na.action = na.fail refuses")
+}
+
+## Which rows of a coded test set a predict method answers (dec-B34). The
+## incomplete-row set is the union of an unroutable predictor and a missing
+## 'extra' channel (offset, weights; dec-A89), named by 'channels' in
+## preparePredictRows. na.pass drops only those rows and pads them back;
+## na.fail refuses any of them, by name; every other function is applied to a
+## one-column frame that is NA on the incomplete rows, as applyNaActionToXY
+## does for the matrix interface, and whatever it keeps then meets the
+## default's refusal. Returns the logical 'keep' and whether the dropped rows
+## 'pad' back as NA, or NULL when every row is answered as it stands.
+resolvePredictRows <- function(na.action, x.test, x.train, extra = list()) {
   numTest <- NROW(x.test)
+  extraDropped <- Reduce(`|`, extra, rep_len(FALSE, numTest))
   if (identical(na.action, stats::na.pass)) {
-    dropped <- unroutableTestRows(x.test, x.train)
+    dropped <- unroutableTestRows(x.test, x.train) | extraDropped
     if (!any(dropped) && numTest > 0L) {
       return(NULL)
     }
     return(list(keep = !dropped, pad = TRUE))
   }
-  hasNA <- sourceHasNA(x.test)
+  hasNA <- sourceHasNA(x.test) || any(extraDropped)
   if (identical(na.action, stats::na.fail)) {
     if (hasNA) {
-      columns <- Filter(
-        function(j) any(testRowsMissingIn(x.test, j)),
-        seq_len(NCOL(x.test))
-      )
-      stop(
-        "test predictors have missing values in ",
-        testColumnLabels(columns, x.train),
-        ", which na.action = na.fail refuses"
-      )
+      refuseNaFail(x.test, x.train, extra)
     }
     return(if (numTest == 0L) list(keep = logical(0L), pad = FALSE))
   }
@@ -481,7 +552,7 @@ resolvePredictRows <- function(na.action, x.test, x.train) {
     # a function passes a complete frame through unchanged
     return(if (numTest == 0L) list(keep = logical(0L), pad = FALSE))
   }
-  incomplete <- testRowsMissingIn(x.test, seq_len(NCOL(x.test)))
+  incomplete <- testRowsMissingIn(x.test, seq_len(NCOL(x.test))) | extraDropped
   frame <- data.frame(predictors = ifelse(incomplete, NA_real_, 0.0))
   kept <- stats::model.frame(~predictors, frame, na.action = na.action)
   omit <- attr(kept, "na.action")
@@ -491,11 +562,16 @@ resolvePredictRows <- function(na.action, x.test, x.train) {
   # the default's refusal, on the rows kept
   if (all(keep)) {
     refuseTestMissingness(x.test, x.train, naActionHint = TRUE)
+    refuseExtraMissingness(extra, naActionHint = TRUE)
     return(NULL)
   }
   refuseTestMissingness(
     x.test[keep, , drop = FALSE],
     x.train,
+    naActionHint = TRUE
+  )
+  refuseExtraMissingness(
+    lapply(extra, `[`, keep),
     naActionHint = TRUE
   )
   list(keep = keep, pad = inherits(omit, "exclude"))
@@ -516,20 +592,29 @@ keptRowsRecord <- function(resolved, names) {
 }
 
 ## The shared front of every predict method: codes newdata once, resolves its
-## rows under 'na.action', and returns the rows to predict. When none
-## survives, or newdata has none, the fit's first training row stands in and
-## the caller slices its answer away, so the result keeps the draw
-## dimensions (dec-B34).
-preparePredictRows <- function(newdata, x.train, na.action) {
+## rows under 'na.action' - which a missing 'channels' entry (offset,
+## weights) marks incomplete exactly as an unroutable predictor does
+## (dec-A89) - and returns the rows to predict. When none survives, or
+## newdata has none, the fit's first training row stands in and the caller
+## slices its answer away, so the result keeps the draw dimensions (dec-B34).
+preparePredictRows <- function(newdata, x.train, na.action, channels = NULL) {
   if (missing(newdata) || is.null(newdata)) {
     stop("newdata cannot be NULL")
   }
   rowNames <- observationRowNames(newdata)
   x <- validateXTest(newdata, x.train, refuseMissing = FALSE)
+  extra <- list()
+  for (name in names(channels)) {
+    incomplete <- predictChannelIncomplete(channels[[name]], NROW(x), name)
+    if (!is.null(incomplete)) {
+      extra[[name]] <- incomplete
+    }
+  }
   resolved <- resolvePredictRows(
     resolvePredictNaAction(na.action),
     x,
-    x.train
+    x.train,
+    extra
   )
   if (is.null(resolved)) {
     return(list(x = x, newdata = newdata, n = NROW(x), keptNames = rowNames))
@@ -561,12 +646,10 @@ suppressPositionalWarnings <- function(expr) {
 
 ## A per-row input at the rows preparePredictRows kept: a length-one value
 ## recycles and passes through, anything else must match newdata's rows. A
-## placeholder row takes 'stub'. A missing value, alone or in a vector, would
-## silently give an NA or NaN prediction, so it is refused.
+## placeholder row takes 'stub'. Missingness in a per-row value is resolved
+## upstream, in preparePredictRows's 'channels' (dec-A89): a row that reaches
+## here survived na.action, so it carries none of its own.
 subsetPredictInput <- function(value, rows, argument, stub = NULL) {
-  if (anyNA(value)) {
-    stop("'", argument, "' has missing values")
-  }
   if (is.null(rows$keep)) {
     return(value)
   }

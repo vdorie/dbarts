@@ -1,9 +1,12 @@
-# predict's na.action (dec-B34), on every predict method and
+# predict's na.action (dec-B34, dec-A89), on every predict method and
 # survivalProbabilities. Column 'a' carries training NAs, so its missing
 # values have a learned route; column 'b' carries none, so its missing values
 # are unroutable. The default predicts the first kind and refuses the second;
 # na.pass returns NA for the second; the other functions act on any missing
-# value, and na.exclude pads what it dropped back as NA.
+# value, and na.exclude pads what it dropped back as NA. A missing value in a
+# per-row offset or weights (dec-A89) has no route of its own, so it joins
+# the unroutable set under every na.action; a length-one (recycled) offset
+# or weight is out of scope and a lone NA there always refuses.
 
 set.seed(31)
 n <- 40L
@@ -231,6 +234,55 @@ expect_error(
   "'weights' has missing values"
 )
 
+# a missing per-row offset or weight marks its row incomplete, exactly as a
+# missing predictor does (dec-A89), so it joins the same union: na.omit and
+# na.exclude drop every row with ANY missing predictor (routable or not,
+# 'complete's rule) or a missing channel; na.pass drops only the unroutable
+# ones (row 4) or a missing channel, keeping a routable predictor NA (row 2)
+offsetNA <- c(0.1, 0.2, 0.3, 0.4, 0.5, NA) # row 6, otherwise complete
+keptOmit <- c(1L, 3L, 5L) # 'complete' minus the offset's own NA row
+keptPass <- c(1L, 2L, 3L, 5L) # 'routable' minus the offset's own NA row
+expect_identical(
+  predict(fit, newX, offset = offsetNA, na.action = na.omit),
+  predict(fit, newX[keptOmit, ], offset = offsetNA[keptOmit])
+)
+excludedOffset <- predict(fit, newX, offset = offsetNA, na.action = na.exclude)
+expect_true(all(is.na(excludedOffset[, c(2L, 4L, 6L)])))
+expect_identical(
+  excludedOffset[, keptOmit],
+  predict(fit, newX[keptOmit, ], offset = offsetNA[keptOmit])
+)
+passedOffset <- predict(fit, newX, offset = offsetNA, na.action = na.pass)
+expect_true(all(is.na(passedOffset[, c(4L, 6L)])))
+expect_identical(
+  passedOffset[, keptPass],
+  predict(fit, newX[keptPass, ], offset = offsetNA[keptPass])
+)
+weightsNA <- c(1, 1, 1, 1, NA, 1) # row 5, otherwise complete
+keptOmitWeights <- c(1L, 3L, 6L) # 'complete' minus the weights' own NA row
+expect_identical(
+  seeded(predict(fit, newX, "ppd", weights = weightsNA, na.action = na.omit)),
+  seeded(predict(
+    fit,
+    newX[keptOmitWeights, ],
+    "ppd",
+    weights = weightsNA[keptOmitWeights]
+  ))
+)
+expect_error(
+  predict(
+    fit,
+    newX[complete, ],
+    offset = c(0.1, NA, 0.3, 0.4),
+    na.action = na.fail
+  ),
+  "'offset' has missing values, which na.action = na.fail refuses"
+)
+expect_error(
+  predict(fit, newX, offset = offsetNA, na.action = na.fail),
+  "'a', 'b'.*and 'offset' has missing values, which na.action = na.fail"
+)
+
 # --- a positional newdata warns once ---
 
 countWarnings <- function(expr) {
@@ -351,6 +403,14 @@ expect_identical(dim(predict(fitM, newX[0L, ])), c(16L, 0L, 3L))
 expect_error(
   predict(fitM, newX[complete, ], offset = NA),
   "'offset' has missing values"
+)
+# an n x K category offset's own missing row joins the incomplete set too
+offsetMatNA <- matrix(0, 6L, 3L)
+offsetMatNA[5L, ] <- NA
+keptOmitM <- c(1L, 3L, 6L) # 'complete' minus the offset's own NA row
+expect_identical(
+  predict(fitM, newX, offset = offsetMatNA, na.action = na.omit),
+  predict(fitM, newX[keptOmitM, ], offset = offsetMatNA[keptOmitM, ])
 )
 
 fitO <- quick(x, factor(category, ordered = TRUE), family = "ordinal")
