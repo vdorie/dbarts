@@ -807,3 +807,56 @@ keepFits's two dbartsControl pins); exact-gates quick for aft-exact.R,
 aft-hetero-pit.R, categorical-exact.R, logistic-reference.R, t-exact.R, negbin-exact.R and
 ordinal-exact.R, all OK; lintr clean; air clean; check-doc-freshness OK. No
 equivalence compare: equivalence.R sources none of the touched files.
+
+Slice S4 LANDED (pending hash): `bart2Ordinal` and `bart2Negbin` run the
+sampler's own engine; the second creation through `bartcoreSampler` and
+its `$adoptPointer` are gone. Ordinal runs `sampler$run(n.burn, n.samples,
+updateState = FALSE)`; the nbinom per-sample loop keeps `bartcoreRun` on
+`list(ptr = sampler$getPointer())` for its summed GP warning. The two
+multinomial fits call `sampler$run(..., updateState = FALSE)` and drop the
+manual `warnOnGPFallback`. `bartcoreSampler`, `bartcorePredict`, the
+inst/common alias and the RC method `adoptPointer` are deleted, with the
+Rd sentences, the census entry (51 to 50 own methods) and the doc cites
+(`retired:` in multinomial-mutation-arc.md, threaded-predict.md and this
+plan's Context).
+
+Reconciled with the predict na.action slice: `predict.bartOrdinal` and
+`predict.bartNegbin` call `predictCodedTest(object$fit, rows$x, offset,
+n.threads)`, the body of `$predict` that `predict.bart` and
+`predict.bartMultinomial` already use, not `$predict` itself, which would
+code the already-coded rows a second time. na.action, row names and the
+no-surviving-row placeholder are untouched. For nbinom a scalar offset now
+recycles, where the bridge refused it by length. The `$predict` path's
+"lone NA means no offset" is unreachable: `subsetPredictInput` refuses an NA
+inside a per-row offset, and `predict.bartNegbin` now refuses a lone NA with
+the same message, where the old route refused it by length (n > 1) or gave
+NA rows (n = 1). Both are pinned in test-nbinom.R and stated in bart.Rd's
+`offset` item. `subsetPredictInput` itself still passes a lone NA for the
+other families (`predict.bart` gives NA rows), left as it was.
+
+Seeded proof, before and after, on the reference build against
+origin/bartcore fb9364c7: seeded (`seed =`) ordinal fits at one and two
+chains and two threads, and nbinom fits at one and two chains with train
+and test offsets, are bitwise identical on every fit channel (train, test,
+thresholds, dispersion, varcount), on `predict` (ev, bart, ppd, class, with
+and without an offset), `extract(type = "ppd")`, `$getDispersion()`, a
+continued `$run` and the stored state, with the same warnings. Multinomial
+(labels and counts) is bitwise seeded and unseeded. Unseeded ordinal and
+nbinom fits move, as expected.
+
+Gates: full tinytest (shipped) 9187/9187 (9183 plus four nbinom offset
+pins; no RNG-locked snapshot moved, so none was regenerated); the four
+seeded-drift snapshot files on the reference build; tests/cpp;
+check-rc-codoc (46 methods), lintr, air, check-win-drift,
+check-doc-freshness, `pkgdown::check_pkgdown`. equivalence.R re-recorded
+on the reference build as equivalence-1b65b10f.rds: against d49e2103, 51 of
+53 scenarios identical, the movers exactly ordinal (max |z| 2.22) and
+nbinom (2.59), z-mode passes; the new file reproduces 53/53 bitwise from a
+second `--preclean` reference install. bcf-equivalence 15/15 and
+multinomial-equivalence 11/11 bitwise. P17 oracle, FULL mode on the
+shipped build: ordinal-exact.R gaps 0.0002 (tol 0.012) and 0.0002 (tol
+0.040); negbin-exact.R gaps 0.0012 (tol 0.070), 0.0064 (tol 0.025) and
+0.0027 (tol 0.070). MANIFEST row added, d49e2103 demoted, and the
+baseline pins in cpp-tests.yaml, equivalence.yaml, mutation-battery.R and
+feature-matrix.md moved. R CMD check --as-cran on a staged tarball built
+with vignettes: Status 1 NOTE, the stale DESCRIPTION Date (pre-existing).
