@@ -532,11 +532,12 @@ sampler-gettrees-forest (decided, VD 2026-09-27; docs/decisions.md dec-A80)
   and gains the type on the multi-forest classes; plotTree follows; the
   internal test helper retires; manual, NEWS and tests.
 
-leaf-prior-accessors (decided, VD 2026-09-27; docs/decisions.md dec-B129)
+node-vocabulary (decided, VD 2026-09-27; docs/decisions.md dec-B129)
   before the merge: the sampler's getCalibration/setCalibration become
-  getLeafPrior/setLeafPrior, the reader's node.scale.factor/divisor
-  columns leaf.scale.factor/divisor; R, bridge entry names, manual, NEWS,
-  tests, docs; bartCause's bcf() call in lockstep; no tombstone.
+  getNodePrior/setNodePrior; gp(max.leaf.size) becomes max.node.size and
+  the reader's leaf.model attribute node.model; the manual's prose says
+  node where it names these; R, bridge entry names, manual, NEWS, tests,
+  docs; bartCause's bcf() call in lockstep; no tombstone.
 
 hurdle feature completion (VD 2026-09-26: part of feature completion,
   not to be forgotten; docs/decisions.md dec-A15)
