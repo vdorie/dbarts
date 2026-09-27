@@ -59,12 +59,15 @@ dbartsData(
 
   Optional `n` x `K` matrix of non-negative integer counts selecting the
   multinomial (softmax) model, column `k` holding category `k`'s
-  successes and every row carrying at least one trial. It is restricted
-  by `subset` exactly as `weights` is, and it IS the response: `y` is
-  derived as its row sums - the trials \\n_i\\ - so no separate response
-  need be supplied, and any that is supplied is replaced. At least two
-  categories are required. Column names, when present, label the
-  categories.
+  successes and every row carrying at least one trial. A row with any
+  `NA` cell is a missing response, routed through `na.action` exactly as
+  for every other family (see
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)).
+  It is restricted by `subset` exactly as `weights` is, and it IS the
+  response: `y` is derived as its row sums - the trials \\n_i\\ - so no
+  separate response need be supplied, and any that is supplied is
+  replaced. At least two categories are required. Column names, when
+  present, label the categories.
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)`(family = "multinomial")`
   writes this argument from a count-matrix or factor response rather
   than requiring it here. Paired with `counts`, a matrix

@@ -388,51 +388,55 @@ print(x, ...)
   by name rather than resolving `y`/`x1`/`x2` from the calling
   environment. `y.train` must be a factor (or character, coerced with
   [`factor`](https://rdrr.io/r/base/factor.html)) with at least two
-  levels and no `NA`s or `NA` levels; `K = nlevels(y.train)` is
-  inferred, never given explicitly, and `levels(y.train)` is captured at
-  fit time and carried on every K-shaped output (`yhat.train`'s trailing
-  dimension, `fitted`'s columns, the `fitted(type = "class")` factor).
-  Alternatively, `y.train` may be an n x K numeric matrix of nonnegative
-  integer trial counts, one row per observation and one column per
-  category, with row sum (trials) \\n_i \ge 1\\: category k's count is
-  then a binomial(\\n_i\\, p_k) draw under the same one-vs-rest
-  augmentation, `K = ncol(y.train)` is inferred, and the levels carried
-  on every K-shaped output are `colnames(y.train)` when present,
-  otherwise `as.character(seq_len(K))`. A one-hot count matrix (every
-  \\n_i = 1\\) is the same model as the factor response above,
-  reproduced bit for bit. The formula interface is supported alongside
-  the matrix one: `bart(formula, data, family = "multinomial")` with a
-  factor (or character) left-hand side routes to the factor response
-  above, and a `cbind(c1, ..., cK) ~ x` left-hand side (the same idiom
-  `glm`'s binomial family uses) routes to the count-matrix response
-  above, `K` and the levels taken from the `cbind` column names; the
-  right-hand side is coded exactly as it is for every other family's
-  formula fit, including `predict` on a data frame `newdata`. Under the
-  default `family = "auto"`, a factor (or character) response with three
-  or more levels is detected and fit as multinomial, reporting the
-  choice in a one-line message; a two-level factor (or logical) response
-  resolves to probit, and a numeric response is unchanged. A
-  count-matrix (`cbind(c1, ..., cK) ~ x`) response is only ever
-  multinomial when `family = "multinomial"` is given explicitly - it is
-  never inferred. `weights`, `subset`, `samplerOnly`, `warm.start`,
-  `n.grow.sweeps`, a DART `tree.prior`, `split.probs`, `monotone`, and
-  `variance` are all refused with an error naming the limitation (an
-  integer weight is already expressible as row-wise count replication in
-  the response, a non-integer one has no exact augmentation sampler, and
-  the K-forest engine copies only power/base/proposal-probability fields
-  from the host sampler it briefly builds, so DART, fixed split
-  probabilities, monotone direction constraints, and a variance forest
-  never reach it). `offset` is accepted only as an n x K numeric matrix,
-  entering the K forests' raw fits before the softmax, one column per
-  category, in the same layout as a count-matrix `y.train`; a flat
-  (length-n) offset is refused by name, since a common per-observation
-  shift is the softmax's own null direction and is identically inert.
-  `offset` is a TRAIN-side argument only: `offset.test` is refused by
-  name too, and `yhat.test` is always computed WITHOUT any category
-  offset, even when `offset` was supplied for training - a caller
-  comparing an offset-fitted `yhat.train` against `yhat.test` should
-  keep this asymmetry in mind. A category test offset on the fit-time
-  `test` rows is a sampler-level capability only (a
+  levels and no `NA` levels; a missing label, or - for the count-matrix
+  form below - a row with any `NA` cell, is a missing response, routed
+  through `na.action` exactly as for every other family (see
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md));
+  `K = nlevels(y.train)` is inferred, never given explicitly, and
+  `levels(y.train)` is captured at fit time and carried on every
+  K-shaped output (`yhat.train`'s trailing dimension, `fitted`'s
+  columns, the `fitted(type = "class")` factor). Alternatively,
+  `y.train` may be an n x K numeric matrix of nonnegative integer trial
+  counts, one row per observation and one column per category, with row
+  sum (trials) \\n_i \ge 1\\: category k's count is then a
+  binomial(\\n_i\\, p_k) draw under the same one-vs-rest augmentation,
+  `K = ncol(y.train)` is inferred, and the levels carried on every
+  K-shaped output are `colnames(y.train)` when present, otherwise
+  `as.character(seq_len(K))`. A one-hot count matrix (every \\n_i = 1\\)
+  is the same model as the factor response above, reproduced bit for
+  bit. The formula interface is supported alongside the matrix one:
+  `bart(formula, data, family = "multinomial")` with a factor (or
+  character) left-hand side routes to the factor response above, and a
+  `cbind(c1, ..., cK) ~ x` left-hand side (the same idiom `glm`'s
+  binomial family uses) routes to the count-matrix response above, `K`
+  and the levels taken from the `cbind` column names; the right-hand
+  side is coded exactly as it is for every other family's formula fit,
+  including `predict` on a data frame `newdata`. Under the default
+  `family = "auto"`, a factor (or character) response with three or more
+  levels is detected and fit as multinomial, reporting the choice in a
+  one-line message; a two-level factor (or logical) response resolves to
+  probit, and a numeric response is unchanged. A count-matrix
+  (`cbind(c1, ..., cK) ~ x`) response is only ever multinomial when
+  `family = "multinomial"` is given explicitly - it is never inferred.
+  `weights`, `subset`, `samplerOnly`, `warm.start`, `n.grow.sweeps`, a
+  DART `tree.prior`, `split.probs`, `monotone`, and `variance` are all
+  refused with an error naming the limitation (an integer weight is
+  already expressible as row-wise count replication in the response, a
+  non-integer one has no exact augmentation sampler, and the K-forest
+  engine copies only power/base/proposal-probability fields from the
+  host sampler it briefly builds, so DART, fixed split probabilities,
+  monotone direction constraints, and a variance forest never reach it).
+  `offset` is accepted only as an n x K numeric matrix, entering the K
+  forests' raw fits before the softmax, one column per category, in the
+  same layout as a count-matrix `y.train`; a flat (length-n) offset is
+  refused by name, since a common per-observation shift is the softmax's
+  own null direction and is identically inert. `offset` is a TRAIN-side
+  argument only: `offset.test` is refused by name too, and `yhat.test`
+  is always computed WITHOUT any category offset, even when `offset` was
+  supplied for training - a caller comparing an offset-fitted
+  `yhat.train` against `yhat.test` should keep this asymmetry in mind. A
+  category test offset on the fit-time `test` rows is a sampler-level
+  capability only (a
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   own `$setCategoryTestOffset` method, reached through
   `keepSampler = TRUE`), not reachable from `bart`; `predict`'s own
@@ -567,15 +571,15 @@ print(x, ...)
   hazard responses (a `cloglog` link is a recorded follow-up).
 
   `family = "hurdle.lognormal"` fits a semicontinuous two-part (hurdle)
-  model for a non-negative response with exact zeros: an OCCUPANCY
-  probit fit of \\z = 1\\y \> 0\\\\ over all n observations, glued at
-  report time to a POSITIVE-PART gaussian fit of \\\log y\\ over the
-  subset \\\\i : y_i \> 0\\\\. The two component fits share no
-  parameters and are composed entirely R-side from two ordinary `bart`
-  fits at independently derived seeds - no engine code, and no coupling
-  between the parts - so a shared variable-selection prior across the
-  occupancy and positive parts is foreclosed by this composition (a
-  recorded limitation, alongside a Duan-smearing retransformation and a
+  model for a non-negative response with exact zeros: a ZERO-PART probit
+  fit of \\z = 1\\y \> 0\\\\ over all n observations, glued at report
+  time to a POSITIVE-PART gaussian fit of \\\log y\\ over the subset
+  \\\\i : y_i \> 0\\\\. The two component fits share no parameters and
+  are composed entirely R-side from two ordinary `bart` fits at
+  independently derived seeds - no engine code, and no coupling between
+  the parts - so a shared variable-selection prior across the zero and
+  positive parts is foreclosed by this composition (a recorded
+  limitation, alongside a Duan-smearing retransformation and a
   heteroscedastic positive part, both follow-ups). `y.train` must be
   non-negative and finite and must carry at least one exact zero and one
   positive value (a response with no zeros, or none positive, is refused
@@ -585,12 +589,13 @@ print(x, ...)
   draw from the positive part's single \\\sigma\\ per draw, recycled
   across observations (the positive part is always homoscedastic; a
   heteroscedastic positive part is not reachable, see the recorded
-  limitation above). `type = "prob"` returns the occupancy probability
-  \\\pi(x)\\ through the probit link; `type = "link"`/`"log"` the
-  positive part's log-scale linear predictor \\f(x)\\; `type = "ppd"`
-  draws the proper BIMODAL predictive - a Bernoulli(\\\pi\\) spike at
-  zero, else a lognormal draw - which the plain gaussian ppd path cannot
-  produce. Fits currently use the matrix interface only
+  limitation above). `type = "prob"` returns the zero part's own
+  probability \\\pi(x) = P(y \> 0 \mid x)\\ through the probit link;
+  `type = "link"`/`"log"` the positive part's log-scale linear predictor
+  \\f(x)\\; `type = "ppd"` draws the proper BIMODAL predictive - a
+  Bernoulli(\\\pi\\) spike at zero, else a lognormal draw - which the
+  plain gaussian ppd path cannot produce. Fits currently use the matrix
+  interface only
   (`bart(x.train, y.train, family = "hurdle.lognormal")`); `weights`,
   `subset`, `offset`/`offset.test`, and `test` are all refused with an
   error naming the limitation - the positive-part fit is instead given
@@ -601,9 +606,9 @@ print(x, ...)
   not fit this family - it composes two samplers, which only `bart()`
   builds, so requesting it there is an error directing here. `xbart`
   does not fit it either. The fit's class is `"bartHurdle"`, holding
-  both component fits (`$occupancy`, a `"bart"` probit fit of the
-  occupancy indicator; `$positive`, a `"bart"` gaussian fit of \\\log
-  y\\ on the positive subset) under their own
+  both component fits (`$zero`, a `"bart"` probit fit of the zero-part
+  indicator; `$positive`, a `"bart"` gaussian fit of \\\log y\\ on the
+  positive subset) under their own
   `extract`/`fitted`/`predict`/`residuals`/`print` methods.
 
 - sigest:
@@ -1082,9 +1087,9 @@ print(x, ...)
   variable per threshold \\\gamma_1, \ldots, \gamma\_{K-1}\\, the
   ordinal analog of `sigma`; `summary.bartNegbin`'s `"dispersion"`
   contributes the per-draw dispersion \\r\\, the count analog of
-  `sigma`. `summary.bartHurdle` applies `vars` separately to its
-  `$occupancy` and `$positive` component fits. `summary.bartMultinomial`
-  has no `vars` formal at all: it always pools the per-category
+  `sigma`. `summary.bartHurdle` applies `vars` separately to its `$zero`
+  and `$positive` component fits. `summary.bartMultinomial` has no
+  `vars` formal at all: it always pools the per-category
   mean-probability channel (its only scalar convergence instrument), so
   a supplied `vars` is refused by name rather than silently ignored.
 
@@ -1618,16 +1623,16 @@ per-predictor split-usage channel; `summary`'s own default `vars` is
 `c("dispersion", "sigma", "k")`.
 
 `bart(family = "hurdle.lognormal")` returns its own list, of class
-`"bartHurdle"`, holding both component fits (`$occupancy`, a `"bart"`
-probit fit of the occupancy indicator; `$positive`, a `"bart"` gaussian
-fit of \\\log y\\ on the positive subset) plus `call` and `family`
+`"bartHurdle"`, holding both component fits (`$zero`, a `"bart"` probit
+fit of the zero-part indicator; `$positive`, a `"bart"` gaussian fit of
+\\\log y\\ on the positive subset) plus `call` and `family`
 (`"hurdle.lognormal"`). `extract`/`fitted`/`predict`/`residuals`/`print`
 methods for `"bartHurdle"` compose the two components: `type = "ev"`
 (the default) is the natural-scale posterior mean or draws described
-under the `family` argument above, `type = "prob"` the occupancy
-probability, `type = "link"`/`"log"` the positive part's log-scale
-linear predictor, and `type = "ppd"` the bimodal predictive draw.
-`ci.level` on `fitted`/`predict` works as for
+under the `family` argument above, `type = "prob"` the zero part's own
+probability of a positive response, `type = "link"`/`"log"` the positive
+part's log-scale linear predictor, and `type = "ppd"` the bimodal
+predictive draw. `ci.level` on `fitted`/`predict` works as for
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md),
 including its refusal on `residuals`; `combineChains` is likewise
 refused by name on `fitted`/`residuals`, and `fitted`'s own `sample`
@@ -1652,21 +1657,21 @@ branch is \\\log(1 - \pi)\\ rather than \\\log \mathrm{hu}\\; a formula
 ported from one of those must be inverted. `forest`/`contribution` on
 `extract`/`predict` are refused by name (each component is a single
 forest). `plot(object)` draws four panels: the positive component's
-sigma trace; the occupancy probability \\\pi(x)\\; the positive part on
-the scale it fit (\\\log y\\ over the \\y \> 0\\ rows); and the composed
-natural-scale mean \\E\[y \mid x\] = \pi e^{f + \sigma^2/2}\\ over all n
-rows, the only panel showing the model this family exists for.
-`plotTree` and
+sigma trace; the zero part's probability \\\pi(x)\\; the positive part
+on the scale it fit (\\\log y\\ over the \\y \> 0\\ rows); and the
+composed natural-scale mean \\E\[y \mid x\] = \pi e^{f + \sigma^2/2}\\
+over all n rows, the only panel showing the model this family exists
+for. `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
-are refused by name, naming `object$occupancy$fit`/`object$positive$fit`
-as the route to the trees. `extract(object, type = "sigma")` returns
+are refused by name, naming `object$zero$fit`/`object$positive$fit` as
+the route to the trees. `extract(object, type = "sigma")` returns
 `$positive`'s sigma draws, the only sigma the composition carries;
 `extract(object, type = "k")` and `type = "varcount"` each return a
-list, named `occupancy`/`positive`, of that component's own draws - a
+list, named `zero`/`positive`, of that component's own draws - a
 component whose `k` is fixed rather than modelled is left out of the
 `"k"` list, an error if both are (see `bart`'s `k` item).
-`summary(object)` reports both components - `$occupancy`'s and
-`$positive`'s own
+`summary(object)` reports both components - `$zero`'s and `$positive`'s
+own
 [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
 tables, under their own headers - rather than pooling them into one,
 since the two component fits share no parameters.
@@ -1745,7 +1750,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001589
+#> total seconds in loop: 0.001583
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1793,7 +1798,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001983
+#> total seconds in loop: 0.001994
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

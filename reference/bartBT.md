@@ -706,9 +706,9 @@ families - `family = "multinomial"`, `"ordinal"`, and `"nbinom"` - whose
 `$fit` is the sampler (K-forest or single-forest) that actually ran; see
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s Value
 section for each. A `family = "hurdle.lognormal"` fit has no `$fit` of
-its own: it is the pair `$occupancy` and `$positive`, each a `bart` fit
-in its own right, so both of their samplers need the call before saving:
-`fH$occupancy$fit$storeState(); fH$positive$fit$storeState()`.
+its own: it is the pair `$zero` and `$positive`, each a `bart` fit in
+its own right, so both of their samplers need the call before saving:
+`fH$zero$fit$storeState(); fH$positive$fit$storeState()`.
 
 ### Reproducibility
 
@@ -1104,8 +1104,8 @@ bartFit <- bart(x, y)
 #> [2] iteration: 300 (of 500)
 #> [1] iteration: 400 (of 500)
 #> [2] iteration: 400 (of 500)
-#> [1] iteration: 500 (of 500)
 #> [2] iteration: 500 (of 500)
+#> [1] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
 #> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
@@ -1116,7 +1116,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.148511
+#> total seconds in loop: 0.147465
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

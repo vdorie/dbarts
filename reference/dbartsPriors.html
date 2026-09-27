@@ -209,7 +209,10 @@ The residual priors chisq and fixed are what a family
   environment (for an argument a wrapper forwards through its <code>...</code>,
   the one it was written in), along with <code>num.vars</code>, the number of predictor columns.
   A prior object built ahead of time with <code>dbartsPriors$...</code> can be
-  passed to the same arguments.</p>
+  passed to the same arguments. A wrapper's named formal that forces a bare
+  constructor call before passing it on reaches R's own could-not-find-function
+  error instead, extended with a hint naming <code>dbartsPriors$cgm(...)</code> and
+  its siblings.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

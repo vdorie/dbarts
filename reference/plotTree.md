@@ -13,7 +13,7 @@ the fit.
 own-class fits (`"bartMultinomial"`, `"bartOrdinal"`, `"bartNegbin"`,
 `"bartHurdle"`) refuse by name instead: their trees live on the
 sampler(s) those fits carry (`object$fit` for the first three,
-`object$occupancy$fit`/ `object$positive$fit` for the hurdle), which
+`object$zero$fit`/ `object$positive$fit` for the hurdle), which
 `plotTree` can be called on directly.
 
 ## Usage

@@ -570,7 +570,7 @@ dbarts(
   needed.
 
   `"hurdle.lognormal"` fits a semicontinuous two-part (hurdle) model for
-  a non-negative response with exact zeros: an occupancy probit fit of
+  a non-negative response with exact zeros: a zero-part probit fit of
   \\z = 1\\y \> 0\\\\ over all n observations, glued at report time to a
   lognormal positive-part fit - an ordinary gaussian fit of \\\log y\\ -
   over the subset \\\\i : y_i \> 0\\\\; the two parts share no

@@ -21,7 +21,10 @@ own `...`; elsewhere reach them through this list. That vocabulary
 shadows the caller's own frame for these ten names only, so a variable
 named `gaussian` holding `student(3)` resolves there to the gaussian
 family, not to its own value; name such a variable something else, or
-write `dbartsFamilies$student(3)`.
+write `dbartsFamilies$student(3)`. A wrapper's named formal that instead
+forces a bare constructor call before passing it on reaches R's own
+could-not-find-function error, extended with the same hint naming
+`dbartsFamilies$student(...)` and its siblings.
 
 Every setting that only one family reads rides its family object rather
 than a formal of the fitting function. That includes the residual
@@ -110,10 +113,10 @@ A list of functions:
 
 - `hurdle.lognormal(sigma = NULL)`:
 
-  A semicontinuous two-part response: an occupancy probit glued to a
+  A semicontinuous two-part response: a zero-part probit glued to a
   lognormal positive part. Composed from two samplers, so only
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) fits it.
-  `sigma` is the positive part's residual prior; the occupancy probit
+  `sigma` is the positive part's residual prior; the zero-part probit
   has a fixed unit latent scale and takes none.
 
 ## Details
