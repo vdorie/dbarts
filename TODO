@@ -502,7 +502,9 @@ predict-na-action (decided, VD 2026-09-26; docs/decisions.md
   na.exclude pads dropped rows back as NA; every observation-indexed
   output (predict, extract, fitted, residuals) carries the data's row
   names, the fit keeping the training row names (what a fit carries
-  changes, so the exact gates run).
+  changes, so the exact gates run). No surviving row returns the empty or
+  all-NA shape. survivalProbabilities gains na.action too; the sampler's
+  $predict, $predictForests and $getTrees(newdata) keep the default.
 
 reproducibility-docs (decided, VD 2026-09-26; docs/decisions.md
   dec-A04): before the merge, one user-facing Reproducibility section
