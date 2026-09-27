@@ -562,6 +562,13 @@ xbart-worker-seeds (decided, VD 2026-09-27; docs/decisions.md dec-A90)
   xbart snapshots; test user-supplied-kind parity across n.threads if a
   test generator is loadable, else Knuth-TAOCP-2002 parity.
 
+engine-test-peer (decided, VD 2026-09-27; docs/decisions.md dec-A81)
+  before the merge: the engine's test-only accessors (the ForTesting
+  family and the unsuffixed consistency reads) move behind a test-peer
+  struct each engine class befriends; tests/cpp call through it (about
+  130 sites); the package's compiled output is unchanged (check the
+  equivalence gate stays bitwise).
+
 hurdle feature completion (VD 2026-09-26: part of feature completion,
   not to be forgotten; docs/decisions.md dec-A15)
   a hurdle.lognormal fit takes no test set, weights, subset or offset:
