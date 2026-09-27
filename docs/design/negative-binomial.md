@@ -491,7 +491,7 @@ no-op - retired: shipped as carriesDispersion() / dispersion() /
 restoreDispersion() instead, [`NBResponse::carriesDispersion`](../../src/bartcore/model.hpp), [`NBResponse::dispersion`](../../src/bartcore/model.hpp), [`NBResponse::restoreDispersion`](../../src/bartcore/model.hpp)), mirroring carriesResidualDf() / residualDf() / restoreResidualDf()
 ([`TResponse::carriesResidualDf`](../../src/bartcore/model.hpp), [`TResponse::residualDf`](../../src/bartcore/model.hpp), [`TResponse::restoreResidualDf`](../../src/bartcore/model.hpp)). r is a scalar, so it needs no length (the residualDf
 analog, not the thresholds vector analog); in grid mode the stored value is a
-grid member, the TResponse estimatesResidualDf convention ([`TResponse::estimatesResidualDfForTesting`](../../src/bartcore/model.hpp)).
+grid member, the TResponse estimatesResidualDf convention (retired: [`TResponse::estimatesResidualDfForTesting`](../../src/bartcore/model.hpp)).
 ChainStateData gains a scalar field near its residualDf field, named
 `dispersion` as shipped (retired: proposed as `r`; [`ChainStateData::dispersion`](../../src/bartcore/combiner.hpp), NaN
 marking absent);

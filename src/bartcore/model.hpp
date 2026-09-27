@@ -2862,11 +2862,6 @@ public:
   /// point. Default: ignore it, for a family that reads no residual scale.
   virtual void setVarianceSurface(const double* /*variance*/) {}
 
-  /// Test hook: the surface last installed, so the pointer-identity assertion
-  /// at each of the host's allocation points has something to read. Null for a
-  /// family that keeps none.
-  virtual const double* varianceSurfaceForTesting() const { return nullptr; }
-
   /// Install a new per-observation right-censoring status, length
   /// numObservations: 1 an uncensored event, 0 a right-censored observation.
   /// The family rebuilds its censoring structure against the OBSERVED times in
@@ -2914,11 +2909,6 @@ public:
   virtual double fitScale() const = 0;
   virtual double fitShift() const = 0;
   virtual double sigmaScale() const = 0;
-
-  /// Test hook: the residual-variance posterior's degrees of freedom,
-  /// nu_0 + #{w_i > 0} over THIS model's own precisions. Zero for a family
-  /// that draws no sigma.
-  virtual double sigmaDegreesOfFreedomForTesting() const { return 0.0; }
 
   /// Per-observation log-likelihood of the training response under the
   /// current fit, into out (numObservations values). totalFits is the forest
@@ -2992,7 +2982,10 @@ public:
       numPositiveWeights_));
   }
 
-  double sigmaDegreesOfFreedomForTesting() const override {
+  /// Test hook: the residual-variance posterior's degrees of freedom,
+  /// nu_0 + #{w_i > 0} over this model's own precisions. Not virtual:
+  /// Chain::sigmaDegreesOfFreedomForTesting casts to reach it.
+  double sigmaDegreesOfFreedomForTesting() const {
     return sigmaSqPrior_.degreesOfFreedom +
            static_cast<double>(numPositiveWeights_);
   }
@@ -3083,7 +3076,10 @@ public:
   void setVarianceSurface(const double* variance) override {
     variance_ = variance;
   }
-  const double* varianceSurfaceForTesting() const override { return variance_; }
+  /// Test hook: the surface last installed, for the host's pointer-identity
+  /// assertion. Not virtual: Chain::installedVarianceSurfaceForTesting casts
+  /// to reach it.
+  const double* varianceSurfaceForTesting() const { return variance_; }
 
   void setOffset(const double* offset, bool updateScale,
                  double* sigmaInOut) override {
@@ -4075,7 +4071,10 @@ public:
   void setVarianceSurface(const double* variance) override {
     variance_ = variance;
   }
-  const double* varianceSurfaceForTesting() const override { return variance_; }
+  /// Test hook: the surface last installed, for the host's pointer-identity
+  /// assertion. Not virtual: Chain::installedVarianceSurfaceForTesting casts
+  /// to reach it.
+  const double* varianceSurfaceForTesting() const { return variance_; }
 
   bool supportsActiveRows() const override { return true; }
 
@@ -4094,7 +4093,8 @@ public:
     return gaussian_->drawSigma(rng, totalFits, sigma);
   }
 
-  double sigmaDegreesOfFreedomForTesting() const override {
+  /// Test hook: the contained Gaussian's sigma degrees of freedom.
+  double sigmaDegreesOfFreedomForTesting() const {
     return gaussian_->sigmaDegreesOfFreedomForTesting();
   }
 
@@ -4491,7 +4491,6 @@ public:
   /// state block serializes nu whenever carriesResidualDf() is true.
   bool carriesResidualDf() const override { return true; }
   double residualDf() const override { return nu_; }
-  bool estimatesResidualDfForTesting() const { return estimateNu_; }
   void restoreResidualDf(double nu) override { nu_ = nu; }
 
   void getScale(double& min, double& max) const override {
@@ -4783,11 +4782,9 @@ public:
   /// The dispersion r for the by-name "dispersion" state block: getState reads
   /// dispersion() when carriesDispersion(), stateIsValid refuses a non-finite/
   /// non-positive r, and setState restoreDispersion()s it BEFORE restoreLatents
-  /// (the restore contract above). estimatesDispersionForTesting() is the
-  /// grid-vs-fixed flag, the estimatesResidualDfForTesting analog.
+  /// (the restore contract above).
   bool carriesDispersion() const override { return true; }
   double dispersion() const override { return r_; }
-  bool estimatesDispersionForTesting() const { return estimateR_; }
   void restoreDispersion(double dispersion) override { r_ = dispersion; }
 
   /// The dispersion kernel L_k currently installed and the collapsed statistic

@@ -169,6 +169,15 @@ struct CscFixture {
   }
 };
 
+/// Chain c's forest f totals through the sampler's own read.
+template <typename S>
+std::vector<double> forestTotals(const S& sampler, std::size_t c,
+                                 std::size_t f = 0) {
+  std::vector<double> out(sampler.numObservations());
+  sampler.forestTotalFits(c, f, out.data());
+  return out;
+}
+
 // The forest cache rule's measure. A forest's cached totalFits may differ from
 // its tree fits summed in tree order by accumulated ADDITIVE rounding only: the
 // sweep keeps the cache by difference updates, each rounding at the scale of

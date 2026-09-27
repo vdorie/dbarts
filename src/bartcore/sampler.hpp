@@ -959,10 +959,6 @@ public:
   /// tree count; the run/predict bridges gate the s(x) channels on this.
   bool hasVarianceForest() const { return chains_[0]->hasVarianceForest(); }
   size_t numVarianceTrees() const { return chains_[0]->numVarianceTrees(); }
-  /// Test hook passthrough: chain c's variance tree j.
-  const Tree& varianceTreeForTesting(size_t chainNum, size_t j) const {
-    return chains_[chainNum]->varianceTree(j);
-  }
 
   /// Chain chainNum's CURRENT variance surface on the original scale, training
   /// or test rows; Chain::currentVarianceFits states the contract and owns the

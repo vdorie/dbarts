@@ -315,8 +315,6 @@ Open before the merge:
     control's seed in `dbarts` (dec-A83)
   - row names on the fit's raw draws fields as well as on what the
     accessors return (dec-A86)
-- **Work the maintainer's rulings of 2026-09-26 still owe** (`TODO`'s
-  decided entries): tests moved onto the exported functions.
 - **Three CRAN packages outside ours.** lorax's examples fit a three-level
   factor response, which 0.9-34 coded as 0, 1, 2 and 1.0-0 refuses; its
   maintainer is to be asked to change them. WeightIt and MatchIt fit

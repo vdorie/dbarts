@@ -35,7 +35,7 @@ constexpr double ensembleTolerance = 1.0e-11;
 /// Both identities for one settled sweep, every observation, no subsampling.
 void checkEnsembleSweep(ConstantLeafSampler& sampler, size_t sweep,
                         double& worstFit, double& worstResidual) {
-  const std::vector<double>& total = sampler.chain(0).totalFits();
+  std::vector<double> total = forestTotals(sampler, 0);
   std::vector<double> fits = sampler.chain(0).treeFits();
   const double* y = sampler.chain(0).workingResponseForTesting();
   const std::vector<double>& resid = sampler.chain(0).residualForTesting();
@@ -218,7 +218,7 @@ void runEnsembleTests() {
   // identities vacuously, so pin that the run actually fit something
   bool allFinite = true;
   double magnitude = 0.0;
-  for (double v : sampler.chain(0).totalFits()) {
+  for (double v : forestTotals(sampler, 0)) {
     allFinite = allFinite && std::isfinite(v);
     magnitude = std::max(magnitude, std::fabs(v));
   }
@@ -281,10 +281,7 @@ void runEnsembleTests() {
                           nullptr, ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, offOptions, &offRng);
   off.run(ensembleSweeps, 0, results);
-  bool anyDifference = false;
-  for (size_t i = 0; i < ensembleN; ++i)
-    anyDifference = anyDifference ||
-      off.chain(0).totalFits()[i] != shifted.chain(0).totalFits()[i];
+  bool anyDifference = forestTotals(off, 0) != forestTotals(shifted, 0);
   check(anyDifference, "the level-fibre flag moves the sampled path");
   ext_rng_destroy(offRng);
 

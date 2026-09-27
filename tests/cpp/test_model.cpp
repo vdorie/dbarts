@@ -4284,7 +4284,7 @@ static void testGPLeafKernelCache(ext_rng*) {
   }
   Sampler<GPGaussianLeaf>& mutated(*samplers[0]);
   Sampler<GPGaussianLeaf>& identity(*samplers[1]);
-  check(mutated.chain(0).totalFits() == identity.chain(0).totalFits(),
+  check(forestTotals(mutated, 0) == forestTotals(identity, 0),
         "gp twins enter the mutation bit-identical");
 
   // a state round trip over a gp forest, which no other suite builds. Only
@@ -5097,10 +5097,6 @@ static void testTFixedNuNoDraw(ext_rng*) {
                       0.37804942330213542, median);
   TResponse gridResp(y.data(), nullptr, weights.data(), n, 1.0, 3.0,
                      0.37804942330213542, -1.0);  // estimate on the grid
-  check(!fixedResp.estimatesResidualDfForTesting() &&
-          gridResp.estimatesResidualDfForTesting(),
-        "t mode flags: fixed vs grid");
-
   ext_rng* rngFixed = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng* rngGrid = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rngFixed, 90210u);
@@ -5124,6 +5120,17 @@ static void testTFixedNuNoDraw(ext_rng*) {
         ext_rng_simulateContinuousUniform(rngGrid))
       shiftedByOne = false;
   check(shiftedByOne, "t grid stream is the fixed stream plus one nu draw");
+
+  // further sweeps: a fixed nu never moves and a grid nu does
+  bool fixedHeld = true, gridMoved = false;
+  const double gridNu = gridResp.residualDf();
+  for (int sweep = 0; sweep < 20; ++sweep) {
+    fixedResp.refreshLatents(rngFixed, totalFits.data(), sigma);
+    gridResp.refreshLatents(rngGrid, totalFits.data(), sigma);
+    fixedHeld = fixedHeld && fixedResp.residualDf() == median;
+    gridMoved = gridMoved || gridResp.residualDf() != gridNu;
+  }
+  check(fixedHeld && gridMoved, "t fixed nu is held across sweeps, grid moves");
 
   ext_rng_destroy(rngGrid);
   ext_rng_destroy(rngFixed);
@@ -6283,8 +6290,7 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
     totalFits[i] = 0.2 * static_cast<double>(i) - 0.7;
 
   NBResponse resp(y.data(), offset.data(), n, -1.0);  // grid mode
-  check(resp.estimatesDispersionForTesting() && resp.carriesDispersion(),
-        "nb grid mode estimates and carries dispersion");
+  check(resp.carriesDispersion(), "nb grid mode carries dispersion");
 
   ext_rng* rResp = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng* rRef = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -6363,7 +6369,7 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
   // observably wrong
   double staleR = rSaved + 1.0;
   NBResponse stale(y.data(), offset.data(), n, staleR);  // fixed at staleR
-  check(!stale.estimatesDispersionForTesting() && stale.dispersion() == staleR,
+  check(stale.dispersion() == staleR,
         "nb fixed mode holds the supplied dispersion");
   stale.restoreLatents(omegaSaved.data());
   bool usesCurrentR = true, differsFromSaved = false;
@@ -6376,6 +6382,22 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
   check(usesCurrentR, "nb restoreLatents rebuilds working from the current r");
   check(differsFromSaved,
         "nb restoring latents under a stale r yields a different working");
+
+  // sweeps: a fixed r never moves and a grid r does
+  {
+    ext_rng* rSweep = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rSweep, 31337u);
+    bool fixedHeld = true, gridMoved = false;
+    const double gridR = dst.dispersion();
+    for (int sweep = 0; sweep < 20; ++sweep) {
+      stale.refreshLatents(rSweep, totalFits.data(), 1.0);
+      dst.refreshLatents(rSweep, totalFits.data(), 1.0);
+      fixedHeld = fixedHeld && stale.dispersion() == staleR;
+      gridMoved = gridMoved || dst.dispersion() != gridR;
+    }
+    check(fixedHeld && gridMoved, "nb fixed r is held across sweeps, grid moves");
+    ext_rng_destroy(rSweep);
+  }
 
   ext_rng_destroy(rRef);
   ext_rng_destroy(rResp);

@@ -146,7 +146,7 @@ static FuzzSnapshot<S> fuzzCapture(S& s) {
       std::vector<double> slab(n * numTrees);
       ch.forestTreeFits(f, slab.data());
       g.fits[c].push_back(std::move(slab));
-      g.totals[c].push_back(ch.totalFitsInForest(f));
+      g.totals[c].push_back(forestTotals(s, c, f));
     }
     if (!ch.hasVarianceForest()) continue;
     size_t m = ch.numVarianceTrees();
@@ -266,10 +266,12 @@ static const char* fuzzInvariantViolation(S& s, const double* z, size_t sweeps,
                  ? amplitude[block[f]]
                  : amplitude[block[f] + (z[i] != 0.0 ? 1 : 0)];
       };
+      std::vector<std::vector<double>> totals(numForests);
+      for (size_t f = 0; f < numForests; ++f) totals[f] = forestTotals(s, c, f);
       for (size_t i = 0; i < n; ++i) {
-        double location = multiplier(last, i) * ch.totalFitsInForest(last)[i];
+        double location = multiplier(last, i) * totals[last][i];
         for (size_t f = last; f-- > 0;)
-          location += multiplier(f, i) * ch.totalFitsInForest(f)[i];
+          location += multiplier(f, i) * totals[f][i];
         double expected =
           calibration.responseScale * location + calibration.responseShift;
         if (std::fabs(combined[i] - expected) >
@@ -286,8 +288,7 @@ static const char* fuzzInvariantViolation(S& s, const double* z, size_t sweeps,
     if (!ch.hasVarianceForest()) continue;
     size_t m = ch.numVarianceTrees();
     for (size_t j = 0; j < m; ++j)
-      if (!fuzzTreeRoutesCorrectly(s.varianceTreeForTesting(c, j), s.data(), n,
-                                   owner))
+      if (!fuzzTreeRoutesCorrectly(ch.varianceTree(j), s.data(), n, owner))
         return "variance tree routes an observation to a foreign leaf";
     // s^2(x_i) is maintained incrementally across a sweep and recomputed as the
     // fresh product at its end, so it must equal that product exactly here; a
@@ -692,11 +693,10 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         // random 40-op stream, multi-chain, under ASAN. Sampler::run slabs
         // trainingFits chain-major at c * numSamples * n * L, location-major
         // within a sample, so the chain stride is n * L at numSamples 1.
-        std::vector<const double*> total(numLocations);
+        std::vector<std::vector<double>> total(numLocations);
         for (size_t c = 0; ok && numLocations > 1 && c < nc; ++c) {
-          const auto& ch(s.chain(c));
           for (size_t k = 0; k < numLocations; ++k)
-            total[k] = ch.totalFitsInForest(k).data();
+            total[k] = forestTotals(s, c, k);
           const double* rep = tf.data() + c * n * numLocations;
           for (size_t i = 0; ok && i < n; ++i) {
             auto raw = [&](size_t k) {
@@ -1701,7 +1701,7 @@ static F6Capture f6Capture(Sampler<ConstantGaussianLeaf>& s) {
                       slab.begin() + static_cast<long>((t + 1) * n));
       }
       out.trees[c].push_back(std::move(forestTrees));
-      out.totals[c].push_back(ch.totalFitsInForest(f));
+      out.totals[c].push_back(forestTotals(s, c, f));
     }
   }
   return out;

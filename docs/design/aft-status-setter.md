@@ -27,7 +27,7 @@ each bound BY INDEX, so a new response reaches the old censoring structure. Whol
 Two facts make a setter cheap. `censorBound_` shadows the OBSERVED log-time at every censored row, so that data survives the
 latent overwrite: row `i`'s observed time is `censorBound_[k]` where censored and `logT_[i]` where not. And the contained
 [`GaussianResponse`](../../src/bartcore/model.hpp) takes its posterior degrees of freedom from the positive-weight count,
-not the event count ([`GaussianResponse::sigmaDegreesOfFreedomForTesting`](../../src/bartcore/model.hpp)), so a status
+not the event count ([`GaussianResponse::drawSigma`](../../src/bartcore/model.hpp)), so a status
 change moves the sigma posterior only through the imputed values. Creation validates three things - a real vector, length n,
 elements 0 or 1 (NaN fails both) - with no minimum event count; an all-censored status is accepted, sigma then identified
 through the truncation and the prior.

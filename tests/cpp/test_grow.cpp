@@ -440,7 +440,7 @@ void testGrowThenContinue(ext_rng* rng) {
   check(occupied, "grown forest has no empty leaves");
   check(grew, "grow produced structure");
 
-  const std::vector<double>& total = sampler.chain(0).totalFits();
+  std::vector<double> total = forestTotals(sampler, 0);
   bool finiteTotal = true;
   for (double v : total) finiteTotal &= std::isfinite(v);
   check(finiteTotal, "grown forest total fits are finite");

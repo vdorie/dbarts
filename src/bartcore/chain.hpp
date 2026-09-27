@@ -1084,8 +1084,14 @@ public:
   /// Test hook: the surface the response model holds, which must be
   /// varianceFits() by pointer identity after every allocation of the
   /// combined-variance storage (installVarianceSurface is what keeps it so).
+  /// Null for a family that keeps no surface.
   const double* installedVarianceSurfaceForTesting() const {
-    return response_->varianceSurfaceForTesting();
+    const ResponseModel* response = response_.get();
+    if (auto* gaussian = dynamic_cast<const GaussianResponse*>(response))
+      return gaussian->varianceSurfaceForTesting();
+    if (auto* aft = dynamic_cast<const AFTResponse*>(response))
+      return aft->varianceSurfaceForTesting();
+    return nullptr;
   }
 
   /// s^2(x) on the ORIGINAL scale for new rows of a Columns predictor source
@@ -1499,14 +1505,6 @@ public:
   /// Between-run reconfiguration; the test-fit pool is rebuilt lazily to
   /// the new share of the budget on the next routing.
   void setNumThreads(size_t numThreads) { options_.numThreads = numThreads; }
-
-  /// Component tests: the level-fibre mode, which a sampler otherwise takes
-  /// once at construction (the R control slot is guarded to match). Two
-  /// chains grown to the same state and then continued under two modes is
-  /// the only way to read one mode against another at a grown forest.
-  void setLevelGibbsForTesting(LevelGibbsMode mode) {
-    options_.levelGibbs = mode;
-  }
 
   /// Called after the shared store's test data changes.
   void resizeTestStorage() {
@@ -4187,9 +4185,8 @@ public:
     forestTreeFits(0, out.data());
     return out;
   }
-  const std::vector<double>& totalFits() const { return forests_[0].totalFits; }
-  /// The per-forest sibling of totalFits(), which addresses forest 0 alone;
-  /// a whole-sampler consistency read (the fuzz snapshot) needs every forest's.
+  /// Forest f's cached total fits, for a consistency read over a bare chain;
+  /// a site holding a sampler reads SamplerBase::forestTotalFits instead.
   const std::vector<double>& totalFitsInForest(std::size_t f) const {
     return forests_[f].totalFits;
   }
@@ -4215,9 +4212,15 @@ public:
   }
   /// Test hook: the sigma posterior's degrees of freedom, nu_0 plus the count
   /// of positive precisions on the RESPONSE model. A per-forest weight lives on
-  /// the chain and must never reach them.
+  /// the chain and must never reach them. Zero for a family that draws no
+  /// sigma.
   double sigmaDegreesOfFreedomForTesting() const {
-    return response_->sigmaDegreesOfFreedomForTesting();
+    const ResponseModel* response = response_.get();
+    if (auto* gaussian = dynamic_cast<const GaussianResponse*>(response))
+      return gaussian->sigmaDegreesOfFreedomForTesting();
+    if (auto* aft = dynamic_cast<const AFTResponse*>(response))
+      return aft->sigmaDegreesOfFreedomForTesting();
+    return 0.0;
   }
   /// Forest f's tree t. Chain::tree reaches forest 0 alone and keeps that
   /// meaning for its own callers; this is what a whole-sampler walk resolves

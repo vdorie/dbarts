@@ -230,7 +230,7 @@ static void testSetPredictorForced(ext_rng* rng) {
   // fits stay consistent: totalFits == sum of constant tree fits
   double fitSum = 0.0;
   for (size_t t = 0; t < 25; ++t) fitSum += sampler.chain(0).treeFits()[t * n];
-  checkNear(sampler.chain(0).totalFits()[0], fitSum, 1e-10,
+  checkNear(forestTotals(sampler, 0)[0], fitSum, 1e-10,
             "forced update keeps fit identity");
 
   std::vector<double> sigmaDraws(10);
@@ -632,10 +632,11 @@ static void testSetCutPoints(ext_rng* rng) {
   check(occupied, "setCutPoints leaves no empty leaves");
 
   bool fitIdentity = true;
+  std::vector<double> totals = forestTotals(sampler, 0);
   for (size_t i = 0; i < n && fitIdentity; i += 37) {
     double total = 0.0;
     for (size_t t = 0; t < 25; ++t) total += sampler.chain(0).treeFits()[t * n + i];
-    fitIdentity = std::fabs(total - sampler.chain(0).totalFits()[i]) < 1e-10;
+    fitIdentity = std::fabs(total - totals[i]) < 1e-10;
   }
   check(fitIdentity, "setCutPoints keeps the fit identity");
 
@@ -1630,7 +1631,7 @@ static void testPriorResetContract(ext_rng* /*rng*/) {
   // the burn-in leaves real fits behind, so the zeroing below is a change of
   // state rather than a no-op restatement of construction
   bool anyFit = false;
-  for (double v : sampler.chain(0).totalFits())
+  for (double v : forestTotals(sampler, 0))
     if (v != 0.0) { anyFit = true; break; }
   check(anyFit, "the burn-in left non-zero totalFits");
 
@@ -1645,7 +1646,7 @@ static void testPriorResetContract(ext_rng* /*rng*/) {
   check(allStale, "a prior reset leaves every tree marked for rebuild");
 
   bool totalZero = true;
-  for (double v : sampler.chain(0).totalFits())
+  for (double v : forestTotals(sampler, 0))
     totalZero = totalZero && v == 0.0;
   check(totalZero, "a prior reset zeroes totalFits");
 
@@ -1657,7 +1658,7 @@ static void testPriorResetContract(ext_rng* /*rng*/) {
   Results empty;
   sampler.run(1, 0, empty);
   std::vector<double> perTree = sampler.chain(0).treeFits();
-  const std::vector<double>& total = sampler.chain(0).totalFits();
+  std::vector<double> total = forestTotals(sampler, 0);
   bool invariantHolds = true;
   double worstDeviation = 0.0;
   for (size_t i = 0; i < n; ++i) {

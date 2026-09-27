@@ -188,7 +188,7 @@ static void checkGatherTailIdentities(SamplerT& sampler, size_t n,
                                       double tolerance, const char* fitLabel,
                                       const char* residualLabel) {
   size_t numTrees = sampler.chain(0).numTrees();
-  const std::vector<double>& total = sampler.chain(0).totalFits();
+  std::vector<double> total = forestTotals(sampler, 0);
   std::vector<double> fits = sampler.chain(0).treeFits();
   const double* y = sampler.chain(0).workingResponseForTesting();
   const auto& resid = sampler.chain(0).residualForTesting();
@@ -1869,11 +1869,12 @@ static void testSetDataResize(ext_rng* rng) {
   check(occupied, "resized setData leaves no empty leaves");
 
   bool fitIdentity = true;
+  std::vector<double> totals = forestTotals(sampler, 0);
   for (size_t i = 0; i < n2 && fitIdentity; i += 41) {
     double total = 0.0;
     for (size_t t = 0; t < 25; ++t)
       total += sampler.chain(0).treeFits()[t * n2 + i];
-    fitIdentity = std::fabs(total - sampler.chain(0).totalFits()[i]) < 1e-10;
+    fitIdentity = std::fabs(total - totals[i]) < 1e-10;
   }
   check(fitIdentity, "resized setData keeps the fit identity");
 
@@ -4838,12 +4839,11 @@ static void testAmplitudeCacheRestore() {
             "an amplitude-coupled state restores");
 
       // the restored cache is the live leaves gathered in tree order, bitwise
-      const auto& after = restored->chain(0);
       for (std::size_t f = 0; f < before.numForests(); ++f) {
         std::size_t numTrees = before.numTreesInForest(f);
         std::vector<double> fits(shape.n * numTrees);
         before.forestTreeFits(f, fits.data());
-        const std::vector<double>& rebuilt = after.totalFitsInForest(f);
+        std::vector<double> rebuilt = forestTotals(*restored, 0, f);
         for (std::size_t i = 0; i < shape.n; ++i) {
           double gather = 0.0;
           for (std::size_t t = 0; t < numTrees; ++t)
@@ -7385,9 +7385,9 @@ static void testFrozenForest() {
 // sweeps (setModel) while the mode is fixed when the sampler is created, so
 // the decision is taken per sweep and per forest, and the reading below is
 // against a GROWN forest reached the same way twice rather than against a
-// stump: two chains at one seed, both automatic while structure is still
-// proposed, are bitwise the same state at the freeze, and the modes part only
-// after it.
+// stump: one automatic sampler grows it, and its state is handed to a sampler
+// created under each mode, so every arm starts its tail bitwise the same and
+// the modes part only after it.
 static void testLevelGibbsAutomatic() {
   check(SamplerOptions().levelGibbs == LevelGibbsMode::automatic,
         "automatic is the shipped mode");
@@ -7407,11 +7407,19 @@ static void testLevelGibbsAutomatic() {
   frozenModel.sigmaRawScale = 0.37804942330213542;
 
   // One arm: grow 100 sweeps under the shipped mixture at the automatic
-  // default, switch to `mode`, freeze if asked, and record the next 20 draws.
-  // The growth phase is identical across arms - automatic proposes structure
-  // there, so it takes no shift - which is what makes the tails comparable.
+  // default, hand the state to a sampler created under `mode`, freeze if
+  // asked, and record the next 20 draws. The growth phase is identical across
+  // arms, which is what makes the tails comparable.
   struct Arm {
     std::vector<double> sigma, train;
+  };
+  auto makeSampler = [&](LevelGibbsMode mode, ext_rng** rng) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.levelGibbs = mode;
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, rng);
   };
   auto runArm = [&](LevelGibbsMode mode, bool freeze) {
     Arm arm;
@@ -7419,18 +7427,17 @@ static void testLevelGibbsAutomatic() {
     arm.train.assign(n * numSamples, 0.0);
     ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     ext_rng_setSeed(rng, 271828);
-    SamplerOptions options;
-    options.numTrees = numTrees;
-    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
-                                ResponseFamily::gaussian, 1.0, 3.0,
-                                0.37804942330213542, options, &rng);
     Results results;
     results.sigma = arm.sigma.data();
     results.trainingFits = arm.train.data();
-    sampler.run(100, 0, results);
-    sampler.chain(0).setLevelGibbsForTesting(mode);
-    if (freeze) sampler.setModel(frozenModel);
-    sampler.run(0, numSamples, results);
+    SamplerStateData grown;
+    auto grower = makeSampler(LevelGibbsMode::automatic, &rng);
+    grower->run(100, 0, results);
+    grower->getState(grown);
+    auto sampler = makeSampler(mode, &rng);
+    check(sampler->setState(grown, nullptr), "the grown state restores");
+    if (freeze) sampler->setModel(frozenModel);
+    sampler->run(0, numSamples, results);
     ext_rng_destroy(rng);
     return arm;
   };

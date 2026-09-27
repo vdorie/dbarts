@@ -905,3 +905,31 @@ builds; full tinytest 9188/0; tests/cpp; on the reference build
 equivalence.R 53/53, bcf-equivalence.R 15/15 and multinomial-equivalence.R
 11/11 bitwise, no |z|; lint_package, air, check-rc-codoc, check-win-drift
 and check-doc-freshness clean.
+
+Slice S6 LANDED (pending hash): `ResponseModel::varianceSurfaceForTesting`
+and `ResponseModel::sigmaDegreesOfFreedomForTesting` left the base class;
+the two on `GaussianResponse` and `AFTResponse` are plain members, reached
+from Chain's two forwarders through `dynamic_cast`, null or 0 for every
+other family. RTTI is on everywhere: neither Makevars.in, Makevars.win,
+configure.ac, tests/cpp's Makefile nor any workflow passes `-fno-rtti`.
+Deleted `Sampler::varianceTreeForTesting` (the fuzzer reads
+`chain(c).varianceTree(j)`), `TResponse::estimatesResidualDfForTesting`
+and `NBResponse::estimatesDispersionForTesting` (their tests now sweep a
+fixed and a grid response and check nu or r held against moving), and
+`Chain::setLevelGibbsForTesting` (testLevelGibbsAutomatic grows one
+automatic sampler per arm and hands its state to a sampler created under
+the arm's `SamplerOptions::levelGibbs`). Every `totalFits()` and
+`totalFitsInForest` site holding a sampler reads `forestTotalFits`
+through tests/cpp's `forestTotals`; the one bare-chain site,
+`forestCacheGapRatio`, keeps `totalFitsInForest`, and `Chain::totalFits()`,
+left with no caller, is deleted (dec-A52; second reader's fixup). dbarts.h
+and src/C_interface.cpp are unchanged.
+
+Gates: `--preclean` installs of both builds; tests/cpp `make clean &&
+make`, plain and under ASan/UBSan, 305 ok, no diagnostic; full tinytest
+9188/0; on the reference build equivalence.R 53/53, bcf-equivalence.R
+15/15 and multinomial-equivalence.R 11/11 bitwise, no |z|; the four
+seeded-drift snapshot files 27/0; lint_package, air, check-rc-codoc,
+check-win-drift and check-doc-freshness clean; R CMD check --as-cran on
+a staged tarball with vignettes: Status 1 NOTE, the stale DESCRIPTION
+Date (pre-existing).
