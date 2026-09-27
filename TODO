@@ -526,11 +526,6 @@ one-chain-dimension (decided, VD 2026-09-27; docs/decisions.md dec-A79)
   and forest margins kept); stored fit fields unchanged; manual, NEWS
   upgrading item and tests follow.
 
-vocabulary-hint (decided, VD 2026-09-27; docs/decisions.md dec-A75)
-  before the merge: a prior or family constructor not found through a
-  wrapper's named argument gains the hint the forest constructors give,
-  naming dbartsPriors$<name>(...) or dbartsFamilies$<name>(...); tests.
-
 treatSens-treatment-model-frames (agent-noted 2026-09-27)
   treatSens' evaluateTreatmentModelArgument resolves treatmentModel two
   frames above itself, so a call from any other depth resolves in the

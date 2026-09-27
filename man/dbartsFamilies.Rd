@@ -21,7 +21,10 @@
   vocabulary shadows the caller's own frame for these ten names only, so a
   variable named \code{gaussian} holding \code{student(3)} resolves there
   to the gaussian family, not to its own value; name such a variable
-  something else, or write \code{dbartsFamilies$student(3)}.
+  something else, or write \code{dbartsFamilies$student(3)}. A wrapper's
+  named formal that instead forces a bare constructor call before passing it
+  on reaches R's own could-not-find-function error, extended with the same
+  hint naming \code{dbartsFamilies$student(...)} and its siblings.
 
   Every setting that only one family reads rides its family object rather
   than a formal of the fitting function. That includes the residual

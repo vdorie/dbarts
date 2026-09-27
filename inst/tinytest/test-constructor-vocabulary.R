@@ -289,6 +289,32 @@ expect_identical(
   blockOf(listed)
 )
 
+# --- the prior and family vocabularies give the same hint (dec-A75) ----------
+
+passOnPrior <- function(prior) {
+  dbarts::dbarts(x, y, tree.prior = prior)
+}
+expect_equal(
+  passOnPrior(dbartsPriors$cgm(power = 3))$model@tree.prior@power,
+  3
+)
+expect_error(
+  passOnPrior(cgm(power = 3)),
+  "outside the argument that takes it, write dbartsPriors\\$cgm"
+)
+
+passOnFamily <- function(family) {
+  dbarts::dbarts(x, y, family = family)
+}
+expect_equal(
+  attr(passOnFamily(dbartsFamilies$student(df = 6))$model, "resid.df"),
+  6
+)
+expect_error(
+  passOnFamily(student(df = 6)),
+  "outside the argument that takes it, write dbartsFamilies\\$student"
+)
+
 # --- forwarded through dots ---------------------------------------------------
 
 # (17) forwarded through one or more wrappers' dots

@@ -156,7 +156,10 @@
   environment (for an argument a wrapper forwards through its \code{\dots},
   the one it was written in), along with \code{num.vars}, the number of predictor columns.
   A prior object built ahead of time with \code{dbartsPriors$...} can be
-  passed to the same arguments.
+  passed to the same arguments. A wrapper's named formal that forces a bare
+  constructor call before passing it on reaches R's own could-not-find-function
+  error instead, extended with a hint naming \code{dbartsPriors$cgm(...)} and
+  its siblings.
 }
 \examples{
 prior <- dbartsPriors$normal(dbartsPriors$chi(1.5))

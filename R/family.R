@@ -101,10 +101,13 @@ isDotsReference <- function(expr) {
 ## a value; the error raised is the recovered expression's own, or the first
 ## one when there is nothing to recover. The cost is that an expression that failed part way is evaluated again, side
 ## effects included, by every site that reads it; R's warning on forcing the
-## failed promise again is expected here and muffled.
+## failed promise again is expected here and muffled. A constructor call
+## forced outside the argument that takes it - a wrapper's named formal
+## passed on unevaluated, then forced where it was written - fails with R's
+## own message, extended by forceCallerCode's hint.
 evalInVocabulary <- function(expr, vocabulary, evalEnv, resolve = identity) {
   evalIn <- function(expr, env) {
-    resolve(eval(expr, vocabularyEnv(vocabulary, env)))
+    resolve(forceCallerCode(eval(expr, vocabularyEnv(vocabulary, env))))
   }
   if (!isDotsReference(expr)) {
     return(evalIn(expr, evalEnv))
@@ -161,8 +164,9 @@ evalInForestVocabulary <- function(expr, vocabulary, evalEnv) {
 }
 
 ## Forces caller code: R's warning on forcing a promise that failed before
-## is expected and muffled, and a failure to find a forest constructor gains
-## the spelling that works outside its argument.
+## is expected and muffled, and a failure to find a forest, prior or family
+## constructor gains the spelling that works outside its argument - the
+## exported list each one's name is reached through.
 forceCallerCode <- function(value) {
   restarted <- gettext(
     "restarting interrupted promise evaluation",
@@ -170,18 +174,29 @@ forceCallerCode <- function(value) {
   )
   withCallingHandlers(
     tryCatch(value, error = function(e) {
-      name <- names(dbartsForests)
+      topic <- c(
+        rep_len("dbartsForests", length(dbartsForests)),
+        rep_len("dbartsPriors", length(dbartsPriors)),
+        rep_len("dbartsFamilies", length(dbartsFamilies))
+      )
+      names(topic) <- c(
+        names(dbartsForests),
+        names(dbartsPriors),
+        names(dbartsFamilies)
+      )
       missingFunction <- gettextf(
         "could not find function \"%s\"",
-        name,
+        names(topic),
         domain = "R"
       )
       i <- match(conditionMessage(e), missingFunction)
       if (!is.na(i)) {
         e$message <- paste0(
           missingFunction[i],
-          "; outside the argument that takes it, write dbartsForests$",
-          name[i],
+          "; outside the argument that takes it, write ",
+          topic[i],
+          "$",
+          names(topic)[i],
           "(...)"
         )
       }
