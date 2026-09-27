@@ -251,6 +251,19 @@ coerceOrError <- function(x, type, name = NULL) {
   result
 }
 
+## A seed argument is NULL when it was not given at this level - deferring,
+## at a call, to whatever seed is already in force - or NA, 0.9-x's spelling
+## of the same thing and how the retired 'rngSeed' arrives; both resolve
+## here to dbartsControl()'s own "unseeded" value, NA_integer_, silently.
+## Anything else is validated and coerced exactly as coerceOrError() always
+## has (a fractional double refused, naming 'seed').
+resolveSeedArg <- function(seed) {
+  if (is.null(seed)) {
+    return(NA_integer_)
+  }
+  coerceOrError(seed, "integer")
+}
+
 # Session-scoped flags for a warning that would otherwise repeat on every
 # call inside a Gibbs/MH loop; one flag per key, so unrelated call sites
 # cannot silence each other. Not reset between tinytest files in one

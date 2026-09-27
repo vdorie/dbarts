@@ -181,6 +181,11 @@ dbartsValidateComposition <- function(
   if (!scalar || alpha <= 0 || alpha >= 1) {
     stop("'alpha' must be a single number in (0, 1)")
   }
+  # NA is accepted as NULL, silently - the same "not given" reading every
+  # other seed argument in the package gives it.
+  if (length(seed) == 1L && is.na(seed)) {
+    seed <- NULL
+  }
   if (!is.null(seed)) {
     if (!is.numeric(seed) || length(seed) != 1L || !is.finite(seed)) {
       stop("'seed' must be a single number, or NULL to use the stream as it is")

@@ -13,7 +13,7 @@ xbart(
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, drop = TRUE,
     sigest = NA_real_,
-    seed = NA_integer_,
+    seed = NULL,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
     node.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
@@ -88,7 +88,7 @@ xbart(
      A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Every entry point spells this \code{sigest} - \code{xbart}, \code{\link{bartBT}}/\code{bart} and the sampler constructors \code{\link{dbarts}}/\code{dbartsSpec} alike; \code{sigma} is the retired 0.9-x spelling on the constructors, and a family object's own \code{sigma} is the prior this estimate calibrates, not the estimate. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class \code{dbartsSigmaFallbackWarning}); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class \code{dbartsSparseSigmaFallbackWarning}, a \code{dbartsSigmaFallbackWarning}). It is the estimate a \code{chisq} residual prior's quantile is calibrated against, so it stands beside \code{family = gaussian(sigma = chisq(df, quant))} and is refused beside \code{family = gaussian(sigma = fixed(value))}, which fixes the residual scale outright and would overwrite the estimate with its square root.
    }
    \item{seed}{
-     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. From this one \code{seed}, \code{\link{set.seed}} draws a split seed for each replication and a seed for each (replication, fold) unit of work, with \code{\link{sample.int}}, in one pass. For a fixed \code{seed} and generator kind, results are reproducible at any \code{n.threads}; unlike \code{\link{bart}}'s \code{seed}, \code{xbart}'s draws come from R's own generator, so they also change if \code{\link{RNGkind}} changes, and a \code{RNGkind()} of \code{"user-supplied"} refuses \code{n.threads > 1}. The caller's random stream is left untouched when a seed is given, and advanced only by that derivation when one is not; without a seed, \code{\link{set.seed}} beforehand suffices. See the Reproducibility section of \link{bart}.
+     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. \code{NULL} (the default) means not given here and defers to a seed already sitting in \code{control}, if any; \code{NA} is accepted the same way, silently. From the seed in force, \code{\link{set.seed}} draws a split seed for each replication and a seed for each (replication, fold) unit of work, with \code{\link{sample.int}}, in one pass. For a fixed \code{seed} and generator kind, results are reproducible at any \code{n.threads}; unlike \code{\link{bart}}'s \code{seed}, \code{xbart}'s draws come from R's own generator, so they also change if \code{\link{RNGkind}} changes, and a \code{RNGkind()} of \code{"user-supplied"} refuses \code{n.threads > 1}. The caller's random stream is left untouched when a seed is given, and advanced only by that derivation when one is not; without a seed, \code{\link{set.seed}} beforehand suffices. See the Reproducibility section of \link{bart}.
    }
    \item{factors}{
      How factor columns in a data frame enter the model; as in \code{\link{dbarts}}.

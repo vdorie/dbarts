@@ -19,7 +19,7 @@ xbart <- function(
   split.probs = NULL,
   drop = TRUE,
   sigest = NA_real_,
-  seed = NA_integer_,
+  seed = NULL,
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic"),
   node.prior = NULL,
@@ -81,8 +81,7 @@ xbart <- function(
       useQuantiles = useQuantiles,
       n.thin = n.thin,
       storage = storage,
-      n.trees = n.trees,
-      seed = seed
+      n.trees = n.trees
     )
   )
   n.cuts <- resolved$n.cuts
@@ -92,7 +91,12 @@ xbart <- function(
   # the grid and the RNG block read these; only the four knobs above are the
   # control's own copies
   n.trees <- resolved$n.trees
-  seed <- resolved$seed
+  # 'seed' is resolved from its value, not from whether the call named it: a
+  # wrapper forwarding its own seed = NULL must still defer to the control.
+  seed <- resolveSeedArg(seed)
+  if (is.na(seed)) {
+    seed <- control@seed
+  }
   control@n.cuts <- n.cuts
   control@useQuantiles <- useQuantiles
   control@n.thin <- n.thin

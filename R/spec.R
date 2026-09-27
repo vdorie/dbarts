@@ -849,7 +849,7 @@ dbartsSpec <- function(
   variance = NULL,
   forests = NULL,
   sigest = NA_real_,
-  seed = NA_integer_,
+  seed = NULL,
   family = c(
     "auto",
     "gaussian",
@@ -955,7 +955,7 @@ dbartsSpec <- function(
     )
   }
 
-  seed <- coerceOrError(seed, "integer")
+  seed <- resolveSeedArg(seed)
   if (!is.na(seed)) {
     control@seed <- seed
   }

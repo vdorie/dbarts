@@ -14,7 +14,7 @@ dbartsSpec(
     monotone = NULL, interactions = NULL, blocks = NULL,
     variance = NULL,
     forests = NULL,
-    sigest = NA_real_, seed = NA_integer_,
+    sigest = NA_real_, seed = NULL,
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal", "nbinom"),
     survival = NULL,

@@ -783,7 +783,7 @@ bart <- function(
   keepTrees = FALSE,
   keepCall = TRUE,
   samplerOnly = FALSE,
-  seed = NA_integer_,
+  seed = NULL,
   monotone = NULL,
   interactions = NULL,
   blocks = NULL,
@@ -1053,13 +1053,19 @@ bart <- function(
     )
     validObject(control)
   }
-  # the two shared settings this function reads again as LOCALS below - the
-  # tree retention the burn-in split re-enables, and the seed the hurdle
-  # split derives its two component seeds from - are taken off the merged
+  # the tree retention the burn-in split re-enables is taken off the merged
   # control, which already holds the flat value where the caller named one.
-  # Reading the formal instead would drop a control that speaks for either.
+  # Reading the formal instead would drop a control that speaks for it.
   keepTrees <- control@keepTrees
-  seed <- control@seed
+  # 'seed' is resolved from its value, not off the merged control above: that
+  # merge keys precedence off presence in the call, and a wrapper forwarding
+  # its own seed = NULL must still defer to a supplied control. NULL and NA
+  # mean "not given"; a value overrides the control.
+  seed <- resolveSeedArg(seed)
+  if (is.na(seed) && !is.null(suppliedControl)) {
+    seed <- suppliedControl@seed
+  }
+  control@seed <- seed
 
   storedCall <- matchedCall
   storedCall$family <- suppliedFamily
@@ -3120,7 +3126,7 @@ bartBT <- function(
   keeptrees = FALSE,
   keepcall = TRUE,
   sampleronly = FALSE,
-  seed = NA_integer_,
+  seed = NULL,
   proposalprobs = NULL,
   keepsampler = keeptrees
 ) {
@@ -3143,7 +3149,7 @@ bartBT <- function(
   printcutoffs <- coerceOrError(printcutoffs, "integer")
   numcut <- coerceOrError(numcut, "integer")
   ndpost <- coerceOrError(ndpost, "integer")
-  seed <- coerceOrError(seed, "integer")
+  seed <- resolveSeedArg(seed)
 
   # named ahead of dbartsControl(), whose own validity would otherwise
   # blame n.thin/n.burn - its slot names, not the formals these came in as

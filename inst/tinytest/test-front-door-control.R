@@ -515,6 +515,101 @@ expect_equal(
 )
 rm(xbartArgs)
 
+# ---- seed = NULL/NA defers to a control's seed; the old NA discard is gone -
+
+# NULL (the default) and NA both mean "not given here": a control-carried
+# seed is used exactly as if 'seed' had been left off the call. A NAMED
+# seed = NA used to differ, discarding the control's seed and forcing an
+# unseeded fit; that discard is gone.
+seededSeedControl <- dbarts::dbartsControl(
+  n.trees = 5L,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 23L
+)
+seedFit <- function(...) {
+  drawsOf(dbarts::bart(
+    xFC,
+    yFC,
+    control = seededSeedControl,
+    verbose = FALSE,
+    ...
+  ))
+}
+controlSeeded <- seedFit()
+expect_identical(seedFit(seed = NULL), controlSeeded)
+expect_identical(seedFit(seed = NA), controlSeeded)
+# a named number still overrides the control, and is itself reproducible
+overridden <- seedFit(seed = 29L)
+expect_false(identical(overridden, controlSeeded))
+expect_identical(seedFit(seed = 29L), overridden)
+
+# NULL with an unseeded control follows set.seed, same as leaving seed out
+unseededSeedControl <- dbarts::dbartsControl(
+  n.trees = 5L,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+unseededFit <- function() {
+  drawsOf(dbarts::bart(
+    xFC,
+    yFC,
+    control = unseededSeedControl,
+    seed = NULL,
+    verbose = FALSE
+  ))
+}
+set.seed(4242L)
+unseededA <- unseededFit()
+set.seed(4242L)
+unseededB <- unseededFit()
+expect_identical(unseededA, unseededB)
+rm(
+  seededSeedControl,
+  seedFit,
+  controlSeeded,
+  overridden,
+  unseededSeedControl,
+  unseededFit,
+  unseededA,
+  unseededB
+)
+
+# xbart reads the same three ways off its own control-carried seed
+xbartSeedArgs <- list(
+  xFC,
+  yFC,
+  n.samples = 6L,
+  n.burn = c(4L, 2L),
+  n.reps = 2L,
+  n.trees = 5L,
+  k = c(1, 4),
+  n.threads = 1L,
+  method = "k-fold",
+  n.test = 5,
+  control = dbarts::dbartsControl(seed = 31L)
+)
+xbartControlSeeded <- do.call(dbarts::xbart, xbartSeedArgs)
+expect_equal(
+  do.call(dbarts::xbart, c(xbartSeedArgs, list(seed = NULL))),
+  xbartControlSeeded
+)
+expect_equal(
+  do.call(dbarts::xbart, c(xbartSeedArgs, list(seed = NA))),
+  xbartControlSeeded
+)
+expect_false(isTRUE(all.equal(
+  do.call(dbarts::xbart, c(xbartSeedArgs, list(seed = 33L))),
+  xbartControlSeeded
+)))
+rm(xbartSeedArgs, xbartControlSeeded)
+
 # ---- a refused mixture install leaves the control where it was -------------
 
 # The prior install carries refusals of its own (a DART prior is fixed at

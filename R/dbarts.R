@@ -310,7 +310,7 @@ dbartsControl <- function(
     rule_gibbs = 0,
     birth = 0.5
   ),
-  seed = NA_integer_,
+  seed = NULL,
   updateState = TRUE,
   ...
 ) {
@@ -374,7 +374,7 @@ dbartsControl <- function(
     # the partial spellings are filled here rather than at the slot, so the
     # stored mixture is always the resolved six the bridge reads
     proposal.probs = resolveProposalProbs(proposal.probs),
-    seed = coerceOrError(seed, "integer"),
+    seed = resolveSeedArg(seed),
     updateState = as.logical(updateState)
   )
   # a plain attribute, deliberately not a bartcore.* one (that prefix means
@@ -570,7 +570,7 @@ dbarts <- function(
   forests = NULL,
   control = dbarts::dbartsControl(),
   sigest = NA_real_,
-  seed = NA_integer_,
+  seed = NULL,
   factors = c("categorical", "indicators"),
   family = c(
     "auto",
@@ -991,8 +991,8 @@ dbarts <- function(
   }
   control@verbose <- verbose
   # a convenience mirror of dbartsControl(seed = ), as the wrappers expose;
-  # an explicit seed overrides the control's, NA leaves it untouched
-  seed <- coerceOrError(seed, "integer")
+  # an explicit seed overrides the control's, NULL or NA leaves it untouched
+  seed <- resolveSeedArg(seed)
   if (!is.na(seed)) {
     control@seed <- seed
   }

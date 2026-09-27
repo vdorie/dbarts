@@ -50,7 +50,7 @@ bart(
     printEvery = 100L, printCutoffs = 0L,
     verbose = TRUE, keepTrees = FALSE,
     keepCall = TRUE, samplerOnly = FALSE,
-    seed = NA_integer_,
+    seed = NULL,
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -285,7 +285,7 @@ bart(
      Every \code{n.thin} draw is kept to be returned to the user. Useful for \dQuote{thinning} samples against serial correlation; see \code{n.samples} above for how the two combine.
    }
    \item{seed}{
-     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. A \code{\link{set.seed}} beforehand suffices for reproducibility; supplying \code{seed} instead gives reproducible results without touching R's stream. See \sQuote{Reproducibility} below.
+     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. \code{NULL} (the default) means not given here and defers to a seed already sitting in \code{control}, if any; \code{NA} is accepted the same way, silently. A \code{\link{set.seed}} beforehand suffices for reproducibility when nothing ends up seeded; supplying \code{seed} instead gives reproducible results without touching R's stream. See \sQuote{Reproducibility} below.
    }
    \item{warm.start}{
      A previous fit whose forests seed the initial state instead of drawing trees from the prior: either a \code{bart} object fit with \code{keepSampler = TRUE} or a \code{\link{dbartsSampler-class}}. The donor must share this fit's predictors, tree count, and DART setting; a donor fit on a different cut grid is supported, its splits remapped onto this fit's grid (collapsing any the grid starves), the same way a data replacement remaps existing splits. Only its trees, \code{sigma}, and \code{k} carry over, and each chain starts from a different donor sample so multiple chains stay overdispersed. A warm start biases early draws toward the donor, so it shortens burn-in rather than removing it; keep a non-zero \code{n.burn}. Multi-forest samplers refuse it: a fit whose forests carry amplitude bases (a \code{forest()} term, or a data object built with \code{bases}) errors by name, naming its forest count, because a donor install is not tested at more than one forest; \code{n.grow.sweeps} is the initialization such a fit can take. See \code{\link{dbartsSampler-class}}'s \code{installTrees} method for finer control.
@@ -393,16 +393,18 @@ A handful of shapes are refused outright rather than silently misinterpreted, ea
   a session that has none yet.
 
   \strong{\code{set.seed} versus \code{seed}.} Leave \code{seed} at its
-  default (\code{NA_integer_}) and call \code{\link{set.seed}} beforehand:
+  default (\code{NULL}) and call \code{\link{set.seed}} beforehand:
   each chain's generator is then seeded from R's stream when the sampler is
   created, one uniform draw per chain in chain order, and running the
   sampler afterward never advances the stream further. Passing \code{seed}
   instead drives the chain seeds from a separate, dedicated generator and
-  leaves R's stream untouched altogether. A \code{seed} named in the call
-  always wins over a seed already sitting in \code{control} - including
-  \code{seed = NA}, which discards a control seed and falls back to
-  \code{set.seed}. A \code{family = "hurdle.lognormal"} fit derives its two
-  component seeds from the one \code{seed} given; without one, the two
+  leaves R's stream untouched altogether. A single number named in the call
+  always wins over a seed already sitting in \code{control}; \code{NULL}
+  means not given here and defers to \code{control}'s own seed instead, and
+  \code{NA} is accepted as \code{NULL}, silently - neither discards a
+  control seed. A \code{family = "hurdle.lognormal"} fit derives its two
+  component seeds from the one \code{seed} in force (the call's, or
+  \code{control}'s); without one, the two
   components draw their own chain seeds from R's stream in turn. Do not rely
   on \code{bart(seed = S)} and \code{set.seed(S); bart()} giving the same
   draws. They currently agree under R's default generator, but this is not
