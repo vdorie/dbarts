@@ -933,3 +933,35 @@ seeded-drift snapshot files 27/0; lint_package, air, check-rc-codoc,
 check-win-drift and check-doc-freshness clean; R CMD check --as-cran on
 a staged tarball with vignettes: Status 1 NOTE, the stale DESCRIPTION
 Date (pre-existing).
+
+Engine test peer LANDED 2026-09-27 (c21a6211), the follow-on step
+dec-A81 set after S6: the test hooks of Appendix A4 that S6 left in
+place leave the production classes' public surface.
+[`TestPeer`](../../src/bartcore/data.hpp) is forward-declared once in
+the engine and defined only in
+[`TestPeer`](../../tests/cpp/test_peer.hpp); Chain,
+LinearGaussianLeaf, GaussianResponse, OrdinalResponse, AFTResponse,
+NBDispersionPrior and NBResponse each declare it a friend. A hook whose
+body was a one-line read or a forward to a private kernel moved onto the
+peer as a static function taking the object, and
+the class lost it. The hooks with bodies of their own stay as private
+members: [`Chain::forestTreeFits`](../../src/bartcore/chain.hpp),
+[`Chain::accountStrandedLeafKStats`](../../src/bartcore/chain.hpp),
+[`Chain::checkFusedSuffstatAgainstStock`](../../src/bartcore/chain.hpp)
+and [`LinearGaussianLeaf::statisticsCacheResidentBytes`](../../src/bartcore/model.hpp).
+The ForTesting suffix is dropped throughout: a private member or a peer
+function is test-only by construction. The two dynamic_cast forwarders
+on Chain and AFT's forward to its contained Gaussian moved onto the peer,
+since a private member of one class cannot forward to another's.
+ColumnStore declares no friend: its two test-storage reads were reads of
+its public test block, which the tests now call directly, keeping
+test_data.cpp off the engine stack the peer header pulls in. No hook had
+a production caller; the tests/cpp build is the grep, as production code
+can no longer name any of them.
+
+Gates: `--preclean` install of the shipped build; tests/cpp `make clean
+&& make`, plain and under ASan/UBSan, 305 ok, no diagnostic;
+equivalence.R 53/53, bcf-equivalence.R 15/15 and
+multinomial-equivalence.R 11/11 bitwise on the shipped build, no |z|;
+full tinytest 9198/0; lint_package, air, check-rc-codoc, check-win-drift
+and check-doc-freshness clean.
