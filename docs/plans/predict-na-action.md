@@ -383,7 +383,7 @@ at the reduced row count instead. Fixing it for real means deciding
 what the positive component's 'test' should do under na.action - a
 design question, not a one-line fix.
 
-Slice B LANDED (pending hash): every predict method and
+Slice B LANDED 2026-09-27 (e2168430): every predict method and
 survivalProbabilities.bart take na.action before n.threads (after
 combineChains on survivalProbabilities), resolved once in
 preparePredictRows (hazardPredictRows at the subject level) and put back
