@@ -300,10 +300,6 @@ Record: the test scaffolding consolidation plan. Marked: blank. [dec-A81]
 With k uncapped (dec-A13), a chain under an infinite prior scale can reach k = Inf; summary then reports its mean as Inf, its standard deviation as NaN and its R-hat as NA. The alternative was special-casing non-finite traces. The cost is NaN and NA entries in a summary, which the manual's chi() entry explains.
 Record: this register. Marked: blank. [dec-A82]
 
-**seed = NA keeps two meanings**
-A seed = NA named in a call to bart or xbart runs unseeded even when the control carries a seed; in dbarts, seed = NA leaves the control's seed in force. The Reproducibility section documents both as they stand. The alternative is one rule for all three, which would change one of them. The cost is a rule a user can get wrong when moving between bart and dbarts.
-Record: this register; the Reproducibility section of bart's manual page. Marked: blank. [dec-A83]
-
 **Fit-time na.exclude pads on every fit class**
 Under the maintainer's ruling that every observation-indexed output carries row names (dec-B34), fitted and residuals on multinomial, ordinal, negative binomial and hurdle fits now pad rows dropped by na.exclude back as NA, as the plain bart class already did. The alternative was to leave those classes unpadded and record a TODO. The cost is one more stored field per fit.
 Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A84]
@@ -885,6 +881,10 @@ Record: this register. Marked: mine. [dec-A51]
 **Downstream memory safety is checked consumer-side**
 dbarts runs no continuous-integration job that builds a downstream package under sanitizers. The compiled consumers check the boundary themselves: stan4bart's own workflow, on every push to its development branch, builds dbarts from source under AddressSanitizer and UndefinedBehaviorSanitizer and runs its suite, and treatSens gains the same workflow. At the freeze, stan4bart's sanitizer job is dispatched by hand against the final header, and at the merge both consumers' workflows move their dbarts reference from bartcore to main. The alternative, which landed first and was dropped the same day, was a per-push job in this repository building a pinned stan4bart development branch under sanitizers; the reasons recorded for the drop, paraphrased and not quoted, were that per-push CI building a downstream development branch is not R-ecosystem practice, that the pin rots in the wrong repository, and that a stale consumer already fails loudly at compile or load. A one-off sanitizer run at the freeze and sanitizers in the monthly reverse-dependency smoke test were also weighed. The maintainer, 2026-09-26: "Yes, do that and treatSens too."
 Record: this register; docs/plans/archive/capi-dispatch-table.md, the C0 landing note. Marked: mine. [dec-A36]
+
+**A seed argument that is NULL means not given here**
+Every seed argument - on bart, xbart, dbarts and dbartsControl - defaults to NULL, meaning not given at this level: at a call, NULL defers to the control's seed, and a control whose seed is NULL leaves the fit unseeded, so set.seed beforehand governs it; an integer seeds. NA, 0.9-x's rngSeed default, is accepted as NULL. This is the convention of base R's simulate and of ranger, and unlike a test of missing() it survives a wrapper that forwards its own seed = NULL. It replaces an NA that meant unseeded in bart and xbart but keep-the-control's-seed in dbarts. The call can no longer discard a control's seed; an unseeded fit from a seeded control is reached with a control built without one, or with seed = sample.int(.Machine$integer.max, 1). The alternatives were NA meaning unseeded everywhere, NA deferring everywhere, keeping the split, keying on missing(), and a future-style seed = FALSE for an explicit discard. The maintainer, 2026-09-27, choosing it among those: "Yes, just use your recommendation from before."
+Record: this register; the Reproducibility section of bart's manual page. Marked: blank. [dec-A83]
 
 ## C. Agent-made decisions with no identified cost
 

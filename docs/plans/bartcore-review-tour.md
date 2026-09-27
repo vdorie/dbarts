@@ -305,14 +305,12 @@ Open before the merge:
 
 - **The release-candidate declaration** (`TODO`'s `rc-gate`), after the
   maintainer's read of this document.
-- **Agent-made decisions not yet ruled on**: 47 unmarked entries in
+- **Agent-made decisions not yet ruled on**: 46 unmarked entries in
   section A of `docs/decisions.md`. Those that fix user-visible surface,
   and would cost a deprecation cycle to change after release:
   - 1-based forest indices in R (dec-A69)
   - a hurdle fit's `k` and `varcount` from `extract` as a two-part list
     (dec-A77), and scalar draws with one chain as a plain vector (dec-A79)
-  - `seed = NA` meaning unseeded in `bart` and `xbart` but keeping the
-    control's seed in `dbarts` (dec-A83)
   - row names on the fit's raw draws fields as well as on what the
     accessors return (dec-A86)
 - **Three CRAN packages outside ours.** lorax's examples fit a three-level
