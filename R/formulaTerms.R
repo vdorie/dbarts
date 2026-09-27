@@ -27,10 +27,10 @@ TERM_UNSUPPORTED_FAMILIES <- c(
   "nbinom"
 )
 
+## The term grammar names forest only: forest() is not exported, so no other
+## spelling reaches it.
 isForestCall <- function(expr) {
-  is.call(expr) &&
-    (identical(expr[[1L]], as.name("forest")) ||
-      identical(expr[[1L]], quote(dbarts::forest)))
+  is.call(expr) && identical(expr[[1L]], as.name("forest"))
 }
 
 containsForestCall <- function(expr) {

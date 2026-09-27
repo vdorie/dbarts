@@ -144,11 +144,9 @@ expectSameForest(
   y ~ x1 + x2 + forest(x1 + x2):z,
   y ~ x1 + x2 + z:forest(x1 + x2)
 )
-# (16) a dbarts::-qualified head reaches the same configuration
-expectSameForest(
-  y ~ x1 + x2 + z:dbarts::forest(x1 + x2),
-  y ~ x1 + x2 + z:forest(x1 + x2)
-)
+# (16) the term grammar names forest only, so a dbarts::-qualified head is
+# not a term
+expect_error(fit(y ~ x1 + x2 + z:dbarts::forest(x1 + x2)), "forest")
 # (17) the symbolic slot vs vars = by name
 expectSameForest(
   y ~ x1 + x2 + forest(x1 + x2, basis = ~z),
