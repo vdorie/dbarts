@@ -110,22 +110,12 @@ presentDrawsVars <- function(object, vars) {
   vars[!vapply(vars, function(v) is.null(drawsField(object, v)), logical(1L))]
 }
 
-# Reshapes bart2(family = "ordinal")'s per-draw thresholds - the K - 1
-# gamma_1 < ... < gamma_{K-1} - into the (iteration, chain,
-# variable) convention bartDrawsArray's other fields share. Combined storage
-# (the default) is (n.samples [* n.chains]) x (K - 1), the same layout
-# toDrawsArray already gives any per-column field, so that path is reused
-# directly; storage kept per-chain (combineChains = FALSE) is (K - 1) x
-# n.samples x n.chains - a different axis order than toDrawsArray's own 3-D
-# case assumes (which is built for a per-OBSERVATION field, chain-first), so
-# it is permuted here instead of routed through it.
+# bart(family = "ordinal")'s per-draw thresholds, the K - 1 gamma_1 < ... <
+# gamma_{K-1}, in the (iteration, chain, variable) convention, labelled
+# threshold[j]. They are stored like any per-column field, (n.samples [*
+# n.chains]) x (K - 1) combined or chains x n.samples x (K - 1) not.
 ordinalThresholdsArray <- function(object) {
-  thresholds <- object$thresholds
-  arr <- if (length(dim(thresholds)) == 3L) {
-    aperm(thresholds, c(2L, 3L, 1L))
-  } else {
-    toDrawsArray(thresholds, object$n.chains, isScalar = FALSE)
-  }
+  arr <- toDrawsArray(object$thresholds, object$n.chains, isScalar = FALSE)
   dimnames(arr) <- list(
     NULL,
     NULL,
@@ -136,8 +126,8 @@ ordinalThresholdsArray <- function(object) {
 
 # gathers one or more chain-dimensioned fields off a bart/bart2 fit
 # into a single (iteration, chain, variable) base array. 'thresholds'
-# (bartOrdinal only) is the one field whose shape toDrawsArray cannot read
-# directly and so is special-cased to ordinalThresholdsArray, already named.
+# (bartOrdinal only) is special-cased to ordinalThresholdsArray for its
+# threshold[j] labels.
 bartDrawsArray <- function(object, vars) {
   n.chains <- fitNChains(object)
   present <- presentDrawsVars(object, vars)

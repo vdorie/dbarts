@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (46 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (47 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) -
@@ -90,6 +90,7 @@ Columns: `file | STATUS | one-liner`.
 | predict-surface.md | LANDED 78f334c1, 2026-08-25 | Unifies the argument order across the six `predict` methods, makes `forest = NULL` mean every forest on the R5 readers, and equalizes the `fitted`/`predict` type vocabularies across families. |
 | rd-records.md | LANDED 52c10e02, 2026-08-26 | Corrects several Rd/documentation records: `print.bart`/`print.rbart`, `xbart`'s return shape, the rbart `n.chains` code, and two composition-matrix harness bugs. |
 | surface-refusals.md | LANDED d48aef8a, 2026-08-26 | Refuses, by name, an argument that is a formal on a sibling method but foreign to the one actually called, across `predict`/`extract`/`fitted`/`residuals`/`survivalProbabilities`; also refuses fractional counts wherever an integer is required. |
+| extract-scalar-types.md | LANDED (pending hash), 2026-09-26 | Moves a fit's scalar parameter draws onto `extract` in the shape stan4bart's and bartCause's `extract` methods use (`"sigma"`/`"k"`/`"varcount"` on `bart`, `"thresholds"` on ordinal, `"dispersion"` on negbin, the matching pieces on hurdle); removes the exported `draws()` generic and its five methods, which never reached main; drops the dead `"tau"` from summary's default variables and labels a multinomial fit's pooled probabilities `prob[level]`. |
 
 ## Build / infra singletons
 

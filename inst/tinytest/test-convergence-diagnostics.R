@@ -442,3 +442,58 @@ rm(xInf, arrInf, sInf)
 
 suppressWarnings(RNGkind(oldRNGkind[1L], oldRNGkind[2L], oldRNGkind[3L]))
 rm(oldRNGkind, dyadic)
+
+# ---- ordinalThresholdsArray's uncombined (combineChains = FALSE) branch
+# assumed a (K - 1) x samples x chains layout, but the fit actually stores
+# chains x samples x (K - 1); summary() (bartDrawsArray -> thresholds) on a
+# combineChains = FALSE ordinal fit must therefore report the identical
+# table a combineChains = TRUE fit of the same draws does ----
+
+n.ord <- 150L
+x.ord <- matrix(runif(n.ord * 2L), n.ord, 2L)
+etaOrd <- 2 * (x.ord[, 1L] - 0.5)
+zOrd <- etaOrd + rnorm(n.ord)
+gammaOrd <- c(0, 0.5)
+codesOrd <- 1L + (zOrd > gammaOrd[1L]) + (zOrd > gammaOrd[2L])
+lvOrd <- c("lo", "mid", "hi")
+yOrd <- ordered(lvOrd[codesOrd], levels = lvOrd)
+
+ordinalCombined <- suppressMessages(dbarts::bart(
+  x.ord,
+  yOrd,
+  n.samples = 20L,
+  n.burn = 10L,
+  n.trees = 5L,
+  n.chains = 2L,
+  combineChains = TRUE,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 33L
+))
+ordinalUncombined <- suppressMessages(dbarts::bart(
+  x.ord,
+  yOrd,
+  n.samples = 20L,
+  n.burn = 10L,
+  n.trees = 5L,
+  n.chains = 2L,
+  combineChains = FALSE,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 33L
+))
+expect_equal(summary(ordinalCombined)$stats, summary(ordinalUncombined)$stats)
+
+rm(
+  n.ord,
+  x.ord,
+  etaOrd,
+  zOrd,
+  gammaOrd,
+  codesOrd,
+  lvOrd,
+  yOrd,
+  ordinalCombined,
+  ordinalUncombined
+)
+
