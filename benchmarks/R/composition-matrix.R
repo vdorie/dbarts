@@ -22,11 +22,6 @@
 # Usage: Rscript benchmarks/R/composition-matrix.R
 # Exit status is nonzero iff at least one disagreement was recorded.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 scriptDir <- dirname(sub(
@@ -510,9 +505,13 @@ table1Probes <- list(
 # rather than forced through the shared R5 recipe above.
 multinomActiveRows <- function(seed) {
   d <- mkXY(seed)
-  host <- dbarts(d$x, as.double(d$label), control = ctl(seed))
-  bc <- dbarts:::bartcoreMultinomialSampler(host, d$label - 1L, K = 3L)
-  bartcoreSetActiveRows(bc, c(rep(1, n - 1L), 0))
+  sampler <- dbarts(
+    d$x,
+    factor(d$label),
+    family = "multinomial",
+    control = ctl(seed)
+  )
+  sampler$setActiveRows(c(rep(1, n - 1L), 0))
 }
 multinomBase <- function(seed) {
   d <- mkXY(seed)

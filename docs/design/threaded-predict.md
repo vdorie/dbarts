@@ -145,13 +145,14 @@ The bridge took the argument on both `.Call` entries -
 [`bartcore_predict`](../../src/R_interface_bartcore.cpp),
 [`predictPerForestFromSource`](../../src/R_interface_bartcore.cpp), and
 [`bartcore_predictPerForest`](../../src/R_interface_bartcore.cpp), validated with
-`rc_getInt(..., RC_VALUE|RC_GEQ 1, ...)`. Six inst/tinytest sites
+`rc_getInt(..., RC_VALUE|RC_GEQ 1, ...)`. Three inst/tinytest sites
 (["dbarts:::C_dbarts_bartcore_predict"](../../inst/tinytest/test-predict-sparse.R),
 ["dbarts:::C_dbarts_bartcore_predict"](../../inst/tinytest/test-predict-code-channel.R),
-["dbarts:::C_dbarts_bartcore_predict"](../../inst/tinytest/test-generics-multithreaded.R),
-["dbarts:::C_dbarts_bartcore_predict"](../../inst/tinytest/test-multinomial-test-offset.R),
-["dbarts:::C_dbarts_bartcore_predict"](../../inst/tinytest/test-multinomial-category-offset.R))
-call these `.Call`s directly and needed the fourth argument; all six pass it.
+["dbarts:::C_dbarts_bartcore_predict"](../../inst/tinytest/test-generics-multithreaded.R))
+call this `.Call` directly and need the fourth argument; all three pass it
+(retired: test-multinomial-test-offset.R (two sites) and
+test-multinomial-category-offset.R (one site) had the other three, now
+migrated onto `$predict`).
 `dbartsSampler$predict`/`$predictForests`
 ([`dbartsSampler$predict`](../../R/dbarts.R), [`dbartsSampler$predictForests`](../../R/dbarts.R)) pass
 their formal through; `bartcorePredict` ([`bartcorePredict`](../../R/bartcore.R)) and

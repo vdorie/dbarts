@@ -15,11 +15,6 @@
 # value through the independent read path ($getForestFits, a memcpy that never
 # touches the accessor, plus $getForestAmplitudes and $getCalibration).
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(3141L)
 n <- 80L
 p <- 3L
@@ -211,26 +206,19 @@ expect_equal(cell$fits + offGauss, cell$train)
 
 # --- the refusal -----------------------------------------------------------
 
-# multinomial: exercised directly against the bridge-level refusal, through
-# the low-level handle bartcoreMultinomialSampler builds (a bare $ptr/$x/$K
-# environment) - the same C entry a real dbartsSampler's own
-# $getFitsWithoutOffset() reaches, so this cell pins that backstop without
-# needing a full bart(family = "multinomial") fit.
-makeMultinomial <- getFromNamespace("bartcoreMultinomialSampler", "dbarts")
-fitsWithoutOffset <- bartcoreFitsWithoutOffset
-multinomialHost <- dbarts(
+# multinomial: exercised directly against the public method's own R-side
+# refusal, without needing a full bart(family = "multinomial") fit - creating
+# the sampler is enough, since $getFitsWithoutOffset() needs no run.
+multinomial <- dbarts(
   x,
-  yGauss,
+  factor(rbinom(n, 2L, 0.5), levels = 0:2),
+  family = "multinomial",
   control = samplerControlFitsWithoutOffset()
 )
-multinomial <- makeMultinomial(multinomialHost, rbinom(n, 2L, 0.5), 3L)
 expect_error(
-  fitsWithoutOffset(multinomial),
-  pattern = "softmax probability channel per category"
+  multinomial$getFitsWithoutOffset(),
+  pattern = "per-category softmax probabilities"
 )
-# the caveat rides the message: predict reports the SAVED samples, not the
-# current state, once the sampler keeps trees
-expect_error(fitsWithoutOffset(multinomial), pattern = "keepTrees")
 
 # --- the ARITHMETIC gates: recombination through the independent read path --
 

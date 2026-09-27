@@ -6,11 +6,6 @@
 # must return what was written - plus the refusal matrix and every mutation
 # channel the reported value must not surprise on.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(41)
 n <- 120L
 p <- 3L
@@ -434,14 +429,16 @@ expect_error(
   bcf$setCalibration(prior.scale = 1.5),
   "multi-forest calibration map"
 )
-# the engine's own refusal, which the low-level route reaches past the R
-# guard, names the map by its coupling: the two-forest map at K = 2, and a
-# generic one above it, where no two-forest map owns the scale
-handleOfCalibrationMidchain <- function(sampler) {
-  list(ptr = sampler$getPointer())
-}
+# the engine's own refusal, which the bridge reaches past the R guard - a
+# raw pointer .Call, not the retired bartcoreSetForestPriorScale wrapper -
+# names the map by its coupling: the two-forest map at K = 2, and a generic
+# one above it, where no two-forest map owns the scale. $setCalibration
+# itself never reaches this: refuseAmplitudeMutation catches every
+# amplitude-carrying sampler R-side first, with the generic wording the
+# check just above pins, so this is the one route left to the bridge's own
+# more specific text.
 expect_error(
-  bartcoreSetForestPriorScale(handleOfCalibrationMidchain(bcf), 0L, 1.5),
+  .Call(dbarts:::C_dbarts_bartcore_setCalibration, bcf$getPointer(), 0L, 1.5),
   "two-forest calibration map"
 )
 threeForests <- dbarts(
@@ -455,8 +452,9 @@ threeForests <- dbarts(
   control = midControl()
 )
 threeRefusal <- tryCatch(
-  bartcoreSetForestPriorScale(
-    handleOfCalibrationMidchain(threeForests),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setCalibration,
+    threeForests$getPointer(),
     0L,
     1.5
   ),
@@ -465,11 +463,16 @@ threeRefusal <- tryCatch(
 expect_true(grepl("multi-forest calibration map", threeRefusal, fixed = TRUE))
 expect_false(grepl("two-forest", threeRefusal, fixed = TRUE))
 
-# the multinomial coupling, through the low-level handle its forests live on
+# the multinomial coupling, through the public sampler its forests live on.
+# $getCalibration/$setCalibration index forests from 1
 labels <- sample(0:2, n, replace = TRUE)
-host <- dbarts(x, y, control = midControl(n.chains = 1L))
-multinomial <- dbarts:::bartcoreMultinomialSampler(host, labels, K = 3L)
-multinomialCalibration <- bartcoreForestCalibration(multinomial, 0L)
+multinomial <- dbarts(
+  x,
+  factor(labels),
+  family = "multinomial",
+  control = midControl(n.chains = 1L)
+)
+multinomialCalibration <- multinomial$getCalibration(1L)
 expect_equal(dim(multinomialCalibration), c(1L, 12L))
 expect_true(multinomialCalibration[1L, "prior.scale"] > 0)
 # a K-forest sampler with no calibration map: the five map columns are NaN,
@@ -479,7 +482,7 @@ expect_true(all(is.nan(multinomialCalibration[, mapColumns])))
 expect_equal(unname(multinomialCalibration[1L, "response.scale"]), 1)
 expect_true(multinomialCalibration[1L, "k.has.hyperprior"] == 0)
 expect_error(
-  bartcoreSetForestPriorScale(multinomial, 0L, 1.5),
+  multinomial$setCalibration(prior.scale = 1.5, forest = 1L),
   "softmax calibration map"
 )
 

@@ -49,11 +49,6 @@
 #
 # Usage: Rscript multinomial-exact.R [quick]
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -126,9 +121,13 @@ arm1 <- function() {
       n.trees = 50L,
       updateState = FALSE
     )
-    host <- dbarts(x, as.double(labels), control = control)
-    bc <- dbarts:::bartcoreMultinomialSampler(host, labels, K = K)
-    r <- bartcoreRun(bc, nburn, ndpost)
+    bc <- dbarts(
+      x,
+      factor(labels, levels = seq.int(0L, K - 1L)),
+      family = "multinomial",
+      control = control
+    )
+    r <- bc$run(nburn, ndpost)
     # every observation shares the intercept-only probabilities; average them
     apply(r$train, 2L, mean)
   }
@@ -177,7 +176,7 @@ arm2 <- function() {
     set.seed(seed)
     # family = "logistic" installs the pi*sqrt(3) node scale; offset 0 centers
     # the log-odds prior at zero, as the multinomial's is
-    host <- dbarts(
+    bc <- dbarts(
       x,
       y,
       offset = 0,
@@ -185,15 +184,18 @@ arm2 <- function() {
       control = control(),
       verbose = FALSE
     )
-    bc <- dbarts:::bartcoreSampler(host, family = "logistic")
-    r <- bartcoreRun(bc, nburn, ndpost)
+    r <- bc$run(nburn, ndpost)
     rowMeans(plogis(r$train)) # r$train is the latent log-odds
   }
   fitMultinomial <- function(seed) {
     set.seed(seed)
-    host <- dbarts(x, as.double(y), control = control())
-    bc <- dbarts:::bartcoreMultinomialSampler(host, as.integer(y), K = 2L)
-    r <- bartcoreRun(bc, nburn, ndpost)
+    bc <- dbarts(
+      x,
+      factor(y, levels = 0:1),
+      family = "multinomial",
+      control = control()
+    )
+    r <- bc$run(nburn, ndpost)
     apply(r$train[, 2L, , drop = FALSE], 1L, mean) # P(y = 1)
   }
 
@@ -238,7 +240,7 @@ arm3 <- function() {
     ) -
       1L
   }
-  x <- matrix(as.double(cell), ncol = 1L)
+  x <- data.frame(cell = factor(cell))
   countsA <- tabulate(labels[cell == 0L] + 1L, K)
   countsB <- tabulate(labels[cell == 1L] + 1L, K)
 
@@ -338,7 +340,7 @@ arm3 <- function() {
   # blend on held-out rows, so a cell's test-set probabilities must match its
   # train/quadrature target - the direct gate on combinedTestFits equalling the
   # (already-gated) combinedFits train blend
-  xTest <- matrix(c(0, 1), 2L, 1L)
+  xTest <- data.frame(cell = factor(c(0, 1), levels = levels(x$cell)))
 
   fitSeed <- function(seed) {
     set.seed(seed)
@@ -346,24 +348,23 @@ arm3 <- function() {
       n.chains = 1L,
       n.threads = 1L,
       n.trees = 1L,
-      updateState = FALSE
-    )
-    host <- dbarts(
-      x,
-      as.double(labels),
+      updateState = FALSE,
       proposal.probs = c(
         birth_death = 0.5,
         swap = 0.1,
         change = 0.4,
         birth = 0.5
-      ),
+      )
+    )
+    bc <- dbarts(
+      x,
+      factor(labels, levels = seq.int(0L, K - 1L)),
       test = xTest,
+      family = "multinomial",
       control = control,
       tree.prior = cgm(power, base)
     )
-    host$data@varTypes[1L] <- 1L # mark the predictor categorical
-    bc <- dbarts:::bartcoreMultinomialSampler(host, labels, K = K)
-    r <- bartcoreRun(bc, nburn, ndpost)
+    r <- bc$run(nburn, ndpost)
     pA <- apply(r$train[cell == 0L, , , drop = FALSE], 2L, mean)
     pB <- apply(r$train[cell == 1L, , , drop = FALSE], 2L, mean)
     tA <- apply(r$test[1L, , , drop = FALSE], 2L, mean)
@@ -466,11 +467,12 @@ armCount <- function() {
       n.trees = 50L,
       updateState = FALSE
     )
-    # the host response is ignored by the multinomial sampler; pass a varying
-    # dummy so the gaussian host builds without a degenerate scale
-    host <- dbarts(x, as.double(counts[, 1L]), control = control)
-    bc <- dbarts:::bartcoreMultinomialCountSampler(host, counts, K = K)
-    r <- bartcoreRun(bc, nburn, ndpost)
+    bc <- dbarts(
+      dbartsData(x, counts = counts),
+      family = "multinomial",
+      control = control
+    )
+    r <- bc$run(nburn, ndpost)
     # every observation shares the intercept-only probabilities; average them
     apply(r$train, 2L, mean)
   }
@@ -575,14 +577,14 @@ armOffset <- function() {
       n.trees = 50L,
       updateState = FALSE
     )
-    host <- dbarts(x, as.double(labels), control = control)
-    bc <- dbarts:::bartcoreMultinomialSampler(
-      host,
-      labels,
-      K = K,
-      offset = offset
+    bc <- dbarts(
+      x,
+      factor(labels, levels = seq.int(0L, K - 1L)),
+      family = "multinomial",
+      control = control
     )
-    r <- bartcoreRun(bc, nburn, ndpost)
+    bc$setCategoryOffset(offset, updateState = FALSE)
+    r <- bc$run(nburn, ndpost)
     # every row of a group shares that group's probabilities; average them
     c(
       apply(r$train[group == 1L, , , drop = FALSE], 2L, mean),
@@ -643,16 +645,20 @@ armLevel <- function() {
     n.trees = 75L,
     updateState = FALSE
   )
-  host <- dbarts(x, as.double(labels), control = control)
-  bc <- dbarts:::bartcoreMultinomialSampler(host, labels, K = K)
-  bartcoreRun(bc, nburn, 1L)
+  bc <- dbarts(
+    x,
+    factor(labels, levels = seq.int(0L, K - 1L)),
+    family = "multinomial",
+    control = control
+  )
+  bc$run(nburn, 1L)
   level <- vapply(
     seq_len(ndpost),
     function(i) {
-      bartcoreRun(bc, 0L, 1L)
+      bc$run(0L, 1L)
       mean(vapply(
-        seq_len(K) - 1L,
-        function(k) mean(bartcoreForestFits(bc, k)),
+        seq_len(K),
+        function(k) mean(bc$getForestFits(k)),
         numeric(1L)
       ))
     },

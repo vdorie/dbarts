@@ -12,11 +12,6 @@
 # predicate and the z divergence), the creation surface (test-bcf-creation.R),
 # and the flat C route (inst/tinytest/capi/consumer.c).
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(41)
 n <- 180L
 p <- 4L
@@ -328,15 +323,19 @@ expect_error(
 )
 # and the multinomial route is NOT misidentified by it
 mnLabels <- sample(0:2, n, replace = TRUE)
-mnSampler <- dbarts(x, y, control = seededControlForestBasisR5())
-mn <- dbarts:::bartcoreMultinomialSampler(mnSampler, mnLabels, 3L)
+mn <- dbarts(
+  x,
+  factor(mnLabels, levels = 0:2),
+  family = "multinomial",
+  control = seededControlForestBasisR5()
+)
 expect_error(
-  bartcoreForestAmplitudes(mn, 0L),
+  mn$getForestAmplitudes(1L),
   "forests carry them"
 )
 expect_error(
-  bartcoreSetForestBasis(mn, 1L, cbind(0.5, 0.5)),
-  "forests carry amplitudes"
+  mn$setForestBasis(2L, cbind(0.5, 0.5)),
+  "carry no amplitudes"
 )
 
 # --- the leaf scale a swap leaves behind. The calibration map divides

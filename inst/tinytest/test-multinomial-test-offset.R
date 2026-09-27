@@ -12,11 +12,6 @@
 # channels are bitwise those of a sampler with no test offset at all, since the
 # test fits enter no likelihood.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(9021)
 n <- 90L
 p <- 3L
@@ -71,27 +66,26 @@ buildSamplerTestOffset <- function(
   keepTrees = FALSE,
   n.samples = NA_integer_
 ) {
-  host <- dbarts(
-    x,
-    as.double(labels),
-    test = x.test,
+  sampler <- dbarts(
+    dbartsData(x, counts = counts, test = x.test),
+    family = "multinomial",
     control = controlTestOffset(n.chains, keepTrees, n.samples)
   )
-  dbarts:::bartcoreMultinomialCountSampler(
-    host,
-    counts,
-    K = K,
-    offset = offset,
-    offset.test = offset.test
-  )
+  if (!is.null(offset)) {
+    sampler$setCategoryOffset(offset, updateState = FALSE)
+  }
+  if (!is.null(offset.test)) {
+    sampler$setCategoryTestOffset(offset.test, updateState = FALSE)
+  }
+  sampler
 }
 
-recordChannelsTestOffset <- function(bc, result) {
+recordChannelsTestOffset <- function(sampler, result) {
   list(
     train = result$train,
     test = result$test,
-    forestFits = lapply(seq_len(K) - 1L, function(k) {
-      bartcoreForestFits(bc, k)
+    forestFits = lapply(seq_len(K), function(k) {
+      sampler$getForestFits(k)
     }),
     runVarcount = result$varcount
   )
@@ -103,11 +97,11 @@ recordChannelsTestOffset <- function(bc, result) {
 # report. ---
 parityArmTestOffset <- function(build, swap, n.chains = 1L) {
   set.seed(4242)
-  bc <- buildSamplerTestOffset(offset, build, n.chains)
+  sampler <- buildSamplerTestOffset(offset, build, n.chains)
   if (!is.null(swap)) {
-    bartcoreSetCategoryTestOffset(bc, swap)
+    sampler$setCategoryTestOffset(swap, updateState = FALSE)
   }
-  recordChannelsTestOffset(bc, bartcoreRun(bc, 20L, 8L))
+  recordChannelsTestOffset(sampler, sampler$run(20L, 8L))
 }
 
 arm.build <- parityArmTestOffset(testOffset, NULL)
@@ -142,18 +136,18 @@ expect_identical(arm.zero$test, arm.none$test)
 expect_identical(arm.zero$train, arm.none$train)
 
 set.seed(4242)
-bc.cleared <- buildSamplerTestOffset(offset, testOffset)
-bartcoreSetCategoryTestOffset(bc.cleared, NULL)
+sampler.cleared <- buildSamplerTestOffset(offset, testOffset)
+sampler.cleared$setCategoryTestOffset(NULL, updateState = FALSE)
 expect_identical(
-  bartcoreRun(bc.cleared, 20L, 8L)$test,
+  sampler.cleared$run(20L, 8L)$test,
   arm.none$test
 )
 
 set.seed(4242)
-bc.zeroswap <- buildSamplerTestOffset(offset, NULL)
-bartcoreSetCategoryTestOffset(bc.zeroswap, zeroTestOffset)
+sampler.zeroswap <- buildSamplerTestOffset(offset, NULL)
+sampler.zeroswap$setCategoryTestOffset(zeroTestOffset, updateState = FALSE)
 expect_identical(
-  bartcoreRun(bc.zeroswap, 20L, 8L)$test,
+  sampler.zeroswap$run(20L, 8L)$test,
   arm.none$test
 )
 
@@ -187,14 +181,14 @@ expect_false(isTRUE(all.equal(arm.colshift$test, arm.build$test)))
 # run's recorded test channel exactly - which it can only do if the offset was
 # threaded into the replays and not only into the blend. ---
 set.seed(313)
-bc.keep <- buildSamplerTestOffset(
+sampler.keep <- buildSamplerTestOffset(
   offset,
   testOffset,
   keepTrees = TRUE,
   n.samples = 6L
 )
-res.keep <- bartcoreRun(bc.keep, 20L, 6L)
-pred.keep <- bartcorePredict(bc.keep, x.test, testOffset)
+res.keep <- sampler.keep$run(20L, 6L)
+pred.keep <- sampler.keep$predict(x.test, testOffset)
 expect_identical(dim(pred.keep), dim(res.keep$test))
 expect_identical(pred.keep, res.keep$test)
 
@@ -202,18 +196,18 @@ expect_identical(pred.keep, res.keep$test)
 # the same rows with an all-zero matrix gives the offset-free surface, which is
 # a different answer, and one that agrees with the same replay off a sampler
 # that holds no test offset at all
-pred.zero <- bartcorePredict(bc.keep, x.test, zeroTestOffset)
+pred.zero <- sampler.keep$predict(x.test, zeroTestOffset)
 expect_false(isTRUE(all.equal(pred.zero, pred.keep)))
 set.seed(313)
-bc.keep.none <- buildSamplerTestOffset(
+sampler.keep.none <- buildSamplerTestOffset(
   offset,
   NULL,
   keepTrees = TRUE,
   n.samples = 6L
 )
-res.keep.none <- bartcoreRun(bc.keep.none, 20L, 6L)
+res.keep.none <- sampler.keep.none$run(20L, 6L)
 expect_identical(
-  bartcorePredict(bc.keep.none, x.test, zeroTestOffset),
+  sampler.keep.none$predict(x.test, zeroTestOffset),
   pred.zero
 )
 expect_identical(res.keep.none$test, pred.zero)
@@ -222,121 +216,98 @@ expect_identical(res.keep.none$test, pred.zero)
 # matching subset of the offset, and the answer is the same rows' answer
 half <- seq_len(5L)
 expect_identical(
-  bartcorePredict(bc.keep, x.test[half, ], testOffset[half, ]),
+  sampler.keep$predict(x.test[half, ], testOffset[half, ]),
   res.keep$test[half, , , drop = FALSE]
 )
 
 # --- Refusals. ---
-bc.plain <- buildSamplerTestOffset(NULL, NULL)
+sampler.plain <- buildSamplerTestOffset(NULL, NULL)
 
 # the capability probe is not a forest count: a gaussian sampler and a BCF
 # sampler (two forests) both own no category test offset, and both name the
 # family situation
-bc.gaussian <- dbarts:::bartcoreSampler(
-  dbarts(x, rnorm(n), test = x.test, control = controlTestOffset())
+sampler.gaussian <- dbarts(
+  x,
+  rnorm(n),
+  test = x.test,
+  control = controlTestOffset()
 )
 expect_error(
-  bartcoreSetCategoryTestOffset(bc.gaussian, testOffset),
-  "requires a multinomial"
+  sampler.gaussian$setCategoryTestOffset(testOffset),
+  "no count response"
 )
 set.seed(17)
-bc.bcf <- dbarts:::bartcoreBCFSampler(
-  dbarts(x, rnorm(n), test = x.test, control = controlTestOffset()),
-  rbinom(n, 1L, 0.5),
-  n.trees.treatment = 10L
+z <- rbinom(n, 1L, 0.5)
+sampler.bcf <- dbarts(
+  x,
+  rnorm(n),
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 10L)),
+  control = controlTestOffset()
 )
 expect_error(
-  bartcoreSetCategoryTestOffset(bc.bcf, testOffset),
-  "requires a multinomial"
+  sampler.bcf$setCategoryTestOffset(testOffset),
+  "no count response"
 )
 
 # nTest and K are the current test store's, and the refusal names both. A
-# transposed matrix carries exactly nTest * K entries, so a length test alone
-# would install it cell by cell into the wrong rows.
+# column-count mismatch is caught R-side; a matching column count but wrong
+# row count (the TRAIN offset shape, only accidentally n x K here) reaches the
+# bridge's own row-count guard, which the R layer does not track.
 expect_error(
-  bartcoreSetCategoryTestOffset(bc.plain, testOffset[, seq_len(2L)]),
-  "category test offset"
+  sampler.plain$setCategoryTestOffset(testOffset[, seq_len(2L)]),
+  "3 categories"
 )
 expect_error(
-  .Call(
-    dbarts:::C_dbarts_bartcore_setCategoryTestOffset,
-    bc.plain$ptr,
-    t(testOffset)
-  ),
-  "14 observations x 3 categories"
+  sampler.plain$setCategoryTestOffset(t(testOffset)),
+  "3 categories"
 )
+# a flat vector is refused rather than recycled across the categories
 expect_error(
-  .Call(
-    dbarts:::C_dbarts_bartcore_setCategoryTestOffset,
-    bc.plain$ptr,
-    rep(0.5, nTest * K)
-  ),
-  "14 observations x 3 categories"
+  sampler.plain$setCategoryTestOffset(rep(0.5, nTest * K)),
+  "numeric matrix"
 )
 # the TRAIN offset is not a test offset even though both are n x K matrices
 # here only by the accident of the test rows being a subset
 expect_error(
-  .Call(
-    dbarts:::C_dbarts_bartcore_setCategoryTestOffset,
-    bc.plain$ptr,
-    offset
-  ),
+  sampler.plain$setCategoryTestOffset(offset),
   "14 observations x 3 categories"
 )
-# every non-finite entry is refused, at both layers
+# every non-finite entry is refused
 for (bad in c(NA_real_, NaN, Inf, -Inf)) {
   spoiled <- testOffset
   spoiled[3L, 2L] <- bad
   expect_error(
-    bartcoreSetCategoryTestOffset(bc.plain, spoiled),
-    "finite"
-  )
-  expect_error(
-    .Call(
-      dbarts:::C_dbarts_bartcore_setCategoryTestOffset,
-      bc.plain$ptr,
-      spoiled
-    ),
+    sampler.plain$setCategoryTestOffset(spoiled),
     "finite"
   )
 }
 
 # without test rows there is nothing for a per-test-row offset to describe, and
 # accepting one would leave it silently unread
-host.notest <- dbarts(x, as.double(labels), control = controlTestOffset())
-bc.notest <- dbarts:::bartcoreMultinomialCountSampler(
-  host.notest,
-  counts,
-  K = K
+sampler.notest <- dbarts(
+  dbartsData(x, counts = counts),
+  family = "multinomial",
+  control = controlTestOffset()
 )
 expect_error(
-  bartcoreSetCategoryTestOffset(bc.notest, testOffset),
-  "requires test data"
-)
-expect_error(
-  dbarts:::bartcoreMultinomialCountSampler(
-    host.notest,
-    counts,
-    K = K,
-    offset.test = testOffset
-  ),
+  sampler.notest$setCategoryTestOffset(testOffset),
   "requires test data"
 )
 # and clearing on such a sampler is a no-op rather than an error
-expect_silent(bartcoreSetCategoryTestOffset(bc.notest, NULL))
+expect_silent(sampler.notest$setCategoryTestOffset(NULL))
 
 # a refusal leaves the sampler byte-identical: the entrance validates a whole
 # scratch copy and swaps it in only once it holds, because the combiner borrows
 # the installed buffer and an in-place write would BE the mutation
 refusalArmTestOffset <- function(attempt) {
   set.seed(808)
-  bc <- buildSamplerTestOffset(offset, testOffset)
+  sampler <- buildSamplerTestOffset(offset, testOffset)
   refused <- if (is.null(attempt)) {
     NA_character_
   } else {
     tryCatch(
       {
-        bartcoreSetCategoryTestOffset(bc, attempt)
+        sampler$setCategoryTestOffset(attempt, updateState = FALSE)
         NA_character_
       },
       error = conditionMessage
@@ -344,7 +315,7 @@ refusalArmTestOffset <- function(attempt) {
   }
   c(
     list(refused = refused),
-    recordChannelsTestOffset(bc, bartcoreRun(bc, 15L, 5L))
+    recordChannelsTestOffset(sampler, sampler$run(15L, 5L))
   )
 }
 spoiled <- testOffset
@@ -359,47 +330,39 @@ expect_identical(arm.refused$train, arm.untouched$train)
 # than reinterpreted: the offset describes the rows being replaced, and a row
 # count that happens to match is not consent. Clearing first is the way
 # through, on both test-predictor entries and on the removal form. ---
-bc.resident <- buildSamplerTestOffset(offset, testOffset)
+sampler.resident <- buildSamplerTestOffset(offset, testOffset)
 expect_error(
-  bartcoreSetTestPredictor(bc.resident, x[seq_len(nTest) + nTest, ]),
+  sampler.resident$setTestPredictor(x[seq_len(nTest) + nTest, ]),
   "clear it"
 )
-# including the removal form, which the R wrapper cannot express (it matricizes
-# its argument), so the C entry is called directly
+expect_error(sampler.resident$setTestPredictor(NULL), "clear it")
 expect_error(
-  .Call(dbarts:::C_dbarts_bartcore_setTestPredictor, bc.resident$ptr, NULL),
+  sampler.resident$setTestPredictorAndOffset(NULL, NULL),
   "clear it"
 )
 expect_error(
-  .Call(
-    dbarts:::C_dbarts_bartcore_setTestPredictorAndOffset,
-    bc.resident$ptr,
+  sampler.resident$setTestPredictorAndOffset(
     x[seq_len(nTest) + nTest, ],
     NULL
   ),
   "clear it"
 )
-bartcoreSetCategoryTestOffset(bc.resident, NULL)
+sampler.resident$setCategoryTestOffset(NULL, updateState = FALSE)
 expect_silent(
-  bartcoreSetTestPredictor(bc.resident, x[seq_len(nTest) + nTest, ])
+  sampler.resident$setTestPredictor(x[seq_len(nTest) + nTest, ])
 )
-expect_true(all(is.finite(bartcoreRun(bc.resident, 0L, 3L)$test)))
+expect_true(all(is.finite(sampler.resident$run(0L, 3L)$test)))
 
 # --- The FLAT test offset stays refused on a softmax coupling, forever and
 # truthfully: after the blend it moves the reported values off the simplex, and
 # before it a common per-observation shift is the softmax's own null direction.
 # The message now names the matrix entry that does work. ---
 expect_error(
-  bartcoreSetTestOffset(bc.plain, rep(0.5, nTest)),
+  sampler.plain$setTestOffset(rep(0.5, nTest)),
   "category test offset channel"
 )
 expect_error(
-  .Call(
-    dbarts:::C_dbarts_bartcore_setTestPredictorAndOffset,
-    bc.plain$ptr,
-    x.test,
-    rep(0.5, nTest)
-  ),
+  sampler.plain$setTestPredictorAndOffset(x.test, rep(0.5, nTest)),
   "category test offset channel"
 )
 
@@ -408,56 +371,40 @@ expect_error(
 # being named; an explicit all-zero matrix is how the offset-free surface is
 # asked for. A sampler holding no category offset keeps predicting as before. ---
 set.seed(313)
-bc.pred <- buildSamplerTestOffset(
+sampler.pred <- buildSamplerTestOffset(
   offset,
   NULL,
   keepTrees = TRUE,
   n.samples = 4L
 )
-bartcoreRun(bc.pred, 15L, 4L)
+sampler.pred$run(15L, 4L)
 expect_error(
-  bartcorePredict(bc.pred, x.test),
+  sampler.pred$predict(x.test),
   "cannot be inferred"
 )
-expect_silent(bartcorePredict(bc.pred, x.test, zeroTestOffset))
+expect_silent(sampler.pred$predict(x.test, zeroTestOffset))
 # the row count is the PREDICTED rows', not the sampler's
 expect_error(
-  bartcorePredict(bc.pred, x.test, zeroTestOffset[seq_len(5L), ]),
-  "14 x 3 matrix"
+  sampler.pred$predict(x.test, zeroTestOffset[seq_len(5L), ]),
+  "per-category matrix"
 )
 expect_error(
-  .Call(
-    dbarts:::C_dbarts_bartcore_predict,
-    bc.pred$ptr,
-    x.test,
-    zeroTestOffset[seq_len(5L), ],
-    1L
-  ),
-  "14 observations x 3 categories"
-)
-expect_error(
-  .Call(
-    dbarts:::C_dbarts_bartcore_predict,
-    bc.pred$ptr,
-    x.test,
-    matrix(NA_real_, nTest, K),
-    1L
-  ),
+  sampler.pred$predict(x.test, matrix(NA_real_, nTest, K)),
   "finite"
 )
 set.seed(313)
-bc.pred.none <- buildSamplerTestOffset(
+sampler.pred.none <- buildSamplerTestOffset(
   NULL,
   NULL,
   keepTrees = TRUE,
   n.samples = 4L
 )
-bartcoreRun(bc.pred.none, 15L, 4L)
-expect_silent(bartcorePredict(bc.pred.none, x.test))
+sampler.pred.none$run(15L, 4L)
+expect_silent(sampler.pred.none$predict(x.test))
 # and an offset supplied there is honored all the same
 expect_false(isTRUE(all.equal(
-  bartcorePredict(bc.pred.none, x.test, testOffset),
-  bartcorePredict(bc.pred.none, x.test)
+  sampler.pred.none$predict(x.test, testOffset),
+  sampler.pred.none$predict(x.test)
 )))
 
 # the refusal keys on EITHER resident offset, not the train one alone: a
@@ -465,19 +412,18 @@ expect_false(isTRUE(all.equal(
 # no-offset predict exactly as the train-offset-only sampler above does,
 # rather than silently reporting the offset-free surface.
 set.seed(313)
-bc.pred.testonly <- buildSamplerTestOffset(
+sampler.pred.testonly <- buildSamplerTestOffset(
   NULL,
   testOffset,
   keepTrees = TRUE,
   n.samples = 4L
 )
-bartcoreRun(bc.pred.testonly, 15L, 4L)
+sampler.pred.testonly$run(15L, 4L)
 expect_error(
-  bartcorePredict(bc.pred.testonly, x.test),
+  sampler.pred.testonly$predict(x.test),
   "cannot be inferred"
 )
-expect_silent(bartcorePredict(
-  bc.pred.testonly,
+expect_silent(sampler.pred.testonly$predict(
   x.test,
   zeroTestOffset
 ))

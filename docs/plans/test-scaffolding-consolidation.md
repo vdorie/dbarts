@@ -222,6 +222,15 @@ S5. Test-only creators, wrappers and bypass tests (R + bridge; neutral).
     C_interface.cpp reaches the same guard (the `refuseMultiForest*`
     family is shared). It stays raw only for a memory-safety backstop.
     Otherwise it is dropped.
+  - From the multinomial review: setTestOffset's "no off-sample basis"
+    raw pin is a drop candidate (the guard is pinned through $predict
+    and $setTestPredictor, and it is not memory safety); the bridge's
+    setCalibration wordings, "forests carry amplitudes", "requires a
+    multinomial" and the keepTrees caveat are unreachable from R (the
+    R methods refuse first and the C API has no setter): collapse each
+    to one message and drop their raw pins. The sbc.R BCF and
+    multinomial arms must be off the internal creators before this
+    slice deletes them.
   - Retire or re-point the doc cites (Verification).
   ~550 lines, mostly deletion.
   Gates: `R CMD INSTALL --preclean`; full tinytest; tests/cpp;
@@ -509,3 +518,179 @@ and bcf-latent-exact.R, all OK; `lintr::lint_package()` clean;
 `air format --check .` clean; `tools/check-doc-freshness.R` OK (one stale
 quoted-fragment cite in docs/plans/forest-cache-drift.md repointed to the
 respelled test-bcf.R line).
+
+Slice S2 LANDED (pending hash): PARTIAL. Eight of the ten tinytest files
+migrated off `dbarts:::bartcoreMultinomialSampler`/
+`-MultinomialCountSampler` and the inst/common/bartcoreHandle.R wrappers,
+onto `dbarts(x, factor(labels), family = "multinomial")` /
+`dbarts(dbartsData(x, counts = ), family = "multinomial")` and the
+`dbartsSampler` methods: test-multinomial-surface.R,
+test-multinomial-category-offset.R, test-multinomial-test-offset.R,
+test-multinomial-counts-mutation.R, test-calibration-creation.R,
+test-calibration-midchain.R, test-composition-sequences.R and
+test-fits-without-offset.R. Budget (~650) reached 1.5x at these eight;
+test-forest-basis-r5.R, test-bcf-reporting.R and the four benchmarks
+(multinomial-equivalence.R, multinomial-exact.R, composition-matrix.R,
+sbc.R) are UNMIGRATED - they still call the internal creators, which no
+production code touched and which stay in place either way (no deletion
+at this slice), so the suite is green regardless and a follow-on run can
+finish the file list.
+
+Dropped as vacuous or no longer reachable, per the Steps rule:
+test-multinomial-surface.R's public-vs-internal "reproduction gate" itself
+is KEPT (not vacuous - it still checks bart()'s own translation layer
+against an independently-built `dbarts()` call, unlike the BCF
+public-vs-internal oracle S1 dropped, where both sides were the identical
+public spelling), but its internal creator's own K-vs-label-range guard
+("label out of range") has no analog once K is always `nlevels(factor())`,
+so it was dropped rather than restated; test-calibration-creation.R's
+internal-constructor calibration check (`bartcoreMultinomialSampler(host,
+labels, K = 3L)`, "softmax calibration map") is dropped as redundant with
+the very next assertion in the same file, which already reaches the same
+fact ("a named 'prior.scale'") through `bart(family = "multinomial")`;
+test-fits-without-offset.R's multinomial cell drops its "keepTrees" caveat
+line (bridge-only, unreachable once the R5 method's own
+`refuseCountsMutation` intercepts first). Also dropped, under A3's rule
+applied early: the raw `.Call` twins of refusals the methods now raise
+R-side first - the bridge's category-offset shape, type and finiteness
+checks (test-multinomial-category-offset.R and
+test-multinomial-test-offset.R), its duplicate predict offset-shape pins,
+its setCounts type and empty-row checks, and the internal count
+creator's own creation-time test-offset refusal. Restored by the second
+reader: the bridge's negative and NA setCounts pins (A3's named
+memory-safety backstop) and `$setTestPredictor(NULL)` under a resident
+category test offset, the public route to that entry's removal branch.
+Net across the eight files: 17 dropped, 3 restored.
+
+Coverage gaps found beyond the two the S1 reviewer flagged (both closed):
+the bridge's `refuseMultiForestMutation` backstop on setData/setModel has
+no public route on EITHER multi-forest kind - a multinomial sampler's own
+`$setData`/`$setModel` refuse R-side via `refuseCountsMutation` first, as a
+BCF sampler's do via `refuseAmplitudeMutation` (test-bcf-mutation-pins.R) -
+so test-multinomial-counts-mutation.R now carries the one raw-pointer
+`.Call` pin for it (KEEP-ADDITIVE per A3); the bridge's "no off-sample
+basis" refusal on setTestOffset is likewise unreachable - a BCF sampler can
+never carry test data through the public route at all (multi-forest
+creation refuses `test =`), so `$setTestOffset`'s own "test matrix is
+NULL" precondition always fires first - pinned the same way, same file.
+Two more of the same shape were found and NOT pinned, being outside the
+two flagged items: the bridge's two-forest-vs-generic "calibration map"
+wording split in test-calibration-midchain.R (already an intentional raw
+probe predating this slice, left as is) and multinomial creation's own
+"do not support a flat offset" bridge wording (test-multinomial-surface.R),
+respelled instead against the public route's own R-side wording
+("softmax's own null direction"), reachable by building the count-matrix
+data object directly with a flat offset already on it.
+
+Traps found beyond the plan's own list: a multi-forest (BCF or multinomial)
+sampler cannot carry `test =` at creation through the public route at all
+("a treatment forest does not support test predictors"), where the old
+internal BCF creator took a host that already carried one; `$run()` reads
+`control@keepFits` (default TRUE, matching `bartcoreRun`'s hardcoded TRUE)
+and calls `warnOnGPFallback` itself, where `bartcoreRun` did neither (no
+GP leaves in any migrated file, so neutral here); installing a category
+offset via `$setCategoryOffset` after creation is bitwise the same engine
+as baking it into `data@offset.category` before creation, verified by A/B
+on every scenario (plain, with test data, with a category offset, for both
+the label and grouped-count response forms).
+
+Gates: full tinytest (shipped) 9207/9207 (9222 minus 15 dropped per the
+paragraph above, across the eight migrated files); multinomial-equivalence.R
+`--bitwise` on the reference build, 11/11 scenarios identical (no `max |z|`
+line), against benchmarks/baselines/multinomial-equivalence-80b1c8d4.rds;
+bcf-equivalence.R `--bitwise` on the reference build, 15/15 identical,
+against bcf-equivalence-d49e2103.rds (unaffected by this slice, run to
+confirm no accidental production touch); exact-gates quick for
+multinomial-exact.R, OK on all seven arms; `lintr::lint_package()` clean;
+`air format --check .` clean; `tools/check-doc-freshness.R` OK after
+repointing two stale quoted-fragment cites in
+docs/design/multinomial-mutation-arc.md to the respelled
+test-multinomial-counts-mutation.R/test-calibration-midchain.R lines, and
+correcting docs/design/threaded-predict.md's raw-`.Call` site count
+(six to three, with the other two `retired:` - migrated onto `$predict`).
+
+Slice S2 LANDED (pending hash), second commit: test-forest-basis-r5.R,
+test-bcf-reporting.R, multinomial-equivalence.R, multinomial-exact.R and
+composition-matrix.R migrated; sbc.R's BCF and multinomial arms are NOT -
+see below. test-forest-basis-r5.R's own A5 site (`attr(control,
+"bartcore.forests")$params` edited before `new()`) is KEPT as the plan's
+Steps section anticipated: it pokes a raw param slot (a basis-carrying
+forest's half-Cauchy SCALE, always 0 under every public forest() spelling,
+since a basis forest's amplitude is structurally fixed-variance) that no
+`forest()` argument can reach, so it stays exactly as written, already on
+the class-API route (`new("dbartsSampler", spec$control, spec$model,
+spec$data)`) rather than a handle. Its raw `.Call` re-checking
+`$setForestBasis`'s own non-finite refusal is likewise unchanged - it is
+already a defense-in-depth probe on a public sampler's pointer, not a
+handle-creator leftover.
+
+test-calibration-midchain.R's `bartcoreSetForestPriorScale` probe (flagged
+in the first commit's report) is folded per the plan's rule: it was a
+plain wrapper call, so S5 owns the wrapper's removal regardless of
+reachability, and the wording it pins (the bridge's two-forest-vs-generic
+"calibration map" split) has no public route - `$setCalibration` always
+hits `refuseAmplitudeMutation`'s generic wording first on any
+amplitude-carrying sampler. Both call sites now go through a raw pointer
+`.Call(C_dbarts_bartcore_setCalibration, sampler$getPointer(), 0L, 1.5)`
+directly, KEEP-ADDITIVE, with the wrapper gone from this file.
+
+multinomial-equivalence.R and multinomial-exact.R's internal creator
+calls folded onto `dbarts(x, factor(labels), family = "multinomial")` /
+`dbarts(dbartsData(x, counts = ), family = "multinomial")` and the
+`dbartsSampler` methods, one scenario/arm at a time, each verified against
+its own baseline or exact target rather than by a separate A/B script
+(the compare/exact-gate run IS the A/B proof, across every scenario at
+once). multinomial-exact.R's arm 3 A5 site (`data@varTypes[1] <-
+1L` marking a constant 0/1 predictor categorical) is respelled as a
+`data.frame` with an actual `factor` column for both `x` and its test
+matrix, verified to produce the same `varTypes`/`n.cuts` coding as the
+old handle route before editing the arm; its `family = "logistic"` host
+(arm 2) drops a redundant second internal creation entirely, using the
+already-public `dbarts(..., family = "logistic")` sampler directly - the
+same fold arm 2's OWN multinomial half needed for its throwaway host.
+Every multinomial-exact.R arm intentionally SHIFTS draws (it is a
+statistical, tolerance-gated harness, not bitwise), confirmed by a quick-mode
+rerun landing well inside every arm's tolerance band.
+
+composition-matrix.R: `multinomActiveRows` folded onto the same
+`dbarts(d$x, factor(d$label), family = "multinomial", control = ctl(seed))`
+spelling the file's neighboring `multinomBase` already used, then
+`$setActiveRows`. This file fails at the base commit before either
+function runs, on an unrelated `feature-matrix.md` table-header lookup
+(`no unique table header for` `` `bart2()` ``); confirmed pre-existing on
+`a37bb3cd` and left as is per instruction - not fixed, and the migrated
+code verified separately, in isolation, since the file's own run never
+reaches it.
+
+sbc.R NOT migrated: budget (~400, 1.5x stop at 600) reached after the
+five files above (roughly 350 changed lines). Its BCF and multinomial
+arms are not a contained block - `.bcfNew`/`.bcfRun`/`.bcfGlue`/
+`.bcfForest`/`.bcfSetResponse`/`.bcfStoreState`/`.bcfSetState` and the raw
+`sampleTreesFromPrior`/`sampleNodeParametersFromPrior` `.Call`s recur
+throughout `sbcFamilySpec`'s BCF branch and `sbcMakeMultinomial`, woven
+into a simulation-based calibration harness spanning roughly a thousand
+lines (~1114-2260). Investigation before stopping: every one of those
+aliases DOES have a public equivalent reachable without refusal -
+`dbarts(forests = )`, `$run`, `$getForestAmplitudes`, `$getForestFits`,
+`$sampleTreesFromPrior`, `$sampleNodeParametersFromPrior`, and, the one
+that looked doubtful, `$setResponse(y, updateScale = FALSE)`: BCF's
+`refuseAmplitudeMutation` gates only on `isTRUE(updateScale)`
+(R/bartcore.R bartcoreSamplerSetResponse), and every sbc.R call site
+already passes `FALSE`, so the reused-sampler-across-replications pattern
+`.bcfSetResponse` exists for is not actually blocked by the public route.
+`sbcInstallBCFGlue`'s direct state-block write
+(`state[[1L]][["glue"]][4:6] <- ...`) also has a public path:
+`$storeState()` / `$state` / `$setState()`. So this is very likely a
+straightforward, if long, mechanical fold - not a case needing A5's
+"else KEEP" - but confirming that across every arm and re-running the
+full SBC suite was more than this commit's remaining budget covers.
+Left for a follow-on run.
+
+Gates (this commit): full tinytest (shipped) 9207/9207 (unchanged from the
+first commit - no test dropped or added); multinomial-equivalence.R
+`--bitwise` on the reference build, 11/11 identical; bcf-equivalence.R
+`--bitwise` on the reference build, 15/15 identical (unaffected by this
+commit, re-run to confirm no accidental touch); multinomial-exact.R quick,
+OK on all seven arms; `lintr::lint_package()` clean (benchmarks/ is not in
+its scan); `air format --check .` clean; `tools/check-doc-freshness.R` OK,
+no cite touched this commit.

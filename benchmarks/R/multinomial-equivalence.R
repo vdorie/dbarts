@@ -13,18 +13,18 @@
 # output seams, so this fixture inherit-guards them the way bcf-equivalence.R
 # guards the BCF report branches - the same lesson, verbatim.
 #
-# Each scenario drives an internal multinomial creation surface (R/bartcore.R;
+# Each scenario drives the public multinomial creation surface (R/dbarts.R;
 # docs/design/multinomial.md) - the single-trial label path
-# (bartcoreMultinomialSampler) for k3/k2, the grouped-count path
-# (bartcoreMultinomialCountSampler) for k3counts and its mid-chain response
-# swap for k3countsswap - at a fixed seed, single chain, one thread, and
-# records:
+# (dbarts(x, factor(labels), family = "multinomial")) for k3/k2, the
+# grouped-count path (dbarts(dbartsData(x, counts = ), family =
+# "multinomial")) for k3counts and its mid-chain response swap for
+# k3countsswap - at a fixed seed, single chain, one thread, and records:
 #   - result$train, the K softmax-probability channels (n x K x n.samples),
 #   - result$test, the same K softmax channels on a held-out x.test slice
 #     (n.test x K x n.samples) - the C1 test-at-creation addition,
-#   - the raw per-category forest fits (bartcoreForestFits 0 .. K-1),
-#   - the per-category CUMULATIVE variable counts (bartcoreForestVariableCounts
-#     0 .. K-1) - a final-state query, distinct from runVarcount below,
+#   - the raw per-category forest fits ($getForestFits 1 .. K),
+#   - the per-category CUMULATIVE variable counts ($getForestVariableCounts
+#     1 .. K) - a final-state query, distinct from runVarcount below,
 #   - result$varcount (runVarcount), the per-sample per-category run channel
 #     (p x K x n.samples) - the widened storeSample varcount write.
 #
@@ -71,11 +71,6 @@
 # tight deviation bound that is the real gate, tier 2 a decoupled statistical
 # fallback that adjudicates and never certifies. Compare only; a recording is
 # host-local by definition.
-
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -165,12 +160,12 @@ recordChannels <- function(bc, result, K) {
     train = result$train,
     test = result$test,
     forestFits = lapply(
-      seq_len(K) - 1L,
-      function(k) bartcoreForestFits(bc, k)
+      seq_len(K),
+      function(k) bc$getForestFits(k)
     ),
     varcount = lapply(
-      seq_len(K) - 1L,
-      function(k) bartcoreForestVariableCounts(bc, k)
+      seq_len(K),
+      function(k) bc$getForestVariableCounts(k)
     ),
     runVarcount = result$varcount
   )
@@ -203,15 +198,15 @@ runScenarios <- function() {
     # a held-out slice of x drives the additive test channel; slicing consumes
     # no rng, so labels/x above are byte-identical to the pre-test-channel run
     x.test <- x[seq_len(25L), , drop = FALSE]
-    sampler <- dbarts(
+    set.seed(seeds[["k3.engine"]])
+    bc <- dbarts(
       x,
-      as.double(labels),
+      factor(labels, levels = seq.int(0L, K - 1L)),
       test = x.test,
+      family = "multinomial",
       control = makeControl()
     )
-    set.seed(seeds[["k3.engine"]])
-    bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     result$k3 <- recordChannels(bc, res, K)
   }
 
@@ -222,21 +217,21 @@ runScenarios <- function() {
     x <- matrix(runif(n * p), n, p)
     labels <- rbinom(n, 1L, plogis(2 * (x[, 1L] - 0.5) + x[, 2L]))
     x.test <- x[seq_len(25L), , drop = FALSE]
-    sampler <- dbarts(
+    set.seed(seeds[["k2.engine"]])
+    bc <- dbarts(
       x,
-      as.double(labels),
+      factor(labels, levels = seq.int(0L, K - 1L)),
       test = x.test,
+      family = "multinomial",
       control = makeControl()
     )
-    set.seed(seeds[["k2.engine"]])
-    bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     result$k2 <- recordChannels(bc, res, K)
   }
 
   # (c) K = 3, GROUPED COUNTS (n_i > 1): a count matrix rather than single-trial
   # labels, driving the count-native combiner (the PG(n_i) summing draw and the
-  # (y - n_i/2) working response) through bartcoreMultinomialCountSampler. Its
+  # (y - n_i/2) working response) through dbartsData(counts = ). Its
   # seeds are LITERALS kept out of the guarded `seeds` vector above so
   # settingsList() stays identical to the single-trial 5afb09a baseline and the
   # neutrality compare against it still runs (that compare checks only the k3/k2
@@ -259,15 +254,13 @@ runScenarios <- function() {
       integer(K)
     ))
     x.test <- x[seq_len(25L), , drop = FALSE]
-    sampler <- dbarts(
-      x,
-      as.double(counts[, 1L]),
-      test = x.test,
+    set.seed(7003L)
+    bc <- dbarts(
+      dbartsData(x, counts = counts, test = x.test),
+      family = "multinomial",
       control = makeControl()
     )
-    set.seed(7003L)
-    bc <- dbarts:::bartcoreMultinomialCountSampler(sampler, counts, K = K)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     result$k3counts <- recordChannels(bc, res, K)
   }
 
@@ -300,17 +293,17 @@ runScenarios <- function() {
     )
     x2 <- matrix(runif(n * p), n, p)
     x.test <- x[seq_len(25L), , drop = FALSE]
-    sampler <- dbarts(
+    set.seed(7004L)
+    bc <- dbarts(
       x,
-      as.double(labels),
+      factor(labels, levels = seq.int(0L, K - 1L)),
       test = x.test,
+      family = "multinomial",
       control = makeControl()
     )
-    set.seed(7004L)
-    bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
-    bartcoreRun(bc, n.burn, n.samples)
-    bartcoreSetPredictor(bc, x2, forceUpdate = TRUE)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$run(n.burn, n.samples)
+    bc$setPredictor(x2, forceUpdate = TRUE)
+    res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res, K)
   })
 
@@ -353,17 +346,17 @@ runScenarios <- function() {
     d <- makeK3(6005L)
     set.seed(6105L)
     x2 <- pmin(pmax(d$x + matrix(rnorm(n * p, 0, 0.002), n, p), 0), 1)
-    sampler <- dbarts(
+    set.seed(7005L)
+    bc <- dbarts(
       d$x,
-      as.double(d$labels),
+      factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = d$x[seq_len(25L), , drop = FALSE],
+      family = "multinomial",
       control = makeControl()
     )
-    set.seed(7005L)
-    bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
-    bartcoreRun(bc, n.burn, n.samples)
-    accepted <- bartcoreSetPredictor(bc, x2)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$run(n.burn, n.samples)
+    accepted <- bc$setPredictor(x2, forceUpdate = FALSE)
+    res <- bc$run(n.burn, n.samples)
     c(recordChannels(bc, res, d$K), list(accepted = accepted))
   })
 
@@ -373,17 +366,17 @@ runScenarios <- function() {
     d <- makeK3(6006L)
     set.seed(6106L)
     v <- pmin(pmax(d$x[, 2L] + rnorm(n, 0, 0.02), 0), 1)
-    sampler <- dbarts(
+    set.seed(7006L)
+    bc <- dbarts(
       d$x,
-      as.double(d$labels),
+      factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = d$x[seq_len(25L), , drop = FALSE],
+      family = "multinomial",
       control = makeControl()
     )
-    set.seed(7006L)
-    bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
-    bartcoreRun(bc, n.burn, n.samples)
-    accepted <- bartcoreUpdatePredictor(bc, v, 2L)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$run(n.burn, n.samples)
+    accepted <- bc$setPredictor(v, 2L, forceUpdate = FALSE)
+    res <- bc$run(n.burn, n.samples)
     c(recordChannels(bc, res, d$K), list(accepted = accepted))
   })
 
@@ -392,21 +385,21 @@ runScenarios <- function() {
   # put every one of them back.
   result$k3reject <- local({
     d <- makeK3(6007L)
-    sampler <- dbarts(
+    set.seed(7007L)
+    bc <- dbarts(
       d$x,
-      as.double(d$labels),
+      factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = d$x[seq_len(25L), , drop = FALSE],
+      family = "multinomial",
       control = makeControl()
     )
-    set.seed(7007L)
-    bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
-    bartcoreRun(bc, n.burn, n.samples)
-    accepted <- bartcoreUpdatePredictor(
-      bc,
+    bc$run(n.burn, n.samples)
+    accepted <- bc$setPredictor(
       ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
-      1L
+      1L,
+      forceUpdate = FALSE
     )
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     c(recordChannels(bc, res, d$K), list(accepted = accepted))
   })
 
@@ -424,17 +417,17 @@ runScenarios <- function() {
     d <- makeK3(6008L)
     set.seed(6108L)
     v <- pmin(pmax(d$x[, 2L] + rnorm(n, 0, 0.02), 0), 1)
-    sampler <- dbarts(
+    set.seed(7008L)
+    bc <- dbarts(
       d$x,
-      as.double(d$labels),
+      factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = d$x[seq_len(25L), , drop = FALSE],
+      family = "multinomial",
       control = makeControl()
     )
-    set.seed(7008L)
-    bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
-    bartcoreRun(bc, n.burn, n.samples)
-    installed <- bartcoreUpdatePredictorPerObservation(bc, v, 2L)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$run(n.burn, n.samples)
+    installed <- bc$setPredictor(v, 2L, forceUpdate = "partial")
+    res <- bc$run(n.burn, n.samples)
     c(recordChannels(bc, res, d$K), list(installed = installed))
   })
 
@@ -443,21 +436,21 @@ runScenarios <- function() {
   # sampler on a partly installed column.
   result$k3perobspartial <- local({
     d <- makeK3(6009L)
-    sampler <- dbarts(
+    set.seed(7009L)
+    bc <- dbarts(
       d$x,
-      as.double(d$labels),
+      factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = d$x[seq_len(25L), , drop = FALSE],
+      family = "multinomial",
       control = makeControl()
     )
-    set.seed(7009L)
-    bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
-    bartcoreRun(bc, n.burn, n.samples)
-    installed <- bartcoreUpdatePredictorPerObservation(
-      bc,
+    bc$run(n.burn, n.samples)
+    installed <- bc$setPredictor(
       ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
-      1L
+      1L,
+      forceUpdate = "partial"
     )
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     c(recordChannels(bc, res, d$K), list(installed = installed))
   })
 
@@ -485,29 +478,25 @@ runScenarios <- function() {
     offset.test <- matrix(rnorm(n.test * d$K, 0, 0.5), n.test, d$K)
     offset2 <- matrix(rnorm(n * d$K, 0, 0.5), n, d$K)
     offset.test2 <- matrix(rnorm(n.test * d$K, 0, 0.5), n.test, d$K)
-    sampler <- dbarts(
+    set.seed(7010L)
+    bc <- dbarts(
       d$x,
-      as.double(d$labels),
+      factor(d$labels, levels = seq.int(0L, d$K - 1L)),
       test = x.test,
+      family = "multinomial",
       control = makeControl()
     )
-    set.seed(7010L)
-    bc <- dbarts:::bartcoreMultinomialSampler(
-      sampler,
-      d$labels,
-      K = d$K,
-      offset = offset,
-      offset.test = offset.test
-    )
-    bartcoreRun(bc, n.burn, n.samples)
-    bartcoreSetCategoryOffset(bc, offset2)
-    bartcoreSetCategoryTestOffset(bc, offset.test2)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$setCategoryOffset(offset, updateState = FALSE)
+    bc$setCategoryTestOffset(offset.test, updateState = FALSE)
+    bc$run(n.burn, n.samples)
+    bc$setCategoryOffset(offset2, updateState = FALSE)
+    bc$setCategoryTestOffset(offset.test2, updateState = FALSE)
+    res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res, d$K)
   })
 
   # (k) K = 3 GROUPED COUNTS with a mid-chain RESPONSE swap: create on one n x K
-  # count matrix, run, replace the whole response through bartcoreSetCounts -
+  # count matrix, run, replace the whole response through $setCounts -
   # the trees carry over, fitted to the previous counts, and the next run forms
   # every category's working response against the new ones - then run again and
   # record the post-swap state. The swap stream was only TRANSITIVELY pinned
@@ -539,17 +528,15 @@ runScenarios <- function() {
     }
     counts <- drawCounts()
     counts2 <- drawCounts()
-    sampler <- dbarts(
-      x,
-      as.double(counts[, 1L]),
-      test = x[seq_len(25L), , drop = FALSE],
+    set.seed(7011L)
+    bc <- dbarts(
+      dbartsData(x, counts = counts, test = x[seq_len(25L), , drop = FALSE]),
+      family = "multinomial",
       control = makeControl()
     )
-    set.seed(7011L)
-    bc <- dbarts:::bartcoreMultinomialCountSampler(sampler, counts, K = K)
-    bartcoreRun(bc, n.burn, n.samples)
-    bartcoreSetCounts(bc, counts2)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$run(n.burn, n.samples)
+    bc$setCounts(counts2, updateState = FALSE)
+    res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res, K)
   })
 

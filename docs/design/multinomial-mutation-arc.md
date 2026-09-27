@@ -244,8 +244,8 @@ state. **There is no user-side mitigation today for any of the three
 families.** No shipped test covers this; no `saveRDS` appears in
 `test-multinomial-*.R`, `test-ordinal.R`, or `test-nbinom.R`.
 
-The engine half exists: store/restore work on a multinomial handle
-(["expect_silent(bartcoreSetState(bc.state, state.A))"](../../inst/tinytest/test-multinomial-counts-mutation.R)). What is missing is an
+The engine half exists: store/restore work on a multinomial sampler
+(["expect_silent(sampler.state$setState(state.A))"](../../inst/tinytest/test-multinomial-counts-mutation.R)). What is missing is an
 object to hang the state on, and somewhere for the counts to live - they
 are data and ride no state block ([The surface](multinomial.md#the-surface); that test
 file's header, ["the counts are not in the serialized state"](../../inst/tinytest/test-multinomial-counts-mutation.R)).
@@ -494,7 +494,7 @@ the RC cleanup waves flag; re-adding 12 lines later is trivial.
 **Test footprint, corrected: SEVEN files, not two and not five**
 (verified live): `test-dispersion-channel.R` (retired: the shell cell was
 deleted, not rewritten), ["$getFitsWithoutOffset()"](../../inst/tinytest/test-fits-without-offset.R),
-["the multinomial coupling, through the low-level handle"](../../inst/tinytest/test-calibration-midchain.R), ["log-sum-exp"](../../inst/tinytest/test-forest-weights-r5.R),
+["the multinomial coupling, through the public sampler"](../../inst/tinytest/test-calibration-midchain.R), ["log-sum-exp"](../../inst/tinytest/test-forest-weights-r5.R),
 `test-ordinal.R`, `test-nbinom.R`,
 ["fit3pMulti <- bart("](../../inst/tinytest/test-multinomial-surface.R). The
 ordinal and nbinom blocks pinned the FAMILY-SPECIFIC message text

@@ -16,25 +16,30 @@
 # engine from the identical inputs. Everything else is level-threading,
 # shape, and refusal coverage.
 
-# The internal-path comparator: resolves control/model/data (dbartsSpec, no
-# bartcore_create) and hands the triple to bartcoreMultinomialSampler, which
-# creates the one K-forest engine through the SAME bartcore_create dispatch
-# bart's direct construction reaches. No throwaway host, so a single
+# The internal-path comparator: builds the sampler through dbarts()'s own
+# public multinomial dispatch - the same dispatch bart's direct construction
+# reaches - independently of bart()'s own argument-translation layer
+# (buildHostSamplerCall, buildSamplerPriors). No throwaway host, so a single
 # set.seed() before each of the two constructions is expected to agree bit
 # for bit.
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
 
 # shared by internalMultinomialFit and internalMultinomialCountFit below,
-# which differ only in the sampler constructor and in how the response is
-# reduced to the dbartsData() double vector
+# which differ only in how the response reaches dbarts()
 internalMultinomialFitCore <- function(
-  ctor,
+  sampler,
+  n.burn,
+  n.samples,
+  offset = NULL
+) {
+  if (!is.null(offset)) {
+    sampler$setCategoryOffset(offset, updateState = FALSE)
+  }
+  sampler$run(n.burn, n.samples)
+}
+
+internalMultinomialFit <- function(
   x,
-  response,
-  responseForData,
+  labels,
   K,
   n.trees,
   n.burn,
@@ -49,38 +54,14 @@ internalMultinomialFitCore <- function(
     n.samples = n.samples,
     updateState = FALSE
   )
-  data <- if (is.null(test)) {
-    dbartsData(x, responseForData)
-  } else {
-    dbartsData(x, responseForData, test = test)
-  }
-  spec <- dbartsSpec(data, control = control)
-  bc <- ctor(spec, response, K = K, offset = offset)
-  bartcoreRun(bc, n.burn, n.samples)
-}
-
-internalMultinomialFit <- function(
-  x,
-  labels,
-  K,
-  n.trees,
-  n.burn,
-  n.samples,
-  test = NULL,
-  offset = NULL
-) {
-  internalMultinomialFitCore(
-    dbarts:::bartcoreMultinomialSampler,
+  sampler <- dbarts(
     x,
-    labels,
-    as.double(labels),
-    K,
-    n.trees,
-    n.burn,
-    n.samples,
+    factor(labels, levels = seq.int(0L, K - 1L)),
+    family = "multinomial",
     test = test,
-    offset = offset
+    control = control
   )
+  internalMultinomialFitCore(sampler, n.burn, n.samples, offset = offset)
 }
 
 n.trees <- 20L
@@ -362,8 +343,8 @@ expect_equal(dim(predMultiSplit), c(2L, 5L, 20L, 3L))
 
 # --- count-matrix response: an n x K count matrix beside the factor
 # path, both routed through bart's multinomial branch. The internal-path
-# comparator mirrors internalMultinomialFit above, substituting
-# bartcoreMultinomialCountSampler for bartcoreMultinomialSampler.
+# comparator mirrors internalMultinomialFit above, building the sampler over
+# dbartsData(counts = ) instead of a factor response.
 internalMultinomialCountFit <- function(
   x,
   counts,
@@ -374,18 +355,19 @@ internalMultinomialCountFit <- function(
   test = NULL,
   offset = NULL
 ) {
-  internalMultinomialFitCore(
-    dbarts:::bartcoreMultinomialCountSampler,
-    x,
-    counts,
-    as.double(counts[, 1L]),
-    K,
-    n.trees,
-    n.burn,
-    n.samples,
-    test = test,
-    offset = offset
+  control <- dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = n.trees,
+    n.samples = n.samples,
+    updateState = FALSE
   )
+  sampler <- dbarts(
+    dbartsData(x, counts = counts, test = test),
+    family = "multinomial",
+    control = control
+  )
+  internalMultinomialFitCore(sampler, n.burn, n.samples, offset = offset)
 }
 
 # K = 3, grouped counts (n_i > 1): the reproduction gate extended to the
@@ -706,29 +688,31 @@ expect_error(
   ),
   "softmax's own null direction"
 )
-# the internal constructor refuses a host offset for the same reason bart
-# does, rather than silently dropping it: the softmax is invariant to a common
-# per-observation shift, so a flat offset is inert and a meaningful one is n x K
-samplerOffset <- dbarts(
-  x2,
-  as.double(labels2),
-  offset = rep(0.5, n2),
-  control = dbartsControl(
-    n.chains = 1L,
-    n.threads = 1L,
-    n.trees = 5L,
-    updateState = FALSE
-  )
-)
+# a host offset is refused at multinomial creation for the same reason bart
+# does, rather than silently dropped: the softmax is invariant to a common
+# per-observation shift, so a flat offset is inert and a meaningful one is n x K.
+# Reached directly on a dbartsData already carrying both the count response
+# and the flat offset (onehot2, defined above) - the same creation dispatch
+# bart() and the factor/count-matrix forms above reach - so this is the
+# public route's own refusal, not a bridge-only one.
 expect_error(
-  dbarts:::bartcoreMultinomialSampler(samplerOffset, labels2, K = 2L),
-  "do not support a flat offset"
+  dbarts(
+    dbartsData(x2, counts = onehot2, offset = rep(0.5, n2)),
+    family = "multinomial",
+    control = dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 5L,
+      updateState = FALSE
+    )
+  ),
+  "softmax's own null direction"
 )
 # offset is train-side only. bart's own offset.test is caught at the R
 # boundary, before it would otherwise fall through to the host dbarts() call
-# (does not support 'offset.test'); the underlying host-object flat test
-# offset refusal, reached only by building the internal sampler directly,
-# names the internal channel instead of an unqualified "do not support"
+# (does not support 'offset.test'); the underlying flat test-offset refusal,
+# reached by building the count-matrix data object directly, names the
+# category test offset channel instead of an unqualified "do not support"
 expect_error(
   bart(
     x2,
@@ -742,21 +726,23 @@ expect_error(
   ),
   "does not support 'offset.test'"
 )
-samplerTestOffset <- dbarts(
-  x2,
-  as.double(labels2),
-  test = x2.test,
-  offset.test = rep(0.5, 15L),
-  control = dbartsControl(
-    n.chains = 1L,
-    n.threads = 1L,
-    n.trees = 5L,
-    updateState = FALSE
-  )
-)
 expect_error(
-  dbarts:::bartcoreMultinomialSampler(samplerTestOffset, labels2, K = 2L),
-  "category test offset is an nTest x K matrix"
+  dbarts(
+    dbartsData(
+      x2,
+      counts = onehot2,
+      test = x2.test,
+      offset.test = rep(0.5, 15L)
+    ),
+    family = "multinomial",
+    control = dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 5L,
+      updateState = FALSE
+    )
+  ),
+  "softmax's own null direction"
 )
 # setSigma is refused for the same class of reason: the softmax chain marks
 # itself binary-sigma (sigmaScale() is 1 and the redraw is gated off), so a
@@ -764,7 +750,8 @@ expect_error(
 # forest's leaf posterior precision
 samplerSigma <- dbarts(
   x2,
-  as.double(labels2),
+  factor(labels2),
+  family = "multinomial",
   control = dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
@@ -772,20 +759,11 @@ samplerSigma <- dbarts(
     updateState = FALSE
   )
 )
-bcSigma <- dbarts:::bartcoreMultinomialSampler(samplerSigma, labels2, K = 2L)
 expect_error(
-  .Call(dbarts:::C_dbarts_bartcore_setSigma, bcSigma$ptr, 5),
-  "response family fixes the residual standard deviation"
+  samplerSigma$setSigma(5),
+  "not available on a multinomial sampler"
 )
-# an out-of-range label (>= K) is refused by name, not a bare R indexing
-# error off the one-hot matrix it would otherwise build
-badLabels2 <- labels2
-badLabels2[1L] <- 2L
-expect_error(
-  dbarts:::bartcoreMultinomialSampler(samplerSigma, badLabels2, K = 2L),
-  "label out of range"
-)
-rm(samplerSigma, bcSigma)
+rm(samplerSigma)
 
 # --- argument leaks: buildMultinomialSampler
 # copies only power/base/proposal-probability fields into the K-forest

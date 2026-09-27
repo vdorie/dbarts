@@ -212,22 +212,11 @@ expect_error(
   "a named 'prior.scale'"
 )
 # (iii) the multinomial creation path, whose leaf scales come from the softmax
-# calibration map: the low-level handle still refuses at the bridge (no
-# R-level resolution runs on it), while bart now builds directly through
-# dbarts()'s own resolveSamplerSpec, whose multinomial-specific check catches
-# a named prior.scale earlier, with the same "a named 'prior.scale'" text
-# (i)/(ii) above use, before any sampler is created at all
-host <- dbarts(
-  xRef,
-  yRef,
-  control = refControl(),
-  node.prior = normal(scale = 1.5)
-)
+# calibration map: bart builds directly through dbarts()'s own
+# resolveSamplerSpec, whose multinomial-specific check catches a named
+# prior.scale before any sampler is created at all, with the same "a named
+# 'prior.scale'" text (i)/(ii) above use
 labels <- sample(0:2, nRef, replace = TRUE)
-expect_error(
-  dbarts:::bartcoreMultinomialSampler(host, labels, K = 3L),
-  "softmax calibration map"
-)
 expect_error(
   bart(
     xRef,
