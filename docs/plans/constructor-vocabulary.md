@@ -375,7 +375,7 @@ Sister suites, against the slice's library:
 
 ## Landing
 
-LANDED (pending hash), 2026-09-26, three commits: "Resolve the forest constructors by bare name
+LANDED 2026-09-26 (5960b3b9, 0f56bef4, 5227daa4), three commits: "Resolve the forest constructors by bare name
 inside the arguments that take them" (steps 1-4), "Recognize a formula's forest() term by its bare
 name only" (step 5), and "Unexport interactions, blocks, forest and varianceForest behind
 dbartsForests" (steps 6-10). The sister edits (step 11) are a separate pass against this build.

@@ -106,6 +106,10 @@ items
     a shift of ~0.9 posterior sd per cell, which is why the statistical
     tier is decoupled from the gate. Record:
     docs/plans/bcf-cross-host.md sec 2.
+  fit-na-action-null: door, no plan doc of its own. At fit time,
+    na.action = NULL falls back to na.omit on the formula path (R's
+    model.frame) but applies no action on the matrix path, which then errors
+    on a missing response. Found while planning predict's na.action.
   gp-followups: sampled lengthscales and low-rank kernels; gp() takes a
     fixed positive numeric lengthscale today. Sampling one needs a
     theta prior, per-sample theta channels in the state and flatten

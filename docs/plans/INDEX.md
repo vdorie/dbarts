@@ -91,7 +91,7 @@ Columns: `file | STATUS | one-liner`.
 | rd-records.md | LANDED 52c10e02, 2026-08-26 | Corrects several Rd/documentation records: `print.bart`/`print.rbart`, `xbart`'s return shape, the rbart `n.chains` code, and two composition-matrix harness bugs. |
 | surface-refusals.md | LANDED d48aef8a, 2026-08-26 | Refuses, by name, an argument that is a formal on a sibling method but foreign to the one actually called, across `predict`/`extract`/`fitted`/`residuals`/`survivalProbabilities`; also refuses fractional counts wherever an integer is required. |
 | extract-scalar-types.md | LANDED 98524aac, 2026-09-26 | Moves a fit's scalar parameter draws onto `extract` in the shape bartCause's `extract` methods use (`"sigma"`/`"k"`/`"varcount"` on `bart`, `"thresholds"` on ordinal, `"dispersion"` on negbin, the matching pieces on hurdle); removes the exported `draws()` generic and its five methods, which never reached main; drops the dead `"tau"` from summary's default variables and labels a multinomial fit's pooled probabilities `prob[level]`. |
-| constructor-vocabulary.md | LANDED (pending hash), 2026-09-26 | Unexports `interactions`, `blocks`, `forest` and `varianceForest`: they resolve by bare name inside the arguments that take them, a bare name the caller also binds taking the caller's value, and `dbartsForests` is their exported face; none reached main. |
+| constructor-vocabulary.md | LANDED 5227daa4, 2026-09-26 | Unexports `interactions`, `blocks`, `forest` and `varianceForest`: they resolve by bare name inside the arguments that take them, a bare name the caller also binds taking the caller's value, and `dbartsForests` is their exported face; none reached main. |
 
 ## Build / infra singletons
 
