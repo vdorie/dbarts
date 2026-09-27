@@ -740,7 +740,7 @@ benchmark, not a tinytest, so the run is a no-touch check);
 no doc cite touches this file's changed lines. ~217 changed lines (108
 insertions, 109 deletions), well under budget.
 
-Slice S3 LANDED (pending hash): the thirteen single-forest tinytest files,
+Slice S3 LANDED 2026-09-27 (88be9298): the thirteen single-forest tinytest files,
 inst/common/leafPriorChecks.R and the seven exact-gate benchmarks are off
 `dbarts:::bartcoreSampler` and the inst/common/bartcoreHandle.R wrappers
 (test-prior-init-composed-law.R keeps its source of that file for

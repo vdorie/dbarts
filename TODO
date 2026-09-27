@@ -326,6 +326,11 @@ items
     brainstorm rounds (sec 15, 16). Durable record
     docs/design/tree-mixing-proposals.md (ranking
     sec 4.1 as amended, specialization addendum sec 12).
+  vartypes-attribute: door, no plan doc of its own. dbartsData's
+    initialize and validateXTest honour a "varTypes" attribute on a user's
+    predictor matrix, which marks columns categorical by code; nothing
+    documents it, and tests use it to reach codings a factor cannot hold.
+    Document it, or refuse it in favour of factor and ordered columns.
   veto-arc-doors: a per-sweep vetoed-leaf diagnostics counter,
     R-readable - none exists in src/bartcore, so it is an additive new
     channel (docs/plans/release-candidate-review.md wave-5a landing
