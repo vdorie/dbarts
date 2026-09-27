@@ -11,12 +11,12 @@
 S <- 6L # posterior draws
 m <- 4L # observations
 set.seed(1L)
-piMat <- matrix(runif(S * m, 0.1, 0.9), S, m) # occupancy probabilities
+piMat <- matrix(runif(S * m, 0.1, 0.9), S, m) # zero-part probabilities
 fMat <- matrix(rnorm(S * m, 1, 0.5), S, m) # positive-part log-scale means
 sigmaDraws <- runif(S, 0.3, 0.8) # homoscedastic per-draw sigma
 
 # a bart fit whose ev channel is exactly piMat (probit: ev = pnorm(latent))
-occ <- structure(
+zero <- structure(
   list(
     family = "probit",
     yhat.train = qnorm(piMat),
@@ -41,7 +41,7 @@ h <- structure(
     call = call("NULL"),
     family = "hurdle.lognormal",
     y = numeric(m),
-    occupancy = occ,
+    zero = zero,
     positive = pos
   ),
   class = "bartHurdle"
@@ -89,12 +89,12 @@ n.total <- S * m
 set.seed(seedVal)
 ppd <- extract(h, type = "ppd")
 set.seed(seedVal)
-occDraw <- rbinom(n.total, 1L, as.vector(piMat))
+zeroDraw <- rbinom(n.total, 1L, as.vector(piMat))
 z <- rnorm(n.total)
 amount <- exp(as.vector(fMat) + rep_len(sigmaDraws, n.total) * z)
-expect_equal(ppd, array(occDraw * amount, c(S, m)))
+expect_equal(ppd, array(zeroDraw * amount, c(S, m)))
 expect_true(all(ppd >= 0))
-expect_true(any(ppd == 0)) # some unoccupied draws land exactly on the spike
+expect_true(any(ppd == 0)) # some draws land exactly on the zero spike
 
 # type validation and the absent test channel
 expect_error(extract(h, type = "bogus"), pattern = "type must be")
@@ -222,7 +222,7 @@ fitKeepSampler <- bart(
   keepSampler = TRUE,
   keepTrees = FALSE
 )
-expect_false(is.null(fitKeepSampler$occupancy$fit))
+expect_false(is.null(fitKeepSampler$zero$fit))
 expect_false(is.null(fitKeepSampler$positive$fit))
 rm(fitKeepSampler)
 
@@ -304,7 +304,7 @@ expect_error(
 # plotTree/survivalProbabilities refused by name, naming the components
 expect_error(
   plotTree(fit),
-  "object$occupancy$fit",
+  "object$zero$fit",
   fixed = TRUE
 )
 expect_error(
@@ -324,17 +324,17 @@ dev.off()
 expect_equal(restoredMfrow, c(3L, 3L))
 
 # extract(fit, "sigma") is positive$sigma alone (the only sigma the
-# composition carries); extract(fit, "k") is a list keyed occupancy/positive,
+# composition carries); extract(fit, "k") is a list keyed zero/positive,
 # with a fixed component left out - positive's k is fixed at its non-binary
-# default (2), so only occupancy's modelled chi(1.5, 2) draw survives
+# default (2), so only zero's modelled chi(1.5, 2) draw survives
 expect_equal(extract(fit, "sigma"), fit$positive$sigma)
 kList <- extract(fit, "k")
-expect_equal(names(kList), "occupancy")
-expect_equal(kList$occupancy, fit$occupancy$k)
+expect_equal(names(kList), "zero")
+expect_equal(kList$zero, fit$zero$k)
 rm(kList)
 vcList <- extract(fit, "varcount")
-expect_equal(names(vcList), c("occupancy", "positive"))
-expect_equal(vcList$occupancy, fit$occupancy$varcount)
+expect_equal(names(vcList), c("zero", "positive"))
+expect_equal(vcList$zero, fit$zero$varcount)
 expect_equal(vcList$positive, fit$positive$varcount)
 rm(vcList)
 
@@ -345,7 +345,7 @@ rm(llFit2c, restoredMfrow)
 # store each component sampler's C++ state so its pointer survives the round
 # trip (the general dbarts serialization requirement, ?`dbartsSampler-class`)
 serialized <- tempfile(fileext = ".rds")
-invisible(fit$occupancy$fit$state)
+invisible(fit$zero$fit$state)
 invisible(fit$positive$fit$state)
 saveRDS(fit, serialized)
 fitLoaded <- readRDS(serialized)
@@ -381,7 +381,7 @@ fitR <- bart(
   seed = 11L
 )
 
-# recovered occupancy probability tracks truth
+# recovered zero-part probability tracks truth
 expect_true(cor(fitted(fitR, type = "prob"), pi.trueR) > 0.6)
 
 # recovered E[y | y > 0, x] (retransformed positive part) tracks truth

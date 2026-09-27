@@ -208,7 +208,7 @@ multiplier family the fourth - leaving hurdle's the only one standing:
   constraint. The combiner's own weight-channel seam is therefore STILL the
   unused route a future combiner-HOSTED variance forest would take.
 - Chain holds a single-leaf-type `std::vector<Forest<L>>` (one L for every
-  forest). Hurdle's per-forest response families (an occupancy forest under
+  forest). Hurdle's per-forest response families (a zero-part forest under
   one family, a positive-part forest under another) break that invariant;
   it is not a property the combiner API constrains. STILL OPEN, and see
   "Anticipated" below for why hurdle no longer asks for it.
@@ -293,7 +293,7 @@ What still does NOT generalize, after M4:
   CONJUGATE, not non-integrable - a scaled-inverse-chi-squared scale leaf reusing
   the existing conjugate move, no new MoveStrategy. The WEIGHT-channel route was
   correct. See that note for the full design.)
-- Hurdle: a binary-occupancy forest plus a positive-part forest sharing
+- Hurdle: a binary zero-part forest plus a positive-part forest sharing
   predictors through the data handle. Response families differing per forest
   breaks Chain's single response_ - Chain-level, not combiner-API, per above.
   (LANDED 2026-07-20 R-SIDE, docs/design/hurdle.md: the two parts are

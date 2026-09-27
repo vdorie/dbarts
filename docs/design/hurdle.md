@@ -6,7 +6,7 @@ S2, LANDED 2026-09-09 (44b3fa6d): `hurdle.lognormal` is now also a
 [`dbartsFamily`](../../R/family.R) constructor object (`hurdle.lognormal()`),
 resolved by `family` the same as the other nine front-door family
 constructors, alongside the bare token. Plan: docs/plans/archive/hurdle.md. A hurdle model fits a zero-inflated / semicontinuous outcome by factoring
-its likelihood into two conditionally-independent parts: an OCCUPANCY model of
+its likelihood into two conditionally-independent parts: a ZERO-PART model of
 1{y > 0} over all n observations, and a POSITIVE-PART model of y restricted to the
 subset {i : y_i > 0}. The load-bearing finding (section 0): because the parts share
 no parameters and the split is OBSERVED (not latent), the two forests are
@@ -40,11 +40,11 @@ A hurdle factors the likelihood of a non-negative outcome with exact zeros as
 
     L = prod_{i: y_i = 0} (1 - pi_i)  x  prod_{i: y_i > 0} pi_i g(y_i | y_i > 0),
 
-with pi_i = P(y_i > 0 | x_i) the occupancy probability and g the positive-part
-density. The occupancy parameters (pi, a binary forest over all n) and the positive
+with pi_i = P(y_i > 0 | x_i) the zero part's probability and g the positive-part
+density. The zero part's parameters (pi, a binary forest over all n) and the positive
 parameters (g's forest + its sigma over the y > 0 subset) appear in DISJOINT factors
 and share nothing. Under independent priors the joint posterior therefore FACTORS
-into the occupancy posterior times the positive-part posterior. This is the central
+into the zero-part posterior times the positive-part posterior. This is the central
 architectural fact, and it separates hurdle from every landed multi-forest model:
 
 - BCF couples through a mu + b tau: the forests blend into ONE per-observation
@@ -63,7 +63,7 @@ engine's entire multi-forest apparatus - the ForestCombiner surface, the couplin
 draws - has nothing to own.
 
 **Hurdle is not zero-inflation.** In a hurdle the split is OBSERVED: every zero
-comes from the occupancy part, and the positive part is zero-truncated (emits no
+comes from the zero part, and the positive part is zero-truncated (emits no
 zeros), so there is no latent class-membership to draw. In zero-inflation the zeros
 are a MIXTURE of structural and sampling zeros, so each zero carries a latent
 indicator drawn each sweep against both components - a genuine coupling that a
@@ -74,7 +74,7 @@ note is the hurdle; zero-inflation stays out of scope precisely because it coupl
 
 ## 1. The model and its reduction
 
-**Occupancy part (both variants).** A binary regression of z_i = 1{y_i > 0} over
+**Zero part (both variants).** A binary regression of z_i = 1{y_i > 0} over
 ALL n observations, fit by a shipped binary family: probit (house default) or
 logistic. This is an ordinary dbarts binary fit on the indicator - no new machinery.
 
@@ -99,7 +99,7 @@ NOWHERE else - not in any sweep.
 
 The decision this note turns on. Two routes:
 
-- **Compose in R (recommend).** A wrapper fits two ordinary samplers - an occupancy
+- **Compose in R (recommend).** A wrapper fits two ordinary samplers - a zero-part
   binary fit over all n and a positive-part fit over the y > 0 subset - and combines
   their posterior draws at prediction time. Zero engine code. The discrete-time
   hazard shape exactly (survival.md): a family token, an R ingestion split,
@@ -147,7 +147,7 @@ packaged fit class (section 6): the user sees one
 `bart2(family = "hurdle.lognormal")` call and one fit object; only the internals
 are two samplers. The case where the engine route
 becomes justified is real but is a DIFFERENT model: a sample-selection / correlated
-two-part (Heckman) model, where the occupancy and amount errors are correlated and the
+two-part (Heckman) model, where the zero-part and amount errors are correlated and the
 parts do NOT factor - that coupling is what would finally pay for the Chain
 two-response generalization (section 9). It is not this model.
 
@@ -156,7 +156,7 @@ sketched (section 4) so VD can fork on it with the cost asymmetry explicit.
 
 ## 3. Decision (fork 2) - which hurdle variant for v1
 
-- **(a) Semicontinuous two-part, lognormal positive part (recommend).** Occupancy
+- **(a) Semicontinuous two-part, lognormal positive part (recommend).** Zero-part
   binary + gaussian on log(y) over S. The positive part is NEARLY FREE - an existing
   family on a log-transformed subset, the AFT reduction (survival.md). It is the
   Duan et al. healthcare-cost model, the canonical two-part model with the largest
@@ -174,7 +174,7 @@ family BEFORE any composition can use it. Under the R-composition architecture t
 wrapper is family-agnostic on the positive part (it just calls a sampler over S), so
 (b) becomes available the moment a truncated-count family ships - v1 need not choose
 the harder positive part to keep the door open. Gamma is a third positive-part family
-(new family, door). The occupancy link mirrors hazard: probit default (house default,
+(new family, door). The zero-part link mirrors hazard: probit default (house default,
 R/dbarts.R node.scale 3.0), logistic one token away (section 6).
 
 ## 4. The engine architecture (the rejected alternative, sketched for the fork)
@@ -205,7 +205,7 @@ Chain, and it must be distinguished sharply from the ForestCombiner:
   and (iii) has its OWN sigma_ (the single-sigma_ break). So hurdle breaks BOTH Chain
   invariants heteroscedastic kept, plus adds the subset view. This is why it is the
   widest surgery: two response_, two sigma_, a subset-restricted forest, doubled state.
-- **Reporting / predict / state.** Reporting channels: occupancy probability pi(x) over
+- **Reporting / predict / state.** Reporting channels: the zero part's probability pi(x) over
   all n (train + test); positive-part mean E[y | y > 0, x] (the positive forest replays
   at ALL x, though trained on S); combined E[y] = pi * E[y | y > 0]. Predict replays
   both forests' saved trees at newdata and combines. State serializes two forest lists
@@ -221,12 +221,12 @@ coupling to exploit - the case for R composition, restated structurally.
 **Primary gate (the hazard-reduction precedent, benchmarks/R/hazard-reduction.R).** A
 hurdle fit must reduce BITWISE to its two independently-fit components:
 
-- Component 1, occupancy: bart2(family = "probit"/"logistic") on z = 1{y > 0} over
+- Component 1, zero part: bart2(family = "probit"/"logistic") on z = 1{y > 0} over
   all n, same seed/control.
 - Component 2, positive part: bart2(family = "gaussian") on log(y[S]) over the y > 0
   subset S, same seed/control.
 - Channels: component 1's trees / latents / varcount identical to the wrapper's
-  occupancy fit; component 2's trees / sigma / varcount identical to the wrapper's
+  zero fit; component 2's trees / sigma / varcount identical to the wrapper's
   positive fit; the packaged objects differ ONLY in the hurdle marker fields (the
   markerOnly assertion, [`markerOnly`](../../benchmarks/R/hazard-reduction.R)). The wrapper's two internal fits ARE
   the two standalone fits at their seeds, so the equality is bitwise by construction -
@@ -248,7 +248,7 @@ positive posterior matches a subset-only quadrature becomes load-bearing, as
 heteroscedastic's divisor gate was. R composition needs none of it.)
 
 **Surrounding gates.** (i) A recovery / simulation smoke: simulate semicontinuous data
-(a probit occupancy surface and a lognormal amount surface), fit, and check the
+(a probit zero-part surface and a lognormal amount surface), fit, and check the
 recovered pi(x), E[y | y > 0, x], and combined E[y | x] against truth. (ii) A NEW
 hurdle scenario in benchmarks/R/equivalence.R recording the two component channels plus
 the combined predict; every existing anchor stays IDENTICAL with NO re-record, since
@@ -259,14 +259,14 @@ across the two fits, and predict on new data.
 
 ## 6. The R surface
 
-- **How the user asks.** family = "hurdle.lognormal" (v1: probit occupancy +
+- **How the user asks.** family = "hurdle.lognormal" (v1: probit zero part +
   lognormal positive part), added to the dbarts and bart2 family vectors
   ([`dbarts`](../../R/dbarts.R), [`bart2`](../../R/bart.R)), with `twopart` an accepted alias that resolves to
   it ([`dbarts`](../../R/dbarts.R), [`bart2`](../../R/bart.R)). This section first proposed the bare "hurdle";
   the NAMING decision in section 13 supersedes it, and the qualified token is what
   ships. Following the dbarts token convention (families are tokens, not
   arguments - aft, ordinal, nbinom, hazard all extended the vector, survival.md),
-  future variants are further tokens: "hurdle.logistic" (logistic occupancy),
+  future variants are further tokens: "hurdle.logistic" (logistic zero part),
   "hurdle.nbinom" (count positive part once a truncated-count family ships). The
   surv.bart-flavored alternative - a single "hurdle" token plus a
   `hurdle.positive = c("lognormal", ...)` argument (the type = "pbart"/"lbart" shape) -
@@ -275,7 +275,7 @@ across the two fits, and predict on new data.
   vector is the refusal, the nbinom precedent).
 - **The response.** A non-negative outcome with exact zeros (semicontinuous: a spike at
   0 plus a continuous positive part). The wrapper splits it R-side at ingest: the
-  occupancy response is z = 1{y > 0} over all n; the positive response is log(y[S]) over
+  zero-part response is z = 1{y > 0} over all n; the positive response is log(y[S]) over
   S. Validate y >= 0 (refuse negatives by name, the nbinom validation precedent,
   negative-binomial.md). No latent split is drawn - the zeros are observed.
 - **The fit object + generics.** A dedicated class `bartHurdle` (the bartMultinomial /
@@ -289,10 +289,10 @@ across the two fits, and predict on new data.
     survival.md). Flag the retransformation honestly: the parametric lognormal
     mean assumes normal log-residuals; Duan's smearing estimator is the classic
     distribution-free alternative, a documented option/door.
-  - type = "prob": the occupancy probability pi(x) (through the correct link).
+  - type = "prob": the zero part's probability pi(x) (through the correct link).
   - a positive-part channel: E[y | y > 0, x], and both components' trees / varcounts
     reachable per part.
-  - print reports "family: hurdle (probit occupancy + lognormal)".
+  - print reports "family: hurdle (probit zero part + lognormal)".
   Because each component fit carries the ordinary $family element ("probit"/"gaussian"),
   every existing $family-dispatched generic ([`probabilityFromLatents`](../../R/generics.R), [`pointwiseLogLikelihood`](../../R/generics.R))
   stays correct on the components unchanged; the hurdle-level combine
@@ -312,7 +312,7 @@ member perturb the single-forest hot path" risk that heteroscedastic's equivalen
 
 ## 8. Scope: minimal v1
 
-- Semicontinuous two-part: probit occupancy on 1{y > 0} over all n + gaussian-on-log-y
+- Semicontinuous two-part: probit zero part on 1{y > 0} over all n + gaussian-on-log-y
   positive part over the y > 0 subset, combined at predict.
 - family = "hurdle.lognormal" on dbarts()/bart2(); the bartHurdle class +
   fitted/predict/extract/print; y >= 0 validation.
@@ -325,12 +325,12 @@ member perturb the single-forest hot path" risk that heteroscedastic's equivalen
   count single-forest family first (its own arc, section 3); then the composition wrapper
   accepts it family-agnostically as "hurdle.nbinom". negative-binomial.md filed it.
 - **Gamma positive part.** A new continuous positive family; token door.
-- **Logistic occupancy link.** "hurdle.logistic", one token away (section 6).
+- **Logistic zero-part link.** "hurdle.logistic", one token away (section 6).
 - **Smearing retransformation.** Duan's distribution-free E[y | y > 0] estimator as a
   predict option beside the parametric lognormal mean (section 6).
 - **Zero-INFLATION and sample-selection (the coupled cousins - where the engine finally
   pays).** A zero-inflated model (latent structural-vs-sampling zeros) and a
-  Heckman-type correlated two-part / sample-selection model (correlated occupancy and
+  Heckman-type correlated two-part / sample-selection model (correlated zero-part and
   amount errors) do NOT factor - the parts couple, R composition breaks, and a coupled
   sampler is required. THAT is the model that would justify the Chain two-response
   generalization sketched in section 4, because then there is a coupling for it to own.
@@ -378,7 +378,7 @@ break stays unbuilt. Consequences to record at landing (the orchestrator owns th
 ## 12. Risks and confidence
 
 - **Confidence in the factorization: HIGH.** The hurdle likelihood factoring into
-  conditionally-independent occupancy and positive parts is textbook (Cragg 1971, Mullahy
+  conditionally-independent zero and positive parts is textbook (Cragg 1971, Mullahy
   1986); the split is observed, not latent, so there is no coupling term to have missed.
   The single sharpest way to be wrong here is to conflate hurdle with zero-inflation
   (which DOES couple) - section 0 pins the distinction, and it is the first thing a critic

@@ -101,10 +101,10 @@
       \code{"hazard.probit"} and \code{"hazard.logistic"} name.
     }
     \item{\code{hurdle.lognormal(sigma = NULL)}}{
-      A semicontinuous two-part response: an occupancy probit glued to a
+      A semicontinuous two-part response: a zero-part probit glued to a
       lognormal positive part. Composed from two samplers, so only
       \code{\link{bart}} fits it. \code{sigma} is the positive part's
-      residual prior; the occupancy probit has a fixed unit latent scale
+      residual prior; the zero-part probit has a fixed unit latent scale
       and takes none.
     }
   }

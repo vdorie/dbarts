@@ -14,19 +14,19 @@
 # (section 0), so the joint posterior FACTORIZES and each factor is derived
 # separately from y:
 #
-#     occupancy   z_i = 1{y_i > 0} over all n, probit;
+#     zero        z_i = 1{y_i > 0} over all n, probit;
 #     positive    w_i = log(y_i) over S = {i : y_i > 0}, gaussian.
 #
 # Nothing else in the response reaches either part: the zero rows carry no
 # information about the positive part beyond their membership in the
-# complement of S, and the positive VALUES carry none about occupancy. A
+# complement of S, and the positive VALUES carry none about the zero part. A
 # threshold other than exactly zero, or a subset misaligned with its
 # covariates, moves both factors at once - which is what arm (b) below shows.
 #
 # THE CONFIGURATION. One predictor with two cells and n.cuts = 1, so the root
 # holds a single available cut and its children none: the single-tree space is
 # exactly the two structures (a shared root leaf, prior 1 - base; one leaf per
-# cell, prior base), as in negbin-exact.R. The occupancy factor is then a 1-D
+# cell, prior base), as in negbin-exact.R. The zero factor is then a 1-D
 # quadrature over the leaf log-probit; the positive factor, with sigma PINNED
 # by a fixed sigma prior, is normal-normal conjugate in CLOSED FORM on the
 # engine's internal [-0.5, 0.5] rescaling of log y (aft-exact.R's convention:
@@ -35,7 +35,7 @@
 #
 # THE FUNCTIONALS, all three reported channels at both cells:
 #
-#     type = "prob"  E[pi(x)], the occupancy factor alone;
+#     type = "prob"  E[pi(x)], the zero factor alone;
 #     type = "bart"  E[f(x)], the positive part's log-scale fit - read at ALL
 #                    n rows through the forced full-x test channel, so the
 #                    zero rows the positive part never trained on are gated
@@ -49,10 +49,10 @@
 #
 # Two deterministic preconditions ride along and fire before the distributional
 # arms could: the pinned sigma must really be pinned, and the wrapper's own
-# ingested occupancy response must equal the z derived above from y alone.
+# ingested zero response must equal the z derived above from y alone.
 #
 # On these data both factors' structure posteriors are effectively degenerate
-# on the split (log Bayes factor about 20 for the occupancy factor and about
+# on the split (log Bayes factor about 20 for the zero factor and about
 # 110 for the positive one), so the priorRoot / priorSplit weights and the two
 # logMarginal terms are exercised but NOT discriminated - the gate would read
 # the same with a fairly wide error in either. The root/split mixture itself is
@@ -110,9 +110,9 @@ nPerCell <- 150L
 n <- nCells * nPerCell
 cellOf <- rep(seq_len(nCells), each = nPerCell)
 cellValue <- c(0.25, 0.75) # one cut at the midpoint separates them
-occupancyTrue <- c(0.45, 0.80)
+zeroTrue <- c(0.45, 0.80)
 logMeanTrue <- c(0.20, 1.20)
-occupied <- runif(n) < occupancyTrue[cellOf]
+occupied <- runif(n) < zeroTrue[cellOf]
 y <- numeric(n)
 y[occupied] <- exp(rnorm(sum(occupied), logMeanTrue[cellOf[occupied]], 0.5))
 x <- matrix(cellValue[cellOf], ncol = 1L)
@@ -123,7 +123,7 @@ positive <- y > 0
 logPositive <- log(y[positive])
 stopifnot(all(tapply(z, cellOf, function(v) any(v == 1) && any(v == 0))))
 cat(sprintf(
-  "occupancy %s of %s | positives %d | log y range [%.2f, %.2f]\n",
+  "zero-part z=1 %s of %s | positives %d | log y range [%.2f, %.2f]\n",
   paste(as.vector(tapply(z, cellOf, sum)), collapse = " "),
   paste(as.vector(table(cellOf)), collapse = " "),
   sum(positive),
@@ -136,7 +136,7 @@ cat(sprintf(
 priorRoot <- 1 - base
 priorSplit <- base
 
-# ---- factor 1: the occupancy posterior (probit, quadrature) ----
+# ---- factor 1: the zero posterior (probit, quadrature) ----
 
 muGrid <- seq(-10, 10, by = 0.002)
 dmu <- muGrid[2L] - muGrid[1L]
@@ -146,7 +146,7 @@ logProbit1mP <- pnorm(muGrid, lower.tail = FALSE, log.p = TRUE)
 
 # marginal likelihood and posterior-mean probability for a probit leaf holding
 # s successes out of m trials
-occupancyLeaf <- function(s, m) {
+zeroLeaf <- function(s, m) {
   logIntegrand <- logMuPrior + s * logProbitP + (m - s) * logProbit1mP
   peak <- max(logIntegrand)
   w <- exp(logIntegrand - peak)
@@ -156,12 +156,12 @@ occupancyLeaf <- function(s, m) {
   )
 }
 
-exactOccupancy <- function(z) {
+exactZero <- function(z) {
   successes <- as.vector(tapply(z, cellOf, sum))
   counts <- as.vector(table(cellOf))
-  root <- occupancyLeaf(sum(successes), sum(counts))
+  root <- zeroLeaf(sum(successes), sum(counts))
   cells <- lapply(seq_len(nCells), function(a) {
-    occupancyLeaf(successes[a], counts[a])
+    zeroLeaf(successes[a], counts[a])
   })
   logSplit <- sum(vapply(cells, function(q) q$logMarginal, 0))
   scale <- max(root$logMarginal, logSplit)
@@ -243,7 +243,7 @@ exactPositive <- function(positive, logPositive) {
 
 # ---- the composed reference ----
 
-exactProb <- exactOccupancy(z)
+exactProb <- exactZero(z)
 exactPos <- exactPositive(positive, logPositive)
 exactBart <- exactPos$fit
 # the wrapper forms pi exp(f + sigma^2 / 2) per draw; the two chains are
@@ -285,7 +285,7 @@ fitSeed <- function(seed) {
   # wrapper's own split matches the one derived above from y alone
   stopifnot(
     max(abs(fit$positive$sigma - sigmaFixed)) < 1e-10,
-    identical(fit$occupancy$y, z),
+    identical(fit$zero$y, z),
     identical(length(fit$positive$y), sum(positive))
   )
   c(

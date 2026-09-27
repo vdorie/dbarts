@@ -469,10 +469,10 @@ hazard <- function(
   )
 }
 
-## The semicontinuous two-part model: an occupancy probit on 1{y > 0} and a
+## The semicontinuous two-part model: a zero-part probit on 1{y > 0} and a
 ## gaussian on log(y) over the positive part. A composition of two samplers,
 ## so only bart() fits it.
-## 'sigma' is the positive part's residual prior; the occupancy probit has a
+## 'sigma' is the positive part's residual prior; the zero-part probit has a
 ## fixed unit latent scale and takes none.
 hurdle.lognormal <- function(sigma = NULL) {
   newValidated(

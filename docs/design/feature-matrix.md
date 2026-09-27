@@ -294,7 +294,7 @@ blocks every mutation conduit that would touch it ([`refuseCountsMutation`](../.
 inventory [1. Problem statement and inventory](multinomial-mutation-arc.md#1-problem-statement-and-inventory)).
 
 [f10] Hurdle has no sampler of its own: [`bart2Hurdle`](../../R/bart.R) composes two ordinary `bart()`
-fits - occupancy probit and lognormal positive part - glued at report time
+fits - zero-part probit and lognormal positive part - glued at report time
 ([2. Decision (fork 1, the gating question) - COMPOSE IN R, do not build in the engine](hurdle.md#2-decision-fork-1-the-gating-question---compose-in-r-do-not-build-in-the-engine)).
 
 [f11] Under a latent sub-family the amplitude combination is the index on the link's fixed

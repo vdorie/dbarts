@@ -57,10 +57,10 @@ expect_false(identical(class(summary(fitHurdle)), "summary.default"))
 summaryHurdle <- summary(fitHurdle)
 expect_true(inherits(summaryHurdle, "summary.bartHurdle"))
 hurdleOutput <- capture.output(print(summaryHurdle))
-expect_true(any(grepl("Occupancy component", hurdleOutput)))
+expect_true(any(grepl("Zero component", hurdleOutput)))
 expect_true(any(grepl("Positive-part component", hurdleOutput)))
 # each component's own summary.bart object is reused, not recomputed
-expect_identical(summaryHurdle$occupancy, summary(fitHurdle$occupancy))
+expect_identical(summaryHurdle$zero, summary(fitHurdle$zero))
 expect_identical(summaryHurdle$positive, summary(fitHurdle$positive))
 
 ## --- print() already has a method for all three; no fallback to print.default

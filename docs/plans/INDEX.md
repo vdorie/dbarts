@@ -198,7 +198,7 @@ than what it is. Nothing below is needed to review the merge.
 | archive/data-store-consolidation.md | LANDED (ARC COMPLETE) | Consolidates the C++ data layer (train/test twinning collapsed, explicit per-column storage kind); bench-neutral. |
 | archive/data-store-residuals.md | LANDED | Discharges the last 4 deferred findings (shared quantize core, isView provenance-only, conditional raw gather, linear-leaf row-major layout). |
 | archive/heteroscedastic.md | LANDED (C1-C4) | Second (variance) forest for y=f(x)+s(x)eps via conjugate scaled-inv-chi-sq leaves; homoscedastic fits byte-identical throughout. |
-| archive/hurdle.md | LANDED (3 commits) | family="hurdle.lognormal" composed R-side from a probit occupancy fit + a gaussian fit on log(y>0); engine byte-neutral. |
+| archive/hurdle.md | LANDED (3 commits) | family="hurdle.lognormal" composed R-side from a probit zero-part fit + a gaussian fit on log(y>0); engine byte-neutral. |
 | archive/monotone-bart.md | LANDED (3 commits) | Per-variable monotone constraints via a constrained constant-leaf model; a bias in an intermediate design was caught by the exact-posterior gate before shipping. |
 | archive/negative-binomial.md | LANDED (C1-C3) | family="nbinom" via PG augmentation; sweep-order and real-shape-PG issues caught pre-implementation, corrected to integer-dispersion-only. |
 | archive/ordinal-outcomes.md | LANDED (C1-C3 + follow-up) | family="ordinal" via cumulative probit with Cowles-style cutpoints; auto-dispatches on ordered factors (fixed a pre-existing silent bart2 bug). |

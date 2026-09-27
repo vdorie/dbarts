@@ -342,7 +342,7 @@ plot.bartNegbin <- function(
 # Two component fits and a composed model need four panels. P1 reuses
 # plotSigmaTrace verbatim (setLayout = FALSE: the 2x2 grid is already set):
 # the positive part is an ordinary gaussian bart fit and carries both
-# channels. P2 the occupancy probability, plot.bart's binary panel. P3 the
+# channels. P2 the zero part's probability, plot.bart's binary panel. P3 the
 # positive part on the scale it actually fit (log y over the y > 0 rows). P4
 # the composed natural-scale mean over ALL n rows (zeros included) - the only
 # panel that shows the model this family exists for.
@@ -358,7 +358,7 @@ plot.bartHurdle <- function(
   plotSigmaTrace(x$positive$first.sigma, x$positive$sigma, setLayout = FALSE)
 
   piBand <- drawInterval(
-    lastMarginMatrix(extract(x$occupancy, type = "ev", sample = "train")),
+    lastMarginMatrix(extract(x$zero, type = "ev", sample = "train")),
     plquants
   )
   plot(

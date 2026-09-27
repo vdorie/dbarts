@@ -664,7 +664,7 @@ dbarts <- function(
   if (identical(family, "hurdle.lognormal")) {
     stop(
       "dbarts() does not fit family = \"hurdle.lognormal\": it composes ",
-      "two independent samplers (an occupancy probit and a positive-part ",
+      "two independent samplers (a zero-part probit and a positive-part ",
       "gaussian) and dbarts() returns one - use ",
       "bart(x, y, family = \"hurdle.lognormal\")"
     )

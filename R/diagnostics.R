@@ -155,21 +155,25 @@ bartDrawsArray <- function(object, vars) {
 }
 
 # The union of both components' present scalar fields, each labelled with
-# an "occupancy."/"positive." prefix (a dot, not a bracket) - the same two
+# a "zero."/"positive." prefix (a dot, not a bracket) - the same two
 # blocks print.summary.bartHurdle prints under. Both components are driven
 # by one n.chains/n.samples schedule and indexed draw for draw, so their
 # (iteration, chain) margins match and the variable margins concatenate
 # directly.
 hurdleDrawsArray <- function(object, vars) {
-  occ <- bartDrawsArray(object$occupancy, vars)
+  zero <- bartDrawsArray(object$zero, vars)
   pos <- bartDrawsArray(object$positive, vars)
-  dimnames(occ)[[3L]] <- paste0("occupancy.", dimnames(occ)[[3L]])
+  dimnames(zero)[[3L]] <- paste0("zero.", dimnames(zero)[[3L]])
   dimnames(pos)[[3L]] <- paste0("positive.", dimnames(pos)[[3L]])
   arr <- array(
-    c(occ, pos),
-    dim = c(dim(occ)[1:2], dim(occ)[3L] + dim(pos)[3L])
+    c(zero, pos),
+    dim = c(dim(zero)[1:2], dim(zero)[3L] + dim(pos)[3L])
   )
-  dimnames(arr) <- list(NULL, NULL, c(dimnames(occ)[[3L]], dimnames(pos)[[3L]]))
+  dimnames(arr) <- list(
+    NULL,
+    NULL,
+    c(dimnames(zero)[[3L]], dimnames(pos)[[3L]])
+  )
   arr
 }
 
@@ -438,14 +442,14 @@ summary.bartNegbin <- function(
 }
 
 # A hurdle fit is two ordinary bart2 fits under the
-# hood - an occupancy probit on 1{y > 0} and a lognormal fit on the positive
+# hood - a zero-part probit on 1{y > 0} and a lognormal fit on the positive
 # part - so each summarizes through summary.bart unchanged; only the
 # packaging (both components, one call) and the print layout are new.
 summary.bartHurdle <- function(object, vars = c("sigma", "k"), ...) {
   structure(
     list(
       call = object[["call"]],
-      occupancy = summary.bart(object$occupancy, vars = vars, ...),
+      zero = summary.bart(object$zero, vars = vars, ...),
       positive = summary.bart(object$positive, vars = vars, ...)
     ),
     class = "summary.bartHurdle"
@@ -564,8 +568,8 @@ print.summary.bartHurdle <- function(x, ...) {
     "\n\n",
     sep = ""
   )
-  cat("Occupancy component (probit, 1(y > 0)):\n")
-  printSummaryBartBody(x$occupancy, ...)
+  cat("Zero component (probit, 1(y > 0)):\n")
+  printSummaryBartBody(x$zero, ...)
   cat("\nPositive-part component (lognormal, y | y > 0):\n")
   printSummaryBartBody(x$positive, ...)
   invisible(x)

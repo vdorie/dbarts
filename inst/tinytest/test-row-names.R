@@ -298,14 +298,14 @@ expect_identical(names(residuals(fitNExclude)), trainNames)
 expect_identical(names(fitted(fitNOmit)), trainNames[-3L])
 expect_identical(names(residuals(fitNOmit)), trainNames[-3L])
 
-# hurdle stores the occupancy component's na.action and pads the same way.
+# hurdle stores the zero component's na.action and pads the same way.
 # A hurdle fit that genuinely drops a row this way hits an unrelated,
 # pre-existing routability refusal (the positive component's own 'test' is
 # always the full, un-reduced design matrix, so a row na.action removes from
 # training is still present, and now unroutable, in that 'test'), so this
 # checks the padding machinery on a fit already trained at the reduced row
 # count, its na.action attached by hand exactly as bart2Hurdle would have
-# set it from a working occupancy component.
+# set it from a working zero component.
 fitHDropped <- quick(x[-3L, ], positive[-3L], family = "hurdle.lognormal")
 fitHExclude <- fitHDropped
 fitHExclude$na.action <- structure(3L, class = "exclude", names = "r3")

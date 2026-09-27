@@ -92,7 +92,7 @@ for (name in names(fits)[vapply(fits, inherits, logical(1L), "bart")]) {
 }
 
 # the hurdle's components carry their own specified families
-expect_identical(family(fits$hurdle$occupancy)@token, "probit")
+expect_identical(family(fits$hurdle$zero)@token, "probit")
 expect_identical(family(fits$hurdle$positive)@token, "gaussian")
 
 # a hazard fit is recognized by its specified family: survivalProbabilities

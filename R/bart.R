@@ -1396,8 +1396,8 @@ bart <- function(
     ))
   }
 
-  # hurdle.lognormal: a semicontinuous two-part fit built from an
-  # occupancy probit on 1{y > 0} (all n) and a gaussian
+  # hurdle.lognormal: a semicontinuous two-part fit built from a
+  # zero-part probit on 1{y > 0} (all n) and a gaussian
   # on log(y) restricted to the y > 0 subset, glued at report time. Dispatched
   # here - not inside dbarts(), which returns a single sampler and cannot
   # express the two-sampler composition - so its bartHurdle fit object stays
@@ -2552,7 +2552,7 @@ packageNegbinResults <- function(
   result
 }
 
-# Splits a hurdle response into its two ingested parts: the occupancy
+# Splits a hurdle response into its two ingested parts: the zero-part
 # indicator z = 1{y > 0} over all n, and the subset mask {i : y_i > 0} with
 # the positive part's working response log(y[S]). y must be finite and
 # non-negative (the nbinom non-negative-count precedent, extended to a
@@ -2680,12 +2680,12 @@ bart2Hurdle <- function(
   # strip them before either component call runs, since each component
   # would otherwise re-diagnose them against its own forced family
   # (sigest/sigdf/sigquant/resid.prior a false "probit" diagnostic on the
-  # occupancy call, since they are genuinely live on the positive half).
+  # zero call, since they are genuinely live on the positive half).
   # tree.prior/node.prior are NOT stripped from either list: they are live on
   # both components, so they flow to both exactly as power/base/k already do.
   # The family-only settings ride the family object, which each
   # component call replaces with its own, so nothing is left to strip.
-  gatedOnOccupancyOnly <- c("sigest", "sigdf", "sigquant", "resid.prior")
+  gatedOnZeroOnly <- c("sigest", "sigdf", "sigquant", "resid.prior")
 
   # the retired shorthands were cleared from the matched call before anything
   # was forwarded; each component takes them back under the spelling the
@@ -2696,14 +2696,14 @@ bart2Hurdle <- function(
     componentCall
   }
 
-  occupancyCall <- restoreConsolidated(redirectCall(matchedCall, dbarts::bart))
-  occupancyCall[gatedOnOccupancyOnly] <- NULL
-  occupancyCall$formula <- formula
-  occupancyCall$data <- split$z
-  occupancyCall$family <- "probit"
-  occupancyCall$seed <- seeds[1L]
-  occupancyCall$keepTrees <- control@keepTrees
-  occupancy <- eval(occupancyCall, callingEnv)
+  zeroCall <- restoreConsolidated(redirectCall(matchedCall, dbarts::bart))
+  zeroCall[gatedOnZeroOnly] <- NULL
+  zeroCall$formula <- formula
+  zeroCall$data <- split$z
+  zeroCall$family <- "probit"
+  zeroCall$seed <- seeds[1L]
+  zeroCall$keepTrees <- control@keepTrees
+  zero <- eval(zeroCall, callingEnv)
 
   positiveCall <- restoreConsolidated(redirectCall(matchedCall, dbarts::bart))
   positiveCall$formula <- xPositive
@@ -2727,21 +2727,21 @@ bart2Hurdle <- function(
     call = control@call,
     family = "hurdle.lognormal",
     # both components come from the same matchedCall, so they share n.chains
-    n.chains = occupancy$n.chains,
+    n.chains = zero$n.chains,
     # the original non-negative response over all n, so residuals() can take
     # y - E[y | x] on the natural scale (neither component stores it: the
-    # occupancy fit keeps the 1{y > 0} indicator, the positive fit log(y[S]))
+    # zero fit keeps the 1{y > 0} indicator, the positive fit log(y[S]))
     y = as.double(data),
-    occupancy = occupancy,
+    zero = zero,
     positive = positive
   )
-  result$row.names.train <- occupancy[["row.names.train"]]
-  # the occupancy component trains on all n rows, so its na.action is the
+  result$row.names.train <- zero[["row.names.train"]]
+  # the zero component trains on all n rows, so its na.action is the
   # one that describes the rows this hurdle fit as a whole dropped; the
   # positive component's own na.action is over its y > 0 subset alone, a
   # different domain that residuals()/fitted() padding here must not use
-  if (!is.null(occupancy[["na.action"]])) {
-    result$na.action <- occupancy[["na.action"]]
+  if (!is.null(zero[["na.action"]])) {
+    result$na.action <- zero[["na.action"]]
   }
   class(result) <- "bartHurdle"
   result

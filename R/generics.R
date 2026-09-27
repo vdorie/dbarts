@@ -2386,13 +2386,14 @@ print.bartNegbin <- function(x, ...) {
 
 # bart2(family = "hurdle.lognormal") generics. The fit object is class
 # "bartHurdle" - never "bart" - holding the two
-# conditionally-independent component fits ($occupancy, a probit fit of
+# conditionally-independent component fits ($zero, a probit fit of
 # 1{y > 0} over all n; $positive, a gaussian fit of log(y) over the y > 0
 # subset whose x.test is the full-n x). The report-time combine glues their
 # posterior draws by sample index (any pairing is a valid joint draw, the parts
 # share no parameters) and retransforms the positive part to the natural scale.
 #
-# type = "prob" is the occupancy probability pi(x); type = "bart"/"link"/"log"
+# type = "prob" is pi(x) = P(y > 0 | x), the zero part's own probability;
+# type = "bart"/"link"/"log"
 # the positive part's log-scale linear predictor f(x); type = "ev"/"response"
 # the combined natural-scale mean via posterior-predictive Monte Carlo,
 # E[y | x]_s = pi_s exp(f_s + sigma_s^2 / 2) PER DRAW s then aggregated across
@@ -2644,11 +2645,11 @@ resolveHurdleType <- function(type, allowed) {
 }
 
 hurdleNChains <- function(object) {
-  occupancy <- object$occupancy
-  if (!is.null(occupancy[["fit"]])) {
-    occupancy$fit$control@n.chains
+  zero <- object$zero
+  if (!is.null(zero[["fit"]])) {
+    zero$fit$control@n.chains
   } else {
-    occupancy$n.chains
+    zero$n.chains
   }
 }
 
@@ -2669,7 +2670,7 @@ scalarDrawVec <- function(x, n.chains, n.total) {
   rep_len(as.vector(x), n.total)
 }
 
-# Glue the flat, draw-aligned occupancy-probability, positive-log-mean, and
+# Glue the flat, draw-aligned zero-part-probability, positive-log-mean, and
 # positive-sigma vectors into the requested channel and reshape to the fit's
 # uncombined draw layout ('shape'). Only "ppd" touches the RNG (Bernoulli then
 # lognormal), so the default "ev" is draw-neutral.
@@ -2711,17 +2712,17 @@ codedRowDraws <- function(component, x, type, n.threads, rowNames) {
   nameObservationMargin(result, rowNames)
 }
 
-# The occupancy pi(x), positive log-mean f(x), and positive per-observation
+# The zero part's pi(x), positive log-mean f(x), and positive per-observation
 # sigma draws for the combine, each a flat vector in the fit's uncombined
 # as.vector order, plus the uncombined 'shape' to fold back to. In-sample reads
-# the stored channels - the occupancy fit's ev over all n, and the positive
+# the stored channels - the zero fit's ev over all n, and the positive
 # fit's log-scale (bart) fits at the FULL-n rows through its x.test channel (the
 # zero rows it never trained on included); out-of-sample replays both saved
 # forests at the rows preparePredictRows kept, coded once for each component.
 hurdleParts <- function(object, rows = NULL, n.threads = 1L) {
   if (is.null(rows)) {
     pi <- extract(
-      object$occupancy,
+      object$zero,
       type = "ev",
       sample = "train",
       combineChains = FALSE
@@ -2734,7 +2735,7 @@ hurdleParts <- function(object, rows = NULL, n.threads = 1L) {
     )
   } else {
     pi <- codedRowDraws(
-      object$occupancy,
+      object$zero,
       rows$x,
       "ev",
       n.threads,
@@ -2818,7 +2819,7 @@ extract.bartHurdle <- function(
   )
 
   # sigma is positive$sigma, the only one the composition carries; k and
-  # varcount are lists keyed occupancy/positive, a fixed-k component left out
+  # varcount are lists keyed zero/positive, a fixed-k component left out
   # of k (dec-A17)
   if (type %in% c("sigma", "k", "varcount")) {
     refuseSampleOnModelType(type, sampleSupplied)
@@ -2830,7 +2831,7 @@ extract.bartHurdle <- function(
         combineChains
       ))
     }
-    parts <- object[c("occupancy", "positive")]
+    parts <- object[c("zero", "positive")]
     if (type == "varcount") {
       return(lapply(parts, function(part) {
         reshapeChainedChannel(part$varcount, n.chains, combineChains, 1L)
@@ -2873,9 +2874,9 @@ extract.bartHurdle <- function(
 }
 
 # Reuses hurdleParts() verbatim: the pi/f/sigma draws the ev/ppd channels
-# already glue, flat and draw-aligned, at ALL n rows (the occupancy's own
+# already glue, flat and draw-aligned, at ALL n rows (the zero part's own
 # channel; the positive part's x.test channel, zero rows included). y == 0
-# rows take the occupancy's own log(1 - pi); y > 0 rows take the occupancy
+# rows take the zero part's own log(1 - pi); y > 0 rows take the zero part's
 # log(pi) plus the lognormal density of y on its NATURAL scale (a -log(y)
 # Jacobian against the stored log-scale channel) - comparable to any other
 # model of y, not of log(y); NO truncation, since the positive part's
@@ -2965,7 +2966,7 @@ predict.bartHurdle <- function(
   combineChains = TRUE,
   ci.level = NULL,
   na.action = dbarts::na.keepPredictors,
-  n.threads = object$occupancy$fit$control@n.threads,
+  n.threads = object$zero$fit$control@n.threads,
   ...
 ) {
   type <- resolveHurdleType(type, eval(formals(predict.bartHurdle)$type))
@@ -2981,16 +2982,16 @@ predict.bartHurdle <- function(
   )
   warnUnusedDots(list(...), "predict", "bartHurdle")
   refusePredictOffsetChannel(offset, "bartHurdle")
-  if (is.null(object$occupancy[["fit"]])) {
+  if (is.null(object$zero[["fit"]])) {
     refuseWithoutTrees("predict")
   }
-  # after the occupancy fit check, whose absence the default here would
+  # after the zero fit check, whose absence the default here would
   # otherwise report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
   n.chains <- hurdleNChains(object)
   # both parts share one routable set (refuseHurdlePositiveMissingness), so
-  # the rows are resolved once, against the occupancy part's design
-  rows <- preparePredictRows(newdata, object$occupancy$fit$data@x, na.action)
+  # the rows are resolved once, against the zero part's design
+  rows <- preparePredictRows(newdata, object$zero$fit$data@x, na.action)
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
     on.exit(restoreSeed(), add = TRUE)
@@ -3010,8 +3011,8 @@ predict.bartHurdle <- function(
 
 print.bartHurdle <- function(x, ...) {
   printCall(x)
-  cat("family: hurdle.lognormal (probit occupancy + lognormal positive part)\n")
-  cat("occupancy n (all rows): ", length(x$occupancy$y), "\n", sep = "")
+  cat("family: hurdle.lognormal (probit zero part + lognormal positive part)\n")
+  cat("zero n (all rows): ", length(x$zero$y), "\n", sep = "")
   cat("positive-part n (y > 0): ", length(x$positive$y), "\n", sep = "")
   invisible(x)
 }
@@ -3120,7 +3121,7 @@ plotTree.bartNegbin <- function(object, ...) {
 plotTree.bartHurdle <- function(object, ...) {
   refusePlotTreeMethod(
     "bartHurdle",
-    "plotTree(object$occupancy$fit, ...) or plotTree(object$positive$fit, ...)"
+    "plotTree(object$zero$fit, ...) or plotTree(object$positive$fit, ...)"
   )
 }
 

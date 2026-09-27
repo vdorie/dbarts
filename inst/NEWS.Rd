@@ -902,7 +902,7 @@
       \item Semicontinuous two-part (hurdle) responses:
             \code{family = "hurdle.lognormal"} in
             \code{bart} fits a non-negative response with
-            exact zeros by composing, R-side, an occupancy probit fit of
+            exact zeros by composing, R-side, a zero-part probit fit of
             \eqn{z = 1\{y > 0\}}{z = 1{y > 0}} over all n observations with a
             lognormal positive-part fit - an ordinary gaussian fit of
             \eqn{\log y}{log y} - over the \eqn{y > 0} subset, glued at
@@ -913,7 +913,7 @@
             E[y | x] = Pr(y > 0 | x) * exp(f(x) + sigma^2/2)}, formed at each
             posterior draw from the positive part's single
             \eqn{\sigma}{sigma} for that draw; \code{type = "prob"} gives the
-            occupancy probability, \code{"link"}/\code{"log"} the positive
+            zero part's own probability, \code{"link"}/\code{"log"} the positive
             part's log-scale linear predictor, and \code{"ppd"} a proper
             bimodal predictive (a point mass at zero, else a lognormal
             draw). \code{bart} returns a \code{"bartHurdle"} fit carrying

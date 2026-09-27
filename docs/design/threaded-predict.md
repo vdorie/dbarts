@@ -185,7 +185,7 @@ reaches neither path.
 | predict.bartMultinomial | [`predict.bartMultinomial`](../../R/generics.R) | `object$fit$control@n.threads` |
 | predict.bartOrdinal | [`predict.bartOrdinal`](../../R/generics.R) | `object$fit$control@n.threads` |
 | predict.bartNegbin | [`predict.bartNegbin`](../../R/generics.R) | `object$fit$control@n.threads` |
-| predict.bartHurdle | [`predict.bartHurdle`](../../R/generics.R) | `object$occupancy$fit$control@n.threads` (no `object$fit`) |
+| predict.bartHurdle | [`predict.bartHurdle`](../../R/generics.R) | `object$zero$fit$control@n.threads` (no `object$fit`) |
 
 `predict.bart`'s validation moved above the two early returns that
 preceded it - `return(predictForest(...))` and `return(predictBlend(...))`

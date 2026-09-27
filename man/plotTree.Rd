@@ -18,7 +18,7 @@
   \code{\link{bart}}'s four own-class fits (\code{"bartMultinomial"},
   \code{"bartOrdinal"}, \code{"bartNegbin"}, \code{"bartHurdle"}) refuse
   by name instead: their trees live on the sampler(s) those fits carry
-  (\code{object$fit} for the first three, \code{object$occupancy$fit}/
+  (\code{object$fit} for the first three, \code{object$zero$fit}/
   \code{object$positive$fit} for the hurdle), which \code{plotTree} can
   be called on directly.
 }

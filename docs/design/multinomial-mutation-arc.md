@@ -282,7 +282,7 @@ Sub-decision, **corrected**: `samplerOnly` is NOT "two lines".
 **`hurdle.lognormal`** - and its `samplerOnly` block is three
 lines inside a helper that refuses two other things.
 Deleting the block un-refuses `samplerOnly` for hurdle, whose `$fit` is a
-PAIR of samplers (["expect_false(is.null(fitKeepSampler$occupancy$fit))"](../../inst/tinytest/test-hurdle.R)) and which this arc does not
+PAIR of samplers (["expect_false(is.null(fitKeepSampler$zero$fit))"](../../inst/tinytest/test-hurdle.R)) and which this arc does not
 touch. RECOMMEND: a per-caller `allow.samplerOnly` flag, TRUE for the
 three families this arc fixes, FALSE for hurdle; hurdle's own
 `samplerOnly` is Fork I.

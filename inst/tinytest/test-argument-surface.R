@@ -109,9 +109,9 @@ expect_inherits(warnings.samplerOnly[[1L]], "dbartsFamilyGatedWarning")
 
 # hurdle.lognormal: sigest is live on the positive half, so the rule's own
 # scoping ("an argument whose only effect is on a family this fit is not")
-# makes a diagnosis against the occupancy half's forced "probit" a FALSE
+# makes a diagnosis against the zero half's forced "probit" a FALSE
 # one; bart2Hurdle strips it from that component call rather than let it
-# leak. No warning at all - not even the occupancy component's.
+# leak. No warning at all - not even the zero component's.
 y.hurdle <- c(rep(0, n / 2L), abs(rnorm(n / 2L)) + 0.1)
 expect_equal(
   countWarnings(
@@ -738,8 +738,8 @@ hurdleOtherTree <- fit2(
   seed = 55L
 )
 expect_false(identical(
-  hurdleDefaultTree$occupancy$yhat.train,
-  hurdleOtherTree$occupancy$yhat.train
+  hurdleDefaultTree$zero$yhat.train,
+  hurdleOtherTree$zero$yhat.train
 ))
 expect_false(identical(
   hurdleDefaultTree$positive$yhat.train,

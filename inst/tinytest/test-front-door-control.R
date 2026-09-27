@@ -484,7 +484,7 @@ hurdleFit <- function(...) {
     verbose = FALSE,
     ...
   )
-  list(fit$occupancy$yhat.train, fit$positive$yhat.train)
+  list(fit$zero$yhat.train, fit$positive$yhat.train)
 }
 expect_identical(
   hurdleFit(control = dbarts::dbartsControl(seed = 13L)),

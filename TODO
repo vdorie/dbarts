@@ -513,12 +513,6 @@ predict-na-offset (decided, VD 2026-09-27; docs/decisions.md dec-A89)
   unconditional refusal; every predict method and survivalProbabilities;
   manual and tests follow.
 
-hurdle-component-names (decided, VD 2026-09-27; docs/decisions.md dec-A77)
-  before the merge: a hurdle fit's components are zero and positive, not
-  occupancy and positive - the fit's fields, extract's k and varcount
-  lists, summary headers, plot labels, messages, manual, design doc and
-  tests; no tombstone, the family being new in 1.0-0.
-
 one-chain-dimension (decided, VD 2026-09-27; docs/decisions.md dec-A79)
   before the merge: extract and predict with combineChains = FALSE keep a
   chain dimension of length 1 on a one-chain fit, for every type and fit
@@ -586,7 +580,7 @@ hurdle feature completion (VD 2026-09-26: part of feature completion,
   na.omit/na.exclude on a missing predictor: a row dropped from the
   positive part's training stays, now unroutable, in its full-x test.
   The real channel must also reduce the fit's stored y by the
-  occupancy na.action, which fitted/residuals already pad through.
+  zero part's na.action, which fitted/residuals already pad through.
   Schedule not yet set by VD.
 
 release (deferred; the one ordered procedure, run when VD triggers it)

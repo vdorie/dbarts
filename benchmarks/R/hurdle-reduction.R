@@ -53,11 +53,11 @@ fitHurdle <- do.call(bart2, c(list(x, y, family = "hurdle.lognormal"), args))
 split <- dbarts:::splitHurdleResponse(y)
 xPositive <- x[split$positive, , drop = FALSE]
 
-occupancyArgs <- args
-occupancyArgs$seed <- derivedSeeds[1L]
-fitOccupancy <- do.call(
+zeroArgs <- args
+zeroArgs$seed <- derivedSeeds[1L]
+fitZero <- do.call(
   bart2,
-  c(list(x, split$z, family = "probit"), occupancyArgs)
+  c(list(x, split$z, family = "probit"), zeroArgs)
 )
 
 positiveArgs <- args
@@ -96,10 +96,10 @@ compareComponent <- function(wrapped, standalone, label, hasSigma) {
   bitwise
 }
 
-okOccupancy <- compareComponent(
-  fitHurdle$occupancy,
-  fitOccupancy,
-  "occupancy",
+okZero <- compareComponent(
+  fitHurdle$zero,
+  fitZero,
+  "zero",
   hasSigma = FALSE
 )
 okPositive <- compareComponent(
@@ -114,7 +114,7 @@ okPositive <- compareComponent(
 # markerOnly idea); every other top-level field runs through the identical
 # bart2() code path
 markerOnly <-
-  identical(fitHurdle$occupancy$family, "probit") &&
+  identical(fitHurdle$zero$family, "probit") &&
   identical(fitHurdle$positive$family, "gaussian") &&
   identical(fitHurdle$family, "hurdle.lognormal")
 
@@ -122,7 +122,7 @@ if (!markerOnly) {
   cat("  marker check FAILED: the objects differ beyond $call\n")
 }
 
-if (okOccupancy && okPositive && markerOnly) {
+if (okZero && okPositive && markerOnly) {
   cat("\nOK: hurdle reduces bitwise to its two standalone component fits\n")
 } else {
   cat("\nFAIL: a hurdle component diverged from its standalone reduction\n")

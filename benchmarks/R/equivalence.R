@@ -595,12 +595,12 @@ makeScenarios <- function() {
   )
 
   # hurdle.lognormal (semicontinuous two-part, docs/design/hurdle.md): family =
-  # "hurdle.lognormal" composes a probit occupancy fit of 1{y > 0} over all n
+  # "hurdle.lognormal" composes a zero-part probit fit of 1{y > 0} over all n
   # with a gaussian fit of log(y) over the y > 0 subset - NO shared engine
   # code, so this scenario just drives the existing probit and gaussian paths
   # verbatim on a semicontinuous response, adding no draw to any existing
   # family's stream. A smaller n than its single-forest siblings, since each
-  # seed drives two component fits. Recorded channels: the occupancy
+  # seed drives two component fits. Recorded channels: the zero part's
   # probability pi(x.test) (occ.test), the positive-part log-scale linear
   # predictor f(x.test) (pos.test), and the combined natural-scale predict
   # E[y | x.test] (the standard yhat.test/fhat.test channel) - all three via
@@ -1706,11 +1706,11 @@ fitViaHazard <- function(scenario) {
 }
 
 # runs bart2's hurdle.lognormal path (docs/design/hurdle.md): family =
-# "hurdle.lognormal" composes an occupancy probit fit over all n with a
+# "hurdle.lognormal" composes a zero-part probit fit over all n with a
 # gaussian fit of log(y) over the y > 0 subset - no shared engine code, so
 # this drives the existing probit and gaussian paths verbatim on a
 # semicontinuous response. keepTrees so predict.bartHurdle can replay both
-# saved forests onto the held-out rows. Recorded channels: the occupancy
+# saved forests onto the held-out rows. Recorded channels: the zero part's
 # probability pi(x.test) (occ.test), the positive-part log-scale linear
 # predictor f(x.test) (pos.test), and the combined natural-scale predict
 # E[y | x.test] (the standard yhat.test/fhat.test channel below); varcount
@@ -1733,7 +1733,7 @@ fitViaHurdle <- function(scenario) {
   )
   list(
     yhat.test = predict(fit, scenario$x.test, type = "ev"),
-    varcount = fit$occupancy$varcount + fit$positive$varcount,
+    varcount = fit$zero$varcount + fit$positive$varcount,
     occ.test = predict(fit, scenario$x.test, type = "prob"),
     pos.test = predict(fit, scenario$x.test, type = "log")
   )
@@ -2144,7 +2144,7 @@ fitSummaries <- function(scenario, seed) {
   }
   # hurdle-only channels (fitViaHurdle); NULL - and so absent - for every
   # other fitter, leaving the existing scenarios' summary vectors untouched.
-  # The occupancy probability pi(x.test) and the positive-part log-scale
+  # The zero part's probability pi(x.test) and the positive-part log-scale
   # linear predictor f(x.test); the combined predict rides the standard
   # yhat.test/fhat.test channel above.
   if (!is.null(fit[["occ.test"]])) {
