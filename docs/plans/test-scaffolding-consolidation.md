@@ -860,3 +860,48 @@ shipped build: ordinal-exact.R gaps 0.0002 (tol 0.012) and 0.0002 (tol
 baseline pins in cpp-tests.yaml, equivalence.yaml, mutation-battery.R and
 feature-matrix.md moved. R CMD check --as-cran on a staged tarball built
 with vignettes: Status 1 NOTE, the stale DESCRIPTION Date (pre-existing).
+
+Slice S5 LANDED 2026-09-27 (f2b0f96d): deleted `bartcoreBCFSampler`,
+`bartcoreMultinomialSampler`, `bartcoreMultinomialCountSampler`,
+`bartcoreMultinomialDataSampler`, `validateCategoryTestOffset`, the bridge
+entry `bartcore_createBCF` and its callee `createBCFHolder` (with the
+registration and prototype; no .win mirror), and 28 of the 29 wrappers in
+inst/common/bartcoreHandle.R, which now holds `forestTrees()` alone. No
+caller remains in the tree, stan4bart, bartCause, bairrtt or treatSens.
+dbarts.h and src/C_interface.cpp are unchanged.
+
+Bridge messages: setCalibration's refusal is one message where it named the
+softmax, two-forest or multi-forest map (R's `$setCalibration` refuses every
+combiner-carrying sampler first); the three "requires a multinomial
+(softmax) sampler" refusals share one helper, text unchanged. No C consumer
+matches either.
+
+A3, per raw `.Call` pin:
+- dropped: setCalibration's two map-name pins (test-calibration-midchain.R);
+  setTestOffset's "no off-sample basis" pin on a BCF sampler, whose guard
+  `refuseUndefinedTestFits` is pinned through `$predict` and
+  `$setTestPredictor` (test-bcf.R, test-bcf-mutation-pins.R).
+- moved: the multinomial setSigma pin is now `$setSigma`, pinning its
+  R-side refusal; the bridge guard stays pinned for probit and logistic
+  (test-sampler-errors.R).
+- kept, memory-safety or type backstops for callers that skip the R5 layer:
+  multi-forest setData/setModel and setCounts negative/NA
+  (test-multinomial-counts-mutation.R), setForestWeights and installForests
+  (test-forest-weights.R, test-interactions.R,
+  test-multiforest-warmstart-refusal.R), setWeights finiteness
+  (test-sampler-errors.R), setTestOffset without test rows
+  (test-sampler-bridge-errors.R), setResponse and run type checks
+  (test-aft.R, test-bartcore-keepfits.R), setForestBasis non-finite
+  (test-forest-basis-r5.R), setTestPredictor sparse reference
+  (test-sparse-factor.R), create's sum-to-one tolerance.
+- kept, additive: forest-index translation (test-forest-weights-r5.R),
+  bridge acceptance of inputs no method passes (test-mutate-sparse-valued.R,
+  test-predict-sparse.R, test-sparse-factor.R), the coded predict channel
+  (test-predict-code-channel.R), view mutation (test-data-handle.R,
+  test-linear-leaves.R).
+
+Gates (second reader, with its fixup): `--preclean` installs of both
+builds; full tinytest 9188/0; tests/cpp; on the reference build
+equivalence.R 53/53, bcf-equivalence.R 15/15 and multinomial-equivalence.R
+11/11 bitwise, no |z|; lint_package, air, check-rc-codoc, check-win-drift
+and check-doc-freshness clean.
