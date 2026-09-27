@@ -501,13 +501,6 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
   (1.0-0). Open: delete the three stubs outright, and configure.ac's
   comment naming them, in the release after 1.0-0.
 
-seed-null (decided, VD 2026-09-27; docs/decisions.md dec-A83)
-  before the merge: every seed argument (bart, xbart, dbarts,
-  dbartsControl) defaults to NULL, meaning not given here - at a call it
-  defers to the control's seed, and a control with a NULL seed is
-  unseeded; NA is accepted as NULL; the Reproducibility section and the
-  arguments' manual entries follow.
-
 hurdle feature completion (VD 2026-09-26: part of feature completion,
   not to be forgotten; docs/decisions.md dec-A15)
   a hurdle.lognormal fit takes no test set, weights, subset or offset:
