@@ -4,12 +4,18 @@
   dbartsSpec, which fits the mean as a weighted sum of the
   declared ensembles. Every knob is per forest and carried on the one
   constructor, so the fitting functions grow exactly one argument however many
-  forests a model has."><meta property="og:description" content="Build the specification of one forest of a multi-forest model. Pass a list of
+  forests a model has.
+The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  dbartsForests$forest(...); see dbartsForests."><meta property="og:description" content="Build the specification of one forest of a multi-forest model. Pass a list of
   these as the forests argument of dbarts or
   dbartsSpec, which fits the mean as a weighted sum of the
   declared ensembles. Every knob is per forest and carried on the one
   constructor, so the fitting functions grow exactly one argument however many
-  forests a model has."></head><body>
+  forests a model has.
+The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  dbartsForests$forest(...); see dbartsForests."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -55,6 +61,9 @@
   declared ensembles. Every knob is per forest and carried on the one
   constructor, so the fitting functions grow exactly one argument however many
   forests a model has.</p>
+<p>The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  <code>dbartsForests$forest(...)</code>; see <code><a href="dbartsForests.html">dbartsForests</a></code>.</p>
     </div>
 
     <div class="section level2">
@@ -246,7 +255,8 @@
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code>,
+    <div class="dont-index"><p><code><a href="dbartsForests.html">dbartsForests</a></code>,
+  <code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code>,
   <code><a href="interactions.html">interactions</a></code>, <code><a href="blocks.html">blocks</a></code></p>
 <p><code><a href="bart.html">bart</a></code>'s ‘Formula Terms’ section is the full term
   grammar - colon sugar, the factor forms, the symbolic unnamed slot, and

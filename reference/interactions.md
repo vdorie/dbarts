@@ -8,6 +8,11 @@ predictors may jointly shape a BART fit. Pass the result as the
 constraint is applied per forest, so in a multi-forest model one forest
 can be held additive-or-low-order while another stays free.
 
+The constructor is not exported: it resolves by bare name inside the
+arguments that take it, and elsewhere is written
+`dbartsForests$interactions(...)`; see
+[`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
+
 ## Usage
 
 ``` r
@@ -87,6 +92,7 @@ built.
 
 ## See also
 
+[`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md),
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
 [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md)

@@ -49,7 +49,10 @@ dbartsSpec(
   leaf values, `sigma` and the family's latents. The prior arguments are
   evaluated in dbarts's own prior vocabulary, so bare expressions such
   as `normal(k = chi(1.25, Inf))` resolve regardless of what the caller
-  has attached. The residual prior rides `family` here as everywhere
+  has attached; so do the forest constructors inside `interactions`,
+  `blocks`, `variance` and `forests`, evaluated in `parentEnv` (see
+  [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md)).
+  The residual prior rides `family` here as everywhere
   (`family = gaussian(sigma = chisq(df, quant))`); the retired
   `resid.prior` spelling reaches `...` for one release and is refused
   where it disagrees with a family that named `sigma` too. A
@@ -80,9 +83,10 @@ dbartsSpec(
 
 - parentEnv:
 
-  The environment in which the prior arguments are evaluated; defaults
-  to the caller's frame, which is almost always what is wanted. Pass
-  explicitly when forwarding arguments from another function.
+  The environment in which the prior and forest constructor arguments
+  are evaluated; defaults to the caller's frame, which is almost always
+  what is wanted. Pass explicitly when forwarding arguments from another
+  function.
 
 ## Details
 

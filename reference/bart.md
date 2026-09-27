@@ -688,7 +688,11 @@ print(x, ...)
   Built with `interactions(max.order = , groups = , forbid = )`: cap the
   distinct predictors per root-to-leaf path, confine interactions to
   declared groups, and/or forbid named predictors from co-occurring.
-  `NULL` (the default) fits the unconstrained model.
+  `NULL` (the default) fits the unconstrained model. The constructor
+  resolves by bare name inside this argument, whatever the caller has
+  attached, and a bare name the caller has bound to a value is that
+  value; see
+  [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
 
 - blocks:
 
@@ -700,7 +704,10 @@ print(x, ...)
   to one declared group of predictors so the ensemble is exactly a sum
   of per-group functions. The groups must form a total, disjoint
   partition of the predictors, validated at fit time. `NULL` (the
-  default) fits the ordinary model.
+  default) fits the ordinary model. The constructor resolves by bare
+  name inside this argument, whatever the caller has attached, and a
+  bare name the caller has bound to a value is that value; see
+  [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
 
 - variance:
 
@@ -728,7 +735,11 @@ print(x, ...)
   [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
   `mean.s` row all read it instead of the fixed `sigma` such a fit
   stores (see
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)).
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
+  constructor resolves by bare name inside this argument, whatever the
+  caller has attached, and a bare name the caller has bound to a value
+  is that value; see
+  [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
 
 **Sampling run.**
 
@@ -1586,7 +1597,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001597
+#> total seconds in loop: 0.001269
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1634,7 +1645,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001977
+#> total seconds in loop: 0.001546
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

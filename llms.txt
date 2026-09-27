@@ -216,6 +216,8 @@ weights can change between draws, for use inside larger MCMC schemes.
   : Prior Specification Constructors
 - [`show(`*`<dbartsFamily>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)
   : Response Family Constructors
+- [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md)
+  : Forest Specification Constructors
 - [`interactions()`](https://vdorie.github.io/dbarts/reference/interactions.md)
   : Interaction Constraints for BART
 - [`blocks()`](https://vdorie.github.io/dbarts/reference/blocks.md) :

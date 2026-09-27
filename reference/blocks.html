@@ -4,12 +4,18 @@
   per-group functions \(f = \sum_G f_G\) (a functional-ANOVA / grouped-GAMI
   decomposition). Pass the result as the blocks argument of
   dbarts or bart. The constraint is applied per
-  forest, so in a multi-forest model each forest can carry its own partition."><meta property="og:description" content="Build a block-additive constraint confining each whole tree in a BART fit to
+  forest, so in a multi-forest model each forest can carry its own partition.
+The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  dbartsForests$blocks(...); see dbartsForests."><meta property="og:description" content="Build a block-additive constraint confining each whole tree in a BART fit to
   one declared group of predictors, so the ensemble is exactly a sum of
   per-group functions \(f = \sum_G f_G\) (a functional-ANOVA / grouped-GAMI
   decomposition). Pass the result as the blocks argument of
   dbarts or bart. The constraint is applied per
-  forest, so in a multi-forest model each forest can carry its own partition."></head><body>
+  forest, so in a multi-forest model each forest can carry its own partition.
+The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  dbartsForests$blocks(...); see dbartsForests."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -55,6 +61,9 @@
   decomposition). Pass the result as the <code>blocks</code> argument of
   <code><a href="dbarts.html">dbarts</a></code> or <code><a href="bart.html">bart</a></code>. The constraint is applied per
   forest, so in a multi-forest model each forest can carry its own partition.</p>
+<p>The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  <code>dbartsForests$blocks(...)</code>; see <code><a href="dbartsForests.html">dbartsForests</a></code>.</p>
     </div>
 
     <div class="section level2">
@@ -110,7 +119,8 @@
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="interactions.html">interactions</a></code>, <code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart</a></code></p></div>
+    <div class="dont-index"><p><code><a href="dbartsForests.html">dbartsForests</a></code>,
+  <code><a href="interactions.html">interactions</a></code>, <code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart</a></code></p></div>
     </div>
 
     <div class="section level2">

@@ -7,7 +7,10 @@
   formula/a character or integer column selector for the predictors driving
   the variance). This constructor is the other accepted type of that one
   argument, adding the variance forest's own tree count and structure prior
-  alongside the column selection."><meta property="og:description" content="Build the specification of the heteroscedastic variance forest (HBART;
+  alongside the column selection.
+The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  dbartsForests$varianceForest(...); see dbartsForests."><meta property="og:description" content="Build the specification of the heteroscedastic variance forest (HBART;
   Pratola, Chipman, George, and McCulloch 2020). Pass the result as the
   variance argument of dbarts, dbartsSpec,
   or bart - the same argument that already accepts the plain
@@ -15,7 +18,10 @@
   formula/a character or integer column selector for the predictors driving
   the variance). This constructor is the other accepted type of that one
   argument, adding the variance forest's own tree count and structure prior
-  alongside the column selection."></head><body>
+  alongside the column selection.
+The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  dbartsForests$varianceForest(...); see dbartsForests."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -64,6 +70,9 @@
   the variance). This constructor is the other accepted type of that one
   argument, adding the variance forest's own tree count and structure prior
   alongside the column selection.</p>
+<p>The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  <code>dbartsForests$varianceForest(...)</code>; see <code><a href="dbartsForests.html">dbartsForests</a></code>.</p>
     </div>
 
     <div class="section level2">
@@ -118,7 +127,8 @@
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code>, <code><a href="bart.html">bart</a></code></p></div>
+    <div class="dont-index"><p><code><a href="dbartsForests.html">dbartsForests</a></code>,
+  <code><a href="dbarts.html">dbarts</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code>, <code><a href="bart.html">bart</a></code></p></div>
     </div>
 
     <div class="section level2">
@@ -142,7 +152,7 @@
 <span class="r-in"><span>                        n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>
 <span class="r-in"><span>                        n.chains <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="fu">varianceForest</span><span class="op">(</span>vars <span class="op">=</span> <span class="op">~</span><span class="va">x1</span>, n.trees <span class="op">=</span> <span class="fl">20L</span>, base <span class="op">=</span> <span class="fl">0.9</span>, power <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">dbartsForests</span><span class="op">$</span><span class="fu">varianceForest</span><span class="op">(</span>vars <span class="op">=</span> <span class="op">~</span><span class="va">x1</span>, n.trees <span class="op">=</span> <span class="fl">20L</span>, base <span class="op">=</span> <span class="fl">0.9</span>, power <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> dbarts variance forest specification</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   vars    = ~x1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   n.trees = 20L</span>

@@ -8,6 +8,11 @@ which fits the mean as a weighted sum of the declared ensembles. Every
 knob is per forest and carried on the one constructor, so the fitting
 functions grow exactly one argument however many forests a model has.
 
+The constructor is not exported: it resolves by bare name inside the
+arguments that take it, and elsewhere is written
+`dbartsForests$forest(...)`; see
+[`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
+
 ## Usage
 
 ``` r
@@ -211,6 +216,7 @@ A `dbartsForest` specification object, resolved when a sampler is built.
 
 ## See also
 
+[`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md),
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),

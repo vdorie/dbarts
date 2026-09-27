@@ -205,7 +205,10 @@ dbarts(
   resolve against the model matrix at fit time, where an unknown name,
   an empty group, a `max.order` below 1, or a reference to a dropped
   column is an error. `NULL` (the default) fits the ordinary
-  unconstrained model.
+  unconstrained model. The constructor resolves by bare name inside this
+  argument, whatever the caller has attached, and a bare name the caller
+  has bound to a value is that value; see
+  [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
 
 - blocks:
 
@@ -223,7 +226,11 @@ dbarts(
   `trees.per.group` that does not sum to `n.trees`, is an error). `NULL`
   (the default) fits the ordinary model. May be combined with
   `interactions`. See
-  [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md).
+  [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md). The
+  constructor resolves by bare name inside this argument, whatever the
+  caller has attached, and a bare name the caller has bound to a value
+  is that value; see
+  [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
 
 - variance:
 
@@ -265,7 +272,11 @@ dbarts(
   and
   [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   summarizes `mean.s` in place of `sigma`, which under this
-  parameterization is held fixed and carries no posterior content.
+  parameterization is held fixed and carries no posterior content. The
+  constructor resolves by bare name inside this argument, whatever the
+  caller has attached, and a bare name the caller has bound to a value
+  is that value; see
+  [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
 
 - forests:
 
@@ -310,7 +321,11 @@ dbarts(
   hyperprior or non-default `k`, Student-t residuals,
   `storage = "single"`, per-column cut counts, and a `test` set - are
   refused at creation rather than ignored, as is any declaration the
-  engine cannot honour.
+  engine cannot honour. The constructors `forest`, `interactions` and
+  `blocks` resolve by bare name inside this argument, whatever the
+  caller has attached, and a bare name the caller has bound to a value
+  is that value; see
+  [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
 
 - control:
 

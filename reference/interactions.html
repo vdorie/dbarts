@@ -3,11 +3,17 @@
   may jointly shape a BART fit. Pass the result as the interactions
   argument of dbarts or bart. The constraint is
   applied per forest, so in a multi-forest model one forest can be held
-  additive-or-low-order while another stays free."><meta property="og:description" content="Build an interaction-constraint specification restricting which predictors
+  additive-or-low-order while another stays free.
+The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  dbartsForests$interactions(...); see dbartsForests."><meta property="og:description" content="Build an interaction-constraint specification restricting which predictors
   may jointly shape a BART fit. Pass the result as the interactions
   argument of dbarts or bart. The constraint is
   applied per forest, so in a multi-forest model one forest can be held
-  additive-or-low-order while another stays free."></head><body>
+  additive-or-low-order while another stays free.
+The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  dbartsForests$interactions(...); see dbartsForests."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -52,6 +58,9 @@
   argument of <code><a href="dbarts.html">dbarts</a></code> or <code><a href="bart.html">bart</a></code>. The constraint is
   applied per forest, so in a multi-forest model one forest can be held
   additive-or-low-order while another stays free.</p>
+<p>The constructor is not exported: it resolves by bare name inside the
+  arguments that take it, and elsewhere is written
+  <code>dbartsForests$interactions(...)</code>; see <code><a href="dbartsForests.html">dbartsForests</a></code>.</p>
     </div>
 
     <div class="section level2">
@@ -123,7 +132,8 @@
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart</a></code>, <code><a href="blocks.html">blocks</a></code></p></div>
+    <div class="dont-index"><p><code><a href="dbartsForests.html">dbartsForests</a></code>,
+  <code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart</a></code>, <code><a href="blocks.html">blocks</a></code></p></div>
     </div>
 
     <div class="section level2">

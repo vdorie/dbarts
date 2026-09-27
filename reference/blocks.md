@@ -9,6 +9,11 @@ grouped-GAMI decomposition). Pass the result as the `blocks` argument of
 constraint is applied per forest, so in a multi-forest model each forest
 can carry its own partition.
 
+The constructor is not exported: it resolves by bare name inside the
+arguments that take it, and elsewhere is written
+`dbartsForests$blocks(...)`; see
+[`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
+
 ## Usage
 
 ``` r
@@ -70,6 +75,7 @@ A `dbartsBlocks` specification object, resolved when a sampler is built.
 
 ## See also
 
+[`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md),
 [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md),
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
