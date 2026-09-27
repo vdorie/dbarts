@@ -155,7 +155,7 @@ test-multinomial-category-offset.R (one site) had the other three, now
 migrated onto `$predict`).
 `dbartsSampler$predict`/`$predictForests`
 ([`dbartsSampler$predict`](../../R/dbarts.R), [`dbartsSampler$predictForests`](../../R/dbarts.R)) pass
-their formal through; `bartcorePredict` ([`bartcorePredict`](../../R/bartcore.R)) and
+their formal through; the handle predict (retired: [`bartcorePredict`](../../R/bartcore.R), deleted, its two callers now on `$predict`'s body) and
 the test harness's `bartcorePredictPerForest` in
 [`bartcorePredictPerForest`](../../inst/common/bartcoreHandle.R)
 (no per-forest wrapper ships in `R/`; `$predictForests` calls the entry

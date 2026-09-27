@@ -7,8 +7,8 @@
 # class has only the shipped C header. Reached with dbarts:::C_dbarts_* for
 # the .Call targets and dbarts:::<name> for the package-internal validators
 # the bodies still use (asCountMatrix, validateCategoryOffset,
-# validateLiveScale, resolveForestIndex, rawPredictorMatrix). bartcoreRun,
-# bartcorePredict and bartcoreSetModel have live in-package callers and stay
+# validateLiveScale, resolveForestIndex, rawPredictorMatrix). bartcoreRun
+# and bartcoreSetModel have live in-package callers and stay
 # defined in R/bartcore.R; the aliases below just bind those definitions
 # under the same names so a caller here cannot see two divergent copies.
 # forestTrees is the one exception to "exercising the handle layer directly
@@ -192,7 +192,7 @@ bartcoreForestFits <- function(bcSampler, forest) {
 # offset, n.observations x n.chains - the quantity the run's train channel
 # carries with the offset folded in. Refused on a multinomial handle, whose
 # reported channels are per-category softmax probabilities and not one additive
-# location; bartcorePredict(bc, x) serves that read instead, and reports the
+# location; the sampler's $predict(x) serves that read instead, and reports the
 # saved samples rather than the current state under keepTrees.
 bartcoreFitsWithoutOffset <- function(bcSampler) {
   .Call(dbarts:::C_dbarts_bartcore_getFitsWithoutOffset, bcSampler$ptr)
@@ -436,7 +436,7 @@ bartcoreGetLatents <- function(bcSampler) {
 # offset.test exists to be refused by name, since a shift belongs to that
 # recombination rather than to any one forest's total. Refused on a handle whose
 # coupling reports no per-forest fits, which is every single-forest sampler and
-# a multinomial one (its raw f_k are defined, but bartcorePredict reports the
+# a multinomial one (its raw f_k are defined, but its predict reports the
 # softmax probabilities that handle's surface is stated in).
 bartcorePredictPerForest <- function(
   bcSampler,
@@ -536,4 +536,3 @@ bartcoreSetState <- function(bcSampler, state) {
 
 bartcoreSetModel <- dbarts:::bartcoreSetModel
 bartcoreRun <- dbarts:::bartcoreRun
-bartcorePredict <- dbarts:::bartcorePredict

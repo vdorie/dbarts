@@ -1,7 +1,6 @@
-# The dbartsSampler surface, post host-shell removal. Pointer adoption for
-# ordinal/nbinom and direct construction for multinomial mean every
-# bart() alternate-family fit's $fit is now the sampler that actually
-# ran: no hostFor field, no refuseHostMutation/refuseHostRead guards, no
+# The dbartsSampler surface, post host-shell removal. Every bart()
+# alternate-family fit runs its sampler's own engine, so its $fit is the
+# sampler that actually ran: no hostFor field, no refuseHostMutation/refuseHostRead guards, no
 # host-shell save/reload defect. This file used to pin those defects; it
 # now pins the census (the drift detector: any method added or removed
 # from dbartsSampler should be caught here) and the capabilities that
@@ -14,7 +13,6 @@ gen <- getRefClass("dbartsSampler")
 ownMethods <- gen$def@refMethods
 infrastructure <- c(
   "initialize",
-  "adoptPointer",
   "reapplyForestWeights",
   "reapplyActiveRows",
   "getPointer",
@@ -40,8 +38,8 @@ inherited <- c(
 own <- setdiff(names(ownMethods), inherited)
 substantiveMethods <- sort(setdiff(own, infrastructure))
 
-expect_equal(length(own), 51L)
-expect_equal(length(infrastructure), 6L)
+expect_equal(length(own), 50L)
+expect_equal(length(infrastructure), 5L)
 expect_equal(length(substantiveMethods), 45L)
 
 expect_identical(

@@ -109,6 +109,18 @@ expect_true(all(ppdNew >= 0 & ppdNew == round(ppdNew)))
 evPlain <- predict(fit, x.test, type = "ev")
 evDoubled <- predict(fit, x.test, type = "ev", offset = rep(log(2), 10L))
 expect_equal(evDoubled, 2 * evPlain)
+# a single value recycles over the predicted rows; a missing value, alone or
+# in a per-row vector, is refused rather than giving NA predictions
+expect_identical(predict(fit, x.test, type = "ev", offset = log(2)), evDoubled)
+expect_error(predict(fit, x.test, offset = NA), "'offset' has missing values")
+expect_error(
+  predict(fit, x.test[1L, , drop = FALSE], offset = NA_real_),
+  "'offset' has missing values"
+)
+expect_error(
+  predict(fit, x.test, offset = c(NA, rep(0, 9L))),
+  "'offset' has missing values"
+)
 
 # --- predict requires keepTrees ---
 
@@ -140,9 +152,8 @@ fitKeepSampler <- bart(
 expect_false(is.null(fitKeepSampler$fit))
 rm(fitKeepSampler)
 
-# --- the retained $fit is the engine that ran, adopted from the abandoned
-# first-created host: reads and mutations succeed, and getDispersion()
-# answers with the fit's own r rather than the abandoned host's ---
+# --- the retained $fit is the engine that ran: reads and mutations
+# succeed, and getDispersion() answers with the fit's own last r ---
 expect_equal(ncol(fit$fit$data@x), ncol(x))
 expect_equal(predict(fit, x.test), fit$yhat.test)
 expect_equal(fit$fit$getDispersion(), fit$dispersion[n.samples])

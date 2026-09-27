@@ -124,7 +124,7 @@ reconciliation: silent, deterministic, a measured no-op for a family carrying no
 
 The mirror onto `attr(control, "bartcore.survival")` stays, being what re-creation reads: `getPointer` rebuilds from the
 stored triple, so the re-created sampler takes the CURRENT status, as `data@y` and `data@counts` do. The handle has no
-mirror - `bartcoreSampler` returns an environment holding a pointer and the predictors - so its wrapper ships a weaker
+mirror - a low-level handle is an environment holding a pointer and the predictors - so its wrapper ships a weaker
 persistence contract and gate (d)'s check is R5-only. Residue after both, accepted: a row censored on both sides whose
 restored latent sits below a bound a y change moved, healed by the next sweep's refresh before sigma is drawn
 ([`Chain::run`](../../src/bartcore/chain.hpp)).

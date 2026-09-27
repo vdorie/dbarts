@@ -1,6 +1,7 @@
 # The bartcore engine behind dbartsSampler. The dbartsSampler methods
-# delegate to the bartcoreSampler* functions below; the C side borrows
-# vectors and pins them in the external pointer's protection slot.
+# delegate to the bartcoreSamplerRun and bartcoreSamplerSet* functions below;
+# the C side borrows vectors and pins them in the external pointer's
+# protection slot.
 #
 # Not supported (methods error): weights with binary responses (weighted
 # probit has no coherent latent-variable form), and setControl changes to
@@ -766,32 +767,6 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
   invisible(NULL)
 }
 
-# Internal interface used by the tests and the equivalence harness; a
-# bartcore handle is constructed from the validated control/model/data of an
-# existing dbartsSampler regardless of that sampler's own engine. family
-# selects the response model for binary responses ("probit", the default,
-# or "logistic"), the same choice bart2's own family argument exposes
-# publicly. Columns marked CATEGORICAL (1L) in data@varTypes split by
-# category subset rather than by threshold; factors = "categorical", the
-# default on the public data constructor, sets this directly, so callers
-# never flip the type by hand. Values must be integer codes 0..K-1, K <= 32.
-
-bartcoreSampler <- function(sampler, family = "") {
-  result <- new.env(parent = emptyenv())
-  result$ptr <- .Call(
-    C_dbarts_bartcore_create,
-    sampler$control,
-    sampler$model,
-    sampler$data,
-    as.character(family)
-  )
-  # the engine keeps no predictor matrix, so the low-level wrappers track the
-  # current predictors R-side to feed the re-quantize entry points
-  # (setCutPoints, setState, saved-tree getTrees); null for sparse designs
-  result$x <- rawPredictorMatrix(sampler$data@x)
-  result
-}
-
 # A built predictor store (cuts + codes) shared across row-subset samplers;
 # internal and unserializable. control contributes useQuantiles; data
 # contributes x, the column types, and
@@ -817,7 +792,9 @@ bartcoreDataHandle <- function(control, data, leafCovariateColumns = NULL) {
 # test offset comes from offset[testRows] (xbart's fold semantics). columns,
 # when given, are 1-based indices restricting the view to a column subset (NULL
 # spans every column). The result refuses raw-predictor mutation (setPredictor
-# and friends, setData, setCutPoints, setState); family is as bartcoreSampler's.
+# and friends, setData, setCutPoints, setState); family overrides the
+# response model ("" keeps the bridge's own dispatch, "logistic" selects it
+# for a binary response).
 bartcoreSamplerFromHandle <- function(
   handle,
   control,
@@ -1050,7 +1027,7 @@ validateCategoryTestOffset <- function(offset.test, sampler, K) {
 # category). When the data object carries x.test, the run's test channel
 # reports the same K softmax probabilities on the held-out rows (the K forests'
 # totalTestFits blended by softmax). Under keepTrees, out-of-sample predict()
-# replays all K forests' saved trees and softmaxes them (bartcorePredict).
+# replays all K forests' saved trees and softmaxes them ($predict).
 # offset, when given, is the n x K category offset bartcoreSetCategoryOffset
 # installs; offset.test the nTest x K one bartcoreSetCategoryTestOffset
 # installs over the host data object's x.test. See those two for the semantics
@@ -1238,40 +1215,5 @@ bartcoreRun <- function(bcSampler, numBurnIn = 0L, numSamples = 1L) {
     NULL,
     NULL,
     TRUE
-  )
-}
-
-# offset.test takes the shape of the surface: a flat per-row vector for every
-# additive family, and for a multinomial handle an nNew x K matrix, one row per
-# predicted row, entering the raw fits before the softmax. It is never taken
-# from the sampler - these rows are the caller's - so a handle carrying a
-# category offset must be given one here, an all-zero matrix being how the
-# offset-free surface is asked for.
-bartcorePredict <- function(
-  bcSampler,
-  x.test,
-  offset.test = NULL,
-  n.threads = 1L
-) {
-  x.test <- as.matrix(x.test)
-  storage.mode(x.test) <- "double"
-  if (!is.null(offset.test)) {
-    if (!is.null(bcSampler$K)) {
-      offset.test <- validateCategoryOffset(
-        offset.test,
-        nrow(x.test),
-        bcSampler$K,
-        "predict category offset"
-      )
-    } else {
-      offset.test <- as.double(offset.test)
-    }
-  }
-  .Call(
-    C_dbarts_bartcore_predict,
-    bcSampler$ptr,
-    x.test,
-    offset.test,
-    n.threads
   )
 }

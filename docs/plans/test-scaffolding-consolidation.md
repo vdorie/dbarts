@@ -38,8 +38,8 @@ are.
   of production code; no second validation path exists, so they stay.
   So do tests that hand-build a spec and pass it to the exported
   `new("dbartsSampler", control, model, data)`, which is class API.
-- A handle is not "the sampler". [`bartcoreSampler`](../../R/bartcore.R)
-  rebuilds an engine from the sampler's current (control, model, data)
+- A handle is not "the sampler". retired: [`bartcoreSampler`](../../R/bartcore.R)
+  (deleted in S4) rebuilds an engine from the sampler's current (control, model, data)
   plus an optional family. It therefore sees any slot a test mutated
   after `dbarts()` ran, which the sampler's own engine never sees.
   Appendix A5 lists every such site (the sweep: every assignment to a

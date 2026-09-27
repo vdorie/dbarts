@@ -2010,18 +2010,10 @@ predict.bartOrdinal <- function(
     on.exit(restoreSeed(), add = TRUE)
   }
   rowNames <- rows$keptNames
-  newdata <- rows$x
-  if (!is.matrix(newdata)) {
-    newdata <- as.matrix(newdata)
-  }
   n.chains <- object$n.chains
   # raw is n.new x n.samples (x n.chains): the replayed latent eta, the test
   # channel's shape
-  raw <- bartcorePredict(
-    list(ptr = object$fit$getPointer()),
-    newdata,
-    n.threads = n.threads
-  )
+  raw <- predictCodedTest(object$fit, rows$x, NULL, n.threads)
   if (type == "bart") {
     result <- nameObservationMargin(
       convertSamplesFromDbartsToBart(raw, n.chains, combineChains),
@@ -2322,19 +2314,15 @@ predict.bartNegbin <- function(
     on.exit(restoreSeed(), add = TRUE)
   }
   rowNames <- rows$keptNames
-  newdata <- rows$x
   offset <- subsetPredictInput(offset, rows, "offset")
-  if (!is.matrix(newdata)) {
-    newdata <- as.matrix(newdata)
+  # a length-one offset recycles over the rows, so a lone NA would give an
+  # all-NA surface: refused, as a missing value in a per-row offset is
+  if (length(offset) == 1L && is.na(offset)) {
+    stop("'offset' has missing values")
   }
   n.chains <- object$n.chains
   # raw is n.new x n.samples (x n.chains): the replayed log-odds latent psi
-  raw <- bartcorePredict(
-    list(ptr = object$fit$getPointer()),
-    newdata,
-    offset,
-    n.threads
-  )
+  raw <- predictCodedTest(object$fit, rows$x, offset, n.threads)
   if (type == "bart") {
     result <- nameObservationMargin(
       convertSamplesFromDbartsToBart(raw, n.chains, combineChains),

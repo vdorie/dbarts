@@ -60,8 +60,8 @@ anchors below are re-derived to the successor constructions):
 |---|---|---|---|
 | [`bart2Multinomial`](../../R/bart.R) | multinomial (labels) | [`buildHostSamplerCall`](../../R/bart.R) with `family = "multinomial"`, then `samplerCall$data <- y` (retired: the pre-arc call passed `family = NULL` and `as.double(labels)`) | the sampler built here IS the engine that runs (S4/F1); [`bartcoreMultinomialSampler`](../../R/bartcore.R) is now a thin wrapper over the same public path |
 | [`bart2MultinomialCounts`](../../R/bart.R) | multinomial (counts) | same, `family = "multinomial"`, then `samplerCall$data <- y` (retired: was `as.double(y[, 1L])`) | as above; [`bartcoreMultinomialCountSampler`](../../R/bartcore.R) |
-| [`bart2Ordinal`](../../R/bart.R) | ordinal | [`buildHostSamplerCall`](../../R/bart.R) with `family = "ordinal"` | [`bartcoreSampler`](../../R/bartcore.R) called as `bartcoreSampler(sampler, family = "ordinal")` |
-| [`bart2Negbin`](../../R/bart.R) | nbinom | `buildHostSamplerCall` with `family = "nbinom"` | `bartcoreSampler` called as `bartcoreSampler(sampler, family = "nbinom")` |
+| [`bart2Ordinal`](../../R/bart.R) | ordinal | [`buildHostSamplerCall`](../../R/bart.R) with `family = "ordinal"` | the sampler built here IS the engine that runs (retired: [`bartcoreSampler`](../../R/bartcore.R), a second creation adopted into it, is deleted) |
+| [`bart2Negbin`](../../R/bart.R) | nbinom | `buildHostSamplerCall` with `family = "nbinom"` | as above |
 
 `buildHostSamplerCall` is [`buildHostSamplerCall`](../../R/bart.R).
 `result$bc <- bc` (retired: [`bc`](../../R/bart.R)) - the separate `$bc` handle
@@ -85,8 +85,9 @@ a fully correct, fully mutable sampler of the right family - the same
 object `dbarts(x, y, family = "ordinal")` returns, whose whole
 single-forest mutation surface is SHIPPED
 ([1. Structural signature](feature-matrix.md#1-structural-signature)).
-`bartcoreSampler(sampler, family = ...)` then builds a SECOND engine from
-that same `(control, model, data)` triple and the first is abandoned.
+A second engine built from that same `(control, model, data)` triple then
+ran in place of the first, which was abandoned; that second creation is
+gone, and these two fits now run the sampler's own engine.
 MEASURED: `model@family` on an ordinal host reads `"ordinal"` and the
 `bartcore.n.categories` control attribute rides on it - so the triple
 genuinely describes the engine. That fact is what makes fork D0 work.
@@ -147,7 +148,7 @@ except where it names another file:
 | cut points | [`bartcore_setCutPoints`](../../src/R_interface_bartcore.cpp) | [`bartcoreSamplerSetCutPoints`](../../R/bartcore.R) | S |
 | test predictors | [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) | [`bartcoreSamplerSetTestPredictor`](../../R/bartcore.R) | S ([`refuseUndefinedTestFits`](../../src/R_interface_bartcore.cpp) gates on `testFitsAreDefined`, TRUE here) |
 | active-row mask | [`bartcore_setActiveRows`](../../src/R_interface_bartcore.cpp) | the bartcore.R wrapper is gone; reachable via [`setActiveRows`](../../R/dbarts.R) | S, global only (`[f21]`) |
-| predict (K-aware, own n x K offset) | [`bartcore_predict`](../../src/R_interface_bartcore.cpp) | [`bartcorePredict`](../../R/bartcore.R) | S |
+| predict (K-aware, own n x K offset) | [`bartcore_predict`](../../src/R_interface_bartcore.cpp) | retired: [`bartcorePredict`](../../R/bartcore.R); reachable via [`predict`](../../R/dbarts.R) | S |
 | per-category fits / varcounts | [`bartcore_getForestFits`](../../src/R_interface_bartcore.cpp), [`bartcore_getForestVariableCounts`](../../src/R_interface_bartcore.cpp) | the bartcore.R wrapper is gone; reachable via [`getForestFits`](../../R/dbarts.R), [`getForestVariableCounts`](../../R/dbarts.R) | S |
 | calibration read | [`bartcore_getCalibration`](../../src/R_interface_bartcore.cpp) | the bartcore.R wrapper is gone; reachable via [`getCalibration`](../../R/dbarts.R) | S (map columns, NaN off-map) |
 | state store / restore | [`bartcore_storeState`](../../src/R_interface_bartcore.cpp), [`bartcore_setState`](../../src/R_interface_bartcore.cpp) | unresolved | S, STRUCTURAL not bitwise (omega redrawn; [The surface](multinomial.md#the-surface)) |
@@ -216,8 +217,9 @@ an engine nothing reads. Same harm, one method call away.
 All three `predict` methods code `newdata` against the HOST's design:
 [`predict.bartMultinomial`](../../R/generics.R), [`predict.bartOrdinal`](../../R/generics.R), [`predict.bartNegbin`](../../R/generics.R), [`validateXTest`](../../R/generics.R) all call
 `validateXTest(newdata, object$fit$data@x)` before handing the matrix to
-[`bartcorePredict`](../../R/generics.R) (the separate `$bc` handle is gone; the
-call routes through `object$fit` directly). The host carries the factor level
+[`predictCodedTest`](../../R/dbarts.R), the body of `object$fit$predict`
+(retired: [`bartcorePredict`](../../R/generics.R), and before it a separate
+`$bc` handle). The host carries the factor level
 table and column names a data-frame `newdata` is expanded against. Any
 fork that removes `$fit` must relocate that table.
 
@@ -507,7 +509,7 @@ That footprint is spent. `hostFor` has zero survivors in `R/`, `src/`,
 `inst/` and `man/` - the sole remaining occurrence of the name is the
 descriptive comment at ["no hostFor field"](../../inst/tinytest/test-host-shell-pins.R). The
 ordinal and nbinom cells did invert to capability assertions
-(["the retained $fit is the engine that ran, adopted from the abandoned"](../../inst/tinytest/test-ordinal.R), ["the retained $fit is the engine that ran, adopted from the abandoned"](../../inst/tinytest/test-nbinom.R), both now asserting
+(["the retained $fit is the engine that ran: reads and mutations"](../../inst/tinytest/test-ordinal.R), ["the retained $fit is the engine that ran: reads and mutations"](../../inst/tinytest/test-nbinom.R), both now asserting
 that the retained `$fit` reads, mutates and runs); the
 `test-dispersion-channel.R` cell was deleted rather than rewritten; and
 the four multinomial cells survive as refusals stated on MODEL grounds

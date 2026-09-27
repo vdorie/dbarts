@@ -146,7 +146,7 @@ uncombineChains <- function(samples, n.chains) {
 
 # One chain's sample-s column of a run channel; the engine drops the trailing
 # chain margin when n.chains == 1. Shared by the ordinal and nbinom fit loops
-# that read a bartcoreRun() channel column by column.
+# that read a run channel column by column.
 channelColumn <- function(channel, s, chain, n.chains) {
   if (n.chains == 1L) channel[, s] else channel[, s, chain]
 }
@@ -1746,7 +1746,7 @@ detectAutoOrdinal <- function(formula, data, dataIsMissing, callingEnv) {
 # usual tree.prior/node.prior/resid.prior/control machinery resolves
 # n.trees, n.chains, the tree prior and k exactly as it would for any other
 # family. No warm start and no two-phase burn-in/sample split: both are
-# skipped, as bartcoreRun's single call needs neither. offset, when
+# skipped, as a single run call needs neither. offset, when
 # non-NULL, is the validated n x K category offset (bart2's own matrix-only
 # surface, above); it is installed on the constructed sampler through
 # $setCategoryOffset, before the run - never through the host dbarts()
@@ -1803,13 +1803,7 @@ bart2Multinomial <- function(
     return(sampler)
   }
 
-  samples <- bartcoreRun(
-    list(ptr = sampler$getPointer()),
-    control@n.burn,
-    control@n.samples
-  )
-  # bartcoreRun does not warn on its own; one call drives this whole fit
-  warnOnGPFallback(samples)
+  samples <- sampler$run(control@n.burn, control@n.samples, updateState = FALSE)
 
   # 'subset' is refused for family = "multinomial" (above), so the sampler's
   # own na.action indices index straight into this un-subsetted y; reduce it
@@ -1899,13 +1893,7 @@ bart2MultinomialCounts <- function(
     return(sampler)
   }
 
-  samples <- bartcoreRun(
-    list(ptr = sampler$getPointer()),
-    control@n.burn,
-    control@n.samples
-  )
-  # bartcoreRun does not warn on its own; one call drives this whole fit
-  warnOnGPFallback(samples)
+  samples <- sampler$run(control@n.burn, control@n.samples, updateState = FALSE)
 
   # 'subset' is refused for family = "multinomial" (above), so the sampler's
   # own na.action indices index straight into this un-subsetted y; reduce it
@@ -2001,7 +1989,7 @@ reshapeChainedChannel <- function(x, n.chains, combine, trailing) {
   a
 }
 
-# Reshapes one bartcoreRun() result into a bart2(family = "multinomial") fit.
+# Reshapes one run result into a bart2(family = "multinomial") fit.
 # samples$train is n.obs x K x n.samples (x n.chains); the K-carrying softmax
 # probabilities are already the identified quantity the engine reports (the
 # run's train channel is the identified deliverable), so no
@@ -2148,12 +2136,6 @@ bart2Ordinal <- function(
   n.test <- NROW(sampler$data@x.test)
   n.samples <- control@n.samples
 
-  bc <- bartcoreSampler(sampler, family = "ordinal")
-  # bc's engine is the one that runs below; adopt it into sampler so $fit
-  # becomes an R5 wrapper around the engine that actually ran, not the
-  # abandoned first-created host.
-  sampler$adoptPointer(bc$ptr)
-
   probsTrain <- array(0, c(n.obs, K, n.samples, n.chains))
   latentTrain <- array(0, c(n.obs, n.samples, n.chains))
   probsTest <- if (n.test > 0L) {
@@ -2171,9 +2153,7 @@ bart2Ordinal <- function(
   # one run drives the whole chain; the thresholds ride their own run channel
   # (r$thresholds, present because the ordinal family carries them), aligned with
   # each kept sweep's latent draw, so no per-sample state read is needed
-  r <- bartcoreRun(bc, control@n.burn, n.samples)
-  # bartcoreRun does not warn on its own; one call drives this whole fit
-  warnOnGPFallback(r)
+  r <- sampler$run(control@n.burn, n.samples, updateState = FALSE)
 
   varWidth <- if (n.chains == 1L) {
     nrow(as.matrix(r$varcount))
@@ -2357,8 +2337,8 @@ negbinPpd <- function(mu, r) {
 # "nbinom" branch. A SINGLE forest
 # fits the log-odds latent psi = f(x) + o (like logistic under the Polya-Gamma
 # augmentation); the mean counts mu = r exp(psi) and the per-draw dispersion r
-# are synthesized here. The run is driven one kept sample at a time (through the
-# low-level bc) because mu = r exp(psi) pairs each sweep's latent draw with that
+# are synthesized here. The run is driven one kept sample at a time because
+# mu = r exp(psi) pairs each sweep's latent draw with that
 # sweep's r; r itself comes from the run's own per-draw dispersion channel, so no
 # state is serialized per sweep. dbarts(family = "nbinom") does the count
 # validation, the fixed
@@ -2402,13 +2382,6 @@ bart2Negbin <- function(
   n.test <- NROW(sampler$data@x.test)
   n.samples <- control@n.samples
 
-  bc <- bartcoreSampler(sampler, family = "nbinom")
-  # bc's engine is the one run below; adopt it into sampler so $fit becomes
-  # an R5 wrapper around the engine that actually ran, not the abandoned
-  # first-created host. It matters twice here: $getDispersion() would
-  # otherwise answer with the abandoned host's own r rather than the fit's.
-  sampler$adoptPointer(bc$ptr)
-
   latentTrain <- array(0, c(n.obs, n.samples, n.chains))
   meanTrain <- array(0, c(n.obs, n.samples, n.chains))
   latentTest <- if (n.test > 0L) {
@@ -2424,9 +2397,10 @@ bart2Negbin <- function(
   # r is a scalar per (sample, chain), so it rides a sigma-shaped matrix
   dispersionRaw <- matrix(0, n.samples, n.chains)
   varcountRaw <- NULL
-  # bartcoreRun does not warn on its own, and this fit takes one call per
-  # kept sample (the dispersion MH step needs it), so the per-call tallies
-  # are summed here and warned on once below, not once per sample
+  # one run call per kept sample (the dispersion MH step needs it) goes
+  # through the quiet bartcoreRun, not $run, which would warn once per sample;
+  # the per-call tallies are summed here and warned on once below
+  bc <- list(ptr = sampler$getPointer())
   gpFallbackTally <- NULL
 
   for (s in seq_len(n.samples)) {
