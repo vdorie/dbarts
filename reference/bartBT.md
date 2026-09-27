@@ -52,6 +52,7 @@ predict(
     ci.level = NULL,
     forest = NULL,
     bases = NULL,
+    na.action = dbarts::na.keepPredictors,
     n.threads,
     ...)
 
@@ -564,6 +565,12 @@ family(object, ...)
   CONTRIBUTION to the fit, \\(\mathrm{basis}\_k \\ \mathrm{glue}\_k)
   \times \mathrm{forestFits}\_k\\, computed on demand from the stored
   `forestFits`, `glue`, and `bases` rather than stored itself.
+
+- na.action:
+
+  For `predict`: what to do with the rows of `newdata` that have missing
+  values; see ‘At Prediction’ in
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
 
 - ci.level:
 
@@ -1091,23 +1098,23 @@ bartFit <- bart(x, y)
 #> [2] iteration: 100 (of 500)
 #> [1] iteration: 200 (of 500)
 #> [2] iteration: 200 (of 500)
-#> [1] iteration: 300 (of 500)
 #> [2] iteration: 300 (of 500)
-#> [1] iteration: 400 (of 500)
+#> [1] iteration: 300 (of 500)
 #> [2] iteration: 400 (of 500)
-#> [1] iteration: 500 (of 500)
+#> [1] iteration: 400 (of 500)
 #> [2] iteration: 500 (of 500)
-#> [3] iteration: 100 (of 500)
+#> [1] iteration: 500 (of 500)
 #> [4] iteration: 100 (of 500)
-#> [3] iteration: 200 (of 500)
+#> [3] iteration: 100 (of 500)
 #> [4] iteration: 200 (of 500)
-#> [3] iteration: 300 (of 500)
+#> [3] iteration: 200 (of 500)
 #> [4] iteration: 300 (of 500)
-#> [3] iteration: 400 (of 500)
+#> [3] iteration: 300 (of 500)
 #> [4] iteration: 400 (of 500)
-#> [3] iteration: 500 (of 500)
+#> [3] iteration: 400 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.115390
+#> [3] iteration: 500 (of 500)
+#> total seconds in loop: 0.148649
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

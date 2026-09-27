@@ -69,7 +69,8 @@ predict(
     object, newdata,
     type = c("ev", "ppd", "bart", "forest", "class"),
     offset = NULL,
-    combineChains = TRUE, ci.level = NULL, n.threads, ...)
+    combineChains = TRUE, ci.level = NULL,
+    na.action = dbarts::na.keepPredictors, n.threads, ...)
 
 # S3 method for class 'bartMultinomial'
 print(x, ...)
@@ -96,7 +97,8 @@ predict(
     object, newdata,
     type = c("ev", "ppd", "bart", "class"),
     offset = NULL,
-    combineChains = TRUE, ci.level = NULL, n.threads, ...)
+    combineChains = TRUE, ci.level = NULL,
+    na.action = dbarts::na.keepPredictors, n.threads, ...)
 
 # S3 method for class 'bartOrdinal'
 print(x, ...)
@@ -123,7 +125,8 @@ predict(
     object, newdata,
     type = c("ev", "ppd", "bart"),
     offset = NULL,
-    combineChains = TRUE, ci.level = NULL, n.threads, ...)
+    combineChains = TRUE, ci.level = NULL,
+    na.action = dbarts::na.keepPredictors, n.threads, ...)
 
 # S3 method for class 'bartNegbin'
 print(x, ...)
@@ -150,7 +153,8 @@ predict(
     object, newdata,
     type = c("ev", "ppd", "prob", "bart"),
     offset = NULL,
-    combineChains = TRUE, ci.level = NULL, n.threads, ...)
+    combineChains = TRUE, ci.level = NULL,
+    na.action = dbarts::na.keepPredictors, n.threads, ...)
 
 # S3 method for class 'bartHurdle'
 print(x, ...)
@@ -309,6 +313,10 @@ print(x, ...)
   drops rows with a missing RESPONSE and keeps rows with missing
   predictors, which the trees route; the base functions keep their usual
   meaning. See
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
+
+  For `predict`, what to do with the rows of `newdata` that have missing
+  values; see ‘At Prediction’ in
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
 
 - factors:
@@ -1731,7 +1739,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001285
+#> total seconds in loop: 0.001569
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1779,7 +1787,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001514
+#> total seconds in loop: 0.002031
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

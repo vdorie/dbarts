@@ -90,6 +90,42 @@
   that interface what it means on the formula one.</p>
     </div>
     <div class="section level2">
+    <h2 id="at-prediction">At Prediction<a class="anchor" aria-label="anchor" href="#at-prediction"></a></h2>
+    <p>Every <code>predict</code> method on a fit (<code><a href="bartBT.html">predict.bart</a></code> and
+  <code><a href="bart.html">bart</a></code>'s four own classes) and
+  <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> take an <code>na.action</code> for
+  <code>newdata</code>, defaulting to this function; <code>NULL</code> means the
+  default, and <code>getOption("na.action")</code> is never consulted.</p>
+<p>A missing value in <code>newdata</code> is <em>routable</em> when its column had
+  missing values in training: every split rule on that column then learned
+  a side for them, and the row predicts like any other. On a column that
+  was complete in training no rule learned a side, so the value is
+  <em>unroutable</em>. Only the default and <code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.pass</a></code> look at
+  this:</p><ul><li><p><code>na.keepPredictors</code> predicts every routable row and refuses
+    an unroutable one, naming its columns;</p></li>
+<li><p><code>na.pass</code> predicts every routable row and returns <code>NA</code>
+    for an unroutable one;</p></li>
+<li><p><code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.omit</a></code> drops every row with a missing value;</p></li>
+<li><p><code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.exclude</a></code> drops the same rows and pads them back
+    as <code>NA</code>, so the result stays aligned with <code>newdata</code>, as the
+    fit-time record does (<code><a href="https://rdrr.io/r/stats/predict.lm.html" class="external-link">predict.lm</a></code> instead treats it as
+    <code>na.omit</code> on new data);</p></li>
+<li><p><code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.fail</a></code> refuses any missing value, naming its
+    columns.</p></li>
+</ul><p>Any other function is applied to a one-column frame that is <code>NA</code> on
+  the rows with a missing value, on every interface, and the rows it keeps
+  then meet the default's refusal. The result carries <code>newdata</code>'s row
+  names and no <code>"na.action"</code> attribute. When no row survives, or
+  <code>newdata</code> has none, the result has the usual draw dimensions and
+  zero rows (<code>NA</code> rows under <code>na.exclude</code> and <code>na.pass</code>),
+  and R's random number stream is left as it was.</p>
+<p>A per-row <code>offset</code>, <code>weights</code> or <code>bases</code> must match
+  <code>newdata</code>'s rows and loses the same rows; a single value passes
+  through. A missing value in a per-row <code>offset</code> or <code>weights</code> is
+  an error. The sampler's own <code>predict</code>, <code>predictForests</code> and
+  <code>getTrees</code> methods take no <code>na.action</code> and keep the default.</p>
+    </div>
+    <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p><code>object</code> with the missing-response rows removed, carrying an
   <code>"na.action"</code> attribute of class <code>"exclude"</code> naming them; or
@@ -98,7 +134,8 @@
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.omit</a></code>, <code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.exclude</a></code>, <code><a href="https://rdrr.io/r/stats/nafns.html" class="external-link">naresid</a></code>,
-  <code><a href="bart.html">bart</a></code>, <code><a href="dbartsData.html">dbartsData</a></code></p></div>
+  <code><a href="bart.html">bart</a></code>, <code><a href="dbartsData.html">dbartsData</a></code>,
+  <code><a href="survivalProbabilities.html">survivalProbabilities</a></code></p></div>
     </div>
 
     <div class="section level2">

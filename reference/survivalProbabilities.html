@@ -79,6 +79,7 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
 <span>  <span class="va">times</span>,</span>
 <span>  newdata <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  combineChains <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  na.action <span class="op">=</span> <span class="fu">dbarts</span><span class="fu">::</span><span class="va"><a href="na.keepPredictors.html">na.keepPredictors</a></span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -123,6 +124,12 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   <dt id="arg-combinechains">combineChains<a class="anchor" aria-label="anchor" href="#arg-combinechains"></a></dt>
 <dd><p>A logical determining whether the chain dimension is collapsed into the
     draw dimension, as elsewhere in the package.</p></dd>
+
+  <dt id="arg-na-action">na.action<a class="anchor" aria-label="anchor" href="#arg-na-action"></a></dt>
+<dd><p>What to do with the subjects in <code>newdata</code> that have missing
+    values, resolved per subject before a hazard fit's person-period
+    expansion; unused when <code>newdata</code> is <code>NULL</code>. See
+    ‘At Prediction’ in <code><a href="na.keepPredictors.html">na.keepPredictors</a></code>.</p></dd>
 
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Not a formal on the method: a name belonging to a sibling generic

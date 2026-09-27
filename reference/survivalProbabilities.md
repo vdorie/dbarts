@@ -24,6 +24,7 @@ survivalProbabilities(
   times,
   newdata = NULL,
   combineChains = TRUE,
+  na.action = dbarts::na.keepPredictors,
   ...
 )
 
@@ -71,6 +72,13 @@ survivalProbabilities(object, ...)
 
   A logical determining whether the chain dimension is collapsed into
   the draw dimension, as elsewhere in the package.
+
+- na.action:
+
+  What to do with the subjects in `newdata` that have missing values,
+  resolved per subject before a hazard fit's person-period expansion;
+  unused when `newdata` is `NULL`. See ‘At Prediction’ in
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
 
 - ...:
 

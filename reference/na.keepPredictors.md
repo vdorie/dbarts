@@ -58,6 +58,55 @@ frame, the `na.action` is applied to a frame standing for the (response,
 predictors) pair, so every one of these functions means on that
 interface what it means on the formula one.
 
+## At Prediction
+
+Every `predict` method on a fit
+([`predict.bart`](https://vdorie.github.io/dbarts/reference/bartBT.md)
+and [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s four
+own classes) and
+[`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+take an `na.action` for `newdata`, defaulting to this function; `NULL`
+means the default, and `getOption("na.action")` is never consulted.
+
+A missing value in `newdata` is *routable* when its column had missing
+values in training: every split rule on that column then learned a side
+for them, and the row predicts like any other. On a column that was
+complete in training no rule learned a side, so the value is
+*unroutable*. Only the default and
+[`na.pass`](https://rdrr.io/r/stats/na.fail.html) look at this:
+
+- `na.keepPredictors` predicts every routable row and refuses an
+  unroutable one, naming its columns;
+
+- `na.pass` predicts every routable row and returns `NA` for an
+  unroutable one;
+
+- [`na.omit`](https://rdrr.io/r/stats/na.fail.html) drops every row with
+  a missing value;
+
+- [`na.exclude`](https://rdrr.io/r/stats/na.fail.html) drops the same
+  rows and pads them back as `NA`, so the result stays aligned with
+  `newdata`, as the fit-time record does
+  ([`predict.lm`](https://rdrr.io/r/stats/predict.lm.html) instead
+  treats it as `na.omit` on new data);
+
+- [`na.fail`](https://rdrr.io/r/stats/na.fail.html) refuses any missing
+  value, naming its columns.
+
+Any other function is applied to a one-column frame that is `NA` on the
+rows with a missing value, on every interface, and the rows it keeps
+then meet the default's refusal. The result carries `newdata`'s row
+names and no `"na.action"` attribute. When no row survives, or `newdata`
+has none, the result has the usual draw dimensions and zero rows (`NA`
+rows under `na.exclude` and `na.pass`), and R's random number stream is
+left as it was.
+
+A per-row `offset`, `weights` or `bases` must match `newdata`'s rows and
+loses the same rows; a single value passes through. A missing value in a
+per-row `offset` or `weights` is an error. The sampler's own `predict`,
+`predictForests` and `getTrees` methods take no `na.action` and keep the
+default.
+
 ## Value
 
 `object` with the missing-response rows removed, carrying an
@@ -70,7 +119,8 @@ unchanged when no response value is missing.
 [`na.exclude`](https://rdrr.io/r/stats/na.fail.html),
 [`naresid`](https://rdrr.io/r/stats/nafns.html),
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
+[`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md),
+[`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 
 ## Examples
 
