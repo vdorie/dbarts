@@ -179,6 +179,39 @@ unseeded <- function() {
 }
 expect_true(any(unseeded() != unseeded()))
 
+# distinct tree counts in the same unit do not share a stream: each is seeded
+# by its own position among the sampler creations a unit makes, not by the
+# tree count that happens to sit ahead of it. Running n.trees = 5 alone puts
+# it first; running it behind an unrelated n.trees = 3 puts it second, so a
+# shared stream would reproduce the solo run's column exactly - everything
+# else (data, split, model) is identical - while an independent seed moves it.
+soloTrees <- dbarts::xbart(
+  x,
+  y,
+  method = "random subsample",
+  n.reps = 1L,
+  n.samples = 10L,
+  n.burn = c(5L, 3L),
+  n.test = 5,
+  n.trees = 5L,
+  n.threads = 1L,
+  seed = 4321L
+)
+pairedTrees <- dbarts::xbart(
+  x,
+  y,
+  method = "random subsample",
+  n.reps = 1L,
+  n.samples = 10L,
+  n.burn = c(5L, 3L),
+  n.test = 5,
+  n.trees = c(3L, 5L),
+  n.threads = 1L,
+  seed = 4321L
+)
+expect_false(identical(as.vector(soloTrees), as.vector(pairedTrees[, "5"])))
+rm(soloTrees, pairedTrees)
+
 rm(
   expectSameSweep,
   underValgrind,
