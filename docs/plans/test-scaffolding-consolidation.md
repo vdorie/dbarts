@@ -906,7 +906,7 @@ equivalence.R 53/53, bcf-equivalence.R 15/15 and multinomial-equivalence.R
 11/11 bitwise, no |z|; lint_package, air, check-rc-codoc, check-win-drift
 and check-doc-freshness clean.
 
-Slice S6 LANDED (pending hash): `ResponseModel::varianceSurfaceForTesting`
+Slice S6 LANDED 2026-09-27 (f3fedd2a): `ResponseModel::varianceSurfaceForTesting`
 and `ResponseModel::sigmaDegreesOfFreedomForTesting` left the base class;
 the two on `GaussianResponse` and `AFTResponse` are plain members, reached
 from Chain's two forwarders through `dynamic_cast`, null or 0 for every
