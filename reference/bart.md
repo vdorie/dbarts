@@ -288,7 +288,10 @@ print(x, ...)
   For `predict` on a `bartNegbin` fit, the same name is the log-exposure
   shift at the PREDICTED rows, entering the replayed log-odds latent
   \\\psi\\ additively before \\r e^{\psi}\\. `NULL` (the default)
-  applies none.
+  applies none. A single value is recycled over the predicted rows;
+  otherwise it has one value per row of `newdata`. A missing value,
+  alone or in a vector, is refused by name rather than giving `NA`
+  predictions.
 
   For `predict` on a `bartOrdinal` or `bartHurdle` fit the name is a
   formal only so that the fourth position means the same thing on all
@@ -1739,7 +1742,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001280
+#> total seconds in loop: 0.001578
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1787,7 +1790,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001507
+#> total seconds in loop: 0.001979
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

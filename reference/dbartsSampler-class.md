@@ -1038,30 +1038,19 @@ every recorded forest weight and any recorded active-row mask (see
 `reapplyForestWeights` below, since neither rides the saved state) so
 the replacement matches a freshly built engine, and only then replaces
 the cached pointer; a re-creation that fails leaves the sampler exactly
-as it was. `adoptPointer(ptr)` is the write side of the same
-relationship: it rebinds the sampler onto `ptr`, an `externalptr` some
-caller built directly, outside this object, from this sampler's own
-`(control, model, data)` triple, in place of the engine this object
-created at construction; the abandoned engine becomes unreachable and is
-released once by its own finalizer. `adoptPointer` trusts the caller
-that `ptr` was built from this object's own triple and performs no
-independent check, and re-installs onto `ptr` the two channels that
-triple does not carry - the forest weights and the active-row mask - so
-the adopted engine conditions on what this object says it does.
-`reapplyForestWeights(ptr)` re-installs every per-forest weight mirrored
-on the sampler onto a freshly (re-)created `ptr`, and
+as it was. `reapplyForestWeights(ptr)` re-installs every per-forest
+weight mirrored on the sampler onto a freshly (re-)created `ptr`, and
 `reapplyActiveRows(ptr)` the mirrored active-row mask; they are called
-only from `getPointer`, `setState`, `adoptPointer` and `copy`, never
-directly.
+only from `getPointer`, `setState` and `copy`, never directly.
 
-These three are the only R-level primitives for exchanging engine
+`getPointer()` is the only R-level primitive for exchanging engine
 pointers with code that drives the engine directly through `dbarts.h`:
-`getPointer()` is where a compiled consumer obtains the handle that
-header's entry points take, since it declares no creation entry of its
-own. There is no other R-level path to that boundary: the low-level
-`.Call` wrappers this class's methods delegate to are internal to the
-package and unexported, so a consumer below this reference class has
-`dbarts.h` and nothing else.
+it is where a compiled consumer obtains the handle that header's entry
+points take, since that header declares no creation entry of its own.
+There is no other R-level path to that boundary: the low-level `.Call`
+wrappers this class's methods delegate to are internal to the package
+and unexported, so a consumer below this reference class has `dbarts.h`
+and nothing else.
 
 ### Multi-forest and heteroscedastic predictor mutation
 

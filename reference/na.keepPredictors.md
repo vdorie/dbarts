@@ -102,10 +102,10 @@ rows under `na.exclude` and `na.pass`), and R's random number stream is
 left as it was.
 
 A per-row `offset`, `weights` or `bases` must match `newdata`'s rows and
-loses the same rows; a single value passes through. A missing value in a
-per-row `offset` or `weights` is an error. The sampler's own `predict`,
-`predictForests` and `getTrees` methods take no `na.action` and keep the
-default.
+loses the same rows; a single value passes through. A missing value in
+an `offset` or `weights`, alone or in a vector, is an error. The
+sampler's own `predict`, `predictForests` and `getTrees` methods take no
+`na.action` and keep the default.
 
 ## Value
 

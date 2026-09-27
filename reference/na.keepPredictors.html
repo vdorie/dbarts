@@ -121,8 +121,8 @@
   and R's random number stream is left as it was.</p>
 <p>A per-row <code>offset</code>, <code>weights</code> or <code>bases</code> must match
   <code>newdata</code>'s rows and loses the same rows; a single value passes
-  through. A missing value in a per-row <code>offset</code> or <code>weights</code> is
-  an error. The sampler's own <code>predict</code>, <code>predictForests</code> and
+  through. A missing value in an <code>offset</code> or <code>weights</code>, alone
+  or in a vector, is an error. The sampler's own <code>predict</code>, <code>predictForests</code> and
   <code>getTrees</code> methods take no <code>na.action</code> and keep the default.</p>
     </div>
     <div class="section level2">
