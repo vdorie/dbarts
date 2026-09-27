@@ -280,10 +280,6 @@ Record: the test scaffolding consolidation plan. Marked: blank. [dec-A81]
 With k uncapped (dec-A13), a chain under an infinite prior scale can reach k = Inf; summary then reports its mean as Inf, its standard deviation as NaN and its R-hat as NA. The alternative was special-casing non-finite traces. The cost is NaN and NA entries in a summary, which the manual's chi() entry explains.
 Record: this register. Marked: blank. [dec-A82]
 
-**A formula hazard fit pads na.exclude rows**
-A discrete-time hazard fit through a formula rebuilds a dropped subject's person-period rows from its time and pads them under na.exclude, as the matrix path does; the matrix path now builds its period grid from the kept subjects only, so the two agree and a dropped subject no longer shapes the grid. The alternative was to let na.exclude act as na.omit there and document it. The cost is a second evaluation of the model frame when rows drop.
-Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A87]
-
 **dbartsValidateComposition restores the caller's stream**
 dbartsValidateComposition(seed = ) now restores R's random number stream when it returns; it set the seed and left the stream there. The alternative was to document the side effect. No cost identified beyond the change itself.
 Record: this register. Marked: blank. [dec-A88]
@@ -889,6 +885,10 @@ Record: this register. Marked: mine. [dec-B129]
 **Fit-time na.exclude pads on every fit class**
 Under the maintainer's ruling that every observation-indexed output carries row names (dec-B34), fitted and residuals on multinomial, ordinal, negative binomial and hurdle fits pad rows dropped by na.exclude back as NA, as the plain bart class already did and as base R's lm does, so na.exclude means the same on every fit class. The alternative was to leave those classes unpadded and record a TODO, under which na.exclude acted as na.omit there and outputs came back shorter than the data they are named after. The cost is one more stored field per fit, the record of dropped rows. The maintainer, 2026-09-27, choosing between the two: "Pad on every class."
 Record: this register; docs/plans/predict-na-action.md. Marked: mine. [dec-A84]
+
+**A formula hazard fit pads na.exclude rows**
+A discrete-time hazard fit through a formula rebuilds a dropped subject's person-period rows from its time and pads them under na.exclude, as the matrix path does; the matrix path builds its period grid from the kept subjects only, so the two agree and a dropped subject no longer shapes the grid. This is what the standard R workflow gives: expanding with survival's survSplit, discSurv's dataLong or pammtools' as_ped copies a subject's covariates onto every period row, and a glm or gam on the long data under na.exclude pads each of them, the same count and positions (checked on one design, 78 fitted values with 6 NA both ways). The alternative was to let na.exclude act as na.omit on the formula path and document it. The cost is a second evaluation of the model frame when rows drop. The maintainer, 2026-09-27, after asking whether it is the standard users would expect: "Go ahead with (a) then."
+Record: this register; docs/plans/predict-na-action.md. Marked: mine. [dec-A87]
 
 ## C. Agent-made decisions with no identified cost
 
