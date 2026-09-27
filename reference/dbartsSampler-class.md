@@ -199,7 +199,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - shallow:
 
   A logical determining if the copy should retain the underlying data of
-  the sampler (`TRUE`) or have its own copies (`FALSE`).
+  the sampler (`TRUE`) or have its own copies (`FALSE`). Either way, the
+  copy installs the original's stored state and so continues the same
+  generator streams as the original - not an independent chain -
+  typically matching an uninterrupted run to the last few digits, not
+  bitwise; see the Reproducibility section of
+  [bart](https://vdorie.github.io/dbarts/reference/bart.md).
 
 - newControl:
 
@@ -864,14 +869,17 @@ Route changes through the `set*` methods instead.
 - `state`:
 
   The cached, serializable engine state, or `NULL` until one is
-  materialized. The saved-tree store's write position and the number of
-  draws it has recorded both ride it, so `predict` after a `setState`
-  reports the same draws, in the same order, as before the store.
-  Reading it forces the sampler's *current* state only the first time,
-  before any value has been materialized; once set, it is a cached
-  snapshot that a later mutation does not refresh automatically - call
-  `storeState` again, or pass `updateState = TRUE` to the mutating call
-  (see `updateState` above), to bring it forward. It is the only field
+  materialized. It also carries each chain's generator state, so
+  restoring it continues the same streams the sampler was drawing from,
+  typically to the last few digits, not bitwise. The saved-tree store's
+  write position and the number of draws it has recorded both ride it,
+  so `predict` after a `setState` reports the same draws, in the same
+  order, as before the store. Reading it forces the sampler's *current*
+  state only the first time, before any value has been materialized;
+  once set, it is a cached snapshot that a later mutation does not
+  refresh automatically - call `storeState` again, or pass
+  `updateState = TRUE` to the mutating call (see `updateState` above),
+  to bring it forward. It is the only field
   [`save`](https://rdrr.io/r/base/save.html) needs, and restoring one
   requires `setState` - see ‘Saving’.
 
@@ -975,28 +983,32 @@ model, or restore the state with the `dbarts` release that wrote it.
 To restore a saved state into a sampler, call `setState(newState)`: it
 validates that `newState` inherits from `bartcoreState`, re-creates the
 underlying engine if needed, pushes the state into it, and caches it on
-the `state` field. Validation covers every forest the state carries: a
-state whose trees split outside the recipient forest's allowed columns -
-a `blocks`-constrained or moderator-restricted mean forest, or a
-`variance = ~ x1 + x2` variance forest - is refused with the message
-`installTrees` gives the same donor, the two entries sharing one rule so
-neither admits what the other refuses. Every check runs before any live
-state is touched, so a refused restore leaves the sampler exactly as it
-was. Assigning the field directly (`sampler$state <- newState`) does
-*not* restore the sampler - it only overwrites the R-side cache, leaving
-the engine untouched, so the next run continues from the engine's own
-state rather than the assigned one. Always route a restore through
-`setState`. The case weights are not in the state, so a restore is
-reconciled against the DESTINATION's own rather than governed by the
-source's: where they differ from the weights the state was stored under,
-the weight-dependent latents are re-derived against the destination's
-before `setState` returns (see `weights` above). An `aft` sampler's
-censoring status is reconciled the same way and for the same reason - it
-too rides the sampler rather than the state - so where the status in
-force differs from the one the state was stored under, the censored
-latents are redrawn off the restored generators before `setState`
-returns; an event row's observed log time is data and is never
-overwritten by a state at all.
+the `state` field, continuing that state's own generator streams from
+where they left off, typically to the last few digits, not bitwise (see
+the Reproducibility section of
+[bart](https://vdorie.github.io/dbarts/reference/bart.md)). Validation
+covers every forest the state carries: a state whose trees split outside
+the recipient forest's allowed columns - a `blocks`-constrained or
+moderator-restricted mean forest, or a `variance = ~ x1 + x2` variance
+forest - is refused with the message `installTrees` gives the same
+donor, the two entries sharing one rule so neither admits what the other
+refuses. Every check runs before any live state is touched, so a refused
+restore leaves the sampler exactly as it was. Assigning the field
+directly (`sampler$state <- newState`) does *not* restore the sampler -
+it only overwrites the R-side cache, leaving the engine untouched, so
+the next run continues from the engine's own state rather than the
+assigned one. Always route a restore through `setState`. The case
+weights are not in the state, so a restore is reconciled against the
+DESTINATION's own rather than governed by the source's: where they
+differ from the weights the state was stored under, the weight-dependent
+latents are re-derived against the destination's before `setState`
+returns (see `weights` above). An `aft` sampler's censoring status is
+reconciled the same way and for the same reason - it too rides the
+sampler rather than the state - so where the status in force differs
+from the one the state was stored under, the censored latents are
+redrawn off the restored generators before `setState` returns; an event
+row's observed log time is data and is never overwritten by a state at
+all.
 
 ### Mutation cost
 

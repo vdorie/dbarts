@@ -339,8 +339,8 @@ family(object, ...)
   [seed](https://rdrr.io/r/base/Random.html). A
   [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices
   for reproducibility; supplying `seed` instead gives reproducible
-  results without touching R's stream. See Reproducibility section
-  below.
+  results without touching R's stream. See the Reproducibility section
+  of [bart](https://vdorie.github.io/dbarts/reference/bart.md).
 
 - proposalprobs:
 
@@ -366,19 +366,25 @@ family(object, ...)
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
   default `levelGibbs = NA` a frozen forest additionally takes the
   level-shifting Gibbs step each iteration, the leaf values then being
-  the only thing left to move. A `"swap"` element exchanges a parent's
-  split rule with a child's; `bart` ships it at zero because at
-  production forest sizes it measures as a no-op, and `bartBT` keeps it
-  at 0.1 to match BayesTree. With `n.trees = 1` it is the only move that
-  rotates a rule up the tree. A `"perturb"` element displaces one node's
-  split point by a single cut position while keeping its variable and
-  the tree's shape; it defaults to zero, and only ordinal (numeric)
-  columns can be perturbed. A `"rule_gibbs"` element replaces one nog
-  node's rule - a node whose two children are both leaves - with a draw
-  from that rule's own full conditional over the available ordinal
-  variables and their admissible cuts, so its acceptance is one; it
-  defaults to zero, it acts only where the node's own rule is ordinal,
-  and it is inert on an all-categorical design.
+  the only thing left to move. `bartBT` has no `levelGibbs` formal of
+  its own and always runs at this default;
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and a
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+  sampler's control object can set it to `TRUE` or `FALSE` instead,
+  which changes the sampled values without changing the posterior. A
+  `"swap"` element exchanges a parent's split rule with a child's;
+  `bart` ships it at zero because at production forest sizes it measures
+  as a no-op, and `bartBT` keeps it at 0.1 to match BayesTree. With
+  `n.trees = 1` it is the only move that rotates a rule up the tree. A
+  `"perturb"` element displaces one node's split point by a single cut
+  position while keeping its variable and the tree's shape; it defaults
+  to zero, and only ordinal (numeric) columns can be perturbed. A
+  `"rule_gibbs"` element replaces one nog node's rule - a node whose two
+  children are both leaves - with a draw from that rule's own full
+  conditional over the available ordinal variables and their admissible
+  cuts, so its acceptance is one; it defaults to zero, it acts only
+  where the node's own rule is ordinal, and it is inert on an
+  all-categorical design.
 
 - keepsampler:
 
@@ -678,14 +684,14 @@ refused by name; `ci.level` is refused too (see its own entry above).
 [`save`](https://rdrr.io/r/base/save.html)ing and
 [`load`](https://rdrr.io/r/base/load.html)ing a fitted BART object for
 use with `predict` requires that it be fit with `keeptrees`/`keepTrees`
-as `TRUE`, and that the sampler's tree state be captured before saving
-by calling `storeState()` on the sampler: `bartFit$fit$storeState()`.
-The state is not captured automatically because it duplicates the trees
-on the R side and can exceed the fit's own sample blocks; it is
-materialized only on request. A fit saved without it reloads, but
-`predict`, `extract(type = "trees")`, and `plotTree` all stop
-identically, each with an error naming `storeState()`. The same
-convention covers
+as `TRUE`, and that the sampler's tree and generator state be captured
+before saving by calling `storeState()` on the sampler:
+`bartFit$fit$storeState()`. The state is not captured automatically
+because it duplicates the trees on the R side and can exceed the fit's
+own sample blocks; it is materialized only on request. A fit saved
+without it reloads, but `predict`, `extract(type = "trees")`, and
+`plotTree` all stop identically, each with an error naming
+`storeState()`. The same convention covers
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own-class
 families - `family = "multinomial"`, `"ordinal"`, and `"nbinom"` - whose
 `$fit` is the sampler (K-forest or single-forest) that actually ran; see
@@ -697,31 +703,12 @@ in its own right, so both of their samplers need the call before saving:
 
 ### Reproducibility
 
-Every chain runs its own pseudo random number generator, so worker
-threads never touch R's generator and results do not depend on the
-thread count. Without a `seed`, chain generators are seeded from R's
-stream when the sampler is created, so calling
-[`set.seed`](https://rdrr.io/r/base/Random.html) beforehand makes
-results reproducible. Sampling itself never advances R's stream: after a
-fit, [`.Random.seed`](https://rdrr.io/r/base/Random.html) has moved only
-by the draws taken at creation.
-
-Setting `seed` makes results reproducible without involving R's stream
-at all: the seed drives a dedicated generator that hands each chain its
-own seed. A single-chain run with a given seed reproduces the first
-chain of a multi-chain run with the same seed.
-
-`bartBT` has no formal for
-[`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
-`levelGibbs`, the optional level-shifting Gibbs step, and takes its
-default, `NA`: the step is taken only where the tree structures are
-frozen, which in `bartBT` happens only when `proposalprobs` sets every
-structural move to zero. `TRUE` takes the step every iteration and
-`FALSE` never does, both reachable from
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and from a
-[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-sampler's control object, and turning it on changes the sampled values
-(the posterior is the same, the stream is not).
+See the Reproducibility section of
+[bart](https://vdorie.github.io/dbarts/reference/bart.md): it covers
+`seed` versus [`set.seed`](https://rdrr.io/r/base/Random.html), chains
+and thread count, and continuing, copying, or restoring a sampler, in
+full for both `bartBT` and
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
 
 ### Extracting Trees
 
@@ -1108,8 +1095,8 @@ bartFit <- bart(x, y)
 #> [2] iteration: 300 (of 500)
 #> [1] iteration: 400 (of 500)
 #> [2] iteration: 400 (of 500)
-#> [2] iteration: 500 (of 500)
 #> [1] iteration: 500 (of 500)
+#> [2] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
 #> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
@@ -1120,7 +1107,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.148463
+#> total seconds in loop: 0.115390
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

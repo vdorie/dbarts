@@ -262,13 +262,21 @@ xbart(
 - seed:
 
   Optional integer specifying the desired pRNG
-  [seed](https://rdrr.io/r/base/Random.html). Each replication takes its
-  data split, and each unit of work its fits, from a seed derived from
-  this one and the unit's own index, so results are reproducible for a
-  fixed `seed` at any `n.threads`; the caller's random stream is left
-  untouched when a seed is given, and advanced only by the derivation of
-  those seeds when one is not. Without one,
-  [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices.
+  [seed](https://rdrr.io/r/base/Random.html). From this one `seed`,
+  [`set.seed`](https://rdrr.io/r/base/Random.html) draws a split seed
+  for each replication and a seed for each (replication, fold) unit of
+  work, with [`sample.int`](https://rdrr.io/r/base/sample.html), in one
+  pass. For a fixed `seed` and generator kind, results are reproducible
+  at any `n.threads`; unlike
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s `seed`,
+  `xbart`'s draws come from R's own generator, so they also change if
+  [`RNGkind`](https://rdrr.io/r/base/Random.html) changes, and a
+  [`RNGkind()`](https://rdrr.io/r/base/Random.html) of `"user-supplied"`
+  refuses `n.threads > 1`. The caller's random stream is left untouched
+  when a seed is given, and advanced only by that derivation when one is
+  not; without a seed, [`set.seed`](https://rdrr.io/r/base/Random.html)
+  beforehand suffices. See the Reproducibility section of
+  [bart](https://vdorie.github.io/dbarts/reference/bart.md).
 
 - factors:
 

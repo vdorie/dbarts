@@ -348,7 +348,11 @@ dbartsControl(
   equal to `NA`, chain generators are seeded from R's stream at
   creation, so [`set.seed`](https://rdrr.io/r/base/Random.html)
   beforehand suffices for reproducibility; sampling itself never
-  advances R's stream.
+  advances R's stream, though `copy()` of an unseeded sampler, and the
+  first use of an unseeded sampler reloaded from a saved state, each
+  draw fresh chain seeds from R's stream again. See the Reproducibility
+  section of [bart](https://vdorie.github.io/dbarts/reference/bart.md)
+  for the full picture.
 
 - updateState:
 

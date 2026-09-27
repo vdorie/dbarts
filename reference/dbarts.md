@@ -411,11 +411,15 @@ dbarts(
 - seed:
 
   Optional integer seed for the random number generator, a convenience
-  mirror of `dbartsControl(seed = )`. When not `NA` it overrides the
-  seed in `control`; the fitting-function wrappers
-  ([`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)) accept
-  the same argument.
+  mirror of `dbartsControl(seed = )`. A non-`NA` value overrides the
+  seed in `control`; `NA` (the default) leaves `control`'s own seed in
+  force, seeded or not.
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accept
+  the same argument but resolve a named `seed = NA` differently: there
+  it overrides a seeded `control` and the fit runs unseeded. See the
+  Reproducibility section of
+  [bart](https://vdorie.github.io/dbarts/reference/bart.md).
 
 - factors:
 

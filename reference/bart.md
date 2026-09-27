@@ -826,9 +826,7 @@ print(x, ...)
   [seed](https://rdrr.io/r/base/Random.html). A
   [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices
   for reproducibility; supplying `seed` instead gives reproducible
-  results without touching R's stream. See
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
-  Reproducibility section.
+  results without touching R's stream. See ‘Reproducibility’ below.
 
 - warm.start:
 
@@ -1194,6 +1192,122 @@ formula whose only right-hand-side content is the term, which would
 leave nothing to split on. See ‘Value’ below, and
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
 `type = "forest"`, for reading the resulting per-forest fits back out.
+
+## Reproducibility
+
+Every chain runs its own pseudo-random generator. A seeded fit never
+draws from R's stream, though it may still create
+[`.Random.seed`](https://rdrr.io/r/base/Random.html) in a session that
+has none yet.
+
+**`set.seed` versus `seed`.** Leave `seed` at its default
+(`NA_integer_`) and call
+[`set.seed`](https://rdrr.io/r/base/Random.html) beforehand: each
+chain's generator is then seeded from R's stream when the sampler is
+created, one uniform draw per chain in chain order, and running the
+sampler afterward never advances the stream further. Passing `seed`
+instead drives the chain seeds from a separate, dedicated generator and
+leaves R's stream untouched altogether. A `seed` named in the call
+always wins over a seed already sitting in `control` - including
+`seed = NA`, which discards a control seed and falls back to `set.seed`.
+A `family = "hurdle.lognormal"` fit derives its two component seeds from
+the one `seed` given; without one, the two components draw their own
+chain seeds from R's stream in turn. Do not rely on `bart(seed = S)` and
+`set.seed(S); bart()` giving the same draws. They currently agree under
+R's default generator, but this is not guaranteed; only `seed` gives the
+same draws under any [`RNGkind`](https://rdrr.io/r/base/Random.html).
+
+**Chains and `n.threads`.** Results never depend on the thread count: a
+fit, its `predict`, and
+[`samplePriorPredictive`](https://vdorie.github.io/dbarts/reference/samplePriorPredictive.md)
+all give the same draws whatever `n.threads` is asked for. A given
+chain's draws also do not depend on how many other chains ran alongside
+it - chain 1 of a 1-chain seeded run reproduces chain 1 of a 4-chain run
+at the same seed, and likewise for any other chain index. Adding a test
+set, `keepTrees`, and `verbose` do not change the draws either;
+`storage = "single"`,
+[`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
+`levelGibbs`, and any change to the model or the data do.
+
+**Simulated outcomes.** A `type = "ppd"` draw on `predict`, `extract`,
+or `fitted`, and
+[`samplePriorPredictive`](https://vdorie.github.io/dbarts/reference/samplePriorPredictive.md)'s
+own `type = "ppd"`, adds observation noise drawn from R's stream rather
+than from the fit's chain generators - even on a fit made with `seed`.
+Call `set.seed` right before such a call to reproduce it; `seed` does
+not cover this noise. `samplePriorPredictive(type = "ev")` only touches
+R's stream when its control is unseeded (building the private sampler it
+draws from); with a seeded control it rebuilds the same sampler every
+time and so returns the same draws on every call - vary the seed, or
+leave the control unseeded, for different ones.
+
+**Continuing, copying, and restoring a sampler.** These apply to an
+embedded [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+sampler kept with `keepSampler` or `samplerOnly`.
+
+- Calling `run()` more than once continues its chains' streams exactly:
+  `run(50, 20)` followed by `run(0, 20)` matches `run(50, 40)` bitwise.
+
+- `storeState()` (what [`save`](https://rdrr.io/r/base/save.html) needs)
+  and `setState()` (what restores it, including after
+  [`load`](https://rdrr.io/r/base/load.html)) continue those same
+  streams too: the draws typically agree to the last few digits, not
+  bitwise, since restoring rebuilds the fitted values by re-summing the
+  trees.
+
+- `copy()`, deep or shallow, installs the original's stored state, so
+  the copy continues the same streams as the original rather than
+  starting an independent chain - again typically to the last few
+  digits, not bitwise; create a new sampler with a different `seed` for
+  an independent one. `copy()` uses whatever `storeState()` last
+  captured (`run()` does this automatically unless
+  `updateState = FALSE`); a copy made with no stored state instead
+  starts over, drawing fresh trees from the prior.
+
+- An unseeded sampler draws fresh chain seeds from R's stream every time
+  its underlying engine is (re-)created - at `copy()`, and at the first
+  use after a reload, including a first `setState()` call - exactly as
+  building a new unseeded sampler would. A seeded sampler never touches
+  R's stream this way.
+
+- A `bart` fit made with `keepTrees = TRUE` does not store its sampler's
+  state automatically: call `fit$fit$storeState()` before saving so a
+  reload can `predict` and keep running.
+
+**`xbart`.** An
+[`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) call
+derives every seed it uses - one split seed per replication, one seed
+per (replication, fold) unit of work - with
+[`sample.int`](https://rdrr.io/r/base/sample.html) after
+`set.seed(seed)`, in one pass, restoring R's stream afterward; without a
+`seed`, `set.seed` beforehand reproduces the same run. For a fixed
+`seed` and generator kind, results do not depend on `n.threads`: a
+parallel worker's [`RNGkind`](https://rdrr.io/r/base/Random.html) is set
+to match the caller's before it runs any unit. Unlike `bart`'s `seed`,
+which is built to give the same draws under any `RNGkind`, `xbart` draws
+straight from R's own generator, so its results change with `RNGkind`
+too; a [`RNGkind()`](https://rdrr.io/r/base/Random.html) of
+`"user-supplied"` cannot be handed to a worker at all, and `xbart`
+refuses `n.threads > 1` under it.
+
+**What moves [`.Random.seed`](https://rdrr.io/r/base/Random.html).**
+Unseeded, creating a sampler (`n.chains` uniforms per sampler; a
+`family = "hurdle.lognormal"` fit creates two), `xbart`, and `copy()` or
+the first use after a reload of an unseeded sampler, advance R's stream;
+the simulated-outcome draws above and
+[`dbartsDrawLatents`](https://vdorie.github.io/dbarts/reference/dbartsAugmentation.md)
+always do. Everything else a sampler does after creation draws only from
+its chains' own generators and leaves R's stream alone.
+
+**Across machines and versions.** A given seed reproduces the same draws
+bitwise only on one machine, with one build of the package, on whatever
+processor features it uses. It is not promised across different
+machines, operating systems, or compilers: the math library and the
+compiler's floating-point code can differ in the last bit. Expect the
+same posterior elsewhere, not the same numbers. It is likewise not
+promised across `dbarts` versions - a version that changes the sampler
+moves the draws - nor against the 0.9-x series, whose engine and RNG
+were both different.
 
 ## Value
 
@@ -1572,7 +1686,8 @@ Hugh Chipman: <hugh.chipman@gmail.com>, Robert McCulloch:
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) for the
 BayesTree-compatible interface and the shared `"bart"`-class
 Value/Details (Decision Rules, end-node `k`, Generics, Saving,
-Reproducibility, Extracting Trees).
+Extracting Trees); this page's own ‘Reproducibility’ section above
+covers `bartBT` too.
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for the
 mutable sampler bart builds on,
@@ -1616,7 +1731,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001572
+#> total seconds in loop: 0.001285
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1664,7 +1779,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001996
+#> total seconds in loop: 0.001514
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

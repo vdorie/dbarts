@@ -310,7 +310,7 @@
 <dd><p>Every <code>n.thin</code> draw is kept to be returned to the user. Useful for “thinning” samples against serial correlation; see <code>n.samples</code> above for how the two combine.</p></dd>
 
    <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
-<dd><p>Optional integer specifying the desired pRNG <a href="https://rdrr.io/r/base/Random.html" class="external-link">seed</a>. A <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code> beforehand suffices for reproducibility; supplying <code>seed</code> instead gives reproducible results without touching R's stream. See <code><a href="bartBT.html">bartBT</a></code>'s Reproducibility section.</p></dd>
+<dd><p>Optional integer specifying the desired pRNG <a href="https://rdrr.io/r/base/Random.html" class="external-link">seed</a>. A <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code> beforehand suffices for reproducibility; supplying <code>seed</code> instead gives reproducible results without touching R's stream. See ‘Reproducibility’ below.</p></dd>
 
    <dt id="arg-warm-start">warm.start<a class="anchor" aria-label="anchor" href="#arg-warm-start"></a></dt>
 <dd><p>A previous fit whose forests seed the initial state instead of drawing trees from the prior: either a <code>bart</code> object fit with <code>keepSampler = TRUE</code> or a <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>. The donor must share this fit's predictors, tree count, and DART setting; a donor fit on a different cut grid is supported, its splits remapped onto this fit's grid (collapsing any the grid starves), the same way a data replacement remaps existing splits. Only its trees, <code>sigma</code>, and <code>k</code> carry over, and each chain starts from a different donor sample so multiple chains stay overdispersed. A warm start biases early draws toward the donor, so it shortens burn-in rather than removing it; keep a non-zero <code>n.burn</code>. Multi-forest samplers refuse it: a fit whose forests carry amplitude bases (a <code><a href="forest.html">forest()</a></code> term, or a data object built with <code>bases</code>) errors by name, naming its forest count, because a donor install is not tested at more than one forest; <code>n.grow.sweeps</code> is the initialization such a fit can take. See <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>'s <code>installTrees</code> method for finer control.</p></dd>
@@ -409,6 +409,105 @@
 <p>A handful of shapes are refused outright rather than silently misinterpreted, each error naming the offending expression: a <code><a href="forest.html">forest()</a></code> term anywhere other than a top-level additive term or a <code>:</code> operand (inside <code><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I()</a></code>, a removal, or the formula's left-hand side); a compound <code>:</code> operand containing anything other than bare numeric/logical symbols joined by <code>+</code> (a factor or character member, a transformation, a multi-way <code>:</code> chain, or a second <code><a href="forest.html">forest()</a></code> on the other side); <code>test</code> given together with a term (an amplitude-coupled fit has no per-observation test replay in this version); a family the multiplier model does not support (<code>"aft"</code>, <code>"ordinal"</code>, <code>"nbinom"</code>, the hazard families, <code>"multinomial"</code>, and <code>"hurdle.lognormal"</code> - gaussian, probit, and logistic are the only families a term can join); and a formula whose only right-hand-side content is the term, which would leave nothing to split on. See ‘Value’ below, and <code><a href="bartBT.html">extract</a></code>'s <code>type = "forest"</code>, for reading the resulting per-forest fits back out.</p>
     </div>
     <div class="section level2">
+    <h2 id="reproducibility">Reproducibility<a class="anchor" aria-label="anchor" href="#reproducibility"></a></h2>
+    <p>Every chain runs its own pseudo-random generator. A seeded fit never draws
+  from R's stream, though it may still create <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">.Random.seed</a></code> in
+  a session that has none yet.</p>
+<p><strong><code>set.seed</code> versus <code>seed</code>.</strong> Leave <code>seed</code> at its
+  default (<code>NA_integer_</code>) and call <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code> beforehand:
+  each chain's generator is then seeded from R's stream when the sampler is
+  created, one uniform draw per chain in chain order, and running the
+  sampler afterward never advances the stream further. Passing <code>seed</code>
+  instead drives the chain seeds from a separate, dedicated generator and
+  leaves R's stream untouched altogether. A <code>seed</code> named in the call
+  always wins over a seed already sitting in <code>control</code> - including
+  <code>seed = NA</code>, which discards a control seed and falls back to
+  <code>set.seed</code>. A <code>family = "hurdle.lognormal"</code> fit derives its two
+  component seeds from the one <code>seed</code> given; without one, the two
+  components draw their own chain seeds from R's stream in turn. Do not rely
+  on <code>bart(seed = S)</code> and <code>set.seed(S); bart()</code> giving the same
+  draws. They currently agree under R's default generator, but this is not
+  guaranteed; only <code>seed</code> gives the same draws under any
+  <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">RNGkind</a></code>.</p>
+<p><strong>Chains and <code>n.threads</code>.</strong> Results never depend on the thread
+  count: a fit, its <code>predict</code>, and <code><a href="samplePriorPredictive.html">samplePriorPredictive</a></code>
+  all give the same draws whatever <code>n.threads</code> is asked for. A given
+  chain's draws also do not depend on how many other chains ran alongside
+  it - chain 1 of a 1-chain seeded run reproduces chain 1 of a 4-chain run
+  at the same seed, and likewise for any other chain index. Adding a test
+  set, <code>keepTrees</code>, and <code>verbose</code> do not change the draws either;
+  <code>storage = "single"</code>, <code><a href="dbartsControl.html">dbartsControl</a></code>'s <code>levelGibbs</code>,
+  and any change to the model or the data do.</p>
+<p><strong>Simulated outcomes.</strong> A <code>type = "ppd"</code> draw on <code>predict</code>,
+  <code>extract</code>, or <code>fitted</code>, and <code><a href="samplePriorPredictive.html">samplePriorPredictive</a></code>'s
+  own <code>type = "ppd"</code>, adds observation noise drawn from R's stream
+  rather than from the fit's chain generators - even on a fit made with
+  <code>seed</code>. Call <code>set.seed</code> right before such a call to reproduce
+  it; <code>seed</code> does not cover this noise.
+  <code>samplePriorPredictive(type = "ev")</code> only touches R's stream when its
+  control is unseeded (building the private sampler it draws from); with a
+  seeded control it rebuilds the same sampler every time and so returns the
+  same draws on every call - vary the seed, or leave the control unseeded,
+  for different ones.</p>
+<p><strong>Continuing, copying, and restoring a sampler.</strong> These apply to an
+  embedded <code><a href="dbarts.html">dbarts</a></code> sampler kept with <code>keepSampler</code> or
+  <code>samplerOnly</code>.</p><ul><li><p>Calling <code>run()</code> more than once continues its chains' streams
+      exactly: <code>run(50, 20)</code> followed by <code>run(0, 20)</code> matches
+      <code>run(50, 40)</code> bitwise.</p></li>
+<li><p><code>storeState()</code> (what <code><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></code> needs) and
+      <code>setState()</code> (what restores it, including after
+      <code><a href="https://rdrr.io/r/base/load.html" class="external-link">load</a></code>) continue those same streams too: the draws
+      typically agree to the last few digits, not bitwise, since restoring
+      rebuilds the fitted values by re-summing the trees.</p></li>
+<li><p><code>copy()</code>, deep or shallow, installs the original's stored
+      state, so the copy continues the same streams as the original rather
+      than starting an independent chain - again typically to the last few
+      digits, not bitwise; create a new sampler with a different <code>seed</code>
+      for an independent one. <code>copy()</code> uses whatever <code>storeState()</code>
+      last captured (<code>run()</code> does this automatically unless
+      <code>updateState = FALSE</code>); a copy made with no stored state instead
+      starts over, drawing fresh trees from the prior.</p></li>
+<li><p>An unseeded sampler draws fresh chain seeds from R's stream every
+      time its underlying engine is (re-)created - at <code>copy()</code>, and at
+      the first use after a reload, including a first <code>setState()</code> call
+      - exactly as building a new unseeded sampler would. A seeded sampler
+      never touches R's stream this way.</p></li>
+<li><p>A <code>bart</code> fit made with <code>keepTrees = TRUE</code> does not
+      store its sampler's state automatically: call
+      <code>fit$fit$storeState()</code> before saving so a reload can
+      <code>predict</code> and keep running.</p></li>
+</ul><p><strong><code>xbart</code>.</strong> An <code><a href="xbart.html">xbart</a></code> call derives every seed it
+  uses - one split seed per replication, one seed per (replication, fold)
+  unit of work - with <code><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample.int</a></code> after <code>set.seed(seed)</code>,
+  in one pass, restoring R's stream afterward; without a <code>seed</code>,
+  <code>set.seed</code> beforehand reproduces the same run. For a fixed
+  <code>seed</code> and generator kind, results do not depend on <code>n.threads</code>:
+  a parallel worker's <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">RNGkind</a></code> is set to match the caller's
+  before it runs any unit. Unlike <code>bart</code>'s <code>seed</code>, which is built
+  to give the same draws under any <code>RNGkind</code>, <code>xbart</code> draws
+  straight from R's own generator, so its results change with
+  <code>RNGkind</code> too; a <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">RNGkind()</a></code> of <code>"user-supplied"</code> cannot be
+  handed to a worker at all, and <code>xbart</code> refuses <code>n.threads &gt; 1</code>
+  under it.</p>
+<p><strong>What moves <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">.Random.seed</a></code>.</strong> Unseeded, creating a
+  sampler (<code>n.chains</code> uniforms per sampler; a
+  <code>family = "hurdle.lognormal"</code> fit creates two), <code>xbart</code>, and
+  <code>copy()</code> or the first use after a reload of an unseeded sampler,
+  advance R's stream; the simulated-outcome draws above and
+  <code><a href="dbartsAugmentation.html">dbartsDrawLatents</a></code> always do. Everything
+  else a sampler does after creation draws only from its chains' own
+  generators and leaves R's stream alone.</p>
+<p><strong>Across machines and versions.</strong> A given seed reproduces the same
+  draws bitwise only on one machine, with one build of the package, on
+  whatever processor features it uses. It is not promised across different
+  machines, operating systems, or compilers: the math library and the
+  compiler's floating-point code can differ in the last bit. Expect the same
+  posterior elsewhere, not the same numbers. It is likewise not promised
+  across <code>dbarts</code> versions - a version that changes the sampler moves
+  the draws - nor against the 0.9-x series, whose engine and RNG were both
+  different.</p>
+    </div>
+    <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Every fit, of every class below, carries <code>family</code>, the family as specified once <code>"auto"</code> has resolved, and <code>family.spec</code>, the same family with its settings, which <code>family(fit)</code> returns (see <code><a href="bartBT.html">bartBT</a></code>'s ‘Value’ section). Ask a fit what it is through these, not through which components are present: a run's options decide which draw channels it keeps.</p>
 <p>Row names: every output indexed by observation carries the rows' names on its observation margin, on every class below. That covers the stored draws (<code>yhat.train</code>, <code>yhat.test</code>, their means, <code>s.train</code>, <code>s.test</code>, <code>forestFits</code> and the latent channels) and what <code>fitted</code>, <code>residuals</code>, <code>extract</code>, <code>predict</code> and <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> return. Training rows are named after <code>subset</code> and <code>na.action</code>: a formula fit names them as its model frame does, <code>"1"</code> to <code>"n"</code> when the data has none, as <code><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></code> does; the <code>x</code> interface takes <code>rownames(x)</code>, a data frame's automatic names counting as <code>"1"</code> to <code>"n"</code>, and leaves a matrix without row names unnamed. Test rows and <code>newdata</code> take their own row names the same way. A discrete-time hazard fit names its person-period rows by <code><a href="https://rdrr.io/r/base/make.unique.html" class="external-link">make.unique</a></code> over the subject names, so a subject <code>s1</code> at risk in three periods gives <code>s1</code>, <code>s1.1</code> and <code>s1.2</code>, and <code>survivalProbabilities</code> names subjects. A fit also keeps the names as <code>row.names.train</code> and <code>row.names.test</code>, absent when the rows are unnamed.</p>
@@ -448,7 +547,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="bartBT.html">bartBT</a></code> for the BayesTree-compatible interface and the shared <code>"bart"</code>-class Value/Details (Decision Rules, end-node <code>k</code>, Generics, Saving, Reproducibility, Extracting Trees).</p>
+    <div class="dont-index"><p><code><a href="bartBT.html">bartBT</a></code> for the BayesTree-compatible interface and the shared <code>"bart"</code>-class Value/Details (Decision Rules, end-node <code>k</code>, Generics, Saving, Extracting Trees); this page's own ‘Reproducibility’ section above covers <code>bartBT</code> too.</p>
 <p><code><a href="dbarts.html">dbarts</a></code> for the mutable sampler bart builds on, <code><a href="forest.html">forest</a></code> for the constructor <code><a href="forest.html">forest()</a></code> formula terms desugar to, and <code><a href="xbart.html">xbart</a></code> for the other formula-first entry point.</p></div>
     </div>
 
@@ -484,7 +583,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001572</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001285</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 </span>
@@ -532,7 +631,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001996</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001514</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 1 2 2 2 3 2 </span>
