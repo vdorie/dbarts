@@ -189,9 +189,9 @@ static void checkGatherTailIdentities(SamplerT& sampler, size_t n,
                                       const char* residualLabel) {
   size_t numTrees = sampler.chain(0).numTrees();
   std::vector<double> total = forestTotals(sampler, 0);
-  std::vector<double> fits = sampler.chain(0).treeFits();
-  const double* y = sampler.chain(0).workingResponseForTesting();
-  const auto& resid = sampler.chain(0).residualForTesting();
+  std::vector<double> fits = TestPeer::treeFits(sampler.chain(0));
+  const double* y = TestPeer::workingResponse(sampler.chain(0));
+  const auto& resid = TestPeer::residual(sampler.chain(0));
 
   double worstFit = 0.0, worstResidual = 0.0;
   for (size_t i = 0; i < n; ++i) {
@@ -297,7 +297,7 @@ static void checkFusedSuffstatShape(size_t n, size_t numBurnIn, ext_rng* rng,
   sampler.run(numBurnIn, 0, empty);
 
   FusedSuffstatCheck fused =
-    sampler.chain(0).checkFusedSuffstatAgainstStockForTesting();
+    TestPeer::checkFusedSuffstatAgainstStock(sampler.chain(0));
   const char* kind = weighted ? "weighted" : "unweighted";
   char label[160];
   std::snprintf(label, sizeof(label),
@@ -365,11 +365,11 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
                                 ResponseFamily::gaussian, 1.0, 3.0,
                                 0.37804942330213542, options, &rng);
     sampler.run(1, 0, empty);
-    check(sampler.chain(0).fusedSuffstatRunsForTesting() == options.numTrees,
+    check(TestPeer::fusedSuffstatRuns(sampler.chain(0)) == options.numTrees,
           "the fused suffstat runs on a fresh sampler's first sweep");
-    size_t before = sampler.chain(0).fusedSuffstatRunsForTesting();
+    size_t before = TestPeer::fusedSuffstatRuns(sampler.chain(0));
     sampler.run(1, 0, empty);
-    check(sampler.chain(0).fusedSuffstatRunsForTesting() - before ==
+    check(TestPeer::fusedSuffstatRuns(sampler.chain(0)) - before ==
             options.numTrees,
           "the fused suffstat runs for every tree of a burned-in sweep");
   }
@@ -382,7 +382,7 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
                                 ResponseFamily::gaussian, 1.0, 3.0,
                                 0.37804942330213542, options, &rng);
     sampler.run(2, 0, empty);
-    check(sampler.chain(0).fusedSuffstatRunsForTesting() == 2 * options.numTrees,
+    check(TestPeer::fusedSuffstatRuns(sampler.chain(0)) == 2 * options.numTrees,
           "weights take the fused suffstat");
   }
 
@@ -394,7 +394,7 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
       x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
       1.0, 3.0, 0.37804942330213542, fp32Options, &rng);
     sampler.run(2, 0, empty);
-    check(sampler.chain(0).fusedSuffstatRunsForTesting() == 0,
+    check(TestPeer::fusedSuffstatRuns(sampler.chain(0)) == 0,
           "the fp32 residual declines the fused suffstat");
   }
 
@@ -409,7 +409,7 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
       x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
       1.0, 3.0, 0.37804942330213542, leafOptions, &rng);
     linear.run(2, 0, empty);
-    check(linear.chain(0).fusedSuffstatRunsForTesting() == 0,
+    check(TestPeer::fusedSuffstatRuns(linear.chain(0)) == 0,
           "the vector leaf declines the fused suffstat");
 
     leafOptions.gpMaxLeafSize = 100;
@@ -417,7 +417,7 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
       x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
       1.0, 3.0, 0.37804942330213542, leafOptions, &rng);
     gp.run(2, 0, empty);
-    check(gp.chain(0).fusedSuffstatRunsForTesting() == 0,
+    check(TestPeer::fusedSuffstatRuns(gp.chain(0)) == 0,
           "the function leaf declines the fused suffstat");
   }
 
@@ -437,7 +437,7 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
       x.data(), yBcf.data(), n, p, nullptr, nullptr, 1.0, 3.0,
       0.37804942330213542, options, spec, &rng);
     bcf.run(2, 0, empty);
-    check(bcf.chain(0).fusedSuffstatRunsForTesting() ==
+    check(TestPeer::fusedSuffstatRuns(bcf.chain(0)) ==
             2 * (spec.mu.numTrees + spec.tau.numTrees),
           "BCF takes the fused suffstat through its combiner weights");
   }
@@ -456,7 +456,7 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
     Sampler<ConstantGaussianLeaf> multinomial(x.data(), n, p, options, spec,
                                               &rng);
     multinomial.run(2, 0, empty);
-    check(multinomial.chain(0).fusedSuffstatRunsForTesting() ==
+    check(TestPeer::fusedSuffstatRuns(multinomial.chain(0)) ==
             2 * K * spec.forest.numTrees,
           "multinomial takes the fused suffstat through its omega weights");
   }
@@ -1749,7 +1749,7 @@ static void testSetData(ext_rng* rng) {
   ConstantLeafSampler& sampler(*samplerPtr);
 
   double sigmaBefore = sampler.sigma(0);
-  std::vector<double> treeFitsBefore(sampler.chain(0).treeFits());
+  std::vector<double> treeFitsBefore(TestPeer::treeFits(sampler.chain(0)));
   std::vector<xint_t> codesBefore(storageDigest(sampler.data()));
 
   // identity replacement: same values in new buffers; the rebuilt cuts equal
@@ -1761,7 +1761,7 @@ static void testSetData(ext_rng* rng) {
         "setData ingests the replacement");
   check(storageDigest(sampler.data()) == codesBefore,
         "identity setData preserves codes");
-  check(sampler.chain(0).treeFits() == treeFitsBefore,
+  check(TestPeer::treeFits(sampler.chain(0)) == treeFitsBefore,
         "identity setData preserves fits");
   check(sampler.sigma(0) == sigmaBefore, "identity setData preserves sigma");
 
@@ -1873,7 +1873,7 @@ static void testSetDataResize(ext_rng* rng) {
   for (size_t i = 0; i < n2 && fitIdentity; i += 41) {
     double total = 0.0;
     for (size_t t = 0; t < 25; ++t)
-      total += sampler.chain(0).treeFits()[t * n2 + i];
+      total += TestPeer::treeFits(sampler.chain(0))[t * n2 + i];
     fitIdentity = std::fabs(total - totals[i]) < 1e-10;
   }
   check(fitIdentity, "resized setData keeps the fit identity");
@@ -2546,7 +2546,7 @@ static void testActiveRows() {
                                weights.data());
     check(sampler->setActiveRows(zeros.data()),
           "an all-zeros mask is accepted, not refused");
-    check(sampler->chain(0).sigmaDegreesOfFreedomForTesting() == 3.0,
+    check(TestPeer::sigmaDegreesOfFreedom(sampler->chain(0)) == 3.0,
           "an all-zeros mask leaves the sigma posterior at the prior df");
     sampler->run(20, numSamples, resultsOther);
     bool finite = true;
@@ -3358,7 +3358,7 @@ static void testBCFResponseSwap() {
   for (size_t f = 0; f < 2; ++f) {
     size_t numTrees = f == 0 ? muTrees : tauTrees;
     samplerA.chain(0).forestTotalFits(f, totals.data());
-    samplerA.chain(0).forestTreeFits(f, treeFits.data());
+    TestPeer::forestTreeFits(samplerA.chain(0), f, treeFits.data());
     double worst = 0.0, largest = 0.0, ss = 0.0;
     for (size_t i = 0; i < n; ++i) {
       double sum = 0.0;
@@ -4842,7 +4842,7 @@ static void testAmplitudeCacheRestore() {
       for (std::size_t f = 0; f < before.numForests(); ++f) {
         std::size_t numTrees = before.numTreesInForest(f);
         std::vector<double> fits(shape.n * numTrees);
-        before.forestTreeFits(f, fits.data());
+        TestPeer::forestTreeFits(before, f, fits.data());
         std::vector<double> rebuilt = forestTotals(*restored, 0, f);
         for (std::size_t i = 0; i < shape.n; ++i) {
           double gather = 0.0;
@@ -5212,14 +5212,14 @@ static void testForestWeights() {
 
   // the df itself, not the draw it feeds: nu_0 = 3 plus the count of positive
   // OBSERVATION weights, all n of which are one here
-  double dfBefore = bcf.chain(0).sigmaDegreesOfFreedomForTesting();
+  double dfBefore = TestPeer::sigmaDegreesOfFreedom(bcf.chain(0));
   std::vector<double> sigmaBCF(numSamples), fitsBCF(n * numSamples);
   Results resultsBCF;
   resultsBCF.sigma = sigmaBCF.data();
   resultsBCF.trainingFits = fitsBCF.data();
   bcf.run(10, numSamples, resultsBCF);
   check(dfBefore == 3.0 + static_cast<double>(n) &&
-          bcf.chain(0).sigmaDegreesOfFreedomForTesting() == dfBefore,
+          TestPeer::sigmaDegreesOfFreedom(bcf.chain(0)) == dfBefore,
         "an all-zero per-forest weight leaves the sigma posterior df at nu + n");
   bool finite = true;
   for (size_t s = 0; s < numSamples && finite; ++s) finite = sigmaBCF[s] > 0.0;

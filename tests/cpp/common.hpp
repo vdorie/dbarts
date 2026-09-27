@@ -7,6 +7,7 @@
 // chain.hpp or sampler.hpp does not force them to recompile.
 
 #include "assert.hpp"
+#include "test_peer.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -194,12 +195,12 @@ std::vector<double> forestTotals(const S& sampler, std::size_t c,
 template <typename C>
 double forestCacheGapRatio(const C& chain, std::size_t f, std::size_t sweeps,
                            double& scaleMax) {
-  const std::vector<double>& total = chain.totalFitsInForest(f);
+  const std::vector<double>& total = TestPeer::totalFitsInForest(chain, f);
   std::size_t n = total.size(), numTrees = chain.numTreesInForest(f);
   if (numTrees == 0) return 0.0;
   std::vector<double> fits(n * numTrees);
-  chain.forestTreeFits(f, fits.data());
-  const auto& resid = chain.residualForTesting(f);
+  TestPeer::forestTreeFits(chain, f, fits.data());
+  const auto& resid = TestPeer::residual(chain, f);
   const double* last = fits.data() + (numTrees - 1) * n;
   double gap = 0.0;
   scaleMax = std::max(scaleMax, 1.0);

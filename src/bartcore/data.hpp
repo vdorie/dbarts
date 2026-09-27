@@ -16,6 +16,10 @@ namespace bartcore {
 
 using std::size_t;
 
+/// The component tests' access to engine state no production path reads: each
+/// class holding such state befriends it, and only the tests define it.
+struct TestPeer;
+
 /// Predictor code type: the per-cell quantized ordinal rank or categorical
 /// code. uint16_t caps a column at maxNumCutsRepresentable cuts, keeping every
 /// real code below naCode (0xFFFF), the reserved missing marker.
@@ -2467,12 +2471,6 @@ struct ColumnStore {
     return train.codeAt(variable, i);
   }
 
-  bool testColumnIsSparseForTesting(size_t variable) const {
-    return test.columnIsSparse(variable);
-  }
-  const SparseColumnData& testSparseColumnForTesting(size_t variable) const {
-    return test.sparseColumn(variable);
-  }
   /// Storage-aware single test-code access (test-row descent), reading only
   /// the columns a rule visits rather than materializing a row.
   xint_t testCodeAt(size_t variable, size_t i) const {

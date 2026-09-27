@@ -46,7 +46,7 @@ static void fuzzFillOwner(const Tree& t, int32_t i, std::vector<int32_t>& owner)
 }
 
 // The state a rejected or abandoned mutation must leave untouched. An earlier
-// fingerprint carried codes, cuts, sigma and Chain::treeFits(), which is
+// fingerprint carried codes, cuts, sigma and TestPeer::treeFits, which is
 // forest 0 alone: a rollback that restored mu and left tau routed by the
 // proposal passed it green. It is rebuilt here so that omission stops being
 // expressible: the persisted state entire, plus every LIVE structure the
@@ -144,7 +144,7 @@ static FuzzSnapshot<S> fuzzCapture(S& s) {
         trees[t] = fuzzCaptureTree(ch.treeInForest(f, t), n);
       g.trees[c].push_back(std::move(trees));
       std::vector<double> slab(n * numTrees);
-      ch.forestTreeFits(f, slab.data());
+      TestPeer::forestTreeFits(ch, f, slab.data());
       g.fits[c].push_back(std::move(slab));
       g.totals[c].push_back(forestTotals(s, c, f));
     }
@@ -153,7 +153,7 @@ static FuzzSnapshot<S> fuzzCapture(S& s) {
     for (size_t j = 0; j < m; ++j)
       g.varianceTrees[c].push_back(
         fuzzCaptureTree(ch.varianceTree(j), n));
-    const double* factors = ch.varianceFactorsForTesting();
+    const double* factors = TestPeer::varianceFactors(ch);
     g.varianceFactors[c].assign(factors, factors + m * n);
     const double* combined = ch.varianceFits();
     g.varianceFits[c].assign(combined, combined + n);
@@ -294,7 +294,7 @@ static const char* fuzzInvariantViolation(S& s, const double* z, size_t sweeps,
     // fresh product at its end, so it must equal that product exactly here; a
     // factor is a drawn scale and is strictly positive by construction.
     const double* combined = ch.varianceFits();
-    const double* factors = ch.varianceFactorsForTesting();
+    const double* factors = TestPeer::varianceFactors(ch);
     for (size_t i = 0; i < n; ++i) {
       double product = 1.0;
       for (size_t j = 0; j < m; ++j) {
@@ -1664,7 +1664,7 @@ static F6Capture f6Capture(Sampler<ConstantGaussianLeaf>& s) {
     if (ch.hasVarianceForest()) {
       // the variance twin of the per-forest slab: the tree's own factors
       // h_j(x_i), and the product s^2(x) they compose
-      const double* factors = ch.varianceFactorsForTesting();
+      const double* factors = TestPeer::varianceFactors(ch);
       size_t m = ch.numVarianceTrees();
       out.varianceTrees[c].resize(m);
       for (size_t j = 0; j < m; ++j) {
@@ -1685,7 +1685,7 @@ static F6Capture f6Capture(Sampler<ConstantGaussianLeaf>& s) {
     for (size_t f = 0; f < ch.numForests(); ++f) {
       size_t numTrees = ch.numTreesInForest(f);
       slab.assign(n * numTrees, 0.0);
-      ch.forestTreeFits(f, slab.data());
+      TestPeer::forestTreeFits(ch, f, slab.data());
       std::vector<F6Tree> forestTrees(numTrees);
       for (size_t t = 0; t < numTrees; ++t) {
         const Tree& tree(ch.treeInForest(f, t));
@@ -1868,7 +1868,7 @@ static void testVarianceRecoveryOrdering() {
       size_t m = ch.numVarianceTrees();
       std::vector<std::vector<double>> nodeFactors(m);
       std::vector<std::vector<int32_t>> ownerBefore(m);
-      const double* factorsBefore = ch.varianceFactorsForTesting();
+      const double* factorsBefore = TestPeer::varianceFactors(ch);
       for (size_t j = 0; j < m; ++j) {
         const Tree& tree(ch.varianceTree(j));
         nodeFactors[j].assign(tree.nodes.size(), 0.0);
@@ -1883,7 +1883,7 @@ static void testVarianceRecoveryOrdering() {
       ++accepted;
       for (size_t i = 0; i < n; ++i) current[column * n + i] = candidate[i];
 
-      const double* factorsAfter = ch.varianceFactorsForTesting();
+      const double* factorsAfter = TestPeer::varianceFactors(ch);
       std::vector<int32_t> ownerAfter(n, invalidNode);
       for (size_t j = 0; j < m; ++j) {
         fuzzFillOwner(ch.varianceTree(j), 0, ownerAfter);

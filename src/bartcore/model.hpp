@@ -1109,18 +1109,6 @@ struct LinearGaussianLeaf {
   /// regather paths above.
   void invalidateStatistics() const { clearStatisticsCache(); }
 
-  /// Bytes the crossproduct cache holds resident in member lists - vector
-  /// capacity, not the live member count the budget prices. A footprint read
-  /// for tests; the draw's prune and the store's capacity bound are what keep
-  /// the two within a factor of two of each other.
-  std::size_t statisticsCacheResidentBytes() const {
-    std::size_t bytes = 0;
-    for (const TreeStatisticsCache& cache : statisticsCaches_)
-      for (const CachedNodeStatistics& entry : cache.nodes)
-        bytes += entry.members.capacity() * sizeof(index_t);
-    return bytes;
-  }
-
   /// Regather the test covariates under the training standardization; called
   /// whenever the store's test data changes.
   void rebuildTestCovariates(const ColumnStore& data) {
@@ -1235,8 +1223,22 @@ struct LinearGaussianLeaf {
   }
 
 private:
+  friend struct TestPeer;
+
   static constexpr std::size_t maxStatisticSize =
     (maxNumCovariates + 1) * (maxNumCovariates + 1);
+
+  /// Bytes the crossproduct cache holds resident in member lists - vector
+  /// capacity, not the live member count the budget prices. A footprint read
+  /// for tests; the draw's prune and the store's capacity bound are what keep
+  /// the two within a factor of two of each other.
+  std::size_t statisticsCacheResidentBytes() const {
+    std::size_t bytes = 0;
+    for (const TreeStatisticsCache& cache : statisticsCaches_)
+      for (const CachedNodeStatistics& entry : cache.nodes)
+        bytes += entry.members.capacity() * sizeof(index_t);
+    return bytes;
+  }
 
   /// One pass over the node's index segment: crossproduct receives the full
   /// symmetric U'WU (row-major (q+1) x (q+1), leading intercept column) and
@@ -2982,14 +2984,6 @@ public:
       numPositiveWeights_));
   }
 
-  /// Test hook: the residual-variance posterior's degrees of freedom,
-  /// nu_0 + #{w_i > 0} over this model's own precisions. Not virtual:
-  /// Chain::sigmaDegreesOfFreedomForTesting casts to reach it.
-  double sigmaDegreesOfFreedomForTesting() const {
-    return sigmaSqPrior_.degreesOfFreedom +
-           static_cast<double>(numPositiveWeights_);
-  }
-
   void setResponse(const double* y, ext_rng*, const double*, bool updateScale,
                    double* sigmaInOut) override {
     if (updateScale) {
@@ -3076,10 +3070,6 @@ public:
   void setVarianceSurface(const double* variance) override {
     variance_ = variance;
   }
-  /// Test hook: the surface last installed, for the host's pointer-identity
-  /// assertion. Not virtual: Chain::installedVarianceSurfaceForTesting casts
-  /// to reach it.
-  const double* varianceSurfaceForTesting() const { return variance_; }
 
   void setOffset(const double* offset, bool updateScale,
                  double* sigmaInOut) override {
@@ -3171,6 +3161,8 @@ public:
   }
 
 private:
+  friend struct TestPeer;
+
   /// The one write path to the served precisions: every install recounts the
   /// positive ones, so the sigma posterior's df can never lag the weights.
   void installWeights(const double* weights) {
@@ -3516,32 +3508,9 @@ public:
     }
   }
 
-  /// The log Metropolis acceptance (Phi-difference log-likelihood ratio plus
-  /// log-prior ratio; symmetric proposal, so no proposal term) for moving free
-  /// cutpoint gamma_s to proposal, exposed so a component test can check the
-  /// incremental two-category computation against a full-likelihood evaluation.
-  double ordinalThresholdLogAcceptanceForTesting(const double* totalFits,
-                                         std::size_t s, double proposal) const {
-    return ordinalThresholdLogAcceptance(totalFits, s, proposal);
-  }
-
-  /// The three per-sweep kernels in isolation, so a component test can drive
-  /// the masked n-row form against the same kernel over the compacted active
-  /// rows; computeScales returns the free cutpoints' proposal scales, its only
-  /// observable. Nothing else reaches them - refreshLatents runs two at once.
-  const double* computeScalesForTesting() {
-    computeScales();
-    return proposalScale_.data();
-  }
-  void updateOrdinalThresholdsForTesting(ext_rng* rng,
-                                         const double* totalFits) {
-    updateOrdinalThresholds(rng, totalFits);
-  }
-  void drawLatentsForTesting(ext_rng* rng, const double* totalFits) {
-    drawLatents(rng, totalFits);
-  }
-
 private:
+  friend struct TestPeer;
+
   int category(std::size_t i) const { return static_cast<int>(y_[i]); }
 
   /// Whether row i is in the data set this sweep; true throughout when no
@@ -4071,10 +4040,6 @@ public:
   void setVarianceSurface(const double* variance) override {
     variance_ = variance;
   }
-  /// Test hook: the surface last installed, for the host's pointer-identity
-  /// assertion. Not virtual: Chain::installedVarianceSurfaceForTesting casts
-  /// to reach it.
-  const double* varianceSurfaceForTesting() const { return variance_; }
 
   bool supportsActiveRows() const override { return true; }
 
@@ -4091,11 +4056,6 @@ public:
   double drawSigma(ext_rng* rng, const double* totalFits,
                    double sigma) override {
     return gaussian_->drawSigma(rng, totalFits, sigma);
-  }
-
-  /// Test hook: the contained Gaussian's sigma degrees of freedom.
-  double sigmaDegreesOfFreedomForTesting() const {
-    return gaussian_->sigmaDegreesOfFreedomForTesting();
   }
 
   /// Rebuilds the censoring structure from a new status against the observed
@@ -4281,6 +4241,8 @@ public:
   }
 
 private:
+  friend struct TestPeer;
+
   /// Whether row i is in the data set this sweep; true throughout when no
   /// mask is installed.
   bool isActive(std::size_t i) const {
@@ -4634,11 +4596,9 @@ struct NBDispersionPrior {
     return drawFromLogWeights(rng, weight_.data(), gridSize);
   }
 
-  /// The precomputed L_k, exposed so a component test can check the kernel
-  /// against a direct lgamma evaluation.
-  double kernelValue(std::size_t k) const { return kernel_[k]; }
-
 private:
+  friend struct TestPeer;
+
   std::array<double, gridSize> kernel_;
   std::array<double, gridSize> logPrior_;
   std::array<double, gridSize> weight_;
@@ -4787,16 +4747,6 @@ public:
   double dispersion() const override { return r_; }
   void restoreDispersion(double dispersion) override { r_ = dispersion; }
 
-  /// The dispersion kernel L_k currently installed and the collapsed statistic
-  /// S the grid draw reads, so a component test can check a masked rebuild and
-  /// a masked reduction against the compacted response's own.
-  double dispersionKernelForTesting(std::size_t k) const {
-    return rPrior_.kernelValue(k);
-  }
-  double collapsedStatisticForTesting(const double* totalFits) const {
-    return collapsedStatistic(totalFits);
-  }
-
   /// log dnbinom(y_i; r, plogis(eta_i)) with eta the log-odds f(x) + offset:
   ///   lgamma(y+r) - lgamma(r) - lgamma(y+1) + y log p + r log(1 - p),
   /// using the stable log p = -log(1 + e^{-eta}), log(1 - p) = -log(1 + e^{eta}).
@@ -4817,6 +4767,8 @@ public:
   }
 
 private:
+  friend struct TestPeer;
+
   bool isActive(std::size_t i) const {
     return activeRows_.empty() || activeRows_[i] != 0.0;
   }

@@ -218,7 +218,7 @@ happen consumes draws, and the two runs part on sweep 1.
 **(b) Ordering and bound exactness, no RNG.** In tests/cpp beside [`testAFTStateRoundTrip`](../../tests/cpp/test_model.cpp):
 build A at `(y, S2)` and B at `(y, S1)`, set B to `S2`, and assert B's latents equal `y` at every event row, B's
 [`AFTResponse::computeLogLikelihood`](../../src/bartcore/model.hpp) equals A's at every censored row - that entry reads the
-bound, not the latent - and `sigmaDegreesOfFreedomForTesting()` did not move. Poison: run the status rebuild AFTER
+bound, not the latent - and [`TestPeer::sigmaDegreesOfFreedom`](../../tests/cpp/test_peer.hpp) did not move. Poison: run the status rebuild AFTER
 `setResponse`, so a row censored under both takes its bound off its own latent; and count events rather than rows in the
 degrees of freedom.
 

@@ -323,7 +323,7 @@ gated on arm A' too - the only coupled-forest regime.
   ([`Chain::varianceFits`](../../src/bartcore/chain.hpp)), where `combinedVariance[i]` is the PRODUCT over
   variance trees of row i's leaf factor ([`VarianceForest::applyLeafFactor`](../../src/bartcore/chain.hpp));
   the state's `variance.values` are those same working-scale factors
-  ([`Chain::varianceFactorsForTesting`](../../src/bartcore/chain.hpp)). So: decode `variance.*`, route every row, form
+  ([`TestPeer::varianceFactors`](../../tests/cpp/test_peer.hpp)). So: decode `variance.*`, route every row, form
   the per-row product, and require `engine$variance[i] / oracleProduct[i]`
   to be the SAME constant across all i to 1e-10 relative. Run at
   `n.trees.variance = 1`, where this is an exact per-row per-TREE

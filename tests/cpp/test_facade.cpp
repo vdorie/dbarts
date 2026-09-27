@@ -928,9 +928,9 @@ const Row rows[] = {
   {FacadeVirtual::sampleNodeParametersFromPrior, "nodeParametersFromPrior",
    [](Fixtures& f) {
     std::uint64_t structure = forestSignature(f.d);
-    std::vector<double> before = f.d.impl().chain(0).treeFits();
+    std::vector<double> before = TestPeer::treeFits(f.d.impl().chain(0));
     f.d.base().sampleNodeParametersFromPrior();
-    check(f.d.impl().chain(0).treeFits() != before &&
+    check(TestPeer::treeFits(f.d.impl().chain(0)) != before &&
             forestSignature(f.d) == structure,
           "facade nodeParametersFromPrior: the leaf values move and the "
           "structure does not");

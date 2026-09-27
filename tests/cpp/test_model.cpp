@@ -313,7 +313,7 @@ static void testChiKEmptyLeafAccounting(ext_rng* rng) {
 
   auto checkAccounting = [&](auto& chain, size_t stride, const char* what) {
     FunctionLeafDrawStats stats =
-      chain.accountStrandedLeafKStatsForTesting(splitVar, splitIndex);
+      TestPeer::accountStrandedLeafKStats(chain, splitVar, splitIndex);
     std::vector<int32_t> bottoms;
     chain.tree(0).fillBottom(0, bottoms);
     size_t populated = 0, empty = 0;
@@ -1164,14 +1164,14 @@ static void testVarianceScaleReanchorIdentity() {
     Chain<ConstantGaussianLeaf> fresh(store, freshResponse, weights.data(), offB,
                                       ResponseFamily::gaussian, sigEst, sigDf,
                                       sigRawScale, options, rngB);
-    double leafScaleBefore = swapped.varianceLeafForTesting().scale;
+    double leafScaleBefore = TestPeer::varianceLeaf(swapped).scale;
     if (offsetConduit)
       swapped.setOffset(offsetB.data(), true);
     else
       swapped.setResponse(scaled.data(), true);
 
-    const ConstantVarianceLeaf& leafSwapped = swapped.varianceLeafForTesting();
-    const ConstantVarianceLeaf& leafFresh = fresh.varianceLeafForTesting();
+    const ConstantVarianceLeaf& leafSwapped = TestPeer::varianceLeaf(swapped);
+    const ConstantVarianceLeaf& leafFresh = TestPeer::varianceLeaf(fresh);
     check(leafSwapped.scale != leafScaleBefore,
           "the swap moved the scale leaf's calibration at all");
     check(leafSwapped.degreesOfFreedom == leafFresh.degreesOfFreedom &&
@@ -1264,16 +1264,16 @@ static void testVarianceDataSwapReanchorIdentity() {
   ext_rng_setSeed(rngA, 4242u);
   ext_rng_setSeed(rngB, 4242u);
 
-  double leafScaleBefore = swapped.chain(0).varianceLeafForTesting().scale;
+  double leafScaleBefore = TestPeer::varianceLeaf(swapped.chain(0)).scale;
   double sigmaBefore = swapped.chain(0).sigma();
   check(swapped.setData(x2.data(), scaled.data(), n2, nullptr, nullptr,
                         nullptr, 0),
         "setData ingests the rescaled replacement");
 
   const ConstantVarianceLeaf& leafSwapped =
-    swapped.chain(0).varianceLeafForTesting();
+    TestPeer::varianceLeaf(swapped.chain(0));
   const ConstantVarianceLeaf& leafFresh =
-    fresh.chain(0).varianceLeafForTesting();
+    TestPeer::varianceLeaf(fresh.chain(0));
   check(leafSwapped.scale != leafScaleBefore,
         "the data swap moved the scale leaf's calibration at all");
   check(leafSwapped.degreesOfFreedom == leafFresh.degreesOfFreedom &&
@@ -1708,7 +1708,7 @@ static void testLinearLeafStatisticsCachePrune() {
   leaf.initialize(store, columns, 1);
 
   leaf.logIntegratedLikelihoodForNode(tree, z.data(), w.data(), k, sigmaSq, 0);
-  check(leaf.statisticsCacheResidentBytes() == n * indexBytes,
+  check(TestPeer::statisticsCacheResidentBytes(leaf) == n * indexBytes,
         "the stump caches one member list");
 
   Rule rule;
@@ -1723,7 +1723,7 @@ static void testLinearLeafStatisticsCachePrune() {
                                       left);
   leaf.logIntegratedLikelihoodForNode(tree, z.data(), w.data(), k, sigmaSq,
                                       right);
-  check(leaf.statisticsCacheResidentBytes() == 2 * n * indexBytes,
+  check(TestPeer::statisticsCacheResidentBytes(leaf) == 2 * n * indexBytes,
         "the children cache beside the root's now-dead entry");
 
   // the draw runs on the settled tree, where the root really is interior
@@ -1732,7 +1732,7 @@ static void testLinearLeafStatisticsCachePrune() {
   double draw[2];
   leaf.drawFromPosteriorForNode(rng, tree, z.data(), w.data(), k, sigmaSq,
                                 left, draw);
-  check(leaf.statisticsCacheResidentBytes() == n * indexBytes,
+  check(TestPeer::statisticsCacheResidentBytes(leaf) == n * indexBytes,
         "the draw releases the interior root's entry");
 
   // a slot recycled onto a much smaller leaf gives the old capacity back
@@ -1747,7 +1747,7 @@ static void testLinearLeafStatisticsCachePrune() {
                                       small);
   leaf.logIntegratedLikelihoodForNode(tree, z.data(), w.data(), k, sigmaSq,
                                       small + 1);
-  check(leaf.statisticsCacheResidentBytes() == n * indexBytes,
+  check(TestPeer::statisticsCacheResidentBytes(leaf) == n * indexBytes,
         "the recycled slot holds its membership, not its old capacity");
 
   // an accepted death frees the pair without touching either freed node, so
@@ -1757,7 +1757,7 @@ static void testLinearLeafStatisticsCachePrune() {
   tree.releasePair(freed);
   leaf.drawFromPosteriorForNode(rng, tree, z.data(), w.data(), k, sigmaSq, 0,
                                 draw);
-  check(leaf.statisticsCacheResidentBytes() == n * indexBytes,
+  check(TestPeer::statisticsCacheResidentBytes(leaf) == n * indexBytes,
         "the draw releases the pair the death freed");
 
   // capacity policy, never a value: what the pruned cache serves is bitwise
@@ -2738,7 +2738,7 @@ static void testSparseMutation() {
     std::vector<std::vector<double>> cutsBefore(sparse.data().cutPoints);
     std::vector<std::uint64_t> col0Bits(sparse.data().sparseColumn(0).bits);
     std::vector<xint_t> col0Codes(sparse.data().sparseColumn(0).nzCodes);
-    std::vector<double> treeFitsBefore(sparse.chain(0).treeFits());
+    std::vector<double> treeFitsBefore(TestPeer::treeFits(sparse.chain(0)));
 
     // a whole-matrix constant swap empties one side of every split -> reject
     std::vector<double> xConstant(n * p, 0.5);
@@ -2750,7 +2750,7 @@ static void testSparseMutation() {
     check(sparse.data().sparseColumn(0).bits == col0Bits &&
           sparse.data().sparseColumn(0).nzCodes == col0Codes,
           "rollback restores the rank bitmap and codes");
-    check(sparse.chain(0).treeFits() == treeFitsBefore,
+    check(TestPeer::treeFits(sparse.chain(0)) == treeFitsBefore,
           "rollback leaves the tree fits untouched");
 
     // a rejected single-column (rank) update rolls back the same way
@@ -4518,7 +4518,7 @@ static void testVarianceSurfaceInstall(ext_rng* rng) {
   ConstantLeafSampler sampler(x.data(), y.data(), n, size_t(2), nullptr,
                               nullptr, ResponseFamily::gaussian, 1.0, 3.0,
                               0.37804942330213542, options, &rng);
-  check(sampler.chain(0).installedVarianceSurfaceForTesting() ==
+  check(TestPeer::installedVarianceSurface(sampler.chain(0)) ==
           sampler.chain(0).varianceFits(),
         "the variance surface is installed at creation");
   Results empty;
@@ -4528,7 +4528,7 @@ static void testVarianceSurfaceInstall(ext_rng* rng) {
   makeMutationData(x2, y2, n2);
   check(sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0),
         "setData ingests the longer replacement");
-  check(sampler.chain(0).installedVarianceSurfaceForTesting() ==
+  check(TestPeer::installedVarianceSurface(sampler.chain(0)) ==
           sampler.chain(0).varianceFits(),
         "and is re-installed where the resize moved the storage");
 
@@ -4847,7 +4847,7 @@ static void testAFTStatusSetter(ext_rng* rng) {
   AFTResponse created(y1.data(), s2.data(), nullptr, n, 1.0, sigmaDf,
                       rawScale);
   AFTResponse set(y1.data(), s1.data(), nullptr, n, 1.0, sigmaDf, rawScale);
-  double dfBefore = set.sigmaDegreesOfFreedomForTesting();
+  double dfBefore = TestPeer::sigmaDegreesOfFreedom(set);
   double sigmaInOut = sigma;
   set.setSurvivalStatus(s2.data());
   set.setResponse(y1.data(), rng, fits.data(), false, &sigmaInOut);
@@ -4873,9 +4873,9 @@ static void testAFTStatusSetter(ext_rng* rng) {
   check(censoredExact,
         "and every censored row's log-likelihood is the created model's");
   check(redrawn, "a newly censored row is redrawn against the NEW structure");
-  check(set.sigmaDegreesOfFreedomForTesting() == dfBefore &&
-          set.sigmaDegreesOfFreedomForTesting() ==
-            created.sigmaDegreesOfFreedomForTesting(),
+  check(TestPeer::sigmaDegreesOfFreedom(set) == dfBefore &&
+          TestPeer::sigmaDegreesOfFreedom(set) ==
+            TestPeer::sigmaDegreesOfFreedom(created),
         "the sigma degrees of freedom count rows, so a status move does not "
         "touch them");
 
@@ -5232,7 +5232,8 @@ static void testOrdinalThresholdConditional(ext_rng*) {
   double current = resp.ordinalThresholds()[1];
   bool acceptExact = true;
   for (double p : {0.3, 0.7, 1.4, 2.5}) {
-    double got = resp.ordinalThresholdLogAcceptanceForTesting(eta.data(), 2, p);
+    double got =
+      TestPeer::ordinalThresholdLogAcceptance(resp, eta.data(), 2, p);
     if (std::fabs(got - (logPost(p) - logPost(current))) > 1e-9)
       acceptExact = false;
   }
@@ -5569,8 +5570,8 @@ static void testActiveRowsOrdinalKernels(ext_rng*) {
   check(masked.numOrdinalThresholds() == K - 1,
         "an emptied boundary category leaves K and its cutpoints standing");
 
-  const double* scalesMasked = masked.computeScalesForTesting();
-  const double* scalesCompact = compact.computeScalesForTesting();
+  const double* scalesMasked = TestPeer::computeScales(masked);
+  const double* scalesCompact = TestPeer::computeScales(compact);
   bool scalesAgree = true;
   for (std::size_t s = 1; s < K - 1; ++s)
     if (scalesMasked[s] != scalesCompact[s]) scalesAgree = false;
@@ -5579,9 +5580,9 @@ static void testActiveRowsOrdinalKernels(ext_rng*) {
 
   bool targetAgrees = true;
   for (double proposal : {0.4, 0.9, 1.8})
-    if (masked.ordinalThresholdLogAcceptanceForTesting(eta.data(), 2,
+    if (TestPeer::ordinalThresholdLogAcceptance(masked, eta.data(), 2,
                                                        proposal) !=
-        compact.ordinalThresholdLogAcceptanceForTesting(etaCompact.data(), 2,
+        TestPeer::ordinalThresholdLogAcceptance(compact, etaCompact.data(), 2,
                                                         proposal))
       targetAgrees = false;
   check(targetAgrees,
@@ -5591,8 +5592,8 @@ static void testActiveRowsOrdinalKernels(ext_rng*) {
   ext_rng* rngCompact = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rngMasked, 20260813u);
   ext_rng_setSeed(rngCompact, 20260813u);
-  masked.updateOrdinalThresholdsForTesting(rngMasked, eta.data());
-  compact.updateOrdinalThresholdsForTesting(rngCompact, etaCompact.data());
+  TestPeer::updateOrdinalThresholds(masked, rngMasked, eta.data());
+  TestPeer::updateOrdinalThresholds(compact, rngCompact, etaCompact.data());
   bool ordinalThresholdsAgree = true;
   for (std::size_t s = 0; s < K - 1; ++s)
     if (masked.ordinalThresholds()[s] != compact.ordinalThresholds()[s])
@@ -5601,8 +5602,8 @@ static void testActiveRowsOrdinalKernels(ext_rng*) {
         "a masked ordinal cutpoint pass matches the compacted one, stream and "
         "all");
 
-  masked.drawLatentsForTesting(rngMasked, eta.data());
-  compact.drawLatentsForTesting(rngCompact, etaCompact.data());
+  TestPeer::drawLatents(masked, rngMasked, eta.data());
+  TestPeer::drawLatents(compact, rngCompact, etaCompact.data());
   bool latentsAgree = true;
   for (std::size_t k = 0; k < activeIndex.size(); ++k)
     if (masked.latents()[activeIndex[k]] != compact.latents()[k])
@@ -5642,12 +5643,12 @@ static void testActiveRowsGaussianDf(ext_rng*) {
   GaussianResponse resp(y.data(), nullptr, weights.data(), n, 1.0, sigmaDf,
                         rawScale);
   const double* premask = resp.workingWeights();
-  check(resp.sigmaDegreesOfFreedomForTesting() != sigmaDf +
+  check(TestPeer::sigmaDegreesOfFreedom(resp) != sigmaDf +
           static_cast<double>(numPositive),
         "the unmasked df differs from the masked one, so the pin can fail");
   check(resp.supportsActiveRows() && resp.setActiveRows(active.data()),
         "gaussian accepts an active-row mask");
-  check(resp.sigmaDegreesOfFreedomForTesting() ==
+  check(TestPeer::sigmaDegreesOfFreedom(resp) ==
           sigmaDf + static_cast<double>(numPositive),
         "a masked gaussian draws sigma at the COMPOSED positive-weight df");
 
@@ -5668,7 +5669,7 @@ static void testActiveRowsGaussianDf(ext_rng*) {
   check(resp.setActiveRows(active.data()), "the mask reinstalls");
   resp.setWeights(ones.data(), nullptr, nullptr);
   check(resp.workingWeights()[0] == 0.0 && resp.workingWeights()[1] == 1.0 &&
-          resp.sigmaDegreesOfFreedomForTesting() ==
+          TestPeer::sigmaDegreesOfFreedom(resp) ==
             sigmaDf + static_cast<double>(n - 5),
         "setWeights under an installed mask recomposes rather than clearing");
 
@@ -5873,19 +5874,19 @@ static void testActiveRowsNBKernels(ext_rng*) {
 
   bool kernelExact = true, kernelMoved = false;
   for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
-    if (masked.dispersionKernelForTesting(k) !=
-        compact.dispersionKernelForTesting(k))
+    if (TestPeer::dispersionKernel(masked, k) !=
+        TestPeer::dispersionKernel(compact, k))
       kernelExact = false;
-    if (full.dispersionKernelForTesting(k) !=
-        compact.dispersionKernelForTesting(k))
+    if (TestPeer::dispersionKernel(full, k) !=
+        TestPeer::dispersionKernel(compact, k))
       kernelMoved = true;
   }
   check(kernelMoved,
         "the inactive counts do move the kernel, so the pin can fail");
   check(kernelExact,
         "a masked nbinom rebuilds the dispersion kernel over the active counts");
-  check(masked.collapsedStatisticForTesting(fits.data()) ==
-          compact.collapsedStatisticForTesting(fitsCompact.data()),
+  check(TestPeer::collapsedStatistic(masked, fits.data()) ==
+          TestPeer::collapsedStatistic(compact, fitsCompact.data()),
         "a masked nbinom collapses S over the active rows, bitwise");
 
   ext_rng* rngMasked = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -5974,7 +5975,7 @@ static void testActiveRowsAFTCensored(ext_rng*) {
         "comparison is well posed");
   check(masked.supportsActiveRows() && masked.setActiveRows(active.data()),
         "aft accepts an active-row mask");
-  check(masked.sigmaDegreesOfFreedomForTesting() ==
+  check(TestPeer::sigmaDegreesOfFreedom(masked) ==
           sigmaDf + static_cast<double>(numActive),
         "a masked aft inherits the composed sigma df through its gaussian");
 
@@ -6084,8 +6085,8 @@ static void testSparseTestDataEndToEnd() {
   bool built = sparseSampler.setTestData(
     mixedPredictorSource(numTest, p, denseBlock.data(), pointers.data(),
                          rows.data(), values.data(), columnSources.data()));
-  check(built && sparseSampler.data().testColumnIsSparseForTesting(1) &&
-        !sparseSampler.data().testColumnIsSparseForTesting(2),
+  check(built && sparseSampler.data().test.columnIsSparse(1) &&
+        !sparseSampler.data().test.columnIsSparse(2),
         "the test container builds with the expected storage tiers");
 
   const size_t numBurnIn = 30, numSamples = 40;
@@ -6230,7 +6231,8 @@ static void testNBDispersionGridConditional(ext_rng*) {
     double L = 0.0;
     for (std::size_t i = 0; i < n; ++i)
       L += std::lgamma(y[i] + rk) - std::lgamma(rk);
-    if (std::fabs(prior.kernelValue(k) - L) > 1e-9) kernelExact = false;
+    if (std::fabs(TestPeer::kernelValue(prior, k) - L) > 1e-9)
+      kernelExact = false;
   }
   check(kernelExact, "nb dispersion kernel matches direct lgamma sum");
 
@@ -6239,7 +6241,8 @@ static void testNBDispersionGridConditional(ext_rng*) {
   double maxLog = -HUGE_VAL;
   for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
     double rk = NBDispersionPrior::grid[k];
-    double logPost = prior.kernelValue(k) + rk * S + std::log(rk) - 0.1 * rk;
+    double logPost =
+      TestPeer::kernelValue(prior, k) + rk * S + std::log(rk) - 0.1 * rk;
     expected[k] = logPost;
     if (logPost > maxLog) maxLog = logPost;
   }

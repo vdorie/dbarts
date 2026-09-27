@@ -689,7 +689,7 @@ static void testStateValidation(ext_rng* rng) {
 
   SamplerStateData state;
   sampler.getState(state);
-  std::vector<double> treeFitsBefore(sampler.chain(0).treeFits());
+  std::vector<double> treeFitsBefore(TestPeer::treeFits(sampler.chain(0)));
   std::vector<std::vector<double>> cutsBefore(sampler.data().cutPoints);
 
   SamplerStateData bad(state);
@@ -709,11 +709,11 @@ static void testStateValidation(ext_rng* rng) {
         "setState rejects a split value off the cut grid");
   check(sampler.data().cutPoints == cutsBefore,
         "a rejected state leaves the cuts untouched");
-  check(sampler.chain(0).treeFits() == treeFitsBefore,
+  check(TestPeer::treeFits(sampler.chain(0)) == treeFitsBefore,
         "a rejected state leaves the fits untouched");
 
   check(sampler.setState(state, nullptr), "the original state still restores");
-  check(sampler.chain(0).treeFits() == treeFitsBefore,
+  check(TestPeer::treeFits(sampler.chain(0)) == treeFitsBefore,
         "restoring the current state is an identity");
 
   printf("ok: state validation\n");
@@ -1371,7 +1371,7 @@ static void testVarianceForestPriorDraw() {
   sampler->sampleVarianceForestFromPrior();
 
   const auto& chain = sampler->chain(0);
-  const double* factors = chain.varianceFactorsForTesting();
+  const double* factors = TestPeer::varianceFactors(chain);
   const double* surface = chain.varianceFits();
   bool surfaceMoved = false, productHolds = true, positive = true;
   for (size_t i = 0; i < n; ++i) {

@@ -641,7 +641,7 @@ inline double combineFusedSuffstatBanks(const double* acc, std::size_t slot,
   return sum;
 }
 
-/// What Chain::checkFusedSuffstatAgainstStockForTesting reports.
+/// What Chain::checkFusedSuffstatAgainstStock reports.
 /// Per-worker buffers for the out-of-sample replay entry points. Every vector
 /// a replay would otherwise construct is held here instead, so a call
 /// allocates once per worker rather than once per (chain, draw) slab. One
@@ -1081,18 +1081,6 @@ public:
   std::size_t numVarianceTrees() const {
     return varianceForest_ ? varianceForest_->numTrees : 0;
   }
-  /// Test hook: the surface the response model holds, which must be
-  /// varianceFits() by pointer identity after every allocation of the
-  /// combined-variance storage (installVarianceSurface is what keeps it so).
-  /// Null for a family that keeps no surface.
-  const double* installedVarianceSurfaceForTesting() const {
-    const ResponseModel* response = response_.get();
-    if (auto* gaussian = dynamic_cast<const GaussianResponse*>(response))
-      return gaussian->varianceSurfaceForTesting();
-    if (auto* aft = dynamic_cast<const AFTResponse*>(response))
-      return aft->varianceSurfaceForTesting();
-    return nullptr;
-  }
 
   /// s^2(x) on the ORIGINAL scale for new rows of a Columns predictor source
   /// from one saved sample's variance trees; the per-tree factors MULTIPLY
@@ -1481,25 +1469,6 @@ public:
     std::memset(out, 0, data_.numPredictors * sizeof(std::uint32_t));
     for (std::size_t t = 0; t < forest.numTrees; ++t)
       forest.trees[t].countVariableUses(out);
-  }
-
-  /// Forest f's per-tree fit slabs, tree-major (numObservations x numTrees); a
-  /// consistency read of the cached fits for tests.
-  void forestTreeFits(std::size_t f, double* out) const {
-    const Forest<L, ResidT>& forest = forests_[f];
-    size_t n = data_.numObservations;
-    if constexpr (leafIsConstant) {
-      // materialize the compact fits by gather (identical bytes to the slab)
-      for (size_t t = 0; t < forest.numTrees; ++t) {
-        const double* mu = forest.muByTree[t].data();
-        const std::uint32_t* leaf = forest.leafOf.data() + t * n;
-        double* o = out + t * n;
-        for (size_t i = 0; i < n; ++i) o[i] = mu[leaf[i]];
-      }
-    } else {
-      std::memcpy(out, forest.treeFits.data(),
-                  n * forest.numTrees * sizeof(double));
-    }
   }
 
   /// Between-run reconfiguration; the test-fit pool is rebuilt lazily to
@@ -4178,50 +4147,6 @@ public:
   double k() const { return forests_[0].k; }
   size_t numTrees() const { return forests_[0].numTrees; }
   const Tree& tree(size_t t) const { return forests_[0].trees[t]; }
-  /// The dense per-tree fit slab, materialized (the constant leaf gathers its
-  /// compact tables into the returned buffer); a consistency read for tests.
-  std::vector<double> treeFits() const {
-    std::vector<double> out(data_.numObservations * forests_[0].numTrees);
-    forestTreeFits(0, out.data());
-    return out;
-  }
-  /// Forest f's cached total fits, for a consistency read over a bare chain;
-  /// a site holding a sampler reads SamplerBase::forestTotalFits instead.
-  const std::vector<double>& totalFitsInForest(std::size_t f) const {
-    return forests_[f].totalFits;
-  }
-  /// Test hook: tree t's obs-to-leaf map (constant leaf, forest 0), where entry
-  /// i is the arena bottom-node index owning observation i.
-  const std::uint32_t* leafOfForTesting(size_t t) const {
-    return forests_[0].leafOf.data() + t * data_.numObservations;
-  }
-  /// Test hook: tree t's rebuild mark, the fused suffstat pass's eligibility
-  /// gate (forest 0). Non-zero means the map still describes the previous
-  /// partition, so the sweep rebuilds before the tree's draw.
-  std::uint8_t leafOfStaleForTesting(size_t t) const {
-    return forests_[0].leafOfStale[t];
-  }
-  /// Test hooks: the running residual forest f rolls across a sweep, and the
-  /// working response it is rolled against. Together with treeFits() they pin
-  /// the unrolled mu[leafOf] gathers elementwise, tail included.
-  const std::vector<ResidT>& residualForTesting(std::size_t f = 0) const {
-    return forests_[f].treeY;
-  }
-  const double* workingResponseForTesting() const {
-    return response_->workingResponse();
-  }
-  /// Test hook: the sigma posterior's degrees of freedom, nu_0 plus the count
-  /// of positive precisions on the RESPONSE model. A per-forest weight lives on
-  /// the chain and must never reach them. Zero for a family that draws no
-  /// sigma.
-  double sigmaDegreesOfFreedomForTesting() const {
-    const ResponseModel* response = response_.get();
-    if (auto* gaussian = dynamic_cast<const GaussianResponse*>(response))
-      return gaussian->sigmaDegreesOfFreedomForTesting();
-    if (auto* aft = dynamic_cast<const AFTResponse*>(response))
-      return aft->sigmaDegreesOfFreedomForTesting();
-    return 0.0;
-  }
   /// Forest f's tree t. Chain::tree reaches forest 0 alone and keeps that
   /// meaning for its own callers; this is what a whole-sampler walk resolves
   /// through - the per-observation session's survivor table, and the
@@ -4239,16 +4164,27 @@ public:
   const Tree& varianceTree(std::size_t j) const {
     return varianceForest_->trees[j];
   }
-  /// Test hook: the per-tree factor slab h_j(x_i), tree-major
-  /// (numVarianceTrees x n), whose product over j is the combined variance
-  /// varianceFits() reports. Nothing else exposes it to a test.
-  const double* varianceFactorsForTesting() const {
-    return varianceForest_->factorByTree.data();
-  }
-  /// Test hook: the scale leaf's calibration (nu', lambda'^2) in force, which
-  /// is what a re-anchoring swap must restate; nothing else reports it.
-  const ConstantVarianceLeaf& varianceLeafForTesting() const {
-    return varianceForest_->leaf;
+
+private:
+  friend struct TestPeer;
+
+  /// Forest f's per-tree fit slabs, tree-major (numObservations x numTrees); a
+  /// consistency read of the cached fits for tests.
+  void forestTreeFits(std::size_t f, double* out) const {
+    const Forest<L, ResidT>& forest = forests_[f];
+    size_t n = data_.numObservations;
+    if constexpr (leafIsConstant) {
+      // materialize the compact fits by gather (identical bytes to the slab)
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        const double* mu = forest.muByTree[t].data();
+        const std::uint32_t* leaf = forest.leafOf.data() + t * n;
+        double* o = out + t * n;
+        for (size_t i = 0; i < n; ++i) o[i] = mu[leaf[i]];
+      }
+    } else {
+      std::memcpy(out, forest.treeFits.data(),
+                  n * forest.numTrees * sizeof(double));
+    }
   }
 
   /// Test hook: split forest 0's tree 0 at (variableIndex, splitIndex) and
@@ -4257,8 +4193,8 @@ public:
   /// chi-k draw consumes. The stranded empty leaf must contribute nothing to
   /// the leaf count or the sum of squares, matching the function-leaf path.
   /// No public mutation strands an empty leaf, so this fabricates one.
-  FunctionLeafDrawStats accountStrandedLeafKStatsForTesting(int32_t variableIndex,
-                                                            int32_t splitIndex) {
+  FunctionLeafDrawStats accountStrandedLeafKStats(int32_t variableIndex,
+                                                  int32_t splitIndex) {
     Forest<L, ResidT>& forest = forests_[0];
     Tree& tree = forest.trees[0];
     const double* residual = response_->workingResponse();
@@ -4286,24 +4222,6 @@ public:
     return FunctionLeafDrawStats{forest.kSumSquaredParams, forest.kNumLeaves};
   }
 
-  /// Test hook: forest 0's level-fibre shift, drawn once against the leaf
-  /// tables as they stand and applied to them. shiftOut receives one c_t per
-  /// tree, zero where the tree declined; the return says whether the forest
-  /// as a whole was eligible. Nothing else reaches the step outside a sweep.
-  bool drawLevelShiftForTesting(double* shiftOut) {
-    return drawLevelShift(forests_[0], shiftOut);
-  }
-
-  /// Test hook: forest 0's tree t leaf table, writable, so a distributional
-  /// gate can restore a frozen leaf state between repeated draws.
-  std::vector<double>& muByTreeForTesting(size_t t) {
-    return forests_[0].muByTree[t];
-  }
-
-  /// Diagnostic: (tree, sweep) bodies that took the fused roll + suffstat
-  /// pass since this chain was built. Monotone, so tests read differences.
-  size_t fusedSuffstatRunsForTesting() const { return fusedSuffstatRuns_; }
-
   /// Test hook: for each of forest 0's trees, run the stock
   /// rollTreeResidual + setNodeAverages pair and the fused pass over the SAME
   /// entering residual, and report whether they agree. The two are specified
@@ -4318,7 +4236,7 @@ public:
   /// untouched; it does advance the fused run counter, and it leaves treeY
   /// and the node statistics where a roll-only sweep would - both are
   /// recomputed at the top of every tree body.
-  FusedSuffstatCheck checkFusedSuffstatAgainstStockForTesting() {
+  FusedSuffstatCheck checkFusedSuffstatAgainstStock() {
     FusedSuffstatCheck result;
     if constexpr (!leafIsConstant) {
       return result;
@@ -4381,7 +4299,6 @@ public:
     }
   }
 
-private:
   /// The internal-unit node scale in force: a named priorScale is the forest
   /// total's prior sd at k = 1 in RESPONSE units, so dividing by the response
   /// transform's multiplier converts it, and a non-finite one leaves the

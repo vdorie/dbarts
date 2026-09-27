@@ -160,7 +160,7 @@ static void testSetPredictorTransaction(ext_rng* rng) {
   ConstantLeafSampler& sampler(*samplerPtr);
 
   std::vector<xint_t> codesBefore(storageDigest(sampler.data()));
-  std::vector<double> treeFitsBefore(sampler.chain(0).treeFits());
+  std::vector<double> treeFitsBefore(TestPeer::treeFits(sampler.chain(0)));
 
   // identity swap: new buffer, same values; must accept and preserve fits
   std::vector<double> xCopy(x);
@@ -169,7 +169,8 @@ static void testSetPredictorTransaction(ext_rng* rng) {
         "identity setPredictor accepted");
   check(storageDigest(sampler.data()) == codesBefore,
         "identity swap preserves codes");
-  check(sampler.chain(0).treeFits() == treeFitsBefore, "identity swap preserves fits");
+  check(TestPeer::treeFits(sampler.chain(0)) == treeFitsBefore,
+        "identity swap preserves fits");
 
   // constant predictors empty one side of every split: must reject and
   // roll back completely
@@ -179,7 +180,8 @@ static void testSetPredictorTransaction(ext_rng* rng) {
         "degenerate setPredictor rejected");
   check(storageDigest(sampler.data()) == codesBefore,
         "rollback restores codes");
-  check(sampler.chain(0).treeFits() == treeFitsBefore, "rollback leaves fits untouched");
+  check(TestPeer::treeFits(sampler.chain(0)) == treeFitsBefore,
+        "rollback leaves fits untouched");
   for (size_t t = 0; t < 25; ++t)
     if (!sampler.chain(0).tree(t).bottomNodesAreOccupied()) {
       check(false, "rollback leaves a partition empty");
@@ -229,7 +231,8 @@ static void testSetPredictorForced(ext_rng* rng) {
 
   // fits stay consistent: totalFits == sum of constant tree fits
   double fitSum = 0.0;
-  for (size_t t = 0; t < 25; ++t) fitSum += sampler.chain(0).treeFits()[t * n];
+  for (size_t t = 0; t < 25; ++t)
+    fitSum += TestPeer::treeFits(sampler.chain(0))[t * n];
   checkNear(forestTotals(sampler, 0)[0], fitSum, 1e-10,
             "forced update keeps fit identity");
 
@@ -635,7 +638,8 @@ static void testSetCutPoints(ext_rng* rng) {
   std::vector<double> totals = forestTotals(sampler, 0);
   for (size_t i = 0; i < n && fitIdentity; i += 37) {
     double total = 0.0;
-    for (size_t t = 0; t < 25; ++t) total += sampler.chain(0).treeFits()[t * n + i];
+    for (size_t t = 0; t < 25; ++t)
+      total += TestPeer::treeFits(sampler.chain(0))[t * n + i];
     fitIdentity = std::fabs(total - totals[i]) < 1e-10;
   }
   check(fitIdentity, "setCutPoints keeps the fit identity");
@@ -722,8 +726,8 @@ static void testMultiChainMutation() {
   sampler.run(100, 0, empty);
 
   std::vector<xint_t> codesBefore(storageDigest(sampler.data()));
-  std::vector<double> fitsBefore[numChains] = {sampler.chain(0).treeFits(),
-                                               sampler.chain(1).treeFits()};
+  std::vector<double> fitsBefore[numChains] = {
+    TestPeer::treeFits(sampler.chain(0)), TestPeer::treeFits(sampler.chain(1))};
 
   // the transaction spans chains: degenerate predictors roll back everywhere
   std::vector<double> xConstant(n * 2, 0.5);
@@ -734,7 +738,7 @@ static void testMultiChainMutation() {
         "multi-chain rollback restores codes");
   bool fitsUntouched = true, occupied = true;
   for (size_t c = 0; c < numChains; ++c) {
-    fitsUntouched &= sampler.chain(c).treeFits() == fitsBefore[c];
+    fitsUntouched &= TestPeer::treeFits(sampler.chain(c)) == fitsBefore[c];
     for (size_t t = 0; t < 25; ++t)
       occupied &= sampler.chain(c).tree(t).bottomNodesAreOccupied();
   }
@@ -1573,7 +1577,7 @@ static void testLeafOfConsistency(ext_rng* /*rng*/) {
         for (size_t m = node.begin; m < node.end; ++m)
           expected[tree.indices[m]] = static_cast<std::uint32_t>(b);
       }
-      const std::uint32_t* actual = sampler.chain(0).leafOfForTesting(t);
+      const std::uint32_t* actual = TestPeer::leafOf(sampler.chain(0), t);
       for (size_t i = 0; i < n; ++i)
         if (actual[i] != expected[i]) { allMatch = false; break; }
     }
@@ -1588,10 +1592,10 @@ static void testLeafOfConsistency(ext_rng* /*rng*/) {
 
   // wholesale reset: prior-drawn structures mark the map for rebuild, which
   // the next sweep must clear tree by tree
-  size_t fusedBefore = sampler.chain(0).fusedSuffstatRunsForTesting();
+  size_t fusedBefore = TestPeer::fusedSuffstatRuns(sampler.chain(0));
   sampler.chain(0).sampleTreesFromPrior();
   sampler.run(1, 0, empty);
-  size_t fusedAfterReset = sampler.chain(0).fusedSuffstatRunsForTesting();
+  size_t fusedAfterReset = TestPeer::fusedSuffstatRuns(sampler.chain(0));
   mapsMatch();
   check(allMatch, "leafOf matches after a prior-drawn structure reset");
 
@@ -1601,7 +1605,7 @@ static void testLeafOfConsistency(ext_rng* /*rng*/) {
   check(fusedAfterReset == fusedBefore,
         "a stale leafOf declines the fused suffstat for every tree");
   sampler.run(1, 0, empty);
-  check(sampler.chain(0).fusedSuffstatRunsForTesting() - fusedAfterReset ==
+  check(TestPeer::fusedSuffstatRuns(sampler.chain(0)) - fusedAfterReset ==
           numTrees,
         "the fused suffstat resumes on the sweep after the leafOf rebuild");
 
@@ -1642,7 +1646,7 @@ static void testPriorResetContract(ext_rng* /*rng*/) {
   // every prior-initialized run
   bool allStale = true;
   for (size_t t = 0; t < numTrees; ++t)
-    allStale = allStale && sampler.chain(0).leafOfStaleForTesting(t) != 0;
+    allStale = allStale && TestPeer::leafOfStale(sampler.chain(0), t) != 0;
   check(allStale, "a prior reset leaves every tree marked for rebuild");
 
   bool totalZero = true;
@@ -1657,7 +1661,7 @@ static void testPriorResetContract(ext_rng* /*rng*/) {
   // rather than equality.
   Results empty;
   sampler.run(1, 0, empty);
-  std::vector<double> perTree = sampler.chain(0).treeFits();
+  std::vector<double> perTree = TestPeer::treeFits(sampler.chain(0));
   std::vector<double> total = forestTotals(sampler, 0);
   bool invariantHolds = true;
   double worstDeviation = 0.0;
@@ -1699,7 +1703,7 @@ static void testPriorResetContract(ext_rng* /*rng*/) {
 
   bool insideArena = true;
   for (size_t t = 0; t < numTrees; ++t) {
-    const std::uint32_t* leafOf = shrunk.chain(0).leafOfForTesting(t);
+    const std::uint32_t* leafOf = TestPeer::leafOf(shrunk.chain(0), t);
     size_t arenaSize = shrunk.chain(0).tree(t).nodes.size();
     for (size_t i = 0; i < n; ++i)
       if (leafOf[i] >= arenaSize) { insideArena = false; break; }

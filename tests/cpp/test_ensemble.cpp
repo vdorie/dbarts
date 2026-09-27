@@ -36,9 +36,9 @@ constexpr double ensembleTolerance = 1.0e-11;
 void checkEnsembleSweep(ConstantLeafSampler& sampler, size_t sweep,
                         double& worstFit, double& worstResidual) {
   std::vector<double> total = forestTotals(sampler, 0);
-  std::vector<double> fits = sampler.chain(0).treeFits();
-  const double* y = sampler.chain(0).workingResponseForTesting();
-  const std::vector<double>& resid = sampler.chain(0).residualForTesting();
+  std::vector<double> fits = TestPeer::treeFits(sampler.chain(0));
+  const double* y = TestPeer::workingResponse(sampler.chain(0));
+  const std::vector<double>& resid = TestPeer::residual(sampler.chain(0));
 
   double sweepFit = 0.0, sweepResidual = 0.0;
   for (size_t i = 0; i < ensembleN; ++i) {
@@ -99,7 +99,7 @@ LevelLaw levelLawOf(ConstantLeafSampler& sampler, size_t numTrees) {
   double sumVariance = 0.0, sumMean = 0.0;
   for (size_t t = 0; t < numTrees; ++t) {
     const Tree& tree = sampler.chain(0).treeInForest(0, t);
-    const std::vector<double>& mu = sampler.chain(0).muByTreeForTesting(t);
+    const std::vector<double>& mu = TestPeer::muByTree(sampler.chain(0), t);
     bottoms.clear();
     tree.fillBottom(0, bottoms);
     double leafCount = 0.0, leafSum = 0.0;
@@ -312,7 +312,7 @@ void runEnsembleTests() {
 
   std::vector<std::vector<double>> frozenMu(levelTrees);
   for (size_t t = 0; t < levelTrees; ++t)
-    frozenMu[t] = lawSampler.chain(0).muByTreeForTesting(t);
+    frozenMu[t] = TestPeer::muByTree(lawSampler.chain(0), t);
   LevelLaw law = levelLawOf(lawSampler, levelTrees);
 
   LevelMoments moments(levelTrees);
@@ -321,16 +321,16 @@ void runEnsembleTests() {
   bool everyDrawEligible = true;
   for (size_t draw = 0; draw < levelDraws; ++draw) {
     for (size_t t = 0; t < levelTrees; ++t)
-      lawSampler.chain(0).muByTreeForTesting(t) = frozenMu[t];
+      TestPeer::muByTree(lawSampler.chain(0), t) = frozenMu[t];
     everyDrawEligible = everyDrawEligible &&
-      lawSampler.chain(0).drawLevelShiftForTesting(shift.data());
+      TestPeer::drawLevelShift(lawSampler.chain(0), shift.data());
     double total = 0.0;
     for (size_t t = 0; t < levelTrees; ++t) total += shift[t];
     worstSum = std::max(worstSum, std::fabs(total));
     moments.add(shift);
   }
   for (size_t t = 0; t < levelTrees; ++t)
-    lawSampler.chain(0).muByTreeForTesting(t) = frozenMu[t];
+    TestPeer::muByTree(lawSampler.chain(0), t) = frozenMu[t];
 
   check(everyDrawEligible, "the frozen forest is eligible on every draw");
   char what[160];
