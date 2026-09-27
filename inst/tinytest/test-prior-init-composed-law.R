@@ -11,7 +11,8 @@
 # The oracle is the sibling file's - route ONLY the rows the forest's vector
 # reaches through the drawn trees (getTrees(newdata = )) and read the per-node
 # counts, so a leaf no such row reaches reports n == 0 - taken through the
-# internal per-forest reader, the public $getTrees having no forest axis.
+# test-only per-forest reader forestTrees(), the public $getTrees having no
+# forest axis.
 
 source(
   system.file("common", "bartcoreHandle.R", package = "dbarts"),
@@ -58,17 +59,17 @@ makeBCF <- function(...) {
   )
 }
 
-# the internal per-forest tree reader; its forest index is 0-based (0
-# prognostic, 1 treatment). rows, when given, are routed through the drawn
-# trees so 'n' counts THEM per node rather than the training rows.
+# the per-forest tree reader; its forest index is 1-based (1 prognostic, 2
+# treatment). rows, when given, are routed through the drawn trees so 'n'
+# counts THEM per node rather than the training rows.
 forestNodes <- function(sampler, forest, rows = NULL) {
-  bartcoreGetTrees(
-    list(ptr = sampler$getPointer(), x = x),
-    chainNums = 1L,
+  forestTrees(
+    sampler,
+    forest,
     treeNums = seq_len(numTrees),
+    chainNums = 1L,
     current = TRUE,
-    newdata = if (is.null(rows)) NULL else x[rows, , drop = FALSE],
-    forest = forest
+    newdata = if (is.null(rows)) NULL else x[rows, , drop = FALSE]
   )
 }
 leavesPerTree <- function(nodes) tapply(nodes$var == -1L, nodes$tree, sum)
@@ -91,8 +92,8 @@ tauCounts <- numeric(0)
 referenceCounts <- numeric(0)
 for (i in seq_len(150L)) {
   sampler$sampleTreesFromPrior()
-  tau <- forestNodes(sampler, 1L, treated)
-  mu <- forestNodes(sampler, 0L, treated)
+  tau <- forestNodes(sampler, 2L, treated)
+  mu <- forestNodes(sampler, 1L, treated)
   tauLeaves <- tauLeaves + sum(tau$var == -1L)
   tauUnreached <- tauUnreached + sum(tau$var == -1L & tau$n == 0L)
   muUnreached <- muUnreached + sum(mu$var == -1L & mu$n == 0L)
@@ -100,7 +101,7 @@ for (i in seq_len(150L)) {
   reference$sampleTreesFromPrior()
   referenceCounts <- c(
     referenceCounts,
-    leavesPerTree(forestNodes(reference, 0L))
+    leavesPerTree(forestNodes(reference, 1L))
   )
 }
 expect_true(tauLeaves > 5000L) # the trees grew; the check bites
@@ -125,12 +126,12 @@ expect_true(mean(tauCounts == 1) - mean(referenceCounts == 1) > 0.005)
 zeroed <- makeBCF()
 zeroed$setForestWeights(2L, rep(0, n))
 zeroed$sampleTreesFromPrior()
-tauNodes <- forestNodes(zeroed, 1L)
+tauNodes <- forestNodes(zeroed, 2L)
 expect_equal(nrow(tauNodes), numTrees) # one node per tree
 expect_true(all(tauNodes$var == -1L))
 expect_true(all(tauNodes$value == 0))
 # ... while the OTHER forest of the same sampler draws its own law untouched
-expect_true(nrow(forestNodes(zeroed, 0L)) > 2L * numTrees)
+expect_true(nrow(forestNodes(zeroed, 1L)) > 2L * numTrees)
 zeroedDraws <- zeroed$run(2L, 2L)
 expect_true(all(is.finite(zeroedDraws$train)))
 
@@ -170,7 +171,7 @@ grownLeaves <- 0L
 grownUnreached <- 0L
 for (i in seq_len(30L)) {
   grown$growFromRoot(1L)
-  tau <- forestNodes(grown, 1L, reached)
+  tau <- forestNodes(grown, 2L, reached)
   grownLeaves <- grownLeaves + sum(tau$var == -1L)
   grownUnreached <- grownUnreached + sum(tau$var == -1L & tau$n == 0L)
 }

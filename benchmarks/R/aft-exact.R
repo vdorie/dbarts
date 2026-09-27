@@ -29,11 +29,6 @@
 #
 # Usage: Rscript aft-exact.R [quick]
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -62,6 +57,10 @@ logTtrue <- cellMean[cell] + sigmaTrue * rnorm(length(cell))
 logC <- cellMean[cell] + 0.3 + sigmaTrue * rnorm(length(cell))
 status <- as.numeric(logTtrue <= logC) # 1 event, 0 censored
 obsLogT <- ifelse(status == 1, logTtrue, logC)
+# the sampler takes times and logs them itself; log(exp(z)) need not return z
+# bitwise, so the oracle reads the log of the times the sampler is given
+obsT <- exp(obsLogT)
+obsLogT <- log(obsT)
 cat(sprintf("censoring rate: %.2f\n", mean(status == 0)))
 
 cuts <- min(x1) + (1:3) * (max(x1) - min(x1)) / 4
@@ -70,7 +69,7 @@ stopifnot(identical(cell, findInterval(x1[, 1L], cuts) + 1L))
 base <- 0.5
 power <- 2
 k <- 2
-nodeScale <- 1.5
+nodeScale <- 1.5 # on the internal scale; the node prior takes response units
 sigmaFixed <- sigmaTrue
 
 # the engine's internal [-0.5, 0.5] rescaling of the observed log-times
@@ -177,9 +176,9 @@ fitSingleTree <- function(seed) {
   )
   sampler <- dbarts(
     x1,
-    obsLogT,
+    cbind(obsT, status),
     control = control,
-    node.prior = normal(k),
+    node.prior = normal(k, scale = nodeScale * fitRange),
     proposal.probs = c(
       birth_death = 0.5,
       swap = 0.1,
@@ -187,14 +186,9 @@ fitSingleTree <- function(seed) {
       birth = 0.5
     ),
     tree.prior = cgm(power, base),
-    family = gaussian(sigma = fixed(sigmaFixed^2))
+    family = aft(sigma = fixed(sigmaFixed^2))
   )
-  sampler$model@node.scale <- nodeScale
-  ctrl <- sampler$control
-  attr(ctrl, "bartcore.survival") <- status
-  sampler$control <- ctrl
-  bc <- dbarts:::bartcoreSampler(sampler, family = "aft")
-  r <- bartcoreRun(bc, 5000L, exactNdpost)
+  r <- sampler$run(5000L, exactNdpost)
   # every observation in a cell shares its leaf's fit; take one per cell
   reps <- vapply(1:4, function(cc) which(cell == cc)[1L], integer(1L))
   rowMeans(r$train[reps, , drop = FALSE])
@@ -228,9 +222,9 @@ fitVarianceTree <- function(seed) {
   )
   sampler <- dbarts(
     x1,
-    obsLogT,
+    cbind(obsT, status),
     control = control,
-    node.prior = normal(k),
+    node.prior = normal(k, scale = nodeScale * fitRange),
     proposal.probs = c(
       birth_death = 0.5,
       swap = 0.1,
@@ -238,16 +232,11 @@ fitVarianceTree <- function(seed) {
       birth = 0.5
     ),
     tree.prior = cgm(power, base),
-    family = gaussian(sigma = chisq(df = varianceDf, quant = 0.9)),
+    family = aft(sigma = chisq(df = varianceDf, quant = 0.9)),
     variance = varianceForest(n.trees = 1L),
     sigma = sigmaFixed
   )
-  sampler$model@node.scale <- nodeScale
-  ctrl <- sampler$control
-  attr(ctrl, "bartcore.survival") <- status
-  sampler$control <- ctrl
-  bc <- dbarts:::bartcoreSampler(sampler, family = "aft")
-  r <- bartcoreRun(bc, 5000L, exactNdpost)
+  r <- sampler$run(5000L, exactNdpost)
   reps <- vapply(1:4, function(cc) which(cell == cc)[1L], integer(1L))
   list(
     fit = rowMeans(r$train[reps, , drop = FALSE]),

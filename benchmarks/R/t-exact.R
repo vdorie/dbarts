@@ -28,11 +28,6 @@
 #
 # Usage: Rscript t-exact.R [quick]
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -66,7 +61,7 @@ stopifnot(identical(cell, findInterval(x1[, 1L], cuts) + 1L))
 base <- 0.5
 power <- 2
 k <- 2
-nodeScale <- 1.5
+nodeScale <- 1.5 # on the internal scale; the node prior takes response units
 
 # the engine's internal [-0.5, 0.5] rescaling of the observed response
 fitMin <- min(y1)
@@ -165,7 +160,7 @@ fitSingleTree <- function(seed) {
     x1,
     y1,
     control = control,
-    node.prior = normal(k),
+    node.prior = normal(k, scale = nodeScale * fitRange),
     tree.prior = cgm(power, base),
     proposal.probs = c(
       birth_death = 0.5,
@@ -178,9 +173,7 @@ fitSingleTree <- function(seed) {
       sigma = dbarts::dbartsPriors$fixed(sigmaFixed^2)
     )
   )
-  sampler$model@node.scale <- nodeScale
-  bc <- dbarts:::bartcoreSampler(sampler)
-  r <- bartcoreRun(bc, exactBurn, exactNdpost)
+  r <- sampler$run(exactBurn, exactNdpost)
   # every observation in a cell shares its leaf's fit; take one per cell
   reps <- vapply(1:4, function(cc) which(cell == cc)[1L], integer(1L))
   rowMeans(r$train[reps, , drop = FALSE])

@@ -29,11 +29,6 @@
 #
 # Usage: Rscript aft-hetero-pit.R [quick]
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -77,16 +72,16 @@ control <- dbartsControl(
 )
 sampler <- dbarts(
   x,
-  obsLogT,
+  cbind(exp(obsLogT), status),
+  family = "aft",
   control = control,
   variance = varianceForest(n.trees = 20L)
 )
-ctrl <- sampler$control
-attr(ctrl, "bartcore.survival") <- status
-sampler$control <- ctrl
-bc <- dbarts:::bartcoreSampler(sampler, family = "aft")
+# the censoring bounds as the sampler logged them, which exp/log need not
+# return bitwise
+obsLogT <- sampler$data@y
 
-invisible(bartcoreRun(bc, numBurnIn, 0L))
+invisible(sampler$run(numBurnIn, 0L))
 
 # ---- drive the chain one thinned block at a time ----
 
@@ -95,8 +90,8 @@ fitSum <- numeric(n)
 pit <- vector("list", numKept)
 atBound <- 0L
 for (t in seq_len(numKept)) {
-  r <- bartcoreRun(bc, 0L, thin)
-  z <- bartcoreGetLatents(bc)
+  r <- sampler$run(0L, thin)
+  z <- sampler$getLatents()
   mu <- r$train[, thin]
   # the surface the LAST sweep's redraw ran against: the variance forest sweeps
   # after the latent refresh, so sweep `thin`'s draw saw sweep `thin - 1`'s

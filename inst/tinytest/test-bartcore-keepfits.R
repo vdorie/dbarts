@@ -2,21 +2,7 @@
 # channel, handing the engine a per-chain one-draw scratch buffer instead and
 # returning a null slot in its place. The channels are dropped from the
 # RESULT, not from the sweep, so every sampled quantity is bit-for-bit what
-# the keeping run drew. Driven through the .Call directly - the R surface for
-# the argument is not wired up at this layer.
-
-runEntry <- function(sampler, numSamples, keepFits) {
-  handle <- dbarts:::bartcoreSampler(sampler)
-  .Call(
-    dbarts:::C_dbarts_bartcore_run,
-    handle$ptr,
-    0L,
-    as.integer(numSamples),
-    NULL,
-    NULL,
-    keepFits
-  )
-}
+# the keeping run drew. $run passes control@keepFits.
 
 n <- 120L
 nTest <- 15L
@@ -24,7 +10,7 @@ numSamples <- 6L
 numChains <- 2L
 
 # ---- heteroscedastic with a test set: four per-observation channels ----
-makeVarianceSampler <- function() {
+makeVarianceSampler <- function(keepFits = TRUE) {
   set.seed(4242, sample.kind = "Rejection")
   x <- matrix(runif(n * 2L), n, 2L)
   y <- 2 * x[, 1L] + ifelse(x[, 1L] < 0.5, 0.3, 1.5) * rnorm(n)
@@ -40,14 +26,15 @@ makeVarianceSampler <- function() {
       n.trees = 10L,
       n.samples = numSamples,
       n.burn = 0L,
+      keepFits = keepFits,
       updateState = FALSE,
       seed = 4242L
     )
   )
 }
 
-kept <- runEntry(makeVarianceSampler(), numSamples, TRUE)
-dropped <- runEntry(makeVarianceSampler(), numSamples, FALSE)
+kept <- makeVarianceSampler(TRUE)$run(0L, numSamples)
+dropped <- makeVarianceSampler(FALSE)$run(0L, numSamples)
 
 # the slot list keeps its shape either way: same names, same order
 expect_equal(names(kept), names(dropped))
@@ -68,7 +55,7 @@ expect_identical(kept$sigma, dropped$sigma)
 expect_identical(kept$varcount, dropped$varcount)
 
 # ---- a multi-forest coupling: the per-forest channel drops, its glue stays ----
-makeForestSampler <- function() {
+makeForestSampler <- function(keepFits = TRUE) {
   set.seed(5150, sample.kind = "Rejection")
   x <- matrix(runif(n * 3L), n, 3L)
   z <- rbinom(n, 1L, 0.5)
@@ -86,14 +73,15 @@ makeForestSampler <- function() {
       n.trees = 10L,
       n.samples = numSamples,
       n.burn = 0L,
+      keepFits = keepFits,
       updateState = FALSE,
       seed = 5150L
     )
   )
 }
 
-keptBCF <- runEntry(makeForestSampler(), numSamples, TRUE)
-droppedBCF <- runEntry(makeForestSampler(), numSamples, FALSE)
+keptBCF <- makeForestSampler(TRUE)$run(0L, numSamples)
+droppedBCF <- makeForestSampler(FALSE)$run(0L, numSamples)
 
 expect_equal(dim(keptBCF$forestFits), c(n, 2L, numSamples, numChains))
 expect_null(droppedBCF$forestFits)
@@ -105,11 +93,24 @@ expect_identical(keptBCF$sigma, droppedBCF$sigma)
 expect_identical(keptBCF$varcount, droppedBCF$varcount)
 
 # ---- the flag is a real logical, not whatever coerces ----
+expect_error(dbartsControl(keepFits = NA), "'keepFits' must be TRUE/FALSE")
+expect_error(dbartsControl(keepFits = "yes"), "'keepFits' must be TRUE/FALSE")
+# a slot edit reaches $run past dbartsControl; the bridge refuses it there
+control.na <- makeVarianceSampler()$control
+control.na@keepFits <- NA
+sampler.na <- makeVarianceSampler()
+sampler.na$setControl(control.na)
+expect_error(sampler.na$run(0L, numSamples), "'keepFits' must be TRUE or FALSE")
+# the bridge refuses a non-logical from a raw caller rather than read it as one
 expect_error(
-  runEntry(makeVarianceSampler(), numSamples, NA),
-  "'keepFits' must be TRUE or FALSE"
-)
-expect_error(
-  runEntry(makeVarianceSampler(), numSamples, "yes"),
+  .Call(
+    dbarts:::C_dbarts_bartcore_run,
+    makeVarianceSampler()$getPointer(),
+    0L,
+    as.integer(numSamples),
+    NULL,
+    NULL,
+    "yes"
+  ),
   "'keepFits' must be TRUE or FALSE"
 )

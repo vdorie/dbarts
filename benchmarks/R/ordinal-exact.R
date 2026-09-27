@@ -47,11 +47,6 @@
 #
 # Usage: Rscript ordinal-exact.R [quick]
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -92,7 +87,6 @@ for (c in 0:1) {
 }
 countsA <- tabulate(labels[cell == 0L], K)
 countsB <- tabulate(labels[cell == 1L], K)
-x <- matrix(as.double(cell), ncol = 1L)
 y <- ordered(c("lo", "mid", "hi")[labels], levels = c("lo", "mid", "hi"))
 
 # ---- exact posterior by structure enumeration + nested quadrature ----
@@ -172,8 +166,8 @@ fitSeed <- function(seed) {
     n.trees = numTrees,
     updateState = FALSE
   )
-  host <- dbarts(
-    x,
+  sampler <- dbarts(
+    data.frame(x1 = factor(cell)), # the cell predictor, categorical
     y,
     family = "ordinal",
     control = control,
@@ -187,8 +181,6 @@ fitSeed <- function(seed) {
     node.prior = normal(k),
     verbose = FALSE
   )
-  host$data@varTypes[1L] <- 1L # mark the predictor categorical
-  bc <- dbarts:::bartcoreSampler(host, family = "ordinal")
 
   iA <- which(cell == 0L)[1L]
   iB <- which(cell == 1L)[1L]
@@ -196,8 +188,9 @@ fitSeed <- function(seed) {
   probsB <- numeric(K)
   gammaSum <- 0
   for (s in seq_len(ndpost)) {
-    r <- bartcoreRun(bc, if (s == 1L) nburn else 0L, 1L)
-    st <- bartcoreStoreState(bc)
+    r <- sampler$run(if (s == 1L) nburn else 0L, 1L)
+    sampler$storeState()
+    st <- sampler$state
     # the K-1 finite cutpoints c(gamma_1 = 0, gamma_2); the probability transform
     # needs the whole vector, the gamma_2 tracking only its free entry
     gammaVec <- st[[1L]]$thresholds

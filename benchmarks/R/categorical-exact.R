@@ -33,11 +33,6 @@
 #
 # Usage: Rscript categorical-exact.R [quick]
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -56,6 +51,13 @@ y <- rbinom(length(category), 1L, categoryProbability[category + 1L])
 n <- length(y)
 offset <- qnorm(mean(y))
 x.test <- matrix(as.double(0:(numCategories - 1L)), ncol = 1L)
+# the code column as a factor (ordered = TRUE for the ordered arm), levels the
+# codes themselves, so the stored codes are the matrix's
+asFactorFrame <- function(codes, ordered) {
+  data.frame(
+    x1 = factor(codes, levels = 0:(numCategories - 1L), ordered = ordered)
+  )
+}
 
 base <- 0.5
 power <- 2
@@ -146,10 +148,10 @@ fitBartcore <- function(seed) {
     n.trees = 1L,
     updateState = FALSE
   )
-  host <- dbarts(
-    x,
+  sampler <- dbarts(
+    asFactorFrame(x[, 1L], FALSE),
     y,
-    test = x.test,
+    test = asFactorFrame(x.test[, 1L], FALSE),
     offset = offset,
     control = control,
     proposal.probs = c(
@@ -161,11 +163,8 @@ fitBartcore <- function(seed) {
     node.prior = normal(k),
     tree.prior = cgm(power, base)
   )
-  # a bare code matrix carries no level table; type the column by hand
-  host$data@varTypes[1L] <- 1L
-  host$data@offset.test <- NULL
-  bc <- dbarts:::bartcoreSampler(host)
-  r <- bartcoreRun(bc, 5000L, ndpost)
+  sampler$setTestOffset(NULL)
+  r <- sampler$run(5000L, ndpost)
   colMeans(pnorm(t(r$test) + offset))
 }
 
@@ -252,12 +251,13 @@ fitOrdered <- function(seed, n.cuts) {
     n.chains = 1L,
     n.threads = 1L,
     n.trees = 1L,
+    n.cuts = n.cuts,
     updateState = FALSE
   )
-  host <- dbarts(
-    x,
+  sampler <- dbarts(
+    asFactorFrame(x[, 1L], TRUE),
     y,
-    test = x.test,
+    test = asFactorFrame(x.test[, 1L], TRUE),
     offset = offset,
     control = control,
     proposal.probs = c(
@@ -269,12 +269,8 @@ fitOrdered <- function(seed, n.cuts) {
     node.prior = normal(k),
     tree.prior = cgm(power, base)
   )
-  # a bare code matrix carries no level table; type the column by hand
-  host$data@varTypes[1L] <- 2L
-  host$data@n.cuts[1L] <- n.cuts
-  host$data@offset.test <- NULL
-  bc <- dbarts:::bartcoreSampler(host)
-  r <- bartcoreRun(bc, 5000L, ndpost)
+  sampler$setTestOffset(NULL)
+  r <- sampler$run(5000L, ndpost)
   colMeans(pnorm(t(r$test) + offset))
 }
 

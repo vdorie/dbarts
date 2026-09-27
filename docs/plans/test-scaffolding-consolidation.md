@@ -739,3 +739,71 @@ benchmark, not a tinytest, so the run is a no-touch check);
 `tools/check-doc-freshness.R` OK, unresolved-cite count unchanged (48) -
 no doc cite touches this file's changed lines. ~217 changed lines (108
 insertions, 109 deletions), well under budget.
+
+Slice S3 LANDED (pending hash): the thirteen single-forest tinytest files,
+inst/common/leafPriorChecks.R and the seven exact-gate benchmarks are off
+`dbarts:::bartcoreSampler` and the inst/common/bartcoreHandle.R wrappers
+(test-prior-init-composed-law.R keeps its source of that file for
+`forestTrees()`; test-engine-constants.R had no handle site). No production R
+or C++ change.
+
+A5 sites, each A/B'd old route against new at matched seed placement:
+- aft (test-aft.R, test-aft-heteroscedastic.R, test-active-rows-pins.R,
+  aft-exact.R, aft-hetero-pit.R): `dbarts(x, cbind(exp(log.t), status),
+  family = "aft")`. `log(exp(log.t))` differs from `log.t` in the last bit
+  (45 of 200 rows in test-aft.R), so the A/B builds the old host on
+  `log(exp(log.t))`: then draws, latents, sigma and the variance surface are
+  bitwise identical. Checks that need the exact response read the sampler's
+  own `data@y`; aft-exact.R's oracle reads the log of the times it passes.
+  "Uncensored aft equals gaussian" is restated as a public aft sampler
+  against a gaussian sampler on its `data@y`, each family asserted on the
+  engine by its latents (aft's equal `data@y`, gaussian's are NULL).
+- `model@node.scale <-` (aft-exact.R, t-exact.R, logistic-reference.R):
+  `normal(k, scale = )`, which takes response units where the slot was
+  internal, so the continuous gates pass `nodeScale * fitRange`; identical
+  `$getCalibration` rows and bitwise draws.
+- `family =` overrides: `dbarts(family = )`. test-bartcore.R's logistic host
+  needs `normal(scale = 3)` (the probit default the handle inherited) to be
+  bitwise; the cauchit and continuous-logistic refusals are pinned at
+  `dbarts(family = )` by their R-side wording.
+- `data@offset.test <- NULL` (logistic-reference.R, categorical-exact.R):
+  `$setTestOffset(NULL)`, bitwise.
+- `data@varTypes` flips and `n.cuts[1] <-` (test-bartcore.R's category, wide
+  and setData hosts, categorical-exact.R, negbin-exact.R, ordinal-exact.R):
+  `factor`/`ordered` columns and `dbartsControl(n.cuts = )`; same
+  `varTypes`, `n.cuts`, calibration, and bitwise draws, dispersion and
+  thresholds. The non-integer-code and over-cap refusals have no factor
+  analog and use the matrix `varTypes` attribute dbartsData reads, reaching
+  the same bridge wording.
+Every exact gate passes in quick mode.
+
+KEEP-ADDITIVE raw .Call, on a public sampler's or a PROD view's pointer:
+test-aft.R's non-real status and test-bartcore-keepfits.R's non-logical
+keepFits (type guards: the bridge would otherwise read the vector at the
+wrong width); test-data-handle.R's six view-mutation refusals (a view keeps
+no raw source to re-quantize from) and its view tree read (no method reads a
+view); test-linear-leaves.R's view refusal; test-sampler-bridge-errors.R's
+test-offset guard and test-sparse-factor.R's reference-level guard, which
+were already raw and only lose the handle (S5's A3 pass owns both).
+
+Dropped: test-active-rows-pins.R's handle arm of the all-ones pin (after the
+fold it repeats the method arm above it) and its two raw value-scan pins,
+plain and multinomial (the method refuses first, the C API has no setter,
+not memory safety; the multinomial one is re-pinned on the method's
+wording); test-aft.R's handle half of the creation-parity check (duplicates
+the sampler half); test-data-handle.R's three view acceptance checks
+(setResponse, setTestPredictor and predict on a view: paths no production
+caller takes, not memory safety).
+
+Traps beyond the plan's list: `updatePredictorPerObservationJointly()` takes
+one shared column, not one per sampler; `$setForestWeights` on a multinomial
+sampler refuses with its own wording before the bridge's. Restored by the
+second reader: test-bartcore-keepfits.R's NA keepFits pin, on `$run` after a
+`$setControl` with the slot edited, which passes dbartsControl's check.
+
+Gates: full tinytest 9183/9183 (9183 at eef70acc: nine dropped above, nine
+added, the four aft family assertions, three aft latent assertions, and
+keepFits's two dbartsControl pins); exact-gates quick for aft-exact.R,
+aft-hetero-pit.R, categorical-exact.R, logistic-reference.R, t-exact.R, negbin-exact.R and
+ordinal-exact.R, all OK; lintr clean; air clean; check-doc-freshness OK. No
+equivalence compare: equivalence.R sources none of the touched files.

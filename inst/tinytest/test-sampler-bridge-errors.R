@@ -2,11 +2,6 @@
 # other test file exercises with expect_error: a test offset with no test
 # predictors, and setControl attempts to change a creation-fixed count.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(1)
 n <- 100L
 x <- matrix(runif(n * 2L), n, 2L)
@@ -28,9 +23,12 @@ expect_error(
 )
 
 # ... and reaching the bridge directly hits its own guard with the same intent
-bc <- dbarts:::bartcoreSampler(sampler)
 expect_error(
-  bartcoreSetTestOffset(bc, rep(0.1, 5L)),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setTestOffset,
+    sampler$getPointer(),
+    rep(0.1, 5L)
+  ),
   pattern = "cannot set a test offset without test predictors"
 )
 
@@ -77,4 +75,4 @@ expect_error(
   pattern = "keepTrees requires 'n.samples'"
 )
 
-rm(sampler, bc, control, x, y, n)
+rm(sampler, control, x, y, n)

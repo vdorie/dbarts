@@ -1,12 +1,11 @@
 # The shared data handle and its row-subset view samplers (internal). Views
 # copy the handle's cut grid
 # and gather their rows' codes, so folds bin identically to the full data;
-# they refuse raw-predictor mutation.
+# they refuse raw-predictor mutation. Views are production's (xbart's folds),
+# which only creates, re-models and runs them, so everything else here is a raw
+# .Call on the view's own pointer.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
+bartcoreRun <- dbarts:::bartcoreRun
 
 set.seed(42)
 n <- 150L
@@ -27,7 +26,7 @@ handle <- dbarts:::bartcoreDataHandle(sampler$control, sampler$data)
 # store contents, and creation under the same R seed hands both chains
 # the same generator seed
 set.seed(7)
-bc.full <- dbarts:::bartcoreSampler(sampler)
+sampler.full <- dbarts(x, y, control = control)
 set.seed(7)
 bc.view <- dbarts:::bartcoreSamplerFromHandle(
   handle,
@@ -36,7 +35,7 @@ bc.view <- dbarts:::bartcoreSamplerFromHandle(
   sampler$data,
   seq_len(n)
 )
-r.full <- bartcoreRun(bc.full, 20L, 30L)
+r.full <- sampler.full$run(20L, 30L)
 r.view <- bartcoreRun(bc.view, 20L, 30L)
 expect_identical(r.view$sigma, r.full$sigma)
 expect_identical(r.view$train, r.full$train)
@@ -57,41 +56,62 @@ expect_equal(dim(r.fold$train), c(length(trainRows), 30L))
 expect_equal(dim(r.fold$test), c(length(testRows), 30L))
 expect_true(all(is.finite(r.fold$test)))
 
-# raw-predictor mutation is refused on views...
+# raw-predictor mutation is refused on views, which hold no raw source to
+# re-quantize from
 x.fold <- x[trainRows, , drop = FALSE]
 expect_error(
-  bartcoreSetPredictor(bc.fold, x.fold),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setPredictor,
+    bc.fold$ptr,
+    x.fold,
+    FALSE,
+    FALSE
+  ),
   pattern = "owns its predictors"
 )
 expect_error(
-  bartcoreUpdatePredictor(bc.fold, x.fold[, 1L], 1L),
+  .Call(
+    dbarts:::C_dbarts_bartcore_updatePredictor,
+    bc.fold$ptr,
+    x.fold[, 1L],
+    1L,
+    FALSE,
+    FALSE
+  ),
   pattern = "owns its predictors"
 )
 expect_error(
-  bartcoreUpdatePredictorPerObservation(bc.fold, x.fold[, 1L], 1L),
+  .Call(
+    dbarts:::C_dbarts_bartcore_updatePredictorPerObservation,
+    bc.fold$ptr,
+    x.fold[, 1L],
+    1L
+  ),
   pattern = "owns its predictors"
 )
 expect_error(
-  bartcoreSetCutPoints(bc.fold, list(c(0.25, 0.5)), 1L),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setCutPoints,
+    bc.fold$ptr,
+    list(c(0.25, 0.5)),
+    1L,
+    NULL
+  ),
   pattern = "owns its predictors"
 )
 expect_error(
-  bartcoreSetData(bc.fold, sampler$data),
+  .Call(dbarts:::C_dbarts_bartcore_setData, bc.fold$ptr, sampler$data),
   pattern = "owns its predictors"
 )
 expect_error(
-  bartcoreSetState(bc.fold, bartcoreStoreState(bc.fold)),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setState,
+    bc.fold$ptr,
+    .Call(dbarts:::C_dbarts_bartcore_storeState, bc.fold$ptr),
+    NULL
+  ),
   pattern = "owns its predictors"
 )
-
-# ...while the response side and raw test data stay available (test
-# quantization needs only the copied cut grid)
-expect_silent(bartcoreSetResponse(bc.fold, y[trainRows] + 0.1))
-expect_silent(
-  bartcoreSetTestPredictor(bc.fold, x[testRows, , drop = FALSE])
-)
-predictions <- bartcorePredict(bc.fold, x[1:3, , drop = FALSE])
-expect_true(all(is.finite(predictions)))
 
 # view samplers bin on the full data's grid: hold out the rows carrying
 # column 1's extremes and check every split against the parent's cut set
@@ -120,11 +140,16 @@ bc.interior <- dbarts:::bartcoreSamplerFromHandle(
   1:2
 )
 invisible(bartcoreRun(bc.interior, 20L, 10L))
-trees <- bartcoreGetTrees(
-  bc.interior,
-  chainNums = 1L,
-  treeNums = 1:10,
-  current = TRUE
+trees <- .Call(
+  dbarts:::C_dbarts_bartcore_getTrees,
+  bc.interior$ptr,
+  1L,
+  NULL,
+  1:10,
+  TRUE,
+  NULL,
+  NULL,
+  0L
 )
 splits <- trees[trees$var > 0L, ]
 fullGrid <- lapply(seq_len(p), function(j) {

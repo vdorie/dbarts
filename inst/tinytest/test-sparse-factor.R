@@ -1086,12 +1086,11 @@ expect_error(
 # the bridge's own check is independent of validateXTest: a container fed
 # directly to the bridge entry point (bypassing the R wrapper, the way the
 # equivalence harness does) is refused there too
-bc.ord <- dbarts:::bartcoreSampler(sampler.ord)
 bad.container.ord <- dbarts:::makeCategoricalModelMatrix(test.ord.bad)
 expect_error(
   .Call(
     dbarts:::C_dbarts_bartcore_setTestPredictor,
-    bc.ord$ptr,
+    sampler.ord$getPointer(),
     bad.container.ord
   ),
   pattern = referenceMessage

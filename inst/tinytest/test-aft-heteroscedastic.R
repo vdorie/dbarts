@@ -6,10 +6,6 @@
 # beside aft's own.
 
 source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
   local = TRUE
 )
@@ -224,18 +220,23 @@ control.seeded <- dbartsControl(
   updateState = FALSE,
   seed = 271L
 )
-samp.g <- dbarts(x, log.t, control = control.seeded, variance = TRUE)
-res.g <- bartcoreRun(dbarts:::bartcoreSampler(samp.g), 100L, 100L)
-
-samp.a <- dbarts(x, log.t, control = control.seeded, variance = TRUE)
-ctrl <- samp.a$control
-attr(ctrl, "bartcore.survival") <- rep(1, n) # every observation an event
-samp.a$control <- ctrl
-res.a <- bartcoreRun(
-  dbarts:::bartcoreSampler(samp.a, family = "aft"),
-  100L,
-  100L
+# every observation an event; the gaussian fit reads the aft sampler's own
+# logged response, since log(exp(log.t)) need not return log.t bitwise
+samp.a <- dbarts(
+  x,
+  cbind(exp(log.t), rep(1, n)),
+  family = "aft",
+  control = control.seeded,
+  variance = TRUE
 )
+expect_identical(samp.a$model@family, "aft")
+res.a <- samp.a$run(100L, 100L)
+
+samp.g <- dbarts(x, samp.a$data@y, control = control.seeded, variance = TRUE)
+expect_identical(samp.g$model@family, "gaussian")
+res.g <- samp.g$run(100L, 100L)
+# the engine's own family: aft imputes a latent log-time per row, all observed
+expect_identical(samp.a$getLatents(), samp.a$data@y)
 
 expect_identical(res.g$train, res.a$train)
 expect_identical(res.g$variance, res.a$variance)

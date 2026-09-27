@@ -1,10 +1,6 @@
-# Internal bartcore engine surface (R/bartcore.R, src/bartcore/); the
-# statistical-equivalence gates live outside the package in benchmarks/.
-
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
+# bartcore engine surface through the dbartsSampler methods (R/bartcore.R,
+# src/bartcore/); the statistical-equivalence gates live outside the package
+# in benchmarks/.
 
 set.seed(99)
 n <- 200L
@@ -21,9 +17,8 @@ control <- dbartsControl(
   updateState = FALSE
 )
 sampler <- dbarts(x, y, test = x.test, control = control)
-bcSampler <- dbarts:::bartcoreSampler(sampler)
 
-result <- bartcoreRun(bcSampler, 100L, 200L)
+result <- sampler$run(100L, 200L)
 
 expect_equal(dim(result$train), c(n, 200L))
 expect_equal(dim(result$test), c(10L, 200L))
@@ -35,26 +30,25 @@ fitMean <- rowMeans(result$train)
 expect_true(mean((fitMean - f)^2) < 0.25 * mean((mean(y) - f)^2))
 
 # embedded-Gibbs pattern: mutate offset between single draws
-bartcoreSetOffset(bcSampler, rep(0.5, n))
-result.offset <- bartcoreRun(bcSampler, 0L, 1L)
+sampler$setOffset(rep(0.5, n))
+result.offset <- sampler$run(0L, 1L)
 expect_equal(dim(result.offset$train), c(n, 1L))
 
-bartcoreSetResponse(bcSampler, y + 1)
-result.response <- bartcoreRun(bcSampler, 0L, 1L)
+sampler$setResponse(y + 1)
+result.response <- sampler$run(0L, 1L)
 expect_true(mean(result.response$train) > mean(result.offset$train))
 
 # no latents for a continuous response
-expect_null(bartcoreGetLatents(bcSampler))
+expect_null(sampler$getLatents())
 
 # binary response: probit latents match the response's signs; k pinned so
 # this exercises the fixed-k path (the default binary chi hyperprior is
 # tested below)
 y.binary <- rbinom(n, 1L, pnorm(scale(f)))
 sampler.binary <- dbarts(x, y.binary, control = control, node.prior = normal(2))
-bcSampler.binary <- dbarts:::bartcoreSampler(sampler.binary)
-invisible(bartcoreRun(bcSampler.binary, 50L, 1L))
+invisible(sampler.binary$run(50L, 1L))
 
-latents <- bartcoreGetLatents(bcSampler.binary)
+latents <- sampler.binary$getLatents()
 expect_equal(length(latents), n)
 expect_true(
   all(latents[y.binary == 1L] > 0) && all(latents[y.binary == 0L] < 0)
@@ -65,8 +59,7 @@ expect_null(result$k)
 
 # the default binary spec uses the chi hyperprior on k
 sampler.chik <- dbarts(x, y.binary, control = control)
-bcSampler.chik <- dbarts:::bartcoreSampler(sampler.chik)
-result.chik <- bartcoreRun(bcSampler.chik, 50L, 30L)
+result.chik <- sampler.chik$run(50L, 30L)
 expect_equal(length(result.chik$k), 30L)
 expect_true(all(result.chik$k > 0) && sd(result.chik$k) > 0)
 
@@ -74,55 +67,47 @@ expect_true(all(result.chik$k > 0) && sd(result.chik$k) > 0)
 # per-observation updates write into the borrowed matrix in place
 x.mut <- x + 0
 sampler.mut <- dbarts(x.mut, y, control = control)
-bcSampler.mut <- dbarts:::bartcoreSampler(sampler.mut)
-invisible(bartcoreRun(bcSampler.mut, 100L, 1L))
+invisible(sampler.mut$run(100L, 1L))
 
 # an identity swap is always accepted; degenerate predictors would empty a
 # leaf in some tree and roll back
-expect_true(bartcoreSetPredictor(bcSampler.mut, x.mut + 0))
+expect_true(sampler.mut$setPredictor(x.mut + 0, forceUpdate = FALSE))
 x.degenerate <- matrix(0.5, n, p)
-expect_false(bartcoreSetPredictor(bcSampler.mut, x.degenerate))
-expect_false(bartcoreSetPredictor(
-  bcSampler.mut,
+expect_false(sampler.mut$setPredictor(x.degenerate, forceUpdate = FALSE))
+expect_false(sampler.mut$setPredictor(
   x.degenerate,
+  forceUpdate = FALSE,
   updateCutPoints = TRUE
 ))
-result.mut <- bartcoreRun(bcSampler.mut, 0L, 5L)
+result.mut <- sampler.mut$run(0L, 5L)
 expect_true(all(is.finite(result.mut$train)))
 
 # column-subset update: tiny jitter is accepted, degenerate column rejected
 x.jitter <- x.mut[, 2L] + rnorm(n, 0, 1e-4)
-expect_true(bartcoreUpdatePredictor(bcSampler.mut, x.jitter, 2L))
-expect_false(bartcoreUpdatePredictor(bcSampler.mut, rep(0.5, n), 2L))
+expect_true(sampler.mut$setPredictor(x.jitter, 2L))
+expect_false(sampler.mut$setPredictor(rep(0.5, n), 2L))
 expect_error(
-  bartcoreUpdatePredictor(
-    bcSampler.mut,
-    rep(0.5, n),
-    p + 1L
-  ),
-  "bartcore_updatePredictor: column out of range"
+  sampler.mut$setPredictor(rep(0.5, n), p + 1L),
+  "column '6' is out of range"
 )
 
 # per-observation update: extreme values install except where an observation
 # is the last occupant of a leaf
-installed <- bartcoreUpdatePredictorPerObservation(
-  bcSampler.mut,
-  rep(10, n),
-  1L
-)
+installed <- sampler.mut$setPredictor(rep(10, n), 1L, forceUpdate = "partial")
 expect_equal(length(installed), n)
 expect_true(any(installed) && any(!installed))
-result.perobs <- bartcoreRun(bcSampler.mut, 0L, 5L)
+result.perobs <- sampler.mut$run(0L, 5L)
 expect_true(all(is.finite(result.perobs$train)))
 
-# forced degenerate update collapses emptied splits instead of rolling back
-expect_true(bartcoreSetPredictor(
-  bcSampler.mut,
+# forced degenerate update collapses emptied splits instead of rolling back;
+# a forced whole-matrix update returns nothing, and installs the matrix
+sampler.mut$setPredictor(
   x.degenerate,
   forceUpdate = TRUE,
   updateCutPoints = TRUE
-))
-result.forced <- bartcoreRun(bcSampler.mut, 0L, 2L)
+)
+expect_identical(unname(sampler.mut$data@x), x.degenerate)
+result.forced <- sampler.mut$run(0L, 2L)
 expect_true(all(is.finite(result.forced$train)))
 
 # joint per-observation update: one mask, all-or-none across samplers that
@@ -131,31 +116,24 @@ x.jointA <- x + 0
 x.jointB <- x + 0
 x.jointB[, 2L:p] <- matrix(runif(n * (p - 1L)), n, p - 1L)
 y.jointB <- -2 * x.jointB[, 1L] + rnorm(n)
-bcSampler.jointA <- dbarts:::bartcoreSampler(dbarts(
-  x.jointA,
-  y,
-  control = control
-))
-bcSampler.jointB <- dbarts:::bartcoreSampler(dbarts(
-  x.jointB,
-  y.jointB,
-  control = control
-))
-invisible(bartcoreRun(bcSampler.jointA, 100L, 1L))
-invisible(bartcoreRun(bcSampler.jointB, 100L, 1L))
+colnames(x.jointA) <- colnames(x.jointB) <- paste0("x", seq_len(p))
+sampler.jointA <- dbarts(x.jointA, y, control = control)
+sampler.jointB <- dbarts(x.jointB, y.jointB, control = control)
+invisible(sampler.jointA$run(100L, 1L))
+invisible(sampler.jointB$run(100L, 1L))
 
-installed.joint <- bartcoreUpdatePredictorPerObservationJointly(
-  list(bcSampler.jointA, bcSampler.jointB),
+installed.joint <- updatePredictorPerObservationJointly(
+  list(sampler.jointA, sampler.jointB),
   rep(10, n),
-  c(1L, 1L)
+  1L
 )
 expect_equal(length(installed.joint), n)
 expect_true(any(installed.joint) && any(!installed.joint))
 expect_true(all(is.finite(
-  bartcoreRun(bcSampler.jointA, 0L, 1L)$train
+  sampler.jointA$run(0L, 1L)$train
 )))
 expect_true(all(is.finite(
-  bartcoreRun(bcSampler.jointB, 0L, 1L)$train
+  sampler.jointB$run(0L, 1L)$train
 )))
 
 # quantile cut points and heterogeneous n.cuts
@@ -170,16 +148,14 @@ control.quants <- dbartsControl(
   n.cuts = c(100L, 50L, 100L, 100L, 25L)
 )
 sampler.quants <- dbarts(x.quants, y, control = control.quants)
-bcSampler.quants <- dbarts:::bartcoreSampler(sampler.quants)
-result.quants <- bartcoreRun(bcSampler.quants, 100L, 100L)
+result.quants <- sampler.quants$run(100L, 100L)
 expect_equal(dim(result.quants$train), c(n, 100L))
 fitMean.quants <- rowMeans(result.quants$train)
 expect_true(mean((fitMean.quants - f)^2) < 0.25 * mean((mean(y) - f)^2))
 
 # a coarser column cannot refresh quantile cuts: refused before any change
 expect_error(
-  bartcoreUpdatePredictor(
-    bcSampler.quants,
+  sampler.quants$setPredictor(
     round(x.quants[, 3L] * 2) / 2,
     3L,
     updateCutPoints = TRUE
@@ -188,11 +164,11 @@ expect_error(
 )
 
 # explicit cut points: installing a coarse grid collapses orphaned splits
-bartcoreSetCutPoints(bcSampler.mut, list(c(0.25, 0.5, 0.75)), 1L)
-result.cuts <- bartcoreRun(bcSampler.mut, 0L, 2L)
+sampler.mut$setCutPoints(c(0.25, 0.5, 0.75), 1L)
+result.cuts <- sampler.mut$run(0L, 2L)
 expect_true(all(is.finite(result.cuts$train)))
 expect_error(
-  bartcoreSetCutPoints(bcSampler.mut, list(c(0.5, 0.5)), 1L),
+  sampler.mut$setCutPoints(c(0.5, 0.5), 1L),
   pattern = "strictly increasing"
 )
 
@@ -205,8 +181,7 @@ control.chains <- dbartsControl(
   updateState = FALSE
 )
 sampler.chains <- dbarts(x + 0, y, test = x.test, control = control.chains)
-bcSampler.chains <- dbarts:::bartcoreSampler(sampler.chains)
-result.chains <- bartcoreRun(bcSampler.chains, 100L, 60L)
+result.chains <- sampler.chains$run(100L, 60L)
 expect_equal(dim(result.chains$sigma), c(60L, 2L))
 expect_equal(dim(result.chains$train), c(n, 60L, 2L))
 expect_equal(dim(result.chains$test), c(10L, 60L, 2L))
@@ -217,23 +192,25 @@ fitMean.chains <- rowMeans(result.chains$train, dims = 1L)
 expect_true(mean((fitMean.chains - f)^2) < 0.25 * mean((mean(y) - f)^2))
 
 # transactions span chains; the sampler stays runnable afterward
-expect_false(bartcoreSetPredictor(bcSampler.chains, matrix(0.5, n, p)))
-installed.chains <- bartcoreUpdatePredictorPerObservation(
-  bcSampler.chains,
+expect_false(sampler.chains$setPredictor(
+  matrix(0.5, n, p),
+  forceUpdate = FALSE
+))
+installed.chains <- sampler.chains$setPredictor(
   rep(10, n),
-  1L
+  1L,
+  forceUpdate = "partial"
 )
 expect_true(any(installed.chains) && any(!installed.chains))
 expect_true(all(is.finite(
-  bartcoreRun(bcSampler.chains, 0L, 2L)$train
+  sampler.chains$run(0L, 2L)$train
 )))
 
 # multi-chain binary: latents and k gain the chain dimension
 sampler.chains.binary <- dbarts(x + 0, y.binary, control = control.chains)
-bcSampler.chains.binary <- dbarts:::bartcoreSampler(sampler.chains.binary)
-result.chains.binary <- bartcoreRun(bcSampler.chains.binary, 50L, 10L)
+result.chains.binary <- sampler.chains.binary$run(50L, 10L)
 expect_equal(dim(result.chains.binary$k), c(10L, 2L))
-latents.chains <- bartcoreGetLatents(bcSampler.chains.binary)
+latents.chains <- sampler.chains.binary$getLatents()
 expect_equal(dim(latents.chains), c(n, 2L))
 
 # the standard dbartsSampler surface
@@ -477,31 +454,33 @@ sampler.setdata.binary$setData(dbartsData(x2, y2.binary))
 expect_equal(length(sampler.setdata.binary$getLatents()), n2)
 expect_true(all(is.finite(sampler.setdata.binary$run(0L, 2L)$train)))
 
-# logistic via Polya-Gamma, reached through the internal helper's family
-# argument; latents are the omega draws
-sampler.logit.host <- dbarts(x, y.binary, control = control)
-bcSampler.logit <- dbarts:::bartcoreSampler(
-  sampler.logit.host,
-  family = "logistic"
+# logistic via Polya-Gamma; latents are the omega draws. The leaf scale is
+# pinned at the probit default of 3 this check was calibrated against
+sampler.logit <- dbarts(
+  x,
+  y.binary,
+  family = "logistic",
+  node.prior = normal(scale = 3),
+  control = control
 )
-result.logit <- bartcoreRun(bcSampler.logit, 100L, 100L)
+result.logit <- sampler.logit$run(100L, 100L)
 expect_equal(dim(result.logit$train), c(n, 100L))
 expect_true(all(is.finite(result.logit$train)))
 # log-odds fits classify well above the base rate
 phat.logit <- plogis(rowMeans(result.logit$train))
 expect_true(mean((phat.logit > 0.5) == (y.binary == 1L)) > 0.7)
-omega <- bartcoreGetLatents(bcSampler.logit)
+omega <- sampler.logit$getLatents()
 expect_equal(length(omega), n)
 expect_true(all(omega > 0))
 
 # family validation
 expect_error(
-  dbarts:::bartcoreSampler(sampler.logit.host, family = "cauchit"),
-  pattern = "unrecognized response family"
+  dbarts(x, y.binary, family = "cauchit", control = control),
+  pattern = "'arg' should be one of"
 )
 expect_error(
-  dbarts:::bartcoreSampler(sampler, family = "logistic"),
-  pattern = "binary response"
+  dbarts(x, y, family = "logistic", control = control),
+  pattern = "requires a response coded 0/1"
 )
 
 # probit weights are rejected: a weighted probit has no tractable form
@@ -510,16 +489,17 @@ expect_error(
   pattern = "probit models do not support weights"
 )
 
-# categorical predictors; no public surface marks matrix columns
-# categorical (factors = "categorical" applies to data.frames), so the type
-# is flipped on the data by hand
+# categorical predictors, through a factor column (codes 0-3 are the levels'
+# own positions)
 x.cat <- cbind(as.double(rep(0:3, length.out = n)), runif(n))
 mu.cat <- c(2, -1, 3, 0)[x.cat[, 1L] + 1L]
 y.cat <- mu.cat + 2 * x.cat[, 2L] + rnorm(n, 0, 0.5)
-sampler.cat.host <- dbarts(x.cat, y.cat, control = control)
-sampler.cat.host$data@varTypes[1L] <- 1L
-bcSampler.cat <- dbarts:::bartcoreSampler(sampler.cat.host)
-result.cat <- bartcoreRun(bcSampler.cat, 100L, 100L)
+sampler.cat <- dbarts(
+  data.frame(a = factor(x.cat[, 1L]), b = x.cat[, 2L]),
+  y.cat,
+  control = control
+)
+result.cat <- sampler.cat$run(100L, 100L)
 expect_true(all(is.finite(result.cat$train)))
 # category means recovered after removing the known continuous effect
 residual.means <- tapply(
@@ -531,53 +511,49 @@ expect_true(max(abs(residual.means - c(2, -1, 3, 0))) < 0.5)
 
 # category codes outside the existing set are refused everywhere
 expect_error(
-  bartcoreUpdatePredictor(bcSampler.cat, rep(9, n), 1L),
+  sampler.cat$setPredictor(rep(9, n), 1L),
   pattern = "existing category codes"
 )
 expect_error(
-  bartcoreSetTestPredictor(
-    bcSampler.cat,
-    cbind(rep(7, 5L), runif(5L))
-  ),
+  sampler.cat$setTestPredictor(cbind(a = rep(7, 5L), b = runif(5L))),
   pattern = "existing category codes"
 )
 expect_error(
-  bartcoreSetCutPoints(bcSampler.cat, list(0.5), 1L),
+  sampler.cat$setCutPoints(0.5, 1L),
   pattern = "categorical predictor"
 )
 
 # valid categorical mutation routes through the mask logic
-installed.cat <- bartcoreUpdatePredictorPerObservation(
-  bcSampler.cat,
+installed.cat <- sampler.cat$setPredictor(
   as.double((x.cat[, 1L] + 1) %% 4),
-  1L
+  1L,
+  forceUpdate = "partial"
 )
 expect_equal(length(installed.cat), n)
-expect_true(all(is.finite(bartcoreRun(bcSampler.cat, 0L, 2L)$train)))
+expect_true(all(is.finite(sampler.cat$run(0L, 2L)$train)))
 
-# non-integer codes are rejected at creation
+# non-integer codes are rejected at creation; a factor cannot carry one, so
+# the column is declared categorical on the matrix dbartsData reads
 x.cat.bad <- x.cat
 x.cat.bad[1L, 1L] <- 0.5
-sampler.cat.bad <- dbarts(x.cat.bad, y.cat, control = control)
-sampler.cat.bad$data@varTypes[1L] <- 1L
+attr(x.cat.bad, "varTypes") <- c(1L, 0L)
 expect_error(
-  dbarts:::bartcoreSampler(sampler.cat.bad),
+  dbarts(x.cat.bad, y.cat, control = control),
   pattern = "integer category codes"
 )
 
 # setData accepts categorical predictors (regression: a leftover ordinal-only
-# check refused them) and refuses invalid codes; the internal handle skips
-# the R-level slot fixups, so the type flip and cut counts carry over by hand
+# check refused them) and refuses invalid codes
 x.cat2 <- cbind(as.double(rep(c(1, 3, 0, 2), length.out = n)), runif(n))
-data.cat2 <- dbartsData(x.cat2, mu.cat + 2 * x.cat2[, 2L])
-data.cat2@n.cuts <- sampler.cat.host$data@n.cuts
-data.cat2@sigma <- sampler.cat.host$data@sigma
-data.cat2@varTypes[1L] <- 1L
-bartcoreSetData(bcSampler.cat, data.cat2)
-expect_true(all(is.finite(bartcoreRun(bcSampler.cat, 0L, 2L)$train)))
-data.cat2@x[1L, 1L] <- 11
+frame.cat2 <- data.frame(
+  a = factor(x.cat2[, 1L], levels = 0:3),
+  b = x.cat2[, 2L]
+)
+sampler.cat$setData(dbartsData(frame.cat2, mu.cat + 2 * x.cat2[, 2L]))
+expect_true(all(is.finite(sampler.cat$run(0L, 2L)$train)))
+frame.cat2$a <- factor(replace(x.cat2[, 1L], 1L, 11), levels = c(0:3, 11))
 expect_error(
-  bartcoreSetData(bcSampler.cat, data.cat2),
+  sampler.cat$setData(dbartsData(frame.cat2, mu.cat + 2 * x.cat2[, 2L])),
   pattern = "existing category codes"
 )
 
@@ -587,19 +563,20 @@ expect_error(
 n.wide <- 424L
 x.wide <- matrix(as.double(rep(0:52, length.out = n.wide)), n.wide)
 y.wide <- ifelse(x.wide[, 1L] >= 27, 2, 0) + rnorm(n.wide, 0, 0.3)
-sampler.wide.host <- dbarts(x.wide, y.wide, control = control)
-sampler.wide.host$data@varTypes[1L] <- 1L
-bcSampler.wide <- dbarts:::bartcoreSampler(sampler.wide.host)
-result.wide <- bartcoreRun(bcSampler.wide, 100L, 100L)
+sampler.wide <- dbarts(
+  data.frame(w = factor(x.wide[, 1L])),
+  y.wide,
+  control = control
+)
+result.wide <- sampler.wide$run(100L, 100L)
 group.means <- tapply(rowMeans(result.wide$train), x.wide[, 1L] >= 27, mean)
 expect_true(abs(group.means[[1L]]) < 0.3 && abs(group.means[[2L]] - 2) < 0.3)
 
 x.over <- x.wide
 x.over[1L, 1L] <- 65535
-sampler.over.host <- dbarts(x.over, y.wide, control = control)
-sampler.over.host$data@varTypes[1L] <- 1L
+attr(x.over, "varTypes") <- 1L
 expect_error(
-  dbarts:::bartcoreSampler(sampler.over.host),
+  dbarts(x.over, y.wide, control = control),
   pattern = "codes in \\[0, 65535\\)"
 )
 
@@ -1056,13 +1033,13 @@ control.sc <- dbartsControl(
   updateState = FALSE
 )
 sampler.sc <- dbarts(x, y, control = control.sc, sigest = 1)
-bc.sc <- dbarts:::bartcoreSampler(sampler.sc)
 set.seed(31)
-invisible(bartcoreRun(bc.sc, 20L, 0L))
+invisible(sampler.sc$run(20L, 0L))
 offset.sc <- 2 * sin(0.1 * seq_len(n))
-bartcoreSetOffset(bc.sc, offset.sc, updateScale = TRUE)
-invisible(bartcoreRun(bc.sc, 20L, 0L))
-state.sc <- bartcoreStoreState(bc.sc)
+sampler.sc$setOffset(offset.sc, updateScale = TRUE)
+invisible(sampler.sc$run(20L, 0L))
+sampler.sc$storeState()
+state.sc <- sampler.sc$state
 
 # the same specification: an explicit sigma keeps the creation-time lm from
 # folding the offset into a different variance prior
@@ -1073,17 +1050,17 @@ sampler.sc2 <- dbarts(
   control = control.sc,
   sigest = 1
 )
-bc.sc2 <- dbarts:::bartcoreSampler(sampler.sc2)
-bartcoreSetState(bc.sc2, state.sc)
+sampler.sc2$setState(state.sc)
 
-# the restored handle reproduces the saved trees and the moved scale, and its
-# live-tree predictions match the source before either handle continues
-reState.sc <- bartcoreStoreState(bc.sc2)
+# the restored sampler reproduces the saved trees and the moved scale, and
+# its live-tree predictions match the source before either sampler continues
+sampler.sc2$storeState()
+reState.sc <- sampler.sc2$state
 statesAgree(reState.sc, state.sc)
 expect_identical(reState.sc[[1L]]$fit.scale, state.sc[[1L]]$fit.scale)
 
-pred.sc <- bartcorePredict(bc.sc, x[1:5, , drop = FALSE])
-pred.sc2 <- bartcorePredict(bc.sc2, x[1:5, , drop = FALSE])
+pred.sc <- sampler.sc$predict(x[1:5, , drop = FALSE])
+pred.sc2 <- sampler.sc2$predict(x[1:5, , drop = FALSE])
 expect_identical(pred.sc2, pred.sc)
 
 # single-chain states gather into a multi-chain restore (the stan4bart
@@ -1099,14 +1076,10 @@ states.g <- lapply(1:3, function(i) {
     n.samples = 6L,
     updateState = FALSE
   )
-  bc.g <- dbarts:::bartcoreSampler(dbarts(
-    x,
-    y,
-    control = control.g,
-    sigest = 1
-  ))
-  invisible(bartcoreRun(bc.g, 7L, 6L))
-  bartcoreStoreState(bc.g)
+  sampler.g <- dbarts(x, y, control = control.g, sigest = 1)
+  invisible(sampler.g$run(7L, 6L))
+  sampler.g$storeState()
+  sampler.g$state
 })
 control.g3 <- dbartsControl(
   n.chains = 3L,
@@ -1116,17 +1089,12 @@ control.g3 <- dbartsControl(
   n.samples = 6L,
   updateState = FALSE
 )
-bc.g3 <- dbarts:::bartcoreSampler(dbarts(
-  x,
-  y,
-  control = control.g3,
-  sigest = 1
-))
+sampler.g3 <- dbarts(x, y, control = control.g3, sigest = 1)
 state.g <- states.g[[1L]]
 state.g[[2L]] <- states.g[[2L]][[1L]]
 state.g[[3L]] <- states.g[[3L]][[1L]]
-expect_silent(bartcoreSetState(bc.g3, state.g))
-pred.g <- bartcorePredict(bc.g3, x[1:4, , drop = FALSE])
+expect_silent(sampler.g3$setState(state.g))
+pred.g <- sampler.g3$predict(x[1:4, , drop = FALSE])
 expect_equal(dim(pred.g), c(4L, 6L, 3L))
 # each restored chain predicts what its source sampler predicts
 for (i in 1:3) {
@@ -1138,15 +1106,10 @@ for (i in 1:3) {
     n.samples = 6L,
     updateState = FALSE
   )
-  bc.g1 <- dbarts:::bartcoreSampler(dbarts(
-    x,
-    y,
-    control = control.g1,
-    sigest = 1
-  ))
-  bartcoreSetState(bc.g1, states.g[[i]])
+  sampler.g1 <- dbarts(x, y, control = control.g1, sigest = 1)
+  sampler.g1$setState(states.g[[i]])
   expect_equal(
-    bartcorePredict(bc.g1, x[1:4, , drop = FALSE]),
+    sampler.g1$predict(x[1:4, , drop = FALSE]),
     pred.g[,, i, drop = FALSE][,, 1L]
   )
 }

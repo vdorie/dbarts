@@ -43,11 +43,6 @@
 #
 # Usage: Rscript negbin-exact.R [quick]
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -81,7 +76,6 @@ cell <- rep(0:1, each = nPerCell)
 cntA <- rnbinom(nPerCell, size = 5L, mu = 1.5)
 cntB <- rnbinom(nPerCell, size = 5L, mu = 4.0)
 y <- as.double(c(cntA, cntB))
-x <- matrix(as.double(cell), ncol = 1L)
 
 # ---- exact posterior by structure enumeration + nested quadrature ----
 
@@ -163,8 +157,8 @@ fitSeed <- function(seed, dispersion) {
     n.trees = numTrees,
     updateState = FALSE
   )
-  host <- dbarts(
-    x,
+  sampler <- dbarts(
+    data.frame(x1 = factor(cell)), # the cell predictor, categorical
     y,
     family = nbinom(dispersion = dispersion),
     control = control,
@@ -178,8 +172,6 @@ fitSeed <- function(seed, dispersion) {
     node.prior = normal(k),
     verbose = FALSE
   )
-  host$data@varTypes[1L] <- 1L # mark the predictor categorical
-  bc <- dbarts:::bartcoreSampler(host, family = "nbinom")
 
   iA <- which(cell == 0L)[1L]
   iB <- which(cell == 1L)[1L]
@@ -187,9 +179,8 @@ fitSeed <- function(seed, dispersion) {
   meanB <- 0
   gridCounts <- numeric(nGrid)
   for (s in seq_len(ndpost)) {
-    r <- bartcoreRun(bc, if (s == 1L) nburn else 0L, 1L)
-    st <- bartcoreStoreState(bc)
-    rDraw <- st[[1L]]$dispersion
+    r <- sampler$run(if (s == 1L) nburn else 0L, 1L)
+    rDraw <- sampler$getDispersion()
     gridCounts[match(rDraw, grid)] <- gridCounts[match(rDraw, grid)] + 1
     meanA <- meanA + dbarts:::negbinMeanCounts(r$train[iA, 1L], rDraw)
     meanB <- meanB + dbarts:::negbinMeanCounts(r$train[iB, 1L], rDraw)

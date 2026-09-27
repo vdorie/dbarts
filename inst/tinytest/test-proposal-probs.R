@@ -523,11 +523,6 @@ expect_true(categoricalRules > 0L)
 # forests' split counts: an install that stopped at the first forest leaves the
 # second splitting exactly as it would at the default mixture.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(3L)
 nBcf <- 200L
 xBcf <- matrix(
@@ -563,10 +558,9 @@ bcfFit <- function(probs) {
 }
 # total splits in each forest, read off the live sampler after its run
 splitsPerForest <- function(sampler) {
-  handle <- list(ptr = sampler$getPointer())
   c(
-    sum(bartcoreForestVariableCounts(handle, 0L)),
-    sum(bartcoreForestVariableCounts(handle, 1L))
+    sum(sampler$getForestVariableCounts(1L)),
+    sum(sampler$getForestVariableCounts(2L))
   )
 }
 

@@ -1,8 +1,4 @@
 source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-source(
   system.file("common", "leafPriorChecks.R", package = "dbarts"),
   local = TRUE
 )
@@ -174,8 +170,16 @@ list2env(
 )
 
 # views still refuse raw-predictor mutation under linear leaves
+x.view <- as.matrix(sampler.view$data@x)
+storage.mode(x.view) <- "double"
 expect_error(
-  bartcoreSetPredictor(fold, sampler.view$data@x),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setPredictor,
+    fold$ptr,
+    x.view,
+    FALSE,
+    FALSE
+  ),
   pattern = "views hold none"
 )
 
@@ -256,6 +260,7 @@ rm(
   samples.full,
   testRows,
   fold,
+  x.view,
   samples.fold,
   xbart.linear,
   xbart.grid

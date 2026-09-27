@@ -1,13 +1,6 @@
-# AFT log-normal survival family on the bartcore engine (src/bartcore/).
-# Exercised through the internal bartcore surface,
-# with the per-observation status on the control's bartcore.survival
-# attribute (as the public survival surface sets it). The exact-posterior
-# gate lives in benchmarks/R/aft-exact.R.
-
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
+# AFT log-normal survival family on the bartcore engine (src/bartcore/),
+# through a two-column (time, status) response. The exact-posterior gate lives
+# in benchmarks/R/aft-exact.R.
 
 set.seed(21L)
 n <- 200L
@@ -27,22 +20,31 @@ control <- dbartsControl(
   seed = 271L
 )
 
+# y is a log time; the sampler logs exp(y) itself, which need not return y
+# bitwise, so exact comparisons read the sampler's own data@y
 aftSampler <- function(y, status, weights = NULL) {
-  sampler <- dbarts(x, y, weights = weights, control = control)
-  ctrl <- sampler$control
-  attr(ctrl, "bartcore.survival") <- as.numeric(status)
-  sampler$control <- ctrl
-  dbarts:::bartcoreSampler(sampler, family = "aft")
+  dbarts(
+    x,
+    cbind(exp(y), status),
+    weights = weights,
+    family = "aft",
+    control = control
+  )
 }
 
 # ---- reduction: all-uncensored aft == gaussian on log T, bitwise ----
 
-samp.g <- dbarts(x, log.t, control = control)
-bc.g <- dbarts:::bartcoreSampler(samp.g)
-res.g <- bartcoreRun(bc.g, 100L, 200L)
-
 bc.a <- aftSampler(log.t, rep(1, n)) # every observation an event
-res.a <- bartcoreRun(bc.a, 100L, 200L)
+expect_identical(bc.a$model@family, "aft")
+res.a <- bc.a$run(100L, 200L)
+
+samp.g <- dbarts(x, bc.a$data@y, control = control)
+expect_identical(samp.g$model@family, "gaussian")
+res.g <- samp.g$run(100L, 200L)
+# the engine's own family: aft imputes a latent log-time per row, all of them
+# observed here, where a gaussian engine keeps none
+expect_identical(bc.a$getLatents(), bc.a$data@y)
+expect_null(samp.g$getLatents())
 
 expect_identical(res.g$train, res.a$train)
 expect_identical(res.g$sigma, res.a$sigma)
@@ -59,25 +61,21 @@ recover <- function(censor.rate) {
   obs.log.t <- ifelse(status == 1, log.t, cens.time)
 
   bc <- aftSampler(obs.log.t, status)
-  res <- bartcoreRun(bc, 200L, 400L)
+  res <- bc$run(200L, 400L)
   fit.aft <- rowMeans(res$train)
 
   # ignoring the censoring underestimates the mean log-time
   samp.naive <- dbarts(x, obs.log.t, control = control)
-  res.naive <- bartcoreRun(
-    dbarts:::bartcoreSampler(samp.naive),
-    200L,
-    400L
-  )
+  res.naive <- samp.naive$run(200L, 400L)
   list(
     rate = mean(status == 0),
     cor = cor(fit.aft, f),
     sigma = mean(res$sigma),
     mean.aft = mean(fit.aft),
     mean.naive = mean(rowMeans(res.naive$train)),
-    lat = bartcoreGetLatents(bc),
+    lat = bc$getLatents(),
     status = status,
-    obs = obs.log.t
+    obs = bc$data@y
   )
 }
 
@@ -104,12 +102,13 @@ cens.time <- f + 0.3 + sigma.true * rnorm(n)
 status <- as.numeric(log.t <= cens.time)
 obs.log.t <- ifelse(status == 1, log.t, cens.time)
 bc.mut <- aftSampler(obs.log.t, status)
-invisible(bartcoreRun(bc.mut, 100L, 1L))
+invisible(bc.mut$run(100L, 1L))
 # shift every log-time up by 1; the fit should move up with it
-bartcoreSetResponse(bc.mut, obs.log.t + 1)
-res.mut <- bartcoreRun(bc.mut, 20L, 20L)
+obs.log.t <- bc.mut$data@y
+bc.mut$setResponse(obs.log.t + 1)
+res.mut <- bc.mut$run(20L, 20L)
 expect_equal(dim(res.mut$train), c(n, 20L))
-lat.mut <- bartcoreGetLatents(bc.mut)
+lat.mut <- bc.mut$getLatents()
 expect_true(all(lat.mut[status == 0] >= obs.log.t[status == 0] + 1 - 1e-8))
 expect_equal(lat.mut[status == 1], obs.log.t[status == 1] + 1)
 
@@ -120,7 +119,7 @@ expect_error(
   "weight"
 )
 expect_error(
-  bartcoreSetData(bc.a, samp.g$data),
+  bc.a$setData(samp.g$data),
   "aft"
 )
 
@@ -455,19 +454,7 @@ expect_true(sum(status.set == 0) > 10L)
 # creation parity, bitwise: nothing advances a generator when the target
 # status leaves no censored row, so a sampler created all-events and one
 # created censored and then set to all events at the same response draw the
-# same chain. Through the handle first.
-bc.created <- aftSampler(obs.set, all.events)
-bc.set <- aftSampler(obs.set, status.set)
-bartcoreSetResponse(bc.set, obs.set, status = all.events)
-res.created <- bartcoreRun(bc.created, 50L, 50L)
-res.set <- bartcoreRun(bc.set, 50L, 50L)
-expect_identical(res.created$train, res.set$train)
-expect_identical(res.created$sigma, res.set$sigma)
-# and the latents are the observed times, every row now an event
-expect_equal(bartcoreGetLatents(bc.set), obs.set)
-
-# the same parity through the dbartsSampler, whose two-column response the
-# public surface logs for itself
+# same chain
 r5.control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
@@ -514,10 +501,17 @@ expect_error(s.set$setResponse(s.set$data@y, status = bad.na), "0 .*1")
 expect_equal(attr(s.set$control, "bartcore.survival"), all.events)
 expect_equal(s.set$getLatents(), s.set$data@y)
 # the R5 method coerces, so an integer status reaches the engine as doubles;
-# the handle passes what it is given, and the bridge refuses a non-real vector
+# the bridge still refuses a non-real vector from a raw caller, which it would
+# otherwise read as doubles
 expect_silent(s.set$setResponse(s.set$data@y, status = rep(1L, n)))
 expect_error(
-  bartcoreSetResponse(bc.set, obs.set, status = rep(1L, n)),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setResponse,
+    s.set$getPointer(),
+    s.set$data@y,
+    FALSE,
+    rep(1L, n)
+  ),
   "numeric"
 )
 

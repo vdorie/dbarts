@@ -56,9 +56,9 @@ checkDataHandleViews <- function(formula, df, node.prior, n.trees, n, mu) {
     trainRows = seq_len(n)
   )
   set.seed(7)
-  full <- dbarts:::bartcoreSampler(sampler.view)
-  samples.view <- bartcoreRun(view, 40L, 20L)
-  samples.full <- bartcoreRun(full, 40L, 20L)
+  full <- dbarts(formula, df, node.prior = node.prior, control = control.view)
+  samples.view <- dbarts:::bartcoreRun(view, 40L, 20L)
+  samples.full <- full$run(40L, 20L)
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
   expect_identical(samples.view$sigma, samples.full$sigma)
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
@@ -74,7 +74,7 @@ checkDataHandleViews <- function(formula, df, node.prior, n.trees, n, mu) {
     setdiff(seq_len(n), testRows),
     testRows
   )
-  samples.fold <- bartcoreRun(fold, 150L, 100L)
+  samples.fold <- dbarts:::bartcoreRun(fold, 150L, 100L)
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
   expect_true(all(is.finite(samples.fold$test)))
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.

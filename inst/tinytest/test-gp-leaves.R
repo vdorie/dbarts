@@ -1,8 +1,4 @@
 source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-source(
   system.file("common", "leafPriorChecks.R", package = "dbarts"),
   local = TRUE
 )

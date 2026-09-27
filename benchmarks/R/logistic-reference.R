@@ -36,11 +36,6 @@
 #
 # Usage: Rscript logistic-reference.R [quick]
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -152,6 +147,7 @@ fitSingleTree <- function(seed, family, nodeScale, offset, linkinv) {
     y1,
     test = x1.test,
     offset = offset,
+    family = family,
     control = control,
     proposal.probs = c(
       birth_death = 0.5,
@@ -159,13 +155,11 @@ fitSingleTree <- function(seed, family, nodeScale, offset, linkinv) {
       change = 0.4,
       birth = 0.5
     ),
-    node.prior = normal(k),
+    node.prior = normal(k, scale = nodeScale),
     tree.prior = cgm(power, base)
   )
-  sampler$model@node.scale <- nodeScale
-  sampler$data@offset.test <- NULL # engine fits exclude the offset
-  bc <- dbarts:::bartcoreSampler(sampler, family = family)
-  r <- bartcoreRun(bc, 5000L, exactNdpost)
+  sampler$setTestOffset(NULL) # engine fits exclude the offset
+  r <- sampler$run(5000L, exactNdpost)
   colMeans(linkinv(t(r$test) + offset))
 }
 
@@ -260,13 +254,12 @@ if (requireNamespace("BART", quietly = TRUE)) {
       y,
       test = x.test,
       offset = offset,
+      family = family,
       control = control,
-      node.prior = normal(k)
+      node.prior = normal(k, scale = nodeScale)
     )
-    sampler$model@node.scale <- nodeScale
-    sampler$data@offset.test <- NULL
-    bc <- dbarts:::bartcoreSampler(sampler, family = family)
-    r <- bartcoreRun(bc, nskip, ndpost)
+    sampler$setTestOffset(NULL)
+    r <- sampler$run(nskip, ndpost)
     colMeans(linkinv(t(r$test) + offset))
   }
 

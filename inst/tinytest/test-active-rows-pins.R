@@ -1,11 +1,6 @@
 # Fixed points the active-row mask channel must not move without disturbing,
 # plus the channel's own semantics pinned one assertion at a time below.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(20260812L)
 n <- 200L
 x <- matrix(runif(n * 2L), n, 2L, dimnames = list(NULL, c("x1", "x2")))
@@ -132,16 +127,6 @@ r5.ones <- makeSamplerActiveRowsPins()
 r5.ones$setActiveRows(rep(1, n))
 expect_identical(r5.ones$run(20L, 10L)$train, draws.plain$train)
 
-# the bridge entry drives its own engine handle (bartcoreSampler builds a
-# fresh sampler), so its arm runs through that handle end to end
-bc.plain <- dbarts:::bartcoreSampler(makeSamplerActiveRowsPins())
-bc.ones <- dbarts:::bartcoreSampler(makeSamplerActiveRowsPins())
-bartcoreSetActiveRows(bc.ones, rep(1, n))
-expect_identical(
-  bartcoreRun(bc.ones, 20L, 10L)$train,
-  bartcoreRun(bc.plain, 20L, 10L)$train
-)
-
 # a mask returning to all ones CLEARS, restoring the pre-mask pointer BY
 # IDENTITY - so the fused path comes back - and NULL clears the same way
 returned <- makeSamplerActiveRowsPins()
@@ -153,7 +138,7 @@ cleared <- makeSamplerActiveRowsPins()
 cleared$setActiveRows(a)
 cleared$setActiveRows(NULL)
 expect_identical(cleared$run(20L, 10L)$train, draws.plain$train)
-rm(r5.ones, bc.plain, bc.ones, returned, cleared)
+rm(r5.ones, returned, cleared)
 
 # A refusal must install nothing AND perturb nothing: a fractional value, an
 # NA, and a wrong length each leave the sampler exactly where it was. Unweighted
@@ -167,19 +152,6 @@ for (bad in list(replace(a, 2L, 0.5), replace(a, 2L, NA_real_), a[-1L])) {
   expect_identical(refused$run(20L, 10L)$train, draws.plain$train)
 }
 rm(refused, bad)
-
-# The bridge enforces the same values with no R validation in front of it,
-# which is the point of putting the scan in the engine
-bc.bad <- dbarts:::bartcoreSampler(makeSamplerActiveRowsPins())
-expect_error(
-  bartcoreSetActiveRows(bc.bad, replace(a, 2L, 0.5)),
-  "exactly 0 or 1"
-)
-expect_identical(
-  bartcoreRun(bc.bad, 20L, 10L)$train,
-  draws.plain$train
-)
-rm(bc.bad)
 
 # The two setters are absolute and INDEPENDENT: either order leaves the same
 # composite, and setResponse/setOffset do not disturb the mask.
@@ -401,29 +373,26 @@ rm(arms, train.a, train.b)
 # the response transform is the FULL-data one by design and a new extreme would
 # move both arms' scale rather than just one row.
 status <- as.double(seq_len(n) %% 3L != 1L)
-aftHandle <- function(logTime, mask = a) {
+aftSamplerActiveRowsPins <- function(logTime, mask = a) {
   sampler <- dbarts::dbarts(
     x,
-    logTime,
+    cbind(exp(logTime), status),
+    family = "aft",
     control = control,
     sigest = 1,
     n.samples = 10L
   )
-  ctrl <- sampler$control
-  attr(ctrl, "bartcore.survival") <- status
-  sampler$control <- ctrl
-  handle <- dbarts:::bartcoreSampler(sampler, family = "aft")
   if (!is.null(mask)) {
-    bartcoreSetActiveRows(handle, mask)
+    sampler$setActiveRows(mask)
   }
-  handle
+  sampler
 }
 y.other <- y
 substitutable <- a == 0
 substitutable[c(which.min(y), which.max(y))] <- FALSE
 y.other[substitutable] <- mean(y)
-aft.train.a <- bartcoreRun(aftHandle(y), 20L, 10L)$train
-aft.train.b <- bartcoreRun(aftHandle(y.other), 20L, 10L)$train
+aft.train.a <- aftSamplerActiveRowsPins(y)$run(20L, 10L)$train
+aft.train.b <- aftSamplerActiveRowsPins(y.other)$run(20L, 10L)$train
 expect_identical(aft.train.a[a == 1, ], aft.train.b[a == 1, ])
 expect_true(max(abs(aft.train.a[a == 0, ] - aft.train.b[a == 0, ])) < 1e-12)
 
@@ -440,16 +409,14 @@ expect_identical(
   nbinomSamplerActiveRowsPins(counts, NULL)$run(20L, 10L)$train
 )
 expect_identical(
-  bartcoreRun(aftHandle(y, rep(1, n)), 20L, 10L)$train,
-  bartcoreRun(aftHandle(y, NULL), 20L, 10L)$train
+  aftSamplerActiveRowsPins(y, rep(1, n))$run(20L, 10L)$train,
+  aftSamplerActiveRowsPins(y, NULL)$run(20L, 10L)$train
 )
 
 # --- multinomial, GLOBAL only -----------------------------------------
 # The mask lands on the softmax COUPLING, not on the response, which holds no
 # precisions of its own: an inactive row's K interleaved Polya-Gamma draws are
-# skipped and its composed precision is zero in every category. The R-level object
-# never builds a multinomial sampler, so every arm here drives the dbarts:::
-# handle, which is the surface this family's mask ships on.
+# skipped and its composed precision is zero in every category.
 K.mn <- 3L
 labels.mn <- codes.ord - 1L
 counts.mn <- matrix(0L, n, K.mn)
@@ -461,24 +428,23 @@ counts.mn[cbind(seq_len(n), labels.mn + 1L)] <- 1L + seq_len(n) %% 3L
 counts.mn.other <- counts.mn
 counts.mn.other[a == 0, ] <- counts.mn[a == 0, c(2L, 3L, 1L)] + 2L
 
-multinomialHandle <- function(counts, mask = a) {
-  handle <- dbarts:::bartcoreMultinomialCountSampler(
-    dbarts::dbarts(x, as.double(labels.mn), control = control),
-    counts,
-    K = K.mn
+multinomialSamplerActiveRowsPins <- function(counts, mask = a) {
+  sampler <- dbarts::dbarts(
+    dbarts::dbartsData(x, counts = counts),
+    family = "multinomial",
+    control = control
   )
   if (!is.null(mask)) {
-    bartcoreSetActiveRows(handle, mask)
+    sampler$setActiveRows(mask)
   }
-  handle
+  sampler
 }
 
 # Substituting the inactive rows' counts leaves every ACTIVE row's recorded
 # softmax bitwise. Polya-Gamma is a rejection sampler, so this fails outright
 # if an inactive row's K draws are taken and discarded, not skipped.
-train.mn.a <- bartcoreRun(multinomialHandle(counts.mn), 20L, 10L)$train
-train.mn.b <- bartcoreRun(
-  multinomialHandle(counts.mn.other),
+train.mn.a <- multinomialSamplerActiveRowsPins(counts.mn)$run(20L, 10L)$train
+train.mn.b <- multinomialSamplerActiveRowsPins(counts.mn.other)$run(
   20L,
   10L
 )$train
@@ -488,27 +454,25 @@ expect_true(max(abs(train.mn.a[a == 0, , ] - train.mn.b[a == 0, , ])) < 1e-12)
 # The all-ones normalizer clears here too, and the coupling serves its
 # unmasked precisions when it does
 expect_identical(
-  bartcoreRun(multinomialHandle(counts.mn, rep(1, n)), 20L, 10L)$train,
-  bartcoreRun(multinomialHandle(counts.mn, NULL), 20L, 10L)$train
+  multinomialSamplerActiveRowsPins(counts.mn, rep(1, n))$run(20L, 10L)$train,
+  multinomialSamplerActiveRowsPins(counts.mn, NULL)$run(20L, 10L)$train
 )
 
 # an all-zeros mask runs: every category forest sits at its prior and every row
 # still gets its K reported probabilities, which stay a simplex
-train.mn.empty <- bartcoreRun(
-  multinomialHandle(counts.mn, rep(0, n)),
+train.mn.empty <- multinomialSamplerActiveRowsPins(counts.mn, rep(0, n))$run(
   20L,
   10L
 )$train
 expect_true(all(is.finite(train.mn.empty)))
 expect_true(max(abs(apply(train.mn.empty, c(1L, 3L), sum) - 1)) < 1e-12)
 
-# the engine's value scan is under this surface too
+# the method's value check is under this surface too
 expect_error(
-  bartcoreSetActiveRows(
-    multinomialHandle(counts.mn, NULL),
+  multinomialSamplerActiveRowsPins(counts.mn, NULL)$setActiveRows(
     replace(a, 2L, 0.5)
   ),
-  "exactly 0 or 1"
+  "must be all 0 or 1"
 )
 
 # PER-FOREST masking is refused permanently and on model grounds, not for want
@@ -516,8 +480,8 @@ expect_error(
 # per-observation channel a caller can reach, and a softmax sampler refuses it
 # with that reason.
 expect_error(
-  bartcoreSetForestWeights(multinomialHandle(counts.mn, NULL), 1L, a),
-  "applies to every category"
+  multinomialSamplerActiveRowsPins(counts.mn, NULL)$setForestWeights(1L, a),
+  "not available on a multinomial sampler"
 )
 
 # The mask is the category forests' VETO vector as well as the sweep's
@@ -525,14 +489,12 @@ expect_error(
 # sees, so the prior draw returns one bare root per tree. Reading omega alone
 # leaves every row positive-precision and the same draw grows trees.
 priorNodes <- function(mask) {
-  handle <- multinomialHandle(counts.mn, mask)
-  .Call(dbarts:::C_dbarts_bartcore_sampleTreesFromPrior, handle$ptr)
-  bartcoreGetTrees(
-    handle,
-    chainNums = 1L,
+  sampler <- multinomialSamplerActiveRowsPins(counts.mn, mask)
+  sampler$sampleTreesFromPrior()
+  sampler$getTrees(
     treeNums = seq_len(control@n.trees),
-    current = TRUE,
-    forest = 0L
+    chainNums = 1L,
+    current = TRUE
   )
 }
 barePrior <- priorNodes(rep(0, n))
@@ -546,7 +508,7 @@ rm(
   labels.mn,
   counts.mn,
   counts.mn.other,
-  multinomialHandle,
+  multinomialSamplerActiveRowsPins,
   train.mn.a,
   train.mn.b,
   train.mn.empty,
@@ -574,7 +536,7 @@ rm(
   counts.other,
   nbinomSamplerActiveRowsPins,
   status,
-  aftHandle,
+  aftSamplerActiveRowsPins,
   y.other,
   substitutable,
   aft.train.a,
