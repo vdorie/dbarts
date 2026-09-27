@@ -104,6 +104,19 @@ applyNaActionToXY <- function(na.action, y, x) {
   list(keep = keep, na.action = omit)
 }
 
+## A multinomial fit's true response is 'counts' (an n x K matrix), not the
+## 'y' the matrix-interface branches otherwise derive - a placeholder trials
+## vector with nothing of its own to be missing. Folding a row's missingness
+## in there routes it through applyNaActionToXY exactly as a single-column
+## response's own NA would: a count-matrix row is missing when any of its
+## cells is NA (resolveMultinomialCounts marks a missing label the same way).
+multinomialResponseNA <- function(counts, y) {
+  if (is.null(counts) || NROW(counts) != length(y)) {
+    return(y)
+  }
+  ifelse(rowSums(is.na(counts)) > 0L, NA_real_, y)
+}
+
 ## applyNaActionToXY's record names its rows by position in a synthetic
 ## frame; relabel them with the caller's own row names when there are any, as
 ## a model frame's record would be, so padding fills those names back in.
@@ -1416,6 +1429,11 @@ validateXYOffset <- function(
 # with every trial 1. The category labels ride the result's COLUMN NAMES, the
 # carrier that survives both serialization and the engine's re-creation; the
 # engine reads neither.
+# A missing label one-hot-expands to an all-NA row rather than erroring: a
+# single-trial spike has no cell to put a missing category in, so the row
+# itself is what is missing, exactly as a count-matrix row is missing when
+# any of its cells is NA (validateMultinomialCounts). na.action reads that
+# row downstream, as it does for every other family's response.
 resolveMultinomialCounts <- function(y) {
   if (is.data.frame(y)) {
     y <- as.matrix(y)
@@ -1441,15 +1459,18 @@ resolveMultinomialCounts <- function(y) {
         "n x K count matrix"
       )
     }
-    if (anyNA(y) || any(y != round(y)) || any(y < 0)) {
+    observed <- y[!is.na(y)]
+    if (any(observed != round(observed)) || any(observed < 0)) {
       stop("multinomial category codes must be non-negative whole numbers")
     }
-    as.character(seq.int(0L, max(y)))
+    as.character(seq.int(0L, if (length(observed) > 0L) max(observed) else 0L))
   }
   codes <- if (is.factor(y)) as.integer(y) else as.integer(y) + 1L
   K <- length(levels)
   counts <- matrix(0L, length(codes), K, dimnames = list(NULL, levels))
-  counts[cbind(seq_along(codes), codes)] <- 1L
+  complete <- !is.na(codes)
+  counts[cbind(seq_along(codes)[complete], codes[complete])] <- 1L
+  counts[!complete, ] <- NA_integer_
   counts
 }
 
@@ -1457,8 +1478,21 @@ resolveMultinomialCounts <- function(y) {
 # matrix of non-negative whole numbers with at least two categories and at
 # least one trial per row. The engine re-derives the trials and re-checks every
 # invariant; this is the R layer's own (safe over fast) refusal, and the one
-# that names the argument the caller wrote.
-validateMultinomialCounts <- function(counts, initialNumObservations, subset) {
+# that names the argument the caller wrote. 'subset' already reflects
+# na.action's own row selection when allowMissing is TRUE (dbartsData's own
+# ingestion): a row dropped there (every na.action but na.pass) never reaches
+# the row-sum check below, and na.pass keeps it, all-NA, for the generic
+# missing-response check downstream to name. allowMissing is FALSE for every
+# other caller ($setCounts mutates a live sampler's response outright, with
+# no na.action of its own to defer to), where any NA is refused here by name.
+# The whole-number check runs on the ORIGINAL doubles, before asCountMatrix's
+# integer coercion would silently floor a fraction into passing.
+validateMultinomialCounts <- function(
+  counts,
+  initialNumObservations,
+  subset,
+  allowMissing = FALSE
+) {
   if (is.null(counts)) {
     return(NULL)
   }
@@ -1474,17 +1508,20 @@ validateMultinomialCounts <- function(counts, initialNumObservations, subset) {
   if (ncol(counts) < 2L) {
     stop("'counts' must have at least two categories")
   }
-  if (anyNA(counts)) {
+  missingRow <- rowSums(is.na(counts)) > 0L
+  if (!allowMissing && any(missingRow)) {
     stop("'counts' cannot be NA")
   }
-  if (any(counts < 0)) {
+  observed <- counts[!missingRow, , drop = FALSE]
+  if (any(observed < 0)) {
     stop("'counts' must all be non-negative")
   }
-  if (any(counts != round(counts))) {
+  if (any(observed != round(observed))) {
     stop("'counts' must all be whole numbers")
   }
   counts <- asCountMatrix(counts)[subset, , drop = FALSE]
-  if (any(rowSums(counts) < 1L)) {
+  complete <- rowSums(is.na(counts)) == 0L
+  if (any(rowSums(counts[complete, , drop = FALSE]) < 1L)) {
     stop("every 'counts' row must have at least one trial")
   }
   counts
@@ -2114,7 +2151,11 @@ dbartsData <- function(
     # the same (y, x) row rule the dense branch applies; a sparse container
     # holds its missing values among the STORED entries, which is where
     # rowsWithMissingPredictors looks
-    naResult <- applyNaActionToXY(na.action, y, x)
+    naResult <- applyNaActionToXY(
+      na.action,
+      multinomialResponseNA(counts, y),
+      x
+    )
     if (!is.null(naResult)) {
       naOmitted <- nameOmittedRows(naResult$na.action, trainRowNames)
       if (!all(naResult$keep)) {
@@ -2221,7 +2262,11 @@ dbartsData <- function(
     # na.action reads; a mixed container keeps its own attributes across the
     # row selection, so it takes the shared subsetting below rather than this
     # branch's attribute-preserving one
-    naResult <- applyNaActionToXY(na.action, y, x)
+    naResult <- applyNaActionToXY(
+      na.action,
+      multinomialResponseNA(counts, y),
+      x
+    )
     if (!is.null(naResult)) {
       naOmitted <- nameOmittedRows(naResult$na.action, trainRowNames)
       if (!is.null(trainRowNames) && !all(naResult$keep)) {
@@ -2389,7 +2434,12 @@ dbartsData <- function(
   # counts[i, k], which is what keeps every length(data@y) reader meaningful on
   # such an object. DERIVED rather than taken, so the two cannot disagree and a
   # caller supplying 'counts' supplies no separate response.
-  counts <- validateMultinomialCounts(counts, countsRows, countsSubset)
+  counts <- validateMultinomialCounts(
+    counts,
+    countsRows,
+    countsSubset,
+    allowMissing = TRUE
+  )
   if (!is.null(counts)) {
     y <- as.double(rowSums(counts))
     # a flat offset was already refused at the point it was set aside if

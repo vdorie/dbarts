@@ -826,9 +826,11 @@ bartcoreSamplerFromHandle <- function(
 # Integer coercion for an already-validated count matrix. The RANGE check comes
 # BEFORE the coercion: storage.mode() turns a value past .Machine$integer.max
 # into NA with a warning, which the engine would then report as a negative
-# count - a true refusal naming the wrong reason.
+# count - a true refusal naming the wrong reason. A missing row (na.action's
+# na.pass) has nothing to range-check, so it is ignored here rather than
+# tripping an ambiguous "missing value where TRUE/FALSE needed".
 asCountMatrix <- function(counts) {
-  if (any(counts > .Machine$integer.max)) {
+  if (any(counts > .Machine$integer.max, na.rm = TRUE)) {
     stop("multinomial counts must be representable as integers")
   }
   storage.mode(counts) <- "integer"

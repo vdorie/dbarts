@@ -1239,18 +1239,17 @@ bart <- function(
           "least 2 columns (K >= 2 categories)"
         )
       }
-      if (anyNA(y)) {
-        stop(
-          "family = \"multinomial\" does not support missing response values"
-        )
-      }
-      if (any(y < 0)) {
+      # a row with any missing cell is a missing response, routed through
+      # na.action downstream (as an ordinary response is) rather than
+      # refused here; only the complete rows are checked for content
+      observed <- y[rowSums(is.na(y)) == 0L, , drop = FALSE]
+      if (any(observed < 0)) {
         stop("family = \"multinomial\" count response must be non-negative")
       }
-      if (any(y != round(y))) {
+      if (any(observed != round(observed))) {
         stop("family = \"multinomial\" count response must be whole numbers")
       }
-      if (any(rowSums(y) < 1)) {
+      if (any(rowSums(observed) < 1)) {
         stop(
           "family = \"multinomial\" count response requires every row to ",
           "have at least one trial (row sum >= 1)"
@@ -1290,11 +1289,6 @@ bart <- function(
       stop(
         "family = \"multinomial\" requires a factor (or character) response, ",
         "or an n x K count matrix"
-      )
-    }
-    if (anyNA(y)) {
-      stop(
-        "family = \"multinomial\" does not support missing response values"
       )
     }
     if (anyNA(levels(y))) {
