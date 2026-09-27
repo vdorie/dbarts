@@ -211,6 +211,20 @@ set.seed(202L)
 reseeded <- validate(n.replications = 30L, n.draws = 40L, seed = 7L)
 expect_identical(seeded$ranks, reseeded$ranks)
 
+# a 'seed' given to the call itself must leave the CALLER's own stream where
+# it found it: dbartsValidateComposition's own set.seed(seed) has to be
+# undone on exit, the same guard rankUniformity's internal fix already needed
+set.seed(303L)
+seedBeforeCall <- .Random.seed
+invisible(validate(n.replications = 5L, n.draws = 5L, seed = 11L))
+expect_identical(.Random.seed, seedBeforeCall)
+
+# and restores the ABSENCE of a stream, not only a prior state
+rm(".Random.seed", envir = globalenv())
+invisible(validate(n.replications = 5L, n.draws = 5L, seed = 11L))
+expect_false(exists(".Random.seed", envir = globalenv(), inherits = FALSE))
+set.seed(3L)
+
 # the guard restores the absence of a stream too, not only its state
 rm(".Random.seed", envir = globalenv())
 expect_true(dbarts:::rankUniformity(rep(0:9, 20L), 9L, nSim = 50L)$pass)

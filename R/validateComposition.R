@@ -185,6 +185,23 @@ dbartsValidateComposition <- function(
     if (!is.numeric(seed) || length(seed) != 1L || !is.finite(seed)) {
       stop("'seed' must be a single number, or NULL to use the stream as it is")
     }
+    # set.seed() does not itself restore the caller's stream; the whole
+    # replication loop below runs under it, so the restore has to wait for
+    # this function to return rather than living in a smaller withPreservedSeed
+    hasSeed <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
+    oldSeed <- if (hasSeed) get(".Random.seed", envir = globalenv()) else NULL
+    on.exit(
+      {
+        if (hasSeed) {
+          assign(".Random.seed", oldSeed, envir = globalenv())
+        } else if (
+          exists(".Random.seed", envir = globalenv(), inherits = FALSE)
+        ) {
+          rm(".Random.seed", envir = globalenv())
+        }
+      },
+      add = TRUE
+    )
     set.seed(seed)
   }
 
