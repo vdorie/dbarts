@@ -308,10 +308,6 @@ Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A84]
 A factor level in new data that training never saw is refused by name. Before, when the column also held a missing value, the unseen level was silently turned into a missing value and predicted along the missing route. The alternative was to leave that behavior. The cost is an error where a prediction used to come back.
 Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A85]
 
-**Row names ride the stored draws**
-Row names are attached to the fit's stored draws arrays when the fit is packaged, while nothing else holds them, so extract and fitted hand back named results without copying; the raw fields such as $yhat.train therefore carry the names too. The names are kept in a new rowNames slot on the data object rather than inside the predictor container, which stan4bart subsets. The alternative, naming only in the accessors, costs a full copy of a draws array on the first computation after every extract. The cost is that the raw fields change shape against 0.9-x by gaining dimnames.
-Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A86]
-
 **A formula hazard fit pads na.exclude rows**
 A discrete-time hazard fit through a formula rebuilds a dropped subject's person-period rows from its time and pads them under na.exclude, as the matrix path does; the matrix path now builds its period grid from the kept subjects only, so the two agree and a dropped subject no longer shapes the grid. The alternative was to let na.exclude act as na.omit there and document it. The cost is a second evaluation of the model frame when rows drop.
 Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A87]
@@ -885,6 +881,10 @@ Record: this register; docs/plans/archive/capi-dispatch-table.md, the C0 landing
 **A seed argument that is NULL means not given here**
 Every seed argument - on bart, xbart, dbarts and dbartsControl - defaults to NULL, meaning not given at this level: at a call, NULL defers to the control's seed, and a control whose seed is NULL leaves the fit unseeded, so set.seed beforehand governs it; an integer seeds. NA, 0.9-x's rngSeed default, is accepted as NULL. This is the convention of base R's simulate and of ranger, and unlike a test of missing() it survives a wrapper that forwards its own seed = NULL. It replaces an NA that meant unseeded in bart and xbart but keep-the-control's-seed in dbarts. The call can no longer discard a control's seed; an unseeded fit from a seeded control is reached with a control built without one, or with seed = sample.int(.Machine$integer.max, 1). The alternatives were NA meaning unseeded everywhere, NA deferring everywhere, keeping the split, keying on missing(), and a future-style seed = FALSE for an explicit discard. The maintainer, 2026-09-27, choosing it among those: "Yes, just use your recommendation from before."
 Record: this register; the Reproducibility section of bart's manual page. Marked: blank. [dec-A83]
+
+**Row names ride the stored draws**
+Row names are attached to the fit's stored draws arrays when the fit is packaged, so extract, fitted and predict hand back named results without copying, and the raw fields such as $yhat.train carry the names too: a formula fit's are the data frame's row names, "1" to "n" by default, and a matrix fit whose x has none stays unnamed. The names are kept in a rowNames slot on the data object rather than inside the predictor container, which stan4bart subsets. This follows base R, whose lm and glm name their raw fitted.values and residuals components. The alternative was naming only in the accessors, leaving the raw fields as 0.9-x had them, at the cost of a full copy of a draws array on every accessor call, since R copies an array to assign its dimnames, and of raw fields that disagree with the accessors. The raw fields change shape against 0.9-x by gaining dimnames, so a comparison against an unnamed matrix fails; no value or index moves. The maintainer, 2026-09-27, choosing between the two: "Yes, keep (a)." See also: [dec-B34].
+Record: this register; docs/plans/predict-na-action.md. Marked: mine. [dec-A86]
 
 ## C. Agent-made decisions with no identified cost
 
