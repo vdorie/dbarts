@@ -305,7 +305,7 @@ Open before the merge:
 
 - **The release-candidate declaration** (`TODO`'s `rc-gate`), after the
   maintainer's read of this document.
-- **Agent-made decisions not yet ruled on**: 40 unmarked entries in
+- **Agent-made decisions not yet ruled on**: 39 unmarked entries in
   section A of `docs/decisions.md`. Those that fix user-visible surface,
   and would cost a deprecation cycle to change after release:
   - 1-based forest indices in R (dec-A69)
