@@ -193,6 +193,13 @@ through [`padOmittedRows`](../../R/data.R). That covers vectors, factors
 and obs x K matrices; draws arrays stay unpadded, as on bart. A1's names
 fill the padded positions from the named record. Tests go in
 test-row-names.R, one per class under `na.exclude` and `na.omit`.
+Also in A2, three fit-time defects the A1 review found (they predate
+A1): a formula-path hazard fit under `na.exclude` pads a subject-level
+record into person-period outputs (fitted comes back the wrong length,
+names out of order); a multinomial fit under `na.omit` with an NA in a
+matrix `x` fails on a length mismatch between x and y; an aft fit under
+`na.omit` with an NA in a matrix `x` fails on the status length. Each
+gets a test.
 Verification: the tinytest suite and the lint chain.
 
 ## Slice B: na.action
@@ -322,3 +329,11 @@ sigma, k and varcount branch has no observation margin and is left
 alone. A1 and A2 touch every extract, fitted and residuals method in
 R/generics.R. B touches the predict methods, predictBlend, hurdleParts,
 survivalProbabilities.bart and the sampler's predict body.
+
+## Landing
+
+Slice A1 LANDED 2026-09-27 (e0f80109): observation row names on every
+observation-indexed output, recorded in the data object's rowNames slot
+and applied in place at packaging; whole-matrix test setters record the
+new test set's names; bartCause 2301e4b takes the counterfactual draws'
+names from the observed draws. A2 and B remain.
