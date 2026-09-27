@@ -808,7 +808,7 @@ aft-hetero-pit.R, categorical-exact.R, logistic-reference.R, t-exact.R, negbin-e
 ordinal-exact.R, all OK; lintr clean; air clean; check-doc-freshness OK. No
 equivalence compare: equivalence.R sources none of the touched files.
 
-Slice S4 LANDED (pending hash): `bart2Ordinal` and `bart2Negbin` run the
+Slice S4 LANDED 2026-09-27 (1b65b10f, baseline 0ffcd5b0, 19fd5dd4): `bart2Ordinal` and `bart2Negbin` run the
 sampler's own engine; the second creation through `bartcoreSampler` and
 its `$adoptPointer` are gone. Ordinal runs `sampler$run(n.burn, n.samples,
 updateState = FALSE)`; the nbinom per-sample loop keeps `bartcoreRun` on
