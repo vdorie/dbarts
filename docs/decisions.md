@@ -272,10 +272,6 @@ Record: inst/include/dbarts/dbarts.h; src/R_interface_bartcore_common.hpp. Marke
 Of about thirty engine accessors that exist for tests, the two that are virtual on the response base class come off it, becoming ordinary members of the two final classes that use them with the test forwarders casting to reach them, since only virtual members shape the production vtables and object layout (dec-A51). The non-virtual test accessors stay where they are, following the maintainer's words "leave the internal functions when they're truly additive". The alternative was moving all of them into a separate test-access structure, about 130 call sites of churn. The cost is test-only members left on production classes.
 Record: the test scaffolding consolidation plan. Marked: blank. [dec-A81]
 
-**dbartsValidateComposition restores the caller's stream**
-dbartsValidateComposition(seed = ) now restores R's random number stream when it returns; it set the seed and left the stream there. The alternative was to document the side effect. No cost identified beyond the change itself.
-Record: this register. Marked: blank. [dec-A88]
-
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modelled, not refused**
@@ -889,6 +885,10 @@ Record: this register; the Reproducibility section of bart's manual page. Marked
 **A k chain that reaches infinity is summarized as is**
 With k uncapped (dec-A13), a chain under an infinite prior scale can drift to astronomically large k or overflow to k = Inf; summary reports whatever the arithmetic gives, a mean of Inf, a standard deviation of NaN or Inf and an R-hat of NA or far above 1, and the manual's chi() entry explains the symptoms. On one design, pure noise with one tree under chi(20, Inf), k reached about 1e154, the summary's k row read sd Inf, R-hat 2.35 and a tail effective sample size of NA, and the standing non-convergence note printed. The alternatives were labelling the row as diverged in summary, with a line saying the fit has collapsed to the baseline, and a warning at fit time when a chain's k reaches infinity. The maintainer, 2026-09-27, choosing among those: "(a) is fine."
 Record: this register. Marked: mine. [dec-A82]
+
+**dbartsValidateComposition restores the caller's stream**
+dbartsValidateComposition(seed = ) restores R's random number stream when it returns, as base R's simulate(seed = ) does and as a seeded bart or xbart leaves the caller's stream untouched; before, it set the seed and left the stream wherever the run ended, so later draws in the session depended on having called it. An unseeded call draws from and advances the caller's stream. The alternative was to document the side effect. The manual's seed entry states the restore. The maintainer, 2026-09-27, choosing between the two: "Yes, do (a)."
+Record: this register; the seed entry of dbartsValidateComposition's manual page. Marked: mine. [dec-A88]
 
 ## C. Agent-made decisions with no identified cost
 

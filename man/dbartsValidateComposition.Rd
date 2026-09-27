@@ -63,8 +63,9 @@ dbartsValidateComposition(drawPrior, simulate, init, step, functionals,
     ranked, so that a whole call passes with probability about \eqn{1 - \alpha}{1 - alpha}.
   }
   \item{seed}{
-    Seeds R's random number stream for the whole run, making it reproducible; \code{NULL} uses the
-    stream as it stands, and \code{NA} is accepted the same way, silently. The band's own stream is
+    Seeds R's random number stream for the whole run, making it reproducible, and restores the
+    caller's stream on exit, as \code{\link[stats]{simulate}} does; \code{NULL} uses the stream as it
+    stands, advancing it, and \code{NA} is accepted the same way, silently. The band's own stream is
     fixed internally and restored on exit either way, so a call never leaves that fix behind.
   }
 }
