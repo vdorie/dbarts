@@ -499,6 +499,10 @@ predict-na-action (decided, VD 2026-09-26; docs/decisions.md
   keeps the output aligned with newdata; na.omit drops any row with a
   missing value; na.fail errors on any. The manual sets these against
   the fit-time meanings (routable versus unroutable missingness).
+  na.exclude pads dropped rows back as NA; every observation-indexed
+  output (predict, extract, fitted, residuals) carries the data's row
+  names, the fit keeping the training row names (what a fit carries
+  changes, so the exact gates run).
 
 reproducibility-docs (decided, VD 2026-09-26; docs/decisions.md
   dec-A04): before the merge, one user-facing Reproducibility section
