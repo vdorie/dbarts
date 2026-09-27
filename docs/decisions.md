@@ -316,10 +316,6 @@ Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A87]
 dbartsValidateComposition(seed = ) now restores R's random number stream when it returns; it set the seed and left the stream there. The alternative was to document the side effect. No cost identified beyond the change itself.
 Record: this register. Marked: blank. [dec-A88]
 
-**A missing value in a predict offset or weight is refused**
-predict refuses a missing value inside an offset or weights given at prediction, naming the argument; before, it returned a missing row or NaN with a warning from R's normal generator. The alternative was a TODO. The cost is an error where output used to come back.
-Record: docs/plans/predict-na-action.md. Marked: blank. [dec-A89]
-
 **xbart refuses parallel workers under a user-supplied generator**
 xbart gives the same results at any thread count by setting each worker's generator kind to the caller's; a "user-supplied" kind lives in compiled code the worker cannot load, so xbart refuses n.threads > 1 under it. The alternative was documenting that such runs differ by thread count. The cost is an error for the rare user of a custom generator.
 Record: this register; the Reproducibility section of bart's manual page. Marked: blank. [dec-A90]
@@ -885,6 +881,10 @@ Record: this register; the Reproducibility section of bart's manual page. Marked
 **Row names ride the stored draws**
 Row names are attached to the fit's stored draws arrays when the fit is packaged, so extract, fitted and predict hand back named results without copying, and the raw fields such as $yhat.train carry the names too: a formula fit's are the data frame's row names, "1" to "n" by default, and a matrix fit whose x has none stays unnamed. The names are kept in a rowNames slot on the data object rather than inside the predictor container, which stan4bart subsets. This follows base R, whose lm and glm name their raw fitted.values and residuals components. The alternative was naming only in the accessors, leaving the raw fields as 0.9-x had them, at the cost of a full copy of a draws array on every accessor call, since R copies an array to assign its dimnames, and of raw fields that disagree with the accessors. The raw fields change shape against 0.9-x by gaining dimnames, so a comparison against an unnamed matrix fails; no value or index moves. The maintainer, 2026-09-27, choosing between the two: "Yes, keep (a)." See also: [dec-B34].
 Record: this register; docs/plans/predict-na-action.md. Marked: mine. [dec-A86]
+
+**A missing value in a predict offset or weight follows na.action**
+A missing value in a per-row offset or weights given to predict marks that row incomplete, and predict's na.action governs it as it governs a missing predictor: the default refuses it by name, na.omit drops the row, na.exclude drops it and pads it back as NA, na.pass returns NA for it, and na.fail errors. This matches fitting, where na.omit and na.exclude drop such a row and the default and na.pass refuse it, and base R, whose model frame carries an offset() term under na.action. The landed behaviour, refusing under every na.action, was agent-made after a review found the old silent NA offset row and NaN weight draw; under it a predict call asking to drop incomplete rows errored where the same fit call dropped them. Returning to the silent NA was also weighed. The maintainer, 2026-09-27, choosing among those: "Yeah, (b) makes sense to me." See also: [dec-B34].
+Record: this register; docs/plans/predict-na-action.md for the refusal it replaces. Marked: mine. [dec-A89]
 
 ## C. Agent-made decisions with no identified cost
 
