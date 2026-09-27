@@ -304,36 +304,48 @@ control <- dbartsControl(
   n.trees = 20L,
   updateState = FALSE
 )
-bcSampler <- dbarts(xb, yb, control = control)
-bc <- dbarts:::bartcoreBCFSampler(
-  bcSampler,
-  z,
-  n.trees.treatment = 20L,
-  moderators = c(1L, 2L),
-  tau.blocks = dbarts::dbartsForests$blocks(groups = list("x1", "x2"))
+bc <- dbarts(
+  xb,
+  yb,
+  forests = list(
+    forest(),
+    forest(
+      basis = ~ factor(z),
+      n.trees = 20L,
+      vars = c(1L, 2L),
+      blocks = dbarts::dbartsForests$blocks(groups = list("x1", "x2"))
+    )
+  ),
+  control = control
 )
-invisible(bartcoreRun(bc, 150L, 0L))
-tauTrees <- bartcoreGetTrees(
+invisible(bc$run(150L, 0L))
+tauTrees <- forestTrees(
   bc,
+  forest = 2L,
   chainNums = 1L,
   treeNums = 1:20,
-  current = TRUE,
-  forest = 1L
+  current = TRUE
 )
 # every tau tree confined to {x1} or {x2}
 expect_true(allConfined(tauTrees, list(1L, 2L)))
 
 # tau.blocks must partition exactly the moderator set: naming a non-moderator errors
-targetSampler <- dbarts(xb, yb, control = control)
 expect_error(
-  dbarts:::bartcoreBCFSampler(
-    targetSampler,
-    z,
-    n.trees.treatment = 20L,
-    moderators = c(1L, 2L),
-    tau.blocks = dbarts::dbartsForests$blocks(
-      groups = list("x1", c("x2", "x3"))
-    )
+  dbarts(
+    xb,
+    yb,
+    forests = list(
+      forest(),
+      forest(
+        basis = ~ factor(z),
+        n.trees = 20L,
+        vars = c(1L, 2L),
+        blocks = dbarts::dbartsForests$blocks(
+          groups = list("x1", c("x2", "x3"))
+        )
+      )
+    ),
+    control = control
   ),
   "available predictors"
 )

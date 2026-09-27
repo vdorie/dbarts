@@ -177,7 +177,7 @@ development builds.
    interweave tests, the ridge arms of the combiner seam and grow-from-root pins, the general
    ridge test, the tinytest ridge blocks), keep coverage of the amplitude draw, check every row in
    [`fuzzInvariantViolation`](../../tests/cpp/test_fuzz.cpp) at the Step 1 bound, and tighten the
-   state round trip in ["bartcoreForestFits(restored, 0L)"](../../inst/tinytest/test-bcf.R) to
+   state round trip in ["restored$getForestFits(1L)"](../../inst/tinytest/test-bcf.R) to
    1e-12.
 4. Prove the pins discriminate: on tip, Step 1 (a) fails.
 5. Sanitizers: tests/cpp under ASAN and UBSAN, per [Gate hygiene](README.md#gate-hygiene).

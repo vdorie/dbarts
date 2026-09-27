@@ -8,14 +8,15 @@
 # A neutral refactor of the BCF path is proven neutral only if this reports
 # identical on every scenario.
 #
-# Each scenario drives the internal bartcoreBCFSampler surface (R/bartcore.R;
-# docs/design/bcf.md) at a fixed seed, single chain, one thread, and records:
-#   - the raw per-forest fits of BOTH forests (bartcoreForestFits 0 and 1),
-#   - the amplitudes (bartcoreForestAmplitudes: a, b0, b1),
+# Each scenario drives the public dbarts(forests = list(forest(), forest(basis
+# = ~ factor(z), ...))) two-forest surface (docs/design/bcf.md) at a fixed
+# seed, single chain, one thread, and records:
+#   - the raw per-forest fits of BOTH forests ($getForestFits(1L) and (2L)),
+#   - the amplitudes ($getForestAmplitudes(): a, b0, b1),
 #   - sigma,
 #   - the reported result$train and result$varcount channels,
 #   - the treatment forest's own split counts
-#     (bartcoreForestVariableCounts 1).
+#     ($getForestVariableCounts(2L)).
 # train and varcount are the only bitwise guard on storeSample's BCF report
 # branches; the per-forest fits and glue guard the combining math and the
 # coupling draw. result$varcount carries a FOREST AXIS (p x n.forests x
@@ -61,11 +62,6 @@
 # deviation bound that is the real gate, tier 2 a decoupled statistical
 # fallback that adjudicates and never certifies. Compare only; a recording
 # is host-local by definition.
-
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -199,16 +195,38 @@ crossHostRtol <- 1e-8
 # entries only).
 recordChannels <- function(bcSampler, result) {
   ch <- list(
-    mu = bartcoreForestFits(bcSampler, 0L),
-    tau = bartcoreForestFits(bcSampler, 1L),
-    glue = bartcoreForestAmplitudes(bcSampler),
+    mu = bcSampler$getForestFits(1L),
+    tau = bcSampler$getForestFits(2L),
+    glue = bcSampler$getForestAmplitudes(),
     sigma = result$sigma,
     train = result$train,
     varcount = result$varcount,
-    varcount.tau = bartcoreForestVariableCounts(bcSampler, 1L)
+    varcount.tau = bcSampler$getForestVariableCounts(2L)
   )
   ch$summaries <- lapply(ch[statChannels], drawSummary)
   ch
+}
+
+# The two-forest BCF declaration this file builds repeatedly. forest() is
+# only in scope inside a forests = argument's own NSE, so this
+# helper (built outside one) spells it out as dbartsForests$forest, as
+# test-bcf-creation.R's own top-level twoForests does.
+bcfForests <- function(
+  z,
+  n.trees.treatment,
+  moderators = NULL,
+  update.a = TRUE,
+  update.b = TRUE
+) {
+  list(
+    dbarts::dbartsForests$forest(update.amplitude = update.a),
+    dbarts::dbartsForests$forest(
+      basis = ~ factor(z),
+      n.trees = n.trees.treatment,
+      vars = moderators,
+      update.amplitude = update.b
+    )
+  )
 }
 
 runScenarios <- function() {
@@ -219,14 +237,14 @@ runScenarios <- function() {
   # (a) default two-forest BCF
   {
     d <- makeData(n, p, seeds[["default.data"]])
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(seeds[["default.engine"]])
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     result$default <- recordChannels(bc, res)
   }
 
@@ -234,15 +252,14 @@ runScenarios <- function() {
   {
     d <- makeData(n, p, seeds[["restricted.data"]])
     colnames(d$x) <- paste0("x", seq_len(p))
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(seeds[["restricted.engine"]])
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau,
-      moderators = c("x1", "x3")
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau, moderators = c("x1", "x3")),
+      control = makeControl()
     )
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     result$restricted <- recordChannels(bc, res)
   }
 
@@ -251,16 +268,19 @@ runScenarios <- function() {
   # the both-on scenarios never exercise.
   {
     d <- makeData(n, p, seeds[["glue.data"]])
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(seeds[["glue.engine"]])
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau,
-      update.a = TRUE,
-      update.b = FALSE
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(
+        d$z,
+        n.trees.tau,
+        update.a = TRUE,
+        update.b = FALSE
+      ),
+      control = makeControl()
     )
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     result$glue_toggle <- recordChannels(bc, res)
   }
 
@@ -271,14 +291,15 @@ runScenarios <- function() {
     d <- makeData(n, p, seeds[["weighted.data"]])
     set.seed(seeds[["weighted.weights"]])
     weights <- runif(n, 0.5, 2)
-    sampler <- dbarts(d$x, d$y, weights = weights, control = makeControl())
     set.seed(seeds[["weighted.engine"]])
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau
+    bc <- dbarts(
+      d$x,
+      d$y,
+      weights = weights,
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     result$weighted <- recordChannels(bc, res)
   }
 
@@ -289,16 +310,16 @@ runScenarios <- function() {
     d <- makeData(n, p, seeds[["treatment.data"]])
     set.seed(seeds[["treatment.z2"]])
     z2 <- rbinom(n, 1L, 0.5)
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(seeds[["treatment.engine"]])
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    bartcoreRun(bc, n.burn, n.samples)
-    bartcoreSetForestBasis(bc, 1L, cbind(1 - z2, z2))
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$run(n.burn, n.samples)
+    bc$setForestBasis(2L, cbind(1 - z2, z2))
+    res <- bc$run(n.burn, n.samples)
     result$set_treatment <- recordChannels(bc, res)
   }
 
@@ -318,16 +339,16 @@ runScenarios <- function() {
     d <- makeData(n, p, 8006L)
     set.seed(8106L)
     x2 <- matrix(runif(n * p), n, p)
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(9006L)
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    bartcoreRun(bc, n.burn, n.samples)
-    bartcoreSetPredictor(bc, x2, forceUpdate = TRUE)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$run(n.burn, n.samples)
+    bc$setPredictor(x2, forceUpdate = TRUE)
+    res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res)
   })
 
@@ -350,16 +371,16 @@ runScenarios <- function() {
     d <- makeData(n, p, 8007L)
     set.seed(8107L)
     x2 <- pmin(pmax(d$x + matrix(rnorm(n * p, 0, 0.005), n, p), 0), 1)
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(9007L)
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    bartcoreRun(bc, n.burn, n.samples)
-    accepted <- bartcoreSetPredictor(bc, x2)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$run(n.burn, n.samples)
+    accepted <- bc$setPredictor(x2, forceUpdate = FALSE)
+    res <- bc$run(n.burn, n.samples)
     c(recordChannels(bc, res), list(accepted = accepted))
   })
 
@@ -371,16 +392,16 @@ runScenarios <- function() {
     d <- makeData(n, p, 8008L)
     set.seed(8108L)
     v <- pmin(pmax(d$x[, 3L] + rnorm(n, 0, 0.02), 0), 1)
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(9008L)
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    bartcoreRun(bc, n.burn, n.samples)
-    accepted <- bartcoreUpdatePredictor(bc, v, 3L)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$run(n.burn, n.samples)
+    accepted <- bc$setPredictor(v, 3L)
+    res <- bc$run(n.burn, n.samples)
     c(recordChannels(bc, res), list(accepted = accepted))
   })
 
@@ -393,20 +414,19 @@ runScenarios <- function() {
   # has to put both back.
   result$update_column_reject <- local({
     d <- makeData(n, p, 8009L)
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(9009L)
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    bartcoreRun(bc, n.burn, n.samples)
-    accepted <- bartcoreUpdatePredictor(
-      bc,
+    bc$run(n.burn, n.samples)
+    accepted <- bc$setPredictor(
       ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
       1L
     )
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     c(recordChannels(bc, res), list(accepted = accepted))
   })
 
@@ -428,16 +448,16 @@ runScenarios <- function() {
     d <- makeData(n, p, 8010L)
     set.seed(8110L)
     v <- pmin(pmax(d$x[, 3L] + rnorm(n, 0, 0.02), 0), 1)
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(9010L)
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    bartcoreRun(bc, n.burn, n.samples)
-    installed <- bartcoreUpdatePredictorPerObservation(bc, v, 3L)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$run(n.burn, n.samples)
+    installed <- bc$setPredictor(v, 3L, forceUpdate = "partial")
+    res <- bc$run(n.burn, n.samples)
     c(recordChannels(bc, res), list(installed = installed))
   })
 
@@ -447,20 +467,20 @@ runScenarios <- function() {
   # column - the state the whole-transaction scenarios cannot reach.
   result$per_observation_partial <- local({
     d <- makeData(n, p, 8011L)
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(9011L)
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    bartcoreRun(bc, n.burn, n.samples)
-    installed <- bartcoreUpdatePredictorPerObservation(
-      bc,
+    bc$run(n.burn, n.samples)
+    installed <- bc$setPredictor(
       ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
-      1L
+      1L,
+      forceUpdate = "partial"
     )
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     c(recordChannels(bc, res), list(installed = installed))
   })
 
@@ -469,7 +489,7 @@ runScenarios <- function() {
   # GaussianResponse (the sigma df recount) and into composeForestWeights'
   # fan-out across BOTH forests, with no combiner-level code of its own -
   # the base ForestCombiner's setActiveRows is a no-op by design. Exercised
-  # mid-chain through bartcoreSetActiveRows, same shape as (f)'s forced
+  # mid-chain through $setActiveRows, same shape as (f)'s forced
   # setPredictor. Seeds are LITERAL, kept out of the guarded `seeds` vector
   # as (f)-(k)'s are, so settingsList() stays identical to the a825263
   # baseline and its neutrality compare still runs.
@@ -477,16 +497,16 @@ runScenarios <- function() {
     d <- makeData(n, p, 8012L)
     set.seed(8112L)
     mask <- as.double(rbinom(n, 1L, 0.75))
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(9012L)
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    bartcoreRun(bc, n.burn, n.samples)
-    bartcoreSetActiveRows(bc, mask)
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    bc$run(n.burn, n.samples)
+    bc$setActiveRows(mask)
+    res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res)
   })
 
@@ -508,14 +528,14 @@ runScenarios <- function() {
   # (m) probit: the anchor-1 link, sigma fixed, glue drawn as under gaussian.
   result$latent_probit <- local({
     d <- makeBinaryData(n, p, 8013L, pnorm)
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(9013L)
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      n.trees.treatment = n.trees.tau
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res)
   })
 
@@ -526,15 +546,15 @@ runScenarios <- function() {
   # bridge reads.
   result$latent_logistic <- local({
     d <- makeBinaryData(n, p, 8014L, plogis)
-    sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(9014L)
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
+    bc <- dbarts(
+      d$x,
+      d$y,
       family = "logistic",
-      n.trees.treatment = n.trees.tau
+      forests = bcfForests(d$z, n.trees.tau),
+      control = makeControl()
     )
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res)
   })
 
@@ -549,21 +569,16 @@ runScenarios <- function() {
     d <- makeBinaryData(n, p, 8015L, plogis)
     set.seed(8115L)
     weights <- as.double(rpois(n, 2) + 1L)
-    sampler <- dbarts(
+    set.seed(9015L)
+    bc <- dbarts(
       d$x,
       d$y,
       weights = weights,
       family = "logistic",
+      forests = bcfForests(d$z, n.trees.tau),
       control = makeControl()
     )
-    set.seed(9015L)
-    bc <- dbarts:::bartcoreBCFSampler(
-      sampler,
-      d$z,
-      family = "logistic",
-      n.trees.treatment = n.trees.tau
-    )
-    res <- bartcoreRun(bc, n.burn, n.samples)
+    res <- bc$run(n.burn, n.samples)
     recordChannels(bc, res)
   })
 

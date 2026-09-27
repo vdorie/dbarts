@@ -186,6 +186,15 @@ items
     designing, since compaction and zero weight are not the same draw
     law (docs/design/model-space-survey.md D2). Design-gated, NOT
     scheduled (VD: revisit on a second consumer or a release want).
+  multiforest-per-column-ncuts: door, no plan doc of its own. A
+    multi-forest sampler refuses per-column n.cuts, but that is a guard,
+    not an engine limit: the amplitude sampler's constructor passes
+    per-column caps to ColumnStore::build as the single-forest one does.
+    Lifting it means removing the bridge loop in
+    refuseUnsupportedAmplitudeComposition and the resolveSamplerSpec
+    refusal, the Rd text and the refusal pin in test-bcf-creation.R, plus
+    setCutPoints and state round-trip checks under uneven caps. After the
+    merge.
   multinomial-doors: three entry-point doors, post-RC (VD 2026-09-01).
     A formula interface for dbarts(family = "multinomial") - a formula
     LHS carries no count matrix; bart2's cbind(c1, ..., cK) ~ x form

@@ -438,3 +438,74 @@ calibration and coding, then a pass.
 | test-bcf-family.R | `family = "logistic"` on the BCF creator | `dbarts(forests = , family = "logistic")` | S1 |
 | test-forest-basis-r5.R | `attr(control, "bartcore.forests")$params` edited before `new()` | `forest(sd = , amplitude.prior.variance = )` if bitwise; else KEEP (it reaches a raw param slot) | S2 |
 | test-data-handle.R, leafPriorChecks.R | `data@n.cuts`, `model@node.prior` edited before PROD view creation | unchanged (PROD handle) | - |
+
+## Landing
+
+Slice S1 LANDED (pending hash): all ten BCF-centred tinytest files
+(test-bcf.R, test-bcf-creation.R, test-bcf-family.R,
+test-bcf-mutation-pins.R, test-bcf-zero-multiplier.R, test-blocks.R,
+test-interactions.R, test-forest-weights.R, test-multi-forest-seam.R,
+test-bcf-r5-surface.R) and all five BCF benchmarks
+(bcf-equivalence.R, bcf-exact.R, bcf-exact-weak.R, bcf-exact-restricted.R,
+bcf-latent-exact.R)
+migrated off `dbarts:::bartcoreBCFSampler` and the
+inst/common/bartcoreHandle.R wrappers, onto
+`dbarts(forests = list(forest(), forest(basis = ~ factor(z), ...)))`
+and the `dbartsSampler` methods. `forestTrees()` added to
+inst/common/bartcoreHandle.R (KEEP-ADDITIVE, Appendix A2, decision D1).
+No production R or C++ change.
+
+Dropped as vacuous, per the Steps rule: test-bcf-creation.R's
+public-vs-internal oracle (the positive-half comparison against
+`internalSampler`), its unseeded-differs arm, and its pinned-amplitude
+internal comparison (restated instead as a public-only glue check,
+matching test-bcf.R's `bcFixed` pin); test-bcf-r5-surface.R's
+low-level-vs-method comparison (both sides call the same `.Call`);
+test-bcf-family.R's internal-creator calibration-anchor
+section (duplicate of the public probit/logistic checks earlier in the
+same file). Restated rather than dropped: test-bcf.R's all-zero-column
+`setForestBasis` probe, which `$setForestBasis` now refuses
+(`validateForestBases`) and which is pinned as that refusal; and its
+`moderators = NULL` neutrality check, vacuous on either route (the
+default is NULL), now `vars = colnames(x.mod)` against the omitted
+default.
+
+bcf-exact-restricted.R needed a per-column `n.cuts` (`c(2, 1)`) so
+the uniform grid put one cut between each pair of adjacent cells, and
+the public multi-forest route refuses per-column `n.cuts`. That
+refusal is a guard, not an engine limit: the amplitude sampler's
+constructor passes per-column caps to `ColumnStore::build` as the
+single-forest one does (TODO multiforest-per-column-ncuts). The gate
+migrated instead through the quantile grid (`useQuantiles = TRUE`,
+scalar `n.cuts = 2`), which cuts at the midpoints of adjacent observed
+values: the same partitions and per-column cut counts, so the exact
+oracle is unchanged. Against the internal route: identical
+`$getCalibration` rows for both forests, identical `varTypes`, and
+bitwise-identical draws over 1200 sweeps at matched seed placement
+(`data@n.cuts` reads `c(2, 2)` where the internal route read `c(2, 1)`;
+the grid built from it is the same). quick and full mode pass.
+
+Traps found beyond the plan's own list: `$setPredictor(x, forceUpdate =
+TRUE)` suppresses its return value where the low-level route always
+returned the logical; `$setData`/`$setModel`/`$setResponse(updateScale =
+TRUE)`/`$setOffset(updateScale = TRUE)` on an amplitude-carrying sampler
+refuse R-side (`refuseAmplitudeMutation`) before the bridge's generic
+wording, except `updateScale = NA`, uncaught by the R-side `isTRUE()`
+check, which still reaches the bridge unchanged; `$setForestWeights`'s
+own length and multinomial-refusal wording differ from the bridge's;
+`$setTestOffset`'s "test matrix is NULL" precondition fires before the
+bridge's "have no off-sample basis" wording on a sampler with no test
+predictor at all; `updatePredictorPerObservationJointly()` needs column
+names on the shared design even for a single sampler.
+
+Gates: full tinytest (shipped) 9222/9222; bcf-equivalence.R
+`--bitwise` on the reference build, 15/15 scenarios identical (no
+`max |z|` line), against benchmarks/baselines/bcf-equivalence-d49e2103.rds
+- confirmed also in FULL (non-quick) mode, since every scenario places
+`set.seed()` immediately before its (now single) creation call, matching
+the exact stream position the old two-creation code left it at; exact-gates
+quick for bcf-exact.R, bcf-exact-weak.R, bcf-exact-restricted.R
+and bcf-latent-exact.R, all OK; `lintr::lint_package()` clean;
+`air format --check .` clean; `tools/check-doc-freshness.R` OK (one stale
+quoted-fragment cite in docs/plans/forest-cache-drift.md repointed to the
+respelled test-bcf.R line).

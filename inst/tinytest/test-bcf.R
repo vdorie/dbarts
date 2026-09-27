@@ -22,18 +22,22 @@ control <- dbartsControl(
   n.trees = 50L,
   updateState = FALSE
 )
-sampler <- dbarts(x, y, control = control)
 
-bcSampler <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
+bcSampler <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+  control = control
+)
 
-result <- bartcoreRun(bcSampler, 100L, 100L)
+result <- bcSampler$run(100L, 100L)
 expect_equal(dim(result$train), c(n, 100L))
 expect_true(all(is.finite(result$train)))
 expect_true(all(result$sigma > 0))
 
 # both forests moved off zero and stay finite
-muFits <- bartcoreForestFits(bcSampler, 0L)
-tauFits <- bartcoreForestFits(bcSampler, 1L)
+muFits <- bcSampler$getForestFits(1L)
+tauFits <- bcSampler$getForestFits(2L)
 expect_equal(dim(muFits), c(n, 1L))
 expect_true(all(is.finite(muFits)) && all(is.finite(tauFits)))
 expect_true(sum(muFits^2) > 0 && sum(tauFits^2) > 0)
@@ -41,91 +45,107 @@ expect_true(sum(muFits^2) > 0 && sum(tauFits^2) > 0)
 # the per-forest variable-count query works on both BCF forests: each
 # forest's counts are nonnegative integers whose total is that forest's split
 # count - positive here, both forests grew splits over the run
-vcMu <- bartcoreForestVariableCounts(bcSampler, 0L)
-vcTau <- bartcoreForestVariableCounts(bcSampler, 1L)
+vcMu <- bcSampler$getForestVariableCounts(1L)
+vcTau <- bcSampler$getForestVariableCounts(2L)
 expect_equal(dim(vcMu), c(p, 1L))
 expect_equal(dim(vcTau), c(p, 1L))
 expect_true(is.integer(vcMu) && is.integer(vcTau))
 expect_true(all(vcMu >= 0L) && all(vcTau >= 0L))
 expect_true(sum(vcMu) > 0L && sum(vcTau) > 0L)
 expect_error(
-  bartcoreForestVariableCounts(bcSampler, 2L),
+  bcSampler$getForestVariableCounts(3L),
   "out of range"
 )
 
 # glue is finite and the treated and control scales separate
-glue <- bartcoreForestAmplitudes(bcSampler)
+glue <- bcSampler$getForestAmplitudes()
 expect_equal(dim(glue), c(3L, 1L))
 expect_true(all(is.finite(glue)))
 expect_true(glue[2L, 1L] != glue[3L, 1L])
 
-# setForestBasis re-forms both residuals; a subsequent run stays sane
-bartcoreSetForestBasis(bcSampler, 1L, cbind(rep(1, n), rep(0, n)))
-result.control <- bartcoreRun(bcSampler, 0L, 5L)
-expect_true(all(is.finite(result.control$train)))
+# an all-zero basis column has no rows for its amplitude to multiply:
+# $setForestBasis refuses it before the engine or data@bases is touched
+basesBefore <- bcSampler$data@bases
+expect_error(
+  bcSampler$setForestBasis(2L, cbind(rep(1, n), rep(0, n))),
+  "all zeros"
+)
+expect_identical(bcSampler$data@bases, basesBefore)
 
 # out-of-range forest index errors
-expect_error(bartcoreForestFits(bcSampler, 2L), "out of range")
+expect_error(bcSampler$getForestFits(3L), "out of range")
 
 # the single-forest test-fit and prediction surface is undefined here (the
 # amplitudes have no off-sample basis): setTestPredictor and predict are
 # refused, pointing at the per-forest channels
 expect_error(
-  bartcoreSetTestPredictor(bcSampler, x[1:5, , drop = FALSE]),
+  bcSampler$setTestPredictor(x[1:5, , drop = FALSE]),
   "have no off-sample basis"
 )
 expect_error(
-  bartcorePredict(bcSampler, x[1:5, , drop = FALSE]),
+  bcSampler$predict(x[1:5, , drop = FALSE]),
   "have no off-sample basis"
 )
 
 # state round-trip: store, restore into a fresh BCF sampler, continue
-bartcoreSetForestBasis(bcSampler, 1L, cbind(1 - z, z))
-bartcoreRun(bcSampler, 0L, 5L)
-state <- bartcoreStoreState(bcSampler)
+bcSampler$setForestBasis(2L, cbind(1 - z, z))
+bcSampler$run(0L, 5L)
+bcSampler$storeState()
+state <- bcSampler$state
 expect_equal(length(state), 1L)
 expect_equal(length(state[[1L]]$forests), 2L)
 expect_false(is.null(state[[1L]]$glue))
 
-glueBefore <- bartcoreForestAmplitudes(bcSampler)
-muBefore <- bartcoreForestFits(bcSampler, 0L)
-tauBefore <- bartcoreForestFits(bcSampler, 1L)
+glueBefore <- bcSampler$getForestAmplitudes()
+muBefore <- bcSampler$getForestFits(1L)
+tauBefore <- bcSampler$getForestFits(2L)
 
-restored <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
-bartcoreSetState(restored, state)
+restored <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+  control = control
+)
+restored$setState(state)
 
 # the glue rides the state exactly; the forests restore to a continuation
 # whose fits are re-derived from the leaves, so they differ from the run's
 # running totals by the additive rounding those totals accumulated only
-expect_equal(bartcoreForestAmplitudes(restored), glueBefore)
+expect_equal(restored$getForestAmplitudes(), glueBefore)
 expect_equal(
-  bartcoreForestFits(restored, 0L),
+  restored$getForestFits(1L),
   muBefore,
   tolerance = 1e-12
 )
 expect_equal(
-  bartcoreForestFits(restored, 1L),
+  restored$getForestFits(2L),
   tauBefore,
   tolerance = 1e-12
 )
 
-result.restored <- bartcoreRun(restored, 0L, 50L)
+result.restored <- restored$run(0L, 50L)
 expect_equal(dim(result.restored$train), c(n, 50L))
 expect_true(all(is.finite(result.restored$train)))
 expect_true(all(result.restored$sigma > 0))
 
 # fixed-glue path: update.a = update.b = FALSE holds the glue at (1, 0, 1)
-bcFixed <- dbarts:::bartcoreBCFSampler(
-  sampler,
-  z,
-  n.trees.treatment = 25L,
-  update.a = FALSE,
-  update.b = FALSE
+bcFixed <- dbarts(
+  x,
+  y,
+  forests = list(
+    forest(update.amplitude = FALSE),
+    forest(
+      basis = ~ factor(z),
+      n.trees = 25L,
+      update.amplitude = FALSE
+    )
+  ),
+  control = control
 )
-bartcoreRun(bcFixed, 50L, 50L)
-expect_equal(bartcoreForestAmplitudes(bcFixed)[, 1L], c(1, 0, 1))
+bcFixed$run(50L, 50L)
+expect_equal(bcFixed$getForestAmplitudes()[, 1L], c(1, 0, 1))
 # the treatment forest still moves under the fixed z * tau model
-expect_true(sum(bartcoreForestFits(bcFixed, 1L)^2) > 0)
+expect_true(sum(bcFixed$getForestFits(2L)^2) > 0)
 
 # bartCause-style driver: pihat is a prognostic column; the treatment and the
 # propensity column are both swapped between runs through the mutation surface
@@ -134,15 +154,19 @@ expect_true(sum(bartcoreForestFits(bcFixed, 1L)^2) > 0)
 set.seed(7)
 pihat <- plogis(x[, 1L] - 0.5)
 x.pi <- cbind(x, pihat)
-sampler.pi <- dbarts(x.pi, y, control = control)
-bcPi <- dbarts:::bartcoreBCFSampler(sampler.pi, z, n.trees.treatment = 25L)
-bartcoreRun(bcPi, 100L, 20L)
+bcPi <- dbarts(
+  x.pi,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+  control = control
+)
+bcPi$run(100L, 20L)
 
 z2 <- rbinom(n, 1L, pihat)
 x.pi[, ncol(x.pi)] <- plogis(x[, 2L] - 0.5)
-bartcoreSetPredictor(bcPi, x.pi, forceUpdate = TRUE)
-bartcoreSetForestBasis(bcPi, 1L, cbind(1 - z2, z2))
-result.pi <- bartcoreRun(bcPi, 0L, 20L)
+bcPi$setPredictor(x.pi, forceUpdate = TRUE)
+bcPi$setForestBasis(2L, cbind(1 - z2, z2))
+result.pi <- bcPi$run(0L, 20L)
 expect_equal(dim(result.pi$train), c(n, 20L))
 expect_true(all(is.finite(result.pi$train)))
 expect_true(all(result.pi$sigma > 0))
@@ -164,14 +188,17 @@ control.m <- dbartsControl(
   n.trees = 60L,
   updateState = FALSE
 )
-sampler.m <- dbarts(x.m, y.m, control = control.m)
-
-bcMove <- dbarts:::bartcoreBCFSampler(sampler.m, z.m, n.trees.treatment = 30L)
-res.move <- bartcoreRun(bcMove, 200L, 100L)
+bcMove <- dbarts(
+  x.m,
+  y.m,
+  forests = list(forest(), forest(basis = ~ factor(z.m), n.trees = 30L)),
+  control = control.m
+)
+res.move <- bcMove$run(200L, 100L)
 expect_true(all(is.finite(res.move$train)))
 expect_true(all(res.move$sigma > 0))
-expect_true(all(is.finite(bartcoreForestAmplitudes(bcMove))))
-muMove <- bartcoreForestFits(bcMove, 0L)
+expect_true(all(is.finite(bcMove$getForestAmplitudes())))
+muMove <- bcMove$getForestFits(1L)
 expect_true(all(is.finite(muMove)) && sum(muMove^2) > 0)
 
 control.k <- dbartsControl(
@@ -182,72 +209,82 @@ control.k <- dbartsControl(
   keepTrees = TRUE,
   n.samples = 50L
 )
-sampler.k <- dbarts(x.m, y.m, control = control.k)
-bcKeep <- dbarts:::bartcoreBCFSampler(sampler.k, z.m, n.trees.treatment = 30L)
-res.keep <- bartcoreRun(bcKeep, 100L, 50L)
+bcKeep <- dbarts(
+  x.m,
+  y.m,
+  forests = list(forest(), forest(basis = ~ factor(z.m), n.trees = 30L)),
+  control = control.k
+)
+res.keep <- bcKeep$run(100L, 50L)
 expect_equal(dim(res.keep$train), c(n.m, 50L))
 expect_true(all(is.finite(res.keep$train)))
 expect_true(all(res.keep$sigma > 0))
 
 # --- moderators restriction on the treatment forest ---
-# a named design so the subset can be given by name; the top-of-file sampler
-# stays unnamed to exercise the names-without-colnames guard
+# a named design so the subset can be given by name; the plain 'x' stays
+# unnamed to exercise the names-without-colnames guard
 x.mod <- x
 colnames(x.mod) <- paste0("x", seq_len(p))
-sampler.mod <- dbarts(x.mod, y, control = control)
 
 # (a) resolution errors, each R-side before the bridge
-expect_error(
-  dbarts:::bartcoreBCFSampler(sampler.mod, z, moderators = "nope"),
-  "not found"
-)
-expect_error(
-  dbarts:::bartcoreBCFSampler(sampler.mod, z, moderators = 0L),
-  "out of range"
-)
-expect_error(
-  dbarts:::bartcoreBCFSampler(sampler.mod, z, moderators = p + 1L),
-  "out of range"
-)
-expect_error(
-  dbarts:::bartcoreBCFSampler(sampler.mod, z, moderators = integer(0)),
-  "empty"
-)
-expect_error(
-  dbarts:::bartcoreBCFSampler(sampler, z, moderators = "x1"),
-  "no column names"
-)
+bcModSpec <- function(x, moderators) {
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z), vars = moderators)),
+    control = control
+  )
+}
+expect_error(bcModSpec(x.mod, "nope"), "not found")
+expect_error(bcModSpec(x.mod, 0L), "out of range")
+expect_error(bcModSpec(x.mod, p + 1L), "out of range")
+expect_error(bcModSpec(x.mod, integer(0)), "empty")
+# the plain, top-of-file 'x' is unnamed, to exercise the
+# names-without-colnames guard
+expect_error(bcModSpec(x, "x1"), "no column names")
 
 # (b) a restricted forest carries the run; sanity only, posterior correctness
 # is checked elsewhere
-bcMod <- dbarts:::bartcoreBCFSampler(
-  sampler.mod,
-  z,
-  n.trees.treatment = 25L,
-  moderators = c("x1", "x3")
+bcMod <- dbarts(
+  x.mod,
+  y,
+  forests = list(
+    forest(),
+    forest(basis = ~ factor(z), n.trees = 25L, vars = c("x1", "x3"))
+  ),
+  control = control
 )
-result.mod <- bartcoreRun(bcMod, 100L, 50L)
+result.mod <- bcMod$run(100L, 50L)
 expect_equal(dim(result.mod$train), c(n, 50L))
 expect_true(all(is.finite(result.mod$train)))
 expect_true(all(result.mod$sigma > 0))
-muMod <- bartcoreForestFits(bcMod, 0L)
-tauMod <- bartcoreForestFits(bcMod, 1L)
+muMod <- bcMod$getForestFits(1L)
+tauMod <- bcMod$getForestFits(2L)
 expect_true(all(is.finite(muMod)) && all(is.finite(tauMod)))
 expect_true(sum(muMod^2) > 0 && sum(tauMod^2) > 0)
 
-# (c) default neutrality: an explicit moderators = NULL reproduces the omitted
-# default bitwise (a fixed-seed R-side echo of the equivalence gate)
+# (c) default neutrality: a restriction naming every column reproduces the
+# unrestricted forest bitwise (a fixed-seed R-side echo of the equivalence
+# gate); an explicit vars = NULL would build the identical forest() object
 set.seed(20)
-bcOmit <- dbarts:::bartcoreBCFSampler(sampler.mod, z, n.trees.treatment = 25L)
-fit.omit <- bartcoreRun(bcOmit, 20L, 20L)$train
-set.seed(20)
-bcNull <- dbarts:::bartcoreBCFSampler(
-  sampler.mod,
-  z,
-  n.trees.treatment = 25L,
-  moderators = NULL
+bcOmit <- dbarts(
+  x.mod,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+  control = control
 )
-fit.null <- bartcoreRun(bcNull, 20L, 20L)$train
+fit.omit <- bcOmit$run(20L, 20L)$train
+set.seed(20)
+bcNull <- dbarts(
+  x.mod,
+  y,
+  forests = list(
+    forest(),
+    forest(basis = ~ factor(z), n.trees = 25L, vars = colnames(x.mod))
+  ),
+  control = control
+)
+fit.null <- bcNull$run(20L, 20L)$train
 expect_identical(fit.null, fit.omit)
 
 # (d) the forest selector on getTrees makes the restriction observable: every
@@ -255,35 +292,33 @@ expect_identical(fit.null, fit.omit)
 # (columns 1, 3), while the unrestricted mu forest splits somewhere outside it
 # - proof the selector addresses different forests. bcMod runs live trees
 # (no keepTrees), so query current = TRUE. var is 1-based; leaves report -1.
-tauTrees <- bartcoreGetTrees(
+tauTrees <- forestTrees(
   bcMod,
+  forest = 2L,
   chainNums = 1L,
   treeNums = seq_len(25L),
-  current = TRUE,
-  forest = 1L
+  current = TRUE
 )
 tauSplits <- tauTrees$var[tauTrees$var > 0L]
 expect_true(length(tauSplits) > 0L)
 expect_true(all(tauSplits %in% c(1L, 3L)))
 
-muTrees <- bartcoreGetTrees(
-  bcMod,
+muTrees <- bcMod$getTrees(
   chainNums = 1L,
   treeNums = seq_len(50L),
-  current = TRUE,
-  forest = 0L
+  current = TRUE
 )
 muSplits <- muTrees$var[muTrees$var > 0L]
 expect_true(any(!(muSplits %in% c(1L, 3L))))
 
 # an out-of-range forest index errors cleanly (bridge-side, as for forest fits)
 expect_error(
-  bartcoreGetTrees(
+  forestTrees(
     bcMod,
+    forest = 3L,
     chainNums = 1L,
     treeNums = 1L,
-    current = TRUE,
-    forest = 2L
+    current = TRUE
   ),
   "out of range"
 )
@@ -292,11 +327,11 @@ expect_error(
 # the getTrees selector does: counts outside the moderator subset {x1, x3}
 # (columns 1, 3; R rows 1, 3) are exactly zero, a sharp mask assertion, while
 # the unrestricted mu forest is free to split outside it (mu depends on x2)
-vcTauMod <- bartcoreForestVariableCounts(bcMod, 1L)
+vcTauMod <- bcMod$getForestVariableCounts(2L)
 expect_equal(dim(vcTauMod), c(p, 1L))
 expect_true(all(vcTauMod[c(2L, 4L), 1L] == 0L))
 expect_true(sum(vcTauMod[c(1L, 3L), 1L]) > 0L)
-vcMuMod <- bartcoreForestVariableCounts(bcMod, 0L)
+vcMuMod <- bcMod$getForestVariableCounts(1L)
 expect_true(sum(vcMuMod[c(2L, 4L), 1L]) > 0L)
 
 # --- the scale-pinned response swap. A BCF sampler is the one multi-forest
@@ -310,26 +345,30 @@ expect_true(sum(vcMuMod[c(2L, 4L), 1L]) > 0L)
 yNew <- mu - z * tau + rnorm(n, sd = 0.2)
 
 bcfMap <- function(bc) {
-  reported <- bartcoreRun(bc, 0L, 1L)$train[, 1L]
-  glue <- bartcoreForestAmplitudes(bc)
+  reported <- bc$run(0L, 1L)$train[, 1L]
+  glue <- bc$getForestAmplitudes()
   internal <- glue[1L, 1L] *
-    bartcoreForestFits(bc, 0L)[, 1L] +
+    bc$getForestFits(1L)[, 1L] +
     ifelse(z != 0, glue[3L, 1L], glue[2L, 1L]) *
-      bartcoreForestFits(bc, 1L)[, 1L]
+      bc$getForestFits(2L)[, 1L]
   fitScale <- stats::cov(reported, internal) / stats::var(internal)
   c(mean(reported) - fitScale * mean(internal), fitScale)
 }
 
 bcfSwapArm <- function(swap) {
   set.seed(101)
-  host <- dbarts(x, y, control = control)
-  bc <- dbarts:::bartcoreBCFSampler(host, z, n.trees.treatment = 25L)
-  bartcoreRun(bc, 50L, 1L)
+  bc <- dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+    control = control
+  )
+  bc$run(50L, 1L)
   before <- bcfMap(bc)
   if (swap) {
-    bartcoreSetResponse(bc, yNew)
+    bc$setResponse(yNew)
   }
-  res <- bartcoreRun(bc, 50L, 20L)
+  res <- bc$run(50L, 20L)
   list(before = before, after = bcfMap(bc), fits = rowMeans(res$train))
 }
 
@@ -372,19 +411,20 @@ control.ls <- dbartsControl(
   updateState = FALSE
 )
 makeBC <- function(y) {
-  host <- dbarts(
+  dbarts(
     x.ls,
     y,
+    forests = list(forest(), forest(basis = ~ factor(z.ls), n.trees = 15L)),
     control = control.ls,
     family = gaussian(sigma = fixed(0.2))
   )
-  dbarts:::bartcoreBCFSampler(host, z.ls, n.trees.treatment = 15L)
 }
 
 set.seed(101)
 donor.ls <- makeBC(y.a)
-bartcoreRun(donor.ls, 30L, 10L)
-state.ls <- bartcoreStoreState(donor.ls)
+donor.ls$run(30L, 10L)
+donor.ls$storeState()
+state.ls <- donor.ls$state
 
 # stored for every forest, positive, and in the calibration map's ratio:
 # mu's is s / sqrt(m.mu) and tau's sdModerate s / (0.674 sqrt(m.tau)), so with
@@ -401,20 +441,21 @@ set.seed(101)
 dest.shape <- makeBC(y.b)
 # the arm is not vacuous: the two destinations calibrate differently, while the
 # transform - what a fit.scale guard would compare - is identical
+dest.shape$storeState()
 expect_true(
-  bartcoreStoreState(dest.shape)[[1L]]$forests[[1L]]$leaf.scale != scale.mu
+  dest.shape$state[[1L]]$forests[[1L]]$leaf.scale != scale.mu
 )
 expect_identical(
-  bartcoreStoreState(dest.shape)[[1L]]$fit.scale,
+  dest.shape$state[[1L]]$fit.scale,
   state.ls[[1L]]$fit.scale
 )
 
 # THE closure: one donor state into both destinations, responses then equalized
 # (the conditioning-conduit pattern), and identical sweeps agree BITWISE
 restoreArm <- function(bc, state) {
-  bartcoreSetState(bc, state)
-  bartcoreSetResponse(bc, y.a, FALSE)
-  bartcoreRun(bc, 0L, 30L)$train
+  bc$setState(state)
+  bc$setResponse(y.a, updateScale = FALSE)
+  bc$run(0L, 30L)$train
 }
 fits.same <- restoreArm(dest.same, state.ls)
 fits.shape <- restoreArm(dest.shape, state.ls)
@@ -424,8 +465,9 @@ expect_identical(fits.shape, fits.same)
 # destination was never miscalibrated - it stays admitted and consistent
 set.seed(101)
 dest.range <- makeBC(10 * y.a)
+dest.range$storeState()
 expect_equal(
-  bartcoreStoreState(dest.range)[[1L]]$forests[[1L]]$leaf.scale,
+  dest.range$state[[1L]]$forests[[1L]]$leaf.scale,
   scale.mu
 )
 expect_identical(restoreArm(dest.range, state.ls), fits.same)

@@ -1,16 +1,9 @@
 # The dbartsSampler surface over a public Bayesian causal forest:
-# $setForestBasis mirrors the engine
-# and data@bases, $getForestFits/$getForestAmplitudes/
-# $getForestVariableCounts read the per-forest channels the low-level
-# bartcoreForestFits/bartcoreForestAmplitudes
-# route already exposed, refused mutations get a BCF-specific message rather
+# $setForestBasis mirrors the engine and data@bases,
+# $getForestFits/$getForestAmplitudes/$getForestVariableCounts read the
+# per-forest channels, refused mutations get a BCF-specific message rather
 # than the generic multi-forest one, and $setControl carries bartcore.*
 # control attributes forward so a save/load round trip re-creates cleanly.
-
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
 
 set.seed(5)
 n <- 200L
@@ -56,22 +49,6 @@ expect_equal(dim(glue), c(3L, 1L))
 expect_equal(dim(muCounts), c(p, 1L))
 expect_equal(dim(tauCounts), c(p, 1L))
 expect_true(all(is.finite(muFits)) && all(is.finite(tauFits)))
-
-# identical to the same low-level readers on the same live pointer: the
-# R-level methods add no computation of their own, and their forest index is 1-based
-# (1 = prognostic, 2 = treatment) against the low-level route's 0-based one
-lowLevel <- list(ptr = sampler$getPointer())
-expect_identical(muFits, bartcoreForestFits(lowLevel, 0L))
-expect_identical(tauFits, bartcoreForestFits(lowLevel, 1L))
-expect_identical(glue, bartcoreForestAmplitudes(lowLevel))
-expect_identical(
-  muCounts,
-  bartcoreForestVariableCounts(lowLevel, 0L)
-)
-expect_identical(
-  tauCounts,
-  bartcoreForestVariableCounts(lowLevel, 1L)
-)
 
 # 0 is refused rather than silently naming the prognostic forest
 # (resolveForestIndex, shared with setForestWeights/getCalibration)

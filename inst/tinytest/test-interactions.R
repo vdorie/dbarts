@@ -214,29 +214,28 @@ control <- dbartsControl(
   n.trees = 30L,
   updateState = FALSE
 )
-bcSampler <- dbarts(xb, yb, control = control)
-bc <- dbarts:::bartcoreBCFSampler(
-  bcSampler,
-  z,
-  n.trees.treatment = 30L,
-  mu.interactions = dbarts::dbartsForests$interactions(max.order = 3),
-  tau.interactions = dbarts::dbartsForests$interactions(max.order = 1)
+bc <- dbarts(
+  xb,
+  yb,
+  forests = list(
+    forest(interactions = dbarts::dbartsForests$interactions(max.order = 3)),
+    forest(
+      basis = ~ factor(z),
+      n.trees = 30L,
+      interactions = dbarts::dbartsForests$interactions(max.order = 1)
+    )
+  ),
+  control = control
 )
-invisible(bartcoreRun(bc, 150L, 0L))
-tauTrees <- bartcoreGetTrees(
+invisible(bc$run(150L, 0L))
+tauTrees <- forestTrees(
   bc,
+  forest = 2L,
   chainNums = 1L,
   treeNums = 1:30,
-  current = TRUE,
-  forest = 1L
+  current = TRUE
 )
-muTrees <- bartcoreGetTrees(
-  bc,
-  chainNums = 1L,
-  treeNums = 1:30,
-  current = TRUE,
-  forest = 0L
-)
+muTrees <- bc$getTrees(chainNums = 1L, treeNums = 1:30, current = TRUE)
 expect_equal(worstOrder(tauTrees), 1L) # tau forest honors max.order = 1
 expect_true(worstOrder(muTrees) >= 2L) # mu forest is unrestricted and uses more
 
@@ -249,22 +248,32 @@ expect_true(worstOrder(muTrees) >= 2L) # mu forest is unrestricted and uses more
 # (test-blocks.R) and in tests/cpp's own install-mask cases; what is pinned
 # here is that the count fires first, so the fixture the two rules share is
 # kept rather than dropped.
-donorSampler <- dbarts(xb, yb, control = control)
-donorBC <- dbarts:::bartcoreBCFSampler(donorSampler, z, n.trees.treatment = 30L)
-invisible(bartcoreRun(donorBC, 150L, 0L))
-donorState <- bartcoreStoreState(donorBC)
-
-targetSampler <- dbarts(xb, yb, control = control)
-targetBC <- dbarts:::bartcoreBCFSampler(
-  targetSampler,
-  z,
-  n.trees.treatment = 30L,
-  moderators = 1L
+donorBC <- dbarts(
+  xb,
+  yb,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 30L)),
+  control = control
 )
+invisible(donorBC$run(150L, 0L))
+donorBC$storeState()
+donorState <- donorBC$state
+
+targetBC <- dbarts(
+  xb,
+  yb,
+  forests = list(
+    forest(),
+    forest(basis = ~ factor(z), n.trees = 30L, vars = 1L)
+  ),
+  control = control
+)
+# a raw .Call, not $installTrees(): the R5 method's own pre-check
+# (refuseMultiForestWarmStart) raises a differently-worded refusal before
+# ever reaching this bridge-level backstop, which is what is pinned here
 expect_error(
   .Call(
     dbarts:::C_dbarts_bartcore_installForests,
-    targetBC$ptr,
+    targetBC$getPointer(),
     donorState,
     NULL
   ),

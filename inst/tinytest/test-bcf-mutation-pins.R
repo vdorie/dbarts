@@ -25,71 +25,82 @@ control <- dbartsControl(
   updateState = FALSE
 )
 host <- dbarts(x, y, control = control)
-bc <- dbarts:::bartcoreBCFSampler(host, z, n.trees.treatment = 25L)
-bartcoreRun(bc, 20L, 0L)
-
-# --- refuses: a whole-data or whole-model mutation rebuilds forest 0 alone ---
-expect_error(bartcoreSetData(bc, host$data), "multi-forest")
-expect_error(
-  bartcoreSetModel(bc, host$model, host$data, host$control),
-  "multi-forest"
+bc <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+  control = control
 )
+bc$run(20L, 0L)
+
+# --- refuses: a whole-data or whole-model mutation on a sampler that carries
+# forest amplitudes is refused R-side, before either .Call is reached
+expect_error(bc$setData(host$data), "carries forest amplitudes")
+expect_error(bc$setModel(host$model), "carries forest amplitudes")
 
 # --- refuses: the test surface is undefined without an off-sample basis
 expect_error(
-  bartcorePredict(bc, x[1:5, , drop = FALSE]),
+  bc$predict(x[1:5, , drop = FALSE]),
   "have no off-sample basis"
 )
 expect_error(
-  bartcoreSetTestPredictor(bc, x[1:5, , drop = FALSE]),
+  bc$setTestPredictor(x[1:5, , drop = FALSE]),
   "have no off-sample basis"
 )
+# the bridge's own "have no off-sample basis" refusal is unreachable through
+# this method on a sampler with no test matrix at all: $setTestOffset's own
+# precondition (data@x.test is NULL) fires first, R-side, before the .Call
+# (test-bcf-r5-surface.R notes the same gap)
 expect_error(
-  bartcoreSetTestOffset(bc, rep(0, n)),
-  "have no off-sample basis"
+  bc$setTestOffset(rep(0, n)),
+  "when test matrix is NULL, test offset must be as well"
 )
 
 # --- succeeds: a transactional predictor update revalidates every forest and
 # installs under the empty-leaf veto, rolling the whole change back and
 # reporting FALSE if any tree of either forest would lose a leaf. Replacing
 # the design with its own values cannot empty a leaf, so this one installs
-expect_true(bartcoreSetPredictor(bc, x, forceUpdate = FALSE))
+expect_true(bc$setPredictor(x, forceUpdate = FALSE))
 # --- succeeds: the per-observation session's cell guard caches every forest,
 # pruned to the trees the column can move, so a row installs only if it empties
 # no leaf of either forest and is declined otherwise. Re-installing the
 # column's own values moves nothing, so every row installs
 expect_true(all(
-  bartcoreUpdatePredictorPerObservation(bc, x[, 1L], 1L)
+  bc$setPredictor(x[, 1L], 1L, forceUpdate = "partial")
 ))
 # ... and a column collapsed onto two values of the existing grid empties
 # leaves, so the veto declines the rows that would: the per-row rollback, and a
 # run afterwards stays finite, which is what says both forests were re-routed
-installed.partial <- bartcoreUpdatePredictorPerObservation(
-  bc,
+installed.partial <- bc$setPredictor(
   ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
-  1L
+  1L,
+  forceUpdate = "partial"
 )
 expect_true(any(!installed.partial))
-expect_true(all(is.finite(bartcoreRun(bc, 0L, 5L)$train)))
+expect_true(all(is.finite(bc$run(0L, 5L)$train)))
 
 # --- refuses: updateScale = TRUE would re-anchor the response transform while
 # both forests keep leaf calibrations stated against the old one
 expect_error(
-  bartcoreSetResponse(bc, y, updateScale = TRUE),
-  "multi-forest"
+  bc$setResponse(y, updateScale = TRUE),
+  "carries forest amplitudes"
 )
 
-# --- succeeds: the forced whole-matrix predictor swap refreshes every forest
-expect_true(bartcoreSetPredictor(bc, x, forceUpdate = TRUE))
+# --- succeeds: the forced whole-matrix predictor swap refreshes every forest.
+# forceUpdate = TRUE always installs or throws, so the method suppresses the
+# return value rather than reporting the veto outcome a transactional update
+# would (bartcoreSamplerSetPredictor's own "if (!forceUpdate) ... else
+# invisible(NULL)")
+expect_silent(bc$setPredictor(x, forceUpdate = TRUE))
 # --- succeeds: the treatment swap is the supported multi-forest data swap
-expect_silent(bartcoreSetForestBasis(bc, 1L, cbind(1 - z, z)))
+expect_silent(bc$setForestBasis(2L, cbind(1 - z, z)))
 # --- succeeds: the scale-pinned response, offset and weight swaps
-expect_silent(bartcoreSetResponse(bc, y, updateScale = FALSE))
-expect_silent(bartcoreSetOffset(bc, rep(0, n), updateScale = FALSE))
-expect_silent(bartcoreSetWeights(bc, rep(1, n)))
+expect_silent(bc$setResponse(y, updateScale = FALSE))
+expect_silent(bc$setOffset(rep(0, n), updateScale = FALSE))
+expect_silent(bc$setWeights(rep(1, n)))
 
 # a run stays sane after the accepted mutations above
-result <- bartcoreRun(bc, 0L, 5L)
+result <- bc$run(0L, 5L)
 expect_true(all(is.finite(result$train)))
 
 # --- the near-zero multiplier snap. A forest's veto precisions are w_i m_i^2
@@ -100,19 +111,23 @@ expect_true(all(is.finite(result$train)))
 # is small, not the amplitudes, which sit at their creation values (1, 0, 1).
 n.trees.treatment <- 25L
 priorTreatmentNodes <- function(basis) {
-  handle <- dbarts:::bartcoreBCFSampler(
-    dbarts(x, y, control = control),
-    z,
-    n.trees.treatment = n.trees.treatment
+  handle <- dbarts(
+    x,
+    y,
+    forests = list(
+      forest(),
+      forest(basis = ~ factor(z), n.trees = n.trees.treatment)
+    ),
+    control = control
   )
-  bartcoreSetForestBasis(handle, 1L, basis)
-  .Call(dbarts:::C_dbarts_bartcore_sampleTreesFromPrior, handle$ptr)
-  bartcoreGetTrees(
+  handle$setForestBasis(2L, basis)
+  handle$sampleTreesFromPrior()
+  forestTrees(
     handle,
+    forest = 2L,
     chainNums = 1L,
     treeNums = seq_len(n.trees.treatment),
-    current = TRUE,
-    forest = 1L
+    current = TRUE
   )
 }
 snapped <- priorTreatmentNodes(cbind(1 - z, z) * 1e-9)
@@ -128,17 +143,18 @@ rm(n.trees.treatment, priorTreatmentNodes, snapped)
 # max) of y) carries the affine map back to the reported scale. a*mu + b_z*tau
 # under that map reconstructs the recorded train draw. ---
 reconstructTrainMutationPins <- function(bcSampler, zVec, chain = 1L) {
-  glue <- bartcoreForestAmplitudes(bcSampler)
-  muFits <- bartcoreForestFits(bcSampler, 0L)[, chain]
-  tauFits <- bartcoreForestFits(bcSampler, 1L)[, chain]
-  fitScale <- bartcoreStoreState(bcSampler)[[chain]]$fit.scale
+  glue <- bcSampler$getForestAmplitudes()
+  muFits <- bcSampler$getForestFits(1L)[, chain]
+  tauFits <- bcSampler$getForestFits(2L)[, chain]
+  bcSampler$storeState()
+  fitScale <- bcSampler$state[[chain]]$fit.scale
   scale <- fitScale[2L] - fitScale[1L]
   shift <- scale * 0.5 + fitScale[1L]
   bz <- ifelse(zVec != 0, glue[3L, chain], glue[2L, chain])
   scale * (glue[1L, chain] * muFits + bz * tauFits) + shift
 }
 
-reconResult <- bartcoreRun(bc, 0L, 1L)
+reconResult <- bc$run(0L, 1L)
 reconTrain <- reconstructTrainMutationPins(bc, z)
 expect_equal(reconTrain, reconResult$train[, 1L], tolerance = 1e-10)
 
@@ -155,12 +171,16 @@ control.loop <- dbartsControl(
 numSamples <- 10L
 
 makeLoopSampler <- function() {
-  loopHost <- dbarts(x, y, control = control.loop)
-  dbarts:::bartcoreBCFSampler(loopHost, z, n.trees.treatment = 15L)
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z), n.trees = 15L)),
+    control = control.loop
+  )
 }
 
 bcBatch <- makeLoopSampler()
-batched <- bartcoreRun(bcBatch, 0L, numSamples)
+batched <- bcBatch$run(0L, numSamples)
 
 # the reconstruction above held for one chain; with n.thin = 1 the live trees
 # sit at the last recorded sample, so it holds per chain here too
@@ -176,7 +196,7 @@ bcLoop <- makeLoopSampler()
 looped.train <- array(0, dim(batched$train))
 looped.sigma <- array(0, dim(batched$sigma))
 for (s in seq_len(numSamples)) {
-  sweep <- bartcoreRun(bcLoop, 0L, 1L)
+  sweep <- bcLoop$run(0L, 1L)
   looped.train[, s, ] <- sweep$train[, 1L, ]
   looped.sigma[s, ] <- sweep$sigma[1L, ]
 }

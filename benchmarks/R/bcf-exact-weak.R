@@ -24,11 +24,6 @@
 #
 # Usage: Rscript bcf-exact-weak.R [quick]
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -277,35 +272,35 @@ samplerFit <- function(seed) {
     n.cuts = K - 1L,
     updateState = FALSE
   )
-  host <- dbarts(
+  bc <- dbarts(
     x,
     y,
     control = control,
-    sigma = sigEst,
+    sigest = sigEst,
     tree.prior = cgm(muPower, muBase),
-    node.prior = normal(2)
+    node.prior = normal(2),
+    forests = list(
+      forest(sd = sdControl, update.amplitude = TRUE),
+      forest(
+        basis = ~ factor(z),
+        n.trees = 1L,
+        base = tauBase,
+        power = tauPower,
+        sd = sdModerate,
+        amplitude.prior.variance = bVar,
+        update.amplitude = FALSE
+      )
+    )
   )
-  bc <- dbarts:::bartcoreBCFSampler(
-    host,
-    z,
-    n.trees.treatment = 1L,
-    treatment.base = tauBase,
-    treatment.power = tauPower,
-    sd.control = sdControl,
-    sd.moderate = sdModerate,
-    b.prior.variance = bVar,
-    update.a = TRUE,
-    update.b = FALSE
-  )
-  bartcoreRun(bc, nburn, 1L)
+  bc$run(nburn, 1L)
   muM <- matrix(0, ndpost, K)
   tauM <- matrix(0, ndpost, K)
   aVec <- numeric(ndpost)
   for (d in seq_len(ndpost)) {
-    bartcoreRun(bc, 0L, thin)
-    muM[d, ] <- bartcoreForestFits(bc, 0L)[repObs, 1L]
-    tauM[d, ] <- bartcoreForestFits(bc, 1L)[repObs, 1L]
-    aVec[d] <- bartcoreForestAmplitudes(bc)[1L, 1L]
+    bc$run(0L, thin)
+    muM[d, ] <- bc$getForestFits(1L)[repObs, 1L]
+    tauM[d, ] <- bc$getForestFits(2L)[repObs, 1L]
+    aVec[d] <- bc$getForestAmplitudes()[1L, 1L]
   }
   list(
     tau = colMeans(tauM),

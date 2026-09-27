@@ -5,11 +5,6 @@
 # only summaries and never the train shape). It also pins the mutation guard
 # that closes a latent BCF hazard: a whole-data mutation rebuilds forest 0 only.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(2718)
 n <- 120L
 p <- 4L
@@ -28,9 +23,9 @@ control.one <- dbartsControl(
   updateState = FALSE
 )
 sampler.one <- dbarts(x, y, test = x.test, control = control.one)
-bc.one <- dbarts:::bartcoreSampler(sampler.one)
+bc.one <- sampler.one
 numSamples <- 30L
-result.one <- bartcoreRun(bc.one, 50L, numSamples)
+result.one <- bc.one$run(50L, numSamples)
 
 expect_equal(dim(result.one$train), c(n, numSamples))
 expect_equal(dim(result.one$test), c(nTest, numSamples))
@@ -47,8 +42,8 @@ control.many <- dbartsControl(
   updateState = FALSE
 )
 sampler.many <- dbarts(x, y, test = x.test, control = control.many)
-bc.many <- dbarts:::bartcoreSampler(sampler.many)
-result.many <- bartcoreRun(bc.many, 50L, numSamples)
+bc.many <- sampler.many
+result.many <- bc.many$run(50L, numSamples)
 
 expect_equal(dim(result.many$train), c(n, numSamples, numChains))
 expect_equal(dim(result.many$test), c(nTest, numSamples, numChains))
@@ -74,53 +69,54 @@ set.seed(11)
 z <- rbinom(n, 1L, 0.5)
 y.bcf <- f + z * (1 + 2 * x[, 3L]) + rnorm(n, sd = 0.2)
 sampler.bcf.host <- dbarts(x, y.bcf, control = control.one)
-bc.bcf <- dbarts:::bartcoreBCFSampler(
-  sampler.bcf.host,
-  z,
-  n.trees.treatment = 20L
+bc.bcf <- dbarts(
+  x,
+  y.bcf,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 20L)),
+  control = control.one
 )
 
 # refused for memory safety too, not only staleness: the combiner's per-forest
 # basis is a copy sized to the n it was installed at, and setData has no
-# channel to resize it in the same call
+# channel to resize it in the same call. Refused R-side (refuseAmplitudeMutation),
+# before the bridge's own generic "multi-forest" wording is reached.
 expect_error(
-  bartcoreSetData(bc.bcf, sampler.bcf.host$data),
-  "multi-forest"
+  bc.bcf$setData(bc.bcf$data),
+  "carries forest amplitudes"
 )
-expect_silent(bartcoreSetResponse(bc.bcf, y.bcf + 1))
+expect_silent(bc.bcf$setResponse(y.bcf + 1))
 expect_error(
-  bartcoreSetResponse(bc.bcf, y.bcf + 1, updateScale = TRUE),
-  "multi-forest"
+  bc.bcf$setResponse(y.bcf + 1, updateScale = TRUE),
+  "carries forest amplitudes"
 )
+# updateScale = NA is not caught by the R-side isTRUE() pre-check (isTRUE(NA)
+# is FALSE), so this one reaches the bridge's own "multi-forest" refusal
 expect_error(
-  bartcoreSetResponse(bc.bcf, y.bcf + 1, updateScale = NA),
+  bc.bcf$setResponse(y.bcf + 1, updateScale = NA),
   "multi-forest"
 )
 # the case weights ride the same opt-in: Chain::setWeights is a pointer swap
 # plus a positive-weight recount, BCF re-derives every per-forest response and
 # precision from y and w each sweep, and the leaf calibration both forests are
 # stated against is unweighted - so there is nothing stale and no scale to pin
-expect_silent(bartcoreSetWeights(bc.bcf, runif(n, 0.5, 1.5)))
-result.weights <- bartcoreRun(bc.bcf, 0L, 5L)
+expect_silent(bc.bcf$setWeights(runif(n, 0.5, 1.5)))
+result.weights <- bc.bcf$run(0L, 5L)
 expect_true(all(is.finite(result.weights$train)))
 # zero weights drop rows from the likelihood, so the swap must re-count the
 # positive ones rather than carry the build count over
 w.zero <- runif(n, 0.5, 1.5)
 w.zero[seq_len(10L)] <- 0
-expect_silent(bartcoreSetWeights(bc.bcf, w.zero))
-expect_true(all(is.finite(bartcoreRun(bc.bcf, 0L, 5L)$train)))
-bartcoreSetWeights(bc.bcf, rep(1, n))
+expect_silent(bc.bcf$setWeights(w.zero))
+expect_true(all(is.finite(bc.bcf$run(0L, 5L)$train)))
+bc.bcf$setWeights(rep(1, n))
 # setModel writes forest 0's leaf scale from the prior alone (Chain::
 # setModel), which would silently discard BCF's calibrated mu leaf scale;
-# refused regardless of the argument's class
+# refused regardless of the argument's class. $setModel always pairs the new
+# model with the sampler's OWN current data/control, so only the model is
+# passed here.
 expect_error(
-  bartcoreSetModel(
-    bc.bcf,
-    sampler.bcf.host$model,
-    sampler.bcf.host$data,
-    sampler.bcf.host$control
-  ),
-  "multi-forest"
+  bc.bcf$setModel(sampler.bcf.host$model),
+  "carries forest amplitudes"
 )
 
 # transactional (non-force) predictor updates are ACCEPTED: the two-phase
@@ -130,15 +126,14 @@ expect_error(
 # empty a leaf, so both accept; a run afterwards must stay finite, which is
 # the assertion that every forest really was re-routed rather than left
 # against stale codes
-expect_true(bartcoreSetPredictor(bc.bcf, x))
-expect_true(bartcoreUpdatePredictor(bc.bcf, x[, 1L], 1L))
-expect_true(all(is.finite(bartcoreRun(bc.bcf, 0L, 5L)$train)))
+expect_true(bc.bcf$setPredictor(x, forceUpdate = FALSE))
+expect_true(bc.bcf$setPredictor(x[, 1L], 1L))
+expect_true(all(is.finite(bc.bcf$run(0L, 5L)$train)))
 # a proposal that WOULD empty a leaf rolls back and reports FALSE rather than
 # erroring - the veto, not a refusal. Collapsing a column onto two values of
 # the existing grid empties leaves in every tree that splits on it
 expect_false(
-  bartcoreUpdatePredictor(
-    bc.bcf,
+  bc.bcf$setPredictor(
     ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
     1L
   )
@@ -149,39 +144,41 @@ expect_false(
 # nothing, so every row installs; the two-level collapse declines the rows that
 # would empty a leaf - the per-row rollback - and the run stays finite
 expect_true(all(
-  bartcoreUpdatePredictorPerObservation(bc.bcf, x[, 1L], 1L)
+  bc.bcf$setPredictor(x[, 1L], 1L, forceUpdate = "partial")
 ))
 expect_true(any(
-  !bartcoreUpdatePredictorPerObservation(
-    bc.bcf,
+  !bc.bcf$setPredictor(
     ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
-    1L
+    1L,
+    forceUpdate = "partial"
   )
 ))
-expect_true(all(is.finite(bartcoreRun(bc.bcf, 0L, 5L)$train)))
+expect_true(all(is.finite(bc.bcf$run(0L, 5L)$train)))
 # ... and the force path refreshes every forest and stays supported
-expect_true(bartcoreSetPredictor(bc.bcf, x + 0, forceUpdate = TRUE))
+expect_silent(bc.bcf$setPredictor(x + 0, forceUpdate = TRUE))
 
 # setOffset rides the same conduit as setResponse under a different pointer
 # (setOffset(yBuild - yNew, FALSE) re-maps through the pinned transform exactly
 # as setResponse(yNew, FALSE) does), so it carries the same two conditions:
 # permitted at FALSE, refused at TRUE and at NA. NULL clears the offset, which
 # never moves the transform
-expect_silent(bartcoreSetOffset(bc.bcf, rep(0.1, n)))
+expect_silent(bc.bcf$setOffset(rep(0.1, n)))
 expect_error(
-  bartcoreSetOffset(bc.bcf, rep(0.1, n), updateScale = TRUE),
+  bc.bcf$setOffset(rep(0.1, n), updateScale = TRUE),
+  "carries forest amplitudes"
+)
+# updateScale = NA reaches the bridge's own "multi-forest" wording unchanged,
+# as for setResponse above
+expect_error(
+  bc.bcf$setOffset(rep(0.1, n), updateScale = NA),
   "multi-forest"
 )
-expect_error(
-  bartcoreSetOffset(bc.bcf, rep(0.1, n), updateScale = NA),
-  "multi-forest"
-)
-expect_silent(bartcoreSetOffset(bc.bcf, NULL))
+expect_silent(bc.bcf$setOffset(NULL))
 
 # setForestBasis is still allowed and a subsequent run stays sane
 z.new <- rbinom(n, 1L, 0.5)
-bartcoreSetForestBasis(bc.bcf, 1L, cbind(1 - z.new, z.new))
-result.bcf <- bartcoreRun(bc.bcf, 0L, 5L)
+bc.bcf$setForestBasis(2L, cbind(1 - z.new, z.new))
+result.bcf <- bc.bcf$run(0L, 5L)
 expect_equal(dim(result.bcf$train), c(n, 5L))
 expect_true(all(is.finite(result.bcf$train)))
 
@@ -195,25 +192,26 @@ w2 <- runif(n, 0.5, 1.5)
 
 bcfWeightArm <- function(build, swap) {
   set.seed(505)
-  host <- dbarts(
+  bc <- dbarts(
     x,
     y.bcf,
     weights = build,
     family = gaussian(sigma = fixed(1)),
+    forests = list(forest(), forest(basis = ~ factor(z), n.trees = 20L)),
     control = control.one
   )
-  bc <- dbarts:::bartcoreBCFSampler(host, z, n.trees.treatment = 20L)
   if (!is.null(swap)) {
-    bartcoreSetWeights(bc, swap)
+    bc$setWeights(swap)
   }
-  res <- bartcoreRun(bc, 20L, 10L)
+  res <- bc$run(20L, 10L)
+  bc$storeState()
   list(
     train = res$train,
     varcount = res$varcount,
-    glue = bartcoreForestAmplitudes(bc),
-    mu = bartcoreForestFits(bc, 0L),
-    tau = bartcoreForestFits(bc, 1L),
-    fit.scale = bartcoreStoreState(bc)[[1L]]$fit.scale
+    glue = bc$getForestAmplitudes(),
+    mu = bc$getForestFits(1L),
+    tau = bc$getForestFits(2L),
+    fit.scale = bc$state[[1L]]$fit.scale
   )
 }
 
@@ -245,51 +243,61 @@ set.seed(23)
 labels <- sample(0L:2L, n, replace = TRUE)
 # the host carries test data so the test-offset refusal below is reached on a
 # sampler that HAS a test channel to corrupt
-sampler.mn.host <- dbarts(
-  x,
-  as.double(labels),
-  test = x.test,
+# named (unlike x elsewhere in this file): updatePredictorPerObservationJointly
+# resolves its shared column by name across samplers, even for the
+# single-sampler case exercised below. x.test is named to match, so as not to
+# trigger the position-matched-by-name warning a named x against an unnamed
+# test matrix would otherwise raise.
+x.mn <- x
+colnames(x.mn) <- paste0("x", seq_len(p))
+x.test.mn <- x.test
+colnames(x.test.mn) <- colnames(x.mn)
+bc.mn <- dbarts(
+  x.mn,
+  factor(labels),
+  family = "multinomial",
+  test = x.test.mn,
   control = control.one
 )
-bc.mn <- dbarts:::bartcoreMultinomialSampler(sampler.mn.host, labels, K = 3L)
+# these four are refused R-side (refuseCountsMutation), before the bridge's
+# generic wording is reached
 expect_error(
-  bartcoreSetResponse(bc.mn, as.double(labels)),
+  bc.mn$setResponse(as.double(labels)),
   "n x K count matrix"
 )
 expect_error(
-  bartcoreSetResponse(bc.mn, as.double(labels), updateScale = TRUE),
+  bc.mn$setResponse(as.double(labels), updateScale = TRUE),
   "n x K count matrix"
 )
 # a flat offset points exactly along the softmax's null direction (a common
 # per-observation shift), so it has no semantics here at any updateScale - and
-# the refusal names the per-category matrix that does
-# (test-multinomial-category-offset.R)
+# the refusal names the channel that does (test-multinomial-category-offset.R)
 expect_error(
-  bartcoreSetOffset(bc.mn, rep(0.5, n)),
-  "n x K category matrix"
+  bc.mn$setOffset(rep(0.5, n)),
+  "null direction"
 )
 expect_error(
-  bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = TRUE),
-  "n x K category matrix"
+  bc.mn$setOffset(rep(0.5, n), updateScale = TRUE),
+  "null direction"
 )
 expect_error(
-  bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = NA),
-  "n x K category matrix"
+  bc.mn$setOffset(rep(0.5, n), updateScale = NA),
+  "null direction"
 )
 # case weights are refused at multinomial creation and stay refused after it:
 # the opt-in that opens them for BCF is the combiner's, and this one does not
 # take it - and an integer case weight is row-wise count replication the
 # response matrix already expresses, which is why the hint names it
 expect_error(
-  bartcoreSetWeights(bc.mn, runif(n, 0.5, 1.5)),
-  "n x K count matrix"
+  bc.mn$setWeights(runif(n, 0.5, 1.5)),
+  "row-wise replication"
 )
 # the basis column is defined only as the contrast the amplitudes form
 # b_{z_i} against; the capability probe catches a K-forest multinomial that a
 # forest count would not
 expect_error(
-  bartcoreSetForestBasis(bc.mn, 1L, cbind(0.5, 0.5)),
-  "forests carry amplitudes"
+  bc.mn$setForestBasis(2L, cbind(0.5, 0.5)),
+  "carry no amplitudes"
 )
 # a FLAT test offset is added AFTER the K forests are blended, so it would move
 # the reported probabilities off the simplex, and before the blend a common
@@ -299,7 +307,7 @@ expect_error(
 # (test-multinomial-test-offset.R). The generic multi-forest wording is
 # conditioned on the counts capability, so BCF keeps it.
 expect_error(
-  bartcoreSetTestOffset(bc.mn, rep(0.5, nTest)),
+  bc.mn$setTestOffset(rep(0.5, nTest)),
   "category test offset channel"
 )
 
@@ -309,72 +317,65 @@ expect_error(
 # cell guard that caches every forest pruned to the trees the column can move.
 # The forced entries and setCutPoints refresh every category forest
 # throughout. ---
-expect_true(bartcoreSetPredictor(bc.mn, x, forceUpdate = FALSE))
+expect_true(bc.mn$setPredictor(x, forceUpdate = FALSE))
 expect_true(
-  bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = FALSE)
+  bc.mn$setPredictor(x[, 1L], 1L, forceUpdate = FALSE)
 )
-expect_true(all(is.finite(bartcoreRun(bc.mn, 0L, 5L)$train)))
+expect_true(all(is.finite(bc.mn$run(0L, 5L)$train)))
 expect_true(all(
-  bartcoreUpdatePredictorPerObservation(bc.mn, x[, 1L], 1L)
+  bc.mn$setPredictor(x[, 1L], 1L, forceUpdate = "partial")
 ))
 expect_true(any(
-  !bartcoreUpdatePredictorPerObservation(
-    bc.mn,
+  !bc.mn$setPredictor(
     ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
-    1L
+    1L,
+    forceUpdate = "partial"
   )
 ))
-expect_true(all(is.finite(bartcoreRun(bc.mn, 0L, 5L)$train)))
+expect_true(all(is.finite(bc.mn$run(0L, 5L)$train)))
 # the joint session installs in every sampler or none; a single-element list is
 # the smallest case that reaches the same guard, and it now installs rather
 # than refusing
 expect_true(all(
-  bartcoreUpdatePredictorPerObservationJointly(
+  updatePredictorPerObservationJointly(
     list(bc.mn),
     x[, 1L],
     1L
   )
 ))
-expect_true(bartcoreSetPredictor(bc.mn, x, forceUpdate = TRUE))
-expect_true(
-  bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = TRUE)
+expect_silent(bc.mn$setPredictor(x, forceUpdate = TRUE))
+expect_silent(
+  bc.mn$setPredictor(x[, 1L], 1L, forceUpdate = TRUE)
 )
 # setCutPoints carries no transactional guard at all: it refreshes every forest
 # unconditionally, pruning whatever the coarsened grid orphans
-expect_silent(bartcoreSetCutPoints(bc.mn, list(c(1 / 3, 2 / 3)), 1L))
-expect_true(all(is.finite(bartcoreRun(bc.mn, 0L, 5L)$train)))
+expect_silent(bc.mn$setCutPoints(list(c(1 / 3, 2 / 3)), 1L))
+expect_true(all(is.finite(bc.mn$run(0L, 5L)$train)))
 
 # the same guard is inert on a single-forest sampler: these mutations still
 # work, including setOffset at updateScale = TRUE (a warmup rescale)
-expect_silent(bartcoreSetResponse(bc.one, y + 1))
-expect_silent(bartcoreSetWeights(bc.one, runif(n, 0.5, 1.5)))
-expect_silent(bartcoreSetOffset(bc.one, rep(0.2, n)))
+expect_silent(bc.one$setResponse(y + 1))
+expect_silent(bc.one$setWeights(runif(n, 0.5, 1.5)))
+expect_silent(bc.one$setOffset(rep(0.2, n)))
 expect_silent(
-  bartcoreSetOffset(bc.one, rep(0.2, n), updateScale = TRUE)
+  bc.one$setOffset(rep(0.2, n), updateScale = TRUE)
 )
-expect_silent(
-  bartcoreSetModel(
-    bc.one,
-    sampler.one$model,
-    sampler.one$data,
-    sampler.one$control
-  )
-)
-expect_true(bartcoreSetPredictor(bc.one, x + 0))
+expect_silent(bc.one$setModel(sampler.one$model))
+expect_true(bc.one$setPredictor(x + 0, forceUpdate = FALSE))
 
 # --- the per-forest variable-count query. On a single-forest sampler the
-# reported forest is forest 0, so the current-state query equals the recorded
+# reported forest is forest 1, so the current-state query equals the recorded
 # varcount channel of a length-1 run: with n.thin = 1 the run leaves the trees
 # at the recorded sample's state (no sweep past the last storeSample). The
 # recorded channel is per-sample and the query is live, so they coincide only
 # right after such a run. ---
-one.sample <- bartcoreRun(bc.one, 0L, 1L)
-vc.one <- bartcoreForestVariableCounts(bc.one, 0L)
+one.sample <- bc.one$run(0L, 1L)
+vc.one <- bc.one$getForestVariableCounts(1L)
 expect_equal(dim(vc.one), c(p, 1L))
 expect_true(is.integer(vc.one))
 expect_equal(vc.one[, 1L], one.sample$varcount[, 1L])
 # an out-of-range forest index errors, as for the forest-fits query
 expect_error(
-  bartcoreForestVariableCounts(bc.one, 1L),
+  bc.one$getForestVariableCounts(2L),
   "out of range"
 )

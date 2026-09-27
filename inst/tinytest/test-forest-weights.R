@@ -40,12 +40,12 @@ control <- dbartsControl(
   n.trees = 50L,
   updateState = FALSE
 )
-sampler <- dbarts(x, y, control = control)
 
 # One BCF run at a pinned seed, with an optional per-forest weight installed
 # before the first sweep. The returned channels are everything the run reports
 # plus both forests' fits, so "identical" here means the whole chain agreed,
-# not just a summary.
+# not just a summary. forest is 1-based (the public convention): 1 the
+# prognostic forest, 2 the treatment forest.
 runBCF <- function(
   seed,
   forest = NULL,
@@ -54,24 +54,30 @@ runBCF <- function(
   n.samples = 8L
 ) {
   set.seed(seed)
-  bc <- dbarts:::bartcoreBCFSampler(
-    sampler,
-    z,
-    n.trees.treatment = 25L,
-    update.a = !fixed.glue,
-    update.b = !fixed.glue
+  bc <- dbarts(
+    x,
+    y,
+    forests = list(
+      forest(update.amplitude = !fixed.glue),
+      forest(
+        basis = ~ factor(z),
+        n.trees = 25L,
+        update.amplitude = !fixed.glue
+      )
+    ),
+    control = control
   )
   if (!is.null(forest)) {
-    bartcoreSetForestWeights(bc, forest, weights)
+    bc$setForestWeights(forest, weights)
   }
-  result <- bartcoreRun(bc, 0L, n.samples)
+  result <- bc$run(0L, n.samples)
   list(
     train = result$train,
     sigma = result$sigma,
     varcount = result$varcount,
-    mu = bartcoreForestFits(bc, 0L),
-    tau = bartcoreForestFits(bc, 1L),
-    glue = bartcoreForestAmplitudes(bc)
+    mu = bc$getForestFits(1L),
+    tau = bc$getForestFits(2L),
+    glue = bc$getForestAmplitudes()
   )
 }
 
@@ -80,8 +86,8 @@ runBCF <- function(
 # where not installing it passes the combiner's own pointer through, so this is
 # the application path and the pass-through in one comparison.
 base <- runBCF(4001L)
+expect_identical(runBCF(4001L, 2L, rep(1, n)), base)
 expect_identical(runBCF(4001L, 1L, rep(1, n)), base)
-expect_identical(runBCF(4001L, 0L, rep(1, n)), base)
 
 # --- the consumer case, both halves ---
 # Under the fixed glue (1, 0, 1) the treatment forest already sees a multiplier
@@ -91,7 +97,7 @@ expect_identical(runBCF(4001L, 0L, rep(1, n)), base)
 # treated ones. It does not wait for a glue draw.
 base.fixed <- runBCF(4002L, fixed.glue = TRUE)
 expect_identical(
-  runBCF(4002L, 1L, as.double(z), fixed.glue = TRUE),
+  runBCF(4002L, 2L, as.double(z), fixed.glue = TRUE),
   base.fixed
 )
 
@@ -101,18 +107,18 @@ expect_identical(
 # creation; from sweep 1 b0 is almost surely nonzero, so a control row carries
 # real weight that the z route zeroes.
 expect_identical(
-  runBCF(4003L, 1L, as.double(z), n.samples = 1L),
+  runBCF(4003L, 2L, as.double(z), n.samples = 1L),
   runBCF(4003L, n.samples = 1L)
 )
-expect_false(identical(runBCF(4003L, 1L, as.double(z)), runBCF(4003L)))
+expect_false(identical(runBCF(4003L, 2L, as.double(z)), runBCF(4003L)))
 
 # --- every row excluded ---
 # A legitimate transient while a caller resamples membership, so it must RUN
-# rather than refuse. Forest 1's leaf conditionals then carry weight exactly
+# rather than refuse. Forest 2's leaf conditionals then carry weight exactly
 # zero, which is a well-defined draw from the leaf prior (tests/cpp pins that
 # the marginal is exactly 0.0 on both sides of a birth, so the split decision is
 # exactly the prior's) - not a NaN, not an Inf, and not a forced zero.
-all.zero <- runBCF(4004L, 1L, rep(0, n), n.samples = 20L)
+all.zero <- runBCF(4004L, 2L, rep(0, n), n.samples = 20L)
 expect_true(all(is.finite(all.zero$train)))
 expect_true(all(is.finite(all.zero$mu)) && all(is.finite(all.zero$tau)))
 expect_true(all(is.finite(all.zero$glue)))
@@ -126,13 +132,18 @@ expect_true(sd(as.vector(all.zero$tau)) > 0)
 # where the count-based empty-leaf veto earns its keep, since no membership
 # change can strand an empty leaf.
 set.seed(4005)
-bc.toggle <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
-invisible(bartcoreRun(bc.toggle, 20L, 5L))
+bc.toggle <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+  control = control
+)
+invisible(bc.toggle$run(20L, 5L))
 toggled <- lapply(
   list(as.double(z), rep(1, n), rep(0, n), as.double(1 - z)),
   function(s) {
-    bartcoreSetForestWeights(bc.toggle, 1L, s)
-    bartcoreRun(bc.toggle, 0L, 5L)
+    bc.toggle$setForestWeights(2L, s)
+    bc.toggle$run(0L, 5L)
   }
 )
 expect_true(all(vapply(
@@ -143,76 +154,97 @@ expect_true(all(vapply(
 
 # --- refusals ---
 set.seed(4006)
-bc <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
+bc <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+  control = control
+)
 expect_error(
-  bartcoreSetForestWeights(bc, 1L, rep(-1, n)),
+  bc$setForestWeights(2L, rep(-1, n)),
   "non-negative"
 )
 expect_error(
-  bartcoreSetForestWeights(bc, 1L, c(NaN, rep(1, n - 1L))),
+  bc$setForestWeights(2L, c(NaN, rep(1, n - 1L))),
   "finite"
 )
 expect_error(
-  bartcoreSetForestWeights(bc, 1L, c(Inf, rep(1, n - 1L))),
+  bc$setForestWeights(2L, c(Inf, rep(1, n - 1L))),
   "finite"
 )
+# forest indexes from 1 on this surface (1 prognostic, 2 treatment); index 3
+# is out of range on a 2-forest sampler
 expect_error(
-  bartcoreSetForestWeights(bc, 2L, rep(1, n)),
+  bc$setForestWeights(3L, rep(1, n)),
   "out of range"
 )
+# the R-level pre-check's own wording, not the bridge's ("number of
+# observations"): $setForestWeights validates the length itself before
+# reaching the .Call
 expect_error(
-  bartcoreSetForestWeights(bc, 1L, rep(1, n - 1L)),
-  "number of observations"
+  bc$setForestWeights(2L, rep(1, n - 1L)),
+  "same length as 'y'",
+  fixed = TRUE
 )
 
-# the same refusals belong to the BRIDGE, not only to the R wrapper: a caller
-# reaching the entry point directly is validated identically (safe over fast in
-# R does not license an unguarded C entry)
+# the same refusals belong to the BRIDGE, not only to the R-level method: a
+# caller reaching the entry point directly is validated identically (safe
+# over fast in R does not license an unguarded C entry). The bridge itself is
+# 0-based, unlike the method above.
 expect_error(
-  .Call(dbarts:::C_dbarts_bartcore_setForestWeights, bc$ptr, 1L, rep(-1, n)),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setForestWeights,
+    bc$getPointer(),
+    1L,
+    rep(-1, n)
+  ),
   "non-negative"
 )
 expect_error(
   .Call(
     dbarts:::C_dbarts_bartcore_setForestWeights,
-    bc$ptr,
+    bc$getPointer(),
     1L,
     c(NA_real_, rep(1, n - 1L))
   ),
   "finite"
 )
 expect_error(
-  .Call(dbarts:::C_dbarts_bartcore_setForestWeights, bc$ptr, 2L, rep(1, n)),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setForestWeights,
+    bc$getPointer(),
+    2L,
+    rep(1, n)
+  ),
   "out of range"
 )
 
 # a sampler with no such coupling is refused by the capability probe, which
 # runs BEFORE any forest count - a K-forest multinomial carries forest 1 and
-# would sail through a count test
-bc.single <- dbarts:::bartcoreSampler(sampler)
+# would sail through a count test. $setForestWeights has no R-side amplitude
+# pre-check of its own, so this is the bridge's capability probe.
+plain <- dbarts(x, y, control = control)
 expect_error(
-  bartcoreSetForestWeights(bc.single, 0L, rep(1, n)),
+  plain$setForestWeights(1L, rep(1, n)),
   "requires a sampler that carries forest amplitudes"
 )
 set.seed(4007)
 labels <- rbinom(n, 2L, 0.5)
-bc.multinomial <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = 3L)
-# a softmax coupling refuses it on model grounds rather than for want of an
-# implementation, and says so: this is the only per-forest, per-observation
-# channel a caller can reach, so an attempt to hold one category's rows out
-# arrives here, and the margin reads all K forests
+mn <- dbarts(x, factor(labels), family = "multinomial", control = control)
+# a softmax coupling refuses this R-side (refuseCountsMutation), ahead of the
+# bridge's own "applies to every category" refusal
 expect_error(
-  bartcoreSetForestWeights(bc.multinomial, 1L, rep(1, n)),
-  "applies to every category"
+  mn$setForestWeights(1L, rep(1, n)),
+  "no forest carries a precision of its own"
 )
 
 # an installed weight can never go stale against a changed n, because a
 # multi-forest sampler refuses whole-data replacement outright; there is no
 # length to re-check and no dangling borrow to invalidate
-bartcoreSetForestWeights(bc, 1L, rep(1, n))
+bc$setForestWeights(2L, rep(1, n))
 expect_error(
-  bartcoreSetData(bc, sampler$data),
-  "fixes its data at creation"
+  bc$setData(bc$data),
+  "carries forest amplitudes"
 )
 
 # --- saved trees and replay ---
@@ -228,22 +260,22 @@ control.keep <- dbartsControl(
   keepTrees = TRUE,
   n.samples = 10L
 )
-sampler.keep <- dbarts(x, y, control = control.keep)
 set.seed(4008)
-bc.keep <- dbarts:::bartcoreBCFSampler(
-  sampler.keep,
-  z,
-  n.trees.treatment = 25L
+bc.keep <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+  control = control.keep
 )
-bartcoreSetForestWeights(bc.keep, 1L, rep(0, n))
-result.keep <- bartcoreRun(bc.keep, 10L, 10L)
+bc.keep$setForestWeights(2L, rep(0, n))
+result.keep <- bc.keep$run(10L, 10L)
 expect_true(all(is.finite(result.keep$train)))
-trees.tau <- bartcoreGetTrees(
+trees.tau <- forestTrees(
   bc.keep,
+  forest = 2L,
   chainNums = 1L,
   sampleNums = seq_len(10L),
-  treeNums = seq_len(25L),
-  forest = 1L
+  treeNums = seq_len(25L)
 )
 expect_true(nrow(trees.tau) > 0L)
 expect_true(all(is.finite(trees.tau$value)))
@@ -270,13 +302,18 @@ expect_true(all(trees.tau$n >= 0L))
 # is testable this way.
 roundTripState <- function(weight) {
   set.seed(5001)
-  bc <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
-  bartcoreSetForestWeights(bc, 1L, weight)
-  invisible(bartcoreRun(bc, 5L, 0L))
-  state <- bartcoreStoreState(bc)
-  bartcoreSetState(bc, state) # a same-holder round trip to itself
-  invisible(bartcoreRun(bc, 0L, 5L))
-  bartcoreForestFits(bc, 1L)
+  bc <- dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+    control = control
+  )
+  bc$setForestWeights(2L, weight)
+  invisible(bc$run(5L, 0L))
+  bc$storeState()
+  bc$setState(bc$state) # a same-holder round trip to itself
+  invisible(bc$run(0L, 5L))
+  bc$getForestFits(2L)
 }
 expect_false(identical(roundTripState(rep(0, n)), roundTripState(rep(1, n))))
 
@@ -286,19 +323,30 @@ expect_false(identical(roundTripState(rep(0, n)), roundTripState(rep(1, n))))
 # to survive. Pinned as the refusal rather than dropped, since the weight
 # carriage question returns the day a multi-forest warm start is built.
 set.seed(5002)
-installDonor <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
-invisible(bartcoreRun(installDonor, 5L, 0L))
-installDonorState <- bartcoreStoreState(installDonor)
-installTarget <- dbarts:::bartcoreBCFSampler(
-  sampler,
-  z,
-  n.trees.treatment = 25L
+installDonor <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+  control = control
 )
-bartcoreSetForestWeights(installTarget, 1L, rep(0, n))
+invisible(installDonor$run(5L, 0L))
+installDonor$storeState()
+installDonorState <- installDonor$state
+installTarget <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z), n.trees = 25L)),
+  control = control
+)
+installTarget$setForestWeights(2L, rep(0, n))
+# a raw .Call, not $installTrees(): the R5 method's own pre-check
+# (refuseMultiForestWarmStart) raises a differently-worded refusal before
+# ever reaching this bridge-level backstop, which is what is pinned here
+# (test-interactions.R)
 expect_error(
   .Call(
     dbarts:::C_dbarts_bartcore_installForests,
-    installTarget$ptr,
+    installTarget$getPointer(),
     installDonorState,
     NULL
   ),

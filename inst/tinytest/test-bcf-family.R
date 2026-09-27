@@ -11,11 +11,6 @@
 # latent family the response transform is the identity and the map's sqrt(m)
 # cancels, so $getCalibration()'s prior.scale IS the map's node scale.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(29)
 n <- 240L
 p <- 3L
@@ -519,67 +514,6 @@ expect_error(
   "does not support an AFT"
 )
 
-# --- the internal creation route derives its family from the model it is
-# handed, so the gate harness can construct one; a supplied family = names it
-# at the call site by writing that same slot ---
-host <- dbarts(x, yBalanced, control = seededControlBcfFamily())
-internalProbit <- dbarts:::bartcoreBCFSampler(host, z)
-expect_equal(
-  unname(bartcoreForestCalibration(internalProbit, 0L)[
-    1L,
-    "prior.scale"
-  ]),
-  1.0,
-  tolerance = 1e-12
-)
-internalLogistic <- dbarts:::bartcoreBCFSampler(host, z, family = "logistic")
-expect_equal(
-  unname(bartcoreForestCalibration(internalLogistic, 0L)[
-    1L,
-    "prior.scale"
-  ]),
-  pi / sqrt(3.0),
-  tolerance = 1e-12
-)
-expect_error(
-  dbarts:::bartcoreBCFSampler(
-    dbarts(x, yContinuous, control = seededControlBcfFamily()),
-    z,
-    family = "aft"
-  ),
-  "a treatment forest does not support an AFT"
-)
-
-# and it takes the same FAMILY-AWARE default the public route does, which is
-# what the creation oracle's draw-for-draw comparison needs: a route that
-# resolved sd.control to a literal would build a model the public surface
-# cannot express. Both halves - the map's own product and the half-Cauchy
-# median beside it - read off each route's own reader.
-internalRow <- bartcoreForestCalibration(internalProbit, 0L)[1L, ]
-expect_equal(unname(internalRow["amplitude.prior.scale"]), 1)
-expect_equal(
-  unname(internalRow[c("prior.scale", "amplitude.prior.scale")]),
-  unname(probit$getCalibration(1L)[
-    1L,
-    c("prior.scale", "amplitude.prior.scale")
-  ])
-)
-# gaussian keeps 2 on this route as on the public one, which is why the
-# gate harness (bcf-equivalence, gaussian throughout) re-records nothing
-internalGaussian <- dbarts:::bartcoreBCFSampler(
-  dbarts(x, yContinuous, control = seededControlBcfFamily()),
-  z
-)
-expect_equal(
-  unname(
-    bartcoreForestCalibration(internalGaussian, 0L)[
-      1L,
-      "amplitude.prior.scale"
-    ]
-  ),
-  2
-)
-
 rm(
   anchors,
   balanced,
@@ -601,11 +535,6 @@ rm(
   g,
   gBasis,
   hBasis,
-  host,
-  internalGaussian,
-  internalLogistic,
-  internalProbit,
-  internalRow,
   kForest,
   logistic,
   medianRowNorm,

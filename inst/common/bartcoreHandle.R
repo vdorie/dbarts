@@ -5,12 +5,16 @@
 # through the R5 sampler's own methods - so keeping them out of the
 # namespace means there is no dbarts::: path to them; a caller below the R5
 # class has only the shipped C header. Reached with dbarts:::C_dbarts_* for
-# the .Call targets and dbarts:::<name> for the three package-internal
-# validators the bodies still use (asCountMatrix, validateCategoryOffset,
-# validateLiveScale). bartcoreRun, bartcorePredict and bartcoreSetModel have
-# live in-package callers and stay defined in R/bartcore.R; the aliases
-# below just bind those definitions under the same names so a caller here
-# cannot see two divergent copies.
+# the .Call targets and dbarts:::<name> for the package-internal validators
+# the bodies still use (asCountMatrix, validateCategoryOffset,
+# validateLiveScale, resolveForestIndex, rawPredictorMatrix). bartcoreRun,
+# bartcorePredict and bartcoreSetModel have live in-package callers and stay
+# defined in R/bartcore.R; the aliases below just bind those definitions
+# under the same names so a caller here cannot see two divergent copies.
+# forestTrees is the one exception to "exercising the handle layer directly
+# rather than through a dbartsSampler": it takes a public sampler, not a raw
+# handle, since it exists to reach a forest $getTrees itself cannot (see its
+# own comment, below).
 
 # Replaces a multinomial sampler's response: an n x K matrix of nonnegative
 # integer counts in the same layout the count creation entry takes (column k is
@@ -475,6 +479,45 @@ bartcoreGetTrees <- function(
     newdata,
     bcSampler$x,
     as.integer(forest)
+  )
+}
+
+# A public dbartsSampler's own $getTrees always reads forest 1 (the first;
+# see docs/plans/test-scaffolding-consolidation.md, decision D1), so a
+# Bayesian causal forest's treatment forest, or a multinomial fit's category
+# past the first, has no route back into R through the R5 surface. This is
+# that route for tests and benchmarks: a thin .Call directly on
+# sampler$getPointer(), mirroring $getTrees's own arguments (and none of its
+# defaulting, categorical-split decoding or linear-leaf column renaming) for
+# an arbitrary forest. forest indexes from 1, as with
+# $getForestFits/$getForestAmplitudes/$getCalibration - not the 0-based
+# convention the bridge and bartcoreGetTrees take.
+forestTrees <- function(
+  sampler,
+  forest,
+  treeNums,
+  chainNums,
+  sampleNums = NULL,
+  current = FALSE,
+  newdata = NULL
+) {
+  if (missing(chainNums)) {
+    chainNums <- seq_len(sampler$control@n.chains)
+  }
+  if (!is.null(newdata)) {
+    newdata <- as.matrix(newdata)
+    storage.mode(newdata) <- "double"
+  }
+  .Call(
+    dbarts:::C_dbarts_bartcore_getTrees,
+    sampler$getPointer(),
+    as.integer(chainNums),
+    if (is.null(sampleNums)) NULL else as.integer(sampleNums),
+    as.integer(treeNums),
+    as.logical(current),
+    newdata,
+    dbarts:::rawPredictorMatrix(sampler$data@x),
+    dbarts:::resolveForestIndex(forest)
   )
 }
 

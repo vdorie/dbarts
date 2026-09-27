@@ -68,11 +68,6 @@
 #
 # Usage: Rscript bcf-latent-exact.R [quick | pooled [seeds=<n>] [cores=<n>]]
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -614,13 +609,29 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
   )
   # cgm() is internal, reached the way every sibling gate reaches it: as an
   # unevaluated argument, resolved inside dbarts()'s own frame
-  host <- if (is.null(arm$weights)) {
+  bcfForests <- list(
+    dbarts::dbartsForests$forest(
+      sd = sdControl,
+      update.amplitude = updateA
+    ),
+    dbarts::dbartsForests$forest(
+      basis = ~ factor(arm$z),
+      n.trees = 1L,
+      base = tauBase,
+      power = tauPower,
+      sd = sdModerate,
+      amplitude.prior.variance = bVar,
+      update.amplitude = updateB
+    )
+  )
+  bc <- if (is.null(arm$weights)) {
     dbarts(
       arm$x,
       arm$y,
       control = control,
       family = arm$link$name,
-      tree.prior = cgm(muPower, muBase)
+      tree.prior = cgm(muPower, muBase),
+      forests = bcfForests
     )
   } else {
     dbarts(
@@ -629,23 +640,11 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
       weights = arm$weights,
       control = control,
       family = arm$link$name,
-      tree.prior = cgm(muPower, muBase)
+      tree.prior = cgm(muPower, muBase),
+      forests = bcfForests
     )
   }
-  bc <- dbarts:::bartcoreBCFSampler(
-    host,
-    arm$z,
-    family = arm$link$name,
-    n.trees.treatment = 1L,
-    treatment.base = tauBase,
-    treatment.power = tauPower,
-    sd.control = sdControl,
-    sd.moderate = sdModerate,
-    b.prior.variance = bVar,
-    update.a = updateA,
-    update.b = updateB
-  )
-  bartcoreRun(bc, nBurn, 1L)
+  bc$run(nBurn, 1L)
   K <- arm$K
   muDraws <- matrix(0, ndpost, K)
   tauDraws <- matrix(0, ndpost, K)
@@ -653,10 +652,10 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
   b0Draws <- numeric(ndpost)
   b1Draws <- numeric(ndpost)
   for (d in seq_len(ndpost)) {
-    bartcoreRun(bc, 0L, thin)
-    muDraws[d, ] <- bartcoreForestFits(bc, 0L)[arm$repObs, 1L]
-    tauDraws[d, ] <- bartcoreForestFits(bc, 1L)[arm$repObs, 1L]
-    glue <- bartcoreForestAmplitudes(bc)[, 1L]
+    bc$run(0L, thin)
+    muDraws[d, ] <- bc$getForestFits(1L)[arm$repObs, 1L]
+    tauDraws[d, ] <- bc$getForestFits(2L)[arm$repObs, 1L]
+    glue <- bc$getForestAmplitudes()[, 1L]
     aDraws[d] <- glue[1L]
     b0Draws[d] <- glue[2L]
     b1Draws[d] <- glue[3L]

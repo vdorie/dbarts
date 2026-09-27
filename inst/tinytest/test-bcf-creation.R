@@ -1,16 +1,9 @@
 # Public multi-forest creation: dbarts() and dbartsSpec()
 # take a forests = list(forest(...)) declaration and build an ordinary
 # dbartsSampler holding the model it names. Two forests, the second carrying a
-# two-level factor basis, is the Bayesian causal forest. The internal
-# dbarts:::bartcoreBCFSampler route is the oracle - identical (control, model,
-# data) and a fixed rng seed must reproduce it draw for draw - and every option
+# two-level factor basis, is the Bayesian causal forest. Every option
 # the two-forest chain does not read, and every declaration today's engine
 # cannot honour, must refuse at creation rather than be dropped in silence.
-
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
@@ -39,9 +32,6 @@ seededControlBcfCreation <- function(...) {
   )
 }
 
-# a public sampler's raw handle, so the internal per-forest readers apply to it
-handleOfBcfCreation <- function(sampler) list(ptr = sampler$getPointer())
-
 # the declaration every refusal below is attached to: a plain first forest and
 # a second one whose two-level factor basis carries the (b0, b1) amplitudes
 twoForests <- list(
@@ -49,13 +39,8 @@ twoForests <- list(
   dbarts::dbartsForests$forest(basis = ~ factor(z))
 )
 
-# --- the creation-reproduction contract, positive half: with control@seed
-# set every chain's generator is
-# independent of R's stream, so the public path and the internal one receive
-# identical seeds from identical specifications and must agree bitwise on all
-# six channels the bcf-equivalence fixture reports. The removed treatment =
-# route needs no reconstruction: the internal constructor is, and always was,
-# the oracle this pin compares against. ---
+# --- creation: with control@seed set, every chain's generator is independent
+# of R's stream. The removed treatment = route needs no reconstruction. ---
 control <- seededControlBcfCreation()
 publicSampler <- dbarts(
   x,
@@ -67,31 +52,6 @@ publicSampler <- dbarts(
   control = control
 )
 publicResult <- publicSampler$run(0L, 10L)
-
-internalHost <- dbarts(x, y, control = control)
-internalSampler <- dbarts:::bartcoreBCFSampler(
-  internalHost,
-  z,
-  n.trees.treatment = 25L,
-  sd.moderate = 1.5
-)
-internalResult <- bartcoreRun(internalSampler, 0L, 10L)
-
-expect_identical(publicResult$train, internalResult$train)
-expect_identical(publicResult$sigma, internalResult$sigma)
-expect_identical(publicResult$varcount, internalResult$varcount)
-expect_identical(
-  bartcoreForestFits(handleOfBcfCreation(publicSampler), 0L),
-  bartcoreForestFits(internalSampler, 0L)
-)
-expect_identical(
-  bartcoreForestFits(handleOfBcfCreation(publicSampler), 1L),
-  bartcoreForestFits(internalSampler, 1L)
-)
-expect_identical(
-  bartcoreForestAmplitudes(handleOfBcfCreation(publicSampler)),
-  bartcoreForestAmplitudes(internalSampler)
-)
 
 # the sampler this produced is an ordinary dbartsSampler carrying two forests,
 # and the level indicators the factor basis expanded to are the ones the slot
@@ -105,11 +65,9 @@ expect_equal(
 expect_true(all(is.finite(publicResult$train)))
 expect_true(all(publicResult$sigma > 0))
 
-# --- the creation-reproduction contract, negative half, arm 1: the
-# expansion's level ORDER is load-bearing.
-# Swapping the two indicator columns swaps which rows b1 scales, so a sampler
-# built from the reversed factor must NOT reproduce the oracle. Without this a
-# silently transposed basis would pass the positive half on symmetry alone. ---
+# --- the expansion's level ORDER is load-bearing. Swapping the two indicator
+# columns swaps which rows b1 scales, so a sampler built from the reversed
+# factor must NOT reproduce the un-swapped one. ---
 swappedSampler <- dbarts(
   x,
   y,
@@ -125,44 +83,18 @@ expect_equal(
 )
 expect_false(identical(
   swappedSampler$run(0L, 10L)$train,
-  internalResult$train
+  publicResult$train
 ))
-
-# --- the creation-reproduction contract, negative half, arm 2: UNSEEDED,
-# the internal route builds and
-# discards a host engine first, which draws n.chains unif_rand()s off R's
-# stream, so the two routes must NOT agree. Written explicitly so a divergence
-# here is read as the expected stream offset rather than as a creation bug. ---
-unseeded <- dbartsControl(
-  n.chains = 2L,
-  n.threads = 1L,
-  n.trees = 50L,
-  n.samples = 10L,
-  updateState = FALSE
-)
-set.seed(99L)
-unseededPublic <- dbarts(x, y, forests = twoForests, control = unseeded)$run(
-  0L,
-  5L
-)
-set.seed(99L)
-unseededInternal <- bartcoreRun(
-  dbarts:::bartcoreBCFSampler(dbarts(x, y, control = unseeded), z),
-  0L,
-  5L
-)
-expect_false(identical(unseededPublic$train, unseededInternal$train))
 
 # --- the reported draws really are the two-forest blend: the amplitudes and
 # the per-forest fits reconstruct the recorded train draw through the stored
 # response transform (the identity a low-level pin already established, now
 # on a public sampler) ---
-glue <- bartcoreForestAmplitudes(handleOfBcfCreation(publicSampler))
-muFits <- bartcoreForestFits(handleOfBcfCreation(publicSampler), 0L)[, 1L]
-tauFits <- bartcoreForestFits(handleOfBcfCreation(publicSampler), 1L)[, 1L]
-fitScale <- bartcoreStoreState(handleOfBcfCreation(publicSampler))[[
-  1L
-]]$fit.scale
+glue <- publicSampler$getForestAmplitudes()
+muFits <- publicSampler$getForestFits(1L)[, 1L]
+tauFits <- publicSampler$getForestFits(2L)[, 1L]
+publicSampler$storeState()
+fitScale <- publicSampler$state[[1L]]$fit.scale
 scale <- fitScale[2L] - fitScale[1L]
 shift <- scale * 0.5 + fitScale[1L]
 bz <- ifelse(z != 0, glue[3L, 1L], glue[2L, 1L])
@@ -181,7 +113,7 @@ restricted <- dbarts(
   control = seededControlBcfCreation()
 )
 restricted$run(0L, 10L)
-tauCounts <- bartcoreForestVariableCounts(handleOfBcfCreation(restricted), 1L)
+tauCounts <- restricted$getForestVariableCounts(2L)
 expect_true(all(tauCounts[1:2, ] == 0L))
 expect_true(sum(tauCounts[3:4, ]) > 0L)
 
@@ -265,10 +197,11 @@ expect_identical(
   )$run(0L, 5L)$train
 )
 
-# The pinned-amplitude public fit: update.amplitude = FALSE on both
-# forests is the pinned-amplitude model (y = mu + z tau exactly) the on-ramp
-# vignette's continuity falsifier composes against, and it must reproduce the
-# internal route's update.a = update.b = FALSE draw for draw
+# The pinned-amplitude public fit: update.amplitude = FALSE on both forests is
+# the pinned-amplitude model (y = mu + z tau exactly) the on-ramp vignette's
+# continuity falsifier composes against; its glue is exactly (1, 0, 1)
+# (test-bcf.R's bcFixed pins the value, this just confirms the public forest()
+# knob reaches the same fixed-glue path)
 pinnedPublic <- dbarts(
   x,
   y,
@@ -278,17 +211,8 @@ pinnedPublic <- dbarts(
   ),
   control = seededControlBcfCreation()
 )
-pinnedInternal <- dbarts:::bartcoreBCFSampler(
-  dbarts(x, y, control = seededControlBcfCreation()),
-  z,
-  n.trees.treatment = 25L,
-  update.a = FALSE,
-  update.b = FALSE
-)
-expect_identical(
-  pinnedPublic$run(0L, 10L)$train,
-  bartcoreRun(pinnedInternal, 0L, 10L)$train
-)
+pinnedPublic$run(0L, 10L)
+expect_equal(pinnedPublic$getForestAmplitudes()[, 1L], c(1, 0, 1))
 
 # --- forests = NULL is byte-neutral, and a single-forest declaration is
 # the same fit with its structural knobs restated ---

@@ -29,11 +29,6 @@
 #
 # Usage: Rscript bcf-exact-restricted.R [quick]
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -82,13 +77,13 @@ sdControl <- 2
 sdModerate <- 1
 bVar <- 0.5
 
-# per-column n.cuts so the uniform grid places exactly one cut between each
-# pair of adjacent cells (x2's two values admit a single cut; the shared
-# default would place two degenerate ones)
-nCutsX1 <- K1 - 1L
-nCutsX2 <- K2 - 1L
-cuts1 <- min(x[, 1L]) + seq_len(nCutsX1) * (max(x[, 1L]) - min(x[, 1L])) / K1
-cuts2 <- min(x[, 2L]) + seq_len(nCutsX2) * (max(x[, 2L]) - min(x[, 2L])) / K2
+# the quantile grid places one cut at the midpoint of each pair of adjacent
+# observed values, up to n.cuts per column, so a cap of K1 - 1 = 2 gives x1
+# its two cuts and x2 its single one (a uniform grid would place two
+# degenerate cuts on x2's two values)
+nCuts <- K1 - 1L
+cuts1 <- seq_len(K1 - 1L) + 0.5
+cuts2 <- seq_len(K2 - 1L) + 0.5
 stopifnot(identical(findInterval(x[, 1L], cuts1) + 1L, x1cell))
 stopifnot(identical(findInterval(x[, 2L], cuts2) + 1L, x2cell))
 
@@ -351,41 +346,42 @@ samplerFit <- function(seed) {
     n.chains = 1L,
     n.threads = 1L,
     n.trees = 1L,
-    n.cuts = c(nCutsX1, nCutsX2),
+    n.cuts = nCuts,
+    useQuantiles = TRUE,
     updateState = FALSE
   )
-  host <- dbarts(
+  bc <- dbarts(
     x,
     y,
     control = control,
-    sigma = sigEst,
+    sigest = sigEst,
     tree.prior = cgm(muPower, muBase),
-    node.prior = normal(2)
+    node.prior = normal(2),
+    forests = list(
+      forest(sd = sdControl, update.amplitude = FALSE),
+      forest(
+        basis = ~ factor(z),
+        n.trees = 1L,
+        vars = 1L,
+        base = tauBase,
+        power = tauPower,
+        sd = sdModerate,
+        amplitude.prior.variance = bVar,
+        update.amplitude = FALSE
+      )
+    )
   )
-  bc <- dbarts:::bartcoreBCFSampler(
-    host,
-    z,
-    n.trees.treatment = 1L,
-    treatment.base = tauBase,
-    treatment.power = tauPower,
-    sd.control = sdControl,
-    sd.moderate = sdModerate,
-    b.prior.variance = bVar,
-    update.a = FALSE,
-    update.b = FALSE,
-    moderators = 1L
-  )
-  bartcoreRun(bc, nburn, 1L)
+  bc$run(nburn, 1L)
   # containment: a restricted tau forest splits on x1 only, so its fit is
   # constant across x2 within each x1 cell
-  tauFull <- bartcoreForestFits(bc, 1L)[, 1L]
+  tauFull <- bc$getForestFits(2L)[, 1L]
   stopifnot(all(tapply(tauFull, x1cell, function(v) diff(range(v))) < 1e-9))
   muM <- matrix(0, ndpost, nCross)
   tauM <- matrix(0, ndpost, K1)
   for (d in seq_len(ndpost)) {
-    bartcoreRun(bc, 0L, thin)
-    muM[d, ] <- bartcoreForestFits(bc, 0L)[repMu, 1L]
-    tauM[d, ] <- bartcoreForestFits(bc, 1L)[repTau, 1L]
+    bc$run(0L, thin)
+    muM[d, ] <- bc$getForestFits(1L)[repMu, 1L]
+    tauM[d, ] <- bc$getForestFits(2L)[repTau, 1L]
   }
   list(mu = colMeans(muM), tau = colMeans(tauM))
 }
