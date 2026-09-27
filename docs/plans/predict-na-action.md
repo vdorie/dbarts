@@ -309,6 +309,11 @@ Verification B:
 - Mutation proof: make `na.pass` fall through to the refusal, force
   margin 1, and revert the factor fix.
 
+Also in B (orchestrator call, agent-made): a formula-path hazard fit under
+fit-time `na.exclude` rebuilds the dropped subjects' person-period rows
+from their times and pads them, as the matrix path does; after A2 it
+clears the record and behaves as `na.omit`. Test both paths.
+
 ## For VD
 
 1. The raw fit fields (`$yhat.train`, `$yhat.test`, their means, `s.*`,
@@ -321,6 +326,12 @@ Verification B:
    `getOption("na.action")` (na.omit; probed, it dropped a
    predictor-NA row), while the matrix path applies no action and
    errors on a missing response. This is a TODO candidate.
+3. Pre-existing, found while landing A2: a hurdle fit cannot use
+   na.omit/na.exclude on a genuinely missing predictor at all (see
+   "Landing" below); it refuses instead. This is a TODO candidate,
+   needing a ruling on what the positive component's forced full-data
+   'test' should do once na.action has dropped some of those rows from
+   its own training.
 
 ## Overlap
 
@@ -337,3 +348,37 @@ observation-indexed output, recorded in the data object's rowNames slot
 and applied in place at packaging; whole-matrix test setters record the
 new test set's names; bartCause 2301e4b takes the counterfactual draws'
 names from the observed draws. A2 and B remain.
+
+Slice A2 LANDED 2026-09-27 (7d61cb39): multinomial, ordinal, negbin and
+hurdle packagers store the fit's na.action, as bart does; their fitted and
+residuals pad the training side through padOmittedRows, using A1's
+names for the padded positions. The three predating defects: a
+formula-path hazard fit's na.action was recorded at the subject level,
+before person-period expansion, and got applied to the expanded
+outputs regardless (wrong length, names out of order) - it is now
+cleared once expansion runs, since a subject-level record cannot
+describe the person-period rows it would need to pad. A multinomial
+fit's derived count response was row-selected by 'subset' alone, not by
+the na.action's own further drop, so an na.omit/na.exclude fit with a
+predictor NA failed on an x/y length mismatch - the count subset now
+tracks the same rows x and y do. An aft fit's status vector, held
+outside (x, y), had the same gap and failed on a status-length
+mismatch - fixed the same way. Also fixed, not previously named: the
+per-class packagers stored the caller's raw (un-reduced) response
+rather than the fit's own kept rows, which would have reproduced the
+multinomial defect's shape mismatch inside fitted()/residuals() once
+padding was added; multinomial's stored response is now reduced the
+same way. Tests in inst/tinytest/test-row-names.R.
+
+Found, not fixed: a hurdle fit cannot exercise na.omit/na.exclude on a
+genuinely missing predictor at all. The positive component's 'test' is
+always the full, un-reduced design matrix (by design, so its in-sample
+fitted() covers the zero rows too); na.action drops every row with that
+predictor's missing value from training, which removes the training
+column's only evidence of the value ever being missing, so the same
+value surviving in 'test' becomes unroutable and the fit refuses. This
+predates A2 and is orthogonal to its three named defects; the hurdle
+padding tests exercise padOmittedRows directly on a fit already trained
+at the reduced row count instead. Fixing it for real means deciding
+what the positive component's 'test' should do under na.action - a
+design question, not a one-line fix.

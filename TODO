@@ -534,7 +534,12 @@ hurdle feature completion (VD 2026-09-26: part of feature completion,
   the R composition uses the positive part's test slot to hand that
   sampler the full training x. Owed: a real test channel (extract and
   fitted then take sample), and weights, subset and offset where the
-  two-part model defines them. Schedule not yet set by VD.
+  two-part model defines them. The same slot is why a hurdle fit refuses
+  na.omit/na.exclude on a missing predictor: a row dropped from the
+  positive part's training stays, now unroutable, in its full-x test.
+  The real channel must also reduce the fit's stored y by the
+  occupancy na.action, which fitted/residuals already pad through.
+  Schedule not yet set by VD.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   pre-release sequence (VD 2026-09-12): VD's own items before the
