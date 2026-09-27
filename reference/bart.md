@@ -54,7 +54,7 @@ bart(
 # S3 method for class 'bartMultinomial'
 extract(
     object,
-    type = c("ev", "ppd", "bart", "forest", "loglik"),
+    type = c("ev", "ppd", "bart", "forest", "loglik", "varcount"),
     sample = c("train", "test"),
     combineChains = TRUE, ...)
 
@@ -81,7 +81,7 @@ family(object, ...)
 
 # S3 method for class 'bartOrdinal'
 extract(
-    object, type = c("ev", "ppd", "bart", "loglik"),
+    object, type = c("ev", "ppd", "bart", "loglik", "thresholds", "varcount"),
     sample = c("train", "test"),
     combineChains = TRUE, ...)
 
@@ -108,7 +108,7 @@ family(object, ...)
 
 # S3 method for class 'bartNegbin'
 extract(
-    object, type = c("ev", "ppd", "bart", "loglik"),
+    object, type = c("ev", "ppd", "bart", "loglik", "dispersion", "varcount"),
     sample = c("train", "test"),
     combineChains = TRUE, ...)
 
@@ -135,7 +135,8 @@ family(object, ...)
 
 # S3 method for class 'bartHurdle'
 extract(
-    object, type = c("ev", "ppd", "prob", "bart", "loglik"),
+    object,
+    type = c("ev", "ppd", "prob", "bart", "loglik", "sigma", "k", "varcount"),
     sample = c("train", "test"),
     combineChains = TRUE, ...)
 
@@ -175,13 +176,13 @@ plot(x, plquants = c(0.05, 0.95), cols = c("blue", "black"), ...)
 summary(object, ...)
 
 # S3 method for class 'bartOrdinal'
-summary(object, vars = c("thresholds", "sigma", "k", "tau"), ...)
+summary(object, vars = c("thresholds", "sigma", "k"), ...)
 
 # S3 method for class 'bartNegbin'
-summary(object, vars = c("dispersion", "sigma", "k", "tau"), ...)
+summary(object, vars = c("dispersion", "sigma", "k"), ...)
 
 # S3 method for class 'bartHurdle'
-summary(object, vars = c("sigma", "k", "tau"), ...)
+summary(object, vars = c("sigma", "k"), ...)
 
 # S3 method for class 'summary.bartHurdle'
 print(x, ...)
@@ -1045,7 +1046,10 @@ print(x, ...)
   `fitted`'s too on every family with a test channel - every one here
   except `bartHurdle`, which has none and so takes no `sample`; refused
   by name on `predict`, whose stored train and test channels are
-  `extract`'s `sample` instead.
+  `extract`'s `sample` instead. Also refused by name on every model- or
+  predictor-level type these families offer - `"varcount"` on all four,
+  `"thresholds"` on `bartOrdinal`, `"dispersion"` on `bartNegbin`,
+  `"sigma"`/`"k"` on `bartHurdle` - none of them per-observation.
 
 - vars:
 
@@ -1322,15 +1326,13 @@ response with multi-trial rows instead plots the observed proportion
 point per row-category cell). `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 are refused by name (a multinomial fit's trees live on its sampler; it
-has no hazard channel).
-[`draws`](https://vdorie.github.io/dbarts/reference/draws.md)`(object)`
-exposes the same per-category mean-probability channel `summary(object)`
-pools, named `meanProb[<level>]` - this family has no other scalar
-posterior parameter. `summary(object)` pools that same per-category
-mean-probability channel into posterior mean/sd, split-Rhat and
-bulk/tail ESS, the multinomial analog of
+has no hazard channel). `extract(object, type = "varcount")` returns the
+per-category split-usage channel described above. `summary(object)`
+pools the per-category mean predicted probability - this family's only
+scalar posterior parameter - into posterior mean/sd, split-Rhat and
+bulk/tail ESS, named `prob[<level>]`, the multinomial analog of
 [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
-\\\sigma\\/k/\\\tau\\ summary.
+\\\sigma\\/k summary.
 
 `bart(family = "ordinal")` likewise returns its own list, of class
 `"bartOrdinal"`. Components: `call`, `family` (`"ordinal"`), `levels`
@@ -1395,11 +1397,11 @@ per-observation latent interval, observations ordered by median
 \\\eta\\, coloured by observed level, with dashed reference lines at the
 posterior-median thresholds. `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
-are refused by name.
-[`draws`](https://vdorie.github.io/dbarts/reference/draws.md)`(object)`
-defaults to `vars = c("thresholds", "sigma", "k", "tau")`, matching
-`summary`'s own default; `thresholds` contributes `threshold[1]` (the
-pinned 0) through `threshold[K - 1]`.
+are refused by name. `extract(object, type = "thresholds")` returns the
+threshold draws, `threshold[1]` pinned at 0 through `threshold[K - 1]`,
+and `extract(object, type = "varcount")` the per-predictor split-usage
+channel; `summary`'s own default `vars` is
+`c("thresholds", "sigma", "k")`.
 
 `bart(family = "nbinom")` likewise returns its own list, of class
 `"bartNegbin"`. Components: `call`, `family` (`"nbinom"`), `n.chains`,
@@ -1452,10 +1454,10 @@ family) alongside
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s own
 gaussian observed-vs-fitted panel, applied to the counts. `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
-are refused by name.
-[`draws`](https://vdorie.github.io/dbarts/reference/draws.md)`(object)`
-defaults to `vars = c("dispersion", "sigma", "k", "tau")`, matching
-`summary`'s own default.
+are refused by name. `extract(object, type = "dispersion")` returns the
+per-draw dispersion \\r\\, and `extract(object, type = "varcount")` the
+per-predictor split-usage channel; `summary`'s own default `vars` is
+`c("dispersion", "sigma", "k")`.
 
 `bart(family = "hurdle.lognormal")` returns its own list, of class
 `"bartHurdle"`, holding both component fits (`$occupancy`, a `"bart"`
@@ -1499,14 +1501,14 @@ rows, the only panel showing the model this family exists for.
 `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 are refused by name, naming `object$occupancy$fit`/`object$positive$fit`
-as the route to the trees.
-[`draws`](https://vdorie.github.io/dbarts/reference/draws.md)`(object)`
-returns the union of both components' present scalar fields, labelled
-`occupancy.<field>`/`positive.<field>` (a dot, not a bracket, since
-bracket syntax parses as an index in the array/data-frame conventions
-[`draws`](https://vdorie.github.io/dbarts/reference/draws.md) follows) -
-the same two blocks `summary(object)` prints under. `summary(object)`
-reports both components - `$occupancy`'s and `$positive`'s own
+as the route to the trees. `extract(object, type = "sigma")` returns
+`$positive`'s sigma draws, the only sigma the composition carries;
+`extract(object, type = "k")` and `type = "varcount"` each return a
+list, named `occupancy`/`positive`, of that component's own draws - a
+component whose `k` is fixed rather than modelled is left out of the
+`"k"` list, an error if both are (see `bart`'s `k` item).
+`summary(object)` reports both components - `$occupancy`'s and
+`$positive`'s own
 [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
 tables, under their own headers - rather than pooling them into one,
 since the two component fits share no parameters.
@@ -1584,7 +1586,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001562
+#> total seconds in loop: 0.001597
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1632,7 +1634,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002041
+#> total seconds in loop: 0.001977
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

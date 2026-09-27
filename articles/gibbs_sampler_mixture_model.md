@@ -588,7 +588,5 @@ larger sampler. A plain multi-chain `bart` fit already tracks its chain
 dimension: [`summary()`](https://rdrr.io/r/base/summary.html) reports
 split-R-hat and effective sample size for the scalar parameters (`sigma`
 and `k`) unconditionally, and
-[`draws()`](https://vdorie.github.io/dbarts/reference/draws.md) returns
-its chain-dimensioned draws as a plain array, the shape
-`posterior::as_draws_array` accepts unchanged from a caller who has that
-package installed.
+`extract(fit, "sigma", combineChains = FALSE)` returns those same draws
+chain-separated, as a chains-by-samples matrix.

@@ -62,7 +62,8 @@ extract(object, ...)
 # S3 method for class 'bart'
 extract(
     object,
-    type = c("ev", "ppd", "bart", "loglik", "trees", "forest"),
+    type = c("ev", "ppd", "bart", "loglik", "trees", "forest",
+             "sigma", "k", "varcount"),
     sample = c("train", "test"),
     combineChains = TRUE,
     forest = NULL,
@@ -485,8 +486,20 @@ family(object, ...)
   used as a synonym for `"bart"`; the
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
   extended-family methods take the same two synonyms, each against its
-  own set of types. For information on extracting trees, see the
-  subsection below.
+  own set of types. `extract` alone also takes `"sigma"` and `"k"`, the
+  residual scale and end-node sensitivity draws as a chain-combined
+  vector or (`combineChains = FALSE`) a chains-by-samples matrix, and
+  `"varcount"`, the per-predictor split counts shaped as `"ev"` is with
+  predictors in place of observations - none of them per-observation, so
+  a supplied `sample` is refused by name on all three, as is `forest`
+  (see `forest` below). `sigma` on a weighted fit is the scale at weight
+  1 (row i's is \\\sigma / \sqrt{w_i}\\); on a `family = student()` fit
+  it is the t scale, not the standard deviation. A binary fit and a
+  heteroscedastic fit have no scalar `sigma` to extract (error naming
+  the reason, the latter pointing at `s.train` instead); a fixed
+  (unmodelled) `k` likewise errors, naming a `chi(...)` hyperprior as
+  the fix where the fit could take one. For information on extracting
+  trees, see the subsection below.
 
 - sample:
 
@@ -495,7 +508,9 @@ family(object, ...)
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `forests =`). It is `extract`'s and `fitted`'s own argument - `fitted`
   is always the training rows - and is refused by name on `predict`,
-  whose stored train and test channels are `extract`'s `sample` instead.
+  whose stored train and test channels are `extract`'s `sample` instead;
+  also refused by name on `extract(type = "sigma")`/`"k"`/`"varcount"`,
+  none of them per-observation.
 
 - forest:
 
@@ -505,7 +520,10 @@ family(object, ...)
   returned array always keeps the trailing forest margin, subset to the
   requested forests, even when only one is selected. Selecting a forest
   outside `type = "forest"` is refused by name: every other arm has
-  already recombined the forests into the location it reports.
+  already recombined the forests into the location it reports, except
+  `"sigma"`/`"k"` (model parameters with no forest axis) and
+  `"varcount"` (which already keeps every forest on its own trailing
+  margin), each naming its own reason instead.
 
 - bases:
 
@@ -1094,7 +1112,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.148782
+#> total seconds in loop: 0.149544
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

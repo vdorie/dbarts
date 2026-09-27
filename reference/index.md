@@ -160,12 +160,6 @@ Convergence summaries, and calibration of a sampler composed around one.
 - [`summary(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   [`print(`*`<summary.bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   : Convergence Diagnostics for BART Fits
-- [`draws(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/draws.md)
-  [`draws(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/draws.md)
-  [`draws(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/draws.md)
-  [`draws(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/draws.md)
-  [`draws(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/draws.md)
-  : Chain-Dimensioned Draws From a BART Fit
 - [`dbartsValidateComposition()`](https://vdorie.github.io/dbarts/reference/dbartsValidateComposition.md)
   : Validate A Composed Sampler By Simulation-Based Calibration
 
