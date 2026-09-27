@@ -323,13 +323,20 @@ restoredMfrow <- par("mfrow")
 dev.off()
 expect_equal(restoredMfrow, c(3L, 3L))
 
-# draws(): the union of both components' present scalar fields,
-# dot-prefixed by component
-adNames <- dimnames(draws(fit))[[3L]]
-expect_true(any(startsWith(adNames, "occupancy.")))
-expect_true(any(startsWith(adNames, "positive.")))
-expect_true("positive.sigma" %in% adNames)
-rm(adNames)
+# extract(fit, "sigma") is positive$sigma alone (the only sigma the
+# composition carries); extract(fit, "k") is a list keyed occupancy/positive,
+# with a fixed component left out - positive's k is fixed at its non-binary
+# default (2), so only occupancy's modelled chi(1.5, 2) draw survives
+expect_equal(extract(fit, "sigma"), fit$positive$sigma)
+kList <- extract(fit, "k")
+expect_equal(names(kList), "occupancy")
+expect_equal(kList$occupancy, fit$occupancy$k)
+rm(kList)
+vcList <- extract(fit, "varcount")
+expect_equal(names(vcList), c("occupancy", "positive"))
+expect_equal(vcList$occupancy, fit$occupancy$varcount)
+expect_equal(vcList$positive, fit$positive$varcount)
+rm(vcList)
 
 rm(llFit2c, restoredMfrow)
 

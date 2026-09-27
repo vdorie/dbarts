@@ -15,13 +15,14 @@
   \code{"bartOrdinal"}, \code{"bartNegbin"}, \code{"bartHurdle"}; see
   \code{\link{bart}}) summarize through this same method, each exposing
   the scalar posterior parameters that family carries rather than its
-  per-observation channels - never \code{yhat.train} itself.
-
-  \code{\link{draws}} returns the same fit's chain-dimensioned draws as
-  a plain array, the shape this summary is computed from.
+  per-observation channels - never \code{yhat.train} itself. A chain-
+  separated (rather than pooled) view of these same draws is
+  \code{\link{extract}}, whose \code{"sigma"}, \code{"k"}, and other
+  scalar types return a vector or, with \code{combineChains = FALSE}, a
+  chains-by-samples matrix.
 }
 \usage{
-\method{summary}{bart}(object, vars = c("sigma", "k", "tau"), \dots)
+\method{summary}{bart}(object, vars = c("sigma", "k"), \dots)
 \method{print}{summary.bart}(x, \dots)
 }
 \arguments{
@@ -32,21 +33,31 @@
   }
   \item{vars}{
     Character vector of fields to summarize. Requested fields absent
-    from \code{object} (e.g. \code{k} when unmodeled, or \code{tau},
-    which no shipped family carries) are silently dropped. \code{sigma},
-    \code{k}, and \code{tau} contribute one summarized variable each; any
-    other field (\code{varcount}, \code{varprobs}, \code{yhat.train},
-    \code{yhat.test}) contributes one variable per column, named
-    \code{"field[column]"}.
+    from \code{object} (e.g. \code{k} when unmodeled) are silently
+    dropped. \code{sigma} and \code{k} contribute one summarized
+    variable each; any other field (\code{varcount}, \code{varprobs},
+    \code{yhat.train}, \code{yhat.test}) contributes one variable per
+    column, named \code{"field[column]"}.
 
     On a heteroscedastic fit the \code{sigma} token resolves to
     \code{mean.s}: the mean over the training observations of that
-    draw's variance surface \eqn{s(x)}, one value per draw; see
-    \code{\link{draws}} for the full rule.
+    draw's variance surface \eqn{s(x)}, one value per draw. The
+    \code{sigma} such a fit stores is the variance forest
+    parameterization's fixed unit residual times the range of the
+    response, a constant with no posterior content, so it is not
+    reported as a parameter; \code{s.train} itself is reachable by
+    name, contributing one variable per observation.
 
-    A \code{"bartMultinomial"} fit has no \code{vars} argument: its only
-    scalar posterior parameter is the per-category mean predicted
-    probability, reported as \code{meanProb[<level>]}.
+    For the four own-class fits, \code{vars} is scoped to that
+    family's own vocabulary (see \code{\link{bart}}): a
+    \code{"bartOrdinal"} fit's \code{"thresholds"} contributes
+    \code{threshold[1]} (pinned at 0) through \code{threshold[K - 1]};
+    a \code{"bartNegbin"} fit's \code{"dispersion"} contributes the
+    per-draw dispersion \eqn{r}; a \code{"bartMultinomial"} fit has no
+    \code{vars} argument at all - its only scalar posterior parameter
+    is the per-category mean predicted probability, reported as
+    \code{prob[<level>]}; a \code{"bartHurdle"} fit applies \code{vars}
+    to both components separately.
   }
   \item{\dots}{Unused.}
 }
@@ -63,7 +74,7 @@
   dbarts does not refuse to summarize a non-converged fit.
 }
 \seealso{
-\code{\link{bart}}, \code{\link{bartBT}}, \code{\link{draws}}
+\code{\link{bart}}, \code{\link{bartBT}}, \code{\link{extract}}
 }
 \examples{
 \donttest{

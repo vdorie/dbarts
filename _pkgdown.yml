@@ -47,7 +47,6 @@ reference:
     Convergence summaries, and calibration of a sampler composed around one.
   contents:
   - summary.bart
-  - draws
   - dbartsValidateComposition
 - title: Deprecated
   desc: >

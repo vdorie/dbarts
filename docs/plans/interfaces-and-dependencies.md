@@ -430,8 +430,9 @@ retired: [`registerPosteriorMethods`](../../R/hooks.R) and `.onLoad` are
 deleted, `.onUnload` kept; `posterior` is off Suggests and off both CI
 install lists.
 [man/summary.bart.Rd](../../man/summary.bart.Rd) rewritten,
-[man/draws.Rd](../../man/draws.Rd) new (no `posterior::` example - an
-unstated dependency in examples fails check); tests rewritten against
+[man/draws.Rd:1-91](https://github.com/vdorie/dbarts/blob/62311f95c7a73cf2484e1721d91aae2100ddcb7b/man/draws.Rd#L1-L91)
+new (no `posterior::` example - an
+unstated dependency in examples fails check; removed itself, extract-scalar-types.md); tests rewritten against
 `draws()`, pinned to literals recorded from posterior 1.7.0, passing with
 posterior hidden. One design-doc cite and one vignette sentence updated too.
 

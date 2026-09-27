@@ -138,10 +138,10 @@ dev.off()
 
 sm <- summary(fitCombined)
 expect_equal(class(sm), "summary.bart")
-expect_equal(sort(sm$stats$variable), sort(paste0("meanProb[", levels(y), "]")))
+expect_equal(sort(sm$stats$variable), sort(paste0("prob[", levels(y), "]")))
 expect_true(is.data.frame(sm$stats))
 printedSummary <- capture.output(print(sm))
-expect_true(any(grepl("meanProb", printedSummary, fixed = TRUE)))
+expect_true(any(grepl("prob[", printedSummary, fixed = TRUE)))
 
 expect_true(all(c("rhat", "ess_bulk", "ess_tail") %in% names(sm$stats)))
 
@@ -467,12 +467,13 @@ dev.off()
 expect_equal(combinedMfrow, c(3L, 3L))
 expect_equal(countsMfrow, c(3L, 3L))
 
-# ---- draws() exposes meanProb[<level>], never yhat.train ----
+# ---- extract(type = "varcount") keeps the K-level margin trailing, as
+# yhat.train does ----
 
-meanProbNames <- paste0("meanProb[", levels(y), "]")
-d <- draws(fitCombined)
-expect_equal(sort(dimnames(d)[[3L]]), sort(meanProbNames))
-rm(meanProbNames, d)
+vc <- extract(fitCombined, type = "varcount")
+expect_equal(dim(vc)[-1L], c(p, length(levels(y))))
+expect_equal(dimnames(vc)[[3L]], levels(y))
+rm(vc)
 
 rm(
   parseKeptDraws,

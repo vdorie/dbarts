@@ -207,6 +207,14 @@ items
     docs/plans/archive/negative-binomial.md,
     docs/design/negative-binomial.md sec 2 and sec 7. decision-gated,
     scheduled after 1.0-0 (VD 2026-08-28).
+  ordinal-negbin-k-gap: door, no plan doc of its own. A bart(family =
+    "ordinal"/"nbinom") fit accepts and samples a requested k = chi(...)
+    hyperprior with no complaint - packageOrdinalResults and
+    packageNegbinResults never read samples$k, so the draw is silently
+    discarded and the packaged fit carries no k channel at all
+    (extract(type = "k") is offered on neither class; found while adding
+    it to bart and hurdle, extract-scalar-types.md). Fix (read and
+    package the channel) or refuse the hyperprior at fit time.
   python-bindings: a pybind11 facade wrapper is prototype-scale.
     Horizon, likely out-of-repo. The engine is not R-free below the
     bridge: model.hpp calls three Rmath density functions
@@ -497,16 +505,6 @@ reproducibility-docs (decided, VD 2026-09-26; docs/decisions.md
   sampler; xbart's per-cell seeds; which helpers do advance R's
   stream; same draws within a host but not promised across hosts,
   compilers or dbarts versions, and not against 0.9-x.
-
-extract scalar types (decided, VD 2026-09-26; docs/decisions.md dec-A68)
-  before the merge, extract gains "sigma", "k" and "varcount" on bart
-  fits, "thresholds" on ordinal, "dispersion" on negbin and the
-  matching pieces on hurdle, shaped as stan4bart's and bartCause's
-  (combined vector; chains x samples with combineChains = FALSE); the
-  draws() generic and its five methods leave the exports and NAMESPACE,
-  summary keeping the array code internally; "tau" leaves summary's
-  default vars; multinomial summary's meanProb[level] label becomes a
-  plain one (prob[level]); tests calling draws() move to extract.
 
 test scaffolding consolidation (decided, VD 2026-09-26; docs/decisions.md
   dec-A52, dec-A51)

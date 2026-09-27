@@ -3,12 +3,6 @@
 
 extract <- function(object, ...) UseMethod("extract")
 
-# a fit's chain-dimensioned draws as a plain (iteration, chain, variable)
-# array with dimnames - the shape 'posterior::as_draws_array' accepts
-# unchanged from a caller who has that package installed (R/diagnostics.R's
-# methods)
-draws <- function(x, ...) UseMethod("draws")
-
 plotTree <- function(object, ...) UseMethod("plotTree")
 
 survivalProbabilities <- function(object, ...) {
@@ -77,6 +71,33 @@ fitIsHeteroscedastic <- function(object) {
 
 fitNumForests <- function(object) {
   if (is.null(object[["n.forests"]])) 1L else object[["n.forests"]]
+}
+
+# Whether extract(type = "k")'s "fixed, not sampled" error may suggest a chi
+# hyperprior: not on a multi-forest fit, whose calibration pins k, nor under a
+# monotone constraint, which refuses one. monotone is read off the kept
+# sampler's model, else off the stored call.
+fitAllowsKHyperprior <- function(object) {
+  if (fitNumForests(object) > 1L) {
+    return(FALSE)
+  }
+  fit <- object[["fit"]]
+  if (!is.null(fit)) {
+    return(is.null(attr(fit$model, "monotone")))
+  }
+  is.null(object[["call"]][["monotone"]])
+}
+
+# extract's model- and predictor-level types (sigma, k, dispersion,
+# thresholds, varcount) refuse a caller-supplied 'sample' by name
+refuseSampleOnModelType <- function(type, sampleSupplied) {
+  if (sampleSupplied) {
+    stop(
+      "'sample' is not used when type = \"",
+      type,
+      "\": it is not per-observation"
+    )
+  }
 }
 
 # the family as specified: the resolved family object, with its settings
@@ -314,6 +335,19 @@ combineOrUncombineChains <- function(x, n.chains, combine) {
     }
   }
   x
+}
+
+# combineOrUncombineChains for a scalar-per-draw field (sigma, k, dispersion):
+# combined is a chain-major vector, uncombined a chains x samples matrix
+reshapeScalarChannel <- function(x, n.chains, combine) {
+  if (n.chains <= 1L) {
+    return(x)
+  }
+  if (is.null(dim(x))) {
+    if (combine) x else uncombineChains(x, n.chains)
+  } else {
+    if (combine) as.vector(t(x)) else x
+  }
 }
 
 # The per-call worker count for a saved-tree replay. The engine partitions by
@@ -611,7 +645,17 @@ refuseTreesArguments <- function(treesCall, ownNames) {
 
 extract.bart <- function(
   object,
-  type = c("ev", "ppd", "bart", "loglik", "trees", "forest"),
+  type = c(
+    "ev",
+    "ppd",
+    "bart",
+    "loglik",
+    "trees",
+    "forest",
+    "sigma",
+    "k",
+    "varcount"
+  ),
   sample = c("train", "test"),
   combineChains = TRUE,
   forest = NULL,
@@ -619,6 +663,7 @@ extract.bart <- function(
   ...
 ) {
   type <- validateType(type, eval(formals(extract.bart)$type))
+  sampleSupplied <- !missing(sample)
 
   if (type == "trees") {
     if (is.null(object$fit)) {
@@ -650,7 +695,6 @@ extract.bart <- function(
     foreignArgsFor(extractForeignReasons, names(formals(extract.bart)))
   )
 
-  sample <- validateSample(sample, eval(formals(extract.bart)$sample))
   refuseForestSelectionOutsideForestArm(type, forest)
   if (type != "forest" && isTRUE(contribution)) {
     stop(
@@ -660,6 +704,51 @@ extract.bart <- function(
       "per-observation decomposition applies to the per-forest channel alone"
     )
   }
+
+  # served before any sample/test-channel check, so a fit kept with
+  # keepTrainingFits = FALSE still serves sigma
+  if (type %in% c("sigma", "k", "varcount")) {
+    refuseSampleOnModelType(type, sampleSupplied)
+    n.chains <- fitNChains(object)
+    if (type == "varcount") {
+      trailing <- if (fitNumForests(object) > 1L) 2L else 1L
+      return(reshapeChainedChannel(
+        object$varcount,
+        n.chains,
+        combineChains,
+        trailing
+      ))
+    }
+    if (type == "sigma") {
+      if (fitIsBinary(object)) {
+        stop(
+          "cannot extract 'sigma': a ",
+          fitFamily(object),
+          " fit has no residual scale parameter"
+        )
+      }
+      if (fitIsHeteroscedastic(object)) {
+        stop(
+          "cannot extract 'sigma': a heteroscedastic fit has no scalar ",
+          "residual scale; its per-observation scale draws are the fit's ",
+          "'s.train'"
+        )
+      }
+      return(reshapeScalarChannel(object$sigma, n.chains, combineChains))
+    }
+    # type == "k"
+    if (is.null(object$k)) {
+      stop(
+        "cannot extract 'k': this fit's k was fixed, not sampled",
+        if (fitAllowsKHyperprior(object)) {
+          " (specify k = chi(...) to sample it)"
+        }
+      )
+    }
+    return(reshapeScalarChannel(object$k, n.chains, combineChains))
+  }
+
+  sample <- validateSample(sample, eval(formals(extract.bart)$sample))
 
   if (type == "forest") {
     return(extractForest(object, sample, combineChains, forest, contribution))
@@ -1250,16 +1339,13 @@ multinomialUnusedArgs <- list(
 
 extract.bartMultinomial <- function(
   object,
-  type = c("ev", "ppd", "bart", "forest", "loglik"),
+  type = c("ev", "ppd", "bart", "forest", "loglik", "varcount"),
   sample = c("train", "test"),
   combineChains = TRUE,
   ...
 ) {
   type <- validateType(type, eval(formals(extract.bartMultinomial)$type))
-  sample <- validateSample(
-    sample,
-    eval(formals(extract.bartMultinomial)$sample)
-  )
+  sampleSupplied <- !missing(sample)
   refuseMultinomialLatentType(type)
   refuseUnusedGenericArgs(
     list(...),
@@ -1272,6 +1358,21 @@ extract.bartMultinomial <- function(
         names(formals(extract.bartMultinomial))
       )
     )
+  )
+
+  if (type == "varcount") {
+    refuseSampleOnModelType(type, sampleSupplied)
+    return(reshapeChainedChannel(
+      object$varcount,
+      fitNChains(object),
+      combineChains,
+      2L
+    ))
+  }
+
+  sample <- validateSample(
+    sample,
+    eval(formals(extract.bartMultinomial)$sample)
   )
 
   if (type == "loglik" && sample == "test") {
@@ -1597,13 +1698,13 @@ ordinalUnusedArgs <- list(
 
 extract.bartOrdinal <- function(
   object,
-  type = c("ev", "ppd", "bart", "loglik"),
+  type = c("ev", "ppd", "bart", "loglik", "thresholds", "varcount"),
   sample = c("train", "test"),
   combineChains = TRUE,
   ...
 ) {
   type <- validateType(type, eval(formals(extract.bartOrdinal)$type))
-  sample <- validateSample(sample, eval(formals(extract.bartOrdinal)$sample))
+  sampleSupplied <- !missing(sample)
   refuseUnusedGenericArgs(
     list(...),
     "extract",
@@ -1614,6 +1715,14 @@ extract.bartOrdinal <- function(
     )
   )
   n.chains <- fitNChains(object)
+
+  if (type %in% c("thresholds", "varcount")) {
+    refuseSampleOnModelType(type, sampleSupplied)
+    channel <- if (type == "thresholds") object$thresholds else object$varcount
+    return(reshapeChainedChannel(channel, n.chains, combineChains, 1L))
+  }
+
+  sample <- validateSample(sample, eval(formals(extract.bartOrdinal)$sample))
 
   if (type == "loglik") {
     if (sample == "test") {
@@ -1897,13 +2006,13 @@ negbinUnusedArgs <- list(
 
 extract.bartNegbin <- function(
   object,
-  type = c("ev", "ppd", "bart", "loglik"),
+  type = c("ev", "ppd", "bart", "loglik", "dispersion", "varcount"),
   sample = c("train", "test"),
   combineChains = TRUE,
   ...
 ) {
   type <- validateType(type, eval(formals(extract.bartNegbin)$type))
-  sample <- validateSample(sample, eval(formals(extract.bartNegbin)$sample))
+  sampleSupplied <- !missing(sample)
   refuseUnusedGenericArgs(
     list(...),
     "extract",
@@ -1914,6 +2023,16 @@ extract.bartNegbin <- function(
     )
   )
   n.chains <- fitNChains(object)
+
+  if (type %in% c("dispersion", "varcount")) {
+    refuseSampleOnModelType(type, sampleSupplied)
+    if (type == "dispersion") {
+      return(reshapeScalarChannel(object$dispersion, n.chains, combineChains))
+    }
+    return(reshapeChainedChannel(object$varcount, n.chains, combineChains, 1L))
+  }
+
+  sample <- validateSample(sample, eval(formals(extract.bartNegbin)$sample))
 
   if (type == "loglik" && sample == "test") {
     stop("cannot extract a test sample log-likelihood; no test response exists")
@@ -2258,9 +2377,27 @@ foreignArgsFor <- function(reasons, own) {
 
 # 'forest' selects among the per-forest channels only the "forest" arm
 # reports; every other arm has already recombined them into the reported
-# location, so a selection there would silently choose nothing.
+# location, so a selection there would silently choose nothing. The model
+# parameters and varcount are no recombined location, so they get their own
+# wording.
 refuseForestSelectionOutsideForestArm <- function(type, forest) {
-  if (type != "forest" && !is.null(forest)) {
+  if (is.null(forest)) {
+    return(invisible(NULL))
+  }
+  if (type %in% c("sigma", "k", "dispersion", "thresholds")) {
+    stop(
+      "type = \"",
+      type,
+      "\" is a model parameter, not a per-forest quantity"
+    )
+  }
+  if (type == "varcount") {
+    stop(
+      "type = \"varcount\" keeps every forest on its trailing margin; ",
+      "subset that margin"
+    )
+  }
+  if (type != "forest") {
     stop(
       "type = \"",
       type,
@@ -2499,13 +2636,13 @@ hurdleUnusedArgs <- list(
 
 extract.bartHurdle <- function(
   object,
-  type = c("ev", "ppd", "prob", "bart", "loglik"),
+  type = c("ev", "ppd", "prob", "bart", "loglik", "sigma", "k", "varcount"),
   sample = c("train", "test"),
   combineChains = TRUE,
   ...
 ) {
   type <- resolveHurdleType(type, eval(formals(extract.bartHurdle)$type))
-  sample <- validateSample(sample, eval(formals(extract.bartHurdle)$sample))
+  sampleSupplied <- !missing(sample)
   refuseUnusedGenericArgs(
     list(...),
     "extract",
@@ -2515,6 +2652,39 @@ extract.bartHurdle <- function(
       foreignArgsFor(extractForeignReasons, names(formals(extract.bartHurdle)))
     )
   )
+
+  # sigma is positive$sigma, the only one the composition carries; k and
+  # varcount are lists keyed occupancy/positive, a fixed-k component left out
+  # of k (dec-A17)
+  if (type %in% c("sigma", "k", "varcount")) {
+    refuseSampleOnModelType(type, sampleSupplied)
+    n.chains <- hurdleNChains(object)
+    if (type == "sigma") {
+      return(reshapeScalarChannel(
+        object$positive$sigma,
+        n.chains,
+        combineChains
+      ))
+    }
+    parts <- object[c("occupancy", "positive")]
+    if (type == "varcount") {
+      return(lapply(parts, function(part) {
+        reshapeChainedChannel(part$varcount, n.chains, combineChains, 1L)
+      }))
+    }
+    parts <- Filter(function(part) !is.null(part[["k"]]), parts)
+    if (length(parts) == 0L) {
+      stop(
+        "cannot extract 'k': both of this hurdle fit's components have a ",
+        "fixed k, not sampled"
+      )
+    }
+    return(lapply(parts, function(part) {
+      reshapeScalarChannel(part$k, n.chains, combineChains)
+    }))
+  }
+
+  sample <- validateSample(sample, eval(formals(extract.bartHurdle)$sample))
   if (sample == "test") {
     stop(
       "this hurdle fit carries no separate test channel; call predict on ",

@@ -1509,7 +1509,7 @@
             stored on it. \code{bart} defaults to
             \code{combineChains = TRUE}: a multi-chain fit's draw channels
             arrive with the chain and sample margins already merged,
-            matching what \code{summary}, \code{\link{draws}}, and most
+            matching what \code{summary} and most
             downstream consumers expect without a reshape;
             \code{combineChains = FALSE} keeps them separate, as the
             previous default did. Finally, MCMC runs are now
@@ -1577,11 +1577,13 @@
             (\code{sigma} and \code{k}), with split-\eqn{\hat{R}}{Rhat} and
             bulk/tail effective sample size computed in-package and always
             reported, no \pkg{posterior} install consulted or required.
-            \code{\link{draws}(object)} returns the same scalar parameters,
-            chain-dimensioned, as a plain (iteration, chain, variable) array
-            - the shape \code{posterior::as_draws_array} accepts directly
-            for a caller who has that package, though dbarts itself does
-            not depend on it.
+            \code{\link{extract}} offers the same scalar parameters,
+            chain-separated: \code{"sigma"}, \code{"k"}, and
+            \code{"varcount"} on a \code{bart} fit, \code{"thresholds"} on
+            an ordinal fit, \code{"dispersion"} on a negative-binomial fit,
+            and the matching pieces on a hurdle fit; a scalar parameter is
+            a vector or, with \code{combineChains = FALSE}, a
+            chains-by-samples matrix.
       \item A flat C interface for packages compiling against dbarts,
             \code{dbarts/dbarts.h}: an opaque sampler handle over the
             rewritten engine, read out of the external pointer of a sampler
@@ -2304,8 +2306,8 @@
             fits. An ordinal fit's summary reports its thresholds, a
             negative-binomial fit's its dispersion draws, and a hurdle
             fit's both component fits' summaries under their own headers -
-            alongside whatever mean-function scale (\code{sigma}, \code{k},
-            \code{tau}) each carries, exactly as \code{summary.bart}
+            alongside whatever mean-function scale (\code{sigma}, \code{k})
+            each carries, exactly as \code{summary.bart}
             already reports for a plain \code{bartBT}/\code{bart} fit.
       \item \code{extract(fit, type = "trees", ...)} no longer corrupts its
             own call. Passing \code{sample}, \code{combineChains},
@@ -2408,8 +2410,7 @@
             \code{predict.bart}'s own.
       \item \code{extract(type = "loglik")} is available for the four
             \code{bart} own-class families, each with a \code{plot} method
-            (\code{bartMultinomial}'s showing a second panel).
-            \code{\link{draws}} covers all four families too. See
+            (\code{bartMultinomial}'s showing a second panel). See
             \code{\link{bart}}'s \sQuote{Value} section for each
             family's formula and shape.
       \item \code{extract(type = "trees")} on a fit with no saved trees

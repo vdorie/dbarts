@@ -551,12 +551,13 @@ dev.off()
 expect_equal(mfrowK3, c(3L, 3L))
 expect_equal(mfrowK2, c(1L, 1L))
 
-# --- draws() defaults to vars = c("thresholds", "sigma", "k", "tau");
-# threshold[1] (pinned at 0) is kept ---
+# --- extract(type = "thresholds"): the stored channel, column 1 pinned
+# at 0 ---
 
-adNames <- dimnames(draws(fit))[[3L]]
-expect_true(all(c("threshold[1]", "threshold[2]") %in% adNames))
-rm(adNames)
+th <- extract(fit, type = "thresholds")
+expect_equal(th, fit$thresholds)
+expect_true(all(th[, 1L] == 0))
+rm(th)
 
 rm(
   combinedEv,

@@ -495,11 +495,10 @@ restoredMfrow <- par("mfrow")
 dev.off()
 expect_equal(restoredMfrow, c(3L, 3L))
 
-# --- draws() defaults to vars = c("dispersion", "sigma", "k", "tau"); this
-# family has no sigma/k/tau, so only "dispersion" survives ---
+# --- extract(type = "dispersion"): the per-draw dispersion r ---
 
-d <- draws(fit)
-expect_equal(dimnames(d)[[3L]], "dispersion")
+d <- extract(fit, type = "dispersion")
+expect_equal(d, fit$dispersion)
 rm(d)
 
 rm(

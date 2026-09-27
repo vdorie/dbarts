@@ -202,7 +202,7 @@ pre-1.0-0 removal does.
   retired: [`rbartUnusedArgs`](../../R/generics.R) and its four dispatch references, and the
   live user-facing string retired: ["is the grouped (rbart_vi) fit's own predict argument"](../../R/generics.R),
   pinned by retired: ["group.by"](../../inst/tinytest/test-generics-errors.R).
-- Scattered awareness: the `"rbart"` entry in the class list of retired: [`registerPosteriorMethods`](../../R/hooks.R) (the construct is gone - `as_draws_array`/`as_draws_df` and the hook that registered them into `posterior`'s S3 tables are both retired in favor of [`draws`](../../R/generics.R), which registers nothing into another package),
+- Scattered awareness: the `"rbart"` entry in the class list of retired: [`registerPosteriorMethods`](../../R/hooks.R) (the construct is gone - `as_draws_array`/`as_draws_df` and the hook that registered them into `posterior`'s S3 tables are both retired; the replacement they named, retired: [`draws`](../../R/generics.R), is gone too (extract-scalar-types.md), and neither registered anything into another package),
   retired: ["dbarts()/rbart_vi()/bart()/xbart"](../../R/spec.R) and the
   variance-forest refusal comment, and comments or dispatch lists in
   `R/partialDependence.R`, `R/data.R`, `R/utility.R`, `R/xbart.R` and

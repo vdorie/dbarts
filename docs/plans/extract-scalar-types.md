@@ -268,3 +268,20 @@ VD rules for prefixes, only Step 2's hurdle arm changes.
 - Downstream: bartCause's dbarts-1.0 and stan4bart's bartcore suites do not
   call draws(). Run bartCause's extract tests once against the slice's
   library.
+
+## Landing
+
+LANDED (pending hash), two commits: "Fix ordinalThresholdsArray's uncombined
+layout and add its regression test" (Step 4; ordinalThresholdsArray now routes
+through toDrawsArray, whose 3-D branch already reads the stored chains x
+samples x (K - 1) layout), then "Move a fit's scalar draws onto extract and
+retire the draws() generic" (Steps 1-3 and 5-11). Deviations: the fixed-k
+advice reads monotone off the kept sampler's model, else off the stored call;
+the sample refusal is one helper, refuseSampleOnModelType; the forest and
+contribution refusals in extract.bart moved above the new branch rather than
+being repeated in it.
+
+Gates, on the slice's library: tests/cpp; full tinytest; lintr, air;
+check-rc-codoc.R, check-win-drift.R, check-doc-freshness.R, each on its own
+exit status; pkgdown::check_pkgdown; the NEWS parse gate; bartCause's
+test-05-generics.R (dbarts-1.0) against the slice's library.

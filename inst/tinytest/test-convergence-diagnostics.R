@@ -4,8 +4,8 @@ source(
 )
 
 # ---- shape round-trip: bart-convention arrays -> (iteration, chain,
-# variable); this is dbarts:::bartDrawsArray, the mapping both draws() and
-# summary() build on.
+# variable); this is dbarts:::bartDrawsArray, the mapping summary() builds
+# on.
 
 ## combineChains = FALSE pinned deliberately: this fit exercises
 ## bartDrawsArray's reconstruction of the chain axis from an uncombined
@@ -128,13 +128,13 @@ goodFit <- structure(
 )
 expect_false(any(grepl("R-hat", capture.output(print(goodFit)), fixed = TRUE)))
 
-# ---- draws() is the exported accessor over the same array bartDrawsArray
-# builds internally, and summary()'s rhat/ess_bulk/ess_tail columns are
-# always present (no 'posterior' branch to degrade) ----
+# ---- extract's "sigma" is the chains-by-samples matrix bartDrawsArray's
+# (iteration, chain, variable) array transposes to, and summary()'s
+# rhat/ess_bulk/ess_tail columns are always present (no 'posterior' branch
+# to degrade) ----
 
-d <- draws(fit, "sigma")
-expect_equal(dim(d), c(20L, 3L, 1L))
-expect_equal(unclass(d), dbarts:::bartDrawsArray(fit, "sigma"))
+d <- extract(fit, "sigma", combineChains = FALSE)
+expect_equal(d, t(dbarts:::bartDrawsArray(fit, "sigma")[,, 1L]))
 
 s <- summary(fit)
 expect_true(all(c("rhat", "ess_bulk", "ess_tail") %in% names(s$stats)))
@@ -157,7 +157,7 @@ rm(
   goodFit
 )
 
-# summary()/draws() on a COMBINED (default) multi-chain fit must
+# summary() on a COMBINED (default) multi-chain fit must
 # reconstruct a non-scalar field's chain axis from its combined
 # (n.chains * n.samples) x n.vars layout, not the (n.chains, n.samples)
 # layout an uncombined scalar field has - the two 2-D shapes are otherwise
@@ -497,3 +497,152 @@ rm(
   ordinalUncombined
 )
 
+# ---- extract's "sigma"/"k"/"varcount": same-seed fits, one combined at fit
+# time and one not, return identical output under either combineChains ----
+
+fitCombTrue <- dbarts::bart(
+  testData$y ~ testData$x,
+  n.chains = 3L,
+  n.samples = 15L,
+  n.burn = 8L,
+  n.trees = 5L,
+  n.threads = 1L,
+  k = chi(1.5, 2),
+  combineChains = TRUE,
+  verbose = FALSE,
+  seed = 41L
+)
+fitCombFalse <- dbarts::bart(
+  testData$y ~ testData$x,
+  n.chains = 3L,
+  n.samples = 15L,
+  n.burn = 8L,
+  n.trees = 5L,
+  n.threads = 1L,
+  k = chi(1.5, 2),
+  combineChains = FALSE,
+  verbose = FALSE,
+  seed = 41L
+)
+for (scalarType in c("sigma", "k", "varcount")) {
+  for (cc in c(TRUE, FALSE)) {
+    expect_equal(
+      extract(fitCombTrue, type = scalarType, combineChains = cc),
+      extract(fitCombFalse, type = scalarType, combineChains = cc)
+    )
+  }
+}
+# combined is chain-major, and varcount keeps the predictor names
+expect_equal(
+  extract(fitCombTrue, "sigma"),
+  as.vector(t(extract(fitCombTrue, "sigma", combineChains = FALSE)))
+)
+expect_equal(
+  dimnames(extract(fitCombTrue, "varcount", combineChains = FALSE))[[3L]],
+  colnames(fitCombTrue$varcount)
+)
+rm(scalarType, cc)
+
+# one chain: a scalar is a vector either way
+fitOneChain <- dbarts::bart(
+  testData$y ~ testData$x,
+  n.chains = 1L,
+  n.samples = 12L,
+  n.burn = 6L,
+  n.trees = 5L,
+  n.threads = 1L,
+  k = chi(1.5, 2),
+  verbose = FALSE
+)
+expect_null(dim(extract(fitOneChain, "sigma")))
+expect_equal(
+  dim(extract(fitOneChain, "varcount")),
+  c(12L, ncol(testData$x))
+)
+expect_equal(
+  extract(fitOneChain, "sigma", combineChains = FALSE),
+  extract(fitOneChain, "sigma", combineChains = TRUE)
+)
+
+# a fixed k errors, without chi advice under a monotone constraint even when
+# the sampler was not kept
+fitFixedK <- dbarts::bart(
+  testData$y ~ testData$x,
+  n.chains = 1L,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.threads = 1L,
+  monotone = c(1L, rep(0L, ncol(testData$x) - 1L)),
+  verbose = FALSE
+)
+expect_null(fitFixedK$fit)
+expect_error(
+  extract(fitFixedK, "k"),
+  "cannot extract 'k': this fit's k was fixed, not sampled$"
+)
+
+# a binary fit and a heteroscedastic fit have no sigma
+n.bin2 <- 40L
+x.bin2 <- matrix(runif(n.bin2 * 2L), n.bin2, 2L)
+y.bin2 <- rbinom(n.bin2, 1L, plogis(x.bin2[, 1L]))
+fitBinaryScalar <- dbarts::bart(
+  y.bin2 ~ x.bin2,
+  n.chains = 1L,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_error(
+  extract(fitBinaryScalar, "sigma"),
+  "cannot extract 'sigma': a probit fit has no residual scale parameter",
+  fixed = TRUE
+)
+
+fitHetero <- dbarts::bart(
+  runif(40L),
+  rnorm(40L),
+  variance = dbarts::varianceForest(n.trees = 3L),
+  n.trees = 5L,
+  n.samples = 8L,
+  n.burn = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_error(
+  extract(fitHetero, "sigma"),
+  "cannot extract 'sigma': a heteroscedastic fit has no scalar residual scale",
+  fixed = TRUE
+)
+
+# 'sample' and 'forest' are refused by name on these types
+expect_error(
+  extract(fitCombTrue, "sigma", sample = "train"),
+  "'sample' is not used when type = \"sigma\"",
+  fixed = TRUE
+)
+expect_error(
+  extract(fitCombTrue, "varcount", forest = 1L),
+  "type = \"varcount\" keeps every forest on its trailing margin",
+  fixed = TRUE
+)
+expect_error(
+  extract(fitCombTrue, "sigma", forest = 1L),
+  "type = \"sigma\" is a model parameter, not a per-forest quantity",
+  fixed = TRUE
+)
+
+rm(
+  fitCombTrue,
+  fitCombFalse,
+  fitOneChain,
+  fitFixedK,
+  n.bin2,
+  x.bin2,
+  y.bin2,
+  fitBinaryScalar,
+  fitHetero
+)
