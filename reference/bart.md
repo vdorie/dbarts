@@ -435,27 +435,26 @@ print(x, ...)
   `test` rows is a sampler-level capability only (a
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   own `$setCategoryTestOffset` method, reached through
-  `keepSampler = TRUE`, or the internal creators' own `offset.test`
-  argument), not reachable from `bart`; `predict`'s own `offset` is the
-  supported route to an offset test surface, taking a matrix for the
-  rows it is given. `test` is supported: an `x.test` of the same column
-  structure as `x.train` reports the K-category softmax probabilities on
-  the held-out rows as `yhat.test`, shaped and levels-named exactly like
-  `yhat.train` (see ‘Value’). `keepTrees` is supported too: it retains
-  every one of the K forests' trees so `predict` can replay them at new
-  predictors afterward, reproducing `yhat.test` bitwise when `newdata`
-  matches the fit-time `test`; without `keepTrees`, `predict` errors. A
-  fit trained with an `offset` replays as well, given `predict`'s
-  `offset` at the new rows, and refuses by name without it: no resident
-  offset describes rows the fit never saw. The per-forest leaf scale
-  follows its own K-dependent calibration (the K = 2 anchor is the
-  logistic scale \\\pi\sqrt{3}\\ divided by \\\sqrt{2}\\, for the
-  identified pairwise log-odds); `k` is read from the usual node prior
-  exactly as for any other family, but the node prior's `node.scale`
-  itself is NOT consulted - the multinomial engine calibrates its own.
-  The fit's class is `"bartMultinomial"`, not `"bart"`: see ‘Value’
-  below and the `extract`/`fitted`/`predict` methods for
-  `bartMultinomial` objects.
+  `keepSampler = TRUE`), not reachable from `bart`; `predict`'s own
+  `offset` is the supported route to an offset test surface, taking a
+  matrix for the rows it is given. `test` is supported: an `x.test` of
+  the same column structure as `x.train` reports the K-category softmax
+  probabilities on the held-out rows as `yhat.test`, shaped and
+  levels-named exactly like `yhat.train` (see ‘Value’). `keepTrees` is
+  supported too: it retains every one of the K forests' trees so
+  `predict` can replay them at new predictors afterward, reproducing
+  `yhat.test` bitwise when `newdata` matches the fit-time `test`;
+  without `keepTrees`, `predict` errors. A fit trained with an `offset`
+  replays as well, given `predict`'s `offset` at the new rows, and
+  refuses by name without it: no resident offset describes rows the fit
+  never saw. The per-forest leaf scale follows its own K-dependent
+  calibration (the K = 2 anchor is the logistic scale \\\pi\sqrt{3}\\
+  divided by \\\sqrt{2}\\, for the identified pairwise log-odds); `k` is
+  read from the usual node prior exactly as for any other family, but
+  the node prior's `node.scale` itself is NOT consulted - the
+  multinomial engine calibrates its own. The fit's class is
+  `"bartMultinomial"`, not `"bart"`: see ‘Value’ below and the
+  `extract`/`fitted`/`predict` methods for `bartMultinomial` objects.
 
   `family = "ordinal"` fits an ordered categorical response by a
   cumulative probit (a single forest, unlike multinomial's K): a latent
@@ -1742,7 +1741,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001578
+#> total seconds in loop: 0.001595
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1790,7 +1789,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001979
+#> total seconds in loop: 0.001995
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 
