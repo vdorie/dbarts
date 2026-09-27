@@ -532,12 +532,16 @@ sampler-gettrees-forest (decided, VD 2026-09-27; docs/decisions.md dec-A80)
   and gains the type on the multi-forest classes; plotTree follows; the
   internal test helper retires; manual, NEWS and tests.
 
-node-vocabulary (decided, VD 2026-09-27; docs/decisions.md dec-B129)
-  before the merge: the sampler's getCalibration/setCalibration become
-  getNodePrior/setNodePrior; gp(max.leaf.size) becomes max.node.size and
-  the reader's leaf.model attribute node.model; the manual's prose says
-  node where it names these; R, bridge entry names, manual, NEWS, tests,
-  docs; bartCause's bcf() call in lockstep; no tombstone.
+leaf-vocabulary (decided, VD 2026-09-27; docs/decisions.md dec-B129)
+  before the merge: leaf where a name means terminal nodes only, node
+  where it means every node. node.prior -> leaf.prior on every entry
+  point and sampleNodeParametersFromPrior -> sampleLeafParametersFromPrior,
+  each old name a once-per-session warning tombstone until 1.1-0;
+  getCalibration/setCalibration -> getLeafPrior/setLeafPrior and
+  node.scale.factor/divisor -> leaf.scale.factor/divisor, no tombstone;
+  getTrees, plotTree and the tree prior keep node; manual prose follows;
+  NEWS upgrading item; stan4bart (leaf.prior) and bartCause (getLeafPrior)
+  in lockstep.
 
 hurdle feature completion (VD 2026-09-26: part of feature completion,
   not to be forgotten; docs/decisions.md dec-A15)
