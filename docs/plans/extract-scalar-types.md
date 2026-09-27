@@ -7,9 +7,6 @@ budget: about +260/-230 over R/ (2 files), man/ (3 edited, 1 deleted),
 inst/tinytest (6 files), inst/NEWS.Rd, one vignette, _pkgdown.yml, NAMESPACE,
 four docs
 
-Written as if it lives at docs/plans/extract-scalar-types.md; cites resolve
-from there.
-
 ## Goal
 
 extract returns a fit's scalar parameter draws in the shape stan4bart's and
@@ -271,7 +268,7 @@ VD rules for prefixes, only Step 2's hurdle arm changes.
 
 ## Landing
 
-LANDED (pending hash), two commits: "Fix ordinalThresholdsArray's uncombined
+LANDED 2026-09-26 (b5ae43e7, 98524aac), two commits: "Fix ordinalThresholdsArray's uncombined
 layout and add its regression test" (Step 4; ordinalThresholdsArray now routes
 through toDrawsArray, whose 3-D branch already reads the stored chains x
 samples x (K - 1) layout), then "Move a fit's scalar draws onto extract and
