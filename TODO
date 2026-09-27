@@ -312,6 +312,12 @@ items
     sets one (dec-B96, below). The starting forest's law, an exact
     rejection draw from the restricted prior, is revisited here too
     (dec-A10, VD 2026-09-26).
+    Joint structure-and-value proposals (VD 2026-09-27, dec-A71): the
+    non-conjugate move strategy of docs/design/gp-leaves.md part 2 -
+    birth drawing child values from the prior or a Laplace approximation,
+    accepted on the likelihood ratio - is on this list as a candidate
+    mixing gain for every leaf model, not GP leaves alone; the second
+    sweep variant it needs is the largest piece.
     Owed there: the equal-cost arm on a quiet machine (slice 2's
     rule-gibbs-balance.R has landed). Rotation, a Stage R0
     generator-only regrow census, the re-specified reallocation census
