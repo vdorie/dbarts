@@ -272,10 +272,6 @@ Record: inst/include/dbarts/dbarts.h; src/R_interface_bartcore_common.hpp. Marke
 extract(type = "varcount") works on multinomial, ordinal and negative binomial fits as well as the plain bart class, reading dec-A68's "bart fits" as every fit bart() returns. The alternative was the plain class only. The cost is three more documented shapes, with a forest or level margin where the fit has one.
 Record: docs/plans/extract-scalar-types.md. Marked: blank. [dec-A78]
 
-**Reading a non-first forest's trees stays test-only**
-The sampler's $getTrees reads only the first forest, so from R a causal forest's treatment forest and a multinomial fit's categories after the first cannot be read. The one test helper that reads them through the internal layer stays, as truly additive under dec-A52, and a public forest = argument waits as a door in TODO (sampler-gettrees-forest). The alternative was adding the argument before the merge, about 60 lines plus the manual. The cost is a gap in the public surface through 1.0-0.
-Record: the test scaffolding consolidation plan. Marked: blank. [dec-A80]
-
 **Only the two virtual test hooks leave the engine's production classes**
 Of about thirty engine accessors that exist for tests, the two that are virtual on the response base class come off it, becoming ordinary members of the two final classes that use them with the test forwarders casting to reach them, since only virtual members shape the production vtables and object layout (dec-A51). The non-virtual test accessors stay where they are, following the maintainer's words "leave the internal functions when they're truly additive". The alternative was moving all of them into a separate test-access structure, about 130 call sites of churn. The cost is test-only members left on production classes.
 Record: the test scaffolding consolidation plan. Marked: blank. [dec-A81]
@@ -885,6 +881,10 @@ Record: this register; docs/plans/constructor-vocabulary.md. Marked: mine. [dec-
 **Where the caller's variable is looked up for a shared name**
 Under the maintainer's ruling that a bare interactions or blocks given as the value takes the caller's variable of that name (dec-A67), the lookup considers only names used as values in the argument, never names in call position, and stops at the caller's top-level environment: the global environment for user code, the package namespace for code inside a package, so a package's wrapper never picks up a user's global variable and gets the constructor instead. The alternative was to search up to the global environment from any caller, the reach R CMD check flags as a global variable with no visible binding. The cost is that a package function cannot deliberately rely on a user's global through the bare name. The maintainer, 2026-09-27, choosing between the two: "Keep it then." See also: [dec-A67], [dec-A75].
 Record: this register; docs/plans/constructor-vocabulary.md. Marked: mine. [dec-A76]
+
+**The sampler's getTrees reads every forest**
+The sampler's $getTrees gains a forest argument that, left at its default of NULL, returns every forest's trees with a forest column, forests indexed from 1, as the sampler's other per-forest readers - getCalibration, getForestFits, getForestAmplitudes and getForestVariableCounts - default to every forest stacked; extract(type = "trees") forwards it. Before, $getTrees read only the first forest, with no column saying so and no sentence in the manual, so a multinomial fit's later categories and a causal forest's treatment forest could not be read from R, and the agents had deferred the argument past the release as purely additive, which overlooked that its default would change the silent first-forest answer after release. The alternatives were that deferral and a forest argument defaulting to the first forest, which keeps 0.9-x's output unchanged at the cost of disagreeing with the sibling readers. A single-forest fit's trees gain the forest column against 0.9-x. The maintainer, 2026-09-27: "it makes sense to me to do (b) from your recommendation set", observing that trees are parameters and their reading a modelling question, not a matter of precedent from the calibration reader.
+Record: this register; TODO sampler-gettrees-forest. Marked: mine. [dec-A80]
 
 ## C. Agent-made decisions with no identified cost
 

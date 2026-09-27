@@ -268,13 +268,6 @@ items
     docs/plans/release-candidate-review.md's wave-3 landing note; the
     review's own DEFER bin is
     docs/plans/review-2026-08-24/consolidated-report.md.
-  sampler-gettrees-forest: door, no plan doc of its own. The sampler's
-    $getTrees reads only the first forest, so from R a Bayesian causal
-    forest's treatment forest and a multinomial fit's categories after the
-    first are unreadable; a test helper reaches them through the internal
-    layer and stays for that reason (docs/decisions.md, agent-made entry of
-    2026-09-26). A public forest = argument is the candidate; not pre-merge
-    scope.
   setresponse-positional-arg-warning: drop the once-per-session warning on
     a positionally-supplied second argument to $setResponse (it now sets
     updateScale, not updateState) once callers have had a full minor cycle
@@ -531,6 +524,13 @@ treatSens-treatment-model-frames (agent-noted 2026-09-27)
   treatSens' evaluateTreatmentModelArgument resolves treatmentModel two
   frames above itself, so a call from any other depth resolves in the
   wrong frame; evaluate in the caller's frame as dbarts does.
+
+sampler-gettrees-forest (decided, VD 2026-09-27; docs/decisions.md dec-A80)
+  before the merge: $getTrees(forest = NULL) returns every forest's trees
+  with a forest column, forests from 1, as the sibling per-forest readers
+  do; extract(type = "trees") forwards forest where it refuses it today
+  and gains the type on the multi-forest classes; plotTree follows; the
+  internal test helper retires; manual, NEWS and tests.
 
 hurdle feature completion (VD 2026-09-26: part of feature completion,
   not to be forgotten; docs/decisions.md dec-A15)
