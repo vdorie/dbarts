@@ -827,12 +827,13 @@ n.threads)`, the body of `$predict` that `predict.bart` and
 code the already-coded rows a second time. na.action, row names and the
 no-surviving-row placeholder are untouched. For nbinom a scalar offset now
 recycles, where the bridge refused it by length. The `$predict` path's
-"lone NA means no offset" is unreachable: `subsetPredictInput` refuses an NA
-inside a per-row offset, and `predict.bartNegbin` now refuses a lone NA with
-the same message, where the old route refused it by length (n > 1) or gave
-NA rows (n = 1). Both are pinned in test-nbinom.R and stated in bart.Rd's
-`offset` item. `subsetPredictInput` itself still passes a lone NA for the
-other families (`predict.bart` gives NA rows), left as it was.
+"lone NA means no offset" is unreachable from a fit: `subsetPredictInput`
+refuses any NA in a predict-time offset or weights, a lone one included
+(second reader's follow-up commit; before it, a lone NA gave `predict.bart`
+NA rows, or on one row no offset). For nbinom the old route refused a lone
+NA by length (n > 1) or gave NA rows (n = 1). Pinned in test-nbinom.R and
+test-predict-na-action.R, and stated in bart.Rd's `offset` item and
+na.keepPredictors.Rd.
 
 Seeded proof, before and after, on the reference build against
 origin/bartcore fb9364c7: seeded (`seed =`) ordinal fits at one and two

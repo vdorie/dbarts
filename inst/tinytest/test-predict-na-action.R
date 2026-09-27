@@ -212,6 +212,24 @@ expect_error(
   predict(fit, newX[complete, ], "ppd", weights = c(1, 1, NA, 1)),
   "'weights' has missing values"
 )
+# a lone NA would recycle to all-NA rows, or on one row read as no offset:
+# refused the same way, even when no row survives na.action
+expect_error(
+  predict(fit, newX[complete, ], offset = NA),
+  "'offset' has missing values"
+)
+expect_error(
+  predict(fit, newX[1L, ], offset = NA_real_),
+  "'offset' has missing values"
+)
+expect_error(
+  predict(fit, newX[4L, ], offset = NA, na.action = na.omit),
+  "'offset' has missing values"
+)
+expect_error(
+  predict(fit, newX[complete, ], "ppd", weights = NA),
+  "'weights' has missing values"
+)
 
 # --- a positional newdata warns once ---
 
@@ -330,6 +348,10 @@ expect_identical(levels(classM), levels(category))
 bandM <- predict(fitM, newX, ci.level = 0.9, na.action = na.exclude)
 expect_identical(dimnames(bandM)[[1L]], newNames)
 expect_identical(dim(predict(fitM, newX[0L, ])), c(16L, 0L, 3L))
+expect_error(
+  predict(fitM, newX[complete, ], offset = NA),
+  "'offset' has missing values"
+)
 
 fitO <- quick(x, factor(category, ordered = TRUE), family = "ordinal")
 expect_identical(

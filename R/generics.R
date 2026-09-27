@@ -2315,11 +2315,6 @@ predict.bartNegbin <- function(
   }
   rowNames <- rows$keptNames
   offset <- subsetPredictInput(offset, rows, "offset")
-  # a length-one offset recycles over the rows, so a lone NA would give an
-  # all-NA surface: refused, as a missing value in a per-row offset is
-  if (length(offset) == 1L && is.na(offset)) {
-    stop("'offset' has missing values")
-  }
   n.chains <- object$n.chains
   # raw is n.new x n.samples (x n.chains): the replayed log-odds latent psi
   raw <- predictCodedTest(object$fit, rows$x, offset, n.threads)

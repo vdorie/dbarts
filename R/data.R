@@ -548,10 +548,10 @@ suppressPositionalWarnings <- function(expr) {
 
 ## A per-row input at the rows preparePredictRows kept: a length-one value
 ## recycles and passes through, anything else must match newdata's rows. A
-## placeholder row takes 'stub'. A missing value would silently give an NA
-## or NaN prediction, so it is refused.
+## placeholder row takes 'stub'. A missing value, alone or in a vector, would
+## silently give an NA or NaN prediction, so it is refused.
 subsetPredictInput <- function(value, rows, argument, stub = NULL) {
-  if (length(value) > 1L && anyNA(value)) {
+  if (anyNA(value)) {
     stop("'", argument, "' has missing values")
   }
   if (is.null(rows$keep)) {

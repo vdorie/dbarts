@@ -81,8 +81,8 @@ na.keepPredictors(object, \dots)
 
   A per-row \code{offset}, \code{weights} or \code{bases} must match
   \code{newdata}'s rows and loses the same rows; a single value passes
-  through. A missing value in a per-row \code{offset} or \code{weights} is
-  an error. The sampler's own \code{predict}, \code{predictForests} and
+  through. A missing value in an \code{offset} or \code{weights}, alone
+  or in a vector, is an error. The sampler's own \code{predict}, \code{predictForests} and
   \code{getTrees} methods take no \code{na.action} and keep the default.
 }
 \value{
