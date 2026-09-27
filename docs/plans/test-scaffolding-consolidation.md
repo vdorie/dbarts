@@ -695,7 +695,7 @@ OK on all seven arms; `lintr::lint_package()` clean (benchmarks/ is not in
 its scan); `air format --check .` clean; `tools/check-doc-freshness.R` OK,
 no cite touched this commit.
 
-sbc.R moved off the internal route (pending hash): its BCF and multinomial
+sbc.R moved off the internal route 2026-09-27 (5b757f1e): its BCF and multinomial
 arms (`sbcMakeBCF`, `sbcCheckBCFLatent`, `sbcBCFSample`, `runSbcBCF`,
 `sbcInstallBCFGlue`, `sbcFamilySpec`'s BCF and multinomial branches,
 `sbcMakeMultinomial`, `sbcCheckMultinomialProbs`) migrated off
