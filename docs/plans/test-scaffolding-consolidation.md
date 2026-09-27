@@ -694,3 +694,48 @@ commit, re-run to confirm no accidental touch); multinomial-exact.R quick,
 OK on all seven arms; `lintr::lint_package()` clean (benchmarks/ is not in
 its scan); `air format --check .` clean; `tools/check-doc-freshness.R` OK,
 no cite touched this commit.
+
+sbc.R moved off the internal route (pending hash): its BCF and multinomial
+arms (`sbcMakeBCF`, `sbcCheckBCFLatent`, `sbcBCFSample`, `runSbcBCF`,
+`sbcInstallBCFGlue`, `sbcFamilySpec`'s BCF and multinomial branches,
+`sbcMakeMultinomial`, `sbcCheckMultinomialProbs`) migrated off
+`bartcoreBCFSampler`/`bartcoreMultinomialSampler` and the
+inst/common/bartcoreHandle.R wrappers, onto
+`dbarts(forests = list(forest(sd = , update.amplitude = ), forest(basis =
+~ factor(z), sd = , amplitude.prior.variance = , update.amplitude = )))`
+and `dbarts(x, factor(labels), family = "multinomial")`, plus the
+`dbartsSampler` methods (`$run`, `$getForestAmplitudes`, `$getForestFits`,
+`$setResponse`, `$sampleTreesFromPrior`, `$sampleNodeParametersFromPrior`,
+`$storeState`/`$state`/`$setState`, `$getDispersion`). `sbcInternalFits`'
+single-forest raw `.Call` folded onto `$getForestFits(1L)` the same way. The
+file's own `source()` of inst/common/bartcoreHandle.R is gone - nothing
+left in sbc.R calls a wrapper from it.
+
+One raw `.Call` stays, in `sbcFamilySpec`'s Student-t branch:
+`.Call(storeState, f$getPointer())[[1L]]$resid.df` reads the Student-t
+residual df between samples. No public method mirrors `getDispersion()`
+for it (no `C_dbarts_bartcore_getResidualDf` entry point), so it reaches
+something no route above the bridge can.
+
+A/B: `$getCalibration` came back bitwise identical to the old creator's
+route on both BCF forests and all four multinomial categories at a small
+(n = 40, K = 4) setting. The harness's own structural self-checks
+(`sbcCheckBCFLatent`, `sbcCheckMultinomialProbs`) pass under the new code
+with the same near-machine-epsilon residuals the old route left. A small
+end-to-end `runSbcBCF`/`runSbcFamily` replication (R = 3) produces the same
+shape and dimnamed functionals under both routes; the values themselves
+differ, because the new single-creation route consumes one fewer
+chain-seeding uniform per rebuild than the old host-then-wrap route did
+(the RNG-shift trap the plan's Steps section names) - expected and
+harmless here, since sbc.R is a Monte Carlo harness with no hardcoded
+snapshot values. Every touched CLI arm (`bcf-weak`, `bcf-probit-weak`,
+`bcf-logistic-weak`, `multinom`) ran end to end through the actual
+`Rscript benchmarks/R/sbc.R` entry point at R = 2 with a shortened burn,
+every embedded self-check and functional reporting PASS.
+
+Gates: full tinytest (shipped) 9183/9183, 0 failed (this file is a
+benchmark, not a tinytest, so the run is a no-touch check);
+`lintr::lint_package()` clean; `air format --check .` clean;
+`tools/check-doc-freshness.R` OK, unresolved-cite count unchanged (48) -
+no doc cite touches this file's changed lines. ~217 changed lines (108
+insertions, 109 deletions), well under budget.

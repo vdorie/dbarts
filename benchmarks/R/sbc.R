@@ -58,11 +58,6 @@
 # (setResponse with updateScale = FALSE keeps it) so prior and posterior share
 # it. A wrong prior draw makes SBC lie, so the harness self-checks before use.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 suppressMessages(library(dbarts))
 
 # --- sigma prior -----------------------------------------------------------
@@ -454,8 +449,7 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
 # read the stored fits instead; the TEST path is exactly shared with the
 # in-run recorded test fits, so f* keeps predict().
 sbcInternalFits <- function(sampler) {
-  getFits <- getFromNamespace("C_dbarts_bartcore_getForestFits", "dbarts")
-  .Call(getFits, sampler$getPointer(), 0L)[, 1]
+  sampler$getForestFits(1L)[, 1]
 }
 
 sbcRecoverFitMap <- function(sampler, config) {
@@ -1117,8 +1111,9 @@ sbcCheckVarianceChannel <- function(config, seed = 99L) {
 # scalar a ~ Cauchy(0, aPriorScale = sd.control) (a scale-mixture, chain.hpp
 # drawGlue); treatment coefficients b0, b1 ~ N(0, bPriorVariance) so the effect
 # is (b1 - b0)*tau(x). The a-glue prior precision was the one true gate
-# survivor, so its calibration is the headline. BCF is an internal bartcore
-# sampler (not the R5 surface); it has numGroups == 0 so setResponse works,
+# survivor, so its calibration is the headline. BCF is a public two-forest
+# dbartsSampler (dbarts(forests = )); refuseAmplitudeMutation only gates
+# updateScale = TRUE, so setResponse(y, updateScale = FALSE) still works,
 # letting one sampler serve all reps with a fixed scale (no rebuild mismatch).
 # The glue and per-forest fits are only exposed as CURRENT state, so posterior
 # draws are collected one sample at a time. Identification: a*mu and b_z*tau are
@@ -1140,22 +1135,6 @@ sbcCheckVarianceChannel <- function(config, seed = 99L) {
 # driver is runSbcFamily, off the sbcFamilySpec branch below, so one generator
 # serves both the burn ladder and the R-replication run.
 
-.bcfNew <- getFromNamespace("bartcoreBCFSampler", "dbarts")
-.bcfRun <- bartcoreRun
-.bcfGlue <- bartcoreForestAmplitudes
-.bcfForest <- bartcoreForestFits
-.bcfSetResponse <- bartcoreSetResponse
-.bcfPriorTrees <- getFromNamespace(
-  "C_dbarts_bartcore_sampleTreesFromPrior",
-  "dbarts"
-)
-.bcfPriorNodes <- getFromNamespace(
-  "C_dbarts_bartcore_sampleNodeParametersFromPrior",
-  "dbarts"
-)
-.bcfStoreState <- bartcoreStoreState
-.bcfSetState <- bartcoreSetState
-
 # Install a drawn (a, b0, b1) as the sampler's LIVE glue. The tree prior is
 # glue-dependent: each forest's prior trees are drawn conditioned on the
 # no-empty-leaf set of that forest's own veto vector, w * b_z^2 for the
@@ -1165,9 +1144,10 @@ sbcCheckVarianceChannel <- function(config, seed = 99L) {
 # K = 2 with widths (1, 2) - and which is re-installed exactly as stored in
 # every other respect, the rng included.
 sbcInstallBCFGlue <- function(bcf, glue) {
-  state <- .bcfStoreState(bcf)
+  bcf$storeState()
+  state <- bcf$state
   state[[1L]][["glue"]][4:6] <- c(glue$a, glue$b0, glue$b1)
-  .bcfSetState(bcf, state)
+  bcf$setState(state)
   invisible(NULL)
 }
 
@@ -1297,16 +1277,34 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
     verbose = FALSE,
     keepTrainingFits = TRUE
   )
-  # a latent arm's host is built under its own link, the one route by which a
-  # 0/1 build response reaches the bridge as binary; a gaussian host would
-  # carry it as continuous and the latent family would be refused at creation
-  base <- if (sbcBCFLatent(config)) {
+  # the treatment forest's basis is factor(z), the two-level indicator pair
+  # (b0, b1); the prognostic forest declares none, so it gets the engine's
+  # implicit intercept. n.trees/base/power stay at their forest() defaults
+  # (50, 0.25, 3), matching the internal creator's own n.trees.treatment,
+  # treatment.base and treatment.power defaults, which sbc.R never overrode.
+  forests <- list(
+    dbarts::dbartsForests$forest(
+      sd = config$sdControl,
+      update.amplitude = !fixedGlue
+    ),
+    dbarts::dbartsForests$forest(
+      basis = ~ factor(config$z),
+      sd = config$sdModerate,
+      amplitude.prior.variance = config$bPriorVariance,
+      update.amplitude = !fixedGlue
+    )
+  )
+  # a latent arm builds under its own link, the one route by which a 0/1
+  # response reaches the bridge as binary; a gaussian build would carry it as
+  # continuous and the latent family would be refused at creation
+  bcf <- if (sbcBCFLatent(config)) {
     dbarts(
       config$x,
       config$yBuild,
       family = config$family,
       node.prior = config$nodePrior,
-      control = ctrl
+      control = ctrl,
+      forests = forests
     )
   } else {
     dbarts(
@@ -1317,26 +1315,15 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
       ),
       node.prior = config$nodePrior,
       sigma = config$sigest,
-      control = ctrl
+      control = ctrl,
+      forests = forests
     )
   }
-  bcf <- .bcfNew(
-    base,
-    config$z,
-    # the family formal writes the link into the model copy the bridge reads;
-    # NULL, the default, leaves the host gaussian sampler's own
-    family = if (sbcBCFLatent(config)) config$family else NULL,
-    sd.control = config$sdControl,
-    sd.moderate = config$sdModerate,
-    b.prior.variance = config$bPriorVariance,
-    update.a = !fixedGlue,
-    update.b = !fixedGlue
-  )
   # recover the affine reported/internal map from one warm sample
-  res <- .bcfRun(bcf, 0L, 1L)
-  glue <- .bcfGlue(bcf)
-  mu <- .bcfForest(bcf, 0L)[, 1]
-  tau <- .bcfForest(bcf, 1L)[, 1]
+  res <- bcf$run(0L, 1L)
+  glue <- bcf$getForestAmplitudes()
+  mu <- bcf$getForestFits(1L)[, 1]
+  tau <- bcf$getForestFits(2L)[, 1]
   bz <- ifelse(config$z != 0, glue[3L], glue[2L])
   map <- data.frame(
     reported = res$train[, 1],
@@ -1362,11 +1349,11 @@ sbcCheckBCFLatent <- function(config, seed = 99L) {
   built <- sbcMakeBCF(config, 1L, 1L, fixedGlue = isTRUE(config$fixedGlue))
   bcf <- built$bcf
   combined <- function() {
-    res <- .bcfRun(bcf, 0L, 1L)
-    glue <- .bcfGlue(bcf)
+    res <- bcf$run(0L, 1L)
+    glue <- bcf$getForestAmplitudes()
     bz <- ifelse(config$z != 0, glue[3L], glue[2L])
-    mu <- .bcfForest(bcf, 0L)[, 1]
-    tau <- .bcfForest(bcf, 1L)[, 1]
+    mu <- bcf$getForestFits(1L)[, 1]
+    tau <- bcf$getForestFits(2L)[, 1]
     list(
       fits = res$train[, 1],
       index = glue[1L] * mu + bz * tau,
@@ -1379,7 +1366,7 @@ sbcCheckBCFLatent <- function(config, seed = 99L) {
     1L,
     sbcBCFLink(config$family)(prior$index)
   ))
-  .bcfSetResponse(bcf, y0, FALSE)
+  bcf$setResponse(y0, updateScale = FALSE)
   fitted <- combined()
   maxDiff <- max(
     abs(prior$fits - prior$index),
@@ -1402,14 +1389,14 @@ sbcCheckBCFLatent <- function(config, seed = 99L) {
 
 # Collect one BCF posterior sample's glue + per-forest internal fits.
 sbcBCFSample <- function(bcf) {
-  res <- .bcfRun(bcf, 0L, 1L)
-  glue <- .bcfGlue(bcf)
+  res <- bcf$run(0L, 1L)
+  glue <- bcf$getForestAmplitudes()
   list(
     a = glue[1L],
     b0 = glue[2L],
     b1 = glue[3L],
-    mu = .bcfForest(bcf, 0L)[, 1],
-    tau = .bcfForest(bcf, 1L)[, 1],
+    mu = bcf$getForestFits(1L)[, 1],
+    tau = bcf$getForestFits(2L)[, 1],
     sigma = as.numeric(res$sigma)[1L]
   )
 }
@@ -1446,10 +1433,10 @@ runSbcBCF <- function(
     # joint prior rather than from two inconsistent ones.
     g0 <- drawGlue()
     sbcInstallBCFGlue(bcf, g0)
-    .Call(.bcfPriorTrees, bcf$ptr)
-    .Call(.bcfPriorNodes, bcf$ptr)
-    mu0 <- .bcfForest(bcf, 0L)[, 1]
-    tau0 <- .bcfForest(bcf, 1L)[, 1]
+    bcf$sampleTreesFromPrior()
+    bcf$sampleNodeParametersFromPrior()
+    mu0 <- bcf$getForestFits(1L)[, 1]
+    tau0 <- bcf$getForestFits(2L)[, 1]
     sig0 <- drawSigma(1L)
     bz0 <- ifelse(config$z != 0, g0$b1, g0$b0)
     internal0 <- g0$a * mu0 + bz0 * tau0
@@ -1461,10 +1448,10 @@ runSbcBCF <- function(
     eff0 <- (g0$b1 - g0$b0) * tau0[idx]
 
     # overdispersed init (fresh prior forests), then fit and collect
-    .Call(.bcfPriorTrees, bcf$ptr)
-    .Call(.bcfPriorNodes, bcf$ptr)
-    .bcfSetResponse(bcf, y0, FALSE)
-    invisible(.bcfRun(bcf, burn, 0L))
+    bcf$sampleTreesFromPrior()
+    bcf$sampleNodeParametersFromPrior()
+    bcf$setResponse(y0, updateScale = FALSE)
+    invisible(bcf$run(burn, 0L))
 
     aDraws <- numeric(L)
     diffDraws <- numeric(L)
@@ -1618,12 +1605,29 @@ sbcOrdinalProbs <- function(eta, gamma) {
   bounds[, 2L:(K + 1L), drop = FALSE] - bounds[, 1L:K, drop = FALSE]
 }
 
-# A K-forest multinomial sampler over the configuration's design. The host
-# gaussian sampler owns the data the wrapper borrows, so both are returned.
+# A K-forest multinomial dbartsSampler over the configuration's design.
+# labels is an integer category code vector 0..K-1; config$K fixes the level
+# count so a rebuilt fit's simulated y never drops a category.
 sbcMakeMultinomial <- function(config, labels, thin, seed) {
-  host <- sbcMakeSampler(config, 1L, thin, seed)
-  make <- getFromNamespace("bartcoreMultinomialSampler", "dbarts")
-  list(host = host, mn = make(host, labels, config$K))
+  ctrl <- dbartsControl(
+    n.trees = config$nTrees,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 1L,
+    n.thin = thin,
+    updateState = FALSE,
+    verbose = FALSE,
+    keepTrainingFits = TRUE
+  )
+  dbarts(
+    config$x,
+    factor(labels, levels = seq.int(0L, config$K - 1L)),
+    test = config$xTest,
+    node.prior = config$nodePrior,
+    sigma = config$sigest,
+    control = ctrl,
+    family = "multinomial"
+  )
 }
 
 # The per-family operations the driver and the burn ladder share. `thin` is
@@ -1631,23 +1635,17 @@ sbcMakeMultinomial <- function(config, labels, thin, seed) {
 # control setting, and the Student-t arm's pinned sampler is built once), so a
 # spec is specific to one thinning.
 sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
+  # the t arm's residual df has no public reader (no getResidualDf()); this
+  # raw state read is the one .Call this function keeps
   storeState <- getFromNamespace("C_dbarts_bartcore_storeState", "dbarts")
-  priorTrees <- getFromNamespace(
-    "C_dbarts_bartcore_sampleTreesFromPrior",
-    "dbarts"
-  )
-  priorNodes <- getFromNamespace(
-    "C_dbarts_bartcore_sampleNodeParametersFromPrior",
-    "dbarts"
-  )
-  bcRun <- bartcoreRun
-  bcFits <- bartcoreForestFits
   K <- config$K
 
   if (!is.null(config$z)) {
     # A latent BCF arm - a config carrying a treatment vector is a BCF one.
-    # One handle serves as generator and fit, as the gaussian arm's does: numGroups == 0 makes setResponse legal, so the build scale the
-    # prior draw shares is never disturbed. Everything the arm needs beyond
+    # One sampler serves as generator and fit, as the gaussian arm's does:
+    # refuseAmplitudeMutation only gates updateScale = TRUE, so setResponse
+    # still works, and the build scale the prior draw shares is never
+    # disturbed. Everything the arm needs beyond
     # sbcAddBCF rides the config - `fixedGlue` holds the glue at the engine's
     # initial (1, 0, 1), `poison` names a deliberate mismatch - so the burn
     # ladder and the R-replication driver share one generator.
@@ -1688,10 +1686,10 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       # the glue is installed BEFORE the forests: each forest's prior trees are
       # drawn against its own veto vector, which the glue sets
       sbcInstallBCFGlue(bcf, g0)
-      .Call(priorTrees, bcf$ptr)
-      .Call(priorNodes, bcf$ptr)
-      mu0 <- bcFits(bcf, 0L)[, 1]
-      tau0 <- bcFits(bcf, 1L)[, 1]
+      bcf$sampleTreesFromPrior()
+      bcf$sampleNodeParametersFromPrior()
+      mu0 <- bcf$getForestFits(1L)[, 1]
+      tau0 <- bcf$getForestFits(2L)[, 1]
       bz0 <- ifelse(config$z != 0, g0$b1, g0$b0)
       index0 <- g0$a * mu0 + bz0 * tau0
       if ("sigma" %in% poison) {
@@ -1706,20 +1704,20 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       draw = drawOne,
       drawAt = drawOne,
       fit = function(y) {
-        .Call(priorTrees, bcf$ptr)
-        .Call(priorNodes, bcf$ptr)
-        .bcfSetResponse(bcf, y, FALSE)
+        bcf$sampleTreesFromPrior()
+        bcf$sampleNodeParametersFromPrior()
+        bcf$setResponse(y, updateScale = FALSE)
         bcf
       },
-      burnRun = function(f, burn) bcRun(f, burn, 0L),
+      burnRun = function(f, burn) f$run(burn, 0L),
       sample = function(f) {
-        bcRun(f, 0L, 1L)
-        glue <- .bcfGlue(f)
+        f$run(0L, 1L)
+        glue <- f$getForestAmplitudes()
         sbcBCFFunctionals(
           config,
           list(a = glue[1L], b0 = glue[2L], b1 = glue[3L]),
-          bcFits(f, 0L)[, 1],
-          bcFits(f, 1L)[, 1],
+          f$getForestFits(1L)[, 1],
+          f$getForestFits(2L)[, 1],
           idx,
           link,
           fixedGlue
@@ -1800,7 +1798,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       burnRun = function(f, burn) f$run(burn, 0L),
       sample = function(f) {
         res <- f$run(0L, 1L)
-        r <- .Call(storeState, f$getPointer())[[1L]]$dispersion
+        r <- f$getDispersion()
         c(r, mean(r * exp(res$train[, 1])), mean(res$test[, 1]))
       }
     )
@@ -1843,6 +1841,9 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       burnRun = function(f, burn) f$run(burn, 0L),
       sample = function(f) {
         res <- f$run(0L, 1L)
+        # no public reader mirrors getDispersion() for the t arm's residual
+        # df (no C_dbarts_bartcore_getResidualDf); this state round-trip is
+        # the one thing here a method cannot reach
         nu <- .Call(storeState, f$getPointer())[[1L]]$resid.df
         c(
           as.numeric(res$sigma)[1L],
@@ -1854,7 +1855,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     )
   } else if (config$family == "multinomial") {
     # eval points are the first nTest TRAINING rows: per-forest fits are exposed
-    # for the training design only (bartcoreForestFits), and theta0's f_ik must
+    # for the training design only ($getForestFits), and theta0's f_ik must
     # come from the SAME accessor the posterior draws do. The BCF arm's idx
     # convention exactly.
     idx <- seq_len(config$nTest)
@@ -1865,17 +1866,17 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     cellNames <- paste0("f.", cells[, 1L], ".", cells[, 2L])
     buildLabels <- as.integer(rep_len(seq_len(K), config$n) - 1L)
     gen <- sbcMakeMultinomial(config, buildLabels, 1L, seed)
-    forestFits <- function(handle) {
+    forestFits <- function(sampler) {
       vapply(
         seq_len(K),
-        function(k) bcFits(handle$mn, k - 1L)[, 1],
+        function(k) sampler$getForestFits(k)[, 1],
         numeric(config$n)
       )
     }
     spec <- list(
       draw = function() {
-        .Call(priorTrees, gen$mn$ptr)
-        .Call(priorNodes, gen$mn$ptr)
+        gen$sampleTreesFromPrior()
+        gen$sampleNodeParametersFromPrior()
         f0 <- forestFits(gen)
         p0 <- sbcSoftmax(f0)
         y0 <- sbcCategoricalDraw(p0)
@@ -1892,13 +1893,13 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       },
       fit = function(y) {
         f <- sbcMakeMultinomial(config, y, thin, seed)
-        .Call(priorTrees, f$mn$ptr)
-        .Call(priorNodes, f$mn$ptr)
+        f$sampleTreesFromPrior()
+        f$sampleNodeParametersFromPrior()
         f
       },
-      burnRun = function(f, burn) bcRun(f$mn, burn, 0L),
+      burnRun = function(f, burn) f$run(burn, 0L),
       sample = function(f) {
-        res <- bcRun(f$mn, 0L, 1L)
+        res <- f$run(0L, 1L)
         probs <- array(res$train, c(config$n, K))
         c(colMeans(probs[idx, , drop = FALSE]), forestFits(f)[cells])
       }
@@ -2187,16 +2188,14 @@ sbcCheckAftLatents <- function(config, seed = 99L) {
 # those two maps must agree at one state (the GP/BCF fit-map precedent).
 sbcCheckMultinomialProbs <- function(config, seed = 99L) {
   set.seed(seed)
-  bcRun <- bartcoreRun
-  bcFits <- bartcoreForestFits
   spec <- sbcFamilySpec(config, 1L, seed)
   drawn <- spec$draw()
   fit <- spec$fit(drawn$y)
-  res <- bcRun(fit$mn, 0L, 1L)
+  res <- fit$run(0L, 1L)
   probs <- array(res$train, c(config$n, config$K))
   f <- vapply(
     seq_len(config$K),
-    function(k) bcFits(fit$mn, k - 1L)[, 1],
+    function(k) fit$getForestFits(k)[, 1],
     numeric(config$n)
   )
   maxDiff <- max(abs(sbcSoftmax(f) - probs))
