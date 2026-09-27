@@ -441,7 +441,7 @@ calibration and coding, then a pass.
 
 ## Landing
 
-Slice S1 LANDED (pending hash): all ten BCF-centred tinytest files
+Slice S1 LANDED 2026-09-27 (a762ac9c): all ten BCF-centred tinytest files
 (test-bcf.R, test-bcf-creation.R, test-bcf-family.R,
 test-bcf-mutation-pins.R, test-bcf-zero-multiplier.R, test-blocks.R,
 test-interactions.R, test-forest-weights.R, test-multi-forest-seam.R,
