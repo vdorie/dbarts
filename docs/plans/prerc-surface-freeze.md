@@ -113,7 +113,6 @@ serialization; pdbart on the new fit classes; variable-selection
 inference and random-effects breadth (docs/plans/archive/roadmap-survey.md;
 random-effects breadth is now moot - grouped random effects were retired,
 see docs/design/retire-grouped-random-effects.md).
-Of these, the flat-C sigma getter, data-handle serialization, and
-variable-selection inference are designed and recorded but not built
-and not scheduled; the derivation stays here and becomes a TODO entry
-only if the maintainer asks for it (dec-A73).
+Of these, the maintainer ruled on 2026-09-27 (dec-A73): the flat-C sigma
+getter rides the host-neutral header change; data-handle serialization is
+dropped; variable-selection inference is a gated post-release TODO entry.

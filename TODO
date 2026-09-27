@@ -404,7 +404,9 @@ host-neutral engine (decided, VD 2026-09-08; docs/decisions.md dec-B85)
   error contract in dbarts.h covering EVERY entry point, not creation
   alone (VD 2026-09-27, dec-B119): a refusal returns a status the host
   reads instead of raising an R error, the unwind to the entry point
-  staying as it is. The sister re-verification at the freeze
+  staying as it is; and a plain-C getter for each chain's current sigma,
+  riding the same header change so consumers rebuild once (VD
+  2026-09-27, dec-A73). The sister re-verification at the freeze
   follows it. Rewords the Python-binding entry.
   Predictor source consolidation (decided, VD 2026-09-24; dec-B124),
   same arc: the spec's predictor part is dbarts_predictor_source, so the
@@ -574,6 +576,17 @@ engine-test-peer (decided, VD 2026-09-27; docs/decisions.md dec-A81)
   struct each engine class befriends; tests/cpp call through it (about
   130 sites); the package's compiled output is unchanged (check the
   equivalence gate stays bitwise).
+
+variable-selection-permutation (VD 2026-09-27; docs/decisions.md dec-A73)
+  post-release, gated: Bleich et al. (2014)'s permutation thresholds for
+  variable selection (refit on permuted responses, compare inclusion
+  proportions against the null; bartMachine's var_selection_by_permute),
+  an R function over bart() and extract(type = "varcount") plus a plot.
+  First answer whether it is a good idea and used: its standing against
+  the DART prior the package already ships and later selection work,
+  and evidence of use (citing applications, bartMachine users). Build
+  only if that case holds; VD: "we don't need to cram everyone's idea
+  into the package."
 
 hurdle feature completion (VD 2026-09-26: part of feature completion,
   not to be forgotten; docs/decisions.md dec-A15)
