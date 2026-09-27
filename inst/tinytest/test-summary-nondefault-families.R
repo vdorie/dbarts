@@ -57,7 +57,7 @@ expect_false(identical(class(summary(fitHurdle)), "summary.default"))
 summaryHurdle <- summary(fitHurdle)
 expect_true(inherits(summaryHurdle, "summary.bartHurdle"))
 hurdleOutput <- capture.output(print(summaryHurdle))
-expect_true(any(grepl("Zero component", hurdleOutput)))
+expect_true(any(grepl("Zero-part component", hurdleOutput)))
 expect_true(any(grepl("Positive-part component", hurdleOutput)))
 # each component's own summary.bart object is reused, not recomputed
 expect_identical(summaryHurdle$zero, summary(fitHurdle$zero))

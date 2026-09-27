@@ -568,7 +568,7 @@ print.summary.bartHurdle <- function(x, ...) {
     "\n\n",
     sep = ""
   )
-  cat("Zero component (probit, 1(y > 0)):\n")
+  cat("Zero-part component (probit, 1(y > 0)):\n")
   printSummaryBartBody(x$zero, ...)
   cat("\nPositive-part component (lognormal, y | y > 0):\n")
   printSummaryBartBody(x$positive, ...)
