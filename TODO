@@ -543,6 +543,14 @@ leaf-vocabulary (decided, VD 2026-09-27; docs/decisions.md dec-B129)
   NEWS upgrading item; stan4bart (leaf.prior) and bartCause (getLeafPrior)
   in lockstep.
 
+multinomial-missing-response (agent-noted 2026-09-27; docs/decisions.md
+  dec-A70)
+  before the merge, under the standing na.action ruling: family =
+  "multinomial" refuses a missing response under every na.action, factor
+  and count-matrix responses alike, where every other family drops the
+  row by default and pads it under na.exclude; route it through
+  na.action as the ordinal family does; tests.
+
 hurdle feature completion (VD 2026-09-26: part of feature completion,
   not to be forgotten; docs/decisions.md dec-A15)
   a hurdle.lognormal fit takes no test set, weights, subset or offset:
