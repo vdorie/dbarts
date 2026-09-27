@@ -465,18 +465,18 @@ A handful of shapes are refused outright rather than silently misinterpreted, ea
   }
 
   \strong{\code{xbart}.} An \code{\link{xbart}} call derives every seed it
-  uses - one split seed per replication, one seed per (replication, fold)
-  unit of work - with \code{\link{sample.int}} after \code{set.seed(seed)},
-  in one pass, restoring R's stream afterward; without a \code{seed},
-  \code{set.seed} beforehand reproduces the same run. For a fixed
-  \code{seed} and generator kind, results do not depend on \code{n.threads}:
-  a parallel worker's \code{\link{RNGkind}} is set to match the caller's
-  before it runs any unit. Unlike \code{bart}'s \code{seed}, which is built
-  to give the same draws under any \code{RNGkind}, \code{xbart} draws
-  straight from R's own generator, so its results change with
-  \code{RNGkind} too; a \code{RNGkind()} of \code{"user-supplied"} cannot be
-  handed to a worker at all, and \code{xbart} refuses \code{n.threads > 1}
-  under it.
+  uses - one split seed per replication, one seed per sampler its units
+  create (one per (replication, fold) unit at each distinct tree count) -
+  with \code{\link{sample.int}} after \code{set.seed(seed)}, in one pass, in
+  its own process, restoring R's stream afterward; without a \code{seed},
+  \code{set.seed} beforehand reproduces the same run. Each unit's sampler
+  then takes its seed through \code{control}'s seed slot exactly as
+  \code{bart}'s own \code{seed} does, driving a dedicated generator that
+  never reads R's stream; results are identical at any \code{n.threads} for
+  a given \code{seed} under any \code{\link{RNGkind}}, a user-supplied one
+  included, since no worker ever reads its own \code{RNGkind()} to fit a
+  unit. A supplied loss function that draws random numbers draws on the
+  worker running it, from that process's own default generator.
 
   \strong{What moves \code{\link{.Random.seed}}.} Unseeded, creating a
   sampler (\code{n.chains} uniforms per sampler; a

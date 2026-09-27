@@ -543,14 +543,6 @@ leaf-vocabulary (decided, VD 2026-09-27; docs/decisions.md dec-B129)
   NEWS upgrading item; stan4bart (leaf.prior) and bartCause (getLeafPrior)
   in lockstep.
 
-xbart-worker-seeds (decided, VD 2026-09-27; docs/decisions.md dec-A90)
-  before the merge: xbart hands each unit's sampler its caller-drawn seed
-  through the control (one per sampler created, per tree count) instead of
-  set.seed() on the worker; drop the user-supplied RNGkind refusal and the
-  clusterCall(RNGkind); manual notes a random loss function; regenerate
-  xbart snapshots; test user-supplied-kind parity across n.threads if a
-  test generator is loadable, else Knuth-TAOCP-2002 parity.
-
 variable-selection-permutation (VD 2026-09-27; docs/decisions.md dec-A73)
   post-release, gated: Bleich et al. (2014)'s permutation thresholds for
   variable selection (refit on permuted responses, compare inclusion

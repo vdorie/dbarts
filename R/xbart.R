@@ -108,9 +108,10 @@ xbart <- function(
   control@updateState <- FALSE
   control@verbose <- FALSE
   # the seed is the sweep's own: it is read above as 'seed' and drives the
-  # per-replication and per-unit streams every cell sampler is created under.
-  # Left on the control it would additionally seed each cell's chain
-  # directly, giving every cell of every fold one stream.
+  # per-replication splits and the per-sampler seeds every cell sampler is
+  # created under, each handed to a fresh copy of this control's @seed below.
+  # Left set here it would additionally seed every unit's first sampler
+  # identically, off this one value instead of its own draw.
   control@seed <- NA_integer_
 
   validateCall <- redirectCall(
@@ -533,29 +534,33 @@ xbart <- function(
   numChunks <- max(1L, min(n.threads, numUnits))
   chunkIndices <- parallel::splitIndices(numUnits, numChunks)
 
-  # a "user-supplied" generator lives as compiled state loaded into THIS
-  # session; a fresh worker session has no way to load it, so its draws could
-  # not be reproduced there whatever RNGkind() call is sent across
-  if (numChunks > 1L && RNGkind()[1L] == "user-supplied") {
-    stop(
-      "xbart() cannot reproduce a \"user-supplied\" RNGkind() on a parallel ",
-      "worker; call with n.threads = 1 or switch RNGkind() first"
-    )
-  }
-
-  # each replication draws its data split from its own seed and each unit its
-  # fits from its own, both derived from the call's seed alone, so a seed
-  # reproduces at any 'n.threads': no draw depends on which worker ran a unit
-  # or on how many there were. A supplied seed leaves the caller's stream
+  # each replication draws its data split from its own seed, and each unit's
+  # sampler(s) their own: one seed per sampler a unit creates - one per
+  # distinct tree count, since a fresh sampler is minted only when the tree
+  # count changes (see xbartRunUnits) - all drawn here from the call's seed
+  # alone, so a seed reproduces at any 'n.threads': no draw depends on which
+  # worker ran a unit, on how many there were, or on RNGkind(), since a
+  # unit's seed reaches its sampler through the control's seed slot rather
+  # than a worker-side set.seed(). A supplied seed leaves the caller's stream
   # untouched; without one the seeds come off that stream, advancing it
   # exactly that far and no further at any thread count.
+  numTreeCounts <- length(n.trees)
   seeds <- if (!is.na(seed)) {
-    withFixedSeed(seed, sample.int(.Machine$integer.max, n.reps + numUnits))
+    withFixedSeed(
+      seed,
+      sample.int(.Machine$integer.max, n.reps + numUnits * numTreeCounts)
+    )
   } else {
-    sample.int(.Machine$integer.max, n.reps + numUnits)
+    sample.int(.Machine$integer.max, n.reps + numUnits * numTreeCounts)
   }
   splitSeeds <- seeds[seq_len(n.reps)]
-  unitSeeds <- seeds[n.reps + seq_len(numUnits)]
+  # row i holds unit i's per-sampler seeds, in n.trees order
+  unitSeeds <- matrix(
+    seeds[n.reps + seq_len(numUnits * numTreeCounts)],
+    numUnits,
+    numTreeCounts,
+    byrow = TRUE
+  )
 
   # every stream below is one of those seeds, and at a single worker the
   # units run in THIS process, so the caller's own stream is saved across the
@@ -586,20 +591,18 @@ xbart <- function(
     }
     cluster <- parallel::makeCluster(numChunks)
     on.exit(parallel::stopCluster(cluster), add = TRUE)
-    # a fresh worker starts at R's default RNGkind(); matching kind and
-    # normal.kind here is what lets a unit's unif_rand()-backed draws agree
-    # with an inline run under a non-default one. sample.kind is left alone:
-    # it only steers sample()/sample.int(), and those run in THIS process,
-    # never on a worker (see the fold/subsample split above)
-    rngKind <- RNGkind()
-    parallel::clusterCall(cluster, RNGkind, rngKind[1L], rngKind[2L])
     # passing the namespace function itself serializes it by reference,
-    # loading dbarts on the workers without shipping this frame
+    # loading dbarts on the workers without shipping this frame; a worker's
+    # own RNGkind() never matters, since every sampler it creates seeds off
+    # control's seed slot rather than that worker's stream
     parallel::clusterMap(
       cluster,
       xbartRunChunk,
       unitRows = lapply(chunkIndices, function(indices) unitRows[indices]),
-      unitSeeds = lapply(chunkIndices, function(indices) unitSeeds[indices]),
+      unitSeeds = lapply(
+        chunkIndices,
+        function(indices) unitSeeds[indices, , drop = FALSE]
+      ),
       MoreArgs = list(spec = spec),
       SIMPLIFY = FALSE
     )
@@ -759,16 +762,18 @@ xbartLossFunction <- function(loss, control, family) {
 }
 
 ## One worker's share of the (replication, fold) units, as the rows each
-## unit holds out and the seed its fits run under. The predictor store (cuts
-## + codes) is built once per chunk; each unit's sampler is a row-subset view
-## over it, so every fold bins on the full data's cut grid and no fold
-## re-quantizes the predictors. Within a unit every tree count gets a fresh
-## sampler burned n.burn[1] iterations and the remaining parameter cells
-## sweep warm off it with n.burn[2] iterations each, sound because the
-## training data is unchanged. Chains never carry over between units, whose
-## held-out rows the previous training set contained; seeding per unit rather
-## than per chunk is what keeps a result independent of how the units were
-## distributed.
+## unit holds out and the seeds its fits run under (one column per distinct
+## tree count, in n.trees order). The predictor store (cuts + codes) is built
+## once per chunk; each unit's sampler is a row-subset view over it, so every
+## fold bins on the full data's cut grid and no fold re-quantizes the
+## predictors. Within a unit every tree count gets a fresh sampler, seeded
+## from that unit's row of seeds through the control's seed slot, burned
+## n.burn[1] iterations; the remaining parameter cells sweep warm off it with
+## n.burn[2] iterations each on the same sampler, sound because the training
+## data is unchanged. Chains never carry over between units, whose held-out
+## rows the previous training set contained; seeding per sampler creation
+## rather than per chunk is what keeps a result independent of how the units
+## were distributed, and no worker ever calls set.seed().
 ## Returns a (units x cells) x numResults matrix, cells in spec$cells order.
 xbartRunUnits <- function(spec, unitRows, unitSeeds) {
   data <- spec$data
@@ -803,8 +808,11 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
   # rest; cells are grouped by iTrees, so a single pass reuses each sampler
   # maximally. The view slices y/weights/offset by row and takes its test
   # offset from offset[testRows], so each fold trains and scores on exactly
-  # its own rows.
-  sweepCells <- function(testRows) {
+  # its own rows. treeSeeds holds one caller-drawn seed per distinct tree
+  # count, in n.trees order; a fresh sampler consumes the next one through
+  # its control's seed slot, which derives its chain's generator from a
+  # dbarts generator rather than R's stream.
+  sweepCells <- function(testRows, treeSeeds) {
     trainRows <- seq_len(numObservations)[-testRows]
     y.test <- data@y[testRows]
     weights.test <- if (hasWeights) data@weights[testRows] else NULL
@@ -813,12 +821,15 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     sampler <- NULL
     cellControl <- NULL
     currentTrees <- NA_integer_
+    treeIndex <- 0L
     for (cell in seq_len(numCells)) {
       if (
         is.null(sampler) || spec$n.trees[cells$iTrees[cell]] != currentTrees
       ) {
+        treeIndex <- treeIndex + 1L
         cellControl <- spec$control
         cellControl@n.trees <- spec$n.trees[cells$iTrees[cell]]
+        cellControl@seed <- treeSeeds[treeIndex]
         sampler <- bartcoreSamplerFromHandle(
           handle,
           cellControl,
@@ -863,8 +874,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
 
   results <- vector("list", length(unitRows))
   for (i in seq_along(unitRows)) {
-    set.seed(unitSeeds[i])
-    results[[i]] <- sweepCells(unitRows[[i]])
+    results[[i]] <- sweepCells(unitRows[[i]], unitSeeds[i, ])
   }
 
   do.call(rbind, results)

@@ -113,23 +113,22 @@ for (n.threads in threadCounts) {
   )
 }
 
-# and holds under a non-default RNGkind() too, once a worker's kind and
-# normal.kind are set to match the caller's before it takes any unit. Needs a
-# genuine second worker process, so this only runs where R CMD check
-# --as-cran does not limit cores and the machine has at least two of them.
-if (
-  !nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_", "")) &&
-    parallel::detectCores() >= 2L
-) {
-  oldRNGkind <- RNGkind()
-  RNGkind("L'Ecuyer-CMRG")
-  lecuyer.1 <- runXval(1L)
-  lecuyer.2 <- runXval(2L)
-  suppressWarnings(RNGkind(oldRNGkind[1L], oldRNGkind[2L], oldRNGkind[3L]))
-  expect_true(all(!is.na(lecuyer.1)))
-  expectSameSweep(lecuyer.1, lecuyer.2, info = "RNGkind L'Ecuyer-CMRG")
-  rm(oldRNGkind, lecuyer.1, lecuyer.2)
-}
+# and holds under any RNGkind() at all, including one a fresh worker session
+# could never reproduce: a unit's sampler seeds off control's seed slot, a
+# dedicated generator that never reads R's stream, so the caller's RNGkind()
+# has nothing to reach a worker with and needs no syncing there. A genuine
+# "user-supplied" kind needs a loaded custom generator this test tree has no
+# portable way to provide (RNGkind("user-supplied") itself errors with none
+# loaded); Knuth-TAOCP-2002 stands in as a kind a test can portably switch to.
+# n.threads = 2 is CRAN's own worker cap under R CMD check --as-cran.
+oldRNGkind <- RNGkind()
+RNGkind("Knuth-TAOCP-2002")
+knuth.1 <- runXval(1L)
+knuth.2 <- runXval(2L)
+suppressWarnings(RNGkind(oldRNGkind[1L], oldRNGkind[2L], oldRNGkind[3L]))
+expect_true(all(!is.na(knuth.1)))
+expectSameSweep(knuth.1, knuth.2, info = "RNGkind Knuth-TAOCP-2002")
+rm(oldRNGkind, knuth.1, knuth.2)
 
 # a seeded call leaves the caller's own stream where it found it, at every
 # thread count. At one worker the units run in THIS process, so without the

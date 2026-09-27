@@ -460,14 +460,19 @@
             fits; a binary crossvalidation's default cell therefore moves
             off 0.9-34's \code{chi(1.25, Inf)} hyperprior. \code{xbart} also distributes
             (replication, fold) units across workers rather than
-            replication ranges, each unit seeded from the call's seed and
-            its own index, so a seeded \code{xbart} call reproduces its
-            draws bitwise at any \code{n.threads}; the whole dispatch runs
-            under a preserved caller stream, so a seeded call leaves
-            \code{.Random.seed} exactly as it found it. Warnings raised in
-            the fits, which a worker used to drop, are signalled in the
-            calling session after the last unit, each distinct warning once,
-            the same at any \code{n.threads}.
+            replication ranges; each unit's sampler takes its seed off the
+            call's seed through \code{control}'s seed slot, the dedicated
+            generator path \code{bart}'s own \code{seed} already uses,
+            rather than a worker-side \code{set.seed()}, so a seeded
+            \code{xbart} call reproduces its draws bitwise at any
+            \code{n.threads} under any \code{RNGkind}, a user-supplied one
+            included; the whole dispatch runs under a preserved caller
+            stream, so a seeded call leaves \code{.Random.seed} exactly as
+            it found it, and a supplied loss function that draws random
+            numbers draws on the worker's own default generator. Warnings
+            raised in the fits, which a worker used to drop, are signalled
+            in the calling session after the last unit, each distinct
+            warning once, the same at any \code{n.threads}.
       \item The multi-worker \code{run()} loop returns as soon as the last
             chain finishes instead of waking on a 100ms poll: a worker
             signals a condition variable on its final decrement, and the

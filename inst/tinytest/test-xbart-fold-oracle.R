@@ -17,11 +17,12 @@ oldSampleKind <- RNGkind()[3L]
 suppressWarnings(RNGkind(sample.kind = "Rejection"))
 
 ## fold assembly. Every seed the run uses is drawn from the call's seed in
-## one pass - one split seed per replication, then one fit seed per
-## (replication, fold) unit - so the permutation is reconstructible outside
-## xbart from (seed, n, n.reps, fold count) alone, at any thread count. y is
-## set to the row index, so a capturing loss's y.test IS that fold's row
-## numbers directly.
+## one pass - one split seed per replication, then one seed per sampler each
+## (replication, fold) unit creates (one per distinct tree count; n.trees is
+## a single value below, so one per unit) - so the permutation is
+## reconstructible outside xbart from (seed, n, n.reps, fold count) alone, at
+## any thread count. y is set to the row index, so a capturing loss's y.test
+## IS that fold's row numbers directly.
 n <- 24L
 seed <- 7L
 set.seed(4441L)
