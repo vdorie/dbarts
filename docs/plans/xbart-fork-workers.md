@@ -4,7 +4,7 @@ agent: sonnet
 rng: neutral (no draw moves; every unit already seeds from its own stream)
 budget: ~250 lines (R ~80, tests ~120, man and NEWS ~50)
 
-Status: LANDED-pending 2026-09-28
+Status: LANDED 2026-09-28 (33ee862f, 700ea9f1)
 
 ## Goal
 
@@ -46,7 +46,7 @@ accepts a cluster the caller already started (dec-B131).
    "cluster", non-empty) and `parallel` early with the other argument checks.
 2. In `runUnits`, dispatch: `cl` -> `parallel::clusterMap` on it; fork ->
    `parallel::mclapply` over the chunk list with `mc.cores = numChunks`,
-   `mc.preschedule = FALSE`, re-raising the first `try-error` result as an
+   `mc.preschedule = FALSE`, re-raising a worker's error as an
    error in the caller with its message; socket -> today's path.
 3. The verbose line names the worker kind.
 4. man/xbart.Rd: document both arguments and the option in `\arguments`,
@@ -84,10 +84,10 @@ message, without parallel's "N nodes produced errors" prefix (stated choice);
 ## Landing note
 
 Landed: `parallel` and `cl` formals on `xbart`, fork/socket/cluster dispatch
-in `runUnits` (fork via `mclapply`, first `try-error` re-raised), verbose line
+in `runUnits` (fork via `mclapply`, each worker returning its error as a condition, re-raised with its message; a result-less chunk refused), verbose line
 naming the worker kind, man/xbart.Rd, one NEWS item, and
 inst/tinytest/test-xbart-workers.R; the formals count in
 test-argument-surface.R moves 31 to 33. Gates (macOS, R private library, this worktree): full tinytest 9390 TRUE, none failing, lintr zero lints, air format clean, check-rc-codoc, check-win-drift,
 check-doc-freshness OK, R CMD check --as-cran --no-manual one NOTE (Date
 field, pre-existing). The check sets the core limit to 2, so tests fork at
-`n.threads = 2`. About 125 lines added (R 62, tests 56, man and NEWS 19).
+`n.threads = 2`. About 230 lines added over both commits, the second closing review findings: a killed forked worker now errors instead of recycling another unit's losses, and the caller's warn level reaches every worker. Review rerun with the CRAN core limit set: tinytest 9380 TRUE.
