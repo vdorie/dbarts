@@ -280,7 +280,20 @@ expect_error(
 )
 expect_error(
   predict(fit, newX, offset = offsetNA, na.action = na.fail),
-  "'a', 'b'.*and 'offset' has missing values, which na.action = na.fail"
+  "'a', 'b'; 'offset' has missing values, which na.action = na.fail"
+)
+# two channels join with "and" and take the plural, predictors absent
+expect_error(
+  predict(
+    fit,
+    newX[complete, ],
+    "ppd",
+    offset = c(0.1, NA, 0.3, 0.4),
+    weights = c(1, 1, NA, 1),
+    na.action = na.fail
+  ),
+  "'offset' and 'weights' have missing values, which na.action = na.fail",
+  fixed = TRUE
 )
 
 # --- a positional newdata warns once ---
@@ -412,6 +425,14 @@ expect_identical(
   predict(fitM, newX, offset = offsetMatNA, na.action = na.omit),
   predict(fitM, newX[keptOmitM, ], offset = offsetMatNA[keptOmitM, ])
 )
+# a single missing cell in an offset row is enough to mark the row
+# incomplete, not just a row that is entirely NA
+offsetMatOneCell <- matrix(0, 6L, 3L)
+offsetMatOneCell[5L, 2L] <- NA
+expect_identical(
+  predict(fitM, newX, offset = offsetMatOneCell, na.action = na.omit),
+  predict(fitM, newX[keptOmitM, ], offset = offsetMatOneCell[keptOmitM, ])
+)
 
 fitO <- quick(x, factor(category, ordered = TRUE), family = "ordinal")
 expect_identical(
@@ -438,6 +459,12 @@ expect_identical(
 expect_identical(
   predict(fitN, newX, offset = offsetNew, na.action = na.omit),
   predict(fitN, newX[complete, ], offset = offsetNew[complete])
+)
+# a genuinely missing value in the offset vector itself, not just a row
+# na.omit already drops for the predictors
+expect_identical(
+  predict(fitN, newX, offset = offsetNA, na.action = na.omit),
+  predict(fitN, newX[keptOmit, ], offset = offsetNA[keptOmit])
 )
 
 positive <- ifelse(seq_len(n) %% 3L == 0L, 0, exp(y))

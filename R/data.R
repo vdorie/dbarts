@@ -497,6 +497,20 @@ refuseExtraMissingness <- function(extra, naActionHint) {
   invisible(NULL)
 }
 
+## Joins quoted names in prose: one alone, or every name but the last
+## comma-separated with "and" before it.
+quotedNameList <- function(names) {
+  quoted <- paste0("'", names, "'")
+  if (length(quoted) <= 1L) {
+    return(quoted)
+  }
+  paste0(
+    paste(quoted[-length(quoted)], collapse = ", "),
+    " and ",
+    quoted[length(quoted)]
+  )
+}
+
 ## na.fail's refusal, naming whichever of the predictor columns and the
 ## 'extra' channels (dec-A89) carried a missing value.
 refuseNaFail <- function(x.test, x.train, extra) {
@@ -504,6 +518,7 @@ refuseNaFail <- function(x.test, x.train, extra) {
     function(j) any(testRowsMissingIn(x.test, j)),
     seq_len(NCOL(x.test))
   )
+  channels <- Filter(function(name) any(extra[[name]]), names(extra))
   parts <- character(0L)
   if (length(columns) > 0L) {
     parts <- c(
@@ -514,12 +529,20 @@ refuseNaFail <- function(x.test, x.train, extra) {
       )
     )
   }
-  for (name in names(extra)) {
-    if (any(extra[[name]])) {
-      parts <- c(parts, paste0("'", name, "' has missing values"))
-    }
+  if (length(channels) > 0L) {
+    parts <- c(
+      parts,
+      paste0(
+        quotedNameList(channels),
+        if (length(channels) > 1L) {
+          " have missing values"
+        } else {
+          " has missing values"
+        }
+      )
+    )
   }
-  stop(paste(parts, collapse = ", and "), ", which na.action = na.fail refuses")
+  stop(paste(parts, collapse = "; "), ", which na.action = na.fail refuses")
 }
 
 ## Which rows of a coded test set a predict method answers (dec-B34). The
