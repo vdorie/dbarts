@@ -230,7 +230,7 @@ Slice 2, manual, NEWS and docs (~250 lines):
 
 ### For the maintainer, before implementation
 
-M1. Defaults when `k` is not supplied. Two options:
+M1. Defaults when `k` is not supplied. Ruled (a), maintainer 2026-09-28: "Use 1.0 defaults." Two options:
     (a) 1.0's `dbarts()` defaults: binary k ~ chi(1.5, 2) (dec-B106) and moves birth/death 0.6, swap 0,
         change 0.4. The fit then matches every other 1.0 binary fit and uses the k prior the package's study
         chose; it differs from 0.9-34's model.
@@ -242,38 +242,38 @@ M1. Defaults when `k` is not supplied. Two options:
 
 Each defect fix below states what 0.9-34 does, what the fix does, and the verbatim alternative.
 
-D1. First draw on a skewed response. 0.9-34 starts the intercept draw from `predict` on prior trees, which returns
+D1. First draw on a skewed response. Ruled fix, maintainer 2026-09-28: "Fix it." 0.9-34 starts the intercept draw from `predict` on prior trees, which returns
     the response midpoint; on a skewed response the midpoint-mean gap goes into the intercepts and stays. Spike,
     n = 1000, 10 groups, true tau 1: mean tau 105, 128, 107 on three seeds. Fix: start from one sweep's
     `$train`; the port then gives 1.56, 1.10, 0.78 (the bartcore-era fix, archived plan
     rbart-custom-prior-divergence.md). Verbatim: tau near 100.
-D2. `group.by` lookup. 0.9-34 takes a symbol that is not a column of `data` as `data`'s first column
+D2. `group.by` lookup. Ruled fix, maintainer 2026-09-28 ("Fix it, unless it somehow appeared to be intentional in docs or examples"): it does not; 0.9-34's NEWS promises the fall-through, and main's test-rbart-groupby.R second case exercises it while the bug silently groups by x_1. main's test-rbart-error.R not_a_symbol case passes only through the bug; ported, it expects "'group.by' not found". 0.9-34 takes a symbol that is not a column of `data` as `data`'s first column
     ([R/rbart.R:84](https://github.com/vdorie/dbarts/blob/cb29055019449614b4085eb7d30431aa39f790f5/R/rbart.R#L84),
     `which.max` of all-FALSE is 1), silently: the spike fit 200 groups where 5 were meant. Same for
     `group.by.test`. Fix: take the column only when it is there, then fall through to the caller's scope as
     0.9-34 does. Verbatim: the silent wrong grouping.
-D3. New level in `predict` with several chains and `combineChains = TRUE`. 0.9-34 stops with "subscript out of
+D3. New level in `predict` with several chains and `combineChains = TRUE`. Ruled fix, maintainer 2026-09-28: "Fix it." 0.9-34 stops with "subscript out of
     bounds": it tests the stored ranef's dimension rather than the combined one
     ([R/generics.R:227](https://github.com/vdorie/dbarts/blob/cb29055019449614b4085eb7d30431aa39f790f5/R/generics.R#L227)).
     Fix: test the combined one, and draw the new-level intercepts with tau in the same layout. Verbatim: the
     error.
-D4. Saved fit read into a new session. 0.9-34's `predict` silently returns different values. Adaptation 10's
+D4. Saved fit read into a new session. Not a fork: the store is forced on 1.0; noted to the maintainer 2026-09-28. 0.9-34's `predict` silently returns different values. Adaptation 10's
     `$storeState()` makes the reloaded fit predict identically. There is no verbatim option on 1.0: without the
     store, reload and every PSOCK fit refuse to predict. NEWS files it as a fix to reloaded fits, not as the
     whole reason for the store.
-D5. Weights in the intercept draw. 0.9-34 draws each group intercept with precision n_j / sigma^2 around the
+D5. Weights in the intercept draw. Ruled fix, maintainer 2026-09-28: "fix it to do proper precision weights" - the lme4 and dbarts convention (row variance sigma^2 / w_i), the same update the engine gives a leaf; the maintainer asked what a varying-intercept hierarchical linear model does before ruling. 0.9-34 draws each group intercept with precision n_j / sigma^2 around the
     unweighted residual mean, while BART's sigma is on the weighted scale. The intercepts' posterior then
     depends on the weights' overall scale. Reviewer's probe, same data, constant weights 1 against 1/n: posterior
     sd of the intercepts 0.366 against 0.175 on 0.9-34, 0.262 against 0.125 on the port. Fix: the weighted
     conditional, precision sum of w_i over group j divided by sigma^2, around the weighted residual mean.
     Verbatim: intercept uncertainty that moves with a rescaling of the weights.
-D6. Test offset double count. When a caller gives an offset and a test set with the same row count, 0.9-34's
+D6. Test offset double count. Ruled fix, maintainer 2026-09-28: "Fix it." When a caller gives an offset and a test set with the same row count, 0.9-34's
     `setOffset` also copies each sweep's training offset, intercepts included, onto the test rows. The test fits
     then carry the training rows' intercepts, and extract adds the test groups' intercepts again. Probe, test =
     train rows: up to 2.78 between test and train fits on 0.9-34, 1.60 on the port, where they should agree.
     Fix: set `testUsesRegularOffset` to FALSE on the sampler's data for the loop, then restore it. Verbatim: the
     double count.
-D7. `seed =` and the caller's random stream. 0.9-34 means to restore the stream after a seeded fit, but
+D7. `seed =` and the caller's random stream. Ruled (b), maintainer 2026-09-28: "Fix it." A stream absent before the call is removed after it. 0.9-34 means to restore the stream after a seeded fit, but
     `.Random.seed <- oldSeed` assigns a local, so the stream is left where the fit ended; checked on the port. The
     options:
     (a) delete the dead restore, and document that `seed =` resets the global stream;
@@ -282,7 +282,7 @@ D7. `seed =` and the caller's random stream. 0.9-34 means to restore the stream 
 
     Verbatim is (a) without the documentation.
 
-M9. Weighted binary fits. 0.9-34 fit probit with any weights; 1.0's `dbarts()` refuses probit weights other than
+M9. Weighted binary fits. Ruled refuse up front, maintainer 2026-09-28: "Refuse up front." (consistent with dec-B13). 0.9-34 fit probit with any weights; 1.0's `dbarts()` refuses probit weights other than
     0 and 1. The port refuses before any chain (adaptation 9), naming rbart_vi and stan4bart, and says so in
     NEWS and the manual. The alternative is working around the refusal inside rbart_vi. That would need a
     weighted probit the 1.0 sampler deliberately does not provide, which is engine work outside dec-B130.
