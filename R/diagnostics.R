@@ -83,7 +83,13 @@ drawsField <- function(object, v) {
   if (is.null(s)) {
     return(NULL)
   }
-  s <- combineOrUncombineChains(s, fitNChains(object), FALSE)
+  # the split (never combined) layout, collapsed at one chain exactly as
+  # every other summary here reads its own scalar field: this table's rows
+  # are draws, not chains, so dec-A79's kept chain margin is not for it
+  n.chains <- fitNChains(object)
+  if (n.chains > 1L && length(dim(s)) == 2L) {
+    s <- uncombineChains(s, n.chains)
+  }
   apply(s, seq_len(length(dim(s)) - 1L), mean)
 }
 

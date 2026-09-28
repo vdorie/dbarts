@@ -326,28 +326,89 @@ posteriorInterval <- function(draws, ci.level, trailing = 1L) {
   result
 }
 
+## Adds a length-1 leading margin to 'x' (dec-A79: extract and predict keep a
+## chain dimension of length 1 on a one-chain fit under combineChains =
+## FALSE, where a one-chain fit's own storage carries none to begin with).
+## A vector becomes a 1 x length matrix; an array of any other rank gains a
+## leading dimension. Either way 'x's own dimnames ride the old margins, a
+## vector's own names among them, since assigning 'dim' would otherwise drop
+## them.
+addChainDimension <- function(x) {
+  d <- dim(x)
+  if (is.null(d)) {
+    nms <- names(x)
+    x <- array(x, c(1L, length(x)))
+    if (!is.null(nms)) {
+      dimnames(x) <- list(NULL, nms)
+    }
+    return(x)
+  }
+  dn <- dimnames(x)
+  x <- array(x, c(1L, d))
+  if (!is.null(dn)) {
+    dimnames(x) <- c(list(NULL), dn)
+  }
+  x
+}
+
+## The inverse of addChainDimension: drops the leading length-1 margin 'x' is
+## known to carry.
+dropChainDimension <- function(x) {
+  d <- dim(x)[-1L]
+  dn <- dimnames(x)
+  if (length(d) <= 1L) {
+    nms <- if (!is.null(dn)) dn[[2L]] else NULL
+    x <- as.vector(x)
+    if (!is.null(nms)) {
+      names(x) <- nms
+    }
+    return(x)
+  }
+  dim(x) <- d
+  if (!is.null(dn)) {
+    dimnames(x) <- dn[-1L]
+  }
+  x
+}
+
 combineOrUncombineChains <- function(x, n.chains, combine) {
-  if (n.chains > 1L) {
-    if (length(dim(x)) > 2L && combine) {
-      x <- combineChains(x)
-    } else if (length(dim(x)) == 2L && !combine) {
-      x <- uncombineChains(x, n.chains)
+  if (length(dim(x)) > 2L && combine) {
+    x <- combineChains(x)
+  } else if (length(dim(x)) == 2L && !combine) {
+    x <- if (n.chains > 1L) {
+      uncombineChains(x, n.chains)
+    } else {
+      addChainDimension(x)
     }
   }
   x
 }
 
 # combineOrUncombineChains for a scalar-per-draw field (sigma, k, dispersion):
-# combined is a chain-major vector, uncombined a chains x samples matrix
+# combined is a chain-major vector, uncombined a chains x samples matrix (a
+# 1 x samples one at one chain, dec-A79)
 reshapeScalarChannel <- function(x, n.chains, combine) {
-  if (n.chains <= 1L) {
-    return(x)
-  }
   if (is.null(dim(x))) {
-    if (combine) x else uncombineChains(x, n.chains)
+    if (combine) {
+      x
+    } else if (n.chains > 1L) {
+      uncombineChains(x, n.chains)
+    } else {
+      addChainDimension(x)
+    }
   } else {
     if (combine) as.vector(t(x)) else x
   }
+}
+
+## convertSamplesFromDbartsToBart, keeping a one-chain fit's chain margin
+## under combineChains = FALSE (dec-A79), for predict's own per-call reshape
+## of fresh engine output. convertSamplesFromDbartsToBart itself stays
+## unfixed: R/bart.R's packaging calls pass the FIT's own combineChains, and
+## that stored shape is not part of this item.
+convertSamplesForCaller <- function(samples, n.chains, combineChains) {
+  x <- convertSamplesFromDbartsToBart(samples, n.chains, combineChains)
+  if (combineChains || n.chains > 1L) x else addChainDimension(x)
 }
 
 # The per-call worker count for a saved-tree replay. The engine partitions by
@@ -578,7 +639,7 @@ predict.bart <- function(
   # attribute on the returned yhat so plain predict callers are unaffected
   s <- NULL
   if (is.list(result)) {
-    s <- sqrt(convertSamplesFromDbartsToBart(
+    s <- sqrt(convertSamplesForCaller(
       result$variance,
       n.chains,
       combineChains
@@ -587,7 +648,7 @@ predict.bart <- function(
     result <- result$mean
   }
   # result is n.obs x n.samples x n.chains
-  result <- convertSamplesFromDbartsToBart(result, n.chains, combineChains)
+  result <- convertSamplesForCaller(result, n.chains, combineChains)
   result <- nameObservationMargin(result, rowNames)
 
   if (type != "bart") {
@@ -2029,7 +2090,7 @@ predict.bartOrdinal <- function(
   raw <- predictCodedTest(object$fit, rows$x, NULL, n.threads)
   if (type == "bart") {
     result <- nameObservationMargin(
-      convertSamplesFromDbartsToBart(raw, n.chains, combineChains),
+      convertSamplesForCaller(raw, n.chains, combineChains),
       rowNames
     )
     if (!is.null(ci.level)) {
@@ -2340,7 +2401,7 @@ predict.bartNegbin <- function(
   raw <- predictCodedTest(object$fit, rows$x, offset, n.threads)
   if (type == "bart") {
     result <- nameObservationMargin(
-      convertSamplesFromDbartsToBart(raw, n.chains, combineChains),
+      convertSamplesForCaller(raw, n.chains, combineChains),
       rowNames
     )
     if (!is.null(ci.level)) {
@@ -2367,7 +2428,7 @@ predict.bartNegbin <- function(
   if (n.chains == 1L) {
     means <- matrix(means, n.new, n.samples)
   }
-  means <- convertSamplesFromDbartsToBart(means, n.chains, combineChains)
+  means <- convertSamplesForCaller(means, n.chains, combineChains)
   means <- nameObservationMargin(means, rowNames)
   if (type == "ppd") {
     means <- negbinPpd(means, object$dispersion)

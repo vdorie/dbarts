@@ -505,13 +505,6 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
   (1.0-0). Open: delete the three stubs outright, and configure.ac's
   comment naming them, in the release after 1.0-0.
 
-one-chain-dimension (decided, VD 2026-09-27; docs/decisions.md dec-A79)
-  before the merge: extract and predict with combineChains = FALSE keep a
-  chain dimension of length 1 on a one-chain fit, for every type and fit
-  class (scalar 1 x samples, per-observation 1 x samples x n, category
-  and forest margins kept); stored fit fields unchanged; manual, NEWS
-  upgrading item and tests follow.
-
 treatSens-treatment-model-frames (agent-noted 2026-09-27)
   treatSens' evaluateTreatmentModelArgument resolves treatmentModel two
   frames above itself, so a call from any other depth resolves in the

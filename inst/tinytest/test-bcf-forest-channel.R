@@ -102,12 +102,11 @@ expected2 <- as.vector(
 expect_equal(contrib[1L, , 1L], expected1)
 expect_equal(contrib[1L, , 2L], expected2)
 
-# combineChains = FALSE is a no-op at one chain, as it is for every other
-# channel - there is no separate chain axis to split
-expect_identical(
-  extract(fit, type = "forest", combineChains = FALSE),
-  fit$forestFits
-)
+# combineChains = FALSE keeps a length-1 chain axis at one chain, as it does
+# for every other channel (dec-A79), rather than the bare storage shape
+uncombinedOne <- extract(fit, type = "forest", combineChains = FALSE)
+expect_equal(dim(uncombinedOne), c(1L, dim(fit$forestFits)))
+expect_identical(uncombinedOne[1L, , , ], fit$forestFits)
 
 # extract(combineChains = TRUE) on an uncombined-at-packaging-time (two
 # chains) fit reshapes back, bitwise, to the same values a directly-combined

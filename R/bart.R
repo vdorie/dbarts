@@ -1932,7 +1932,10 @@ shapeMultinomialChannel <- function(
   leadNames = NULL
 ) {
   out <- if (n.chains == 1L) {
-    aperm(raw, c(3L, 1L, 2L))
+    combined <- aperm(raw, c(3L, 1L, 2L))
+    # a one-chain fit's raw replay carries no chain axis of its own to
+    # permute; combineChains = FALSE still keeps a length-1 one (dec-A79)
+    if (combineChains) combined else addChainDimension(combined)
   } else if (combineChains) {
     a <- aperm(raw, c(3L, 4L, 1L, 2L))
     d <- dim(a)
@@ -1958,14 +1961,16 @@ shapeMultinomialChannel <- function(
 # combineOrUncombineChains (a single trailing margin) to what
 # shapeMultinomialChannel widens. Used by extract(type = "forest") to serve
 # either convention regardless of the fit's own packaged combineChains, the
-# same on-demand reshape yhat.train already gets there. n.chains <= 1 is a
-# no-op, as it is for every other channel: one chain carries no separate axis
-# to fold or split. Round-trips bitwise with shapeMultinomialChannel's own
-# combine/uncombine forms.
+# same on-demand reshape yhat.train already gets there. At one chain,
+# combine = FALSE still folds out a length-1 chain margin (dec-A79): the
+# array(..., c(d[1] %/% n.chains, n.chains, ...)) below already does that at
+# n.chains = 1 - it is a reshape, not a split, since d[1] %/% 1 is d[1] - so
+# no separate case is needed. Round-trips bitwise with
+# shapeMultinomialChannel's own combine/uncombine forms.
 reshapeChainedChannel <- function(x, n.chains, combine, trailing) {
   d <- dim(x)
   storedCombined <- length(d) == trailing + 1L
-  if (n.chains <= 1L || storedCombined == combine) {
+  if (storedCombined == combine) {
     return(x)
   }
   dn <- dimnames(x)
@@ -2741,6 +2746,27 @@ bart2Hurdle <- function(
   result
 }
 
+# survivalProbabilities is out of scope for dec-A79 (extract and predict
+# alone keep a one-chain fit's chain margin under combineChains = FALSE), so
+# a chain margin the two of them now add on a one-chain fit's own draws -
+# extract(..., combineChains = FALSE) and predict(..., combineChains =
+# FALSE), both called below at a fixed FALSE regardless of survivalProbabilities'
+# own combineChains - is stripped back off before this reads dim(x) to lay
+# out its own uncombined-by-chain-count convention. A replayed heteroscedastic
+# scale rides as 'x's "s" attribute (predict's own convention) and is
+# unwrapped the same way.
+dropOneChainMargin <- function(x, n.chains) {
+  if (n.chains > 1L || length(dim(x)) <= 2L) {
+    return(x)
+  }
+  s <- attr(x, "s")
+  x <- dropChainDimension(x)
+  if (!is.null(s)) {
+    attr(x, "s") <- dropChainDimension(s)
+  }
+  x
+}
+
 # S(t | x) draws from an AFT linear predictor and its residual scale, in the
 # uncombined convention (chains x samples x observations) where the scale
 # draws align with the fit draws unambiguously - the loglik channel's
@@ -2825,6 +2851,7 @@ hazardSurvivalProbabilities <- function(
 ) {
   periods <- object$periods
   K <- length(periods)
+  n.chains <- fitNChains(object)
   if (is.null(times)) {
     times <- periods
   }
@@ -2841,6 +2868,7 @@ hazardSurvivalProbabilities <- function(
     # extract.bart's sample = "test" arm reads object$yhat.test directly and
     # applies the same probability transform predict(type = "ev") does
     haz <- extract(object, type = "ev", sample = "test", combineChains = FALSE)
+    haz <- dropOneChainMargin(haz, n.chains)
     n <- dim(haz)[length(dim(haz))] %/% K
     # the test rows are period-major, so the first n are the subjects, whose
     # make.unique names are their own
@@ -2889,7 +2917,10 @@ hazardSurvivalProbabilities <- function(
       # hazards through the correct link (type = "ev" keys on $family, the
       # binary token); predict codes bigX to the training columns and
       # replays the trees
-      haz <- predict(object, bigX, type = "ev", combineChains = FALSE)
+      haz <- dropOneChainMargin(
+        predict(object, bigX, type = "ev", combineChains = FALSE),
+        n.chains
+      )
     } else {
       rows <- hazardPredictRows(object, bigX, n, K, subjectNames, na.action)
       n <- rows$numPredicted
@@ -3033,6 +3064,7 @@ survivalProbabilities.bart <- function(
       na.action = na.action
     )
   }
+  linearPredictor <- dropOneChainMargin(linearPredictor, n.chains)
 
   # The scale the normal tail divides by. A homoscedastic fit's is the stored
   # per-draw sigma at any rows; a heteroscedastic fit's is the surface, which

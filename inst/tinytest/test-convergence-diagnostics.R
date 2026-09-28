@@ -543,7 +543,8 @@ expect_equal(
 )
 rm(scalarType, cc)
 
-# one chain: a scalar is a vector either way
+# one chain: combineChains = FALSE keeps a length-1 chain margin (dec-A79),
+# a 1 x samples matrix for a scalar type
 fitOneChain <- dbarts::bart(
   testData$y ~ testData$x,
   n.chains = 1L,
@@ -560,8 +561,16 @@ expect_equal(
   c(12L, ncol(testData$x))
 )
 expect_equal(
-  extract(fitOneChain, "sigma", combineChains = FALSE),
+  dim(extract(fitOneChain, "sigma", combineChains = FALSE)),
+  c(1L, 12L)
+)
+expect_equal(
+  extract(fitOneChain, "sigma", combineChains = FALSE)[1L, ],
   extract(fitOneChain, "sigma", combineChains = TRUE)
+)
+expect_equal(
+  dim(extract(fitOneChain, "varcount", combineChains = FALSE)),
+  c(1L, 12L, ncol(testData$x))
 )
 
 # a fixed k errors, without chi advice under a monotone constraint even when

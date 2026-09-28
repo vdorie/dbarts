@@ -510,6 +510,16 @@
       \item Per-observation outputs now carry row names, so a comparison
             against an unnamed vector or array made under 0.9-x can fail on
             attributes alone.
+      \item \code{extract} and \code{predict} keep a chains-by-samples (or,
+            per-observation, chains-by-samples-by-observations) shape under
+            \code{combineChains = FALSE} even on a one-chain fit, rather
+            than dropping the chain margin as 0.9-x did: a scalar parameter
+            (\code{sigma}, \code{k}, a hurdle component's \code{dispersion})
+            is then a 1 x samples matrix instead of a plain vector, and a
+            category or per-forest margin is kept alongside the length-1
+            chain one. A fit's own stored \code{combineChains = FALSE}
+            fields (\code{$yhat.train} and its siblings) are unchanged and
+            keep 0.9-x's one-chain collapse.
     }
   }
   \subsection{NEW FEATURES}{
@@ -1625,7 +1635,8 @@
             an ordinal fit, \code{"dispersion"} on a negative-binomial fit,
             and the matching pieces on a hurdle fit; a scalar parameter is
             a vector or, with \code{combineChains = FALSE}, a
-            chains-by-samples matrix.
+            chains-by-samples matrix - length 1 on a one-chain fit rather
+            than dropped (see UPGRADING).
       \item A flat C interface for packages compiling against dbarts,
             \code{dbarts/dbarts.h}: an opaque sampler handle over the
             rewritten engine, read out of the external pointer of a sampler

@@ -273,7 +273,7 @@ bart(
      On \code{predict}, \code{n.threads} is a per-call worker count for the saved-tree replay, defaulting to the fit's own: the replay is partitioned by (chain, posterior draw), each partition writing its own rows and nothing being reduced across workers, so the answer is identical bit for bit at every value and only the time taken changes.
    }
    \item{combineChains}{
-     Logical; if \code{TRUE}, samples are returned collapsed across chains rather than in a chains-by-samples array. Default \code{TRUE}, as for \code{\link{bartBT}}; the number of chains is tracked regardless on the returned object's \code{n.chains} component (see \sQuote{Value}).
+     Logical; if \code{TRUE}, samples are returned collapsed across chains rather than in a chains-by-samples array. Default \code{TRUE}, as for \code{\link{bartBT}}; the number of chains is tracked regardless on the returned object's \code{n.chains} component (see \sQuote{Value}). On \code{extract} and \code{predict}, \code{FALSE} keeps that leading chains margin - length 1 on a one-chain fit - rather than dropping it there; see \code{\link{bartBT}}'s \code{combinechains} item.
    }
    \item{n.cuts}{
      The maximum number of possible values used in decision rules (see \code{useQuantiles}, and \code{\link{bartBT}}'s \sQuote{Decision Rules} details). If a single number, it is recycled for all variables; otherwise must be a vector of length equal to the number of predictor columns. Fewer rules may be used if a covariate lacks enough unique values. Factor predictors take no rules from it, of either kind: a factor's grid follows its level table.
