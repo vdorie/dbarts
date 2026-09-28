@@ -2,8 +2,8 @@
 \alias{samplePriorPredictive}
 \title{Draw From The BART Prior}
 \description{
-  Draws repeatedly from a \code{\linkS4class{dbartsSampler}}'s prior - tree structure, end-node
-  parameters, and optionally response noise - and evaluates the resulting forest at \code{x.test}.
+  Draws repeatedly from a \code{\linkS4class{dbartsSampler}}'s prior - tree structure, leaf
+  values, and optionally response noise - and evaluates the resulting forest at \code{x.test}.
   Useful for calibrating priors before ever fitting to data, e.g. inspecting the implied prior on a
   treatment effect \eqn{f(x_1) - f(x_0)}{f(x1) - f(x0)}. The sampler passed in is never modified.
 }
@@ -53,7 +53,7 @@ samplePriorPredictive(
 }
 \details{
   Each of the \code{n.samples} draws independently redraws every tree's structure
-  (\code{sampleTreesFromPrior}) and end-node parameters (\code{sampleNodeParametersFromPrior}) from
+  (\code{sampleTreesFromPrior}) and leaf values (\code{sampleLeafParametersFromPrior}) from
   scratch, then evaluates the resulting forest at \code{x.test} - there is no MCMC dependence between
   rows of the result, unlike a posterior sample from \code{run}.
 
@@ -94,7 +94,7 @@ samplePriorPredictive(
   uses for a single chain, with no chain dimension.
 }
 \seealso{
-  \code{\linkS4class{dbartsSampler}} for \code{sampleTreesFromPrior}, \code{sampleNodeParametersFromPrior},
+  \code{\linkS4class{dbartsSampler}} for \code{sampleTreesFromPrior}, \code{sampleLeafParametersFromPrior},
   and \code{predict}, the building blocks this function composes. \code{\link{dbarts}} for
   creating a sampler. \code{\link{extract}} for the same \code{"ev"}/\code{"ppd"} vocabulary applied to
   posterior draws.

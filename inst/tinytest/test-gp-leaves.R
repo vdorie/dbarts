@@ -18,14 +18,14 @@ df.binary <- data.frame(x1, x2, z)
 
 # designation and argument validation happens when the prior resolves
 expect_error(
-  dbarts(y ~ x1 + x2, df, node.prior = gp("zz", k = 2)),
+  dbarts(y ~ x1 + x2, df, leaf.prior = gp("zz", k = 2)),
   pattern = "unrecognized column"
 )
 # a fractional numeric columns index is refused, naming the argument, rather
 # than silently truncated (coerceOrError's integer branch); shared with
 # linear()'s own resolveLeafCovariates path
 expect_error(
-  dbarts(y ~ x1 + x2, df, node.prior = gp(1.5, k = 2)),
+  dbarts(y ~ x1 + x2, df, leaf.prior = gp(1.5, k = 2)),
   "'columns' must be a whole number; got '1.5'",
   fixed = TRUE
 )
@@ -38,11 +38,11 @@ expect_error(
   pattern = "positive integer"
 )
 expect_error(
-  dbarts(y ~ x1 + x2, df, node.prior = gp("x1", k = 2, lengthscale = c(1, 2))),
+  dbarts(y ~ x1 + x2, df, leaf.prior = gp("x1", k = 2, lengthscale = c(1, 2))),
   pattern = "length 1 or match"
 )
 expect_error(
-  dbarts(y ~ x1 + x2 + g, data.frame(df, g), node.prior = gp("g", k = 2)),
+  dbarts(y ~ x1 + x2 + g, data.frame(df, g), leaf.prior = gp("g", k = 2)),
   pattern = "must be continuous"
 )
 expect_error(
@@ -57,7 +57,7 @@ set.seed(3)
 sampler.chi <- dbarts(
   y ~ x1 + x2,
   df,
-  node.prior = gp("x1", k = chi(1.25), max.leaf.size = 100L),
+  leaf.prior = gp("x1", k = chi(1.25), max.leaf.size = 100L),
   control = control.chi
 )
 samples.chi <- sampler.chi$run(100L, 20L)
@@ -69,7 +69,7 @@ set.seed(4)
 sampler.chi.binary <- dbarts(
   z ~ x1 + x2,
   df.binary,
-  node.prior = gp("x1", max.leaf.size = 100L),
+  leaf.prior = gp("x1", max.leaf.size = 100L),
   control = control.chi
 )
 samples.chi.binary <- sampler.chi.binary$run(60L, 10L)
@@ -85,7 +85,7 @@ sampler.w0 <- suppressWarnings(
     y ~ x1 + x2,
     df,
     weights = w0,
-    node.prior = gp("x1", k = 2, max.leaf.size = 100L),
+    leaf.prior = gp("x1", k = 2, max.leaf.size = 100L),
     control = control.chi
   )
 )
@@ -108,7 +108,7 @@ sampler <- dbarts(
   y ~ x1 + x2,
   df,
   test = df[1:5, c("x1", "x2")],
-  node.prior = gp("x1", max.leaf.size = 100L),
+  leaf.prior = gp("x1", max.leaf.size = 100L),
   control = control
 )
 samples <- sampler$run()
@@ -138,8 +138,8 @@ source(
 # state serialization carries the fits slabs and saved blocks: a restored
 # sampler reproduces the model
 list2env(
-  # unlike a literal node.prior = gp(...) written directly inside a dbarts()
-  # call, a gp() object threaded through this helper's own 'node.prior'
+  # unlike a literal leaf.prior = gp(...) written directly inside a dbarts()
+  # call, a gp() object threaded through this helper's own 'leaf.prior'
   # parameter does not reach dbarts()'s NSE routing, so it must be built
   # through the qualified name here
   checkStateRoundTrip(
@@ -160,7 +160,7 @@ set.seed(1)
 sampler.mut <- dbarts(
   y ~ x1 + x2,
   df,
-  node.prior = gp("x1", max.leaf.size = 100L),
+  leaf.prior = gp("x1", max.leaf.size = 100L),
   control = control
 )
 invisible(sampler.mut$run(50L, 5L))
@@ -180,7 +180,7 @@ set.seed(101)
 sampler.fresh <- dbarts(
   y ~ x1 + x2,
   df.mut,
-  node.prior = gp("x1", max.leaf.size = 100L),
+  leaf.prior = gp("x1", max.leaf.size = 100L),
   control = control
 )
 fits.fresh <- rowMeans(sampler.fresh$run(150L, 200L)$train)
@@ -193,7 +193,7 @@ set.seed(2)
 sampler.binary <- dbarts(
   z ~ x1 + x2,
   df.binary,
-  node.prior = gp("x1", k = 2, max.leaf.size = 100L),
+  leaf.prior = gp("x1", k = 2, max.leaf.size = 100L),
   control = control
 )
 samples.binary <- sampler.binary$run(100L, 20L)
@@ -202,7 +202,7 @@ expect_true(all(is.finite(samples.binary$train)))
 # gp leaves ride the data-handle views: a full-rows view matches the
 # raw-data path bitwise, standardizing with the parent's constants; a
 # proper fold serves its held-out rows through the gathered covariates
-# threaded through checkDataHandleViews()'s own 'node.prior' parameter, so
+# threaded through checkDataHandleViews()'s own 'leaf.prior' parameter, so
 # gp() must be the qualified name (see the checkStateRoundTrip() call above)
 list2env(
   checkDataHandleViews(
@@ -216,12 +216,12 @@ list2env(
   environment()
 )
 
-# xbart accepts a gp node prior, with its k standing in for a missing k
+# xbart accepts a gp leaf prior, with its k standing in for a missing k
 # argument
 xbart.gp <- xbart(
   y ~ x1 + x2,
   df,
-  node.prior = gp("x1", k = 3, max.leaf.size = 100L),
+  leaf.prior = gp("x1", k = 3, max.leaf.size = 100L),
   n.samples = 60L,
   n.burn = c(60L, 30L),
   n.reps = 2L,
@@ -235,7 +235,7 @@ expect_true(all(is.finite(xbart.gp)))
 if (requireNamespace("Matrix", quietly = TRUE)) {
   x.sparse <- Matrix::Matrix(as.matrix(df[, c("x1", "x2")]), sparse = TRUE)
   expect_error(
-    dbarts(x.sparse, y, node.prior = gp(1L, k = 2)),
+    dbarts(x.sparse, y, leaf.prior = gp(1L, k = 2)),
     pattern = "sparse predictor matrices"
   )
 }

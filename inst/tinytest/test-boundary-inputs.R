@@ -107,7 +107,7 @@ df.c <- data.frame(x1 = x1.c, x2 = x2.c, y = y.c)
 sampler.lin <- dbarts(
   y ~ x1 + x2,
   df.c,
-  node.prior = linear("x1"),
+  leaf.prior = linear("x1"),
   control = control
 )
 samples.lin <- sampler.lin$run(40L, 40L)
@@ -117,7 +117,7 @@ expect_true(all(is.finite(samples.lin$sigma)))
 sampler.gp <- dbarts(
   y ~ x1 + x2,
   df.c,
-  node.prior = gp("x1"),
+  leaf.prior = gp("x1"),
   control = control
 )
 samples.gp <- sampler.gp$run(40L, 40L)

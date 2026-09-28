@@ -562,7 +562,7 @@ dbarts <- function(
   verbose = FALSE,
   n.samples = 800L,
   tree.prior = cgm,
-  node.prior = normal,
+  leaf.prior = normal,
   monotone = NULL,
   interactions = NULL,
   blocks = NULL,
@@ -588,6 +588,7 @@ dbarts <- function(
   ),
   na.action = dbarts::na.keepPredictors,
   sigma = NA_real_,
+  node.prior = NULL,
   callback = NULL,
   ...
 ) {
@@ -645,6 +646,18 @@ dbarts <- function(
     matchedCall$sigest <- matchedCall$sigma
     matchedCall$sigma <- NULL
   }
+
+  # the leaf-value prior is 'leaf.prior' here as everywhere; 'node.prior'
+  # is the 0.9-x spelling, accepted for one release. Both flags are read
+  # before either name is assigned: an assignment makes missing() false.
+  nodePriorSupplied <- !missing(node.prior)
+  leafPriorSupplied <- !missing(leaf.prior)
+  matchedCall <- resolveRenamedLeafPrior(
+    matchedCall,
+    nodePriorSupplied,
+    leafPriorSupplied,
+    "dbarts"
+  )
 
   # 'family' is resolved from the caller's own unevaluated argument, so a
   # bare family constructor (student(3)) resolves in the family vocabulary;
@@ -1420,7 +1433,7 @@ samplePriorPredictive <- function(
   varianceResults <- if (drawsVariance) vector("list", n.samples) else NULL
   for (i in seq_len(n.samples)) {
     draw$sampleTreesFromPrior(updateState = FALSE)
-    draw$sampleNodeParametersFromPrior(updateState = FALSE)
+    draw$sampleLeafParametersFromPrior(updateState = FALSE)
     fit <- draw$predict(xt, offset.test, n.threads)
     # multi-chain samplers draw an independent prior stream per chain; prior
     # draws are chain-free, so only the first chain's stream is kept
@@ -1656,16 +1669,28 @@ dbartsSampler <- setRefClass(
 
       invisible(NULL)
     },
-    sampleNodeParametersFromPrior = function(updateState = NA) {
-      "Draws end node parameters from prior; does not update tree structure."
+    sampleLeafParametersFromPrior = function(updateState = NA) {
+      "Draws leaf values from their prior; does not change tree structure."
       ptr <- getPointer()
-      .Call(C_dbarts_bartcore_sampleNodeParametersFromPrior, ptr)
+      .Call(C_dbarts_bartcore_sampleLeafParametersFromPrior, ptr)
 
       if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
 
       invisible(NULL)
+    },
+    sampleNodeParametersFromPrior = function(updateState = NA) {
+      "Retired: use $sampleLeafParametersFromPrior. Forwards for one release."
+      warnOnce(
+        "tombstone.sampleNodeParametersFromPrior",
+        "'$sampleNodeParametersFromPrior' is now ",
+        "'$sampleLeafParametersFromPrior'; this call was forwarded. The old ",
+        "name is removed in dbarts ",
+        tombstoneExpiry,
+        "."
+      )
+      sampleLeafParametersFromPrior(updateState)
     },
     sampleVarianceForestFromPrior = function(updateState = NA) {
       "Draws the variance forest's tree structures and leaf factors from their priors; a no-op on a homoscedastic sampler."
@@ -1686,7 +1711,7 @@ dbartsSampler <- setRefClass(
       ) {
         stop(
           "grow-from-root warm start is only available for the constant-leaf ",
-          "model; linear and gp node priors initialize with ",
+          "model; linear and gp leaf priors initialize with ",
           "sampleTreesFromPrior instead"
         )
       }
@@ -2131,7 +2156,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setForestWeights = function(forest, weights, updateState = NA) {
-      "Sets a per-forest, per-observation weight: a multiplicative precision factor on the named forest's own leaf conditionals, composing with weights and active as (w_i * a_i) * m_f^2 * s_i rather than widening either channel. Only applies to a Bayesian causal forest built with forests = (see dbarts); forest indexes from 1, as with getCalibration/setCalibration (the basis forest is 2). The weight does not ride the sampler's saved state; it is mirrored on an R5 field that getPointer and setState both reinstall on every re-creation. updateState follows control@updateState; see setData."
+      "Sets a per-forest, per-observation weight: a multiplicative precision factor on the named forest's own leaf conditionals, composing with weights and active as (w_i * a_i) * m_f^2 * s_i rather than widening either channel. Only applies to a Bayesian causal forest built with forests = (see dbarts); forest indexes from 1, as with getLeafPrior/setLeafPrior (the basis forest is 2). The weight does not ride the sampler's saved state; it is mirrored on an R5 field that getPointer and setState both reinstall on every re-creation. updateState follows control@updateState; see setData."
       refuseCountsMutation(
         .self,
         "$setForestWeights",
@@ -2171,7 +2196,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setForestBasis = function(forest, basis, updateState = NA) {
-      "Changes the basis the named forest's amplitudes multiply, at any forest and any width. forest indexes from 1, as with setForestWeights and getCalibration/setCalibration (a Bayesian causal forest's basis forest is 2). A factor (or a one-sided formula naming one) expands to its level indicators, one amplitude per level, with no reference level dropped; a numeric vector or matrix is already those columns. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
+      "Changes the basis the named forest's amplitudes multiply, at any forest and any width. forest indexes from 1, as with setForestWeights and getLeafPrior/setLeafPrior (a Bayesian causal forest's basis forest is 2). A factor (or a one-sided formula naming one) expands to its level indicators, one amplitude per level, with no reference level dropped; a numeric vector or matrix is already those columns. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
       refuseCountsMutation(
         .self,
         "$setForestBasis",
@@ -2429,7 +2454,7 @@ dbartsSampler <- setRefClass(
       .Call(C_dbarts_bartcore_getSumsOfSquaredResiduals, ptr)
     },
     getForestFits = function(forest = NULL) {
-      "Returns a sampler's per-forest internal-scale fitted values (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.observations x n.chains at one forest, or, at the default forest = NULL, every forest stacked with the forest margin between the observations and the chains, n.observations x n.forests x n.chains (a single-forest sampler's NULL read is bitwise its forest 1 read). forest indexes from 1, as with setForestWeights/setForestBasis/getCalibration/setCalibration."
+      "Returns a sampler's per-forest internal-scale fitted values (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.observations x n.chains at one forest, or, at the default forest = NULL, every forest stacked with the forest margin between the observations and the chains, n.observations x n.forests x n.chains (a single-forest sampler's NULL read is bitwise its forest 1 read). forest indexes from 1, as with setForestWeights/setForestBasis/getLeafPrior/setLeafPrior."
       ptr <- getPointer()
       if (!is.null(forest)) {
         return(.Call(
@@ -2473,7 +2498,7 @@ dbartsSampler <- setRefClass(
       .Call(C_dbarts_bartcore_getVariance, ptr, isTRUE(test))
     },
     getForestAmplitudes = function(forest = NULL) {
-      "Returns the named forest's amplitudes - the scalars its basis columns are multiplied by, one per column - as a q x n.chains matrix, or, at the default forest = NULL, every forest's stacked forest-major into a sum(q) x n.chains matrix, which is the row order the run's own glue channel carries. The vector is RAGGED, forest by forest, which is why a forest can be named: a Bayesian causal forest's forest 1 carries the single a on its implicit intercept and its forest 2 the pair (b0, b1) on its two level indicators, so the stacked read is its shipped (a, b0, b1). forest indexes from 1, as with setForestBasis/setForestWeights/getCalibration."
+      "Returns the named forest's amplitudes - the scalars its basis columns are multiplied by, one per column - as a q x n.chains matrix, or, at the default forest = NULL, every forest's stacked forest-major into a sum(q) x n.chains matrix, which is the row order the run's own glue channel carries. The vector is RAGGED, forest by forest, which is why a forest can be named: a Bayesian causal forest's forest 1 carries the single a on its implicit intercept and its forest 2 the pair (b0, b1) on its two level indicators, so the stacked read is its shipped (a, b0, b1). forest indexes from 1, as with setForestBasis/setForestWeights/getLeafPrior."
       ptr <- getPointer()
       .Call(
         C_dbarts_bartcore_getForestAmplitudes,
@@ -2482,7 +2507,7 @@ dbartsSampler <- setRefClass(
       )
     },
     getForestVariableCounts = function(forest = NULL) {
-      "Returns a sampler's per-forest predictor split counts (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.predictors x n.chains at one forest, or, at the default forest = NULL, every forest stacked with the forest margin between the predictors and the chains, n.predictors x n.forests x n.chains (a single-forest sampler's NULL read is bitwise its forest 1 read). Rows are named by the predictor columns when data@x carries colnames, on margin 1 in both shapes. forest indexes from 1, as with setForestWeights/setForestBasis/getCalibration/setCalibration."
+      "Returns a sampler's per-forest predictor split counts (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.predictors x n.chains at one forest, or, at the default forest = NULL, every forest stacked with the forest margin between the predictors and the chains, n.predictors x n.forests x n.chains (a single-forest sampler's NULL read is bitwise its forest 1 read). Rows are named by the predictor columns when data@x carries colnames, on margin 1 in both shapes. forest indexes from 1, as with setForestWeights/setForestBasis/getLeafPrior/setLeafPrior."
       ptr <- getPointer()
       if (is.null(forest)) {
         numForests <- bartcoreNumForests(ptr)
@@ -2517,12 +2542,12 @@ dbartsSampler <- setRefClass(
       }
       counts
     },
-    getCalibration = function(forest = NULL) {
-      "Returns the leaf-prior calibration in force, one row per chain and one column of prior.scale (the forest total's prior standard deviation at k = 1, in response units), prior.sd (prior.scale / k), prior.mean, k, k.has.hyperprior, response.scale, and response.shift, then the five multi-forest calibration-map quantities: amplitude.prior.variance and amplitude.prior.scale (exclusive - a forest carries a fixed amplitude variance or a half-Cauchy scale mixture, and the other reads NaN), node.scale.factor, node.scale.divisor, and basis.row.norm, which decompose prior.scale as factor * anchor / (divisor * row norm). All five are NaN on a forest whose scale the map does not own, and the two node.scale columns go NaN after a state install brings a foreign calibration, until setForestBasis re-imposes the map. The leaf model rides on a 'leaf.model' attribute and qualifies prior.sd: an equality only for the constant leaf. This is the authoritative reader of the calibration - model@prior.scale records the named intent, which a channel that re-anchors the response transform leaves untouched while moving what is in force. At the default forest = NULL, every forest's calibration is stacked with the forest margin LAST, n.chains x 12 x n.forests (a single-forest sampler's NULL read is bitwise its forest 1 read); the column dimnames and the 'leaf.model' attribute are carried from the first forest, since both are properties of the sampler rather than of any one forest."
+    getLeafPrior = function(forest = NULL) {
+      "Returns the leaf-prior calibration in force, one row per chain and one column of prior.scale (the forest total's prior standard deviation at k = 1, in response units), prior.sd (prior.scale / k), prior.mean, k, k.has.hyperprior, response.scale, and response.shift, then the five multi-forest calibration-map quantities: amplitude.prior.variance and amplitude.prior.scale (exclusive - a forest carries a fixed amplitude variance or a half-Cauchy scale mixture, and the other reads NaN), leaf.scale.factor, leaf.scale.divisor, and basis.row.norm, which decompose prior.scale as factor * anchor / (divisor * row norm). All five are NaN on a forest whose scale the map does not own, and the two leaf.scale columns go NaN after a state install brings a foreign calibration, until setForestBasis re-imposes the map. The leaf model rides on a 'leaf.model' attribute and qualifies prior.sd: an equality only for the constant leaf. This is the authoritative reader of the calibration - model@prior.scale records the named intent, which a channel that re-anchors the response transform leaves untouched while moving what is in force. At the default forest = NULL, every forest's calibration is stacked with the forest margin LAST, n.chains x 12 x n.forests (a single-forest sampler's NULL read is bitwise its forest 1 read); the column dimnames and the 'leaf.model' attribute are carried from the first forest, since both are properties of the sampler rather than of any one forest."
       ptr <- getPointer()
       if (!is.null(forest)) {
         return(.Call(
-          C_dbarts_bartcore_getCalibration,
+          C_dbarts_bartcore_getLeafPrior,
           ptr,
           resolveForestIndex(forest)
         ))
@@ -2530,7 +2555,7 @@ dbartsSampler <- setRefClass(
       numForests <- bartcoreNumForests(ptr)
       blocks <- lapply(
         seq_len(numForests),
-        function(f) .Call(C_dbarts_bartcore_getCalibration, ptr, f - 1L)
+        function(f) .Call(C_dbarts_bartcore_getLeafPrior, ptr, f - 1L)
       )
       if (numForests == 1L) {
         return(blocks[[1L]])
@@ -2544,7 +2569,7 @@ dbartsSampler <- setRefClass(
       attr(result, "leaf.model") <- attr(first, "leaf.model")
       result
     },
-    setCalibration = function(
+    setLeafPrior = function(
       prior.scale,
       prior.sd,
       prior.mean,
@@ -2554,14 +2579,14 @@ dbartsSampler <- setRefClass(
       "Restates a forest's leaf prior on every chain so that the forest total's prior standard deviation at k = 1 is prior.scale, in response units; prior.sd is the same statement at the current k and is refused when k is drawn from a hyperprior. Exactly one of the two is given. Nothing else moves - not k, not the response transform, not sigma, not the tree prior - and the write takes effect on the next sweep, reinterpreting no leaf value already drawn. updateState follows control@updateState; see setData."
       refuseCountsMutation(
         .self,
-        "$setCalibration",
+        "$setLeafPrior",
         "the softmax calibration map owns every category forest's leaf scale"
       )
       if (!missing(prior.mean)) {
         stop(
           "'prior.mean' is not writable: the leaf values it would shift are ",
           "already drawn and stored. The lever is the offset channel - ",
-          "setOffset(rep_len(-getCalibration()[1L, \"prior.mean\"], n)) ",
+          "setOffset(rep_len(-getLeafPrior()[1L, \"prior.mean\"], n)) ",
           "re-centers the modelled quantity, and the getter then reports the ",
           "mean that is in force"
         )
@@ -2573,7 +2598,7 @@ dbartsSampler <- setRefClass(
       # own terms rather than by the refusal that would follow a well-formed one
       refuseAmplitudeMutation(
         .self,
-        "setCalibration",
+        "setLeafPrior",
         "every forest's leaf scale comes from the multi-forest calibration ",
         "map; make a new sampler instead"
       )
@@ -2582,7 +2607,7 @@ dbartsSampler <- setRefClass(
       index <- resolveForestIndex(forest)
       if (missing(prior.scale)) {
         prior.sd <- validateLiveScale(prior.sd, "prior.sd")
-        calibration <- .Call(C_dbarts_bartcore_getCalibration, ptr, index)
+        calibration <- .Call(C_dbarts_bartcore_getLeafPrior, ptr, index)
         if (any(calibration[, "k.has.hyperprior"] != 0)) {
           stop(
             "'prior.sd' names a prior sd at the current 'k', but 'k' is ",
@@ -2608,7 +2633,7 @@ dbartsSampler <- setRefClass(
         prior.scale <- validateLiveScale(prior.scale, "prior.scale")
       }
 
-      .Call(C_dbarts_bartcore_setCalibration, ptr, index, prior.scale)
+      .Call(C_dbarts_bartcore_setLeafPrior, ptr, index, prior.scale)
       if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }

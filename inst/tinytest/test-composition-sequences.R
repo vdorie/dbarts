@@ -194,8 +194,8 @@ expect_identical(
 
 # linear leaves: the donor's leaf parameters are vectors, and a constant-leaf
 # donor is refused rather than silently reinterpreted
-linDonor <- warmDonor(X, node.prior = linearLeaf)
-warmLinear <- dbarts(X, y, node.prior = linearLeaf, control = ctl())
+linDonor <- warmDonor(X, leaf.prior = linearLeaf)
+warmLinear <- dbarts(X, y, leaf.prior = linearLeaf, control = ctl())
 warmLinear$installTrees(linDonor, samples = 2L)
 expect_identical(
   warmLinear$getTrees(current = TRUE)$var,
@@ -273,7 +273,7 @@ expect_true(all(is.finite(cutBcf$getForestFits(2L))))
 
 # a leaf-covariate column carries a split grid AND a leaf regressor; coarsening
 # it must not disturb the leaf model
-cutLinear <- dbarts(X, y, node.prior = linearLeaf, control = ctl())
+cutLinear <- dbarts(X, y, leaf.prior = linearLeaf, control = ctl())
 invisible(cutLinear$run(20L, 1L))
 cutLinear$setCutPoints(list(0.4), 3L)
 linCutRun <- cutLinear$run(0L, 20L)
@@ -309,10 +309,10 @@ chainArms <- list(
     dbarts(X, y, tree.prior = dart(), control = ctl(n.chains = k))
   },
   linear = function(k) {
-    dbarts(X, y, node.prior = linearLeaf, control = ctl(n.chains = k))
+    dbarts(X, y, leaf.prior = linearLeaf, control = ctl(n.chains = k))
   },
   gp = function(k) {
-    dbarts(X, y, node.prior = gp("v3", k = 2), control = ctl(n.chains = k))
+    dbarts(X, y, leaf.prior = gp("v3", k = 2), control = ctl(n.chains = k))
   }
 )
 for (arm in names(chainArms)) {

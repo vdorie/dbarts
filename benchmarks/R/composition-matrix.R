@@ -594,7 +594,7 @@ mutate <- list(
     s$setActiveRows(c(rep(1, nr - 1L), 0))
   },
   getLatents = function(s, d) s$getLatents(),
-  calibration = function(s, d) s$setCalibration(prior.scale = 1.2),
+  calibration = function(s, d) s$setLeafPrior(prior.scale = 1.2),
   varianceForest = "extra:variance",
   dart = "extra:dart",
   warmStart = function(s, d) {

@@ -61,7 +61,7 @@ stopifnot(identical(cell, findInterval(x1[, 1L], cuts) + 1L))
 base <- 0.5
 power <- 2
 k <- 2
-nodeScale <- 1.5 # on the internal scale; the node prior takes response units
+nodeScale <- 1.5 # on the internal scale; the leaf prior takes response units
 
 # the engine's internal [-0.5, 0.5] rescaling of the observed response
 fitMin <- min(y1)
@@ -160,7 +160,7 @@ fitSingleTree <- function(seed) {
     x1,
     y1,
     control = control,
-    node.prior = normal(k, scale = nodeScale * fitRange),
+    leaf.prior = normal(k, scale = nodeScale * fitRange),
     tree.prior = cgm(power, base),
     proposal.probs = c(
       birth_death = 0.5,

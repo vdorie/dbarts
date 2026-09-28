@@ -256,7 +256,7 @@ sampler <- dbarts(
   y,
   control = ctl,
   tree.prior = cgm(power, base),
-  node.prior = normal(kLeaf),
+  leaf.prior = normal(kLeaf),
   family = gaussian(sigma = fixed(fixedVar)),
   proposal.probs = proposalProbs
 )

@@ -220,7 +220,7 @@ expect_true(abs(mean(r.off$test) - mean(y[testRows] + 100)) < 1)
 # conditional gather: the handle owns raw only for the leaf covariate columns
 # it is told to gather. A view whose leaf model reads an undeclared column is
 # refused; declaring the column lets the same view build and run.
-sampler.linear <- dbarts(x, y, node.prior = linear(2L), control = control)
+sampler.linear <- dbarts(x, y, leaf.prior = linear(2L), control = control)
 leafColumns <- sampler.linear$model@node.prior@columns
 
 handle.bare <- dbarts:::bartcoreDataHandle(

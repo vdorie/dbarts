@@ -460,33 +460,33 @@ expect_error(
     x,
     y,
     forests = twoForests,
-    node.prior = linear(columns = "x1"),
+    leaf.prior = linear(columns = "x1"),
     control = control
   ),
-  "linear node prior"
+  "linear leaf prior"
 )
 expect_error(
   dbarts(
     x,
     y,
     forests = twoForests,
-    node.prior = gp(columns = "x1"),
+    leaf.prior = gp(columns = "x1"),
     control = control
   ),
-  "Gaussian-process node prior"
+  "Gaussian-process leaf prior"
 )
 expect_error(
   dbarts(
     x,
     y,
     forests = twoForests,
-    node.prior = normal(chi(1.5)),
+    leaf.prior = normal(chi(1.5)),
     control = control
   ),
   "'k' hyperprior"
 )
 expect_error(
-  dbarts(x, y, forests = twoForests, node.prior = normal(3), control = control),
+  dbarts(x, y, forests = twoForests, leaf.prior = normal(3), control = control),
   "non-default 'k'"
 )
 expect_error(

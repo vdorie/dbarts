@@ -1,12 +1,12 @@
-# Checks shared by the gp- and linear-leaf node.prior test files: they
-# differ only in the formula, the node.prior, and a couple of knob values.
+# Checks shared by the gp- and linear-leaf leaf.prior test files: they
+# differ only in the formula, the leaf.prior, and a couple of knob values.
 # Every source() of this file must pass local = TRUE for the expect_*
 # calls below to reach the run's masked expect_* bindings, and for the
 # functions defined here to resolve expect_* (and, for
 # checkStateRoundTrip(), statesAgree()) through that same environment at
 # call time.
 
-# plotTree does not error under a non-constant node prior, and the leaf
+# plotTree does not error under a non-constant leaf prior, and the leaf
 # covariate designation is fixed at creation: swapping to a constant prior
 # via setModel() is refused.
 checkPlotTreeAndFixedPrior <- function(sampler) {
@@ -24,12 +24,12 @@ checkPlotTreeAndFixedPrior <- function(sampler) {
   )
 }
 
-# the leaf type's node.prior rides the data-handle views: a full-rows view
+# the leaf type's leaf.prior rides the data-handle views: a full-rows view
 # matches the raw-data path bitwise, standardizing with the parent's
 # constants; a proper fold serves its held-out rows through the gathered
 # covariates. Returns the objects the caller's own rm() teardown names, so
 # a call site assigns the result with list2env(..., environment()).
-checkDataHandleViews <- function(formula, df, node.prior, n.trees, n, mu) {
+checkDataHandleViews <- function(formula, df, leaf.prior, n.trees, n, mu) {
   control.view <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
@@ -39,7 +39,7 @@ checkDataHandleViews <- function(formula, df, node.prior, n.trees, n, mu) {
   sampler.view <- dbarts(
     formula,
     df,
-    node.prior = node.prior,
+    leaf.prior = leaf.prior,
     control = control.view
   )
   handle <- dbarts:::bartcoreDataHandle(
@@ -56,7 +56,7 @@ checkDataHandleViews <- function(formula, df, node.prior, n.trees, n, mu) {
     trainRows = seq_len(n)
   )
   set.seed(7)
-  full <- dbarts(formula, df, node.prior = node.prior, control = control.view)
+  full <- dbarts(formula, df, leaf.prior = leaf.prior, control = control.view)
   samples.view <- dbarts:::bartcoreRun(view, 40L, 20L)
   samples.full <- full$run(40L, 20L)
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
@@ -99,7 +99,7 @@ checkDataHandleViews <- function(formula, df, node.prior, n.trees, n, mu) {
 # (inst/common/stateContinuation.R) already sourced at the call site.
 # Returns the objects the caller's own rm() teardown names, so a call site
 # assigns the result with list2env(..., environment()).
-checkStateRoundTrip <- function(formula, df, node.prior, n.trees) {
+checkStateRoundTrip <- function(formula, df, leaf.prior, n.trees) {
   control.state <- dbartsControl(
     n.chains = 2L,
     n.threads = 1L,
@@ -110,7 +110,7 @@ checkStateRoundTrip <- function(formula, df, node.prior, n.trees) {
   sampler.state <- dbarts(
     formula,
     df,
-    node.prior = node.prior,
+    leaf.prior = leaf.prior,
     control = control.state
   )
   invisible(sampler.state$run(30L, 2L))
@@ -122,7 +122,7 @@ checkStateRoundTrip <- function(formula, df, node.prior, n.trees) {
   sampler.restored <- dbarts(
     formula,
     df,
-    node.prior = node.prior,
+    leaf.prior = leaf.prior,
     control = control.state
   )
   sampler.restored$setState(sampler.state$state)

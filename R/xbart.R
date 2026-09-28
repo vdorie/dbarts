@@ -22,7 +22,7 @@ xbart <- function(
   seed = NULL,
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic"),
-  node.prior = NULL,
+  leaf.prior = NULL,
   n.cuts = 100L,
   useQuantiles = FALSE,
   n.thin = 1L,
@@ -273,21 +273,21 @@ xbart <- function(
     stop("'n.trees' must contain only positive integers")
   }
 
-  # a supplied node.prior contributes the leaf model shape - normal(k), the
+  # a supplied leaf.prior contributes the leaf model shape - normal(k), the
   # default, linear(columns, k), or gp(columns, k, ...), whose designated
   # covariate columns resolve against the model matrix; the k argument
   # drives the k grid as always, with a k inside the supplied prior standing
   # in for a missing k argument
-  node.spec <- NULL
-  if (!is.null(matchedCall[["node.prior"]])) {
-    node.spec <- evalInVocabulary(
-      matchedCall[["node.prior"]],
+  leafSpec <- NULL
+  if (!is.null(matchedCall[["leaf.prior"]])) {
+    leafSpec <- evalInVocabulary(
+      matchedCall[["leaf.prior"]],
       dbartsPriors[c("normal", "linear", "gp", "chi")],
       evalEnv,
       resolvedAs(
-        "node.prior",
+        "leaf.prior",
         c("NULL", "dbartsNodePrior"),
-        "node prior specification"
+        "leaf prior specification"
       )
     )
   }
@@ -299,10 +299,10 @@ xbart <- function(
   # constructor standing on the caller's search path. An absent k is ONE cell
   # at the front door's own default for the response type - fixed 2
   # continuous, chi(1.5, 2) binary - so a default xbart call scores the model
-  # a default bart call fits; a k carried by a supplied node.prior stands in
+  # a default bart call fits; a k carried by a supplied leaf.prior stands in
   # for a missing argument.
   kSpec <- if (is.null(matchedCall[["k"]])) {
-    if (!is.null(node.spec)) node.spec@k else NULL
+    if (!is.null(leafSpec)) leafSpec@k else NULL
   } else {
     evalInVocabulary(matchedCall[["k"]], dbartsPriors, evalEnv)
   }
@@ -329,7 +329,7 @@ xbart <- function(
   }
 
   # tree.prior (3.f, f4): follows the same grid-axis-overrides-the-object
-  # rule as node.prior/k above - power and base are xbart's grid axes, so
+  # rule as leaf.prior/k above - power and base are xbart's grid axes, so
   # cellModel overwrites them on the object every cell regardless of what is
   # supplied here, while the object's non-grid content (a cgm's split.probs,
   # a dart's Dirichlet hyperparameters) rides every cell unchanged.
@@ -354,28 +354,28 @@ xbart <- function(
   # the leaf model is built at the first cell's k; cellModel swaps the
   # hyperprior itself as the sweep moves along the axis
   kValue <- kGridValue(kGrid[[1L]])
-  if (is.null(node.spec)) {
-    node.prior <- quote(normal(k))
-    node.prior[[1L]] <- quoteInNamespace(normal)
-    node.prior[[2L]] <- kValue
-    node.prior <- eval(node.prior)
+  if (is.null(leafSpec)) {
+    leafPrior <- quote(normal(k))
+    leafPrior[[1L]] <- quoteInNamespace(normal)
+    leafPrior[[2L]] <- kValue
+    leafPrior <- eval(leafPrior)
   } else {
     # the k argument replaces the supplied prior's own k, but its named
     # calibration is not a grid axis and rides every cell unchanged
-    namedSd <- node.spec@prior.sd
-    namedScale <- node.spec@prior.scale
-    node.prior <- if (is(node.spec, "dbartsLinearPrior")) {
+    namedSd <- leafSpec@prior.sd
+    namedScale <- leafSpec@prior.scale
+    leafPrior <- if (is(leafSpec, "dbartsLinearPrior")) {
       resolveLeafCovariates(
-        linear(node.spec@columns, kValue, namedSd, namedScale),
+        linear(leafSpec@columns, kValue, namedSd, namedScale),
         data
       )
-    } else if (is(node.spec, "dbartsGPPrior")) {
+    } else if (is(leafSpec, "dbartsGPPrior")) {
       resolveLeafCovariates(
         gp(
-          node.spec@columns,
+          leafSpec@columns,
           kValue,
-          node.spec@lengthscale,
-          node.spec@max.leaf.size,
+          leafSpec@lengthscale,
+          leafSpec@max.leaf.size,
           namedSd,
           namedScale
         ),
@@ -390,7 +390,7 @@ xbart <- function(
   # modelled cell, and resolvePriorScale is where that is refused by name
   node.hyperprior <- kGrid[[1L]]
   for (kCell in kGrid[-1L]) {
-    invisible(resolvePriorScale(node.prior, kCell))
+    invisible(resolvePriorScale(leafPrior, kCell))
   }
 
   # a binary family runs on a fixed unit latent scale (R/spec.R's
@@ -416,13 +416,13 @@ xbart <- function(
   model <- newValidated(
     "dbartsModel",
     tree.prior,
-    node.prior,
+    leafPrior,
     node.hyperprior,
     resid.prior,
     family = family,
     # a named calibration is held across every cell, created or re-modelled:
     # cellModel carries this model, and the setModel branch re-derives it
-    prior.scale = resolvePriorScale(node.prior, node.hyperprior),
+    prior.scale = resolvePriorScale(leafPrior, node.hyperprior),
     node.scale = defaultNodeScale(family)
   )
 
@@ -783,7 +783,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
   hasWeights <- !is.null(data@weights)
   family <- spec$model@family
 
-  # linear and gp node priors read raw covariate values, fixed across cells;
+  # linear and gp leaf priors read raw covariate values, fixed across cells;
   # the handle must own raw for them so each fold view can gather them
   nodePrior <- spec$model@node.prior
   leafCovariateColumns <-

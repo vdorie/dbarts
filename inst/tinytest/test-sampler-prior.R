@@ -13,7 +13,7 @@ sampler <- dbarts::dbarts(
 )
 
 sampler$sampleTreesFromPrior()
-sampler$sampleNodeParametersFromPrior()
+sampler$sampleLeafParametersFromPrior()
 
 trees <- sampler$getTrees()
 

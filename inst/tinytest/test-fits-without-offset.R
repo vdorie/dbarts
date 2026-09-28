@@ -13,7 +13,7 @@
 # in test_sampler.cpp pinning fitScale * combined + fitShift directly, and the
 # two RECOMBINATION cells at the foot of this file, which rebuild the expected
 # value through the independent read path ($getForestFits, a memcpy that never
-# touches the accessor, plus $getForestAmplitudes and $getCalibration).
+# touches the accessor, plus $getForestAmplitudes and $getLeafPrior).
 
 set.seed(3141L)
 n <- 80L
@@ -225,7 +225,7 @@ expect_error(
 # single forest: response.scale * getForestFits(1) + response.shift. This
 # moves under an internal-scale mutation, which every identity cell above
 # survives.
-calibrationGauss <- samplerGauss$getCalibration(1L)
+calibrationGauss <- samplerGauss$getLeafPrior(1L)
 forestFitsGauss <- samplerGauss$getForestFits(1L)
 expect_equal(dim(forestFitsGauss), c(n, 2L))
 # forest = NULL (the new default on both readers) is bitwise the forest = 1
@@ -253,7 +253,7 @@ expect_equal(
 # away: the identity cells move together and the tests/cpp cell is
 # single-forest, where forest 0's totals ARE the combined fit.
 amplitudesBcf <- samplerBcf$getForestAmplitudes()
-calibrationBcf <- samplerBcf$getCalibration(1L)
+calibrationBcf <- samplerBcf$getLeafPrior(1L)
 muBcf <- samplerBcf$getForestFits(1L)
 tauBcf <- samplerBcf$getForestFits(2L)
 expect_equal(dim(amplitudesBcf), c(3L, 1L))

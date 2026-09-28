@@ -6,7 +6,7 @@
 # sampler$getPointer(), mirroring $getTrees's own arguments (and none of its
 # defaulting, categorical-split decoding or linear-leaf column renaming) for
 # an arbitrary forest. forest indexes from 1, as with
-# $getForestFits/$getForestAmplitudes/$getCalibration - not the 0-based
+# $getForestFits/$getForestAmplitudes/$getLeafPrior - not the 0-based
 # convention the bridge's C_dbarts_bartcore_getTrees entry takes.
 forestTrees <- function(
   sampler,

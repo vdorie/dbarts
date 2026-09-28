@@ -204,7 +204,7 @@ expect_error(
   "'k' must be coercible to type: numeric"
 )
 # a list entry that is neither a number nor a hyperprior is named, rather
-# than reaching the leaf model as something the node prior cannot read
+# than reaching the leaf model as something the leaf prior cannot read
 expect_error(
   dbarts::xbart(y ~ x, k = list(2, chisq(3, 0.9))),
   "'k' must contain positive numbers and hyperprior specifications"

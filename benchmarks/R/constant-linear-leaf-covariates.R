@@ -61,7 +61,7 @@ for (q in counts) {
       fit <- bart(
         y ~ .,
         df,
-        node.prior = dbartsPriors$linear(paste0("x", seq_len(q))),
+        leaf.prior = dbartsPriors$linear(paste0("x", seq_len(q))),
         n.trees = nTrees,
         n.samples = nSamples,
         n.burn = nBurn,

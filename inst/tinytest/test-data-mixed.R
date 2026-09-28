@@ -200,13 +200,13 @@ control <- dbartsControl(
 sampler.linear <- dbarts(
   x.frame,
   y,
-  node.prior = linear("x1"),
+  leaf.prior = linear("x1"),
   control = control
 )
 run.linear <- sampler.linear$run()
 expect_true(all(is.finite(run.linear$sigma)))
 expect_error(
-  dbarts(x.frame, y, node.prior = linear("sv")),
+  dbarts(x.frame, y, leaf.prior = linear("sv")),
   pattern = "sparse-backed"
 )
 
@@ -498,7 +498,7 @@ expect_equal(attr(data.ordered@x, "varTypes")[6L], 2L)
 
 sampler.ordered <- dbarts(
   data.ordered,
-  node.prior = linear("of"),
+  leaf.prior = linear("of"),
   control = dbartsControl(
     n.samples = 10L,
     n.burn = 5L,
@@ -525,7 +525,7 @@ loss.ordered <- suppressWarnings(xbart(
   base = 0.95,
   n.threads = 1L,
   verbose = FALSE,
-  node.prior = linear("of")
+  leaf.prior = linear("of")
 ))
 expect_true(all(is.finite(loss.ordered)))
 

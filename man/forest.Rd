@@ -79,7 +79,7 @@ forest(
     not silently rescale the prior. Which of the two channels carries it depends
     on whether the forest has a \code{basis}: without one it is the half-Cauchy
     median of the forest's scalar amplitude, with one it scales the forest's own
-    node prior. The two channels default differently, and neither default is a
+    leaf prior. The two channels default differently, and neither default is a
     bare constant. A forest with NO basis takes \code{2} under a gaussian
     response, where the unit is the response's own
     \eqn{\mathrm{sd}(y)}{sd(y)} and a drawn \eqn{\sigma}{sigma} absorbs the
@@ -112,7 +112,7 @@ forest(
     prior standard deviation of the combined location at row \eqn{i}{i} is
     \eqn{\sqrt{\sum_f s_f^2 v_f \|B_f(i,\cdot)\|^2}}{sqrt(sum_f s_f^2 v_f
     ||B_f(i, .)||^2)} over the forests carrying a basis, with \eqn{s_f}{s_f}
-    read from \code{$getCalibration(f)[, "prior.scale"]} and \eqn{v_f}{v_f}
+    read from \code{$getLeafPrior(f)[, "prior.scale"]} and \eqn{v_f}{v_f}
     this argument; a basis-free forest's own term is Cauchy and has no
     standard deviation. The budget that sum sits in is set by \code{sd}, whose
     default already divides it among the \eqn{K}{K} forests, so raising this
@@ -122,7 +122,7 @@ forest(
     in \eqn{\mathrm{sd}(y)}{sd(y)} units and a drawn \eqn{\sigma}{sigma}
     partly does. Every input to that expression is readable off the fitted
     sampler: \eqn{v_f}{v_f} is the \code{amplitude.prior.variance} column of
-    \code{$getCalibration(f)} and \eqn{B_f}{B_f} is \code{data@bases[[f]]},
+    \code{$getLeafPrior(f)} and \eqn{B_f}{B_f} is \code{data@bases[[f]]},
     so the induced prior can be checked against what is in force rather than
     against what the call asked for. See the example below.
   }
@@ -163,12 +163,12 @@ forest(
   rising from 0.699 of the budget at \eqn{K = 2}{K = 2} toward 0.989 and never
   reaching it; without the factor it would instead grow past twice the budget
   by ten forests. Read the values in force off
-  \code{$getCalibration(f)}'s \code{node.scale.factor} and
+  \code{$getLeafPrior(f)}'s \code{leaf.scale.factor} and
   \code{amplitude.prior.scale} columns.
 
   Both forests' leaf scales come from the model's own calibration map rather
-  than from the node prior, which is why a \code{k} hyperprior, a non-default
-  \code{k}, and a linear or Gaussian-process node prior are refused when a
+  than from the leaf prior, which is why a \code{k} hyperprior, a non-default
+  \code{k}, and a linear or Gaussian-process leaf prior are refused when a
   second forest is declared. Every value here is validated at fit time, and
   anything today's engine cannot honour is refused there by name rather than
   dropped.
@@ -228,7 +228,7 @@ amplitudes <- sampler$getForestAmplitudes()
 
 # the induced prior sd of the combined location, read off the sampler rather
 # than recomputed from the call: forest 2 is the one carrying a basis
-calibration <- sampler$getCalibration(2L)
+calibration <- sampler$getLeafPrior(2L)
 basis <- sampler$data@bases[[2L]]
 indexSd <- sqrt(calibration[1L, "prior.scale"]^2 *
                 calibration[1L, "amplitude.prior.variance"] *

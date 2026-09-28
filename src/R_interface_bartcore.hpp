@@ -24,8 +24,8 @@ SEXP bartcore_getForestAmplitudes(SEXP ptr, SEXP forest);
 SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);
 SEXP bartcore_getFitsWithoutOffset(SEXP ptr);
 SEXP bartcore_getVariance(SEXP ptr, SEXP test);
-SEXP bartcore_getCalibration(SEXP ptr, SEXP forest);
-SEXP bartcore_setCalibration(SEXP ptr, SEXP forest, SEXP priorScale);
+SEXP bartcore_getLeafPrior(SEXP ptr, SEXP forest);
+SEXP bartcore_setLeafPrior(SEXP ptr, SEXP forest, SEXP priorScale);
 SEXP bartcore_getForestVariableCounts(SEXP ptr, SEXP forest);
 SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
                   SEXP callbackFn, SEXP callbackContext, SEXP keepFits);
@@ -80,7 +80,7 @@ SEXP bartcore_storeState(SEXP ptr);
 SEXP bartcore_setState(SEXP ptr, SEXP state, SEXP currentPredictors);
 SEXP bartcore_installForests(SEXP ptr, SEXP donorState, SEXP samples);
 SEXP bartcore_sampleTreesFromPrior(SEXP ptr);
-SEXP bartcore_sampleNodeParametersFromPrior(SEXP ptr);
+SEXP bartcore_sampleLeafParametersFromPrior(SEXP ptr);
 SEXP bartcore_sampleVarianceForestFromPrior(SEXP ptr);
 SEXP bartcore_growFromRoot(SEXP ptr, SEXP numSweeps);
 SEXP bartcore_printTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,

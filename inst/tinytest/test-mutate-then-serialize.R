@@ -31,7 +31,7 @@ control <- dbartsControl(
 warm.lin <- dbarts(
   y ~ x1 + x2 + x3,
   df,
-  node.prior = linear("x2"),
+  leaf.prior = linear("x2"),
   control = control
 )
 invisible(warm.lin$run(20L, 2L))
@@ -42,7 +42,7 @@ warm.lin$storeState()
 cold.lin <- dbarts(
   y ~ x1 + x2 + x3,
   df,
-  node.prior = linear("x2"),
+  leaf.prior = linear("x2"),
   control = control
 )
 cold.lin$setPredictor(x2.new, "x2", forceUpdate = TRUE)
@@ -54,7 +54,7 @@ statesAgree(cold.lin$state, warm.lin$state)
 warm.gp <- dbarts(
   y ~ x1 + x2 + x3,
   df,
-  node.prior = gp("x2", max.leaf.size = 100L),
+  leaf.prior = gp("x2", max.leaf.size = 100L),
   control = control
 )
 invisible(warm.gp$run(20L, 2L))
@@ -65,7 +65,7 @@ warm.gp$storeState()
 cold.gp <- dbarts(
   y ~ x1 + x2 + x3,
   df,
-  node.prior = gp("x2", max.leaf.size = 100L),
+  leaf.prior = gp("x2", max.leaf.size = 100L),
   control = control
 )
 cold.gp$setPredictor(x2.new, "x2", forceUpdate = TRUE)

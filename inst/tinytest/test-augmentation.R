@@ -257,7 +257,7 @@ augAgreement <- function(family, y, coldStart, link) {
     offset = augOffset,
     family = family,
     control = augControl(),
-    node.prior = normal(k = 2)
+    leaf.prior = normal(k = 2)
   )
   nativeFit <- rowMeans(native$run(nBurn, nDraws)$train) - augOffset
   host <- dbarts(
@@ -266,7 +266,7 @@ augAgreement <- function(family, y, coldStart, link) {
     control = augControl(),
     family = gaussian(sigma = fixed(1))
   )
-  host$setCalibration(prior.scale = native$getCalibration()[1L, "prior.scale"])
+  host$setLeafPrior(prior.scale = native$getLeafPrior()[1L, "prior.scale"])
   fits <- matrix(0, nObs, nDraws)
   for (s in seq_len(nBurn + nDraws)) {
     latent <- dbartsDrawLatents(
@@ -294,8 +294,8 @@ augAgreement <- function(family, y, coldStart, link) {
     signal = cor(composed, fTrue),
     sigma = as.numeric(host$getSigmas()),
     scales = c(
-      host$getCalibration()[1L, "prior.scale"],
-      native$getCalibration()[1L, "prior.scale"]
+      host$getLeafPrior()[1L, "prior.scale"],
+      native$getLeafPrior()[1L, "prior.scale"]
     )
   )
 }

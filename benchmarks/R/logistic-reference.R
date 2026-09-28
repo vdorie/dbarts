@@ -155,7 +155,7 @@ fitSingleTree <- function(seed, family, nodeScale, offset, linkinv) {
       change = 0.4,
       birth = 0.5
     ),
-    node.prior = normal(k, scale = nodeScale),
+    leaf.prior = normal(k, scale = nodeScale),
     tree.prior = cgm(power, base)
   )
   sampler$setTestOffset(NULL) # engine fits exclude the offset
@@ -256,7 +256,7 @@ if (requireNamespace("BART", quietly = TRUE)) {
       offset = offset,
       family = family,
       control = control,
-      node.prior = normal(k, scale = nodeScale)
+      leaf.prior = normal(k, scale = nodeScale)
     )
     sampler$setTestOffset(NULL)
     r <- sampler$run(nskip, ndpost)

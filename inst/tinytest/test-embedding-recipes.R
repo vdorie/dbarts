@@ -38,7 +38,7 @@ host <- dbarts(
   control = recipeControl(31L),
   family = gaussian(sigma = fixed(1))
 )
-host$setCalibration(prior.scale = 2)
+host$setLeafPrior(prior.scale = 2)
 composed1 <- matrix(0, n, nDraws)
 for (i in seq_len(nBurn + nDraws)) {
   z <- dbartsDrawLatents("probit", host$getFitsWithoutOffset(), y1, offset = o1)
@@ -52,7 +52,7 @@ native <- dbarts(
   offset = o1,
   family = "probit",
   control = recipeControl(31L),
-  node.prior = normal(k = 2, scale = 2)
+  leaf.prior = normal(k = 2, scale = 2)
 )
 nativeFit <- rowMeans(native$run(nBurn, nDraws)$train) - o1
 composedFit <- rowMeans(composed1)
@@ -65,7 +65,7 @@ expect_true(
 )
 # the two pins the recipe rests on: no free residual scale, a stated leaf prior
 expect_equal(as.numeric(host$getSigmas()), 1)
-expect_equal(unname(host$getCalibration()[1L, "prior.scale"]), 2)
+expect_equal(unname(host$getLeafPrior()[1L, "prior.scale"]), 2)
 
 ## 2. OFFSET BLOCK: BOTH blocks' truth. A partially linear model whose linear
 ## coefficient rides the offset channel must recover the coefficient AND the
@@ -132,13 +132,13 @@ newSbcSampler <- function() {
     control = sbcControl,
     family = gaussian(sigma = fixed(sigma0^2))
   )
-  s$setCalibration(prior.scale = 2)
+  s$setLeafPrior(prior.scale = 2)
   s
 }
 drawSbcPrior <- function() {
   s <- newSbcSampler()
   s$sampleTreesFromPrior()
-  s$sampleNodeParametersFromPrior()
+  s$sampleLeafParametersFromPrior()
   list(
     sampler = s,
     f = as.numeric(s$getFitsWithoutOffset()),
@@ -200,7 +200,7 @@ expect_true(sbcMean$verdicts$ecdf.diff[1L] > sbcMean$verdicts$band[1L])
 ## 3. K-FOREST: K samplers decomposing one additive fit. Two claims, and they
 ## are instrumented separately because only one of them moves when the rescale
 ## is dropped. The PRIOR claim is the rescale's own: each sampler was built on
-## the whole response, so without setCalibration the sum carries sqrt(K) times
+## the whole response, so without setLeafPrior the sum carries sqrt(K) times
 ## the prior standard deviation a single sampler would. The FIT claim is that
 ## the composition reaches the same posterior mean a single sampler does.
 kForest <- 2L
@@ -214,10 +214,10 @@ blocks <- list(x3[, 1:2, drop = FALSE], x3[, 3:4, drop = FALSE])
 samplers <- lapply(blocks, function(xb) {
   dbarts(xb, y3, control = recipeControl(5L))
 })
-base <- samplers[[1L]]$getCalibration()[1L, "prior.scale"]
+base <- samplers[[1L]]$getLeafPrior()[1L, "prior.scale"]
 # MUTATION 1 lives here: drop this loop
 for (s in samplers) {
-  s$setCalibration(prior.scale = base / sqrt(kForest))
+  s$setLeafPrior(prior.scale = base / sqrt(kForest))
 }
 
 single <- dbarts(x3, y3, control = recipeControl(5L))
@@ -226,7 +226,7 @@ priorTotalSd <- function(group) {
     total <- 0
     for (s in group) {
       s$sampleTreesFromPrior()
-      s$sampleNodeParametersFromPrior()
+      s$sampleLeafParametersFromPrior()
       total <- total + as.numeric(s$getFitsWithoutOffset())
     }
     total
@@ -239,7 +239,7 @@ priorRatio <- priorTotalSd(samplers) / priorTotalSd(list(single))
 # clean run by 5.1x and is exceeded by 2.5x under the mutation
 expect_true(abs(priorRatio - 1) < 0.15)
 expect_equal(
-  unname(samplers[[1L]]$getCalibration()[1L, "prior.scale"]),
+  unname(samplers[[1L]]$getLeafPrior()[1L, "prior.scale"]),
   unname(base) / sqrt(kForest)
 )
 
@@ -263,8 +263,8 @@ expect_true(sqrt(mean((composedTotal - singleFit)^2)) < 0.3)
 # the response swap does NOT re-anchor the transform, which is what makes every
 # sweep's partial residual readable on one scale
 expect_equal(
-  unname(samplers[[1L]]$getCalibration()[1L, "response.shift"]),
-  unname(samplers[[2L]]$getCalibration()[1L, "response.shift"])
+  unname(samplers[[1L]]$getLeafPrior()[1L, "response.shift"]),
+  unname(samplers[[2L]]$getLeafPrior()[1L, "response.shift"])
 )
 
 ## 4. LATENT COVARIATE: the install mask read as an MH accept mask. The mask is

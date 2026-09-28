@@ -162,7 +162,7 @@ expect_error(
 )
 expect_error(sampler$setData(dbartsData(x.sparse, y)), pattern = "sparse")
 expect_error(
-  dbarts(x.sparse, y, node.prior = linear(c("x1", "x2"))),
+  dbarts(x.sparse, y, leaf.prior = linear(c("x1", "x2"))),
   pattern = "sparse"
 )
 # save/load: sampler re-creation from the stored dgCMatrix restores state

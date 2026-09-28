@@ -45,7 +45,7 @@ expect_null(sampler$getLatents())
 # this exercises the fixed-k path (the default binary chi hyperprior is
 # tested below)
 y.binary <- rbinom(n, 1L, pnorm(scale(f)))
-sampler.binary <- dbarts(x, y.binary, control = control, node.prior = normal(2))
+sampler.binary <- dbarts(x, y.binary, control = control, leaf.prior = normal(2))
 invisible(sampler.binary$run(50L, 1L))
 
 latents <- sampler.binary$getLatents()
@@ -460,7 +460,7 @@ sampler.logit <- dbarts(
   x,
   y.binary,
   family = "logistic",
-  node.prior = normal(scale = 3),
+  leaf.prior = normal(scale = 3),
   control = control
 )
 result.logit <- sampler.logit$run(100L, 100L)
@@ -809,7 +809,7 @@ mcse <- sd(cont.a$sigma) / sqrt(length(cont.a$sigma))
 expect_true(abs(mean(cont.a$sigma) - mean(cont.b$sigma)) < 8 * mcse)
 
 # prior sampling: tree structures and leaf parameters come from the CGM and
-# node priors
+# leaf priors
 control.prior.bc <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
@@ -821,7 +821,7 @@ samplePrior <- function(sampler, numReplications) {
   leafValues <- numeric(0)
   for (r in seq_len(numReplications)) {
     sampler$sampleTreesFromPrior()
-    sampler$sampleNodeParametersFromPrior()
+    sampler$sampleLeafParametersFromPrior()
     trees <- sampler$getTrees()
     leaves <- trees$var == -1L
     leafCounts <- c(leafCounts, tabulate(trees$tree[leaves], 50L))
@@ -836,7 +836,7 @@ prior.bc <- samplePrior(sampler.prior.bc, 10L)
 # structures: the CGM(0.95, 2) prior's mean leaf count is about 2.5
 expect_true(mean(prior.bc$counts) > 2.2 && mean(prior.bc$counts) < 2.8)
 
-# parameters: leaf values match the node prior's spread
+# parameters: leaf values match the leaf prior's spread
 prior.sd <- 0.5 / (2 * sqrt(50))
 expect_true(abs(sd(prior.bc$values) - prior.sd) < 0.15 * prior.sd)
 
@@ -928,7 +928,7 @@ sampler.sm2 <- dbarts(
   y,
   control = control.sm,
   tree.prior = cgm(1.5, 0.8),
-  node.prior = normal(3)
+  leaf.prior = normal(3)
 )
 r.sm1 <- sampler.sm1$run(20L, 5L)
 r.sm2 <- sampler.sm2$run(20L, 5L)

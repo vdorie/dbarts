@@ -383,10 +383,10 @@ struct ParsedModel {
   // unrestricted, byte-for-byte the default path.
   std::vector<std::int32_t> blockOfColumn;
   std::vector<size_t> blockTreeCounts;
-  // a linear or gp node prior's designated covariate columns (0-based);
+  // a linear or gp leaf prior's designated covariate columns (0-based);
   // empty for the constant leaf
   std::vector<size_t> leafCovariateColumns;
-  // gp node priors only: selects the function-valued leaf model over the
+  // gp leaf priors only: selects the function-valued leaf model over the
   // linear one; lengthscales empty for the median-distance heuristic
   bool gpLeaves = false;
   std::vector<double> gpLengthscales;
@@ -1460,7 +1460,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
 
   REPROTECT_SLOT(slotExpr, modelExpr, "node.scale", slotIndex);
   model.nodeScale = rc_getDouble(
-    slotExpr, "scale of node prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
+    slotExpr, "scale of leaf prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
     RC_VALUE | RC_GT, 0.0, RC_END);
 
   // the named calibration, response units. NA is the unnamed default, which
@@ -1552,8 +1552,8 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
         Rf_error("block column group index out of range");
   }
 
-  // linear and gp node priors designate leaf covariate columns, resolved
-  // R-side to 1-based model matrix indices; every other node prior is the
+  // linear and gp leaf priors designate leaf covariate columns, resolved
+  // R-side to 1-based model matrix indices; every other leaf prior is the
   // constant leaf and carries nothing beyond node.scale/node.hyperprior.
   // gp priors add per-column lengthscales (NULL for the median-distance
   // heuristic; the R side validates and recycles) and the leaf-size cap.
@@ -1567,13 +1567,13 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     SEXP columnsExpr =
       PROTECT(Rf_getAttrib(nodePriorExpr, Rf_install("columns")));
     if (!Rf_isInteger(columnsExpr) || Rf_xlength(columnsExpr) < 1)
-      Rf_error("node prior columns must be resolved integer indices");
+      Rf_error("leaf prior columns must be resolved integer indices");
     R_xlen_t numColumns = Rf_xlength(columnsExpr);
     model.leafCovariateColumns.resize(static_cast<size_t>(numColumns));
     for (R_xlen_t j = 0; j < numColumns; ++j) {
       int column = INTEGER(columnsExpr)[j];
       if (column < 1 || static_cast<size_t>(column) > numPredictors)
-        Rf_error("node prior column out of range");
+        Rf_error("leaf prior column out of range");
       model.leafCovariateColumns[static_cast<size_t>(j)] =
         static_cast<size_t>(column - 1);
     }
@@ -1588,18 +1588,18 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     if (Rf_isReal(lengthscaleExpr)) {
       if (static_cast<size_t>(Rf_xlength(lengthscaleExpr)) !=
           model.leafCovariateColumns.size())
-        Rf_error("gp node prior lengthscales must be resolved per column");
+        Rf_error("gp leaf prior lengthscales must be resolved per column");
       const double* lengthscales = REAL(lengthscaleExpr);
       for (size_t j = 0; j < model.leafCovariateColumns.size(); ++j)
         if (!(lengthscales[j] > 0.0))
-          Rf_error("gp node prior lengthscales must be positive");
+          Rf_error("gp leaf prior lengthscales must be positive");
       model.gpLengthscales.assign(
         lengthscales, lengthscales + model.leafCovariateColumns.size());
     }
     SEXP maxLeafSizeExpr =
       PROTECT(Rf_getAttrib(nodePriorExpr, Rf_install("max.leaf.size")));
     int maxLeafSize = rc_getInt(
-      maxLeafSizeExpr, "gp node prior maximum leaf size", RC_LENGTH | RC_EQ,
+      maxLeafSizeExpr, "gp leaf prior maximum leaf size", RC_LENGTH | RC_EQ,
       rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
     model.gpMaxLeafSize = static_cast<size_t>(maxLeafSize);
     UNPROTECT(2);
@@ -2594,7 +2594,7 @@ void refuseUnsupportedAmplitudeComposition(
   else if (options.splitProbabilities != NULL) offender = "split probabilities";
   else if (!model.monotoneDirections.empty()) offender = "monotone constraints";
   else if (options.numLeafCovariates != 0 || options.gpLeaves)
-    offender = "a linear or Gaussian-process node prior";
+    offender = "a linear or Gaussian-process leaf prior";
   else if (model.updateK) offender = "a k hyperprior";
   else if (model.k != 2.0) offender = "a non-default k";
   else if (model.nodeScale != defaultNodeScale(family))
@@ -3393,7 +3393,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
     rngs = createChainRngs(control, options.numChains);
 
-    // dispatches on the leaf model: a linear node prior's designated columns
+    // dispatches on the leaf model: a linear leaf prior's designated columns
     // select the linear-leaf instantiation, everything else the constant leaf
     std::unique_ptr<bartcore::SamplerBase> sampler =
       carriesAmplitudes
@@ -3511,7 +3511,7 @@ static void parseMultinomialData(SEXP controlExpr, SEXP modelExpr,
 // so their draw streams are the one code path. offset is the borrowed n x K
 // category offset in the same layout, or null, and testOffset its nTest x K
 // test twin. Leaf-scale and k follow the multinomial calibration, not the host
-// node prior (a gaussian default).
+// leaf prior (a gaussian default).
 static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
     const ParsedControl& control, const ParsedModel& model,
     const ParsedData& data, SEXP modelExpr, bool sigmaIsFixed,
@@ -3523,7 +3523,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   if (options.fp32Residual)
     Rf_error("%s", storageSingleUnsupportedMessage);
   // the K category forests take their leaf scale from the softmax calibration
-  // map below, never from the host node prior, so a named calibration has
+  // map below, never from the host leaf prior, so a named calibration has
   // nowhere to land; refuse it rather than drop it. This is the first
   // node-scale-class refusal on this path - the host's own node.scale is
   // deliberately not read, and carries a gaussian default no user chose.
@@ -3925,7 +3925,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
       numGatherColumns = viewLeafCovariates.size();
     }
 
-    // a linear node prior's designated columns have the view gather their raw
+    // a linear leaf prior's designated columns have the view gather their raw
     // values, with standardization constants from the handle's full data - the
     // same calibration inheritance as the copied cut grid
     store.buildFromParent(parent, trainRows.data(), numTrainRows,
@@ -4386,7 +4386,7 @@ static const char* leafModelName(bartcore::LeafModelKind kind) {
 // tag rides as an attribute because it is a property of the sampler, not of a
 // chain, and it qualifies what the reported prior sd means: an equality for
 // the constant leaf, a stated bound for the other three.
-SEXP bartcore_getCalibration(SEXP ptrExpr, SEXP forestExpr) {
+SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t forestIndex = forestIndexFrom(forestExpr, shape);
@@ -4397,7 +4397,7 @@ SEXP bartcore_getCalibration(SEXP ptrExpr, SEXP forestExpr) {
     "prior.scale", "prior.sd", "prior.mean", "k",
     "k.has.hyperprior", "response.scale", "response.shift",
     "amplitude.prior.variance", "amplitude.prior.scale",
-    "node.scale.factor", "node.scale.divisor", "basis.row.norm"
+    "leaf.scale.factor", "leaf.scale.divisor", "basis.row.norm"
   };
   size_t numColumns = sizeof columnNames / sizeof columnNames[0];
   size_t numChains = shape.numChains;
@@ -4441,15 +4441,15 @@ SEXP bartcore_getCalibration(SEXP ptrExpr, SEXP forestExpr) {
 // transform, k, sigma nor the tree prior moves, and a write reproducing what
 // is in force is skipped bitwise inside the engine, so a read-then-write
 // cannot perturb a draw.
-SEXP bartcore_setCalibration(SEXP ptrExpr, SEXP forestExpr,
-                             SEXP priorScaleExpr) {
+SEXP bartcore_setLeafPrior(SEXP ptrExpr, SEXP forestExpr,
+                           SEXP priorScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t forestIndex = forestIndexFrom(forestExpr, shape);
   double priorScale = Rf_asReal(priorScaleExpr);
   if (!std::isfinite(priorScale) || priorScale <= 0.0)
     Rf_error("'prior.scale' must be a positive finite number");
-  // $setCalibration's refuseCountsMutation/refuseAmplitudeMutation refuse
+  // $setLeafPrior's refuseCountsMutation/refuseAmplitudeMutation refuse
   // every combiner-carrying sampler first, so this generic message only
   // backstops a caller that skips the R5 layer.
   if (!holder.sampler->setForestPriorScale(forestIndex, priorScale))
@@ -4956,7 +4956,7 @@ SEXP bartcore_sampleTreesFromPrior(SEXP ptrExpr) {
   return R_NilValue;
 }
 
-SEXP bartcore_sampleNodeParametersFromPrior(SEXP ptrExpr) {
+SEXP bartcore_sampleLeafParametersFromPrior(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore_bridge::CapturedError error;
   GetRNGstate();

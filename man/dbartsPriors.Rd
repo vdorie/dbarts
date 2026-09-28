@@ -4,7 +4,7 @@
 \title{Prior Specification Constructors}
 \description{
   A list of constructor functions building the prior specifications that the
-  \code{tree.prior} and \code{node.prior} arguments of \code{\link{dbarts}}
+  \code{tree.prior} and \code{leaf.prior} arguments of \code{\link{dbarts}}
   and the fitting functions accept. Bundling them keeps generic names like
   \code{normal} out of the search path, where another package could mask them
   or be masked depending on attach order.
@@ -38,7 +38,7 @@
       likelihood-informed when counts first enter the Dirichlet.
     }
     \item{\code{normal(k = NULL, sd = NULL, scale = NULL)}}{
-      Normal prior on the node means. \code{k} scales the standard
+      Normal prior on the leaf values. \code{k} scales the standard
       deviation and can be a positive scalar, a hyperprior built with
       \code{chi}, or \code{NULL} for the default: 2 for continuous
       responses, \code{chi(1.5, 2)} for binary ones. The continuous
@@ -70,7 +70,7 @@
       coefficient shares the \code{normal(k)} prior. Reported leaf values
       keep the intercept; \code{getTrees} adds one \code{beta.<column>}
       column per covariate. \code{\link{xbart}} accepts the same
-      specification through its own \code{node.prior} argument.
+      specification through its own \code{leaf.prior} argument.
       \code{sd} and \code{scale} name the calibration as they do for
       \code{normal}.
     }
@@ -110,7 +110,7 @@
       Function-valued fits ride prediction only: \code{getTrees} reports
       \code{NA} leaf values, and \code{keepTrees} storage grows with the
       leaf sizes. \code{\link{xbart}} accepts the same specification
-      through its own \code{node.prior} argument. \code{sd} and
+      through its own \code{leaf.prior} argument. \code{sd} and
       \code{scale} name the calibration as they do for \code{normal}.
 
       \code{predict} at a training row re-krigs the jitter-free
@@ -150,7 +150,7 @@
 }
 \details{
   Inside the prior arguments of the fitting functions - and inside a family's
-  \code{sigma} - the same constructors are available by bare name, so \code{dbarts(..., node.prior =
+  \code{sigma} - the same constructors are available by bare name, so \code{dbarts(..., leaf.prior =
   normal(chi(1.5)))} works regardless of what packages are attached: those
   arguments are evaluated with this vocabulary layered over the calling
   environment (for an argument a wrapper forwards through its \code{\dots},
@@ -166,7 +166,7 @@ prior <- dbartsPriors$normal(dbartsPriors$chi(1.5))
 
 x <- matrix(runif(200), ncol = 2)
 y <- x[, 1] + rnorm(100, 0, 0.5)
-sampler <- dbarts(y ~ x, node.prior = prior,
+sampler <- dbarts(y ~ x, leaf.prior = prior,
                   tree.prior = dbartsPriors$cgm(power = 1.5))
 
 ## DART: a Dirichlet prior over split-variable probabilities, useful
@@ -188,7 +188,7 @@ x1 <- runif(n)
 x2 <- runif(n)
 y.lin <- 3 * x1 + rnorm(n, 0, 0.2)
 df.lin <- data.frame(x1, x2, y.lin)
-fit.lin <- dbarts(y.lin ~ x1 + x2, df.lin, node.prior = linear("x1"),
+fit.lin <- dbarts(y.lin ~ x1 + x2, df.lin, leaf.prior = linear("x1"),
                   control = dbartsControl(n.trees = 10L, n.chains = 1L,
                                            n.threads = 1L))
 samples.lin <- fit.lin$run(20L, 20L)
@@ -199,7 +199,7 @@ set.seed(2)
 y.gp <- sin(2 * pi * x1) + rnorm(n, 0, 0.2)
 df.gp <- data.frame(x1, x2, y.gp)
 fit.gp <- dbarts(y.gp ~ x1 + x2, df.gp,
-                 node.prior = gp("x1", max.leaf.size = 30L),
+                 leaf.prior = gp("x1", max.leaf.size = 30L),
                  control = dbartsControl(n.trees = 10L, n.chains = 1L,
                                           n.threads = 1L))
 samples.gp <- fit.gp$run(20L, 20L)

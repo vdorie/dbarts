@@ -52,7 +52,7 @@
 #
 # SELF-CONSISTENCY is the whole game: theta0 must come from the same prior the
 # sampler assumes in its posterior. The forest/leaf draw uses the sampler's own
-# sampleTreesFromPrior + sampleNodeParametersFromPrior; the sigma draw is the
+# sampleTreesFromPrior + sampleLeafParametersFromPrior; the sigma draw is the
 # reported-scale scaled-inverse-chi-squared the engine calibrates (verified by
 # a moment check, sbcCheckSigmaPrior). The data scale is fixed once at build
 # (setResponse with updateScale = FALSE keeps it) so prior and posterior share
@@ -416,7 +416,7 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
       )),
       data = df,
       test = as.data.frame(config$xTest),
-      node.prior = config$nodePrior,
+      leaf.prior = config$nodePrior,
       sigma = config$sigest,
       control = ctrl,
       family = family
@@ -426,7 +426,7 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
       config$x,
       y,
       test = config$xTest,
-      node.prior = config$nodePrior,
+      leaf.prior = config$nodePrior,
       sigma = config$sigest,
       control = ctrl,
       family = family
@@ -454,7 +454,7 @@ sbcInternalFits <- function(sampler) {
 
 sbcRecoverFitMap <- function(sampler, config) {
   sampler$sampleTreesFromPrior()
-  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleLeafParametersFromPrior()
   y0 <- sbcSimulate(config, as.numeric(sampler$predict(config$x)), 1.0)
   sampler$setResponse(y0)
   res <- sampler$run(0L, 1L)
@@ -479,7 +479,7 @@ sbcRecoverFitMap <- function(sampler, config) {
 sbcReplication <- function(sampler, config, drawSigma, L, burn, fitMap = NULL) {
   # 1. theta0 from the prior (forest + leaves via the engine's own machinery)
   sampler$sampleTreesFromPrior()
-  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleLeafParametersFromPrior()
   f0Train <- if (is.null(fitMap)) {
     as.numeric(sampler$predict(config$x))
   } else {
@@ -494,7 +494,7 @@ sbcReplication <- function(sampler, config, drawSigma, L, burn, fitMap = NULL) {
 
   # 3. overdispersed init: a second, independent prior draw, then refit
   sampler$sampleTreesFromPrior()
-  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleLeafParametersFromPrior()
   if (config$hasSigma) {
     sampler$setSigma(config$sigest)
   }
@@ -539,7 +539,7 @@ sbcCheckFitConsistency <- function(config, seed = 99L) {
     NULL
   }
   sampler$sampleTreesFromPrior()
-  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleLeafParametersFromPrior()
   f0 <- as.numeric(sampler$predict(config$x))
   y0 <- sbcSimulate(config, f0, 1.0)
   sampler$setResponse(y0)
@@ -686,7 +686,7 @@ sbcMakeDartGenerator <- function(config, s0) {
     family = gaussian(
       sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)
     ),
-    node.prior = config$nodePrior,
+    leaf.prior = config$nodePrior,
     tree.prior = dbartsPriors$cgm(split.probs = s0),
     sigma = config$sigest,
     control = ctrl
@@ -714,7 +714,7 @@ sbcMakeDartFit <- function(config, L, thin) {
     family = gaussian(
       sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)
     ),
-    node.prior = config$nodePrior,
+    leaf.prior = config$nodePrior,
     tree.prior = dbartsPriors$dart(
       alpha = config$dartAlpha,
       update.alpha = FALSE,
@@ -750,7 +750,7 @@ runSbcDart <- function(
     floorHits <- floorHits + attr(s0, "nFloor")
     gen <- sbcMakeDartGenerator(config, s0)
     gen$sampleTreesFromPrior()
-    gen$sampleNodeParametersFromPrior()
+    gen$sampleLeafParametersFromPrior()
     f0Train <- as.numeric(gen$predict(config$x))
     f0Test <- as.numeric(gen$predict(config$xTest))
     sig0 <- drawSigma(1L)
@@ -758,7 +758,7 @@ runSbcDart <- function(
     y0 <- f0Train + sig0 * rnorm(config$n)
 
     fit$sampleTreesFromPrior()
-    fit$sampleNodeParametersFromPrior()
+    fit$sampleLeafParametersFromPrior()
     fit$setSigma(config$sigest)
     fit$setResponse(y0)
     res <- fit$run(burn, L)
@@ -821,7 +821,7 @@ runSbcDart <- function(
 #
 # That retires the two pins the rebuilt arm carried, both of which existed
 # only because a rebuild re-derived the response transform from range(y0): an
-# anchor leaf scale named as node.prior held the leaf prior against it, and an
+# anchor leaf scale named as leaf.prior held the leaf prior against it, and an
 # offset zeroing each rebuild's prior.mean held the shift. One build fixes the
 # transform once -- off the symmetric build response, response.shift 0 and
 # response.scale 5, so prior.mean is already 0 and prior.scale already what
@@ -884,7 +884,7 @@ sbcMakeAftSampler <- function(config, thin) {
     cbind(exp(config$yBuild), rep_len(1, config$n)),
     test = config$xTest,
     family = aft(sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)),
-    node.prior = config$nodePrior,
+    leaf.prior = config$nodePrior,
     sigma = config$sigest,
     control = ctrl
   )
@@ -916,7 +916,7 @@ sbcAftSurvival <- function(t0, f, sigma) {
 # The prior draw is three calls, not two: the two forest entries are
 # MEAN-forest ones by contract and leave the variance forest where they find
 # it, so a whole heteroscedastic chain at its prior is
-# sampleTreesFromPrior + sampleNodeParametersFromPrior +
+# sampleTreesFromPrior + sampleLeafParametersFromPrior +
 # sampleVarianceForestFromPrior. That contract is what makes the composition
 # self-consistent, and sbcCheckVarianceChannel asserts it directly: the mean
 # draw a generator reads must not move when the variance draw follows it.
@@ -1030,7 +1030,7 @@ sbcMakeHeteroSampler <- function(config, thin) {
     config$x,
     y,
     test = config$xTest,
-    node.prior = config$nodePrior,
+    leaf.prior = config$nodePrior,
     sigest = config$sigest,
     control = ctrl,
     variance = varianceForest(n.trees = config$nVarianceTrees),
@@ -1047,7 +1047,7 @@ sbcMakeHeteroSampler <- function(config, thin) {
 # rows through predict, and s at both through the accessor.
 sbcHeteroPriorDraw <- function(sampler, config) {
   sampler$sampleTreesFromPrior()
-  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleLeafParametersFromPrior()
   sampler$sampleVarianceForestFromPrior()
   list(
     f = as.numeric(sampler$predict(config$x)),
@@ -1078,7 +1078,7 @@ sbcCheckVarianceChannel <- function(config, seed = 99L) {
   set.seed(seed)
   sampler <- sbcMakeHeteroSampler(config, 1L)
   sampler$sampleTreesFromPrior()
-  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleLeafParametersFromPrior()
   meanBefore <- as.numeric(sampler$predict(config$x))
   meanBeforeTest <- as.numeric(sampler$predict(config$xTest))
   sampler$sampleVarianceForestFromPrior()
@@ -1301,7 +1301,7 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
       config$x,
       config$yBuild,
       family = config$family,
-      node.prior = config$nodePrior,
+      leaf.prior = config$nodePrior,
       control = ctrl,
       forests = forests
     )
@@ -1312,7 +1312,7 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
       family = gaussian(
         sigma = dbartsPriors$chisq(config$sigDf, config$sigQuant)
       ),
-      node.prior = config$nodePrior,
+      leaf.prior = config$nodePrior,
       sigma = config$sigest,
       control = ctrl,
       forests = forests
@@ -1433,7 +1433,7 @@ runSbcBCF <- function(
     g0 <- drawGlue()
     sbcInstallBCFGlue(bcf, g0)
     bcf$sampleTreesFromPrior()
-    bcf$sampleNodeParametersFromPrior()
+    bcf$sampleLeafParametersFromPrior()
     mu0 <- bcf$getForestFits(1L)[, 1]
     tau0 <- bcf$getForestFits(2L)[, 1]
     sig0 <- drawSigma(1L)
@@ -1448,7 +1448,7 @@ runSbcBCF <- function(
 
     # overdispersed init (fresh prior forests), then fit and collect
     bcf$sampleTreesFromPrior()
-    bcf$sampleNodeParametersFromPrior()
+    bcf$sampleLeafParametersFromPrior()
     bcf$setResponse(y0, updateScale = FALSE)
     invisible(bcf$run(burn, 0L))
 
@@ -1622,7 +1622,7 @@ sbcMakeMultinomial <- function(config, labels, thin, seed) {
     config$x,
     factor(labels, levels = seq.int(0L, config$K - 1L)),
     test = config$xTest,
-    node.prior = config$nodePrior,
+    leaf.prior = config$nodePrior,
     sigma = config$sigest,
     control = ctrl,
     family = "multinomial"
@@ -1686,7 +1686,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       # drawn against its own veto vector, which the glue sets
       sbcInstallBCFGlue(bcf, g0)
       bcf$sampleTreesFromPrior()
-      bcf$sampleNodeParametersFromPrior()
+      bcf$sampleLeafParametersFromPrior()
       mu0 <- bcf$getForestFits(1L)[, 1]
       tau0 <- bcf$getForestFits(2L)[, 1]
       bz0 <- ifelse(config$z != 0, g0$b1, g0$b0)
@@ -1704,7 +1704,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       drawAt = drawOne,
       fit = function(y) {
         bcf$sampleTreesFromPrior()
-        bcf$sampleNodeParametersFromPrior()
+        bcf$sampleLeafParametersFromPrior()
         bcf$setResponse(y, updateScale = FALSE)
         bcf
       },
@@ -1730,7 +1730,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     spec <- list(
       draw = function() {
         gen$sampleTreesFromPrior()
-        gen$sampleNodeParametersFromPrior()
+        gen$sampleLeafParametersFromPrior()
         eta0 <- as.numeric(gen$predict(config$x))
         eta0Test <- as.numeric(gen$predict(config$xTest))
         gamma0 <- drawGamma()
@@ -1750,7 +1750,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       fit = function(y) {
         f <- sbcMakeSampler(config, 1L, thin, seed, y = y)
         f$sampleTreesFromPrior()
-        f$sampleNodeParametersFromPrior()
+        f$sampleLeafParametersFromPrior()
         f
       },
       burnRun = function(f, burn) f$run(burn, 0L),
@@ -1773,7 +1773,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     spec <- list(
       draw = function() {
         gen$sampleTreesFromPrior()
-        gen$sampleNodeParametersFromPrior()
+        gen$sampleLeafParametersFromPrior()
         psi0 <- as.numeric(gen$predict(config$x))
         psi0Test <- as.numeric(gen$predict(config$xTest))
         r0 <- drawR(1L)
@@ -1791,7 +1791,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       fit = function(y) {
         f <- sbcMakeSampler(config, 1L, thin, seed, y = y)
         f$sampleTreesFromPrior()
-        f$sampleNodeParametersFromPrior()
+        f$sampleLeafParametersFromPrior()
         f
       },
       burnRun = function(f, burn) f$run(burn, 0L),
@@ -1808,7 +1808,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     spec <- list(
       draw = function() {
         sampler$sampleTreesFromPrior()
-        sampler$sampleNodeParametersFromPrior()
+        sampler$sampleLeafParametersFromPrior()
         f0 <- as.numeric(sampler$predict(config$x))
         f0Test <- as.numeric(sampler$predict(config$xTest))
         sig0 <- drawSigma(1L)
@@ -1832,7 +1832,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       # before it is a fully independent overdispersed start
       fit = function(y) {
         sampler$sampleTreesFromPrior()
-        sampler$sampleNodeParametersFromPrior()
+        sampler$sampleLeafParametersFromPrior()
         sampler$setSigma(config$sigest)
         sampler$setResponse(y)
         sampler
@@ -1875,7 +1875,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     spec <- list(
       draw = function() {
         gen$sampleTreesFromPrior()
-        gen$sampleNodeParametersFromPrior()
+        gen$sampleLeafParametersFromPrior()
         f0 <- forestFits(gen)
         p0 <- sbcSoftmax(f0)
         y0 <- sbcCategoricalDraw(p0)
@@ -1893,7 +1893,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       fit = function(y) {
         f <- sbcMakeMultinomial(config, y, thin, seed)
         f$sampleTreesFromPrior()
-        f$sampleNodeParametersFromPrior()
+        f$sampleLeafParametersFromPrior()
         f
       },
       burnRun = function(f, burn) f$run(burn, 0L),
@@ -1918,7 +1918,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     spec <- list(
       draw = function() {
         sampler$sampleTreesFromPrior()
-        sampler$sampleNodeParametersFromPrior()
+        sampler$sampleLeafParametersFromPrior()
         f0 <- as.numeric(sampler$predict(config$x))
         f0Test <- as.numeric(sampler$predict(config$xTest))
         sig0 <- drawSigma(1L)
@@ -1951,7 +1951,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       },
       fit = function(y) {
         sampler$sampleTreesFromPrior()
-        sampler$sampleNodeParametersFromPrior()
+        sampler$sampleLeafParametersFromPrior()
         sampler$setSigma(config$sigest)
         sampler$setResponse(y[, 1L], updateScale = FALSE, status = y[, 2L])
         sampler
@@ -2477,12 +2477,12 @@ sbcThinningDiagnostic <- function(
   sampler <- sbcMakeSampler(config, nDraw, 1L, seed)
   drawSigma <- sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
   sampler$sampleTreesFromPrior()
-  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleLeafParametersFromPrior()
   f0Train <- as.numeric(sampler$predict(config$x))
   sig0 <- if (config$hasSigma) drawSigma(1L) else 1.0
   y0 <- sbcSimulate(config, f0Train, sig0)
   sampler$sampleTreesFromPrior()
-  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleLeafParametersFromPrior()
   if (config$hasSigma) {
     sampler$setSigma(config$sigest)
   }
@@ -2871,7 +2871,7 @@ if (sys.nframe() == 0L) {
     # column 1 fits a GP inside leaves; max.leaf.size = 100 matches the
     # equivalence gp scenario's cap (n < 100 keeps every leaf a true GP leaf,
     # never the constant fallback). k is FIXED at 2: the equivalence
-    # scenario's chi hyperprior samples k, but sampleNodeParametersFromPrior
+    # scenario's chi hyperprior samples k, but sampleLeafParametersFromPrior
     # draws at the CURRENT k with no API to install a hyperprior draw, so a
     # sampled-k SBC would be prior-mismatched (residual gap, recorded).
     # n/nTrees sized by measured cost: prior-drawn trees are shallow, so leaf

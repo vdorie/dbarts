@@ -37,7 +37,7 @@ fitZeroWeight <- function(resp, nodePrior) {
   )
   args <- list(x, resp, weights = w, control = ctrl, sigest = 1.0)
   if (!is.null(nodePrior)) {
-    args$node.prior <- nodePrior
+    args$leaf.prior <- nodePrior
   }
   suppressWarnings(do.call(dbarts, args))$run(50L, 50L)$train
 }

@@ -1,7 +1,7 @@
 # dbartsSampler's mutators (setData, setResponse, setOffset, setWeights,
 # setSigma, setPredictor, setCutPoints, and the rest) resolve an unset
 # updateState against control@updateState, exactly as run() (and
-# sampleTreesFromPrior/sampleNodeParametersFromPrior) do: NA (the default)
+# sampleTreesFromPrior/sampleLeafParametersFromPrior) do: NA (the default)
 # stores when the control says to and skips when it says not to, and an
 # explicit TRUE/FALSE overrides the control either way. This matters only
 # once $state has already been forced (read or stored) at least once; an

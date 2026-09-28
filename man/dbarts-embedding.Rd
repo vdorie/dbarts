@@ -27,7 +27,7 @@
       \code{$setSigma(s)} \tab the residual standard deviation \tab a scale drawn elsewhere; requires \code{family = gaussian(sigma = fixed())} \cr
       \code{$setPredictor(x, column)} \tab one predictor column \tab a latent covariate, an imputed predictor \cr
       \code{$setActiveRows(a)} \tab which rows enter the likelihood \tab a subset indicator drawn by another block \cr
-      \code{$setCalibration(prior.scale = )} \tab the leaf prior in force \tab restating the prior after a response swap
+      \code{$setLeafPrior(prior.scale = )} \tab the leaf prior in force \tab restating the prior after a response swap
     }
 
     A predictor moved per observation rather than wholesale takes
@@ -62,9 +62,9 @@
     per-sweep \code{setResponse} deliberately does \emph{not} re-anchor it (\code{updateScale =
     FALSE}, the default), so that the sweeps are comparable - which also means a sampler built on a
     cold-start vector keeps that vector's range as its prior scale for the whole run. State the
-    prior instead of inheriting it: \code{node.prior = normal(scale = )} at creation (see
-    \code{\link{dbartsPriors}}), or \code{$setCalibration(prior.scale = )} afterward, with
-    \code{$getCalibration()} reporting what is actually in force.
+    prior instead of inheriting it: \code{leaf.prior = normal(scale = )} at creation (see
+    \code{\link{dbartsPriors}}), or \code{$setLeafPrior(prior.scale = )} afterward, with
+    \code{$getLeafPrior()} reporting what is actually in force.
 
     A decomposition across \eqn{K}{K} samplers needs the same care in the other direction. Each
     carries a prior sized for the whole of \eqn{f}{f}, so their sum has \eqn{\sqrt{K}}{sqrt(K)}

@@ -26,6 +26,9 @@
     \item{\code{sigma}}{
       On \code{\link{dbarts}} and \code{\link{dbartsSpec}}: the creation-time residual estimate, now \code{sigest}.
     }
+    \item{\code{node.prior}}{
+      On \code{\link{dbarts}} and \code{\link{dbartsSpec}}: the leaf-value prior, now \code{leaf.prior}.
+    }
     \item{\code{power}, \code{base}}{
       On \code{\link{bart}}: tree-prior-only settings, now arguments of \code{\link{dbartsPriors}}'s \code{cgm()} or \code{dart()} (\code{tree.prior = cgm(power, base)} or \code{tree.prior = dart(power, base)}).
     }
@@ -43,6 +46,9 @@
     }
     \item{\code{dbartsSampler}'s \code{$startThreads}/\code{$stopThreads}}{
       No-op methods (\code{\linkS4class{dbartsSampler}}): the hierarchical thread manager they drove is gone, threads now owned per run, but a 0.9-x Gibbs loop that brackets its sweeps with them still runs.
+    }
+    \item{\code{dbartsSampler}'s \code{$sampleNodeParametersFromPrior}}{
+      Forwarded to \code{$sampleLeafParametersFromPrior} (\code{\linkS4class{dbartsSampler}}) after a once-per-session warning.
     }
     \item{A thread count on \code{dbartsSampler}'s \code{$run}}{
       Ignored after a once-per-session warning, whether passed as \code{n.threads}, as 0.9-x's formal \code{numThreads}, or positionally after \code{updateState}: a run uses the sampler's own count, which \code{$setControl} changes, and its draws do not depend on it.

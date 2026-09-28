@@ -259,7 +259,7 @@
             \code{n.grow.sweeps}; \code{bart}'s own
             \code{seed} (previously pre-truncated before reaching
             \code{dbartsControl}'s own check); the \code{forest} argument
-            shared by \code{$getCalibration}, \code{$setCalibration},
+            shared by \code{$getLeafPrior}, \code{$setLeafPrior},
             \code{$getForestFits}, \code{$getForestAmplitudes},
             \code{$getForestVariableCounts}, \code{$setForestWeights},
             \code{$setForestBasis}, and \code{extract}/\code{predict}'s
@@ -356,7 +356,11 @@
             \code{$setControl});
             \code{rngSeed} on \code{bart} and \code{dbartsControl}
             (successor \code{seed}); \code{sigma} on \code{dbarts} and
-            \code{dbartsSpec} (successor \code{sigest}); \code{power}
+            \code{dbartsSpec} (successor \code{sigest}); \code{node.prior}
+            on \code{dbarts} and \code{dbartsSpec} (successor
+            \code{leaf.prior}); \code{dbartsSampler}'s
+            \code{$sampleNodeParametersFromPrior} (successor
+            \code{$sampleLeafParametersFromPrior}); \code{power}
             and \code{base} on \code{bart} (successor
             \code{tree.prior = cgm()} or \code{tree.prior = dart()});
             \code{split.probs} on \code{bart} (successor
@@ -398,6 +402,17 @@
             (tombstone, above). \code{dbartsData}'s own \code{sigma} slot is
             unchanged - it is not an entry point, and stan4bart writes it
             directly.
+      \item \code{dbarts(node.prior = )} and \code{dbartsSpec(node.prior = )}
+            are renamed \code{leaf.prior}, the name \code{bart} and
+            \code{xbart} take it under too, and the sampler's
+            \code{$sampleNodeParametersFromPrior} is
+            \code{$sampleLeafParametersFromPrior}; both old names are
+            still accepted for one release (tombstone, above). A name now
+            says leaf where it means only the trees' terminal nodes and
+            node where it means every node: \code{$getTrees}' rows,
+            \code{plotTree}'s \code{nodeWidth}, \code{nodeHeight} and
+            \code{nodeGap}, and the tree prior's per-node split
+            probability keep node.
       \item Family settings ride family objects. \code{\link{dbartsFamilies}}
             lists ten constructors - \code{gaussian()},
             \code{student(df = NULL)}, \code{probit()}, \code{logistic()},
@@ -683,7 +698,7 @@
       \item \code{\linkS4class{dbartsSampler}} gains
             \code{sampleVarianceForestFromPrior}, the variance forest's own
             prior draw. \code{sampleTreesFromPrior} and
-            \code{sampleNodeParametersFromPrior} are mean-forest entries by
+            \code{sampleLeafParametersFromPrior} are mean-forest entries by
             contract and leave a heteroscedastic sampler's scale surface
             alone, so a whole heteroscedastic chain at its prior now takes
             all three; on a homoscedastic sampler the new method draws
@@ -1040,7 +1055,7 @@
             refused at creation, naming what each is missing, as are the
             options a multi-forest model does not read - among them
             \code{monotone}, a variance forest, Student-t residuals, a DART
-            tree prior, a linear or Gaussian-process node prior,
+            tree prior, a linear or Gaussian-process leaf prior,
             \code{storage = "single"}, and test predictors - each named
             rather than dropped in silence.
             The prior defaults a forest takes
@@ -1236,10 +1251,10 @@
             (\code{"probit"}, \code{"logistic"}, \code{"ordinal"},
             \code{"nbinom"}) still refuse a variance forest, routing their own
             precisions through the channel it divides into.
-      \item Two new node priors fit smooth, rather than constant, leaf
-            functions, through the \code{node.prior} argument of
+      \item Two new leaf priors fit smooth, rather than constant, leaf
+            functions, through the \code{leaf.prior} argument of
             \code{dbarts}, \code{bart}, \code{xbart}, and
-            \code{dbartsSpec}. \code{node.prior = gp(columns, k,
+            \code{dbartsSpec}. \code{leaf.prior = gp(columns, k,
             lengthscale, max.leaf.size)} fits each bottom node with a
             smooth Gaussian-process function of the designated continuous
             predictor columns under a squared-exponential kernel, the
@@ -1252,7 +1267,7 @@
             cubic kernel cost to small leaves; \code{getTrees} reports
             \code{NA} leaf values and no coefficient columns for these
             function-valued fits, and \code{keepTrees} storage grows with
-            leaf sizes. \code{node.prior = linear(columns, k)} instead
+            leaf sizes. \code{leaf.prior = linear(columns, k)} instead
             fits each bottom node with an intercept plus a linear term in
             the designated continuous predictor columns (standardized
             internally, every coefficient sharing the \code{normal(k)}
@@ -1267,7 +1282,7 @@
             and logistic responses, \code{keepTrees} with \code{predict}
             (saved replays reproduce recorded test fits exactly), state
             serialization, and the predictor-mutation methods - and
-            \code{xbart} takes them through its own \code{node.prior},
+            \code{xbart} takes them through its own \code{leaf.prior},
             sweeping its \code{k} grid under them; for linear leaves,
             folds standardize the leaf
             covariates with full-data constants, matching the final fit's
@@ -1392,7 +1407,7 @@
             from the implicit zero. Per-observation replacement of a
             sparse-backed column and \code{setData} stay fixed
             at creation. State serialization and \code{predict} work as
-            usual. \code{node.prior = linear()} does not designate a
+            usual. \code{leaf.prior = linear()} does not designate a
             sparse-backed column. A data frame passed to the x/y
             interfaces may also hold \code{Matrix::sparseVector} and
             \code{dgCMatrix} columns (assign them into the frame; they
@@ -1401,7 +1416,7 @@
             and sparse predictors: sparse columns pass through unexpanded
             and tier exactly as an all-sparse design does, while
             dense-backed columns keep the full feature set - factors
-            still split categorically and \code{node.prior = linear()}
+            still split categorically and \code{leaf.prior = linear()}
             may designate dense-backed columns. A mixed design accepts
             between-sweep column mutation over dense-backed and
             sparse-backed columns alike, including a sparse
@@ -1465,10 +1480,10 @@
             \code{dart}, \code{normal}, \code{linear}, \code{gp},
             \code{chi}, \code{chisq}, \code{fixed}), usable
             programmatically and passable to the
-            \code{tree.prior}/\code{node.prior} arguments and a family's
+            \code{tree.prior}/\code{leaf.prior} arguments and a family's
             \code{sigma};
             \code{dart}, \code{linear}, and \code{gp} are themselves new.
-            The bare-name forms (\code{node.prior = normal(chi(1.5))}) keep
+            The bare-name forms (\code{leaf.prior = normal(chi(1.5))}) keep
             working and, as in 0.9-x, resolve against dbarts' own vocabulary
             inside those arguments, so attaching packages that export
             \code{normal} or similar cannot change their meaning.
@@ -1491,13 +1506,13 @@
             vector the sampler happened to be constructed on:
             \code{prior.scale} (the prior standard deviation of the forest
             total at \code{k = 1}) as a \code{dbartsModel} slot, as
-            \code{node.prior = normal(scale = )} on \code{dbarts},
+            \code{leaf.prior = normal(scale = )} on \code{dbarts},
             \code{bart}, and \code{xbart} (also \code{sd = }, the same
             quantity at the resolved \code{k}, refused under a \code{k}
             hyperprior); it is re-derived at every \code{setModel}, so a
             round trip through the model object holds it, and unset,
             nothing changes. A sampler reports the calibration actually IN
-            FORCE, per chain and per forest, with \code{$getCalibration}:
+            FORCE, per chain and per forest, with \code{$getLeafPrior}:
             \code{prior.scale}, \code{prior.sd}, \code{prior.mean},
             \code{k}, \code{k.has.hyperprior}, the response transform, and
             a \code{leaf.model} tag. It reads the engine rather than the
@@ -1507,7 +1522,7 @@
             \code{setData} - moving what is in force while the named intent
             on the model stays where it was put. For the monotone, linear, and
             Gaussian-process leaf models the reported \code{prior.sd} is a
-            stated bound rather than an equality. \code{$setCalibration}
+            stated bound rather than an equality. \code{$setLeafPrior}
             rewrites its scale half on every chain, mid-chain, touching
             nothing else - unlike \code{setModel}, which also re-pins
             \code{sigma} and refuses a DART sampler outright; its
@@ -1518,7 +1533,7 @@
             shows: the forest's amplitude prior variance or half-Cauchy
             scale (\code{amplitude.prior.variance} and
             \code{amplitude.prior.scale}, exclusive per forest), its
-            \code{node.scale.factor} and \code{node.scale.divisor}, and the
+            \code{leaf.scale.factor} and \code{leaf.scale.divisor}, and the
             \code{basis.row.norm} the map divides out - so the induced
             prior on a multi-forest model's combined location can be
             reconstructed from the sampler rather than from the call,
@@ -1578,7 +1593,7 @@
             the sampler interface, so cross-validation reaches the sampler's
             own features rather than a separate engine path: \code{family},
             \code{factors},
-            \code{node.prior}, \code{tree.prior}, and
+            \code{leaf.prior}, \code{tree.prior}, and
             \code{storage} are all arguments of it, and it takes a sparse
             (\code{dgCMatrix}) design. Chains warm-start only
             across parameter settings that share a tree count over one data
@@ -1995,7 +2010,7 @@
             conditionals without excluding them from the model, via
             the sampler's \code{$setForestWeights(forest, weights)}.
             \code{forest} indexes from \code{1}, as
-            \code{$getCalibration}/\code{$setCalibration} already do
+            \code{$getLeafPrior}/\code{$setLeafPrior} already do
             (a Bayesian causal forest's treatment forest is
             \code{2}). The weight does not ride the sampler's saved
             state, so it is mirrored and reinstalled automatically
@@ -2032,7 +2047,7 @@
       \item \code{$getForestFits} and \code{$getForestVariableCounts}
             index \code{forest} from \code{1}, matching
             \code{$setForestWeights}, \code{$setForestBasis}, and
-            \code{$getCalibration}/\code{$setCalibration} (a
+            \code{$getLeafPrior}/\code{$setLeafPrior} (a
             Bayesian causal forest's treatment forest is \code{2});
             \code{0} is refused rather than silently naming the
             prognostic forest. The R5 sampler's forest index is
@@ -2121,17 +2136,17 @@
             \code{dbartsSpec}) keep \code{sigma}. A caller still naming
             \code{sigma} now gets an unused-argument error from
             \code{xbart}.
-      \item \code{bart} gains \code{tree.prior} and \code{node.prior}
+      \item \code{bart} gains \code{tree.prior} and \code{leaf.prior}
             formals (\code{NULL} by default), taking the same full
             \code{\link{dbartsPriors}} objects \code{\link{dbarts}} already
-            does: \code{node.prior = linear(columns = )} or \code{gp(...)}
+            does: \code{leaf.prior = linear(columns = )} or \code{gp(...)}
             leaf models, and - through \code{family = gaussian(sigma = )} -
             a \code{fixed(value)} residual prior, are now reachable from
             \code{bart}, not only from \code{dbarts}.
             Supplying one of these alongside a shorthand argument that would
             otherwise help build the same prior is now an error naming both:
             \code{tree.prior} with any of \code{power}/\code{base}/
-            \code{split.probs}; \code{node.prior} with \code{k}; the
+            \code{split.probs}; \code{leaf.prior} with \code{k}; the
             retired \code{resid.prior} with
             \code{sigdf}/\code{sigquant}/\code{sigest}. Leaving both
             \code{NULL} builds the priors from the shorthand arguments
@@ -2141,7 +2156,7 @@
             fixed-unit-scale family, it is silently overwritten with
             \code{fixed(1)} regardless (unchanged engine behavior) and now
             warns, classed \code{dbartsFamilyGatedWarning}, instead of
-            saying nothing. \code{tree.prior}/\code{node.prior} are honored
+            saying nothing. \code{tree.prior}/\code{leaf.prior} are honored
             on every family, including both component fits of
             \code{family = "hurdle.lognormal"}. One more \code{bart}
             abbreviation stops working: \code{t=} (ambiguous between
@@ -2154,7 +2169,7 @@
             \code{bart}'s, it does not collide with \code{power}/\code{base}
             - they are \code{xbart}'s own swept grid, overriding a supplied
             object's \code{power}/\code{base} every cell exactly as \code{k}
-            already overrides a supplied \code{node.prior}'s \code{k} - but
+            already overrides a supplied \code{leaf.prior}'s \code{k} - but
             does collide with \code{split.probs}, which would
             only duplicate it. Every default reproduces prior behavior;
             \code{n.th=} no longer partial-matches \code{n.threads}.
@@ -2336,7 +2351,7 @@
             per predicted row. Every channel the softmax gives no meaning to -
             \code{$setResponse}, \code{$setOffset}, \code{$setWeights},
             \code{$setSigma}, \code{$setData}, \code{$setModel},
-            \code{$setCalibration}, \code{$setForestWeights},
+            \code{$setLeafPrior}, \code{$setForestWeights},
             \code{$setForestBasis} and \code{$getFitsWithoutOffset} - is
             refused by a message naming the capability, and the channel that
             serves the caller instead where one exists. The predictor family

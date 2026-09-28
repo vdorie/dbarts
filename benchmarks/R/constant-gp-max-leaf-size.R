@@ -63,7 +63,7 @@ for (maxLeafSize in sizes) {
   fit <- bart(
     y ~ x1 + x2 + x3,
     df,
-    node.prior = dbartsPriors$gp(c("x1", "x2"), max.leaf.size = maxLeafSize),
+    leaf.prior = dbartsPriors$gp(c("x1", "x2"), max.leaf.size = maxLeafSize),
     n.trees = nTrees,
     n.samples = nSamples,
     n.burn = nBurn,

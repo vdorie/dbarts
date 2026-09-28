@@ -35,7 +35,7 @@ sampler.obj <- dbarts(
   y ~ a + b,
   df,
   tree.prior = prior.cgm,
-  node.prior = dbartsPriors$normal(3),
+  leaf.prior = dbartsPriors$normal(3),
   control = control
 )
 samples.obj <- sampler.obj$run(20L, 20L)
@@ -44,7 +44,7 @@ sampler.sugar <- dbarts(
   y ~ a + b,
   df,
   tree.prior = cgm(1.5, 0.9),
-  node.prior = normal(3),
+  leaf.prior = normal(3),
   control = control
 )
 samples.sugar <- sampler.sugar$run(20L, 20L)
@@ -58,7 +58,7 @@ sampler.masked <- dbarts(
   y ~ a + b,
   df,
   tree.prior = cgm(1.5, 0.9),
-  node.prior = normal(3),
+  leaf.prior = normal(3),
   control = control
 )
 expect_inherits(sampler.masked$model@node.hyperprior, "dbartsFixedHyperprior")

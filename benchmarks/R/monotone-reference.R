@@ -68,7 +68,7 @@ runSampler <- function(
     test = testX,
     control = ctl,
     tree.prior = cgm(power, base),
-    node.prior = normal(k),
+    leaf.prior = normal(k),
     # fixed() takes the residual VARIANCE on the original scale, so the engine's
     # internal (range-scaled) residual variance is priorSigma^2 / yRange^2 =
     # (priorSigma / yRange)^2, matching residVar in the quadrature

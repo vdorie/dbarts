@@ -45,7 +45,7 @@ composeProbit <- function(
       seed = 29L,
       keepTrees = FALSE
     ),
-    node.prior = if (is.na(priorScale)) {
+    leaf.prior = if (is.na(priorScale)) {
       dbartsPriors$normal(k = 2)
     } else {
       dbartsPriors$normal(k = 2, scale = priorScale)
@@ -55,7 +55,7 @@ composeProbit <- function(
   if (useRecipe) {
     # the documented location lever: prior.mean is the response transform's
     # shift, and an offset of -prior.mean re-centers the modelled quantity.
-    # ($getCalibration reports the same number once the mid-chain half lands.)
+    # ($getLeafPrior reports the same number once the mid-chain half lands.)
     priorMean <- constructionRange * 0.5 + min(yInit)
     sampler$setOffset(rep_len(-priorMean, rows), updateScale = FALSE)
   }
@@ -153,7 +153,7 @@ nativeSampler <- dbarts(
     seed = 29L,
     keepTrees = FALSE
   ),
-  node.prior = dbartsPriors$normal(k = 2)
+  leaf.prior = dbartsPriors$normal(k = 2)
 )
 native <- t(nativeSampler$run(o2Sweeps %/% 2L, o2Sweeps %/% 2L)$train)
 namedComposition <- composeO2(3, 3)
@@ -196,7 +196,7 @@ expect_error(
     yRef,
     forests = list(forest(), forest(basis = ~ factor(zRef))),
     control = refControl(),
-    node.prior = normal(scale = 1.5)
+    leaf.prior = normal(scale = 1.5)
   ),
   "a named 'prior.scale'"
 )
@@ -222,7 +222,7 @@ expect_error(
     xRef,
     factor(labels),
     family = "multinomial",
-    node.prior = normal(scale = 1.5),
+    leaf.prior = normal(scale = 1.5),
     n.samples = 5L,
     n.burn = 5L,
     n.chains = 1L,
@@ -241,7 +241,7 @@ expect_error(
   bart(
     xRef,
     yRef,
-    node.prior = normal(scale = -1),
+    leaf.prior = normal(scale = -1),
     n.samples = 5L,
     n.burn = 5L,
     n.chains = 1L,
@@ -257,7 +257,7 @@ sdRefusal <- tryCatch(
     xRef,
     zRef,
     control = refControl(),
-    node.prior = normal(sd = 1.5)
+    leaf.prior = normal(sd = 1.5)
   ),
   error = function(e) conditionMessage(e)
 )
@@ -270,7 +270,7 @@ expect_equal(
     xRef,
     zRef,
     control = refControl(),
-    node.prior = normal(scale = 1.5)
+    leaf.prior = normal(scale = 1.5)
   )$model@prior.scale,
   1.5
 )
@@ -280,7 +280,7 @@ expect_equal(
     xRef,
     yRef,
     control = refControl(),
-    node.prior = normal(k = 4, sd = 0.5)
+    leaf.prior = normal(k = 4, sd = 0.5)
   )$model@prior.scale,
   2.0
 )
@@ -292,7 +292,7 @@ dartSampler <- dbarts(
   yRef,
   control = refControl(),
   tree.prior = dart(),
-  node.prior = normal(scale = 1.5)
+  leaf.prior = normal(scale = 1.5)
 )
 expect_equal(dartSampler$model@prior.scale, 1.5)
 expect_true(all(is.finite(dartSampler$run(20L, 10L)$train)))
@@ -305,7 +305,7 @@ expect_equal(
     yRef,
     control = refControl(),
     monotone = c(x1 = 1),
-    node.prior = normal(scale = 1.5)
+    leaf.prior = normal(scale = 1.5)
   )$model@prior.scale,
   1.5
 )
@@ -314,7 +314,7 @@ expect_equal(
     xRef,
     yRef,
     control = refControl(),
-    node.prior = linear("x1", scale = 1.5)
+    leaf.prior = linear("x1", scale = 1.5)
   )$model@prior.scale,
   1.5
 )
@@ -323,7 +323,7 @@ expect_equal(
     xRef,
     yRef,
     control = refControl(),
-    node.prior = gp("x1", scale = 1.5)
+    leaf.prior = gp("x1", scale = 1.5)
   )$model@prior.scale,
   1.5
 )
@@ -337,7 +337,7 @@ named <- dbarts(
   xRef,
   yRef,
   control = refControl(),
-  node.prior = normal(k = 2, scale = 1.5)
+  leaf.prior = normal(k = 2, scale = 1.5)
 )
 expect_equal(named$model@prior.scale, 1.5)
 named$setResponse(yRef + 1, updateScale = TRUE)
@@ -359,13 +359,13 @@ withoutSetModel <- dbarts(
   xRef,
   yRef,
   control = roundTripControl,
-  node.prior = normal(k = 2, scale = 1.5)
+  leaf.prior = normal(k = 2, scale = 1.5)
 )
 withSetModel <- dbarts(
   xRef,
   yRef,
   control = roundTripControl,
-  node.prior = normal(k = 2, scale = 1.5)
+  leaf.prior = normal(k = 2, scale = 1.5)
 )
 withSetModel$setModel(withSetModel$model)
 expect_identical(
@@ -378,7 +378,7 @@ reverted <- dbarts(
   xRef,
   yRef,
   control = roundTripControl,
-  node.prior = normal(k = 2, scale = 1.5)
+  leaf.prior = normal(k = 2, scale = 1.5)
 )
 strippedModel <- reverted$model
 strippedModel@prior.scale <- NA_real_
@@ -410,7 +410,7 @@ cellLoss <- function(result) {
 # the k grid: cell 1 creates the sampler, cells 2+ take the setModel branch
 sweptLoss <- cellLoss(do.call(
   xbart,
-  c(xbartArgs, list(k = c(1, 4), node.prior = quote(normal(scale = 1.5))))
+  c(xbartArgs, list(k = c(1, 4), leaf.prior = quote(normal(scale = 1.5))))
 ))
 # the same two cells run one at a time, so each takes the creation branch
 singleLoss <- vapply(
@@ -418,7 +418,7 @@ singleLoss <- vapply(
   function(kValue) {
     cellLoss(do.call(
       xbart,
-      c(xbartArgs, list(k = kValue, node.prior = quote(normal(scale = 1.5))))
+      c(xbartArgs, list(k = kValue, leaf.prior = quote(normal(scale = 1.5))))
     ))
   },
   numeric(1L)
@@ -439,7 +439,7 @@ hyperLoss <- cellLoss(do.call(
     xbartArgs,
     list(
       k = dbartsPriors$chi(1.5, 2),
-      node.prior = quote(normal(scale = 1.5))
+      leaf.prior = quote(normal(scale = 1.5))
     )
   )
 ))
@@ -451,7 +451,7 @@ expect_error(
       xbartArgs,
       list(
         k = dbartsPriors$chi(1.5, 2),
-        node.prior = quote(normal(sd = 1.5))
+        leaf.prior = quote(normal(sd = 1.5))
       )
     )
   ),

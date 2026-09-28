@@ -29,7 +29,7 @@
 # generated it, and mix at lag ~1 where every other functional does not.
 #
 # Self-consistency is the whole game. The forest prior is the ENGINE's own
-# (sampleTreesFromPrior + sampleNodeParametersFromPrior, then predict), so a
+# (sampleTreesFromPrior + sampleLeafParametersFromPrior, then predict), so a
 # mismatch between the tree prior the initialiser grows from and the one the
 # Metropolis ratio prices shows up rather than cancelling. sigma has no exposed
 # prior draw and is transcribed from the model spec (sbc.R's sbcSigmaDraw:
@@ -202,7 +202,7 @@ gewekeSampler <- function(arm, flat = FALSE) {
     } else {
       gaussian(sigma = dbartsPriors$chisq(sigDf, sigQuant))
     },
-    node.prior = dbartsPriors$normal(kLeaf),
+    leaf.prior = dbartsPriors$normal(kLeaf),
     # a fixed residual scale IS the estimate - the engine overwrites sigest
     # with its square root - so only the chisq arm names one
     sigma = if (flat) NA_real_ else sigest,
@@ -276,7 +276,7 @@ gewekeFunctionals <- function(f, sigma, y, trees, n) {
 ## the transcribed prior, y from the gaussian likelihood at that theta.
 gewekeMarginalDraw <- function(sampler, arm, drawSigma) {
   sampler$sampleTreesFromPrior()
-  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleLeafParametersFromPrior()
   f <- as.numeric(sampler$predict(arm$x))
   sigma <- drawSigma(1L)
   y <- f + sigma * rnorm(arm$n)
@@ -298,7 +298,7 @@ gewekeMarginalPool <- function(sampler, arm, drawSigma, nDraw) {
 ## the same engine rather than a changed engine.
 gewekeChain <- function(sampler, arm, drawSigma) {
   sampler$sampleTreesFromPrior()
-  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleLeafParametersFromPrior()
   f <- as.numeric(sampler$predict(arm$x))
   sigma <- drawSigma(1L)
   y <- f + sigma * rnorm(arm$n)
@@ -344,7 +344,7 @@ gewekeChain <- function(sampler, arm, drawSigma) {
 ## the f the likelihood uses.
 gewekeFitGap <- function(sampler, arm, drawSigma) {
   sampler$sampleTreesFromPrior()
-  sampler$sampleNodeParametersFromPrior()
+  sampler$sampleLeafParametersFromPrior()
   f <- as.numeric(sampler$predict(arm$x))
   sampler$setResponse(f + drawSigma(1L) * rnorm(arm$n))
   result <- sampler$run(0L, 1L)
@@ -388,7 +388,7 @@ gewekePriorProbe <- function(arm) {
   priorDraws <- matrix(NA_real_, nProbe, 3L)
   for (i in seq_len(nProbe)) {
     sampler$sampleTreesFromPrior()
-    sampler$sampleNodeParametersFromPrior()
+    sampler$sampleLeafParametersFromPrior()
     priorDraws[i, ] <- gewekeTreeStats(sampler$getTrees(current = TRUE))
   }
   sweepDraws <- matrix(NA_real_, nProbe, 3L)
@@ -527,10 +527,10 @@ for (armIndex in seq_along(gewekeArms)) {
   set.seed(gewekeSeed + armIndex)
   generator <- gewekeSampler(arm)
   chainSampler <- gewekeSampler(arm)
-  calibration <- chainSampler$getCalibration()
+  calibration <- chainSampler$getLeafPrior()
   # one scale, one leaf prior, no k hyperprior: what the marginal arm assumes
   stopifnot(
-    identical(calibration, generator$getCalibration()),
+    identical(calibration, generator$getLeafPrior()),
     unname(calibration[1L, "k"]) == kLeaf,
     unname(calibration[1L, "k.has.hyperprior"]) == 0
   )
@@ -561,7 +561,7 @@ for (armIndex in seq_along(gewekeArms)) {
   elapsed <- proc.time()[["elapsed"]] - started
 
   # the scale both arms speak must not have moved under the run's setResponse
-  if (!identical(chainSampler$getCalibration(), calibration)) {
+  if (!identical(chainSampler$getLeafPrior(), calibration)) {
     stop("the build calibration moved during the run; p(theta) is not fixed")
   }
 

@@ -126,7 +126,7 @@ backfitArm <- function(
     weights = weights,
     offset = offset,
     control = control,
-    node.prior = normal(k = kLeaf)
+    leaf.prior = normal(k = kLeaf)
   )
   result <- sampler$run(nBurn, nSweep)
   trees <- sampler$getTrees()
@@ -140,7 +140,7 @@ backfitArm <- function(
 
   # the calibration in force must be the one the reference assumes: fixed k,
   # this response transform, and a forest prior sd of node.scale at k = 1
-  calibration <- sampler$getCalibration()
+  calibration <- sampler$getLeafPrior()
   reported <- function(field) unname(calibration[1L, field])
   stopifnot(
     reported("k.has.hyperprior") == 0,

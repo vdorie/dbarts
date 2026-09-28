@@ -87,6 +87,13 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
+    name = "sampleNodeParametersFromPrior",
+    kind = "rcMethod",
+    owner = "dbartsSampler",
+    successor = "sampleLeafParametersFromPrior",
+    expires = tombstoneExpiry
+  ),
+  list(
     name = "rngSeed",
     kind = "argument",
     owner = "bart",
@@ -112,6 +119,20 @@ dbartsTombstones <- list(
     kind = "argument",
     owner = "dbartsSpec",
     successor = "sigest",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "node.prior",
+    kind = "argument",
+    owner = "dbarts",
+    successor = "leaf.prior",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "node.prior",
+    kind = "argument",
+    owner = "dbartsSpec",
+    successor = "leaf.prior",
     expires = tombstoneExpiry
   ),
   list(
@@ -667,6 +688,14 @@ dotNames <- function(...) {
   if (is.null(supplied)) rep_len("", count) else supplied
 }
 
+## A name refused from a front door's '...' whose successor is not the
+## obvious next guess gets a hint appended to the "unused argument" message.
+## This is a refusal, not a tombstone: the name never worked on this door
+## (dec-B128), so there is no registry entry, no warning and no NEWS text.
+foreignArgHints <- list(
+  node.prior = "the leaf prior is 'leaf.prior'"
+)
+
 ## Anything else in '...' is a caller mistake: refused by name, naming the
 ## entry point, rather than dropped without a word. 'supplied' is the dots
 ## names, "" for an unnamed one.
@@ -677,6 +706,10 @@ refuseForeignFrontDoorArgs <- function(supplied, caller, own) {
   }
   foreign <- setdiff(supplied[nzchar(supplied)], accepted)
   if (length(foreign) > 0L) {
+    hints <- unlist(
+      foreignArgHints[foreign[foreign %in% names(foreignArgHints)]],
+      use.names = FALSE
+    )
     stop(
       "unused argument",
       if (length(foreign) > 1L) "s" else "",
@@ -685,6 +718,11 @@ refuseForeignFrontDoorArgs <- function(supplied, caller, own) {
       " passed to '",
       caller,
       "'",
+      if (length(hints) > 0L) {
+        paste0("; ", paste(hints, collapse = "; "))
+      } else {
+        ""
+      },
       call. = FALSE
     )
   }
@@ -753,6 +791,44 @@ resolveRenamedSigma <- function(
     "."
   )
   sigma
+}
+
+## ------------------------------------------------------------------
+## dbarts(node.prior = ) and dbartsSpec(node.prior = ), now 'leaf.prior'
+## ------------------------------------------------------------------
+
+## The prior vocabulary is NSE, so this never forces the argument: only
+## presence is tested, via the caller's own missing() on both formals, read
+## before either is assigned. Both entry points keep the old formal for the
+## release, so no '...' is needed to reach this message.
+resolveRenamedLeafPrior <- function(
+  matchedCall,
+  nodePriorSupplied,
+  leafPriorSupplied,
+  caller
+) {
+  if (!nodePriorSupplied) {
+    return(matchedCall)
+  }
+  if (leafPriorSupplied) {
+    stop(
+      "'node.prior' and 'leaf.prior' name the same prior on '",
+      caller,
+      "'; supply one",
+      call. = FALSE
+    )
+  }
+  warnOnce(
+    paste0("tombstone.node.prior.", caller),
+    "'node.prior' is now 'leaf.prior' on '",
+    caller,
+    "'; the value was used. The old name is removed in dbarts ",
+    tombstoneExpiry,
+    "."
+  )
+  matchedCall$leaf.prior <- matchedCall$node.prior
+  matchedCall$node.prior <- NULL
+  matchedCall
 }
 
 ## ------------------------------------------------------------------

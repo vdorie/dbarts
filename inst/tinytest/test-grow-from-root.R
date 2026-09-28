@@ -100,7 +100,7 @@ expect_error(
 linSampler <- dbarts::dbarts(
   x,
   y,
-  node.prior = linear(1L),
+  leaf.prior = linear(1L),
   control = dbarts::dbartsControl(
     n.trees = 8L,
     n.chains = 1L,
@@ -110,7 +110,7 @@ linSampler <- dbarts::dbarts(
 expect_error(linSampler$growFromRoot(2L), "constant-leaf")
 
 ## updateState = NA (the default) respects control@updateState, matching the
-## sibling initializers sampleTreesFromPrior/sampleNodeParametersFromPrior. An
+## sibling initializers sampleTreesFromPrior/sampleLeafParametersFromPrior. An
 ## updateState = FALSE control stores nothing on the default, and only an
 ## explicit updateState = TRUE opts in; an updateState = TRUE control's default
 ## refreshes the cached state (the pre-fix default of FALSE would have skipped

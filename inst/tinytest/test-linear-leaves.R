@@ -17,26 +17,26 @@ df <- data.frame(x1, x2, x3, y)
 
 # designation validation happens when the prior resolves against the data
 expect_error(
-  dbarts(y ~ x1 + x2 + x3, df, node.prior = linear("zz")),
+  dbarts(y ~ x1 + x2 + x3, df, leaf.prior = linear("zz")),
   pattern = "unrecognized column"
 )
 expect_error(
-  dbarts(y ~ x1 + x2 + x3, df, node.prior = linear(10)),
+  dbarts(y ~ x1 + x2 + x3, df, leaf.prior = linear(10)),
   pattern = "out of range"
 )
 expect_error(
-  dbarts(y ~ x1 + x2 + x3, df, node.prior = linear(c(2, 2))),
+  dbarts(y ~ x1 + x2 + x3, df, leaf.prior = linear(c(2, 2))),
   pattern = "duplicate"
 )
 # a fractional numeric columns index is refused, naming the argument, rather
 # than silently truncated (coerceOrError's integer branch)
 expect_error(
-  dbarts(y ~ x1 + x2 + x3, df, node.prior = linear(1.5)),
+  dbarts(y ~ x1 + x2 + x3, df, leaf.prior = linear(1.5)),
   "'columns' must be a whole number; got '1.5'",
   fixed = TRUE
 )
 expect_error(
-  dbarts(y ~ x1 + x2 + g, data.frame(df, g), node.prior = linear("g")),
+  dbarts(y ~ x1 + x2 + g, data.frame(df, g), leaf.prior = linear("g")),
   pattern = "must be continuous"
 )
 # an unresolved designation cannot enter a model object directly
@@ -59,7 +59,7 @@ sampler <- dbarts(
   y ~ x1 + x2 + x3,
   df,
   test = df[1:5, c("x1", "x2", "x3")],
-  node.prior = linear("x2"),
+  leaf.prior = linear("x2"),
   control = control
 )
 samples <- sampler$run()
@@ -78,7 +78,7 @@ expect_true(all(!is.na(trees$beta.x2[trees$var == -1])))
 
 # plotTree labels linear leaves with their coefficients; the leaf
 # covariate designation is fixed at creation: a replacement model with a
-# constant node prior is refused
+# constant leaf prior is refused
 checkPlotTreeAndFixedPrior(sampler)
 
 source(
@@ -88,9 +88,9 @@ source(
 # state serialization carries the slope arrays: a restored sampler
 # reproduces the model
 list2env(
-  # unlike a literal node.prior = linear(...) written directly inside a
+  # unlike a literal leaf.prior = linear(...) written directly inside a
   # dbarts() call, a linear() object threaded through this helper's own
-  # 'node.prior' parameter does not reach dbarts()'s NSE routing, so it
+  # 'leaf.prior' parameter does not reach dbarts()'s NSE routing, so it
   # must be built through the qualified name here
   checkStateRoundTrip(
     y ~ x1 + x2 + x3,
@@ -110,7 +110,7 @@ set.seed(1)
 sampler.mut <- dbarts(
   y ~ x1 + x2 + x3,
   df,
-  node.prior = linear("x2"),
+  leaf.prior = linear("x2"),
   control = control
 )
 invisible(sampler.mut$run(50L, 5L))
@@ -130,7 +130,7 @@ set.seed(101)
 sampler.fresh <- dbarts(
   y ~ x1 + x2 + x3,
   df.mut,
-  node.prior = linear("x2"),
+  leaf.prior = linear("x2"),
   control = control
 )
 fits.fresh <- rowMeans(sampler.fresh$run(150L, 200L)$train)
@@ -145,7 +145,7 @@ set.seed(2)
 sampler.binary <- dbarts(
   z ~ x1 + x2 + x3,
   df.binary,
-  node.prior = linear("x2"),
+  leaf.prior = linear("x2"),
   control = control
 )
 samples.binary <- sampler.binary$run(100L, 20L)
@@ -154,7 +154,7 @@ expect_true(all(is.finite(samples.binary$train)))
 # linear leaves ride the data-handle views: a full-rows view matches the
 # raw-data path bitwise, standardizing with the parent's constants; a
 # proper fold serves its held-out rows through the gathered covariates
-# threaded through checkDataHandleViews()'s own 'node.prior' parameter, so
+# threaded through checkDataHandleViews()'s own 'leaf.prior' parameter, so
 # linear() must be the qualified name (see the checkStateRoundTrip() call
 # above)
 list2env(
@@ -183,12 +183,12 @@ expect_error(
   pattern = "views hold none"
 )
 
-# xbart accepts a linear node prior, with its k standing in for a missing
+# xbart accepts a linear leaf prior, with its k standing in for a missing
 # k argument and the k grid overriding per cell
 xbart.linear <- xbart(
   y ~ x1 + x2 + x3,
   df,
-  node.prior = linear("x2", k = 3),
+  leaf.prior = linear("x2", k = 3),
   n.samples = 60L,
   n.burn = c(60L, 30L),
   n.reps = 2L,
@@ -200,7 +200,7 @@ expect_true(all(is.finite(xbart.linear)))
 xbart.grid <- xbart(
   y ~ x1 + x2 + x3,
   df,
-  node.prior = linear("x2"),
+  leaf.prior = linear("x2"),
   k = c(1, 4),
   n.samples = 60L,
   n.burn = c(60L, 30L),
@@ -215,7 +215,7 @@ expect_error(
   xbart(
     y ~ x1 + x2 + g,
     data.frame(df, g),
-    node.prior = linear("g"),
+    leaf.prior = linear("g"),
     n.threads = 1L
   ),
   pattern = "must be continuous"

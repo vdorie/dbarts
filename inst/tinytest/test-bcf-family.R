@@ -9,7 +9,7 @@
 # family-keyed refusals that flip the moment the sampler reports its own
 # family. The anchor assertions are exact rather than statistical: under a
 # latent family the response transform is the identity and the map's sqrt(m)
-# cancels, so $getCalibration()'s prior.scale IS the map's node scale.
+# cancels, so $getLeafPrior()'s prior.scale IS the map's node scale.
 
 set.seed(29)
 n <- 240L
@@ -68,7 +68,7 @@ basisSampler <- function(y, bases, family = "auto", ...) {
 priorScales <- function(sampler) {
   unname(vapply(
     seq_along(sampler$data@bases),
-    function(f) sampler$getCalibration(f)[1L, "prior.scale"],
+    function(f) sampler$getLeafPrior(f)[1L, "prior.scale"],
     numeric(1L)
   ))
 }
@@ -182,9 +182,9 @@ for (family in names(anchors)) {
     forests = pinScales
   )
   for (f in seq_along(pinBases)) {
-    reported <- declaredMap$getCalibration(f)[1L, ]
-    expect_equal(unname(reported["node.scale.factor"]), c(2.5, 0.4)[f])
-    expect_equal(unname(reported["node.scale.divisor"]), 0.674)
+    reported <- declaredMap$getLeafPrior(f)[1L, ]
+    expect_equal(unname(reported["leaf.scale.factor"]), c(2.5, 0.4)[f])
+    expect_equal(unname(reported["leaf.scale.divisor"]), 0.674)
     expect_equal(
       unname(reported["basis.row.norm"]),
       medianRowNorm(pinBases[[f]])
@@ -192,9 +192,9 @@ for (family in names(anchors)) {
     expect_equal(
       unname(
         reported["prior.scale"] *
-          reported["node.scale.divisor"] *
+          reported["leaf.scale.divisor"] *
           reported["basis.row.norm"] /
-          reported["node.scale.factor"]
+          reported["leaf.scale.factor"]
       ),
       s,
       tolerance = 1e-12
@@ -239,12 +239,12 @@ for (fit in list(probit, logistic)) {
   # spelling a forest gets agrees with the transported per-forest params, so
   # the reader and the creation route cannot disagree about the channel.
   fitParams <- attr(fit$control, "bartcore.forests")$params
-  free <- fit$getCalibration(1L)[1L, ]
-  carried <- fit$getCalibration(2L)[1L, ]
+  free <- fit$getLeafPrior(1L)[1L, ]
+  carried <- fit$getLeafPrior(2L)[1L, ]
   expect_equal(
     unname(free[c(
-      "node.scale.factor",
-      "node.scale.divisor",
+      "leaf.scale.factor",
+      "leaf.scale.divisor",
       "basis.row.norm"
     )]),
     c(1, 1, 1)
@@ -404,7 +404,7 @@ for (family in c("probit", "logistic")) {
       yBalanced,
       forests = twoForests,
       family = family,
-      node.prior = normal(chi(1.5, 2)),
+      leaf.prior = normal(chi(1.5, 2)),
       control = seededControlBcfFamily()
     ),
     "a 'k' hyperprior"
@@ -415,7 +415,7 @@ for (family in c("probit", "logistic")) {
       yBalanced,
       forests = twoForests,
       family = family,
-      node.prior = normal(2, scale = 1.5),
+      leaf.prior = normal(2, scale = 1.5),
       control = seededControlBcfFamily()
     ),
     "a named 'prior.scale'"

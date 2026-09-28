@@ -219,7 +219,7 @@ viaXbart <- function(...) {
   )
 }
 expect_true(
-  is.numeric(viaXbart(tree.prior = cgm(power = 3), node.prior = normal()))
+  is.numeric(viaXbart(tree.prior = cgm(power = 3), leaf.prior = normal()))
 )
 
 # ordinary variables still resolve where the call was written
@@ -448,7 +448,7 @@ expect_identical(callObject$call$family, quote(student(3)))
 # the setting completes dec-B98's rule: the residual scale's own prior is a
 # gaussian-family setting, so it is written inside the family call and
 # nowhere else. The prior vocabulary resolves there, as it does inside
-# 'tree.prior' and 'node.prior'.
+# 'tree.prior' and 'leaf.prior'.
 expect_inherits(
   dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(5, 0.75))@settings$sigma,
   "dbartsChiSqPrior"

@@ -257,7 +257,7 @@ linearAt <- function(levelGibbs) {
   dbarts::bart(
     y ~ x1 + x2 + x3,
     df,
-    node.prior = linear("x2"),
+    leaf.prior = linear("x2"),
     control = dbarts::dbartsControl(levelGibbs = levelGibbs),
     n.trees = 10L,
     n.samples = 40L,

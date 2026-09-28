@@ -5,7 +5,7 @@
 # prior and a new rule over the descendant-valid good set; its acceptance now
 # carries the proposal-density ratio, composed per side (an ordinal side
 # contributes its counted good-set/interval ratio; a categorical side proposes
-# from the node prior, whose density cancels outright), so it satisfies
+# from the leaf prior, whose density cancels outright), so it satisfies
 # detailed balance. The omitted ratio was a CGM-lineage defect: for a
 # cross-variable change at the root of a single-split "stump" it is exactly
 # a_{v'}/a_v (a_v = number of available cuts of the split variable), which left
@@ -271,7 +271,7 @@ rootMarginals <- function(tab) {
 # (ancestor-filtered and occupancy-blind, as the engine's reachableCategories).
 # Ordinal splits as in buildPosterior. A categorical split assigns directions:
 # each of the 2^|S| - 2 nonempty proper subsets D of S is an equally likely
-# rule under the node prior, sending D right and S \ D left (ordered - the
+# rule under the leaf prior, sending D right and S \ D left (ordered - the
 # mirrored assignment is a distinct rule, as in the engine's gauge). Empty
 # children are skipped (the engine's -1e7 branch veto). Subsets are bitmasks
 # over level indices; no wrong-target arm (the defective correction here mixes
@@ -425,7 +425,7 @@ runEngine <- function(x, y, nCutsVec) {
     y,
     control = ctl,
     tree.prior = cgm(power, base),
-    node.prior = normal(kLeaf),
+    leaf.prior = normal(kLeaf),
     family = gaussian(sigma = fixed(1))
   )
   stopifnot(is.null(s$data@offset))

@@ -38,7 +38,7 @@ priorDraws <- function(sampler, rows, draws = numDraws) {
   out <- matrix(0, draws, nrow(rows))
   for (draw in seq_len(draws)) {
     sampler$sampleTreesFromPrior(updateState = FALSE)
-    sampler$sampleNodeParametersFromPrior(updateState = FALSE)
+    sampler$sampleLeafParametersFromPrior(updateState = FALSE)
     out[draw, ] <- sampler$predict(rows)
   }
   out
@@ -50,7 +50,7 @@ constantSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  node.prior = normal(k = fixedK, scale = namedScale)
+  leaf.prior = normal(k = fixedK, scale = namedScale)
 )
 set.seed(3)
 constantDraws <- priorDraws(constantSampler, x[1:4, , drop = FALSE])
@@ -65,7 +65,7 @@ inheritedSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  node.prior = normal(k = fixedK)
+  leaf.prior = normal(k = fixedK)
 )
 set.seed(3)
 inheritedDraws <- priorDraws(inheritedSampler, x[1:4, , drop = FALSE], 400L)
@@ -79,7 +79,7 @@ sdSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  node.prior = normal(k = fixedK, sd = priorSd)
+  leaf.prior = normal(k = fixedK, sd = priorSd)
 )
 set.seed(3)
 sdDraws <- priorDraws(sdSampler, x[1:4, , drop = FALSE], 300L)
@@ -97,7 +97,7 @@ linearSampler <- dbarts(
   xLinear,
   y,
   control = priorControl(),
-  node.prior = linear(c("x1", "x2", "x4"), k = fixedK, scale = namedScale)
+  leaf.prior = linear(c("x1", "x2", "x4"), k = fixedK, scale = namedScale)
 )
 standardize <- function(column, values) {
   observed <- xLinear[, column]
@@ -141,7 +141,7 @@ gpSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  node.prior = gp("x1", k = fixedK, scale = namedScale)
+  leaf.prior = gp("x1", k = fixedK, scale = namedScale)
 )
 gpRows <- rbind(x[1L, ], x[2L, ], x[1L, ], x[1L, ], x[1L, ], x[1L, ])
 gpRows[3L, 1L] <- 1.25
@@ -172,7 +172,7 @@ monotoneSampler <- dbarts(
   y,
   control = priorControl(),
   monotone = c(x1 = 1),
-  node.prior = normal(k = fixedK, scale = namedScale)
+  leaf.prior = normal(k = fixedK, scale = namedScale)
 )
 monotoneRows <- rbind(x[1L, ], x[1L, ], x[1L, ], x[1L, ], x[1L, ])
 monotoneRows[, 1L] <- c(0.1, 0.35, 0.5, 0.65, 0.9)
@@ -199,7 +199,7 @@ anchorSampler <- function(response, ...) {
   dbarts(
     x,
     response,
-    node.prior = normal(k = fixedK, scale = namedScale),
+    leaf.prior = normal(k = fixedK, scale = namedScale),
     ...
   )
 }
@@ -224,7 +224,7 @@ anchorSamplers <- list(
     y,
     control = priorControl(),
     family = student(5),
-    node.prior = normal(k = fixedK, scale = namedScale)
+    leaf.prior = normal(k = fixedK, scale = namedScale)
   ),
   aft = anchorSampler(
     cbind(yPositive, rep(1L, n)),

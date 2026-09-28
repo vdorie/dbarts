@@ -180,7 +180,7 @@ expect_equal(dim(rMultinomial$train), c(n, 3L, quick$n.samples))
 
 # The shared-default-text contract. For every name shared by bart and
 # dbarts, the deparsed default expressions agree, except the table below.
-# tree.prior/node.prior are bart formals too, so the loop walks both; they
+# tree.prior/leaf.prior are bart formals too, so the loop walks both; they
 # stay excepted because bart's NULL means "build from the shorthands" while
 # dbarts's own defaults are the bare constructors. 'resid.prior' is no
 # longer a bart formal at all - the residual prior rides the family object -
@@ -191,7 +191,7 @@ tbExceptions <- data.frame(
     "n.samples",
     "family",
     "tree.prior",
-    "node.prior"
+    "leaf.prior"
   ),
   reason = c(
     "fitters announce, constructors do not",
@@ -560,13 +560,13 @@ formatted <- format(
 expect_true(is.character(formatted))
 expect_true(any(grepl("base\\s*= 0.9", formatted)))
 
-# tree.prior/node.prior are bart formals (NULL). A supplied object forwards
+# tree.prior/leaf.prior are bart formals (NULL). A supplied object forwards
 # unevaluated - exactly as k already does - and a shorthand that would
 # otherwise build the same prior is a collision, refused by name; no object
 # leaves the flat shorthand build untouched. The residual prior rides the
 # family object, and its retired flat spelling is carried on '...'.
 
-# reachability: node.prior = linear()/gp() and a fixed residual prior were
+# reachability: leaf.prior = linear()/gp() and a fixed residual prior were
 # unreachable from bart before (no route existed to hand dbarts() a prior
 # OBJECT). samplerOnly = TRUE returns bart's sampler before any tree
 # initialization, so it is a fair byte-identity comparison against a fresh
@@ -579,7 +579,7 @@ yLeaf <- rnorm(n)
 samplerViaBart2Linear <- dbarts::bart(
   yLeaf ~ x1 + x2 + x3,
   dfLeaf,
-  node.prior = dbarts::dbartsPriors$linear("x2"),
+  leaf.prior = dbarts::dbartsPriors$linear("x2"),
   n.trees = 5L,
   n.samples = 5L,
   n.burn = 0L,
@@ -592,7 +592,7 @@ samplerViaBart2Linear <- dbarts::bart(
 samplerViaDbartsLinear <- dbarts::dbarts(
   yLeaf ~ x1 + x2 + x3,
   dfLeaf,
-  node.prior = dbarts::dbartsPriors$linear("x2"),
+  leaf.prior = dbarts::dbartsPriors$linear("x2"),
   control = dbarts::dbartsControl(
     n.trees = 5L,
     n.samples = 5L,
@@ -654,8 +654,8 @@ expect_error(
   )
 )
 expect_error(
-  fit2(y.gaussian, node.prior = dbarts::dbartsPriors$normal(), k = 3),
-  pattern = "'node.prior' cannot be combined with 'k'"
+  fit2(y.gaussian, leaf.prior = dbarts::dbartsPriors$normal(), k = 3),
+  pattern = "'leaf.prior' cannot be combined with 'k'"
 )
 expect_error(
   fit2(y.gaussian, resid.prior = dbarts::dbartsPriors$fixed(1), sigdf = 5),
@@ -726,7 +726,7 @@ expect_error(
   pattern = "matches multiple formal arguments"
 )
 
-# tree.prior/node.prior are live on BOTH hurdle components, unlike the
+# tree.prior/leaf.prior are live on BOTH hurdle components, unlike the
 # resid.prior/sigest quartet (positive half only): a differing tree.prior
 # changes both components' draws relative to the default (a cheap liveness
 # check, not a value-level assertion)
@@ -797,7 +797,7 @@ fitMultiForest <- function(basis) {
 }
 
 reconstructionIdentityError <- function(res) {
-  shift <- res$sampler$getCalibration(1L)[1L, "response.shift"]
+  shift <- res$sampler$getLeafPrior(1L)[1L, "response.shift"]
   forestNames <- dimnames(res$fit$forestFits)[[3L]]
   glueForest <- attr(res$fit$glue, "forest")
   err <- 0
@@ -854,7 +854,7 @@ legacyOnly <- c(
 )
 expect_false(any(legacyOnly %in% names(formals(dbarts::bartBT))))
 expect_true(all(legacyOnly %in% names(formals(dbarts::bart))))
-# the named leaf calibration is one of them too, spelled on the node prior
+# the named leaf calibration is one of them too, spelled on the leaf prior
 # rather than as a formal of either door
 expect_false("prior.scale" %in% names(formals(dbarts::bartBT)))
 expect_false("prior.scale" %in% names(formals(dbarts::bart)))

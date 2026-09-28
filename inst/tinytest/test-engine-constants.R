@@ -330,7 +330,7 @@ degenerate <- dbarts::dbarts(
   gpY ~ x1 + x2,
   gpFrame,
   control = gpControl,
-  node.prior = gp("x1", max.leaf.size = 32L)
+  leaf.prior = gp("x1", max.leaf.size = 32L)
 )
 warned <- NULL
 degenerateSamples <- withCallingHandlers(
@@ -361,7 +361,7 @@ healthy <- dbarts::dbarts(
   gpY ~ x1 + x2,
   gpFrame,
   control = gpControl,
-  node.prior = gp("x1", max.leaf.size = 4096L)
+  leaf.prior = gp("x1", max.leaf.size = 4096L)
 )
 quiet <- TRUE
 healthySamples <- withCallingHandlers(
@@ -388,7 +388,7 @@ expect_null(attr(plainSamples, "gp.fallback"))
 packaged <- suppressWarnings(dbarts::bart(
   gpY ~ x1 + x2,
   gpFrame,
-  node.prior = gp("x1", max.leaf.size = 32L),
+  leaf.prior = gp("x1", max.leaf.size = 32L),
   n.trees = 10L,
   n.chains = 1L,
   n.samples = 5L,
@@ -405,7 +405,7 @@ invisible(withCallingHandlers(
   dbarts::bart(
     gpY ~ x1 + x2,
     gpFrame,
-    node.prior = gp("x1", max.leaf.size = 32L),
+    leaf.prior = gp("x1", max.leaf.size = 32L),
     n.trees = 10L,
     n.chains = 1L,
     n.samples = 5L,
@@ -435,7 +435,7 @@ invisible(withCallingHandlers(
     n.reps = 1L,
     n.test = 5L,
     n.threads = 1L,
-    node.prior = gp("x1", max.leaf.size = 8L),
+    leaf.prior = gp("x1", max.leaf.size = 8L),
     verbose = FALSE
   ),
   dbartsGPFallbackWarning = function(w) {
@@ -456,7 +456,7 @@ invisible(withCallingHandlers(
     n.reps = 1L,
     n.test = 5L,
     n.threads = 1L,
-    node.prior = gp("x1", max.leaf.size = 4096L),
+    leaf.prior = gp("x1", max.leaf.size = 4096L),
     verbose = FALSE
   ),
   dbartsGPFallbackWarning = function(w) {
@@ -480,7 +480,7 @@ gpWarned <- function(n.threads) {
       n.test = 2L,
       n.threads = n.threads,
       seed = 1L,
-      node.prior = gp("x1", max.leaf.size = 8L)
+      leaf.prior = gp("x1", max.leaf.size = 8L)
     ),
     dbartsGPFallbackWarning = function(w) {
       warned <<- c(warned, conditionMessage(w))

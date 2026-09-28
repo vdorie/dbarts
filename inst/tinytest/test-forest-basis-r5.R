@@ -318,7 +318,7 @@ expect_error(
 expect_error(threeForests$setData(dbartsData(x, y)), "does not support")
 expect_error(threeForests$setModel(threeForests$model), "does not support")
 expect_error(
-  threeForests$setCalibration(prior.scale = 1, forest = 1L),
+  threeForests$setLeafPrior(prior.scale = 1, forest = 1L),
   "does not support"
 )
 # and the multinomial route is NOT misidentified by it
@@ -342,7 +342,7 @@ expect_error(
 # out the median nonzero row norm of each forest's basis, and that divisor is
 # otherwise a construction-time constant - no mutation re-derives a K-forest
 # leaf scale - so $setForestBasis owns the staleness. Pinned on a PROBIT
-# K-forest, where the anchor is the literal 1 and $getCalibration's
+# K-forest, where the anchor is the literal 1 and $getLeafPrior's
 # prior.scale IS the map's node scale, so the assertion is exact. Nothing
 # else in the suite or in the equivalence trio calls this mutator at all. ---
 yBinary <- as.double(y > median(y))
@@ -355,7 +355,7 @@ probitForests <- function() {
   )
 }
 priorScale <- function(sampler, forest) {
-  unname(sampler$getCalibration(forest)[1L, "prior.scale"])
+  unname(sampler$getLeafPrior(forest)[1L, "prior.scale"])
 }
 
 # (i) STALENESS: a basis whose median nonzero row norm is 4x the old one moves
@@ -415,7 +415,7 @@ expect_equal(priorScale(declared, 1L), 2.5 / (0.674 * 3), tolerance = 1e-12)
 # from data@bases, so the assertion is against the R-side rule rather than
 # against a number copied out of the engine. ---
 mapColumn <- function(sampler, forest, column) {
-  unname(sampler$getCalibration(forest)[1L, column])
+  unname(sampler$getLeafPrior(forest)[1L, column])
 }
 expect_equal(mapColumn(declared, 2L, "basis.row.norm"), 7)
 expect_equal(mapColumn(declared, 1L, "basis.row.norm"), 3)
@@ -464,14 +464,14 @@ donorScale <- priorScale(donor, 2L)
 # printing a decomposition that would recover a wrong anchor.
 recipient$setState(donorState)
 expect_equal(priorScale(recipient, 2L), donorScale)
-expect_true(is.nan(mapColumn(recipient, 2L, "node.scale.factor")))
-expect_true(is.nan(mapColumn(recipient, 2L, "node.scale.divisor")))
+expect_true(is.nan(mapColumn(recipient, 2L, "leaf.scale.factor")))
+expect_true(is.nan(mapColumn(recipient, 2L, "leaf.scale.divisor")))
 # the anchor is therefore NOT computable, which is the point of the NaN
 expect_true(is.nan(
   mapColumn(recipient, 2L, "prior.scale") *
-    mapColumn(recipient, 2L, "node.scale.divisor") *
+    mapColumn(recipient, 2L, "leaf.scale.divisor") *
     mapColumn(recipient, 2L, "basis.row.norm") /
-    mapColumn(recipient, 2L, "node.scale.factor")
+    mapColumn(recipient, 2L, "leaf.scale.factor")
 ))
 # the row norm needs no rule - bases are not state, so the recipient's own is
 # still the one in force
@@ -479,8 +479,8 @@ expect_equal(mapColumn(recipient, 2L, "basis.row.norm"), 1)
 # and forest 1's columns SURVIVE: both samplers calibrate it identically, so
 # the installed scale is bitwise the one in force. The rule compares before it
 # assigns, and a rule that cleared on every install would lose this.
-expect_equal(mapColumn(recipient, 1L, "node.scale.factor"), 1)
-expect_equal(mapColumn(recipient, 1L, "node.scale.divisor"), 1)
+expect_equal(mapColumn(recipient, 1L, "leaf.scale.factor"), 1)
+expect_equal(mapColumn(recipient, 1L, "leaf.scale.divisor"), 1)
 
 # (d) THE AMPLITUDE PRIOR FOLLOWS THE STATE, which is what the next draw will
 # use: the recipient reports the DONOR's variance, not its own 0.5. Forest 1
@@ -498,14 +498,14 @@ expect_equal(mapColumn(recipient, 1L, "amplitude.prior.scale"), 1)
 # factor and divisor, so both columns come back and the identity holds again -
 # on the RECIPIENT's own calibration, since the map is what was re-imposed.
 recipient$setForestBasis(2L, 4 * zBasis)
-expect_equal(mapColumn(recipient, 2L, "node.scale.factor"), 0.5)
-expect_equal(mapColumn(recipient, 2L, "node.scale.divisor"), 0.674)
+expect_equal(mapColumn(recipient, 2L, "leaf.scale.factor"), 0.5)
+expect_equal(mapColumn(recipient, 2L, "leaf.scale.divisor"), 0.674)
 expect_equal(mapColumn(recipient, 2L, "basis.row.norm"), 4)
 expect_equal(
   mapColumn(recipient, 2L, "prior.scale") *
-    mapColumn(recipient, 2L, "node.scale.divisor") *
+    mapColumn(recipient, 2L, "leaf.scale.divisor") *
     mapColumn(recipient, 2L, "basis.row.norm") /
-    mapColumn(recipient, 2L, "node.scale.factor"),
+    mapColumn(recipient, 2L, "leaf.scale.factor"),
   1,
   tolerance = 1e-12
 )
@@ -522,14 +522,14 @@ ownScale <- priorScale(selfRestore, 2L)
 selfRestore$run(0L, 1L)
 selfRestore$setState(ownState)
 expect_equal(priorScale(selfRestore, 2L), ownScale)
-expect_equal(mapColumn(selfRestore, 2L, "node.scale.factor"), 2)
-expect_equal(mapColumn(selfRestore, 2L, "node.scale.divisor"), 0.674)
+expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.factor"), 2)
+expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.divisor"), 0.674)
 expect_equal(mapColumn(selfRestore, 2L, "amplitude.prior.variance"), 0.125)
 expect_equal(
   mapColumn(selfRestore, 2L, "prior.scale") *
-    mapColumn(selfRestore, 2L, "node.scale.divisor") *
+    mapColumn(selfRestore, 2L, "leaf.scale.divisor") *
     mapColumn(selfRestore, 2L, "basis.row.norm") /
-    mapColumn(selfRestore, 2L, "node.scale.factor"),
+    mapColumn(selfRestore, 2L, "leaf.scale.factor"),
   1,
   tolerance = 1e-12
 )

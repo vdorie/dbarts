@@ -180,7 +180,7 @@ sampler <- dbarts(
   control = ctl,
   tree.prior = cgm(power, base),
   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
-  node.prior = linear(1L, k = kLeaf),
+  leaf.prior = linear(1L, k = kLeaf),
   family = gaussian(sigma = fixed(1))
 )
 stopifnot(is.null(sampler$data@offset))

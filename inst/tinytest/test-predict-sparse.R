@@ -193,7 +193,7 @@ sampler.leaf <- dbarts(
   x.num,
   y.num,
   sigest = 1.0,
-  node.prior = linear("a"),
+  leaf.prior = linear("a"),
   control = dbartsControl(
     n.trees = 15L,
     n.chains = 1L,

@@ -169,7 +169,7 @@ fitSeed <- function(seed, dispersion) {
       change = 0.4,
       birth = 0.5
     ),
-    node.prior = normal(k),
+    leaf.prior = normal(k),
     verbose = FALSE
   )
 

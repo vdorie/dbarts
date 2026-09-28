@@ -115,7 +115,7 @@ makeScenarios <- function() {
     binary = TRUE,
     samplerApi = TRUE,
     samplerArgs = list(
-      node.prior = dbarts:::normal(dbarts:::chi(1.5, Inf))
+      leaf.prior = dbarts:::normal(dbarts:::chi(1.5, Inf))
     )
   )
 
@@ -185,7 +185,7 @@ makeScenarios <- function() {
     usequants = TRUE
   )
 
-  # --- 1.0-0 feature paths (all driven through the sampler API so node.prior,
+  # --- 1.0-0 feature paths (all driven through the sampler API so leaf.prior,
   # tree.prior, family, factor data, missingness, and zero weights each reach
   # their own sampling code; the equivalence gate otherwise touches none) ---
 
@@ -260,7 +260,7 @@ makeScenarios <- function() {
     binary = FALSE,
     samplerApi = TRUE,
     samplerArgs = list(
-      node.prior = dbarts:::linear(c(1L, 4L), k = dbarts:::chi(1.25, Inf))
+      leaf.prior = dbarts:::linear(c(1L, 4L), k = dbarts:::chi(1.25, Inf))
     )
   )
 
@@ -274,7 +274,7 @@ makeScenarios <- function() {
     binary = FALSE,
     samplerApi = TRUE,
     samplerArgs = list(
-      node.prior = dbarts:::gp(
+      leaf.prior = dbarts:::gp(
         1L,
         k = dbarts:::chi(1.25, Inf),
         max.leaf.size = 100L
@@ -293,7 +293,7 @@ makeScenarios <- function() {
     samplerApi = TRUE,
     samplerArgs = list(
       family = "logistic",
-      node.prior = dbarts:::normal(dbarts:::chi(1.5, Inf))
+      leaf.prior = dbarts:::normal(dbarts:::chi(1.5, Inf))
     )
   )
 
@@ -310,7 +310,7 @@ makeScenarios <- function() {
     samplerApi = TRUE,
     samplerArgs = list(
       family = "logistic",
-      node.prior = dbarts:::normal(dbarts:::chi(1.5, Inf))
+      leaf.prior = dbarts:::normal(dbarts:::chi(1.5, Inf))
     )
   )
 
@@ -404,7 +404,7 @@ makeScenarios <- function() {
     binary = FALSE,
     samplerApi = TRUE,
     samplerArgs = list(
-      node.prior = dbarts:::gp(
+      leaf.prior = dbarts:::gp(
         1L,
         k = dbarts:::chi(1.25, Inf),
         max.leaf.size = 100L
@@ -430,7 +430,7 @@ makeScenarios <- function() {
     binary = FALSE,
     samplerApi = TRUE,
     nTrees = 20L,
-    samplerArgs = list(node.prior = dbarts:::normal(dbarts:::chi(50, Inf)))
+    samplerArgs = list(leaf.prior = dbarts:::normal(dbarts:::chi(50, Inf)))
   )
 
   # AFT (log-normal accelerated failure time) survival, family = "aft" on a
@@ -1285,7 +1285,7 @@ makeScenarios <- function() {
     binary = FALSE,
     samplerApi = TRUE,
     nTrees = 50L,
-    samplerArgs = list(node.prior = dbarts:::linear(c(1L, 3L)))
+    samplerArgs = list(leaf.prior = dbarts:::linear(c(1L, 3L)))
   )
 
   # the SAME designation on a MIXED container - a two-column dgCMatrix beside
@@ -1313,7 +1313,7 @@ makeScenarios <- function() {
       binary = FALSE,
       samplerApi = TRUE,
       nTrees = 50L,
-      samplerArgs = list(node.prior = dbarts:::linear(c(1L, 3L)))
+      samplerArgs = list(leaf.prior = dbarts:::linear(c(1L, 3L)))
     )
   }
 
@@ -1484,7 +1484,7 @@ muffleBenignWarning <- function(w) {
 # runs through the public dbartsSampler surface on the installed package's
 # engine (the control's engine flag retired with the classic engine).
 # scenario$samplerArgs (a named list) is spliced into the dbarts() call so a
-# scenario can select node.prior/tree.prior/family/missing without new plumbing.
+# scenario can select leaf.prior/tree.prior/family/missing without new plumbing.
 fitViaSamplerApi <- function(scenario) {
   n.chains <- if (!is.null(scenario$nChains)) scenario$nChains else 1L
   control <- dbartsControl(

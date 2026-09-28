@@ -76,7 +76,7 @@ expect_true(max(abs(atTraining - inSample)) < 1e-12)
 # three-line recombination reproduces a fit at new rows, exactly as the
 # in-sample identity does. response.shift and the glue belong to the
 # combination, which is why neither is folded into what comes back.
-shift <- fit$fit$getCalibration(1L)[1L, "response.shift"]
+shift <- fit$fit$getLeafPrior(1L)[1L, "response.shift"]
 glueForest <- attr(fit$glue, "forest")
 source(
   system.file("common", "recombine.R", package = "dbarts"),

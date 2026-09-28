@@ -439,7 +439,7 @@ expect_error(
     train.mix,
     y.mix,
     test = test.mix.sparse,
-    node.prior = linear("s"),
+    leaf.prior = linear("s"),
     control = dbartsControl(
       n.trees = 5L,
       n.chains = 1L,
@@ -574,7 +574,7 @@ sampler.leaf.mut <- dbarts(
   y.mix,
   sigest = 1.0,
   test = test.mix.dense,
-  node.prior = linear("s"),
+  leaf.prior = linear("s"),
   control = dbartsControl(
     n.trees = 10L,
     n.chains = 1L,

@@ -260,7 +260,7 @@ gp <- dbarts::dbarts(
   ),
   sigest = 1,
   n.samples = 10L,
-  node.prior = dbarts:::gp("x1", max.leaf.size = 100L)
+  leaf.prior = dbarts:::gp("x1", max.leaf.size = 100L)
 )
 gp$setActiveRows(a)
 draws.gp <- gp$run(20L, 10L)

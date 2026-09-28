@@ -69,7 +69,7 @@ stopifnot(identical(cell, findInterval(x1[, 1L], cuts) + 1L))
 base <- 0.5
 power <- 2
 k <- 2
-nodeScale <- 1.5 # on the internal scale; the node prior takes response units
+nodeScale <- 1.5 # on the internal scale; the leaf prior takes response units
 sigmaFixed <- sigmaTrue
 
 # the engine's internal [-0.5, 0.5] rescaling of the observed log-times
@@ -178,7 +178,7 @@ fitSingleTree <- function(seed) {
     x1,
     cbind(obsT, status),
     control = control,
-    node.prior = normal(k, scale = nodeScale * fitRange),
+    leaf.prior = normal(k, scale = nodeScale * fitRange),
     proposal.probs = c(
       birth_death = 0.5,
       swap = 0.1,
@@ -224,7 +224,7 @@ fitVarianceTree <- function(seed) {
     x1,
     cbind(obsT, status),
     control = control,
-    node.prior = normal(k, scale = nodeScale * fitRange),
+    leaf.prior = normal(k, scale = nodeScale * fitRange),
     proposal.probs = c(
       birth_death = 0.5,
       swap = 0.1,

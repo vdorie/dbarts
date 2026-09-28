@@ -285,7 +285,7 @@ samplerFit <- function(seed, updateA, updateB, ndpost, thin) {
     control = control,
     sigest = sigEst,
     tree.prior = cgm(muPower, muBase),
-    node.prior = normal(2),
+    leaf.prior = normal(2),
     forests = list(
       forest(sd = sdControl, update.amplitude = updateA),
       forest(

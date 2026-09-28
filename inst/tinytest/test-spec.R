@@ -93,7 +93,7 @@ expect_equal(attr(studentSpec$model, "resid.df"), 5.0)
 hyperSpec <- dbarts::dbartsSpec(
   data,
   control = control,
-  node.prior = normal(k = chi(1.25, Inf))
+  leaf.prior = normal(k = chi(1.25, Inf))
 )
 expect_true(inherits(hyperSpec$model@node.hyperprior, "dbartsChiHyperprior"))
 

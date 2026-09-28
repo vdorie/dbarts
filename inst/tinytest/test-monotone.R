@@ -101,7 +101,7 @@ expect_error(
     x,
     y,
     monotone = c(a = "+"),
-    node.prior = normal(chi(1.5, 2)),
+    leaf.prior = normal(chi(1.5, 2)),
     control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
   ),
   "monotone"
@@ -281,7 +281,7 @@ expect_true(mean(apply(priorEv, 1L, function(f) diff(range(f)))) > 0.1)
 
 # and a sampler left in that state runs on
 samplerPri$sampleTreesFromPrior()
-samplerPri$sampleNodeParametersFromPrior()
+samplerPri$sampleLeafParametersFromPrior()
 samplesPri <- samplerPri$run(10L, 10L)
 expect_true(all(is.finite(samplesPri$train)))
 

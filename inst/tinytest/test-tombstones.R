@@ -577,6 +577,215 @@ expect_true("control" %in% names(formals(dbarts::bart)))
 expect_true("control" %in% names(formals(dbarts::xbart)))
 expect_true("proposal.probs" %in% names(formals(dbarts::dbartsControl)))
 
+# --- node.prior -> leaf.prior (dbarts, dbartsSpec), like sigma -> sigest ---
+
+xLV <- matrix(rnorm(60L * 2L), 60L, 2L)
+yLV <- xLV[, 1L] + rnorm(60L)
+lvControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 5L,
+  seed = 919L,
+  updateState = FALSE
+)
+
+warnEnv[["tombstone.node.prior.dbarts"]] <- NULL
+leafWarnings <- character(0L)
+fitNodePrior <- withCallingHandlers(
+  dbarts::dbarts(
+    xLV,
+    yLV,
+    control = lvControl,
+    node.prior = dbarts::dbartsPriors$normal(3)
+  ),
+  warning = function(w) {
+    leafWarnings <<- c(leafWarnings, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
+)
+expect_equal(length(leafWarnings), 1L)
+fitLeafPrior <- dbarts::dbarts(
+  xLV,
+  yLV,
+  control = lvControl,
+  leaf.prior = dbarts::dbartsPriors$normal(3)
+)
+expect_identical(fitNodePrior$run(5L, 5L)$train, fitLeafPrior$run(5L, 5L)$train)
+
+# supplying both spellings is an error, even when they agree
+expect_error(
+  dbarts::dbarts(
+    xLV,
+    yLV,
+    control = lvControl,
+    node.prior = dbarts::dbartsPriors$normal(3),
+    leaf.prior = dbarts::dbartsPriors$normal(3)
+  ),
+  pattern = "'node.prior' and 'leaf.prior' name the same prior"
+)
+
+specDataLV <- dbarts::dbartsData(xLV, yLV)
+warnEnv[["tombstone.node.prior.dbartsSpec"]] <- NULL
+specWarnings <- character(0L)
+withCallingHandlers(
+  dbarts::dbartsSpec(
+    specDataLV,
+    control = lvControl,
+    node.prior = dbarts::dbartsPriors$normal(3)
+  ),
+  warning = function(w) {
+    specWarnings <<- c(specWarnings, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
+)
+expect_equal(length(specWarnings), 1L)
+expect_error(
+  dbarts::dbartsSpec(
+    specDataLV,
+    control = lvControl,
+    node.prior = dbarts::dbartsPriors$normal(3),
+    leaf.prior = dbarts::dbartsPriors$normal(3)
+  ),
+  pattern = "'node.prior' and 'leaf.prior' name the same prior"
+)
+
+# bart and xbart never carried node.prior on this branch: refused by name
+# rather than tombstoned (dec-B128), the message naming the successor
+expect_error(
+  dbarts::bart(
+    xLV,
+    yLV,
+    node.prior = dbarts::dbartsPriors$normal(3),
+    verbose = FALSE
+  ),
+  pattern = "unused argument 'node.prior'"
+)
+expect_error(
+  dbarts::bart(
+    xLV,
+    yLV,
+    node.prior = dbarts::dbartsPriors$normal(3),
+    verbose = FALSE
+  ),
+  pattern = "leaf.prior"
+)
+expect_error(
+  dbarts::xbart(
+    xLV,
+    yLV,
+    node.prior = dbarts::dbartsPriors$normal(3),
+    n.reps = 1L
+  ),
+  pattern = "unused argument 'node.prior'"
+)
+expect_error(
+  dbarts::xbart(
+    xLV,
+    yLV,
+    node.prior = dbarts::dbartsPriors$normal(3),
+    n.reps = 1L
+  ),
+  pattern = "leaf.prior"
+)
+
+# --- $sampleNodeParametersFromPrior -> $sampleLeafParametersFromPrior ---
+warnEnv[["tombstone.sampleNodeParametersFromPrior"]] <- NULL
+freshOld <- dbarts::dbarts(xLV, yLV, control = lvControl)
+expect_warning(
+  freshOld$sampleNodeParametersFromPrior(updateState = TRUE),
+  pattern = "sampleLeafParametersFromPrior"
+)
+freshNew <- dbarts::dbarts(xLV, yLV, control = lvControl)
+expect_silent(freshNew$sampleLeafParametersFromPrior(updateState = TRUE))
+expect_identical(freshOld$state, freshNew$state)
+expect_null(suppressWarnings(
+  freshOld$sampleNodeParametersFromPrior(updateState = FALSE)
+))
+
+# --- no leaks: the ordinary paths stay silent ---
+countWarnings <- function(expr) {
+  n <- 0L
+  withCallingHandlers(
+    expr,
+    warning = function(w) {
+      n <<- n + 1L
+      invokeRestart("muffleWarning")
+    }
+  )
+  n
+}
+expect_equal(
+  countWarnings(dbarts::bart(
+    xLV,
+    yLV,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )),
+  0L
+)
+expect_equal(
+  countWarnings(dbarts::bartBT(
+    xLV,
+    yLV,
+    ntree = 5L,
+    ndpost = 5L,
+    nskip = 5L,
+    verbose = FALSE
+  )),
+  0L
+)
+expect_equal(
+  countWarnings(dbarts::xbart(
+    xLV,
+    yLV,
+    n.reps = 1L,
+    n.samples = 5L,
+    n.burn = c(5L, 2L),
+    n.trees = 5L,
+    n.threads = 1L
+  )),
+  0L
+)
+expect_equal(countWarnings(dbarts::dbarts(xLV, yLV, control = lvControl)), 0L)
+expect_equal(
+  countWarnings(dbarts::dbartsSpec(specDataLV, control = lvControl)),
+  0L
+)
+yMultiLV <- factor(sample(c("a", "b", "c"), 60L, replace = TRUE))
+expect_equal(
+  countWarnings(dbarts::bart(
+    xLV,
+    yMultiLV,
+    family = "multinomial",
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )),
+  0L
+)
+rm(
+  xLV,
+  yLV,
+  lvControl,
+  leafWarnings,
+  fitNodePrior,
+  fitLeafPrior,
+  specDataLV,
+  specWarnings,
+  freshOld,
+  freshNew,
+  countWarnings,
+  yMultiLV
+)
+
 # --- the registry agrees with the news file ---
 # The 1.0-0 news entry is the user-facing half of this list; the assertion
 # below is the same one, read off inst/NEWS.Rd. Until the news entry lands

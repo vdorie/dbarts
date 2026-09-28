@@ -51,7 +51,7 @@ expect_equal(dim(tauCounts), c(p, 1L))
 expect_true(all(is.finite(muFits)) && all(is.finite(tauFits)))
 
 # 0 is refused rather than silently naming the prognostic forest
-# (resolveForestIndex, shared with setForestWeights/getCalibration)
+# (resolveForestIndex, shared with setForestWeights/getLeafPrior)
 expect_error(sampler$getForestFits(0L), "single positive integer")
 expect_error(sampler$getForestVariableCounts(0L), "single positive integer")
 

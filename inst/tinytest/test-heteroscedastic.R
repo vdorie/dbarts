@@ -268,7 +268,7 @@ expect_inherits(
 
 # ---- the variance forest's own prior draw -----------------------------------
 #
-# sampleTreesFromPrior and sampleNodeParametersFromPrior are MEAN-forest
+# sampleTreesFromPrior and sampleLeafParametersFromPrior are MEAN-forest
 # entries by contract, so a heteroscedastic chain had no path to a prior-drawn
 # s(x) before sampleVarianceForestFromPrior. What is pinned here is the R
 # surface: the draw moves the scale surface, leaves it live (positive, and a
@@ -515,7 +515,7 @@ ppdSampler <- dbarts(
   yAcc,
   test = ppdTest,
   variance = varianceForest(n.trees = 5L),
-  node.prior = normal(k = 40),
+  leaf.prior = normal(k = 40),
   control = ppdControl
 )
 set.seed(27L)

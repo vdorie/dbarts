@@ -563,7 +563,7 @@ fitAndScore <- function(arm, case, mcmcSeed) {
       verbose = FALSE,
       seed = mcmcSeed,
       combineChains = FALSE,
-      node.prior = nodePriorFor(arm)
+      leaf.prior = nodePriorFor(arm)
     )
   )[["elapsed"]]
 

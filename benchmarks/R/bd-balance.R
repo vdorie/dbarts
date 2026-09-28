@@ -204,7 +204,7 @@ sampler <- dbarts(
   y,
   control = ctl,
   tree.prior = cgm(power, base),
-  node.prior = normal(kLeaf),
+  leaf.prior = normal(kLeaf),
   family = gaussian(sigma = fixed(1)),
   proposal.probs = c(birth_death = 0.99, swap = 0, change = 0.01, birth = 0.5)
 )

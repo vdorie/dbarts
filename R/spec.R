@@ -339,10 +339,20 @@ resolveSamplerSpec <- function(
   # unevaluated ...-reference); the resolved direction vector is injected below
   monotoneDirections <- resolveMonotone(monotone, data)
 
-  parsePriorsCall <- redirectCall(matchedCall, quoteInNamespace(parsePriors))
+  # redirectCall keeps only names that are formals of parsePriors, which
+  # has no leaf.prior formal; rename the door's leaf.prior back to
+  # node.prior in a copy of the call so it survives the redirect, and give
+  # setDefaultsFromFormals the door's leaf.prior default under the
+  # node.prior key, so an absent prior fills from it rather than from the
+  # tombstone formal's NULL
+  priorCall <- matchedCall
+  names(priorCall)[names(priorCall) == "leaf.prior"] <- "node.prior"
+  parsePriorsCall <- redirectCall(priorCall, quoteInNamespace(parsePriors))
+  priorFormals <- callFormals
+  priorFormals["node.prior"] <- callFormals["leaf.prior"]
   parsePriorsCall <- setDefaultsFromFormals(
     parsePriorsCall,
-    callFormals,
+    priorFormals,
     "tree.prior",
     "node.prior"
   )
@@ -434,7 +444,7 @@ resolveSamplerSpec <- function(
     priors$node.hyperprior,
     priors$resid.prior,
     family = family,
-    # a named calibration (node.prior's scale = / sd =) overrides the
+    # a named calibration (leaf.prior's scale = / sd =) overrides the
     # family default below in the engine, which converts it out of response
     # units against the transform; NA leaves that default in force
     prior.scale = resolvePriorScale(priors$node.prior, priors$node.hyperprior),
@@ -505,8 +515,8 @@ resolveSamplerSpec <- function(
       "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),
       "'split.probs'" = length(priors$tree.prior@splitProbabilities) > 0L,
       "'monotone'" = !is.null(monotoneDirections),
-      "a linear node prior" = is(priors$node.prior, "dbartsLinearPrior"),
-      "a Gaussian-process node prior" = is(priors$node.prior, "dbartsGPPrior"),
+      "a linear leaf prior" = is(priors$node.prior, "dbartsLinearPrior"),
+      "a Gaussian-process leaf prior" = is(priors$node.prior, "dbartsGPPrior"),
       "a 'k' hyperprior" = is(priors$node.hyperprior, "dbartsChiHyperprior"),
       "a named 'prior.scale'" = !is.na(model@prior.scale),
       "storage = \"single\"" = identical(control@storage, "single")
@@ -706,8 +716,8 @@ resolveSamplerSpec <- function(
       "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),
       "'split.probs'" = length(priors$tree.prior@splitProbabilities) > 0L,
       "'monotone'" = !is.null(monotoneDirections),
-      "a linear node prior" = is(priors$node.prior, "dbartsLinearPrior"),
-      "a Gaussian-process node prior" = is(priors$node.prior, "dbartsGPPrior"),
+      "a linear leaf prior" = is(priors$node.prior, "dbartsLinearPrior"),
+      "a Gaussian-process leaf prior" = is(priors$node.prior, "dbartsGPPrior"),
       "a 'k' hyperprior" = is(priors$node.hyperprior, "dbartsChiHyperprior"),
       "a non-default 'k'" = is(
         priors$node.hyperprior,
@@ -834,7 +844,7 @@ dbartsSpec <- function(
   data,
   control = dbarts::dbartsControl(),
   tree.prior = cgm,
-  node.prior = normal,
+  leaf.prior = normal,
   proposal.probs = c(
     birth_death = 0.6,
     swap = 0,
@@ -864,6 +874,7 @@ dbartsSpec <- function(
   survival = NULL,
   parentEnv = parent.frame(),
   sigma = NA_real_,
+  node.prior = NULL,
   ...
 ) {
   matchedCall <- match.call()
@@ -899,6 +910,18 @@ dbartsSpec <- function(
     !sigestSupplied,
     sigma,
     sigest,
+    "dbartsSpec"
+  )
+
+  # the leaf-value prior is 'leaf.prior' here as everywhere; 'node.prior'
+  # is the 0.9-x spelling, accepted for one release. Both flags are read
+  # before either name is assigned: an assignment makes missing() false.
+  nodePriorSupplied <- !missing(node.prior)
+  leafPriorSupplied <- !missing(leaf.prior)
+  matchedCall <- resolveRenamedLeafPrior(
+    matchedCall,
+    nodePriorSupplied,
+    leafPriorSupplied,
     "dbartsSpec"
   )
 

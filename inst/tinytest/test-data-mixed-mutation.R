@@ -136,7 +136,7 @@ set.seed(404)
 sampler.leaf <- dbarts(
   leaf.frame,
   y.leaf,
-  node.prior = linear("cv"),
+  leaf.prior = linear("cv"),
   tree.prior = cgm(split.probs = c(0, 1, 1)),
   control = control
 )

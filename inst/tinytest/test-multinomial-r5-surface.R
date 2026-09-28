@@ -222,7 +222,7 @@ expect_error(
     labels,
     family = "multinomial",
     control = control,
-    node.prior = normal(chi(1.25))
+    leaf.prior = normal(chi(1.25))
   ),
   "does not support a 'k' hyperprior"
 )
@@ -243,7 +243,7 @@ expect_error(sampler$setSigma(1.0), "no residual scale")
 expect_error(sampler$setData(sampler$data), "fix their data at creation")
 expect_error(sampler$setModel(sampler$model), "calibrated at creation")
 expect_error(
-  sampler$setCalibration(prior.scale = 1.0),
+  sampler$setLeafPrior(prior.scale = 1.0),
   "softmax calibration map"
 )
 expect_error(sampler$setForestWeights(1L, rep(1.0, n)), "log-sum-exp")

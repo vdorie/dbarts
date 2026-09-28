@@ -132,7 +132,7 @@ setMethod(
         !is.integer(node.prior@columns)
     ) {
       stop(
-        "node prior columns must be resolved against data; ",
+        "leaf prior columns must be resolved against data; ",
         "pass the prior to a fitting function instead"
       )
     }
@@ -212,9 +212,9 @@ parsePriors <- function(
   )
   node.prior <- resolveSpec(
     matchedCall$node.prior,
-    "node.prior",
+    "leaf.prior",
     "dbartsNodePrior",
-    "node prior"
+    "leaf prior"
   )
   if (is(node.prior, "dbartsLinearPrior") || is(node.prior, "dbartsGPPrior")) {
     node.prior <- resolveLeafCovariates(node.prior, data)
@@ -230,7 +230,7 @@ parsePriors <- function(
   ) {
     stop(
       "monotone constraints require the constant leaf; they are not ",
-      "supported with linear or gp node priors"
+      "supported with linear or gp leaf priors"
     )
   }
   node.hyperprior <- resolveNodeHyperprior(
@@ -243,7 +243,7 @@ parsePriors <- function(
   namedList(tree.prior, resid.prior, node.prior, node.hyperprior)
 }
 
-## Turn a linear or gp node prior's raw columns specification into 1-based
+## Turn a linear or gp leaf prior's raw columns specification into 1-based
 ## model matrix column indices: names match columns exactly, numbers pass
 ## through as indices. Categorical columns are rejected - their codes are
 ## unordered, so a linear term or a distance is meaningless; interact
@@ -255,7 +255,7 @@ resolveLeafCovariates <- function(prior, data) {
   label <- if (is(prior, "dbartsGPPrior")) "gp" else "linear"
   columns <- prior@columns
   if (is.null(columns) || length(columns) == 0L) {
-    stop(label, " node prior requires at least one covariate column")
+    stop(label, " leaf prior requires at least one covariate column")
   }
 
   # the engine reads raw covariate values from contiguous dense columns; a
@@ -263,7 +263,7 @@ resolveLeafCovariates <- function(prior, data) {
   if (!is.matrix(data@x) && !inherits(data@x, "dbartsMixedMatrix")) {
     stop(
       label,
-      " node priors are not supported with sparse predictor ",
+      " leaf priors are not supported with sparse predictor ",
       "matrices"
     )
   }
@@ -290,7 +290,7 @@ resolveLeafCovariates <- function(prior, data) {
       stop("cannot assign leaf covariates: column indices out of range")
     }
   } else {
-    stop(label, " node prior 'columns' must be a character or numeric vector")
+    stop(label, " leaf prior 'columns' must be a character or numeric vector")
   }
   if (anyDuplicated(columnIndices) > 0L) {
     stop("cannot assign leaf covariates: duplicate columns")
@@ -325,7 +325,7 @@ resolveLeafCovariates <- function(prior, data) {
     }
     if (length(lengthscale) != length(columnIndices)) {
       stop(
-        "gp node prior 'lengthscale' must have length 1 or match the ",
+        "gp leaf prior 'lengthscale' must have length 1 or match the ",
         "number of columns"
       )
     }
@@ -1440,10 +1440,10 @@ cgm <- function(power = 2, base = 0.95, split.probs = NULL, levelGibbs = NA) {
 
 linear <- function(columns, k = NULL, sd = NULL, scale = NULL) {
   if (missing(columns)) {
-    stop("linear node prior requires 'columns' naming the leaf covariates")
+    stop("linear leaf prior requires 'columns' naming the leaf covariates")
   }
   if (!is.character(columns) && !is.numeric(columns)) {
-    stop("linear node prior 'columns' must be a character or numeric vector")
+    stop("linear leaf prior 'columns' must be a character or numeric vector")
   }
   # reuses normal()'s k validation and coercions, and its named-scale rules
   normalPrior <- normal(k, sd, scale)
@@ -1465,10 +1465,10 @@ gp <- function(
   scale = NULL
 ) {
   if (missing(columns)) {
-    stop("gp node prior requires 'columns' naming the leaf covariates")
+    stop("gp leaf prior requires 'columns' naming the leaf covariates")
   }
   if (!is.character(columns) && !is.numeric(columns)) {
-    stop("gp node prior 'columns' must be a character or numeric vector")
+    stop("gp leaf prior 'columns' must be a character or numeric vector")
   }
   if (
     !is.null(lengthscale) &&
@@ -1477,13 +1477,13 @@ gp <- function(
         anyNA(lengthscale) ||
         any(lengthscale <= 0))
   ) {
-    stop("gp node prior 'lengthscale' must be positive")
+    stop("gp leaf prior 'lengthscale' must be positive")
   }
   max.leaf.size <- coerceOrError(max.leaf.size, "integer")
   if (
     length(max.leaf.size) != 1L || is.na(max.leaf.size) || max.leaf.size < 1L
   ) {
-    stop("gp node prior 'max.leaf.size' must be a positive integer")
+    stop("gp leaf prior 'max.leaf.size' must be a positive integer")
   }
   # reuses normal()'s k validation and coercions, and its named-scale rules
   normalPrior <- normal(k, sd, scale)
@@ -1536,12 +1536,12 @@ resolveNamedScaleArgs <- function(sd, scale) {
   sd <- validateNamedScale(sd, "sd")
   scale <- validateNamedScale(scale, "scale")
   if (!is.na(sd) && !is.na(scale)) {
-    stop("give at most one of 'sd' and 'scale' to a node prior")
+    stop("give at most one of 'sd' and 'scale' to a leaf prior")
   }
   list(prior.sd = sd, prior.scale = scale)
 }
 
-## The model's response-unit prior.scale, resolved from a node prior's named
+## The model's response-unit prior.scale, resolved from a leaf prior's named
 ## calibration against the k that will actually be in force. A sampled k has no
 ## single value to multiply an sd by and drifts every sweep, so the sd spelling
 ## is refused there rather than honored at the current draw.
@@ -1786,7 +1786,7 @@ print.dbartsVarianceForest <- function(x, ...) {
 ## The exported face of the prior constructors: one object, so that no
 ## generic name (normal, chisq, fixed, chi) enters the search path to be
 ## masked by or to mask another package by attach order. Inside the
-## tree.prior and node.prior arguments of the fitting functions - and inside
+## tree.prior and leaf.prior arguments of the fitting functions - and inside
 ## the 'sigma' argument of the families that draw a residual scale - the
 ## same constructors are available by bare name.
 dbartsPriors <- list(

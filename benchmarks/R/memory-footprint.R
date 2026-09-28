@@ -321,7 +321,7 @@ if (identical(cell$what, "ingest")) {
     call.args$test <- x[seq_len(as.integer(cell$n.test)), , drop = FALSE]
   }
   if (!is.null(cell$leaf.columns)) {
-    call.args$node.prior <- dbarts::dbartsPriors$linear(cell$leaf.columns)
+    call.args$leaf.prior <- dbarts::dbartsPriors$linear(cell$leaf.columns)
   }
   invisible(do.call(dbarts::bart, call.args))
 }

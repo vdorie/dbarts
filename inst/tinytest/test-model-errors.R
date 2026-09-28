@@ -54,23 +54,23 @@ expect_error(
 )
 
 expect_error(
-  dbarts::dbarts(y ~ x, testData, node.prior = cgm),
-  "'node.prior' must be a node prior specification"
+  dbarts::dbarts(y ~ x, testData, leaf.prior = cgm),
+  "'leaf.prior' must be a leaf prior specification"
 )
 expect_error(
-  dbarts::dbarts(y ~ x, testData, node.prior = normal(0)),
+  dbarts::dbarts(y ~ x, testData, leaf.prior = normal(0)),
   "'k' must be a positive scalar"
 )
 expect_error(
-  dbarts::dbarts(y ~ x, testData, node.prior = normal(normal)),
+  dbarts::dbarts(y ~ x, testData, leaf.prior = normal(normal)),
   "'k' must be a positive scalar"
 )
 expect_error(
-  dbarts::dbarts(y ~ x, testData, node.prior = normal(chi(scale = -1))),
+  dbarts::dbarts(y ~ x, testData, leaf.prior = normal(chi(scale = -1))),
   "'scale' must be positive"
 )
 expect_error(
-  dbarts::dbarts(y ~ x, testData, node.prior = normal(chi(not_n_arg = 2.0))),
+  dbarts::dbarts(y ~ x, testData, leaf.prior = normal(chi(not_n_arg = 2.0))),
   "unused argument \\(not_n_arg = 2\\)"
 )
 
