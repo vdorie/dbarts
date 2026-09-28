@@ -265,19 +265,25 @@ xbart(
   [seed](https://rdrr.io/r/base/Random.html). `NULL` (the default) means
   not given here and defers to a seed already sitting in `control`, if
   any; `NA` is accepted the same way, silently. From the seed in force,
-  [`set.seed`](https://rdrr.io/r/base/Random.html) draws a split seed
-  for each replication and a seed for each (replication, fold) unit of
-  work, with [`sample.int`](https://rdrr.io/r/base/sample.html), in one
-  pass. For a fixed `seed` and generator kind, results are reproducible
-  at any `n.threads`; unlike
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s `seed`,
-  `xbart`'s draws come from R's own generator, so they also change if
-  [`RNGkind`](https://rdrr.io/r/base/Random.html) changes, and a
-  [`RNGkind()`](https://rdrr.io/r/base/Random.html) of `"user-supplied"`
-  refuses `n.threads > 1`. The caller's random stream is left untouched
-  when a seed is given, and advanced only by that derivation when one is
-  not; without a seed, [`set.seed`](https://rdrr.io/r/base/Random.html)
-  beforehand suffices. See the Reproducibility section of
+  `xbart` draws a split seed for each replication and a seed for each
+  sampler its units create - one per (replication, fold) unit at each
+  distinct tree count - with
+  [`sample.int`](https://rdrr.io/r/base/sample.html), in one pass, under
+  the caller's own [`RNGkind`](https://rdrr.io/r/base/Random.html): a
+  given seed therefore draws different values, and so gives different
+  results, under a different kind. Each unit's sampler then takes its
+  seed through `control`'s seed slot, exactly as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
+  `seed` does, driving a dedicated generator that never reads R's
+  stream, so results are reproducible at any `n.threads` for a given
+  seed and `RNGkind`. A supplied `loss` function that draws random
+  numbers draws on the worker running it, from that process's own
+  default generator; at `n.threads` greater than 1 this makes the run
+  not reproducible, whatever seed `xbart` itself is given. The caller's
+  random stream is left untouched when a seed is given, and advanced
+  only by that derivation when one is not; without a seed,
+  [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices.
+  See the Reproducibility section of
   [bart](https://vdorie.github.io/dbarts/reference/bart.md).
 
 - factors:

@@ -1296,18 +1296,23 @@ sampler kept with `keepSampler` or `samplerOnly`.
 **`xbart`.** An
 [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) call
 derives every seed it uses - one split seed per replication, one seed
-per (replication, fold) unit of work - with
+per sampler its units create (one per (replication, fold) unit at each
+distinct tree count) - with
 [`sample.int`](https://rdrr.io/r/base/sample.html) after
-`set.seed(seed)`, in one pass, restoring R's stream afterward; without a
-`seed`, `set.seed` beforehand reproduces the same run. For a fixed
-`seed` and generator kind, results do not depend on `n.threads`: a
-parallel worker's [`RNGkind`](https://rdrr.io/r/base/Random.html) is set
-to match the caller's before it runs any unit. Unlike `bart`'s `seed`,
-which is built to give the same draws under any `RNGkind`, `xbart` draws
-straight from R's own generator, so its results change with `RNGkind`
-too; a [`RNGkind()`](https://rdrr.io/r/base/Random.html) of
-`"user-supplied"` cannot be handed to a worker at all, and `xbart`
-refuses `n.threads > 1` under it.
+`set.seed(seed)`, in one pass, in its own process, restoring R's stream
+afterward; without a `seed`, `set.seed` beforehand reproduces the same
+run. That derivation draws under the CALLER's own
+[`RNGkind`](https://rdrr.io/r/base/Random.html), so a given `seed` draws
+different values, and so gives different results, under a different
+kind - what stays fixed for a given `seed` and `RNGkind` is `n.threads`.
+Each unit's sampler takes its seed through `control`'s seed slot exactly
+as `bart`'s own `seed` does, driving a dedicated generator that never
+reads R's stream, so no worker ever reads its own
+[`RNGkind()`](https://rdrr.io/r/base/Random.html) to fit a unit and
+results are identical at any `n.threads`. A supplied loss function that
+draws random numbers draws on the worker running it, from that process's
+own default generator; at `n.threads` greater than 1 this makes the run
+not reproducible, whatever `seed` `xbart` itself is given.
 
 **What moves [`.Random.seed`](https://rdrr.io/r/base/Random.html).**
 Unseeded, creating a sampler (`n.chains` uniforms per sampler; a
@@ -1750,7 +1755,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001583
+#> total seconds in loop: 0.001567
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1798,7 +1803,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001994
+#> total seconds in loop: 0.001958
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

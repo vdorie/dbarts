@@ -484,18 +484,22 @@
       <code>fit$fit$storeState()</code> before saving so a reload can
       <code>predict</code> and keep running.</p></li>
 </ul><p><strong><code>xbart</code>.</strong> An <code><a href="xbart.html">xbart</a></code> call derives every seed it
-  uses - one split seed per replication, one seed per (replication, fold)
-  unit of work - with <code><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample.int</a></code> after <code>set.seed(seed)</code>,
-  in one pass, restoring R's stream afterward; without a <code>seed</code>,
-  <code>set.seed</code> beforehand reproduces the same run. For a fixed
-  <code>seed</code> and generator kind, results do not depend on <code>n.threads</code>:
-  a parallel worker's <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">RNGkind</a></code> is set to match the caller's
-  before it runs any unit. Unlike <code>bart</code>'s <code>seed</code>, which is built
-  to give the same draws under any <code>RNGkind</code>, <code>xbart</code> draws
-  straight from R's own generator, so its results change with
-  <code>RNGkind</code> too; a <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">RNGkind()</a></code> of <code>"user-supplied"</code> cannot be
-  handed to a worker at all, and <code>xbart</code> refuses <code>n.threads &gt; 1</code>
-  under it.</p>
+  uses - one split seed per replication, one seed per sampler its units
+  create (one per (replication, fold) unit at each distinct tree count) -
+  with <code><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample.int</a></code> after <code>set.seed(seed)</code>, in one pass, in
+  its own process, restoring R's stream afterward; without a <code>seed</code>,
+  <code>set.seed</code> beforehand reproduces the same run. That derivation draws
+  under the CALLER's own <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">RNGkind</a></code>, so a given <code>seed</code> draws
+  different values, and so gives different results, under a different kind -
+  what stays fixed for a given <code>seed</code> and <code>RNGkind</code> is
+  <code>n.threads</code>. Each unit's sampler takes its seed through
+  <code>control</code>'s seed slot exactly as <code>bart</code>'s own <code>seed</code> does,
+  driving a dedicated generator that never reads R's stream, so no worker
+  ever reads its own <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">RNGkind()</a></code> to fit a unit and results are identical
+  at any <code>n.threads</code>. A supplied loss function that draws random numbers
+  draws on the worker running it, from that process's own default generator;
+  at <code>n.threads</code> greater than 1 this makes the run not reproducible,
+  whatever <code>seed</code> <code>xbart</code> itself is given.</p>
 <p><strong>What moves <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">.Random.seed</a></code>.</strong> Unseeded, creating a
   sampler (<code>n.chains</code> uniforms per sampler; a
   <code>family = "hurdle.lognormal"</code> fit creates two), <code>xbart</code>, and
@@ -590,7 +594,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001583</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001567</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 </span>
@@ -638,7 +642,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001994</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001958</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 1 2 2 2 3 2 </span>
