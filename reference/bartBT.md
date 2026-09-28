@@ -604,14 +604,14 @@ family(object, ...)
 
   Additional arguments passed on to `plot` (via `plot.bart`), or to the
   sampler's `getTrees` method via `extract` when `type` is `"trees"`
-  (`chainNums`, `sampleNums`, `treeNums`, `newdata`; see ‘Extracting
-  Trees’ below) - the one place a name belonging to a sibling method is
-  still accepted rather than refused. Elsewhere, a name that is a formal
-  on `predict`, `extract`, `fitted`, or `residuals` but foreign to the
-  method actually called is refused by name rather than silently
-  discarded. Any other unrecognized name warns instead - a warning of
-  class `dbartsUnusedArgsWarning`, not an error, so that a subclass
-  method forwarding its own formals through
+  (`chainNums`, `sampleNums`, `treeNums`, `newdata`, `forest`; see
+  ‘Extracting Trees’ below) - the one place a name belonging to a
+  sibling method is still accepted rather than refused. Elsewhere, a
+  name that is a formal on `predict`, `extract`, `fitted`, or
+  `residuals` but foreign to the method actually called is refused by
+  name rather than silently discarded. Any other unrecognized name warns
+  instead - a warning of class `dbartsUnusedArgsWarning`, not an error,
+  so that a subclass method forwarding its own formals through
   [`NextMethod`](https://rdrr.io/r/base/UseMethod.html) is never refused
   for an argument its caller legitimately supplied.
 
@@ -736,9 +736,20 @@ and `treeNums`. Each should be an integer vector detailing the desired
 trees to be returned. A further optional argument `newdata` routes a new
 set of predictors (in the same form accepted by `predict`) through the
 frozen trees so that the `n` column counts those observations instead of
-the training data.
+the training data. A last optional argument `forest` - a single index, a
+vector of them, or the default `NULL` for every forest - selects among a
+fit's forests (only an amplitude-coupled multi-forest fit - one more
+forest per additional
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
+or `forests =` entry - or a `"bartMultinomial"` fit's K categories,
+carry more than one); see
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
+`forest` item.
 
 The result of `extract` will be a data frame with columns:
+
+- `forest` - which forest the row belongs to, from 1; present even on a
+  single-forest fit
 
 - `chain`, `sample`, `tree` - index variables; `chain` is omitted on a
   single-chain fit
@@ -1123,7 +1134,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.140336
+#> total seconds in loop: 0.149040
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

@@ -54,7 +54,7 @@ bart(
 # S3 method for class 'bartMultinomial'
 extract(
     object,
-    type = c("ev", "ppd", "bart", "forest", "loglik", "varcount"),
+    type = c("ev", "ppd", "bart", "forest", "loglik", "varcount", "trees"),
     sample = c("train", "test"),
     combineChains = TRUE, ...)
 
@@ -1492,15 +1492,24 @@ to \\\log p\_{i, y_i}\\ for a one-trial row), extract-only,
 `sample = "test"` refused by name, shaped like `"ppd"` (the K margin
 dropped) - loo/WAIC on it is leave-one-*row*-out, since the likelihood
 unit is the whole count row. `forest`/`contribution` on
-`extract`/`predict`, `sample` on `fitted`, `type` on `residuals`, and
+`extract`/`predict` (outside `extract(object, type = "trees")`,
+described below), `sample` on `fitted`, `type` on `residuals`, and
 `vars` on `summary` are all refused by name rather than silently
 ignored: none is meaningful on this K-widened, non-identified-latent
-shape. `plot(object)` adds a second panel to the per-category trace: the
-posterior median and interval of the predicted probability of each
-observation's OWN observed category against that median (a count
-response with multi-trial rows instead plots the observed proportion
-\\y\_{ik} / n_i\\ against the interval of the drawn \\p\_{ik}\\, one
-point per row-category cell). `plotTree` and
+shape. `extract(object, type = "trees")` forwards to the K-forest
+sampler's own
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+`getTrees`, exactly as it does for a `"bart"` fit (see ‘Extracting
+Trees’ in
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)): unlike
+`"bart"`/`"forest"` above, a category's TREE STRUCTURE is recorded and
+identified (only its level is not), so `forest` selects one of the K
+category forests instead of being refused. `plot(object)` adds a second
+panel to the per-category trace: the posterior median and interval of
+the predicted probability of each observation's OWN observed category
+against that median (a count response with multi-trial rows instead
+plots the observed proportion \\y\_{ik} / n_i\\ against the interval of
+the drawn \\p\_{ik}\\, one point per row-category cell). `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 are refused by name (a multinomial fit's trees live on its sampler; it
 has no hazard channel). `extract(object, type = "varcount")` returns the
@@ -1764,7 +1773,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001440
+#> total seconds in loop: 0.001615
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1812,7 +1821,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001719
+#> total seconds in loop: 0.002027
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

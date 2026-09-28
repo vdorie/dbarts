@@ -71,7 +71,8 @@ setTestOffset(offset.test)
 printTrees(treeNums, chainNums, sampleNums)
 # S4 method for class 'dbartsSampler'
 getTrees(
-  treeNums, chainNums, sampleNums, current = FALSE, newdata = NULL
+  treeNums, chainNums, sampleNums, current = FALSE, newdata = NULL,
+  forest = NULL
 )
 # S4 method for class 'dbartsSampler'
 getSigmas(result)
@@ -111,7 +112,7 @@ storeState(ptr = getPointer())
 setState(newState)
 # S4 method for class 'dbartsSampler'
 plotTree(
-  treeNum, chainNum, sampleNum, treePlotPars = c(
+  treeNum, chainNum, sampleNum, forest = NULL, treePlotPars = c(
     nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
   ...
 )
@@ -635,7 +636,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   accept `forest = 1` on any sampler - it selects the only forest - and
   refuse only an out-of-range index. `getLeafPrior` is likewise served
   on every forest of a multi-forest sampler, and its calibration-map
-  columns are that forest's own.
+  columns are that forest's own. `getTrees` takes the same
+  `forest = NULL` default, stacking every forest forest-major with a
+  leading `forest` column (see ‘Value’) rather than dropping the column
+  at one forest as the four numeric readers do; it additionally accepts
+  an integer vector of forest indices, each validated as a lone `forest`
+  argument is here and stacked in the order given. `plotTree` takes a
+  single `forest`, defaulting to the sampler's only one and required
+  when there is more than one.
 
 - prior.scale:
 
@@ -1277,27 +1285,30 @@ replay, so the bare mean array returns alone, exactly as a
 non-heteroscedastic sampler's would.
 
 For `getTrees`, a `data.frame` with one row per tree node in
-depth-first, left-hand-side pre-order, with columns `chain` (present
-only when `n.chains > 1`), `sample` (present only for saved samples, and
-reporting the draw number asked for), `tree`, `n` (the number of
-observations in the node), `var` (the splitting variable, or -1 at a
-leaf), and `value` (the split value, or the leaf prediction). An ordinal
-rule's value is its cut point and observations with values less than or
-equal to it go left; on an ordered-factor column that cut point is an
-exact half-integer at a level boundary, so `levels(x)[floor(value) + 1]`
-is the last level going left (the split value is a 0-based code, R's
-`levels` is 1-based); a categorical rule carries no data value (its
-`value` is `NA`) and its split is reported in the `directions` column
-instead. When the sampler has any categorical predictors the result
-gains a `directions` column decoding each categorical rule into one
-`"L"`/`"R"` character per level, in level order (level `k` goes right
-when its character is `"R"`); ordinal rules and leaves are `NA`. When
-any predictor contains missing values the result gains a `missing`
-column giving the branch (`"L"`/`"R"`) each rule sends missing values
-down; rules on complete columns and leaves are `NA`. Under a `linear`
-leaf prior each leaf's `value` is its intercept and the result gains one
-`beta.<column>` column per designated covariate holding that leaf's
-slope on the internal standardized scale; internal nodes are `NA`.
+depth-first, left-hand-side pre-order, with columns `forest` (indexed
+from 1, present unconditionally - even on a single-forest sampler - and
+leading every other column, forest-major, at the default `forest = NULL`
+or a vector), `chain` (present only when `n.chains > 1`), `sample`
+(present only for saved samples, and reporting the draw number asked
+for), `tree`, `n` (the number of observations in the node), `var` (the
+splitting variable, or -1 at a leaf), and `value` (the split value, or
+the leaf prediction). An ordinal rule's value is its cut point and
+observations with values less than or equal to it go left; on an
+ordered-factor column that cut point is an exact half-integer at a level
+boundary, so `levels(x)[floor(value) + 1]` is the last level going left
+(the split value is a 0-based code, R's `levels` is 1-based); a
+categorical rule carries no data value (its `value` is `NA`) and its
+split is reported in the `directions` column instead. When the sampler
+has any categorical predictors the result gains a `directions` column
+decoding each categorical rule into one `"L"`/`"R"` character per level,
+in level order (level `k` goes right when its character is `"R"`);
+ordinal rules and leaves are `NA`. When any predictor contains missing
+values the result gains a `missing` column giving the branch
+(`"L"`/`"R"`) each rule sends missing values down; rules on complete
+columns and leaves are `NA`. Under a `linear` leaf prior each leaf's
+`value` is its intercept and the result gains one `beta.<column>` column
+per designated covariate holding that leaf's slope on the internal
+standardized scale; internal nodes are `NA`.
 
 For `getSigmas`, a numeric vector of length equal to the number of
 chains, giving each chain's current residual standard deviation on the

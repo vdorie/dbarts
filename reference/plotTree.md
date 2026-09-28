@@ -22,7 +22,8 @@ sampler(s) those fits carry (`object$fit` for the first three,
 plotTree(object, ...)
 
 # S3 method for class 'bart'
-plotTree(object, treeNum = 1L, chainNum, sampleNum, ...)
+plotTree(
+    object, treeNum = 1L, chainNum, sampleNum, forest = NULL, ...)
 
 # S3 method for class 'dbartsSampler'
 plotTree(object, ...)
@@ -65,6 +66,14 @@ plotTree(object, ...)
   An integer, the index of the saved sample to plot from. When omitted,
   the last sample is used (or the current working trees when the trees
   were not kept as samples).
+
+- forest:
+
+  An integer, the forest to plot from (1-indexed, as
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
+  `getTrees` accepts). For a sampler with a single forest it may be
+  omitted; a sampler with more than one (a Bayesian causal forest, or a
+  multinomial fit's own sampler) requires it.
 
 - ...:
 

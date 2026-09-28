@@ -80,7 +80,8 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">plotTree</span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'bart'</span></span>
-<span><span class="fu">plotTree</span><span class="op">(</span><span class="va">object</span>, treeNum <span class="op">=</span> <span class="fl">1L</span>, <span class="va">chainNum</span>, <span class="va">sampleNum</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="fu">plotTree</span><span class="op">(</span></span>
+<span>    <span class="va">object</span>, treeNum <span class="op">=</span> <span class="fl">1L</span>, <span class="va">chainNum</span>, <span class="va">sampleNum</span>, forest <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">plotTree</span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span>
@@ -118,6 +119,13 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
 <dd><p>An integer, the index of the saved sample to plot from. When omitted,
     the last sample is used (or the current working trees when the trees
     were not kept as samples).</p></dd>
+
+  <dt id="arg-forest">forest<a class="anchor" aria-label="anchor" href="#arg-forest"></a></dt>
+<dd><p>An integer, the forest to plot from (1-indexed, as
+    <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>'s <code>getTrees</code> accepts). For a
+    sampler with a single forest it may be omitted; a sampler with more than
+    one (a Bayesian causal forest, or a multinomial fit's own sampler)
+    requires it.</p></dd>
 
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Additional arguments, including <code>treePlotPars</code> (a named numeric
