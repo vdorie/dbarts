@@ -75,7 +75,7 @@
 <li>Heteroscedastic variance forest (<code>variance = ~ x1 + x2</code>)</li>
 <li>Monotonicity (<code>monotone</code>), interaction (<code>interactions</code>), and block-additive (<code>blocks</code>) constraints</li>
 <li>Missing predictor values modeled in place (MIA)</li>
-<li>Priors as objects (<code><a href="reference/dbartsPriors.html">?dbartsPriors</a></code>): the tree prior (<code>tree.prior = cgm(...)</code>, or DART variable selection with <code>dart(...)</code>) and the leaf prior (<code>node.prior = normal(...)</code>, or linear and Gaussian-process leaves with <code>linear(...)</code> and <code>gp(...)</code>)</li>
+<li>Priors as objects (<code><a href="reference/dbartsPriors.html">?dbartsPriors</a></code>): the tree prior (<code>tree.prior = cgm(...)</code>, or DART variable selection with <code>dart(...)</code>) and the leaf prior (<code>leaf.prior = normal(...)</code>, or linear and Gaussian-process leaves with <code>linear(...)</code> and <code>gp(...)</code>)</li>
 <li>Categorical predictors split on level subsets (<code>factors = "categorical"</code>); sparse <code>Matrix::dgCMatrix</code> and mixed dense/sparse predictor input</li>
 <li>Warm starts from a previous fit (<code>warm.start</code>) or XBART-style grow-from-root (<code>n.grow.sweeps</code>)</li>
 <li>Reduced-precision residual storage for large problems (<code>storage = "single"</code>)</li>

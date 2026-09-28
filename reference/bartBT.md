@@ -169,7 +169,7 @@ family(object, ...)
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s `k` item
   for its `NULL` default, a `chi(1.5, 2)` hyperprior on binary
   responses. The default of 2 for continuous responses follows Chipman,
-  George, and McCulloch's argument (see References) that with node prior
+  George, and McCulloch's argument (see References) that with leaf prior
   standard deviation \\\sigma\_\mu = 0.5 / (k \sqrt{m})\\ for \\m\\
   trees, \\k\\ prior standard deviations of \\f(x)\\ span the whole
   coded response range regardless of \\m\\ – so \\k = 2\\ places that
@@ -503,8 +503,8 @@ family(object, ...)
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
   extended-family methods take the same two synonyms, each against its
   own set of types. `extract` alone also takes `"sigma"` and `"k"`, the
-  residual scale and end-node sensitivity draws as a chain-combined
-  vector or (`combineChains = FALSE`) a chains-by-samples matrix, and
+  residual scale and leaf sensitivity draws as a chain-combined vector
+  or (`combineChains = FALSE`) a chains-by-samples matrix, and
   `"varcount"`, the per-predictor split counts shaped as `"ev"` is with
   predictors in place of observations - none of them per-observation, so
   a supplied `sample` is refused by name on all three, as is `forest`
@@ -646,9 +646,9 @@ If `usequants` is `TRUE`, then for a variable the minimum of `numcut`
 and one less than the number of unique elements for that variable are
 used.
 
-### End-node prior parameter `k`
+### Leaf prior parameter `k`
 
-The amount of shrinkage of the node parameters is controlled by `k`. `k`
+The amount of shrinkage of the leaf parameters is controlled by `k`. `k`
 can be given as either a fixed, positive number, or as any value that
 can be used to build a supported hyperprior. At present, only
 \\\chi\_\nu s\\ priors are supported, where \\\nu\\ is a degrees of
@@ -868,7 +868,7 @@ returned. In the numeric \\y\\ case, the list has components:
   \mathrm{response.shift} + \sum_k (\mathrm{bases}\_k \\
   \mathrm{glue}\_k) \times \mathrm{forestFits}\_k\\, with
   `response.scale`/`response.shift` read from the sampler's
-  `$getCalibration`. See `extract`'s `type = "forest"`.
+  `$getLeafPrior`. See `extract`'s `type = "forest"`.
   `predict(object, newdata, type = "forest")` reports the same quantity
   at NEW rows - an (`n.chains` \\\times\\, when uncombined) `n.samples`
   \\\times\\ `nrow(newdata)` \\\times\\ K array, same trailing margin,
@@ -1105,25 +1105,25 @@ bartFit <- bart(x, y)
 #> Running mcmc loop:
 #> [1] iteration: 100 (of 500)
 #> [2] iteration: 100 (of 500)
-#> [2] iteration: 200 (of 500)
 #> [1] iteration: 200 (of 500)
-#> [2] iteration: 300 (of 500)
+#> [2] iteration: 200 (of 500)
 #> [1] iteration: 300 (of 500)
-#> [2] iteration: 400 (of 500)
+#> [2] iteration: 300 (of 500)
 #> [1] iteration: 400 (of 500)
-#> [2] iteration: 500 (of 500)
+#> [2] iteration: 400 (of 500)
 #> [1] iteration: 500 (of 500)
-#> [4] iteration: 100 (of 500)
+#> [2] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
-#> [4] iteration: 200 (of 500)
+#> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
-#> [4] iteration: 300 (of 500)
+#> [4] iteration: 200 (of 500)
 #> [3] iteration: 300 (of 500)
-#> [4] iteration: 400 (of 500)
+#> [4] iteration: 300 (of 500)
 #> [3] iteration: 400 (of 500)
-#> [4] iteration: 500 (of 500)
+#> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
-#> total seconds in loop: 0.148025
+#> [4] iteration: 500 (of 500)
+#> total seconds in loop: 0.140336
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

@@ -383,12 +383,12 @@ at
 <span><span class="co"># every sampler is built on the SAME response, with k fixed and sigma owned</span></span>
 <span><span class="co"># by the outer loop</span></span>
 <span><span class="va">samplers</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">K</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">f</span><span class="op">)</span></span>
-<span>    <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">x.mf</span>, <span class="va">y.mf</span>, control <span class="op">=</span> <span class="va">control.mf</span>, node.prior <span class="op">=</span> <span class="fu">normal</span><span class="op">(</span>k <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
+<span>    <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">x.mf</span>, <span class="va">y.mf</span>, control <span class="op">=</span> <span class="va">control.mf</span>, leaf.prior <span class="op">=</span> <span class="fu">normal</span><span class="op">(</span>k <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
 <span>           family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">gaussian</a></span><span class="op">(</span>sigma <span class="op">=</span> <span class="fu">fixed</span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co"># one prior budget divided among the forests, rather than K copies of the</span></span>
 <span><span class="co"># budget for the whole of the sum</span></span>
-<span><span class="va">base.mf</span> <span class="op">&lt;-</span> <span class="va">samplers</span><span class="op">[[</span><span class="fl">1L</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="fu">getCalibration</span><span class="op">(</span><span class="op">)</span><span class="op">[</span><span class="fl">1L</span>, <span class="st">"prior.scale"</span><span class="op">]</span></span>
-<span><span class="kw">for</span> <span class="op">(</span><span class="va">s</span> <span class="kw">in</span> <span class="va">samplers</span><span class="op">)</span> <span class="va">s</span><span class="op">$</span><span class="fu">setCalibration</span><span class="op">(</span>prior.scale <span class="op">=</span> <span class="va">base.mf</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">K</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">base.mf</span> <span class="op">&lt;-</span> <span class="va">samplers</span><span class="op">[[</span><span class="fl">1L</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="fu">getLeafPrior</span><span class="op">(</span><span class="op">)</span><span class="op">[</span><span class="fl">1L</span>, <span class="st">"prior.scale"</span><span class="op">]</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">s</span> <span class="kw">in</span> <span class="va">samplers</span><span class="op">)</span> <span class="va">s</span><span class="op">$</span><span class="fu">setLeafPrior</span><span class="op">(</span>prior.scale <span class="op">=</span> <span class="va">base.mf</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">K</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">g</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span>, <span class="va">n.mf</span><span class="op">)</span><span class="op">)</span>, <span class="va">K</span><span class="op">)</span></span>
 <span><span class="va">sigma.mf</span> <span class="op">&lt;-</span> <span class="fl">1</span></span>
@@ -481,7 +481,7 @@ at its midrange, or absorbs the response transform’s shift with
 carries that shift, so the composition attributes it once per forest
 where the sampler attributes it once;</li>
 <li>pins the leaf prior identically -
-<code>node.prior = normal(k)</code> with
+<code>leaf.prior = normal(k)</code> with
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>k</mi><annotation encoding="application/x-tex">k</annotation></semantics></math>
 fixed, every sampler built on a common
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>y</mi><annotation encoding="application/x-tex">y</annotation></semantics></math>,
@@ -533,11 +533,8 @@ to be the standard normal CDF; logistic uses Polya-Gamma augmentation
 and takes
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>F</mi><annotation encoding="application/x-tex">F</annotation></semantics></math>
 to be the logistic CDF, whose latent variable has heavier tails than
-probit’s, so the leaf-value prior widens to match
-(<code>node.scale</code> becomes <code>pi * sqrt(3)</code> in place of
-probit’s <code>3</code>, keeping the same span of
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>f</mi><mo stretchy="false" form="prefix">(</mo><mi>x</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">f(x)</annotation></semantics></math>
-relative to the response).</p>
+probit’s, so the leaf-value prior widens to match (its scale becomes pi
+* sqrt(3) in place of probit’s 3), without naming the slot.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">11</span><span class="op">)</span></span>
 <span><span class="va">n.fam</span> <span class="op">&lt;-</span> <span class="fl">60</span></span>

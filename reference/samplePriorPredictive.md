@@ -2,11 +2,11 @@
 
 Draws repeatedly from a
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
-prior - tree structure, end-node parameters, and optionally response
-noise - and evaluates the resulting forest at `x.test`. Useful for
-calibrating priors before ever fitting to data, e.g. inspecting the
-implied prior on a treatment effect \\f(x_1) - f(x_0)\\. The sampler
-passed in is never modified.
+prior - tree structure, leaf values, and optionally response noise - and
+evaluates the resulting forest at `x.test`. Useful for calibrating
+priors before ever fitting to data, e.g. inspecting the implied prior on
+a treatment effect \\f(x_1) - f(x_0)\\. The sampler passed in is never
+modified.
 
 ## Usage
 
@@ -76,8 +76,8 @@ samplePriorPredictive(
 ## Details
 
 Each of the `n.samples` draws independently redraws every tree's
-structure (`sampleTreesFromPrior`) and end-node parameters
-(`sampleNodeParametersFromPrior`) from scratch, then evaluates the
+structure (`sampleTreesFromPrior`) and leaf values
+(`sampleLeafParametersFromPrior`) from scratch, then evaluates the
 resulting forest at `x.test` - there is no MCMC dependence between rows
 of the result, unlike a posterior sample from `run`.
 
@@ -132,7 +132,7 @@ for a single chain, with no chain dimension.
 ## See also
 
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-for `sampleTreesFromPrior`, `sampleNodeParametersFromPrior`, and
+for `sampleTreesFromPrior`, `sampleLeafParametersFromPrior`, and
 `predict`, the building blocks this function composes.
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
 creating a sampler.

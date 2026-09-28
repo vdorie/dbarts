@@ -40,7 +40,7 @@ at the next sweep. All of them are documented in
 | `$setSigma(s)` | the residual standard deviation | a scale drawn elsewhere; requires `family = gaussian(sigma = fixed())` |
 | `$setPredictor(x, column)` | one predictor column | a latent covariate, an imputed predictor |
 | `$setActiveRows(a)` | which rows enter the likelihood | a subset indicator drawn by another block |
-| `$setCalibration(prior.scale = )` | the leaf prior in force | restating the prior after a response swap |
+| `$setLeafPrior(prior.scale = )` | the leaf prior in force | restating the prior after a response swap |
 
 A predictor moved per observation rather than wholesale takes
 `$setPredictor(x, column, forceUpdate = "partial")`, or
@@ -80,10 +80,10 @@ sampler was built on. A per-sweep `setResponse` deliberately does *not*
 re-anchor it (`updateScale = FALSE`, the default), so that the sweeps
 are comparable - which also means a sampler built on a cold-start vector
 keeps that vector's range as its prior scale for the whole run. State
-the prior instead of inheriting it: `node.prior = normal(scale = )` at
+the prior instead of inheriting it: `leaf.prior = normal(scale = )` at
 creation (see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
-or `$setCalibration(prior.scale = )` afterward, with `$getCalibration()`
+or `$setLeafPrior(prior.scale = )` afterward, with `$getLeafPrior()`
 reporting what is actually in force.
 
 A decomposition across \\K\\ samplers needs the same care in the other

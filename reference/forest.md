@@ -90,7 +90,7 @@ forest(
   rescale the prior. Which of the two channels carries it depends on
   whether the forest has a `basis`: without one it is the half-Cauchy
   median of the forest's scalar amplitude, with one it scales the
-  forest's own node prior. The two channels default differently, and
+  forest's own leaf prior. The two channels default differently, and
   neither default is a bare constant. A forest with NO basis takes `2`
   under a gaussian response, where the unit is the response's own
   \\\mathrm{sd}(y)\\ and a drawn \\\sigma\\ absorbs the difference, and
@@ -128,7 +128,7 @@ forest(
   prior standard deviation of the combined location at row \\i\\ is
   \\\sqrt{\sum_f s_f^2 v_f \\B_f(i,\cdot)\\^2}\\ over the forests
   carrying a basis, with \\s_f\\ read from
-  `$getCalibration(f)[, "prior.scale"]` and \\v_f\\ this argument; a
+  `$getLeafPrior(f)[, "prior.scale"]` and \\v_f\\ this argument; a
   basis-free forest's own term is Cauchy and has no standard deviation.
   The budget that sum sits in is set by `sd`, whose default already
   divides it among the \\K\\ forests, so raising this argument raises
@@ -138,9 +138,9 @@ forest(
   gaussian response it is in \\\mathrm{sd}(y)\\ units and a drawn
   \\\sigma\\ partly does. Every input to that expression is readable off
   the fitted sampler: \\v_f\\ is the `amplitude.prior.variance` column
-  of `$getCalibration(f)` and \\B_f\\ is `data@bases[[f]]`, so the
-  induced prior can be checked against what is in force rather than
-  against what the call asked for. See the example below.
+  of `$getLeafPrior(f)` and \\B_f\\ is `data@bases[[f]]`, so the induced
+  prior can be checked against what is in force rather than against what
+  the call asked for. See the example below.
 
 - update.amplitude:
 
@@ -171,19 +171,19 @@ binary default's own 0.239; before the `sd` defaults above it was 0.376.
 The \\\sqrt{2/K}\\ factor is what holds that as \\K\\ grows, and it
 holds it in two different senses. When EVERY forest carries a basis the
 induced prior standard deviation of the index is 1.484 latent units at
-every \\K\\ - 0.989 of the classic \\k = 2\\ binary node-scale budget -
+every \\K\\ - 0.989 of the classic \\k = 2\\ binary leaf-scale budget -
 because the whole location is then a sum of fixed-variance channels.
 When one forest carries none, its amplitude is Cauchy and has no
 variance to enter that budget with, so the fixed-variance part is
 BOUNDED by 1.484 rather than pinned at it, rising from 0.699 of the
 budget at \\K = 2\\ toward 0.989 and never reaching it; without the
 factor it would instead grow past twice the budget by ten forests. Read
-the values in force off `$getCalibration(f)`'s `node.scale.factor` and
+the values in force off `$getLeafPrior(f)`'s `leaf.scale.factor` and
 `amplitude.prior.scale` columns.
 
 Both forests' leaf scales come from the model's own calibration map
-rather than from the node prior, which is why a `k` hyperprior, a
-non-default `k`, and a linear or Gaussian-process node prior are refused
+rather than from the leaf prior, which is why a `k` hyperprior, a
+non-default `k`, and a linear or Gaussian-process leaf prior are refused
 when a second forest is declared. Every value here is validated at fit
 time, and anything today's engine cannot honour is refused there by name
 rather than dropped.
@@ -249,7 +249,7 @@ amplitudes <- sampler$getForestAmplitudes()
 
 # the induced prior sd of the combined location, read off the sampler rather
 # than recomputed from the call: forest 2 is the one carrying a basis
-calibration <- sampler$getCalibration(2L)
+calibration <- sampler$getLeafPrior(2L)
 basis <- sampler$data@bases[[2L]]
 indexSd <- sqrt(calibration[1L, "prior.scale"]^2 *
                 calibration[1L, "amplitude.prior.variance"] *

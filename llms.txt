@@ -42,7 +42,7 @@ every change that can break existing code.
 - Priors as objects
   ([`?dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)):
   the tree prior (`tree.prior = cgm(...)`, or DART variable selection
-  with `dart(...)`) and the leaf prior (`node.prior = normal(...)`, or
+  with `dart(...)`) and the leaf prior (`leaf.prior = normal(...)`, or
   linear and Gaussian-process leaves with `linear(...)` and `gp(...)`)
 - Categorical predictors split on level subsets
   (`factors = "categorical"`); sparse `Matrix::dgCMatrix` and mixed
@@ -160,7 +160,7 @@ weights can change between draws, for use inside larger MCMC schemes.
   Discrete Bayesian Additive Regression Trees Sampler
 - [`run(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`sampleTreesFromPrior(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  [`sampleNodeParametersFromPrior(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`sampleLeafParametersFromPrior(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`sampleVarianceForestFromPrior(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`growFromRoot(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`copy(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
@@ -196,9 +196,10 @@ weights can change between draws, for use inside larger MCMC schemes.
   [`getForestFits(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`getForestAmplitudes(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`getForestVariableCounts(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  [`getCalibration(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  [`setCalibration(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`getLeafPrior(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`setLeafPrior(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`installTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`sampleNodeParametersFromPrior(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`startThreads(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`stopThreads(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`storeState(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)

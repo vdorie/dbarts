@@ -14,7 +14,7 @@ run(
 # S4 method for class 'dbartsSampler'
 sampleTreesFromPrior(updateState = NA)
 # S4 method for class 'dbartsSampler'
-sampleNodeParametersFromPrior(updateState = NA)
+sampleLeafParametersFromPrior(updateState = NA)
 # S4 method for class 'dbartsSampler'
 sampleVarianceForestFromPrior(updateState = NA)
 # S4 method for class 'dbartsSampler'
@@ -92,13 +92,15 @@ getForestAmplitudes(forest = NULL)
 # S4 method for class 'dbartsSampler'
 getForestVariableCounts(forest = NULL)
 # S4 method for class 'dbartsSampler'
-getCalibration(forest = NULL)
+getLeafPrior(forest = NULL)
 # S4 method for class 'dbartsSampler'
-setCalibration(
+setLeafPrior(
   prior.scale, prior.sd, prior.mean, forest = 1L, updateState = NA
 )
 # S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL)
+# S4 method for class 'dbartsSampler'
+sampleNodeParametersFromPrior(updateState = NA)
 # S4 method for class 'dbartsSampler'
 startThreads(n.threads = control@n.threads)
 # S4 method for class 'dbartsSampler'
@@ -178,11 +180,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   A logical determining if the local cache of the sampler's state should
   be updated after the call completes. One convention applies to every
   method that takes this argument - `run`, `sampleTreesFromPrior`,
-  `sampleNodeParametersFromPrior`, `sampleVarianceForestFromPrior`,
+  `sampleLeafParametersFromPrior`, `sampleVarianceForestFromPrior`,
   `growFromRoot`, and every mutator (`setData`, `setResponse`,
   `setOffset`, `setWeights`, `setCounts`, `setCategoryOffset`,
   `setCategoryTestOffset`, `setActiveRows`, `setForestWeights`,
-  `setForestBasis`, `setSigma`, `setCalibration`, `setPredictor`, and
+  `setForestBasis`, `setSigma`, `setLeafPrior`, `setPredictor`, and
   `setCutPoints`): `NA` (the default) resolves to the sampler's
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   object's `updateState`, and an explicit `TRUE` or `FALSE` overrides
@@ -615,12 +617,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   A single positive integer indexing the forests from `1`, or - for
   `getForestFits`, `getForestAmplitudes`, `getForestVariableCounts`, and
-  `getCalibration` - `NULL` (the default on all four) for every forest,
+  `getLeafPrior` - `NULL` (the default on all four) for every forest,
   stacked (see ‘Value’ for each reader's stacked shape). A single-forest
   sampler's `NULL` read is bitwise its `forest = 1` read, so the default
   costs nothing on an ordinary sampler. `setForestWeights` and
   `setForestBasis` have no default: a writer names one target rather
-  than reading every one. `setCalibration` keeps `forest = 1L`: it is
+  than reading every one. `setLeafPrior` keeps `forest = 1L`: it is
   refused on every multi-forest sampler, since a calibration map owns
   those forests' scales, so `1` is the only value that can succeed and
   `NULL` would name nothing writable. A Bayesian causal forest's
@@ -631,13 +633,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `"forest index out of range"` - and `setForestBasis` accepts any
   forest of one that does. `getForestFits` and `getForestVariableCounts`
   accept `forest = 1` on any sampler - it selects the only forest - and
-  refuse only an out-of-range index. `getCalibration` is likewise served
+  refuse only an out-of-range index. `getLeafPrior` is likewise served
   on every forest of a multi-forest sampler, and its calibration-map
   columns are that forest's own.
 
 - prior.scale:
 
-  For `setCalibration`, the prior standard deviation of the forest total
+  For `setLeafPrior`, the prior standard deviation of the forest total
   at `k = 1`, in response units (the family's latent units where the
   response is not rescaled). This is the identified quantity: only the
   ratio of the leaf scale to `k` enters a draw law, so under a fixed `k`
@@ -647,12 +649,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - prior.sd:
 
-  For `setCalibration`, the same statement at the `k` currently in
-  force, so `prior.scale = prior.sd * k`. Refused when `k` is drawn from
-  a hyperprior - it would name a different prior every sweep - and
-  refused when the chains' `k` have diverged, since one number would
-  then mean a different scale on each; `prior.scale` serves in both
-  cases. Note the binary families default to a sampled `k`.
+  For `setLeafPrior`, the same statement at the `k` currently in force,
+  so `prior.scale = prior.sd * k`. Refused when `k` is drawn from a
+  hyperprior - it would name a different prior every sweep - and refused
+  when the chains' `k` have diverged, since one number would then mean a
+  different scale on each; `prior.scale` serves in both cases. Note the
+  binary families default to a sampled `k`.
 
 - prior.mean:
 
@@ -660,7 +662,7 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   values it would shift are already drawn and stored. The prior mean of
   the forest total is the response transform's shift, and the lever that
   moves the modelled quantity is the offset channel,
-  `setOffset(rep_len(-getCalibration()[1, "prior.mean"], n))`.
+  `setOffset(rep_len(-getLeafPrior()[1, "prior.mean"], n))`.
 
 - cuts:
 
@@ -850,7 +852,7 @@ Route changes through the `set*` methods instead.
 
 - `model`:
 
-  A `dbartsModel` holding the parsed tree, node, and residual priors,
+  A `dbartsModel` holding the parsed tree, leaf, and residual priors,
   together with any monotonicity, interaction, and block constraints.
   Replace with `setModel`.
 
@@ -927,7 +929,7 @@ is the softmax's null direction), `$setWeights` (an integer case weight
 is already row-wise replication in the count response, and a non-integer
 one has no exact augmentation sampler), `$setSigma` (no residual scale),
 `$setData` and `$setModel` (the K category forests fix their data and
-their calibration at creation), `$setCalibration` (the softmax map owns
+their calibration at creation), `$setLeafPrior` (the softmax map owns
 every category forest's leaf scale), `$setForestWeights` and
 `$setForestBasis` (its forests are its categories, which carry no
 amplitudes), and `$getFitsWithoutOffset` (its reported channels are
@@ -1096,7 +1098,7 @@ shared-column match - continues to resolve against
 
 ### Prior draws
 
-`sampleTreesFromPrior` and `sampleNodeParametersFromPrior` are
+`sampleTreesFromPrior` and `sampleLeafParametersFromPrior` are
 MEAN-forest entries by contract: each leaves the variance forest of a
 heteroscedastic (`variance`) sampler exactly as it finds it, along with
 `sigma`, `k` and the family's latent block.
@@ -1141,7 +1143,7 @@ candidate cut under the tree prior. This reaches a good fit in far fewer
 sweeps than the exact sampler, so it is a fast starting point rather
 than a posterior sampler - the exact MCMC sweeps own stationarity once
 `run` begins, and the posterior is unchanged. It is available for the
-constant-leaf model only; calling it on a `linear` or `gp` node prior is
+constant-leaf model only; calling it on a `linear` or `gp` leaf prior is
 an error, not a silent fall-back, so initialize those forests with
 `sampleTreesFromPrior` instead. As with `installTrees`, the grown forest
 biases the early draws toward its fit, so shorten burn-in rather than
@@ -1293,7 +1295,7 @@ when its character is `"R"`); ordinal rules and leaves are `NA`. When
 any predictor contains missing values the result gains a `missing`
 column giving the branch (`"L"`/`"R"`) each rule sends missing values
 down; rules on complete columns and leaves are `NA`. Under a `linear`
-node prior each leaf's `value` is its intercept and the result gains one
+leaf prior each leaf's `value` is its intercept and the result gains one
 `beta.<column>` column per designated covariate holding that leaf's
 slope on the internal standardized scale; internal nodes are `NA`.
 
@@ -1422,7 +1424,7 @@ omission - an amplitude coupling's location is `response.shift` +
 \\\sum_f (B_f a_f) \times (\mathrm{response.scale} \times f_f)\\, and
 off the training rows only the caller knows the bases \\B_f\\, so the
 whole recombination is theirs, with `$getForestAmplitudes()` and
-`$getCalibration()` supplying the rest. At the fit level it is packaged:
+`$getLeafPrior()` supplying the rest. At the fit level it is packaged:
 `predict` on a
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) object with
 `type = "ev"`, `"ppd"` or `"bart"` performs the same recombination off
@@ -1438,7 +1440,7 @@ trees and one draw, and it is the off-sample replay - which would have
 to hand back a level nothing identifies at rows the sampler never saw -
 that has no counterpart.
 
-For `getCalibration`, the leaf-prior calibration a forest currently runs
+For `getLeafPrior`, the leaf-prior calibration a forest currently runs
 under, as a numeric matrix with one row per chain and the columns
 `prior.scale` (the prior standard deviation of the forest total at
 `k = 1`, in response units), `prior.sd` (`prior.scale / k`),
@@ -1468,18 +1470,18 @@ amplitude carries the half-Cauchy scale mixture (a forest declaring no
 basis) reports its median and a `NaN` variance. Each is a prior the
 caller may set; neither moves with the scale mixture's own variance
 auxiliary, which is a drawn quantity rather than a prior.
-`node.scale.factor` and `node.scale.divisor` are the map's two factors
+`leaf.scale.factor` and `leaf.scale.divisor` are the map's two factors
 and `basis.row.norm` the median nonzero row norm of the forest's basis
 IN FORCE, which `setForestBasis` re-derives.
 
 Together they decompose the reported scale as
-`prior.scale = node.scale.factor * s / (node.scale.divisor * basis.row.norm)`,
+`prior.scale = leaf.scale.factor * s / (leaf.scale.divisor * basis.row.norm)`,
 so the family's own latent anchor \\s\\ - the only quantity of the map
 with no column of its own, and data-dependent under a gaussian
 response - is recovered as
-`prior.scale * node.scale.divisor * basis.row.norm / node.scale.factor`.
-That identity holds whenever `node.scale.factor` is not `NaN`. It
-becomes `NaN`, on both `node.scale` columns, when `setState` or
+`prior.scale * leaf.scale.divisor * basis.row.norm / leaf.scale.factor`.
+That identity holds whenever `leaf.scale.factor` is not `NaN`. It
+becomes `NaN`, on both `leaf.scale` columns, when `setState` or
 `installTrees` installs a leaf scale differing from the one in force:
 the donor's trees arrive with the donor's calibration, and the stored
 factor and divisor no longer decompose it. The other three columns are
@@ -1511,12 +1513,12 @@ This is the authoritative reader of the calibration in force. A model's
 `prior.scale` slot records the named intent and is never rewritten by
 the engine, so a channel that re-anchors the response transform -
 `setResponse` or `setOffset` at `updateScale = TRUE`, or `setData` -
-moves what is in force while leaving the intent alone; `getCalibration`
-shows the move, and `setCalibration` or `setModel(sampler$model)`
+moves what is in force while leaving the intent alone; `getLeafPrior`
+shows the move, and `setLeafPrior` or `setModel(sampler$model)`
 re-issues the intent.
 
-For `setCalibration`, `NULL` invisibly. The write lands on every chain
-and takes effect on the next sweep, reinterpreting no leaf value already
+For `setLeafPrior`, `NULL` invisibly. The write lands on every chain and
+takes effect on the next sweep, reinterpreting no leaf value already
 drawn; a write that reproduces what is already in force is skipped
 bitwise, so a read followed by a write cannot perturb a draw. It is
 total over the four leaf models, each of which carries the one scale it
@@ -1547,7 +1549,7 @@ samplers at once.
 
 [`samplePriorPredictive`](https://vdorie.github.io/dbarts/reference/samplePriorPredictive.md)
 for repeated
-`sampleTreesFromPrior`/`sampleNodeParametersFromPrior`/`predict` draws
+`sampleTreesFromPrior`/`sampleLeafParametersFromPrior`/`predict` draws
 on a private sampler, for calibrating priors before fitting.
 
 [`dbarts-embedding`](https://vdorie.github.io/dbarts/reference/dbarts-embedding.md)

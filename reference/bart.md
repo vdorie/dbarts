@@ -46,7 +46,7 @@ bart(
                "multinomial", "ordinal", "nbinom", "hazard", "hazard.probit",
                "hazard.logistic", "hurdle.lognormal"),
     na.action = dbarts::na.keepPredictors,
-    tree.prior = NULL, node.prior = NULL,
+    tree.prior = NULL, leaf.prior = NULL,
     storage = c("double", "single"), updateState = TRUE,
     keepFits = is.null(callback), callback = NULL,
     control = dbarts::dbartsControl(), ...)
@@ -458,11 +458,11 @@ print(x, ...)
   never saw. The per-forest leaf scale follows its own K-dependent
   calibration (the K = 2 anchor is the logistic scale \\\pi\sqrt{3}\\
   divided by \\\sqrt{2}\\, for the identified pairwise log-odds); `k` is
-  read from the usual node prior exactly as for any other family, but
-  the node prior's `node.scale` itself is NOT consulted - the
-  multinomial engine calibrates its own. The fit's class is
-  `"bartMultinomial"`, not `"bart"`: see ‘Value’ below and the
-  `extract`/`fitted`/`predict` methods for `bartMultinomial` objects.
+  read from the usual leaf prior exactly as for any other family, but
+  the leaf prior's scale itself is NOT consulted - the multinomial
+  engine calibrates its own. The fit's class is `"bartMultinomial"`, not
+  `"bart"`: see ‘Value’ below and the `extract`/`fitted`/`predict`
+  methods for `bartMultinomial` objects.
 
   `family = "ordinal"` fits an ordered categorical response by a
   cumulative probit (a single forest, unlike multinomial's K): a latent
@@ -660,26 +660,26 @@ print(x, ...)
   `k = 2` for the fixed BART-package default, or `chi(1.5, Inf)` for the
   old improper prior. See
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s `k`
-  item, and the ‘End-node prior parameter `k`’ details there, for the
-  full calibration argument and its outlier-sensitivity caveat.
+  item, and the ‘Leaf prior parameter `k`’ details there, for the full
+  calibration argument and its outlier-sensitivity caveat.
 
-- tree.prior, node.prior:
+- tree.prior, leaf.prior:
 
   The full
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) tree
-  and node prior objects, forwarded unevaluated so a bare
+  and leaf prior objects, forwarded unevaluated so a bare
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
   vocabulary name inside them (`cgm`, `dart`, `normal`, `linear`, `gp`)
   resolves exactly as it does for `dbarts`:
-  `node.prior = linear(columns = 1:3)` and `gp(...)` are reachable this
-  way. `NULL` (the default for both) instead builds the tree and node
+  `leaf.prior = linear(columns = 1:3)` and `gp(...)` are reachable this
+  way. `NULL` (the default for both) instead builds the tree and leaf
   priors from `power`/`base`/`split.probs` and `k` respectively. A DART
   prior is `tree.prior = dart()`, which also carries the
   categorical-split `levelGibbs` setting; neither has a shorthand of its
   own on this signature. Supplying an object alongside a shorthand that
   would otherwise help build the same prior is an error naming both:
   `tree.prior` collides with any of `power`/`base`/`split.probs`;
-  `node.prior` with `k`. Both are honored on every family, including
+  `leaf.prior` with `k`. Both are honored on every family, including
   both component fits of `family = "hurdle.lognormal"`. The residual
   prior is not on this list: it is a setting of the families that draw a
   residual scale and rides the family object instead -
@@ -1435,7 +1435,7 @@ engine actually ran (one `bartcore_create`, not a discarded host), fully
 mutable and readable on the channels the softmax gives meaning to -
 `$setCounts`, `$setCategoryOffset`, `$setPredictor`, and the rest - and
 refused by name on the ones it does not (`$setResponse`, `$setOffset`,
-`$setSigma`, `$setCalibration`, `$setForestWeights`); `fit$storeState()`
+`$setSigma`, `$setLeafPrior`, `$setForestWeights`); `fit$storeState()`
 followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
 restores a sampler `predict.bartMultinomial` can replay through.
@@ -1718,9 +1718,9 @@ Hugh Chipman: <hugh.chipman@gmail.com>, Robert McCulloch:
 
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) for the
 BayesTree-compatible interface and the shared `"bart"`-class
-Value/Details (Decision Rules, end-node `k`, Generics, Saving,
-Extracting Trees); this page's own ‘Reproducibility’ section above
-covers `bartBT` too.
+Value/Details (Decision Rules, leaf `k`, Generics, Saving, Extracting
+Trees); this page's own ‘Reproducibility’ section above covers `bartBT`
+too.
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for the
 mutable sampler bart builds on,
@@ -1764,7 +1764,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001592
+#> total seconds in loop: 0.001440
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1812,7 +1812,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001977
+#> total seconds in loop: 0.001719
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

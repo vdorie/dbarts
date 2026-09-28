@@ -121,7 +121,7 @@ The columns refer to:
   giving the branch an `NA` on the split variable follows; `NA` where
   the rule has no missing values to route
 - `beta.<column>` - one per covariate designated by a `linear` or `gp`
-  node prior, holding that leaf’s coefficient; `NA` on internal nodes,
+  leaf prior, holding that leaf’s coefficient; `NA` on internal nodes,
   absent entirely under the default constant leaf
 
 The mapping between the values of `var` and the variable names can be
@@ -264,7 +264,7 @@ print(rebuildTree(treeOfInterest, bartFit))
     ## $right$right$n
     ## [1] 61
 
-Under a `linear` node prior, the same function attaches each leaf’s
+Under a `linear` leaf prior, the same function attaches each leaf’s
 slopes as `$beta`:
 
 ``` r
@@ -276,7 +276,7 @@ y.lin <- 3 * x1.lin + rnorm(n.lin, 0, 0.2)
 
 linearFit <- dbarts(
     y.lin ~ x1.lin + x2.lin, data.frame(x1.lin, x2.lin, y.lin),
-    node.prior = linear("x1.lin"),
+    leaf.prior = linear("x1.lin"),
     control = dbartsControl(n.trees = 3L, n.chains = 1L, n.threads = 1L,
                             keepTrees = TRUE, n.samples = 2L, n.burn = 10L))
 invisible(linearFit$run())

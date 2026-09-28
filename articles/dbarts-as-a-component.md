@@ -56,9 +56,9 @@ Two details make it correct rather than merely runnable. The sampler’s
 residual standard deviation is pinned at 1 with
 `family = gaussian(sigma = fixed(1))`, because the augmented model has
 no free residual scale. And the leaf prior is stated with
-`setCalibration`, because a gaussian sampler built on a cold-start
-vector would otherwise inherit its prior scale from that vector’s range
-– an accident of the starting values, not a modelling choice.
+`setLeafPrior`, because a gaussian sampler built on a cold-start vector
+would otherwise inherit its prior scale from that vector’s range – an
+accident of the starting values, not a modelling choice.
 
 ``` r
 
@@ -72,7 +72,7 @@ control <- recipeControl(31L)
 # the host: a gaussian sampler on the working response, sigma pinned at 1
 host <- dbarts(x, 2 * y - 1 - o, control = control,
                family = gaussian(sigma = fixed(1)))
-host$setCalibration(prior.scale = 2)
+host$setLeafPrior(prior.scale = 2)
 
 composed <- matrix(0, n, nDraws)
 for (i in seq_len(nBurn + nDraws)) {
@@ -86,7 +86,7 @@ for (i in seq_len(nBurn + nDraws)) {
 
 # a native probit sampler, given the SAME leaf prior, targets the same posterior
 native <- dbarts(x, y, offset = o, family = "probit", control = control,
-                 node.prior = normal(k = 2, scale = 2))
+                 leaf.prior = normal(k = 2, scale = 2))
 nativeFit <- rowMeans(native$run(nBurn, nDraws)$train) - o
 c(agreement = cor(rowMeans(composed), nativeFit),
   signal = cor(rowMeans(composed), fTrue))
@@ -156,7 +156,7 @@ functional’s value at $`\theta_0`$ among the retained draws. Uniform
 ranks are what a correct kernel produces.
 
 Stating the prior draw here means drawing $`f`$ from BART’s own prior,
-which `sampleTreesFromPrior` and `sampleNodeParametersFromPrior` do on
+which `sampleTreesFromPrior` and `sampleLeafParametersFromPrior` do on
 the sampler itself. The problem is deliberately small, since every
 replication runs a full chain.
 
@@ -177,14 +177,14 @@ sbcControl <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 10L,
 newSampler <- function() {
   s <- dbarts(xSbc, seq(-3, 3, length.out = nSbc), control = sbcControl,
               family = gaussian(sigma = fixed(sigma0^2)))
-  s$setCalibration(prior.scale = 2)
+  s$setLeafPrior(prior.scale = 2)
   s
 }
 
 drawPrior <- function() {
   s <- newSampler()
   s$sampleTreesFromPrior()
-  s$sampleNodeParametersFromPrior()
+  s$sampleLeafParametersFromPrior()
   list(sampler = s, f = as.numeric(s$getFitsWithoutOffset()),
        alpha = rnorm(1L, 0, tauSbc))
 }
@@ -238,10 +238,10 @@ leaf prior sized for the *whole* of $`f`$; their sum then has
 $`\sqrt{K}`$ times the prior standard deviation a single sampler would
 have, and nothing warns about it.
 
-`setCalibration(prior.scale = base / sqrt(K))` restates each forest’s
+`setLeafPrior(prior.scale = base / sqrt(K))` restates each forest’s
 share of one budget. The check below draws from the composed prior
 directly – `sampleTreesFromPrior` acts on the engine, so it sees what
-`setCalibration` wrote – and compares it with a single sampler’s.
+`setLeafPrior` wrote – and compares it with a single sampler’s.
 
 ``` r
 
@@ -257,8 +257,8 @@ control <- recipeControl(5L)
 blocks <- list(x[, 1:2, drop = FALSE], x[, 3:4, drop = FALSE])
 samplers <- lapply(blocks, function(xb) dbarts(xb, y, control = control))
 
-base <- samplers[[1L]]$getCalibration()[1L, "prior.scale"]
-for (s in samplers) s$setCalibration(prior.scale = base / sqrt(K))
+base <- samplers[[1L]]$getLeafPrior()[1L, "prior.scale"]
+for (s in samplers) s$setLeafPrior(prior.scale = base / sqrt(K))
 
 # the composed prior on the TOTAL, against a single sampler's
 priorSd <- function(samplers) {
@@ -266,7 +266,7 @@ priorSd <- function(samplers) {
     total <- 0
     for (s in samplers) {
       s$sampleTreesFromPrior()
-      s$sampleNodeParametersFromPrior()
+      s$sampleLeafParametersFromPrior()
       total <- total + as.numeric(s$getFitsWithoutOffset())
     }
     total

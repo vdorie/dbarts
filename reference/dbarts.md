@@ -10,7 +10,7 @@ as to be mutable.
 dbarts(
     formula, data, test, subset, weights, offset, offset.test = offset,
     verbose = FALSE, n.samples = 800L,
-    tree.prior = cgm, node.prior = normal,
+    tree.prior = cgm, leaf.prior = normal,
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
@@ -22,7 +22,7 @@ dbarts(
                "multinomial", "ordinal",
                "nbinom", "hazard", "hazard.probit", "hazard.logistic"),
     na.action = dbarts::na.keepPredictors,
-    sigma = NA_real_, callback = NULL, ...)
+    sigma = NA_real_, node.prior = NULL, callback = NULL, ...)
 ```
 
 ## Arguments
@@ -43,7 +43,7 @@ dbarts(
   replacing a sparse-backed column densifies its storage permanently.
   Per-observation replacement of a sparse-backed column, and `setData`,
   are fixed at creation. Sparse inputs are not supported by the
-  `node.prior = linear()` and `gp()` leaf models (a sparse-backed test
+  `leaf.prior = linear()` and `gp()` leaf models (a sparse-backed test
   column cannot serve a designated leaf covariate either). A sparse or
   data-frame test set stays resident (rank-bitmap or dense per column,
   the same rule as training) rather than densifying at ingestion, and
@@ -153,10 +153,10 @@ dbarts(
   setting the tree prior used in fitting, or a prior object built with
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
 
-- node.prior:
+- leaf.prior:
 
   An expression of the form `normal` or `normal(k)` that sets the prior
-  used on the averages within nodes, or a prior object built with
+  used on the leaf values, or a prior object built with
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
   `linear(columns, k)` instead fits each leaf with an intercept plus a
   linear term in the designated continuous predictor columns (character
@@ -168,7 +168,7 @@ dbarts(
   squared-exponential kernel; leaves larger than `max.leaf.size` fall
   back to constant fits.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
-  the same specifications through its own `node.prior` argument. See
+  the same specifications through its own `leaf.prior` argument. See
   “Response scaling” below for how `k` interacts with the response's
   internal scaling.
 
@@ -317,7 +317,7 @@ dbarts(
   which always takes a pre-built data object and installs the
   declaration, replacing whatever bases it carried. Options a two-forest
   model does not read - `monotone`, `variance`, a DART tree prior,
-  `split.probs`, a linear or Gaussian-process node prior, a `k`
+  `split.probs`, a linear or Gaussian-process leaf prior, a `k`
   hyperprior or non-default `k`, Student-t residuals,
   `storage = "single"`, per-column cut counts, and a `test` set - are
   refused at creation rather than ignored, as is any declaration the
@@ -383,6 +383,12 @@ dbarts(
 - sigma:
 
   The 0.9-x spelling of `sigest`, accepted for one release with a
+  once-per-session warning and removed in dbarts 1.1-0. Supplying both
+  is an error.
+
+- node.prior:
+
+  The 0.9-x spelling of `leaf.prior`, accepted for one release with a
   once-per-session warning and removed in dbarts 1.1-0. Supplying both
   is an error.
 
@@ -500,7 +506,7 @@ dbarts(
   `$setCounts`, `$setCategoryOffset` and `$setCategoryTestOffset`; see
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   for what the softmax refuses and why. `monotone`, a DART tree prior,
-  `split.probs`, a linear or Gaussian-process node prior, a `k`
+  `split.probs`, a linear or Gaussian-process leaf prior, a `k`
   hyperprior, a named `prior.scale`, `variance` and `storage = "single"`
   are refused at creation rather than dropped, and the response uses the
   matrix (`x.train`/`y.train`) interface.
@@ -627,7 +633,7 @@ re-forms, even if the two are later set to equal values.
 Continuous responses are range-scaled internally: `y` (net of `offset`)
 is mapped to \\\[-0.5, 0.5\]\\ by its observed minimum and maximum, the
 convention of the entire BART software lineage (BayesTree, BART,
-bartMachine), which is what lets `k` (see `node.prior` above) and its
+bartMachine), which is what lets `k` (see `leaf.prior` above) and its
 defaults transfer across packages and papers. The known caveat is
 outlier sensitivity: extreme `y` values stretch the range and compress
 the effective leaf prior for everything else; the published workaround
@@ -646,7 +652,7 @@ Because the leaf prior is calibrated off the range of the response the
 sampler was CONSTRUCTED on, an R program that drives the sampler between
 sweeps – feeding it latents, residuals, or offsets from an outer model –
 inherits whatever calibration its construction vector happened to imply.
-`node.prior = normal(scale = )` names that calibration instead, in
+`leaf.prior = normal(scale = )` names that calibration instead, in
 response units: it is the prior standard deviation of the forest total
 \\f\\ at `k = 1`, so the prior standard deviation in force is
 `scale / k` and the prior mean is the response transform's shift
@@ -659,12 +665,12 @@ The named quantity is the LEAF-PARAMETER scale of the forest total. It
 equals the prior standard deviation of \\f(x)\\ at every \\x\\ for the
 constant leaf only; under the other leaf models the prior of \\f(x)\\ is
 x-dependent and `scale / k` bounds it in a leaf-model-specific
-direction. Under a `linear` node prior it is a LOWER bound, attained at
+direction. Under a `linear` leaf prior it is a LOWER bound, attained at
 the standardized covariate origin, with \\sd(f(x))\\ equal to
 `scale / k` times \\\sqrt{1 + \\z(x)\\^2}\\ for \\z\\ the internally
 standardized leaf covariates (a missing value maps to \\z_j = 0\\, and a
 constant column contributes 0); the prior mean is exact. Under a `gp`
-node prior it is an UPPER bound over \\x\\, attained at rows reproducing
+leaf prior it is an UPPER bound over \\x\\, attained at rows reproducing
 a leaf member and on leaves past `max.leaf.size` (which draw as constant
 leaves); elsewhere the prior variance is \\(scale / k)^2 c(x)' C^{-1}
 c(x)\\ and decays to 0 as \\x\\ leaves the leaf's data cloud, at which
@@ -738,7 +744,7 @@ samples <- sampler$run()
 ## priors are given as expressions in dbarts's own vocabulary
 sampler <- dbarts(y ~ x, control = control,
                   tree.prior = cgm(power = 1.5),
-                  node.prior = normal(k = chi(1.5, 2)),
+                  leaf.prior = normal(k = chi(1.5, 2)),
                   family = gaussian(sigma = chisq(df = 5)))
 
 ## an additive fit that is monotone increasing in the first predictor

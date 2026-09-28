@@ -42,7 +42,7 @@ every change that can break existing code.
 - Priors as objects
   ([`?dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)):
   the tree prior (`tree.prior = cgm(...)`, or DART variable selection
-  with `dart(...)`) and the leaf prior (`node.prior = normal(...)`, or
+  with `dart(...)`) and the leaf prior (`leaf.prior = normal(...)`, or
   linear and Gaussian-process leaves with `linear(...)` and `gp(...)`)
 - Categorical predictors split on level subsets
   (`factors = "categorical"`); sparse `Matrix::dgCMatrix` and mixed

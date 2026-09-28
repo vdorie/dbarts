@@ -11,7 +11,7 @@ their own design matrix.
 ``` r
 dbartsSpec(
     data, control = dbarts::dbartsControl(),
-    tree.prior = cgm, node.prior = normal,
+    tree.prior = cgm, leaf.prior = normal,
     proposal.probs = c(
         birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
         rule_gibbs = 0, birth = 0.5),
@@ -22,7 +22,7 @@ dbartsSpec(
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal", "nbinom"),
     survival = NULL,
-    parentEnv = parent.frame(), sigma = NA_real_, ...)
+    parentEnv = parent.frame(), sigma = NA_real_, node.prior = NULL, ...)
 ```
 
 ## Arguments
@@ -39,9 +39,9 @@ dbartsSpec(
   `"auto"` - the slot IS the declaration - and is refused under any
   other family.
 
-- control, tree.prior, node.prior, proposal.probs, monotone,
-  interactions, blocks, variance, forests, sigest, sigma, seed, family,
-  ...:
+- control, tree.prior, leaf.prior, proposal.probs, monotone,
+  interactions, blocks, variance, forests, sigest, sigma, node.prior,
+  seed, family, ...:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
   including the frozen `proposal.probs` mixture - all five structural

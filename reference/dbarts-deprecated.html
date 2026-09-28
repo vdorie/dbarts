@@ -75,6 +75,9 @@ rbart_vi and its methods fit a grouped random-intercept BART model. That model n
     <dt><code>sigma</code></dt>
 <dd><p>On <code><a href="dbarts.html">dbarts</a></code> and <code><a href="dbartsSpec.html">dbartsSpec</a></code>: the creation-time residual estimate, now <code>sigest</code>.</p></dd>
 
+    <dt><code>node.prior</code></dt>
+<dd><p>On <code><a href="dbarts.html">dbarts</a></code> and <code><a href="dbartsSpec.html">dbartsSpec</a></code>: the leaf-value prior, now <code>leaf.prior</code>.</p></dd>
+
     <dt><code>power</code>, <code>base</code></dt>
 <dd><p>On <code><a href="bart.html">bart</a></code>: tree-prior-only settings, now arguments of <code><a href="dbartsPriors.html">dbartsPriors</a></code>'s <code>cgm()</code> or <code>dart()</code> (<code>tree.prior = cgm(power, base)</code> or <code>tree.prior = dart(power, base)</code>).</p></dd>
 
@@ -92,6 +95,9 @@ rbart_vi and its methods fit a grouped random-intercept BART model. That model n
 
     <dt><code>dbartsSampler</code>'s <code>$startThreads</code>/<code>$stopThreads</code></dt>
 <dd><p>No-op methods (<code><a href="dbartsSampler-class.html">dbartsSampler</a></code>): the hierarchical thread manager they drove is gone, threads now owned per run, but a 0.9-x Gibbs loop that brackets its sweeps with them still runs.</p></dd>
+
+    <dt><code>dbartsSampler</code>'s <code>$sampleNodeParametersFromPrior</code></dt>
+<dd><p>Forwarded to <code>$sampleLeafParametersFromPrior</code> (<code><a href="dbartsSampler-class.html">dbartsSampler</a></code>) after a once-per-session warning.</p></dd>
 
     <dt>A thread count on <code>dbartsSampler</code>'s <code>$run</code></dt>
 <dd><p>Ignored after a once-per-session warning, whether passed as <code>n.threads</code>, as 0.9-x's formal <code>numThreads</code>, or positionally after <code>updateState</code>: a run uses the sampler's own count, which <code>$setControl</code> changes, and its draws do not depend on it.</p></dd>

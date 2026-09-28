@@ -1,7 +1,7 @@
 # Prior Specification Constructors
 
 A list of constructor functions building the prior specifications that
-the `tree.prior` and `node.prior` arguments of
+the `tree.prior` and `leaf.prior` arguments of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and the
 fitting functions accept. Bundling them keeps generic names like
 `normal` out of the search path, where another package could mask them
@@ -37,11 +37,11 @@ A list of functions:
 
 - `normal(k = NULL, sd = NULL, scale = NULL)`:
 
-  Normal prior on the node means. `k` scales the standard deviation and
+  Normal prior on the leaf values. `k` scales the standard deviation and
   can be a positive scalar, a hyperprior built with `chi`, or `NULL` for
   the default: 2 for continuous responses, `chi(1.5, 2)` for binary
   ones. The continuous default follows Chipman, George, and McCulloch's
-  argument that with node standard deviation
+  argument that with leaf standard deviation
   `sigma_mu = 0.5 / (k * sqrt(m))` for `m` trees, `k` prior standard
   deviations of \\f(x)\\ span the whole response range regardless of
   `m`; see
@@ -70,7 +70,7 @@ A list of functions:
   the intercept; `getTrees` adds one `beta.<column>` column per
   covariate.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
-  the same specification through its own `node.prior` argument. `sd` and
+  the same specification through its own `leaf.prior` argument. `sd` and
   `scale` name the calibration as they do for `normal`.
 
 - `gp(columns, k = NULL, lengthscale = NULL, max.leaf.size = 256L, sd = NULL, scale = NULL)`:
@@ -107,7 +107,7 @@ A list of functions:
   fits ride prediction only: `getTrees` reports `NA` leaf values, and
   `keepTrees` storage grows with the leaf sizes.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
-  the same specification through its own `node.prior` argument. `sd` and
+  the same specification through its own `leaf.prior` argument. `sd` and
   `scale` name the calibration as they do for `normal`.
 
   `predict` at a training row re-krigs the jitter-free posterior mean
@@ -147,7 +147,7 @@ A list of functions:
 
 Inside the prior arguments of the fitting functions - and inside a
 family's `sigma` - the same constructors are available by bare name, so
-`dbarts(..., node.prior = normal(chi(1.5)))` works regardless of what
+`dbarts(..., leaf.prior = normal(chi(1.5)))` works regardless of what
 packages are attached: those arguments are evaluated with this
 vocabulary layered over the calling environment (for an argument a
 wrapper forwards through its `...`, the one it was written in), along
@@ -184,7 +184,7 @@ prior <- dbartsPriors$normal(dbartsPriors$chi(1.5))
 
 x <- matrix(runif(200), ncol = 2)
 y <- x[, 1] + rnorm(100, 0, 0.5)
-sampler <- dbarts(y ~ x, node.prior = prior,
+sampler <- dbarts(y ~ x, leaf.prior = prior,
                   tree.prior = dbartsPriors$cgm(power = 1.5))
 
 ## DART: a Dirichlet prior over split-variable probabilities, useful
@@ -206,7 +206,7 @@ x1 <- runif(n)
 x2 <- runif(n)
 y.lin <- 3 * x1 + rnorm(n, 0, 0.2)
 df.lin <- data.frame(x1, x2, y.lin)
-fit.lin <- dbarts(y.lin ~ x1 + x2, df.lin, node.prior = linear("x1"),
+fit.lin <- dbarts(y.lin ~ x1 + x2, df.lin, leaf.prior = linear("x1"),
                   control = dbartsControl(n.trees = 10L, n.chains = 1L,
                                            n.threads = 1L))
 samples.lin <- fit.lin$run(20L, 20L)
@@ -217,7 +217,7 @@ set.seed(2)
 y.gp <- sin(2 * pi * x1) + rnorm(n, 0, 0.2)
 df.gp <- data.frame(x1, x2, y.gp)
 fit.gp <- dbarts(y.gp ~ x1 + x2, df.gp,
-                 node.prior = gp("x1", max.leaf.size = 30L),
+                 leaf.prior = gp("x1", max.leaf.size = 30L),
                  control = dbartsControl(n.trees = 10L, n.chains = 1L,
                                           n.threads = 1L))
 samples.gp <- fit.gp$run(20L, 20L)

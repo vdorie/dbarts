@@ -273,12 +273,12 @@ control.mf <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L,
 # every sampler is built on the SAME response, with k fixed and sigma owned
 # by the outer loop
 samplers <- lapply(seq_len(K), function(f)
-    dbarts(x.mf, y.mf, control = control.mf, node.prior = normal(k = 1),
+    dbarts(x.mf, y.mf, control = control.mf, leaf.prior = normal(k = 1),
            family = gaussian(sigma = fixed(1))))
 # one prior budget divided among the forests, rather than K copies of the
 # budget for the whole of the sum
-base.mf <- samplers[[1L]]$getCalibration()[1L, "prior.scale"]
-for (s in samplers) s$setCalibration(prior.scale = base.mf / sqrt(K))
+base.mf <- samplers[[1L]]$getLeafPrior()[1L, "prior.scale"]
+for (s in samplers) s$setLeafPrior(prior.scale = base.mf / sqrt(K))
 
 g <- rep(list(rep(0, n.mf)), K)
 sigma.mf <- 1
@@ -349,7 +349,7 @@ is prior shape. The two routes agree only if the caller
     shift with `setOffset`: each single-forest sampler’s reported fit
     carries that shift, so the composition attributes it once per forest
     where the sampler attributes it once;
-2.  pins the leaf prior identically - `node.prior = normal(k)` with
+2.  pins the leaf prior identically - `leaf.prior = normal(k)` with
     $`k`$ fixed, every sampler built on a common $`y`$, and
     `updateScale = FALSE` throughout;
 3.  accepts that with a multiplier far from 1 the internal response a
@@ -386,9 +386,8 @@ rather than as probabilities (`pnorm`/`plogis` recovers the probability
 from it). Probit takes $`F`$ to be the standard normal CDF; logistic
 uses Polya-Gamma augmentation and takes $`F`$ to be the logistic CDF,
 whose latent variable has heavier tails than probit’s, so the leaf-value
-prior widens to match (`node.scale` becomes `pi * sqrt(3)` in place of
-probit’s `3`, keeping the same span of $`f(x)`$ relative to the
-response).
+prior widens to match (its scale becomes pi \* sqrt(3) in place of
+probit’s 3), without naming the slot.
 
 ``` r
 

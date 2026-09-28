@@ -53,6 +53,12 @@ in dbarts 1.1-0.
   [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md):
   the creation-time residual estimate, now `sigest`.
 
+- `node.prior`:
+
+  On [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md):
+  the leaf-value prior, now `leaf.prior`.
+
 - `power`, `base`:
 
   On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md):
@@ -111,6 +117,12 @@ in dbarts 1.1-0.
   the hierarchical thread manager they drove is gone, threads now owned
   per run, but a 0.9-x Gibbs loop that brackets its sweeps with them
   still runs.
+
+- `dbartsSampler`'s `$sampleNodeParametersFromPrior`:
+
+  Forwarded to `$sampleLeafParametersFromPrior`
+  ([`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md))
+  after a once-per-session warning.
 
 - A thread count on `dbartsSampler`'s `$run`:
 

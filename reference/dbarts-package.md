@@ -88,7 +88,7 @@ noted.
   and block-additivity
   ([`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md)).
 
-- Leaf models: constant, linear, or Gaussian-process (`node.prior`; see
+- Leaf models: constant, linear, or Gaussian-process (`leaf.prior`; see
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)).
 
 - Variable selection by the DART prior (`tree.prior = dart()`).
@@ -157,7 +157,7 @@ Two options cost more than their names suggest. `keepTrees` keeps every
 draw's trees, about 24 bytes per node per tree per draw per chain, which
 is 23 MB per chain at 200 trees and 500 draws and grows with the tree
 count and the draw count but not with \\n\\. A designated-covariate leaf
-(`node.prior = linear(...)` or `gp(...)`) caches sufficient statistics
+(`leaf.prior = linear(...)` or `gp(...)`) caches sufficient statistics
 keyed on leaf membership; measured, that cache runs about 13 to 14 bytes
 per observation per tree per chain, and at 100,000 observations, 200
 trees and one chain it was 276 MB - larger than everything else the fit

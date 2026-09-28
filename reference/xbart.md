@@ -20,7 +20,7 @@ xbart(
     seed = NULL,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
-    node.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
+    leaf.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
     storage = c("double", "single"), tree.prior = NULL,
     control = dbarts::dbartsControl(), ...)
 ```
@@ -191,7 +191,7 @@ xbart(
 
 - k:
 
-  The grid for the BART hyperparameter setting the node-mean prior
+  The grid for the BART hyperparameter setting the leaf-mean prior
   standard deviation: a vector of positive real numbers, each a cell of
   its own, or a [`list`](https://rdrr.io/r/base/list.html) whose entries
   are positive numbers and `k` hyperpriors
@@ -205,7 +205,7 @@ xbart(
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) would fit
   for the response type: fixed 2 for a continuous response and
   `chi(1.5, 2)` for a binary one. A `k` carried by a supplied
-  `node.prior` stands in for a missing argument. Fixed cells are always
+  `leaf.prior` stands in for a missing argument. Fixed cells are always
   swept largest to smallest, with a modelled cell last, and the reported
   `k` axis is un-permuted back to the order given, so results do not
   depend on the order `k` is listed in; cells still warm-start off the
@@ -311,7 +311,7 @@ xbart(
   the own-class families' K-forest or two-part fits have no single
   counterpart of; the wider family set lives on `bart`.
 
-- node.prior:
+- leaf.prior:
 
   An optional expression of the form `normal(k)`, `linear(columns, k)`,
   or `gp(columns, k, ...)` selecting the leaf model, as in
@@ -367,7 +367,7 @@ xbart(
   `cgm(...)` or `dbartsPriors$dart(...)`. `power` and `base` are xbart's
   grid axes, so a supplied object's own `power`/`base` are replaced by
   the swept grid values every cell exactly as the `k` argument replaces
-  a supplied `node.prior`'s `k`; the object's other content - a `cgm`
+  a supplied `leaf.prior`'s `k`; the object's other content - a `cgm`
   object's `split.probs`, a DART object's Dirichlet hyperparameters -
   rides every cell unchanged. Because `power`/`base` are grid axes here
   rather than ordinary scalars, they may be supplied alongside

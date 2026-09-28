@@ -194,7 +194,7 @@ values: <code>"L"</code>/<code>"R"</code> giving the branch an
 rule has no missing values to route</li>
 <li>
 <code>beta.&lt;column&gt;</code> - one per covariate designated by a
-<code>linear</code> or <code>gp</code> node prior, holding that leaf’s
+<code>linear</code> or <code>gp</code> leaf prior, holding that leaf’s
 coefficient; <code>NA</code> on internal nodes, absent entirely under
 the default constant leaf</li>
 </ul>
@@ -331,7 +331,7 @@ ahead the appropriate number of rows. For example:</p>
 <span><span class="co">## </span></span>
 <span><span class="co">## $right$right$n</span></span>
 <span><span class="co">## [1] 61</span></span></code></pre>
-<p>Under a <code>linear</code> node prior, the same function attaches
+<p>Under a <code>linear</code> leaf prior, the same function attaches
 each leaf’s slopes as <code>$beta</code>:</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">21</span><span class="op">)</span></span>
@@ -341,7 +341,7 @@ each leaf’s slopes as <code>$beta</code>:</p>
 <span></span>
 <span><span class="va">linearFit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span></span>
 <span>    <span class="va">y.lin</span> <span class="op">~</span> <span class="va">x1.lin</span> <span class="op">+</span> <span class="va">x2.lin</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="va">x1.lin</span>, <span class="va">x2.lin</span>, <span class="va">y.lin</span><span class="op">)</span>,</span>
-<span>    node.prior <span class="op">=</span> <span class="fu">linear</span><span class="op">(</span><span class="st">"x1.lin"</span><span class="op">)</span>,</span>
+<span>    leaf.prior <span class="op">=</span> <span class="fu">linear</span><span class="op">(</span><span class="st">"x1.lin"</span><span class="op">)</span>,</span>
 <span>    control <span class="op">=</span> <span class="fu"><a href="../reference/dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.trees <span class="op">=</span> <span class="fl">3L</span>, n.chains <span class="op">=</span> <span class="fl">1L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>,</span>
 <span>                            keepTrees <span class="op">=</span> <span class="cn">TRUE</span>, n.samples <span class="op">=</span> <span class="fl">2L</span>, n.burn <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="va">linearFit</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
