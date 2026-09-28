@@ -120,10 +120,21 @@
   zero rows (<code>NA</code> rows under <code>na.exclude</code> and <code>na.pass</code>),
   and R's random number stream is left as it was.</p>
 <p>A per-row <code>offset</code>, <code>weights</code> or <code>bases</code> must match
-  <code>newdata</code>'s rows and loses the same rows; a single value passes
-  through. A missing value in an <code>offset</code> or <code>weights</code>, alone
-  or in a vector, is an error. The sampler's own <code>predict</code>, <code>predictForests</code> and
-  <code>getTrees</code> methods take no <code>na.action</code> and keep the default.</p>
+  <code>newdata</code>'s rows and loses the rows <code>na.action</code> drops; a single
+  value passes through unaffected. A missing value in a per-row
+  <code>offset</code> or <code>weights</code> (an <code>n x K</code> category shift counts as
+  one, on a multinomial fit) marks its row incomplete exactly as an
+  unroutable predictor does, and every <code>na.action</code> above governs it the
+  same way: the default and <code>na.fail</code> refuse it by name, <code>na.pass</code>
+  returns <code>NA</code> for it, and <code>na.omit</code>/<code>na.exclude</code> drop it
+  (<code>na.exclude</code> padding it back). A missing value in a single
+  (length-one) <code>offset</code> or <code>weights</code> is always an error, whatever
+  <code>na.action</code> is, since there is then no row for it to mark; the same
+  goes for any missing value in <code>bases</code>. The sampler's own
+  <code>predict</code>, <code>predictForests</code> and <code>getTrees</code> methods take no
+  <code>na.action</code>, keep the default, and check no per-row
+  <code>offset.test</code> for a missing value at all: an <code>NA</code> there reaches
+  the engine unrouted.</p>
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>

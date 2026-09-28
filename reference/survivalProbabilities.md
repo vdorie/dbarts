@@ -120,12 +120,13 @@ re-expansion and no trees needed, in preference to the training data.
 
 ## Value
 
-An array of survival probabilities. With `combineChains = TRUE` (or a
-single chain), the dimensions are draws \\\times\\ times \\\times\\
-observations; with `combineChains = FALSE` on a multi-chain fit, a chain
-dimension precedes them (chains \\\times\\ draws \\\times\\ times
-\\\times\\ observations). Observations are those of `newdata`, or the
-training data when `newdata` is `NULL`.
+An array of survival probabilities. With `combineChains = TRUE` the
+dimensions are draws \\\times\\ times \\\times\\ observations; with
+`combineChains = FALSE` a chain dimension precedes them (chains
+\\\times\\ draws \\\times\\ times \\\times\\ observations), length 1 on
+a one-chain fit rather than dropped, as `extract` and `predict` keep
+theirs. Observations are those of `newdata`, or the training data when
+`newdata` is `NULL`.
 
 ## See also
 

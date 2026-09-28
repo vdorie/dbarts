@@ -320,7 +320,14 @@ family(object, ...)
   observations. Default `TRUE` across `bartBT` and
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md); the
   number of chains is tracked regardless on the returned object's
-  `n.chains` component (see ‘Value’).
+  `n.chains` component (see ‘Value’). On `extract`, `predict` and
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md),
+  `FALSE` keeps that leading `nchain` margin - length 1 on a one-chain
+  fit - rather than dropping it there; a scalar type (`sigma`, `k`, a
+  component's `dispersion`) is then a 1 x samples matrix instead of a
+  plain vector. A fit's own STORED `combinechains = FALSE` fields keep
+  0.9-x's one-chain collapse instead, so `$yhat.train` and its siblings
+  never gain that margin on their own.
 
 - keeptrees:
 
@@ -1106,17 +1113,17 @@ bartFit <- bart(x, y)
 #> [1] iteration: 400 (of 500)
 #> [2] iteration: 500 (of 500)
 #> [1] iteration: 500 (of 500)
-#> [3] iteration: 100 (of 500)
 #> [4] iteration: 100 (of 500)
-#> [3] iteration: 200 (of 500)
+#> [3] iteration: 100 (of 500)
 #> [4] iteration: 200 (of 500)
-#> [3] iteration: 300 (of 500)
+#> [3] iteration: 200 (of 500)
 #> [4] iteration: 300 (of 500)
-#> [3] iteration: 400 (of 500)
+#> [3] iteration: 300 (of 500)
 #> [4] iteration: 400 (of 500)
-#> [3] iteration: 500 (of 500)
+#> [3] iteration: 400 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.147154
+#> [3] iteration: 500 (of 500)
+#> total seconds in loop: 0.148025
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

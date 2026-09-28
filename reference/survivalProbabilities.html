@@ -169,13 +169,13 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>An array of survival probabilities. With <code>combineChains = TRUE</code>
-  (or a single chain), the dimensions are draws \(\times\) times
-  \(\times\) observations; with <code>combineChains = FALSE</code> on a
-  multi-chain fit, a chain dimension precedes them (chains \(\times\)
-  draws \(\times\) times \(\times\) observations). Observations are
-  those of <code>newdata</code>, or the training data when <code>newdata</code> is
-  <code>NULL</code>.</p>
+    <p>An array of survival probabilities. With <code>combineChains = TRUE</code> the
+  dimensions are draws \(\times\) times \(\times\) observations; with
+  <code>combineChains = FALSE</code> a chain dimension precedes them (chains
+  \(\times\) draws \(\times\) times \(\times\) observations), length
+  1 on a one-chain fit rather than dropped, as <code>extract</code> and
+  <code>predict</code> keep theirs. Observations are those of <code>newdata</code>, or
+  the training data when <code>newdata</code> is <code>NULL</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

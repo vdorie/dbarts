@@ -102,10 +102,19 @@ rows under `na.exclude` and `na.pass`), and R's random number stream is
 left as it was.
 
 A per-row `offset`, `weights` or `bases` must match `newdata`'s rows and
-loses the same rows; a single value passes through. A missing value in
-an `offset` or `weights`, alone or in a vector, is an error. The
-sampler's own `predict`, `predictForests` and `getTrees` methods take no
-`na.action` and keep the default.
+loses the rows `na.action` drops; a single value passes through
+unaffected. A missing value in a per-row `offset` or `weights` (an
+`n x K` category shift counts as one, on a multinomial fit) marks its
+row incomplete exactly as an unroutable predictor does, and every
+`na.action` above governs it the same way: the default and `na.fail`
+refuse it by name, `na.pass` returns `NA` for it, and
+`na.omit`/`na.exclude` drop it (`na.exclude` padding it back). A missing
+value in a single (length-one) `offset` or `weights` is always an error,
+whatever `na.action` is, since there is then no row for it to mark; the
+same goes for any missing value in `bases`. The sampler's own `predict`,
+`predictForests` and `getTrees` methods take no `na.action`, keep the
+default, and check no per-row `offset.test` for a missing value at all:
+an `NA` there reaches the engine unrouted.
 
 ## Value
 

@@ -280,18 +280,22 @@ print(x, ...)
   rather than reporting the offset-free surface, which an explicit
   all-zero matrix asks for. `NULL` (the default) is the only value a fit
   trained without one takes by default, and passing the training offset
-  back at the training rows reproduces `yhat.train`. A large negative
-  entry is a shift like any other: the probabilities it drives are the
-  exact softmax, so one far enough below its row's others underflows to
-  zero (and its log to `-Inf`) as it would anywhere else.
+  back at the training rows reproduces `yhat.train`. A missing value in
+  one of its rows is governed by `na.action` (see ‘At Prediction’ in
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md));
+  a scalar `NA` is always refused. A large negative entry is a shift
+  like any other: the probabilities it drives are the exact softmax, so
+  one far enough below its row's others underflows to zero (and its log
+  to `-Inf`) as it would anywhere else.
 
   For `predict` on a `bartNegbin` fit, the same name is the log-exposure
   shift at the PREDICTED rows, entering the replayed log-odds latent
   \\\psi\\ additively before \\r e^{\psi}\\. `NULL` (the default)
-  applies none. A single value is recycled over the predicted rows;
-  otherwise it has one value per row of `newdata`. A missing value,
-  alone or in a vector, is refused by name rather than giving `NA`
-  predictions.
+  applies none. A single value is recycled over the predicted rows and a
+  missing one is always refused; otherwise it has one value per row of
+  `newdata`, and a missing value there is governed by `na.action` (see
+  ‘At Prediction’ in
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)).
 
   For `predict` on a `bartOrdinal` or `bartHurdle` fit the name is a
   formal only so that the fourth position means the same thing on all
@@ -808,7 +812,12 @@ print(x, ...)
   rather than in a chains-by-samples array. Default `TRUE`, as for
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md); the
   number of chains is tracked regardless on the returned object's
-  `n.chains` component (see ‘Value’).
+  `n.chains` component (see ‘Value’). On `extract`, `predict` and
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md),
+  `FALSE` keeps that leading chains margin - length 1 on a one-chain
+  fit - rather than dropping it there; see
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+  `combinechains` item.
 
 - n.cuts:
 
@@ -1755,7 +1764,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001567
+#> total seconds in loop: 0.001592
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1803,7 +1812,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001958
+#> total seconds in loop: 0.001977
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

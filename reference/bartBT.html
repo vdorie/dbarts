@@ -200,7 +200,7 @@ bartBT is the BayesTree-compatible surface: 0.9-34's argument list exactly, no n
 <p>On <code>predict</code>, <code>n.threads</code> is a per-call worker count for the saved-tree replay, defaulting to the fit's own: the replay is partitioned by (chain, posterior draw), each partition writing its own rows and nothing being reduced across workers, so the answer is identical bit for bit at every value and only the time taken changes. It is the last positional argument of every <code>predict</code> method, so a caller that passes arguments by position is unaffected by its presence. A value that is not a single positive number is an error rather than a silent fallback.</p></dd>
 
    <dt id="arg-combinechains-combinechains">combinechains, combineChains<a class="anchor" aria-label="anchor" href="#arg-combinechains-combinechains"></a></dt>
-<dd><p>Logical; if <code>TRUE</code>, samples from every chain are collapsed into a single matrix/vector of <code>nchain</code> \(\times\) <code>ndpost</code> rows (see ‘Value’ for the row order); if <code>FALSE</code>, they are kept in arrays of dimensions equal to <code>nchain</code> \(\times\) <code>ndpost</code> \(\times\) number of observations. Default <code>TRUE</code> across <code>bartBT</code> and <code><a href="bart.html">bart</a></code>; the number of chains is tracked regardless on the returned object's <code>n.chains</code> component (see ‘Value’).</p></dd>
+<dd><p>Logical; if <code>TRUE</code>, samples from every chain are collapsed into a single matrix/vector of <code>nchain</code> \(\times\) <code>ndpost</code> rows (see ‘Value’ for the row order); if <code>FALSE</code>, they are kept in arrays of dimensions equal to <code>nchain</code> \(\times\) <code>ndpost</code> \(\times\) number of observations. Default <code>TRUE</code> across <code>bartBT</code> and <code><a href="bart.html">bart</a></code>; the number of chains is tracked regardless on the returned object's <code>n.chains</code> component (see ‘Value’). On <code>extract</code>, <code>predict</code> and <code><a href="survivalProbabilities.html">survivalProbabilities</a></code>, <code>FALSE</code> keeps that leading <code>nchain</code> margin - length 1 on a one-chain fit - rather than dropping it there; a scalar type (<code>sigma</code>, <code>k</code>, a component's <code>dispersion</code>) is then a 1 x samples matrix instead of a plain vector. A fit's own STORED <code>combinechains = FALSE</code> fields keep 0.9-x's one-chain collapse instead, so <code>$yhat.train</code> and its siblings never gain that margin on their own.</p></dd>
 
    <dt id="arg-keeptrees">keeptrees<a class="anchor" aria-label="anchor" href="#arg-keeptrees"></a></dt>
 <dd><p>Logical; must be <code>TRUE</code> in order to use <code>predict</code> with the result of a <code>bart</code> fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.</p></dd>
@@ -475,17 +475,17 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] iteration: 400 (of 500)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [2] iteration: 500 (of 500)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] iteration: 500 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 100 (of 500)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 100 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 200 (of 500)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 100 (of 500)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 200 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 300 (of 500)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 200 (of 500)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 300 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 400 (of 500)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 300 (of 500)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 400 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 500 (of 500)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 400 (of 500)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 500 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.147154</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 500 (of 500)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.148025</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 </span>
