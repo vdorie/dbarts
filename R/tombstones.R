@@ -846,8 +846,9 @@ noOpThreadMethod <- function(name) {
     paste0("tombstone.", name),
     "'$",
     name,
-    "' does nothing in dbarts 1.0-0: threads are owned by each run. The ",
-    "method is removed in dbarts ",
+    "' does nothing in dbarts 1.0-0: threads are owned by each run, which ",
+    "uses control@n.threads; $setControl changes it. The method is removed ",
+    "in dbarts ",
     tombstoneExpiry,
     "."
   )
