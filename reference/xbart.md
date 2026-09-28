@@ -173,8 +173,10 @@ xbart(
   `n.threads > 1` the units are divided into approximately equal chunks
   and executed on that many parallel workers (a
   [`makeCluster`](https://rdrr.io/r/parallel/makeCluster.html) cluster).
-  A `k`-fold run of a single replication therefore uses up to `k`
-  workers. The default uses
+  Each worker is a separate R session that loads dbarts and receives its
+  own copy of the data, which costs roughly 80 MB per worker beyond the
+  data itself. A `k`-fold run of a single replication therefore uses up
+  to `k` workers. The default uses
   [`guessNumCores`](https://vdorie.github.io/dbarts/reference/guessNumCores.md),
   which should work across the most common operating system/hardware
   pairs. Warnings raised while fitting or scoring, including by a
