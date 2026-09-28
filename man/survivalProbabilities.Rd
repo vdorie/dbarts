@@ -109,13 +109,13 @@ survivalProbabilities(object, ...)
   re-expansion and no trees needed, in preference to the training data.
 }
 \value{
-  An array of survival probabilities. With \code{combineChains = TRUE}
-  (or a single chain), the dimensions are draws \eqn{\times} times
-  \eqn{\times} observations; with \code{combineChains = FALSE} on a
-  multi-chain fit, a chain dimension precedes them (chains \eqn{\times}
-  draws \eqn{\times} times \eqn{\times} observations). Observations are
-  those of \code{newdata}, or the training data when \code{newdata} is
-  \code{NULL}.
+  An array of survival probabilities. With \code{combineChains = TRUE} the
+  dimensions are draws \eqn{\times} times \eqn{\times} observations; with
+  \code{combineChains = FALSE} a chain dimension precedes them (chains
+  \eqn{\times} draws \eqn{\times} times \eqn{\times} observations), length
+  1 on a one-chain fit rather than dropped, as \code{extract} and
+  \code{predict} keep theirs. Observations are those of \code{newdata}, or
+  the training data when \code{newdata} is \code{NULL}.
 }
 \seealso{
   \code{\link{bart}},

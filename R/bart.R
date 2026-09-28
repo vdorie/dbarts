@@ -2746,27 +2746,6 @@ bart2Hurdle <- function(
   result
 }
 
-# survivalProbabilities is out of scope for dec-A79 (extract and predict
-# alone keep a one-chain fit's chain margin under combineChains = FALSE), so
-# a chain margin the two of them now add on a one-chain fit's own draws -
-# extract(..., combineChains = FALSE) and predict(..., combineChains =
-# FALSE), both called below at a fixed FALSE regardless of survivalProbabilities'
-# own combineChains - is stripped back off before this reads dim(x) to lay
-# out its own uncombined-by-chain-count convention. A replayed heteroscedastic
-# scale rides as 'x's "s" attribute (predict's own convention) and is
-# unwrapped the same way.
-dropOneChainMargin <- function(x, n.chains) {
-  if (n.chains > 1L || length(dim(x)) <= 2L) {
-    return(x)
-  }
-  s <- attr(x, "s")
-  x <- dropChainDimension(x)
-  if (!is.null(s)) {
-    attr(x, "s") <- dropChainDimension(s)
-  }
-  x
-}
-
 # S(t | x) draws from an AFT linear predictor and its residual scale, in the
 # uncombined convention (chains x samples x observations) where the scale
 # draws align with the fit draws unambiguously - the loglik channel's
@@ -2868,7 +2847,6 @@ hazardSurvivalProbabilities <- function(
     # extract.bart's sample = "test" arm reads object$yhat.test directly and
     # applies the same probability transform predict(type = "ev") does
     haz <- extract(object, type = "ev", sample = "test", combineChains = FALSE)
-    haz <- dropOneChainMargin(haz, n.chains)
     n <- dim(haz)[length(dim(haz))] %/% K
     # the test rows are period-major, so the first n are the subjects, whose
     # make.unique names are their own
@@ -2917,10 +2895,7 @@ hazardSurvivalProbabilities <- function(
       # hazards through the correct link (type = "ev" keys on $family, the
       # binary token); predict codes bigX to the training columns and
       # replays the trees
-      haz <- dropOneChainMargin(
-        predict(object, bigX, type = "ev", combineChains = FALSE),
-        n.chains
-      )
+      haz <- predict(object, bigX, type = "ev", combineChains = FALSE)
     } else {
       rows <- hazardPredictRows(object, bigX, n, K, subjectNames, na.action)
       n <- rows$numPredicted
@@ -2931,6 +2906,12 @@ hazardSurvivalProbabilities <- function(
         object$fit$control@n.threads,
         NULL
       )
+      # codedRowDraws reads through predictCodedTest directly rather than
+      # predict(), so it carries none of predict's own chain margin; add the
+      # one a one-chain fit keeps everywhere else (dec-A79)
+      if (n.chains == 1L) {
+        haz <- addChainDimension(haz)
+      }
     }
   }
   drawDims <- dim(haz)[-length(dim(haz))]
@@ -3064,7 +3045,6 @@ survivalProbabilities.bart <- function(
       na.action = na.action
     )
   }
-  linearPredictor <- dropOneChainMargin(linearPredictor, n.chains)
 
   # The scale the normal tail divides by. A homoscedastic fit's is the stored
   # per-draw sigma at any rows; a heteroscedastic fit's is the surface, which

@@ -510,10 +510,12 @@
       \item Per-observation outputs now carry row names, so a comparison
             against an unnamed vector or array made under 0.9-x can fail on
             attributes alone.
-      \item \code{extract} and \code{predict} keep a chains-by-samples (or,
-            per-observation, chains-by-samples-by-observations) shape under
-            \code{combineChains = FALSE} even on a one-chain fit, rather
-            than dropping the chain margin as 0.9-x did: a scalar parameter
+      \item \code{extract}, \code{predict} and
+            \code{\link{survivalProbabilities}} keep a chains-by-samples
+            (or, per-observation, chains-by-samples-by-observations) shape
+            under \code{combineChains = FALSE} even on a one-chain fit,
+            rather than dropping the chain margin as 0.9-x did: a scalar
+            parameter
             (\code{sigma}, \code{k}, a hurdle component's \code{dispersion})
             is then a 1 x samples matrix instead of a plain vector, and a
             category or per-forest margin is kept alongside the length-1

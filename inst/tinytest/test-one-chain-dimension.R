@@ -1,11 +1,10 @@
-# extract and predict keep a chain dimension of length 1 on a one-chain fit
-# under combineChains = FALSE (dec-A79), for every type and fit class; the
-# fit's own stored fields are unchanged. Each uncombined shape is checked
-# against the combineChains = TRUE one it drops to (identical values, one
-# leading margin), rather than against a hardcoded shape alone, so a value
-# regression fails the same test as a shape one. survivalProbabilities is
-# out of scope for this item and keeps its pre-existing shape (checked at
-# the end).
+# extract, predict and survivalProbabilities keep a chain dimension of
+# length 1 on a one-chain fit under combineChains = FALSE (dec-A79), for
+# every type and fit class; the fit's own stored fields are unchanged. Each
+# uncombined shape is checked against the combineChains = TRUE one it drops
+# to (identical values, one leading margin), rather than against a
+# hardcoded shape alone, so a value regression fails the same test as a
+# shape one.
 
 set.seed(101)
 n <- 30L
@@ -239,24 +238,21 @@ expectKeptChain(
   info = "hurdle predict"
 )
 
-# --- survivalProbabilities is out of scope: no chain margin appears ---
+# --- survivalProbabilities keeps the same kept chain margin ---
 
 fitAft <- quick(cbind(abs(y) + 0.1, rbinom(n, 1L, 0.7)), family = "aft")
-spCombined <- survivalProbabilities(fitAft, times = c(0.5, 1))
-spUncombined <- survivalProbabilities(
-  fitAft,
-  times = c(0.5, 1),
-  combineChains = FALSE
+expectKeptChain(
+  survivalProbabilities(fitAft, times = c(0.5, 1), combineChains = FALSE),
+  survivalProbabilities(fitAft, times = c(0.5, 1)),
+  info = "survivalProbabilities aft"
 )
-expect_identical(dim(spUncombined), dim(spCombined))
-expect_identical(spUncombined, spCombined)
 spNewdata <- survivalProbabilities(
   fitAft,
   times = c(0.5, 1),
   newdata = newX,
   combineChains = FALSE
 )
-expect_identical(dim(spNewdata), c(8L, 2L, 6L))
+expect_identical(dim(spNewdata), c(1L, 8L, 2L, 6L))
 
 if (requireNamespace("survival", quietly = TRUE)) {
   status <- rbinom(n, 1L, 0.7)
@@ -264,18 +260,19 @@ if (requireNamespace("survival", quietly = TRUE)) {
     survival::Surv(sample(1:3, n, replace = TRUE), status),
     family = "hazard"
   )
-  shCombined <- survivalProbabilities(fitHaz)
-  shUncombined <- survivalProbabilities(fitHaz, combineChains = FALSE)
-  expect_identical(dim(shUncombined), dim(shCombined))
-  expect_identical(shUncombined, shCombined)
+  expectKeptChain(
+    survivalProbabilities(fitHaz, combineChains = FALSE),
+    survivalProbabilities(fitHaz),
+    info = "survivalProbabilities hazard"
+  )
   newHaz <- matrix(rnorm(4L * 2L), 4L, 2L)
   shNewdata <- survivalProbabilities(
     fitHaz,
     newdata = newHaz,
     combineChains = FALSE
   )
-  expect_identical(dim(shNewdata)[1L], 8L)
-  rm(status, fitHaz, shCombined, shUncombined, newHaz, shNewdata)
+  expect_identical(dim(shNewdata)[1L:2L], c(1L, 8L))
+  rm(status, fitHaz, newHaz, shNewdata)
 }
 
 rm(
@@ -306,7 +303,5 @@ rm(
   vcUncombined,
   vcCombined,
   fitAft,
-  spCombined,
-  spUncombined,
   spNewdata
 )
