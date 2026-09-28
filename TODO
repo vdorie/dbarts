@@ -325,6 +325,10 @@ items
     accepted on the likelihood ratio - is on this list as a candidate
     mixing gain for every leaf model, not GP leaves alone; the second
     sweep variant it needs is the largest piece.
+    xbart warm starts (VD 2026-09-28, dec-A05): a fresh chain per fold
+    pays a full burn-in; a partial carry-over from a neighbouring cell
+    or fold, such as keeping the stumps or half the trees, is a
+    candidate once the mixing research says what burn-in buys.
     Owed there: the equal-cost arm on a quiet machine (slice 2's
     rule-gibbs-balance.R has landed). Rotation, a Stage R0
     generator-only regrow census, the re-specified reallocation census
