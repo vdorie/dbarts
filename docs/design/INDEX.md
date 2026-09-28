@@ -54,8 +54,8 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
-| linear-leaves.md | LANDED, 2026-07-04 | Adds a per-leaf linear-regression leaf model (`node.prior = linear(...)`), the second leaf model beyond constant. |
-| gp-leaves.md | LANDED (Part 1, stages 1-4); Part 2 unscheduled | Adds a per-leaf Gaussian-process leaf model (`node.prior = gp(...)`); a non-conjugate extension for non-Gaussian likelihoods is designed but not built, pending a real consumer. |
+| linear-leaves.md | LANDED, 2026-07-04 | Adds a per-leaf linear-regression leaf model (`leaf.prior = linear(...)`), the second leaf model beyond constant. |
+| gp-leaves.md | LANDED (Part 1, stages 1-4); Part 2 unscheduled | Adds a per-leaf Gaussian-process leaf model (`leaf.prior = gp(...)`); a non-conjugate extension for non-Gaussian likelihoods is designed but not built, pending a real consumer. |
 
 ## Data layer
 
@@ -87,7 +87,7 @@ Columns: `file | STATUS | one-liner`.
 | robust-errors.md | LANDED, 2026-07-17; AMENDED 2026-09-09 by [front-door](../plans/front-door.md#front-door) S2 (`resid.dist` retired), removed outright 2026-09-24 (never reached main) | Adds outlier-robust Student-t residuals (`family = student(...)`) via scale-mixture augmentation. |
 | prior-defaults.md | REFERENCE | A plain record of every current prior default and its source. |
 | active-rows-mask.md | REFERENCE | Standing reference for the per-observation 0/1 active-row mask (`$setActiveRows`): its contract, how each response family composes it, and what it leaves untouched. |
-| nameable-calibration.md | ARC COMPLETE | Lets a fit name its per-forest leaf-prior scale directly in response units (`prior.scale`), with a matching `$getCalibration`/`$setCalibration` pair, also reachable through the flat C API. |
+| nameable-calibration.md | ARC COMPLETE | Lets a fit name its per-forest leaf-prior scale directly in response units (`prior.scale`), with a matching `$getLeafPrior`/`$setLeafPrior` pair, also reachable through the flat C API. |
 | change-move-balance.md | LANDED, 2026-07-08 | Fixes a detailed-balance defect in the tree change move that biased splits toward low-cardinality variables. |
 | empty-leaf-veto.md | DECIDED (keep-and-document), 2026-07-07 | Keeps the empty-leaf veto rather than replacing it with occupancy-aware proposals; the veto is ranked (docs/architecture.md, "Tree moves"). |
 | grow-from-root.md | MIXED (GO on cut-scan/warm-start; NO-GO on standalone sampler) | XBART-style root-down tree construction; ships only as a warm-start producer, not as a standalone sampler (it is not MH-exact). |

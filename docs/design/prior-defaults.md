@@ -8,10 +8,10 @@ Every default on the current surface, its source, and what it interacts
 with. Values are unchanged from BayesTree/BART/dbarts history; this is a
 record, not a re-derivation.
 
-## k (node-prior scale)
+## k (leaf-prior scale)
 
 Continuous responses default to 2 (`dbartsPriors$normal()`, `bart2`);
-`bart` matches it verbatim. CGM's argument: the node prior is
+`bart` matches it verbatim. CGM's argument: the leaf prior is
 `N(0, sigma_mu^2)` with `sigma_mu = 0.5 / (k sqrt(m))` for `m` trees.
 Summed over the forest, `Var(f(x)) = m sigma_mu^2 = 0.25 / k^2`
 independent of `m`, so `k` prior standard deviations of `f(x)` always
@@ -78,7 +78,7 @@ else. bartMachine's JSS paper names the same issue and recommends the
 fix dbarts offers no automation for: log-transform or winsorize extreme
 values before fitting. The in-package alternative is the `chi(1.5, 2)`
 hyperprior on `k` (default for binary responses, available for
-continuous ones too via `node.prior = normal(chi(1.5, 2))`) - letting
+continuous ones too via `leaf.prior = normal(chi(1.5, 2))`) - letting
 the leaf scale adapt some of the outlier's effect away rather than
 letting a fixed `k` absorb it.
 

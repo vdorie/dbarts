@@ -107,7 +107,7 @@ vector goes, at creation, on `setWeights` and on the whole-data conduit, rather 
 refusal those two rows' case-weights cell otherwise names
 ([`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp)) - and `extract(type = "loglik")` (every row,
 including hurdle's composed density and bcf's combined-fit score; multinomial's engine-side
-channel stays undefined, see Gaps). Named calibration (`$getCalibration`/`$setCalibration`, a
+channel stays undefined, see Gaps). Named calibration (`$getLeafPrior`/`$setLeafPrior`, a
 per-forest `prior.scale`, [2. The surface](nameable-calibration.md#2-the-surface)) is open on
 every single-forest sampler, hetero included with its variance forest not counted
 ([`buildVarianceForest`](../../src/bartcore/chain.hpp)), and refused on both couplings, whose leaf scale comes from a

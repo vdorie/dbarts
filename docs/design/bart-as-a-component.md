@@ -97,7 +97,7 @@ replay with the stored glue and the caller's own bases (`predictBlend`).
 R5 raises its own wording ahead of the bridge for a sampler carrying
 amplitudes (`refuseAmplitudeMutation`, [`refuseAmplitudeMutation`](../../R/bartcore.R)), on
 `setResponse`/`setOffset` at `updateScale = TRUE`, on `setData`, `setModel`
-and `setCalibration`. The probe is `!is.null(data@bases)` - a capability test,
+and `setLeafPrior`. The probe is `!is.null(data@bases)` - a capability test,
 deliberately not a forest count, because a K-forest multinomial carries
 several forests and no amplitudes.
 
@@ -123,7 +123,7 @@ the cell).
 | `installTrees` (donor warm start) | allowed | refused | `refuseMultiForestWarmStart` ([`refuseMultiForestWarmStart`](../../src/R_interface_bartcore.cpp)) |
 | `growFromRoot` | allowed | allowed, the combiner composing inside the grow sweep | none, by decision - see the paragraph above |
 | `setModel` | allowed | refused | `refuseMultiForestMutation` ([`refuseMultiForestMutation`](../../src/R_interface_bartcore.cpp)) |
-| `setCalibration` | allowed | refused when a combiner owns the calibration (BCF, multinomial) | `Chain::setForestPriorScale` ([`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp)), returns false rather than raising itself |
+| `setLeafPrior` | allowed | refused when a combiner owns the calibration (BCF, multinomial) | `Chain::setForestPriorScale` ([`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp)), returns false rather than raising itself |
 | `setResponse` | allowed, any `updateScale` | allowed only at `updateScale = FALSE`, and only if the combiner supports it (`AmplitudeForestCombiner`: yes; base `ForestCombiner`, multinomial: no) | `refuseMultiForestResponseMutation` ([`refuseMultiForestResponseMutation`](../../src/R_interface_bartcore.cpp)) |
 | `setOffset` | allowed, any `updateScale` | same rule as `setResponse` | `refuseMultiForestResponseMutation` ([`refuseMultiForestResponseMutation`](../../src/R_interface_bartcore.cpp)) |
 | `setWeights` | allowed | allowed only if the combiner supports response mutation (no `updateScale` clause - weights carry no scale to pin) | `refuseMultiForestResponseMutation` ([`refuseMultiForestResponseMutation`](../../src/R_interface_bartcore.cpp)) |
@@ -255,7 +255,7 @@ The refusal matrix, section 2, driven entry by entry through R5 on a
 two-forest sampler: `setResponse`/`setOffset` allowed at
 `updateScale = FALSE` and refused at TRUE; `setWeights`, `setSigma`,
 `setForestWeights`, `setForestBasis`, `getForestAmplitudes` allowed;
-`setData`, `setModel`, `setCalibration`, `setTestPredictor`, `predict`
+`setData`, `setModel`, `setLeafPrior`, `setTestPredictor`, `predict`
 refused; `setPredictor` allowed whole-matrix, column-granular and
 per-observation. A single-forest control arm takes `updateScale = TRUE`,
 `setData` and `setTestPredictor`.

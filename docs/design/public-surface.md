@@ -264,7 +264,7 @@ one are probit).
 
 ## 3a. Prior specification
 
-The quoted-prior DSL (`tree.prior = cgm(power, base)`, `node.prior =
+The quoted-prior DSL (`tree.prior = cgm(power, base)`, `leaf.prior =
 normal(chi(1.25))`) is re-evaluated in a namespace environment - which is
 also why it never polluted the search path: `normal`, `chisq`, `chi`, and
 `fixed` are too generic to export (rstanarm exports `normal`; masking bugs
@@ -287,7 +287,7 @@ the caller's environment; specs resolve against data/control at fit time
   enter the search path.
 - The bare-name sugar keeps working: fitting functions evaluate their
   prior arguments with the constructor vocabulary layered over the
-  caller's environment, so `node.prior = normal(chi(1.25))` resolves
+  caller's environment, so `leaf.prior = normal(chi(1.25))` resolves
   against dbarts' vocabulary inside those arguments regardless of what is
   attached. A value that is already a prior object passes through, so the
   sugar and the programmatic path compose. NSE-only tricks
@@ -362,7 +362,7 @@ its hardcoded regression values were regenerated. Update 2026-07-04:
 views compose with linear leaves - buildFromParent gathers the designated
 columns' raw values with standardization constants from the parent's full
 data (the same calibration inheritance as the copied cut grid), and xbart
-gained a node.prior argument (linear-leaves.md). Still open, as decided:
+gained a leaf.prior argument (linear-leaves.md). Still open, as decided:
 serialization and any public exposure.
 
 ## 6. C API and callbacks
@@ -423,7 +423,7 @@ DECIDED, v1 surface of `inst/include/dbarts/dbarts.h`:
   plain arrays.
 - Entry points: create/destroy; run into a caller-owned `dbarts_results`
   struct (sigma, train, test, varcount, k, varprobs; NULL skips);
-  sampleTreesFromPrior/sampleNodeParametersFromPrior; setResponse,
+  sampleTreesFromPrior/sampleLeafParametersFromPrior; setResponse,
   setOffset(updateScale), setWeights, setSigma, getLatents; setPredictor/
   updatePredictor (transactional, rollback on failure); setTestPredictors
   (NULL removes)/setTestOffset; predict into a caller buffer;
@@ -522,7 +522,7 @@ version bump. Full detail: docs/plans/archive/dbarts-h-reshape.md.
   argument.
 - Wave-2 models (linear leaves): engine work, independent of this
   document. Linear leaves are LANDED in full (linear-leaves.md,
-  2026-07-04): a designated column set per leaf regression via node.prior =
+  2026-07-04): a designated column set per leaf regression via leaf.prior =
   linear(columns, k) on dbarts() and xbart(), including data-handle views
   (section 5 update).
 

@@ -91,7 +91,7 @@ most likely first.
    `tree.prior = cgm(split.probs = )`, and `proposal.probs` to
    `control = dbartsControl(proposal.probs = )`. The old names still work
    until 1.1-0, with a once-per-session warning. New arguments include
-   `family`, `factors`, `na.action`, `tree.prior`, `node.prior` and
+   `family`, `factors`, `na.action`, `tree.prior`, `leaf.prior` and
    `control`. `rngSeed` is spelled `seed`; the old name still works, with a
    once-per-session warning, but a package that passes on only the names
    `dbartsControl` itself accepts drops it and runs unseeded.

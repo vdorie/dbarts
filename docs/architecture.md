@@ -48,7 +48,7 @@ Above the reference class, sampler creation has one resolution step.
 `bart` and `bartBT` build their samplers by calling `dbarts()`, and
 [`resolveSamplerSpec`](../R/spec.R) turns `dbarts()`'s arguments - the
 family object, which carries the residual prior
-(`gaussian(sigma = chisq(3, 0.9))`), the tree and node prior objects, and the
+(`gaussian(sigma = chisq(3, 0.9))`), the tree and leaf prior objects, and the
 control - into the `(control, model, data)` triple plus the resolved response
 family that construction consumes. It is exported as `dbartsSpec()`
 (docs/design/consumer-spec-surface.md). `xbart` builds its per-fold samplers

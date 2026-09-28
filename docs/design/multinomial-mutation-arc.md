@@ -150,14 +150,14 @@ except where it names another file:
 | active-row mask | [`bartcore_setActiveRows`](../../src/R_interface_bartcore.cpp) | the bartcore.R wrapper is gone; reachable via [`setActiveRows`](../../R/dbarts.R) | S, global only (`[f21]`) |
 | predict (K-aware, own n x K offset) | [`bartcore_predict`](../../src/R_interface_bartcore.cpp) | retired: [`bartcorePredict`](../../R/bartcore.R); reachable via [`predict`](../../R/dbarts.R) | S |
 | per-category fits / varcounts | [`bartcore_getForestFits`](../../src/R_interface_bartcore.cpp), [`bartcore_getForestVariableCounts`](../../src/R_interface_bartcore.cpp) | the bartcore.R wrapper is gone; reachable via [`getForestFits`](../../R/dbarts.R), [`getForestVariableCounts`](../../R/dbarts.R) | S |
-| calibration read | [`bartcore_getCalibration`](../../src/R_interface_bartcore.cpp) | the bartcore.R wrapper is gone; reachable via [`getCalibration`](../../R/dbarts.R) | S (map columns, NaN off-map) |
+| calibration read | [src/R_interface_bartcore.cpp:4389](https://github.com/vdorie/dbarts/blob/38a9c7877ad60307bf98aa5b8ca22d0c739bd2f2/src/R_interface_bartcore.cpp#L4389) | the bartcore.R wrapper is gone; reachable via [R/dbarts.R:2520](https://github.com/vdorie/dbarts/blob/38a9c7877ad60307bf98aa5b8ca22d0c739bd2f2/R/dbarts.R#L2520) | S (map columns, NaN off-map) |
 | state store / restore | [`bartcore_storeState`](../../src/R_interface_bartcore.cpp), [`bartcore_setState`](../../src/R_interface_bartcore.cpp) | unresolved | S, STRUCTURAL not bitwise (omega redrawn; [The surface](multinomial.md#the-surface)) |
 | saved trees | [`bartcore_getTrees`](../../src/R_interface_bartcore.cpp) | the bartcore.R wrapper is gone; reachable via [`getTrees`](../../R/dbarts.R) | S, forest-indexed |
 
 Refused, with the refusal already written: `setResponse` / `setOffset`
 (redirect to counts / category offset, [`refuseMultiForestResponseMutation`](../../src/R_interface_bartcore.cpp)), `setWeights`
 (same branch), `setSigma`, `setData` / `setModel`
-([`refuseMultiForestMutation`](../../src/R_interface_bartcore.cpp)), `setCalibration` ([`bartcore_setCalibration`](../../src/R_interface_bartcore.cpp)),
+([`refuseMultiForestMutation`](../../src/R_interface_bartcore.cpp)), `setCalibration` ([src/R_interface_bartcore.cpp:4444](https://github.com/vdorie/dbarts/blob/38a9c7877ad60307bf98aa5b8ca22d0c739bd2f2/src/R_interface_bartcore.cpp#L4444)),
 `setForestWeights` ([`bartcore_setForestWeights`](../../src/R_interface_bartcore.cpp), permanent, model grounds), `getLatents`
 (NULL - `[f22]`), `getFitsWithoutOffset`.
 
