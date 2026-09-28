@@ -244,6 +244,34 @@ Record: docs/plans/surface-refusals.md, which calls it a maintainer ruling but q
 The exact hash check on the C interface is a documented opt-in for consumers that ship in lockstep with dbarts, not the default. The alternative, leaving lockstep as the default, was rejected. With the check off, a consumer built against any 1.x header sharing the major and minor number is admitted, and since those constants have never moved that window covers the whole pre-release history. A later ruling drops the flag from the sister packages and leaves it off, with the version pair as the guard. No maintainer ruling on this entry itself is on record. See also: [dec-B111].
 Record: docs/plans/prerc-surface-freeze.md; docs/plans/dbarts-h-freeze.md, which say the maintainer adopted the recommendations and settled the sub-choices but quote no words and show no fork. Marked: not mine; superseded by dec-B111. [dec-B58]
 
+**A one-chain survival read keeps its chain dimension too**
+survivalProbabilities with combineChains = FALSE returns a chain dimension of length 1 on a one-chain fit, as extract and predict now do, reading the one-chain ruling's heading, that combineChains = FALSE always keeps the chain dimension, over its text, which names only extract and predict. The alternative was survivalProbabilities alone collapsing the chain at one chain. A caller of survivalProbabilities with combineChains = FALSE on a one-chain fit gets one more dimension than 0.9-34 gave. Not yet ruled on. See also: [dec-A79].
+Record: this register; the one-chain test file. Marked: blank. [dec-A91]
+
+**A lone missing offset or weight is still refused**
+At predict, a missing value in a per-row offset or weight marks its row incomplete under na.action, but a single recycled value that is missing stays refused under every na.action, since a lone missing offset already reads as no offset elsewhere. When a malformed offset or weight and an unroutable predictor are both present, the offset or weight is reported first; na.fail names every missing channel in one message. The alternative was routing the recycled value through na.action as well. A one-row newdata with a missing offset of length one is refused under na.omit and na.pass. Not yet ruled on. See also: [dec-A89].
+Record: this register; docs/plans/predict-na-action.md. Marked: blank. [dec-A92]
+
+**A count swap still refuses a missing count**
+A multinomial fit's missing response now goes through na.action at the front door, but the sampler's own count setter, which takes no na.action, still refuses a missing count outright. The alternative was a setter that drops or pads rows, which would change the sampler's row count mid-chain. A user swapping counts with a missing cell gets an error rather than a dropped row. Not yet ruled on.
+Record: this register. Marked: blank. [dec-A93]
+
+**The old leaf prior name is kept on two entry points**
+The 0.9-x spelling node.prior still works, with a once-per-session warning until 1.1-0, on dbarts() and dbartsSpec() only; bart(), bart2() and xbart() refuse it by name and point to leaf.prior, and giving both spellings is an error. This reads the tombstone rulings as covering only an argument an entry point shipped in 0.9-x: dbarts() took node.prior there, bart2() and xbart() took k, and dbartsSpec follows the precedent the renamed sigma set. The alternative was the old name on all four doors, which would also have warned twice on a bart-then-xbart path such as bartCause's. A 0.9-x call never passed node.prior to bart2 or xbart, so no released call breaks. Not yet ruled on. See also: [dec-B129], [dec-A02], [dec-B128].
+Record: docs/plans/leaf-vocabulary.md. Marked: blank. [dec-A94]
+
+**Internal model slots keep node**
+The internal model class keeps its node.prior, node.hyperprior and node.scale slots and its node-prior class names, and the internal prior parser keeps its node.prior formal with the new spelling mapped onto it. The class is not exported and its slots are undocumented, but treatSens and the released stan4bart build it by these slot names. The alternative was renaming them with the user-facing names, which would break those two packages. A user reading the sampler's model object sees node where the arguments say leaf. Not yet ruled on. See also: [dec-B129].
+Record: docs/plans/leaf-vocabulary.md. Marked: blank. [dec-A95]
+
+**Every forest's trees carry a leading forest column**
+The sampler's getTrees puts the forest column first, since its rows stack forest by forest, where the sibling readers disagree on where the forest margin sits; its forest argument also takes a vector of indices; plotTree takes one forest, defaulting to the only one and required when there are several, as it treats chains; extract(type = "trees") is added to the multinomial fit, the one fit class with several forests that lacked it. The alternatives were placing the column as one sibling reader does, and plotTree defaulting to forest 1. stan4bart's tree extract passes the new column through, always 1, and notes it in its NEWS rather than stripping it. Not yet ruled on. See also: [dec-A80].
+Record: this register; the sampler's manual page. Marked: blank. [dec-A96]
+
+**bartCause keeps its own one-chain shapes**
+bartCause normalizes the one-chain result from dbarts on read, so its stored fields and outputs keep the shapes they had, with no chain dimension at one chain on its BART path, and it works with dbarts before and after the change. The alternative was bartCause adopting the chain dimension in its own fields, which would change its outputs for one-chain fits. bartCause's one-chain outputs stay unlike dbarts' own. Not yet ruled on. See also: [dec-A79].
+Record: this register; bartCause's utility helper for the one-chain shape. Marked: blank. [dec-A97]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modelled, not refused**
@@ -923,3 +951,15 @@ Record: code only, in the tools directory. Marked: not mine. [dec-C07]
 **Two header calls: scope and a parameter name**
 Two open questions about the header's shape were settled: the first cleanup item covers seven entries rather than the five originally named, and the basis setter's parameter is renamed to say that the data is row-major instead of transposing the contract to match the old name. The alternatives were the narrower five-entry scope and the transposition. A caller who lays the data out the other way still gets no error, only a parameter name that says which way round it goes. A later ruling took both entries this shaped out of the header. No maintainer ruling on the two choices themselves is on record. See also: [dec-B86].
 Record: docs/plans/capi-shape.md, which lists both as open decisions for the maintainer and records the outcome with no attribution. Marked: not mine; superseded by dec-B86, which took both entries it shaped out of the header. [dec-B61]
+
+**Engine test accessors split by body size**
+Behind the test peer, the engine's test-only accessors with one-line bodies became static functions on the peer and the four with real bodies became private members; the ForTesting suffix is gone, cross-class forwarders live on the peer, the column store's two reads go straight through its existing public test-set block, and the sampler's per-chain navigation stays public. The alternatives were private members everywhere with peer forwarders, or every body moved into the test header. Nothing is visible to a user. Not yet ruled on. See also: [dec-A81].
+Record: docs/plans/test-scaffolding-consolidation.md. Marked: blank. [dec-C08]
+
+**Constructor hints name only the list the argument reads**
+An unfound prior, family or forest constructor gets a hint naming the one constructor list the argument being read takes constructors from, from one shared table, and no hint where no list applies; the hint carries no NEWS entry, as the forest hint had none. The alternative was a hint searching every list, which pointed tree.prior = student(3) at the family list. Nothing breaks. Not yet ruled on. See also: [dec-A75].
+Record: docs/plans/constructor-vocabulary.md. Marked: blank. [dec-C09]
+
+**xbart's parallel test uses a built-in generator**
+xbart's parity across thread counts under a non-default generator is tested with Knuth-TAOCP-2002, no user-supplied generator being loadable portably in a test; the gaussian equivalence baseline was re-recorded for its two xbart scenarios, with a hand-rebuilt cross-validation cell as the oracle, and a test that tree counts in one unit draw on separate streams was added. The alternative was no parity test for non-default kinds. Nothing is visible to a user. Not yet ruled on. See also: [dec-A90].
+Record: benchmarks/baselines/MANIFEST. Marked: blank. [dec-C10]

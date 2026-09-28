@@ -139,8 +139,14 @@ is ignored with a warning; `setControl` sets the count). `xbart` renames
 `sigma` to `sigest`, takes a two-element `n.burn`, and no longer carries a
 chain across folds, so reported losses rise. `rbart_vi` and its methods
 stop with an error naming stan4bart, except `print` on a saved rbart fit,
-which prints the call and a note. R 4.2.0 and a C++20 compiler are
-required.
+which prints the call and a note. `dbarts`'s `node.prior` is spelled
+`leaf.prior`, and the sampler's `sampleNodeParametersFromPrior` is
+`sampleLeafParametersFromPrior`; the old names work until 1.1-0 with a
+once-per-session warning. `extract`, `predict` and `survivalProbabilities`
+with `combineChains = FALSE` keep a chain dimension of length 1 on a
+one-chain fit. The sampler's `getTrees` reads every forest and leads with
+a `forest` column, on a single-forest sampler too. R 4.2.0 and a C++20
+compiler are required.
 
 ## 3. Breaking changes for linked packages
 
@@ -305,10 +311,13 @@ Open before the merge:
 
 - **The release-candidate declaration** (`TODO`'s `rc-gate`), after the
   maintainer's read of this document.
-- **Agent-made decisions not yet ruled on**: 26 unmarked entries in
+- **Agent-made decisions not yet ruled on**: 33 unmarked entries in
   section A of `docs/decisions.md`. Those that fix user-visible surface,
   and would cost a deprecation cycle to change after release:
   - 1-based forest indices in R (dec-A69)
+  - which entry points keep the old leaf prior name (dec-A94)
+  - where the forest column sits in the tree readout (dec-A96)
+  - the chain dimension of a one-chain survival read (dec-A91)
 - **Three CRAN packages outside ours.** lorax's examples fit a three-level
   factor response, which 0.9-34 coded as 0, 1, 2 and 1.0-0 refuses; its
   maintainer is to be asked to change them. WeightIt and MatchIt fit
