@@ -2798,7 +2798,7 @@ dbartsSampler <- setRefClass(
       newdata = NULL,
       forest = NULL
     ) {
-      "Returns a data.frame containing the internal state of the trees, one row per node with a leading 'forest' column (indexed from 1, present even on a single-forest sampler). At the default forest = NULL every forest is stacked forest-major, as the sampler's other per-forest readers stack at their own default; forest also takes a single index or a vector of them, each validated as getCalibration/getForestFits/getForestAmplitudes/getForestVariableCounts validate one."
+      "Returns a data.frame containing the internal state of the trees, one row per node with a leading 'forest' column (indexed from 1, present even on a single-forest sampler). At the default forest = NULL every forest is stacked forest-major, as the sampler's other per-forest readers stack at their own default; forest also takes a single index or a vector of them, each validated as getCalibration/getForestFits/getForestAmplitudes/getForestVariableCounts validate one. treeNums defaults to, and is validated against, EACH selected forest's own tree count, which need not match forest 1's."
       matchedCall <- match.call()
       current <- isTRUE(current)
       # live working trees have no sample dimension, so treat a current request
@@ -2826,12 +2826,16 @@ dbartsSampler <- setRefClass(
           sampleNums <- coerceOrError(sampleNums, "integer")
         }
       }
-      if (is.null(matchedCall$treeNums)) {
-        treeNums <- seq_len(control@n.trees)
+      # a later forest can carry its own n.trees (a forest() term or a
+      # forests = entry), so a supplied treeNums is checked per forest below
+      # rather than against control@n.trees (forest 1's count alone); left
+      # unsupplied, it defaults to EACH forest's own seq_len
+      treeNumsSupplied <- !is.null(matchedCall$treeNums)
+      if (treeNumsSupplied) {
+        treeNums <- coerceOrError(treeNums, "integer")
       }
 
       chainNums <- coerceOrError(chainNums, "integer")
-      treeNums <- coerceOrError(treeNums, "integer")
 
       if (any(chainNums <= 0 | chainNums > control@n.chains)) {
         stop("'chainNums' must be in [1, ", control@n.chains, "]")
@@ -2841,9 +2845,6 @@ dbartsSampler <- setRefClass(
           any(sampleNums <= 0 | sampleNums > control@n.samples)
       ) {
         stop("'sampleNums' must be in [1, ", control@n.samples, "]")
-      }
-      if (any(treeNums <= 0 | treeNums > control@n.trees)) {
-        stop("'treeNums' must be in [1, ", control@n.trees, "]")
       }
 
       # route new data through the trees so 'n' counts that data instead of the
@@ -2858,22 +2859,46 @@ dbartsSampler <- setRefClass(
       # unlike that reader (and getForestFits/getForestVariableCounts, which
       # drop the margin entirely on a single-forest sampler's NULL read), the
       # forest column stays even at one forest - a tree's forest is part of
-      # what it is, not a shape only a multi-forest sampler has
+      # what it is, not a shape only a multi-forest sampler has. The bound is
+      # checked here, ahead of the .Call, so an out-of-range forest reads the
+      # same "forest index out of range" the sibling readers raise rather
+      # than getTrees' own bridge-side wording; an empty forest vector is
+      # refused the same way a scalar one's length check would refuse it.
       forestIndices <- if (is.null(forest)) {
         seq_len(bartcoreNumForests(ptr)) - 1L
+      } else if (length(forest) == 0L) {
+        resolveForestIndex(forest)
       } else {
-        vapply(forest, resolveForestIndex, 0L)
+        indices <- vapply(forest, resolveForestIndex, 0L)
+        if (any(indices >= bartcoreNumForests(ptr))) {
+          stop("forest index out of range")
+        }
+        indices
       }
       # saved-tree replay reads the current training predictors (the engine
       # keeps no matrix); a sparse data@x is skipped for a NULL replay source
       trainingMatrix <- rawPredictorMatrix(data@x)
       blocks <- lapply(forestIndices, function(forestIndex) {
+        forestTreeCount <- bartcoreForestTreeCount(ptr, forestIndex)
+        forestTreeNums <- if (treeNumsSupplied) {
+          treeNums
+        } else {
+          seq_len(forestTreeCount)
+        }
+        if (any(forestTreeNums <= 0 | forestTreeNums > forestTreeCount)) {
+          stop(
+            "'treeNums' must be in [1, ",
+            forestTreeCount,
+            "] for forest ",
+            forestIndex + 1L
+          )
+        }
         block <- .Call(
           C_dbarts_bartcore_getTrees,
           ptr,
           chainNums,
           sampleNums,
-          treeNums,
+          forestTreeNums,
           current,
           newdata,
           trainingMatrix,
@@ -2940,6 +2965,12 @@ dbartsSampler <- setRefClass(
         } else {
           stop("forest required if more than one forest in sampler")
         }
+      } else {
+        # a single tree's rows are ambiguous once more than one forest
+        # contributes them; resolveForestIndex enforces a single positive
+        # integer, its 0-based return unused since getTrees resolves forest
+        # again on its own terms
+        resolveForestIndex(forest)
       }
 
       tree <-

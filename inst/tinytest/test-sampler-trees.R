@@ -426,4 +426,98 @@ expect_error(forestSampler$getTrees(forest = 2L), "out of range")
 rm(forestSampler, defaultForest, x, y, n)
 
 
+## ---------------------------------------------------------------------------
+## Each forest's OWN tree count, not forest 1's (control@n.trees), governs
+## getTrees' default and validation for that forest: a forest() formula term
+## defaults to 50 trees regardless of the fit's own n.trees, and a forests =
+## declaration can give either forest more trees than the other.
+## ---------------------------------------------------------------------------
+set.seed(17L)
+n <- 80L
+a <- rnorm(n)
+b <- rnorm(n)
+z <- rbinom(n, 1L, 0.5)
+y <- a + b + z * (a - b) + rnorm(n, 0, 0.3)
+asymDf <- data.frame(a = a, b = b, z = z, y = y)
+
+# bart()'s own default n.trees (75) for forest 1, forest()'s own default (50)
+# for forest 2, neither overridden here
+asymFit <- dbarts::bart(
+  y ~ a + b + z:forest(a + b),
+  asymDf,
+  keepTrees = TRUE,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.samples = 3L,
+  n.burn = 3L,
+  verbose = FALSE
+)
+asymTrees <- dbarts::extract(asymFit, "trees")
+expect_equal(range(asymTrees$tree[asymTrees$forest == 1L]), c(1L, 75L))
+expect_equal(range(asymTrees$tree[asymTrees$forest == 2L]), c(1L, 50L))
+# a small n.trees on forest 1 does not truncate forest 2's own, larger count
+asymFitSmall <- dbarts::bart(
+  y ~ a + b + z:forest(a + b),
+  asymDf,
+  keepTrees = TRUE,
+  n.trees = 7L,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.samples = 3L,
+  n.burn = 3L,
+  verbose = FALSE
+)
+asymSmallForest2 <- dbarts::extract(asymFitSmall, "trees", forest = 2L)
+expect_equal(sort(unique(asymSmallForest2$tree)), seq_len(50L))
+# plotTree reaches a forest-2 tree index past forest 1's own count
+pdf(NULL)
+expect_silent(
+  plotTree(asymFit, forest = 2L, treeNum = 50L, chainNum = 1L, sampleNum = 1L)
+)
+dev.off()
+# an explicit treeNums is checked against the NAMED forest's own count
+expect_error(
+  asymFit$fit$getTrees(forest = 2L, treeNums = 1:75),
+  "'treeNums' must be in [1, 50] for forest 2",
+  fixed = TRUE
+)
+rm(asymDf, asymFit, asymTrees, asymFitSmall, asymSmallForest2, a, b, z, y, n)
+
+# a forests = sampler whose SECOND forest carries MORE trees than the first
+set.seed(19L)
+n <- 70L
+xMore <- matrix(runif(n * 2L), n, 2L)
+zMore <- rbinom(n, 1L, 0.5)
+yMore <- xMore[, 1L] + zMore * xMore[, 2L] + rnorm(n, 0, 0.2)
+moreControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 8L,
+  n.samples = 3L,
+  n.burn = 2L,
+  keepTrees = TRUE,
+  updateState = FALSE,
+  verbose = FALSE
+)
+moreSampler <- dbarts::dbarts(
+  xMore,
+  yMore,
+  forests = list(forest(), forest(basis = ~ factor(zMore), n.trees = 30L)),
+  control = moreControl
+)
+invisible(moreSampler$run(2L, 3L))
+moreTrees <- moreSampler$getTrees()
+expect_equal(range(moreTrees$tree[moreTrees$forest == 1L]), c(1L, 8L))
+expect_equal(range(moreTrees$tree[moreTrees$forest == 2L]), c(1L, 30L))
+rm(
+  xMore,
+  zMore,
+  yMore,
+  moreControl,
+  moreSampler,
+  moreTrees,
+  n
+)
+
+
 rm(df, testData, treesArgReason)

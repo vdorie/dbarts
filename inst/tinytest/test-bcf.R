@@ -287,59 +287,45 @@ expect_identical(fit.null, fit.omit)
 # (columns 1, 3), while the unrestricted mu forest splits somewhere outside it
 # - proof the selector addresses different forests. bcMod runs live trees
 # (no keepTrees), so query current = TRUE. var is 1-based; leaves report -1.
-tauTrees <- bcMod$getTrees(
-  forest = 2L,
-  chainNums = 1L,
-  treeNums = seq_len(25L),
-  current = TRUE
-)
+# treeNums is left at its default on both reads: mu carries 50 trees (the
+# control's n.trees) and tau carries its own 25, and each forest defaults to
+# its OWN count rather than forest 1's.
+tauTrees <- bcMod$getTrees(forest = 2L, chainNums = 1L, current = TRUE)
 expect_true(all(tauTrees$forest == 2L))
+expect_equal(range(tauTrees$tree), c(1L, 25L))
 tauSplits <- tauTrees$var[tauTrees$var > 0L]
 expect_true(length(tauSplits) > 0L)
 expect_true(all(tauSplits %in% c(1L, 3L)))
 
-# forest 1 explicitly, since the two forests carry different tree counts and
-# the default forest = NULL would stack both under one treeNums selection
-muTrees <- bcMod$getTrees(
-  forest = 1L,
-  chainNums = 1L,
-  treeNums = seq_len(50L),
-  current = TRUE
-)
+muTrees <- bcMod$getTrees(forest = 1L, chainNums = 1L, current = TRUE)
+expect_equal(range(muTrees$tree), c(1L, 50L))
 muSplits <- muTrees$var[muTrees$var > 0L]
 expect_true(any(!(muSplits %in% c(1L, 3L))))
 
-# an out-of-range forest index errors cleanly (bridge-side, as for forest fits)
+# an out-of-range forest index errors cleanly, in R ahead of the .Call, with
+# the same wording the sibling per-forest readers raise
 expect_error(
-  bcMod$getTrees(
-    forest = 3L,
-    chainNums = 1L,
-    treeNums = 1L,
-    current = TRUE
-  ),
-  "out of range"
+  bcMod$getTrees(forest = 3L, chainNums = 1L, current = TRUE),
+  "forest index out of range",
+  fixed = TRUE
 )
 
-# forest as a vector stacks the named forests forest-major, exactly as
-# rbinding the individual reads would (treeNums kept within 1:25, valid for
-# both forests, so the asymmetric tree count does not need resolving here)
-muTreesCapped <- bcMod$getTrees(
-  forest = 1L,
-  chainNums = 1L,
-  treeNums = seq_len(25L),
-  current = TRUE
+# an explicit treeNums is checked against EACH selected forest's own count:
+# 1:50 is forest 1's whole range but exceeds tau's 25
+expect_error(
+  bcMod$getTrees(forest = 2L, treeNums = seq_len(50L), current = TRUE),
+  "'treeNums' must be in [1, 25] for forest 2",
+  fixed = TRUE
 )
-bothTrees <- bcMod$getTrees(
-  forest = c(1L, 2L),
-  chainNums = 1L,
-  treeNums = seq_len(25L),
-  current = TRUE
-)
+
+# forest as a vector stacks the named forests forest-major, each read at its
+# own default tree count, exactly as rbinding the individual reads would
+bothTrees <- bcMod$getTrees(forest = c(1L, 2L), chainNums = 1L, current = TRUE)
 expect_equal(unique(bothTrees$forest), c(1L, 2L))
-manualStack <- rbind(muTreesCapped, tauTrees)
+manualStack <- rbind(muTrees, tauTrees)
 row.names(manualStack) <- row.names(bothTrees)
 expect_equal(bothTrees, manualStack)
-rm(muTreesCapped, bothTrees, manualStack)
+rm(bothTrees, manualStack)
 
 # the tau forest's variable-count query sees the same column restriction
 # the getTrees selector does: counts outside the moderator subset {x1, x3}

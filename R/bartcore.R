@@ -884,6 +884,14 @@ resolveForestIndex <- function(forest) {
 # own model, and neither sees a plain single-forest sampler.
 bartcoreNumForests <- function(ptr) .Call(C_dbarts_bartcore_numForests, ptr)
 
+# One 0-based forest's own tree count, the engine's authoritative answer
+# (getTrees defaults and validates treeNums against it, forest by forest):
+# forest 1's count need not equal control@n.trees once a forest() term or a
+# forests = entry gives a later forest its own n.trees.
+bartcoreForestTreeCount <- function(ptr, forest) {
+  .Call(C_dbarts_bartcore_numTreesInForest, ptr, forest)
+}
+
 # The forest-count refusal on a DONOR warm start. At more than one forest the
 # install would answer rather than raise - the trees arrive from a saved slot
 # and the amplitudes from the donor's live state - leaving a legal-looking fit

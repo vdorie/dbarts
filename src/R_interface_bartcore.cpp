@@ -4272,6 +4272,18 @@ SEXP bartcore_numForests(SEXP ptrExpr) {
     static_cast<int>(holder.sampler->shape().numForests));
 }
 
+// One forest's own tree count. getTrees' R5 method needs this to default and
+// validate treeNums PER FOREST: forest 1's count (control@n.trees) need not
+// match a later forest's own declared n.trees (a forest() term or a forests =
+// entry may set one), so a single shared bound is wrong for either purpose.
+SEXP bartcore_numTreesInForest(SEXP ptrExpr, SEXP forestExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  size_t forestIndex = forestIndexFrom(forestExpr, shape);
+  return Rf_ScalarInteger(
+    static_cast<int>(holder.sampler->numTreesInForest(forestIndex)));
+}
+
 // One forest's amplitudes, its own q_f x numChains matrix, or - at a NULL
 // forest - the whole vector stacked forest-major, sum_f q_f x numChains, which
 // is the shape the run's own glue channel carries. The vector is RAGGED, forest
