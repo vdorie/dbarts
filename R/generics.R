@@ -403,9 +403,9 @@ reshapeScalarChannel <- function(x, n.chains, combine) {
 
 ## convertSamplesFromDbartsToBart, keeping a one-chain fit's chain margin
 ## under combineChains = FALSE (dec-A79), for predict's own per-call reshape
-## of fresh engine output. convertSamplesFromDbartsToBart itself stays
-## unfixed: R/bart.R's packaging calls pass the FIT's own combineChains, and
-## that stored shape is not part of this item.
+## of fresh engine output. convertSamplesFromDbartsToBart itself is
+## untouched: R/bart.R's packaging calls pass the fit's own combineChains,
+## and a fit's stored fields never gain this margin on their own.
 convertSamplesForCaller <- function(samples, n.chains, combineChains) {
   x <- convertSamplesFromDbartsToBart(samples, n.chains, combineChains)
   if (combineChains || n.chains > 1L) x else addChainDimension(x)

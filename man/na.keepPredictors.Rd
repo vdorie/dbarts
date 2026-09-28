@@ -92,8 +92,9 @@ na.keepPredictors(object, \dots)
   \code{na.action} is, since there is then no row for it to mark; the same
   goes for any missing value in \code{bases}. The sampler's own
   \code{predict}, \code{predictForests} and \code{getTrees} methods take no
-  \code{na.action}, keep the default, and read a missing \code{offset.test}
-  value as before.
+  \code{na.action}, keep the default, and check no per-row
+  \code{offset.test} for a missing value at all: an \code{NA} there reaches
+  the engine unrouted.
 }
 \value{
   \code{object} with the missing-response rows removed, carrying an
