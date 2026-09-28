@@ -288,5 +288,103 @@ expect_true(
 
 rm(x, y, sdY, xval, k20, kSmall50, treeCount)
 
+## hand-rebuilt cell. The oracles above show a seeded xbart call is
+## thread-count invariant; they do not show its VALUES are right. Rebuild one
+## cell entirely from outside: reconstruct the fold split and the unit's
+## sampler seed through the documented derivation - one split seed per
+## replication, then one seed per sampler a unit creates - fit that fold with
+## an ordinary dbarts() sampler at the seed and the cell's hyperparameters,
+## score it by hand, and check it against xbart's own reported loss.
+##
+## sigest is pinned explicitly on both sides rather than left to the engine's
+## own linear-model fallback, so the residual prior calibrates identically
+## without reproducing that fallback here. x's global min and max sit at rows
+## 1 and 2, and the seed is one for which the held-out fold never draws them,
+## so the training-only cut grid dbarts() builds from x[trainRows, ] matches
+## xbart's shared, full-data grid exactly (both default to
+## useQuantiles = FALSE, a uniform grid over each column's range) - the one
+## condition under which a sampler over the training rows alone reproduces a
+## fold view over the full data bit for bit.
+n <- 20L
+numTest <- 4L
+seed <- 2L
+n.trees <- 5L
+n.samples <- 8L
+n.burn <- c(6L, 3L)
+sigest <- 1.0
+
+set.seed(9182L)
+x <- matrix(runif(n), n, 1L)
+x[1L] <- 0
+x[2L] <- 1
+y <- 3 * x[, 1L] + rnorm(n)
+
+cellLoss <- dbarts::xbart(
+  x,
+  y,
+  method = "random subsample",
+  n.reps = 1L,
+  n.test = numTest,
+  n.trees = n.trees,
+  n.threads = 1L,
+  seed = seed,
+  n.samples = n.samples,
+  n.burn = n.burn,
+  sigest = sigest
+)
+
+# useUnitSeed = FALSE reproduces an off-by-one in the seed index: the split
+# seed handed to the sampler instead of the unit's own
+rebuildCell <- function(useUnitSeed = TRUE) {
+  set.seed(seed)
+  seeds <- sample.int(.Machine$integer.max, 2L)
+  splitSeed <- seeds[1L]
+  unitSeed <- seeds[2L]
+  set.seed(splitSeed)
+  testRows <- sort(sample.int(n, numTest))
+  trainRows <- setdiff(seq_len(n), testRows)
+  sampler <- dbarts::dbarts(
+    x[trainRows, , drop = FALSE],
+    y[trainRows],
+    test = x[testRows, , drop = FALSE],
+    control = dbarts::dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = n.trees,
+      n.samples = n.samples,
+      n.cuts = 100L,
+      useQuantiles = FALSE,
+      keepTrees = FALSE,
+      keepTrainingFits = FALSE,
+      updateState = FALSE,
+      verbose = FALSE,
+      seed = if (useUnitSeed) unitSeed else splitSeed
+    ),
+    sigest = sigest
+  )
+  samples <- sampler$run(n.burn[1L], n.samples)
+  sqrt(mean((y[testRows] - rowMeans(samples$test))^2))
+}
+
+expect_equal(as.vector(cellLoss), rebuildCell())
+expect_false(isTRUE(all.equal(
+  as.vector(cellLoss),
+  rebuildCell(useUnitSeed = FALSE)
+)))
+
+rm(
+  n,
+  numTest,
+  seed,
+  n.trees,
+  n.samples,
+  n.burn,
+  sigest,
+  x,
+  y,
+  cellLoss,
+  rebuildCell
+)
+
 suppressWarnings(RNGkind(sample.kind = oldSampleKind))
 rm(oldSampleKind, testData)
