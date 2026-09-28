@@ -2795,9 +2795,10 @@ dbartsSampler <- setRefClass(
       chainNums,
       sampleNums,
       current = FALSE,
-      newdata = NULL
+      newdata = NULL,
+      forest = NULL
     ) {
-      "Returns a data.frame containing the internal state of the trees."
+      "Returns a data.frame containing the internal state of the trees, one row per node with a leading 'forest' column (indexed from 1, present even on a single-forest sampler). At the default forest = NULL every forest is stacked forest-major, as the sampler's other per-forest readers stack at their own default; forest also takes a single index or a vector of them, each validated as getCalibration/getForestFits/getForestAmplitudes/getForestVariableCounts validate one."
       matchedCall <- match.call()
       current <- isTRUE(current)
       # live working trees have no sample dimension, so treat a current request
@@ -2853,19 +2854,41 @@ dbartsSampler <- setRefClass(
       }
 
       ptr <- getPointer()
+      # NULL is every forest, forest-major, as getForestAmplitudes stacks;
+      # unlike that reader (and getForestFits/getForestVariableCounts, which
+      # drop the margin entirely on a single-forest sampler's NULL read), the
+      # forest column stays even at one forest - a tree's forest is part of
+      # what it is, not a shape only a multi-forest sampler has
+      forestIndices <- if (is.null(forest)) {
+        seq_len(bartcoreNumForests(ptr)) - 1L
+      } else {
+        vapply(forest, resolveForestIndex, 0L)
+      }
       # saved-tree replay reads the current training predictors (the engine
       # keeps no matrix); a sparse data@x is skipped for a NULL replay source
-      trees <- .Call(
-        C_dbarts_bartcore_getTrees,
-        ptr,
-        chainNums,
-        sampleNums,
-        treeNums,
-        current,
-        newdata,
-        rawPredictorMatrix(data@x),
-        0L
-      )
+      trainingMatrix <- rawPredictorMatrix(data@x)
+      blocks <- lapply(forestIndices, function(forestIndex) {
+        block <- .Call(
+          C_dbarts_bartcore_getTrees,
+          ptr,
+          chainNums,
+          sampleNums,
+          treeNums,
+          current,
+          newdata,
+          trainingMatrix,
+          forestIndex
+        )
+        # cbind's recycling refuses a length-1 scalar against a zero-row
+        # block (an empty treeNums/sampleNums/chainNums selection), so the
+        # forest column is sized explicitly rather than recycled
+        cbind(forest = rep(forestIndex + 1L, nrow(block)), block)
+      })
+      trees <- if (length(blocks) == 1L) {
+        blocks[[1L]]
+      } else {
+        do.call(rbind, blocks)
+      }
       # categorical rules report their split in 'directions' (value is NA);
       # when any column can hold one, pad the decode to the declared levels
       if (any(data@varTypes == CATEGORICAL_VARIABLE)) {
@@ -2893,10 +2916,11 @@ dbartsSampler <- setRefClass(
       treeNum,
       chainNum,
       sampleNum,
+      forest = NULL,
       treePlotPars = c(nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
       ...
     ) {
-      "Minimialist visualization of tree branching and contents."
+      "Minimialist visualization of tree branching and contents. forest, as with getTrees, defaults to the sampler's only forest and is required on a sampler with more than one."
 
       refusePlotTreeArgs(sys.call())
       matchedCall <- match.call()
@@ -2910,12 +2934,19 @@ dbartsSampler <- setRefClass(
       if (is.null(matchedCall$sampleNum)) {
         sampleNum <- if (control@keepTrees) control@n.samples else 1L
       }
+      if (is.null(forest)) {
+        forest <- if (bartcoreNumForests(getPointer()) == 1L) {
+          1L
+        } else {
+          stop("forest required if more than one forest in sampler")
+        }
+      }
 
       tree <-
         if (control@keepTrees) {
-          .self$getTrees(treeNum, chainNum, sampleNum)
+          .self$getTrees(treeNum, chainNum, sampleNum, forest = forest)
         } else {
-          .self$getTrees(treeNum, chainNum)
+          .self$getTrees(treeNum, chainNum, forest = forest)
         }
 
       maxDepth <- getTreeDepthAndSize(tree)[["depth"]]

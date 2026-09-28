@@ -723,11 +723,11 @@ predict.bart <- function(
 }
 
 # extract(type = "trees") rewrites the matched call onto the sampler's
-# getTrees(treeNums, chainNums, sampleNums, current, newdata); none of the
-# extract method's own vocabulary reaches getTrees (bart.Rd's 'Extracting
-# Trees' section documents only chainNums/sampleNums/treeNums/newdata as
-# accepted there), so a caller-supplied argument that collides by name -
-# sample, combineChains, forest, contribution - is refused by name instead of
+# getTrees(treeNums, chainNums, sampleNums, current, newdata, forest); none of
+# the extract method's own vocabulary but 'forest' reaches getTrees (bart.Rd's
+# 'Extracting Trees' section documents chainNums/sampleNums/treeNums/newdata/
+# forest as accepted there), so a caller-supplied argument that collides by
+# name - sample, combineChains, contribution - is refused by name instead of
 # being left to partial-match one of getTrees's differently-named formals
 # (sample -> sampleNums) or fall through to a raw 'unused argument'.
 refuseTreesArguments <- function(treesCall, ownNames) {
@@ -737,8 +737,8 @@ refuseTreesArguments <- function(treesCall, ownNames) {
       "'",
       supplied[1L],
       "' is not used when type = \"trees\"; the sampler's getTrees accepts ",
-      "'chainNums', 'sampleNums', 'treeNums', 'current', and 'newdata' ",
-      "instead (see 'Extracting Trees' in ?bart)"
+      "'chainNums', 'sampleNums', 'treeNums', 'current', 'newdata', and ",
+      "'forest' instead (see 'Extracting Trees' in ?bart)"
     )
   }
   invisible(NULL)
@@ -776,7 +776,7 @@ extract.bart <- function(
     treesCall <- match.call()
     refuseTreesArguments(
       treesCall,
-      c("sample", "combineChains", "forest", "contribution")
+      c("sample", "combineChains", "contribution")
     )
     target <- quote(object$fit$getTrees)
     target[[2L]][[2L]] <- treesCall$object
@@ -1454,7 +1454,7 @@ multinomialUnusedArgs <- list(
 
 extract.bartMultinomial <- function(
   object,
-  type = c("ev", "ppd", "bart", "forest", "loglik", "varcount"),
+  type = c("ev", "ppd", "bart", "forest", "loglik", "varcount", "trees"),
   sample = c("train", "test"),
   combineChains = TRUE,
   ...
@@ -1462,6 +1462,32 @@ extract.bartMultinomial <- function(
   type <- validateType(type, eval(formals(extract.bartMultinomial)$type))
   sampleSupplied <- !missing(sample)
   refuseMultinomialLatentType(type)
+
+  # unlike 'bart'/'forest' above, a category's TREES are recorded and
+  # identified (only the per-category level, not the structure, is
+  # non-identified), so this forwards to the K-forest sampler's own getTrees
+  # exactly as extract.bart does, ahead of multinomialUnusedArgs' blanket
+  # 'forest' refusal below
+  if (type == "trees") {
+    if (is.null(object$fit)) {
+      refuseWithoutTrees(
+        "extract(type = \"trees\")",
+        bartKeepTreesArgument(object)
+      )
+    }
+    treesCall <- match.call()
+    refuseTreesArguments(
+      treesCall,
+      c("sample", "combineChains", "contribution")
+    )
+    target <- quote(object$fit$getTrees)
+    target[[2L]][[2L]] <- treesCall$object
+    treesCall[[1L]] <- target
+    treesCall$object <- NULL
+    treesCall$type <- NULL
+    return(eval(treesCall, parent.frame()))
+  }
+
   refuseUnusedGenericArgs(
     list(...),
     "extract",
