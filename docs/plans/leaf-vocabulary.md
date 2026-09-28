@@ -387,3 +387,37 @@ Tombstone list, after the `sigma` entry: `\code{node.prior} on \code{dbarts} and
    keeping calibration as the noun (dec-B129 notes no package uses it).
 6. treatSens needs no change, because item 2 keeps its internals working. Rejected: a lockstep treatSens edit.
    Moving treatSens onto `dbartsSpec()` stays a separate treatSens item.
+7. [`resolvePriorScale`](../../R/model.R)'s own `node.prior`/`node.hyperprior` formals stay: they are a private
+   helper called positionally from [`resolveSamplerSpec`](../../R/spec.R) and [`xbart`](../../R/xbart.R) (the
+   latter through its renamed `leafPrior` local), so the parameter spelling is invisible to every caller. Kept in
+   the same "internal plumbing keeps node" bucket as item 2, rather than renamed for cosmetic symmetry. Rejected:
+   renaming the two formals, an unforced diff with nothing observing it.
+
+## Landing
+
+dbarts: two commits, `Say leaf where a name means a leaf` (59d0dbbb) and
+`Update standing docs for the leaf-vocabulary rename` (beb60ae1). stan4bart
+(branch bartcore): `Follow dbarts's node.prior -> leaf.prior rename`
+(42bfdaf). bartCause (branch dbarts-1.0): `Call the sampler's renamed
+getLeafPrior` (1c497f4).
+
+Verification: tinytest 9336/9336; `tests/cpp/test_bartcore` all green;
+`lintr::lint_package()` and `air format --check .` clean; `check-rc-codoc.R`,
+`check-win-drift.R` and `check-doc-freshness.R` all OK; `inst/NEWS.Rd` parses
+(323 entries); the 25-gate `exact-gates.yaml` battery in `quick` mode all
+PASS; `sbc.R discrete-selfcheck` and `geweke-mc.R quick` both OK, the
+[`$getLeafPrior`](../../R/dbarts.R) paths exercised by each; `R CMD check
+--as-cran` on a tarball built from a clean staged copy: no errors, warnings
+or new notes. Bitwise equivalence against the MANIFEST baselines, reference
+build: `equivalence-3900c989.rds` 53/53, `bcf-equivalence-d49e2103.rds`
+15/15, `multinomial-equivalence-80b1c8d4.rds` 11/11, every scenario
+"identical draws (same RNG stream)", no `max |z|` line - confirms the
+neutral classification. stan4bart: 565/565 tinytest expectations.
+bartCause: `testthat::test_dir` clean (no failures, the usual On-CRAN
+skips only). Name sweep and the Step 3 prose sweep both clean against
+their allowlists.
+
+test-host-shell-pins.R's method census bumped from 50/45 to 51/46 for the
+new `sampleNodeParametersFromPrior` tombstone method - not itself a plan
+item, but the census is a drift detector and would otherwise fail on any
+method count change.
