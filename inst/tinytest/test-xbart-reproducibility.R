@@ -38,11 +38,12 @@ expect_equal(dim(xval.1), c(4L, length(k)))
 expect_equal(xval.1, xval.2)
 
 # a seed reproduces at ANY thread count: work is distributed over
-# (replication, fold) units and each unit draws its split and its fits from
-# seeds derived from the call's seed and its own index, so which worker ran a
-# unit - and how many there were - reaches no draw. Under R CMD check
-# --as-cran more than two simultaneous worker processes are refused, so the
-# four-thread arm runs everywhere else.
+# (replication, fold) units, each unit draws its split from its own seed, and
+# each sampler it creates - one per distinct tree count - draws its own,
+# all derived from the call's seed alone, so which worker ran a unit - and
+# how many there were - reaches no draw. Under R CMD check --as-cran more
+# than two simultaneous worker processes are refused, so the four-thread arm
+# runs everywhere else.
 
 # One worker runs the units in THIS process and several run them in worker
 # processes, so a one-vs-many comparison crosses a process boundary. Under
@@ -179,12 +180,14 @@ unseeded <- function() {
 }
 expect_true(any(unseeded() != unseeded()))
 
-# distinct tree counts in the same unit do not share a stream: each is seeded
-# by its own position among the sampler creations a unit makes, not by the
-# tree count that happens to sit ahead of it. Running n.trees = 5 alone puts
-# it first; running it behind an unrelated n.trees = 3 puts it second, so a
-# shared stream would reproduce the solo run's column exactly - everything
-# else (data, split, model) is identical - while an independent seed moves it.
+# each sampler a unit creates is seeded by its own POSITION among those
+# creations, not by the tree count that happens to sit ahead of it or by
+# which other tree counts share its unit. Running n.trees = 5 alone puts it
+# first; so does running it ahead of an unrelated n.trees = 3, and that
+# position match reproduces the solo run's column exactly. Running it BEHIND
+# that same n.trees = 3 puts it second instead, and second position draws an
+# independent seed, moving it - distinct tree counts in one unit do not share
+# a stream.
 soloTrees <- dbarts::xbart(
   x,
   y,
@@ -197,7 +200,19 @@ soloTrees <- dbarts::xbart(
   n.threads = 1L,
   seed = 4321L
 )
-pairedTrees <- dbarts::xbart(
+leadingTrees <- dbarts::xbart(
+  x,
+  y,
+  method = "random subsample",
+  n.reps = 1L,
+  n.samples = 10L,
+  n.burn = c(5L, 3L),
+  n.test = 5,
+  n.trees = c(5L, 3L),
+  n.threads = 1L,
+  seed = 4321L
+)
+trailingTrees <- dbarts::xbart(
   x,
   y,
   method = "random subsample",
@@ -209,8 +224,9 @@ pairedTrees <- dbarts::xbart(
   n.threads = 1L,
   seed = 4321L
 )
-expect_false(identical(as.vector(soloTrees), as.vector(pairedTrees[, "5"])))
-rm(soloTrees, pairedTrees)
+expect_identical(as.vector(soloTrees), as.vector(leadingTrees[, "5"]))
+expect_false(identical(as.vector(soloTrees), as.vector(trailingTrees[, "5"])))
+rm(soloTrees, leadingTrees, trailingTrees)
 
 rm(
   expectSameSweep,
