@@ -229,9 +229,9 @@ dim-3 block moves 2.6e-13 against a 200-node reference. That is 3,888 integrand 
 configurations. (Three cells would raise the maximum block to 4 and that count 38-fold, to 148,752, unaffording the
 free-glue modes.)
 
-Modes and matched quantities, on the index scale, read through, at the time, retired: [`bartcoreForestFits`](../../inst/common/bartcoreHandle.R), retired: [`bartcoreForestAmplitudes`](../../inst/common/bartcoreHandle.R) (folded
+Modes and matched quantities, on the index scale, read through, at the time, retired: `bartcoreForestFits`, retired: `bartcoreForestAmplitudes` (folded
 into `$getForestFits`/`$getForestAmplitudes`, test scaffolding
-consolidation S5):
+consolidation S5; their file, inst/common/bartcoreHandle.R, is since gone too):
 
     1   glue fixed (1, 0, 1)                E[mu_c], E[tau_c]
     2a  a ~ Cauchy(0, sd.control = 1)       E[a mu_c], E[tau_c]

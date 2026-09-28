@@ -62,7 +62,7 @@ bartFit <- bart(
 
 ## Extracting Trees
 
-The extract function accepts as a `type` the value `"trees"`. If present, the arguments `chainNums`, `sampleNums`, and/or `treeNums` can be used to extract only a subset of trees.
+The extract function accepts as a `type` the value `"trees"`. If present, the arguments `chainNums`, `sampleNums`, and/or `treeNums` can be used to extract only a subset of trees, and `forest` selects among a fit's forests (a single index, a vector, or the default of every forest) on a fit with more than one, such as a Bayesian causal forest or a multinomial fit's own sampler.
 ```{r extractTrees}
 trees <- extract(bartFit, "trees")
 ```
@@ -76,7 +76,7 @@ print(head(trees, n = 10))
 
 The columns refer to:
 
-* `chain`, `sample`, `tree` - index variables
+* `forest`, `chain`, `sample`, `tree` - index variables; `forest` is present even on the single-forest fit above
 * `n` - number of observations in node (from the training data, or from `newdata` when it is supplied; see "Counts for New Data" below)
 * `var` - either the index of the variable used for splitting or -1 if the node is a leaf
 * `value` - the cut point for an ordinal split (observations less than or equal to it go left); `NA` for a categorical split (see "Categorical Splits" below); otherwise the leaf's fitted value, which is its intercept under a linear leaf and `NA` under a Gaussian-process leaf (its fit is a function of the leaf's covariates rather than a scalar - see `predict` for those)

@@ -242,7 +242,7 @@ what protects a row censored at store time and an event after, regardless of the
    forwarding; the widened `bartcore_setResponse` and its `setData` message restatement, with the prototype in
    src/R_interface_bartcore.hpp and the arity in src/R_interface.cpp's `DEF_FUNC` table; the index-restricted
    `restoreLatents`, the `survival.digest` attribute and its reconciliation; the R5 method and its Rd; the handle call site
-   retired: [`bartcoreSetResponse`](../../inst/common/bartcoreHandle.R) (test scaffolding, deleted S5); gates (a) through (d). src/C_interface.cpp is untouched
+   retired: `bartcoreSetResponse` (test scaffolding, deleted S5; its file, inst/common/bartcoreHandle.R, is since gone too); gates (a) through (d). src/C_interface.cpp is untouched
    under (ii), edited under (i). A new `ResponseModel` virtual is a full-recompile hazard: `--preclean`. Roughly 260 lines
    of code and 190 of tests.
 2. **The aft SBC arm.** Harness only: the `sbcFamilySpec` aft branch and `sbcFamilyConfig` entry, an entry in

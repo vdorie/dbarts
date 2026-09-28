@@ -146,11 +146,12 @@ exactly from R without patching anything:
 
 1. Export every ensemble's live trees for the current sweep - retired:
    `bartcoreGetTrees(bc, chainNums, treeNums, current = TRUE, forest = f)`,
-   the 0-based handle wrapper, is gone (test scaffolding consolidation S5);
-   its surviving tinytest analog is the 1-based
-   [`forestTrees`](../../inst/common/bartcoreHandle.R), and the shipped
-   surface is the R5 [`dbartsSampler$getTrees`](../../R/dbarts.R)
-   for `f = 0..numForests-1`, plus
+   the 0-based handle wrapper, is gone (test scaffolding consolidation S5),
+   as is its 1-based tinytest analog `forestTrees` (folded into
+   [`dbartsSampler$getTrees`](../../R/dbarts.R)'s own `forest` argument,
+   sampler-gettrees-forest); the shipped surface is that same R5
+   [`dbartsSampler$getTrees`](../../R/dbarts.R)
+   for `forest = 1..numForests`, plus
    `state[[c]]$variance.{vars,values,sizes,flags}`
    ([`storeState`](../../src/R_interface_bartcore.cpp)) for a heteroscedastic sampler.
 2. Compute the widened per-observation install mask in the R oracle.

@@ -56,6 +56,13 @@ plotTree(object, \dots)
     the last sample is used (or the current working trees when the trees
     were not kept as samples).
   }
+  \item{forest}{
+    An integer, the forest to plot from (1-indexed, as
+    \code{\linkS4class{dbartsSampler}}'s \code{getTrees} accepts). For a
+    sampler with a single forest it may be omitted; a sampler with more than
+    one (a Bayesian causal forest, or a multinomial fit's own sampler)
+    requires it.
+  }
   \item{\dots}{
     Additional arguments, including \code{treePlotPars} (a named numeric
     vector controlling \code{nodeHeight}, \code{nodeWidth}, and

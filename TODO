@@ -510,13 +510,6 @@ treatSens-treatment-model-frames (agent-noted 2026-09-27)
   frames above itself, so a call from any other depth resolves in the
   wrong frame; evaluate in the caller's frame as dbarts does.
 
-sampler-gettrees-forest (decided, VD 2026-09-27; docs/decisions.md dec-A80)
-  before the merge: $getTrees(forest = NULL) returns every forest's trees
-  with a forest column, forests from 1, as the sibling per-forest readers
-  do; extract(type = "trees") forwards forest where it refuses it today
-  and gains the type on the multi-forest classes; plotTree follows; the
-  internal test helper retires; manual, NEWS and tests.
-
 variable-selection-permutation (VD 2026-09-27; docs/decisions.md dec-A73)
   post-release, gated: Bleich et al. (2014)'s permutation thresholds for
   variable selection (refit on permuted responses, compare inclusion

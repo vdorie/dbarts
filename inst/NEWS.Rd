@@ -537,6 +537,17 @@
             chain one. A fit's own stored \code{combineChains = FALSE}
             fields (\code{$yhat.train} and its siblings) are unchanged and
             keep 0.9-x's one-chain collapse.
+      \item \code{$getTrees} and \code{extract(type = "trees")} gain a
+            \code{forest} argument that, at its default \code{NULL}, returns
+            every forest's trees stacked forest-major with a leading
+            \code{forest} column (indexed from 1), as the sampler's other
+            per-forest readers default to every forest stacked; 0.9-x's
+            \code{getTrees} read only the first forest, with no column
+            saying so. A single-forest fit's trees gain the \code{forest}
+            column too, so \code{$getTrees()}'s output changes shape against
+            0.9-x even on an ordinary, single-forest fit. \code{plotTree}
+            gains the same \code{forest} argument, defaulting to the
+            sampler's only forest and required on one with more than one.
     }
   }
   \subsection{NEW FEATURES}{
