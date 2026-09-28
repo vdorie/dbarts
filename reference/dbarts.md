@@ -443,7 +443,10 @@ dbarts(
   model only the observed levels). `"indicators"` expands each factor
   into binary indicator columns, as previous versions always did and as
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) still
-  does.
+  does. Subset splits let a single split separate any grouping of a
+  factor's levels, where indicator columns need a chain of splits to do
+  the same, and they give a factor the prior split probability of one
+  predictor rather than one per level.
 
 - family:
 

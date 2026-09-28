@@ -337,7 +337,10 @@ print(x, ...)
   which always expands every factor into indicator columns;
   `"indicators"` instead expands each factor into binary indicator
   columns, matching `bartBT`. A factor-predictor fit therefore changes
-  if moved between the two interfaces.
+  if moved between the two interfaces. Subset splits let a single split
+  separate any grouping of a factor's levels, where indicator columns
+  need a chain of splits to do the same, and they give a factor the
+  prior split probability of one predictor rather than one per level.
 
 **Family and priors.**
 
@@ -1773,7 +1776,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001575
+#> total seconds in loop: 0.001655
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1821,7 +1824,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002019
+#> total seconds in loop: 0.001986
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 
