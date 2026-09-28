@@ -70,7 +70,7 @@ bart(
 
 \method{extract}{bartMultinomial}(
     object,
-    type = c("ev", "ppd", "bart", "forest", "loglik", "varcount"),
+    type = c("ev", "ppd", "bart", "forest", "loglik", "varcount", "trees"),
     sample = c("train", "test"),
     combineChains = TRUE, \dots)
 

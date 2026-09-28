@@ -3189,12 +3189,19 @@ refusePlotTreeArgs <- function(rawCall) {
   invisible(NULL)
 }
 
-plotTree.bart <- function(object, treeNum = 1L, chainNum, sampleNum, ...) {
+plotTree.bart <- function(
+  object,
+  treeNum = 1L,
+  chainNum,
+  sampleNum,
+  forest = NULL,
+  ...
+) {
   refusePlotTreeArgs(sys.call())
   if (is.null(object[["fit"]])) {
     refuseWithoutTrees("plotTree", bartKeepTreesArgument(object))
   }
-  args <- list(treeNum = treeNum, ...)
+  args <- list(treeNum = treeNum, forest = forest, ...)
   if (!missing(chainNum)) {
     args$chainNum <- chainNum
   }

@@ -538,16 +538,12 @@
             fields (\code{$yhat.train} and its siblings) are unchanged and
             keep 0.9-x's one-chain collapse.
       \item \code{$getTrees} and \code{extract(type = "trees")} gain a
-            \code{forest} argument that, at its default \code{NULL}, returns
-            every forest's trees stacked forest-major with a leading
-            \code{forest} column (indexed from 1), as the sampler's other
-            per-forest readers default to every forest stacked; 0.9-x's
-            \code{getTrees} read only the first forest, with no column
-            saying so. A single-forest fit's trees gain the \code{forest}
-            column too, so \code{$getTrees()}'s output changes shape against
-            0.9-x even on an ordinary, single-forest fit. \code{plotTree}
-            gains the same \code{forest} argument, defaulting to the
-            sampler's only forest and required on one with more than one.
+            leading \code{forest} column (indexed from 1) on every fit's
+            trees, including an ordinary single-forest one, so
+            \code{$getTrees()}'s output changes shape against 0.9-x even
+            there; see the \code{forests =} and \code{family =
+            "multinomial"} items below for the \code{forest} argument this
+            rides on.
     }
   }
   \subsection{NEW FEATURES}{
@@ -989,8 +985,13 @@
             routed here, reporting the choice in a one-line message. The
             fit's class is \code{"bartMultinomial"}, with its own \code{residuals},
             \code{plot}, \code{summary}, \code{print}, and \code{predict} (\code{type = "ev"}/\code{"ppd"})
-            methods, separate from \code{bart}'s. The sampler surface a
-            multinomial fit's \code{$fit} exposes is its own:
+            methods, separate from \code{bart}'s.
+            \code{extract(object, type = "trees")} reaches the K category
+            forests' saved trees through that same sampler, its own
+            \code{forest} argument (1-based, matching \code{$getCalibration})
+            selecting one, a vector, or the default of every category. The
+            sampler surface a multinomial fit's \code{$fit} exposes is its
+            own:
             \code{$setCounts} replaces the n x K count matrix (trials
             \eqn{n_i = \sum_k \mathrm{counts}_{ik}}{n_i = sum_k counts[i, k]}
             at least 1), \code{$setCategoryOffset} installs or clears an
@@ -2224,7 +2225,13 @@
             \sQuote{Value}). \code{extract(type = "forest", forest = ,
             contribution = )} reads them, raw or as each forest's
             contribution; refused by name on any other fit or with
-            \code{sample = "test"}.
+            \code{sample = "test"}. \code{extract(type = "trees")}'s own
+            \code{forest} argument - a single index, a vector, or the
+            default of every forest, stacked with a leading \code{forest}
+            column - reaches any of a multi-forest fit's saved trees,
+            forwarding to its sampler's \code{$getTrees}; \code{plotTree}
+            takes the same argument, required once there is more than one
+            forest.
       \item A \code{\link{forest}} call written inside a
             \code{\link{bart}}/\code{\link{dbarts}} formula declares a
             second, amplitude-coupled forest without a separate

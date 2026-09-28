@@ -25,7 +25,8 @@
 \usage{
 plotTree(object, \dots)
 
-\method{plotTree}{bart}(object, treeNum = 1L, chainNum, sampleNum, \dots)
+\method{plotTree}{bart}(
+    object, treeNum = 1L, chainNum, sampleNum, forest = NULL, \dots)
 
 \method{plotTree}{dbartsSampler}(object, \dots)
 

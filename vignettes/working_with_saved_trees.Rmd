@@ -62,7 +62,7 @@ bartFit <- bart(
 
 ## Extracting Trees
 
-The extract function accepts as a `type` the value `"trees"`. If present, the arguments `chainNums`, `sampleNums`, and/or `treeNums` can be used to extract only a subset of trees, and `forest` selects among a fit's forests (a single index, a vector, or the default of every forest) on a fit with more than one, such as a Bayesian causal forest or a multinomial fit's own sampler.
+The extract function accepts as a `type` the value `"trees"`. If present, the arguments `chainNums`, `sampleNums`, and/or `treeNums` can be used to extract only a subset of trees, and `forest` selects among a fit's forests (a single index, a vector, or the default of every forest) on a fit with more than one, such as a Bayesian causal forest or a multinomial fit itself.
 ```{r extractTrees}
 trees <- extract(bartFit, "trees")
 ```
