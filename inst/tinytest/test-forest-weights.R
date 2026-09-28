@@ -20,11 +20,6 @@
 # construction, which is the right law for a draw from the prior. Neither is
 # reachable from a BCF handle today in any case.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(1207)
 n <- 300L
 p <- 4L
@@ -270,8 +265,7 @@ bc.keep <- dbarts(
 bc.keep$setForestWeights(2L, rep(0, n))
 result.keep <- bc.keep$run(10L, 10L)
 expect_true(all(is.finite(result.keep$train)))
-trees.tau <- forestTrees(
-  bc.keep,
+trees.tau <- bc.keep$getTrees(
   forest = 2L,
   chainNums = 1L,
   sampleNums = seq_len(10L),

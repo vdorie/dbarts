@@ -494,7 +494,8 @@ priorNodes <- function(mask) {
   sampler$getTrees(
     treeNums = seq_len(control@n.trees),
     chainNums = 1L,
-    current = TRUE
+    current = TRUE,
+    forest = 1L
   )
 }
 barePrior <- priorNodes(rep(0, n))

@@ -4,11 +4,6 @@
 # one without a test noticing; each is a single plain assertion, written so it
 # flips cleanly to its opposite the day the behavior it pins changes.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(3)
 n <- 300L
 p <- 4L
@@ -122,8 +117,7 @@ priorTreatmentNodes <- function(basis) {
   )
   handle$setForestBasis(2L, basis)
   handle$sampleTreesFromPrior()
-  forestTrees(
-    handle,
+  handle$getTrees(
     forest = 2L,
     chainNums = 1L,
     treeNums = seq_len(n.trees.treatment),

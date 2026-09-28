@@ -4,11 +4,6 @@
 # The exactness and containment gates live in tests/cpp/test_interaction.cpp and
 # test_state.cpp.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(11L)
 
 # ---- the whole-tree walk over the flat getTrees representation ----------------
@@ -228,14 +223,18 @@ bc <- dbarts(
   control = control
 )
 invisible(bc$run(150L, 0L))
-tauTrees <- forestTrees(
-  bc,
+tauTrees <- bc$getTrees(
   forest = 2L,
   chainNums = 1L,
   treeNums = 1:30,
   current = TRUE
 )
-muTrees <- bc$getTrees(chainNums = 1L, treeNums = 1:30, current = TRUE)
+muTrees <- bc$getTrees(
+  forest = 1L,
+  chainNums = 1L,
+  treeNums = 1:30,
+  current = TRUE
+)
 expect_equal(worstOrder(tauTrees), 1L) # tau forest honors max.order = 1
 expect_true(worstOrder(muTrees) >= 2L) # mu forest is unrestricted and uses more
 

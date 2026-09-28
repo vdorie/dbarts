@@ -261,6 +261,29 @@ expect_error(extract(fitKeep, type = "nonsense"), "type must be in 'ev'")
 expect_error(predict(fitKeep, x.test, type = "loglik"), "type must be in")
 expect_error(fitted(fitKeep, type = "loglik"), "type must be in")
 
+# ---- extract(type = "trees") forwards to the K-forest sampler's own
+# getTrees: unlike "bart"/"forest" above, a category's TREE STRUCTURE is
+# recorded and identified (only its level is not), so 'forest' selects one
+# of the K category forests instead of being refused ----
+
+allCategoryTrees <- extract(fitKeep, type = "trees")
+expect_true(all(c("forest", "sample", "tree") %in% colnames(allCategoryTrees)))
+expect_equal(sort(unique(allCategoryTrees$forest)), 1:3)
+
+forest2Trees <- extract(fitKeep, type = "trees", forest = 2L)
+expect_true(all(forest2Trees$forest == 2L))
+expect_identical(forest2Trees, fitKeep$fit$getTrees(forest = 2L))
+
+forestSubsetTrees <- extract(fitKeep, type = "trees", forest = c(1L, 3L))
+expect_equal(sort(unique(forestSubsetTrees$forest)), c(1L, 3L))
+
+expect_error(extract(fitKeep, type = "trees", forest = 4L), "out of range")
+
+# a fit with no saved trees refuses by name, exactly as for a "bart" fit
+expect_error(extract(fitCombined, type = "trees"), pattern = "saved trees")
+
+rm(allCategoryTrees, forest2Trees, forestSubsetTrees)
+
 # ---- predict on a fit trained with an n x K category offset requires an
 # explicit offset argument: the predicted rows are the caller's, so no
 # resident offset describes them ----

@@ -11,13 +11,7 @@
 # The oracle is the sibling file's - route ONLY the rows the forest's vector
 # reaches through the drawn trees (getTrees(newdata = )) and read the per-node
 # counts, so a leaf no such row reaches reports n == 0 - taken through the
-# test-only per-forest reader forestTrees(), the public $getTrees having no
-# forest axis.
-
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
+# public $getTrees' own forest argument.
 
 set.seed(20260818L)
 n <- 80L
@@ -63,9 +57,8 @@ makeBCF <- function(...) {
 # treatment). rows, when given, are routed through the drawn trees so 'n'
 # counts THEM per node rather than the training rows.
 forestNodes <- function(sampler, forest, rows = NULL) {
-  forestTrees(
-    sampler,
-    forest,
+  sampler$getTrees(
+    forest = forest,
     treeNums = seq_len(numTrees),
     chainNums = 1L,
     current = TRUE,

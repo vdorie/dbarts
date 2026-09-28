@@ -2,11 +2,6 @@
 # only - creation, a short run, sane glue and per-forest fits, setForestBasis,
 # and the step-4 state refusal. The exact-posterior gate lives in benchmarks/.
 
-source(
-  system.file("common", "bartcoreHandle.R", package = "dbarts"),
-  local = TRUE
-)
-
 set.seed(3)
 n <- 300L
 p <- 4L
@@ -292,18 +287,21 @@ expect_identical(fit.null, fit.omit)
 # (columns 1, 3), while the unrestricted mu forest splits somewhere outside it
 # - proof the selector addresses different forests. bcMod runs live trees
 # (no keepTrees), so query current = TRUE. var is 1-based; leaves report -1.
-tauTrees <- forestTrees(
-  bcMod,
+tauTrees <- bcMod$getTrees(
   forest = 2L,
   chainNums = 1L,
   treeNums = seq_len(25L),
   current = TRUE
 )
+expect_true(all(tauTrees$forest == 2L))
 tauSplits <- tauTrees$var[tauTrees$var > 0L]
 expect_true(length(tauSplits) > 0L)
 expect_true(all(tauSplits %in% c(1L, 3L)))
 
+# forest 1 explicitly, since the two forests carry different tree counts and
+# the default forest = NULL would stack both under one treeNums selection
 muTrees <- bcMod$getTrees(
+  forest = 1L,
   chainNums = 1L,
   treeNums = seq_len(50L),
   current = TRUE
@@ -313,8 +311,7 @@ expect_true(any(!(muSplits %in% c(1L, 3L))))
 
 # an out-of-range forest index errors cleanly (bridge-side, as for forest fits)
 expect_error(
-  forestTrees(
-    bcMod,
+  bcMod$getTrees(
     forest = 3L,
     chainNums = 1L,
     treeNums = 1L,
@@ -322,6 +319,27 @@ expect_error(
   ),
   "out of range"
 )
+
+# forest as a vector stacks the named forests forest-major, exactly as
+# rbinding the individual reads would (treeNums kept within 1:25, valid for
+# both forests, so the asymmetric tree count does not need resolving here)
+muTreesCapped <- bcMod$getTrees(
+  forest = 1L,
+  chainNums = 1L,
+  treeNums = seq_len(25L),
+  current = TRUE
+)
+bothTrees <- bcMod$getTrees(
+  forest = c(1L, 2L),
+  chainNums = 1L,
+  treeNums = seq_len(25L),
+  current = TRUE
+)
+expect_equal(unique(bothTrees$forest), c(1L, 2L))
+manualStack <- rbind(muTreesCapped, tauTrees)
+row.names(manualStack) <- row.names(bothTrees)
+expect_equal(bothTrees, manualStack)
+rm(muTreesCapped, bothTrees, manualStack)
 
 # the tau forest's variable-count query sees the same column restriction
 # the getTrees selector does: counts outside the moderator subset {x1, x3}

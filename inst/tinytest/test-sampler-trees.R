@@ -24,11 +24,13 @@ fit <- dbarts::bart(
 )
 allTrees <- dbarts::extract(fit, "trees")
 
-expect_true(all(c("sample", "tree") %in% colnames(allTrees)))
+expect_true(all(c("forest", "sample", "tree") %in% colnames(allTrees)))
 expect_true(!("chain" %in% colnames(allTrees)))
-# chain-first column order (trivially satisfied here: no chain column, so
-# sample leads), matching getTrees/extract.bart's convention
-expect_equal(colnames(allTrees)[1:2], c("sample", "tree"))
+# a single-forest fit still carries the forest column (dec-A80), leading
+# every other column - forest-major stacking order, matching
+# getForestAmplitudes' convention - with chain/sample/tree following
+expect_equal(colnames(allTrees)[1:3], c("forest", "sample", "tree"))
+expect_true(all(allTrees$forest == 1L))
 
 combinations <- data.frame(
   sample = rep(seq_len(n.samples), each = n.trees),
@@ -50,18 +52,19 @@ row.names(individualSamples) <- as.character(seq_len(nrow(individualSamples)))
 
 expect_equal(allTrees, individualSamples)
 
-# extract's own formals (sample, combineChains, forest, contribution) do not
-# reach getTrees (bart.Rd's 'Extracting Trees' section documents only
-# chainNums/sampleNums/treeNums/newdata there); each is refused by name
-# instead of silently corrupting the call or partial-matching one of
-# getTrees's differently-named formals (sample -> sampleNums).
+# extract's own formals (sample, combineChains, contribution) do not reach
+# getTrees (bart.Rd's 'Extracting Trees' section documents chainNums/
+# sampleNums/treeNums/newdata/forest as accepted there); each is refused by
+# name instead of silently corrupting the call or partial-matching one of
+# getTrees's differently-named formals (sample -> sampleNums). 'forest' is
+# getTrees' own formal name and forwards instead of being refused.
 treesArgReason <- function(arg) {
   paste0(
     "'",
     arg,
     "' is not used when type = \"trees\"; the sampler's getTrees ",
-    "accepts 'chainNums', 'sampleNums', 'treeNums', 'current', and ",
-    "'newdata' instead (see 'Extracting Trees' in ?bart)"
+    "accepts 'chainNums', 'sampleNums', 'treeNums', 'current', 'newdata', ",
+    "and 'forest' instead (see 'Extracting Trees' in ?bart)"
   )
 }
 expect_error(
@@ -85,14 +88,25 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
-  extract(fit, type = "trees", forest = 1L),
-  treesArgReason("forest"),
-  fixed = TRUE
-)
-expect_error(
   extract(fit, type = "trees", contribution = TRUE),
   treesArgReason("contribution"),
   fixed = TRUE
+)
+
+# 'forest' forwards to getTrees rather than being refused: a single-forest
+# fit's forest = 1L read is bitwise its default, and an out-of-range or
+# malformed forest is refused exactly as $getTrees refuses it directly
+expect_identical(
+  extract(fit, type = "trees", forest = 1L),
+  allTrees
+)
+expect_error(
+  extract(fit, type = "trees", forest = 2L),
+  "out of range"
+)
+expect_error(
+  extract(fit, type = "trees", forest = 0L),
+  "'forest' must be a single positive integer"
 )
 
 rm(individualSamples, combinations, allTrees, fit, n.samples, n.trees)
@@ -116,7 +130,7 @@ fitKeepSampler <- dbarts::bart(
   verbose = FALSE
 )
 currentTrees <- dbarts::extract(fitKeepSampler, "trees")
-expect_equal(colnames(currentTrees), c("tree", "n", "var", "value"))
+expect_equal(colnames(currentTrees), c("forest", "tree", "n", "var", "value"))
 expect_true(nrow(currentTrees) > 0L)
 expect_equal(currentTrees, fitKeepSampler$fit$getTrees())
 
@@ -131,7 +145,10 @@ fitKept <- dbarts::bart(
   verbose = FALSE
 )
 keptTrees <- dbarts::extract(fitKept, "trees")
-expect_equal(colnames(keptTrees), c("sample", "tree", "n", "var", "value"))
+expect_equal(
+  colnames(keptTrees),
+  c("forest", "sample", "tree", "n", "var", "value")
+)
 expect_true(nrow(keptTrees) > 0L)
 
 # an EMPTY index selection is a zero-row answer rather than an error, through
@@ -350,6 +367,63 @@ rm(keptSampler, liveSampler, ctrl, trainX, countByDescent, newX)
 rm(replayed, leafSums, replayedSaved, sub, t)
 rm(liveTrees, roots, splitTree, s, tieX, tied, tieBlock)
 rm(x, y, n)
+
+
+## ---------------------------------------------------------------------------
+## getTrees(forest = ) on a single-forest sampler: NULL (the default), an
+## explicit 1L, and a length-1 vector are all bitwise the same read, and an
+## invalid forest is refused with the same message resolveForestIndex gives
+## getForestFits/getForestAmplitudes/getForestVariableCounts/getCalibration.
+## ---------------------------------------------------------------------------
+set.seed(13L)
+n <- 40L
+x <- rnorm(n)
+y <- x + rnorm(n)
+forestSampler <- dbarts::dbarts(
+  y ~ x,
+  data.frame(x = x, y = y),
+  control = dbarts::dbartsControl(
+    n.chains = 1L,
+    n.trees = 5L,
+    n.samples = 3L,
+    n.burn = 0L,
+    updateState = TRUE,
+    keepTrees = TRUE,
+    verbose = FALSE,
+    seed = 5L
+  )
+)
+invisible(forestSampler$run(10L, 3L))
+
+defaultForest <- forestSampler$getTrees()
+expect_equal(forestSampler$getTrees(forest = NULL), defaultForest)
+expect_equal(forestSampler$getTrees(forest = 1L), defaultForest)
+expect_equal(forestSampler$getTrees(forest = 1:1), defaultForest)
+expect_true(all(defaultForest$forest == 1L))
+
+expect_error(
+  forestSampler$getTrees(forest = 0L),
+  "'forest' must be a single positive integer",
+  fixed = TRUE
+)
+expect_error(
+  forestSampler$getTrees(forest = -1L),
+  "'forest' must be a single positive integer",
+  fixed = TRUE
+)
+expect_error(
+  forestSampler$getTrees(forest = NA_integer_),
+  "'forest' must be a single positive integer",
+  fixed = TRUE
+)
+expect_error(
+  forestSampler$getTrees(forest = 1.5),
+  "'forest' must be a whole number",
+  fixed = TRUE
+)
+expect_error(forestSampler$getTrees(forest = 2L), "out of range")
+
+rm(forestSampler, defaultForest, x, y, n)
 
 
 rm(df, testData, treesArgReason)

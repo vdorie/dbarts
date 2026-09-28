@@ -599,7 +599,10 @@ expect_identical(predictions.keep, unname(result.keep$test))
 
 # getTrees: saved trees carry a sample dimension in the classic format
 trees.saved <- sampler.keep$getTrees()
-expect_equal(names(trees.saved), c("sample", "tree", "n", "var", "value"))
+expect_equal(
+  names(trees.saved),
+  c("forest", "sample", "tree", "n", "var", "value")
+)
 tree.first <- trees.saved[trees.saved$sample == 1L & trees.saved$tree == 1L, ]
 expect_equal(tree.first$n[1L], n)
 expect_equal(sum(tree.first$n[tree.first$var == -1L]), n)
@@ -610,7 +613,7 @@ expect_true(all(
 
 # live working trees have no sample dimension
 trees.live <- sampler.keep$getTrees(current = TRUE)
-expect_equal(names(trees.live), c("tree", "n", "var", "value"))
+expect_equal(names(trees.live), c("forest", "tree", "n", "var", "value"))
 
 # newdata replays its rows through the trees for the counts
 trees.newdata <- sampler.keep$getTrees(
@@ -690,7 +693,7 @@ expect_equal(dim(sampler.keep2$predict(x.test)), c(10L, 5L, 2L))
 trees.keep2 <- sampler.keep2$getTrees()
 expect_equal(
   names(trees.keep2),
-  c("chain", "sample", "tree", "n", "var", "value")
+  c("forest", "chain", "sample", "tree", "n", "var", "value")
 )
 
 # multiple chains and samples get their header lines in the print dump
