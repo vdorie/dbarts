@@ -30,6 +30,8 @@ expect_equal(run(n.threads = 2L, parallel = "socket"), ref)
 
 cl <- parallel::makeCluster(2L)
 expect_equal(run(n.threads = 4L, cl = cl), ref)
+expect_equal(run(n.threads = 2L, cl = cl), ref)
+expect_equal(run(n.threads = 1L, cl = cl), ref)
 expect_true(
   identical(unlist(parallel::clusterEvalQ(cl, 1L)), c(1L, 1L))
 )
@@ -54,3 +56,57 @@ if (!windows) {
 old <- options(dbarts.parallel = "bogus")
 expect_error(run(n.threads = 2L), "arg")
 options(old)
+
+verboseLine <- function(...) {
+  out <- capture.output(run(n.threads = 2L, verbose = TRUE, ...))
+  grep("running", out, value = TRUE)
+}
+old <- options(dbarts.parallel = "socket")
+expect_true(grepl("socket worker", verboseLine()))
+options(old)
+if (!windows) {
+  expect_true(grepl("fork worker", verboseLine(parallel = "fork")))
+}
+oldEnv <- Sys.getenv("RSTUDIO", NA)
+Sys.setenv(RSTUDIO = "1")
+expect_true(grepl("socket worker", verboseLine(parallel = "auto")))
+if (is.na(oldEnv)) {
+  Sys.unsetenv("RSTUDIO")
+} else {
+  Sys.setenv(RSTUDIO = oldEnv)
+}
+
+warner <- function(y.test, y.test.hat, weights) {
+  warning("loss warned")
+  0
+}
+oldWarn <- options(warn = 2)
+expect_error(run(n.threads = 1L, loss = warner), "loss warned")
+expect_error(
+  run(n.threads = 2L, parallel = "socket", loss = warner),
+  "loss warned"
+)
+if (!windows) {
+  expect_error(
+    run(n.threads = 2L, parallel = "fork", loss = warner),
+    "loss warned"
+  )
+}
+options(oldWarn)
+
+if (!windows) {
+  # exactly one of the two children kills itself without raising an error
+  lock <- tempfile()
+  dier <- function(y.test, y.test.hat, weights) {
+    if (dir.create(lock, showWarnings = FALSE)) {
+      tools::pskill(Sys.getpid(), tools::SIGKILL)
+      Sys.sleep(10)
+    }
+    0
+  }
+  expect_error(
+    suppressWarnings(run(n.threads = 2L, parallel = "fork", loss = dier)),
+    "exited without a result"
+  )
+  unlink(lock, recursive = TRUE)
+}

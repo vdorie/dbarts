@@ -12,8 +12,6 @@ xbart <- function(
   n.burn = c(200L, 150L),
   loss = c("rmse", "log", "mcr"),
   n.threads = dbarts::guessNumCores(),
-  parallel = getOption("dbarts.parallel", "auto"),
-  cl = NULL,
   n.trees = 75L,
   k = NULL,
   power = 2,
@@ -30,6 +28,8 @@ xbart <- function(
   n.thin = 1L,
   storage = c("double", "single"),
   tree.prior = NULL,
+  parallel = getOption("dbarts.parallel", "auto"),
+  cl = NULL,
   control = dbarts::dbartsControl(),
   ...
 ) {
@@ -530,7 +530,8 @@ xbart <- function(
     # a worker starts a fresh session; it is handed this one's warned-once
     # keys so a key already warned here stays silent there. A new key fires
     # once per worker, and the caller's deduplication reports it once
-    onceKeys = warnedOnceKeys()
+    onceKeys = warnedOnceKeys(),
+    warn = getOption("warn")
   )
 
   # work is distributed over (replication, fold) UNITS rather than over
@@ -623,22 +624,33 @@ xbart <- function(
       function(indices) unitSeeds[indices, , drop = FALSE]
     )
     if (workerKind == "fork") {
-      # a failed worker comes back as a try-error handled below, so mclapply's
-      # own warning about it is redundant
-      results <- suppressWarnings(parallel::mclapply(
+      # a worker that fails hands back its condition rather than a try-error,
+      # so a child that dies without one shows as a NULL result and mclapply's
+      # own warning about it is left to signal
+      results <- parallel::mclapply(
         seq_len(numChunks),
         function(i) {
-          try(
+          tryCatch(
             xbartRunChunk(spec, chunkRows[[i]], chunkSeeds[[i]]),
-            silent = TRUE
+            error = function(e) {
+              e$call <- NULL
+              e
+            }
           )
         },
         mc.cores = numChunks,
         mc.preschedule = FALSE
-      ))
-      failed <- which(vapply(results, inherits, NA, "try-error"))
-      if (length(failed) > 0L) {
-        stop(conditionMessage(attr(results[[failed[1L]]], "condition")))
+      )
+      for (result in results) {
+        if (inherits(result, "condition")) {
+          stop(conditionMessage(result), call. = FALSE)
+        }
+        if (!is.list(result) || is.null(result$loss)) {
+          stop(
+            "a forked worker exited without a result; ",
+            "try parallel = \"socket\""
+          )
+        }
       }
       return(results)
     }
@@ -945,6 +957,9 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
 ## to abort the run where it is raised, and an error signals the warnings
 ## captured before it ahead of propagating.
 xbartRunChunk <- function(spec, unitRows, unitSeeds) {
+  # a worker takes the caller's warning level, so 'warn = 2' escalates there
+  oldWarn <- options(warn = spec$warn)
+  on.exit(options(oldWarn), add = TRUE)
   for (key in spec$onceKeys) {
     onceWarnState[[key]] <- TRUE
   }

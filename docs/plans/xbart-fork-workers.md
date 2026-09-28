@@ -74,7 +74,12 @@ accepts a cluster the caller already started (dec-B131).
 
 The option name `dbarts.parallel`; the auto rule's GUI list; `cl` taking
 precedence over `parallel` and the `min(n.threads, length(cl))` chunk
-count; an error, not a silent fallback, for `"fork"` on Windows.
+count; an error, not a silent fallback, for `"fork"` on Windows; no cap for
+`_R_CHECK_LIMIT_CORES_`, since `makePSOCKcluster` runs the same check and
+fork adds no exposure; a forked worker's error is re-raised with its own
+message, without parallel's "N nodes produced errors" prefix (stated choice);
+`parallel` and `cl` sit just before `control` so `n.trees`, `k`, `power` and
+`base` keep their 0.9-34 positions.
 
 ## Landing note
 
@@ -82,8 +87,7 @@ Landed: `parallel` and `cl` formals on `xbart`, fork/socket/cluster dispatch
 in `runUnits` (fork via `mclapply`, first `try-error` re-raised), verbose line
 naming the worker kind, man/xbart.Rd, one NEWS item, and
 inst/tinytest/test-xbart-workers.R; the formals count in
-test-argument-surface.R moves 31 to 33. Gates: full tinytest 9381 TRUE (all
-pass), lintr zero lints, air format clean, check-rc-codoc, check-win-drift,
+test-argument-surface.R moves 31 to 33. Gates (macOS, R private library, this worktree): full tinytest 9390 TRUE, none failing, lintr zero lints, air format clean, check-rc-codoc, check-win-drift,
 check-doc-freshness OK, R CMD check --as-cran --no-manual one NOTE (Date
 field, pre-existing). The check sets the core limit to 2, so tests fork at
 `n.threads = 2`. About 125 lines added (R 62, tests 56, man and NEWS 19).
