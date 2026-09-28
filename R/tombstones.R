@@ -826,7 +826,10 @@ resolveRenamedLeafPrior <- function(
     tombstoneExpiry,
     "."
   )
-  matchedCall$leaf.prior <- matchedCall$node.prior
+  # a plain $<- assignment of NULL deletes the element instead of setting
+  # it, and node.prior = NULL is a supplied value here (nodePriorSupplied
+  # is TRUE), not an absent one - the wrapping list() keeps it
+  matchedCall["leaf.prior"] <- list(matchedCall[["node.prior"]])
   matchedCall$node.prior <- NULL
   matchedCall
 }

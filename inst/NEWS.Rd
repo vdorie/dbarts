@@ -1541,7 +1541,7 @@
             row norm (\code{NaN} on a forest whose scale the map does not
             own, as on every single-forest sampler).
       \item \code{\link{samplePriorPredictive}} draws repeatedly from a
-            sampler's prior - tree structure, end-node parameters, and
+            sampler's prior - tree structure, leaf values, and
             optionally response noise - and evaluates the resulting forest
             at \code{x.test}, for inspecting a prior before ever fitting to
             data (e.g. the implied prior on a treatment effect

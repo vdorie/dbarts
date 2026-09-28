@@ -3,7 +3,7 @@
 # Sixteen binary-outcome datasets from the UCI Machine Learning Repository,
 # fetched on demand, cached on disk and verified against a recorded sha256.
 #
-# WHY. benchmarks/R/binary-hyperprior.R scores the binary end-node hyperprior
+# WHY. benchmarks/R/binary-hyperprior.R scores the binary leaf hyperprior
 # on six small datasets that ship with R and its recommended packages. The
 # real-data column is the one that could move the package default, and six
 # datasets cannot settle it. These sixteen widen that column to the breadth

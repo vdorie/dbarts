@@ -613,6 +613,24 @@ fitLeafPrior <- dbarts::dbarts(
 )
 expect_identical(fitNodePrior$run(5L, 5L)$train, fitLeafPrior$run(5L, 5L)$train)
 
+# node.prior = NULL is a supplied value, not an absent one (missing() is
+# FALSE), so the warning still fires and the NULL still reaches parsePriors
+# as leaf.prior's value; it must refuse exactly as leaf.prior = NULL does,
+# not silently fall back to leaf.prior's own normal default (F1: a plain
+# matchedCall$leaf.prior <- matchedCall$node.prior assignment of NULL
+# deletes the element instead of setting it)
+warnEnv[["tombstone.node.prior.dbarts"]] <- NULL
+expect_error(
+  suppressWarnings(
+    dbarts::dbarts(xLV, yLV, control = lvControl, node.prior = NULL)
+  ),
+  pattern = "'leaf.prior' must be a leaf prior specification"
+)
+expect_error(
+  dbarts::dbarts(xLV, yLV, control = lvControl, leaf.prior = NULL),
+  pattern = "'leaf.prior' must be a leaf prior specification"
+)
+
 # supplying both spellings is an error, even when they agree
 expect_error(
   dbarts::dbarts(
@@ -628,7 +646,7 @@ expect_error(
 specDataLV <- dbarts::dbartsData(xLV, yLV)
 warnEnv[["tombstone.node.prior.dbartsSpec"]] <- NULL
 specWarnings <- character(0L)
-withCallingHandlers(
+specNodePrior <- withCallingHandlers(
   dbarts::dbartsSpec(
     specDataLV,
     control = lvControl,
@@ -640,6 +658,12 @@ withCallingHandlers(
   }
 )
 expect_equal(length(specWarnings), 1L)
+specLeafPrior <- dbarts::dbartsSpec(
+  specDataLV,
+  control = lvControl,
+  leaf.prior = dbarts::dbartsPriors$normal(3)
+)
+expect_identical(specNodePrior$model, specLeafPrior$model)
 expect_error(
   dbarts::dbartsSpec(
     specDataLV,
@@ -692,16 +716,26 @@ expect_error(
 # --- $sampleNodeParametersFromPrior -> $sampleLeafParametersFromPrior ---
 warnEnv[["tombstone.sampleNodeParametersFromPrior"]] <- NULL
 freshOld <- dbarts::dbarts(xLV, yLV, control = lvControl)
-expect_warning(
-  freshOld$sampleNodeParametersFromPrior(updateState = TRUE),
-  pattern = "sampleLeafParametersFromPrior"
-)
 freshNew <- dbarts::dbarts(xLV, yLV, control = lvControl)
+sampleWarnings <- character(0L)
+withCallingHandlers(
+  freshOld$sampleNodeParametersFromPrior(updateState = TRUE),
+  warning = function(w) {
+    sampleWarnings <<- c(sampleWarnings, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
+)
+expect_equal(length(sampleWarnings), 1L)
+expect_true(grepl(
+  "sampleLeafParametersFromPrior",
+  sampleWarnings[1L],
+  fixed = TRUE
+))
 expect_silent(freshNew$sampleLeafParametersFromPrior(updateState = TRUE))
 expect_identical(freshOld$state, freshNew$state)
-expect_null(suppressWarnings(
-  freshOld$sampleNodeParametersFromPrior(updateState = FALSE)
-))
+# once per session: a second old-spelling call on the same sampler, with the
+# key left as the first call set it, is silent and still forwards
+expect_silent(freshOld$sampleNodeParametersFromPrior(updateState = FALSE))
 
 # --- no leaks: the ordinary paths stay silent ---
 countWarnings <- function(expr) {
@@ -780,8 +814,11 @@ rm(
   fitLeafPrior,
   specDataLV,
   specWarnings,
+  specNodePrior,
+  specLeafPrior,
   freshOld,
   freshNew,
+  sampleWarnings,
   countWarnings,
   yMultiLV
 )

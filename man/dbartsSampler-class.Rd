@@ -364,7 +364,7 @@
       The sampler's \code{\link{dbartsControl}}, carrying \code{n.chains}, \code{n.threads}, \code{n.trees}, \code{keepTrees}, \code{updateState}, and the rest. Replace with \code{setControl}.
     }
     \item{\code{model}}{
-      A \code{dbartsModel} holding the parsed tree, node, and residual priors, together with any monotonicity, interaction, and block constraints. Replace with \code{setModel}.
+      A \code{dbartsModel} holding the parsed tree, leaf, and residual priors, together with any monotonicity, interaction, and block constraints. Replace with \code{setModel}.
     }
     \item{\code{data}}{
       A \code{\link{dbartsData}} holding the current predictors, response, test data, weights, and offset. Its \code{x} slot is stored columnar for data-frame input and so need not be a plain matrix; use \code{\link[=extract.dbartsSampler]{extract}(sampler, "predictors")} for the numeric predictor matrix, which is what tree replay and \code{getTrees} count against. Replace with \code{setData}, or a piece at a time with the other \code{set*} methods.

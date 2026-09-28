@@ -176,7 +176,7 @@ than on the arm64 development machine, and check `/proc/loadavg` first.
 
 ## R/binary-hyperprior.R - the binary k prior study (measurement, not a gate)
 
-Re-evaluates the binary (probit) end-node hyperprior default, chi(1.5, 2),
+Re-evaluates the binary (probit) leaf hyperprior default, chi(1.5, 2),
 over a grid of priors and a case set far wider than the study that set the
 default: twenty-four chi(df, scale) arms (df in {1, 1.25, 1.5, 2, 3} crossed
 with scale in {1, 2, 5, Inf}, plus df in {1.5, 3} crossed with scale in

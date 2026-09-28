@@ -156,7 +156,7 @@ forest(
   is what holds that as \eqn{K}{K} grows, and it holds it in two different
   senses. When EVERY forest carries a basis the induced prior standard
   deviation of the index is 1.484 latent units at every \eqn{K}{K} - 0.989 of
-  the classic \eqn{k = 2}{k = 2} binary node-scale budget - because the whole
+  the classic \eqn{k = 2}{k = 2} binary leaf-scale budget - because the whole
   location is then a sum of fixed-variance channels. When one forest carries
   none, its amplitude is Cauchy and has no variance to enter that budget with,
   so the fixed-variance part is BOUNDED by 1.484 rather than pinned at it,

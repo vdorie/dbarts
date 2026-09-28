@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 
-# Re-evaluates the binary (probit) end-node hyperprior default, chi(1.5, 2).
+# Re-evaluates the binary (probit) leaf hyperprior default, chi(1.5, 2).
 #
 # The July 2026 study (docs/plans/archive/chi-default-research.md) held the
 # degrees of freedom at 1.5, varied only the scale, and ran four simulated
