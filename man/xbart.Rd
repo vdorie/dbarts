@@ -9,7 +9,8 @@ xbart(
     formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
     method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
     n.reps = 40L, n.burn = c(200L, 150L),
-    loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
+    loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(),
+    parallel = getOption("dbarts.parallel", "auto"), cl = NULL, n.trees = 75L,
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, drop = TRUE,
     sigest = NA_real_,
@@ -64,9 +65,15 @@ xbart(
     Either one of the pre-set loss functions as character-strings (\code{mcr} - misclassification rate for binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - negative log-loss for binary response (\code{rmse} serves this purpose for continuous responses), a function, or a function-evaluation environment list-pair. Functions should have prototypes of the form \code{function(y.test, y.test.hat, weights)}, where \code{y.test} is the held out test subsample, \code{y.test.hat} is a matrix of dimension \code{length(y.test)} \eqn{\times}{*} \code{n.samples}, and \code{weights} are an optional vector of user-supplied weights. See examples.
   }
   \item{n.threads}{
-    Every (replication, fold) pair is an independent unit of work, and for \code{n.threads > 1} the units are divided into approximately equal chunks and executed on that many parallel workers (a \code{\link[parallel]{makeCluster}} cluster). Each worker is a separate R session that loads dbarts and receives its own copy of the data, which costs roughly 80 MB per worker beyond the data itself. A \code{k}-fold run of a single replication therefore uses up to \code{k} workers. The default uses \code{\link{guessNumCores}}, which should work across the most common operating system/hardware pairs. Warnings raised while fitting or scoring, including by a supplied \code{loss} function, are collected from every unit and signalled in the calling session once all units have finished, in unit order and each distinct warning once, so the same warnings are seen at any \code{n.threads}.
+    Every (replication, fold) pair is an independent unit of work, and for \code{n.threads > 1} the units are divided into approximately equal chunks and executed on that many parallel workers (see \code{parallel}). A \code{k}-fold run of a single replication therefore uses up to \code{k} workers. The default uses \code{\link{guessNumCores}}, which should work across the most common operating system/hardware pairs. Warnings raised while fitting or scoring, including by a supplied \code{loss} function, are collected from every unit and signalled in the calling session once all units have finished, in unit order and each distinct warning once, so the same warnings are seen at any \code{n.threads}.
    }
-   \item{n.trees}{
+   \item{parallel}{
+    One of \code{"auto"}, \code{"fork"} or \code{"socket"}, and by default \code{getOption("dbarts.parallel", "auto")}. \code{"fork"} runs the workers as forked copies of the calling session, which is fast to start and shares the data; \code{"socket"} starts separate R sessions (a \code{\link[parallel]{makeCluster}} cluster) that each load dbarts and receive their own copy of the data, which costs roughly 80 MB per worker beyond the data itself. \code{"auto"} forks unless the platform is Windows, the session runs under RStudio or Positron, or R.app, in which case it uses sockets. \code{"fork"} is an error on Windows. Forking can hang or crash when the calling session has already used a library that is not fork-safe, such as a multithreaded BLAS; if so, set \code{parallel = "socket"} or \code{options(dbarts.parallel = "socket")}. Results do not depend on the kind of worker. Ignored when \code{cl} is given or only one worker is used.
+  }
+  \item{cl}{
+    \code{NULL} or a cluster from the \code{parallel} package that the caller has already started, used instead of starting workers whatever \code{parallel} says. The units are divided into \code{min(n.threads, length(cl))} chunks, and \code{xbart} does not stop the cluster. The workers must be able to load dbarts.
+  }
+  \item{n.trees}{
      A vector of positive integers setting the BART hyperparameter for the number of trees in the sum-of-trees formulation. See \code{\link{bart}}.
    }
    \item{k}{

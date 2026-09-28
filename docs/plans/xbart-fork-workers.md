@@ -4,7 +4,7 @@ agent: sonnet
 rng: neutral (no draw moves; every unit already seeds from its own stream)
 budget: ~250 lines (R ~80, tests ~120, man and NEWS ~50)
 
-Status: PLANNED 2026-09-28
+Status: LANDED-pending 2026-09-28
 
 ## Goal
 
@@ -75,3 +75,15 @@ accepts a cluster the caller already started (dec-B131).
 The option name `dbarts.parallel`; the auto rule's GUI list; `cl` taking
 precedence over `parallel` and the `min(n.threads, length(cl))` chunk
 count; an error, not a silent fallback, for `"fork"` on Windows.
+
+## Landing note
+
+Landed: `parallel` and `cl` formals on `xbart`, fork/socket/cluster dispatch
+in `runUnits` (fork via `mclapply`, first `try-error` re-raised), verbose line
+naming the worker kind, man/xbart.Rd, one NEWS item, and
+inst/tinytest/test-xbart-workers.R; the formals count in
+test-argument-surface.R moves 31 to 33. Gates: full tinytest 9381 TRUE (all
+pass), lintr zero lints, air format clean, check-rc-codoc, check-win-drift,
+check-doc-freshness OK, R CMD check --as-cran --no-manual one NOTE (Date
+field, pre-existing). The check sets the core limit to 2, so tests fork at
+`n.threads = 2`. About 125 lines added (R 62, tests 56, man and NEWS 19).

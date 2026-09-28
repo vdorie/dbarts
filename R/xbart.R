@@ -12,6 +12,8 @@ xbart <- function(
   n.burn = c(200L, 150L),
   loss = c("rmse", "log", "mcr"),
   n.threads = dbarts::guessNumCores(),
+  parallel = getOption("dbarts.parallel", "auto"),
+  cl = NULL,
   n.trees = 75L,
   k = NULL,
   power = 2,
@@ -476,6 +478,13 @@ xbart <- function(
   if (is.na(n.threads) || n.threads <= 0L) {
     stop("'n.threads' must be a positive integer")
   }
+  if (!is.null(cl) && (!inherits(cl, "cluster") || length(cl) == 0L)) {
+    stop("'cl' must be NULL or a non-empty cluster from the parallel package")
+  }
+  parallel <- match.arg(parallel, c("auto", "fork", "socket"))
+  if (parallel == "fork" && .Platform$OS.type == "windows") {
+    stop("parallel = \"fork\" is not available on Windows; use \"socket\"")
+  }
 
   # DART holds its Dirichlet updates until the forest is likelihood-informed;
   # as the fitting functions default it to half the burn-in, default here to
@@ -531,7 +540,26 @@ xbart <- function(
   # unit, which is what the k warm start inside a fold rides on.
   numFolds <- if (method == "k-fold") length(foldSizes) else 1L
   numUnits <- n.reps * numFolds
-  numChunks <- max(1L, min(n.threads, numUnits))
+  numChunks <- max(
+    1L,
+    min(if (is.null(cl)) n.threads else min(n.threads, length(cl)), numUnits)
+  )
+  workerKind <- if (numChunks == 1L) {
+    "session"
+  } else if (!is.null(cl)) {
+    "cluster"
+  } else if (
+    parallel == "fork" ||
+      (parallel == "auto" &&
+        .Platform$OS.type != "windows" &&
+        !identical(Sys.getenv("RSTUDIO"), "1") &&
+        !identical(Sys.getenv("POSITRON"), "1") &&
+        !identical(.Platform$GUI, "AQUA"))
+  ) {
+    "fork"
+  } else {
+    "socket"
+  }
   chunkIndices <- parallel::splitIndices(numUnits, numChunks)
 
   # each replication draws its data split from its own seed, and each unit's
@@ -589,20 +617,47 @@ xbart <- function(
     if (numChunks == 1L) {
       return(list(xbartRunChunk(spec, unitRows, unitSeeds)))
     }
-    cluster <- parallel::makeCluster(numChunks)
-    on.exit(parallel::stopCluster(cluster), add = TRUE)
+    chunkRows <- lapply(chunkIndices, function(indices) unitRows[indices])
+    chunkSeeds <- lapply(
+      chunkIndices,
+      function(indices) unitSeeds[indices, , drop = FALSE]
+    )
+    if (workerKind == "fork") {
+      # a failed worker comes back as a try-error handled below, so mclapply's
+      # own warning about it is redundant
+      results <- suppressWarnings(parallel::mclapply(
+        seq_len(numChunks),
+        function(i) {
+          try(
+            xbartRunChunk(spec, chunkRows[[i]], chunkSeeds[[i]]),
+            silent = TRUE
+          )
+        },
+        mc.cores = numChunks,
+        mc.preschedule = FALSE
+      ))
+      failed <- which(vapply(results, inherits, NA, "try-error"))
+      if (length(failed) > 0L) {
+        stop(conditionMessage(attr(results[[failed[1L]]], "condition")))
+      }
+      return(results)
+    }
+    cluster <- if (workerKind == "cluster") {
+      cl
+    } else {
+      made <- parallel::makeCluster(numChunks)
+      on.exit(parallel::stopCluster(made), add = TRUE)
+      made
+    }
     # passing the namespace function itself serializes it by reference,
     # loading dbarts on the workers without shipping this frame; a worker's
     # own RNGkind() never matters, since every sampler it creates seeds off
     # control's seed slot rather than that worker's stream
     parallel::clusterMap(
-      cluster,
+      cluster[seq_len(numChunks)],
       xbartRunChunk,
-      unitRows = lapply(chunkIndices, function(indices) unitRows[indices]),
-      unitSeeds = lapply(
-        chunkIndices,
-        function(indices) unitSeeds[indices, , drop = FALSE]
-      ),
+      unitRows = chunkRows,
+      unitSeeds = chunkSeeds,
       MoreArgs = list(spec = spec),
       SIMPLIFY = FALSE
     )
@@ -620,6 +675,8 @@ xbart <- function(
       if (numUnits > 1L) "s" else "",
       " on ",
       numChunks,
+      " ",
+      workerKind,
       " worker",
       if (numChunks > 1L) "s" else "",
       "\n",

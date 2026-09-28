@@ -548,6 +548,12 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item \code{xbart} gains \code{parallel} (\code{"auto"},
+            \code{"fork"} or \code{"socket"}, defaulting to
+            \code{getOption("dbarts.parallel", "auto")}) to run its workers
+            as forked processes rather than separate R sessions, and
+            \code{cl} to use a cluster the caller has already started.
+            Results do not depend on the kind of worker.
       \item Every output indexed by observation carries the rows' names on
             its observation margin: \code{predict}, \code{extract},
             \code{fitted}, \code{residuals} and
