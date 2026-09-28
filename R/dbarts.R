@@ -2798,7 +2798,7 @@ dbartsSampler <- setRefClass(
       newdata = NULL,
       forest = NULL
     ) {
-      "Returns a data.frame containing the internal state of the trees, one row per node with a leading 'forest' column (indexed from 1, present even on a single-forest sampler). At the default forest = NULL every forest is stacked forest-major, as the sampler's other per-forest readers stack at their own default; forest also takes a single index or a vector of them, each validated as getCalibration/getForestFits/getForestAmplitudes/getForestVariableCounts validate one. treeNums defaults to, and is validated against, EACH selected forest's own tree count, which need not match forest 1's."
+      "Returns a data.frame containing the internal state of the trees, one row per node with a leading 'forest' column (indexed from 1, present even on a single-forest sampler). At the default forest = NULL every forest is stacked forest-major, as the sampler's other per-forest readers stack at their own default; forest also takes a single index or a vector of them, each validated as getLeafPrior/getForestFits/getForestAmplitudes/getForestVariableCounts validate one. treeNums defaults to, and is validated against, EACH selected forest's own tree count, which need not match forest 1's."
       matchedCall <- match.call()
       current <- isTRUE(current)
       # live working trees have no sample dimension, so treat a current request

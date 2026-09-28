@@ -988,7 +988,7 @@
             methods, separate from \code{bart}'s.
             \code{extract(object, type = "trees")} reaches the K category
             forests' saved trees through that same sampler, its own
-            \code{forest} argument (1-based, matching \code{$getCalibration})
+            \code{forest} argument (1-based, matching \code{$getLeafPrior})
             selecting one, a vector, or the default of every category. The
             sampler surface a multinomial fit's \code{$fit} exposes is its
             own:

@@ -373,7 +373,7 @@ rm(x, y, n)
 ## getTrees(forest = ) on a single-forest sampler: NULL (the default), an
 ## explicit 1L, and a length-1 vector are all bitwise the same read, and an
 ## invalid forest is refused with the same message resolveForestIndex gives
-## getForestFits/getForestAmplitudes/getForestVariableCounts/getCalibration.
+## getForestFits/getForestAmplitudes/getForestVariableCounts/getLeafPrior.
 ## ---------------------------------------------------------------------------
 set.seed(13L)
 n <- 40L
