@@ -469,14 +469,18 @@ A handful of shapes are refused outright rather than silently misinterpreted, ea
   create (one per (replication, fold) unit at each distinct tree count) -
   with \code{\link{sample.int}} after \code{set.seed(seed)}, in one pass, in
   its own process, restoring R's stream afterward; without a \code{seed},
-  \code{set.seed} beforehand reproduces the same run. Each unit's sampler
-  then takes its seed through \code{control}'s seed slot exactly as
-  \code{bart}'s own \code{seed} does, driving a dedicated generator that
-  never reads R's stream; results are identical at any \code{n.threads} for
-  a given \code{seed} under any \code{\link{RNGkind}}, a user-supplied one
-  included, since no worker ever reads its own \code{RNGkind()} to fit a
-  unit. A supplied loss function that draws random numbers draws on the
-  worker running it, from that process's own default generator.
+  \code{set.seed} beforehand reproduces the same run. That derivation draws
+  under the CALLER's own \code{\link{RNGkind}}, so a given \code{seed} draws
+  different values, and so gives different results, under a different kind -
+  what stays fixed for a given \code{seed} and \code{RNGkind} is
+  \code{n.threads}. Each unit's sampler takes its seed through
+  \code{control}'s seed slot exactly as \code{bart}'s own \code{seed} does,
+  driving a dedicated generator that never reads R's stream, so no worker
+  ever reads its own \code{RNGkind()} to fit a unit and results are identical
+  at any \code{n.threads}. A supplied loss function that draws random numbers
+  draws on the worker running it, from that process's own default generator;
+  at \code{n.threads} greater than 1 this makes the run not reproducible,
+  whatever \code{seed} \code{xbart} itself is given.
 
   \strong{What moves \code{\link{.Random.seed}}.} Unseeded, creating a
   sampler (\code{n.chains} uniforms per sampler; a
