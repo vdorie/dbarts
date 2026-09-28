@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (51 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (52 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) -
@@ -71,6 +71,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | group-by-exposure.md | RETIRED, 2026-09-06 | A placeholder decision memo on exposing grouped random effects beyond `rbart_vi()`; there is nothing left to expose (retire-grouped-random-effects.md). |
+| rbart-vi-port.md | PLANNED 2026-09-28 | Brings `rbart_vi()` and its methods back for 1.0-0 as a deprecated port of 0.9-34's R Gibbs loop over the plain sampler, removed in 1.1-0 (dec-B130); no engine, bridge or header change. |
 | retire-grouped-random-effects.md | LANDED 2026-09-06 (1e5f80b2); two sister-repo prerequisites gate the release | Deletes the whole grouped-random-intercept path - engine decorator, bridge, R surface, tests, benchmarks and docs - re-records the equivalence baseline at 50 scenarios, and points users at stan4bart. |
 
 ## API-surface cluster
