@@ -409,13 +409,21 @@ print(x, ...)
   columns, the `fitted(type = "class")` factor). Alternatively,
   `y.train` may be an n x K numeric matrix of nonnegative integer trial
   counts, one row per observation and one column per category, with row
-  sum (trials) \\n_i \ge 1\\: category k's count is then a
+  sum (trials) \\n_i \ge 0\\: category k's count is then a
   binomial(\\n_i\\, p_k) draw under the same one-vs-rest augmentation,
   `K = ncol(y.train)` is inferred, and the levels carried on every
   K-shaped output are `colnames(y.train)` when present, otherwise
   `as.character(seq_len(K))`. A one-hot count matrix (every \\n_i = 1\\)
   is the same model as the factor response above, reproduced bit for
-  bit. The formula interface is supported alongside the matrix one:
+  bit. A row with \\n_i = 0\\ contributes nothing to the likelihood and
+  still receives fitted probabilities, as `glm` fits a row of zero prior
+  weight, and the first such row in a session warns (class
+  `dbartsZeroTrialsWarning`); its `residuals` are the negated fitted
+  probabilities (observed 0, `glm`'s response residual there), and its
+  `extract(type = "loglik")` column is 0 in every draw, so drop those
+  columns before passing the matrix to loo, which reports an infinite
+  Pareto k for a constant column. The formula interface is supported
+  alongside the matrix one:
   `bart(formula, data, family = "multinomial")` with a factor (or
   character) left-hand side routes to the factor response above, and a
   `cbind(c1, ..., cK) ~ x` left-hand side (the same idiom `glm`'s
@@ -1488,7 +1496,8 @@ at the new rows, required on a fit trained with an `offset` and
 reproducing `yhat.train` when the training offset is passed back at the
 training rows. `residuals(object)` returns an n \\\times\\ K matrix, the
 observed proportion (an indicator for a factor response,
-`y / rowSums(y)` for a count-matrix one) minus the fitted probability in
+`y / rowSums(y)` for a count-matrix one, 0 at a row with no trial as
+`glm` takes a zero-weight row) minus the fitted probability in
 `fitted(object)`, per category. `extract`'s `combineChains` (default
 `TRUE`) reshapes `"ev"`/`"ppd"`/`"loglik"` to a combined or per-chain
 layout, exactly as `extract.bart`'s does; refused by name on `fitted`
@@ -1785,7 +1794,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001645
+#> total seconds in loop: 0.001576
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1833,7 +1842,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001984
+#> total seconds in loop: 0.001998
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

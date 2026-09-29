@@ -490,11 +490,11 @@ dbarts(
   \\K\\ forests, one per category, with the interleaved one-vs-rest
   Polya-Gamma augmentation. The response is an \\n \times K\\ matrix of
   non-negative integer counts - column \\k\\ holding category \\k\\'s
-  successes, every row carrying at least one trial \\n_i = \sum_k
-  y\_{ik}\\ - or, the single-trial special case, a factor, character or
-  non-negative integer-code vector, which is one-hot expanded to exactly
-  that matrix with every trial 1. Column names on the matrix, or the
-  levels of a factor, label the categories. It is never inferred: a
+  successes, with trials \\n_i = \sum_k y\_{ik} \ge 0\\ - or, the
+  single-trial special case, a factor, character or non-negative
+  integer-code vector, which is one-hot expanded to exactly that matrix
+  with every trial 1. Column names on the matrix, or the levels of a
+  factor, label the categories. It is never inferred: a
   three-or-more-level factor under `family = "auto"` is an error
   directing here, since an unordered categorical response is equally a
   candidate for several models. The response rides
@@ -504,10 +504,14 @@ dbarts(
   values before the softmax), never a flat one, which the blend is
   invariant to and which is therefore refused. Fits and predictions are
   the \\K\\ category probabilities, summing to one across the second
-  dimension. Like probit there is no residual scale to draw, and weights
-  are not supported: an integer case weight is already row-wise
-  replication in the count response, and a non-integer one has no exact
-  augmentation sampler. The sampler is an ordinary
+  dimension. A row with no trial contributes nothing to the likelihood
+  and still receives fitted probabilities, as `glm` fits a row of zero
+  prior weight; the first such row a sampler takes in a session warns
+  (class `dbartsZeroTrialsWarning`). Like probit there is no residual
+  scale to draw, and weights are not supported: an integer case weight
+  is already row-wise replication in the count response, and a
+  non-integer one has no exact augmentation sampler. The sampler is an
+  ordinary
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   whose response and per-category offsets are mutable through
   `$setCounts`, `$setCategoryOffset` and `$setCategoryTestOffset`; see

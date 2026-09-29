@@ -59,9 +59,10 @@ dbartsData(
 
   Optional `n` x `K` matrix of non-negative integer counts selecting the
   multinomial (softmax) model, column `k` holding category `k`'s
-  successes and every row carrying at least one trial. A row with any
-  `NA` cell is a missing response, routed through `na.action` exactly as
-  for every other family (see
+  successes. A row may carry no trial: it enters no likelihood and still
+  receives fitted probabilities. A row with any `NA` cell is a missing
+  response, routed through `na.action` exactly as for every other family
+  (see
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)).
   It is restricted by `subset` exactly as `weights` is, and it IS the
   response: `y` is derived as its row sums - the trials \\n_i\\ - so no

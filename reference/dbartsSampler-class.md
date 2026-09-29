@@ -397,20 +397,23 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   For `setCounts`, the replacement response of a multinomial (softmax)
   sampler: an \\n \times K\\ matrix of non-negative integer counts,
   column \\k\\ holding category \\k\\'s successes, with trials \\n_i =
-  \sum_k\\ `counts[i, ]` at least 1. Both \\n\\ and \\K\\ are fixed at
-  creation - every combiner buffer is sized by \\n\\, and \\K\\ is the
-  forest count - so only the values may change; a matrix of the wrong
-  shape is refused naming the count in force. The trees carry over,
-  fitted to the previous counts exactly as `setResponse` leaves a
-  single-forest sampler's, and the next `run` forms every category's
-  working response against the new matrix. The matrix is written to both
-  the engine and `data@counts` (its row sums to `data@y`), so
-  `getPointer`'s transparent re-creation after save and load carries the
-  current response rather than the one the sampler was created with.
-  Cost, not a defect: the sweep draws \\n_i\\ Polya-Gamma variates per
-  observation per category, so replacing single-trial labels with
-  grouped counts multiplies sweep cost by `mean(n_i)`. Refused, naming
-  the reason, on any sampler that carries no count response.
+  \sum_k\\ `counts[i, ]` at least 0: a row with no trial enters no
+  likelihood and still receives fitted probabilities, and the first such
+  row in a session warns (class `dbartsZeroTrialsWarning`). Both \\n\\
+  and \\K\\ are fixed at creation - every combiner buffer is sized by
+  \\n\\, and \\K\\ is the forest count - so only the values may change;
+  a matrix of the wrong shape is refused naming the count in force. The
+  trees carry over, fitted to the previous counts exactly as
+  `setResponse` leaves a single-forest sampler's, and the next `run`
+  forms every category's working response against the new matrix. The
+  matrix is written to both the engine and `data@counts` (its row sums
+  to `data@y`), so `getPointer`'s transparent re-creation after save and
+  load carries the current response rather than the one the sampler was
+  created with. Cost, not a defect: the sweep draws \\n_i\\ Polya-Gamma
+  variates per observation per category, so replacing single-trial
+  labels with grouped counts multiplies sweep cost by `mean(n_i)`.
+  Refused, naming the reason, on any sampler that carries no count
+  response.
 
 - weights:
 
