@@ -872,9 +872,9 @@ for (nm in unique(names.t[kinds %in% c("function", "method", "argument")])) {
   )
 }
 
-# the retired resid.prior resolves the prior constructors through a wrapper's
-# '...' too, and gives the draws of the family spelling
-fwdBartResid <- function(...) {
+# retired spellings resolve through forwarding wrappers to the caller's own
+# values, never to a same-named global
+shadowFit <- function(...) {
   dbarts::bart(
     ...,
     n.trees = 5L,
@@ -883,26 +883,74 @@ fwdBartResid <- function(...) {
     n.chains = 1L,
     n.threads = 1L,
     seed = 313L,
+    keepSampler = TRUE,
     verbose = FALSE
   )
 }
-dfResid <- data.frame(y = yCons, x = xCons[, 1L])
-fitFamilyResid <- fwdBartResid(
-  y ~ x,
-  dfResid,
-  family = gaussian(sigma = dbarts::dbartsPriors$chisq(3, 0.9))
-)
-fitFwdResid <- suppressWarnings(fwdBartResid(
-  y ~ x,
-  dfResid,
-  resid.prior = chisq(3, 0.9)
-))
-expect_equal(fitFwdResid$sigma, fitFamilyResid$sigma)
+shadowMiddle <- function(...) shadowFit(...)
+shadowRenamed <- function(power) shadowFit(xCons, yCons, power = power)
+shadowData <- data.frame(y = yCons, x = xCons[, 1L])
+pw <- 9
+sdf <- 9
+qq <- 0.1
+suppressWarnings({
+  fitPower <- (function() {
+    pw <- 3
+    shadowFit(xCons, yCons, power = pw)
+  })()
+  fitPowerNested <- (function() {
+    pw <- 3
+    shadowMiddle(xCons, yCons, power = pw)
+  })()
+  fitPowerRenamed <- (function() {
+    power <- 3
+    shadowRenamed(power)
+  })()
+  fitSdf <- (function() {
+    sdf <- 5
+    shadowFit(xCons, yCons, sigdf = sdf, sigquant = 0.75)
+  })()
+  fitResid <- (function() {
+    qq <- 0.75
+    shadowMiddle(y ~ x, shadowData, resid.prior = chisq(5, qq))
+  })()
+})
+expect_equal(fitPower$fit$model@tree.prior@power, 3)
+expect_equal(fitPowerNested$fit$model@tree.prior@power, 3)
+expect_equal(fitPowerRenamed$fit$model@tree.prior@power, 3)
+expect_equal(fitSdf$fit$model@resid.prior@df, 5)
+expect_equal(fitResid$fit$model@resid.prior@df, 5)
+expect_equal(fitResid$fit$model@resid.prior@quantile, 0.75)
+# identical draws to the family spelling
+fitFamilyResid <- (function() {
+  qq <- 0.75
+  shadowMiddle(
+    y ~ x,
+    shadowData,
+    family = gaussian(sigma = dbarts::dbartsPriors$chisq(5, qq))
+  )
+})()
+expect_equal(fitResid$sigma, fitFamilyResid$sigma)
+# and warns once, using the value
 resetOnce <- dbarts:::onceWarnState
 resetOnce[["tombstone.consolidated.resid.prior.bart"]] <- NULL
 rm(resetOnce)
 expect_warning(
-  fwdBartResid(y ~ x, dfResid, resid.prior = chisq(3, 0.9)),
+  shadowFit(y ~ x, shadowData, resid.prior = chisq(3, 0.9)),
   "resid.prior"
 )
-rm(fwdBartResid, dfResid, fitFamilyResid, fitFwdResid)
+rm(
+  shadowFit,
+  shadowMiddle,
+  shadowRenamed,
+  shadowData,
+  pw,
+  sdf,
+  qq,
+  fitPower,
+  fitPowerNested,
+  fitPowerRenamed,
+  fitSdf,
+  fitResid,
+  fitFamilyResid
+)

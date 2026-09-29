@@ -266,27 +266,111 @@ dfFwd <- data.frame(
 fwdRbart <- function(...) {
   dbarts::rbart_vi(
     ...,
-    n.samples = 1L,
+    n.samples = 5L,
     n.burn = 0L,
     n.thin = 1L,
     n.chains = 1L,
     n.trees = 5L,
     n.threads = 1L,
+    seed = 3L,
     verbose = FALSE
   )
 }
-fwdCaller <- function(d) {
-  gLocal <- d$g
-  fwdRbart(y ~ . - g, d, group.by = gLocal)
-}
-expect_inherits(fwdRbart(y ~ . - g, dfFwd, group.by = g), "rbart")
-expect_inherits(fwdCaller(dfFwd), "rbart")
-expect_inherits(
-  fwdRbart(y ~ . - g, dfFwd, test = dfFwd, group.by = g, group.by.test = g),
-  "rbart"
+fwdMiddle <- function(...) fwdRbart(...)
+# a wrapper that renames: the parameter is called group.by-ish, and the data
+# has a column of that name which must NOT be picked up
+fwdRenamed <- function(d, grp) fwdRbart(y ~ x, d, group.by = grp)
+# the group count is read off the fit's random effects
+nGroups <- function(fit) ncol(fit$ranef)
+direct <- dbarts::rbart_vi(
+  y ~ x,
+  dfFwd,
+  group.by = g,
+  n.samples = 5L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 5L,
+  n.threads = 1L,
+  seed = 3L,
+  verbose = FALSE
 )
-expect_inherits(
-  fwdRbart(y ~ . - g, dfFwd, group.by = g, prior = cauchy),
-  "rbart"
+expect_equal(nGroups(direct), 4L)
+expect_equal(nGroups(fwdRbart(y ~ x, dfFwd, group.by = g)), 4L)
+expect_equal(nGroups(fwdMiddle(y ~ x, dfFwd, group.by = g)), 4L)
+expect_equal(fwdRbart(y ~ x, dfFwd, group.by = g)$ranef, direct$ranef)
+
+# a local variable of the user's own name beats a global of that name
+g <- rep_len(1:2, 40L)
+localGroups <- (function() {
+  g <- rep_len(1:5, 40L)
+  fwdMiddle(y ~ x, dfFwd[c("y", "x")], group.by = g)
+})()
+expect_equal(nGroups(localGroups), 5L)
+# and a column is read as a column, whatever the global says
+expect_equal(nGroups(fwdMiddle(y ~ x, dfFwd, group.by = g)), 4L)
+# the data has a column named like the intermediate wrapper's parameter
+dfGrp <- dfFwd
+dfGrp$grp <- rep_len(1:3, 40L)
+expect_equal(nGroups(fwdRenamed(dfGrp, rep_len(1:5, 40L))), 5L)
+# a closure calling rbart_vi
+closureGroups <- (function() {
+  inner <- function(...) {
+    dbarts::rbart_vi(
+      ...,
+      n.samples = 5L,
+      n.burn = 0L,
+      n.thin = 1L,
+      n.chains = 1L,
+      n.trees = 5L,
+      n.threads = 1L,
+      seed = 3L,
+      verbose = FALSE
+    )
+  }
+  gLocal <- rep_len(1:5, 40L)
+  inner(y ~ x, dfFwd, group.by = gLocal)
+})()
+expect_equal(nGroups(closureGroups), 5L)
+rm(g)
+
+# group.by.test through a wrapper
+testFit <- (function() {
+  gt <- rep_len(1:4, 40L)
+  fwdMiddle(y ~ x, dfFwd, test = dfFwd, group.by = g, group.by.test = gt)
+})()
+expect_inherits(testFit, "rbart")
+
+# prior = gamma is the gamma prior, not the default
+fwdGamma <- fwdMiddle(y ~ x, dfFwd, group.by = g, prior = gamma)
+expect_false(isTRUE(all.equal(fwdGamma$ranef, direct$ranef)))
+expect_equal(
+  fwdGamma$ranef,
+  dbarts::rbart_vi(
+    y ~ x,
+    dfFwd,
+    group.by = g,
+    prior = gamma,
+    n.samples = 5L,
+    n.burn = 0L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.trees = 5L,
+    n.threads = 1L,
+    seed = 3L,
+    verbose = FALSE
+  )$ranef
 )
-rm(fwdRbart, fwdCaller, dfFwd)
+rm(
+  fwdRbart,
+  fwdMiddle,
+  fwdRenamed,
+  nGroups,
+  direct,
+  localGroups,
+  dfGrp,
+  closureGroups,
+  testFit,
+  fwdGamma,
+  dfFwd
+)

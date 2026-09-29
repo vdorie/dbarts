@@ -580,30 +580,15 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
       consolidatedArgReasons[[name]],
       ". The value was used."
     )
-    # the one old spelling still written in a vocabulary this package alone
-    # holds: resid.prior took the prior constructors, which are not exported
-    env <- switch(
-      name,
-      resid.prior = vocabularyEnv(dbartsPriors, evalEnv),
-      evalEnv
-    )
-    written <- forwardedDotExpr(matchedCall[[name]], evalEnv)
+    # resid.prior alone is still written in a vocabulary this package holds:
+    # the prior constructors, which are not exported
     values[name] <- list(
       if (name %in% unevaluatedConsolidatedArgs) {
-        written
+        recoverForwardedArgument(matchedCall[[name]], evalEnv)$expr
+      } else if (name == "resid.prior") {
+        evalInVocabulary(matchedCall[[name]], dbartsPriors, evalEnv)
       } else {
-        # through a wrapper's '...' the written expression is read in the
-        # vocabulary first; a name the caller's own frame holds is forced
-        # through the forwarded promise instead
-        tryCatch(
-          eval(written, env),
-          error = function(e) {
-            if (identical(written, matchedCall[[name]])) {
-              stop(e)
-            }
-            eval(matchedCall[[name]], evalEnv)
-          }
-        )
+        eval(matchedCall[[name]], evalEnv)
       }
     )
   }
