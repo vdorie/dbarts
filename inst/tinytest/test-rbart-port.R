@@ -326,6 +326,36 @@ for (nThreads in 1:2) {
   expect_true(grepl("0 and 1 weights", conditionMessage(result), fixed = TRUE))
   expect_false(any(grepl("defaulting to single", seen, fixed = TRUE)))
 }
+# refusals a worker would otherwise swallow surface once, up front
+seen <- character()
+for (nThreads in 1:2) {
+  three <- factor(rep(c("a", "b", "c"), length.out = n))
+  for (refused in list(
+    quote(dbarts::rbart_vi(three ~ x, group.by = g, n.threads = nThreads)),
+    quote(dbarts::rbart_vi(
+      sim$eta ~ x,
+      group.by = g,
+      k = -1,
+      n.threads = nThreads
+    ))
+  )) {
+    refused$n.chains <- 2L
+    refused$n.samples <- 5L
+    refused$n.burn <- 0L
+    refused$n.thin <- 1L
+    refused$n.trees <- 5L
+    refused$verbose <- FALSE
+    result <- withCallingHandlers(
+      tryCatch(eval(refused), error = function(e) e),
+      warning = function(cond) {
+        seen <<- c(seen, conditionMessage(cond))
+        invokeRestart("muffleWarning")
+      }
+    )
+    expect_inherits(result, "error")
+  }
+}
+expect_false(any(grepl("defaulting to single", seen, fixed = TRUE)))
 # 0 and 1 weights are fine
 expect_inherits(
   fitRbart(yBinary ~ x, group.by = g, weights = rep(c(0, 1), n / 2L)),
@@ -349,7 +379,38 @@ if (requireNamespace("survival", quietly = TRUE)) {
   )
   rm(status)
 }
-rm(n, sim, x, g, yBinary, w, nThreads, seen, result)
+
+# keepFits = FALSE is overridden: the loop reads the fits every sweep
+expect_inherits(
+  fitRbart(sim$eta ~ x, group.by = g, keepFits = FALSE),
+  "rbart"
+)
+
+# a group whose rows all have weight 0 informs nothing: its intercepts are
+# draws from the prior, as spread as tau
+set.seed(41L)
+nz <- 400L
+dz <- data.frame(x = rnorm(nz), g = factor(sample(6L, nz, TRUE)))
+bz <- rnorm(6L)
+dz$z <- rbinom(nz, 1L, pnorm(dz$x + bz[as.integer(dz$g)]))
+fitZero <- fitRbart(
+  z ~ x,
+  dz,
+  group.by = dz$g,
+  weights = as.numeric(dz$g != "1"),
+  n.samples = 500L,
+  n.burn = 200L
+)
+ratio <- sd(fitZero$ranef[, "1"]) / mean(fitZero$tau)
+expect_true(ratio > 0.6 && ratio < 1.6)
+rm(nz, dz, bz, fitZero, ratio)
+
+# a fit saved by 0.9-x has samplers this version cannot re-create
+fit <- fitRbart(sim$eta ~ x, group.by = g)
+fit$fit <- list(new.env())
+expect_error(predict(fit, x, g), "saved by dbarts 0.9-x")
+expect_error(dbarts::extract(fit, type = "trees"), "saved by dbarts 0.9-x")
+rm(n, sim, x, g, yBinary, w, nThreads, seen, result, three, refused, fit)
 
 # --- recovery on a simulated design ---
 recover <- function(binary) {

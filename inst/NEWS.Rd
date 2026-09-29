@@ -1934,11 +1934,10 @@
             of bounds" when \code{newdata} has a group the fit did not see,
             and the new groups' draws are scaled by the \code{tau} of their
             own draw.
-      \item \code{predict} and \code{extract(type = "trees")} work on an
-            \code{rbart_vi} fit that ran in parallel, and a fit that is saved
-            and read back into a new session predicts what it did before;
-            each sampler now carries its stored state. A reloaded fit had
-            predicted different values without a warning.
+      \item An \code{rbart_vi} fit that is saved and read back into a new session
+            predicts what it did before; each sampler now carries its stored
+            state. A reloaded fit had predicted different values without a
+            warning.
       \item \code{rbart_vi} draws its intercepts with precision weights: a
             group's precision is its total weight over \eqn{\sigma^2}, around
             the weighted residual mean, the convention of \code{lme4} and of

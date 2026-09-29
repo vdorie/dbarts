@@ -124,6 +124,7 @@ rbart_vi <- function(
     controlCall[["n.threads"]] <- eval(controlCall[["n.threads"]])
   }
   control <- eval(controlCall, envir = callingEnv)
+  control@keepFits <- TRUE
 
   control@call <- if (keepCall) matchedCall else call("NULL")
   control@n.burn <- control@n.burn %/% control@n.thin
@@ -325,6 +326,12 @@ rbart_vi <- function(
     oldSeed <- readGlobalSeed()
     on.exit(writeGlobalSeed(oldSeed), add = TRUE)
   }
+
+  # any refusal of the chains' arguments surfaces here, once, rather than
+  # inside a worker that then retries serially
+  streamBefore <- readGlobalSeed()
+  do.call(dbarts::dbarts, samplerArgs)
+  writeGlobalSeed(streamBefore)
 
   chainResults <- vector("list", n.chains)
   runSingleThreaded <- n.threads <= 1L || n.chains <= 1L
@@ -582,6 +589,7 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
   control@updateState <- FALSE
   control@verbose <- FALSE
   control@keepTrainingFits <- TRUE
+  control@keepFits <- TRUE
   sampler$setControl(control)
 
   # the loop sets each sweep's offset, intercepts included, and the test rows
@@ -598,7 +606,11 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
   g.sel <- lapply(seq_len(numRanef), function(j) g == j)
   n.g <- sapply(g.sel, sum)
   offset.orig <- sampler$data@offset
+  # a binary fit keeps its 0/1 weights as the active rows
   weights <- sampler$data@weights
+  if (is.null(weights)) {
+    weights <- sampler$activeRows
+  }
   w.g <- if (is.null(weights)) {
     n.g
   } else {
@@ -995,6 +1007,26 @@ packageRbartResults <- function(
 }
 
 
+## An rbart fit saved by dbarts 0.9-x holds samplers that predate the fields
+## this version re-creates them from, so they cannot be used.
+refuseLegacyRbart <- function(object) {
+  if (
+    !is.null(object$fit) &&
+      !exists(
+        "activeRows",
+        envir = as.environment(object$fit[[1L]]),
+        inherits = FALSE
+      )
+  ) {
+    stop(
+      "this fit was saved by dbarts 0.9-x; dbarts 1.0-0 cannot read its ",
+      "trees; refit with this version",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 predict.rbart <- function(
   object,
   newdata,
@@ -1007,6 +1039,7 @@ predict.rbart <- function(
   if (is.null(object$fit)) {
     stop("predict requires rbart to be called with 'keepTrees' == TRUE")
   }
+  refuseLegacyRbart(object)
 
   dotsList <- list(...)
   if (!is.null(dotsList[["value"]])) {
@@ -1252,6 +1285,7 @@ extract.rbart <- function(
         "extracting trees requires rbart to be called with 'keepTrees' == TRUE"
       )
     }
+    refuseLegacyRbart(object)
     treesCall <- match.call()
     target <- quote(object$fit[[i]]$getTrees)
     target[[2L]][[2L]][[2L]] <- treesCall$object

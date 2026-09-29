@@ -779,9 +779,11 @@ into a divisor.
 D6 made a grouped random-intercept fit alongside a variance forest a
 validation error at `resolveSamplerSpec`'s variance block, with a backstop
 at `createHolder`. Grouped random intercepts have since been removed from
-dbarts entirely
+the engine
 ([The decision](retire-grouped-random-effects.md#the-decision)), so both the
-composition and its refusal are gone; multilevel structure is stan4bart's.
+composition and its refusal are gone. `rbart_vi` returns for 1.0-0 only as a
+deprecated R loop over the plain sampler, which takes no variance forest;
+multilevel structure is stan4bart's.
 
 ## 18. Post-landing: the current-state surface read, and the ppd
 

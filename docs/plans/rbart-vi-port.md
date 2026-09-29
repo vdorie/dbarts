@@ -318,7 +318,9 @@ M9. Weighted binary fits. Ruled refuse up front, maintainer 2026-09-28: "Refuse 
     NULL-safe helpers that also fix `packageRbartResults`, whose restore assigned NULL when no stream existed (an
     error on the next draw). Alternative: restore on success only.
 12. D5 covers zero-weight rows: a group whose weights total 0 draws its intercept from the prior, where 0.9-34's
-    `mean` of an empty group gave NaN. A binary fit's 0/1 weights make a 0 row inert in the intercept draw.
+    `mean` of an empty group gave NaN. A binary fit's 0/1 weights live in the sampler's active rows, not in
+    `data@weights`, so the loop reads them from there (review fix; the first landing missed it and let excluded rows
+    inform their group).
 13. D3's new-level draws are not the same numbers in the combined and split layouts for one seed (each layout fills
     its array in its own order); only the measured levels agree, and the scales follow each draw's own tau.
 14. The eight ported test files mark the deprecation key as warned at their top, so the suite's warning list is not
@@ -341,7 +343,8 @@ nine 0.9-34 test files ported (patterns added, groupby fits seeded, ranef snapsh
 `man/rbart.Rd` back with the Deprecated paragraph, print usage, bartBT pointer, data and weights notes and a
 `suppressWarnings` example; `dbarts-deprecated.Rd` reduced to a pointer; `_pkgdown.yml`; `inst/NEWS.Rd` (a
 deprecation item, the tombstone-list reword, seven BUG FIXES items, M1 and M9 in the deprecation item); the
-design and plan records, the review tour, and three design-doc sentences. 262 added, 48 removed.
+design and plan records, the review tour, and the design-doc sentences (bart-as-a-component, correlated-outcomes, heteroscedastic; the last was missed at
+first). 262 added, 48 removed.
 
 Gates, macOS arm64, R from this host, private library, tree at the slice 2 commit. Full tinytest suite: 9499
 expectations, 0 failures. `lintr::lint_package()`: 0 lints. `air format --check .`: clean. `check-rc-codoc.R`,
@@ -364,3 +367,24 @@ What the plan got wrong or left open. Slice 1 ran 3350 lines against about 2800,
 ported tests. Nothing else in the plan was wrong. Main's
 `test-rbart-weights.R` bare `expect_warning` would have passed on the deprecation warning alone; it now
 carries the pattern of the warning it means.
+
+### Review fixes (third commit, same day)
+
+Seven review findings applied. Binary zero-weight rows now read the active rows (a group of all-zero weights draws
+from the prior, sd near tau; test added, 0.41 of tau before, 1.15 after). `rbart_vi` builds one sampler with the
+chain's arguments before any chain and discards it, so a 3-level factor response and `k = -1` refuse once under
+`n.threads = 2` (both added to the M9 test); the build leaves the caller's random stream as it found it (the seeded-chain identity test needs that). `keepFits` is forced
+on, with a test. NEWS drops the claim that PSOCK fits could not predict on 0.9-34 and keeps the reload sentence.
+The manual's shared-argument pointer names `bart`, with `sigdf`, `sigquant`, `power` and `base` as in `bartBT`.
+heteroscedastic.md no longer says grouped intercepts were removed entirely. `predict` and `extract(type = "trees")`
+on a fit saved by 0.9-x stop with a message to refit; the test is a sampler environment lacking the `activeRows`
+field, which 0.9-x samplers lack (a real 0.9-x fit was checked by hand). New agent-made call: the 0.9-x detector is
+that field's absence; the state-based `refuseLegacyState` cannot be used, since reading `$state` on such a sampler
+already fails.
+
+Gates after the review fixes, same environment: full tinytest suite 9508 expectations, 0 failures (run without
+suppressWarnings); `lintr::lint_package()` 0 lints; `air format --check .` clean; codoc, win-drift and
+doc-freshness exit 0; `check_pkgdown` clean; NEWS 332 entries; `R CMD check --as-cran --no-manual` on a clean
+tarball, one NOTE (the Date field), no WARNING. The exact gates were not rerun: nothing they read changed since the
+25 of 25 pass. Line counts of this commit are in its diffstat, about 190 added and 40 removed.
+
