@@ -1074,6 +1074,10 @@ Record: this register; TODO leaf-prior-reader-shape. Marked: mine. [dec-B141]
 $setLeafPrior accepts on multi-forest samplers what their creation accepts: normal(k = ) on a multinomial sampler, applied to every category forest, and forest(sd = ) per forest on an amplitude-coupled sampler such as a Bayesian causal forest, both before 1.0-0. Both need engine work, since the engine refuses a mid-run scale change with a calibration map installed; the planning estimates were about 150 lines for the multinomial part and 300 for the per-forest part, with the causal-forest exactness gates re-run. No caller waits on either. The alternatives were building the multinomial part now and deferring the per-forest part, deferring both, since lifting a refusal later breaks no call, and keeping both refusals. The maintainer ruled earlier that the writer mirror creation with engine work sized first, and on 2026-09-29, shown the sizes: "Build both before release." See also: [dec-B141].
 Record: this register; TODO multiforest-leaf-prior-writer. Marked: mine. [dec-B142]
 
+**A large negative-binomial dispersion costs no more than a small one**
+The negative-binomial latent draw PG(y + r, psi), today the sum of y + r unit Polya-Gamma draws and so linear in r (36 seconds per ten sweeps at n = 200 and r = 1e5), is replaced for large shapes by an exact sampler whose cost does not grow with the shape, such as the saddle-point rejection sampler of Windle, Polson and Scott (2014), before 1.0-0. Draws stay exact, as dec-B14 requires; random draws move for shapes on the new path. The alternatives were leaving r open and documenting the linear cost, refusing r above a bound, and the same sampler after release. The maintainer on 2026-09-29, shown the three: "Oh, just do 3." See also: [dec-B14].
+Record: this register; TODO nbinom-large-shape-pg. Marked: mine. [dec-B143]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**

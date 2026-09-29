@@ -236,6 +236,12 @@ items
     VD (2026-09-29): the accessor and the parameter use names that are
     widely recognized; getSize alone is not specific enough. To be
     addressed later; new in 1.0-0, so no tombstone.
+  nbinom-large-shape-pg: before 1.0-0 (VD 2026-09-29, docs/decisions.md
+    dec-B143), an exact Polya-Gamma sampler whose cost does not grow
+    with the shape for the negative-binomial latent PG(y + r, psi),
+    which today sums y + r unit draws. Engine work; design first. A
+    real-shape exact sampler is also what negbin-real-dispersion and
+    weighted-binary lack.
   negbin-real-dispersion: real-valued dispersion needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
