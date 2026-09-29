@@ -109,7 +109,11 @@ A list of functions:
 - `nbinom(dispersion = NULL)`:
 
   Negative-binomial counts. `NULL` estimates the dispersion \\r\\ on a
-  capped positive-integer grid; a positive integer fixes it.
+  capped positive-integer grid; a positive integer fixes it. Each
+  sweep's latent draw costs time in proportion to \\y + r\\, so a large
+  fixed \\r\\ is slow: at \\r = 10^4\\, a thousand sweeps over a
+  thousand observations take about half an hour. By \\r\\ in the
+  hundreds the model is already close to a Poisson one.
 
 - `aft(sigma = NULL)`:
 
