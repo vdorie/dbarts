@@ -463,7 +463,11 @@ dbarts(
   `"gaussian"` forces a continuous fit even for a 0/1 numeric response;
   `"probit"` and `"logistic"` require a 0/1 response and fit
   latent-variable models, with fits and predictions on the latent scale.
-  `"logistic"` uses Polya-Gamma augmentation.
+  `"logistic"` uses Polya-Gamma augmentation. Base R family objects map
+  as [`glm`](https://rdrr.io/r/stats/glm.html) takes them (`binomial` is
+  the logit link, so `family = binomial` is `"logistic"`, not probit)
+  and the rest are refused; see
+  [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md).
 
   `"aft"` fits an accelerated failure time (log-normal) survival model:
   the response is a `Surv` object (from the survival package) or a

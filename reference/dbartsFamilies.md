@@ -26,6 +26,20 @@ forces a bare constructor call before passing it on reaches R's own
 could-not-find-function error, extended with the same hint naming
 `dbartsFamilies$student(...)` and its siblings.
 
+Base R's family objects are accepted as
+[`glm`](https://rdrr.io/r/stats/glm.html) takes them.
+[`stats::gaussian()`](https://rdrr.io/r/stats/family.html) (or a bare
+`gaussian(link = "identity")`, whose `link` comes first, as in `glm`) is
+the gaussian family, `binomial(link = "probit")` is `probit`, and
+`binomial(link = "logit")` is `logistic`; the word `"binomial"` and the
+bare function `binomial` mean
+[`binomial()`](https://rdrr.io/r/stats/family.html), the logit link, so
+a 0/1 response fit with `family = binomial` is logistic where `"auto"`
+is probit. Any other link of those two, and every other stats, quasi or
+foreign family (`poisson`, `Gamma`, `quasibinomial`,
+[`MASS::negative.binomial`](https://rdrr.io/pkg/MASS/man/negative.binomial.html),
+...), is refused by name.
+
 Every setting that only one family reads rides its family object rather
 than a formal of the fitting function. That includes the residual
 scale's own prior, `sigma`, on the four families that draw a residual
@@ -62,7 +76,7 @@ show(object)
 
 A list of functions:
 
-- `gaussian(sigma = NULL)`:
+- `gaussian(link = "identity", sigma = NULL)`:
 
   A continuous response with normal errors; the default for a numeric
   response under `family = "auto"`. `sigma` is the prior on the residual

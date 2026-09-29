@@ -336,7 +336,11 @@ xbart(
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s by
   design - `xbart` cross-validates a single scalar loss per fold, which
   the own-class families' K-forest or two-part fits have no single
-  counterpart of; the wider family set lives on `bart`.
+  counterpart of; the wider family set lives on `bart`. Base R family
+  objects map as [`glm`](https://rdrr.io/r/stats/glm.html) takes them
+  (`binomial` is the logit link, so `family = binomial` is `"logistic"`,
+  not probit) and the rest are refused; see
+  [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md).
 
 - leaf.prior:
 

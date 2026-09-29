@@ -361,7 +361,11 @@ print(x, ...)
   families described below.
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
   no `family` argument at all: every fit it makes is the default
-  gaussian/probit pair.
+  gaussian/probit pair. Base R family objects map as
+  [`glm`](https://rdrr.io/r/stats/glm.html) takes them (`binomial` is
+  the logit link, so `family = binomial` is `"logistic"`, not probit)
+  and the rest are refused; see
+  [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md).
 
   Every setting only one family reads rides the family object rather
   than this signature, in [`glm`](https://rdrr.io/r/stats/glm.html)'s
@@ -1776,7 +1780,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001480
+#> total seconds in loop: 0.001571
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1824,7 +1828,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001749
+#> total seconds in loop: 0.002045
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

@@ -19,6 +19,17 @@ family takes either a token string (family = &quot;gaussian&quot;),
   named formal that instead forces a bare constructor call before passing it
   on reaches R's own could-not-find-function error, extended with the same
   hint naming dbartsFamilies$student(...) and its siblings.
+Base R's family objects are accepted as glm takes them.
+  stats::gaussian() (or a bare gaussian(link = &quot;identity&quot;),
+  whose link comes first, as in glm) is the gaussian family,
+  binomial(link = &quot;probit&quot;) is probit, and
+  binomial(link = &quot;logit&quot;) is logistic; the word
+  &quot;binomial&quot; and the bare function binomial mean
+  binomial(), the logit link, so a 0/1 response fit with
+  family = binomial is logistic where &quot;auto&quot; is probit. Any
+  other link of those two, and every other stats, quasi or foreign
+  family (poisson, Gamma, quasibinomial,
+  MASS::negative.binomial, ...), is refused by name.
 Every setting that only one family reads rides its family object rather
   than a formal of the fitting function. That includes the residual
   scale's own prior, sigma, on the four families that draw a
@@ -51,6 +62,17 @@ family takes either a token string (family = &quot;gaussian&quot;),
   named formal that instead forces a bare constructor call before passing it
   on reaches R's own could-not-find-function error, extended with the same
   hint naming dbartsFamilies$student(...) and its siblings.
+Base R's family objects are accepted as glm takes them.
+  stats::gaussian() (or a bare gaussian(link = &quot;identity&quot;),
+  whose link comes first, as in glm) is the gaussian family,
+  binomial(link = &quot;probit&quot;) is probit, and
+  binomial(link = &quot;logit&quot;) is logistic; the word
+  &quot;binomial&quot; and the bare function binomial mean
+  binomial(), the logit link, so a 0/1 response fit with
+  family = binomial is logistic where &quot;auto&quot; is probit. Any
+  other link of those two, and every other stats, quasi or foreign
+  family (poisson, Gamma, quasibinomial,
+  MASS::negative.binomial, ...), is refused by name.
 Every setting that only one family reads rides its family object rather
   than a formal of the fitting function. That includes the residual
   scale's own prior, sigma, on the four families that draw a
@@ -123,6 +145,17 @@ Every setting that only one family reads rides its family object rather
   named formal that instead forces a bare constructor call before passing it
   on reaches R's own could-not-find-function error, extended with the same
   hint naming <code>dbartsFamilies$student(...)</code> and its siblings.</p>
+<p>Base R's family objects are accepted as <code><a href="https://rdrr.io/r/stats/glm.html" class="external-link">glm</a></code> takes them.
+  <code><a href="https://rdrr.io/r/stats/family.html" class="external-link">stats::gaussian()</a></code> (or a bare <code>gaussian(link = "identity")</code>,
+  whose <code>link</code> comes first, as in <code>glm</code>) is the gaussian family,
+  <code>binomial(link = "probit")</code> is <code>probit</code>, and
+  <code>binomial(link = "logit")</code> is <code>logistic</code>; the word
+  <code>"binomial"</code> and the bare function <code>binomial</code> mean
+  <code><a href="https://rdrr.io/r/stats/family.html" class="external-link">binomial()</a></code>, the logit link, so a 0/1 response fit with
+  <code>family = binomial</code> is logistic where <code>"auto"</code> is probit. Any
+  other link of those two, and every other <span class="pkg">stats</span>, quasi or foreign
+  family (<code>poisson</code>, <code>Gamma</code>, <code>quasibinomial</code>,
+  <code><a href="https://rdrr.io/pkg/MASS/man/negative.binomial.html" class="external-link">MASS::negative.binomial</a></code>, ...), is refused by name.</p>
 <p>Every setting that only one family reads rides its family object rather
   than a formal of the fitting function. That includes the residual
   scale's own prior, <code>sigma</code>, on the four families that draw a
@@ -154,7 +187,7 @@ Every setting that only one family reads rides its family object rather
 </dl></div>
     <div class="section level2">
     <h2 id="format">Format<a class="anchor" aria-label="anchor" href="#format"></a></h2>
-    <p>A list of functions:</p><dl><dt><code>gaussian(sigma = NULL)</code></dt>
+    <p>A list of functions:</p><dl><dt><code>gaussian(link = "identity", sigma = NULL)</code></dt>
 <dd><p>A continuous response with normal errors; the default for a numeric
       response under <code>family = "auto"</code>. <code>sigma</code> is the prior on
       the residual scale: <code>NULL</code> is the shipped
