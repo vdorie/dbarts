@@ -388,6 +388,10 @@ Record: this register. Marked: blank. [dec-A125]
 In the lockstep consumer branches the agents: resolved treatSens's treatment-model argument in the caller's frame with probitEM, probit, bart and probit's three prior constructors resolving by name, so a constructor's arguments see the caller's variables, where the namespace had been searched and a constructor call forwarded through a wrapper's dots still fails; re-vendored stan4bart's WALNUTS headers under Walnutpie's own paths with the one local method kept as a patch, credited the Walnutpie Developers as copyright holder in DESCRIPTION, and cited the WALNUTS paper; tested bartCause's p.weights sum against the estimate at a 1e-2 tolerance because the estimator clips the mean responses to the response range and the reported individual effects do not; and re-recorded bartCause's tmle snapshot for dbarts 093dd035, since tmle's default learners fit through bartBT. The alternatives were leaving each as it was. Not yet ruled on.
 Record: this register. Marked: blank. [dec-A126]
 
+**The multi-forest writer's two calls under the ruling**
+Designing dec-B142's writer, the orchestrator settled that the leaf-prior reader reports a calibration-map forest's prior as forest(sd = ), the spelling creation and the writer take there, rather than normal(sd = ) in response units, which nothing accepts on such a forest, so the reader's output writes back as the ruling on the reader requires; and that creation refuses forest(sd = Inf) as the writer will. The alternatives were a second normal(sd = ) spelling in the writer that creation never takes, and accepting an infinite sd in both. Not yet ruled on. See also: [dec-B141], [dec-B142], [dec-A124].
+Record: docs/plans/multiforest-leaf-prior-writer.md. Marked: blank. [dec-A127]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modelled, not refused**
