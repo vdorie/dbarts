@@ -320,7 +320,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   row leaves every reported probability unchanged, and the entrance
   leaves the matrix as given rather than re-centring it. It shifts the
   TRAINING latent only. Mirrored into `data@offset.category`, so a
-  re-created sampler carries it.
+  re-created sampler carries it. Column names, when present, are matched
+  to the sampler's category names (the column names of its counts;
+  `"1"`, ..., `"K"` when it has none): a permutation is reordered by
+  name and other names are refused, except that a sampler without count
+  column names reorders a permutation of its indices and ignores other
+  names. Unnamed columns stay positional.
 
 - updateScale:
 
@@ -369,7 +374,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   vector is refused there for the same reason, and a sampler holding
   either resident category offset refuses an unnamed call rather than
   reporting the offset-free surface, which an explicit all-zero matrix
-  asks for on purpose.
+  asks for on purpose. Column names, when present, are matched to the
+  sampler's category names (the column names of its counts; `"1"`, ...,
+  `"K"` when it has none): a permutation is reordered by name and other
+  names are refused, except that a sampler without count column names
+  reorders a permutation of its indices and ignores other names. Unnamed
+  columns stay positional.
 
 - n.threads:
 

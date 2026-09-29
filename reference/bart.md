@@ -304,10 +304,11 @@ print(x, ...)
 
 - offset.test:
 
-  The equivalent of `offset` for test observations. Defaults to tracking
-  `offset`: a scalar, or a vector already matching the test row count,
-  is reused directly, and any other length is refused by name rather
-  than silently recycled. See
+  The equivalent of `offset` for test observations (for
+  `family = "multinomial"`, an m x K matrix, see `family`). Defaults to
+  tracking `offset`: a scalar, or a vector already matching the test row
+  count, is reused directly, and any other length is refused by name
+  rather than silently recycled. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   ‘Test offset synchronization’ details for how a live sampler keeps the
   two linked after fitting.
@@ -463,35 +464,41 @@ print(x, ...)
   forests' raw fits before the softmax, one column per category, in the
   same layout as a count-matrix `y.train`; a flat (length-n) offset is
   refused by name, since a common per-observation shift is the softmax's
-  own null direction and is identically inert. `offset` is a TRAIN-side
-  argument only: `offset.test` is refused by name too, and `yhat.test`
-  is always computed WITHOUT any category offset, even when `offset` was
-  supplied for training - a caller comparing an offset-fitted
-  `yhat.train` against `yhat.test` should keep this asymmetry in mind. A
-  category test offset on the fit-time `test` rows is a sampler-level
-  capability only (a
-  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
-  own `$setCategoryTestOffset` method, reached through
-  `keepSampler = TRUE`), not reachable from `bart`; `predict`'s own
-  `offset` is the supported route to an offset test surface, taking a
-  matrix for the rows it is given. `test` is supported: an `x.test` of
-  the same column structure as `x.train` reports the K-category softmax
-  probabilities on the held-out rows as `yhat.test`, shaped and
-  levels-named exactly like `yhat.train` (see ‘Value’). `keepTrees` is
-  supported too: it retains every one of the K forests' trees so
-  `predict` can replay them at new predictors afterward, reproducing
-  `yhat.test` bitwise when `newdata` matches the fit-time `test`;
-  without `keepTrees`, `predict` errors. A fit trained with an `offset`
-  replays as well, given `predict`'s `offset` at the new rows, and
-  refuses by name without it: no resident offset describes rows the fit
-  never saw. The per-forest leaf scale follows its own K-dependent
-  calibration (the K = 2 anchor is the logistic scale \\\pi\sqrt{3}\\
-  divided by \\\sqrt{2}\\, for the identified pairwise log-odds); `k` is
-  read from the usual leaf prior exactly as for any other family, but
-  the leaf prior's scale itself is NOT consulted - the multinomial
-  engine calibrates its own. The fit's class is `"bartMultinomial"`, not
-  `"bart"`: see ‘Value’ below and the `extract`/`fitted`/`predict`
-  methods for `bartMultinomial` objects.
+  own null direction and is identically inert. `offset.test` takes an m
+  x K numeric matrix for the m `test` rows, in the same column layout as
+  `offset`; omitted, it defaults to `offset` when the row counts match,
+  and an `offset` beside a `test` set of another length is refused by
+  name asking for `offset.test`. An explicit `offset.test = NULL` means
+  no test offset. A reused default is a copy taken at fit time: on a
+  kept sampler, neither `$setOffset` nor `$setCategoryOffset` moves it
+  (see [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  ‘Test offset synchronization’, which describes a directly built
+  sampler). A data frame is accepted for `offset` and `offset.test`
+  alike, and column names, when present, are matched to the category
+  levels (a permutation is reordered by name, other names are refused;
+  an unnamed count-matrix fit matches offset columns by position; a
+  permutation of its column indices is still reordered, and other names
+  are ignored), for `predict`'s `offset` as well. A flat `offset.test`
+  is refused like a flat `offset`, and a missing or non-finite value is
+  refused as in `offset`. `yhat.test` then carries the test offset and
+  equals `predict`'s replay at `test` given `offset = offset.test`.
+  `test` is supported: an `x.test` of the same column structure as
+  `x.train` reports the K-category softmax probabilities on the held-out
+  rows as `yhat.test`, shaped and levels-named exactly like `yhat.train`
+  (see ‘Value’). `keepTrees` is supported too: it retains every one of
+  the K forests' trees so `predict` can replay them at new predictors
+  afterward, reproducing `yhat.test` bitwise when `newdata` matches the
+  fit-time `test`; without `keepTrees`, `predict` errors. A fit trained
+  with an `offset` replays as well, given `predict`'s `offset` at the
+  new rows, and refuses by name without it: no resident offset describes
+  rows the fit never saw. The per-forest leaf scale follows its own
+  K-dependent calibration (the K = 2 anchor is the logistic scale
+  \\\pi\sqrt{3}\\ divided by \\\sqrt{2}\\, for the identified pairwise
+  log-odds); `k` is read from the usual leaf prior exactly as for any
+  other family, but the leaf prior's scale itself is NOT consulted - the
+  multinomial engine calibrates its own. The fit's class is
+  `"bartMultinomial"`, not `"bart"`: see ‘Value’ below and the
+  `extract`/`fitted`/`predict` methods for `bartMultinomial` objects.
 
   `family = "ordinal"` fits an ordered categorical response by a
   cumulative probit (a single forest, unlike multinomial's K): a latent
@@ -1455,31 +1462,32 @@ assumes the single-forest shape.
 `levels` (the resolved category names, length K: `levels(y.train)` for a
 factor response, or `colnames(y.train)` - falling back to
 `as.character(seq_len(K))` when unnamed - for a count-matrix response),
-`K`, `n.chains`, `n.trees`, `y` (the original response: the factor
-`y.train`, or the validated n x K count matrix when a count response was
-supplied), and `yhat.train` - the posterior draws of the K softmax
-probabilities, an array of dimension (`n.chains` \\\times\\, when
-`n.chains > 1` and `combineChains = FALSE`) `n.samples` \\\times\\
-number of training observations \\\times\\ K, with the resolved category
-levels as the trailing dimension's names; `combineChains = TRUE` (the
-default) folds the chain margin into the samples margin as usual.
-`yhat.train` already holds PROBABILITIES, not a latent score - there is
-no `"bart"`-scale component to convert, unlike the binary families. When
-`test` was supplied, `yhat.test` is the same K softmax probabilities on
-the held-out rows, dimensioned like `yhat.train` with the
-training-observation margin replaced by the test one. `varcount` is the
-per-sample per-category split-usage channel: each category forest's
-per-draw variable counts, dimensioned like `yhat.train` but with the
-number of training predictors in place of the number of observations,
-and `colnames(x.train)` (when present) named on that margin. `fit` is
-present whenever `keepTrees` is `TRUE` *or* `keepSampler` is set,
-independent of `keepTrees`: it is the `dbartsSampler` whose K-forest
-engine actually ran (one `bartcore_create`, not a discarded host), fully
-mutable and readable on the channels the softmax gives meaning to -
-`$setCounts`, `$setCategoryOffset`, `$setPredictor`, and the rest - and
-refused by name on the ones it does not (`$setResponse`, `$setOffset`,
-`$setSigma`, `$setLeafPrior`, `$setForestWeights`); `fit$storeState()`
-followed by
+`levels.source` (`"labels"`, or `"index"` when `levels` were synthesized
+from a count matrix without column names), `K`, `n.chains`, `n.trees`,
+`y` (the original response: the factor `y.train`, or the validated n x K
+count matrix when a count response was supplied), and `yhat.train` - the
+posterior draws of the K softmax probabilities, an array of dimension
+(`n.chains` \\\times\\, when `n.chains > 1` and `combineChains = FALSE`)
+`n.samples` \\\times\\ number of training observations \\\times\\ K,
+with the resolved category levels as the trailing dimension's names;
+`combineChains = TRUE` (the default) folds the chain margin into the
+samples margin as usual. `yhat.train` already holds PROBABILITIES, not a
+latent score - there is no `"bart"`-scale component to convert, unlike
+the binary families. When `test` was supplied, `yhat.test` is the same K
+softmax probabilities on the held-out rows, dimensioned like
+`yhat.train` with the training-observation margin replaced by the test
+one. `varcount` is the per-sample per-category split-usage channel: each
+category forest's per-draw variable counts, dimensioned like
+`yhat.train` but with the number of training predictors in place of the
+number of observations, and `colnames(x.train)` (when present) named on
+that margin. `fit` is present whenever `keepTrees` is `TRUE` *or*
+`keepSampler` is set, independent of `keepTrees`: it is the
+`dbartsSampler` whose K-forest engine actually ran (one
+`bartcore_create`, not a discarded host), fully mutable and readable on
+the channels the softmax gives meaning to - `$setCounts`,
+`$setCategoryOffset`, `$setPredictor`, and the rest - and refused by
+name on the ones it does not (`$setResponse`, `$setOffset`, `$setSigma`,
+`$setLeafPrior`, `$setForestWeights`); `fit$storeState()` followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
 restores a sampler `predict.bartMultinomial` can replay through.
 `predict` still requires `keepTrees = TRUE` - a kept `fit` alone carries
@@ -1817,7 +1825,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001584
+#> total seconds in loop: 0.001287
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1866,7 +1874,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001995
+#> total seconds in loop: 0.001533
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 
