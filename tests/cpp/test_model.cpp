@@ -3356,6 +3356,46 @@ static void testSparseMutationDirectStore() {
           "the dense quantile collector normalizes -0");
   }
 
+  // a CSC column onto a dense-backed categorical one reads its absent rows
+  // as the argument's reference, here level 2, through the scratch column
+  {
+    MixedFixture fixture;
+    fixture.build(n, { 0.1, 0.6, 0.08 }, true);
+    ColumnStore a, b;
+    for (ColumnStore* s : { &a, &b })
+      built(s->build(mixedPredictorSource(
+                       n, MixedFixture::p, fixture.denseSource.data(),
+                       fixture.csc.pointers.data(), fixture.csc.rows.data(),
+                       fixture.csc.values.data(), fixture.sources.data(),
+                       fixture.types.data()),
+                     nullptr, 100, false));
+    std::vector<double> dense(n);
+    for (size_t i = 0; i < n; ++i)
+      dense[i] = std::fmod(fixture.full[i + 2 * n] + 1.0, 4.0);
+    dense[9] = std::nan("");
+    const xint_t reference = 2;
+    std::vector<int> rows;
+    std::vector<double> values;
+    for (size_t i = 0; i < n; ++i)
+      if (dense[i] != 2.0 || i % 31 == 0) {
+        rows.push_back(static_cast<int>(i));
+        values.push_back(dense[i]);
+      }
+    int pointers[2] = { 0, static_cast<int>(rows.size()) };
+    std::int32_t source = ~0;
+    PredictorSource view = mixedPredictorSource(
+      n, 1, nullptr, pointers, rows.data(), values.data(), &source, nullptr,
+      nullptr, &reference);
+    std::vector<double> scratch;
+    size_t column = 2;
+    bool valid = a.cutsWouldRemainValid(column, view, 0, scratch);
+    a.mutateColumnFromSource(column, view, 0, false, scratch);
+    b.setColumns(dense.data(), &column, 1, false);
+    check(valid && !a.columnIsCscBacked(2) && rows.size() < n &&
+            StoreImage(a) == StoreImage(b) && a.hasMissing[2] == 1,
+          "a CSC column onto a dense categorical one reads the reference");
+  }
+
   // the router sends a CSC column onto a CSC-backed one without the scratch
   {
     CscFixture fixture;
@@ -3655,6 +3695,24 @@ static void testSparseMutationDirectSampler() {
     bool ok = twins.a->updatePredictor(coded, col, 1, true, false) ==
                 twins.b->updatePredictor(doubles.data(), col, 1, true, false) &&
               twins.storesMatch() && twins.a->data().hasMissing[2] == 1;
+    // then a CSC column onto the same dense categorical one, reference 1
+    const xint_t reference = 1;
+    std::vector<int> rows;
+    std::vector<double> values;
+    for (size_t i = 0; i < n; ++i) {
+      doubles[i] = static_cast<double>((i * 7) % 4);
+      if (doubles[i] == 1.0) continue;
+      rows.push_back(static_cast<int>(i));
+      values.push_back(doubles[i]);
+    }
+    int pointers[2] = { 0, static_cast<int>(rows.size()) };
+    std::int32_t source = ~0;
+    PredictorSource csc = mixedPredictorSource(
+      n, 1, nullptr, pointers, rows.data(), values.data(), &source, nullptr,
+      nullptr, &reference);
+    ok &= twins.a->updatePredictor(csc, col, 1, true, false) ==
+            twins.b->updatePredictor(doubles.data(), col, 1, true, false) &&
+          twins.storesMatch() && twins.a->data().hasMissing[2] == 0;
 
     CscCategoricalFixture factor;
     factor.build(n, 6, 0.92);

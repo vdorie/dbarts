@@ -207,10 +207,20 @@ public:
   /// Replace the predictors from a borrowed view of any shape - dense,
   /// mapped, CSC or mixed, either dense channel - consumed column by column:
   /// a CSC column onto a CSC-backed store column is read as its entries and
-  /// never densified.
+  /// never densified. Preconditions, shared with updatePredictor:
+  /// numRows is the store's row count; the CSC triple is canonical as
+  /// PredictorSource states; columnSources, denseChannels and referenceCodes
+  /// are indexed by argument column k, while columnTypes and categoryCounts
+  /// are not read - the STORE's type decides what an absent row reads (the
+  /// argument's reference code on a categorical column, 0 otherwise). An
+  /// invalid level code, or a reference past the level count when any row is
+  /// absent, returns invalidCutPoints with nothing written.
   virtual PredictorUpdateResult setPredictor(const PredictorSource& newX,
                                              bool forceUpdate,
                                              bool updateCutPoints) = 0;
+  /// Overwrite store columns columns[0..numColumns) from argument columns
+  /// 0..numColumns of the view, under setPredictor's preconditions. A column
+  /// named twice is applied in order and, on a reject, restored exactly.
   virtual PredictorUpdateResult updatePredictor(
     const PredictorSource& newColumns, const std::size_t* columns,
     std::size_t numColumns, bool forceUpdate, bool updateCutPoints) = 0;

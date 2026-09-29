@@ -332,6 +332,14 @@ struct ColumnSource {
 /// ~columnSources[j] of the triple. sourceOf(j) answers uniformly, so no
 /// consumer dereferences an absent map.
 ///
+/// The CSC triple is canonical, and every consumer - creation, test
+/// ingestion, mutation, the flat replay - relies on it unchecked: column
+/// pointers start at 0 and never decrease, and each column's rows are
+/// strictly ascending within [0, numRows). An out-of-range row writes out of
+/// bounds, a repeated one desyncs packed codes from the rank bitmap, and an
+/// unsorted one is dropped by a merge. The host validates before handing it
+/// over.
+///
 /// Ownership: everything here is borrowed for the consuming call only. A train
 /// build over a MAPPED source retains what it must - the CSC slices stay
 /// borrowed until a column is first mutated, and the REAL-VALUED dense columns
@@ -2362,8 +2370,9 @@ struct ColumnStore {
     installCscColumn(j, std::move(newRows), std::move(newValues), false);
   }
 
-  /// Mutate CSC-backed column j from one CSC column: \p numNonzero ascending,
-  /// unique \p rows and their \p values, every absent row reading
+  /// Mutate CSC-backed column j from one CSC column: \p numNonzero \p rows,
+  /// canonical as PredictorSource states, and their \p values, every absent
+  /// row reading
   /// \p sourceImplicit. Same pattern rule, codes, missing flag and grid as
   /// mutateCscColumnFromDense over the materialized column. When
   /// sourceImplicit is the store's implicit value, one pass over the entries
@@ -2375,6 +2384,13 @@ struct ColumnStore {
   void mutateCscColumnFromCsc(size_t j, const int* rows, const double* values,
                               size_t numNonzero, double sourceImplicit,
                               bool updateCuts) {
+#ifndef NDEBUG
+    // R's build defines NDEBUG, so this is live only in tests/cpp
+    for (size_t k = 0; k < numNonzero; ++k)
+      assert(rows[k] >= 0 &&
+             static_cast<size_t>(rows[k]) < numObservations &&
+             (k == 0 || rows[k - 1] < rows[k]));
+#endif
     const double implicitValue = splitsBySubset(j)
       ? static_cast<double>(train.sources[j].refCode) : 0.0;
     std::vector<int> newRows;
