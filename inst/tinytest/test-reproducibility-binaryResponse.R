@@ -6,9 +6,10 @@
 # The pinned values are exact, so they are checked only where exactness is
 # the contract: the reference build (--enable-reference-build), whose draw
 # path stays scalar and fixed-order should the shipped build ever vectorize it
-# (today both builds compile the same kernels), on the host kind they were
-# recorded on, arm64 macOS; across hosts draws are never bitwise. CI installs
-# that build and runs these files; locally, install it the same way and run
+# (today both builds compile the same kernels). They were recorded on arm64
+# macOS; across hosts draws are never bitwise, but on x86-64 Linux they land
+# within 2e-13 of these values, well inside the tolerance. CI installs that
+# build and runs these files on both; locally, install it the same way and run
 # them with tinytest::run_test_file(). This exit guards test runs only;
 # tools/regenerate-snapshots.R evaluates this file outside tinytest, where
 # exit_file() returns its message and stops nothing, so that tool carries its

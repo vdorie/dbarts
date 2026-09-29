@@ -537,7 +537,9 @@ draw path should the shipped build ever vectorize those reductions; none
 does, so today the two builds compile the same kernels. The seed-locked
 snapshot tests and the recorded equivalence baselines are keyed to the
 reference build all the same, and exit on the shipped one; [CI](plans/README.md#ci)
-says where they run.
+says where they run. The snapshots, recorded on arm64 macOS, also run on
+x86-64 Linux, where they agree within 2e-13 relative (measured 2026-09-28),
+inside their tolerance.
 
 Across hosts the guarantee is never bitwise, for two reasons outside the
 engine: the equivalence scenarios generate their data through the platform

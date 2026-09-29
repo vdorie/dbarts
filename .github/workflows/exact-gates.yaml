@@ -23,8 +23,8 @@
 # point-in-time snapshot channels and gates every draws-axis channel under a
 # two-tier verdict whose tier 1 is a tight deviation bound. That makes this
 # workflow the per-push half of the cross-host gate; equivalence.yaml carries
-# the weekly half and the gaussian arm. Those two compares, and only those,
-# run against the REFERENCE build (--enable-reference-build, the scalar
+# the weekly half and the gaussian arm. Those two compares, and the
+# seeded-drift snapshot files run after them, run against the REFERENCE build (--enable-reference-build, the scalar
 # fixed-order draw path), installed a second time in this job: the tier-1
 # bound is tighter than the shipped build's re-associated draw path can hold
 # across hosts. Everything above them is a shipped-build gate.
@@ -203,3 +203,31 @@ jobs:
           fi
           echo "::endgroup::"
           exit $fail
+
+      # The seeded-drift snapshot files, recorded on arm64 macOS, run here on
+      # x86-64 Linux at their own tolerance (1.5e-8 relative): measured on an
+      # x86 host (gcc 13, R 4.6.1) the pinned values land within 2e-13 of the
+      # recorded ones, the same accept/reject path in every sweep. This catches
+      # a draw shift confined to x86 code paths; a failure here alone is first
+      # checked on arm64 (cpp-tests), since a cross-host bitwise mismatch is
+      # not a regression and a toolchain change can move a single decision.
+      - name: Run the seeded-drift snapshot tests on x86
+        if: ${{ !cancelled() && steps.reference-install.outcome == 'success' }}
+        run: |
+          Rscript -e '
+            library(dbarts); library(tinytest)
+            files <- c(
+              "test-reproducibility-continuousResponse-singleThreaded.R",
+              "test-reproducibility-continuousResponse-multithreaded.R",
+              "test-reproducibility-binaryResponse.R",
+              "test-reproducibility-xbart.R")
+            fail <- FALSE
+            for (f in files) {
+              r <- run_test_file(
+                system.file("tinytest", f, package = "dbarts"), verbose = 0)
+              bad <- sum(!vapply(r, isTRUE, logical(1)))
+              cat(f, ": ", length(r), " assertions, ", bad, " failed\n", sep = "")
+              if (length(r) == 0L || bad > 0L) fail <- TRUE
+            }
+            if (fail) quit(status = 1L)
+          '
