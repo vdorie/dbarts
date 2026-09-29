@@ -117,7 +117,7 @@ put to VD before the slice starts.
    (n_i > 0)`, rather than a per-row trials test in the sweep loops. The hot loops keep their shape, a data set
    without empty rows serves the caller's mask (or none) exactly as today, and the row becomes, in every draw,
    the inactive row the mask tests already pin.
-2. Pending maintainer. All-zero counts are accepted, at creation and through `$setCounts`, under the same
+2. Ruled 2026-09-28 (maintainer: "Sure.", after asking what all-zero weights do - accepted at creation and mid-run, as an all-off row mask is). All-zero counts are accepted, at creation and through `$setCounts`, under the same
    warning. The all-zeros mask is accepted and runs for the same reason (a stratum that empties needs no special
    case). Base R: lm accepts all-zero weights; glm on all (0, 0) rows warns "no observations informative" and
    then errors; nnet's multinom refuses any empty row. Alternative: refuse at creation only.
