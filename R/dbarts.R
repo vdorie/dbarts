@@ -1179,14 +1179,7 @@ dbarts <- function(
         attr(data@x, "term.labels"),
         function(label) all.vars(str2lang(label))
       ))
-      formulaValue <- tryCatch(
-        eval(dataCall$formula, evalEnv),
-        error = function(err) NULL
-      )
-      rhsVars <- if (inherits(formulaValue, "formula")) {
-        all.vars(formulaValue[[length(formulaValue)]])
-      }
-      if ("period" %in% c(termVars, rhsVars)) {
+      if ("period" %in% termVars) {
         stop(
           "a hazard fit appends its own 'period' column; rename the ",
           "predictor 'period'"

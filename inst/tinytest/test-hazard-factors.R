@@ -205,6 +205,25 @@ expect_error(
   "period"
 )
 
+# period outside the predictors is not a predictor: a removed term and an
+# offset are accepted
+d.q <- d[c("time", "status", "z")]
+d.q$period <- runif(n)
+for (rhs in c(". - period", "z + offset(log(period))")) {
+  expect_silent(
+    bart(
+      as.formula(paste("Surv(time, status) ~", rhs)),
+      data = d.q,
+      family = "hazard",
+      n.samples = 5L,
+      n.burn = 5L,
+      n.chains = 1L,
+      n.threads = 1L,
+      verbose = FALSE
+    )
+  )
+}
+
 # ---- the x/y frame path equals the formula path ----
 fxy <- do.call(
   bart,
