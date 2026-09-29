@@ -193,16 +193,25 @@ expect_equal(as.character(comb), c(as.character(ff), "z", "a"))
 sfb <- sparseFactor(f, reference = "b")
 expect_equal(as.character(c(sf, sfb)), c(as.character(ff), as.character(ff)))
 expect_error(c(sf, 1), "combined")
-expect_equal(nrow(rbind(d, d)), 2L * n)
-expect_equal(
-  as.character(rbind(d, d)$sf),
-  c(as.character(ff), as.character(ff))
-)
-pieces <- split(d, d$y > 0)
-expect_equal(
-  sort(as.character(do.call(rbind, pieces)$sf)),
-  sort(as.character(ff))
-)
+# rbind reaches base's factor assignment, whose match() takes an S4 object
+# only from R 4.6.0; it hands back a dense factor of the same values
+if (getRversion() >= "4.6.0") {
+  expect_equal(nrow(rbind(d, d)), 2L * n)
+  expect_equal(
+    as.character(rbind(d, d)$sf),
+    c(as.character(ff), as.character(ff))
+  )
+  pieces <- split(d, d$y > 0)
+  expect_equal(
+    sort(as.character(do.call(rbind, pieces)$sf)),
+    sort(as.character(ff))
+  )
+  expect_true(is.factor(rbind(d, d)$sf))
+  expect_equal(nlevels(rbind(d, d)$sf), 3L)
+  expect_equal(nrow(unique(rbind(d, d))), nrow(unique(d)))
+} else {
+  expect_error(rbind(d, d), "vector arguments")
+}
 
 # conversion, comparison, ordering, uniqueness, counting
 expect_equal(as.factor(sf), ff)
@@ -222,7 +231,6 @@ expect_equal(xtfrm(sf), xtfrm(ff))
 expect_equal(as.character(unique(sf)), as.character(unique(ff)))
 expect_equal(duplicated(sf), duplicated(ff))
 expect_equal(duplicated(d), duplicated(as.data.frame(lapply(d, as.vector))))
-expect_equal(nrow(unique(rbind(d, d))), nrow(unique(d)))
 expect_equal(c(table(sf)), c(table(ff)))
 expect_equal(summary(sf), summary(ff))
 expect_equal(as.character(rev(sf)), as.character(rev(ff)))
@@ -282,10 +290,6 @@ expect_equal(levels(sf[integer(0L), drop = TRUE]), sf@reference)
 expect_equal(length(sf[integer(0L), drop = TRUE]), 0L)
 expect_error(sf == factor(c("a", "b")), "level sets of factors are different")
 expect_equal(sf == factor(as.character(f), levels = c("c", "b", "a")), ff == ff)
-
-# rbind hands back a dense factor of the same values
-expect_true(is.factor(rbind(d, d)$sf))
-expect_equal(nlevels(rbind(d, d)$sf), 3L)
 
 # a row assignment keeps the column
 dRow <- d
