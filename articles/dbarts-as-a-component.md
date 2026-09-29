@@ -424,7 +424,7 @@ probit$setSigma(1)
 ```
 
     ## Error in `probit$setSigma()`:
-    ## ! bartcore_setSigma: this response family fixes the residual standard deviation by definition; only gaussian and aft samplers carry a sigma to set
+    ## ! $setSigma: this response family fixes the residual standard deviation by definition; only gaussian and aft samplers carry a sigma to set
 
 ## 6. Reading the fit an incremental scheme needs
 

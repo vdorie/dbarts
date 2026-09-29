@@ -569,13 +569,15 @@ dbarts(
   `"hazard.logistic"`), and the fit IS an ordinary
   `"probit"`/`"logistic"` fit on the expanded rows - it adds no engine
   code. The time grid is the sorted distinct observed times by default;
-  `breaks` coarsens it. The offset is on the link scale and replicates
-  per subject; weights replicate and follow the chosen binary family's
-  policy. A `Surv` response requires the family to be requested
-  explicitly (`"auto"` selects `"aft"`), on either interface - a `Surv`
-  left-hand side on `formula` works too, and both interfaces honour
-  `subset` (applied before the person-period expansion). Survival curves
-  come from
+  `hazard(breaks = )` replaces it with a given number of quantile bins
+  or with explicit interval boundaries (see
+  [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)).
+  The offset is on the link scale and replicates per subject; weights
+  replicate and follow the chosen binary family's policy. A `Surv`
+  response requires the family to be requested explicitly (`"auto"`
+  selects `"aft"`), on either interface - a `Surv` left-hand side on
+  `formula` works too, and both interfaces honour `subset` (applied
+  before the person-period expansion). Survival curves come from
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md),
   which requires `keepTrees` unless reading a stored `test` set (below);
   `bart` reports the fit with its `$periods` grid, and its `$family`

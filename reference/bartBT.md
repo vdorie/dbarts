@@ -296,10 +296,13 @@ family(object, ...)
 
 - nthread, n.threads:
 
-  Integer specifying how many threads to use. Depending on the CPU
-  architecture, using more than the number of chains can degrade
-  performance for small/medium data sets. As such some calculations may
-  be executed single threaded regardless.
+  A positive integer giving a total thread budget, distinct from
+  `nchain`: chains run in parallel across it, but tree sampling itself
+  uses at most one thread per chain, so a budget above `nchain` buys the
+  sampler's own sweep nothing. The surplus still feeds the test-fit pool
+  and `predict`'s own fan-out, and a fit warns once, naming both counts,
+  when an explicit budget exceeds the chain count. `bartBT`'s default is
+  1.
 
   On `predict`, `n.threads` is a per-call worker count for the
   saved-tree replay, defaulting to the fit's own: the replay is
@@ -1134,7 +1137,7 @@ bartFit <- bart(x, y)
 #> [3] iteration: 400 (of 500)
 #> [4] iteration: 500 (of 500)
 #> [3] iteration: 500 (of 500)
-#> total seconds in loop: 0.147506
+#> total seconds in loop: 0.147609
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

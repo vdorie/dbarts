@@ -483,7 +483,7 @@ accepting it and quietly rescaling every leaf posterior:</p>
 <code class="sourceCode R"><span><span class="va">probit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">x</span>, <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">1L</span>, <span class="fl">0.5</span><span class="op">)</span>, family <span class="op">=</span> <span class="st">"probit"</span>, control <span class="op">=</span> <span class="va">control</span><span class="op">)</span></span>
 <span><span class="va">probit</span><span class="op">$</span><span class="fu">setSigma</span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">## <span style="color: #BBBB00; font-weight: bold;">Error</span><span style="font-weight: bold;"> in `probit$setSigma()`:</span></span></span>
-<span><span class="co">## <span style="color: #BBBB00;">!</span> bartcore_setSigma: this response family fixes the residual standard deviation by definition; only gaussian and aft samplers carry a sigma to set</span></span></code></pre>
+<span><span class="co">## <span style="color: #BBBB00;">!</span> $setSigma: this response family fixes the residual standard deviation by definition; only gaussian and aft samplers carry a sigma to set</span></span></code></pre>
 </div>
 <div class="section level2">
 <h2 id="reading-the-fit-an-incremental-scheme-needs">6. Reading the fit an incremental scheme needs<a class="anchor" aria-label="anchor" href="#reading-the-fit-an-incremental-scheme-needs"></a>

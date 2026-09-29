@@ -196,7 +196,7 @@ bartBT is the BayesTree-compatible surface: 0.9-34's argument list exactly, no n
 <dd><p>Integer specifying how many independent tree sets and fits should be calculated. Default 1 for <code>bartBT</code>, BayesTree's historical single-chain convention; <code><a href="bart.html">bart</a></code>'s default is 4.</p></dd>
 
    <dt id="arg-nthread-n-threads">nthread, n.threads<a class="anchor" aria-label="anchor" href="#arg-nthread-n-threads"></a></dt>
-<dd><p>Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.</p>
+<dd><p>A positive integer giving a total thread budget, distinct from <code>nchain</code>: chains run in parallel across it, but tree sampling itself uses at most one thread per chain, so a budget above <code>nchain</code> buys the sampler's own sweep nothing. The surplus still feeds the test-fit pool and <code>predict</code>'s own fan-out, and a fit warns once, naming both counts, when an explicit budget exceeds the chain count. <code>bartBT</code>'s default is 1.</p>
 <p>On <code>predict</code>, <code>n.threads</code> is a per-call worker count for the saved-tree replay, defaulting to the fit's own: the replay is partitioned by (chain, posterior draw), each partition writing its own rows and nothing being reduced across workers, so the answer is identical bit for bit at every value and only the time taken changes. It is the last positional argument of every <code>predict</code> method, so a caller that passes arguments by position is unaffected by its presence. A value that is not a single positive number is an error rather than a silent fallback.</p></dd>
 
    <dt id="arg-combinechains-combinechains">combinechains, combineChains<a class="anchor" aria-label="anchor" href="#arg-combinechains-combinechains"></a></dt>
@@ -486,7 +486,7 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 400 (of 500)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 500 (of 500)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 500 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.147506</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.147609</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 </span>

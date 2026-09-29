@@ -562,7 +562,7 @@ print(x, ...)
   byte-identical, draw for draw, to the binary fit on the hand-expanded
   design with the same seed. The time grid defaults to the sorted
   distinct observed times (the BART `surv.bart` convention);
-  `family = hazard(breaks = )` coarsens it (a single integer bins at
+  `family = hazard(breaks = )` replaces it (a single integer bins at
   that many quantiles, a boundary vector gives explicit right-closed
   intervals), and `hazard(max.rows = )` guards the expansion size (see
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)).
@@ -815,10 +815,14 @@ print(x, ...)
 
 - n.threads:
 
-  Integer specifying how many threads to use. Depending on the CPU
-  architecture, using more than the number of chains can degrade
-  performance for small/medium data sets. As such some calculations may
-  be executed single threaded regardless.
+  A positive integer giving a total thread budget, distinct from
+  `n.chains`: chains run in parallel across it, but tree sampling itself
+  uses at most one thread per chain, so a budget above `n.chains` buys
+  the sampler's own sweep nothing. The surplus still feeds the test-fit
+  pool and `predict`'s own fan-out, and a fit warns once, naming both
+  counts, when an explicit budget exceeds the chain count. Defaults to
+  [`guessNumCores`](https://vdorie.github.io/dbarts/reference/guessNumCores.md)
+  capped at `n.chains`.
 
   On `predict`, `n.threads` is a per-call worker count for the
   saved-tree replay, defaulting to the fit's own: the replay is
@@ -1794,7 +1798,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001644
+#> total seconds in loop: 0.001554
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1842,7 +1846,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001987
+#> total seconds in loop: 0.001991
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

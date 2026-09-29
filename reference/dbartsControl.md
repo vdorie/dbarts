@@ -273,9 +273,8 @@ dbartsControl(
   is summed across workers, so a replay is identical however it is dealt
   out. The default is calibrated - the crossover measures between 3e4
   and 1e5 traversals, the fan-out reaching 1.5 times at 1e5 and
-  saturating near 3.5 times on four threads - and replaces an
-  uncalibrated estimate of 1e7 that left mid-sized replays serial. Fixed
-  when the sampler is created.
+  saturating near 3.5 times on four threads. Fixed when the sampler is
+  created.
 
 - sparseDensityThreshold:
 
@@ -390,11 +389,11 @@ where a measurement supports one.
 | Gaussian-process leaf size | [`gp`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md) leaves | 256 observations | 256 to 512 | yes, `gp(max.leaf.size = )` |
 | Person-period expansion | [`hazard`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md) | 1e7 rows | host-dependent | yes, `hazard(max.rows = )` |
 
-Only the categorical enumeration cap changes what is sampled; the two
-parallel cutoffs and the density threshold trade time against memory and
-return bit-for-bit the same draws either side of themselves. Every
-default above is the value the engine used before it was settable, so a
-fit that names none of them reproduces earlier results exactly.
+Of the settings in this table, the categorical enumeration cap and the
+Gaussian-process leaf size change what is sampled. The two parallel
+cutoffs buy time and return bit-for-bit the same draws either side of
+themselves. The density threshold buys memory and draws the same splits
+either side, but is not bitwise, as its entry above says.
 
 ## Value
 

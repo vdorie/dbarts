@@ -2,9 +2,9 @@
 
 Resolves the `control`/`model`/`data` triple and family token that
 describe a sampler, without constructing one. Intended for packages that
-embed dbarts - in particular `LinkingTo: dbarts` packages that create
-and hold a sampler through the C API in `dbarts.h` - and that supply
-their own design matrix.
+embed dbarts - in particular `LinkingTo: dbarts` packages that build a
+sampler in R from the returned pieces and hold its handle for the C API
+in `dbarts.h` - and that supply their own design matrix.
 
 ## Usage
 
