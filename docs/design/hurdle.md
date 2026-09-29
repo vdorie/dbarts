@@ -177,7 +177,7 @@ wrapper is family-agnostic on the positive part (it just calls a sampler over S)
 (b) becomes available the moment a truncated-count family ships - v1 need not choose
 the harder positive part to keep the door open. Gamma is a third positive-part family
 (new family, door). The zero-part link mirrors hazard: probit default (house default,
-R/dbarts.R leaf.scale 3.0), logistic one token away (section 6).
+R/dbarts.R node.scale 3.0), logistic one token away (section 6).
 
 ## 4. The engine architecture (the rejected alternative, sketched for the fork)
 

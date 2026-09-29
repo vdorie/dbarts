@@ -2113,7 +2113,7 @@ sbcArmName <- function(config) {
 # the R=200 verdict run and the CI matrix cannot drift apart. Sizing notes:
 # ordinal takes K = 4 because gamma_1 is pinned at 0 and only gamma_2..gamma_K-1
 # are free, so K >= 4 is what makes the cutpoint block a real (multi-cutpoint)
-# target; nbinom takes a TIGHTENED k = 8 (psi sd = node.scale/k = pi sqrt(3)/8
+# target; nbinom takes a TIGHTENED k = 8 (psi sd = leaf.scale/k = pi sqrt(3)/8
 # ~ 0.68 rather than 2.7) because the Polya-Gamma draw loops sum(y_i + r) times
 # per sweep and default-k psi draws are lognormal-tailed and unbudgetable - a
 # tightened prior still validates NB; multinomial takes K = 3 forests.

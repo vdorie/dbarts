@@ -3,7 +3,7 @@
 # Conditional-exactness gate for the gaussian backfit at ensemble scale. The
 # Gibbs step that draws tree j's leaves conditions on every other tree as an
 # offset: with the partition settled, each leaf value is normal with precision
-#   (k sqrt(m) / node.scale)^2 + sum_leaf w_i / sigma^2
+#   (k sqrt(m) / leaf.scale)^2 + sum_leaf w_i / sigma^2
 # and mean (sum_leaf w_i r_i / sigma^2) divided by that precision, r being the
 # internally scaled response minus every OTHER tree's current fit
 # (model.hpp, ConstantGaussianLeaf::drawFromPosterior).
@@ -49,7 +49,7 @@ args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 
 kLeaf <- 2
-nodeScale <- 0.5 # gaussian node.scale; leaf scale = node.scale / sqrt(m)
+nodeScale <- 0.5 # gaussian leaf.scale; leaf scale = leaf.scale / sqrt(m)
 zBound <- 4
 ksBound <- 1e-4
 fitTolerance <- 1e-9
@@ -139,7 +139,7 @@ backfitArm <- function(
   priorPrecision <- (kLeaf * sqrt(m) / nodeScale)^2
 
   # the calibration in force must be the one the reference assumes: fixed k,
-  # this response transform, and a forest prior sd of node.scale at k = 1
+  # this response transform, and a forest prior sd of leaf.scale at k = 1
   calibration <- sampler$getLeafPrior()
   reported <- function(field) unname(calibration[1L, field])
   stopifnot(

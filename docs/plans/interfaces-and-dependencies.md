@@ -67,7 +67,7 @@ DESCRIPTION drops the drop-in claim for a compatible-interface one;
   response via [`extractSurvivalTimes`](../../R/dbarts.R), expanded by
   [`expandDiscreteTimeHazard`](../../R/dbarts.R)/
   [`appendHazardPeriodColumn`](../../R/dbarts.R); family then REMAPS to the
-  binary token before any family-keyed switch runs, since `leaf.scale`,
+  binary token before any family-keyed switch runs, since `node.scale`,
   `control@binary`, `fixedUnitScale` and the weight policy all key on the
   literal token with no hazard arm (docs/design/survival.md). Both refuse
   `subset` in [`dbarts`](../../R/dbarts.R) (the `hazardTokens` block, the

@@ -2414,7 +2414,7 @@ SEXP forestListElement(SEXP listExpr, size_t f) {
 // takes its tree count and structure prior from the host model, since the
 // fit's own control@n.trees and tree prior are its declaration; every forest
 // takes the rest from its own length-8 params vector - tree count, base,
-// power, the node-scale factor and divisor the calibration map reads, the
+// power, the leaf-scale factor and divisor the calibration map reads, the
 // amplitude prior's variance and half-Cauchy scale, and the amplitude update
 // flag. The per-forest vars/interactions()/blocks() lists are optional and
 // parallel. Shared by the internal entry, which passes these as arguments, and
@@ -2621,7 +2621,7 @@ void refuseUnsupportedAmplitudeComposition(
   else if (model.k != 2.0) offender = "a non-default k";
   else if (model.nodeScale != defaultLeafScale(family))
     offender = "a non-default leaf scale";
-  // the node-scale gate above does not fire on a model that names its
+  // the leaf-scale gate above does not fire on a model that names its
   // calibration in response units instead, and the calibration map would drop
   // it in silence, so it is its own offender
   else if (std::isfinite(model.priorScale)) offender = "a named 'prior.scale'";
@@ -3547,7 +3547,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   // the K category forests take their leaf scale from the softmax calibration
   // map below, never from the host leaf prior, so a named calibration has
   // nowhere to land; refuse it rather than drop it. This is the first
-  // node-scale-class refusal on this path - the host's own leaf.scale is
+  // leaf-scale-class refusal on this path - the host's own leaf.scale is
   // deliberately not read, and carries a gaussian default no user chose.
   if (std::isfinite(model.priorScale))
     Rf_error("a multinomial forest does not support a named 'prior.scale'; "

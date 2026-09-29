@@ -2396,7 +2396,7 @@ clean staged copy) before its push, CI six-green on every push (one cure below):
   keepSampler fit, names(fit) no longer lists NULL components (forest.labels carried
   across the filter by hand), dbartsDrawLatents accepts its own default,
   xbart validates family before ingesting the response and n.threads' length,
-  defaultLeafScale refuses an unknown family; dataSlotOrNULL deleted (bare slot reads).
+  defaultNodeScale refuses an unknown family; dataSlotOrNULL deleted (bare slot reads).
   Reviewer fixes folded: dbarts(family = "twopart") echoed the resolved token; two
   offset messages named the removed arguments; a NEWS claim about "0" was false.
 - fdcbabe5 (two commits): the own-class generics. bartMultinomial/bartOrdinal/

@@ -39,7 +39,7 @@
 #   * range scaling: yScaled = (y - min y)/(max y - min y) - 0.5, offset NULL.
 #   * fixed(1) residual variance -> internal sigma = 1 / range, known exactly.
 #   * constant-leaf conjugate marginal with priorPrecision = (k/scale)^2,
-#     scale = node.scale / sqrt(ntree) = 0.5, k = 2 (model.hpp
+#     scale = leaf.scale / sqrt(ntree) = 0.5, k = 2 (model.hpp
 #     ConstantGaussianLeaf::logIntegratedLikelihood, reproduced verbatim).
 #
 # Usage: Rscript change-balance.R [quick]
@@ -65,7 +65,7 @@ maxDepthCtrl <- 6L
 base <- 0.95
 power <- 2.0
 kLeaf <- 2.0
-nodeScale <- 0.5 # gaussian node.scale default; scale = nodeScale / sqrt(ntree=1)
+nodeScale <- 0.5 # gaussian leaf.scale default; scale = nodeScale / sqrt(ntree=1)
 
 logSumExp <- function(v) {
   m <- max(v)

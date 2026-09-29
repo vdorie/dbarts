@@ -519,7 +519,7 @@ refuseColliding <- function(
   invisible(NULL)
 }
 
-## Turn a normal prior's raw k into the model's node hyperprior: NULL is the
+## Turn a normal prior's raw k into the model's leaf hyperprior: NULL is the
 ## family default (2 for continuous responses, chi(1.5, 2) for binary),
 ## a positive scalar is fixed, and a hyperprior object passes through. Under a
 ## monotone constraint k is fixed for both families (an unsupplied k resolves
@@ -1116,7 +1116,7 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 
 ## The eight doubles attr(control, "bartcore.forests")$params carries FOR EACH
 ## FOREST, in the order the C bridge reads them: the forest's tree count and
-## structure prior, the node-scale factor and divisor the calibration map
+## structure prior, the leaf-scale factor and divisor the calibration map
 ## reads, the amplitude prior's variance and half-Cauchy scale, and the
 ## amplitude update flag. Forest 1 takes its tree count and structure prior
 ## from the fit's own control/tree.prior instead, so its first three are

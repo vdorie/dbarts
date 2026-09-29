@@ -54,7 +54,7 @@ y <- muCell[cell] + rnorm(n, sd = noiseSd)
 base <- 0.8
 power <- 2
 kLeaf <- 2
-nodeScale <- 0.5 # gaussian node.scale; scale = nodeScale / sqrt(ntree = 1)
+nodeScale <- 0.5 # gaussian leaf.scale; scale = nodeScale / sqrt(ntree = 1)
 
 # uniform cuts (n.cuts = K - 1) separate the cells exactly
 cuts <- min(x) + seq_len(K - 1L) * (max(x) - min(x)) / K

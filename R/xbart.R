@@ -1050,7 +1050,7 @@ warningKey <- function(w) {
   paste(c(class(w), conditionMessage(w)), collapse = "\n")
 }
 
-## The k axis, normalized to one node hyperprior per grid cell: a numeric
+## The k axis, normalized to one leaf hyperprior per grid cell: a numeric
 ## vector is 0.9-x's fixed grid, a list mixes fixed values with hyperprior
 ## objects, a bare number or hyperprior is a one-cell grid, and NULL takes
 ## the response type's own front-door default.

@@ -440,16 +440,16 @@ calibration and coding, then a pass.
 | file | what the handle saw | public spelling | slice |
 |---|---|---|---|
 | test-aft.R, test-aft-heteroscedastic.R, test-active-rows-pins.R | gaussian host + `attr(ctrl, "bartcore.survival")` + `family = "aft"` | `dbarts(x, cbind(exp(log.t), status), family = "aft")`; A/B, since exp/log may not round-trip bitwise; "uncensored aft == gaussian" is re-stated against it | S3 |
-| aft-exact.R, aft-hetero-pit.R (gate) | the same, plus `model@leaf.scale <-` (aft-exact) | aft two-column response + `normal(scale = )` matching `$getCalibration` | S3 |
-| t-exact.R (gate) | `model@leaf.scale <-` | `normal(scale = )` | S3 |
-| logistic-reference.R (gate) | `model@leaf.scale <-`, `data@offset.test <- NULL`, `family = family` | `dbarts(family = family, node.prior = normal(scale = ))`, `$setTestOffset(NULL)` | S3 |
+| aft-exact.R, aft-hetero-pit.R (gate) | the same, plus `model@node.scale <-` (aft-exact) | aft two-column response + `normal(scale = )` matching `$getCalibration` | S3 |
+| t-exact.R (gate) | `model@node.scale <-` | `normal(scale = )` | S3 |
+| logistic-reference.R (gate) | `model@node.scale <-`, `data@offset.test <- NULL`, `family = family` | `dbarts(family = family, node.prior = normal(scale = ))`, `$setTestOffset(NULL)` | S3 |
 | categorical-exact.R (gate) | `data@varTypes[1] <- 1L` or `2L`, `n.cuts[1] <-`, `offset.test <- NULL` | a `factor` or `ordered` column; per-column `dbartsControl(n.cuts = )`; `$setTestOffset(NULL)` | S3 |
 | negbin-exact.R, ordinal-exact.R (gate) | `data@varTypes[1] <- 1L` + `family = "nbinom"` or `"ordinal"` | factor column + `dbarts(family = )` | S3 |
 | multinomial-exact.R (gate) | `family = "logistic"` host; `data@varTypes[1] <- 1L` | `dbarts(family = "logistic")`; factor column | S2 |
 | test-bartcore.R | `data@varTypes[1] <- 1L` on four hosts (category fits, bad codes, wide, over-cap); `family = "cauchit"` and `"logistic"` refusals | factor columns, with the bad-code and over-cap refusals pinned at `dbartsData`; family refusals pinned at `dbarts(family = )` | S3 |
 | test-bcf-family.R | `family = "logistic"` on the BCF creator | `dbarts(forests = , family = "logistic")` | S1 |
 | test-forest-basis-r5.R | `attr(control, "bartcore.forests")$params` edited before `new()` | `forest(sd = , amplitude.prior.variance = )` if bitwise; else KEEP (it reaches a raw param slot) | S2 |
-| test-data-handle.R, leafPriorChecks.R | `data@n.cuts`, `model@leaf.prior` edited before PROD view creation | unchanged (PROD handle) | - |
+| test-data-handle.R, leafPriorChecks.R | `data@n.cuts`, `model@node.prior` edited before PROD view creation | unchanged (PROD handle) | - |
 
 ## Landing
 
@@ -761,7 +761,7 @@ A5 sites, each A/B'd old route against new at matched seed placement:
   "Uncensored aft equals gaussian" is restated as a public aft sampler
   against a gaussian sampler on its `data@y`, each family asserted on the
   engine by its latents (aft's equal `data@y`, gaussian's are NULL).
-- `model@leaf.scale <-` (aft-exact.R, t-exact.R, logistic-reference.R):
+- `model@node.scale <-` (aft-exact.R, t-exact.R, logistic-reference.R):
   `normal(k, scale = )`, which takes response units where the slot was
   internal, so the continuous gates pass `nodeScale * fitRange`; identical
   `$getCalibration` rows and bitwise draws.

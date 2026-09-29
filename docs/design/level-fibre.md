@@ -48,7 +48,7 @@ and the constrained draw is the gaussian conditioning of `u` on `1'u = 0`,
     c = u - v (1'u) / (1'v)
 
 componentwise in `v`, giving `c ~ N(m - v (1'm)/(1'v), diag(v) - v v' / (1'v))`, rank `m - 1`, supported on `1'c = 0`. At the
-homogeneous constant leaf every `tau_{t,l}` is `tau = leaf.scale / (k sqrt(m))`
+homogeneous constant leaf every `tau_{t,l}` is `tau = node.scale / (k sqrt(m))`
 ([`ConstantGaussianLeaf`](../../src/bartcore/model.hpp): `scale` already carries the `1/sqrt(m)`), so `P_t = L_t/tau^2`,
 `Q_t = S_t/tau^2` for `S_t` the tree's occupied leaf sum, and `m_t = -S_t/L_t`, `v_t = tau^2/L_t` - which is
 [16.3 Ranking](tree-mixing-proposals.md#163-ranking)'s row 1 verbatim, re-derived. The general `(P_t, Q_t)` form is what section 3's

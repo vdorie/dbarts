@@ -25,7 +25,7 @@
 # Calibration matched to the engine exactly (as change-balance.R):
 # uniform cuts, range scaling, fixed(1) residual variance -> internal
 # sigma = 1 / range, constant-leaf conjugate marginal with
-# priorPrecision = (k / scale)^2, scale = node.scale / sqrt(ntree) = 0.5.
+# priorPrecision = (k / scale)^2, scale = leaf.scale / sqrt(ntree) = 0.5.
 #
 # The veto arm (Rscript bd-balance.R veto) replaces the exact arm with the
 # same gate run from OUTSIDE the admissible set: a weight vector installed

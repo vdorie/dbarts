@@ -38,7 +38,7 @@
 # Scale. Leaf values come off getTrees on the engine's internal response scale,
 # where a gaussian response is mapped to [-0.5, 0.5] by (y - min)/range - 0.5,
 # so residuals and sigma are put on that scale too and tau is the shipped node
-# prior there: node.scale / (k sqrt(m)) = 0.5 / (2 sqrt(75)). The reduced log
+# prior there: leaf.scale / (k sqrt(m)) = 0.5 / (2 sqrt(75)). The reduced log
 # marginal is invariant to a common rescaling of (residual, sigma, tau), so the
 # choice of scale cannot move alpha; working internally just avoids carrying
 # the response range through every term.
@@ -77,8 +77,8 @@ nStates <- if (quick) 5L else 100L
 nExchanges <- if (quick) 10L else 50L
 nMatched <- if (quick) 5L else 25L
 
-# The shipped constant-gaussian leaf prior: mu ~ N(0, (node.scale / (k sqrt m))^2)
-# on the internal response scale, at the shipped k = 2 and node.scale = 0.5.
+# The shipped constant-gaussian leaf prior: mu ~ N(0, (leaf.scale / (k sqrt m))^2)
+# on the internal response scale, at the shipped k = 2 and leaf.scale = 0.5.
 leafK <- 2
 nodeScale <- 0.5
 tau <- nodeScale / (leafK * sqrt(nTrees))

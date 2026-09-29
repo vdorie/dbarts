@@ -58,7 +58,7 @@ tolGrid <- if (quick) 0.045 else 0.025 # the grid r posterior distribution
 
 k <- 2
 numTrees <- 1L
-nodeScale <- pi * sqrt(3) # nbinom reuses logistic's node.scale
+nodeScale <- pi * sqrt(3) # nbinom reuses logistic's leaf.scale
 tau <- nodeScale / (k * sqrt(numTrees)) # leaf-prior sd, pi sqrt(3) / 2
 power <- 2.0
 base <- 0.95

@@ -111,7 +111,7 @@
 # every path at depth 6. Calibration is matched to the engine exactly, else
 # the comparison is void: quantile cuts, range scaling, fixed(1) residual
 # variance -> internal sigma = 1 / range, and the constant-leaf conjugate
-# marginal with priorPrecision = (k / scale)^2, scale = node.scale /
+# marginal with priorPrecision = (k / scale)^2, scale = leaf.scale /
 # sqrt(ntree) = 0.5. The same Holm machinery scores its states as their own
 # family, and the distance to the PRIOR marginal is reported as the arm's
 # power: a kernel that dropped S would sit there.
@@ -164,7 +164,7 @@ K2 <- 2L # x2 distinct values -> 1 quantile cut
 base <- 0.95
 power <- 0.5
 kLeaf <- 2
-nodeScale <- 0.5 # gaussian node.scale default; scale = nodeScale / sqrt(1)
+nodeScale <- 0.5 # gaussian leaf.scale default; scale = nodeScale / sqrt(1)
 
 proposalProbs <- c(
   birth_death = 0.10,

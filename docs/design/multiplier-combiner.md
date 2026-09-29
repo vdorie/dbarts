@@ -572,7 +572,7 @@ scale-mixture spellings of `ForestAmplitudePrior` - beside `node.scale.factor`,
 column and is recovered as `prior.scale * divisor * rowNorm / factor` whenever
 `node.scale.factor` is not NaN, which is exactly when the calibration in force
 is the map's: a `setState` or `installTrees` that brings a foreign leaf scale
-clears both `leaf.scale` columns (the amplitude prior follows the state, the
+clears both `node.scale` columns (the amplitude prior follows the state, the
 row norm is unaffected - bases are not state) and `setForestBasis` re-imposes
 the map and restores them.
 
@@ -726,7 +726,7 @@ expression keeps its written association with the row norm merely NAMED where
 it was previously an argument. Equivalence trio bitwise on all three
 baselines. The one non-echo is Fork 3b's truthfulness rule at the two state
 install sites: a donor leaf scale differing BITWISE from the one in force
-clears a per-forest `nodeScaleIsMapDerived_` flag, so the two `leaf.scale`
+clears a per-forest `nodeScaleIsMapDerived_` flag, so the two `node.scale`
 columns read NaN rather than describing a decomposition of a number the chain
 no longer runs under, while the amplitude prior FOLLOWS the state under
 `restoreGlue`'s own guard (the existing `glueIsValid` virtual, no new one) and

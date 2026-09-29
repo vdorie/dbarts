@@ -7,7 +7,7 @@ agent: S0 opus (it freezes a header signature whose content is engine
   Serialized: one implementer, each slice lands before the next starts.
 rng: NEUTRAL on every default path, EVERY slice, and MEASURED rather than
   asserted. The creation half is byte-identical while `prior.scale` is
-  `NA_real_` - the family switch still resolves `leaf.scale` - and the
+  `NA_real_` - the family switch still resolves `node.scale` - and the
   mid-chain half is inert until called and bitwise-SKIPS a write that
   reproduces the current internal scale. DRAW-LAW-CHANGING only on the opt-in
   named path, which is the arc's point: naming a calibration names a different
@@ -185,7 +185,7 @@ principle clause 3's "named, measured and testable" difference.
   response object and its `rescale()` already exist - the grouped decoration
   above it delegates its transform, every family's `rescale()` ran in its own
   constructor, and the degenerate guards make the divisor never zero.
-  `leaf.scale` stays the internal-unit primitive and is what the bridge reads
+  `node.scale` stays the internal-unit primitive and is what the bridge reads
   when `prior.scale` is NA.
 - **The same conversion runs in `setModel`.** The bridge's `setModel` reads
   `model.nodeScale` ([src/R_interface_bartcore.cpp:4469](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L4469)) and `Chain::setModel`
@@ -201,7 +201,7 @@ principle clause 3's "named, measured and testable" difference.
   ([R/xbart.R:619](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L619), `cellModel` at [R/xbart.R:572](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L572)), so carrying `prior.scale` on that
   model makes every cell - created or re-modelled - run the same named
   calibration and the CV loss surface stops depending on cell ordering.
-  Alternatives rejected: writing the resolved `leaf.scale` back into the model
+  Alternatives rejected: writing the resolved `node.scale` back into the model
   SEXP (it freezes a transform-dependent number into a slot that means
   response units), and refusing `setModel` on a `prior.scale` sampler (it
   breaks xbart outright).
@@ -221,7 +221,7 @@ principle clause 3's "named, measured and testable" difference.
   (`prior.scale = sd * k`) and is REFUSED when k is a hyperprior, naming
   `scale =`. Exactly one of `sd` / `scale` may be given.
 - New formal on `bart2()`, `rbart_vi()` and `bart()`: `prior.scale` (response
-  units), forwarded into the spec. `leaf.scale` is not it. This is the formal
+  units), forwarded into the spec. `node.scale` is not it. This is the formal
   bartCause forwards for free - its whitelist is DYNAMIC, computed against
   `formals(eval(bartCall[[1L]]))` union `formals(dbartsControl)`
   (bartCause's `R/responseFit.R` lines 213-216, bartCause's `R/bartc.R` line 22), and `node.prior` is a
@@ -231,7 +231,7 @@ principle clause 3's "named, measured and testable" difference.
   build their forests in SEPARATE `Chain` constructors ([src/bartcore/chain.hpp:661](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L661),
   [src/bartcore/chain.hpp:701](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L701)), so the single-forest conversion site is not on their path and a
   named `prior.scale` would be dropped in silence. The existing gates test
-  `model@leaf.scale != 0.5` ([R/spec.R:400](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L400)) and `model.nodeScale != 0.5`
+  `model@node.scale != 0.5` ([R/spec.R:400](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L400)) and `model.nodeScale != 0.5`
   ([src/R_interface_bartcore.cpp:2277](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L2277)), neither of which fires on a
   `prior.scale`-named model, and multinomial has no node-scale gate at all
   (its creation path documents that the host node scale is deliberately not
@@ -252,9 +252,9 @@ principle clause 3's "named, measured and testable" difference.
 | `setWeights` | unchanged | unchanged | |
 | `setSigma` | unchanged | unchanged | original-scale value |
 | `setData` | ALWAYS re-anchors, so it moves | unchanged | structural replacement |
-| `setModel` | RE-DERIVED from the model's `prior.scale` against the CURRENT transform when finite; otherwise replaced via `leaf.scale`, internal units | replaced | AND re-pins sigma for gaussian/aft with no variance forest ([src/bartcore/chain.hpp:1301-1310](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1301-L1310), MEASURED 3.5 -> 1); AND re-calibrates a variance forest's scale leaf |
+| `setModel` | RE-DERIVED from the model's `prior.scale` against the CURRENT transform when finite; otherwise replaced via `node.scale`, internal units | replaced | AND re-pins sigma for gaussian/aft with no variance forest ([src/bartcore/chain.hpp:1301-1310](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1301-L1310), MEASURED 3.5 -> 1); AND re-calibrates a variance forest's scale leaf |
 | `$setCalibration` (new) | WRITTEN, response units, every chain | derived | touches nothing else - no sigma, no tree prior, no DART |
-| `storeState` / `setState` | adopted from the state | adopted ([src/bartcore/chain.hpp:3055-3060](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3055-L3060)) | fixes the stale-`model@leaf.scale` reader, since the getter reads the engine |
+| `storeState` / `setState` | adopted from the state | adopted ([src/bartcore/chain.hpp:3055-3060](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3055-L3060)) | fixes the stale-`model@node.scale` reader, since the getter reads the engine |
 | warm start (`installTrees`) | ADOPTED from the donor | adopted (`installForest`, [src/bartcore/chain.hpp:2951](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2951)) | documented semantic, not a defect: a donor's trees were drawn under the donor's scale. Recipe: re-issue `$setCalibration` after `installTrees` to keep your own |
 | xbart, k grid (`k` numeric) | held across cells, including the `setModel` branch | - | the grid sweeps `prior.sd = prior.scale / k` about a fixed anchor |
 | xbart, k hyperprior (`k = chi(...)`) | held across cells | - | k is DRAWN every sweep in every cell, so the loss is computed under a moving shrinkage; the help says so, and a `prior.sd`-flavoured argument meets the sampled-k refusal here as everywhere |
@@ -272,7 +272,7 @@ principle clause 3's "named, measured and testable" difference.
 
 `updateState = NA` matches `setResponse` / `setOffset` / `setWeights` /
 `setSigma`; without it the setter inherits the recorded save/load defect that
-`inst/tinytest/test-sampler-state-format.R` pins ("a `setModel(leaf.scale)`
+`inst/tinytest/test-sampler-state-format.R` pins ("a `setModel(node.scale)`
 issued after the last `storeState()` no longer survives a save/load
 re-creation").
 
@@ -590,7 +590,7 @@ follow.
   stan4bart edits. OPTIONAL one-liner: `mvbart.R` sets `node.prior` itself and
   can opt in.
 - treatSens `dbarts-1.0`: 0 required edits from this arc. It builds its model
-  in R (treatSens's `R/cibart.R` lines 83-87, `leaf.scale = if (binary) 3.0 else 0.5`) and
+  in R (treatSens's `R/cibart.R` lines 83-87, `node.scale = if (binary) 3.0 else 0.5`) and
   passes the model SEXP through to `dbarts_sampler_create`, so the engine-side
   conversion serves it; it already owes an independent 3rd-argument edit at
   its four flat `setResponse` sites. OPTIONAL one-liner at treatSens's `R/cibart.R` lines 83-87
@@ -622,7 +622,7 @@ Every option below was ADOPTED AT ORCHESTRATOR DISCRETION under VD's
 
 - **V1, the named primitive.** `prior.scale`, the forest-total prior sd at
   `k = 1`, with `prior.sd` as k-conditioned sugar. Rejected: `prior.sd` as the
-  primitive (ill-posed on the binary default path); documented `leaf.scale`
+  primitive (ill-posed on the binary default path); documented `node.scale`
   plus a reader (~350 lines cheaper, but every composition does the division
   itself and gets it wrong silently, which is the wall).
 - **V2, the sampled-k rule.** Accept `prior.scale`, refuse `prior.sd` naming

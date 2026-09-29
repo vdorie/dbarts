@@ -255,7 +255,7 @@ Landed 2026-07-03: `family = c("auto", "gaussian", "probit", "logistic")`
 on `dbarts()` and bart2, resolved against the response into a new
 `dbartsModel@family` slot (superseded from `dbartsControl`; also drives pointer re-creation after
 save/load). `"gaussian"` on a 0/1 response fits a continuous model;
-logistic requires the bartcore engine, with leaf.scale = pi * sqrt(3) -
+logistic requires the bartcore engine, with node.scale = pi * sqrt(3) -
 probit's 3.0 widened by the logistic latent sd. The R5 surface reports
 binary fits on the latent scale. The wrappers' probability transforms
 (predict/extract/fitted/plot) went link-aware 2026-07-03: packaged fits
@@ -395,7 +395,7 @@ resolving the open question below:
   members and frees them field by field; model.kPrior->isFixed to size k
   samples.
 - R-level internals (not C ABI, same migration window): dbarts:::parsePriors,
-  new("dbartsModel") with leaf.scale, data@sigma/@weights/@n.cuts,
+  new("dbartsModel") with node.scale, data@sigma/@weights/@n.cuts,
   control@binary.
 
 Every coupling maps onto the bartcore facade, so the v1 header needs no

@@ -88,21 +88,21 @@ f<->log r level confounding a real (if mitigated) mixing cost. If that bites,
 the log-mean surface is a documented follow-up reachable with the Metropolis r
 update and no new augmentation.
 
-**Response scaling / leaf.scale.** NB is a fixed-unit-scale family like probit
+**Response scaling / node.scale.** NB is a fixed-unit-scale family like probit
 and logistic: it does NOT center or [-0.5, 0.5]-rescale the response (y are
 counts, entering kappa directly), so fitScale = 1, fitShift = 0, sigmaScale = 1,
 initialSigma = 1, and sigma stays fixed at 1 (drawSigma returns sigma), exactly
 LogisticResponse ([`LogisticResponse::drawSigma`](../../src/bartcore/model.hpp), [`LogisticResponse::initialSigma`](../../src/bartcore/model.hpp), [`LogisticResponse::fitScale`](../../src/bartcore/model.hpp), [`LogisticResponse::fitShift`](../../src/bartcore/model.hpp), [`LogisticResponse::sigmaScale`](../../src/bartcore/model.hpp)). Leaf-prior calibration therefore rides
-leaf.scale, not a response range. psi is a log-odds, so v1 reuses **logistic's
-leaf.scale = pi*sqrt(3)** ([`defaultLeafScale`](../../R/model.R); the logistic-latent sd pi/sqrt(3)
-times probit's 3.0), giving a total-fit prior sd leaf.scale/k = pi*sqrt(3)/2 ~
+node.scale, not a response range. psi is a log-odds, so v1 reuses **logistic's
+node.scale = pi*sqrt(3)** ([`defaultLeafScale`](../../R/model.R); the logistic-latent sd pi/sqrt(3)
+times probit's 3.0), giving a total-fit prior sd node.scale/k = pi*sqrt(3)/2 ~
 2.72 that admits a plausible several-unit swing in the log-odds. Honest caveat
 (the ordinal scheme-C / robust-errors k analog): the induced prior on the MEAN
-depends on r, since mu = r exp(f); a fixed leaf.scale on the psi scale does not
+depends on r, since mu = r exp(f); a fixed node.scale on the psi scale does not
 fix the prior on counts, and at very small r (heavy over-dispersion) or extreme
 exposure the log-odds swing per unit count changes. v1 documents the induced
 prior and reuses the logistic constant rather than deriving an r-aware
-leaf.scale; an r-aware calibration is a follow-up.
+node.scale; an r-aware calibration is a follow-up.
 
 ## 2. The r update and the exactness fork (the load-bearing decision)
 

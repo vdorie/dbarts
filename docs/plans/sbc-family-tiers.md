@@ -26,7 +26,7 @@ burn ladder against the 72000 floor re-opens burn for every arm.
     t         sigma, nu, avg f, agg f*  lambda mixture, nu grid   ~12m
     multinom  agg p_k(x*), raw f_ik     interleaved PG, centering    ?
 
-- nbinom at a TIGHTENED k = 8 (psi sd = leaf.scale/k = pi*sqrt(3)/8 ~ 0.68, vs 2):
+- nbinom at a TIGHTENED k = 8 (psi sd = node.scale/k = pi*sqrt(3)/8 ~ 0.68, vs 2):
   simulatePolyaGammaShape loops sum(y_i + r) times/sweep, lognormal-tailed and
   unbounded under default-k draws (13.5x over six, tail reps hours), so it is not
   budgetable; a tightened prior still validates NB. RE-MEASURE the sweep cost at 8.
@@ -68,7 +68,7 @@ and the critique's monotone bonus finding (a SEPARATE item, not this plan).
    cutpoint/eta flag as a defect (ordinal.md section 9's cutpoint-shift ridge).
 3. Per family in table order: prior draw + moment check, likelihood, functionals,
    thin/burn, R=200 run, verdict. ordinal and nbinom REBUILD per rep (safe: scales
-   are 1, leaf.scale constant; it clears the kept gamma_/r_ that would break rank
+   are 1, node.scale constant; it clears the kept gamma_/r_ that would break rank
    iid-ness); only t reuses a pinned sampler (setResponse cold-inits nu, lambda).
 4. sbc.yaml matrix (fail-fast: false, timeout from step 2). Admission: the alpha
    Bonferroni'd to 0.05/M over the matrix's functional count (full-matrix pass

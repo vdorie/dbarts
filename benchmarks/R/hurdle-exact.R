@@ -97,8 +97,8 @@ nCells <- 2L
 base <- 0.5
 power <- 2
 k <- 2
-probitScale <- 3.0 # probit node.scale (R/model.R's defaultNodeScale)
-gaussianScale <- 0.5 # gaussian node.scale, in units of the response range
+probitScale <- 3.0 # probit leaf.scale (R/model.R's defaultLeafScale)
+gaussianScale <- 0.5 # gaussian leaf.scale, in units of the response range
 tauProbit <- probitScale / k # one tree, so no sqrt(n.trees) divisor
 tauGaussian <- gaussianScale / k # on the internal [-0.5, 0.5] scale
 sigmaFixed <- 0.5 # sigma = fixed(sigmaFixed^2) on the log scale

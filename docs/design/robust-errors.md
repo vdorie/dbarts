@@ -175,7 +175,7 @@ mitigation for range scaling's outlier sensitivity" (plan line 12) is only partl
 true: it mitigates the outlier's LEVERAGE, not the SCALING. Follow-up if it bites:
 a robust (quantile) range.
 
-k / leaf.scale calibration. The k = 2 signal-to-noise argument assumes residual
+k / node.scale calibration. The k = 2 signal-to-noise argument assumes residual
 variance sigma^2; under t_nu the marginal is sigma^2 nu/(nu-2), so a sample-sd
 sigmaEstimate overstates the conditional sigma -- document sigma as the
 conditional scale or derive sigmaEstimate robustly. Robustness shields leaves

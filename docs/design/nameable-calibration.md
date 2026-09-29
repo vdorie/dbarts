@@ -105,7 +105,7 @@ the combiner, so no virtual joined `ForestCombiner` and no draw moved.
 
 | channel | the five map columns |
 |---|---|
-| `setForestBasis` | `basis.row.norm` re-derived from the new basis, the other four unchanged, and the two `leaf.scale` columns RESTORED if an install had cleared them |
+| `setForestBasis` | `basis.row.norm` re-derived from the new basis, the other four unchanged, and the two `node.scale` columns RESTORED if an install had cleared them |
 | `setState` / `installTrees` with a foreign leaf scale | `node.scale.factor` and `node.scale.divisor` go NaN (the stored pair no longer decomposes what is in force); `amplitude.prior.variance` FOLLOWS the state; `basis.row.norm` unchanged |
 | `setState` restoring a sampler's OWN state | unchanged, since the installed scale is bitwise the one in force |
 
@@ -151,7 +151,7 @@ Per channel:
 |---|---|
 | `setResponse` / `setOffset` at `updateScale = FALSE`, `setWeights`, `setSigma` | unchanged |
 | `setResponse` / `setOffset` at `updateScale = TRUE`, `setData` | re-anchored, so it moves |
-| `setModel` | re-derived from the model's `prior.scale` against the CURRENT transform when finite; otherwise replaced through `leaf.scale`, internal units. Also re-pins sigma for gaussian/aft with no variance forest |
+| `setModel` | re-derived from the model's `prior.scale` against the CURRENT transform when finite; otherwise replaced through `node.scale`, internal units. Also re-pins sigma for gaussian/aft with no variance forest |
 | `$setCalibration` | written, every chain; nothing else moves |
 | `storeState` / `setState` | adopted from the state, which carries the leaf scale |
 | warm start (`installTrees`) | ADOPTED from the donor, whose trees were drawn under its scale. Recipe: re-issue `$setCalibration` afterwards to keep your own |

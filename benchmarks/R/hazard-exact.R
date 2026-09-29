@@ -66,7 +66,7 @@
 #
 # Sensitivity, measured by poisoning the reference rather than the engine, at
 # full size (against a clean gate reading 0.0008 / 0.0005): (a) dropping the k
-# divisor from the leaf-prior sd (tau = 3.0 rather than node.scale / k = 1.5)
+# divisor from the leaf-prior sd (tau = 3.0 rather than leaf.scale / k = 1.5)
 # reads max hazard gap 0.0121 and max survival gap 0.0077; (b) deriving R under
 # the OTHER censoring convention - a censored subject at risk only through
 # t_i - 1, the off-by-one an expander defect produces - reads max hazard gap
@@ -101,7 +101,7 @@ nCells <- 2L # covariate cells
 base <- 0.5
 power <- 2
 k <- 2
-nodeScale <- 3.0 # probit node.scale (R/model.R's defaultNodeScale)
+nodeScale <- 3.0 # probit leaf.scale (R/model.R's defaultLeafScale)
 tau <- nodeScale / k # one tree, so no sqrt(n.trees) divisor
 
 # ---- fixed data: two covariate cells on a K-period grid ----

@@ -94,7 +94,7 @@ unit gap gamma_2 - gamma_1 = 1 is an arbitrary scale the data must absorb. The
 mixing study (section 3) shows the marginal cutpoint update fixes mixing without
 a free sigma, so B buys machinery for no measured benefit.
 
-**Scheme C: anchor via the response scaling / leaf.scale calibration.** Not a
+**Scheme C: anchor via the response scaling / node.scale calibration.** Not a
 competing anchor - it is the leaf-prior-scale sub-decision inside A. With sigma =
 1 and gamma_1 = 0 fixed, the only remaining freedom is how diffuse f is, set by
 nodeScale. v1 reuses probit's nodeScale = 3.0. Honest caveat (the multinomial
