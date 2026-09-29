@@ -451,6 +451,14 @@ columns themselves).
   branch installs only on acceptance (the engine borrows the argument, not
   data@x). Replacing a sparse column densifies its storage permanently: every
   row then differs from the implicit value, so nnz grows to n.
+- SUPERSEDED 2026-09-29 by sparse-mutation-direct: neither the first bullet's
+  "hands the engine a DENSE column even for sparse storage" nor the bullet
+  above's "densifies its storage permanently" holds. A sparse column of the
+  argument reaches the engine as its stored rows and values
+  (ColumnStore::mutateCscColumnFromCsc, beside mutateCscColumnFromDense), and a
+  replaced column stores only the entries that differ from its implicit value,
+  in the tier fixed at creation. Any sparse Matrix class is coerced to a
+  dgCMatrix in R first.
 
 Gates: tests/cpp testSparseMutation (store codes bitwise-match the dense
 builder after pattern-preserving and pattern-changing mutation across both

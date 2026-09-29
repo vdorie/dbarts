@@ -1426,15 +1426,16 @@
             levels and so cannot supply a categorical training column's
             values. A \code{dgCMatrix} design accepts
             between-sweep column mutation: \code{sampler$setPredictor(x,
-            column = j)} (and the flat C API's \code{setPredictor} /
-            \code{updatePredictor}) re-quantize a sparse column in place
-            when its nonzero pattern is unchanged and rebuild its layout
+            column = j)} re-quantizes a sparse column in place
+            when its nonzero pattern is unchanged and rebuilds its layout
             when the set of nonzeros changes, with the transactional
             roll-back a dense column has. Whole-matrix replacement
             (\code{sampler$setPredictor(x)}) is accepted as well, and
-            leaves the design a \code{dgCMatrix}; a replaced column's
-            storage densifies permanently, since every row then differs
-            from the implicit zero. Per-observation replacement of a
+            leaves the design a \code{dgCMatrix}; a sparse replacement
+            column is read as its stored entries, never expanded, and a
+            replaced column stores only its nonzeros. Any sparse
+            \code{Matrix} class is read as the \code{dgCMatrix} it holds.
+            Per-observation replacement of a
             sparse-backed column and \code{setData} stay fixed
             at creation. State serialization and \code{predict} work as
             usual. \code{leaf.prior = linear()} does not designate a
@@ -1453,8 +1454,8 @@
             \code{sparseFactor} column, and one call may name both kinds,
             with per-observation updates (\code{forceUpdate = "partial"})
             open on dense-backed columns. Whole-matrix replacement leaves
-            \code{data@x} a container; a replaced sparse column's storage
-            densifies permanently, as for an all-sparse design. A test
+            \code{data@x} a container; a replaced sparse column stays
+            sparse, as for an all-sparse design. A test
             data frame's sparse columns ride unexpanded as well, its dense
             columns materializing as usual, and a predictor
             container built from other data is re-coded against the

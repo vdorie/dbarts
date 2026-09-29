@@ -238,10 +238,15 @@
     than replacing it with a plain matrix). Such a design may equally be
     mutated one column at a time by naming \code{column} (dense-backed and
     sparse-backed columns alike, and a single call may name both kinds), which
-    is the cheaper spelling when only a few columns move. Note that replacing
-    a sparse-backed column densifies its storage permanently: every row then
-    differs from the column's implicit value, so it stores \code{n} entries
-    from that point on. For \code{setTestPredictor}, a per-column update
+    is the cheaper spelling when only a few columns move. A replaced
+    sparse-backed column stays sparse: it stores the replacement's entries
+    that differ from its implicit value (zero, or a sparse factor's reference
+    level), in the storage layout chosen at creation, and a sparse column of
+    the replacement is read as those entries rather than expanded, so for
+    sparse columns the call's memory follows their nonzeros; a dense column of
+    a mixed replacement is copied, as in any dense replacement. Any sparse
+    \code{Matrix} class is read as the \code{dgCMatrix} it holds. For
+    \code{setTestPredictor}, a per-column update
     reaches a data-frame or sparse test container too: the replacement is
     spliced into its storage rather than densifying the whole test set.
   }

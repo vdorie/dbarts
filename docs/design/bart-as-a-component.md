@@ -217,9 +217,9 @@ through C++ frames.
 
 A prototype written against R5 and then ported to a `LinkingTo: dbarts`
 consumer meets four capabilities the flat surface does not carry: no
-per-observation predictor update and no joint session across samplers (the
-flat surface's whole predictor channel is `dbarts_sampler_setPredictor` and
-`dbarts_sampler_updatePredictor`); no `setCutPoints` and no `setData`; no
+predictor mutation at all - no whole or column replacement, no
+per-observation update, no joint session across samplers; no `setCutPoints`
+and no `setData`; no
 `predictVariance`; and no forest-indexed `predict` - `dbarts_sampler_predict`
 takes no forest index, and per-forest fits are IN-SAMPLE only, through
 `dbarts_sampler_getForestFits`. All four are recorded doors elsewhere; naming

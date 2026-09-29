@@ -29,7 +29,7 @@ The five places that say a replaced sparse column "densifies its storage permane
   it. NEWS covers only changes against 0.9-x (dec-B128); sparse predictors are new in 1.0-0.
 - Today's pipeline. The bridge parses a `dgCMatrix` or `dbartsMixedMatrix` argument into a borrowed view
   ([`parseMutationSource`](../../src/R_interface_bartcore.cpp)), then
-  [`materializeMutationSource`](../../src/R_interface_bartcore.cpp) expands it into an n x columns block
+  retired: [`materializeMutationSource`](../../src/R_interface_bartcore.cpp) (gone since slice B) expands it into an n x columns block
   ([src/R_interface_bartcore.cpp:1026-1049](https://github.com/vdorie/dbarts/blob/91e3db8640a8c36cc9f2e208c9fd6845001ec838/src/R_interface_bartcore.cpp#L1026-L1049)),
   called from [`bartcore_setPredictor`](../../src/R_interface_bartcore.cpp)
   ([src/R_interface_bartcore.cpp:5563-5567](https://github.com/vdorie/dbarts/blob/91e3db8640a8c36cc9f2e208c9fd6845001ec838/src/R_interface_bartcore.cpp#L5563-L5567))

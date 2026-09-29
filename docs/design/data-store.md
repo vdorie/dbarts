@@ -193,8 +193,11 @@ view - what dropping the test data hands `buildTest` - carries no pointer in
 either dense channel, and a view holding no CSC nonzeros at all carries none
 for those either, so every one of those copies is skipped rather than run at
 zero length: a zero-byte copy from a null source is undefined all the same.
-Only the MUTATION entrances still need the dense values as one block,
-which their kernels index column-major, and they lay their own out.
+The MUTATION entrances read a view a column at a time too
+(`ColumnStore::mutateColumnFromSource`): a CSC column onto a CSC-backed store
+column as its stored entries, never densified, and a CSC or coded column onto
+a dense-backed one through one reused column of scratch. The R bridge still
+assembles a mixed argument's dense columns as one double block.
 
 The flat replay reads either channel too.
 `PredictorSourceColumnReader` - the reader `predict`, the saved-tree replay
@@ -317,6 +320,11 @@ The transaction sequence ([`runPredictorTransaction`](../../src/bartcore/sampler
    store's re-quantize writes in place. On success requantize test and
    accept; on failure restore both, `strategy.restore`, repartition every
    chain, and return `rolledBack`.
+
+Both strategies hold the caller's view and route each column by storage
+kind through `ColumnStore::mutateColumnFromSource`; the precheck reads a CSC
+column through `cutsWouldRemainValidCsc`. `SubsetUpdate::restore` walks its
+records in reverse, so a column named twice unwinds exactly.
 
 Snapshot ownership: the strategy owns the codes, missing flags, cut grids
 and CSC storage it moves; the transaction owns the two raw snapshots. This
