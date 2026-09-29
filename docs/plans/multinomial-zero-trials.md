@@ -88,13 +88,21 @@ engine edit of step 1 (library B); n = 200 data rows, K = 3, 50 trees, one chain
 
 - A, 800 zero-trial rows added: mean |posterior-mean p - truth| at the data rows 0.199, against 0.046 with the
   same rows masked through `$setActiveRows`. Entropy 0.857 against 0.763 (truth 0.732). Not inert.
-- B, 40 zero-trial rows: bitwise identical to the same sampler with those rows also masked; identical at the
-  data rows, and within 2e-14 at the empty ones, to a sampler whose empty rows carry other counts and are
-  masked. `$setCounts` zeroing 20 rows mid-run matches `$setActiveRows` on the same rows the same way.
-- B against the fit without the rows: with the empty rows' x duplicating data rows' x, agreement to 6e-14 at
-  every data row, and each empty row equals its twin to 3e-14 - same generator stream, same trees. With fresh x
-  the draws differ (0.70), because the cut grid is built from every row's x, as it is under zero gaussian
-  weights and the mask; that changes the tree prior, not the likelihood.
+- B, 40 zero-trial rows: identical at the data rows, and within 2e-14 at the empty ones, to a sampler whose
+  empty rows carry other counts and are masked. `$setCounts` zeroing 20 rows mid-run matches `$setActiveRows`
+  on the same rows the same way. (Empty rows against the same sampler with those rows also masked are bitwise
+  too, but that is nearly true by construction and proves little.)
+- B, trees drawn by `$sampleTreesFromPrior()` (the only caller of the veto vector): empty rows against the same
+  rows masked with other counts differ by 0 at the data rows; a copy of the fix whose veto still reads the
+  caller's mask differs by 0.59 there, and passes every other arm (independent critique).
+- B against the fit without the rows: 800 empty rows at fresh x drawn within the data range, which leaves the
+  default uniform cut grid unchanged, agree with the fit without them to 5e-14 at every data row; without the
+  engine edit they differ by up to 0.99 (critique). Fresh x outside the range moves the draws (0.70 in the first
+  spike) because the grid is built from every row's x, as under zero gaussian weights and the mask: a change of
+  tree prior, not of likelihood. Duplicated x also agrees (6e-14), but a twin always shares its data row's leaf,
+  so no leaf ever holds only empty rows and the arm cannot see the veto.
+- Re-creation (`$copy()`, save and load) is not bitwise even without empty rows (8e-15, critique), so a
+  re-created sampler is compared with a re-created one.
 - B, no zero-trial row: draws bitwise library A's. All-zero counts run at creation and through `$setCounts`,
   every reported row a finite simplex. The C++ component suite passes on B; the multinomial tinytest files
   fail only the three refusal pins.
@@ -102,37 +110,48 @@ engine edit of step 1 (library B); n = 200 data rows, K = 3, 50 trees, one chain
 ## Agent-made calls
 
 The ruling settles accept, inert, and warn once at creation and through `$setCounts`. These are not settled by
-it; each is a recommendation VD can overturn before implementation.
+it; each is a recommendation VD can overturn before implementation. Calls 2, 6 and 7 are pending maintainer:
+put to VD before the slice starts.
 
 1. Engine form: a zero-trial row is composed into the coupling's existing global mask, `effective = mask AND
    (n_i > 0)`, rather than a per-row trials test in the sweep loops. The hot loops keep their shape, a data set
    without empty rows serves the caller's mask (or none) exactly as today, and the row becomes, in every draw,
    the inactive row the mask tests already pin.
-2. All-zero counts are accepted, at creation and through `$setCounts`, under the same warning. The all-zeros
-   mask is accepted and runs for the same reason (a stratum that empties needs no special case); lm accepts
-   all-zero weights, glm warns and nnet's multinom refuses. Alternative: refuse at creation only.
-3. One warning site, [`validateMultinomialCounts`](../../R/data.R), which `dbartsData`, `dbarts`, `bart`,
-   `dbartsSpec` and `$setCounts` all pass through; `dbartsData(counts = )` alone therefore warns. The bridge
-   stays silent (a direct `.Call` is internal), and re-creating a sampler from its data object (`getPointer`
-   after load, `$copy`, `$setState`) does not warn, since no user action introduced the rows.
+2. Pending maintainer. All-zero counts are accepted, at creation and through `$setCounts`, under the same
+   warning. The all-zeros mask is accepted and runs for the same reason (a stratum that empties needs no special
+   case). Base R: lm accepts all-zero weights; glm on all (0, 0) rows warns "no observations informative" and
+   then errors; nnet's multinom refuses any empty row. Alternative: refuse at creation only.
+3. Two warning sites, each after the point where the call can no longer be refused, so a refused call never
+   uses up the once-per-session key: sampler creation, right after the creation `.Call` returns in
+   [`dbartsSampler$initialize`](../../R/dbarts.R), which `dbarts`, `bart` and `dbartsSpec`'s fits reach; and
+   `$setCounts`, right after the `.Call` in [`bartcoreSamplerSetCounts`](../../R/bartcore.R). A refusal after
+   creation (a category offset `bart` installs next, say) still leaves the warning spent, correctly: the rows
+   were accepted. [`validateMultinomialCounts`](../../R/data.R) itself stays silent, so `dbartsData(counts = )`
+   alone does not warn; the bridge stays silent (a direct `.Call` is internal); and re-creating a sampler from
+   its data object (`getPointer` after load, `$copy`, `$setState`) does not warn, since those paths do not run
+   `initialize`'s creation call and no user action introduced the rows.
 4. One warnOnce key, `multinomialZeroTrials`, shared by creation and `$setCounts`: one warning per session in
    all, reading "the first such row in a session" literally.
 5. Class and wording (error-style R15, R2, R3, R6): `dbartsZeroTrialsWarning` under `dbartsWarning`, message
    "multinomial count rows with zero trials (%d of %d) contribute nothing to the likelihood and still receive
    fitted probabilities". No argument is named, since the matrix arrives as `y.train`, `data` or `counts`.
-6. `residuals` returns an NA row: there is no observed proportion. Today's arithmetic would give NaN; glm's
-   response residual gives -mu, an artifact of its setting y = 0 at n = 0, and its default deviance residual 0.
-7. `extract(type = "loglik")` reports 0 at the row in every draw, the multinomial log-pmf and glm's
-   no-contribution, rather than the mask's NaN "not in the model" flag; a sum over rows is then the fit's
-   log-likelihood. Cost: loo reports Pareto k = Inf for a constant-zero column (checked), so the manual says to
-   drop those columns; NaN would make loo refuse outright.
+6. Pending maintainer. `residuals` returns an NA row: there is no observed proportion. Today's arithmetic
+   would give NaN. Base R: glm at a zero-weight row gives a response residual of -mu (it sets y = 0 at n = 0)
+   and deviance and pearson residuals of 0, deviance being the default; `rstandard` drops the row and `nobs`
+   excludes it. Alternatives: 0, following glm's default residual; -p, following its response residual.
+7. Pending maintainer. `extract(type = "loglik")` reports 0 at the row in every draw: the multinomial log-pmf,
+   and what glm's summed logLik gets from a zero-weight row, so a sum over rows is the fit's log-likelihood.
+   Multinomial fits never report NaN for a masked row's log-likelihood (the mask's NaN flag is the engine
+   channel of other families), so 0 departs from no multinomial convention. Cost: loo reports Pareto k = Inf
+   for a constant-zero column (checked), so the manual says to drop those columns; NaN would make loo refuse
+   outright.
 8. `fitted`, `fitted(type = "class")`, `predict`, the ppd, `summary`'s pooled probability, `plot`'s trace panel
    and variable counts are unchanged: the row has fitted probabilities and no response-dependent reader.
    `plot`'s second panel drops empty rows; today's single-trial branch would plot p(category 1) as the
    "observed" category of an empty row
    ([R/plot.R:207](https://github.com/vdorie/dbarts/blob/1d873a779c0f9392f404090cab62d072f8ffc930/R/plot.R#L207)).
-9. No statistical comparison and no exact-gate arm: the duplicated-x test gives the fit without the rows to
-   rounding, a stronger check than a quadrature arm. No design note (neutral class); the facts land in
+9. No statistical comparison and no exact-gate arm: the in-range fresh-x test gives the fit without the rows
+   to rounding, a stronger check than a quadrature arm. No design note (neutral class); the facts land in
    multinomial.md and active-rows-mask.md.
 10. NEWS: the 1.0-0 `$setCounts` item's "at least 1" becomes "at least 0, an empty row entering no likelihood";
     no new item.
@@ -160,22 +179,25 @@ it; each is a recommendation VD can overturn before implementation.
 2. Bridge: drop the two trials loops in [`createMultinomialCountsHolder`](../../src/R_interface_bartcore.cpp) and
    [`bartcore_setCounts`](../../src/R_interface_bartcore.cpp) (a negative cell is still refused per cell) and
    rewrite the n_i >= 1 comments.
-3. R: remove the refusals in the `dbartsData` validity method and in `bart()`; in
-   [`validateMultinomialCounts`](../../R/data.R) replace the refusal with
-   `warnOnce("multinomialZeroTrials", warningCondition(<call 5>, class = c("dbartsZeroTrialsWarning",
-   "dbartsWarning")))` over complete rows, after subsetting. [`residuals.bartMultinomial`](../../R/generics.R):
+3. R: remove the refusals in the `dbartsData` validity method, in `bart()` and in
+   [`validateMultinomialCounts`](../../R/data.R). Add one helper that, given a count matrix with an empty row,
+   calls `warnOnce("multinomialZeroTrials", warningCondition(<call 5>, class = c("dbartsZeroTrialsWarning",
+   "dbartsWarning")))`, and call it at the two sites of call 3, after the `.Call` returns. [`residuals.bartMultinomial`](../../R/generics.R):
    NA at rows with zero trials. [`plot.bartMultinomial`](../../R/plot.R): the second panel over rows with
    trials only, in both branches. Rewrite the `$setCounts` docstring.
 4. Tests, tinytest: a new `inst/tinytest/test-multinomial-zero-trials.R`, resetting the key first
    (`env <- dbarts:::onceWarnState; env[["multinomialZeroTrials"]] <- NULL`) and counting warnings with
    `withCallingHandlers`:
-   - creation through `dbartsData`, `dbarts` and `bart` warns exactly once in the file, with the class; a
-     second creation is silent; `$setCounts` after a creation warning is silent, and after a key reset warns once;
-   - bitwise: zero-trial rows equal the same sampler with those rows also masked (`expect_identical`, all
-     rows), and equal a sampler whose empty rows carry other counts and are masked (identical at data rows,
-     within 1e-12 at the empty ones);
-   - against the fit without the rows: empty rows appended at duplicated x agree to 1e-12 at every data row and
-     with their twins;
+   - creation through `dbarts` and `bart` warns exactly once in the file, with the class; `dbartsData` alone
+     does not; a second creation is silent; a creation refused after validation (an unsupported argument) does
+     not spend the key; `$setCounts` after a creation warning is silent, and after a key reset warns once;
+   - bitwise, leading: empty rows against a sampler whose empty rows carry other counts and are masked
+     (identical at data rows, within 1e-12 at the empty ones); then against the same sampler with those rows
+     also masked (`expect_identical`, all rows);
+   - the veto: the same comparison after `$sampleTreesFromPrior()`, identical at the data rows;
+   - against the fit without the rows: empty rows appended at fresh x drawn strictly within the data range (the
+     default uniform cut grid unchanged), enough of them that leaves holding only empty rows arise, agree with
+     the fit without them to 1e-12 at every data row;
    - mid-run: `$setCounts` emptying rows equals `$setActiveRows` on those rows over the next run; restoring the
      counts equals clearing the mask, to 1e-10 (drop to the phase that is bitwise if the restored phase is not);
      a mask installed over empty rows and then cleared leaves them out;
@@ -183,7 +205,9 @@ it; each is a recommendation VD can overturn before implementation.
      `extract(type = "loglik")` 0 there and finite elsewhere, ppd codes in 1..K, `summary` and `plot` run
      without warning;
    - all-zero counts: warns, runs, finite simplex, at creation and through `$setCounts`;
-   - `$copy()` and a save/load re-creation keep the rows inert (bitwise to a sampler with the mask) and do not warn.
+   - `$copy()` and a save/load re-creation keep the rows inert and do not warn: a re-created sampler with empty
+     rows is bitwise a re-created sampler whose rows carry other counts and are masked, at the data rows.
+     Re-created against original is not bitwise even without empty rows (8e-15), so never compare those.
 
    Rewrite the three refusal pins as acceptance checks.
 5. Tests, tests/cpp: `testZeroTrialsMultinomialKernel` beside
@@ -211,8 +235,10 @@ it; each is a recommendation VD can overturn before implementation.
   `R_LIBS=<ref> Rscript benchmarks/R/multinomial-equivalence.R compare
   benchmarks/baselines/multinomial-equivalence-80b1c8d4.rds --bitwise`: every scenario "identical draws", no
   "max |z|".
-- Discrimination: restoring the unconditional PG draw for empty rows fails the bitwise tinytest and cpp arms;
-  reading `activeRows_` in `formForestResponse` fails them too. `touch` each file after reverting.
+- Discrimination, each mutation run and reverted: restoring the unconditional PG draw for empty rows fails the
+  bitwise tinytest and cpp arms and the fresh-x arm; reading `activeRows_` in `formForestResponse` fails them
+  too; reading `activeRows_` in `formForestVetoWeights` fails the `$sampleTreesFromPrior()` arm (0.59 in the
+  critique) and passes every other, which is why that arm exists. `touch` each file after reverting.
 - `air format --check .`; `lintr::lint()` on each touched R file; `Rscript tools/check-rc-codoc.R .`,
   `Rscript tools/check-win-drift.R .`, `Rscript tools/check-doc-freshness.R .`, each on its own exit status; the
   NEWS parse check; `R CMD check --as-cran` on a tarball built from a clean copy.
