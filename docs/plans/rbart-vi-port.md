@@ -66,7 +66,7 @@ Each is supported by the 1.0 sampler as-is unless the row says otherwise.
 | `sampler$predict(sampler$data@x)` right after `sampleTreesFromPrior` | refuses with keepTrees on and no saved draw (n.burn thins to 0) | 6, call D1 |
 | `sampler$sampleTreesFromPrior()`, `$setControl` | unchanged | none |
 | `sampler$startThreads()`, `$stopThreads()` | no-op tombstones that warn ([`noOpThreadMethod`](../../R/tombstones.R)) | 5 |
-| `model@node.hyperprior`, class `dbartsChiHyperprior` | the slot name is unruled (dec-A95) | 11 |
+| `model@leaf.hyperprior`, class `dbartsChiHyperprior` | the slot is `leaf.hyperprior` | 11 |
 | `data@sigma` | slot unchanged, filled at creation | none |
 | `control@keepTrees`, `n.thin`, `n.chains`, `n.threads`, `updateState` | unchanged | none |
 | `.Call(C_dbarts_assignInPlace, ...)` | [`assignInPlace`](../../src/R_interface.cpp) still registered | none |
@@ -119,7 +119,7 @@ calls at the end, for the maintainer.
     re-created without a stored state". The reviewer's probe hit this, and 0.9-34 is fine there. The same call
     fixes serial reload (call D4).
 11. Detect a modeled k from the sampler's leaf-prior reader, `getLeafPrior()[, "k.has.hyperprior"]`, not from
-    `model@node.hyperprior`, whose slot name is unruled (dec-A95). The run's `$k` is NULL for a fixed k too, but
+    `model@leaf.hyperprior`. The run's `$k` is NULL for a fixed k too, but
     the sample buffers are sized before the first run.
 12. `importFrom(stats, dcauchy, dgamma)`, since the tau priors use them; the graphics imports are already there.
 

@@ -16,7 +16,7 @@ checkPlotTreeAndFixedPrior <- function(sampler) {
   dev.off()
 
   model.const <- sampler$model
-  model.const@node.prior <- dbarts:::normal(2)
+  model.const@leaf.prior <- dbarts:::normal(2)
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
   expect_error(
     sampler$setModel(model.const),
@@ -45,7 +45,7 @@ checkDataHandleViews <- function(formula, df, leaf.prior, n.trees, n, mu) {
   handle <- dbarts:::bartcoreDataHandle(
     sampler.view$control,
     sampler.view$data,
-    sampler.view$model@node.prior@columns
+    sampler.view$model@leaf.prior@columns
   )
   set.seed(7)
   view <- dbarts:::bartcoreSamplerFromHandle(

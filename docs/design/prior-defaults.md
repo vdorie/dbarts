@@ -19,7 +19,7 @@ span the coded response range `[-0.5, 0.5]`; `k = 2` puts that range at
 roughly a 95% prior interval. Binary responses (probit/logistic) default
 instead to the `chi(1.5, 2)` hyperprior - an empirical choice, proper,
 not independently derived. See "Response scaling" below for the
-interaction with the response transform and `node.scale`.
+interaction with the response transform and `leaf.scale`.
 
 ## power, base (tree prior, `cgm()`)
 
@@ -37,7 +37,7 @@ mass below the naive estimate), not a derived one. The engine's
 `ChiSquaredScalePrior` (`src/bartcore/model.hpp`) inherits the mechanics
 verbatim from the classic engine; the calibration itself is CGM's.
 
-## node.scale (latent reference range)
+## leaf.scale (latent reference range)
 
 3.0 for probit - a bare anchor (no formula ties it to anything else; it
 is simply the assumed spread of the latent index), inherited unchanged
@@ -45,7 +45,7 @@ from the classic engine. Logistic's `pi * sqrt(3)` is mechanically
 derived from it: multiply by the ratio of the logistic and normal latent
 standard deviations (`(pi / sqrt(3)) / 1`), so the logistic leaf prior
 spans the same number of latent standard deviations as probit's rather
-than picking an independent constant (`R/dbarts.R`, `node.scale`
+than picking an independent constant (`R/dbarts.R`, `leaf.scale`
 assignment).
 
 ## n.trees
@@ -99,17 +99,17 @@ another block's offsets - still inherits whatever calibration the
 CONSTRUCTION vector implied, which is an accident of how the outer loop
 was initialized rather than a modelling statement. `prior.scale` names
 it instead, in response units: it is the prior sd of the forest total at
-`k = 1`, so `prior.scale = fitScale * node.scale * sqrt(m)` is the
+`k = 1`, so `prior.scale = fitScale * leaf.scale * sqrt(m)` is the
 conversion, `prior.sd = prior.scale / k` is the reading at the k in
 force, and the prior mean is the transform's shift, whose lever is the
-offset channel. Only the ratio `node.scale / k` enters any draw law, so
+offset channel. Only the ratio `leaf.scale / k` enters any draw law, so
 under a fixed `k` the pair carries one degree of freedom and
 `prior.scale` is the identified half; `k` matters when a hyperprior
 draws it, and then `prior.scale` is the constant of the model while
 `prior.sd` moves every sweep - which is why the `sd` spelling is refused
 under a hyperprior and the `scale` spelling is not.
 
-The named value overrides the family-keyed `node.scale` above, which
+The named value overrides the family-keyed `leaf.scale` above, which
 stays the internal-unit primitive and is what the bridge reads when
 nothing is named. The conversion happens engine-side, at the one site
 that sets the leaf scale and again on every model install, so a

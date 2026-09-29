@@ -899,7 +899,7 @@ dbarts <- function(
   # discrete-time hazard ingestion: person-period-expand (x, time, status)
   # into an ordinary binary
   # (X', y') design and REMAP the hazard token to its underlying binary link
-  # BEFORE any family-keyed switch runs (node.scale, control@binary,
+  # BEFORE any family-keyed switch runs (leaf.scale, control@binary,
   # fixedUnitScale, the weight policy). The engine, bridge, and ResponseModels
   # then see an ordinary probit/logistic fit; the hazard provenance survives
   # only as the period grid, parked on the control attribute the packaging
@@ -1869,8 +1869,8 @@ dbartsSampler <- setRefClass(
       "Builds an initial forest by XBART-style grow-from-root (He, Yalov and Hahn 2019) as a warm start, running n.sweeps grow sweeps in place; the exact MCMC sampler owns the forest once run() begins. Constant-leaf models only. See ?dbartsSampler."
       updateState <- checkUpdateState(updateState)
       if (
-        is(model@node.prior, "dbartsLinearPrior") ||
-          is(model@node.prior, "dbartsGPPrior")
+        is(model@leaf.prior, "dbartsLinearPrior") ||
+          is(model@leaf.prior, "dbartsGPPrior")
       ) {
         stop(
           "grow-from-root warm start is only available for the constant-leaf ",
@@ -3112,8 +3112,8 @@ dbartsSampler <- setRefClass(
       }
       # linear leaves report one generically named slope column per
       # covariate; name them after the designated columns
-      if (is(model@node.prior, "dbartsLinearPrior")) {
-        covariateNames <- colnames(data@x)[model@node.prior@columns]
+      if (is(model@leaf.prior, "dbartsLinearPrior")) {
+        covariateNames <- colnames(data@x)[model@leaf.prior@columns]
         if (!is.null(covariateNames)) {
           slopeColumns <- match(
             paste0("beta.", seq_along(covariateNames)),

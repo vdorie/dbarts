@@ -84,10 +84,10 @@ methods::setValidity("dbartsDartPrior", function(object) {
 })
 
 # this is a prior over k
-methods::setClass("dbartsNodeHyperprior")
+methods::setClass("dbartsLeafHyperprior")
 methods::setClass(
   "dbartsChiHyperprior",
-  contains = "dbartsNodeHyperprior",
+  contains = "dbartsLeafHyperprior",
   slots = list(degreesOfFreedom = "numeric", scale = "numeric")
 )
 methods::setValidity("dbartsChiHyperprior", function(object) {
@@ -101,7 +101,7 @@ methods::setValidity("dbartsChiHyperprior", function(object) {
 })
 methods::setClass(
   "dbartsFixedHyperprior",
-  contains = "dbartsNodeHyperprior",
+  contains = "dbartsLeafHyperprior",
   slots = list(k = "numeric"),
   prototype = list(k = 2)
 )
@@ -113,16 +113,16 @@ methods::setValidity("dbartsFixedHyperprior", function(object) {
 })
 
 
-methods::setClass("dbartsNodePrior")
+methods::setClass("dbartsLeafPrior")
 # k holds the raw user specification (positive scalar, hyperprior object, or
 # NULL for the family-dependent default); it becomes the model's separate
-# node.hyperprior when a sampler is built. prior.scale and prior.sd hold the
+# leaf.hyperprior when a sampler is built. prior.scale and prior.sd hold the
 # named calibration exactly as it was spelled - at most one is non-NA - and
 # resolve into the model's single prior.scale slot once k is known, since the
 # sd spelling is the scale divided by the resolved k.
 methods::setClass(
   "dbartsNormalPrior",
-  contains = "dbartsNodePrior",
+  contains = "dbartsLeafPrior",
   slots = list(k = "ANY", prior.scale = "numeric", prior.sd = "numeric"),
   prototype = list(k = NULL, prior.scale = NA_real_, prior.sd = NA_real_)
 )
@@ -132,7 +132,7 @@ methods::setClass(
 # the model matrix, after which it is 1-based integer column indices
 methods::setClass(
   "dbartsLinearPrior",
-  contains = "dbartsNodePrior",
+  contains = "dbartsLeafPrior",
   slots = list(
     k = "ANY",
     columns = "ANY",
@@ -153,7 +153,7 @@ methods::setClass(
 # resolved); leaves larger than max.leaf.size fall back to constant fits
 methods::setClass(
   "dbartsGPPrior",
-  contains = "dbartsNodePrior",
+  contains = "dbartsLeafPrior",
   slots = list(
     k = "ANY",
     columns = "ANY",
@@ -487,9 +487,9 @@ methods::setValidity("dbartsControl", function(object) {
 methods::setClass(
   "dbartsModel",
   slots = list(
-    node.scale = "numeric",
+    leaf.scale = "numeric",
     # The NAMED leaf calibration, in response units: the forest total's prior
-    # sd at k = 1, or NA to inherit node.scale's family-keyed internal-unit
+    # sd at k = 1, or NA to inherit leaf.scale's family-keyed internal-unit
     # default. This slot records the named INTENT and is never rewritten by
     # the engine; a channel that re-anchors the response transform moves what
     # is in force without touching it.
@@ -498,23 +498,23 @@ methods::setClass(
     family = "character",
 
     tree.prior = "dbartsTreePrior",
-    node.prior = "dbartsNodePrior",
-    node.hyperprior = "dbartsNodeHyperprior",
+    leaf.prior = "dbartsLeafPrior",
+    leaf.hyperprior = "dbartsLeafHyperprior",
     resid.prior = "dbartsResidPrior"
   ),
   prototype = list(
-    node.scale = 0.5,
+    leaf.scale = 0.5,
     prior.scale = NA_real_,
     family = "auto",
     tree.prior = new("dbartsCGMPrior"),
-    node.prior = new("dbartsNormalPrior"),
-    node.hyperprior = new("dbartsFixedHyperprior"),
+    leaf.prior = new("dbartsNormalPrior"),
+    leaf.hyperprior = new("dbartsFixedHyperprior"),
     resid.prior = new("dbartsChiSqPrior")
   )
 )
 methods::setValidity("dbartsModel", function(object) {
-  if (object@node.scale <= 0.0) {
-    return("node.scale must be > 0")
+  if (object@leaf.scale <= 0.0) {
+    return("leaf.scale must be > 0")
   }
 
   # NaN is not the unnamed spelling, though is.na() accepts it as one: it

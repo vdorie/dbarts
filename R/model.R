@@ -108,10 +108,10 @@ setMethod(
   function(
     .Object,
     tree.prior,
-    node.prior,
-    node.hyperprior,
+    leaf.prior,
+    leaf.hyperprior,
     resid.prior,
-    node.scale = 0.5,
+    leaf.scale = 0.5,
     prior.scale = NA_real_,
     family = "auto"
   ) {
@@ -126,10 +126,10 @@ setMethod(
       )
     }
     if (
-      !missing(node.prior) &&
-        (is(node.prior, "dbartsLinearPrior") ||
-          is(node.prior, "dbartsGPPrior")) &&
-        !is.integer(node.prior@columns)
+      !missing(leaf.prior) &&
+        (is(leaf.prior, "dbartsLinearPrior") ||
+          is(leaf.prior, "dbartsGPPrior")) &&
+        !is.integer(leaf.prior@columns)
     ) {
       stop(
         "leaf prior columns must be resolved against data; ",
@@ -139,17 +139,17 @@ setMethod(
     if (!missing(tree.prior)) {
       .Object@tree.prior <- tree.prior
     }
-    if (!missing(node.prior)) {
-      .Object@node.prior <- node.prior
+    if (!missing(leaf.prior)) {
+      .Object@leaf.prior <- leaf.prior
     }
-    if (!missing(node.hyperprior)) {
-      .Object@node.hyperprior <- node.hyperprior
+    if (!missing(leaf.hyperprior)) {
+      .Object@leaf.hyperprior <- leaf.hyperprior
     }
     if (!missing(resid.prior)) {
       .Object@resid.prior <- resid.prior
     }
 
-    .Object@node.scale <- node.scale
+    .Object@leaf.scale <- leaf.scale
     .Object@prior.scale <- as.double(prior.scale)
     .Object@family <- family
 
@@ -162,7 +162,7 @@ parsePriors <- function(
   control,
   data,
   tree.prior,
-  node.prior,
+  leaf.prior,
   resid.prior,
   monotone = NULL,
   multiForest = FALSE,
@@ -210,14 +210,14 @@ parsePriors <- function(
     "dbartsResidPrior",
     "residual prior"
   )
-  node.prior <- resolveSpec(
-    matchedCall$node.prior,
+  leaf.prior <- resolveSpec(
+    matchedCall$leaf.prior,
     "leaf.prior",
-    "dbartsNodePrior",
+    "dbartsLeafPrior",
     "leaf prior"
   )
-  if (is(node.prior, "dbartsLinearPrior") || is(node.prior, "dbartsGPPrior")) {
-    node.prior <- resolveLeafCovariates(node.prior, data)
+  if (is(leaf.prior, "dbartsLinearPrior") || is(leaf.prior, "dbartsGPPrior")) {
+    leaf.prior <- resolveLeafCovariates(leaf.prior, data)
   }
 
   # `monotone` arrives already resolved to a per-column direction vector (or
@@ -226,21 +226,21 @@ parsePriors <- function(
   # second half of that same rule
   if (
     !is.null(monotone) &&
-      (is(node.prior, "dbartsLinearPrior") || is(node.prior, "dbartsGPPrior"))
+      (is(leaf.prior, "dbartsLinearPrior") || is(leaf.prior, "dbartsGPPrior"))
   ) {
     stop(
       "monotone constraints require the constant leaf; they are not ",
       "supported with linear or gp leaf priors"
     )
   }
-  node.hyperprior <- resolveNodeHyperprior(
-    node.prior@k,
+  leaf.hyperprior <- resolveLeafHyperprior(
+    leaf.prior@k,
     control@binary,
     monotone = !is.null(monotone),
     multiForest = isTRUE(multiForest)
   )
 
-  namedList(tree.prior, resid.prior, node.prior, node.hyperprior)
+  namedList(tree.prior, resid.prior, leaf.prior, leaf.hyperprior)
 }
 
 ## Turn a linear or gp leaf prior's raw columns specification into 1-based
@@ -435,16 +435,16 @@ resolveSplitProbabilities <- function(prior, data) {
   prior
 }
 
-## The node scale a family that names no calibration takes, in the units its
+## The leaf scale a family that names no calibration takes, in the units its
 ## own latent scale is stated in: gaussian and aft the response range's 0.5,
 ## the probit-scale families 3, and the log-odds families that same 3 widened
 ## by the logistic latent's standard deviation pi / sqrt(3). One function
 ## rather than a switch per call site, since the multi-forest guard reads it
-## too (a "non-default node scale" has always meant "differs from the family
+## too (a "non-default leaf scale" has always meant "differs from the family
 ## default"); the C bridge carries the twin it backstops direct-API consumers
 ## with. Ordinal reuses probit's latent scale (scheme C: the K = 2 anchor is
 ## probit exactly) and nbinom's psi is a log-odds, so it reuses logistic's.
-defaultNodeScale <- function(family) {
+defaultLeafScale <- function(family) {
   switch(
     family,
     gaussian = 0.5,
@@ -458,12 +458,12 @@ defaultNodeScale <- function(family) {
     # for a multinomial sampler and it is recorded here only so the model
     # object states the anchor the map applies
     multinomial = pi * sqrt(3.0) / sqrt(2.0),
-    stop("no node scale is defined for family \"", family, "\"")
+    stop("no leaf scale is defined for family \"", family, "\"")
   )
 }
 
 ## The half-Cauchy median a forest carrying NO basis takes when its `sd` is
-## not declared, in units of the latent scale defaultNodeScale states above.
+## not declared, in units of the latent scale defaultLeafScale states above.
 ## FAMILY-AWARE: under gaussian and aft the anchor is the RESPONSE's own sd
 ## (sigma is DRAWN); under the latent families the anchor is the LINK's own
 ## error sd (sigma is PINNED), so the anchor unit differs 2:1 between them to
@@ -475,7 +475,7 @@ defaultNodeScale <- function(family) {
 ## invisible NULL, since the multi-forest creation path (dbarts(forests = ))
 ## borrows this vocabulary rather than declaring a family gate of its own.
 ##
-## No C twin, unlike defaultNodeScale: applyAmplitudeSpec always receives
+## No C twin, unlike defaultLeafScale: applyAmplitudeSpec always receives
 ## explicit per-forest parameter vectors, so there is nothing to backstop.
 defaultAmplitudePriorScale <- function(family) {
   switch(
@@ -532,7 +532,7 @@ refuseColliding <- function(
 ## reads. Redirecting the DEFAULT rather than refusing it downstream is what
 ## keeps a plain binary two-forest call silent while an explicitly named chi()
 ## still refuses by name, and the forced value changes no fitted model.
-resolveNodeHyperprior <- function(
+resolveLeafHyperprior <- function(
   k,
   binary,
   monotone = FALSE,
@@ -549,7 +549,7 @@ resolveNodeHyperprior <- function(
   if (is.numeric(k)) {
     return(newValidated("dbartsFixedHyperprior", k = k))
   }
-  if (is(k, "dbartsNodeHyperprior")) {
+  if (is(k, "dbartsLeafHyperprior")) {
     return(k)
   }
   stop("'k' must be a positive scalar or a hyperprior specification")
@@ -1125,20 +1125,20 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 ## Which of the two magnitude channels a forest's `sd` reaches is decided by
 ## whether it carries a BASIS. A forest WITHOUT one has a plain scalar
 ## amplitude under a half-Cauchy scale mixture, so `sd` is that mixture's
-## median and the node scale stays at the calibration map's anchor. A forest
+## median and the leaf scale stays at the calibration map's anchor. A forest
 ## WITH one has a fixed-variance amplitude block, so `sd` multiplies the node
 ## scale, divided through the half-normal median 0.674. The ANCHOR is the
 ## family's own latent scale: sd(y) under gaussian, 1 under probit and
 ## pi/sqrt(3) under logistic, per unit of basis row norm.
 ##
-## The fixed-variance channel's node scale factor is K-AWARE, sqrt(2/K): that
+## The fixed-variance channel's leaf scale factor is K-AWARE, sqrt(2/K): that
 ## keeps the prior on the combined location invariant to how the caller
 ## decomposed the mean across forests, the identity at K = 2.
 forestParams <- function(specs, hasBasis, family) {
   declared <- function(value, default) {
     if (is.null(value)) default else value
   }
-  nodeScaleDefault <- sqrt(2 / length(specs))
+  leafScaleDefault <- sqrt(2 / length(specs))
   amplitudeScaleDefault <- defaultAmplitudePriorScale(family)
   lapply(seq_along(specs), function(index) {
     spec <- specs[[index]]
@@ -1147,7 +1147,7 @@ forestParams <- function(specs, hasBasis, family) {
       declared(spec$n.trees, 50L),
       declared(spec$base, 0.25),
       declared(spec$power, 3),
-      if (withBasis) declared(spec$sd, nodeScaleDefault) else 1,
+      if (withBasis) declared(spec$sd, leafScaleDefault) else 1,
       if (withBasis) 0.674 else 1,
       if (withBasis) declared(spec$amplitude.prior.variance, 0.5) else 1,
       if (withBasis) 0 else declared(spec$sd, amplitudeScaleDefault),
@@ -1552,18 +1552,18 @@ resolveNamedScaleArgs <- function(sd, scale) {
 ## calibration against the k that will actually be in force. A sampled k has no
 ## single value to multiply an sd by and drifts every sweep, so the sd spelling
 ## is refused there rather than honored at the current draw.
-resolvePriorScale <- function(node.prior, node.hyperprior) {
-  if (is.na(node.prior@prior.sd)) {
-    return(node.prior@prior.scale)
+resolvePriorScale <- function(leaf.prior, leaf.hyperprior) {
+  if (is.na(leaf.prior@prior.sd)) {
+    return(leaf.prior@prior.scale)
   }
-  if (!is(node.hyperprior, "dbartsFixedHyperprior")) {
+  if (!is(leaf.hyperprior, "dbartsFixedHyperprior")) {
     stop(
       "'sd' names a prior sd at the current 'k', but 'k' is drawn every ",
       "sweep under a hyperprior and the named sd would drift: name ",
       "'scale' instead (the prior sd at k = 1), or fix 'k' at a number"
     )
   }
-  node.prior@prior.sd * node.hyperprior@k
+  leaf.prior@prior.sd * leaf.hyperprior@k
 }
 
 normal <- function(k = NULL, sd = NULL, scale = NULL) {
@@ -1584,7 +1584,7 @@ normal <- function(k = NULL, sd = NULL, scale = NULL) {
   } # normal(chi)
   if (
     !is.null(k) &&
-      !is(k, "dbartsNodeHyperprior") &&
+      !is(k, "dbartsLeafHyperprior") &&
       (!is.numeric(k) || length(k) != 1L || is.na(k) || k <= 0.0)
   ) {
     stop("'k' must be a positive scalar or a hyperprior specification")

@@ -41,7 +41,7 @@ expect_error(
 )
 # an unresolved designation cannot enter a model object directly
 expect_error(
-  new("dbartsModel", node.prior = dbarts:::linear("x2")),
+  new("dbartsModel", leaf.prior = dbarts:::linear("x2")),
   pattern = "resolved against data"
 )
 

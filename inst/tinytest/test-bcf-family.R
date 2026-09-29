@@ -9,7 +9,7 @@
 # family-keyed refusals that flip the moment the sampler reports its own
 # family. The anchor assertions are exact rather than statistical: under a
 # latent family the response transform is the identity and the map's sqrt(m)
-# cancels, so $getLeafPrior()'s prior.scale IS the map's node scale.
+# cancels, so $getLeafPrior()'s prior.scale IS the map's leaf scale.
 
 set.seed(29)
 n <- 240L
@@ -124,7 +124,7 @@ for (family in names(anchors)) {
   # (c) THE INDUCED INDEX: sqrt(sum_f prior.scale_f^2 v_f ||B_f(i,.)||^2) at
   # the default amplitude prior variance and unit row norms. The map itself
   # still disperses as 1.04912 sqrt(K) - it carries no per-K renormalization -
-  # but the DEFAULT node scale factor is now sqrt(2/K),
+  # but the DEFAULT leaf scale factor is now sqrt(2/K),
   # whose product with that sqrt(K) is sqrt(2) at every count. So the assertion
   # is a CONSTANT rather than a function of K, which is strictly stronger and is
   # the design statement itself: the all-basis index prior is 1.4837 s whether
@@ -150,7 +150,7 @@ for (family in names(anchors)) {
   )
 
   # (d) THE PRODUCT ITSELF, at a DECLARED forest(sd = ). Every assertion above
-  # runs at the default node scale factor, the literal 1, so three of the map's
+  # runs at the default leaf scale factor, the literal 1, so three of the map's
   # four factors are pinned and the fourth is vacated - a recorded
   # hazard (unit values silently vacate pins) sitting on the expression whose
   # default is about to move. Here each of the four discriminates: sd in
@@ -230,7 +230,7 @@ expect_equal(probit$model@family, "probit")
 expect_equal(logistic$model@family, "logistic")
 for (fit in list(probit, logistic)) {
   s <- anchors[[fit$model@family]]
-  # forest 1 declares no basis, so its node scale stays at the anchor itself
+  # forest 1 declares no basis, so its leaf scale stays at the anchor itself
   expect_equal(priorScales(fit), c(s, s / 0.674), tolerance = 1e-12)
   # and the reader SHOWS that rather than leaving it to be inferred: factor,
   # divisor and row norm are each 1 on that forest. The two amplitude columns
@@ -334,7 +334,7 @@ expect_equal(
   1
 )
 
-# slot 4, the fixed-variance channel's node scale factor, is K-AWARE - 1,
+# slot 4, the fixed-variance channel's leaf scale factor, is K-AWARE - 1,
 # 0.816497, 0.707107 at K = 2, 3, 4 - on the RESOLVED forest count and NOT on
 # the count of basis forests: the shipped shape's K - 1 basis forests take
 # sqrt(2/K), so a law normalized on the basis count would read 1 at K = 3 here
@@ -391,10 +391,10 @@ expect_equal(paramSlot(declaredShape, 7L)[1L], 2)
 # unless they are keyed to the family. Both are silent above, which is what
 # makes those builds positive evidence; here is the other half, that an
 # explicit non-default is still refused by name. ---
-expect_true(is(probit$model@node.hyperprior, "dbartsFixedHyperprior"))
-expect_equal(probit$model@node.hyperprior@k, 2)
-expect_equal(probit$model@node.scale, 3.0)
-expect_equal(logistic$model@node.scale, pi * sqrt(3.0))
+expect_true(is(probit$model@leaf.hyperprior, "dbartsFixedHyperprior"))
+expect_equal(probit$model@leaf.hyperprior@k, 2)
+expect_equal(probit$model@leaf.scale, 3.0)
+expect_equal(logistic$model@leaf.scale, pi * sqrt(3.0))
 for (family in c("probit", "logistic")) {
   # the prior vocabulary resolves inside the call, so these are stated here
   # rather than through the helper above
@@ -420,7 +420,7 @@ for (family in c("probit", "logistic")) {
     ),
     "a named 'prior.scale'"
   )
-  # node.scale is written by the family switch rather than by the caller, so
+  # leaf.scale is written by the family switch rather than by the caller, so
   # the bridge's own backstop is where a non-default one can be stated at all
   spec <- dbartsSpec(
     dbartsData(x, yBalanced),
@@ -428,10 +428,10 @@ for (family in c("probit", "logistic")) {
     forests = twoForests,
     family = family
   )
-  spec$model@node.scale <- 0.9
+  spec$model@leaf.scale <- 0.9
   expect_error(
     new("dbartsSampler", spec$control, spec$model, spec$data),
-    "a non-default node scale"
+    "a non-default leaf scale"
   )
 }
 

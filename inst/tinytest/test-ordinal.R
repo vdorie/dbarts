@@ -314,7 +314,7 @@ expect_equal(sampler$model@family, "ordinal")
 expect_equal(attr(sampler$control, "bartcore.n.categories"), 3L)
 expect_equal(range(sampler$data@y), c(1, 3))
 expect_equal(sampler$data@response.levels, lv)
-expect_equal(sampler$model@node.scale, 3.0)
+expect_equal(sampler$model@leaf.scale, 3.0)
 
 r <- sampler$run(20L, 5L)
 expect_equal(dim(r$train), c(n, 5L))

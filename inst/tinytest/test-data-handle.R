@@ -226,7 +226,7 @@ expect_true(abs(mean(r.off$test) - mean(y[testRows] + 100)) < 1)
 # it is told to gather. A view whose leaf model reads an undeclared column is
 # refused; declaring the column lets the same view build and run.
 sampler.linear <- dbarts(x, y, leaf.prior = linear(2L), control = control)
-leafColumns <- sampler.linear$model@node.prior@columns
+leafColumns <- sampler.linear$model@leaf.prior@columns
 
 handle.bare <- dbarts:::bartcoreDataHandle(
   sampler.linear$control,

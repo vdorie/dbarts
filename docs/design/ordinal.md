@@ -56,7 +56,7 @@ invariant to (i) a common location shift of all gamma and eta and (ii) a common
 positive rescaling of all gamma, eta, and the latent sd sigma. A cumulative
 probit needs one anchor for each. The BART mean f is a flexible location that
 floats, softly shrunk toward the offset by the leaf prior (total-fit prior sd
-nodeScale/k; probit sets nodeScale = 3.0, [`defaultNodeScale`](../../R/model.R)), so
+nodeScale/k; probit sets nodeScale = 3.0, [`defaultLeafScale`](../../R/model.R)), so
 f carries the location that an explicit intercept would in a linear model.
 
 **Scheme A (recommend): sigma = 1 fixed, gamma_1 = 0 fixed; free interior
@@ -94,7 +94,7 @@ unit gap gamma_2 - gamma_1 = 1 is an arbitrary scale the data must absorb. The
 mixing study (section 3) shows the marginal cutpoint update fixes mixing without
 a free sigma, so B buys machinery for no measured benefit.
 
-**Scheme C: anchor via the response scaling / node.scale calibration.** Not a
+**Scheme C: anchor via the response scaling / leaf.scale calibration.** Not a
 competing anchor - it is the leaf-prior-scale sub-decision inside A. With sigma =
 1 and gamma_1 = 0 fixed, the only remaining freedom is how diffuse f is, set by
 nodeScale. v1 reuses probit's nodeScale = 3.0. Honest caveat (the multinomial

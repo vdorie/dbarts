@@ -1480,7 +1480,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   PROTECT_INDEX slotIndex;
   PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
 
-  REPROTECT_SLOT(slotExpr, modelExpr, "node.scale", slotIndex);
+  REPROTECT_SLOT(slotExpr, modelExpr, "leaf.scale", slotIndex);
   model.nodeScale = rc_getDouble(
     slotExpr, "scale of leaf prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
     RC_VALUE | RC_GT, 0.0, RC_END);
@@ -1576,18 +1576,18 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
 
   // linear and gp leaf priors designate leaf covariate columns, resolved
   // R-side to 1-based model matrix indices; every other leaf prior is the
-  // constant leaf and carries nothing beyond node.scale/node.hyperprior.
+  // constant leaf and carries nothing beyond leaf.scale/leaf.hyperprior.
   // gp priors add per-column lengthscales (NULL for the median-distance
   // heuristic; the R side validates and recycles) and the leaf-size cap.
-  SEXP nodePriorExpr =
-    PROTECT(Rf_getAttrib(modelExpr, Rf_install("node.prior")));
-  bool isLinearPrior = !Rf_isNull(nodePriorExpr) &&
-                       Rf_inherits(nodePriorExpr, "dbartsLinearPrior");
-  bool isGPPrior = !Rf_isNull(nodePriorExpr) &&
-                   Rf_inherits(nodePriorExpr, "dbartsGPPrior");
+  SEXP leafPriorExpr =
+    PROTECT(Rf_getAttrib(modelExpr, Rf_install("leaf.prior")));
+  bool isLinearPrior = !Rf_isNull(leafPriorExpr) &&
+                       Rf_inherits(leafPriorExpr, "dbartsLinearPrior");
+  bool isGPPrior = !Rf_isNull(leafPriorExpr) &&
+                   Rf_inherits(leafPriorExpr, "dbartsGPPrior");
   if (isLinearPrior || isGPPrior) {
     SEXP columnsExpr =
-      PROTECT(Rf_getAttrib(nodePriorExpr, Rf_install("columns")));
+      PROTECT(Rf_getAttrib(leafPriorExpr, Rf_install("columns")));
     if (!Rf_isInteger(columnsExpr) || Rf_xlength(columnsExpr) < 1)
       Rf_error("leaf prior columns must be resolved integer indices");
     R_xlen_t numColumns = Rf_xlength(columnsExpr);
@@ -1606,7 +1606,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     // a NULL slot arrives as S4's pseudo-NULL symbol, not R_NilValue, so
     // test positively for the resolved numeric vector
     SEXP lengthscaleExpr =
-      PROTECT(Rf_getAttrib(nodePriorExpr, Rf_install("lengthscale")));
+      PROTECT(Rf_getAttrib(leafPriorExpr, Rf_install("lengthscale")));
     if (Rf_isReal(lengthscaleExpr)) {
       if (static_cast<size_t>(Rf_xlength(lengthscaleExpr)) !=
           model.leafCovariateColumns.size())
@@ -1619,7 +1619,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
         lengthscales, lengthscales + model.leafCovariateColumns.size());
     }
     SEXP maxLeafSizeExpr =
-      PROTECT(Rf_getAttrib(nodePriorExpr, Rf_install("max.leaf.size")));
+      PROTECT(Rf_getAttrib(leafPriorExpr, Rf_install("max.leaf.size")));
     int maxLeafSize = rc_getInt(
       maxLeafSizeExpr, "gp leaf prior maximum leaf size", RC_LENGTH | RC_EQ,
       rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
@@ -1659,7 +1659,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
       Rf_error("split probabilities must sum to 1.0");
   }
 
-  REPROTECT_SLOT(priorExpr, modelExpr, "node.hyperprior", priorIndex);
+  REPROTECT_SLOT(priorExpr, modelExpr, "leaf.hyperprior", priorIndex);
   const char* classStr = CHAR(STRING_ELT(rc_getClass(priorExpr), 0));
   if (std::strcmp(classStr, "dbartsChiHyperprior") == 0) {
     model.updateK = true;
@@ -2442,7 +2442,7 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
       Rf_error("forest parameters must be a length-8 numeric vector per forest");
     const double* params = REAL(forestParamsExpr);
     bartcore::ForestSpec& forest = spec.forests[f];
-    // node scales come from the calibration map, not the host model
+    // leaf scales come from the calibration map, not the host model
     forest.forest.numTrees =
       f == 0 ? numTrees : static_cast<size_t>(params[0]);
     forest.forest.base = f == 0 ? model.base : params[1];
@@ -2548,7 +2548,7 @@ bool applyForestAttributes(SEXP controlExpr, const ParsedModel& model,
 
 // The families a K-forest coupling admits, and why each door is shut: null for
 // gaussian, probit and logistic, the reason otherwise. Admission turns on the
-// calibration map having a latent scale to state its node scales against, and
+// calibration map having a latent scale to state its leaf scales against, and
 // on the family's own parameter block being shown to interleave with the
 // amplitude block. The two creation routes ask this separately rather than
 // sharing a gate, since only one runs the whole offender cascade below.
@@ -2571,11 +2571,11 @@ const char* refusedAmplitudeFamilyReason(bartcore::ResponseFamily family) {
   return "this response family";
 }
 
-// The node scale the R surface writes for a family that names none, mirroring
-// defaultNodeScale() in R/model.R. The K-forest gate reads it so "a non-default
-// node scale" means the same thing under every family: the literal 0.5 it used
+// The leaf scale the R surface writes for a family that names none, mirroring
+// defaultLeafScale() in R/model.R. The K-forest gate reads it so "a non-default
+// leaf scale" means the same thing under every family: the literal 0.5 it used
 // to compare against is GAUSSIAN'S, inlined while the coupling was gaussian.
-double defaultNodeScale(bartcore::ResponseFamily family) {
+double defaultLeafScale(bartcore::ResponseFamily family) {
   switch (family) {
   case bartcore::ResponseFamily::probit:
   case bartcore::ResponseFamily::ordinal:
@@ -2586,7 +2586,7 @@ double defaultNodeScale(bartcore::ResponseFamily family) {
   // gaussian and aft state the scale in response units, below. Every
   // enumerator is listed and there is no default arm: a family added without
   // one must fail the build rather than silently take gaussian's 0.5, and its
-  // arm must be added to R's defaultNodeScale in the same change.
+  // arm must be added to R's defaultLeafScale in the same change.
   case bartcore::ResponseFamily::gaussian:
   case bartcore::ResponseFamily::aft:
     break;
@@ -2619,8 +2619,8 @@ void refuseUnsupportedAmplitudeComposition(
     offender = "a linear or Gaussian-process leaf prior";
   else if (model.updateK) offender = "a k hyperprior";
   else if (model.k != 2.0) offender = "a non-default k";
-  else if (model.nodeScale != defaultNodeScale(family))
-    offender = "a non-default node scale";
+  else if (model.nodeScale != defaultLeafScale(family))
+    offender = "a non-default leaf scale";
   // the node-scale gate above does not fire on a model that names its
   // calibration in response units instead, and the calibration map would drop
   // it in silence, so it is its own offender
@@ -3547,7 +3547,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   // the K category forests take their leaf scale from the softmax calibration
   // map below, never from the host leaf prior, so a named calibration has
   // nowhere to land; refuse it rather than drop it. This is the first
-  // node-scale-class refusal on this path - the host's own node.scale is
+  // node-scale-class refusal on this path - the host's own leaf.scale is
   // deliberately not read, and carries a gaussian default no user chose.
   if (std::isfinite(model.priorScale))
     Rf_error("a multinomial forest does not support a named 'prior.scale'; "
@@ -3562,7 +3562,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   // buffer and the combiner reads it every sweep
   spec.offset = offset;
   // the K=2 pairwise-log-odds anchor (pi*sqrt(3)/sqrt(2)) and the host k; the
-  // host node scale (a gaussian default) is deliberately not read here
+  // host leaf scale (a gaussian default) is deliberately not read here
   spec.k = model.k;
   spec.forest.numTrees = options.numTrees;
   spec.forest.base = model.base;
@@ -5464,7 +5464,7 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
     parameters.nodeScale = model.nodeScale;
     // carried so the install re-derives the named calibration against the
     // transform in force; without it $setModel(sampler$model) - a no-op round
-    // trip - would revert to the family-keyed node scale
+    // trip - would revert to the family-keyed leaf scale
     parameters.priorScale = model.priorScale;
     parameters.updateK = model.updateK;
     if (parameters.updateK) {

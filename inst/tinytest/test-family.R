@@ -42,8 +42,8 @@ expect_error(
 control.bc <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 50L)
 sampler.logit <- dbarts(y.binary ~ x, family = "logistic", control = control.bc)
 expect_equal(sampler.logit$model@family, "logistic")
-expect_inherits(sampler.logit$model@node.hyperprior, "dbartsChiHyperprior")
-expect_equal(sampler.logit$model@node.scale, pi * sqrt(3))
+expect_inherits(sampler.logit$model@leaf.hyperprior, "dbartsChiHyperprior")
+expect_equal(sampler.logit$model@leaf.scale, pi * sqrt(3))
 
 # fits live on the latent logit scale and recover the signal
 samples.logit <- sampler.logit$run(300L, 300L)

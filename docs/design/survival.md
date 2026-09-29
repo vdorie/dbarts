@@ -181,7 +181,7 @@ ordinary rows and the period index is an ordinary ordinal predictor, so
 ColumnStore, the cut grid, the bridge, and the binary ResponseModels all
 run bit-for-bit as they do on any binary fit. Contrast aft, a REAL engine
 family: it adds ResponseFamily::aft, threads a status vector to C++, and
-takes its own arm in every family-keyed switch (node.scale, sigma
+takes its own arm in every family-keyed switch (leaf.scale, sigma
 handling, weights, log-likelihood); hazard adds NONE of that, because
 after the remap the engine-facing family IS probit or logistic and there
 is nothing left to switch on. That is why this section is short - most
@@ -240,8 +240,8 @@ splitting on period AND a covariate represents a time-varying
 load-bearing - a threshold cut groups CONTIGUOUS periods, so adjacent
 periods share leaves and the leaf prior borrows strength across time,
 giving a smooth baseline rather than K independent hazards. Leaf-prior
-calibration is inherited from the chosen binary family (node.scale 3.0
-probit / pi*sqrt(3) logistic, [`defaultNodeScale`](../../R/model.R)); nothing new is
+calibration is inherited from the chosen binary family (leaf.scale 3.0
+probit / pi*sqrt(3) logistic, [`defaultLeafScale`](../../R/model.R)); nothing new is
 calibrated.
 
 The classical model instead uses a saturated set of K per-period intercepts
@@ -381,15 +381,15 @@ tokens (the remap block below).
 
 **The remap (settled; required whatever naming wins).** A hazard token
 CANNOT flow through the family-keyed resolution unchanged - verified
-against the code: node.scale is a switch(family, ...) with NO default
-([`defaultNodeScale`](../../R/model.R)), so an unknown token yields NULL; control@binary
+against the code: leaf.scale is a switch(family, ...) with NO default
+([`defaultLeafScale`](../../R/model.R)), so an unknown token yields NULL; control@binary
 keys on family %in% c("probit", "logistic") ([`isBinaryFamily`](../../R/spec.R)), so the binary
 machinery would stay off; fixedUnitScale excludes it ([`resolveSamplerSpec`](../../R/spec.R)), so sigma
 would be ESTIMATED and the 0/1 response fit as gaussian; and the weight
 policy keys on the literal tokens ([`enforceWeightPolicy`](../../R/spec.R)). The design is therefore an
 early REMAP: immediately after the ingestion resolves the hazard request
 and the expander runs, the R surface rewrites family to the underlying
-binary token ("probit" or "logistic"), BEFORE the node.scale /
+binary token ("probit" or "logistic"), BEFORE the leaf.scale /
 control@binary / fixedUnitScale / weight-policy resolution - so every one
 of those switches, the model object (model@family records the binary
 token), the bridge, and the engine see an ordinary binary fit and are
@@ -519,14 +519,14 @@ correctness, and the reduction gate (section 5) holds for either.
   type = "pbart" - the PROBIT link - so the only shipped discrete-time
   BART defaults to probit, and a BART user arriving from it gets exactly
   what they expect; probit is also dbarts's house binary default
-  (auto -> probit, [`resolveSamplerSpec`](../../R/spec.R); node.scale 3.0, [`defaultNodeScale`](../../R/model.R)), aligning the
+  (auto -> probit, [`resolveSamplerSpec`](../../R/spec.R); leaf.scale 3.0, [`defaultLeafScale`](../../R/model.R)), aligning the
   family with the package's other fixed-unit-scale defaults.
 - Counter: the applied discrete-time-hazard literature is logit-dominant
   (Allison 1982; Singer-Willett 2003, logistic throughout - the survey's
   link-traditions finding), and the grouped-PH tradition expects cloglog
   (unavailable in v1, section below) - so a survival analyst from OUTSIDE
   the BART world expects logit (or cloglog), not probit; logistic's
-  node.scale is already provisioned (pi*sqrt(3), [`defaultNodeScale`](../../R/model.R)).
+  leaf.scale is already provisioned (pi*sqrt(3), [`defaultLeafScale`](../../R/model.R)).
 
 Probit it is: the two constituencies split (BART users -> probit, applied
 survival -> logit), so the tie-breaks were the house default and the

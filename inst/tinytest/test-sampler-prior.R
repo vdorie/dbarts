@@ -18,8 +18,8 @@ sampler$sampleLeafParametersFromPrior()
 trees <- sampler$getTrees()
 
 observed <- sd(trees$value[trees$var == -1L])
-expected <- sampler$model@node.scale /
-  (sampler$model@node.hyperprior@k * sqrt(sampler$control@n.trees))
+expected <- sampler$model@leaf.scale /
+  (sampler$model@leaf.hyperprior@k * sqrt(sampler$control@n.trees))
 expect_true(abs(observed - expected) < 1.0e-3)
 
 rm(expected, observed, trees, sampler, test, train)

@@ -61,8 +61,8 @@ sampler.masked <- dbarts(
   leaf.prior = normal(3),
   control = control
 )
-expect_inherits(sampler.masked$model@node.hyperprior, "dbartsFixedHyperprior")
-expect_equal(sampler.masked$model@node.hyperprior@k, 3)
+expect_inherits(sampler.masked$model@leaf.hyperprior, "dbartsFixedHyperprior")
+expect_equal(sampler.masked$model@leaf.hyperprior@k, 3)
 rm(normal, cgm)
 
 # num.vars remains available inside the arguments
@@ -112,7 +112,7 @@ expect_error(
 # binary responses keep their default k hyperprior
 df$y.binary <- rbinom(n, 1L, 0.5)
 sampler.bin <- dbarts(y.binary ~ a + b, df, control = control)
-expect_inherits(sampler.bin$model@node.hyperprior, "dbartsChiHyperprior")
+expect_inherits(sampler.bin$model@leaf.hyperprior, "dbartsChiHyperprior")
 
 # DART: a Dirichlet prior over the split-variable probabilities
 prior.dart <- dbartsPriors$dart(a = 0.75, alpha = 2, update.delay = 10)

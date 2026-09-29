@@ -146,8 +146,8 @@ knobs <- dbartsSpec(
 )
 # ragged: one length-8 vector per forest. The first forest declares no basis,
 # so its `sd` is the half-Cauchy median of a plain scalar amplitude and its
-# node scale stays at the response sd; the second declares one, so its `sd`
-# rides the node scale through the half-normal median and its
+# leaf scale stays at the response sd; the second declares one, so its `sd`
+# rides the leaf scale through the half-normal median and its
 # amplitude.prior.variance is the fixed prior on the block
 expect_equal(
   attr(knobs$control, "bartcore.forests")$params,
@@ -999,7 +999,7 @@ expect_null(escapedSampler)
 
 # the bridge backstop also answers a hand-built model the R layer never emits
 scaledModel <- resolved
-scaledModel$model@node.scale <- 3.0
+scaledModel$model@leaf.scale <- 3.0
 expect_error(
   new(
     "dbartsSampler",
@@ -1007,7 +1007,7 @@ expect_error(
     scaledModel$model,
     scaledModel$data
   ),
-  "non-default node scale"
+  "non-default leaf scale"
 )
 
 # --- the two halves of the specification are cross-checked in BOTH

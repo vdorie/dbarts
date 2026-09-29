@@ -32,7 +32,7 @@ special case and keeps its own code path untouched.
   values today.
 - Priors: b0 ~ N(0, (scale / k)^2) exactly as the constant leaf;
   b_j ~ N(0, (scale / k)^2) on the standardized covariates. scale is
-  node.scale / sqrt(numTrees) as today. No cross-coordinate prior
+  leaf.scale / sqrt(numTrees) as today. No cross-coordinate prior
   correlation; the posterior is the usual ridge normal with
   V = (U'WU / sigma^2 + P)^-1 solved by Cholesky of a (q+1) x (q+1)
   block.

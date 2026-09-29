@@ -242,7 +242,7 @@ resolveSamplerSpec <- function(
   # latent-variable models on a fixed unit scale
   control@binary <- isBinaryFamily(family)
   # ordinal (cumulative probit) shares probit's fixed unit latent scale - sigma
-  # fixed at 1, resid.prior fixed(1), no sigma estimate, node.scale 3.0 - but is
+  # fixed at 1, resid.prior fixed(1), no sigma estimate, leaf.scale 3.0 - but is
   # NOT binary: the bridge selects it by the bartcore.n.categories attribute
   # (not control@binary), and it reports K category levels. nbinom (counts) is
   # likewise a fixed-unit-scale family (sigma fixed at 1, the log-odds latent
@@ -346,22 +346,12 @@ resolveSamplerSpec <- function(
   # unevaluated ...-reference); the resolved direction vector is injected below
   monotoneDirections <- resolveMonotone(monotone, data)
 
-  # redirectCall keeps only names that are formals of parsePriors, which
-  # has no leaf.prior formal; rename the door's leaf.prior back to
-  # node.prior in a copy of the call so it survives the redirect, and give
-  # setDefaultsFromFormals the door's leaf.prior default under the
-  # node.prior key, so an absent prior fills from it rather than from the
-  # tombstone formal's NULL
-  priorCall <- matchedCall
-  names(priorCall)[names(priorCall) == "leaf.prior"] <- "node.prior"
-  parsePriorsCall <- redirectCall(priorCall, quoteInNamespace(parsePriors))
-  priorFormals <- callFormals
-  priorFormals["node.prior"] <- callFormals["leaf.prior"]
+  parsePriorsCall <- redirectCall(matchedCall, quoteInNamespace(parsePriors))
   parsePriorsCall <- setDefaultsFromFormals(
     parsePriorsCall,
-    priorFormals,
+    callFormals,
     "tree.prior",
-    "node.prior"
+    "leaf.prior"
   )
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data
@@ -437,15 +427,15 @@ resolveSamplerSpec <- function(
   model <- newValidated(
     "dbartsModel",
     priors$tree.prior,
-    priors$node.prior,
-    priors$node.hyperprior,
+    priors$leaf.prior,
+    priors$leaf.hyperprior,
     priors$resid.prior,
     family = family,
     # a named calibration (leaf.prior's scale = / sd =) overrides the
     # family default below in the engine, which converts it out of response
     # units against the transform; NA leaves that default in force
-    prior.scale = resolvePriorScale(priors$node.prior, priors$node.hyperprior),
-    node.scale = defaultNodeScale(family)
+    prior.scale = resolvePriorScale(priors$leaf.prior, priors$leaf.hyperprior),
+    leaf.scale = defaultLeafScale(family)
   )
 
   # Student-t residuals: only a continuous
@@ -512,9 +502,9 @@ resolveSamplerSpec <- function(
       "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),
       "'split.probs'" = length(priors$tree.prior@splitProbabilities) > 0L,
       "'monotone'" = !is.null(monotoneDirections),
-      "a linear leaf prior" = is(priors$node.prior, "dbartsLinearPrior"),
-      "a Gaussian-process leaf prior" = is(priors$node.prior, "dbartsGPPrior"),
-      "a 'k' hyperprior" = is(priors$node.hyperprior, "dbartsChiHyperprior"),
+      "a linear leaf prior" = is(priors$leaf.prior, "dbartsLinearPrior"),
+      "a Gaussian-process leaf prior" = is(priors$leaf.prior, "dbartsGPPrior"),
+      "a 'k' hyperprior" = is(priors$leaf.hyperprior, "dbartsChiHyperprior"),
       "a named 'prior.scale'" = !is.na(model@prior.scale),
       "storage = \"single\"" = identical(control@storage, "single")
     )
@@ -713,21 +703,21 @@ resolveSamplerSpec <- function(
       "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),
       "'split.probs'" = length(priors$tree.prior@splitProbabilities) > 0L,
       "'monotone'" = !is.null(monotoneDirections),
-      "a linear leaf prior" = is(priors$node.prior, "dbartsLinearPrior"),
-      "a Gaussian-process leaf prior" = is(priors$node.prior, "dbartsGPPrior"),
-      "a 'k' hyperprior" = is(priors$node.hyperprior, "dbartsChiHyperprior"),
+      "a linear leaf prior" = is(priors$leaf.prior, "dbartsLinearPrior"),
+      "a Gaussian-process leaf prior" = is(priors$leaf.prior, "dbartsGPPrior"),
+      "a 'k' hyperprior" = is(priors$leaf.hyperprior, "dbartsChiHyperprior"),
       "a non-default 'k'" = is(
-        priors$node.hyperprior,
+        priors$leaf.hyperprior,
         "dbartsFixedHyperprior"
       ) &&
-        priors$node.hyperprior@k != 2.0,
-      # "differs from the family default": defaultNodeScale(family), not a
+        priors$leaf.hyperprior@k != 2.0,
+      # "differs from the family default": defaultLeafScale(family), not a
       # gaussian-only literal
-      "a non-default 'node.scale'" = model@node.scale !=
-        defaultNodeScale(family),
+      "a non-default 'leaf.scale'" = model@leaf.scale !=
+        defaultLeafScale(family),
       # the calibration map fixes every forest's leaf scale from the family's
       # own latent scale, so a named prior.scale has nowhere to land and the
-      # node.scale gate above does not fire on it
+      # leaf.scale gate above does not fire on it
       "a named 'prior.scale'" = !is.na(model@prior.scale),
       "Student-t residuals" = !is.null(residDf),
       "'variance'" = !is.null(varianceColumns),
@@ -795,7 +785,7 @@ resolveSamplerSpec <- function(
     }
     attr(control, "bartcore.forests") <- list(
       # one length-8 numeric per forest; the family selects the basis-free
-      # channel's default median and the count the K-aware node scale factor
+      # channel's default median and the count the K-aware leaf scale factor
       params = forestParams(specs, hasBasis, family),
       # resolved 1-based column indices per forest, or NULL for unrestricted
       vars = forestColumns,

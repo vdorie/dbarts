@@ -235,7 +235,7 @@ expect_error(
   "'family' should be one of"
 )
 
-# --- dbarts()-direct sampler: coding, attribute, node.scale, and state ---
+# --- dbarts()-direct sampler: coding, attribute, leaf.scale, and state ---
 
 control <- dbartsControl(
   n.chains = 1L,
@@ -246,7 +246,7 @@ control <- dbartsControl(
 sampler <- dbarts(x, y, family = "nbinom", control = control, verbose = FALSE)
 expect_equal(sampler$model@family, "nbinom")
 expect_equal(attr(sampler$control, "bartcore.dispersion"), -1)
-expect_equal(sampler$model@node.scale, pi * sqrt(3))
+expect_equal(sampler$model@leaf.scale, pi * sqrt(3))
 
 invisible(sampler$run(20L, 5L))
 state1 <- sampler$state
@@ -409,11 +409,11 @@ expect_identical(
 # a value this family does not offer refuses against the set it does
 expect_error(predict(fit, x.test, type = "forest"), "type must be in 'ev'")
 
-# defaultNodeScale's switch() has an explicit default arm: a family with no
-# node scale defined errors by name rather than returning NULL silently
+# defaultLeafScale's switch() has an explicit default arm: a family with no
+# leaf scale defined errors by name rather than returning NULL silently
 expect_error(
-  dbarts:::defaultNodeScale("hazard"),
-  "no node scale is defined for family \"hazard\""
+  dbarts:::defaultLeafScale("hazard"),
+  "no leaf scale is defined for family \"hazard\""
 )
 
 # --- extract's combineChains formal, honoured instead of returning the

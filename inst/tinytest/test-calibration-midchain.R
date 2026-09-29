@@ -74,7 +74,7 @@ mapColumns <- c(
 )
 expect_true(all(is.nan(calibration[, mapColumns])))
 # it reads the ENGINE, so an unnamed model reports the family-keyed default
-# converted to response units: node.scale 0.5 times the response range
+# converted to response units: leaf.scale 0.5 times the response range
 expect_equal(
   unname(calibration[1L, "prior.scale"]),
   0.5 * (max(y) - min(y))
@@ -198,7 +198,7 @@ staticSampler <- function(numTrees) {
     leaf.prior = normal(k = 2)
   )
 }
-# the READ, absolutely: an unnamed model runs the family-keyed node scale of
+# the READ, absolutely: an unnamed model runs the family-keyed leaf scale of
 # 0.5, whose response-unit reading is 0.5 times the range at every tree count
 staticRead <- vapply(
   c(50L, 200L),
@@ -407,7 +407,7 @@ expect_identical(
   attr(bcfCalibration, "leaf.model")
 )
 
-# and the anchor s the map states every node scale against is recoverable from
+# and the anchor s the map states every leaf scale against is recoverable from
 # the reported decomposition, which is the only route to it under gaussian,
 # where s is the data-dependent scaled response sd: the two forests recover
 # the SAME s, and it is the one the response transform implies

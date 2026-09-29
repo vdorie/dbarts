@@ -74,7 +74,7 @@ pooled probabilities prob[level].
    draws (dec-A17), and stan4bart refuses the same way ("model was not fit
    with end-node sensitivity as a modeled parameter"). Wording: "cannot extract
    'k': this fit's k was fixed, not sampled". Suggest a chi hyperprior only
-   where one is allowed: [`resolveNodeHyperprior`](../../R/model.R) refuses
+   where one is allowed: [`resolveLeafHyperprior`](../../R/model.R) refuses
    chi under a monotone constraint, and multi-forest fits pin k, so no
    advice is given on those fits.
 6. A fit with no sigma is an error. Binary fits (probit, logistic, hazard, and

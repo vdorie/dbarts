@@ -393,8 +393,8 @@ accumulated sum of standardized squared leaf values (`forest.updateK`,
 "standardized" square is no longer param/(scale/k), so feeding truncated draws
 into the chi-k update biases k. v1 uses FIXED k under `monotone` (mBART itself
 uses fixed k=2), but must not turn that into a default-fit error: the binary
-default k IS chi(1.5, 2.0), not a user choice (resolveNodeHyperprior k=NULL ->
-chi(1.5, 2.0) for binary, [`resolveNodeHyperprior`](../../R/model.R); .kDefault unresolved - no such object
+default k IS chi(1.5, 2.0), not a user choice (resolveLeafHyperprior k=NULL ->
+chi(1.5, 2.0) for binary, [`resolveLeafHyperprior`](../../R/model.R); .kDefault unresolved - no such object
 ships; bart2's own k=NULL, [`bart2`](../../R/bart.R), resolves the same), so a plain
 bart2(..., monotone=..., family="probit") supplies a chi hyperprior by default.
 Resolution: under `monotone`, an UNSUPPLIED k resolves to fixed k = 2 (the

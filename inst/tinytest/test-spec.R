@@ -52,8 +52,8 @@ binarySpec <- suppressMessages(dbarts::dbartsSpec(
 ))
 expect_equal(binarySpec$family, "probit")
 expect_true(binarySpec$control@binary)
-## a fixed-unit-scale family takes probit's node scale and fixed residual prior
-expect_equal(binarySpec$model@node.scale, 3.0)
+## a fixed-unit-scale family takes probit's leaf scale and fixed residual prior
+expect_equal(binarySpec$model@leaf.scale, 3.0)
 
 ## features that were previously unreachable without hand-built attributes
 monotoneSpec <- dbarts::dbartsSpec(
@@ -95,7 +95,7 @@ hyperSpec <- dbarts::dbartsSpec(
   control = control,
   leaf.prior = normal(k = chi(1.25, Inf))
 )
-expect_true(inherits(hyperSpec$model@node.hyperprior, "dbartsChiHyperprior"))
+expect_true(inherits(hyperSpec$model@leaf.hyperprior, "dbartsChiHyperprior"))
 
 ## aft needs its status vector, and refuses to be built without one
 logTime <- log(abs(y) + 1)

@@ -343,7 +343,7 @@ expect_error(
 # otherwise a construction-time constant - no mutation re-derives a K-forest
 # leaf scale - so $setForestBasis owns the staleness. Pinned on a PROBIT
 # K-forest, where the anchor is the literal 1 and $getLeafPrior's
-# prior.scale IS the map's node scale, so the assertion is exact. Nothing
+# prior.scale IS the map's leaf scale, so the assertion is exact. Nothing
 # else in the suite or in the equivalence trio calls this mutator at all. ---
 yBinary <- as.double(y > median(y))
 probitForests <- function() {
@@ -386,7 +386,7 @@ expect_identical(swappedResult$sigma, twinResult$sigma)
 expect_identical(swappedResult$train, twinResult$train)
 
 # (iii) THE WHOLE PRODUCT, re-derived across the swap. (i) and (ii) both run at
-# the DEFAULT node scale factor - a literal 1 - so a swap that lost the stored
+# the DEFAULT leaf scale factor - a literal 1 - so a swap that lost the stored
 # factor would pass them both; only a DECLARED forest(sd = ) can see it. Every
 # factor of sd_f * s / (0.674 c_f) discriminates here: sd in {2.5, 0.4}, c in
 # {3, 5} then 7, divisor 0.674, and s is probit's 1 (the anchor's own arm is

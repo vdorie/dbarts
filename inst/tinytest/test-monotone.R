@@ -20,7 +20,7 @@ monotoneOf <- function(...) {
     p.change = probs[["change"]],
     p.perturb = probs[["perturb"]],
     p.rule_gibbs = probs[["rule_gibbs"]],
-    k = sampler$model@node.hyperprior
+    k = sampler$model@leaf.hyperprior
   )
 }
 

@@ -27,7 +27,7 @@ ybase[zeros] <- 5.0 # zero-weight rows sit inside the range
 ypert <- ybase
 ypert[zeros] <- 5.5 # a different interior value
 
-fitZeroWeight <- function(resp, nodePrior) {
+fitZeroWeight <- function(resp, leafPrior) {
   ctrl <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
@@ -36,8 +36,8 @@ fitZeroWeight <- function(resp, nodePrior) {
     seed = 5L
   )
   args <- list(x, resp, weights = w, control = ctrl, sigest = 1.0)
-  if (!is.null(nodePrior)) {
-    args$leaf.prior <- nodePrior
+  if (!is.null(leafPrior)) {
+    args$leaf.prior <- leafPrior
   }
   suppressWarnings(do.call(dbarts, args))$run(50L, 50L)$train
 }

@@ -119,7 +119,7 @@ armB <- composeProbit(x, yBinary, 24, -7, 1.5, sweeps)
 expect_true(max(abs(armA - armB)) > 1)
 
 # --- a named composition targets the same posterior as the engine's own
-# probit. The engine's probit anchor is node.scale 3.0 on a unit-scale latent,
+# probit. The engine's probit anchor is leaf.scale 3.0 on a unit-scale latent,
 # so prior.scale = 3.0 is the composition's statement of the same prior. ---
 set.seed(21)
 nO2 <- 200L
@@ -345,7 +345,7 @@ expect_equal(named$model@prior.scale, 1.5)
 
 # setModel's re-derivation: $setModel(sampler$model) is a documented no-op, and
 # without the conversion it would revert the leaf scale to the family-keyed
-# node.scale (an 8x move on this response). Bitwise, because a no-op is.
+# leaf.scale (an 8x move on this response). Bitwise, because a no-op is.
 roundTripControl <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,

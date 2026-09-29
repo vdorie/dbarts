@@ -531,7 +531,7 @@ partitioning entirely; a different library sharing only the tree structure).
    family exposure (DONE 2026-07-03): `family` on `dbarts()`/bart2
    resolves into `dbartsControl@family` ("auto" keeps the old dispatch;
    "gaussian" on 0/1 responses fits continuous; logistic is public on
-   the bartcore engine with node.scale = pi * sqrt(3)); the slot drives
+   the bartcore engine with leaf.scale = pi * sqrt(3)); the slot drives
    the bridge's family argument including pointer re-creation after
    save/load, and setControl preserves it like `binary`. The wrappers'
    probability transforms are link-aware (2026-07-03): packaged bart

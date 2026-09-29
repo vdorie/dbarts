@@ -46,7 +46,7 @@ expect_error(
   pattern = "must be continuous"
 )
 expect_error(
-  new("dbartsModel", node.prior = dbarts:::gp("x1")),
+  new("dbartsModel", leaf.prior = dbarts:::gp("x1")),
   pattern = "resolved against data"
 )
 

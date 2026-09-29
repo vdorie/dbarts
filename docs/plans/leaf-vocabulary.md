@@ -68,11 +68,12 @@ bartCause move in lockstep.
 - RNG neutral; bitwise equivalence against the MANIFEST baselines is the proof.
 - dbarts.h stays untouched, so there is no ABI event. Its comment waits for the host-neutral header change
   (dec-B85).
-- These stay as they are (see Calls made):
-  - `parsePriors`' `node.prior` formal and its returned list names;
-  - the `dbartsModel` slots `node.prior`, `node.hyperprior` and `node.scale`;
-  - the classes `dbartsNodePrior` and `dbartsNodeHyperprior`;
-  - tests that read `sampler$model@node.scale` and `@node.prior`;
+- The internal names say leaf too (dec-A95; see Calls made):
+  - `parsePriors`' `leaf.prior` formal and its returned list names;
+  - the `dbartsModel` slots `leaf.prior`, `leaf.hyperprior` and `leaf.scale`;
+  - the classes `dbartsLeafPrior` and `dbartsLeafHyperprior`;
+  - tests that read `sampler$model@leaf.scale` and `@leaf.prior`.
+- These stay as they are:
   - engine identifiers: [`Chain::sampleNodeParametersFromPrior`](../../src/bartcore/chain.hpp),
     [`ForestCalibration`](../../src/bartcore/chain.hpp), the facade virtual and `nodeScaleFactors_`;
   - test file names, since test-calibration-*.R are cited by history links.
@@ -115,21 +116,20 @@ R/:
 - [`refuseForeignFrontDoorArgs`](../../R/tombstones.R) gets a hint map, `list(node.prior = "leaf.prior")`. For a
   refused name listed there, the message adds "; the leaf prior is 'leaf.prior'". This is a refusal, not a
   tombstone: no registry entry, no warning and no NEWS text (dec-B128).
-- `resolveSamplerSpec`: rename in a copy of `matchedCall` before redirecting, because `redirectCall` drops
-  `leaf.prior`: `names(priorCall)[names(priorCall) == "leaf.prior"] <- "node.prior"`. Give
-  `setDefaultsFromFormals` the formals with `priorFormals["node.prior"] <- callFormals["leaf.prior"]`, so the door's
-  `leaf.prior` default fills an absent prior and the tombstone formal's NULL default does not.
+- `resolveSamplerSpec`: `parsePriors` has a `leaf.prior` formal, so `redirectCall` keeps the door's `leaf.prior`
+  as it is and `setDefaultsFromFormals` takes the door's own formals, so the door's `leaf.prior` default fills an
+  absent prior and the tombstone formal's NULL default does not.
 
   The refusal labels "a linear node prior" and "a Gaussian-process node prior" (two blocks) say leaf.
-  `priors$node.prior` reads stay.
-- `parsePriors`: the formal stays `node.prior`. `resolveSpec` gets the labels "leaf.prior" and "leaf prior", so
+  `priors$leaf.prior` reads say leaf.
+- `parsePriors`: the formal is `leaf.prior`. `resolveSpec` gets the labels "leaf.prior" and "leaf prior", so
   every error names the user's argument. Strings in R/model.R that say "node prior" become "leaf prior":
   - the `dbartsModel` initialize columns refusal and the monotone refusal;
   - [`resolveLeafCovariates`](../../R/model.R), `linear` and `gp`;
   - "give at most one of 'sd' and 'scale' to a node prior";
   - the dbartsPriors comment.
 
-  "no node scale is defined for family" stays with the slot.
+  "no leaf scale is defined for family" says leaf too.
 - `dbartsSampler` (R/dbarts.R):
   - `sampleNodeParametersFromPrior` becomes `sampleLeafParametersFromPrior`, with the docstring "Draws leaf values
     from their prior; does not change tree structure.", plus the tombstone method.
@@ -152,7 +152,7 @@ src/ (bridge only):
 - The reader's column names `"node.scale.factor"` and `"node.scale.divisor"`.
 - Strings saying "node prior": "a linear or Gaussian-process node prior", "scale of node prior", and the
   leaf-covariate and gp checks.
-- Slot reads and "a non-default node scale" stay.
+- Slot reads say leaf, and so does "a non-default leaf scale".
 
 man/, vignettes/, README.md (manual prose follows):
 - Usage and arguments: bart.Rd, dbarts.Rd, dbartsSpec.Rd and xbart.Rd get `leaf.prior`. dbarts.Rd
@@ -264,9 +264,6 @@ docs/:
 3. Residual prose sweep, before step 1 is reviewed:
    `git grep -n -i -E 'node prior|end-node|end node|node mean|node param' -- man vignettes README.md R src/*.cpp src/*.hpp`.
    The allowlist:
-   - R comments and bridge strings about the kept slots ("node scale", "no node scale is defined",
-     "a non-default node scale");
-   - parsePriors' `node.prior` plumbing;
    - the tombstone and deprecation text.
 
    Every other hit becomes leaf.
@@ -284,8 +281,8 @@ docs/:
 5. bartCause (branch dbarts-1.0): in R/bcf.R, `sampler$getCalibration(1L)` becomes `sampler$getLeafPrior(1L)`.
    Without it bartCause breaks, since there is no tombstone. bcf passes either prior spelling through `dbarts()`'s
    formals.
-6. treatSens and bairrtt: no commit. treatSens's named `parsePriors(node.prior = )`, its `priors$node.prior` and
-   `new("dbartsModel", node.scale = )` keep working because those internals keep their names. bairrtt has no site.
+6. treatSens (branch dbarts-1.0): its named `parsePriors(leaf.prior = )`, its `priors$leaf.prior` and
+   `new("dbartsModel", leaf.scale = )` follow the internal rename (dec-A95). bairrtt has no site.
 7. Release contact: add countSTAR to the maintainer-contact list in TODO's release block. Its CRAN release calls
    `dbarts(..., node.prior = normal(k))`, which the critic reported and which was not re-checked here. The
    tombstone keeps it working until 1.1-0 with a once-per-session warning; ask for `leaf.prior`, version-guarded
@@ -332,8 +329,7 @@ for f in sbc geweke-mc binary-hyperprior composition-matrix constant-gp-max-leaf
   - the two tombstone formals and the helper;
   - the tombstone method and the registry;
   - the hint map;
-  - parsePriors' formal, its list names and the `@node.prior` reads;
-  - the bridge's slot strings;
+    - the bridge's slot strings;
   - dbarts.Rd's tombstone entry, and dbarts-deprecated.Rd;
   - the dbartsSampler-class.Rd alias;
   - NEWS's tombstone list and 0.9-x history;
@@ -374,11 +370,11 @@ Tombstone list, after the `sigma` entry: `\code{node.prior} on \code{dbarts} (su
 
 1. Tombstone reach: `dbarts` only. `bart`, `xbart` and `dbartsSpec` refuse `node.prior` and name `leaf.prior`. Rejected: tombstones on all four doors, because dec-A02 and dec-B128
    cover only shipped names.
-2. The internal plumbing and the model keep node: `parsePriors`' formal and list names, the `dbartsModel` slots and
-   the `dbartsNodePrior` classes. `dbartsModel` is not exported and its slots are undocumented. 0.9-x fits are
-   refused by `refuseLegacyState` anyway. treatSens and CRAN stan4bart 0.0-13 build `dbartsModel` with
-   `node.scale =` and read `priors$node.prior`. Rejected: renaming them, which breaks those consumers and misreads
-   saved objects.
+2. The internal plumbing and the model say leaf (dec-A95): `parsePriors`' formal and list names, the `dbartsModel`
+   slots and the `dbartsLeafPrior` classes. `dbartsModel` is not exported and its slots are undocumented. 0.9-x
+   fits are refused by `refuseLegacyState` anyway. treatSens and CRAN stan4bart 0.0-13 build `dbartsModel` with
+   `node.scale =` and read `priors$node.prior`, so they follow the rename. Rejected: keeping node, which
+   misreads the leaf as any node.
 3. Both spellings supplied is an error, following the `sigma` precedent. Rejected: letting `leaf.prior` win.
 4. The bridge's three registrations are renamed to match the R methods; engine identifiers wait for the
    host-neutral work. Rejected: keeping the bridge names, which would break the 1:1 naming between R methods and
@@ -386,13 +382,12 @@ Tombstone list, after the `sigma` entry: `\code{node.prior} on \code{dbarts} (su
    call; nothing released is affected.
 5. The manual says leaf prior where "calibration" named the prior in force; "calibration map" stays. Rejected:
    keeping calibration as the noun (dec-B129 notes no package uses it).
-6. treatSens needs no change, because item 2 keeps its internals working. Rejected: a lockstep treatSens edit.
-   Moving treatSens onto `dbartsSpec()` stays a separate treatSens item.
-7. [`resolvePriorScale`](../../R/model.R)'s own `node.prior`/`node.hyperprior` formals stay: they are a private
+6. treatSens follows the internal rename in a lockstep edit. Moving treatSens onto `dbartsSpec()` stays a separate
+   treatSens item.
+7. [`resolvePriorScale`](../../R/model.R)'s own `leaf.prior`/`leaf.hyperprior` formals: they are a private
    helper called positionally from [`resolveSamplerSpec`](../../R/spec.R) and [`xbart`](../../R/xbart.R) (the
-   latter through its renamed `leafPrior` local), so the parameter spelling is invisible to every caller. Kept in
-   the same "internal plumbing keeps node" bucket as item 2, rather than renamed for cosmetic symmetry. Rejected:
-   renaming the two formals, an unforced diff with nothing observing it.
+   latter through its renamed `leafPrior` local), so the parameter spelling is invisible to every caller. They say
+   leaf, as in item 2.
 
 ## Landing
 

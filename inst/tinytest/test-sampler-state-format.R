@@ -110,8 +110,8 @@ expect_error(
 )
 
 # the leaf prior is mu ~ N(0, (scale / k)^2) and the state already restored k;
-# it now restores the scale too, so a donor's node.scale survives a restore the
-# way its k always has. CONSEQUENCE: a setModel(node.scale) issued after the
+# it now restores the scale too, so a donor's leaf.scale survives a restore the
+# way its k always has. CONSEQUENCE: a setModel(leaf.scale) issued after the
 # last storeState() no longer survives a save/load re-creation.
 control.ls <- dbarts::dbartsControl(
   n.chains = 1L,
@@ -134,7 +134,7 @@ grabState <- function(s) {
 }
 
 donor.sf <- makeSF(testData$x, testData$y)
-donor.sf$model@node.scale <- 1.5
+donor.sf$model@leaf.scale <- 1.5
 donor.sf$setModel(donor.sf$model)
 invisible(donor.sf$run(25L, 5L))
 state.sf <- grabState(donor.sf)

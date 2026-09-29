@@ -315,7 +315,7 @@ xbart <- function(
       evalEnv,
       resolvedAs(
         "leaf.prior",
-        c("NULL", "dbartsNodePrior"),
+        c("NULL", "dbartsLeafPrior"),
         "leaf prior specification"
       )
     )
@@ -422,7 +422,7 @@ xbart <- function(
   # every cell's hyperprior is checked against the leaf model, not just the
   # first: a named prior sd is calibrated at a fixed k and cannot ride a
   # modelled cell, and resolvePriorScale is where that is refused by name
-  node.hyperprior <- kGrid[[1L]]
+  leaf.hyperprior <- kGrid[[1L]]
   for (kCell in kGrid[-1L]) {
     invisible(resolvePriorScale(leafPrior, kCell))
   }
@@ -455,13 +455,13 @@ xbart <- function(
     "dbartsModel",
     tree.prior,
     leafPrior,
-    node.hyperprior,
+    leaf.hyperprior,
     resid.prior,
     family = family,
     # a named calibration is held across every cell, created or re-modelled:
     # cellModel carries this model, and the setModel branch re-derives it
-    prior.scale = resolvePriorScale(leafPrior, node.hyperprior),
-    node.scale = defaultNodeScale(family)
+    prior.scale = resolvePriorScale(leafPrior, leaf.hyperprior),
+    leaf.scale = defaultLeafScale(family)
   )
 
   numObservations <- length(data@y)
@@ -890,10 +890,10 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
 
   # linear and gp leaf priors read raw covariate values, fixed across cells;
   # the handle must own raw for them so each fold view can gather them
-  nodePrior <- spec$model@node.prior
+  leafPrior <- spec$model@leaf.prior
   leafCovariateColumns <-
-    if (is(nodePrior, "dbartsLinearPrior") || is(nodePrior, "dbartsGPPrior")) {
-      nodePrior@columns
+    if (is(leafPrior, "dbartsLinearPrior") || is(leafPrior, "dbartsGPPrior")) {
+      leafPrior@columns
     } else {
       NULL
     }
@@ -903,7 +903,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     result <- spec$model
     result@tree.prior@power <- spec$power[cells$iPower[cell]]
     result@tree.prior@base <- spec$base[cells$iBase[cell]]
-    result@node.hyperprior <- spec$kHyperpriors[[cells$iK[cell]]]
+    result@leaf.hyperprior <- spec$kHyperpriors[[cells$iK[cell]]]
     result
   }
 
@@ -1056,7 +1056,7 @@ warningKey <- function(w) {
 ## the response type's own front-door default.
 resolveKGrid <- function(k, binary) {
   if (is.null(k)) {
-    return(list(resolveNodeHyperprior(NULL, binary = binary)))
+    return(list(resolveLeafHyperprior(NULL, binary = binary)))
   }
   entries <- if (is.list(k)) {
     k
@@ -1087,7 +1087,7 @@ resolveKEntry <- function(entry) {
   if (is.function(entry)) {
     entry <- entry()
   }
-  if (!is(entry, "dbartsNodeHyperprior")) {
+  if (!is(entry, "dbartsLeafHyperprior")) {
     stop(
       "'k' must contain positive numbers and hyperprior specifications; ",
       "see ?dbartsPriors"
