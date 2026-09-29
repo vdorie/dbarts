@@ -119,4 +119,4 @@ importFrom(parallel, makeCluster, clusterExport, clusterEvalQ, clusterMap, stopC
 importFrom(stats, sd, rnorm, rexp, runif, rbinom, rnbinom, optim, optimHess, dnorm, dbinom, dnbinom, dt)
 importFrom(stats, qchisq, rchisq, pchisq, ks.test, dcauchy, dgamma)
 
-importFrom(graphics, abline, contour, image, legend, lines, par, plot, title, strheight, text)
+importFrom(graphics, abline, contour, image, legend, lines, par, plot, plot.new, title, strheight, text)
