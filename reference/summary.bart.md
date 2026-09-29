@@ -16,14 +16,14 @@ that family carries rather than its per-observation channels - never
 `yhat.train` itself. A chain- separated (rather than pooled) view of
 these same draws is
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md), whose
-`"sigma"`, `"k"`, and other scalar types return a vector or, with
-`combineChains = FALSE`, a chains-by-samples matrix.
+`"sigma"`, `"k"`, `"sd"`, and other scalar types return a vector or,
+with `combineChains = FALSE`, a chains-by-samples matrix.
 
 ## Usage
 
 ``` r
 # S3 method for class 'bart'
-summary(object, vars = c("sigma", "k"), ...)
+summary(object, vars = c("sigma", "k", "sd"), ...)
 # S3 method for class 'summary.bart'
 print(x, ...)
 ```
@@ -40,10 +40,11 @@ print(x, ...)
 - vars:
 
   Character vector of fields to summarize. Requested fields absent from
-  `object` (e.g. `k` when unmodeled) are silently dropped. `sigma` and
-  `k` contribute one summarized variable each; any other field
-  (`varcount`, `varprobs`, `yhat.train`, `yhat.test`) contributes one
-  variable per column, named `"field[column]"`.
+  `object` (e.g. `k` when unmodeled, or on a fit whose leaf prior was
+  named by `sd`, which carries `sd` draws instead) are silently dropped.
+  `sigma`, `k` and `sd` contribute one summarized variable each; any
+  other field (`varcount`, `varprobs`, `yhat.train`, `yhat.test`)
+  contributes one variable per column, named `"field[column]"`.
 
   On a heteroscedastic fit the `sigma` token resolves to `mean.s`: the
   mean over the training observations of that draw's variance surface

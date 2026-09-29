@@ -1,7 +1,7 @@
 # Crossvalidation For Bayesian Additive Regression Trees
 
-Fits the BART model against varying `k`, `power`, `base`, and `n.trees`
-parameters using \\K\\-fold or repeated random subsampling
+Fits the BART model against varying `k` (or `sd`), `power`, `base`, and
+`n.trees` parameters using \\K\\-fold or repeated random subsampling
 crossvalidation, sharing burn-in between parameter settings. Results are
 returned as an array of evaluations of a loss function on the held-out
 sets.
@@ -14,7 +14,7 @@ xbart(
     method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
     n.reps = 40L, n.burn = c(200L, 150L),
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
-    k = NULL, power = 2, base = 0.95,
+    k = NULL, sd = NULL, power = 2, base = 0.95,
     split.probs = NULL, drop = TRUE,
     sigest = NULL,
     seed = NULL,
@@ -245,6 +245,24 @@ xbart(
   previous one, so this is order-invariance, not an unbiased estimate
   for each cell taken alone.
 
+- sd:
+
+  The same grid axis stated in absolute spreads instead, exclusive with
+  `k`: a vector of leaf-prior sds on the family's scale (see
+  `normal(sd = )` in
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
+  or a [`list`](https://rdrr.io/r/base/list.html) mixing them with
+  `invchi` laws. Each spread is held fixed across folds, where a `k` is
+  relative to each fold's own training range; on a binary family, whose
+  anchor is a constant of the latent scale, a grid of fixed cells is the
+  same sweep either way (`sd = anchor / k`); a modelled cell is not,
+  since `invchi(df, c)` starts its chain at the spread `c` where
+  `chi(df, anchor / c)` starts at `anchor / 2`. A `k` inside
+  `leaf.prior` beside an `sd` grid is refused, as an `sd` there is
+  beside either grid. The cells are swept most shrunk first - the
+  smallest sd - with the warm starts and unit parallelism the `k` grid
+  has, and the result's axis is labelled `sd`.
+
 - power:
 
   A vector of real numbers greater than one, setting the BART
@@ -362,14 +380,12 @@ xbart(
   for a missing `k` argument; the `k` argument otherwise drives the
   crossvalidation grid as usual.
 
-  A named leaf calibration (`normal(scale = )`, and likewise for
-  `linear` and `gp`) is NOT a grid axis: it is held fixed across every
-  cell, so the `k` grid sweeps the prior standard deviation `scale / k`
-  about a fixed anchor rather than about whatever the response range
-  happened to imply. It is honored in cells that re-use a sampler as
-  well as in cells that create one, so the loss surface does not depend
-  on the order the cells run in. The `sd` spelling meets the same
-  refusal here as everywhere when `k` is a hyperprior.
+  A named `sd` inside the prior (`normal(sd = )`, and likewise for
+  `linear` and `gp`) stands in for a missing `sd` argument, as a
+  one-cell `sd` axis. Beside a `k` or `sd` grid it is refused, since
+  both would state the spread: name the spreads in the `sd` grid. Two
+  calls with the same `seed` use the same folds whatever their spreads,
+  so one call per `sd` reproduces each cell a grid's fresh start would.
 
 - n.cuts:
 
@@ -443,21 +459,21 @@ continuous responses.
 ## Value
 
 An array with up to six dimensions, in order `rep` (length `n.reps`),
-`n.trees`, `k`, `power`, `base`, and `loss`. `rep` is always present.
-`n.trees`, `k`, `power`, and `base` are each omitted when `drop` is
-`TRUE` and the corresponding grid has length 1; with `drop = FALSE` they
-are always present, an absent `k` included, whose single cell is then
-named for the default it ran at. The trailing `loss` dimension, sized to
-however many values a single call to `loss` returns, is present only
-when that count is greater than one - independent of `drop` entirely;
-the default losses and an ordinary scalar-returning custom `loss` never
-contribute it. When none of the above survive, the result collapses to a
-plain vector of length `n.reps`. When the result remains an array, its
-`dimnames` name the swept values on each surviving hyperparameter axis -
-exact integer labels for `n.trees`, values rounded to 2 significant
-digits for the double-valued `k`/`power`/`base` axes, and the
-constructor call for a modelled `k` cell; the `loss` axis, when present,
-carries no per-slot names, and neither does `rep`.
+`n.trees`, `k` (or `sd`), `power`, `base`, and `loss`. `rep` is always
+present. `n.trees`, `k`, `power`, and `base` are each omitted when
+`drop` is `TRUE` and the corresponding grid has length 1; with
+`drop = FALSE` they are always present, an absent `k` included, whose
+single cell is then named for the default it ran at. The trailing `loss`
+dimension, sized to however many values a single call to `loss` returns,
+is present only when that count is greater than one - independent of
+`drop` entirely; the default losses and an ordinary scalar-returning
+custom `loss` never contribute it. When none of the above survive, the
+result collapses to a plain vector of length `n.reps`. When the result
+remains an array, its `dimnames` name the swept values on each surviving
+hyperparameter axis - exact integer labels for `n.trees`, values rounded
+to 2 significant digits for the double-valued `k`/`power`/`base` axes,
+and the constructor call for a modelled `k` cell; the `loss` axis, when
+present, carries no per-slot names, and neither does `rep`.
 
 For method `"k-fold"`, each element is an average across the \\K\\ fits.
 For `"random subsample"`, each element represents a single fit.

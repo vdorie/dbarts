@@ -64,7 +64,7 @@ extract(object, ...)
 extract(
     object,
     type = c("ev", "ppd", "bart", "loglik", "trees", "forest",
-             "sigma", "k", "varcount"),
+             "sigma", "k", "sd", "varcount"),
     sample = c("train", "test"),
     combineChains = TRUE,
     forest = NULL,
@@ -164,10 +164,9 @@ family(object, ...)
   span probit's \\\pm 3\\ covers. In both cases, the bigger \\k\\ is,
   the more conservative the fitting will be. The value can be either a
   fixed number, or a *hyperprior* of the form
-  `chi(degreesOfFreedom = 1.5, scale = 2)`. `bartBT`'s own default is
-  the fixed value 2; see
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s `k` item
-  for its `NULL` default, a `chi(1.5, 2)` hyperprior on binary
+  `chi(df = 1.5, scale = 2)`. `bartBT`'s own default is the fixed value
+  2; see [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  `k` item for its `NULL` default, a `chi(1.5, 2)` hyperprior on binary
   responses. The default of 2 for continuous responses follows Chipman,
   George, and McCulloch's argument (see References) that with leaf prior
   standard deviation \\\sigma\_\mu = 0.5 / (k \sqrt{m})\\ for \\m\\
@@ -507,20 +506,21 @@ family(object, ...)
   used as a synonym for `"bart"`; the
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
   extended-family methods take the same two synonyms, each against its
-  own set of types. `extract` alone also takes `"sigma"` and `"k"`, the
-  residual scale and leaf sensitivity draws as a chain-combined vector
-  or (`combineChains = FALSE`) a chains-by-samples matrix, and
-  `"varcount"`, the per-predictor split counts shaped as `"ev"` is with
-  predictors in place of observations - none of them per-observation, so
-  a supplied `sample` is refused by name on all three, as is `forest`
-  (see `forest` below). `sigma` on a weighted fit is the scale at weight
-  1 (row i's is \\\sigma / \sqrt{w_i}\\); on a `family = student()` fit
-  it is the t scale, not the standard deviation. A binary fit and a
-  heteroscedastic fit have no scalar `sigma` to extract (error naming
-  the reason, the latter pointing at `s.train` instead); a fixed
-  (unmodelled) `k` likewise errors, naming a `chi(...)` hyperprior as
-  the fix where the fit could take one. For information on extracting
-  trees, see the subsection below.
+  own set of types. `extract` alone also takes `"sigma"`, `"k"` and
+  `"sd"`, the residual scale and leaf-prior spread draws (`"sd"` on a
+  fit whose leaf prior was named by `sd`, `"k"` otherwise) as a
+  chain-combined vector or (`combineChains = FALSE`) a chains-by-samples
+  matrix, and `"varcount"`, the per-predictor split counts shaped as
+  `"ev"` is with predictors in place of observations - none of them
+  per-observation, so a supplied `sample` is refused by name on all
+  three, as is `forest` (see `forest` below). `sigma` on a weighted fit
+  is the scale at weight 1 (row i's is \\\sigma / \sqrt{w_i}\\); on a
+  `family = student()` fit it is the t scale, not the standard
+  deviation. A binary fit and a heteroscedastic fit have no scalar
+  `sigma` to extract (error naming the reason, the latter pointing at
+  `s.train` instead); a fixed (unmodelled) `k` likewise errors, naming a
+  `chi(...)` hyperprior as the fix where the fit could take one. For
+  information on extracting trees, see the subsection below.
 
 - sample:
 
@@ -967,6 +967,16 @@ returned. In the numeric \\y\\ case, the list has components:
 
   Burn-in draws of `k`, if modeled.
 
+- `sd`, `first.sd`:
+
+  In place of `k` and `first.k` on a fit whose leaf prior was named by
+  `sd` with an `invchi` hyperprior
+  ([`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)):
+  the draws of the leaf prior's sd, the named anchor over each drawn
+  `k`, so the fit reports the quantity it was specified in.
+  `extract(type = "sd")` reads them, and `extract(type = "k")` on such a
+  fit is refused, naming it.
+
 - `binaryOffset`:
 
   Present only for a binary fit: the offset value used.
@@ -1143,7 +1153,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.140263
+#> total seconds in loop: 0.149821
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

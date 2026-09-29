@@ -186,7 +186,7 @@ summary(object, vars = c("thresholds", "sigma", "k"), ...)
 summary(object, vars = c("dispersion", "sigma", "k"), ...)
 
 # S3 method for class 'bartHurdle'
-summary(object, vars = c("sigma", "k"), ...)
+summary(object, vars = c("sigma", "k", "sd"), ...)
 
 # S3 method for class 'summary.bartHurdle'
 print(x, ...)
@@ -654,7 +654,13 @@ print(x, ...)
   both component fits (`$zero`, a `"bart"` probit fit of the zero-part
   indicator; `$positive`, a `"bart"` gaussian fit of \\\log y\\ on the
   positive subset) under their own
-  `extract`/`fitted`/`predict`/`residuals`/`print` methods.
+  `extract`/`fitted`/`predict`/`residuals`/`print` methods. Both parts
+  take the one `leaf.prior`, so a leaf prior naming `sd` is refused: one
+  spread cannot be stated on the probit latent and on \\\log y\\ at
+  once, and it would fix the zero part's drawn default `k`. Name `k`, or
+  fit the parts separately - a probit fit of \\1\\y \> 0\\\\ and a
+  gaussian fit of \\\log y\\ over the positive rows, each with its own
+  `sd` - which is the same posterior, the parts being independent.
 
 - sigest:
 
@@ -696,12 +702,14 @@ print(x, ...)
   scale; `family = "logistic"` widens this to \\\pm \pi \sqrt{3}\\,
   three standard deviations of the standard logistic latent variable.
   The value can be either a fixed number, or a *hyperprior* of the form
-  `chi(degreesOfFreedom = 1.5, scale = 2)`. The default, `NULL`, uses
-  the value 2 for continuous responses and the `chi(1.5, 2)` hyperprior
-  for binary ones, which centers the sampled `k` near the field-standard
-  fixed value of 2 (prior median 1.9) while adapting to the data; pass
-  `k = 2` for the fixed BART-package default, or `chi(1.5, Inf)` for the
-  old improper prior. See
+  `chi(df = 1.5, scale = 2)`. The spread can instead be named on the
+  family's own scale, `leaf.prior = normal(sd = )`; see
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
+  The default, `NULL`, uses the value 2 for continuous responses and the
+  `chi(1.5, 2)` hyperprior for binary ones, which centers the sampled
+  `k` near the field-standard fixed value of 2 (prior median 1.9) while
+  adapting to the data; pass `k = 2` for the fixed BART-package default,
+  or `chi(1.5, Inf)` for the old improper prior. See
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s `k`
   item, and the ‘Leaf prior parameter `k`’ details there, for the full
   calibration argument and its outlier-sensitivity caveat.
@@ -722,7 +730,8 @@ print(x, ...)
   otherwise help build the same prior is an error naming both:
   `tree.prior` collides with any of `power`/`base`/`split.probs`;
   `leaf.prior` with `k`. Both are honored on every family, including
-  both component fits of `family = "hurdle.lognormal"`. The residual
+  both component fits of `family = "hurdle.lognormal"`, except that a
+  leaf prior naming `sd` is refused there (see `family`). The residual
   prior is not on this list: it is a setting of the families that draw a
   residual scale and rides the family object instead -
   `family = gaussian(sigma = chisq(3, 0.9))`,
@@ -1825,7 +1834,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001514
+#> total seconds in loop: 0.001518
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1874,7 +1883,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001806
+#> total seconds in loop: 0.001963
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

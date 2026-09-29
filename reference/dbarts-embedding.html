@@ -66,7 +66,7 @@
 <h3 id="the-channels-an-outer-block-writes">The channels an outer block writes<a class="anchor" aria-label="anchor" href="#the-channels-an-outer-block-writes"></a></h3>
 <p>Each method replaces one input in place, on every chain, taking effect at the next sweep. All
     of them are documented in <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>.</p>
-<p></p><table class="table table"><tr><td><strong>method</strong></td><td><strong>what the outer block owns</strong></td><td><strong>typical use</strong></td></tr><tr><td><code>$setResponse(y)</code></td><td>the regression target</td><td>a partial residual, a working response, an imputed outcome</td></tr><tr><td><code>$setOffset(o)</code></td><td>an additive term BART does not fit</td><td>another block's linear predictor, a fixed exposure</td></tr><tr><td><code>$setWeights(w)</code></td><td>per-observation precision</td><td>a Polya-Gamma precision, a variance mixture, survey weights</td></tr><tr><td><code>$setSigma(s)</code></td><td>the residual standard deviation</td><td>a scale drawn elsewhere; requires <code>family = gaussian(sigma = fixed())</code></td></tr><tr><td><code>$setPredictor(x, column)</code></td><td>one predictor column</td><td>a latent covariate, an imputed predictor</td></tr><tr><td><code>$setActiveRows(a)</code></td><td>which rows enter the likelihood</td><td>a subset indicator drawn by another block</td></tr><tr><td><code>$setLeafPrior(prior.scale = )</code></td><td>the leaf prior in force</td><td>restating the prior after a response swap</td></tr></table><p>A predictor moved per observation rather than wholesale takes
+<p></p><table class="table table"><tr><td><strong>method</strong></td><td><strong>what the outer block owns</strong></td><td><strong>typical use</strong></td></tr><tr><td><code>$setResponse(y)</code></td><td>the regression target</td><td>a partial residual, a working response, an imputed outcome</td></tr><tr><td><code>$setOffset(o)</code></td><td>an additive term BART does not fit</td><td>another block's linear predictor, a fixed exposure</td></tr><tr><td><code>$setWeights(w)</code></td><td>per-observation precision</td><td>a Polya-Gamma precision, a variance mixture, survey weights</td></tr><tr><td><code>$setSigma(s)</code></td><td>the residual standard deviation</td><td>a scale drawn elsewhere; requires <code>family = gaussian(sigma = fixed())</code></td></tr><tr><td><code>$setPredictor(x, column)</code></td><td>one predictor column</td><td>a latent covariate, an imputed predictor</td></tr><tr><td><code>$setActiveRows(a)</code></td><td>which rows enter the likelihood</td><td>a subset indicator drawn by another block</td></tr><tr><td><code>$setLeafPrior(normal(sd = ))</code></td><td>the leaf prior's spread</td><td>stating the prior a cold-start vector did not</td></tr></table><p>A predictor moved per observation rather than wholesale takes
     <code>$setPredictor(x, column, forceUpdate = "partial")</code>, or
     <code><a href="updatePredictorPerObservationJointly.html">updatePredictorPerObservationJointly</a></code> when several samplers share the column.
     Both return a per-observation install mask, <code>FALSE</code> where the new value would empty a leaf
@@ -99,13 +99,14 @@
     per-sweep <code>setResponse</code> deliberately does <em>not</em> re-anchor it (<code>updateScale =
     FALSE</code>, the default), so that the sweeps are comparable - which also means a sampler built on a
     cold-start vector keeps that vector's range as its prior scale for the whole run. State the
-    prior instead of inheriting it: <code>leaf.prior = normal(scale = )</code> at creation (see
-    <code><a href="dbartsPriors.html">dbartsPriors</a></code>), or <code>$setLeafPrior(prior.scale = )</code> afterward, with
-    <code>$getLeafPrior()</code> reporting what is actually in force.</p>
+    prior instead of inheriting it: <code>leaf.prior = normal(sd = )</code> at creation (see
+    <code><a href="dbartsPriors.html">dbartsPriors</a></code>), or <code>$setLeafPrior(normal(sd = ))</code> afterward, with
+    <code>$getLeafPrior()</code> reporting what is actually in force. A named sd is absolute: a
+    channel that does re-anchor the transform leaves it where it was.</p>
 <p>A decomposition across \(K\) samplers needs the same care in the other direction. Each
     carries a prior sized for the whole of \(f\), so their sum has \(\sqrt{K}\)
     times the prior standard deviation one sampler would have; dividing each
-    <code>prior.scale</code> by \(\sqrt{K}\) restates them as shares of one budget.</p>
+    <code>prior.sd</code> by \(\sqrt{K}\) restates them as shares of one budget.</p>
 </div>
 
 <p></p><div class="section">

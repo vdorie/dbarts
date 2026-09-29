@@ -93,31 +93,45 @@ The residual priors chisq and fixed are what a family
       passed (default: half the control's burn-in), so the forest is
       likelihood-informed when counts first enter the Dirichlet.</p></dd>
 
-    <dt><code>normal(k = NULL, sd = NULL, scale = NULL)</code></dt>
-<dd><p>Normal prior on the leaf values. <code>k</code> scales the standard
-      deviation and can be a positive scalar, a hyperprior built with
-      <code>chi</code>, or <code>NULL</code> for the default: 2 for continuous
-      responses, <code>chi(1.5, 2)</code> for binary ones. The continuous
-      default follows Chipman, George, and McCulloch's argument that with
-      leaf standard deviation <code>sigma_mu = 0.5 / (k * sqrt(m))</code> for
-      <code>m</code> trees, <code>k</code> prior standard deviations of \(f(x)\)
-      span the whole response range regardless of <code>m</code>; see
-      <code><a href="dbarts.html">dbarts</a></code>'s Details for the response-scaling caveat this
-      relies on.</p>
-<p><code>scale</code> and <code>sd</code> NAME that calibration instead of
-      inheriting it from the response range, in response units: at most
-      one may be given, <code>scale</code> is the prior standard deviation of
-      the forest total at <code>k = 1</code>, and <code>sd</code> is the same
-      quantity at the resolved <code>k</code> (so <code>scale = sd * k</code>).
-      <code>sd</code> is refused when <code>k</code> carries a hyperprior, since a
-      <code>k</code> drawn every sweep leaves no single value to divide by;
-      name <code>scale</code> there, which a sampled <code>k</code> scales rather
-      than replaces. See <code><a href="dbarts.html">dbarts</a></code>'s Details for what the
-      named quantity means under each leaf model. <code>NULL</code> leaves
-      either unnamed; <code>NA</code> is a missing value and is refused, here
-      and in <code>linear</code> and <code>gp</code>.</p></dd>
+    <dt><code>normal(k = NULL, sd = NULL)</code></dt>
+<dd><p>Normal prior on the leaf values, named one of two ways, never both.
+      Either names the spread of the whole forest - the sum of trees - not
+      of one tree.</p>
+<p><code>k</code> is relative to the anchor the data fixes: a positive scalar,
+      a hyperprior on <code>k</code> built with <code>chi</code>, or <code>NULL</code> for
+      the default, 2 for continuous responses and <code>chi(1.5, 2)</code> for
+      binary ones. The continuous default follows Chipman, George, and
+      McCulloch's argument that with leaf standard deviation
+      <code>sigma_mu = 0.5 / (k * sqrt(m))</code> for <code>m</code> trees, <code>k</code>
+      prior standard deviations of \(f(x)\) span the whole response
+      range regardless of <code>m</code>; see <code><a href="dbarts.html">dbarts</a></code>'s Details for
+      the response-scaling caveat this relies on. A string such as
+      <code>"chi(1.5)"</code> is kept for 0.9-x.</p>
+<p><code>sd</code> is the standard deviation of the normal prior on the leaf
+      model's own parameter, for the forest total, on the scale the
+      family's forest fits: a positive number, or a hyperprior on the sd
+      itself built with <code>invchi</code>. It takes no string form. The scale
+      and the anchor <code>k</code> is relative to, per family:</p><table class="table table"><tr><td>family</td><td><code>sd</code> is stated in</td><td>anchor at <code>k = 1</code></td></tr><tr><td>gaussian, student</td><td>response units</td><td>half the training response range</td></tr><tr><td>aft</td><td>log survival time</td><td>half the observed log-time range</td></tr><tr><td>probit, ordinal</td><td>probit latent</td><td>3</td></tr><tr><td>logistic, nbinom</td><td>log-odds latent</td><td>\(\pi\sqrt{3}\)</td></tr><tr><td>hazard</td><td>its link's latent</td><td>3 or \(\pi\sqrt{3}\)</td></tr></table><p>so a fixed <code>k</code> is the <code>sd</code> anchor / <code>k</code>. For the
+      constant leaf <code>sd</code> is exactly the prior standard deviation of
+      \(f(x)\) at every \(x\); for the other leaf models it is the sd of
+      their parameter, and the prior spread of \(f(x)\) it implies is a
+      consequence stated under each. Under a <code>monotone</code> constraint
+      (see <code><a href="dbarts.html">dbarts</a></code>) <code>sd</code> is the prior sd of a leaf value
+      that no ordered neighbor bounds; a leaf a neighbor bounds is drawn
+      from a normal \(\sqrt{\pi / (\pi - 1)}\) times
+      as wide, truncated to the ordering, which matches its marginal prior
+      variance to <code>sd^2</code>, and <code>sd</code> is a lower bound on the prior
+      sd of \(f(x)\) in the interior. A named <code>sd</code> is absolute: a
+      sampler restates it after every channel that re-anchors the response
+      transform (see <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>), where a <code>k</code>
+      moves with the data. It is refused on multinomial and multi-forest
+      models (whose spreads come from their calibration maps, the latter
+      stated through <code><a href="forest.html">forest</a>(sd = )</code>, a different quantity),
+      and on a hurdle fit, whose two parts are on different scales.
+      <code>NULL</code> leaves either unnamed; <code>NA</code> is a missing value and is
+      refused, here and in <code>linear</code> and <code>gp</code>.</p></dd>
 
-    <dt><code>linear(columns, k = NULL, sd = NULL, scale = NULL)</code></dt>
+    <dt><code>linear(columns, k = NULL, sd = NULL)</code></dt>
 <dd><p>Each leaf fits an intercept plus a linear term in the designated
       continuous predictor columns instead of a constant, so the forest
       models smoothly-varying coefficients. <code>columns</code> names model
@@ -128,11 +142,15 @@ The residual priors chisq and fixed are what a family
       keep the intercept; <code>getTrees</code> adds one <code>beta.&lt;column&gt;</code>
       column per covariate. <code><a href="xbart.html">xbart</a></code> accepts the same
       specification through its own <code>leaf.prior</code> argument.
-      <code>sd</code> and <code>scale</code> name the calibration as they do for
-      <code>normal</code>.</p></dd>
+      <code>k</code> and <code>sd</code> name the spread as they do for
+      <code>normal</code>, <code>sd</code> per standardized covariate: every
+      coefficient, the intercept included, has prior sd <code>sd</code> for the
+      forest total, so the prior sd of \(f(x)\) is
+      <code>sd * sqrt(1 + ||z||^2)</code> at standardized covariates \(z\), and
+      <code>sd</code> is its lower bound, attained at the covariate means.</p></dd>
 
     <dt><code>gp(columns, k = NULL, lengthscale = NULL,
-                   max.leaf.size = 256L, sd = NULL, scale = NULL)</code></dt>
+                   max.leaf.size = 256L, sd = NULL)</code></dt>
 <dd><p>Each leaf fits a smooth Gaussian-process function of the designated
       continuous predictor columns, drawn under a squared-exponential
       kernel whose prior scale ties to <code>k</code> exactly as the other leaf
@@ -167,8 +185,11 @@ The residual priors chisq and fixed are what a family
       Function-valued fits ride prediction only: <code>getTrees</code> reports
       <code>NA</code> leaf values, and <code>keepTrees</code> storage grows with the
       leaf sizes. <code><a href="xbart.html">xbart</a></code> accepts the same specification
-      through its own <code>leaf.prior</code> argument. <code>sd</code> and
-      <code>scale</code> name the calibration as they do for <code>normal</code>.</p>
+      through its own <code>leaf.prior</code> argument. <code>k</code> and <code>sd</code>
+      name the spread as they do for <code>normal</code>, <code>sd</code> as the
+      amplitude of the forest total's Gaussian process: the prior sd of
+      \(f(x)\) is <code>sd</code> at a leaf's own rows and decays away from
+      them, so <code>sd</code> is its upper bound.</p>
 <p><code>predict</code> at a training row re-krigs the jitter-free
       posterior mean from the cached kernel and drawn training values,
       while the fit recorded during sampling includes a small
@@ -177,16 +198,37 @@ The residual priors chisq and fixed are what a family
       which reads the recorded fit directly - only <code>predict</code> and
       test-data prediction re-krig).</p></dd>
 
-    <dt><code>chi(degreesOfFreedom = 1.5, scale = 2)</code></dt>
+    <dt><code>chi(df = 1.5, scale = 2)</code></dt>
 <dd><p>Chi hyperprior over <code>k</code>, sampled along with the rest of the
-      model: <code>k</code> is given a chi distribution with the stated degrees
-      of freedom and scale. The default, <code>chi(1.5, 2)</code>, centers the
-      sampled <code>k</code> near the field-standard fixed value of 2 (prior
-      median 1.9) while letting it adapt to the data. <code>scale = Inf</code>
-      remains accepted, but the posterior it gives <code>k</code> is improper:
-      with little signal, few trees or many degrees of freedom, <code>k</code>
-      can drift to infinity, where every leaf is zero and the trees add
-      nothing to the fit.</p></dd>
+      model: <code>k</code> is given a chi distribution with <code>df</code> degrees
+      of freedom and scale <code>scale</code>. The default, <code>chi(1.5, 2)</code>,
+      centers the sampled <code>k</code> near the field-standard fixed value of
+      2 (prior median 1.9) while letting it adapt to the data. It is the
+      same prior as <code>sd = invchi(df, anchor / scale)</code>. <code>scale =
+      Inf</code> remains accepted, but the posterior it gives <code>k</code> is
+      improper: with little signal, few trees or many degrees of freedom,
+      <code>k</code> can drift to infinity, where every leaf is zero and the
+      trees add nothing to the fit. The first argument was
+      <code>degreesOfFreedom</code> in 0.9-x; that name is accepted, with a
+      warning, until dbarts 1.1-0.</p></dd>
+
+    <dt><code>invchi(df = 1.5, scale)</code></dt>
+<dd><p>Scaled inverse chi hyperprior over a leaf prior's <code>sd</code>, on the
+      sd's own scale: \(sd = scale / \chi_{df}\),
+      equivalently \(sd^2\) is scaled inverse chi-square with
+      <code>df</code> degrees of freedom. <code>scale</code> has no default, since a
+      spread on the family's scale has no data-free one; <code>scale = 0</code>
+      is the improper \(sd^{-(df + 1)}\) limit. It is the
+      same prior as <code>k = chi(df, anchor / scale)</code>, and
+      <code>chi(df, Inf)</code> is <code>invchi(df, 0)</code>; the binary defaults are
+      <code>invchi(1.5, 1.5)</code> on probit and
+      <code>invchi(1.5, pi * sqrt(3) / 2)</code> on logistic. In Stan's terms it
+      is <code>scaled_inv_chi_square(df, scale / sqrt(df))</code> on the
+      variance, and an inverse gamma with shape <code>df / 2</code> and scale
+      <code>scale^2 / 2</code>. No other law on the sd is offered: this is the
+      one conjugate to the normal leaves, which the sampler draws exactly;
+      a half-t or half-Cauchy would need a non-conjugate update. Refused
+      under a monotone constraint, as a <code>chi</code> on <code>k</code> is.</p></dd>
 
     <dt><code>chisq(df = 3, quant = 0.9)</code></dt>
 <dd><p>Chi-squared prior on the residual variance. Its scale is set from

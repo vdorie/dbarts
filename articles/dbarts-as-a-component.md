@@ -72,7 +72,7 @@ control <- recipeControl(31L)
 # the host: a gaussian sampler on the working response, sigma pinned at 1
 host <- dbarts(x, 2 * y - 1 - o, control = control,
                family = gaussian(sigma = fixed(1)))
-host$setLeafPrior(prior.scale = 2)
+host$setLeafPrior(normal(sd = 1))
 
 composed <- matrix(0, n, nDraws)
 for (i in seq_len(nBurn + nDraws)) {
@@ -86,7 +86,7 @@ for (i in seq_len(nBurn + nDraws)) {
 
 # a native probit sampler, given the SAME leaf prior, targets the same posterior
 native <- dbarts(x, y, offset = o, family = "probit", control = control,
-                 leaf.prior = normal(k = 2, scale = 2))
+                 leaf.prior = normal(sd = 1))
 nativeFit <- rowMeans(native$run(nBurn, nDraws)$train) - o
 c(agreement = cor(rowMeans(composed), nativeFit),
   signal = cor(rowMeans(composed), fTrue))
@@ -177,7 +177,7 @@ sbcControl <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 10L,
 newSampler <- function() {
   s <- dbarts(xSbc, seq(-3, 3, length.out = nSbc), control = sbcControl,
               family = gaussian(sigma = fixed(sigma0^2)))
-  s$setLeafPrior(prior.scale = 2)
+  s$setLeafPrior(normal(sd = 1))
   s
 }
 
@@ -238,9 +238,9 @@ leaf prior sized for the *whole* of $`f`$; their sum then has
 $`\sqrt{K}`$ times the prior standard deviation a single sampler would
 have, and nothing warns about it.
 
-`setLeafPrior(prior.scale = base / sqrt(K))` restates each forest’s
-share of one budget. The check below draws from the composed prior
-directly – `sampleTreesFromPrior` acts on the engine, so it sees what
+`setLeafPrior(normal(sd = base / sqrt(K)))` restates each forest’s share
+of one budget. The check below draws from the composed prior directly –
+`sampleTreesFromPrior` acts on the engine, so it sees what
 `setLeafPrior` wrote – and compares it with a single sampler’s.
 
 ``` r
@@ -257,8 +257,8 @@ control <- recipeControl(5L)
 blocks <- list(x[, 1:2, drop = FALSE], x[, 3:4, drop = FALSE])
 samplers <- lapply(blocks, function(xb) dbarts(xb, y, control = control))
 
-base <- samplers[[1L]]$getLeafPrior()[1L, "prior.scale"]
-for (s in samplers) s$setLeafPrior(prior.scale = base / sqrt(K))
+base <- samplers[[1L]]$getLeafPrior()[1L, "prior.sd"]
+for (s in samplers) s$setLeafPrior(normal(sd = base / sqrt(K)))
 
 # the composed prior on the TOTAL, against a single sampler's
 priorSd <- function(samplers) {

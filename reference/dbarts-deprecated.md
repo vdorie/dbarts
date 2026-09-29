@@ -36,6 +36,14 @@ in dbarts 1.1-0.
   On [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md):
   the leaf-value prior, now `leaf.prior`.
 
+- `degreesOfFreedom`:
+
+  On
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)'s
+  `chi()`: the degrees of freedom of the hyperprior on `k`, now `df`, as
+  `invchi()` and base R's `dchisq` spell it. Positional calls,
+  `chi(1.5, 2)`, are unchanged.
+
 - `power`, `base`:
 
   On [`bart`](https://vdorie.github.io/dbarts/reference/bart.md):

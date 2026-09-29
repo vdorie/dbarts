@@ -40,7 +40,7 @@ at the next sweep. All of them are documented in
 | `$setSigma(s)` | the residual standard deviation | a scale drawn elsewhere; requires `family = gaussian(sigma = fixed())` |
 | `$setPredictor(x, column)` | one predictor column | a latent covariate, an imputed predictor |
 | `$setActiveRows(a)` | which rows enter the likelihood | a subset indicator drawn by another block |
-| `$setLeafPrior(prior.scale = )` | the leaf prior in force | restating the prior after a response swap |
+| `$setLeafPrior(normal(sd = ))` | the leaf prior's spread | stating the prior a cold-start vector did not |
 
 A predictor moved per observation rather than wholesale takes
 `$setPredictor(x, column, forceUpdate = "partial")`, or
@@ -80,16 +80,17 @@ sampler was built on. A per-sweep `setResponse` deliberately does *not*
 re-anchor it (`updateScale = FALSE`, the default), so that the sweeps
 are comparable - which also means a sampler built on a cold-start vector
 keeps that vector's range as its prior scale for the whole run. State
-the prior instead of inheriting it: `leaf.prior = normal(scale = )` at
+the prior instead of inheriting it: `leaf.prior = normal(sd = )` at
 creation (see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
-or `$setLeafPrior(prior.scale = )` afterward, with `$getLeafPrior()`
-reporting what is actually in force.
+or `$setLeafPrior(normal(sd = ))` afterward, with `$getLeafPrior()`
+reporting what is actually in force. A named sd is absolute: a channel
+that does re-anchor the transform leaves it where it was.
 
 A decomposition across \\K\\ samplers needs the same care in the other
 direction. Each carries a prior sized for the whole of \\f\\, so their
 sum has \\\sqrt{K}\\ times the prior standard deviation one sampler
-would have; dividing each `prior.scale` by \\\sqrt{K}\\ restates them as
+would have; dividing each `prior.sd` by \\\sqrt{K}\\ restates them as
 shares of one budget.
 
 ### The seeding contract

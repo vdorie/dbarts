@@ -12,7 +12,7 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   the scalar posterior parameters that family carries rather than its
   per-observation channels - never yhat.train itself. A chain-
   separated (rather than pooled) view of these same draws is
-  extract, whose &quot;sigma&quot;, &quot;k&quot;, and other
+  extract, whose &quot;sigma&quot;, &quot;k&quot;, &quot;sd&quot;, and other
   scalar types return a vector or, with combineChains = FALSE, a
   chains-by-samples matrix."><meta property="og:description" content="Reports a per-variable posterior summary of the scalar parameters
   (sigma and k) of a bartBT/bart fit, along
@@ -27,7 +27,7 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   the scalar posterior parameters that family carries rather than its
   per-observation channels - never yhat.train itself. A chain-
   separated (rather than pooled) view of these same draws is
-  extract, whose &quot;sigma&quot;, &quot;k&quot;, and other
+  extract, whose &quot;sigma&quot;, &quot;k&quot;, &quot;sd&quot;, and other
   scalar types return a vector or, with combineChains = FALSE, a
   chains-by-samples matrix."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -82,7 +82,7 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   the scalar posterior parameters that family carries rather than its
   per-observation channels - never <code>yhat.train</code> itself. A chain-
   separated (rather than pooled) view of these same draws is
-  <code><a href="bartBT.html">extract</a></code>, whose <code>"sigma"</code>, <code>"k"</code>, and other
+  <code><a href="bartBT.html">extract</a></code>, whose <code>"sigma"</code>, <code>"k"</code>, <code>"sd"</code>, and other
   scalar types return a vector or, with <code>combineChains = FALSE</code>, a
   chains-by-samples matrix.</p>
     </div>
@@ -90,7 +90,7 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="co"># S3 method for class 'bart'</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">object</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sigma"</span>, <span class="st">"k"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">object</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"sd"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
 <span><span class="co"># S3 method for class 'summary.bart'</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -105,9 +105,10 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
 
   <dt id="arg-vars">vars<a class="anchor" aria-label="anchor" href="#arg-vars"></a></dt>
 <dd><p>Character vector of fields to summarize. Requested fields absent
-    from <code>object</code> (e.g. <code>k</code> when unmodeled) are silently
-    dropped. <code>sigma</code> and <code>k</code> contribute one summarized
-    variable each; any other field (<code>varcount</code>, <code>varprobs</code>,
+    from <code>object</code> (e.g. <code>k</code> when unmodeled, or on a fit whose
+    leaf prior was named by <code>sd</code>, which carries <code>sd</code> draws
+    instead) are silently dropped. <code>sigma</code>, <code>k</code> and <code>sd</code>
+    contribute one summarized variable each; any other field (<code>varcount</code>, <code>varprobs</code>,
     <code>yhat.train</code>, <code>yhat.test</code>) contributes one variable per
     column, named <code>"field[column]"</code>.</p>
 <p>On a heteroscedastic fit the <code>sigma</code> token resolves to

@@ -672,51 +672,53 @@ The scale is fixed when the sampler is created; the sampler's
 mid-run makes fits across iterations no longer comparable (see
 [dbartsSampler-class](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
 
-### Naming the leaf calibration
+### Naming the leaf prior by k or sd
 
-Because the leaf prior is calibrated off the range of the response the
-sampler was CONSTRUCTED on, an R program that drives the sampler between
-sweeps – feeding it latents, residuals, or offsets from an outer model –
-inherits whatever calibration its construction vector happened to imply.
-`leaf.prior = normal(scale = )` names that calibration instead, in
-response units: it is the prior standard deviation of the forest total
-\\f\\ at `k = 1`, so the prior standard deviation in force is
-`scale / k` and the prior mean is the response transform's shift
-(`(max(y) + min(y)) / 2`, net of `offset`, for a continuous response; 0
-for the latent-scale families). `normal(sd = )` names the same quantity
-at the resolved `k`, and is refused under a `k` hyperprior. Unset,
-nothing changes.
+Because the leaf prior's `k` is relative to the range of the response
+the sampler was CONSTRUCTED on, an R program that drives the sampler
+between sweeps – feeding it latents, residuals, or offsets from an outer
+model – inherits whatever spread its construction vector happened to
+imply. `leaf.prior = normal(sd = )` names the spread instead, on the
+family's scale (response units for a continuous response; see
+[`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
+for the table): the prior standard deviation of the forest total's leaf
+parameter, a number or an `invchi` law on it. The prior mean is the
+response transform's shift (`(max(y) + min(y)) / 2`, net of `offset`,
+for a continuous response; 0 for the latent-scale families). `k` and
+`sd` are exclusive. Unset, nothing changes.
 
-The named quantity is the LEAF-PARAMETER scale of the forest total. It
-equals the prior standard deviation of \\f(x)\\ at every \\x\\ for the
-constant leaf only; under the other leaf models the prior of \\f(x)\\ is
-x-dependent and `scale / k` bounds it in a leaf-model-specific
+The named `sd` is the sd of the normal prior on the leaf model's own
+parameter. It equals the prior standard deviation of \\f(x)\\ at every
+\\x\\ for the constant leaf only; under the other leaf models the prior
+of \\f(x)\\ is x-dependent and `sd` bounds it in a leaf-model-specific
 direction. Under a `linear` leaf prior it is a LOWER bound, attained at
-the standardized covariate origin, with \\sd(f(x))\\ equal to
-`scale / k` times \\\sqrt{1 + \\z(x)\\^2}\\ for \\z\\ the internally
-standardized leaf covariates (a missing value maps to \\z_j = 0\\, and a
-constant column contributes 0); the prior mean is exact. Under a `gp`
-leaf prior it is an UPPER bound over \\x\\, attained at rows reproducing
-a leaf member and on leaves past `max.leaf.size` (which draw as constant
-leaves); elsewhere the prior variance is \\(scale / k)^2 c(x)' C^{-1}
-c(x)\\ and decays to 0 as \\x\\ leaves the leaf's data cloud, at which
-point every prior draw equals the prior mean exactly. Under a `monotone`
-constraint it is a LOWER bound in the interior – the realized standard
-deviation runs a few per cent to about 20% above it – and the prior mean
-is NOT the prior mean of \\f(x)\\: the constrained marginal is skew,
-with an x-dependent mean that tracks the constraint direction and spans
-several prior standard deviations along the constrained axis (see
-`monotone` above).
+the standardized covariate origin, with \\sd(f(x))\\ equal to `sd` times
+\\\sqrt{1 + \\z(x)\\^2}\\ for \\z\\ the internally standardized leaf
+covariates (a missing value maps to \\z_j = 0\\, and a constant column
+contributes 0); the prior mean is exact. Under a `gp` leaf prior it is
+an UPPER bound over \\x\\, attained at rows reproducing a leaf member
+and on leaves past `max.leaf.size` (which draw as constant leaves);
+elsewhere the prior variance is \\sd^2 c(x)' C^{-1} c(x)\\ and decays to
+0 as \\x\\ leaves the leaf's data cloud, at which point every prior draw
+equals the prior mean exactly. Under a `monotone` constraint it is the
+sd of an unbounded leaf value
+([`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
+states the construction) and a LOWER bound in the interior – the
+realized standard deviation runs a few per cent to about 20% above it –
+and the prior mean is NOT the prior mean of \\f(x)\\: the constrained
+marginal is skew, with an x-dependent mean that tracks the constraint
+direction and spans several prior standard deviations along the
+constrained axis (see `monotone` above).
 
-A named calibration records an INTENT. It is applied at creation and
-re-derived at every `setModel` against the response transform then in
-force, and the engine never writes it back, so a channel that re-anchors
-the transform (`setResponse` or `setOffset` with `updateScale = TRUE`,
-or `setData`) moves the calibration actually in force while leaving the
-recorded intent alone; re-issue the model to restate it. Two-forest
-(`forests`) and multinomial models take both forests' leaf scales from
-their own calibration maps and refuse a named calibration rather than
-drop it.
+A named `sd` is absolute. It is applied at creation and re-derived at
+every `setModel` against the response transform then in force, and the
+sampler restates it after every channel that re-anchors the transform
+(`setResponse` or `setOffset` with `updateScale = TRUE`, and `setData`),
+so it means the same spread throughout; `setLeafPrior` changes it, and
+the restatement then uses the latest write. A `k`, relative to the data,
+moves with the transform instead. Two-forest (`forests`) and multinomial
+models take their forests' leaf scales from their own calibration maps
+and refuse a named `sd` rather than drop it.
 
 ## Value
 
