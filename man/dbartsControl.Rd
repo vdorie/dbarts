@@ -82,7 +82,7 @@ dbartsControl(
      A positive integer giving the number of test rows at or above which a chain fits its test matrix across its share of the thread budget instead of on its own thread. Time only: the two paths compute in the same order and return bit-for-bit the same fits. The default sits past the measured crossover on the machine it was measured on - four threads win 1.54 times at 65536 rows and 2.97 times at 262144, while the serial path already costs 16.5 msec per iteration at 32768 - so a caller with large test sets and threads to spare may lower it. Requires \code{n.threads} above \code{n.chains}; with no surplus budget no chain has a pool to route into. Fixed when the sampler is created.
    }
    \item{predictParallelCutoff}{
-     A positive integer giving the number of tree traversals (rows times trees times draws) at or above which \code{\link[=dbartsSampler-class]{predict}} spreads a replay over \code{n.threads} workers instead of running it inline. Time only: each worker owns its own output range and nothing is summed across workers, so a replay is identical however it is dealt out. The default is calibrated - the crossover measures between 3e4 and 1e5 traversals, the fan-out reaching 1.5 times at 1e5 and saturating near 3.5 times on four threads - and replaces an uncalibrated estimate of 1e7 that left mid-sized replays serial. Fixed when the sampler is created.
+     A positive integer giving the number of tree traversals (rows times trees times draws) at or above which \code{\link[=dbartsSampler-class]{predict}} spreads a replay over \code{n.threads} workers instead of running it inline. Time only: each worker owns its own output range and nothing is summed across workers, so a replay is identical however it is dealt out. The default is calibrated - the crossover measures between 3e4 and 1e5 traversals, the fan-out reaching 1.5 times at 1e5 and saturating near 3.5 times on four threads. Fixed when the sampler is created.
    }
    \item{sparseDensityThreshold}{
      A number in \eqn{[0, 1]}{[0, 1]} giving the nonzero fraction at or below which a column of a sparse (\code{dgCMatrix}) design is stored as a rank bitmap rather than as one code per row. Memory against time: at the default a rank-stored column costs about 38 percent of a sweep in decode and holds about 3.5 times less than the dense layout. The layout changes no proposal - the same splits are drawn either way, and the split counts are identical - but it is not bitwise: a rank-stored column hands a leaf its rows in a different order, so the leaf's sufficient statistic reassociates and fits and \code{sigma} can differ in their last bits, by an amount that grows slowly with the number of samples. Which side of that trade is worth taking depends on the design and the machine, which is why it is a setting. Read once, when the sampler's data are built, and fixed thereafter: a change through \code{setControl} is refused by name rather than silently relayouting nothing.
@@ -120,11 +120,10 @@ dbartsControl(
     Person-period expansion \tab \code{\link[=dbartsFamilies]{hazard}} \tab 1e7 rows \tab host-dependent \tab yes, \code{hazard(max.rows = )} \cr
   }
 
-  Only the categorical enumeration cap changes what is sampled; the two
-  parallel cutoffs and the density threshold trade time against memory and
-  return bit-for-bit the same draws either side of themselves. Every default
-  above is the value the engine used before it was settable, so a fit that
-  names none of them reproduces earlier results exactly.
+  Only the categorical enumeration cap changes what is sampled. The two
+  parallel cutoffs buy time and return bit-for-bit the same draws either side
+  of themselves. The density threshold buys memory and draws the same splits
+  either side, but is not bitwise, as its entry above says.
 }
 \value{
   An object of class \code{dbartsControl}.

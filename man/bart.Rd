@@ -268,7 +268,7 @@ bart(
      Integer specifying how many independent tree sets and fits should be calculated. Default 4; \code{\link{bartBT}}'s default is 1, BayesTree's historical single-chain convention.
    }
    \item{n.threads}{
-     Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.
+     A positive integer giving a total thread budget, distinct from \code{n.chains}: chains run in parallel across it, but tree sampling itself uses at most one thread per chain, so a budget above \code{n.chains} buys the sampler's own sweep nothing. The surplus still feeds the test-fit pool and \code{predict}'s own fan-out, and a fit warns once, naming both counts, when an explicit budget exceeds the chain count. Defaults to \code{\link{guessNumCores}} capped at \code{n.chains}.
 
      On \code{predict}, \code{n.threads} is a per-call worker count for the saved-tree replay, defaulting to the fit's own: the replay is partitioned by (chain, posterior draw), each partition writing its own rows and nothing being reduced across workers, so the answer is identical bit for bit at every value and only the time taken changes.
    }

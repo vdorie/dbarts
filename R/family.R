@@ -626,7 +626,13 @@ methods::setMethod("show", "dbartsFamily", function(object) {
 ## caller's frame. Both hold for an argument forwarded through a wrapper's
 ## dots, which resolves where it was written. `tokens` is the entry point's own admissible list, its
 ## first element the default.
-resolveFamily <- function(expr, tokens, caller, evalEnv) {
+resolveFamily <- function(
+  expr,
+  tokens,
+  caller,
+  evalEnv,
+  refused = character()
+) {
   if (is.null(expr)) {
     return(newValidated("dbartsFamily", token = tokens[1L]))
   }
@@ -655,9 +661,19 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
     } else if (value %in% statsFamilyNames) {
       resolvedFamily(get(value, envir = asNamespace("stats")))@token
     } else {
-      match.arg(value, tokens)
+      ## a token the caller refuses by name is matched, so its own message
+      ## can say why, but never listed among the choices of a bad token
+      hit <- pmatch(value, c(tokens, refused))
+      if (!is.na(hit) && hit > length(tokens)) {
+        refused[hit - length(tokens)]
+      } else {
+        match.arg(value, tokens)
+      }
     }
     value <- newValidated("dbartsFamily", token = token)
+  }
+  if (value@token %in% refused) {
+    return(value)
   }
   refuseUnsupportedFamily(value@token, tokens, caller)
   value

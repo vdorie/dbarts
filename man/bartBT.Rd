@@ -146,7 +146,7 @@ extract(object, \dots)
      Integer specifying how many independent tree sets and fits should be calculated. Default 1 for \code{bartBT}, BayesTree's historical single-chain convention; \code{\link{bart}}'s default is 4.
    }
    \item{nthread, n.threads}{
-     Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.
+     A positive integer giving a total thread budget, distinct from \code{nchain}: chains run in parallel across it, but tree sampling itself uses at most one thread per chain, so a budget above \code{nchain} buys the sampler's own sweep nothing. The surplus still feeds the test-fit pool and \code{predict}'s own fan-out, and a fit warns once, naming both counts, when an explicit budget exceeds the chain count. \code{bartBT}'s default is 1.
 
      On \code{predict}, \code{n.threads} is a per-call worker count for the saved-tree replay, defaulting to the fit's own: the replay is partitioned by (chain, posterior draw), each partition writing its own rows and nothing being reduced across workers, so the answer is identical bit for bit at every value and only the time taken changes. It is the last positional argument of every \code{predict} method, so a caller that passes arguments by position is unaffected by its presence. A value that is not a single positive number is an error rather than a silent fallback.
    }

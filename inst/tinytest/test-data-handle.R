@@ -103,6 +103,11 @@ expect_error(
   .Call(dbarts:::C_dbarts_bartcore_setData, bc.fold$ptr, sampler$data),
   pattern = "owns its predictors"
 )
+# the refusal names the method the user called, not the C entry behind it
+expect_error(
+  .Call(dbarts:::C_dbarts_bartcore_setData, bc.fold$ptr, sampler$data),
+  pattern = "^setData: requires"
+)
 expect_error(
   .Call(
     dbarts:::C_dbarts_bartcore_setState,

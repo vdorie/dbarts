@@ -299,13 +299,14 @@ expect_error(
   pattern = "bart\\(x, y, family = \"hurdle.lognormal\"\\)"
 )
 # "twopart" was never a spelling on either door: unrecognized, refused
-# through match.arg, whose message lists "hurdle.lognormal" among the
-# choices
+# through match.arg; dbarts()'s message lists only the tokens dbarts() takes,
+# so it does not offer "hurdle.lognormal", which it refuses
 twopartMsgFD <- tryCatch(
   dbarts::dbarts(xFD, abs(yFD), family = "twopart"),
   error = function(e) conditionMessage(e)
 )
-expect_true(grepl("hurdle.lognormal", twopartMsgFD, fixed = TRUE))
+expect_true(grepl("should be one of", twopartMsgFD, fixed = TRUE))
+expect_false(grepl("hurdle.lognormal", twopartMsgFD, fixed = TRUE))
 expect_error(
   do.call(
     dbarts::bart,

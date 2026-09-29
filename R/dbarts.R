@@ -711,9 +711,10 @@ dbarts <- function(
   # only to be refused by name below, with the reason.
   familySpec <- resolveFamily(
     matchedCall$family,
-    c(eval(formals(dbarts::dbarts)$family), "hurdle.lognormal"),
+    eval(formals(dbarts::dbarts)$family),
     "dbarts",
-    evalEnv
+    evalEnv,
+    refused = "hurdle.lognormal"
   )
   family <- familySpec@token
 

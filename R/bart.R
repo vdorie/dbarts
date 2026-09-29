@@ -3270,8 +3270,29 @@ bartBT <- function(
   # 0.9-34's row rule, unchanged: a row with a missing value anywhere is
   # dropped rather than modelled. The modern door's na.action default keeps
   # missing predictors; this door adds no capability.
+  # dbarts() warns about a thread budget above the chain count in the modern
+  # door's n.threads/n.chains; this door's caller typed nthread/nchain, so the
+  # warning is re-issued under those names, same class and same numbers
   sampler <- tryCatch(
-    do.call(dbarts::dbarts, args, envir = parent.frame(1L)),
+    withCallingHandlers(
+      do.call(dbarts::dbarts, args, envir = parent.frame(1L)),
+      dbartsExcessThreadsWarning = function(w) {
+        warning(warningCondition(
+          sprintf(
+            paste0(
+              "nthread (%d) exceeds nchain (%d); tree sampling uses at ",
+              "most one thread per chain, so the extra threads serve only ",
+              "test-set fitting above %d rows and predict"
+            ),
+            control@n.threads,
+            control@n.chains,
+            control@testFitParallelCutoff
+          ),
+          class = class(w)
+        ))
+        invokeRestart("muffleWarning")
+      }
+    ),
     error = function(e) {
       msg <- conditionMessage(e)
       # the formula path's categorical response is refused inside dbarts(),

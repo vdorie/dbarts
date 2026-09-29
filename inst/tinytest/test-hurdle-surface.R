@@ -65,8 +65,14 @@ expect_error(
 # --- dbarts() cannot express the two-sampler composition; directs to the
 # front door ---
 expect_error(dbarts(x, y, family = "hurdle.lognormal"), "bart\\(x, y")
-# "twopart" is simply unrecognized here too, refused through match.arg
-expect_error(dbarts(x, y, family = "twopart"), "hurdle.lognormal")
+# "twopart" is simply unrecognized here too, refused through match.arg,
+# whose list names only the tokens dbarts() takes
+expect_error(dbarts(x, y, family = "twopart"), "should be one of")
+expect_false(grepl(
+  "hurdle.lognormal",
+  tryCatch(dbarts(x, y, family = "twopart"), error = conditionMessage),
+  fixed = TRUE
+))
 
 # --- xbart does not fit it (its family vector is the refusal, the
 # nbinom/hazard precedent) ---

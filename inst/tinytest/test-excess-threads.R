@@ -45,4 +45,21 @@ evenControl <- dbarts::dbartsControl(
 )
 expect_silent(dbarts::dbarts(y ~ x, testData, control = evenControl))
 
+# bartBT's own arguments are the 0.9-x names, so its warning names what its
+# caller typed
+expect_warning(
+  dbarts::bartBT(
+    testData$x,
+    testData$y,
+    ntree = 3L,
+    ndpost = 2L,
+    nskip = 1L,
+    nthread = 2L,
+    verbose = FALSE
+  ),
+  pattern = "nthread (2) exceeds nchain (1)",
+  class = "dbartsExcessThreadsWarning",
+  fixed = TRUE
+)
+
 rm(cores, excessControl, evenControl, testData)

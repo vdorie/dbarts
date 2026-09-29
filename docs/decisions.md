@@ -45,7 +45,7 @@ Two behaviour changes came in with the C bridge and have nothing to do with the 
 Record: code only, in the model-matrix builder and the core-count probe. Marked: not mine. [dec-A18]
 
 **Hurdle models are composed in R**
-A hurdle model is fitted as two independent samplers composed in R, with no engine support, and one token, hurdle.lognormal, names it on the modern entry points. The alternative, which shipped first, advertised both hurdle.lognormal and twopart on the family argument while both always errored; the maintainer was given three options and took the recommendation. A user asking for hurdle.lognormal now gets a fit, and a caller of twopart gets an error naming hurdle.lognormal until 1.1-0. A correlated hurdle, with shared trees or correlated leaves, is a post-release engine family. See also: [dec-B82].
+A hurdle model is fitted as two independent samplers composed in R, with no engine support, and one token, hurdle.lognormal, names it on the modern entry points. The alternative, which shipped first, advertised both hurdle.lognormal and twopart on the family argument while both always errored; the maintainer was given three options and took the recommendation. A user asking for hurdle.lognormal now gets a fit, and twopart, which never reached a release, is refused as any other unrecognized family token is. A correlated hurdle, with shared trees or correlated leaves, is a post-release engine family. See also: [dec-B82].
 Record: docs/design/hurdle.md recommends the R composition, and docs/plans/review-2026-08-24/matrix-review-entries.md leaves the erroring tokens open as a maintainer judgement. Marked: blank. [dec-A19]
 
 **One message covers six refusals**
@@ -118,7 +118,7 @@ Record: docs/design/within-chain-threading.md, closed on measurement; the closur
 
 **The run loop no longer sleeps between checks**
 A multi-chain run waits for its chains to finish and wakes as soon as the last one does, keeping a hundred-millisecond timeout only for the interrupt poll and the progress flush. The alternative, which shipped first, blocked the calling thread in hundred-millisecond sleeps until every chain finished, adding up to a hundred milliseconds of latency to every multi-chain run call, including the single-sweep call the embedding pattern makes inside an outer loop. The maintainer ruled the fixed sleep replaced before the release, and the replacement has landed with no change to the draws. See also: [dec-B88].
-Record: docs/architecture.md documents the inline path's throttle and not the worker path's sleep. Marked: blank. [dec-A38]
+Record: docs/architecture.md documents the inline path's throttle and the worker path's wait on a condition variable. Marked: blank. [dec-A38]
 
 **Two threading mechanisms live side by side**
 The package runs threads two ways: the C thread manager in the support library, used for the test-fit fan-out alone, and raw threads with signal masking for everything else. No alternative was weighed. Nothing is visible to a user; the thread manager, its queue and its shared header are maintained for one call site, and the signal-mask call sits in a header-only C++ engine behind a platform guard. Not yet ruled on.
@@ -150,7 +150,7 @@ Record: docs/design/threaded-predict.md records the maintainer ruling the argume
 
 **Engine limits fixed in the code**
 Several engine constants are fixed in code: cut codes are 16 bits, so a column has at most 65533 cut points and 65535 levels; exact enumeration of categorical partitions runs only up to ten present levels, above which the scan-based proposals see prefix splits rather than subsets; a leaf regression may designate at most eight covariate columns, so a nine-column one is refused; and the perturb move shifts a cut by exactly one grid position, any other width needing a private build. No alternative was weighed. The maintainer ruled that all of them are documented with their origin, measured where possible, and that those that matter, the categorical enumeration limit, the two parallel cutoffs and any the measurements show binding, become control settings, having said they seem arbitrary and may be limiting what can be fitted. The categorical limit is now the control's categoricalExhaustiveCap, still ten by default; the cut-code width, the leaf-regression column limit and the perturb width remain fixed. The maximum leaf size for Gaussian-process leaves is not one of these, being an argument of the gp() constructor. See also: [dec-B91].
-Record: code only, in the data, scan, model, tree and moves headers; docs/design/public-surface.md states the opposite for a cut-width build option that was removed. Marked: blank. [dec-A46]
+Record: the data, scan, model, tree and moves headers, and the engine limits table on the dbartsControl manual page; docs/design/public-surface.md marks the cut-width build option it once kept as later removed. Marked: blank. [dec-A46]
 
 **Two tree moves ship at weight zero**
 Two tree-move kernels, the perturb move and the rule redraw at nodes with no grandchildren, are compiled into every build with a default weight of zero. No default fit reaches either, yet about 330 lines plus an enumerator ship, with a permanent documentation and test surface for code no user reaches. The alternative not taken is removing both now that each has cleared its own kill criterion at zero measured benefit for a nonzero default share. The maintainer ruled on 2026-09-14 that both stay in the package at weight zero, unchanged, until the mixing research now scheduled has run; their removal is not an open pre-release question.
@@ -659,7 +659,7 @@ The front door has its own list of family tokens, which the bridge resolves into
 Record: this register. Marked: mine. [dec-B81]
 
 **One token for the hurdle model**
-The hurdle family tokens come off the sampler constructor's list, and the front door intercepts a hurdle request before forwarding it, so the package carries one token per model, the log-normal hurdle. The alternatives were leaving the tokens on the constructor and keeping both spellings of the name. A caller of the dropped two-part alias gets a tombstone for one release. The shipped hurdle stays an exact composition of two independent samplers driven from R; a hurdle with shared trees or correlated leaves would be a new engine family after the release.
+The hurdle family tokens come off the sampler constructor's list, and the front door intercepts a hurdle request before forwarding it, so the package carries one token per model, the log-normal hurdle. The alternatives were leaving the tokens on the constructor and keeping both spellings of the name. The dropped two-part alias never reached a release, so it gets no tombstone and is refused as any other unrecognized family token is. The shipped hurdle stays an exact composition of two independent samplers driven from R; a hurdle with shared trees or correlated leaves would be a new engine family after the release.
 Record: this register. Marked: mine. [dec-B82]
 
 **The legacy door refuses and names two remedies**

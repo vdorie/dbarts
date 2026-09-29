@@ -2,7 +2,7 @@
 \alias{dbartsSpec}
 \title{Discrete Bayesian Additive Regression Trees Sampler Specification}
 \description{
-  Resolves the \code{control}/\code{model}/\code{data} triple and family token that describe a sampler, without constructing one. Intended for packages that embed dbarts - in particular \code{LinkingTo: dbarts} packages that create and hold a sampler through the C API in \file{dbarts.h} - and that supply their own design matrix.
+  Resolves the \code{control}/\code{model}/\code{data} triple and family token that describe a sampler, without constructing one. Intended for packages that embed dbarts - in particular \code{LinkingTo: dbarts} packages that build a sampler in R from the returned pieces and hold its handle for the C API in \file{dbarts.h} - and that supply their own design matrix.
 }
 \usage{
 dbartsSpec(

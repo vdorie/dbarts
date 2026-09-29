@@ -510,14 +510,6 @@
             raised in the fits, which a worker used to drop, are signalled
             in the calling session after the last unit, each distinct
             warning once, the same at any \code{n.threads}.
-      \item The multi-worker \code{run()} loop returns as soon as the last
-            chain finishes instead of waking on a 100ms poll: a worker
-            signals a condition variable on its final decrement, and the
-            caller's wait wakes on that signal (still polling for
-            cancellation and flushing output at the same 100ms cadence when
-            no chain finishes first). A 4-chain, 4-thread
-            \code{run(0, 1)}'s median latency drops from about 105ms to
-            about 0.12ms; draws are unaffected.
       \item Within-chain threading was re-measured against the current
             engine and, still no faster than serial (best case about 3
             percent at four threads on one chain, slower at two and at
@@ -533,12 +525,14 @@
       \item DESCRIPTION and \code{\link{dbarts-package}} no longer call
             dbarts a drop-in replacement for \pkg{BayesTree}; both now say
             it \dQuote{provides a \pkg{BayesTree}-compatible interface}
-            (\code{bartBT}). Three configure options that used to steer a
-            BayesTree-matching build, \code{--enable-match-bayes-tree},
-            \code{--enable-thread-safe-unload}, and
-            \code{--with-xint-size}, stop \code{configure} with a message
-            naming the removal when passed explicitly; they are removed
-            outright, with no replacement, in the release after this one.
+            (\code{bartBT}). Three configure options of 0.9-x,
+            \code{--enable-match-bayes-tree} (results identical to
+            \pkg{BayesTree}), \code{--enable-thread-safe-unload} (blocking
+            when fits are added or deleted, for package reloading) and
+            \code{--with-xint-size} (the width of the predictor cut code),
+            stop \code{configure} with a message naming the removal when
+            passed explicitly; they are removed outright, with no
+            replacement, in the release after this one.
       \item Per-observation outputs now carry row names, so a comparison
             against an unnamed vector or array made under 0.9-x can fail on
             attributes alone.
@@ -1238,7 +1232,7 @@
             \code{"s"} attribute, which requires \code{keepTrees}. Gaussian
             and \code{"aft"} responses only, and \code{family =
             student()} residuals alongside \code{variance} are refused at
-            sampler creation on every entrance, the flat C API included. \code{$setPredictor} - whole
+            sampler creation on every entrance. \code{$setPredictor} - whole
             matrix or single column, transactional or forced - together with
             \code{$setCutPoints} and \code{$setData} (the last including a
             replacement data set of a different length) re-route the variance
@@ -1689,8 +1683,7 @@
             \code{\link{summary.bart}} reports a
             per-variable posterior summary of a fit's scalar parameters
             (\code{sigma} and \code{k}), with split-\eqn{\hat{R}}{Rhat} and
-            bulk/tail effective sample size computed in-package and always
-            reported, no \pkg{posterior} install consulted or required.
+            bulk/tail effective sample size computed in the package.
             \code{\link{extract}} offers the same scalar parameters,
             chain-separated: \code{"sigma"}, \code{"k"}, and
             \code{"varcount"} on a \code{bart} fit, \code{"thresholds"} on
@@ -1724,7 +1717,7 @@
             resolve a family differently, \code{dbarts} ingesting a raw
             response this function requires already shaped), and its returned
             family token names the \code{dbarts_family} enumerator
-            \code{dbarts_sampler_create} takes. Together with \code{dbartsData} it
+            \code{dbarts_sampler_family} reports. Together with \code{dbartsData} it
             makes the whole single-forest feature set - response families,
             monotonicity, interaction and block constraints, a variance
             forest, robust residuals - reachable from a \code{LinkingTo: dbarts}
@@ -1835,19 +1828,13 @@
             which a sparse predictor column keeps rank-bitmap storage. Only
             the first changes what is sampled; \code{testFitParallelCutoff}
             and \code{predictParallelCutoff} buy time and return bit-for-bit
-            the same draws at any value, and at their defaults these two plus
-            \code{categoricalExhaustiveCap} reproduce the draws the engine
-            already made before they were settable.
-            \code{sparseDensityThreshold} buys memory and changes no
-            proposal - the same splits are drawn either way - but is not
-            bitwise: a rank-stored column hands a leaf its rows in a
-            different order, so fits and \code{sigma} can differ in their
-            last bits, by an amount that grows slowly with the number of
-            samples. \code{predictParallelCutoff}'s default is now 50000
-            traversals rather than the uncalibrated 1e7, so mid-sized
-            replays are threaded where they were serial - identically, since
-            each worker owns its own output range. A table of all of them,
-            with defaults, recommended ranges and which are settable, is on
+            the same draws at any value. \code{sparseDensityThreshold} buys
+            memory and changes no proposal - the same splits are drawn either
+            way - but is not bitwise: a rank-stored column hands a leaf its
+            rows in a different order, so fits and \code{sigma} can differ in
+            their last bits, by an amount that grows slowly with the number of
+            samples. A table of all of them, with defaults, recommended ranges
+            and which are settable, is on
             the \code{\link{dbartsControl}} page.
       \item \code{n.cuts} above 65533, the most a predictor's grid can
             represent, is refused by name rather than silently clamped to it,
@@ -2112,9 +2099,7 @@
             crashed the R session uncatchably; a binary or ordinal
             response off its support previously drew latents against it
             and returned silent garbage. The flat C API's
-            \code{dbarts_sampler_setResponse} takes the same rule, and so
-            does sampler creation through \code{dbarts_sampler_create},
-            which has no R layer ahead of it.
+            \code{dbarts_sampler_setResponse} takes the same rule.
       \item The refusal to change case weights after creation names the
             family that refuses - \code{probit}, \code{ordinal},
             \code{aft} or \code{nbinom} support no weights at all, and

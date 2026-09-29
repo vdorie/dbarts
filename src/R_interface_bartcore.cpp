@@ -5069,8 +5069,8 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
-  refusePredictorMutation(sampler, "bartcore_setData");
-  refuseMultiForestMutation(sampler, "bartcore_setData");
+  refusePredictorMutation(sampler, "setData");
+  refuseMultiForestMutation(sampler, "setData");
   // the whole-data conduit may change the number of observations, which the
   // status is stated over, so it stays refused; the response conduit takes a
   // status of its own at a fixed n
@@ -5081,13 +5081,13 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
              "censoring with setResponse(y, status = ) instead");
 
   if (!Rf_inherits(dataExpr, "dbartsData"))
-    Rf_error("'data' argument to bartcore_setData not of class 'dbartsData'");
+    Rf_error("'data' argument to setData not of class 'dbartsData'");
 
   return unwindProtect([&, data = ParsedData{},
                        block = std::vector<double>{}]() mutable -> SEXP {
     parseData(data, dataExpr);
     if (data.xIsSparse || data.xIsMixed)
-      Rf_error("bartcore setData requires a dense predictor matrix; sparse "
+      Rf_error("setData requires a dense predictor matrix; sparse "
                "predictors fix the design at creation");
     // the whole-data replacement is a single column-major block on both sides
     // of the C boundary, so a view whose host split its dense storage across
@@ -5102,11 +5102,11 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
       data.predictors.denseChannels = NULL;
     }
     if (data.testIsMixed)
-      Rf_error("bartcore setData requires a dense test matrix; a sparse test "
+      Rf_error("setData requires a dense test matrix; a sparse test "
                "set fixes the design at creation");
 
     if (data.numPredictors != shape.numPredictors)
-      Rf_error("bartcore setData requires the same predictors");
+      Rf_error("setData requires the same predictors");
     // the whole-data conduit carries the weight policy too, and had NO
     // backstop of its own: it feeds LogisticResponse::setData's cold start
     // directly, where a zero or negative count becomes a phantom row carrying
@@ -5121,12 +5121,12 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
     // the whole-data conduit swaps y too, so it carries the same support rule
     validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
                             data.y, data.numObservations,
-                            "bartcore setData");
+                            "setData");
     for (size_t j = 0; j < data.numPredictors; ++j) {
       // the kind fixes the grid, so a replacement that changes it is a
       // different design rather than new values for this one
       if (data.columnTypes[j] != sampler.data().types[j])
-        Rf_error("bartcore setData requires the same predictor types");
+        Rf_error("setData requires the same predictor types");
       if (!sampler.data().isFactor(j)) continue;
       // level counts are fixed at creation on either factor kind; new values
       // must be existing codes, in the training and test data both
