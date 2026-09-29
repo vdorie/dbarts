@@ -351,7 +351,7 @@ resolveTreeShift <- function(treeShift) {
 
 ## The argument dbartsControl() would be called with to reproduce a control's
 ## slot: treeShift is spelled in words while its slot keeps the bridge's
-## tri-state logical, and the slot holds NA where n.samples takes NULL.
+## tri-state logical, and the slots hold NA where n.samples and seed take NULL.
 controlArgumentFromSlot <- function(name, control) {
   if (identical(name, "treeShift")) {
     level <- control@levelGibbs
@@ -366,7 +366,7 @@ controlArgumentFromSlot <- function(name, control) {
     )
   }
   value <- methods::slot(control, name)
-  if (identical(name, "n.samples") && is.na(value)) NULL else value
+  if (name %in% c("n.samples", "seed") && is.na(value)) NULL else value
 }
 
 dbartsControl <- function(
@@ -430,8 +430,11 @@ dbartsControl <- function(
   # the slot keeps NA for "not set"; NULL is the argument's spelling of it
   if (is.null(n.samples)) {
     n.samples <- NA_integer_
-  } else if (isSingleNA(n.samples)) {
-    warnNAForNull("n.samples", "dbartsControl")
+  } else {
+    refuseNaN(n.samples, "n.samples")
+    if (isSingleNA(n.samples)) {
+      warnNAForNull("n.samples", "dbartsControl")
+    }
   }
   result <- newValidated(
     "dbartsControl",
@@ -461,7 +464,7 @@ dbartsControl <- function(
     # the partial spellings are filled here rather than at the slot, so the
     # stored mixture is always the resolved six the bridge reads
     proposal.probs = resolveProposalProbs(proposal.probs),
-    seed = resolveSeedArg(seed, "dbartsControl"),
+    seed = resolveSeedArg(seed, "dbartsControl", refuse = TRUE),
     updateState = as.logical(updateState)
   )
   # a plain attribute, deliberately not a bartcore.* one (that prefix means
@@ -519,7 +522,7 @@ mergeFrontDoorControl <- function(control, matchedCall, flat) {
         namedOnControl ||
         !identical(methods::slot(control, name), methods::slot(fresh, name))
     ) {
-      flat[[name]] <- methods::slot(control, name)
+      flat[name] <- list(controlArgumentFromSlot(name, control))
     }
   }
   flat
@@ -735,7 +738,11 @@ dbarts <- function(
     "dbarts"
   )
   # an NA under the retired name is covered by that name's own warning
-  sigest <- resolveSigestArg(sigest, "dbarts", warnNA = !sigmaSupplied)
+  sigest <- if (sigmaSupplied) {
+    resolveSigestArg(sigest, "dbarts", "silent", "sigma")
+  } else {
+    resolveSigestArg(sigest, "dbarts", "refuse")
+  }
   if (sigmaSupplied) {
     # the value, not the promise: it was evaluated once above, and NULL or NA
     # must reach the validator as the resolved estimate
@@ -1102,7 +1109,7 @@ dbarts <- function(
   control@verbose <- verbose
   # a convenience mirror of dbartsControl(seed = ), as the wrappers expose;
   # an explicit seed overrides the control's, NULL or NA leaves it untouched
-  seed <- resolveSeedArg(seed, "dbarts")
+  seed <- resolveSeedArg(seed, "dbarts", refuse = TRUE)
   if (!is.na(seed)) {
     control@seed <- seed
   }
@@ -1618,6 +1625,7 @@ resolveRunCount <- function(count, argument) {
   if (is.null(count)) {
     return(NA_integer_)
   }
+  refuseNaN(count, argument)
   if (isSingleNA(count)) {
     warnNAForNull(argument, "dbartsSampler")
     return(NA_integer_)
@@ -2476,9 +2484,8 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setTestPredictor = function(x.test, column, updateState = NULL) {
+    setTestPredictor = function(x.test, column) {
       "Changes a single column of the test predictor matrix."
-      ignoreTestUpdateState(updateState)
 
       checkMissingPolicy(data, sourceAnyNA(x.test), "test predictors")
       bartcoreSamplerSetTestPredictor(
@@ -2487,13 +2494,8 @@ dbartsSampler <- setRefClass(
         column = if (missing(column)) NULL else column
       )
     },
-    setTestPredictorAndOffset = function(
-      x.test,
-      offset.test,
-      updateState = NULL
-    ) {
+    setTestPredictorAndOffset = function(x.test, offset.test) {
       "Changes the test predictor matrix, and optionally the test offset."
-      ignoreTestUpdateState(updateState)
       checkMissingPolicy(
         data,
         !is.null(x.test) && sourceAnyNA(x.test),
@@ -2551,9 +2553,8 @@ dbartsSampler <- setRefClass(
       selfEnv$data <- setDataRowNames(data, "test", testRowNames)
       invisible(NULL)
     },
-    setTestOffset = function(offset.test, updateState = NULL) {
+    setTestOffset = function(offset.test) {
       "Changes the test offset."
-      ignoreTestUpdateState(updateState)
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 

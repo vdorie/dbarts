@@ -141,6 +141,13 @@ expect_warning(
 )
 expect_silent(threadSampler$run(0L, 2L, numThreads = 2L))
 expect_silent(threadSampler$run(0L, 2L, NULL, 2L))
+# 0.9-34's positional NA is the third argument, updateState: read as NULL,
+# after its own warning
+warnEnv[["tombstone.NA.updateState.dbartsSampler"]] <- NULL
+expect_warning(
+  threadSampler$run(0L, 2L, NA, 2L),
+  pattern = "'updateState = NA' is now 'updateState = NULL'"
+)
 expect_error(threadSampler$run(0L, 2L, nthreads = 2L), pattern = "'nthreads'")
 expect_error(threadSampler$run(0L, 2L, NULL, 2L, NULL), pattern = "<unnamed>")
 

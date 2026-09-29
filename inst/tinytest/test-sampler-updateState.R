@@ -1,7 +1,7 @@
 # dbartsSampler's mutators (setData, setResponse, setOffset, setWeights,
 # setSigma, setPredictor, setCutPoints, and the rest) resolve an unset
 # updateState against control@updateState, exactly as run() (and
-# sampleTreesFromPrior/sampleLeafParametersFromPrior) do: NA (the default)
+# sampleTreesFromPrior/sampleLeafParametersFromPrior) do: NULL (the default)
 # stores when the control says to and skips when it says not to, and an
 # explicit TRUE/FALSE overrides the control either way. This matters only
 # once $state has already been forced (read or stored) at least once; an
@@ -31,7 +31,7 @@ sampler <- dbarts::dbarts(y ~ x, control = control)
 invisible(sampler$run(50L, 5L))
 stateBefore <- sampler$state # forces the promise once
 
-# control@updateState = TRUE: the default (NA) stores
+# control@updateState = TRUE: the default (NULL) stores
 sampler$setCutPoints(list(c(0.5)), 1L)
 expect_false(identical(sampler$state, stateBefore))
 stateAfterDefault <- sampler$state
@@ -46,7 +46,7 @@ expect_false(identical(sampler$state, stateAfterDefault))
 
 rm(sampler, stateBefore, stateAfterDefault)
 
-# control@updateState = FALSE: the default (NA) stores nothing
+# control@updateState = FALSE: the default (NULL) stores nothing
 controlNoUpdate <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
@@ -73,7 +73,7 @@ rm(sampler2, stateBefore2, controlNoUpdate)
 # delayedAssign fires (and captures CURRENT state) at first access
 sampler3 <- dbarts::dbarts(y ~ x, control = control)
 invisible(sampler3$run(50L, 5L))
-sampler3$setCutPoints(list(c(0.5)), 1L) # default updateState = NA, control TRUE
+sampler3$setCutPoints(list(c(0.5)), 1L) # default updateState = NULL, control TRUE
 stateAfterMutation <- sampler3$state # first access: forces to current state
 sampler3$setCutPoints(list(seq(0.1, 0.9, 0.1)), 1L, updateState = TRUE)
 expect_false(identical(sampler3$state, stateAfterMutation))

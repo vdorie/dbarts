@@ -45,7 +45,11 @@ xbart <- function(
     sigest,
     "xbart"
   )
-  sigest <- resolveSigestArg(sigest, "xbart", warnNA = !sigmaSupplied)
+  sigest <- if (sigmaSupplied) {
+    resolveSigestArg(sigest, "xbart", "silent", "sigma")
+  } else {
+    resolveSigestArg(sigest, "xbart", "refuse")
+  }
   if (sigmaSupplied) {
     matchedCall["sigest"] <- list(if (is.na(sigest)) NULL else sigest)
     matchedCall$sigma <- NULL

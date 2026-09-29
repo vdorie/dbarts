@@ -896,14 +896,14 @@ bart <- function(
       matchedCall["seed"] <- list(NULL)
     }
   }
-  if (isSingleNA(sigest)) {
-    sigest <- resolveSigestArg(sigest, "bart")
+  sigestGiven <- !is.null(sigest)
+  sigestWasNA <- isSingleNA(sigest)
+  sigest <- resolveSigestArg(sigest, "bart", "warn")
+  if (sigestWasNA) {
     if ("sigest" %in% names(matchedCall)) {
       matchedCall["sigest"] <- list(NULL)
     }
-  } else if (is.null(sigest)) {
-    sigest <- NA_real_
-  } else {
+  } else if (sigestGiven) {
     sigest <- validateSigest(sigest, "bart")
   }
 
@@ -2683,10 +2683,11 @@ bart2Hurdle <- function(
   # independent per-component seeds derived deterministically from the
   # user's seed (the per-chain seed derivation); politely
   # restore the caller's RNG stream afterward
+  # an unseeded fit forwards NULL, the spelling of no seed
   seeds <- if (!is.na(seed)) {
-    withFixedSeed(seed, sample.int(.Machine$integer.max, 2L))
+    as.list(withFixedSeed(seed, sample.int(.Machine$integer.max, 2L)))
   } else {
-    c(NA_integer_, NA_integer_)
+    list(NULL, NULL)
   }
 
   # redirectCall forwards every bart2 formal the caller supplied, including
@@ -2715,7 +2716,7 @@ bart2Hurdle <- function(
   zeroCall$formula <- formula
   zeroCall$data <- split$z
   zeroCall$family <- "probit"
-  zeroCall$seed <- seeds[1L]
+  zeroCall["seed"] <- list(seeds[[1L]])
   zeroCall$keepTrees <- control@keepTrees
   zero <- eval(zeroCall, callingEnv)
 
@@ -2733,7 +2734,7 @@ bart2Hurdle <- function(
   } else {
     gaussian(sigma = residPrior)
   }
-  positiveCall$seed <- seeds[2L]
+  positiveCall["seed"] <- list(seeds[[2L]])
   positiveCall$keepTrees <- control@keepTrees
   # the thread-budget warning is per fit, and the zero component already
   # raised it for the same n.threads and n.chains

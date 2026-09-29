@@ -604,6 +604,11 @@ formatFamilyCall <- function(token, settings) {
       value <- settings[[name]]
       shown <- if (is(value, "dbartsResidPrior")) {
         formatResidPrior(value)
+      } else if (
+        name %in% c("dispersion", "df") && identical(value, NA_real_)
+      ) {
+        # stored as NA_real_, spelled NULL: the constructors refuse the NA
+        "NULL"
       } else {
         paste0(deparse(value), collapse = " ")
       }

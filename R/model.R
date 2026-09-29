@@ -1624,6 +1624,8 @@ dart <- function(
   update.alpha = TRUE,
   update.delay = NULL
 ) {
+  refuseNaN(rho, "rho")
+  refuseNaN(update.delay, "update.delay")
   if (isSingleNA(rho)) {
     refuseNAForNull("rho", "dart", "the default, the number of predictors")
   }

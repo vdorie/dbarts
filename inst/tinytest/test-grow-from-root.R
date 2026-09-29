@@ -109,7 +109,7 @@ linSampler <- dbarts::dbarts(
 )
 expect_error(linSampler$growFromRoot(2L), "constant-leaf")
 
-## updateState = NA (the default) respects control@updateState, matching the
+## updateState = NULL (the default) respects control@updateState, matching the
 ## sibling initializers sampleTreesFromPrior/sampleLeafParametersFromPrior. An
 ## updateState = FALSE control stores nothing on the default, and only an
 ## explicit updateState = TRUE opts in; an updateState = TRUE control's default
@@ -130,7 +130,7 @@ nostore <- dbarts::dbarts(
     keepTrees = FALSE
   )
 )
-nostore$growFromRoot(2L) # default updateState = NA, control FALSE -> no store
+nostore$growFromRoot(2L) # default updateState = NULL, control FALSE -> no store
 expect_null(nostore$state)
 
 optin <- dbarts::dbarts(

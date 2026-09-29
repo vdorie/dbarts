@@ -908,7 +908,11 @@ dbartsSpec <- function(
     sigest,
     "dbartsSpec"
   )
-  sigest <- resolveSigestArg(sigest, "dbartsSpec", warnNA = !sigmaSupplied)
+  sigest <- if (sigmaSupplied) {
+    resolveSigestArg(sigest, "dbartsSpec", "silent", "sigma")
+  } else {
+    resolveSigestArg(sigest, "dbartsSpec", "refuse")
+  }
 
   # the leaf-value prior is 'leaf.prior' here as everywhere; 'node.prior'
   # is the 0.9-x spelling, accepted for one release. Both flags are read

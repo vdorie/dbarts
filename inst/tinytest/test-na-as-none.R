@@ -94,11 +94,12 @@ sigmaSampler <- function(...) {
 defaultSigma <- sigmaSampler()$data@sigma
 expect_no_warning_of(nullSampler <- sigmaSampler(sigest = NULL))
 expect_identical(nullSampler$data@sigma, defaultSigma)
-expect_one_warning(
-  naSampler <- sigmaSampler(sigest = NA),
-  "'sigest = NA' is now 'sigest = NULL' on 'dbarts'"
+# new in 1.0-0, so an NA never shipped and is refused
+expect_error(
+  sigmaSampler(sigest = NA),
+  "'sigest' must not be NA on 'dbarts'.*NULL"
 )
-expect_identical(naSampler$data@sigma, defaultSigma)
+expect_error(sigmaSampler(sigest = NaN), "'sigest'")
 expect_error(sigmaSampler(sigest = 0), "'sigest'")
 expect_identical(sigmaSampler(sigest = 1.5)$data@sigma, 1.5)
 
@@ -111,11 +112,11 @@ specOf <- function(...) {
 resetKeys(naKey("sigest", "dbartsSpec"))
 expect_identical(specOf(), 0.7)
 expect_identical(specOf(sigest = NULL), 0.7)
-expect_one_warning(
-  naSpec <- specOf(sigest = NA),
-  "'sigest = NA' is now 'sigest = NULL' on 'dbartsSpec'"
+expect_error(
+  specOf(sigest = NA),
+  "'sigest' must not be NA on 'dbartsSpec'.*NULL"
 )
-expect_identical(naSpec, 0.7)
+expect_error(specOf(sigest = NaN), "'sigest'")
 expect_identical(specOf(sigest = 1.5), 1.5)
 expect_error(specOf(sigest = -1), "'sigest'")
 
@@ -137,11 +138,11 @@ xbartOf <- function(...) {
 resetKeys(naKey("sigest", "xbart"))
 xbartDefault <- xbartOf()
 expect_identical(xbartOf(sigest = NULL), xbartDefault)
-expect_one_warning(
-  naXbart <- xbartOf(sigest = NA),
-  "'sigest = NA' is now 'sigest = NULL' on 'xbart'"
+expect_error(
+  xbartOf(sigest = NA),
+  "'sigest' must not be NA on 'xbart'.*NULL"
 )
-expect_identical(naXbart, xbartDefault)
+expect_error(xbartOf(sigest = NaN), "'sigest'")
 expect_error(xbartOf(sigest = -1), "'sigest'")
 
 # bartBT keeps BayesTree's NA silently
@@ -198,7 +199,7 @@ expect_true(setequal(
   vapply(sigmaEntries, `[[`, "", "owner"),
   c("dbarts", "dbartsSpec", "xbart")
 ))
-rm(defaultFit, naFit, nullSampler, naSampler, naSpec, xbartDefault, naXbart)
+rm(defaultFit, naFit, nullSampler, xbartDefault)
 rm(viaSigma, viaSigmaSpec, viaSigmaXbart, sigmaEntries)
 
 # ---- site 2: seed = NULL ----
@@ -239,21 +240,29 @@ for (caller in names(seedCallers)) {
   expect_null(formals(get(caller, asNamespace("dbarts")))[["seed"]])
   resetKeys(naKey("seed", caller))
   expect_no_warning_of(seedCallers[[caller]](seed = NULL))
-  expect_one_warning(
-    seedCallers[[caller]](seed = NA),
-    paste0("'seed = NA' is now 'seed = NULL' on '", caller, "'")
-  )
-  expect_no_warning_of(seedCallers[[caller]](seed = NA))
+  # NaN is never an absent seed
+  expect_error(seedCallers[[caller]](seed = NaN), "'seed'", info = caller)
+  if (caller %in% c("bart", "bartBT", "xbart")) {
+    # 0.9-34 had the argument: an NA warns once and reads as NULL
+    expect_one_warning(
+      seedCallers[[caller]](seed = NA),
+      paste0("'seed = NA' is now 'seed = NULL' on '", caller, "'")
+    )
+    expect_no_warning_of(seedCallers[[caller]](seed = NA))
+  } else {
+    # new in 1.0-0: refused as a missing value, naming NULL
+    expect_error(
+      seedCallers[[caller]](seed = NA),
+      paste0("'seed' must not be NA on '", caller, "'.*NULL"),
+      info = caller
+    )
+  }
 }
 rm(caller)
 # resolved to the value the default gives
 expect_identical(
   dbarts::dbartsControl(seed = NULL)@seed,
   dbarts::dbartsControl()@seed
-)
-expect_identical(
-  suppressWarnings(dbarts::dbartsControl(seed = NA)@seed),
-  NA_integer_
 )
 seededControl <- dbarts::dbartsControl(
   n.chains = 1L,
@@ -262,19 +271,18 @@ seededControl <- dbarts::dbartsControl(
   n.samples = 4L,
   seed = 9L
 )
-resetKeys(naKey("seed", "dbarts"))
 expect_identical(
-  suppressWarnings(
-    dbarts::dbarts(x, y, control = seededControl, seed = NA)$control@seed
-  ),
+  dbarts::dbarts(x, y, control = seededControl, seed = NULL)$control@seed,
   9L
 )
 # the retired rngSeed = NA is covered by the retired name's own warning
-resetKeys(naKey("seed", "dbartsControl"), "tombstone.rngSeed.dbartsControl")
+# (the 0.9-34 spelling reaches NULL with the rename warning alone)
+resetKeys("tombstone.rngSeed.dbartsControl")
 expect_one_warning(
   dbarts::dbartsControl(rngSeed = NA),
   "'rngSeed' is now 'seed'"
 )
+expect_error(dbarts::dbartsControl(rngSeed = NaN), "rngSeed")
 # never shipped on these two: refused as a missing value, naming NULL
 expect_error(
   dbarts::dbartsSpec(specData, control = control, seed = NA),
@@ -487,28 +495,41 @@ expect_error(priors$dart(update.delay = -1), "update.delay")
 expect_identical(priors$dart(rho = NULL)@rho, NA_real_)
 expect_identical(priors$dart(update.delay = NULL)@update.delay, NA_real_)
 
-# ---- site 9: the 0.9-34 test setters keep an updateState ----
+# ---- site 9: the tombstones ----
 
+# 0.9-34's test setters had no updateState, so none is accepted
 setterSampler <- dbarts::dbarts(x, y, test = x[1:5, ], control = control)
-resetKeys("tombstone.testSetters.updateState")
-expect_no_warning_of(setterSampler$setTestPredictor(x[1:5, ]))
-expect_no_warning_of(setterSampler$setTestOffset(NULL, NULL))
-expect_one_warning(
+expect_error(
   setterSampler$setTestPredictor(x[1:5, ], updateState = TRUE),
-  "the test-data setters no longer take 'updateState'"
+  "unused argument"
 )
-# once per session, whichever setter carries it
-expect_no_warning_of(setterSampler$setTestOffset(NULL, updateState = FALSE))
-expect_no_warning_of(
-  setterSampler$setTestPredictorAndOffset(x[1:5, ], NULL, updateState = NA)
+expect_error(
+  setterSampler$setTestOffset(NULL, updateState = TRUE),
+  "unused argument"
 )
-expect_no_warning_of(setterSampler$setTestPredictorAndOffset(x[1:5, ], NULL))
-expect_equal(dim(setterSampler$data@x.test), c(5L, 2L))
+expect_no_warning_of(setterSampler$setTestPredictor(x[1:5, ]))
 rm(setterSampler)
 registered <- vapply(dbarts:::dbartsTombstones, `[[`, "", "name")
 expect_true("NA sigest" %in% registered)
 expect_true("NA seed" %in% registered)
-expect_true("updateState on the test setters" %in% registered)
+expect_false("updateState on the test setters" %in% registered)
+# only the argument spellings 0.9-34 had are registered
+naRows <- Filter(
+  function(entry) entry$name %in% c("NA sigest", "NA seed"),
+  dbarts:::dbartsTombstones
+)
+expect_true(setequal(
+  paste(
+    vapply(naRows, `[[`, "", "name"),
+    vapply(naRows, `[[`, "", "owner")
+  ),
+  c(
+    "NA sigest bart",
+    "NA seed bart",
+    "NA seed bartBT",
+    "NA seed xbart"
+  )
+))
 
 # ---- site 10: gaussian(link = identity) unquoted ----
 
@@ -525,3 +546,60 @@ expect_identical(
   gaussianFit$yhat.train,
   callBart(family = "gaussian", seed = 3L)$yhat.train
 )
+
+# ---- NaN is never absent ----
+
+expect_error(sigmaSampler(sigma = NaN), "'sigma'")
+expect_error(dbarts::dbartsControl(n.samples = NaN), "'n.samples'")
+expect_error(dbarts::dbartsControl(seed = NaN), "'seed'")
+nanRunner <- sigmaSampler()
+expect_error(nanRunner$run(NaN, 2L), "'numBurnIn'")
+expect_error(nanRunner$run(0L, NaN), "'numSamples'")
+rm(nanRunner)
+expect_error(priors$dart(rho = NaN), "'rho'")
+expect_error(priors$dart(update.delay = NaN), "'update.delay'")
+expect_error(priors$normal(sd = NaN), "'sd'")
+expect_error(nbinom(dispersion = NaN), "'dispersion'")
+
+# ---- the 0.9-34 sigma and rngSeed reach NULL under the rename warning only ----
+
+resetKeys("tombstone.sigma.xbart", "tombstone.sigma.dbartsSpec")
+expect_one_warning(xbartOf(sigma = NA), "'sigma' is now 'sigest' on 'xbart'")
+expect_one_warning(
+  specOf(sigma = NA),
+  "'sigma' is now 'sigest' on 'dbartsSpec'"
+)
+
+# ---- fits that rebuild a control raise no NA warning ----
+
+resetKeys(
+  naKey("seed", "bart"),
+  naKey("seed", "dbarts"),
+  naKey("seed", "dbartsControl"),
+  naKey("n.samples", "dbartsControl")
+)
+set.seed(4L)
+hurdleY <- pmax(0, x[, 1L] + rnorm(nObs))
+hurdleY[1:8] <- 0
+expect_no_warning_of(suppressMessages(do.call(
+  dbarts::bart,
+  c(list(x, hurdleY, family = "hurdle.lognormal"), bartArgs)
+)))
+expect_no_warning_of(callBart(control = dbarts::dbartsControl(seed = NULL)))
+expect_no_warning_of(callBart(
+  control = dbarts::dbartsControl(n.samples = NULL)
+))
+expect_no_warning_of(callBart(
+  control = dbarts::dbartsControl(treeShift = "always")
+))
+
+# ---- show prints the spelling the constructor takes ----
+
+expect_true(grepl(
+  "dispersion = NULL",
+  paste(capture.output(show(nbinom())), collapse = "")
+))
+expect_true(grepl(
+  "df = NULL",
+  paste(capture.output(show(dbarts:::dbartsFamilies$student())), collapse = "")
+))

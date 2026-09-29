@@ -171,7 +171,7 @@
             \code{probit} fit does, and a fit takes 1.0's defaults when
             \code{k} is not supplied, so a binary fit's \code{k} prior and
             the tree-move mix are those of \code{dbarts}, not 0.9-34's.
-      \item \code{xbart} loses its \code{control} argument and renames
+      \item \code{xbart} renames
             \code{sigma} to \code{sigest}; \code{sigma} is still accepted
             for one release, with a once-per-session warning (tombstone
             list, below). \code{n.cuts},
@@ -390,27 +390,32 @@
             \code{control = dbartsControl(proposal.probs)}); and a
             three-element \code{n.burn} on
             \code{xbart} (refused outright, naming \code{n.burn = c(fresh,
-            warm)}). NULL, not NA, is now the spelling of an absent value,
-            as in base R, and an explicit NA that 0.9-34 documented is read
-            as NULL for this release, warning once per session per argument:
-            \code{sigest = NA} on \code{bart}, \code{dbarts} and
-            \code{xbart} (the new default is NULL, which estimates it by
-            least squares, as NA did); \code{seed = NA} on \code{bart},
-            \code{bartBT}, \code{dbarts}, \code{xbart} and
-            \code{dbartsControl}; \code{n.samples = NA} on
-            \code{dbartsControl} (the default is NULL); \code{updateState
-            = NA} on \code{dbartsSampler}'s methods and on
+            warm)}). NULL, not NA, is now the
+            spelling of an absent value, as in base R. Where 0.9-34's own
+            default was NA, an explicit NA is still read as NULL for this
+            release, warning once per session per argument: \code{sigest}
+            on \code{bart} (the new default is NULL, which estimates it by
+            least squares, as NA did); \code{seed} on \code{bart},
+            \code{bartBT} and \code{xbart}; \code{n.samples} on
+            \code{dbartsControl} (the default is NULL);
+            \code{updateState} on \code{dbartsSampler}'s methods and on
             \code{updatePredictorPerObservationJointly} (the default is
             NULL, which defers to the control's, as NA did; TRUE and FALSE
-            override it and anything else is refused); and \code{NA} for
+            override it and anything else is refused); and
             \code{$run}'s \code{numBurnIn} and \code{numSamples} (NULL,
-            now their default, takes the control's). The test-data setters
-            \code{$setTestPredictor}, \code{$setTestPredictorAndOffset}
-            and \code{$setTestOffset} still accept 0.9-34's
-            \code{updateState} and ignore it, warning once, since test data
-            is not stored state.
-      \item \code{bart} and \code{xbart} gain a
-            \code{control = \link{dbartsControl}()} formal, reaching every
+            now their default, takes the control's). On an argument that is
+            new in 1.0-0 - \code{dbarts}'s \code{sigest} and \code{seed},
+            \code{xbart}'s \code{sigest}, \code{dbartsControl}'s
+            \code{seed}, and everything on \code{dbartsSpec} and
+            \code{dbartsValidateComposition} - NA is refused, naming NULL,
+            as it is for \code{nbinom}'s \code{dispersion}, the leaf
+            priors' \code{sd} and \code{scale}, and \code{dart}'s
+            \code{rho} and \code{update.delay}. The retired \code{sigma}
+            and \code{rngSeed} keep reading an NA as no value, under their
+            own warning.
+      \item \code{bart} gains a
+            \code{control = \link{dbartsControl}()} formal, and
+            \code{xbart}'s existing one follows the same rule, reaching every
             engine and sampler setting neither door spells flatly
             (\code{categoricalExhaustiveCap}, \code{testFitParallelCutoff},
             \code{predictParallelCutoff}, \code{sparseDensityThreshold},

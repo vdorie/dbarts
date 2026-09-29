@@ -265,27 +265,6 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
-    name = "NA sigest",
-    kind = "behaviour",
-    owner = "dbarts",
-    successor = "sigest = NULL",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "NA sigest",
-    kind = "behaviour",
-    owner = "dbartsSpec",
-    successor = "sigest = NULL",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "NA sigest",
-    kind = "behaviour",
-    owner = "xbart",
-    successor = "sigest = NULL",
-    expires = tombstoneExpiry
-  ),
-  list(
     name = "NA seed",
     kind = "behaviour",
     owner = "bart",
@@ -302,21 +281,7 @@ dbartsTombstones <- list(
   list(
     name = "NA seed",
     kind = "behaviour",
-    owner = "dbarts",
-    successor = "seed = NULL",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "NA seed",
-    kind = "behaviour",
     owner = "xbart",
-    successor = "seed = NULL",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "NA seed",
-    kind = "behaviour",
-    owner = "dbartsControl",
     successor = "seed = NULL",
     expires = tombstoneExpiry
   ),
@@ -346,13 +311,6 @@ dbartsTombstones <- list(
     kind = "argument",
     owner = "xbart",
     successor = "sigest",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "updateState on the test setters",
-    kind = "behaviour",
-    owner = "dbartsSampler",
-    successor = "no argument",
     expires = tombstoneExpiry
   )
 )
@@ -799,6 +757,7 @@ resolveRenamedSeed <- function(rngSeed, caller, seed) {
     "."
   )
   # 0.9-x's rngSeed = NA meant no seed; the warning above covers the name
+  refuseNaN(rngSeed, "rngSeed")
   if (isSingleNA(rngSeed)) NULL else rngSeed
 }
 
@@ -862,23 +821,6 @@ warnNAForNull <- function(argument, caller) {
   )
 }
 
-## 0.9-x's test-data setters took an updateState; test data is not stored
-## state, so the value is ignored, after saying so once.
-ignoreTestUpdateState <- function(updateState) {
-  if (is.null(updateState)) {
-    return(invisible(NULL))
-  }
-  warnOnce(
-    "tombstone.testSetters.updateState",
-    "the test-data setters no longer take 'updateState': test data is not ",
-    "stored state, so the value was ignored. The argument is removed in ",
-    "dbarts ",
-    tombstoneExpiry,
-    "."
-  )
-  invisible(NULL)
-}
-
 ## An argument that never shipped with NA for absent refuses it now.
 refuseNAForNull <- function(argument, caller, meaning = "not given") {
   stop(
@@ -892,6 +834,19 @@ refuseNAForNull <- function(argument, caller, meaning = "not given") {
   )
 }
 
+## NaN is never "absent": it is an invalid value, refused by name.
+refuseNaN <- function(x, argument) {
+  if (is.numeric(x) && length(x) == 1L && is.nan(x)) {
+    stop(
+      "'",
+      argument,
+      "' must be a number or NULL; NaN is neither",
+      call. = FALSE
+    )
+  }
+  invisible(x)
+}
+
 ## TRUE for a single NA of any type, the value a caller writes for "missing".
 ## NaN is not one: it carries no such intent, and the argument's own checks
 ## refuse it.
@@ -901,17 +856,28 @@ isSingleNA <- function(x) {
 
 ## The residual-scale estimate supplied at creation: NULL means estimate it
 ## by least squares, and NA_real_ is the internal spelling of the same thing
-## that the data object's slot keeps. An explicit NA warns; 'warnNA = FALSE'
-## is for a value that arrived under a retired name whose own warning has
-## already said so.
-resolveSigestArg <- function(sigest, caller, warnNA = TRUE) {
+## that the data object's slot keeps. 'onNA' says what an explicit NA is: a
+## "warn" where 0.9-34 took it, a "refuse" where the argument never shipped,
+## and "silent" for a value that arrived under a retired name whose own
+## warning has already spoken. NaN is refused in every case.
+resolveSigestArg <- function(
+  sigest,
+  caller,
+  onNA = c("warn", "refuse", "silent"),
+  name = "sigest"
+) {
+  onNA <- match.arg(onNA)
   if (is.null(sigest)) {
     return(NA_real_)
   }
+  refuseNaN(sigest, name)
   if (isSingleNA(sigest)) {
-    if (warnNA) {
-      warnNAForNull("sigest", caller)
-    }
+    switch(
+      onNA,
+      warn = warnNAForNull(name, caller),
+      refuse = refuseNAForNull(name, caller),
+      silent = NULL
+    )
     return(NA_real_)
   }
   sigest

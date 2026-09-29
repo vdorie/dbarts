@@ -263,6 +263,7 @@ resolveSeedArg <- function(seed, caller, refuse = FALSE) {
   if (is.null(seed)) {
     return(NA_integer_)
   }
+  refuseNaN(seed, "seed")
   if (length(seed) == 1L && is.na(seed)) {
     if (refuse) {
       stop(
