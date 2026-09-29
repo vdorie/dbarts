@@ -753,11 +753,14 @@ carry more than one); see
 
 The result of `extract` will be a data frame with columns:
 
-- `forest` - which forest the row belongs to, from 1; present even on a
-  single-forest fit
+- `forest` - which forest the row belongs to, from 1; present only on a
+  fit with several forests (a `"bartMultinomial"` fit, or one declared
+  with `forests =`, whatever the count); a single-forest fit has no such
+  column, and still accepts `forest = 1`
 
-- `chain`, `sample`, `tree` - index variables; `chain` is omitted on a
-  single-chain fit
+- `chain`, `sample`, `tree` - index variables; `chain` is always
+  present, 1 on a single-chain fit, since tree draws cannot be combined
+  across chains (the sampler's own `getTrees` omits it at one chain)
 
 - `n` - number of observations in node, drawn from the training data or
   from `newdata` when supplied
@@ -780,7 +783,7 @@ anyway (`keepSampler = TRUE`, or a `bart` fit with `fit` present per
 ‘Value’ below) still answers `extract(fit, "trees")`, the same fallback
 [`plotTree`](https://vdorie.github.io/dbarts/reference/plotTree.md)
 uses: the frame holds the sampler's CURRENT trees rather than a saved
-history, so it carries no `chain`/`sample` column and reflects whatever
+history, so it carries no `sample` column and reflects whatever
 predictors and structure the sampler holds at the time of the call, not
 a fixed draw.
 
@@ -1139,7 +1142,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.091114
+#> total seconds in loop: 0.152977
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

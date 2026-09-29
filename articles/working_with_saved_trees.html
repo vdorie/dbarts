@@ -153,23 +153,26 @@ multinomial fit itself.</p>
 left-hand-side tree traversal.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">trees</span>, n <span class="op">=</span> <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">##    forest chain sample tree   n var        value</span></span>
-<span><span class="co">## 1       1     1      1    1 100   5  0.172099022</span></span>
-<span><span class="co">## 2       1     1      1    1  19  -1 -0.161987541</span></span>
-<span><span class="co">## 3       1     1      1    1  81   2  0.415258286</span></span>
-<span><span class="co">## 4       1     1      1    1  20  -1 -0.067348401</span></span>
-<span><span class="co">## 5       1     1      1    1  61  -1  0.060031278</span></span>
-<span><span class="co">## 6       1     1      1    2 100   4  0.849325015</span></span>
-<span><span class="co">## 7       1     1      1    2  82   4  0.571833524</span></span>
-<span><span class="co">## 8       1     1      1    2  51  -1 -0.008752156</span></span>
-<span><span class="co">## 9       1     1      1    2  31  -1  0.192449201</span></span>
-<span><span class="co">## 10      1     1      1    2  18  -1  0.315472253</span></span></code></pre>
+<pre><code><span><span class="co">##    chain sample tree   n var        value</span></span>
+<span><span class="co">## 1      1      1    1 100   5  0.172099022</span></span>
+<span><span class="co">## 2      1      1    1  19  -1 -0.161987541</span></span>
+<span><span class="co">## 3      1      1    1  81   2  0.415258286</span></span>
+<span><span class="co">## 4      1      1    1  20  -1 -0.067348401</span></span>
+<span><span class="co">## 5      1      1    1  61  -1  0.060031278</span></span>
+<span><span class="co">## 6      1      1    2 100   4  0.849325015</span></span>
+<span><span class="co">## 7      1      1    2  82   4  0.571833524</span></span>
+<span><span class="co">## 8      1      1    2  51  -1 -0.008752156</span></span>
+<span><span class="co">## 9      1      1    2  31  -1  0.192449201</span></span>
+<span><span class="co">## 10     1      1    2  18  -1  0.315472253</span></span></code></pre>
 <p>The columns refer to:</p>
 <ul>
 <li>
 <code>forest</code>, <code>chain</code>, <code>sample</code>,
-<code>tree</code> - index variables; <code>forest</code> is present even
-on the single-forest fit above</li>
+<code>tree</code> - index variables; <code>forest</code> is present only
+on a fit with several forests (or one declared with
+<code>forests =</code>), so not on the single-forest fit above;
+<code>chain</code> is always present in
+<code>extract(type = "trees")</code>, 1 on a one-chain fit</li>
 <li>
 <code>n</code> - number of observations in node (from the training
 data, or from <code>newdata</code> when it is supplied; see “Counts for
@@ -225,9 +228,9 @@ rules, and the split instead appears in <code>directions</code>.</p>
 <span>               n.threads <span class="op">=</span> <span class="fl">1L</span>, keepTrees <span class="op">=</span> <span class="cn">TRUE</span>, seed <span class="op">=</span> <span class="fl">0</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="va">catTrees</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bartBT.html">extract</a></span><span class="op">(</span><span class="va">catFit</span>, <span class="st">"trees"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">catTrees</span>, <span class="va">var</span> <span class="op">!=</span> <span class="op">-</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">##   forest sample tree  n var value directions</span></span>
-<span><span class="co">## 1      1      1    1 60   1    NA       LLRR</span></span>
-<span><span class="co">## 5      1      1    3 60   1    NA       LLRR</span></span></code></pre>
+<pre><code><span><span class="co">##   chain sample tree  n var value directions</span></span>
+<span><span class="co">## 1     1      1    1 60   1    NA       LLRR</span></span>
+<span><span class="co">## 5     1      1    3 60   1    NA       LLRR</span></span></code></pre>
 <p><code>g</code>’s levels are <code>"a"</code>, <code>"b"</code>,
 <code>"c"</code>, <code>"d"</code>, in that order, so the first tree’s
 <code>directions</code> of <code>"LLRR"</code> sends <code>a</code> and
@@ -464,12 +467,12 @@ tree. The predictors are supplied in the same form as for
 <span><span class="co">## 'test' with column names to match by name instead</span></span></code></pre>
 <div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">newTrees</span>, <span class="va">chain</span> <span class="op">==</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">##   forest chain sample tree n var       value</span></span>
-<span><span class="co">## 1      1     1      3    1 5   5  0.17209902</span></span>
-<span><span class="co">## 2      1     1      3    1 2  -1 -0.16037867</span></span>
-<span><span class="co">## 3      1     1      3    1 3   2  0.41525829</span></span>
-<span><span class="co">## 4      1     1      3    1 1  -1 -0.10879844</span></span>
-<span><span class="co">## 5      1     1      3    1 2  -1  0.05573811</span></span></code></pre>
+<pre><code><span><span class="co">##   chain sample tree n var       value</span></span>
+<span><span class="co">## 1     1      3    1 5   5  0.17209902</span></span>
+<span><span class="co">## 2     1      3    1 2  -1 -0.16037867</span></span>
+<span><span class="co">## 3     1      3    1 3   2  0.41525829</span></span>
+<span><span class="co">## 4     1      3    1 1  -1 -0.10879844</span></span>
+<span><span class="co">## 5     1      3    1 2  -1  0.05573811</span></span></code></pre>
 </div>
 <div class="section level2">
 <h2 id="advanced-traversal">Advanced Traversal<a class="anchor" aria-label="anchor" href="#advanced-traversal"></a>

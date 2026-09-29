@@ -655,12 +655,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   on every forest of a multi-forest sampler, and its calibration-map
   columns are that forest's own. `getTrees` takes the same
   `forest = NULL` default, stacking every forest forest-major with a
-  leading `forest` column (see ‘Value’) rather than dropping the column
-  at one forest as the four numeric readers do; it additionally accepts
-  an integer vector of forest indices, each validated as a lone `forest`
-  argument is here and stacked in the order given. `plotTree` takes a
-  single `forest`, defaulting to the sampler's only one and required
-  when there is more than one.
+  leading `forest` column on a sampler with several forests or one
+  declared with `forests =`, and no such column on any other (see
+  ‘Value’); it additionally accepts an integer vector of forest indices,
+  each validated as a lone `forest` argument is here and stacked in the
+  order given. `plotTree` takes a single `forest`, defaulting to the
+  sampler's only one and required when there is more than one.
 
 - prior.scale:
 
@@ -1308,9 +1308,11 @@ non-heteroscedastic sampler's would.
 
 For `getTrees`, a `data.frame` with one row per tree node in
 depth-first, left-hand-side pre-order, with columns `forest` (indexed
-from 1, present unconditionally - even on a single-forest sampler - and
+from 1, present only on a sampler with several forests - a multinomial
+one, or one declared with `forests =`, whatever the count - and then
 leading every other column, forest-major, at the default `forest = NULL`
-or a vector), `chain` (present only when `n.chains > 1`), `sample`
+or a vector; any other sampler returns no `forest` column and accepts
+`forest = 1`), `chain` (present only when `n.chains > 1`), `sample`
 (present only for saved samples, and reporting the draw number asked
 for), `tree`, `n` (the number of observations in the node), `var` (the
 splitting variable, or -1 at a leaf), and `value` (the split value, or

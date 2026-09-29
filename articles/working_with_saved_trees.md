@@ -91,22 +91,24 @@ traversal.
 print(head(trees, n = 10))
 ```
 
-    ##    forest chain sample tree   n var        value
-    ## 1       1     1      1    1 100   5  0.172099022
-    ## 2       1     1      1    1  19  -1 -0.161987541
-    ## 3       1     1      1    1  81   2  0.415258286
-    ## 4       1     1      1    1  20  -1 -0.067348401
-    ## 5       1     1      1    1  61  -1  0.060031278
-    ## 6       1     1      1    2 100   4  0.849325015
-    ## 7       1     1      1    2  82   4  0.571833524
-    ## 8       1     1      1    2  51  -1 -0.008752156
-    ## 9       1     1      1    2  31  -1  0.192449201
-    ## 10      1     1      1    2  18  -1  0.315472253
+    ##    chain sample tree   n var        value
+    ## 1      1      1    1 100   5  0.172099022
+    ## 2      1      1    1  19  -1 -0.161987541
+    ## 3      1      1    1  81   2  0.415258286
+    ## 4      1      1    1  20  -1 -0.067348401
+    ## 5      1      1    1  61  -1  0.060031278
+    ## 6      1      1    2 100   4  0.849325015
+    ## 7      1      1    2  82   4  0.571833524
+    ## 8      1      1    2  51  -1 -0.008752156
+    ## 9      1      1    2  31  -1  0.192449201
+    ## 10     1      1    2  18  -1  0.315472253
 
 The columns refer to:
 
 - `forest`, `chain`, `sample`, `tree` - index variables; `forest` is
-  present even on the single-forest fit above
+  present only on a fit with several forests (or one declared with
+  `forests =`), so not on the single-forest fit above; `chain` is always
+  present in `extract(type = "trees")`, 1 on a one-chain fit
 - `n` - number of observations in node (from the training data, or from
   `newdata` when it is supplied; see “Counts for New Data” below)
 - `var` - either the index of the variable used for splitting or -1 if
@@ -154,9 +156,9 @@ catTrees <- extract(catFit, "trees")
 print(subset(catTrees, var != -1))
 ```
 
-    ##   forest sample tree  n var value directions
-    ## 1      1      1    1 60   1    NA       LLRR
-    ## 5      1      1    3 60   1    NA       LLRR
+    ##   chain sample tree  n var value directions
+    ## 1     1      1    1 60   1    NA       LLRR
+    ## 5     1      1    3 60   1    NA       LLRR
 
 `g`’s levels are `"a"`, `"b"`, `"c"`, `"d"`, in that order, so the first
 tree’s `directions` of `"LLRR"` sends `a` and `b` left and `c` and `d`
@@ -415,12 +417,12 @@ newTrees <- extract(bartFit, "trees", newdata = newData, sampleNums = 3, treeNum
 print(subset(newTrees, chain == 1))
 ```
 
-    ##   forest chain sample tree n var       value
-    ## 1      1     1      3    1 5   5  0.17209902
-    ## 2      1     1      3    1 2  -1 -0.16037867
-    ## 3      1     1      3    1 3   2  0.41525829
-    ## 4      1     1      3    1 1  -1 -0.10879844
-    ## 5      1     1      3    1 2  -1  0.05573811
+    ##   chain sample tree n var       value
+    ## 1     1      3    1 5   5  0.17209902
+    ## 2     1      3    1 2  -1 -0.16037867
+    ## 3     1      3    1 3   2  0.41525829
+    ## 4     1      3    1 1  -1 -0.10879844
+    ## 5     1      3    1 2  -1  0.05573811
 
 ## Advanced Traversal
 
