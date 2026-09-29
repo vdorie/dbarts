@@ -527,8 +527,8 @@ gaussian and under a latent family.** (1) `sd` and `amplitude.prior.variance`
 are stated PER UNIT OF BASIS ROW NORM: a forest whose basis rows have median
 nonzero norm c contributes the scale named, and the map divides c out.
 (2) The induced prior sd on the index at row i is
-`sqrt( sum_f prior.scale_f^2 v_f ||B_f(i,.)||^2 )` over the fixed-variance
-forests, `prior.scale_f` read from `$getCalibration(f)[, "prior.scale"]` and
+`sqrt( sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2 )` over the fixed-variance
+forests, `prior.sd_f` read from `$getLeafPrior(f)[, "prior.sd"]` (k is pinned at 1) and
 `v_f` the forest's `amplitude.prior.variance` (default 0.5); a basis-free
 forest's own contribution is Cauchy with no sd. (3) Under probit and logistic
 that index is in LATENT sd units and sigma is PINNED, so nothing absorbs a
@@ -563,16 +563,16 @@ general channel ([`Chain::amplitudes`](../../src/bartcore/chain.hpp), [`forestTo
 
 The map is READABLE, at all three layers, and is the only route to any of its
 five quantities:
-`$getCalibration(f)` reports `amplitude.prior.variance` and
+`$getLeafPrior(f)` reports `amplitude.prior.variance` and
 `amplitude.prior.scale` - exclusive per forest, the fixed-variance and
-scale-mixture spellings of `ForestAmplitudePrior` - beside `node.scale.factor`,
-`node.scale.divisor` and `basis.row.norm`, NaN on any forest with no map entry;
-`bartcore_getCalibration` carries the five columns and
+scale-mixture spellings of `ForestAmplitudePrior` - beside `leaf.scale.factor`,
+`leaf.scale.divisor` and `basis.row.norm`, NaN on any forest with no map entry;
+`bartcore_getLeafPrior` carries the five columns and
 `dbarts_forest_calibration` the five appended fields. The anchor s has no
-column and is recovered as `prior.scale * divisor * rowNorm / factor` whenever
-`node.scale.factor` is not NaN, which is exactly when the calibration in force
+column and is recovered as `prior.sd * divisor * rowNorm / factor` whenever
+`leaf.scale.factor` is not NaN, which is exactly when the calibration in force
 is the map's: a `setState` or `installTrees` that brings a foreign leaf scale
-clears both `node.scale` columns (the amplitude prior follows the state, the
+clears both `leaf.scale` columns (the amplitude prior follows the state, the
 row norm is unaffected - bases are not state) and `setForestBasis` re-imposes
 the map and restores them.
 

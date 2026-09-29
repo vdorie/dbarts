@@ -91,30 +91,45 @@ sampling and between-draw substitution never drift; `updateScale =
 TRUE` re-anchors and is documented as burn-in only, since re-anchoring
 mid-run makes fits across iterations no longer comparable.
 
-## prior.scale (naming the calibration)
+## Naming the leaf prior: k or sd
 
 Locking the anchor is not the same as choosing it. A composed model -
 one whose driving R program hands the sampler latents, residuals or
-another block's offsets - still inherits whatever calibration the
+another block's offsets - still inherits whatever spread the
 CONSTRUCTION vector implied, which is an accident of how the outer loop
-was initialized rather than a modelling statement. `prior.scale` names
-it instead, in response units: it is the prior sd of the forest total at
-`k = 1`, so `prior.scale = fitScale * leaf.scale * sqrt(m)` is the
-conversion, `prior.sd = prior.scale / k` is the reading at the k in
-force, and the prior mean is the transform's shift, whose lever is the
-offset channel. Only the ratio `leaf.scale / k` enters any draw law, so
-under a fixed `k` the pair carries one degree of freedom and
-`prior.scale` is the identified half; `k` matters when a hyperprior
-draws it, and then `prior.scale` is the constant of the model while
-`prior.sd` moves every sweep - which is why the `sd` spelling is refused
-under a hyperprior and the `scale` spelling is not.
+was initialized rather than a modelling statement. So the leaf prior is
+named one of two ways, never both: `k`, relative to the anchor the data
+fixes (a number, or a law on k, `chi(df, scale)`), or `sd`, the prior sd
+of the forest total's leaf parameter on the scale the family's forest
+fits (a number, or a law on the sd itself, `invchi(df, scale)`). For the
+constant leaf `sd` is the prior sd of f(x); for linear leaves it is each
+coefficient's, per standardized covariate; for GP leaves the amplitude.
 
-The named value overrides the family-keyed `leaf.scale` above, which
-stays the internal-unit primitive and is what the bridge reads when
-nothing is named. The conversion happens engine-side, at the one site
-that sets the leaf scale and again on every model install, so a
-hand-built model reaches it with no R-side arithmetic. Because the
-transform is the divisor there, a channel that re-anchors it moves the
-calibration in force while leaving the named intent on the model alone.
-The two-forest and multinomial models have their own calibration maps
-and refuse a named value rather than drop it.
+Only the ratio of anchor to k enters a draw law. Under k ~ s chi_df the
+spread is (anchor / s) / chi_df, a scaled inverse chi on the sd, so a
+named anchor and the k hyperprior's scale are not separately identified:
+`chi(df, s)` is `invchi(df, anchor / s)`, and `chi(df, Inf)`, the
+improper sd^-(df + 1), is `invchi(df, 0)`. That family is the only law on
+the sd offered because it is the one conjugate to the normal leaves.
+
+The translation rides a reference k of 2: `sd = x` reaches the engine
+as anchor 2x with k fixed at 2, and `invchi(df, c)` as anchor 2c with
+k ~ chi(df, 2); `invchi(df, 0)` is no anchor with chi(df, Inf). A drawn
+k starts at 2, so the chain starts at the named spread, and the binary
+default and the old k spellings at their defaults keep bitwise engine
+inputs. The anchor is the dbartsModel slot `prior.scale`, which
+overrides the family-keyed `leaf.scale` above and is converted
+engine-side against the transform in force, at creation and on every
+model install.
+
+A named sd is absolute. The sampler restates the named anchor after
+every channel that re-anchors the response transform
+([`reissueNamedLeafSd`](../../R/dbarts.R)), using the latest
+`$setLeafPrior` write, which the R5 model records; a k moves with the
+data. The reader reports in the terms the prior was named in: `prior.sd`,
+the sd law in force while k is drawn, and k relative to the data's
+`anchor` ([`reportLeafPrior`](../../R/dbarts.R)); a fit named by an sd
+hyperprior carries draws of the sd in place of k. The two-forest and
+multinomial models have their own calibration maps and refuse a named
+sd rather than drop it, as does a hurdle fit, whose two parts are on
+different scales.

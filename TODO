@@ -137,6 +137,15 @@ items
     penalties: gate STANDS, no model surfaced. Records:
     docs/design/interaction-constraints.md,
     docs/plans/archive/interaction-constraints.md.
+  leaf-prior-predictive: no plan doc of its own; filed by the dec-A106
+    ruling with docs/plans/leaf-prior-k-or-sd.md. A helper returning the
+    prior spread of f at given x under a sampler's leaf prior, since a
+    named sd is the sd of the leaf model's own parameter and is the
+    prior sd of f(x) only for the constant leaf (linear: a lower bound,
+    gp: an upper bound, monotone: a lower bound in the interior).
+    samplePriorPredictive already draws f from the prior at x.test; the
+    helper would summarize it, or compute it in closed form where one
+    exists (constant, linear).
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply

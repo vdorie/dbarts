@@ -1183,7 +1183,7 @@ augmentation families with AFT's imputed log-time read preserved.
 Host-shell census now 48 own methods / 25 host-mutation-guarded.
 Beyond-spec, kept: nine R-side refusals for compositions the
 multinomial factory silently drops (monotone, DART, split.probs,
-linear/GP leaves, k hyperprior, named prior.scale, groups,
+linear/GP leaves, k hyperprior, a named leaf-prior sd, groups,
 storage = "single", variance forest) and a bridge nullptr backstop
 for the variance-forest case, which previously crashed latent.
 

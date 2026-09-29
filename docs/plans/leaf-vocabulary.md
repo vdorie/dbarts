@@ -388,7 +388,7 @@ Tombstone list, after the `sigma` entry: `\code{node.prior} on \code{dbarts} (su
    keeping calibration as the noun (dec-B129 notes no package uses it).
 6. treatSens needs no change, because item 2 keeps its internals working. Rejected: a lockstep treatSens edit.
    Moving treatSens onto `dbartsSpec()` stays a separate treatSens item.
-7. [`resolvePriorScale`](../../R/model.R)'s own `node.prior`/`node.hyperprior` formals stay: they are a private
+7. retired: [`resolvePriorScale`](../../R/model.R) (since removed by leaf-prior-k-or-sd)'s own `node.prior`/`node.hyperprior` formals stay: they are a private
    helper called positionally from [`resolveSamplerSpec`](../../R/spec.R) and [`xbart`](../../R/xbart.R) (the
    latter through its renamed `leafPrior` local), so the parameter spelling is invisible to every caller. Kept in
    the same "internal plumbing keeps node" bucket as item 2, rather than renamed for cosmetic symmetry. Rejected:

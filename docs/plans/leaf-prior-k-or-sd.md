@@ -48,9 +48,9 @@ for the name in open question (d); the implementer substitutes it everywhere.
   plus a k hyperprior collapses to one sd hyperprior. At s = Inf the kernel is the improper
   sd^-(nu + 1), which is the sd hyperprior at c = 0.
 - R today: [`normal`](../../R/model.R), [`linear`](../../R/model.R) and [`gp`](../../R/model.R) take
-  `k`, `sd` and `scale`; [`resolveNamedScaleArgs`](../../R/model.R) keeps at most one of `sd` and
-  `scale`; [`resolvePriorScale`](../../R/model.R) turns `sd` into `sd * k` and refuses it under a
-  hyperprior; [`resolveLeafHyperprior`](../../R/model.R) turns `k` into a
+  `k`, `sd` and `scale`; retired: [`resolveNamedScaleArgs`](../../R/model.R) kept at most one of `sd`
+  and `scale`, and retired: [`resolvePriorScale`](../../R/model.R) turned `sd` into `sd * k` and refused
+  it under a hyperprior (both removed by this plan); [`resolveLeafHyperprior`](../../R/model.R) turns `k` into a
   [`dbartsFixedHyperprior`](../../R/A_class.R) or passes a
   [`dbartsChiHyperprior`](../../R/A_class.R) through. [`resolveSamplerSpec`](../../R/spec.R) and
   [`xbart`](../../R/xbart.R) write the result into the [`dbartsModel`](../../R/A_class.R) slot
