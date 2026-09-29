@@ -348,8 +348,10 @@ family(object, ...)
 
   Optional integer specifying the desired pRNG
   [seed](https://rdrr.io/r/base/Random.html). `NULL` (the default)
-  leaves the fit unseeded, and `NA` is accepted the same way, silently;
-  a [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand then
+  leaves the fit unseeded, and an explicit `NA` is a missing value, as
+  in [`set.seed`](https://rdrr.io/r/base/Random.html): it reads as
+  `NULL` for one release, with a once-per-session warning; a
+  [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand then
   suffices for reproducibility. Supplying `seed` instead gives
   reproducible results without touching R's stream. See the
   Reproducibility section of
@@ -377,26 +379,26 @@ family(object, ...)
   drawn, which is how a fitted forest is re-sampled as a fixed basis.
   Under
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
-  default `levelGibbs = NA` a frozen forest additionally takes the
+  default `treeShift = "auto"` a frozen forest additionally takes the
   level-shifting Gibbs step each iteration, the leaf values then being
-  the only thing left to move. `bartBT` has no `levelGibbs` formal of
-  its own and always runs at this default;
+  the only thing left to move. `bartBT` has no `treeShift` formal of its
+  own and always runs at this default;
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and a
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-  sampler's control object can set it to `TRUE` or `FALSE` instead,
-  which changes the sampled values without changing the posterior. A
-  `"swap"` element exchanges a parent's split rule with a child's;
-  `bart` ships it at zero because at production forest sizes it measures
-  as a no-op, and `bartBT` keeps it at 0.1 to match BayesTree. With
-  `n.trees = 1` it is the only move that rotates a rule up the tree. A
-  `"perturb"` element displaces one node's split point by a single cut
-  position while keeping its variable and the tree's shape; it defaults
-  to zero, and only ordinal (numeric) columns can be perturbed. A
-  `"rule_gibbs"` element replaces one nog node's rule - a node whose two
-  children are both leaves - with a draw from that rule's own full
-  conditional over the available ordinal variables and their admissible
-  cuts, so its acceptance is one; it defaults to zero, it acts only
-  where the node's own rule is ordinal, and it is inert on an
+  sampler's control object can set it to `"always"` or `"never"`
+  instead, which changes the sampled values without changing the
+  posterior. A `"swap"` element exchanges a parent's split rule with a
+  child's; `bart` ships it at zero because at production forest sizes it
+  measures as a no-op, and `bartBT` keeps it at 0.1 to match BayesTree.
+  With `n.trees = 1` it is the only move that rotates a rule up the
+  tree. A `"perturb"` element displaces one node's split point by a
+  single cut position while keeping its variable and the tree's shape;
+  it defaults to zero, and only ordinal (numeric) columns can be
+  perturbed. A `"rule_gibbs"` element replaces one nog node's rule - a
+  node whose two children are both leaves - with a draw from that rule's
+  own full conditional over the available ordinal variables and their
+  admissible cuts, so its acceptance is one; it defaults to zero, it
+  acts only where the node's own rule is ordinal, and it is inert on an
   all-categorical design.
 
 - keepsampler:
@@ -1123,21 +1125,21 @@ bartFit <- bart(x, y)
 #> [2] iteration: 200 (of 500)
 #> [1] iteration: 300 (of 500)
 #> [2] iteration: 300 (of 500)
-#> [2] iteration: 400 (of 500)
 #> [1] iteration: 400 (of 500)
-#> [2] iteration: 500 (of 500)
+#> [2] iteration: 400 (of 500)
 #> [1] iteration: 500 (of 500)
+#> [2] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
 #> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
 #> [4] iteration: 200 (of 500)
 #> [3] iteration: 300 (of 500)
 #> [4] iteration: 300 (of 500)
-#> [4] iteration: 400 (of 500)
 #> [3] iteration: 400 (of 500)
-#> [4] iteration: 500 (of 500)
+#> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
-#> total seconds in loop: 0.148228
+#> [4] iteration: 500 (of 500)
+#> total seconds in loop: 0.090459
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

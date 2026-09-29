@@ -9,7 +9,7 @@ keeps every leaf node non-empty in every tree of every sampler.
 ## Usage
 
 ``` r
-updatePredictorPerObservationJointly(samplers, x, column, updateState = NA)
+updatePredictorPerObservationJointly(samplers, x, column, updateState = NULL)
 ```
 
 ## Arguments
@@ -39,10 +39,12 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NA)
 - updateState:
 
   A logical determining if the local cache of each sampler's state
-  should be updated after the update completes. If `NA`, each sampler's
-  own
+  should be updated after the update completes. If `NULL` (the default),
+  each sampler's own
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
-  default is used.
+  default is used; `TRUE` or `FALSE` overrides it and anything else is
+  an error. An explicit `NA` reads as `NULL` for one release, with a
+  once-per-session warning.
 
 ## Details
 

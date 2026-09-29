@@ -87,7 +87,9 @@ The residual priors chisq and fixed are what a family
       <code>alpha</code> is the concentration, optionally sampled
       (<code>update.alpha</code>) on a grid with a Beta(<code>a</code>, <code>b</code>) prior
       on <code>alpha / (alpha + rho)</code>; <code>rho</code> defaults to the number of
-      predictors. Updates hold until <code>update.delay</code> iterations have
+      predictors. <code>NA</code> is a missing value, not a spelling of the default,
+      and is refused for <code>rho</code> and <code>update.delay</code> alike. Updates hold
+      until <code>update.delay</code> iterations have
       passed (default: half the control's burn-in), so the forest is
       likelihood-informed when counts first enter the Dirichlet.</p></dd>
 
@@ -111,7 +113,9 @@ The residual priors chisq and fixed are what a family
       <code>k</code> drawn every sweep leaves no single value to divide by;
       name <code>scale</code> there, which a sampled <code>k</code> scales rather
       than replaces. See <code><a href="dbarts.html">dbarts</a></code>'s Details for what the
-      named quantity means under each leaf model.</p></dd>
+      named quantity means under each leaf model. <code>NULL</code> leaves
+      either unnamed; <code>NA</code> is a missing value and is refused, here
+      and in <code>linear</code> and <code>gp</code>.</p></dd>
 
     <dt><code>linear(columns, k = NULL, sd = NULL, scale = NULL)</code></dt>
 <dd><p>Each leaf fits an intercept plus a linear term in the designated

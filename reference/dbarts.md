@@ -16,13 +16,13 @@ dbarts(
     blocks = NULL,
     variance = NULL,
     forests = NULL,
-    control = dbarts::dbartsControl(), sigest = NA_real_, seed = NULL,
+    control = dbarts::dbartsControl(), sigest = NULL, seed = NULL,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal",
                "nbinom", "hazard", "hazard.probit", "hazard.logistic"),
     na.action = dbarts::na.keepPredictors,
-    sigma = NA_real_, node.prior = NULL, callback = NULL, ...)
+    sigma = NULL, node.prior = NULL, callback = NULL, ...)
 ```
 
 ## Arguments
@@ -339,8 +339,9 @@ dbarts(
 - sigest:
 
   A positive numeric estimate of the residual standard deviation
-  supplied at creation. If `NA`, a linear model is used with all of the
-  predictors to obtain one. Spelled the same way on
+  supplied at creation. If `NULL` (the default), a linear model is used
+  with all of the predictors to obtain one; an explicit `NA` is a
+  missing value and is refused. Spelled the same way on
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) and
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md); the
@@ -421,9 +422,10 @@ dbarts(
 
   Optional integer seed for the random number generator, a convenience
   mirror of `dbartsControl(seed = )`. `NULL` (the default) means not
-  given here: it leaves `control`'s own seed in force, seeded or not;
-  `NA` is accepted the same way, silently. A single finite number
-  overrides the seed in `control`.
+  given here: it leaves `control`'s own seed in force, seeded or not; an
+  `NA` is a missing value, as in
+  [`set.seed`](https://rdrr.io/r/base/Random.html), and is refused. A
+  single finite number overrides the seed in `control`.
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) and
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accept
   the same argument and resolve it identically. See the Reproducibility

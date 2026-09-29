@@ -118,7 +118,7 @@
   <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
 <dd><p>Seeds R's random number stream for the whole run, making it reproducible, and restores the
     caller's stream on exit, as <code><a href="https://rdrr.io/r/stats/simulate.html" class="external-link">simulate</a></code> does; <code>NULL</code> uses the stream as it
-    stands, advancing it, and <code>NA</code> is accepted the same way, silently. The band's own stream is
+    stands, advancing it. An <code>NA</code> is a missing value and is refused. The band's own stream is
     fixed internally and restored on exit either way, so a call never leaves that fix behind.</p></dd>
 
 </dl></div>

@@ -87,9 +87,9 @@ dbartsValidateComposition(drawPrior, simulate, init, step, functionals,
   Seeds R's random number stream for the whole run, making it
   reproducible, and restores the caller's stream on exit, as
   [`simulate`](https://rdrr.io/r/stats/simulate.html) does; `NULL` uses
-  the stream as it stands, advancing it, and `NA` is accepted the same
-  way, silently. The band's own stream is fixed internally and restored
-  on exit either way, so a call never leaves that fix behind.
+  the stream as it stands, advancing it. An `NA` is a missing value and
+  is refused. The band's own stream is fixed internally and restored on
+  exit either way, so a call never leaves that fix behind.
 
 ## Details
 

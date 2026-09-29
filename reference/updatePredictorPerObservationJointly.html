@@ -50,7 +50,7 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">updatePredictorPerObservationJointly</span><span class="op">(</span><span class="va">samplers</span>, <span class="va">x</span>, <span class="va">column</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">updatePredictorPerObservationJointly</span><span class="op">(</span><span class="va">samplers</span>, <span class="va">x</span>, <span class="va">column</span>, updateState <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -72,8 +72,9 @@
 
   <dt id="arg-updatestate">updateState<a class="anchor" aria-label="anchor" href="#arg-updatestate"></a></dt>
 <dd><p>A logical determining if the local cache of each sampler's state should be updated after the
-    update completes. If <code>NA</code>, each sampler's own <code><a href="dbartsControl.html">control</a></code> default
-    is used.</p></dd>
+    update completes. If <code>NULL</code> (the default), each sampler's own <code><a href="dbartsControl.html">control</a></code> default
+    is used; <code>TRUE</code> or <code>FALSE</code> overrides it and anything else is an error. An explicit
+    <code>NA</code> reads as <code>NULL</code> for one release, with a once-per-session warning.</p></dd>
 
 </dl></div>
     <div class="section level2">

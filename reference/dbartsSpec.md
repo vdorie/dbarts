@@ -18,11 +18,11 @@ dbartsSpec(
     monotone = NULL, interactions = NULL, blocks = NULL,
     variance = NULL,
     forests = NULL,
-    sigest = NA_real_, seed = NULL,
+    sigest = NULL, seed = NULL,
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal", "nbinom"),
     survival = NULL,
-    parentEnv = parent.frame(), sigma = NA_real_, node.prior = NULL, ...)
+    parentEnv = parent.frame(), sigma = NULL, node.prior = NULL, ...)
 ```
 
 ## Arguments
@@ -130,11 +130,12 @@ question does not arise.
 
 ### Differences from dbarts()
 
-`sigma` defaults to leaving the data object's own value alone, rather
-than overwriting it: a caller that computed a starting estimate keeps
-it, and an unset (`NA`) value is still estimated during resolution. Cut
-points are taken from `control` only when the data does not already
-carry resolved per-column counts.
+`sigest` defaults to `NULL`, which leaves the data object's own value
+alone, rather than overwriting it: a caller that computed a starting
+estimate keeps it, and an unset (`NA`) value is still estimated during
+resolution. An explicit `NA` for `sigest` is a missing value and is
+refused. Cut points are taken from `control` only when the data does not
+already carry resolved per-column counts.
 
 Families that require ingestion this function does not perform are
 unavailable: `"hazard"` needs person-period expansion, and

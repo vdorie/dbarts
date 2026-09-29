@@ -9,16 +9,16 @@ started all while maintaining its own state.
 ``` r
 # S4 method for class 'dbartsSampler'
 run(
-  numBurnIn, numSamples, updateState = NA, ..., callback = NULL
+  numBurnIn = NULL, numSamples = NULL, updateState = NULL, ..., callback = NULL
 )
 # S4 method for class 'dbartsSampler'
-sampleTreesFromPrior(updateState = NA)
+sampleTreesFromPrior(updateState = NULL)
 # S4 method for class 'dbartsSampler'
-sampleLeafParametersFromPrior(updateState = NA)
+sampleLeafParametersFromPrior(updateState = NULL)
 # S4 method for class 'dbartsSampler'
-sampleVarianceForestFromPrior(updateState = NA)
+sampleVarianceForestFromPrior(updateState = NULL)
 # S4 method for class 'dbartsSampler'
-growFromRoot(n.sweeps = 2L, updateState = NA)
+growFromRoot(n.sweeps = 2L, updateState = NULL)
 # S4 method for class 'dbartsSampler'
 copy(shallow = FALSE)
 # S4 method for class 'dbartsSampler'
@@ -34,33 +34,33 @@ setControl(newControl)
 # S4 method for class 'dbartsSampler'
 setModel(newModel)
 # S4 method for class 'dbartsSampler'
-setData(newData, updateState = NA)
+setData(newData, updateState = NULL)
 # S4 method for class 'dbartsSampler'
 setResponse(
-  y, updateScale = FALSE, updateState = NA, status = NULL
+  y, updateScale = FALSE, updateState = NULL, status = NULL
 )
 # S4 method for class 'dbartsSampler'
-setOffset(offset, updateScale = FALSE, updateState = NA)
+setOffset(offset, updateScale = FALSE, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setWeights(weights, updateState = NA)
+setWeights(weights, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setCounts(counts, updateState = NA)
+setCounts(counts, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setCategoryOffset(offset, updateState = NA)
+setCategoryOffset(offset, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setCategoryTestOffset(offset.test, updateState = NA)
+setCategoryTestOffset(offset.test, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setActiveRows(active, updateState = NA)
+setActiveRows(active, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setForestWeights(forest, weights, updateState = NA)
+setForestWeights(forest, weights, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setForestBasis(forest, basis, updateState = NA)
+setForestBasis(forest, basis, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setSigma(sigma, updateState = NA)
+setSigma(sigma, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setPredictor(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA)
+setPredictor(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setCutPoints(cuts, column, updateState = NA)
+setCutPoints(cuts, column, updateState = NULL)
 # S4 method for class 'dbartsSampler'
 setTestPredictor(x.test, column)
 # S4 method for class 'dbartsSampler'
@@ -96,12 +96,12 @@ getForestVariableCounts(forest = NULL)
 getLeafPrior(forest = NULL)
 # S4 method for class 'dbartsSampler'
 setLeafPrior(
-  prior.scale, prior.sd, prior.mean, forest = 1L, updateState = NA
+  prior.scale, prior.sd, prior.mean, forest = 1L, updateState = NULL
 )
 # S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL)
 # S4 method for class 'dbartsSampler'
-sampleNodeParametersFromPrior(updateState = NA)
+sampleNodeParametersFromPrior(updateState = NULL)
 # S4 method for class 'dbartsSampler'
 startThreads(n.threads = control@n.threads)
 # S4 method for class 'dbartsSampler'
@@ -131,16 +131,18 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - numBurnIn:
 
   A non-negative integer determining how many iterations the sampler
-  should skip before storing results. If missing or `NA`, the default is
+  should skip before storing results. If `NULL` (the default), it is
   filled in from the sampler's
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
-  object.
+  object; an explicit `NA` reads as `NULL` for one release, with a
+  once-per-session warning.
 
 - numSamples:
 
   A positive integer determining how many posterior samples should be
-  returned. If missing or `NA`, the default is also filled in from the
-  control object.
+  returned. If `NULL` (the default), it is also filled in from the
+  control object; an explicit `NA` reads as `NULL` for one release, with
+  a once-per-session warning.
 
 - callback:
 
@@ -186,18 +188,21 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `setOffset`, `setWeights`, `setCounts`, `setCategoryOffset`,
   `setCategoryTestOffset`, `setActiveRows`, `setForestWeights`,
   `setForestBasis`, `setSigma`, `setLeafPrior`, `setPredictor`, and
-  `setCutPoints`): `NA` (the default) resolves to the sampler's
+  `setCutPoints`): `NULL` (the default) resolves to the sampler's
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   object's `updateState`, and an explicit `TRUE` or `FALSE` overrides
-  it. The mutators are typically called once per sweep inside a larger
-  Gibbs/MH loop (as `dbartsSampler` is designed for); a control with
-  `updateState = FALSE` keeps such a loop free of the store's cost on
-  every call, while the default `TRUE` keeps `state` current after each
-  one. An unforced `state` promise materializes the sampler's *current*
-  state on first access regardless, so a mutate-then-first-read sequence
-  needs no explicit store either way. Pass `TRUE` explicitly to force a
-  store under a `control@updateState = FALSE` sampler, or `FALSE` to
-  skip one under `control@updateState = TRUE`.
+  it. Anything else is an error, raised before the sampler changes; an
+  explicit `NA`, the default of 0.9-x, reads as `NULL` for one release,
+  with a once-per-session warning. The mutators are typically called
+  once per sweep inside a larger Gibbs/MH loop (as `dbartsSampler` is
+  designed for); a control with `updateState = FALSE` keeps such a loop
+  free of the store's cost on every call, while the default `TRUE` keeps
+  `state` current after each one. An unforced `state` promise
+  materializes the sampler's *current* state on first access regardless,
+  so a mutate-then-first-read sequence needs no explicit store either
+  way. Pass `TRUE` explicitly to force a store under a
+  `control@updateState = FALSE` sampler, or `FALSE` to skip one under
+  `control@updateState = TRUE`.
 
 - shallow:
 
@@ -214,13 +219,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   An object inheriting from
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
   When passed to `setControl`, it cannot change `n.trees`, `n.chains`,
-  `useQuantiles`, `levelGibbs`, or `seed` from the values the sampler
-  was created with, and cannot set `keepTrees = TRUE` without also
-  giving `n.samples`; either is an error. `levelGibbs` is guarded as one
-  of the three values it was given - `TRUE`, `FALSE`, or `NA` - so
-  restating `NA`, the default, is accepted while turning the step on or
-  off is not; under `NA` the step follows the mixture, which `setModel`
-  may freeze at any point.
+  `useQuantiles`, `treeShift`, or `seed` from the values the sampler was
+  created with, and cannot set `keepTrees = TRUE` without also giving
+  `n.samples`; either is an error. `treeShift` is guarded as one of the
+  three values it was given - `"always"`, `"never"`, or `"auto"` - so
+  restating `"auto"`, the default, is accepted while turning the step on
+  or off is not; under `"auto"` the step follows the mixture, which
+  `setModel` may freeze at any point.
 
 - newModel:
 

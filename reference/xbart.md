@@ -16,17 +16,23 @@ xbart(
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, drop = TRUE,
-    sigest = NA_real_,
+    sigest = NULL,
     seed = NULL,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
     leaf.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
     storage = c("double", "single"), tree.prior = NULL,
     parallel = getOption("dbarts.parallel", "auto"), cl = NULL,
-    control = dbarts::dbartsControl(), ...)
+    control = dbarts::dbartsControl(), sigma = NULL, ...)
 ```
 
 ## Arguments
+
+- sigma:
+
+  The 0.9-x spelling of `sigest`, accepted for one release with a
+  once-per-session warning and removed in dbarts 1.1-0. Supplying both
+  is an error.
 
 - ...:
 
@@ -44,7 +50,7 @@ xbart(
   object carrying the sampler and engine settings, including the ones
   `xbart` spells no flat name for: `categoricalExhaustiveCap`,
   `testFitParallelCutoff`, `predictParallelCutoff`,
-  `sparseDensityThreshold`, `levelGibbs`, and the tree-move mixture
+  `sparseDensityThreshold`, `treeShift`, and the tree-move mixture
   `proposal.probs`. Precedence, one rule: a flat argument named in the
   call wins over the control's slot of the same name, and a slot the
   control speaks for - one its own
@@ -267,19 +273,20 @@ xbart(
 - sigest:
 
   A positive numeric estimate of the residual standard deviation. If
-  `NA`, a linear model is used with all of the predictors to obtain one.
-  Every entry point spells this `sigest` - `xbart`,
+  `NULL` (the default), a linear model is used with all of the
+  predictors to obtain one; an explicit `NA` is a missing value and is
+  refused. Every entry point spells this `sigest` - `xbart`,
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)/`bart`
   and the sampler constructors
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)/`dbartsSpec`
-  alike; `sigma` is the retired 0.9-x spelling on the constructors, and
-  a family object's own `sigma` is the prior this estimate calibrates,
-  not the estimate. That estimate falls back to the marginal standard
-  deviation of the response when the linear model's residual standard
-  error comes out non-finite, warning as it does so (class
-  `dbartsSigmaFallbackWarning`); a design with sparse-backed predictor
-  columns skips the linear model altogether and falls back the same way
-  (class `dbartsSparseSigmaFallbackWarning`, a
+  alike; `sigma` is the retired 0.9-x spelling on the constructors and
+  on `xbart` itself, and a family object's own `sigma` is the prior this
+  estimate calibrates, not the estimate. That estimate falls back to the
+  marginal standard deviation of the response when the linear model's
+  residual standard error comes out non-finite, warning as it does so
+  (class `dbartsSigmaFallbackWarning`); a design with sparse-backed
+  predictor columns skips the linear model altogether and falls back the
+  same way (class `dbartsSparseSigmaFallbackWarning`, a
   `dbartsSigmaFallbackWarning`). It is the estimate a `chisq` residual
   prior's quantile is calibrated against, so it stands beside
   `family = gaussian(sigma = chisq(df, quant))` and is refused beside
@@ -291,10 +298,12 @@ xbart(
   Optional integer specifying the desired pRNG
   [seed](https://rdrr.io/r/base/Random.html). `NULL` (the default) means
   not given here and defers to a seed already sitting in `control`, if
-  any; `NA` is accepted the same way, silently. From the seed in force,
-  `xbart` draws a split seed for each replication and a seed for each
-  sampler its units create - one per (replication, fold) unit at each
-  distinct tree count - with
+  any; an `NA` is a missing value, as in
+  [`set.seed`](https://rdrr.io/r/base/Random.html): it reads as `NULL`
+  for one release, with a once-per-session warning. From the seed in
+  force, `xbart` draws a split seed for each replication and a seed for
+  each sampler its units create - one per (replication, fold) unit at
+  each distinct tree count - with
   [`sample.int`](https://rdrr.io/r/base/sample.html), in one pass, under
   the caller's own [`RNGkind`](https://rdrr.io/r/base/Random.html): a
   given seed therefore draws different values, and so gives different

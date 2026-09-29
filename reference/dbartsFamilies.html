@@ -21,7 +21,8 @@ family takes either a token string (family = &quot;gaussian&quot;),
   hint naming dbartsFamilies$student(...) and its siblings.
 Base R's family objects are accepted as glm takes them.
   stats::gaussian() (or a bare gaussian(link = &quot;identity&quot;),
-  whose link comes first, as in glm) is the gaussian family,
+  whose link comes first, as in glm, and which may name the
+  link unquoted, gaussian(link = identity)) is the gaussian family,
   binomial(link = &quot;probit&quot;) is probit, and
   binomial(link = &quot;logit&quot;) is logistic; the word
   &quot;binomial&quot; and the bare function binomial mean
@@ -64,7 +65,8 @@ family takes either a token string (family = &quot;gaussian&quot;),
   hint naming dbartsFamilies$student(...) and its siblings.
 Base R's family objects are accepted as glm takes them.
   stats::gaussian() (or a bare gaussian(link = &quot;identity&quot;),
-  whose link comes first, as in glm) is the gaussian family,
+  whose link comes first, as in glm, and which may name the
+  link unquoted, gaussian(link = identity)) is the gaussian family,
   binomial(link = &quot;probit&quot;) is probit, and
   binomial(link = &quot;logit&quot;) is logistic; the word
   &quot;binomial&quot; and the bare function binomial mean
@@ -147,7 +149,8 @@ Every setting that only one family reads rides its family object rather
   hint naming <code>dbartsFamilies$student(...)</code> and its siblings.</p>
 <p>Base R's family objects are accepted as <code><a href="https://rdrr.io/r/stats/glm.html" class="external-link">glm</a></code> takes them.
   <code><a href="https://rdrr.io/r/stats/family.html" class="external-link">stats::gaussian()</a></code> (or a bare <code>gaussian(link = "identity")</code>,
-  whose <code>link</code> comes first, as in <code>glm</code>) is the gaussian family,
+  whose <code>link</code> comes first, as in <code>glm</code>, and which may name the
+  link unquoted, <code>gaussian(link = identity)</code>) is the gaussian family,
   <code>binomial(link = "probit")</code> is <code>probit</code>, and
   <code>binomial(link = "logit")</code> is <code>logistic</code>; the word
   <code>"binomial"</code> and the bare function <code>binomial</code> mean
@@ -214,8 +217,8 @@ Every setting that only one family reads rides its family object rather
     <dt><code>multinomial()</code>, <code>ordinal()</code></dt>
 <dd><p>Unordered K-category softmax and ordered cumulative-probit models.</p></dd>
 
-    <dt><code>nbinom(dispersion = NA)</code></dt>
-<dd><p>Negative-binomial counts. <code>NA</code> estimates the dispersion
+    <dt><code>nbinom(dispersion = NULL)</code></dt>
+<dd><p>Negative-binomial counts. <code>NULL</code> estimates the dispersion
       \(r\) on a capped positive-integer grid; a positive integer fixes
       it.</p></dd>
 

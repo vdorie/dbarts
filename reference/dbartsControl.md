@@ -17,9 +17,9 @@ coerced through this construction.
 dbartsControl(
     verbose = FALSE, keepTrainingFits = TRUE, keepFits = TRUE,
     useQuantiles = FALSE,
-    levelGibbs = NA,
+    treeShift = c("auto", "always", "never"),
     keepTrees = FALSE, storage = c("double", "single"),
-    n.samples = NA_integer_,
+    n.samples = NULL,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
     n.threads = min(dbarts::guessNumCores(), n.chains), n.thin = 1L, printEvery = 100L,
     printCutoffs = 0L,
@@ -92,18 +92,19 @@ dbartsControl(
   `FALSE`, the rules are spaced uniformly throughout the range of
   covariate values.
 
-- levelGibbs:
+- treeShift:
 
-  A logical adding one extra Gibbs step per sampler iteration, taken
-  before the trees are updated: a constant is added to every occupied
-  leaf of each tree, with the constants summing to zero over the trees.
-  The sum-of-trees function is therefore unchanged - the fits, the
-  residual variance and any latent variables see exactly the state they
-  would have - while the individual leaf values move, which can improve
-  mixing where the ensemble's overall level is split among many trees.
-  The shift is drawn from its exact conditional distribution, so the
-  posterior being sampled is the same either way. Three values: `TRUE`
-  takes the step every iteration, `FALSE` never takes it, and `NA` (the
+  A string, one of `"auto"` (the default), `"always"` or `"never"`, for
+  an extra Gibbs step per sampler iteration, taken before the trees are
+  updated: a constant is added to every occupied leaf of each tree, with
+  the constants summing to zero over the trees. The sum-of-trees
+  function is therefore unchanged - the fits, the residual variance and
+  any latent variables see exactly the state they would have - while the
+  individual leaf values move, which can improve mixing where the
+  ensemble's overall level is split among many trees. The shift is drawn
+  from its exact conditional distribution, so the posterior being
+  sampled is the same either way. Three values: `"always"` takes the
+  step every iteration, `"never"` never takes it, and `"auto"` (the
   default) takes it for a forest exactly when that forest's tree
   structures are frozen - every structural element of `proposal.probs`
   zero - where the leaf values are the only thing left moving. The
@@ -149,7 +150,9 @@ dbartsControl(
 - n.samples:
 
   A non-negative integer giving the default number of samples to return
-  each time the sampler is run. Generally specified by
+  each time the sampler is run; `NULL` (the default) means not set, and
+  an explicit `NA` reads as `NULL` for one release, with a
+  once-per-session warning. Generally specified by
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
   instead, and can be overridden on a per-use basis whenever the sampler
   is
@@ -305,7 +308,7 @@ dbartsControl(
   structures stand where they are, and only the leaf values, `sigma` and
   the family's latents keep being drawn, which is how a fitted forest is
   re-sampled as a fixed basis. Under `dbartsControl`'s default
-  `levelGibbs = NA` a frozen forest additionally takes the
+  `treeShift = "auto"` a frozen forest additionally takes the
   level-shifting Gibbs step each iteration, the leaf values then being
   the only thing left to move. An unnamed `"perturb"` or `"rule_gibbs"`
   is taken as zero and resolved before the rest; an unnamed `"swap"` is
@@ -340,14 +343,14 @@ dbartsControl(
 - seed:
 
   Random number generator seed. `NULL` (the default) means not given
-  here and resolves, like an explicit `NA`, to the slot's unseeded
-  value; either leaves the object unseeded. Every chain then runs its
-  own generator; a seed given instead drives a dedicated generator that
-  in turn hands each chain its own seed, leaving R's stream untouched.
-  Seeded results do not depend on the thread count, and a single-chain
-  run with a given seed reproduces the first chain of a multi-chain run
-  with the same seed. Unseeded, chain generators are seeded from R's
-  stream at creation, so
+  here and resolves to the slot's unseeded value, which leaves the
+  object unseeded. An explicit `NA` is a missing value and is refused.
+  Every chain then runs its own generator; a seed given instead drives a
+  dedicated generator that in turn hands each chain its own seed,
+  leaving R's stream untouched. Seeded results do not depend on the
+  thread count, and a single-chain run with a given seed reproduces the
+  first chain of a multi-chain run with the same seed. Unseeded, chain
+  generators are seeded from R's stream at creation, so
   [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices
   for reproducibility; sampling itself never advances R's stream, though
   `copy()` of an unseeded sampler, and the first use of an unseeded

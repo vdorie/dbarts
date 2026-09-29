@@ -30,10 +30,11 @@ A list of functions:
   over the split-variable probabilities inducing variable selection.
   `alpha` is the concentration, optionally sampled (`update.alpha`) on a
   grid with a Beta(`a`, `b`) prior on `alpha / (alpha + rho)`; `rho`
-  defaults to the number of predictors. Updates hold until
-  `update.delay` iterations have passed (default: half the control's
-  burn-in), so the forest is likelihood-informed when counts first enter
-  the Dirichlet.
+  defaults to the number of predictors. `NA` is a missing value, not a
+  spelling of the default, and is refused for `rho` and `update.delay`
+  alike. Updates hold until `update.delay` iterations have passed
+  (default: half the control's burn-in), so the forest is
+  likelihood-informed when counts first enter the Dirichlet.
 
 - `normal(k = NULL, sd = NULL, scale = NULL)`:
 
@@ -57,6 +58,8 @@ A list of functions:
   name `scale` there, which a sampled `k` scales rather than replaces.
   See [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   Details for what the named quantity means under each leaf model.
+  `NULL` leaves either unnamed; `NA` is a missing value and is refused,
+  here and in `linear` and `gp`.
 
 - `linear(columns, k = NULL, sd = NULL, scale = NULL)`:
 

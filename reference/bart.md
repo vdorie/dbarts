@@ -23,7 +23,7 @@ takes no `family` argument and always fits the gaussian or probit model.
 ``` r
 bart(
     formula, data, test, subset, weights, offset, offset.test = offset,
-    sigest = NA_real_, k = NULL,
+    sigest = NULL, k = NULL,
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
@@ -639,13 +639,15 @@ print(x, ...)
 
   For continuous response models, an estimate of the residual standard
   deviation (residual standard error), \\\sigma\\, used to calibrate an
-  inverse-chi-squared prior on the error variance. If not supplied, the
-  least-squares estimate is derived instead. That estimate falls back to
-  the marginal standard deviation of the response when the linear
-  model's residual standard error comes out non-finite, warning as it
-  does so (class `dbartsSigmaFallbackWarning`); a design with
-  sparse-backed predictor columns skips the linear model altogether and
-  falls back the same way (class `dbartsSparseSigmaFallbackWarning`, a
+  inverse-chi-squared prior on the error variance. If `NULL` (the
+  default), the least-squares estimate is derived instead; an explicit
+  `NA` reads as `NULL` for one release, with a once-per-session warning.
+  That estimate falls back to the marginal standard deviation of the
+  response when the linear model's residual standard error comes out
+  non-finite, warning as it does so (class
+  `dbartsSigmaFallbackWarning`); a design with sparse-backed predictor
+  columns skips the linear model altogether and falls back the same way
+  (class `dbartsSparseSigmaFallbackWarning`, a
   `dbartsSigmaFallbackWarning`). The prior it calibrates is
   `family = gaussian(sigma = chisq(df, quant))`, whose `quant` is the
   prior probability that \\\sigma\\ is less than this estimate. Not
@@ -694,10 +696,9 @@ print(x, ...)
   `leaf.prior = linear(columns = 1:3)` and `gp(...)` are reachable this
   way. `NULL` (the default for both) instead builds the tree and leaf
   priors from `power`/`base`/`split.probs` and `k` respectively. A DART
-  prior is `tree.prior = dart()`, which also carries the
-  categorical-split `levelGibbs` setting; neither has a shorthand of its
-  own on this signature. Supplying an object alongside a shorthand that
-  would otherwise help build the same prior is an error naming both:
+  prior is `tree.prior = dart()`; it has no shorthand of its own on this
+  signature. Supplying an object alongside a shorthand that would
+  otherwise help build the same prior is an error naming both:
   `tree.prior` collides with any of `power`/`base`/`split.probs`;
   `leaf.prior` with `k`. Both are honored on every family, including
   both component fits of `family = "hurdle.lognormal"`. The residual
@@ -873,7 +874,9 @@ print(x, ...)
   Optional integer specifying the desired pRNG
   [seed](https://rdrr.io/r/base/Random.html). `NULL` (the default) means
   not given here and defers to a seed already sitting in `control`, if
-  any; `NA` is accepted the same way, silently. A
+  any; an explicit `NA` is a missing value, as in
+  [`set.seed`](https://rdrr.io/r/base/Random.html): it reads as `NULL`
+  for one release, with a once-per-session warning. A
   [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices
   for reproducibility when nothing ends up seeded; supplying `seed`
   instead gives reproducible results without touching R's stream. See
@@ -1046,7 +1049,7 @@ print(x, ...)
   object carrying the sampler and engine settings, including the ones
   `bart` spells no flat name for: `categoricalExhaustiveCap`,
   `testFitParallelCutoff`, `predictParallelCutoff`,
-  `sparseDensityThreshold`, `levelGibbs`, and the tree-move mixture
+  `sparseDensityThreshold`, `treeShift`, and the tree-move mixture
   `proposal.probs`. Precedence, one rule: a flat argument named in the
   call wins over the control's slot of the same name, and a slot the
   control speaks for - one its own
@@ -1259,8 +1262,9 @@ sampler afterward never advances the stream further. Passing `seed`
 instead drives the chain seeds from a separate, dedicated generator and
 leaves R's stream untouched altogether. A single number named in the
 call always wins over a seed already sitting in `control`; `NULL` means
-not given here and defers to `control`'s own seed instead, and `NA` is
-accepted as `NULL`, silently - neither discards a control seed. A
+not given here and defers to `control`'s own seed instead, and an
+explicit `NA` reads as `NULL` for one release, with a once-per-session
+warning; neither discards a control seed. A
 `family = "hurdle.lognormal"` fit derives its two component seeds from
 the one `seed` in force (the call's, or `control`'s); without one, the
 two components draw their own chain seeds from R's stream in turn. Do
@@ -1279,7 +1283,7 @@ at the same seed, and likewise for any other chain index. Adding a test
 set, `keepTrees`, and `verbose` do not change the draws either;
 `storage = "single"`,
 [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
-`levelGibbs`, and any change to the model or the data do.
+`treeShift`, and any change to the model or the data do.
 
 **Simulated outcomes.** A `type = "ppd"` draw on `predict`, `extract`,
 or `fitted`, and
@@ -1798,7 +1802,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001583
+#> total seconds in loop: 0.001019
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1846,7 +1850,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002037
+#> total seconds in loop: 0.001153
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

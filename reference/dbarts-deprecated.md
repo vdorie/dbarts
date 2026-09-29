@@ -26,9 +26,11 @@ in dbarts 1.1-0.
 
 - `sigma`:
 
-  On [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
-  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md):
-  the creation-time residual estimate, now `sigest`.
+  On [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+  and [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md): the
+  creation-time residual estimate, now `sigest`; like `sigest`, it
+  defaults to `NULL`.
 
 - `node.prior`:
 
@@ -107,6 +109,28 @@ in dbarts 1.1-0.
   `n.threads`, as 0.9-x's formal `numThreads`, or positionally after
   `updateState`: a run uses the sampler's own count, which `$setControl`
   changes, and its draws do not depend on it.
+
+- `NA` where `NULL` now means not given:
+
+  `NULL`, not `NA`, is the one spelling of an absent value. Where
+  0.9-34's own default was `NA`, an explicit `NA` is still read as
+  `NULL` after a once-per-session warning: `sigest` on
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md); `seed` on
+  `bart`,
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) and
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md);
+  `n.samples` on
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md);
+  `updateState` on the
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  methods and
+  [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md);
+  and `numBurnIn` and `numSamples` on `$run`. An argument new in 1.0-0
+  refuses an `NA`, naming `NULL`: `sigest` and `seed` on
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+  `sigest` on `xbart`, `seed` on `dbartsControl`, and both on
+  `dbartsSpec`, which is new, and `seed` on
+  [`dbartsValidateComposition`](https://vdorie.github.io/dbarts/reference/dbartsValidateComposition.md).
 
 - A BayesTree-spelled
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) call:

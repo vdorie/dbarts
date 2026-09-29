@@ -29,7 +29,8 @@ could-not-find-function error, extended with the same hint naming
 Base R's family objects are accepted as
 [`glm`](https://rdrr.io/r/stats/glm.html) takes them.
 [`stats::gaussian()`](https://rdrr.io/r/stats/family.html) (or a bare
-`gaussian(link = "identity")`, whose `link` comes first, as in `glm`) is
+`gaussian(link = "identity")`, whose `link` comes first, as in `glm`,
+and which may name the link unquoted, `gaussian(link = identity)`) is
 the gaussian family, `binomial(link = "probit")` is `probit`, and
 `binomial(link = "logit")` is `logistic`; the word `"binomial"` and the
 bare function `binomial` mean
@@ -104,9 +105,9 @@ A list of functions:
 
   Unordered K-category softmax and ordered cumulative-probit models.
 
-- `nbinom(dispersion = NA)`:
+- `nbinom(dispersion = NULL)`:
 
-  Negative-binomial counts. `NA` estimates the dispersion \\r\\ on a
+  Negative-binomial counts. `NULL` estimates the dispersion \\r\\ on a
   capped positive-integer grid; a positive integer fixes it.
 
 - `aft(sigma = NULL)`:
