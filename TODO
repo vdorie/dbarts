@@ -264,18 +264,8 @@ items
     peak memory follows the nonzeros; the docs that call a replaced
     column "densified permanently" are corrected with it. Plan:
     docs/plans/sparse-mutation-direct.md.
-  na-as-none: before the RC (VD 2026-09-28, dec-B132). Public
-    arguments that use NA to mean absent or default move to NULL, NA
-    kept for one release under a once-per-session warning where 0.9-34
-    documented it. Ruled: sigest (dec-B136), seed (dec-B137, with the
-    bartCause and stan4bart one-line fixes), updateState (dec-B138).
-    levelGibbs renamed treeShift ("auto", "always", "never"), control
-    only (dec-B139). Proposed to the maintainer as direct applications
-    of dec-B132 (2026-09-28, awaiting any objection): nbinom(dispersion),
-    run(numBurnIn, numSamples), dbartsControl(n.samples), NA refused as
-    a prior default; plus the missing tombstones for xbart(sigma =) and
-    the test setters' updateState, and gaussian(link = identity) with an
-    unquoted link, which glm accepts.
+  na-as-none: before the RC (VD 2026-09-28, dec-B136 to dec-B140).
+    Plan: docs/plans/na-as-none.md.
   sbc-family-tiers: two open arms (docs/plans/sbc-family-tiers.md,
     docs/plans/archive/runsbcbcf-repair.md): the monotone follow-on,
     the first arm the constrained prior draw unblocks; and the full-R
