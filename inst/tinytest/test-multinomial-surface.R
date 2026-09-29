@@ -711,9 +711,9 @@ expect_error(
   ),
   "softmax's own null direction"
 )
-# offset is train-side only. bart's own offset.test is caught at the R
-# boundary, before it would otherwise fall through to the host dbarts() call
-# (does not support 'offset.test'); the underlying flat test-offset refusal,
+# bart's own flat offset.test is refused at the R boundary, before it would
+# otherwise fall through to the host dbarts() call; the matrix form is wired
+# (test-multinomial-test-offset.R). The underlying flat test-offset refusal,
 # reached by building the count-matrix data object directly, names the
 # category test offset channel instead of an unqualified "do not support"
 expect_error(
@@ -727,7 +727,7 @@ expect_error(
     n.burn = 2L,
     n.samples = 2L
   ),
-  "does not support 'offset.test'"
+  "softmax's own null direction"
 )
 expect_error(
   dbarts(

@@ -212,13 +212,12 @@ silently reaching no K-forest engine slot. An n x K numeric matrix
 offset IS accepted (landed with the mutation channel below,
 docs/plans/archive/multinomial-counts-mutation.md S5): a creation-time argument on
 bart2's one-shot fit, threaded to the internal creator's own offset
-argument rather than to the host sampler's flat one. It is TRAIN-side only:
-bart2's own offset.test is refused by name, and yhat.test is always
-computed WITHOUT any category offset - even when offset was supplied for
-training - since the category test offset stays an internal-channel
-capability (bartcoreSetCategoryTestOffset, or the internal creators' own
-offset.test argument), not reachable from bart2. A caller comparing an
-offset-fitted yhat.train against yhat.test needs to know this asymmetry.
+argument rather than to the host sampler's flat one. offset.test takes an m x K matrix for the m fit-time
+test rows and is installed through the sampler's category test offset
+channel; omitted, it defaults to the training offset when the row counts
+match, and a training offset beside a test set of another length is refused
+by name asking for offset.test (the other families' rule). yhat.test then
+equals predict(fit, test, offset = offset.test) draw for draw.
 Test data at creation and out-of-sample prediction under keepTrees are
 both supported (below).
 

@@ -427,3 +427,136 @@ expect_silent(sampler.pred.testonly$predict(
   x.test,
   zeroTestOffset
 ))
+
+# --- bart()'s public route: offset.test on family = "multinomial" ---
+labelsFactor <- factor(labels)
+fitArgs <- function(...) {
+  list(
+    x,
+    labelsFactor,
+    family = "multinomial",
+    test = x.test,
+    n.trees = 25L,
+    n.burn = 20L,
+    n.samples = 8L,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    verbose = FALSE,
+    ...
+  )
+}
+fitOffsetTest <- function(...) {
+  set.seed(606)
+  do.call(bart, fitArgs(...))
+}
+
+# explicit offset.test: yhat.test is the replay at test given that matrix,
+# draw for draw, and differs from the offset-free surface
+fit.ot <- fitOffsetTest(offset = offset, offset.test = testOffset)
+expect_identical(
+  fit.ot$yhat.test,
+  predict(fit.ot, x.test, offset = testOffset)
+)
+fit.none <- fitOffsetTest()
+expect_identical(fit.none$yhat.test, predict(fit.none, x.test))
+expect_false(isTRUE(all.equal(fit.ot$yhat.test, fit.none$yhat.test)))
+# a test offset alone (no training offset) works too
+fit.only <- fitOffsetTest(offset.test = testOffset)
+expect_identical(
+  fit.only$yhat.test,
+  predict(fit.only, x.test, offset = testOffset)
+)
+# and moves nothing on the train side
+expect_identical(
+  fit.only$yhat.train,
+  fit.none$yhat.train
+)
+# a data frame is taken as its matrix
+fit.df <- fitOffsetTest(offset.test = as.data.frame(testOffset))
+expect_identical(fit.df$yhat.test, fit.only$yhat.test)
+
+# default reuse: a training offset beside a test set of the same row count
+x.same <- x[seq_len(n), , drop = FALSE]
+fit.reuse <- {
+  set.seed(606)
+  bart(
+    x,
+    labelsFactor,
+    family = "multinomial",
+    test = x.same,
+    offset = offset,
+    n.trees = 25L,
+    n.burn = 20L,
+    n.samples = 8L,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    verbose = FALSE
+  )
+}
+expect_identical(
+  fit.reuse$yhat.test,
+  predict(fit.reuse, x.same, offset = offset)
+)
+
+# unequal rows with no offset.test: refused by name
+expect_error(
+  fitOffsetTest(offset = offset),
+  "offset.test"
+)
+# an offset.test without test rows
+expect_error(
+  bart(
+    x,
+    labelsFactor,
+    family = "multinomial",
+    offset.test = testOffset,
+    n.trees = 5L,
+    n.burn = 2L,
+    n.samples = 2L
+  ),
+  "must be null when 'test' is null"
+)
+# shape, type and value validation
+expect_error(fitOffsetTest(offset.test = rep(0, nTest)), "null direction")
+expect_error(
+  fitOffsetTest(offset.test = testOffset[, 1:2]),
+  "3 categories"
+)
+expect_error(
+  fitOffsetTest(offset.test = testOffset[1:5, ]),
+  "observations x 3 categories"
+)
+expect_error(
+  fitOffsetTest(offset.test = matrix("a", nTest, K)),
+  "numeric"
+)
+naTestOffset <- testOffset
+naTestOffset[2L, 2L] <- NA_real_
+expect_error(fitOffsetTest(offset.test = naTestOffset), "finite")
+# the training offset carries the same rule
+naOffset <- offset
+naOffset[2L, 2L] <- NA_real_
+expect_error(
+  fitOffsetTest(offset = naOffset, offset.test = testOffset),
+  "finite"
+)
+
+# a kept sampler carries the test offset; keepTrees fits survive save/load
+fit.keep <- fitOffsetTest(offset.test = testOffset, keepSampler = TRUE)
+expect_identical(fit.keep$fit$data@offset.category.test, testOffset)
+fit.ot$fit$storeState()
+tmp <- tempfile(fileext = ".rds")
+saveRDS(fit.ot, tmp)
+expect_identical(
+  predict(readRDS(tmp), x.test, offset = testOffset),
+  fit.ot$yhat.test
+)
+unlink(tmp)
+
+# no test offset: no RNG change (the fit is the pre-existing path)
+expect_identical(
+  fitOffsetTest(offset.test = zeroTestOffset)$yhat.test,
+  fit.none$yhat.test
+)

@@ -1161,18 +1161,25 @@ bart <- function(
       multinomialOffset <- offset
       matchedCall$offset <- NULL
     }
-    # offset is train-side only: an explicit offset.test is refused here
-    # rather than left to fall through to parseMultinomialData's later
-    # refusal. yhat.test is always computed WITHOUT any category offset, so
-    # a caller wanting one needs the sampler-level channel this message names.
+    # offset.test: the m x K category offset of the m fit-time test rows,
+    # installed through $setCategoryTestOffset after creation and, like
+    # 'offset', never forwarded to the host call. When omitted it follows the
+    # other families' rule: the training offset is reused if the row counts
+    # match and refused by name otherwise (installMultinomialTestOffset).
+    multinomialOffsetTest <- NULL
     if (!missing(offset.test)) {
-      stop(
-        "family = \"multinomial\" does not support 'offset.test'; yhat.test ",
-        "is always computed without any category offset. A category test ",
-        "offset is a sampler-level capability only - a dbartsSampler's own ",
-        "$setCategoryTestOffset method, reached through keepSampler = TRUE - ",
-        "not reachable from bart()"
-      )
+      if (!is.matrix(offset.test) && !is.data.frame(offset.test)) {
+        refuseFlatOffsetOnMultinomial(offset.test, "offset.test")
+      }
+      offset.test <- as.matrix(offset.test)
+      if (!is.numeric(offset.test)) {
+        stop(
+          "family = \"multinomial\" 'offset.test' must be a numeric m x K ",
+          "matrix"
+        )
+      }
+      multinomialOffsetTest <- offset.test
+      matchedCall$offset.test <- NULL
     }
     if (!missing(subset)) {
       stop(
@@ -1303,6 +1310,7 @@ bart <- function(
           sigest,
           combineChains,
           offset = multinomialOffset,
+          offset.test = multinomialOffsetTest,
           split.probs = split.probs,
           shorthandSupplied = shorthandSupplied,
           keepSampler = keepSampler,
@@ -1342,6 +1350,7 @@ bart <- function(
         sigest,
         combineChains,
         offset = multinomialOffset,
+        offset.test = multinomialOffsetTest,
         split.probs = split.probs,
         shorthandSupplied = shorthandSupplied,
         keepSampler = keepSampler,
@@ -1782,6 +1791,33 @@ detectAutoOrdinal <- function(formula, data, dataIsMissing, callingEnv) {
   }
 }
 
+# The category offset of the fit-time test rows. An explicit 'offset.test' is
+# taken as given (its shape is validated by the sampler's entrance); omitted,
+# a training offset is reused when its row count is the test row count and
+# refused by name otherwise, as the other families refuse a per-row offset
+# beside a test set of another length. Called before the training offset loses
+# its na.action rows, so the count compared is the caller's own.
+resolveMultinomialTestOffset <- function(sampler, offset, offset.test) {
+  x.test <- sampler$data@x.test
+  if (!is.null(offset.test)) {
+    if (is.null(x.test)) {
+      stop("'offset.test' must be null when 'test' is null")
+    }
+    return(offset.test)
+  }
+  if (is.null(offset) || is.null(x.test)) {
+    return(NULL)
+  }
+  if (nrow(x.test) != nrow(offset)) {
+    stop(
+      "family = \"multinomial\" 'offset' cannot be directly applied to test ",
+      "data of unequal length; supply 'offset.test', an m x K matrix for the ",
+      "m test rows"
+    )
+  }
+  offset
+}
+
 # The multinomial (softmax) fit path, reached from bart2's family =
 # "multinomial" branch after ingestion validation. y is the validated factor
 # response; K = nlevels(y) follows from it. The sampler is built directly
@@ -1805,6 +1841,7 @@ bart2Multinomial <- function(
   sigest,
   combineChains,
   offset = NULL,
+  offset.test = NULL,
   split.probs = NULL,
   shorthandSupplied = character(),
   keepSampler = FALSE,
@@ -1837,11 +1874,15 @@ bart2Multinomial <- function(
   sampler <- eval(samplerCall, envir = callingEnv)
   # no store: the fresh sampler's state stays the promise read at first use;
   # the offset loses the rows the sampler's na.action dropped
+  testOffset <- resolveMultinomialTestOffset(sampler, offset, offset.test)
   if (!is.null(offset)) {
     if (!is.null(sampler$data@na.action)) {
       offset <- offset[-unclass(sampler$data@na.action), , drop = FALSE]
     }
     sampler$setCategoryOffset(offset, updateState = FALSE)
+  }
+  if (!is.null(testOffset)) {
+    sampler$setCategoryTestOffset(testOffset, updateState = FALSE)
   }
   if (isTRUE(samplerOnly)) {
     return(sampler)
@@ -1899,6 +1940,7 @@ bart2MultinomialCounts <- function(
   sigest,
   combineChains,
   offset = NULL,
+  offset.test = NULL,
   split.probs = NULL,
   shorthandSupplied = character(),
   keepSampler = FALSE,
@@ -1927,11 +1969,15 @@ bart2MultinomialCounts <- function(
   sampler <- eval(samplerCall, envir = callingEnv)
   # no store: the fresh sampler's state stays the promise read at first use;
   # the offset loses the rows the sampler's na.action dropped
+  testOffset <- resolveMultinomialTestOffset(sampler, offset, offset.test)
   if (!is.null(offset)) {
     if (!is.null(sampler$data@na.action)) {
       offset <- offset[-unclass(sampler$data@na.action), , drop = FALSE]
     }
     sampler$setCategoryOffset(offset, updateState = FALSE)
+  }
+  if (!is.null(testOffset)) {
+    sampler$setCategoryTestOffset(testOffset, updateState = FALSE)
   }
   if (isTRUE(samplerOnly)) {
     return(sampler)
