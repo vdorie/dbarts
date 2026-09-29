@@ -141,22 +141,27 @@ expect_error(
   "quasibinomial"
 )
 
-# bare gaussian takes link first, glm's order, and refuses other links
+# dbarts's own gaussian takes no link, the identity being the only one it
+# fits: a link given by name, positionally or unquoted is refused naming R's
+# stats::gaussian(), whose object is still mapped; a prior may go first
+for (call in list(
+  quote(gaussian(link = "identity")),
+  quote(gaussian("identity")),
+  quote(gaussian(identity)),
+  quote(gaussian(link = "log")),
+  quote(gaussian(sigma = "identity"))
+)) {
+  expect_error(resolve(call), "takes no 'link'.*stats::gaussian\\(\\)")
+}
 expect_identical(
-  resolve(quote(gaussian(link = "identity"))),
+  resolve(quote(stats::gaussian(link = "identity"))),
   resolve(quote("gaussian"))
 )
+expect_error(resolve(quote(gaussian(prior = 1))), "takes only 'sigma'")
 expect_identical(
-  resolve(quote(gaussian("identity"))),
-  resolve(quote("gaussian"))
+  resolve(quote(gaussian(fixed(1))))@settings,
+  dbartsFamilies$gaussian(sigma = dbartsPriors$fixed(1))@settings
 )
-expect_error(
-  resolve(quote(gaussian(link = "log"))),
-  "gaussian(link = \"log\") is not supported",
-  fixed = TRUE
-)
-expect_error(resolve(quote(gaussian(sigma = "identity"))), "link =")
-expect_error(resolve(quote(gaussian(fixed(1)))), "sigma =")
 expect_identical(
   resolve(quote(gaussian(sigma = fixed(1))))@settings,
   dbartsFamilies$gaussian(sigma = dbartsPriors$fixed(1))@settings

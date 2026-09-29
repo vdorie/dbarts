@@ -27,9 +27,10 @@
   hint naming \code{dbartsFamilies$student(...)} and its siblings.
 
   Base R's family objects are accepted as \code{\link{glm}} takes them.
-  \code{stats::gaussian()} (or a bare \code{gaussian(link = "identity")},
-  whose \code{link} comes first, as in \code{glm}, and which may name the
-  link unquoted, \code{gaussian(link = identity)}) is the gaussian family,
+  \code{stats::gaussian()}, or \code{stats::gaussian(link = "identity")}, is
+  the gaussian family (dbarts's own \code{gaussian()} below takes no
+  \code{link}, since the identity link is the only one it fits, and refuses
+  one by name),
   \code{binomial(link = "probit")} is \code{probit}, and
   \code{binomial(link = "logit")} is \code{logistic}; the word
   \code{"binomial"} and the bare function \code{binomial} mean
@@ -65,7 +66,7 @@
 \format{
   A list of functions:
   \describe{
-    \item{\code{gaussian(link = "identity", sigma = NULL)}}{
+    \item{\code{gaussian(sigma = NULL)}}{
       A continuous response with normal errors; the default for a numeric
       response under \code{family = "auto"}. \code{sigma} is the prior on
       the residual scale: \code{NULL} is the shipped

@@ -358,27 +358,24 @@ familySigmaSetting <- function(sigma, caller) {
 
 ## The Gaussian (continuous) response, the package default for a numeric
 ## response under family = "auto". 'sigma' is the residual scale's prior.
-gaussian <- function(link = "identity", sigma = NULL) {
-  # a bare link name (link = identity) is read by name, as stats::gaussian
-  # reads it, before the value would be evaluated
-  linkExpr <- substitute(link)
-  if (is.name(linkExpr) && as.character(linkExpr) %in% statsLinkNames) {
-    link <- as.character(linkExpr)
-  }
-  if (!is.character(link) || length(link) != 1L) {
+## dbarts fits only the identity link, so this takes none; an R family object
+## such as stats::gaussian() is mapped where family objects are resolved.
+gaussian <- function(sigma = NULL, ...) {
+  sigmaExpr <- substitute(sigma)
+  if (
+    "link" %in%
+      ...names() ||
+      is.character(sigma) ||
+      (is.name(sigmaExpr) && as.character(sigmaExpr) %in% statsLinkNames)
+  ) {
     stop(
-      "gaussian() takes 'link' first; write sigma = for a prior",
+      "gaussian() takes no 'link': dbarts fits the identity link only; drop ",
+      "it, or pass R's stats::gaussian()",
       call. = FALSE
     )
   }
-  if (!identical(link, "identity")) {
-    stop(refusedLink("gaussian", link), call. = FALSE)
-  }
-  if (is.character(sigma)) {
-    stop(
-      "'sigma' must be a residual prior; did you mean link = ?",
-      call. = FALSE
-    )
+  if (...length() > 0L) {
+    stop("gaussian() takes only 'sigma'", call. = FALSE)
   }
   newValidated(
     "dbartsFamily",
@@ -441,11 +438,12 @@ nbinom <- function(dispersion = NULL) {
     length(dispersion) != 1L ||
       !is.numeric(dispersion) ||
       !is.finite(dispersion) ||
-      dispersion <= 0.0
+      dispersion <= 0.0 ||
+      dispersion != round(dispersion)
   ) {
     stop(
       "nbinom 'dispersion' must be NULL (estimate it) or a single positive ",
-      "finite number"
+      "whole number"
     )
   }
   newValidated(

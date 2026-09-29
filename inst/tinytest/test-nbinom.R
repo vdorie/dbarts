@@ -215,7 +215,7 @@ expect_error(
 )
 expect_error(
   dbarts(x, y, family = nbinom(dispersion = 2.5)),
-  pattern = "real dispersion is not yet supported"
+  pattern = "single positive whole number"
 )
 expect_error(
   dbarts(x, y, family = nbinom(dispersion = -3)),

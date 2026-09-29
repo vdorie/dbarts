@@ -532,15 +532,11 @@ expect_true(setequal(
 
 # ---- site 10: gaussian(link = identity) unquoted ----
 
+# dbarts's gaussian takes no link (dec-A102); R's own reads an unquoted one
 gaussianFamily <- dbarts:::dbartsFamilies$gaussian
-expect_identical(gaussianFamily(link = identity), gaussianFamily())
-expect_identical(gaussianFamily(link = "identity"), gaussianFamily())
-identityName <- "identity"
-expect_identical(gaussianFamily(identityName), gaussianFamily())
-expect_error(gaussianFamily(link = log), "not supported")
-expect_error(gaussianFamily(link = "log"), "not supported")
-expect_error(gaussianFamily(link = 3), "takes 'link' first")
-gaussianFit <- callBart(family = gaussian(link = identity), seed = 3L)
+expect_error(gaussianFamily(link = identity), "takes no 'link'")
+expect_error(gaussianFamily(link = "identity"), "takes no 'link'")
+gaussianFit <- callBart(family = stats::gaussian(link = identity), seed = 3L)
 expect_identical(
   gaussianFit$yhat.train,
   callBart(family = "gaussian", seed = 3L)$yhat.train
