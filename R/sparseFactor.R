@@ -140,38 +140,233 @@ methods::setMethod("show", "sparseFactor", function(object) {
 # needs its observation count here to ride in a frame at all
 methods::setMethod("length", "sparseFactor", function(x) x@length)
 
+# The 1-based level code of every position.
+sparseFactorCodes <- function(x) {
+  codes <- rep.int(match(x@reference, x@levels), x@length)
+  codes[x@i + 1L] <- x@values
+  codes
+}
+
 # The level label of every position, as a character vector.
 methods::setMethod("as.character", "sparseFactor", function(x, ...) {
-  labels <- rep.int(x@reference, x@length)
-  labels[x@i + 1L] <- x@levels[x@values]
-  labels
+  x@levels[sparseFactorCodes(x)]
 })
+
+methods::setMethod("levels", "sparseFactor", function(x) x@levels)
+
+# no missing values are held, so none are reported
+methods::setMethod("is.na", "sparseFactor", function(x) {
+  logical(x@length)
+})
+
+# as.factor keeps every level, as it does for a factor
+methods::setMethod("as.factor", "sparseFactor", function(x) {
+  structure(sparseFactorCodes(x), levels = x@levels, class = "factor")
+})
+
+methods::setMethod("as.vector", "sparseFactor", function(x, mode = "any") {
+  as.vector(as.character(x), mode)
+})
+
+# order, sort and rank read the level codes, as for a factor
+methods::setMethod("xtfrm", "sparseFactor", function(x) sparseFactorCodes(x))
 
 # format is what print, head and str of a data frame call per column.
 format.sparseFactor <- function(x, ...) {
   format(as.character(x), ...)
 }
 
-# Row subset by position as for a factor: positive, negative, zero, logical
-# (recycled) and repeated indices, over the same levels and reference, mapping
-# the stored positions rather than densifying. An index that reaches outside
-# the vector would be a missing value, which a sparseFactor cannot hold.
+# str shows the same line a factor does
+str.sparseFactor <- function(object, ...) {
+  shown <- object[seq_len(min(length(object), 100L))]
+  utils::str(
+    factor(as.character(shown), levels = object@levels),
+    ...
+  )
+}
+
+# The stored positions a row index selects, as for a factor: positive,
+# negative, zero, logical (recycled) and repeated indices.
+sparseFactorPositions <- function(x, i, extend = FALSE) {
+  if (is.character(i) || !is.null(dim(i)) || is.factor(i)) {
+    stop("a sparseFactor can be indexed by position only")
+  }
+  positions <- if (extend && is.numeric(i) && all(i >= 0, na.rm = TRUE)) {
+    i[i > 0]
+  } else {
+    seq_len(x@length)[i]
+  }
+  if (anyNA(positions)) {
+    stop(
+      "a sparseFactor cannot hold NA, so an NA or out-of-range row index ",
+      "is refused"
+    )
+  }
+  as.integer(positions)
+}
+
+# Drops the levels no row takes. Storage is sparse in the reference level, so
+# when that one is unused the most common remaining level takes over.
+dropSparseFactorLevels <- function(x) {
+  used <- tabulate(sparseFactorCodes(x), length(x@levels))
+  if (!any(used > 0L)) {
+    return(x)
+  }
+  reference <- match(x@reference, x@levels)
+  if (used[reference] == 0L) {
+    reference <- which.max(used)
+  }
+  levels <- x@levels[used > 0L]
+  sparseFactor(
+    as.character(x),
+    levels = levels,
+    reference = x@levels[reference]
+  )
+}
+
+# Row subset over the same levels and reference, mapping the stored positions
+# rather than densifying; drop = TRUE drops unused levels as a factor does.
 methods::setMethod("[", "sparseFactor", function(x, i, j, ..., drop = FALSE) {
   if (!missing(j) || ...length() > 0L) {
     stop("incorrect number of dimensions")
   }
-  if (missing(i)) {
-    return(x)
+  result <- if (missing(i)) {
+    x
+  } else {
+    subsetSparseFactorRows(x, sparseFactorPositions(x, i))
   }
-  if (is.character(i) || !is.null(dim(i)) || is.factor(i)) {
-    stop("a sparseFactor can be indexed by position only")
-  }
-  positions <- seq_len(x@length)[i]
-  if (anyNA(positions)) {
-    stop("missing values are not supported in a sparseFactor")
-  }
-  subsetSparseFactorRows(x, positions)
+  if (isTRUE(drop)) dropSparseFactorLevels(result) else result
 })
+
+methods::setMethod("[[", "sparseFactor", function(x, i, j, ...) {
+  if (length(i) != 1L) {
+    stop("attempt to select more or less than one element")
+  }
+  x[i]
+})
+
+# Assignment by position: the value's labels must be levels of x, since a
+# sparseFactor cannot hold NA, and an index past the end extends the vector
+# provided nothing is left unassigned.
+methods::setReplaceMethod(
+  "[",
+  "sparseFactor",
+  function(x, i, j, ..., value) {
+    if (!missing(j) || ...length() > 0L) {
+      stop("incorrect number of dimensions")
+    }
+    positions <- if (missing(i)) {
+      seq_len(x@length)
+    } else {
+      sparseFactorPositions(x, i, extend = TRUE)
+    }
+    if (length(positions) == 0L) {
+      return(x)
+    }
+    labels <- as.character(value)
+    if (length(labels) == 0L) {
+      stop("replacement has length zero")
+    }
+    labels <- rep_len(labels, length(positions))
+    codes <- match(labels, x@levels)
+    if (anyNA(codes)) {
+      stop("a sparseFactor cannot hold NA or a level it does not have")
+    }
+    newLength <- max(x@length, positions)
+    # a later assignment to a position wins
+    last <- !duplicated(positions, fromLast = TRUE)
+    positions <- positions[last]
+    codes <- codes[last]
+    if (newLength > x@length) {
+      unassigned <- setdiff(seq.int(x@length + 1L, newLength), positions)
+      if (length(unassigned) > 0L) {
+        stop(
+          "a sparseFactor cannot hold NA, so it cannot be extended past a gap"
+        )
+      }
+    }
+    stored <- x@i + 1L
+    keep <- stored %not_in% positions
+    rows <- c(stored[keep], positions)
+    values <- c(x@values[keep], codes)
+    sparseFactor(
+      values,
+      levels = x@levels,
+      reference = x@reference,
+      i = rows,
+      length = newLength
+    )
+  }
+)
+
+methods::setReplaceMethod("length", "sparseFactor", function(x, value) {
+  stop("the length of a sparseFactor cannot be set")
+})
+
+# Combining takes the union of the levels in order of appearance, as c does
+# for factors, and stays sparse over the first argument's reference.
+methods::setMethod("c", "sparseFactor", function(x, ...) {
+  parts <- c(list(x), list(...))
+  isFactorLike <- vapply(
+    parts,
+    function(part) is.factor(part) || methods::is(part, "sparseFactor"),
+    FALSE
+  )
+  if (!all(isFactorLike)) {
+    stop("a sparseFactor can be combined with factors and sparseFactors only")
+  }
+  levels <- unique(unlist(lapply(parts, levels), use.names = FALSE))
+  offset <- 0L
+  rows <- integer(0L)
+  labels <- character(0L)
+  for (part in parts) {
+    n <- length(part)
+    if (methods::is(part, "sparseFactor") && part@reference == x@reference) {
+      rows <- c(rows, part@i + 1L + offset)
+      labels <- c(labels, part@levels[part@values])
+    } else {
+      rows <- c(rows, seq_len(n) + offset)
+      labels <- c(labels, as.character(part))
+    }
+    offset <- offset + n
+  }
+  sparseFactor(
+    labels,
+    levels = levels,
+    reference = x@reference,
+    i = rows,
+    length = offset
+  )
+})
+
+# unique and duplicated compare labels, as they do for a factor
+unique.sparseFactor <- function(x, incomparables = FALSE, ...) {
+  x[!duplicated(sparseFactorCodes(x))]
+}
+duplicated.sparseFactor <- function(x, incomparables = FALSE, ...) {
+  duplicated(sparseFactorCodes(x), ...)
+}
+
+# Only == and != mean anything for unordered factors; the rest give NA with a
+# warning, as they do there.
+sparseFactorOps <- function(e1, e2) {
+  generic <- .Generic # nolint: object_usage_linter.
+  if (generic %not_in% c("==", "!=")) {
+    warning(gettextf("%s not meaningful for factors", sQuote(generic)))
+    return(rep.int(NA, max(length(e1), length(e2))))
+  }
+  labels <- function(e) {
+    if (methods::is(e, "sparseFactor") || is.factor(e)) as.character(e) else e
+  }
+  get(generic, mode = "function")(labels(e1), labels(e2))
+}
+methods::setMethod("Ops", signature("sparseFactor", "ANY"), sparseFactorOps)
+methods::setMethod("Ops", signature("ANY", "sparseFactor"), sparseFactorOps)
+methods::setMethod(
+  "Ops",
+  signature("sparseFactor", "sparseFactor"),
+  sparseFactorOps
+)
 
 # data.frame(sf = x) and as.data.frame(x) need this to take the column in.
 as.data.frame.sparseFactor <- function(
@@ -182,18 +377,10 @@ as.data.frame.sparseFactor <- function(
   nm = deparse1(substitute(x))
 ) {
   force(nm)
-  n <- length(x)
-  if (
-    !(is.null(row.names) || (is.character(row.names) && length(row.names) == n))
-  ) {
-    row.names <- NULL
-  }
-  if (is.null(row.names)) {
-    row.names <- if (n > 0L) .set_row_names(n) else character()
-  }
-  value <- list(x)
-  if (!optional) {
-    names(value) <- nm
-  }
-  structure(value, row.names = row.names, class = "data.frame")
+  as.data.frame.vector(x, row.names, optional, ..., nm = nm)
+}
+
+# counts per level, as for a factor
+summary.sparseFactor <- function(object, ...) {
+  summary(as.factor(object), ...)
 }

@@ -22,7 +22,10 @@ export(sparseFactor)
 
 exportClasses(dbartsSampler)
 exportClasses(sparseFactor)
-exportMethods(show, length, as.character, "[")
+exportMethods(
+  show, length, "length<-", as.character, as.factor, as.vector, levels,
+  is.na, xtfrm, "[", "[[", "[<-", c, Ops
+)
 export(extract)
 export(plotTree)
 export(samplePriorPredictive)
@@ -53,6 +56,10 @@ S3method(print, dbartsVarianceForest)
 S3method(format, dbartsVarianceForest)
 S3method(format, sparseFactor)
 S3method(as.data.frame, sparseFactor)
+S3method(str, sparseFactor)
+S3method(summary, sparseFactor)
+S3method(unique, sparseFactor)
+S3method(duplicated, sparseFactor)
 S3method(fitted, bartMultinomial)
 S3method(extract, bartMultinomial)
 S3method(predict, bartMultinomial)
@@ -100,12 +107,13 @@ S3method(dimnames, dbartsMixedMatrix)
 S3method("[", dbartsMixedMatrix)
 S3method(as.matrix, dbartsMixedMatrix)
 
-importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, new, setValidity, setMethod, is, show)
+importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, new, setValidity, setMethod, is, show, Ops)
 
 importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, naresid)
 importFrom(stats, lm.fit, lm.wfit, pnorm, plogis, quantile)
 importFrom(stats, as.formula, setNames, family)
 
+importFrom(utils, str)
 importFrom(parallel, makeCluster, clusterExport, clusterEvalQ, clusterMap, stopCluster, splitIndices)
 importFrom(stats, sd, rnorm, rexp, runif, rbinom, rnbinom, optim, optimHess, dnorm, dbinom, dnbinom, dt)
 importFrom(stats, qchisq, rchisq, pchisq, ks.test, dcauchy, dgamma)

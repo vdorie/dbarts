@@ -76,7 +76,9 @@ Landed: validateXTest's sparse branch lifts the sparse columns out, replays
 the model terms on the dense remainder through the same replay and
 missing-variable message as the dense branch, re-attaches the sparse columns
 the model uses by name and drops the rest; predict, `test =` at fit time,
-getTrees(newdata = ) and survivalProbabilities(newdata = ) share it.
+getTrees(newdata = ) and aft survivalProbabilities(newdata = ) share it. Hazard
+formula fits densify the design with no level table and refuse the frame
+there; that older defect is separate and not addressed here.
 `sparseFactor` gained `[` (positive, negative, zero, logical, repeated
 indices; character, matrix and out-of-range refused), `as.character`,
 `format` and `as.data.frame`, so `data.frame(sf = x)`, head, row subsets,
@@ -97,3 +99,11 @@ lints; air format --check clean; check-rc-codoc, check-win-drift,
 check-doc-freshness OK; R CMD check --as-cran --no-manual on the built
 tarball: Status 1 NOTE (the Date field is over a month old, not new).
 Size: R 129 lines added, tests 83, man/NEWS 16 (about 230 total).
+
+Follow-up (review fixes; gates rerun: tinytest 9488 pass 0 fail, lint and air clean, R CMD check --as-cran 1 NOTE, the Date field): as.data.frame delegates to as.data.frame.vector;
+`[` honors drop = TRUE; added `[<-`, the double-bracket element read, c, as.factor, as.vector, levels,
+is.na, xtfrm, unique, duplicated, Ops (== and !=), summary, str and a refused
+`length<-`, so rbind, split-and-rbind, assignment, order, table and na.omit
+work on a frame. complete.cases (C code) stays unsupported and is listed in
+the Rd with dgCMatrix and sparseVector print limits. Tests cover aft
+survivalProbabilities, the sampler's getTrees, na.exclude and a `.` formula.

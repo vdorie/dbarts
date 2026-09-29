@@ -8,6 +8,22 @@
 \alias{as.character,sparseFactor-method}
 \alias{format.sparseFactor}
 \alias{as.data.frame.sparseFactor}
+\alias{[[,sparseFactor-method} % ]]
+\alias{[<-,sparseFactor-method}
+\alias{c,sparseFactor-method}
+\alias{as.factor,sparseFactor-method}
+\alias{as.vector,sparseFactor-method}
+\alias{levels,sparseFactor-method}
+\alias{is.na,sparseFactor-method}
+\alias{xtfrm,sparseFactor-method}
+\alias{length<-,sparseFactor-method}
+\alias{Ops,sparseFactor,ANY-method}
+\alias{Ops,ANY,sparseFactor-method}
+\alias{Ops,sparseFactor,sparseFactor-method}
+\alias{str.sparseFactor}
+\alias{summary.sparseFactor}
+\alias{unique.sparseFactor}
+\alias{duplicated.sparseFactor}
 \description{
   Represents an unordered factor sparsely: entries at the given positions carry the supplied levels, while every other position implicitly carries a designated \code{reference} level. Analogous to \code{Matrix::\link[Matrix]{sparseVector}}, whose implicit entry is zero.
 
@@ -42,9 +58,11 @@ sparseFactor(x, levels, reference, i, length)
 
   \code{show} prints the length, the number of stored entries, the level table, and the reference level. \code{length} returns the observation count, which lets a \code{sparseFactor} be a \code{\link{data.frame}} column.
 
-  As for a \code{\link{factor}}, \code{x[i]} subsets by position (positive, negative, zero, logical and repeated indices) and returns a \code{sparseFactor} over the same levels and reference, mapping the stored positions without densifying; \code{as.character} and \code{format} give the level labels, so \code{head}, \code{print} and \code{str} of a data frame work, and so do row subsets of it. An index beyond the length would be a missing value, which a \code{sparseFactor} cannot hold, and a character index has no names to match; both are errors.
+  A \code{sparseFactor} answers the operations a data frame reaches a factor column with as a \code{\link{factor}} does. \code{x[i]} subsets by position (positive, negative, zero, logical and repeated indices) and returns a \code{sparseFactor} over the same levels, mapping the stored positions without densifying; \code{drop = TRUE} drops the levels no selected row takes. \code{x[i] <- value} takes labels that are levels of \code{x} (as a character vector, factor or \code{sparseFactor}) and may extend the vector when no position is left unassigned; \code{c} combines with factors and \code{sparseFactor}s over the union of their levels. \code{as.character}, \code{as.vector} and \code{format} give the level labels, \code{as.factor} a factor with every level, \code{levels}, \code{is.na} (always \code{FALSE}), \code{xtfrm} (so \code{order} and \code{sort}), \code{unique}, \code{duplicated}, \code{summary}, \code{==} and \code{!=} behave as for a factor, and \code{str} prints a factor's line. Together these let a data frame holding one be subset by row, \code{rbind}-ed, assigned into, printed and \code{str}-ed, and let \code{factor} and \code{table} read it (over the levels present).
 
-  A \code{Matrix::sparseVector} column subsets in a data frame through Matrix's own method, but \code{print} of such a frame shows a placeholder and warns of a corrupt data frame; that formatting belongs to Matrix.
+  A \code{sparseFactor} cannot hold a missing value, so where a factor would return \code{NA} it is refused: an \code{NA} or out-of-range row index, a replacement value that is not a level, an extension past a gap, and \code{length<-}. A character index has no names to match and is refused. Not supported: \code{complete.cases} on a data frame holding one (use \code{\link{na.omit}} or \code{is.na} per column), \code{levels<-}, element assignment with a double bracket, \code{rep}, \code{droplevels} and \code{relevel}; \code{table} on a \code{sparseFactor} drops levels no row takes, so use \code{table(as.factor(x))} to keep them.
+
+  A \code{Matrix::sparseVector} or \code{dgCMatrix} column subsets in a data frame through Matrix's own method, but printing such a frame shows a placeholder for the column and warns of a corrupt data frame; that formatting belongs to Matrix. Use \code{as.numeric} on the column to display it.
 }
 \value{
   An object of S4 class \code{sparseFactor}.

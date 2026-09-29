@@ -1462,8 +1462,12 @@
             what the training design's codes mean. A test frame holding
             a sparse column is read as a dense one is (transformed terms
             replayed, extra columns dropped), and a \code{sparseFactor}
-            subsets by row and prints as a factor does, so a data frame
-            holding one can be head-ed, filtered and printed. The sparse column
+            column answers the data-frame operations a factor does
+            (row subsets, \code{head}, \code{print}, \code{str},
+            \code{rbind}, assignment, \code{unique}, \code{order});
+            \code{complete.cases} and a printed \code{sparseVector} or
+            \code{dgCMatrix} column are the exceptions, listed in
+            \code{\link{sparseFactor}}. The sparse column
             constructor is exported as \code{\link{sparseFactor}}; the
             container a mixed frame assembles into is documented as
             \code{\link{dbartsMixedMatrix}}, with its own \code{dim},
