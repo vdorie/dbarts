@@ -471,7 +471,7 @@ rm(naControl)
 # ---- site 8: NA refused where NULL is the default ----
 
 priors <- dbarts:::dbartsPriors
-for (argument in c("sd", "scale")) {
+for (argument in "sd") {
   for (constructor in c("normal", "linear", "gp")) {
     args <- if (constructor == "normal") list() else list(columns = 1L)
     args[[argument]] <- NA
@@ -484,7 +484,7 @@ for (argument in c("sd", "scale")) {
     expect_silent(do.call(priors[[constructor]], args))
   }
 }
-expect_identical(priors$normal(sd = NULL)@prior.sd, NA_real_)
+expect_null(priors$normal(sd = NULL)@prior.sd)
 expect_error(priors$normal(sd = -1), "'sd' must be positive")
 expect_error(priors$normal(sd = "a"), "'sd'")
 expect_error(priors$dart(rho = NA), "'rho' must not be NA")

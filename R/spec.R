@@ -449,10 +449,10 @@ resolveSamplerSpec <- function(
     priors$leaf.hyperprior,
     priors$resid.prior,
     family = family,
-    # a named calibration (leaf.prior's scale = / sd =) overrides the
-    # family default below in the engine, which converts it out of response
-    # units against the transform; NA leaves that default in force
-    prior.scale = resolvePriorScale(priors$leaf.prior, priors$leaf.hyperprior),
+    # a named leaf-prior sd, translated to its anchor, overrides the family
+    # default below in the engine, which converts it out of response units
+    # against the transform; NA leaves that default in force
+    prior.scale = priors$prior.scale,
     leaf.scale = defaultLeafScale(family)
   )
 
@@ -511,7 +511,7 @@ resolveSamplerSpec <- function(
   # constraint or a non-constant leaf selects an instantiation the multinomial
   # factory does not build, a DART prior and a drawn k are unadjudicated
   # against the map's fixed anchor, the map owns every leaf scale so a named
-  # prior.scale has nowhere to land. Every one of these would
+  # leaf-prior sd has nowhere to land. Every one of these would
   # otherwise be dropped in silence, changing the fitted model without a word;
   # name each one instead. The bridge keeps its own backstops for the callers
   # that reach it without this layer.
@@ -522,8 +522,8 @@ resolveSamplerSpec <- function(
       "'monotone'" = !is.null(monotoneDirections),
       "a linear leaf prior" = is(priors$leaf.prior, "dbartsLinearPrior"),
       "a Gaussian-process leaf prior" = is(priors$leaf.prior, "dbartsGPPrior"),
-      "a 'k' hyperprior" = is(priors$leaf.hyperprior, "dbartsChiHyperprior"),
-      "a named 'prior.scale'" = !is.na(model@prior.scale),
+      "a 'k' hyperprior" = is(priors$leaf.prior@k, "dbartsLeafHyperprior"),
+      "a named leaf-prior 'sd'" = !is.null(priors$leaf.prior@prior.sd),
       "storage = \"single\"" = identical(control@storage, "single")
     )
     if (any(unsupportedMultinomial)) {
@@ -734,9 +734,10 @@ resolveSamplerSpec <- function(
       "a non-default 'leaf.scale'" = model@leaf.scale !=
         defaultLeafScale(family),
       # the calibration map fixes every forest's leaf scale from the family's
-      # own latent scale, so a named prior.scale has nowhere to land and the
-      # leaf.scale gate above does not fire on it
-      "a named 'prior.scale'" = !is.na(model@prior.scale),
+      # own latent scale, so a named anchor has nowhere to land and the
+      # leaf.scale gate above does not fire on it; parsePriors refuses a named
+      # sd first, so this backstops a model built by hand
+      "a named leaf-prior 'sd'" = !is.na(model@prior.scale),
       "Student-t residuals" = !is.null(residDf),
       "'variance'" = !is.null(varianceColumns),
       "storage = \"single\"" = identical(control@storage, "single"),

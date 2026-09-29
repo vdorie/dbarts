@@ -285,7 +285,7 @@
             \code{n.grow.sweeps}; \code{bart}'s own
             \code{seed} (previously pre-truncated before reaching
             \code{dbartsControl}'s own check); the \code{forest} argument
-            shared by \code{$getLeafPrior}, \code{$setLeafPrior},
+            shared by \code{$getLeafPrior},
             \code{$getForestFits}, \code{$getForestAmplitudes},
             \code{$getForestVariableCounts}, \code{$setForestWeights},
             \code{$setForestBasis}, and \code{extract}/\code{predict}'s
@@ -382,7 +382,10 @@
             \code{rngSeed} on \code{bart} and \code{dbartsControl}
             (successor \code{seed}); \code{sigma} on \code{dbarts}
             and \code{xbart} (successor \code{sigest}); \code{node.prior}
-            on \code{dbarts} (successor \code{leaf.prior}); \code{dbartsSampler}'s
+            on \code{dbarts} (successor \code{leaf.prior});
+            \code{degreesOfFreedom} on the \code{chi} hyperprior (successor
+            \code{df}, as \code{invchi} and base R's \code{dchisq} spell
+            it; positional calls are unchanged); \code{dbartsSampler}'s
             \code{$sampleNodeParametersFromPrior} (successor
             \code{$sampleLeafParametersFromPrior}); \code{power}
             and \code{base} on \code{bart} (successor
@@ -1591,35 +1594,42 @@
             explicitly. Pass \code{k = chi(1.5, Inf)} for the
             old prior; seeded default binary fits otherwise draw
             differently.
-      \item A model's leaf-prior calibration can be named at creation, in
-            response units, rather than inherited from the range of the
-            vector the sampler happened to be constructed on:
-            \code{prior.scale} (the prior standard deviation of the forest
-            total at \code{k = 1}) as a \code{dbartsModel} slot, as
-            \code{leaf.prior = normal(scale = )} on \code{dbarts},
-            \code{bart}, and \code{xbart} (also \code{sd = }, the same
-            quantity at the resolved \code{k}, refused under a \code{k}
-            hyperprior); it is re-derived at every \code{setModel}, so a
-            round trip through the model object holds it, and unset,
-            nothing changes. A sampler reports the calibration actually IN
-            FORCE, per chain and per forest, with \code{$getLeafPrior}:
-            \code{prior.scale}, \code{prior.sd}, \code{prior.mean},
-            \code{k}, \code{k.has.hyperprior}, the response transform, and
-            a \code{leaf.model} tag. It reads the engine rather than the
-            model object, so it is the first surface to show a
-            re-anchoring channel - a \code{setResponse} or
-            \code{setOffset} at \code{updateScale = TRUE}, or a
-            \code{setData} - moving what is in force while the named intent
-            on the model stays where it was put. For the monotone, linear, and
-            Gaussian-process leaf models the reported \code{prior.sd} is a
-            stated bound rather than an equality. \code{$setLeafPrior}
-            rewrites its scale half on every chain, mid-chain, touching
-            nothing else - unlike \code{setModel}, which also re-pins
-            \code{sigma} and refuses a DART sampler outright; its
-            \code{prior.sd} spelling meets the same sampled-\code{k}
-            refusal as at creation. On a multi-forest model
-            those five columns carry the calibration map the combination
-            runs under, which no other R surface
+      \item The leaf prior can be named by its spread, on the family's own
+            scale, rather than inherited from the range of the vector the
+            sampler happened to be constructed on:
+            \code{leaf.prior = normal(sd = )} on \code{dbarts}, \code{bart},
+            and \code{xbart}, and likewise \code{linear(sd = )} and
+            \code{gp(sd = )}, gives the prior standard deviation of the
+            forest total's leaf parameter (response units for a continuous
+            response, the link's latent units for a binary one), as a number
+            or under the new \code{invchi(df, scale)} hyperprior on the sd,
+            the same prior as a \code{chi} on \code{k}. \code{k} and
+            \code{sd} are exclusive; unset, nothing changes. A named sd is
+            absolute: it is re-derived at every \code{setModel} and
+            restated after every channel that re-anchors the response
+            transform, where a \code{k} moves with the data. It is refused
+            on multinomial and multi-forest models, whose leaf scales come
+            from their calibration maps, and on a hurdle fit, whose two
+            parts are on different scales. \code{xbart} gains an \code{sd}
+            grid beside \code{k}, and a fit named by an sd hyperprior
+            reports draws of the sd (\code{extract(type = "sd")}) in place
+            of \code{k}. A sampler reports the prior actually IN FORCE, per
+            chain and per forest, with \code{$getLeafPrior}, in the terms
+            it was named in: \code{prior.sd}, the \code{invchi} law it
+            follows while \code{k} is drawn (\code{prior.sd.df},
+            \code{prior.sd.scale}), \code{prior.mean}, \code{k} relative
+            to the data's \code{anchor}, the response transform, and
+            \code{leaf.model} and \code{prior.sd.of} tags. For the monotone,
+            linear, and Gaussian-process leaf models the reported
+            \code{prior.sd} is the sd of their own parameter and a stated
+            bound on the prior sd of \eqn{f(x)} rather than an equality.
+            \code{$setLeafPrior} takes the creation vocabulary -
+            \code{$setLeafPrior(normal(sd = 1))} - and changes the spread or
+            its hyperprior on every chain, mid-chain, touching nothing else -
+            unlike \code{setModel}, which also re-pins \code{sigma} and
+            refuses a DART sampler outright. On a multi-forest model
+            the reader's five further columns carry the calibration map the
+            combination runs under, which no other R surface
             shows: the forest's amplitude prior variance or half-Cauchy
             scale (\code{amplitude.prior.variance} and
             \code{amplitude.prior.scale}, exclusive per forest), its
@@ -2069,7 +2079,7 @@
             data under construction. Only \code{num.vars} and
             \code{numvars} remain bound alongside the prior
             constructors.
-      \item The \code{chi(degreesOfFreedom = nu)} hyperprior on \code{k} now samples
+      \item The \code{chi(df = nu)} hyperprior on \code{k} now samples
             a chi distribution with \code{nu} degrees of freedom as documented;
             its Gibbs update used a shape corresponding to \code{chi(2 * nu - 1)},
             a dropped Jacobian in the k-squared transform. The binary
@@ -2127,7 +2137,7 @@
             conditionals without excluding them from the model, via
             the sampler's \code{$setForestWeights(forest, weights)}.
             \code{forest} indexes from \code{1}, as
-            \code{$getLeafPrior}/\code{$setLeafPrior} already do
+            \code{$getLeafPrior} already does
             (a Bayesian causal forest's treatment forest is
             \code{2}). The weight does not ride the sampler's saved
             state, so it is mirrored and reinstalled automatically
@@ -2162,7 +2172,7 @@
       \item \code{$getForestFits} and \code{$getForestVariableCounts}
             index \code{forest} from \code{1}, matching
             \code{$setForestWeights}, \code{$setForestBasis}, and
-            \code{$getLeafPrior}/\code{$setLeafPrior} (a
+            \code{$getLeafPrior} (a
             Bayesian causal forest's treatment forest is \code{2});
             \code{0} is refused rather than silently naming the
             prognostic forest. The R5 sampler's forest index is

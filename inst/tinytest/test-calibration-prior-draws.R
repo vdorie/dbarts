@@ -1,6 +1,6 @@
-# What a named prior.scale MEANS, measured against prior draws: it is the
-# LEAF-PARAMETER scale of the forest total, equal to the prior sd of f(x) at
-# every x for the constant leaf only. For the other three leaf models the prior
+# What a named leaf-prior sd MEANS, measured against prior draws: it is the
+# sd of the normal prior on the leaf model's own parameter, for the forest
+# total, equal to the prior sd of f(x) at every x for the constant leaf only. For the other three leaf models the prior
 # of f(x) is x-dependent and prior.sd bounds it in a stated direction, so the
 # rows below assert INEQUALITIES where the contract states a bound - an
 # equality-only version would pass an engine doing the opposite.
@@ -13,9 +13,7 @@ n <- 200L
 x <- cbind(x1 = runif(n), x2 = runif(n), x3 = runif(n))
 y <- 4 * (x[, 1L] - x[, 2L]) + rnorm(n)
 
-namedScale <- 1.5
-fixedK <- 2
-priorSd <- namedScale / fixedK
+priorSd <- 0.75
 # prior.mean is the response transform's shift, which for a continuous
 # response with no offset is the midpoint of the observed range
 priorMean <- (max(y) + min(y)) / 2
@@ -50,7 +48,7 @@ constantSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  leaf.prior = normal(k = fixedK, scale = namedScale)
+  leaf.prior = normal(sd = priorSd)
 )
 set.seed(3)
 constantDraws <- priorDraws(constantSampler, x[1:4, , drop = FALSE])
@@ -65,26 +63,32 @@ inheritedSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  leaf.prior = normal(k = fixedK)
+  leaf.prior = normal(k = 2)
 )
 set.seed(3)
 inheritedDraws <- priorDraws(inheritedSampler, x[1:4, , drop = FALSE], 400L)
 expect_true(mean(apply(inheritedDraws, 2L, sd)) / priorSd > 2.5)
 
-# the 'sd' spelling names the prior sd at the CURRENT k, so at a fixed k it
-# must reach the same draws the equivalent 'scale' spelling does (scale is
-# the prior sd at k = 1). 300 draws carry a 4% se, so the band below sits
-# well inside the factor of k that dropping the conversion would cost.
+# the 'sd' spelling at a k other than the reference 2 is the same prior: k = 4
+# against half the anchor. 300 draws carry a 4% se, so the band below sits
+# well inside the factor of 2 a dropped conversion would cost.
+kFormSampler <- dbarts(
+  x,
+  y,
+  control = priorControl(),
+  leaf.prior = normal(k = 4)
+)
+kFormSd <- kFormSampler$getLeafPrior()[1L, "prior.sd"]
 sdSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  leaf.prior = normal(k = fixedK, sd = priorSd)
+  leaf.prior = normal(sd = kFormSd)
 )
 set.seed(3)
 sdDraws <- priorDraws(sdSampler, x[1:4, , drop = FALSE], 300L)
-expect_true(max(abs(apply(sdDraws, 2L, sd) / priorSd - 1)) < 0.15)
-rm(sdSampler, sdDraws)
+expect_true(max(abs(apply(sdDraws, 2L, sd) / kFormSd - 1)) < 0.15)
+rm(kFormSampler, kFormSd, sdSampler, sdDraws)
 
 # --- linear leaf: prior.sd is a LOWER bound, attained at the standardized
 # covariate origin, with sd(f(x)) = prior.sd * sqrt(1 + ||z(x)||^2). The rows
@@ -97,7 +101,7 @@ linearSampler <- dbarts(
   xLinear,
   y,
   control = priorControl(),
-  leaf.prior = linear(c("x1", "x2", "x4"), k = fixedK, scale = namedScale)
+  leaf.prior = linear(c("x1", "x2", "x4"), sd = priorSd)
 )
 standardize <- function(column, values) {
   observed <- xLinear[, column]
@@ -141,7 +145,7 @@ gpSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  leaf.prior = gp("x1", k = fixedK, scale = namedScale)
+  leaf.prior = gp("x1", sd = priorSd)
 )
 gpRows <- rbind(x[1L, ], x[2L, ], x[1L, ], x[1L, ], x[1L, ], x[1L, ])
 gpRows[3L, 1L] <- 1.25
@@ -172,7 +176,7 @@ monotoneSampler <- dbarts(
   y,
   control = priorControl(),
   monotone = c(x1 = 1),
-  leaf.prior = normal(k = fixedK, scale = namedScale)
+  leaf.prior = normal(sd = priorSd)
 )
 monotoneRows <- rbind(x[1L, ], x[1L, ], x[1L, ], x[1L, ], x[1L, ])
 monotoneRows[, 1L] <- c(0.1, 0.35, 0.5, 0.65, 0.9)
@@ -199,7 +203,7 @@ anchorSampler <- function(response, ...) {
   dbarts(
     x,
     response,
-    leaf.prior = normal(k = fixedK, scale = namedScale),
+    leaf.prior = normal(sd = priorSd),
     ...
   )
 }
@@ -224,7 +228,7 @@ anchorSamplers <- list(
     y,
     control = priorControl(),
     family = student(5),
-    leaf.prior = normal(k = fixedK, scale = namedScale)
+    leaf.prior = normal(sd = priorSd)
   ),
   aft = anchorSampler(
     cbind(yPositive, rep(1L, n)),

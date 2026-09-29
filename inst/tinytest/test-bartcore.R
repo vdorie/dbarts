@@ -455,12 +455,13 @@ expect_equal(length(sampler.setdata.binary$getLatents()), n2)
 expect_true(all(is.finite(sampler.setdata.binary$run(0L, 2L)$train)))
 
 # logistic via Polya-Gamma; latents are the omega draws. The leaf scale is
-# pinned at the probit default of 3 this check was calibrated against
+# pinned at the probit default of 3 this check was calibrated against: the
+# binary default k ~ chi(1.5, 2) against that anchor, in sd terms
 sampler.logit <- dbarts(
   x,
   y.binary,
   family = "logistic",
-  leaf.prior = normal(scale = 3),
+  leaf.prior = normal(sd = invchi(1.5, 1.5)),
   control = control
 )
 result.logit <- sampler.logit$run(100L, 100L)

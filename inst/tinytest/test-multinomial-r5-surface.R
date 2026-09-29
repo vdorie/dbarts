@@ -244,7 +244,7 @@ expect_error(sampler$setSigma(1.0), "no residual scale")
 expect_error(sampler$setData(sampler$data), "fix their data at creation")
 expect_error(sampler$setModel(sampler$model), "calibrated at creation")
 expect_error(
-  sampler$setLeafPrior(prior.scale = 1.0),
+  sampler$setLeafPrior(normal(k = 3)),
   "softmax calibration map"
 )
 expect_error(sampler$setForestWeights(1L, rep(1.0, n)), "log-sum-exp")

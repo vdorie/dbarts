@@ -772,6 +772,7 @@ extract.bart <- function(
     "forest",
     "sigma",
     "k",
+    "sd",
     "varcount"
   ),
   sample = c("train", "test"),
@@ -825,7 +826,7 @@ extract.bart <- function(
 
   # served before any sample/test-channel check, so a fit kept with
   # keepTrainingFits = FALSE still serves sigma
-  if (type %in% c("sigma", "k", "varcount")) {
+  if (type %in% c("sigma", "k", "sd", "varcount")) {
     refuseSampleOnModelType(type, sampleSupplied)
     n.chains <- fitNChains(object)
     if (type == "varcount") {
@@ -854,7 +855,25 @@ extract.bart <- function(
       }
       return(reshapeScalarChannel(object$sigma, n.chains, combineChains))
     }
-    # type == "k"
+    # a fit reports its leaf prior in the terms it was named in: drawn
+    # spreads on an sd-named fit, drawn k on a k-named one
+    if (type == "sd") {
+      if (is.null(object[["sd"]])) {
+        stop(
+          "cannot extract 'sd': this fit's leaf-prior sd was not sampled",
+          if (!is.null(object[["k"]])) {
+            " (its leaf prior was named by 'k'; extract type = \"k\")"
+          }
+        )
+      }
+      return(reshapeScalarChannel(object[["sd"]], n.chains, combineChains))
+    }
+    if (is.null(object$k) && !is.null(object[["sd"]])) {
+      stop(
+        "cannot extract 'k': this fit's leaf prior was named by 'sd', and ",
+        "its draws are of the sd; extract type = \"sd\""
+      )
+    }
     if (is.null(object$k)) {
       stop(
         "cannot extract 'k': this fit's k was fixed, not sampled",
@@ -2641,7 +2660,7 @@ refuseForestSelectionOutsideForestArm <- function(type, forest) {
   if (is.null(forest)) {
     return(invisible(NULL))
   }
-  if (type %in% c("sigma", "k", "dispersion", "thresholds")) {
+  if (type %in% c("sigma", "k", "sd", "dispersion", "thresholds")) {
     stop(
       "type = \"",
       type,

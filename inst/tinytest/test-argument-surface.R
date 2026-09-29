@@ -843,7 +843,8 @@ expect_identical(
   names(formals(dbarts::xbart))[length(formals(dbarts::xbart))],
   "..."
 )
-expect_equal(length(formals(dbarts::xbart)), 34L)
+# the sd grid beside k (35)
+expect_equal(length(formals(dbarts::xbart)), 35L)
 # The two-door contract (dec-B83): the legacy door is a strict compatibility
 # mode carrying 0.9-34's argument list and nothing else, and every capability
 # the branch had briefly appended to it lives at the modern door instead.

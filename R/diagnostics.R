@@ -62,8 +62,10 @@ toDrawsArray <- function(x, n.chains, isScalar) {
 scalarFields <- c(
   "sigma",
   "k",
+  "sd",
   "first.sigma",
   "first.k",
+  "first.sd",
   "resid.df",
   "mean.s",
   "dispersion"
@@ -406,7 +408,7 @@ summariseDraws <- function(arr) {
 
 # rhat > 1.01 is noted in the printed summary, not enforced: dbarts does not
 # refuse to summarize a non-converged fit
-summary.bart <- function(object, vars = c("sigma", "k"), ...) {
+summary.bart <- function(object, vars = c("sigma", "k", "sd"), ...) {
   present <- presentDrawsVars(object, vars)
   stats <- if (length(present) == 0L) {
     NULL
@@ -451,7 +453,7 @@ summary.bartNegbin <- function(
 # hood - a zero-part probit on 1{y > 0} and a lognormal fit on the positive
 # part - so each summarizes through summary.bart unchanged; only the
 # packaging (both components, one call) and the print layout are new.
-summary.bartHurdle <- function(object, vars = c("sigma", "k"), ...) {
+summary.bartHurdle <- function(object, vars = c("sigma", "k", "sd"), ...) {
   structure(
     list(
       call = object[["call"]],

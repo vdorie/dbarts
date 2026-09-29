@@ -125,6 +125,13 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
+    name = "degreesOfFreedom",
+    kind = "argument",
+    owner = "chi",
+    successor = "df",
+    expires = tombstoneExpiry
+  ),
+  list(
     name = "power",
     kind = "argument",
     owner = "bart",

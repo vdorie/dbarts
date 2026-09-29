@@ -14,6 +14,7 @@ xbart <- function(
   n.threads = dbarts::guessNumCores(),
   n.trees = 75L,
   k = NULL,
+  sd = NULL,
   power = 2,
   base = 0.95,
   split.probs = NULL,
@@ -306,12 +307,13 @@ xbart <- function(
   # default, linear(columns, k), or gp(columns, k, ...), whose designated
   # covariate columns resolve against the model matrix; the k argument
   # drives the k grid as always, with a k inside the supplied prior standing
-  # in for a missing k argument
+  # in for a missing k argument, and the sd argument drives the same axis in
+  # absolute spreads, with a named sd inside the prior standing in for it
   leafSpec <- NULL
   if (!is.null(matchedCall[["leaf.prior"]])) {
     leafSpec <- evalInVocabulary(
       matchedCall[["leaf.prior"]],
-      dbartsPriors[c("normal", "linear", "gp", "chi")],
+      dbartsPriors[c("normal", "linear", "gp", "chi", "invchi")],
       evalEnv,
       resolvedAs(
         "leaf.prior",
@@ -330,22 +332,58 @@ xbart <- function(
   # continuous, chi(1.5, 2) binary - so a default xbart call scores the model
   # a default bart call fits; a k carried by a supplied leaf.prior stands in
   # for a missing argument.
-  kSpec <- if (is.null(matchedCall[["k"]])) {
-    if (!is.null(leafSpec)) leafSpec@k else NULL
-  } else {
-    evalInVocabulary(matchedCall[["k"]], dbartsPriors, evalEnv)
+  kGiven <- !is.null(matchedCall[["k"]])
+  sdGiven <- !is.null(matchedCall[["sd"]])
+  if (kGiven && sdGiven) {
+    stop(
+      "give either 'k' (relative to each fold's anchor) or 'sd' (absolute ",
+      "spreads on the family's scale) as the grid, not both"
+    )
   }
-  kGrid <- resolveKGrid(kSpec, control@binary)
-  # swept largest (most-shrunk) k first, so every warm start comes from a
-  # simpler forest than the cell before it; a modelled cell has no fixed k to
-  # order by and sweeps last, in the order it was written. kOrder un-permutes
-  # the reported k axis back to the caller's order once the result array is
-  # final
-  kOrder <- order(
-    vapply(kGrid, kGridSortKey, 0.0),
-    decreasing = TRUE
-  )
+  leafSd <- if (is.null(leafSpec)) NULL else leafSpec@prior.sd
+  if (!is.null(leafSd) && (kGiven || sdGiven)) {
+    grid <- if (kGiven) "k" else "sd"
+    stop(
+      "the leaf prior's 'sd' and the '",
+      grid,
+      "' grid both state the spread; drop the leaf prior's 'sd' and name ",
+      "the spreads in the 'sd' grid"
+    )
+  }
+  # the axis is one of k or sd; a named sd in the leaf prior is a one-cell sd
+  # axis. Each cell is a leaf hyperprior plus the anchor it is relative to,
+  # NA on the k axis, where the fold's own data fixes the anchor.
+  sdAxis <- sdGiven || !is.null(leafSd)
+  if (sdAxis) {
+    sdSpec <- if (sdGiven) {
+      evalInVocabulary(matchedCall[["sd"]], dbartsPriors, evalEnv)
+    } else {
+      leafSd
+    }
+    sdGrid <- resolveSdGrid(sdSpec)
+    kGrid <- lapply(sdGrid, function(cell) cell$leaf.hyperprior)
+    kAnchors <- vapply(sdGrid, function(cell) cell$prior.scale, 0.0)
+    kLabels <- vapply(sdGrid, function(cell) cell$label, "")
+    sortKeys <- vapply(sdGrid, function(cell) cell$sort.key, 0.0)
+  } else {
+    kSpec <- if (kGiven) {
+      evalInVocabulary(matchedCall[["k"]], dbartsPriors, evalEnv)
+    } else if (!is.null(leafSpec)) {
+      leafSpec@k
+    }
+    kGrid <- resolveKGrid(kSpec, control@binary)
+    kAnchors <- rep(NA_real_, length(kGrid))
+    kLabels <- vapply(kGrid, kGridLabel, "")
+    sortKeys <- vapply(kGrid, kGridSortKey, 0.0)
+  }
+  # swept most shrunk first - largest k, smallest sd - so every warm start
+  # comes from a simpler forest than the cell before it; a modelled cell has
+  # no fixed value to order by and sweeps last, in the order it was written.
+  # kOrder un-permutes the reported axis back to the caller's order once the
+  # result array is final
+  kOrder <- order(sortKeys, decreasing = TRUE)
   kGrid <- kGrid[kOrder]
+  kAnchors <- kAnchors[kOrder]
 
   power <- coerceOrError(power, "numeric")
   base <- coerceOrError(base, "numeric")
@@ -389,43 +427,25 @@ xbart <- function(
     leafPrior[[2L]] <- kValue
     leafPrior <- eval(leafPrior)
   } else {
-    # the k argument replaces the supplied prior's own k, but its named
-    # calibration is not a grid axis and rides every cell unchanged
-    # the slots hold NA for unnamed; the constructors take NULL
-    namedSd <- if (is.na(leafSpec@prior.sd)) NULL else leafSpec@prior.sd
-    namedScale <- if (is.na(leafSpec@prior.scale)) {
-      NULL
-    } else {
-      leafSpec@prior.scale
-    }
+    # the grid replaces the supplied prior's own k or sd; the leaf model's
+    # shape is all it keeps
     leafPrior <- if (is(leafSpec, "dbartsLinearPrior")) {
-      resolveLeafCovariates(
-        linear(leafSpec@columns, kValue, namedSd, namedScale),
-        data
-      )
+      resolveLeafCovariates(linear(leafSpec@columns, kValue), data)
     } else if (is(leafSpec, "dbartsGPPrior")) {
       resolveLeafCovariates(
         gp(
           leafSpec@columns,
           kValue,
           leafSpec@lengthscale,
-          leafSpec@max.leaf.size,
-          namedSd,
-          namedScale
+          leafSpec@max.leaf.size
         ),
         data
       )
     } else {
-      normal(kValue, namedSd, namedScale)
+      normal(kValue)
     }
   }
-  # every cell's hyperprior is checked against the leaf model, not just the
-  # first: a named prior sd is calibrated at a fixed k and cannot ride a
-  # modelled cell, and resolvePriorScale is where that is refused by name
   leaf.hyperprior <- kGrid[[1L]]
-  for (kCell in kGrid[-1L]) {
-    invisible(resolvePriorScale(leafPrior, kCell))
-  }
 
   # a binary family runs on a fixed unit latent scale (R/spec.R's
   # fixedUnitScale rule): the residual prior is overridden where one is
@@ -458,9 +478,9 @@ xbart <- function(
     leaf.hyperprior,
     resid.prior,
     family = family,
-    # a named calibration is held across every cell, created or re-modelled:
-    # cellModel carries this model, and the setModel branch re-derives it
-    prior.scale = resolvePriorScale(leafPrior, leaf.hyperprior),
+    # an sd cell's anchor is held across folds, created or re-modelled:
+    # cellModel swaps it per cell, and the setModel branch re-derives it
+    prior.scale = kAnchors[[1L]],
     leaf.scale = defaultLeafScale(family)
   )
 
@@ -565,6 +585,7 @@ xbart <- function(
     n.burn,
     n.trees,
     kHyperpriors = kGrid,
+    kAnchors,
     power,
     base,
     cells,
@@ -779,14 +800,13 @@ xbart <- function(
     kOrderInv <- kOrder
     kOrderInv[kOrder] <- seq_along(kOrder)
     result <- result[,, kOrderInv, , , , drop = FALSE]
-    kGrid <- kGrid[kOrderInv]
   }
-  # the k axis labels its cells: a fixed cell by its value, at the two
+  # the k or sd axis labels its cells: a fixed cell by its value, at the two
   # significant digits every other axis prints, a modelled cell by the
   # constructor call that rebuilds it
-  k <- vapply(kGrid, kGridLabel, "")
+  k <- sd <- kLabels
 
-  varNames <- c("n.trees", "k", "power", "base")
+  varNames <- c("n.trees", if (sdAxis) "sd" else "k", "power", "base")
   dimIncluded <- c(
     TRUE,
     if (drop) length(n.trees) > 1L else TRUE,
@@ -910,6 +930,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     result@tree.prior@power <- spec$power[cells$iPower[cell]]
     result@tree.prior@base <- spec$base[cells$iBase[cell]]
     result@leaf.hyperprior <- spec$kHyperpriors[[cells$iK[cell]]]
+    result@prior.scale <- spec$kAnchors[[cells$iK[cell]]]
     result
   }
 
@@ -1075,6 +1096,45 @@ resolveKGrid <- function(k, binary) {
     stop("'k' must name at least one value")
   }
   lapply(entries, resolveKEntry)
+}
+
+## The sd axis: a numeric vector of absolute spreads, or a list mixing them
+## with invchi() laws, each translated to the leaf hyperprior and anchor a
+## leaf prior naming that sd reaches the engine with (resolveLeafPrior).
+resolveSdGrid <- function(sd) {
+  entries <- if (is.list(sd)) {
+    sd
+  } else if (is.numeric(sd)) {
+    as.list(sd)
+  } else {
+    list(sd)
+  }
+  if (length(entries) == 0L) {
+    stop("'sd' must name at least one value")
+  }
+  lapply(entries, function(entry) {
+    if (is.function(entry)) {
+      entry <- entry()
+    }
+    entry <- validateLeafSd(entry)
+    if (is.null(entry)) {
+      stop("'sd' must contain positive numbers and invchi() specifications")
+    }
+    translated <- resolveLeafPrior(
+      new("dbartsNormalPrior", prior.sd = entry),
+      binary = FALSE
+    )
+    c(
+      translated,
+      label = if (is.numeric(entry)) {
+        as.character(signif(entry, 2L))
+      } else {
+        paste0("invchi(", format(entry@df), ", ", format(entry@scale), ")")
+      },
+      # most shrunk first: the smallest fixed sd sorts highest
+      sort.key = if (is.numeric(entry)) -entry else -Inf
+    )
+  })
 }
 
 ## One k grid entry: a positive number fixes k for its cell, a hyperprior

@@ -1729,6 +1729,209 @@ predictForestsCodedTest <- function(sampler, x.test, offset.test, n.threads) {
   )
 }
 
+## A named leaf-prior sd is absolute on the family's scale, but the engine
+## holds the leaf scale against the response transform in force; a channel
+## that re-anchors that transform would carry the sd with it. The named anchor
+## is written back after each one, so the sd means what it did. Only a
+## single-forest model can name one, and a write equal to what is in force is
+## skipped inside the engine.
+reissueNamedLeafSd <- function(sampler) {
+  anchor <- sampler$model@prior.scale
+  if (is.na(anchor)) {
+    return(invisible(NULL))
+  }
+  .Call(C_dbarts_bartcore_setLeafPrior, sampler$getPointer(), 0L, anchor)
+  invisible(NULL)
+}
+
+## What prior.sd is the sd of, per leaf model.
+priorSdOf <- function(leafModel) {
+  switch(
+    leafModel,
+    linear = "coefficient",
+    gp = "amplitude",
+    "leaf value"
+  )
+}
+
+## The bridge's per-chain calibration, restated in the terms the leaf prior
+## is named in. The engine's k is relative to whatever anchor it holds, which
+## is the data's own on an unnamed model and the named one otherwise, so on a
+## named model k is re-derived against the data's anchor. The sd law is read
+## off the model's hyperprior, gated by the engine's per-forest flag, since a
+## coupled forest pins k whatever the model says.
+reportLeafPrior <- function(sampler, raw) {
+  model <- sampler$model
+  engineAnchor <- raw[, "prior.scale"]
+  named <- !is.na(model@prior.scale)
+  dataAnchor <- if (named) {
+    model@leaf.scale * raw[, "response.scale"]
+  } else {
+    engineAnchor
+  }
+  drawn <- raw[, "k.has.hyperprior"] != 0
+  hyperprior <- model@leaf.hyperprior
+  chiLaw <- is(hyperprior, "dbartsChiHyperprior")
+  sdDf <- rep(NaN, nrow(raw))
+  sdScale <- rep(NaN, nrow(raw))
+  if (chiLaw && any(drawn)) {
+    sdDf[drawn] <- hyperprior@degreesOfFreedom
+    sdScale[drawn] <- if (is.finite(hyperprior@scale)) {
+      engineAnchor[drawn] / hyperprior@scale
+    } else {
+      0.0
+    }
+  }
+  result <- cbind(
+    prior.sd = raw[, "prior.sd"],
+    prior.sd.df = sdDf,
+    prior.sd.scale = sdScale,
+    prior.mean = raw[, "prior.mean"],
+    k = if (named) dataAnchor / raw[, "prior.sd"] else raw[, "k"],
+    k.has.hyperprior = raw[, "k.has.hyperprior"],
+    anchor = dataAnchor,
+    raw[,
+      c(
+        "response.scale",
+        "response.shift",
+        "amplitude.prior.variance",
+        "amplitude.prior.scale",
+        "leaf.scale.factor",
+        "leaf.scale.divisor",
+        "basis.row.norm"
+      ),
+      drop = FALSE
+    ]
+  )
+  leafModel <- attr(raw, "leaf.model")
+  attr(result, "leaf.model") <- leafModel
+  attr(result, "prior.sd.of") <- priorSdOf(leafModel)
+  result
+}
+
+## Installs a restated leaf prior. A new anchor under the hyperprior in force
+## is the engine's own leaf-scale write, which skips a value equal to what is
+## in force; a new hyperprior, or a return to the data's anchor, goes through
+## the model, whose install re-pins a fixed sigma, so that is put back.
+writeLeafPrior <- function(sampler, ptr, newModel) {
+  oldModel <- sampler$model
+  sameLaw <- identical(newModel@leaf.hyperprior, oldModel@leaf.hyperprior)
+  if (sameLaw && !is.na(newModel@prior.scale)) {
+    .Call(C_dbarts_bartcore_setLeafPrior, ptr, 0L, newModel@prior.scale)
+    return(invisible(NULL))
+  }
+  if (sameLaw && is.na(oldModel@prior.scale)) {
+    return(invisible(NULL))
+  }
+  sigmas <- .Call(C_dbarts_bartcore_getSigmas, ptr)
+  .Call(
+    C_dbarts_bartcore_setModel,
+    ptr,
+    newModel,
+    sampler$data,
+    sampler$control
+  )
+  if (
+    !identical(.Call(C_dbarts_bartcore_getSigmas, ptr), sigmas) &&
+      length(unique(sigmas)) == 1L
+  ) {
+    .Call(C_dbarts_bartcore_setSigma, ptr, sigmas[[1L]])
+  }
+  invisible(NULL)
+}
+
+## The model a $setLeafPrior write installs: the sampler's own, with the leaf
+## prior's k or sd, and so its anchor and hyperprior, taken from the
+## specification. The specification must name the sampler's leaf model, and
+## any leaf-model detail it states must match, since only $setModel changes
+## the leaf model.
+restateLeafPrior <- function(sampler, spec, expr) {
+  model <- sampler$model
+  current <- model@leaf.prior
+  constructor <- function(prior) {
+    if (is(prior, "dbartsLinearPrior")) {
+      "linear()"
+    } else if (is(prior, "dbartsGPPrior")) {
+      "gp()"
+    } else {
+      "normal()"
+    }
+  }
+  refuseLeafModel <- function(what) {
+    stop(
+      "$setLeafPrior changes only the leaf prior's spread or its ",
+      "hyperprior, and ",
+      what,
+      "; change the leaf model through $setModel",
+      call. = FALSE
+    )
+  }
+  if (!identical(class(spec), class(current))) {
+    refuseLeafModel(paste0(
+      "this sampler's leaf model is written ",
+      constructor(current),
+      ", not ",
+      constructor(spec)
+    ))
+  }
+  # a detail is compared only where the call states it; a prior passed as a
+  # value states everything that is not at its constructor's default
+  supplied <- if (is.call(expr) && is.name(expr[[1L]])) {
+    constructorName <- as.character(expr[[1L]])
+    if (constructorName %in% c("linear", "gp")) {
+      names(match.call(dbartsPriors[[constructorName]], expr))[-1L]
+    }
+  }
+  stated <- function(slot, default) {
+    if (!is.null(supplied)) {
+      return(slot %in% supplied)
+    }
+    !identical(methods::slot(spec, slot), default)
+  }
+  if (is(spec, "dbartsLinearPrior") || is(spec, "dbartsGPPrior")) {
+    if (!is.null(spec@columns)) {
+      resolved <- resolveLeafCovariates(spec, sampler$data)
+      if (!identical(resolved@columns, current@columns)) {
+        refuseLeafModel("the leaf covariate columns it names differ")
+      }
+      if (
+        is(spec, "dbartsGPPrior") &&
+          stated("lengthscale", NULL) &&
+          !identical(resolved@lengthscale, current@lengthscale)
+      ) {
+        refuseLeafModel("the lengthscale it names differs")
+      }
+    } else if (
+      is(spec, "dbartsGPPrior") &&
+        stated("lengthscale", NULL) &&
+        !identical(
+          rep_len(spec@lengthscale, length(current@columns)),
+          current@lengthscale
+        )
+    ) {
+      refuseLeafModel("the lengthscale it names differs")
+    }
+    if (
+      is(spec, "dbartsGPPrior") &&
+        stated("max.leaf.size", 256L) &&
+        spec@max.leaf.size != current@max.leaf.size
+    ) {
+      refuseLeafModel("the max.leaf.size it names differs")
+    }
+  }
+  translated <- resolveLeafPrior(
+    spec,
+    sampler$control@binary,
+    monotone = !is.null(attr(model, "monotone"))
+  )
+  current@k <- spec@k
+  current@prior.sd <- spec@prior.sd
+  model@leaf.prior <- current
+  model@leaf.hyperprior <- translated$leaf.hyperprior
+  model@prior.scale <- translated$prior.scale
+  model
+}
+
 dbartsSampler <- setRefClass(
   "dbartsSampler",
   fields = list(
@@ -2153,6 +2356,7 @@ dbartsSampler <- setRefClass(
         )
       }
       bartcoreSamplerSetData(.self, newData)
+      reissueNamedLeafSd(.self)
       if (resolveUpdateState(updateState, control)) {
         storeState()
       }
@@ -2204,6 +2408,9 @@ dbartsSampler <- setRefClass(
         "into; replace it with $setCounts"
       )
       bartcoreSamplerSetResponse(.self, y, updateScale, status)
+      if (isTRUE(updateScale)) {
+        reissueNamedLeafSd(.self)
+      }
       if (resolveUpdateState(updateState, control)) {
         storeState()
       }
@@ -2220,6 +2427,9 @@ dbartsSampler <- setRefClass(
         "matrix $setCategoryOffset takes"
       )
       bartcoreSamplerSetOffset(.self, offset, updateScale)
+      if (isTRUE(updateScale)) {
+        reissueNamedLeafSd(.self)
+      }
       if (resolveUpdateState(updateState, control)) {
         storeState()
       }
@@ -2746,19 +2956,23 @@ dbartsSampler <- setRefClass(
       counts
     },
     getLeafPrior = function(forest = NULL) {
-      "Returns the leaf-prior calibration in force, one row per chain and one column of prior.scale (the forest total's prior standard deviation at k = 1, in response units), prior.sd (prior.scale / k), prior.mean, k, k.has.hyperprior, response.scale, and response.shift, then the five multi-forest calibration-map quantities: amplitude.prior.variance and amplitude.prior.scale (exclusive - a forest carries a fixed amplitude variance or a half-Cauchy scale mixture, and the other reads NaN), leaf.scale.factor, leaf.scale.divisor, and basis.row.norm, which decompose prior.scale as factor * anchor / (divisor * row norm). All five are NaN on a forest whose scale the map does not own, and the two leaf.scale columns go NaN after a state install brings a foreign calibration, until setForestBasis re-imposes the map. The leaf model rides on a 'leaf.model' attribute and qualifies prior.sd: an equality only for the constant leaf. This is the authoritative reader of the calibration - model@prior.scale records the named intent, which a channel that re-anchors the response transform leaves untouched while moving what is in force. At the default forest = NULL, every forest's calibration is stacked with the forest margin LAST, n.chains x 12 x n.forests (a single-forest sampler's NULL read is bitwise its forest 1 read); the column dimnames and the 'leaf.model' attribute are carried from the first forest, since both are properties of the sampler rather than of any one forest."
+      "Returns the leaf prior in force, one row per chain, in the terms it was named in, with one column each of prior.sd (the forest total's prior sd of the leaf model's own parameter, on the family's scale), prior.sd.df and prior.sd.scale (the invchi() law that sd follows while k is drawn, 0 scale for the improper limit; NaN when k is fixed), prior.mean, k (relative to the data's anchor), k.has.hyperprior, anchor (the data's anchor k is relative to), response.scale, and response.shift, then the five multi-forest calibration-map quantities: amplitude.prior.variance and amplitude.prior.scale (exclusive - a forest carries a fixed amplitude variance or a half-Cauchy scale mixture, and the other reads NaN), leaf.scale.factor, leaf.scale.divisor, and basis.row.norm, which decompose prior.sd, k being pinned at 1 there, as factor * latent scale / (divisor * row norm). All five are NaN on a forest whose scale the map does not own, and the two leaf.scale columns go NaN after a state install brings a foreign calibration, until setForestBasis re-imposes the map. A 'leaf.model' attribute names the leaf model and a 'prior.sd.of' attribute what prior.sd is the sd of: 'leaf value', 'coefficient' or 'amplitude'; prior.sd is the prior sd of f(x) only for the constant leaf. Each value writes back through setLeafPrior or setModel in the same terms: normal(sd = prior.sd), normal(sd = invchi(prior.sd.df, prior.sd.scale)) or normal(k = k). At the default forest = NULL, every forest's reading is stacked with the forest margin LAST, n.chains x 14 x n.forests (a single-forest sampler's NULL read is bitwise its forest 1 read); the column dimnames and both attributes are carried from the first forest, since they are properties of the sampler rather than of any one forest."
       ptr <- getPointer()
       if (!is.null(forest)) {
-        return(.Call(
-          C_dbarts_bartcore_getLeafPrior,
-          ptr,
-          resolveForestIndex(forest)
+        return(reportLeafPrior(
+          .self,
+          .Call(C_dbarts_bartcore_getLeafPrior, ptr, resolveForestIndex(forest))
         ))
       }
       numForests <- bartcoreNumForests(ptr)
       blocks <- lapply(
         seq_len(numForests),
-        function(f) .Call(C_dbarts_bartcore_getLeafPrior, ptr, f - 1L)
+        function(f) {
+          reportLeafPrior(
+            .self,
+            .Call(C_dbarts_bartcore_getLeafPrior, ptr, f - 1L)
+          )
+        }
       )
       if (numForests == 1L) {
         return(blocks[[1L]])
@@ -2770,74 +2984,52 @@ dbartsSampler <- setRefClass(
       }
       dimnames(result) <- list(NULL, colnames(first), NULL)
       attr(result, "leaf.model") <- attr(first, "leaf.model")
+      attr(result, "prior.sd.of") <- attr(first, "prior.sd.of")
       result
     },
-    setLeafPrior = function(
-      prior.scale,
-      prior.sd,
-      prior.mean,
-      forest = 1L,
-      updateState = NULL
-    ) {
-      "Restates a forest's leaf prior on every chain so that the forest total's prior standard deviation at k = 1 is prior.scale, in response units; prior.sd is the same statement at the current k and is refused when k is drawn from a hyperprior. Exactly one of the two is given. Nothing else moves - not k, not the response transform, not sigma, not the tree prior - and the write takes effect on the next sweep, reinterpreting no leaf value already drawn. updateState follows control@updateState; see setData."
+    setLeafPrior = function(leaf.prior, updateState = NULL) {
+      "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() law on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform, sigma or a drawn k's current value - and the write takes effect on the next sweep, reinterpreting no leaf value already drawn; a write equal to what is in force is bitwise inert. The write is recorded on the model field, so a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
         "$setLeafPrior",
-        "the softmax calibration map owns every category forest's leaf scale"
+        "the softmax calibration map owns every category forest's leaf scale, ",
+        "and the engine takes no mid-run change to it; a fixed k is stated at ",
+        "creation, normal(k = ), and a named sd or a k hyperprior is not ",
+        "supported there at all"
       )
-      if (!missing(prior.mean)) {
+      if (missing(leaf.prior)) {
         stop(
-          "'prior.mean' is not writable: the leaf values it would shift are ",
-          "already drawn and stored. The lever is the offset channel - ",
-          "setOffset(rep_len(-getLeafPrior()[1L, \"prior.mean\"], n)) ",
-          "re-centers the modelled quantity, and the getter then reports the ",
-          "mean that is in force"
+          "'leaf.prior' must be given: a leaf prior specification such as ",
+          "normal(sd = 1)"
         )
       }
-      if (missing(prior.scale) == missing(prior.sd)) {
-        stop("give exactly one of 'prior.scale' and 'prior.sd'")
-      }
+      expr <- substitute(leaf.prior)
+      spec <- evalInVocabulary(
+        expr,
+        dbartsPriors,
+        parent.frame(),
+        resolvedAs(
+          "leaf.prior",
+          "dbartsLeafPrior",
+          "leaf prior specification"
+        )
+      )
       # after the argument checks above, so a malformed call is answered on its
       # own terms rather than by the refusal that would follow a well-formed one
       refuseAmplitudeMutation(
         .self,
         "setLeafPrior",
         "every forest's leaf scale comes from the multi-forest calibration ",
-        "map; make a new sampler instead"
+        "map, whose spreads are stated per forest at creation through ",
+        "forest(sd = ), and the engine takes no mid-run change to them; make a ",
+        "new sampler instead"
       )
-
+      newModel <- restateLeafPrior(.self, spec, expr)
       ptr <- getPointer()
-      index <- resolveForestIndex(forest)
-      if (missing(prior.scale)) {
-        prior.sd <- validateLiveScale(prior.sd, "prior.sd")
-        calibration <- .Call(C_dbarts_bartcore_getLeafPrior, ptr, index)
-        if (any(calibration[, "k.has.hyperprior"] != 0)) {
-          stop(
-            "'prior.sd' names a prior sd at the current 'k', but 'k' is ",
-            "drawn every sweep under a hyperprior and the named sd would ",
-            "drift: write 'prior.scale' instead (the prior sd at k = 1), or ",
-            "pin 'k' at a number through setModel"
-          )
-        }
-        # the sugar divides by a per-chain quantity, so it has no single
-        # answer once the chains disagree about it; prior.scale is k-free and
-        # remains available
-        k <- unique(calibration[, "k"])
-        if (length(k) != 1L) {
-          stop(
-            "the chains' 'k' have diverged (",
-            paste0(format(k), collapse = ", "),
-            "), so one 'prior.sd' names a different scale on each: write ",
-            "'prior.scale', which does not divide by 'k'"
-          )
-        }
-        prior.scale <- prior.sd * k
-      } else {
-        prior.scale <- validateLiveScale(prior.scale, "prior.scale")
-      }
-
-      .Call(C_dbarts_bartcore_setLeafPrior, ptr, index, prior.scale)
+      writeLeafPrior(.self, ptr, newModel)
+      selfEnv <- parent.env(environment())
+      selfEnv$model <- newModel
       if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }

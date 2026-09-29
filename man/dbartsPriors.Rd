@@ -39,32 +39,56 @@
       passed (default: half the control's burn-in), so the forest is
       likelihood-informed when counts first enter the Dirichlet.
     }
-    \item{\code{normal(k = NULL, sd = NULL, scale = NULL)}}{
-      Normal prior on the leaf values. \code{k} scales the standard
-      deviation and can be a positive scalar, a hyperprior built with
-      \code{chi}, or \code{NULL} for the default: 2 for continuous
-      responses, \code{chi(1.5, 2)} for binary ones. The continuous
-      default follows Chipman, George, and McCulloch's argument that with
-      leaf standard deviation \code{sigma_mu = 0.5 / (k * sqrt(m))} for
-      \code{m} trees, \code{k} prior standard deviations of \eqn{f(x)}
-      span the whole response range regardless of \code{m}; see
-      \code{\link{dbarts}}'s Details for the response-scaling caveat this
-      relies on.
+    \item{\code{normal(k = NULL, sd = NULL)}}{
+      Normal prior on the leaf values, named one of two ways, never both.
+      Either names the spread of the whole forest - the sum of trees - not
+      of one tree.
 
-      \code{scale} and \code{sd} NAME that calibration instead of
-      inheriting it from the response range, in response units: at most
-      one may be given, \code{scale} is the prior standard deviation of
-      the forest total at \code{k = 1}, and \code{sd} is the same
-      quantity at the resolved \code{k} (so \code{scale = sd * k}).
-      \code{sd} is refused when \code{k} carries a hyperprior, since a
-      \code{k} drawn every sweep leaves no single value to divide by;
-      name \code{scale} there, which a sampled \code{k} scales rather
-      than replaces. See \code{\link{dbarts}}'s Details for what the
-      named quantity means under each leaf model. \code{NULL} leaves
-      either unnamed; \code{NA} is a missing value and is refused, here
-      and in \code{linear} and \code{gp}.
+      \code{k} is relative to the anchor the data fixes: a positive scalar,
+      a hyperprior on \code{k} built with \code{chi}, or \code{NULL} for
+      the default, 2 for continuous responses and \code{chi(1.5, 2)} for
+      binary ones. The continuous default follows Chipman, George, and
+      McCulloch's argument that with leaf standard deviation
+      \code{sigma_mu = 0.5 / (k * sqrt(m))} for \code{m} trees, \code{k}
+      prior standard deviations of \eqn{f(x)} span the whole response
+      range regardless of \code{m}; see \code{\link{dbarts}}'s Details for
+      the response-scaling caveat this relies on. A string such as
+      \code{"chi(1.5)"} is kept for 0.9-x.
+
+      \code{sd} is the standard deviation of the normal prior on the leaf
+      model's own parameter, for the forest total, on the scale the
+      family's forest fits: a positive number, or a hyperprior on the sd
+      itself built with \code{invchi}. It takes no string form. The scale
+      and the anchor \code{k} is relative to, per family:
+      \tabular{lll}{
+        family \tab \code{sd} is stated in \tab anchor at \code{k = 1} \cr
+        gaussian, student \tab response units \tab half the training response range \cr
+        aft \tab log survival time \tab half the observed log-time range \cr
+        probit, ordinal \tab probit latent \tab 3 \cr
+        logistic, nbinom \tab log-odds latent \tab \eqn{\pi\sqrt{3}}{pi * sqrt(3)} \cr
+        hazard \tab its link's latent \tab 3 or \eqn{\pi\sqrt{3}}{pi * sqrt(3)}
+      }
+      so a fixed \code{k} is the \code{sd} anchor / \code{k}. For the
+      constant leaf \code{sd} is exactly the prior standard deviation of
+      \eqn{f(x)} at every \eqn{x}; for the other leaf models it is the sd of
+      their parameter, and the prior spread of \eqn{f(x)} it implies is a
+      consequence stated under each. Under a \code{monotone} constraint
+      (see \code{\link{dbarts}}) \code{sd} is the prior sd of a leaf value
+      that no ordered neighbor bounds; a leaf a neighbor bounds is drawn
+      from a normal \eqn{\sqrt{\pi / (\pi - 1)}}{sqrt(pi / (pi - 1))} times
+      as wide, truncated to the ordering, which matches its marginal prior
+      variance to \code{sd^2}, and \code{sd} is a lower bound on the prior
+      sd of \eqn{f(x)} in the interior. A named \code{sd} is absolute: a
+      sampler restates it after every channel that re-anchors the response
+      transform (see \code{\link{dbartsSampler-class}}), where a \code{k}
+      moves with the data. It is refused on multinomial and multi-forest
+      models (whose spreads come from their calibration maps, the latter
+      stated through \code{\link{forest}(sd = )}, a different quantity),
+      and on a hurdle fit, whose two parts are on different scales.
+      \code{NULL} leaves either unnamed; \code{NA} is a missing value and is
+      refused, here and in \code{linear} and \code{gp}.
     }
-    \item{\code{linear(columns, k = NULL, sd = NULL, scale = NULL)}}{
+    \item{\code{linear(columns = NULL, k = NULL, sd = NULL)}}{
       Each leaf fits an intercept plus a linear term in the designated
       continuous predictor columns instead of a constant, so the forest
       models smoothly-varying coefficients. \code{columns} names model
@@ -75,11 +99,17 @@
       keep the intercept; \code{getTrees} adds one \code{beta.<column>}
       column per covariate. \code{\link{xbart}} accepts the same
       specification through its own \code{leaf.prior} argument.
-      \code{sd} and \code{scale} name the calibration as they do for
-      \code{normal}.
+      \code{k} and \code{sd} name the spread as they do for
+      \code{normal}, \code{sd} per standardized covariate: every
+      coefficient, the intercept included, has prior sd \code{sd} for the
+      forest total, so the prior sd of \eqn{f(x)} is
+      \code{sd * sqrt(1 + ||z||^2)} at standardized covariates \eqn{z}, and
+      \code{sd} is its lower bound, attained at the covariate means.
+      \code{columns} may be omitted only in a sampler's
+      \code{$setLeafPrior}, where the sampler fixes them.
     }
-    \item{\code{gp(columns, k = NULL, lengthscale = NULL,
-                   max.leaf.size = 256L, sd = NULL, scale = NULL)}}{
+    \item{\code{gp(columns = NULL, k = NULL, lengthscale = NULL,
+                   max.leaf.size = 256L, sd = NULL)}}{
       Each leaf fits a smooth Gaussian-process function of the designated
       continuous predictor columns, drawn under a squared-exponential
       kernel whose prior scale ties to \code{k} exactly as the other leaf
@@ -114,8 +144,12 @@
       Function-valued fits ride prediction only: \code{getTrees} reports
       \code{NA} leaf values, and \code{keepTrees} storage grows with the
       leaf sizes. \code{\link{xbart}} accepts the same specification
-      through its own \code{leaf.prior} argument. \code{sd} and
-      \code{scale} name the calibration as they do for \code{normal}.
+      through its own \code{leaf.prior} argument. \code{k} and \code{sd}
+      name the spread as they do for \code{normal}, \code{sd} as the
+      amplitude of the forest total's Gaussian process: the prior sd of
+      \eqn{f(x)} is \code{sd} at a leaf's own rows and decays away from
+      them, so \code{sd} is its upper bound. \code{columns} may be omitted
+      only in a sampler's \code{$setLeafPrior}.
 
       \code{predict} at a training row re-krigs the jitter-free
       posterior mean from the cached kernel and drawn training values,
@@ -125,16 +159,37 @@
       which reads the recorded fit directly - only \code{predict} and
       test-data prediction re-krig).
     }
-    \item{\code{chi(degreesOfFreedom = 1.5, scale = 2)}}{
+    \item{\code{chi(df = 1.5, scale = 2)}}{
       Chi hyperprior over \code{k}, sampled along with the rest of the
-      model: \code{k} is given a chi distribution with the stated degrees
-      of freedom and scale. The default, \code{chi(1.5, 2)}, centers the
-      sampled \code{k} near the field-standard fixed value of 2 (prior
-      median 1.9) while letting it adapt to the data. \code{scale = Inf}
-      remains accepted, but the posterior it gives \code{k} is improper:
-      with little signal, few trees or many degrees of freedom, \code{k}
-      can drift to infinity, where every leaf is zero and the trees add
-      nothing to the fit.
+      model: \code{k} is given a chi distribution with \code{df} degrees
+      of freedom and scale \code{scale}. The default, \code{chi(1.5, 2)},
+      centers the sampled \code{k} near the field-standard fixed value of
+      2 (prior median 1.9) while letting it adapt to the data. It is the
+      same prior as \code{sd = invchi(df, anchor / scale)}. \code{scale =
+      Inf} remains accepted, but the posterior it gives \code{k} is
+      improper: with little signal, few trees or many degrees of freedom,
+      \code{k} can drift to infinity, where every leaf is zero and the
+      trees add nothing to the fit. The first argument was
+      \code{degreesOfFreedom} in 0.9-x; that name is accepted, with a
+      warning, until dbarts 1.1-0.
+    }
+    \item{\code{invchi(df = 1.5, scale)}}{
+      Scaled inverse chi hyperprior over a leaf prior's \code{sd}, on the
+      sd's own scale: \eqn{sd = scale / \chi_{df}}{sd = scale / chi_df},
+      equivalently \eqn{sd^2}{sd^2} is scaled inverse chi-square with
+      \code{df} degrees of freedom. \code{scale} has no default, since a
+      spread on the family's scale has no data-free one; \code{scale = 0}
+      is the improper \eqn{sd^{-(df + 1)}}{sd^-(df + 1)} limit. It is the
+      same prior as \code{k = chi(df, anchor / scale)}, and
+      \code{chi(df, Inf)} is \code{invchi(df, 0)}; the binary defaults are
+      \code{invchi(1.5, 1.5)} on probit and
+      \code{invchi(1.5, pi * sqrt(3) / 2)} on logistic. In Stan's terms it
+      is \code{scaled_inv_chi_square(df, scale / sqrt(df))} on the
+      variance, and an inverse gamma with shape \code{df / 2} and scale
+      \code{scale^2 / 2}. No other law on the sd is offered: this is the
+      one conjugate to the normal leaves, which the sampler draws exactly;
+      a half-t or half-Cauchy would need a non-conjugate update. Refused
+      under a monotone constraint, as a \code{chi} on \code{k} is.
     }
     \item{\code{chisq(df = 3, quant = 0.9)}}{
       Chi-squared prior on the residual variance. Its scale is set from

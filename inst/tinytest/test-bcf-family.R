@@ -9,7 +9,7 @@
 # family-keyed refusals that flip the moment the sampler reports its own
 # family. The anchor assertions are exact rather than statistical: under a
 # latent family the response transform is the identity and the map's sqrt(m)
-# cancels, so $getLeafPrior()'s prior.scale IS the map's leaf scale.
+# cancels, so $getLeafPrior()'s prior.sd (k pinned at 1) IS the map's leaf scale.
 
 set.seed(29)
 n <- 240L
@@ -68,7 +68,7 @@ basisSampler <- function(y, bases, family = "auto", ...) {
 priorScales <- function(sampler) {
   unname(vapply(
     seq_along(sampler$data@bases),
-    function(f) sampler$getLeafPrior(f)[1L, "prior.scale"],
+    function(f) sampler$getLeafPrior(f)[1L, "prior.sd"],
     numeric(1L)
   ))
 }
@@ -121,7 +121,7 @@ for (family in names(anchors)) {
     tolerance = 1e-12
   )
 
-  # (c) THE INDUCED INDEX: sqrt(sum_f prior.scale_f^2 v_f ||B_f(i,.)||^2) at
+  # (c) THE INDUCED INDEX: sqrt(sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2) at
   # the default amplitude prior variance and unit row norms. The map itself
   # still disperses as 1.04912 sqrt(K) - it carries no per-K renormalization -
   # but the DEFAULT leaf scale factor is now sqrt(2/K),
@@ -170,7 +170,7 @@ for (family in names(anchors)) {
 
   # (e) THE FACTORS THEMSELVES, which the reader now reports beside the
   # product. Each column against the value this fixture declares, and then the
-  # ANCHOR recovered by the identity the Rd states - prior.scale * divisor *
+  # ANCHOR recovered by the identity the Rd states - prior.sd * divisor *
   # row norm / factor - which is the only route to s and is what the
   # decomposition exists for. The recovery is what the logistic arm
   # discriminates: a map that dropped the anchor recovers 1 here rather than
@@ -191,7 +191,7 @@ for (family in names(anchors)) {
     )
     expect_equal(
       unname(
-        reported["prior.scale"] *
+        reported["prior.sd"] *
           reported["leaf.scale.divisor"] *
           reported["basis.row.norm"] /
           reported["leaf.scale.factor"]
@@ -415,10 +415,21 @@ for (family in c("probit", "logistic")) {
       yBalanced,
       forests = twoForests,
       family = family,
-      leaf.prior = normal(2, scale = 1.5),
+      leaf.prior = normal(sd = 0.75),
       control = seededControlBcfFamily()
     ),
-    "a named 'prior.scale'"
+    "a named leaf-prior 'sd'.*forest\\(sd = \\)"
+  )
+  expect_error(
+    dbarts(
+      x,
+      yBalanced,
+      forests = twoForests,
+      family = family,
+      leaf.prior = normal(sd = invchi(1.5, 1)),
+      control = seededControlBcfFamily()
+    ),
+    "a named leaf-prior 'sd'"
   )
   # leaf.scale is written by the family switch rather than by the caller, so
   # the bridge's own backstop is where a non-default one can be stated at all

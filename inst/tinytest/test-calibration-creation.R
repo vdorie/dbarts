@@ -1,4 +1,4 @@
-# Naming the leaf calibration at creation ('prior.scale'): a composed model
+# Naming the leaf prior at creation by 'sd': a composed model
 # states the prior sd of its forest total in
 # RESPONSE units instead of inheriting it from the range of whatever vector the
 # sampler happened to be constructed on. The oracles are two composed probit
@@ -48,7 +48,7 @@ composeProbit <- function(
     leaf.prior = if (is.na(priorScale)) {
       dbartsPriors$normal(k = 2)
     } else {
-      dbartsPriors$normal(k = 2, scale = priorScale)
+      dbartsPriors$normal(sd = priorScale / 2)
     },
     family = gaussian(sigma = dbartsPriors$fixed(1))
   )
@@ -81,7 +81,7 @@ composeProbit <- function(
 }
 
 # --- arms built CENTERED (so the transform's shift matches by
-# construction) at ranges 16x apart, naming the same prior.scale. The tolerance
+# construction) at ranges 16x apart, naming the same sd. The tolerance
 # is pinned, not deferred: measured 1.0e-14 at the 120 sweeps shipped here and
 # 4.3e-14 at 2000, growing like sqrt(sweeps), so 1e-12 holds with margin. ---
 sweeps <- 120L
@@ -120,7 +120,7 @@ expect_true(max(abs(armA - armB)) > 1)
 
 # --- a named composition targets the same posterior as the engine's own
 # probit. The engine's probit anchor is leaf.scale 3.0 on a unit-scale latent,
-# so prior.scale = 3.0 is the composition's statement of the same prior. ---
+# so sd = 1.5 at k = 2 is the composition's statement of the same prior. ---
 set.seed(21)
 nO2 <- 200L
 xO2 <- matrix(runif(nO2 * p), nO2, p)
@@ -189,16 +189,16 @@ refControl <- function(...) {
   )
 }
 
-# (i) the two-forest model, refused R-side by name
+# (i) the two-forest model, refused R-side by name, before translation
 expect_error(
   dbarts(
     xRef,
     yRef,
     forests = list(forest(), forest(basis = ~ factor(zRef))),
     control = refControl(),
-    leaf.prior = normal(scale = 1.5)
+    leaf.prior = normal(sd = 0.75)
   ),
-  "a named 'prior.scale'"
+  "a named leaf-prior 'sd'"
 )
 # (ii) and again at the bridge, for a hand-built model the R layer never emits
 resolved <- dbartsSpec(
@@ -209,103 +209,86 @@ resolved <- dbartsSpec(
 resolved$model@prior.scale <- 1.5
 expect_error(
   new("dbartsSampler", resolved$control, resolved$model, resolved$data),
-  "a named 'prior.scale'"
+  "a named leaf-prior sd"
 )
 # (iii) the multinomial creation path, whose leaf scales come from the softmax
-# calibration map: bart builds directly through dbarts()'s own
-# resolveSamplerSpec, whose multinomial-specific check catches a named
-# prior.scale before any sampler is created at all, with the same "a named
-# 'prior.scale'" text (i)/(ii) above use
+# calibration map: resolveSamplerSpec's multinomial-specific check names a
+# named sd, number or hyperprior, before any sampler is created
 labels <- sample(0:2, nRef, replace = TRUE)
-expect_error(
-  bart(
-    xRef,
-    factor(labels),
-    family = "multinomial",
-    leaf.prior = normal(scale = 1.5),
-    n.samples = 5L,
-    n.burn = 5L,
-    n.chains = 1L,
-    n.trees = 10L,
-    verbose = FALSE
-  ),
-  "a named 'prior.scale'"
-)
+for (namedSd in list(0.75, dbartsPriors$invchi(1.5, 0.75))) {
+  expect_error(
+    bart(
+      xRef,
+      factor(labels),
+      family = "multinomial",
+      leaf.prior = normal(sd = namedSd),
+      n.samples = 5L,
+      n.burn = 5L,
+      n.chains = 1L,
+      n.trees = 10L,
+      verbose = FALSE
+    ),
+    "a named leaf-prior 'sd'"
+  )
+}
 
 # a non-finite or non-positive value is an error, not a refusal
-expect_error(dbartsPriors$normal(scale = -1), "'scale' must be positive")
+expect_error(dbartsPriors$normal(sd = -1), "'sd' must be positive")
 expect_error(dbartsPriors$normal(sd = Inf), "'sd' must be positive")
 expect_error(dbartsPriors$normal(sd = c(1, 2)), "single number")
-expect_error(dbartsPriors$normal(sd = 1, scale = 1), "at most one")
 expect_error(
   bart(
     xRef,
     yRef,
-    leaf.prior = normal(scale = -1),
+    leaf.prior = normal(sd = -1),
     n.samples = 5L,
     n.burn = 5L,
     n.chains = 1L,
     verbose = FALSE
   ),
-  "'scale' must be positive"
+  "'sd' must be positive"
 )
 
-# the sd spelling under a sampled k, with both remedies named. The binary
-# default IS the sampled path, so this is the ordinary probit fit.
-sdRefusal <- tryCatch(
-  dbarts(
-    xRef,
-    zRef,
-    control = refControl(),
-    leaf.prior = normal(sd = 1.5)
-  ),
-  error = function(e) conditionMessage(e)
-)
-expect_true(is.character(sdRefusal))
-expect_true(grepl("'scale'", sdRefusal, fixed = TRUE))
-expect_true(grepl("fix 'k'", sdRefusal, fixed = TRUE))
-# named 'scale' is honored under exactly the same hyperprior
+# a named sd on a binary family: a number fixes k at the reference 2, and an
+# invchi() law draws it under chi(df, 2) against the anchor 2c
 expect_equal(
   dbarts(
     xRef,
     zRef,
     control = refControl(),
-    leaf.prior = normal(scale = 1.5)
+    leaf.prior = normal(sd = 0.75)
   )$model@prior.scale,
   1.5
 )
-# and the sd sugar resolves against a fixed k
-expect_equal(
-  dbarts(
-    xRef,
-    yRef,
-    control = refControl(),
-    leaf.prior = normal(k = 4, sd = 0.5)
-  )$model@prior.scale,
-  2.0
-)
+invchiModel <- dbarts(
+  xRef,
+  zRef,
+  control = refControl(),
+  leaf.prior = normal(sd = invchi(1.5, 0.75))
+)$model
+expect_equal(invchiModel@prior.scale, 1.5)
+expect_identical(invchiModel@leaf.hyperprior, dbartsPriors$chi(1.5, 2))
 
-# a DART sampler is NOT refused: the named calibration and the Dirichlet split
+# a DART sampler is NOT refused: the named sd and the Dirichlet split
 # machinery are independent, and the fit runs clean
 dartSampler <- dbarts(
   xRef,
   yRef,
   control = refControl(),
   tree.prior = dart(),
-  leaf.prior = normal(scale = 1.5)
+  leaf.prior = normal(sd = 0.75)
 )
 expect_equal(dartSampler$model@prior.scale, 1.5)
 expect_true(all(is.finite(dartSampler$run(20L, 10L)$train)))
 
-# monotone / linear / gp accept it too - the setter half is total over all four
-# leaf models, and the creation half must be as well
+# monotone / linear / gp accept it too
 expect_equal(
   dbarts(
     xRef,
     yRef,
     control = refControl(),
     monotone = c(x1 = 1),
-    leaf.prior = normal(scale = 1.5)
+    leaf.prior = normal(sd = 0.75)
   )$model@prior.scale,
   1.5
 )
@@ -314,7 +297,7 @@ expect_equal(
     xRef,
     yRef,
     control = refControl(),
-    leaf.prior = linear("x1", scale = 1.5)
+    leaf.prior = linear("x1", sd = 0.75)
   )$model@prior.scale,
   1.5
 )
@@ -323,7 +306,7 @@ expect_equal(
     xRef,
     yRef,
     control = refControl(),
-    leaf.prior = gp("x1", scale = 1.5)
+    leaf.prior = gp("x1", sd = 0.75)
   )$model@prior.scale,
   1.5
 )
@@ -337,7 +320,7 @@ named <- dbarts(
   xRef,
   yRef,
   control = refControl(),
-  leaf.prior = normal(k = 2, scale = 1.5)
+  leaf.prior = normal(sd = 0.75)
 )
 expect_equal(named$model@prior.scale, 1.5)
 named$setResponse(yRef + 1, updateScale = TRUE)
@@ -359,13 +342,13 @@ withoutSetModel <- dbarts(
   xRef,
   yRef,
   control = roundTripControl,
-  leaf.prior = normal(k = 2, scale = 1.5)
+  leaf.prior = normal(sd = 0.75)
 )
 withSetModel <- dbarts(
   xRef,
   yRef,
   control = roundTripControl,
-  leaf.prior = normal(k = 2, scale = 1.5)
+  leaf.prior = normal(sd = 0.75)
 )
 withSetModel$setModel(withSetModel$model)
 expect_identical(
@@ -378,7 +361,7 @@ reverted <- dbarts(
   xRef,
   yRef,
   control = roundTripControl,
-  leaf.prior = normal(k = 2, scale = 1.5)
+  leaf.prior = normal(sd = 0.75)
 )
 strippedModel <- reverted$model
 strippedModel@prior.scale <- NA_real_
@@ -407,18 +390,18 @@ xbartArgs <- list(
 cellLoss <- function(result) {
   if (is.null(dim(result))) mean(result) else colMeans(result)
 }
-# the k grid: cell 1 creates the sampler, cells 2+ take the setModel branch
+# the sd grid: cell 1 creates the sampler, cells 2+ take the setModel branch
 sweptLoss <- cellLoss(do.call(
   xbart,
-  c(xbartArgs, list(k = c(1, 4), leaf.prior = quote(normal(scale = 1.5))))
+  c(xbartArgs, list(sd = c(1.5, 1.5 / 4)))
 ))
 # the same two cells run one at a time, so each takes the creation branch
 singleLoss <- vapply(
-  c(1, 4),
-  function(kValue) {
+  c(1.5, 1.5 / 4),
+  function(sdValue) {
     cellLoss(do.call(
       xbart,
-      c(xbartArgs, list(k = kValue, leaf.prior = quote(normal(scale = 1.5))))
+      c(xbartArgs, list(leaf.prior = call("normal", sd = sdValue)))
     ))
   },
   numeric(1L)
@@ -431,29 +414,9 @@ expect_true(max(abs(sweptLoss / singleLoss - 1)) < 0.25)
 inheritedLoss <- cellLoss(do.call(xbart, c(xbartArgs, list(k = c(1, 4)))))
 expect_true(max(abs(inheritedLoss / sweptLoss - 1)) > 0.25)
 
-# the k hyperprior arm: held across cells, and the sd spelling meets the
-# sampled-k refusal here exactly as it does everywhere else
+# the sd hyperprior arm, held across cells
 hyperLoss <- cellLoss(do.call(
   xbart,
-  c(
-    xbartArgs,
-    list(
-      k = dbartsPriors$chi(1.5, 2),
-      leaf.prior = quote(normal(scale = 1.5))
-    )
-  )
+  c(xbartArgs, list(sd = list(dbartsPriors$invchi(1.5, 0.75), 0.75)))
 ))
 expect_true(all(is.finite(hyperLoss)))
-expect_error(
-  do.call(
-    xbart,
-    c(
-      xbartArgs,
-      list(
-        k = dbartsPriors$chi(1.5, 2),
-        leaf.prior = quote(normal(sd = 1.5))
-      )
-    )
-  ),
-  "drawn every"
-)

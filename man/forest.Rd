@@ -112,7 +112,7 @@ forest(
     prior standard deviation of the combined location at row \eqn{i}{i} is
     \eqn{\sqrt{\sum_f s_f^2 v_f \|B_f(i,\cdot)\|^2}}{sqrt(sum_f s_f^2 v_f
     ||B_f(i, .)||^2)} over the forests carrying a basis, with \eqn{s_f}{s_f}
-    read from \code{$getLeafPrior(f)[, "prior.scale"]} and \eqn{v_f}{v_f}
+    read from \code{$getLeafPrior(f)[, "prior.sd"]} and \eqn{v_f}{v_f}
     this argument; a basis-free forest's own term is Cauchy and has no
     standard deviation. The budget that sum sits in is set by \code{sd}, whose
     default already divides it among the \eqn{K}{K} forests, so raising this
@@ -168,8 +168,11 @@ forest(
 
   Both forests' leaf scales come from the model's own calibration map rather
   than from the leaf prior, which is why a \code{k} hyperprior, a non-default
-  \code{k}, and a linear or Gaussian-process leaf prior are refused when a
-  second forest is declared. Every value here is validated at fit time, and
+  \code{k}, a named leaf-prior \code{sd}, and a linear or Gaussian-process
+  leaf prior are refused when a second forest is declared. This \code{sd} is
+  not the leaf prior's: it states this forest's share of the combined
+  location's prior, per unit of basis row norm, where
+  \code{normal(sd = )} states a single forest's whole spread. Every value here is validated at fit time, and
   anything today's engine cannot honour is refused there by name rather than
   dropped.
 
@@ -230,7 +233,7 @@ amplitudes <- sampler$getForestAmplitudes()
 # than recomputed from the call: forest 2 is the one carrying a basis
 calibration <- sampler$getLeafPrior(2L)
 basis <- sampler$data@bases[[2L]]
-indexSd <- sqrt(calibration[1L, "prior.scale"]^2 *
+indexSd <- sqrt(calibration[1L, "prior.sd"]^2 *
                 calibration[1L, "amplitude.prior.variance"] *
                 rowSums(basis^2))
 }

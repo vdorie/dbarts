@@ -22,6 +22,9 @@
     \item{\code{node.prior}}{
       On \code{\link{dbarts}}: the leaf-value prior, now \code{leaf.prior}.
     }
+    \item{\code{degreesOfFreedom}}{
+      On \code{\link{dbartsPriors}}'s \code{chi()}: the degrees of freedom of the hyperprior on \code{k}, now \code{df}, as \code{invchi()} and base R's \code{dchisq} spell it. Positional calls, \code{chi(1.5, 2)}, are unchanged.
+    }
     \item{\code{power}, \code{base}}{
       On \code{\link{bart}}: tree-prior-only settings, now arguments of \code{\link{dbartsPriors}}'s \code{cgm()} or \code{dart()} (\code{tree.prior = cgm(power, base)} or \code{tree.prior = dart(power, base)}).
     }

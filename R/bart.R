@@ -487,16 +487,26 @@ packageBartResults <- function(
   result$gp.fallback <- attr(samples, "gp.fallback")
   result$n.chains <- n.chains
   if (!is.null(samples[["k"]])) {
-    result[["k"]] <- convertSamplesFromDbartsToBart(
-      samples[["k"]],
+    # a fit that names its leaf prior by sd reports the spread it named, the
+    # anchor in force over the engine's drawn k, in place of that k
+    anchor <- fit$model@prior.scale
+    spreadNamed <- !is.na(anchor)
+    toReported <- function(draws) {
+      if (is.null(draws) || !spreadNamed) draws else anchor / draws
+    }
+    channel <- if (spreadNamed) "sd" else "k"
+    result[[channel]] <- convertSamplesFromDbartsToBart(
+      toReported(samples[["k"]]),
       n.chains,
       combineChains
     )
-    result[["first.k"]] <- convertSamplesFromDbartsToBart(
-      burnInK,
-      n.chains,
-      combineChains
-    )
+    if (!is.null(burnInK)) {
+      result[[paste0("first.", channel)]] <- convertSamplesFromDbartsToBart(
+        toReported(burnInK),
+        n.chains,
+        combineChains
+      )
+    }
   }
 
   # a component absent from this fit (no test set, no heteroscedastic
@@ -2816,6 +2826,27 @@ bart2Hurdle <- function(
       "family = \"hurdle.lognormal\" fits currently use the matrix interface ",
       "- bart(x, y, family = \"hurdle.lognormal\")"
     )
+  }
+
+  # one leaf prior reaches both halves, whose scales differ (the probit latent
+  # and log y), so a named sd states neither; it would also fix the zero
+  # part's drawn default k. Checked before either half is built.
+  if (!is.null(matchedCall[["leaf.prior"]])) {
+    hurdleLeafPrior <- evalInVocabulary(
+      matchedCall[["leaf.prior"]],
+      dbartsPriors,
+      callingEnv
+    )
+    if (
+      is(hurdleLeafPrior, "dbartsLeafPrior") &&
+        !is.null(hurdleLeafPrior@prior.sd)
+    ) {
+      stop(
+        "a hurdle fit passes one leaf prior to a probit zero part and a ",
+        "log-scale positive part, so one 'sd' cannot state both; name 'k', ",
+        "or fit the two parts separately"
+      )
+    }
   }
 
   split <- splitHurdleResponse(data)

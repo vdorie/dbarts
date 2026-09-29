@@ -266,7 +266,7 @@ augAgreement <- function(family, y, coldStart, link) {
     control = augControl(),
     family = gaussian(sigma = fixed(1))
   )
-  host$setLeafPrior(prior.scale = native$getLeafPrior()[1L, "prior.scale"])
+  host$setLeafPrior(normal(sd = native$getLeafPrior()[1L, "prior.sd"]))
   fits <- matrix(0, nObs, nDraws)
   for (s in seq_len(nBurn + nDraws)) {
     latent <- dbartsDrawLatents(
@@ -294,8 +294,8 @@ augAgreement <- function(family, y, coldStart, link) {
     signal = cor(composed, fTrue),
     sigma = as.numeric(host$getSigmas()),
     scales = c(
-      host$getLeafPrior()[1L, "prior.scale"],
-      native$getLeafPrior()[1L, "prior.scale"]
+      host$getLeafPrior()[1L, "prior.sd"],
+      native$getLeafPrior()[1L, "prior.sd"]
     )
   )
 }

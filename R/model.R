@@ -233,14 +233,16 @@ parsePriors <- function(
       "supported with linear or gp leaf priors"
     )
   }
-  leaf.hyperprior <- resolveLeafHyperprior(
-    leaf.prior@k,
+  resolved <- resolveLeafPrior(
+    leaf.prior,
     control@binary,
     monotone = !is.null(monotone),
     multiForest = isTRUE(multiForest)
   )
+  leaf.hyperprior <- resolved$leaf.hyperprior
+  prior.scale <- resolved$prior.scale
 
-  namedList(tree.prior, resid.prior, leaf.prior, leaf.hyperprior)
+  namedList(tree.prior, resid.prior, leaf.prior, leaf.hyperprior, prior.scale)
 }
 
 ## Turn a linear or gp leaf prior's raw columns specification into 1-based
@@ -254,7 +256,10 @@ parsePriors <- function(
 resolveLeafCovariates <- function(prior, data) {
   label <- if (is(prior, "dbartsGPPrior")) "gp" else "linear"
   columns <- prior@columns
-  if (is.null(columns) || length(columns) == 0L) {
+  if (is.null(columns)) {
+    stop(label, " leaf prior requires 'columns' naming the leaf covariates")
+  }
+  if (length(columns) == 0L) {
     stop(label, " leaf prior requires at least one covariate column")
   }
 
@@ -1437,36 +1442,30 @@ cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
   result
 }
 
-linear <- function(columns, k = NULL, sd = NULL, scale = NULL) {
-  if (missing(columns)) {
-    stop("linear leaf prior requires 'columns' naming the leaf covariates")
-  }
-  if (!is.character(columns) && !is.numeric(columns)) {
+## columns may be omitted only where a sampler already fixes them
+## ($setLeafPrior); a fitting function refuses NULL when it resolves them.
+linear <- function(columns = NULL, k = NULL, sd = NULL) {
+  if (!is.null(columns) && !is.character(columns) && !is.numeric(columns)) {
     stop("linear leaf prior 'columns' must be a character or numeric vector")
   }
-  # reuses normal()'s k validation and coercions, and its named-scale rules
-  normalPrior <- normal(k, sd, scale)
+  # reuses normal()'s k and sd validation and coercions
+  normalPrior <- normal(k, sd)
   new(
     "dbartsLinearPrior",
     k = normalPrior@k,
     columns = columns,
-    prior.scale = normalPrior@prior.scale,
     prior.sd = normalPrior@prior.sd
   )
 }
 
 gp <- function(
-  columns,
+  columns = NULL,
   k = NULL,
   lengthscale = NULL,
   max.leaf.size = 256L,
-  sd = NULL,
-  scale = NULL
+  sd = NULL
 ) {
-  if (missing(columns)) {
-    stop("gp leaf prior requires 'columns' naming the leaf covariates")
-  }
-  if (!is.character(columns) && !is.numeric(columns)) {
+  if (!is.null(columns) && !is.character(columns) && !is.numeric(columns)) {
     stop("gp leaf prior 'columns' must be a character or numeric vector")
   }
   if (
@@ -1484,25 +1483,23 @@ gp <- function(
   ) {
     stop("gp leaf prior 'max.leaf.size' must be a positive integer")
   }
-  # reuses normal()'s k validation and coercions, and its named-scale rules
-  normalPrior <- normal(k, sd, scale)
+  # reuses normal()'s k and sd validation and coercions
+  normalPrior <- normal(k, sd)
   new(
     "dbartsGPPrior",
     k = normalPrior@k,
     columns = columns,
     lengthscale = if (is.null(lengthscale)) NULL else as.double(lengthscale),
     max.leaf.size = max.leaf.size,
-    prior.scale = normalPrior@prior.scale,
     prior.sd = normalPrior@prior.sd
   )
 }
 
-## One named-calibration argument, wherever it is spelled: NULL leaves it
-## unnamed, anything else must be a single positive finite number. NA is a
-## missing value, not the unnamed spelling, and NaN carries no intent and
-## cannot serve as a divisor, so both are refused here rather than surviving
-## to the bridge's own last-line check. The result is NA_real_ for unnamed,
-## which is what the slots hold.
+## A named spread, wherever it is spelled: NULL leaves it unnamed, anything
+## else must be a single positive finite number. NA is a missing value, not
+## the unnamed spelling, and NaN carries no intent and cannot serve as a
+## divisor, so both are refused here rather than surviving to the bridge's own
+## last-line check. The result is NA_real_ for unnamed.
 validateNamedScale <- function(value, name) {
   if (is.null(value)) {
     return(NA_real_)
@@ -1535,38 +1532,88 @@ validateLiveScale <- function(value, name) {
   validateNamedScale(value, name)
 }
 
-## The two spellings of the named leaf calibration, shared by normal(),
-## linear() and gp(): 'scale' is the forest total's prior sd at k = 1, 'sd' the
-## same at the resolved k. Both are response units and at most one may be
-## given; the sd-to-scale conversion waits for k (resolvePriorScale).
-resolveNamedScaleArgs <- function(sd, scale) {
-  sd <- validateNamedScale(sd, "sd")
-  scale <- validateNamedScale(scale, "scale")
-  if (!is.na(sd) && !is.na(scale)) {
-    stop("give at most one of 'sd' and 'scale' to a leaf prior")
+## A leaf prior's 'sd': NULL, a positive number, or an invchi() law on it. A
+## law on k and the string forms k keeps for 0.9-x are refused by name.
+validateLeafSd <- function(sd) {
+  if (is.null(sd) || is(sd, "dbartsSdHyperprior")) {
+    return(sd)
   }
-  list(prior.sd = sd, prior.scale = scale)
-}
-
-## The model's response-unit prior.scale, resolved from a leaf prior's named
-## calibration against the k that will actually be in force. A sampled k has no
-## single value to multiply an sd by and drifts every sweep, so the sd spelling
-## is refused there rather than honored at the current draw.
-resolvePriorScale <- function(leaf.prior, leaf.hyperprior) {
-  if (is.na(leaf.prior@prior.sd)) {
-    return(leaf.prior@prior.scale)
-  }
-  if (!is(leaf.hyperprior, "dbartsFixedHyperprior")) {
+  if (is(sd, "dbartsLeafHyperprior")) {
     stop(
-      "'sd' names a prior sd at the current 'k', but 'k' is drawn every ",
-      "sweep under a hyperprior and the named sd would drift: name ",
-      "'scale' instead (the prior sd at k = 1), or fix 'k' at a number"
+      "'sd' takes a number or invchi(), a law on the sd itself; a law on k ",
+      "is spelled k = chi(), and the same prior on the sd is ",
+      "sd = invchi(df, anchor / scale)"
     )
   }
-  leaf.prior@prior.sd * leaf.hyperprior@k
+  if (is.character(sd)) {
+    stop(
+      "'sd' must be a number or invchi(); unlike 'k' it takes no string form"
+    )
+  }
+  validateNamedScale(sd, "sd")
 }
 
-normal <- function(k = NULL, sd = NULL, scale = NULL) {
+## The engine's inputs for a leaf prior, the model's prior.scale anchor and its
+## leaf hyperprior, translated from whichever of 'k' and 'sd' it names. The
+## engine's k is relative to its anchor, and only their ratio enters a draw, so
+## a named sd rides a reference k of 2: a fixed sd x is anchor 2x with k fixed
+## at 2, and invchi(df, c) is anchor 2c with k ~ chi(df, 2). The bridge starts a
+## drawn k at 2, so the chain starts at the named spread, and the binary
+## default and every k spelling at the defaults keep bitwise engine inputs.
+## invchi(df, 0) is the improper limit, which no anchor can state and
+## chi(df, Inf) is. A multi-forest fit refuses a named sd before any of this:
+## its calibration map pins every forest's scale.
+resolveLeafPrior <- function(
+  leaf.prior,
+  binary,
+  monotone = FALSE,
+  multiForest = FALSE
+) {
+  sd <- leaf.prior@prior.sd
+  if (is.null(sd)) {
+    return(list(
+      prior.scale = NA_real_,
+      leaf.hyperprior = resolveLeafHyperprior(
+        leaf.prior@k,
+        binary,
+        monotone = monotone,
+        multiForest = multiForest
+      )
+    ))
+  }
+  if (multiForest) {
+    stop(
+      "a multi-forest model does not support a named leaf-prior 'sd': the ",
+      "leaf prior's 'sd' is not a forest's 'sd': each forest's scale is set ",
+      "by forest(sd = ), which states that forest's share of the combined ",
+      "location's prior (see ?forest)"
+    )
+  }
+  if (is.numeric(sd)) {
+    return(list(
+      prior.scale = 2.0 * sd,
+      leaf.hyperprior = newValidated("dbartsFixedHyperprior", k = 2.0)
+    ))
+  }
+  if (monotone) {
+    stop(
+      "an 'sd' hyperprior is not supported under a monotone constraint; ",
+      "supply a fixed numeric sd (the truncated leaf law has no chi-k update)"
+    )
+  }
+  if (sd@scale == 0.0) {
+    return(list(
+      prior.scale = NA_real_,
+      leaf.hyperprior = chi(sd@df, Inf)
+    ))
+  }
+  list(
+    prior.scale = 2.0 * sd@scale,
+    leaf.hyperprior = chi(sd@df, 2.0)
+  )
+}
+
+normal <- function(k = NULL, sd = NULL) {
   if (is.character(k)) {
     # compatibility with string specifications like "chi(1.5)" or "2"
     if (startsWith(k, "chi")) {
@@ -1587,15 +1634,25 @@ normal <- function(k = NULL, sd = NULL, scale = NULL) {
       !is(k, "dbartsLeafHyperprior") &&
       (!is.numeric(k) || length(k) != 1L || is.na(k) || k <= 0.0)
   ) {
+    if (is(k, "dbartsSdHyperprior")) {
+      stop(
+        "'k' takes a number or chi(), a law on k; invchi() is a law on the ",
+        "sd and is spelled sd = invchi()"
+      )
+    }
     stop("'k' must be a positive scalar or a hyperprior specification")
   }
-  named <- resolveNamedScaleArgs(sd, scale)
-  new(
-    "dbartsNormalPrior",
-    k = k,
-    prior.scale = named$prior.scale,
-    prior.sd = named$prior.sd
-  )
+  if (is.function(sd)) {
+    sd <- sd()
+  }
+  sd <- validateLeafSd(sd)
+  if (!is.null(k) && !is.null(sd)) {
+    stop(
+      "give either 'k' (relative to the data's anchor) or 'sd' (on the ",
+      "family's scale) to a leaf prior, not both"
+    )
+  }
+  new("dbartsNormalPrior", k = k, prior.sd = sd)
 }
 
 chisq <- function(df = 3, quant = 0.9) {
@@ -1606,11 +1663,41 @@ fixed <- function(value = 1.0) {
   newValidated("dbartsFixedPrior", value = value)
 }
 
-chi <- function(degreesOfFreedom = 1.5, scale = 2.0) {
+chi <- function(df = 1.5, scale = 2.0, degreesOfFreedom) {
+  if (!missing(degreesOfFreedom)) {
+    if (!missing(df)) {
+      stop(
+        "'degreesOfFreedom' and 'df' name the same value on chi(); supply one"
+      )
+    }
+    warnOnce(
+      "tombstone.degreesOfFreedom.chi",
+      "chi()'s 'degreesOfFreedom' is now 'df'; the value was used. The old ",
+      "name is removed in dbarts ",
+      tombstoneExpiry,
+      "."
+    )
+    df <- degreesOfFreedom
+  }
+  newValidated("dbartsChiHyperprior", degreesOfFreedom = df, scale = scale)
+}
+
+invchi <- function(df = 1.5, scale) {
+  if (missing(scale)) {
+    stop(
+      "invchi() requires 'scale': an sd on the family's scale has no ",
+      "data-free default"
+    )
+  }
+  for (value in list(df, scale)) {
+    if (!is.numeric(value) || length(value) != 1L) {
+      stop("invchi() 'df' and 'scale' must be single numbers")
+    }
+  }
   newValidated(
-    "dbartsChiHyperprior",
-    degreesOfFreedom = degreesOfFreedom,
-    scale = scale
+    "dbartsSdHyperprior",
+    df = as.double(df),
+    scale = as.double(scale)
   )
 }
 
@@ -1795,7 +1882,8 @@ dbartsPriors <- list(
   gp = gp,
   chisq = chisq,
   fixed = fixed,
-  chi = chi
+  chi = chi,
+  invchi = invchi
 )
 
 ## The exported face of the forest constructors, for the reason dbartsPriors

@@ -17,12 +17,12 @@
   the scalar posterior parameters that family carries rather than its
   per-observation channels - never \code{yhat.train} itself. A chain-
   separated (rather than pooled) view of these same draws is
-  \code{\link{extract}}, whose \code{"sigma"}, \code{"k"}, and other
+  \code{\link{extract}}, whose \code{"sigma"}, \code{"k"}, \code{"sd"}, and other
   scalar types return a vector or, with \code{combineChains = FALSE}, a
   chains-by-samples matrix.
 }
 \usage{
-\method{summary}{bart}(object, vars = c("sigma", "k"), \dots)
+\method{summary}{bart}(object, vars = c("sigma", "k", "sd"), \dots)
 \method{print}{summary.bart}(x, \dots)
 }
 \arguments{
@@ -33,9 +33,10 @@
   }
   \item{vars}{
     Character vector of fields to summarize. Requested fields absent
-    from \code{object} (e.g. \code{k} when unmodeled) are silently
-    dropped. \code{sigma} and \code{k} contribute one summarized
-    variable each; any other field (\code{varcount}, \code{varprobs},
+    from \code{object} (e.g. \code{k} when unmodeled, or on a fit whose
+    leaf prior was named by \code{sd}, which carries \code{sd} draws
+    instead) are silently dropped. \code{sigma}, \code{k} and \code{sd}
+    contribute one summarized variable each; any other field (\code{varcount}, \code{varprobs},
     \code{yhat.train}, \code{yhat.test}) contributes one variable per
     column, named \code{"field[column]"}.
 

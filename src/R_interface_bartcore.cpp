@@ -2624,7 +2624,7 @@ void refuseUnsupportedAmplitudeComposition(
   // the leaf-scale gate above does not fire on a model that names its
   // calibration in response units instead, and the calibration map would drop
   // it in silence, so it is its own offender
-  else if (std::isfinite(model.priorScale)) offender = "a named 'prior.scale'";
+  else if (std::isfinite(model.priorScale)) offender = "a named leaf-prior sd";
   else if (std::isfinite(model.residualDf)) offender = "Student-t residuals";
   else if (options.numVarianceTrees > 0) offender = "a variance forest";
   else if (options.fp32Residual) offender = "single-precision storage";
@@ -3550,7 +3550,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   // leaf-scale-class refusal on this path - the host's own leaf.scale is
   // deliberately not read, and carries a gaussian default no user chose.
   if (std::isfinite(model.priorScale))
-    Rf_error("a multinomial forest does not support a named 'prior.scale'; "
+    Rf_error("a multinomial forest does not support a named leaf-prior sd; "
              "its leaf scale comes from the softmax calibration map");
   rngs = createChainRngs(control, options.numChains);
 
@@ -4476,7 +4476,7 @@ SEXP bartcore_setLeafPrior(SEXP ptrExpr, SEXP forestExpr,
   size_t forestIndex = forestIndexFrom(forestExpr, shape);
   double priorScale = Rf_asReal(priorScaleExpr);
   if (!std::isfinite(priorScale) || priorScale <= 0.0)
-    Rf_error("'prior.scale' must be a positive finite number");
+    Rf_error("the leaf-prior anchor must be a positive finite number");
   // $setLeafPrior's refuseCountsMutation/refuseAmplitudeMutation refuse
   // every combiner-carrying sampler first, so this generic message only
   // backstops a caller that skips the R5 layer.

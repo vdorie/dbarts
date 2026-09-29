@@ -2,7 +2,7 @@
 \alias{xbart}
 \title{Crossvalidation For Bayesian Additive Regression Trees}
 \description{
-  Fits the BART model against varying \code{k}, \code{power}, \code{base}, and \code{n.trees} parameters using \eqn{K}-fold or repeated random subsampling crossvalidation, sharing burn-in between parameter settings. Results are returned as an array of evaluations of a loss function on the held-out sets.
+  Fits the BART model against varying \code{k} (or \code{sd}), \code{power}, \code{base}, and \code{n.trees} parameters using \eqn{K}-fold or repeated random subsampling crossvalidation, sharing burn-in between parameter settings. Results are returned as an array of evaluations of a loss function on the held-out sets.
 }
 \usage{
 xbart(
@@ -10,7 +10,7 @@ xbart(
     method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
     n.reps = 40L, n.burn = c(200L, 150L),
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
-    k = NULL, power = 2, base = 0.95,
+    k = NULL, sd = NULL, power = 2, base = 0.95,
     split.probs = NULL, drop = TRUE,
     sigest = NULL,
     seed = NULL,
@@ -82,6 +82,9 @@ xbart(
    \item{k}{
      The grid for the BART hyperparameter setting the leaf-mean prior standard deviation: a vector of positive real numbers, each a cell of its own, or a \code{\link{list}} whose entries are positive numbers and \code{k} hyperpriors (\code{\link{dbartsPriors}}), so that \code{k = list(1, 2, chi())} sweeps two fixed values against the modelled one. A modelled cell holds its hyperprior and DRAWS \code{k} every sweep, so its loss is computed under a shrinkage that moves within the fit rather than under a named value; it is labelled in the result by the constructor call that rebuilds it. If \code{NULL}, one cell is run at the default \code{\link{bart}} would fit for the response type: fixed 2 for a continuous response and \code{chi(1.5, 2)} for a binary one. A \code{k} carried by a supplied \code{leaf.prior} stands in for a missing argument. Fixed cells are always swept largest to smallest, with a modelled cell last, and the reported \code{k} axis is un-permuted back to the order given, so results do not depend on the order \code{k} is listed in; cells still warm-start off the previous one, so this is order-invariance, not an unbiased estimate for each cell taken alone.
    }
+   \item{sd}{
+     The same grid axis stated in absolute spreads instead, exclusive with \code{k}: a vector of leaf-prior sds on the family's scale (see \code{normal(sd = )} in \code{\link{dbartsPriors}}), or a \code{\link{list}} mixing them with \code{invchi} laws. Each spread is held fixed across folds, where a \code{k} is relative to each fold's own training range; on a binary family, whose anchor is a constant of the latent scale, the two are the same sweep (\code{sd = anchor / k}). The cells are swept most shrunk first - the smallest sd - with the warm starts and unit parallelism the \code{k} grid has, and the result's axis is labelled \code{sd}.
+   }
    \item{power}{
      A vector of real numbers greater than one, setting the BART hyperparameter for the tree prior's growth probability, given by \eqn{{base} / (1 + depth)^{power}}.
    }
@@ -109,7 +112,7 @@ xbart(
    \item{leaf.prior}{
      An optional expression of the form \code{normal(k)}, \code{linear(columns, k)}, or \code{gp(columns, k, ...)} selecting the leaf model, as in \code{\link{dbarts}}. The default fits constant leaves. A \code{k} given inside the prior stands in for a missing \code{k} argument; the \code{k} argument otherwise drives the crossvalidation grid as usual.
 
-     A named leaf calibration (\code{normal(scale = )}, and likewise for \code{linear} and \code{gp}) is NOT a grid axis: it is held fixed across every cell, so the \code{k} grid sweeps the prior standard deviation \code{scale / k} about a fixed anchor rather than about whatever the response range happened to imply. It is honored in cells that re-use a sampler as well as in cells that create one, so the loss surface does not depend on the order the cells run in. The \code{sd} spelling meets the same refusal here as everywhere when \code{k} is a hyperprior.
+     A named \code{sd} inside the prior (\code{normal(sd = )}, and likewise for \code{linear} and \code{gp}) stands in for a missing \code{sd} argument, as a one-cell \code{sd} axis. Beside a \code{k} or \code{sd} grid it is refused, since both would state the spread: name the spreads in the \code{sd} grid. Two calls with the same \code{seed} use the same folds whatever their spreads, so one call per \code{sd} reproduces each cell a grid's fresh start would.
    }
    \item{n.cuts}{
      A positive integer giving the number of decision rules used for each predictor, as in \code{\link{dbartsControl}}.
@@ -134,7 +137,7 @@ xbart(
 
 }
 \value{
-  An array with up to six dimensions, in order \code{rep} (length \code{n.reps}), \code{n.trees}, \code{k}, \code{power}, \code{base}, and \code{loss}. \code{rep} is always present. \code{n.trees}, \code{k}, \code{power}, and \code{base} are each omitted when \code{drop} is \code{TRUE} and the corresponding grid has length 1; with \code{drop = FALSE} they are always present, an absent \code{k} included, whose single cell is then named for the default it ran at. The trailing \code{loss} dimension, sized to however many values a single call to \code{loss} returns, is present only when that count is greater than one - independent of \code{drop} entirely; the default losses and an ordinary scalar-returning custom \code{loss} never contribute it. When none of the above survive, the result collapses to a plain vector of length \code{n.reps}. When the result remains an array, its \code{dimnames} name the swept values on each surviving hyperparameter axis - exact integer labels for \code{n.trees}, values rounded to 2 significant digits for the double-valued \code{k}/\code{power}/\code{base} axes, and the constructor call for a modelled \code{k} cell; the \code{loss} axis, when present, carries no per-slot names, and neither does \code{rep}.
+  An array with up to six dimensions, in order \code{rep} (length \code{n.reps}), \code{n.trees}, \code{k} (or \code{sd}), \code{power}, \code{base}, and \code{loss}. \code{rep} is always present. \code{n.trees}, \code{k}, \code{power}, and \code{base} are each omitted when \code{drop} is \code{TRUE} and the corresponding grid has length 1; with \code{drop = FALSE} they are always present, an absent \code{k} included, whose single cell is then named for the default it ran at. The trailing \code{loss} dimension, sized to however many values a single call to \code{loss} returns, is present only when that count is greater than one - independent of \code{drop} entirely; the default losses and an ordinary scalar-returning custom \code{loss} never contribute it. When none of the above survive, the result collapses to a plain vector of length \code{n.reps}. When the result remains an array, its \code{dimnames} name the swept values on each surviving hyperparameter axis - exact integer labels for \code{n.trees}, values rounded to 2 significant digits for the double-valued \code{k}/\code{power}/\code{base} axes, and the constructor call for a modelled \code{k} cell; the \code{loss} axis, when present, carries no per-slot names, and neither does \code{rep}.
 
   For method \code{"k-fold"}, each element is an average across the \eqn{K} fits. For \code{"random subsample"}, each element represents a single fit.
 

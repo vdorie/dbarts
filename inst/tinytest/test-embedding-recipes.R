@@ -38,7 +38,7 @@ host <- dbarts(
   control = recipeControl(31L),
   family = gaussian(sigma = fixed(1))
 )
-host$setLeafPrior(prior.scale = 2)
+host$setLeafPrior(normal(sd = 1))
 composed1 <- matrix(0, n, nDraws)
 for (i in seq_len(nBurn + nDraws)) {
   z <- dbartsDrawLatents("probit", host$getFitsWithoutOffset(), y1, offset = o1)
@@ -52,7 +52,7 @@ native <- dbarts(
   offset = o1,
   family = "probit",
   control = recipeControl(31L),
-  leaf.prior = normal(k = 2, scale = 2)
+  leaf.prior = normal(sd = 1)
 )
 nativeFit <- rowMeans(native$run(nBurn, nDraws)$train) - o1
 composedFit <- rowMeans(composed1)
@@ -65,7 +65,7 @@ expect_true(
 )
 # the two pins the recipe rests on: no free residual scale, a stated leaf prior
 expect_equal(as.numeric(host$getSigmas()), 1)
-expect_equal(unname(host$getLeafPrior()[1L, "prior.scale"]), 2)
+expect_equal(unname(host$getLeafPrior()[1L, "prior.sd"]), 1)
 
 ## 2. OFFSET BLOCK: BOTH blocks' truth. A partially linear model whose linear
 ## coefficient rides the offset channel must recover the coefficient AND the
@@ -132,7 +132,7 @@ newSbcSampler <- function() {
     control = sbcControl,
     family = gaussian(sigma = fixed(sigma0^2))
   )
-  s$setLeafPrior(prior.scale = 2)
+  s$setLeafPrior(normal(sd = 1))
   s
 }
 drawSbcPrior <- function() {
@@ -214,10 +214,10 @@ blocks <- list(x3[, 1:2, drop = FALSE], x3[, 3:4, drop = FALSE])
 samplers <- lapply(blocks, function(xb) {
   dbarts(xb, y3, control = recipeControl(5L))
 })
-base <- samplers[[1L]]$getLeafPrior()[1L, "prior.scale"]
+base <- samplers[[1L]]$getLeafPrior()[1L, "prior.sd"]
 # MUTATION 1 lives here: drop this loop
 for (s in samplers) {
-  s$setLeafPrior(prior.scale = base / sqrt(kForest))
+  s$setLeafPrior(normal(sd = base / sqrt(kForest)))
 }
 
 single <- dbarts(x3, y3, control = recipeControl(5L))
@@ -239,7 +239,7 @@ priorRatio <- priorTotalSd(samplers) / priorTotalSd(list(single))
 # clean run by 5.1x and is exceeded by 2.5x under the mutation
 expect_true(abs(priorRatio - 1) < 0.15)
 expect_equal(
-  unname(samplers[[1L]]$getLeafPrior()[1L, "prior.scale"]),
+  unname(samplers[[1L]]$getLeafPrior()[1L, "prior.sd"]),
   unname(base) / sqrt(kForest)
 )
 

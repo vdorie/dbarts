@@ -27,7 +27,7 @@
       \code{$setSigma(s)} \tab the residual standard deviation \tab a scale drawn elsewhere; requires \code{family = gaussian(sigma = fixed())} \cr
       \code{$setPredictor(x, column)} \tab one predictor column \tab a latent covariate, an imputed predictor \cr
       \code{$setActiveRows(a)} \tab which rows enter the likelihood \tab a subset indicator drawn by another block \cr
-      \code{$setLeafPrior(prior.scale = )} \tab the leaf prior in force \tab restating the prior after a response swap
+      \code{$setLeafPrior(normal(sd = ))} \tab the leaf prior's spread \tab stating the prior a cold-start vector did not
     }
 
     A predictor moved per observation rather than wholesale takes
@@ -62,14 +62,15 @@
     per-sweep \code{setResponse} deliberately does \emph{not} re-anchor it (\code{updateScale =
     FALSE}, the default), so that the sweeps are comparable - which also means a sampler built on a
     cold-start vector keeps that vector's range as its prior scale for the whole run. State the
-    prior instead of inheriting it: \code{leaf.prior = normal(scale = )} at creation (see
-    \code{\link{dbartsPriors}}), or \code{$setLeafPrior(prior.scale = )} afterward, with
-    \code{$getLeafPrior()} reporting what is actually in force.
+    prior instead of inheriting it: \code{leaf.prior = normal(sd = )} at creation (see
+    \code{\link{dbartsPriors}}), or \code{$setLeafPrior(normal(sd = ))} afterward, with
+    \code{$getLeafPrior()} reporting what is actually in force. A named sd is absolute: a
+    channel that does re-anchor the transform leaves it where it was.
 
     A decomposition across \eqn{K}{K} samplers needs the same care in the other direction. Each
     carries a prior sized for the whole of \eqn{f}{f}, so their sum has \eqn{\sqrt{K}}{sqrt(K)}
     times the prior standard deviation one sampler would have; dividing each
-    \code{prior.scale} by \eqn{\sqrt{K}}{sqrt(K)} restates them as shares of one budget.
+    \code{prior.sd} by \eqn{\sqrt{K}}{sqrt(K)} restates them as shares of one budget.
   }
 
   \subsection{The seeding contract}{

@@ -92,7 +92,7 @@ methods::setClass(
 )
 methods::setValidity("dbartsChiHyperprior", function(object) {
   if (object@degreesOfFreedom <= 0.0) {
-    return("'degreesOfFreedom' must be positive")
+    return("'df' must be positive")
   }
   if (object@scale <= 0.0) {
     return("'scale' must be positive")
@@ -112,19 +112,45 @@ methods::setValidity("dbartsFixedHyperprior", function(object) {
   TRUE
 })
 
+# A law on the leaf prior's sd itself, sd = scale / chi_df: not a law on k, so
+# it is deliberately not a dbartsLeafHyperprior and 'k' refuses it. scale = 0
+# is the improper sd^-(df + 1) limit.
+methods::setClass(
+  "dbartsSdHyperprior",
+  slots = list(df = "numeric", scale = "numeric")
+)
+methods::setValidity("dbartsSdHyperprior", function(object) {
+  if (
+    length(object@df) != 1L ||
+      is.na(object@df) ||
+      !is.finite(object@df) ||
+      object@df <= 0.0
+  ) {
+    return("invchi() 'df' must be a single positive finite number")
+  }
+  if (
+    length(object@scale) != 1L ||
+      is.na(object@scale) ||
+      !is.finite(object@scale) ||
+      object@scale < 0.0
+  ) {
+    return("invchi() 'scale' must be a single non-negative finite number")
+  }
+  TRUE
+})
+
 
 methods::setClass("dbartsLeafPrior")
-# k holds the raw user specification (positive scalar, hyperprior object, or
-# NULL for the family-dependent default); it becomes the model's separate
-# leaf.hyperprior when a sampler is built. prior.scale and prior.sd hold the
-# named calibration exactly as it was spelled - at most one is non-NA - and
-# resolve into the model's single prior.scale slot once k is known, since the
-# sd spelling is the scale divided by the resolved k.
+# k and prior.sd hold the raw user specification: k is a positive scalar, a
+# dbartsLeafHyperprior, or NULL for the family-dependent default; prior.sd is
+# NULL (unnamed), a positive scalar, or a dbartsSdHyperprior. At most one is
+# non-NULL. Both become the model's leaf.hyperprior and prior.scale when a
+# sampler is built.
 methods::setClass(
   "dbartsNormalPrior",
   contains = "dbartsLeafPrior",
-  slots = list(k = "ANY", prior.scale = "numeric", prior.sd = "numeric"),
-  prototype = list(k = NULL, prior.scale = NA_real_, prior.sd = NA_real_)
+  slots = list(k = "ANY", prior.sd = "ANY"),
+  prototype = list(k = NULL, prior.sd = NULL)
 )
 # each leaf fits an intercept plus a linear term in the designated
 # continuous columns; columns holds the raw user designation (character
@@ -133,18 +159,8 @@ methods::setClass(
 methods::setClass(
   "dbartsLinearPrior",
   contains = "dbartsLeafPrior",
-  slots = list(
-    k = "ANY",
-    columns = "ANY",
-    prior.scale = "numeric",
-    prior.sd = "numeric"
-  ),
-  prototype = list(
-    k = NULL,
-    columns = NULL,
-    prior.scale = NA_real_,
-    prior.sd = NA_real_
-  )
+  slots = list(k = "ANY", columns = "ANY", prior.sd = "ANY"),
+  prototype = list(k = NULL, columns = NULL, prior.sd = NULL)
 )
 # each leaf fits a smooth Gaussian-process function of the designated
 # continuous columns; columns resolves as the linear prior's does.
@@ -159,16 +175,14 @@ methods::setClass(
     columns = "ANY",
     lengthscale = "ANY",
     max.leaf.size = "integer",
-    prior.scale = "numeric",
-    prior.sd = "numeric"
+    prior.sd = "ANY"
   ),
   prototype = list(
     k = NULL,
     columns = NULL,
     lengthscale = NULL,
     max.leaf.size = 256L,
-    prior.scale = NA_real_,
-    prior.sd = NA_real_
+    prior.sd = NULL
   )
 )
 
@@ -488,11 +502,11 @@ methods::setClass(
   "dbartsModel",
   slots = list(
     leaf.scale = "numeric",
-    # The NAMED leaf calibration, in response units: the forest total's prior
-    # sd at k = 1, or NA to inherit leaf.scale's family-keyed internal-unit
-    # default. This slot records the named INTENT and is never rewritten by
-    # the engine; a channel that re-anchors the response transform moves what
-    # is in force without touching it.
+    # The anchor a named leaf-prior sd translates to, in response units: the
+    # forest total's prior sd at k = 1, or NA to inherit leaf.scale's
+    # family-keyed internal-unit default. It records the named intent, which
+    # the sampler re-issues after every channel that re-anchors the response
+    # transform and which setLeafPrior rewrites.
     prior.scale = "numeric",
     # "auto" until a fitting function resolves it against the response
     family = "character",

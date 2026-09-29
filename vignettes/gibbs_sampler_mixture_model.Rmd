@@ -244,8 +244,8 @@ samplers <- lapply(seq_len(K), function(f)
            family = gaussian(sigma = fixed(1))))
 # one prior budget divided among the forests, rather than K copies of the
 # budget for the whole of the sum
-base.mf <- samplers[[1L]]$getLeafPrior()[1L, "prior.scale"]
-for (s in samplers) s$setLeafPrior(prior.scale = base.mf / sqrt(K))
+base.mf <- samplers[[1L]]$getLeafPrior()[1L, "prior.sd"]
+for (s in samplers) s$setLeafPrior(normal(sd = base.mf / sqrt(K)))
 
 g <- rep(list(rep(0, n.mf)), K)
 sigma.mf <- 1

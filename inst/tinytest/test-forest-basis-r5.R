@@ -318,7 +318,7 @@ expect_error(
 expect_error(threeForests$setData(dbartsData(x, y)), "does not support")
 expect_error(threeForests$setModel(threeForests$model), "does not support")
 expect_error(
-  threeForests$setLeafPrior(prior.scale = 1, forest = 1L),
+  threeForests$setLeafPrior(normal(k = 2)),
   "does not support"
 )
 # and the multinomial route is NOT misidentified by it
@@ -343,7 +343,7 @@ expect_error(
 # otherwise a construction-time constant - no mutation re-derives a K-forest
 # leaf scale - so $setForestBasis owns the staleness. Pinned on a PROBIT
 # K-forest, where the anchor is the literal 1 and $getLeafPrior's
-# prior.scale IS the map's leaf scale, so the assertion is exact. Nothing
+# prior.sd (k pinned at 1) IS the map's leaf scale, so the assertion is exact. Nothing
 # else in the suite or in the equivalence trio calls this mutator at all. ---
 yBinary <- as.double(y > median(y))
 probitForests <- function() {
@@ -355,7 +355,7 @@ probitForests <- function() {
   )
 }
 priorScale <- function(sampler, forest) {
-  unname(sampler$getLeafPrior(forest)[1L, "prior.scale"])
+  unname(sampler$getLeafPrior(forest)[1L, "prior.sd"])
 }
 
 # (i) STALENESS: a basis whose median nonzero row norm is 4x the old one moves
@@ -468,7 +468,7 @@ expect_true(is.nan(mapColumn(recipient, 2L, "leaf.scale.factor")))
 expect_true(is.nan(mapColumn(recipient, 2L, "leaf.scale.divisor")))
 # the anchor is therefore NOT computable, which is the point of the NaN
 expect_true(is.nan(
-  mapColumn(recipient, 2L, "prior.scale") *
+  mapColumn(recipient, 2L, "prior.sd") *
     mapColumn(recipient, 2L, "leaf.scale.divisor") *
     mapColumn(recipient, 2L, "basis.row.norm") /
     mapColumn(recipient, 2L, "leaf.scale.factor")
@@ -502,7 +502,7 @@ expect_equal(mapColumn(recipient, 2L, "leaf.scale.factor"), 0.5)
 expect_equal(mapColumn(recipient, 2L, "leaf.scale.divisor"), 0.674)
 expect_equal(mapColumn(recipient, 2L, "basis.row.norm"), 4)
 expect_equal(
-  mapColumn(recipient, 2L, "prior.scale") *
+  mapColumn(recipient, 2L, "prior.sd") *
     mapColumn(recipient, 2L, "leaf.scale.divisor") *
     mapColumn(recipient, 2L, "basis.row.norm") /
     mapColumn(recipient, 2L, "leaf.scale.factor"),
@@ -526,7 +526,7 @@ expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.factor"), 2)
 expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.divisor"), 0.674)
 expect_equal(mapColumn(selfRestore, 2L, "amplitude.prior.variance"), 0.125)
 expect_equal(
-  mapColumn(selfRestore, 2L, "prior.scale") *
+  mapColumn(selfRestore, 2L, "prior.sd") *
     mapColumn(selfRestore, 2L, "leaf.scale.divisor") *
     mapColumn(selfRestore, 2L, "basis.row.norm") /
     mapColumn(selfRestore, 2L, "leaf.scale.factor"),
