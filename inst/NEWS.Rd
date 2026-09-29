@@ -118,7 +118,13 @@
             given to \code{predict} marks its row incomplete the same way,
             governed by the same \code{na.action}; a single (recycled)
             \code{offset} or \code{weights} value is unaffected, and a
-            missing one there is always an error.
+            missing one there is always an error, where 0.9-34 returned
+            all-\code{NA} predictions. \code{NULL} is the one way to ask for
+            no offset: the sampler's \code{$predict},
+            \code{$setTestOffset} and \code{$setTestPredictorAndOffset}
+            also refuse an \code{NA} test offset, where 0.9-34 returned
+            \code{NA} predictions or, against a single test row, read a
+            lone \code{NA} as no offset.
       \item Where the training and test matrices both carry column names and
             the design has more than one predictor, test column names that
             do not cover the training design's are an error naming the

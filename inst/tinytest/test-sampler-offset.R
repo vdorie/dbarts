@@ -117,3 +117,36 @@ samples <- sampler$run(0L, 1L)
 expect_equal(samples$train, samples$test)
 
 rm(samples, sampler, control, testData)
+
+# NULL is the one way to say "no test offset"; an NA is refused on every
+# sampler path that takes one, and a refused setTestOffset leaves the link to
+# the regular offset as it was
+source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
+naX <- testData$X
+naSampler <- dbarts::dbarts(
+  naX,
+  testData$Z,
+  naX[1:3, , drop = FALSE],
+  control = dbarts::dbartsControl(
+    n.chains = 1L,
+    n.samples = 2L,
+    n.burn = 0L,
+    keepTrees = TRUE,
+    verbose = FALSE
+  )
+)
+invisible(naSampler$run())
+expect_error(naSampler$predict(naX[1:3, ], NA_real_), "use NULL for no offset")
+expect_error(
+  naSampler$predict(naX[1L, , drop = FALSE], NA_real_),
+  "use NULL for no offset"
+)
+linkBefore <- naSampler$data@testUsesRegularOffset
+expect_error(naSampler$setTestOffset(NA), "use NULL for no offset")
+expect_identical(naSampler$data@testUsesRegularOffset, linkBefore)
+expect_error(
+  naSampler$setTestPredictorAndOffset(naX[1:3, ], c(0, NA, 0)),
+  "use NULL for no offset"
+)
+expect_silent(naSampler$setTestOffset(NULL))
+rm(naSampler, naX, linkBefore, testData)

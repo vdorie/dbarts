@@ -458,16 +458,13 @@ expect_identical(
   subsetOffset[subsetRows, , drop = FALSE]
 )
 
-# --- a lone NA on the FLAT predict path still reads as "no offset" -----------
-# the multinomial arm takes the per-category matrix, and adding it must not
-# move what the single-location path does with the scalar NA its older
-# spelling defaulted to
+# --- an NA test offset on the flat predict path is refused -------------------
+# NULL is the one way to say "no offset"; an NA is a missing value, whether
+# alone or against one row or many
 oneRow <- x[1L, , drop = FALSE]
-expect_identical(plain$predict(oneRow, NA_real_), plain$predict(oneRow))
-# the collapse is the one-row case only, then as now: a scalar NA against more
-# rows is recycled to a full NA vector before the test can see it, and stays
-# one - restoring the collapse must not quietly widen it either
-expect_true(anyNA(plain$predict(x.test, NA_real_)))
+expect_error(plain$predict(oneRow, NA_real_), "use NULL for no offset")
+expect_error(plain$predict(x.test, NA_real_), "use NULL for no offset")
+expect_identical(plain$predict(oneRow, NULL), plain$predict(oneRow))
 
 # --- state round trip: STRUCTURAL, not bitwise -------------------------------
 # omega is a per-sweep latent redrawn against whatever margins the restored

@@ -390,7 +390,7 @@ expect_error(
 )
 expect_error(
   sampler.pred$predict(x.test, matrix(NA_real_, nTest, K)),
-  "finite"
+  "missing values"
 )
 set.seed(313)
 sampler.pred.none <- buildSamplerTestOffset(

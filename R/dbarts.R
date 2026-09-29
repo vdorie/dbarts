@@ -1490,6 +1490,18 @@ resolveUpdateState <- function(updateState, control) {
   isTRUE(updateState) || (is.na(updateState) && control@updateState)
 }
 
+## NULL is the one way to say "no test offset", as it is for lm's offset; an
+## NA is a missing value, and nothing on these paths routes missing rows.
+refuseMissingTestOffset <- function(offset.test) {
+  if (anyNA(offset.test)) {
+    stop(
+      "'offset.test' contains missing values; use NULL for no offset",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 ## The sampler's predict after validation: 'x.test' is already coded by
 ## validateXTest, so the predict methods that validate newdata themselves
 ## (and resolve its na.action) call this directly, and no warning fires twice.
@@ -1518,6 +1530,7 @@ predictCodedTest <- function(sampler, x.test, offset.test, n.threads) {
       offset.test <- as.matrix(offset.test)
       storage.mode(offset.test) <- "double"
     }
+    refuseMissingTestOffset(offset.test)
     if (!identical(dim(offset.test), c(nrow(x.test), ncol(counts)))) {
       stop(
         "'offset.test' must be a per-category matrix with one row per ",
@@ -1528,6 +1541,7 @@ predictCodedTest <- function(sampler, x.test, offset.test, n.threads) {
     }
   } else if (!is.null(offset.test)) {
     offset.test <- as.double(offset.test)
+    refuseMissingTestOffset(offset.test)
     if (length(offset.test) == 1L) {
       offset.test <- rep_len(offset.test, nrow(x.test))
     }
@@ -1536,11 +1550,6 @@ predictCodedTest <- function(sampler, x.test, offset.test, n.threads) {
       stop(
         "'offset.test' must have the same number of rows as 'x.test'"
       )
-    }
-    # a lone NA on the flat path reads as "no offset"; the engine takes a
-    # null rather than a sentinel
-    if (length(offset.test) == 1L && is.na(offset.test)) {
-      offset.test <- NULL
     }
   }
 
@@ -2335,6 +2344,7 @@ dbartsSampler <- setRefClass(
       }
       if (!is.null(offset.test)) {
         offset.test <- as.double(offset.test)
+        refuseMissingTestOffset(offset.test)
         if (length(offset.test) == 1L) {
           offset.test <- rep_len(offset.test, nrow(x.test))
         }
@@ -2378,11 +2388,17 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
+      # refused before the link to the regular offset is broken, so a refused
+      # call leaves the sampler as it was
+      if (!is.null(offset.test)) {
+        refuseMissingTestOffset(offset.test)
+      }
       selfEnv$data@testUsesRegularOffset <- FALSE
       if (!is.null(offset.test)) {
         if (is.null(data@x.test)) {
           stop("when test matrix is NULL, test offset must be as well")
         }
+        offset.test <- as.double(offset.test)
         if (length(offset.test) == 1L) {
           offset.test <- rep_len(offset.test, nrow(data@x.test))
         }
