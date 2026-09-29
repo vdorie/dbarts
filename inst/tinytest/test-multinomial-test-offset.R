@@ -633,3 +633,62 @@ expect_error(
   predict(fit.ot, x.test, offset = named(testOffset, badNames)),
   "category levels"
 )
+
+# --- numeric-looking factor levels are real names, never synthesized ---
+lab123 <- factor(labels + 1L)
+fit123 <- function(...) {
+  set.seed(606)
+  bart(
+    x,
+    lab123,
+    family = "multinomial",
+    test = x.test,
+    n.trees = 25L,
+    n.burn = 20L,
+    n.samples = 4L,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    verbose = FALSE,
+    ...
+  )
+}
+expect_identical(fit123()$levels.source, "labels")
+rev3 <- rev(seq_len(K))
+fit.p <- fit123(offset.test = named(testOffset[, rev3], c("3", "2", "1")))
+fit.q <- fit123(offset.test = named(testOffset, c("1", "2", "3")))
+expect_identical(fit.p$yhat.test, fit.q$yhat.test)
+expect_error(
+  fit123(offset.test = named(testOffset, c("a", "b", "c"))),
+  "remove them with unname()",
+  fixed = TRUE
+)
+# an unnamed count matrix: names are ignored, matched by position
+countsNoNames <- counts
+fitCounts <- function(...) {
+  set.seed(606)
+  bart(
+    x,
+    countsNoNames,
+    family = "multinomial",
+    test = x.test,
+    n.trees = 25L,
+    n.burn = 20L,
+    n.samples = 4L,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    verbose = FALSE,
+    ...
+  )
+}
+fit.cn <- fitCounts(offset.test = named(testOffset, c("c", "b", "a")))
+expect_identical(fit.cn$levels.source, "index")
+expect_identical(
+  fit.cn$yhat.test,
+  fitCounts(offset.test = testOffset)$yhat.test
+)
+expect_identical(
+  predict(fit.cn, x.test, offset = named(testOffset, c("c", "b", "a"))),
+  predict(fit.cn, x.test, offset = testOffset)
+)

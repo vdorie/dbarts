@@ -1779,7 +1779,12 @@ predict.bartMultinomial <- function(
   # after the fit check, whose absence the default here would otherwise report
   # as a missing slot
   n.threads <- validatePredictThreads(n.threads)
-  offset <- alignCategoryColumns(offset, object$levels, "offset")
+  offset <- alignCategoryColumns(
+    offset,
+    object$levels,
+    "offset",
+    identical(object$levels.source, "index")
+  )
   # a missing offset row is incomplete the same way an unroutable predictor
   # is (dec-A89)
   rows <- preparePredictRows(

@@ -1799,10 +1799,16 @@ detectAutoOrdinal <- function(formula, data, dataIsMissing, callingEnv) {
 }
 
 # Matches a category offset's column names to the category levels: unnamed
-# columns stay positional, a permutation of the levels is reordered by name,
-# and any other names are refused. Index-style levels (a count matrix without
-# column names) carry no names to match. Accepts a data frame.
-alignCategoryColumns <- function(offset, levels, argument) {
+# columns stay positional, and a permutation of the levels is always
+# reordered by name. Other names are refused, except for levels synthesized
+# from an unnamed count matrix, where names are ignored (positional).
+# Accepts a data frame.
+alignCategoryColumns <- function(
+  offset,
+  levels,
+  argument,
+  synthesized = FALSE
+) {
   if (is.null(offset) || isFALSE(offset)) {
     return(offset)
   }
@@ -1810,27 +1816,26 @@ alignCategoryColumns <- function(offset, levels, argument) {
     offset <- as.matrix(offset)
   }
   nms <- colnames(offset)
-  if (
-    is.null(nms) ||
-      identical(levels, as.character(seq_along(levels))) ||
-      identical(nms, levels)
-  ) {
+  if (is.null(nms) || identical(nms, levels)) {
     return(offset)
   }
   if (
-    length(nms) != length(levels) ||
-      !setequal(nms, levels) ||
-      anyDuplicated(nms)
+    length(nms) == length(levels) &&
+      setequal(nms, levels) &&
+      !anyDuplicated(nms)
   ) {
-    stop(
-      "the column names of '",
-      argument,
-      "' must be the category levels (",
-      paste(levels, collapse = ", "),
-      ") or absent"
-    )
+    return(offset[, levels, drop = FALSE])
   }
-  offset[, levels, drop = FALSE]
+  if (synthesized) {
+    return(offset)
+  }
+  stop(
+    "the column names of '",
+    argument,
+    "' must be the category levels (",
+    paste(levels, collapse = ", "),
+    "); rename them to the category levels or remove them with unname()"
+  )
 }
 
 # The category offset of the fit-time test rows. An explicit 'offset.test' is
@@ -2017,8 +2022,14 @@ bart2MultinomialCounts <- function(
   sampler <- eval(samplerCall, envir = callingEnv)
   # no store: the fresh sampler's state stays the promise read at first use;
   # the offset loses the rows the sampler's na.action dropped
-  offset <- alignCategoryColumns(offset, levels, "offset")
-  offset.test <- alignCategoryColumns(offset.test, levels, "offset.test")
+  synthesized <- is.null(colnames(y))
+  offset <- alignCategoryColumns(offset, levels, "offset", synthesized)
+  offset.test <- alignCategoryColumns(
+    offset.test,
+    levels,
+    "offset.test",
+    synthesized
+  )
   if (!is.null(offset)) {
     if (!is.null(sampler$data@na.action)) {
       offset <- offset[-unclass(sampler$data@na.action), , drop = FALSE]
@@ -2051,7 +2062,8 @@ bart2MultinomialCounts <- function(
     samples,
     combineChains,
     predictorNames = colnames(sampler$data@x),
-    data = sampler$data
+    data = sampler$data,
+    levels.source = if (synthesized) "index" else "labels"
   )
   if (control@keepTrees || keepSampler) {
     result$fit <- sampler
@@ -2160,7 +2172,8 @@ packageMultinomialResults <- function(
   samples,
   combineChains,
   predictorNames = NULL,
-  data = NULL
+  data = NULL,
+  levels.source = "labels"
 ) {
   n.chains <- control@n.chains
   trainNames <- if (!is.null(data)) dataRowNames(data, "train")
@@ -2185,6 +2198,7 @@ packageMultinomialResults <- function(
     call = control@call,
     family = "multinomial",
     levels = levels,
+    levels.source = levels.source,
     K = K,
     n.chains = n.chains,
     n.trees = control@n.trees,
