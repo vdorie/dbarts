@@ -186,6 +186,13 @@ items
     docs/design/memory-wall-frontier.md sec 11; an arm A/B on both
     architectures is the confirmation to demand before any arc lands,
     since the arm64 no-signal case inverts the Zen2 win.
+  monotone-exact-birth-death: before 1.0-0 (VD 2026-09-29,
+    docs/decisions.md dec-B144): the monotone birth/death move targets the
+    documented prior exactly - the whole tree's cone normalizer ratio in
+    place of the conditional cone masses - with an exact gate over
+    multi-split trees and the monotone SBC arm as verification. Design
+    first; the normalizer counts the leaf orderings the constraints admit,
+    and the design bounds its cost with several constrained predictors.
   monotone-leaf-quadrature: coneProbability's adaptive-Simpson
     quadrature (src/bartcore/model.hpp) dominates the monotone
     branch-score profile - 3227 of 3232 samples - and no alternative
