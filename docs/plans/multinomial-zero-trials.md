@@ -135,7 +135,7 @@ put to VD before the slice starts.
 5. Class and wording (error-style R15, R2, R3, R6): `dbartsZeroTrialsWarning` under `dbartsWarning`, message
    "multinomial count rows with zero trials (%d of %d) contribute nothing to the likelihood and still receive
    fitted probabilities". No argument is named, since the matrix arrives as `y.train`, `data` or `counts`.
-6. Pending maintainer. `residuals` returns an NA row: there is no observed proportion. Today's arithmetic
+6. Ruled 2026-09-28 (maintainer: "Follow glm."): `residuals` follows glm at a zero-weight row - 0 for the default and pearson types, -p (observed 0 minus the fitted probabilities) for response residuals. Superseded proposal: `residuals` returns an NA row: there is no observed proportion. Today's arithmetic
    would give NaN. Base R: glm at a zero-weight row gives a response residual of -mu (it sets y = 0 at n = 0)
    and deviance and pearson residuals of 0, deviance being the default; `rstandard` drops the row and `nobs`
    excludes it. Alternatives: 0, following glm's default residual; -p, following its response residual.
