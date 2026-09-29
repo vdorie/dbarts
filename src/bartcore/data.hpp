@@ -1321,6 +1321,62 @@ struct ColumnStore {
     return true;
   }
 
+  /// valuesAreDegenerate over CSC-backed column j's retained slice: no two
+  /// observed logical values differ, the implicit zero counting when any row
+  /// is absent. Numeric columns only.
+  bool cscColumnIsDegenerate(size_t j) const {
+    const CscColumnSlice& slice = train.sources[j].slice;
+    bool seeded = slice.numNonzero < numObservations;
+    double first = 0.0;
+    for (size_t k = 0; k < slice.numNonzero; ++k) {
+      double value = slice.values[k];
+      if (isNA(value)) continue;
+      if (!seeded) {
+        first = value;
+        seeded = true;
+      } else if (value != first) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// refreshCutsForColumn over CSC-backed column j's retained slice, with the
+  /// same refusals; the creation builders read the slice, so the grid is the
+  /// one the dense refresh cuts over the materialized column.
+  bool refreshCutsForCscColumn(size_t j) {
+    if (isFactor(j)) return true;
+    if (useQuantiles) {
+      QuantileGrid grid = quantileGridForCscColumn(j);
+      if (grid.inducedNumCuts < numCuts[j]) return false;
+      fillCutsFromQuantileGrid(j, grid);
+    } else {
+      if (numCuts[j] >= 2 && cscColumnIsDegenerate(j)) return false;
+      fillCutsUniformlyCsc(j);
+    }
+    return true;
+  }
+
+  /// cutsWouldRemainValid over one CSC source column not yet installed: its
+  /// \p numNonzero stored \p values, the absent rows reading
+  /// \p sourceImplicit. The answer is the dense check's on the materialized
+  /// column.
+  bool cutsWouldRemainValidCsc(size_t j, const double* values,
+                               size_t numNonzero,
+                               double sourceImplicit) const {
+    bool implicitPresent = numNonzero < numObservations;
+    if (isFactor(j)) {
+      if (implicitPresent && !categoricalValueIsValid(j, sourceImplicit))
+        return false;
+      for (size_t k = 0; k < numNonzero; ++k)
+        if (!categoricalValueIsValid(j, values[k])) return false;
+      return true;
+    }
+    if (!useQuantiles) return true;
+    return quantileGridForEntries(j, values, numNonzero, implicitPresent)
+             .inducedNumCuts >= numCuts[j];
+  }
+
   /// Non-mutating feasibility check for values not yet installed: quantile
   /// refresh feasibility for numeric columns, level-code validity for factor
   /// columns of either kind - whose grid is fixed by the level table, so the
@@ -2188,39 +2244,84 @@ struct ColumnStore {
     train.sources[j].residentRaw[i] = value;
   }
 
-  /// Replace the whole predictor matrix; newX is column-major and read for
-  /// the call only, quantized into the owned codes. CSC-backed columns route
-  /// through the sparse mutation path (their new dense column rebuilds the
-  /// owned slice and rank/densified storage).
-  void setPredictors(const double* newX, bool updateCuts) {
-    for (size_t j = 0; j < numPredictors; ++j) {
-      const double* column = newX + j * numObservations;
-      if (columnIsCscBacked(j)) {
-        mutateCscColumnFromDense(j, column, updateCuts);
-        continue;
-      }
-      if (updateCuts) refreshCutsForColumn(j, column);
-      writeOwnedDenseColumn(j, column);
-      quantizeColumn(j, column);
-    }
+  /// Replace the whole predictor matrix from a borrowed view of
+  /// numObservations rows and numPredictors columns, read for the call only:
+  /// view column j fills store column j through mutateColumnFromSource.
+  void setPredictors(const PredictorSource& source, bool updateCuts) {
+    std::vector<double> scratch;
+    for (size_t j = 0; j < numPredictors; ++j)
+      mutateColumnFromSource(j, source, j, updateCuts, scratch);
   }
 
-  /// Overwrite a subset of columns; newColumns is column-major,
-  /// numObservations x numColumns, read for the call only. CSC-backed columns
-  /// route through the sparse mutation path.
+  /// The dense spelling: newX is column-major, numObservations x
+  /// numPredictors.
+  void setPredictors(const double* newX, bool updateCuts) {
+    setPredictors(densePredictorSource(newX, numObservations, numPredictors),
+                  updateCuts);
+  }
+
+  /// Overwrite a subset of columns: view column k, numObservations rows,
+  /// fills store column columns[k].
+  void setColumns(const PredictorSource& source, const size_t* columns,
+                  size_t numColumns, bool updateCuts) {
+    std::vector<double> scratch;
+    for (size_t k = 0; k < numColumns; ++k)
+      mutateColumnFromSource(columns[k], source, k, updateCuts, scratch);
+  }
+
+  /// The dense spelling: newColumns is column-major, numObservations x
+  /// numColumns.
   void setColumns(const double* newColumns, const size_t* columns,
                   size_t numColumns, bool updateCuts) {
-    for (size_t k = 0; k < numColumns; ++k) {
-      size_t j = columns[k];
-      const double* column = newColumns + k * numObservations;
-      if (columnIsCscBacked(j)) {
-        mutateCscColumnFromDense(j, column, updateCuts);
-        continue;
-      }
-      if (updateCuts) refreshCutsForColumn(j, column);
-      writeOwnedDenseColumn(j, column);
-      quantizeColumn(j, column);
+    setColumns(densePredictorSource(newColumns, numObservations, numColumns),
+               columns, numColumns, updateCuts);
+  }
+
+  /// What an absent row of CSC view column k reads when it fills store column
+  /// j: keyed on the STORE's type, as materializePredictorSource keys it.
+  double sourceImplicitValue(size_t j, const PredictorSource& source,
+                             size_t k) const {
+    return splitsBySubset(j) ? static_cast<double>(source.referenceCodeOf(k))
+                             : 0.0;
+  }
+
+  /// View column k as numObservations doubles for a dense consumer: the
+  /// view's own column when it holds doubles, else \p scratch, filled by
+  /// widening a coded column or materializing a CSC one (implicit value per
+  /// sourceImplicitValue). \p scratch is sized only when used.
+  const double* denseSourceColumn(size_t j, const PredictorSource& source,
+                                  size_t k,
+                                  std::vector<double>& scratch) const {
+    std::int32_t which = source.sourceOf(k);
+    if (which >= 0) {
+      DenseColumnValues column = source.denseColumn(k);
+      if (!column.isCoded()) return column.values;
+      scratch.resize(numObservations);
+      for (size_t i = 0; i < numObservations; ++i) scratch[i] = column.at(i);
+      return scratch.data();
     }
+    scratch.assign(numObservations, sourceImplicitValue(j, source, k));
+    size_t c = static_cast<size_t>(~which);
+    for (int e = source.cscColumnPointers[c];
+         e < source.cscColumnPointers[c + 1]; ++e)
+      scratch[static_cast<size_t>(source.cscRowIndices[e])] =
+        source.cscValues[e];
+    return scratch.data();
+  }
+
+  /// cutsWouldRemainValid for view column k filling store column j, read in
+  /// its own storage: a CSC column through its entries, never materialized.
+  bool cutsWouldRemainValid(size_t j, const PredictorSource& source, size_t k,
+                            std::vector<double>& scratch) const {
+    std::int32_t which = source.sourceOf(k);
+    if (which >= 0)
+      return cutsWouldRemainValid(j, denseSourceColumn(j, source, k, scratch));
+    size_t c = static_cast<size_t>(~which);
+    int begin = source.cscColumnPointers[c];
+    return cutsWouldRemainValidCsc(
+      j, source.cscValues + begin,
+      static_cast<size_t>(source.cscColumnPointers[c + 1] - begin),
+      sourceImplicitValue(j, source, k));
   }
 
   /// Repoint CSC-backed column j's slice at its owned nonzero buffers, so
@@ -2231,26 +2332,20 @@ struct ColumnStore {
                                ownedCscValues[j].size() };
   }
 
-  /// Mutate CSC-backed column j from a new dense column of numObservations
-  /// values (the mutation surface hands a dense column even for sparse
-  /// storage). The nonzero pattern is keyed on the column's KIND, since that
-  /// fixes what an implicit row reads: an ordinal column's implicit rows read a
-  /// structural zero, so the pattern is {i : value != 0}; a categorical
-  /// column's read the reference level's own level-order code, so the pattern
-  /// is {i : code != refCode}. Either way a stored NaN (missing) stays stored
-  /// (NaN compares unequal to both) and the minimal pattern a dense equivalent
-  /// would carry is produced - codes stay bitwise identical to a dense build of
-  /// the same values. When the pattern is unchanged the nonzero values
-  /// re-quantize IN PLACE (rank: nzCodes and zeroCode; densified: the codes
-  /// segment); when it changes the rank bitmap and index REBUILD
-  /// (O(n / 64 + nnz)). The owned slice repoints at the new nonzeros so later
-  /// re-quantizes (setCutPoints, state restore) read them. The storage tier
-  /// (rank vs densified) is fixed at build and never flips. updateCuts
-  /// refreshes the numeric cut grid from the dense column exactly as the dense
-  /// path does (the CSC cut builders fold the same implicit zeros the dense
-  /// column carries explicitly, so the grids match); a factor column of either
-  /// kind has no grid to refresh and keeps its creation-pinned level count.
-  /// The caller snapshots for rollback first.
+  /// Mutate CSC-backed column j from a dense column of numObservations
+  /// values: a dense column of a mixed view, or a coded or dense-only view
+  /// widened by denseSourceColumn. The nonzero pattern is keyed on the
+  /// column's KIND, since that fixes what an implicit row reads: an ordinal
+  /// column's implicit rows read a structural zero, so the pattern is
+  /// {i : value != 0}; a categorical column's read the reference level's own
+  /// level-order code, so the pattern is {i : code != refCode}. Either way a
+  /// stored NaN (missing) stays stored (NaN compares unequal to both) and the
+  /// minimal pattern a dense equivalent would carry is produced - codes stay
+  /// bitwise identical to a dense build of the same values. updateCuts
+  /// refreshes the numeric cut grid from the dense column exactly as the
+  /// dense path does; a factor column of either kind has no grid to refresh
+  /// and keeps its creation-pinned level count. The caller snapshots for
+  /// rollback first.
   void mutateCscColumnFromDense(size_t j, const double* column,
                                 bool updateCuts) {
     if (updateCuts) refreshCutsForColumn(j, column);
@@ -2264,7 +2359,56 @@ struct ColumnStore {
         newRows.push_back(static_cast<int>(i));
         newValues.push_back(column[i]);
       }
+    installCscColumn(j, std::move(newRows), std::move(newValues), false);
+  }
 
+  /// Mutate CSC-backed column j from one CSC column: \p numNonzero ascending,
+  /// unique \p rows and their \p values, every absent row reading
+  /// \p sourceImplicit. Same pattern rule, codes, missing flag and grid as
+  /// mutateCscColumnFromDense over the materialized column. When
+  /// sourceImplicit is the store's implicit value, one pass over the entries
+  /// drops the explicit implicit-valued ones (stored zeros, -0, a stored
+  /// reference); otherwise - a categorical source whose absent rows read
+  /// another level - every absent row becomes an entry, one O(n) merge. The
+  /// cut refresh reads the installed slice. The caller snapshots for rollback
+  /// first.
+  void mutateCscColumnFromCsc(size_t j, const int* rows, const double* values,
+                              size_t numNonzero, double sourceImplicit,
+                              bool updateCuts) {
+    const double implicitValue = splitsBySubset(j)
+      ? static_cast<double>(train.sources[j].refCode) : 0.0;
+    std::vector<int> newRows;
+    std::vector<double> newValues;
+    if (sourceImplicit == implicitValue) {
+      for (size_t k = 0; k < numNonzero; ++k)
+        if (values[k] != implicitValue) {
+          newRows.push_back(rows[k]);
+          newValues.push_back(values[k]);
+        }
+    } else {
+      size_t k = 0;
+      for (size_t i = 0; i < numObservations; ++i) {
+        double value = sourceImplicit;
+        if (k < numNonzero && static_cast<size_t>(rows[k]) == i)
+          value = values[k++];
+        if (value != implicitValue) {
+          newRows.push_back(static_cast<int>(i));
+          newValues.push_back(value);
+        }
+      }
+    }
+    installCscColumn(j, std::move(newRows), std::move(newValues), updateCuts);
+  }
+
+  /// The two CSC mutation paths' shared tail: take \p newRows and
+  /// \p newValues as column j's owned slice, refresh its cut grid from that
+  /// slice when \p updateCuts, and re-quantize. When the pattern is unchanged
+  /// the nonzero codes re-quantize IN PLACE (rank: nzCodes and zeroCode;
+  /// densified: the codes segment); when it changes the rank bitmap and index
+  /// REBUILD (O(n / 64 + nnz)). The storage tier (rank vs densified) is fixed
+  /// at build and never flips.
+  void installCscColumn(size_t j, std::vector<int>&& newRows,
+                        std::vector<double>&& newValues, bool updateCuts) {
     const CscColumnSlice& oldSlice = train.sources[j].slice;
     bool patternChanged = newRows.size() != oldSlice.numNonzero;
     for (size_t k = 0; !patternChanged && k < newRows.size(); ++k)
@@ -2275,6 +2419,7 @@ struct ColumnStore {
     cscColumnOwned[j] = 1;
     repointOwnedSlice(j);
 
+    if (updateCuts) refreshCutsForCscColumn(j);
     if (train.columnIsSparse(j) && patternChanged)
       buildRankStorageInto(train, numObservations, j);
     quantizeCscColumnInto(train, numObservations, j, hasMissing.data());
@@ -2423,6 +2568,42 @@ struct ColumnStore {
     else
       for (const ColumnCodeRollback::Cell& cell : rollback.journal)
         column[cell.index] = cell.oldCode;
+  }
+
+  /// Install view column k into store column j, routed by the two storage
+  /// kinds: CSC onto CSC through mutateCscColumnFromCsc, never densified;
+  /// dense onto CSC through mutateCscColumnFromDense; anything onto a dense
+  /// column through the dense path, a CSC or coded view column first widened
+  /// into \p scratch by denseSourceColumn. A non-null \p journal takes the
+  /// journaled dense path; a CSC-backed column ignores it, its caller having
+  /// snapshotted it whole. Cut refreshes assume the caller prechecked with
+  /// cutsWouldRemainValid.
+  void mutateColumnFromSource(size_t j, const PredictorSource& source,
+                              size_t k, bool updateCuts,
+                              std::vector<double>& scratch,
+                              ColumnCodeRollback* journal = nullptr) {
+    std::int32_t which = source.sourceOf(k);
+    if (which < 0 && columnIsCscBacked(j)) {
+      size_t c = static_cast<size_t>(~which);
+      int begin = source.cscColumnPointers[c];
+      mutateCscColumnFromCsc(
+        j, source.cscRowIndices + begin, source.cscValues + begin,
+        static_cast<size_t>(source.cscColumnPointers[c + 1] - begin),
+        sourceImplicitValue(j, source, k), updateCuts);
+      return;
+    }
+    const double* column = denseSourceColumn(j, source, k, scratch);
+    if (columnIsCscBacked(j)) {
+      mutateCscColumnFromDense(j, column, updateCuts);
+      return;
+    }
+    if (journal != nullptr) {
+      setColumnJournaled(j, column, updateCuts, numObservations / 4, *journal);
+      return;
+    }
+    if (updateCuts) refreshCutsForColumn(j, column);
+    writeOwnedDenseColumn(j, column);
+    quantizeColumn(j, column);
   }
 
   /// Overwrite a single cell's code against existing cuts, refreshing the owned

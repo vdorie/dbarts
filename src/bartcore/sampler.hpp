@@ -1555,28 +1555,29 @@ public:
     return true;
   }
 
-  /// Replace the predictor matrix from a borrowed view (the store keeps its
-  /// old values on failure). Unless forceUpdate, a leaf that would empty in
-  /// any tree of any chain rolls the whole change back; forceUpdate instead
-  /// collapses emptied leaves into their parents. The mutation kernels index
-  /// the values as one column-major block, so the view must be a dense one
-  /// (PredictorSource::isDenseBlock): a mapped or CSC-valued source has no
-  /// kernel, and its holder materializes it before the transaction begins.
+  /// Replace the predictor matrix from a borrowed view of numObservations
+  /// rows, read for the call only (the store keeps its old values on
+  /// failure). Unless forceUpdate, a leaf that would empty in any tree of any
+  /// chain rolls the whole change back; forceUpdate instead collapses emptied
+  /// leaves into their parents. Any view shape is consumed column by column
+  /// (ColumnStore::mutateColumnFromSource): a CSC column onto a CSC-backed
+  /// one as its entries, never densified, and a CSC or coded column onto a
+  /// dense-backed one through one reused column of scratch.
   PredictorUpdateResult setPredictor(const PredictorSource& newX,
                                      bool forceUpdate, bool updateCutPoints) {
-    WholeMatrixUpdate strategy{data_, newX.denseValues};
+    WholeMatrixUpdate strategy{data_, newX};
     return runPredictorTransaction(strategy, forceUpdate, updateCutPoints);
   }
 
-  /// Overwrite a subset of columns in place; the view holds the replacement
-  /// block, column-major numObservations x numColumns, and columns names the
-  /// store columns it fills. Same transaction and dense-view semantics as
-  /// setPredictor.
+  /// Overwrite a subset of columns in place; view column k, numObservations
+  /// rows, fills store column columns[k]. Same transaction and view semantics
+  /// as setPredictor; a column named twice is applied in order and, on a
+  /// reject, restored exactly.
   PredictorUpdateResult updatePredictor(const PredictorSource& newColumns,
                                         const size_t* columns,
                                         size_t numColumns, bool forceUpdate,
                                         bool updateCutPoints) {
-    SubsetUpdate strategy{data_, newColumns.denseValues, columns, numColumns};
+    SubsetUpdate strategy{data_, newColumns, columns, numColumns};
     return runPredictorTransaction(strategy, forceUpdate, updateCutPoints);
   }
 
@@ -1874,12 +1875,13 @@ private:
 
   /// The two ways a predictor-replacement transaction moves its columns: the
   /// column list each spans (a null columns pointer means every predictor in
-  /// order, over column-major values) and the snapshot/apply/restore triple
-  /// runPredictorTransaction drives. WholeMatrixUpdate swaps the whole code
-  /// storage aside; SubsetUpdate journals a named subset column by column.
+  /// order, view column j filling store column j) and the
+  /// snapshot/apply/restore triple runPredictorTransaction drives.
+  /// WholeMatrixUpdate swaps the whole code storage aside; SubsetUpdate
+  /// journals a named subset column by column.
   struct WholeMatrixUpdate {
     ColumnStore& data;
-    const double* values;
+    PredictorSource source;
     const size_t* columns = nullptr;
     std::vector<xint_t> oldCodes;
     std::vector<std::uint8_t> oldHasMissing;
@@ -1896,7 +1898,7 @@ private:
     std::vector<std::uint8_t> oldCscOwned;
 
     size_t numColumns() const { return data.numPredictors; }
-    void applyForced(bool updateCuts) { data.setPredictors(values, updateCuts); }
+    void applyForced(bool updateCuts) { data.setPredictors(source, updateCuts); }
     void snapshotApply(bool updateCuts) {
       // move the live codes aside and rebuild into fresh storage: a reject swaps
       // them back and an accept drops them, so no whole-matrix copy survives
@@ -1912,7 +1914,7 @@ private:
         oldOwnedValues = data.ownedCscValues;
         oldCscOwned = data.cscColumnOwned;
       }
-      data.setPredictors(values, updateCuts);
+      data.setPredictors(source, updateCuts);
     }
     void restore(bool updateCuts) {
       data.train.codes = std::move(oldCodes);
@@ -1935,7 +1937,7 @@ private:
 
   struct SubsetUpdate {
     ColumnStore& data;
-    const double* values;
+    PredictorSource source;
     const size_t* columns;
     size_t count;
     std::vector<std::uint8_t> oldHasMissing;
@@ -1948,15 +1950,14 @@ private:
 
     size_t numColumns() const { return count; }
     void applyForced(bool updateCuts) {
-      data.setColumns(values, columns, count, updateCuts);
+      data.setColumns(source, columns, count, updateCuts);
     }
     void snapshotApply(bool updateCuts) {
       // journal each touched column's changed cells (past a quarter changed the
       // record falls back to a whole pre-change copy); the small hasMissing and
       // cut pieces snapshot per column. A CSC-backed column instead snapshots
-      // its rank/densified storage and owned slice and rebuilds from the dense
-      // column.
-      size_t n = data.numObservations;
+      // its rank/densified storage and owned slice whole.
+      std::vector<double> scratch;
       oldHasMissing.resize(count);
       oldCuts.resize(updateCuts ? count : 0);
       records.resize(count);
@@ -1965,13 +1966,10 @@ private:
         size_t j = columns[k];
         oldHasMissing[k] = data.hasMissing[j];
         if (updateCuts) oldCuts[k] = data.cutPoints[j];
-        if (data.columnIsCscBacked(j)) {
-          data.snapshotCscColumn(j, cscRecords[k]);
-          data.mutateCscColumnFromDense(j, values + k * n, updateCuts);
-        } else {
-          data.setColumnJournaled(j, values + k * n, updateCuts, n / 4,
-                                  records[k]);
-        }
+        bool csc = data.columnIsCscBacked(j);
+        if (csc) data.snapshotCscColumn(j, cscRecords[k]);
+        data.mutateColumnFromSource(j, source, k, updateCuts, scratch,
+                                    csc ? nullptr : &records[k]);
       }
     }
     /// Walks the records in reverse: record k was taken after records 0 to
@@ -2003,14 +2001,14 @@ private:
   PredictorUpdateResult runPredictorTransaction(Strategy& strategy,
                                                 bool forceUpdate,
                                                 bool updateCutPoints) {
+    std::vector<double> scratch;
     for (size_t k = 0; k < strategy.numColumns(); ++k) {
       size_t j = strategy.columns ? strategy.columns[k] : k;
       // a factor column of either kind must hold representable level codes
       // whether or not cut points refresh: its grid is its level table, so a
       // value outside the table has no position on it
       if ((updateCutPoints || data_.isFactor(j)) &&
-          !data_.cutsWouldRemainValid(
-            j, strategy.values + k * data_.numObservations))
+          !data_.cutsWouldRemainValid(j, strategy.source, k, scratch))
         return PredictorUpdateResult::invalidCutPoints;
     }
 

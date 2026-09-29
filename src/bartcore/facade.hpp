@@ -204,9 +204,10 @@ public:
                                      const double* x_test,
                                      std::size_t numTestObservations,
                                      const double* testOffset) = 0;
-  /// Replace the predictors from a borrowed view; only a dense block is
-  /// consumable (PredictorSource::isDenseBlock), since every mutation kernel
-  /// indexes the values column-major.
+  /// Replace the predictors from a borrowed view of any shape - dense,
+  /// mapped, CSC or mixed, either dense channel - consumed column by column:
+  /// a CSC column onto a CSC-backed store column is read as its entries and
+  /// never densified.
   virtual PredictorUpdateResult setPredictor(const PredictorSource& newX,
                                              bool forceUpdate,
                                              bool updateCutPoints) = 0;

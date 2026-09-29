@@ -3138,6 +3138,547 @@ struct MixedFixture {
   }
 };
 
+// Everything a predictor mutation writes into a store, compared by bytes: a
+// NaN value or a signed zero must match, which operator== on doubles misses.
+struct StoreImage {
+  std::vector<std::vector<double>> cuts, values;
+  std::vector<std::uint32_t> numCuts, wordRanks;
+  std::vector<xint_t> codes, nzCodes;
+  std::vector<std::uint8_t> hasMissing, owned;
+  std::vector<int> rows;
+  std::vector<std::uint64_t> bits;
+
+  explicit StoreImage(const ColumnStore& s)
+      : cuts(s.cutPoints), numCuts(s.numCuts), hasMissing(s.hasMissing),
+        owned(s.cscColumnOwned) {
+    for (size_t j = 0; j < s.numPredictors; ++j) {
+      for (size_t i = 0; i < s.numObservations; ++i)
+        codes.push_back(s.codeAt(j, i));
+      if (s.columnIsCscBacked(j)) {
+        const CscColumnSlice& slice = s.train.sources[j].slice;
+        rows.insert(rows.end(), slice.rows, slice.rows + slice.numNonzero);
+        rows.push_back(-1);
+        values.emplace_back(slice.values, slice.values + slice.numNonzero);
+      }
+      if (!s.columnIsSparse(j)) continue;
+      const SparseColumnData& sparse = s.sparseColumn(j);
+      bits.insert(bits.end(), sparse.bits.begin(), sparse.bits.end());
+      wordRanks.insert(wordRanks.end(), sparse.wordRanks.begin(),
+                       sparse.wordRanks.end());
+      nzCodes.insert(nzCodes.end(), sparse.nzCodes.begin(),
+                     sparse.nzCodes.end());
+      nzCodes.push_back(sparse.zeroCode);
+    }
+  }
+
+  template <typename T>
+  static bool same(const std::vector<T>& a, const std::vector<T>& b) {
+    return a.size() == b.size() &&
+           (a.empty() || std::memcmp(a.data(), b.data(), a.size() * sizeof(T)) == 0);
+  }
+  template <typename T>
+  static bool same(const std::vector<std::vector<T>>& a,
+                   const std::vector<std::vector<T>>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t k = 0; k < a.size(); ++k)
+      if (!same(a[k], b[k])) return false;
+    return true;
+  }
+  bool operator==(const StoreImage& o) const {
+    return same(cuts, o.cuts) && same(values, o.values) &&
+           same(numCuts, o.numCuts) && same(wordRanks, o.wordRanks) &&
+           same(codes, o.codes) && same(nzCodes, o.nzCodes) &&
+           same(hasMissing, o.hasMissing) && same(owned, o.owned) &&
+           same(rows, o.rows) && same(bits, o.bits);
+  }
+};
+
+// A CSC triple over a column-major block: every cell that is nonzero or a
+// signed zero, plus explicit +0 entries at every rowStride-th row, so the
+// canonical-pattern rule has stored zeros and -0 to drop.
+struct CscOf {
+  std::vector<int> pointers, rows;
+  std::vector<double> values;
+  CscOf(const double* x, size_t n, size_t p, size_t rowStride = 17) {
+    pointers.assign(p + 1, 0);
+    for (size_t j = 0; j < p; ++j) {
+      for (size_t i = 0; i < n; ++i) {
+        double v = x[i + j * n];
+        if (v == 0.0 && !std::signbit(v) && i % rowStride != 0) continue;
+        rows.push_back(static_cast<int>(i));
+        values.push_back(v);
+      }
+      pointers[j + 1] = static_cast<int>(rows.size());
+    }
+  }
+};
+
+// sparse-mutation-direct at the store: a CSC replacement installs exactly
+// what the dense path installs over the materialized column - cuts, codes,
+// slice, rank storage, missing flag - on both tiers, both cut modes, with and
+// without a refresh, and for categorical columns whose source reads its
+// absent rows as the store's reference or as another level.
+static void testSparseMutationDirectStore() {
+  uint64_t savedRngState = rngState;
+  const size_t n = 300;
+  bool allOk = true;
+  for (bool useQuantiles : { false, true })
+    for (bool updateCuts : { false, true })
+      for (bool allAbsent : { false, true }) {
+        CscFixture fixture;
+        fixture.build(n, { 0.05, 0.6 });
+        std::vector<double> dense(n * 2, 0.0);
+        for (size_t e = 0; !allAbsent && e < n * 2; ++e) {
+          if (runif01() >= (e < n ? 0.12 : 0.5)) continue;
+          dense[e] = e % 11 == 3 ? -0.0
+                   : e % 13 == 5 ? std::nan("") : 0.25 + runif01();
+        }
+        CscOf csc(dense.data(), n, 2);
+        ColumnStore a, b;
+        for (ColumnStore* s : { &a, &b })
+          built(s->build(mixedPredictorSource(n, 2, nullptr,
+                                              fixture.pointers.data(),
+                                              fixture.rows.data(),
+                                              fixture.values.data(),
+                                              fixture.allCscSources.data()),
+                         nullptr, 100, useQuantiles));
+        allOk &= a.columnIsSparse(0) && !a.columnIsSparse(1);
+        for (size_t j = 0; j < 2; ++j) {
+          int begin = csc.pointers[j];
+          a.mutateCscColumnFromCsc(
+            j, csc.rows.data() + begin, csc.values.data() + begin,
+            static_cast<size_t>(csc.pointers[j + 1] - begin), 0.0, updateCuts);
+          b.mutateCscColumnFromDense(j, dense.data() + j * n, updateCuts);
+        }
+        allOk &= StoreImage(a) == StoreImage(b);
+      }
+  check(allOk, "a CSC replacement installs the dense path's store, bitwise");
+
+  bool categoricalOk = true;
+  for (double probReference : { 0.92, 0.4 })
+    for (bool matching : { true, false }) {
+      CscCategoricalFixture fixture;
+      fixture.build(n, 6, probReference);
+      std::vector<double> dense(n);
+      for (size_t i = 0; i < n; ++i)
+        dense[i] = static_cast<double>(
+          (static_cast<std::uint32_t>(fixture.dense[i]) + 1u) % fixture.K);
+      dense[3] = std::nan("");
+      double implicit = matching ? static_cast<double>(fixture.reference) : 0.0;
+      std::vector<int> rows;
+      std::vector<double> values;
+      for (size_t i = 0; i < n; ++i)
+        if (dense[i] != implicit || i % 29 == 0) {  // some stored explicitly
+          rows.push_back(static_cast<int>(i));
+          values.push_back(dense[i]);
+        }
+      ColumnStore a = fixture.buildStore(false), b = fixture.buildStore(false);
+      a.mutateCscColumnFromCsc(0, rows.data(), values.data(), rows.size(),
+                               implicit, false);
+      std::vector<double> materialized(n, implicit);
+      for (size_t k = 0; k < rows.size(); ++k)
+        materialized[static_cast<size_t>(rows[k])] = values[k];
+      b.mutateCscColumnFromDense(0, materialized.data(), false);
+      categoricalOk &= StoreImage(a) == StoreImage(b) &&
+                       a.columnIsSparse(0) == (probReference > 0.5);
+    }
+  check(categoricalOk,
+        "a categorical CSC replacement matches the dense path, either reference");
+
+  // the precheck over entries answers what the dense check answers over the
+  // materialized column: quantile counts, level codes, the implicit level
+  {
+    CscFixture fixture;
+    fixture.build(n, { 0.05, 0.6 });
+    ColumnStore s;
+    built(s.build(mixedPredictorSource(n, 2, nullptr, fixture.pointers.data(),
+                                       fixture.rows.data(),
+                                       fixture.values.data(),
+                                       fixture.allCscSources.data()),
+                  nullptr, 100, true));
+    bool agree = true;
+    for (size_t j = 0; j < 2; ++j)
+      for (bool coarse : { false, true }) {
+        std::vector<double> dense(n, 0.0);
+        if (coarse) dense[7] = 2.0;
+        else for (size_t i = 0; i < n; i += 2) dense[i] = runif01();
+        CscOf csc(dense.data(), n, 1);
+        bool sparse = s.cutsWouldRemainValidCsc(j, csc.values.data(),
+                                                csc.values.size(), 0.0);
+        agree &= sparse == s.cutsWouldRemainValid(j, dense.data()) &&
+                 sparse == !coarse;
+      }
+    CscCategoricalFixture factor;
+    factor.build(n, 6, 0.92);
+    ColumnStore f = factor.buildStore(false);
+    struct Case { double stored, implicit; bool valid; };
+    const Case cases[] = { { 2.0, 3.0, true }, { 6.0, 3.0, false },
+                           { 2.5, 3.0, false }, { 2.0, 7.0, false } };
+    for (const Case& c : cases) {
+      std::vector<double> dense(n, c.implicit);
+      dense[11] = c.stored;
+      bool sparse = f.cutsWouldRemainValidCsc(0, &c.stored, 1, c.implicit);
+      agree &= sparse == f.cutsWouldRemainValid(0, dense.data()) &&
+               sparse == c.valid;
+    }
+    check(agree, "the CSC precheck agrees with the dense one");
+  }
+
+  // signed zero: a 0/1 column under quantile cuts replaced by zeros with one
+  // -0 stores the same +0 cut on both paths
+  {
+    std::vector<int> rows;
+    std::vector<double> ones;
+    for (size_t i = 0; i < n; i += 3) {
+      rows.push_back(static_cast<int>(i));
+      ones.push_back(1.0);
+    }
+    int pointers[2] = { 0, static_cast<int>(rows.size()) };
+    std::int32_t source = ~0;
+    ColumnStore a, b;
+    for (ColumnStore* s : { &a, &b })
+      built(s->build(mixedPredictorSource(n, 1, nullptr, pointers, rows.data(),
+                                          ones.data(), &source),
+                     nullptr, 100, true));
+    // every row -0 but the last, so the -0 leads its equal run in any sort
+    std::vector<double> zeros(n, -0.0);
+    zeros[n - 1] = 0.0;
+    CscOf csc(zeros.data(), n, 1);
+    a.mutateCscColumnFromCsc(0, csc.rows.data(), csc.values.data(),
+                             csc.rows.size(), 0.0, true);
+    b.mutateCscColumnFromDense(0, zeros.data(), true);
+    check(a.numCuts[0] == 1 && b.numCuts[0] == 1 &&
+            std::memcmp(a.cutPoints[0].data(), b.cutPoints[0].data(),
+                        sizeof(double)) == 0 &&
+            !std::signbit(a.cutPoints[0][0]),
+          "a degenerate grid over signed zeros stores +0 on both paths");
+    check(!std::signbit(a.quantileGridForColumn(0, zeros.data()).sortedUnique[0]),
+          "the dense quantile collector normalizes -0");
+  }
+
+  // the router sends a CSC column onto a CSC-backed one without the scratch
+  {
+    CscFixture fixture;
+    fixture.build(n, { 0.05, 0.6 });
+    PredictorSource view = mixedPredictorSource(
+      n, 2, nullptr, fixture.pointers.data(), fixture.rows.data(),
+      fixture.values.data(), fixture.allCscSources.data());
+    ColumnStore s;
+    built(s.build(view, nullptr, 100, false));
+    std::vector<double> scratch;
+    for (size_t j = 0; j < 2; ++j)
+      s.mutateColumnFromSource(j, view, j, true, scratch);
+    check(scratch.capacity() == 0,
+          "a CSC column onto a CSC-backed one is never densified");
+  }
+  rngState = savedRngState;
+  printf("ok: sparse mutation direct (store)\n");
+}
+
+// Two samplers over one design and seed, one mutated through a sparse or
+// mixed view and one through the dense block of the same values.
+struct TwinSamplers {
+  ext_rng* rngA = nullptr;
+  ext_rng* rngB = nullptr;
+  std::unique_ptr<ConstantLeafSampler> a, b;
+  TwinSamplers(const double* x, const double* y, size_t n, size_t p,
+               const SamplerOptions& options, std::uint32_t seed) {
+    rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngA, seed);
+    ext_rng_setSeed(rngB, seed);
+    a = std::make_unique<ConstantLeafSampler>(
+      x, y, n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+      0.37804942330213542, options, &rngA);
+    b = std::make_unique<ConstantLeafSampler>(
+      x, y, n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+      0.37804942330213542, options, &rngB);
+  }
+  ~TwinSamplers() {
+    a.reset();
+    b.reset();
+    ext_rng_destroy(rngA);
+    ext_rng_destroy(rngB);
+  }
+  bool storesMatch() const {
+    return StoreImage(a->data()) == StoreImage(b->data());
+  }
+  // further sweeps: sigma, training and test fits, bitwise
+  bool drawsMatch(size_t n, size_t numTest) {
+    const size_t numSamples = 25;
+    std::vector<double> sA(numSamples), sB(numSamples);
+    std::vector<double> fA(n * numSamples), fB(n * numSamples);
+    std::vector<double> tA(numTest * numSamples), tB(numTest * numSamples);
+    Results ra, rb;
+    ra.sigma = sA.data(); ra.trainingFits = fA.data(); ra.testFits = tA.data();
+    rb.sigma = sB.data(); rb.trainingFits = fB.data(); rb.testFits = tB.data();
+    a->run(0, numSamples, ra);
+    b->run(0, numSamples, rb);
+    return StoreImage::same(sA, sB) && StoreImage::same(fA, fB) &&
+           StoreImage::same(tA, tB);
+  }
+};
+
+// The sampler half: whole and subset replacements through an all-CSC view
+// and a mixed one (a CSC column onto a dense store column, a dense column onto
+// a CSC-backed one) leave the store, the sweeps and the test fits bitwise
+// those of the dense block; a refused middle column restores the store and
+// the tree fits byte for byte; a column named twice unwinds exactly; and a
+// code-channel column installs what the double channel does.
+static void testSparseMutationDirectSampler() {
+  uint64_t savedRngState = rngState;
+  const size_t n = 240, numTest = 30;
+  std::vector<double> xTest(numTest * MixedFixture::p);
+  for (double& v : xTest) v = runif01() < 0.3 ? runif01() : 0.0;
+
+  // all-CSC design, rank and densified columns
+  {
+    CscFixture fixture;
+    fixture.build(n, { 0.05, 0.1, 0.6 });
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i)
+      y[i] = 2.0 * fixture.dense[i] - 1.5 * fixture.dense[i + n] +
+             fixture.dense[i + 2 * n] + 0.3 * runif01();
+    SamplerOptions options;
+    options.numTrees = 20;
+    options.predictors.cscColumnPointers = fixture.pointers.data();
+    options.predictors.cscRowIndices = fixture.rows.data();
+    options.predictors.cscValues = fixture.values.data();
+    options.predictors.columnSources = fixture.allCscSources.data();
+    TwinSamplers twins(nullptr, y.data(), n, 3, options, 515);
+    twins.a->setTestPredictors(xTest.data(), numTest);
+    twins.b->setTestPredictors(xTest.data(), numTest);
+    Results burn;
+    twins.a->run(30, 0, burn);
+    twins.b->run(30, 0, burn);
+
+    std::vector<double> x2(fixture.dense);
+    for (size_t e = 0; e < x2.size(); ++e)
+      if (x2[e] != 0.0) x2[e] = x2[e] * 1.1 + 0.05;
+      else if (e % 23 == 0) x2[e] = -0.0;
+    CscOf csc(x2.data(), n, 3);
+    PredictorSource view = mixedPredictorSource(
+      n, 3, nullptr, csc.pointers.data(), csc.rows.data(), csc.values.data(),
+      fixture.allCscSources.data());
+    bool ok = true;
+    for (bool force : { false, true }) {
+      ok &= twins.a->setPredictor(view, force, true) ==
+              twins.b->setPredictor(x2.data(), force, true) &&
+            twins.storesMatch();
+      // subset, out of order: view column k fills store column cols[k]
+      size_t cols[] = { 2, 0 };
+      std::int32_t subsetSources[] = { ~2, ~0 };
+      PredictorSource subset = view;
+      subset.numColumns = 2;
+      subset.columnSources = subsetSources;
+      std::vector<double> block(n * 2);
+      std::memcpy(block.data(), x2.data() + 2 * n, n * sizeof(double));
+      std::memcpy(block.data() + n, x2.data(), n * sizeof(double));
+      ok &= twins.a->updatePredictor(subset, cols, 2, force, false) ==
+              twins.b->updatePredictor(block.data(), cols, 2, force, false) &&
+            twins.storesMatch();
+    }
+    check(ok && twins.drawsMatch(n, numTest),
+          "an all-CSC replacement matches the dense block: store and draws");
+  }
+
+  // mixed design: [dense0, csc0, dense1, csc1, csc2]
+  {
+    MixedFixture fixture;
+    fixture.build(n, { 0.1, 0.6, 0.08 }, false);
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i)
+      y[i] = 1.5 * fixture.full[i] + 2.0 * fixture.full[i + n] -
+             fixture.full[i + 3 * n] + 0.3 * runif01();
+    SamplerOptions options;
+    options.numTrees = 20;
+    fixture.applyOptions(options);
+    TwinSamplers twins(nullptr, y.data(), n, MixedFixture::p, options, 616);
+    twins.a->setTestPredictors(xTest.data(), numTest);
+    twins.b->setTestPredictors(xTest.data(), numTest);
+    Results burn;
+    twins.a->run(30, 0, burn);
+    twins.b->run(30, 0, burn);
+
+    std::vector<double> x2(fixture.full);
+    for (double& v : x2) if (v != 0.0) v = v * 1.05 + 0.01;
+    // store columns 0 and 3 read CSC, 1, 2 and 4 read dense block 0, 1, 2
+    CscOf csc0(x2.data(), n, 1), csc3(x2.data() + 3 * n, n, 1);
+    std::vector<int> pointers = { 0, csc0.pointers[1],
+                                  csc0.pointers[1] + csc3.pointers[1] };
+    std::vector<int> rows(csc0.rows);
+    rows.insert(rows.end(), csc3.rows.begin(), csc3.rows.end());
+    std::vector<double> values(csc0.values);
+    values.insert(values.end(), csc3.values.begin(), csc3.values.end());
+    std::vector<double> denseBlock(n * 3);
+    const size_t denseColumns[] = { 1, 2, 4 };
+    for (size_t k = 0; k < 3; ++k)
+      std::memcpy(denseBlock.data() + k * n, x2.data() + denseColumns[k] * n,
+                  n * sizeof(double));
+    std::int32_t sources[] = { ~0, 0, 1, ~1, 2 };
+    PredictorSource view = mixedPredictorSource(
+      n, MixedFixture::p, denseBlock.data(), pointers.data(), rows.data(),
+      values.data(), sources);
+    bool ok = twins.a->setPredictor(view, false, true) ==
+                twins.b->setPredictor(x2.data(), false, true) &&
+              twins.storesMatch();
+    // subset: a CSC column onto dense store column 0, a dense one onto CSC
+    // store column 1
+    for (double& v : x2) if (v != 0.0) v = v * 0.98;
+    CscOf again(x2.data(), n, 1);
+    size_t cols[] = { 0, 1 };
+    std::int32_t subsetSources[] = { ~0, 0 };
+    PredictorSource subset = mixedPredictorSource(
+      n, 2, x2.data() + n, again.pointers.data(), again.rows.data(),
+      again.values.data(), subsetSources);
+    ok &= twins.a->updatePredictor(subset, cols, 2, false, true) ==
+            twins.b->updatePredictor(x2.data(), cols, 2, false, true) &&
+          twins.storesMatch();
+    check(ok && twins.drawsMatch(n, numTest),
+          "a mixed replacement matches the dense block: store and draws");
+  }
+
+  // a refused middle column, whole and subset: by the precheck nothing is
+  // written; by revalidation everything written is put back
+  {
+    CscFixture fixture;
+    fixture.build(n, { 0.08, 0.3, 0.1 });
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i)
+      y[i] = 2.0 * fixture.dense[i] - 3.0 * fixture.dense[i + n] +
+             fixture.dense[i + 2 * n] + 0.2 * runif01();
+    SamplerOptions options;
+    options.numTrees = 20;
+    options.useQuantiles = true;
+    options.predictors.cscColumnPointers = fixture.pointers.data();
+    options.predictors.cscRowIndices = fixture.rows.data();
+    options.predictors.cscValues = fixture.values.data();
+    options.predictors.columnSources = fixture.allCscSources.data();
+    TwinSamplers twins(nullptr, y.data(), n, 3, options, 717);
+    ConstantLeafSampler& s = *twins.a;
+    Results burn;
+    s.run(40, 0, burn);
+    // an identity replacement first, so every slice is owned
+    PredictorSource identity = mixedPredictorSource(
+      n, 3, nullptr, fixture.pointers.data(), fixture.rows.data(),
+      fixture.values.data(), fixture.allCscSources.data());
+    bool ok = s.setPredictor(identity, true, false) ==
+              PredictorUpdateResult::accepted;
+
+    std::vector<double> x2(fixture.dense);
+    for (size_t i = 0; i < n; ++i) {
+      if (x2[i] != 0.0) x2[i] *= 1.02;
+      x2[i + n] = 0.0;  // the middle column: every row absent
+    }
+    CscOf csc(x2.data(), n, 3, n + 1);
+    PredictorSource whole = mixedPredictorSource(
+      n, 3, nullptr, csc.pointers.data(), csc.rows.data(), csc.values.data(),
+      fixture.allCscSources.data());
+    size_t cols[] = { 0, 1, 2 };
+    StoreImage before(s.data());
+    std::vector<double> fitsBefore(TestPeer::treeFits(s.chain(0)));
+    const PredictorUpdateResult expected[] = {
+      PredictorUpdateResult::invalidCutPoints,
+      PredictorUpdateResult::rolledBack };
+    for (int refusal = 0; refusal < 2; ++refusal) {
+      bool updateCuts = refusal == 0;
+      ok &= s.setPredictor(whole, false, updateCuts) == expected[refusal] &&
+            StoreImage(s.data()) == before &&
+            TestPeer::treeFits(s.chain(0)) == fitsBefore;
+      ok &= s.updatePredictor(whole, cols, 3, false, updateCuts) ==
+              expected[refusal] &&
+            StoreImage(s.data()) == before &&
+            TestPeer::treeFits(s.chain(0)) == fitsBefore;
+    }
+    check(ok, "a refused middle column leaves the store and fits byte-identical");
+
+    // a column named twice, rolled back: the first write valid, the second
+    // empties leaves
+    std::int32_t twice[] = { ~0, ~1 };
+    PredictorSource named = whole;
+    named.numColumns = 2;
+    named.columnSources = twice;
+    size_t same[] = { 1, 1 };
+    check(s.updatePredictor(named, same, 2, false, false) ==
+              PredictorUpdateResult::rolledBack &&
+            StoreImage(s.data()) == before &&
+            TestPeer::treeFits(s.chain(0)) == fitsBefore,
+          "a CSC column named twice rolls back exactly");
+  }
+  {
+    std::vector<double> x, y;
+    makeMutationData(x, y, n);
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 818);
+    std::unique_ptr<ConstantLeafSampler> s = makeBurnedInSampler(x, y, n, rng);
+    std::vector<double> block(n * 2, 0.5);
+    for (size_t i = 0; i < n; ++i) block[i] = x[i] * 0.97 + 0.01;
+    StoreImage before(s->data());
+    std::vector<double> fitsBefore(TestPeer::treeFits(s->chain(0)));
+    size_t same[] = { 0, 0 };
+    check(s->updatePredictor(block.data(), same, 2, false, false) ==
+              PredictorUpdateResult::rolledBack &&
+            StoreImage(s->data()) == before &&
+            TestPeer::treeFits(s->chain(0)) == fitsBefore,
+          "a dense column named twice rolls back exactly");
+    s.reset();
+    ext_rng_destroy(rng);
+  }
+
+  // the code channel: a dense factor column and a CSC-backed categorical one
+  // take int32 codes exactly as they take the same values as doubles
+  {
+    MixedFixture fixture;
+    fixture.build(n, { 0.1, 0.6, 0.08 }, true);
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i)
+      y[i] = fixture.full[i + 2 * n] + fixture.full[i] + 0.3 * runif01();
+    SamplerOptions options;
+    options.numTrees = 15;
+    fixture.applyOptions(options);
+    TwinSamplers twins(nullptr, y.data(), n, MixedFixture::p, options, 919);
+    std::vector<std::int32_t> codes(n);
+    std::vector<double> doubles(n);
+    for (size_t i = 0; i < n; ++i) {
+      codes[i] = static_cast<std::int32_t>(fixture.full[i + 2 * n] + 1.0) % 4;
+      doubles[i] = codes[i];
+    }
+    codes[5] = naDenseCode;
+    doubles[5] = std::nan("");
+    std::int32_t channel = ~0;
+    PredictorSource coded;
+    coded.numRows = n;
+    coded.numColumns = 1;
+    coded.denseCodes = codes.data();
+    coded.denseChannels = &channel;
+    size_t col[] = { 2 };
+    bool ok = twins.a->updatePredictor(coded, col, 1, true, false) ==
+                twins.b->updatePredictor(doubles.data(), col, 1, true, false) &&
+              twins.storesMatch() && twins.a->data().hasMissing[2] == 1;
+
+    CscCategoricalFixture factor;
+    factor.build(n, 6, 0.92);
+    SamplerOptions factorOptions;
+    factorOptions.numTrees = 15;
+    factor.applyOptions(factorOptions);
+    TwinSamplers factorTwins(nullptr, y.data(), n, 1, factorOptions, 1020);
+    for (size_t i = 0; i < n; ++i) {
+      codes[i] = static_cast<std::int32_t>(factor.dense[(i + 1) % n]);
+      doubles[i] = codes[i];
+    }
+    codes[5] = naDenseCode;
+    doubles[5] = std::nan("");
+    size_t first[] = { 0 };
+    ok &= factorTwins.a->updatePredictor(coded, first, 1, true, false) ==
+            factorTwins.b->updatePredictor(doubles.data(), first, 1, true,
+                                           false) &&
+          factorTwins.storesMatch();
+    check(ok, "a code-channel column installs what the double channel does");
+  }
+  rngState = savedRngState;
+  printf("ok: sparse mutation direct (sampler)\n");
+}
+
 static void testMixedColumnStore() {
   const size_t n = 300;
   MixedFixture fixture;
@@ -7591,6 +8132,8 @@ void runModelTests(ext_rng* rng) {
   testSparseCategoricalColumnStore();
   testSparseCategoricalEndToEnd();
   testSparseCategoricalMutation();
+  testSparseMutationDirectStore();
+  testSparseMutationDirectSampler();
   testMixedColumnStore();
   testMixedEndToEnd();
   testMixedLinearLeaves();
