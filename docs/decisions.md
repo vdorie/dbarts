@@ -349,8 +349,8 @@ The sampler's setActiveRows is named for active rows rather than subset, which d
 Record: docs/plans/latent-subset-mask.md. Marked: blank. [dec-A116]
 
 **Binding data frames with a sparse factor column needs R 4.6**
-rbind of data frames holding a sparseFactor column works only on R 4.6.0 or later: base R binds a factor column by matching the incoming values against the levels, and before 4.6.0 that matching refuses the package's sparse object with "'match' requires vector arguments". The manual and NEWS state the version and the workaround of converting the column with factor first, and the tests pin the refusal on older R. The alternative was making the sparse factor class inherit from factor, which would let rbind work everywhere but would send it through every base method written for a factor's integer codes, which it does not store. Users on R 4.2 to 4.5 cannot rbind such frames directly. Not yet ruled on. See also: [dec-A100].
-Record: docs/plans/sparse-factor-frames.md. Marked: blank. [dec-A117]
+rbind of data frames holding a sparseFactor column works only on R 4.6.0 or later: base R binds a factor column by matching the incoming values against the levels, and before 4.6.0 that matching refuses the package's sparse object with "'match' requires vector arguments". The manual and NEWS state the version, and the manual gives a way that works on any version and keeps the column sparse: lengthen the first frame by row indexing and assign the other frames' rows into it, which the tests cover alongside the refusal on older R. The alternative was making the sparse factor class inherit from factor, which would let rbind work everywhere but would send it through every base method written for a factor's integer codes, which it does not store. Users on R 4.2 to 4.5 cannot rbind such frames directly. The maintainer kept the R 4.2 floor rather than raising it to 4.6 for this. See also: [dec-A100].
+Record: docs/plans/sparse-factor-frames.md. Marked: mine, 2026-09-29 ("Yes, just document it"), with the tests binding by assignment on older R at the maintainer's suggestion. [dec-A117]
 
 ## B. Decisions with maintainer evidence
 

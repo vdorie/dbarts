@@ -212,6 +212,45 @@ if (getRversion() >= "4.6.0") {
 } else {
   expect_error(rbind(d, d), "vector arguments")
 }
+# on any R, lengthening a frame by row indexing and assigning the other
+# frames' rows into it binds them and keeps the column sparse
+dd <- d[rep(seq_len(n), 2L), ]
+dd[n + seq_len(n), ] <- d
+expect_inherits(dd$sf, "sparseFactor")
+expect_equal(as.character(dd$sf), c(as.character(ff), as.character(ff)))
+expect_equal(dd$y, c(d$y, d$y))
+pieces <- split(d, d$y > 0)
+dp <- d[rep(1L, n), ]
+at <- 0L
+for (piece in pieces) {
+  dp[at + seq_len(nrow(piece)), ] <- piece
+  at <- at + nrow(piece)
+}
+expect_inherits(dp$sf, "sparseFactor")
+expect_equal(sort(as.character(dp$sf)), sort(as.character(ff)))
+dz <- data.frame(y = 0, z = 1)
+dz$sf <- sparseFactor(factor("z"))
+dd <- d[c(seq_len(n), 1L), ]
+expect_error(dd[n + 1L, ] <- dz, "cannot hold NA or a level")
+# growing a frame by assigning past its last row sets the column's length,
+# after base R warns that it drops the S4 class
+grewWarnings <- character()
+grew <- withCallingHandlers(
+  tryCatch(
+    {
+      dd[n + 2L, ] <- d[1L, ]
+      ""
+    },
+    error = conditionMessage
+  ),
+  warning = function(w) {
+    grewWarnings <<- c(grewWarnings, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
+)
+expect_true(grepl("cannot set length", grew))
+expect_equal(length(grewWarnings), 1L)
+expect_true(grepl("no longer be an S4 object", grewWarnings))
 
 # conversion, comparison, ordering, uniqueness, counting
 expect_equal(as.factor(sf), ff)
