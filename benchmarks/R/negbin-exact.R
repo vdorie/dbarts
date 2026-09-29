@@ -197,7 +197,7 @@ runArm <- function(dispersion) {
 }
 
 # estimated arm
-est <- runArm(NA_real_)
+est <- runArm(NULL)
 fitMeanA <- est[1L]
 fitMeanB <- est[2L]
 fitGrid <- est[-(1:2)]
