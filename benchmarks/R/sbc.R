@@ -824,8 +824,8 @@ runSbcDart <- function(
 # anchor leaf scale named as leaf.prior held the leaf prior against it, and an
 # offset zeroing each rebuild's prior.mean held the shift. One build fixes the
 # transform once -- off the symmetric build response, response.shift 0 and
-# response.scale 5, so prior.mean is already 0 and prior.scale already what
-# the anchor named -- and updateScale = FALSE keeps it, so the prior draw and
+# response.scale 5, so prior.mean is already 0 and the leaf prior's sd already
+# what the anchor named -- and updateScale = FALSE keeps it, so the prior draw and
 # the posterior share one transform with nothing left to pin.
 #
 # sigma is drawn conjugately exactly as gaussian's (chain.hpp), so it is this

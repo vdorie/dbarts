@@ -178,7 +178,7 @@ fitSingleTree <- function(seed) {
     x1,
     cbind(obsT, status),
     control = control,
-    leaf.prior = normal(k, scale = nodeScale * fitRange),
+    leaf.prior = normal(sd = nodeScale * fitRange / k),
     proposal.probs = c(
       birth_death = 0.5,
       swap = 0.1,
@@ -224,7 +224,7 @@ fitVarianceTree <- function(seed) {
     x1,
     cbind(obsT, status),
     control = control,
-    leaf.prior = normal(k, scale = nodeScale * fitRange),
+    leaf.prior = normal(sd = nodeScale * fitRange / k),
     proposal.probs = c(
       birth_death = 0.5,
       swap = 0.1,

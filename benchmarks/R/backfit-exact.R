@@ -139,7 +139,7 @@ backfitArm <- function(
   priorPrecision <- (kLeaf * sqrt(m) / nodeScale)^2
 
   # the calibration in force must be the one the reference assumes: fixed k,
-  # this response transform, and a forest prior sd of leaf.scale at k = 1
+  # this response transform, and an anchor of leaf.scale in response units
   calibration <- sampler$getLeafPrior()
   reported <- function(field) unname(calibration[1L, field])
   stopifnot(
@@ -147,7 +147,7 @@ backfitArm <- function(
     reported("k") == kLeaf,
     isTRUE(all.equal(reported("response.scale"), yRange)),
     isTRUE(all.equal(reported("response.shift"), shift)),
-    isTRUE(all.equal(reported("prior.scale"), nodeScale * yRange))
+    isTRUE(all.equal(reported("anchor"), nodeScale * yRange))
   )
 
   # pre-order node rows, one block per (sweep, tree)

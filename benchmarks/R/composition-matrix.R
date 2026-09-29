@@ -594,7 +594,16 @@ mutate <- list(
     s$setActiveRows(c(rep(1, nr - 1L), 0))
   },
   getLatents = function(s, d) s$getLatents(),
-  calibration = function(s, d) s$setLeafPrior(prior.scale = 1.2),
+  # the anchor 1.2 restated at the sampler's own k law: a fixed k's spread,
+  # or the sd law a drawn k's chi(df, 2) implies
+  calibration = function(s, d) {
+    read <- s$getLeafPrior()[1L, ]
+    if (read[["k.has.hyperprior"]] == 1) {
+      s$setLeafPrior(normal(sd = invchi(read[["prior.sd.df"]], 0.6)))
+    } else {
+      s$setLeafPrior(normal(sd = 1.2 / read[["k"]]))
+    }
+  },
   varianceForest = "extra:variance",
   dart = "extra:dart",
   warmStart = function(s, d) {
