@@ -2864,18 +2864,20 @@ hazardSurvivalProbabilities <- function(
       # design: every subject is at risk in period 1, so the period-1 rows
       # are the subjects in order, their covariate columns the (coded)
       # per-subject x
-      fitX <- extract(object$fit, "predictors")
-      firstPeriod <- fitX[, periodCol] == 1L
-      subjectCov <- fitX[firstPeriod, -periodCol, drop = FALSE]
-      n <- nrow(subjectCov)
+      # (a container stays columnar; the period column is overwritten)
+      fitX <- object$fit$data@x
+      firstPeriod <- as.vector(fitX[, periodCol]) == 1L
+      subject <- hazardRowSubset(fitX, which(firstPeriod))
+      n <- nrow(subject)
       # a subject's period-1 row carries its own name under make.unique
       subjectNames <- object[["row.names.train"]][firstPeriod]
-      # name the appended column "period" under the same rule the training
-      # design used, so a named fit's re-expanded design matches by name
-      bigX <- appendHazardPeriodColumn(
-        subjectCov[rep(seq_len(n), times = K), , drop = FALSE],
-        rep(seq_len(K), each = n)
-      )
+      bigX <- hazardRowSubset(subject, rep(seq_len(n), times = K))
+      periodValues <- as.double(rep(seq_len(K), each = n))
+      if (inherits(bigX, "dbartsMixedMatrix")) {
+        bigX$dense[[bigX$map[periodCol]]] <- periodValues
+      } else {
+        bigX[, periodCol] <- periodValues
+      }
     } else if (is.data.frame(newdata)) {
       n <- nrow(newdata)
       subjectNames <- rownames(newdata)

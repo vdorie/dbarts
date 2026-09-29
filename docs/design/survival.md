@@ -644,6 +644,10 @@ difference. This is the discrete-time analog of AFT's uncensored ==
 gaussian reduction (the "Engine: AFTResponse" section above), and like it
 certifies the feature by tying it to already-gated code.
 
+A formula fit's reduction target is the hand-expanded frame fit through the
+same formula plus period (for a sparse column, the x/y frame in the design's
+column order, which places sparse columns last on the formula path).
+
 **No engine gate is needed.** The engine, bridge, and ResponseModels are
 untouched, so tests/cpp does not change and no exact-posterior gate is
 added: the binary exact-posterior gate

@@ -165,12 +165,13 @@ expandDiscreteTimeHazard <- function(
   periodOf <- sequence(terminal)
   y <- as.double(periodOf == terminal[subjectOf] & status[subjectOf] == 1.0)
 
-  xExpanded <- if (is.data.frame(x)) {
-    x[subjectOf, , drop = FALSE]
-  } else {
-    x <- as.matrix(x)
-    x[subjectOf, , drop = FALSE]
+  if ("period" %in% hazardPredictorNames(x)) {
+    stop(
+      "a hazard fit appends its own 'period' column; rename the predictor ",
+      "'period'"
+    )
   }
+  xExpanded <- hazardRowSubset(x, subjectOf)
   xExpanded <- appendHazardPeriodColumn(xExpanded, periodOf)
 
   result <- list(x = xExpanded, y = y, periods = periods, subject = subjectOf)
@@ -261,14 +262,59 @@ appendHazardPeriodColumn <- function(x, period) {
     x[["period"]] <- period
     return(x)
   }
-  named <- !is.null(colnames(x))
-  out <- cbind(x, period)
-  if (named) {
-    colnames(out)[ncol(out)] <- "period"
+  kept <- attributes(x)[intersect(hazardDesignAttrs, names(attributes(x)))]
+  if (inherits(x, "dbartsMixedMatrix")) {
+    x$dense <- c(x$dense, list(as.double(period)))
+    x$map <- c(x$map, length(x$dense))
+    if (!is.null(x$columnNames)) {
+      x$columnNames <- c(x$columnNames, "period")
+    }
+    out <- x
   } else {
-    colnames(out) <- NULL
+    named <- !is.null(colnames(x))
+    out <- cbind(x, period)
+    if (named) {
+      colnames(out)[ncol(out)] <- "period"
+    } else {
+      colnames(out) <- NULL
+    }
+  }
+  # the builder attributes describe the design's columns, so the appended
+  # ordinal column extends each of them
+  if (!is.null(kept$term.labels)) {
+    attr(out, "term.labels") <- c(kept$term.labels, "period")
+  }
+  if (!is.null(kept$drop)) {
+    attr(out, "drop") <- c(kept$drop, list(period = FALSE))
+  }
+  if (!is.null(kept$varTypes)) {
+    attr(out, "varTypes") <- c(kept$varTypes, ORDINAL_VARIABLE)
+  }
+  if (!is.null(kept$factor.levels)) {
+    attr(out, "factor.levels") <- c(kept$factor.levels, list(NULL))
   }
   out
+}
+
+hazardDesignAttrs <- c("term.labels", "drop", "varTypes", "factor.levels")
+
+# Row subset of a predictor set that keeps a container's columnar form and a
+# matrix's builder attributes, which a bare subset drops.
+hazardRowSubset <- function(x, rows) {
+  if (is.data.frame(x) || inherits(x, "dbartsMixedMatrix")) {
+    return(x[rows, , drop = FALSE])
+  }
+  x <- as.matrix(x)
+  kept <- attributes(x)[intersect(hazardDesignAttrs, names(attributes(x)))]
+  out <- x[rows, , drop = FALSE]
+  for (a in names(kept)) {
+    attr(out, a) <- kept[[a]]
+  }
+  out
+}
+
+hazardPredictorNames <- function(x) {
+  if (is.data.frame(x)) names(x) else colnames(x)
 }
 
 ## every slot below is passed explicitly to newValidated, so this
@@ -1173,7 +1219,7 @@ dbarts <- function(
       if (!is.null(data@x.test)) {
         n.test <- nrow(data@x.test)
         data@x.test <- appendHazardPeriodColumn(
-          data@x.test[rep(seq_len(n.test), times = K), , drop = FALSE],
+          hazardRowSubset(data@x.test, rep(seq_len(n.test), times = K)),
           rep(seq_len(K), each = n.test)
         )
         if (!is.null(data@offset.test)) {

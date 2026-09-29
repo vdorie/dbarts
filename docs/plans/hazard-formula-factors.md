@@ -4,7 +4,7 @@ agent: sonnet
 rng: neutral (every recorded baseline and snapshot unchanged; see RNG class)
 budget: ~210 lines (R ~65, tests ~130, man and design ~15)
 
-Status: PLANNED 2026-09-28
+Status: LANDED-pending 2026-09-28 (landing note at EOF)
 
 ## Goal
 
@@ -188,3 +188,30 @@ reproducibility snapshot file fits a hazard model.
 - No NEWS item (dec-B128). A new test file rather than growing
   test-hazard.R. Sonnet tier (R only).
 - The three Constraints exclusions stay out of this item.
+
+## Landing note
+
+Landed as planned, R only. expandDiscreteTimeHazard row-subsets through a new
+hazardRowSubset (container kept, matrix builder attributes kept) and refuses a
+predictor named period on every path; appendHazardPeriodColumn extends a
+container and each builder attribute; the formula path's test expansion uses
+the same subset; hazardSurvivalProbabilities with newdata = NULL takes the
+period-1 rows of the stored design, replicates them K times and overwrites the
+period column. man/bart.Rd and the reduction-gate section of
+docs/design/survival.md carry one sentence each; the TODO item is removed.
+
+RNG neutrality is pinned in test-hazard-factors.R: the yhat.train sums of a
+numeric-only, a g + z and a sf + z formula fit equal the values recorded on
+the tip before the change (bitwise); the g + z fit also equals the x/y frame
+fit and the hand-expanded probit fit, and a factor with an unused declared
+level now equals the hand-expanded fit. Extra tests beyond the plan: an NA
+factor in newdata errors, and under na.pass returns NA.
+
+Gates (R 4.6.1, Darwin 25.6.0 arm64, private library): full tinytest 9657
+pass, 0 fail; lintr clean; air format clean; check-rc-codoc, check-win-drift,
+check-doc-freshness OK; all 25 exact-gates.yaml gates PASS with quick
+(hazard-exact.R and hazard-reduction.R unchanged); R CMD check --as-cran
+--no-manual on a tarball: Status 1 NOTE, the stale Date field, none new.
+
+Lines: R 79 added / 21 removed, tests 183, man and design 5, plan note ~30.
+The tests ran over the ~130 line estimate for the added cases.
