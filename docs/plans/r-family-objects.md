@@ -4,7 +4,7 @@ agent: sonnet
 rng: neutral (a mapped family builds the same sampler as its dbarts spelling)
 budget: ~200 lines (R ~60, tests ~100, man and NEWS ~40)
 
-Status: LANDED-pending 2026-09-28 (see the landing note)
+Status: LANDED 2026-09-28 (dd383e55, 7f04b6ba)
 
 ## Goal
 
