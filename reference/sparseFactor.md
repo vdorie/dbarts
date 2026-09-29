@@ -57,9 +57,12 @@ sparseFactor(x, levels, reference, i, length)
 - x:
 
   The stored entries: a factor, a character vector, or integer level
-  codes (which require an explicit `levels`). Missing values are not
-  supported. When `i` is omitted, `x` is the complete (dense) vector and
-  its non-`reference` entries become the stored ones.
+  codes (which require an explicit `levels`). A missing value is stored
+  as an explicit entry, never as the reference level, and a vector whose
+  every value is missing needs no levels, as for a
+  [`factor`](https://rdrr.io/r/base/factor.html). When `i` is omitted,
+  `x` is the complete (dense) vector and its non-`reference` entries
+  become the stored ones.
 
 - levels:
 
@@ -70,11 +73,12 @@ sparseFactor(x, levels, reference, i, length)
 - reference:
 
   The level every unstored position carries. Must be an element of
-  `levels`; defaults to `levels[1]`, the baseline-contrast convention.
-  Storage holds only the non-reference entries, so choosing the **most
-  common level** as the reference maximizes the memory win; codes and
-  every draw are identical under any choice of reference, so this is a
-  storage tuning knob, not a modeling one.
+  `levels` (`NA` when there are none); defaults to `levels[1]`, the
+  baseline-contrast convention. Storage holds the non-reference entries
+  and every missing value, which is always stored, so choosing the
+  **most common non-missing level** as the reference maximizes the
+  memory win; codes and every draw are identical under any choice of
+  reference, so this is a storage tuning knob, not a modeling one.
 
 - i:
 
@@ -107,45 +111,57 @@ column with as a [`factor`](https://rdrr.io/r/base/factor.html) does.
 `x[i]` subsets by position (positive, negative, zero, logical and
 repeated indices) and returns a `sparseFactor` over the same levels,
 mapping the stored positions without densifying; `drop = TRUE` drops the
-levels no selected row takes, and with no row selected keeps the
-reference level alone, since a `sparseFactor` needs one level.
-`x[i] <- value` and the double-bracket assignment take labels that are
-levels of `x` (as a character vector, factor or `sparseFactor`) and may
-extend the vector when no position is left unassigned;
-`levels(x) <- value` renames the levels, the reference with them,
-merging repeated names as it does for a factor. `c(x, ...)` combines
-with factors and `sparseFactor`s over the union of their levels.
-`as.character`, `as.vector` and `format` give the level labels,
-`as.integer` the level codes, and `levels` (read from the class's slot),
-`is.na` (always `FALSE`), `xtfrm` (so `order` and `sort`), `unique`,
-`duplicated`, `rep`, `droplevels`, `summary`, `==` and `!=` (which
-refuse two factors with different level sets, as for factors) behave as
-for a factor, and `str` prints a factor's line. `factor`, `as.factor`
-and `table` read it through those methods, over the levels present.
-Together these let a data frame holding one be subset by row, assigned
-into, printed and `str`-ed. `rbind` of such frames returns the column as
-an ordinary factor; it needs R 4.6.0 or later, since earlier versions of
-base R's `match` refuse an S4 object. On any version, lengthening the
-first frame by row indexing, as in `d[rep(seq_len(nrow(d)), 2), ]`, and
-assigning the other frames' rows into it binds them and keeps the column
-a `sparseFactor`, provided their labels are levels of the first frame's
-column.
+levels no selected row takes, as does `droplevels`, so a vector of
+missing values only is left with none. An `NA` or out-of-range index
+selects a missing value. `x[i] <- value` and the double-bracket
+assignment take labels (as a character vector, factor or `sparseFactor`)
+and, as for a factor, store a missing value for `NA` and for a label
+that is not a level (with a warning), drop an `NA` index for a value of
+length one, and extend the vector past its end with missing values;
+`length<-` truncates or pads with missing values; `levels(x) <- value`
+renames the levels, the reference with them, merging repeated names as
+it does for a factor and dropping a level named `NA`, whose entries
+become missing. `c(x, ...)` combines with factors and `sparseFactor`s
+over the union of their levels. `as.character`, `as.vector` and `format`
+give the level labels, `as.integer` the level codes, and `levels` (read
+from the class's slot), `is.na`, `anyNA`, `xtfrm` (so `order` and
+`sort`), `unique`, `duplicated`, `rep`, `droplevels`, `summary`, `==`
+and `!=` (which refuse two factors with different level sets, as for
+factors) behave as for a factor, and `str` prints a factor's line.
+`factor`, `as.factor` and `table` read it through those methods, over
+the levels present. Together these let a data frame holding one be
+subset by row, assigned into, printed and `str`-ed. `rbind` of such
+frames returns the column as an ordinary factor; it needs R 4.6.0 or
+later, since earlier versions of base R's `match` refuse an S4 object.
+On any version, lengthening the first frame by row indexing, as in
+`d[rep(seq_len(nrow(d)), 2), ]`, and assigning the other frames' rows
+into it binds them and keeps the column a `sparseFactor`, provided their
+labels are levels of the first frame's column.
 
-A `sparseFactor` cannot hold a missing value, so where a factor would
-return `NA` it is refused: an `NA` or out-of-range row index, a
-replacement value that is not a level, an extension past a gap, a level
-named `NA`, and `length<-`, which also stops a data frame holding one
-from growing by assignment past its last row. A character index has no
-names to match and is refused. Not supported: `complete.cases` on a data
-frame holding one (use
-[`na.omit`](https://rdrr.io/r/stats/na.fail.html), or `is.na` per
-column), and `c(f, x)` with a factor `f` first, which `c.factor` answers
-with a list (put the `sparseFactor` first). Also not supported:
+A missing value is an explicit stored entry, and every method answers it
+as it does for a factor; `show` counts the missing entries, and a fit
+reads them as a missing predictor, bitwise as it reads the same rows of
+a dense factor. The one shape without a level is a vector whose every
+row is missing; its `reference` is `NA`. A level named `NA`, as
+[`addNA`](https://rdrr.io/r/base/factor.html) makes, is not supported: a
+missing value is not a level. A character index has no names to match
+and is refused. Not supported: `complete.cases` and
+[`na.fail`](https://rdrr.io/r/stats/na.fail.html) on a data frame
+holding one, which fail in base R for any S4 column, and
+[`na.omit`](https://rdrr.io/r/stats/na.fail.html) on such a frame, which
+keeps its missing rows (use `d[!is.na(d$f), ]`); `complete.cases` of a
+bare `sparseFactor` errors as well, while `na.omit` of one drops the
+missing entries as it does for a factor; a fit's `na.action` does handle
+them. Also not supported: `c(f, x)` with a factor `f` first, which
+`c.factor` answers with a list (put the `sparseFactor` first), `rank`,
 `relevel`, `as.numeric` (`as.integer` gives the level codes), `rep_len`
 and `rep.int` (`rep` works), and the `exclude` argument of `droplevels`,
 which is ignored; `droplevels` on a data frame leaves a `sparseFactor`
 column untouched, as base R touches only factor columns, so call it on
-the column.
+the column. `table` drops the declared levels no row takes, where it
+keeps them for a factor; use `levels(x)` for the declared table. A data
+frame holding one cannot grow by assignment past its last row, since
+base R strips the class before the method is reached.
 
 A
 [`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
