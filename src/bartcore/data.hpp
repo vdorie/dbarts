@@ -1061,28 +1061,41 @@ struct ColumnStore {
     }
   }
 
+  /// Both collectors push value + 0.0, which turns -0 into +0 and leaves
+  /// every other double alone: a stored -0 is absent from a CSC pattern, so
+  /// without it a degenerate grid over signed zeros would keep a sign bit
+  /// that depends on the column's storage.
   QuantileGrid quantileGridForColumn(size_t j, const double* values) const {
     QuantileGrid grid;
     grid.sortedUnique.reserve(numObservations);
     // NaN would break the sort's ordering; the grid is over observed values
     for (size_t i = 0; i < numObservations; ++i)
-      if (!isNA(values[i])) grid.sortedUnique.push_back(values[i]);
+      if (!isNA(values[i])) grid.sortedUnique.push_back(values[i] + 0.0);
     finishQuantileGrid(grid, j);
     return grid;
   }
 
-  /// The quantile grid of a CSC column's logical values: the observed stored
-  /// entries plus a single zero when implicit zeros exist, the same value
-  /// set the dense collector sees, so the induced grid is identical.
-  QuantileGrid quantileGridForCscColumn(size_t j) const {
-    const CscColumnSlice& slice = train.sources[j].slice;
+  /// The quantile grid over a CSC column's logical values: the observed
+  /// \p numNonzero entries of \p values plus a single zero when
+  /// \p implicitPresent, the same value set the dense collector sees over
+  /// the materialized column, so the induced grid is identical. Numeric
+  /// columns only, whose implicit rows read zero.
+  QuantileGrid quantileGridForEntries(size_t j, const double* values,
+                                      size_t numNonzero,
+                                      bool implicitPresent) const {
     QuantileGrid grid;
-    grid.sortedUnique.reserve(slice.numNonzero + 1);
-    if (slice.numNonzero < numObservations) grid.sortedUnique.push_back(0.0);
-    for (size_t k = 0; k < slice.numNonzero; ++k)
-      if (!isNA(slice.values[k])) grid.sortedUnique.push_back(slice.values[k]);
+    grid.sortedUnique.reserve(numNonzero + 1);
+    if (implicitPresent) grid.sortedUnique.push_back(0.0);
+    for (size_t k = 0; k < numNonzero; ++k)
+      if (!isNA(values[k])) grid.sortedUnique.push_back(values[k] + 0.0);
     finishQuantileGrid(grid, j);
     return grid;
+  }
+
+  QuantileGrid quantileGridForCscColumn(size_t j) const {
+    const CscColumnSlice& slice = train.sources[j].slice;
+    return quantileGridForEntries(j, slice.values, slice.numNonzero,
+                                  slice.numNonzero < numObservations);
   }
 
   void fillCutsFromQuantileGrid(size_t j, const QuantileGrid& grid) {
