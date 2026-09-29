@@ -4,7 +4,7 @@ agent: sonnet
 rng: neutral (defaults resolve to the same values; no draw moves)
 budget: ~450 lines (R ~200, tests ~180, man and NEWS ~70)
 
-Status: PLANNED 2026-09-28
+Status: LANDED 2026-09-29 (0209919c, 97e49b43, cb799bb0, 12f46c05)
 
 ## Goal
 
@@ -89,3 +89,32 @@ run locally.
 ## Agent-made calls
 
 Warning keys per site; the treeShift slot storage.
+
+## Landing note (2026-09-29)
+
+Landed as 0209919c (the ten sites, test-na-as-none.R, man and NEWS),
+97e49b43 (the negative-binomial exact gate passes NULL for an estimated
+dispersion), cb799bb0 (review fixes) and 12f46c05 (two wording slips).
+Sister packages in lockstep: bartCause 3a90eb4 on dbarts-1.0 (an unset seed
+reaches dbartsControl as NULL, and an explicit bartc(seed = NA) is kept out
+of the forwarded call) and stan4bart b2dc25c on bartcore (an unseeded
+mvbart component passes NULL).
+
+The warn-or-refuse split follows the rule above checked against 0.9-34,
+which corrects several premises in the rulings; dec-A118 records it. NA is
+refused on dbarts's sigest and seed, xbart's sigest, dbartsControl's seed
+and dbartsSpec's sigest; the test-data setters take no updateState. NaN is
+refused by name wherever the change touched. treeShift is stored in the
+kept levelGibbs slot, since the bridge reads that name.
+
+Review found two warning leaks on default calls (the hurdle components
+forwarded an NA seed; the front door rebuilt a control from NA slots),
+NaN read as absent at several sites, and NEWS and Rd text describing
+spellings 0.9-34 did not have; all fixed in cb799bb0.
+
+Gates, macOS arm64: full tinytest 10074 pass, 0 fail; test-na-as-none.R
+238; nine default fits and a seeded hurdle fit draw bitwise as on the
+parent; exact gates quick 25 of 25; R CMD check --as-cran: the expected
+NOTE only; air, lintr, rc-codoc, win-drift, doc-freshness clean. bartCause
+774 tests and stan4bart 565 pass against the change with their fixes, with
+no warnings from seeded or unseeded bartc and mvbart calls.

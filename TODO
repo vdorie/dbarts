@@ -266,8 +266,6 @@ items
     test-mutate-sparse-valued.R's all-absent middle-column arms, the same
     before sparse-mutation-direct). Door: whether a rollback should keep
     or restore the cached fits rather than rebuild them.
-  na-as-none: before the RC (VD 2026-09-28, dec-B136 to dec-B140).
-    Plan: docs/plans/na-as-none.md.
   sbc-family-tiers: two open arms (docs/plans/sbc-family-tiers.md,
     docs/plans/archive/runsbcbcf-repair.md): the monotone follow-on,
     the first arm the constrained prior draw unblocks; and the full-R
