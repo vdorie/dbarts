@@ -738,3 +738,26 @@ sampler.ix$setCategoryTestOffset(
   updateState = FALSE
 )
 expect_equivalent(sampler.ix$data@offset.category.test, testOffset)
+
+# offsets given at creation follow the same rule as the setters
+countsNamed <- named(counts, c("p", "q", "r"))
+data.nm <- dbartsData(
+  x,
+  counts = countsNamed,
+  test = x.test,
+  offset = named(offset[, rev3], c("r", "q", "p")),
+  offset.test = named(testOffset[, rev3], c("r", "q", "p"))
+)
+expect_equivalent(data.nm@offset.category, offset)
+expect_equivalent(data.nm@offset.category.test, testOffset)
+expect_error(
+  dbartsData(
+    x,
+    counts = countsNamed,
+    test = x.test,
+    offset = named(offset, c("a", "b", "c"))
+  ),
+  "remove them with unname()",
+  fixed = TRUE
+)
+rm(countsNamed, data.nm)

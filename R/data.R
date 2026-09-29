@@ -2786,6 +2786,20 @@ dbartsData <- function(
     "offset.test",
     if (is.null(counts)) NULL else ncol(counts)
   )
+  # matched to the categories by name, as the sampler's setters and predict
+  # match them
+  if (!is.null(counts)) {
+    offset.category <- alignSamplerCategoryColumns(
+      offset.category,
+      counts,
+      "offset"
+    )
+    offset.category.test <- alignSamplerCategoryColumns(
+      offset.category.test,
+      counts,
+      "offset.test"
+    )
+  }
   if (!is.null(offset.category.test) && is.null(x.test)) {
     stop("'offset.test' must be null when 'test' is null")
   }
