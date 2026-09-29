@@ -136,6 +136,10 @@ items
     samplePriorPredictive already draws f from the prior at x.test; the
     helper would summarize it, or compute it in closed form where one
     exists (constant, linear).
+  leaf-prior-reader-shape: getLeafPrior returns the prior alone as a
+    list, and a new sampler reader, getK, returns each chain's current k
+    as run records it (docs/decisions.md dec-B141, VD 2026-09-29).
+    bartCause's bcf changes in lockstep.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
@@ -179,6 +183,14 @@ items
     branch-score profile - 3227 of 3232 samples - and no alternative
     has been benched. Record:
     docs/plans/review-2026-08-24/memos/monotone-branch-fill-bench.md.
+  multiforest-leaf-prior-writer: before 1.0-0 (VD 2026-09-29,
+    docs/decisions.md dec-B142), $setLeafPrior takes what creation
+    takes on multi-forest samplers: normal(k = ) on a multinomial
+    sampler, every category forest, and forest(sd = ) per forest on an
+    amplitude-coupled sampler. Engine work in both: the engine refuses a
+    mid-run scale change with a calibration map installed. Estimates
+    about 150 and 300 lines; the per-forest part re-runs the causal-forest
+    exactness gates (bcf-exact, bcf-equivalence).
   multiforest-mutation-gaps: two doors
     (docs/plans/archive/multiforest-mutation-gaps.md).
     BCF whole-data setData (n free, z required): KEEP UNDESIGNED,
@@ -217,6 +229,13 @@ items
     Per-forest masking is NOT a door - permanently refused, a
     category's margin being a log-sum-exp over the other K - 1
     forests. consumer-gated.
+  nbinom-dispersion-name: the negative-binomial r is named dispersion
+    across nbinom(dispersion = ), getDispersion, extract(type =
+    "dispersion") and run()$dispersion, a name never put to VD; glm's
+    dispersion is a different quantity (phi) and r runs inverse to it.
+    VD (2026-09-29): the accessor and the parameter use names that are
+    widely recognized; getSize alone is not specific enough. To be
+    addressed later; new in 1.0-0, so no tombstone.
   negbin-real-dispersion: real-valued dispersion needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
@@ -528,11 +547,6 @@ BayesTree claim and build flags (decided, VD 2026-09-08;
   and --with-xint-size stop with a removal message for one release
   (1.0-0). Open: delete the three stubs outright, and configure.ac's
   comment naming them, in the release after 1.0-0.
-
-treatSens-treatment-model-frames (agent-noted 2026-09-27)
-  treatSens' evaluateTreatmentModelArgument resolves treatmentModel two
-  frames above itself, so a call from any other depth resolves in the
-  wrong frame; evaluate in the caller's frame as dbarts does.
 
 variable-selection-permutation (VD 2026-09-27; docs/decisions.md dec-A73)
   post-release, gated: Bleich et al. (2014)'s permutation thresholds for
