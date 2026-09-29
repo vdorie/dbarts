@@ -348,7 +348,6 @@ recommendation VD can overturn before implementation.
   not a snapshot to regenerate.
 - inst/include/dbarts/dbarts.h and [`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) unchanged. No
   change to the facade's virtual set; `--preclean` on every engine commit regardless.
-- docs/plans/INDEX.md gains this plan's row when the plan is committed (the freshness guard fails without it).
 - Engine code takes no R type and no R message; reference resolution and level-code messages stay in the
   bridge.
 - Out of scope: per-observation replacement of a sparse-backed column; `setData` on a sparse design; the rank
