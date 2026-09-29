@@ -126,16 +126,12 @@ items
     docs/design/gpu-bart.md.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared cut scan (docs/design/parallel-bart-frontier.md sec 3.1).
-  hazard-formula-factors: before the RC (found 2026-09-28 in the
-    sparse-frames review). A formula fit with family = "hazard" hands
-    the person-period expander a plain numeric matrix with no level
-    table, so an unordered factor enters as integer codes split as if
-    ordered, a sparse column is refused, and predict and
-    survivalProbabilities(newdata = ) refuse a frame with the factor
-    ("does not match training's indicator columns", advising bart(),
-    which the caller used). aft formula fits keep the categorical
-    design and are unaffected. Keep the level table through the
-    expansion, so hazard fits take factors as every other family does.
+  hazard-formula-factors: before the RC (found 2026-09-28). A formula
+    hazard fit loses the column names and level table in the
+    person-period expansion, so predict, survivalProbabilities(newdata =)
+    and getTrees(newdata =) cannot read a data frame (any frame with the
+    response or extra columns is refused), and a sparse test = fails.
+    Plan: docs/plans/hazard-formula-factors.md.
   interaction-constraints: formal heredity (an ensemble lattice prior)
     - a fourth formal beside interactions(max.order, groups, forbid)
     plus a prior change. Value gate lifted: it enables

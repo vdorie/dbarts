@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (56 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (57 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) -
@@ -84,6 +84,7 @@ Columns: `file | STATUS | one-liner`.
 | sparse-factor-frames.md | LANDED 2026-09-28 (, , aa207700 4f9589ae 5b07b5ce ) | Lets a formula fit with a sparse column predict from the same data frames a dense fit does, and gives `sparseFactor` row indexing and printing (loose ends of dec-A26). |
 | r-family-objects.md | PLANNED 2026-09-28 | Accepts base R's family objects and spellings in the `family` argument where dbarts has the model, refusing the rest by name (dec-B134). |
 | multinomial-zero-trials.md | PLANNED 2026-09-28 | Accepts multinomial count rows with zero trials as inactive under the row mask, with a once-per-session warning, instead of refusing them (dec-B133). |
+| hazard-formula-factors.md | PLANNED 2026-09-28 | Keeps the column names and level table through the hazard person-period expansion, so a formula hazard fit predicts and gives survival probabilities from an ordinary data frame. |
 | interfaces-and-dependencies.md | LANDED 2026-09-09 (S1 01634227, S2 c38f02d0, S3 7165c352, S4 a98c4cad) | Completes the survival formula interface (a Surv left-hand side, `subset`, a hazard test path), accepts sparse Matrix and sparseFactor columns on the formula path with no marker, removes the posterior package (internal split R-hat and ESS, a base-R draws extractor), rewords the BayesTree claim and stubs the three removed configure options. |
 | pure-c-header.md | LANDED 2026-09-09 (S1 2d0b6d90, S3 56398169; S2 ports on stan4bart 4ace376 and treatSens 6b274fb) | Makes `dbarts.h` pure C: the four R-object entries and destroy go, the list trims to the entries a consumer calls plus the sizing queries, every setter copies into buffers allocated at creation, the handle is read from the R sampler object, CI asserts a hash change carries a minor bump, and stan4bart and treatSens are ported on their compat branches. |
 | per-draw-callbacks.md | LANDED (S1 711942ad, S2 e4063140, S3 db3bd084, S4 4cf56b69, S5 1e24bd55; section 7 measured) | Adds a per-draw C callback fired on each chain's worker thread over every channel `storeSample` settles, the flat C header's draw struct and setter entry, a `keepFits` storage opt-out that stops keeping the per-observation channels when a callback is supplied, and a worked example, so a large fit reduces draws in place instead of materializing the n x draws x chains array. |
