@@ -1343,3 +1343,22 @@ expect_error(
   "on dbarts(), or a data object with",
   fixed = TRUE
 )
+
+# a knob-only forests over a data object carrying one basis declared no basis:
+# the source named is the data object
+expect_error(
+  dbarts(
+    dbartsData(x, y, bases = list(zBasis)),
+    forests = list(forest(n.trees = 30L)),
+    control = control
+  ),
+  "data object carries 1"
+)
+expect_error(
+  dbartsSpec(
+    dbartsData(x, y, bases = list(zBasis)),
+    control,
+    forests = list(forest(n.trees = 30L))
+  ),
+  "data object carries 1"
+)

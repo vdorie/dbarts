@@ -662,7 +662,10 @@ resolveSamplerSpec <- function(
     if (numForests < 2L) {
       stop(
         "a multi-forest model needs at least two forests, and ",
-        if (is.null(bases) && is.null(forests)) {
+        if (
+          is.null(bases) &&
+            !any(lengths(forestBasisDeclarations(forests)) > 0L)
+        ) {
           "the data object carries "
         } else {
           "this call's 'basis' declarations resolve to "
@@ -670,7 +673,7 @@ resolveSamplerSpec <- function(
         numForests,
         "; for varying coefficients declare an intercept forest plus one ",
         "basis forest per covariate - forests = list(forest(), ",
-        "forest(basis = ~ z1), ...) on dbarts(), or a data object with ",
+        "forest(basis = ~ z1), ...) on dbarts() or dbartsSpec(), or a data object with ",
         "bases = list(NULL, z1, ...) - or use a single forest with ",
         "linear() leaves; otherwise drop the basis"
       )
