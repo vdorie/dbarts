@@ -1095,6 +1095,7 @@ y  <- rnorm(n, Ey, sigma)
 set.seed(99)
 bartFit <- bart(x, y)
 #> dbarts: 'bart' is the function 0.9-x called 'bart2', with its own defaults (75 trees; four chains, their draws merged) rather than those of 0.9-x's 'bart' (200 trees, one chain). Call 'bartBT' for the BayesTree-style fit and its defaults. Shown once per session until dbarts 1.1-0.
+#> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
 #> 
 #> Running BART with numeric y
 #> 
@@ -1122,27 +1123,27 @@ bartFit <- bart(x, y)
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> [1] iteration: 100 (of 500)
 #> [2] iteration: 100 (of 500)
-#> [1] iteration: 200 (of 500)
+#> [1] iteration: 100 (of 500)
 #> [2] iteration: 200 (of 500)
-#> [1] iteration: 300 (of 500)
+#> [1] iteration: 200 (of 500)
 #> [2] iteration: 300 (of 500)
-#> [1] iteration: 400 (of 500)
+#> [1] iteration: 300 (of 500)
 #> [2] iteration: 400 (of 500)
-#> [1] iteration: 500 (of 500)
+#> [1] iteration: 400 (of 500)
 #> [2] iteration: 500 (of 500)
-#> [3] iteration: 100 (of 500)
+#> [1] iteration: 500 (of 500)
 #> [4] iteration: 100 (of 500)
-#> [3] iteration: 200 (of 500)
+#> [3] iteration: 100 (of 500)
 #> [4] iteration: 200 (of 500)
-#> [3] iteration: 300 (of 500)
+#> [3] iteration: 200 (of 500)
 #> [4] iteration: 300 (of 500)
-#> [3] iteration: 400 (of 500)
+#> [3] iteration: 300 (of 500)
 #> [4] iteration: 400 (of 500)
-#> [3] iteration: 500 (of 500)
+#> [3] iteration: 400 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.150222
+#> [3] iteration: 500 (of 500)
+#> total seconds in loop: 0.152376
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

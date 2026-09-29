@@ -275,6 +275,7 @@ rbartFit <- suppressWarnings(
              n.samples = 40L, n.burn = 10L, n.thin = 2L,
              n.chains = 1L,
              n.trees = 25L, n.threads = 1L))
+#> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
 #> 
 #> Running BART with numeric y
 #> 

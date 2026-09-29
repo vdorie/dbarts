@@ -118,8 +118,8 @@ xbart(
 - verbose:
 
   A logical determining if additional output is printed to the console,
-  including the one-line message `family = "auto"` prints when it
-  detects a two-level factor response.
+  including the one-line message `family = "auto"` prints, once per
+  call, naming the family it resolves to.
 
 - n.samples:
 
@@ -336,9 +336,11 @@ xbart(
   `"probit"` and `"logistic"` require a 0/1 response. A two-level
   factor, logical, or two-level character response is detected and fit
   as probit; a factor with three or more levels is an error, as `xbart`
-  does not cross-validate the multinomial model. A survival response - a
-  `Surv` object or two-column `(time, status)` pair, on `formula` or as
-  `data` directly - is likewise an error naming `bart`/`dbarts` with
+  does not cross-validate the multinomial model, and neither is a matrix
+  response (per-category counts or a (time, status) pair), which is
+  refused naming `bart`. A survival response - a `Surv` object or
+  two-column `(time, status)` pair, on `formula` or as `data` directly -
+  is likewise an error naming `bart`/`dbarts` with
   `family = "aft"`/`"hazard"`: `xbart` does not cross-validate a
   survival model. The built-in binary losses transform test predictions
   through the family's link. This vocabulary is narrower than

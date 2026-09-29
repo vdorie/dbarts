@@ -37,7 +37,9 @@ dbartsSpec(
   already be materialized. A data object carrying an \\n \times K\\
   `counts` matrix resolves to `family = "multinomial"` even from
   `"auto"` - the slot IS the declaration - and is refused under any
-  other family.
+  other family. Where `family = "auto"` resolves, the family is reported
+  in a one-line message when `control` was built with `verbose = TRUE`;
+  this function has no `verbose` argument of its own.
 
 - control, tree.prior, leaf.prior, proposal.probs, monotone,
   interactions, blocks, variance, forests, sigest, seed, family, ...:

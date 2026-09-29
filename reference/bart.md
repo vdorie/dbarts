@@ -353,12 +353,23 @@ print(x, ...)
   detected and fit as probit, an unordered factor (or character)
   response with three or more levels is detected and fit as multinomial,
   and an ordered factor with three or more levels is detected and fit as
-  ordinal - each reporting the choice in a one-line message (suppressed
-  by `verbose = FALSE`). `"gaussian"`, `"probit"`, and `"logistic"`
-  force those fits directly; `"aft"`, `"hazard"`, `"hazard.probit"` (an
-  accepted alias for `"hazard"`), `"hazard.logistic"`, `"multinomial"`,
-  `"ordinal"`, `"nbinom"`, and `"hurdle.lognormal"` reach the extended
-  families described below.
+  ordinal, and an n x K matrix (K \>= 3) of non-negative whole numbers,
+  on the matrix interface, as a `cbind(c1, ..., cK)` left-hand side, or
+  held as one data-frame column, is read as per-category counts and fit
+  as multinomial (an `NA` cell marks a missing row, as it does for
+  `family = "multinomial"`). Every resolution of `"auto"` - gaussian,
+  probit, multinomial, ordinal, aft for a `Surv` response - is reported
+  once per call in a one-line message naming the family fit (suppressed
+  by `verbose = FALSE`; an explicitly named family prints nothing). An n
+  x 2 matrix under `"auto"` is an error naming both readings,
+  per-category counts (add `family = "multinomial"`) and a (time,
+  status) pair (use a `Surv` response or `family = "aft"`/`"hazard"`),
+  and so is an n x K matrix with negative or fractional entries.
+  `"gaussian"`, `"probit"`, and `"logistic"` force those fits directly;
+  `"aft"`, `"hazard"`, `"hazard.probit"` (an accepted alias for
+  `"hazard"`), `"hazard.logistic"`, `"multinomial"`, `"ordinal"`,
+  `"nbinom"`, and `"hurdle.lognormal"` reach the extended families
+  described below.
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
   no `family` argument at all: every fit it makes is the default
   gaussian/probit pair. Base R family objects map as
@@ -432,13 +443,16 @@ print(x, ...)
   side is coded exactly as it is for every other family's formula fit,
   including `predict` on a data frame `newdata`. Under the default
   `family = "auto"`, a factor (or character) response with three or more
-  levels is detected and fit as multinomial, reporting the choice in a
-  one-line message; a two-level factor (or logical) response resolves to
-  probit, and a numeric response is unchanged. A count-matrix
-  (`cbind(c1, ..., cK) ~ x`) response is only ever multinomial when
-  `family = "multinomial"` is given explicitly - it is never inferred.
-  `weights`, `subset`, `samplerOnly`, `warm.start`, `n.grow.sweeps`, a
-  DART `tree.prior`, `split.probs`, `monotone`, and `variance` are all
+  levels, or a count matrix with three or more columns of non-negative
+  whole numbers (a `cbind(c1, ..., cK) ~ x` left-hand side, a matrix
+  column of the data frame, or a bare matrix), is detected and fit as
+  multinomial, reporting the choice in a one-line message; a two-level
+  factor (or logical) response resolves to probit, and a numeric vector
+  response is unchanged. A two-column matrix is never read as counts
+  under `"auto"`, since it is equally a (time, status) pair: it needs
+  `family = "multinomial"` (or a `Surv` response) to be fit. `weights`,
+  `subset`, `samplerOnly`, `warm.start`, `n.grow.sweeps`, a DART
+  `tree.prior`, `split.probs`, `monotone`, and `variance` are all
   refused with an error naming the limitation (an integer weight is
   already expressible as row-wise count replication in the response, a
   non-integer one has no exact augmentation sampler, and the K-forest
@@ -947,7 +961,8 @@ print(x, ...)
 - verbose:
 
   Logical; if `FALSE` suppress printing, including the one-line message
-  `family = "auto"` prints when it detects a factor response.
+  `family = "auto"` prints naming the family it resolves to (a message
+  of class `dbartsAutoFamilyMessage`).
 
 - keepTrees:
 
@@ -1802,7 +1817,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001661
+#> total seconds in loop: 0.001609
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1825,6 +1840,7 @@ y  <- x1 + z * (1 + x2) + rnorm(n, 0, 0.2)
 fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
                  n.samples = 20L, n.burn = 20L, n.chains = 1L,
                  n.trees = 10L, n.threads = 1L)
+#> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
 #> 
 #> Running BART with numeric y
 #> 
@@ -1850,7 +1866,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001981
+#> total seconds in loop: 0.002993
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

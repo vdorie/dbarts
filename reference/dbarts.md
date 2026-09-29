@@ -138,8 +138,10 @@ dbarts(
 - verbose:
 
   A logical determining if additional output is printed to the console,
-  including the one-line message `family = "auto"` prints when it
-  detects a factor response. See
+  including the one-line message `family = "auto"` prints naming the
+  family it resolves to (a message of class `dbartsAutoFamilyMessage`,
+  which [`suppressMessages`](https://rdrr.io/r/base/message.html) or a
+  calling handler can mute on its own). See
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
 
 - n.samples:
@@ -456,20 +458,25 @@ dbarts(
 - family:
 
   The response model. `"auto"` fits gaussian models to continuous
-  responses and probit models to those coded 0/1, as always; a two-level
-  factor, logical, or two-level character response is also detected and
-  fit as probit, reporting the choice in a one-line message (suppressed
-  by `verbose = FALSE`), while a factor (or character) response with
-  three or more levels is an error directing to
+  responses and probit models to those coded 0/1, as always; a `Surv`
+  response is fit as `"aft"`, and an n x K matrix (K \>= 3) of
+  non-negative whole numbers on the matrix interface as `"multinomial"`
+  (a formula with a `cbind` left-hand side is refused here, naming
+  `bart`; a two-column matrix is refused, naming both readings, counts
+  and (time, status)). A two-level factor, logical, or two-level
+  character response is also detected and fit as probit. Every
+  resolution of `"auto"` is reported in a one-line message naming the
+  family fit (printed only under `verbose = TRUE`), while a factor (or
+  character) response with three or more levels is an error directing to
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
-  `family = "multinomial"` (which `dbarts` does not fit). An explicit
-  family that a factor response cannot support (e.g. `"gaussian"`) is
-  also an error rather than a silent fit of the integer level codes.
-  `"gaussian"` forces a continuous fit even for a 0/1 numeric response;
-  `"probit"` and `"logistic"` require a 0/1 response and fit
-  latent-variable models, with fits and predictions on the latent scale.
-  `"logistic"` uses Polya-Gamma augmentation. Base R family objects map
-  as [`glm`](https://rdrr.io/r/stats/glm.html) takes them (`binomial` is
+  `family = "multinomial"`. An explicit family that a factor response
+  cannot support (e.g. `"gaussian"`) is also an error rather than a
+  silent fit of the integer level codes. `"gaussian"` forces a
+  continuous fit even for a 0/1 numeric response; `"probit"` and
+  `"logistic"` require a 0/1 response and fit latent-variable models,
+  with fits and predictions on the latent scale. `"logistic"` uses
+  Polya-Gamma augmentation. Base R family objects map as
+  [`glm`](https://rdrr.io/r/stats/glm.html) takes them (`binomial` is
   the logit link, so `family = binomial` is `"logistic"`, not probit)
   and the rest are refused; see
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md).
@@ -499,8 +506,9 @@ dbarts(
   single-trial special case, a factor, character or non-negative
   integer-code vector, which is one-hot expanded to exactly that matrix
   with every trial 1. Column names on the matrix, or the levels of a
-  factor, label the categories. It is never inferred: a
-  three-or-more-level factor under `family = "auto"` is an error
+  factor, label the categories. Under `family = "auto"` a matrix of
+  three or more columns of non-negative whole numbers is read as this
+  model, but a three-or-more-level factor is not - it is an error
   directing here, since an unordered categorical response is equally a
   candidate for several models. The response rides
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)'s
