@@ -228,7 +228,10 @@ sparseFactorAssignPositions <- function(x, i) {
     positions <- if (base::length(i) == 0L) {
       integer(0L)
     } else {
-      seq_len(newLength)[rep_len(i, newLength)]
+      # base's own subscript recycles i, so its recycling warning (R >= 4.7:
+      # "object length is not a multiple of subscript length") is raised
+      # exactly where a factor's assignment raises it
+      seq_len(newLength)[i]
     }
   } else if (is.numeric(i) && all(i >= 0, na.rm = TRUE)) {
     positions <- as.integer(i[is.na(i) | i >= 1])
