@@ -309,10 +309,12 @@ localGroups <- (function() {
 expect_equal(nGroups(localGroups), 5L)
 # and a column is read as a column, whatever the global says
 expect_equal(nGroups(fwdMiddle(y ~ x, dfFwd, group.by = g)), 4L)
-# the data has a column named like the intermediate wrapper's parameter
+# the data has a column named like the intermediate wrapper's parameter: a
+# symbol naming a column of data is that column, forwarded or not (lm's rule
+# for weights and subset)
 dfGrp <- dfFwd
 dfGrp$grp <- rep_len(1:3, 40L)
-expect_equal(nGroups(fwdRenamed(dfGrp, rep_len(1:5, 40L))), 5L)
+expect_equal(nGroups(fwdRenamed(dfGrp, rep_len(1:5, 40L))), 3L)
 # a closure calling rbart_vi
 closureGroups <- (function() {
   inner <- function(...) {

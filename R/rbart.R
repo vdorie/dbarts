@@ -38,31 +38,6 @@ rbartColumn <- function(frame, name) {
   }
 }
 
-## The recovered expression, unless it is a name the frame that wrote it holds
-## as a variable of its own while it runs, which is the value and not a column to look for.
-rbartColumnName <- function(reference, written) {
-  expr <- written$expr
-  if (
-    isDotsReference(reference) &&
-      is.symbol(expr) &&
-      isRunningFunctionFrame(written$env) &&
-      exists(as.character(expr), envir = written$env, inherits = FALSE)
-  ) {
-    return(NULL)
-  }
-  expr
-}
-
-## Whether 'env' is the frame of a function call still running, as opposed to
-## an environment code is merely being evaluated in (a script, eval(envir = )).
-isRunningFunctionFrame <- function(env) {
-  frame <- Position(function(f) identical(f, env), sys.frames())
-  !is.na(frame) &&
-    is.function(fn <- sys.function(frame)) &&
-    !is.primitive(fn) &&
-    !identical(fn, eval)
-}
-
 rbart_vi <- function(
   formula,
   data,
@@ -198,19 +173,17 @@ rbart_vi <- function(
     stop("'group.by' must be specified to use rbart_vi")
   }
   # a forwarded reference (..N) is read as the expression it was written as
-  # only to look for a data column of that name, and not when the name is a
-  # variable of the frame that wrote it (a wrapper's own parameter); anything
-  # else evaluates as the reference itself, which forces the caller's own
-  # promise
-  groupByWritten <- recoverForwardedArgument(
+  # to look for a data column of that name, as model.frame does for lm's
+  # weights and subset, direct or through any wrappers; anything else
+  # evaluates as the reference itself, which forces the caller's own promise
+  groupByExpr <- recoverForwardedArgument(
     matchedCall[["group.by"]],
     callingEnv
-  )
-  groupByExpr <- rbartColumnName(matchedCall[["group.by"]], groupByWritten)
-  groupByTestExpr <- rbartColumnName(
+  )$expr
+  groupByTestExpr <- recoverForwardedArgument(
     matchedCall[["group.by.test"]],
-    recoverForwardedArgument(matchedCall[["group.by.test"]], callingEnv)
-  )
+    callingEnv
+  )$expr
 
   group.by.literal <- NULL
   # look for group.by in data, if supplied, first
