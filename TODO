@@ -137,9 +137,8 @@ items
     penalties: gate STANDS, no model surfaced. Records:
     docs/design/interaction-constraints.md,
     docs/plans/archive/interaction-constraints.md.
-  ledger-audit-loose-ends: two records remain, both handled elsewhere: the
-    "densified permanently" sparse-column text (sparse-mutation-direct)
-    and dec-A66's backwards sigma tombstones (na-as-none).
+  ledger-audit-loose-ends: one record remains, handled elsewhere: dec-A66's
+    backwards sigma tombstones (na-as-none).
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
@@ -269,12 +268,6 @@ items
     test-mutate-sparse-valued.R's all-absent middle-column arms, the same
     before sparse-mutation-direct). Door: whether a rollback should keep
     or restore the cached fits rather than rebuild them.
-  sparse-mutation-direct: before the RC (VD 2026-09-28, dec-B135). A
-    sparse replacement through setPredictor / updatePredictor goes to the
-    engine as its stored rows and values instead of a dense block, so
-    peak memory follows the nonzeros; the docs that call a replaced
-    column "densified permanently" are corrected with it. Plan:
-    docs/plans/sparse-mutation-direct.md.
   na-as-none: before the RC (VD 2026-09-28, dec-B136 to dec-B140).
     Plan: docs/plans/na-as-none.md.
   sbc-family-tiers: two open arms (docs/plans/sbc-family-tiers.md,

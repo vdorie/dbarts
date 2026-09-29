@@ -1,6 +1,6 @@
 # sparse-mutation-direct: a sparse replacement goes sparse to sparse
 
-Status: IN PROGRESS - slice A LANDED 2026-09-29 (78a958ca, 939fd832, a989eb0f, 369cb2fd); slice B pending
+Status: LANDED 2026-09-29 (78a958ca, 939fd832, a989eb0f, 369cb2fd, 4958b511, a28156c5, f915a7a5)
 
 agent: opus (both slices; slice B's man, NEWS and design-doc edits may go to sonnet)
 rng: neutral, bitwise (the codes, cut grids, stored pattern and missing flags a sparse replacement leaves are the
@@ -468,3 +468,34 @@ implicit-valued entry in the one-pass branch, skipping the cut refresh in
 installCscColumn, routing CSC onto CSC through the scratch column, the
 forward restore order, and dropping the +0 normalization each fail the new
 tests.
+
+## Landing note, slice B (2026-09-29)
+
+Landed as 4958b511 (the bridge hands a sparse replacement to the engine as
+its stored entries; R reads any sparse Matrix class as the dgCMatrix it
+holds on the replacement and test-set setters), a28156c5 (man, NEWS and
+design docs: a replaced sparse column stays sparse) and f915a7a5 (review
+points: the coercion text scoped to replacements and test sets, a
+class-neutral refusal for a sparse test set on a categorical design, a
+bitwise test-set twin, a guard keeping plain matrices off the S4 test).
+The coercion works from Matrix 1.4-1, R 4.2's recommended version.
+
+Review found no defects. It showed that the keep-implicit-entry mutation
+is invisible from R (only the store-level tests/cpp checks catch it), and
+that the all-absent middle-column rollback arms agree with their twins to
+1.9e-15, not bitwise, as on the parent; the Verification text says so, and
+TODO rollback-fit-rebuild-order carries the question.
+
+Peak memory, n = 1e5, p = 200, 200,000 nonzeros, three runs per arm, MB:
+no call 229-245 on the parent 369cb2fd and 229-230 on the slice; the whole
+matrix replaced 401-412 (about +170) and 245-246 (about +16, under the 40
+MB gate); 100 named columns 313-314 and 237-240; the whole matrix as a
+dgTMatrix 830-852 and 243-248, matching the dgCMatrix arm.
+
+Gates, macOS arm64: full tinytest 9825 pass, 0 fail; the slice's file R-
+loaded under ASAN clean; tests/cpp all passed, plain and under ASAN and
+UBSan; reference build: the four seeded-drift snapshot files pass and the
+three bitwise compares are identical on every scenario (53, 15, 11), no
+max |z|; R 4.2.3 with Matrix 1.4-1 and 1.5-3: the eight sparse tinytest
+files pass; R CMD check --as-cran: expected NOTEs only; air, lintr,
+rc-codoc, win-drift, doc-freshness clean.
