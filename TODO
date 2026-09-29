@@ -137,6 +137,26 @@ items
     penalties: gate STANDS, no model surfaced. Records:
     docs/design/interaction-constraints.md,
     docs/plans/archive/interaction-constraints.md.
+  ledger-audit-loose-ends: before the RC (found 2026-09-28 auditing
+    covered register entries). Records to correct: NEWS items that
+    never reached main, against dec-B128 (the run loop's sleep, dec-A38;
+    the 1e7 predict cutoff, dec-A43; posterior, dec-A24; the configure
+    flags and --with-xint-size described as BayesTree-matching, dec-A28
+    and dec-A46); NEWS and man/dbartsSpec.Rd describing a C creation
+    entry that no longer exists (dec-A20, dec-A29); man/dbarts.Rd's
+    "breaks coarsens it" (hazard(breaks = ), dec-A22); bart.Rd and
+    bartBT.Rd thread text still 0.9-34's, and bartBT(nthread = 2)
+    warning in n.threads/n.chains names (dec-A37); dbartsControl.Rd's
+    density threshold called bitwise-neutral and not in one page
+    (dec-A43); NEWS and man text calling a replaced sparse column
+    "densified permanently" (done with sparse-mutation-direct); the
+    setData refusal naming a C function (dec-A35); dec-A19 and dec-B82
+    still promising a twopart tombstone dec-B128 removed, and dbarts's
+    twopart refusal naming hurdle.lognormal, which dbarts refuses;
+    stale register Record lines (dec-A38, dec-A46). Missing TODO: the
+    memory audit's flat arena for saved trees (dec-A33). Also: the
+    seeded snapshot comment in dec-A42 is done; A66's backwards sigma
+    tombstones are in na-as-none.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
