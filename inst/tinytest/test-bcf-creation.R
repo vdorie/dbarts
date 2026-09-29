@@ -1316,3 +1316,30 @@ for (basesArg in list(list(NULL, zBasis), list(zBasis))) {
     fixed = TRUE
   )
 }
+
+# a lone basis on the FIRST forest of a data object is a one-element refusal,
+# and past the first a NULL element is refused by name
+expect_error(
+  dbartsSpec(dbartsData(x, y, bases = list(zBasis, NULL)), control),
+  "forest 2 needs a 'basis'"
+)
+# the clause names the declaration when the caller wrote forests =
+expect_error(
+  dbarts(
+    y ~ x,
+    data.frame(y = y, x = x[, 1L], z = z),
+    forests = list(forest(basis = ~ factor(z))),
+    control = control
+  ),
+  "'basis' declarations resolve to 1"
+)
+expect_error(
+  dbarts(
+    y ~ x,
+    data.frame(y = y, x = x[, 1L], z = z),
+    forests = list(forest(basis = ~ factor(z))),
+    control = control
+  ),
+  "on dbarts(), or a data object with",
+  fixed = TRUE
+)
