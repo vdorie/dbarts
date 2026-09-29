@@ -118,3 +118,12 @@ the Rd: complete.cases, and c() with a factor first. A test asserts that no
 base or stats function is masked.
 
 At landing, the Rd's unsupported list gained relevel, as.numeric, rep_len/rep.int and droplevels' exclude and data-frame behavior (third review). Tip gates: tinytest 9630 pass, 0 fail.
+
+Post-landing fix (63bc41b9): the oldrel CI job (R 4.5.3) aborted in this
+file, since before R 4.6.0 base R's match() refuses an S4 object and
+rbind.data.frame binds a second frame's sparseFactor column through
+`[<-.factor`. rbind on a frame holding one now needs R 4.6.0 (dec-A117):
+the tests gate on the version and pin the refusal below it, and the Rd and
+NEWS say so. The tests' expect_match also needs tinytest 1.4.3, now in
+Suggests. R 4.5.3 run: 9455 tests, 0 failures, excluding the files that
+spawn a worker R or compile a shim, which a local 4.5 build cannot run.
