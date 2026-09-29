@@ -272,6 +272,34 @@ Record: this register; the sampler's manual page. Marked: blank. [dec-A96]
 bartCause normalizes the one-chain result from dbarts on read, so its stored fields and outputs keep the shapes they had, with no chain dimension at one chain on its BART path, and it works with dbarts before and after the change. The alternative was bartCause adopting the chain dimension in its own fields, which would change its outputs for one-chain fits. bartCause's one-chain outputs stay unlike dbarts' own. Not yet ruled on. See also: [dec-A79].
 Record: this register; bartCause's utility helper for the one-chain shape. Marked: blank. [dec-A97]
 
+**Forked cross-validation workers: the details under the ruling**
+Under dec-B131 the agents chose the session option's name, dbarts.parallel; the auto rule's list of sessions that get separate R sessions instead of forks (Windows, RStudio, Positron, the macOS R GUI); that a supplied cluster wins over the parallel argument and is split into min(n.threads, cluster size) chunks and never stopped; an error, not a fallback, for a fork requested on Windows; no cap on workers under CRAN's core-limit variable, since the socket path already runs the same check; a forked worker's error re-raised with its own message without parallel's "N nodes produced errors" prefix; the caller's warn level carried to every worker; and the two new formals placed before control so older positional calls keep n.trees, k, power and base where 0.9-34 had them. The alternatives were other names, a narrower or wider auto list, and a fallback to sockets on Windows. Not yet ruled on. See also: [dec-B131].
+Record: docs/plans/xbart-fork-workers.md. Marked: blank. [dec-A98]
+
+**The rbart_vi port: the details under the rulings**
+Under dec-B130 the agents kept 0.9-34's argument list, output shapes and one-chain layout rather than 1.0's; warned once per session from rbart_vi alone, not from its methods, with a plain warning rather than .Deprecated; kept the removed-function registry rows under the same 1.1-0 expiry; put the port in one file with its slice sampler; restored the whole manual page; built the data with indicator columns and na.omit as 0.9-34 did; dropped 0.9-34's hard-coded snapshot test; built and discarded one sampler before any chain so a refusal surfaces once; detected a 0.9-x fit by its sampler lacking the active-row field and refused predict on it with a refit message; and drew a zero-weight group's intercept from its prior. The alternatives were 1.0's shapes, warnings from every method, a new registry kind, a reference-build snapshot, and refusing a fully zero-weight group. Not yet ruled on. See also: [dec-B130].
+Record: docs/plans/rbart-vi-port.md. Marked: blank. [dec-A99]
+
+**sparseFactor's data-frame behaviour: the details under the ruling**
+Fixing the sparse column in a data frame (the dec-A26 loose end) the agents made row indexing with drop = TRUE re-choose the reference level among the kept rows when the old one goes unused; refused an NA or out-of-range index and an extension past a gap, since the class holds no missing value; left complete.cases, c() with a factor first, relevel, as.numeric, rep_len, rep.int and droplevels' exclude unsupported and listed them; and documented, rather than fixed, that a Matrix sparseVector or dgCMatrix column prints as a placeholder, since fixing it would put a method on another package's class. The alternatives were refusing drop = TRUE, returning NA rows, implementing the rest, and registering the foreign print method. Not yet ruled on. See also: [dec-B100], [dec-B132].
+Record: docs/plans/sparse-factor-frames.md. Marked: blank. [dec-A100]
+
+**A hazard predictor may not read period**
+Keeping the level table through the person-period expansion, the agents refused any formula term that reads a variable named period, and a period column on the x/y paths, since the expansion's own period column takes that name and prediction would overwrite the user's; and let a factor with a declared but unused level match the hand-expanded binary fit, which moves that one case's draws. The alternatives were renaming the expansion's column, and keeping the old handling of unused levels. Not yet ruled on.
+Record: docs/plans/hazard-formula-factors.md. Marked: blank. [dec-A101]
+
+**R's family objects: the details under the ruling**
+Under dec-B134 the agents put link first in dbarts's own gaussian(link, sigma), as glm's does, so a positional prior now needs sigma =; sent a word naming any stats family through the same mapping, so "poisson" is refused by name; and refused foreign family objects dbarts could fit under another name, such as MASS's negative.binomial, rather than mapping them. The alternatives were keeping sigma first and mapping the foreign families. Not yet ruled on. See also: [dec-B134].
+Record: docs/plans/r-family-objects.md. Marked: blank. [dec-A102]
+
+**Zero-trial multinomial rows: the details under the ruling**
+Under dec-B133 the agents folded an empty row into the existing inactive-row mask rather than testing it in the sweep loops; warned once per session under one key shared by creation and the count setter, after the call can no longer be refused, with the count of empty rows; and dropped empty rows from the plot's observed panel. The alternatives were a per-row test in the sweeps, separate warning keys, and plotting them. Not yet ruled on. See also: [dec-B133].
+Record: docs/plans/multinomial-zero-trials.md. Marked: blank. [dec-A103]
+
+**Sparse-to-sparse replacement: the details under the ruling**
+Under dec-B135 the agents convert any sparse Matrix class to a column-compressed matrix in R before the sparse test, including for the test-set setter; expand a sparse source onto a dense store column one column at a time into a reused buffer; keep a mixed argument's dense part and a plain-matrix design as they are; store +0 where a quantile cut would be -0, on both paths; restore a failed named-column replacement in reverse order, which fixes an older inexactness when a column is named twice; and gate the landing on a memory re-measurement. The alternatives were refusing other sparse classes, refusing a repeated column, and leaving signed zero as found. Not yet ruled on. See also: [dec-B135].
+Record: docs/plans/sparse-mutation-direct.md. Marked: blank. [dec-A104]
+
 ## B. Decisions with maintainer evidence
 
 **Missing predictors are modelled, not refused**
