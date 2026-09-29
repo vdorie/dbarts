@@ -71,7 +71,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | group-by-exposure.md | RETIRED, 2026-09-06 | A placeholder decision memo on exposing grouped random effects beyond `rbart_vi()`; there is nothing left to expose (retire-grouped-random-effects.md). |
-| rbart-vi-port.md | LANDED-pending 2026-09-28 | Brings `rbart_vi()` and its methods back for 1.0-0 as a deprecated port of 0.9-34's R Gibbs loop over the plain sampler, removed in 1.1-0 (dec-B130); no engine, bridge or header change. |
+| rbart-vi-port.md | LANDED 2026-09-28 (S1 ac5d8ea2, S2 e975b367, fixes 94294de5) | Brings `rbart_vi()` and its methods back for 1.0-0 as a deprecated port of 0.9-34's R Gibbs loop over the plain sampler, removed in 1.1-0 (dec-B130); no engine, bridge or header change. |
 | retire-grouped-random-effects.md | LANDED 2026-09-06 (1e5f80b2), reversed in part for 1.0-0 by rbart-vi-port.md; two sister-repo prerequisites gate the release | Deletes the whole grouped-random-intercept path - engine decorator, bridge, R surface, tests, benchmarks and docs - re-records the equivalence baseline at 50 scenarios, and points users at stan4bart. |
 
 ## API-surface cluster

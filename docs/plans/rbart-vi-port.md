@@ -1,6 +1,6 @@
 # rbart-vi-port: rbart_vi back for one release as 0.9-34's R loop
 
-Status: LANDED-pending 2026-09-28 (slices 1 and 2 committed on wt/rbart-port; not pushed)
+Status: LANDED 2026-09-28 (S1 ac5d8ea2, S2 e975b367, review fixes 94294de5)
 
 agent: sonnet (R port, tests, manual, NEWS; no engine, bridge or header change)
 rng: neutral (no existing draw moves; rbart_vi's own draws are new against both 0.9-34 and the tombstone)

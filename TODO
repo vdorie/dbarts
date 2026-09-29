@@ -249,13 +249,6 @@ items
     assembly) lives in the R bridge, and mixed/CSC stores hold
     lifetime borrows anchored by R protection.
     decision-gated.
-  rbart-vi-port: before the RC (VD 2026-09-28, docs/decisions.md
-    dec-B130). Bring rbart_vi and its methods back for 1.0-0 as a port
-    of 0.9-34's R implementation (main's R/rbart.R, R/sliceSample.R and
-    the rbart methods), deprecated with a once-per-session warning
-    naming stan4bart, removed in 1.1-0. No engine or C header change;
-    where the 1.0 sampler lacks a call the loop needs, the port adapts
-    in R. Plan: docs/plans/rbart-vi-port.md (to write).
   rc-gate: VD's own read of docs/plans/bartcore-review-tour.md, then
     the RC declaration. Both VD-held. The pre-RC surface decisions and
     their sequencing are docs/plans/prerc-surface-freeze.md.
