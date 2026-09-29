@@ -48,8 +48,8 @@ dense factor's NA in the same rows (maintainer ruling on dec-A100, 2026-09-29).
     holding an NA: `na.omit` keeps the row and `na.fail` passes, while the x/y interface drops it.
     This defect already exists for sparse ordinal columns; the fix here covers every lifted column.
   - [`rbart_vi`](../../R/rbart.R) hard-codes `na.omit`. After the fix, a sparse column holding an NA
-    drops that row and the call then stops at the `group.by` length refusal, exactly as a dense
-    column with an NA does today. No change there.
+    drops that row, but the call stops earlier, at the "sparse categorical predictors require
+    factors = categorical" refusal, since `rbart_vi` does not take a sparse factor. No change there.
 - Base R limits that no method can reach, since `is.atomic` is primitive and the class is not a
   vector: on a data frame holding a `sparseFactor` or a `sparseVector` column, NA or not,
   `complete.cases` and `na.fail` error with "invalid 'type' (unknown) of argument", and
@@ -260,8 +260,8 @@ warnings with `withCallingHandlers`.
 
 ## Calls made
 
-For the maintainer's ledger; each follows base R where base R has an answer. Step 2's fork (every
-row missing: refuse and keep a reference level, or allow zero levels) is open and not listed here.
+For the maintainer's ledger; each follows base R where base R has an answer. Step 2 (every
+row missing) is call 13.
 
 1. `sparseFactor(x)` stores a dense `x`'s NA as explicit NA entries, as `factor(c("a", NA))` keeps
    the NA.
@@ -284,3 +284,9 @@ row missing: refuse and keep a reference level, or allow zero levels) is open an
 12. `complete.cases` and `na.fail` erroring on a frame holding a sparse column, `na.omit` keeping
     its NA rows, `table` dropping unused declared levels and `rank` failing are documented, not
     fixed: no fix exists without masking base or stats.
+
+13. Step 2, option B (ruled): a vector whose every row is a stored NA may have zero levels and
+    reference `NA_character_`, so the all-NA constructor, `droplevels` and `levels<-` answer as base R.
+14. `c` takes its reference from the first non-NA reference among its arguments, else the first
+    level of the union.
+15. `na.omit` and `anyDuplicated` have methods on the bare vector, as for a factor.

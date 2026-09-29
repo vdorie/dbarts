@@ -280,10 +280,25 @@ methods::setMethod("[[", "sparseFactor", function(x, i, j, ...) {
   if (length(i) != 1L) {
     stop("attempt to select more or less than one element")
   }
-  if (is.na(i) || (is.numeric(i) && i > x@length)) {
+  if (is.character(i) || !is.null(dim(i)) || is.factor(i)) {
+    stop("a sparseFactor can be indexed by position only")
+  }
+  if (is.logical(i)) {
+    i <- as.integer(i)
+  }
+  # base R's own wording, with the index type it names
+  kind <- if (is.integer(i)) "<integer>" else "<real>"
+  if (!is.na(i) && i == 0) {
+    stop("attempt to select less than one element in get1index ", kind)
+  }
+  if (!is.na(i) && i < 0) {
+    stop("invalid negative subscript in get1index ", kind)
+  }
+  position <- seq_len(x@length)[i]
+  if (length(position) != 1L || is.na(position)) {
     stop("subscript out of bounds")
   }
-  x[i]
+  x[position]
 })
 
 # Assignment by position, as for a factor: a label that is not a level is
@@ -320,10 +335,17 @@ methods::setReplaceMethod(
       if (length(labels) == 0L) {
         stop("replacement has length zero")
       }
+      multiple <- length(positions) %% length(labels) == 0L
+      if (any(labels %not_in% x@levels & !is.na(labels))) {
+        warning("invalid factor level, NA generated", call. = FALSE)
+      }
       labels <- rep_len(labels, length(positions))
       codes <- match(labels, x@levels)
-      if (any(is.na(codes) & !is.na(labels))) {
-        warning("invalid factor level, NA generated", call. = FALSE)
+      if (!multiple) {
+        warning(
+          "number of items to replace is not a multiple of replacement length",
+          call. = FALSE
+        )
       }
     }
     # a later assignment to a position wins
@@ -353,7 +375,23 @@ methods::setReplaceMethod("[[", "sparseFactor", function(x, i, j, ..., value) {
   if (length(i) != 1L) {
     stop("attempt to select more or less than one element")
   }
-  x[i] <- value
+  if (is.character(i) || !is.null(dim(i)) || is.factor(i)) {
+    stop("a sparseFactor can be indexed by position only")
+  }
+  if (is.logical(i)) {
+    i <- as.integer(i)
+  }
+  if (is.na(i)) {
+    stop("attempt to select more than one element in integerOneIndex")
+  }
+  kind <- if (is.integer(i)) "<integer>" else "<real>"
+  if (i == 0) {
+    stop("attempt to select less than one element in OneIndex ", kind)
+  }
+  if (i < 0) {
+    stop("attempt to select more than one element in OneIndex ", kind)
+  }
+  x[as.integer(i)] <- value
   x
 })
 
@@ -412,12 +450,10 @@ droplevels.sparseFactor <- function(x, ...) {
 
 # truncates, or pads with missing values, as for a factor
 methods::setReplaceMethod("length", "sparseFactor", function(x, value) {
-  if (
-    length(value) != 1L || is.na(value) || value < 0 || value != trunc(value)
-  ) {
+  if (length(value) != 1L || is.na(value) || value < 0) {
     stop("invalid value")
   }
-  x[seq_len(value)]
+  x[seq_len(as.integer(value))]
 })
 
 # Combining takes the union of the levels in order of appearance, as c does
@@ -475,6 +511,22 @@ unique.sparseFactor <- function(x, incomparables = FALSE, ...) {
 }
 duplicated.sparseFactor <- function(x, incomparables = FALSE, ...) {
   duplicated(sparseFactorCodes(x), ...)
+}
+anyDuplicated.sparseFactor <- function(x, incomparables = FALSE, ...) {
+  anyDuplicated(sparseFactorCodes(x), ...)
+}
+
+# as na.omit.default does for a vector: the missing entries go and the
+# positions dropped ride along as an "omit" na.action
+na.omit.sparseFactor <- function(object, ...) {
+  omit <- which(is.na(object))
+  if (length(omit) == 0L) {
+    return(object)
+  }
+  object <- object[-omit]
+  attr(omit, "class") <- "omit"
+  attr(object, "na.action") <- omit
+  object
 }
 
 # Only == and != mean anything for unordered factors; the rest give NA with a

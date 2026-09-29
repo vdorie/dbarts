@@ -318,23 +318,23 @@ fitArgs <- list(
 )
 fitDense <- do.call(bart, c(list(xd, y), fitArgs))
 fitSparse <- do.call(bart, c(list(xs, y), fitArgs))
-expect_equal(fitSparse$yhat.train, fitDense$yhat.train)
-expect_equal(fitSparse$sigma, fitDense$sigma)
+expect_identical(fitSparse$yhat.train, fitDense$yhat.train)
+expect_identical(fitSparse$sigma, fitDense$sigma)
 fitFD <- do.call(bart, c(list(y ~ z + f, dfd), fitArgs))
 fitFS <- do.call(bart, c(list(y ~ z + f, dfs), fitArgs))
-expect_equal(fitFS$yhat.train, fitFD$yhat.train)
-expect_equal(fitFS$sigma, fitFD$sigma)
+expect_identical(fitFS$yhat.train, fitFD$yhat.train)
+expect_identical(fitFS$sigma, fitFD$sigma)
 
 # predict on a test frame with NA, and one with another level order
 testF <- factor(c("b", NA, "a", "c", NA, "a"), levels = c("a", "b", "c"))
 tz <- runif(6L)
 testDense <- data.frame(f = testF, z = tz)
 testSparse <- data.frame(f = sparseFactor(testF, reference = "a"), z = tz)
-expect_equal(predict(fitSparse, testSparse), predict(fitDense, testDense))
-expect_equal(predict(fitFS, testSparse), predict(fitFD, testDense))
+expect_identical(predict(fitSparse, testSparse), predict(fitDense, testDense))
+expect_identical(predict(fitFS, testSparse), predict(fitFD, testDense))
 testF2 <- factor(c("b", NA, "a", "c", NA, "a"), levels = c("c", "b", "a"))
 testSparse2 <- data.frame(f = sparseFactor(testF2, reference = "c"), z = tz)
-expect_equal(
+expect_identical(
   predict(fitSparse, testSparse2),
   predict(fitDense, data.frame(f = testF2, z = tz))
 )
@@ -346,7 +346,7 @@ unseenRef <- sparseFactor(
   i = 1:3,
   length = 3L
 )
-expect_equal(
+expect_identical(
   predict(fitSparse, data.frame(f = unseenRef, z = tz[1:3])),
   predict(
     fitDense,
@@ -376,7 +376,7 @@ xs0$f <- sparseFactor(fd[!is.na(fd)], reference = "a")
 y0 <- y[!is.na(fd)]
 fit0d <- do.call(bart, c(list(xd0, y0), fitArgs))
 fit0s <- do.call(bart, c(list(xs0, y0), fitArgs))
-expect_equal(fit0s$yhat.train, fit0d$yhat.train)
+expect_identical(fit0s$yhat.train, fit0d$yhat.train)
 r1 <- run(predict(fit0d, testDense))
 r2 <- run(predict(fit0s, testSparse))
 expect_true(inherits(r1$value, "err"))
@@ -385,7 +385,7 @@ expect_true(grepl("f", unclass(r2$value), fixed = TRUE))
 expect_equal(unclass(r2$value), unclass(r1$value))
 p1 <- predict(fit0d, testDense, na.action = na.pass)
 p2 <- predict(fit0s, testSparse, na.action = na.pass)
-expect_equal(p2, p1)
+expect_identical(p2, p1)
 expect_true(all(is.na(p2[, is.na(testF)])))
 
 # an all-missing column is refused
@@ -418,8 +418,8 @@ for (nm in names(actions)) {
     bart,
     c(list(y ~ z + f, dfd, na.action = actions[[nm]]), naArgs)
   )
-  expect_equal(fs$yhat.train, fd_$yhat.train, info = nm)
-  expect_equal(fs$na.action, fd_$na.action, info = nm)
+  expect_identical(fs$yhat.train, fd_$yhat.train, info = nm)
+  expect_identical(fs$na.action, fd_$na.action, info = nm)
   expect_equal(dim(fs$yhat.train), c(10L, nn - 15L), info = nm)
 }
 fx <- do.call(bart, c(list(y ~ z + f, dfs, na.action = na.exclude), naArgs))
@@ -441,8 +441,8 @@ fsub_d <- do.call(
   bart,
   c(list(y ~ z + f, dfd, subset = sub, na.action = na.omit), naArgs)
 )
-expect_equal(fsub_s$yhat.train, fsub_d$yhat.train)
-expect_equal(fsub_s$na.action, fsub_d$na.action)
+expect_identical(fsub_s$yhat.train, fsub_d$yhat.train)
+expect_identical(fsub_s$na.action, fsub_d$na.action)
 
 # sparseVector and dgCMatrix columns, against their dense twins
 if (requireNamespace("Matrix", quietly = TRUE)) {
@@ -457,18 +457,20 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   for (act in c("na.omit", "na.fail")) {
     a <- run(do.call(
       bart,
-      c(list(y ~ z + fn, dsv, na.action = get(act)), naArgs)
+      c(list(y ~ f + zn, dsv, na.action = get(act)), naArgs)
     ))
     b <- run(do.call(
       bart,
-      c(list(y ~ z + fn, dnum, na.action = get(act)), naArgs)
+      c(list(y ~ f + zn, dnum, na.action = get(act)), naArgs)
     ))
+    # the dense twin fits under na.omit and refuses under na.fail
+    expect_equal(inherits(b$value, "err"), act == "na.fail", info = act)
     if (inherits(b$value, "err")) {
       expect_true(inherits(a$value, "err"), info = act)
       expect_equal(unclass(a$value), unclass(b$value), info = act)
     } else {
-      expect_equal(a$value$yhat.train, b$value$yhat.train, info = act)
-      expect_equal(a$value$na.action, b$value$na.action, info = act)
+      expect_identical(a$value$yhat.train, b$value$yhat.train, info = act)
+      expect_identical(a$value$na.action, b$value$na.action, info = act)
     }
   }
   mat <- cbind(zv, w = ifelse(is.na(zv), 0, zv^2))
@@ -487,12 +489,14 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
       bart,
       c(list(y ~ f + m, dmat, na.action = get(act)), naArgs)
     ))
+    # the dense twin fits under na.omit and refuses under na.fail
+    expect_equal(inherits(b$value, "err"), act == "na.fail", info = act)
     if (inherits(b$value, "err")) {
       expect_true(inherits(a$value, "err"), info = act)
       expect_equal(unclass(a$value), unclass(b$value), info = act)
     } else {
-      expect_equal(a$value$yhat.train, b$value$yhat.train, info = act)
-      expect_equal(a$value$na.action, b$value$na.action, info = act)
+      expect_identical(a$value$yhat.train, b$value$yhat.train, info = act)
+      expect_identical(a$value$na.action, b$value$na.action, info = act)
     }
   }
 }
@@ -509,6 +513,65 @@ tst$w <- wts[1:6]
 tstD$w <- wts[1:6]
 dataS <- dbartsData(y ~ z + f, dW, test = tst, weights = w)
 dataD <- dbartsData(y ~ z + f, dWd, test = tstD, weights = w)
-expect_equal(dataS@weights.test, wts[1:6])
-expect_equal(dataS@weights.test, dataD@weights.test)
-expect_equal(dataS@weights, dataD@weights)
+expect_identical(dataS@weights.test, wts[1:6])
+expect_identical(dataS@weights.test, dataD@weights.test)
+expect_identical(dataS@weights, dataD@weights)
+
+# ---- na.omit, anyDuplicated, [[ and assignment edges, against base ----
+omitF <- na.omit(ff)
+omitS <- na.omit(sf)
+same(omitS, omitF)
+expect_equal(attr(omitS, "na.action"), attr(omitF, "na.action"))
+expect_equal(class(attr(omitS, "na.action")), "omit")
+expect_identical(
+  na.omit(sparseFactor(factor(c("a", "b")))),
+  sparseFactor(factor(c("a", "b")))
+)
+expect_error(complete.cases(sf), "invalid 'type'")
+expect_equal(anyDuplicated(sf), anyDuplicated(ff))
+expect_equal(anyDuplicated(sf[1:2]), anyDuplicated(ff[1:2]))
+
+read_same <- function(i) {
+  rf <- run(ff[[i]])
+  rs <- run(sf[[i]])
+  if (inherits(rf$value, "err")) {
+    expect_true(inherits(rs$value, "err"), info = deparse(i))
+    expect_equal(unclass(rs$value), unclass(rf$value), info = deparse(i))
+  } else {
+    expect_equal(
+      as.character(rs$value),
+      as.character(rf$value),
+      info = deparse(i)
+    )
+  }
+}
+for (i in list(0, -1, TRUE, 7.5, 2.5, 8, NA, NA_integer_)) {
+  read_same(i)
+}
+put_same <- function(i, value = "b") {
+  f <- ff
+  s <- sf
+  rf <- run(f[[i]] <- value)
+  rs <- run(s[[i]] <- value)
+  if (inherits(rf$value, "err")) {
+    expect_true(inherits(rs$value, "err"), info = deparse(i))
+    expect_equal(unclass(rs$value), unclass(rf$value), info = deparse(i))
+  } else {
+    same(s, f)
+  }
+}
+for (i in list(NA, NA_integer_, 0, -1, TRUE, 7.5, 9, 2.5)) {
+  put_same(i)
+}
+f <- ff
+s <- sf
+length(f) <- 4.7
+length(s) <- 4.7
+same(s, f)
+f <- ff
+s <- sf
+rf <- run(f[1:3] <- c("a", "z"))
+rs <- run(s[1:3] <- c("a", "z"))
+expect_equal(rs$warnings, rf$warnings)
+expect_equal(length(rs$warnings), 2L)
+same(s, f)
