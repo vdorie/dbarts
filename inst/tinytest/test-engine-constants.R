@@ -192,8 +192,8 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
       dbarts:::C_dbarts_bartcore_columnStorageIsSparse,
       sampler$getPointer()
     )
-    # one sweep: see the tolerance comment below
-    samples <- sampler$run(0L, 1L)
+    # twenty sweeps: see the tolerance comment below
+    samples <- sampler$run(0L, 20L)
     list(sparse = sparse, fits = samples$train, varcount = samples$varcount)
   }
 
@@ -209,11 +209,11 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   # root partition rewrites indices to the identity before it splits
   # (misc_partitionRange) where the rank-bitmap one permutes in place, so a
   # leaf receives the same members in a different order and its sufficient
-  # statistic reassociates. One sweep holds that to a single root partition
-  # from the identity both index arrays start at; over more sweeps the gap
-  # compounds through the residual and no fixed tolerance holds. The tolerance
-  # covers reassociation alone - a moved proposal fails varcount above, which
-  # no tolerance hides.
+  # statistic reassociates. A single sweep starts both from the identity and
+  # agrees bitwise, so it cannot tell the layouts apart; by twenty the gap is
+  # of order 1e-15 and grows slowly with more. The tolerance covers
+  # reassociation alone - a moved proposal fails varcount above, which no
+  # tolerance hides.
   expect_equal(atDefault$fits, raised$fits, tolerance = 1e-14)
 
   rm(atDefault, raised)

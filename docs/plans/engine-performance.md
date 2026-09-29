@@ -943,8 +943,9 @@ previous partition left, so from the second root partition on a leaf
 holds the same members in a different order and `computeLeafStats`
 reassociates. Tree shapes, split counts, split variables and varcounts
 are bit-for-bit equal over 200 draws; the fits drift from about 1e-16
-at draw 2 to 4.3e-15 at draw 200. The test now runs one sweep, pins
-varcount exactly and compares fits at 1e-14 tolerance;
+at draw 2 to 4.3e-15 at draw 200. The test pins varcount exactly and
+compares fits at 1e-14 tolerance over twenty sweeps (one sweep agrees
+bitwise, so it would not tell the layouts apart);
 [`dbartsControl`](../../man/dbartsControl.Rd),
 [engine-constants.md](../design/engine-constants.md)'s sparse section,
 and three shipped comments (`src/R_interface_bartcore.cpp`,
