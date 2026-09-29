@@ -4,7 +4,7 @@ agent: sonnet
 rng: neutral (every recorded baseline and snapshot unchanged; see RNG class)
 budget: ~210 lines (R ~65, tests ~130, man and design ~15)
 
-Status: LANDED-pending 2026-09-28 (landing note at EOF)
+Status: LANDED 2026-09-28 (, , 0bce4141 80e0360a 2d7b831f )
 
 ## Goal
 
