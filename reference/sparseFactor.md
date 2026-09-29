@@ -125,15 +125,20 @@ and `table` read it through those methods, over the levels present.
 Together these let a data frame holding one be subset by row, assigned
 into, printed and `str`-ed. `rbind` of such frames returns the column as
 an ordinary factor; it needs R 4.6.0 or later, since earlier versions of
-base R's `match` refuse an S4 object (convert the column with `factor`
-first).
+base R's `match` refuse an S4 object. On any version, lengthening the
+first frame by row indexing, as in `d[rep(seq_len(nrow(d)), 2), ]`, and
+assigning the other frames' rows into it binds them and keeps the column
+a `sparseFactor`, provided their labels are levels of the first frame's
+column.
 
 A `sparseFactor` cannot hold a missing value, so where a factor would
 return `NA` it is refused: an `NA` or out-of-range row index, a
 replacement value that is not a level, an extension past a gap, a level
-named `NA`, and `length<-`. A character index has no names to match and
-is refused. Not supported: `complete.cases` on a data frame holding one
-(use [`na.omit`](https://rdrr.io/r/stats/na.fail.html), or `is.na` per
+named `NA`, and `length<-`, which also stops a data frame holding one
+from growing by assignment past its last row. A character index has no
+names to match and is refused. Not supported: `complete.cases` on a data
+frame holding one (use
+[`na.omit`](https://rdrr.io/r/stats/na.fail.html), or `is.na` per
 column), and `c(f, x)` with a factor `f` first, which `c.factor` answers
 with a list (put the `sparseFactor` first). Also not supported:
 `relevel`, `as.numeric` (`as.integer` gives the level codes), `rep_len`
