@@ -159,11 +159,18 @@
             \code{rngSeed} instead of forwarding it as \code{seed}, so the
             fit runs unseeded with no error. Update such a filter to accept
             \code{seed}.
-      \item \code{rbart_vi} and its methods are removed. Multilevel
-            structure - random intercepts and slopes, crossed and nested
-            grouping factors - is now stan4bart's:
+      \item \code{rbart_vi} and its methods are deprecated. They run
+            0.9-34's implementation for this release, warn once per session,
+            and are removed in dbarts 1.1-0; see \code{\link{rbart_vi}}.
+            Multilevel structure - random intercepts and slopes, crossed and
+            nested grouping factors - is stan4bart's:
             \code{stan4bart::stan4bart} fits the same models with an
-            lmer-style formula term, and more of them.
+            lmer-style formula term, and more of them, under a different
+            prior on the group spread, so results move. A binary
+            \code{rbart_vi} fit refuses weights other than 0 and 1, as a
+            \code{probit} fit does, and a fit takes 1.0's defaults when
+            \code{k} is not supplied, so a binary fit's \code{k} prior and
+            the tree-move mix are those of \code{dbarts}, not 0.9-34's.
       \item \code{xbart} loses its \code{control} argument and renames
             \code{sigma} to \code{sigest}. \code{n.cuts},
             \code{useQuantiles}, and \code{n.thin} are ordinary formals,
@@ -353,10 +360,9 @@
             registry. The set: \code{bart2} (function, successor
             \code{bart}); \code{rbart_vi} and its \code{predict.rbart},
             \code{extract.rbart}, \code{fitted.rbart},
-            \code{residuals.rbart}, and \code{plot.rbart} methods (error
-            outright, naming \code{stan4bart::stan4bart}), and
-            \code{print.rbart} (prints the stored call and a note naming
-            \code{stan4bart::stan4bart}); \code{dbartsSampler}'s
+            \code{residuals.rbart}, \code{plot.rbart}, and
+            \code{print.rbart} methods (deprecated, run as in 0.9-x);
+            \code{dbartsSampler}'s
             \code{$startThreads}/\code{$stopThreads} (no-op methods) and
             a thread count passed to \code{$run} (ignored, successor
             \code{$setControl});
@@ -1913,6 +1919,39 @@
   }
   \subsection{BUG FIXES}{
     \itemize{
+      \item \code{rbart_vi}'s first intercept draw starts from a sweep of the
+            trees, not from a prediction on trees drawn from the prior. On a
+            skewed response the prior trees predict the middle of the
+            response's range, and the gap to its mean stayed in the
+            intercepts, inflating the posterior of \code{tau} by a factor of
+            about 100 in a simulated case.
+      \item \code{rbart_vi}'s \code{group.by} and \code{group.by.test}, when
+            written as a name that is not a column of \code{data}, are looked
+            up in the calling environment as documented. They were silently
+            read as the first column of \code{data}.
+      \item \code{predict} on an \code{rbart_vi} fit with several chains and
+            \code{combineChains = TRUE} no longer stops with "subscript out
+            of bounds" when \code{newdata} has a group the fit did not see,
+            and the new groups' draws are scaled by the \code{tau} of their
+            own draw.
+      \item \code{predict} and \code{extract(type = "trees")} work on an
+            \code{rbart_vi} fit that ran in parallel, and a fit that is saved
+            and read back into a new session predicts what it did before;
+            each sampler now carries its stored state. A reloaded fit had
+            predicted different values without a warning.
+      \item \code{rbart_vi} draws its intercepts with precision weights: a
+            group's precision is its total weight over \eqn{\sigma^2}, around
+            the weighted residual mean, the convention of \code{lme4} and of
+            the trees' own leaf update. The draw had ignored the weights'
+            scale, so the intercepts' spread moved when every weight was
+            rescaled.
+      \item \code{rbart_vi} with an \code{offset} and a test set of the same
+            size no longer adds the training rows' intercepts to the test
+            fits, so a group's intercept was counted twice in \code{extract}
+            on the test sample.
+      \item A seeded \code{rbart_vi} call leaves the caller's random number
+            stream as it found it, or absent if it was absent. The restore
+            assigned a local variable and did nothing.
       \item The \code{\link{predict.glm}} synonyms documented for \code{type}
             work on the \code{bart} extended-family generics: \code{extract},
             \code{fitted} and \code{predict} for \code{bartMultinomial},

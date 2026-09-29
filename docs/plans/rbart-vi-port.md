@@ -1,5 +1,7 @@
 # rbart-vi-port: rbart_vi back for one release as 0.9-34's R loop
 
+Status: LANDED-pending 2026-09-28 (slices 1 and 2 committed on wt/rbart-port; not pushed)
+
 agent: sonnet (R port, tests, manual, NEWS; no engine, bridge or header change)
 rng: neutral (no existing draw moves; rbart_vi's own draws are new against both 0.9-34 and the tombstone)
 budget: ~3150 added lines, nearly all ported: R ~1900 (the 0.9-34 loop, its slice sampler and six methods after
@@ -309,4 +311,56 @@ M9. Weighted binary fits. Ruled refuse up front, maintainer 2026-09-28: "Refuse 
 9. No vignette change and no committed comparison harness. The vignette's own random-intercept example stays.
    The comparison numbers go in the landing note.
 
+10. Refusal test for "continuous or binary" reads the built `dbartsData`: a Surv response (its `survivalStatus`
+    attribute) or a multinomial count matrix is refused. Alternative: refuse from the formula, which would miss a
+    `dbartsData` passed as `formula`.
+11. The caller's random stream is restored by an `on.exit` in `rbart_vi`, so an error mid-fit restores it too, and by
+    NULL-safe helpers that also fix `packageRbartResults`, whose restore assigned NULL when no stream existed (an
+    error on the next draw). Alternative: restore on success only.
+12. D5 covers zero-weight rows: a group whose weights total 0 draws its intercept from the prior, where 0.9-34's
+    `mean` of an empty group gave NaN. A binary fit's 0/1 weights make a 0 row inert in the intercept draw.
+13. D3's new-level draws are not the same numbers in the combined and split layouts for one seed (each layout fills
+    its array in its own order); only the measured levels agree, and the scales follow each draw's own tau.
+14. The eight ported test files mark the deprecation key as warned at their top, so the suite's warning list is not
+    the deprecation repeated; test-rbart-port.R and test-tombstones.R reset it and count.
+15. The weighted-binary and Surv refusals are tested through direct calls; D2 is tested through direct calls too,
+    since `do.call` evaluates a symbol before `rbart_vi` sees it.
+16. TODO item rbart-vi-port is left in place until the landing record, since the plan says it is removed at landing.
+17. `predict` on an rbart fit with an unnamed matrix `newdata` passes through the 1.0 sampler's own
+    "'test' is unnamed but 'x' had named predictors" warning; not changed here.
+
 ## Landing
+
+### Landing note (2026-09-28, wt/rbart-port off 25911928, not pushed)
+
+What landed. Slice 1 (code and tests): `R/rbart.R` (1894 lines: `rbart_vi`, its loop and slice sampler, six methods
+and print, adaptations 1-12, fixes D1-D7, refusals M9 and adaptation 9, M1 as ruled (a)), the seven stubs deleted
+from `R/tombstones.R` with the registry rows kept and the header amended, `importFrom(stats, dcauchy, dgamma)`, the
+nine 0.9-34 test files ported (patterns added, groupby fits seeded, ranef snapshot dropped), `test-rbart-port.R`
+(421 lines, 51 expectations), and the live-function block in `test-tombstones.R`. 3350 added, 75 removed. Slice 2:
+`man/rbart.Rd` back with the Deprecated paragraph, print usage, bartBT pointer, data and weights notes and a
+`suppressWarnings` example; `dbarts-deprecated.Rd` reduced to a pointer; `_pkgdown.yml`; `inst/NEWS.Rd` (a
+deprecation item, the tombstone-list reword, seven BUG FIXES items, M1 and M9 in the deprecation item); the
+design and plan records, the review tour, and three design-doc sentences. 262 added, 48 removed.
+
+Gates, macOS arm64, R from this host, private library, tree at the slice 2 commit. Full tinytest suite: 9499
+expectations, 0 failures. `lintr::lint_package()`: 0 lints. `air format --check .`: clean. `check-rc-codoc.R`,
+`check-win-drift.R`, `check-doc-freshness.R`: exit 0. `pkgdown::check_pkgdown(".")`: no problems. NEWS parses,
+332 entries (325 before). `R CMD build` and `R CMD check --as-cran --no-manual` on the tarball of a clean copy:
+Status 1 NOTE, the Date field over a month old, present before this change; no WARNING. The 25 gates of
+exact-gates.yaml in quick mode: 25 of 25 pass (the loop only; the two cross-host compares need the reference
+build and were not run, and nothing under src/ changed). Mutation check: test-rbart-port.R's sections for D1, D2,
+D3, D5, D6, D7 and M9 fail against a build of 0.9-34 and pass on the port; the D4 section fails there in one
+expectation; the recovery and call-shape sections pass on both.
+
+Sister replay. stan4bart main's `nonlinearities are estimated well` rbart_vi call (probit, 100 rows, default
+1000/1000), read from main with git show and run from a scratch script against this library, seeds 1 to 4:
+test-set deviance 1.45, 1.41, 1.41, 1.42 on the port against 1.38, 1.40, 1.38, 1.40 on 0.9-34. Seed 1 differs by
+0.07, above the plan's 0.05, and all four sit far inside the test's own 1.35x slack. The plan's own spike numbers
+(1.44, 1.39, 1.40, 1.41 and 1.42, 1.44, 1.39, 1.43) used other seeds. stan4bart's bartcore branch has no rbart_vi
+call, so its tests were not run. bartCause and the six-seed tau comparison were not replayed.
+
+What the plan got wrong or left open. Slice 1 ran 3350 lines against about 2800, from air's formatting of the
+ported tests. Nothing else in the plan was wrong. Main's
+`test-rbart-weights.R` bare `expect_warning` would have passed on the deprecation warning alone; it now
+carries the pattern of the warning it means.

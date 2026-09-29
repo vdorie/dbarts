@@ -15,7 +15,9 @@ The R entry points. `bart` becomes the formula-first function that 0.9-34
 called `bart2`, with its defaults. The BayesTree-style function with
 0.9-34's argument names and defaults moves to `bartBT`. `bart2` stays as
 an alias of `bart`, removed in 1.1-0 if no CRAN package still calls it.
-`rbart_vi` is removed; grouped random effects are stan4bart's.
+`rbart_vi` stays for this release as 0.9-34's code, deprecated and warning once
+per session; grouped random effects are stan4bart's, and `rbart_vi` is removed in
+1.1-0.
 
 What the new engine adds, none of which 0.9-34 could fit: Student-t,
 logistic, ordinal, multinomial, negative binomial, log-normal accelerated
@@ -138,8 +140,8 @@ restoring 0.9-x); `run` takes no thread count (either spelling, or a fourth posi
 is ignored with a warning; `setControl` sets the count). `xbart` renames
 `sigma` to `sigest`, takes a two-element `n.burn`, and no longer carries a
 chain across folds, so reported losses rise. `rbart_vi` and its methods
-stop with an error naming stan4bart, except `print` on a saved rbart fit,
-which prints the call and a note. `dbarts`'s `node.prior` is spelled
+still run as in 0.9-34, with a once-per-session deprecation warning naming
+stan4bart, and are removed in 1.1-0. `dbarts`'s `node.prior` is spelled
 `leaf.prior`, and the sampler's `sampleNodeParametersFromPrior` is
 `sampleLeafParametersFromPrior`; the old names work until 1.1-0 with a
 once-per-session warning. `extract`, `predict` and `survivalProbabilities`

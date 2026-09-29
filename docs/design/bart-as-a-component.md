@@ -203,8 +203,9 @@ to run inline, and inline multi-chain runs them sequentially, so the hook sees
 chain c finish before chain c+1 starts.
 
 `bartcore_runWithCallback` ([`bartcore_runWithCallback`](../../src/R_interface_bartcore.cpp)) was the
-internal single-chain R hook behind rbart_vi's Gibbs loop; rbart_vi is
-retired and the hook is otherwise unused. It refuses more than one chain
+internal single-chain R hook that an earlier rbart_vi engine path used; the
+port of rbart_vi that runs in 1.0-0 drives the plain sampler from R and does
+not use it, so the hook is otherwise unused. It refuses more than one chain
 outright, hands the closure one argument - the 0-based sweep
 index - and carries no `GetRNGstate`/`PutRNGstate` bracket by design: the
 chain's generator never touches R's stream while the closure draws from it, so

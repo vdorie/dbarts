@@ -1,8 +1,10 @@
 # Retire grouped random intercepts
 
-Status: LANDED 2026-09-06 (1e5f80b2); the stan4bart tau-mixing bar and the
-bartCause group.by route remain release prerequisites, and revdep-smoke's
-bartCause leg is an accepted red until the second one lands
+Status: LANDED 2026-09-06 (1e5f80b2), reversed in part for 1.0-0: rbart_vi
+returns as a deprecated port of 0.9-34's R loop (rbart-vi-port.md); the
+stan4bart tau-mixing bar and the bartCause group.by route remain release
+prerequisites, and revdep-smoke's bartCause leg is an accepted red until the
+second one lands
 
 Remove grouped random intercepts from dbarts entirely - the engine-side
 retired: [`GroupedResponse`](../../src/bartcore/model.hpp) decorator and its tau block, the bridge that reaches
@@ -531,3 +533,12 @@ Three other things would reverse the decision itself, none of them true today:
   tau's lag-1 under 0.8, a package whose only home for a random intercept
   cannot draw that parameter is not a replacement, and the decision would have
   to be taken again on that fact.
+
+**Reversed in part (2026-09-28).** For 1.0-0 the tombstone half of this
+decision is replaced: `rbart_vi` and its methods run again, as 0.9-34's pure-R
+Gibbs loop over the plain sampler, warn once per session that they are
+deprecated in favour of stan4bart, and are removed in 1.1-0 with the rest of
+the tombstone registry. This is the "Keep the R loop, drop the engine path"
+alternative under "Considered and rejected". The engine path, the bridge and
+the two `dbarts_results` fields stay removed. Plan:
+[rbart-vi-port.md](../plans/rbart-vi-port.md).

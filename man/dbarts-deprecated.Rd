@@ -1,20 +1,13 @@
 \name{dbarts-deprecated}
 \alias{dbarts-deprecated}
 \alias{bart2}
-\alias{rbart_vi}
-\alias{predict.rbart}
-\alias{extract.rbart}
-\alias{fitted.rbart}
-\alias{residuals.rbart}
-\alias{plot.rbart}
-\alias{print.rbart}
 \title{Deprecated and Removed Functions in dbarts}
 \description{
   Names kept reachable for one release past their removal or rename, each pointing at its successor. They are removed in dbarts 1.1-0.
 
   \code{bart2} is the former name of the modern front door, which is now \code{\link{bart}}; a \code{bart2} call is forwarded unchanged, with a warning the first time in a session.
 
-  \code{rbart_vi} and its methods fit a grouped random-intercept BART model. That model now lives in the \pkg{stan4bart} package (\code{stan4bart::stan4bart}), whose prior on the group spread differs from the one dbarts drew from, so a refit moves the results rather than reproducing them. These stubs error, except \code{print}, which prints the stored call, as 0.9-x did, and a note naming \pkg{stan4bart}.
+  \code{rbart_vi} and its methods are deprecated, and documented on \code{\link{rbart_vi}}.
 }
 \details{
   The rest of the registry is names still reachable on entry points that keep their own page, rather than functions of their own: each is accepted for one release, mapped onto its successor with a once-per-session warning (or refused by name, where noted), and removed in dbarts 1.1-0.
@@ -69,28 +62,10 @@
 
   \code{control} on \code{\link{xbart}} is no longer a tombstone: both \code{bart} and \code{xbart} now take a \code{control = \link{dbartsControl}()} formal, reaching every setting neither door spells flatly, so the earlier retirement (which refused the argument outright) is reversed.
 
-  Every entry above, and \code{bart2} and the \code{rbart_vi} stubs, is one row of \code{dbarts:::dbartsTombstones}, the registry this page documents by hand.
-}
-\usage{
-rbart_vi(\dots)
-
-\method{predict}{rbart}(object, \dots)
-\method{extract}{rbart}(object, \dots)
-\method{fitted}{rbart}(object, \dots)
-\method{residuals}{rbart}(object, \dots)
-\method{plot}{rbart}(x, \dots)
-\method{print}{rbart}(x, \dots)
-}
-\arguments{
-  \item{object, x}{
-    An \code{rbart} fit object saved by dbarts 0.9-x.
-  }
-  \item{\dots}{
-    Ignored; the stubs do not run. \code{bart2}'s own arguments are \code{\link{bart}}'s, copied rather than restated - \code{formals(bart2)} is \code{formals(bart)} - so a caller reading the defaults programmatically still finds them.
-  }
+  Every entry above, \code{bart2} and \code{rbart_vi}, is one row of \code{dbarts:::dbartsTombstones}, the registry this page documents by hand.
 }
 \value{
-  \code{bart2} returns whatever \code{\link{bart}} returns. The \code{rbart_vi} stubs do not return, except \code{print}, which returns \code{x} invisibly.
+  \code{bart2} returns whatever \code{\link{bart}} returns.
 }
 \seealso{
   \code{\link{bart}}, \code{\link{bartBT}}

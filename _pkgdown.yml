@@ -54,6 +54,7 @@ reference:
     Names kept reachable for one release past their removal or rename.
   contents:
   - dbarts-deprecated
+  - rbart
 - title: Utilities
   contents:
   - dbarts-embedding

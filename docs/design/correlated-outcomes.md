@@ -79,7 +79,7 @@ cannot pre-whiten and hand the result to dbarts. Three routes:
   outer sampler draws u by FFBS/HMC and (rho, variances) conjugately; the dbarts
   step is an ordinary iid-error BART fit conditioned on u via setOffset(u) and
   the nugget sd via setSigma/fixed(). This mirrors the sweep loop dbarts's
-  retired rbart_vi used, with the random intercept replaced by an AR process
+  deprecated rbart_vi uses, with the random intercept replaced by an AR process
   (docs/design/grouped-random-effects.md records the precedent). Caveat: this is
   AR-1-PLUS-NUGGET (the measurement-error model BSTS/CausalImpact use), not pure
   AR-1 errors, and f/u compete for the residual (the mixing hazard
