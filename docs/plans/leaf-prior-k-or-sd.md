@@ -529,6 +529,10 @@ Departures from the plan:
   `k`/`first.k`, read by `extract(type = "sd")`.
 - `xbart` refuses a `k` inside `leaf.prior` beside an `sd` grid, as it
   refuses an `sd` there beside either grid.
+- `xbart`'s `sd` grid takes `invchi` entries as its `k` grid takes `chi`
+  ones, and a named sd with no grid is a one-cell `sd` axis.
+- After `setState`, the next re-anchor re-applies the model's latest written
+  sd, replacing the spread the installed state carried.
 - The unnamed-default rows of the mapping reach the engine with different
   inputs (no anchor against a named one), with identical draws; the k = 3
   rows are bitwise identical rather than a rounding apart.
