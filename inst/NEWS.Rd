@@ -6,7 +6,10 @@
     A summary of the changes that can break existing code or alter
     results; each is detailed under the other headings.
     \itemize{
-      \item dbarts now requires R 4.2.0 or newer; the sampler core is C++20.
+      \item dbarts now requires R 4.2.0 or newer, where 0.9-34 needed 3.1.0;
+            the sampler core is C++20, and its \code{concept} declarations
+            need a compiler newer than the gcc 8.3 of Rtools40, R's pre-4.2
+            Windows toolchain.
       \item Results differ from 0.9-x. The rewritten engine draws a different
             stream, and several corrections move the posterior itself: the
             tree change move now satisfies detailed balance, the initial
@@ -46,7 +49,10 @@
             \code{k = chi(1.5, Inf)} for the old prior. \code{xbart} takes the
             same per-family default: fixed \code{k = 2} for a continuous
             response and \code{chi(1.5, 2)} for a binary one, matching
-            \code{bart}'s own (see the \code{xbart} entry below).
+            \code{bart}'s own (see the \code{xbart} entry below). The proper
+            default centers the sampled \code{k} near the field-standard
+            fixed value of 2 (prior median 1.9) while still adapting to the
+            data; seeded default binary fits draw differently.
       \item Sampler states saved by earlier versions cannot be restored;
             refit anything you need to continue.
       \item A \code{dbartsData} object saved by an earlier version keeps the
@@ -104,10 +110,11 @@
             0.9-34's row rule, dropping an incomplete row rather than
             modelling it. An
             \code{NA} in test predictors or \code{newdata} is an error
-            wherever the corresponding training column was complete: a split
-            rule learns a missing-direction route only where its own column
-            had training \code{NA}s, so such a value had no route to take and
-            was previously answered silently. Every \code{predict} method
+            wherever the corresponding training column was complete, naming
+            the column: a split rule learns a missing-direction route only
+            where its own column had training \code{NA}s, so such a value has
+            no route to take. 0.9-34 sent it down an arbitrary branch and
+            returned a prediction without a word. Every \code{predict} method
             and \code{survivalProbabilities} gain \code{na.action}:
             \code{na.pass} returns \code{NA} for such rows,
             \code{na.omit} drops any row with a missing value,
@@ -139,10 +146,10 @@
             multinomial under \code{family = "auto"}: \code{bart} fits
             \code{family = "multinomial"}, and \code{dbarts}, \code{xbart},
             and \code{bartBT} refuse it, naming
-            \code{bart(family = "multinomial")}. An ordered one is ordinal
+            \code{family = "multinomial"}. An ordered one is ordinal
             instead: \code{dbarts} and \code{bart} fit
-            \code{family = "ordinal"}, and the other two refuse it, naming
-            \code{bart(family = "ordinal")}. Passed
+            \code{family = "ordinal"}, and \code{xbart} and \code{bartBT}
+            refuse it, naming the family that does. Passed
             through the \code{x}/\code{y} interface either previously fit a
             continuous response on the integer level codes. An n x K
             matrix of three or more columns of non-negative whole numbers
@@ -185,7 +192,11 @@
       \item \code{xbart} renames
             \code{sigma} to \code{sigest}; \code{sigma} is still accepted
             for one release, with a once-per-session warning (tombstone
-            list, below). \code{n.cuts},
+            list, below); \code{dbarts(sigma = )} is renamed the same way,
+            matching \code{bart} and \code{bartBT}, and
+            \code{dbartsData}'s own \code{sigma} slot is unchanged - it is
+            not an entry point, and stan4bart writes it directly.
+            \code{n.cuts},
             \code{useQuantiles}, and \code{n.thin} are ordinary formals,
             spelled and defaulted exactly as \code{dbartsControl}'s own.
             \code{n.burn} takes two values rather than three: the
@@ -338,7 +349,7 @@
             level codes.
       \item For one release, \code{bart}, \code{dbartsControl} and
             \code{xbart} gain \code{\dots} so a 0.9-x argument name reaches a
-            message naming its successor rather than R's own
+            message naming its successor rather than a bare
             \dQuote{unused argument} error. On \code{bart}, a name from
             \code{bartBT}'s own formals that \code{bart} does not itself
             take (\code{x.train}, \code{y.train}, \code{x.test},
@@ -421,7 +432,7 @@
             \code{seed}, and everything on \code{dbartsSpec} and
             \code{dbartsValidateComposition} - NA is refused, naming NULL,
             as it is for \code{nbinom}'s \code{dispersion}, the leaf
-            priors' \code{sd} and \code{scale}, and \code{dart}'s
+            priors' \code{sd}, and \code{dart}'s
             \code{rho} and \code{update.delay}. The retired \code{sigma}
             and \code{rngSeed} keep reading an NA as no value, under their
             own warning.
@@ -436,21 +447,13 @@
             argument named in the call wins over the control's slot of the
             same name, and a slot the control speaks for wins over the
             door's own default. A control carrying a fitted sampler's
-            state is refused by name. This reverses \code{xbart}'s earlier
-            retirement of \code{control} (above); the retired-control
-            tombstone and its refusal are removed.
+            state is refused by name.
       \item \code{\link{dbartsControl}} gains a \code{proposal.probs}
             formal and slot, the tree-move mixture moved off
             \code{dbartsModel} (successor of \code{bart}'s and
             \code{dbarts}'s own retired \code{proposal.probs}, above); its
             default, validity rule, and meaning are unchanged, and it can
             be changed between runs through \code{setControl}.
-      \item \code{dbarts(sigma = )} and \code{xbart(sigma = )} are
-            renamed \code{sigest}, matching \code{bart} and \code{bartBT};
-            \code{sigma} is still accepted for one release (tombstone,
-            above). \code{dbartsData}'s own \code{sigma} slot is
-            unchanged - it is not an entry point, and stan4bart writes it
-            directly.
       \item \code{dbarts(node.prior = )} is renamed \code{leaf.prior}, the name \code{bart} and
             \code{xbart} take it under too, and the sampler's
             \code{$sampleNodeParametersFromPrior} is
@@ -478,6 +481,8 @@
             \code{dbarts}, \code{dbartsSpec}, or \code{xbart}: the
             ten-million-row hazard expansion cap is \code{hazard()}'s own
             \code{max.rows} default.
+            \code{gaussian()} takes no \code{link}, dbarts fitting the
+            identity only, and refuses one by name.
             Base R's family objects are accepted as \code{glm} takes them:
             \code{stats::gaussian()} and \code{binomial(link = "probit")} or
             \code{"logit"} map to the gaussian, probit and logistic
@@ -776,8 +781,8 @@
             fitting function runs on it. Fits are not draw-for-draw
             identical to the pre-1.0 engine's, and the corrections listed
             under BUG FIXES move the posterior itself, so seeded results
-            change. \code{bart} keeps its
-            historical behavior apart from the engine (indicator
+            change. \code{bartBT} keeps
+            0.9-34's behavior apart from the engine (indicator
             expansion of factors, probit for binary responses).
             \code{dbartsControl} loses the \code{rngKind} and
             \code{rngNormalKind} arguments; explicit generator kinds were a
@@ -840,7 +845,7 @@
             or single-threaded, and otherwise, absent an explicit
             \code{rngSeed}, seeded chains from the clock).
       \item \code{family} is a new argument on \code{dbarts}, \code{bart},
-            \code{bart}, and \code{xbart}, and the new
+            and \code{xbart}, and the new
             \code{dbartsSpec} takes it too, each over the tokens it can fit.
             \code{"auto"} keeps
             the existing dispatch (gaussian for continuous responses, probit
@@ -935,8 +940,8 @@
             (\{1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 50\}) under a
             renormalized
             \eqn{\mathrm{gamma}(2, 0.1)}{gamma(2, 0.1)} prior; supplying
-            \code{dispersion} as a positive integer fixes it (v1 ships
-            the exact integer envelope, so a real fixed \code{dispersion}
+            \code{dispersion} as a positive whole number fixes it (v1 ships
+            the exact integer envelope, so a fractional \code{dispersion}
             is refused). The dispersion in force at each draw is a
             first-class channel: \code{run()} gains a \code{dispersion}
             element, shaped exactly as \code{sigma}, which is how
@@ -1079,6 +1084,23 @@
             are not the training rows, so no resident offset describes them -
             and passing the training offset back at the training rows
             reproduces \code{yhat.train}.
+            \code{bart} and \code{dbarts} take a multinomial \code{offset}
+            (and \code{offset.test}) as an observation by category matrix
+            entering each category's linear predictor before the softmax;
+            a vector is refused by name, since a common per-observation
+            shift is the softmax's own null direction, and so is a matrix
+            \code{offset} beside \code{test} without \code{offset.test}.
+            \code{dbartsData} gains a \code{counts} argument for the n x K
+            response (or, for the single-trial case, a factor, character
+            or integer-code vector, one-hot expanded), with the shifts
+            riding a matrix \code{offset}/\code{offset.test} paired with it
+            - refused on any other data object - so a sampler re-created
+            from its own (control, model, data) triple after
+            \code{storeState} and \code{\link{save}}/\code{\link{load}}
+            carries its response and offsets; \code{data@y} holds the
+            trials the counts imply, and \code{dbartsSpec} reaches the same
+            family. A DART \code{tree.prior}, \code{split.probs},
+            \code{monotone}, and \code{variance} are refused by name.
       \item Robust (Student-t) residuals: \code{family = student(df)}
             in \code{dbarts}, \code{bartBT}, and \code{bart} fits a
             continuous gaussian response with outlier-robust Student-t
@@ -1217,6 +1239,24 @@
             \code{$setControl} carries a sampler's model-configuration
             attributes forward, so a multi-forest structure or a variance
             forest survives a control swap.
+      \item A \code{\link{forest}} call written inside a
+            \code{\link{bart}}/\code{\link{dbarts}} formula declares a
+            second, amplitude-coupled forest without a separate
+            \code{forests =} list: \code{z:forest(x1 + x2)} and
+            \code{factor(z):forest(x1 + x2)} modulate the forest by
+            \code{z}, a \code{(a + b):forest(x1)} compound operand (numeric
+            or logical members only) gives it a two-column basis, and
+            \code{forest(x1 + x2, basis = ~ z)} is the general named form
+            the sugar rewrites to; \code{z * forest(x1)} is refused, naming
+            both explicit spellings. Inside a term \code{forest()}'s unnamed
+            slot is the split-variable set, symbolically, rather than
+            \code{basis}. Every other shape - a term outside a top-level
+            additive position or a \code{:} operand, a family the
+            multiplier model does not support, \code{test} on a term-bearing
+            formula, both a sugar and an explicit \code{basis =}, and a
+            \code{forests =} argument alongside a term - is refused by name.
+            \code{bart} gains no \code{forests =} formal; the formula term
+            is its only route to a second forest.
       \item Interaction and block constraints restrict which predictors may
             jointly shape the fit. The new \code{interactions} argument of
             \code{dbarts} and \code{bart}, built with \code{\link{interactions}},
@@ -1366,8 +1406,8 @@
       \item \code{tree.prior = dart(...)} runs DART (Linero 2018), a Dirichlet
             prior over the split-variable probabilities inducing variable
             selection, with optional sampling of the concentration;
-            \code{split.probs} instead sets fixed, non-uniform variable
-            weights. Runs return the per-sample probabilities alongside
+            \code{tree.prior = cgm(split.probs = )} instead sets fixed,
+            non-uniform variable weights. Runs return the per-sample probabilities alongside
             the variable counts, as \code{varprobs} in the sampler's results
             and on \code{bart} fits.
       \item Two ways to start a forest other than a fresh draw from the
@@ -1438,26 +1478,26 @@
             level; such a rule's \code{value} is \code{NA}, as it has no
             scalar cut point. \code{plotTree} labels categorical rules with the
             levels sent down the left branch.
-      \item Missing values in the predictors are supported. Unconditionally
-            on \code{dbarts}, \code{dbartsData}, \code{bart}, and
+      \item Missing values in the predictors are supported. On
+            \code{dbarts}, \code{dbartsData}, \code{bart}, and
             \code{xbart}, every split rule learns a direction for missing
             values of its variable, so an \code{NA} observation follows
             that rule's chosen branch (Missingness Incorporated in
-            Attributes; Twala et al. 2008). The route is learned per
-            column, and only where that column's training values were
-            missing: an \code{NA} in test predictors or \code{newdata} is
-            refused, naming the column, wherever that column was complete
-            in training. The response, weights, and offset must
-            be complete, and predictor columns cannot be entirely
-            missing; both interfaces previously dropped incomplete rows
-            silently.
+            Attributes; Twala et al. 2008); the first three take
+            \code{na.action}, defaulting to \code{\link{na.keepPredictors}}
+            (see UPGRADING). The route is learned per column, and only where
+            that column's training values were missing: an \code{NA} in
+            test predictors or \code{newdata} is refused, naming the column,
+            wherever that column was complete in training, where 0.9-34 sent
+            it down an arbitrary branch and predicted silently. Weights and
+            offset must be complete, and predictor columns cannot be
+            entirely missing.
             \code{getTrees} gains, where a predictor carried training
             \code{NA}s, a \code{missing}
             column reporting each rule's missing route, and \code{plotTree}
-            appends it to rule labels. \code{bart}
-            refuses missing data outright, where it previously dropped the
-            incomplete rows silently. On complete data the new default draws
-            exactly as \code{missing = "error"} does.
+            appends it to rule labels. \code{bart} takes no
+            \code{missing} argument, since a kept row's missing predictors
+            are always modelled.
       \item Sparse predictor matrices: the x/y interfaces of
             \code{dbarts}, \code{dbartsData}, \code{bartBT}, \code{bart},
             and \code{xbart} accept a \code{Matrix::dgCMatrix}. Columns
@@ -1580,20 +1620,6 @@
             working and, as in 0.9-x, resolve against dbarts' own vocabulary
             inside those arguments, so attaching packages that export
             \code{normal} or similar cannot change their meaning.
-      \item The binary default for \code{k} - used by \code{dbarts},
-            and \code{bart} when \code{k} is left unspecified - is now
-            the proper \code{chi(1.5, 2)} rather than the improper 0.9-x
-            default, spelled \code{chi(1.25, Inf)} there and, under the
-            corrected degrees-of-freedom count listed under BUG FIXES, the
-            same law as \code{chi(1.5, Inf)} now. It centers the sampled
-            \code{k} near the field-standard fixed value of 2 (prior median
-            1.9) while still adapting to the data. \code{chi()}'s own
-            defaults move with it, from \code{chi(1.25, Inf)} to
-            \code{chi(1.5, 2)}, so a bare
-            \code{chi(df)} call is proper unless \code{Inf} is passed
-            explicitly. Pass \code{k = chi(1.5, Inf)} for the
-            old prior; seeded default binary fits otherwise draw
-            differently.
       \item The leaf prior can be named by its spread, on the family's own
             scale, rather than inherited from the range of the vector the
             sampler happened to be constructed on:
@@ -1675,15 +1701,9 @@
             a generic that plots a tree from any kept fit - \code{bart} and
             the multinomial, ordinal, count, and hurdle
             classes - without the caller reaching into the sampler
-            stored on it. \code{bart} defaults to
-            \code{combineChains = TRUE}: a multi-chain fit's draw channels
-            arrive with the chain and sample margins already merged,
-            matching what \code{summary} and most
-            downstream consumers expect without a reshape;
-            \code{combineChains = FALSE} keeps them separate, as the
-            previous default did. Finally, MCMC runs are now
+            stored on it. Finally, MCMC runs are now
             interruptible: pressing \code{Ctrl-C} during a \code{bart},
-            \code{bart}, \code{xbart}, or sampler
+            \code{xbart}, or sampler
             \code{run} stops it between iterations - joining any worker
             threads first - and returns to the prompt with an error,
             instead of deferring the interrupt until the whole run
@@ -1701,9 +1721,10 @@
             implementation carried chains between
             splits whose held-out rows the previous training set contained,
             letting a slowly mixing setting - a small ensemble especially -
-            score against data it had effectively seen. Parallelism is a
-            \pkg{parallel} cluster over replications, and results are
-            reproducible for a fixed \code{seed} and \code{n.threads}.
+            score against data it had effectively seen. Work is distributed
+            over (replication, fold) units by \pkg{parallel} workers, and a
+            fixed \code{seed} reproduces the results at any
+            \code{n.threads}.
       \item \code{predict}'s \code{n.threads} parallelizes for real, on every
             predict method (\code{bart}, \code{bartMultinomial},
             \code{bartOrdinal}, \code{bartNegbin}, \code{bartHurdle})
@@ -2016,32 +2037,6 @@
       \item A seeded \code{rbart_vi} call leaves the caller's random number
             stream as it found it, or absent if it was absent. The restore
             assigned a local variable and did nothing.
-      \item The \code{\link{predict.glm}} synonyms documented for \code{type}
-            work on the \code{bart} extended-family generics: \code{extract},
-            \code{fitted} and \code{predict} for \code{bartMultinomial},
-            \code{bartOrdinal} and \code{bartNegbin} fits take
-            \code{"response"} for \code{"ev"} and \code{"link"} for
-            \code{"bart"}, as the \code{bart} methods always have.
-            \code{type = "bart"} and \code{type = "forest"} on a multinomial
-            fit error naming the reason - a category's forest is a latent
-            whose level is reproducibly structured yet not identified, so the
-            identified content is the log-ratio of the reported
-            probabilities - on \code{predict} and \code{fitted} as well as
-            \code{extract}.
-      \item A refused state install no longer leaves a sampler holding a
-            live but unfitted engine. \code{getPointer}'s transparent
-            re-creation after save and load, and \code{setState} on a
-            sampler whose pointer has died, now bind the re-created engine
-            only once the state has installed into it; previously a refusal
-            left the empty engine in place, so the next \code{run} sampled
-            stumps and \code{storeState} overwrote the stored state with
-            them. A refused install leaves the object exactly as it was.
-      \item A leaf containing only observations of weight zero now counts as
-            empty for the tree-move vetoes, so no tree can keep a leaf that
-            no observation in the likelihood reaches. Previously such a leaf
-            was treated as occupied and drew its value from the prior. Fits
-            with no weights, or with strictly positive weights, draw exactly
-            as before.
       \item Trees drawn from the prior - by \code{sampleTreesFromPrior},
             \code{samplePriorPredictive}, the C API's
             \code{dbarts_sampler_sampleTreesFromPrior}, and the initial
@@ -2063,14 +2058,6 @@
             and the forest initializes to single-leaf trees with zero
             parameters, the one structure that stays legal whatever weights
             are restored afterward.
-      \item The sampler's \code{getSumsOfSquaredResiduals} method now returns
-            residual sums of squares on the original response scale as
-            documented; it previously descaled by a single factor of the
-            data range instead of its square. Binary responses report on
-            the latent scale.
-      \item A \code{weights} vector whose length matches neither the response
-            nor one is now an error for matrix and sparse inputs; it was
-            previously recycled silently. Scalars still broadcast.
       \item Prior arguments no longer evaluate against internal
             \code{control} and \code{data} bindings, which silently
             shadowed a caller's own variables of those names: in
@@ -2082,12 +2069,9 @@
       \item The \code{chi(df = nu)} hyperprior on \code{k} now samples
             a chi distribution with \code{nu} degrees of freedom as documented;
             its Gibbs update used a shape corresponding to \code{chi(2 * nu - 1)},
-            a dropped Jacobian in the k-squared transform. The binary
-            default is relabeled from \code{chi(1.25, Inf)} to \code{chi(1.5, Inf)},
-            which draws identically under the corrected shape, so seeded
-            default binary fits are unchanged; fits that set \code{k} to a
-            non-default \code{chi()} now draw the degrees of freedom requested
-            and their results change accordingly.
+            a dropped Jacobian in the k-squared transform. A fit that sets
+            \code{k} to a \code{chi()} now draws the degrees of freedom
+            requested, and its results change accordingly.
       \item The tree change move's acceptance now satisfies detailed
             balance. It previously omitted the proposal-density ratio, a
             defect inherited from the original CGM-lineage implementation,
@@ -2112,71 +2096,22 @@
             formula to \code{dbarts} or \code{bart}; the formula path now
             routes it the same way the x/y interface always has.
       \item Several inputs that previously failed with an unrelated low-level
-            error now raise a named one instead: a non-finite response
-            (previously "missing value where TRUE/FALSE needed"), zero-row
-            data ("subscript out of bounds"), and a non-positive \code{n.samples}
-            ("dim(X) must have a positive length"). A \code{newdata} variable
+            error now raise a named one instead: a non-finite response,
+            zero-row data, and a non-positive \code{n.samples}. A
+            \code{newdata} variable
             missing from the fit's predictors and sharing its name with a
             builtin function is now named in the error instead of reported as
-            "invalid type (builtin)". An unnamed-matrix \code{newdata} with
-            swapped columns now warns naming the assumed column mapping.
-      \item \code{$setPredictor} accepts transactional (rollback) updates
-            on BCF and multinomial samplers. A replacement is
-            installed only if no leaf of any tree of any forest of any
-            chain would empty; otherwise the whole change rolls back and
-            the call reports \code{FALSE}, exactly as on a single-forest
-            sampler.
-      \item The per-observation update session, including
-            \code{updatePredictorPerObservationJointly} and
-            \code{$setPredictor(forceUpdate = "partial")}, accepts BCF and
-            multinomial samplers. A row is installed only if it empties no
-            leaf of any tree of any forest of any chain, and the returned
-            mask reports which rows were.
-      \item A BCF sampler accepts a per-forest, per-observation weight,
-            so a caller can exclude rows from one forest's leaf
-            conditionals without excluding them from the model, via
-            the sampler's \code{$setForestWeights(forest, weights)}.
-            \code{forest} indexes from \code{1}, as
-            \code{$getLeafPrior} already does
-            (a Bayesian causal forest's treatment forest is
-            \code{2}). The weight does not ride the sampler's saved
-            state, so it is mirrored and reinstalled automatically
-            whenever \code{$getPointer} or \code{$setState}
-            re-creates the underlying engine.
-      \item \code{bart(family = "multinomial")} accepts an \code{offset}:
-            an observation by category numeric matrix, entering each
-            category's linear predictor before the softmax. A vector
-            \code{offset} is refused by name, since a common per-observation
-            shift is the softmax's own null direction and is identically
-            inert.
+            \dQuote{invalid type (builtin)}. An unnamed-matrix \code{newdata}
+            with swapped columns now warns naming the assumed column mapping.
       \item Probability vectors for the tree prior are validated with the
             standard \code{all.equal} tolerance instead of a hand-picked
             1e-10.
-      \item \code{$setResponse} and \code{$setData} check that the
-            replacement response lies in the family's support, as sampler
-            creation always has: 0/1 for \code{probit} and
-            \code{logistic}, an integer category index for
-            \code{ordinal}, and a finite non-negative integer count for
-            \code{nbinom}. A count response with a negative element
-            previously sized the dispersion kernel's histogram from it and
-            crashed the R session uncatchably; a binary or ordinal
-            response off its support previously drew latents against it
-            and returned silent garbage. The flat C API's
-            \code{dbarts_sampler_setResponse} takes the same rule.
-      \item The refusal to change case weights after creation names the
-            family that refuses - \code{probit}, \code{ordinal},
-            \code{aft} or \code{nbinom} support no weights at all, and
-            \code{logistic} weights are the observation counts its latents
-            were built from - instead of telling every one of them about
-            "a binary response".
-      \item \code{$getForestFits} and \code{$getForestVariableCounts}
-            index \code{forest} from \code{1}, matching
-            \code{$setForestWeights}, \code{$setForestBasis}, and
-            \code{$getLeafPrior} (a
-            Bayesian causal forest's treatment forest is \code{2});
-            \code{0} is refused rather than silently naming the
-            prognostic forest. The R5 sampler's forest index is
-            1-based everywhere.
+      \item \code{$setResponse} checks that a replacement
+            response for a \code{probit} sampler is 0 or 1, as sampler
+            creation always has. A response off that support previously drew
+            latents against it and returned silent garbage without an
+            error. The flat C API's \code{dbarts_sampler_setResponse} takes
+            the same rule.
       \item A whole-matrix \code{setPredictor} call (\code{column}
             missing) now carries column names onto the installed
             \code{sampler$data@x}: the replacement's own \code{dimnames}
@@ -2188,190 +2123,42 @@
             \code{\link{updatePredictorPerObservationJointly}}'s
             shared-column match - failed even on a sampler created with
             named columns.
-      \item \code{keepSampler} is honoured on the alternate-family
-            \code{bart} fits (\code{family = "multinomial"},
-            \code{"ordinal"}, \code{"nbinom"}, and \code{"hurdle.lognormal"}):
-            \code{keepSampler = TRUE} retains \code{$fit} even when
-            \code{keepTrees} is left \code{FALSE}. \code{keepTrees} still
-            also retains the saved forests \code{predict} replays through, and
-            ordinal's/nbinom's own \code{thresholds.raw}/\code{dispersion.raw}
-            channels.
-      \item \code{monotone} combined with an explicit
-            \code{proposal.probs = NULL} is treated the same as an omitted
-            \code{proposal.probs}, forced to the birth/death-only proposal
-            set the constraint requires.
-      \item \code{bart} now warns, by name, when a
-            supplied argument has no effect under the fit's resolved
-            family: the residual-scale trio \code{sigest}/\code{sigdf}/
-            \code{sigquant} off every fixed-scale family (\code{"probit"},
-            \code{"logistic"}, \code{"ordinal"}, \code{"nbinom"}, the
-            discrete-time hazard families, and \code{"multinomial"}).
-            Previously these arguments were
-            silently dropped. The warning is classed
+      \item \code{bart} now warns, by name, when a supplied \code{sigest}
+            has no effect because the fit's resolved family fixes the
+            residual scale (\code{"probit"}, \code{"logistic"},
+            \code{"ordinal"}, \code{"nbinom"}, the discrete-time hazard
+            families, and \code{"multinomial"}); 0.9-34 dropped it
+            silently. The warning is classed
             \code{dbartsFamilyGatedWarning} (itself a
             \code{dbartsWarning}), the package's first classed condition,
             so a caller can catch, mute with
             \code{suppressWarnings(classes = )}, or promote it with
             \code{options(warn = 2)} without matching on message text.
-            \code{bart} never emits it. Every warning the package raises
+            \code{bartBT} never emits it. Every warning the package raises
             now carries a class under \code{dbartsWarning} on this same
             pattern; each is documented on the help page of the function
             whose call raises it.
-      \item \code{bart}'s \code{factors}, \code{missing}, and
-            \code{proposal.probs} formals are now genuinely live: each is
-            resolved in \code{bart}'s own frame and always forwarded to
-            \code{dbarts}, rather than being dropped from the call (and
-            \code{dbarts}'s own default silently applying instead) whenever
-            the caller left it unsupplied. \code{proposal.probs}'s default
-            is now stated directly in the signature - the named vector
-            \code{c(birth_death = 0.6, swap = 0, change = 0.4,
-            perturb = 0, rule_gibbs = 0, birth = 0.5)} \code{dbarts} also
-            uses - rather
-            than \code{NULL}.
-            Every resolved
-            value already matched what applied before, so no fit's draws
-            change.
-      \item \code{bart} gains \code{storage} and
-            \code{updateState} formals, appended at the end of its
-            signature, spelled and defaulted exactly as
-            \code{\link{dbartsControl}}'s own; both already reached the
-            control silently through \code{\dots} and now do so as ordinary,
-            documented arguments. Previously an unknown name that happened
-            to match a \code{dbartsControl} formal was silently accepted
-            and forwarded; now only
-            \code{storage} and \code{updateState} are. Because
-            \code{updateState} is now a formal, the partial match
-            \code{u = } no longer resolves to \code{useQuantiles} there.
-      \item \code{dbartsControl}'s \code{rngSeed} argument and slot are
-            renamed \code{seed}, matching \code{dbarts}, \code{bart},
-            and \code{xbart}, which already spelled it that way; \code{dbarts}'s own convenience \code{seed} argument
-            (which overrides the control's) is unchanged. A direct
-            \code{dbartsControl(rngSeed = )} call now gets an
-            unused-argument error. A consumer that forwards its own
-            arguments through a \code{formals()}-derived accept filter -
-            stan4bart's \code{bart_args}, and CRAN packages such as WeightIt and
-            MatchIt that expose the dbarts surface the same way - drops a
-            user's \code{rngSeed} silently instead: the filter no longer
-            recognizes the name, so the seed is never forwarded and the fit
-            falls back to an unseeded stream.
       \item \code{bart} gains \code{tree.prior} and \code{leaf.prior}
             formals (\code{NULL} by default), taking the same full
-            \code{\link{dbartsPriors}} objects \code{\link{dbarts}} already
-            does: \code{leaf.prior = linear(columns = )} or \code{gp(...)}
+            \code{\link{dbartsPriors}} objects \code{\link{dbarts}} does:
+            \code{leaf.prior = linear(columns = )} or \code{gp(...)}
             leaf models, and - through \code{family = gaussian(sigma = )} -
             a \code{fixed(value)} residual prior, are now reachable from
             \code{bart}, not only from \code{dbarts}.
             Supplying one of these alongside a shorthand argument that would
-            otherwise help build the same prior is now an error naming both:
+            otherwise help build the same prior is an error naming both:
             \code{tree.prior} with any of \code{power}/\code{base}/
             \code{split.probs}; \code{leaf.prior} with \code{k}; the
             retired \code{resid.prior} with
-            \code{sigdf}/\code{sigquant}/\code{sigest}. Leaving both
-            \code{NULL} builds the priors from the shorthand arguments
-            exactly as before this change, so no existing call's draws move.
-            The residual prior joins the \code{sigest}/\code{sigdf}/
-            \code{sigquant} family-gating row: supplied under a
-            fixed-unit-scale family, it is silently overwritten with
-            \code{fixed(1)} regardless (unchanged engine behavior) and now
-            warns, classed \code{dbartsFamilyGatedWarning}, instead of
-            saying nothing. \code{tree.prior}/\code{leaf.prior} are honored
+            \code{sigdf}/\code{sigquant}/\code{sigest}.
+            \code{tree.prior}/\code{leaf.prior} are honored
             on every family, including both component fits of
             \code{family = "hurdle.lognormal"}. One more \code{bart}
             abbreviation stops working: \code{t=} (ambiguous between
-            \code{test} and \code{tree.prior}).
-      \item \code{xbart} loses its \code{control} argument; \code{n.cuts},
-            \code{useQuantiles}, \code{n.thin}, and \code{storage} become
-            ordinary formals instead, spelled and defaulted exactly as
-            \code{\link{dbartsControl}}'s own. A new \code{tree.prior} formal takes
-            the same \code{cgm}/DART objects \code{dbarts} does; unlike
-            \code{bart}'s, it does not collide with \code{power}/\code{base}
-            - they are \code{xbart}'s own swept grid, overriding a supplied
-            object's \code{power}/\code{base} every cell exactly as \code{k}
-            already overrides a supplied \code{leaf.prior}'s \code{k} - but
-            does collide with \code{split.probs}, which would
-            only duplicate it. Every default reproduces prior behavior;
-            \code{n.th=} no longer partial-matches \code{n.threads}.
-      \item \code{xbart}'s default \code{k}, when absent, now matches
-            \code{bart}'s own front-door default for the response type:
-            the fixed value 2 for a continuous response, and a swept
-            \code{chi(1.5, 2)} cell for a binary one. Binary responses
-            previously inherited \code{bart}'s Chi hyperprior held
-            rather than swept and drawn every sweep, so the \code{k}
-            axis collapsed to a single cell scored under a shrinkage
-            that moved within the fit. With \code{drop = FALSE}
-            the result carries the length-one \code{k} dimension those
-            fits omitted. Binary crossvalidations that name \code{k} are
-            unaffected, as is \code{bart}'s own binary default.
-      \item \code{bart}'s \code{split.probs} formal now
-            defaults to \code{NULL} rather than \code{1 / num.vars}; both
-            spellings already resolved to the same uniform prior, so this
-            is a default respelling with no change to any fit's draws.
-      \item \code{bart} gains \code{subset}, \code{storage}, and
-            \code{family} formals, appended at the end of its signature and
-            forwarded to \code{\link{dbarts}}; \code{subset} and
-            \code{storage} replace what \code{bart} already hardcoded
-            (\code{NULL} and \code{"double"} respectively), so no fit's
-            draws change by default. \code{family} is \code{c("auto",
-            "logistic", "aft")}, first-token default \code{"auto"} exactly
-            as before this formal existed; \code{bart} newly reaches
-            \code{family = "logistic"} and \code{family = "aft"} directly,
-            both packaging as an ordinary \code{"bart"} object. The four
-            own-class families - \code{"multinomial"}, \code{"ordinal"},
-            \code{"nbinom"}, and \code{"hurdle.lognormal"} - are refused by
-            \code{bart} BY NAME, naming the token and pointing to
-            \code{bart}, rather than falling through to
-            \code{\link{match.arg}}'s generic \dQuote{should be one of}
-            message. No existing \code{bart} abbreviation is affected.
-      \item A multi-forest fit built through \code{\link{dbarts}}'s
-            \code{forests =} now packages per-forest channels onto the
-            returned fit: \code{forestFits} (RESPONSE-scale raw totals,
-            trailing \code{forest1}..\code{forestK} margin), the ragged
-            \code{glue} amplitudes, and the expanded \code{bases}, which
-            together reconstruct the training fit (see \code{\link{bart}}'s
-            \sQuote{Value}). \code{extract(type = "forest", forest = ,
-            contribution = )} reads them, raw or as each forest's
-            contribution; refused by name on any other fit or with
-            \code{sample = "test"}. \code{extract(type = "trees")}'s own
-            \code{forest} argument - a single index, a vector, or the
-            default of every forest, stacked with a leading \code{forest}
-            column - reaches any of a multi-forest fit's saved trees,
-            forwarding to its sampler's \code{$getTrees}; \code{plotTree}
-            takes the same argument, required once there is more than one
-            forest.
-      \item A \code{\link{forest}} call written inside a
-            \code{\link{bart}}/\code{\link{dbarts}} formula declares a
-            second, amplitude-coupled forest without a separate
-            \code{forests =} list: \code{z:forest(x1 + x2)} and
-            \code{factor(z):forest(x1 + x2)} modulate the forest by
-            \code{z}, a \code{(a + b):forest(x1)} compound operand (numeric
-            or logical members only) gives it a two-column basis, and
-            \code{forest(x1 + x2, basis = ~ z)} is the general named form
-            the sugar rewrites to; \code{z * forest(x1)} is refused, naming
-            both explicit spellings. Inside a term \code{forest()}'s unnamed
-            slot is the split-variable set, symbolically, rather than
-            \code{basis}. Every other shape - a term outside a top-level
-            additive position or a \code{:} operand, a family the
-            multiplier model does not support, \code{test} on a term-bearing
-            formula, both a sugar and an explicit \code{basis =}, and a
-            \code{forests =} argument alongside a term - is refused by name.
-            \code{bart} gains no \code{forests =} formal; the formula term
-            is its only route to a second forest.
-      \item \code{bart(family = "multinomial")} refuses a DART
-            \code{tree.prior}, \code{split.probs},
-            \code{monotone}, and \code{variance} by name: the K-forest
-            engine copies only power/base/proposal-probability fields out
-            of the host sampler these resolve against, so none of the
-            four could be honored.
-      \item \code{bart}'s (and \code{dbarts}'s)
-            \code{offset.test} argument was documented as defaulting to
-            \code{NULL}; it has always defaulted to tracking \code{offset}
-            (a scalar, or a vector already matching the test row count, is
-            reused directly, any other length refused by name), matching
-            the \code{offset.test = offset} formal default. Documentation
-            only; no behavior changes.
-      \item \code{$getForestVariableCounts} names its rows from
-            \code{data@x}'s column names when the training matrix carries
-            them. \code{run()$varcount} is unaffected.
+            \code{test} and \code{tree.prior}). \code{xbart} takes a
+            \code{tree.prior} too, and there it does not collide with
+            \code{power}/\code{base}, which are \code{xbart}'s own swept
+            grid, but does collide with \code{split.probs}.
       \item \code{bart} now attaches \code{$weights} (and
             \code{$weights.test}, when given) to its returned fit,
             matching \code{bart}. Previously a
@@ -2382,107 +2169,10 @@
             name a call whose sample count thins to zero (e.g.
             \code{ndpost} smaller than \code{keepevery}), rather than
             faulting deep in the result-array reshape.
-      \item Every fit built through \code{bartBT}/\code{bart} with a
-            residual law (gaussian, student, aft) now records its scale
-            model (\code{$resid.scale}, \code{"constant"} or
-            \code{"forest"} for a heteroscedastic fit); binary fits carry
-            none. The posterior-predictive draw
-            (\code{extract(type = "ppd")}) refuses a \code{student()} fit
-            by name instead of silently drawing gaussian noise.
-      \item \code{xbart} now enforces the binary weight policy at the R
-            level, matching \code{dbarts}/\code{bart}
-            instead of falling through to the C bridge's own backstop. A
-            \code{family = "probit"} run with weights identically 1 is now
-            correctly treated as unweighted; previously it was refused,
-            since the bridge backstop that caught it has no such courtesy.
-            Other weighted probit calls, and non-integer-count
-            \code{family = "logistic"} weights, still refuse but now
-            report the message the other fitting functions use rather
-            than the bridge's own wording. A binary-family run whose
-            starting sigma cannot be estimated reports that same shared
-            message (\dQuote{unable to obtain a starting estimate of
-            sigma; provide one instead}) instead of a bare \code{lm}
-            error, and a residual prior supplied under a binary family
-            is now always overridden to \code{fixed(1)} rather than only
-            when left unsupplied.
-      \item \code{bart} and \code{xbart} now restore the
-            caller's \code{.Random.seed} when a call given a \code{seed}
-            argument errors partway through. Previously the error left
-            \code{.Random.seed} set from the fixed seed instead of the
-            caller's own stream; a successful call was already unaffected.
       \item Error and warning messages across the package now follow one
             consistent style (argument quoting, capitalization,
             punctuation, and refusal phrasing); their information content
             is unchanged.
-      \item \code{sampler$setWeights} and \code{sampler$setForestWeights}
-            now refuse an \code{NA} or \code{NaN} weight at the R surface by
-            the same guard (and, for \code{setForestWeights}, the same
-            guard as an infinite weight) that already refused a negative
-            one, matching the bridge's own validation. Previously an
-            \code{NA}/\code{NaN} case weight was still refused, but by a
-            separate check reporting \dQuote{'weights' cannot be NA}; an
-            infinite forest weight was not refused until the bridge, deep
-            inside an internal \code{tryCatch}.
-      \item \code{xbart} now refuses a non-positive \code{n.samples} by
-            name, as the other entry points do, instead of running a cell
-            with no draws and failing in the loss on an empty sample
-            matrix (\dQuote{'x' must be an array of at least two
-            dimensions}).
-      \item The starting \code{sigest} estimate warns when it falls back
-            to the marginal response sd because the predictor set has
-            sparse-backed columns (a \code{Matrix::dgCMatrix}, or a data
-            frame mixing dense columns with \code{Matrix::sparseVector}/
-            \code{dgCMatrix} ones).
-      \item A \code{Matrix::sparseVector} or \code{dgCMatrix} column named
-            in a \code{formula} refuses cleanly, the same guarded
-            message \code{\link{sparseFactor}} columns get.
-      \item Under \code{factors = "indicators"} - \code{bart}'s \code{x}/
-            \code{y} interface, \code{bart(factors = "indicators")}, and
-            \code{predict} on such a fit - a test factor declaring more
-            levels than the training one is now refused by name. The
-            expansion replays the training column's per-level table
-            positionally, and the extra levels indexed past the end of it:
-            whether the refusal fired at all depended on the values that
-            read back, so the same data could be rejected on one run and
-            silently fit on the next, with the undeclared levels' rows
-            carrying indicators no training row ever showed. Matrix columns
-            wider than the training design's are refused the same way, and
-            \code{makeModelMatrixFromDataFrame} refuses either directly when
-            handed a mismatching \code{drop} pattern. A test factor with
-            fewer levels is unaffected.
-      \item \code{dbarts} accepts \code{family = "multinomial"}, returning an
-            ordinary \code{\link{dbartsSampler}} over the K-category softmax
-            model, so a multinomial fit can be embedded in a larger sampler
-            rather than only fit once through \code{bart}. The response is
-            an n x K matrix of non-negative
-            integer counts, or - the single-trial case - a factor, character
-            or integer-code vector one-hot expanded to one. It rides the new
-            \code{dbartsData(counts = )} argument, with the per-category
-            shifts riding a matrix \code{offset}/\code{offset.test} paired
-            with it, so a sampler re-created from its own
-            (control, model, data) triple after \code{storeState} and
-            \code{\link{save}}/\code{\link{load}} carries its response and
-            offsets without further discipline. \code{data@y} holds the
-            trials \eqn{n_i}{n_i} the counts imply. \code{dbartsSpec} reaches
-            the same family, and a data object carrying counts resolves to it
-            from \code{family = "auto"}.
-      \item The sampler gains \code{$setCounts},
-            \code{$setCategoryOffset} and \code{$setCategoryTestOffset}, the
-            three multinomial response channels. n and K are fixed at
-            creation; each write mirrors
-            into the data object, so a re-created sampler carries it.
-            \code{$predict} takes the matching per-category offset, one row
-            per predicted row. Every channel the softmax gives no meaning to -
-            \code{$setResponse}, \code{$setOffset}, \code{$setWeights},
-            \code{$setSigma}, \code{$setData}, \code{$setModel},
-            \code{$setLeafPrior}, \code{$setForestWeights},
-            \code{$setForestBasis} and \code{$getFitsWithoutOffset} - is
-            refused by a message naming the capability, and the channel that
-            serves the caller instead where one exists. The predictor family
-            (\code{$setPredictor}, \code{$setCutPoints},
-            \code{$setTestPredictor}) and the global \code{$setActiveRows}
-            stay open; per-forest masking is permanently refused, since a
-            category's margin is a log-sum-exp over the other K - 1.
       \item Saved trees are now read oldest draw first, counting back from the
             store's write position, by \code{$predict}, \code{$getTrees}
             and \code{$printTrees}. 0.9-x walked the circular store in slot
@@ -2495,123 +2185,26 @@
             of padding the sample axis with slots nothing wrote, and one
             holding none is refused rather than answered with a constant
             surface. \code{bartBT} and \code{bart} fits were never affected.
-      \item \code{summary} has methods for \code{bart}'s
-            \code{"ordinal"}, \code{"nbinom"}, and \code{"hurdle.lognormal"}
-            fits. An ordinal fit's summary reports its thresholds, a
-            negative-binomial fit's its dispersion draws, and a hurdle
-            fit's both component fits' summaries under their own headers -
-            alongside whatever mean-function scale (\code{sigma}, \code{k})
-            each carries, exactly as \code{summary.bart}
-            already reports for a plain \code{bartBT}/\code{bart} fit.
-      \item \code{extract(fit, type = "trees", ...)} no longer corrupts its
-            own call. Passing \code{sample}, \code{combineChains},
-            \code{forest}, or \code{contribution} - none of which the
-            sampler's \code{getTrees} accepts - used to forward into
-            \code{getTrees} through R's partial argument matching: a
-            numeric \code{sample} silently filtered the returned trees to
-            the wrong posterior sample, \code{sample = "train"}/\code{"test"}
-            (and the equivalent positional call) died on an internal
-            \code{NA}, and the other two raised a raw
-            \code{unused argument}. Each is now refused by name, naming the
-            \code{chainNums}/\code{sampleNums}/\code{treeNums}/
-            \code{current}/\code{newdata} vocabulary \code{getTrees} does
-            accept.
-      \item \code{residuals(fit, sample = "train")} on a \code{bart} or
-            \code{bart(family = "hurdle.lognormal")}
-            fit no longer raises the raw R error
-            \code{formal argument "sample" matched by multiple actual
-            arguments}. \code{residuals} is always computed against the
-            training response, so a caller-supplied \code{sample} is now
-            refused by name instead of colliding with the fixed value
-            \code{residuals} itself passes to \code{fitted}.
-      \item \code{survivalProbabilities()} on a discrete-time hazard fit
-            (\code{bart(family = "hazard")} and its link aliases) works
-            whenever the training predictors carry column names - the
-            ordinary matrix-interface spelling. The re-expanded design's
-            appended period column is named \code{"period"} under the same
-            rule the training design used, on both the default (training)
-            and matrix \code{newdata} branches, so \code{predict}'s
-            column-name match accepts it, including a data.frame training
-            input once it is converted to a named matrix.
-      \item \code{bart} raises R's own \dQuote{unused argument} error on an
-            unrecognized name, as \code{dbarts}, \code{xbart} and
-            \code{dbartsSpec} do. 0.9-x's \code{bart2} raised its own
-            \dQuote{unknown arguments} error instead, so code matching that
-            message needs updating.
-      \item \code{bart}'s \code{family} argument refuses every one of
-            \code{bart}'s ten other-family tokens by name; every refusal
-            echoes the token as typed, never a resolved alias such as
-            \code{"hurdle.lognormal"} or the binary link a hazard token
-            remaps to.
-      \item A matrix \code{offset}/\code{offset.test} on \code{dbartsData}
-            installs the multinomial per-category shift when paired with
-            \code{counts}, and is refused (naming the shape supplied) on
-            any other data object; a flat \code{offset} on a
-            \code{counts}-carrying object is refused instead of silently
-            cancelling.
-      \item \code{dbartsData} (and every entry point built on it) now
-            refuses a survival (\code{Surv}) or multi-column response by
+      \item \code{bart} refuses an unrecognized name with an
+            \dQuote{unused argument} error naming it, as \code{dbarts},
+            \code{xbart} and \code{dbartsSpec} do. 0.9-x's \code{bart2}
+            raised an \dQuote{unknown arguments} error instead, so code
+            matching that message needs updating.
+      \item \code{dbartsData} now refuses a multi-column response by
             name instead of raising a false \dQuote{'x' must have the same
             number of observations as 'y'} - the response was being
             silently flattened column-major before the row count was
             compared.
-      \item A named \code{test} matrix whose column names do not cover a
-            named training design's is an error naming the columns it
-            lacks, where the mismatch previously warned and the columns
-            were then matched by position - silently pairing the wrong
-            predictors. An unnamed \code{test} against a named design still
-            matches by position, now warning with the mapping that match
-            assumes.
-      \item \code{monotone}'s per-element spelling does not accept the
-            undocumented abbreviations \code{"inc"} and \code{"dec"}
-            (\code{"0"}, the character form of the documented unconstrained
-            \code{0}, is accepted); matching the documented tokens is
-            case-insensitive, stated in \code{?dbarts} and
-            \code{?bart}.
-      \item \code{bart} and \code{xbart} share one
-            message refusing an \code{n.samples} that thins to zero draws;
-            \code{dbarts}/\code{dbartsControl} still accept it, for a
+      \item \code{bart} and \code{xbart} refuse an \code{n.samples} that thins
+            to zero draws by name, where 0.9-34 failed with
+            \dQuote{either number of burn-in or samples must be positive};
+            \code{dbarts} and \code{dbartsControl} still accept it, for a
             sampler driven by a host loop.
-      \item A \code{keepSampler} fit from \code{bartBT}, \code{bart},
-            or a \code{family = "hurdle.lognormal"} fit now
-            always carries \code{$n.chains}, not only when the sampler
-            itself was dropped.
-      \item \code{xbart} names a bad \code{family} before ingesting the
-            response rather than after, and refuses a non-scalar
-            \code{n.threads} by name instead of raising R's coercion error.
-      \item \code{names(fit)} on a \code{bartBT}/\code{bart} fit no longer
-            lists \code{yhat.test}/\code{s.train}/\code{s.test} when the fit
-            carries none of them, nor \code{binaryOffset} on a binary fit
-            given no \code{offset} (\code{bart}, whose \code{binaryOffset}
-            defaults to 0, always carries one). The elements were listed
-            with a \code{NULL} value before.
-      \item \code{extract}, \code{fitted}, \code{predict}, \code{residuals},
-            \code{plotTree}, and \code{survivalProbabilities} on a
-            \code{bart(family = "multinomial"/"ordinal"/"nbinom"/
-            "hurdle.lognormal")} fit refuse by name the
-            \code{\link{bart}}-family arguments they do not implement -
-            \code{extract(forest = )}, \code{fitted(sample = )} on a
-            hurdle fit, \code{residuals(type = )}, \code{summary(vars = )} on a
-            multinomial fit, and \code{forest}/\code{contribution} on
-            \code{fitted}, \code{residuals} and \code{predict}.
-            \code{extract}'s \code{combineChains} and
-            \code{fitted}/\code{predict}'s \code{ci.level} are honoured,
-            matching \code{\link{bart}}'s own generics; \code{plotTree} and
-            \code{survivalProbabilities} on these four classes refuse by
-            name, naming the sampler(s) that do carry the trees.
-            \code{predict}'s multinomial argument for the new-row
-            per-category shift is \code{offset}, matching
-            \code{predict.bart}'s own.
-      \item \code{extract(type = "loglik")} is available for the four
-            \code{bart} own-class families, each with a \code{plot} method
-            (\code{bartMultinomial}'s showing a second panel). See
-            \code{\link{bart}}'s \sQuote{Value} section for each
-            family's formula and shape.
       \item \code{extract(type = "trees")} on a fit with no saved trees
             but a kept sampler (\code{keepSampler = TRUE} without
             \code{keeptrees}/\code{keepTrees}) silently returned the
-            sampler's CURRENT trees, with no \code{chain}/\code{sample}
-            column, undocumented; this is \code{\link{plotTree}}'s own
+            sampler's CURRENT trees, with no \code{sample} column,
+            undocumented; this is \code{\link{plotTree}}'s own
             fallback and is kept, now disclosed under \code{\link{bart}}'s
             \sQuote{Extracting Trees}.
       \item The starting sigma estimate a linear fit gives \code{\link{dbarts}}
@@ -2623,59 +2216,26 @@
             of freedom previously returned an undefined estimate for the
             same reason; it now falls back to the marginal response sd,
             with a warning classed \code{dbartsSigmaFallbackWarning} (a
-            \code{dbartsWarning}), exactly as the existing sparse-predictor
-            fallback already did - classed
-            \code{dbartsSparseSigmaFallbackWarning}, itself a
-            \code{dbartsSigmaFallbackWarning} - and the fallback estimate
-            is floored the same way.
-      \item \code{plot.bart}, \code{plot.bartMultinomial},
-            \code{plot.bartOrdinal}, \code{plot.bartNegbin},
-            \code{plot.bartHurdle}, \code{plot.pd2bart}, and
+            \code{dbartsWarning}), and the fallback estimate is floored the
+            same way.
+      \item \code{plot.bart}, \code{plot.pd2bart}, and
             \code{\link{plotTree}} changed \code{par()} settings (layout,
             margins) without restoring them; each now saves and restores
             the caller's graphical parameters before returning.
-      \item \code{\link{bart}}, \code{bart}, and \code{\link{xbart}}
+      \item \code{\link{bart}} and \code{\link{xbart}}
             refuse a formula with no left-hand side
             (\code{~ x1 + x2}) instead of silently fitting an all-zero
             response; \code{\link{dbartsData}} keeps defaulting the
             response to zero, since a composed sampler's response can be
             set after creation.
-      \item \code{family = "ordinal"} requires a response that is a factor
-            or integer-valued.
-      \item The \code{n.threads} argument on every \code{predict} method
-            refuses a fractional value instead of silently truncating it,
-            matching its documented single-positive-integer contract.
-      \item \code{\link{pdbart}} and \code{pd2bart} refuse one of the
-            four own-class family fits
-            (\code{bartMultinomial}, \code{bartOrdinal}, \code{bartNegbin},
-            \code{bartHurdle}) by name, instead of the generic
-            \sQuote{'x.train' must be a matrix, data.frame, formula, fitted
-            bart model, or dbartsSampler} message.
       \item A formula \code{:} or \code{*} term (e.g. \code{y ~ x1 * x2})
             is refused by name at the point the formula is parsed, instead
             of dying inside \code{makeModelMatrix} with R's own
             \sQuote{undefined columns selected}; \code{poly()}, \code{ns()},
             \code{log()}, \code{.}, and \code{offset()} terms are
             unaffected.
-      \item \code{predict.bart} refuses an unrecognized
-            \code{offset.test} argument by name - the out-of-sample offset
-            formal on that method is \code{offset} - instead of silently
-            dropping it into
-            \code{\dots}.
-      \item Every \code{predict} method now refuses \code{value} by name;
-            any other name that is neither a
-            formal nor a recognized foreign one now warns - once per call,
-            naming every such argument and the method it reached, classed
-            \code{dbartsUnusedArgsWarning} (a \code{dbartsWarning}) -
-            instead of vanishing silently into \code{\dots}.
-      \item \code{Depends} now states \code{R (>= 4.2.0)}, where 0.9-34's
-            floor was \code{R (>= 3.1-0)}: the C++20 \code{concept}
-            declarations in the sampler's core need a compiler newer than
-            R's pre-4.2 reference Windows toolchain (Rtools40, gcc 8.3)
-            provides, so a pre-4.2 Windows toolchain cannot build the core
-            at all.
-      \item \code{\link{bart}} and \code{bart} no longer
-            drive \code{control@printEvery} to 0 under heavy thinning
+      \item \code{\link{bart}} no longer
+            drives \code{control@printEvery} to 0 under heavy thinning
             (\code{n.thin} greater than \code{printEvery}), which the
             sampler then refused, naming \code{printEvery} - an argument the
             caller may never have set; \code{printEvery} now floors at 1
@@ -2683,9 +2243,6 @@
             \code{printEvery = 0} directly (previously accepted as
             \sQuote{non-negative}, contradicting both the sampler and
             \code{\link{dbartsControl}}'s own documentation).
-      \item \code{dbarts_sampler_setVerbose}'s \code{printEvery = 0} is now
-            refused (\sQuote{printEvery must be at least 1}) instead of
-            dividing by zero inside the sampler's print condition.
       \item Gaussian case weights that are negative or not finite are now
             refused wherever weights are installed; a negative or non-finite
             weight would enter a leaf's sufficient statistics as a corrupt
@@ -2697,13 +2254,6 @@
             \code{ax_func_posix_memalign.m4}, which the build does not use;
             the remaining \code{m4} contributors' credited file lists are
             trimmed to the files still present.
-      \item \code{family = gaussian(sigma = fixed(value))} now follows its
-            documentation:
-            the residual standard deviation holds at \code{sqrt(value)}, at
-            creation and through \code{setModel} alike. The pre-1.0 engine
-            ignored the value at creation, holding sigma at its starting
-            estimate instead, and installed it as a standard deviation
-            (rather than a variance) in \code{setModel}.
       \item \code{xbart}'s weighted RMSE loss was not on the scale of the
             response, and \code{loss = "log"} on a continuous response now
             errors instead of silently computing RMSE. Folds now share the
@@ -2713,8 +2263,8 @@
             data and creation does not re-quantize per fold; numeric
             results shift accordingly.
       \item \code{predict(type = "ppd")} on a fit without \code{keepTrees}
-            now refuses by name, naming \code{keepTrees}, instead of
-            erroring \sQuote{invalid 'length.out' value}: without the saved
+            now refuses by name, naming \code{keepTrees}, instead of failing
+            with an unrelated error: without the saved
             trees the sampler replays only the current trees, one
             evaluation rather than one per posterior draw, which posterior
             predictive sampling needs. \code{extract(type = "ppd")} was
