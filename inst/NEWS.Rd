@@ -171,7 +171,7 @@
             list, below).
       \item A consumer that forwards its own arguments through a
             \code{formals()}-derived accept filter - stan4bart, WeightIt,
-            and MatchIt among them (listed under BUG FIXES) - that filters
+            and MatchIt among them - that filters
             on \code{dbartsControl}'s own formals rather than \code{bart}'s
             or \code{dbartsControl}'s \code{\dots} silently drops
             \code{rngSeed} instead of forwarding it as \code{seed}, so the
@@ -250,8 +250,8 @@
             lists \code{yhat.test}, \code{s.train} or \code{s.test} when the
             fit carries none of them, nor \code{binaryOffset} on a
             \code{bartBT} binary fit given no \code{offset} (\code{bart},
-            whose \code{binaryOffset} defaults to 0, always carries one)
-            (listed under BUG FIXES); those elements were previously listed
+            whose \code{binaryOffset} defaults to 0, always carries one);
+            those elements were previously listed
             with a \code{NULL} value. Code that checks for their presence via
             \code{names} rather than \code{is.null} must be updated.
       \item On \code{predict.bart}, \code{type} moves ahead of
@@ -263,7 +263,7 @@
             once per call, classed \code{dbartsUnusedArgsWarning} - on any
             other argument that is neither a formal nor a recognized
             foreign one, instead of silently discarding it into
-            \code{\dots} (listed under BUG FIXES).
+            \code{\dots}.
       \item These names, foreign to the method actually called, are refused
             by name instead of being silently discarded through
             \code{\dots}: \code{sample} on \code{predict.bart};
@@ -281,7 +281,8 @@
             \code{n.trees}, \code{n.burn}, \code{n.thin}, \code{n.cuts},
             \code{n.chains}, \code{n.threads}, \code{printEvery},
             \code{printCutoffs}, and \code{seed} on \code{dbartsControl}
-            and \code{bart}; \code{n.trees},
+            and \code{bart}; \code{n.threads} on every \code{predict}
+            method (1.5 ran on 0.9-34); \code{n.trees},
             \code{n.burn}, \code{n.thin}, \code{n.cuts}, \code{n.threads},
             \code{n.reps}, and, under \code{method = "k-fold"},
             \code{n.test} on \code{xbart}; and \code{bart}'s own lowercase
@@ -536,7 +537,9 @@
             response, \code{chi(1.5, 2)} for a binary one - so a default
             \code{xbart} call scores the model a default \code{bart} call
             fits; a binary crossvalidation's default cell therefore moves
-            off 0.9-34's \code{chi(1.25, Inf)} hyperprior. \code{xbart} also distributes
+            off 0.9-34's \code{chi(1.25, Inf)} hyperprior, and with
+            \code{drop = FALSE} its result now has a \code{k} dimension
+            (\code{chi(1.5, 2)}) where 0.9-34's had none. \code{xbart} also distributes
             (replication, fold) units across workers rather than
             replication ranges; each unit's sampler takes its seed off the
             call's seed through \code{control}'s seed slot, the dedicated
@@ -1765,7 +1768,10 @@
             \code{\link{summary.bart}} reports a
             per-variable posterior summary of a fit's scalar parameters
             (\code{sigma} and \code{k}), with split-\eqn{\hat{R}}{Rhat} and
-            bulk/tail effective sample size computed in the package.
+            bulk/tail effective sample size computed in the package; it
+            also has methods for ordinal, negative-binomial and hurdle
+            fits, reporting the thresholds, the dispersion draws, or both
+            component fits' summaries under their own headers.
             \code{\link{extract}} offers the same scalar parameters,
             chain-separated: \code{"sigma"}, \code{"k"}, and
             \code{"varcount"} on a \code{bart} fit, \code{"thresholds"} on
@@ -1929,6 +1935,10 @@
             evaluations took that path warns once, giving the share: the
             substitution is coherent but is not the model that was asked
             for, and nothing said so before.
+      \item Every fit built through \code{bartBT}/\code{bart} with a
+            residual law (gaussian, student, aft) records its scale model
+            in \code{$resid.scale}, \code{"constant"} or \code{"forest"}
+            for a heteroscedastic fit; binary fits carry none.
     }
   }
   \subsection{C API}{
@@ -2106,7 +2116,7 @@
       \item Probability vectors for the tree prior are validated with the
             standard \code{all.equal} tolerance instead of a hand-picked
             1e-10.
-      \item \code{$setResponse} checks that a replacement
+      \item \code{$setResponse} and \code{$setData} check that a replacement
             response for a \code{probit} sampler is 0 or 1, as sampler
             creation always has. A response off that support previously drew
             latents against it and returned silent garbage without an
@@ -2136,7 +2146,8 @@
             \code{options(warn = 2)} without matching on message text.
             \code{bartBT} never emits it. Every warning the package raises
             now carries a class under \code{dbartsWarning} on this same
-            pattern; each is documented on the help page of the function
+            pattern, except the one-release warnings for retired names,
+            which are plain warnings; each class is documented on the help page of the function
             whose call raises it.
       \item \code{bart} gains \code{tree.prior} and \code{leaf.prior}
             formals (\code{NULL} by default), taking the same full
@@ -2155,7 +2166,10 @@
             on every family, including both component fits of
             \code{family = "hurdle.lognormal"}. One more \code{bart}
             abbreviation stops working: \code{t=} (ambiguous between
-            \code{test} and \code{tree.prior}). \code{xbart} takes a
+            \code{test} and \code{tree.prior}), and \code{u=} no longer
+            resolves to \code{useQuantiles} now that \code{updateState} is
+            a formal; \code{n.th=} no longer partial-matches
+            \code{n.threads} on \code{xbart}. \code{xbart} takes a
             \code{tree.prior} too, and there it does not collide with
             \code{power}/\code{base}, which are \code{xbart}'s own swept
             grid, but does collide with \code{split.probs}.
@@ -2224,8 +2238,10 @@
             the caller's graphical parameters before returning.
       \item \code{\link{bart}} and \code{\link{xbart}}
             refuse a formula with no left-hand side
-            (\code{~ x1 + x2}) instead of silently fitting an all-zero
-            response; \code{\link{dbartsData}} keeps defaulting the
+            (\code{~ x1 + x2}); 0.9-34's \code{bart2} and \code{xbart}
+            failed by default with \dQuote{sigma estimate must be greater
+            than 0} and fit an all-zero response silently only when
+            \code{sigest} or \code{sigma} was given; \code{\link{dbartsData}} keeps defaulting the
             response to zero, since a composed sampler's response can be
             set after creation.
       \item A formula \code{:} or \code{*} term (e.g. \code{y ~ x1 * x2})
@@ -2276,6 +2292,48 @@
             \code{update} on it works. Previously the stored call held
             references such as \code{..1}, and \code{update} failed with
             \dQuote{..1 used in an incorrect context}.
+      \item A refused state install no longer leaves a sampler holding a
+            live but unfitted engine. \code{getPointer}'s transparent
+            re-creation after save and load, and \code{setState} on a
+            sampler whose pointer has died, now bind the re-created engine
+            only once the state has installed into it; previously a refusal
+            left the empty engine in place, so the next \code{run} sampled
+            stumps and \code{storeState} overwrote the stored state with
+            them. A refused install leaves the object exactly as it was.
+      \item A leaf containing only observations of weight zero now counts as
+            empty for the tree-move vetoes, so no tree can keep a leaf that
+            no observation in the likelihood reaches. Previously such a leaf
+            was treated as occupied and drew its value from the prior. Fits
+            with no weights, or with strictly positive weights, draw exactly
+            as before.
+      \item A multi-forest \code{bart} fit (a \code{forest()} formula term)
+            now packages per-forest channels onto the returned fit:
+            \code{forestFits} (RESPONSE-scale raw totals,
+            trailing \code{forest1}..\code{forestK} margin), the ragged
+            \code{glue} amplitudes, and the expanded \code{bases}, which
+            together reconstruct the training fit (see \code{\link{bart}}'s
+            \sQuote{Value}). \code{extract(type = "forest", forest = ,
+            contribution = )} reads them, raw or as each forest's
+            contribution; refused by name on any other fit or with
+            \code{sample = "test"}. \code{extract(type = "trees")}'s own
+            \code{forest} argument - a single index, a vector, or the
+            default of every forest, stacked with a leading \code{forest}
+            column - reaches any of a multi-forest fit's saved trees,
+            forwarding to its sampler's \code{$getTrees}; \code{plotTree}
+            takes the same argument, required once there is more than one
+            forest.
+      \item \code{bartBT} now attaches \code{$weights} (and
+            \code{$weights.test}, when given) to its returned fit.
+            Previously a weighted fit carried no \code{$weights}, so
+            \code{extract(type = "ppd")} silently computed an unweighted
+            predictive distribution. \code{bartBT} also now refuses by
+            name a call whose sample count thins to zero (e.g.
+            \code{ndpost} smaller than \code{keepevery}), where 0.9-34 failed
+            with \dQuote{either number of burn-in or samples must be
+            positive}.
+      \item A \code{keepSampler} fit from \code{bartBT} or \code{bart} now
+            always carries \code{$n.chains}, not only when the sampler
+            itself was dropped.
     }
   }
 }
