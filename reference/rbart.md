@@ -1,5 +1,13 @@
 # Bayesian Additive Regression Trees with Random Effects
 
+**Deprecated.** `rbart_vi` and its methods run the implementation from
+dbarts 0.9-x, kept for one release, and are removed in dbarts 1.1-0. A
+warning says so the first time `rbart_vi` is called in a session.
+Grouped random effects live in the stan4bart package
+(`stan4bart::stan4bart`), whose prior on the group spread differs from
+the one used here, so a refit there moves the results rather than
+reproducing them.
+
 Fits a varying intercept/random effect BART model.
 
 ## Usage
@@ -9,14 +17,12 @@ rbart_vi(
     formula, data, test, subset, weights, offset, offset.test = offset,
     group.by, group.by.test, prior = cauchy,
     sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
-    k = NULL, prior.scale = NA_real_,
+    k = 2.0,
     power = 2.0, base = 0.95,
-    split.probs = NULL,
-    dart = FALSE,
     n.trees = 75L,
     n.samples = 1500L, n.burn = 1500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
-    combineChains = TRUE,
+    combineChains = FALSE,
     n.cuts = 100L, useQuantiles = FALSE,
     n.thin = 5L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
@@ -26,10 +32,7 @@ rbart_vi(
     keepSampler = keepTrees,
     keepTestFits = TRUE,
     callback = NULL,
-    factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "aft"),
-    missing = c("incorporate", "error"),
-    storage = c("double", "single"), updateState = TRUE)
+    ...)
 
 # S3 method for class 'rbart'
 plot(
@@ -39,33 +42,29 @@ plot(
 fitted(
     object,
     type = c("ev", "ppd", "bart", "ranef"),
-    ci.level = NULL,
     sample = c("train", "test"),
     ...)
 
 # S3 method for class 'rbart'
 extract(
     object,
-    type = c("ev", "ppd", "bart", "loglik", "ranef", "trees"),
+    type = c("ev", "ppd", "bart", "ranef", "trees"),
     sample = c("train", "test"),
     combineChains = TRUE,
     ...)
 
 # S3 method for class 'rbart'
 predict(
-    object, newdata,
+    object, newdata, group.by, offset,
     type = c("ev", "ppd", "bart", "ranef"),
-    offset = NULL, weights = NULL,
     combineChains = TRUE,
-    ci.level = NULL,
-    n.threads,
-    ..., group.by)
+    ...)
+
+# S3 method for class 'rbart'
+residuals(object, ...)
 
 # S3 method for class 'rbart'
 print(x, ...)
-
-# S3 method for class 'rbart'
-residuals(object, type = "ev", ...)
 ```
 
 ## Arguments
@@ -73,16 +72,12 @@ residuals(object, type = "ev", ...)
 - group.by:
 
   Grouping factor. Can be an integer vector/factor, or a reference to
-  such in `data`. For `predict` and
-  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md),
-  supplied by name only - it follows `...` in the signature, so it is
-  never matched positionally; a missing one is refused, naming itself.
+  such in `data`.
 
 - group.by.test:
 
   Grouping factor for test data, of the same type as `group.by`. Can be
-  missing; when `test` is supplied without it, `group.by` is recycled
-  for it instead, with a warning (class `dbartsFallbackWarning`).
+  missing.
 
 - prior:
 
@@ -92,10 +87,7 @@ residuals(object, type = "ev", ...)
   `rel.scale` - the standard deviation of the response variable before
   random effects are fit. Built in priors are `cauchy` with a scale of
   2.5 times the relative scale and `gamma` with a shape of 2.5 and scale
-  of 2.5 times the relative scale. With a built-in prior and no
-  `callback`, the whole Gibbs sampler runs inside the engine on one
-  multi-chain sampler; a custom prior function runs the random effect
-  updates in R instead.
+  of 2.5 times the relative scale.
 
 - n.thin:
 
@@ -115,75 +107,22 @@ residuals(object, type = "ev", ...)
   which are collected and stored in the final object.
 
 - formula, data, test, subset, weights, offset, offset.test, sigest,
-  sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples,
-  n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles,
-  keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees,
-  keepCall, seed, keepSampler, factors, missing, storage, updateState:
+  sigdf, sigquant, k, power, base, n.trees, n.samples, n.burn, n.chains,
+  n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits,
+  printEvery, printCutoffs, verbose, keepTrees, keepCall, seed,
+  keepSampler, ...:
 
   Same as in
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md), with
-  one default difference: `keepTrees` defaults to `TRUE` here (`bart2`'s
-  default is `FALSE`). With `dart`, split probability samples appear as
-  `varprobs` on the fit. Unlike `bart2`, `rbart_vi` offers a reduced
-  `family` set (see below) with no logistic option, and does not accept
-  sparse (`Matrix::dgCMatrix`) predictors. `rbart_vi` runs its chains on
-  a process cluster when both `n.chains` and `n.threads` exceed 1:
-  `verbose` output is then disabled, with a warning (class
-  `dbartsIgnoredArgWarning`), since chains print out of order across
-  processes; and if the cluster cannot be started, or errors while
-  running, chains instead run one at a time in this process, with a
-  warning (class `dbartsThreadFallbackWarning`, a
-  `dbartsFallbackWarning`).
-
-- k:
-
-  As in [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md):
-  `NULL` (the default) uses the value 2 for continuous responses and the
-  `chi(1.5, 2)` hyperprior for binary ones; a supplied fixed value or
-  hyperprior overrides that default.
-
-- prior.scale:
-
-  As in [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md):
-  names the forest's leaf calibration in response units (the prior
-  standard deviation of \\f\\ at `k = 1`) instead of inheriting it from
-  the response range. The group intercepts' own prior is a separate
-  object and is unaffected. `NA` (the default) changes nothing.
-
-- family:
-
-  One of `"auto"`, `"gaussian"`, or `"aft"`. With `"auto"` (the default)
-  the response family is resolved as gaussian or probit from the
-  response, exactly as before this argument existed; a two-level factor,
-  logical, or two-level character response is also detected and fit as
-  probit (reporting the choice in a one-line message), while a factor
-  response with three or more levels is an error, since `rbart_vi`'s
-  random-effects model does not fit the multinomial family. `"gaussian"`
-  forces the continuous model. `"aft"` fits a grouped accelerated
-  failure time (AFT) log-normal survival model, \\\log T_i = f(x_i) +
-  \alpha\_{g\[i\]} + \sigma \epsilon_i\\ with \\\epsilon_i \sim N(0,
-  1)\\, adding random intercepts to the model of
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s
-  `family = "aft"`. The survival response enters through the formula's
-  left-hand side as a
-  [`survival::Surv`](https://rdrr.io/pkg/survival/man/Surv.html) object
-  (right-censoring only) or a two-column `cbind(time, status)` of the
-  event/censoring time and the 0/1 event indicator; a `Surv` response
-  selects `"aft"` on its own from `"auto"`, while a bare two-column
-  response needs `family = "aft"` explicitly. As in
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md),
-  `predict`, `extract`, and `fitted` then return the linear predictor
-  \\E\[\log T \mid x, g\]\\ on the LOG-TIME scale (never the time
-  scale), and
-  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
-  gives survival-probability draws that include the drawn intercepts.
-  Survival fits do not support `weights` or `subset` in this version,
-  and enter only through the formula interface. This vocabulary is
-  narrower than
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s by
-  design - a grouped random-effects model has no
-  multinomial/ordinal/nbinom/hurdle counterpart in this version; the
-  wider family set lives on `bart2`.
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md), except
+  `sigdf`, `sigquant`, `power` and `base`, which `bart` no longer takes
+  and which are as in
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md). `k`
+  is applied only when supplied; otherwise the defaults are those of
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). A
+  supplied `seed` is used for this call only: the caller's random number
+  stream is left as it was found. `weights` are precisions, so a row's
+  residual variance is \\\sigma^2 / w_i\\, and a binary response takes
+  only weights of 0 and 1; other weights are refused.
 
 - object:
 
@@ -196,60 +135,27 @@ residuals(object, type = "ev", ...)
 
 - type:
 
-  One of `"ev"`, `"ppd"`, `"bart"`, `"loglik"`, `"ranef"`, or `"trees"`
-  for the posterior of the expected value, posterior predictive
-  distribution, non-parametric/BART component, training log-likelihood
-  (`extract` only), random effect, or saved trees respectively. The
-  expected value is the sum of the BART component and the random
-  effects, while the posterior predictive distribution is a response
-  sampled with that mean. `"loglik"` evaluates the log-likelihood of
-  each training observation at each posterior draw, conditioning on the
-  drawn random intercepts as well as \\\sigma\\ (gaussian) or the fitted
-  probability (binary); when chains are combined the result is a
-  samples-by-observations matrix directly consumable by WAIC/PSIS-LOO
-  implementations such as those in the loo package; the chains-first
-  convention is kept, so a per-chain array (`combineChains = FALSE`,
-  dimension chains-by-samples-by-observations) is reordered to the
-  draws-by-chains-by-observations that `loo::relative_eff` expects with
-  `aperm(x, c(2, 1, 3))`. To synergize with
+  One of `"ev"`, `"ppd"`, `"bart"`, `"ranef"`, or `"trees"` for the
+  posterior of the expected value, posterior predictive distribution,
+  non-parametric/BART component, random effect, or saved trees
+  respectively. The expected value is the sum of the BART component and
+  the random effects, while the posterior predictive distribution is a
+  response sampled with that mean. To synergize with
   [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
-  `"response"` can be used as a synonym for `"ev"` and `"link"` can be
-  used as a synonym for `"bart"`. For additional details on tree
+  `"response"` can be used as a synonym for `"value"` and `"link"` can
+  be used as a synonym for `"bart"`. For additional details on tree
   extraction, see the corresponding subsection in
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
 
 - sample:
 
-  One of `"train"` or `"test"`, referring to the training or test
-  samples respectively. It is `extract`'s and `fitted`'s own argument,
-  and is refused by name on `predict`, whose stored train and test
-  channels are `extract`'s `sample` instead.
-
-- ci.level:
-
-  For `fitted` and `predict`, an optional single number in \\(0, 1)\\.
-  As in [`bart`](https://vdorie.github.io/dbarts/reference/bart.md):
-  `NULL` (the default) leaves each generic's own usual result alone -
-  `fitted`'s posterior mean, `predict`'s full array of posterior
-  samples - while a level returns a matrix of `est`, `ci.lower`, and
-  `ci.upper`, with the interval kind following `type`. Refused, by name,
-  on `residuals` - see
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
-  `ci.level` item for why.
+  One of `"train"` or `"test"`, referring to the training or tests
+  samples respectively.
 
 - x, plquants, cols:
 
   Same as in
-  [`plot.bart`](https://vdorie.github.io/dbarts/reference/bart.md).
-
-- ...:
-
-  Present on `plot`/`fitted`/`extract`/`predict`/`residuals` for S3
-  generic compatibility, but not silently discarded: a name foreign to
-  the method called is refused by name, and any other unrecognized name
-  warns (class `dbartsUnusedArgsWarning`). See
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
-  `...` item.
+  [`plot.bart`](https://vdorie.github.io/dbarts/reference/bartBT.md).
 
 ## Details
 
@@ -265,27 +171,26 @@ For binary outcomes the response model is changed to \\P(Y_i = 1) =
 \\g\[i\]\\ is the group index of observation \\i\\, \\f(x)\\ and
 \\\sigma_y\\ come from a BART model, and \\\alpha_j\\ are the
 independent and identically distributed random intercepts. Draws from
-the posterior of \\\tau\\ use an exact conjugate update for the built-in
-`cauchy` prior (a Makalic-Schmidt inverse-gamma scale mixture, two fixed
-inverse-gamma draws per sweep) and a slice sampler otherwise; the
-in-engine slice sampler for the built-in `gamma` prior steps out with a
-width tied to the prior's scale, while the R implementation used with
-custom priors determines its width from the curvature of the posterior
-at its mode. If that R implementation's rejection step cannot produce a
-sample within a fixed number of iterations, it falls back to the value
-it started from, so that draw does not move, with a warning (class
-`dbartsDrawFallbackWarning`, a `dbartsFallbackWarning`).
+the posterior of \\tau\\ are made using a slice sampler, with a width
+dynamically determined by assessing the curvature of the posterior
+distribution at its mode.
 
 ### Out Of Sample Groups
 
 Predicting random effects for groups not in the training sample is
 supported by sampling from their posterior predictive distribution, that
 is a draw is taken from \\p(\alpha \mid y) = \int p(\alpha \mid
-\tau)p(\tau \mid y)d\tau\\. For out-of-sample groups in the test data,
+\tau)p(\tau \mid y)d\alpha\\. For out-of-sample groups in the test data,
 these random effect draws can be kept with the saved object. For those
 supplied to `predict`, they cannot and may change for subsequent calls.
-Either way, a group level in `test`/`newdata` that `group.by` never took
-at fit time is warned about (class `dbartsUnmeasuredLevelsWarning`).
+
+### Data
+
+Data are handled as in dbarts 0.9-x and not as
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) does: a
+factor predictor is expanded to indicator columns, rows with missing
+values are dropped (`na.omit`), and the response must be continuous or
+binary.
 
 ### Generics
 
@@ -296,15 +201,8 @@ See the generics section of
 
 An object of class `rbart`. Contains all of the same elements of an
 object of class
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md), with one
-exception: `fit`, when present (`keepTrees`/`keepSampler` `TRUE`), is
-always a LIST rather than `bart`'s bare sampler object - a
-length-`n.chains` list of per-chain samplers on the general (custom
-`prior`/`callback`) fitting path, or a length-one list wrapping a single
-sampler that ran every chain together on the built-in-prior,
-no-`callback` path (the common case). `n.chains` is always present
-alongside it, whether or not `fit` is kept. `rbart_vi` also has the
-elements:
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md), as well as
+the elements:
 
 - ranef:
 
@@ -312,13 +210,7 @@ elements:
   posterior samples. The \\(k, l, j)\\ value is the \\l\\th draw of the
   posterior of the random effect for group \\j\\ (i.e. \\\alpha^\*\_j\\)
   corresponding to chain \\k\\. When `n.chains` is one or
-  `combineChains` is `TRUE`, the result is collapsed down to a matrix:
-  with \\m = \\`n.samples %/% n.thin` draws kept per chain, row \\r\\ is
-  chain \\1 + (r - 1) \\/\\ m\\'s draw \\1 + (r - 1) \\\\ m\\ - chain
-  1's whole run first, then chain 2's (chain-major), not interleaved
-  draw by draw. Every collapsed field the fit returns (`sigma`, `tau`,
-  `yhat.train`, ...) shares this row order, so row \\r\\ of one pairs
-  with row \\r\\ of another.
+  `combineChains` is `TRUE`, the result is a collapsed down to a matrix.
 
 - ranef.mean:
 
@@ -329,9 +221,8 @@ elements:
 
   Matrix of posterior samples of `tau`, the standard deviation of the
   random effects. Dimensions are equal to the number of chains times the
-  number of samples unless `n.chains` is one or `combineChains` is
-  `TRUE`, in which case it collapses to a vector in `ranef`'s
-  chain-major order (see above).
+  numbers of samples unless `n.chains` is one or `combineChains` is
+  `TRUE`.
 
 - `first.tau`:
 
@@ -340,15 +231,6 @@ elements:
 - `callback`:
 
   Optional results of `callback` function.
-
-For `print.rbart`, the fit itself (`x`), returned invisibly, printed the
-same way as `print.bart` (see
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)).
-
-## References
-
-Makalic, E. and Schmidt, D.F. (2016) A simple sampler for the horseshoe
-estimator. *IEEE Signal Processing Letters*, **23**(1), 179–182.
 
 ## Author
 
@@ -388,10 +270,11 @@ df$y <- y
 df$g <- g
 
 ## low numbers to reduce run time
-rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
-                     n.samples = 40L, n.burn = 10L, n.thin = 2L,
-                     n.chains = 1L,
-                     n.trees = 25L, n.threads = 1L)
+rbartFit <- suppressWarnings(
+    rbart_vi(y ~ . - g, df, group.by = g,
+             n.samples = 40L, n.burn = 10L, n.thin = 2L,
+             n.chains = 1L,
+             n.trees = 25L, n.threads = 1L))
 #> 
 #> Running BART with numeric y
 #> 
@@ -405,7 +288,8 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #>  scale in sigma prior: 0.003078
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  proposal probabilities: birth/death 0.50, swap 0.10, change 0.40; birth 0.50
+#>  level fibre gibbs step: auto
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 100
 #>  number of test observations: 0
@@ -417,39 +301,6 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (1: 100) (2: 100) (3: 100) (4: 100) (5: 100) 
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
-#> Running mcmc loop:
-#> total seconds in loop: 0.000296
-#> 
-#> Tree sizes, last iteration:
-#> [1] 2 2 3 2 2 2 2 2 1 3 2 2 3 2 2 2 4 3 
-#> 3 3 2 3 3 3 2 
-#> 
-#> Variable Usage, last iteration (var:count):
-#> (1: 6) (2: 3) (3: 2) (4: 8) (5: 3) 
-#> (6: 6) (7: 2) (8: 2) (9: 1) (10: 2) 
-#> 
-#> DONE BART
-#> 
-#> Running mcmc loop:
-#> total seconds in loop: 0.001388
-#> 
-#> Tree sizes, last iteration:
-#> [1] 2 2 2 2 3 2 2 2 3 2 2 2 4 2 2 3 2 3 
-#> 3 2 4 2 3 3 2 
-#> 
-#> Variable Usage, last iteration (var:count):
-#> (1: 7) (2: 5) (3: 4) (4: 5) (5: 3) 
-#> (6: 1) (7: 3) (8: 4) (9: 2) (10: 2) 
-#> 
-#> DONE BART
-#> 
-
-## with dart = TRUE, split-variable probabilities are sampled under a
-## Dirichlet prior, inducing variable selection
-rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
-                          n.samples = 40L, n.burn = 10L, n.thin = 2L,
-                          n.chains = 1L,
-                          n.trees = 25L, n.threads = 1L)
 #> 
 #> Running BART with numeric y
 #> 
@@ -463,7 +314,8 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #>  scale in sigma prior: 0.003078
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  proposal probabilities: birth/death 0.50, swap 0.10, change 0.40; birth 0.50
+#>  level fibre gibbs step: auto
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 100
 #>  number of test observations: 0
@@ -474,31 +326,5 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) (3: 100) (4: 100) (5: 100) 
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
-#> 
-#> Running mcmc loop:
-#> total seconds in loop: 0.000410
-#> 
-#> Tree sizes, last iteration:
-#> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 
-#> 1 2 3 2 3 2 4 
-#> 
-#> Variable Usage, last iteration (var:count):
-#> (1: 5) (2: 3) (3: 8) (4: 5) (5: 6) 
-#> (6: 3) (7: 1) (8: 2) (9: 2) (10: 4) 
-#> 
-#> DONE BART
-#> 
-#> Running mcmc loop:
-#> total seconds in loop: 0.001923
-#> 
-#> Tree sizes, last iteration:
-#> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 
-#> 1 3 2 2 2 2 2 
-#> 
-#> Variable Usage, last iteration (var:count):
-#> (1: 2) (2: 11) (3: 6) (4: 4) (5: 3) 
-#> (6: 2) (7: 3) (8: 2) (9: 0) (10: 1) 
-#> 
-#> DONE BART
 #> 
 ```

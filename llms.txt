@@ -260,14 +260,17 @@ Convergence summaries, and calibration of a sampler composed around one.
 
 Names kept reachable for one release past their removal or rename.
 
-- [`rbart_vi()`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-  [`predict(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-  [`extract(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-  [`fitted(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-  [`residuals(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-  [`plot(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
-  [`print(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+- [`dbarts-deprecated`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
+  [`bart2`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)
   : Deprecated and Removed Functions in dbarts
+- [`rbart_vi()`](https://vdorie.github.io/dbarts/reference/rbart.md)
+  [`plot(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
+  [`fitted(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
+  [`extract(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
+  [`predict(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
+  [`residuals(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
+  [`print(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
+  : Bayesian Additive Regression Trees with Random Effects
 
 ## Utilities
 
