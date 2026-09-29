@@ -539,7 +539,7 @@
             fits; a binary crossvalidation's default cell therefore moves
             off 0.9-34's \code{chi(1.25, Inf)} hyperprior, and with
             \code{drop = FALSE} its result now has a \code{k} dimension
-            (\code{chi(1.5, 2)}) where 0.9-34's had none. \code{xbart} also distributes
+            (\code{chi(1.5, 2)}) where 0.9-34 left that dimension unlabelled, shifting the \code{power} and \code{base} names one place and failing on a \code{power} or \code{base} grid. \code{xbart} also distributes
             (replication, fold) units across workers rather than
             replication ranges; each unit's sampler takes its seed off the
             call's seed through \code{control}'s seed slot, the dedicated
@@ -2173,16 +2173,6 @@
             \code{tree.prior} too, and there it does not collide with
             \code{power}/\code{base}, which are \code{xbart}'s own swept
             grid, but does collide with \code{split.probs}.
-      \item \code{bart} now attaches \code{$weights} (and
-            \code{$weights.test}, when given) to its returned fit,
-            matching \code{bart}. Previously a
-            weighted \code{bart} fit carried no \code{$weights}, so
-            the pointwise log-likelihood and \code{extract(type =
-            "ppd")} silently computed an unweighted likelihood or
-            predictive distribution. \code{bart} also now refuses by
-            name a call whose sample count thins to zero (e.g.
-            \code{ndpost} smaller than \code{keepevery}), rather than
-            faulting deep in the result-array reshape.
       \item Error and warning messages across the package now follow one
             consistent style (argument quoting, capitalization,
             punctuation, and refusal phrasing); their information content
@@ -2304,8 +2294,8 @@
             empty for the tree-move vetoes, so no tree can keep a leaf that
             no observation in the likelihood reaches. Previously such a leaf
             was treated as occupied and drew its value from the prior. Fits
-            with no weights, or with strictly positive weights, draw exactly
-            as before.
+            with no weights, or with strictly positive weights, are unaffected
+            by this change.
       \item A multi-forest \code{bart} fit (a \code{forest()} formula term)
             now packages per-forest channels onto the returned fit:
             \code{forestFits} (RESPONSE-scale raw totals,
