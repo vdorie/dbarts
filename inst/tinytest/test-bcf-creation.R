@@ -1268,3 +1268,51 @@ expect_error(
   ),
   "forest 2 has no 'basis'"
 )
+
+# --- dec-A109: the lone basis forest stays refused, and the refusal points at
+# the p + 1 forest form and linear() leaves ---
+expect_error(
+  dbarts(dbartsData(x, y, bases = list(zBasis)), control = control),
+  "forest(basis = ~ z1)",
+  fixed = TRUE
+)
+expect_error(
+  dbarts(dbartsData(x, y, bases = list(zBasis)), control = control),
+  "linear() leaves",
+  fixed = TRUE
+)
+
+# --- a data object whose bases are all NULL declares two basis-free forests,
+# refused as the forests = route refuses them ---
+expect_error(
+  dbarts(dbartsData(x, y, bases = list(NULL, NULL)), control = control),
+  "forest 2 needs a 'basis'"
+)
+expect_error(
+  dbartsSpec(dbartsData(x, y, bases = list(NULL, NULL, zBasis)), control),
+  "forest 2 needs a 'basis'"
+)
+
+# --- xbart and rbart_vi fit one forest: a data object carrying bases is
+# refused by name at any forest count ---
+for (basesArg in list(list(NULL, zBasis), list(zBasis))) {
+  basesData <- dbartsData(x, y, bases = basesArg)
+  expect_error(
+    xbart(basesData, n.samples = 5L, n.test = 2L, n.reps = 2L, n.threads = 1L),
+    "xbart() does not support a data object carrying 'bases'",
+    fixed = TRUE
+  )
+  expect_error(
+    suppressWarnings(rbart_vi(
+      basesData,
+      group.by = rep(1:2, length.out = n),
+      n.samples = 5L,
+      n.burn = 5L,
+      n.chains = 1L,
+      n.threads = 1L,
+      verbose = FALSE
+    )),
+    "rbart_vi() does not support a data object carrying 'bases'",
+    fixed = TRUE
+  )
+}

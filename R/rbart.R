@@ -275,6 +275,11 @@ rbart_vi <- function(
     eval(dataCall, envir = callingEnv)
   )
 
+  refuseBasesCarryingData(
+    data,
+    "rbart_vi()",
+    "rbart_vi fits a single forest"
+  )
   if (!is.null(attr(data, "survivalStatus")) || !is.null(data@counts)) {
     stop("'rbart_vi' fits a continuous or binary response only")
   }

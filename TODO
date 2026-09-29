@@ -61,16 +61,6 @@ items
     prog4 (0.1061, 0.1209) without the amplitude rescaling move
     (2026-09-24); it does not reach the tail regime this door names.
     research-open, decision-gated.
-  binary-kforest-k1-reachability: open K = 1 as a shipped multi-forest
-    configuration - one varying-coefficient forest with no prognostic
-    partner, which is VCBART's shape (D4 of
-    docs/design/model-space-survey.md). R/spec.R refuses numForests < 2
-    by design; the engine already takes K = 1, so opening it is a
-    bridge change (applyAmplitudeSpec) plus R and tests, NOT engine
-    work. Gated on ACCEPTANCE EVIDENCE: a new shipped configuration
-    owes its own, which is why
-    docs/plans/archive/binary-kforest-prior-default.md refused rather
-    than opened it.
   capi-unwind-protect: closed but for one arm. A host draw callback's R
     error is now caught at the callback itself, where R_UnwindProtect can
     still turn it into a C++ unwind, so the engine's run frames run their

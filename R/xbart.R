@@ -187,6 +187,11 @@ xbart <- function(
   # though the slab were n rows. Refused ahead of the family resolution below,
   # which resolves counts to multinomial from "auto"
   refuseCountsCarryingData(formula, "xbart()")
+  refuseBasesCarryingData(
+    formula,
+    "xbart()",
+    "xbart cross-validates single-forest models"
+  )
   refuseResponseFreeFormula(formula, "xbart()")
   data <- withMatrixResponseRestated("xbart()", family, eval(dataCall, evalEnv))
   # a Surv formula response silently becomes log(time) with the censoring

@@ -1726,6 +1726,22 @@ refuseCountsCarryingData <- function(formula, caller) {
   invisible(NULL)
 }
 
+# A data object carrying per-forest bases declares a multi-forest amplitude
+# model. The entry points that fit one forest (xbart cross-validates, rbart_vi
+# groups) cannot read it, and would otherwise ignore the bases or fail on the
+# reader shape, so they refuse it by name.
+refuseBasesCarryingData <- function(formula, caller, what) {
+  if (inherits(formula, "dbartsData") && !is.null(formula@bases)) {
+    stop(
+      caller,
+      " does not support a data object carrying 'bases'; ",
+      what,
+      " - fit a multi-forest model with dbarts()"
+    )
+  }
+  invisible(NULL)
+}
+
 # A one-sided formula (~ x1 + x2) names no response. dbartsData() defaults a
 # missing response to zeros, which is correct for a composed sampler whose
 # response is set later, but a fitting entry point runs the chain and returns

@@ -654,12 +654,11 @@ resolveSamplerSpec <- function(
     # carrying two bases resolves to one, and telling that caller they wrote
     # one basis would be false
     numForests <- length(data@bases)
-    # K = 1 is not a shipped configuration. Both creation routes reach here -
-    # the dbartsData(bases = ) one and the forests = one, whose declarations
-    # forestBasisDeclarations carries down at any length - so this is the
-    # single site the refusal is owed at. What a lone amplitude forest is
-    # missing is the second ensemble its amplitudes would distinguish it
-    # from.
+    # K = 1 is not a shipped configuration (dec-A109). Both creation routes
+    # reach here - the dbartsData(bases = ) one and the forests = one, whose
+    # declarations forestBasisDeclarations carries down at any length - so this
+    # is the single site the refusal is owed at. A varying-coefficient model
+    # is one forest per coefficient function, intercept included.
     if (numForests < 2L) {
       stop(
         "a multi-forest model needs at least two forests, and ",
@@ -669,12 +668,25 @@ resolveSamplerSpec <- function(
           "this call's 'basis' declarations resolve to "
         },
         numForests,
-        "; the amplitudes multiplying a forest's basis are what distinguish ",
-        "it from another forest, so one forest alone has nothing to be ",
-        "distinguished from. Declare a second - forests = list(forest(), ",
-        "forest(basis = ...)) is the two-forest spelling - or drop the basis ",
-        "for a single-forest model"
+        "; for varying coefficients declare an intercept forest plus one ",
+        "basis forest per covariate, forests = list(forest(), ",
+        "forest(basis = ~ z1), forest(basis = ~ z2)), or use a single ",
+        "forest with linear() leaves; otherwise drop the basis"
       )
+    }
+    # a forest past the first with no basis has nothing to distinguish it from
+    # the first; the forests = route refuses this in resolveForests, and the
+    # data route (bases = list(NULL, NULL)) never reaches it
+    for (index in seq_len(numForests)[-1L]) {
+      if (is.null(data@bases[[index]])) {
+        stop(
+          "forest ",
+          index,
+          " needs a 'basis': the amplitudes multiplying it are what ",
+          "distinguishes it from the first; give it a basis or drop it from ",
+          "the data object's 'bases'"
+        )
+      }
     }
     # the families the calibration map has a latent scale to state its node
     # scales against, and whose own parameter block is shown to interleave with

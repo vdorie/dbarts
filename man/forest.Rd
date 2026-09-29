@@ -125,6 +125,11 @@ forest(
     \code{$getLeafPrior(f)} and \eqn{B_f}{B_f} is \code{data@bases[[f]]},
     so the induced prior can be checked against what is in force rather than
     against what the call asked for. See the example below.
+    A lone forest carrying a \code{basis} is refused, the amplitudes being what
+    distinguish a forest from another. For varying coefficients declare an
+    intercept forest plus one basis forest per covariate,
+    \code{forests = list(forest(), forest(basis = ~ z1), forest(basis = ~ z2))},
+    or use one forest with \code{linear()} leaves.
   }
   \item{update.amplitude}{
     Whether this forest's amplitudes are redrawn each sweep, default
