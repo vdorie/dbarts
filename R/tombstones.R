@@ -605,6 +605,8 @@ forwardedSplitProbs <- function(expr, evalEnv) {
   if (!isDotsReference(expr)) {
     return(expr)
   }
+  # an expression that fails when forced runs a second time below, the cost
+  # evalInVocabulary also pays
   forced <- tryCatch(list(eval(expr, evalEnv)), error = function(e) NULL)
   if (!is.null(forced)) {
     return(forced[[1L]])
@@ -624,11 +626,7 @@ forwardedSplitProbs <- function(expr, evalEnv) {
 ## Evaluates 'expr' in 'writtenEnv' with the bindings of the vocabulary
 ## environment 'vocabEnv' laid over it.
 evalInVocabularyOver <- function(expr, writtenEnv, vocabEnv) {
-  env <- new.env(parent = writtenEnv)
-  for (name in ls(vocabEnv, all.names = TRUE)) {
-    assign(name, get(name, envir = vocabEnv), envir = env)
-  }
-  eval(expr, env)
+  eval(expr, vocabularyEnv(as.list(vocabEnv, all.names = TRUE), writtenEnv))
 }
 
 ## The retired flat 'resid.prior', resolved to an object: a bare constructor
