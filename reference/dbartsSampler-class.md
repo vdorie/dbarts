@@ -95,6 +95,8 @@ getForestVariableCounts(forest = NULL)
 # S4 method for class 'dbartsSampler'
 getLeafPrior(forest = NULL)
 # S4 method for class 'dbartsSampler'
+getK(forest = NULL)
+# S4 method for class 'dbartsSampler'
 setLeafPrior(leaf.prior, updateState = NULL)
 # S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL)
@@ -642,28 +644,28 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - forest:
 
   A single positive integer indexing the forests from `1`, or - for
-  `getForestFits`, `getForestAmplitudes`, `getForestVariableCounts`, and
-  `getLeafPrior` - `NULL` (the default on all four) for every forest,
-  stacked (see ‘Value’ for each reader's stacked shape). A single-forest
-  sampler's `NULL` read is bitwise its `forest = 1` read, so the default
-  costs nothing on an ordinary sampler. `setForestWeights` and
-  `setForestBasis` have no default: a writer names one target rather
-  than reading every one. `setLeafPrior` takes no `forest`: it is
-  refused on every multi-forest sampler, since a calibration map owns
-  those forests' scales, so the only forest it can write is a
-  single-forest sampler's own. A Bayesian causal forest's prognostic
-  forest is `1` and its basis forest `2`; `setForestWeights` and
-  `setForestBasis` are both refused on a sampler whose forests carry no
-  amplitudes, but not with the same message - `setForestWeights` names
-  the missing capability, while `setForestBasis` raises
+  `getForestFits`, `getForestAmplitudes`, `getForestVariableCounts`,
+  `getLeafPrior`, and `getK` - `NULL` (the default on all five) for
+  every forest, stacked (see ‘Value’ for each reader's stacked shape). A
+  single-forest sampler's `NULL` read is bitwise its `forest = 1` read,
+  so the default costs nothing on an ordinary sampler.
+  `setForestWeights` and `setForestBasis` have no default: a writer
+  names one target rather than reading every one. `setLeafPrior` takes
+  no `forest`: it is refused on every multi-forest sampler, since a
+  calibration map owns those forests' scales, so the only forest it can
+  write is a single-forest sampler's own. A Bayesian causal forest's
+  prognostic forest is `1` and its basis forest `2`; `setForestWeights`
+  and `setForestBasis` are both refused on a sampler whose forests carry
+  no amplitudes, but not with the same message - `setForestWeights`
+  names the missing capability, while `setForestBasis` raises
   `"forest index out of range"` - and `setForestBasis` accepts any
   forest of one that does. `getForestFits` and `getForestVariableCounts`
   accept `forest = 1` on any sampler - it selects the only forest - and
-  refuse only an out-of-range index. `getLeafPrior` is likewise served
-  on every forest of a multi-forest sampler, and its calibration-map
-  columns are that forest's own. `getTrees` takes the same
-  `forest = NULL` default, stacking every forest forest-major with a
-  leading `forest` column on a sampler with several forests or one
+  refuse only an out-of-range index. `getLeafPrior` and `getK` are
+  likewise served on every forest of a multi-forest sampler, and the
+  calibration-map entries are that forest's own. `getTrees` takes the
+  same `forest = NULL` default, stacking every forest forest-major with
+  a leading `forest` column on a sampler with several forests or one
   declared with `forests =`, and no such column on any other (see
   ‘Value’); it additionally accepts an integer vector of forest indices,
   each validated as a lone `forest` argument is here and stacked in the
@@ -1332,6 +1334,16 @@ For `getSigmas`, a numeric vector of length equal to the number of
 chains, giving each chain's current residual standard deviation on the
 original response scale.
 
+For `getK`, each chain's current `k`, the value `run()$k` records per
+draw, read without running, as `getSigmas` reports `sigma`: after a run
+it is bitwise the last draw. A fixed `k` repeats per chain, and a forest
+whose scale a calibration map sets reports 1. It is `k` whatever terms
+the prior was named in, relative to `getLeafPrior()$anchor`. A numeric
+vector of length equal to the number of chains at one forest, or, at the
+default `forest = NULL` on a multi-forest sampler, an n.forests x
+n.chains matrix; a single-forest sampler's `NULL` read is bitwise its
+`forest = 1` read.
+
 For `getDispersion`, the negative-binomial dispersion \\r\\ currently in
 force, a numeric vector of length equal to the number of chains, and
 `NULL` on every other family - the count analog of `getSigmas`. It is
@@ -1469,86 +1481,76 @@ trees and one draw, and it is the off-sample replay - which would have
 to hand back a level nothing identifies at rows the sampler never saw -
 that has no counterpart.
 
-For `getLeafPrior`, the leaf prior a forest currently runs under, in the
-terms it was named in, as a numeric matrix with one row per chain and
-the columns `prior.sd` (the forest total's prior standard deviation of
-the leaf model's own parameter, on the family's scale; see
-`normal(sd = )` in
-[`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
-`prior.sd.df` and `prior.sd.scale` (the `invchi` law that sd follows
-while `k` is drawn, a 0 scale for the improper limit, `NaN` when `k` is
-fixed), `prior.mean`, `k`, `k.has.hyperprior` (1 when this forest's `k`
-is drawn every sweep, in which case `prior.sd` moves every sweep while
-`prior.sd.scale` does not), `anchor` (the data's anchor `k` is relative
-to, so `k = anchor / prior.sd`; on a forest whose scale a calibration
-map owns - multi-forest and multinomial - it is instead the map's leaf
-scale in force, `k` being pinned at 1 there, so it equals `prior.sd`),
-`response.scale`, and `response.shift`. On a sampler whose leaf prior
-names an `sd`, `k` is that ratio rather than the engine's own `k`, which
-is relative to the named anchor; on any other it is the engine's,
-bitwise. Each value writes back in the same terms, at creation or
-through `setLeafPrior`: `normal(sd = prior.sd)`,
-`normal(sd = invchi(prior.sd.df, prior.sd.scale))`, or `normal(k = k)`.
-The leaf model rides as a `"leaf.model"` attribute, one of `"constant"`,
-`"monotone"`, `"linear"`, or `"gp"`, and what `prior.sd` is the sd of as
-a `"prior.sd.of"` attribute: `"leaf value"`, `"coefficient"` (linear,
-per standardized covariate) or `"amplitude"` (gp). At the default
-`forest = NULL`, every forest's reading is stacked with the forest
-margin appended LAST, n.chains x 14 x n.forests (bitwise the
-`forest = 1` read on a single-forest sampler) - the row margin here is
-the chain axis, so there is no row margin for the forest axis to sit
-behind, unlike the other three readers. The column dimnames and both
-attributes are carried from the first forest, since they are properties
-of the sampler rather than of any one forest.
+For `getLeafPrior`, the leaf prior a forest runs under, alone, as a
+named list: `leaf.prior`, the specification in the terms it was named
+in - a `normal()`, `linear()` or `gp()` object (see
+[`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md))
+carrying one of `k`, a number or a `chi()` law, or `sd`, a number or an
+`invchi()` law, the family default when none was named - which goes back
+into `setLeafPrior` or a fitting function's `leaf.prior` as is;
+`leaf.model`, one of `"constant"`, `"monotone"`, `"linear"`, or `"gp"`;
+`prior.sd.of`, what the sd is the sd of: `"leaf value"`, `"coefficient"`
+(linear, per standardized covariate) or `"amplitude"` (gp);
+`prior.mean`; `anchor`, the value `k` is relative to, so the spread in
+force on each chain is `anchor / getK()` - the data's anchor under a
+`k`-named prior and under `sd = invchi(df, 0)`, and otherwise, under an
+`sd`-named prior, twice the sd or `invchi` scale in force (the named
+value, whose reference `k` is 2), not the data's anchor; and
+`response.scale` and `response.shift`. A fixed value is the one in
+force, read off the engine. Every value is shared by the chains; one
+they disagree on, which only a `setState` of chains saved from different
+samplers makes, is `NA`. A drawn `k` is chain state, read by `getK`. At
+the default `forest = NULL` a multi-forest sampler returns an unnamed
+list of one prior per forest; a single-forest sampler's `NULL` read is
+bitwise its `forest = 1` read. An `NA` spread cannot be written back:
+`setLeafPrior`, `setModel` and the fitting functions refuse it.
 
-Five further columns report the multi-forest CALIBRATION MAP that fixed
-`prior.sd` on a sampler built with `forests =` or `dbartsData(bases = )`
-(see [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)),
-and are `NaN` on every forest whose scale that map does not own - any
-single-forest sampler, and a multinomial one, whose scale is not
-map-derived. `amplitude.prior.variance` and `amplitude.prior.scale` are
-EXCLUSIVE per forest: a forest whose amplitudes carry a fixed prior
-variance reports that variance and a `NaN` scale, and one whose
-amplitude carries the half-Cauchy scale mixture (a forest declaring no
-basis) reports its median and a `NaN` variance. Each is a prior the
-caller may set; neither moves with the scale mixture's own variance
-auxiliary, which is a drawn quantity rather than a prior.
-`leaf.scale.factor` and `leaf.scale.divisor` are the map's two factors
-and `basis.row.norm` the median nonzero row norm of the forest's basis
-IN FORCE, which `setForestBasis` re-derives.
+On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
+sampler built with `forests =` or `dbartsData(bases = )` (see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), `k` is
+pinned at 1, `leaf.prior` is `normal(sd = )` at the map's leaf scale,
+which is also `anchor`, and the list adds four entries, absent (so
+`NULL`) on every other forest, a multinomial one included. One of
+`amplitude.prior.variance` or `amplitude.prior.scale`: a forest whose
+amplitudes carry a fixed prior variance reports that variance, and one
+whose amplitude carries the half-Cauchy scale mixture (a forest
+declaring no basis) reports its median. Each is a prior the caller may
+set; neither moves with the scale mixture's own variance auxiliary,
+which is drawn. `leaf.scale.factor` and `leaf.scale.divisor` are the
+map's two factors and `basis.row.norm` the median nonzero row norm of
+the forest's basis IN FORCE, which `setForestBasis` re-derives.
 
-Together they decompose the reported spread as
-`prior.sd = leaf.scale.factor * s / (leaf.scale.divisor * basis.row.norm)`,
-exactly, since the map pins `k` at 1, so the family's own latent anchor
-\\s\\ - the only quantity of the map with no column of its own, and
-data-dependent under a gaussian response - is recovered as
-`prior.sd * leaf.scale.divisor * basis.row.norm / leaf.scale.factor`.
-That identity holds whenever `leaf.scale.factor` is not `NaN`. It
-becomes `NaN`, on both `leaf.scale` columns, when `setState` or
-`installTrees` installs a leaf scale differing from the one in force:
-the donor's trees arrive with the donor's calibration, and the stored
-factor and divisor no longer decompose it. The other three columns are
-unaffected - the amplitude prior FOLLOWS the installed state, and the
-bases are not state - and a `setForestBasis` on that forest re-imposes
-the map and restores both columns. Restoring a sampler's own state
-installs a bitwise-identical scale and so changes nothing.
+Together they decompose the map's leaf scale as
+`anchor = leaf.scale.factor * s / (leaf.scale.divisor * basis.row.norm)`,
+exactly, so the family's own latent anchor \\s\\ - data-dependent under
+a gaussian response - is recovered as
+`anchor * leaf.scale.divisor * basis.row.norm / leaf.scale.factor`. Both
+`leaf.scale` entries are `NA` when `setState` or `installTrees` installs
+a leaf scale differing from the one in force: the donor's trees arrive
+with the donor's calibration, and the stored factor and divisor no
+longer decompose it. The other two are unaffected - the amplitude prior
+FOLLOWS the installed state, and the bases are not state - and a
+`setForestBasis` on that forest re-imposes the map and restores both.
+Restoring a sampler's own state installs a bitwise-identical scale and
+so changes nothing.
 
-`prior.sd` describes the LEAF-PARAMETER scale of the forest total. It
-equals the prior standard deviation of \\f(x)\\ at every \\x\\ for the
-constant leaf only; for the other three the prior of \\f(x)\\ is
-x-dependent and `prior.sd` bounds it in a leaf-specific direction. Under
-`"linear"` it is a LOWER bound attained at the standardized covariate
-origin, with \\sd(f(x)) = \\ `prior.sd` \\\sqrt{1 + \\z(x)\\^2}\\ in the
-internally standardized leaf covariates (a missing value maps to \\z_j =
-0\\); `prior.mean` is exact. Under `"gp"` it is an UPPER bound over
-\\x\\, attained at rows that reproduce a leaf member and on over-cap
-leaves, and elsewhere decaying to zero as \\x\\ leaves the leaf's data
-cloud, where every prior draw equals `prior.mean` exactly. Under
-`"monotone"` it is a LOWER bound in the interior - the realized standard
-deviation runs a few per cent to about twenty per cent above it - and
-`prior.mean` is NOT the prior mean of \\f(x)\\ under an active
-constraint: that marginal is skew, with an x-dependent mean tracking the
-constraint's direction across several `prior.sd` (see `monotone` in
+The spread (`anchor / k`) describes the LEAF-PARAMETER scale of the
+forest total. It equals the prior standard deviation of \\f(x)\\ at
+every \\x\\ for the constant leaf only; for the other three the prior of
+\\f(x)\\ is x-dependent and the spread bounds it in a leaf-specific
+direction. Under `"linear"` it is a LOWER bound attained at the
+standardized covariate origin, with \\sd(f(x)) = \\ the spread
+\\\sqrt{1 + \\z(x)\\^2}\\ in the internally standardized leaf covariates
+(a missing value maps to \\z_j = 0\\); `prior.mean` is exact. Under
+`"gp"` it is an UPPER bound over \\x\\, attained at rows that reproduce
+a leaf member and on over-cap leaves, and elsewhere decaying to zero as
+\\x\\ leaves the leaf's data cloud, where every prior draw equals
+`prior.mean` exactly. Under `"monotone"` it is a LOWER bound in the
+interior - the realized standard deviation runs a few per cent to about
+twenty per cent above it - and `prior.mean` is NOT the prior mean of
+\\f(x)\\ under an active constraint: that marginal is skew, with an
+x-dependent mean tracking the constraint's direction across several the
+spread (see `monotone` in
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)).
 
 This is the authoritative reader of the prior in force. A named `sd` is
@@ -1567,7 +1569,7 @@ fixed-sigma gaussian sampler), not the tree prior or a DART split prior.
 Under a drawn `k` the engine keeps its current `k` across the write, so
 a change of anchor - between the `k` and `sd` forms, or of an `invchi`
 scale - scales the next sweep's spread by new anchor / old anchor, and
-the reported `k` and `prior.sd` jump with it until the law pulls `k`
+`getK` and the spread in force jump with it until the law pulls `k`
 back. The write takes effect on the next sweep, reinterpreting no leaf
 value already drawn; a write that reproduces what is already in force is
 skipped bitwise, so a read followed by a write cannot perturb a draw. It

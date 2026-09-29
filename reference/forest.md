@@ -127,23 +127,22 @@ forest(
   than a variance. It is a free multiplier on the induced prior: the
   prior standard deviation of the combined location at row \\i\\ is
   \\\sqrt{\sum_f s_f^2 v_f \\B_f(i,\cdot)\\^2}\\ over the forests
-  carrying a basis, with \\s_f\\ read from
-  `$getLeafPrior(f)[, "prior.sd"]` and \\v_f\\ this argument; a
-  basis-free forest's own term is Cauchy and has no standard deviation.
-  The budget that sum sits in is set by `sd`, whose default already
-  divides it among the \\K\\ forests, so raising this argument raises
-  the total rather than redistributing it. Under `"probit"` and
-  `"logistic"` that location IS the latent index and \\\sigma\\ is
-  pinned, so nothing in the sampler absorbs a mis-scaled basis; under a
-  gaussian response it is in \\\mathrm{sd}(y)\\ units and a drawn
-  \\\sigma\\ partly does. Every input to that expression is readable off
-  the fitted sampler: \\v_f\\ is the `amplitude.prior.variance` column
-  of `$getLeafPrior(f)` and \\B_f\\ is `data@bases[[f]]`, so the induced
-  prior can be checked against what is in force rather than against what
-  the call asked for. See the example below. A lone forest carrying a
-  `basis` is refused, the amplitudes being what distinguish a forest
-  from another. For varying coefficients declare an intercept forest
-  plus one basis forest per covariate,
+  carrying a basis, with \\s_f\\ read from `$getLeafPrior(f)$anchor` and
+  \\v_f\\ this argument; a basis-free forest's own term is Cauchy and
+  has no standard deviation. The budget that sum sits in is set by `sd`,
+  whose default already divides it among the \\K\\ forests, so raising
+  this argument raises the total rather than redistributing it. Under
+  `"probit"` and `"logistic"` that location IS the latent index and
+  \\\sigma\\ is pinned, so nothing in the sampler absorbs a mis-scaled
+  basis; under a gaussian response it is in \\\mathrm{sd}(y)\\ units and
+  a drawn \\\sigma\\ partly does. Every input to that expression is
+  readable off the fitted sampler: \\v_f\\ is the
+  `amplitude.prior.variance` entry of `$getLeafPrior(f)` and \\B_f\\ is
+  `data@bases[[f]]`, so the induced prior can be checked against what is
+  in force rather than against what the call asked for. See the example
+  below. A lone forest carrying a `basis` is refused, the amplitudes
+  being what distinguish a forest from another. For varying coefficients
+  declare an intercept forest plus one basis forest per covariate,
   `forests = list(forest(), forest(basis = ~ z1), forest(basis = ~ z2))`,
   or use one forest with `linear()` leaves.
 
@@ -184,7 +183,7 @@ BOUNDED by 1.484 rather than pinned at it, rising from 0.699 of the
 budget at \\K = 2\\ toward 0.989 and never reaching it; without the
 factor it would instead grow past twice the budget by ten forests. Read
 the values in force off `$getLeafPrior(f)`'s `leaf.scale.factor` and
-`amplitude.prior.scale` columns.
+`amplitude.prior.scale` entries.
 
 Both forests' leaf scales come from the model's own calibration map
 rather than from the leaf prior, which is why a `k` hyperprior, a
@@ -259,7 +258,7 @@ amplitudes <- sampler$getForestAmplitudes()
 # than recomputed from the call: forest 2 is the one carrying a basis
 calibration <- sampler$getLeafPrior(2L)
 basis <- sampler$data@bases[[2L]]
-indexSd <- sqrt(calibration[1L, "prior.sd"]^2 *
-                calibration[1L, "amplitude.prior.variance"] *
+indexSd <- sqrt(calibration$anchor^2 *
+                calibration$amplitude.prior.variance *
                 rowSums(basis^2))
 ```

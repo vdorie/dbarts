@@ -74,11 +74,11 @@ noted.
 
 - Response families (`family`): `"gaussian"`, `"probit"`, `"logistic"`,
   accelerated failure time (`"aft"`), discrete-time survival hazard
-  (`"hazard"`, `"hazard.logistic"`), multinomial (`"multinomial"`,
-  `bart` only), ordered categorical (`"ordinal"`), negative-binomial
-  counts (`"nbinom"`), and semicontinuous two-part
-  (`"hurdle.lognormal"`, `bart` only). `"auto"`, the default, resolves
-  the family from the response.
+  (`"hazard"`, `"hazard.logistic"`), multinomial (`"multinomial"`),
+  ordered categorical (`"ordinal"`), negative-binomial counts
+  (`"nbinom"`), and semicontinuous two-part (`"hurdle.lognormal"`,
+  `bart` only). `"auto"`, the default, resolves the family from the
+  response.
 
 - Outlier-robust Student-t errors (`family = student(...)`) and a
   heteroscedastic variance forest (`variance`).
