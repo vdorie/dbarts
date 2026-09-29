@@ -245,7 +245,12 @@ lists; this is the shape):
   reference build (`--enable-reference-build`, the scalar fixed-order
   draw path) and runs the four seeded-drift snapshot files and the three
   bitwise equivalence compares, which read benchmarks/R and
-  benchmarks/baselines.
+  benchmarks/baselines. The snapshot files exit on any other build,
+  so a plain install and `tinytest::test_package("dbarts")` never run
+  them; to run them locally, `R CMD INSTALL --preclean
+  --configure-args=--enable-reference-build .` and then
+  `tinytest::run_test_file()` on each, on arm64 macOS where they were
+  recorded.
 - exact-gates: `docs/**`, `TODO`, `**.md`, the MANIFEST, `inst/NEWS.Rd`.
   It does not ignore the rest of benchmarks/ and cancels an in-progress
   run on the same branch, so a records push that touches benchmarks/

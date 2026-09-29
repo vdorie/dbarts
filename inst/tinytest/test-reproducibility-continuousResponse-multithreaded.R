@@ -3,9 +3,13 @@
 # shift, run tools/regenerate-snapshots.R and eyeball that the new values
 # move by a plausible magnitude.
 
-# The pinned values only mean anything on the reference build: its draw path
-# is scalar and fixed-order, where the shipped build's is free to reassociate
-# and lands elsewhere from the same seed. This exit guards test runs only;
+# The pinned values are exact, so they are checked only where exactness is
+# the contract: the reference build (--enable-reference-build), whose draw
+# path stays scalar and fixed-order should the shipped build ever vectorize it
+# (today both builds compile the same kernels), on the host kind they were
+# recorded on, arm64 macOS; across hosts draws are never bitwise. CI installs
+# that build and runs these files; locally, install it the same way and run
+# them with tinytest::run_test_file(). This exit guards test runs only;
 # tools/regenerate-snapshots.R evaluates this file outside tinytest, where
 # exit_file() returns its message and stops nothing, so that tool carries its
 # own refusal.
