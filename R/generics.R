@@ -744,6 +744,23 @@ refuseTreesArguments <- function(treesCall, ownNames) {
   invisible(NULL)
 }
 
+# Tree draws cannot be combined across chains, so extract(type = "trees")
+# always reads in the combineChains = FALSE regime and always carries the chain
+# margin; the sampler's own getTrees leaves the column off at one chain.
+# Placed after the forest column where there is one, else first.
+addTreesChainColumn <- function(trees) {
+  if (!is.null(trees[["chain"]])) {
+    return(trees)
+  }
+  position <- if (identical(names(trees)[1L], "forest")) 1L else 0L
+  chain <- data.frame(chain = rep(1L, nrow(trees)))
+  cbind(
+    trees[seq_len(position)],
+    chain,
+    trees[seq_len(ncol(trees) - position) + position]
+  )
+}
+
 extract.bart <- function(
   object,
   type = c(
@@ -783,7 +800,7 @@ extract.bart <- function(
     treesCall[[1L]] <- target
     treesCall$object <- NULL
     treesCall$type <- NULL
-    return(eval(treesCall, parent.frame()))
+    return(addTreesChainColumn(eval(treesCall, parent.frame())))
   }
 
   # below the type == "trees" branch and its own refuseTreesArguments, so
@@ -1485,7 +1502,7 @@ extract.bartMultinomial <- function(
     treesCall[[1L]] <- target
     treesCall$object <- NULL
     treesCall$type <- NULL
-    return(eval(treesCall, parent.frame()))
+    return(addTreesChainColumn(eval(treesCall, parent.frame())))
   }
 
   refuseUnusedGenericArgs(

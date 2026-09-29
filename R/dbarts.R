@@ -1432,6 +1432,13 @@ dbarts <- function(
     }
   }
 
+  # a forests = declaration is what puts a forest column on getTrees' table,
+  # whatever its count, and nothing else of the control tells a one-forest
+  # declaration from no declaration
+  if (length(forests) > 0L) {
+    attr(spec$control, "bartcore.forestsDeclared") <- TRUE
+  }
+
   sampler <- new("dbartsSampler", spec$control, spec$model, spec$data)
   # a latent family's 0/1 case weights are membership, which the sampler
   # carries as its active-row mask rather than as weights: the spec has
@@ -2985,7 +2992,7 @@ dbartsSampler <- setRefClass(
       newdata = NULL,
       forest = NULL
     ) {
-      "Returns a data.frame containing the internal state of the trees, one row per node with a leading 'forest' column (indexed from 1, present even on a single-forest sampler). At the default forest = NULL every forest is stacked forest-major, as the sampler's other per-forest readers stack at their own default; forest also takes a single index or a vector of them, each validated as getLeafPrior/getForestFits/getForestAmplitudes/getForestVariableCounts validate one. treeNums defaults to, and is validated against, EACH selected forest's own tree count, which need not match forest 1's."
+      "Returns a data.frame containing the internal state of the trees, one row per node. A sampler with several forests (a multinomial one, or one declared with forests =, whatever the count) puts a leading 'forest' column (indexed from 1) on it, and stacks every forest forest-major at the default forest = NULL, as the sampler's other per-forest readers stack at their own default; any other sampler returns no forest column, and accepts forest = 1. forest also takes a single index or a vector of them, each validated as getLeafPrior/getForestFits/getForestAmplitudes/getForestVariableCounts validate one. treeNums defaults to, and is validated against, EACH selected forest's own tree count, which need not match forest 1's."
       matchedCall <- match.call()
       current <- isTRUE(current)
       # live working trees have no sample dimension, so treat a current request
@@ -3042,11 +3049,10 @@ dbartsSampler <- setRefClass(
       }
 
       ptr <- getPointer()
-      # NULL is every forest, forest-major, as getForestAmplitudes stacks;
-      # unlike that reader (and getForestFits/getForestVariableCounts, which
-      # drop the margin entirely on a single-forest sampler's NULL read), the
-      # forest column stays even at one forest - a tree's forest is part of
-      # what it is, not a shape only a multi-forest sampler has. The bound is
+      # NULL is every forest, forest-major, as getForestAmplitudes stacks.
+      # The forest column appears only where the sampler has several forests
+      # or was declared with forests =, so a single-forest sampler's table is
+      # the one 0.9-x returned. The bound is
       # checked here, ahead of the .Call, so an out-of-range forest reads the
       # same "forest index out of range" the sibling readers raise rather
       # than getTrees' own bridge-side wording; an empty forest vector is
@@ -3065,6 +3071,8 @@ dbartsSampler <- setRefClass(
       # saved-tree replay reads the current training predictors (the engine
       # keeps no matrix); a sparse data@x is skipped for a NULL replay source
       trainingMatrix <- rawPredictorMatrix(data@x)
+      hasForestColumn <- bartcoreNumForests(ptr) > 1L ||
+        isTRUE(attr(control, "bartcore.forestsDeclared"))
       blocks <- lapply(forestIndices, function(forestIndex) {
         forestTreeCount <- bartcoreForestTreeCount(ptr, forestIndex)
         forestTreeNums <- if (treeNumsSupplied) {
@@ -3094,7 +3102,11 @@ dbartsSampler <- setRefClass(
         # cbind's recycling refuses a length-1 scalar against a zero-row
         # block (an empty treeNums/sampleNums/chainNums selection), so the
         # forest column is sized explicitly rather than recycled
-        cbind(forest = rep(forestIndex + 1L, nrow(block)), block)
+        if (hasForestColumn) {
+          cbind(forest = rep(forestIndex + 1L, nrow(block)), block)
+        } else {
+          block
+        }
       })
       trees <- if (length(blocks) == 1L) {
         blocks[[1L]]

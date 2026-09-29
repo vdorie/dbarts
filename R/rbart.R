@@ -1312,9 +1312,7 @@ extract.rbart <- function(
     varOrder <- c("sample", "chain", "tree", "n", "var", "value")
     allTrees <- lapply(chainNums, function(i) {
       result_i <- eval(subTermInLanguage(treesCall, quote(i), i), evalEnv)
-      if (n.chains > 1L) {
-        result_i$chain <- i
-      }
+      result_i$chain <- i
       result_i[, match(varOrder, colnames(result_i))]
     })
     if (length(allTrees) > 1L) {

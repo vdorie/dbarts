@@ -571,12 +571,18 @@
             fields (\code{$yhat.train} and its siblings) are unchanged and
             keep 0.9-x's one-chain collapse.
       \item \code{$getTrees} and \code{extract(type = "trees")} gain a
-            leading \code{forest} column (indexed from 1) on every fit's
-            trees, including an ordinary single-forest one, so
-            \code{$getTrees()}'s output changes shape against 0.9-x even
-            there; see the \code{forests =} and \code{family =
-            "multinomial"} items below for the \code{forest} argument this
-            rides on.
+            leading \code{forest} column (indexed from 1) on a
+            multinomial fit and on a fit declared with \code{forests =},
+            whatever its count; every other fit's trees have no
+            \code{forest} column, as in 0.9-x, though \code{forest = 1} is
+            still accepted there. See the \code{forests =} and
+            \code{family = "multinomial"} items below for the
+            \code{forest} argument this rides on.
+      \item \code{extract(type = "trees")} always carries a \code{chain}
+            column, 1 on a one-chain fit, where 0.9-x left it off; tree
+            draws cannot be combined across chains. The sampler's own
+            \code{$getTrees} still adds \code{chain} only when the
+            sampler has more than one chain.
     }
   }
   \subsection{NEW FEATURES}{

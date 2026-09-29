@@ -24,13 +24,12 @@ fit <- dbarts::bart(
 )
 allTrees <- dbarts::extract(fit, "trees")
 
-expect_true(all(c("forest", "sample", "tree") %in% colnames(allTrees)))
-expect_true(!("chain" %in% colnames(allTrees)))
-# a single-forest fit still carries the forest column (dec-A80), leading
-# every other column - forest-major stacking order, matching
-# getForestAmplitudes' convention - with chain/sample/tree following
-expect_equal(colnames(allTrees)[1:3], c("forest", "sample", "tree"))
-expect_true(all(allTrees$forest == 1L))
+# a single-forest fit has no forest column, and extract always carries chain
+expect_equal(
+  colnames(allTrees),
+  c("chain", "sample", "tree", "n", "var", "value")
+)
+expect_true(all(allTrees$chain == 1L))
 
 combinations <- data.frame(
   sample = rep(seq_len(n.samples), each = n.trees),
@@ -114,7 +113,7 @@ rm(individualSamples, combinations, allTrees, fit, n.samples, n.trees)
 ## ---------------------------------------------------------------------------
 ## extract(type = "trees") on a keepSampler-only fit (keeptrees FALSE,
 ## keepSampler TRUE): follows plotTree's own documented fallback, the
-## sampler's CURRENT trees - no chain/sample column - rather than a saved
+## sampler's CURRENT trees - no sample column - rather than a saved
 ## history, since keeptrees FALSE means no history was kept.
 ## ---------------------------------------------------------------------------
 n.trees <- 3L
@@ -130,9 +129,12 @@ fitKeepSampler <- dbarts::bart(
   verbose = FALSE
 )
 currentTrees <- dbarts::extract(fitKeepSampler, "trees")
-expect_equal(colnames(currentTrees), c("forest", "tree", "n", "var", "value"))
+expect_equal(colnames(currentTrees), c("chain", "tree", "n", "var", "value"))
 expect_true(nrow(currentTrees) > 0L)
-expect_equal(currentTrees, fitKeepSampler$fit$getTrees())
+expect_equal(
+  currentTrees[colnames(currentTrees) != "chain"],
+  fitKeepSampler$fit$getTrees()
+)
 
 fitKept <- dbarts::bart(
   y ~ .,
@@ -147,7 +149,7 @@ fitKept <- dbarts::bart(
 keptTrees <- dbarts::extract(fitKept, "trees")
 expect_equal(
   colnames(keptTrees),
-  c("forest", "sample", "tree", "n", "var", "value")
+  c("chain", "sample", "tree", "n", "var", "value")
 )
 expect_true(nrow(keptTrees) > 0L)
 
@@ -399,7 +401,8 @@ defaultForest <- forestSampler$getTrees()
 expect_equal(forestSampler$getTrees(forest = NULL), defaultForest)
 expect_equal(forestSampler$getTrees(forest = 1L), defaultForest)
 expect_equal(forestSampler$getTrees(forest = 1:1), defaultForest)
-expect_true(all(defaultForest$forest == 1L))
+expect_false("forest" %in% names(defaultForest))
+expect_false("chain" %in% names(defaultForest))
 
 expect_error(
   forestSampler$getTrees(forest = 0L),
@@ -521,3 +524,150 @@ rm(
 
 
 rm(df, testData, treesArgReason)
+
+
+## ---------------------------------------------------------------------------
+## The forest column appears only where there are several forests or a forests
+## = declaration; extract(type = "trees") always carries chain, the sampler's
+## getTrees only at more than one chain.
+## ---------------------------------------------------------------------------
+set.seed(31L)
+n <- 60L
+x1 <- rnorm(n)
+z <- factor(rbinom(n, 1L, 0.5))
+y <- x1 + rnorm(n)
+yBin <- as.integer(x1 + rnorm(n) > 0)
+treeDf <- data.frame(y = y, yBin = yBin, x1 = x1, z = z)
+treeCols <- c("sample", "tree", "n", "var", "value")
+
+for (nChains in 1:2) {
+  chainCols <- if (nChains > 1L) "chain" else NULL
+  fits <- list(
+    gaussian = dbarts::bart(
+      y ~ x1,
+      treeDf,
+      n.trees = 3L,
+      n.samples = 4L,
+      n.burn = 2L,
+      n.chains = nChains,
+      n.threads = 1L,
+      keepTrees = TRUE,
+      verbose = FALSE
+    ),
+    probit = dbarts::bart(
+      yBin ~ x1,
+      treeDf,
+      family = "probit",
+      n.trees = 3L,
+      n.samples = 4L,
+      n.burn = 2L,
+      n.chains = nChains,
+      n.threads = 1L,
+      keepTrees = TRUE,
+      verbose = FALSE
+    ),
+    bartBT = dbarts::bartBT(
+      x1,
+      y,
+      ntree = 3L,
+      ndpost = 4L,
+      nskip = 2L,
+      nchain = nChains,
+      nthread = 1L,
+      keeptrees = TRUE,
+      verbose = FALSE
+    )
+  )
+  for (name in names(fits)) {
+    fit <- fits[[name]]
+    extracted <- dbarts::extract(fit, type = "trees")
+    expect_equal(
+      colnames(extracted),
+      c("chain", treeCols),
+      info = paste(name, nChains)
+    )
+    expect_equal(
+      sort(unique(extracted$chain)),
+      seq_len(nChains),
+      info = paste(name, nChains)
+    )
+    expect_equal(
+      colnames(fit$fit$getTrees()),
+      c(chainCols, treeCols),
+      info = paste(name, nChains)
+    )
+    expect_equal(
+      colnames(dbarts::extract(fit, type = "trees", current = TRUE)),
+      c("chain", "tree", "n", "var", "value"),
+      info = paste(name, nChains)
+    )
+    expect_equal(
+      dbarts::extract(fit, type = "trees", forest = 1L),
+      extracted,
+      info = paste(name, nChains)
+    )
+    expect_equal(
+      fit$fit$getTrees(forest = 1L),
+      fit$fit$getTrees(),
+      info = paste(name, nChains)
+    )
+    expect_error(
+      fit$fit$getTrees(forest = 2L),
+      "out of range",
+      info = paste(name, nChains)
+    )
+  }
+}
+
+treeControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.trees = 3L,
+  n.samples = 3L,
+  n.burn = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE,
+  seed = 3L
+)
+# a plotTree on a single-forest sampler still needs no forest
+expect_silent(fits$gaussian$fit$plotTree(1L, chainNum = 1L, sampleNum = 1L))
+
+declared <- dbarts::dbarts(
+  y ~ x1,
+  treeDf,
+  forests = list(forest()),
+  control = treeControl
+)
+invisible(declared$run())
+expect_equal(colnames(declared$getTrees())[1L], "forest")
+expect_true(all(declared$getTrees()$forest == 1L))
+
+twoForests <- dbarts::dbarts(
+  y ~ x1,
+  treeDf,
+  forests = list(forest(), forest(basis = ~z)),
+  control = treeControl
+)
+invisible(twoForests$run())
+expect_equal(colnames(twoForests$getTrees()), c("forest", treeCols))
+expect_equal(sort(unique(twoForests$getTrees()$forest)), 1:2)
+expect_error(twoForests$plotTree(1L, chainNum = 1L), "forest required")
+
+# a variance forest's trees are not read by getTrees, so no forest column
+varianceFit <- dbarts::bart(
+  y ~ x1,
+  treeDf,
+  n.trees = 3L,
+  n.samples = 3L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE,
+  variance = varianceForest(n.trees = 5L)
+)
+expect_equal(
+  colnames(dbarts::extract(varianceFit, type = "trees")),
+  c("chain", treeCols)
+)
+expect_equal(colnames(varianceFit$fit$getTrees()), treeCols)

@@ -272,7 +272,11 @@ expect_equal(sort(unique(allCategoryTrees$forest)), 1:3)
 
 forest2Trees <- extract(fitKeep, type = "trees", forest = 2L)
 expect_true(all(forest2Trees$forest == 2L))
-expect_identical(forest2Trees, fitKeep$fit$getTrees(forest = 2L))
+expect_identical(
+  forest2Trees[colnames(forest2Trees) != "chain"],
+  fitKeep$fit$getTrees(forest = 2L)
+)
+expect_equal(colnames(forest2Trees)[1:2], c("forest", "chain"))
 
 forestSubsetTrees <- extract(fitKeep, type = "trees", forest = c(1L, 3L))
 expect_equal(sort(unique(forestSubsetTrees$forest)), c(1L, 3L))
