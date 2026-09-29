@@ -2828,7 +2828,7 @@ dbartsSampler <- setRefClass(
        NULL spreads the chains across the donor's kept samples. Single-forest
        samplers only."
       ptr <- getPointer()
-      refuseMultiForestWarmStart(ptr, "installTrees()")
+      refuseMultiForestWarmStart(ptr, "$installTrees")
       donorState <- warmStartState(donor)
       if (!is.null(samples)) {
         samples <- coerceOrError(samples, "integer")

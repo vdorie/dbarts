@@ -54,7 +54,7 @@ bcf <- dbarts(
 # back for itself ---
 expect_error(
   bcf$installTrees(donor),
-  "installTrees\\(\\) does not support a multi-forest sampler: this one carries 2 forests"
+  "\\$installTrees does not support a multi-forest sampler: this one carries 2 forests"
 )
 
 # the donor is not even resolved before the refusal fires, so a caller offering
@@ -122,7 +122,7 @@ softmax <- dbarts(
 )
 expect_error(
   softmax$installTrees(donor),
-  "installTrees\\(\\) does not support a multi-forest sampler: this one carries 3 forests"
+  "\\$installTrees does not support a multi-forest sampler: this one carries 3 forests"
 )
 expect_silent(softmax$growFromRoot(2L))
 

@@ -351,7 +351,7 @@ D <- dbarts::dbarts(
 invisible(D$run(5L, 1L))
 expect_error(
   updatePredictorPerObservationJointly(list(A, D), xnew, "theta"),
-  "\\$updatePredictorPerObservationJointly: requires index-aligned samplers"
+  "updatePredictorPerObservationJointly\\(\\): requires index-aligned samplers"
 ) # observation count mismatch
 expect_error(
   updatePredictorPerObservationJointly(list(A, B), xnew[1:5], "theta"),
