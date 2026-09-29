@@ -44,7 +44,7 @@ dbarts(
     The equivalent of \code{offset} for test observations. Will attempt to use \code{offset} when applicable.
   }
   \item{verbose}{
-    A logical determining if additional output is printed to the console, including the one-line message \code{family = "auto"} prints naming the family it resolves to. See \code{\link{dbartsControl}}.
+    A logical determining if additional output is printed to the console, including the one-line message \code{family = "auto"} prints naming the family it resolves to (a message of class \code{dbartsAutoFamilyMessage}, which \code{\link{suppressMessages}} or a calling handler can mute on its own). See \code{\link{dbartsControl}}.
   }
   \item{n.samples}{
     A non-negative integer (\code{0} accepted) setting the default number of posterior samples to be returned for each run of the sampler. Can be overriden at run-time. See \code{\link{dbartsControl}}'s \code{n.samples} item for the full contract.

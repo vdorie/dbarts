@@ -309,7 +309,7 @@ bart(
      The number of cutoff rules printed to screen before the MCMC is run. Given a single integer, the same value is used for all variables. If 0, nothing is printed.
    }
    \item{verbose}{
-     Logical; if \code{FALSE} suppress printing, including the one-line message \code{family = "auto"} prints naming the family it resolves to.
+     Logical; if \code{FALSE} suppress printing, including the one-line message \code{family = "auto"} prints naming the family it resolves to (a message of class \code{dbartsAutoFamilyMessage}).
    }
    \item{keepTrees}{
      A fit saved to disk and reloaded needs its sampler's state stored first, with \code{fit$storeState()}; \code{predict} on a fit reloaded without it refuses, naming \code{storeState()} (see \code{\link{bartBT}}'s \sQuote{Saving} section). Logical; must be \code{TRUE} in order to use \code{predict} with the result of a fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.

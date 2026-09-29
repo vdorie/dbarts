@@ -26,7 +26,12 @@ announceAutoFamily <- function(verbose, family, description) {
   }
   # classed, so a door that resolves its family itself (bartBT) can mute it
   message(structure(
-    class = c("dbartsAutoFamilyMessage", "message", "condition"),
+    class = c(
+      "dbartsAutoFamilyMessage",
+      "dbartsMessage",
+      "message",
+      "condition"
+    ),
     list(
       message = paste0(
         "family = \"auto\": ",
