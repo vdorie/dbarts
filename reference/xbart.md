@@ -22,6 +22,7 @@ xbart(
     family = c("auto", "gaussian", "probit", "logistic"),
     leaf.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
     storage = c("double", "single"), tree.prior = NULL,
+    parallel = getOption("dbarts.parallel", "auto"), cl = NULL,
     control = dbarts::dbartsControl(), ...)
 ```
 
@@ -171,12 +172,9 @@ xbart(
 
   Every (replication, fold) pair is an independent unit of work, and for
   `n.threads > 1` the units are divided into approximately equal chunks
-  and executed on that many parallel workers (a
-  [`makeCluster`](https://rdrr.io/r/parallel/makeCluster.html) cluster).
-  Each worker is a separate R session that loads dbarts and receives its
-  own copy of the data, which costs roughly 80 MB per worker beyond the
-  data itself. A `k`-fold run of a single replication therefore uses up
-  to `k` workers. The default uses
+  and executed on that many parallel workers (see `parallel`). A
+  `k`-fold run of a single replication therefore uses up to `k` workers.
+  The default uses
   [`guessNumCores`](https://vdorie.github.io/dbarts/reference/guessNumCores.md),
   which should work across the most common operating system/hardware
   pairs. Warnings raised while fitting or scoring, including by a
@@ -184,6 +182,33 @@ xbart(
   in the calling session once all units have finished, in unit order and
   each distinct warning once, so the same warnings are seen at any
   `n.threads`.
+
+- parallel:
+
+  One of `"auto"`, `"fork"` or `"socket"`, and by default
+  `getOption("dbarts.parallel", "auto")`. `"fork"` runs the workers as
+  forked copies of the calling session, which is fast to start and
+  shares the data; `"socket"` starts separate R sessions (a
+  [`makeCluster`](https://rdrr.io/r/parallel/makeCluster.html) cluster)
+  that each load dbarts and receive their own copy of the data, which
+  costs roughly 80 MB per worker beyond the data itself. `"auto"` forks
+  unless the platform is Windows, the session runs under RStudio or
+  Positron, or R.app, in which case it uses sockets. `"fork"` is an
+  error on Windows. Forking can hang or crash when the calling session
+  has already used a library that is not fork-safe, such as a
+  multithreaded BLAS; if so, set `parallel = "socket"` or
+  `options(dbarts.parallel = "socket")`. Results do not depend on the
+  kind of worker. Ignored when `cl` is given or only one worker is used.
+
+- cl:
+
+  `NULL` or a cluster from the `parallel` package that the caller has
+  already started, used instead of starting workers whatever `parallel`
+  says. The units are divided into `min(n.threads, length(cl))` chunks,
+  and `xbart` does not stop the cluster. The workers must load the same
+  dbarts version as the calling session, since the work function is sent
+  by reference and each worker runs its own installed dbarts. A one-node
+  `cl`, like `n.threads = 1`, runs the units in the calling session.
 
 - n.trees:
 
