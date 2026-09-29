@@ -96,7 +96,11 @@
     \item{\code{nbinom(dispersion = NULL)}}{
       Negative-binomial counts. \code{NULL} estimates the dispersion
       \eqn{r} on a capped positive-integer grid; a positive integer fixes
-      it.
+      it. Each sweep's latent draw costs time in proportion to
+      \eqn{y + r}{y + r}, so a large fixed \eqn{r} is slow: at
+      \eqn{r = 10^4}{r = 1e4}, a thousand sweeps over a thousand
+      observations take about half an hour. By \eqn{r}{r} in the hundreds
+      the model is already close to a Poisson one.
     }
     \item{\code{aft(sigma = NULL)}}{
       Accelerated failure time (log-normal) survival. The log-time

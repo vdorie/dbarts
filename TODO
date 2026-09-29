@@ -31,6 +31,14 @@ re-run a full census before release.
 A "door" below means a recorded, undecided question, not a task.
 
 items
+  approximate-distributions: research arc, post-release (VD 2026-09-29,
+    docs/decisions.md dec-B143): whether to admit approximate draws
+    under stated criteria for when to use them, against dec-B14's
+    every-draw-exact rule. Covers the negative-binomial latent at large
+    shape (cost linear in y + r today; the exact construction, 1,000 to
+    2,000 lines, is designed in docs/plans/nbinom-large-shape-pg.md and
+    not scheduled), real dispersion (negbin-real-dispersion) and
+    non-integer logistic weights (weighted-binary).
   bcf-latent-mixing: research door, no plan doc of its own; for the
     post-merge mixing research. The probit and logistic BCF chains mix
     slowly at large prognostic amplitude, and two gates carry that as a
@@ -236,12 +244,6 @@ items
     VD (2026-09-29): the accessor and the parameter use names that are
     widely recognized; getSize alone is not specific enough. To be
     addressed later; new in 1.0-0, so no tombstone.
-  nbinom-large-shape-pg: before 1.0-0 (VD 2026-09-29, docs/decisions.md
-    dec-B143), an exact Polya-Gamma sampler whose cost does not grow
-    with the shape for the negative-binomial latent PG(y + r, psi),
-    which today sums y + r unit draws. Engine work; design first. A
-    real-shape exact sampler is also what negbin-real-dispersion and
-    weighted-binary lack.
   negbin-real-dispersion: real-valued dispersion needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
