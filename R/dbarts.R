@@ -1678,6 +1678,9 @@ dbartsSampler <- setRefClass(
         .self$data,
         if (model@family == "auto") "" else model@family
       )
+      # after the call, so a refused creation never spends the warning's key;
+      # the re-creation paths (getPointer, setState) do not come through here
+      warnZeroTrials(dataCounts(data))
       # materialized lazily on first access (forcing it before saveRDS
       # captures the sampler), or eagerly by storeState / updateState runs.
       # A deserialized object can force the promise after its pointer has
@@ -2165,7 +2168,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setCounts = function(counts, updateState = NA) {
-      "Replaces a multinomial sampler's response: the n x K matrix of non-negative integer counts whose column k holds category k's successes, with trials n_i = sum_k counts[i, k] at least 1. n and K are fixed at creation - every combiner buffer is sized by n, and K is the forest count - so only the values change. The trees carry over, fitted to the previous counts exactly as setResponse leaves a single-forest sampler's, and the next run forms every category's working response against the new matrix. The matrix is mirrored into data@counts, and its row sums into data@y, so getPointer's transparent re-creation after save/load carries the current response rather than the one the sampler was created with. The sweep draws n_i Polya-Gamma variates per observation per category, so replacing single-trial labels with grouped counts multiplies sweep cost by mean(n_i). updateState follows control@updateState; see setData."
+      "Replaces a multinomial sampler's response: the n x K matrix of non-negative integer counts whose column k holds category k's successes, with trials n_i = sum_k counts[i, k] at least 0: a row with no trial enters no likelihood and still receives fitted probabilities, and the first such row in a session warns (class dbartsZeroTrialsWarning). n and K are fixed at creation - every combiner buffer is sized by n, and K is the forest count - so only the values change. The trees carry over, fitted to the previous counts exactly as setResponse leaves a single-forest sampler's, and the next run forms every category's working response against the new matrix. The matrix is mirrored into data@counts, and its row sums into data@y, so getPointer's transparent re-creation after save/load carries the current response rather than the one the sampler was created with. The sweep draws n_i Polya-Gamma variates per observation per category, so replacing single-trial labels with grouped counts multiplies sweep cost by mean(n_i). updateState follows control@updateState; see setData."
       requireCountsCapability(.self, "$setCounts")
       ptr <- bartcoreSamplerSetCounts(.self, counts)
       if (resolveUpdateState(updateState, control)) {

@@ -138,7 +138,8 @@ expect_error(
 )
 expect_error(dbartsData(x, counts = oneHot - 1L), "non-negative")
 expect_error(dbartsData(x, counts = oneHot + 0.5), "whole numbers")
-expect_error(dbartsData(x, counts = matrix(0L, n, K)), "at least one trial")
+# rows with no trial are accepted; dbartsData alone does not warn
+expect_silent(dbartsData(x, counts = matrix(0L, n, K)))
 expect_error(
   dbartsData(x, counts = oneHot[-1L, , drop = FALSE]),
   "same number of rows"

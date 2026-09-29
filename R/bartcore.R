@@ -103,6 +103,8 @@ bartcoreSamplerSetCounts <- function(sampler, counts) {
   sampler$data@counts <- counts
   # y is the trials the counts imply, never an independent quantity
   sampler$data@y <- as.double(rowSums(counts))
+  # after the mirror, so a warning promoted to an error leaves them in step
+  warnZeroTrials(counts)
   invisible(ptr)
 }
 

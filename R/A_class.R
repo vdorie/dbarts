@@ -777,12 +777,8 @@ methods::setValidity("dbartsData", function(object) {
     if (any(counts < 0L)) {
       return("'counts' must all be non-negative")
     }
+    # a row with no trial is accepted: it enters no likelihood
     trials <- rowSums(counts)
-    # a row with no trial carries no information, and its PG(0, .) point mass
-    # at zero would break that row's working response
-    if (any(trials < 1)) {
-      return("every 'counts' row must have at least one trial")
-    }
     # G1a: 'y' is the trials vector, which is what keeps every length(y)
     # reader meaningful on a multinomial data object
     if (!isTRUE(all.equal(as.double(object@y), as.double(trials)))) {

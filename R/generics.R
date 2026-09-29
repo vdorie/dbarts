@@ -1689,7 +1689,10 @@ residuals.bartMultinomial <- function(object, ...) {
     indicator[cbind(seq_along(y), match(y, object$levels))] <- 1
     indicator
   } else {
-    y / rowSums(y)
+    # a row with no trial has no observed proportion; as glm's response
+    # residual at a zero-weight row, it is observed 0, so its residual is -p
+    trials <- rowSums(y)
+    y / ifelse(trials == 0, 1, trials)
   }
   observed <- padOmittedRows(object[["na.action"]], observed)
   result <- observed - phat

@@ -275,11 +275,13 @@ also vetoes a leaf of only such rows in THAT forest - stated in
 `Chain::setForestWeights`' contract - while the veto for the variance forest
 reads the user weights it is handed. Weights ship on gaussian and Student-t
 only, and the latent families' own working weights are strictly positive
-(a zero Polya-Gamma weight is unreachable, and a zero count is refused at
-creation), so no USER WEIGHT reaches the law on a latent family. The
-active-row mask does: it IS a latent family's working weight vector, so an
-inactive-only leaf is weight-empty there exactly as a zero-weighted one is on
-gaussian (`Chain::setActiveRows`'s contract).
+(a zero Polya-Gamma weight is unreachable), so no USER WEIGHT reaches the law
+on a latent family. The active-row mask does: it IS a latent family's working
+weight vector, so an inactive-only leaf is weight-empty there exactly as a
+zero-weighted one is on gaussian (`Chain::setActiveRows`'s contract). A
+multinomial zero-trial row is composed into that mask, so a leaf of only such
+rows is weight-empty and vetoed too, in the sweep and in
+[`MultinomialForestCombiner::formForestVetoWeights`](../../src/bartcore/combiner.hpp).
 
 ### The sites that still count members, and why that is correct
 

@@ -303,11 +303,18 @@ expect_error(
   ),
   "non-negative"
 )
-# an empty row: PG(0, .) is a point mass at zero and the working response
-# divides by omega, so a zero row sum is refused rather than fit
+# an empty row is accepted, entering no likelihood, and warns once per session
 counts.empty <- countsA
 counts.empty[3L, ] <- 0L
-expect_error(sampler.mn$setCounts(counts.empty), "at least one trial")
+emptyKeyEnv <- dbarts:::onceWarnState
+emptyKeyEnv[["multinomialZeroTrials"]] <- NULL
+expect_warning(
+  sampler.mn$setCounts(counts.empty),
+  "zero trials",
+  class = "dbartsZeroTrialsWarning"
+)
+expect_identical(sampler.mn$data@counts, counts.empty)
+expect_silent(sampler.mn$setCounts(countsA))
 # a row sum that overflows the int the trials are counted in: the accumulation
 # is checked, not wrapped
 counts.overflow <- countsA

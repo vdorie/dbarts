@@ -466,11 +466,23 @@ expect_error(
   bart(x2, fracCounts, family = "multinomial"),
   "whole numbers"
 )
+# a row with no trial is accepted, warning once per session
 zeroRowCounts <- badCounts
 zeroRowCounts[1L, ] <- 0L
-expect_error(
-  bart(x2, zeroRowCounts, family = "multinomial"),
-  "row sum"
+zeroKeyEnv <- dbarts:::onceWarnState
+zeroKeyEnv[["multinomialZeroTrials"]] <- NULL
+expect_warning(
+  bart(
+    x2,
+    zeroRowCounts,
+    family = "multinomial",
+    n.chains = 1L,
+    n.samples = 5L,
+    n.burn = 5L,
+    verbose = FALSE
+  ),
+  "zero trials",
+  class = "dbartsZeroTrialsWarning"
 )
 expect_error(
   bart(x2, badCounts[, 1L, drop = FALSE], family = "multinomial"),

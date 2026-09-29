@@ -187,10 +187,16 @@ plot.bartMultinomial <- function(
   probs <- x$yhat.train # (n.chains x) n.samples x n x K
   K <- x$K
   n <- length(y) %/% if (is.factor(y)) 1L else K
+  # a count row with no trial has no observed category or proportion, so the
+  # second panel covers only the rows with trials, in either branch
+  withTrials <- if (is.factor(y)) seq_len(n) else which(rowSums(y) > 0)
   if (is.matrix(y) && any(rowSums(y) > 1)) {
     flat <- probs
-    dim(flat) <- c(length(probs) %/% (n * K), n * K)
-    observed <- as.vector(y / rowSums(y))
+    dim(flat) <- c(length(probs) %/% (n * K), n, K)
+    flat <- flat[, withTrials, , drop = FALSE]
+    dim(flat) <- c(dim(flat)[1L], length(withTrials) * K)
+    kept <- y[withTrials, , drop = FALSE]
+    observed <- as.vector(kept / rowSums(kept))
     band <- drawInterval(flat, plquants)
     plot(
       observed,
@@ -208,7 +214,7 @@ plot.bartMultinomial <- function(
     flat <- probs
     dim(flat) <- c(length(probs) %/% (n * K), n, K)
     selected <- vapply(
-      seq_len(n),
+      withTrials,
       function(i) flat[, i, category[i]],
       numeric(dim(flat)[1L])
     )

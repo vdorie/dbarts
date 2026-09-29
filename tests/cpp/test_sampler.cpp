@@ -6639,6 +6639,152 @@ static void testActiveRowsMultinomialKernel() {
   printf("ok: multinomial active-row mask kernel\n");
 }
 
+// A zero-trial row at the kernel. Its likelihood factor is the constant 1
+// (PG(0, .) is the point mass at 0 and kappa = 0), so it is exactly an inactive
+// row: the combiner over n rows, some empty, is bitwise the combiner over the
+// compacted non-empty rows in the working response and the composed precision,
+// and variate for variate in the Polya-Gamma stream. The mask arm above pins
+// the same three properties; this one pins that the empty rows reach them with
+// no mask installed, and composed with a caller's mask over other rows. A
+// count swap that fills the empty rows re-admits them: the kernel is then
+// bitwise one built over the filled counts.
+static void testZeroTrialsMultinomialKernel() {
+  const size_t n = 12, K = 3;
+  std::vector<int> counts(n * K, 0), trials(n, 0);
+  std::vector<int> countsFilled(n * K, 0), trialsFilled(n);
+  std::vector<double> fits(n * K), active(n, 1.0);
+  for (size_t i = 0; i < n; ++i) {
+    bool empty = i == 2 || i % 4 == 3;
+    trialsFilled[i] = 1 + static_cast<int>(i % 3);
+    countsFilled[((2 * i + 1) % K) * n + i] = trialsFilled[i];
+    if (!empty) {
+      trials[i] = trialsFilled[i];
+      counts[((2 * i + 1) % K) * n + i] = trials[i];
+    }
+    for (size_t k = 0; k < K; ++k)
+      fits[k * n + i] =
+        0.3 * static_cast<double>(i) - 0.9 * static_cast<double>(k);
+  }
+  active[0] = active[5] = 0.0;  // a caller's mask over two non-empty rows
+
+  struct Fixture {
+    ColumnStore data;
+    std::vector<double> x;
+    std::vector<Forest<ConstantGaussianLeaf>> forests;
+    std::vector<int> counts, trials;
+    std::unique_ptr<MultinomialForestCombiner<ConstantGaussianLeaf>> combiner;
+  };
+  // the fixture over the rows in keep, with their counts, trials and fits
+  auto build = [&](const std::vector<size_t>& keep, const int* c, const int* t,
+                   Fixture& fixture) {
+    size_t m = keep.size();
+    fixture.x.assign(m, 0.0);
+    built(fixture.data.build(fixture.x.data(), m, 1, 100));
+    fixture.counts.assign(m * K, 0);
+    fixture.trials.assign(m, 0);
+    fixture.forests.resize(K);
+    for (size_t k = 0; k < K; ++k) {
+      fixture.forests[k].numTrees = 1;
+      fixture.forests[k].leaf.scale = 3.0;
+      fixture.forests[k].k = 2.0;
+      fixture.forests[k].treeFits.assign(m, 0.0);
+      fixture.forests[k].totalFits.resize(m);
+      for (size_t j = 0; j < m; ++j) {
+        fixture.forests[k].totalFits[j] = fits[k * n + keep[j]];
+        fixture.counts[k * m + j] = c[k * n + keep[j]];
+      }
+    }
+    for (size_t j = 0; j < m; ++j) fixture.trials[j] = t[keep[j]];
+    MultinomialSpec spec;
+    spec.numCategories = K;
+    spec.counts = fixture.counts.data();
+    spec.trials = fixture.trials.data();
+    fixture.combiner =
+      std::make_unique<MultinomialForestCombiner<ConstantGaussianLeaf>>(
+        fixture.data, spec);
+  };
+  // one K-category pass over both fixtures from one seed: kept[j] is the row
+  // of full that compacted row j is; every other row of full must be out
+  auto compare = [&](Fixture& full, Fixture& compacted,
+                     const std::vector<size_t>& kept, unsigned int seed,
+                     const char* what) {
+    ext_rng* rngFull = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* rngCompacted =
+      ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngFull, seed);
+    ext_rng_setSeed(rngCompacted, seed);
+    std::vector<bool> isKept(n, false);
+    for (size_t row : kept) isKept[row] = true;
+    bool agrees = true, zeroed = true, finite = true;
+    for (size_t f = 0; f < K; ++f) {
+      full.combiner->drawForestGlue(f, rngFull, full.forests);
+      ForestResponse ff = full.combiner->formForestResponse(f, full.forests,
+                                                            nullptr, nullptr);
+      compacted.combiner->drawForestGlue(f, rngCompacted, compacted.forests);
+      ForestResponse cf = compacted.combiner->formForestResponse(
+        f, compacted.forests, nullptr, nullptr);
+      for (size_t j = 0; j < kept.size(); ++j)
+        agrees = agrees && ff.response[kept[j]] == cf.response[j] &&
+                 ff.weights[kept[j]] == cf.weights[j];
+      for (size_t i = 0; i < n; ++i)
+        if (!isKept[i]) {
+          zeroed = zeroed && ff.weights[i] == 0.0;
+          finite = finite && std::isfinite(ff.response[i]);
+        }
+      // the veto precisions count the same rows absent
+      const double* veto = full.combiner->formForestVetoWeights(f, nullptr);
+      for (size_t i = 0; i < n; ++i)
+        zeroed = zeroed && (isKept[i] ? veto[i] > 0.0 : veto[i] == 0.0);
+    }
+    bool sameStream = ext_rng_simulateContinuousUniform(rngFull) ==
+                      ext_rng_simulateContinuousUniform(rngCompacted);
+    ext_rng_destroy(rngCompacted);
+    ext_rng_destroy(rngFull);
+    if (!(agrees && zeroed && finite && sameStream))
+      printf("  %s: agrees %d, zeroed %d, finite %d, stream %d\n", what,
+             agrees, zeroed, finite, sameStream);
+    return agrees && zeroed && finite && sameStream;
+  };
+
+  std::vector<size_t> all(n), nonEmpty, neither;
+  for (size_t i = 0; i < n; ++i) {
+    all[i] = i;
+    if (trials[i] != 0) {
+      nonEmpty.push_back(i);
+      if (active[i] != 0.0) neither.push_back(i);
+    }
+  }
+
+  Fixture withEmpty, compacted;
+  build(all, counts.data(), trials.data(), withEmpty);
+  build(nonEmpty, counts.data(), trials.data(), compacted);
+  check(compare(withEmpty, compacted, nonEmpty, 20260928u, "unmasked"),
+        "zero-trial rows are bitwise the compacted multinomial kernel: zero "
+        "precision and veto weight, finite response, no variate drawn");
+
+  // composed with a caller's mask over other rows, and the clear keeps the
+  // empty rows out
+  Fixture compactedMasked;
+  build(neither, counts.data(), trials.data(), compactedMasked);
+  withEmpty.combiner->setActiveRows(active.data());
+  check(compare(withEmpty, compactedMasked, neither, 20260929u, "masked"),
+        "zero-trial rows compose with a mask over other rows");
+  withEmpty.combiner->setActiveRows(nullptr);
+  Fixture compactedAgain;
+  build(nonEmpty, counts.data(), trials.data(), compactedAgain);
+  check(compare(withEmpty, compactedAgain, nonEmpty, 20260930u, "cleared"),
+        "clearing the mask leaves the zero-trial rows out");
+
+  // filling the empty rows re-admits them
+  withEmpty.combiner->setCounts(countsFilled.data(), trialsFilled.data());
+  Fixture filled;
+  build(all, countsFilled.data(), trialsFilled.data(), filled);
+  check(compare(withEmpty, filled, all, 20261001u, "filled"),
+        "a count swap that fills a zero-trial row re-admits it");
+
+  printf("ok: multinomial zero-trial kernel\n");
+}
+
 // The per-observation log-likelihood channel: requesting it draws no rng and
 // mutates no state (computed post-hoc at storeSample), so sigma/train are
 // bitwise unchanged, and each family's values equal the closed-form density of
@@ -7503,6 +7649,7 @@ void runSamplerTests(ext_rng* rng) {
   testMultinomialSetCounts();
   testMultinomialCategoryOffset();
   testActiveRowsMultinomialKernel();
+  testZeroTrialsMultinomialKernel();
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
   testEndToEndGaussianFp32(rng);

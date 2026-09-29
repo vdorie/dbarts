@@ -1602,14 +1602,16 @@ resolveMultinomialCounts <- function(y) {
 }
 
 # Validate and subset a multinomial count response for dbartsData: an n x K
-# matrix of non-negative whole numbers with at least two categories and at
-# least one trial per row. The engine re-derives the trials and re-checks every
-# invariant; this is the R layer's own (safe over fast) refusal, and the one
-# that names the argument the caller wrote. 'subset' already reflects
-# na.action's own row selection when allowMissing is TRUE (dbartsData's own
-# ingestion): a row dropped there (every na.action but na.pass) never reaches
-# the row-sum check below, and na.pass keeps it, all-NA, for the generic
-# missing-response check downstream to name. allowMissing is FALSE for every
+# matrix of non-negative whole numbers with at least two categories. A row with
+# no trial is accepted, entering no likelihood, and this stays silent about it:
+# the warning is warnZeroTrials', raised where a sampler takes the matrix. The
+# engine re-derives the trials and re-checks every invariant; this is the R
+# layer's own (safe over fast) refusal, and the one that names the argument
+# the caller wrote. 'subset' already reflects na.action's own row selection
+# when allowMissing is TRUE (dbartsData's own ingestion): a row dropped there
+# (every na.action but na.pass) is gone after the subset below, and na.pass
+# keeps it, all-NA, for the generic missing-response check downstream to
+# name. allowMissing is FALSE for every
 # other caller ($setCounts mutates a live sampler's response outright, with
 # no na.action of its own to defer to), where any NA is refused here by name.
 # The whole-number check runs on the ORIGINAL doubles, before asCountMatrix's
@@ -1646,12 +1648,35 @@ validateMultinomialCounts <- function(
   if (any(observed != round(observed))) {
     stop("'counts' must all be whole numbers")
   }
-  counts <- asCountMatrix(counts)[subset, , drop = FALSE]
-  complete <- rowSums(is.na(counts)) == 0L
-  if (any(rowSums(counts[complete, , drop = FALSE]) < 1L)) {
-    stop("every 'counts' row must have at least one trial")
+  asCountMatrix(counts)[subset, , drop = FALSE]
+}
+
+# Warns, once per session, that a count matrix a sampler has just taken has
+# rows with no trial. Called only after the creation or $setCounts .Call has
+# returned, so a refused call never spends the key; NULL (a sampler that
+# carries no counts) and a matrix without such a row are silent.
+warnZeroTrials <- function(counts) {
+  if (is.null(counts)) {
+    return(invisible(NULL))
   }
-  counts
+  numEmpty <- sum(rowSums(counts) == 0L, na.rm = TRUE)
+  if (numEmpty > 0L) {
+    warnOnce(
+      "multinomialZeroTrials",
+      warningCondition(
+        sprintf(
+          paste0(
+            "multinomial count rows with zero trials (%d of %d) contribute ",
+            "nothing to the likelihood and still receive fitted probabilities"
+          ),
+          numEmpty,
+          nrow(counts)
+        ),
+        class = c("dbartsZeroTrialsWarning", "dbartsWarning")
+      )
+    )
+  }
+  invisible(NULL)
 }
 
 # A matrix 'offset'/'offset.test' is only ever meaningful on a counts-

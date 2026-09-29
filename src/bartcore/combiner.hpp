@@ -379,8 +379,9 @@ struct MultinomialForestSpec {
 /// counts is an n x K nonnegative integer matrix,
 /// category-major (column k contiguous, at k*n) to match the combiner's omega_
 /// layout; trials is the per-observation trial count n_i = sum_k counts[k*n + i]
-/// (>= 1). Single-trial labels enter as a one-hot counts matrix with every
-/// trial 1, the exact n_i = 1 reduction the bridge builds.
+/// (>= 0; a row with n_i = 0 enters no likelihood). Single-trial labels enter
+/// as a one-hot counts matrix with every trial 1, the exact n_i = 1 reduction
+/// the bridge builds.
 struct MultinomialSpec {
   std::size_t numCategories = 0;      // K
   const int* counts = nullptr;        // borrowed n x K count matrix, category-major
@@ -1276,6 +1277,15 @@ inline void softmaxLocationMajor(const double* raw, std::size_t n,
 /// nTest x K offset, entering the reported test blend where the train offset
 /// enters the reported train blend; it is a separate object, since the test
 /// rows are other rows.
+///
+/// A ZERO-TRIAL row (n_i = 0, so every y_ik = 0) has the constant likelihood
+/// factor 1: PG(0, .) is the point mass at 0 and kappa = y_ik - n_i/2 = 0. It
+/// is therefore exactly an inactive row of the global mask, and is composed
+/// into it (effectiveRows_ = mask AND n_i > 0) rather than tested in the sweep
+/// loops: its latents are skipped, its precision is zero in every category and
+/// the empty-leaf veto counts it absent, while it keeps its leaf occupancy and
+/// its reported probabilities. A data set with no such row serves the caller's
+/// mask, or none, exactly as without this composition.
 template <IntegrableLeafModel L, typename ResidT = double>
 struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   static_assert(!L::hasVectorParams && !L::hasFunctionParams,
@@ -1299,6 +1309,7 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
     combined_.resize(n * numCategories_);
     forestResponse_.resize(n);
     forestWeights_.resize(n);
+    composeEffectiveRows();
   }
 
   std::size_t numReportedLocations() const override { return numCategories_; }
@@ -1323,7 +1334,10 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
 
   /// Installs a replacement count matrix and its per-observation trials, both
   /// borrowed and both sized to the constructed n and K (the host validates the
-  /// shape; nothing here can grow a buffer). The next sweep re-reads them: the
+  /// shape; nothing here can grow a buffer). Not a pointer swap alone: the
+  /// zero-trial rows are recomposed into the effective mask, an O(n) pass, so a
+  /// row the new counts empty leaves the likelihood and one they fill
+  /// re-enters it. The next sweep re-reads them: the
   /// trials drive the PG draw count and the counts the working response, and no
   /// scratch is invalidated - drawForestGlue's f == 0 branch rebuilds the whole
   /// suffix/prefix mix, and every omega column is written before it is read.
@@ -1334,6 +1348,7 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   void setCounts(const int* counts, const int* trials) override {
     counts_ = counts;
     trials_ = trials;
+    composeEffectiveRows();
   }
 
   /// Installs a replacement n x K category offset, borrowed and sized to the
@@ -1388,10 +1403,12 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// The mask is length-n and n is fixed at creation for a multi-forest chain
   /// (whole-data replacement is refused outright), so an installed mask cannot
   /// go stale. A count or offset swap leaves it standing: it names rows, not
-  /// responses.
+  /// responses. Clearing it does not re-admit a zero-trial row, which stays
+  /// out through the composed effective mask.
   void setActiveRows(const double* active) override {
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + data_.numObservations);
+    composeEffectiveRows();
   }
 
   /// Interleaved PG draw for category f: form the current margin C_if and draw
@@ -1401,6 +1418,9 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// PG(n_i, psi) is the sum of n_i iid PG(1, psi) draws (the only shipped
   /// sampler); at n_i = 1 the loop is empty, so exactly one PG draw with the
   /// identical psi - the byte-identical single-trial reduction of the label path.
+  /// At n_i = 0 the law is PG(0, .), the point mass at 0, and the row is out of
+  /// the effective mask, so the skip below is its exact draw and consumes no
+  /// variate; the 0 itself lives in the composed precision, never in omega.
   void drawForestGlue(std::size_t f, ext_rng* rng,
                       const std::vector<Forest<L, ResidT>>& forests) override {
     std::size_t n = data_.numObservations;
@@ -1449,7 +1469,8 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
     const double* fFits = rawFits(f, forests);
     const double* suffix = suffix_.data() + f * n;
     double* omega = omega_.data() + f * n;
-    const double* active = activeRows_.empty() ? nullptr : activeRows_.data();
+    const double* active =
+      effectiveRows_.empty() ? nullptr : effectiveRows_.data();
     for (std::size_t i = 0; i < n; ++i) {
       double margin = logSumExp2(prefix_[i], suffix[i]);
       margins_[i] = margin;
@@ -1519,22 +1540,24 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
     // leaf sufficient statistic, branch score and leaf draw of forest f. The
     // response is left at its stale-omega value rather than zeroed - nothing
     // reads a zero-precision row's response, and a NaN there would propagate.
-    if (!activeRows_.empty())
-      for (std::size_t i = 0; i < n; ++i) forestWeights_[i] *= activeRows_[i];
+    if (!effectiveRows_.empty())
+      for (std::size_t i = 0; i < n; ++i)
+        forestWeights_[i] *= effectiveRows_[i];
     return {forestResponse_.data(), forestWeights_.data()};
   }
 
-  /// Category f's veto precisions: omega_if under the active-row mask, the same
-  /// product the response half composes. The chain's w is ignored here as it is
-  /// there - this family carries its precisions in omega, which is strictly
-  /// positive whether drawn or cold-started, so the mask is the only zero.
+  /// Category f's veto precisions: omega_if under the effective mask (the
+  /// active-row mask with the zero-trial rows composed in), the same product
+  /// the response half composes. The chain's w is ignored here as it is there -
+  /// this family carries its precisions in omega, which is strictly positive
+  /// whether drawn or cold-started, so the effective mask is the only zero.
   const double* formForestVetoWeights(std::size_t f,
                                       const double* /*w*/) override {
     std::size_t n = data_.numObservations;
     const double* omega = omega_.data() + f * n;
     for (std::size_t i = 0; i < n; ++i)
       forestWeights_[i] =
-        activeRows_.empty() ? omega[i] : omega[i] * activeRows_[i];
+        effectiveRows_.empty() ? omega[i] : omega[i] * effectiveRows_[i];
     return forestWeights_.data();
   }
 
@@ -1671,6 +1694,22 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   }
 
 private:
+  /// Rebuilds effectiveRows_ from the caller's mask and the current trials: a
+  /// copy of activeRows_, with 0 written at every zero-trial row (the mask
+  /// materialized as ones first when none is installed). Without a zero-trial
+  /// row it is exactly the caller's mask, empty when that is, so the sweep
+  /// loops take the same path they did before the composition existed.
+  void composeEffectiveRows() {
+    std::size_t n = data_.numObservations;
+    effectiveRows_ = activeRows_;
+    std::size_t i = 0;
+    while (i < n && trials_[i] != 0) ++i;
+    if (i == n) return;
+    if (effectiveRows_.empty()) effectiveRows_.assign(n, 1.0);
+    for (; i < n; ++i)
+      if (trials_[i] == 0) effectiveRows_[i] = 0.0;
+  }
+
   /// The single definition of "the per-observation fit the softmax sees" for
   /// category k: forest k's own totalFits off an offset, and the offset column
   /// f_k + o_k under one. Every train-side reader goes through it - the suffix
@@ -1768,7 +1807,7 @@ private:
   const ColumnStore& data_;
   std::size_t numCategories_;
   const int* counts_;    // borrowed n x K count matrix, category-major (k*n + i)
-  const int* trials_;    // borrowed per-observation trial count n_i (>= 1)
+  const int* trials_;    // borrowed per-observation trial count n_i (>= 0)
   const double* offset_; // borrowed n x K category offset, same layout; or null
   const double* testOffset_ = nullptr;  // borrowed nTest x K test one, or null
   std::vector<double> raw_;  // n x K fits + offset; empty and unread off one
@@ -1782,6 +1821,9 @@ private:
   std::vector<double> combinedTest_;   // nTest x K softmax test probabilities
   std::vector<double> forestResponse_, forestWeights_;  // n each
   std::vector<double> activeRows_;     // the global 0/1 mask; empty when none
+  // activeRows_ with the zero-trial rows zeroed; empty when both are absent.
+  // The only mask the sweep reads.
+  std::vector<double> effectiveRows_;
 };
 
 }  // namespace bartcore

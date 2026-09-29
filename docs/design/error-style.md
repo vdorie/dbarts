@@ -670,6 +670,7 @@ over unchanged):
 | `dbartsFallbackWarning` | [`pdbart.prologue`](../../R/partialDependence.R) |
 | `dbartsDegenerateResponseWarning` | [`dbartsData`](../../R/data.R) |
 | `dbartsDuplicateNameWarning` | ["\[<-.lval"](../../R/multipleAssignment.R) |
+| `dbartsZeroTrialsWarning` | [`warnZeroTrials`](../../R/data.R) |
 
 ---
 

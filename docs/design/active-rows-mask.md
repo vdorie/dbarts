@@ -155,6 +155,9 @@ inactive row's K interleaved Polya-Gamma draws are skipped
 zeroed in every category
 ([`MultinomialForestCombiner::formForestResponse`](../../src/bartcore/combiner.hpp)),
 while the row keeps its leaf occupancy and its reported probabilities. A
+zero-trial count row is an inactive row, composed into that mask by the
+coupling itself, so clearing the caller's mask does not re-admit it
+([`MultinomialForestCombiner::composeEffectiveRows`](../../src/bartcore/combiner.hpp)). A
 per-forest mask is refused permanently, on model grounds: the softmax margin is
 a log-sum-exp over the other K-1 forests, so "row i is out of category f only"
 restricts no likelihood at all.
@@ -224,7 +227,9 @@ what tells a skipped draw from a discarded one
 [`testActiveRowsLogisticKernel`](../../tests/cpp/test_model.cpp),
 [`testActiveRowsNBKernels`](../../tests/cpp/test_model.cpp),
 [`testActiveRowsAFTCensored`](../../tests/cpp/test_model.cpp),
-[`testActiveRowsMultinomialKernel`](../../tests/cpp/test_sampler.cpp)). Gaussian and
+[`testActiveRowsMultinomialKernel`](../../tests/cpp/test_sampler.cpp), and the
+zero-trial rows the same way, alone and composed with a mask,
+[`testZeroTrialsMultinomialKernel`](../../tests/cpp/test_sampler.cpp)). Gaussian and
 Student-t are pinned instead against a bare arm carrying `w * a` as fixed
 weights, the degrees-of-freedom recount included
 ([`testActiveRowsGaussianDf`](../../tests/cpp/test_model.cpp),
@@ -237,7 +242,11 @@ grown into the rows the mask removes
 ([`testActiveRowsOnGrownForest`](../../tests/cpp/test_sampler.cpp)); substituted
 responses at the inactive rows leaving every active row's recorded draw bitwise
 (["logistic, nbinom and aft"](../../inst/tinytest/test-active-rows-pins.R),
-["multinomial, GLOBAL only"](../../inst/tinytest/test-active-rows-pins.R)); the
+["multinomial, GLOBAL only"](../../inst/tinytest/test-active-rows-pins.R));
+zero-trial rows against the same rows carrying counts and masked, through
+creation, `$setCounts`, `$sampleTreesFromPrior` and re-creation, and against
+the fit without them
+(["empty rows are masked rows"](../../inst/tinytest/test-multinomial-zero-trials.R)); the
 gaussian, Student-t, BCF and heteroscedastic arms bitwise against
 `setWeights(w * a)` (["heteroSampler"](../../inst/tinytest/test-active-rows-pins.R));
 and the flat C pins for the all-ones no-op, the NULL clear and the fractional

@@ -3586,11 +3586,11 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
 // A K-forest multinomial (softmax) sampler over a GROUPED-COUNT response: Y is
 // an n x K nonnegative integer matrix, category-major (R column-major = the
 // combiner's counts_ layout, so the buffer copies directly), and the trials
-// n_i = sum_k Y_ik must be >= 1 (an empty row carries no information; a PG(0, .)
-// point mass at 0 would break the working response). Same engine as the label
-// entry, count-native. categoryOffsetExpr is the optional n x K category
-// offset (null for none) and categoryTestOffsetExpr its
-// optional nTest x K test twin, which requires test rows to describe.
+// n_i = sum_k Y_ik are >= 0. A row with n_i = 0 is accepted and enters no
+// likelihood: the combiner composes it into its effective mask. Same engine as
+// the label entry, count-native. categoryOffsetExpr is the optional n x K
+// category offset (null for none) and categoryTestOffsetExpr its optional
+// nTest x K test twin, which requires test rows to describe.
 //
 // numCategories is taken as a value rather than an expression because it is
 // the count matrix's own column count, read by the one caller
@@ -3642,9 +3642,6 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
           Rf_error("multinomial count row sums must fit in an integer");
         trials[i] += y;
       }
-    for (size_t i = 0; i < n; ++i)
-      if (trials[i] < 1)
-        Rf_error("every multinomial count row must have at least one trial");
     parseCategoryOffset(categoryOffsetExpr, n, numCategories, offset,
                         "multinomial category offset");
     parseCategoryTestOffset(categoryTestOffsetExpr, data.numTestObservations,
@@ -3995,11 +3992,11 @@ static void requireCountsMutationCapability(const bartcore::SamplerShape& shape,
 }
 
 // Replaces a multinomial (softmax) sampler's response: the n x K
-// category-major count matrix and the trials n_i = sum_k y_ik it implies. The
-// trees carry over, fitted to the previous counts, so the swap is the response
-// mutation every other family reaches through setResponse - which cannot serve
-// here, since the combiner names the chain's y out and reads these counts
-// directly.
+// category-major count matrix and the trials n_i = sum_k y_ik it implies, a
+// zero row sum accepted as at creation. The trees carry over, fitted to the
+// previous counts, so the swap is the response mutation every other family
+// reaches through setResponse - which cannot serve here, since the combiner
+// names the chain's y out and reads these counts directly.
 //
 // n and K are fixed: every combiner buffer and every forest allocation is
 // sized by them, and K is the forest count, which no live sampler can change.
@@ -4058,9 +4055,6 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
           Rf_error("multinomial count row sums must fit in an integer");
         trials[i] += y;
       }
-    for (size_t i = 0; i < n; ++i)
-      if (trials[i] < 1)
-        Rf_error("every multinomial count row must have at least one trial");
 
     holder.ownedCounts.swap(counts);
     holder.ownedTrials.swap(trials);

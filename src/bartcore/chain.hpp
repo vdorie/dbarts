@@ -1246,9 +1246,10 @@ public:
   /// its per-observation trials; false, installing nothing, when the coupling
   /// owns no counts. n and K are fixed at creation - every combiner buffer and
   /// every forest allocation is sized by them - so the host validates the shape
-  /// and this swaps two pointers. The trees carry over, fitted to the previous
-  /// counts; the next sweep forms every per-forest response against the new
-  /// ones.
+  /// and this swaps two pointers and recomposes the coupling's zero-trial rows
+  /// into its effective mask, an O(n) pass. The trees carry over, fitted to the
+  /// previous counts; the next sweep forms every per-forest response against
+  /// the new ones.
   bool setCounts(const int* counts, const int* trials) {
     if (!supportsCountsMutation()) return false;
     combiner_->setCounts(counts, trials);

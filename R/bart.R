@@ -1249,12 +1249,6 @@ bart <- function(
       if (any(observed != round(observed))) {
         stop("family = \"multinomial\" count response must be whole numbers")
       }
-      if (any(rowSums(observed) < 1)) {
-        stop(
-          "family = \"multinomial\" count response requires every row to ",
-          "have at least one trial (row sum >= 1)"
-        )
-      }
 
       levels <- colnames(y)
       if (is.null(levels)) {

@@ -780,9 +780,10 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
       // The count-matrix swap: the multinomial response-side channel, and the
       // only route by which Sampler::setCounts' per-chain fan-out is reached
       // from a test. Only VALID counts are generated - non-negative small
-      // whole cells, every row's trials the recomputed sum and at least 1 -
-      // because the contract is host-enforced and the engine is a two-pointer
-      // swap; the hostile-input arm belongs at the bridge, which probes it.
+      // whole cells, every row's trials the recomputed sum, a grouped row
+      // sometimes empty so the zero-trial composition runs under the fuzz
+      // invariants - because the contract is host-enforced; the hostile-input
+      // arm belongs at the bridge, which probes it.
       // n and K are read from the LIVE sampler at op time, so a later widening
       // of the multi-forest mask admitting setData could not meet a
       // stale-sized buffer here. NEITHER new op has an oracle for its own
@@ -798,8 +799,8 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         size_t K = s.numReportedLocations();
         // flavors: 0 unit one-hot (the creation shape), 1 grouped multi-trial,
         // 2 a self-swap of the resident pointers, which must be BITWISE inert -
-        // near-vacuous against today's plain assignment, and the only tripwire
-        // that would survive a later count-derived cache
+        // near-vacuous against today's assignment and recompose, and the only
+        // tripwire that would survive a later count-derived cache
         int flavor = static_cast<int>(
           fuzzInt(opRng, liveCounts == nullptr ? 2 : 3));
         if (flavor == 2) {
@@ -821,10 +822,6 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
           }
           int rowSum = 0;
           for (size_t k = 0; k < K; ++k) rowSum += counts[k * n + i];
-          if (rowSum == 0) {
-            counts[fuzzInt(opRng, K) * n + i] = 1;
-            rowSum = 1;
-          }
           trials[i] = rowSum;
         }
         liveCounts = arena.keep(std::move(counts));

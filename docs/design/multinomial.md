@@ -223,7 +223,7 @@ Test data at creation and out-of-sample prediction under keepTrees are
 both supported (below).
 
 - The response is an n x K nonnegative integer count matrix with row
-  sums n_i >= 1 (trials): category k's one-vs-rest conditional is
+  sums n_i >= 0 (trials): category k's one-vs-rest conditional is
   binomial(n_i, sigmoid(eta_ik)), augmented by omega_ik ~ PG(n_i, eta_ik)
   drawn as the sum of n_i PG(1, .) draws - exact, because the shape is
   observed integer data, never sampled, so the real-shape gap that
@@ -232,9 +232,18 @@ both supported (below).
   (0..K-1 codes) enter as a one-hot counts matrix with unit trials, the
   byte-identical n_i = 1 reduction that anchors every recorded
   equivalence baseline; K defaults to one past the largest code on the
-  label entry and to the column count on the count entry. Empty rows
-  (n_i = 0) are refused at ingestion - PG(0, .) is a point mass at zero
-  and would poison the working response. K = 2 counts reduce to
+  label entry and to the column count on the count entry. An empty row
+  (n_i = 0) is accepted at creation and through $setCounts, and the first
+  in a session warns (class dbartsZeroTrialsWarning). Its likelihood
+  factor is the constant 1 - PG(0, .) is the point mass at 0 and
+  y_ik - n_i/2 = 0 - so the coupling composes it into its global
+  active-row mask ([Per family](active-rows-mask.md#per-family)): no
+  latent is drawn and no forest's sufficient statistics or veto see it,
+  while it keeps its leaf occupancy and reports K probabilities, as glm
+  keeps a fitted value at a zero-weight row. Its log-likelihood is 0 in
+  every draw, its response residual -p (observed 0, glm's convention),
+  and a fit with added empty rows is the fit without them to rounding
+  when those rows add no cut points. K = 2 counts reduce to
   binomial(n_i, p) distributionally (not bitwise - two forests, a
   different draw stream). The counts (or labels) are the response, so
   the host sampler's own response is ignored. Real-shape (non-integer)

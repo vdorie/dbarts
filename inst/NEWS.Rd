@@ -1017,7 +1017,8 @@
             own:
             \code{$setCounts} replaces the n x K count matrix (trials
             \eqn{n_i = \sum_k \mathrm{counts}_{ik}}{n_i = sum_k counts[i, k]}
-            at least 1), \code{$setCategoryOffset} installs or clears an
+            at least 0, an empty row entering no likelihood),
+            \code{$setCategoryOffset} installs or clears an
             n x K offset entering the log-sum-exp margins before the
             softmax - the response-side counterpart of \code{setCounts},
             distinct from the flat, softmax-null \code{setOffset} - and
