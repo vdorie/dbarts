@@ -1433,8 +1433,11 @@
             (\code{sampler$setPredictor(x)}) is accepted as well, and
             leaves the design a \code{dgCMatrix}; a sparse replacement
             column is read as its stored entries, never expanded, and a
-            replaced column stores only its nonzeros. Any sparse
-            \code{Matrix} class is read as the \code{dgCMatrix} it holds.
+            replaced column stores only its nonzeros. A replacement or a
+            test set of any other sparse \code{Matrix} class (triplet,
+            row-compressed, symmetric, triangular, logical or pattern) is
+            read as the \code{dgCMatrix} it holds; a design must still be a
+            \code{dgCMatrix}.
             Per-observation replacement of a
             sparse-backed column and \code{setData} stay fixed
             at creation. State serialization and \code{predict} work as

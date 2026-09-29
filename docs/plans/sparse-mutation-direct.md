@@ -406,11 +406,13 @@ Slice B, bridge and surface (stacked on A):
    - subset path: one column, several, by name, spanning dense- and sparse-backed store columns;
    - rollback with a refused middle column, whole and subset: an out-of-table level code (error; `data@x` and
      the next sweeps identical to an unmutated twin), a quantile precheck failure (error, same checks), and an
-     all-absent middle column under `forceUpdate = FALSE` (`FALSE` returned, same checks);
+     all-absent middle column under `forceUpdate = FALSE` (`FALSE` returned, `data@x` unchanged, and the next
+     sweeps equal to the twin's within tolerance: a rollback restores the store and trees exactly but rebuilds
+     the cached fits in another summation order, 1.9e-15 at most here and the same on the parent);
    - the implicit value checked against the store's level count: a container whose declared reference is past
      the store's K is refused with the categorical message;
    - `column = c(1L, 1L)` with `forceUpdate = FALSE` that rolls back, on a sparse and a dense design: `FALSE`,
-     `data@x` unchanged, and the next sweeps identical to an untouched twin;
+     `data@x` unchanged, and the next sweeps equal to an untouched twin's within the same rollback tolerance;
    - other classes: `dgTMatrix`, `dgRMatrix`, an `lgCMatrix` and an `ngCMatrix` argument, whole and by column,
      each twinned against the `dgCMatrix` spelling, and `data@x` still a `dgCMatrix` or a container afterwards
      (and, under call 15, `setTestPredictor` with a `dgTMatrix` leaving `data@x.test` a container);
@@ -429,7 +431,8 @@ Slice B, bridge and surface (stacked on A):
 - Sanitizers: tests/cpp under ASAN and UBSan, and slice B's tinytest file R-loaded under ASAN, per
   [Gate hygiene](README.md#gate-hygiene).
 - Discrimination, each run and reverted with a `touch`: keeping an implicit-valued entry in the one-pass branch
-  fails the stored-zeros twins and the store-level pattern checks; skipping the cut refresh in
+  fails the tests/cpp store-level pattern checks only - such an entry changes no code, cut or draw, so no R
+  surface observes it and the stored-zeros twins pass; skipping the cut refresh in
   `installCscColumn` fails the `updateCutPoints = TRUE` arms; routing a CSC source back through the scratch
   column passes every twin, the two being bitwise by design, so a store-level test routes CSC onto CSC and
   requires the router's scratch vector to come back with capacity 0, which that mutation fails.

@@ -131,8 +131,8 @@ for (j in seq_len(p.a)) {
 expectTwinsAgree(x.a, y.a, sparseBlock(a.new), a.new)
 
 # the bridge takes the argument itself: the R layer hands the sparse object
-# over rather than densifying it, so the agreement above is the materializer's
-# and not a coincidence of two dense calls
+# over rather than densifying it, so the agreement above is the engine's
+# entry-wise install and not a coincidence of two dense calls
 set.seed(91L)
 sampler.bridge <- dbarts(x.a, y.a, control = control)
 expect_true(.Call(
@@ -554,10 +554,20 @@ for (k in seq_along(other.classes)) {
     column = c(1L, 3L)
   )
 }
-set.seed(91L)
-sampler.test <- dbarts(x.a, y.a, control = control)
-sampler.test$setTestPredictor(other.classes[[1L]])
-expect_inherits(sampler.test$data@x.test, "dbartsMixedMatrix")
+# a test set of another class stays resident and predicts as its dgCMatrix
+testPredictions <- function(x.test) {
+  set.seed(91L)
+  sampler <- dbarts(x.a, y.a, control = control)
+  sampler$setTestPredictor(x.test)
+  list(
+    class = class(sampler$data@x.test),
+    test = sampler$run(10L, 5L)$test,
+    predicted = sampler$predict(x.test)
+  )
+}
+triplet.test <- testPredictions(other.classes[[1L]])
+expect_true("dbartsMixedMatrix" %in% triplet.test$class)
+expect_identical(triplet.test, testPredictions(sparseBlock(a.new)))
 
 # --- signed zero: a 0/1 column replaced by zeros with one stored -0 under a
 # quantile refresh stores the dense twin's cut, and it is +0

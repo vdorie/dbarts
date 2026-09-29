@@ -767,8 +767,10 @@ predictorSourceIsSparse <- function(x) {
 ## storage, symmetric or triangular, logical or pattern values - as the
 ## dgCMatrix the bridge ingests, at O(nnz); anything else, a sparseVector
 ## included, is returned as is.
+## The coercions exist from Matrix 1.4-1, R 4.2's recommended version, and
+## are the non-deprecated spellings on current Matrix.
 asDgCMatrix <- function(x) {
-  if (inherits(x, "dgCMatrix") || !methods::is(x, "sparseMatrix")) {
+  if (!isS4(x) || inherits(x, "dgCMatrix") || !methods::is(x, "sparseMatrix")) {
     return(x)
   }
   x <- methods::as(methods::as(x, "CsparseMatrix"), "generalMatrix")

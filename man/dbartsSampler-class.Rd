@@ -244,8 +244,9 @@
     level), in the storage layout chosen at creation, and a sparse column of
     the replacement is read as those entries rather than expanded, so for
     sparse columns the call's memory follows their nonzeros; a dense column of
-    a mixed replacement is copied, as in any dense replacement. Any sparse
-    \code{Matrix} class is read as the \code{dgCMatrix} it holds. For
+    a mixed replacement is copied, as in any dense replacement. A
+    replacement of any other sparse \code{Matrix} class is read as the
+    \code{dgCMatrix} it holds, as is such a test set. For
     \code{setTestPredictor}, a per-column update
     reaches a data-frame or sparse test container too: the replacement is
     spliced into its storage rather than densifying the whole test set.

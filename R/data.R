@@ -917,7 +917,7 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   if (inherits(x.test, "dgCMatrix")) {
     if (!is.null(factorLevels)) {
       stop(
-        "sparse (dgCMatrix) test predictors cannot supply values for a ",
+        "a sparse matrix test set cannot supply values for a ",
         "categorical training column; supply 'test' as a dense matrix or ",
         "data frame instead"
       )

@@ -698,10 +698,10 @@ void mapColumnSources(std::vector<std::int32_t>& out, const int* map,
 // each predictor's slice within the channel that holds it, so no factor cell
 // is widened to a double and narrowed straight back. Both store builds ask,
 // reading the result a column at a time; the MUTATION entrances take the
-// single double block, which the view's identity channel addresses. The split layout packs both channels per PREDICTOR, which is
-// what a view is indexed by, so \p denseChannels must be published whenever
-// it is taken; a map naming one dense column twice then gives it a slot per
-// predictor.
+// single double block, which the view's identity channel addresses. The
+// split layout packs both channels per PREDICTOR, which is what a view is
+// indexed by, so \p denseChannels must be published whenever it is taken; a
+// map naming one dense column twice then gives it a slot per predictor.
 void parseMixedContainerBlock(SEXP denseExpr, const int* map,
                               size_t numPredictors, size_t numRows,
                               size_t numCscColumns,

@@ -261,6 +261,14 @@ items
     each push and bump when GitHub deprecates a runtime; wire codecov
     only if a public badge is wanted. The optional roxygen2 and NEWS.md
     migrations do not start unasked.
+  rollback-fit-rebuild-order: a rolled-back transactional predictor
+    update restores the store and the trees exactly but rebuilds the
+    cached fits (repartitionTrees) in a different summation order than
+    the untouched sampler's running cache, so the next sweep is not
+    bitwise to a twin that never attempted the update (1.9e-15 in
+    test-mutate-sparse-valued.R's all-absent middle-column arms, the same
+    before sparse-mutation-direct). Door: whether a rollback should keep
+    or restore the cached fits rather than rebuild them.
   sparse-mutation-direct: before the RC (VD 2026-09-28, dec-B135). A
     sparse replacement through setPredictor / updatePredictor goes to the
     engine as its stored rows and values instead of a dense block, so
