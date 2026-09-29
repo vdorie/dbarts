@@ -263,7 +263,7 @@ items
     engine as its stored rows and values instead of a dense block, so
     peak memory follows the nonzeros; the docs that call a replaced
     column "densified permanently" are corrected with it. Plan:
-    docs/plans/sparse-mutation-direct.md (to write).
+    docs/plans/sparse-mutation-direct.md.
   na-as-none: before the RC (VD 2026-09-28, dec-B132). Public
     arguments that use NA to mean absent or default move to NULL, NA
     kept for one release under a once-per-session warning where 0.9-34
