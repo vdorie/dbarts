@@ -219,7 +219,14 @@ expect_identical(autoLines(dbartsSpec(spec.data)), character())
 
 # xbart announces once, not per replication or worker
 expect_identical(
-  autoLines(xbart(x, yCont, n.reps = 3L, n.trees = 10L, verbose = TRUE)),
+  autoLines(xbart(
+    x,
+    yCont,
+    n.reps = 3L,
+    n.trees = 10L,
+    n.threads = 1L,
+    verbose = TRUE
+  )),
   expected("continuous response", "gaussian")
 )
 expect_identical(
@@ -234,11 +241,18 @@ expect_identical(
   expected("continuous response", "gaussian")
 )
 expect_identical(
-  autoLines(xbart(x, yBin, n.reps = 2L, n.trees = 10L, verbose = TRUE)),
+  autoLines(xbart(
+    x,
+    yBin,
+    n.reps = 2L,
+    n.trees = 10L,
+    n.threads = 1L,
+    verbose = TRUE
+  )),
   expected("0/1 response", "probit")
 )
 expect_identical(
-  autoLines(xbart(x, yCont, n.reps = 2L, n.trees = 10L)),
+  autoLines(xbart(x, yCont, n.reps = 2L, n.trees = 10L, n.threads = 1L)),
   character()
 )
 
