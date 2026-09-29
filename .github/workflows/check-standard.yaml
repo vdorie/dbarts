@@ -43,6 +43,9 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
+      # CRAN's check refuses more than two cores; without this a test that
+      # spawns more passes here and fails there
+      _R_CHECK_LIMIT_CORES_: true
 
     steps:
       - name: Configure git
