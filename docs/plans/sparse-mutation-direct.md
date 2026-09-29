@@ -1,6 +1,6 @@
 # sparse-mutation-direct: a sparse replacement goes sparse to sparse
 
-Status: PLANNED 2026-09-28
+Status: IN PROGRESS - slice A LANDED 2026-09-29 (78a958ca, 939fd832, a989eb0f, 369cb2fd); slice B pending
 
 agent: opus (both slices; slice B's man, NEWS and design-doc edits may go to sonnet)
 rng: neutral, bitwise (the codes, cut grids, stored pattern and missing flags a sparse replacement leaves are the
@@ -443,3 +443,25 @@ Slice B, bridge and surface (stacked on A):
   tools/check-rc-codoc.R .`, `Rscript tools/check-win-drift.R .`, `Rscript tools/check-doc-freshness.R .`, each
   on its own exit status; the NEWS parse check; `R CMD check --as-cran` on a tarball from a clean copy (slice B
   touches R/ and man/).
+
+## Landing note, slice A (2026-09-29)
+
+Landed as 78a958ca (a rolled-back subset update unwinds in reverse, so a
+column named twice restores exactly), 939fd832 (both quantile collectors
+store +0 where a cut would be -0, and one CSC collector serves any entry
+list), a989eb0f (the view entry routes each column by storage kind; a CSC
+column onto a CSC-backed store column installs from its entries) and
+369cb2fd (the entry's preconditions and the canonical CSC triple stated on
+[`PredictorSource`](../../src/bartcore/data.hpp), a debug-only assert, and a
+CSC-onto-categorical test). The bridge still densifies; slice B routes it.
+
+Review found no defects; its documentation and test-gap findings are
+369cb2fd. Gates, macOS arm64: full tinytest 9771 pass, 0 fail; tests/cpp
+all passed, plain and under ASAN and UBSan; reference build: the four
+seeded-drift snapshot files pass and the three bitwise compares are
+identical on every scenario (53 of 53, 15 of 15, 11 of 11), no max |z|;
+air, lintr, rc-codoc, win-drift, doc-freshness clean. Mutations: keeping an
+implicit-valued entry in the one-pass branch, skipping the cut refresh in
+installCscColumn, routing CSC onto CSC through the scratch column, the
+forward restore order, and dropping the +0 normalization each fail the new
+tests.
