@@ -870,61 +870,18 @@ dbartsSpec <- function(
   ),
   survival = NULL,
   parentEnv = parent.frame(),
-  sigma = NULL,
-  node.prior = NULL,
   ...
 ) {
   matchedCall <- match.call()
 
-  # '...' carries the names dec-B98's consolidation moved onto the family
-  # objects, for one release; anything else is refused by name
+  # '...' exists so a retired spelling is refused by name, with its successor
   supplied <- dotNames(...)
   refuseForeignFrontDoorArgs(
     supplied,
     "dbartsSpec",
     names(formals(dbarts::dbartsSpec))
   )
-  consolidated <- resolveConsolidatedArgs(
-    matchedCall,
-    supplied,
-    "dbartsSpec",
-    parentEnv
-  )
-  # cleared before the matched call is redirected at the prior resolver,
-  # which still carries a 'resid.prior' formal a name left here would reach
-  # without the reconciliation below
-  if (length(consolidated) > 0L) {
-    matchedCall[names(consolidated)] <- NULL
-  }
-
-  # the creation-time estimate is 'sigest' here as everywhere; 'sigma' is
-  # the 0.9-x spelling, accepted for one release. Both flags are read before
-  # either name is assigned: an assignment makes missing() false.
-  sigmaSupplied <- !missing(sigma) && !is.null(sigma)
-  sigest <- resolveRenamedSigma(
-    !sigmaSupplied,
-    missing(sigest),
-    sigma,
-    sigest,
-    "dbartsSpec"
-  )
-  sigest <- if (sigmaSupplied) {
-    resolveSigestArg(sigest, "dbartsSpec", "silent", "sigma")
-  } else {
-    resolveSigestArg(sigest, "dbartsSpec", "refuse")
-  }
-
-  # the leaf-value prior is 'leaf.prior' here as everywhere; 'node.prior'
-  # is the 0.9-x spelling, accepted for one release. Both flags are read
-  # before either name is assigned: an assignment makes missing() false.
-  nodePriorSupplied <- !missing(node.prior)
-  leafPriorSupplied <- !missing(leaf.prior)
-  matchedCall <- resolveRenamedLeafPrior(
-    matchedCall,
-    nodePriorSupplied,
-    leafPriorSupplied,
-    "dbartsSpec"
-  )
+  sigest <- resolveSigestArg(sigest, "dbartsSpec", "refuse")
 
   if (!inherits(data, "dbartsData")) {
     stop("'data' must be a dbartsData object; see ?dbartsData")
@@ -940,19 +897,8 @@ dbartsSpec <- function(
   )
   family <- familySpec@token
   dispersion <- familySetting(familySpec, "dispersion", NA_real_)
-  # as on dbarts(): the residual prior has one home, the family object, and
-  # the retired flat spelling beside a family that named 'sigma' too is
-  # refused unless the two agree
-  residPrior <- reconcileResidPrior(
-    consolidatedResidPrior(consolidated),
-    "resid.prior",
-    familySpec
-  )
-  refuseSigestUnderFixedPrior(
-    residPrior,
-    sigest,
-    if (sigmaSupplied) "sigma" else "sigest"
-  )
+  residPrior <- familySetting(familySpec, "sigma", NULL)
+  refuseSigestUnderFixedPrior(residPrior, sigest, "sigest")
   # Student-t is a gaussian response carrying a degrees-of-freedom attribute
   # on this side of the bridge; the remap happens once, here
   residDf <- NULL

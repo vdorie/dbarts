@@ -118,23 +118,9 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
-    name = "sigma",
-    kind = "argument",
-    owner = "dbartsSpec",
-    successor = "sigest",
-    expires = tombstoneExpiry
-  ),
-  list(
     name = "node.prior",
     kind = "argument",
     owner = "dbarts",
-    successor = "leaf.prior",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "node.prior",
-    kind = "argument",
-    owner = "dbartsSpec",
     successor = "leaf.prior",
     expires = tombstoneExpiry
   ),
@@ -184,13 +170,6 @@ dbartsTombstones <- list(
     name = "resid.prior",
     kind = "argument",
     owner = "dbarts",
-    successor = "family = gaussian(sigma = )",
-    expires = tombstoneExpiry
-  ),
-  list(
-    name = "resid.prior",
-    kind = "argument",
-    owner = "dbartsSpec",
     successor = "family = gaussian(sigma = )",
     expires = tombstoneExpiry
   ),
@@ -535,7 +514,6 @@ consolidatedArgsFor <- list(
     "proposal.probs"
   ),
   dbarts = c("resid.prior", "proposal.probs"),
-  dbartsSpec = c("resid.prior"),
   xbart = c("resid.prior")
 )
 
@@ -545,7 +523,6 @@ tombstoneDotsReasons <- list(
     consolidatedArgReasons[consolidatedArgsFor$bart]
   ),
   dbarts = consolidatedArgReasons[consolidatedArgsFor$dbarts],
-  dbartsSpec = consolidatedArgReasons[consolidatedArgsFor$dbartsSpec],
   dbartsControl = list(rngSeed = seedRenameReason),
   xbart = consolidatedArgReasons[consolidatedArgsFor$xbart]
 )
@@ -693,10 +670,20 @@ dotNames <- function(...) {
 
 ## A name refused from a front door's '...' whose successor is not the
 ## obvious next guess gets a hint appended to the "unused argument" message.
-## This is a refusal, not a tombstone: the name never worked on this door
-## (dec-B128), so there is no registry entry, no warning and no NEWS text.
+## This is a refusal, not a tombstone: the name never worked on this door,
+## so there is no registry entry, no warning and no NEWS text. A hint keyed
+## by door wins over the shared one.
 foreignArgHints <- list(
   node.prior = "the leaf prior is 'leaf.prior'"
+)
+foreignArgHintsByDoor <- list(
+  dbartsSpec = list(
+    sigma = "the starting estimate of sigma is 'sigest'",
+    resid.prior = paste0(
+      "the residual prior rides its family: write ",
+      "family = gaussian(sigma = )"
+    )
+  )
 )
 
 ## Anything else in '...' is a caller mistake: refused by name, naming the
@@ -709,8 +696,9 @@ refuseForeignFrontDoorArgs <- function(supplied, caller, own) {
   }
   foreign <- setdiff(supplied[nzchar(supplied)], accepted)
   if (length(foreign) > 0L) {
+    known <- c(foreignArgHintsByDoor[[caller]], foreignArgHints)
     hints <- unlist(
-      foreignArgHints[foreign[foreign %in% names(foreignArgHints)]],
+      known[unique(foreign[foreign %in% names(known)])],
       use.names = FALSE
     )
     stop(
@@ -762,12 +750,12 @@ resolveRenamedSeed <- function(rngSeed, caller, seed) {
 }
 
 ## ------------------------------------------------------------------
-## dbarts(sigma = ) and dbartsSpec(sigma = ), now 'sigest'
+## dbarts(sigma = ), now 'sigest'
 ## ------------------------------------------------------------------
 
 ## The estimate supplied at creation is 'sigest' everywhere; the sampler's
 ## own setSigma, which sets the parameter rather than an estimate of it,
-## keeps its name. Both entry points keep the old formal for the release,
+## keeps its name. The entry points keep the old formal for the release,
 ## so no '...' is needed to reach this message.
 resolveRenamedSigma <- function(
   sigmaIsMissing,
@@ -884,13 +872,13 @@ resolveSigestArg <- function(
 }
 
 ## ------------------------------------------------------------------
-## dbarts(node.prior = ) and dbartsSpec(node.prior = ), now 'leaf.prior'
+## dbarts(node.prior = ), now 'leaf.prior'
 ## ------------------------------------------------------------------
 
 ## The prior vocabulary is NSE, so this never forces the argument: only
 ## presence is tested, via the caller's own missing() on both formals, read
-## before either is assigned. Both entry points keep the old formal for the
-## release, so no '...' is needed to reach this message.
+## before either is assigned. dbarts keeps the old formal for the release,
+## so no '...' is needed to reach this message.
 resolveRenamedLeafPrior <- function(
   matchedCall,
   nodePriorSupplied,

@@ -13,7 +13,7 @@ Every user-facing name that belongs only to terminal nodes says leaf:
 - the reader's `leaf.scale.factor` and `leaf.scale.divisor` columns.
 
 Two old names that shipped in 0.9-x stay until 1.1-0 as once-per-session warning tombstones: `node.prior` on
-`dbarts()` and `dbartsSpec()`, and `$sampleNodeParametersFromPrior`. No other rename gets a tombstone. stan4bart and
+`dbarts()`, and `$sampleNodeParametersFromPrior`. No other rename gets a tombstone. stan4bart and
 bartCause move in lockstep.
 
 ## Context
@@ -26,9 +26,11 @@ bartCause move in lockstep.
 - What 0.9-x shipped: `node.prior` on `dbarts()` only, and `$sampleNodeParametersFromPrior`. 0.9-x's `bart`,
   `bart2` and `xbart` took `k`. `node.prior` on `bart`/`xbart`, `getCalibration`/`setCalibration` and the
   `node.scale.*` columns are branch-only, so NEWS names them only in their new spelling.
-- The `dbartsSpec` precedent: `dbartsSpec` is new on the branch but carries the `sigma` tombstone for a name
-  `dbarts()` shipped. The registry holds `sigma` with owner "dbartsSpec", and `dbartsSpec` calls
-  [`resolveRenamedSigma`](../../R/tombstones.R) with caller "dbartsSpec".
+- The `dbartsSpec` rule: a tombstone lives only on an entry point where 0.9-34 had the argument. `dbartsSpec` is
+  new, so it takes none: `sigma`, `node.prior` and `resid.prior` are refused by name, each message naming its
+  successor (`sigest`, `leaf.prior`, `family = gaussian(sigma = )`). The registry holds no entry with owner
+  "dbartsSpec", and `dbartsSpec` carries `...` only so that
+  [`refuseForeignFrontDoorArgs`](../../R/tombstones.R) can say so.
 - Tombstone machinery:
   - Registry: [`dbartsTombstones`](../../R/tombstones.R).
   - Once-per-session flag: [`warnOnce`](../../R/utility.R) over [`onceWarnState`](../../R/utility.R).
@@ -93,8 +95,8 @@ bartCause move in lockstep.
 ## Site inventory (dbarts at origin/bartcore)
 
 R/:
-- `dbarts` and [`dbartsSpec`](../../R/spec.R): `node.prior = normal` becomes `leaf.prior = normal` in place, and a
-  tombstone formal `node.prior = NULL` goes beside `sigma`.
+- `dbarts` and [`dbartsSpec`](../../R/spec.R): `node.prior = normal` becomes `leaf.prior = normal` in place. `dbarts`
+  gets a tombstone formal `node.prior = NULL` beside `sigma`; `dbartsSpec` gets none and refuses the name.
 - `bart`: formal `node.prior = NULL` becomes `leaf.prior = NULL` in place, with no tombstone formal. `bart2` copies
   bart's formals. In `buildSamplerPriors`:
   - `matchedCall[["node.prior"]]` becomes `leaf.prior`, and so does the returned element;
@@ -139,7 +141,7 @@ R/:
 - Readers of the renamed method: [`packageBartResults`](../../R/bart.R), [`predictForest`](../../R/generics.R) and
   [`predictBlend`](../../R/generics.R). Comments in R/bartcore.R and inst/common/bartcoreHandle.R.
 - R/tombstones.R gets two registry entries:
-  - `node.prior`: kind "argument", owners dbarts and dbartsSpec, successor "leaf.prior";
+  - `node.prior`: kind "argument", owner dbarts, successor "leaf.prior";
   - `sampleNodeParametersFromPrior`: kind "rcMethod", owner dbartsSampler, successor
     "sampleLeafParametersFromPrior".
 
@@ -153,8 +155,8 @@ src/ (bridge only):
 - Slot reads and "a non-default node scale" stay.
 
 man/, vignettes/, README.md (manual prose follows):
-- Usage and arguments: bart.Rd, dbarts.Rd, dbartsSpec.Rd and xbart.Rd get `leaf.prior`. dbarts.Rd and dbartsSpec.Rd
-  also get a trailing `node.prior = NULL`, written like dbarts.Rd's `sigma` item.
+- Usage and arguments: bart.Rd, dbarts.Rd, dbartsSpec.Rd and xbart.Rd get `leaf.prior`. dbarts.Rd
+  also gets a trailing `node.prior = NULL`, written like dbarts.Rd's `sigma` item.
 - dbartsSampler-class.Rd:
   - aliases, `\S4method` usage and every mention of the three methods and the two columns;
   - an alias and usage line for `sampleNodeParametersFromPrior` beside `startThreads`;
@@ -232,8 +234,8 @@ docs/:
     '<caller>'; the value was used. The old name is removed in dbarts 1.1-0.")`, then
     `matchedCall$leaf.prior <- matchedCall$node.prior; matchedCall$node.prior <- NULL`.
 
-  The helper never forces the argument, because the prior vocabulary is NSE. Placement: in `dbarts` and
-  `dbartsSpec`, right after `resolveConsolidatedArgs`, beside the `sigma` resolution. Read `missing()` of both
+  The helper never forces the argument, because the prior vocabulary is NSE. Placement: in `dbarts`,
+  right after `resolveConsolidatedArgs`, beside the `sigma` resolution. Read `missing()` of both
   formals before either is assigned. The returned call is used from then on, so the stored call carries
   `leaf.prior`.
 - Method `sampleNodeParametersFromPrior = function(updateState = NA)`: `warnOnce(
@@ -247,8 +249,9 @@ docs/:
 
 1. dbarts commit 1, "Say leaf where a name means a leaf": the R/, src/, man/, vignettes/, README.md, NEWS,
    tinytest, inst/common and benchmarks edits above. test-tombstones.R gains these checks:
-   - `node.prior` on `dbarts` and on `dbartsSpec` warns exactly once. Reset the key first and count with
-     `withCallingHandlers`. The fit is bitwise the one `leaf.prior` gives under one seed.
+   - `node.prior` on `dbarts` warns exactly once. Reset the key first and count with `withCallingHandlers`. The
+     fit is bitwise the one `leaf.prior` gives under one seed.
+   - `node.prior` on `dbartsSpec` is refused, the message naming `leaf.prior`.
    - Supplying both spellings is the error.
    - `bart(..., node.prior = )` and `xbart(..., node.prior = )` fail with "unused argument 'node.prior'" and name
      `leaf.prior`.
@@ -267,9 +270,8 @@ docs/:
    - the tombstone and deprecation text.
 
    Every other hit becomes leaf.
-4. stan4bart (branch bartcore). Until this lands stan4bart works, but warns. `bart_args$node.prior` forwards through
-   the `dbartsSpec` tombstone, because stan4bart forwards any bart_args name found in `formals(dbarts::dbartsSpec)`,
-   so every `k`-shorthand fit warns. mvbart's `k` path calls `dbarts()`, which keeps the tombstone, so it warns
+4. stan4bart (branch bartcore). `dbartsSpec` refuses `node.prior`, so a `bart_args$node.prior` fails until stan4bart
+   spells it `leaf.prior`. mvbart's `k` path calls `dbarts()`, which keeps the tombstone, so it warns
    too. The changes:
    - R/stan4bart_fit.R: the `k` shorthand writes `spec_call[["leaf.prior"]]`, and its collision check tests
      `leaf.prior` and `node.prior` with the message "bart_args cannot set both 'k' and 'leaf.prior'". Also the
@@ -332,7 +334,7 @@ for f in sbc geweke-mc binary-hyperprior composition-matrix constant-gp-max-leaf
   - the hint map;
   - parsePriors' formal, its list names and the `@node.prior` reads;
   - the bridge's slot strings;
-  - dbarts.Rd and dbartsSpec.Rd's tombstone entries, and dbarts-deprecated.Rd;
+  - dbarts.Rd's tombstone entry, and dbarts-deprecated.Rd;
   - the dbartsSampler-class.Rd alias;
   - NEWS's tombstone list and 0.9-x history;
   - test-tombstones.R and classic-compare.R;
@@ -351,9 +353,9 @@ for f in sbc geweke-mc binary-hyperprior composition-matrix constant-gp-max-leaf
 UPGRADING, after the `sigest` rename item:
 
 ```
-      \item \code{dbarts(node.prior = )} and \code{dbartsSpec(node.prior = )}
-            are renamed \code{leaf.prior}, the name \code{bart} and
-            \code{xbart} take it under too, and the sampler's
+      \item \code{dbarts(node.prior = )}
+            is renamed \code{leaf.prior}, the name \code{bart},
+            \code{xbart} and \code{dbartsSpec} take it under too, and the sampler's
             \code{$sampleNodeParametersFromPrior} is
             \code{$sampleLeafParametersFromPrior}; both old names are
             still accepted for one release (tombstone, above). A name now
@@ -364,14 +366,13 @@ UPGRADING, after the `sigest` rename item:
             probability keep node.
 ```
 
-Tombstone list, after the `sigma` entry: `\code{node.prior} on \code{dbarts} and \code{dbartsSpec} (successor
+Tombstone list, after the `sigma` entry: `\code{node.prior} on \code{dbarts} (successor
 \code{leaf.prior}); \code{dbartsSampler}'s \code{$sampleNodeParametersFromPrior} (successor
 \code{$sampleLeafParametersFromPrior});`
 
 ## Calls made
 
-1. Tombstone reach: `dbarts` and `dbartsSpec` only. `dbartsSpec` follows the `sigma` precedent. `bart` and `xbart`
-   refuse `node.prior` and name `leaf.prior`. Rejected: tombstones on all four doors, because dec-A02 and dec-B128
+1. Tombstone reach: `dbarts` only. `bart`, `xbart` and `dbartsSpec` refuse `node.prior` and name `leaf.prior`. Rejected: tombstones on all four doors, because dec-A02 and dec-B128
    cover only shipped names.
 2. The internal plumbing and the model keep node: `parsePriors`' formal and list names, the `dbartsModel` slots and
    the `dbartsNodePrior` classes. `dbartsModel` is not exported and its slots are undocumented. 0.9-x fits are

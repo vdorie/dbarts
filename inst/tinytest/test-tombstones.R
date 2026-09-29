@@ -505,24 +505,14 @@ expect_error(
   pattern = "must be a residual prior specification"
 )
 
-resetConsolidatedWarning("resid.prior", "dbartsSpec")
-expect_warning(
-  specRetired <- dbarts::dbartsSpec(
-    dbarts::dbartsData(xCons, yCons),
-    resid.prior = dbarts::dbartsPriors$fixed(2),
-    control = consControl
-  ),
-  pattern = "family = gaussian\\(sigma"
-)
-expect_equal(specRetired$model@resid.prior@value, 2)
+# dbartsSpec never carried resid.prior: refused by name, naming the successor
 expect_error(
   dbarts::dbartsSpec(
     dbarts::dbartsData(xCons, yCons),
-    family = gaussian(sigma = fixed(3)),
     resid.prior = dbarts::dbartsPriors$fixed(2),
     control = consControl
   ),
-  pattern = "'resid.prior' and the family's own 'sigma' set different residual"
+  pattern = "unused argument 'resid.prior' passed to 'dbartsSpec'.*family = gaussian\\(sigma = \\)"
 )
 
 resetConsolidatedWarning("resid.prior", "xbart")
@@ -593,7 +583,7 @@ expect_true("control" %in% names(formals(dbarts::bart)))
 expect_true("control" %in% names(formals(dbarts::xbart)))
 expect_true("proposal.probs" %in% names(formals(dbarts::dbartsControl)))
 
-# --- node.prior -> leaf.prior (dbarts, dbartsSpec), like sigma -> sigest ---
+# --- node.prior -> leaf.prior (dbarts), like sigma -> sigest ---
 
 xLV <- matrix(rnorm(60L * 2L), 60L, 2L)
 yLV <- xLV[, 1L] + rnorm(60L)
@@ -660,34 +650,14 @@ expect_error(
 )
 
 specDataLV <- dbarts::dbartsData(xLV, yLV)
-warnEnv[["tombstone.node.prior.dbartsSpec"]] <- NULL
-specWarnings <- character(0L)
-specNodePrior <- withCallingHandlers(
+# dbartsSpec never carried node.prior: refused by name, naming the successor
+expect_error(
   dbarts::dbartsSpec(
     specDataLV,
     control = lvControl,
     node.prior = dbarts::dbartsPriors$normal(3)
   ),
-  warning = function(w) {
-    specWarnings <<- c(specWarnings, conditionMessage(w))
-    invokeRestart("muffleWarning")
-  }
-)
-expect_equal(length(specWarnings), 1L)
-specLeafPrior <- dbarts::dbartsSpec(
-  specDataLV,
-  control = lvControl,
-  leaf.prior = dbarts::dbartsPriors$normal(3)
-)
-expect_identical(specNodePrior$model, specLeafPrior$model)
-expect_error(
-  dbarts::dbartsSpec(
-    specDataLV,
-    control = lvControl,
-    node.prior = dbarts::dbartsPriors$normal(3),
-    leaf.prior = dbarts::dbartsPriors$normal(3)
-  ),
-  pattern = "'node.prior' and 'leaf.prior' name the same prior"
+  pattern = "unused argument 'node.prior' passed to 'dbartsSpec'; the leaf prior is 'leaf.prior'"
 )
 
 # bart and xbart never carried node.prior on this branch: refused by name

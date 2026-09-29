@@ -69,7 +69,7 @@ for (formal in list(
 }
 expect_identical(formals(dbarts::bartBT)[["sigest"]], NA_real_)
 expect_null(formals(dbarts::dbarts)[["sigma"]])
-expect_null(formals(dbarts::dbartsSpec)[["sigma"]])
+expect_false("sigma" %in% names(formals(dbarts::dbartsSpec)))
 
 resetKeys(naKey("sigest", "bart"), naKey("sigest", "dbarts"))
 expect_no_warning_of(callBart(sigest = NULL, seed = 3L))
@@ -160,7 +160,7 @@ expect_no_warning_of(suppressMessages(dbarts::bartBT(
 )))
 
 # the retired sigma spelling points at sigest and defaults to NULL
-resetKeys("tombstone.sigma.dbarts", "tombstone.sigma.dbartsSpec")
+resetKeys("tombstone.sigma.dbarts")
 resetKeys("tombstone.sigma.xbart", naKey("sigest", "dbarts"))
 expect_no_warning_of(sigmaSampler(sigma = NULL))
 expect_one_warning(
@@ -175,11 +175,10 @@ expect_one_warning(
   "'sigma' is now 'sigest' on 'dbarts'"
 )
 expect_error(sigmaSampler(sigma = 1, sigest = 1), "supply one")
-expect_one_warning(
-  viaSigmaSpec <- specOf(sigma = 1.5),
-  "'sigma' is now 'sigest' on 'dbartsSpec'"
+expect_error(
+  specOf(sigma = 1.5),
+  "unused argument 'sigma' passed to 'dbartsSpec'.*'sigest'"
 )
-expect_identical(viaSigmaSpec, 1.5)
 expect_one_warning(
   viaSigmaXbart <- xbartOf(sigma = 1.5),
   "'sigma' is now 'sigest' on 'xbart'"
@@ -197,10 +196,10 @@ expect_true(all(vapply(
 )))
 expect_true(setequal(
   vapply(sigmaEntries, `[[`, "", "owner"),
-  c("dbarts", "dbartsSpec", "xbart")
+  c("dbarts", "xbart")
 ))
 rm(defaultFit, naFit, nullSampler, xbartDefault)
-rm(viaSigma, viaSigmaSpec, viaSigmaXbart, sigmaEntries)
+rm(viaSigma, viaSigmaXbart, sigmaEntries)
 
 # ---- site 2: seed = NULL ----
 
@@ -563,11 +562,11 @@ expect_error(nbinom(dispersion = NaN), "'dispersion'")
 
 # ---- the 0.9-34 sigma and rngSeed reach NULL under the rename warning only ----
 
-resetKeys("tombstone.sigma.xbart", "tombstone.sigma.dbartsSpec")
+resetKeys("tombstone.sigma.xbart")
 expect_one_warning(xbartOf(sigma = NA), "'sigma' is now 'sigest' on 'xbart'")
-expect_one_warning(
+expect_error(
   specOf(sigma = NA),
-  "'sigma' is now 'sigest' on 'dbartsSpec'"
+  "unused argument 'sigma' passed to 'dbartsSpec'"
 )
 
 # ---- fits that rebuild a control raise no NA warning ----
