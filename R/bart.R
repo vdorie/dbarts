@@ -1152,6 +1152,9 @@ bart <- function(
     # flat offset is (parseMultinomialData, refused separately, below).
     multinomialOffset <- NULL
     if (!missing(offset)) {
+      if (is.data.frame(offset)) {
+        offset <- as.matrix(offset)
+      }
       if (!is.matrix(offset)) {
         refuseFlatOffsetOnMultinomial(offset)
       }
@@ -1165,9 +1168,13 @@ bart <- function(
     # installed through $setCategoryTestOffset after creation and, like
     # 'offset', never forwarded to the host call. When omitted it follows the
     # other families' rule: the training offset is reused if the row counts
-    # match and refused by name otherwise (installMultinomialTestOffset).
+    # match and refused by name otherwise (resolveMultinomialTestOffset). An
+    # explicit NULL means no test offset, and skips the reuse.
     multinomialOffsetTest <- NULL
-    if (!missing(offset.test)) {
+    if (!missing(offset.test) && is.null(offset.test)) {
+      multinomialOffsetTest <- FALSE
+      matchedCall$offset.test <- NULL
+    } else if (!missing(offset.test)) {
       if (!is.matrix(offset.test) && !is.data.frame(offset.test)) {
         refuseFlatOffsetOnMultinomial(offset.test, "offset.test")
       }
@@ -1791,14 +1798,53 @@ detectAutoOrdinal <- function(formula, data, dataIsMissing, callingEnv) {
   }
 }
 
+# Matches a category offset's column names to the category levels: unnamed
+# columns stay positional, a permutation of the levels is reordered by name,
+# and any other names are refused. Index-style levels (a count matrix without
+# column names) carry no names to match. Accepts a data frame.
+alignCategoryColumns <- function(offset, levels, argument) {
+  if (is.null(offset) || isFALSE(offset)) {
+    return(offset)
+  }
+  if (is.data.frame(offset)) {
+    offset <- as.matrix(offset)
+  }
+  nms <- colnames(offset)
+  if (
+    is.null(nms) ||
+      identical(levels, as.character(seq_along(levels))) ||
+      identical(nms, levels)
+  ) {
+    return(offset)
+  }
+  if (
+    length(nms) != length(levels) ||
+      !setequal(nms, levels) ||
+      anyDuplicated(nms)
+  ) {
+    stop(
+      "the column names of '",
+      argument,
+      "' must be the category levels (",
+      paste(levels, collapse = ", "),
+      ") or absent"
+    )
+  }
+  offset[, levels, drop = FALSE]
+}
+
 # The category offset of the fit-time test rows. An explicit 'offset.test' is
 # taken as given (its shape is validated by the sampler's entrance); omitted,
 # a training offset is reused when its row count is the test row count and
 # refused by name otherwise, as the other families refuse a per-row offset
-# beside a test set of another length. Called before the training offset loses
-# its na.action rows, so the count compared is the caller's own.
+# beside a test set of another length. Called with the training offset after
+# its na.action rows are dropped, as the other families compare the kept
+# length; an explicit FALSE means offset.test = NULL.
 resolveMultinomialTestOffset <- function(sampler, offset, offset.test) {
   x.test <- sampler$data@x.test
+  if (isFALSE(offset.test)) {
+    return(NULL)
+  }
   if (!is.null(offset.test)) {
     if (is.null(x.test)) {
       stop("'offset.test' must be null when 'test' is null")
@@ -1874,13 +1920,15 @@ bart2Multinomial <- function(
   sampler <- eval(samplerCall, envir = callingEnv)
   # no store: the fresh sampler's state stays the promise read at first use;
   # the offset loses the rows the sampler's na.action dropped
-  testOffset <- resolveMultinomialTestOffset(sampler, offset, offset.test)
+  offset <- alignCategoryColumns(offset, levels(y), "offset")
+  offset.test <- alignCategoryColumns(offset.test, levels(y), "offset.test")
   if (!is.null(offset)) {
     if (!is.null(sampler$data@na.action)) {
       offset <- offset[-unclass(sampler$data@na.action), , drop = FALSE]
     }
     sampler$setCategoryOffset(offset, updateState = FALSE)
   }
+  testOffset <- resolveMultinomialTestOffset(sampler, offset, offset.test)
   if (!is.null(testOffset)) {
     sampler$setCategoryTestOffset(testOffset, updateState = FALSE)
   }
@@ -1969,13 +2017,15 @@ bart2MultinomialCounts <- function(
   sampler <- eval(samplerCall, envir = callingEnv)
   # no store: the fresh sampler's state stays the promise read at first use;
   # the offset loses the rows the sampler's na.action dropped
-  testOffset <- resolveMultinomialTestOffset(sampler, offset, offset.test)
+  offset <- alignCategoryColumns(offset, levels, "offset")
+  offset.test <- alignCategoryColumns(offset.test, levels, "offset.test")
   if (!is.null(offset)) {
     if (!is.null(sampler$data@na.action)) {
       offset <- offset[-unclass(sampler$data@na.action), , drop = FALSE]
     }
     sampler$setCategoryOffset(offset, updateState = FALSE)
   }
+  testOffset <- resolveMultinomialTestOffset(sampler, offset, offset.test)
   if (!is.null(testOffset)) {
     sampler$setCategoryTestOffset(testOffset, updateState = FALSE)
   }

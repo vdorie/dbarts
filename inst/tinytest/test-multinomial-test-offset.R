@@ -473,7 +473,9 @@ expect_identical(
   fit.none$yhat.train
 )
 # a data frame is taken as its matrix
-fit.df <- fitOffsetTest(offset.test = as.data.frame(testOffset))
+fit.df <- fitOffsetTest(
+  offset.test = setNames(as.data.frame(testOffset), levels(labelsFactor))
+)
 expect_identical(fit.df$yhat.test, fit.only$yhat.test)
 
 # default reuse: a training offset beside a test set of the same row count
@@ -559,4 +561,75 @@ unlink(tmp)
 expect_identical(
   fitOffsetTest(offset.test = zeroTestOffset)$yhat.test,
   fit.none$yhat.test
+)
+
+# --- na.action: the default reuse compares the KEPT rows, as gaussian does ---
+yNA <- labelsFactor
+yNA[3L] <- NA
+naFit <- function(test, ...) {
+  set.seed(606)
+  bart(
+    x,
+    yNA,
+    family = "multinomial",
+    test = test,
+    n.trees = 25L,
+    n.burn = 20L,
+    n.samples = 4L,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    keepSampler = TRUE,
+    verbose = FALSE,
+    ...
+  )
+}
+expect_error(naFit(x, offset = offset), "offset.test")
+fit.na <- naFit(x[-3L, ], offset = offset)
+expect_identical(fit.na$fit$data@offset.category.test, offset[-3L, ])
+
+# explicit NULL: no test offset, no reuse, no refusal
+fit.null <- naFit(x.test, offset = offset, offset.test = NULL)
+expect_null(fit.null$fit$data@offset.category.test)
+
+# data frames on both sides
+fit.dfo <- fitOffsetTest(
+  offset = setNames(as.data.frame(offset), levels(labelsFactor)),
+  offset.test = setNames(as.data.frame(testOffset), levels(labelsFactor))
+)
+expect_identical(fit.dfo$yhat.test, fit.ot$yhat.test)
+
+# column names against the category levels
+lv <- levels(labelsFactor)
+named <- function(m, nm) {
+  colnames(m) <- nm
+  m
+}
+fit.nm <- fitOffsetTest(
+  offset = named(offset, lv),
+  offset.test = named(testOffset, lv)
+)
+expect_identical(fit.nm$yhat.test, fit.ot$yhat.test)
+perm <- rev(lv)
+fit.perm <- fitOffsetTest(
+  offset = named(offset[, rev(seq_len(K))], perm),
+  offset.test = named(testOffset[, rev(seq_len(K))], perm)
+)
+expect_identical(fit.perm$yhat.test, fit.ot$yhat.test)
+badNames <- c("a", "b", "c")
+expect_error(
+  fitOffsetTest(offset.test = named(testOffset, badNames)),
+  "category levels"
+)
+expect_error(
+  fitOffsetTest(offset = named(offset, badNames), offset.test = testOffset),
+  "category levels"
+)
+expect_identical(
+  predict(fit.ot, x.test, offset = named(testOffset[, rev(seq_len(K))], perm)),
+  predict(fit.ot, x.test, offset = testOffset)
+)
+expect_error(
+  predict(fit.ot, x.test, offset = named(testOffset, badNames)),
+  "category levels"
 )
