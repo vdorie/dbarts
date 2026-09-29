@@ -279,7 +279,7 @@ calls `run` on the `SamplerBase` it holds; the facade forwards to
 
 1. Under a variance forest, form the mean weights `w_i / s^2(x_i)`
    (`formMeanWeights`); the global sigma stays fixed at 1.
-2. When `levelGibbs` is `TRUE`, or `NA` (the default) and that forest's
+2. When the control's `treeShift` is `"always"`, or `"auto"` (the default) and that forest's
    structural mixture is frozen, draw the constant-leaf forest's level shift
    (`drawLevelShift`): a constant added to every occupied leaf of a tree, the
    constants summing to zero across the forest's trees, leaving the fitted

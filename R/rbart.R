@@ -317,7 +317,7 @@ rbart_vi <- function(
     tree.prior,
     leaf.prior,
     family,
-    sigest = as.numeric(sigest)
+    sigest = if (is.na(sigest)) NULL else as.numeric(sigest)
   )
   if (is.null(leaf.prior)) {
     samplerArgs[["leaf.prior"]] <- NULL

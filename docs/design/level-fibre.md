@@ -199,7 +199,8 @@ move kept, in the same words.
 `proposal.probs` is the wrong home: it is a probability vector over STRUCTURAL proposals that must sum to one, and this is a logical
 that adds a step rather than redistributing one. [`dbartsControl`](../../R/A_class.R) is the home - it already carries
 creation-time sampler settings that are not run mechanics (`useQuantiles`, `n.cuts`, `storage`) - and the slot is `levelGibbs`,
-default `FALSE`.
+default `FALSE`. As landed, the R argument is `dbartsControl(treeShift = )`, taking `"auto"` (the default), `"always"` or `"never"` (dec-B139): the slot keeps the name and the tri-state logical
+the bridge reads, `"auto"` being `NA`, and the `cgm()` and `dart()` tree priors no longer carry a copy.
 
 **A, always on now.** It is an exact Gibbs step that cannot hurt the target and has no tunable, and the two moves of its shape the
 engine ships carry no flag; the cost is the whole re-record of section 7 taken before any benefit is measured, and a second one if

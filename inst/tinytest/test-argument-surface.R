@@ -369,11 +369,11 @@ controlFormals1_0_0 <- c(
 # formals added after the 1.0-0 freeze. They carry the same parity contract -
 # every one is a bart formal, spelled identically - but stay off the frozen
 # list, which is what keeps that list a snapshot rather than a ratchet.
-# levelGibbs and the four engine limits below are this list's documented
+# treeShift and the four engine limits below are this list's documented
 # exceptions to the parity contract itself (see below); keepFits follows the
 # rule.
 controlFormalsAdded <- c(
-  "levelGibbs",
+  "treeShift",
   "keepFits",
   "categoricalExhaustiveCap",
   "testFitParallelCutoff",
@@ -391,12 +391,13 @@ expect_true(setequal(
   intersect(controlFormals1_0_0, names(formals(dbarts::bart))),
   controlFormals1_0_0
 ))
-# levelGibbs is a control field the consolidation took off the fitting
-# functions: it is declared on the tree prior, whose own default is the same
-# tri-state NA (the automatic mode), so nothing quietly turns the automatic
-# step off. It is the one item of controlFormalsAdded absent from bart's own
-# formals; keepFits, added alongside it, follows the general parity rule
-# instead - present on both, spelled identically.
+# treeShift is a control field with no flat spelling on the fitting
+# functions and none on the tree priors, so its default, "auto", is the one
+# place the automatic step is decided. It is the one item of
+# controlFormalsAdded absent from bart's own formals; keepFits, added
+# alongside it, follows the general parity rule instead - present on both,
+# spelled identically.
+expect_false("treeShift" %in% names(formals(dbarts::bart)))
 expect_false("levelGibbs" %in% names(formals(dbarts::bart)))
 expect_true("keepFits" %in% names(formals(dbarts::bart)))
 # the four engine limits are control-only for the same reason: they are tuning
@@ -413,12 +414,11 @@ for (limit in c(
   expect_true(limit %in% names(formals(dbarts::dbartsControl)))
 }
 rm(limit)
-expect_identical(formals(dbarts::dbartsControl)[["levelGibbs"]], NA)
 expect_identical(
-  formals(dbarts:::cgm)[["levelGibbs"]],
-  formals(dbarts:::dart)[["levelGibbs"]]
+  eval(formals(dbarts::dbartsControl)[["treeShift"]]),
+  c("auto", "always", "never")
 )
-expect_identical(formals(dbarts:::cgm)[["levelGibbs"]], NA)
+expect_false("levelGibbs" %in% names(formals(dbarts::dbartsControl)))
 
 # The variance quartet collapses to a dedicated varianceForest() constructor;
 # variance = keeps its shorthand (NULL/FALSE/TRUE/formula/character/index)
@@ -843,7 +843,7 @@ expect_identical(
   names(formals(dbarts::xbart))[length(formals(dbarts::xbart))],
   "..."
 )
-expect_equal(length(formals(dbarts::xbart)), 33L)
+expect_equal(length(formals(dbarts::xbart)), 34L)
 # The two-door contract (dec-B83): the legacy door is a strict compatibility
 # mode carrying 0.9-34's argument list and nothing else, and every capability
 # the branch had briefly appended to it lives at the modern door instead.

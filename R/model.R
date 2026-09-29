@@ -1422,14 +1422,13 @@ columnLabels <- function(columnNames, cols) {
 }
 
 num.vars <- numvars <- NULL # R CMD check
-cgm <- function(power = 2, base = 0.95, split.probs = NULL, levelGibbs = NA) {
+cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
   result <- newValidated(
     "dbartsCGMPrior",
     power = power,
     base = base,
     splitProbabilities = numeric(),
-    splitProbabilitiesSpec = NULL,
-    levelGibbs = validateLevelGibbs(levelGibbs)
+    splitProbabilitiesSpec = NULL
   )
   if (length(split.probs) > 0L && !is.numeric(split.probs)) {
     stop("'split.probs' must be numeric")
@@ -1498,20 +1497,29 @@ gp <- function(
   )
 }
 
-## One named-calibration argument, wherever it is spelled: NULL or NA leaves it
-## unnamed, anything else must be a single positive finite number. NaN is NOT
-## the unnamed spelling even though is.na() says so - it carries no intent and
-## cannot serve as a divisor - so it is refused here rather than surviving to
-## the bridge's own last-line check.
+## One named-calibration argument, wherever it is spelled: NULL leaves it
+## unnamed, anything else must be a single positive finite number. NA is a
+## missing value, not the unnamed spelling, and NaN carries no intent and
+## cannot serve as a divisor, so both are refused here rather than surviving
+## to the bridge's own last-line check. The result is NA_real_ for unnamed,
+## which is what the slots hold.
 validateNamedScale <- function(value, name) {
   if (is.null(value)) {
     return(NA_real_)
   }
-  value <- coerceOrError(value, "numeric")
+  if (isSingleNA(value)) {
+    stop(
+      "'",
+      name,
+      "' must not be NA: NA is a missing value; NULL leaves it unnamed",
+      call. = FALSE
+    )
+  }
+  value <- coerceOrError(value, "numeric", name)
   if (length(value) != 1L) {
     stop("'", name, "' must be a single number")
   }
-  if (is.nan(value) || (!is.na(value) && (!is.finite(value) || value <= 0.0))) {
+  if (is.na(value) || !is.finite(value) || value <= 0.0) {
     stop("'", name, "' must be positive")
   }
   value
@@ -1521,11 +1529,10 @@ validateNamedScale <- function(value, name) {
 ## spells "unnamed" at creation. There is no family default to fall back on
 ## once a sampler exists, so an absent value is a malformed one.
 validateLiveScale <- function(value, name) {
-  value <- validateNamedScale(value, name)
-  if (is.na(value)) {
+  if (is.null(value) || isSingleNA(value)) {
     stop("'", name, "' must be a positive finite number")
   }
-  value
+  validateNamedScale(value, name)
 }
 
 ## The two spellings of the named leaf calibration, shared by normal(),
@@ -1607,21 +1614,6 @@ chi <- function(degreesOfFreedom = 1.5, scale = 2.0) {
   )
 }
 
-## The categorical-split level Gibbs step is a property of how a tree prior
-## proposes splits, so it is declared on the prior rather than on a fitting
-## function: NA leaves the control's own setting in force, TRUE/FALSE take
-## or skip the step.
-validateLevelGibbs <- function(levelGibbs) {
-  value <- as.logical(levelGibbs)
-  if (length(value) != 1L) {
-    stop("'levelGibbs' must be TRUE, FALSE, or NA")
-  }
-  if (is.na(value) && !anyNA(levelGibbs)) {
-    stop("'levelGibbs' must be TRUE, FALSE, or NA")
-  }
-  value
-}
-
 dart <- function(
   power = 2,
   base = 0.95,
@@ -1630,16 +1622,20 @@ dart <- function(
   rho = NULL,
   alpha = 1,
   update.alpha = TRUE,
-  update.delay = NULL,
-  levelGibbs = NA
+  update.delay = NULL
 ) {
+  if (isSingleNA(rho)) {
+    refuseNAForNull("rho", "dart", "the default, the number of predictors")
+  }
+  if (isSingleNA(update.delay)) {
+    refuseNAForNull("update.delay", "dart", "the default, half the burn-in")
+  }
   newValidated(
     "dbartsDartPrior",
     power = power,
     base = base,
     splitProbabilities = numeric(),
     splitProbabilitiesSpec = NULL,
-    levelGibbs = validateLevelGibbs(levelGibbs),
     a = a,
     b = b,
     rho = if (is.null(rho)) NA_real_ else rho,

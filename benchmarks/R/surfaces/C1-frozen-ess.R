@@ -25,7 +25,7 @@
 #
 # The `levelGibbs` flag adds a paired second frozen chain at each freeze point,
 # identical to its partner but for the level-fibre Gibbs step
-# (dbartsControl(levelGibbs = TRUE)), which adds a zero-sum constant to each
+# (dbartsControl(treeShift = "always")), which adds a zero-sum constant to each
 # tree's occupied leaves once a sweep. The step is fixed when a sampler is
 # created, so it can only be switched on AFTER the freeze - see levelArm() -
 # which is also what the pairing needs: both arms stand at one forest when
@@ -86,7 +86,7 @@ cellSampler <- function(data, replicate, levelGibbs = FALSE) {
     n.threads = 1L,
     verbose = FALSE,
     seed = surfacesSamplerSeed(replicate),
-    tree.prior = cgm(levelGibbs = levelGibbs),
+    control = dbartsControl(treeShift = if (levelGibbs) "always" else "never"),
     samplerOnly = TRUE
   )
 }

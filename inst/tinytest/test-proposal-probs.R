@@ -363,7 +363,7 @@ expect_true(length(unique(as.vector(frozenSamples$sigma))) > 1L)
 expect_true(all(is.finite(frozenSamples$train)))
 
 # and this is the mixture that switches the level-fibre Gibbs step on:
-# dbartsControl's levelGibbs defaults to NA, which takes the step for a
+# dbartsControl's treeShift defaults to "auto", which takes the step for a
 # forest exactly where that forest's structures are frozen. The freeze
 # arrives by setControl after fifty growing sweeps, so the decision is taken
 # per sweep and not once at creation - the run above and the arm below stand

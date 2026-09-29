@@ -33,7 +33,9 @@
       \code{alpha} is the concentration, optionally sampled
       (\code{update.alpha}) on a grid with a Beta(\code{a}, \code{b}) prior
       on \code{alpha / (alpha + rho)}; \code{rho} defaults to the number of
-      predictors. Updates hold until \code{update.delay} iterations have
+      predictors. \code{NA} is a missing value, not a spelling of the default,
+      and is refused for \code{rho} and \code{update.delay} alike. Updates hold
+      until \code{update.delay} iterations have
       passed (default: half the control's burn-in), so the forest is
       likelihood-informed when counts first enter the Dirichlet.
     }
@@ -58,7 +60,9 @@
       \code{k} drawn every sweep leaves no single value to divide by;
       name \code{scale} there, which a sampled \code{k} scales rather
       than replaces. See \code{\link{dbarts}}'s Details for what the
-      named quantity means under each leaf model.
+      named quantity means under each leaf model. \code{NULL} leaves
+      either unnamed; \code{NA} is a missing value and is refused, here
+      and in \code{linear} and \code{gp}.
     }
     \item{\code{linear(columns, k = NULL, sd = NULL, scale = NULL)}}{
       Each leaf fits an intercept plus a linear term in the designated

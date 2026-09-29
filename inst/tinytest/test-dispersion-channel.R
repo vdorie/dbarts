@@ -38,7 +38,7 @@ samplerControlDispersionChannel <- function(n.chains = 1L, ...) {
 
 nbinomSamplerDispersionChannel <- function(
   n.chains = 1L,
-  dispersion = NA_real_
+  dispersion = NULL
 ) {
   dbarts(
     x,

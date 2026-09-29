@@ -13,14 +13,9 @@ methods::setClass(
     # the raw user specification (possibly named, referencing columns);
     # resolved against the data into splitProbabilities when a sampler is
     # built, and NULL thereafter
-    splitProbabilitiesSpec = "ANY",
-    # tri-state: NA is "not declared here", which leaves the control's own
-    # setting in force; TRUE/FALSE declare the categorical-split level Gibbs
-    # step for this prior and are copied onto the control when the sampler
-    # specification is resolved
-    levelGibbs = "logical"
+    splitProbabilitiesSpec = "ANY"
   ),
-  prototype = list(splitProbabilitiesSpec = NULL, levelGibbs = NA)
+  prototype = list(splitProbabilitiesSpec = NULL)
 )
 methods::setValidity("dbartsCGMPrior", function(object) {
   if (object@power <= 0.0) {
@@ -28,9 +23,6 @@ methods::setValidity("dbartsCGMPrior", function(object) {
   }
   if (object@base <= 0.0 || object@base >= 1.0) {
     return("'base' must be in (0, 1)")
-  }
-  if (length(object@levelGibbs) != 1L) {
-    return("'levelGibbs' must be of length 1")
   }
   if (
     length(object@splitProbabilities) > 0L &&
@@ -363,9 +355,9 @@ methods::setValidity("dbartsControl", function(object) {
   if (is.na(object@useQuantiles)) {
     return("'useQuantiles' must be TRUE/FALSE")
   }
-  # levelGibbs alone reads NA as a value rather than as a missing one: it is
-  # the automatic mode, which takes the level step for a forest exactly where
-  # that forest's structural mixture is frozen
+  # levelGibbs, the slot behind treeShift, alone reads NA as a value rather
+  # than as a missing one: it is the automatic mode, which takes the step for
+  # a forest exactly where that forest's structural mixture is frozen
   if (is.na(object@keepTrees)) {
     return("'keepTrees' must be TRUE/FALSE")
   }

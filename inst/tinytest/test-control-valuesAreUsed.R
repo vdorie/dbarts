@@ -16,7 +16,7 @@ control <- dbarts::dbartsControl(
   n.cuts = n.cuts,
   n.chains = n.chains,
   n.threads = n.threads,
-  levelGibbs = TRUE
+  treeShift = "always"
 )
 sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 

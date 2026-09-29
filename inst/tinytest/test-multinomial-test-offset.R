@@ -47,7 +47,7 @@ zeroTestOffset <- matrix(0, nTest, K)
 controlTestOffset <- function(
   n.chains = 1L,
   keepTrees = FALSE,
-  n.samples = NA_integer_
+  n.samples = NULL
 ) {
   dbartsControl(
     n.chains = n.chains,
@@ -64,7 +64,7 @@ buildSamplerTestOffset <- function(
   offset.test = NULL,
   n.chains = 1L,
   keepTrees = FALSE,
-  n.samples = NA_integer_
+  n.samples = NULL
 ) {
   sampler <- dbarts(
     dbartsData(x, counts = counts, test = x.test),

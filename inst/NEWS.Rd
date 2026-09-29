@@ -172,7 +172,9 @@
             \code{k} is not supplied, so a binary fit's \code{k} prior and
             the tree-move mix are those of \code{dbarts}, not 0.9-34's.
       \item \code{xbart} loses its \code{control} argument and renames
-            \code{sigma} to \code{sigest}. \code{n.cuts},
+            \code{sigma} to \code{sigest}; \code{sigma} is still accepted
+            for one release, with a once-per-session warning (tombstone
+            list, below). \code{n.cuts},
             \code{useQuantiles}, and \code{n.thin} are ordinary formals,
             spelled and defaulted exactly as \code{dbartsControl}'s own.
             \code{n.burn} takes two values rather than three: the
@@ -367,8 +369,8 @@
             a thread count passed to \code{$run} (ignored, successor
             \code{$setControl});
             \code{rngSeed} on \code{bart} and \code{dbartsControl}
-            (successor \code{seed}); \code{sigma} on \code{dbarts} and
-            \code{dbartsSpec} (successor \code{sigest}); \code{node.prior}
+            (successor \code{seed}); \code{sigma} on \code{dbarts},
+            \code{dbartsSpec} and \code{xbart} (successor \code{sigest}); \code{node.prior}
             on \code{dbarts} and \code{dbartsSpec} (successor
             \code{leaf.prior}); \code{dbartsSampler}'s
             \code{$sampleNodeParametersFromPrior} (successor
@@ -388,13 +390,31 @@
             \code{control = dbartsControl(proposal.probs)}); and a
             three-element \code{n.burn} on
             \code{xbart} (refused outright, naming \code{n.burn = c(fresh,
-            warm)}).
+            warm)}). NULL, not NA, is now the spelling of an absent value,
+            as in base R, and an explicit NA that 0.9-34 documented is read
+            as NULL for this release, warning once per session per argument:
+            \code{sigest = NA} on \code{bart}, \code{dbarts} and
+            \code{xbart} (the new default is NULL, which estimates it by
+            least squares, as NA did); \code{seed = NA} on \code{bart},
+            \code{bartBT}, \code{dbarts}, \code{xbart} and
+            \code{dbartsControl}; \code{n.samples = NA} on
+            \code{dbartsControl} (the default is NULL); \code{updateState
+            = NA} on \code{dbartsSampler}'s methods and on
+            \code{updatePredictorPerObservationJointly} (the default is
+            NULL, which defers to the control's, as NA did; TRUE and FALSE
+            override it and anything else is refused); and \code{NA} for
+            \code{$run}'s \code{numBurnIn} and \code{numSamples} (NULL,
+            now their default, takes the control's). The test-data setters
+            \code{$setTestPredictor}, \code{$setTestPredictorAndOffset}
+            and \code{$setTestOffset} still accept 0.9-34's
+            \code{updateState} and ignore it, warning once, since test data
+            is not stored state.
       \item \code{bart} and \code{xbart} gain a
             \code{control = \link{dbartsControl}()} formal, reaching every
             engine and sampler setting neither door spells flatly
             (\code{categoricalExhaustiveCap}, \code{testFitParallelCutoff},
             \code{predictParallelCutoff}, \code{sparseDensityThreshold},
-            \code{levelGibbs}, and the tree-move mixture
+            \code{treeShift}, and the tree-move mixture
             \code{proposal.probs}), under one precedence rule: a flat
             argument named in the call wins over the control's slot of the
             same name, and a slot the control speaks for wins over the
@@ -429,7 +449,7 @@
             lists ten constructors - \code{gaussian()},
             \code{student(df = NULL)}, \code{probit()}, \code{logistic()},
             \code{multinomial()}, \code{ordinal()},
-            \code{nbinom(dispersion = NA)}, \code{aft()},
+            \code{nbinom(dispersion = NULL)}, \code{aft()},
             \code{hazard(breaks = NULL, max.rows = 1e7, link = )}, and
             \code{hurdle.lognormal()} - and \code{family} now takes either
             of these calls, resolving a bare token string
@@ -644,8 +664,8 @@
             posterior means over the prediction channel in place rather than
             through \code{\link[base]{apply}}, which permuted the whole
             channel first. Every reported mean is unchanged.
-      \item \code{\link{dbartsControl}} gains \code{levelGibbs}, a logical
-            adding one Gibbs step per sampler iteration, taken before the
+      \item \code{\link{dbartsControl}} gains \code{treeShift}, adding one
+            Gibbs step per sampler iteration, taken before the
             trees are updated: a constant is added to every occupied leaf of
             each tree, with the constants summing to zero over the trees. The
             sum-of-trees function is therefore unchanged - the fits, the
@@ -654,8 +674,9 @@
             can improve mixing where the ensemble's overall level is split
             among many trees. The shift is drawn from its exact conditional
             distribution, so the posterior is the same either way. It takes
-            three values: \code{TRUE} steps every iteration, \code{FALSE}
-            never steps, and \code{NA}, the default, steps for a forest
+            three values: \code{"always"} steps every iteration,
+            \code{"never"} never steps, and \code{"auto"}, the default,
+            steps for a forest
             exactly when that forest's tree structures are frozen - every
             structural element of \code{proposal.probs} zero - which is
             where the leaf values are the only thing left moving. The
@@ -663,8 +684,9 @@
             with \code{$setModel} part way through a run switches the step
             on from there. Anywhere structure is still proposed the default
             takes no step and every fit draws exactly the values it drew
-            before. \code{bart} takes it as a formal;
-            \code{bart} takes the default. It applies to forests with the
+            before. It is reached through \code{bart}'s and
+            \code{xbart}'s \code{control}, and is not an argument of the
+            tree priors. It applies to forests with the
             default constant leaves, the monotone constraint and every
             binary, count or survival family among them; linear and
             Gaussian-process leaves and the heteroscedastic variance forest

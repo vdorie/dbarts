@@ -1,12 +1,13 @@
 # Joint per-observation update of a single shared column across several
-# samplers. Following dbartsSampler convention, NA updateState pulls from the
-# sampler's control; if it's a logical scalar, that value is used.
+# samplers. Following dbartsSampler convention, a NULL updateState pulls from
+# the sampler's control; if it's a logical scalar, that value is used.
 updatePredictorPerObservationJointly <- function(
   samplers,
   x,
   column,
-  updateState = NA
+  updateState = NULL
 ) {
+  updateState <- checkUpdateState(updateState)
   if (inherits(samplers, "dbartsSampler")) {
     samplers <- list(samplers)
   }
@@ -95,10 +96,7 @@ updatePredictorPerObservationJointly <- function(
   }
 
   for (sampler in samplers) {
-    if (
-      (is.na(updateState) && sampler$control@updateState == TRUE) ||
-        identical(updateState, TRUE)
-    ) {
+    if (resolveUpdateState(updateState, sampler$control)) {
       sampler$storeState()
     }
   }

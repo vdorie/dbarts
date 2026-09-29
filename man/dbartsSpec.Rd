@@ -14,11 +14,11 @@ dbartsSpec(
     monotone = NULL, interactions = NULL, blocks = NULL,
     variance = NULL,
     forests = NULL,
-    sigest = NA_real_, seed = NULL,
+    sigest = NULL, seed = NULL,
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal", "nbinom"),
     survival = NULL,
-    parentEnv = parent.frame(), sigma = NA_real_, node.prior = NULL, \dots)
+    parentEnv = parent.frame(), sigma = NULL, node.prior = NULL, \dots)
 }
 \arguments{
   \item{data}{
@@ -43,7 +43,7 @@ dbartsSpec(
     The \code{family} element of the returned list names the family the sampler is built with, and the \code{dbarts_family} enumerator \code{dbarts_sampler_family} reports for it (\code{"gaussian"} names \code{DBARTS_FAMILY_GAUSSIAN}, and so on). \code{"auto"} asks this function to dispatch on the shape of the response, which is correct for \code{"gaussian"}, \code{"probit"}, \code{"ordinal"}, and \code{"nbinom"} - each is inferable from the response coding or from an attribute - but is \emph{wrong} for \code{"aft"} and \code{"logistic"}, which are indistinguishable by shape from \code{"gaussian"} and \code{"probit"} respectively. Name the family and the question does not arise.
   }
   \subsection{Differences from dbarts()}{
-    \code{sigma} defaults to leaving the data object's own value alone, rather than overwriting it: a caller that computed a starting estimate keeps it, and an unset (\code{NA}) value is still estimated during resolution. Cut points are taken from \code{control} only when the data does not already carry resolved per-column counts.
+    \code{sigest} defaults to \code{NULL}, which leaves the data object's own value alone, rather than overwriting it: a caller that computed a starting estimate keeps it, and an unset (\code{NA}) value is still estimated during resolution. An explicit \code{NA} for \code{sigest} reads as \code{NULL}, with a once-per-session warning until dbarts 1.1-0. Cut points are taken from \code{control} only when the data does not already carry resolved per-column counts.
 
     Families that require ingestion this function does not perform are unavailable: \code{"hazard"} needs person-period expansion, and \code{"hurdle.lognormal"} describes more than one sampler. \code{"multinomial"} is in this function's own vocabulary, but only for a \code{data} object whose response is already an \eqn{n \times K}{n x K} \code{counts} matrix (see \code{data} above, and \code{\link{dbartsData}}'s \code{counts} argument); given a factor-coded or plain numeric response instead, it is refused with a message naming the counts route, even though \code{\link{dbarts}} accepts the same factor by coding it into that shape first.
   }

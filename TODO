@@ -137,8 +137,6 @@ items
     penalties: gate STANDS, no model surfaced. Records:
     docs/design/interaction-constraints.md,
     docs/plans/archive/interaction-constraints.md.
-  ledger-audit-loose-ends: one record remains, handled elsewhere: dec-A66's
-    backwards sigma tombstones (na-as-none).
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply

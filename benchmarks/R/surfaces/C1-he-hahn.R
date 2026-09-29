@@ -614,7 +614,9 @@ for (which in meanFunctions) {
         n.threads = 1L,
         n.grow.sweeps = arm$growSweeps,
         combineChains = arm$nChains == 1L,
-        levelGibbs = arm$levelGibbs,
+        control = dbartsControl(
+          treeShift = if (arm$levelGibbs) "always" else "never"
+        ),
         verbose = FALSE,
         seed = surfacesSamplerSeed(seedIndex) + arm$samplerOffset
       )

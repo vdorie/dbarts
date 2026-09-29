@@ -18,7 +18,7 @@ xbart <- function(
   base = 0.95,
   split.probs = NULL,
   drop = TRUE,
-  sigest = NA_real_,
+  sigest = NULL,
   seed = NULL,
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic"),
@@ -31,9 +31,25 @@ xbart <- function(
   parallel = getOption("dbarts.parallel", "auto"),
   cl = NULL,
   control = dbarts::dbartsControl(),
+  sigma = NULL,
   ...
 ) {
   matchedCall <- match.call()
+  # the creation-time estimate is 'sigest'; 'sigma' is 0.9-x's spelling of it,
+  # accepted for one release
+  sigmaSupplied <- !missing(sigma) && !is.null(sigma)
+  sigest <- resolveRenamedSigma(
+    !sigmaSupplied,
+    missing(sigest),
+    sigma,
+    sigest,
+    "xbart"
+  )
+  sigest <- resolveSigestArg(sigest, "xbart", warnNA = !sigmaSupplied)
+  if (sigmaSupplied) {
+    matchedCall["sigest"] <- list(if (is.na(sigest)) NULL else sigest)
+    matchedCall$sigma <- NULL
+  }
   # '...' exists only so a retired argument name reaches a message naming
   # its successor; R refuses an unknown name before any body runs
   supplied <- dotNames(...)
@@ -95,7 +111,7 @@ xbart <- function(
   n.trees <- resolved$n.trees
   # 'seed' is resolved from its value, not from whether the call named it: a
   # wrapper forwarding its own seed = NULL must still defer to the control.
-  seed <- resolveSeedArg(seed)
+  seed <- resolveSeedArg(seed, "xbart")
   if (is.na(seed)) {
     seed <- control@seed
   }
@@ -371,8 +387,13 @@ xbart <- function(
   } else {
     # the k argument replaces the supplied prior's own k, but its named
     # calibration is not a grid axis and rides every cell unchanged
-    namedSd <- leafSpec@prior.sd
-    namedScale <- leafSpec@prior.scale
+    # the slots hold NA for unnamed; the constructors take NULL
+    namedSd <- if (is.na(leafSpec@prior.sd)) NULL else leafSpec@prior.sd
+    namedScale <- if (is.na(leafSpec@prior.scale)) {
+      NULL
+    } else {
+      leafSpec@prior.scale
+    }
     leafPrior <- if (is(leafSpec, "dbartsLinearPrior")) {
       resolveLeafCovariates(
         linear(leafSpec@columns, kValue, namedSd, namedScale),
@@ -414,7 +435,11 @@ xbart <- function(
     "resid.prior",
     familySpec
   )
-  refuseSigestUnderFixedPrior(residPrior, sigest)
+  refuseSigestUnderFixedPrior(
+    residPrior,
+    sigest,
+    if (sigmaSupplied) "sigma" else "sigest"
+  )
   resid.prior <- if (control@binary) {
     fixed(1)
   } else if (!is.null(residPrior)) {

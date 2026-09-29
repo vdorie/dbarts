@@ -256,6 +256,104 @@ dbartsTombstones <- list(
     owner = "bart",
     successor = "bartBT",
     expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA sigest",
+    kind = "behaviour",
+    owner = "bart",
+    successor = "sigest = NULL",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA sigest",
+    kind = "behaviour",
+    owner = "dbarts",
+    successor = "sigest = NULL",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA sigest",
+    kind = "behaviour",
+    owner = "dbartsSpec",
+    successor = "sigest = NULL",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA sigest",
+    kind = "behaviour",
+    owner = "xbart",
+    successor = "sigest = NULL",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA seed",
+    kind = "behaviour",
+    owner = "bart",
+    successor = "seed = NULL",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA seed",
+    kind = "behaviour",
+    owner = "bartBT",
+    successor = "seed = NULL",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA seed",
+    kind = "behaviour",
+    owner = "dbarts",
+    successor = "seed = NULL",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA seed",
+    kind = "behaviour",
+    owner = "xbart",
+    successor = "seed = NULL",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA seed",
+    kind = "behaviour",
+    owner = "dbartsControl",
+    successor = "seed = NULL",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA updateState",
+    kind = "behaviour",
+    owner = "dbartsSampler",
+    successor = "updateState = NULL",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA numBurnIn and numSamples",
+    kind = "behaviour",
+    owner = "dbartsSampler",
+    successor = "$run(numBurnIn = NULL, numSamples = NULL)",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "NA n.samples",
+    kind = "behaviour",
+    owner = "dbartsControl",
+    successor = "n.samples = NULL",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "sigma",
+    kind = "argument",
+    owner = "xbart",
+    successor = "sigest",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "updateState on the test setters",
+    kind = "behaviour",
+    owner = "dbartsSampler",
+    successor = "no argument",
+    expires = tombstoneExpiry
   )
 )
 
@@ -700,7 +798,8 @@ resolveRenamedSeed <- function(rngSeed, caller, seed) {
     tombstoneExpiry,
     "."
   )
-  rngSeed
+  # 0.9-x's rngSeed = NA meant no seed; the warning above covers the name
+  if (isSingleNA(rngSeed)) NULL else rngSeed
 }
 
 ## ------------------------------------------------------------------
@@ -738,6 +837,84 @@ resolveRenamedSigma <- function(
     "."
   )
   sigma
+}
+
+## ------------------------------------------------------------------
+## NA where NULL now means "not given"
+## ------------------------------------------------------------------
+
+## A 0.9-x entry point that took NA for an absent value keeps reading it that
+## way for the release, after saying so once per entry point and argument;
+## the one message serves every such site, so the wording cannot drift.
+warnNAForNull <- function(argument, caller) {
+  warnOnce(
+    paste0("tombstone.NA.", argument, ".", caller),
+    "'",
+    argument,
+    " = NA' is now '",
+    argument,
+    " = NULL' on '",
+    caller,
+    "'; the NA was read as NULL. NA is a missing value, and reading it as ",
+    "absent is removed in dbarts ",
+    tombstoneExpiry,
+    "."
+  )
+}
+
+## 0.9-x's test-data setters took an updateState; test data is not stored
+## state, so the value is ignored, after saying so once.
+ignoreTestUpdateState <- function(updateState) {
+  if (is.null(updateState)) {
+    return(invisible(NULL))
+  }
+  warnOnce(
+    "tombstone.testSetters.updateState",
+    "the test-data setters no longer take 'updateState': test data is not ",
+    "stored state, so the value was ignored. The argument is removed in ",
+    "dbarts ",
+    tombstoneExpiry,
+    "."
+  )
+  invisible(NULL)
+}
+
+## An argument that never shipped with NA for absent refuses it now.
+refuseNAForNull <- function(argument, caller, meaning = "not given") {
+  stop(
+    "'",
+    argument,
+    "' must not be NA on '",
+    caller,
+    "': NA is a missing value; NULL is the spelling of ",
+    meaning,
+    call. = FALSE
+  )
+}
+
+## TRUE for a single NA of any type, the value a caller writes for "missing".
+## NaN is not one: it carries no such intent, and the argument's own checks
+## refuse it.
+isSingleNA <- function(x) {
+  is.atomic(x) && length(x) == 1L && is.na(x) && !is.nan(x)
+}
+
+## The residual-scale estimate supplied at creation: NULL means estimate it
+## by least squares, and NA_real_ is the internal spelling of the same thing
+## that the data object's slot keeps. An explicit NA warns; 'warnNA = FALSE'
+## is for a value that arrived under a retired name whose own warning has
+## already said so.
+resolveSigestArg <- function(sigest, caller, warnNA = TRUE) {
+  if (is.null(sigest)) {
+    return(NA_real_)
+  }
+  if (isSingleNA(sigest)) {
+    if (warnNA) {
+      warnNAForNull("sigest", caller)
+    }
+    return(NA_real_)
+  }
+  sigest
 }
 
 ## ------------------------------------------------------------------

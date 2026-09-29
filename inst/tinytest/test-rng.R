@@ -70,14 +70,10 @@ overrideResults <- sampler$run(0L, 5L)
 expect_equal(overrideResults$train, seedOnlyResults$train)
 
 # seed = NULL means not given here and defers to the control's own seed,
-# exactly as leaving the argument out does; NA is accepted the same way,
-# silently - unlike a named seed = NA, which used to discard the control's
-# seed and force an unseeded fit
+# exactly as leaving the argument out does
 sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 controlSeedResults <- sampler$run(0L, 5L)
 sampler <- dbarts::dbarts(y ~ x, testData, control = control, seed = NULL)
-expect_equal(sampler$run(0L, 5L)$train, controlSeedResults$train)
-sampler <- dbarts::dbarts(y ~ x, testData, control = control, seed = NA)
 expect_equal(sampler$run(0L, 5L)$train, controlSeedResults$train)
 
 rm(

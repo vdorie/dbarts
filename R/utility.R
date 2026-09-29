@@ -252,13 +252,27 @@ coerceOrError <- function(x, type, name = NULL) {
 }
 
 ## A seed argument is NULL when it was not given at this level - deferring,
-## at a call, to whatever seed is already in force - or NA, 0.9-x's spelling
-## of the same thing and how the retired 'rngSeed' arrives; both resolve
-## here to dbartsControl()'s own "unseeded" value, NA_integer_, silently.
-## Anything else is validated and coerced exactly as coerceOrError() always
-## has (a fractional double refused, naming 'seed').
-resolveSeedArg <- function(seed) {
+## at a call, to whatever seed is already in force - and resolves here to
+## dbartsControl()'s own "unseeded" value, NA_integer_. NA is a missing
+## value, as set.seed(NA) treats it: 0.9-x's entry points spelled "no seed"
+## that way and get a once-per-session warning, and 'refuse' names the
+## entry points that never took it. Anything else is validated and coerced
+## exactly as coerceOrError() always has (a fractional double refused,
+## naming 'seed').
+resolveSeedArg <- function(seed, caller, refuse = FALSE) {
   if (is.null(seed)) {
+    return(NA_integer_)
+  }
+  if (length(seed) == 1L && is.na(seed)) {
+    if (refuse) {
+      stop(
+        "'seed' must not be NA on '",
+        caller,
+        "': NA is a missing value; NULL is the spelling of no seed",
+        call. = FALSE
+      )
+    }
+    warnNAForNull("seed", caller)
     return(NA_integer_)
   }
   coerceOrError(seed, "integer")

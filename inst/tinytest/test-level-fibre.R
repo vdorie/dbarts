@@ -12,29 +12,33 @@ source(
   local = TRUE
 )
 
+# the tests below say TRUE and FALSE where the control now says words
+treeShiftWord <- function(x) if (x) "always" else "never"
+
 # ---- the control slot ----
 
 # three values: TRUE takes the step every iteration, FALSE never takes it,
 # and NA - the default - takes it for a forest exactly where that forest's
 # structural mixture is frozen
+# (dbartsControl(treeShift = ) spells them "always", "never" and "auto"; the
+# slot the bridge reads keeps the tri-state logical)
 expect_true(is.na(dbarts::dbartsControl()@levelGibbs))
-expect_true(is.na(dbarts::dbartsControl(levelGibbs = NA)@levelGibbs))
-expect_true(dbarts::dbartsControl(levelGibbs = TRUE)@levelGibbs)
-expect_false(dbarts::dbartsControl(levelGibbs = FALSE)@levelGibbs)
-# NA being a value rather than a refusal, an argument that merely coerces to
-# one is caught before it can read as a third setting
-expect_error(
-  dbarts::dbartsControl(levelGibbs = "not-a-logical"),
-  "'levelGibbs' must be TRUE, FALSE, or NA"
-)
-expect_error(
-  dbarts::dbartsControl(levelGibbs = c(TRUE, TRUE)),
-  "'levelGibbs' must be of length 1"
-)
+expect_true(is.na(dbarts::dbartsControl(treeShift = "auto")@levelGibbs))
+expect_true(dbarts::dbartsControl(treeShift = "always")@levelGibbs)
+expect_false(dbarts::dbartsControl(treeShift = "never")@levelGibbs)
+expect_true(dbarts::dbartsControl(treeShift = "al")@levelGibbs)
+# anything else, NA and a logical included, is refused by name
+for (bad in list(NA, TRUE, "not-a-shift", c("always", "never"), 1L)) {
+  expect_error(
+    dbarts::dbartsControl(treeShift = bad),
+    "'treeShift' must be one of"
+  )
+}
+expect_error(dbarts::dbartsControl(levelGibbs = TRUE), "unused argument")
 
 # the value rides the sampler's own control, and bart carries the formal
 onControl <- dbarts::dbartsControl(
-  levelGibbs = TRUE,
+  treeShift = "always",
   n.chains = 1L,
   n.threads = 1L,
   n.trees = 10L,
@@ -53,7 +57,7 @@ changed <- onSampler$control
 changed@levelGibbs <- FALSE
 expect_error(
   onSampler$setControl(changed),
-  pattern = "changing 'levelGibbs'"
+  pattern = "changing 'treeShift'"
 )
 # and the same refusal from the off side
 offSampler <- dbarts::dbarts(
@@ -72,7 +76,7 @@ expect_true(is.na(turnedOn@levelGibbs))
 turnedOn@levelGibbs <- TRUE
 expect_error(
   offSampler$setControl(turnedOn),
-  pattern = "changing 'levelGibbs'"
+  pattern = "changing 'treeShift'"
 )
 
 # a control that only restates the value is accepted, NA against NA among
@@ -101,7 +105,7 @@ fitAt <- function(levelGibbs, ...) {
   dbarts::bart(
     testData$x,
     testData$y,
-    control = dbarts::dbartsControl(levelGibbs = levelGibbs),
+    control = dbarts::dbartsControl(treeShift = treeShiftWord(levelGibbs)),
     n.trees = 25L,
     n.samples = 60L,
     n.burn = 60L,
@@ -182,7 +186,7 @@ frozenTail <- function(...) {
 # structure is proposed, and neither does FALSE - so they stand at one forest
 # when the freeze lands, and part only after it
 frozenDefault <- frozenTail()
-expect_false(identical(frozenDefault, frozenTail(levelGibbs = FALSE)))
+expect_false(identical(frozenDefault, frozenTail(treeShift = "never")))
 expect_true(all(is.finite(frozenDefault)))
 
 # frozen from creation instead, where TRUE and the default share every sweep
@@ -213,8 +217,8 @@ frozenThroughout <- function(...) {
   sampler$run(25L, 25L)$train
 }
 alwaysFrozen <- frozenThroughout()
-expect_identical(alwaysFrozen, frozenThroughout(levelGibbs = TRUE))
-expect_false(identical(alwaysFrozen, frozenThroughout(levelGibbs = FALSE)))
+expect_identical(alwaysFrozen, frozenThroughout(treeShift = "always"))
+expect_false(identical(alwaysFrozen, frozenThroughout(treeShift = "never")))
 rm(frozenDefault, frozenTail, freeze, frozenThroughout, alwaysFrozen)
 
 # ---- the answer is the same: held-out fits agree within Monte Carlo error ----
@@ -224,7 +228,7 @@ heldOut <- function(levelGibbs, seed) {
     testData$x[1:70, ],
     testData$y[1:70],
     test = testData$x[71:100, ],
-    control = dbarts::dbartsControl(levelGibbs = levelGibbs),
+    control = dbarts::dbartsControl(treeShift = treeShiftWord(levelGibbs)),
     n.trees = 25L,
     n.samples = 500L,
     n.burn = 500L,
@@ -258,7 +262,7 @@ linearAt <- function(levelGibbs) {
     y ~ x1 + x2 + x3,
     df,
     leaf.prior = linear("x2"),
-    control = dbarts::dbartsControl(levelGibbs = levelGibbs),
+    control = dbarts::dbartsControl(treeShift = treeShiftWord(levelGibbs)),
     n.trees = 10L,
     n.samples = 40L,
     n.burn = 40L,
@@ -278,7 +282,7 @@ monotoneFit <- dbarts::bart(
   testData$y,
   monotone = c(0L, 0L, 0L, 1L, 0L, 0L, 0L, 0L, 0L, 0L),
   keepTrees = TRUE,
-  control = dbarts::dbartsControl(levelGibbs = TRUE),
+  control = dbarts::dbartsControl(treeShift = "always"),
   n.trees = 20L,
   n.samples = 40L,
   n.burn = 40L,
@@ -296,35 +300,27 @@ along <- colMeans(predict(monotoneFit, grid))
 expect_true(all(diff(along) >= -1e-8))
 rm(monotoneFit, grid, along, df, fitAt, leafSumError, testData)
 
-# ---- the setting is declared on the tree prior (dec-B98) ----
+# ---- the setting lives on the control only ----
 
 source(
   system.file("common", "friedmanData.R", package = "dbarts"),
   local = TRUE
 )
 
-# both structure priors carry it, and each validates it as the control does
-expect_true("levelGibbs" %in% names(formals(dbarts:::cgm)))
-expect_true("levelGibbs" %in% names(formals(dbarts:::dart)))
-expect_true(is.na(dbarts::dbartsPriors$cgm()@levelGibbs))
-expect_true(dbarts::dbartsPriors$cgm(levelGibbs = TRUE)@levelGibbs)
-expect_false(dbarts::dbartsPriors$dart(levelGibbs = FALSE)@levelGibbs)
-expect_error(
-  dbarts::dbartsPriors$cgm(levelGibbs = "not-a-logical"),
-  "'levelGibbs' must be TRUE, FALSE, or NA"
-)
-expect_error(
-  dbarts::dbartsPriors$dart(levelGibbs = c(TRUE, TRUE)),
-  "'levelGibbs' must be TRUE, FALSE, or NA"
-)
+# neither structure prior carries it: it was never per forest
+expect_false("levelGibbs" %in% names(formals(dbarts:::cgm)))
+expect_false("levelGibbs" %in% names(formals(dbarts:::dart)))
+expect_false("treeShift" %in% names(formals(dbarts:::cgm)))
+expect_error(dbarts::dbartsPriors$cgm(levelGibbs = TRUE), "unused argument")
+expect_error(dbarts::dbartsPriors$dart(levelGibbs = TRUE), "unused argument")
 
-# a value declared on the prior reaches the control the bridge reads, and
-# takes the extra step: the draws move against a fit that declared nothing
-fitWithTreePrior <- function(treePrior) {
+# a value on the control reaches the bridge and takes the extra step: the
+# draws move against a fit that declared nothing, and "auto" is the default
+fitWithControl <- function(...) {
   dbarts::bart(
     testData$x,
     testData$y,
-    tree.prior = treePrior,
+    control = dbarts::dbartsControl(...),
     n.trees = 15L,
     n.samples = 30L,
     n.burn = 30L,
@@ -335,32 +331,30 @@ fitWithTreePrior <- function(treePrior) {
     seed = 21L
   )
 }
-levelGibbsDefault <- fitWithTreePrior(dbarts::dbartsPriors$cgm())
-levelGibbsOn <- fitWithTreePrior(dbarts::dbartsPriors$cgm(levelGibbs = TRUE))
-levelGibbsOff <- fitWithTreePrior(dbarts::dbartsPriors$cgm(levelGibbs = FALSE))
-expect_true(is.na(levelGibbsDefault$fit$control@levelGibbs))
-expect_true(levelGibbsOn$fit$control@levelGibbs)
-expect_false(levelGibbsOff$fit$control@levelGibbs)
-# an undeclared prior leaves the control's own setting in force; a declared
-# one overrides it
-expect_false(identical(
-  levelGibbsDefault$yhat.train,
-  levelGibbsOn$yhat.train
-))
-expect_identical(levelGibbsDefault$yhat.train, levelGibbsOff$yhat.train)
+shiftDefault <- fitWithControl()
+shiftOn <- fitWithControl(treeShift = "always")
+shiftOff <- fitWithControl(treeShift = "never")
+expect_true(is.na(shiftDefault$fit$control@levelGibbs))
+expect_true(shiftOn$fit$control@levelGibbs)
+expect_false(shiftOff$fit$control@levelGibbs)
+expect_false(identical(shiftDefault$yhat.train, shiftOn$yhat.train))
+expect_identical(shiftDefault$yhat.train, shiftOff$yhat.train)
 
-# and the same from a DART prior
-dartOn <- fitWithTreePrior(dbarts::dbartsPriors$dart(levelGibbs = TRUE))
-dartDefault <- fitWithTreePrior(dbarts::dbartsPriors$dart())
-expect_true(dartOn$fit$control@levelGibbs)
-expect_true(is.na(dartDefault$fit$control@levelGibbs))
-expect_false(identical(dartOn$yhat.train, dartDefault$yhat.train))
-
-rm(
-  fitWithTreePrior,
-  levelGibbsDefault,
-  levelGibbsOn,
-  levelGibbsOff,
-  dartOn,
-  dartDefault
+# and from a DART prior, whose control is the same one
+dartOn <- dbarts::bart(
+  testData$x,
+  testData$y,
+  tree.prior = dbarts::dbartsPriors$dart(),
+  control = dbarts::dbartsControl(treeShift = "always"),
+  n.trees = 15L,
+  n.samples = 30L,
+  n.burn = 30L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepSampler = TRUE,
+  verbose = FALSE,
+  seed = 21L
 )
+expect_true(dartOn$fit$control@levelGibbs)
+
+rm(fitWithControl, shiftDefault, shiftOn, shiftOff, dartOn)

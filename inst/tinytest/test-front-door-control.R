@@ -515,12 +515,11 @@ expect_equal(
 )
 rm(xbartArgs)
 
-# ---- seed = NULL/NA defers to a control's seed; the old NA discard is gone -
+# ---- seed = NULL defers to a control's seed ----
 
-# NULL (the default) and NA both mean "not given here": a control-carried
-# seed is used exactly as if 'seed' had been left off the call. A NAMED
-# seed = NA used to differ, discarding the control's seed and forcing an
-# unseeded fit; that discard is gone.
+# NULL (the default) means "not given here": a control-carried seed is used
+# exactly as if 'seed' had been left off the call. (An NA seed is a missing
+# value and warns; test-na-as-none.R holds that.)
 seededSeedControl <- dbarts::dbartsControl(
   n.trees = 5L,
   n.samples = 10L,
@@ -541,7 +540,6 @@ seedFit <- function(...) {
 }
 controlSeeded <- seedFit()
 expect_identical(seedFit(seed = NULL), controlSeeded)
-expect_identical(seedFit(seed = NA), controlSeeded)
 # a named number still overrides the control, and is itself reproducible
 overridden <- seedFit(seed = 29L)
 expect_false(identical(overridden, controlSeeded))
@@ -598,10 +596,6 @@ xbartSeedArgs <- list(
 xbartControlSeeded <- do.call(dbarts::xbart, xbartSeedArgs)
 expect_equal(
   do.call(dbarts::xbart, c(xbartSeedArgs, list(seed = NULL))),
-  xbartControlSeeded
-)
-expect_equal(
-  do.call(dbarts::xbart, c(xbartSeedArgs, list(seed = NA))),
   xbartControlSeeded
 )
 expect_false(isTRUE(all.equal(

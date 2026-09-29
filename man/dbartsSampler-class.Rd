@@ -58,12 +58,12 @@
 }
 \usage{
 \S4method{run}{dbartsSampler}(
-  numBurnIn, numSamples, updateState = NA, ..., callback = NULL
+  numBurnIn = NULL, numSamples = NULL, updateState = NULL, ..., callback = NULL
 )
-\S4method{sampleTreesFromPrior}{dbartsSampler}(updateState = NA)
-\S4method{sampleLeafParametersFromPrior}{dbartsSampler}(updateState = NA)
-\S4method{sampleVarianceForestFromPrior}{dbartsSampler}(updateState = NA)
-\S4method{growFromRoot}{dbartsSampler}(n.sweeps = 2L, updateState = NA)
+\S4method{sampleTreesFromPrior}{dbartsSampler}(updateState = NULL)
+\S4method{sampleLeafParametersFromPrior}{dbartsSampler}(updateState = NULL)
+\S4method{sampleVarianceForestFromPrior}{dbartsSampler}(updateState = NULL)
+\S4method{growFromRoot}{dbartsSampler}(n.sweeps = 2L, updateState = NULL)
 \S4method{copy}{dbartsSampler}(shallow = FALSE)
 \S4method{show}{dbartsSampler}()
 \S4method{predict}{dbartsSampler}(x.test, offset.test, n.threads = control@n.threads)
@@ -72,24 +72,24 @@
 )
 \S4method{setControl}{dbartsSampler}(newControl)
 \S4method{setModel}{dbartsSampler}(newModel)
-\S4method{setData}{dbartsSampler}(newData, updateState = NA)
+\S4method{setData}{dbartsSampler}(newData, updateState = NULL)
 \S4method{setResponse}{dbartsSampler}(
-  y, updateScale = FALSE, updateState = NA, status = NULL
+  y, updateScale = FALSE, updateState = NULL, status = NULL
 )
-\S4method{setOffset}{dbartsSampler}(offset, updateScale = FALSE, updateState = NA)
-\S4method{setWeights}{dbartsSampler}(weights, updateState = NA)
-\S4method{setCounts}{dbartsSampler}(counts, updateState = NA)
-\S4method{setCategoryOffset}{dbartsSampler}(offset, updateState = NA)
-\S4method{setCategoryTestOffset}{dbartsSampler}(offset.test, updateState = NA)
-\S4method{setActiveRows}{dbartsSampler}(active, updateState = NA)
-\S4method{setForestWeights}{dbartsSampler}(forest, weights, updateState = NA)
-\S4method{setForestBasis}{dbartsSampler}(forest, basis, updateState = NA)
-\S4method{setSigma}{dbartsSampler}(sigma, updateState = NA)
-\S4method{setPredictor}{dbartsSampler}(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA)
-\S4method{setCutPoints}{dbartsSampler}(cuts, column, updateState = NA)
-\S4method{setTestPredictor}{dbartsSampler}(x.test, column)
-\S4method{setTestPredictorAndOffset}{dbartsSampler}(x.test, offset.test)
-\S4method{setTestOffset}{dbartsSampler}(offset.test)
+\S4method{setOffset}{dbartsSampler}(offset, updateScale = FALSE, updateState = NULL)
+\S4method{setWeights}{dbartsSampler}(weights, updateState = NULL)
+\S4method{setCounts}{dbartsSampler}(counts, updateState = NULL)
+\S4method{setCategoryOffset}{dbartsSampler}(offset, updateState = NULL)
+\S4method{setCategoryTestOffset}{dbartsSampler}(offset.test, updateState = NULL)
+\S4method{setActiveRows}{dbartsSampler}(active, updateState = NULL)
+\S4method{setForestWeights}{dbartsSampler}(forest, weights, updateState = NULL)
+\S4method{setForestBasis}{dbartsSampler}(forest, basis, updateState = NULL)
+\S4method{setSigma}{dbartsSampler}(sigma, updateState = NULL)
+\S4method{setPredictor}{dbartsSampler}(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NULL)
+\S4method{setCutPoints}{dbartsSampler}(cuts, column, updateState = NULL)
+\S4method{setTestPredictor}{dbartsSampler}(x.test, column, updateState = NULL)
+\S4method{setTestPredictorAndOffset}{dbartsSampler}(x.test, offset.test, updateState = NULL)
+\S4method{setTestOffset}{dbartsSampler}(offset.test, updateState = NULL)
 \S4method{printTrees}{dbartsSampler}(treeNums, chainNums, sampleNums)
 \S4method{getTrees}{dbartsSampler}(
   treeNums, chainNums, sampleNums, current = FALSE, newdata = NULL,
@@ -106,10 +106,10 @@
 \S4method{getForestVariableCounts}{dbartsSampler}(forest = NULL)
 \S4method{getLeafPrior}{dbartsSampler}(forest = NULL)
 \S4method{setLeafPrior}{dbartsSampler}(
-  prior.scale, prior.sd, prior.mean, forest = 1L, updateState = NA
+  prior.scale, prior.sd, prior.mean, forest = 1L, updateState = NULL
 )
 \S4method{installTrees}{dbartsSampler}(donor, samples = NULL)
-\S4method{sampleNodeParametersFromPrior}{dbartsSampler}(updateState = NA)
+\S4method{sampleNodeParametersFromPrior}{dbartsSampler}(updateState = NULL)
 \S4method{startThreads}{dbartsSampler}(n.threads = control@n.threads)
 \S4method{stopThreads}{dbartsSampler}()
 \S4method{storeState}{dbartsSampler}(ptr = getPointer())
@@ -122,22 +122,22 @@
 }
 \arguments{
   \item{numBurnIn}{
-    A non-negative integer determining how many iterations the sampler should skip before storing results. If missing or \code{NA}, the default is filled in from the sampler's \code{\link[=dbartsControl]{control}} object.
+    A non-negative integer determining how many iterations the sampler should skip before storing results. If \code{NULL} (the default), it is filled in from the sampler's \code{\link[=dbartsControl]{control}} object; an explicit \code{NA} reads as \code{NULL} for one release, with a once-per-session warning.
   }
   \item{numSamples}{
-    A positive integer determining how many posterior samples should be returned. If missing or \code{NA}, the default is also filled in from the control object.
+    A positive integer determining how many posterior samples should be returned. If \code{NULL} (the default), it is also filled in from the control object; an explicit \code{NA} reads as \code{NULL} for one release, with a once-per-session warning.
   }
   \item{callback}{
     \code{NULL} (the default) or a list with two elements, \code{fn} and \code{context}, each an R external pointer (\code{externalptr}): \code{fn} the address of a compiled \code{dbarts_draw_callback} (\code{inst/include/dbarts/dbarts.h}) and \code{context} an opaque pointer handed back to it unchanged, or \code{NULL}. It fires once per SAVED draw of this call, per chain, on the thread that owns that chain, over const pointers into this run's own result buffers (or, under \code{control@keepFits == FALSE}, a per-chain one-draw scratch buffer the chain's next draw overwrites); a nonzero return aborts the run. Only that both list elements are external pointers is checked - the address is dereferenced exactly as handed, so a malformed pair or a stale pointer crashes the session with no condition to catch. Registering one is a compiled task (\pkg{Rcpp} or plain C), not an R closure: see \code{vignette("dbarts-as-a-component")}. \strong{Three warnings.} A callback that crashes takes the whole session down with it. An interrupt (\code{Ctrl-C}) cannot land while a call is running, so a callback that blocks or loops hangs the session. And under \code{control@keepFits == FALSE} the per-observation channels this call returns are \code{NULL} - present in the returned list, holding nothing - so whatever the callback itself accumulated is the only record of the run's per-observation fits. On a \code{family = "hazard"}/\code{"hazard.probit"}/\code{"hazard.logistic"} sampler the draw struct's \code{numObservations} counts the person-period-EXPANDED rows, one per subject per at-risk period, not the original subjects; the row-to-(subject, period) mapping is built in R and is not carried across to the callback. A hook set through the flat C entry \code{dbarts_sampler_setDrawCallback} does NOT fire on this route: \code{bartcore_run} (which this method calls) builds its own per-run hook from THIS argument, so the two channels are independent - a C caller mixing both must register the same callback on each to see it fire on both.
   }
   \item{updateState}{
-    A logical determining if the local cache of the sampler's state should be updated after the call completes. One convention applies to every method that takes this argument - \code{run}, \code{sampleTreesFromPrior}, \code{sampleLeafParametersFromPrior}, \code{sampleVarianceForestFromPrior}, \code{growFromRoot}, and every mutator (\code{setData}, \code{setResponse}, \code{setOffset}, \code{setWeights}, \code{setCounts}, \code{setCategoryOffset}, \code{setCategoryTestOffset}, \code{setActiveRows}, \code{setForestWeights}, \code{setForestBasis}, \code{setSigma}, \code{setLeafPrior}, \code{setPredictor}, and \code{setCutPoints}): \code{NA} (the default) resolves to the sampler's \code{\link[=dbartsControl]{control}} object's \code{updateState}, and an explicit \code{TRUE} or \code{FALSE} overrides it. The mutators are typically called once per sweep inside a larger Gibbs/MH loop (as \code{dbartsSampler} is designed for); a control with \code{updateState = FALSE} keeps such a loop free of the store's cost on every call, while the default \code{TRUE} keeps \code{state} current after each one. An unforced \code{state} promise materializes the sampler's \emph{current} state on first access regardless, so a mutate-then-first-read sequence needs no explicit store either way. Pass \code{TRUE} explicitly to force a store under a \code{control@updateState = FALSE} sampler, or \code{FALSE} to skip one under \code{control@updateState = TRUE}.
+    A logical determining if the local cache of the sampler's state should be updated after the call completes. One convention applies to every method that takes this argument - \code{run}, \code{sampleTreesFromPrior}, \code{sampleLeafParametersFromPrior}, \code{sampleVarianceForestFromPrior}, \code{growFromRoot}, and every mutator (\code{setData}, \code{setResponse}, \code{setOffset}, \code{setWeights}, \code{setCounts}, \code{setCategoryOffset}, \code{setCategoryTestOffset}, \code{setActiveRows}, \code{setForestWeights}, \code{setForestBasis}, \code{setSigma}, \code{setLeafPrior}, \code{setPredictor}, and \code{setCutPoints}): \code{NULL} (the default) resolves to the sampler's \code{\link[=dbartsControl]{control}} object's \code{updateState}, and an explicit \code{TRUE} or \code{FALSE} overrides it. Anything else is an error, raised before the sampler changes; an explicit \code{NA}, the default of 0.9-x, reads as \code{NULL} for one release, with a once-per-session warning. \code{setTestPredictor}, \code{setTestPredictorAndOffset} and \code{setTestOffset} still accept the argument, as 0.9-x's did, and ignore it with a once-per-session warning: test data is not stored state. The mutators are typically called once per sweep inside a larger Gibbs/MH loop (as \code{dbartsSampler} is designed for); a control with \code{updateState = FALSE} keeps such a loop free of the store's cost on every call, while the default \code{TRUE} keeps \code{state} current after each one. An unforced \code{state} promise materializes the sampler's \emph{current} state on first access regardless, so a mutate-then-first-read sequence needs no explicit store either way. Pass \code{TRUE} explicitly to force a store under a \code{control@updateState = FALSE} sampler, or \code{FALSE} to skip one under \code{control@updateState = TRUE}.
   }
   \item{shallow}{
     A logical determining if the copy should retain the underlying data of the sampler (\code{TRUE}) or have its own copies (\code{FALSE}). Either way, the copy installs the original's stored state and so continues the same generator streams as the original - not an independent chain - typically matching an uninterrupted run to the last few digits, not bitwise; see the Reproducibility section of \link{bart}.
   }
   \item{newControl}{
-    An object inheriting from \code{\link{dbartsControl}}. When passed to \code{setControl}, it cannot change \code{n.trees}, \code{n.chains}, \code{useQuantiles}, \code{levelGibbs}, or \code{seed} from the values the sampler was created with, and cannot set \code{keepTrees = TRUE} without also giving \code{n.samples}; either is an error. \code{levelGibbs} is guarded as one of the three values it was given - \code{TRUE}, \code{FALSE}, or \code{NA} - so restating \code{NA}, the default, is accepted while turning the step on or off is not; under \code{NA} the step follows the mixture, which \code{setModel} may freeze at any point.
+    An object inheriting from \code{\link{dbartsControl}}. When passed to \code{setControl}, it cannot change \code{n.trees}, \code{n.chains}, \code{useQuantiles}, \code{treeShift}, or \code{seed} from the values the sampler was created with, and cannot set \code{keepTrees = TRUE} without also giving \code{n.samples}; either is an error. \code{treeShift} is guarded as one of the three values it was given - \code{"always"}, \code{"never"}, or \code{"auto"} - so restating \code{"auto"}, the default, is accepted while turning the step on or off is not; under \code{"auto"} the step follows the mixture, which \code{setModel} may freeze at any point.
   }
   \item{newModel}{
     An object inheriting from \code{dbartsModel}. When passed to \code{setModel}, it cannot switch a DART tree prior on or off relative to the sampler's creation-time model; recreate the sampler instead.

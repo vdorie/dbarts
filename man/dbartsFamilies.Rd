@@ -28,7 +28,8 @@
 
   Base R's family objects are accepted as \code{\link{glm}} takes them.
   \code{stats::gaussian()} (or a bare \code{gaussian(link = "identity")},
-  whose \code{link} comes first, as in \code{glm}) is the gaussian family,
+  whose \code{link} comes first, as in \code{glm}, and which may name the
+  link unquoted, \code{gaussian(link = identity)}) is the gaussian family,
   \code{binomial(link = "probit")} is \code{probit}, and
   \code{binomial(link = "logit")} is \code{logistic}; the word
   \code{"binomial"} and the bare function \code{binomial} mean
@@ -91,8 +92,8 @@
     \item{\code{multinomial()}, \code{ordinal()}}{
       Unordered K-category softmax and ordered cumulative-probit models.
     }
-    \item{\code{nbinom(dispersion = NA)}}{
-      Negative-binomial counts. \code{NA} estimates the dispersion
+    \item{\code{nbinom(dispersion = NULL)}}{
+      Negative-binomial counts. \code{NULL} estimates the dispersion
       \eqn{r} on a capped positive-integer grid; a positive integer fixes
       it.
     }

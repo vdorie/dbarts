@@ -627,7 +627,8 @@ buildHostSamplerCall <- function(
       family
     }
   }
-  if (!missing(sigest)) {
+  # the estimate arrives resolved: NA_real_ is "not given" and is not forwarded
+  if (!missing(sigest) && !is.na(sigest)) {
     samplerCall$sigest <- as.numeric(sigest)
   }
   samplerCall
@@ -765,7 +766,7 @@ bart <- function(
   weights,
   offset,
   offset.test = offset,
-  sigest = NA_real_,
+  sigest = NULL,
   k = NULL,
   n.trees = 75L,
   n.samples = 500L,
@@ -885,6 +886,25 @@ bart <- function(
     # redirecting that call by name, which the old spelling never reaches
     matchedCall$rngSeed <- NULL
     matchedCall$seed <- seed
+  }
+  # an NA for either is read as NULL, after one warning here; the matched
+  # call is restated so the calls forwarded from it do not warn again
+  if (isSingleNA(seed)) {
+    warnNAForNull("seed", "bart")
+    seed <- NULL
+    if ("seed" %in% names(matchedCall)) {
+      matchedCall["seed"] <- list(NULL)
+    }
+  }
+  if (isSingleNA(sigest)) {
+    sigest <- resolveSigestArg(sigest, "bart")
+    if ("sigest" %in% names(matchedCall)) {
+      matchedCall["sigest"] <- list(NULL)
+    }
+  } else if (is.null(sigest)) {
+    sigest <- NA_real_
+  } else {
+    sigest <- validateSigest(sigest, "bart")
   }
 
   # 'family' is resolved from the caller's own unevaluated argument, so a
@@ -1038,7 +1058,8 @@ bart <- function(
     )
     controlCall[controlOnlyArgs] <- lapply(
       controlOnlyArgs,
-      function(name) methods::slot(suppliedControl, name)
+      controlArgumentFromSlot,
+      suppliedControl
     )
   }
   control <- eval(controlCall, envir = callingEnv)
@@ -1061,7 +1082,7 @@ bart <- function(
   # merge keys precedence off presence in the call, and a wrapper forwarding
   # its own seed = NULL must still defer to a supplied control. NULL and NA
   # mean "not given"; a value overrides the control.
-  seed <- resolveSeedArg(seed)
+  seed <- resolveSeedArg(seed, "bart")
   if (is.na(seed) && !is.null(suppliedControl)) {
     seed <- suppliedControl@seed
   }
@@ -3156,7 +3177,7 @@ bartBT <- function(
   printcutoffs <- coerceOrError(printcutoffs, "integer")
   numcut <- coerceOrError(numcut, "integer")
   ndpost <- coerceOrError(ndpost, "integer")
-  seed <- resolveSeedArg(seed)
+  seed <- resolveSeedArg(seed, "bartBT")
 
   # named ahead of dbartsControl(), whose own validity would otherwise
   # blame n.thin/n.burn - its slot names, not the formals these came in as
@@ -3205,7 +3226,7 @@ bartBT <- function(
     printEvery = printevery,
     printCutoffs = printcutoffs,
     n.cuts = numcut,
-    seed = seed,
+    seed = if (is.na(seed)) NULL else seed,
     proposal.probs = proposalprobs
   )
   matchedCall <- if (keepcall) match.call() else call("NULL")
@@ -3268,7 +3289,8 @@ bartBT <- function(
     leaf.prior = leaf.prior,
     family = family,
     control = control,
-    sigest = as.numeric(sigest),
+    # dbarts() takes NULL for an estimate BayesTree spells NA
+    sigest = if (is.na(sigest)) NULL else as.numeric(sigest),
     factors = "indicators",
     na.action = stats::na.omit
   )

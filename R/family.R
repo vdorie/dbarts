@@ -359,6 +359,12 @@ familySigmaSetting <- function(sigma, caller) {
 ## The Gaussian (continuous) response, the package default for a numeric
 ## response under family = "auto". 'sigma' is the residual scale's prior.
 gaussian <- function(link = "identity", sigma = NULL) {
+  # a bare link name (link = identity) is read by name, as stats::gaussian
+  # reads it, before the value would be evaluated
+  linkExpr <- substitute(link)
+  if (is.name(linkExpr) && as.character(linkExpr) %in% statsLinkNames) {
+    link <- as.character(linkExpr)
+  }
   if (!is.character(link) || length(link) != 1L) {
     stop(
       "gaussian() takes 'link' first; write sigma = for a prior",
@@ -426,19 +432,19 @@ ordinal <- function() {
   newValidated("dbartsFamily", token = "ordinal")
 }
 
-## Negative-binomial counts. dispersion = NA estimates the dispersion r;
-## a positive value fixes it.
-nbinom <- function(dispersion = NA) {
-  # the default is the logical NA, "estimate it", which is not numeric
-  if (
+## Negative-binomial counts. dispersion = NULL estimates the dispersion r;
+## a positive value fixes it. The setting stores NA_real_ for "estimate".
+nbinom <- function(dispersion = NULL) {
+  if (is.null(dispersion)) {
+    dispersion <- NA_real_
+  } else if (
     length(dispersion) != 1L ||
-      (!is.na(dispersion) &&
-        (!is.numeric(dispersion) ||
-          !is.finite(dispersion) ||
-          dispersion <= 0.0))
+      !is.numeric(dispersion) ||
+      !is.finite(dispersion) ||
+      dispersion <= 0.0
   ) {
     stop(
-      "nbinom 'dispersion' must be NA (estimate it) or a single positive ",
+      "nbinom 'dispersion' must be NULL (estimate it) or a single positive ",
       "finite number"
     )
   }
@@ -686,6 +692,19 @@ resolveFamily <- function(
   refuseUnsupportedFamily(value@token, tokens, caller)
   value
 }
+
+## The link names stats::make.link knows, which a bare symbol may spell.
+statsLinkNames <- c(
+  "logit",
+  "probit",
+  "cauchit",
+  "cloglog",
+  "identity",
+  "log",
+  "sqrt",
+  "1/mu^2",
+  "inverse"
+)
 
 refusedLink <- function(name, link) {
   paste0(

@@ -140,9 +140,9 @@ expect_warning(
   pattern = "setControl"
 )
 expect_silent(threadSampler$run(0L, 2L, numThreads = 2L))
-expect_silent(threadSampler$run(0L, 2L, NA, 2L))
+expect_silent(threadSampler$run(0L, 2L, NULL, 2L))
 expect_error(threadSampler$run(0L, 2L, nthreads = 2L), pattern = "'nthreads'")
-expect_error(threadSampler$run(0L, 2L, NA, 2L, NULL), pattern = "<unnamed>")
+expect_error(threadSampler$run(0L, 2L, NULL, 2L, NULL), pattern = "<unnamed>")
 
 # --- the consolidated argument names (dec-B98) ---
 

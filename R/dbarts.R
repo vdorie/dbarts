@@ -327,15 +327,57 @@ hazardPredictorNames <- function(x) {
 ## while the prototype's is the conservative n.threads = 1L for a bare
 ## new("dbartsControl"). n.threads still keeps its own meaning, a total
 ## thread budget, distinct from n.chains; only the default is capped.
+## dbartsControl(treeShift = ) in words, as the slot the bridge reads keeps
+## it: "auto" is NA, the step taken where a forest's structure proposals are
+## all zero, "always" TRUE and "never" FALSE.
+resolveTreeShift <- function(treeShift) {
+  choices <- c("auto", "always", "never")
+  if (identical(treeShift, choices)) {
+    return(NA)
+  }
+  index <- if (is.character(treeShift) && length(treeShift) == 1L) {
+    pmatch(treeShift, choices)
+  } else {
+    NA_integer_
+  }
+  if (is.na(index)) {
+    stop(
+      "'treeShift' must be one of \"auto\", \"always\" or \"never\"",
+      call. = FALSE
+    )
+  }
+  c(NA, TRUE, FALSE)[index]
+}
+
+## The argument dbartsControl() would be called with to reproduce a control's
+## slot: treeShift is spelled in words while its slot keeps the bridge's
+## tri-state logical, and the slot holds NA where n.samples takes NULL.
+controlArgumentFromSlot <- function(name, control) {
+  if (identical(name, "treeShift")) {
+    level <- control@levelGibbs
+    return(
+      if (is.na(level)) {
+        "auto"
+      } else if (level) {
+        "always"
+      } else {
+        "never"
+      }
+    )
+  }
+  value <- methods::slot(control, name)
+  if (identical(name, "n.samples") && is.na(value)) NULL else value
+}
+
 dbartsControl <- function(
   verbose = FALSE,
   keepTrainingFits = TRUE,
   keepFits = TRUE,
   useQuantiles = FALSE,
-  levelGibbs = NA,
+  treeShift = c("auto", "always", "never"),
   keepTrees = FALSE,
   storage = c("double", "single"),
-  n.samples = NA_integer_,
+  n.samples = NULL,
   n.cuts = 100L,
   n.burn = 200L,
   n.trees = 75L,
@@ -382,15 +424,14 @@ dbartsControl <- function(
   )
 
   storage <- match.arg(storage)
-  # NA is a VALUE for levelGibbs - the automatic mode - so an argument that
-  # merely coerces to one, a misspelled character say, has to be refused here
-  # rather than read as a third setting the caller never asked for
-  if (
-    !is.logical(levelGibbs) &&
-      !anyNA(levelGibbs) &&
-      anyNA(as.logical(levelGibbs))
-  ) {
-    stop("'levelGibbs' must be TRUE, FALSE, or NA")
+  # the slot keeps the bridge's tri-state logical, whose NA is the automatic
+  # mode; only this argument speaks in words
+  levelGibbs <- resolveTreeShift(treeShift)
+  # the slot keeps NA for "not set"; NULL is the argument's spelling of it
+  if (is.null(n.samples)) {
+    n.samples <- NA_integer_
+  } else if (isSingleNA(n.samples)) {
+    warnNAForNull("n.samples", "dbartsControl")
   }
   result <- newValidated(
     "dbartsControl",
@@ -398,7 +439,7 @@ dbartsControl <- function(
     keepTrainingFits = as.logical(keepTrainingFits),
     keepFits = as.logical(keepFits),
     useQuantiles = as.logical(useQuantiles),
-    levelGibbs = as.logical(levelGibbs),
+    levelGibbs = levelGibbs,
     keepTrees = as.logical(keepTrees),
     storage = storage,
     n.samples = coerceOrError(n.samples, "integer"),
@@ -420,7 +461,7 @@ dbartsControl <- function(
     # the partial spellings are filled here rather than at the slot, so the
     # stored mixture is always the resolved six the bridge reads
     proposal.probs = resolveProposalProbs(proposal.probs),
-    seed = resolveSeedArg(seed),
+    seed = resolveSeedArg(seed, "dbartsControl"),
     updateState = as.logical(updateState)
   )
   # a plain attribute, deliberately not a bartcore.* one (that prefix means
@@ -578,23 +619,28 @@ validateArgumentsInEnvironment <- function(
   # creation, on every entry point; the sampler's setSigma, which sets the
   # parameter rather than an estimate of it, is a different thing and keeps
   # its own name.
-  if (!missing(sigest) && !is.na(sigest)) {
-    tryCatch(sigest <- as.double(sigest), warning = function(e) {
-      stop(
-        "'sigest' argument to ",
-        funcName,
-        " must be coercible to numeric type"
-      )
-    })
-    if (length(sigest) != 1L) {
-      stop("'sigest' must be of length 1")
-    }
-    if (is.null(sigest) || sigest <= 0.0) {
-      stop("'sigest' argument to ", funcName, " must be positive")
-    }
-
-    envir$sigest <- sigest
+  # NULL and NA are "not given" and were resolved, with any warning, by the
+  # entry point; the estimate the entry point holds is then NA_real_
+  if (!missing(sigest) && !is.null(sigest) && !isSingleNA(sigest)) {
+    envir$sigest <- validateSigest(sigest, funcName)
   }
+}
+
+validateSigest <- function(sigest, funcName) {
+  tryCatch(sigest <- as.double(sigest), warning = function(e) {
+    stop(
+      "'sigest' argument to ",
+      funcName,
+      " must be coercible to numeric type"
+    )
+  })
+  if (length(sigest) != 1L) {
+    stop("'sigest' must be of length 1")
+  }
+  if (is.na(sigest) || sigest <= 0.0) {
+    stop("'sigest' argument to ", funcName, " must be positive")
+  }
+  sigest
 }
 
 dbarts <- function(
@@ -615,7 +661,7 @@ dbarts <- function(
   variance = NULL,
   forests = NULL,
   control = dbarts::dbartsControl(),
-  sigest = NA_real_,
+  sigest = NULL,
   seed = NULL,
   factors = c("categorical", "indicators"),
   family = c(
@@ -633,7 +679,7 @@ dbarts <- function(
     "hazard.logistic"
   ),
   na.action = dbarts::na.keepPredictors,
-  sigma = NA_real_,
+  sigma = NULL,
   node.prior = NULL,
   callback = NULL,
   ...
@@ -680,7 +726,7 @@ dbarts <- function(
 
   # the creation-time estimate is 'sigest' here as everywhere; the 0.9-x
   # spelling is folded in before the shared validator, which knows one name
-  sigmaSupplied <- !missing(sigma)
+  sigmaSupplied <- !missing(sigma) && !is.null(sigma)
   sigest <- resolveRenamedSigma(
     !sigmaSupplied,
     missing(sigest),
@@ -688,8 +734,12 @@ dbarts <- function(
     sigest,
     "dbarts"
   )
+  # an NA under the retired name is covered by that name's own warning
+  sigest <- resolveSigestArg(sigest, "dbarts", warnNA = !sigmaSupplied)
   if (sigmaSupplied) {
-    matchedCall$sigest <- matchedCall$sigma
+    # the value, not the promise: it was evaluated once above, and NULL or NA
+    # must reach the validator as the resolved estimate
+    matchedCall["sigest"] <- list(if (is.na(sigest)) NULL else sigest)
     matchedCall$sigma <- NULL
   }
 
@@ -1052,7 +1102,7 @@ dbarts <- function(
   control@verbose <- verbose
   # a convenience mirror of dbartsControl(seed = ), as the wrappers expose;
   # an explicit seed overrides the control's, NULL or NA leaves it untouched
-  seed <- resolveSeedArg(seed)
+  seed <- resolveSeedArg(seed, "dbarts")
   if (!is.na(seed)) {
     control@seed <- seed
   }
@@ -1543,10 +1593,41 @@ samplePriorPredictive <- function(
 
 ## Whether a method that just changed the sampler should refresh its cached
 ## state (the copy storeState/setState carry): an explicit TRUE or FALSE
-## wins, and NA - every one of these methods' own default - resolves against
-## control@updateState, exactly as run() has always resolved it.
+## wins, and NULL - every one of these methods' own default - resolves
+## against control@updateState, exactly as run() has always resolved it.
+## Anything else is refused by name. 0.9-x's default was NA, which is a
+## missing value now and reads as NULL, after one warning.
+checkUpdateState <- function(updateState) {
+  if (is.null(updateState)) {
+    return(NULL)
+  }
+  if (isSingleNA(updateState)) {
+    warnNAForNull("updateState", "dbartsSampler")
+    return(NULL)
+  }
+  if (!is.logical(updateState) || length(updateState) != 1L) {
+    stop("'updateState' must be TRUE, FALSE or NULL", call. = FALSE)
+  }
+  updateState
+}
+
+## A run's burn-in or sample count: NULL takes the control's, which the
+## engine layer reads as NA_integer_. 0.9-x documented NA for the same thing,
+## and it reads that way for the release after one warning.
+resolveRunCount <- function(count, argument) {
+  if (is.null(count)) {
+    return(NA_integer_)
+  }
+  if (isSingleNA(count)) {
+    warnNAForNull(argument, "dbartsSampler")
+    return(NA_integer_)
+  }
+  count
+}
+
 resolveUpdateState <- function(updateState, control) {
-  isTRUE(updateState) || (is.na(updateState) && control@updateState)
+  updateState <- checkUpdateState(updateState)
+  if (is.null(updateState)) control@updateState else updateState
 }
 
 ## NULL is the one way to say "no test offset", as it is for lm's offset; an
@@ -1706,20 +1787,17 @@ dbartsSampler <- setRefClass(
       callSuper(...)
     },
     run = function(
-      numBurnIn,
-      numSamples,
-      updateState = NA,
+      numBurnIn = NULL,
+      numSamples = NULL,
+      updateState = NULL,
       ...,
       callback = NULL
     ) {
-      "Runs the posterior sampler and returns a list with the results."
+      "Runs the posterior sampler and returns a list with the results. NULL burn-in or sample counts take the control's."
+      updateState <- checkUpdateState(updateState)
       ignoreRunThreadCount(...)
-      if (missing(numBurnIn)) {
-        numBurnIn <- NA_integer_
-      }
-      if (missing(numSamples)) {
-        numSamples <- NA_integer_
-      }
+      numBurnIn <- resolveRunCount(numBurnIn, "numBurnIn")
+      numSamples <- resolveRunCount(numSamples, "numSamples")
 
       samples <- bartcoreSamplerRun(.self, numBurnIn, numSamples, callback)
       if (resolveUpdateState(updateState, control)) {
@@ -1730,8 +1808,9 @@ dbartsSampler <- setRefClass(
       }
       samples
     },
-    sampleTreesFromPrior = function(updateState = NA) {
+    sampleTreesFromPrior = function(updateState = NULL) {
       "Draws tree structure from prior"
+      updateState <- checkUpdateState(updateState)
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_sampleTreesFromPrior, ptr)
 
@@ -1741,8 +1820,9 @@ dbartsSampler <- setRefClass(
 
       invisible(NULL)
     },
-    sampleLeafParametersFromPrior = function(updateState = NA) {
+    sampleLeafParametersFromPrior = function(updateState = NULL) {
       "Draws leaf values from their prior; does not change tree structure."
+      updateState <- checkUpdateState(updateState)
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_sampleLeafParametersFromPrior, ptr)
 
@@ -1752,8 +1832,9 @@ dbartsSampler <- setRefClass(
 
       invisible(NULL)
     },
-    sampleNodeParametersFromPrior = function(updateState = NA) {
+    sampleNodeParametersFromPrior = function(updateState = NULL) {
       "Retired: use $sampleLeafParametersFromPrior. Forwards for one release."
+      updateState <- checkUpdateState(updateState)
       warnOnce(
         "tombstone.sampleNodeParametersFromPrior",
         "'$sampleNodeParametersFromPrior' is now ",
@@ -1764,8 +1845,9 @@ dbartsSampler <- setRefClass(
       )
       sampleLeafParametersFromPrior(updateState)
     },
-    sampleVarianceForestFromPrior = function(updateState = NA) {
+    sampleVarianceForestFromPrior = function(updateState = NULL) {
       "Draws the variance forest's tree structures and leaf factors from their priors; a no-op on a homoscedastic sampler."
+      updateState <- checkUpdateState(updateState)
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_sampleVarianceForestFromPrior, ptr)
 
@@ -1775,8 +1857,9 @@ dbartsSampler <- setRefClass(
 
       invisible(NULL)
     },
-    growFromRoot = function(n.sweeps = 2L, updateState = NA) {
+    growFromRoot = function(n.sweeps = 2L, updateState = NULL) {
       "Builds an initial forest by XBART-style grow-from-root (He, Yalov and Hahn 2019) as a warm start, running n.sweeps grow sweeps in place; the exact MCMC sampler owns the forest once run() begins. Constant-leaf models only. See ?dbartsSampler."
+      updateState <- checkUpdateState(updateState)
       if (
         is(model@node.prior, "dbartsLinearPrior") ||
           is(model@node.prior, "dbartsGPPrior")
@@ -1935,7 +2018,8 @@ dbartsSampler <- setRefClass(
         ) {
           stop(
             "changing '",
-            slotName,
+            # the slot keeps the bridge's name; the argument is treeShift
+            if (slotName == "levelGibbs") "treeShift" else slotName,
             "' is not available on an existing sampler"
           )
         }
@@ -2025,8 +2109,9 @@ dbartsSampler <- setRefClass(
 
       invisible(NULL)
     },
-    setData = function(newData, updateState = NA) {
-      "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots. updateState follows control@updateState: NA, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies."
+    setData = function(newData, updateState = NULL) {
+      "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies."
+      updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
         "$setData",
@@ -2051,10 +2136,11 @@ dbartsSampler <- setRefClass(
     setResponse = function(
       y,
       updateScale = FALSE,
-      updateState = NA,
+      updateState = NULL,
       status = NULL
     ) {
       "Changes the response against which the sampler is fitted, and, for an aft (survival) sampler given a non-null status, its censoring structure in the same call. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
       # a caller porting $setResponse(y, updateState) from before the
       # updateScale/updateState reorder gets the same TRUE/FALSE/NA in the
       # same position, now meaning updateScale; sys.call() carries the raw,
@@ -2098,8 +2184,9 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setOffset = function(offset, updateScale = FALSE, updateState = NA) {
+    setOffset = function(offset, updateScale = FALSE, updateState = NULL) {
       "Changes the offset slot used to adjust the response. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
         "$setOffset",
@@ -2113,8 +2200,9 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setWeights = function(weights, updateState = NA) {
+    setWeights = function(weights, updateState = NULL) {
       "Changes the weights with which the sampler is fitted. A probit or ordinal sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
         "$setWeights",
@@ -2171,8 +2259,9 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setCounts = function(counts, updateState = NA) {
+    setCounts = function(counts, updateState = NULL) {
       "Replaces a multinomial sampler's response: the n x K matrix of non-negative integer counts whose column k holds category k's successes, with trials n_i = sum_k counts[i, k] at least 0: a row with no trial enters no likelihood and still receives fitted probabilities, and the first such row in a session warns (class dbartsZeroTrialsWarning). n and K are fixed at creation - every combiner buffer is sized by n, and K is the forest count - so only the values change. The trees carry over, fitted to the previous counts exactly as setResponse leaves a single-forest sampler's, and the next run forms every category's working response against the new matrix. The matrix is mirrored into data@counts, and its row sums into data@y, so getPointer's transparent re-creation after save/load carries the current response rather than the one the sampler was created with. The sweep draws n_i Polya-Gamma variates per observation per category, so replacing single-trial labels with grouped counts multiplies sweep cost by mean(n_i). updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
       requireCountsCapability(.self, "$setCounts")
       ptr <- bartcoreSamplerSetCounts(.self, counts)
       if (resolveUpdateState(updateState, control)) {
@@ -2180,8 +2269,9 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setCategoryOffset = function(offset, updateState = NA) {
+    setCategoryOffset = function(offset, updateState = NULL) {
       "Installs, or at NULL clears, a multinomial sampler's n x K category offset: the latent becomes f_ik + o_ik, so the offset enters the log-sum-exp margins, every category's working response and the reported softmax probabilities, and never a leaf value. This is the response-side counterpart of setCounts rather than of setOffset, whose flat shift is added after the categories are blended - the wrong side of the nonlinearity - and is the softmax's own null direction besides. Only the row-centred part is identified: adding a constant to a whole row leaves every reported probability unchanged, and the entrance leaves the matrix as given rather than re-centring it. It shifts the TRAIN latent only; the test rows are other rows and carry their own (setCategoryTestOffset), and predict takes its own matrix per call. Mirrored into data@offset.category, so a re-created sampler carries it. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
       requireCountsCapability(.self, "$setCategoryOffset")
       ptr <- bartcoreSamplerSetCategoryOffset(.self, offset)
       if (resolveUpdateState(updateState, control)) {
@@ -2189,8 +2279,9 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setCategoryTestOffset = function(offset.test, updateState = NA) {
+    setCategoryTestOffset = function(offset.test, updateState = NULL) {
       "Installs, or at NULL clears, a multinomial sampler's nTest x K category test offset: the recorded test channel becomes softmax(f_test + o_test), formed where the train blend forms softmax(f + o). The test fits enter no likelihood, so this moves the reported test probabilities and nothing else - no draw, no working response, no train channel. Its rows are the CURRENT test rows, so replacing those rows while it is installed is refused rather than silently reinterpreted; clear it first. Out-of-sample predict does not read it at all, taking its own matrix for the rows it is given. Mirrored into data@offset.category.test, so a re-created sampler carries it. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
       requireCountsCapability(.self, "$setCategoryTestOffset")
       ptr <- bartcoreSamplerSetCategoryTestOffset(.self, offset.test)
       if (resolveUpdateState(updateState, control)) {
@@ -2198,8 +2289,9 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setActiveRows = function(active, updateState = NA) {
+    setActiveRows = function(active, updateState = NULL) {
       "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
       if (!is.null(active)) {
         active <- as.double(active)
         if (length(active) != length(data@y)) {
@@ -2229,8 +2321,9 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setForestWeights = function(forest, weights, updateState = NA) {
+    setForestWeights = function(forest, weights, updateState = NULL) {
       "Sets a per-forest, per-observation weight: a multiplicative precision factor on the named forest's own leaf conditionals, composing with weights and active as (w_i * a_i) * m_f^2 * s_i rather than widening either channel. Only applies to a Bayesian causal forest built with forests = (see dbarts); forest indexes from 1, as with getLeafPrior/setLeafPrior (the basis forest is 2). The weight does not ride the sampler's saved state; it is mirrored on an R5 field that getPointer and setState both reinstall on every re-creation. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
         "$setForestWeights",
@@ -2269,8 +2362,9 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setForestBasis = function(forest, basis, updateState = NA) {
+    setForestBasis = function(forest, basis, updateState = NULL) {
       "Changes the basis the named forest's amplitudes multiply, at any forest and any width. forest indexes from 1, as with setForestWeights and getLeafPrior/setLeafPrior (a Bayesian causal forest's basis forest is 2). A factor (or a one-sided formula naming one) expands to its level indicators, one amplitude per level, with no reference level dropped; a numeric vector or matrix is already those columns. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
         "$setForestBasis",
@@ -2320,8 +2414,9 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setSigma = function(sigma, updateState = NA) {
+    setSigma = function(sigma, updateState = NULL) {
       "Changes the residual standard deviation parameter for each chain. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
         "$setSigma",
@@ -2347,9 +2442,10 @@ dbartsSampler <- setRefClass(
       column,
       forceUpdate,
       updateCutPoints = FALSE,
-      updateState = NA
+      updateState = NULL
     ) {
       "Changes a single column of the predictor matrix, or the entire matrix if column is missing. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
 
       checkMissingPolicy(data, sourceAnyNA(x), "predictors")
       result <- bartcoreSamplerSetPredictor(
@@ -2366,8 +2462,9 @@ dbartsSampler <- setRefClass(
       # logical; preserve that (a bare 'result' would always be visible)
       if (is.null(result)) invisible(NULL) else result
     },
-    setCutPoints = function(cuts, column, updateState = NA) {
+    setCutPoints = function(cuts, column, updateState = NULL) {
       "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
 
       bartcoreSamplerSetCutPoints(
         .self,
@@ -2379,8 +2476,9 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setTestPredictor = function(x.test, column) {
+    setTestPredictor = function(x.test, column, updateState = NULL) {
       "Changes a single column of the test predictor matrix."
+      ignoreTestUpdateState(updateState)
 
       checkMissingPolicy(data, sourceAnyNA(x.test), "test predictors")
       bartcoreSamplerSetTestPredictor(
@@ -2389,8 +2487,13 @@ dbartsSampler <- setRefClass(
         column = if (missing(column)) NULL else column
       )
     },
-    setTestPredictorAndOffset = function(x.test, offset.test) {
+    setTestPredictorAndOffset = function(
+      x.test,
+      offset.test,
+      updateState = NULL
+    ) {
       "Changes the test predictor matrix, and optionally the test offset."
+      ignoreTestUpdateState(updateState)
       checkMissingPolicy(
         data,
         !is.null(x.test) && sourceAnyNA(x.test),
@@ -2448,8 +2551,9 @@ dbartsSampler <- setRefClass(
       selfEnv$data <- setDataRowNames(data, "test", testRowNames)
       invisible(NULL)
     },
-    setTestOffset = function(offset.test) {
+    setTestOffset = function(offset.test, updateState = NULL) {
       "Changes the test offset."
+      ignoreTestUpdateState(updateState)
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
@@ -2655,9 +2759,10 @@ dbartsSampler <- setRefClass(
       prior.sd,
       prior.mean,
       forest = 1L,
-      updateState = NA
+      updateState = NULL
     ) {
       "Restates a forest's leaf prior on every chain so that the forest total's prior standard deviation at k = 1 is prior.scale, in response units; prior.sd is the same statement at the current k and is refused when k is drawn from a hyperprior. Exactly one of the two is given. Nothing else moves - not k, not the response transform, not sigma, not the tree prior - and the write takes effect on the next sweep, reinterpreting no leaf value already drawn. updateState follows control@updateState; see setData."
+      updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
         "$setLeafPrior",

@@ -17,7 +17,7 @@
       On \code{\link{bart}} and \code{\link{dbartsControl}}: the engine seed, now \code{seed}.
     }
     \item{\code{sigma}}{
-      On \code{\link{dbarts}} and \code{\link{dbartsSpec}}: the creation-time residual estimate, now \code{sigest}.
+      On \code{\link{dbarts}}, \code{\link{dbartsSpec}} and \code{\link{xbart}}: the creation-time residual estimate, now \code{sigest}; like \code{sigest}, it defaults to \code{NULL}.
     }
     \item{\code{node.prior}}{
       On \code{\link{dbarts}} and \code{\link{dbartsSpec}}: the leaf-value prior, now \code{leaf.prior}.
@@ -45,6 +45,12 @@
     }
     \item{A thread count on \code{dbartsSampler}'s \code{$run}}{
       Ignored after a once-per-session warning, whether passed as \code{n.threads}, as 0.9-x's formal \code{numThreads}, or positionally after \code{updateState}: a run uses the sampler's own count, which \code{$setControl} changes, and its draws do not depend on it.
+    }
+    \item{\code{NA} where \code{NULL} now means not given}{
+      \code{NULL}, not \code{NA}, is the one spelling of an absent value, and an \code{NA} that 0.9-x accepted is read as \code{NULL} after a once-per-session warning: \code{sigest} on \code{\link{bart}}, \code{\link{dbarts}}, \code{dbartsSpec} and \code{\link{xbart}}; \code{seed} on \code{bart}, \code{\link{bartBT}}, \code{dbarts}, \code{xbart} and \code{\link{dbartsControl}}; \code{n.samples} on \code{dbartsControl}; \code{updateState} on the \code{\linkS4class{dbartsSampler}} methods and \code{\link{updatePredictorPerObservationJointly}}; and \code{numBurnIn} and \code{numSamples} on \code{$run}. \code{dbartsSpec} and \code{\link{dbartsValidateComposition}}, which are new, refuse an \code{NA} seed.
+    }
+    \item{\code{updateState} on the test-data setters}{
+      \code{$setTestPredictor}, \code{$setTestPredictorAndOffset} and \code{$setTestOffset} (\code{\linkS4class{dbartsSampler}}) still accept 0.9-x's argument and ignore it after a once-per-session warning, since test data is not stored state.
     }
     \item{A BayesTree-spelled \code{\link{bart}} call}{
       Forwarded to \code{\link{bartBT}} after a once-per-session warning, when the call carries a name from \code{bartBT}'s own formals that \code{bart} does not take.

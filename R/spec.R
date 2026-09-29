@@ -399,16 +399,6 @@ resolveSamplerSpec <- function(
     priors$tree.prior@power <- firstForest$power
   }
 
-  # the categorical-split level Gibbs step is declared on the tree prior; the
-  # control is how it reaches the bridge, so a declared value is copied there
-  # and an undeclared one (NA) leaves whatever the control already carries
-  if (
-    is(priors$tree.prior, "dbartsCGMPrior") &&
-      !is.na(priors$tree.prior@levelGibbs)
-  ) {
-    control@levelGibbs <- priors$tree.prior@levelGibbs
-  }
-
   # The tree-move mixture rides the control. A caller that named it flat -
   # dbartsSpec's own argument, or the retired spelling on an entry point that
   # shed it - wins over the control's slot; NULL leaves the slot standing.
@@ -865,7 +855,7 @@ dbartsSpec <- function(
   blocks = NULL,
   variance = NULL,
   forests = NULL,
-  sigest = NA_real_,
+  sigest = NULL,
   seed = NULL,
   family = c(
     "auto",
@@ -880,7 +870,7 @@ dbartsSpec <- function(
   ),
   survival = NULL,
   parentEnv = parent.frame(),
-  sigma = NA_real_,
+  sigma = NULL,
   node.prior = NULL,
   ...
 ) {
@@ -910,15 +900,15 @@ dbartsSpec <- function(
   # the creation-time estimate is 'sigest' here as everywhere; 'sigma' is
   # the 0.9-x spelling, accepted for one release. Both flags are read before
   # either name is assigned: an assignment makes missing() false.
-  sigestSupplied <- !missing(sigest)
-  sigmaSupplied <- !missing(sigma)
+  sigmaSupplied <- !missing(sigma) && !is.null(sigma)
   sigest <- resolveRenamedSigma(
     !sigmaSupplied,
-    !sigestSupplied,
+    missing(sigest),
     sigma,
     sigest,
     "dbartsSpec"
   )
+  sigest <- resolveSigestArg(sigest, "dbartsSpec", warnNA = !sigmaSupplied)
 
   # the leaf-value prior is 'leaf.prior' here as everywhere; 'node.prior'
   # is the 0.9-x spelling, accepted for one release. Both flags are read
@@ -985,7 +975,7 @@ dbartsSpec <- function(
     )
   }
 
-  seed <- resolveSeedArg(seed)
+  seed <- resolveSeedArg(seed, "dbartsSpec", refuse = TRUE)
   if (!is.na(seed)) {
     control@seed <- seed
   }
@@ -996,11 +986,11 @@ dbartsSpec <- function(
   if (length(data@n.cuts) != ncol(data@x) || anyNA(data@n.cuts)) {
     data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   }
-  # an explicit sigest overrides whatever the data carries; the default leaves
-  # it alone, so a consumer's own starting estimate survives (an NA is
+  # an explicit sigest overrides whatever the data carries; NULL leaves it
+  # alone, so a consumer's own starting estimate survives (an unset one is
   # estimated during resolution, exactly as for dbarts())
-  if (sigestSupplied || sigmaSupplied) {
-    data@sigma <- coerceOrError(sigest, "numeric")
+  if (!is.na(sigest)) {
+    data@sigma <- validateSigest(sigest, "dbartsSpec")
   }
 
   # as on dbarts(): the forest constructors resolve by bare name inside their

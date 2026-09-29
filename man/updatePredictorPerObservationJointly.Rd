@@ -7,7 +7,7 @@
   it keeps every leaf node non-empty in every tree of every sampler.
 }
 \usage{
-updatePredictorPerObservationJointly(samplers, x, column, updateState = NA)
+updatePredictorPerObservationJointly(samplers, x, column, updateState = NULL)
 }
 \arguments{
   \item{samplers}{
@@ -26,8 +26,9 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NA)
   }
   \item{updateState}{
     A logical determining if the local cache of each sampler's state should be updated after the
-    update completes. If \code{NA}, each sampler's own \code{\link[=dbartsControl]{control}} default
-    is used.
+    update completes. If \code{NULL} (the default), each sampler's own \code{\link[=dbartsControl]{control}} default
+    is used; \code{TRUE} or \code{FALSE} overrides it and anything else is an error. An explicit
+    \code{NA} reads as \code{NULL} for one release, with a once-per-session warning.
   }
 }
 \details{
