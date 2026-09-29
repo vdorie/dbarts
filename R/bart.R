@@ -966,45 +966,51 @@ bart <- function(
   refuseResponseFreeFormula(formula, "bart()")
   noteFrontDoorDefaults(formula, callingEnv)
 
-  # family = "auto" with a 3+-level UNORDERED factor/character response is
+  # family = "auto" with an n x K (K >= 3) matrix of non-negative whole
+  # numbers, or a 3+-level UNORDERED factor/character response, is
   # multinomial; a 3+-level ORDERED factor is ordinal (the disjoint
-  # is.ordered() key). Route
-  # either into its branch below and announce. 2-level and numeric responses
-  # stay on the standard path, where dbarts() resolves probit/gaussian (and
-  # announces a factor probit itself).
+  # is.ordered() key). Route either into its branch below and announce.
+  # Every other response stays on the standard path, where dbarts() resolves
+  # (and announces) probit/gaussian/aft.
   if (family == "auto") {
     dataMissing <- missing(data)
     autoData <- if (dataMissing) NULL else data
-    autoMultinomial <- detectAutoMultinomial(
+    autoCounts <- detectAutoCounts(
       formula,
       autoData,
       dataMissing,
       callingEnv
     )
-    if (!is.null(autoMultinomial)) {
+    autoMultinomial <- if (is.null(autoCounts)) {
+      detectAutoMultinomial(formula, autoData, dataMissing, callingEnv)
+    }
+    autoOrdinal <- if (is.null(autoCounts) && is.null(autoMultinomial)) {
+      detectAutoOrdinal(formula, autoData, dataMissing, callingEnv)
+    }
+    if (!is.null(autoCounts)) {
       family <- "multinomial"
       announceAutoFamily(
         verbose,
-        autoMultinomial$type,
-        autoMultinomial$n.levels,
-        family
+        family,
+        paste0(autoCounts$K, "-column count matrix response")
       )
-    } else {
-      autoOrdinal <- detectAutoOrdinal(
-        formula,
-        autoData,
-        dataMissing,
-        callingEnv
-      )
-      if (!is.null(autoOrdinal)) {
-        family <- "ordinal"
-        announceAutoFamily(
-          verbose,
-          autoOrdinal$type,
-          autoOrdinal$n.levels,
-          family
+    } else if (!is.null(autoMultinomial)) {
+      family <- "multinomial"
+      announceAutoFamily(
+        verbose,
+        family,
+        describeCategoricalResponse(
+          autoMultinomial$type,
+          autoMultinomial$n.levels
         )
-      }
+      )
+    } else if (!is.null(autoOrdinal)) {
+      family <- "ordinal"
+      announceAutoFamily(
+        verbose,
+        family,
+        describeCategoricalResponse(autoOrdinal$type, autoOrdinal$n.levels)
+      )
     }
   }
 
@@ -1697,7 +1703,7 @@ refuseResponseFreeFormula <- function(formula, caller) {
   invisible(NULL)
 }
 
-detectAutoResponse <- function(formula, data, dataIsMissing, callingEnv) {
+autoRawResponse <- function(formula, data, dataIsMissing, callingEnv) {
   response <- if (is.formula(formula)) {
     if (length(formula) != 3L || dataIsMissing || is.null(data)) {
       return(NULL)
@@ -1715,7 +1721,24 @@ detectAutoResponse <- function(formula, data, dataIsMissing, callingEnv) {
   } else {
     data
   }
+  response
+}
+
+detectAutoResponse <- function(formula, data, dataIsMissing, callingEnv) {
+  response <- autoRawResponse(formula, data, dataIsMissing, callingEnv)
+  if (is.null(response)) {
+    return(NULL)
+  }
   classifyResponse(response)
+}
+
+# family = "auto" reads an n x K (K >= 3) numeric matrix of non-negative whole
+# numbers as multinomial counts. A row with a missing cell is a missing
+# response, routed through na.action as the explicit multinomial path does,
+# so only the complete rows are checked. Returns list(K) or NULL.
+detectAutoCounts <- function(formula, data, dataIsMissing, callingEnv) {
+  response <- autoRawResponse(formula, data, dataIsMissing, callingEnv)
+  if (isAutoCountMatrix(response)) list(K = ncol(response)) else NULL
 }
 
 detectAutoMultinomial <- function(formula, data, dataIsMissing, callingEnv) {

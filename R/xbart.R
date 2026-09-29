@@ -187,7 +187,7 @@ xbart <- function(
   # which resolves counts to multinomial from "auto"
   refuseCountsCarryingData(formula, "xbart()")
   refuseResponseFreeFormula(formula, "xbart()")
-  data <- eval(dataCall, evalEnv)
+  data <- withMatrixResponseRestated("xbart()", family, eval(dataCall, evalEnv))
   # a Surv formula response silently becomes log(time) with the censoring
   # status parked as an attribute (dbartsData()'s own short-circuit, which
   # has no family vocabulary to refuse it by) - xbart() reads neither the
@@ -206,12 +206,12 @@ xbart <- function(
   # a factor/logical/character response is a classification; xbart cross-
   # validates the 2-level (probit) case only, never multinomial. A numeric
   # response takes the 0/1-vs-continuous path.
+  autoDescription <- if (family == "auto") describeAutoResponse(data)
   family <- resolveClassificationFamily(
     data,
     family,
     "xbart",
-    "gaussian",
-    verbose = verbose
+    "gaussian"
   )
   if (data@response.type == "numeric") {
     uniqueResponses <- unique(data@y)
@@ -231,6 +231,11 @@ xbart <- function(
         }
       )
     }
+  }
+  # announced once here, in the calling process, however many replications or
+  # workers the cross-validation then fans out to
+  if (!is.null(autoDescription)) {
+    announceAutoFamily(verbose, family, autoDescription)
   }
   control@binary <- isBinaryFamily(family)
 

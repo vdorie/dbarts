@@ -263,7 +263,10 @@ both supported (below).
   is never auto-detected from a factor response - a multi-level factor
   left-hand side under any other family setting is untouched by this and
   still whatever it did before (an error, from dbartsData's own
-  response-to-numeric coercion). The response is pulled via
+  response-to-numeric coercion; amended by dec-A110: under family = "auto",
+  bart() and dbarts()'s matrix interface read an n x K count matrix, K >= 3
+  of non-negative whole numbers, as multinomial, and a 2-column matrix is
+  refused naming both readings). The response is pulled via
   model.frame/model.response with NO type coercion: dbartsData's own
   formula ingestion cannot be reused for this, since it coerces the
   response to numeric and would discard a factor's levels or a

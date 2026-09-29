@@ -1240,23 +1240,104 @@ refuseMultiColumnResponse <- function(y) {
     )
   }
   if (is.matrix(y) && ncol(y) > 1L) {
-    if (ncol(y) == 2L) {
-      stop(
+    # classed so that dbarts() and xbart() can restate the refusal in terms
+    # of the entry the caller used, which dbartsData() cannot know
+    text <- if (ncol(y) == 2L) {
+      paste0(
         "'y' is an n x 2 matrix; dbartsData() takes a single-column ",
         "response - a (time, status) pair goes to dbarts()/bart() with ",
         "family = \"aft\"/\"hazard\", per-category counts to ",
         "dbartsData(counts = )"
       )
+    } else {
+      paste0(
+        "'y' is an n x ",
+        ncol(y),
+        " matrix; dbartsData() takes a single-column response - pass per-",
+        "category counts as dbartsData(counts = ) and fit with family = ",
+        "\"multinomial\""
+      )
     }
-    stop(
-      "'y' is an n x ",
-      ncol(y),
-      " matrix; dbartsData() takes a single-column response - pass per-",
-      "category counts as dbartsData(counts = ) and fit with family = ",
-      "\"multinomial\""
-    )
+    stop(structure(
+      class = c("dbartsMatrixResponseError", "error", "condition"),
+      list(message = text, call = NULL, y = y)
+    ))
   }
   invisible(NULL)
+}
+
+# TRUE for an n x K (K >= 3) numeric matrix whose complete rows hold only
+# non-negative whole numbers: what family = "auto" reads as multinomial
+# counts. A row with a missing cell is a missing response, left to
+# na.action exactly as the explicit multinomial path leaves it.
+isAutoCountMatrix <- function(y) {
+  if (!is.matrix(y) || !is.numeric(y) || inherits(y, "Surv") || ncol(y) < 3L) {
+    return(FALSE)
+  }
+  observed <- y[rowSums(is.na(y)) == 0L, , drop = FALSE]
+  all(observed >= 0) && all(observed == round(observed))
+}
+
+# Restates a matrix-response refusal from dbartsData() for the entry the
+# caller used: what to write there, under the family they wrote. 'entry' is
+# "bart()/dbarts()" or "xbart()"; 'family' is the family token as requested.
+restateMatrixResponseError <- function(e, entry, family) {
+  y <- e$y
+  K <- ncol(y)
+  readings <- paste0(
+    "per-category counts need family = \"multinomial\"; a (time, status) ",
+    "pair needs a survival::Surv response (which \"auto\" reads as ",
+    "survival) or family = \"aft\" / \"hazard\""
+  )
+  text <- if (identical(entry, "xbart()")) {
+    paste0(
+      "xbart() takes a single-column response but 'y' is an n x ",
+      K,
+      " matrix, and it cross-validates neither multinomial counts nor a ",
+      "survival response; fit those with bart() instead - ",
+      readings
+    )
+  } else if (family != "auto") {
+    paste0(
+      "family = \"",
+      family,
+      "\" takes a single-column response but 'y' is an n x ",
+      K,
+      " matrix - ",
+      readings
+    )
+  } else if (K == 2L) {
+    paste0(
+      "'y' is an n x 2 matrix, which family = \"auto\" leaves ambiguous - ",
+      readings
+    )
+  } else if (isAutoCountMatrix(y)) {
+    paste0(
+      "dbarts() fits an n x ",
+      K,
+      " count matrix through the matrix interface only: ",
+      "dbarts(x, counts, family = \"multinomial\"); bart() takes the formula ",
+      "form, bart(cbind(c1, c2, c3) ~ x, data)"
+    )
+  } else {
+    paste0(
+      "'y' is an n x ",
+      K,
+      " matrix with negative, fractional or non-numeric entries, which ",
+      "family = \"auto\" does not read as multinomial counts; per-category ",
+      "counts must be non-negative whole numbers (NA marks a missing row)"
+    )
+  }
+  stop(text, call. = FALSE)
+}
+
+withMatrixResponseRestated <- function(entry, family, expr) {
+  tryCatch(
+    expr,
+    dbartsMatrixResponseError = function(e) {
+      restateMatrixResponseError(e, entry, family)
+    }
+  )
 }
 
 codeResponse <- function(y) {
@@ -1299,7 +1380,6 @@ resolveClassificationFamily <- function(
   family,
   caller,
   incompatibleFamilies,
-  verbose,
   splitMultinomialMessage = FALSE,
   allowOrdinal = FALSE
 ) {
@@ -1319,7 +1399,6 @@ resolveClassificationFamily <- function(
     # a 2-level ordered factor is binary (probit); only a 3+-level ordered
     # factor is a genuine ordinal scale worth auto-dispatching
     if (family == "auto" && responseType == "ordered factor" && K >= 3L) {
-      announceAutoFamily(verbose, responseType, K, "ordinal")
       return("ordinal")
     }
   }
@@ -1383,7 +1462,6 @@ resolveClassificationFamily <- function(
   }
   if (family == "auto") {
     family <- "probit"
-    announceAutoFamily(verbose, responseType, K, family)
   } else if (family %in% incompatibleFamilies) {
     stop(
       "family \"",

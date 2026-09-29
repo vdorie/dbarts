@@ -144,7 +144,17 @@
             \code{family = "ordinal"}, and the other two refuse it, naming
             \code{bart(family = "ordinal")}. Passed
             through the \code{x}/\code{y} interface either previously fit a
-            continuous response on the integer level codes.
+            continuous response on the integer level codes. An n x K
+            matrix of three or more columns of non-negative whole numbers
+            is likewise read as per-category counts and fit as
+            multinomial by \code{bart} (a bare matrix, a \code{cbind}
+            left-hand side, or a matrix data-frame column) and by
+            \code{dbarts}'s matrix interface; a two-column matrix stays an
+            error naming both readings, counts and a (time, status) pair.
+            Every resolution of \code{family = "auto"} is now reported in a
+            one-line message naming the family fit, once per call, off
+            under \code{verbose = FALSE}; \code{bart}'s \code{verbose}
+            defaults to \code{TRUE}.
       \item \code{dbartsControl} loses \code{rngKind} and
             \code{rngNormalKind}, and renames \code{rngSeed} to \code{seed};
             \code{rngSeed} is still accepted on \code{dbartsControl} and
@@ -1029,7 +1039,8 @@
             with three or more levels, an n x K matrix of nonnegative integer
             trial counts (one column per category), or the equivalent
             \code{cbind(c1, ..., cK) ~ x} formula; under \code{family = "auto"} a factor
-            (or character) response with three or more levels is detected and
+            (or character) response with three or more levels, or a count
+            matrix of three or more columns, is detected and
             routed here, reporting the choice in a one-line message. The
             fit's class is \code{"bartMultinomial"}, with its own \code{residuals},
             \code{plot}, \code{summary}, \code{print}, and \code{predict} (\code{type = "ev"}/\code{"ppd"})

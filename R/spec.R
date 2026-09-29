@@ -168,21 +168,22 @@ resolveSamplerSpec <- function(
   # its auto-branch message lists every single-forest entry point instead of
   # naming itself. probit/logistic on a 2-level categorical response proceed
   # as binary.
+  autoDescription <- if (identical(requestedFamily, "auto")) {
+    describeAutoResponse(data, survivalStatus)
+  }
   family <- resolveClassificationFamily(
     data,
     family,
     "dbarts()/bartBT()/xbart",
     c("gaussian", "aft", "nbinom"),
-    verbose = control@verbose,
     splitMultinomialMessage = TRUE,
     allowOrdinal = TRUE
   )
   # multinomial (K-forest softmax): the response is
   # the n x K count matrix on the data object, so the family is DECLARED by the
   # slot and not inferred from any response shape - data@y is that matrix's
-  # trials vector. A counts-carrying object resolves to it from "auto" without
-  # an announcement (unlike the ordered-factor auto-dispatch, there is nothing
-  # ambiguous to report: the slot is itself the declaration), and every other
+  # trials vector. A counts-carrying object resolves to it from "auto" (and
+  # is announced like any other resolution, below), and every other
   # explicit family is refused rather than silently fitting the trials.
   counts <- dataCounts(data)
   if (!is.null(counts) && identical(family, "auto")) {
@@ -254,6 +255,11 @@ resolveSamplerSpec <- function(
         }
       )
     }
+  }
+  # every resolution of "auto" is announced once, here: bart() reaches this
+  # through dbarts(), and dbartsSpec() reads its control's verbose
+  if (!is.null(autoDescription)) {
+    announceAutoFamily(control@verbose, family, autoDescription)
   }
   # aft draws sigma and rescales like gaussian; only the binary families are
   # latent-variable models on a fixed unit scale

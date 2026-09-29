@@ -15,25 +15,51 @@ newValidated <- function(Class, ...) {
   tryCatch(new(Class, ...), error = rethrowValidityError)
 }
 
-# One-line verdict when family = "auto" resolves a categorical response to a
-# non-default family: probit for a 2-level response, multinomial for a 3+-level
-# UNORDERED factor/character, ordinal for a 3+-level ORDERED factor (the level
-# order is the category order - respected, not discarded). Set family
-# explicitly to override. verbose = FALSE suppresses it, since a package
-# calling bart()/dbarts() inside its own functions usually passes it already.
-announceAutoFamily <- function(verbose, responseType, nLevels, family) {
-  if (!verbose) {
+# One-line verdict whenever family = "auto" resolves the family: names what
+# the response was read as and the family that will be fit, once per call.
+# Set family explicitly to override. verbose = FALSE suppresses it, since a
+# package calling bart()/dbarts() inside its own functions usually passes it
+# already. An explicitly named family never announces.
+announceAutoFamily <- function(verbose, family, description) {
+  if (!isTRUE(verbose)) {
     return(invisible(NULL))
   }
   message(
     "family = \"auto\": ",
-    nLevels,
-    "-level ",
-    responseType,
-    " response detected, fitting family = \"",
+    description,
+    " detected, fitting family = \"",
     family,
     "\"; set 'family' to override"
   )
+}
+
+# The response description announceAutoFamily names for a categorical
+# (factor/logical/character) response: "3-level factor response".
+describeCategoricalResponse <- function(responseType, nLevels) {
+  paste0(nLevels, "-level ", responseType, " response")
+}
+
+# The response description for the family a dbartsData resolves "auto" to:
+# a count matrix, a survival response, a categorical response, or a numeric
+# one that is 0/1 or continuous.
+describeAutoResponse <- function(data, survivalStatus = NULL) {
+  counts <- dataCounts(data)
+  if (!is.null(counts)) {
+    paste0(ncol(counts), "-column count matrix response")
+  } else if (!is.null(survivalStatus)) {
+    "survival (Surv) response"
+  } else if (data@response.type == "numeric") {
+    uniqueResponses <- unique(data@y)
+    if (
+      length(uniqueResponses) == 2L && all(sort(uniqueResponses) == c(0, 1))
+    ) {
+      "0/1 response"
+    } else {
+      "continuous response"
+    }
+  } else {
+    describeCategoricalResponse(data@response.type, data@response.n.levels)
+  }
 }
 
 # Family gating: an argument supplied by name whose only effect is on a

@@ -1081,6 +1081,11 @@ dbarts <- function(
   # families are: a formula LHS carries no count matrix, and data@y is the
   # DERIVED trials vector rather than anything the caller wrote.
   multinomialCounts <- NULL
+  # family = "auto" reads a count matrix (3+ columns of non-negative whole
+  # numbers) as multinomial; announced with the other resolutions, below
+  if (family == "auto" && directResponse && isAutoCountMatrix(data)) {
+    family <- "multinomial"
+  }
   if (identical(family, "multinomial") && !inherits(formula, "dbartsData")) {
     if (!directResponse) {
       stop(
@@ -1190,25 +1195,29 @@ dbarts <- function(
   if (!is.null(multinomialCounts)) {
     dataCall$counts <- multinomialCounts
   }
-  data <- if (is.null(basisDeclarations)) {
-    eval(dataCall, evalEnv)
-  } else {
-    # the bases ride the data object's own 'bases' argument, which this caller
-    # never wrote, so a refusal from it is restated in the word the caller
-    # used; only validateForestBases names that argument. An unrelated error -
-    # anything not naming 'bases' - is not this call's to relabel, so it keeps
-    # its own condition class and call
-    tryCatch(
-      eval(dataCall, evalEnv),
-      error = function(e) {
-        message <- conditionMessage(e)
-        if (!grepl("'bases'", message, fixed = TRUE)) {
-          stop(e)
+  data <- withMatrixResponseRestated(
+    "bart()/dbarts()",
+    requestedFamily,
+    if (is.null(basisDeclarations)) {
+      eval(dataCall, evalEnv)
+    } else {
+      # the bases ride the data object's own 'bases' argument, which this caller
+      # never wrote, so a refusal from it is restated in the word the caller
+      # used; only validateForestBases names that argument. An unrelated error -
+      # anything not naming 'bases' - is not this call's to relabel, so it keeps
+      # its own condition class and call
+      tryCatch(
+        eval(dataCall, evalEnv),
+        error = function(e) {
+          message <- conditionMessage(e)
+          if (!grepl("'bases'", message, fixed = TRUE)) {
+            stop(e)
+          }
+          stop(gsub("'bases'", "'basis'", message, fixed = TRUE), call. = FALSE)
         }
-        stop(gsub("'bases'", "'basis'", message, fixed = TRUE), call. = FALSE)
-      }
-    )
-  }
+      )
+    }
+  )
 
   # a Surv formula response was ingested and subsetted by dbartsData()'s own
   # short-circuit (R/data.R), which has no family vocabulary to dispatch on -
