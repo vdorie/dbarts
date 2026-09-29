@@ -337,11 +337,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - offset.test:
 
-  A numeric vector of length equal to that of the test matrix, or
-  `NULL`. Can be missing for `setTestPredictorAndOffset`. Refused, by
-  name, for `predictForests`: an offset shifts the combination of the
-  forests, exactly as the response transform's shift does, and neither
-  is any one forest's own total.
+  A numeric vector of length equal to that of the test matrix, or `NULL`
+  for no offset; a missing value is refused. Can be missing for
+  `setTestPredictorAndOffset`. Refused, by name, for `predictForests`:
+  an offset shifts the combination of the forests, exactly as the
+  response transform's shift does, and neither is any one forest's own
+  total.
 
   For `setCategoryTestOffset`, a multinomial sampler's
   \\n\_{\mathrm{test}} \times K\\ per-category test shift, or `NULL` to
