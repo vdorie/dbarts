@@ -110,7 +110,7 @@ engine edit of step 1 (library B); n = 200 data rows, K = 3, 50 trees, one chain
 ## Agent-made calls
 
 The ruling settles accept, inert, and warn once at creation and through `$setCounts`. These are not settled by
-it; each is a recommendation VD can overturn before implementation. Calls 2, 6 and 7 are pending maintainer:
+it; each is a recommendation VD can overturn before implementation. Calls 2, 6 and 7 were put to the maintainer and are ruled:
 put to VD before the slice starts.
 
 1. Engine form: a zero-trial row is composed into the coupling's existing global mask, `effective = mask AND
@@ -139,7 +139,7 @@ put to VD before the slice starts.
    would give NaN. Base R: glm at a zero-weight row gives a response residual of -mu (it sets y = 0 at n = 0)
    and deviance and pearson residuals of 0, deviance being the default; `rstandard` drops the row and `nobs`
    excludes it. Alternatives: 0, following glm's default residual; -p, following its response residual.
-7. Pending maintainer. `extract(type = "loglik")` reports 0 at the row in every draw: the multinomial log-pmf,
+7. Ruled 2026-09-28 (maintainer: "Yep, 0."). `extract(type = "loglik")` reports 0 at the row in every draw: the multinomial log-pmf,
    and what glm's summed logLik gets from a zero-weight row, so a sum over rows is the fit's log-likelihood.
    Multinomial fits never report NaN for a masked row's log-likelihood (the mask's NaN flag is the engine
    channel of other families), so 0 departs from no multinomial convention. Cost: loo reports Pareto k = Inf
