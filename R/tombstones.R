@@ -587,11 +587,23 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
       resid.prior = vocabularyEnv(dbartsPriors, evalEnv),
       evalEnv
     )
+    written <- forwardedDotExpr(matchedCall[[name]], evalEnv)
     values[name] <- list(
       if (name %in% unevaluatedConsolidatedArgs) {
-        matchedCall[[name]]
+        written
       } else {
-        eval(matchedCall[[name]], env)
+        # through a wrapper's '...' the written expression is read in the
+        # vocabulary first; a name the caller's own frame holds is forced
+        # through the forwarded promise instead
+        tryCatch(
+          eval(written, env),
+          error = function(e) {
+            if (identical(written, matchedCall[[name]])) {
+              stop(e)
+            }
+            eval(matchedCall[[name]], evalEnv)
+          }
+        )
       }
     )
   }

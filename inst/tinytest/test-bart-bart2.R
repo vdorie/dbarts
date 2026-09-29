@@ -159,6 +159,32 @@ abbrevFit2 <- dbarts::bartBT(
 )
 expect_inherits(abbrevFit2, "bart")
 
+# the refusal names the family that fits the response: multinomial for an
+# unordered factor, ordinal for an ordered one
+y3Fam <- factor(sample(c("a", "b", "c"), nS10, replace = TRUE))
+famMsg <- function(y) {
+  tryCatch(
+    do.call(dbarts::bartBT, c(list(xS10, y), quickS10)),
+    error = function(e) conditionMessage(e)
+  )
+}
+famMsgFormula <- function(y) {
+  df <- data.frame(a = xS10[, 1L], b = xS10[, 2L], y = y)
+  tryCatch(
+    do.call(dbarts::bartBT, c(list(y ~ a + b, df), quickS10)),
+    error = function(e) conditionMessage(e)
+  )
+}
+for (msgFn in list(famMsg, famMsgFormula)) {
+  expect_true(grepl("family = \"multinomial\"", msgFn(y3Fam), fixed = TRUE))
+  expect_false(grepl("ordinal", msgFn(y3Fam), fixed = TRUE))
+  expect_true(
+    grepl("family = \"ordinal\"", msgFn(ordered(y3Fam)), fixed = TRUE)
+  )
+  expect_false(grepl("multinomial", msgFn(ordered(y3Fam)), fixed = TRUE))
+}
+rm(y3Fam, famMsg, famMsgFormula, msgFn)
+
 rm(nS10, xS10, yS10, quickS10, abbrevFit1, abbrevFit2)
 
 # keeptrees = TRUE, keepsampler = FALSE keeps $fit anyway (keepsampler's

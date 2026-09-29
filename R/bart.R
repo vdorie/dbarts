@@ -3294,13 +3294,18 @@ survivalProbabilities.bart <- function(
 # response itself declares. A factor response of three or more levels was
 # fit as its integer level codes there, which is a model no one asks for on
 # purpose, so it is refused here naming both remedies - the modern door's
-# multinomial fit, or the explicit coding that reproduces the old numbers.
-refuseLegacyFactorResponse <- function() {
+# multinomial fit (an ordered factor is ordinal instead), or the explicit
+# coding that reproduces the old numbers.
+refuseLegacyFactorResponse <- function(ordered = FALSE) {
   stop(
     "'bartBT' does not fit a factor response with three or more levels; ",
     "dbarts 0.9-x fit its integer level codes as numbers. Use ",
-    "bart(x, y, family = \"multinomial\") for a multinomial ",
-    "fit, or pass as.integer(y) - 1L to keep the old numeric behaviour",
+    if (ordered) {
+      "bart(x, y, family = \"ordinal\") for an ordinal fit"
+    } else {
+      "bart(x, y, family = \"multinomial\") for a multinomial fit"
+    },
+    ", or pass as.integer(y) - 1L to keep the old numeric behaviour",
     call. = FALSE
   )
 }
@@ -3387,7 +3392,7 @@ bartBT <- function(
       is.factor(y.train) &&
       nlevels(y.train) >= 3L
   ) {
-    refuseLegacyFactorResponse()
+    refuseLegacyFactorResponse(is.ordered(y.train))
   }
   # a matrix response is per-category counts or a (time, status) pair, which
   # bart() fits; this door takes a single column
@@ -3542,7 +3547,7 @@ bartBT <- function(
   # formula-response backstop for the pre-check above: dbarts() resolved an
   # ordered-factor response to ordinal, which this door does not package
   if (identical(sampler$model@family, "ordinal")) {
-    refuseLegacyFactorResponse()
+    refuseLegacyFactorResponse(ordered = TRUE)
   }
 
   if (sampleronly) {

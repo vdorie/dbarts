@@ -172,16 +172,28 @@ rbart_vi <- function(
   if (is.null(matchedCall[["group.by"]])) {
     stop("'group.by' must be specified to use rbart_vi")
   }
+  groupByExpr <- forwardedDotExpr(matchedCall[["group.by"]], callingEnv)
+  groupByTestExpr <- forwardedDotExpr(
+    matchedCall[["group.by.test"]],
+    callingEnv
+  )
 
   group.by.literal <- NULL
   # look for group.by in data, if supplied, first
-  if (is.symbol(matchedCall[["group.by"]]) && !missing(data)) {
-    group.by.literal <- rbartColumn(data, matchedCall[["group.by"]])
+  if (is.symbol(groupByExpr) && !missing(data)) {
+    group.by.literal <- rbartColumn(data, groupByExpr)
   }
 
   if (is.null(group.by.literal)) {
     try(
-      group.by.literal <- eval(matchedCall[["group.by"]], environment(formula)),
+      group.by.literal <- eval(groupByExpr, environment(formula)),
+      silent = TRUE
+    )
+  }
+
+  if (is.null(group.by.literal)) {
+    try(
+      group.by.literal <- eval(matchedCall[["group.by"]], callingEnv),
       silent = TRUE
     )
   }
@@ -200,18 +212,25 @@ rbart_vi <- function(
     stop("'group.by' must be coercible to factor type")
   }
 
-  if (!is.null(matchedCall[["group.by.test"]])) {
+  if (!is.null(groupByTestExpr)) {
     group.by.literal <- NULL
-    if (is.symbol(matchedCall[["group.by.test"]]) && !missing(test)) {
-      group.by.literal <- rbartColumn(test, matchedCall[["group.by.test"]])
+    if (is.symbol(groupByTestExpr) && !missing(test)) {
+      group.by.literal <- rbartColumn(test, groupByTestExpr)
     }
 
     if (is.null(group.by.literal)) {
       try(
         group.by.literal <- eval(
-          matchedCall[["group.by.test"]],
+          groupByTestExpr,
           environment(formula)
         ),
+        silent = TRUE
+      )
+    }
+
+    if (is.null(group.by.literal)) {
+      try(
+        group.by.literal <- eval(matchedCall[["group.by.test"]], callingEnv),
         silent = TRUE
       )
     }
@@ -222,10 +241,10 @@ rbart_vi <- function(
 
     if (
       is.null(group.by.literal) &&
-        is.symbol(matchedCall[["group.by.test"]]) &&
+        is.symbol(groupByTestExpr) &&
         !missing(data)
     ) {
-      group.by.literal <- rbartColumn(data, matchedCall[["group.by.test"]])
+      group.by.literal <- rbartColumn(data, groupByTestExpr)
     }
 
     if (is.null(group.by.literal)) {
@@ -256,6 +275,8 @@ rbart_vi <- function(
 
   if (is.null(matchedCall$prior)) {
     matchedCall$prior <- formals(rbart_vi)$prior
+  } else {
+    matchedCall$prior <- forwardedDotExpr(matchedCall$prior, callingEnv)
   }
 
   if (

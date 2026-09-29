@@ -255,3 +255,38 @@ rm(rbartFit, ranef.pred, g.test)
 rm(x.test, g, y, x, n.train)
 
 rm(testData)
+
+# group.by, group.by.test and prior resolve through a forwarding wrapper: a
+# column name is read as a column, a caller variable by its value
+dfFwd <- data.frame(
+  y = rnorm(40L),
+  x = rnorm(40L),
+  g = rep_len(1:4, 40L)
+)
+fwdRbart <- function(...) {
+  dbarts::rbart_vi(
+    ...,
+    n.samples = 1L,
+    n.burn = 0L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.trees = 5L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+}
+fwdCaller <- function(d) {
+  gLocal <- d$g
+  fwdRbart(y ~ . - g, d, group.by = gLocal)
+}
+expect_inherits(fwdRbart(y ~ . - g, dfFwd, group.by = g), "rbart")
+expect_inherits(fwdCaller(dfFwd), "rbart")
+expect_inherits(
+  fwdRbart(y ~ . - g, dfFwd, test = dfFwd, group.by = g, group.by.test = g),
+  "rbart"
+)
+expect_inherits(
+  fwdRbart(y ~ . - g, dfFwd, group.by = g, prior = cauchy),
+  "rbart"
+)
+rm(fwdRbart, fwdCaller, dfFwd)

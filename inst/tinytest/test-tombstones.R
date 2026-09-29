@@ -871,3 +871,38 @@ for (nm in unique(names.t[kinds %in% c("function", "method", "argument")])) {
     info = paste0("'", nm, "' is missing from NEWS's tombstone-list item")
   )
 }
+
+# the retired resid.prior resolves the prior constructors through a wrapper's
+# '...' too, and gives the draws of the family spelling
+fwdBartResid <- function(...) {
+  dbarts::bart(
+    ...,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 313L,
+    verbose = FALSE
+  )
+}
+dfResid <- data.frame(y = yCons, x = xCons[, 1L])
+fitFamilyResid <- fwdBartResid(
+  y ~ x,
+  dfResid,
+  family = gaussian(sigma = dbarts::dbartsPriors$chisq(3, 0.9))
+)
+fitFwdResid <- suppressWarnings(fwdBartResid(
+  y ~ x,
+  dfResid,
+  resid.prior = chisq(3, 0.9)
+))
+expect_equal(fitFwdResid$sigma, fitFamilyResid$sigma)
+resetOnce <- dbarts:::onceWarnState
+resetOnce[["tombstone.consolidated.resid.prior.bart"]] <- NULL
+rm(resetOnce)
+expect_warning(
+  fwdBartResid(y ~ x, dfResid, resid.prior = chisq(3, 0.9)),
+  "resid.prior"
+)
+rm(fwdBartResid, dfResid, fitFamilyResid, fitFwdResid)

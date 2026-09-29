@@ -1281,3 +1281,22 @@ quoteInNamespace <- function(name, character.only = FALSE) {
   result[[3L]] <- if (character.only) name else match.call()[[2]]
   result
 }
+
+## An argument forwarded through a wrapper's '...' reaches match.call() as
+## the placeholder symbol ..N; this returns the expression the wrapper's
+## caller wrote, so a bare column name, or a name from a vocabulary only this
+## package holds, still reads as written.
+forwardedDotExpr <- function(expr, env) {
+  if (!is.symbol(expr) || !grepl("^\\.\\.[0-9]+$", as.character(expr))) {
+    return(expr)
+  }
+  index <- as.integer(substring(as.character(expr), 3L))
+  dotExprs <- tryCatch(
+    eval(quote(substitute(list(...))), env),
+    error = function(e) NULL
+  )
+  if (is.null(dotExprs) || length(dotExprs) < index + 1L) {
+    return(expr)
+  }
+  dotExprs[[index + 1L]]
+}
