@@ -972,6 +972,12 @@ bart <- function(
   # is.ordered() key). Route either into its branch below and announce.
   # Every other response stays on the standard path, where dbarts() resolves
   # (and announces) probit/gaussian/aft.
+  pendingAuto <- NULL
+  announcePendingAuto <- function() {
+    if (!is.null(pendingAuto)) {
+      announceAutoFamily(verbose, pendingAuto$family, pendingAuto$description)
+    }
+  }
   if (family == "auto") {
     dataMissing <- missing(data)
     autoData <- if (dataMissing) NULL else data
@@ -989,27 +995,27 @@ bart <- function(
     }
     if (!is.null(autoCounts)) {
       family <- "multinomial"
-      announceAutoFamily(
-        verbose,
-        family,
-        paste0(autoCounts$K, "-column count matrix response")
+      pendingAuto <- list(
+        family = family,
+        description = paste0(autoCounts$K, "-column count matrix response")
       )
     } else if (!is.null(autoMultinomial)) {
       family <- "multinomial"
-      announceAutoFamily(
-        verbose,
-        family,
-        describeCategoricalResponse(
+      pendingAuto <- list(
+        family = family,
+        description = describeCategoricalResponse(
           autoMultinomial$type,
           autoMultinomial$n.levels
         )
       )
     } else if (!is.null(autoOrdinal)) {
       family <- "ordinal"
-      announceAutoFamily(
-        verbose,
-        family,
-        describeCategoricalResponse(autoOrdinal$type, autoOrdinal$n.levels)
+      pendingAuto <- list(
+        family = family,
+        description = describeCategoricalResponse(
+          autoOrdinal$type,
+          autoOrdinal$n.levels
+        )
       )
     }
   }
@@ -1282,6 +1288,7 @@ bart <- function(
         levels <- as.character(seq_len(ncol(y)))
       }
 
+      announcePendingAuto()
       return(withFamilySpec(
         familySpec,
         family,
@@ -1321,6 +1328,7 @@ bart <- function(
       )
     }
 
+    announcePendingAuto()
     return(withFamilySpec(
       familySpec,
       family,
@@ -1358,6 +1366,7 @@ bart <- function(
       allow.samplerOnly = TRUE
     )
     warnFamilyGatedArgs(argNames, "ordinal")
+    announcePendingAuto()
     return(withFamilySpec(
       familySpec,
       family,
@@ -3223,6 +3232,17 @@ bartBT <- function(
   ) {
     refuseLegacyFactorResponse()
   }
+  # a matrix response is per-category counts or a (time, status) pair, which
+  # bart() fits; this door takes a single column
+  if (
+    !is.formula(x.train) &&
+      !missing(y.train) &&
+      is.matrix(y.train) &&
+      ncol(y.train) > 1L &&
+      !inherits(y.train, "Surv")
+  ) {
+    restateMatrixResponseError(list(y = y.train), "bartBT()", "auto")
+  }
 
   # NULL, or a vector naming none of the three BayesTree moves, is BayesTree's
   # mixture, as in 0.9-34; anything else, and a positive perturb or
@@ -3324,9 +3344,12 @@ bartBT <- function(
   # dbarts() warns about a thread budget above the chain count in the modern
   # door's n.threads/n.chains; this door's caller typed nthread/nchain, so the
   # warning is re-issued under those names, same class and same numbers
+  # this door has no 'family' formal, so the "auto" resolution dbarts()
+  # announces for the modern door is muted here
   sampler <- tryCatch(
     withCallingHandlers(
       do.call(dbarts::dbarts, args, envir = parent.frame(1L)),
+      dbartsAutoFamilyMessage = function(m) invokeRestart("muffleMessage"),
       dbartsExcessThreadsWarning = function(w) {
         warning(warningCondition(
           sprintf(
@@ -3344,6 +3367,9 @@ bartBT <- function(
         invokeRestart("muffleWarning")
       }
     ),
+    dbartsMatrixResponseRestated = function(e) {
+      restateMatrixResponseError(e, "bartBT()", "auto")
+    },
     error = function(e) {
       msg <- conditionMessage(e)
       # the formula path's categorical response is refused inside dbarts(),

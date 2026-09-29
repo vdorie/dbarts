@@ -24,13 +24,20 @@ announceAutoFamily <- function(verbose, family, description) {
   if (!isTRUE(verbose)) {
     return(invisible(NULL))
   }
-  message(
-    "family = \"auto\": ",
-    description,
-    " detected, fitting family = \"",
-    family,
-    "\"; set 'family' to override"
-  )
+  # classed, so a door that resolves its family itself (bartBT) can mute it
+  message(structure(
+    class = c("dbartsAutoFamilyMessage", "message", "condition"),
+    list(
+      message = paste0(
+        "family = \"auto\": ",
+        description,
+        " detected, fitting family = \"",
+        family,
+        "\"; set 'family' to override\n"
+      ),
+      call = NULL
+    )
+  ))
 }
 
 # The response description announceAutoFamily names for a categorical

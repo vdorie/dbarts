@@ -1289,12 +1289,15 @@ restateMatrixResponseError <- function(e, entry, family) {
     "pair needs a survival::Surv response (which \"auto\" reads as ",
     "survival) or family = \"aft\" / \"hazard\""
   )
-  text <- if (identical(entry, "xbart()")) {
+  text <- if (entry %in% c("xbart()", "bartBT()", "rbart_vi()")) {
     paste0(
-      "xbart() takes a single-column response but 'y' is an n x ",
+      entry,
+      " takes a single-column response but 'y' is an n x ",
       K,
-      " matrix, and it cross-validates neither multinomial counts nor a ",
-      "survival response; fit those with bart() instead - ",
+      " matrix, and it ",
+      if (identical(entry, "xbart()")) "cross-validates" else "fits",
+      " neither multinomial counts nor a survival response; use bart() ",
+      "instead - ",
       readings
     )
   } else if (family != "auto") {
@@ -1313,11 +1316,11 @@ restateMatrixResponseError <- function(e, entry, family) {
     )
   } else if (isAutoCountMatrix(y)) {
     paste0(
-      "dbarts() fits an n x ",
+      "an n x ",
       K,
-      " count matrix through the matrix interface only: ",
-      "dbarts(x, counts, family = \"multinomial\"); bart() takes the formula ",
-      "form, bart(cbind(c1, c2, c3) ~ x, data)"
+      " count matrix as a formula response is fit by bart(cbind(c1, c2, ",
+      "c3) ~ x, data), which needs 'data'; dbarts() takes counts on the ",
+      "matrix interface, dbarts(x, counts, family = \"multinomial\")"
     )
   } else {
     paste0(
@@ -1328,7 +1331,12 @@ restateMatrixResponseError <- function(e, entry, family) {
       "counts must be non-negative whole numbers (NA marks a missing row)"
     )
   }
-  stop(text, call. = FALSE)
+  # classed, and carrying the response, so a door that wraps this one can
+  # restate it once more in its own words
+  stop(structure(
+    class = c("dbartsMatrixResponseRestated", "error", "condition"),
+    list(message = text, call = NULL, y = y)
+  ))
 }
 
 withMatrixResponseRestated <- function(entry, family, expr) {
@@ -1439,9 +1447,14 @@ resolveClassificationFamily <- function(
         model,
         "; fit it with ",
         suggestion,
-        " - ",
-        caller,
-        " fit only binary and continuous responses"
+        if (isOrdered) {
+          paste0(" - ", caller, " fit only binary and continuous responses")
+        } else {
+          paste0(
+            " or dbarts(x, y, family = \"multinomial\") - bartBT() and ",
+            "xbart() fit only binary and continuous responses"
+          )
+        }
       )
     }
     stop(

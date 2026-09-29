@@ -103,7 +103,7 @@ sampler <- dbarts(x, counts, control = ctl)
 expect_identical(sampler$model@family, "multinomial")
 expect_error(
   dbarts(cbind(a, b, c) ~ x1 + x2, frame, control = ctl),
-  "dbarts\\(\\) fits an n x 3 count matrix through the matrix interface only"
+  "is fit by bart\\(cbind\\(c1, c2, c3\\) ~ x, data\\), which needs .data."
 )
 
 # --- refusals, each naming what to write ---
@@ -270,3 +270,80 @@ expect_message(
   "fitting family = \"gaussian\""
 )
 expect_silent(quiet(bart(x, yCont, control = ctl, verbose = FALSE)))
+
+# --- rbart_vi and bartBT: one line, or none ---
+frame$g <- factor(rep(1:4, length.out = n))
+frame$yc <- rnorm(n)
+expect_identical(
+  autoLines(rbart_vi(
+    yc ~ x1,
+    frame,
+    group.by = g,
+    n.chains = 3L,
+    n.threads = 1L,
+    n.trees = 10L,
+    n.samples = 10L,
+    n.burn = 5L,
+    verbose = TRUE
+  )),
+  expected("continuous response", "gaussian")
+)
+expect_identical(
+  autoLines(bartBT(
+    x,
+    yCont,
+    ntree = 10L,
+    ndpost = 10L,
+    nskip = 5L,
+    nchain = 1L,
+    nthread = 1L
+  )),
+  character()
+)
+expect_error(
+  bartBT(x, counts, ntree = 10L),
+  "bartBT\\(\\) takes a single-column response.*use bart\\(\\)"
+)
+expect_error(bartBT(x, counts[, 1:2], ntree = 10L), "use bart\\(\\).*Surv")
+expect_error(
+  rbart_vi(cbind(a, b, c) ~ x1, frame, group.by = g, n.threads = 1L),
+  "rbart_vi\\(\\) takes a single-column response.*use bart\\(\\)"
+)
+
+# a threaded bart announces once too
+expect_identical(
+  autoLines(bart(
+    x,
+    yCont,
+    control = dbartsControl(
+      n.trees = 10L,
+      n.samples = 10L,
+      n.burn = 5L,
+      n.chains = 2L,
+      n.threads = 2L
+    )
+  )),
+  expected("continuous response", "gaussian")
+)
+
+# a refusal comes before the announcement
+expect_identical(
+  autoLines(try(
+    bart(x, counts, weights = rep(1, n), control = ctl),
+    silent = TRUE
+  )),
+  character()
+)
+a <- counts[, 1L]
+b <- counts[, 2L]
+c <- counts[, 3L]
+x1 <- x[, 1L]
+expect_error(
+  bart(cbind(a, b, c) ~ x1, control = ctl),
+  "needs 'data'"
+)
+rm(a, b, c, x1)
+expect_error(
+  dbarts(x, yFac3),
+  "or dbarts\\(x, y, family = \"multinomial\"\\)"
+)

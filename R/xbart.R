@@ -232,11 +232,6 @@ xbart <- function(
       )
     }
   }
-  # announced once here, in the calling process, however many replications or
-  # workers the cross-validation then fans out to
-  if (!is.null(autoDescription)) {
-    announceAutoFamily(verbose, family, autoDescription)
-  }
   control@binary <- isBinaryFamily(family)
 
   # the shared weight policy (R/spec.R's enforceWeightPolicy): a probit has
@@ -538,6 +533,12 @@ xbart <- function(
   }
 
   lossFunction <- xbartLossFunction(loss, control, family)
+
+  # announced once here, after the refusals and in the calling process,
+  # however many replications or workers the cross-validation fans out to
+  if (!is.null(autoDescription)) {
+    announceAutoFamily(verbose, family, autoDescription)
+  }
 
   # a replication draws a data split and sweeps every parameter cell over
   # it. Chains warm-start only across cells - the training data is

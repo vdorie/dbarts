@@ -153,8 +153,9 @@
             error naming both readings, counts and a (time, status) pair.
             Every resolution of \code{family = "auto"} is now reported in a
             one-line message naming the family fit, once per call, off
-            under \code{verbose = FALSE}; \code{bart}'s \code{verbose}
-            defaults to \code{TRUE}.
+            under \code{verbose = FALSE}. \code{bart}'s \code{verbose}
+            was already \code{TRUE} by default, so a plain
+            \code{bart(x, y)} now prints that line.
       \item \code{dbartsControl} loses \code{rngKind} and
             \code{rngNormalKind}, and renames \code{rngSeed} to \code{seed};
             \code{rngSeed} is still accepted on \code{dbartsControl} and

@@ -256,11 +256,6 @@ resolveSamplerSpec <- function(
       )
     }
   }
-  # every resolution of "auto" is announced once, here: bart() reaches this
-  # through dbarts(), and dbartsSpec() reads its control's verbose
-  if (!is.null(autoDescription)) {
-    announceAutoFamily(control@verbose, family, autoDescription)
-  }
   # aft draws sigma and rescales like gaussian; only the binary families are
   # latent-variable models on a fixed unit scale
   control@binary <- isBinaryFamily(family)
@@ -839,6 +834,13 @@ resolveSamplerSpec <- function(
         )
       )
     )
+  }
+
+  # every resolution of "auto" is announced once, here, after the refusals
+  # above: bart() reaches this through dbarts(), and dbartsSpec() reads its
+  # control's verbose
+  if (!is.null(autoDescription)) {
+    announceAutoFamily(control@verbose, family, autoDescription)
   }
 
   namedList(control, model, data, family, active)

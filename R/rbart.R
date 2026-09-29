@@ -269,7 +269,11 @@ rbart_vi <- function(
   dataCall <- redirectCall(matchedCall, dbarts::dbartsData)
   dataCall$factors <- "indicators"
   dataCall$na.action <- quote(stats::na.omit)
-  data <- eval(dataCall, envir = callingEnv)
+  data <- withMatrixResponseRestated(
+    "rbart_vi()",
+    "auto",
+    eval(dataCall, envir = callingEnv)
+  )
 
   if (!is.null(attr(data, "survivalStatus")) || !is.null(data@counts)) {
     stop("'rbart_vi' fits a continuous or binary response only")
@@ -339,8 +343,11 @@ rbart_vi <- function(
   # any refusal of the chains' arguments surfaces here, once, rather than
   # inside a worker that then retries serially
   streamBefore <- readGlobalSeed()
-  do.call(dbarts::dbarts, samplerArgs)
+  validationSampler <- do.call(dbarts::dbarts, samplerArgs)
   writeGlobalSeed(streamBefore)
+  # "auto" resolved (and was announced) once, above; the chains take the
+  # resolved token so none of them announces it again
+  samplerArgs$family@token <- validationSampler$model@family
 
   chainResults <- vector("list", n.chains)
   runSingleThreaded <- n.threads <= 1L || n.chains <= 1L
