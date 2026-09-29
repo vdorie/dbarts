@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (63 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (64 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) -
@@ -106,6 +106,7 @@ Columns: `file | STATUS | one-liner`.
 | predict-na-action.md | LANDED e2168430, 2026-09-27 (A1 e0f80109, A2 7d61cb39) | Names every observation-indexed output (predict, extract, fitted, residuals, survivalProbabilities) by the data's row names on every fit class, brings fit-time `na.exclude` padding to the four other classes, and gives every predict method and survivalProbabilities an `na.action` argument. |
 | leaf-vocabulary.md | LANDED 59d0dbbb, 2026-09-27 (docs beb60ae1, records 3feb4931) | Renames `node.prior` to `leaf.prior` on every entry point and `$sampleNodeParametersFromPrior` to `$sampleLeafParametersFromPrior` (each old name a once-per-session tombstone until 1.1-0), and `$getCalibration`/`$setCalibration` to `$getLeafPrior`/`$setLeafPrior` and the reader's `node.scale.factor`/`divisor` columns to `leaf.scale.factor`/`divisor` (no tombstone); `$getTrees`, `plotTree` and the tree prior keep `node`; stan4bart and bartCause move in lockstep. |
 | leaf-prior-k-or-sd.md | IMPLEMENTED 2026-09-29, pending landing | Names the leaf prior by `k` (relative to the data's anchor; a number or `chi()`) or by `sd` (response units; a number or a new hyperprior on the sd), never both, refuses a named sd on hurdle and multi-forest fits, and removes `scale` from `normal`/`linear`/`gp`, `$setLeafPrior` and `$getLeafPrior` (ruling on dec-A105); every prior expressible today maps to one new spelling, identical engine inputs at the defaults, no engine change. |
+| leaf-prior-reader-shape.md | IMPLEMENTED 2026-09-29, pending landing | Returns `$getLeafPrior()` as the leaf prior alone, a list carrying the specification in the terms it was named in, the leaf model, mean, anchor and response transform, and the calibration-map entries only on map forests; each chain's current k moves to a new `$getK()` (dec-B141). |
 
 ## Build / infra singletons
 
