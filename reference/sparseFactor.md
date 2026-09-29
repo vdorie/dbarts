@@ -20,12 +20,16 @@ under `subset` and `na.action`, to the assembled predictor matrix
 afterward. A `sparseFactor` column enters as one categorical predictor
 and bins bitwise-identically to a dense factor of the same values.
 
-The same holds for a test set (`test`/`x.test`): a `sparseFactor` test
-column is recoded over the training level table and stays resident -
-through creation and `setTestPredictor` - rather than densifying at
-ingestion. `predict` and `getTrees(newdata = )` code it the same way and
-then route its rows through the trees off that storage, materializing no
-dense matrix of their own.
+A test frame (`test`, or `newdata` to `predict`) is read the way a
+dense-factor frame is: the model's terms are replayed on its dense
+columns (so a transformed term such as `log(z)` works and extra columns,
+the response included, are dropped) and its `sparseFactor` columns are
+used by name. The same holds for a test set (`test`/`x.test`): a
+`sparseFactor` test column is recoded over the training level table and
+stays resident - through creation and `setTestPredictor` - rather than
+densifying at ingestion. `predict` and `getTrees(newdata = )` code it
+the same way and then route its rows through the trees off that storage,
+materializing no dense matrix of their own.
 
 Mixing a `sparseFactor` (or any sparse ordinal) column with ordinary
 dense columns changes how a default starting `sigma` is estimated. The
@@ -97,6 +101,51 @@ slots are `levels`, `reference`, and `length`.
 and the reference level. `length` returns the observation count, which
 lets a `sparseFactor` be a
 [`data.frame`](https://rdrr.io/r/base/data.frame.html) column.
+
+A `sparseFactor` answers the operations a data frame reaches a factor
+column with as a [`factor`](https://rdrr.io/r/base/factor.html) does.
+`x[i]` subsets by position (positive, negative, zero, logical and
+repeated indices) and returns a `sparseFactor` over the same levels,
+mapping the stored positions without densifying; `drop = TRUE` drops the
+levels no selected row takes, and with no row selected keeps the
+reference level alone, since a `sparseFactor` needs one level.
+`x[i] <- value` and the double-bracket assignment take labels that are
+levels of `x` (as a character vector, factor or `sparseFactor`) and may
+extend the vector when no position is left unassigned;
+`levels(x) <- value` renames the levels, the reference with them,
+merging repeated names as it does for a factor. `c(x, ...)` combines
+with factors and `sparseFactor`s over the union of their levels.
+`as.character`, `as.vector` and `format` give the level labels,
+`as.integer` the level codes, and `levels` (read from the class's slot),
+`is.na` (always `FALSE`), `xtfrm` (so `order` and `sort`), `unique`,
+`duplicated`, `rep`, `droplevels`, `summary`, `==` and `!=` (which
+refuse two factors with different level sets, as for factors) behave as
+for a factor, and `str` prints a factor's line. `factor`, `as.factor`
+and `table` read it through those methods, over the levels present.
+Together these let a data frame holding one be subset by row, assigned
+into, printed and `str`-ed. `rbind` of such frames works but returns the
+column as an ordinary factor.
+
+A `sparseFactor` cannot hold a missing value, so where a factor would
+return `NA` it is refused: an `NA` or out-of-range row index, a
+replacement value that is not a level, an extension past a gap, a level
+named `NA`, and `length<-`. A character index has no names to match and
+is refused. Not supported: `complete.cases` on a data frame holding one
+(use [`na.omit`](https://rdrr.io/r/stats/na.fail.html), or `is.na` per
+column), and `c(f, x)` with a factor `f` first, which `c.factor` answers
+with a list (put the `sparseFactor` first). Also not supported:
+`relevel`, `as.numeric` (`as.integer` gives the level codes), `rep_len`
+and `rep.int` (`rep` works), and the `exclude` argument of `droplevels`,
+which is ignored; `droplevels` on a data frame leaves a `sparseFactor`
+column untouched, as base R touches only factor columns, so call it on
+the column.
+
+A
+[`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
+or `dgCMatrix` column subsets in a data frame through Matrix's own
+method, but printing such a frame shows a placeholder for the column and
+warns of a corrupt data frame; that formatting belongs to Matrix. Use
+`as.numeric` on the column to display it.
 
 ## Value
 
