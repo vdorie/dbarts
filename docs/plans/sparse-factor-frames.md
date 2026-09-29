@@ -4,7 +4,7 @@ agent: sonnet
 rng: neutral (no draw moves; only which rows and columns reach the engine)
 budget: ~250 lines (R ~110, tests ~120, man and NEWS ~20)
 
-Status: LANDED-pending 2026-09-28
+Status: LANDED 2026-09-28 (, , aa207700 4f9589ae 5b07b5ce )
 
 ## Goal
 
@@ -116,3 +116,5 @@ rep, droplevels, as.integer, the level-set refusal in == and !=, and a
 reference-only result for drop = TRUE with no rows. Unsupported and listed in
 the Rd: complete.cases, and c() with a factor first. A test asserts that no
 base or stats function is masked.
+
+At landing, the Rd's unsupported list gained relevel, as.numeric, rep_len/rep.int and droplevels' exclude and data-frame behavior (third review). Tip gates: tinytest 9630 pass, 0 fail.

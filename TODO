@@ -262,10 +262,6 @@ items
     each push and bump when GitHub deprecates a runtime; wire codecov
     only if a public badge is wanted. The optional roxygen2 and NEWS.md
     migrations do not start unasked.
-  sparse-factor-frames: before the RC (VD 2026-09-28). A formula fit
-    with a sparse column cannot predict from a frame carrying extra or
-    transformed columns, and a data frame holding a sparseFactor cannot
-    be row-subset or printed. Plan: docs/plans/sparse-factor-frames.md.
   sbc-family-tiers: two open arms (docs/plans/sbc-family-tiers.md,
     docs/plans/archive/runsbcbcf-repair.md): the monotone follow-on,
     the first arm the constrained prior draw unblocks; and the full-R
