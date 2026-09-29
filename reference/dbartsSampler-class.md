@@ -247,7 +247,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   \\10^6\\ for `nbinom` (the dispersion grid's count histogram is sized
   from the largest count, so a larger one allocates without bound).
   Values off the support are refused, as they are at creation;
-  `gaussian` and `aft` (log survival times) constrain nothing.
+  `gaussian` and `aft` (log survival times) constrain nothing. A missing
+  value is refused in every family: to leave a row out of the likelihood
+  mid-chain, mark it inactive with `setActiveRows` and give it any value
+  in the support, which enters no draw while the row stays inactive
+  unless the call re-anchors the scale (`updateScale = TRUE`), which
+  reads every row.
 
 - status:
 
@@ -416,9 +421,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   load carries the current response rather than the one the sampler was
   created with. Cost, not a defect: the sweep draws \\n_i\\ Polya-Gamma
   variates per observation per category, so replacing single-trial
-  labels with grouped counts multiplies sweep cost by `mean(n_i)`.
-  Refused, naming the reason, on any sampler that carries no count
-  response.
+  labels with grouped counts multiplies sweep cost by `mean(n_i)`. A
+  missing count is refused, as a missing response is by `setResponse`;
+  to leave a row out of the likelihood mid-chain, mark it inactive with
+  `setActiveRows`, as in every family, or write zeros into it, which is
+  the same as far as the likelihood goes. Refused, naming the reason, on
+  any sampler that carries no count response.
 
 - weights:
 
