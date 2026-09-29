@@ -123,8 +123,10 @@ refuse two factors with different level sets, as for factors) behave as
 for a factor, and `str` prints a factor's line. `factor`, `as.factor`
 and `table` read it through those methods, over the levels present.
 Together these let a data frame holding one be subset by row, assigned
-into, printed and `str`-ed. `rbind` of such frames works but returns the
-column as an ordinary factor.
+into, printed and `str`-ed. `rbind` of such frames returns the column as
+an ordinary factor; it needs R 4.6.0 or later, since earlier versions of
+base R's `match` refuse an S4 object (convert the column with `factor`
+first).
 
 A `sparseFactor` cannot hold a missing value, so where a factor would
 return `NA` it is refused: an `NA` or out-of-range row index, a
