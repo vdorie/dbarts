@@ -37,6 +37,36 @@ na.keepPredictors <- function(object, ...) {
   kept
 }
 
+## Before R 4.3, terms.formula() runs as.data.frame() over a plain list
+## 'data', which refuses a classed matrix that no as.data.frame method claims
+## (a Surv-like response built without survival). Such a list is returned as
+## a data frame holding the column as is, which terms() then leaves alone;
+## any other list is returned unchanged.
+asDataFrameableList <- function(data) {
+  lengths <- vapply(data, NROW, 1L)
+  bare <- vapply(
+    data,
+    function(column) {
+      is.matrix(column) &&
+        is.object(column) &&
+        !any(vapply(
+          class(column),
+          function(k) !is.null(utils::getS3method("as.data.frame", k, TRUE)),
+          NA
+        ))
+    },
+    NA
+  )
+  if (!any(bare) || length(unique(lengths)) != 1L) {
+    return(data)
+  }
+  structure(
+    data,
+    class = "data.frame",
+    row.names = .set_row_names(lengths[1L])
+  )
+}
+
 ## Which rows of a predictor container hold a missing value. Written off the
 ## stored entries for the sparse flavors: an implicit zero is an observed
 ## value, so densifying to look for NAs would be both wasteful and wrong.
@@ -2039,12 +2069,22 @@ dbartsData <- function(
             denseTermLabels <- c(denseTermLabels, deparse(offsetTerm))
           }
         }
-        formula <- stats::reformulate(
-          denseTermLabels,
-          response = formula[[2L]],
-          intercept = attr(expandedTerms, "intercept"),
-          env = environment(formula)
-        )
+        # reformulate refuses an empty term list before R 4.3
+        formula <- if (length(denseTermLabels) > 0L) {
+          stats::reformulate(
+            denseTermLabels,
+            response = formula[[2L]],
+            intercept = attr(expandedTerms, "intercept"),
+            env = environment(formula)
+          )
+        } else {
+          # what current R builds for an empty list: y ~ 1, or y ~ -1
+          stats::reformulate(
+            if (isTRUE(attr(expandedTerms, "intercept") == 1L)) "1" else "-1",
+            response = formula[[2L]],
+            env = environment(formula)
+          )
+        }
         usedSparseNames <- unique(usedSparseNames)
         sparseColumns <- sparseColumns[usedSparseNames]
         data <- denseData
@@ -2065,6 +2105,12 @@ dbartsData <- function(
       refuseOutOfRangeSubset(subsetIndex, nrow(data), rownames(data))
     }
 
+    # terms.formula() before R 4.3 refuses a plain list holding a bare
+    # classed matrix
+    if (!dataIsMissing && is.list(data) && !is.data.frame(data)) {
+      data <- asDataFrameableList(data)
+      modelFrameCall$data <- data
+    }
     modelFrame <- eval(modelFrameCall, parent.frame())
     naOmitted <- attr(modelFrame, "na.action")
     # a model frame always names its rows, "1".."n" when the data has none,

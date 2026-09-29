@@ -428,7 +428,24 @@ as.data.frame.sparseFactor <- function(
   nm = deparse1(substitute(x))
 ) {
   force(nm)
-  as.data.frame.vector(x, row.names, optional, ..., nm = nm)
+  if (is.null(row.names)) {
+    return(as.data.frame.vector(x, NULL, optional, ..., nm = nm))
+  }
+  # as.data.frame.vector takes integer row names only from R 4.3
+  if (
+    !(is.character(row.names) || is.integer(row.names)) ||
+      length(row.names) != length(x)
+  ) {
+    stop(
+      "'row.names' is not a character or integer vector of length ",
+      length(x)
+    )
+  }
+  value <- list(x)
+  if (!optional) {
+    names(value) <- nm
+  }
+  structure(value, row.names = row.names, class = "data.frame")
 }
 
 # counts per level, as for a factor
