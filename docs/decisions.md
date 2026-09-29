@@ -157,7 +157,7 @@ Two tree-move kernels, the perturb move and the rule redraw at nodes with no gra
 Record: the TODO file's tree-mixing entry and docs/design/level-fibre.md. Marked: mine. [dec-A47]
 
 **The R version floor rises to 4.2.0**
-The package requires R 4.2.0 or newer, where the released package required 3.1-0. No alternative was weighed, and the number is argued only in the commit message that set it: docs/design/core-generalization.md still says the C++20 toolchains need R 4.3, which nothing in the build enforces. Every user on R 3.1-0 through 4.1.x who worked under 0.9-x can no longer install this version. The maintainer has claimed the decision as their own.
+The package requires R 4.2.0 or newer, where the released package required 3.1-0. No alternative was weighed, and the number is argued only in the commit message that set it. It holds: on R 4.2.3 the package builds with C++20 and its whole suite passes after three small fixes for base R behaviour that changed in 4.3, and CI's check matrix runs R 4.2 on every push. Every user on R 3.1-0 through 4.1.x who worked under 0.9-x can no longer install this version. The maintainer has claimed the decision as their own.
 Record: commit 72fc8b3e, the only place the number is argued. Marked: mine. [dec-A48]
 
 **Solaris and big-endian support are dropped**
