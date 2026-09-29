@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (64 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (65 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) -
@@ -65,6 +65,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | binary-hyperprior.md | RUN AND REPORTED, 2026-09-14 | Re-evaluates the binary node hyperprior default chi(1.5, 2) twice over: the first run varied the degrees of freedom for the first time, and the follow-up the maintainer asked for adds the chain lengths and the real datasets that run could not settle. 28 priors (five df crossed with four scales, two df crossed with two scales below 1, and fixed k at 1, 1.5, 2 and 3) over 162 simulated cells and 22 real datasets - six from R, sixteen from UCI - at three chain lengths, 92,160 fits, scored by held-out log score and Brier, interval coverage and width against known truth, split-Rhat and effective sample size for the sampled k and the held-out probability, and time. Verdict: keep chi(1.5, 2). Poor coverage at the short length is a chain-length artefact for every hyperprior arm and almost none of it for a fixed k; on converged chains the coverage criterion does name an interior optimum, at scale 0.5 to 1, but the best improvement anywhere is 0.0052 of coverage distance and is paid for in log score and worst-cell regret; and the earlier study's real-data result for a fixed k reverses five-fold once the sixteen UCI datasets are added. Open: the sampled k does not converge at any length this study could pay for, so the optimum's location is not resolved to better than a factor of two in scale - the revisit condition is in the doc's section 5 and in TODO. |
+| monotone-exact-birth-death.md | PLANNED 2026-09-29 (dec-B144) | Makes the monotone birth/death move target the documented prior: the whole tree's cone normalizer, a count of the leaf orderings the constraints admit, replaces the touched leaves' conditional cone masses; also closes the paths that reach other moves or install infeasible leaves, and adds an exact gate over multi-split trees that the current move fails. |
 | nbinom-large-shape-pg.md | RESEARCH, not scheduled | Designs an exact Polya-Gamma draw for shape above 64 whose cost does not grow with the shape (dec-B143, not built for 1.0-0): the saddle-point envelope as proposal, accepted against the true density evaluated by certified inversion; records that the saddle-point sampler the ruling names is approximate. |
 | weighted-binary.md | ACTIVE (parked memo) | Preserves analysis for integer-weight probit and arbitrary-real-weight logistic; not implemented in 1.0-0, decision-gated rather than scheduled. |
 
