@@ -233,3 +233,61 @@ expect_equal(nrow(na.omit(d)), n)
 capture <- capture.output(str(d))
 expect_true(any(grepl("Factor w/ 3 levels \"a\",\"b\",\"c\"", capture)))
 expect_false(any(grepl("@", capture, fixed = TRUE)))
+
+# ---- no base or stats function is masked, and calls agree from anywhere ----
+if ("package:dbarts" %in% search()) {
+  conflicting <- conflicts(detail = TRUE)
+  expect_equal(
+    intersect(
+      conflicting[["package:dbarts"]],
+      unlist(conflicting[c("package:base", "package:stats")])
+    ),
+    character(0L)
+  )
+}
+expect_equal(levels(base::as.factor(sf)), levels(ff))
+expect_equal(levels(factor(sf)), levels(ff))
+expect_equal(as.integer(sf), as.integer(ff))
+
+# ---- renaming levels ----
+sfn <- sf
+levels(sfn) <- c("A", "B", "C")
+ffn <- ff
+levels(ffn) <- c("A", "B", "C")
+expect_true(methods::validObject(sfn))
+expect_equal(as.character(sfn), as.character(ffn))
+expect_equal(sfn@reference, "A")
+sfm <- sf
+levels(sfm) <- c("x", "x", "y")
+ffm <- ff
+levels(ffm) <- c("x", "x", "y")
+expect_true(methods::validObject(sfm))
+expect_equal(as.character(sfm), as.character(ffm))
+expect_equal(levels(sfm), levels(ffm))
+expect_error(levels(sfn) <- c("A", "B"), "number of levels differs")
+expect_error(levels(sfn) <- c("A", "B", NA), "cannot hold NA")
+
+# ---- element assignment, repeat, drop, level sets ----
+sfe <- sf
+sfe[[2L]] <- "c"
+expect_equal(as.character(sfe)[2L], "c")
+expect_equal(as.character(sf[[3L]]), as.character(ff[[3L]]))
+expect_equal(as.character(rep(sf[1:3], 2L)), as.character(rep(ff[1:3], 2L)))
+expect_equal(
+  as.character(rep(sf[1:2], each = 2L)),
+  as.character(rep(ff[1:2], each = 2L))
+)
+expect_equal(levels(droplevels(sf[f == "b"])), "b")
+expect_equal(levels(sf[integer(0L), drop = TRUE]), sf@reference)
+expect_equal(length(sf[integer(0L), drop = TRUE]), 0L)
+expect_error(sf == factor(c("a", "b")), "level sets of factors are different")
+expect_equal(sf == factor(as.character(f), levels = c("c", "b", "a")), ff == ff)
+
+# rbind hands back a dense factor of the same values
+expect_true(is.factor(rbind(d, d)$sf))
+expect_equal(nlevels(rbind(d, d)$sf), 3L)
+
+# a row assignment keeps the column
+dRow <- d
+dRow[7L, ] <- list(0, 1, "b")
+expect_equal(as.character(dRow$sf)[7L], "b")

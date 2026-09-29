@@ -1464,7 +1464,8 @@
             replayed, extra columns dropped), and a \code{sparseFactor}
             column answers the data-frame operations a factor does
             (row subsets, \code{head}, \code{print}, \code{str},
-            \code{rbind}, assignment, \code{unique}, \code{order});
+            \code{rbind}, which returns an ordinary factor, assignment,
+            \code{unique}, \code{order});
             \code{complete.cases} and a printed \code{sparseVector} or
             \code{dgCMatrix} column are the exceptions, listed in
             \code{\link{sparseFactor}}. The sparse column

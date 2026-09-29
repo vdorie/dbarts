@@ -152,16 +152,18 @@ methods::setMethod("as.character", "sparseFactor", function(x, ...) {
   x@levels[sparseFactorCodes(x)]
 })
 
-methods::setMethod("levels", "sparseFactor", function(x) x@levels)
-
 # no missing values are held, so none are reported
 methods::setMethod("is.na", "sparseFactor", function(x) {
   logical(x@length)
 })
 
-# as.factor keeps every level, as it does for a factor
-methods::setMethod("as.factor", "sparseFactor", function(x) {
+# A factor over every level the sparseFactor declares.
+sparseFactorToFactor <- function(x) {
   structure(sparseFactorCodes(x), levels = x@levels, class = "factor")
+}
+
+methods::setMethod("as.integer", "sparseFactor", function(x, ...) {
+  sparseFactorCodes(x)
 })
 
 methods::setMethod("as.vector", "sparseFactor", function(x, mode = "any") {
@@ -179,10 +181,7 @@ format.sparseFactor <- function(x, ...) {
 # str shows the same line a factor does
 str.sparseFactor <- function(object, ...) {
   shown <- object[seq_len(min(length(object), 100L))]
-  utils::str(
-    factor(as.character(shown), levels = object@levels),
-    ...
-  )
+  utils::str(sparseFactorToFactor(shown), ...)
 }
 
 # The stored positions a row index selects, as for a factor: positive,
@@ -209,17 +208,16 @@ sparseFactorPositions <- function(x, i, extend = FALSE) {
 # when that one is unused the most common remaining level takes over.
 dropSparseFactorLevels <- function(x) {
   used <- tabulate(sparseFactorCodes(x), length(x@levels))
-  if (!any(used > 0L)) {
-    return(x)
-  }
   reference <- match(x@reference, x@levels)
-  if (used[reference] == 0L) {
+  if (!any(used > 0L)) {
+    # a sparseFactor needs a level, so the reference stays
+    used[reference] <- 1L
+  } else if (used[reference] == 0L) {
     reference <- which.max(used)
   }
-  levels <- x@levels[used > 0L]
   sparseFactor(
     as.character(x),
-    levels = levels,
+    levels = x@levels[used > 0L],
     reference = x@levels[reference]
   )
 }
@@ -299,6 +297,51 @@ methods::setReplaceMethod(
   }
 )
 
+methods::setReplaceMethod("[[", "sparseFactor", function(x, i, j, ..., value) {
+  if (length(i) != 1L) {
+    stop("attempt to select more or less than one element")
+  }
+  x[i] <- value
+  x
+})
+
+# Renaming as for a factor: values that repeat merge their levels, and the
+# reference is renamed with the rest. A missing level name is refused.
+methods::setReplaceMethod("levels", "sparseFactor", function(x, value) {
+  if (is.list(value)) {
+    stop("a sparseFactor's levels can be set from a character vector only")
+  }
+  value <- as.character(value)
+  if (length(value) < length(x@levels)) {
+    stop("number of levels differs")
+  }
+  if (anyNA(value)) {
+    stop("a sparseFactor cannot hold NA, so a level cannot be named NA")
+  }
+  levels <- unique(value)
+  recode <- match(value, levels)
+  reference <- recode[match(x@reference, x@levels)]
+  values <- recode[x@values]
+  keep <- values != reference
+  newValidated(
+    "sparseFactor",
+    i = x@i[keep],
+    values = as.integer(values[keep]),
+    levels = levels,
+    reference = levels[reference],
+    length = x@length
+  )
+})
+
+# rep, as for a factor: a row subset by the repeated positions
+methods::setMethod("rep", "sparseFactor", function(x, ...) {
+  x[rep(seq_len(x@length), ...)]
+})
+
+droplevels.sparseFactor <- function(x, ...) {
+  dropSparseFactorLevels(x)
+}
+
 methods::setReplaceMethod("length", "sparseFactor", function(x, value) {
   stop("the length of a sparseFactor cannot be set")
 })
@@ -358,6 +401,14 @@ sparseFactorOps <- function(e1, e2) {
   labels <- function(e) {
     if (methods::is(e, "sparseFactor") || is.factor(e)) as.character(e) else e
   }
+  isFactorLike <- function(e) methods::is(e, "sparseFactor") || is.factor(e)
+  if (
+    isFactorLike(e1) &&
+      isFactorLike(e2) &&
+      !setequal(levels(e1), levels(e2))
+  ) {
+    stop("level sets of factors are different")
+  }
   get(generic, mode = "function")(labels(e1), labels(e2))
 }
 methods::setMethod("Ops", signature("sparseFactor", "ANY"), sparseFactorOps)
@@ -382,5 +433,5 @@ as.data.frame.sparseFactor <- function(
 
 # counts per level, as for a factor
 summary.sparseFactor <- function(object, ...) {
-  summary(as.factor(object), ...)
+  summary(sparseFactorToFactor(object), ...)
 }

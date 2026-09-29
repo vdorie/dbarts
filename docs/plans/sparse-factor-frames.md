@@ -107,3 +107,12 @@ is.na, xtfrm, unique, duplicated, Ops (== and !=), summary, str and a refused
 work on a frame. complete.cases (C code) stays unsupported and is listed in
 the Rd with dgCMatrix and sparseVector print limits. Tests cover aft
 survivalProbabilities, the sampler's getTrees, na.exclude and a `.` formula.
+
+Second follow-up: the as.factor and levels methods are removed (they made the
+package mask base's generics and gave caller-dependent answers); factor()
+and table() read the class through as.character, unique and xtfrm. Added
+`levels<-` (merging repeated names as a factor does), element assignment,
+rep, droplevels, as.integer, the level-set refusal in == and !=, and a
+reference-only result for drop = TRUE with no rows. Unsupported and listed in
+the Rd: complete.cases, and c() with a factor first. A test asserts that no
+base or stats function is masked.
