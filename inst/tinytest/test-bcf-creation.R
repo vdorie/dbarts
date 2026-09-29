@@ -1340,7 +1340,7 @@ expect_error(
     forests = list(forest(basis = ~ factor(z))),
     control = control
   ),
-  "on dbarts(), or a data object with",
+  "on dbarts() or dbartsSpec(), or a data object with",
   fixed = TRUE
 )
 
