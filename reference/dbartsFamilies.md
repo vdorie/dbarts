@@ -28,10 +28,11 @@ could-not-find-function error, extended with the same hint naming
 
 Base R's family objects are accepted as
 [`glm`](https://rdrr.io/r/stats/glm.html) takes them.
-[`stats::gaussian()`](https://rdrr.io/r/stats/family.html) (or a bare
-`gaussian(link = "identity")`, whose `link` comes first, as in `glm`,
-and which may name the link unquoted, `gaussian(link = identity)`) is
-the gaussian family, `binomial(link = "probit")` is `probit`, and
+[`stats::gaussian()`](https://rdrr.io/r/stats/family.html), or
+`stats::gaussian(link = "identity")`, is the gaussian family (dbarts's
+own [`gaussian()`](https://rdrr.io/r/stats/family.html) below takes no
+`link`, since the identity link is the only one it fits, and refuses one
+by name), `binomial(link = "probit")` is `probit`, and
 `binomial(link = "logit")` is `logistic`; the word `"binomial"` and the
 bare function `binomial` mean
 [`binomial()`](https://rdrr.io/r/stats/family.html), the logit link, so
@@ -77,7 +78,7 @@ show(object)
 
 A list of functions:
 
-- `gaussian(link = "identity", sigma = NULL)`:
+- `gaussian(sigma = NULL)`:
 
   A continuous response with normal errors; the default for a numeric
   response under `family = "auto"`. `sigma` is the prior on the residual
