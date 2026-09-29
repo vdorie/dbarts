@@ -1974,8 +1974,11 @@ private:
         }
       }
     }
+    /// Walks the records in reverse: record k was taken after records 0 to
+    /// k - 1 were applied, so a column named twice unwinds to its pre-call
+    /// state only in that order.
     void restore(bool updateCuts) {
-      for (size_t k = 0; k < count; ++k) {
+      for (size_t k = count; k-- > 0;) {
         size_t j = columns[k];
         if (data.columnIsCscBacked(j))
           data.restoreCscColumn(j, cscRecords[k]);
