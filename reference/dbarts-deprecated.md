@@ -26,16 +26,14 @@ in dbarts 1.1-0.
 
 - `sigma`:
 
-  On [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
-  and [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md): the
+  On [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md): the
   creation-time residual estimate, now `sigest`; like `sigest`, it
   defaults to `NULL`.
 
 - `node.prior`:
 
-  On [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
-  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md):
+  On [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md):
   the leaf-value prior, now `leaf.prior`.
 
 - `power`, `base`:
@@ -66,13 +64,12 @@ in dbarts 1.1-0.
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md);
   `resid.prior` is retired the same way on
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-  `dbartsSpec` and
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md), so the
-  prior has one home on every door. A call that writes it both ways - a
-  retired spelling and a family whose call named `sigma` - is refused
-  where the two disagree. `sigest`, the residual-scale estimate supplied
-  at creation, is unaffected.
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md), and
+  `dbartsSpec` refuses it, so the prior has one home on every door. A
+  call that writes it both ways - a retired spelling and a family whose
+  call named `sigma` - is refused where the two disagree. `sigest`, the
+  residual-scale estimate supplied at creation, is unaffected.
 
 - `proposal.probs`:
 

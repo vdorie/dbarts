@@ -22,7 +22,7 @@ dbartsSpec(
     family = c("auto", "gaussian", "student", "probit", "logistic", "aft",
                "multinomial", "ordinal", "nbinom"),
     survival = NULL,
-    parentEnv = parent.frame(), sigma = NULL, node.prior = NULL, ...)
+    parentEnv = parent.frame(), ...)
 ```
 
 ## Arguments
@@ -40,8 +40,7 @@ dbartsSpec(
   other family.
 
 - control, tree.prior, leaf.prior, proposal.probs, monotone,
-  interactions, blocks, variance, forests, sigest, sigma, node.prior,
-  seed, family, ...:
+  interactions, blocks, variance, forests, sigest, seed, family, ...:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
   including the frozen `proposal.probs` mixture - all five structural
@@ -53,10 +52,11 @@ dbartsSpec(
   `blocks`, `variance` and `forests`, evaluated in `parentEnv` (see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md)).
   The residual prior rides `family` here as everywhere
-  (`family = gaussian(sigma = chisq(df, quant))`); the retired
-  `resid.prior` spelling reaches `...` for one release and is refused
-  where it disagrees with a family that named `sigma` too. A
-  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
+  (`family = gaussian(sigma = chisq(df, quant))`); the 0.9-x spellings
+  `resid.prior`, `sigma` and `node.prior` were never arguments of this
+  function and are refused by name, naming
+  `family = gaussian(sigma = )`, `sigest` and `leaf.prior` respectively.
+  A [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
   `basis` given as a one-sided formula is evaluated in `parentEnv`, this
   surface performing no data ingestion of its own; the data object's
   rows are already whatever its own `subset` kept. A `basis` declared

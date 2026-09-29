@@ -279,15 +279,15 @@ xbart(
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)/`bart`
   and the sampler constructors
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)/`dbartsSpec`
-  alike; `sigma` is the retired 0.9-x spelling on the constructors and
-  on `xbart` itself, and a family object's own `sigma` is the prior this
-  estimate calibrates, not the estimate. That estimate falls back to the
-  marginal standard deviation of the response when the linear model's
-  residual standard error comes out non-finite, warning as it does so
-  (class `dbartsSigmaFallbackWarning`); a design with sparse-backed
-  predictor columns skips the linear model altogether and falls back the
-  same way (class `dbartsSparseSigmaFallbackWarning`, a
-  `dbartsSigmaFallbackWarning`). It is the estimate a `chisq` residual
+  alike; `sigma` is the retired 0.9-x spelling on `dbarts` and on
+  `xbart` itself (`dbartsSpec` refuses it); a family object's own
+  `sigma` is the prior this estimate calibrates, not the estimate. That
+  estimate falls back to the marginal standard deviation of the response
+  when the linear model's residual standard error comes out non-finite,
+  warning as it does so (class `dbartsSigmaFallbackWarning`); a design
+  with sparse-backed predictor columns skips the linear model altogether
+  and falls back the same way (class `dbartsSparseSigmaFallbackWarning`,
+  a `dbartsSigmaFallbackWarning`). It is the estimate a `chisq` residual
   prior's quantile is calibrated against, so it stands beside
   `family = gaussian(sigma = chisq(df, quant))` and is refused beside
   `family = gaussian(sigma = fixed(value))`, which fixes the residual
