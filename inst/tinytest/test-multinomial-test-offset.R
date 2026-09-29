@@ -692,3 +692,49 @@ expect_identical(
   predict(fit.cn, x.test, offset = named(testOffset, c("c", "b", "a"))),
   predict(fit.cn, x.test, offset = testOffset)
 )
+
+# --- the sampler setters match names the way bart() and predict do ---
+sampler.nm <- dbarts(
+  dbartsData(x, counts = named(counts, c("p", "q", "r")), test = x.test),
+  family = "multinomial",
+  control = controlTestOffset()
+)
+sampler.nm$setCategoryOffset(
+  named(offset[, rev3], c("r", "q", "p")),
+  updateState = FALSE
+)
+expect_identical(sampler.nm$data@offset.category[, "p"], offset[, 1L])
+sampler.nm$setCategoryTestOffset(
+  named(testOffset[, rev3], c("r", "q", "p")),
+  updateState = FALSE
+)
+expect_identical(
+  unname(sampler.nm$data@offset.category.test[, "q"]),
+  unname(testOffset[, 2L])
+)
+expect_error(
+  sampler.nm$setCategoryOffset(named(offset, c("a", "b", "c"))),
+  "remove them with unname()",
+  fixed = TRUE
+)
+expect_error(
+  sampler.nm$setCategoryTestOffset(named(testOffset, c("a", "b", "c"))),
+  "remove them with unname()",
+  fixed = TRUE
+)
+# unnamed stays positional
+sampler.nm$setCategoryOffset(offset, updateState = FALSE)
+expect_equivalent(sampler.nm$data@offset.category, offset)
+# synthesized categories: a permutation of the indices reorders, other names
+# are ignored
+sampler.ix <- buildSamplerTestOffset()
+sampler.ix$setCategoryOffset(
+  named(offset[, rev3], c("3", "2", "1")),
+  updateState = FALSE
+)
+expect_equivalent(sampler.ix$data@offset.category, offset)
+sampler.ix$setCategoryTestOffset(
+  named(testOffset, c("a", "b", "c")),
+  updateState = FALSE
+)
+expect_equivalent(sampler.ix$data@offset.category.test, testOffset)

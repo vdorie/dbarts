@@ -108,6 +108,18 @@ bartcoreSamplerSetCounts <- function(sampler, counts) {
   invisible(ptr)
 }
 
+# The sampler's own category names are its counts' column names, or "1".."K"
+# (synthesized) when the counts carry none; the matching rule is
+# alignCategoryColumns's.
+alignSamplerCategoryColumns <- function(offset, counts, argument) {
+  nms <- colnames(counts)
+  synthesized <- is.null(nms)
+  if (synthesized) {
+    nms <- as.character(seq_len(ncol(counts)))
+  }
+  alignCategoryColumns(offset, nms, argument, synthesized)
+}
+
 bartcoreSamplerSetCategoryOffset <- function(sampler, offset) {
   current <- dataCounts(sampler$data)
   offset <- validateDataCategoryOffset(
@@ -119,6 +131,7 @@ bartcoreSamplerSetCategoryOffset <- function(sampler, offset) {
   if (!is.null(offset) && ncol(offset) != ncol(current)) {
     stop("'offset' must have ", ncol(current), " categories")
   }
+  offset <- alignSamplerCategoryColumns(offset, current, "offset")
   ptr <- sampler$getPointer()
   .Call(C_dbarts_bartcore_setCategoryOffset, ptr, offset)
   sampler$data@offset.category <- offset
@@ -136,6 +149,11 @@ bartcoreSamplerSetCategoryTestOffset <- function(sampler, offset.test) {
   if (!is.null(offset.test) && ncol(offset.test) != ncol(current)) {
     stop("'offset.test' must have ", ncol(current), " categories")
   }
+  offset.test <- alignSamplerCategoryColumns(
+    offset.test,
+    current,
+    "offset.test"
+  )
   ptr <- sampler$getPointer()
   .Call(C_dbarts_bartcore_setCategoryTestOffset, ptr, offset.test)
   sampler$data@offset.category.test <- offset.test
