@@ -1384,13 +1384,16 @@ public:
   /// reproduces what is in force is SKIPPED, on either spelling of "in force":
   /// the internal scale it derives, and the priorScale forestCalibration
   /// reports, which the round trip through the response transform need not
-  /// return to the same bits. That is what makes a read-then-write inert.
+  /// return to the same bits. That is what makes a read-then-write inert. The
+  /// internal scale is derived with creation's and setModel's own arithmetic,
+  /// so a write of the anchor a model names lands on their bits.
   bool setForestPriorScale(std::size_t f, double priorScale) {
     if (f >= forests_.size() || combiner_ != nullptr) return false;
     Forest<L, ResidT>& forest = forests_[f];
     double factor = priorScaleFactor(forest);
     if (priorScale == forest.leaf.scale * factor) return true;
-    double leafScale = priorScale / factor;
+    double leafScale = resolvedNodeScale(0.0, priorScale) /
+                       std::sqrt(static_cast<double>(forest.numTrees));
     if (leafScale != forest.leaf.scale) forest.leaf.scale = leafScale;
     return true;
   }
