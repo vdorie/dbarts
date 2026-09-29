@@ -442,6 +442,11 @@
             \code{dbarts}, \code{dbartsSpec}, or \code{xbart}: the
             ten-million-row hazard expansion cap is \code{hazard()}'s own
             \code{max.rows} default.
+            Base R's family objects are accepted as \code{glm} takes them:
+            \code{gaussian()} and \code{binomial(link = "probit")} or
+            \code{"logit"} map to the gaussian, probit and logistic
+            families, \code{"binomial"} and \code{binomial} mean the
+            logit link, and any other family or link is refused by name.
       \item The residual scale's prior is a family setting too, and rides
             the families that draw one: \code{gaussian(sigma = )},
             \code{student(df, sigma = )}, \code{aft(sigma = )}, and

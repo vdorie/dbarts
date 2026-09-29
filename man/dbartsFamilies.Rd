@@ -26,6 +26,17 @@
   on reaches R's own could-not-find-function error, extended with the same
   hint naming \code{dbartsFamilies$student(...)} and its siblings.
 
+  Base R's family objects are accepted as \code{\link{glm}} takes them.
+  \code{gaussian(link = "identity")} is the gaussian family,
+  \code{binomial(link = "probit")} is \code{probit}, and
+  \code{binomial(link = "logit")} is \code{logistic}; the word
+  \code{"binomial"} and the bare function \code{binomial} mean
+  \code{binomial()}, the logit link, so a 0/1 response fit with
+  \code{family = binomial} is logistic where \code{"auto"} is probit. Any
+  other link of those two, and every other \pkg{stats}, quasi or foreign
+  family (\code{poisson}, \code{Gamma}, \code{quasibinomial},
+  \code{MASS::negative.binomial}, ...), is refused by name.
+
   Every setting that only one family reads rides its family object rather
   than a formal of the fitting function. That includes the residual
   scale's own prior, \code{sigma}, on the four families that draw a

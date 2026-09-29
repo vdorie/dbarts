@@ -624,12 +624,7 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
     expr,
     c(dbartsFamilies, dbartsPriors),
     evalEnv,
-    resolvedAs(
-      "family",
-      c("character", "dbartsFamily"),
-      "family name or a family object",
-      "dbartsFamilies"
-    ),
+    resolvedFamily,
     hintLists = c("dbartsFamilies", "dbartsPriors")
   )
 
@@ -640,11 +635,71 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
     ## a wrapper forwarding its own unevaluated formal hands over the whole
     ## default vector, whose first element is the default match.arg reads;
     ## anything else is one token, matched partially as match.arg does
-    token <- if (length(value) > 1L) value[1L] else match.arg(value, tokens)
+    token <- if (length(value) > 1L) {
+      value[1L]
+    } else if (identical(value, "binomial")) {
+      "logistic"
+    } else {
+      match.arg(value, tokens)
+    }
     value <- newValidated("dbartsFamily", token = token)
   }
   refuseUnsupportedFamily(value@token, tokens, caller)
   value
+}
+
+## A value of 'family' as an object: a function is called, as glm() does, and
+## one of base R's family objects maps to the dbarts family with the same
+## likelihood and link, or is refused by name. binomial's default link is
+## logit, as in glm(), where a 0/1 response under "auto" is probit.
+resolvedFamily <- function(value) {
+  if (is.function(value)) {
+    value <- value()
+  }
+  if (is.character(value) || is(value, "dbartsFamily")) {
+    return(value)
+  }
+  if (!inherits(value, "family")) {
+    stop(
+      "'family' must be a family name or a family object; see ?dbartsFamilies",
+      call. = FALSE
+    )
+  }
+  name <- as.character(value$family)[1L]
+  link <- as.character(value$link)[1L]
+  if (identical(name, "gaussian") && identical(link, "identity")) {
+    return(dbartsFamilies$gaussian())
+  }
+  if (identical(name, "binomial") && link %in% c("probit", "logit")) {
+    return(
+      if (identical(link, "probit")) {
+        dbartsFamilies$probit()
+      } else {
+        dbartsFamilies$logistic()
+      }
+    )
+  }
+  if (name %in% c("gaussian", "binomial")) {
+    stop(
+      name,
+      "(link = \"",
+      link,
+      "\") is not supported; dbarts fits ",
+      if (identical(name, "gaussian")) {
+        "the identity link"
+      } else {
+        "the probit and logit links"
+      },
+      "; see ?dbartsFamilies",
+      call. = FALSE
+    )
+  }
+  stop(
+    "family \"",
+    name,
+    "\" is not supported; see ?dbartsFamilies for the families dbarts fits",
+    call. = FALSE
+  )
 }
 
 ## The per-entry-point family list, refused by name rather than by

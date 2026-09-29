@@ -4,7 +4,7 @@ agent: sonnet
 rng: neutral (a mapped family builds the same sampler as its dbarts spelling)
 budget: ~200 lines (R ~60, tests ~100, man and NEWS ~40)
 
-Status: PLANNED 2026-09-28
+Status: LANDED-pending 2026-09-28 (see the landing note)
 
 ## Goal
 
@@ -67,3 +67,25 @@ Full tinytest (unwrapped); lint gates per CLAUDE.local.md; R CMD check
 `"binomial"` and `binomial` follow glm's logit default; foreign family
 objects with a `$family` dbarts could fit under another name (e.g.
 MASS::negative.binomial with integer theta) are refused rather than mapped.
+
+## Landing note (2026-09-28)
+
+LANDED-pending. `resolvedFamily` in R/family.R maps base R's family objects
+inside `resolveFamily`, so bart, dbarts, dbartsSpec and xbart take them;
+bartBT and rbart_vi have no `family` argument. gaussian(identity),
+binomial(probit) and binomial(logit) map to gaussian, probit and logistic;
+the word "binomial" and the bare function `binomial` are logit; other
+links and every other family or foreign "family" object are refused by
+name. Manual pages (dbartsFamilies, bart, dbarts, xbart) and the existing
+NEWS family-objects item carry the paragraph.
+
+Gates, macOS arm64, private library: full tinytest unwrapped 9551 pass, 0
+fail; lintr zero lints; air format clean; check-rc-codoc, check-win-drift
+and check-doc-freshness OK; R CMD check --as-cran --no-manual --no-tests
+on a tarball built with --no-build-vignettes: no new WARNING or NOTE (the
+vignette warnings follow from skipping the build; the Date note was there
+before). Sister packages: no call passes a stats family object into
+dbarts (bartCause, treatSens use binomial with glm/glmer only; stan4bart's
+test uses it with glmer; bairrtt none).
+
+Lines: R 60, tests 142, man and NEWS 21.
