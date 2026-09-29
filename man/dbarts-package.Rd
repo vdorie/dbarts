@@ -26,7 +26,7 @@
   Reached through \code{\link{bart}} and \code{\link{dbarts}} unless noted.
 
   \itemize{
-    \item Response families (\code{family}): \code{"gaussian"}, \code{"probit"}, \code{"logistic"}, accelerated failure time (\code{"aft"}), discrete-time survival hazard (\code{"hazard"}, \code{"hazard.logistic"}), multinomial (\code{"multinomial"}, \code{bart} only), ordered categorical (\code{"ordinal"}), negative-binomial counts (\code{"nbinom"}), and semicontinuous two-part (\code{"hurdle.lognormal"}, \code{bart} only). \code{"auto"}, the default, resolves the family from the response.
+    \item Response families (\code{family}): \code{"gaussian"}, \code{"probit"}, \code{"logistic"}, accelerated failure time (\code{"aft"}), discrete-time survival hazard (\code{"hazard"}, \code{"hazard.logistic"}), multinomial (\code{"multinomial"}), ordered categorical (\code{"ordinal"}), negative-binomial counts (\code{"nbinom"}), and semicontinuous two-part (\code{"hurdle.lognormal"}, \code{bart} only). \code{"auto"}, the default, resolves the family from the response.
     \item Outlier-robust Student-t errors (\code{family = student(...)}) and a heteroscedastic variance forest (\code{variance}).
     \item Structural constraints: monotonicity (\code{monotone}), interaction limits (\code{\link{interactions}}), and block-additivity (\code{\link{blocks}}).
     \item Leaf models: constant, linear, or Gaussian-process (\code{leaf.prior}; see \code{\link{dbartsPriors}}).

@@ -78,7 +78,7 @@ kFormSampler <- dbarts(
   control = priorControl(),
   leaf.prior = normal(k = 4)
 )
-kFormSd <- kFormSampler$getLeafPrior()[1L, "prior.sd"]
+kFormSd <- kFormSampler$getLeafPrior()$anchor / kFormSampler$getK()[[1L]]
 sdSampler <- dbarts(
   x,
   y,

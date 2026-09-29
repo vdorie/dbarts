@@ -531,8 +531,7 @@ for (armIndex in seq_along(gewekeArms)) {
   # one scale, one leaf prior, no k hyperprior: what the marginal arm assumes
   stopifnot(
     identical(calibration, generator$getLeafPrior()),
-    unname(calibration[1L, "k"]) == kLeaf,
-    unname(calibration[1L, "k.has.hyperprior"]) == 0
+    identical(calibration$leaf.prior@k, kLeaf)
   )
 
   fitGap <- gewekeFitGap(generator, arm, drawSigma)

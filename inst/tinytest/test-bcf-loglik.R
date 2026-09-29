@@ -43,7 +43,7 @@ bcfLocation <- function(fit, offset = NULL) {
   glueForest <- attr(fit$glue, "forest")
   n.obs <- dim(fits)[2L]
   location <- matrix(
-    fit$fit$getLeafPrior(1L)[1L, "response.shift"],
+    fit$fit$getLeafPrior(1L)$response.shift,
     nrow(fit$glue),
     n.obs
   )

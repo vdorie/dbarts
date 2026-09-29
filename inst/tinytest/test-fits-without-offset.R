@@ -235,14 +235,11 @@ expect_identical(
   samplerGauss$getForestVariableCounts(),
   samplerGauss$getForestVariableCounts(1L)
 )
-expect_true(any(calibrationGauss[, "response.scale"] != 1))
+expect_true(calibrationGauss$response.scale != 1)
 expect_equal(
-  sweep(
-    sweep(forestFitsGauss, 2L, calibrationGauss[, "response.scale"], `*`),
-    2L,
-    calibrationGauss[, "response.shift"],
-    `+`
-  ),
+  calibrationGauss$response.scale *
+    forestFitsGauss +
+    calibrationGauss$response.shift,
   samplerGauss$getFitsWithoutOffset()
 )
 
@@ -260,11 +257,11 @@ expect_equal(dim(amplitudesBcf), c(3L, 1L))
 expect_equal(dim(muBcf), c(n, 1L))
 expect_true(any(tauBcf[, 1L] != 0))
 expect_equal(
-  calibrationBcf[1L, "response.scale"] *
+  calibrationBcf$response.scale *
     (amplitudesBcf[1L, 1L] *
       muBcf[, 1L] +
       ifelse(z == 1L, amplitudesBcf[3L, 1L], amplitudesBcf[2L, 1L]) *
         tauBcf[, 1L]) +
-    calibrationBcf[1L, "response.shift"],
+    calibrationBcf$response.shift,
   as.vector(samplerBcf$getFitsWithoutOffset())
 )

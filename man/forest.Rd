@@ -112,7 +112,7 @@ forest(
     prior standard deviation of the combined location at row \eqn{i}{i} is
     \eqn{\sqrt{\sum_f s_f^2 v_f \|B_f(i,\cdot)\|^2}}{sqrt(sum_f s_f^2 v_f
     ||B_f(i, .)||^2)} over the forests carrying a basis, with \eqn{s_f}{s_f}
-    read from \code{$getLeafPrior(f)[, "prior.sd"]} and \eqn{v_f}{v_f}
+    read from \code{$getLeafPrior(f)$anchor} and \eqn{v_f}{v_f}
     this argument; a basis-free forest's own term is Cauchy and has no
     standard deviation. The budget that sum sits in is set by \code{sd}, whose
     default already divides it among the \eqn{K}{K} forests, so raising this
@@ -121,7 +121,7 @@ forest(
     in the sampler absorbs a mis-scaled basis; under a gaussian response it is
     in \eqn{\mathrm{sd}(y)}{sd(y)} units and a drawn \eqn{\sigma}{sigma}
     partly does. Every input to that expression is readable off the fitted
-    sampler: \eqn{v_f}{v_f} is the \code{amplitude.prior.variance} column of
+    sampler: \eqn{v_f}{v_f} is the \code{amplitude.prior.variance} entry of
     \code{$getLeafPrior(f)} and \eqn{B_f}{B_f} is \code{data@bases[[f]]},
     so the induced prior can be checked against what is in force rather than
     against what the call asked for. See the example below.
@@ -169,7 +169,7 @@ forest(
   reaching it; without the factor it would instead grow past twice the budget
   by ten forests. Read the values in force off
   \code{$getLeafPrior(f)}'s \code{leaf.scale.factor} and
-  \code{amplitude.prior.scale} columns.
+  \code{amplitude.prior.scale} entries.
 
   Both forests' leaf scales come from the model's own calibration map rather
   than from the leaf prior, which is why a \code{k} hyperprior, a non-default
@@ -238,8 +238,8 @@ amplitudes <- sampler$getForestAmplitudes()
 # than recomputed from the call: forest 2 is the one carrying a basis
 calibration <- sampler$getLeafPrior(2L)
 basis <- sampler$data@bases[[2L]]
-indexSd <- sqrt(calibration[1L, "prior.sd"]^2 *
-                calibration[1L, "amplitude.prior.variance"] *
+indexSd <- sqrt(calibration$anchor^2 *
+                calibration$amplitude.prior.variance *
                 rowSums(basis^2))
 }
 \keyword{models}

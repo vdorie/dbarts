@@ -274,7 +274,7 @@ packageBartResults <- function(
   glue <- NULL
   hasForestReporting <- numForests > 1L && !is.null(samples$forestFits)
   if (hasForestReporting) {
-    responseScale <- fit$getLeafPrior(1L)[1L, "response.scale"]
+    responseScale <- fit$getLeafPrior(1L)$response.scale
     forestFits <- shapeMultinomialChannel(
       samples$forestFits * responseScale,
       forestNames,

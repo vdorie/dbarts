@@ -324,8 +324,8 @@ scaleFresh <- scaleSampler(3 * yScale)
 # the same transform is in force on both, which is what the calibration is
 # stated against
 expect_identical(
-  scaleSwapped$getLeafPrior()[1L, "response.scale"],
-  scaleFresh$getLeafPrior()[1L, "response.scale"]
+  scaleSwapped$getLeafPrior()$response.scale,
+  scaleFresh$getLeafPrior()$response.scale
 )
 swappedDraws <- scaleSwapped$run(0L, 3L)
 freshDraws <- scaleFresh$run(0L, 3L)
@@ -390,8 +390,8 @@ dataSwapped <- pinnedSampler(xDataSwap, yDataSwap)
 dataSwapped$setData(dbarts::dbartsData(xDataRepl, 3 * yDataRepl))
 dataFresh <- pinnedSampler(xDataRepl, 3 * yDataRepl)
 expect_identical(
-  dataSwapped$getLeafPrior()[1L, "response.scale"],
-  dataFresh$getLeafPrior()[1L, "response.scale"]
+  dataSwapped$getLeafPrior()$response.scale,
+  dataFresh$getLeafPrior()$response.scale
 )
 dataSwappedDraws <- dataSwapped$run(0L, 3L)
 dataFreshDraws <- dataFresh$run(0L, 3L)

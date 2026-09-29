@@ -673,7 +673,9 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
   } else {
     vapply(g.sel, function(sel) sum(weights[sel]), 0)
   }
-  kIsModeled <- as.logical(sampler$getLeafPrior()[1L, "k.has.hyperprior"])
+  spec <- sampler$getLeafPrior()$leaf.prior
+  kIsModeled <- is(spec@k, "dbartsChiHyperprior") ||
+    is(spec@prior.sd, "dbartsSdHyperprior")
   data <- namedList(
     w.g,
     weights,

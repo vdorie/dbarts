@@ -38,9 +38,9 @@ inherited <- c(
 own <- setdiff(names(ownMethods), inherited)
 substantiveMethods <- sort(setdiff(own, infrastructure))
 
-expect_equal(length(own), 51L)
+expect_equal(length(own), 52L)
 expect_equal(length(infrastructure), 5L)
-expect_equal(length(substantiveMethods), 46L)
+expect_equal(length(substantiveMethods), 47L)
 
 expect_identical(
   substantiveMethods,
@@ -85,6 +85,7 @@ expect_identical(
     "getForestAmplitudes",
     "getForestVariableCounts",
     "getLeafPrior",
+    "getK",
     "startThreads",
     "stopThreads",
     "storeState",

@@ -343,7 +343,7 @@ expect_error(
 # otherwise a construction-time constant - no mutation re-derives a K-forest
 # leaf scale - so $setForestBasis owns the staleness. Pinned on a PROBIT
 # K-forest, where the anchor is the literal 1 and $getLeafPrior's
-# prior.sd (k pinned at 1) IS the map's leaf scale, so the assertion is exact. Nothing
+# anchor (k pinned at 1) IS the map's leaf scale, so the assertion is exact. Nothing
 # else in the suite or in the equivalence trio calls this mutator at all. ---
 yBinary <- as.double(y > median(y))
 probitForests <- function() {
@@ -355,7 +355,7 @@ probitForests <- function() {
   )
 }
 priorScale <- function(sampler, forest) {
-  unname(sampler$getLeafPrior(forest)[1L, "prior.sd"])
+  sampler$getLeafPrior(forest)$anchor
 }
 
 # (i) STALENESS: a basis whose median nonzero row norm is 4x the old one moves
@@ -415,7 +415,7 @@ expect_equal(priorScale(declared, 1L), 2.5 / (0.674 * 3), tolerance = 1e-12)
 # from data@bases, so the assertion is against the R-side rule rather than
 # against a number copied out of the engine. ---
 mapColumn <- function(sampler, forest, column) {
-  unname(sampler$getLeafPrior(forest)[1L, column])
+  sampler$getLeafPrior(forest)[[column]]
 }
 expect_equal(mapColumn(declared, 2L, "basis.row.norm"), 7)
 expect_equal(mapColumn(declared, 1L, "basis.row.norm"), 3)
@@ -460,15 +460,15 @@ donorScale <- priorScale(donor, 2L)
 # (a) FOREIGN CALIBRATION. The install is accepted - the widths and tree
 # counts agree, and neither the state gate nor the forest gate looks at a leaf
 # scale - so the recipient runs under the donor's scale. Its stored factor and
-# divisor no longer decompose it, and the reader says so with NaN rather than
+# divisor no longer decompose it, and the reader says so with NA rather than
 # printing a decomposition that would recover a wrong anchor.
 recipient$setState(donorState)
 expect_equal(priorScale(recipient, 2L), donorScale)
-expect_true(is.nan(mapColumn(recipient, 2L, "leaf.scale.factor")))
-expect_true(is.nan(mapColumn(recipient, 2L, "leaf.scale.divisor")))
-# the anchor is therefore NOT computable, which is the point of the NaN
-expect_true(is.nan(
-  mapColumn(recipient, 2L, "prior.sd") *
+expect_identical(mapColumn(recipient, 2L, "leaf.scale.factor"), NA_real_)
+expect_identical(mapColumn(recipient, 2L, "leaf.scale.divisor"), NA_real_)
+# the anchor is therefore NOT computable, which is the point of the NA
+expect_true(is.na(
+  mapColumn(recipient, 2L, "anchor") *
     mapColumn(recipient, 2L, "leaf.scale.divisor") *
     mapColumn(recipient, 2L, "basis.row.norm") /
     mapColumn(recipient, 2L, "leaf.scale.factor")
@@ -485,10 +485,10 @@ expect_equal(mapColumn(recipient, 1L, "leaf.scale.divisor"), 1)
 # (d) THE AMPLITUDE PRIOR FOLLOWS THE STATE, which is what the next draw will
 # use: the recipient reports the DONOR's variance, not its own 0.5. Forest 1
 # carries the scale mixture, whose serialized variance is a live auxiliary
-# rather than a prior, so its two amplitude columns keep their exclusivity.
+# rather than a prior, so its two amplitude entries keep their exclusivity.
 expect_equal(mapColumn(recipient, 2L, "amplitude.prior.variance"), 0.125)
-expect_true(is.nan(mapColumn(recipient, 2L, "amplitude.prior.scale")))
-expect_true(is.nan(mapColumn(recipient, 1L, "amplitude.prior.variance")))
+expect_null(mapColumn(recipient, 2L, "amplitude.prior.scale"))
+expect_null(mapColumn(recipient, 1L, "amplitude.prior.variance"))
 # neither sampler declares that forest's sd, so both carry the family's own
 # default median - 1 under this probit fixture, where the anchor is the link's
 # error sd and sigma is pinned, rather than gaussian's 2
@@ -502,7 +502,7 @@ expect_equal(mapColumn(recipient, 2L, "leaf.scale.factor"), 0.5)
 expect_equal(mapColumn(recipient, 2L, "leaf.scale.divisor"), 0.674)
 expect_equal(mapColumn(recipient, 2L, "basis.row.norm"), 4)
 expect_equal(
-  mapColumn(recipient, 2L, "prior.sd") *
+  mapColumn(recipient, 2L, "anchor") *
     mapColumn(recipient, 2L, "leaf.scale.divisor") *
     mapColumn(recipient, 2L, "basis.row.norm") /
     mapColumn(recipient, 2L, "leaf.scale.factor"),
@@ -511,7 +511,7 @@ expect_equal(
 )
 
 # (b) SELF-RESTORE. A store, a run and a restore of a sampler's OWN state
-# installs a bitwise-identical scale, so every column survives non-NaN and the
+# installs a bitwise-identical scale, so every entry survives non-NA and the
 # identity still holds. This is the arm that keeps the rule from being "clear
 # on any install".
 selfRestore <- donorForests(2, 0.125)
@@ -526,7 +526,7 @@ expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.factor"), 2)
 expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.divisor"), 0.674)
 expect_equal(mapColumn(selfRestore, 2L, "amplitude.prior.variance"), 0.125)
 expect_equal(
-  mapColumn(selfRestore, 2L, "prior.sd") *
+  mapColumn(selfRestore, 2L, "anchor") *
     mapColumn(selfRestore, 2L, "leaf.scale.divisor") *
     mapColumn(selfRestore, 2L, "basis.row.norm") /
     mapColumn(selfRestore, 2L, "leaf.scale.factor"),

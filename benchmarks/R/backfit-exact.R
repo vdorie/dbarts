@@ -141,13 +141,12 @@ backfitArm <- function(
   # the calibration in force must be the one the reference assumes: fixed k,
   # this response transform, and an anchor of leaf.scale in response units
   calibration <- sampler$getLeafPrior()
-  reported <- function(field) unname(calibration[1L, field])
   stopifnot(
-    reported("k.has.hyperprior") == 0,
-    reported("k") == kLeaf,
-    isTRUE(all.equal(reported("response.scale"), yRange)),
-    isTRUE(all.equal(reported("response.shift"), shift)),
-    isTRUE(all.equal(reported("anchor"), nodeScale * yRange))
+    identical(calibration$leaf.prior@k, kLeaf),
+    all(sampler$getK() == kLeaf),
+    isTRUE(all.equal(calibration$response.scale, yRange)),
+    isTRUE(all.equal(calibration$response.shift, shift)),
+    isTRUE(all.equal(calibration$anchor, nodeScale * yRange))
   )
 
   # pre-order node rows, one block per (sweep, tree)

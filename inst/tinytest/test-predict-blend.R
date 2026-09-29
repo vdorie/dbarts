@@ -92,9 +92,9 @@ expect_true(
 # the gaussian fixture is the only one whose shift and scale are both nonzero
 # and non-unit, which is what makes it - and not the binary arms - the cell
 # that would catch a dropped shift or a doubled response scale
-shift <- fit$fit$getLeafPrior(1L)[1L, "response.shift"]
+shift <- fit$fit$getLeafPrior(1L)$response.shift
 expect_true(abs(shift) > 1e-8)
-expect_true(abs(fit$fit$getLeafPrior(1L)[1L, "response.scale"] - 1) > 1e-8)
+expect_true(abs(fit$fit$getLeafPrior(1L)$response.scale - 1) > 1e-8)
 
 # the same oracle on every other shape that can carry amplitudes. Under a
 # latent family the response transform is the identity, so "ev" is the link

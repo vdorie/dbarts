@@ -1,5 +1,5 @@
 # The mid-chain half of the leaf prior named by k or sd: $getLeafPrior reads
-# the leaf prior in force in the terms it was named in, and $setLeafPrior
+# the leaf prior in force in the terms it was named in, $getK each chain's k, and $setLeafPrior
 # restates its spread, or the hyperprior it is drawn under, on every chain, in
 # the creation vocabulary. The oracles are the two fidelity directions - a
 # read followed by a write must be BITWISE inert, and a write followed by a
@@ -34,9 +34,12 @@ namedSampler <- function(response = y, ...) {
     ...
   )
 }
+# the spread in force on each chain, which the reader states as anchor / k
 priorSdOf <- function(sampler, forest = 1L) {
-  sampler$getLeafPrior(forest)[, "prior.sd"]
+  sampler$getLeafPrior(forest)$anchor / sampler$getK(forest)
 }
+# a specification built in the constructors' own vocabulary
+priorOf <- function(expr) eval(substitute(expr), dbartsPriors, parent.frame())
 # the engine's own reading, beneath the R restatement
 engineReading <- function(sampler, forest = 1L) {
   .Call(
@@ -46,37 +49,28 @@ engineReading <- function(sampler, forest = 1L) {
   )
 }
 
-# the reported shape: one row per chain, the fourteen documented columns, and
-# the leaf-model tag and what prior.sd is the sd of on attributes. The
-# EXACT-SET form is what makes a reordering visible; a subset check would not
-# see one.
+# the reported shape: the prior alone, a list of the seven documented
+# elements. The EXACT-SET form is what makes a reordering visible; a subset
+# check would not see one.
 plain <- dbarts(x, y, control = midControl())
 calibration <- plain$getLeafPrior()
-expect_equal(dim(calibration), c(2L, 14L))
 expect_identical(
-  colnames(calibration),
+  names(calibration),
   c(
-    "prior.sd",
-    "prior.sd.df",
-    "prior.sd.scale",
+    "leaf.prior",
+    "leaf.model",
+    "prior.sd.of",
     "prior.mean",
-    "k",
-    "k.has.hyperprior",
     "anchor",
     "response.scale",
-    "response.shift",
-    "amplitude.prior.variance",
-    "amplitude.prior.scale",
-    "leaf.scale.factor",
-    "leaf.scale.divisor",
-    "basis.row.norm"
+    "response.shift"
   )
 )
-expect_identical(attr(calibration, "leaf.model"), "constant")
-expect_identical(attr(calibration, "prior.sd.of"), "leaf value")
-# and the five calibration-map columns are NaN on a single-forest sampler: its
-# leaf scale is not map-derived, which the reader says positively rather than
-# by reporting a plausible 1 a caller would multiply by
+expect_identical(calibration$leaf.model, "constant")
+expect_identical(calibration$prior.sd.of, "leaf value")
+# and the five calibration-map entries are absent on a single-forest sampler:
+# its leaf scale is not map-derived, which the reader says positively rather
+# than by reporting a plausible 1 a caller would multiply by
 mapColumns <- c(
   "amplitude.prior.variance",
   "amplitude.prior.scale",
@@ -84,50 +78,41 @@ mapColumns <- c(
   "leaf.scale.divisor",
   "basis.row.norm"
 )
-expect_true(all(is.nan(calibration[, mapColumns])))
-# k is fixed, so no sd law is in force
-expect_true(all(is.nan(calibration[, c("prior.sd.df", "prior.sd.scale")])))
+expect_false(any(mapColumns %in% names(calibration)))
+# the unnamed default states the k it resolved to
+expect_identical(calibration$leaf.prior, priorOf(normal(k = 2)))
 # it reads the ENGINE, so an unnamed model reports the family-keyed default
 # converted to response units: leaf.scale 0.5 times the response range, and
-# its k is bitwise the engine's
-expect_equal(unname(calibration[1L, "anchor"]), 0.5 * (max(y) - min(y)))
-expect_identical(calibration[, "k"], engineReading(plain)[, "k"])
-expect_equal(
-  unname(calibration[1L, "prior.sd"]),
-  unname(calibration[1L, "anchor"] / calibration[1L, "k"])
-)
-expect_equal(unname(calibration[1L, "prior.mean"]), (max(y) + min(y)) / 2)
-expect_equal(unname(calibration[1L, "response.scale"]), max(y) - min(y))
-expect_true(all(calibration[, "k.has.hyperprior"] == 0))
-# a named model reports what it named, and its k relative to the data's anchor
+# getK is bitwise the engine's k
+expect_equal(calibration$anchor, 0.5 * (max(y) - min(y)))
+expect_identical(plain$getK(), engineReading(plain)[, "k"])
+expect_identical(plain$getK(), c(2, 2))
+expect_equal(calibration$prior.mean, (max(y) + min(y)) / 2)
+expect_equal(calibration$response.scale, max(y) - min(y))
+# a named model states what it named; getK is the engine's k, the reference 2
+# relative to the named anchor
 named <- namedSampler()
 namedReading <- named$getLeafPrior()
-expect_equal(unname(namedReading[, "prior.sd"]), c(0.75, 0.75))
-expect_equal(unname(namedReading[, "anchor"]), rep(0.5 * (max(y) - min(y)), 2L))
-expect_equal(
-  unname(namedReading[, "k"]),
-  unname(namedReading[, "anchor"] / namedReading[, "prior.sd"])
-)
-# the engine's own k there is the reference 2, which the reader restates
-expect_identical(unname(engineReading(named)[, "k"]), c(2, 2))
-# the leaf model qualifies what prior.sd is the sd of
+expect_identical(namedReading$leaf.prior, priorOf(normal(sd = 0.75)))
+expect_identical(namedReading$anchor, 1.5)
+expect_identical(named$getK(), c(2, 2))
+# the leaf model qualifies what the sd is the sd of
 expect_identical(
-  attr(
-    dbarts(
-      x,
-      y,
-      control = midControl(),
-      leaf.prior = linear("x1")
-    )$getLeafPrior(),
-    "prior.sd.of"
-  ),
+  dbarts(
+    x,
+    y,
+    control = midControl(),
+    leaf.prior = linear("x1")
+  )$getLeafPrior()$prior.sd.of,
   "coefficient"
 )
 expect_identical(
-  attr(
-    dbarts(x, y, control = midControl(), leaf.prior = gp("x1"))$getLeafPrior(),
-    "prior.sd.of"
-  ),
+  dbarts(
+    x,
+    y,
+    control = midControl(),
+    leaf.prior = gp("x1")
+  )$getLeafPrior()$prior.sd.of,
   "amplitude"
 )
 
@@ -144,7 +129,7 @@ leafScales <- function(sampler) {
 }
 inertA <- namedSampler()
 inertB <- namedSampler()
-inertB$setLeafPrior(normal(sd = priorSdOf(inertB)[[1L]]))
+inertB$setLeafPrior(inertB$getLeafPrior()$leaf.prior)
 expect_identical(inertA$run(20L, 10L)$train, inertB$run(20L, 10L)$train)
 # the named value itself, written again: the writer derives the internal scale
 # with creation's arithmetic, so it lands on creation's bits. This response
@@ -188,11 +173,8 @@ yBinary <- rbinom(n, 1L, pnorm(x[, 1L] - x[, 2L]))
 binaryA <- dbarts(x, yBinary, control = midControl())
 binaryB <- dbarts(x, yBinary, control = midControl())
 binaryRead <- binaryB$getLeafPrior()
-expect_identical(unname(binaryRead[, "prior.sd.df"]), c(1.5, 1.5))
-expect_identical(unname(binaryRead[, "prior.sd.scale"]), c(1.5, 1.5))
-binaryB$setLeafPrior(normal(
-  sd = invchi(binaryRead[1L, "prior.sd.df"], binaryRead[1L, "prior.sd.scale"])
-))
+expect_identical(binaryRead$leaf.prior, priorOf(normal(k = chi(1.5, 2))))
+binaryB$setLeafPrior(normal(sd = invchi(1.5, binaryRead$anchor / 2)))
 expect_identical(binaryA$run(20L, 10L)$train, binaryB$run(20L, 10L)$train)
 # the improper limit reads a zero scale and writes back as nothing at all
 improperA <- dbarts(
@@ -207,7 +189,10 @@ improperB <- dbarts(
   control = midControl(),
   leaf.prior = normal(k = chi(1.25, Inf))
 )
-expect_identical(unname(improperB$getLeafPrior()[, "prior.sd.scale"]), c(0, 0))
+expect_identical(
+  improperB$getLeafPrior()$leaf.prior,
+  priorOf(normal(k = chi(1.25, Inf)))
+)
 improperB$setLeafPrior(normal(sd = invchi(1.25, 0)))
 expect_identical(improperA$run(20L, 10L)$train, improperB$run(20L, 10L)$train)
 # non-vacuity: a write of anything else is not inert at all
@@ -230,15 +215,13 @@ for (requested in c(0.75, 0.125, 1.875, 6)) {
 }
 # a drawn spread reports the law it was written as
 fidelity$setLeafPrior(normal(sd = invchi(2, 0.5)))
-expect_identical(unname(fidelity$getLeafPrior()[, "prior.sd.df"]), c(2, 2))
-expect_true(
-  max(abs(fidelity$getLeafPrior()[, "prior.sd.scale"] / 0.5 - 1)) <
-    4 * .Machine$double.eps
-)
-expect_true(all(fidelity$getLeafPrior()[, "k.has.hyperprior"] == 1))
+fidelityLaw <- fidelity$getLeafPrior()$leaf.prior@prior.sd
+expect_identical(fidelityLaw@df, 2)
+expect_true(abs(fidelityLaw@scale / 0.5 - 1) < 4 * .Machine$double.eps)
 # and a k spelling returns the reader to k terms, relative to the data
 fidelity$setLeafPrior(normal(k = 3))
-expect_identical(unname(fidelity$getLeafPrior()[, "k"]), c(3, 3))
+expect_identical(fidelity$getLeafPrior()$leaf.prior, priorOf(normal(k = 3)))
+expect_identical(fidelity$getK(), c(3, 3))
 expect_true(all(is.na(fidelity$model@prior.scale)))
 
 # --- the static m falsifier. Two arms at DIFFERENT tree counts are not
@@ -258,7 +241,7 @@ staticSampler <- function(numTrees) {
 # 0.5, whose response-unit reading is 0.5 times the range at every tree count
 staticRead <- vapply(
   c(50L, 200L),
-  function(numTrees) staticSampler(numTrees)$getLeafPrior()[1L, "anchor"],
+  function(numTrees) staticSampler(numTrees)$getLeafPrior()$anchor,
   numeric(1L)
 )
 expect_true(max(abs(staticRead / (0.5 * (max(y) - min(y))) - 1)) < 1e-12)
@@ -298,15 +281,17 @@ staticDrawn <- vapply(
 )
 expect_true(max(abs(staticDrawn / 0.75 - 1)) < 0.1)
 
-# --- a divergent LEAF SCALE is reported rather than hidden, and the write
-# flattens it, which is the documented every-chain rule ---
+# --- a divergent LEAF SCALE is reported as missing rather than hidden, and
+# the write flattens it, which is the documented every-chain rule ---
 divergedScale <- namedSampler()
 divergedScale$storeState()
 scaleState <- divergedScale$state
 scaleState[[2L]]$forests[[1L]]$leaf.scale <-
   2 * scaleState[[2L]]$forests[[1L]]$leaf.scale
 divergedScale$setState(scaleState)
-expect_equal(unname(priorSdOf(divergedScale)), c(0.75, 1.5))
+expect_identical(divergedScale$getLeafPrior()$anchor, NA_real_)
+expect_identical(divergedScale$getLeafPrior()$leaf.prior@prior.sd, NA_real_)
+expect_identical(divergedScale$getK(), c(2, 2))
 divergedScale$setLeafPrior(normal(sd = 0.75))
 expect_true(max(abs(priorSdOf(divergedScale) / 0.75 - 1)) < 1e-14)
 
@@ -390,7 +375,10 @@ evalq(
   sampler$setLeafPrior(normal(sd = invchi(1.5, 0.5))),
   list2env(list(sampler = detachedWrite), parent = baseenv())
 )
-expect_true(all(detachedWrite$getLeafPrior()[, "k.has.hyperprior"] == 1))
+expect_true(is(
+  detachedWrite$getLeafPrior()$leaf.prior@prior.sd,
+  "dbartsSdHyperprior"
+))
 
 # the forest index is 1-based on the reader, and out of range is refused
 expect_error(badValues$getLeafPrior(2L), "forest index out of range")
@@ -406,27 +394,26 @@ expect_error(
 # updateScale = FALSE shifts the modelled quantity while leaving the reported
 # mean pinned
 recipe <- namedSampler()
-recipeMean <- recipe$getLeafPrior()[1L, "prior.mean"]
-expect_equal(unname(recipeMean), (max(y) + min(y)) / 2)
+recipeMean <- recipe$getLeafPrior()$prior.mean
+expect_equal(recipeMean, (max(y) + min(y)) / 2)
 recipe$setOffset(rep_len(-recipeMean, n))
-expect_identical(recipe$getLeafPrior()[1L, "prior.mean"], recipeMean)
+expect_identical(recipe$getLeafPrior()$prior.mean, recipeMean)
 
 # a drawn k: the sd law is written and survives the k draws of a run, which
 # move the reported spread and not the law
 sampledK <- dbarts(x, yBinary, control = midControl())
-expect_true(all(sampledK$getLeafPrior()[, "k.has.hyperprior"] == 1))
+sdLawScale <- function(sampler) sampler$getLeafPrior()$leaf.prior@prior.sd@scale
+expect_true(is(sampledK$getLeafPrior()$leaf.prior@k, "dbartsChiHyperprior"))
 sampledK$setLeafPrior(normal(sd = invchi(1.5, 0.75)))
-expect_true(
-  max(abs(sampledK$getLeafPrior()[, "prior.sd.scale"] / 0.75 - 1)) < 1e-14
-)
-invisible(sampledK$run(20L, 10L))
-expect_true(
-  max(abs(sampledK$getLeafPrior()[, "prior.sd.scale"] / 0.75 - 1)) < 1e-14
-)
-expect_true(any(sampledK$getLeafPrior()[, "prior.sd"] != 0.75))
+expect_true(abs(sdLawScale(sampledK) / 0.75 - 1) < 1e-14)
+sampledRun <- sampledK$run(20L, 10L)
+expect_true(abs(sdLawScale(sampledK) / 0.75 - 1) < 1e-14)
+expect_true(any(priorSdOf(sampledK) != 0.75))
+# getK is the value the run records, bitwise its last draw
+expect_identical(sampledK$getK(), sampledRun$k[10L, ])
 # and a number fixes it, which is a change of the hyperprior itself
 sampledK$setLeafPrior(normal(sd = 1.5))
-expect_true(all(sampledK$getLeafPrior()[, "k.has.hyperprior"] == 0))
+expect_identical(sampledK$getLeafPrior()$leaf.prior, priorOf(normal(sd = 1.5)))
 expect_equal(unname(priorSdOf(sampledK)), c(1.5, 1.5))
 
 # a two-forest sampler: the getter serves it per forest, the setter refuses it
@@ -440,71 +427,55 @@ bcf <- dbarts(
   control = midControl()
 )
 bcfCalibration <- bcf$getLeafPrior(1L)
-expect_equal(dim(bcfCalibration), c(2L, 14L))
-expect_true(all(bcfCalibration[, "prior.sd"] > 0))
-expect_true(all(bcf$getLeafPrior(2L)[, "prior.sd"] > 0))
-# BCF pins k at 1 per its map, which the sampler-wide option does not say
-expect_true(all(bcfCalibration[, "k"] == 1))
-expect_true(all(bcfCalibration[, "k.has.hyperprior"] == 0))
-expect_true(all(is.nan(bcfCalibration[, c("prior.sd.df", "prior.sd.scale")])))
-# here the five map columns are the ones IN FORCE, and the two amplitude
-# columns are EXCLUSIVE per forest: forest 1 declares no basis, so it carries
-# the half-Cauchy scale mixture and reports no variance, and forest 2 the
-# reverse
-bcfParams <- attr(bcf$control, "bartcore.forests")$params
-expect_true(all(is.nan(bcfCalibration[, "amplitude.prior.variance"])))
-expect_equal(
-  unname(bcfCalibration[, "amplitude.prior.scale"]),
-  rep_len(bcfParams[[1L]][7L], 2L)
-)
 bcfCalibration2 <- bcf$getLeafPrior(2L)
-expect_equal(
-  unname(bcfCalibration2[, "amplitude.prior.variance"]),
-  rep_len(bcfParams[[2L]][6L], 2L)
+# BCF pins k at 1 per its map, which the sampler-wide option does not say, so
+# each forest states a fixed sd, the map's leaf scale, which is its anchor
+expect_identical(bcf$getK(1L), c(1, 1))
+expect_identical(
+  bcfCalibration$leaf.prior,
+  priorOf(normal(sd = bcfCalibration$anchor))
 )
-expect_true(all(is.nan(bcfCalibration2[, "amplitude.prior.scale"])))
+expect_true(bcfCalibration$anchor > 0 && bcfCalibration2$anchor > 0)
+# here the map entries are the ones IN FORCE, and the two amplitude entries
+# are EXCLUSIVE per forest: forest 1 declares no basis, so it carries the
+# half-Cauchy scale mixture and no variance, and forest 2 the reverse
+bcfParams <- attr(bcf$control, "bartcore.forests")$params
+expect_identical(
+  names(bcfCalibration)[-(1:7)],
+  c(
+    "amplitude.prior.scale",
+    "leaf.scale.factor",
+    "leaf.scale.divisor",
+    "basis.row.norm"
+  )
+)
+expect_null(bcfCalibration$amplitude.prior.variance)
+expect_equal(bcfCalibration$amplitude.prior.scale, bcfParams[[1L]][7L])
+expect_equal(bcfCalibration2$amplitude.prior.variance, bcfParams[[2L]][6L])
+expect_null(bcfCalibration2$amplitude.prior.scale)
 
-# forest = NULL stacks every forest's reading with the forest margin LAST;
-# a single-forest sampler's NULL read is bitwise its forest = 1 read
+# forest = NULL lists every forest's prior; a single-forest sampler's NULL
+# read is its forest = 1 read
 expect_identical(plain$getLeafPrior(), plain$getLeafPrior(1L))
-bcfCalibrationAll <- bcf$getLeafPrior()
-expect_equal(dim(bcfCalibrationAll), c(2L, 14L, 2L))
-# a slice drops the array-level attributes below, which is ordinary R
-# behavior and not part of what this reader promises
-stripAttributes <- function(reading) {
-  attr(reading, "leaf.model") <- NULL
-  attr(reading, "prior.sd.of") <- NULL
-  reading
-}
-expect_identical(bcfCalibrationAll[,, 1L], stripAttributes(bcfCalibration))
-expect_identical(bcfCalibrationAll[,, 2L], stripAttributes(bcfCalibration2))
-expect_identical(colnames(bcfCalibrationAll), colnames(bcfCalibration))
-expect_identical(
-  attr(bcfCalibrationAll, "leaf.model"),
-  attr(bcfCalibration, "leaf.model")
-)
-expect_identical(
-  attr(bcfCalibrationAll, "prior.sd.of"),
-  attr(bcfCalibration, "prior.sd.of")
-)
+expect_identical(bcf$getLeafPrior(), list(bcfCalibration, bcfCalibration2))
+expect_identical(plain$getK(), plain$getK(1L))
+expect_identical(bcf$getK(), rbind(bcf$getK(1L), bcf$getK(2L)))
 
 # and the anchor s the map states every leaf scale against is recoverable from
-# the reported decomposition (k is pinned at 1, so prior.sd is the map's leaf
+# the reported decomposition (k is pinned at 1, so the anchor is the map's leaf
 # scale): the two forests recover the SAME s
-recoveredAnchor <- function(row) {
-  unname(
-    row[, "prior.sd"] *
-      row[, "leaf.scale.divisor"] *
-      row[, "basis.row.norm"] /
-      row[, "leaf.scale.factor"]
-  )
+recoveredAnchor <- function(prior) {
+  prior$anchor *
+    prior$leaf.scale.divisor *
+    prior$basis.row.norm /
+    prior$leaf.scale.factor
 }
 expect_equal(
   recoveredAnchor(bcfCalibration2),
   recoveredAnchor(bcfCalibration),
   tolerance = 1e-12
 )
-expect_true(all(recoveredAnchor(bcfCalibration) > 0))
+expect_true(recoveredAnchor(bcfCalibration) > 0)
 expect_error(
   bcf$setLeafPrior(normal(sd = 0.75)),
   "multi-forest calibration map.*forest\\(sd = \\)"
@@ -519,12 +490,12 @@ multinomial <- dbarts(
   control = midControl(n.chains = 1L)
 )
 multinomialCalibration <- multinomial$getLeafPrior(1L)
-expect_equal(dim(multinomialCalibration), c(1L, 14L))
-expect_true(multinomialCalibration[1L, "prior.sd"] > 0)
-expect_true(all(is.nan(multinomialCalibration[, mapColumns])))
+expect_true(priorSdOf(multinomial) > 0)
+expect_false(any(mapColumns %in% names(multinomialCalibration)))
 # the softmax map works on a unit-scale latent and fixes k
-expect_equal(unname(multinomialCalibration[1L, "response.scale"]), 1)
-expect_true(multinomialCalibration[1L, "k.has.hyperprior"] == 0)
+expect_equal(multinomialCalibration$response.scale, 1)
+expect_true(is.numeric(multinomialCalibration$leaf.prior@k))
+expect_identical(nrow(multinomial$getK()), 3L)
 expect_error(
   multinomial$setLeafPrior(normal(k = 3)),
   "softmax calibration map.*normal\\(k = \\)"
@@ -562,7 +533,7 @@ expect_error(dartSampler$setModel(dartSampler$model), "DART")
 dartSampler$setLeafPrior(normal(sd = 0.2))
 expect_true(max(abs(priorSdOf(dartSampler) / 0.2 - 1)) < 1e-14)
 dartSampler$setLeafPrior(normal(k = 3))
-expect_identical(unname(dartSampler$getLeafPrior()[, "k"]), c(3, 3))
+expect_identical(dartSampler$getK(), c(3, 3))
 dartRun <- dartSampler$run(40L, 10L)
 expect_true(all(is.finite(dartRun$train)))
 expect_true(sum(dartRun$varcount) > 0)
@@ -589,7 +560,7 @@ leafArms <- list(
 )
 for (tag in names(leafArms)) {
   sampler <- leafArms[[tag]][[1L]]
-  expect_identical(attr(sampler$getLeafPrior(), "leaf.model"), tag)
+  expect_identical(sampler$getLeafPrior()$leaf.model, tag)
   eval(bquote(sampler$setLeafPrior(.(leafArms[[tag]][[2L]]))))
   expect_true(max(abs(priorSdOf(sampler) / 0.75 - 1)) < 1e-14, info = tag)
   expect_true(all(is.finite(sampler$run(10L, 5L)$train)), info = tag)
@@ -638,11 +609,13 @@ isolated <- namedSampler()
 invisible(isolated$run(10L, 5L))
 sigmaBefore <- isolated$getSigmas()
 isolatedBefore <- isolated$getLeafPrior()
+kBefore <- isolated$getK()
 isolated$setLeafPrior(normal(sd = 2))
 isolatedAfter <- isolated$getLeafPrior()
 expect_identical(isolated$getSigmas(), sigmaBefore)
-unmoved <- c("prior.mean", "anchor", "response.scale", "response.shift")
-expect_identical(isolatedAfter[, unmoved], isolatedBefore[, unmoved])
+expect_identical(isolated$getK(), kBefore)
+unmoved <- c("prior.mean", "response.scale", "response.shift")
+expect_identical(isolatedAfter[unmoved], isolatedBefore[unmoved])
 
 # $setModel re-pins a fixed sigma; $setLeafPrior does not, whether it writes
 # the spread alone or changes the hyperprior

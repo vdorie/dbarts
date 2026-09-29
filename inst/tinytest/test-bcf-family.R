@@ -9,7 +9,7 @@
 # family-keyed refusals that flip the moment the sampler reports its own
 # family. The anchor assertions are exact rather than statistical: under a
 # latent family the response transform is the identity and the map's sqrt(m)
-# cancels, so $getLeafPrior()'s prior.sd (k pinned at 1) IS the map's leaf scale.
+# cancels, so $getLeafPrior()'s anchor (k pinned at 1) IS the map's leaf scale.
 
 set.seed(29)
 n <- 240L
@@ -68,7 +68,7 @@ basisSampler <- function(y, bases, family = "auto", ...) {
 priorScales <- function(sampler) {
   unname(vapply(
     seq_along(sampler$data@bases),
-    function(f) sampler$getLeafPrior(f)[1L, "prior.sd"],
+    function(f) sampler$getLeafPrior(f)$anchor,
     numeric(1L)
   ))
 }
@@ -182,27 +182,22 @@ for (family in names(anchors)) {
     forests = pinScales
   )
   for (f in seq_along(pinBases)) {
-    reported <- declaredMap$getLeafPrior(f)[1L, ]
-    expect_equal(unname(reported["leaf.scale.factor"]), c(2.5, 0.4)[f])
-    expect_equal(unname(reported["leaf.scale.divisor"]), 0.674)
+    reported <- declaredMap$getLeafPrior(f)
+    expect_equal(reported$leaf.scale.factor, c(2.5, 0.4)[f])
+    expect_equal(reported$leaf.scale.divisor, 0.674)
+    expect_equal(reported$basis.row.norm, medianRowNorm(pinBases[[f]]))
     expect_equal(
-      unname(reported["basis.row.norm"]),
-      medianRowNorm(pinBases[[f]])
-    )
-    expect_equal(
-      unname(
-        reported["prior.sd"] *
-          reported["leaf.scale.divisor"] *
-          reported["basis.row.norm"] /
-          reported["leaf.scale.factor"]
-      ),
+      reported$anchor *
+        reported$leaf.scale.divisor *
+        reported$basis.row.norm /
+        reported$leaf.scale.factor,
       s,
       tolerance = 1e-12
     )
     # every forest here carries a basis, so every one takes the fixed-variance
     # channel and reports no half-Cauchy median
-    expect_equal(unname(reported["amplitude.prior.variance"]), 0.5)
-    expect_true(is.nan(reported["amplitude.prior.scale"]))
+    expect_equal(reported$amplitude.prior.variance, 0.5)
+    expect_null(reported$amplitude.prior.scale)
   }
 }
 
@@ -239,25 +234,25 @@ for (fit in list(probit, logistic)) {
   # spelling a forest gets agrees with the transported per-forest params, so
   # the reader and the creation route cannot disagree about the channel.
   fitParams <- attr(fit$control, "bartcore.forests")$params
-  free <- fit$getLeafPrior(1L)[1L, ]
-  carried <- fit$getLeafPrior(2L)[1L, ]
+  free <- fit$getLeafPrior(1L)
+  carried <- fit$getLeafPrior(2L)
   expect_equal(
-    unname(free[c(
+    unlist(free[c(
       "leaf.scale.factor",
       "leaf.scale.divisor",
       "basis.row.norm"
     )]),
-    c(1, 1, 1)
+    c(leaf.scale.factor = 1, leaf.scale.divisor = 1, basis.row.norm = 1)
   )
-  expect_equal(unname(free["amplitude.prior.scale"]), fitParams[[1L]][7L])
+  expect_equal(free$amplitude.prior.scale, fitParams[[1L]][7L])
   # and the median that reaches it is the FAMILY's own default, one anchor unit
   # rather than gaussian's two: under a pinned sigma nothing absorbs the
   # difference, and at 1 the induced index prior sits on the shipped
   # single-forest binary default's coverage rather than 1.6x outside it
-  expect_equal(unname(free["amplitude.prior.scale"]), 1)
-  expect_true(is.nan(free["amplitude.prior.variance"]))
-  expect_equal(unname(carried["amplitude.prior.variance"]), fitParams[[2L]][6L])
-  expect_true(is.nan(carried["amplitude.prior.scale"]))
+  expect_equal(free$amplitude.prior.scale, 1)
+  expect_null(free$amplitude.prior.variance)
+  expect_equal(carried$amplitude.prior.variance, fitParams[[2L]][6L])
+  expect_null(carried$amplitude.prior.scale)
   result <- fit$run(4L, 2L)
   expect_true(all(is.finite(result$train)))
   # sigma is pinned by the family, not merely fixed by a prior

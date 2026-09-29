@@ -1113,7 +1113,7 @@ predictForest <- function(
     )
   }
   n.chains <- object$fit$control@n.chains
-  responseScale <- object$fit$getLeafPrior(1L)[1L, "response.scale"]
+  responseScale <- object$fit$getLeafPrior(1L)$response.scale
   raw <- predictForestsCodedTest(object$fit, newdata, offset, n.threads) *
     responseScale
   # forestFits carries the fit's own combineChains shape (3-d combined, 4-d
@@ -1290,7 +1290,7 @@ predictBlend <- function(
   # above does not carry forward
   glueForest <- attr(object$glue, "forest")
   result <- matrix(
-    object$fit$getLeafPrior(1L)[1L, "response.shift"],
+    object$fit$getLeafPrior(1L)$response.shift,
     nrow(glue),
     n.new
   )

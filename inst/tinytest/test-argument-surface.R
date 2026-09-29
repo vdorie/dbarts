@@ -797,7 +797,7 @@ fitMultiForest <- function(basis) {
 }
 
 reconstructionIdentityError <- function(res) {
-  shift <- res$sampler$getLeafPrior(1L)[1L, "response.shift"]
+  shift <- res$sampler$getLeafPrior(1L)$response.shift
   forestNames <- dimnames(res$fit$forestFits)[[3L]]
   glueForest <- attr(res$fit$glue, "forest")
   err <- 0

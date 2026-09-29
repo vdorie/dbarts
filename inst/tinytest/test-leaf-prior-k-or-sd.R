@@ -378,6 +378,6 @@ expect_error(extract(kNamed, "sd"), "named by 'k'.*type = \"k\"")
 expect_true("sd" %in% summary(sdNamed)$stats$variable)
 # and the reader of the fit's sampler agrees about the terms
 expect_identical(
-  unname(sdNamed$fit$getLeafPrior()[, "prior.sd.scale"]),
-  c(1.5, 1.5)
+  sdNamed$fit$getLeafPrior()$leaf.prior@prior.sd,
+  dbartsPriors$invchi(1.5, 1.5)
 )

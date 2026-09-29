@@ -597,11 +597,11 @@ mutate <- list(
   # the anchor 1.2 restated at the sampler's own k law: a fixed k's spread,
   # or the sd law a drawn k's chi(df, 2) implies
   calibration = function(s, d) {
-    read <- s$getLeafPrior()[1L, ]
-    if (read[["k.has.hyperprior"]] == 1) {
-      s$setLeafPrior(normal(sd = invchi(read[["prior.sd.df"]], 0.6)))
+    law <- s$getLeafPrior()$leaf.prior@k
+    if (is.numeric(law)) {
+      s$setLeafPrior(normal(sd = 1.2 / law))
     } else {
-      s$setLeafPrior(normal(sd = 1.2 / read[["k"]]))
+      s$setLeafPrior(normal(sd = invchi(law@degreesOfFreedom, 0.6)))
     }
   },
   varianceForest = "extra:variance",
