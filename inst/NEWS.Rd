@@ -580,9 +580,10 @@
             \code{forest} argument this rides on.
       \item Where \code{extract(type = "trees")} is available, it always
             carries a \code{chain} column, 1 on a one-chain fit, where 0.9-x
-            left it off; tree draws cannot be combined across chains. The sampler's own
-            \code{$getTrees} still adds \code{chain} only when the
-            sampler has more than one chain.
+            left it off; tree draws cannot be combined across chains. The
+            sampler's own \code{$getTrees} still adds \code{chain} only
+            when the sampler has more than one chain, and \code{rbart_vi},
+            deprecated, keeps 0.9-x's columns.
     }
   }
   \subsection{NEW FEATURES}{
@@ -1955,6 +1956,8 @@
   }
   \subsection{BUG FIXES}{
     \itemize{
+      \item \code{extract(type = "trees")} on a one-chain \code{rbart_vi} fit
+            no longer fails with "undefined columns selected".
       \item \code{rbart_vi}'s first intercept draw starts from a sweep of the
             trees, not from a prediction on trees drawn from the prior. On a
             skewed response the prior trees predict the middle of the

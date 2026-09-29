@@ -546,8 +546,9 @@ refuseCollidingMixture <- function(control) {
 ## A control taken from a fitted sampler carries that fit's model configuration
 ## on bartcore.* attributes - the variance forest, the dispersion, the survival
 ## status, the forest map - which a new fit over new data has no claim to.
-## Refused by name rather than carried or silently stripped, since either would
-## fit a model the caller never asked for.
+## bart and xbart, which build their own control, refuse it by name; dbarts and
+## dbartsSpec, where passing a sampler's control on is a 0.9-x pattern, strip
+## the attributes instead, and neither carries them into the new fit.
 refuseFitStateControl <- function(control, caller) {
   if (!inherits(control, "dbartsControl")) {
     stop(
@@ -1034,17 +1035,15 @@ dbarts <- function(
   # aft is reachable through the direct-response form, through a Surv-formula
   # response or a pre-built dbartsData object carrying the same attributes
   # (dbartsData()'s own short-circuit, R/data.R; the matching conflict guard
-  # and auto-dispatch run again below, once 'data' is built), or through an
-  # internal channel that pre-sets the status on control@bartcore.survival
-  # and passes a ready dbartsData; every other indirect route is refused up
+  # and auto-dispatch run again below, once 'data' is built); every other
+  # indirect route is refused up
   # front, before the response is materialized, rather than failing
   # hostilely downstream
   if (
     family == "aft" &&
       !directResponse &&
       !is.formula(formula) &&
-      !survivalDataObject &&
-      is.null(attr(control, "bartcore.survival"))
+      !survivalDataObject
   ) {
     stop(
       "survival (aft) fits currently use the matrix interface - ",
