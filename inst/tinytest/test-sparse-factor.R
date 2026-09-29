@@ -62,10 +62,7 @@ expect_error(
   sparseFactor(c(0L, 1L), levels = c("a", "b"), i = c(1L, 2L), length = 2L),
   pattern = "level codes"
 )
-expect_error(
-  sparseFactor(factor(c("a", NA))),
-  pattern = "missing values are not supported"
-)
+expect_equal(as.character(sparseFactor(factor(c("a", NA)))), c("a", NA))
 expect_error(
   sparseFactor(c("b", "b"), levels = c("a", "b"), i = c(1L, 9L), length = 5L),
   pattern = "1-based positions"
@@ -628,7 +625,7 @@ over.codes <- dbartsData(
   rnorm(4L)
 )@x
 over.reference <- dbartsData(
-  sparseFrame(c("a", "b", "a", "b"), levels.big, "e"),
+  sparseFrame(c("a", "b", "e", "b"), levels.big, "e"),
   rnorm(4L)
 )@x
 expect_equal(sort(over.codes$sparse@x), c(1, 3, 4))
@@ -1100,8 +1097,7 @@ expect_error(
 # out-of-range CATEGORY. That only holds on a column whose training values
 # carried an NA too (D8's new-route rule), so this needs its own NA-bearing
 # training design rather than mutating train.bound/sampler.bound, which every
-# code-bound assertion above shares. sparseFactor() itself refuses NA
-# (missing values are not supported in a sparseFactor), so the categorical
+# code-bound assertion above shares. The categorical
 # column here is dense, the train.bound.dense idiom above. Placed at the
 # file's end since a new rnorm() call here would shift every seeded draw that
 # follows it.

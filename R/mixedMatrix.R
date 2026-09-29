@@ -72,6 +72,26 @@ pullOutSparseFormulaColumns <- function(data) {
   list(denseData = data[!isSparse], sparseColumns = as.list(data[isSparse]))
 }
 
+## The 1-based rows a pulled-out sparse column holds a missing value at, read
+## from its stored entries (never densified): NA in a sparseFactor's values, in
+## a sparseVector's x (a pattern vector has none), or in the stored entries of
+## any column of a dgCMatrix.
+sparseColumnMissingRows <- function(column) {
+  if (methods::is(column, "sparseFactor")) {
+    return(column@i[is.na(column@values)] + 1L)
+  }
+  if (methods::is(column, "sparseVector")) {
+    if (!methods::.hasSlot(column, "x")) {
+      return(integer(0L))
+    }
+    return(as.integer(column@i[is.na(column@x)]))
+  }
+  if (methods::.hasSlot(column, "x")) {
+    return(unique(column@i[is.na(column@x)] + 1L))
+  }
+  integer(0L)
+}
+
 ## Row-subsets one sparseFactor column by 1-based positions 'pos' into its
 ## CURRENT rows (repeats allowed; the '[' method's worker), re-deriving
 ## i/values/length for the subsetted object rather than materializing a
@@ -79,7 +99,9 @@ pullOutSparseFormulaColumns <- function(data) {
 subsetSparseFactorRows <- function(column, pos) {
   storedRows <- column@i + 1L
   matchIndex <- match(pos, storedRows)
-  keep <- which(!is.na(matchIndex))
+  # an NA position (a missing or out-of-range index) is a stored NA entry,
+  # not an unstored row
+  keep <- which(!is.na(matchIndex) | is.na(pos))
   newValidated(
     "sparseFactor",
     i = as.integer(keep - 1L),
@@ -123,6 +145,8 @@ sparseColumnSlices <- function(column, name, numObservations) {
     # column@i is already 0-based (unlike a sparseVector's), and values are
     # 1-based level codes; the engine reads 0-based codes, so subtract one.
     # The reference level's own level-order code is the implicit rows' code.
+    # A stored NA arrives as a NaN code, the engine's missing value; a vector
+    # with no levels has no reference (NA) and K = 0.
     return(list(
       i = list(as.integer(column@i)),
       x = list(as.double(column@values) - 1),

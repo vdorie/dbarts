@@ -944,11 +944,16 @@ estimateSigmaFromLinearModel <- function(data) {
 ## it sparse: the stored entries' labels and the implicit reference level
 ## are re-coded in training level order, so its codes agree with a dense
 ## factor of the same values. A level unseen in training has no code and
-## errors, exactly as the dense factor path does.
+## errors, exactly as the dense factor path does; a missing value has none to
+## look up, and a reference no row takes is not a level of the data.
 remapSparseFactorToTrainingLevels <- function(column, trainingLevels, name) {
   storedCodes <- match(column@levels[column@values], trainingLevels)
   referenceCode <- match(column@reference, trainingLevels)
-  if (anyNA(storedCodes) || is.na(referenceCode)) {
+  referenceTaken <- length(column@i) < column@length
+  if (
+    any(is.na(storedCodes) & !is.na(column@values)) ||
+      (referenceTaken && is.na(referenceCode))
+  ) {
     stop(
       "test data factor '",
       name,
@@ -956,14 +961,23 @@ remapSparseFactorToTrainingLevels <- function(column, trainingLevels, name) {
       "training data"
     )
   }
+  reference <- column@reference
+  keep <- rep.int(TRUE, length(column@i))
+  if (is.na(referenceCode)) {
+    # every row is stored, so the implicit level is free to be any; the
+    # entries at the new one become implicit
+    referenceCode <- 1L
+    reference <- trainingLevels[1L]
+    keep <- is.na(storedCodes) | storedCodes != referenceCode
+  }
   # the stored entries stay non-reference (their labels differ from the
   # reference label), so the canonical structure carries over untouched
   newValidated(
     "sparseFactor",
-    i = column@i,
-    values = as.integer(storedCodes),
+    i = column@i[keep],
+    values = as.integer(storedCodes[keep]),
     levels = trainingLevels,
-    reference = column@reference,
+    reference = reference,
     length = column@length
   )
 }
@@ -1137,16 +1151,25 @@ alignContainerFactorLevels <- function(x.test, predictorNames, factorLevels) {
         pointers[rank] + 1L,
         length.out = pointers[rank + 1L] - pointers[rank]
       )
-      codes <-
-        match(oldLevels[x.test$sparse@x[entries] + 1], trainingLevels) - 1L
+      stored <- x.test$sparse@x[entries]
+      codes <- match(oldLevels[stored + 1], trainingLevels) - 1L
       reference <-
         match(oldLevels[x.test$sparseReference[rank] + 1L], trainingLevels) - 1L
-      if (anyNA(codes) || is.na(reference)) {
+      # a missing value has no level to look up, and a reference that no row
+      # takes is not a level of the data
+      referenceTaken <- length(entries) < nrow(x.test$sparse)
+      if (
+        any(is.na(codes) & !is.na(stored)) ||
+          (referenceTaken && is.na(reference))
+      ) {
         stop(
           "test data factor '",
           name,
           "' has levels not present in the training data"
         )
+      }
+      if (is.na(reference)) {
+        reference <- 0L
       }
       # slot surgery, never Matrix's `[<-`: its drop0 is matrix-wide and would
       # strip the explicit zeros the container's other columns hold

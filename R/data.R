@@ -2113,7 +2113,24 @@ dbartsData <- function(
       data <- asDataFrameableList(data)
       modelFrameCall$data <- data
     }
+    # a lifted sparse column never reaches model.frame, so the rows it holds
+    # a missing value at ride along as a numeric column of NA and 0, which
+    # the caller's na.action and 'subset' then treat as any other predictor
+    if (length(sparseColumns) > 0L) {
+      sparseMissingRows <- unique(unlist(
+        lapply(sparseColumns, sparseColumnMissingRows),
+        use.names = FALSE
+      ))
+      if (length(sparseMissingRows) > 0L) {
+        sparseMissing <- numeric(nrow(data))
+        sparseMissing[sparseMissingRows] <- NA_real_
+        modelFrameCall$dbartsSparseMissing <- sparseMissing
+      }
+    }
     modelFrame <- eval(modelFrameCall, parent.frame())
+    # the test frame is built from this call again, against rows this vector
+    # does not cover
+    modelFrameCall$dbartsSparseMissing <- NULL
     naOmitted <- attr(modelFrame, "na.action")
     # a model frame always names its rows, "1".."n" when the data has none,
     # as lm does

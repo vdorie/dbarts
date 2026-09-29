@@ -1,6 +1,6 @@
 # sparse-factor-na: a sparseFactor holds missing values
 
-Status: PLANNED 2026-09-29 (step 2: option B, ruled by the maintainer)
+Status: IMPLEMENTED 2026-09-29, pending review (step 2: option B, ruled by the maintainer)
 
 agent: sonnet
 rng: neutral (no C or C++ change; every input accepted today codes and routes as before, and the
@@ -174,8 +174,8 @@ dense factor's NA in the same rows (maintainer ruling on dec-A100, 2026-09-29).
      as today.
    Budget: ~40 lines.
 7. Tests: new inst/tinytest/test-sparse-factor-na.R, below. Update what the earlier files pin:
-   ["missing values are not supported"](../../inst/tinytest/test-sparse-factor.R), and in
-   ["cannot hold NA"](../../inst/tinytest/test-sparse-factor-frames.R) the refusals for `[`, `[<-`
+   the constructor refusal in [`sparseFactor`](../../inst/tinytest/test-sparse-factor.R), and in
+   [`sparseFactor`](../../inst/tinytest/test-sparse-factor-frames.R) the refusals for `[`, `[<-`
    past a gap, an invalid label in a row assignment, `levels<-` and `length<-`, each to its new
    answer. The frame-growth test (base's "cannot set length") stays. Budget: ~230 lines.
 8. Docs.

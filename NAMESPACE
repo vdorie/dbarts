@@ -24,7 +24,7 @@ exportClasses(dbartsSampler)
 exportClasses(sparseFactor)
 exportMethods(
   show, length, "length<-", as.character, as.integer, as.vector, "levels<-",
-  is.na, xtfrm, "[", "[[", "[<-", "[[<-", c, rep, Ops
+  is.na, anyNA, xtfrm, "[", "[[", "[<-", "[[<-", c, rep, Ops
 )
 export(extract)
 export(plotTree)

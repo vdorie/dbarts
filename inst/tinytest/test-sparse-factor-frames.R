@@ -61,7 +61,7 @@ expect_equal(length(sf[1:10]), 10L)
 expect_true(length(sf[1:10]@i) <= 10L)
 expect_equal(format(sf), format(as.character(f)))
 expect_error(sf["a"], "position")
-expect_error(sf[n + 1L], "cannot hold NA")
+expect_true(is.na(sf[n + 1L]))
 expect_error(sf[1L, 2L], "dimensions")
 
 # data frame operations
@@ -159,8 +159,8 @@ expect_equal(
   levels(ff[f != "a", drop = TRUE])
 )
 expect_equal(levels(sf[1:3]), levels(ff[1:3]))
-expect_error(sf[NA_integer_], "cannot hold NA")
-expect_error(sf[n + 1L], "cannot hold NA")
+expect_equal(as.character(sf[NA_integer_]), as.character(ff[NA_integer_]))
+expect_equal(as.character(sf[n + 1L]), as.character(ff[n + 1L]))
 
 # replacement
 sfr <- sf
@@ -174,12 +174,19 @@ ffr[c(1L, 3L)] <- factor(c("b", "c"))
 expect_equal(as.character(sfr), as.character(ffr))
 sfr[f == "a"] <- "a"
 expect_equal(length(sfr@i), sum(ffr != "a" & f != "a"))
-expect_error(sfr[1L] <- "zzz", "cannot hold")
-expect_error(sfr[n + 2L] <- "a", "gap")
+# a label that is not a level is stored as NA with base's warning
+sfz <- sfr
+expect_warning(sfz[1L] <- "zzz", "invalid factor level, NA generated")
+expect_true(is.na(sfz[1L]))
+# an index past the end pads with NA
+sfg <- sfr
+sfg[n + 2L] <- "a"
+expect_equal(as.character(sfg)[n + 1L], NA_character_)
 sfx <- sf
 sfx[n + 1L] <- "b"
 expect_equal(as.character(sfx), c(as.character(ff), "b"))
-expect_error(length(sfx) <- 3L, "cannot be set")
+length(sfx) <- 3L
+expect_equal(length(sfx), 3L)
 dr <- d
 dr[2L, "sf"] <- "c"
 expect_equal(as.character(dr$sf)[2L], "c")
@@ -231,7 +238,8 @@ expect_equal(sort(as.character(dp$sf)), sort(as.character(ff)))
 dz <- data.frame(y = 0, z = 1)
 dz$sf <- sparseFactor(factor("z"))
 dd <- d[c(seq_len(n), 1L), ]
-expect_error(dd[n + 1L, ] <- dz, "cannot hold NA or a level")
+expect_warning(dd[n + 1L, ] <- dz, "invalid factor level, NA generated")
+expect_true(is.na(dd$sf[n + 1L]))
 # growing a frame by assigning past its last row sets the column's length,
 # after base R warns that it drops the S4 class
 grewWarnings <- character()
@@ -312,7 +320,8 @@ expect_true(methods::validObject(sfm))
 expect_equal(as.character(sfm), as.character(ffm))
 expect_equal(levels(sfm), levels(ffm))
 expect_error(levels(sfn) <- c("A", "B"), "number of levels differs")
-expect_error(levels(sfn) <- c("A", "B", NA), "cannot hold NA")
+levels(sfn) <- c("A", "B", NA)
+expect_equal(levels(sfn), c("A", "B"))
 
 # ---- element assignment, repeat, drop, level sets ----
 sfe <- sf
@@ -325,7 +334,7 @@ expect_equal(
   as.character(rep(ff[1:2], each = 2L))
 )
 expect_equal(levels(droplevels(sf[f == "b"])), "b")
-expect_equal(levels(sf[integer(0L), drop = TRUE]), sf@reference)
+expect_equal(levels(sf[integer(0L), drop = TRUE]), character(0L))
 expect_equal(length(sf[integer(0L), drop = TRUE]), 0L)
 expect_error(sf == factor(c("a", "b")), "level sets of factors are different")
 expect_equal(sf == factor(as.character(f), levels = c("c", "b", "a")), ff == ff)

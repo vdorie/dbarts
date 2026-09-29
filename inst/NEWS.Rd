@@ -1500,8 +1500,12 @@
             column answers the data-frame operations a factor does
             (row subsets, \code{head}, \code{print}, \code{str},
             \code{rbind}, which returns an ordinary factor and needs R
-            4.6.0, assignment, \code{unique}, \code{order});
-            \code{complete.cases} and a printed \code{sparseVector} or
+            4.6.0, assignment, \code{unique}, \code{order}), and holds
+            a missing value as a stored entry that a fit reads as a
+            missing predictor, as for a dense factor;
+            \code{complete.cases} and \code{na.fail} on a frame holding
+            one (and \code{na.omit}, which keeps its missing rows), and
+            a printed \code{sparseVector} or
             \code{dgCMatrix} column are the exceptions, listed in
             \code{\link{sparseFactor}}. The sparse column
             constructor is exported as \code{\link{sparseFactor}}; the

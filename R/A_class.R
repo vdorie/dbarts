@@ -867,9 +867,9 @@ methods::setValidity("dbartsData", function(object) {
 
 # An unordered-factor predictor in sparse form (the Matrix package's naming
 # convention): rows listed in i carry the level coded in values, every
-# other row the implicit reference level. Accepted through the x/y
-# interface; the formula path takes no S4 columns. Constructor and
-# methods live in R/sparseFactor.R.
+# other row the implicit reference level. A missing value is a stored entry
+# whose value is NA, never the reference. Constructor and methods live in
+# R/sparseFactor.R.
 methods::setClass(
   "sparseFactor",
   slots = list(
@@ -889,13 +889,26 @@ methods::setClass(
 )
 methods::setValidity("sparseFactor", function(object) {
   numLevels <- length(object@levels)
-  if (numLevels == 0L || anyNA(object@levels)) {
+  if (anyNA(object@levels)) {
     return("'levels' must be a character vector without NAs")
   }
   if (anyDuplicated(object@levels) > 0L) {
     return("'levels' cannot contain duplicates")
   }
-  if (
+  if (numLevels == 0L) {
+    # the one shape without a level: every row a stored missing value
+    if (
+      length(object@reference) != 1L ||
+        !is.na(object@reference) ||
+        length(object@length) != 1L ||
+        length(object@i) != object@length ||
+        !all(is.na(object@values))
+    ) {
+      return(
+        "'levels' can be empty only when every row is a stored missing value"
+      )
+    }
+  } else if (
     length(object@reference) != 1L ||
       is.na(object@reference) ||
       object@reference %not_in% object@levels
@@ -912,11 +925,8 @@ methods::setValidity("sparseFactor", function(object) {
   if (length(object@values) != length(object@i)) {
     return("'i' and 'values' must have equal length")
   }
-  if (
-    anyNA(object@values) ||
-      any(object@values < 1L | object@values > numLevels)
-  ) {
-    return("'values' must be level codes in [1, length(levels)]")
+  if (any(object@values < 1L | object@values > numLevels, na.rm = TRUE)) {
+    return("'values' must be level codes in [1, length(levels)], or NA")
   }
   if (anyNA(object@i) || any(object@i < 0L | object@i >= object@length)) {
     return("'i' must hold 0-based rows in [0, length)")
