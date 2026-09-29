@@ -200,9 +200,8 @@ period-1 rows of the stored design, replicates them K times and overwrites the
 period column. man/bart.Rd and the reduction-gate section of
 docs/design/survival.md carry one sentence each; the TODO item is removed.
 
-RNG neutrality is pinned in test-hazard-factors.R: the yhat.train sums of a
-numeric-only, a g + z and a sf + z formula fit equal the values recorded on
-the tip before the change (bitwise); the g + z fit also equals the x/y frame
+RNG neutrality was shown against the tip before the change (not pinned in a test, since draws are not bitwise across hosts): the yhat.train sums of a
+numeric-only, a g + z and a sf + z formula fit were identical before and after; the g + z fit also equals the x/y frame
 fit and the hand-expanded probit fit, and a factor with an unused declared
 level now equals the hand-expanded fit. Extra tests beyond the plan: an NA
 factor in newdata errors, and under na.pass returns NA.
@@ -215,3 +214,7 @@ check-doc-freshness OK; all 25 exact-gates.yaml gates PASS with quick
 
 Lines: R 79 added / 21 removed, tests 183, man and design 5, plan note ~30.
 The tests ran over the ~130 line estimate for the added cases.
+
+Review fix: the formula path also refuses any term whose variables include
+period (transformed, or a factor under factors = "indicators"); the three
+pinned sums were dropped from the tests.

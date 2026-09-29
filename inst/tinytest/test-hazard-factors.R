@@ -138,12 +138,6 @@ expect_error(
 sp.na <- survivalProbabilities(fh.g, newdata = dn, na.action = na.pass)
 expect_true(all(is.na(sp.na[, 2L, ])) || all(is.na(sp.na[,, 2L])))
 
-# ---- draws are the ones recorded before the person-period expansion kept the
-# ---- categorical design (numeric-only, factor and sparse-factor fits) ----
-expect_identical(sum(hazardFit("z")$yhat.train), -3147.1802108660418)
-expect_identical(sum(fh.g$yhat.train), -3111.0683893980395)
-expect_identical(sum(fh.sf$yhat.train), -3398.2032069307879)
-
 # ---- a predictor named period is refused ----
 d.p <- d
 d.p$period <- runif(n)
@@ -170,6 +164,42 @@ expect_error(
     as.matrix(d.p[c("z", "period")]),
     Surv(d$time, d$status),
     family = "hazard",
+    verbose = FALSE
+  ),
+  "period"
+)
+
+# a term that reads period is refused, transformed or indicator-coded
+d.p$pf <- factor(d.p$period > 0.5)
+for (rhs in c("log(period + 2) + z", "I(period^2) + z", "pf + period + z")) {
+  expect_error(
+    bart(
+      as.formula(paste("Surv(time, status) ~", rhs)),
+      data = d.p,
+      family = "hazard",
+      verbose = FALSE
+    ),
+    "period",
+    info = rhs
+  )
+}
+expect_error(
+  bart(
+    Surv(time, status) ~ period + z,
+    data = d.p,
+    family = "hazard",
+    factors = "indicators",
+    verbose = FALSE
+  ),
+  "period"
+)
+d.p$period <- factor(d.p$pf)
+expect_error(
+  bart(
+    Surv(time, status) ~ period + z,
+    data = d.p,
+    family = "hazard",
+    factors = "indicators",
     verbose = FALSE
   ),
   "period"

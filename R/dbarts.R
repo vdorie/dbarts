@@ -1173,6 +1173,25 @@ dbarts <- function(
       )
     }
     if (family %in% hazardTokens) {
+      # a transformed or indicator-coded period predictor is read back as the
+      # appended column at prediction, so any term that reads it is refused
+      termVars <- unlist(lapply(
+        attr(data@x, "term.labels"),
+        function(label) all.vars(str2lang(label))
+      ))
+      formulaValue <- tryCatch(
+        eval(dataCall$formula, evalEnv),
+        error = function(err) NULL
+      )
+      rhsVars <- if (inherits(formulaValue, "formula")) {
+        all.vars(formulaValue[[length(formulaValue)]])
+      }
+      if ("period" %in% c(termVars, rhsVars)) {
+        stop(
+          "a hazard fit appends its own 'period' column; rename the ",
+          "predictor 'period'"
+        )
+      }
       expansion <- expandDiscreteTimeHazard(
         data@x,
         formulaSurvivalTime,
