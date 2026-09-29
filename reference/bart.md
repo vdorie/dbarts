@@ -578,8 +578,13 @@ print(x, ...)
   per-(subject, period) hazards on the expanded rows, and
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   produces survival-curve draws \\S(t \mid x) = \prod\_{k :
-  \mathrm{periods}\[k\] \le t} (1 - h(k \mid x))\\. `xbart` does not fit
-  hazard responses (a `cloglog` link is a recorded follow-up).
+  \mathrm{periods}\[k\] \le t} (1 - h(k \mid x))\\. Covariates enter as
+  for every other family, factors, ordered factors and sparse columns
+  included; a predictor named `period`, or a term that reads it, is
+  refused. `predict` takes person-period rows including a `period`
+  column, while `survivalProbabilities(newdata = )` takes one row per
+  subject. `xbart` does not fit hazard responses (a `cloglog` link is a
+  recorded follow-up).
 
   `family = "hurdle.lognormal"` fits a semicontinuous two-part (hurdle)
   model for a non-negative response with exact zeros: a ZERO-PART probit
@@ -1780,7 +1785,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001571
+#> total seconds in loop: 0.001586
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1828,7 +1833,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002045
+#> total seconds in loop: 0.002008
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 
