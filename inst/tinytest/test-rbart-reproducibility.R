@@ -104,6 +104,36 @@ expect_equal(as.vector(ranef), as.vector(fit1$ranef))
 
 rm(ranef, yhat, fit4, fit3, seeds, fit2, fit1)
 
+# NULL reads as not given for seed and sigest, as the NA defaults do: an
+# unseeded NULL fit draws exactly what an unseeded default one does
+set.seed(1L)
+fitDefault <- dbarts::rbart_vi(
+  y ~ x,
+  group.by = g,
+  n.samples = 5L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.trees = 3L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+set.seed(1L)
+fitNull <- dbarts::rbart_vi(
+  y ~ x,
+  group.by = g,
+  n.samples = 5L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.trees = 3L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = NULL,
+  sigest = NULL
+)
+expect_identical(fitNull$yhat.train, fitDefault$yhat.train)
+expect_identical(fitNull$sigest, fitDefault$sigest)
+rm(fitDefault, fitNull)
+
 rm(g, y, x)
 
 

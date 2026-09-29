@@ -86,6 +86,15 @@ rbart_vi <- function(
     "group-spread prior differs, so results move."
   )
 
+  # the argument list is 0.9-34's, NA defaults included; NULL is the absent
+  # spelling everywhere else, so it reads as NA here
+  if (is.null(seed)) {
+    seed <- NA_integer_
+  }
+  if (is.null(sigest)) {
+    sigest <- NA_real_
+  }
+
   # because we use a lot of trickery to redirect calls in the calling environment
   # (for example, to get the data), we replicate some base mechanisms like complaining
   # about unknown arguments
