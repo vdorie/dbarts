@@ -358,7 +358,22 @@ familySigmaSetting <- function(sigma, caller) {
 
 ## The Gaussian (continuous) response, the package default for a numeric
 ## response under family = "auto". 'sigma' is the residual scale's prior.
-gaussian <- function(sigma = NULL) {
+gaussian <- function(link = "identity", sigma = NULL) {
+  if (!is.character(link) || length(link) != 1L) {
+    stop(
+      "gaussian() takes 'link' first; write sigma = for a prior",
+      call. = FALSE
+    )
+  }
+  if (!identical(link, "identity")) {
+    stop(refusedLink("gaussian", link), call. = FALSE)
+  }
+  if (is.character(sigma)) {
+    stop(
+      "'sigma' must be a residual prior; did you mean link = ?",
+      call. = FALSE
+    )
+  }
   newValidated(
     "dbartsFamily",
     token = "gaussian",
@@ -637,8 +652,8 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
     ## anything else is one token, matched partially as match.arg does
     token <- if (length(value) > 1L) {
       value[1L]
-    } else if (identical(value, "binomial")) {
-      "logistic"
+    } else if (value %in% statsFamilyNames) {
+      resolvedFamily(get(value, envir = asNamespace("stats")))@token
     } else {
       match.arg(value, tokens)
     }
@@ -647,6 +662,34 @@ resolveFamily <- function(expr, tokens, caller, evalEnv) {
   refuseUnsupportedFamily(value@token, tokens, caller)
   value
 }
+
+refusedLink <- function(name, link) {
+  paste0(
+    name,
+    "(link = \"",
+    link,
+    "\") is not supported; dbarts fits ",
+    if (identical(name, "gaussian")) {
+      "the identity link"
+    } else {
+      "the probit and logit links"
+    },
+    "; see ?dbartsFamilies"
+  )
+}
+
+## A family named by a string: the stats family functions map as the object
+## does ("binomial" is binomial(), the logit link), and the rest of them are
+## refused by name; any other string is the entry point's own token.
+statsFamilyNames <- c(
+  "binomial",
+  "poisson",
+  "Gamma",
+  "inverse.gaussian",
+  "quasi",
+  "quasibinomial",
+  "quasipoisson"
+)
 
 ## A value of 'family' as an object: a function is called, as glm() does, and
 ## one of base R's family objects maps to the dbarts family with the same
@@ -680,19 +723,7 @@ resolvedFamily <- function(value) {
     )
   }
   if (name %in% c("gaussian", "binomial")) {
-    stop(
-      name,
-      "(link = \"",
-      link,
-      "\") is not supported; dbarts fits ",
-      if (identical(name, "gaussian")) {
-        "the identity link"
-      } else {
-        "the probit and logit links"
-      },
-      "; see ?dbartsFamilies",
-      call. = FALSE
-    )
+    stop(refusedLink(name, link), call. = FALSE)
   }
   stop(
     "family \"",

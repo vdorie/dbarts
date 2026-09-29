@@ -140,3 +140,57 @@ expect_error(
   dbartsSpec(dbartsData(x, yb), family = quasibinomial()),
   "quasibinomial"
 )
+
+# bare gaussian takes link first, glm's order, and refuses other links
+expect_identical(
+  resolve(quote(gaussian(link = "identity"))),
+  resolve(quote("gaussian"))
+)
+expect_identical(
+  resolve(quote(gaussian("identity"))),
+  resolve(quote("gaussian"))
+)
+expect_error(
+  resolve(quote(gaussian(link = "log"))),
+  "gaussian(link = \"log\") is not supported",
+  fixed = TRUE
+)
+expect_error(resolve(quote(gaussian(sigma = "identity"))), "link =")
+expect_error(resolve(quote(gaussian(fixed(1)))), "sigma =")
+expect_identical(
+  resolve(quote(gaussian(sigma = fixed(1))))@settings,
+  dbartsFamilies$gaussian(sigma = dbartsPriors$fixed(1))@settings
+)
+
+# stats family names as strings map or are refused by name
+expect_identical(resolve(quote("binomial")), resolve(quote("logistic")))
+for (nm in c(
+  "poisson",
+  "Gamma",
+  "quasibinomial",
+  "quasipoisson",
+  "inverse.gaussian",
+  "quasi"
+)) {
+  expect_error(
+    resolve(bquote(.(nm))),
+    paste0("family \"", nm, "\" is not supported"),
+    fixed = TRUE
+  )
+}
+
+# a continuous response under binomial's logit link says where it came from
+expect_error(
+  bart(
+    x,
+    y,
+    family = binomial,
+    verbose = FALSE,
+    n.trees = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 20L,
+    n.burn = 10L
+  ),
+  "logit link"
+)

@@ -228,7 +228,14 @@ resolveSamplerSpec <- function(
     } else if (family != "gaussian" && family != "aft" && !responseIsBinary) {
       # gaussian on a 0/1 response is a legitimate request; the binary
       # families need latent-variable coding. aft fits continuous log-times.
-      stop("family \"", family, "\" requires a response coded 0/1")
+      stop(
+        "family \"",
+        family,
+        "\" requires a response coded 0/1",
+        if (family == "logistic") {
+          " (family = binomial is the logit link, a logistic fit)"
+        }
+      )
     }
   }
   # aft draws sigma and rescales like gaussian; only the binary families are

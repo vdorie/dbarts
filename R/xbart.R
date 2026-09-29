@@ -202,7 +202,14 @@ xbart <- function(
     } else if (family != "gaussian" && !responseIsBinary) {
       # gaussian on a 0/1 response is a legitimate request; the binary
       # families need latent-variable coding
-      stop("family \"", family, "\" requires a response coded 0/1")
+      stop(
+        "family \"",
+        family,
+        "\" requires a response coded 0/1",
+        if (family == "logistic") {
+          " (family = binomial is the logit link, a logistic fit)"
+        }
+      )
     }
   }
   control@binary <- isBinaryFamily(family)

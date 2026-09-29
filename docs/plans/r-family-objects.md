@@ -79,7 +79,7 @@ links and every other family or foreign "family" object are refused by
 name. Manual pages (dbartsFamilies, bart, dbarts, xbart) and the existing
 NEWS family-objects item carry the paragraph.
 
-Gates, macOS arm64, private library: full tinytest unwrapped 9551 pass, 0
+Gates, macOS arm64, private library: full tinytest unwrapped 9565 pass, 0
 fail; lintr zero lints; air format clean; check-rc-codoc, check-win-drift
 and check-doc-freshness OK; R CMD check --as-cran --no-manual --no-tests
 on a tarball built with --no-build-vignettes: no new WARNING or NOTE (the

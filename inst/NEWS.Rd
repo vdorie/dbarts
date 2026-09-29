@@ -443,7 +443,7 @@
             ten-million-row hazard expansion cap is \code{hazard()}'s own
             \code{max.rows} default.
             Base R's family objects are accepted as \code{glm} takes them:
-            \code{gaussian()} and \code{binomial(link = "probit")} or
+            \code{stats::gaussian()} and \code{binomial(link = "probit")} or
             \code{"logit"} map to the gaussian, probit and logistic
             families, \code{"binomial"} and \code{binomial} mean the
             logit link, and any other family or link is refused by name.
