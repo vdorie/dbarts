@@ -262,6 +262,12 @@ items
     each push and bump when GitHub deprecates a runtime; wire codecov
     only if a public badge is wanted. The optional roxygen2 and NEWS.md
     migrations do not start unasked.
+  sparse-mutation-direct: before the RC (VD 2026-09-28, dec-B135). A
+    sparse replacement through setPredictor / updatePredictor goes to the
+    engine as its stored rows and values instead of a dense block, so
+    peak memory follows the nonzeros; the docs that call a replaced
+    column "densified permanently" are corrected with it. Plan:
+    docs/plans/sparse-mutation-direct.md (to write).
   sbc-family-tiers: two open arms (docs/plans/sbc-family-tiers.md,
     docs/plans/archive/runsbcbcf-repair.md): the monotone follow-on,
     the first arm the constrained prior draw unblocks; and the full-R
