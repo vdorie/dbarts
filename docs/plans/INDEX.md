@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (60 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (62 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) -
@@ -25,6 +25,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | multiforest-veto-rate-falsifier.md | RUN AND REPORTED (YELLOW both column types), 2026-08-09 | Measured the acceptance-rate cost of the empty-leaf veto applying to every forest in an ensemble rather than one; the cost is acceptable. |
+| one-forest-basis.md | NOT TAKEN 2026-09-29 (dec-A109) | Opens the lone basis-carrying forest, `y = shift + (B a) f(x)`, under gaussian, probit and logistic (dec-A109): the combiner stops rounding its forest count up to two, six bridge guards and four R gates key on carrying amplitudes rather than on two forests, xbart and rbart_vi refuse a bases-carrying data object, and it lands with an exact-posterior gate, SBC arms and equivalence scenarios. Records that the model is not VCBART's, which ships as K = p + 1. |
 
 ## Tau sampler cluster
 
@@ -103,6 +104,7 @@ Columns: `file | STATUS | one-liner`.
 | constructor-vocabulary.md | LANDED 5227daa4, 2026-09-26 | Unexports `interactions`, `blocks`, `forest` and `varianceForest`: they resolve by bare name inside the arguments that take them, a bare name the caller also binds taking the caller's value, and `dbartsForests` is their exported face; none reached main. |
 | predict-na-action.md | LANDED e2168430, 2026-09-27 (A1 e0f80109, A2 7d61cb39) | Names every observation-indexed output (predict, extract, fitted, residuals, survivalProbabilities) by the data's row names on every fit class, brings fit-time `na.exclude` padding to the four other classes, and gives every predict method and survivalProbabilities an `na.action` argument. |
 | leaf-vocabulary.md | LANDED 59d0dbbb, 2026-09-27 (docs beb60ae1, records 3feb4931) | Renames `node.prior` to `leaf.prior` on every entry point and `$sampleNodeParametersFromPrior` to `$sampleLeafParametersFromPrior` (each old name a once-per-session tombstone until 1.1-0), and `$getCalibration`/`$setCalibration` to `$getLeafPrior`/`$setLeafPrior` and the reader's `node.scale.factor`/`divisor` columns to `leaf.scale.factor`/`divisor` (no tombstone); `$getTrees`, `plotTree` and the tree prior keep `node`; stan4bart and bartCause move in lockstep. |
+| leaf-prior-k-or-sd.md | PLANNED 2026-09-29 | Names the leaf prior by `k` (relative to the data's anchor; a number or `chi()`) or by `sd` (response units; a number or a new hyperprior on the sd), never both, refuses a named sd on hurdle and multi-forest fits, and removes `scale` from `normal`/`linear`/`gp`, `$setLeafPrior` and `$getLeafPrior` (ruling on dec-A105); every prior expressible today maps to one new spelling, identical engine inputs at the defaults, no engine change. |
 
 ## Build / infra singletons
 
