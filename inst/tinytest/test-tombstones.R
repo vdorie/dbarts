@@ -921,6 +921,39 @@ expect_equal(fitPowerRenamed$fit$model@tree.prior@power, 3)
 expect_equal(fitSdf$fit$model@resid.prior@df, 5)
 expect_equal(fitResid$fit$model@resid.prior@df, 5)
 expect_equal(fitResid$fit$model@resid.prior@quantile, 0.75)
+# split.probs: a local beats a different global of the same name through a
+# wrapper, a caller-frame variable next to the vocabulary name resolves, and
+# num.vars still works
+probsGlobal <- c(0.5, 0.5)
+suppressWarnings({
+  fitProbsLocal <- (function() {
+    probsGlobal <- c(0.8, 0.2)
+    shadowMiddle(xCons, yCons, split.probs = probsGlobal)
+  })()
+  fitProbsOnlyLocal <- (function() {
+    probsOnly <- c(0.8, 0.2)
+    shadowMiddle(xCons, yCons, split.probs = probsOnly)
+  })()
+  fitProbsVocab <- shadowMiddle(xCons, yCons, split.probs = c(3, 1) / num.vars)
+  fitProbsMixed <- (function() {
+    wts <- c(3, 1)
+    shadowMiddle(xCons, yCons, split.probs = wts / (2 * num.vars))
+  })()
+})
+expect_equal(fitProbsLocal$fit$model@tree.prior@splitProbabilities, c(0.8, 0.2))
+expect_equal(
+  fitProbsOnlyLocal$fit$model@tree.prior@splitProbabilities,
+  c(0.8, 0.2)
+)
+expect_equal(
+  fitProbsVocab$fit$model@tree.prior@splitProbabilities,
+  c(0.75, 0.25)
+)
+expect_equal(
+  fitProbsMixed$fit$model@tree.prior@splitProbabilities,
+  c(0.75, 0.25)
+)
+rm(probsGlobal, fitProbsLocal, fitProbsOnlyLocal, fitProbsVocab, fitProbsMixed)
 # identical draws to the family spelling
 fitFamilyResid <- (function() {
   qq <- 0.75

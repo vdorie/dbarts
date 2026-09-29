@@ -584,7 +584,7 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
     # the prior constructors, which are not exported
     values[name] <- list(
       if (name %in% unevaluatedConsolidatedArgs) {
-        recoverForwardedArgument(matchedCall[[name]], evalEnv)$expr
+        forwardedSplitProbs(matchedCall[[name]], evalEnv)
       } else if (name == "resid.prior") {
         evalInVocabulary(matchedCall[[name]], dbartsPriors, evalEnv)
       } else {
@@ -593,6 +593,42 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
     )
   }
   values
+}
+
+## The retired 'split.probs', left for the prior resolver, whose vocabulary
+## (num.vars, numvars) it may be written in. A direct expression stays as
+## written. A forwarded reference (..N) is forced first and, when that
+## succeeds, stands as its value; when it fails, the recovered expression
+## goes on as a call that evaluates it in the environment it was written in,
+## layered under the vocabulary the resolver supplies where the call runs.
+forwardedSplitProbs <- function(expr, evalEnv) {
+  if (!isDotsReference(expr)) {
+    return(expr)
+  }
+  forced <- tryCatch(list(eval(expr, evalEnv)), error = function(e) NULL)
+  if (!is.null(forced)) {
+    return(forced[[1L]])
+  }
+  written <- recoverForwardedArgument(expr, evalEnv)
+  if (isDotsReference(written$expr)) {
+    return(expr)
+  }
+  as.call(list(
+    evalInVocabularyOver,
+    call("quote", written$expr),
+    written$env,
+    quote(environment())
+  ))
+}
+
+## Evaluates 'expr' in 'writtenEnv' with the bindings of the vocabulary
+## environment 'vocabEnv' laid over it.
+evalInVocabularyOver <- function(expr, writtenEnv, vocabEnv) {
+  env <- new.env(parent = writtenEnv)
+  for (name in ls(vocabEnv, all.names = TRUE)) {
+    assign(name, get(name, envir = vocabEnv), envir = env)
+  }
+  eval(expr, env)
 }
 
 ## The retired flat 'resid.prior', resolved to an object: a bare constructor

@@ -309,9 +309,8 @@ localGroups <- (function() {
 expect_equal(nGroups(localGroups), 5L)
 # and a column is read as a column, whatever the global says
 expect_equal(nGroups(fwdMiddle(y ~ x, dfFwd, group.by = g)), 4L)
-# the data has a column named like the intermediate wrapper's parameter: a
-# symbol naming a column of data is that column, forwarded or not (lm's rule
-# for weights and subset)
+# the data has a column named like the intermediate wrapper's parameter: the
+# column IS taken, forwarded or not, as lm does for weights and subset
 dfGrp <- dfFwd
 dfGrp$grp <- rep_len(1:3, 40L)
 expect_equal(nGroups(fwdRenamed(dfGrp, rep_len(1:5, 40L))), 3L)
@@ -336,12 +335,16 @@ closureGroups <- (function() {
 expect_equal(nGroups(closureGroups), 5L)
 rm(g)
 
-# group.by.test through a wrapper
+# group.by.test through a wrapper is the caller's local variable, not a
+# same-named global: the fit carries the caller's test groups
+gt <- rep_len(1:2, 40L)
+gtLocal <- rep_len(c(4L, 3L, 2L, 1L), 40L)
 testFit <- (function() {
-  gt <- rep_len(1:4, 40L)
+  gt <- gtLocal
   fwdMiddle(y ~ x, dfFwd, test = dfFwd, group.by = g, group.by.test = gt)
 })()
-expect_inherits(testFit, "rbart")
+expect_equal(as.character(testFit$group.by.test), as.character(gtLocal))
+rm(gt, gtLocal, testFit)
 
 # prior = gamma is the gamma prior, not the default
 fwdGamma <- fwdMiddle(y ~ x, dfFwd, group.by = g, prior = gamma)
