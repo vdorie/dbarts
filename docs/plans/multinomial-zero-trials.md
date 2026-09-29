@@ -1,6 +1,6 @@
 # multinomial-zero-trials: accept a count row with no trials
 
-Status: PLANNED 2026-09-28
+Status: LANDED 2026-09-29 (5e9e1cac, 6f072b71, 417e7895)
 
 agent: opus (one engine edit in the softmax coupling; the R, bridge, test and doc edits ride the same slice)
 rng: neutral (every input accepted today draws bitwise as before; a zero-trial row was refused, so its draws are new)
@@ -242,3 +242,34 @@ put to VD before the slice starts.
 - `air format --check .`; `lintr::lint()` on each touched R file; `Rscript tools/check-rc-codoc.R .`,
   `Rscript tools/check-win-drift.R .`, `Rscript tools/check-doc-freshness.R .`, each on its own exit status; the
   NEWS parse check; `R CMD check --as-cran` on a tarball built from a clean copy.
+
+## Landing note (2026-09-29)
+
+Landed as 5e9e1cac (the slice), 6f072b71 (review fixes) and 417e7895 (a
+missing graphics import). An empty row joins the inactive-row mask in
+[`MultinomialForestCombiner`](../../src/bartcore/combiner.hpp): no
+Polya-Gamma draws, zero composed precision, occupancy and fitted
+probabilities kept. The first empty row in a session warns once, at
+creation or through `$setCounts`, never from `$copy`. Residuals follow
+glm's zero-weight row (the response residual, -p), and the pointwise
+log-likelihood of an empty row is 0, with a zero-count cell contributing 0
+even where its probability underflows to 0. plot draws a blank observed
+panel when no row has a trial.
+
+Review found four defects, all fixed in 6f072b71: plot stopped on an
+all-empty fit; `$copy` warned in a fresh session; the log-likelihood was
+NaN for a zero-count cell at probability exactly 0; bart.Rd described an
+empty row's residual from y / rowSums(y). A second review found the
+missing plot.new import.
+
+Gates, macOS arm64, independent reviewer library: full tinytest 9771
+pass, 0 fail; tests/cpp all passed; multinomial equivalence against
+multinomial-equivalence-80b1c8d4.rds, reference build, --bitwise: 11 of
+11 scenarios identical, no max |z|; the four seeded-drift snapshot files
+pass on the reference build; R-loaded ASAN over the four multinomial
+files clean; R CMD check --as-cran: the Date NOTE only after the import
+fix; air, lintr, rc-codoc, win-drift, doc-freshness clean. Mutations:
+drawing empty rows unconditionally or reading the mask in
+formForestResponse fails 10 tinytest and 3 cpp checks; reading it in
+formForestVetoWeights fails the prior-draw arm and the cpp veto check;
+removing the copy or log-likelihood fix fails 3 checks each.

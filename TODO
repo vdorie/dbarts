@@ -215,11 +215,6 @@ items
     refusal, the Rd text and the refusal pin in test-bcf-creation.R, plus
     setCutPoints and state round-trip checks under uneven caps. After the
     merge.
-  multinomial-zero-trials: before the RC (VD 2026-09-28, dec-B133). A
-    count row with zero trials is accepted, inert in the likelihood,
-    with a once-per-session warning, at creation and through
-    $setCounts, instead of refused. Plan: docs/plans/
-    multinomial-zero-trials.md.
   multinomial-doors: three entry-point doors, post-RC (VD 2026-09-01).
     A formula interface for dbarts(family = "multinomial") - a formula
     LHS carries no count matrix; bart2's cbind(c1, ..., cK) ~ x form

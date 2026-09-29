@@ -4,7 +4,7 @@ agent: sonnet
 rng: neutral (no draw moves; only which rows and columns reach the engine)
 budget: ~250 lines (R ~110, tests ~120, man and NEWS ~20)
 
-Status: LANDED 2026-09-28 (, , aa207700 4f9589ae 5b07b5ce )
+Status: LANDED 2026-09-28 (5b07b5ce, 4f9589ae, aa207700)
 
 ## Goal
 
