@@ -82,25 +82,34 @@ for (entry in registry[kinds == "argument"]) {
   expect_true(entry$successor %in% ownFormals || target %in% ownFormals)
 }
 
-# --- the stubs themselves ---
-expect_error(dbarts::rbart_vi(), pattern = "stan4bart")
-expect_error(dbarts::rbart_vi(), pattern = "results move")
-fakeRbart <- structure(list(), class = "rbart")
-expect_error(predict(fakeRbart), pattern = "stan4bart")
-expect_error(fitted(fakeRbart), pattern = "stan4bart")
-expect_error(residuals(fakeRbart), pattern = "stan4bart")
-expect_error(plot(fakeRbart), pattern = "stan4bart")
-# print is what the console does unasked, so it prints rather than erroring
-printedRbart <- capture.output(
-  printResult <- print(structure(
-    list(call = quote(rbart_vi(y ~ x))),
-    class = "rbart"
-  ))
+# --- rbart_vi is live: it warns of its deprecation, then fits ---
+onceState <- dbarts:::onceWarnState
+onceState[["tombstone.rbart_vi"]] <- NULL
+rbartWarnings <- character()
+rbartFit <- withCallingHandlers(
+  dbarts::rbart_vi(
+    y ~ x,
+    data.frame(y = rnorm(30L), x = rnorm(30L)),
+    group.by = rep(1:3, 10L),
+    n.samples = 2L,
+    n.burn = 0L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.trees = 5L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  warning = function(w) {
+    rbartWarnings <<- c(rbartWarnings, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
 )
-expect_true(any(grepl("rbart_vi(y ~ x)", printedRbart, fixed = TRUE)))
-expect_true(any(grepl("stan4bart", printedRbart, fixed = TRUE)))
-expect_inherits(printResult, "rbart")
-expect_error(dbarts::extract(fakeRbart), pattern = "stan4bart")
+expect_equal(length(rbartWarnings), 1L)
+expect_true(grepl("stan4bart", rbartWarnings, fixed = TRUE))
+expect_true(grepl(dbarts:::tombstoneExpiry, rbartWarnings, fixed = TRUE))
+printedRbart <- capture.output(print(rbartFit))
+expect_true(any(grepl("rbart_vi(", printedRbart, fixed = TRUE)))
+rm(onceState, rbartWarnings, rbartFit, printedRbart)
 
 # the two thread methods are no-ops, warned once, not errors: a 0.9-x Gibbs
 # loop that brackets its sweeps with them still runs

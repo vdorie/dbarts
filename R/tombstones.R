@@ -4,6 +4,9 @@
 ## together, so the release that drops them deletes this file and nothing
 ## survives its expiry by accident. A tombstone never adds a capability:
 ## it errors, or it forwards to the successor after saying so once.
+## rbart_vi and its methods are the exception: they run the 0.9-x
+## implementation, kept in R/rbart.R, after warning once that it is
+## deprecated. That file is deleted with this one at expiry.
 
 tombstoneExpiry <- "1.1-0"
 
@@ -279,62 +282,6 @@ bart2 <- function() {
   eval(matchedCall, parent.frame())
 }
 formals(bart2) <- formals(bart)
-
-## ------------------------------------------------------------------
-## rbart_vi and its four generics
-## ------------------------------------------------------------------
-
-refuseGroupedRandomEffects <- function(what) {
-  stop(
-    what,
-    " was removed in dbarts 1.0-0; grouped random effects live in the ",
-    "stan4bart package (stan4bart::stan4bart). Its group-spread prior is ",
-    "not the one dbarts drew from, so results move rather than reproduce. ",
-    "This stub is removed in dbarts ",
-    tombstoneExpiry,
-    ".",
-    call. = FALSE
-  )
-}
-
-rbart_vi <- function(...) {
-  refuseGroupedRandomEffects("'rbart_vi'")
-}
-
-predict.rbart <- function(object, ...) {
-  refuseGroupedRandomEffects("'predict' on an rbart fit")
-}
-
-extract.rbart <- function(object, ...) {
-  refuseGroupedRandomEffects("'extract' on an rbart fit")
-}
-
-fitted.rbart <- function(object, ...) {
-  refuseGroupedRandomEffects("'fitted' on an rbart fit")
-}
-
-residuals.rbart <- function(object, ...) {
-  refuseGroupedRandomEffects("'residuals' on an rbart fit")
-}
-
-plot.rbart <- function(x, ...) {
-  refuseGroupedRandomEffects("'plot' on an rbart fit")
-}
-
-## Printing is what a console does to a loaded object unasked, so this stub
-## prints, as 0.9-x's method did, rather than erroring.
-print.rbart <- function(x, ...) {
-  printCall(x)
-  cat(
-    "A grouped random-effects fit from dbarts 0.9-x's 'rbart_vi', which was ",
-    "removed in dbarts 1.0-0; refit with stan4bart::stan4bart. This method ",
-    "is removed in dbarts ",
-    tombstoneExpiry,
-    ".\n",
-    sep = ""
-  )
-  invisible(x)
-}
 
 ## ------------------------------------------------------------------
 ## The BayesTree-spelled bart() call
