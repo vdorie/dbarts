@@ -1840,6 +1840,35 @@ writeLeafPrior <- function(sampler, ptr, newModel) {
   invisible(NULL)
 }
 
+## The prior vocabulary $setLeafPrior evaluates its specification in: the
+## constructors' own, except that linear() and gp() default their columns to
+## the sampler's, which fixes them, so a write may omit them. On a sampler of
+## another leaf model the placeholder only lets the leaf-model refusal speak.
+setLeafPriorVocabulary <- function(sampler) {
+  current <- sampler$model@leaf.prior
+  ownColumns <- if (
+    is(current, "dbartsLinearPrior") || is(current, "dbartsGPPrior")
+  ) {
+    current@columns
+  } else {
+    1L
+  }
+  vocabulary <- dbartsPriors
+  vocabulary$linear <- function(columns = ownColumns, k = NULL, sd = NULL) {
+    linear(columns, k, sd)
+  }
+  vocabulary$gp <- function(
+    columns = ownColumns,
+    k = NULL,
+    lengthscale = NULL,
+    max.leaf.size = 256L,
+    sd = NULL
+  ) {
+    gp(columns, k, lengthscale, max.leaf.size, sd)
+  }
+  vocabulary
+}
+
 ## The model a $setLeafPrior write installs: the sampler's own, with the leaf
 ## prior's k or sd, and so its anchor and hyperprior, taken from the
 ## specification. The specification must name the sampler's leaf model, and
@@ -1889,25 +1918,14 @@ restateLeafPrior <- function(sampler, spec, expr) {
     !identical(methods::slot(spec, slot), default)
   }
   if (is(spec, "dbartsLinearPrior") || is(spec, "dbartsGPPrior")) {
-    if (!is.null(spec@columns)) {
-      resolved <- resolveLeafCovariates(spec, sampler$data)
-      if (!identical(resolved@columns, current@columns)) {
-        refuseLeafModel("the leaf covariate columns it names differ")
-      }
-      if (
-        is(spec, "dbartsGPPrior") &&
-          stated("lengthscale", NULL) &&
-          !identical(resolved@lengthscale, current@lengthscale)
-      ) {
-        refuseLeafModel("the lengthscale it names differs")
-      }
-    } else if (
+    resolved <- resolveLeafCovariates(spec, sampler$data)
+    if (!identical(resolved@columns, current@columns)) {
+      refuseLeafModel("the leaf covariate columns it names differ")
+    }
+    if (
       is(spec, "dbartsGPPrior") &&
         stated("lengthscale", NULL) &&
-        !identical(
-          rep_len(spec@lengthscale, length(current@columns)),
-          current@lengthscale
-        )
+        !identical(resolved@lengthscale, current@lengthscale)
     ) {
       refuseLeafModel("the lengthscale it names differs")
     }
@@ -2956,7 +2974,7 @@ dbartsSampler <- setRefClass(
       counts
     },
     getLeafPrior = function(forest = NULL) {
-      "Returns the leaf prior in force, one row per chain, in the terms it was named in, with one column each of prior.sd (the forest total's prior sd of the leaf model's own parameter, on the family's scale), prior.sd.df and prior.sd.scale (the invchi() law that sd follows while k is drawn, 0 scale for the improper limit; NaN when k is fixed), prior.mean, k (relative to the data's anchor), k.has.hyperprior, anchor (the data's anchor k is relative to), response.scale, and response.shift, then the five multi-forest calibration-map quantities: amplitude.prior.variance and amplitude.prior.scale (exclusive - a forest carries a fixed amplitude variance or a half-Cauchy scale mixture, and the other reads NaN), leaf.scale.factor, leaf.scale.divisor, and basis.row.norm, which decompose prior.sd, k being pinned at 1 there, as factor * latent scale / (divisor * row norm). All five are NaN on a forest whose scale the map does not own, and the two leaf.scale columns go NaN after a state install brings a foreign calibration, until setForestBasis re-imposes the map. A 'leaf.model' attribute names the leaf model and a 'prior.sd.of' attribute what prior.sd is the sd of: 'leaf value', 'coefficient' or 'amplitude'; prior.sd is the prior sd of f(x) only for the constant leaf. Each value writes back through setLeafPrior or setModel in the same terms: normal(sd = prior.sd), normal(sd = invchi(prior.sd.df, prior.sd.scale)) or normal(k = k). At the default forest = NULL, every forest's reading is stacked with the forest margin LAST, n.chains x 14 x n.forests (a single-forest sampler's NULL read is bitwise its forest 1 read); the column dimnames and both attributes are carried from the first forest, since they are properties of the sampler rather than of any one forest."
+      "Returns the leaf prior in force, one row per chain, in the terms it was named in, with one column each of prior.sd (the forest total's prior sd of the leaf model's own parameter, on the family's scale), prior.sd.df and prior.sd.scale (the invchi() law that sd follows while k is drawn, 0 scale for the improper limit; NaN when k is fixed), prior.mean, k (relative to the data's anchor), k.has.hyperprior, anchor (the data's anchor k is relative to; on a forest whose scale a calibration map owns, the map's leaf scale in force, k being pinned at 1 there), response.scale, and response.shift, then the five multi-forest calibration-map quantities: amplitude.prior.variance and amplitude.prior.scale (exclusive - a forest carries a fixed amplitude variance or a half-Cauchy scale mixture, and the other reads NaN), leaf.scale.factor, leaf.scale.divisor, and basis.row.norm, which decompose prior.sd, k being pinned at 1 there, as factor * latent scale / (divisor * row norm). All five are NaN on a forest whose scale the map does not own, and the two leaf.scale columns go NaN after a state install brings a foreign calibration, until setForestBasis re-imposes the map. A 'leaf.model' attribute names the leaf model and a 'prior.sd.of' attribute what prior.sd is the sd of: 'leaf value', 'coefficient' or 'amplitude'; prior.sd is the prior sd of f(x) only for the constant leaf. Each value writes back through setLeafPrior or setModel in the same terms: normal(sd = prior.sd), normal(sd = invchi(prior.sd.df, prior.sd.scale)) or normal(k = k). At the default forest = NULL, every forest's reading is stacked with the forest margin LAST, n.chains x 14 x n.forests (a single-forest sampler's NULL read is bitwise its forest 1 read); the column dimnames and both attributes are carried from the first forest, since they are properties of the sampler rather than of any one forest."
       ptr <- getPointer()
       if (!is.null(forest)) {
         return(reportLeafPrior(
@@ -2988,7 +3006,7 @@ dbartsSampler <- setRefClass(
       result
     },
     setLeafPrior = function(leaf.prior, updateState = NULL) {
-      "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() law on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform, sigma or a drawn k's current value - and the write takes effect on the next sweep, reinterpreting no leaf value already drawn; a write equal to what is in force is bitwise inert. The write is recorded on the model field, so a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
+      "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() law on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform or sigma. Under a drawn k the engine keeps its current k across the write, so a change of anchor - between the k and sd forms, or of an invchi() scale - scales the next sweep's spread by new anchor / old anchor, and the reported k and prior.sd jump with it until the law pulls k back. The write takes effect on the next sweep, reinterpreting no leaf value already drawn; a write equal to what is in force is bitwise inert. The write is recorded on the model field, so a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -3007,7 +3025,7 @@ dbartsSampler <- setRefClass(
       expr <- substitute(leaf.prior)
       spec <- evalInVocabulary(
         expr,
-        dbartsPriors,
+        setLeafPriorVocabulary(.self),
         parent.frame(),
         resolvedAs(
           "leaf.prior",

@@ -292,8 +292,15 @@ expect_identical(dimnames(sdGrid)$sd, c("0.5", "1", "0.25"))
 # first with warm starts, so compare against a grid in that same order
 sweptOrder <- do.call(xbart, c(xbartArgs, list(sd = c(0.25, 0.5, 1))))
 expect_identical(unname(sdGrid[, c(3L, 1L, 2L)]), unname(sweptOrder))
-# a k grid at power-of-two ratios on a fixed anchor is the same sweep: the
-# folds are fixed by the seed, not by the grid
+# on a binary family, whose anchor is a constant (3 on probit), a grid of
+# fixed cells is the same sweep in either spelling; a modelled cell is not,
+# since the two start their chains at different spreads
+probitArgs <- xbartArgs
+probitArgs$data <- yb
+expect_identical(
+  unname(do.call(xbart, c(probitArgs, list(sd = c(1.5, 0.75, 3))))),
+  unname(do.call(xbart, c(probitArgs, list(k = c(2, 4, 1)))))
+)
 hyperGrid <- do.call(
   xbart,
   c(xbartArgs, list(sd = list(0.5, priors$invchi(1.5, 0.5))))
@@ -313,6 +320,10 @@ expect_error(
     c(xbartArgs, list(sd = 2, leaf.prior = quote(normal(sd = 1))))
   ),
   "the leaf prior's 'sd' and the 'sd' grid both state the spread"
+)
+expect_error(
+  do.call(xbart, c(xbartArgs, list(sd = 2, leaf.prior = quote(normal(k = 3))))),
+  "the leaf prior's 'k' and the 'sd' grid both state the spread"
 )
 expect_error(
   do.call(xbart, c(xbartArgs, list(sd = list(priors$chi(1.5, 2))))),

@@ -256,10 +256,7 @@ parsePriors <- function(
 resolveLeafCovariates <- function(prior, data) {
   label <- if (is(prior, "dbartsGPPrior")) "gp" else "linear"
   columns <- prior@columns
-  if (is.null(columns)) {
-    stop(label, " leaf prior requires 'columns' naming the leaf covariates")
-  }
-  if (length(columns) == 0L) {
+  if (is.null(columns) || length(columns) == 0L) {
     stop(label, " leaf prior requires at least one covariate column")
   }
 
@@ -1442,10 +1439,11 @@ cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
   result
 }
 
-## columns may be omitted only where a sampler already fixes them
-## ($setLeafPrior); a fitting function refuses NULL when it resolves them.
-linear <- function(columns = NULL, k = NULL, sd = NULL) {
-  if (!is.null(columns) && !is.character(columns) && !is.numeric(columns)) {
+linear <- function(columns, k = NULL, sd = NULL) {
+  if (missing(columns)) {
+    stop("linear leaf prior requires 'columns' naming the leaf covariates")
+  }
+  if (!is.character(columns) && !is.numeric(columns)) {
     stop("linear leaf prior 'columns' must be a character or numeric vector")
   }
   # reuses normal()'s k and sd validation and coercions
@@ -1459,13 +1457,16 @@ linear <- function(columns = NULL, k = NULL, sd = NULL) {
 }
 
 gp <- function(
-  columns = NULL,
+  columns,
   k = NULL,
   lengthscale = NULL,
   max.leaf.size = 256L,
   sd = NULL
 ) {
-  if (!is.null(columns) && !is.character(columns) && !is.numeric(columns)) {
+  if (missing(columns)) {
+    stop("gp leaf prior requires 'columns' naming the leaf covariates")
+  }
+  if (!is.character(columns) && !is.numeric(columns)) {
     stop("gp leaf prior 'columns' must be a character or numeric vector")
   }
   if (

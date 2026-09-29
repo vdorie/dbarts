@@ -350,6 +350,12 @@ xbart <- function(
       "the spreads in the 'sd' grid"
     )
   }
+  if (sdGiven && !is.null(leafSpec) && !is.null(leafSpec@k)) {
+    stop(
+      "the leaf prior's 'k' and the 'sd' grid both state the spread; drop ",
+      "the leaf prior's 'k'"
+    )
+  }
   # the axis is one of k or sd; a named sd in the leaf prior is a one-cell sd
   # axis. Each cell is a leaf hyperprior plus the anchor it is relative to,
   # NA on the k axis, where the fold's own data fixes the anchor.

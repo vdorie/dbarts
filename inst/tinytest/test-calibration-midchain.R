@@ -134,18 +134,6 @@ expect_identical(
 # --- a get-then-set is BITWISE inert. The setter writes the anchor the read
 # implies and the engine SKIPS a write reproducing what is in force, so a
 # round trip cannot perturb the last bit and move a draw. ---
-inertA <- namedSampler()
-inertB <- namedSampler()
-inertB$setLeafPrior(normal(sd = priorSdOf(inertB)[[1L]]))
-expect_identical(inertA$run(20L, 10L)$train, inertB$run(20L, 10L)$train)
-# the same on the UNNAMED default, whose in-force value is an inherited range
-# rather than a round number and so is the harder round trip
-inertC <- dbarts(x, y, control = midControl())
-inertD <- dbarts(x, y, control = midControl())
-inertD$setLeafPrior(normal(sd = priorSdOf(inertD)[[1L]]))
-expect_identical(inertC$run(20L, 10L)$train, inertD$run(20L, 10L)$train)
-# a scaling whose response-unit round trip ROUNDS, so the arm needs the skip
-yRounding <- 3 * y
 leafScales <- function(sampler) {
   sampler$storeState()
   vapply(
@@ -154,6 +142,38 @@ leafScales <- function(sampler) {
     numeric(1L)
   )
 }
+inertA <- namedSampler()
+inertB <- namedSampler()
+inertB$setLeafPrior(normal(sd = priorSdOf(inertB)[[1L]]))
+expect_identical(inertA$run(20L, 10L)$train, inertB$run(20L, 10L)$train)
+# the named value itself, written again: the writer derives the internal scale
+# with creation's arithmetic, so it lands on creation's bits. This response
+# scaling was chosen because the two orders of that arithmetic differ by an
+# ulp on it (measured), so the arm falsifies a writer that reorders them
+inertSdA <- dbarts(
+  x,
+  y / 5,
+  control = midControl(),
+  leaf.prior = normal(sd = 1)
+)
+inertSdB <- dbarts(
+  x,
+  y / 5,
+  control = midControl(),
+  leaf.prior = normal(sd = 1)
+)
+sdScaleBefore <- leafScales(inertSdB)
+inertSdB$setLeafPrior(normal(sd = 1))
+expect_identical(leafScales(inertSdB), sdScaleBefore)
+expect_identical(inertSdA$run(20L, 10L)$train, inertSdB$run(20L, 10L)$train)
+# the same on the UNNAMED default, whose in-force value is an inherited range
+# rather than a round number and so is the harder round trip
+inertC <- dbarts(x, y, control = midControl())
+inertD <- dbarts(x, y, control = midControl())
+inertD$setLeafPrior(normal(sd = priorSdOf(inertD)[[1L]]))
+expect_identical(inertC$run(20L, 10L)$train, inertD$run(20L, 10L)$train)
+# a scaling whose response-unit round trip ROUNDS, so the arm needs the skip
+yRounding <- 3 * y
 inertF <- dbarts(x, yRounding, control = midControl())
 scaleBefore <- leafScales(inertF)
 inertF$setLeafPrior(normal(sd = priorSdOf(inertF)[[1L]]))
@@ -328,6 +348,10 @@ expect_error(
   linearSampler$setLeafPrior(linear("x2", sd = 1)),
   "columns it names differ"
 )
+# the constructors keep requiring columns; only the sampler's own write may
+# omit them
+expect_error(dbartsPriors$linear(sd = 1), "requires 'columns'")
+expect_error(dbartsPriors$gp(sd = 1), "requires 'columns'")
 linearSampler$setLeafPrior(linear(sd = 0.25))
 expect_equal(unname(priorSdOf(linearSampler)), c(0.25, 0.25))
 linearSampler$setLeafPrior(linear("x1", sd = 0.5))

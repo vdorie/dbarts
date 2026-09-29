@@ -88,7 +88,7 @@
       \code{NULL} leaves either unnamed; \code{NA} is a missing value and is
       refused, here and in \code{linear} and \code{gp}.
     }
-    \item{\code{linear(columns = NULL, k = NULL, sd = NULL)}}{
+    \item{\code{linear(columns, k = NULL, sd = NULL)}}{
       Each leaf fits an intercept plus a linear term in the designated
       continuous predictor columns instead of a constant, so the forest
       models smoothly-varying coefficients. \code{columns} names model
@@ -105,10 +105,8 @@
       forest total, so the prior sd of \eqn{f(x)} is
       \code{sd * sqrt(1 + ||z||^2)} at standardized covariates \eqn{z}, and
       \code{sd} is its lower bound, attained at the covariate means.
-      \code{columns} may be omitted only in a sampler's
-      \code{$setLeafPrior}, where the sampler fixes them.
     }
-    \item{\code{gp(columns = NULL, k = NULL, lengthscale = NULL,
+    \item{\code{gp(columns, k = NULL, lengthscale = NULL,
                    max.leaf.size = 256L, sd = NULL)}}{
       Each leaf fits a smooth Gaussian-process function of the designated
       continuous predictor columns, drawn under a squared-exponential
@@ -148,8 +146,7 @@
       name the spread as they do for \code{normal}, \code{sd} as the
       amplitude of the forest total's Gaussian process: the prior sd of
       \eqn{f(x)} is \code{sd} at a leaf's own rows and decays away from
-      them, so \code{sd} is its upper bound. \code{columns} may be omitted
-      only in a sampler's \code{$setLeafPrior}.
+      them, so \code{sd} is its upper bound.
 
       \code{predict} at a training row re-krigs the jitter-free
       posterior mean from the cached kernel and drawn training values,
