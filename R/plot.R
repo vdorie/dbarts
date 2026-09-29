@@ -190,6 +190,11 @@ plot.bartMultinomial <- function(
   # a count row with no trial has no observed category or proportion, so the
   # second panel covers only the rows with trials, in either branch
   withTrials <- if (is.factor(y)) seq_len(n) else which(rowSums(y) > 0)
+  if (length(withTrials) == 0L) {
+    plot.new()
+    title(main = "no rows with trials to compare against")
+    return(invisible(x))
+  }
   if (is.matrix(y) && any(rowSums(y) > 1)) {
     flat <- probs
     dim(flat) <- c(length(probs) %/% (n * K), n, K)

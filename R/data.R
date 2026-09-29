@@ -1651,6 +1651,16 @@ validateMultinomialCounts <- function(
   asCountMatrix(counts)[subset, , drop = FALSE]
 }
 
+# Evaluates expr, a re-creation of a sampler that already exists, with the
+# zero-trial warning held off: re-creating introduces no rows, so it neither
+# warns nor spends the key.
+withoutZeroTrialsWarning <- function(expr) {
+  spent <- onceWarnState[["multinomialZeroTrials"]]
+  onceWarnState[["multinomialZeroTrials"]] <- TRUE
+  on.exit(onceWarnState[["multinomialZeroTrials"]] <- spent)
+  expr
+}
+
 # Warns, once per session, that a count matrix a sampler has just taken has
 # rows with no trial. Called only after the creation or $setCounts .Call has
 # returned, so a refused call never spends the key; NULL (a sampler that

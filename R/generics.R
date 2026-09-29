@@ -1575,7 +1575,12 @@ multinomialLogLik <- function(object, probs) {
   flat <- probs
   dim(flat) <- c(n.draws * nObs, K)
   idx <- rep(seq_len(nObs), each = n.draws)
-  term <- rowSums(counts[idx, , drop = FALSE] * log(flat))
+  # a zero-count cell contributes 0 even where its probability underflows to
+  # 0, as in dmultinom, so a row with no trial is exactly 0
+  expanded <- counts[idx, , drop = FALSE]
+  cells <- expanded * log(flat)
+  cells[expanded == 0] <- 0
+  term <- rowSums(cells)
   array(
     rep(logCoef, each = n.draws) + term,
     d[-length(d)],

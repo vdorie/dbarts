@@ -1679,7 +1679,8 @@ dbartsSampler <- setRefClass(
         if (model@family == "auto") "" else model@family
       )
       # after the call, so a refused creation never spends the warning's key;
-      # the re-creation paths (getPointer, setState) do not come through here
+      # re-creation from state (getPointer, setState) does not come through
+      # here, and copy holds it off
       warnZeroTrials(dataCounts(data))
       # materialized lazily on first access (forcing it before saveRDS
       # captures the sampler), or eagerly by storeState / updateState runs.
@@ -1800,7 +1801,8 @@ dbartsSampler <- setRefClass(
     },
     copy = function(shallow = FALSE) {
       "Creates a deep or shallow copy of the sampler."
-      dupe <-
+      # a copy introduces no rows, so it does not raise the creation warning
+      dupe <- withoutZeroTrialsWarning(
         if (shallow) {
           dbartsSampler$new(control, model, data)
         } else {
@@ -1813,6 +1815,7 @@ dbartsSampler <- setRefClass(
           }
           dbartsSampler$new(control, model, newData)
         }
+      )
 
       # the stored state is opaque and never mutated in place (storeState
       # replaces it whole), so the copy can install the same object

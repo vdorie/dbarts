@@ -278,6 +278,76 @@ resetZeroTrialsKey()
 swapped <- countZeroTrialsWarnings(sampler$setCounts(allZero))
 expect_identical(swapped$numWarnings, 1L)
 expect_true(isSimplex(sampler$run(0L, 10L)$train))
+# plot has no observed panel to draw and says so, without warning
+fitAllZero <- suppressWarnings(
+  bart(
+    x,
+    allZero,
+    family = "multinomial",
+    n.chains = 1L,
+    n.trees = 20L,
+    n.samples = 10L,
+    n.burn = 10L,
+    verbose = FALSE
+  ),
+  classes = "dbartsZeroTrialsWarning"
+)
+plotWarnings <- 0L
+pdf(NULL)
+withCallingHandlers(
+  plot(fitAllZero),
+  warning = function(w) {
+    plotWarnings <<- plotWarnings + 1L
+    invokeRestart("muffleWarning")
+  }
+)
+dev.off()
+expect_identical(plotWarnings, 0L)
+
+# --- loglik where a probability underflows to 0 -----------------------------
+# a zero-count cell contributes 0, as in dmultinom, so the empty rows are
+# exactly 0 and the data rows are dmultinom's value, never 0 * log(0) = NaN
+countsNoFirst <- countsEmpty
+countsNoFirst[, 2L] <- countsNoFirst[, 2L] + countsNoFirst[, 1L]
+countsNoFirst[, 1L] <- 0L
+extremeOffset <- matrix(0, n + numEmpty, K)
+extremeOffset[, 1L] <- -1000
+fitExtreme <- suppressWarnings(
+  bart(
+    xAll,
+    countsNoFirst,
+    family = "multinomial",
+    offset = extremeOffset,
+    n.chains = 1L,
+    n.trees = 20L,
+    n.samples = 10L,
+    n.burn = 10L,
+    verbose = FALSE
+  ),
+  classes = "dbartsZeroTrialsWarning"
+)
+extremeProbs <- extract(fitExtreme, type = "ev")
+extremeLoglik <- extract(fitExtreme, type = "loglik")
+expect_true(all(extremeProbs[,, 1L] == 0))
+expect_true(all(extremeLoglik[, emptyRows] == 0))
+expect_true(all(is.finite(extremeLoglik[, dataRows])))
+expect_equal(
+  unname(extremeLoglik[, dataRows]),
+  t(vapply(
+    seq_len(dim(extremeProbs)[1L]),
+    function(s) {
+      vapply(
+        dataRows,
+        function(i) {
+          dmultinom(countsNoFirst[i, ], prob = extremeProbs[s, i, ], log = TRUE)
+        },
+        0
+      )
+    },
+    numeric(n)
+  )),
+  tolerance = 1e-12
+)
 
 # --- re-creation keeps the rows inert and does not warn -------------------
 # a re-created sampler is compared with a re-created one: re-creation is not
@@ -298,8 +368,14 @@ buildState <- function(cs, seed, mask = NULL) {
 }
 empty <- buildState(countsEmpty, 18L)
 masked <- buildState(countsFilled, 18L, maskEmpty)
-copies <- countZeroTrialsWarnings(list(empty$copy(), masked$copy()))
+# a copy is not a creation: silent even with the key unspent, and it leaves
+# the key unspent
+resetZeroTrialsKey()
+copies <- countZeroTrialsWarnings(
+  list(empty$copy(), masked$copy(), empty$copy(shallow = TRUE))
+)
 expect_identical(copies$numWarnings, 0L)
+expect_null(dbarts:::onceWarnState[[zeroTrialsKey]])
 set.seed(19L)
 emptyCopyRun <- copies$value[[1L]]$run(0L, 10L)
 set.seed(19L)
@@ -321,6 +397,7 @@ restored <- countZeroTrialsWarnings({
   emptyRestoredRun <- emptyRestored$run(0L, 10L)
   set.seed(20L)
   maskedRestoredRun <- maskedRestored$run(0L, 10L)
+  emptyRestored$copy()
   NULL
 })
 expect_identical(restored$numWarnings, 0L)

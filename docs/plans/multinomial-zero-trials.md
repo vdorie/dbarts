@@ -183,7 +183,7 @@ put to VD before the slice starts.
    [`validateMultinomialCounts`](../../R/data.R). Add one helper that, given a count matrix with an empty row,
    calls `warnOnce("multinomialZeroTrials", warningCondition(<call 5>, class = c("dbartsZeroTrialsWarning",
    "dbartsWarning")))`, and call it at the two sites of call 3, after the `.Call` returns. [`residuals.bartMultinomial`](../../R/generics.R):
-   NA at rows with zero trials. [`plot.bartMultinomial`](../../R/plot.R): the second panel over rows with
+   -p at rows with zero trials (call 6). [`plot.bartMultinomial`](../../R/plot.R): the second panel over rows with
    trials only, in both branches. Rewrite the `$setCounts` docstring.
 4. Tests, tinytest: a new `inst/tinytest/test-multinomial-zero-trials.R`, resetting the key first
    (`env <- dbarts:::onceWarnState; env[["multinomialZeroTrials"]] <- NULL`) and counting warnings with
@@ -201,7 +201,7 @@ put to VD before the slice starts.
    - mid-run: `$setCounts` emptying rows equals `$setActiveRows` on those rows over the next run; restoring the
      counts equals clearing the mask, to 1e-10 (drop to the phase that is bitwise if the restored phase is not);
      a mask installed over empty rows and then cleared leaves them out;
-   - readers on a `bart()` fit with empty rows: `fitted` a finite simplex there, `residuals` NA rows,
+   - readers on a `bart()` fit with empty rows: `fitted` a finite simplex there, `residuals` -p rows,
      `extract(type = "loglik")` 0 there and finite elsewhere, ppd codes in 1..K, `summary` and `plot` run
      without warning;
    - all-zero counts: warns, runs, finite simplex, at creation and through `$setCounts`;
@@ -220,7 +220,7 @@ put to VD before the slice starts.
    coupling) and its test list; [Which weights the predicate sees](../design/empty-leaf-veto.md#which-weights-the-predicate-sees);
    the class row in the R15 inventory of [error-style.md](../design/error-style.md).
    Rd: `dbartsData`'s `counts`, `dbarts`'s multinomial item, `bart`'s count-matrix text (n_i >= 0, the class
-   sentence, residuals NA, loglik 0 and dropping those columns before loo), `dbartsSampler`'s `setCounts`. NEWS
+   sentence, residuals -p, loglik 0 and dropping those columns before loo), `dbartsSampler`'s `setCounts`. NEWS
    per call 10.
 7. Landing: this plan's Landing note, its INDEX row's status, the TODO item removed. (The INDEX row itself must
    ride the commit that adds this plan, or doc-freshness fails.)
