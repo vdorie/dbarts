@@ -1,7 +1,8 @@
 # leaf-prior-k-or-sd: name the leaf prior by k or by sd
 
-Status: PLANNED 2026-09-29. The four maintainer questions are ruled (see Open maintainer questions); each
-step below says what it does under either answer.
+Status: IMPLEMENTED 2026-09-29 on wt/lp (240aba99, 68ae56f9, f6ae965d, 6758473a, 7d01e758), pending
+landing; see Landing. The four maintainer questions are ruled (see Open maintainer questions), and the
+writer was restated by a later ruling (see Landing).
 
 agent: sonnet (R surface, bridge strings, manual; no engine change)
 rng: neutral (every spelling that survives draws as today; each removed spelling's replacement reaches
@@ -489,3 +490,46 @@ are not calls; they are listed above for the maintainer.
 This plan's Landing note, design/nameable-calibration.md's Status line, design/prior-defaults.md's
 section, and the INDEX rows. The TODO entry, if the orchestrator opens one, closes with the records
 commit.
+
+## Landing
+
+dbarts, five commits on wt/lp: the package change (240aba99), the benchmarks
+(68ae56f9), the standing docs and the TODO entry (f6ae965d), the leaf-scale
+writer's arithmetic (6758473a), and the review follow-ups (7d01e758). stan4bart
+and bartCause: no change.
+
+Verification: tinytest 10541/10541 on the shipped build; `tests/cpp` all
+green; the lint chain clean; `inst/NEWS.Rd` parses with 332 entries,
+unchanged; the 25-gate `exact-gates.yaml` battery in `quick` mode all PASS.
+On the reference build: the four seeded-drift snapshot files pass unchanged,
+and the three bitwise equivalence compares pass (53 of 53 scenarios
+identical, no |z| line; bcf and multinomial every channel identical). Step
+9's replay, 26 rows: 23 draw bitwise-identical train and k values, and the
+three the table predicts differ (a chi scale other than 2 and chi(nu, Inf)
+beside a named scale start the chain at another spread; the old write under
+chi(nu, Inf) moved draws). The writer fix moved no draw on any of these.
+stan4bart 491/491 and bartCause 1055/1055 against the new library.
+`R CMD check --as-cran`: one ERROR, not this slice's (an `xbart` call
+without `n.threads` in test-auto-family.R trips CRAN's core limit), and the
+Date-field NOTE.
+
+Departures from the plan:
+
+- The writer follows the later ruling: `$setLeafPrior(leaf.prior)` takes the
+  creation vocabulary, has no forest argument, and replaces
+  `prior.sd`/`prior.sd.scale`/`prior.mean`. A new anchor under the law in
+  force goes through the engine's leaf-scale writer; a new law goes through
+  the model install, with a fixed sigma put back. The engine's writer now
+  derives its internal scale with creation's arithmetic, so writing a named
+  sd back is bitwise inert (an approved correctness fix; draw-neutral).
+- The reader's label of what `prior.sd` refers to is the attribute
+  `prior.sd.of`, not a column, while the reader's shape is with the
+  maintainer. The reader has 14 columns.
+- A fit named by an sd hyperprior carries `sd`/`first.sd` in place of
+  `k`/`first.k`, read by `extract(type = "sd")`.
+- `xbart` refuses a `k` inside `leaf.prior` beside an `sd` grid, as it
+  refuses an `sd` there beside either grid.
+- The unnamed-default rows of the mapping reach the engine with different
+  inputs (no anchor against a named one), with identical draws; the k = 3
+  rows are bitwise identical rather than a rounding apart.
+
