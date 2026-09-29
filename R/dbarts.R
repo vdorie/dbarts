@@ -2221,10 +2221,10 @@ dbartsSampler <- setRefClass(
       if (length(weights) != length(data@y)) {
         stop("'weights' must have the same length as 'y'")
       }
-      # NA/NaN and negative share one refusal, matching the bridge's
-      # !(w >= 0.0) (is.na() is checked explicitly since NA_real_ >= 0.0
-      # is itself NA in R, not FALSE)
-      if (any(is.na(weights) | weights < 0.0)) {
+      if (anyNA(weights)) {
+        stop("'weights' cannot be NA")
+      }
+      if (any(weights < 0.0)) {
         stop("'weights' must all be non-negative")
       }
       # the latent families that carry no weight at all but do carry the mask:

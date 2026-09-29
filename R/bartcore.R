@@ -499,6 +499,9 @@ bartcoreSamplerSetResponse <- function(
   }
   if (!is.null(status)) {
     status <- as.double(status)
+    if (anyNA(status)) {
+      stop("survival status cannot be NA")
+    }
   }
   if (isTRUE(updateScale)) {
     refuseAmplitudeMutation(

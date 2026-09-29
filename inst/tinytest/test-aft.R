@@ -496,7 +496,7 @@ bad.value[3L] <- 2
 expect_error(s.set$setResponse(s.set$data@y, status = bad.value), "0 .*1")
 bad.na <- status.set
 bad.na[3L] <- NA_real_
-expect_error(s.set$setResponse(s.set$data@y, status = bad.na), "0 .*1")
+expect_error(s.set$setResponse(s.set$data@y, status = bad.na), "cannot be NA")
 # a refusal installs nothing: the response and the mirror are the ones in force
 expect_equal(attr(s.set$control, "bartcore.survival"), all.events)
 expect_equal(s.set$getLatents(), s.set$data@y)
