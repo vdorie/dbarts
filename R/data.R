@@ -795,15 +795,57 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
     if (any(isFactorCol)) {
       testFactorLevels <- lapply(x.test[isFactorCol], levels)
     }
-    if (any(vapply(x.test, isSparseDataFrameColumn, FALSE))) {
+    isSparseColumn <- vapply(x.test, isSparseDataFrameColumn, FALSE)
+    # the term replay: names an absent variable up front and runs
+    # model.frame over the given term labels
+    replayTerms <- function(data, labels) {
+      testFormula <- as.formula(paste("~", paste(labels, collapse = " + ")))
+      # model.frame resolves an absent term in the enclosing scope, so a
+      # predictor missing from newdata that shares a name with a base object
+      # (e.g. 'c') silently binds to it and fails with an opaque
+      # "invalid type (builtin)"; name the missing variables up front instead
+      neededVars <- all.vars(testFormula)
+      missingVars <- neededVars[neededVars %not_in% names(data)]
+      if (length(missingVars) > 0L) {
+        stop(
+          "'test' data is missing ",
+          if (length(missingVars) > 1L) "variables" else "variable",
+          " required by the model: '",
+          toString(missingVars),
+          "'"
+        )
+      }
+      model.frame(
+        formula = testFormula,
+        data = data,
+        na.action = stats::na.pass
+      )
+    }
+    if (any(isSparseColumn)) {
       # sparse columns ride to the engine unexpanded, coded over the training
-      # level table; the resulting container is preserved below (the model
-      # frame replay takes no S4 columns, so it is skipped here)
+      # level table; the resulting container is preserved below. The model
+      # frame replay takes no S4 columns, so they are lifted out, the dense
+      # remainder replayed, and the columns the model uses re-attached.
       if (is.null(factorLevels)) {
         stop(
           "sparse test predictor columns require a categorical training ",
           "design; supply 'x' through the x/y interface"
         )
+      }
+      if (!is.null(termLabels)) {
+        bareLabels <- sub("^`(.*)`$", "\\1", termLabels)
+        sparseNames <- intersect(bareLabels, names(x.test)[isSparseColumn])
+        denseLabels <- termLabels[bareLabels %not_in% sparseNames]
+        sparseColumns <- x.test[sparseNames]
+        dense <- x.test[!isSparseColumn]
+        if (length(denseLabels) > 0L) {
+          x.test <- replayTerms(dense, denseLabels)
+          for (name in sparseNames) {
+            x.test[[name]] <- sparseColumns[[name]]
+          }
+        } else {
+          x.test <- sparseColumns
+        }
       }
       x.test <- mapFactorColumnsToTrainingLevels(
         x.test,
@@ -813,28 +855,7 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
       x.test <- makeCategoricalModelMatrix(x.test)
     } else {
       if (!is.null(termLabels)) {
-        testFormula <-
-          as.formula(paste("~", paste(termLabels, collapse = " + ")))
-        # model.frame resolves an absent term in the enclosing scope, so a
-        # predictor missing from newdata that shares a name with a base object
-        # (e.g. 'c') silently binds to it and fails with an opaque
-        # "invalid type (builtin)"; name the missing variables up front instead
-        neededVars <- all.vars(testFormula)
-        missingVars <- neededVars[neededVars %not_in% names(x.test)]
-        if (length(missingVars) > 0L) {
-          stop(
-            "'test' data is missing ",
-            if (length(missingVars) > 1L) "variables" else "variable",
-            " required by the model: '",
-            toString(missingVars),
-            "'"
-          )
-        }
-        x.test <- model.frame(
-          formula = testFormula,
-          data = x.test,
-          na.action = stats::na.pass
-        )
+        x.test <- replayTerms(x.test, termLabels)
       }
       if (!is.null(factorLevels)) {
         # trained with factors unexpanded: code against the training levels

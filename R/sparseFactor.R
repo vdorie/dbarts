@@ -139,3 +139,61 @@ methods::setMethod("show", "sparseFactor", function(object) {
 # data.frame insertion sizes columns through NROW/length, so the class
 # needs its observation count here to ride in a frame at all
 methods::setMethod("length", "sparseFactor", function(x) x@length)
+
+# The level label of every position, as a character vector.
+methods::setMethod("as.character", "sparseFactor", function(x, ...) {
+  labels <- rep.int(x@reference, x@length)
+  labels[x@i + 1L] <- x@levels[x@values]
+  labels
+})
+
+# format is what print, head and str of a data frame call per column.
+format.sparseFactor <- function(x, ...) {
+  format(as.character(x), ...)
+}
+
+# Row subset by position as for a factor: positive, negative, zero, logical
+# (recycled) and repeated indices, over the same levels and reference, mapping
+# the stored positions rather than densifying. An index that reaches outside
+# the vector would be a missing value, which a sparseFactor cannot hold.
+methods::setMethod("[", "sparseFactor", function(x, i, j, ..., drop = FALSE) {
+  if (!missing(j) || ...length() > 0L) {
+    stop("incorrect number of dimensions")
+  }
+  if (missing(i)) {
+    return(x)
+  }
+  if (is.character(i) || !is.null(dim(i)) || is.factor(i)) {
+    stop("a sparseFactor can be indexed by position only")
+  }
+  positions <- seq_len(x@length)[i]
+  if (anyNA(positions)) {
+    stop("missing values are not supported in a sparseFactor")
+  }
+  subsetSparseFactorRows(x, positions)
+})
+
+# data.frame(sf = x) and as.data.frame(x) need this to take the column in.
+as.data.frame.sparseFactor <- function(
+  x,
+  row.names = NULL,
+  optional = FALSE,
+  ...,
+  nm = deparse1(substitute(x))
+) {
+  force(nm)
+  n <- length(x)
+  if (
+    !(is.null(row.names) || (is.character(row.names) && length(row.names) == n))
+  ) {
+    row.names <- NULL
+  }
+  if (is.null(row.names)) {
+    row.names <- if (n > 0L) .set_row_names(n) else character()
+  }
+  value <- list(x)
+  if (!optional) {
+    names(value) <- nm
+  }
+  structure(value, row.names = row.names, class = "data.frame")
+}

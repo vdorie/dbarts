@@ -72,13 +72,10 @@ pullOutSparseFormulaColumns <- function(data) {
   list(denseData = data[!isSparse], sparseColumns = as.list(data[isSparse]))
 }
 
-## Row-subsets one pulled-out sparseFactor column by 1-based positions
-## 'pos' into its CURRENT rows - sparseVector and dgCMatrix already have a
-## '[' method (Matrix's own), but sparseFactor (R/sparseFactor.R) defines
-## none, so a fresh one is built here the same way
-## remapSparseFactorToTrainingLevels (R/utility.R) already builds one:
-## re-derive i/values/length for the subsetted object rather than
-## materialize a dense intermediate.
+## Row-subsets one sparseFactor column by 1-based positions 'pos' into its
+## CURRENT rows (repeats allowed; the '[' method's worker), re-deriving
+## i/values/length for the subsetted object rather than materializing a
+## dense intermediate.
 subsetSparseFactorRows <- function(column, pos) {
   storedRows <- column@i + 1L
   matchIndex <- match(pos, storedRows)

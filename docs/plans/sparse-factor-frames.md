@@ -4,7 +4,7 @@ agent: sonnet
 rng: neutral (no draw moves; only which rows and columns reach the engine)
 budget: ~250 lines (R ~110, tests ~120, man and NEWS ~20)
 
-Status: PLANNED 2026-09-28
+Status: LANDED-pending 2026-09-28
 
 ## Goal
 
@@ -69,3 +69,31 @@ Full tinytest; lint gates per CLAUDE.local.md; R CMD check --as-cran
 ## Agent-made calls
 
 Character indexing of a `sparseFactor` is refused (no names are stored).
+
+## Landing note
+
+Landed: validateXTest's sparse branch lifts the sparse columns out, replays
+the model terms on the dense remainder through the same replay and
+missing-variable message as the dense branch, re-attaches the sparse columns
+the model uses by name and drops the rest; predict, `test =` at fit time,
+getTrees(newdata = ) and survivalProbabilities(newdata = ) share it.
+`sparseFactor` gained `[` (positive, negative, zero, logical, repeated
+indices; character, matrix and out-of-range refused), `as.character`,
+`format` and `as.data.frame`, so `data.frame(sf = x)`, head, row subsets,
+print and str work. Row subsetting reuses the existing stored-position
+mapping, so nothing densifies.
+
+Step 3: a `Matrix::sparseVector` column subsets through Matrix's own method
+but prints as a placeholder with a "corrupt data frame" warning, because
+Matrix supplies no format method; documented in man/sparseFactor.Rd rather
+than registering a method on Matrix's class.
+
+Beyond the plan: `as.data.frame.sparseFactor` (base R's factor has one, and
+data.frame(sf = x) failed without it). A frame's row names survive a subset
+as base R's do, so a subset fit's yhat.train carries the original row names.
+
+Gates (macOS arm64, private library): tinytest 9431 pass, 0 fail; lintr zero
+lints; air format --check clean; check-rc-codoc, check-win-drift,
+check-doc-freshness OK; R CMD check --as-cran --no-manual on the built
+tarball: Status 1 NOTE (the Date field is over a month old, not new).
+Size: R 129 lines added, tests 83, man/NEWS 16 (about 230 total).
