@@ -1501,6 +1501,16 @@ gp <- function(
 ## the unnamed spelling, and NaN carries no intent and cannot serve as a
 ## divisor, so both are refused here rather than surviving to the bridge's own
 ## last-line check. The result is NA_real_ for unnamed.
+## A specification built outside the constructors, such as one read back from
+## $getLeafPrior, is held to their rules.
+refuseInvalidLeafPrior <- function(leaf.prior) {
+  valid <- methods::validObject(leaf.prior, test = TRUE)
+  if (!isTRUE(valid)) {
+    stop(valid, call. = FALSE)
+  }
+  invisible(NULL)
+}
+
 validateNamedScale <- function(value, name) {
   if (is.null(value)) {
     return(NA_real_)
@@ -1570,6 +1580,7 @@ resolveLeafPrior <- function(
   monotone = FALSE,
   multiForest = FALSE
 ) {
+  refuseInvalidLeafPrior(leaf.prior)
   sd <- leaf.prior@prior.sd
   if (is.null(sd)) {
     return(list(

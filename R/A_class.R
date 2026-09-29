@@ -141,6 +141,22 @@ methods::setValidity("dbartsSdHyperprior", function(object) {
 
 
 methods::setClass("dbartsLeafPrior")
+# an NA spread states no prior; $getLeafPrior reports one where the chains
+# disagree, and it must not write back as the unnamed spelling
+methods::setValidity("dbartsLeafPrior", function(object) {
+  for (name in c("k", "prior.sd")) {
+    value <- methods::slot(object, name)
+    if (is.numeric(value) && anyNA(value)) {
+      return(paste0(
+        "the leaf prior's '",
+        if (name == "k") "k" else "sd",
+        "' is NA, a missing value: $getLeafPrior() reports NA where the ",
+        "chains disagree on it; name a value"
+      ))
+    }
+  }
+  TRUE
+})
 # k and prior.sd hold the raw user specification: k is a positive scalar, a
 # dbartsLeafHyperprior, or NULL for the family-dependent default; prior.sd is
 # NULL (unnamed), a positive scalar, or a dbartsSdHyperprior. At most one is

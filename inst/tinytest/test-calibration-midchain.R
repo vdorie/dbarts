@@ -176,6 +176,27 @@ binaryRead <- binaryB$getLeafPrior()
 expect_identical(binaryRead$leaf.prior, priorOf(normal(k = chi(1.5, 2))))
 binaryB$setLeafPrior(normal(sd = invchi(1.5, binaryRead$anchor / 2)))
 expect_identical(binaryA$run(20L, 10L)$train, binaryB$run(20L, 10L)$train)
+# and the reader's own output written back, for a drawn k and for each
+# spelling of an sd law, which reads its scale off the anchor in force
+roundTrip <- function(leafPrior) {
+  twins <- lapply(1:2, function(i) {
+    eval(bquote(dbarts(
+      x,
+      yBinary,
+      control = midControl(),
+      leaf.prior = .(leafPrior)
+    )))
+  })
+  twins[[2L]]$setLeafPrior(twins[[2L]]$getLeafPrior()$leaf.prior)
+  expect_identical(
+    twins[[1L]]$run(20L, 10L)$train,
+    twins[[2L]]$run(20L, 10L)$train,
+    info = deparse(leafPrior)
+  )
+}
+roundTrip(quote(normal(k = chi(1.25, 3))))
+roundTrip(quote(normal(sd = invchi(2, 0.3))))
+roundTrip(quote(normal(sd = invchi(2, 0))))
 # the improper limit reads a zero scale and writes back as nothing at all
 improperA <- dbarts(
   x,
@@ -292,6 +313,29 @@ divergedScale$setState(scaleState)
 expect_identical(divergedScale$getLeafPrior()$anchor, NA_real_)
 expect_identical(divergedScale$getLeafPrior()$leaf.prior@prior.sd, NA_real_)
 expect_identical(divergedScale$getK(), c(2, 2))
+# an NA spread is not writable: the reader's NA is not the unnamed spelling
+naSd <- divergedScale$getLeafPrior()$leaf.prior
+expect_error(divergedScale$setLeafPrior(naSd), "'sd' is NA.*chains disagree")
+expect_true(is.na(priorSdOf(divergedScale)[[1L]]))
+naModel <- divergedScale$model
+naModel@leaf.prior <- naSd
+expect_error(divergedScale$setModel(naModel), "'sd' is NA.*name a value")
+expect_error(
+  dbarts(x, y, control = midControl(), leaf.prior = naSd),
+  "'sd' is NA"
+)
+expect_error(new("dbartsNormalPrior", prior.sd = NA_real_), "'sd' is NA")
+# and a fixed k the chains disagree on reads NA and is refused the same way
+divergedK <- dbarts(x, y, control = midControl())
+divergedK$storeState()
+kState <- divergedK$state
+kState[[2L]]$forests[[1L]]$k <- 3
+divergedK$setState(kState)
+expect_identical(divergedK$getK(), c(2, 3))
+naK <- divergedK$getLeafPrior()$leaf.prior
+expect_identical(naK@k, NA_real_)
+expect_error(divergedK$setLeafPrior(naK), "'k' is NA.*chains disagree")
+expect_identical(divergedK$getK(), c(2, 3))
 divergedScale$setLeafPrior(normal(sd = 0.75))
 expect_true(max(abs(priorSdOf(divergedScale) / 0.75 - 1)) < 1e-14)
 

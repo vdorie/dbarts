@@ -2319,6 +2319,7 @@ dbartsSampler <- setRefClass(
       if (!inherits(newModel, "dbartsModel")) {
         stop("'model' must inherit from dbartsModel")
       }
+      refuseInvalidLeafPrior(newModel@leaf.prior)
       refuseAmplitudeMutation(
         .self,
         "setModel",
@@ -2981,7 +2982,7 @@ dbartsSampler <- setRefClass(
       counts
     },
     getLeafPrior = function(forest = NULL) {
-      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() law) or sd (a number or an invchi() law), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('leaf value', 'coefficient' or 'amplitude'); prior.mean; anchor, the value k is relative to, so the spread in force on each chain is anchor / getK(); response.scale and response.shift. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1, leaf.prior is normal(sd = ) at the map's leaf scale, and the list adds basis.row.norm, leaf.scale.factor and leaf.scale.divisor (NA after a state install brings a calibration the map did not derive, until setForestBasis re-imposes it), and one of amplitude.prior.variance or amplitude.prior.scale; they are absent elsewhere. Every value is shared by the chains; one they disagree on, which only a setState of chains saved from different samplers makes, is NA. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns an unnamed list of one prior per forest; a single-forest sampler's NULL read is its forest 1 read."
+      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() law) or sd (a number or an invchi() law), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('leaf value', 'coefficient' or 'amplitude'); prior.mean; anchor, the value k is relative to, so the spread in force on each chain is anchor / getK() - the data's anchor under a k-named prior and under sd = invchi(df, 0), and otherwise, under an sd-named prior, twice the sd or invchi() scale in force; response.scale and response.shift. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1, leaf.prior is normal(sd = ) at the map's leaf scale, and the list adds basis.row.norm, leaf.scale.factor and leaf.scale.divisor (NA after a state install brings a calibration the map did not derive, until setForestBasis re-imposes it), and one of amplitude.prior.variance or amplitude.prior.scale; they are absent elsewhere. Every value is shared by the chains; one they disagree on, which only a setState of chains saved from different samplers makes, is NA, and an NA spread is refused on write. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns an unnamed list of one prior per forest; a single-forest sampler's NULL read is bitwise its forest 1 read."
       ptr <- getPointer()
       read <- function(index) {
         reportLeafPrior(
@@ -2999,7 +3000,7 @@ dbartsSampler <- setRefClass(
       lapply(seq_len(numForests) - 1L, read)
     },
     getK = function(forest = NULL) {
-      "Returns each chain's current leaf-prior k, the value run()$k records per draw, read without running, as getSigmas reports sigma; after a run it is bitwise the last draw. A fixed k repeats per chain, and a forest whose scale a multi-forest calibration map sets reports 1. It is k whatever terms the prior was named in, relative to getLeafPrior()$anchor. A vector of length n.chains at one forest, or, at the default forest = NULL on a multi-forest sampler, an n.forests x n.chains matrix; a single-forest sampler's NULL read is its forest 1 read."
+      "Returns each chain's current leaf-prior k, the value run()$k records per draw, read without running, as getSigmas reports sigma; after a run it is bitwise the last draw. A fixed k repeats per chain, and a forest whose scale a multi-forest calibration map sets reports 1. It is k whatever terms the prior was named in, relative to getLeafPrior()$anchor. A vector of length n.chains at one forest, or, at the default forest = NULL on a multi-forest sampler, an n.forests x n.chains matrix; a single-forest sampler's NULL read is bitwise its forest 1 read."
       ptr <- getPointer()
       read <- function(index) {
         .Call(C_dbarts_bartcore_getLeafPrior, ptr, index)[, "k"]

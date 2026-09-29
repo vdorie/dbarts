@@ -27,9 +27,11 @@ One forest's prior is a named list:
 - `leaf.model` and `prior.sd.of`: the former attributes, as elements.
 - `prior.mean`, `anchor`, `response.scale`, `response.shift`. `anchor` is the
   one k is relative to, so the spread in force on each chain is
-  `anchor / $getK()`: the data's anchor under a k-named prior, twice the named
-  sd or `invchi()` scale under an sd-named one (the reference k of 2), the
-  map's leaf scale on a map forest.
+  `anchor / $getK()`: the data's anchor under a k-named prior and under
+  `sd = invchi(df, 0)`; otherwise, under an sd-named prior, twice the sd or
+  `invchi()` scale in force (the reference k of 2), not the data's anchor,
+  which the list does not carry (an accepted cost); the map's leaf scale on a
+  map forest.
 - On a forest whose scale a calibration map sets, and absent (so `NULL`)
   elsewhere: `basis.row.norm`, `leaf.scale.factor` and `leaf.scale.divisor`
   (`NA` after a state install brings a calibration the map did not derive),
@@ -40,7 +42,8 @@ These are sampler-level: every chain carries the same values, except that
 own response transform, leaf scale and k (measured: a two-chain sampler whose
 second chain came from a sampler fit to 10y + 3 reports two response scales).
 A quantity the chains disagree on reads `NA`, the sampler holding no single
-value.
+value. An `NA` spread in `leaf.prior` is refused on write by the class
+validity, `$setLeafPrior`, `$setModel` and the fitting functions.
 
 At `forest = NULL` a multi-forest sampler returns an unnamed list, one prior
 per forest; a single-forest sampler's `NULL` read is its forest-1 read.

@@ -4408,12 +4408,11 @@ static const char* leafModelName(bartcore::LeafModelKind kind) {
   return "constant";
 }
 
-// One forest's leaf-prior calibration in RESPONSE units, one ROW per chain -
-// the chains carry their own transforms and their own drawn k, so a flattened
-// summary would hide a divergence this surface exists to show. The leaf-model
-// tag rides as an attribute because it is a property of the sampler, not of a
-// chain, and it qualifies what the reported prior sd means: an equality for
-// the constant leaf, a stated bound for the other three.
+// One forest's leaf-prior calibration in RESPONSE units, one ROW per chain:
+// the chains carry their own transforms and their own drawn k. The R reader
+// takes k per chain and reports each other quantity once, NA where the chains
+// disagree. The leaf-model tag rides as an attribute because it is a property
+// of the sampler, not of a chain.
 SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
