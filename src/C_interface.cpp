@@ -60,8 +60,9 @@ inline const bartcore::SamplerBase& samplerOf(const dbarts_sampler* sampler) {
 
 // A caller's predictor source, validated and translated: the engine's borrowed
 // view, plus the STORE's column types indexed by the VIEW's own columns, which
-// is what the CSC implicit-value rule and the reference refusal both key on (a
-// subset mutation names its own columns, so the two indexings differ).
+// is what the CSC implicit-value rule and the reference refusal both key on
+// (a view that names store columns of its own would index the two
+// differently; the flat surface has no such entry).
 struct TranslatedSource {
   bartcore::PredictorSource view;
   const bartcore::ColumnKind* storeTypes;
@@ -229,8 +230,7 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
   // every rule an uncoded one has, the sparse leaf-covariate refusal
   // included. The channel rides the view from here: every consumer reads a
   // view a column at a time - the replay, the refusal sweeps, the test-store
-  // build - so the codes stay where they lie, and the one entrance that
-  // indexes the dense raw as a block, mutation, materializes it instead.
+  // build - so the codes stay where they lie.
   if (anyCodedDense) {
     std::int32_t* channels = reinterpret_cast<std::int32_t*>(
       R_alloc(numColumns > 0 ? numColumns : 1, sizeof(std::int32_t)));

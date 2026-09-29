@@ -250,16 +250,16 @@ struct ParsedTestContainer {
   bartcore::PredictorSource view;
 };
 
-// A sparse mutation argument's parsed storage: the borrowed view, the buffers
-// it points into, the store types of the columns it names, and the dense block
-// the engine's re-quantize reads. Held by value in the entrance's
-// unwindProtect frame, so the validation jump frees it.
+// A sparse mutation argument's parsed storage: the borrowed view the engine
+// reads column by column, the buffers it points into, and the store types of
+// the columns it names. Its sparse columns stay the argument's own slots,
+// never expanded; its dense columns are copied as doubles. Held by value in
+// the entrance's unwindProtect frame, so the validation jump frees it.
 struct ParsedMutationSource {
   std::vector<double> denseAssembly;
   std::vector<std::int32_t> columnSources;
   std::vector<bartcore::xint_t> referenceCodes;
   std::vector<bartcore::ColumnKind> storeTypes;
-  std::vector<double> block;
   // the argument's per-sparse-column reference metadata, borrowed from the
   // container; NULL for a bare dgCMatrix, whose implicit rows are the zero its
   // own storage means
@@ -698,8 +698,7 @@ void mapColumnSources(std::vector<std::int32_t>& out, const int* map,
 // each predictor's slice within the channel that holds it, so no factor cell
 // is widened to a double and narrowed straight back. Both store builds ask,
 // reading the result a column at a time; the MUTATION entrances take the
-// single block instead, since every mutation kernel indexes the dense values
-// column-major. The split layout packs both channels per PREDICTOR, which is
+// single double block, which the view's identity channel addresses. The split layout packs both channels per PREDICTOR, which is
 // what a view is indexed by, so \p denseChannels must be published whenever
 // it is taken; a map naming one dense column twice then gives it a slot per
 // predictor.
@@ -1023,12 +1022,13 @@ bool parseMutationSource(ParsedMutationSource& out, SEXP xExpr, size_t numRows,
   return true;
 }
 
-// Materialize a parsed mutation argument into the dense block the engine's
-// re-quantize takes, under the STORE's implicit rule: \p storeTypes gives the
-// store's type of each column the argument names. A declared reference against
-// a non-categorical store column is refused before anything is read.
-const double* materializeMutationSource(
-    ParsedMutationSource& parsed, const bartcore::ColumnKind* storeTypes) {
+// Ready a parsed mutation argument for the engine under the STORE's implicit
+// rule: \p storeTypes gives the store's type of each column the argument
+// names. A declared reference against a non-categorical store column is
+// refused before anything is read; a categorical column's reference is
+// resolved into the view, per argument column.
+void prepareMutationSource(ParsedMutationSource& parsed,
+                           const bartcore::ColumnKind* storeTypes) {
   size_t numColumns = parsed.view.numColumns;
   refuseCscReferenceAgainstStore(storeTypes, parsed.columnSources.data(),
                                  numColumns, parsed.referenceMeta,
@@ -1041,11 +1041,33 @@ const double* materializeMutationSource(
       mutationReferenceMessage);
     parsed.view.referenceCodes = parsed.referenceCodes.data();
   }
-  parsed.block.resize(parsed.view.numRows * numColumns);
-  bartcore::materializePredictorSource(parsed.view, storeTypes, 0,
-                                       parsed.view.numRows,
-                                       parsed.block.data());
-  return parsed.block.data();
+}
+
+// validateColumnValues over argument column k of a mutation view, filling
+// store column j, read in its own storage: a dense column whole, a CSC one as
+// its stored values and then, when any row is absent, the value those rows
+// read - the reference on a categorical column, so a reference past the
+// store's level count is refused with the categorical message before the
+// engine sees it. The messages and their order are the materialized column's.
+void validateSourceColumnValues(const bartcore::ColumnStore& store, size_t j,
+                                const bartcore::PredictorSource& view,
+                                size_t k) {
+  if (!store.isFactor(j)) return;
+  std::int32_t which = view.sourceOf(k);
+  if (which >= 0) {
+    // the mutation parse assembles every dense column as doubles
+    validateColumnValues(store, j, view.denseColumn(k).values, view.numRows);
+    return;
+  }
+  size_t column = static_cast<size_t>(~which);
+  int begin = view.cscColumnPointers[column];
+  size_t numStored =
+    static_cast<size_t>(view.cscColumnPointers[column + 1] - begin);
+  validateColumnValues(store, j, view.cscValues + begin, numStored);
+  if (numStored == view.numRows) return;
+  double implicitValue = store.splitsBySubset(j)
+    ? static_cast<double>(view.referenceCodeOf(k)) : 0.0;
+  validateColumnValues(store, j, &implicitValue, 1);
 }
 
 // Route a parsed test container to the engine's typed test store (against the
@@ -5534,8 +5556,8 @@ SEXP bartcore_getSumsOfSquaredResiduals(SEXP ptrExpr) {
 
 SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                            SEXP updateCutPointsExpr) {
-  // the materialized block is owned across validateColumnValues, whose refusal
-  // longjmps past its destructor
+  // the parsed buffers are owned across validateSourceColumnValues, whose
+  // refusal longjmps past their destructors
   return unwindProtect([&, parsed = ParsedMutationSource{}]() mutable -> SEXP {
     const char* shapeMessage =
       "$setPredictor requires a matrix with matching dimensions";
@@ -5545,29 +5567,28 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
     // the variance forest, so an unforced call vetoes or rolls back rather
     // than accepting a change one ensemble would misroute
     refuseMutationOnView(*holder.sampler, "$setPredictor");
-    const double* values;
+    bartcore::PredictorSource view;
     if (Rf_isReal(xExpr)) {
       SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
       if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
           static_cast<size_t>(INTEGER(dims)[0]) != shape.numObservations ||
           static_cast<size_t>(INTEGER(dims)[1]) != shape.numPredictors)
         Rf_error("%s", shapeMessage);
-      values = REAL(xExpr);
+      view = bartcore::densePredictorSource(
+        REAL(xExpr), shape.numObservations, shape.numPredictors);
     } else {
       if (!parseMutationSource(parsed, xExpr, shape.numObservations,
                                shape.numPredictors, shapeMessage))
         Rf_error("%s", shapeMessage);
-      values = materializeMutationSource(parsed,
-                                         holder.sampler->data().types.data());
+      prepareMutationSource(parsed, holder.sampler->data().types.data());
+      view = parsed.view;
     }
 
     for (size_t j = 0; j < shape.numPredictors; ++j)
-      validateColumnValues(holder.sampler->data(), j,
-                           values + j * shape.numObservations,
-                           shape.numObservations);
+      validateSourceColumnValues(holder.sampler->data(), j, view, j);
 
     bartcore::PredictorUpdateResult result = holder.sampler->setPredictor(
-      values, Rf_asLogical(forceUpdateExpr) == TRUE,
+      view, Rf_asLogical(forceUpdateExpr) == TRUE,
       Rf_asLogical(updateCutPointsExpr) == TRUE);
     if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
       Rf_error("number of induced cut points in new predictor less than "
@@ -5607,9 +5628,10 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
       columns[k] = static_cast<size_t>(column - 1);
     }
 
-    const double* values;
+    bartcore::PredictorSource view;
     if (Rf_isReal(xExpr)) {
-      values = REAL(xExpr);
+      view = bartcore::densePredictorSource(REAL(xExpr), numObservations,
+                                            numColumns);
     } else {
       if (!parseMutationSource(parsed, xExpr, numObservations, numColumns,
                                shapeMessage))
@@ -5618,15 +5640,15 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
       parsed.storeTypes.resize(numColumns);
       for (size_t k = 0; k < numColumns; ++k)
         parsed.storeTypes[k] = holder.sampler->data().types[columns[k]];
-      values = materializeMutationSource(parsed, parsed.storeTypes.data());
+      prepareMutationSource(parsed, parsed.storeTypes.data());
+      view = parsed.view;
     }
 
     for (size_t k = 0; k < numColumns; ++k)
-      validateColumnValues(holder.sampler->data(), columns[k],
-                           values + k * numObservations, numObservations);
+      validateSourceColumnValues(holder.sampler->data(), columns[k], view, k);
 
     bartcore::PredictorUpdateResult result = holder.sampler->updatePredictor(
-      values, columns.data(), numColumns,
+      view, columns.data(), numColumns,
       Rf_asLogical(forceUpdateExpr) == TRUE,
       Rf_asLogical(updateCutPointsExpr) == TRUE);
     if (result == bartcore::PredictorUpdateResult::invalidCutPoints)

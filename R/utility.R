@@ -763,6 +763,18 @@ predictorSourceIsSparse <- function(x) {
     (inherits(x, "dbartsMixedMatrix") && any(x$map < 0L))
 }
 
+## Any sparse Matrix class other than a dgCMatrix - triplet or row-compressed
+## storage, symmetric or triangular, logical or pattern values - as the
+## dgCMatrix the bridge ingests, at O(nnz); anything else, a sparseVector
+## included, is returned as is.
+asDgCMatrix <- function(x) {
+  if (inherits(x, "dgCMatrix") || !methods::is(x, "sparseMatrix")) {
+    return(x)
+  }
+  x <- methods::as(methods::as(x, "CsparseMatrix"), "generalMatrix")
+  methods::as(x, "dMatrix")
+}
+
 ## Whether predictor column 'column' (1-based) of a predictor source is
 ## CSC-backed - the columns whose values live in the sparse block rather than a
 ## dense vector, and so the ones whose mutation is whole-column only. Every

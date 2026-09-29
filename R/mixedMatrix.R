@@ -509,7 +509,8 @@ materializeSourceColumn <- function(column, numObservations) {
 ## The 0-based rows and values a source column contributes to a dgCMatrix
 ## column whose unstored rows read `implicit`: an entry is stored iff it is NA
 ## or differs from that value, the pattern rule the engine applies
-## (mutateCscColumnFromDense, src/bartcore/data.hpp). A sparse-stored column
+## (mutateCscColumnFromCsc and mutateCscColumnFromDense,
+## src/bartcore/data.hpp). A sparse-stored column
 ## that already reads the same implicit contributes its own entries, but must
 ## still be canonicalized - Matrix keeps explicit entries this rule drops, and
 ## leaving them would diverge the container's pattern from the store's.
@@ -536,7 +537,8 @@ sparseEntriesForColumn <- function(column, implicit, numObservations) {
 ## read (numeric zero for an ordinal column, the reference level's code for a
 ## categorical one), so the stored entries are the cells that differ from it,
 ## missing values included - the engine's own pattern rule
-## (mutateCscColumnFromDense, src/bartcore/data.hpp), mirrored.
+## (mutateCscColumnFromCsc and mutateCscColumnFromDense,
+## src/bartcore/data.hpp), mirrored.
 replaceSparseColumn <- function(sparse, rank, implicit, values) {
   entries <- sparseEntriesForColumn(values, implicit, nrow(sparse))
   newRows <- entries$i

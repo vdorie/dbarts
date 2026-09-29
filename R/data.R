@@ -912,6 +912,8 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   # densifying. A bare numeric sparse matrix carries no factor levels, so it
   # cannot supply a categorical training column's values - refuse informatively
   # rather than let the bridge reject a malformed container.
+  # any other sparse Matrix class takes the same path as its dgCMatrix
+  x.test <- asDgCMatrix(x.test)
   if (inherits(x.test, "dgCMatrix")) {
     if (!is.null(factorLevels)) {
       stop(

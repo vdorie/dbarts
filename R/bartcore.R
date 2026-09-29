@@ -295,6 +295,11 @@ bartcoreSamplerSetPredictor <- function(
 
   column <- resolveColumnIndex(sampler$data@x, column, "current X")
 
+  # a triplet, row-compressed, symmetric, triangular, logical or pattern
+  # sparse argument becomes the dgCMatrix the sparse path takes, rather than
+  # densifying below
+  x <- asDgCMatrix(x)
+
   ptr <- sampler$getPointer()
 
   if (partialUpdate) {
@@ -367,10 +372,10 @@ bartcoreSamplerSetPredictor <- function(
       stop("'x' must have length ", prod(dim(sampler$data@x)))
     }
     # a sparse-valued argument onto a sparse-backed design rides to the bridge
-    # as supplied: it materializes there, under the store's own implicit rule,
-    # rather than being densified here. Every other argument - a plain vector,
-    # a sparseVector, any Matrix class the bridge does not ingest - keeps the
-    # as.double path, as does a plain-matrix design.
+    # as supplied: the bridge hands its sparse columns to the engine as stored
+    # entries, under the store's own implicit rule. Every other argument - a
+    # plain vector or a sparseVector - keeps the as.double path, as does a
+    # plain-matrix design.
     if (!(sparseSource && predictorSourceIsSparse(x))) {
       # matrix(as.double(x), ...) strips every attribute, so the incoming
       # dimnames would otherwise vanish; carry them onto the replacement,
@@ -415,8 +420,9 @@ bartcoreSamplerSetPredictor <- function(
       # than data@x, so nothing needs installing until it accepts. Splice the
       # replacement columns into the container BEFORE the call, so a throw
       # there cannot leave data@x describing the old design (sampler
-      # re-creation after save/load reads it). Replacing a sparse column
-      # densifies its storage - every row now differs from the implicit value.
+      # re-creation after save/load reads it). A replaced sparse column stays
+      # sparse: the engine and the splice both keep only the entries that
+      # differ from its implicit value.
       newX <- installPredictorColumns(
         sampler$data@x,
         NULL,

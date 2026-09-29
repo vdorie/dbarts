@@ -1,8 +1,8 @@
-# a sparse-valued mutation argument - a dgCMatrix, a sparseVector, or a mixed
-# container - lands on a sparse or mixed design without the caller densifying.
-# The bridge materializes the borrowed view under the STORE's implicit rule and
-# runs the dense entry, so every accepted shape must land BITWISE what its
-# dense equivalent lands
+# a sparse-valued mutation argument - any sparse Matrix class, a sparseVector,
+# or a mixed container - lands on a sparse or mixed design without the caller
+# densifying. The bridge hands its sparse columns to the engine as stored
+# entries, read under the STORE's implicit rule, so every accepted shape must
+# land BITWISE what its dense equivalent lands: fits, cut grid, predictions
 
 source(
   system.file("common", "strictData.R", package = "dbarts"),
@@ -24,36 +24,58 @@ control <- dbartsControl(
 ## A sampler over `design` run to a fixed state, then mutated: the fits it
 ## reports afterwards and the source it maintains R-side are what the two
 ## spellings of one mutation must agree on.
-mutatedState <- function(design, y, mutate) {
+mutatedState <- function(design, y, mutate, ctrl = control) {
   set.seed(91L)
-  sampler <- dbarts(design, y, control = control)
+  sampler <- dbarts(design, y, control = ctrl)
   invisible(sampler$run(30L, 5L))
-  mutate(sampler)
+  result <- mutate(sampler)
+  sampler$storeState()
   after <- sampler$run(0L, 5L)
   list(
+    result = result,
     ssr = sampler$getSumsOfSquaredResiduals(),
     train = after$train,
     sigma = after$sigma,
-    x = as.matrix(sampler$data@x)
+    cutPoints = attr(sampler$state, "cutPoints"),
+    predicted = sampler$predict(design),
+    x = as.matrix(sampler$data@x),
+    class = class(sampler$data@x)
   )
 }
 
 ## The sparse argument and its dense equivalent, against the same design.
-expectTwinsAgree <- function(design, y, sparse.arg, dense.arg, column = NULL) {
+expectTwinsAgree <- function(
+  design,
+  y,
+  sparse.arg,
+  dense.arg,
+  column = NULL,
+  forceUpdate = TRUE,
+  updateCutPoints = FALSE,
+  ctrl = control
+) {
   mutate <- function(value) {
     function(sampler) {
       if (is.null(column)) {
-        sampler$setPredictor(value, forceUpdate = TRUE)
+        sampler$setPredictor(
+          value,
+          forceUpdate = forceUpdate,
+          updateCutPoints = updateCutPoints
+        )
       } else {
-        sampler$setPredictor(value, column = column, forceUpdate = TRUE)
+        sampler$setPredictor(
+          value,
+          column = column,
+          forceUpdate = forceUpdate,
+          updateCutPoints = updateCutPoints
+        )
       }
     }
   }
+  sparse <- mutatedState(design, y, mutate(sparse.arg), ctrl)
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
-  expect_identical(
-    mutatedState(design, y, mutate(sparse.arg)),
-    mutatedState(design, y, mutate(dense.arg))
-  )
+  expect_identical(sparse, mutatedState(design, y, mutate(dense.arg), ctrl))
+  invisible(sparse)
 }
 
 sparseBlock <- function(values) {
@@ -326,3 +348,250 @@ set.seed(313)
 run.recreated <- sampler.recreated$run(0L, 10L)
 expect_equal(run.mutated$train, run.recreated$train)
 expect_equal(run.mutated$sigma, run.recreated$sigma)
+
+# --- a cut refresh reads the replacement's stored entries: uniform and
+# quantile grids, whole and by column, land the dense twin's grid
+quantile.control <- control
+quantile.control@useQuantiles <- TRUE
+# denser than the design, so a quantile grid keeps its count
+a.fine <- vapply(seq_len(p.a), function(j) newColumn(0.5), double(n))
+b.cut <- cbind(rnorm(n), a.fine[, 3L])
+for (ctrl in list(control, quantile.control)) {
+  expectTwinsAgree(
+    x.a,
+    y.a,
+    sparseBlock(a.fine),
+    a.fine,
+    updateCutPoints = TRUE,
+    ctrl = ctrl
+  )
+  expectTwinsAgree(
+    b.frame,
+    y.b,
+    sparseBlock(b.cut),
+    b.cut,
+    column = c(1L, 3L),
+    updateCutPoints = TRUE,
+    ctrl = ctrl
+  )
+}
+
+# --- transactional: an accepted replacement and a rolled-back one
+a.near <- a.new
+a.near[a.near != 0] <- a.near[a.near != 0] * 1.01
+accepted <- expectTwinsAgree(
+  x.a,
+  y.a,
+  sparseBlock(a.near),
+  a.near,
+  forceUpdate = FALSE
+)
+expect_true(accepted$result)
+rolled <- expectTwinsAgree(
+  x.a,
+  y.a,
+  empty,
+  rep(0, n),
+  column = 1L,
+  forceUpdate = FALSE
+)
+expect_false(rolled$result)
+
+# --- a bare dgCMatrix onto the sparseFactor column (4), whose reference is
+# "s2": its absent rows read level code 0, not the reference, so every one of
+# them becomes a stored entry of the store
+f.codes <- sample(0:2, n, replace = TRUE)
+expectTwinsAgree(
+  b.frame,
+  y.b,
+  sparseBlock(matrix(f.codes, n, 1L)),
+  as.double(f.codes),
+  column = 4L
+)
+
+# --- a refused middle column leaves data@x and the next sweeps those of an
+# untouched twin: an off-table level code and a quantile precheck (errors), and
+# an all-absent column under forceUpdate = FALSE (FALSE, rolled back)
+expectRefusalLeavesTwin <- function(
+  design,
+  y,
+  value,
+  columns,
+  updateCutPoints,
+  pattern,
+  ctrl = control
+) {
+  runAfter <- function(mutate) {
+    set.seed(91L)
+    sampler <- dbarts(design, y, control = ctrl)
+    invisible(sampler$run(30L, 5L))
+    before <- sampler$data@x
+    outcome <- mutate(sampler)
+    list(outcome, identical(sampler$data@x, before), sampler$run(0L, 5L))
+  }
+  twin <- runAfter(function(sampler) FALSE)
+  # each entry of columns is one call's column argument, NULL for the whole
+  for (col in columns) {
+    refused <- runAfter(function(sampler) {
+      call <- function() {
+        if (is.null(col)) {
+          sampler$setPredictor(
+            value,
+            forceUpdate = FALSE,
+            updateCutPoints = updateCutPoints
+          )
+        } else {
+          sampler$setPredictor(
+            value,
+            column = col,
+            forceUpdate = FALSE,
+            updateCutPoints = updateCutPoints
+          )
+        }
+      }
+      if (is.null(pattern)) {
+        return(call())
+      }
+      expect_error(call(), pattern = pattern)
+      FALSE
+    })
+    expect_identical(refused[1:2], twin[1:2])
+    # a refusal writes nothing, so the sweeps are the twin's bit for bit; a
+    # rollback restores the store and trees exactly but rebuilds the cached
+    # fits, whose sums round in another order
+    if (is.null(pattern)) {
+      expect_equal(refused[[3L]], twin[[3L]])
+    } else {
+      expect_identical(refused[[3L]], twin[[3L]])
+    }
+  }
+}
+three <- a.new[, 1:3]
+three.empty <- three
+three.empty[, 2L] <- 0
+x.three <- sparseBlock(a.values[, 1:3])
+expectRefusalLeavesTwin(
+  x.three,
+  y.a,
+  sparseBlock(three.empty),
+  list(NULL, 1:3),
+  TRUE,
+  "induced cut points",
+  quantile.control
+)
+expectRefusalLeavesTwin(
+  x.three,
+  y.a,
+  sparseBlock(three.empty),
+  list(NULL, 1:3),
+  FALSE,
+  NULL
+)
+off.table <- sparseBlock(cbind(a.new[, 3L], c(9, rep(0, n - 1L)), a.new[, 2L]))
+expectRefusalLeavesTwin(
+  b.frame,
+  y.b,
+  off.table,
+  list(c(3L, 4L, 1L)),
+  FALSE,
+  "existing category codes"
+)
+
+# --- a declared reference past the store's level count: the absent rows would
+# read a level the store has no code for, refused with the categorical text
+wide.levels <- paste0("s", 1:6)
+wide.frame <- data.frame(z = rep(0, n))
+wide.frame$z <- sparseFactor(
+  factor(
+    sample(c("s1", "s2", "s6"), n, replace = TRUE, prob = c(1, 1, 8)),
+    levels = wide.levels
+  ),
+  reference = "s6"
+)
+wide.container <- dbarts:::makeCategoricalModelMatrix(wide.frame)
+expect_error(
+  sampler.reference$setPredictor(
+    wide.container,
+    column = 4L,
+    forceUpdate = TRUE
+  ),
+  pattern = "existing category codes"
+)
+
+# --- a column named twice and rolled back unwinds exactly, on a sparse and a
+# dense design
+for (design in list(x.a, a.values)) {
+  expectRefusalLeavesTwin(
+    design,
+    y.a,
+    sparseBlock(cbind(a.near[, 1L], 0)),
+    list(c(1L, 1L)),
+    FALSE,
+    NULL
+  )
+}
+
+# --- any sparse Matrix class is the dgCMatrix it holds, never densified
+a.pattern <- a.new != 0
+other.classes <- list(
+  methods::as(sparseBlock(a.new), "TsparseMatrix"),
+  methods::as(sparseBlock(a.new), "RsparseMatrix"),
+  methods::as(sparseBlock(a.pattern), "lMatrix"),
+  methods::as(methods::as(sparseBlock(a.pattern), "nMatrix"), "CsparseMatrix")
+)
+expected.classes <- c("dgTMatrix", "dgRMatrix", "lgCMatrix", "ngCMatrix")
+for (k in seq_along(other.classes)) {
+  arg <- other.classes[[k]]
+  expect_inherits(arg, expected.classes[k])
+  twin <- if (k <= 2L) a.new else a.pattern + 0
+  whole <- expectTwinsAgree(x.a, y.a, arg, sparseBlock(twin))
+  expect_true(whole$class == "dgCMatrix")
+  expectTwinsAgree(
+    b.frame,
+    y.b,
+    arg[, 2:3],
+    sparseBlock(twin[, 2:3]),
+    column = c(1L, 3L)
+  )
+}
+set.seed(91L)
+sampler.test <- dbarts(x.a, y.a, control = control)
+sampler.test$setTestPredictor(other.classes[[1L]])
+expect_inherits(sampler.test$data@x.test, "dbartsMixedMatrix")
+
+# --- signed zero: a 0/1 column replaced by zeros with one stored -0 under a
+# quantile refresh stores the dense twin's cut, and it is +0
+x.binary <- sparseBlock(cbind(
+  as.double(seq_len(n) %% 3L == 0L),
+  a.values[, 2L]
+))
+negative <- Matrix::sparseMatrix(
+  i = 1L,
+  j = 1L,
+  x = -0,
+  dims = c(n, 1L),
+  repr = "C"
+)
+expect_true(1 / negative@x < 0)
+signedCuts <- function(value) {
+  mutatedState(
+    x.binary,
+    y.a,
+    function(sampler) {
+      sampler$setPredictor(
+        value,
+        column = 1L,
+        forceUpdate = TRUE,
+        updateCutPoints = TRUE
+      )
+    },
+    quantile.control
+  )$cutPoints[[1L]]
+}
+sparse.cuts <- signedCuts(negative)
+expect_true(identical(
+  sparse.cuts,
+  signedCuts(c(-0, rep(0, n - 1L))),
+  num.eq = FALSE
+))
+expect_true(all(sparse.cuts == 0 & 1 / sparse.cuts > 0))
