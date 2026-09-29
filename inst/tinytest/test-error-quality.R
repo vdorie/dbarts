@@ -111,7 +111,7 @@ badSurvY <- cbind(
 )
 expect_error(
   dbarts::xbart(testData$x, badSurvY, family = "zzz"),
-  "'arg' should be one of"
+  "'family' should be one of"
 )
 
 rm(testData)

@@ -39,8 +39,8 @@ AS_IF([test "x$enable_reference_build" != xno],
 
 # Three 0.9-x configure options, removed for 1.0-0 (dec-B107): DESCRIPTION no
 # longer claims a BayesTree drop-in, so nothing steers a matching build; the
-# exact-ABI flag (dbarts_apiHash()) and simd.c's runtime kernel dispatch cover
-# what the first two used to buy, and XINT_TYPE is fixed at uint16_t
+# second blocked while fits were added or deleted, for package reloading, and
+# the engine no longer has that hazard; XINT_TYPE is fixed at uint16_t
 # engine-wide (above). Each errors only when the caller passes it explicitly,
 # so a build that never touched these flags is unaffected. Stubs for one
 # release only; NEWS and TODO track outright removal next release.
@@ -50,8 +50,8 @@ AC_ARG_ENABLE([match-bayes-tree],
   [AC_MSG_ERROR([--enable-match-bayes-tree was removed for 1.0-0 along with the BayesTree drop-in claim; there is no replacement, and this stub itself is deleted in the next release])])
 AC_ARG_ENABLE([thread-safe-unload],
   [AS_HELP_STRING([--enable-thread-safe-unload],
-    [removed for 1.0-0; superseded by the exact-ABI flag and runtime SIMD kernel selection])],
-  [AC_MSG_ERROR([--enable-thread-safe-unload was removed for 1.0-0; the exact-ABI flag (dbarts_apiHash()) and runtime SIMD kernel selection (simd.c) cover its purpose, and this stub itself is deleted in the next release])])
+    [removed for 1.0-0; the engine no longer needs it])],
+  [AC_MSG_ERROR([--enable-thread-safe-unload was removed for 1.0-0; it blocked while fits were added or deleted, for package reloading, which the engine no longer needs, so there is no replacement, and this stub itself is deleted in the next release])])
 AC_ARG_WITH([xint-size],
   [AS_HELP_STRING([--with-xint-size],
     [removed for 1.0-0; XINT_TYPE is fixed at uint16_t engine-wide])],

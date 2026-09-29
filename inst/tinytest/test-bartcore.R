@@ -476,7 +476,7 @@ expect_true(all(omega > 0))
 # family validation
 expect_error(
   dbarts(x, y.binary, family = "cauchit", control = control),
-  pattern = "'arg' should be one of"
+  pattern = "'family' should be one of"
 )
 expect_error(
   dbarts(x, y, family = "logistic", control = control),

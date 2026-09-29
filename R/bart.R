@@ -2714,7 +2714,12 @@ bart2Hurdle <- function(
   }
   positiveCall$seed <- seeds[2L]
   positiveCall$keepTrees <- control@keepTrees
-  positive <- eval(positiveCall, callingEnv)
+  # the thread-budget warning is per fit, and the zero component already
+  # raised it for the same n.threads and n.chains
+  positive <- withCallingHandlers(
+    eval(positiveCall, callingEnv),
+    dbartsExcessThreadsWarning = function(w) invokeRestart("muffleWarning")
+  )
 
   result <- list(
     call = control@call,
@@ -3288,7 +3293,7 @@ bartBT <- function(
             control@n.chains,
             control@testFitParallelCutoff
           ),
-          class = class(w)
+          class = c("dbartsExcessThreadsWarning", "dbartsWarning")
         ))
         invokeRestart("muffleWarning")
       }

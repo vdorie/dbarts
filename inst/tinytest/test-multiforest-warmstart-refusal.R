@@ -74,7 +74,7 @@ expect_error(
     donor$state,
     NULL
   ),
-  "bartcore_installForests: a multi-forest sampler \\(2 forests\\) has no tested warm start from a donor"
+  "\\$installTrees: a multi-forest sampler \\(2 forests\\) has no tested warm start from a donor"
 )
 
 # --- the modelling surface: a data object carrying forest bases reaches bart

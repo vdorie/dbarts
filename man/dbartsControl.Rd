@@ -120,7 +120,8 @@ dbartsControl(
     Person-period expansion \tab \code{\link[=dbartsFamilies]{hazard}} \tab 1e7 rows \tab host-dependent \tab yes, \code{hazard(max.rows = )} \cr
   }
 
-  Only the categorical enumeration cap changes what is sampled. The two
+  Of the settings in this table, the categorical enumeration cap and the
+  Gaussian-process leaf size change what is sampled. The two
   parallel cutoffs buy time and return bit-for-bit the same draws either side
   of themselves. The density threshold buys memory and draws the same splits
   either side, but is not bitwise, as its entry above says.

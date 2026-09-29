@@ -305,7 +305,7 @@ twopartMsgFD <- tryCatch(
   dbarts::dbarts(xFD, abs(yFD), family = "twopart"),
   error = function(e) conditionMessage(e)
 )
-expect_true(grepl("should be one of", twopartMsgFD, fixed = TRUE))
+expect_true(grepl("'family' should be one of", twopartMsgFD, fixed = TRUE))
 expect_false(grepl("hurdle.lognormal", twopartMsgFD, fixed = TRUE))
 expect_error(
   do.call(

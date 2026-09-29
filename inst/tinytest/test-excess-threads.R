@@ -62,4 +62,48 @@ expect_warning(
   fixed = TRUE
 )
 
-rm(cores, excessControl, evenControl, testData)
+# the re-issued class vector is exactly dbarts()'s own, with no doubled tail
+seenClass <- NULL
+withCallingHandlers(
+  dbarts::bartBT(
+    testData$x,
+    testData$y,
+    ntree = 3L,
+    ndpost = 2L,
+    nskip = 1L,
+    nthread = 2L,
+    verbose = FALSE
+  ),
+  warning = function(w) {
+    seenClass <<- class(w)
+    invokeRestart("muffleWarning")
+  }
+)
+expect_identical(
+  seenClass,
+  c("dbartsExcessThreadsWarning", "dbartsWarning", "warning", "condition")
+)
+
+# a hurdle fit is two samplers but one fit: the warning is raised once
+hurdleY <- pmax(testData$y - 15, 0)
+nExcess <- 0L
+withCallingHandlers(
+  dbarts::bart(
+    testData$x,
+    hurdleY,
+    family = "hurdle.lognormal",
+    n.trees = 3L,
+    n.samples = 2L,
+    n.burn = 1L,
+    n.chains = 1L,
+    n.threads = 3L,
+    verbose = FALSE
+  ),
+  dbartsExcessThreadsWarning = function(w) {
+    nExcess <<- nExcess + 1L
+    invokeRestart("muffleWarning")
+  }
+)
+expect_equal(nExcess, 1L)
+
+rm(cores, excessControl, evenControl, testData, seenClass, hurdleY, nExcess)

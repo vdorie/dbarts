@@ -236,11 +236,11 @@ rm(consData)
 # retirement message
 expect_error(
   dbarts::bart(xCons, yCons, family = "twopart", verbose = FALSE),
-  pattern = "should be one of"
+  pattern = "'family' should be one of"
 )
 expect_error(
   dbarts::dbarts(xCons, yCons, family = "twopart", control = consControl),
-  pattern = "should be one of"
+  pattern = "'family' should be one of"
 )
 
 # the residual prior's three retired spellings: each warns once, each is

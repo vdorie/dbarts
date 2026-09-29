@@ -667,7 +667,15 @@ resolveFamily <- function(
       if (!is.na(hit) && hit > length(tokens)) {
         refused[hit - length(tokens)]
       } else {
-        match.arg(value, tokens)
+        hit <- pmatch(value, tokens)
+        if (is.na(hit)) {
+          stop(
+            "'family' should be one of ",
+            paste0("\"", tokens, "\"", collapse = ", "),
+            call. = FALSE
+          )
+        }
+        tokens[hit]
       }
     }
     value <- newValidated("dbartsFamily", token = token)

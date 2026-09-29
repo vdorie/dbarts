@@ -257,7 +257,7 @@ refuses(
 # "twopart" is simply unrecognized, refused at family resolution (through
 # match.arg, whose list names only what dbarts() takes) before the term is
 # looked at
-refuses(termFormula, "should be one of", family = "twopart")
+refuses(termFormula, "'family' should be one of", family = "twopart")
 for (family in c("aft", "ordinal", "nbinom")) {
   refuses(termFormula, paste0("family \"", family, "\""), family = family)
 }

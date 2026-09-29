@@ -232,7 +232,7 @@ expect_null(samplerW1$data@weights)
 # xbart refuses the count family (family-vector omission)
 expect_error(
   xbart(x, y, family = "nbinom", n.samples = 10L, n.reps = 1L),
-  "'arg' should be one of"
+  "'family' should be one of"
 )
 
 # --- dbarts()-direct sampler: coding, attribute, node.scale, and state ---

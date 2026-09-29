@@ -67,7 +67,7 @@ expect_error(
 expect_error(dbarts(x, y, family = "hurdle.lognormal"), "bart\\(x, y")
 # "twopart" is simply unrecognized here too, refused through match.arg,
 # whose list names only the tokens dbarts() takes
-expect_error(dbarts(x, y, family = "twopart"), "should be one of")
+expect_error(dbarts(x, y, family = "twopart"), "'family' should be one of")
 expect_false(grepl(
   "hurdle.lognormal",
   tryCatch(dbarts(x, y, family = "twopart"), error = conditionMessage),

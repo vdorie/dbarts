@@ -344,5 +344,5 @@ expect_error(
     installDonorState,
     NULL
   ),
-  "bartcore_installForests: a multi-forest sampler \\(2 forests\\) has no tested warm start from a donor"
+  "\\$installTrees: a multi-forest sampler \\(2 forests\\) has no tested warm start from a donor"
 )

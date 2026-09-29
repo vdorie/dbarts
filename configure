@@ -1350,8 +1350,7 @@ Optional Features:
                           removed for 1.0-0; dbarts no longer builds a
                           BayesTree-matching stream
   --enable-thread-safe-unload
-                          removed for 1.0-0; superseded by the exact-ABI flag
-                          and runtime SIMD kernel selection
+                          removed for 1.0-0; the engine no longer needs it
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -3152,8 +3151,8 @@ fi
 
 # Three 0.9-x configure options, removed for 1.0-0 (dec-B107): DESCRIPTION no
 # longer claims a BayesTree drop-in, so nothing steers a matching build; the
-# exact-ABI flag (dbarts_apiHash()) and simd.c's runtime kernel dispatch cover
-# what the first two used to buy, and XINT_TYPE is fixed at uint16_t
+# second blocked while fits were added or deleted, for package reloading, and
+# the engine no longer has that hazard; XINT_TYPE is fixed at uint16_t
 # engine-wide (above). Each errors only when the caller passes it explicitly,
 # so a build that never touched these flags is unaffected. Stubs for one
 # release only; NEWS and TODO track outright removal next release.
@@ -3166,7 +3165,7 @@ fi
 # Check whether --enable-thread-safe-unload was given.
 if test ${enable_thread_safe_unload+y}
 then :
-  enableval=$enable_thread_safe_unload; as_fn_error $? "--enable-thread-safe-unload was removed for 1.0-0; the exact-ABI flag (dbarts_apiHash()) and runtime SIMD kernel selection (simd.c) cover its purpose, and this stub itself is deleted in the next release" "$LINENO" 5
+  enableval=$enable_thread_safe_unload; as_fn_error $? "--enable-thread-safe-unload was removed for 1.0-0; it blocked while fits were added or deleted, for package reloading, which the engine no longer needs, so there is no replacement, and this stub itself is deleted in the next release" "$LINENO" 5
 fi
 
 

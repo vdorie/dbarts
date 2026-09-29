@@ -3496,7 +3496,7 @@ static void parseMultinomialData(SEXP controlExpr, SEXP modelExpr,
   if (data.testOffset != NULL)
     Rf_error("multinomial (softmax) models do not support a flat test "
              "offset; the category test offset is an nTest x K matrix "
-             "(bartcore_setCategoryTestOffset)");
+             "($setCategoryTestOffset)");
   if (data.numTestObservations > 0 && data.testIsMixed)
     Rf_error("multinomial (softmax) models require a dense test matrix");
   if (numCategories < 2)
@@ -4018,7 +4018,7 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
   // The capability probe comes FIRST, and it is not a forest count: BCF also
   // carries several forests and owns no counts, while a future coupling that
   // did would have to opt in here.
-  requireCountsMutationCapability(shape, "bartcore_setCounts");
+  requireCountsMutationCapability(shape, "$setCounts");
   size_t n = shape.numObservations;
   // K for a counts-owning coupling; the reported-location count IS the category
   // count, so there is no second field to keep in step with it
@@ -4038,7 +4038,7 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
     if (!Rf_isInteger(countsExpr) || Rf_xlength(dimsExpr) != 2 ||
         static_cast<size_t>(INTEGER(dimsExpr)[0]) != n ||
         static_cast<size_t>(INTEGER(dimsExpr)[1]) != K)
-      Rf_error("bartcore_setCounts: requires an integer matrix of %lu "
+      Rf_error("$setCounts: requires an integer matrix of %lu "
                "observations x %lu categories",
                static_cast<unsigned long>(n), static_cast<unsigned long>(K));
     UNPROTECT(1);
@@ -4089,12 +4089,12 @@ SEXP bartcore_setCategoryOffset(SEXP ptrExpr, SEXP offsetExpr) {
   // the capability probe comes FIRST and is not a forest count, exactly as the
   // counts entrance's is: the coupling that owns an n x K count response is the
   // one with an n x K linear predictor to shift
-  requireCountsMutationCapability(shape, "bartcore_setCategoryOffset");
+  requireCountsMutationCapability(shape, "$setCategoryOffset");
   size_t n = shape.numObservations;
   size_t K = shape.numReportedLocations;
 
   return unwindProtect([&, offset = std::vector<double>{}]() mutable -> SEXP {
-    parseCategoryOffset(offsetExpr, n, K, offset, "bartcore_setCategoryOffset");
+    parseCategoryOffset(offsetExpr, n, K, offset, "$setCategoryOffset");
     holder.ownedCategoryOffset.swap(offset);
     const double* installed = holder.ownedCategoryOffset.empty()
       ? NULL : holder.ownedCategoryOffset.data();
@@ -4120,13 +4120,13 @@ SEXP bartcore_setCategoryTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
   // the capability probe comes FIRST and is not a forest count: what makes a
   // per-category test shift meaningful is the softmax test blend, which arrived
   // with the count response
-  requireCountsMutationCapability(shape, "bartcore_setCategoryTestOffset");
+  requireCountsMutationCapability(shape, "$setCategoryTestOffset");
   size_t nTest = shape.numTestObservations;
   size_t K = shape.numReportedLocations;
 
   return unwindProtect([&, offset = std::vector<double>{}]() mutable -> SEXP {
     parseCategoryTestOffset(offsetExpr, nTest, K, offset,
-                            "bartcore_setCategoryTestOffset");
+                            "$setCategoryTestOffset");
     holder.ownedCategoryTestOffset.swap(offset);
     const double* installed = holder.ownedCategoryTestOffset.empty()
       ? NULL : holder.ownedCategoryTestOffset.data();
@@ -4197,7 +4197,7 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
       Rf_error("a multinomial mask applies to every category: the softmax "
                "margin reads all K forests, so a row cannot leave one "
                "category's likelihood alone");
-    Rf_error("bartcore_setForestWeights: requires a sampler that carries "
+    Rf_error("$setForestWeights: requires a sampler that carries "
              "forest amplitudes");
   }
   size_t forestIndex = forestIndexFrom(forestExpr, shape);
@@ -4893,7 +4893,7 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
   if (shape.numChains != 1)
-    Rf_error("bartcore_runWithCallback: requires a single chain");
+    Rf_error("$runWithCallback: requires a single chain");
   if (!Rf_isFunction(callbackExpr)) Rf_error("callback must be a function");
 
   size_t numBurnIn = static_cast<size_t>(Rf_asInteger(numBurnInExpr));
@@ -5010,7 +5010,7 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   int updateScale = Rf_asLogical(updateScaleExpr);
-  refuseMultiForestResponseMutation(*holder.sampler, "bartcore_setOffset",
+  refuseMultiForestResponseMutation(*holder.sampler, "$setOffset",
                                     ResponseConduit::offset, updateScale);
   if (!Rf_isNull(offsetExpr) &&
       (!Rf_isReal(offsetExpr) ||
@@ -5033,7 +5033,7 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   int updateScale = Rf_asLogical(updateScaleExpr);
-  refuseMultiForestResponseMutation(*holder.sampler, "bartcore_setResponse",
+  refuseMultiForestResponseMutation(*holder.sampler, "$setResponse",
                                     ResponseConduit::response, updateScale);
   if (!Rf_isReal(yExpr) ||
       static_cast<size_t>(Rf_xlength(yExpr)) != shape.numObservations)
@@ -5042,7 +5042,7 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
   // support before install: the engine's latent refresh consumes y immediately
   validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
                           REAL(yExpr), shape.numObservations,
-                          "bartcore_setResponse");
+                          "$setResponse");
   const double* status = NULL;
   if (!Rf_isNull(statusExpr)) {
     if (shape.family != bartcore::ResponseFamily::aft)
@@ -5060,7 +5060,7 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
 
 SEXP bartcore_setSigma(SEXP ptrExpr, SEXP sigmaExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refusePinnedSigmaChange(*holder.sampler, "bartcore_setSigma");
+  refusePinnedSigmaChange(*holder.sampler, "$setSigma");
   holder.sampler->setSigma(Rf_asReal(sigmaExpr));
   return R_NilValue;
 }
@@ -5069,8 +5069,8 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
-  refusePredictorMutation(sampler, "setData");
-  refuseMultiForestMutation(sampler, "setData");
+  refusePredictorMutation(sampler, "$setData");
+  refuseMultiForestMutation(sampler, "$setData");
   // the whole-data conduit may change the number of observations, which the
   // status is stated over, so it stays refused; the response conduit takes a
   // status of its own at a fixed n
@@ -5081,13 +5081,13 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
              "censoring with setResponse(y, status = ) instead");
 
   if (!Rf_inherits(dataExpr, "dbartsData"))
-    Rf_error("'data' argument to setData not of class 'dbartsData'");
+    Rf_error("$setData: 'data' is not of class 'dbartsData'");
 
   return unwindProtect([&, data = ParsedData{},
                        block = std::vector<double>{}]() mutable -> SEXP {
     parseData(data, dataExpr);
     if (data.xIsSparse || data.xIsMixed)
-      Rf_error("setData requires a dense predictor matrix; sparse "
+      Rf_error("$setData: requires a dense predictor matrix; sparse "
                "predictors fix the design at creation");
     // the whole-data replacement is a single column-major block on both sides
     // of the C boundary, so a view whose host split its dense storage across
@@ -5102,11 +5102,11 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
       data.predictors.denseChannels = NULL;
     }
     if (data.testIsMixed)
-      Rf_error("setData requires a dense test matrix; a sparse test "
+      Rf_error("$setData: requires a dense test matrix; a sparse test "
                "set fixes the design at creation");
 
     if (data.numPredictors != shape.numPredictors)
-      Rf_error("setData requires the same predictors");
+      Rf_error("$setData: requires the same predictors");
     // the whole-data conduit carries the weight policy too, and had NO
     // backstop of its own: it feeds LogisticResponse::setData's cold start
     // directly, where a zero or negative count becomes a phantom row carrying
@@ -5121,12 +5121,12 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
     // the whole-data conduit swaps y too, so it carries the same support rule
     validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
                             data.y, data.numObservations,
-                            "setData");
+                            "$setData");
     for (size_t j = 0; j < data.numPredictors; ++j) {
       // the kind fixes the grid, so a replacement that changes it is a
       // different design rather than new values for this one
       if (data.columnTypes[j] != sampler.data().types[j])
-        Rf_error("setData requires the same predictor types");
+        Rf_error("$setData: requires the same predictor types");
       if (!sampler.data().isFactor(j)) continue;
       // level counts are fixed at creation on either factor kind; new values
       // must be existing codes, in the training and test data both
@@ -5195,15 +5195,15 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
   if (Rf_isNull(xTestExpr)) {
     // removal: back to the no-test-data state, both offsets included
     refuseStaleCategoryTestOffset(!holder.ownedCategoryTestOffset.empty(),
-                                  "bartcore_setTestPredictor");
+                                  "$setTestPredictor");
     holder.sampler->setTestPredictors(NULL, 0);
     holder.sampler->setTestOffset(NULL);
     holder.ownedTestOffset.clear();
     return R_NilValue;
   }
-  refuseUndefinedTestFits(*holder.sampler, "bartcore_setTestPredictor");
+  refuseUndefinedTestFits(*holder.sampler, "$setTestPredictor");
   refuseStaleCategoryTestOffset(!holder.ownedCategoryTestOffset.empty(),
-                                "bartcore_setTestPredictor");
+                                "$setTestPredictor");
   if (Rf_inherits(xTestExpr, "dbartsMixedMatrix"))
     // whole-object replacement by a mixed/sparse container: parse against the
     // training cut grid, then rebuild the typed test store. Both the parse and
@@ -5226,7 +5226,7 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
   SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
       static_cast<size_t>(INTEGER(dims)[1]) != shape.numPredictors)
-    Rf_error("bartcore_setTestPredictor: requires a matrix with matching columns");
+    Rf_error("$setTestPredictor: requires a matrix with matching columns");
   size_t numTestObservations = static_cast<size_t>(INTEGER(dims)[0]);
   if (holder.sampler->data().testOffset != NULL &&
       numTestObservations != shape.numTestObservations)
@@ -5251,8 +5251,8 @@ SEXP bartcore_setTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
     holder.sampler->setTestOffset(NULL);
     return R_NilValue;
   }
-  refuseUndefinedTestFits(*holder.sampler, "bartcore_setTestOffset");
-  refuseMultiForestTestOffset(*holder.sampler, "bartcore_setTestOffset");
+  refuseUndefinedTestFits(*holder.sampler, "$setTestOffset");
+  refuseMultiForestTestOffset(*holder.sampler, "$setTestOffset");
   size_t numTestObservations = holder.sampler->shape().numTestObservations;
   if (numTestObservations == 0)
     Rf_error("cannot set a test offset without test predictors");
@@ -5275,19 +5275,19 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
     if (!Rf_isNull(offsetExpr))
       Rf_error("when test matrix is NULL, test offset must be as well");
     refuseStaleCategoryTestOffset(!holder.ownedCategoryTestOffset.empty(),
-                                  "bartcore_setTestPredictorAndOffset");
+                                  "$setTestPredictorAndOffset");
     holder.sampler->setTestPredictors(NULL, 0);
     holder.sampler->setTestOffset(NULL);
     holder.ownedTestOffset.clear();
     return R_NilValue;
   }
   refuseUndefinedTestFits(*holder.sampler,
-                          "bartcore_setTestPredictorAndOffset");
+                          "$setTestPredictorAndOffset");
   refuseStaleCategoryTestOffset(!holder.ownedCategoryTestOffset.empty(),
-                                "bartcore_setTestPredictorAndOffset");
+                                "$setTestPredictorAndOffset");
   if (!Rf_isNull(offsetExpr))
     refuseMultiForestTestOffset(*holder.sampler,
-                                "bartcore_setTestPredictorAndOffset");
+                                "$setTestPredictorAndOffset");
   if (Rf_inherits(xTestExpr, "dbartsMixedMatrix"))
     // whole-object container replacement plus its offset; parse and the
     // leaf-covariate refusal precede the store change, so a rejected container
@@ -5312,7 +5312,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
   SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
       static_cast<size_t>(INTEGER(dims)[1]) != numPredictors)
-    Rf_error("bartcore_setTestPredictorAndOffset: requires a matrix with "
+    Rf_error("$setTestPredictorAndOffset: requires a matrix with "
              "matching columns");
   size_t numTestObservations = static_cast<size_t>(INTEGER(dims)[0]);
   if (!Rf_isNull(offsetExpr) &&
@@ -5343,7 +5343,7 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t numObservations = shape.numObservations;
-  refuseMultiForestResponseMutation(*holder.sampler, "bartcore_setWeights",
+  refuseMultiForestResponseMutation(*holder.sampler, "$setWeights",
                                     ResponseConduit::weights, FALSE);
   refuseBinaryWeightChange(*holder.sampler);
   if (!Rf_isReal(weightsExpr) ||
@@ -5369,7 +5369,7 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
   bartcore::SamplerShape shape = sampler.shape();
 
   if (!Rf_inherits(controlExpr, "dbartsControl"))
-    Rf_error("'control' argument to bartcore_setControl not of class "
+    Rf_error("'control' argument to $setControl of class "
              "'dbartsControl'");
 
   ParsedControl control;
@@ -5398,13 +5398,13 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
-  refuseMultiForestMutation(sampler, "bartcore_setModel");
+  refuseMultiForestMutation(sampler, "$setModel");
 
   if (!Rf_inherits(modelExpr, "dbartsModel"))
-    Rf_error("'model' argument to bartcore_setModel not of class "
+    Rf_error("'model' argument to $setModel of class "
              "'dbartsModel'");
   if (!Rf_inherits(controlExpr, "dbartsControl"))
-    Rf_error("'control' argument to bartcore_setModel not of class "
+    Rf_error("'control' argument to $setModel of class "
              "'dbartsControl'");
 
   return unwindProtect([&, model = ParsedModel{}]() mutable -> SEXP {
@@ -5538,13 +5538,13 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
   // longjmps past its destructor
   return unwindProtect([&, parsed = ParsedMutationSource{}]() mutable -> SEXP {
     const char* shapeMessage =
-      "bartcore_setPredictor requires a matrix with matching dimensions";
+      "$setPredictor requires a matrix with matching dimensions";
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     bartcore::SamplerShape shape = holder.sampler->shape();
     // no shape guard left: the two-phase transaction covers every forest and
     // the variance forest, so an unforced call vetoes or rolls back rather
     // than accepting a change one ensemble would misroute
-    refuseMutationOnView(*holder.sampler, "bartcore_setPredictor");
+    refuseMutationOnView(*holder.sampler, "$setPredictor");
     const double* values;
     if (Rf_isReal(xExpr)) {
       SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
@@ -5585,10 +5585,10 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
   return unwindProtect([&, columns = std::vector<size_t>{},
                         parsed = ParsedMutationSource{}]() mutable -> SEXP {
     const char* shapeMessage =
-      "bartcore_updatePredictor requires numObservations values per column";
+      "$updatePredictor requires numObservations values per column";
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     // unguarded, as bartcore_setPredictor above
-    refuseMutationOnView(*holder.sampler, "bartcore_updatePredictor");
+    refuseMutationOnView(*holder.sampler, "$updatePredictor");
     bartcore::SamplerShape shape = holder.sampler->shape();
     size_t numObservations = shape.numObservations;
     size_t numPredictors = shape.numPredictors;
@@ -5603,7 +5603,7 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
     for (size_t k = 0; k < numColumns; ++k) {
       int column = INTEGER(columnsExpr)[k];
       if (column < 1 || static_cast<size_t>(column) > numPredictors)
-        Rf_error("bartcore_updatePredictor: column out of range");
+        Rf_error("$updatePredictor: column out of range");
       columns[k] = static_cast<size_t>(column - 1);
     }
 
@@ -5644,7 +5644,7 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
                         numCutPoints = std::vector<std::uint32_t>{},
                         columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
-    refuseMutationOnView(*holder.sampler, "bartcore_setCutPoints");
+    refuseMutationOnView(*holder.sampler, "$setCutPoints");
     size_t numPredictors = holder.sampler->shape().numPredictors;
     // dense columns re-quantize from the supplied data@x; CSC/mixed columns
     // read their retained slices, so a non-matrix source is passed as null
@@ -5654,7 +5654,7 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
     size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
     if (numColumns == 0 ||
         static_cast<size_t>(Rf_xlength(cutPointsExpr)) != numColumns)
-      Rf_error("bartcore_setCutPoints: requires one cut point vector per column");
+      Rf_error("$setCutPoints: requires one cut point vector per column");
 
     cutPoints.resize(numColumns);
     numCutPoints.resize(numColumns);
@@ -5662,7 +5662,7 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
     for (size_t k = 0; k < numColumns; ++k) {
       int column = INTEGER(columnsExpr)[k];
       if (column < 1 || static_cast<size_t>(column) > numPredictors)
-        Rf_error("bartcore_setCutPoints: column out of range");
+        Rf_error("$setCutPoints: column out of range");
       columns[k] = static_cast<size_t>(column - 1);
       // a factor column's grid follows its level table, so an externally
       // chosen one would strand its codes off their own levels
@@ -5674,16 +5674,16 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(k));
       R_xlen_t numCuts = Rf_xlength(cutsExpr);
       if (numCuts > 65535)  // codes must fit xint_t, including numCuts itself
-        Rf_error("bartcore_setCutPoints: cut point vector too long");
+        Rf_error("$setCutPoints: cut point vector too long");
       // an ordinal column with no cut point is not a state the store can hold:
       // its own validator refuses one, so the sampler could not restore itself
       if (numCuts < 1)
-        Rf_error("bartcore_setCutPoints: requires at least one cut point per "
+        Rf_error("$setCutPoints: requires at least one cut point per "
                  "column");
       const double* cuts = REAL(cutsExpr);
       for (R_xlen_t i = 1; i < numCuts; ++i)
         if (cuts[i] <= cuts[i - 1])
-          Rf_error("bartcore_setCutPoints: requires strictly increasing cut "
+          Rf_error("$setCutPoints: requires strictly increasing cut "
                    "points");
       cutPoints[k] = cuts;
       numCutPoints[k] = static_cast<std::uint32_t>(numCuts);
@@ -5704,22 +5704,22 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
   // pruned to the trees the column can move, so every sampler shape takes this
   // entry: a row installs only where no leaf of any tree would empty
   refuseMutationOnView(
-    *holder.sampler, "bartcore_updatePredictorPerObservation");
+    *holder.sampler, "$updatePredictorPerObservation");
   size_t numObservations = shape.numObservations;
 
   if (static_cast<size_t>(Rf_xlength(xExpr)) != numObservations)
-    Rf_error("bartcore_updatePredictorPerObservation: requires one value per "
+    Rf_error("$updatePredictorPerObservation: requires one value per "
              "observation");
   int column = Rf_asInteger(columnExpr);
   if (column < 1 || static_cast<size_t>(column) > shape.numPredictors)
-    Rf_error("bartcore_updatePredictorPerObservation: column out of range");
+    Rf_error("$updatePredictorPerObservation: column out of range");
   // per-observation replacement writes one cell at a time, which a sparse
   // column's rank storage cannot take without an O(nnz) shift per cell; the
   // sparse mutation path is whole-column, so a CSC-backed target is refused by
   // name (replace it wholesale with updatePredictor). Dense-backed columns of
   // a mixed store - the IRT latent-in-a-sparse-design case - stay open.
   if (holder.sampler->data().columnIsCscBacked(static_cast<size_t>(column - 1)))
-    Rf_error("bartcore_updatePredictorPerObservation: per-observation updates "
+    Rf_error("$updatePredictorPerObservation: per-observation updates "
              "require a dense-backed column; a sparse column fixes its nonzero "
              "pattern per cell - replace the whole column with updatePredictor");
   validateColumnValues(holder.sampler->data(),
@@ -5738,7 +5738,7 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
   // in an invalid state.
   if (!treesAreValid) {
     installed.reset();  // free before longjmp
-    Rf_error("bartcore updatePredictorPerObservation produced a tree with an "
+    Rf_error("$updatePredictorPerObservation produced a tree with an "
              "empty leaf");
   }
 
@@ -5758,7 +5758,7 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
     size_t numSamplers = static_cast<size_t>(Rf_xlength(ptrsExpr));
     if (numSamplers == 0 ||
         static_cast<size_t>(Rf_xlength(columnsExpr)) != numSamplers)
-      Rf_error("bartcore_updatePredictorPerObservationJointly: requires one "
+      Rf_error("$updatePredictorPerObservationJointly: requires one "
                "column per sampler");
 
     samplers.resize(numSamplers);
@@ -5768,17 +5768,17 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
         holderFromExpression(VECTOR_ELT(ptrsExpr, static_cast<R_xlen_t>(k))));
       // unguarded, as the single-sampler entry above
       refuseMutationOnView(
-        *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
+        *holder.sampler, "$updatePredictorPerObservationJointly");
       samplers[k] = holder.sampler.get();
       int column = INTEGER(columnsExpr)[k];
       if (column < 1 ||
           static_cast<size_t>(column) > samplers[k]->shape().numPredictors)
-        Rf_error("bartcore_updatePredictorPerObservationJointly: column out of "
+        Rf_error("$updatePredictorPerObservationJointly: column out of "
                  "range");
       // per-observation cell writes need a dense-backed target (see the
       // single-sampler entry point)
       if (samplers[k]->data().columnIsCscBacked(static_cast<size_t>(column - 1)))
-        Rf_error("bartcore_updatePredictorPerObservationJointly: per-"
+        Rf_error("$updatePredictorPerObservationJointly: per-"
                  "observation updates require a dense-backed column; replace a "
                  "sparse column wholesale with updatePredictor");
       columns[k] = static_cast<size_t>(column - 1);
@@ -5787,10 +5787,10 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
     size_t numObservations = samplers[0]->shape().numObservations;
     for (size_t k = 1; k < numSamplers; ++k)
       if (samplers[k]->shape().numObservations != numObservations)
-        Rf_error("bartcore_updatePredictorPerObservationJointly: requires "
+        Rf_error("$updatePredictorPerObservationJointly: requires "
                  "index-aligned samplers");
     if (static_cast<size_t>(Rf_xlength(xExpr)) != numObservations)
-      Rf_error("bartcore_updatePredictorPerObservationJointly: requires one "
+      Rf_error("$updatePredictorPerObservationJointly: requires one "
                "value per observation");
     for (size_t k = 0; k < numSamplers; ++k)
       validateColumnValues(samplers[k]->data(), columns[k], REAL(xExpr),
@@ -5806,7 +5806,7 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
 
     if (!treesAreValid) {
       installed.reset();  // free before longjmp
-      Rf_error("bartcore updatePredictorPerObservationJointly produced a tree "
+      Rf_error("$updatePredictorPerObservationJointly produced a tree "
                "with an empty leaf");
     }
 
@@ -6109,7 +6109,7 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
                        SEXP currentPredictorsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   // restoring cut points re-quantizes from raw values, which views lack
-  refuseMutationOnView(*holder.sampler, "bartcore_setState");
+  refuseMutationOnView(*holder.sampler, "$setState");
   // a cross-grid restore re-quantizes dense columns from the supplied data@x;
   // a same-spec continuation skips per column, so a null source is harmless
   const double* currentPredictors =
@@ -6121,8 +6121,8 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
 SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                              SEXP samplesExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refuseMutationOnView(*holder.sampler, "bartcore_installForests");
-  refuseMultiForestWarmStart(*holder.sampler, "bartcore_installForests");
+  refuseMutationOnView(*holder.sampler, "$installTrees");
+  refuseMultiForestWarmStart(*holder.sampler, "$installTrees");
   bartcore_bridge::installForests(*holder.sampler, donorStateExpr, samplesExpr);
   return R_NilValue;
 }
@@ -6139,9 +6139,9 @@ static SEXP predictFromSource(bartcore::SamplerBase& sampler,
                               const bartcore::PredictorSource& source,
                               SEXP offsetExpr, size_t numThreads) {
   size_t numTestObservations = source.numRows;
-  if (numTestObservations == 0) Rf_error("bartcore_predict: requires rows");
+  if (numTestObservations == 0) Rf_error("$predict: requires rows");
 
-  refuseEmptyTreeStore(sampler, "bartcore_predict");
+  refuseEmptyTreeStore(sampler, "$predict");
 
   size_t capacity = shape.savedTreeCapacity;
   size_t numChains = shape.numChains;
@@ -6163,17 +6163,17 @@ static SEXP predictFromSource(bartcore::SamplerBase& sampler,
   if (!Rf_isNull(offsetExpr)) {
     if (numLocations > 1) {
       if (Rf_isNull(Rf_getAttrib(offsetExpr, R_DimSymbol)))
-        Rf_error("bartcore_predict: a flat offset is undefined for a "
+        Rf_error("$predict: a flat offset is undefined for a "
                  "multi-location (multinomial softmax) predict surface, whose "
                  "offset must be a per-category matrix, one row per predicted "
                  "row");
       categoryOffset = validateCategoryOffset(offsetExpr, numTestObservations,
                                               numLocations,
-                                              "bartcore_predict offset");
+                                              "$predict offset");
     } else {
       if (!Rf_isReal(offsetExpr) ||
           static_cast<size_t>(Rf_xlength(offsetExpr)) != numTestObservations)
-        Rf_error("bartcore_predict: offset must have one value per row");
+        Rf_error("$predict: offset must have one value per row");
       offset = REAL(offsetExpr);
     }
   }
@@ -6276,7 +6276,7 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
   // predict() sums only the first forest, so an amplitude coupling's
   // prediction would drop every other forest and the glue; refuse it for the
   // same reason its recorded test fits are undefined.
-  refuseUndefinedTestFits(sampler, "bartcore_predict");
+  refuseUndefinedTestFits(sampler, "$predict");
   // The rows are the CALLER's, so the offset must be too: predict never reads
   // the sampler's resident category offsets, whose rows are other rows, and a
   // row-count coincidence between them is not consent. A sampler that models a
@@ -6286,7 +6286,7 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
   // the offset-free surface just as wrongly as a test-only one would.
   if ((!holder.ownedCategoryOffset.empty() ||
        !holder.ownedCategoryTestOffset.empty()) && Rf_isNull(offsetExpr))
-    Rf_error("bartcore_predict: this sampler carries an n x K category offset, "
+    Rf_error("$predict: this sampler carries an n x K category offset, "
              "and the predicted rows are not its rows, so their offset cannot "
              "be inferred; pass one per predicted row (an all-zero matrix for "
              "the offset-free surface)");
@@ -6305,7 +6305,7 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
     });
 
   size_t numTestObservations =
-    validatePredictorMatrix(sampler, xTestExpr, "bartcore_predict");
+    validatePredictorMatrix(sampler, xTestExpr, "$predict");
   return predictFromSource(
     sampler, shape,
     bartcore::densePredictorSource(REAL(xTestExpr), numTestObservations,
@@ -6328,9 +6328,9 @@ static SEXP predictPerForestFromSource(bartcore::SamplerBase& sampler,
                                        size_t numThreads) {
   size_t numTestObservations = source.numRows;
   if (numTestObservations == 0)
-    Rf_error("bartcore_predictPerForest: requires rows");
+    Rf_error("$predict: requires rows");
 
-  refuseEmptyTreeStore(sampler, "bartcore_predictPerForest");
+  refuseEmptyTreeStore(sampler, "$predict");
 
   size_t capacity = shape.savedTreeCapacity;
   size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;
@@ -6375,7 +6375,7 @@ SEXP bartcore_predictPerForest(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
               rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_NA | RC_NO, RC_END));
 
   if (!shape.forestReportingIsDefined)
-    Rf_error("bartcore_predictPerForest: this sampler reports no per-forest "
+    Rf_error("$predict: this sampler reports no per-forest "
              "fits; only a coupling that composes its forests through scalar "
              "amplitude glue carries them");
   // A per-forest raw fit takes no offset: an offset shifts the COMBINATION,
@@ -6383,7 +6383,7 @@ SEXP bartcore_predictPerForest(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
   // forest's. Refused rather than ignored, so a caller who means to shift the
   // recombination is told where the shift belongs.
   if (!Rf_isNull(offsetExpr))
-    Rf_error("bartcore_predictPerForest: a per-forest fit takes no offset, "
+    Rf_error("$predict: a per-forest fit takes no offset, "
              "which shifts the recombination rather than any one forest's own "
              "total; add it there instead");
 
@@ -6398,7 +6398,7 @@ SEXP bartcore_predictPerForest(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
     });
 
   size_t numTestObservations =
-    validatePredictorMatrix(sampler, xTestExpr, "bartcore_predictPerForest");
+    validatePredictorMatrix(sampler, xTestExpr, "$predict");
   return predictPerForestFromSource(
     sampler, shape,
     bartcore::densePredictorSource(REAL(xTestExpr), numTestObservations,
@@ -6500,7 +6500,7 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
     // forest addressing follows getForestFits: 0-based, unconverted
     size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
     if (forestIndex >= shape.numForests)
-      Rf_error("bartcore_getTrees: forest index out of range");
+      Rf_error("$getTrees: forest index out of range");
 
     bool useLiveTrees = Rf_asLogical(currentExpr) == TRUE;
     bool useSaved = shape.savedTreeCapacity > 0 && !useLiveTrees;
@@ -6508,7 +6508,7 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
     chainIndices.resize(static_cast<size_t>(Rf_xlength(chainNumsExpr)));
     for (size_t i = 0; i < chainIndices.size(); ++i) {
       int chainNum = INTEGER(chainNumsExpr)[i];
-      if (chainNum < 1) Rf_error("bartcore_getTrees: chain number out of range");
+      if (chainNum < 1) Rf_error("$getTrees: chain number out of range");
       chainIndices[i] = static_cast<size_t>(chainNum - 1);
     }
     if (useSaved) {
@@ -6522,7 +6522,7 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
         for (size_t i = 0; i < sampleIndices.size(); ++i) {
           int sampleNum = INTEGER(sampleNumsExpr)[i];
           if (sampleNum < 1)
-            Rf_error("bartcore_getTrees: sample number out of range");
+            Rf_error("$getTrees: sample number out of range");
           sampleIndices[i] = static_cast<size_t>(sampleNum - 1);
         }
       }
@@ -6530,7 +6530,7 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
     treeIndices.resize(static_cast<size_t>(Rf_xlength(treeNumsExpr)));
     for (size_t i = 0; i < treeIndices.size(); ++i) {
       int treeNum = INTEGER(treeNumsExpr)[i];
-      if (treeNum < 1) Rf_error("bartcore_getTrees: tree number out of range");
+      if (treeNum < 1) Rf_error("$getTrees: tree number out of range");
       treeIndices[i] = static_cast<size_t>(treeNum - 1);
     }
 
@@ -6548,7 +6548,7 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
       newdataNumRows = parsed.view.numRows;
     } else if (!Rf_isNull(newdataExpr)) {
       newdataNumRows =
-        validatePredictorMatrix(sampler, newdataExpr, "bartcore_getTrees");
+        validatePredictorMatrix(sampler, newdataExpr, "$getTrees");
       newdataView = bartcore::densePredictorSource(
         REAL(newdataExpr), newdataNumRows, shape.numPredictors);
       newdata = &newdataView;
@@ -6572,7 +6572,7 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
       sampler, chainIndices.data(), chainIndices.size(), sampleIndices.data(),
       sampleIndices.size(), treeIndices.data(), treeIndices.size(),
       useLiveTrees, newdata, newdataNumRows, trainingReplay,
-      trainingReplayNumRows, forestIndex, "bartcore_getTrees");
+      trainingReplayNumRows, forestIndex, "$getTrees");
   });
 }
 
@@ -6586,7 +6586,7 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
     bartcore::SamplerShape shape = sampler.shape();
 
     size_t capacity = shape.savedTreeCapacity;
-    if (capacity > 0) refuseEmptyTreeStore(sampler, "bartcore_printTrees");
+    if (capacity > 0) refuseEmptyTreeStore(sampler, "$printTrees");
 
     if (Rf_isNull(chainNumsExpr)) {
       for (size_t i = 0; i < shape.numChains; ++i) chainIndices.push_back(i);
@@ -6594,7 +6594,7 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
       for (R_xlen_t i = 0; i < Rf_xlength(chainNumsExpr); ++i) {
         int chainNum = INTEGER(chainNumsExpr)[i];
         if (chainNum < 1 || static_cast<size_t>(chainNum) > shape.numChains)
-          Rf_error("bartcore_printTrees: chain number out of range");
+          Rf_error("$printTrees: chain number out of range");
         chainIndices.push_back(static_cast<size_t>(chainNum - 1));
       }
     }
@@ -6607,7 +6607,7 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
         for (R_xlen_t i = 0; i < Rf_xlength(sampleNumsExpr); ++i) {
           int sampleNum = INTEGER(sampleNumsExpr)[i];
           if (sampleNum < 1 || static_cast<size_t>(sampleNum) > numDraws)
-            Rf_error("bartcore_printTrees: sample number out of range");
+            Rf_error("$printTrees: sample number out of range");
           sampleIndices.push_back(static_cast<size_t>(sampleNum - 1));
         }
       }
@@ -6618,7 +6618,7 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
       for (R_xlen_t i = 0; i < Rf_xlength(treeNumsExpr); ++i) {
         int treeNum = INTEGER(treeNumsExpr)[i];
         if (treeNum < 1 || static_cast<size_t>(treeNum) > shape.numTrees)
-          Rf_error("bartcore_printTrees: tree number out of range");
+          Rf_error("$printTrees: tree number out of range");
         treeIndices.push_back(static_cast<size_t>(treeNum - 1));
       }
     }

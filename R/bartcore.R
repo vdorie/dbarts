@@ -610,7 +610,7 @@ bartcoreSamplerSetData <- function(sampler, newData) {
     "sampler instead"
   )
   if (ncol(newData@x) != ncol(sampler$data@x)) {
-    stop("setData requires the same predictors")
+    stop("$setData: requires the same predictors")
   }
 
   newData@n.cuts <- sampler$data@n.cuts

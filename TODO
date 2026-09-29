@@ -162,14 +162,15 @@ items
     manual by decision (docs/plans/pre-review-cleanup.md s5).
   memory-saved-tree-arena: no plan doc of its own; post-release (dec-A33,
     docs/plans/memory-footprint-audit.md's ranked list). Saved trees are
-    one vector of nodes per tree, so each saved tree carries about 40
-    bytes of vector object and allocator header on top of its nodes; a
-    single flat arena per chain, indexed by saved sample and tree, drops
-    that overhead and the allocation count. The saving is about 4 MB per
-    chain at keepTrees = TRUE and nothing at keepTrees = FALSE, so it is
-    small beside the other items on that list and waits behind them. One
-    engine struct; the flat tree layout that storeState and getTrees
-    already write is the shape to reuse.
+    one vector of nodes per tree, per forest and per saved sample, so each
+    carries about 40 bytes of vector object and allocator header on top
+    of its nodes; a flat arena per chain, indexed by saved sample, forest
+    and tree, drops that overhead and the allocation count. The audit put
+    the saving at about 4 MB per chain at S*T = 1e5 saved trees, growing
+    with S*T, and nothing at keepTrees = FALSE, so it is small beside the
+    other items on that list and waits behind them. One engine struct;
+    the flat tree layout that storeState and getTrees already write is the
+    shape to reuse.
   memory-wall-frontier: the live perf frontier. The fused pass's
     unmeasured legs - weighted, fp32 residual, move-phase child
     gathers, vector/function leaves, BCF/multinomial, monotone,

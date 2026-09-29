@@ -939,8 +939,8 @@
             as an ordinary binary model on the expanded rows - so a hazard
             fit is byte-identical, draw for draw, to the binary fit on the
             hand-expanded design. The time grid defaults to the distinct
-            observed times; \code{breaks} coarsens it (an integer quantile
-            count or an explicit boundary vector) and \code{max.rows}
+            observed times; \code{hazard(breaks = )} replaces it (an integer
+            quantile count or an explicit boundary vector) and \code{max.rows}
             guards the expansion size. The fit is an ordinary
             \code{"bart"} object whose \code{$family} records the binary
             link and whose \code{$periods} carries the grid;

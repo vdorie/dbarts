@@ -5,7 +5,9 @@ Landing). Section 13 is AMENDED by [front-door](../plans/front-door.md#front-doo
 S2, LANDED 2026-09-09 (44b3fa6d): `hurdle.lognormal` is now also a
 [`dbartsFamily`](../../R/family.R) constructor object (`hurdle.lognormal()`),
 resolved by `family` the same as the other nine front-door family
-constructors, alongside the bare token. Plan: docs/plans/archive/hurdle.md. A hurdle model fits a zero-inflated / semicontinuous outcome by factoring
+constructors, alongside the bare token. Sections 6 and 13 are also AMENDED: the
+`twopart` alias they propose was removed before release (dec-B128), and is refused
+now as any unrecognized family token. Plan: docs/plans/archive/hurdle.md. A hurdle model fits a zero-inflated / semicontinuous outcome by factoring
 its likelihood into two conditionally-independent parts: a ZERO-PART model of
 1{y > 0} over all n observations, and a POSITIVE-PART model of y restricted to the
 subset {i : y_i > 0}. The load-bearing finding (section 0): because the parts share
@@ -261,8 +263,9 @@ across the two fits, and predict on new data.
 
 - **How the user asks.** family = "hurdle.lognormal" (v1: probit zero part +
   lognormal positive part), added to the dbarts and bart2 family vectors
-  ([`dbarts`](../../R/dbarts.R), [`bart2`](../../R/bart.R)), with `twopart` an accepted alias that resolves to
-  it ([`dbarts`](../../R/dbarts.R), [`bart2`](../../R/bart.R)). This section first proposed the bare "hurdle";
+  ([`dbarts`](../../R/dbarts.R), [`bart2`](../../R/bart.R)), and no alias: `twopart` was proposed here
+  and later dropped, so it is an unrecognized family token
+  ([`resolveFamily`](../../R/family.R)). This section first proposed the bare "hurdle";
   the NAMING decision in section 13 supersedes it, and the qualified token is what
   ships. Following the dbarts token convention (families are tokens, not
   arguments - aft, ordinal, nbinom, hazard all extended the vector, survival.md),
@@ -422,7 +425,8 @@ resolutions supersede the tentative in-body defaults of sections 3 and 6.
   (`hurdle.lognormal`) verbatim - the closest Bayesian/mixed analogs, whose audience
   overlaps dbarts'. The `.lognormal` qualifier disambiguates from the count "hurdle" of
   pscl/statsmodels (a bare token would set the wrong truncated-count expectation).
-  `twopart` is an accepted alias (health-econ audience) but prints as `hurdle.lognormal`.
+  `twopart` was proposed as an alias (health-econ audience) and never shipped: it is
+  refused as an unrecognized family token, with no tombstone since it never reached a release.
   Future siblings: `hurdle.gamma`, `hurdle.nbinom` (count, once a zero-truncated count
   family ships).
 
