@@ -278,6 +278,13 @@ rB <- samplerB$run(0L, 5L)
 rC <- samplerC$run(0L, 5L)
 expect_identical(rB$train, rC$train)
 
+# a state whose dispersion is not a whole number is refused, as the augmentation
+# draws only whole dispersions
+fractional <- saved
+fractional[[1L]]$dispersion <- 2.5
+expect_error(samplerC$setState(fractional), "not consistent with this sampler")
+rm(fractional)
+
 # an nbinom sampler refuses a state lacking its dispersion/latents block
 gaussSampler <- dbarts(x, as.double(y), verbose = FALSE)
 invisible(gaussSampler$run(5L, 2L))

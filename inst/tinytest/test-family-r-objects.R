@@ -148,15 +148,14 @@ for (call in list(
   quote(gaussian(link = "identity")),
   quote(gaussian("identity")),
   quote(gaussian(identity)),
+  quote(gaussian(logit)),
   quote(gaussian(link = "log")),
+  quote(gaussian(l = "log")),
+  quote(gaussian(sigma = dbartsPriors$fixed(1), "identity")),
   quote(gaussian(sigma = "identity"))
 )) {
   expect_error(resolve(call), "takes no 'link'.*stats::gaussian\\(\\)")
 }
-expect_identical(
-  resolve(quote(stats::gaussian(link = "identity"))),
-  resolve(quote("gaussian"))
-)
 expect_error(resolve(quote(gaussian(prior = 1))), "takes only 'sigma'")
 expect_identical(
   resolve(quote(gaussian(fixed(1))))@settings,

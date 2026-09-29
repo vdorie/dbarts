@@ -3570,11 +3570,12 @@ public:
         state.ordinalThresholds.size() != response_->numOrdinalThresholds())
       return false;
     // an NB sampler needs both its omega latents (in latents) and a finite
-    // positive dispersion r; an old state, or one from another family, carries
-    // neither and cannot continue the augmentation
+    // positive whole dispersion r, the only kind the augmentation draws; an old
+    // state, or one from another family, carries neither and cannot continue
     if (response_->carriesDispersion() &&
         (state.latents.size() != n || !(state.dispersion > 0.0) ||
-         !std::isfinite(state.dispersion)))
+         !std::isfinite(state.dispersion) ||
+         state.dispersion != std::round(state.dispersion)))
       return false;
     if (forests_[0].useDart && !state.dartProbabilities.empty() &&
         state.dartProbabilities.size() != data_.numPredictors)

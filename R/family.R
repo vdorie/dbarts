@@ -361,12 +361,20 @@ familySigmaSetting <- function(sigma, caller) {
 ## dbarts fits only the identity link, so this takes none; an R family object
 ## such as stats::gaussian() is mapped where family objects are resolved.
 gaussian <- function(sigma = NULL, ...) {
+  # a link however spelled - named or partially named, a string, or a bare
+  # link name read before it would be evaluated - gets the link message
   sigmaExpr <- substitute(sigma)
+  dotNames <- as.character(...names())
+  dotStrings <- vapply(
+    as.list(substitute(list(...)))[-1L],
+    is.character,
+    logical(1L)
+  )
   if (
-    "link" %in%
-      ...names() ||
-      is.character(sigma) ||
-      (is.name(sigmaExpr) && as.character(sigmaExpr) %in% statsLinkNames)
+    (is.name(sigmaExpr) && as.character(sigmaExpr) %in% statsLinkNames) ||
+      any(nzchar(dotNames) & startsWith("link", dotNames)) ||
+      any(dotStrings) ||
+      is.character(sigma)
   ) {
     stop(
       "gaussian() takes no 'link': dbarts fits the identity link only; drop ",
