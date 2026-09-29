@@ -283,6 +283,26 @@ expect_equal(sort(unique(forestSubsetTrees$forest)), c(1L, 3L))
 
 expect_error(extract(fitKeep, type = "trees", forest = 4L), "out of range")
 
+fitKeep2 <- bart(
+  x,
+  y,
+  family = "multinomial",
+  keepTrees = TRUE,
+  n.trees = n.trees,
+  n.chains = 2L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+twoChainTrees <- extract(fitKeep2, type = "trees")
+expect_equal(
+  colnames(twoChainTrees),
+  c("forest", "chain", "sample", "tree", "n", "var", "value")
+)
+expect_equal(sort(unique(twoChainTrees$chain)), 1:2)
+expect_equal(sort(unique(twoChainTrees$forest)), 1:3)
+
 # a fit with no saved trees refuses by name, exactly as for a "bart" fit
 expect_error(extract(fitCombined, type = "trees"), pattern = "saved trees")
 

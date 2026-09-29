@@ -630,7 +630,9 @@ treeControl <- dbarts::dbartsControl(
   seed = 3L
 )
 # a plotTree on a single-forest sampler still needs no forest
+pdf(NULL)
 expect_silent(fits$gaussian$fit$plotTree(1L, chainNum = 1L, sampleNum = 1L))
+dev.off()
 
 declared <- dbarts::dbarts(
   y ~ x1,
@@ -652,6 +654,60 @@ invisible(twoForests$run())
 expect_equal(colnames(twoForests$getTrees()), c("forest", treeCols))
 expect_equal(sort(unique(twoForests$getTrees()$forest)), 1:2)
 expect_error(twoForests$plotTree(1L, chainNum = 1L), "forest required")
+
+# the dbartsSpec() route, which builds the sampler by hand, marks a one-forest
+# declaration the same way
+specDeclared <- dbarts::dbartsSpec(
+  dbarts::dbartsData(y ~ x1, treeDf),
+  treeControl,
+  forests = list(forest())
+)
+specSampler <- new(
+  "dbartsSampler",
+  specDeclared$control,
+  specDeclared$model,
+  specDeclared$data
+)
+invisible(specSampler$run())
+expect_equal(colnames(specSampler$getTrees()), c("forest", treeCols))
+
+# a one-forest declaration survives save/load and copy()
+declaredFile <- tempfile(fileext = ".rds")
+saveRDS(declared, declaredFile)
+reloaded <- readRDS(declaredFile)
+unlink(declaredFile)
+expect_equal(colnames(reloaded$getTrees()), c("forest", treeCols))
+expect_equal(colnames(declared$copy()$getTrees()), c("forest", treeCols))
+
+# a control taken from another sampler does not carry that sampler's
+# configuration: not a forests declaration, and not a variance forest
+plainFromDeclared <- dbarts::dbarts(
+  y ~ x1,
+  treeDf,
+  control = declared$control
+)
+invisible(plainFromDeclared$run())
+expect_equal(colnames(plainFromDeclared$getTrees()), treeCols)
+expect_null(attr(plainFromDeclared$control, "bartcore.forestsDeclared"))
+
+plain <- dbarts::dbarts(y ~ x1, treeDf, control = treeControl)
+plain$setControl(declared$control)
+invisible(plain$run())
+expect_equal(colnames(plain$getTrees()), treeCols)
+
+varianceDonor <- dbarts::dbarts(
+  y ~ x1,
+  treeDf,
+  variance = varianceForest(n.trees = 5L),
+  control = treeControl
+)
+expect_false(is.null(attr(varianceDonor$control, "bartcore.variance")))
+noVariance <- dbarts::dbarts(y ~ x1, treeDf, control = varianceDonor$control)
+expect_null(attr(noVariance$control, "bartcore.variance"))
+invisible(noVariance$run())
+expect_null(noVariance$run()$variance)
+plain$setControl(varianceDonor$control)
+expect_null(attr(plain$control, "bartcore.variance"))
 
 # a variance forest's trees are not read by getTrees, so no forest column
 varianceFit <- dbarts::bart(

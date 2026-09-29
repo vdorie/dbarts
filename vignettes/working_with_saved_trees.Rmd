@@ -76,7 +76,7 @@ print(head(trees, n = 10))
 
 The columns refer to:
 
-* `forest`, `chain`, `sample`, `tree` - index variables; `forest` is present even on the single-forest fit above
+* `forest`, `chain`, `sample`, `tree` - index variables; `forest` is present only on a fit with several forests (or one declared with `forests =`), so not on the single-forest fit above; `chain` is always present in `extract(type = "trees")`, 1 on a one-chain fit
 * `n` - number of observations in node (from the training data, or from `newdata` when it is supplied; see "Counts for New Data" below)
 * `var` - either the index of the variable used for splitting or -1 if the node is a leaf
 * `value` - the cut point for an ordinal split (observations less than or equal to it go left); `NA` for a categorical split (see "Categorical Splits" below); otherwise the leaf's fitted value, which is its intercept under a linear leaf and `NA` under a Gaussian-process leaf (its fit is a function of the leaf's covariates rather than a scalar - see `predict` for those)

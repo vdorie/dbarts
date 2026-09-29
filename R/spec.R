@@ -142,6 +142,23 @@ resolveSamplerSpec <- function(
   residPrior = NULL,
   familySpec = NULL
 ) {
+  # a caller-supplied control may have been taken from another fit, and the
+  # bartcore.* attributes are that fit's model configuration; this call
+  # attaches its own, so none of the incoming ones is honored
+  for (attrName in grep(
+    "^bartcore\\.",
+    names(attributes(control)),
+    value = TRUE
+  )) {
+    attr(control, attrName) <- NULL
+  }
+  # a forests = declaration puts a forest column on getTrees' table, whatever
+  # its count, and nothing else of the control tells a one-forest declaration
+  # from none
+  attr(control, "bartcore.forestsDeclared") <- if (length(forests) > 0L) {
+    TRUE
+  }
+
   # a factor/logical/character response declares a classification model. The
   # single-forest engine here fits only the 2-level (probit) case; 3+ levels
   # are multinomial, which only bart(family = "multinomial") implements. A

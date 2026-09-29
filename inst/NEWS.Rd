@@ -578,9 +578,9 @@
             still accepted there. See the \code{forests =} and
             \code{family = "multinomial"} items below for the
             \code{forest} argument this rides on.
-      \item \code{extract(type = "trees")} always carries a \code{chain}
-            column, 1 on a one-chain fit, where 0.9-x left it off; tree
-            draws cannot be combined across chains. The sampler's own
+      \item Where \code{extract(type = "trees")} is available, it always
+            carries a \code{chain} column, 1 on a one-chain fit, where 0.9-x
+            left it off; tree draws cannot be combined across chains. The sampler's own
             \code{$getTrees} still adds \code{chain} only when the
             sampler has more than one chain.
     }

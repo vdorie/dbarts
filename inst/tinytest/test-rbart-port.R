@@ -206,6 +206,11 @@ expect_true(is.data.frame(trees))
 expect_true(all(c("sample", "chain", "tree") %in% names(trees)))
 expect_equal(sort(unique(trees$chain)), 1:2)
 
+# a one-chain fit keeps 0.9-x's layout: no chain column
+oneChain <- fitRbart(y ~ x, group.by = g, n.chains = 1L, n.samples = 6L)
+treesOne <- dbarts::extract(oneChain, type = "trees")
+expect_equal(names(treesOne), c("sample", "tree", "n", "var", "value"))
+
 # a serial fit that is saved and read back predicts what it did before
 fit <- fitRbart(y ~ x, group.by = g, n.chains = 2L, n.samples = 6L)
 before <- predict(fit, x, g)

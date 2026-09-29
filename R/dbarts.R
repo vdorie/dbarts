@@ -1432,13 +1432,6 @@ dbarts <- function(
     }
   }
 
-  # a forests = declaration is what puts a forest column on getTrees' table,
-  # whatever its count, and nothing else of the control tells a one-forest
-  # declaration from no declaration
-  if (length(forests) > 0L) {
-    attr(spec$control, "bartcore.forestsDeclared") <- TRUE
-  }
-
   sampler <- new("dbartsSampler", spec$control, spec$model, spec$data)
   # a latent family's 0/1 case weights are membership, which the sampler
   # carries as its active-row mask rather than as weights: the spec has
@@ -1987,6 +1980,15 @@ dbartsSampler <- setRefClass(
 
       newControl@binary <- control@binary
       newControl@call <- control@call
+      # a control taken from another sampler brings that sampler's attributes;
+      # only this sampler's own are carried
+      for (attrName in grep(
+        "^bartcore\\.",
+        names(attributes(newControl)),
+        value = TRUE
+      )) {
+        attr(newControl, attrName) <- NULL
+      }
       # bartcore.* attributes (the BCF, variance, survival and
       # ordinal/nbinom configuration resolveSamplerSpec attaches at creation)
       # live outside the S4 slots newControl replaces
