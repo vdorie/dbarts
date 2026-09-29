@@ -369,10 +369,9 @@
             a thread count passed to \code{$run} (ignored, successor
             \code{$setControl});
             \code{rngSeed} on \code{bart} and \code{dbartsControl}
-            (successor \code{seed}); \code{sigma} on \code{dbarts},
-            \code{dbartsSpec} and \code{xbart} (successor \code{sigest}); \code{node.prior}
-            on \code{dbarts} and \code{dbartsSpec} (successor
-            \code{leaf.prior}); \code{dbartsSampler}'s
+            (successor \code{seed}); \code{sigma} on \code{dbarts}
+            and \code{xbart} (successor \code{sigest}); \code{node.prior}
+            on \code{dbarts} (successor \code{leaf.prior}); \code{dbartsSampler}'s
             \code{$sampleNodeParametersFromPrior} (successor
             \code{$sampleLeafParametersFromPrior}); \code{power}
             and \code{base} on \code{bart} (successor
@@ -381,8 +380,7 @@
             \code{tree.prior = cgm(split.probs)}, refused together with a
             DART tree prior, which draws its own); \code{sigdf} and
             \code{sigquant} on \code{bart}, and \code{resid.prior} on
-            \code{bart}, \code{dbarts}, \code{dbartsSpec} and
-            \code{xbart} (successor
+            \code{bart}, \code{dbarts} and \code{xbart} (successor
             \code{family = gaussian(sigma = chisq(df, quant))} or
             \code{family = gaussian(sigma = fixed(value))});
             \code{proposal.probs} on
@@ -433,14 +431,13 @@
             \code{dbarts}'s own retired \code{proposal.probs}, above); its
             default, validity rule, and meaning are unchanged, and it can
             be changed between runs through \code{setControl}.
-      \item \code{dbarts(sigma = )} and \code{dbartsSpec(sigma = )} are
-            renamed \code{sigest}, matching \code{bart}, \code{bartBT}, and
-            \code{xbart}; \code{sigma} is still accepted for one release
-            (tombstone, above). \code{dbartsData}'s own \code{sigma} slot is
+      \item \code{dbarts(sigma = )} and \code{xbart(sigma = )} are
+            renamed \code{sigest}, matching \code{bart} and \code{bartBT};
+            \code{sigma} is still accepted for one release (tombstone,
+            above). \code{dbartsData}'s own \code{sigma} slot is
             unchanged - it is not an entry point, and stan4bart writes it
             directly.
-      \item \code{dbarts(node.prior = )} and \code{dbartsSpec(node.prior = )}
-            are renamed \code{leaf.prior}, the name \code{bart} and
+      \item \code{dbarts(node.prior = )} is renamed \code{leaf.prior}, the name \code{bart} and
             \code{xbart} take it under too, and the sampler's
             \code{$sampleNodeParametersFromPrior} is
             \code{$sampleLeafParametersFromPrior}; both old names are
@@ -481,7 +478,7 @@
             the prior vocabulary inside the family call. That is the
             prior's one home on every door: \code{bart} sheds
             \code{resid.prior}, \code{sigdf}, and \code{sigquant}, and
-            \code{dbarts}, \code{dbartsSpec}, and \code{xbart} shed
+            \code{dbarts} and \code{xbart} shed
             \code{resid.prior}, all of them tombstones (above). A call that
             writes the prior both ways - a retired spelling and a family
             whose call named \code{sigma} - is refused where the two
@@ -2222,13 +2219,6 @@
             user's \code{rngSeed} silently instead: the filter no longer
             recognizes the name, so the seed is never forwarded and the fit
             falls back to an unseeded stream.
-      \item \code{xbart}'s \code{sigma} argument is renamed \code{sigest},
-            matching \code{bart}: the fitting
-            functions all spell the starting residual-scale estimate
-            \code{sigest}, while the sampler constructors (\code{dbarts},
-            \code{dbartsSpec}) keep \code{sigma}. A caller still naming
-            \code{sigma} now gets an unused-argument error from
-            \code{xbart}.
       \item \code{bart} gains \code{tree.prior} and \code{leaf.prior}
             formals (\code{NULL} by default), taking the same full
             \code{\link{dbartsPriors}} objects \code{\link{dbarts}} already

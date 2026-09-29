@@ -563,7 +563,7 @@ withResidPrior <- function(family, residPrior) {
 ## The estimate itself is the test, not its name in the call: every entry
 ## point forwards 'sigest' to the one below it, defaulted to NA, so a name
 ## is no evidence a caller wrote one. 'sigestName' is the spelling the
-## caller actually wrote - dbarts()/dbartsSpec() still read the retired
+## caller actually wrote - dbarts() and xbart() still read the retired
 ## 'sigma =' for one release - and defaults to 'sigest' at doors that carry
 ## no other spelling for it.
 refuseSigestUnderFixedPrior <- function(

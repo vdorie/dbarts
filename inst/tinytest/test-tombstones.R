@@ -659,6 +659,16 @@ expect_error(
   ),
   pattern = "unused argument 'node.prior' passed to 'dbartsSpec'; the leaf prior is 'leaf.prior'"
 )
+# ...and beside the new spelling too, rather than as a both-spellings conflict
+expect_error(
+  dbarts::dbartsSpec(
+    specDataLV,
+    control = lvControl,
+    leaf.prior = dbarts::dbartsPriors$normal(3),
+    node.prior = dbarts::dbartsPriors$normal(3)
+  ),
+  pattern = "unused argument 'node.prior' passed to 'dbartsSpec'; the leaf prior is 'leaf.prior'"
+)
 
 # bart and xbart never carried node.prior on this branch: refused by name
 # rather than tombstoned (dec-B128), the message naming the successor
@@ -799,9 +809,6 @@ rm(
   fitNodePrior,
   fitLeafPrior,
   specDataLV,
-  specWarnings,
-  specNodePrior,
-  specLeafPrior,
   freshOld,
   freshNew,
   sampleWarnings,
