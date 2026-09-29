@@ -694,12 +694,17 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   a design may equally be mutated one column at a time by naming
   `column` (dense-backed and sparse-backed columns alike, and a single
   call may name both kinds), which is the cheaper spelling when only a
-  few columns move. Note that replacing a sparse-backed column densifies
-  its storage permanently: every row then differs from the column's
-  implicit value, so it stores `n` entries from that point on. For
-  `setTestPredictor`, a per-column update reaches a data-frame or sparse
-  test container too: the replacement is spliced into its storage rather
-  than densifying the whole test set.
+  few columns move. A replaced sparse-backed column stays sparse: it
+  stores the replacement's entries that differ from its implicit value
+  (zero, or a sparse factor's reference level), in the storage layout
+  chosen at creation, and a sparse column of the replacement is read as
+  those entries rather than expanded, so for sparse columns the call's
+  memory follows their nonzeros; a dense column of a mixed replacement
+  is copied, as in any dense replacement. A replacement of any other
+  sparse `Matrix` class is read as the `dgCMatrix` it holds, as is such
+  a test set. For `setTestPredictor`, a per-column update reaches a
+  data-frame or sparse test container too: the replacement is spliced
+  into its storage rather than densifying the whole test set.
 
 - forceUpdate:
 

@@ -39,17 +39,20 @@ dbarts(
   compact rank-bitmap layout instead of being expanded, and the
   predictor-mutation surface accepts both whole-matrix replacement,
   `setPredictor(x)`, and the column-granular
-  `setPredictor(x, column = j)`, which replaces a sparse column whole;
-  replacing a sparse-backed column densifies its storage permanently.
-  Per-observation replacement of a sparse-backed column, and `setData`,
-  are fixed at creation. Sparse inputs are not supported by the
-  `leaf.prior = linear()` and `gp()` leaf models (a sparse-backed test
-  column cannot serve a designated leaf covariate either). A sparse or
-  data-frame test set stays resident (rank-bitmap or dense per column,
-  the same rule as training) rather than densifying at ingestion, and
-  `predict` and `getTrees(newdata = )` route its rows through the trees
-  off that storage rather than densifying it either. A data frame may
-  mix ordinary columns with
+  `setPredictor(x, column = j)`, which replaces a sparse column whole; a
+  replaced sparse-backed column stays sparse, storing only the
+  replacement's nonzeros, and a replacement's sparse columns are never
+  expanded. Per-observation replacement of a sparse-backed column, and
+  `setData`, are fixed at creation. Sparse inputs are not supported by
+  the `leaf.prior = linear()` and `gp()` leaf models (a sparse-backed
+  test column cannot serve a designated leaf covariate either). A sparse
+  or data-frame test set stays resident (rank-bitmap or dense per
+  column, the same rule as training) rather than densifying at
+  ingestion - a test set of any other sparse `Matrix` class, such as a
+  `dgTMatrix`, as the `dgCMatrix` it holds - and `predict` and
+  `getTrees(newdata = )` route its rows through the trees off that
+  storage rather than densifying it either. A data frame may mix
+  ordinary columns with
   [`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
   or `dgCMatrix` columns (assign them into the frame; they do not
   survive `data.frame(...)` or
