@@ -298,11 +298,15 @@ dbarts(
   prognostic forest \\\mu\\ over every predictor and a modulating forest
   \\\tau\\ over the columns its `vars` allows. Every forest past the
   first needs a `basis`, the amplitudes multiplying it being what
-  distinguish it from the first. Gaussian, `"probit"` and `"logistic"`
-  responses: under a latent family the forests combine into the index
-  rather than into the mean, on the link's own fixed scale, so every
-  forest's `sd` is stated in latent standard deviations, `sigma` is
-  pinned and there is no response transform to re-anchor. `"aft"`,
+  distinguish it from the first. A single declared forest carrying a
+  basis is refused: for varying coefficients declare an intercept forest
+  plus one basis forest per covariate,
+  `forests = list(forest(), forest(basis = ~ z1), forest(basis = ~ z2))`,
+  or use one forest with `linear()` leaves. Gaussian, `"probit"` and
+  `"logistic"` responses: under a latent family the forests combine into
+  the index rather than into the mean, on the link's own fixed scale, so
+  every forest's `sd` is stated in latent standard deviations, `sigma`
+  is pinned and there is no response transform to re-anchor. `"aft"`,
   `"ordinal"` and `"nbinom"` are refused at creation, each naming what
   it is missing. The `control`'s `proposal.probs` mixture is a property
   of the fit and reaches every forest of the declaration, the frozen

@@ -140,7 +140,12 @@ forest(
   the fitted sampler: \\v_f\\ is the `amplitude.prior.variance` column
   of `$getLeafPrior(f)` and \\B_f\\ is `data@bases[[f]]`, so the induced
   prior can be checked against what is in force rather than against what
-  the call asked for. See the example below.
+  the call asked for. See the example below. A lone forest carrying a
+  `basis` is refused, the amplitudes being what distinguish a forest
+  from another. For varying coefficients declare an intercept forest
+  plus one basis forest per covariate,
+  `forests = list(forest(), forest(basis = ~ z1), forest(basis = ~ z2))`,
+  or use one forest with `linear()` leaves.
 
 - update.amplitude:
 

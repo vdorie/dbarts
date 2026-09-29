@@ -180,7 +180,12 @@ The constructor is not exported: it resolves by bare name inside the
     sampler: \(v_f\) is the <code>amplitude.prior.variance</code> column of
     <code>$getLeafPrior(f)</code> and \(B_f\) is <code>data@bases[[f]]</code>,
     so the induced prior can be checked against what is in force rather than
-    against what the call asked for. See the example below.</p></dd>
+    against what the call asked for. See the example below.
+    A lone forest carrying a <code>basis</code> is refused, the amplitudes being what
+    distinguish a forest from another. For varying coefficients declare an
+    intercept forest plus one basis forest per covariate,
+    <code>forests = list(forest(), forest(basis = ~ z1), forest(basis = ~ z2))</code>,
+    or use one forest with <code>linear()</code> leaves.</p></dd>
 
   <dt id="arg-update-amplitude">update.amplitude<a class="anchor" aria-label="anchor" href="#arg-update-amplitude"></a></dt>
 <dd><p>Whether this forest's amplitudes are redrawn each sweep, default

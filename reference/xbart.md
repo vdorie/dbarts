@@ -74,7 +74,9 @@ xbart(
   can also be the
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) matrix
   `x.train`. See
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). A
+  `dbartsData` object carrying `bases` (a multi-forest model) is
+  refused: `xbart` cross-validates single-forest models.
 
 - data:
 

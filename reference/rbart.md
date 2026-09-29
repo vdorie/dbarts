@@ -122,7 +122,9 @@ print(x, ...)
   supplied `seed` is used for this call only: the caller's random number
   stream is left as it was found. `weights` are precisions, so a row's
   residual variance is \\\sigma^2 / w_i\\, and a binary response takes
-  only weights of 0 and 1; other weights are refused.
+  only weights of 0 and 1; other weights are refused. A `dbartsData`
+  object carrying `bases` (a multi-forest model) is refused: `rbart_vi`
+  fits a single forest.
 
 - object:
 

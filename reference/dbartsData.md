@@ -53,7 +53,13 @@ dbartsData(
   the multi-forest model with the engine's default per-forest
   configuration, and
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
-  declarations may then configure the forests one at a time.
+  declarations may then configure the forests one at a time. A single
+  element (one basis-carrying forest) is refused, as is any forest past
+  the first with a `NULL` element; for varying coefficients use an
+  intercept forest plus one basis forest per covariate,
+  `bases = list(NULL, z1, z2)`.
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) and
+  `rbart_vi` refuse a data object carrying bases.
 
 - counts:
 
