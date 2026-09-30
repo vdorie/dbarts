@@ -941,3 +941,41 @@ in one constrained predictor, draw bitwise as before; tests/cpp with ASan/UBSan 
 the lint chain clean, R CMD check --as-cran one NOTE (Date); reference-build compares bitwise 53/15/11;
 the exact gates quick; stan4bart 566/0, bartCause 1145/0. Calls made: dec-A131.
 
+
+Checkpoint, 2026-09-30: stage 4 (08d978a1) built with the move census, prior = "leaf", seed 1, n 5000,
+1000 burn-in and 200 kept sweeps, at most three fits at once on arm64 macOS; per fit in
+[monotone-checkpoint-08d978a1.csv](../../benchmarks/baselines/monotone-checkpoint-08d978a1.csv). Count
+time and memory are the largest per-move count the sampler needed; "sweeps > 1 s" is the share of sweeps
+with such a count over 1 s; "big merges" is accepted deaths leaving a merged component past 2^20
+down-sets, out of all accepted deaths.
+
+| fit | trees | free axes | sweeps completed | max count | max memory | sweeps > 1 s | big merges | capped |
+|---|---|---|---|---|---|---|---|---|
+| 1 constrained + 3 free (p 4) | 1 | 3 | 882 of 1200 | 70.1 s | 361 MB | 20% (178) | 13 of 32 | stopped at 36 min |
+| 1 + 2 | 1 | 2 | 1200 | 0.06 s | 1.0 MB | 0 | 0 of 20 | no (4 s) |
+| 1 + 1 | 1 | 1 | 1200 | 23.3 s | 143 MB | 9.8% (118) | 8 of 46 | no (11 min) |
+| 2 + 1 | 1 | 1 | 1200 | 4.4 s | 41 MB | 7.3% (88) | 5 of 36 | no (3.3 min) |
+| all four designs | 5 | 1-3 | 1200 | 0.09 s | 2.1 MB | 0 | 0 | no (2-16 s) |
+| all four designs | 10 | 1-3 | 1200 | 0.5 ms | 0.03 MB | 0 | 0 | no (2 s) |
+| all four designs | 20 | 1-3 | 1200 | 0.7 ms | 0.02 MB | 0 | 0 | no (3 s) |
+
+- The p 4 fit was stopped by hand once settled: its 178 slow sweeps already exceed 10% of 1200, six
+  counts took over 60 s (66-70 s), and its last ten minutes ran about 4 sweeps a minute with 318 sweeps
+  left in 24 minutes, so it would have hit the 60-minute cap. A first run, stopped at 863 sweeps, drew
+  the same moves. Its slowest counts held 1.5e8 down-sets; no count came near 4 GB, and the process
+  peaked at 618 MB resident. In the 1 + 1 fit every slow count falls after sweep 945.
+- Hybrid (the same fits with every move counted, 15 minutes each): the share of counted moves the
+  hybrid would switch at B = 2^22, and a_B / a_MH on those moves (mean, median, minimum; moves the free
+  bound decided carry no ratio and are left out). One tree: p 4 32.5% (794 sweeps; 0.960, 0.996,
+  0.559), 1 + 2 10.0% (0.976, 0.996, 0.596), 1 + 1 45.6% (1176 sweeps; 0.966, 0.995, 0.513), 2 + 1 28.7%
+  (0.964, 0.997, 0.508). Five trees: 1 + 1 0.3% (0.967, 0.989, 0.736), 2 + 1 3.2% (0.953, 0.988, 0.544),
+  the others none. Ten and twenty trees: none. Every fit not named with a sweep count completed its 1200
+  sweeps. Switched moves would keep 95-98% of Metropolis-Hastings' acceptance on average, and the
+  median move nearly all of it.
+- Trigger: fires. Conditions that fired: a 1-5 tree fit with a count over 1 s in more than 10% of its
+  sweeps (1-tree p 4, at least 15% of 1200); a count over 60 s (the same fit); and a fit on course for
+  the time cap (the same fit, stopped before it). Not fired: no fit at 10 or more trees has a count over
+  1 s (the largest is 0.7 ms), no count reached 4 GB, and the 1-tree 1 + 1 fit sits just under 10%
+  (9.8%). The hybrid goes to the maintainer for a before-release call.
+- Run times: timing 10:59-11:23 and 12:10-12:46 (the p 4 fit re-run after the first was stopped early),
+  hybrid 11:15-11:22 and 12:10-12:25; runs that spanned a machine sleep were discarded and re-run.
