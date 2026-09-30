@@ -5,19 +5,20 @@ then ruled that the package offers both monotone priors, "leaf" and "joint", cho
 (dec-B145 to dec-B148); the default stays open for the feel study below. Every move is then counted on the finer
 tree's side (Counting: algorithm), so a death proposal never counts the component its merge creates; a later
 move touching an accepted merge does. Under "leaf" a slow count warns and never stops the run (dec-B149): there
-is no count limit. A blind critique of the counting then fixed its gaps, and an early checkpoint (Steps) measures
-the corrected engine's counts before the feel study. Derivation and gate verified on an R
-prototype; not implemented.
+is no count limit. A blind critique of the counting then fixed its gaps, and a whole-plan critique found it not
+ready: the plan now stages the work in six reviewed commits (Staging), with a checkpoint on the corrected
+engine's counts after the fourth, and records three orchestrator calls (dec-A128). The monotone() signature is
+open. Derivation and gate verified on an R prototype; not implemented.
 
 agent: opus (engine numerics: move seam, order counting, exact pair redraw, gate)
 rng: posterior-changing for every fit with an active monotone constraint (all of its draws move, prior draws
 included); unconstrained fits byte-identical, since every engine change lives in the monotone instantiation
 window: before 1.0-0 (TODO monotone-exact-birth-death)
-budget: ~1,600 lines (engine ~610, bridge and R ~270, tests/cpp ~410, tinytest ~150, gate wiring ~30, docs
-~130; the gate script and the feel study's script excluded). The second prior adds ~150-250 of that, the
-monotone() constructor with its vocabulary ~100, counting on the finer tree's side ~100, and the slow-count
-warning with the interrupt and allocation paths ~100 (the guard it replaces would have been ~60). Plan
-estimates have run 1.5-2x low: expect up to ~3,200.
+budget: ~2,000 lines (engine ~700, bridge and R ~330, tests/cpp ~470, tinytest ~200, gate and SBC wiring ~150,
+docs ~150; the gate script and the feel study's script excluded). The second prior adds ~150-250 of that, the
+monotone() constructor with its vocabulary and caller sweep ~160, counting on the finer tree's side ~100, the
+slow-count warning with the interrupt, allocation and rebuild paths ~150, the SBC arms ~120, and the lazy
+cache ~80. Plan estimates have run 1.5-2x low: expect up to ~4,000.
 
 ## Goal
 
@@ -243,9 +244,10 @@ Rulings, 2026-09-29:
 - Slow counts (dec-B149): no count limit under "leaf". The run always continues on the exact model; the engine
   records counts that took more than about a second, and after the run R warns once that some counts were
   slow, why, and the remedies (more trees, or prior = "joint"). A long count polls for a user interrupt, and
-  an allocation failure in it becomes an ordinary R error, not a crash, leaving the sampler's state unchanged.
-  Not chosen: the guard above, the hybrid Barker move (Counting: algorithm; the upgrade if the feel study shows
-  slow counts in practice), and a budget. "OK, let's do option 2 now."
+  an allocation failure in it becomes an ordinary R error, not a crash. Not chosen: the guard above, the hybrid
+  Barker move ([monotone-barker-hybrid.md](../design/monotone-barker-hybrid.md), proposed, not adopted; the
+  upgrade if slow counts show in practice), and a budget. "OK, let's do option 2 now." What a cancel leaves
+  behind is an orchestrator call (dec-A128, step 15).
 
 ## Default: feel study
 
@@ -253,8 +255,9 @@ The maintainer wants the default chosen on how users will feel it, beyond run ti
 engine once both priors are built, in about an hour, and is not run before then. Its script lands beside the
 gate in benchmarks/R.
 
-- Arms: "leaf" and "joint" at cgm() defaults (base .95, power 2), and "joint" at cgm(power = 0.8, base = 0.25),
-  the mBART paper's setting. Tree counts 200, 50 and 5.
+- Arms: "leaf" and "joint" at cgm() defaults (base .95, power 2), "joint" at cgm(power = 0.8, base = 0.25), the
+  mBART paper's setting, and an unconstrained fit as the reference a user compares against. Every monotone arm
+  names its prior explicitly. Tree counts 200, 50 and 5.
 - Prior predictive: 500 draws of f per arm and tree count, one constrained and one free predictor on a grid,
   through samplePriorPredictive. Along the constrained axis at fixed free values: the number of distinct
   levels (steps), the largest jump as a share of the total rise, the share of flat grid intervals, and the
@@ -281,17 +284,19 @@ gate in benchmarks/R.
   matching "leaf" on fit quality. If only the mBART-tuned "joint" matches, a "joint" default also needs a
   different tree-prior default under monotone, which users would meet as a surprise; the study reports that
   case separately.
-- Slow counts in practice under "leaf", at whatever default, make the hybrid Barker move (Counting: algorithm)
-  the upgrade; the largest count time per fit is the evidence.
+- Slow counts in practice under "leaf", at whatever default, make the hybrid Barker move
+  ([monotone-barker-hybrid.md](../design/monotone-barker-hybrid.md)) the upgrade; the largest count time per
+  fit is the evidence.
 
 ## Counting: algorithm
 
 Every move's ratio is counted on the side of the finer tree T*, the tree that holds the move's pair as two
 leaves c1 and c2: for a birth the proposal, for a death the current tree. c1 is the child lower in the ORDER,
 not in code: on an increasing axis the lower-code child, on a decreasing axis the higher-code child (taking the
-lower-code one there gives theta = 0); on a free split either child, fixed as the left. A death proposal
-therefore never counts the component its merge creates, but an accepted two-component death leaves that merged
-component in the state uncounted, and the next move touching it pays its count (step 1).
+lower-code one there gives theta = 0); on a free split either child, fixed as the left. A one-component death
+counts its merged component C0, which costs no more than C*; a two-component death does not count the merged
+component, which can be far larger, but if accepted it leaves that component in the state uncounted, and the
+next move touching it pays its count (step 1).
 
 - Identity. The linear extensions of T0 correspond one to one with those of T* in which c2 immediately follows
   c1: replace the merged leaf by c1 c2, or merge them back. Both directions hold because the merged leaf's
@@ -368,7 +373,9 @@ component in the state uncounted, and the next move touching it pays its count (
   - Used only when a move's T* components (or an uncounted current component it touches) pass a size
     threshold, a symmetric rule so each move pair keeps one exact kernel, it would bound the time of slow counts
     with an exact move that mixes somewhat slower, and give step 6 a draw that keeps no layers. It is dec-B149's
-    upgrade if slow counts show in practice; the checkpoint in Steps decides whether it goes in before release.
+    upgrade if slow counts show in practice; [monotone-barker-hybrid.md](../design/monotone-barker-hybrid.md)
+    proposes it, and the checkpoint (Staging) is the evidence for whether it goes in before release. This plan
+    does not adopt it.
   - Simpler exact schemes lose acceptance. Accepting a birth with min(1, r1 m) times the coin, and a death with
     min(1, 1 / (r1 m)) and no draw, matches Metropolis-Hastings when r1 m <= 1 but otherwise scales acceptance
     by theta (0.02-0.2 on the large moves). The exchange algorithm (Murray, Ghahramani and MacKay, UAI 2006),
@@ -382,10 +389,38 @@ component in the state uncounted, and the next move touching it pays its count (
 
 - Exact for each stated prior (dec-B14). Counts are held as scaled doubles with a log scale (Counting:
   algorithm): exact to 2^53, relative error under 1e-12 beyond, and no overflow.
-- Unconstrained samplers byte-identical: the new seam and the prior flag compile out, like the three existing
-  monotone seams. No dbarts.h change.
+- Unconstrained samplers byte-identical: the new seam, the prior flag and the lazy cache compile out, like the
+  three existing monotone seams. No dbarts.h change. Not compiled out, and so checked for identical draws: a
+  new facade virtual for the slow-count tally (a --preclean rebuild), the try/catch in run()'s worker bodies,
+  and the cancel function passed down from Chain::run to the moves.
+- The default prior lives in one constant, read by monotone() and by the plain-vector shorthand. Every
+  harness or test that encodes the "leaf" target names prior = "leaf" explicitly (monotone-reference.R part
+  (a) uses the shorthand today), so a default ruling changes no gate.
 - Out of scope: change moves under the constraint, quadrature speed (TODO monotone-leaf-quadrature), and
   reconciling a chi k hyperprior with the truncated law.
+
+## Staging
+
+Six reviewed commits, in this order. Landing is two-phase: phases 1-5 land with the default unset in the help
+(the constant set provisionally, every harness pinned), and step 12's docs wait for the default ruling.
+
+1. Redraw fix, empty leaves and reachability (steps 4, 5, 7), with step 9's reachability tests.
+2. The monotone() constructor, vocabulary and caller sweep (step 14), once its signature is ruled.
+3. The counter with its tests/cpp checks, not wired in (steps 1, 6, 8), counting both sides of every move;
+   then, as its own later commit, the lazy cache (step 1).
+4. The seam, the dropped d terms, the prior flag and the gate under both priors (steps 2, 3, 13, 10), with
+   engine-side per-move count timing recorded. Then the checkpoint below, and stop.
+5. Slow-count warning, interrupt, allocation and rebuild (step 15), and setModel's refusal (step 7).
+6. Equivalence scenarios (step 11), the SBC arms (step 16), and docs (step 12, after the default ruling).
+
+Checkpoint (stop and report), after commit 4, before the feel study and before step 12: rerun
+[monotone-order-size.R](../../benchmarks/R/monotone-order-size.R)'s fits on the corrected engine under "leaf": 1,
+5, 10 and 20 trees, 1-3 free axes, the p 4 case (1 constrained, 3 free) included, each fit under a wall-time
+and memory cap (a timeout and ulimit -v) so a runaway count is recorded, not waited on. Record per fit the
+largest per-move count time, the share of sweeps with a count over 1 s, and how often accepted deaths leave a
+merged component past 2^20 down-sets (extend the probe's fit mode to print these). This is the evidence for
+whether the hybrid Barker move ([monotone-barker-hybrid.md](../design/monotone-barker-hybrid.md)) goes in before
+release; the implementer stops here and reports.
 
 ## Steps
 
@@ -402,15 +437,20 @@ component in the state uncounted, and the next move touching it pays its count (
      component C*, count C* and C0; the current tree's component counts are kept, so a move counts one of the
      two. With the children in two components, take theta from the position laws of c1 and c2, and do not count
      C0. c1 is the child lower in the order (Counting: algorithm).
-   - Lazy counts: an accepted two-component death leaves its merged component uncounted, and the tree marks it
-     so. The next move that needs that component's count (a one-component birth or death inside it) counts it
-     then, at the merged component's full cost, and keeps the result. No claim is made that a state is cheap.
+   - First version (commit 3): count both sides of every move; nothing is cached.
+   - Lazy cache (its own later commit): per-component counts of the current trees, owned by the monotone leaf
+     model's per-chain scratch, not by the shared Tree, and compiled out elsewhere. An accepted two-component
+     death leaves its merged component uncounted, marked so; the next move that needs that count (a
+     one-component birth or death inside it) counts it then, at the merged component's full cost, and keeps
+     it. The cache is invalidated wholesale by setState, installForest, growForestFromRoot,
+     sampleTreesFromPrior, setData, setPredictor, setCutPoints and copy. No claim is made that a state is cheap.
    - Scale: layers held scaled with a log scale, binomials as logs (Counting: algorithm).
 2. Seam, active under "leaf" only (step 13). Add an optional leaf concept, `logNormalizerRatio`, declared by
    the monotone leaf. [`birthOrDeathMove`](../../src/bartcore/moves.hpp) evaluates it once per move while T*
    is in place, after `tree.birth` or before `orphanChildren`, given the pair, and it returns
-   log Z_T0 - log Z_T* counted on T*'s side (Counting: algorithm). The move adds it to the log prior ratio
-   (logged in the census's prior column).
+   log Z_T0 - log Z_T* counted on T*'s side (Counting: algorithm). A birth adds it to the log prior ratio and a
+   death subtracts it (logged in the census's prior column). The move records the count's wall time for the
+   checkpoint and step 15's tally.
    - Free bounds: Z_T0 / Z_T* = m theta with theta <= 1 (Counting: algorithm), m the size of the union of T*'s
      components holding the pair, known without counting. So a birth's ratio is at most m and a death's,
      Z_T* / Z_T0, at least 1 / m. This is tighter than the whole-tree bounds L0 + 1 and 1 / L0 (a birth never
@@ -418,18 +458,10 @@ component in the state uncounted, and the next move touching it pays its count (
      of the ratio, reject a birth without counting when u > r1 m, and accept a death without counting when
      u < r1 / m. This is plain Metropolis-Hastings with no loss of acceptance; the savings are
      unmeasured. (A two-stage acceptance, min(1, a) min(1, b), is also exact but lowers acceptance.)
-   - A slow count never rejects or stops the move; an interrupt or allocation failure during it restores T0
-     (step 15).
+   - A slow count never rejects or stops the move; an interrupt or allocation failure during it cancels the
+     move and the run (step 15).
 3. Drop the d terms: `priorMass` in `oneLeafLogMarginal`, `denom` in `twoLeafCoupledLogMarginal`. Under "joint"
    this alone is the exact move.
-
-   Checkpoint (stop and report). As soon as the corrected move runs in the engine (steps 1-3 and 13), before
-   the feel study and before step 12, rerun [monotone-order-size.R](../../benchmarks/R/monotone-order-size.R)'s
-   fits on the corrected engine under "leaf": 1, 5, 10 and 20 trees, 1-3 free axes, the p 4 case (1
-   constrained, 3 free) included. Record per fit the largest per-move count time, the share of sweeps with a
-   count over 1 s, and how often accepted deaths leave a merged component past 2^20 down-sets (extend the
-   probe's fit mode to print these). This is the evidence for whether the hybrid Barker move (dec-B149's
-   upgrade) goes in before release; the implementer stops at this point and reports.
 4. Exact pair redraw in `redrawAfterBirth`:
    - Keep the capped rejection for the upper leaf; it is exact whenever it accepts.
    - When the cap is reached or acceptMax underflows, draw the upper leaf by inverting the CDF of its marginal,
@@ -444,6 +476,8 @@ component in the state uncounted, and the next move touching it pays its count (
    - The cone and Z_T = e / L! then hold in every state. Trees with an empty leaf still carry zero posterior
      mass through the veto, and the veto ranks move the chain out.
    - The cost is that a test row routed to an empty leaf predicts that leaf's draw instead of 0.
+   - An empty constrained sibling pair (both children of a birth empty) is drawn by step 4's coupled pair draw
+     with no data, not leaf by leaf.
    - The alternative, refusing mutations that strand a leaf, breaks the embedded use the sampler exists for.
 6. Exact prior leaf draw. Per component, draw a uniform linear extension by backward sampling on the DP
    counts, every layer kept: remove a maximal element x with probability e(D - x) / e(D). Draw |C| iid
@@ -456,14 +490,20 @@ component in the state uncounted, and the next move touching it pays its count (
      change, perturb or rule_gibbs share. The all-zero frozen mixture stays allowed.
    - setControl mirrors creation: a defaulted mixture is rewritten to birth/death silently, and an explicit
      non-birth/death one is refused.
+   - setModel refuses a change of monotone directions or of the monotone prior against the sampler's own, as
+     setControl mirrors creation, and refuses a model lacking the monotone attribute on a monotone sampler
+     (dec-A128). Today that model is accepted, and copy() then fits unconstrained: a 0.34 drop along x1 in the
+     critique's probe.
    - growForestFromRoot reseeds mu to the all-zero feasible seed before its draw.
-   - [`Chain::installForest`](../../src/bartcore/chain.hpp) reseeds infeasible leaves.
-   - [`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp) (setState, copy, reload) refuses an infeasible
-     tree. With steps 4 and 5 every state the sampler produces passes this check.
+   - Reseed, then validate (dec-A128). [`Chain::installForest`](../../src/bartcore/chain.hpp) reaches the trees
+     through [`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp) or `rebuildLiveForestRemapped`; on the
+     installTrees path it reseeds infeasible leaves first, so the check passes. setState, copy and reload call
+     rebuildLiveForest directly with no reseed, and it refuses an infeasible tree. With steps 4 and 5 every state
+     the sampler produces passes this check.
    - [`Chain::sampleTreesFromPrior`](../../src/bartcore/chain.hpp) under "leaf" needs no new predicate: the
      prior is not restricted. Under "joint" it draws each tree jointly by rejection, a CGM tree and iid
      unconstrained leaves kept only when the leaves lie in its cone (acceptance is the prior mean of Z_T), with
-     no count.
+     no count, and then discards the leaves, as its contract returns trees without leaf values.
 8. tests/cpp:
    - The count against brute-force permutation counts on hand-built trees (1-3 axes, mixed directions, N, a
      star, a chain over 64 leaves) and 200 random trees.
@@ -486,9 +526,10 @@ component in the state uncounted, and the next move touching it pays its count (
      time: every draw is feasible, and the upper leaf's draws match the quadrature CDF (KS).
    - The linear-extension draw is uniform over extensions (chi-square on a 5-leaf N-plus-chain).
    - Slow counts (step 15): with the threshold lowered, a count enters the tally with its time and size, and
-     the tally resets at the next run. A cancel function that turns true after k polls aborts a long count
-     with T0 restored, inline and on a worker chain. An allocation failure injected into the count restores
-     T0 and reaches the caller as an exception, inline and rethrown from a worker after the join.
+     the tally resets at the next run. A cancel function that turns true after k polls aborts a long count,
+     inline and on a worker chain; an allocation failure injected into the count reaches the caller as an
+     exception, inline and rethrown from a worker after the join. After either, the touched tree is T0, the
+     chain's derived state equals a from-scratch rebuild of the same trees, and the next run is valid.
    - Free bounds: over random trees and moves, a move decided without counting gets the same decision as with
      the count, for the same u.
    - Under "joint" the move's log alpha equals the closed form without log Z_T0 - log Z_T*, the count is never
@@ -496,17 +537,18 @@ component in the state uncounted, and the next move touching it pays its count (
    - [`testMonotoneMarginal`](../../tests/cpp/test_model.cpp) loses its d_* = 1/2 check.
 9. tinytest ([test-monotone.R](../../inst/tinytest/test-monotone.R)):
    - a setControl change mix errors, and a defaulted one is rewritten;
-   - setModel without the monotone attribute cannot install a change mix;
-   - installTrees from an unconstrained donor leaves the fit monotone at once, and setState of that state is
-     refused;
+   - setModel refuses a model without the monotone attribute, or with other directions or another prior;
+   - installTrees from an unconstrained donor reseeds its infeasible leaves and leaves the fit monotone at once,
+     and setState of the unconstrained donor's state is refused;
    - growFromRoot plus one sweep is monotone;
    - after 2,000 sweeps on data decreasing along the constrained axis, copy() and setState round-trip;
    - setPredictor(forceUpdate = TRUE) stranding a leaf keeps the fit monotone;
    - with the slow-count threshold lowered through its test hook, a run warns once (dbartsSlowCountWarning)
      naming the remedies, and a run with the default threshold does not;
    - an allocation failure injected through a test hook is an ordinary R error, and the sampler runs on
-     afterwards; an interrupt is covered in tests/cpp only;
-   - every check above runs under both priors, and a "joint" fit never calls the count;
+     afterwards with a valid state; an interrupt is covered in tests/cpp only;
+   - every check above runs under both priors, and a "joint" fit's moves never call the count (the given-T
+     prior draw of step 6 counts under both);
    - step 14's constructor and vocabulary checks.
    A statistical check does not fit: the most sensitive cheap functional sat at |z| 0.6-0.8 against the current
    move at 50k-100k draws.
@@ -525,28 +567,38 @@ component in the state uncounted, and the next move touching it pays its count (
     - The general DP beyond these sizes rests on step 8's brute-force checks.
     - Both targets: engine and prototype modes take the prior, weighting each tree with log Z_T in its weight
       ("leaf") or without it ("joint"), and every group must pass under each. Its unnormalized mode already
-      prints the two exact laws side by side.
-11. Two monotone scenarios in benchmarks/R/equivalence.R (x1 and x2 constrained, 20 trees, one per prior), with
-    the other 53 scenarios bitwise. Its MANIFEST row names the enumeration gate as the ORACLE (P17).
+      prints the two exact laws side by side. Every run names its prior.
+    - A mirrored design with x1 decreasing (cN's cells reflected along x1), so a c1 taken by code instead of
+      by order fails the gate.
+    - Runtime: quick mode measured 8 min 15 s per prior, so two priors add ~16 min to exact-gates.yaml's
+      ~16 min under its 40-min timeout. The monotone gate moves to its own job (or the timeout rises to 60 min).
+11. Two monotone scenarios in benchmarks/R/equivalence.R (x1 and x2 constrained, 20 trees, one per prior): a
+    55-scenario re-record, the other 53 bitwise, and MANIFEST rows naming the enumeration gate as their ORACLE
+    (P17).
 12. Docs:
     - monotone.md sections 4, 9 and 11 and the Plan-vs-code note state both priors, B' with the whole-tree
       normalizer under "leaf", and what mBART's paper and software sample (Context).
     - The help states both priors and names the chosen default with the feel study's reason; under "leaf" it
       states the few-tree cost and the slow-count warning with its remedies, and that a count's memory grows
       with it (1.09 GB measured for 1.68e7 down-sets with every layer kept).
-    - [Monotone arm: design](sbc-family-tiers.md#monotone-arm-design) gets one arm per prior.
+    - [Monotone arm: design](sbc-family-tiers.md#monotone-arm-design) states one arm per prior (step 16).
     - dec-B16 is marked superseded in part by dec-B144.
-    - Status lines and INDEX at landing, and the TODO item removed.
+    - Status lines and INDEX at landing, and the TODO item removed. These docs land in phase two, after the
+      default ruling (Staging).
 13. The prior switch, end to end. R resolves monotone(prior = ) (step 14); the bridge passes it with the
-    directions to the engine as a flag on the monotone leaf. The flag travels wherever the directions do: the
-    model's monotone attribute, saved state, copy and reload, and setModel. Under "leaf" the Z seam (step 2)
+    directions to the engine as a flag on the monotone leaf. The flag rides the model's monotone attribute with
+    the directions, not the saved state, so stateFormatVersion does not change; copy and reload rebuild from the
+    model, and setModel refuses a change (step 7). Under "leaf" the Z seam (step 2)
     and step 15 are active; under "joint" `logNormalizerRatio` is not evaluated, no
     count runs, and sampleTreesFromPrior draws jointly (step 7). Steps 3-6 apply to both. The fit object
     records the prior, and print and summary show it.
 14. The monotone() constructor and vocabulary (dec-B146, dec-B147).
-    - `monotone(..., prior = )` in R/model.R beside interactions() and blocks(): directions as named
-      arguments (monotone(x1 = "increasing")) or one unnamed full-length positional vector, and prior = one of
-      "leaf" and "joint" (their order, the default, open), checked with match.arg. Class dbartsMonotone.
+    - Signature: OPEN for the maintainer. A predictor named "prior" collides with monotone(x1 = "increasing",
+      prior = ). Candidates: (A) directions in ... plus prior = , where a predictor named prior must use the
+      plain-vector form; (B) a directions vector as the first argument, monotone(c(x1 = "increasing"),
+      prior = "leaf"). Either way prior = is one of "leaf" and "joint" (their order, the default, open), checked
+      with match.arg, and the default comes from the one constant (Constraints). Class dbartsMonotone, in
+      R/model.R beside interactions() and blocks().
     - Like interactions() it is not exported itself: it joins dbartsForests, its exported face, and resolves
       by bare name inside monotone = on dbarts(), bart() and dbartsSpec() through resolveForestArguments
       (FOREST_ARGUMENT_VOCABULARIES), with a bare name the caller bound to a value being that value.
@@ -555,11 +607,15 @@ component in the state uncounted, and the next move touching it pays its count (
       and returns the directions and the prior.
     - `parseMonotoneSign` takes "increasing", "decreasing", 1, -1, and 0 for unconstrained in the positional
       form, matched case-sensitively; "+", "-" and other cases are errors naming the vocabulary.
+    - bart.R's multinomial branch routes monotone through resolveForestArguments, as it does variance, so a
+      bare monotone() resolves there too.
     - Rd: a monotone topic beside interactions and blocks, with a _pkgdown.yml entry; the monotone items of
-      dbarts.Rd, bart.Rd and dbartsSpec.Rd, and dbartsForests.Rd, updated.
+      dbarts.Rd, bart.Rd (both drop "case-insensitive") and dbartsSpec.Rd, and dbartsForests.Rd, updated.
+    - Caller sweep for the vocabulary: test-monotone.R, test-blocks.R, test-argument-surface.R,
+      test-proposal-probs.R, benchmarks/R/binary-hyperprior.R and surfaces-common.R, and the SBC design text.
     - tinytest: bare-name resolution and a caller-bound shadow, the vector shorthand equal to the default
-      prior's monotone(), an unknown prior value, "+" and "Increasing" refused, 0 accepted in the positional form, and
-      each prior fitting monotone.
+      prior's monotone(), an unknown prior value, "+" and "Increasing" refused, 0 accepted in the positional
+      form, a predictor named prior under whichever signature is ruled, and each prior fitting monotone.
 15. Slow counts (dec-B149).
     - Tally: each chain times every count and records those over a threshold, default one second: how many,
       the slowest, and its component's size and down-sets. It resets at the start of each run, as the GP
@@ -572,36 +628,44 @@ component in the state uncounted, and the next move touching it pays its count (
     - Interrupt: the DP polls the chain's cancel function, the one Chain::run checks between sweeps, every
       2^16 down-sets. On inline chains it calls the host's throttled pollInterrupt on the main thread; on
       worker chains it reads the atomic cancel flag the main thread sets, so no worker calls into R, and SIGINT
-      stays blocked on workers as run() already arranges. A cancel restores T0 (undoing the birth, or before
-      the death's orphaning) and returns as a between-sweep cancel does; every tree then holds a valid state,
-      and the run's results are discarded as on any interrupt.
-    - Allocation: the count catches std::bad_alloc, restores T0 and rethrows. run()'s worker bodies catch as
-      fanOutPredictSlabs's do, set the cancel flag, and the first exception is rethrown after the join on the
-      caller's thread; the bridge turns it into an ordinary R error. The failed move leaves its tree unchanged,
-      and the sampler can run again.
+      stays blocked on workers as run() already arranges.
+    - Allocation: the count catches std::bad_alloc, and run()'s worker bodies catch as fanOutPredictSlabs's
+      do, set the cancel flag, and the first exception is rethrown after the join on the caller's thread; the
+      bridge turns it into an ordinary R error.
+    - After a cancel (dec-A128): the chain restores the touched tree to T0 (undoing the birth, or before the
+      death's orphaning), then rebuilds its derived state from the trees: the running residual, the total
+      fits, and every cached fit the sweep had advanced. The cost is one fit pass over every tree, O(n x trees),
+      as setState's rebuild. Every state after a cancel is then consistent and valid, but the sweep may be
+      partly applied: earlier trees of that sweep hold their new draws. The run's results are discarded as on
+      any interrupt, and the sampler can run again.
+16. SBC arms (benchmarks/R/sbc.R has none today; ~120 lines): the monotone-1 and 20-tree arms of
+    [Monotone arm: design](sbc-family-tiers.md#monotone-arm-design), once per prior, each naming its prior;
+    monotone-1 at 0.4 s per replicate, the 20-tree arm ~85 min at R 200.
 
 ## Verification
 
 - `cd tests/cpp && make && ./test_bartcore`: the count, ratio, lazy-count, scale, redraw, extension-draw,
   slow-count, interrupt, allocation and "joint" checks pass.
-- The checkpoint after step 3 is reported before the remaining steps land.
+- The checkpoint (Staging) is reported before commits 5 and 6.
 - `R CMD INSTALL --preclean -l <lib> .`, then `R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'`.
-- `R_LIBS=<lib> Rscript benchmarks/R/monotone-exact-enumeration.R quick`, under each prior: every group passes.
-  This takes about 6 min; full mode runs 900k draws. The mutation run restores the d divisions and drops the Z
-  term (then `touch` the header and reinstall), and must fail like the current engine.
+- `R_LIBS=<lib> Rscript benchmarks/R/monotone-exact-enumeration.R quick`, under each prior, the mirrored
+  decreasing design included: every group passes. This takes about 8 min per prior; full mode runs 900k draws.
+  The mutation run restores the d divisions and drops the Z term (then `touch` the header and reinstall), and
+  must fail like the current engine.
   - Current engine, quick: c1 p 1.6e-24 and 6.5e-35 (two root rules); c2 3.8e-10 and 4.3e-5; c3 1.4e-15;
     cN 1.9e-29.
   - `prototype` mode (the corrected move in R, with an exact pair redraw): every group p >= 0.07.
   - `prototype-old` reproduces the current engine (c1 T^2 196 and 246, against the engine's 163 and 253).
   - Against an e(N) miscount of 10%, cN's noncentrality is ~80, so power is about 1.
   - `zcheck` mode verifies Z_T = e / L!.
-- `R_LIBS=<lib> Rscript benchmarks/R/monotone-reference.R quick`: parts (a) and (b) still pass. Then run the
+- `R_LIBS=<lib> Rscript benchmarks/R/monotone-reference.R quick`, with prior = "leaf" named: parts (a) and (b)
+  still pass. Then run the
   whole exact-gates.yaml list with `quick`.
-- `Rscript benchmarks/R/equivalence.R compare <current>`: 53 scenarios "identical draws (same RNG stream)" and
-  no "max |z|". BCF and multinomial compare identical. The snapshot files carry no monotone fit.
-- Release level: the SBC arm in [Monotone arm: design](sbc-family-tiers.md#monotone-arm-design), once per prior.
-  monotone-1 (0.4 s per replicate) flags the current move and must pass; then the 20-tree arm (~85 min at R
-  200) must pass before admission.
+- `Rscript benchmarks/R/equivalence.R compare <current>`: the 53 unconstrained scenarios "identical draws (same
+  RNG stream)" and no "max |z|", after the 55-scenario re-record. BCF and multinomial compare identical. The
+  snapshot files carry no monotone fit.
+- Release level: step 16's SBC arms, once per prior. monotone-1 (0.4 s per replicate) flags the current move and
+  must pass; then the 20-tree arm (~85 min at R 200) must pass before admission.
 - Speed: on a quiet machine, under each prior, monotone sweep time at 20 trees, 1 and 2 constrained predictors,
   within 5% of today; at 1 and 5 trees under "leaf", the slowdown is recorded against the Decision's estimates.
   bench-sampler compare unchanged on the unconstrained paths.
