@@ -1480,8 +1480,10 @@ makeScenarios <- function() {
     2 * sin(2 * pi * x.mo[, 3L]) +
     x.mo[, 4L] +
     0.5 * rnorm(400L)
-  for (prior in c("leaf", "joint")) {
-    result[[paste0("monotone", prior)]] <- list(
+  # spelled as two result$ assignments: tools/check-doc-freshness.R counts
+  # scenarios by that form
+  monotoneScenario <- function(prior) {
+    list(
       x = x.mo,
       y = y.mo,
       x.test = x.test.mo,
@@ -1496,6 +1498,8 @@ makeScenarios <- function() {
       )
     )
   }
+  result$monotoneleaf <- monotoneScenario("leaf")
+  result$monotonejoint <- monotoneScenario("joint")
 
   result
 }

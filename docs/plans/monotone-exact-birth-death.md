@@ -762,6 +762,11 @@ constrained value waits for step 12.
 11. Two monotone scenarios in benchmarks/R/equivalence.R (x1 and x2 constrained, 20 trees, one per prior): a
     55-scenario re-record, the other 53 bitwise, and MANIFEST rows naming the enumeration gate as their ORACLE
     (P17).
+    - As implemented (stage 6): monotoneleaf and monotonejoint share one design, n 400 and p 5, x1 increasing and
+      x2 decreasing (the surface decreases in x2, so the decreasing axis is exercised), through the sampler API.
+      The new baseline is named after the newest package-code commit, as its predecessors are; one MANIFEST row
+      covers both scenarios. The 53 others reproduce the previous baseline bitwise, and the row states that the
+      enumeration gate reaches one tree on small grids only, given step 16's flag.
 12. Docs:
     - monotone.md section 2 drops "+" and "-" for the new vocabulary (dec-B147), and sections 4, 9 and 11 and
       the Plan-vs-code note state both priors, B' with the whole-tree
@@ -864,6 +869,25 @@ constrained value waits for step 12.
     [Monotone arm: design](sbc-family-tiers.md#monotone-arm-design) lays them out: the burn-monotone run, the
     monotone-1 and 20-tree arms once per prior, each naming its prior, and the unconstrained monotone-bd twin
     once. monotone-1 at 0.4 s per replicate, the 20-tree arm ~85 min at R 200.
+    - As implemented (stage 6): arms monotone-leaf, monotone-joint (20 trees, n 150, p 3), monotone-1-leaf,
+      monotone-1-joint and monotone-bd (1 tree, n 100, p 1, the design's mini SBC), and the ladders
+      burn-monotone-leaf and burn-monotone-joint. Each runs the gaussian replication as a family-spec arm, so
+      every rank takes sbcDiscreteRank's tie-break (mono.local has an atom at 0) and the ladder applies. The
+      20-tree arms read their band at 0.05 / (57 + 20), both arms joining the matrix, not 0.05 / (57 + 10).
+    - The design's one-tree setting (thin 10, 1000 burn sweeps) is too short: there the twin flags sigma
+      (ecdfDiff 0.101 against a band of 0.066) and f.star3 (0.075). At thin 50 and 5000 burn sweeps it passes
+      all nine functionals, so the one-tree arms run at thin 50.
+    - Result, R 400, L 100, on arm64 macOS: monotone-1 FLAGS under both priors, and it does not shrink from
+      thin 10 to thin 50. At thin 50, "leaf" flags eight of nine functionals: mono.wide 0.181, mono.local
+      0.150, sigma 0.112, f.star1-5 0.080-0.165 (band 0.066). "joint" flags four: mono.wide 0.147,
+      mono.local 0.138, f.star3 0.099, f.star4 0.120; sigma sits at the band. The twin passes at the same
+      settings. Ranks pile at 0 (mono.wide 70 of 400 in the lowest bin under "leaf", 64 under "joint"), so the
+      posterior contrast is too steep, the same sign as the old engine's tilt. Checked: the prior draw agrees
+      with the chain run at a near-flat likelihood (weights 1e-30) on f(x*), mono.wide and mono.local under
+      both priors, |z| <= 1.6. That prior-only check cannot see the move's normalizer. The enumeration gate
+      passes at this tip under both priors, but only on grids of at most six cells; monotone-1's trees are
+      deeper. Open: the plan requires monotone-1 to pass. The 20-tree arms and their burn ladders are not
+      run.
 
 ## Verification
 
