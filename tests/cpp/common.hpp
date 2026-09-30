@@ -258,6 +258,8 @@ void runStateTests(ext_rng* rng);
 // restores the shared runif01 stream, so it neither shifts nor is shifted by
 // any other suite's draws
 void runEnsembleTests();
+// The monotone leaf-order counter; own rng, restores the runif01 stream.
+void runMonotoneTests();
 void runFuzzTests(int numSeeds);
 
 #endif  // TESTS_CPP_COMMON_HPP

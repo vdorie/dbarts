@@ -718,6 +718,579 @@ inline bool monotoneTreeIsFeasible(const Tree& tree, const ColumnStore& data,
   return true;
 }
 
+// ---- Monotone leaf order: linear-extension counts --------------------------
+//
+// Related leaves share one prior sd, so the chance that a tree's iid leaves
+// land in its cone is Z_T = prod over the components C of its leaf order of
+// e(C) / |C|!, e the number of linear extensions. e is counted by a layered
+// DP over down-sets (#P-complete in general; no count limit). Every term is
+// positive, so nothing cancels; counts are held as a double times a power of
+// two per layer, exact to 2^53 and never overflowing. Only the monotone leaf
+// calls any of this.
+
+/// One component of a tree's leaf order over local labels 0..size-1: each
+/// element's direct predecessors as a words-long bitset. The closure is not
+/// needed: the DP adds an element once its direct predecessors are in, which
+/// by induction yields exactly the down-sets of the closure.
+struct MonotoneOrderComponent {
+  std::size_t size = 0, words = 0;
+  std::vector<std::uint64_t> predecessors;  // size x words
+  // per element, the range of words its predecessors occupy
+  std::vector<std::uint32_t> firstWord, endWord;
+  std::vector<std::int32_t> leaves;  // node id by local label
+
+  const std::uint64_t* predecessorsOf(std::size_t x) const {
+    return predecessors.data() + x * words;
+  }
+  void reset(std::size_t size_) {
+    size = size_;
+    words = (size + 63) / 64;
+    predecessors.assign(size * words, 0);
+    leaves.clear();
+  }
+  void addPredecessor(std::size_t x, std::size_t y) {
+    predecessors[x * words + y / 64] |= std::uint64_t(1) << (y % 64);
+  }
+  /// Fill firstWord and endWord once predecessors are complete.
+  void finish() {
+    firstWord.assign(size, 0);
+    endWord.assign(size, 0);
+    for (std::size_t x = 0; x < size; ++x) {
+      const std::uint64_t* p = predecessorsOf(x);
+      std::size_t first = words, end = 0;
+      for (std::size_t w = 0; w < words; ++w) {
+        if (p[w] == 0) continue;
+        first = std::min(first, w);
+        end = w + 1;
+      }
+      firstWord[x] = static_cast<std::uint32_t>(first < end ? first : 0);
+      endWord[x] = static_cast<std::uint32_t>(end);
+    }
+  }
+};
+
+/// A tree's leaf order: its bottoms in fillBottom order, each one's component
+/// and local label there, and the components, isolated leaves included.
+struct MonotoneLeafOrder {
+  std::vector<std::int32_t> leaves;
+  std::vector<std::size_t> componentOf, labelOf;
+  std::vector<MonotoneOrderComponent> components;
+
+  std::size_t positionOf(std::int32_t node) const {
+    return static_cast<std::size_t>(
+      std::find(leaves.begin(), leaves.end(), node) - leaves.begin());
+  }
+};
+
+/// Build a tree's leaf order with the adjacency test of monotoneNeighborBounds:
+/// j is below k when, along a constrained axis, j's code box ends one code
+/// below k's start (direction -1 flips which is lower in the order), and the
+/// boxes overlap on every other axis. An axis the tree never splits is the
+/// full range for every leaf, so only split variables are compared.
+inline void buildMonotoneLeafOrder(const Tree& tree, const ColumnStore& data,
+                                   const std::int8_t* directions,
+                                   MonotoneLeafOrder& order) {
+  std::vector<std::int32_t>& leaves = order.leaves;
+  leaves.clear();
+  tree.fillBottom(0, leaves);
+  std::size_t numLeaves = leaves.size();
+  std::vector<std::int32_t> internal, variables;
+  tree.fillNotBottom(0, internal);
+  for (std::int32_t node : internal) {
+    std::int32_t v = tree.at(node).rule.variableIndex;
+    if (std::find(variables.begin(), variables.end(), v) == variables.end())
+      variables.push_back(v);
+  }
+  std::size_t numVariables = variables.size();
+  std::vector<std::int32_t> lo(numLeaves * numVariables),
+    hi(numLeaves * numVariables);
+  for (std::size_t l = 0; l < numLeaves; ++l)
+    for (std::size_t a = 0; a < numVariables; ++a)
+      monotoneLeafBox(tree, data, leaves[l], variables[a],
+                      &lo[l * numVariables + a], &hi[l * numVariables + a]);
+
+  std::vector<std::size_t> root(numLeaves);
+  for (std::size_t l = 0; l < numLeaves; ++l) root[l] = l;
+  auto findRoot = [&root](std::size_t x) {
+    while (root[x] != x) x = root[x] = root[root[x]];
+    return x;
+  };
+  std::vector<std::pair<std::size_t, std::size_t>> edges;  // (lower, upper)
+  for (std::size_t l = 0; l < numLeaves; ++l) {
+    const std::int32_t* loL = lo.data() + l * numVariables;
+    const std::int32_t* hiL = hi.data() + l * numVariables;
+    for (std::size_t r = l + 1; r < numLeaves; ++r) {
+      const std::int32_t* loR = lo.data() + r * numVariables;
+      const std::int32_t* hiR = hi.data() + r * numVariables;
+      for (std::size_t a = 0; a < numVariables; ++a) {
+        std::int8_t direction = directions[variables[a]];
+        if (direction == 0) continue;
+        bool rightAbove = hiL[a] + 1 == loR[a];
+        if (!rightAbove && hiR[a] + 1 != loL[a]) continue;
+        bool overlap = true;
+        for (std::size_t b = 0; b < numVariables && overlap; ++b)
+          overlap = b == a ||
+                    std::max(loL[b], loR[b]) <= std::min(hiL[b], hiR[b]);
+        if (!overlap) continue;
+        bool leftLower = rightAbove == (direction > 0);
+        edges.emplace_back(leftLower ? l : r, leftLower ? r : l);
+        root[findRoot(l)] = findRoot(r);
+        // overlapping on every other axis, two boxes touch along one at most
+        break;
+      }
+    }
+  }
+
+  order.componentOf.assign(numLeaves, 0);
+  order.labelOf.assign(numLeaves, 0);
+  order.components.clear();
+  std::vector<std::size_t> componentOfRoot(numLeaves, numLeaves), sizes;
+  for (std::size_t l = 0; l < numLeaves; ++l) {
+    std::size_t r = findRoot(l);
+    if (componentOfRoot[r] == numLeaves) {
+      componentOfRoot[r] = sizes.size();
+      sizes.push_back(0);
+    }
+    order.componentOf[l] = componentOfRoot[r];
+    order.labelOf[l] = sizes[componentOfRoot[r]]++;
+  }
+  order.components.resize(sizes.size());
+  for (std::size_t c = 0; c < sizes.size(); ++c)
+    order.components[c].reset(sizes[c]);
+  for (std::size_t l = 0; l < numLeaves; ++l)
+    order.components[order.componentOf[l]].leaves.push_back(leaves[l]);
+  for (const auto& edge : edges)
+    order.components[order.componentOf[edge.second]].addPredecessor(
+      order.labelOf[edge.second], order.labelOf[edge.first]);
+  for (MonotoneOrderComponent& component : order.components) component.finish();
+}
+
+/// T0's order from T*'s component holding a move's pair: c2 merged into c1
+/// with the union of their relations (a merged leaf's relations are its
+/// children's), c2's label removed and the labels above it shifted down.
+inline void monotoneMergePair(const MonotoneOrderComponent& c, std::size_t c1,
+                              std::size_t c2, MonotoneOrderComponent& out) {
+  out.reset(c.size - 1);
+  auto relabel = [c1, c2](std::size_t y) {
+    if (y == c2) y = c1;
+    return y > c2 ? y - 1 : y;
+  };
+  for (std::size_t x = 0; x < c.size; ++x) {
+    std::size_t target = relabel(x);
+    const std::uint64_t* p = c.predecessorsOf(x);
+    for (std::size_t w = 0; w < c.words; ++w)
+      for (std::uint64_t bits = p[w]; bits != 0; bits &= bits - 1) {
+        std::size_t y = relabel(w * 64 + std::countr_zero(bits));
+        if (y != target) out.addPredecessor(target, y);
+      }
+  }
+  out.finish();
+}
+
+/// Every down-set of one size, keyed by its bitset: the forward count f(D),
+/// the orderings of D, and the backward count g(D), the linear extensions of
+/// the rest, each a double times 2^exponent. table is open addressing with
+/// linear probing over index + 1 (0 empty), so a layer holds fewer than
+/// 2^32 - 1 down-sets.
+struct MonotoneDownSetLayer {
+  std::vector<std::uint64_t> keys;
+  std::vector<double> forward, backward;
+  std::vector<std::uint32_t> table;
+  std::int64_t forwardExponent = 0, backwardExponent = 0;
+
+  std::size_t size() const { return forward.size(); }
+};
+
+inline std::uint64_t monotoneDownSetHash(const std::uint64_t* key,
+                                         std::size_t words) {
+  std::uint64_t h = 0x9E3779B97F4A7C15ull;
+  for (std::size_t w = 0; w < words; ++w) {
+    h ^= key[w];
+    h = (h ^ (h >> 30)) * 0xBF58476D1CE4E5B9ull;
+    h = (h ^ (h >> 27)) * 0x94D049BB133111EBull;
+    h ^= h >> 31;
+  }
+  return h;
+}
+
+inline void monotoneLayerClear(MonotoneDownSetLayer& layer,
+                               std::size_t capacity) {
+  layer.keys.clear();
+  layer.forward.clear();
+  layer.backward.clear();
+  layer.table.assign(capacity, 0);
+  layer.forwardExponent = layer.backwardExponent = 0;
+}
+
+/// The index of a down-set the layer holds; it must hold it.
+inline std::size_t monotoneLayerFind(const MonotoneDownSetLayer& layer,
+                                     const std::uint64_t* key,
+                                     std::size_t words) {
+  std::size_t mask = layer.table.size() - 1;
+  std::size_t slot = monotoneDownSetHash(key, words) & mask;
+  for (;; slot = (slot + 1) & mask) {
+    std::size_t index = layer.table[slot] - 1;
+    if (std::equal(key, key + words, layer.keys.data() + index * words))
+      return index;
+  }
+}
+
+inline std::size_t monotoneLayerInsert(MonotoneDownSetLayer& layer,
+                                       const std::uint64_t* key,
+                                       std::size_t words) {
+  std::size_t count = layer.forward.size();
+  if (2 * (count + 1) > layer.table.size()) {
+    layer.table.assign(2 * layer.table.size(), 0);
+    std::size_t mask = layer.table.size() - 1;
+    for (std::size_t i = 0; i < count; ++i) {
+      std::size_t slot =
+        monotoneDownSetHash(layer.keys.data() + i * words, words) & mask;
+      while (layer.table[slot] != 0) slot = (slot + 1) & mask;
+      layer.table[slot] = static_cast<std::uint32_t>(i + 1);
+    }
+  }
+  std::size_t mask = layer.table.size() - 1;
+  for (std::size_t slot = monotoneDownSetHash(key, words) & mask;;
+       slot = (slot + 1) & mask) {
+    std::uint32_t entry = layer.table[slot];
+    if (entry == 0) {
+      layer.table[slot] = static_cast<std::uint32_t>(count + 1);
+      layer.keys.insert(layer.keys.end(), key, key + words);
+      layer.forward.push_back(0.0);
+      return count;
+    }
+    if (std::equal(key, key + words, layer.keys.data() + (entry - 1) * words))
+      return entry - 1;
+  }
+}
+
+/// Scale values by a power of two so the largest lies in [1/2, 1), returning
+/// the exponent taken out. Exact: only exponents change.
+inline std::int64_t monotoneRescale(std::vector<double>& values) {
+  double largest = 0.0;
+  for (double v : values) largest = std::max(largest, v);
+  if (!(largest > 0.0)) return 0;
+  int exponent;
+  std::frexp(largest, &exponent);
+  double factor = std::ldexp(1.0, -exponent);
+  for (double& v : values) v *= factor;
+  return exponent;
+}
+
+/// Call f(x) for every element x outside down-set D whose predecessors all
+/// lie in D, so D + x is a down-set.
+template <typename F>
+inline void monotoneForEachAddable(const MonotoneOrderComponent& c,
+                                   const std::uint64_t* downSet, F f) {
+  std::size_t last = c.size % 64;
+  for (std::size_t w = 0; w < c.words; ++w) {
+    std::uint64_t open = ~downSet[w];
+    if (w + 1 == c.words && last != 0) open &= (std::uint64_t(1) << last) - 1;
+    for (; open != 0; open &= open - 1) {
+      std::size_t x = w * 64 + std::countr_zero(open);
+      const std::uint64_t* p = c.predecessorsOf(x);
+      bool ready = true;
+      for (std::size_t u = c.firstWord[x]; u < c.endWord[x] && ready; ++u)
+        ready = (p[u] & ~downSet[u]) == 0;
+      if (ready) f(x);
+    }
+  }
+}
+
+/// Scratch for the counter, reused across calls so layers keep capacity.
+struct MonotoneCountScratch {
+  std::vector<MonotoneDownSetLayer> layers;
+  std::vector<std::uint64_t> key, successors;
+  MonotoneLeafOrder order;
+  MonotoneOrderComponent merged;
+  std::vector<double> firstLaw, secondLaw, weights, values;
+  std::vector<std::size_t> candidates, extension;
+};
+
+/// log e(C) by the layered down-set DP, O(down-sets x size) at one word. With
+/// keepAll every layer stays in place (layer k at layers[k]), as the
+/// extension draw and the position laws need; otherwise two alternate.
+inline double monotoneLogExtensions(const MonotoneOrderComponent& c,
+                                    MonotoneCountScratch& s, bool keepAll) {
+  std::size_t n = c.size, words = c.words;
+  std::size_t numLayers = keepAll ? n + 1 : 2;
+  if (s.layers.size() < numLayers) s.layers.resize(numLayers);
+  s.key.assign(words, 0);
+  monotoneLayerClear(s.layers[0], 16);
+  monotoneLayerInsert(s.layers[0], s.key.data(), words);
+  s.layers[0].forward[0] = 1.0;
+  for (std::size_t k = 0; k < n; ++k) {
+    MonotoneDownSetLayer& current = s.layers[keepAll ? k : k % 2];
+    MonotoneDownSetLayer& next = s.layers[keepAll ? k + 1 : (k + 1) % 2];
+    monotoneLayerClear(
+      next, std::bit_ceil(std::max<std::size_t>(16, 2 * current.size())));
+    for (std::size_t d = 0; d < current.size(); ++d) {
+      const std::uint64_t* downSet = current.keys.data() + d * words;
+      double count = current.forward[d];
+      monotoneForEachAddable(c, downSet, [&](std::size_t x) {
+        std::copy(downSet, downSet + words, s.key.begin());
+        s.key[x / 64] |= std::uint64_t(1) << (x % 64);
+        next.forward[monotoneLayerInsert(next, s.key.data(), words)] += count;
+      });
+    }
+    next.forwardExponent =
+      current.forwardExponent + monotoneRescale(next.forward);
+  }
+  const MonotoneDownSetLayer& whole = s.layers[keepAll ? n : n % 2];
+  return std::log(whole.forward[0]) +
+         static_cast<double>(whole.forwardExponent) * std::numbers::ln2;
+}
+
+/// Backward counts g(D) over the layers a keepAll count left in place.
+inline void monotoneBackwardCounts(const MonotoneOrderComponent& c,
+                                   MonotoneCountScratch& s) {
+  std::size_t n = c.size, words = c.words;
+  s.layers[n].backward.assign(1, 1.0);
+  s.layers[n].backwardExponent = 0;
+  s.key.assign(words, 0);
+  for (std::size_t k = n; k-- > 0;) {
+    MonotoneDownSetLayer& current = s.layers[k];
+    const MonotoneDownSetLayer& up = s.layers[k + 1];
+    current.backward.assign(current.size(), 0.0);
+    for (std::size_t d = 0; d < current.size(); ++d) {
+      const std::uint64_t* downSet = current.keys.data() + d * words;
+      double sum = 0.0;
+      monotoneForEachAddable(c, downSet, [&](std::size_t x) {
+        std::copy(downSet, downSet + words, s.key.begin());
+        s.key[x / 64] |= std::uint64_t(1) << (x % 64);
+        sum += up.backward[monotoneLayerFind(up, s.key.data(), words)];
+      });
+      current.backward[d] = sum;
+    }
+    current.backwardExponent =
+      up.backwardExponent + monotoneRescale(current.backward);
+  }
+}
+
+/// log P(x is the (k+1)-th element of a uniform linear extension) at
+/// logLaw[k], -HUGE_VAL where impossible: the sum over down-sets D of size k
+/// that x extends of f(D) g(D + x) / e. Needs a keepAll count and the
+/// backward counts. A term's two scaled factors can underflow as a product
+/// where the term still matters, so terms are summed relative to the largest
+/// one's binary exponent.
+inline void monotoneLogPositionLaw(const MonotoneOrderComponent& c,
+                                   MonotoneCountScratch& s, std::size_t x,
+                                   double logExtensions,
+                                   std::vector<double>& logLaw) {
+  std::size_t n = c.size, words = c.words;
+  logLaw.assign(n, -HUGE_VAL);
+  s.key.assign(words, 0);
+  std::size_t xWord = x / 64;
+  std::uint64_t xBit = std::uint64_t(1) << (x % 64);
+  const std::uint64_t* p = c.predecessorsOf(x);
+  for (std::size_t k = 0; k < n; ++k) {
+    const MonotoneDownSetLayer& current = s.layers[k];
+    const MonotoneDownSetLayer& up = s.layers[k + 1];
+    double sum = 0.0;
+    int top = std::numeric_limits<int>::min();
+    for (std::size_t d = 0; d < current.size(); ++d) {
+      const std::uint64_t* downSet = current.keys.data() + d * words;
+      if (downSet[xWord] & xBit) continue;
+      bool ready = true;
+      for (std::size_t u = c.firstWord[x]; u < c.endWord[x] && ready; ++u)
+        ready = (p[u] & ~downSet[u]) == 0;
+      if (!ready) continue;
+      std::copy(downSet, downSet + words, s.key.begin());
+      s.key[xWord] |= xBit;
+      int ef, eg;
+      double mf = std::frexp(current.forward[d], &ef);
+      double g = up.backward[monotoneLayerFind(up, s.key.data(), words)];
+      double mg = std::frexp(g, &eg);
+      if (mf == 0.0 || mg == 0.0) continue;
+      if (ef + eg > top) {
+        sum = top == std::numeric_limits<int>::min()
+          ? 0.0
+          : std::ldexp(sum, top - ef - eg);
+        top = ef + eg;
+      }
+      sum += std::ldexp(mf * mg, ef + eg - top);
+    }
+    if (sum > 0.0)
+      logLaw[k] = std::log(sum) +
+                  static_cast<double>(top + current.forwardExponent +
+                                      up.backwardExponent) * std::numbers::ln2 -
+                  logExtensions;
+  }
+}
+
+/// log theta for a pair in two components of sizes a and b, from c1's and
+/// c2's log position laws: the share of interleavings of the two that put
+/// c1 immediately before c2, sum over i and j of P1(i) P2(j)
+/// C(i+j-2, i-1) C(a+b-i-j, a-i) / C(a+b, a), binomials held as logs.
+inline double monotoneLogAdjacentShare(const std::vector<double>& firstLaw,
+                                       const std::vector<double>& secondLaw,
+                                       std::vector<double>& logFactorial) {
+  std::size_t a = firstLaw.size(), b = secondLaw.size();
+  logFactorial.resize(a + b + 1);
+  for (std::size_t i = 0; i <= a + b; ++i)
+    logFactorial[i] = std::lgamma(static_cast<double>(i) + 1.0);
+  auto logChoose = [&logFactorial](std::size_t n, std::size_t k) {
+    return logFactorial[n] - logFactorial[k] - logFactorial[n - k];
+  };
+  auto term = [&](std::size_t i, std::size_t j) {
+    return firstLaw[i - 1] + secondLaw[j - 1] + logChoose(i + j - 2, i - 1) +
+           logChoose(a + b - i - j, a - i);
+  };
+  double largest = -HUGE_VAL;
+  for (std::size_t i = 1; i <= a; ++i)
+    for (std::size_t j = 1; j <= b; ++j)
+      if (firstLaw[i - 1] > -HUGE_VAL && secondLaw[j - 1] > -HUGE_VAL)
+        largest = std::max(largest, term(i, j));
+  double sum = 0.0;
+  for (std::size_t i = 1; i <= a; ++i)
+    for (std::size_t j = 1; j <= b; ++j)
+      if (firstLaw[i - 1] > -HUGE_VAL && secondLaw[j - 1] > -HUGE_VAL)
+        sum += std::exp(term(i, j) - largest);
+  return largest + std::log(sum) - logChoose(a + b, a);
+}
+
+/// log Z_T for a tree: the sum over its components of
+/// log e(C) - log |C|!, isolated leaves contributing 0.
+inline double monotoneLogNormalizer(const Tree& tree, const ColumnStore& data,
+                                    const std::int8_t* directions,
+                                    MonotoneCountScratch& s) {
+  buildMonotoneLeafOrder(tree, data, directions, s.order);
+  double total = 0.0;
+  for (const MonotoneOrderComponent& c : s.order.components)
+    if (c.size > 1)
+      total += monotoneLogExtensions(c, s, false) -
+               std::lgamma(static_cast<double>(c.size) + 1.0);
+  return total;
+}
+
+/// log(Z_T0 / Z_T*) = log(m theta) for a birth/death move, counted on the
+/// side of the finer tree T* (the tree as given, `parent`'s children both
+/// leaves; T0 has them merged). m is the size of the union U of T*'s
+/// components holding the pair and theta the probability that c2
+/// immediately follows c1 in a uniform linear extension of U, c1 the child
+/// lower in the ORDER (the higher-code child on a decreasing axis). With the
+/// pair in one component C*, theta = e(C0) / e(C*), C0 the pair merged,
+/// which is symmetric in the pair; in two (only a free split separates
+/// them), theta comes from c1's and c2's position laws and the merged
+/// component is not counted. Counts both sides; nothing is cached.
+inline double monotoneLogNormalizerRatio(const Tree& tree,
+                                         const ColumnStore& data,
+                                         const std::int8_t* directions,
+                                         std::int32_t parent,
+                                         MonotoneCountScratch& s) {
+  MonotoneLeafOrder& order = s.order;
+  buildMonotoneLeafOrder(tree, data, directions, order);
+  std::int32_t left = tree.at(parent).leftChild;
+  bool flip = directions[tree.at(parent).rule.variableIndex] < 0;
+  std::size_t p1 = order.positionOf(flip ? left + 1 : left);
+  std::size_t p2 = order.positionOf(flip ? left : left + 1);
+  const MonotoneOrderComponent& first =
+    order.components[order.componentOf[p1]];
+  const MonotoneOrderComponent& second =
+    order.components[order.componentOf[p2]];
+  if (&first == &second) {
+    double logStar = monotoneLogExtensions(first, s, false);
+    monotoneMergePair(first, order.labelOf[p1], order.labelOf[p2], s.merged);
+    return std::log(static_cast<double>(first.size)) +
+           monotoneLogExtensions(s.merged, s, false) - logStar;
+  }
+  double logFirst = monotoneLogExtensions(first, s, true);
+  monotoneBackwardCounts(first, s);
+  monotoneLogPositionLaw(first, s, order.labelOf[p1], logFirst, s.firstLaw);
+  double logSecond = monotoneLogExtensions(second, s, true);
+  monotoneBackwardCounts(second, s);
+  monotoneLogPositionLaw(second, s, order.labelOf[p2], logSecond, s.secondLaw);
+  return std::log(static_cast<double>(first.size + second.size)) +
+         monotoneLogAdjacentShare(s.firstLaw, s.secondLaw, s.values);
+}
+
+/// Draw a uniform linear extension of c into out (local labels, lowest
+/// first) by backward sampling on the layers a keepAll count left in place:
+/// from the whole set, remove a maximal element x with probability
+/// f(D - x) / f(D). Every f(D - x) of one D shares a layer's scale.
+inline void monotoneDrawExtension(ext_rng* rng, const MonotoneOrderComponent& c,
+                                  MonotoneCountScratch& s, std::size_t* out) {
+  std::size_t n = c.size, words = c.words;
+  s.successors.assign(n * words, 0);
+  for (std::size_t x = 0; x < n; ++x) {
+    const std::uint64_t* p = c.predecessorsOf(x);
+    for (std::size_t w = 0; w < words; ++w)
+      for (std::uint64_t bits = p[w]; bits != 0; bits &= bits - 1)
+        s.successors[(w * 64 + std::countr_zero(bits)) * words + x / 64] |=
+          std::uint64_t(1) << (x % 64);
+  }
+  std::vector<std::uint64_t> downSet(words, ~std::uint64_t(0));
+  if (n % 64 != 0) downSet[words - 1] = (std::uint64_t(1) << (n % 64)) - 1;
+  s.key.assign(words, 0);
+  for (std::size_t k = n; k > 0; --k) {
+    const MonotoneDownSetLayer& below = s.layers[k - 1];
+    s.candidates.clear();
+    s.weights.clear();
+    double total = 0.0;
+    for (std::size_t w = 0; w < words; ++w)
+      for (std::uint64_t bits = downSet[w]; bits != 0; bits &= bits - 1) {
+        std::size_t x = w * 64 + std::countr_zero(bits);
+        const std::uint64_t* after = s.successors.data() + x * words;
+        bool maximal = true;
+        for (std::size_t u = 0; u < words && maximal; ++u)
+          maximal = (after[u] & downSet[u]) == 0;
+        if (!maximal) continue;
+        std::copy(downSet.begin(), downSet.end(), s.key.begin());
+        s.key[w] &= ~(std::uint64_t(1) << (x % 64));
+        double weight =
+          below.forward[monotoneLayerFind(below, s.key.data(), words)];
+        s.candidates.push_back(x);
+        s.weights.push_back(weight);
+        total += weight;
+      }
+    double target = ext_rng_simulateContinuousUniform(rng) * total;
+    std::size_t pick = 0;
+    while (pick + 1 < s.candidates.size() && target >= s.weights[pick])
+      target -= s.weights[pick++];
+    std::size_t x = s.candidates[pick];
+    downSet[x / 64] &= ~(std::uint64_t(1) << (x % 64));
+    out[k - 1] = x;
+  }
+}
+
+/// Exact draw of a tree's leaf values from the constrained prior: per
+/// component, a uniform linear extension and |C| iid N(0, constrainedSd)
+/// draws sorted into it; an isolated leaf draws N(0, freeSd) alone. Every
+/// count runs before any leaf is written, so a failure inside one leaves mu
+/// as it was.
+inline void monotoneDrawPriorLeaves(ext_rng* rng, const Tree& tree,
+                                    const ColumnStore& data,
+                                    const std::int8_t* directions,
+                                    double constrainedSd, double freeSd,
+                                    MonotoneCountScratch& s, double* mu) {
+  MonotoneLeafOrder& order = s.order;
+  buildMonotoneLeafOrder(tree, data, directions, order);
+  std::vector<double> drawn(order.leaves.size());
+  std::size_t next = 0;
+  for (const MonotoneOrderComponent& c : order.components) {
+    if (c.size == 1) {
+      drawn[next++] = freeSd * ext_rng_simulateStandardNormal(rng);
+      continue;
+    }
+    monotoneLogExtensions(c, s, true);
+    s.extension.resize(c.size);
+    monotoneDrawExtension(rng, c, s, s.extension.data());
+    s.values.resize(c.size);
+    for (double& v : s.values)
+      v = constrainedSd * ext_rng_simulateStandardNormal(rng);
+    std::sort(s.values.begin(), s.values.end());
+    for (std::size_t r = 0; r < c.size; ++r)
+      drawn[next + s.extension[r]] = s.values[r];
+    next += c.size;
+  }
+  // drawn holds each component's values contiguously, by local label
+  next = 0;
+  for (const MonotoneOrderComponent& c : order.components) {
+    for (std::size_t x = 0; x < c.size; ++x) mu[c.leaves[x]] = drawn[next + x];
+    next += c.size;
+  }
+}
+
 struct MonotoneConstantGaussianLeaf {
   static constexpr bool hasVectorParams = false;
   static constexpr bool hasFunctionParams = false;

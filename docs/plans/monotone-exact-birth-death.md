@@ -485,6 +485,26 @@ Checkpoint (stop and report), after commit 4, before the feel study and before s
      it. The cache is invalidated wholesale by setState, installForest, growForestFromRoot,
      sampleTreesFromPrior, setData, setPredictor, setCutPoints and copy. No claim is made that a state is cheap.
    - Scale: layers held scaled with a log scale, binomials as logs (Counting: algorithm).
+   - As implemented (commit 3), in model.hpp beside `monotoneNeighborBounds`: `buildMonotoneLeafOrder`,
+     `monotoneLogExtensions`, `monotoneLogNormalizer`, `monotoneLogNormalizerRatio`, `monotoneDrawExtension`
+     and step 6's `monotoneDrawPriorLeaves`, none called yet. The relation holds adjacencies only, not their
+     closure: the DP adds an element once its direct predecessors are in, which yields the same down-sets.
+     Each layer is scaled by a power of two, so counts stay exact to 2^53 (a 12-leaf star's 12! is exact);
+     a position law sums its f g terms relative to the largest term's binary exponent, since the two scaled
+     factors can underflow as a product where the term still counts. Down-sets live in an open-addressing
+     table of 32-bit indices, so a layer holds fewer than 2^32 of them.
+   - c1's choice is inert in this ratio (deviation from Counting: algorithm, found in implementation): with
+     the pair in one component theta is e(C0) / e(C*), and the merge is symmetric in the pair; the pair sits
+     in two components only on a free split, where c1 is the left child under either rule. Taking c1 by code
+     leaves every tests/cpp check passing. The order matters only for a theta taken as an adjacency (the
+     brute-force oracle, a coin), where by code gives 0 on a decreasing split, and tests/cpp shows that.
+   - Measured (arm64 macOS, same machine): the synthetic 25-leaf star 4.6 s against the prototype kernel's
+     10.4 s, the 60-leaf eight-chain order 4.9 s against 10.0 s (351 MB against 404 MB peak); the star with
+     every layer kept 4.6 s and 524 MB. A 5-tree, 2-constrained + 1-free fit's 2,437 moves (102 with the pair
+     in two components, up to 7.8e4 down-sets): 3.5 s in all, worst 14 ms, the prototype 4.4 s, theta equal to
+     print precision. The 1-tree, 3-free-axis fit (p 4, seed 1) on the stage 1 engine's draws puts 45-54
+     leaves in every move's U: the first has 8.2e8 down-sets, and neither the counter nor the prototype
+     finished it in 10 minutes (checkpoint).
 2. Seam, active under "leaf" only (step 13). Add an optional leaf concept, `logNormalizerRatio`, declared by
    the monotone leaf. [`birthOrDeathMove`](../../src/bartcore/moves.hpp) evaluates it once per move while T*
    is in place, after `tree.birth` or before `orphanChildren`, given the pair, and it returns
@@ -637,8 +657,10 @@ Checkpoint (stop and report), after commit 4, before the feel study and before s
     - Both targets: engine and prototype modes take the prior, weighting each tree with log Z_T in its weight
       ("leaf") or without it ("joint"), and every group must pass under each. Its unnormalized mode already
       prints the two exact laws side by side. Every run names its prior.
-    - A mirrored design with x1 decreasing (cN's cells reflected along x1), so a c1 taken by code instead of
-      by order fails the gate.
+    - A mirrored design with x1 decreasing (cN's cells reflected along x1), guarding the move's and the
+      redraws' handling of a decreasing axis. It cannot see the counter's: a c1 taken by code is inert in
+      the ratio (step 1), and an order and its reverse have the same count, so one constrained axis's
+      direction does not change e. tests/cpp's mixed-direction checks cover the counter.
     - Runtime: quick mode measured 8 min 15 s per prior over four designs, so with the mirrored design about
       10.5 min per prior and 21 min for both. The monotone gate runs as its own CI job with a 40-min timeout,
       and exact-gates.yaml keeps its job and timeout.
@@ -740,8 +762,8 @@ Checkpoint (stop and report), after commit 4, before the feel study and before s
 - `R_LIBS=<lib> Rscript benchmarks/R/monotone-exact-enumeration.R quick`, under each prior, the mirrored
   decreasing design included: every group passes. This takes about 8 min per prior; full mode runs 900k draws.
   The mutation run restores the d divisions and drops the Z term (then `touch` the header and reinstall), and
-  must fail like the current engine. A second mutation takes c1 by code instead of by order, and must fail the
-  mirrored decreasing design.
+  must fail like the current engine. (The planned second mutation, c1 by code instead of by order, is inert in
+  the engine's ratio, step 1.)
   - Current engine, quick: c1 p 1.6e-24 and 6.5e-35 (two root rules); c2 3.8e-10 and 4.3e-5; c3 1.4e-15;
     cN 1.9e-29.
   - `prototype` mode (the corrected move in R, with an exact pair redraw): every group p >= 0.07.
