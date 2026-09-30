@@ -399,6 +399,13 @@ until it passes, since adding it widens every matrix arm's band.
     Rscript benchmarks/R/sbc.R monotone-1  400 100 10 1000   # 1 tree, sensitive
     Rscript benchmarks/R/sbc.R monotone-bd 400 100 10 1000   # unconstrained twin
 
+As implemented (monotone-exact-birth-death.md step 16, dec-A133): one arm per
+prior (monotone-leaf, monotone-joint), at a measured 12000 burn sweeps and
+thin 100; the one-tree arms are a mixing diagnostic at n 20 with a leaf count,
+not a pass requirement, since a one-tree birth/death chain does not mix its
+structure on the n 100 design, the twin included, and the one-tree exactness
+check is benchmarks/R/monotone-successive-conditional.R.
+
 Runtime. A monotone sweep costs 2.4 ms at 20 trees (x1), 4.6 ms (x1 and x2),
 6.8 ms at 50 trees, against ~0.04 ms unconstrained (TODO
 monotone-leaf-quadrature). At 20 trees, 4500 sampled sweeps take 10.2 s plus
