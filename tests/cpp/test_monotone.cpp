@@ -1,10 +1,13 @@
 #include "common.hpp"
 
 #include <chrono>
+#include <functional>
+#include <future>
 #include <limits>
 #include <map>
 #include <memory>
 #include <set>
+#include <thread>
 
 // The monotone leaf-order counter: log Z_T, the birth/death ratio counted on
 // the finer tree's side, the position laws and the linear-extension draw,
@@ -1200,6 +1203,235 @@ static void testMonotoneJointTreePrior() {
          stat[0][0], stat[1][1]);
 }
 
+namespace {
+using MonotoneSampler = Sampler<MonotoneConstantGaussianLeaf>;
+
+/// x1 constrained increasing, x2 free, y rising in x1 with an x2 bump, so
+/// a leaf-prior fit keeps counting orders.
+std::unique_ptr<MonotoneSampler> makeCountingSampler(
+    std::vector<double>& x, std::vector<double>& y, const std::int8_t* dir,
+    std::size_t numChains, std::size_t numThreads, ext_rng** rngs) {
+  const size_t n = 300;
+  x.resize(2 * n);
+  y.resize(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[n + i] = runif01();
+    y[i] = 2.0 * x[i] + std::sin(6.0 * x[n + i]) + 0.1 * (runif01() - 0.5);
+  }
+  SamplerOptions options;
+  options.numTrees = 4;
+  options.numChains = numChains;
+  options.numThreads = numThreads;
+  options.birthOrDeathProbability = 1.0;
+  options.swapProbability = 0.0;
+  options.changeProbability = 0.0;
+  options.monotoneDirections = dir;
+  return std::make_unique<MonotoneSampler>(
+      x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, rngs);
+}
+
+/// Chain c's derived state against a from-scratch rebuild of its trees:
+/// every row's leaf map entry is the leaf its tree routes it to, totalFits
+/// is the tree-order gather, and every tree lies in the cone. Exact after a
+/// rebuild; a sweep's difference updates round, which tolerance admits.
+bool chainMatchesItsTrees(MonotoneSampler& sampler, std::size_t c,
+                          const std::int8_t* dir, double tolerance = 0.0) {
+  auto& chain = sampler.chain(c);
+  const ColumnStore& data = sampler.data();
+  std::size_t n = data.numObservations, numTrees = chain.numTrees();
+  std::vector<double> gather(n, 0.0);
+  bool ok = true;
+  for (std::size_t t = 0; t < numTrees; ++t) {
+    const Tree& tree = chain.tree(t);
+    const std::uint32_t* leaf = TestPeer::leafOf(chain, t);
+    std::vector<double>& mu = TestPeer::muByTree(chain, t);
+    std::vector<std::int32_t> bottoms;
+    tree.fillBottom(0, bottoms);
+    for (std::int32_t b : bottoms)
+      for (std::size_t m = tree.at(b).begin; m < tree.at(b).end; ++m)
+        ok = ok && leaf[tree.indices[m]] == static_cast<std::uint32_t>(b);
+    ok = ok && mu.size() >= tree.nodes.size() &&
+         monotoneTreeIsFeasible(tree, data, dir, mu.data());
+    for (std::size_t i = 0; i < n; ++i) gather[i] += mu[leaf[i]];
+  }
+  const std::vector<double>& total = TestPeer::totalFitsInForest(chain, 0);
+  for (std::size_t i = 0; i < n; ++i)
+    ok = ok && std::fabs(total[i] - gather[i]) <= tolerance;
+  return ok;
+}
+
+std::vector<std::vector<FlatNode>> flattenChain(MonotoneSampler& sampler,
+                                                std::size_t c) {
+  std::vector<std::vector<FlatNode>> trees(sampler.chain(c).numTrees());
+  std::vector<std::uint32_t> counts;
+  for (std::size_t t = 0; t < trees.size(); ++t)
+    sampler.flattenTree(c, t, trees[t], counts);
+  return trees;
+}
+
+bool sameTree(const std::vector<FlatNode>& a, const std::vector<FlatNode>& b) {
+  if (a.size() != b.size()) return false;
+  for (std::size_t i = 0; i < a.size(); ++i)
+    if (a[i].variable != b[i].variable || a[i].mask != b[i].mask ||
+        a[i].flags != b[i].flags)
+      return false;
+  return true;
+}
+
+/// Trees [0, t*) changed and [t*, T) did not, t* < T: a sweep stopped at
+/// tree t*, whose move was put back.
+bool stoppedPartWay(const std::vector<std::vector<FlatNode>>& before,
+                    const std::vector<std::vector<FlatNode>>& after) {
+  std::size_t t = 0;
+  while (t < before.size() && !sameTree(before[t], after[t])) ++t;
+  if (t == before.size()) return false;
+  for (std::size_t u = t; u < before.size(); ++u)
+    if (!sameTree(before[u], after[u])) return false;
+  return true;
+}
+}  // namespace
+
+/// Step 15: a cancel inside a count, inline and on another thread; an
+/// allocation failure inside one, inline and rethrown from a worker after
+/// the join; and the slow-count tally.
+static void testMonotoneCountInterrupt() {
+  MonotoneCountHooks& hooks = monotoneCountHooks();
+  const std::int8_t dir[2] = {1, 0};
+  std::vector<double> x, y;
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20261015u);
+  auto sampler = makeCountingSampler(x, y, dir, 1, 1, &rng);
+  Results none;
+  sampler->run(200, 0, none);
+
+  // a cancel on the second poll: the first is the sweep's own, so a true
+  // return means a count was stopped
+  hooks.pollInterval.store(1);
+  for (int onThread = 0; onThread < 2; ++onThread) {
+    bool stopped = false;
+    for (int attempt = 0; attempt < 200 && !stopped; ++attempt) {
+      auto before = flattenChain(*sampler, 0);
+      int calls = 0;
+      std::function<bool()> cancel = [&calls]() { return ++calls >= 2; };
+      Results empty;
+      auto body = [&]() {
+        stopped = sampler->chain(0).run(1, 0, empty, nullptr, 0, &cancel);
+      };
+      if (onThread) {
+        std::thread worker(body);
+        worker.join();
+      } else {
+        body();
+      }
+      if (!stopped) continue;
+      auto after = flattenChain(*sampler, 0);
+      const char* where = onThread ? "on a worker" : "inline";
+      check(calls == 2, "monotone count cancel: stopped at the count's poll");
+      check(stoppedPartWay(before, after),
+            onThread ? "monotone count cancel on a worker: the moved tree is "
+                       "back at T0, later trees untouched"
+                     : "monotone count cancel inline: the moved tree is back "
+                       "at T0, later trees untouched");
+      check(chainMatchesItsTrees(*sampler, 0, dir),
+            onThread ? "monotone count cancel on a worker: the fits equal a "
+                       "rebuild from the trees"
+                     : "monotone count cancel inline: the fits equal a "
+                       "rebuild from the trees");
+      (void) where;
+    }
+    check(stopped, "monotone count cancel: some sweep's count was stopped");
+    sampler->run(5, 0, none);
+    check(chainMatchesItsTrees(*sampler, 0, dir, 1e-9),
+          "monotone count cancel: the next run is valid");
+  }
+  hooks.pollInterval.store(std::size_t(1) << 16);
+
+  // an allocation failure in a count, inline
+  hooks.failNextCount.store(true);
+  bool threw = false;
+  for (int attempt = 0; attempt < 200 && !threw; ++attempt) {
+    try {
+      sampler->run(1, 0, none);
+    } catch (const std::bad_alloc& e) {
+      threw = std::strstr(e.what(), "prior = \"joint\"") != nullptr;
+    }
+  }
+  hooks.failNextCount.store(false);
+  check(threw, "monotone count allocation failure: inline, the run throws a "
+               "bad_alloc naming the remedies");
+  check(chainMatchesItsTrees(*sampler, 0, dir),
+        "monotone count allocation failure: the fits equal a rebuild");
+  sampler->run(5, 0, none);
+  check(chainMatchesItsTrees(*sampler, 0, dir, 1e-9),
+        "monotone count allocation failure: the next run is valid");
+
+  // the tally: every count over a negative threshold, and none over a huge
+  // one, since each run starts it afresh
+  hooks.slowSeconds.store(-1.0);
+  sampler->run(20, 0, none);
+  SlowCountTally tally = sampler->slowCountTally();
+  check(tally.slowCounts > 0 && tally.slowestLeaves >= 2 &&
+            tally.slowestDownSets > 0 && tally.slowestSeconds >= 0.0,
+        "monotone slow counts: a lowered threshold tallies counts and sizes");
+  hooks.slowSeconds.store(1e9);
+  sampler->run(20, 0, none);
+  check(sampler->slowCountTally().slowCounts == 0,
+        "monotone slow counts: the tally resets at the next run");
+  hooks.slowSeconds.store(1.0);
+  ext_rng_destroy(rng);
+
+  // workers: one chain's allocation failure stops the other and is rethrown
+  // after the join. Run on a thread of its own with a deadline, so a join
+  // that never returns fails the suite rather than hanging it.
+  ext_rng* rngs[2];
+  for (int c = 0; c < 2; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(rngs[c], 20261016u + c);
+  }
+  auto workers = makeCountingSampler(x, y, dir, 2, 2, rngs);
+  workers->run(100, 0, none);
+  hooks.failNextCount.store(true);
+  std::promise<int> outcome;
+  std::future<int> done = outcome.get_future();
+  std::thread driver([&]() {
+    int result = 0;
+    try {
+      for (int attempt = 0; attempt < 200 && result == 0; ++attempt)
+        workers->run(1, 0, none);
+    } catch (const std::bad_alloc&) {
+      result = 1;
+    } catch (...) {
+      result = 2;
+    }
+    outcome.set_value(result);
+  });
+  if (done.wait_for(std::chrono::seconds(60)) != std::future_status::ready) {
+    std::printf("FAIL: monotone count allocation failure on a worker: the "
+                "run did not return (a chain's exception skipped the join's "
+                "count)\n");
+    std::fflush(stdout);
+    std::_Exit(1);
+  }
+  driver.join();
+  hooks.failNextCount.store(false);
+  check(done.get() == 1, "monotone count allocation failure on a worker: "
+                         "rethrown after the join");
+  for (std::size_t c = 0; c < 2; ++c)
+    check(chainMatchesItsTrees(*workers, c, dir, 1e-9),
+          "monotone count allocation failure on a worker: every chain's "
+          "fits match its trees");
+  workers->run(5, 0, none);
+  for (std::size_t c = 0; c < 2; ++c)
+    check(chainMatchesItsTrees(*workers, c, dir, 1e-9),
+          "monotone count allocation failure on a worker: the next run is "
+          "valid");
+  for (int c = 0; c < 2; ++c) ext_rng_destroy(rngs[c]);
+  printf("ok: monotone count cancel, allocation failure and slow-count "
+         "tally\n");
+}
+
 void runMonotoneTests() {
   std::uint64_t saved = rngState;
   rngState = 7071u;
@@ -1227,6 +1459,7 @@ void runMonotoneTests() {
   testMonotoneMoveClosedForm();
   testMonotoneFreeBound();
   testMonotoneJointTreePrior();
+  testMonotoneCountInterrupt();
   {  // factor splits and missing values, in free and constrained predictors
     ColumnStore store;
     makeMixedStore(store, 700);
