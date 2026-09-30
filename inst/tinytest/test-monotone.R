@@ -822,3 +822,130 @@ local({
     }
   }
 })
+
+# ---- setModel keeps the sampler's own constraint; slow counts ----
+
+countHooks <- function(slowSeconds = NA_real_, failNextCount = FALSE) {
+  .Call(
+    dbarts:::C_dbarts_bartcore_setMonotoneCountHooks,
+    as.double(slowSeconds),
+    failNextCount
+  )
+}
+set.seed(31L)
+nSlow <- 300L
+xSlow <- cbind(x1 = runif(nSlow), x2 = runif(nSlow))
+ySlow <- 2 * xSlow[, 1L] + sin(6 * xSlow[, 2L]) + rnorm(nSlow, sd = 0.1)
+slowSampler <- function(prior, n.trees = 4L) {
+  dbarts::dbarts(
+    xSlow,
+    ySlow,
+    monotone = monotone(c(x1 = "increasing"), prior = prior),
+    control = dbarts::dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = n.trees,
+      n.samples = 1L,
+      updateState = FALSE
+    )
+  )
+}
+maxDropSlow <- function(sampler) {
+  grid <- as.matrix(expand.grid(
+    x1 = seq(0, 1, length.out = 51L),
+    x2 = c(0.1, 0.5, 0.9)
+  ))
+  -min(apply(matrix(sampler$predict(grid), 51L), 2L, diff))
+}
+
+for (prior in c("leaf", "joint")) {
+  # setModel refuses another prior, other directions, a model without the
+  # constraint, and leaves the sampler's model as it was
+  sampler <- slowSampler(prior)
+  model <- sampler$model
+  other <- model
+  attr(other, "monotone.prior") <- setdiff(c("leaf", "joint"), prior)
+  expect_error(sampler$setModel(other), "monotone prior is fixed")
+  other <- model
+  attr(other, "monotone") <- c(-1L, 0L)
+  expect_error(sampler$setModel(other), "monotone directions are fixed")
+  other <- model
+  attr(other, "monotone") <- NULL
+  attr(other, "monotone.prior") <- NULL
+  expect_error(sampler$setModel(other), "the model carries none")
+  expect_identical(sampler$model, model)
+  expect_silent(sampler$setModel(model))
+
+  # a lowered threshold makes every count slow: a "leaf" run warns once,
+  # naming the remedies, and a "joint" run's moves never count
+  countHooks(-1)
+  warnings <- list()
+  withCallingHandlers(
+    invisible(sampler$run(100L, 1L)),
+    warning = function(w) {
+      warnings[[length(warnings) + 1L]] <<- w
+      invokeRestart("muffleWarning")
+    }
+  )
+  countHooks(1)
+  if (prior == "leaf") {
+    expect_equal(length(warnings), 1L)
+    expect_inherits(warnings[[1L]], "dbartsSlowCountWarning")
+    expect_true(grepl("more trees", conditionMessage(warnings[[1L]])))
+    expect_true(grepl("\"joint\"", conditionMessage(warnings[[1L]])))
+  } else {
+    expect_equal(length(warnings), 0L)
+  }
+  expect_silent(invisible(sampler$run(100L, 1L)))
+
+  # an allocation failure injected into a count is an ordinary R error, in a
+  # run ("leaf" only: "joint" moves count nothing) and in the prior leaf draw,
+  # which counts under both priors; the sampler runs on afterwards
+  if (prior == "leaf") {
+    countHooks(failNextCount = TRUE)
+    expect_error(sampler$run(200L, 1L), "out of memory counting")
+    countHooks(failNextCount = FALSE)
+    invisible(sampler$run(0L, 1L))
+    expect_true(maxDropSlow(sampler) <= 1e-8)
+  }
+  countHooks(failNextCount = TRUE)
+  expect_error(sampler$sampleLeafParametersFromPrior(), "bad_alloc")
+  countHooks(failNextCount = FALSE)
+  invisible(sampler$run(0L, 1L))
+  expect_true(maxDropSlow(sampler) <= 1e-8)
+}
+
+# setModel refuses to add a constraint to an unconstrained sampler
+freeSlow <- dbarts::dbarts(
+  xSlow,
+  ySlow,
+  control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
+)
+constrained <- freeSlow$model
+attr(constrained, "monotone") <- c(1L, 0L)
+attr(constrained, "monotone.prior") <- "leaf"
+expect_error(freeSlow$setModel(constrained), "this sampler has none")
+
+# bart() warns once for its burn-in and kept runs together
+countHooks(-1)
+warnings <- list()
+withCallingHandlers(
+  invisible(dbarts::bart(
+    xSlow,
+    ySlow,
+    monotone = monotone(c(x1 = "increasing"), prior = "leaf"),
+    n.trees = 4L,
+    n.burn = 50L,
+    n.samples = 50L,
+    n.chains = 1L,
+    verbose = FALSE
+  )),
+  warning = function(w) {
+    warnings[[length(warnings) + 1L]] <<- w
+    invokeRestart("muffleWarning")
+  }
+)
+countHooks(1)
+expect_equal(length(warnings), 1L)
+expect_inherits(warnings[[1L]], "dbartsSlowCountWarning")
+rm(warnings, sampler, model, other, freeSlow, constrained)
