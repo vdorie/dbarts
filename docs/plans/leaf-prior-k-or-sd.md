@@ -1,7 +1,6 @@
 # leaf-prior-k-or-sd: name the leaf prior by k or by sd
 
-Status: IMPLEMENTED 2026-09-29 on wt/lp (240aba99, 68ae56f9, f6ae965d, 6758473a, 7d01e758), pending
-landing; see Landing. The four maintainer questions are ruled (see Open maintainer questions), and the
+Status: LANDED 2026-09-29 (b53a637f, a8b36094, 7a52285f, 645c9356, e00f7acb); see Landing. The four maintainer questions are ruled (see Open maintainer questions), and the
 writer was restated by a later ruling (see Landing).
 
 agent: sonnet (R surface, bridge strings, manual; no engine change)
@@ -493,9 +492,9 @@ commit.
 
 ## Landing
 
-dbarts, five commits on wt/lp: the package change (240aba99), the benchmarks
-(68ae56f9), the standing docs and the TODO entry (f6ae965d), the leaf-scale
-writer's arithmetic (6758473a), and the review follow-ups (7d01e758). stan4bart
+dbarts, five commits: the package change (b53a637f), the benchmarks
+(a8b36094), the standing docs and the TODO entry (7a52285f), the leaf-scale
+writer's arithmetic (645c9356), and the review follow-ups (e00f7acb). stan4bart
 and bartCause: no change.
 
 Verification: tinytest 10541/10541 on the shipped build; `tests/cpp` all

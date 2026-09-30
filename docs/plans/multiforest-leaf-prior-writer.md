@@ -1,8 +1,8 @@
 # multiforest-leaf-prior-writer: setLeafPrior on multi-forest samplers
 
-Status: PLANNED 2026-09-29; revised after a blind critique. The reader question was settled by the
+Status: LANDED 2026-09-29 (374468c4, e228373c); planned and revised after a blind critique. The reader question was settled by the
 orchestrator as an agent-made call (dec-A127): the reader reports forest(sd = ) on map forests, and
-creation refuses forest(sd = Inf) as the writer does. Implementation next.
+creation refuses forest(sd = Inf) as the writer does.
 
 agent: opus (engine, facade, bridge and R in one worktree; one writer)
 rng: neutral on every baselined path. One unbaselined path changes, on purpose: a gaussian amplitude
@@ -271,4 +271,20 @@ for g in bcf-exact bcf-exact-weak bcf-exact-restricted bcf-latent-exact multinom
 
 ## Landing
 
-Pending. Records: this note, the INDEX row, the TODO entry closing, dec-B142's record line.
+LANDED 2026-09-29: the slice (374468c4), the plan corrected where the implementation deviated
+(7a65ff3f), and the review follow-ups (e228373c). About 1,000 lines over 22 files. stan4bart and
+bartCause: no change.
+
+Verification, run by the implementer and again by an independent reviewer on its own library:
+tests/cpp, also under ASan/UBSan with 0 diagnostics; the lint chain clean; tinytest 10738/10738, the
+new file 97/97 on the shipped, reference and R-loaded ASan builds; bcf-exact, bcf-exact-weak,
+bcf-exact-restricted, bcf-latent-exact and multinomial-exact pass in quick mode. On the reference
+build the three equivalence compares are bitwise, 53/53, bcf 15/15 and multinomial 11/11, and the
+four seeded-drift snapshot files pass unchanged. stan4bart 491/491 and bartCause 0 failures against
+fresh installs. R CMD check --as-cran: one NOTE, the stale Date field. Mutations of the map's leaf
+scale association, the constructor's anchor override, the equal-write skip and the control mirror
+each fail the new tests.
+
+Departures: the anchor is read in applyForestAttributes, which sees the control attributes;
+bartcore_setForestK also checks the counts capability; setLeafPrior refuses forest = by name, as
+refusePlotTreeArgs does, since R would match it to forests = silently.

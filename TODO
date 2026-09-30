@@ -198,14 +198,6 @@ items
     branch-score profile - 3227 of 3232 samples - and no alternative
     has been benched. Record:
     docs/plans/review-2026-08-24/memos/monotone-branch-fill-bench.md.
-  multiforest-leaf-prior-writer: before 1.0-0 (VD 2026-09-29,
-    docs/decisions.md dec-B142), $setLeafPrior takes what creation
-    takes on multi-forest samplers: normal(k = ) on a multinomial
-    sampler, every category forest, and forest(sd = ) per forest on an
-    amplitude-coupled sampler. Engine work in both: the engine refuses a
-    mid-run scale change with a calibration map installed. Estimates
-    about 150 and 300 lines; the per-forest part re-runs the causal-forest
-    exactness gates (bcf-exact, bcf-equivalence).
   multiforest-mutation-gaps: two doors
     (docs/plans/archive/multiforest-mutation-gaps.md).
     BCF whole-data setData (n free, z required): KEEP UNDESIGNED,

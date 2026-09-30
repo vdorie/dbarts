@@ -68,4 +68,6 @@ law. bartCause's bcf changes in lockstep (orchestrator).
 
 ## Landing
 
-Pending.
+LANDED 2026-09-29: the reader and getK (03af69e8), then the review follow-ups:
+an NA spread refused on write, reader round trips, and the anchor rule
+(2ee95583). Verification as the leaf-prior-k-or-sd.md Landing note records.
