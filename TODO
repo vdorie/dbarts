@@ -196,12 +196,26 @@ items
     Planned in docs/plans/monotone-exact-birth-death.md (dec-B145..B150);
     stages 1 (redraw, empty leaves, reachability), 2 (the monotone()
     constructor and vocabulary) and 3 (the counter, not wired in) landed;
-    3b (leaf geometry on factor and missing-value axes) landed; 4-6 open.
+    3b (leaf geometry on factor and missing-value axes), 4 (the exact move
+    under both priors) and 5 (slow counts, cancel, setModel refusals)
+    landed; the checkpoint fired its trigger, so the Barker hybrid
+    (docs/design/monotone-barker-hybrid.md) waits for the maintainer; 4b
+    and 6 open.
   monotone-factor-direction-host: a host that hands the engine a monotone
     direction on an unordered-factor column gets an unconstrained sampler
     without a word: the facade's monotoneConstraintIsActive returns false
     and the whole constraint is dropped. R refuses such a direction before
     it reaches the engine; the flat C entry points should refuse it too.
+  monotone-count-host-interrupt: dbarts_sampler_run, the flat C entry
+    stan4bart runs through, passes no interrupt poll and returns no
+    slow-count tally, so a host's monotone fit cannot interrupt a long
+    order count mid-move and never warns; bart() and $run do both.
+  monotone-count-alloc-message: only the move's normalizer ratio turns an
+    allocation failure into the message naming the remedies; building
+    the order and the exact prior leaf draw still surface a bare
+    "std::bad_alloc", and the run-level catch that makes any allocation
+    failure an R error also covers failures outside a count, where the
+    leaf store may be half-written when the fits are re-summed.
   installtrees-empty-leaf-state: installTrees onto the same grid rebuilds
     the live forest without collapsing, so a donor tree with a leaf no row
     reaches leaves a state that setState, copy() and save/load then refuse

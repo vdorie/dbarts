@@ -992,3 +992,17 @@ down-sets, out of all accepted deaths.
   (9.8%). The hybrid goes to the maintainer for a before-release call.
 - Run times: timing 10:59-11:23 and 12:10-12:46 (the p 4 fit re-run after the first was stopped early),
   hybrid 11:15-11:22 and 12:10-12:25; runs that spanned a machine sleep were discarded and re-run.
+
+Stages 4 and 5, 2026-09-30, pushed together: the exact move under both priors, the prior flag from
+monotone(prior = ) to the engine, the exact prior leaf draw and the joint prior's structure draw
+(720bf389, 08d978a1), the checkpoint driver's fixes (0591b67c) and results (15613958, above); then the
+order count polling the chain's cancel function, a cancel or allocation failure restoring the move's
+tree and rebuilding the fits, the slow-count warning, allocation failures as R errors on every run
+entry, and setModel refusing a changed constraint or prior (3f7177ea, 90074738, 28dad8bb, 7a72aeb7,
+a50f6afb). Each stage reviewed by an independent reader. The enumeration gate passes every design under
+both priors (p 0.24-0.99) and fails with the old ratio restored (p <= 1e-10); tests/cpp clean under
+ASan/UBSan and TSan; tinytest 10,852/0; the lint chain clean; R CMD check --as-cran one NOTE (Date);
+reference-build compares bitwise 53/15/11 and snapshots unchanged; the 25 exact gates quick; stan4bart
+491/0, bartCause 0 failures. A real interrupt mid-count leaves a state equal to a rebuild of the same
+trees and takes effect in 33-47 ms. Calls made: dec-A132.
+
