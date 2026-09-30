@@ -4,3 +4,5 @@ sparse
 sparse.dSYM/
 grow_from_root
 grow_from_root.dSYM/
+monotone_count
+monotone_count.dSYM/

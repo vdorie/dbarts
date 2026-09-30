@@ -18,10 +18,13 @@ grow_from_root: grow_from_root.c $(MISC_LIB)
 sparse: sparse.c $(MISC_LIB)
 	$(CC) $(OPT) $(CPPFLAGS) -o $@ sparse.c $(MISC_LIB) -lpthread -lm
 
+monotone_count: monotone_count.cpp
+	$(CXX) $(OPT) -std=c++17 -o $@ monotone_count.cpp
+
 $(MISC_LIB):
 	@echo "error: $(MISC_LIB) not found; run 'R CMD INSTALL .' from the package root first" >&2; exit 1
 
 clean:
-	rm -f bench sparse grow_from_root
+	rm -f bench sparse grow_from_root monotone_count
 
 .PHONY: all clean

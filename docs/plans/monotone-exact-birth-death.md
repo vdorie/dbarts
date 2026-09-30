@@ -1,14 +1,15 @@
 # monotone-exact-birth-death: the monotone birth/death move targets the documented prior
 
 Status: PLANNED 2026-09-29 (dec-B144), revised after a blind critique; the Decision was reworked after a
-few-tree measurement and remains the maintainer's call. Derivation and gate verified on an R prototype; not
+few-tree measurement and its critique, adds the unnormalized prior as an option, and remains the maintainer's
+call. Derivation and gate verified on an R prototype; not
 implemented.
 
 agent: opus (engine numerics: move seam, order counting, exact pair redraw, gate)
 rng: posterior-changing for every fit with an active monotone constraint (all of its draws move, prior draws
 included); unconstrained fits byte-identical, since every engine change lives in the monotone instantiation
 window: before 1.0-0 (TODO monotone-exact-birth-death)
-budget: ~1,000 lines (engine ~420, bridge and R ~90, tests/cpp ~320, tinytest ~90, gate wiring ~10, docs ~70;
+budget: ~1,050 lines (engine ~450, bridge and R ~110, tests/cpp ~320, tinytest ~90, gate wiring ~10, docs ~70;
 the gate script itself is already in the tree). Plan estimates have run 1.5-2x low: expect up to ~2,000.
 
 ## Goal
@@ -99,34 +100,42 @@ guards the fix.
 
 ## Decision
 
-Question: should the exact count run under a limit, and if so, one that changes the model or one that stops
-the run?
+Question: which prior, and under the documented (normalized) prior, should the exact count run under a limit,
+and if so, one that changes the model or one that stops the run?
 
 A limit that gives trees zero prior mass must be closed under deaths. Then every allowed tree reaches the root
 through allowed trees, the restricted chain is irreducible, and it targets the stated restricted prior. A limit
 that is not closed can trap trees away from the root, and the chain's target then depends on where it starts.
 A limit that stops the run changes no model and needs no closure.
 
-Measured with [monotone-order-size.R](../../benchmarks/R/monotone-order-size.R): the current engine, n 5000,
-1-2 constrained and 1-2 free axes, 1-3 seeds, 200 kept sweeps per fit. Count cost is the touched component's
-down-sets x leaves at the stress rate above (0.1 s for 850k down-sets at 40 leaves, ~3 ns per unit), one count
-per move.
+Measured with [monotone-order-size.R](../../benchmarks/R/monotone-order-size.R) (fits, closure checks) and
+[monotone_count.cpp](../../benchmarks/kernels/monotone_count.cpp) (the layered count in C++): the current
+engine, n 5000 (one fit 20000), 1-2 constrained and 1-2 free axes, 1-3 seeds, 200 kept sweeps per fit. The C++
+count runs at ~6 ns per down-set x leaf on these fits' components, and a move's components are within 10% of
+the state metric the table uses. Sweep time is per kept sweep.
 
-| trees | fits | sweeps where a 2^22 whole-tree budget binds | largest component | sweep time with the count |
+| trees | fits | sweeps where a 2^22 whole-tree budget binds | largest component: state / created by a move | sweep time with the count: per-fit medians (worst sweep) |
 |---|---|---|---|---|
-| 1 | 7 | all, in 1 fit (60 leaves, whole-tree up to 2.2e9) | 1.1e6 down-sets | 1.7x-160x today's (median 4x) |
-| 5 | 5 | all, in 4 fits; 4% in the fifth | 6.1e5 | 1.04x-17x (median 1.3x) |
-| 10 | 3 | none (up to 1.8e6) | 1.7e4 | 1.01x-1.18x |
-| 20 | 2 | none (up to 1.5e4) | 54 | under 1.001x |
+| 1 | 7 | all, in 1 fit (60 leaves, whole-tree up to 2.2e9) | 1.1e6 / 1.9e6 down-sets | 1.4x-260x, median 6x (710x) |
+| 5 | 5 | all, in 4 fits; 4% in the fifth | 6.1e5 / 3.6e8 | 1.06x-14x, median 1.5x (41x) |
+| 10 | 3 | none (up to 1.8e6) | 1.7e4 / 2.4e4 | 1.01x-1.22x (1.7x) |
+| 20 | 2 | none (up to 1.5e4) | 54 / 86 | about 1.001x |
 
-The current engine targets the d-normalized law, so the corrected one may grow different trees: on monotone
-data its 1/Z_T factor favours more constrained orders. That moves how much a budget truncates, but under
-option 5 it moves only the cost.
+- Births create components up to 1.9x the largest state component. A death merges components: in the 5-tree,
+  2-constrained + 1-free fit, 10% of trees have a death whose merged component passes 2^24 (up to 3.6e8), and
+  such a death is proposed about once in 30 sweeps.
+- At ~2^24 down-sets the count is slower per unit: a 25-leaf star takes 15 s (36 ns per unit), a 60-leaf order
+  of eight chains 17 s and 424 MB keeping two layers. Keeping every layer, as step 6's draw does, costs about
+  1 GB.
+- The current engine targets the d-normalized law, so the corrected one may grow different trees: on monotone
+  data its 1/Z_T factor favours more constrained orders. That moves how much a budget truncates, and under
+  option 5 only the cost.
 
-1. Whole-tree down-set budget, B = 2^22 (the earlier recommendation). Closed: a death maps the new tree's
+1. Whole-tree down-set budget, B = 2^22 (the first recommendation). Closed: a death maps the new tree's
    down-sets injectively into the old tree's. Cost at most ~0.5 s and ~200 MB per count. What a fit sees:
    every sweep of 4 of 5 five-tree fits and of 1 of 7 one-tree fits has a tree past B, so births are refused
-   and the posterior is not the documented model's, with no signal to the user. Its premise held only at 75 trees.
+   and the posterior is not the documented model's, with no signal to the user. Its premise held only at 75
+   trees.
 2. Whole-tree budget at a larger B. Closed. Clearing the measured fits needs B > 2.4e9 (~2^31), and more data
    or more free axes go past any fixed B, since the product grows with the number of components. At such a B
    the product no longer bounds the work: one component near B costs minutes and ~100 GB per count. It needs
@@ -143,19 +152,49 @@ option 5 it moves only the cost.
 4. Leaf-count cap. Closed. It does not bound the work (one component of L leaves can have 2^(L-1) + 1
    down-sets), so it needs option 5's guard too, and a cap low enough to matter truncates 1-tree fits (60
    leaves seen). Not recommended.
-5. No budget, with a work guard (recommended). The documented prior holds verbatim for every fit. A count
-   whose component passes G = 2^24 down-sets stops the run with an error naming the order's size and
-   suggesting more trees. It never rejects a move, so it changes no model and needs no closure. What a fit
-   sees: at 20 or more trees nothing, at 10 up to ~20% slower sweeps, at 1-5 trees the table's slowdowns (up
-   to ~40 ms of counting per sweep). G is 16x the largest component measured; a count there takes ~3 s and
-   under 1 GB at 60 leaves. If the few-tree cost bites, a two-stage acceptance that counts only after the rest of
-   the ratio accepts is exact and skips the count on every move the rest rejects; it is out of scope here.
+5. No budget, with a work guard. The documented prior holds verbatim for every fit.
+   - The guard is a dbartsControl argument, default G = 2^24 down-sets in one component. A count past it stops
+     the run with an error naming the order's size and suggesting more trees or a larger G. It never rejects
+     a move, so it changes no model and needs no closure. The sampler keeps the tree it held before the move,
+     so an embedded caller can catch the error, raise G and continue.
+   - What a fit sees: at 20 or more trees nothing, at 10 up to 1.2x slower sweeps, at 1-5 trees the table's
+     slowdowns. The margin over proposals is ~9x in the 1-tree fits, and the 5-tree, 2-constrained fit above
+     would stop within its first few dozen sweeps at any G that can be counted.
+   - Exact holds for runs that complete. Rerunning with new seeds until one completes selects smaller trees;
+     the help page says so.
+   - Base-R-style fitters mostly cap up front or warn instead: glm's maxit warns, rstan's max_treedepth caps
+     and warns, rpart's maxdepth and ranger's max.depth cap the tree. Here a cap is options 1-4, and a warning
+     cannot continue without the count.
+   - A cheap exact shortcut cuts counts (steps 1 and 2). Splitting a component by series-parallel or modular
+     decomposition could shrink the counts further; unmeasured, future work.
+6. The unnormalized prior (dec-B144's rejected alternative, reopened as an option by the maintainer):
+   p(T, M) proportional to p_CGM(T) prod phi 1{M in C(T)}, BART's prior conditioned on every tree being
+   monotone.
+   - The move is exact with no count: today's score with d dropped. No budget or guard; steps 1 and 2 and the
+     guard pruning in step 7 go. sampleTreesFromPrior becomes a count-free joint rejection (acceptance is the
+     prior mean of Z_T). Step 6's counter survives only for the given-T prior draw
+     (sampleNodeParametersFromPrior), off the MCMC path. Steps 3-5 and 9-12 stay, and the gate retargets by
+     dropping log Z_T from its weight.
+   - What a fit sees: the tree marginal becomes p_CGM(T) Z_T, so each constrained split costs weight. Measured
+     with monotone-order-size.R's logz mode: at 200 trees (n 5000, 1 constrained + 1 free), 20% of trees
+     carry a constrained split, at 0.85 nats (~2.3x) each; at 20 trees 1.0 nats. In the exact one-tree
+     enumerations ([monotone-exact-enumeration.R](../../benchmarks/R/monotone-exact-enumeration.R)
+     unnormalized mode) constrained splits per tree fall from 1.47 to 1.15 (c1) and 0.87 to 0.55 (c3), and the
+     posteriors differ by total variation 0.11-0.28. The effect on fitted functions at 200 trees is
+     unmeasured.
+   - The normalized prior instead keeps CGM's tree marginal: the constraint changes leaf values, not which
+     trees are likely.
+   - mBART: the paper (arXiv 1612.01619v3, eqs. 3.1 and 3.3) states the per-tree normalized prior, and its move
+     (eqs. 4.11 and 4.13) divides by the local d*. The software (remcc/mBART_shlib, bd.cpp, coninteg1 and
+     coninteg2) accumulates the prior mass sumpr and never uses it, so it samples the unnormalized target on a
+     grid.
 
-Option 5 is recommended because it is the only one that leaves every fit's model as documented: options 1 and
-4 silently change realistic few-tree fits, option 2 truncates for no saving, and option 3 leaves the target
-unstated. Its price is speed in 1-5 tree fits and a loud stop far beyond any measured fit. Evidence that would
-change the call: a fit at 10 or more trees whose counting outweighs its sweep, or a few-tree use where the
-slowdown matters more than the documented model.
+Recommendation: keep the normalized prior with option 5: no budget, the guard as a control argument, and the
+free-bound shortcut. It costs nothing at the default tree count and keeps the documented model for every fit
+that completes. Its price is speed in 1-5 tree fits and a stop in some of them. The unnormalized prior's case
+is real: no count, no guard, what mBART's software samples, and a plain reading as BART conditioned on
+monotone trees; its price is fewer splits on the constrained predictors. Evidence that would change the call: a
+fit at 10 or more trees whose counting outweighs its sweep or that reaches the guard.
 
 ## Constraints
 
@@ -171,17 +210,26 @@ slowdown matters more than the documented model.
 1. Order counter (engine, beside the monotone geometry). Down-set keys are multi-word bitsets.
    - Relation: build the tree's relation matrix with the adjacency test of `monotoneNeighborBounds`, and split
      it into components.
-   - Count: run the layered down-set DP per component, keeping each layer's counts, and return the whole-tree
-     log Z_T = sum over components of log e(C) - lgamma(|C| + 1). A component whose down-sets pass the guard
-     G = 2^24 (Decision) stops the count at once and fails.
+   - Count: run the layered down-set DP per component, keeping two layers (every layer only for step 6's
+     draw), and return the whole-tree log Z_T = sum over components of log e(C) - lgamma(|C| + 1). A component
+     whose down-sets pass the guard G (a dbartsControl argument, default 2^24; Decision) stops the count at
+     once and fails.
    - A move changes only the component of the touched leaf in T0 and the component(s) holding the two children
      in T*. After a free-axis birth the children may share a component: take the distinct components. Keep the
      current tree's component counts, so a move counts only the components it creates.
 2. Seam. Add an optional leaf concept, `logTreeNormalizer`, declared by the monotone leaf.
    [`birthOrDeathMove`](../../src/bartcore/moves.hpp) evaluates it in each state: before and after
    `tree.birth`, before and after `orphanChildren`. It adds log Z_T0 - log Z_T* to the log prior ratio (logged
-   in the census's prior column). A count over the guard stops the run with an error the bridge raises; it
-   never rejects.
+   in the census's prior column).
+   - Free bounds: a birth never lowers e (a linear extension of T0 with the split leaf replaced by its two
+     children in order is one of T*, and distinct extensions stay distinct), so a birth's Z_T0 / Z_T* =
+     (L0 + 1) e(T0) / e(T*) is at most L0 + 1 and a death's is at least 1 / L0, L0 the current leaf count (0
+     of 1,164 random births lower e; monotone-order-size.R closure mode). Draw u first; with r1 the rest of
+     the ratio, reject a birth without counting when u > r1 (L0 + 1), and accept a death without counting
+     when u < r1 / L0. This is plain Metropolis-Hastings with no loss of acceptance; the savings are
+     unmeasured. (A two-stage acceptance, min(1, a) min(1, b), is also exact but lowers acceptance.)
+   - A count over the guard stops the run with an error the bridge raises; it never rejects, and the chain
+     keeps T0, so a caller can catch the error, raise G and continue.
 3. Drop the d terms: `priorMass` in `oneLeafLogMarginal`, `denom` in `twoLeafCoupledLogMarginal`.
 4. Exact pair redraw in `redrawAfterBirth`:
    - Keep the capped rejection for the upper leaf; it is exact whenever it accepts.
@@ -198,10 +246,10 @@ slowdown matters more than the documented model.
      mass through the veto, and the veto ranks move the chain out.
    - The cost is that a test row routed to an empty leaf predicts that leaf's draw instead of 0.
    - The alternative, refusing mutations that strand a leaf, breaks the embedded use the sampler exists for.
-6. Exact prior leaf draw. Per component, draw a uniform linear extension by backward sampling on the kept DP
-   counts: remove a maximal element x with probability e(D - x) / e(D). Draw |C| iid N(0, c scale / k),
-   sort them, and assign them in extension order; isolated leaves draw alone. This replaces the rejection loop
-   and its 1e6 cap in `drawFromPriorForTree`.
+6. Exact prior leaf draw. Per component, draw a uniform linear extension by backward sampling on the DP
+   counts, every layer kept: remove a maximal element x with probability e(D - x) / e(D). Draw |C| iid
+   N(0, c scale / k), sort them, and assign them in extension order; isolated leaves draw alone. This replaces
+   the rejection loop and its 1e6 cap in `drawFromPriorForTree`.
 7. Reachability:
    - A bridge refusal after [`parseProposalProbs`](../../src/R_interface_bartcore.cpp), at creation and in
      [`bartcore_setModel`](../../src/R_interface_bartcore.cpp). It is keyed on the engine's leaf kind
@@ -230,6 +278,8 @@ slowdown matters more than the documented model.
      time: every draw is feasible, and the upper leaf's draws match the quadrature CDF (KS).
    - The linear-extension draw is uniform over extensions (chi-square on a 5-leaf N-plus-chain), and the guard
      fires.
+   - Free bounds: over random trees and moves, a move decided without counting gets the same decision as with
+     the count, for the same u.
    - [`testMonotoneMarginal`](../../tests/cpp/test_model.cpp) loses its d_* = 1/2 check.
 9. tinytest ([test-monotone.R](../../inst/tinytest/test-monotone.R)):
    - a setControl change mix errors, and a defaulted one is rewritten;
@@ -238,7 +288,8 @@ slowdown matters more than the documented model.
      refused;
    - growFromRoot plus one sweep is monotone;
    - after 2,000 sweeps on data decreasing along the constrained axis, copy() and setState round-trip;
-   - setPredictor(forceUpdate = TRUE) stranding a leaf keeps the fit monotone.
+   - setPredictor(forceUpdate = TRUE) stranding a leaf keeps the fit monotone;
+   - a guard set low errors, leaves the state unchanged, and the run continues after the guard is raised.
    A statistical check does not fit: the most sensitive cheap functional sat at |z| 0.6-0.8 against the current
    move at 50k-100k draws.
 10. Gate: [`buildDesign`](../../benchmarks/R/monotone-exact-enumeration.R), [`prototypeKeys`](../../benchmarks/R/monotone-exact-enumeration.R) (details under Verification).
@@ -259,8 +310,8 @@ slowdown matters more than the documented model.
 12. Docs:
     - monotone.md sections 4, 9 and 11 and the Plan-vs-code note restate B' with the whole-tree normalizer, and
       record that mBART's d-normalized eq. 4.11 targets neither this prior nor the software's.
-    - The prior statement stays verbatim; the `monotone` argument's help names the guard's error and the
-      few-tree cost.
+    - The prior statement stays verbatim; the `monotone` argument's help names the guard, its error, the
+      few-tree cost, and that rerunning with new seeds until a run completes selects smaller trees.
     - dec-B16 is marked superseded in part by dec-B144.
     - Status lines and INDEX at landing, and the TODO item removed.
 
@@ -285,5 +336,6 @@ slowdown matters more than the documented model.
   (0.4 s per replicate) flags the current move and must pass; then the 20-tree arm (~85 min at R 200) must pass
   before admission.
 - Speed: on a quiet machine, monotone sweep time at 20 trees, 1 and 2 constrained predictors, within 5% of
-  today; at 1 and 5 trees, the slowdown is recorded against the Decision's estimates. bench-sampler compare unchanged on the unconstrained paths.
+  today; at 1 and 5 trees, the slowdown is recorded against the Decision's estimates. bench-sampler compare
+  unchanged on the unconstrained paths.
 - `Rscript tools/check-doc-freshness.R .` passes.

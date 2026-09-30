@@ -24,12 +24,14 @@
 #          prototype-old: the prototype with the conditional-d ratio the
 #            engine shipped with (reproduces the engine before the fix)
 #          zcheck: Z_T = e(P_T) / L! against a brute-force monotonicity check
+#          unnormalized: the exact posterior against the one without 1 / Z_T
+#            (the BART prior conditioned on every tree being monotone); no sampling
 #   design c1 c2 c3 cN (default: all)
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 args <- setdiff(args, "quick")
-modes <- c("engine", "prototype", "prototype-old", "zcheck")
+modes <- c("engine", "prototype", "prototype-old", "zcheck", "unnormalized")
 mode <- intersect(args, modes)
 mode <- if (length(mode)) mode[1L] else "engine"
 designs <- list(
@@ -716,6 +718,48 @@ zcheck <- function() {
   worst
 }
 
+# ---- unnormalized: the posterior without the per-tree 1 / Z_T --------------
+
+# the unnormalized prior p_CGM(T) prod phi 1{M in C(T)} weights each tree by
+# Z_T more than the documented one, so its law is the exact law times Z_T
+compareUnnormalized <- function(name) {
+  design <- buildDesign(designs[[name]])
+  trees <- design$trees
+  constrained <- which(design$spec$dirs != 0L)
+  leaves <- vapply(trees, function(tr) length(tr$leaves), 0)
+  splits <- vapply(
+    trees,
+    function(tr) {
+      v <- as.integer(sub(".*\\|([0-9]+):.*", "\\1", tr$rules))
+      sum(v %in% constrained)
+    },
+    0
+  )
+  logZ <- vapply(trees, `[[`, 0, "logZ")
+  unnorm <- design$law * exp(logZ - max(logZ))
+  unnorm <- unnorm / sum(unnorm)
+  summ <- function(w) {
+    sprintf(
+      "leaves %.3f, constrained splits %.3f, root-only %.3f",
+      sum(w * leaves),
+      sum(w * splits),
+      w[["ROOT"]]
+    )
+  }
+  cat(sprintf(
+    "%s: %d structures
+  documented   %s
+  unnormalized %s
+  TV %.3f
+",
+    name,
+    length(trees),
+    summ(design$law),
+    summ(unnorm),
+    sum(abs(design$law - unnorm)) / 2
+  ))
+}
+
 # ---- main --------------------------------------------------------------------
 
 # the lattice quadrature against the closed form for two leaves
@@ -738,6 +782,13 @@ if (mode == "zcheck") {
   cat(sprintf("zcheck: worst |z| %.2f\n", worst))
   if (worst > 4) {
     quit(status = 1L)
+  }
+  quit(status = 0L)
+}
+
+if (mode == "unnormalized") {
+  for (name in chosen) {
+    compareUnnormalized(name)
   }
   quit(status = 0L)
 }
