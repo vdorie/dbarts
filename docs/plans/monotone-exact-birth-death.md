@@ -8,7 +8,7 @@ move touching an accepted merge does. Under "leaf" a slow count warns and never 
 is no count limit. A blind critique of the counting then fixed its gaps, and a whole-plan critique found it not
 ready: the plan now stages the work in six reviewed commits (Staging), with a checkpoint on the corrected
 engine's counts after the fourth, and records three orchestrator calls (dec-A128). The monotone() signature is
-open. Derivation and gate verified on an R prototype; not implemented.
+monotone(directions, prior = ) (dec-B150). Derivation and gate verified on an R prototype; not implemented.
 
 agent: opus (engine numerics: move seam, order counting, exact pair redraw, gate)
 rng: posterior-changing for every fit with an active monotone constraint (all of its draws move, prior draws
@@ -227,7 +227,8 @@ Rulings, 2026-09-29:
   takes option 5's no budget and the free-bound shortcut; the unnormalized prior needs no count. Open: the
   default, for the feel study below.
 - Placement (dec-B146): a monotone() constructor in the existing monotone = argument, as interactions = and
-  blocks = take interactions() and blocks(), carrying the per-predictor directions and prior = . The plain
+  blocks = take interactions() and blocks(), carrying the per-predictor directions and prior = . Its
+  signature was later ruled below (dec-B150). The plain
   vector monotone = c(x1 = "increasing") stays as shorthand for the default prior. cgm() and normal() do not
   change. Not chosen: a separate formal monotone.prior on dbarts(), bart() and dbartsSpec() (the LightGBM
   monotone_constraints_method precedent), an argument of cgm() or normal(), and a dbartsControl option. "Use
@@ -248,6 +249,11 @@ Rulings, 2026-09-29:
   Barker move ([monotone-barker-hybrid.md](../design/monotone-barker-hybrid.md), proposed, not adopted; the
   upgrade if slow counts show in practice), and a budget. "OK, let's do option 2 now." What a cancel leaves
   behind is an orchestrator call (dec-A128, step 15).
+- Signature (dec-B150): monotone(directions, prior = ), the directions a first-argument vector exactly as the
+  plain-vector shorthand takes them, following blocks(groups, trees.per.group = NULL):
+  monotone(c(x1 = "increasing", x2 = "decreasing"), prior = "leaf"). Not chosen: directions as named
+  arguments with prior = reserved, which collides with a predictor named "prior", and accepting both forms.
+  "Use option 1."
 
 ## Default: feel study
 
@@ -405,7 +411,7 @@ Six reviewed commits, in this order. Landing is two-phase: phases 1-5 land with 
 (the constant set provisionally, every harness pinned), and step 12's docs wait for the default ruling.
 
 1. Redraw fix, empty leaves and reachability (steps 4, 5, 7), with step 9's reachability tests.
-2. The monotone() constructor, vocabulary and caller sweep (step 14), once its signature is ruled.
+2. The monotone() constructor, vocabulary and caller sweep (step 14).
 3. The counter with its tests/cpp checks, not wired in (steps 1, 6, 8), counting both sides of every move;
    then, as its own later commit, the lazy cache (step 1).
 4. The seam, the dropped d terms, the prior flag and the gate under both priors (steps 2, 3, 13, 10), with
@@ -593,12 +599,12 @@ release; the implementer stops here and reports.
     count runs, and sampleTreesFromPrior draws jointly (step 7). Steps 3-6 apply to both. The fit object
     records the prior, and print and summary show it.
 14. The monotone() constructor and vocabulary (dec-B146, dec-B147).
-    - Signature: OPEN for the maintainer. A predictor named "prior" collides with monotone(x1 = "increasing",
-      prior = ). Candidates: (A) directions in ... plus prior = , where a predictor named prior must use the
-      plain-vector form; (B) a directions vector as the first argument, monotone(c(x1 = "increasing"),
-      prior = "leaf"). Either way prior = is one of "leaf" and "joint" (their order, the default, open), checked
-      with match.arg, and the default comes from the one constant (Constraints). Class dbartsMonotone, in
-      R/model.R beside interactions() and blocks().
+    - Signature (dec-B150): monotone(directions, prior = ), for example
+      monotone(c(x1 = "increasing", x2 = "decreasing"), prior = "leaf"), following blocks(groups,
+      trees.per.group = NULL). directions is exactly the plain-vector shorthand, named or positional, so a
+      predictor named "prior" needs nothing special. prior = is one of "leaf" and "joint" (their order, the
+      default, open), checked with match.arg, and the default comes from the one constant (Constraints). Class
+      dbartsMonotone, in R/model.R beside interactions() and blocks().
     - Like interactions() it is not exported itself: it joins dbartsForests, its exported face, and resolves
       by bare name inside monotone = on dbarts(), bart() and dbartsSpec() through resolveForestArguments
       (FOREST_ARGUMENT_VOCABULARIES), with a bare name the caller bound to a value being that value.
@@ -615,7 +621,7 @@ release; the implementer stops here and reports.
       test-proposal-probs.R, benchmarks/R/binary-hyperprior.R and surfaces-common.R, and the SBC design text.
     - tinytest: bare-name resolution and a caller-bound shadow, the vector shorthand equal to the default
       prior's monotone(), an unknown prior value, "+" and "Increasing" refused, 0 accepted in the positional
-      form, a predictor named prior under whichever signature is ruled, and each prior fitting monotone.
+      form, a predictor named prior constrained through directions, and each prior fitting monotone.
 15. Slow counts (dec-B149).
     - Tally: each chain times every count and records those over a threshold, default one second: how many,
       the slowest, and its component's size and down-sets. It resets at the start of each run, as the GP
