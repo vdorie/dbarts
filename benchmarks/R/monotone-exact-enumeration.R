@@ -23,6 +23,13 @@
 #          prototype: the R prototype of the corrected move; exits 1 on failure
 #          prototype-old: the prototype with the conditional-d ratio the
 #            engine shipped with (reproduces the engine before the fix)
+#          hybrid: the prototype with every move whose finer tree's pair
+#            components hold 3 or more leaves switched to the count-free
+#            Barker move (docs/design/monotone-barker-hybrid.md): two-coin
+#            acceptance, the coin an exact linear extension by Huber's
+#            coupling from the past; exits 1 on failure
+#          hybrid-nocoin: hybrid with the coin always heads (drops theta);
+#            must fail
 #          zcheck: Z_T = e(P_T) / L! against a brute-force monotonicity check
 #          unnormalized: the exact posterior against the one without 1 / Z_T
 #            (the BART prior conditioned on every tree being monotone); no sampling
@@ -31,7 +38,15 @@
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 args <- setdiff(args, "quick")
-modes <- c("engine", "prototype", "prototype-old", "zcheck", "unnormalized")
+modes <- c(
+  "engine",
+  "prototype",
+  "prototype-old",
+  "hybrid",
+  "hybrid-nocoin",
+  "zcheck",
+  "unnormalized"
+)
 mode <- intersect(args, modes)
 mode <- if (length(mode)) mode[1L] else "engine"
 designs <- list(
@@ -322,6 +337,157 @@ rootRule <- function(keys) {
   out
 }
 
+# ---- hybrid: the count-free Barker move -------------------------------------
+
+# the transitive closure of an order given as a relation matrix
+closeOrder <- function(rel) {
+  n <- nrow(rel)
+  for (k in seq_len(n)) {
+    rel <- rel | outer(rel[, k], rel[k, ], `&`)
+  }
+  rel
+}
+
+# connected components of an order's comparability graph, as labels
+orderComponents <- function(rel) {
+  n <- nrow(rel)
+  adj <- rel | t(rel)
+  label <- rep(0L, n)
+  for (s in seq_len(n)) {
+    if (label[s]) {
+      next
+    }
+    label[s] <- s
+    stack <- s
+    while (length(stack)) {
+      x <- stack[1L]
+      stack <- stack[-1L]
+      new <- which(adj[x, ] & !label)
+      label[new] <- s
+      stack <- c(stack, new)
+    }
+  }
+  label
+}
+
+# One uniform linear extension of a closed order (closed[j, k] when j < k),
+# by Huber's bounding chain for the Karzanov-Khachiyan chain and his
+# non-Markovian coupling from the past (Discrete Math. 306, 2006, sections 3
+# and 4), doubling the block length. Returns the elements in order.
+huberExtension <- function(closed) {
+  n <- nrow(closed)
+  if (n == 1L) {
+    return(1L)
+  }
+  # relabel so the identity is an extension: fewer predecessors first
+  ord <- order(colSums(closed))
+  p <- closed[ord, ord, drop = FALSE]
+  state <- new.env()
+  run <- function(iv, cv, advance) {
+    r <- rep(n, n)
+    who <- c(rep(0L, n - 1L), 1L)
+    inPlay <- 1L
+    x <- state$x
+    for (t in seq_along(iv)) {
+      i <- iv[t]
+      cc <- cv[t]
+      a <- who[i]
+      b <- who[i + 1L]
+      if (advance) {
+        cx <- if (b > 0L && x[i] == b) 1L - cc else cc
+        if (cx == 1L && !p[x[i], x[i + 1L]]) x[c(i, i + 1L)] <- x[c(i + 1L, i)]
+      }
+      if (cc == 1L) {
+        if (a > 0L && b > 0L) {
+          if (!p[a, b]) {
+            r[a] <- i + 1L
+            r[b] <- i
+            who[i] <- b
+            who[i + 1L] <- a
+          }
+        } else if (a > 0L) {
+          r[a] <- i + 1L
+          who[i] <- 0L
+          who[i + 1L] <- a
+        } else if (b > 0L) {
+          r[b] <- i
+          who[i + 1L] <- 0L
+          who[i] <- b
+        }
+      }
+      if (inPlay < n && who[n] == 0L) {
+        inPlay <- inPlay + 1L
+        r[inPlay] <- n
+        who[n] <- inPlay
+      }
+    }
+    state$x <- x
+    state$r <- r
+    inPlay == n
+  }
+  base <- max(16L, n * n)
+  blocks <- list()
+  level <- 0L
+  repeat {
+    len <- base * 2L^level
+    blocks[[level + 1L]] <- list(
+      iv = sample.int(n - 1L, len, replace = TRUE),
+      cv = sample.int(2L, len, replace = TRUE) - 1L
+    )
+    if (run(blocks[[level + 1L]]$iv, blocks[[level + 1L]]$cv, FALSE)) {
+      break
+    }
+    level <- level + 1L
+  }
+  x <- integer(n)
+  x[state$r] <- seq_len(n)
+  state$x <- x
+  for (l in rev(seq_len(level))) {
+    run(blocks[[l]]$iv, blocks[[l]]$cv, TRUE)
+  }
+  ord[state$x]
+}
+
+# the coin: one exact uniform extension of the finer tree's components that
+# hold the pair, drawn per component and riffled uniformly; heads when c2
+# immediately follows c1
+adjacencyCoin <- function(tr, c1, c2) {
+  held <- unique(tr$comp[c(c1, c2)])
+  parts <- lapply(held, function(h) {
+    members <- which(tr$comp == h)
+    members[huberExtension(tr$closed[members, members, drop = FALSE])]
+  })
+  if (length(parts) == 1L) {
+    seq <- parts[[1L]]
+  } else {
+    a <- length(parts[[1L]])
+    b <- length(parts[[2L]])
+    slots <- sort(sample.int(a + b, a))
+    seq <- integer(a + b)
+    seq[slots] <- parts[[1L]]
+    seq[-slots] <- parts[[2L]]
+  }
+  match(c2, seq) == match(c1, seq) + 1L
+}
+
+# Barker's acceptance by the two-coin algorithm (Goncalves, Latuszynski and
+# Roberts 2017, section 2) for a pair whose finer tree's weight carries the
+# unknown factor theta: birth accepts with c theta / (1 + c theta), a death
+# with 1 / (1 + c theta). Returns the decision and the coins drawn.
+twoCoin <- function(logC, coin, birth) {
+  draws <- 0L
+  repeat {
+    if (runif(1L) < stats::plogis(logC)) {
+      draws <- draws + 1L
+      if (coin()) {
+        return(list(accept = birth, draws = draws))
+      }
+    } else {
+      return(list(accept = !birth, draws = draws))
+    }
+  }
+}
+
 # ---- samplers ----------------------------------------------------------------
 
 engineKeys <- function(design, nDraw, seed) {
@@ -403,7 +569,14 @@ drawTruncated <- function(m, s, a, b) {
 # and redrawn exactly on acceptance, then a Gibbs sweep over the leaves.
 # exact = FALSE divides each touched marginal by its conditional prior cone
 # mass d and drops the Z_T ratio, as the engine did before the fix.
-prototypeKeys <- function(design, nDraw, seed, exact) {
+prototypeKeys <- function(
+  design,
+  nDraw,
+  seed,
+  exact,
+  switchAt = Inf,
+  coin = TRUE
+) {
   set.seed(seed)
   trees <- design$trees
   dirs <- design$spec$dirs
@@ -432,6 +605,8 @@ prototypeKeys <- function(design, nDraw, seed, exact) {
   for (t in seq_along(trees)) {
     tr <- trees[[t]]
     tr$birthable <- which(lengths(tr$avail) > 0L)
+    tr$closed <- closeOrder(tr$rel)
+    tr$comp <- orderComponents(tr$rel)
     tr$nog <- Filter(
       function(rule) all(childKeys(splitRule(rule)) %in% tr$leafKeys),
       tr$rules
@@ -515,6 +690,42 @@ prototypeKeys <- function(design, nDraw, seed, exact) {
     oneLeaf(tr, k[1L], mu, k[2L]) + oneLeaf(tr, k[2L], mu, k[1L])
   }
   logZRatio <- function(from, to) if (exact) from$logZ - to$logZ else 0
+  # the pair (c1 lower, c2 upper) in the finer tree fine, and m, the size of
+  # fine's components that hold it
+  pairOf <- function(fine, r) {
+    k <- match(childKeys(r), fine$leafKeys)
+    if (dirs[r$v] < 0L) {
+      k <- rev(k)
+    }
+    list(c1 = k[1L], c2 = k[2L], m = sum(fine$comp %in% fine$comp[k]))
+  }
+  # switched moves decide by Barker's two-coin algorithm; the rest by MH
+  decide <- function(logR, fine, from, to, r, birth) {
+    pr <- pairOf(fine, r)
+    if (pr$m < switchAt) {
+      return(isTRUE(log(runif(1L)) < logR))
+    }
+    if (!is.finite(logR) && logR < 0) {
+      return(FALSE)
+    }
+    logRest <- logR - (from$logZ - to$logZ)
+    # a birth's ratio is c theta, a death's 1 / (c theta)
+    logC <- if (birth) logRest + log(pr$m) else log(pr$m) - logRest
+    flip <- if (coin) {
+      function() adjacencyCoin(fine, pr$c1, pr$c2)
+    } else {
+      function() TRUE
+    }
+    out <- twoCoin(logC, flip, birth)
+    stats$switched <- stats$switched + 1L
+    stats$draws <- stats$draws + out$draws
+    stats$accB <- stats$accB + stats::plogis(logR)
+    stats$accMH <- stats$accMH + min(1, exp(logR))
+    out$accept
+  }
+  stats <- new.env()
+  stats$switched <- stats$draws <- 0L
+  stats$accB <- stats$accMH <- 0
   cur <- trees[["ROOT"]]
   mu <- setNames(0, cur$leafKeys)
   keys <- character(nDraw)
@@ -541,7 +752,7 @@ prototypeKeys <- function(design, nDraw, seed, exact) {
         branch(to, r, mu) -
         oneLeaf(from, l, mu, integer(0)) +
         logZRatio(from, to)
-      if (isTRUE(log(runif(1L)) < logR)) {
+      if (decide(logR, to, from, to, r, TRUE)) {
         k <- match(childKeys(r), to$leafKeys)
         mu[to$leafKeys[k]] <- 0
         abA <- bounds(to, k[1L], mu, k[2L])
@@ -574,7 +785,7 @@ prototypeKeys <- function(design, nDraw, seed, exact) {
         oneLeaf(to, l, muTo, integer(0)) -
         branch(from, r, mu) +
         logZRatio(from, to)
-      if (isTRUE(log(runif(1L)) < logR)) {
+      if (decide(logR, from, from, to, r, FALSE)) {
         ab <- bounds(to, l, muTo)
         muTo[to$leafKeys[l]] <- drawTruncated(to$m[l], to$s[l], ab[1L], ab[2L])
         mu <- muTo[to$leafKeys]
@@ -587,6 +798,7 @@ prototypeKeys <- function(design, nDraw, seed, exact) {
     }
     if (it > nBurn) keys[it - nBurn] <- cur$key
   }
+  attr(keys, "switched") <- as.list(stats)
   keys
 }
 
@@ -810,15 +1022,36 @@ for (name in chosen) {
       mode,
       engine = engineKeys(design, perChain, s),
       prototype = prototypeKeys(design, perChain, s, exact = TRUE),
-      "prototype-old" = prototypeKeys(design, perChain, s, exact = FALSE)
+      "prototype-old" = prototypeKeys(design, perChain, s, exact = FALSE),
+      hybrid = prototypeKeys(design, perChain, s, exact = TRUE, switchAt = 3L),
+      "hybrid-nocoin" = prototypeKeys(
+        design,
+        perChain,
+        s,
+        exact = TRUE,
+        switchAt = 3L,
+        coin = FALSE
+      )
     )
   })
+  if (startsWith(mode, "hybrid")) {
+    st <- Reduce(
+      function(a, b) Map(`+`, a, b),
+      lapply(chains, attr, "switched")
+    )
+    cat(sprintf(
+      "  %d switched moves, %.2f coins each, acceptance %.3f of MH's\n",
+      st$switched,
+      st$draws / st$switched,
+      st$accB / st$accMH
+    ))
+  }
   anyFailure <- testGroups(design, chains, name) || anyFailure
 }
 
 if (anyFailure) {
   cat("\nFAIL: the sampler does not target the documented monotone posterior\n")
-  if (mode != "prototype-old") quit(status = 1L)
+  if (!mode %in% c("prototype-old", "hybrid-nocoin")) quit(status = 1L)
 } else {
   cat("\nOK: every design matches the enumerated posterior\n")
 }

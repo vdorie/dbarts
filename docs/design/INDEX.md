@@ -24,6 +24,7 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | heteroscedastic.md | LANDED, 2026-07-20 | Adds a heteroscedastic variance forest (`variance =`), modeling s^2(x) as a second tree ensemble. |
 | monotone.md | LANDED, 2026-07-19 | Adds per-variable monotonicity constraints (`monotone =`) via a constrained constant leaf. |
+| monotone-barker-hybrid.md | PROPOSED, 2026-09-29 | The upgrade dec-B149 names for the "leaf" monotone prior: moves whose leaf order is too large to count switch to an exact count-free Barker move (two-coin acceptance, the coin a perfect linear-extension draw by Huber's coupling from the past); sources verified, switch rule, cost on measured fits, and a brute-force exactness check. |
 | ordinal.md | LANDED, 2026-07-18 | Adds ordered-categorical responses (`family = "ordinal"`) via cumulative probit with sampled cutpoints; K = 2 reduces bitwise to probit. |
 | multinomial.md | LANDED, 2026-07-15/17 | Adds multinomial responses (`family = "multinomial"`): K constant-leaf forests coupled by a softmax link. |
 | negative-binomial.md | LANDED, 2026-07-18 | Adds negative-binomial counts (`family = "nbinom"`) via Polya-Gamma augmentation; the dispersion `r` is a positive integer only, real-valued `r` deferred. |
