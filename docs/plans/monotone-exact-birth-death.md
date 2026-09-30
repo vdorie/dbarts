@@ -449,7 +449,9 @@ Constraints) and every harness pinned, and step 12's docs wait for the default r
 4. The seam, the dropped d terms, the prior flag and the gate under both priors (steps 2, 3, 13, 10), step 6's
    switch of `drawFromPriorForTree` to the exact draw, and step 7's sampleTreesFromPrior bullet for both
    priors; prior = "joint" is accepted from here. Per-move count timing is recorded through the move census
-   (BARTCORE_MOVE_CENSUS; step 2). Then the checkpoint below, and stop.
+   (BARTCORE_MOVE_CENSUS; step 2). Then the checkpoint below, and stop. Until commit 5's setModel refusal,
+   setModel silently accepts a changed monotone prior (the engine keeps the old one); commits 4 and 5 are
+   pushed together, so no pushed tip carries it.
 4b. The lazy cache (step 1), after the checkpoint: the checkpoint sees the uncached worst case, since the cache
    changes only cost, and its fits are re-timed with the cache.
 5. Slow-count warning, interrupt, allocation and rebuild (step 15), and step 7's setModel refusal (dec-A128).

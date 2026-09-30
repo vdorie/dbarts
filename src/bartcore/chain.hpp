@@ -2175,16 +2175,18 @@ public:
         // for it land in its cone (acceptance the prior mean of Z_T; the bare
         // root always lands), and the leaves are then discarded, as this
         // entry returns trees without leaf values.
-        int rejected = 0;
+        int rejected = 0, outsideCone = 0;
         while (true) {
           tree.initialize(forest.indexBuffer.data() + t * n, n);
           if (!anyWeight) break;
           growSubtreeFromPrior(forest, tree, 0, y, forestWeights);
           if constexpr (TreeDrawLeafModel<L>) {
-            if (tree.bottomNodesHaveWeight(forestWeights) &&
-                (forest.leaf.prior != MonotonePrior::joint ||
-                 forest.leaf.jointPriorAccepts(rng_, tree, forest.k)))
-              break;
+            if (tree.bottomNodesHaveWeight(forestWeights)) {
+              if (forest.leaf.prior != MonotonePrior::joint ||
+                  forest.leaf.jointPriorAccepts(rng_, tree, forest.k))
+                break;
+              ++outsideCone;
+            }
           } else if (tree.bottomNodesHaveWeight(forestWeights)) {
             break;
           }
@@ -2193,10 +2195,13 @@ public:
           // recursion and the entry point. The bridge converts it.
           if (++rejected == priorTreeDrawMaxAttempts)
             throw std::runtime_error(
-              "tree prior draw: every one of " +
+              "tree prior draw: all " +
               std::to_string(priorTreeDrawMaxAttempts) +
-              " draws left an empty leaf, against a weight vector carrying a "
-              "positive entry");
+              " draws were rejected (" +
+              std::to_string(rejected - outsideCone) +
+              " left an empty leaf, " + std::to_string(outsideCone) +
+              " drew leaves outside the monotone prior's cone), against a "
+              "weight vector carrying a positive entry");
         }
         // fresh structures carry zero parameter blocks until the next draw
         if constexpr (L::hasVectorParams)

@@ -6,7 +6,8 @@
 # Rscript under caps, reading per-move count time, memory and the Barker
 # hybrid's quantities from the move census.
 #
-# The library must be built with the census:
+# The library must be built with the census; the driver refuses to run when a
+# probe fit writes no census file:
 #
 #   printf 'CPPFLAGS += -DBARTCORE_MOVE_CENSUS\n' > /tmp/census-makevars
 #   R_MAKEVARS_USER=/tmp/census-makevars \
@@ -84,10 +85,49 @@ runChild <- function(specFile) {
   )
   burn <- system.time(invisible(sampler$run(spec$burn, 0L)))[["elapsed"]]
   kept <- system.time(invisible(sampler$run(0L, spec$kept)))[["elapsed"]]
+  # a fit shorter than the driver's poll is never sampled there: this is the
+  # resident size at exit, a floor on the peak
   saveRDS(
-    list(burnSeconds = burn, keptSeconds = kept),
+    list(
+      burnSeconds = burn,
+      keptSeconds = kept,
+      finalRssBytes = rssBytes(Sys.getpid())
+    ),
     spec$doneFile
   )
+}
+
+# ---- census probe: refuse a library built without it ---------------------------
+
+# The engine opens its census file at the first move, so a tiny monotone fit
+# that leaves no file ran against a library built without the census, whose
+# report would read as zero moves.
+checkCensusBuild <- function(dir) {
+  # per driver, so drivers sharing an out= directory do not race
+  file <- tempfile("census-probe-", tmpdir = dir, fileext = ".csv")
+  code <- paste(
+    "suppressPackageStartupMessages(library(dbarts));",
+    "set.seed(1); x <- matrix(runif(200), 100, 2,",
+    "dimnames = list(NULL, c('x1', 'x2')));",
+    "y <- x[, 1] + rnorm(100, 0, 0.1);",
+    "s <- dbarts(x, y, control = dbartsControl(n.chains = 1L,",
+    "n.threads = 1L, n.trees = 1L, updateState = FALSE),",
+    "monotone = dbartsForests$monotone(c(x1 = 1L), prior = 'leaf'));",
+    "invisible(s$run(5L, 5L))"
+  )
+  status <- system2(
+    file.path(R.home("bin"), "Rscript"),
+    c("-e", shQuote(code)),
+    env = paste0("BARTCORE_MOVE_CENSUS_FILE=", shQuote(file))
+  )
+  if (!identical(status, 0L) || !file.exists(file) || !file.size(file)) {
+    stop(
+      "the dbarts on the library path was not built with ",
+      "-DBARTCORE_MOVE_CENSUS (a probe fit wrote no census; see this file's ",
+      "header): the report would read as zero moves"
+    )
+  }
+  unlink(file)
 }
 
 # ---- driver: fits under caps ---------------------------------------------------
@@ -123,9 +163,21 @@ runFitCapped <- function(spec, capSeconds, capBytes, countAll) {
   pid <- NA_integer_
   capped <- NA_character_
   peak <- 0
+  polls <- 0L
+  # a poll gap far past the 1 s interval is the machine sleeping: the wall
+  # clock ran on while the child did not, so the time cap counts awake time
+  # only, and a fit with any gap is marked (its per-move times may span it)
+  lastPoll <- started
+  slept <- 0
   repeat {
     Sys.sleep(1)
-    elapsed <- as.numeric(difftime(Sys.time(), started, units = "secs"))
+    now <- Sys.time()
+    gap <- as.numeric(difftime(now, lastPoll, units = "secs"))
+    if (gap > 30) {
+      slept <- slept + gap - 1
+    }
+    lastPoll <- now
+    elapsed <- as.numeric(difftime(now, started, units = "secs")) - slept
     if (is.na(pid) && file.exists(spec$pidFile)) {
       pid <- as.integer(readLines(spec$pidFile, warn = FALSE)[1L])
     }
@@ -141,6 +193,7 @@ runFitCapped <- function(spec, capSeconds, capBytes, countAll) {
       break # the child has exited
     }
     peak <- max(peak, rss)
+    polls <- polls + 1L
     if (elapsed > capSeconds) {
       capped <- "time"
     } else if (rss > capBytes) {
@@ -155,10 +208,19 @@ runFitCapped <- function(spec, capSeconds, capBytes, countAll) {
   if (is.null(done) && is.na(capped)) {
     capped <- "failed"
   }
+  if (!is.null(done$finalRssBytes) && !is.na(done$finalRssBytes)) {
+    peak <- max(peak, done$finalRssBytes)
+  }
   list(
     capped = capped,
+    started = format(started, "%Y-%m-%d %H:%M:%S"),
+    ended = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+    # nonzero: the fit spanned a sleep and its census times are suspect; rerun
+    sleptSeconds = slept,
     wallSeconds = as.numeric(difftime(Sys.time(), started, units = "secs")),
-    peakRssBytes = peak,
+    peakRssBytes = if (polls > 0L || peak > 0) peak else NA_real_,
+    # 0: the fit ended within one poll, and the peak is the exit sample
+    rssPolls = polls,
     secondsPerKeptSweep = if (is.null(done)) {
       NA_real_
     } else {
@@ -196,23 +258,25 @@ readCensus <- function(file) {
   }
   # a killed child can leave a partial last line
   all <- readLines(file, warn = FALSE)
-  lines <- grep("^z,", all, value = TRUE)
-  lines <- lines[lengths(strsplit(lines, ",")) == length(zColumns)]
-  if (!length(lines)) {
+  all <- all[grepl("^[a-z],[0-9]+,", all)]
+  # each run() call numbers its sweeps from 0, so burn-in and kept sweeps
+  # share indices: a drop in the index starts a new call
+  index <- as.integer(sub("^[a-z],([0-9]+),.*$", "\\1", all))
+  call <- cumsum(c(0L, diff(index) < 0L))
+  sweep <- index + c(0L, cumsum(tapply(index, call, max) + 1L))[call + 1L]
+  isZ <- startsWith(all, "z,") &
+    lengths(strsplit(all, ",")) == length(zColumns)
+  if (!any(isZ)) {
     return(NULL)
   }
   z <- utils::read.csv(
-    text = lines,
+    text = all[isZ],
     header = FALSE,
     col.names = zColumns,
     na.strings = "NA"
   )
-  sweeps <- unique(as.integer(sub(
-    "^[a-z],([0-9-]+),.*$",
-    "\\1",
-    grep("^t,[0-9]+,", all, value = TRUE)
-  )))
-  attr(z, "numSweeps") <- length(sweeps)
+  z$sweep <- sweep[isZ]
+  attr(z, "numSweeps") <- length(unique(sweep[startsWith(all, "t,")]))
   z
 }
 
@@ -265,7 +329,7 @@ if (mode == "report") {
     info <- if (file.exists(file.path(dir, "result.rds"))) {
       readRDS(file.path(dir, "result.rds"))
     } else {
-      list()
+      list(capped = "no result (running or killed with its driver)")
     }
     rows[[length(rows) + 1L]] <- cbind(
       data.frame(fit = basename(dir)),
@@ -273,7 +337,14 @@ if (mode == "report") {
       summary
     )
   }
-  table <- do.call(rbind, rows)
+  columns <- unique(unlist(lapply(rows, names)))
+  table <- do.call(
+    rbind,
+    lapply(rows, function(row) {
+      row[setdiff(columns, names(row))] <- NA
+      row[columns]
+    })
+  )
   print(table, digits = 3L)
   utils::write.csv(table, file.path(out, "summary.csv"), row.names = FALSE)
   quit(status = 0L)
@@ -291,6 +362,7 @@ kept <- as.integer(option("kept", "200"))
 capSeconds <- 60 * as.numeric(option("minutes", "60"))
 capBytes <- 2^30 * as.numeric(option("gb", "8"))
 countAll <- "count.all" %in% args
+checkCensusBuild(normalizePath(out))
 
 for (design in designs) {
   for (nTrees in trees) {
@@ -316,11 +388,25 @@ for (design in designs) {
       result <- runFitCapped(spec, capSeconds, capBytes, countAll)
       saveRDS(result, file.path(dir, "result.rds"))
       cat(sprintf(
-        "%s: %s, %.0f s wall, peak RSS %.0f MB, %.4g s per kept sweep\n",
+        "%s: %s%s, %.0f s wall, peak RSS %s, %.4g s per kept sweep\n",
         label,
         if (is.na(result$capped)) "done" else paste("capped:", result$capped),
+        if (result$sleptSeconds > 0) {
+          sprintf(" (SPANNED A %.0f s SLEEP: rerun)", result$sleptSeconds)
+        } else {
+          ""
+        },
         result$wallSeconds,
-        result$peakRssBytes / 2^20,
+        if (is.na(result$peakRssBytes)) {
+          "unsampled (< poll)"
+        } else if (result$rssPolls == 0L) {
+          sprintf(
+            ">= %.0f MB (< poll; exit sample)",
+            result$peakRssBytes / 2^20
+          )
+        } else {
+          sprintf("%.0f MB", result$peakRssBytes / 2^20)
+        },
         result$secondsPerKeptSweep
       ))
     }
