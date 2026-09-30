@@ -22,6 +22,11 @@
 #   Rscript benchmarks/R/sbc.R burn-bcf-probit 40000 24 # its repriced ladder
 #   Rscript benchmarks/R/sbc.R burn-aft 20000 3     # the aft arm's own
 #   Rscript benchmarks/R/sbc.R burn-hetero 40000 24 # the two hetero arms' own
+#   Rscript benchmarks/R/sbc.R monotone-1-leaf 400 100 50 # one tree, sensitive
+#   Rscript benchmarks/R/sbc.R monotone-1-joint 400 100 50
+#   Rscript benchmarks/R/sbc.R monotone-bd 400 100 50 # unconstrained twin
+#   Rscript benchmarks/R/sbc.R burn-monotone-leaf 40000 3 # 20-tree arm's burn
+#   Rscript benchmarks/R/sbc.R monotone-leaf 200 150 30 <burn> # and -joint
 # Positional args: config R L thin, plus an optional 5th, the burn in absolute
 # sweeps, and an optional 6th, the driver seed. Or source() the file to reuse
 # the API:
@@ -379,7 +384,7 @@ sbcAddBCF <- function(
 # setResponse, which would break rank iid-ness); those families run at a fixed
 # unit scale, so a rebuild re-anchors nothing.
 sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
-  ctrl <- dbartsControl(
+  ctrlArgs <- list(
     n.trees = config$nTrees,
     n.chains = 1L,
     n.threads = 1L,
@@ -389,6 +394,12 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
     verbose = FALSE,
     keepTrainingFits = TRUE
   )
+  # the unconstrained monotone twin's birth/death-only mixture; every other
+  # arm keeps the default
+  if (!is.null(config$proposalProbs)) {
+    ctrlArgs$proposal.probs <- config$proposalProbs
+  }
+  ctrl <- do.call(dbartsControl, ctrlArgs)
   family <- sbcSamplerFamily(config)
   # Student-t errors are a residual DISTRIBUTION on a gaussian response, not a
   # family; the constructor vocabulary is unexported, so reach it by namespace
@@ -434,6 +445,12 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
   }
   if (!is.null(config$weights)) {
     args$weights <- config$weights
+  }
+  if (!is.null(config$monotonePrior)) {
+    args$monotone <- dbartsForests$monotone(
+      c(x1 = "increasing"),
+      prior = config$monotonePrior
+    )
   }
   # weights-on-test-data warns benignly (test predictions stay unweighted)
   suppressWarnings(do.call(dbarts, args))
@@ -1723,6 +1740,45 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
         )
       }
     )
+  } else if (isTRUE(config$monotoneArm)) {
+    # The monotone arms and their unconstrained twin: the gaussian arm's
+    # replication, step for step, on one pinned sampler (the t arm's reason).
+    # theta0's forest is the engine's own prior draw, which under a monotone
+    # constraint is the chosen prior's: "leaf" draws CGM trees, "joint" draws
+    # each tree jointly with a cone-feasible leaf set by rejection, and both
+    # then draw the leaves given the tree restricted to its cone.
+    sampler <- sbcMakeSampler(config, 1L, thin, seed)
+    drawSigma <- sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
+    spec <- list(
+      draw = function() {
+        sampler$sampleTreesFromPrior()
+        sampler$sampleLeafParametersFromPrior()
+        f0 <- as.numeric(sampler$predict(config$x))
+        f0Test <- as.numeric(sampler$predict(config$xTest))
+        sig0 <- drawSigma(1L)
+        list(
+          y = sbcSimulate(config, f0, sig0),
+          theta = sbcMonotoneFunctionals(config, f0, f0Test, sig0)
+        )
+      },
+      fit = function(y) {
+        sampler$sampleTreesFromPrior()
+        sampler$sampleLeafParametersFromPrior()
+        sampler$setSigma(config$sigest)
+        sampler$setResponse(y)
+        sampler
+      },
+      burnRun = function(f, burn) f$run(burn, 0L),
+      sample = function(f) {
+        res <- f$run(0L, 1L)
+        sbcMonotoneFunctionals(
+          config,
+          res$train[, 1],
+          res$test[, 1],
+          as.numeric(res$sigma)[1L]
+        )
+      }
+    )
   } else if (config$family == "ordinal") {
     gen <- sbcMakeSampler(config, 1L, 1L, seed)
     drawGamma <- sbcOrdinalCutpointDraw(K)
@@ -2079,6 +2135,63 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
   spec
 }
 
+# A monotone arm's configuration (docs/plans/sbc-family-tiers.md, Monotone arm:
+# design): the gaussian arm's design with x1 increasing under the named prior,
+# k fixed at 2 by the explicit normal(2) leaf prior sbcConfig supplies (a
+# monotone fit refuses a chi k), and the default tree-move mixture, which the
+# constraint rewrites to birth/death only. prior = NULL is the unconstrained
+# twin, given that birth/death-only mixture explicitly. The contrast rows join
+# xTest after the nTest random rows, at 0.5 on every other axis: x1 at 0.1 and
+# 0.9 (mono.wide), at 0.45 and 0.55 (mono.local), and, with p >= 2, x2 at 0.1
+# and 0.9 (ctrl.x2, the contrast along an unconstrained axis).
+sbcConfigMonotone <- function(prior, arm, n = 150L, p = 3L, nTrees = 20L) {
+  config <- sbcConfig(family = "gaussian", n = n, p = p, nTrees = nTrees)
+  config$arm <- arm
+  config$monotoneArm <- TRUE
+  config$monotonePrior <- prior
+  if (is.null(prior)) {
+    config$proposalProbs <- c(
+      birth_death = 1,
+      swap = 0,
+      change = 0,
+      perturb = 0,
+      rule_gibbs = 0,
+      birth = 0.5
+    )
+  }
+  at <- function(j, value) {
+    row <- rep(0.5, p)
+    row[j] <- value
+    row
+  }
+  contrasts <- rbind(at(1L, 0.1), at(1L, 0.9), at(1L, 0.45), at(1L, 0.55))
+  if (p >= 2L) {
+    contrasts <- rbind(contrasts, at(2L, 0.1), at(2L, 0.9))
+  }
+  colnames(contrasts) <- colnames(config$xTest)
+  config$xTest <- rbind(config$xTest, contrasts)
+  config
+}
+
+# The monotone arms' functionals from the fits at one state: avg.f, the nTest
+# random test rows, sigma, and the contrasts over the rows sbcConfigMonotone
+# appends. mono.local carries an atom at 0 (both points in one leaf of every
+# tree), which sbcDiscreteRank's tie-break handles.
+sbcMonotoneFunctionals <- function(config, fTrain, fTest, sigma) {
+  k <- config$nTest
+  result <- c(
+    avg.f = mean(fTrain),
+    setNames(fTest[seq_len(k)], paste0("f.star", seq_len(k))),
+    sigma = sigma,
+    mono.wide = fTest[k + 2L] - fTest[k + 1L],
+    mono.local = fTest[k + 4L] - fTest[k + 3L]
+  )
+  if (config$p >= 2L) {
+    result["ctrl.x2"] <- fTest[k + 6L] - fTest[k + 5L]
+  }
+  result
+}
+
 # A latent BCF arm's configuration: the gaussian arm's n at nTest = 3, and
 # sd.control at the FAMILY default 1 rather than gaussian's 2 (bcf.md's
 # calibration section: under a latent family s is the link's own fixed error sd
@@ -2132,6 +2245,31 @@ sbcFamilyConfig <- function(family) {
     "bcf-logistic" = sbcBCFLatentConfig("logistic"),
     "bcf-probit-weak" = sbcBCFLatentConfig("probit", n = 40L),
     "bcf-logistic-weak" = sbcBCFLatentConfig("logistic", n = 40L),
+    "monotone-leaf" = sbcConfigMonotone("leaf", "monotone-leaf"),
+    "monotone-joint" = sbcConfigMonotone("joint", "monotone-joint"),
+    # the sensitive one-tree arm: one constrained axis and no other, so every
+    # multi-split tree gives a touched leaf a frozen constrained neighbor
+    "monotone-1-leaf" = sbcConfigMonotone(
+      "leaf",
+      "monotone-1-leaf",
+      n = 100L,
+      p = 1L,
+      nTrees = 1L
+    ),
+    "monotone-1-joint" = sbcConfigMonotone(
+      "joint",
+      "monotone-1-joint",
+      n = 100L,
+      p = 1L,
+      nTrees = 1L
+    ),
+    "monotone-bd" = sbcConfigMonotone(
+      NULL,
+      "monotone-bd",
+      n = 100L,
+      p = 1L,
+      nTrees = 1L
+    ),
     stop("no family config for \"", family, "\"")
   )
 }
@@ -2253,7 +2391,16 @@ sbcBurnSweeps <- c(
   # draws (probit) and 22 (logistic), not its worst lags, and nothing
   # affordable covers prog_j
   "bcf-probit" = 12000,
-  "bcf-logistic" = 12000
+  "bcf-logistic" = 12000,
+  # the one-tree monotone arms and their twin, read at thin 50: at the
+  # design's thin 10 and 1000 sweeps the unconstrained twin flags sigma
+  # (ecdfDiff 0.101 against band 0.066 at R 400), and at thin 50 and 5000 it
+  # passes every functional. Not a measured ladder. The 20-tree arms have no
+  # entry until burn-monotone-leaf or burn-monotone-joint is run; their burn
+  # rides the 5th positional argument meanwhile
+  "monotone-1-leaf" = 5000,
+  "monotone-1-joint" = 5000,
+  "monotone-bd" = 5000
 )
 
 # Rank R replications of a family-spec configuration. The generic sibling of
@@ -2265,7 +2412,7 @@ runSbcFamily <- function(
   R = 200L,
   L = 150L,
   thin = 30L,
-  burnSweeps = sbcBurnSweeps[[sbcArmName(config)]],
+  burnSweeps = unname(sbcBurnSweeps[sbcArmName(config)]),
   seed = 20260709L,
   report = 25L
 ) {
@@ -2605,6 +2752,15 @@ sbcMatrixConfigs <- c(
 sbcMatrixFunctionals <- 7L + 10L + 3L + 4L + 6L + 9L + 8L + 10L
 sbcMatrixAlpha <- 0.05 / sbcMatrixFunctionals
 
+# The two 20-tree monotone arms are read at the level the matrix would take
+# with both admitted, 10 functionals each (docs/plans/sbc-family-tiers.md,
+# Monotone arm: design); they stay out of sbcMatrixConfigs until both pass.
+# The one-tree arms and their twin are diagnostics, read per functional at 5%.
+sbcMonotoneAlpha <- c(
+  "monotone-leaf" = 0.05 / (sbcMatrixFunctionals + 20L),
+  "monotone-joint" = 0.05 / (sbcMatrixFunctionals + 20L)
+)
+
 # A compact ASCII rank histogram with the +/- band around the uniform mean.
 sbcAsciiHistogram <- function(ranks, L, nBins = 20L, width = 40L) {
   edges <- seq(0, L + 1L, length.out = nBins + 1L)
@@ -2830,7 +2986,16 @@ if (sys.nframe() == 0L) {
     c("linear", "linear-na-leaf", "linear-na-split", "linear-weighted")
   isGP <- which %in% c("gp", "gp-na-leaf", "gp-weighted", "gp-mixed")
   isHetero <- which %in% c("hetero", "hetero-aft")
+  isMonotone <- which %in%
+    c(
+      "monotone-leaf",
+      "monotone-joint",
+      "monotone-1-leaf",
+      "monotone-1-joint",
+      "monotone-bd"
+    )
   isFamilyTier <- isHetero ||
+    isMonotone ||
     which %in%
       c("ordinal", "nbinom", "t", "multinom", "multinomial", "aft")
 
@@ -3122,7 +3287,13 @@ if (sys.nframe() == 0L) {
   expectedFlags <- trimws(expectedFlags[nzchar(trimws(expectedFlags))])
   verdicts <- sbcReport(
     fit,
-    alpha = if (which %in% sbcMatrixConfigs) sbcMatrixAlpha else 0.05,
+    alpha = if (which %in% sbcMatrixConfigs) {
+      sbcMatrixAlpha
+    } else if (which %in% names(sbcMonotoneAlpha)) {
+      sbcMonotoneAlpha[[which]]
+    } else {
+      0.05
+    },
     expectedFlags = expectedFlags
   )
   if (nzchar(Sys.getenv("SBC_FAIL_ON_FLAG", "")) && any(verdicts == "FLAG")) {
