@@ -174,7 +174,7 @@ the state metric the table uses. Sweep time is per kept sweep.
 4. Leaf-count cap. Closed. It does not bound the work (one component of L leaves can have 2^(L-1) + 1
    down-sets), so it needs option 5's guard too, and a cap low enough to matter truncates 1-tree fits (60
    leaves seen). Not recommended.
-5. No budget, with a work guard (taken for "leaf"). The documented prior holds verbatim for every fit.
+5. No budget, with a work guard (no budget taken for "leaf"; the guard is proposed, not ruled). The documented prior holds verbatim for every fit.
    - The guard is a dbartsControl argument, default G = 2^24 down-sets in one component. A count past it stops
      the run with an error naming the order's size and suggesting more trees or a larger G. It never rejects
      a move, so it changes no model and needs no closure. The sampler keeps the tree it held before the move,
@@ -339,7 +339,7 @@ proposal, for a death the current tree. A death therefore never counts the compo
     over 692 moves (mean z 0.007, mean z^2 0.94).
   - Used only when a move's T* components pass G (a symmetric rule, so each move pair keeps one exact kernel),
     it would replace the guard's error with a slower exact move, retire the guard and step 7's pruning, and give
-    step 6 a draw that keeps no layers. That changes the ruled guard (dec-B145), so it waits for the maintainer.
+    step 6 a draw that keeps no layers. The guard itself is an open question for the maintainer (not ruled in dec-B145), so this waits with it.
   - Simpler exact schemes lose acceptance. Accepting a birth with min(1, r1 m) times the coin, and a death with
     min(1, 1 / (r1 m)) and no draw, matches Metropolis-Hastings when r1 m <= 1 but otherwise scales acceptance
     by theta (0.02-0.2 on the large moves). The exchange algorithm (Murray, Ghahramani and MacKay, UAI 2006),
