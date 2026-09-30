@@ -902,3 +902,16 @@ about twice the prototype's speed. The review found the geometry defect that sta
 1-tree p 4 fit re-run on stage 1's draws needs 8.2e8 down-sets on its first move, which neither the engine
 nor the prototype counted in 10 minutes: the checkpoint's trigger is likely to fire.
 
+Stage 3b, 2026-09-30: the leaf geometry reads level sets and missing-value routing (08613432 design
+note, e3d11f53, d9d338db). A factor split and a free predictor's missing values now relate leaves as the
+constraint requires: the fitted surface is monotone at every factor level and at the missing value,
+where the stage-3 engine decreased in up to every draw. An axis has a missing position only when its
+training column has missing values, as tree routing does; the first design gave every factor axis one,
+which made the order depend on how a level split was labelled. A tree that an update's new missing
+values make infeasible is reseeded, on the unforced update paths too. Reviewed twice by an independent
+reader: the point oracle, which routes points through the tree's own rules, agrees with the relation on
+800 random trees (229 pairs through missing values); numeric fits, and fits whose only missing values are
+in one constrained predictor, draw bitwise as before; tests/cpp with ASan/UBSan clean, tinytest 10,809/0,
+the lint chain clean, R CMD check --as-cran one NOTE (Date); reference-build compares bitwise 53/15/11;
+the exact gates quick; stan4bart 566/0, bartCause 1145/0. Calls made: dec-A131.
+
