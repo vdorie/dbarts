@@ -42,7 +42,8 @@ enum class FacadeVirtual {
   predictVariance, getState, setState, installForests, sampleTreesFromPrior,
   sampleNodeParametersFromPrior, sampleVarianceForestFromPrior, growFromRoot,
   setNumThreads, setNumThin,
-  setVerbose, fitScale, gpFallbackTally, setTreeStorage, setModel,
+  setVerbose, fitScale, gpFallbackTally, slowCountTally, setTreeStorage,
+  setModel,
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, dispersion, setForestBasis,
   setForestWeights, forestCalibration, setForestPriorScale, setForestFixedK,
@@ -189,6 +190,7 @@ public:
   SPY_VOID(setVerbose, (bool v, std::size_t e), (v, e))
   SPY_RET(double, fitScale, () const, ())
   SPY_RET(GPFallbackTally, gpFallbackTally, () const, ())
+  SPY_RET(SlowCountTally, slowCountTally, () const, ())
   SPY_VOID(setTreeStorage, (bool k, std::size_t n), (k, n))
   SPY_VOID(setModel, (const ModelParameters& m), (m))
   SPY_RET(double, sumOfSquaredResiduals, (std::size_t c), (c))
@@ -1006,6 +1008,14 @@ const Row rows[] = {
     check(tally.evaluations == f.g.impl().gpFallbackTally().evaluations &&
             tally.fallbacks == 0 && tally.evaluations == 0,
           "facade gpFallbackTally: the boundary reports the impl's census");
+  }},
+  {FacadeVirtual::slowCountTally, "slowCountTally", [](Fixtures& f) {
+    // a constant leaf counts no order, so the tally is empty and the
+    // boundary reports the impl's own
+    SlowCountTally tally = f.g.base().slowCountTally();
+    check(tally.slowCounts == f.g.impl().slowCountTally().slowCounts &&
+            tally.slowCounts == 0,
+          "facade slowCountTally: the boundary reports the impl's tally");
   }},
   {FacadeVirtual::setTreeStorage, "setTreeStorage", [](Fixtures& f) {
     check(f.d.impl().savedTreeCapacity() == 0,

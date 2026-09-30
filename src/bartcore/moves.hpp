@@ -1129,14 +1129,32 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     BranchScore newScore =
       logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
+    // Reference behavior: the index segment stays permuted; only structure
+    // and cached leaf stats are restored. A rejected pooled draw is the
+    // last pool allocation, so the mark reclaims it.
+    auto undoBirth = [&]() {
+      tree.undoBirth(nodeToChange);
+      tree.truncateMaskPool(maskPoolMark);
+      tree.at(nodeToChange).sumWeights = oldNode.sumWeights;
+      tree.at(nodeToChange).sumWeightedResponse = oldNode.sumWeightedResponse;
+    };
+
     // T* is in place: the normalized leaf builds its order here, and counts
-    // off it only if the bound leaves the decision open
+    // off it only if the bound leaves the decision open. A count that is
+    // cancelled or runs out of memory leaves the tree at T0 before the
+    // exception goes on.
     [[maybe_unused]] bool normalized = false;
     [[maybe_unused]] double logBound = 0.0;
     if constexpr (NormalizedLeafModel<L>) {
       normalized = leaf.normalizerIsActive();
-      if (normalized)
-        logBound = leaf.prepareLogNormalizerRatio(tree, nodeToChange);
+      if (normalized) {
+        try {
+          logBound = leaf.prepareLogNormalizerRatio(tree, nodeToChange);
+        } catch (...) {
+          undoBirth();
+          throw;
+        }
+      }
     }
 
     double transitionProbabilityOfDeathStep =
@@ -1161,15 +1179,21 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     census::NormalizerRecord record;
 #endif
     if constexpr (NormalizedLeafModel<L>) {
-      if (normalized)
-        accept = decideNormalizedMove(leaf, u, logBound, true, &ratio,
-                                      &logNormalizer
+      if (normalized) {
+        try {
+          accept = decideNormalizedMove(leaf, u, logBound, true, &ratio,
+                                        &logNormalizer
 #ifdef BARTCORE_MOVE_CENSUS
-                                      , &record
+                                        , &record
 #endif
-        );
-      else
+          );
+        } catch (...) {
+          undoBirth();
+          throw;
+        }
+      } else {
         accept = u < ratio;
+      }
     } else {
       accept = u < ratio;
     }
@@ -1178,13 +1202,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
       *stepTaken = true;
       if (changedNode != nullptr) *changedNode = nodeToChange;
     } else {
-      // Reference behavior: the index segment stays permuted; only structure
-      // and cached leaf stats are restored. A rejected pooled draw is the
-      // last pool allocation, so the mark reclaims it.
-      tree.undoBirth(nodeToChange);
-      tree.truncateMaskPool(maskPoolMark);
-      tree.at(nodeToChange).sumWeights = oldNode.sumWeights;
-      tree.at(nodeToChange).sumWeightedResponse = oldNode.sumWeightedResponse;
+      undoBirth();
       *stepTaken = false;
     }
     BARTCORE_CENSUS_PROPOSAL("birth", false, *stepTaken,
@@ -1261,15 +1279,24 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     census::NormalizerRecord record;
 #endif
     if constexpr (NormalizedLeafModel<L>) {
-      if (normalized)
-        accept = decideNormalizedMove(leaf, u, logBound, false, &ratio,
-                                      &logNormalizer
+      if (normalized) {
+        // the count runs with the children orphaned, since the bound needs
+        // the merged leaf's score; a cancel or an allocation failure
+        // reattaches them, as a rejection does, before the exception goes on
+        try {
+          accept = decideNormalizedMove(leaf, u, logBound, false, &ratio,
+                                        &logNormalizer
 #ifdef BARTCORE_MOVE_CENSUS
-                                      , &record
+                                        , &record
 #endif
-        );
-      else
+          );
+        } catch (...) {
+          tree.at(nodeToChange) = oldNode;
+          throw;
+        }
+      } else {
         accept = u < ratio;
+      }
     } else {
       accept = u < ratio;
     }

@@ -1540,11 +1540,85 @@ public:
   /// onSweep or onDraw asked it to. None of the three touches sampled state or
   /// draws from the generator, so a run with none set is bitwise identical to
   /// one without them.
+  ///
+  /// A normalized leaf's order count also polls shouldCancel, every few
+  /// down-sets, and can stop the run in the middle of a sweep: the move puts
+  /// its tree back at T0, and the fits are rebuilt from the trees, so the
+  /// state is valid though the sweep's earlier trees keep their new draws. A
+  /// cancel returns true; an allocation failure in the count is rethrown
+  /// after the same rebuild.
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
            ProgressSink* progress = nullptr, size_t chainIndex = 0,
            const std::function<bool()>* shouldCancel = nullptr,
            const SweepCallback* onSweep = nullptr,
            const DrawHook* onDraw = nullptr) {
+    if constexpr (NormalizedLeafModel<L>) {
+      // the cancel function lives in the caller's frame, so it is cleared on
+      // every way out
+      struct CancelScope {
+        std::vector<Forest<L, ResidT>>& forests;
+        ~CancelScope() {
+          for (Forest<L, ResidT>& forest : forests)
+            forest.leaf.setCountCancel(nullptr);
+        }
+      } scope{forests_};
+      for (Forest<L, ResidT>& forest : forests_)
+        forest.leaf.setCountCancel(shouldCancel);
+      try {
+        return runSweeps(numBurnIn, numSamples, results, progress, chainIndex,
+                         shouldCancel, onSweep, onDraw);
+      } catch (const CountCancelled&) {
+        rebuildTotalFitsFromTrees();
+        return true;
+      } catch (const std::bad_alloc&) {
+        rebuildTotalFitsFromTrees();
+        throw;
+      }
+    } else {
+      return runSweeps(numBurnIn, numSamples, results, progress, chainIndex,
+                       shouldCancel, onSweep, onDraw);
+    }
+  }
+
+  /// This chain's slow-count tally since its last run began, summed over
+  /// its forests; empty off a normalized leaf.
+  SlowCountTally slowCountTally() const {
+    SlowCountTally total;
+    if constexpr (NormalizedLeafModel<L>)
+      for (const Forest<L, ResidT>& forest : forests_)
+        total.add(forest.leaf.slowCountTally());
+    return total;
+  }
+  void resetSlowCountTally() {
+    if constexpr (NormalizedLeafModel<L>)
+      for (Forest<L, ResidT>& forest : forests_)
+        forest.leaf.resetSlowCountTally();
+  }
+
+  /// totalFits of every forest re-summed from its trees' cached fits, in
+  /// tree order: the state a sweep stopped part way leaves consistent. The
+  /// running residual needs nothing, since each sweep's first roll rewrites
+  /// it whole from totalFits, and the test totals are rebuilt by every
+  /// recorded sweep before they are read.
+  void rebuildTotalFitsFromTrees() {
+    if constexpr (leafIsConstant) {
+      size_t n = data_.numObservations;
+      for (Forest<L, ResidT>& forest : forests_) {
+        double* total = forest.totalFits.data();
+        std::fill(total, total + n, 0.0);
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          const double* mu = forest.muByTree[t].data();
+          const std::uint32_t* leaf = forest.leafOf.data() + t * n;
+          for (size_t i = 0; i < n; ++i) total[i] += mu[leaf[i]];
+        }
+      }
+    }
+  }
+
+  bool runSweeps(size_t numBurnIn, size_t numSamples, Results& results,
+                 ProgressSink* progress, size_t chainIndex,
+                 const std::function<bool()>* shouldCancel,
+                 const SweepCallback* onSweep, const DrawHook* onDraw) {
     size_t n = data_.numObservations;
     size_t numThin = options_.numThin;
     double* y = response_->workingResponse();
@@ -2432,8 +2506,24 @@ public:
   }
 
   /// Replace every leaf parameter with a draw from the node prior and
-  /// rebuild the tree, total, and test fits to match.
+  /// rebuild the tree, total, and test fits to match. A constrained leaf's
+  /// draw counts its tree's order before writing any leaf, so an allocation
+  /// failure there leaves that tree and the ones after it as they were; the
+  /// totals are rebuilt from the trees before the exception goes on.
   void sampleNodeParametersFromPrior() {
+    if constexpr (TreeDrawLeafModel<L>) {
+      try {
+        drawNodeParametersFromPrior();
+      } catch (const std::bad_alloc&) {
+        rebuildTotalFitsFromTrees();
+        throw;
+      }
+    } else {
+      drawNodeParametersFromPrior();
+    }
+  }
+
+  void drawNodeParametersFromPrior() {
     size_t n = data_.numObservations;
     for (Forest<L, ResidT>& forest : forests_) {
       misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);

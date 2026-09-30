@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -288,6 +289,30 @@ public:
     return total;
   }
 
+  /// The slow-count tally of the last run, summed over chains; empty off a
+  /// normalized leaf.
+  SlowCountTally slowCountTally() const {
+    SlowCountTally total;
+    for (const auto& chain : chains_) total.add(chain->slowCountTally());
+    return total;
+  }
+
+  /// The monotone directions (numPredictors, borrowed from the leaf for the
+  /// sampler's lifetime) and prior the sampler was built with; null and 0
+  /// off the monotone leaf.
+  const std::int8_t* monotoneDirections() const {
+    if constexpr (requires(const L& leaf) { leaf.directions; })
+      return chains_[0]->leaf().directions.data();
+    else
+      return nullptr;
+  }
+  std::uint8_t monotonePrior() const {
+    if constexpr (requires(const L& leaf) { leaf.directions; })
+      return static_cast<std::uint8_t>(chains_[0]->leaf().prior);
+    else
+      return 0;
+  }
+
   /// Replace the test predictors from a borrowed view, keeping any test offset:
   /// the caller guarantees the row count still matches it (the bridge refuses
   /// otherwise). Passing a new offset too goes through setTestOffset. The test
@@ -348,6 +373,10 @@ public:
   /// returns before advancing the sample cursors, while storeSavedTreeRecord
   /// has already written saved trees into the slots those cursors count, so
   /// the caller must discard both the results and any saved trees.
+  ///
+  /// An exception a chain throws (an allocation failure in a monotone order
+  /// count) stops every chain as a cancel does and leaves this call after
+  /// the join, on the caller's thread.
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
            const std::function<bool()>& pollInterrupt = {},
            const SweepCallback& onSweep = {},
@@ -358,6 +387,7 @@ public:
     // the census covers THIS run, so a caller reading it after run() sees the
     // draws it just took and not everything the sampler has ever done
     for (auto& chain : chains_) chain->resetGPFallbackTally();
+    for (auto& chain : chains_) chain->resetSlowCountTally();
     for (auto& chain : chains_) chain->setSavedSlotBase(currentSampleNum_);
     // the per-observation fits carry numReportedLocations channels per sample
     // (one everywhere but a multi-location combiner), so the per-chain slab
@@ -504,6 +534,9 @@ public:
       std::condition_variable chainsDone;
       size_t numChainsRunning = numChains;
       std::atomic<bool> cancelFlag(false);
+      // the first exception a chain throws, rethrown on this thread after
+      // the join; guarded by chainsMutex
+      std::exception_ptr firstError;
       std::function<bool()> workerCancel = [&cancelFlag]() {
         return cancelFlag.load(std::memory_order_relaxed);
       };
@@ -525,15 +558,28 @@ public:
         workers.emplace_back([this, w, numWorkers, numChains, numBurnIn,
                               numSamples, &chainResults, &progress,
                               &chainsMutex, &chainsDone, &numChainsRunning,
-                              &workerCancel, &cancelFlag, onDrawPtr]() {
+                              &workerCancel, &cancelFlag, &firstError,
+                              onDrawPtr]() {
           for (size_t c = w; c < numChains; c += numWorkers) {
             // a chain that stopped itself - its observer returned nonzero -
             // publishes the stop, so every other chain, this worker's own
-            // remaining ones included, sees it at its next sweep boundary
-            if (chains_[c]->run(numBurnIn, numSamples, chainResults[c],
-                                &progress, c, &workerCancel, nullptr,
-                                onDrawPtr))
+            // remaining ones included, sees it at its next sweep boundary.
+            // A chain that throws is stopped the same way, its exception
+            // kept for the caller. The catch must stay inside this body:
+            // the decrement below has to run for every chain, or the wait
+            // for numChainsRunning never ends.
+            try {
+              if (chains_[c]->run(numBurnIn, numSamples, chainResults[c],
+                                  &progress, c, &workerCancel, nullptr,
+                                  onDrawPtr))
+                cancelFlag.store(true, std::memory_order_relaxed);
+            } catch (...) {
+              {
+                std::lock_guard<std::mutex> lock(chainsMutex);
+                if (!firstError) firstError = std::current_exception();
+              }
               cancelFlag.store(true, std::memory_order_relaxed);
+            }
             bool last;
             {
               std::lock_guard<std::mutex> lock(chainsMutex);
@@ -568,6 +614,7 @@ public:
       }
       for (std::thread& worker : workers) worker.join();
       if (options_.verbose) progress.flush();
+      if (firstError) std::rethrow_exception(firstError);
       cancelled = cancelFlag.load(std::memory_order_relaxed);
     }
 

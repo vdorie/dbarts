@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <bit>
 #include <cassert>
 #include <cmath>
@@ -11,7 +12,11 @@
 #include <cstdint>
 #include <cstring>
 #include <cfloat>
+#include <chrono>
+#include <exception>
+#include <functional>
 #include <limits>
+#include <new>
 #include <memory>
 #include <numbers>
 #include <type_traits>
@@ -91,6 +96,30 @@ struct GPFallbackTally {
   void add(const GPFallbackTally& other) {
     evaluations += other.evaluations;
     fallbacks += other.fallbacks;
+  }
+};
+
+/// The counts of a run that took longer than the threshold: how many, and
+/// the slowest one's seconds, pair-union size and down-sets.
+struct SlowCountTally {
+  std::size_t slowCounts = 0;
+  double slowestSeconds = 0.0;
+  std::size_t slowestLeaves = 0, slowestDownSets = 0;
+
+  void note(double seconds, std::size_t leaves, std::size_t downSets) {
+    ++slowCounts;
+    if (seconds <= slowestSeconds) return;
+    slowestSeconds = seconds;
+    slowestLeaves = leaves;
+    slowestDownSets = downSets;
+  }
+  void add(const SlowCountTally& other) {
+    slowCounts += other.slowCounts;
+    if (other.slowestSeconds > slowestSeconds) {
+      slowestSeconds = other.slowestSeconds;
+      slowestLeaves = other.slowestLeaves;
+      slowestDownSets = other.slowestDownSets;
+    }
   }
 };
 
@@ -196,13 +225,19 @@ concept ConstrainedLeafModel =
 /// bound leaves the decision open; the second reads what the first built,
 /// not the tree. normalizerIsActive is false where the prior carries no
 /// normalizer, and no unconstrained leaf declares the seam, so it compiles
-/// out there.
+/// out there. The count has no limit: it polls the cancel function the chain
+/// installs, throwing CountCancelled, and times itself into a slow-count
+/// tally the chain resets per run.
 template <typename L>
 concept NormalizedLeafModel =
-  requires(const L leaf, const Tree& tree, std::int32_t node) {
+  requires(const L leaf, L mutableLeaf, const Tree& tree, std::int32_t node,
+           const std::function<bool()>* cancel) {
     { leaf.normalizerIsActive() } -> std::same_as<bool>;
     { leaf.prepareLogNormalizerRatio(tree, node) } -> std::same_as<double>;
     { leaf.logNormalizerRatio() } -> std::same_as<double>;
+    { mutableLeaf.setCountCancel(cancel) } -> std::same_as<void>;
+    { leaf.slowCountTally() } -> std::same_as<SlowCountTally>;
+    { mutableLeaf.resetSlowCountTally() } -> std::same_as<void>;
   };
 
 /// Constant Gaussian leaf: mu ~ N(0, (scale / k)^2), Gaussian likelihood.
@@ -1101,9 +1136,41 @@ inline std::size_t monotoneLayerBytes(const MonotoneDownSetLayer& layer) {
          layer.table.size() * sizeof(std::uint32_t);
 }
 
+/// Thrown from inside an order count whose cancel function turned true. The
+/// count has no limit, so this is how a run stops in the middle of one.
+struct CountCancelled : std::exception {
+  const char* what() const noexcept override {
+    return "the monotone leaf order count was interrupted";
+  }
+};
+
+/// An allocation failure inside a move's order count, still a bad_alloc to
+/// every handler, carrying a sentence a host can show as is.
+struct CountOutOfMemory : std::bad_alloc {
+  const char* what() const noexcept override {
+    return "out of memory counting a monotone tree's leaf order under "
+           "prior = \"leaf\"; use more trees or prior = \"joint\"";
+  }
+};
+
+/// Process-wide test knobs for the order count, set only between runs: the
+/// slow-count threshold in seconds, how many down-sets pass between polls of
+/// the cancel function, and a one-shot allocation failure the next count
+/// throws on entry.
+struct MonotoneCountHooks {
+  std::atomic<double> slowSeconds{1.0};
+  std::atomic<std::size_t> pollInterval{std::size_t(1) << 16};
+  std::atomic<bool> failNextCount{false};
+};
+inline MonotoneCountHooks& monotoneCountHooks() {
+  static MonotoneCountHooks hooks;
+  return hooks;
+}
+
 /// Scratch for the counter, reused across calls so layers keep capacity.
 /// The tallies describe the most recent count: its down-sets, and the most
-/// bytes its layers held at once.
+/// bytes its layers held at once. cancel, when set, is polled every
+/// pollInterval down-sets and must be callable from the thread counting.
 struct MonotoneCountScratch {
   std::vector<MonotoneDownSetLayer> layers;
   std::vector<std::uint64_t> key, successors;
@@ -1112,7 +1179,17 @@ struct MonotoneCountScratch {
   std::vector<double> firstLaw, secondLaw, weights, values;
   std::vector<std::size_t> candidates, extension;
   std::size_t downSets = 0, peakBytes = 0;
+  const std::function<bool()>* cancel = nullptr;
+  std::size_t untilPoll = 1;
 };
+
+/// One down-set's worth of the cancel poll.
+inline void monotonePoll(MonotoneCountScratch& s) {
+  if (s.cancel == nullptr || --s.untilPoll != 0) return;
+  s.untilPoll = std::max<std::size_t>(
+    1, monotoneCountHooks().pollInterval.load(std::memory_order_relaxed));
+  if ((*s.cancel)()) throw CountCancelled();
+}
 
 /// log e(C) by the layered down-set DP, O(down-sets x size) at one word. With
 /// keepAll every layer stays in place (layer k at layers[k]), as the
@@ -1122,6 +1199,10 @@ struct MonotoneCountScratch {
 inline double monotoneLogExtensions(
   const MonotoneOrderComponent& c, MonotoneCountScratch& s, bool keepAll,
   std::size_t budget = std::numeric_limits<std::size_t>::max()) {
+  MonotoneCountHooks& hooks = monotoneCountHooks();
+  if (hooks.failNextCount.load(std::memory_order_relaxed) &&
+      hooks.failNextCount.exchange(false))
+    throw std::bad_alloc();
   std::size_t n = c.size, words = c.words;
   std::size_t numLayers = keepAll ? n + 1 : 2;
   if (s.layers.size() < numLayers) s.layers.resize(numLayers);
@@ -1138,6 +1219,7 @@ inline double monotoneLogExtensions(
     monotoneLayerClear(
       next, std::bit_ceil(std::max<std::size_t>(16, 2 * current.size())));
     for (std::size_t d = 0; d < current.size(); ++d) {
+      monotonePoll(s);
       const std::uint64_t* downSet = current.keys.data() + d * words;
       double count = current.forward[d];
       monotoneForEachAddable(c, downSet, [&](std::size_t x) {
@@ -1171,6 +1253,7 @@ inline void monotoneBackwardCounts(const MonotoneOrderComponent& c,
     const MonotoneDownSetLayer& up = s.layers[k + 1];
     current.backward.assign(current.size(), 0.0);
     for (std::size_t d = 0; d < current.size(); ++d) {
+      monotonePoll(s);
       const std::uint64_t* downSet = current.keys.data() + d * words;
       double sum = 0.0;
       monotoneForEachAddable(c, downSet, [&](std::size_t x) {
@@ -1207,6 +1290,7 @@ inline void monotoneLogPositionLaw(const MonotoneOrderComponent& c,
     double sum = 0.0;
     int top = std::numeric_limits<int>::min();
     for (std::size_t d = 0; d < current.size(); ++d) {
+      monotonePoll(s);
       const std::uint64_t* downSet = current.keys.data() + d * words;
       if (downSet[xWord] & xBit) continue;
       bool ready = true;
@@ -1494,6 +1578,7 @@ struct MonotoneConstantGaussianLeaf {
   mutable MonotoneMovePair pendingPair;
   mutable MonotonePairWork pendingWork;
   mutable std::vector<double> jointDraw;
+  mutable SlowCountTally slowCounts;
 
   // ---- NormalizedLeafModel: the Z_T ratio, "leaf" prior only --------------
   bool normalizerIsActive() const { return prior == MonotonePrior::leaf; }
@@ -1506,8 +1591,28 @@ struct MonotoneConstantGaussianLeaf {
       static_cast<double>(monotonePairUnionSize(count.order, pendingPair)));
   }
   double logNormalizerRatio() const {
-    return monotoneLogPairRatio(count, pendingPair, &pendingWork);
+    auto start = std::chrono::steady_clock::now();
+    double result;
+    try {
+      result = monotoneLogPairRatio(count, pendingPair, &pendingWork);
+    } catch (const std::bad_alloc&) {
+      throw CountOutOfMemory();
+    }
+    double seconds = std::chrono::duration<double>(
+      std::chrono::steady_clock::now() - start).count();
+    if (seconds >
+        monotoneCountHooks().slowSeconds.load(std::memory_order_relaxed))
+      slowCounts.note(seconds, monotonePairUnionSize(count.order, pendingPair),
+                      pendingWork.downSets);
+    return result;
   }
+  void setCountCancel(const std::function<bool()>* cancel) {
+    count.cancel = cancel;
+    count.untilPoll = std::max<std::size_t>(
+      1, monotoneCountHooks().pollInterval.load(std::memory_order_relaxed));
+  }
+  SlowCountTally slowCountTally() const { return slowCounts; }
+  void resetSlowCountTally() { slowCounts = SlowCountTally(); }
 
   double priorSd(double k, bool constrained) const {
     return (constrained ? cInflation : 1.0) * scale / k;

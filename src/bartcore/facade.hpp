@@ -77,6 +77,11 @@ struct SamplerShape {
   /// surface's reported prior sd means (equality for the constant leaf, a
   /// stated bound otherwise). A property of the sampler's type.
   LeafModelKind leafModel;
+  /// The monotone leaf's directions (numPredictors, borrowed for the
+  /// sampler's lifetime) and prior (MonotonePrior), fixed at creation; null
+  /// and 0 on every other leaf model.
+  const std::int8_t* monotoneDirections;
+  std::uint8_t monotonePrior;
   /// Whether a heteroscedastic variance forest is present; the s^2(x)
   /// channels of run and predictVariance gate on it.
   bool hasVarianceForest;
@@ -352,6 +357,9 @@ public:
   /// The last run's Gaussian-process fallback census; {0, 0} on every other
   /// leaf model. Read after run() to say which regime a GP fit landed in.
   virtual GPFallbackTally gpFallbackTally() const = 0;
+  /// The last run's slow order counts; empty off the monotone leaf's "leaf"
+  /// prior. Read after run() to warn that a fit's counts were slow.
+  virtual SlowCountTally slowCountTally() const = 0;
   virtual void setTreeStorage(bool keepTrees, std::size_t numSamplesToStore) = 0;
   virtual void setModel(const ModelParameters& model) = 0;
   virtual double sumOfSquaredResiduals(std::size_t chainNum) = 0;
@@ -497,6 +505,8 @@ public:
     s.numSavedDraws = impl_.filledSavedDraws();
     s.family = impl_.family();
     s.leafModel = Sampler<L, ResidT>::leafModel();
+    s.monotoneDirections = impl_.monotoneDirections();
+    s.monotonePrior = impl_.monotonePrior();
     s.hasVarianceForest = impl_.hasVarianceForest();
     s.usesFunctionLeaves = Sampler<L, ResidT>::usesFunctionLeaves();
     s.kIsSampled = impl_.kIsSampled();
@@ -667,6 +677,9 @@ public:
   double fitScale() const override { return impl_.fitScale(); }
   GPFallbackTally gpFallbackTally() const override {
     return impl_.gpFallbackTally();
+  }
+  SlowCountTally slowCountTally() const override {
+    return impl_.slowCountTally();
   }
   void setTreeStorage(bool keepTrees, std::size_t numSamplesToStore) override {
     impl_.setTreeStorage(keepTrees, numSamplesToStore);
