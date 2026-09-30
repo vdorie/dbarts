@@ -1,22 +1,30 @@
-# monotone-exact-birth-death: the monotone birth/death move targets the documented prior
+# monotone-exact-birth-death: the monotone chain targets the chosen prior exactly
 
-Status: PLANNED 2026-09-29 (dec-B144), revised after a blind critique; the Decision was reworked after a
-few-tree measurement and its critique, adds the unnormalized prior as an option, and remains the maintainer's
-call. Derivation and gate verified on an R prototype; not
-implemented.
+Status: PLANNED 2026-09-29 (dec-B144), revised after a blind critique and a few-tree measurement. The maintainer
+then ruled that the package offers both monotone priors, "leaf" and "joint", chosen by monotone(prior = )
+(dec-B145 to dec-B148); the default stays open for the feel study below. Derivation and gate verified on an R
+prototype; not implemented.
 
 agent: opus (engine numerics: move seam, order counting, exact pair redraw, gate)
 rng: posterior-changing for every fit with an active monotone constraint (all of its draws move, prior draws
 included); unconstrained fits byte-identical, since every engine change lives in the monotone instantiation
 window: before 1.0-0 (TODO monotone-exact-birth-death)
-budget: ~1,050 lines (engine ~450, bridge and R ~110, tests/cpp ~320, tinytest ~90, gate wiring ~10, docs ~70;
-the gate script itself is already in the tree). Plan estimates have run 1.5-2x low: expect up to ~2,000.
+budget: ~1,400 lines (engine ~500, bridge and R ~250, tests/cpp ~350, tinytest ~150, gate wiring ~30, docs
+~120; the gate script and the feel study's script excluded). The second prior adds ~150-250 of that and the
+monotone() constructor with its vocabulary ~100. Plan estimates have run 1.5-2x low: expect up to ~2,800.
 
 ## Goal
 
-The monotone chain targets the documented prior exactly. That prior is the CGM tree prior and, given the tree,
-iid (c-inflated) normal leaves restricted to the cone C(T), normalized per tree by
-Z_T = P(unconstrained leaves lie in C(T)). This covers four pieces:
+The package offers two monotone priors, chosen by monotone(prior = ) (dec-B145, dec-B148), and the chain
+targets the chosen one exactly:
+
+- "leaf": the CGM tree prior and, given the tree, iid (c-inflated) normal leaves restricted to the cone C(T),
+  normalized per tree by Z_T = P(unconstrained leaves lie in C(T)). The constraint restricts the leaf-value
+  prior's support; the tree prior is unchanged.
+- "joint": p(T, M) proportional to p_CGM(T) prod phi 1{M in C(T)}, the tree's structure and leaf values
+  conditioned on the cone together, so the tree marginal is p_CGM(T) Z_T.
+
+Which is the default is open (Default: feel study). Exactness covers four pieces under both:
 
 - the birth/death acceptance;
 - the redraw of a birth's two children;
@@ -92,6 +100,15 @@ guards the fix.
     node ids. It can also grow, as can installTrees and setState install, a tree of any size.
 - Prior draw. [`MonotoneConstantGaussianLeaf::drawFromPriorForTree`](../../src/bartcore/model.hpp) samples the
   right law by rejection, but its 1e6-attempt cap fails ~6% of the time on a 9-leaf chain (1/9! = 2.8e-6).
+- mBART (Chipman, George, McCulloch and Shively, arXiv 1612.01619v3). Section 3 defines only the "leaf"
+  prior: eq. 3.3 incorporates the constraint "by constraining the CGM10 BART independence form p(Mj | Tj) ...
+  to have support only over C", and the tree prior of section 3.1 "is the same form used for unconstrained
+  BART" (section 4, after eq. 4.9). Section 4.3 then sets the move's normalizing constants d~* and d~0
+  (eqs. 4.13 and 4.19) to one ("we reduce the computational burden"), which samples the "joint" prior, and
+  compensates with base .25 and power .8 in place of .95 and 2: "we get tree sizes comparable to those obtained
+  in unconstrained BART". All its examples use those values. The software (remcc/mBART_shlib, bd.cpp,
+  coninteg1 and coninteg2) matches section 4.3: it accumulates the prior mass sumpr and never uses it. mBART
+  users have therefore fit the "joint" prior with that retuned tree prior, on a grid.
 - Unaffected: the leaf Gibbs sweep and the level-fibre shift (conditionals given T), and prediction.
   Monotone is new in 1.0-0, so NEWS gets no entry.
 - Claims to reword: [4. Decision - marginal likelihood for the structure moves](../design/monotone.md#4-decision---marginal-likelihood-for-the-structure-moves),
@@ -100,8 +117,9 @@ guards the fix.
 
 ## Decision
 
-Question: which prior, and under the documented (normalized) prior, should the exact count run under a limit,
-and if so, one that changes the model or one that stops the run?
+This section records the options considered and the maintainer's rulings. The question was which prior, and
+under the normalized ("leaf") prior, whether the exact count runs under a limit, and if so, one that changes the
+model or one that stops the run.
 
 A limit that gives trees zero prior mass must be closed under deaths. Then every allowed tree reaches the root
 through allowed trees, the restricted chain is irreducible, and it targets the stated restricted prior. A limit
@@ -152,7 +170,7 @@ the state metric the table uses. Sweep time is per kept sweep.
 4. Leaf-count cap. Closed. It does not bound the work (one component of L leaves can have 2^(L-1) + 1
    down-sets), so it needs option 5's guard too, and a cap low enough to matter truncates 1-tree fits (60
    leaves seen). Not recommended.
-5. No budget, with a work guard. The documented prior holds verbatim for every fit.
+5. No budget, with a work guard (taken for "leaf"). The documented prior holds verbatim for every fit.
    - The guard is a dbartsControl argument, default G = 2^24 down-sets in one component. A count past it stops
      the run with an error naming the order's size and suggesting more trees or a larger G. It never rejects
      a move, so it changes no model and needs no closure. The sampler keeps the tree it held before the move,
@@ -167,7 +185,7 @@ the state metric the table uses. Sweep time is per kept sweep.
      cannot continue without the count.
    - A cheap exact shortcut cuts counts (steps 1 and 2). Splitting a component by series-parallel or modular
      decomposition could shrink the counts further; unmeasured, future work.
-6. The unnormalized prior (dec-B144's rejected alternative, reopened as an option by the maintainer):
+6. The unnormalized prior (dec-B144's rejected alternative, reopened by the maintainer; taken as "joint"):
    p(T, M) proportional to p_CGM(T) prod phi 1{M in C(T)}, BART's prior conditioned on every tree being
    monotone.
    - The move is exact with no count: today's score with d dropped. No budget or guard; steps 1 and 2 and the
@@ -184,30 +202,84 @@ the state metric the table uses. Sweep time is per kept sweep.
      unmeasured.
    - The normalized prior instead keeps CGM's tree marginal: the constraint changes leaf values, not which
      trees are likely.
-   - mBART: the paper (arXiv 1612.01619v3, eqs. 3.1 and 3.3) states the per-tree normalized prior, and its move
-     (eqs. 4.11 and 4.13) divides by the local d*. The software (remcc/mBART_shlib, bd.cpp, coninteg1 and
-     coninteg2) accumulates the prior mass sumpr and never uses it, so it samples the unnormalized target on a
-     grid.
+   - mBART's examples and software sample this prior, with base .25 and power .8 (Context).
 
-Recommendation: keep the normalized prior with option 5: no budget, the guard as a control argument, and the
-free-bound shortcut. It costs nothing at the default tree count and keeps the documented model for every fit
-that completes. Its price is speed in 1-5 tree fits and a stop in some of them. The unnormalized prior's case
-is real: no count, no guard, what mBART's software samples, and a plain reading as BART conditioned on
-monotone trees; its price is fewer splits on the constrained predictors. Evidence that would change the call: a
-fit at 10 or more trees whose counting outweighs its sweep or that reaches the guard.
+The agents recommended the normalized prior alone with option 5: no budget, the guard as a control argument,
+and the free-bound shortcut, since it costs nothing at the default tree count and keeps the documented model
+for every fit that completes; they stated the unnormalized prior's case as no count, no guard, what mBART
+samples, and a plain reading as BART conditioned on monotone trees, at the price of fewer splits on the
+constrained predictors.
+
+Rulings, 2026-09-29:
+
+- Both priors (dec-B145). Asked "Why not both?", then: "Yes, proceed on both. I can already tell you for 1.
+  that I want to know how users will 'feel' the default, beyond just the run time." The normalized prior
+  takes option 5 with the guard as a control argument and the free-bound shortcut; the unnormalized prior
+  needs no count. Open: the default, for the feel study below.
+- Placement (dec-B146): a monotone() constructor in the existing monotone = argument, as interactions = and
+  blocks = take interactions() and blocks(), carrying the per-predictor directions and prior = . The plain
+  vector monotone = c(x1 = "increasing") stays as shorthand for the default prior. cgm() and normal() do not
+  change. Not chosen: a separate formal monotone.prior on dbarts(), bart() and dbartsSpec() (the LightGBM
+  monotone_constraints_method precedent), an argument of cgm() or normal(), and a dbartsControl option. "Use
+  your recommendation for the vocab, and I guess for the monotone() constructor too."
+- Vocabulary (dec-B147): "increasing" and "decreasing", and 1, -1 and 0, with 0 unconstrained in the unnamed
+  full-length positional form; "+" and "-" are dropped, and matching is case-sensitive, as base R's match.arg
+  is. Not chosen: keeping the current vocabulary, which adds "+" and "-" and matches case-insensitively.
+  Precedent: gbm, xgboost and LightGBM take 1, -1 and 0; mboost's bmono takes words. Monotone is new in 1.0-0,
+  so there is no NEWS entry or deprecation.
+- Values (dec-B148): prior = "leaf" (the normalized prior: the constraint restricts the leaf-value prior's
+  support, the tree prior unchanged) or "joint" (the unnormalized prior: the tree's structure and leaf values
+  conditioned together). "Go with \"leaf\" and \"joint\"." Not chosen: "per.tree"/"joint", "leaf"/"tree",
+  "normalized"/"conditional". Open: their order, which is the default.
+
+## Default: feel study
+
+The maintainer wants the default chosen on how users will feel it, beyond run time. This study runs on the real
+engine once both priors are built, in about an hour, and is not run before then. Its script lands beside the
+gate in benchmarks/R.
+
+- Arms: "leaf" and "joint" at cgm() defaults (base .95, power 2), and "joint" at cgm(power = 0.8, base = 0.25),
+  the mBART paper's setting. Tree counts 200, 50 and 5.
+- Prior predictive: 500 draws of f per arm and tree count, one constrained and one free predictor on a grid,
+  through samplePriorPredictive. Along the constrained axis at fixed free values: the number of distinct
+  levels (steps), the largest jump as a share of the total rise, the share of flat grid intervals, and the
+  total rise; and the share of splits on the constrained predictor. This is what a user sees drawing from
+  the prior.
+- Fits against truth: x1 constrained increasing and x2 free on [0, 1]^2 plus one noise predictor, noise sd a
+  third of the truth's sd. Truths: a smooth ramp (x1); a steep step (1{x1 > 0.5}); flat then rising
+  (max(0, x1 - 0.6) / 0.4); and a strong free-axis interaction (x1 (1 + 2 x2) + sin(2 pi x2)), monotone in x1 for
+  every x2. n 200 and 2000, 4 replicates, 500 burn-in and 500 kept sweeps, run in parallel over cores. Per
+  fit:
+  - RMSE against the truth on a test grid, and 95% interval coverage and mean width there;
+  - the partial dependence along x1 (averaged over x2): its error, and its number of visible steps;
+  - varcount shares on constrained, free and noise predictors, the variable importance a user reads;
+  - held-out log predictive score on fresh data;
+  - time per sweep, and for "leaf" how often the guard stops a run.
+- Sensitivity to n.trees is read across 200, 50 and 5 in every measure above.
+- What favours "leaf" as default: RMSE, coverage and held-out score at least as good as "joint" at either
+  tree prior on the steep-step and interaction truths; varcount shares close to an unconstrained fit's, where
+  "joint" under-reports the constrained predictor; prior draws along the constrained axis that look like
+  unconstrained BART's with sorted leaves; sweep time within 10% of "joint" at 50 and 200 trees, and the guard
+  never firing there.
+- What favours "joint": "leaf" over-splitting the constrained axis (prior draws with many small steps, wider or
+  under-covering intervals, worse held-out score) or its count or guard biting at 50 trees or more; "joint"
+  matching "leaf" on fit quality. If only the mBART-tuned "joint" matches, a "joint" default also needs a
+  different tree-prior default under monotone, which users would meet as a surprise; the study reports that
+  case separately.
 
 ## Constraints
 
-- Exact for the stated prior (dec-B14). Counts are held in double: exact to 2^53, with relative error under
+- Exact for each stated prior (dec-B14). Counts are held in double: exact to 2^53, with relative error under
   1e-12 beyond.
-- Unconstrained samplers byte-identical: the new seam compiles out, like the three existing monotone seams.
-  No dbarts.h change.
+- Unconstrained samplers byte-identical: the new seam and the prior flag compile out, like the three existing
+  monotone seams. No dbarts.h change.
 - Out of scope: change moves under the constraint, quadrature speed (TODO monotone-leaf-quadrature), and
   reconciling a chi k hyperprior with the truncated law.
 
 ## Steps
 
-1. Order counter (engine, beside the monotone geometry). Down-set keys are multi-word bitsets.
+1. Order counter (engine, beside the monotone geometry), used by the "leaf" prior's move and by both priors'
+   given-T leaf draw (step 6). Down-set keys are multi-word bitsets.
    - Relation: build the tree's relation matrix with the adjacency test of `monotoneNeighborBounds`, and split
      it into components.
    - Count: run the layered down-set DP per component, keeping two layers (every layer only for step 6's
@@ -217,7 +289,8 @@ fit at 10 or more trees whose counting outweighs its sweep or that reaches the g
    - A move changes only the component of the touched leaf in T0 and the component(s) holding the two children
      in T*. After a free-axis birth the children may share a component: take the distinct components. Keep the
      current tree's component counts, so a move counts only the components it creates.
-2. Seam. Add an optional leaf concept, `logTreeNormalizer`, declared by the monotone leaf.
+2. Seam, active under "leaf" only (step 13). Add an optional leaf concept, `logTreeNormalizer`, declared by
+   the monotone leaf.
    [`birthOrDeathMove`](../../src/bartcore/moves.hpp) evaluates it in each state: before and after
    `tree.birth`, before and after `orphanChildren`. It adds log Z_T0 - log Z_T* to the log prior ratio (logged
    in the census's prior column).
@@ -230,7 +303,8 @@ fit at 10 or more trees whose counting outweighs its sweep or that reaches the g
      unmeasured. (A two-stage acceptance, min(1, a) min(1, b), is also exact but lowers acceptance.)
    - A count over the guard stops the run with an error the bridge raises; it never rejects, and the chain
      keeps T0, so a caller can catch the error, raise G and continue.
-3. Drop the d terms: `priorMass` in `oneLeafLogMarginal`, `denom` in `twoLeafCoupledLogMarginal`.
+3. Drop the d terms: `priorMass` in `oneLeafLogMarginal`, `denom` in `twoLeafCoupledLogMarginal`. Under "joint"
+   this alone is the exact move.
 4. Exact pair redraw in `redrawAfterBirth`:
    - Keep the capped rejection for the upper leaf; it is exact whenever it accepts.
    - When the cap is reached or acceptMax underflows, draw the upper leaf by inverting the CDF of its marginal,
@@ -259,14 +333,16 @@ fit at 10 or more trees whose counting outweighs its sweep or that reaches the g
      non-birth/death one is refused.
    - growForestFromRoot reseeds mu to the all-zero feasible seed before its draw.
    - [`Chain::installForest`](../../src/bartcore/chain.hpp) reseeds infeasible leaves.
-   - growForestFromRoot and installForest both prune a tree with a component over the guard by deaths of its
-     deepest nodes until every component is within it. This ends at the root at worst, and a start state is
-     not part of the target.
+   - Under "leaf", growForestFromRoot and installForest both prune a tree with a component over the guard by
+     deaths of its deepest nodes until every component is within it. This ends at the root at worst, and a
+     start state is not part of the target.
    - [`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp) (setState, copy, reload) refuses an infeasible
      tree or one over the guard. With steps 4 and 5 every state the sampler produces passes this check.
-   - [`Chain::sampleTreesFromPrior`](../../src/bartcore/chain.hpp) needs no new predicate: the prior is not
-     restricted, and passing the guard takes 25 or more leaves in one component, which carry less than 1.5e-18
-     under CGM(0.95, 2).
+   - [`Chain::sampleTreesFromPrior`](../../src/bartcore/chain.hpp) under "leaf" needs no new predicate: the
+     prior is not restricted, and passing the guard takes 25 or more leaves in one component, which carry less
+     than 1.5e-18 under CGM(0.95, 2). Under "joint" it draws each tree jointly by rejection, a CGM tree and iid
+     unconstrained leaves kept only when the leaves lie in its cone (acceptance is the prior mean of Z_T), with
+     no count.
 8. tests/cpp:
    - The count against brute-force permutation counts on hand-built trees (1-3 axes, mixed directions, N, a
      star, a chain over 64 leaves) and 200 random trees.
@@ -280,6 +356,8 @@ fit at 10 or more trees whose counting outweighs its sweep or that reaches the g
      fires.
    - Free bounds: over random trees and moves, a move decided without counting gets the same decision as with
      the count, for the same u.
+   - Under "joint" the move's log alpha equals the closed form without log Z_T0 - log Z_T*, the count is never
+     called, and the joint prior draw's tree marginal matches p_CGM(T) Z_T on small enumerated trees.
    - [`testMonotoneMarginal`](../../tests/cpp/test_model.cpp) loses its d_* = 1/2 check.
 9. tinytest ([test-monotone.R](../../inst/tinytest/test-monotone.R)):
    - a setControl change mix errors, and a defaulted one is rewritten;
@@ -289,7 +367,9 @@ fit at 10 or more trees whose counting outweighs its sweep or that reaches the g
    - growFromRoot plus one sweep is monotone;
    - after 2,000 sweeps on data decreasing along the constrained axis, copy() and setState round-trip;
    - setPredictor(forceUpdate = TRUE) stranding a leaf keeps the fit monotone;
-   - a guard set low errors, leaves the state unchanged, and the run continues after the guard is raised.
+   - a guard set low errors, leaves the state unchanged, and the run continues after the guard is raised;
+   - every check above runs under both priors, and a "joint" fit never calls the count;
+   - step 14's constructor and vocabulary checks.
    A statistical check does not fit: the most sensitive cheap functional sat at |z| 0.6-0.8 against the current
    move at 50k-100k draws.
 10. Gate: [`buildDesign`](../../benchmarks/R/monotone-exact-enumeration.R), [`prototypeKeys`](../../benchmarks/R/monotone-exact-enumeration.R) (details under Verification).
@@ -305,23 +385,52 @@ fit at 10 or more trees whose counting outweighs its sweep or that reaches the g
     - The script replaces the planned part (c) of monotone-reference.R. It joins exact-gates.yaml's list in the
       fix commit, since it fails the current engine by design.
     - The general DP beyond these sizes rests on step 8's brute-force checks.
-11. A monotone scenario in benchmarks/R/equivalence.R (x1 and x2 constrained, 20 trees), with the other 53
-    scenarios bitwise. Its MANIFEST row names the enumeration gate as the ORACLE (P17).
+    - Both targets: engine and prototype modes take the prior, weighting each tree with log Z_T in its weight
+      ("leaf") or without it ("joint"), and every group must pass under each. Its unnormalized mode already
+      prints the two exact laws side by side.
+11. Two monotone scenarios in benchmarks/R/equivalence.R (x1 and x2 constrained, 20 trees, one per prior), with
+    the other 53 scenarios bitwise. Its MANIFEST row names the enumeration gate as the ORACLE (P17).
 12. Docs:
-    - monotone.md sections 4, 9 and 11 and the Plan-vs-code note restate B' with the whole-tree normalizer, and
-      record that mBART's d-normalized eq. 4.11 targets neither this prior nor the software's.
-    - The prior statement stays verbatim; the `monotone` argument's help names the guard, its error, the
-      few-tree cost, and that rerunning with new seeds until a run completes selects smaller trees.
+    - monotone.md sections 4, 9 and 11 and the Plan-vs-code note state both priors, B' with the whole-tree
+      normalizer under "leaf", and what mBART's paper and software sample (Context).
+    - The help states both priors and names the chosen default with the feel study's reason; under "leaf" it
+      names the guard, its error, the few-tree cost, and that rerunning with new seeds until a run completes
+      selects smaller trees.
+    - [Monotone arm: design](sbc-family-tiers.md#monotone-arm-design) gets one arm per prior.
     - dec-B16 is marked superseded in part by dec-B144.
     - Status lines and INDEX at landing, and the TODO item removed.
+13. The prior switch, end to end. R resolves monotone(prior = ) (step 14); the bridge passes it with the
+    directions to the engine as a flag on the monotone leaf. The flag travels wherever the directions do: the
+    model's monotone attribute, saved state, copy and reload, and setModel. Under "leaf" the Z seam (step 2),
+    the guard and the pruning of step 7 are active; under "joint" `logTreeNormalizer` is not evaluated, no
+    count runs, and sampleTreesFromPrior draws jointly (step 7). Steps 3-6 apply to both. The fit object
+    records the prior, and print and summary show it.
+14. The monotone() constructor and vocabulary (dec-B146, dec-B147).
+    - `monotone(..., prior = )` in R/model.R beside interactions() and blocks(): directions as named
+      arguments (monotone(x1 = "increasing")) or one unnamed full-length positional vector, and prior = one of
+      "leaf" and "joint" (their order, the default, open), checked with match.arg. Class dbartsMonotone.
+    - Like interactions() it is not exported itself: it joins dbartsForests, its exported face, and resolves
+      by bare name inside monotone = on dbarts(), bart() and dbartsSpec() through resolveForestArguments
+      (FOREST_ARGUMENT_VOCABULARIES), with a bare name the caller bound to a value being that value.
+      interactions() has no print or format method, so neither does monotone().
+    - `resolveMonotone` takes a dbartsMonotone or the plain vector, which is shorthand for the default prior,
+      and returns the directions and the prior.
+    - `parseMonotoneSign` takes "increasing", "decreasing", 1, -1, and 0 for unconstrained in the positional
+      form, matched case-sensitively; "+", "-" and other cases are errors naming the vocabulary.
+    - Rd: a monotone topic beside interactions and blocks, with a _pkgdown.yml entry; the monotone items of
+      dbarts.Rd, bart.Rd and dbartsSpec.Rd, and dbartsForests.Rd, updated.
+    - tinytest: bare-name resolution and a caller-bound shadow, the vector shorthand equal to the default
+      prior's monotone(), an unknown prior value, "+" and "Increasing" refused, 0 accepted in the positional form, and
+      each prior fitting monotone.
 
 ## Verification
 
-- `cd tests/cpp && make && ./test_bartcore`: the count, ratio, redraw, extension-draw and guard checks pass.
+- `cd tests/cpp && make && ./test_bartcore`: the count, ratio, redraw, extension-draw, guard and "joint" checks
+  pass.
 - `R CMD INSTALL --preclean -l <lib> .`, then `R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'`.
-- `R_LIBS=<lib> Rscript benchmarks/R/monotone-exact-enumeration.R quick`: every group passes. This takes about
-  6 min; full mode runs 900k draws. The mutation run restores the d divisions and drops the Z term (then
-  `touch` the header and reinstall), and must fail like the current engine.
+- `R_LIBS=<lib> Rscript benchmarks/R/monotone-exact-enumeration.R quick`, under each prior: every group passes.
+  This takes about 6 min; full mode runs 900k draws. The mutation run restores the d divisions and drops the Z
+  term (then `touch` the header and reinstall), and must fail like the current engine.
   - Current engine, quick: c1 p 1.6e-24 and 6.5e-35 (two root rules); c2 3.8e-10 and 4.3e-5; c3 1.4e-15;
     cN 1.9e-29.
   - `prototype` mode (the corrected move in R, with an exact pair redraw): every group p >= 0.07.
@@ -332,10 +441,12 @@ fit at 10 or more trees whose counting outweighs its sweep or that reaches the g
   whole exact-gates.yaml list with `quick`.
 - `Rscript benchmarks/R/equivalence.R compare <current>`: 53 scenarios "identical draws (same RNG stream)" and
   no "max |z|". BCF and multinomial compare identical. The snapshot files carry no monotone fit.
-- Release level: the SBC arm in [Monotone arm: design](sbc-family-tiers.md#monotone-arm-design). monotone-1
-  (0.4 s per replicate) flags the current move and must pass; then the 20-tree arm (~85 min at R 200) must pass
-  before admission.
-- Speed: on a quiet machine, monotone sweep time at 20 trees, 1 and 2 constrained predictors, within 5% of
-  today; at 1 and 5 trees, the slowdown is recorded against the Decision's estimates. bench-sampler compare
-  unchanged on the unconstrained paths.
+- Release level: the SBC arm in [Monotone arm: design](sbc-family-tiers.md#monotone-arm-design), once per prior.
+  monotone-1 (0.4 s per replicate) flags the current move and must pass; then the 20-tree arm (~85 min at R
+  200) must pass before admission.
+- Speed: on a quiet machine, under each prior, monotone sweep time at 20 trees, 1 and 2 constrained predictors,
+  within 5% of today; at 1 and 5 trees under "leaf", the slowdown is recorded against the Decision's estimates.
+  bench-sampler compare unchanged on the unconstrained paths.
+- The feel study (Default: feel study) runs once both priors pass the gates above, before the default is
+  ruled.
 - `Rscript tools/check-doc-freshness.R .` passes.
