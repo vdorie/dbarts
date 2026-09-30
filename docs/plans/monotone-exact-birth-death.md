@@ -756,3 +756,17 @@ Checkpoint (stop and report), after commit 4, before the feel study and before s
 - The feel study (Default: feel study) runs once both priors pass the gates above, before the default is
   ruled.
 - `Rscript tools/check-doc-freshness.R .` passes.
+
+## Landing
+
+Stage 1, 2026-09-30: the redraw fix, empty leaves and reachability (a0e0100a), the setControl fix that
+stored a control before the engine accepted it (565dcd2b), and the truncated-normal primitive reporting
+a stall as NaN with an exact narrow-tail proposal (4f7a5f02). The monotone draw reflects intervals above
+the mean. Reviewed twice by an independent reader; tests/cpp with ASan/UBSan clean, tinytest 10,756/0,
+the lint chain clean, all 25 exact gates quick, monotone-reference.R quick; on the reference build the
+three equivalence compares bitwise 53/15/11 and the snapshots unchanged, so no recorded draw moved;
+ordinal-exact quick byte-identical; R CMD check --as-cran one NOTE (Date); stan4bart 491/491, bartCause
+0 failures. The enumeration gate still fails as the plan expects until stage 4. Mutations of the
+fallback, the empty-leaf pin, the up-front setState check, the growForestFromRoot reseed, the collapse
+reseed and the reflection each fail the new tests. Calls made while implementing: dec-A129.
+
