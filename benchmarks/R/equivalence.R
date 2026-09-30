@@ -1462,6 +1462,41 @@ makeScenarios <- function() {
     wideFactorFit = TRUE
   )
 
+  # MONOTONE (docs/plans/monotone-exact-birth-death.md, step 11): x1
+  # increasing and x2 decreasing on a surface monotone in both, 20 trees, one
+  # scenario per monotone prior on the same data. Each names its prior, so a
+  # ruling on the default moves neither. A monotone forest proposes birth and
+  # death only; under "leaf" every move also counts the touched component's
+  # linear extensions, under "joint" none does, so the two pin different move
+  # paths over one design. k resolves to the fixed 2 a monotone fit takes.
+  set.seed(5151L)
+  x.mo <- matrix(runif(400L * 5L), 400L)
+  colnames(x.mo) <- paste0("x", 1:5)
+  x.test.mo <- matrix(runif(n.test * 5L), n.test)
+  colnames(x.test.mo) <- colnames(x.mo)
+  y.mo <- 4 *
+    x.mo[, 1L] -
+    3 * x.mo[, 2L]^2 +
+    2 * sin(2 * pi * x.mo[, 3L]) +
+    x.mo[, 4L] +
+    0.5 * rnorm(400L)
+  for (prior in c("leaf", "joint")) {
+    result[[paste0("monotone", prior)]] <- list(
+      x = x.mo,
+      y = y.mo,
+      x.test = x.test.mo,
+      binary = FALSE,
+      samplerApi = TRUE,
+      nTrees = 20L,
+      samplerArgs = list(
+        monotone = dbartsForests$monotone(
+          c(x1 = "increasing", x2 = "decreasing"),
+          prior = prior
+        )
+      )
+    )
+  }
+
   result
 }
 
