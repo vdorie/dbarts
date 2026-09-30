@@ -1114,6 +1114,10 @@ Record: docs/plans/monotone-exact-birth-death.md. Marked: blank. [dec-B147]
 The prior switch takes "leaf", the normalized prior, where the constraint restricts the support of the leaf-value prior and the tree prior is unchanged, or "joint", the unnormalized prior, where the tree's structure and leaf values are conditioned on the constraint together. The alternatives were "per.tree" and "joint", "leaf" and "tree", and "normalized" and "conditional". Their order, which is the default, stays open for the feel study. A user reads the name as where the constraint acts. The maintainer on 2026-09-29: "Go with \"leaf\" and \"joint\"." See also: [dec-B145], [dec-B146].
 Record: docs/plans/monotone-exact-birth-death.md. Marked: blank. [dec-B148]
 
+**A slow monotone order count warns and never stops the run**
+Under the "leaf" monotone prior every tree move counts the leaf orderings the constraint admits; the count is microseconds in ordinary fits but grows exponentially in the width of a large tree's order, so a pathological tree can need minutes and tens of gigabytes for one move. There is no limit: the run always continues on the exact model; after it, one warning says that some counts took more than about a second, why, and the remedies (more trees, or the "joint" prior); the count can be interrupted; and running out of memory becomes an ordinary R error, not a crash. The alternatives were a dbartsControl limit past which the run stops with an error (the agents' earlier proposal), a hybrid that switches large moves to a count-free exact Barker move (the upgrade if the feel study shows slow counts in practice), and a budget that makes trees past it impossible, which changes the model in realistic few-tree fits. The maintainer on 2026-09-29, after the limit had been folded into dec-B145 without being put to them: "OK, let's do option 2 now." See also: [dec-B145].
+Record: docs/plans/monotone-exact-birth-death.md. Marked: blank. [dec-B149]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
