@@ -7167,94 +7167,6 @@ namespace {
 
 // ---- monotone (mBART) constrained leaf: independent references -------------
 
-// Codes reaching a leaf along a variable, [lo, hi], by a direct ancestor walk
-// (not through splitInterval), so it independently checks the geometry.
-static void oracleLeafBox(const Tree& tree, const ColumnStore& store,
-                          std::int32_t leaf, std::int32_t var, std::int32_t& lo,
-                          std::int32_t& hi) {
-  lo = 0;
-  hi = static_cast<std::int32_t>(store.numCuts[static_cast<size_t>(var)]);
-  std::int32_t cur = leaf;
-  while (tree.at(cur).parent != invalidNode) {
-    std::int32_t parent = tree.at(cur).parent;
-    bool isRight = (cur == tree.at(parent).leftChild + 1);
-    cur = parent;
-    if (tree.at(cur).rule.variableIndex == var) {
-      std::int32_t s = tree.at(cur).rule.splitIndex();
-      if (isRight) lo = std::max(lo, s + 1);
-      else hi = std::min(hi, s);
-    }
-  }
-}
-
-// Independent bounds [a, b] and constrained flag for leaf k, from the design's
-// neighbor definition over the oracle boxes.
-static void oracleBounds(const Tree& tree, const ColumnStore& store,
-                         const std::vector<std::int8_t>& dir, std::int32_t k,
-                         const double* mu, double& a, double& b,
-                         bool& constrained) {
-  size_t p = store.numPredictors;
-  std::vector<std::int32_t> leaves;
-  tree.fillBottom(0, leaves);
-  a = -HUGE_VAL;
-  b = HUGE_VAL;
-  constrained = false;
-  for (std::int32_t j : leaves) {
-    if (j == k) continue;
-    for (size_t i = 0; i < p; ++i) {
-      if (dir[i] == 0) continue;
-      std::int32_t loK, hiK, loJ, hiJ;
-      oracleLeafBox(tree, store, k, static_cast<std::int32_t>(i), loK, hiK);
-      oracleLeafBox(tree, store, j, static_cast<std::int32_t>(i), loJ, hiJ);
-      bool jBelowK = (hiJ + 1 == loK);
-      bool kBelowJ = (hiK + 1 == loJ);
-      if (!jBelowK && !kBelowJ) continue;
-      bool overlap = true;
-      for (size_t m = 0; m < p && overlap; ++m) {
-        if (m == i) continue;
-        std::int32_t lkm, hkm, ljm, hjm;
-        oracleLeafBox(tree, store, k, static_cast<std::int32_t>(m), lkm, hkm);
-        oracleLeafBox(tree, store, j, static_cast<std::int32_t>(m), ljm, hjm);
-        if (std::max(lkm, ljm) > std::min(hkm, hjm)) overlap = false;
-      }
-      if (!overlap) continue;
-      constrained = true;
-      double muj = mu[j];
-      if (jBelowK) {
-        if (dir[i] > 0) a = std::max(a, muj);
-        else            b = std::min(b, muj);
-      } else {
-        if (dir[i] > 0) b = std::min(b, muj);
-        else            a = std::max(a, muj);
-      }
-    }
-  }
-}
-
-static void checkBound(double actual, double expected, const char* what) {
-  if (std::isinf(expected) || std::isinf(actual)) check(actual == expected, what);
-  else checkNear(actual, expected, 1e-9, what);
-}
-
-// Grow a random tree by a few random ordinal births.
-static void growRandomTree(Tree& tree, const ColumnStore& store, const double* y,
-                           int numBirths) {
-  for (int step = 0; step < numBirths; ++step) {
-    std::vector<std::int32_t> leaves;
-    tree.fillBottom(0, leaves);
-    std::int32_t leaf = leaves[static_cast<size_t>(runif01() * leaves.size())];
-    int var = static_cast<int>(runif01() * store.numPredictors);
-    std::int32_t left, right;
-    tree.splitInterval(store, leaf, var, &left, &right);
-    if (right < left) continue;
-    std::int32_t cut = left + static_cast<std::int32_t>(runif01() * (right - left + 1));
-    Rule rule;
-    rule.variableIndex = var;
-    rule.setSplitIndex(cut);
-    tree.birth(store, leaf, rule, y, nullptr);
-  }
-}
-
 static double refLogIntegratedLikelihood(double k, double sig2, double sumW,
                                          double sumWZ, double scale) {
   if (sumW == 0.0) return 0.0;
@@ -7291,52 +7203,6 @@ static double normalPdf(double x, double m, double s) {
 }
 
 }  // namespace
-
-// (a) The neighbor geometry matches a brute-force box-adjacency oracle on
-// fuzzed trees over two and three constrained axes.
-static void testMonotoneNeighborGeometry() {
-  std::uint64_t saved = rngState;
-  rngState = 424242u;
-  const size_t n = 600, p = 3;
-  std::vector<double> x(n * p);
-  for (double& v : x) v = runif01();
-  ColumnStore store;
-  built(store.build(x.data(), n, p, 24));
-  std::vector<double> y(n, 0.0);
-  std::vector<std::int8_t> dir[3] = {{1, 0, 0}, {1, -1, 0}, {1, -1, 1}};
-
-  int comparisons = 0;
-  for (int trial = 0; trial < 120; ++trial) {
-    std::vector<index_t> idx(n);
-    Tree tree;
-    tree.initialize(idx.data(), n);
-    tree.computeLeafStats(0, y.data(), nullptr);
-    growRandomTree(tree, store, y.data(), 4 + static_cast<int>(runif01() * 4));
-
-    std::vector<std::int32_t> leaves;
-    tree.fillBottom(0, leaves);
-    std::vector<double> mu(tree.nodes.size(), 0.0);
-    for (std::int32_t leaf : leaves) mu[leaf] = 2.0 * runif01() - 1.0;
-
-    const std::vector<std::int8_t>& d = dir[trial % 3];
-    MonotoneNeighborScratch scratch;
-    for (std::int32_t k : leaves) {
-      double a, b;
-      bool c;
-      monotoneNeighborBounds(tree, store, d.data(), leaves, k, mu.data(), nullptr,
-                             0, scratch, &a, &b, &c);
-      double ao, bo;
-      bool co;
-      oracleBounds(tree, store, d, k, mu.data(), ao, bo, co);
-      checkBound(a, ao, "monotone geometry: lower bound matches oracle");
-      checkBound(b, bo, "monotone geometry: upper bound matches oracle");
-      check(c == co, "monotone geometry: constrained flag matches oracle");
-      ++comparisons;
-    }
-  }
-  rngState = saved;
-  printf("ok: monotone neighbor geometry vs oracle (%d leaves)\n", comparisons);
-}
 
 // (b) Feasibility invariants: an end-to-end constrained fit is monotone in its
 // single constrained predictor, an emptied cone scores the sentinel, and a
@@ -8705,7 +8571,6 @@ void runModelTests(ext_rng* rng) {
   testGPLeafKernelCache(rng);
   testGPLeafZeroWeights(rng);
   testSparseTestDataEndToEnd();
-  testMonotoneNeighborGeometry();
   testMonotoneFeasibility();
   testMonotoneInteractionCoexistence();
   testMonotonePriorDraw();

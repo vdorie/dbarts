@@ -33,7 +33,7 @@
 #          zcheck: Z_T = e(P_T) / L! against a brute-force monotonicity check
 #          unnormalized: the exact posterior against the one without 1 / Z_T
 #            (the BART prior conditioned on every tree being monotone); no sampling
-#   design c1 c2 c3 cN (default: all)
+#   design c1 c2 c3 cN cF (default: all)
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
@@ -76,6 +76,17 @@ designs <- list(
     # a tree rooted on x2 holds its subtree roots for whole runs and carries
     # no N-shaped order, so only the x1-rooted group is tested
     groups = "x1 cut 1"
+  ),
+  # x1 constrained and x2 a free two-level factor, x1 rising at one level and
+  # falling at the other: the engine splits x2 by a level subset, which the
+  # enumeration reads as its one cut, so the order relates leaves through a
+  # level set
+  cF = list(
+    nc = c(3L, 2L),
+    dirs = c(1L, 0L),
+    mu = c(0, 0.3, 0.6, 0.6, 0.3, 0),
+    sigma = 1.0,
+    factor = 2L
   )
 )
 chosen <- intersect(args, names(designs))
@@ -506,9 +517,15 @@ engineKeys <- function(design, nDraw, seed) {
     n.cuts = as.integer(nc - 1L)
   )
   mono <- setNames(dirs, colnames(design$x))[dirs != 0L]
+  # a factor axis's cells are its levels, in order
+  factorAxis <- design$spec$factor
+  x <- as.data.frame(design$x)
+  for (v in factorAxis) {
+    x[[v]] <- factor(letters[x[[v]]], levels = letters[seq_len(nc[v])])
+  }
   sampler <- dbarts(
-    design$x,
-    design$y,
+    y ~ .,
+    data.frame(y = design$y, x),
     control = ctl,
     tree.prior = cgm(power, base),
     leaf.prior = normal(kLeaf),
@@ -516,7 +533,9 @@ engineKeys <- function(design, nDraw, seed) {
     monotone = monotone(mono, prior = "leaf")
   )
   cuts <- lapply(nc, function(n) seq(1, n, length.out = n + 1L)[-c(1L, n + 1L)])
-  keyOf <- function(var, value) {
+  # a two-level factor's split is its one cut; the engine's left child holds
+  # the higher level when the lower one goes right
+  keyOf <- function(var, value, directions) {
     i <- 0L
     rules <- character(0)
     walk <- function(lo, hi) {
@@ -525,14 +544,21 @@ engineKeys <- function(design, nDraw, seed) {
         return(invisible())
       }
       v <- var[i]
-      cut <- match(round(value[i], 8), round(cuts[[v]], 8))
+      swap <- v %in% factorAxis
+      cut <- if (swap) 1L else match(round(value[i], 8), round(cuts[[v]], 8))
+      swap <- swap && startsWith(directions[i], "R")
       rules <<- c(rules, ruleKey(lo, hi, v, cut))
       hiLeft <- hi
       hiLeft[v] <- cut
       loRight <- lo
       loRight[v] <- cut + 1L
-      walk(lo, hiLeft)
-      walk(loRight, hi)
+      if (swap) {
+        walk(loRight, hi)
+        walk(lo, hiLeft)
+      } else {
+        walk(lo, hiLeft)
+        walk(loRight, hi)
+      }
     }
     walk(rep(1L, length(nc)), as.integer(nc))
     treeKey(rules)
@@ -542,7 +568,16 @@ engineKeys <- function(design, nDraw, seed) {
     sampler$run(if (b == 1L) nBurn else 0L, block)
     tr <- sampler$getTrees()
     bySample <- split(tr, tr$sample)[as.character(sort(unique(tr$sample)))]
-    keys <- c(keys, vapply(bySample, function(d) keyOf(d$var, d$value), ""))
+    keys <- c(
+      keys,
+      vapply(
+        bySample,
+        function(d) {
+          keyOf(d$var, d$value, if (is.null(d$directions)) NA else d$directions)
+        },
+        ""
+      )
+    )
   }
   keys[seq_len(nDraw)]
 }

@@ -1,7 +1,9 @@
 #include "common.hpp"
 
 #include <chrono>
+#include <limits>
 #include <map>
+#include <set>
 
 // The monotone leaf-order counter: log Z_T, the birth/death ratio counted on
 // the finer tree's side, the position laws and the linear-extension draw,
@@ -43,12 +45,51 @@ struct TestTree {
       std::int32_t leaf =
           leaves[static_cast<size_t>(runif01() * leaves.size())];
       int var = static_cast<int>(runif01() * store->numPredictors);
+      if (store->splitsBySubset(static_cast<size_t>(var))) {
+        splitSubset(leaf, var);
+        continue;
+      }
       std::int32_t left, right;
       tree.splitInterval(*store, leaf, var, &left, &right);
       if (right < left) continue;
-      split(leaf, var,
-            left + static_cast<std::int32_t>(runif01() * (right - left + 1)));
+      Rule rule;
+      rule.variableIndex = var;
+      rule.setSplitIndex(
+          left + static_cast<std::int32_t>(runif01() * (right - left + 1)));
+      if (store->hasMissing[static_cast<size_t>(var)])
+        rule.setMissingGoesRight(runif01() < 0.5);
+      tree.birth(*store, leaf, rule, y.data(), nullptr);
     }
+  }
+  // a random nontrivial split of the positions reaching the leaf, missing
+  // included when the column has missing values, as the rule draw makes one
+  void splitSubset(std::int32_t leaf, int var) {
+    size_t j = static_cast<size_t>(var);
+    size_t numWords = maskWordsForCount(store->categoryCounts[j]);
+    std::vector<std::uint64_t> reachable(numWords);
+    if (numWords > 1)
+      tree.reachableCategoriesWide(*store, leaf, var, reachable.data());
+    else
+      reachable[0] = tree.reachableCategories(*store, leaf, var);
+    size_t count = maskPopcount(reachable.data(), numWords);
+    if (count < 2) return;
+    std::vector<std::uint64_t> right(numWords);
+    do {
+      std::fill(right.begin(), right.end(), 0);
+      for (std::uint32_t b = 0; b < 64 * numWords; ++b)
+        if (maskTestBit(reachable.data(), b) && runif01() < 0.5)
+          maskSetBit(right.data(), b);
+    } while (maskPopcount(right.data(), numWords) % count == 0);
+    Rule rule;
+    rule.variableIndex = var;
+    if (numWords > 1) {
+      size_t offset = tree.allocateMask(numWords);
+      std::copy(right.begin(), right.end(), tree.mutableMaskWordsFor(offset));
+      rule.setMaskOffset(offset);
+    } else {
+      rule.setCategoryDirections(right[0]);
+    }
+    tree.birth(*store, leaf, rule, y.data(), nullptr);
   }
 };
 
@@ -56,6 +97,85 @@ void makeStore(ColumnStore& store, size_t p, std::uint32_t cuts, size_t n) {
   std::vector<double> x(n * p);
   for (double& v : x) v = runif01();
   built(store.build(x.data(), n, p, cuts));
+}
+
+// x0 numeric; x1 numeric, 30% missing; x2 a 4-level factor, none missing;
+// x3 a 70-level factor (pooled), 10% missing
+void makeMixedStore(ColumnStore& store, size_t n) {
+  const double na = std::numeric_limits<double>::quiet_NaN();
+  std::vector<double> x(n * 4);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[n + i] = runif01() < 0.3 ? na : runif01();
+    x[2 * n + i] = std::floor(4.0 * runif01());
+    x[3 * n + i] = runif01() < 0.1 ? na : static_cast<double>(i % 70);
+  }
+  const ColumnKind types[4] = {ColumnKind::numeric, ColumnKind::numeric,
+                               ColumnKind::categorical,
+                               ColumnKind::categorical};
+  built(store.build(x.data(), n, 4, 6, false, types));
+}
+
+// The order the constraint requires, from points, independently of the
+// engine's geometry: every combination of the tree's split variables' values
+// (each code or level, and missing, whether or not training had one) routed
+// as prediction routes it. Two points differing only in a constrained
+// predictor, by one observed code, require their leaves ordered. Returns the
+// (lower, upper) leaf pairs; withMissing false leaves missing values out.
+using LeafPairs = std::set<std::pair<std::int32_t, std::int32_t>>;
+LeafPairs pointOrder(const Tree& tree, const ColumnStore& store,
+                     const std::int8_t* dir, bool withMissing = true) {
+  std::vector<std::int32_t> internal, axes;
+  tree.fillNotBottom(0, internal);
+  for (std::int32_t node : internal) {
+    std::int32_t v = tree.at(node).rule.variableIndex;
+    if (std::find(axes.begin(), axes.end(), v) == axes.end()) axes.push_back(v);
+  }
+  // per axis its values, missing last, and the stride of its digit
+  std::vector<std::vector<xint_t>> values(axes.size());
+  std::vector<size_t> stride(axes.size());
+  size_t numPoints = 1;
+  for (size_t a = 0; a < axes.size(); ++a) {
+    size_t j = static_cast<size_t>(axes[a]);
+    bool subset = store.splitsBySubset(j);
+    std::uint32_t count = subset ? store.categoryCounts[j] : store.numCuts[j] + 1;
+    for (std::uint32_t c = 0; c < count; ++c)
+      values[a].push_back(static_cast<xint_t>(c));
+    if (withMissing)
+      values[a].push_back(subset ? missingCategoryCode(store.categoryCounts[j])
+                                 : naCode);
+    stride[a] = numPoints;
+    numPoints *= values[a].size();
+  }
+  std::vector<std::int32_t> leafOf(numPoints);
+  std::vector<xint_t> code(store.numPredictors, 0);
+  for (size_t point = 0; point < numPoints; ++point) {
+    for (size_t a = 0; a < axes.size(); ++a)
+      code[static_cast<size_t>(axes[a])] =
+          values[a][(point / stride[a]) % values[a].size()];
+    std::int32_t node = 0;
+    while (!tree.at(node).isBottom()) {
+      const Rule& rule = tree.at(node).rule;
+      bool right = tree.ruleSendsRight(
+          store, rule, code[static_cast<size_t>(rule.variableIndex)]);
+      node = tree.at(node).leftChild + (right ? 1 : 0);
+    }
+    leafOf[point] = node;
+  }
+  LeafPairs out;
+  for (size_t a = 0; a < axes.size(); ++a) {
+    std::int8_t d = dir[axes[a]];
+    if (d == 0 || store.splitsBySubset(static_cast<size_t>(axes[a]))) continue;
+    // observed codes c and c + 1: the missing digit is last
+    size_t last = values[a].size() - (withMissing ? 2 : 1);
+    for (size_t point = 0; point < numPoints; ++point) {
+      if ((point / stride[a]) % values[a].size() >= last) continue;
+      std::int32_t low = leafOf[point], high = leafOf[point + stride[a]];
+      if (low == high) continue;
+      out.insert(d > 0 ? std::make_pair(low, high) : std::make_pair(high, low));
+    }
+  }
+  return out;
 }
 
 size_t numLeaves(const Tree& tree) {
@@ -153,6 +273,95 @@ double seconds(std::chrono::steady_clock::time_point t0) {
 
 }  // namespace
 
+// The geometry against the point oracle on random trees over a numeric store
+// and the mixed one (factor splits, pooled ones, and missing values routed
+// either way, in free and constrained predictors): the builder's relation is
+// exactly the required pairs, each leaf's bounds read them, and the
+// feasibility check agrees on random and on feasible leaf values.
+static void testMonotoneGeometryPoints() {
+  ColumnStore numeric, mixed;
+  makeStore(numeric, 3, 24, 600);
+  makeMixedStore(mixed, 700);
+  const std::int8_t numericDirs[3][3] = {{1, 0, 0}, {1, -1, 0}, {1, -1, 1}};
+  const std::int8_t mixedDirs[4][4] = {
+      {1, 0, 0, 0}, {-1, 0, 0, 0}, {1, -1, 0, 0}, {0, 1, 0, 0}};
+  MonotoneLeafOrder order;
+  MonotoneNeighborScratch scratch;
+  int numTrees = 0, numPairs = 0, factorPairs = 0, missingPairs = 0;
+  bool relationOk = true, boundsOk = true, feasibleOk = true;
+  for (int which = 0; which < 2; ++which) {
+    const ColumnStore& store = which == 0 ? numeric : mixed;
+    for (int trial = 0; trial < (which == 0 ? 200 : 600); ++trial) {
+      const std::int8_t* dir =
+          which == 0 ? numericDirs[trial % 3] : mixedDirs[trial % 4];
+      TestTree t(store);
+      t.growRandom(4 + trial % 8);
+      LeafPairs required = pointOrder(t.tree, store, dir);
+      buildMonotoneLeafOrder(t.tree, store, dir, order);
+      LeafPairs relation;
+      for (const MonotoneOrderComponent& c : order.components)
+        for (size_t x = 0; x < c.size; ++x)
+          for (size_t y = 0; y < c.size; ++y)
+            if ((c.predecessorsOf(x)[y / 64] >> (y % 64)) & 1u)
+              relation.insert({c.leaves[y], c.leaves[x]});
+      relationOk = relationOk && relation == required;
+      ++numTrees;
+      numPairs += static_cast<int>(required.size());
+      if (which == 1) {
+        LeafPairs observed = pointOrder(t.tree, store, dir, false);
+        for (const auto& pair : required)
+          missingPairs += observed.count(pair) == 0;
+        std::vector<std::int32_t> internal;
+        t.tree.fillNotBottom(0, internal);
+        for (std::int32_t node : internal)
+          if (store.splitsBySubset(static_cast<size_t>(
+                  t.tree.at(node).rule.variableIndex))) {
+            factorPairs += static_cast<int>(required.size());
+            break;
+          }
+      }
+
+      std::vector<std::int32_t> leaves;
+      t.tree.fillBottom(0, leaves);
+      std::vector<double> mu(t.tree.nodes.size(), 0.0);
+      for (std::int32_t leaf : leaves) mu[leaf] = runif01();
+      for (std::int32_t k : leaves) {
+        double a = -HUGE_VAL, b = HUGE_VAL, ea, eb;
+        bool c = false, ec;
+        for (const auto& pair : required) {
+          if (pair.second == k) a = std::max(a, mu[pair.first]);
+          if (pair.first == k) b = std::min(b, mu[pair.second]);
+          c = c || pair.first == k || pair.second == k;
+        }
+        monotoneNeighborBounds(t.tree, store, dir, leaves, k, mu.data(),
+                               nullptr, 0, scratch, &ea, &eb, &ec);
+        boundsOk = boundsOk && ea == a && eb == b && ec == c;
+      }
+      bool feasible = true;
+      for (const auto& pair : required)
+        feasible = feasible && mu[pair.first] <= mu[pair.second];
+      feasibleOk = feasibleOk && monotoneTreeIsFeasible(t.tree, store, dir,
+                                                        mu.data(), 0.0) ==
+                                     feasible;
+      // each leaf at its longest chain of required predecessors is feasible
+      for (std::int32_t leaf : leaves) mu[leaf] = 0.0;
+      for (size_t pass = 0; pass < leaves.size(); ++pass)
+        for (const auto& pair : required)
+          mu[pair.second] = std::max(mu[pair.second], mu[pair.first] + 1.0);
+      feasibleOk = feasibleOk &&
+                   monotoneTreeIsFeasible(t.tree, store, dir, mu.data(), 0.0);
+    }
+  }
+  check(relationOk, "monotone geometry: relation equals the point oracle");
+  check(boundsOk, "monotone geometry: bounds read the required pairs");
+  check(feasibleOk, "monotone geometry: feasibility agrees with the oracle");
+  check(factorPairs > 1000 && missingPairs > 25,
+        "monotone geometry: factor and missing-value pairs covered");
+  printf("ok: monotone geometry vs point oracle (%d trees, %d pairs, %d in "
+         "factor-split trees, %d through missing values)\n",
+         numTrees, numPairs, factorPairs, missingPairs);
+}
+
 // Hand-built orders with closed forms, each also against brute force when
 // small: chains over 64 and 65 leaves (one and two words), a star, an N, an
 // N plus a chain, and the 2x2x2 grid over three mixed-direction axes (the
@@ -224,20 +433,20 @@ static void testMonotoneCountHandBuilt() {
   printf("ok: monotone count, hand-built orders\n");
 }
 
+using Directions = std::vector<std::vector<std::int8_t>>;
+
 // 200 random trees over 1-3 constrained axes with mixed directions: log Z_T
 // against the brute-force e / L!.
-static void testMonotoneCountRandom() {
-  ColumnStore store;
-  makeStore(store, 3, 12, 300);
+static void testMonotoneCountRandom(const ColumnStore& store,
+                                    const Directions& dirs,
+                                    const char* label) {
   MonotoneCountScratch s;
-  const std::int8_t dirs[5][3] = {
-      {1, 0, 0}, {-1, 1, 0}, {1, -1, 1}, {-1, -1, -1}, {0, -1, 1}};
   double worst = 0.0;
   size_t largest = 0;
   for (int trial = 0; trial < 200; ++trial) {
     TestTree t(store);
     t.growRandom(2 + trial % 5);
-    const std::int8_t* dir = dirs[trial % 5];
+    const std::int8_t* dir = dirs[trial % dirs.size()].data();
     double logZ = monotoneLogNormalizer(t.tree, store, dir, s);
     size_t L = numLeaves(t.tree);
     double expected =
@@ -248,25 +457,23 @@ static void testMonotoneCountRandom() {
   }
   checkNear(worst, 0.0, 1e-12, "monotone count: random trees vs brute force");
   check(largest >= 5, "monotone count: random trees reach 5-leaf components");
-  printf("ok: monotone count, 200 random trees (worst |log Z err| %.2g)\n",
-         worst);
+  printf("ok: monotone count, 200 random trees%s (worst |log Z err| %.2g)\n",
+         label, worst);
 }
 
 // The ratio on T*'s side against two direct whole-tree counts over every
 // death (both children leaves) of random trees, one component and two, and
 // against brute-force theta on the smaller ones.
-static void testMonotoneRatioRandom() {
-  ColumnStore store;
-  makeStore(store, 3, 12, 300);
+static void testMonotoneRatioRandom(const ColumnStore& store,
+                                    const Directions& dirs,
+                                    const char* label) {
   MonotoneCountScratch s, direct;
-  const std::int8_t dirs[5][3] = {
-      {1, 0, 0}, {-1, 0, 1}, {1, -1, 0}, {-1, 0, 0}, {0, 1, -1}};
   int one = 0, two = 0, decreasingPairs = 0, bruteChecked = 0;
   double worst = 0.0, worstTheta = 0.0;
   for (int trial = 0; trial < 200; ++trial) {
     TestTree t(store);
     t.growRandom(3 + trial % 9);
-    const std::int8_t* dir = dirs[trial % 5];
+    const std::int8_t* dir = dirs[trial % dirs.size()].data();
     std::vector<std::int32_t> internal;
     t.tree.fillNotBottom(0, internal);
     for (std::int32_t parent : internal) {
@@ -295,9 +502,9 @@ static void testMonotoneRatioRandom() {
   checkNear(worstTheta, 0.0, 1e-12, "monotone ratio: theta vs brute force");
   check(one > 100 && two > 20 && decreasingPairs > 20 && bruteChecked > 100,
         "monotone ratio: one- and two-component and decreasing pairs covered");
-  printf("ok: monotone ratio, %d one-component and %d two-component moves "
+  printf("ok: monotone ratio%s, %d one-component and %d two-component moves "
          "(%d decreasing, %d brute-forced)\n",
-         one, two, decreasingPairs, bruteChecked);
+         label, one, two, decreasingPairs, bruteChecked);
 }
 
 // The plan's named examples, x1 constrained (both directions) and x2 free.
@@ -561,11 +768,32 @@ void runMonotoneTests() {
   std::uint64_t saved = rngState;
   rngState = 7071u;
   testMonotoneCountHandBuilt();
-  testMonotoneCountRandom();
-  testMonotoneRatioRandom();
+  {
+    ColumnStore store;
+    makeStore(store, 3, 12, 300);
+    testMonotoneCountRandom(
+        store, {{1, 0, 0}, {-1, 1, 0}, {1, -1, 1}, {-1, -1, -1}, {0, -1, 1}},
+        "");
+  }
+  {
+    ColumnStore store;
+    makeStore(store, 3, 12, 300);
+    testMonotoneRatioRandom(
+        store, {{1, 0, 0}, {-1, 0, 1}, {1, -1, 0}, {-1, 0, 0}, {0, 1, -1}},
+        "");
+  }
   testMonotoneRatioNamed();
   testMonotonePositionLaw();
   testMonotoneExtensionDraw();
   testMonotoneCountScale();
+  testMonotoneGeometryPoints();
+  {  // factor splits and missing values, in free and constrained predictors
+    ColumnStore store;
+    makeMixedStore(store, 700);
+    const Directions dirs = {
+        {1, 0, 0, 0}, {-1, 1, 0, 0}, {1, -1, 0, 0}, {0, 1, 0, 0}};
+    testMonotoneCountRandom(store, dirs, " with factors and missing values");
+    testMonotoneRatioRandom(store, dirs, " with factors and missing values");
+  }
   rngState = saved;
 }

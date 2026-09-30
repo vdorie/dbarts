@@ -710,7 +710,10 @@ constrained value waits for step 12.
       at p < 1e-4.
     - Designs, 10 rows per cell: c1, x1 constrained, 4 cells; c2, x1 and x2 constrained, 3x2; c3, x1
       constrained and x2 free, 3x2; cN, x1 constrained and x2 free, 2x3, where the two halves change level at
-      different cuts, giving 26% N mass in the tested x1-rooted group.
+      different cuts, giving 26% N mass in the tested x1-rooted group; cF (stage 3b), c3's cells with x2 a
+      free two-level factor, x1 rising at one level and falling at the other. A two-level factor's one
+      partition is the enumeration's one cut, so the gate reads the engine's subset rule without enumerating
+      level sets; wider factors and missing values rest on tests/cpp's point oracle and the tinytest.
     - The script replaces the planned part (c) of monotone-reference.R. It joins exact-gates.yaml's list in the
       fix commit, since it fails the current engine by design.
     - The general DP beyond these sizes rests on step 8's brute-force checks.
@@ -817,6 +820,14 @@ constrained value waits for step 12.
 
 - `cd tests/cpp && make && ./test_bartcore`: the count, ratio, lazy-count, scale, redraw, extension-draw,
   slow-count, interrupt, allocation and "joint" checks pass.
+- Stage 3b: tests/cpp's point oracle routes every combination of the split variables' values, each level
+  and the missing value included, through random trees over a numeric store and one with a 4-level factor,
+  a pooled 70-level factor and missing values; the order builder's relation must equal the pairs of points
+  one code apart along a constrained predictor, and the bounds and the feasibility check must read them.
+  The count and ratio brute-force checks also run on that store. Restoring the cut-interval reading of a
+  subset axis, or ignoring where missing values go, fails the oracle. test-monotone.R checks that one-tree
+  fits are monotone along x1 at every level of a free factor and at a free predictor's missing value; the
+  engine before 3b fails both.
 - The checkpoint (Staging) is reported before commits 5 and 6.
 - `R CMD INSTALL --preclean -l <lib> .`, then `R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'`.
 - `R_LIBS=<lib> Rscript benchmarks/R/monotone-exact-enumeration.R quick`, under each prior, the mirrored

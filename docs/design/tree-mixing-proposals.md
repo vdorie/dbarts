@@ -3456,8 +3456,8 @@ functions of the member set alone, the response families changing only the
 working response and weights those statistics read. **The exception is
 the monotone leaf**: [`MonotoneConstantGaussianLeaf`](../../src/bartcore/model.hpp)
 adds a truncation term whose bounds come from
-[`monotoneNeighborBounds`](../../src/bartcore/model.hpp), which reads leaf BOXES
-through [`monotoneLeafBox`](../../src/bartcore/model.hpp) and the frozen values of
+[`monotoneNeighborBounds`](../../src/bartcore/model.hpp), which reads leaf REGIONS
+through [`MonotoneLeafGeometry`](../../src/bartcore/model.hpp) and the frozen values of
 the other leaves - both of which a rule set can move while holding the row
 partition fixed. A fibre move must scope monotone forests out, the exclusion
 [12.6 Ranked disposition](#126-ranked-disposition) already writes for the

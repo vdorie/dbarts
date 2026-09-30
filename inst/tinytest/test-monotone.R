@@ -672,3 +672,67 @@ rm(
   totalGap,
   dropsGap
 )
+
+# ---- factor levels and missing values ----
+
+# the order relates leaves through the levels of a free factor and through a
+# missing value in a free predictor, so the fit is monotone along x1 at every
+# level and at the missing value; x1's direction flips with the level and with
+# missingness, which pulls a one-tree fit against the constraint
+local({
+  minStep <- function(draws, columns) {
+    apply(draws[, columns, drop = FALSE], 1L, function(r) min(diff(r)))
+  }
+  gridX1 <- seq(0.02, 0.98, length.out = 25L)
+  for (seed in 2:3) {
+    set.seed(seed)
+    n <- 400L
+    x1 <- runif(n)
+    f <- factor(sample(letters[1:4], n, TRUE))
+    y <- 3 * ifelse(f %in% c("b", "d"), -1, 1) * x1 + rnorm(n, sd = 0.1)
+    grid <- expand.grid(x1 = gridX1, f = factor(letters[1:4]))
+    fit <- dbarts::bart(
+      y ~ x1 + f,
+      data.frame(y, x1, f),
+      test = grid,
+      monotone = c(x1 = "increasing"),
+      n.trees = 1L,
+      n.burn = 200L,
+      n.samples = 500L,
+      n.chains = 1L,
+      verbose = FALSE,
+      seed = seed
+    )
+    draws <- dbarts::extract(fit, sample = "test")
+    for (level in letters[1:4]) {
+      expect_true(all(minStep(draws, grid$f == level) >= -1e-10))
+    }
+
+    n <- 800L
+    x1 <- runif(n)
+    x2 <- runif(n)
+    missing <- runif(n) < 0.4
+    y <- ifelse(missing, -3, 3) * x1 + rnorm(n, sd = 0.1)
+    x2[missing] <- NA
+    grid <- data.frame(
+      x1 = rep(gridX1, 3L),
+      x2 = rep(c(NA, 0.2, 0.8), each = 25L)
+    )
+    fit <- dbarts::bart(
+      y ~ x1 + x2,
+      data.frame(y, x1, x2),
+      test = grid,
+      monotone = c(x1 = "increasing"),
+      n.trees = 1L,
+      n.burn = 500L,
+      n.samples = 200L,
+      n.chains = 1L,
+      verbose = FALSE,
+      seed = seed
+    )
+    draws <- dbarts::extract(fit, sample = "test")
+    for (block in 0:2) {
+      expect_true(all(minStep(draws, block * 25L + seq_len(25L)) >= -1e-10))
+    }
+  }
+})

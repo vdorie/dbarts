@@ -596,58 +596,158 @@ double monotoneInvertLogConcave(F logDensity, double lo, double hi,
   return std::clamp(x, lo, hi);
 }
 
-/// Ordinal code-box of a leaf along one predictor: codes in [lo, hi] reach it.
-/// From the ancestor-constrained cut interval (Tree::splitInterval): its left
-/// is the low code, its right + 1 the high code.
-inline void monotoneLeafBox(const Tree& tree, const ColumnStore& data,
-                            std::int32_t leaf, std::int32_t variable,
-                            std::int32_t* lo, std::int32_t* hi) {
-  std::int32_t left, right;
-  tree.splitInterval(data, leaf, variable, &left, &right);
-  *lo = left;
-  *hi = right + 1;
-}
+/// Where prediction can route a point to each of a tree's leaves, per split
+/// variable. A point holds one value per predictor: a code on a threshold
+/// axis, a level on a subset axis, or missing on either. Each rule tests one
+/// predictor, so a leaf's points are a product over the split variables of
+/// the values its ancestors send its way:
+/// - threshold axis: codes [lo, hi] and whether a missing value reaches it;
+/// - subset axis: the reachable levels, the missing position included.
+/// Missing is a value on every axis, observed in training or not, as a test
+/// row can carry one. Two leaves are related along a constrained threshold
+/// axis when their intervals touch there and some value reaches both on every
+/// other axis: exactly when a point of one and a point of the other differ
+/// only in that predictor, by one code. A missing value in the constrained
+/// predictor has no position along it and takes no part in its adjacency.
+struct MonotoneLeafGeometry {
+  std::vector<std::int32_t> leaves;
+  std::vector<std::int32_t> axes;          // distinct split variables
+  std::vector<std::uint8_t> bySubset;      // per axis
+  std::vector<std::size_t> firstWord, numWords;  // subset axes, in a leaf's row
+  std::size_t levelWords = 0;
+  std::vector<std::int32_t> lo, hi;        // leaves x axes
+  std::vector<std::uint8_t> reachesMissing;  // leaves x axes
+  std::vector<std::uint64_t> levels;       // leaves x levelWords
+  std::vector<std::int32_t> axisOf;        // by variable, -1 off the tree
 
-/// The distinct split variables on a leaf's ancestor path (the only axes whose
-/// boxes are narrower than the full range, so the only ones an overlap test
-/// must check).
-inline void monotonePathVariables(const Tree& tree, std::int32_t leaf,
-                                  std::vector<std::int32_t>& out) {
-  out.clear();
-  std::int32_t current = leaf;
-  while (tree.at(current).parent != invalidNode) {
-    current = tree.at(current).parent;
-    std::int32_t v = tree.at(current).rule.variableIndex;
-    if (std::find(out.begin(), out.end(), v) == out.end()) out.push_back(v);
+  /// Fill from the tree over `leaves` (bottom nodes, any order).
+  void build(const Tree& tree, const ColumnStore& data,
+             const std::vector<std::int32_t>& leaves_) {
+    leaves = leaves_;
+    axes.clear();
+    bySubset.clear();
+    firstWord.clear();
+    numWords.clear();
+    if (axisOf.size() != data.numPredictors)
+      axisOf.assign(data.numPredictors, -1);
+    levelWords = 0;
+    collectAxes(tree, 0, data);
+    std::size_t numAxes = axes.size(), numLeaves = leaves.size();
+    lo.resize(numLeaves * numAxes);
+    hi.resize(numLeaves * numAxes);
+    reachesMissing.resize(numLeaves * numAxes);
+    levels.assign(numLeaves * levelWords, 0);
+    for (std::size_t l = 0; l < numLeaves; ++l) {
+      std::int32_t* leafLo = lo.data() + l * numAxes;
+      std::int32_t* leafHi = hi.data() + l * numAxes;
+      std::uint8_t* leafMissing = reachesMissing.data() + l * numAxes;
+      std::uint64_t* leafLevels = levels.data() + l * levelWords;
+      for (std::size_t a = 0; a < numAxes; ++a) {
+        std::size_t v = static_cast<std::size_t>(axes[a]);
+        leafMissing[a] = 1;
+        if (!bySubset[a]) {
+          leafLo[a] = 0;
+          leafHi[a] = static_cast<std::int32_t>(data.numCuts[v]);
+          continue;
+        }
+        std::uint32_t numCategories = data.categoryCounts[v];
+        std::uint64_t* words = leafLevels + firstWord[a];
+        for (std::uint32_t c = 0; c < numCategories; ++c) maskSetBit(words, c);
+        maskSetBit(words, static_cast<std::uint32_t>(
+                            missingCategoryCode(numCategories)));
+      }
+      std::int32_t current = leaves[l];
+      while (tree.at(current).parent != invalidNode) {
+        bool isRight = current == tree.at(tree.at(current).parent).leftChild + 1;
+        current = tree.at(current).parent;
+        const Rule& rule = tree.at(current).rule;
+        std::size_t a =
+          static_cast<std::size_t>(axisOf[static_cast<std::size_t>(rule.variableIndex)]);
+        if (bySubset[a]) {
+          const std::uint64_t* directions =
+            numWords[a] > 1 ? tree.maskWordsFor(rule) : &rule.bits;
+          std::uint64_t* words = leafLevels + firstWord[a];
+          for (std::size_t w = 0; w < numWords[a]; ++w)
+            words[w] &= isRight ? directions[w] : ~directions[w];
+          continue;
+        }
+        if (isRight) leafLo[a] = std::max(leafLo[a], rule.splitIndex() + 1);
+        else         leafHi[a] = std::min(leafHi[a], rule.splitIndex());
+        if (tree.ruleMissingGoesRight(data, rule) != isRight) leafMissing[a] = 0;
+      }
+    }
+    for (std::int32_t v : axes) axisOf[static_cast<std::size_t>(v)] = -1;
   }
-}
 
-/// Whether two leaves' boxes overlap on every axis in `axes` except skipAxis.
-inline bool monotoneBoxesOverlap(const Tree& tree, const ColumnStore& data,
-                                 std::int32_t leafA, std::int32_t leafB,
-                                 const std::vector<std::int32_t>& axes,
-                                 std::int32_t skipAxis) {
-  for (std::int32_t v : axes) {
-    if (v == skipAxis) continue;
-    std::int32_t loA, hiA, loB, hiB;
-    monotoneLeafBox(tree, data, leafA, v, &loA, &hiA);
-    monotoneLeafBox(tree, data, leafB, v, &loB, &hiB);
-    if (std::max(loA, loB) > std::min(hiA, hiB)) return false;
+  /// Whether some value of axis a reaches both leaves (row indices).
+  bool share(std::size_t l, std::size_t r, std::size_t a) const {
+    std::size_t numAxes = axes.size();
+    if (bySubset[a]) {
+      const std::uint64_t* wl = levels.data() + l * levelWords + firstWord[a];
+      const std::uint64_t* wr = levels.data() + r * levelWords + firstWord[a];
+      for (std::size_t w = 0; w < numWords[a]; ++w)
+        if ((wl[w] & wr[w]) != 0) return true;
+      return false;
+    }
+    std::size_t il = l * numAxes + a, ir = r * numAxes + a;
+    return std::max(lo[il], lo[ir]) <= std::min(hi[il], hi[ir]) ||
+           (reachesMissing[il] != 0 && reachesMissing[ir] != 0);
   }
-  return true;
-}
+
+  /// +1 when leaf row l is directly below row r in the order, -1 when r is
+  /// below l, 0 when unrelated. A pair relates along one axis at most: the
+  /// two sides of a split share no value on its axis.
+  int relation(std::size_t l, std::size_t r,
+               const std::int8_t* directions) const {
+    std::size_t numAxes = axes.size();
+    for (std::size_t a = 0; a < numAxes; ++a) {
+      std::int8_t direction = directions[axes[a]];
+      if (direction == 0 || bySubset[a]) continue;
+      std::size_t il = l * numAxes + a, ir = r * numAxes + a;
+      bool rightAbove = hi[il] + 1 == lo[ir];
+      if (!rightAbove && hi[ir] + 1 != lo[il]) continue;
+      bool shared = true;
+      for (std::size_t b = 0; b < numAxes && shared; ++b)
+        shared = b == a || share(l, r, b);
+      if (!shared) continue;
+      return rightAbove == (direction > 0) ? 1 : -1;
+    }
+    return 0;
+  }
+
+private:
+  void collectAxes(const Tree& tree, std::int32_t node,
+                   const ColumnStore& data) {
+    if (tree.at(node).isBottom()) return;
+    std::int32_t v = tree.at(node).rule.variableIndex;
+    std::size_t j = static_cast<std::size_t>(v);
+    if (axisOf[j] < 0) {
+      axisOf[j] = static_cast<std::int32_t>(axes.size());
+      axes.push_back(v);
+      bool subset = data.splitsBySubset(j);
+      bySubset.push_back(subset ? 1 : 0);
+      std::size_t words = subset ? maskWordsForCount(data.categoryCounts[j]) : 0;
+      firstWord.push_back(levelWords);
+      numWords.push_back(words);
+      levelWords += words;
+    }
+    collectAxes(tree, tree.at(node).leftChild, data);
+    collectAxes(tree, tree.at(node).leftChild + 1, data);
+  }
+};
 
 /// Scratch for the neighbor walk (per-leaf, reused across the sweep).
 struct MonotoneNeighborScratch {
-  std::vector<std::int32_t> branch, allBottoms, pathA, pathB, axes;
+  std::vector<std::int32_t> branch, allBottoms, leaves;
+  MonotoneLeafGeometry geometry;
 };
 
 /// Bounds [a, b] on leaf k's value from its neighbors' frozen mu, plus whether
-/// k has any neighbor along a constrained axis (c-inflation). j below k along
-/// an increasing axis lower-bounds mu_k by mu_j; above upper-bounds it; a
-/// decreasing axis (direction -1) flips the roles. A neighbor whose index is
-/// in `skip` still marks k constrained but contributes no bound - the touched
-/// leaves of a move, integrated out rather than frozen.
+/// k has any neighbor along a constrained axis (c-inflation). A neighbor below
+/// k in the order (MonotoneLeafGeometry::relation) lower-bounds mu_k by mu_j,
+/// one above upper-bounds it. A neighbor whose index is in `skip` still marks
+/// k constrained but contributes no bound - the touched leaves of a move,
+/// integrated out rather than frozen.
 inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
                                    const std::int8_t* directions,
                                    const std::vector<std::int32_t>& bottoms,
@@ -657,38 +757,25 @@ inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
                                    double* bOut, bool* constrained) {
   double a = -HUGE_VAL, b = HUGE_VAL;
   bool hasConstrainedNeighbor = false;
-  monotonePathVariables(tree, k, scratch.pathA);
-  for (std::int32_t j : bottoms) {
+  scratch.leaves = bottoms;
+  std::size_t rowK = static_cast<std::size_t>(
+    std::find(scratch.leaves.begin(), scratch.leaves.end(), k) -
+    scratch.leaves.begin());
+  if (rowK == scratch.leaves.size()) scratch.leaves.push_back(k);
+  MonotoneLeafGeometry& geometry = scratch.geometry;
+  geometry.build(tree, data, scratch.leaves);
+  for (std::size_t row = 0; row < bottoms.size(); ++row) {
+    std::int32_t j = bottoms[row];
     if (j == k) continue;
-    monotonePathVariables(tree, j, scratch.pathB);
-    scratch.axes = scratch.pathA;
-    for (std::int32_t v : scratch.pathB)
-      if (std::find(scratch.axes.begin(), scratch.axes.end(), v) ==
-          scratch.axes.end())
-        scratch.axes.push_back(v);
+    int relation = geometry.relation(row, rowK, directions);
+    if (relation == 0) continue;
+    hasConstrainedNeighbor = true;
     bool jSkipped = false;
     for (std::size_t t = 0; t < numSkip; ++t)
       if (skip[t] == j) jSkipped = true;
-    for (std::int32_t i : scratch.axes) {
-      if (directions[i] == 0) continue;
-      std::int32_t loK, hiK, loJ, hiJ;
-      monotoneLeafBox(tree, data, k, i, &loK, &hiK);
-      monotoneLeafBox(tree, data, j, i, &loJ, &hiJ);
-      bool jBelowK = (hiJ + 1 == loK);
-      bool kBelowJ = (hiK + 1 == loJ);
-      if (!jBelowK && !kBelowJ) continue;
-      if (!monotoneBoxesOverlap(tree, data, k, j, scratch.axes, i)) continue;
-      hasConstrainedNeighbor = true;
-      if (jSkipped) continue;
-      double muj = mu[j];
-      if (jBelowK) {
-        if (directions[i] > 0) a = std::max(a, muj);
-        else                   b = std::min(b, muj);
-      } else {
-        if (directions[i] > 0) b = std::min(b, muj);
-        else                   a = std::max(a, muj);
-      }
-    }
+    if (jSkipped) continue;
+    if (relation > 0) a = std::max(a, mu[j]);
+    else              b = std::min(b, mu[j]);
   }
   *aOut = a;
   *bOut = b;
@@ -698,7 +785,8 @@ inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
 /// True when every leaf's value lies within its neighbor bounds - the monotone
 /// feasibility invariant. Empty leaves are held to it too: they carry drawn
 /// values, and the cone and its normalizer range over every leaf. It reads
-/// the cut grid and the leaf values only, never the partition.
+/// the rules and the leaf values only, never the partition. Each related
+/// pair is tested as both of its leaves' bounds would test it.
 /// MonotoneConstantGaussianLeaf::drawFromPriorForTree calls it as the
 /// acceptance predicate of the constrained prior's rejection sampler, so tol
 /// is part of a live draw law and not a test-only slack.
@@ -706,14 +794,18 @@ inline bool monotoneTreeIsFeasible(const Tree& tree, const ColumnStore& data,
                                    const std::int8_t* directions,
                                    const double* mu, double tol = 1e-9) {
   MonotoneNeighborScratch s;
-  s.allBottoms.clear();
   tree.fillBottom(0, s.allBottoms);
-  for (std::int32_t leaf : s.allBottoms) {
-    double a, b;
-    bool constrained;
-    monotoneNeighborBounds(tree, data, directions, s.allBottoms, leaf, mu,
-                           nullptr, 0, s, &a, &b, &constrained);
-    if (mu[leaf] < a - tol || mu[leaf] > b + tol) return false;
+  MonotoneLeafGeometry& geometry = s.geometry;
+  geometry.build(tree, data, s.allBottoms);
+  std::size_t numLeaves = s.allBottoms.size();
+  for (std::size_t l = 0; l < numLeaves; ++l) {
+    for (std::size_t r = l + 1; r < numLeaves; ++r) {
+      int relation = geometry.relation(l, r, directions);
+      if (relation == 0) continue;
+      double lower = mu[s.allBottoms[relation > 0 ? l : r]];
+      double upper = mu[s.allBottoms[relation > 0 ? r : l]];
+      if (upper < lower - tol || lower > upper + tol) return false;
+    }
   }
   return true;
 }
@@ -775,6 +867,7 @@ struct MonotoneLeafOrder {
   std::vector<std::int32_t> leaves;
   std::vector<std::size_t> componentOf, labelOf;
   std::vector<MonotoneOrderComponent> components;
+  MonotoneLeafGeometry geometry;  // the builder's scratch
 
   std::size_t positionOf(std::int32_t node) const {
     return static_cast<std::size_t>(
@@ -782,32 +875,17 @@ struct MonotoneLeafOrder {
   }
 };
 
-/// Build a tree's leaf order with the adjacency test of monotoneNeighborBounds:
-/// j is below k when, along a constrained axis, j's code box ends one code
-/// below k's start (direction -1 flips which is lower in the order), and the
-/// boxes overlap on every other axis. An axis the tree never splits is the
-/// full range for every leaf, so only split variables are compared.
+/// Build a tree's leaf order from MonotoneLeafGeometry::relation, the test
+/// monotoneNeighborBounds applies.
 inline void buildMonotoneLeafOrder(const Tree& tree, const ColumnStore& data,
                                    const std::int8_t* directions,
                                    MonotoneLeafOrder& order) {
+  MonotoneLeafGeometry& geometry = order.geometry;
   std::vector<std::int32_t>& leaves = order.leaves;
   leaves.clear();
   tree.fillBottom(0, leaves);
   std::size_t numLeaves = leaves.size();
-  std::vector<std::int32_t> internal, variables;
-  tree.fillNotBottom(0, internal);
-  for (std::int32_t node : internal) {
-    std::int32_t v = tree.at(node).rule.variableIndex;
-    if (std::find(variables.begin(), variables.end(), v) == variables.end())
-      variables.push_back(v);
-  }
-  std::size_t numVariables = variables.size();
-  std::vector<std::int32_t> lo(numLeaves * numVariables),
-    hi(numLeaves * numVariables);
-  for (std::size_t l = 0; l < numLeaves; ++l)
-    for (std::size_t a = 0; a < numVariables; ++a)
-      monotoneLeafBox(tree, data, leaves[l], variables[a],
-                      &lo[l * numVariables + a], &hi[l * numVariables + a]);
+  geometry.build(tree, data, leaves);
 
   std::vector<std::size_t> root(numLeaves);
   for (std::size_t l = 0; l < numLeaves; ++l) root[l] = l;
@@ -817,27 +895,11 @@ inline void buildMonotoneLeafOrder(const Tree& tree, const ColumnStore& data,
   };
   std::vector<std::pair<std::size_t, std::size_t>> edges;  // (lower, upper)
   for (std::size_t l = 0; l < numLeaves; ++l) {
-    const std::int32_t* loL = lo.data() + l * numVariables;
-    const std::int32_t* hiL = hi.data() + l * numVariables;
     for (std::size_t r = l + 1; r < numLeaves; ++r) {
-      const std::int32_t* loR = lo.data() + r * numVariables;
-      const std::int32_t* hiR = hi.data() + r * numVariables;
-      for (std::size_t a = 0; a < numVariables; ++a) {
-        std::int8_t direction = directions[variables[a]];
-        if (direction == 0) continue;
-        bool rightAbove = hiL[a] + 1 == loR[a];
-        if (!rightAbove && hiR[a] + 1 != loL[a]) continue;
-        bool overlap = true;
-        for (std::size_t b = 0; b < numVariables && overlap; ++b)
-          overlap = b == a ||
-                    std::max(loL[b], loR[b]) <= std::min(hiL[b], hiR[b]);
-        if (!overlap) continue;
-        bool leftLower = rightAbove == (direction > 0);
-        edges.emplace_back(leftLower ? l : r, leftLower ? r : l);
-        root[findRoot(l)] = findRoot(r);
-        // overlapping on every other axis, two boxes touch along one at most
-        break;
-      }
+      int relation = geometry.relation(l, r, directions);
+      if (relation == 0) continue;
+      edges.emplace_back(relation > 0 ? l : r, relation > 0 ? r : l);
+      root[findRoot(l)] = findRoot(r);
     }
   }
 
