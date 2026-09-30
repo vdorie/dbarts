@@ -3,8 +3,10 @@
 Status: PLANNED 2026-09-29 (dec-B144), revised after a blind critique and a few-tree measurement. The maintainer
 then ruled that the package offers both monotone priors, "leaf" and "joint", chosen by monotone(prior = )
 (dec-B145 to dec-B148); the default stays open for the feel study below. Every move is then counted on the finer
-tree's side (Counting: algorithm), so no move counts the component a death's merge creates. Under "leaf" a slow
-count warns and never stops the run (dec-B149): there is no count limit. Derivation and gate verified on an R
+tree's side (Counting: algorithm), so a death proposal never counts the component its merge creates; a later
+move touching an accepted merge does. Under "leaf" a slow count warns and never stops the run (dec-B149): there
+is no count limit. A blind critique of the counting then fixed its gaps, and an early checkpoint (Steps) measures
+the corrected engine's counts before the feel study. Derivation and gate verified on an R
 prototype; not implemented.
 
 agent: opus (engine numerics: move seam, order counting, exact pair redraw, gate)
@@ -146,11 +148,12 @@ the state metric the table uses. Sweep time is per kept sweep.
 - Births create components up to 1.9x the largest state component. A death merges components: in the 5-tree,
   2-constrained + 1-free fit, 10% of trees have a death whose merged component passes 2^24 (up to 3.6e8), and
   such a death is proposed about once in 30 sweeps. Counting: algorithm counts every move on the finer tree's
-  side, so no move counts a merged component; the largest order a move then counts in these fits is 1.9e6
-  down-sets.
+  side, so the proposal does not count the merged component; if the death is accepted, the next move touching
+  that component does. On the current engine's states, the moves' counted orders range up to 1.9e6 down-sets
+  in these fits and 3.19e6 in a 1-tree fit with 3 free axes (Counting: algorithm).
 - At ~2^24 down-sets the count is slower per unit: a 25-leaf star takes 15 s (36 ns per unit), a 60-leaf order
-  of eight chains 17 s and 424 MB keeping two layers. Keeping every layer, as step 6's draw does, costs about
-  1 GB.
+  of eight chains 17 s and 424 MB keeping two layers. Keeping every layer, as step 6's draw and the position
+  laws do, took 23 s and 1.09 GB peak on a 1.68e7-down-set star plus a singleton.
 - The current engine targets the d-normalized law, so the corrected one may grow different trees: on monotone
   data its 1/Z_T factor favours more constrained orders. That moves how much a budget truncates, and under
   option 5 only the cost.
@@ -181,8 +184,7 @@ the state metric the table uses. Sweep time is per kept sweep.
    - A work guard (proposed by the agents, not taken): a dbartsControl limit, default 2^24 down-sets in one
      component, past which the run stops with an error, keeping the tree it held so a caller can raise the
      limit and continue. It changes no model, but exact then holds only for runs that complete, and rerunning
-     with new seeds until one completes selects smaller trees. With counting on the finer tree's side
-     (Counting: algorithm) it sat 8.7x above the largest order any move counts in the measured fits.
+     with new seeds until one completes selects smaller trees.
    - Warn and continue (taken, dec-B149): no limit; the run finishes on the exact model however slow a count
      is, and R warns once after the run (step 15). Base-R-style fitters mostly cap up front or warn: glm's
      maxit warns, rstan's max_treedepth caps and warns, rpart's maxdepth and ranger's max.depth cap the tree.
@@ -285,27 +287,36 @@ gate in benchmarks/R.
 ## Counting: algorithm
 
 Every move's ratio is counted on the side of the finer tree T*, the tree that holds the move's pair as two
-leaves c1 and c2 (c1 the lower child of a constrained split, the left child of a free one): for a birth the
-proposal, for a death the current tree. A death therefore never counts the component its merge creates.
+leaves c1 and c2: for a birth the proposal, for a death the current tree. c1 is the child lower in the ORDER,
+not in code: on an increasing axis the lower-code child, on a decreasing axis the higher-code child (taking the
+lower-code one there gives theta = 0); on a free split either child, fixed as the left. A death proposal
+therefore never counts the component its merge creates, but an accepted two-component death leaves that merged
+component in the state uncounted, and the next move touching it pays its count (step 1).
 
 - Identity. The linear extensions of T0 correspond one to one with those of T* in which c2 immediately follows
   c1: replace the merged leaf by c1 c2, or merge them back. Both directions hold because the merged leaf's
   relations are the union of its children's (Context). Let U be the union of T*'s components holding c1 or c2,
   m = |U| (the merged leaf's component size plus one), and theta the probability that c2 immediately follows c1
-  in a uniform linear extension of U. Then Z_T0 / Z_T* = m theta, and theta <= 1 gives step 2's free bounds with
-  m in place of L0 + 1 and L0.
+  in a uniform linear extension of U. Then Z_T0 / Z_T* = m theta, and theta <= 1 gives step 2's free bounds.
+  A blind check confirmed the identity on 4,219 random guillotine births (1-3 axes, increasing, decreasing and
+  free; 316 with the pair in two components), and theta against permutation enumeration on 2,861 moves.
 - The pair in one component C* of T*: theta = e(C0) / e(C*), with C0 the order of C* with c1 and c2 merged
   (the union of their relations, closed). The layered DP counts both. C0's down-sets map injectively into C*'s,
-  so C0 costs no more than C*, and the current tree's count is kept, so a move counts one of the two.
+  so C0 costs no more than C*, and when the current tree's count is kept, a move counts one of the two.
 - The pair in two components C1 (holding c1, size a) and C2 (holding c2, size b), which a free split can
   produce: with P1(i) the probability that c1 is i-th in a uniform extension of C1, and P2(j) that c2 is j-th in
   C2, theta = sum over i and j of P1(i) P2(j) C(i+j-2, i-1) C(a+b-i-j, a-i) / C(a+b, a), the share of
-  interleavings that put c1 just before c2 (C(n, k) binomials, from a Pascal table). P1(i) sums
+  interleavings that put c1 just before c2 (C(n, k) binomials, held as logs). P1(i) sums
   f(D) g(D + c1) / e(C1) over the down-sets D of size i-1 that c1 can extend, where f(D) counts the orderings of
   D and g(D) the extensions of the rest: both come from the layered DP keeping every layer, as step 6 already
-  does. C0, whose down-sets can approach the product of C1's and C2's, is never counted.
-- T*'s components bound a move's work in both cases, symmetrically in the move pair, since both directions
-  count T*.
+  does. C0, whose down-sets can approach the product of C1's and C2's (it exceeded both in 104 of the 316
+  checked two-component births, by up to 15.5x), is not counted by this move.
+- Scale: e(C) passes the double range (1.8e308) near 1,000 leaves, for example two ~515-leaf chains on a shared
+  minimum, only ~2.7e5 down-sets; C(a + b, a) does so near a + b = 1,030. Each DP layer is held scaled by its
+  largest value with the log scale carried beside it, and binomials as logs. Every term is positive, so nothing
+  cancels.
+- A move's own work is bounded by T*'s components, symmetrically in the move pair, since both directions count
+  T*, plus any uncounted component of the current tree it touches (step 1). No state is guaranteed cheap.
 - Measured with the pairs mode of [monotone-order-size.R](../../benchmarks/R/monotone-order-size.R) and
   [monotone_ratio.cpp](../../benchmarks/kernels/monotone_ratio.cpp): eight of the Decision's fits (1 tree: four,
   5 trees: three, 10 trees: one), all deaths and 10 random births per tree on every fifth kept sweep, 13,383
@@ -315,9 +326,15 @@ proposal, for a death the current tree. A death therefore never counts the compo
   - The death that merges two components into 3.6e8 down-sets (5 trees, 2 constrained + 1 free) takes 34 ms,
     from lattices of 4.6e3 and 1.0e5 down-sets. Counting C0 directly takes 1.9e10 down-set x leaf units: minutes
     at the Decision's 6-36 ns per unit, and about 9 GB at its scaling.
-  - The largest order any move counts is 1.9e6 down-sets (a birth in the 1-tree, 60-leaf fit): 0.8 s with both
-    sides counted, and about half with the current tree's count kept. In the 5-tree, 2-constrained fit it is
-    1.2e6 and 0.5-0.6 s.
+  - On these states the counted orders range up to 1.9e6 down-sets (a birth in the 1-tree, 60-leaf fit): 0.8 s
+    with both sides counted, and about half with the current tree's count kept. In the 5-tree, 2-constrained
+    fit up to 1.2e6 and 0.5-0.6 s.
+  - The same mode on a 1-tree fit with 1 constrained and 3 free axes (p 4, seed 1, beyond the Decision's 1-2
+    free axes): up to 3.19e6 down-sets, 1.3-3.4 s per move with both sides counted, and 209 of 505 moves past
+    2^20 down-sets.
+  - Accepted merges: in the 5-tree, 2-constrained fit, tree 2 proposes deaths whose merged component reaches up
+    to 3.6e8 down-sets on 24 of 40 sampled sweeps. These figures are proposals on the current engine's states;
+    whether the corrected move accepts such deaths, and so what later moves pay, is unmeasured (checkpoint).
 - What does not help, measured on the same orders:
   - Series-parallel decomposition. The merged 3.6e8 component is prime (53 of 53 elements); in the 5-tree,
     2-constrained fit it trims 118 of 662 single components of T* by at most 5 elements.
@@ -337,19 +354,21 @@ proposal, for a death the current tree. A death therefore never counts the compo
   chain of births from the root multiplies ratios into e(T).
 - Count-free alternative, not planned now. The identity makes theta a coin: draw a uniform linear extension of U
   exactly, and call it heads when c2 immediately follows c1.
-  - With R = r1 m theta (r1 the rest of the ratio), Barker's acceptance R / (1 + R) is then exact by the two-coin
-    algorithm (Goncalves, Latuszynski and Roberts, Braz. J. Probab. Stat. 31, 2017): with probability
-    c / (1 + c), c = r1 m, draw the coin and accept on heads, repeating on tails; otherwise reject. It never
-    counts. It takes c / (1 + c theta) <= min(c, 1 / theta) draws on average, and Barker's acceptance is at
+  - Barker's acceptance R / (1 + R) is then exact by the two-coin algorithm (Goncalves, Latuszynski and
+    Roberts, Braz. J. Probab. Stat. 31, 2017), with r1 the rest of the ratio. A birth has R = c theta with
+    c = r1 m: with probability c / (1 + c) draw the coin and accept on heads, repeating on tails; otherwise
+    reject. A death has R = 1 / (c theta) with c = m / r1, so the coin sits on the reject side: with
+    probability c / (1 + c) draw the coin and reject on heads, repeating on tails; otherwise accept. Neither
+    counts. Each takes c / (1 + c theta) <= min(c, 1 / theta) draws on average, and Barker's acceptance is at
     least half of Metropolis-Hastings'.
   - Exact draws come from Huber's bounding-chain coupling from the past (Discrete Math. 306, 2006), expected
     O(n^3 log n) steps. For the 3.6e8 death it takes 4.4 ms per draw of T*'s two components (24 and 30
     elements), and theta is 0.050 there, so at most about 20 draws (90 ms). Its draws matched the exact theta
     over 692 moves (mean z 0.007, mean z^2 0.94).
-  - Used only when a move's T* components pass a size threshold (a symmetric rule, so each move pair keeps one
-    exact kernel), it would bound the time of slow counts with an exact move that mixes somewhat slower, and
-    give step 6 a draw that keeps no layers. It is the upgrade if the feel study shows slow counts in practice
-    (dec-B149).
+  - Used only when a move's T* components (or an uncounted current component it touches) pass a size
+    threshold, a symmetric rule so each move pair keeps one exact kernel, it would bound the time of slow counts
+    with an exact move that mixes somewhat slower, and give step 6 a draw that keeps no layers. It is dec-B149's
+    upgrade if slow counts show in practice; the checkpoint in Steps decides whether it goes in before release.
   - Simpler exact schemes lose acceptance. Accepting a birth with min(1, r1 m) times the coin, and a death with
     min(1, 1 / (r1 m)) and no draw, matches Metropolis-Hastings when r1 m <= 1 but otherwise scales acceptance
     by theta (0.02-0.2 on the large moves). The exchange algorithm (Murray, Ghahramani and MacKay, UAI 2006),
@@ -361,8 +380,8 @@ proposal, for a death the current tree. A death therefore never counts the compo
 
 ## Constraints
 
-- Exact for each stated prior (dec-B14). Counts are held in double: exact to 2^53, with relative error under
-  1e-12 beyond.
+- Exact for each stated prior (dec-B14). Counts are held as scaled doubles with a log scale (Counting:
+  algorithm): exact to 2^53, relative error under 1e-12 beyond, and no overflow.
 - Unconstrained samplers byte-identical: the new seam and the prior flag compile out, like the three existing
   monotone seams. No dbarts.h change.
 - Out of scope: change moves under the constraint, quadrature speed (TODO monotone-leaf-quadrature), and
@@ -381,24 +400,36 @@ proposal, for a death the current tree. A death therefore never counts the compo
    - Ratio (Counting: algorithm): a move changes only the component of the merged leaf in T0 and the
      component(s) holding the two children in T*, and is counted on T*'s side. With the children in one
      component C*, count C* and C0; the current tree's component counts are kept, so a move counts one of the
-     two. With the children in two components, take theta from the position laws of c1 and c2, and never count
-     C0.
+     two. With the children in two components, take theta from the position laws of c1 and c2, and do not count
+     C0. c1 is the child lower in the order (Counting: algorithm).
+   - Lazy counts: an accepted two-component death leaves its merged component uncounted, and the tree marks it
+     so. The next move that needs that component's count (a one-component birth or death inside it) counts it
+     then, at the merged component's full cost, and keeps the result. No claim is made that a state is cheap.
+   - Scale: layers held scaled with a log scale, binomials as logs (Counting: algorithm).
 2. Seam, active under "leaf" only (step 13). Add an optional leaf concept, `logNormalizerRatio`, declared by
    the monotone leaf. [`birthOrDeathMove`](../../src/bartcore/moves.hpp) evaluates it once per move while T*
    is in place, after `tree.birth` or before `orphanChildren`, given the pair, and it returns
    log Z_T0 - log Z_T* counted on T*'s side (Counting: algorithm). The move adds it to the log prior ratio
    (logged in the census's prior column).
-   - Free bounds: a birth never lowers e (a linear extension of T0 with the split leaf replaced by its two
-     children in order is one of T*, and distinct extensions stay distinct), so a birth's Z_T0 / Z_T* =
-     (L0 + 1) e(T0) / e(T*) is at most L0 + 1 and a death's is at least 1 / L0, L0 the current leaf count (0
-     of 1,164 random births lower e; monotone-order-size.R closure mode). Draw u first; with r1 the rest of
-     the ratio, reject a birth without counting when u > r1 (L0 + 1), and accept a death without counting
-     when u < r1 / L0. This is plain Metropolis-Hastings with no loss of acceptance; the savings are
+   - Free bounds: Z_T0 / Z_T* = m theta with theta <= 1 (Counting: algorithm), m the size of the union of T*'s
+     components holding the pair, known without counting. So a birth's ratio is at most m and a death's,
+     Z_T* / Z_T0, at least 1 / m. This is tighter than the whole-tree bounds L0 + 1 and 1 / L0 (a birth never
+     lowers e; 0 of 1,164 random births do, monotone-order-size.R closure mode). Draw u first; with r1 the rest
+     of the ratio, reject a birth without counting when u > r1 m, and accept a death without counting when
+     u < r1 / m. This is plain Metropolis-Hastings with no loss of acceptance; the savings are
      unmeasured. (A two-stage acceptance, min(1, a) min(1, b), is also exact but lowers acceptance.)
    - A slow count never rejects or stops the move; an interrupt or allocation failure during it restores T0
      (step 15).
 3. Drop the d terms: `priorMass` in `oneLeafLogMarginal`, `denom` in `twoLeafCoupledLogMarginal`. Under "joint"
    this alone is the exact move.
+
+   Checkpoint (stop and report). As soon as the corrected move runs in the engine (steps 1-3 and 13), before
+   the feel study and before step 12, rerun [monotone-order-size.R](../../benchmarks/R/monotone-order-size.R)'s
+   fits on the corrected engine under "leaf": 1, 5, 10 and 20 trees, 1-3 free axes, the p 4 case (1
+   constrained, 3 free) included. Record per fit the largest per-move count time, the share of sweeps with a
+   count over 1 s, and how often accepted deaths leave a merged component past 2^20 down-sets (extend the
+   probe's fit mode to print these). This is the evidence for whether the hybrid Barker move (dec-B149's
+   upgrade) goes in before release; the implementer stops at this point and reports.
 4. Exact pair redraw in `redrawAfterBirth`:
    - Keep the capped rejection for the upper leaf; it is exact whenever it accepts.
    - When the cap is reached or acceptMax underflows, draw the upper leaf by inverting the CDF of its marginal,
@@ -437,8 +468,16 @@ proposal, for a death the current tree. A death therefore never counts the compo
    - The count against brute-force permutation counts on hand-built trees (1-3 axes, mixed directions, N, a
      star, a chain over 64 leaves) and 200 random trees.
    - The ratio on T*'s side against e(C0) / e(U) from direct counts, over every birth and death of those random
-     trees, with the pair in one component and in two (a free split of the middle of a three-chain gives
-     theta = 1/6), and the position law against brute force.
+     trees, with the pair in one component and in two, and the position law against brute force. Hand cases,
+     x1 constrained and x2 free: x1 cut twice into a < b < c, then b cut on x2 puts the pair in one component
+     (theta 1/2, ratio 2); x1 cut once, then both halves cut on x2 at the same code, puts a sibling pair in two
+     components (theta 1/3, ratio 4/3). Both again with x1 decreasing, giving the same thetas; and a single x1
+     cut with x1 decreasing, a constrained pair whose c1 is the higher-code child: theta 1 (ratio 2), where
+     the lower-code child would give 0.
+   - Lazy counts: an accepted two-component death marks the merged component uncounted, and the next move
+     inside it counts it and matches a direct count.
+   - Scale: two 515-leaf chains on a shared minimum give log e and a two-component theta equal to their closed
+     forms, with no overflow.
    - Log Z against the enumeration's e / L!.
    - RNG-free ratio tests on A < B -> A < B1 < B2 (constrained split) and A < B -> {A < B1, B2} (free split)
      with pinned mu_A. Compare the move's log alpha with the closed form of the corrected statement in Context
@@ -493,7 +532,8 @@ proposal, for a death the current tree. A death therefore never counts the compo
     - monotone.md sections 4, 9 and 11 and the Plan-vs-code note state both priors, B' with the whole-tree
       normalizer under "leaf", and what mBART's paper and software sample (Context).
     - The help states both priors and names the chosen default with the feel study's reason; under "leaf" it
-      states the few-tree cost and the slow-count warning with its remedies.
+      states the few-tree cost and the slow-count warning with its remedies, and that a count's memory grows
+      with it (1.09 GB measured for 1.68e7 down-sets with every layer kept).
     - [Monotone arm: design](sbc-family-tiers.md#monotone-arm-design) gets one arm per prior.
     - dec-B16 is marked superseded in part by dec-B144.
     - Status lines and INDEX at landing, and the TODO item removed.
@@ -527,8 +567,8 @@ proposal, for a death the current tree. A death therefore never counts the compo
     - Warning: the bridge attaches the tally to run's result as it attaches the GP fallback census, and R warns
       once after the run, in warnOnGPFallback's pattern (class c("dbartsSlowCountWarning", "dbartsWarning")):
       some counts took more than about a second, because under prior = "leaf" a large tree's leaf order is
-      costly to count, and the remedies are more trees or prior = "joint". bart() and the sampler's run both
-      warn.
+      costly to count in time and memory, and the remedies are more trees or prior = "joint". bart() and the
+      sampler's run both warn.
     - Interrupt: the DP polls the chain's cancel function, the one Chain::run checks between sweeps, every
       2^16 down-sets. On inline chains it calls the host's throttled pollInterrupt on the main thread; on
       worker chains it reads the atomic cancel flag the main thread sets, so no worker calls into R, and SIGINT
@@ -542,8 +582,9 @@ proposal, for a death the current tree. A death therefore never counts the compo
 
 ## Verification
 
-- `cd tests/cpp && make && ./test_bartcore`: the count, ratio, redraw, extension-draw, slow-count, interrupt,
-  allocation and "joint" checks pass.
+- `cd tests/cpp && make && ./test_bartcore`: the count, ratio, lazy-count, scale, redraw, extension-draw,
+  slow-count, interrupt, allocation and "joint" checks pass.
+- The checkpoint after step 3 is reported before the remaining steps land.
 - `R CMD INSTALL --preclean -l <lib> .`, then `R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'`.
 - `R_LIBS=<lib> Rscript benchmarks/R/monotone-exact-enumeration.R quick`, under each prior: every group passes.
   This takes about 6 min; full mode runs 900k draws. The mutation run restores the d divisions and drops the Z
