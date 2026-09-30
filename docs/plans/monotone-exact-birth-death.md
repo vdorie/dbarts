@@ -480,6 +480,48 @@ Checkpoint (stop and report), after commit 4, before the feel study and before s
   or a memory risk on a laptop); or any fit hits a cap. Otherwise the checkpoint's numbers go to the
   maintainer as a report, and the plan continues. Either way the implementer stops here and reports.
 
+### Stage 3b: leaf geometry
+
+A point is one value per predictor: a code on a threshold axis (numeric or ordered factor), a level on a
+subset axis (unordered factor, pooled or not), or missing on either. Every rule tests one predictor, so the
+points prediction routes to a leaf form a product over predictors, and one helper
+(`MonotoneLeafGeometry`) records it per leaf and split variable:
+
+- threshold axis: the code interval [lo, hi], and whether a missing value reaches the leaf (every ancestor
+  rule on the axis sends missing values to the leaf's side);
+- subset axis: the reachable level set with the missing position, each ancestor mask filtering it, as
+  `Tree::reachableCategories` and its pooled analogue do, except that the missing position is always in it.
+
+Calls:
+
+- Two leaves share an axis when some value reaches both: the intervals overlap or both reach missing values,
+  or the level sets intersect. j is below k along a constrained axis when j's interval ends one code below
+  k's start (direction -1 flips it) and they share every other axis. Only a threshold axis can be
+  constrained: R refuses a direction on an unordered factor, and the engine ignores one on a subset axis.
+- A missing value in the constrained predictor x1 has no position along x1, so x1's own missing flag takes
+  no part in adjacency along x1. The order claims that the fit is monotone in x1 along every line of points
+  with x1 observed, the other predictors at any values, missing included, and claims nothing at x1 missing.
+  A missing value in another constrained predictor is shared like any value.
+- Missing is a value on every axis, whether or not training had one, since a test row can. On a threshold
+  axis whose rules all send missing values left, the leaves it reaches are those with lo = 0, which overlap
+  anyway, so nothing changes there. On a subset axis it is one more level.
+
+Why the order argument stands:
+
+- The box test is the point test: regions are products, so two leaves are related along x1 exactly when a
+  point of one and a point of the other differ only in x1, by one code. Transitivity then orders every two
+  points on a line with x1 observed.
+- Acyclic: a rule sends each value, missing included, to one side, so the two sides of a split share no value
+  on its axis and relate only along it, one way. Context's cut argument applies unchanged, and a pair relates
+  along one axis only.
+- A merged leaf's region is the union of its children's, so its point pairs, and relations, are theirs.
+
+What a user sees: the constraint holds as documented, on every factor level and wherever another predictor
+is missing. Draws change for monotone fits whose trees split on an unordered factor, or route a missing value
+right on a predictor other than the only constrained one (missing values in a free predictor, or in one of
+two or more constrained ones); every other fit draws as before. The help's wording for a missing
+constrained value waits for step 12.
+
 ## Steps
 
 1. Order counter (engine, beside the monotone geometry), used by the "leaf" prior's move and by both priors'
