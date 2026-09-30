@@ -489,6 +489,12 @@ declaring a zero scale keeps the node scale its host asked for. Both
 expressions are written exactly as bcf's were, which is what keeps the K = 2
 instance bitwise.
 
+s is computed once, at a sampler's first creation. R records it on the
+forests' control attribute, and every re-creation passes it back as
+[`AmplitudeSpec`](../../src/bartcore/combiner.hpp)'s `anchor`, so a copy, a
+save and load, or a re-creation after a response swap at `updateScale = FALSE`
+builds on the live s rather than on the swapped response's.
+
 **Two further facts about the shipped prior, both load-bearing.** Adaptivity
 is capped at one forest, for any K: `resolveForests`
 ([`resolveForests`](../../R/model.R), refusal also in
@@ -568,8 +574,9 @@ five quantities:
 scale-mixture spellings of `ForestAmplitudePrior` - beside `leaf.scale.factor`,
 `leaf.scale.divisor` and `basis.row.norm`, absent on any forest with no map entry;
 `bartcore_getLeafPrior` carries the five columns and
-`dbarts_forest_calibration` the five appended fields. The anchor s has no
-column and is recovered as `prior.sd * divisor * rowNorm / factor` whenever
+`dbarts_forest_calibration` the five appended fields. The anchor s rides one
+more `bartcore_getLeafPrior` column, `map.anchor`, which the R reader does not
+report; it is recovered as `prior.sd * divisor * rowNorm / factor` whenever
 `leaf.scale.factor` is not NaN, which is exactly when the calibration in force
 is the map's: a `setState` or `installTrees` that brings a foreign leaf scale
 clears both `leaf.scale` columns (the amplitude prior follows the state, the
@@ -623,11 +630,12 @@ reported forest, in exactly the bytes a one-forest declaration receives.
   and changes `DBARTS_C_API_HASH` either way.
 - A variance forest. `createAmplitudeSampler` refuses `numVarianceTrees > 0`
   ([`createAmplitudeSampler`](../../src/bartcore/facade.hpp)).
-- Nameable leaf-prior calibration. The map owns it, so the write is refused on
-  ANY combining sampler: `Chain::setForestPriorScale` returns `false` on
-  `f >= forests_.size() || combiner_ != nullptr`
-  ([`setForestPriorScale`](../../src/bartcore/chain.hpp)), which the
-  flat entry surfaces to a caller as a 0 return.
+- A leaf-prior calibration named in response units. The map owns the leaf
+  scales, so the single-forest writer refuses ANY combining sampler
+  ([`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp)). What a live
+  sampler restates is what its creation took: a forest's `sd`, in the channel
+  creation gave it ([`Chain::setForestMapSd`](../../src/bartcore/chain.hpp)),
+  reached from `$setLeafPrior(forests = )`. There is no flat C entry for it.
 
 The classes the family ENABLES, and their evidence status, are
 [D4. The general per-forest multiplier (basis/amplitude) channel - CLOSED (2026-08-13 to 2026-08-14)](model-space-survey.md#d4-the-general-per-forest-multiplier-basisamplitude-channel---closed-2026-08-13-to-2026-08-14):

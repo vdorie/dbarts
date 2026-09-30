@@ -309,7 +309,7 @@ expect_error(
   ),
   fixed = TRUE
 )
-# the five refusals it gates stay red on a multi-forest sampler
+# the four refusals it gates stay red on a multi-forest sampler
 expect_error(threeForests$setResponse(y, updateScale = TRUE), "does not supp")
 expect_error(
   threeForests$setOffset(rep(0, n), updateScale = TRUE),
@@ -317,10 +317,10 @@ expect_error(
 )
 expect_error(threeForests$setData(dbartsData(x, y)), "does not support")
 expect_error(threeForests$setModel(threeForests$model), "does not support")
-expect_error(
-  threeForests$setLeafPrior(normal(k = 2)),
-  "does not support"
-)
+# and $setLeafPrior takes the no-op creation also accepts
+threeLeafPrior <- threeForests$getLeafPrior()
+threeForests$setLeafPrior(normal(k = 2))
+expect_identical(threeForests$getLeafPrior(), threeLeafPrior)
 # and the multinomial route is NOT misidentified by it
 mnLabels <- sample(0:2, n, replace = TRUE)
 mn <- dbarts(

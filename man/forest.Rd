@@ -91,7 +91,17 @@ forest(
     statements, \eqn{\sqrt{2/2} = 1}{sqrt(2/2) = 1}. A value declared here
     overrides its default and keeps its per-forest reading at every \eqn{K}{K},
     so \code{sd = 1} on each basis forest recovers the pre-\eqn{K}{K}-aware
-    model exactly.
+    model exactly. It must be positive and finite.
+
+    It is the one argument a live sampler restates:
+    \code{$setLeafPrior(forests = list(forest(sd = ), ...))} writes it in the
+    channel creation gave the forest, and \code{$getLeafPrior(f)$leaf.prior}
+    reads it back as \code{forest(sd = )} (see \code{\link{dbartsSampler}}).
+    The channel is fixed at creation: a forest created without a basis keeps
+    its half-Cauchy median after \code{$setForestBasis} gives it one, so its
+    \code{forest(sd = )} round-trips through \code{$setLeafPrior}, while a
+    fresh \code{dbarts()} given the same bases would read the same \code{sd}
+    as a leaf-scale factor and build a different prior.
   }
   \item{interactions, blocks}{
     Optional \code{\link{interactions}} and \code{\link{blocks}} constraints on

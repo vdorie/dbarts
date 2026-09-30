@@ -325,7 +325,8 @@
       \item Using dbarts inside a larger sampler. New sampler methods include
             \code{$setActiveRows} (drop rows from the likelihood between
             draws), \code{$getFitsWithoutOffset}, \code{$getLeafPrior},
-            \code{$setLeafPrior}, \code{$getK}, \code{$getVariance}, and per-forest
+            \code{$setLeafPrior} (multinomial and multi-forest samplers
+            included), \code{$getK}, \code{$getVariance}, and per-forest
             readers and setters; an \code{"aft"} sampler's censoring can be
             changed through \code{$setResponse(y, status = )}.
             \code{\link{dbartsDrawLatents}} and \code{dbartsWorkingResponse}

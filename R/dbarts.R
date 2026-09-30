@@ -1759,8 +1759,11 @@ priorSdOf <- function(leafModel) {
 ## share. A fixed value is read off the engine, so it is what is in force; a
 ## law comes from the model, gated by the engine's per-forest flag, since a
 ## map forest pins k whatever the model says. The map entries are present only
-## on a forest whose scale the map sets. A quantity the chains disagree on,
-## which only a setState of chains saved from different samplers makes, is NA.
+## on a forest whose scale the map sets, and there the specification is the
+## forest(sd = ) creation takes: the half-Cauchy median on a scale-mixture
+## forest, the leaf-scale factor otherwise, NA while a state install leaves the
+## factor foreign. A quantity the chains disagree on, which only a setState of
+## chains saved from different samplers makes, is NA.
 reportLeafPrior <- function(sampler, raw) {
   shared <- function(column) {
     values <- unique(raw[, column])
@@ -1800,11 +1803,15 @@ reportLeafPrior <- function(sampler, raw) {
   if (!mapped) {
     return(prior)
   }
-  amplitude <- if (is.nan(raw[1L, "amplitude.prior.variance"])) {
+  mixture <- is.nan(raw[1L, "amplitude.prior.variance"])
+  amplitude <- if (mixture) {
     "amplitude.prior.scale"
   } else {
     "amplitude.prior.variance"
   }
+  sd <- shared(if (mixture) "amplitude.prior.scale" else "leaf.scale.factor")
+  prior$leaf.prior <- forest(sd = if (is.nan(sd)) NA_real_ else sd)
+  prior$prior.sd.of <- if (mixture) "amplitude scale" else "forest total"
   for (column in c(amplitude, "leaf.scale.factor", "leaf.scale.divisor")) {
     prior[[column]] <- shared(column)
   }
@@ -1957,6 +1964,127 @@ restateLeafPrior <- function(sampler, spec, expr) {
   model
 }
 
+## The spreads a $setLeafPrior(forests = ) call restates on a sampler whose
+## forests carry amplitudes: forest(sd = ) in creation's positions, validated
+## whole before anything is written. A NULL sd leaves its forest; every other
+## knob is fixed at creation. Returns the per-forest sd, NA where none is
+## stated.
+resolveForestSpreads <- function(sampler, forests) {
+  forestInfo <- attr(sampler$control, "bartcore.forests", exact = TRUE)
+  numForests <- length(forestInfo$params)
+  if (
+    !is.list(forests) ||
+      !all(vapply(forests, inherits, logical(1L), "dbartsForest"))
+  ) {
+    stop(
+      "$setLeafPrior's 'forests' must be a list of forest() specifications, ",
+      "as at creation"
+    )
+  }
+  if (length(forests) == 0L || length(forests) > numForests) {
+    stop(
+      "$setLeafPrior's 'forests' names ",
+      length(forests),
+      " forests; this sampler has ",
+      numForests
+    )
+  }
+  given <- names(forests)
+  if (!is.null(given)) {
+    labels <- forestInfo$labels
+    if (is.null(labels)) {
+      labels <- rep("", numForests)
+    }
+    labels <- labels[seq_along(given)]
+    mismatched <- which(nzchar(given) & given != labels)
+    if (length(mismatched) > 0L) {
+      index <- mismatched[[1L]]
+      stop(
+        "$setLeafPrior's 'forests' names forest ",
+        index,
+        " '",
+        given[[index]],
+        "', but it was created ",
+        if (nzchar(labels[[index]])) {
+          paste0("as '", labels[[index]], "'")
+        } else {
+          "unnamed"
+        }
+      )
+    }
+  }
+  vapply(
+    seq_along(forests),
+    function(index) {
+      spec <- forests[[index]]
+      for (knob in setdiff(names(spec), "sd")) {
+        if (!is.null(spec[[knob]])) {
+          stop(
+            "$setLeafPrior restates only a forest's 'sd': '",
+            knob,
+            "' is fixed at creation",
+            if (knob == "basis") "; change it with $setForestBasis"
+          )
+        }
+      }
+      if (is.null(spec$sd)) {
+        return(NA_real_)
+      }
+      if (isSingleNA(spec$sd)) {
+        stop(
+          "forest ",
+          index,
+          "'s 'sd' is NA, a missing value: $getLeafPrior() reports NA where ",
+          "the chains disagree on it or a state install left it undefined; ",
+          "name a value"
+        )
+      }
+      validateForestSd(spec$sd)
+    },
+    numeric(1L)
+  )
+}
+
+## Writes resolved per-forest spreads, then mirrors each into the control
+## attribute creation reads, in the channel the forest was created in: the
+## half-Cauchy median when it carries one, the leaf-scale factor otherwise.
+## Every re-creation then builds with the write.
+writeForestSpreads <- function(sampler, ptr, sds) {
+  forestInfo <- attr(sampler$control, "bartcore.forests", exact = TRUE)
+  for (index in which(!is.na(sds))) {
+    .Call(C_dbarts_bartcore_setForestSd, ptr, index - 1L, sds[[index]])
+    params <- forestInfo$params[[index]]
+    params[[if (params[[7L]] > 0) 7L else 4L]] <- sds[[index]]
+    forestInfo$params[[index]] <- params
+  }
+  newControl <- sampler$control
+  attr(newControl, "bartcore.forests") <- forestInfo
+  sampler$control <- newControl
+  invisible(NULL)
+}
+
+## What a multinomial sampler's creation refuses, refused again on a write:
+## its $setLeafPrior takes normal(k = ) with a fixed k, and nothing else.
+refuseMultinomialLeafPrior <- function(spec) {
+  reason <- if (!is.null(spec@prior.sd)) {
+    paste0(
+      "the softmax calibration map sets every category forest's leaf scale, ",
+      "so a named 'sd' has nowhere to land"
+    )
+  } else if (is(spec@k, "dbartsLeafHyperprior")) {
+    "a 'k' hyperprior is not supported on a multinomial sampler, at creation or after"
+  }
+  if (!is.null(reason)) {
+    stop(multinomialLeafPriorMessage, reason, call. = FALSE)
+  }
+  invisible(NULL)
+}
+
+multinomialLeafPriorMessage <- paste0(
+  "$setLeafPrior on a multinomial sampler takes normal(k = ) with a fixed k, ",
+  "as its creation does: "
+)
+
 dbartsSampler <- setRefClass(
   "dbartsSampler",
   fields = list(
@@ -2004,6 +2132,19 @@ dbartsSampler <- setRefClass(
         .self$data,
         if (model@family == "auto") "" else model@family
       )
+      # the calibration map's anchor s, recorded at first creation so every
+      # re-creation builds on it rather than on the response then in force; a
+      # copy arrives with it already recorded
+      forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
+      if (!is.null(forestInfo) && is.null(forestInfo$anchor)) {
+        forestInfo$anchor <- .Call(
+          C_dbarts_bartcore_getLeafPrior,
+          .self$pointer,
+          0L
+        )[[1L, "map.anchor"]]
+        attr(control, "bartcore.forests") <- forestInfo
+        .self$control <- control
+      }
       # after the call, so a refused creation never spends the warning's key;
       # re-creation from state (getPointer, setState) does not come through
       # here, and copy holds it off
@@ -2982,7 +3123,7 @@ dbartsSampler <- setRefClass(
       counts
     },
     getLeafPrior = function(forest = NULL) {
-      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() law) or sd (a number or an invchi() law), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('leaf value', 'coefficient' or 'amplitude'); prior.mean; anchor, the value k is relative to, so the spread in force on each chain is anchor / getK() - the data's anchor under a k-named prior and under sd = invchi(df, 0), and otherwise, under an sd-named prior, twice the sd or invchi() scale in force; response.scale and response.shift. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1, leaf.prior is normal(sd = ) at the map's leaf scale, and the list adds basis.row.norm, leaf.scale.factor and leaf.scale.divisor (NA after a state install brings a calibration the map did not derive, until setForestBasis re-imposes it), and one of amplitude.prior.variance or amplitude.prior.scale; they are absent elsewhere. Every value is shared by the chains; one they disagree on, which only a setState of chains saved from different samplers makes, is NA, and an NA spread is refused on write. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns an unnamed list of one prior per forest; a single-forest sampler's NULL read is bitwise its forest 1 read."
+      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() law) or sd (a number or an invchi() law), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('leaf value', 'coefficient' or 'amplitude'); prior.mean; anchor, the value k is relative to, so the spread in force on each chain is anchor / getK() - the data's anchor under a k-named prior and under sd = invchi(df, 0), and otherwise, under an sd-named prior, twice the sd or invchi() scale in force; response.scale and response.shift. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1, leaf.prior is the forest(sd = ) creation takes, which goes back into setLeafPrior(forests = ) - the half-Cauchy median on a forest created without a basis (prior.sd.of 'amplitude scale'), the leaf-scale factor otherwise ('forest total', NA while a state install leaves it foreign) - and the list adds basis.row.norm, leaf.scale.factor and leaf.scale.divisor (NA after a state install brings a calibration the map did not derive, until setForestBasis re-imposes it), and one of amplitude.prior.variance or amplitude.prior.scale; they are absent elsewhere. Every value is shared by the chains; one they disagree on, which only a setState of chains saved from different samplers makes, is NA, and an NA spread is refused on write. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns an unnamed list of one prior per forest; a single-forest sampler's NULL read is bitwise its forest 1 read."
       ptr <- getPointer()
       read <- function(index) {
         reportLeafPrior(
@@ -3014,21 +3155,56 @@ dbartsSampler <- setRefClass(
       }
       do.call(rbind, lapply(seq_len(numForests) - 1L, read))
     },
-    setLeafPrior = function(leaf.prior, updateState = NULL) {
-      "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() law on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform or sigma. Under a drawn k the engine keeps its current k across the write, so a change of anchor - between the k and sd forms, or of an invchi() scale - scales the next sweep's spread by new anchor / old anchor, and getK and the spread in force jump with it until the law pulls k back. The write takes effect on the next sweep, reinterpreting no leaf value already drawn; a write equal to what is in force is bitwise inert. The write is recorded on the model field, so a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
+    setLeafPrior = function(leaf.prior, forests = NULL, updateState = NULL) {
+      "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() law on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform or sigma. Under a drawn k the engine keeps its current k across the write, so a change of anchor - between the k and sd forms, or of an invchi() scale - scales the next sweep's spread by new anchor / old anchor, and getK and the spread in force jump with it until the law pulls k back. A multinomial sampler takes normal(k = ) with a fixed k, Inf included, applied to every category forest. A sampler whose forests carry amplitudes takes forests = list(forest(sd = ), ...) instead of leaf.prior, as its creation does: the same positions and names, a short list reaching the first forests, and a forest whose sd is not stated left as it is; normal() and normal(k = 2), which its creation also accepts, change nothing. Give exactly one of leaf.prior and forests. The write takes effect on the next sweep, reinterpreting no value already drawn; a write equal to what is in force is bitwise inert. The write is recorded on the model field, or for forests on the control, so a re-creation or a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
+      # a forest = index would otherwise match forests = partially
+      if ("forest" %in% names(sys.call())) {
+        stop(
+          "$setLeafPrior takes no 'forest' index; a sampler whose forests ",
+          "carry amplitudes restates them as forests = list(forest(sd = ), ...)"
+        )
+      }
       updateState <- checkUpdateState(updateState)
-      refuseCountsMutation(
-        .self,
-        "$setLeafPrior",
-        "the softmax calibration map owns every category forest's leaf scale, ",
-        "and the engine takes no mid-run change to it; a fixed k is stated at ",
-        "creation, normal(k = ), and a named sd or a k hyperprior is not ",
-        "supported there at all"
-      )
+      multinomial <- samplerCarriesCounts(.self)
+      amplitudes <- samplerCarriesAmplitudes(.self)
+      if (!missing(forests)) {
+        forests <- evalInForestVocabulary(
+          substitute(forests),
+          dbartsForests[FOREST_ARGUMENT_VOCABULARIES$forests],
+          parent.frame()
+        )
+      }
+      if (!is.null(forests)) {
+        if (multinomial) {
+          stop(
+            multinomialLeafPriorMessage,
+            "its forests are its categories; normal(k = ) states every one",
+            call. = FALSE
+          )
+        }
+        if (!amplitudes) {
+          stop(
+            "$setLeafPrior's 'forests' restates a forest's 'sd', which only a ",
+            "sampler whose forests carry amplitudes has; state this sampler's ",
+            "leaf prior as leaf.prior"
+          )
+        }
+        if (!missing(leaf.prior)) {
+          stop("give $setLeafPrior either 'leaf.prior' or 'forests', not both")
+        }
+        sds <- resolveForestSpreads(.self, forests)
+        ptr <- getPointer()
+        writeForestSpreads(.self, ptr, sds)
+        if (resolveUpdateState(updateState, control)) {
+          storeState(ptr)
+        }
+        return(invisible(NULL))
+      }
       if (missing(leaf.prior)) {
         stop(
           "'leaf.prior' must be given: a leaf prior specification such as ",
-          "normal(sd = 1)"
+          "normal(sd = 1)",
+          if (amplitudes) ", or forests = list(forest(sd = ), ...)"
         )
       }
       expr <- substitute(leaf.prior)
@@ -3044,17 +3220,38 @@ dbartsSampler <- setRefClass(
       )
       # after the argument checks above, so a malformed call is answered on its
       # own terms rather than by the refusal that would follow a well-formed one
-      refuseAmplitudeMutation(
-        .self,
-        "setLeafPrior",
-        "every forest's leaf scale comes from the multi-forest calibration ",
-        "map, whose spreads are stated per forest at creation through ",
-        "forest(sd = ), and the engine takes no mid-run change to them; make a ",
-        "new sampler instead"
-      )
+      if (amplitudes) {
+        inert <- is(spec, "dbartsNormalPrior") &&
+          is.null(spec@prior.sd) &&
+          (is.null(spec@k) || identical(spec@k, 2) || identical(spec@k, 2L))
+        if (!inert) {
+          stop(
+            "$setLeafPrior on a sampler whose forests carry amplitudes takes ",
+            "forests = : the multi-forest calibration map sets every ",
+            "forest's leaf scale; state a forest's spread as at creation, ",
+            "forests = list(forest(sd = ), ...)",
+            call. = FALSE
+          )
+        }
+        if (resolveUpdateState(updateState, control)) {
+          storeState()
+        }
+        return(invisible(NULL))
+      }
+      if (multinomial) {
+        refuseMultinomialLeafPrior(spec)
+      }
       newModel <- restateLeafPrior(.self, spec, expr)
       ptr <- getPointer()
-      writeLeafPrior(.self, ptr, newModel)
+      if (multinomial) {
+        .Call(
+          C_dbarts_bartcore_setForestK,
+          ptr,
+          as.double(newModel@leaf.hyperprior@k)
+        )
+      } else {
+        writeLeafPrior(.self, ptr, newModel)
+      }
       selfEnv <- parent.env(environment())
       selfEnv$model <- newModel
       if (resolveUpdateState(updateState, control)) {

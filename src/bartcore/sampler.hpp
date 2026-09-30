@@ -1755,6 +1755,24 @@ public:
       written = chain->setForestPriorScale(forestIndex, priorScale) && written;
     return written;
   }
+  /// Restates forest forestIndex's fixed k on EVERY chain; false, writing
+  /// nothing, on a refusal, which every chain makes on the same predicate.
+  /// Chain::setForestFixedK states the semantics.
+  bool setForestFixedK(size_t forestIndex, double k) {
+    bool written = true;
+    for (auto& chain : chains_)
+      written = chain->setForestFixedK(forestIndex, k) && written;
+    return written;
+  }
+  /// Restates map forest forestIndex's spread on EVERY chain; false, writing
+  /// nothing, on a refusal, which every chain makes on the same predicate.
+  /// Chain::setForestMapSd states the semantics.
+  bool setForestMapSd(size_t forestIndex, double sd) {
+    bool written = true;
+    for (auto& chain : chains_)
+      written = chain->setForestMapSd(forestIndex, sd) && written;
+    return written;
+  }
   /// Whether the response family implements the active-row channel; chain 0
   /// answers for all, as every chain carries the same family.
   bool supportsActiveRows() const { return chains_[0]->supportsActiveRows(); }

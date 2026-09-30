@@ -27,6 +27,8 @@ SEXP bartcore_getFitsWithoutOffset(SEXP ptr);
 SEXP bartcore_getVariance(SEXP ptr, SEXP test);
 SEXP bartcore_getLeafPrior(SEXP ptr, SEXP forest);
 SEXP bartcore_setLeafPrior(SEXP ptr, SEXP forest, SEXP priorScale);
+SEXP bartcore_setForestK(SEXP ptr, SEXP k);
+SEXP bartcore_setForestSd(SEXP ptr, SEXP forest, SEXP sd);
 SEXP bartcore_getForestVariableCounts(SEXP ptr, SEXP forest);
 SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
                   SEXP callbackFn, SEXP callbackContext, SEXP keepFits);

@@ -243,10 +243,12 @@ expect_error(sampler$setWeights(rep(1.0, n)), "row-wise replication")
 expect_error(sampler$setSigma(1.0), "no residual scale")
 expect_error(sampler$setData(sampler$data), "fix their data at creation")
 expect_error(sampler$setModel(sampler$model), "calibrated at creation")
-expect_error(
-  sampler$setLeafPrior(normal(k = 3)),
-  "softmax calibration map"
-)
+# a fixed k is the one spread it restates, on every category forest; the
+# write back to the default leaves the draws below as they were
+sampler$setLeafPrior(normal(k = 3))
+expect_true(all(sampler$getK() == 3))
+sampler$setLeafPrior(normal())
+expect_error(sampler$setLeafPrior(normal(sd = 1)), "softmax calibration map")
 expect_error(sampler$setForestWeights(1L, rep(1.0, n)), "log-sum-exp")
 expect_error(sampler$setForestBasis(1L, rep(1.0, n)), "carry no amplitudes")
 expect_error(sampler$getFitsWithoutOffset(), "softmax probabilities")

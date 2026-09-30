@@ -338,6 +338,9 @@ struct ForestCalibration {
   /// The median nonzero row norm of the basis IN FORCE, which setForestBasis
   /// re-derives; unobservable by any other route.
   double basisRowNorm = std::numeric_limits<double>::quiet_NaN();
+  /// The anchor s itself, the same double on every forest of a chain; a host
+  /// records it so a re-creation rebuilds on it (AmplitudeSpec::anchor).
+  double mapAnchor = std::numeric_limits<double>::quiet_NaN();
 };
 
 /// Posterior draws on the original response scale; caller-owned storage.
@@ -963,7 +966,11 @@ public:
     // s is the family's own latent scale (latentScaleAnchor), which under
     // gaussian is the empirical one above and under a latent family is the
     // link's fixed one.
-    double s = latentScaleAnchor(spec.family);
+    //
+    // A finite spec.anchor replaces it: that is the s a first creation
+    // computed, carried so a re-creation over a swapped response keeps it.
+    double s = std::isfinite(spec.anchor) ? spec.anchor
+                                          : latentScaleAnchor(spec.family);
     nodeScaleAnchor_ = s;
     std::vector<ForestSpec> forestSpecs = expandForestSpecs(spec);
     nodeScaleFactors_.resize(forestSpecs.size());
@@ -1201,17 +1208,23 @@ public:
       return false;
     if (f < nodeScaleFactors_.size()) {
       // the retained norm comes from THIS call, for the constructor's reason
-      double c = basisRowNorm(values, numColumns, data_.numObservations);
-      basisRowNorms_[f] = c;
-      forests_[f].leaf.scale =
-        nodeScaleFactors_[f] * nodeScaleAnchor_ /
-        (nodeScaleDivisors_[f] * c) /
-        std::sqrt(static_cast<double>(forests_[f].numTrees));
+      basisRowNorms_[f] =
+        basisRowNorm(values, numColumns, data_.numObservations);
+      forests_[f].leaf.scale = mapLeafScale(f);
       // and this RE-IMPOSES the map, so a forest a state install made foreign
       // reports its decomposition again
       nodeScaleIsMapDerived_[f] = 1;
     }
     return true;
+  }
+  /// Forest f's leaf scale as the map derives it from the retained factor,
+  /// anchor, divisor and row norm: the constructor's expression, in its
+  /// association and operand order, so a re-derivation from unchanged inputs
+  /// is bitwise the constructed scale.
+  double mapLeafScale(std::size_t f) const {
+    return nodeScaleFactors_[f] * nodeScaleAnchor_ /
+           (nodeScaleDivisors_[f] * basisRowNorms_[f]) /
+           std::sqrt(static_cast<double>(forests_[f].numTrees));
   }
   /// Whether this chain's forest coupling permits the response-side conduit -
   /// setResponse and setOffset at updateScale = false, and setWeights, which
@@ -1371,6 +1384,7 @@ public:
         calibration.nodeScaleFactor = nodeScaleFactors_[f];
         calibration.nodeScaleDivisor = nodeScaleDivisors_[f];
       }
+      calibration.mapAnchor = nodeScaleAnchor_;
     }
     return calibration;
   }
@@ -1395,6 +1409,42 @@ public:
     double leafScale = resolvedNodeScale(0.0, priorScale) /
                        std::sqrt(static_cast<double>(forest.numTrees));
     if (leafScale != forest.leaf.scale) forest.leaf.scale = leafScale;
+    return true;
+  }
+
+  /// Restates forest f's fixed k, leaving its leaf scale, so the spread in
+  /// force becomes leaf scale / k from the next sweep; k may be infinite. False,
+  /// writing nothing, when f names no forest, the forest draws its k, or a
+  /// calibration map pins it (every map forest's k is 1). Nothing caches k, so
+  /// the write is the whole of it; an equal k is skipped.
+  bool setForestFixedK(std::size_t f, double k) {
+    if (f >= forests_.size() || forests_[f].updateK ||
+        f < nodeScaleFactors_.size())
+      return false;
+    if (k != forests_[f].k) forests_[f].k = k;
+    return true;
+  }
+
+  /// Restates map forest f's spread in the channel its amplitude prior names,
+  /// as at creation: a scale-mixture forest takes sd as its half-Cauchy
+  /// median, leaving its leaf scale and the live auxiliary; a fixed-variance
+  /// forest takes it as the map's leaf-scale factor and re-derives its leaf
+  /// scale from the retained anchor, divisor and row norm, which re-imposes
+  /// the map. False, writing nothing, off a map forest. A write of the value in
+  /// force is skipped - on a fixed-variance forest only while the map is still
+  /// the decomposition in force.
+  bool setForestMapSd(std::size_t f, double sd) {
+    if (f >= nodeScaleFactors_.size()) return false;
+    if (!std::isnan(amplitudePriorScales_[f])) {
+      if (sd == amplitudePriorScales_[f]) return true;
+      if (!combiner_->setAmplitudePriorScale(f, sd)) return false;
+      amplitudePriorScales_[f] = sd;
+      return true;
+    }
+    if (sd == nodeScaleFactors_[f] && nodeScaleIsMapDerived_[f]) return true;
+    nodeScaleFactors_[f] = sd;
+    forests_[f].leaf.scale = mapLeafScale(f);
+    nodeScaleIsMapDerived_[f] = 1;
     return true;
   }
 

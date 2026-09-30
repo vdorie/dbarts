@@ -398,6 +398,16 @@ public:
   /// Chain::setForestPriorScale states the semantics.
   virtual bool setForestPriorScale(std::size_t forestIndex,
                                    double priorScale) = 0;
+  /// Restates forest forestIndex's fixed k on every chain, leaving its leaf
+  /// scale; false, writing nothing, when the index names no forest, the forest
+  /// draws its k, or a calibration map pins it. Chain::setForestFixedK states
+  /// the semantics.
+  virtual bool setForestFixedK(std::size_t forestIndex, double k) = 0;
+  /// Restates a calibration-map forest's spread on every chain, in the channel
+  /// its amplitude prior names (half-Cauchy median or leaf-scale factor);
+  /// false, writing nothing, off a map forest. Chain::setForestMapSd states
+  /// the semantics.
+  virtual bool setForestMapSd(std::size_t forestIndex, double sd) = 0;
   /// Installs (or clears, at a null pointer) a per-observation 0/1 active-row
   /// mask in every chain; false, installing nothing, when the family
   /// implements none or an element is not exactly 0 or 1. The values are
@@ -700,6 +710,12 @@ public:
   bool setForestPriorScale(std::size_t forestIndex,
                            double priorScale) override {
     return impl_.setForestPriorScale(forestIndex, priorScale);
+  }
+  bool setForestFixedK(std::size_t forestIndex, double k) override {
+    return impl_.setForestFixedK(forestIndex, k);
+  }
+  bool setForestMapSd(std::size_t forestIndex, double sd) override {
+    return impl_.setForestMapSd(forestIndex, sd);
   }
   bool setActiveRows(const double* active) override {
     return impl_.setActiveRows(active);

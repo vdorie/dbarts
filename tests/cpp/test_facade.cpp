@@ -45,7 +45,8 @@ enum class FacadeVirtual {
   setVerbose, fitScale, gpFallbackTally, setTreeStorage, setModel,
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, dispersion, setForestBasis,
-  setForestWeights, forestCalibration, setForestPriorScale, setActiveRows,
+  setForestWeights, forestCalibration, setForestPriorScale, setForestFixedK,
+  setForestMapSd, setActiveRows,
   setCounts, setCategoryOffset, setCategoryTestOffset, totalAmplitudes,
   numForestAmplitudes, amplitudes, forestTotalFits, fitsWithoutOffset,
   currentVarianceFits, forestVariableCounts, numTreesInForest,
@@ -206,6 +207,8 @@ public:
   SPY_RET(ForestCalibration, forestCalibration,
           (std::size_t c, std::size_t f) const, (c, f))
   SPY_RET(bool, setForestPriorScale, (std::size_t f, double s), (f, s))
+  SPY_RET(bool, setForestFixedK, (std::size_t f, double k), (f, k))
+  SPY_RET(bool, setForestMapSd, (std::size_t f, double s), (f, s))
   SPY_RET(bool, setActiveRows, (const double* a), (a))
   SPY_RET(bool, setCounts, (const int* c, const int* t), (c, t))
   SPY_RET(bool, setCategoryOffset, (const double* o), (o))
@@ -1117,6 +1120,26 @@ const Row rows[] = {
           "facade setForestPriorScale: the single forest takes it");
     checkNear(f.g.impl().forestCalibration(0, 0).priorScale, 0.7, 1.0e-12,
               "facade setForestPriorScale: the impl reports the new scale");
+  }},
+  {FacadeVirtual::setForestFixedK, "setForestFixedK", [](Fixtures& f) {
+    check(!f.b.base().setForestFixedK(0, 3.0) &&
+            !f.m.base().setForestFixedK(Fixtures::K, 3.0),
+          "facade setForestFixedK: a map forest and an absent forest refuse");
+    double k = f.m.impl().forestCalibration(0, 1).k;
+    check(f.m.base().setForestFixedK(1, 3.0),
+          "facade setForestFixedK: a category forest takes it");
+    check(f.m.impl().forestCalibration(0, 1).k == 3.0,
+          "facade setForestFixedK: the impl reports the new k");
+    f.m.base().setForestFixedK(1, k);
+  }},
+  {FacadeVirtual::setForestMapSd, "setForestMapSd", [](Fixtures& f) {
+    check(!f.g.base().setForestMapSd(0, 0.7) &&
+            !f.m.base().setForestMapSd(0, 0.7),
+          "facade setForestMapSd: a forest off any map refuses");
+    check(f.b.base().setForestMapSd(1, 0.7),
+          "facade setForestMapSd: a map forest takes it");
+    check(f.b.impl().forestCalibration(0, 1).nodeScaleFactor == 0.7,
+          "facade setForestMapSd: the impl reports the new factor");
   }},
   {FacadeVirtual::setActiveRows, "setActiveRows", [](Fixtures& f) {
     std::vector<double> mask(Fixtures::n, 1.0);

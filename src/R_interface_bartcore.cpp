@@ -2543,6 +2543,16 @@ bool applyForestAttributes(SEXP controlExpr, const ParsedModel& model,
                      rc_getListElement(forestsExpr, "interactions"),
                      rc_getListElement(forestsExpr, "blocks"), model, numTrees,
                      numPredictors, spec, storage);
+  // the anchor s a first creation computed, recorded R-side so a re-creation
+  // over a swapped response rebuilds on it; absent computes it afresh
+  SEXP anchorExpr = rc_getListElement(forestsExpr, "anchor");
+  if (!Rf_isNull(anchorExpr)) {
+    if (!Rf_isReal(anchorExpr) || Rf_xlength(anchorExpr) != 1 ||
+        !std::isfinite(REAL(anchorExpr)[0]) || REAL(anchorExpr)[0] <= 0.0)
+      Rf_error("the forests' calibration anchor must be a positive finite "
+               "number");
+    spec.anchor = REAL(anchorExpr)[0];
+  }
   return true;
 }
 
@@ -4412,7 +4422,8 @@ static const char* leafModelName(bartcore::LeafModelKind kind) {
 // the chains carry their own transforms and their own drawn k. The R reader
 // takes k per chain and reports each other quantity once, NA where the chains
 // disagree. The leaf-model tag rides as an attribute because it is a property
-// of the sampler, not of a chain.
+// of the sampler, not of a chain. The last column, the map's anchor s, is
+// internal: R records it at creation and does not report it.
 SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -4424,7 +4435,8 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
     "prior.scale", "prior.sd", "prior.mean", "k",
     "k.has.hyperprior", "response.scale", "response.shift",
     "amplitude.prior.variance", "amplitude.prior.scale",
-    "leaf.scale.factor", "leaf.scale.divisor", "basis.row.norm"
+    "leaf.scale.factor", "leaf.scale.divisor", "basis.row.norm",
+    "map.anchor"
   };
   size_t numColumns = sizeof columnNames / sizeof columnNames[0];
   size_t numChains = shape.numChains;
@@ -4446,6 +4458,7 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
     result[c + 9 * numChains] = calibration.nodeScaleFactor;
     result[c + 10 * numChains] = calibration.nodeScaleDivisor;
     result[c + 11 * numChains] = calibration.basisRowNorm;
+    result[c + 12 * numChains] = calibration.mapAnchor;
   }
   SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
   SET_VECTOR_ELT(dimNamesExpr, 0, R_NilValue);
@@ -4476,13 +4489,53 @@ SEXP bartcore_setLeafPrior(SEXP ptrExpr, SEXP forestExpr,
   double priorScale = Rf_asReal(priorScaleExpr);
   if (!std::isfinite(priorScale) || priorScale <= 0.0)
     Rf_error("the leaf-prior anchor must be a positive finite number");
-  // $setLeafPrior's refuseCountsMutation/refuseAmplitudeMutation refuse
-  // every combiner-carrying sampler first, so this generic message only
-  // backstops a caller that skips the R5 layer.
+  // $setLeafPrior routes every combiner-carrying sampler to the two entries
+  // below first, so this generic message only backstops a caller that skips
+  // the R5 layer.
   if (!holder.sampler->setForestPriorScale(forestIndex, priorScale))
     Rf_error("this forest's leaf scale comes from a multi-forest "
              "calibration map, which owns both halves of its calibration; "
-             "make a new sampler instead");
+             "a multinomial sampler restates its k as normal(k = ), and an "
+             "amplitude sampler a forest's spread as forests = "
+             "list(forest(sd = ), ...)");
+  return R_NilValue;
+}
+
+// Restates every forest's fixed k, leaving the leaf scales: the multinomial
+// category forests' only writable spread. k is any positive value, Inf
+// included. The refusal predicate is the same on every forest of such a
+// sampler, so a refusal at the first comes before any write.
+SEXP bartcore_setForestK(SEXP ptrExpr, SEXP kExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1)
+    Rf_error("k must be a single number");
+  double k = REAL(kExpr)[0];
+  if (ISNAN(k) || k <= 0.0) Rf_error("k must be positive");
+  // the capability, not the engine's per-forest predicate, which a
+  // single-forest sampler at a fixed k also meets: its k belongs to its model
+  if (!shape.supportsCountsMutation)
+    Rf_error("a fixed k is restated this way only on the category forests of "
+             "a multinomial sampler");
+  for (size_t f = 0; f < shape.numForests; ++f)
+    if (!holder.sampler->setForestFixedK(f, k))
+      Rf_error("a fixed k is restated this way only on the category forests "
+               "of a multinomial sampler");
+  return R_NilValue;
+}
+
+// Restates one calibration-map forest's spread in the channel its amplitude
+// prior names, as forest(sd = ) does at creation.
+SEXP bartcore_setForestSd(SEXP ptrExpr, SEXP forestExpr, SEXP sdExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  size_t forestIndex = forestIndexFrom(forestExpr, shape);
+  double sd = Rf_asReal(sdExpr);
+  if (!std::isfinite(sd) || sd <= 0.0)
+    Rf_error("a forest's sd must be a positive finite number");
+  if (!holder.sampler->setForestMapSd(forestIndex, sd))
+    Rf_error("a forest's sd is restated only on a sampler whose forests "
+             "carry amplitudes");
   return R_NilValue;
 }
 

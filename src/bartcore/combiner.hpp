@@ -337,6 +337,11 @@ struct AmplitudeSpec {
   // the treatment forest's basis synthesized from z; non-empty supersedes both,
   // and z is then read by nothing.
   std::vector<ForestSpec> forests;
+  // The calibration map's anchor s when finite, used in place of the family's
+  // latent scale: a re-creation over a swapped response must rebuild on the
+  // s its first creation computed, which that value reproduces bitwise. NaN
+  // computes s from the data, as a first creation does.
+  double anchor = std::numeric_limits<double>::quiet_NaN();
 };
 
 /// The thin adapter: bcf's two-forest spelling read as the K-length vector
@@ -542,6 +547,12 @@ struct ForestCombiner {
   virtual bool setForestBasis(std::size_t, const double*, std::size_t) {
     return false;
   }
+
+  /// Restates forest f's half-Cauchy amplitude scale; false, writing nothing,
+  /// when f names no forest or its amplitude prior is not a scale mixture.
+  /// The live variance auxiliary is left as drawn, refreshed under the new
+  /// scale after the block's next draw. Inert in the base.
+  virtual bool setAmplitudePriorScale(std::size_t, double) { return false; }
 
   /// Whether this coupling OWNS its response as a count matrix that can be
   /// replaced on a live sampler at fixed n and K. True only for a combiner
@@ -771,6 +782,13 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   bool setForestBasis(std::size_t f, const double* values,
                       std::size_t numColumns) override {
     return installForestBasis(f, values, numColumns);
+  }
+
+  bool setAmplitudePriorScale(std::size_t f, double scale) override {
+    if (f >= glue_.prior.size() || !(glue_.prior[f].halfCauchyScale > 0.0))
+      return false;
+    glue_.prior[f].halfCauchyScale = scale;
+    return true;
   }
 
   bool installForestBasis(std::size_t f, const double* values,

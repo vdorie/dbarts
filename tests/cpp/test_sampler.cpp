@@ -7198,6 +7198,176 @@ static void testForestCalibration() {
          calibration.priorScale);
 }
 
+/// The two multi-forest leaf-prior writers. The oracle is the twin: a sampler
+/// built with P that writes P' before running is bitwise the sampler built
+/// with P', on both writers and both map channels. Then the anchor override,
+/// equal-write inertness, and each refusal.
+static void testForestMapWriters() {
+  std::uint64_t state = 20260929u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  const size_t n = 160, p = 3, K = 3, numSamples = 4;
+  std::vector<double> x(n * p), y(n), y2(n), basis(2 * n);
+  std::vector<int> labels(n);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    double zi = unif() < 0.5 ? 1.0 : 0.0;
+    basis[2 * i] = 1.0 - zi;
+    basis[2 * i + 1] = zi;
+    y[i] = 5.0 * x[i] + zi * (1.0 + x[i + n]) + 0.3 * (unif() - 0.5);
+    y2[i] = y[i] + 4.0 * x[i + 2 * n] * x[i + 2 * n];
+    labels[i] = static_cast<int>(3.0 * unif());
+  }
+  std::vector<int> counts, trials;
+  oneHotCounts(labels, K, counts, trials);
+
+  SamplerOptions options;
+  options.numChains = 2;
+  std::vector<ext_rng*> rngs;
+  auto seeded = [&]() {
+    ext_rng* const* first = nullptr;
+    for (std::uint32_t c = 0; c < 2; ++c) {
+      ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rng, 9300 + c);
+      rngs.push_back(rng);
+    }
+    first = rngs.data() + rngs.size() - 2;
+    return first;
+  };
+  rngs.reserve(64);
+  auto amplitudeSpec = [&](double median, double factor, double anchor) {
+    AmplitudeSpec spec;
+    spec.forests.resize(2);
+    spec.forests[0].forest.numTrees = 20;
+    spec.forests[0].amplitudePriorScale = median;
+    spec.forests[1].forest.numTrees = 10;
+    spec.forests[1].nodeScaleFactor = factor;
+    spec.forests[1].nodeScaleDivisor = 0.674;
+    spec.forests[1].amplitudePriorVariance = 0.5;
+    spec.forests[1].basis = basis.data();
+    spec.forests[1].numBasisColumns = 2;
+    spec.anchor = anchor;
+    return spec;
+  };
+  using AmplitudeSampler = Sampler<ConstantGaussianLeaf>;
+  auto amplitude = [&](double median, double factor, const double* response,
+                       double anchor) {
+    return std::make_unique<AmplitudeSampler>(
+      x.data(), response, n, p, nullptr, nullptr, 1.0, 3.0,
+      0.37804942330213542, options,
+      amplitudeSpec(median, factor, anchor), seeded());
+  };
+  auto multinomial = [&](double k) {
+    MultinomialSpec spec;
+    spec.numCategories = K;
+    spec.counts = counts.data();
+    spec.trials = trials.data();
+    spec.forest.numTrees = 12;
+    spec.k = k;
+    return std::make_unique<AmplitudeSampler>(x.data(), n, p, options, spec,
+                                              seeded());
+  };
+  // every recorded channel the fixture reports, both chains
+  auto draws = [&](AmplitudeSampler& sampler, size_t locations) {
+    std::vector<double> out(numSamples * 2 * (1 + n * locations));
+    Results results;
+    results.sigma = out.data();
+    results.trainingFits = out.data() + numSamples * 2;
+    results.numReportedLocations = locations;
+    sampler.run(3, numSamples, results);
+    return out;
+  };
+  double nan = std::numeric_limits<double>::quiet_NaN();
+
+  // both channels in one call and each alone, against the constructed twin
+  const double writes[][2] = {{1.7, 0.6}, {1.7, 1.0}, {2.0, 0.6}};
+  for (const auto& write : writes) {
+    auto a = amplitude(2.0, 1.0, y.data(), nan);
+    auto b = amplitude(write[0], write[1], y.data(), nan);
+    check(a->setForestMapSd(0, write[0]) && a->setForestMapSd(1, write[1]),
+          "map writers: both channels take a write");
+    for (size_t f = 0; f < 2; ++f) {
+      ForestCalibration ca = a->forestCalibration(1, f);
+      ForestCalibration cb = b->forestCalibration(1, f);
+      check(ca.priorScale == cb.priorScale &&
+              ca.nodeScaleFactor == cb.nodeScaleFactor &&
+              std::memcmp(&ca.amplitudePriorScale, &cb.amplitudePriorScale,
+                          sizeof(double)) == 0,
+            "map writers: the written calibration is the constructed one");
+    }
+    check(draws(*a, 1) == draws(*b, 1),
+          "map writers: a written twin draws bitwise as the constructed one");
+  }
+  {
+    auto a = multinomial(2.0);
+    auto b = multinomial(3.0);
+    for (size_t f = 0; f < K; ++f)
+      check(a->setForestFixedK(f, 3.0), "map writers: a category k is taken");
+    check(draws(*a, K) == draws(*b, K),
+          "map writers: a written k draws bitwise as the constructed one");
+  }
+
+  // equal writes are inert, and different ones are not
+  {
+    auto a = amplitude(2.0, 1.0, y.data(), nan);
+    auto b = amplitude(2.0, 1.0, y.data(), nan);
+    check(a->setForestMapSd(0, 2.0) && a->setForestMapSd(1, 1.0),
+          "map writers: an equal write is accepted");
+    check(draws(*a, 1) == draws(*b, 1), "map writers: an equal write is inert");
+    check(a->setForestMapSd(1, 0.6) && draws(*a, 1) != draws(*b, 1),
+          "map writers: a different write moves the draws");
+    auto c = multinomial(2.0);
+    auto d = multinomial(2.0);
+    for (size_t f = 0; f < K; ++f) c->setForestFixedK(f, 2.0);
+    check(draws(*c, K) == draws(*d, K), "map writers: an equal k is inert");
+  }
+
+  // the anchor override: the construction's own s reproduces it bitwise, and
+  // over another response it replaces the s that response would give
+  {
+    auto a = amplitude(2.0, 1.0, y.data(), nan);
+    double s = a->forestCalibration(0, 0).mapAnchor;
+    check(s > 0.0 && s == a->forestCalibration(1, 1).mapAnchor,
+          "map writers: every chain and forest reports one anchor");
+    auto b = amplitude(2.0, 1.0, y.data(), s);
+    check(draws(*a, 1) == draws(*b, 1),
+          "map writers: the recorded anchor rebuilds bitwise");
+    auto fresh = amplitude(2.0, 1.0, y2.data(), nan);
+    auto carried = amplitude(2.0, 1.0, y2.data(), s);
+    check(fresh->forestCalibration(0, 1).mapAnchor != s &&
+            carried->forestCalibration(0, 1).mapAnchor == s,
+          "map writers: an override replaces the response's own anchor");
+    check(std::isnan(multinomial(2.0)->forestCalibration(0, 0).mapAnchor),
+          "map writers: a forest off any map reports no anchor");
+  }
+
+  // each refusal writes nothing
+  {
+    auto a = amplitude(2.0, 1.0, y.data(), nan);
+    auto m = multinomial(2.0);
+    std::vector<ext_rng*> single = {seeded()[0]};
+    SamplerOptions singleOptions;
+    ConstantLeafSampler plain(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, singleOptions,
+                              single.data());
+    check(!a->setForestFixedK(0, 3.0) && !a->setForestFixedK(1, 3.0) &&
+            !m->setForestFixedK(K, 3.0),
+          "map writers: a map forest and an absent forest refuse a k");
+    check(!m->setForestMapSd(0, 0.5) && !plain.setForestMapSd(0, 0.5) &&
+            !a->setForestMapSd(2, 0.5),
+          "map writers: a forest off any map refuses an sd");
+    check(a->forestCalibration(0, 0).k == 1.0 &&
+            m->forestCalibration(0, 0).k == 2.0,
+          "map writers: a refusal writes nothing");
+  }
+
+  for (ext_rng* rng : rngs) ext_rng_destroy(rng);
+  printf("ok: multi-forest leaf-prior writers\n");
+}
+
 /// The calibration map's PRODUCT, which nothing in tests/cpp pinned: a forest's
 /// node scale is nodeScaleFactor * s / (nodeScaleDivisor * basisRowNorm), and
 /// under a latent family forestCalibration reports it exactly - fitScale is 1
@@ -7692,5 +7862,6 @@ void runSamplerTests(ext_rng* rng) {
   testMissingEndToEnd();
   testLogLikelihood();
   testForestCalibration();
+  testForestMapWriters();
   testBCFCalibrationMap();
 }

@@ -22,8 +22,11 @@ One forest's prior is a named list:
   unnamed prior is stated as the family default it resolved to. A fixed value
   is read off the engine, so it is what is in force; a law comes from the
   model, with an `invchi()` scale read off the anchor in force. On a forest
-  whose scale a calibration map sets, k is pinned at 1 and the entry is
-  `normal(sd = )` at the map's leaf scale.
+  whose scale a calibration map sets, k is pinned at 1 and the entry is the
+  `forest(sd = )` creation takes, which goes back into
+  `$setLeafPrior(forests = )`: the half-Cauchy median on a scale-mixture
+  forest (`prior.sd.of` `"amplitude scale"`), the leaf-scale factor otherwise
+  (`"forest total"`), `NA` while a state install leaves the factor foreign.
 - `leaf.model` and `prior.sd.of`: the former attributes, as elements.
 - `prior.mean`, `anchor`, `response.scale`, `response.shift`. `anchor` is the
   one k is relative to, so the spread in force on each chain is

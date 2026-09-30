@@ -1005,7 +1005,7 @@ validateForestKnobs <- function(spec) {
     }
     spec$n.trees <- numTrees
   }
-  for (name in c("power", "sd", "amplitude.prior.variance")) {
+  for (name in c("power", "amplitude.prior.variance")) {
     if (!is.null(spec[[name]])) {
       value <- suppressWarnings(as.double(spec[[name]]))
       if (length(value) != 1L || is.na(value) || value <= 0.0) {
@@ -1013,6 +1013,9 @@ validateForestKnobs <- function(spec) {
       }
       spec[[name]] <- value
     }
+  }
+  if (!is.null(spec$sd)) {
+    spec$sd <- validateForestSd(spec$sd)
   }
   if (!is.null(spec$base)) {
     base <- suppressWarnings(as.double(spec$base))
@@ -1029,6 +1032,17 @@ validateForestKnobs <- function(spec) {
     spec$update.amplitude <- flag
   }
   spec
+}
+
+## A forest's 'sd', at creation and on $setLeafPrior: a single positive finite
+## number. Infinity states no prior the map can scale, so it is refused rather
+## than carried into a leaf scale or a half-Cauchy median.
+validateForestSd <- function(sd) {
+  value <- suppressWarnings(as.double(sd))
+  if (length(value) != 1L || is.na(value) || !is.finite(value) || value <= 0) {
+    stop("forest 'sd' must be a single positive finite number")
+  }
+  value
 }
 
 ## Resolve a `forests` declaration into the per-forest knobs a sampler

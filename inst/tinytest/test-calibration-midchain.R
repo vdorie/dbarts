@@ -360,7 +360,7 @@ expect_error(badValues$setLeafPrior(prior.sd = 1), "unused argument")
 expect_error(badValues$setLeafPrior(prior.mean = 0), "unused argument")
 expect_error(
   badValues$setLeafPrior(normal(sd = 1), forest = 1L),
-  "unused argument"
+  "takes no 'forest' index"
 )
 # the leaf model is $setModel's to change
 expect_error(
@@ -460,8 +460,9 @@ sampledK$setLeafPrior(normal(sd = 1.5))
 expect_identical(sampledK$getLeafPrior()$leaf.prior, priorOf(normal(sd = 1.5)))
 expect_equal(unname(priorSdOf(sampledK)), c(1.5, 1.5))
 
-# a two-forest sampler: the getter serves it per forest, the setter refuses it
-# by name, because the calibration map owns both halves
+# a two-forest sampler: the getter serves it per forest, and the setter takes
+# only a forest's spread, forests = list(forest(sd = )), since the calibration
+# map owns the leaf scales
 zBCF <- rbinom(n, 1L, 0.5)
 yBCF <- 12 * (x[, 1L] - x[, 2L]) + 2 * zBCF + rnorm(n)
 bcf <- dbarts(
@@ -473,12 +474,20 @@ bcf <- dbarts(
 bcfCalibration <- bcf$getLeafPrior(1L)
 bcfCalibration2 <- bcf$getLeafPrior(2L)
 # BCF pins k at 1 per its map, which the sampler-wide option does not say, so
-# each forest states a fixed sd, the map's leaf scale, which is its anchor
+# each forest states its spread as creation does, forest(sd = ): the
+# half-Cauchy median on the forest without a basis, the leaf-scale factor on
+# the one with
 expect_identical(bcf$getK(1L), c(1, 1))
 expect_identical(
   bcfCalibration$leaf.prior,
-  priorOf(normal(sd = bcfCalibration$anchor))
+  dbartsForests$forest(sd = bcfCalibration$amplitude.prior.scale)
 )
+expect_identical(
+  bcfCalibration2$leaf.prior,
+  dbartsForests$forest(sd = bcfCalibration2$leaf.scale.factor)
+)
+expect_identical(bcfCalibration$prior.sd.of, "amplitude scale")
+expect_identical(bcfCalibration2$prior.sd.of, "forest total")
 expect_true(bcfCalibration$anchor > 0 && bcfCalibration2$anchor > 0)
 # here the map entries are the ones IN FORCE, and the two amplitude entries
 # are EXCLUSIVE per forest: forest 1 declares no basis, so it carries the
@@ -540,13 +549,15 @@ expect_false(any(mapColumns %in% names(multinomialCalibration)))
 expect_equal(multinomialCalibration$response.scale, 1)
 expect_true(is.numeric(multinomialCalibration$leaf.prior@k))
 expect_identical(nrow(multinomial$getK()), 3L)
+multinomial$setLeafPrior(normal(k = 3))
+expect_true(all(multinomial$getK() == 3))
 expect_error(
-  multinomial$setLeafPrior(normal(k = 3)),
-  "softmax calibration map.*normal\\(k = \\)"
+  multinomial$setLeafPrior(normal(sd = 1)),
+  "normal\\(k = \\).*softmax calibration map"
 )
 
-# $fit is the K-forest engine that ran, not a host shell: setLeafPrior
-# is refused for the softmax's own reason
+# $fit is the K-forest engine that ran, not a host shell: a named sd is
+# refused for the softmax's own reason
 set.seed(43)
 multinomialFit <- bart(
   x,
@@ -560,7 +571,7 @@ multinomialFit <- bart(
   verbose = FALSE
 )
 expect_error(
-  multinomialFit$fit$setLeafPrior(normal(k = 3)),
+  multinomialFit$fit$setLeafPrior(normal(sd = 1)),
   "softmax calibration map"
 )
 
