@@ -3863,7 +3863,8 @@ private:
 
   /// Redraw z_i from N(eta_i, 1) on its category interval (gamma_{y_i-1},
   /// gamma_{y_i}]. Boundary categories keep probit's one-sided rejection
-  /// primitives and sign * DBL_EPSILON NaN fallback so K = 2 is bitwise probit;
+  /// primitives and sign * DBL_EPSILON NaN fallback so K = 2 is bitwise probit
+  /// (the top category's fallback raised to its bound when that is positive);
   /// interior categories use the doubly-truncated primitive with a midpoint
   /// fallback. An inactive row's draw is skipped for probit's reason (the
   /// primitives are rejection samplers), leaving its z stale but finite.
@@ -3877,9 +3878,10 @@ private:
           ext_rng_simulateUpperTruncatedNormalScale1(rng, mean, gamma_[0]);
         latents_[i] = !std::isnan(z) ? z : -DBL_EPSILON;
       } else if (k >= static_cast<int>(numCategories_)) {
-        double z = ext_rng_simulateLowerTruncatedNormalScale1(
-          rng, mean, gamma_[numCategories_ - 2]);
-        latents_[i] = !std::isnan(z) ? z : DBL_EPSILON;
+        double bound = gamma_[numCategories_ - 2];
+        double z = ext_rng_simulateLowerTruncatedNormalScale1(rng, mean, bound);
+        // probit's +DBL_EPSILON at K = 2 (bound 0), the bound itself above
+        latents_[i] = !std::isnan(z) ? z : std::max(bound, DBL_EPSILON);
       } else {
         double lower = gamma_[k - 2], upper = gamma_[k - 1];
         double z =

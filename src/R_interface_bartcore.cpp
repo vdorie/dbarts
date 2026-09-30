@@ -6945,9 +6945,9 @@ static void drawAugmentationLaws(ext_rng* rng, AugmentationLaw law,
           rng, psi, in.ordinalThresholds[0]);
         result[i] = !std::isnan(z) ? z : -DBL_EPSILON;
       } else if (static_cast<size_t>(k) > in.numOrdinalThresholds) {
-        double z = ext_rng_simulateLowerTruncatedNormalScale1(
-          rng, psi, in.ordinalThresholds[in.numOrdinalThresholds - 1]);
-        result[i] = !std::isnan(z) ? z : DBL_EPSILON;
+        double bound = in.ordinalThresholds[in.numOrdinalThresholds - 1];
+        double z = ext_rng_simulateLowerTruncatedNormalScale1(rng, psi, bound);
+        result[i] = !std::isnan(z) ? z : std::max(bound, DBL_EPSILON);
       } else {
         double lower = in.ordinalThresholds[k - 2];
         double upper = in.ordinalThresholds[k - 1];

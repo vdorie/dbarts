@@ -378,7 +378,9 @@ void ext_rng_drawPermutation(ext_rng* generator, size_t* x, size_t length) {
 }
 
 #define MAX_ITER 1000
-// X ~ N(0, 1) | X >= lb
+// X ~ N(0, 1) | X >= lb. Nan when MAX_ITER proposals are all rejected: naive
+// rejection below zero (acceptance above 1/2), Robert (1995) above it
+// (acceptance above 3/4), so a stall is a numerical failure, not a draw.
 double ext_rng_simulateLowerTruncatedStandardNormal(
   ext_rng* generator,
   double lowerBound
@@ -389,7 +391,7 @@ double ext_rng_simulateLowerTruncatedStandardNormal(
     x = ext_rng_simulateStandardNormal(generator);
     while (x < lowerBound && iter++ < MAX_ITER)
       x = ext_rng_simulateStandardNormal(generator);
-    if (iter == MAX_ITER && x >= lowerBound)
+    if (x < lowerBound)
       return nan("");
   } else {
     double a = 0.5 * (lowerBound + sqrt(lowerBound * lowerBound + 4.0));
@@ -401,7 +403,7 @@ double ext_rng_simulateLowerTruncatedStandardNormal(
       double diff = x - a;
       r = exp(-0.5 * diff * diff);
     } while (u > r && iter++ < MAX_ITER);
-    if (iter == MAX_ITER && u <= r)
+    if (u > r)
       return nan("");
   }
   return x;
@@ -457,10 +459,13 @@ extern double Rf_qnorm5(double, double, double, int, int);
 // X ~ N(mean, 1) | lower < X <= upper. In the bulk the inverse-CDF transform
 // X = mean + qnorm(Phi(lower - mean) + U (Phi(upper - mean) - Phi(lower - mean)))
 // draws exactly; deep in a tail the probability gap underflows to zero, so fall
-// back to Robert (1995) exponential-proposal rejection, reflecting the interval
-// into the right tail first and rejecting proposals past the upper bound - the
-// two-sided extension of the one-sided primitive above. Returns nan only if the
-// rejection loop stalls (astronomically unlikely for a genuine tail interval).
+// back to Robert (1995) two-sided rejection, reflecting the interval into the
+// right tail first: a uniform proposal on a narrow interval, accepted with
+// exp(-(x^2 - lo^2) / 2) (at least 1/e when (hi^2 - lo^2) / 2 <= 1), and an
+// exponential one otherwise, rejecting proposals past the upper bound. A
+// narrow far-tail interval under the exponential proposal alone accepted about
+// once in a thousand tries. Returns nan when MAX_ITER proposals are all
+// rejected.
 double ext_rng_simulateTruncatedNormalScale1(
   ext_rng* generator,
   double mean,
@@ -478,17 +483,27 @@ double ext_rng_simulateTruncatedNormalScale1(
   bool reflect = a < 0.0;              // interval sits in the left tail
   double lo = reflect ? -b : a;        // folded right-tail lower bound (>= 0)
   double hi = reflect ? -a : b;
-  double alpha = 0.5 * (lo + sqrt(lo * lo + 4.0));
   double x, u, r;
   int iter = 0;
-  do {
-    x = ext_rng_simulateExponential(generator, 1.0 / alpha) + lo;
-    double diff = x - alpha;
-    r = exp(-0.5 * diff * diff);
-    u = ext_rng_simulateContinuousUniform(generator);
-  } while ((x > hi || u > r) && iter++ < MAX_ITER);
-  if (iter == MAX_ITER && (x > hi || u > r))
-    return nan("");
+  if (0.5 * (hi - lo) * (hi + lo) <= 1.0) {
+    do {
+      x = lo + (hi - lo) * ext_rng_simulateContinuousUniform(generator);
+      r = exp(-0.5 * (x - lo) * (x + lo));
+      u = ext_rng_simulateContinuousUniform(generator);
+    } while (u > r && iter++ < MAX_ITER);
+    if (u > r)
+      return nan("");
+  } else {
+    double alpha = 0.5 * (lo + sqrt(lo * lo + 4.0));
+    do {
+      x = ext_rng_simulateExponential(generator, 1.0 / alpha) + lo;
+      double diff = x - alpha;
+      r = exp(-0.5 * diff * diff);
+      u = ext_rng_simulateContinuousUniform(generator);
+    } while ((x > hi || u > r) && iter++ < MAX_ITER);
+    if (x > hi || u > r)
+      return nan("");
+  }
   return mean + (reflect ? -x : x);
 }
 

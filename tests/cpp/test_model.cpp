@@ -8021,6 +8021,51 @@ static void testMonotoneTruncatedTail() {
   printf("ok: monotone truncated tail (worst |z| %.2f)\n", worstZ);
 }
 
+// The two-sided truncated-normal primitive past the point where its CDF gap
+// underflows: every draw lies in the interval and the mean matches the exact
+// truncated mean, for a narrow interval (the uniform proposal; the exponential
+// one alone accepted about once in a thousand tries and, its stall check never
+// firing, returned rejected proposals outside the interval), a wide one (the
+// exponential proposal) and a narrow one in the lower tail (reflected).
+static void testTruncatedNormalFarTail() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7023);
+  struct Case {
+    double mean, lower, upper;
+  };
+  const Case cases[] = {{0.0, 9.0, 9.0001}, {0.0, 9.0, 12.0},
+                        {1.0, 1.0 - 9.5001, 1.0 - 9.5}};
+  const int numDraws = 20000;
+  double worstZ = 0.0;
+  for (const Case& cs : cases) {
+    // standardized bounds folded into the upper tail
+    double a = cs.lower - cs.mean, b = cs.upper - cs.mean;
+    bool reflect = a < 0.0;
+    double lo = reflect ? -b : a, hi = reflect ? -a : b;
+    double z = Rf_pnorm5(lo, 0.0, 1.0, 0, 0) - Rf_pnorm5(hi, 0.0, 1.0, 0, 0);
+    double pl = gaussianPdf(lo), ph = gaussianPdf(hi);
+    double refMean = (pl - ph) / z;
+    double refVar = 1.0 + (lo * pl - hi * ph) / z - refMean * refMean;
+    bool inside = true;
+    double sum = 0.0;
+    for (int i = 0; i < numDraws; ++i) {
+      double x = ext_rng_simulateTruncatedNormalScale1(rng, cs.mean, cs.lower,
+                                                       cs.upper);
+      if (!(x >= cs.lower && x <= cs.upper)) inside = false;
+      double folded = reflect ? cs.mean - x : x - cs.mean;
+      sum += folded;
+    }
+    double zScore =
+      (sum / numDraws - refMean) / std::sqrt(refVar / numDraws);
+    worstZ = std::max(worstZ, std::fabs(zScore));
+    check(inside, "far-tail truncated normal: every draw lies in the interval");
+    check(std::fabs(zScore) < 5.0,
+          "far-tail truncated normal: the mean matches the exact mean");
+  }
+  ext_rng_destroy(rng);
+  printf("ok: far-tail truncated normal (worst |z| %.2f)\n", worstZ);
+}
+
 // (f) Empty leaves are leaves of the cone: the feasibility predicate holds
 // them to their bounds, and the leaf draw gives one its prior truncated to
 // them rather than pinning it at 0.
@@ -8668,6 +8713,7 @@ void runModelTests(ext_rng* rng) {
   testMonotoneCInflation();
   testMonotonePairRedraw();
   testMonotoneTruncatedTail();
+  testTruncatedNormalFarTail();
   testMonotoneEmptyLeaf();
   testMonotoneReachability();
   // the heteroscedastic end-to-end fits build full chains; they run last so
