@@ -150,6 +150,10 @@ struct SamplerOptions {
   // null - or all zero - keeps the unchanged constant-leaf path. Requires
   // the constant leaf; refused under a linear or gp node prior.
   const std::int8_t* monotoneDirections = nullptr;
+  // the monotone prior (MonotonePrior): 0 "leaf", the constrained leaf prior
+  // normalized per tree; 1 "joint", tree and leaves conditioned together.
+  // Read only by the constrained instantiation.
+  std::uint8_t monotonePrior = 0;
 
   // GP (function-valued) leaves share the leafCovariateColumns designation;
   // gpLeaves selects them over the linear leaf at the factory (the leaf
@@ -812,6 +816,8 @@ public:
         options.monotoneDirections + data.numPredictors);
       forest.leaf.cInflation =
         std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
+      forest.leaf.prior = options.monotonePrior == 1 ? MonotonePrior::joint
+                                                     : MonotonePrior::leaf;
     }
     forest.treePrior.base = options.base;
     forest.treePrior.power = options.power;
@@ -2164,12 +2170,24 @@ public:
         // y stays the chain's working response under a coupling: no structural
         // draw reads it, only the node statistics birth caches, which the next
         // sweep recomputes against the per-forest residual.
+        // Under the monotone "joint" prior the tree marginal is p_CGM(T) Z_T,
+        // so the same rejection also keeps a tree only when iid leaves drawn
+        // for it land in its cone (acceptance the prior mean of Z_T; the bare
+        // root always lands), and the leaves are then discarded, as this
+        // entry returns trees without leaf values.
         int rejected = 0;
         while (true) {
           tree.initialize(forest.indexBuffer.data() + t * n, n);
           if (!anyWeight) break;
           growSubtreeFromPrior(forest, tree, 0, y, forestWeights);
-          if (tree.bottomNodesHaveWeight(forestWeights)) break;
+          if constexpr (TreeDrawLeafModel<L>) {
+            if (tree.bottomNodesHaveWeight(forestWeights) &&
+                (forest.leaf.prior != MonotonePrior::joint ||
+                 forest.leaf.jointPriorAccepts(rng_, tree, forest.k)))
+              break;
+          } else if (tree.bottomNodesHaveWeight(forestWeights)) {
+            break;
+          }
           // a C++ throw, never a raise into R: the engine is R-agnostic, and
           // a longjmp from here would abandon every frame between this
           // recursion and the entry point. The bridge converts it.
@@ -2428,12 +2446,8 @@ public:
           // must come from the prior truncated to the monotone cone - drawn
           // per tree, since the cone couples a tree's leaves
           if constexpr (TreeDrawLeafModel<L>) {
-            if (!forest.leaf.drawFromPriorForTree(rng_, tree, tree.bottomScratch,
-                                                  forest.k,
-                                                  forest.paramByNode.data()))
-              throw std::runtime_error(
-                "monotone prior draw: no feasible leaf vector in " +
-                std::to_string(L::priorDrawMaxAttempts) + " attempts");
+            forest.leaf.drawFromPriorForTree(rng_, tree, forest.k,
+                                             forest.paramByNode.data());
           } else {
             for (int32_t i : tree.bottomScratch)
               forest.paramByNode[static_cast<size_t>(i)] =

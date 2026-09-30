@@ -922,6 +922,284 @@ static void testMonotoneMissingArrives() {
   printf("ok: monotone order gains the missing value an update brings\n");
 }
 
+namespace {
+
+// The constant leaf's integrated marginal and posterior at prior sd tau, as
+// the engine drops the response's raw sum of squares (it cancels in a move).
+double refBase(double sw, double swy, double sig2, double tau) {
+  double pp = 1.0 / (tau * tau), prec = pp + sw / sig2;
+  return 0.5 * std::log(pp / prec) + 0.5 * (swy / sig2) * (swy / sig2) / prec;
+}
+void refPost(double sw, double swy, double sig2, double tau, double& m,
+             double& sd) {
+  double prec = 1.0 / (tau * tau) + sw / sig2;
+  m = (swy / sig2) / prec;
+  sd = std::sqrt(1.0 / prec);
+}
+double upperMass(double a, double m, double sd) {
+  return 0.5 * std::erfc((a - m) / (sd * std::sqrt(2.0)));
+}
+// P(a <= X1 <= X2) for independent normals, composite Simpson over X2
+double orderedPairMass(double a, double m1, double s1, double m2, double s2) {
+  double lo = a, hi = std::max(a, m2 + 14.0 * s2);
+  lo = std::max(lo, m2 - 14.0 * s2);
+  if (!(hi > lo)) return 0.0;
+  const int n = 40000;
+  double h = (hi - lo) / n, sum = 0.0;
+  for (int i = 0; i <= n; ++i) {
+    double x = lo + i * h;
+    double f = std::exp(-0.5 * ((x - m2) / s2) * ((x - m2) / s2)) /
+               (s2 * std::sqrt(2.0 * std::numbers::pi)) *
+               (upperMass(a, m1, s1) - upperMass(x, m1, s1));
+    sum += f * (i == 0 || i == n ? 1.0 : (i % 2 ? 4.0 : 2.0));
+  }
+  return sum * h / 3.0;
+}
+
+}  // namespace
+
+// The move's acceptance, RNG-free in value: a death whose split the data
+// strongly favours, so its ratio is far below 1 and the free bound cannot
+// decide it, against the closed form of the corrected statement. T* is
+// A < B1 < B2 (x1 cut twice; constrained) or A < {B1, B2} (B cut on the free
+// x2), mu_A frozen, the touched leaves integrated. The "leaf" prior adds
+// log(Z_T* / Z_T0): -log 3 and -log 3/2; "joint" nothing, and never counts.
+// The old engine's value, the touched marginals divided by their prior cone
+// mass d given mu_A, differs from both.
+static void testMonotoneMoveClosedForm() {
+  const size_t n = 400;
+  std::vector<double> x(2 * n), y(n), weights(n, 1.0);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = (static_cast<double>(i) + 0.5) / n;
+    x[n + i] = runif01();
+  }
+  ColumnStore store;
+  built(store.build(x.data(), n, 2, 40));
+  const double sig2 = 0.01, scale = 0.5, k = 2.0, muA = 0.3;
+  const double c = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
+  const double tauC = c * scale / k;
+  const double base = 0.95, power = 2.0;
+  CGMTreePrior prior;
+  prior.base = base;
+  prior.power = power;
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  int checked = 0;
+  for (int design = 0; design < 2; ++design) {
+    bool freeSplit = design == 1;
+    for (size_t i = 0; i < n; ++i) {
+      double x1 = x[i], x2 = x[n + i];
+      double level = x1 <= 0.5 ? 0.3 : (freeSplit ? (x2 > 0.5 ? 0.6 : 0.4)
+                                                  : (x1 <= 0.75 ? 0.4 : 0.6));
+      y[i] = level + 0.1 * (runif01() - 0.5);
+    }
+    for (MonotonePrior which : {MonotonePrior::leaf, MonotonePrior::joint}) {
+      MonotoneConstantGaussianLeaf leaf;
+      leaf.scale = scale;
+      leaf.data = &store;
+      leaf.directions = {1, 0};
+      leaf.cInflation = c;
+      leaf.prior = which;
+      std::vector<index_t> idx(n);
+      Tree tree;
+      std::int32_t a = 0, b = 0, b1 = 0, b2 = 0;
+      auto build = [&]() {
+        tree.initialize(idx.data(), n);
+        tree.computeLeafStats(0, y.data(), weights.data());
+        Rule rule;
+        rule.variableIndex = 0;
+        rule.setSplitIndex(19);
+        tree.birth(store, 0, rule, y.data(), weights.data());
+        a = tree.at(0).leftChild;
+        b = a + 1;
+        rule.variableIndex = freeSplit ? 1 : 0;
+        rule.setSplitIndex(freeSplit ? 19 : 29);
+        tree.birth(store, b, rule, y.data(), weights.data());
+        b1 = tree.at(b).leftChild;
+        b2 = b1 + 1;
+      };
+      MoveScratch scratch;
+      std::vector<double> mu;
+      double alpha = -1.0;
+      bool counted = false, died = false;
+      for (std::uint32_t seed = 1; seed < 200 && !died; ++seed) {
+        build();
+        mu.assign(tree.nodes.size(), 0.0);
+        mu[a] = muA;
+        MoveContext ctx{store, prior, 1.0, 0.0, 0.0, 0.0, 0.5,
+                        weights.data(), k, scratch};
+        ctx.leafParams = mu.data();
+        ext_rng_setSeed(rng, seed);
+        leaf.count.downSets = 777777;
+        bool stepTaken = false, wasBirth = true;
+        alpha = birthOrDeathMove(ctx, leaf, rng, tree, y.data(),
+                                 std::sqrt(sig2), &stepTaken, &wasBirth);
+        died = !wasBirth;
+        counted = leaf.count.downSets != 777777;
+      }
+      check(died, "monotone closed form: a death step");
+      // T* again, for its statistics
+      build();
+      const Node& nB1 = tree.at(b1);
+      const Node& nB2 = tree.at(b2);
+      double swB = nB1.sumWeights + nB2.sumWeights;
+      double swyB = nB1.sumWeightedResponse + nB2.sumWeightedResponse;
+      double m, sd, m1, s1, m2, s2;
+      refPost(swB, swyB, sig2, tauC, m, sd);
+      refPost(nB1.sumWeights, nB1.sumWeightedResponse, sig2, tauC, m1, s1);
+      refPost(nB2.sumWeights, nB2.sumWeightedResponse, sig2, tauC, m2, s2);
+      double logI0 = refBase(swB, swyB, sig2, tauC) + std::log(upperMass(muA, m, sd));
+      double logIStar =
+        refBase(nB1.sumWeights, nB1.sumWeightedResponse, sig2, tauC) +
+        refBase(nB2.sumWeights, nB2.sumWeightedResponse, sig2, tauC) +
+        std::log(freeSplit ? upperMass(muA, m1, s1) * upperMass(muA, m2, s2)
+                           : orderedPairMass(muA, m1, s1, m2, s2));
+      double gB = base / std::pow(2.0, power), gC = base / std::pow(3.0, power);
+      double logPrior =
+        std::log(1.0 - gB) - std::log(gB) - 2.0 * std::log(1.0 - gC);
+      // reverse birth: probability 1/2, one of two birthable leaves; the
+      // death: probability 1/2, the one nog node
+      double logTransition = std::log(0.5 / 2.0) - std::log(0.5 / 1.0);
+      double joint = logPrior + logTransition + logI0 - logIStar;
+      double logZStarOverZ0 = freeSplit ? std::log(2.0 / 3.0) : -std::log(3.0);
+      double closed =
+        joint + (which == MonotonePrior::leaf ? logZStarOverZ0 : 0.0);
+      double dStar = freeSplit ? upperMass(muA, 0.0, tauC) * upperMass(muA, 0.0, tauC)
+                               : orderedPairMass(muA, 0.0, tauC, 0.0, tauC);
+      double old = joint + std::log(dStar) - std::log(upperMass(muA, 0.0, tauC));
+      check(closed < -20.0, "monotone closed form: the death is unfavoured");
+      checkNear(std::log(alpha), closed, 1e-6,
+                "monotone closed form: the move's log alpha");
+      check(std::fabs(closed - old) > 0.25,
+            "monotone closed form: differs from the d-divided value");
+      check(counted == (which == MonotonePrior::leaf),
+            "monotone closed form: only the leaf prior counts");
+      ++checked;
+    }
+  }
+  ext_rng_destroy(rng);
+  printf("ok: monotone move log alpha against the closed form (%d moves)\n",
+         checked);
+}
+
+// The free bound decides a move only where the count would decide it the
+// same way, for the same u: over random trees, every nog node, births and
+// deaths, and a spread of the rest of the ratio.
+static void testMonotoneFreeBound() {
+  ColumnStore store;
+  makeStore(store, 3, 12, 300);
+  const std::int8_t dir[3] = {1, -1, 0};
+  MonotoneConstantGaussianLeaf leaf;
+  leaf.data = &store;
+  leaf.directions.assign(dir, dir + 3);
+  MonotoneCountScratch s;
+  int moves = 0, mismatches = 0, decidedBirth = 0, decidedDeath = 0,
+      countedBoth = 0;
+  for (int trial = 0; trial < 150; ++trial) {
+    TestTree t(store);
+    t.growRandom(2 + trial % 8);
+    std::vector<std::int32_t> internal;
+    t.tree.fillNotBottom(0, internal);
+    for (std::int32_t parent : internal) {
+      if (!t.tree.childrenAreBottom(parent)) continue;
+      double logRatio = monotoneLogNormalizerRatio(t.tree, store, dir, parent, s);
+      for (int draw = 0; draw < 20; ++draw) {
+        double r1 = std::exp(6.0 * (runif01() - 0.5)), u = runif01();
+        for (bool birth : {true, false}) {
+          double logBound = leaf.prepareLogNormalizerRatio(t.tree, parent);
+          double ratio = r1, logNormalizer;
+          bool accept = decideNormalizedMove(leaf, u, logBound, birth, &ratio,
+                                             &logNormalizer);
+          bool reference =
+            u < r1 * std::exp(birth ? logRatio : -logRatio);
+          mismatches += accept != reference;
+          if (std::isnan(logNormalizer)) {
+            (birth ? decidedBirth : decidedDeath)++;
+          } else {
+            ++countedBoth;
+            if (std::fabs(logNormalizer - logRatio) > 1e-12) ++mismatches;
+          }
+          ++moves;
+        }
+      }
+    }
+  }
+  check(mismatches == 0, "monotone free bound: same decision as the count");
+  check(decidedBirth > 100 && decidedDeath > 100 && countedBoth > 100,
+        "monotone free bound: births and deaths decided both ways");
+  printf("ok: monotone free bound (%d decisions, %d births and %d deaths "
+         "without a count)\n",
+         moves, decidedBirth, decidedDeath);
+}
+
+// The "joint" prior's structure draw: one predictor on three values (two
+// cuts), one tree, so the trees are the root, a split at either cut, and each
+// of those with its other side split too. Their CGM probabilities times Z_T
+// (1, 1/2, 1/6 for 1, 2, 3 chained leaves) are the joint law; the "leaf" prior
+// draws CGM's own. Chi-square on 20000 draws each, and the other law refused.
+static void testMonotoneJointTreePrior() {
+  const size_t n = 90;
+  std::vector<double> x(n), y(n, 0.0);
+  for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i % 3);
+  const double base = 0.95, power = 2.0;
+  double g1 = base / std::pow(2.0, power);
+  // ROOT, cut 0.5 with 2 / 3 leaves, cut 1.5 with 2 / 3 leaves
+  double cgm[5] = {1.0 - base, 0.5 * base * (1.0 - g1), 0.5 * base * g1,
+                   0.5 * base * (1.0 - g1), 0.5 * base * g1};
+  double z[5] = {1.0, 0.5, 1.0 / 6.0, 0.5, 1.0 / 6.0};
+  std::vector<std::int8_t> dir = {1};
+  std::vector<FlatNode> flat;
+  std::vector<std::uint32_t> counts;
+  double stat[2][2];
+  for (int which = 0; which < 2; ++which) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 8100 + which);
+    SamplerOptions options;
+    options.numTrees = 1;
+    options.maxNumCuts = 2;
+    options.base = base;
+    options.power = power;
+    options.birthOrDeathProbability = 1.0;
+    options.swapProbability = 0.0;
+    options.changeProbability = 0.0;
+    options.monotoneDirections = dir.data();
+    options.monotonePrior = static_cast<std::uint8_t>(which);
+    Sampler<MonotoneConstantGaussianLeaf> sampler(
+      x.data(), y.data(), n, 1, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, &rng);
+    double observed[5] = {0, 0, 0, 0, 0};
+    const int draws = 20000;
+    for (int d = 0; d < draws; ++d) {
+      sampler.sampleTreesFromPrior();
+      sampler.flattenTree(0, 0, flat, counts);
+      if (flat[0].variable == invalidVariable) {
+        observed[0] += 1.0;
+        continue;
+      }
+      int leaves = 0;
+      for (const FlatNode& node : flat) leaves += node.variable == invalidVariable;
+      observed[(flat[0].value < 1.0 ? 1 : 3) + (leaves == 3)] += 1.0;
+    }
+    for (int law = 0; law < 2; ++law) {
+      double total = 0.0, expected[5];
+      for (int i = 0; i < 5; ++i) total += expected[i] = cgm[i] * (law ? z[i] : 1.0);
+      double chi2 = 0.0;
+      for (int i = 0; i < 5; ++i) {
+        double e = draws * expected[i] / total;
+        chi2 += (observed[i] - e) * (observed[i] - e) / e;
+      }
+      stat[which][law] = chi2;
+    }
+    ext_rng_destroy(rng);
+  }
+  // 4 degrees of freedom: 23.5 is p = 1e-4
+  check(stat[0][0] < 23.5 && stat[0][1] > 200.0,
+        "monotone leaf prior: trees follow the CGM prior");
+  check(stat[1][1] < 23.5 && stat[1][0] > 200.0,
+        "monotone joint prior: trees follow p_CGM(T) Z_T");
+  printf("ok: monotone joint tree prior (chi-square %.1f leaf, %.1f joint)\n",
+         stat[0][0], stat[1][1]);
+}
+
 void runMonotoneTests() {
   std::uint64_t saved = rngState;
   rngState = 7071u;
@@ -946,6 +1224,9 @@ void runMonotoneTests() {
   testMonotoneCountScale();
   testMonotoneGeometryPoints();
   testMonotoneMissingArrives();
+  testMonotoneMoveClosedForm();
+  testMonotoneFreeBound();
+  testMonotoneJointTreePrior();
   {  // factor splits and missing values, in free and constrained predictors
     ColumnStore store;
     makeMixedStore(store, 700);

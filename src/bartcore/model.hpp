@@ -186,6 +186,25 @@ concept ConstrainedLeafModel =
       -> std::same_as<double>;
   };
 
+/// Optional seam for a leaf whose prior over leaf values is normalized per
+/// tree (the monotone leaf under its "leaf" prior: iid leaves restricted to
+/// the tree's cone and divided by Z_T, the cone's unconstrained mass). A
+/// birth/death move adds log(Z_T0 / Z_T*) to a birth's log ratio and
+/// subtracts it from a death's, T* the finer tree. The move calls
+/// prepareLogNormalizerRatio while T* is in place, which returns the free
+/// bound log m >= log(Z_T0 / Z_T*), and logNormalizerRatio only when the
+/// bound leaves the decision open; the second reads what the first built,
+/// not the tree. normalizerIsActive is false where the prior carries no
+/// normalizer, and no unconstrained leaf declares the seam, so it compiles
+/// out there.
+template <typename L>
+concept NormalizedLeafModel =
+  requires(const L leaf, const Tree& tree, std::int32_t node) {
+    { leaf.normalizerIsActive() } -> std::same_as<bool>;
+    { leaf.prepareLogNormalizerRatio(tree, node) } -> std::same_as<double>;
+    { leaf.logNormalizerRatio() } -> std::same_as<double>;
+  };
+
 /// Constant Gaussian leaf: mu ~ N(0, (scale / k)^2), Gaussian likelihood.
 struct ConstantGaussianLeaf {
   static constexpr bool hasVectorParams = false;
@@ -805,9 +824,7 @@ inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
 /// values, and the cone and its normalizer range over every leaf. It reads
 /// the rules and the leaf values only, never the partition. Each related
 /// pair is tested as both of its leaves' bounds would test it.
-/// MonotoneConstantGaussianLeaf::drawFromPriorForTree calls it as the
-/// acceptance predicate of the constrained prior's rejection sampler, so tol
-/// is part of a live draw law and not a test-only slack.
+/// tol is a test slack for rounding at a bound; no draw law reads it.
 inline bool monotoneTreeIsFeasible(const Tree& tree, const ColumnStore& data,
                                    const std::int8_t* directions,
                                    const double* mu, double tol = 1e-9) {
@@ -1077,7 +1094,16 @@ inline void monotoneForEachAddable(const MonotoneOrderComponent& c,
   }
 }
 
+/// Bytes a layer holds: its keys, counts and hash table.
+inline std::size_t monotoneLayerBytes(const MonotoneDownSetLayer& layer) {
+  return layer.keys.size() * sizeof(std::uint64_t) +
+         (layer.forward.size() + layer.backward.size()) * sizeof(double) +
+         layer.table.size() * sizeof(std::uint32_t);
+}
+
 /// Scratch for the counter, reused across calls so layers keep capacity.
+/// The tallies describe the most recent count: its down-sets, and the most
+/// bytes its layers held at once.
 struct MonotoneCountScratch {
   std::vector<MonotoneDownSetLayer> layers;
   std::vector<std::uint64_t> key, successors;
@@ -1085,13 +1111,17 @@ struct MonotoneCountScratch {
   MonotoneOrderComponent merged;
   std::vector<double> firstLaw, secondLaw, weights, values;
   std::vector<std::size_t> candidates, extension;
+  std::size_t downSets = 0, peakBytes = 0;
 };
 
 /// log e(C) by the layered down-set DP, O(down-sets x size) at one word. With
 /// keepAll every layer stays in place (layer k at layers[k]), as the
-/// extension draw and the position laws need; otherwise two alternate.
-inline double monotoneLogExtensions(const MonotoneOrderComponent& c,
-                                    MonotoneCountScratch& s, bool keepAll) {
+/// extension draw and the position laws need; otherwise two alternate. Past
+/// `budget` down-sets the count stops and returns NaN, s.downSets then
+/// exceeding the budget.
+inline double monotoneLogExtensions(
+  const MonotoneOrderComponent& c, MonotoneCountScratch& s, bool keepAll,
+  std::size_t budget = std::numeric_limits<std::size_t>::max()) {
   std::size_t n = c.size, words = c.words;
   std::size_t numLayers = keepAll ? n + 1 : 2;
   if (s.layers.size() < numLayers) s.layers.resize(numLayers);
@@ -1099,6 +1129,9 @@ inline double monotoneLogExtensions(const MonotoneOrderComponent& c,
   monotoneLayerClear(s.layers[0], 16);
   monotoneLayerInsert(s.layers[0], s.key.data(), words);
   s.layers[0].forward[0] = 1.0;
+  s.downSets = 1;
+  s.peakBytes = 0;
+  std::size_t heldBytes = monotoneLayerBytes(s.layers[0]);
   for (std::size_t k = 0; k < n; ++k) {
     MonotoneDownSetLayer& current = s.layers[keepAll ? k : k % 2];
     MonotoneDownSetLayer& next = s.layers[keepAll ? k + 1 : (k + 1) % 2];
@@ -1115,6 +1148,11 @@ inline double monotoneLogExtensions(const MonotoneOrderComponent& c,
     }
     next.forwardExponent =
       current.forwardExponent + monotoneRescale(next.forward);
+    s.downSets += next.size();
+    std::size_t nextBytes = monotoneLayerBytes(next);
+    s.peakBytes = std::max(s.peakBytes, heldBytes + nextBytes);
+    heldBytes = keepAll ? heldBytes + nextBytes : nextBytes;
+    if (s.downSets > budget) return std::numeric_limits<double>::quiet_NaN();
   }
   const MonotoneDownSetLayer& whole = s.layers[keepAll ? n : n % 2];
   return std::log(whole.forward[0]) +
@@ -1243,45 +1281,102 @@ inline double monotoneLogNormalizer(const Tree& tree, const ColumnStore& data,
   return total;
 }
 
+/// A birth/death move's pair in T*'s order: the positions of c1, the child
+/// lower in the ORDER (the higher-code child on a decreasing axis), and c2.
+struct MonotoneMovePair {
+  std::size_t first = 0, second = 0;
+};
+
+/// The pair `parent`'s two leaf children form in `order`, built from T*.
+inline MonotoneMovePair monotoneMovePair(const Tree& tree,
+                                         const std::int8_t* directions,
+                                         std::int32_t parent,
+                                         const MonotoneLeafOrder& order) {
+  std::int32_t left = tree.at(parent).leftChild;
+  bool flip = directions[tree.at(parent).rule.variableIndex] < 0;
+  return {order.positionOf(flip ? left + 1 : left),
+          order.positionOf(flip ? left : left + 1)};
+}
+
+/// m, the size of the union of T*'s components holding the pair: the bound
+/// Z_T0 / Z_T* = m theta <= m, known without counting.
+inline std::size_t monotonePairUnionSize(const MonotoneLeafOrder& order,
+                                         MonotoneMovePair pair) {
+  std::size_t first = order.componentOf[pair.first];
+  std::size_t second = order.componentOf[pair.second];
+  return order.components[first].size +
+         (first == second ? 0 : order.components[second].size);
+}
+
+/// Counting work of the most recent monotoneLogPairRatio: the sum over U's
+/// components C of D(C) |C|, D the number of down-sets.
+struct MonotonePairWork {
+  double work = 0.0;
+  std::size_t downSets = 0, peakBytes = 0;
+};
+
+/// log(Z_T0 / Z_T*) = log(m theta) over s.order, which holds T*'s order.
+/// With the pair in one component C*, theta = e(C0) / e(C*), C0 the pair
+/// merged, which is symmetric in the pair; in two (only a free split
+/// separates them), theta comes from c1's and c2's position laws and the
+/// merged component is not counted. Two isolated leaves give exactly 0.
+inline double monotoneLogPairRatio(MonotoneCountScratch& s,
+                                   MonotoneMovePair pair,
+                                   MonotonePairWork* work = nullptr) {
+  const MonotoneLeafOrder& order = s.order;
+  const MonotoneOrderComponent& first =
+    order.components[order.componentOf[pair.first]];
+  const MonotoneOrderComponent& second =
+    order.components[order.componentOf[pair.second]];
+  MonotonePairWork tally;
+  auto note = [&](const MonotoneOrderComponent& c, bool counted) {
+    if (counted) tally.work += static_cast<double>(s.downSets) *
+                               static_cast<double>(c.size);
+    tally.downSets += s.downSets;
+    tally.peakBytes = std::max(tally.peakBytes, s.peakBytes);
+  };
+  double result;
+  if (&first == &second) {
+    double logStar = monotoneLogExtensions(first, s, false);
+    note(first, true);
+    monotoneMergePair(first, order.labelOf[pair.first],
+                      order.labelOf[pair.second], s.merged);
+    result = std::log(static_cast<double>(first.size)) +
+             monotoneLogExtensions(s.merged, s, false) - logStar;
+    note(s.merged, false);
+  } else if (first.size == 1 && second.size == 1) {
+    result = 0.0;
+    tally.work = 2.0;
+  } else {
+    double logFirst = monotoneLogExtensions(first, s, true);
+    note(first, true);
+    monotoneBackwardCounts(first, s);
+    monotoneLogPositionLaw(first, s, order.labelOf[pair.first], logFirst,
+                           s.firstLaw);
+    double logSecond = monotoneLogExtensions(second, s, true);
+    note(second, true);
+    monotoneBackwardCounts(second, s);
+    monotoneLogPositionLaw(second, s, order.labelOf[pair.second], logSecond,
+                           s.secondLaw);
+    result = std::log(static_cast<double>(first.size + second.size)) +
+             monotoneLogAdjacentShare(s.firstLaw, s.secondLaw, s.values);
+  }
+  if (work != nullptr) *work = tally;
+  return result;
+}
+
 /// log(Z_T0 / Z_T*) = log(m theta) for a birth/death move, counted on the
 /// side of the finer tree T* (the tree as given, `parent`'s children both
-/// leaves; T0 has them merged). m is the size of the union U of T*'s
-/// components holding the pair and theta the probability that c2
-/// immediately follows c1 in a uniform linear extension of U, c1 the child
-/// lower in the ORDER (the higher-code child on a decreasing axis). With the
-/// pair in one component C*, theta = e(C0) / e(C*), C0 the pair merged,
-/// which is symmetric in the pair; in two (only a free split separates
-/// them), theta comes from c1's and c2's position laws and the merged
-/// component is not counted. Counts both sides; nothing is cached.
+/// leaves; T0 has them merged); see monotoneLogPairRatio. Counts both sides;
+/// nothing is cached.
 inline double monotoneLogNormalizerRatio(const Tree& tree,
                                          const ColumnStore& data,
                                          const std::int8_t* directions,
                                          std::int32_t parent,
                                          MonotoneCountScratch& s) {
-  MonotoneLeafOrder& order = s.order;
-  buildMonotoneLeafOrder(tree, data, directions, order);
-  std::int32_t left = tree.at(parent).leftChild;
-  bool flip = directions[tree.at(parent).rule.variableIndex] < 0;
-  std::size_t p1 = order.positionOf(flip ? left + 1 : left);
-  std::size_t p2 = order.positionOf(flip ? left : left + 1);
-  const MonotoneOrderComponent& first =
-    order.components[order.componentOf[p1]];
-  const MonotoneOrderComponent& second =
-    order.components[order.componentOf[p2]];
-  if (&first == &second) {
-    double logStar = monotoneLogExtensions(first, s, false);
-    monotoneMergePair(first, order.labelOf[p1], order.labelOf[p2], s.merged);
-    return std::log(static_cast<double>(first.size)) +
-           monotoneLogExtensions(s.merged, s, false) - logStar;
-  }
-  double logFirst = monotoneLogExtensions(first, s, true);
-  monotoneBackwardCounts(first, s);
-  monotoneLogPositionLaw(first, s, order.labelOf[p1], logFirst, s.firstLaw);
-  double logSecond = monotoneLogExtensions(second, s, true);
-  monotoneBackwardCounts(second, s);
-  monotoneLogPositionLaw(second, s, order.labelOf[p2], logSecond, s.secondLaw);
-  return std::log(static_cast<double>(first.size + second.size)) +
-         monotoneLogAdjacentShare(s.firstLaw, s.secondLaw, s.values);
+  buildMonotoneLeafOrder(tree, data, directions, s.order);
+  return monotoneLogPairRatio(
+    s, monotoneMovePair(tree, directions, parent, s.order));
 }
 
 /// Draw a uniform linear extension of c into out (local labels, lowest
@@ -1371,6 +1466,12 @@ inline void monotoneDrawPriorLeaves(ext_rng* rng, const Tree& tree,
   }
 }
 
+/// The monotone prior. leaf: the CGM tree prior and, given T, iid leaves
+/// restricted to the cone C(T) and normalized by Z_T. joint: p_CGM(T) times
+/// iid leaves times 1{M in C(T)}, unnormalized, so the tree marginal is
+/// p_CGM(T) Z_T.
+enum class MonotonePrior : std::uint8_t { leaf = 0, joint = 1 };
+
 struct MonotoneConstantGaussianLeaf {
   static constexpr bool hasVectorParams = false;
   static constexpr bool hasFunctionParams = false;
@@ -1385,7 +1486,28 @@ struct MonotoneConstantGaussianLeaf {
   // truncation (skew-normal) marginal variance matches the unconstrained
   // sigma_mu^2 (design section 6).
   double cInflation = 1.0;
+  MonotonePrior prior = MonotonePrior::leaf;
   mutable MonotoneNeighborScratch scratch;
+  // the order counter's layers and T*'s order between a move's two
+  // normalizer calls, and the prior draws' order
+  mutable MonotoneCountScratch count;
+  mutable MonotoneMovePair pendingPair;
+  mutable MonotonePairWork pendingWork;
+  mutable std::vector<double> jointDraw;
+
+  // ---- NormalizedLeafModel: the Z_T ratio, "leaf" prior only --------------
+  bool normalizerIsActive() const { return prior == MonotonePrior::leaf; }
+  double prepareLogNormalizerRatio(const Tree& tree,
+                                   std::int32_t parent) const {
+    buildMonotoneLeafOrder(tree, *data, directions.data(), count.order);
+    pendingPair =
+      monotoneMovePair(tree, directions.data(), parent, count.order);
+    return std::log(
+      static_cast<double>(monotonePairUnionSize(count.order, pendingPair)));
+  }
+  double logNormalizerRatio() const {
+    return monotoneLogPairRatio(count, pendingPair, &pendingWork);
+  }
 
   double priorSd(double k, bool constrained) const {
     return (constrained ? cInflation : 1.0) * scale / k;
@@ -1536,34 +1658,43 @@ struct MonotoneConstantGaussianLeaf {
     }
   }
 
-  // Exact draw of a tree's leaf vector from the CONSTRAINED prior, by
-  // rejection: every leaf's independent (c-inflated) prior marginal, empty
-  // leaves included, accepted only when the whole vector lands in the
-  // monotone cone. A sequential sweep of the truncated full conditionals is
-  // NOT the joint truncated law, so rejection is the exact route. Acceptance
-  // runs ~1/L! over L leaves chained on a constrained axis, worst when every
-  // axis is constrained and best with only one, and prior-drawn trees average
-  // 2.5 leaves, so the cap only catches a pathologically deep structure.
-  static constexpr int priorDrawMaxAttempts = 1000000;
-  bool drawFromPriorForTree(ext_rng* rng, const Tree& tree,
-                            const std::vector<std::int32_t>& bottoms, double k,
+  // Exact draw of a tree's leaf vector from the CONSTRAINED prior, the same
+  // law under both priors: per component of the leaf order a uniform linear
+  // extension, with iid (c-inflated) draws sorted into it
+  // (monotoneDrawPriorLeaves). Every count runs before any leaf is written.
+  void drawFromPriorForTree(ext_rng* rng, const Tree& tree, double k,
                             double* mu) const {
-    std::vector<double> priorSds(bottoms.size(), 0.0);
-    for (std::size_t i = 0; i < bottoms.size(); ++i) {
-      double a, b;
-      bool constrained;
-      monotoneNeighborBounds(tree, *data, directions.data(), bottoms,
-                             bottoms[i], mu, nullptr, 0, scratch, &a, &b,
-                             &constrained);
-      priorSds[i] = priorSd(k, constrained);
+    monotoneDrawPriorLeaves(rng, tree, *data, directions.data(),
+                            priorSd(k, true), priorSd(k, false), count, mu);
+  }
+
+  // The "joint" prior's structure draw keeps a CGM tree only with the
+  // probability Z_T that iid unconstrained leaves land in its cone: draw
+  // them, each at its own (c-inflated) sd, and test. Counts nothing; the
+  // draws are discarded either way.
+  bool jointPriorAccepts(ext_rng* rng, const Tree& tree, double k) const {
+    scratch.allBottoms.clear();
+    tree.fillBottom(0, scratch.allBottoms);
+    MonotoneLeafGeometry& geometry = scratch.geometry;
+    geometry.build(tree, *data, scratch.allBottoms);
+    std::size_t numLeaves = scratch.allBottoms.size();
+    jointDraw.assign(tree.nodes.size(), 0.0);
+    for (std::size_t l = 0; l < numLeaves; ++l) {
+      bool constrained = false;
+      for (std::size_t r = 0; r < numLeaves && !constrained; ++r)
+        constrained = r != l && geometry.relation(l, r, directions.data()) != 0;
+      jointDraw[scratch.allBottoms[l]] =
+        priorSd(k, constrained) * ext_rng_simulateStandardNormal(rng);
     }
-    for (int attempt = 0; attempt < priorDrawMaxAttempts; ++attempt) {
-      for (std::size_t i = 0; i < bottoms.size(); ++i)
-        mu[bottoms[i]] = priorSds[i] * ext_rng_simulateStandardNormal(rng);
-      if (monotoneTreeIsFeasible(tree, *data, directions.data(), mu))
-        return true;
-    }
-    return false;
+    for (std::size_t l = 0; l < numLeaves; ++l)
+      for (std::size_t r = l + 1; r < numLeaves; ++r) {
+        int relation = geometry.relation(l, r, directions.data());
+        if (relation == 0) continue;
+        double lower = jointDraw[scratch.allBottoms[relation > 0 ? l : r]];
+        double upper = jointDraw[scratch.allBottoms[relation > 0 ? r : l]];
+        if (lower > upper) return false;
+      }
+    return true;
   }
 
   // Redraw of an accepted death's merged leaf: its full conditional
@@ -1675,6 +1806,12 @@ struct MonotoneConstantGaussianLeaf {
   }
 
   // ---- the constrained (truncated) birth/death marginal (ParamScoringLeafModel)
+  // The score is I_T(same): the touched leaves' prior times likelihood,
+  // integrated over the cone given the frozen leaves, NOT divided by their
+  // prior cone mass given those leaves. That division agrees with the
+  // whole-tree normalizer only when no touched leaf has a frozen constrained
+  // neighbor; under "leaf" the move takes log(Z_T0 / Z_T*) through the
+  // NormalizedLeafModel seam instead, and "joint" has no normalizer.
   double logLikelihoodForBranchWithParams(const Tree& tree,
                                           std::int32_t branchIndex,
                                           const double*, const double*,
@@ -1738,15 +1875,14 @@ struct MonotoneConstantGaussianLeaf {
     posterior(node.sumWeights, node.sumWeightedResponse, residualVariance, sd,
               &m, &s);
     double postMass = normalMass(a, b, m, s);
-    double priorMass = normalMass(a, b, 0.0, sd);
-    if (postMass <= 0.0 || priorMass <= 0.0) return -HUGE_VAL;
-    return base + std::log(postMass) - std::log(priorMass);
+    if (postMass <= 0.0) return -HUGE_VAL;
+    return base + std::log(postMass);
   }
 
   // The bivariate constrained-axis marginal: the cone is
   // {aL <= mu_lower <= bL, aR <= mu_upper <= bR, mu_lower <= mu_upper}, so the
-  // touched-leaf integral and its prior normalizer d_* are each one 1-D
-  // quadrature (standardized on the upper leaf), not a grid (design section 4).
+  // touched-leaf integral is one 1-D quadrature (standardized on the upper
+  // leaf), not a grid (design section 4).
   double twoLeafCoupledLogMarginal(const Tree& tree, std::int32_t lower,
                                    std::int32_t upper, const double* mu, double k,
                                    double residualVariance) const {
@@ -1774,9 +1910,8 @@ struct MonotoneConstantGaussianLeaf {
     double lowR = std::max(aR, aL);
     if (lowR > bR) return -HUGE_VAL;
     double numer = coneProbability(lowR, bR, aL, bL, mL, sL, mR, sR);
-    double denom = coneProbability(lowR, bR, aL, bL, 0.0, sd, 0.0, sd);
-    if (numer <= 0.0 || denom <= 0.0) return -HUGE_VAL;
-    return base + std::log(numer) - std::log(denom);
+    if (numer <= 0.0) return -HUGE_VAL;
+    return base + std::log(numer);
   }
 
   // P(a? <= mu_lower <= mu_upper, mu_lower in [aL, bL], mu_upper in [lowR, hiR])

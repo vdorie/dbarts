@@ -7544,7 +7544,7 @@ static void testMonotoneMarginal() {
   double k = 2.0, sig2 = 0.09, kEff = k / c;
 
   // 2-D coupled marginal: no outer neighbors, so P = Phi((mR-mL)/sqrt(sL^2+sR^2))
-  // and d_* = 1/2 in closed form
+  // in closed form, undivided by the pair's prior cone mass
   const Node& nL = tree.at(lower);
   const Node& nR = tree.at(upper);
   double got2d = leaf.logLikelihoodForBranchWithParams(tree, 0, y.data(), nullptr,
@@ -7560,7 +7560,7 @@ static void testMonotoneMarginal() {
     refLogIntegratedLikelihood(kEff, sig2, nR.sumWeights, nR.sumWeightedResponse,
                                leaf.scale);
   double refP = Rf_pnorm5((mR - mL) / std::sqrt(sL * sL + sR * sR), 0.0, 1.0, 1, 0);
-  double ref2d = refBase + std::log(refP) - std::log(0.5);
+  double ref2d = refBase + std::log(refP);
   checkNear(got2d, ref2d, 1e-6, "monotone 2-D marginal matches closed form");
 
   // with a finite outer lower bound the numerator becomes a 1-D quadrature:

@@ -415,14 +415,10 @@ summary.bart <- function(object, vars = c("sigma", "k", "sd"), ...) {
   } else {
     summariseDraws(bartDrawsArray(object, present))
   }
-  structure(
-    list(
-      call = object[["call"]],
-      stats = stats,
-      vars = vars
-    ),
-    class = "summary.bart"
-  )
+  result <- list(call = object[["call"]], stats = stats, vars = vars)
+  # the monotone prior, absent on a fit without a constraint
+  result$monotone.prior <- object[["monotone.prior"]]
+  structure(result, class = "summary.bart")
 }
 
 # bart2(family = "ordinal")'s scalar summary is the K - 1 thresholds, the only
@@ -565,6 +561,9 @@ print.summary.bart <- function(x, ...) {
     "\n\n",
     sep = ""
   )
+  if (!is.null(x$monotone.prior)) {
+    cat("Monotone prior: ", x$monotone.prior, "\n\n", sep = "")
+  }
   printSummaryBartBody(x, ...)
   invisible(x)
 }

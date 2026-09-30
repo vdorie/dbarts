@@ -106,11 +106,25 @@ expect_error(
   monotoneOf(x, y, monotone = monotone(c(a = "+"), prior = "leaf")),
   "must be one of"
 )
-# the joint prior waits for the move that samples it exactly
-expect_error(
-  monotoneOf(x, y, monotone = monotone(c(a = 1), prior = "joint")),
-  "arrives with the corrected birth/death move"
+# the prior rides the model beside the directions, which the engine reads at
+# creation, copy and reload; an unconstrained model carries neither
+priorOf <- function(...) {
+  sampler <- dbarts::dbarts(
+    x,
+    y,
+    ...,
+    control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
+  )
+  attr(sampler$model, "monotone.prior")
+}
+expect_identical(
+  priorOf(monotone = monotone(c(a = 1), prior = "joint")),
+  "joint"
 )
+expect_identical(priorOf(monotone = monotone(c(a = 1), prior = "leaf")), "leaf")
+expect_identical(priorOf(monotone = c(a = 1)), "leaf")
+expect_null(priorOf())
+expect_null(priorOf(monotone = c(a = 0)))
 
 # monotone() resolves by bare name inside the argument, also forwarded
 # through a wrapper's dots (monotoneOf) and on dbartsSpec; a bare name the
@@ -326,6 +340,78 @@ expect_true(
 sdMono <- mean(apply(fitMono$yhat.train, 2L, sd))
 sdFree <- mean(apply(fitFree$yhat.train, 2L, sd))
 expect_true(sdMono < sdFree)
+
+# the "joint" prior fits monotone too; the fit records its prior, which print
+# and summary show, and an unconstrained fit records none
+fitJoint <- do.call(
+  dbarts::bart,
+  c(
+    list(
+      xRec,
+      yRec,
+      monotone = dbarts::dbartsForests$monotone(
+        c(x1 = "increasing"),
+        prior = "joint"
+      )
+    ),
+    fitArgs
+  )
+)
+expect_true(all(diff(fitJoint$yhat.train.mean) > -1e-8))
+expect_true(all(apply(fitJoint$yhat.train, 1L, function(f) {
+  all(diff(f) > -1e-8)
+})))
+expect_true(
+  sqrt(mean((fitJoint$yhat.train.mean - truth)^2)) / sd(truth) < 0.25
+)
+expect_identical(fitJoint$monotone.prior, "joint")
+expect_identical(fitMono$monotone.prior, "leaf")
+expect_null(fitFree$monotone.prior)
+expect_true(any(grepl(
+  "monotone prior: joint",
+  capture.output(print(fitJoint)),
+  fixed = TRUE
+)))
+expect_true(any(grepl(
+  "Monotone prior: joint",
+  capture.output(print(summary(fitJoint))),
+  fixed = TRUE
+)))
+expect_false(any(grepl(
+  "monotone prior",
+  capture.output(print(fitFree)),
+  fixed = TRUE
+)))
+expect_null(summary(fitFree)$monotone.prior)
+
+# the prior reaches the engine: from one seed the two priors draw apart once
+# a move counts, and a copy, which rebuilds from the model, keeps its prior
+priorSampler <- function(prior) {
+  dbarts::dbarts(
+    xRec,
+    yRec,
+    monotone = monotone(c(x1 = "increasing"), prior = prior),
+    control = dbarts::dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 5L,
+      seed = 77L,
+      updateState = FALSE
+    )
+  )
+}
+leafSampler <- priorSampler("leaf")
+jointSampler <- priorSampler("joint")
+leafDraws <- leafSampler$run(200L, 20L)$train
+expect_false(identical(leafDraws, jointSampler$run(200L, 20L)$train))
+jointCopy <- jointSampler$copy()
+expect_identical(attr(jointCopy$model, "monotone.prior"), "joint")
+expect_true(all(apply(
+  jointCopy$run(20L, 5L)$train[order(xRec[, 1L]), , drop = FALSE],
+  2L,
+  function(f) all(diff(f) > -1e-8)
+)))
+rm(fitJoint, priorSampler, leafSampler, jointSampler, leafDraws, jointCopy)
 
 # ---- a non-monotone truth flattens under the constraint, does not crash ----
 

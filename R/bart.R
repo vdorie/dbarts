@@ -456,6 +456,8 @@ packageBartResults <- function(
   # of the multinomial packager's K. fitSynopsis reads it to tell a forest
   # margin from a chain margin, which the packaged rank alone cannot do
   result$n.forests <- numForests
+  # the monotone prior the fit was drawn under, absent without a constraint
+  result$monotone.prior <- attr(fit$model, "monotone.prior")
   if (hasForestReporting) {
     result$forestFits <- forestFits
     result$glue <- glue

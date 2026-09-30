@@ -9,6 +9,7 @@
 #include <vector>
 
 #ifdef BARTCORE_MOVE_CENSUS
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #endif
@@ -378,6 +379,9 @@ int enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
 //   r,sweep,forest,tree,node,current,target,accepted
 //   n,sweep,forest,tree,eligible,scanned,candidates,stratum
 //   t,sweep,forest,tree,leaves,interior,nog
+//   z,sweep,forest,tree,move,accepted,m,pairComponents,needed,counted,
+//     logNormalizer,seconds,downSets,work,peakBytes,switched,barkerShare,
+//     mergedDownSets
 //
 // A 'p' record's three log terms are that move's own acceptance expression:
 // the veto-resolved log-likelihood difference, the log prior ratio (birth and
@@ -433,6 +437,20 @@ int enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
 // so a run is only as long as the tree's own identity holds.
 //
 // A 't' record is per tree per sweep, written after the tree's move settles.
+//
+// A 'z' record rides every birth/death of a normalized leaf (the monotone
+// "leaf" prior): m bounds the move's Z ratio; needed is whether the free
+// bound left the decision to the count; counted whether a count ran, which
+// with BARTCORE_MOVE_CENSUS_COUNT_ALL set is every move (the decision is
+// the same, only the time moves); logNormalizer is log(Z_T0 / Z_T*), the
+// term the 'p' record's logPrior carries with a birth's sign (NA there
+// when no count ran); seconds, downSets and peakBytes are the count's wall
+// time, down-sets and most bytes held at once; work is the Barker hybrid's
+// W(U), switched whether W(U) > 2^22 would switch the move, and
+// barkerShare a_B / a_MH at the move's full ratio. pairComponents is how many
+// of T*'s components hold the pair. mergedDownSets, on an accepted death
+// only, is the down-sets of the component the merge leaves in the state,
+// counted up to 2^20 (a value past 2^20 means past it).
 //
 // The location, the shape and the probe's snapshot are per-thread singletons,
 // so a threaded run is correct but writes every chain's records to the one
@@ -512,6 +530,94 @@ inline void proposal(const char* move, bool noop, bool accepted,
                number(logLikelihood, b[0], sizeof(b[0])),
                number(logPrior, b[1], sizeof(b[1])),
                number(logCorrection, b[2], sizeof(b[2])));
+}
+
+/// One normalized birth/death's Z ratio and its count, for the 'z' record.
+struct NormalizerRecord {
+  int pairComponents = 0;
+  double mergedDownSets = std::nan("");
+  double logBound = std::nan("");
+  double logNormalizer = std::nan("");
+  double ratio = std::nan("");
+  double seconds = std::nan("");
+  double work = std::nan("");
+  std::size_t downSets = 0, peakBytes = 0;
+  bool needed = false, counted = false;
+};
+
+inline bool countAll() {
+  static const bool all =
+    std::getenv("BARTCORE_MOVE_CENSUS_COUNT_ALL") != nullptr;
+  return all;
+}
+
+inline void normalizer(const char* move, bool accepted,
+                       const NormalizerRecord& r) {
+  std::FILE* file = stream();
+  if (file == nullptr) return;
+  const State& s = state();
+  char b[5][32];
+  double share = std::nan("");
+  if (r.counted && std::isfinite(r.ratio) && r.ratio > 0.0)
+    share = r.ratio < 1.0 ? 1.0 / (1.0 + r.ratio) : r.ratio / (1.0 + r.ratio);
+  std::fprintf(file,
+               "z,%ld,%d,%d,%s,%d,%.0f,%d,%d,%d,%s,%s,%lu,%s,%lu,%s,%s,%s\n",
+               s.sweep, s.forest, s.tree, move, accepted ? 1 : 0,
+               std::exp(r.logBound), r.pairComponents, r.needed ? 1 : 0,
+               r.counted ? 1 : 0,
+               number(r.logNormalizer, b[0], sizeof(b[0])),
+               number(r.seconds, b[1], sizeof(b[1])),
+               static_cast<unsigned long>(r.downSets),
+               number(r.work, b[2], sizeof(b[2])),
+               static_cast<unsigned long>(r.peakBytes),
+               r.counted ? (r.work > 4194304.0 ? "1" : "0") : "NA",
+               number(share, b[3], sizeof(b[3])),
+               number(r.mergedDownSets, b[4], sizeof(b[4])));
+}
+
+/// How many of T*'s components hold the move's pair, from the order the
+/// leaf built for the move.
+template <typename L>
+void notePairComponents(const L& leaf, NormalizerRecord& r) {
+  if constexpr (requires { leaf.pendingPair; }) {
+    const auto& order = leaf.count.order;
+    r.pairComponents = order.componentOf[leaf.pendingPair.first] ==
+                               order.componentOf[leaf.pendingPair.second]
+                         ? 1 : 2;
+  }
+}
+
+/// The down-sets of the component holding `node` after an accepted death,
+/// counted up to 2^20 in a scratch of the census's own.
+template <typename L>
+void noteMergedDownSets(const L& leaf, const Tree& tree, int32_t node,
+                        NormalizerRecord& r) {
+  if constexpr (requires { leaf.directions; }) {
+    static thread_local MonotoneCountScratch scratch;
+    buildMonotoneLeafOrder(tree, *leaf.data, leaf.directions.data(),
+                           scratch.order);
+    const MonotoneOrderComponent& c =
+      scratch.order.components[scratch.order.componentOf[
+        scratch.order.positionOf(node)]];
+    monotoneLogExtensions(c, scratch, false, std::size_t(1) << 20);
+    r.mergedDownSets = static_cast<double>(scratch.downSets);
+  }
+}
+
+/// Count a move's Z ratio, timed.
+template <typename L>
+double timedNormalizer(const L& leaf, NormalizerRecord& r) {
+  auto start = std::chrono::steady_clock::now();
+  double result = leaf.logNormalizerRatio();
+  r.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() -
+                                            start).count();
+  r.counted = true;
+  if constexpr (requires { leaf.pendingWork; }) {
+    r.work = leaf.pendingWork.work;
+    r.downSets = leaf.pendingWork.downSets;
+    r.peakBytes = leaf.pendingWork.peakBytes;
+  }
+  return result;
 }
 
 /// A proposal that never reached a score.
@@ -826,6 +932,7 @@ inline void treeShape(const Tree& tree) {
 #define BARTCORE_CENSUS_PERTURB(...) census::perturbProbe(__VA_ARGS__)
 #define BARTCORE_CENSUS_GIBBS(...) census::gibbsProbe(__VA_ARGS__)
 #define BARTCORE_CENSUS_TREE(tree) census::treeShape(tree)
+#define BARTCORE_CENSUS_NORMALIZER(...) census::normalizer(__VA_ARGS__)
 #else
 #define BARTCORE_CENSUS_NOOP(move, tree, node) ((void)0)
 #define BARTCORE_CENSUS_SHAPE(tree, node) ((void)0)
@@ -837,6 +944,7 @@ inline void treeShape(const Tree& tree) {
 #define BARTCORE_CENSUS_PERTURB(...) ((void)0)
 #define BARTCORE_CENSUS_GIBBS(...) ((void)0)
 #define BARTCORE_CENSUS_TREE(tree) ((void)0)
+#define BARTCORE_CENSUS_NORMALIZER(...) ((void)0)
 #endif  // BARTCORE_MOVE_CENSUS
 
 inline double probabilityOfBirthStep(const MoveContext& ctx, const Tree& tree,
@@ -912,6 +1020,62 @@ inline int32_t drawBirthableNode(const MoveContext& ctx, ext_rng* rng, Tree& tre
   return bottoms[index];
 }
 
+/// The Metropolis-Hastings decision of a normalized leaf's birth or death,
+/// ratio the move's ratio without the Z term. Z_T0 / Z_T* = m theta with
+/// theta <= 1 (logBound = log m), so a birth's full ratio is at most
+/// ratio m and a death's at least ratio / m: a birth with u >= ratio m is
+/// rejected, and a death with u < ratio / m accepted, without counting.
+/// Otherwise the count runs and the decision is plain MH on the full ratio,
+/// which is written back. The count is held to the bound, so rounding can
+/// never make the count and the bound disagree for one u. logNormalizer is
+/// NaN when no count ran.
+template <typename L>
+bool decideNormalizedMove(const L& leaf, double u, double logBound,
+                          bool birth, double* ratio, double* logNormalizer
+#ifdef BARTCORE_MOVE_CENSUS
+                          , census::NormalizerRecord* censusRecord = nullptr
+#endif
+) {
+#ifdef BARTCORE_MOVE_CENSUS
+  census::NormalizerRecord unused;
+  census::NormalizerRecord& record =
+    censusRecord != nullptr ? *censusRecord : unused;
+#endif
+  *logNormalizer = std::numeric_limits<double>::quiet_NaN();
+  bool decided = false, accept = false;
+  if (birth && !(u < *ratio * std::exp(logBound))) {
+    decided = true;  // rejected by the bound
+  } else if (!birth && !(*ratio > 0.0)) {
+    decided = true;  // the merged cone is empty
+  } else if (!birth && u < *ratio * std::exp(-logBound)) {
+    decided = accept = true;  // accepted by the bound
+  }
+#ifdef BARTCORE_MOVE_CENSUS
+  record.logBound = logBound;
+  record.needed = !decided;
+  census::notePairComponents(leaf, record);
+  if (decided && census::countAll() && (birth || *ratio > 0.0)) {
+    double counted = std::min(census::timedNormalizer(leaf, record), logBound);
+    record.logNormalizer = counted;
+    record.ratio = *ratio * std::exp(birth ? counted : -counted);
+  }
+#endif
+  if (decided) return accept;
+#ifdef BARTCORE_MOVE_CENSUS
+  double logRatio = census::timedNormalizer(leaf, record);
+#else
+  double logRatio = leaf.logNormalizerRatio();
+#endif
+  logRatio = std::min(logRatio, logBound);
+  *logNormalizer = logRatio;
+  *ratio *= std::exp(birth ? logRatio : -logRatio);
+#ifdef BARTCORE_MOVE_CENSUS
+  record.logNormalizer = logRatio;
+  record.ratio = *ratio;
+#endif
+  return u < *ratio;
+}
+
 template <MoveScorableLeafModel L, typename ResidT = double>
 double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
                         Tree& tree, const ResidT* y, double sigma,
@@ -965,6 +1129,16 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     BranchScore newScore =
       logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
+    // T* is in place: the normalized leaf builds its order here, and counts
+    // off it only if the bound leaves the decision open
+    [[maybe_unused]] bool normalized = false;
+    [[maybe_unused]] double logBound = 0.0;
+    if constexpr (NormalizedLeafModel<L>) {
+      normalized = leaf.normalizerIsActive();
+      if (normalized)
+        logBound = leaf.prepareLogNormalizerRatio(tree, nodeToChange);
+    }
+
     double transitionProbabilityOfDeathStep =
       1.0 - probabilityOfBirthStep(ctx, tree, birthableNodeExists(ctx, tree));
     double transitionProbabilityOfSelectingNodeForDeath =
@@ -980,7 +1154,27 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 
     ratio = priorRatio * likelihoodRatio * transitionRatio;
 
-    if (ext_rng_simulateContinuousUniform(rng) < ratio) {
+    double u = ext_rng_simulateContinuousUniform(rng);
+    bool accept;
+    [[maybe_unused]] double logNormalizer = 0.0;
+#ifdef BARTCORE_MOVE_CENSUS
+    census::NormalizerRecord record;
+#endif
+    if constexpr (NormalizedLeafModel<L>) {
+      if (normalized)
+        accept = decideNormalizedMove(leaf, u, logBound, true, &ratio,
+                                      &logNormalizer
+#ifdef BARTCORE_MOVE_CENSUS
+                                      , &record
+#endif
+        );
+      else
+        accept = u < ratio;
+    } else {
+      accept = u < ratio;
+    }
+
+    if (accept) {
       *stepTaken = true;
       if (changedNode != nullptr) *changedNode = nodeToChange;
     } else {
@@ -995,7 +1189,10 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     }
     BARTCORE_CENSUS_PROPOSAL("birth", false, *stepTaken,
                              newLogLikelihood - oldLogLikelihood,
-                             std::log(priorRatio), std::log(transitionRatio));
+                             std::log(priorRatio) + logNormalizer,
+                             std::log(transitionRatio));
+    if constexpr (NormalizedLeafModel<L>)
+      if (normalized) BARTCORE_CENSUS_NORMALIZER("birth", *stepTaken, record);
   } else {
     *stepWasBirth = false;
 
@@ -1022,6 +1219,16 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     BranchScore oldScore =
       logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
+    // T* is the current tree: the normalized leaf builds its order before the
+    // children are orphaned; the count, if needed, reads that order only
+    [[maybe_unused]] bool normalized = false;
+    [[maybe_unused]] double logBound = 0.0;
+    if constexpr (NormalizedLeafModel<L>) {
+      normalized = leaf.normalizerIsActive();
+      if (normalized)
+        logBound = leaf.prepareLogNormalizerRatio(tree, nodeToChange);
+    }
+
     Node oldNode = tree.at(nodeToChange);
     tree.orphanChildren(nodeToChange);
 
@@ -1047,17 +1254,45 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 
     ratio = priorRatio * likelihoodRatio * transitionRatio;
 
-    if (ext_rng_simulateContinuousUniform(rng) < ratio) {
+    double u = ext_rng_simulateContinuousUniform(rng);
+    bool accept;
+    [[maybe_unused]] double logNormalizer = 0.0;
+#ifdef BARTCORE_MOVE_CENSUS
+    census::NormalizerRecord record;
+#endif
+    if constexpr (NormalizedLeafModel<L>) {
+      if (normalized)
+        accept = decideNormalizedMove(leaf, u, logBound, false, &ratio,
+                                      &logNormalizer
+#ifdef BARTCORE_MOVE_CENSUS
+                                      , &record
+#endif
+        );
+      else
+        accept = u < ratio;
+    } else {
+      accept = u < ratio;
+    }
+
+    if (accept) {
       tree.releasePair(oldNode.leftChild);
       *stepTaken = true;
       if (changedNode != nullptr) *changedNode = nodeToChange;
+#ifdef BARTCORE_MOVE_CENSUS
+      if constexpr (NormalizedLeafModel<L>)
+        if (normalized)
+          census::noteMergedDownSets(leaf, tree, nodeToChange, record);
+#endif
     } else {
       tree.at(nodeToChange) = oldNode;  // reattaches children unchanged
       *stepTaken = false;
     }
     BARTCORE_CENSUS_PROPOSAL("death", false, *stepTaken,
                              newLogLikelihood - oldLogLikelihood,
-                             std::log(priorRatio), std::log(transitionRatio));
+                             std::log(priorRatio) - logNormalizer,
+                             std::log(transitionRatio));
+    if constexpr (NormalizedLeafModel<L>)
+      if (normalized) BARTCORE_CENSUS_NORMALIZER("death", *stepTaken, record);
   }
 
   return ratio < 1.0 ? ratio : 1.0;

@@ -371,6 +371,9 @@ struct ParsedModel {
   // per-predictor monotone directions in {-1, 0, +1}, narrowed from the R
   // integer spec; empty when no constraint is declared
   std::vector<std::int8_t> monotoneDirections;
+  // the monotone prior, 0 "leaf" or 1 "joint" (bartcore::MonotonePrior);
+  // read only with directions
+  std::uint8_t monotonePrior = 0;
   // per-forest interaction constraint: interactionMaxOrder caps the
   // distinct split variables on any path (0 = uncapped);
   // interactionForbiddenPairs is a flat 0-based (a, b) stream (two indices
@@ -1530,6 +1533,19 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
         Rf_error("monotone directions must be -1, 0, or 1");
       model.monotoneDirections[j] = static_cast<std::int8_t>(directions[j]);
     }
+    // the prior rides beside the directions, so creation, copy and reload
+    // all read it off the model; the R surface always sets it
+    REPROTECT_SLOT(slotExpr, modelExpr, "monotone.prior", slotIndex);
+    if (!Rf_isString(slotExpr) || rc_getLength(slotExpr) != 1 ||
+        STRING_ELT(slotExpr, 0) == NA_STRING)
+      Rf_error("monotone prior must be \"leaf\" or \"joint\"");
+    const char* prior = CHAR(STRING_ELT(slotExpr, 0));
+    if (std::strcmp(prior, "leaf") == 0)
+      model.monotonePrior = 0;
+    else if (std::strcmp(prior, "joint") == 0)
+      model.monotonePrior = 1;
+    else
+      Rf_error("monotone prior must be \"leaf\" or \"joint\"");
   }
 
   // interaction constraint: two model attributes the R surface resolves - a
@@ -2127,6 +2143,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.splitProbabilities = model.splitProbabilities; // copied by ctor
   options.monotoneDirections = model.monotoneDirections.empty()
     ? NULL : model.monotoneDirections.data();  // consumed at construction
+  options.monotonePrior = model.monotonePrior;
   options.leafCovariateColumns = model.leafCovariateColumns.empty()
     ? NULL : model.leafCovariateColumns.data();  // consumed at construction
   options.numLeafCovariates = model.leafCovariateColumns.size();

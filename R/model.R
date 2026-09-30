@@ -692,12 +692,6 @@ resolveMonotone <- function(spec, data) {
   if (!inherits(spec, "dbartsMonotone")) {
     spec <- monotone(spec)
   }
-  if (identical(spec$prior, "joint")) {
-    stop(
-      "monotone prior \"joint\" is not available yet: it arrives with the ",
-      "corrected birth/death move"
-    )
-  }
   directions <- spec$directions
   if (length(directions) == 0L) {
     return(NULL)

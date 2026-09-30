@@ -360,8 +360,9 @@ resolveSamplerSpec <- function(
   }
 
   # the monotone spec arrives resolved by name at the door; its direction
-  # vector is injected below, and its prior is only validated so far
-  monotoneDirections <- resolveMonotone(monotone, data)$directions
+  # vector and its prior ride the model below
+  monotoneResolved <- resolveMonotone(monotone, data)
+  monotoneDirections <- monotoneResolved$directions
 
   parsePriorsCall <- redirectCall(matchedCall, quoteInNamespace(parsePriors))
   parsePriorsCall <- setDefaultsFromFormals(
@@ -457,10 +458,12 @@ resolveSamplerSpec <- function(
     attr(model, "family.spec") <- specifiedFamily(familySpec, family)
   }
 
-  # the resolved per-column monotone directions ride the model attribute the C
-  # bridge reads into SamplerOptions.monotoneDirections (the resid.df precedent)
+  # the resolved per-column monotone directions and the prior ride two model
+  # attributes the C bridge reads into SamplerOptions (the resid.df
+  # precedent); a copy or reload rebuilds from the model, so both persist
   if (!is.null(monotoneDirections)) {
     attr(model, "monotone") <- monotoneDirections
+    attr(model, "monotone.prior") <- monotoneResolved$prior
   }
 
   # the resolved per-forest interaction constraint (max-order cap + forbidden

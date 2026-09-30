@@ -3509,6 +3509,9 @@ fitSynopsis <- function(x) {
   if (!is.na(n.kept)) {
     cat("kept draws (per chain): ", n.kept, "\n", sep = "")
   }
+  if (!is.null(x[["monotone.prior"]])) {
+    cat("monotone prior: ", x[["monotone.prior"]], "\n", sep = "")
+  }
   invisible(NULL)
 }
 
