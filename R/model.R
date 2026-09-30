@@ -15,6 +15,37 @@ defaultProposalProbs <- c(
   birth = 0.5
 )
 
+## A monotone forest proposes birth and death only (change and swap would need
+## a constrained integral over more than two leaves). Creation and $setControl
+## share the rule: a defaulted mixture is rewritten to birth/death-only, and
+## any other is refused, except that $setControl lets stand a mixture already
+## free of the other moves (the sampler's own, or the frozen all-zero one).
+monotoneProposalProbs <- function(proposal.probs, allowBirthDeath = FALSE) {
+  if (
+    isTRUE(all.equal(
+      proposal.probs[names(defaultProposalProbs)],
+      defaultProposalProbs
+    ))
+  ) {
+    return(c(
+      birth_death = 1,
+      swap = 0,
+      change = 0,
+      perturb = 0,
+      rule_gibbs = 0,
+      birth = 0.5
+    ))
+  }
+  otherMoves <- proposal.probs[c("swap", "change", "perturb", "rule_gibbs")]
+  if (allowBirthDeath && all(otherMoves == 0)) {
+    return(proposal.probs)
+  }
+  stop(
+    "'monotone' forces birth/death-only proposals; a non-default ",
+    "'proposal.probs' cannot be honored under the constraint"
+  )
+}
+
 ## The moves whose default is a NUMBER rather than a share of what is left:
 ## they resolve ahead of the fill below and never enter it.
 zeroDefaultProposalNames <- c("perturb", "rule_gibbs")

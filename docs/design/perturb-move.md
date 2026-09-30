@@ -184,7 +184,8 @@ read as an addition.
 **R, five files, six default vectors.** [`defaultProposalProbs`](../../R/model.R); the [`dbarts`](../../R/dbarts.R), `bart2`
 (R/bart.R) and [`dbartsSpec`](../../R/spec.R) formals; and TWO literals inside the monotone branch of
 [`resolveSamplerSpec`](../../R/spec.R) - the comparison default and the birth/death-only rewrite
-(["'monotone' forces birth/death-only proposals"](../../R/spec.R)). The first of those does NOT read `defaultProposalProbs`, so
+([R/spec.R:422-440](https://github.com/vdorie/dbarts/blob/08ff79bf5955a90521d5f15d573534463ef2b1f4/R/spec.R#L422-L440);
+both now live in [`monotoneProposalProbs`](../../R/model.R), which reads `defaultProposalProbs`). The first of those does NOT read `defaultProposalProbs`, so
 leaving it stale makes the refusal compare against a vector that no longer exists. Both `all.equal` branches, monotone and
 treatment-forest, live in `resolveSamplerSpec`, which `dbarts()`, `bart2()` and `dbartsSpec()` all route through, so a defect there
 fires from every entry point; only the treatment-forest branch reads `defaultProposalProbs`, which is what widens its comparison

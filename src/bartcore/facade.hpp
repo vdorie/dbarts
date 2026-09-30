@@ -331,10 +331,13 @@ public:
   /// currentPredictors supplies raw for a cross-grid restore's re-quantization
   /// (null for a same-spec continuation, which re-quantizes nothing).
   /// columnMaskRefused, when non-null, reports whether the refusal was the
-  /// column-mask containment one installForests names separately.
+  /// column-mask containment one installForests names separately;
+  /// monotoneRefused, whether it was a live tree's leaf values outside the
+  /// monotone cone.
   virtual bool setState(const SamplerStateData& state,
                         const double* currentPredictors,
-                        bool* columnMaskRefused = nullptr) = 0;
+                        bool* columnMaskRefused = nullptr,
+                        bool* monotoneRefused = nullptr) = 0;
   virtual WarmStartResult installForests(
       const SamplerStateData& donor,
       const std::vector<std::pair<std::size_t, int>>& sampleMap) = 0;
@@ -634,9 +637,10 @@ public:
   }
   void getState(SamplerStateData& state) override { impl_.getState(state); }
   bool setState(const SamplerStateData& state,
-                const double* currentPredictors,
-                bool* columnMaskRefused) override {
-    return impl_.setState(state, currentPredictors, columnMaskRefused);
+                const double* currentPredictors, bool* columnMaskRefused,
+                bool* monotoneRefused) override {
+    return impl_.setState(state, currentPredictors, columnMaskRefused,
+                          monotoneRefused);
   }
   WarmStartResult installForests(
       const SamplerStateData& donor,

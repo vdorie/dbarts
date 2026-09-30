@@ -89,11 +89,18 @@ guards the fix.
   runs with lo > hi (undefined behaviour), leaving an infeasible state. The critique measured the fallback on
   about 0.5% of accepted births on flat data, 41% under a mildly decreasing partial residual, and 97% on a
   steeper one.
-- Empty leaves. [`dbartsSampler$setPredictor`](../../man/dbartsSampler-class.Rd) with forceUpdate,
-  updatePredictor, [`dbartsSampler$setData`](../../man/dbartsSampler-class.Rd) and
-  [`dbartsSampler$setCutPoints`](../../man/dbartsSampler-class.Rd) can strand a member-empty leaf.
-  [`MonotoneConstantGaussianLeaf::drawOneLeaf`](../../src/bartcore/model.hpp) pins it at 0 with no bound
-  check, so the cone breaks and Z_T is no longer e / L!. This recurs in embedded use.
+- Empty leaves. [`dbartsSampler$installTrees`](../../man/dbartsSampler-class.Rd) strands a member-empty
+  leaf: [`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp) repartitions a donor's trees over this
+  sampler's rows and collapses nothing. [`MonotoneConstantGaussianLeaf::drawOneLeaf`](../../src/bartcore/model.hpp)
+  pins such a leaf at 0 with no bound check, so the cone breaks and Z_T is no longer e / L!. This recurs in
+  embedded use.
+  - Corrected in implementation: [`dbartsSampler$setPredictor`](../../man/dbartsSampler-class.Rd) with
+    forceUpdate, [`dbartsSampler$setData`](../../man/dbartsSampler-class.Rd) and
+    [`dbartsSampler$setCutPoints`](../../man/dbartsSampler-class.Rd) do not strand one: they collapse emptied
+    subtrees, and setData also remaps splits onto a new grid (an unforced update that would empty a leaf
+    rolls back). A collapse merges leaves at their weighted mean, and the merged leaf can border neighbours
+    it did not border before (a split on a free axis whose one side empties), so a tree can leave the cone
+    with no empty leaf in it; a remap can relate leaves the same way. Step 7's reseed covers these paths.
 - Other paths. At creation R forces birth/death ([`resolveSamplerSpec`](../../R/spec.R)).
   [`xbart()`](../../R/xbart.R) refuses `monotone`, and [`ruleGibbsMove`](../../src/bartcore/moves.hpp)
   compiles out. Everything below was probed.
@@ -503,6 +510,11 @@ Checkpoint (stop and report), after commit 4, before the feel study and before s
      phi_U(u) [Phi_L(min(bL, u)) - Phi_L(aL)] on [max(aL, aU), bU]. Use the `coneProbability` quadrature's
      cumulative with safeguarded Newton, evaluate the density exactly, and work on the log scale in the tail.
    - Then draw the lower leaf on [aL, min(bL, mu_U)], which is never empty.
+   - As implemented: the marginal is log-concave, so the fallback finds its mode, cuts its support where the
+     log density is 50 below the peak, and inverts a per-side composite adaptive Simpson cumulative with
+     safeguarded Newton, all relative to the peak (`monotoneInvertLogConcave`), rather than reusing
+     `coneProbability`'s fixed window. About 70-110 us per fallback draw. `normalMass` takes upper tails above
+     the mean, so the rejection's admitted mass does not cancel there.
    - Mixing a capped exact rejection with an exact fallback is exact. Never read mu[upper] before writing it,
      and never call the clamp with lo > hi.
 5. Empty leaves are leaves with no data. `drawOneLeaf`, both redraws and the prior draw give an empty leaf its
@@ -514,6 +526,8 @@ Checkpoint (stop and report), after commit 4, before the feel study and before s
    - An empty constrained sibling pair (both children of a birth empty) is drawn by step 4's coupled pair draw
      with no data, not leaf by leaf.
    - The alternative, refusing mutations that strand a leaf, breaks the embedded use the sampler exists for.
+   - A forced predictor update, setCutPoints and setData leave no empty leaf but can leave a tree outside
+     the cone through a collapse or a remap (Context); step 7's reseed, run after each, puts it back.
 6. Exact prior leaf draw. Per component, draw a uniform linear extension by backward sampling on the DP
    counts, every layer kept: remove a maximal element x with probability e(D - x) / e(D). Draw |C| iid
    N(0, c scale / k), sort them, and assign them in extension order; isolated leaves draw alone. This replaces
@@ -540,10 +554,19 @@ Checkpoint (stop and report), after commit 4, before the feel study and before s
      `monotoneTreeIsFeasible` has all its leaves set to 0, the all-zero feasible seed growForestFromRoot uses
      (equal values satisfy every constraint, and no RNG is drawn); feasible trees keep the donor's values. The
      next sweep's leaf Gibbs step redraws them.
+   - Commit 1, found in implementation (orchestrator call). The same reseed runs after a forced predictor
+     update, setCutPoints and setData ([`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp),
+     [`Chain::applyNewData`](../../src/bartcore/chain.hpp)): a collapse or a remap can relate merged leaves
+     to new neighbours, not only strand empty ones. Any feasible state is a valid continuation point, and the
+     tree is reseeded to all-zero with no RNG draw.
    - Commit 1. setState, copy and reload are refused up front: Sampler::setState checks a new
      monotoneStateFeasible predicate on every chain's live trees before any chain is touched, beside
      interactionStateFeasible and columnMaskStateFeasible, so a refusal leaves the sampler exactly as it was, as
-     setState promises. With steps 4 and 5 every state the sampler produces passes it.
+     setState promises. The refusal is named: the state's leaf values violate the monotone constraint. With
+     steps 4, 5 and the reseeds every state the sampler produces passes this predicate, but not setState
+     overall: installTrees on the same grid can leave member-empty leaves, which setState's validity check
+     refuses, so a copy or reload fails until the moves clear them. That is pre-existing and holds for
+     unconstrained samplers too; it is queued separately.
    - Commit 4. [`Chain::sampleTreesFromPrior`](../../src/bartcore/chain.hpp) under "leaf" needs no new predicate: the
      prior is not restricted. Under "joint" it draws each tree jointly by rejection, a CGM tree and iid
      unconstrained leaves kept only when the leaves lie in its cone (acceptance is the prior mean of Z_T), with

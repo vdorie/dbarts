@@ -1720,9 +1720,9 @@ public:
             // the constrained leaf reads muByTree through the move phase (frozen
             // neighbors) and its draw updates the surviving block in place, so it
             // must stay sized and feasible across an accepted birth/death rather
-            // than be zeroed and refilled. A birth seeds its two children with
-            // the parent's (feasible) value; a death seeds the merged leaf inside
-            // its neighbor bounds; the draw then redraws every leaf.
+            // than be zeroed and refilled. A birth draws its two children and a
+            // death its merged leaf from their exact constrained conditionals;
+            // the draw then redraws every leaf.
             if constexpr (TreeDrawLeafModel<L>)
               maintainMonotoneLeafStore(forest, t, wasStale, stepTaken, stepType,
                                         changedNode);
@@ -2286,6 +2286,11 @@ public:
 
             // regrowth replaces the partition wholesale
             rebuildLeafOf(forest, t);
+            // the constrained draw reads its frozen neighbors from mu, which
+            // still holds the old tree's values at recycled node ids; the
+            // all-zero seed satisfies every constraint of the new tree
+            if constexpr (TreeDrawLeafModel<L>)
+              forest.muByTree[t].assign(forest.trees[t].nodes.size(), 0.0);
             sampleParametersAndSetFits(forest, t, nullptr, false);
           }
 
@@ -2880,6 +2885,7 @@ public:
       forest.trees[t].repartitionSubtree(data_, 0);
       forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                          params[t], paramStride);
+      reseedInfeasibleMonotoneLeaves(forest, t, params[t]);
       if constexpr (!L::hasVectorParams) {
         setTreeFitsFromParameters(forest, t, params[t]);
       } else {
@@ -2952,6 +2958,7 @@ public:
           forest.trees[t].repartitionSubtree(data_, 0);
           forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                              paramByNode);
+          reseedInfeasibleMonotoneLeaves(forest, t, paramByNode);
           setTreeFitsFromParameters(forest, t, paramByNode);
           if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
           addTreeFitsToTotal(forest, t);
@@ -3825,6 +3832,69 @@ public:
     return true;
   }
 
+  /// Whether every live tree in `state` lies in its monotone cone, judged
+  /// against the current cut grid: setState's up-front gate, so setState, copy
+  /// and reload never install leaf values the constrained draws cannot start
+  /// from. Trivially true off the monotone leaf. Mirrors
+  /// interactionStateFeasible's scratch build, with the leaf values read.
+  bool monotoneStateFeasible(const ChainStateData& state) const {
+    if constexpr (!TreeDrawLeafModel<L>) {
+      (void) state;
+      return true;
+    } else {
+      if (state.forests.size() != forests_.size()) return true;  // shape gate elsewhere
+      size_t n = data_.numObservations;
+      Tree scratch;
+      std::vector<index_t> scratchIndices(n);
+      std::vector<double> params;
+      for (size_t f = 0; f < forests_.size(); ++f) {
+        const Forest<L, ResidT>& forest = forests_[f];
+        const ForestStateData& fs = state.forests[f];
+        if (fs.trees.size() != forest.numTrees) return true;  // shape gate elsewhere
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          scratch.initialize(scratchIndices.data(), n);
+          const std::uint64_t* masks =
+            fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
+          size_t numMaskWords =
+            fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
+          // a malformed tree is the caller's shape concern (stateIsValid
+          // fails it); here only a buildable one's leaf values are judged
+          if (!scratch.buildFromFlat(data_, fs.trees[t].data(),
+                                     fs.trees[t].size(), params, 1, nullptr,
+                                     masks, numMaskWords))
+            continue;
+          if (!monotoneTreeIsFeasible(scratch, data_,
+                                      forest.leaf.directions.data(),
+                                      params.data()))
+            return false;
+        }
+      }
+      return true;
+    }
+  }
+
+  /// Reseed, then validate: a tree whose leaf values leave the monotone cone
+  /// - a warm-start donor grown without the constraint, or leaves a collapse
+  /// or a remap merged or newly related - has every leaf set to 0, the
+  /// all-equal seed that satisfies every constraint, drawing nothing; the next
+  /// sweep's leaf draw moves it off the seed. A feasible tree keeps its values.
+  /// paramByNode is indexed by arena id. Compiled out off the monotone leaf.
+  void reseedInfeasibleMonotoneLeaves(const Forest<L, ResidT>& forest, size_t t,
+                                      std::vector<double>& paramByNode) const {
+    if constexpr (TreeDrawLeafModel<L>) {
+      const Tree& tree(forest.trees[t]);
+      if (paramByNode.size() < tree.nodes.size())
+        paramByNode.resize(tree.nodes.size(), 0.0);
+      if (!monotoneTreeIsFeasible(tree, data_, forest.leaf.directions.data(),
+                                  paramByNode.data()))
+        std::fill(paramByNode.begin(), paramByNode.end(), 0.0);
+    } else {
+      (void) forest;
+      (void) t;
+      (void) paramByNode;
+    }
+  }
+
   /// Rebuilds forest f's live trees, partitions, and fits from a flat state's
   /// live channel against the current cut grid, zeroing and re-accumulating
   /// totalFits. False if a flat tree fails to rebuild. Shared by setState and
@@ -3867,6 +3937,10 @@ public:
         std::memcpy(forest.treeFits.data() + t * n, fs.treeParams[t].data(),
                     n * sizeof(double));
       } else {
+        // a warm start's donor may be unconstrained; setState refused an
+        // infeasible state up front (monotoneStateFeasible), so there it is a
+        // no-op
+        reseedInfeasibleMonotoneLeaves(forest, t, params);
         setTreeFits(forest, t, params);
       }
       if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
@@ -3950,6 +4024,7 @@ public:
       // cannot leave an infeasible live tree, even after the remap collapses
       if (!forest.trees[t].interactionSubtreeIsValid(0)) return false;
       if (!forest.trees[t].columnMaskSubtreeIsValid(0)) return false;
+      reseedInfeasibleMonotoneLeaves(forest, t, params);
       if constexpr (!L::hasVectorParams) {
         setTreeFitsFromParameters(forest, t, params);
       } else {
@@ -5453,10 +5528,11 @@ private:
   /// Keep the constrained leaf's mu block consistent with an accepted move so
   /// the following draw sweeps a feasible, correctly sized state. A stale tree
   /// resets to the all-equal (feasible) zero vector; an accepted birth grows
-  /// the block and seeds the two children with the split parent's value
-  /// (feasible for both and ordered); an accepted death seeds the merged leaf
-  /// with a point inside its neighbor bounds. Rejections leave the block, which
-  /// still matches the restored structure.
+  /// the block and draws the two children from their exact constrained
+  /// conditional, never reading their slots, which a recycled node id leaves
+  /// stale; an accepted death draws the merged leaf inside its neighbor
+  /// bounds. Rejections leave the block, which still matches the restored
+  /// structure.
   void maintainMonotoneLeafStore(Forest<L, ResidT>& forest, size_t t, bool wasStale,
                                  bool stepTaken, StepType stepType,
                                  int32_t changedNode) {
@@ -5469,9 +5545,8 @@ private:
     if (!stepTaken) return;
     if (stepType == StepType::birth) {
       // grow the block to the new node count, then draw the two children
-      // from their exact constrained conditional; the sibling slots are
-      // read but not their stale mu, so growing with zeros before the draw
-      // is safe
+      // from their exact constrained conditional, which writes both slots
+      // before reading either
       mu.resize(tree.nodes.size(), 0.0);
       forest.leaf.redrawAfterBirth(rng_, tree, changedNode, forest.k,
                                    sigma_ * sigma_, mu.data());
@@ -5504,6 +5579,8 @@ private:
   /// support. Ahead of the tree loop, every leaf - an empty one back to zero
   /// - is reassigned before any test fit is written, and training rows route
   /// only to occupied leaves, so nothing reported reads a shifted empty leaf.
+  /// The constrained leaf draws its empty leaves instead, and a tree carrying
+  /// one sits out (below).
   ///
   /// muByTree is the only thing written. totalFits is the cached sum of tree
   /// fits and is stale by sum_t c_t, which is zero, so it already describes
@@ -5555,8 +5632,8 @@ private:
         for (int32_t nodeIndex : tree.bottomScratch) {
           if (tree.at(nodeIndex).numObservations() == 0) {
             if constexpr (ConstrainedLeafModel<L>) {
-              // pinned at zero AND a hard bound on its occupied neighbors, so
-              // an occupied-only shift can leave the cone: the tree sits out
+              // a hard bound on its occupied neighbors, so an occupied-only
+              // shift can leave the cone: the tree sits out
               eligible = false;
               break;
             }

@@ -1475,6 +1475,24 @@ void parseProposalProbs(ParsedModel& model, SEXP controlExpr) {
   UNPROTECT(1);
 }
 
+/// A monotone sampler proposes birth and death only: swap, change, perturb and
+/// rule_gibbs would each score a constrained integral over more than two
+/// leaves, which the constrained leaf does not provide. Keyed on the engine's
+/// leaf kind rather than on the incoming model, so no model or control can
+/// install such a mixture on a monotone sampler. The all-zero frozen mixture
+/// proposes nothing and stays allowed.
+bool proposalMixIsRefused(bartcore::LeafModelKind kind,
+                          const ParsedModel& model) {
+  return kind == bartcore::LeafModelKind::monotone &&
+         (model.swapProbability != 0.0 || model.changeProbability != 0.0 ||
+          model.perturbProbability != 0.0 ||
+          model.ruleGibbsProbability != 0.0);
+}
+
+const char* const monotoneProposalMixMessage =
+  "a monotone sampler proposes only birth and death moves: 'proposal.probs' "
+  "must give swap, change, perturb and rule_gibbs zero probability";
+
 void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   SEXP slotExpr;
   PROTECT_INDEX slotIndex;
@@ -3452,6 +3470,11 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                    "gaussian or aft, Student-t residuals, leaf covariates, or "
                    "a monotone constraint");
     }
+    if (proposalMixIsRefused(sampler->shape().leafModel, model)) {
+      sampler.reset();  // borrows the rngs, so tear it down before them
+      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+      Rf_error("%s", monotoneProposalMixMessage);
+    }
 
     if (data.numTestObservations > 0) {
       if (data.testIsMixed) {
@@ -3599,6 +3622,12 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
       if (rng != NULL) ext_rng_destroy(rng);
     Rf_error("a multinomial (softmax) model does not support a "
              "heteroscedastic variance forest");
+  }
+  if (proposalMixIsRefused(sampler->shape().leafModel, model)) {
+    sampler.reset();  // borrows the rngs, so tear it down before them
+    for (ext_rng* rng : rngs)
+      if (rng != NULL) ext_rng_destroy(rng);
+    Rf_error("%s", monotoneProposalMixMessage);
   }
 
   // test-at-creation: the K forests each accumulate their own totalTestFits in
@@ -5484,6 +5513,8 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
   return unwindProtect([&, model = ParsedModel{}]() mutable -> SEXP {
     parseModel(model, modelExpr, shape.numPredictors);
     parseProposalProbs(model, controlExpr);
+    if (proposalMixIsRefused(shape.leafModel, model))
+      Rf_error("%s", monotoneProposalMixMessage);
 
     // the leaf model is a template instantiation: the designation and its
     // kind are fixed at creation, so a replacement prior must carry the same
@@ -7747,16 +7778,20 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     }
   }
 
-  bool columnMaskRefused = false;
+  bool columnMaskRefused = false, monotoneRefused = false;
   bool restored =
     errorMessage == NULL &&
-    sampler.setState(state, currentPredictors, &columnMaskRefused);
+    sampler.setState(state, currentPredictors, &columnMaskRefused,
+                     &monotoneRefused);
   {
     bartcore::SamplerStateData empty;
     std::swap(state, empty);  // free before a potential longjmp
   }
   if (errorMessage != NULL) Rf_error("%s", errorMessage);
   if (columnMaskRefused) Rf_error("%s", columnMaskMismatchMessage);
+  if (monotoneRefused)
+    Rf_error("state's leaf values violate this sampler's monotone "
+             "constraint");
   if (!restored)
     Rf_error("state is not consistent with this sampler");
 

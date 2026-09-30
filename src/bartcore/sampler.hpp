@@ -1040,11 +1040,14 @@ public:
   /// grid, where the state's splits resolve, and before any chain is touched,
   /// so a refusal leaves the sampler exactly as it was. columnMaskRefused, when
   /// non-null, separates that refusal from every other invalid state so the
-  /// host can name it.
+  /// host can name it; monotoneRefused does the same for leaf values outside
+  /// a monotone sampler's cone.
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors,
-                bool* columnMaskRefused = nullptr) {
+                bool* columnMaskRefused = nullptr,
+                bool* monotoneRefused = nullptr) {
     if (columnMaskRefused != nullptr) *columnMaskRefused = false;
+    if (monotoneRefused != nullptr) *monotoneRefused = false;
     if (state.chains.size() != chains_.size()) return false;
     if (state.cutPoints.size() != data_.numPredictors) return false;
     for (size_t j = 0; j < data_.numPredictors; ++j) {
@@ -1091,6 +1094,13 @@ public:
     bool allValid = columnMaskOk;
     for (size_t c = 0; c < chains_.size() && allValid; ++c)
       allValid = chains_[c]->stateIsValid(state.chains[c]);
+    // a monotone sampler's constrained draws start only from leaf values in
+    // the cone; unlike a warm start, which reseeds, a state is a continuation
+    // and is refused whole
+    bool monotoneOk = true;
+    for (size_t c = 0; c < chains_.size() && allValid && monotoneOk; ++c)
+      monotoneOk = chains_[c]->monotoneStateFeasible(state.chains[c]);
+    allValid = allValid && monotoneOk;
 
     if (!allValid) {
       data_.cutPoints = std::move(oldCutPoints);
@@ -1101,6 +1111,7 @@ public:
       data_.train.sparseColumns = std::move(oldSparseColumns);
       data_.test.sparseColumns = std::move(oldTestSparseColumns);
       if (columnMaskRefused != nullptr) *columnMaskRefused = !columnMaskOk;
+      if (monotoneRefused != nullptr) *monotoneRefused = !monotoneOk;
       return false;
     }
 

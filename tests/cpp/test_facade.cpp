@@ -174,7 +174,8 @@ public:
   std::size_t predictVarianceThreads = 0;
   SPY_VOID(getState, (SamplerStateData& s), (s))
   SPY_RET(bool, setState,
-          (const SamplerStateData& s, const double* cp, bool* r), (s, cp, r))
+          (const SamplerStateData& s, const double* cp, bool* r, bool* m),
+          (s, cp, r, m))
   SPY_RET(WarmStartResult, installForests,
           (const SamplerStateData& d,
            const std::vector<std::pair<std::size_t, int>>& m),

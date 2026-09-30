@@ -7805,6 +7805,462 @@ static void testMonotoneCInflation() {
          sigmaMu * sigmaMu);
 }
 
+// Kolmogorov-Smirnov distance of `draws` from a reference CDF tabulated on an
+// ascending grid (linear interpolation between grid points).
+static double ksDistance(std::vector<double> draws,
+                         const std::vector<double>& grid,
+                         const std::vector<double>& cdf) {
+  std::sort(draws.begin(), draws.end());
+  double n = static_cast<double>(draws.size()), worst = 0.0;
+  size_t g = 0;
+  for (size_t i = 0; i < draws.size(); ++i) {
+    double x = draws[i];
+    while (g + 1 < grid.size() && grid[g + 1] < x) ++g;
+    double f;
+    if (x <= grid.front()) f = 0.0;
+    else if (x >= grid.back()) f = 1.0;
+    else f = cdf[g] + (cdf[g + 1] - cdf[g]) * (x - grid[g]) /
+                        (grid[g + 1] - grid[g]);
+    worst = std::max(worst, std::max(std::fabs(f - i / n),
+                                     std::fabs((i + 1) / n - f)));
+  }
+  return worst;
+}
+
+// Reference CDF of a constrained pair's upper-leaf marginal on [lo, hi],
+// density proportional to phi((u - mU) / sU) [Phi((min(bL, u) - mL) / sL) -
+// Phi((aL - mL) / sL)], by trapezoid quadrature of the log density taken
+// relative to its grid maximum; written from the formula independently of the
+// engine's inversion (lower-tail logs, upper-tail logs above the mean).
+static void pairUpperReference(double mU, double sU, double lo, double hi,
+                               double aL, double bL, double mL, double sL,
+                               int steps, std::vector<double>& grid,
+                               std::vector<double>& cdf) {
+  auto logMass = [](double a, double b) {
+    // the linked log pnorm returns 0 at an infinite argument, so the
+    // infinite tails are written out
+    if (!(b > a)) return -HUGE_VAL;
+    if (a > 0.0) {
+      double qa = Rf_pnorm5(a, 0.0, 1.0, 0, 1);
+      double qb = std::isinf(b) ? -HUGE_VAL : Rf_pnorm5(b, 0.0, 1.0, 0, 1);
+      return qa + std::log1p(-std::exp(qb - qa));
+    }
+    double pb = std::isinf(b) ? 0.0 : Rf_pnorm5(b, 0.0, 1.0, 1, 1);
+    double pa = std::isinf(a) ? -HUGE_VAL : Rf_pnorm5(a, 0.0, 1.0, 1, 1);
+    return pb + std::log1p(-std::exp(pa - pb));
+  };
+  grid.resize(static_cast<size_t>(steps) + 1);
+  std::vector<double> logDensity(grid.size());
+  double top = -HUGE_VAL;
+  for (size_t i = 0; i < grid.size(); ++i) {
+    double u = lo + (hi - lo) * static_cast<double>(i) / steps;
+    grid[i] = u;
+    double z = (u - mU) / sU;
+    logDensity[i] = -0.5 * z * z +
+      logMass((aL - mL) / sL, (std::min(bL, u) - mL) / sL);
+    top = std::max(top, logDensity[i]);
+  }
+  cdf.assign(grid.size(), 0.0);
+  for (size_t i = 1; i < grid.size(); ++i)
+    cdf[i] = cdf[i - 1] + 0.5 * (grid[i] - grid[i - 1]) *
+               (std::exp(logDensity[i - 1] - top) + std::exp(logDensity[i] - top));
+  for (double& c : cdf) c /= cdf.back();
+}
+
+// (e) The exact pair redraw. On a design where P_post(lower <= upper) ~ 1e-4
+// the capped rejection almost always exhausts, and the inverse-CDF fallback
+// draws nearly every pair: every draw is ordered and finite with both child
+// slots poisoned by NaN beforehand (so neither is read before it is written),
+// and the upper leaf matches the quadrature CDF. The inversion alone matches
+// its reference in the far tail (the largest admitted mass underflows), across
+// a finite bL (the density's kink) and on a narrow interval.
+static void testMonotonePairRedraw() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7011);
+  const size_t n = 400;
+  std::vector<double> x(n);
+  for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i) / (n - 1);
+  ColumnStore store;
+  built(store.build(x.data(), n, 1, 40));
+  std::vector<double> y(n);
+  for (size_t i = 0; i < n; ++i) y[i] = x[i] < 0.5 ? 0.19 : -0.19;
+  std::vector<index_t> idx(n);
+  Tree tree;
+  tree.initialize(idx.data(), n);
+  tree.computeLeafStats(0, y.data(), nullptr);
+  std::int32_t left, right;
+  tree.splitInterval(store, 0, 0, &left, &right);
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(left + (right - left) / 2);
+  tree.birth(store, 0, rule, y.data(), nullptr);
+  std::int32_t lower = tree.at(0).leftChild, upper = lower + 1;
+
+  std::vector<std::int8_t> d = {1};
+  MonotoneConstantGaussianLeaf leaf;
+  leaf.scale = 0.5;
+  leaf.data = &store;
+  leaf.directions.assign(d.begin(), d.end());
+  double c = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
+  leaf.cInflation = c;
+  double k = 2.0, sig2 = 1.0;
+  double mL, sL, mU, sU;
+  refPosterior(k / c, sig2, tree.at(lower).sumWeights,
+               tree.at(lower).sumWeightedResponse, leaf.scale, mL, sL);
+  refPosterior(k / c, sig2, tree.at(upper).sumWeights,
+               tree.at(upper).sumWeightedResponse, leaf.scale, mU, sU);
+  double zOrder = (mU - mL) / std::sqrt(sL * sL + sU * sU);
+  check(zOrder > -4.1 && zOrder < -3.4,
+        "pair redraw: the design puts P(lower <= upper) near 1e-4");
+
+  const int numDraws = 20000;
+  std::vector<double> mu(tree.nodes.size(), 0.0), uppers(numDraws);
+  bool ordered = true, finite = true;
+  for (int s = 0; s < numDraws; ++s) {
+    mu[lower] = mu[upper] = std::numeric_limits<double>::quiet_NaN();
+    leaf.redrawAfterBirth(rng, tree, 0, k, sig2, mu.data());
+    if (!std::isfinite(mu[lower]) || !std::isfinite(mu[upper])) finite = false;
+    if (!(mu[lower] <= mu[upper])) ordered = false;
+    uppers[static_cast<size_t>(s)] = mu[upper];
+  }
+  check(finite, "pair redraw: never reads a child slot before writing it");
+  check(ordered, "pair redraw: every draw is feasible");
+  std::vector<double> grid, cdf;
+  pairUpperReference(mU, sU, mU - 12.0 * sU, mL + 12.0 * sL, -HUGE_VAL,
+                     HUGE_VAL, mL, sL, 400000, grid, cdf);
+  // 1.95 / sqrt(n): the 0.001 critical value
+  double dPair = ksDistance(uppers, grid, cdf);
+  check(dPair < 1.95 / std::sqrt(static_cast<double>(numDraws)),
+        "pair redraw: the upper leaf matches its quadrature CDF (KS)");
+
+  // the inversion alone: {mU, sU, lo, hi, aL, bL, mL, sL, reference hi}
+  struct Case {
+    double mU, sU, lo, hi, aL, bL, mL, sL, refHi;
+    const char* what;
+  };
+  const Case cases[] = {
+    {0.0, 1.0, 2.0, HUGE_VAL, 2.0, HUGE_VAL, 0.0, 0.05, 12.0,
+     "pair inversion: far tail matches its reference (KS)"},
+    {1.0, 0.3, 0.0, 2.0, 0.0, 0.6, 0.5, 0.2, 2.0,
+     "pair inversion: a finite bL matches its reference (KS)"},
+    {5.0, 1.0, 0.0, 1e-3, -HUGE_VAL, HUGE_VAL, -5.0, 1.0, 1e-3,
+     "pair inversion: a narrow interval matches its reference (KS)"},
+  };
+  bool tailUnderflows =
+    MonotoneConstantGaussianLeaf::normalMass(2.0, HUGE_VAL, 0.0, 0.05) == 0.0;
+  check(tailUnderflows, "pair inversion: the far-tail case underflows the "
+                        "rejection's admitted mass");
+  double worst = 0.0;
+  for (const Case& cs : cases) {
+    std::vector<double> draws(static_cast<size_t>(numDraws));
+    bool inside = true;
+    for (int s = 0; s < numDraws; ++s) {
+      double u = MonotoneConstantGaussianLeaf::drawPairUpperByInversion(
+        rng, cs.mU, cs.sU, cs.lo, cs.hi, cs.aL, cs.bL, cs.mL, cs.sL);
+      if (!(u >= cs.lo && u <= cs.hi)) inside = false;
+      draws[static_cast<size_t>(s)] = u;
+    }
+    check(inside, cs.what);
+    pairUpperReference(cs.mU, cs.sU, cs.lo, cs.refHi, cs.aL, cs.bL, cs.mL,
+                       cs.sL, 2000000, grid, cdf);
+    double dist = ksDistance(draws, grid, cdf);
+    worst = std::max(worst, dist);
+    check(dist < 1.95 / std::sqrt(static_cast<double>(numDraws)), cs.what);
+  }
+  ext_rng_destroy(rng);
+  printf("ok: monotone pair redraw (z %.2f, KS %.4f, inversion KS <= %.4f)\n",
+         zOrder, dPair, worst);
+}
+
+// (e2) The leaf's truncated draw deep in the upper tail. The primitive's
+// inverse-CDF path differences lower-tail CDFs, which cancel near 1: 7.5 sd
+// above the mean it collapsed onto a few hundred values and 8.2 sd above
+// overshot the mean by 0.005. Reflected, the draws are distinct and match the
+// exact truncated mean.
+static void testMonotoneTruncatedTail() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7019);
+  struct Case {
+    double m, s, alpha, beta;  // bounds in sd above the mean
+  };
+  const Case cases[] = {{0.0, 1.0, 7.5, 9.0}, {0.0, 1.0, 8.2, 8.7},
+                        {1.0, 0.1, 7.8, 8.6}};
+  const int numDraws = 200000;
+  double worstZ = 0.0;
+  for (const Case& cs : cases) {
+    double a = cs.m + cs.s * cs.alpha, b = cs.m + cs.s * cs.beta;
+    std::vector<double> draws(static_cast<size_t>(numDraws));
+    bool inside = true;
+    double sum = 0.0;
+    for (int i = 0; i < numDraws; ++i) {
+      double x = MonotoneConstantGaussianLeaf::drawTruncatedNormal(rng, cs.m,
+                                                                   cs.s, a, b);
+      if (!(x >= a && x <= b)) inside = false;
+      draws[static_cast<size_t>(i)] = x;
+      sum += x;
+    }
+    std::sort(draws.begin(), draws.end());
+    size_t distinct =
+      static_cast<size_t>(std::unique(draws.begin(), draws.end()) -
+                          draws.begin());
+    double z = Rf_pnorm5(cs.alpha, 0.0, 1.0, 0, 0) -
+               Rf_pnorm5(cs.beta, 0.0, 1.0, 0, 0);
+    double pa = gaussianPdf(cs.alpha), pb = gaussianPdf(cs.beta);
+    double refMean = (pa - pb) / z;
+    double refVar = 1.0 + (cs.alpha * pa - cs.beta * pb) / z - refMean * refMean;
+    double mean = (sum / numDraws - cs.m) / cs.s;
+    double zScore = (mean - refMean) / std::sqrt(refVar / numDraws);
+    worstZ = std::max(worstZ, std::fabs(zScore));
+    check(inside, "truncated tail: every draw lies in its interval");
+    check(distinct > static_cast<size_t>(0.99 * numDraws),
+          "truncated tail: the draws do not collapse onto a few values");
+    check(std::fabs(zScore) < 5.0,
+          "truncated tail: the mean matches the exact truncated mean");
+  }
+  ext_rng_destroy(rng);
+  printf("ok: monotone truncated tail (worst |z| %.2f)\n", worstZ);
+}
+
+// (f) Empty leaves are leaves of the cone: the feasibility predicate holds
+// them to their bounds, and the leaf draw gives one its prior truncated to
+// them rather than pinning it at 0.
+static void testMonotoneEmptyLeaf() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7013);
+  // rows only below 0.3 and above 0.7, so the middle cell of a three-leaf
+  // chain along x0 holds none
+  const size_t n = 200;
+  std::vector<double> x(n);
+  for (size_t i = 0; i < n; ++i)
+    x[i] = i < n / 2 ? 0.3 * i / (n / 2) : 0.7 + 0.3 * (i - n / 2) / (n / 2);
+  ColumnStore store;
+  built(store.build(x.data(), n, 1, 100));
+  std::vector<double> y(n, 0.0);
+  std::vector<index_t> idx(n);
+  Tree tree;
+  tree.initialize(idx.data(), n);
+  tree.computeLeafStats(0, y.data(), nullptr);
+  auto cutIndexAbove = [&](double value) {
+    const std::vector<double>& cuts(store.cutPoints[0]);
+    return static_cast<std::int32_t>(
+      std::lower_bound(cuts.begin(), cuts.end(), value) - cuts.begin());
+  };
+  Rule r0;
+  r0.variableIndex = 0;
+  r0.setSplitIndex(cutIndexAbove(0.4));
+  tree.birth(store, 0, r0, y.data(), nullptr);
+  std::int32_t high = tree.at(0).leftChild + 1;
+  Rule r1;
+  r1.variableIndex = 0;
+  r1.setSplitIndex(cutIndexAbove(0.6));
+  tree.birth(store, high, r1, y.data(), nullptr);
+  std::int32_t a = tree.at(0).leftChild;
+  std::int32_t e = tree.at(high).leftChild, b = e + 1;
+  check(tree.at(e).numObservations() == 0 && tree.at(a).numObservations() > 0 &&
+          tree.at(b).numObservations() > 0,
+        "empty leaf: the middle cell holds no rows");
+
+  std::vector<std::int8_t> d = {1};
+  MonotoneConstantGaussianLeaf leaf;
+  leaf.scale = 0.1;
+  leaf.data = &store;
+  leaf.directions.assign(d.begin(), d.end());
+  leaf.cInflation = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
+  std::vector<double> mu(tree.nodes.size(), 0.0);
+  mu[a] = 0.02;
+  mu[b] = 0.05;
+  mu[e] = -0.4;  // below its lower neighbor
+  check(!monotoneTreeIsFeasible(tree, store, d.data(), mu.data()),
+        "empty leaf: the feasibility predicate holds an empty leaf to its "
+        "bounds");
+
+  // with a and b frozen, e's draw is N(0, c scale / k) truncated to [0.02, 0.05]
+  std::vector<std::int32_t> bottoms;
+  tree.fillBottom(0, bottoms);
+  double k = 2.0, sd = leaf.cInflation * leaf.scale / k;
+  const int numDraws = 20000;
+  double sum = 0.0;
+  bool inside = true;
+  for (int s = 0; s < numDraws; ++s) {
+    leaf.drawOneLeaf(rng, tree, e, bottoms, nullptr, 0, k, 1.0, mu.data());
+    if (!(mu[e] >= 0.02 && mu[e] <= 0.05)) inside = false;
+    sum += mu[e];
+  }
+  double alpha = 0.02 / sd, beta = 0.05 / sd;
+  double z = gaussianCdf(beta) - gaussianCdf(alpha);
+  double refMean = sd * (gaussianPdf(alpha) - gaussianPdf(beta)) / z;
+  double refVar = sd * sd * (1.0 + (alpha * gaussianPdf(alpha) -
+                                    beta * gaussianPdf(beta)) / z) -
+                  refMean * refMean;
+  double mean = sum / numDraws;
+  check(inside, "empty leaf: every draw lies within its neighbor bounds");
+  checkNear(mean, refMean, 5.0 * std::sqrt(refVar / numDraws),
+            "empty leaf: the draw is the prior truncated to the bounds");
+  check(monotoneTreeIsFeasible(tree, store, d.data(), mu.data()),
+        "empty leaf: the tree is feasible after the draw");
+  ext_rng_destroy(rng);
+  printf("ok: monotone empty leaf (mean %.5f, reference %.5f)\n", mean,
+         refMean);
+}
+
+// (g) Reachability through the sampler, on a hand-built tree over x0
+// (increasing) and x1 (free): x0 splits at 0.5, each side splits x1 at 0.3,
+// leaves J (x0 low, x1 low), K (x0 low, x1 high), S1 (x0 high, x1 low), S2
+// (x0 high, x1 high). J < S1 and K < S2 are the only relations.
+// - setState refuses a state outside the cone before touching the sampler,
+//   and accepts one inside it;
+// - a warm start reseeds an infeasible donor tree to all-zero and keeps a
+//   feasible one;
+// - a forced predictor update that empties S1 collapses x0's high side into
+//   one leaf with S2's value, which now bounds J from above; the merged tree
+//   is outside the cone and is reseeded;
+// - growFromRoot's regrowth leaves every tree feasible.
+static void testMonotoneReachability() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7017);
+  std::uint64_t savedRngState = rngState;
+  rngState = 55511u;
+  const size_t n = 400, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    y[i] = x[i] + 0.1 * (runif01() - 0.5);
+  }
+  std::vector<std::int8_t> dir = {1, 0};
+  SamplerOptions options;
+  options.numTrees = 1;
+  options.birthOrDeathProbability = 1.0;
+  options.swapProbability = 0.0;
+  options.changeProbability = 0.0;
+  options.monotoneDirections = dir.data();
+  auto makeSampler = [&]() {
+    return std::make_unique<Sampler<MonotoneConstantGaussianLeaf>>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, &rng);
+  };
+  auto sampler = makeSampler();
+  const ColumnStore& store(sampler->data());
+  auto cutNear = [&](size_t j, double value) {
+    const std::vector<double>& cuts(store.cutPoints[j]);
+    return *std::lower_bound(cuts.begin(), cuts.end(), value);
+  };
+  auto handTree = [&](double j, double k, double s1, double s2) {
+    std::vector<FlatNode> flat(7, FlatNode());
+    flat[0].variable = 0;
+    flat[0].value = cutNear(0, 0.5);
+    setFlatKind(flat[0], FlatKind::ordinal);
+    flat[1].variable = 1;
+    flat[1].value = cutNear(1, 0.3);
+    setFlatKind(flat[1], FlatKind::ordinal);
+    flat[2].value = j;
+    flat[3].value = k;
+    flat[4].variable = 1;
+    flat[4].value = cutNear(1, 0.3);
+    setFlatKind(flat[4], FlatKind::ordinal);
+    flat[5].value = s1;
+    flat[6].value = s2;
+    return flat;
+  };
+  auto liveFeasible = [&](Sampler<MonotoneConstantGaussianLeaf>& s,
+                          std::vector<double>* valuesOut) {
+    std::vector<FlatNode> flat;
+    std::vector<std::uint32_t> counts;
+    std::vector<index_t> scratchIdx(n);
+    std::vector<double> params;
+    bool feasible = true;
+    for (size_t t = 0; t < options.numTrees; ++t) {
+      s.flattenTree(0, t, flat, counts);
+      Tree scratch;
+      scratch.initialize(scratchIdx.data(), n);
+      if (!scratch.buildFromFlat(s.data(), flat.data(), flat.size(), params))
+        return false;
+      if (!monotoneTreeIsFeasible(scratch, s.data(), dir.data(),
+                                  params.data()))
+        feasible = false;
+      if (valuesOut != nullptr) {
+        valuesOut->clear();
+        for (const FlatNode& node : flat)
+          if (node.variable == invalidVariable)
+            valuesOut->push_back(node.value);
+      }
+    }
+    return feasible;
+  };
+
+  SamplerStateData base;
+  sampler->getState(base);
+  // the state carries the tree on the internal scale; values are small
+  SamplerStateData feasibleState = base, infeasibleState = base;
+  feasibleState.chains[0].forests[0].trees[0] = handTree(0.0, -0.1, 0.02, -0.09);
+  infeasibleState.chains[0].forests[0].trees[0] =
+    handTree(0.0, -0.1, -0.02, -0.09);  // S1 below J
+
+  SamplerStateData before;
+  sampler->getState(before);
+  bool columnMaskRefused = true, monotoneRefused = false;
+  check(!sampler->setState(infeasibleState, nullptr, &columnMaskRefused,
+                           &monotoneRefused),
+        "reachability: setState refuses a state outside the cone");
+  check(monotoneRefused && !columnMaskRefused,
+        "reachability: the refusal is named as the monotone one");
+  SamplerStateData after;
+  sampler->getState(after);
+  bool unchanged = before.chains[0].forests[0].trees[0].size() ==
+                   after.chains[0].forests[0].trees[0].size();
+  for (size_t i = 0; unchanged && i < before.chains[0].forests[0].trees[0].size();
+       ++i)
+    unchanged = before.chains[0].forests[0].trees[0][i].value ==
+                after.chains[0].forests[0].trees[0][i].value;
+  check(unchanged, "reachability: a refused setState leaves the tree as it was");
+  check(sampler->setState(feasibleState, nullptr),
+        "reachability: setState accepts a state inside the cone");
+
+  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  auto warm = makeSampler();
+  check(warm->installForests(infeasibleState, liveMap) == WarmStartResult::ok,
+        "reachability: an infeasible donor installs");
+  std::vector<double> values;
+  bool feasible = liveFeasible(*warm, &values);
+  bool allZero = !values.empty();
+  for (double v : values) allZero &= v == 0.0;
+  check(feasible && allZero,
+        "reachability: the infeasible donor tree is reseeded to all-zero");
+  auto warmOk = makeSampler();
+  check(warmOk->installForests(feasibleState, liveMap) == WarmStartResult::ok,
+        "reachability: a feasible donor installs");
+  liveFeasible(*warmOk, &values);
+  check(values.size() == 4 && values[0] == 0.0 && values[2] == 0.02,
+        "reachability: a feasible donor keeps its leaf values");
+
+  // empty S1: every row on x0's high side moves to x1 above 0.3
+  std::vector<double> moved(x);
+  double x0Cut = cutNear(0, 0.5), x1Cut = cutNear(1, 0.3);
+  for (size_t i = 0; i < n; ++i)
+    if (moved[i] > x0Cut && moved[i + n] <= x1Cut)
+      moved[i + n] = x1Cut + (1.0 - x1Cut) * 0.5;
+  check(sampler->setPredictor(moved.data(), true, false) ==
+          PredictorUpdateResult::accepted,
+        "reachability: the forced update is accepted");
+  feasible = liveFeasible(*sampler, &values);
+  check(values.size() == 3,
+        "reachability: the forced update collapses x0's high side");
+  check(feasible, "reachability: the collapsed tree is reseeded into the cone");
+
+  // regrowth from the root, several trees
+  options.numTrees = 10;
+  auto grown = makeSampler();
+  Results noResults;
+  grown->run(20, 0, noResults);
+  grown->growFromRoot(3);
+  check(liveFeasible(*grown, nullptr),
+        "reachability: growFromRoot leaves every tree feasible");
+
+  ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: monotone reachability\n");
+}
+
 // The shipped flat-C API (inst/include/dbarts/dbarts.h) resolves a family
 // token to one of these ResponseFamily values; gaussian, probit and nbinom
 // each have a create-path test elsewhere in this suite, but logistic,
@@ -8210,6 +8666,10 @@ void runModelTests(ext_rng* rng) {
   testMonotonePriorDraw();
   testMonotoneMarginal();
   testMonotoneCInflation();
+  testMonotonePairRedraw();
+  testMonotoneTruncatedTail();
+  testMonotoneEmptyLeaf();
+  testMonotoneReachability();
   // the heteroscedastic end-to-end fits build full chains; they run last so
   // their heap footprint cannot perturb an earlier allocation-sensitive test
   // under the sanitizer's allocator.

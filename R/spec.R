@@ -410,35 +410,15 @@ resolveSamplerSpec <- function(
   # The tree-move mixture rides the control. A caller that named it flat -
   # dbartsSpec's own argument, or the retired spelling on an entry point that
   # shed it - wins over the control's slot; NULL leaves the slot standing.
-  defaultProbs <- defaultProposalProbs
   if (!is.null(proposal.probs)) {
     control@proposal.probs <- resolveProposalProbs(proposal.probs)
   }
 
-  # A monotone constraint restricts the forest to birth/death proposals (change
-  # and swap would need a > 2-D constrained integral): a defaulted
-  # proposal.probs is forced to birth/death-only, an explicit
+  # A monotone constraint restricts the forest to birth/death proposals: a
+  # defaulted proposal.probs is forced to birth/death-only, an explicit
   # non-default one conflicts and errors.
   if (!is.null(monotoneDirections)) {
-    if (
-      !isTRUE(all.equal(
-        control@proposal.probs[names(defaultProbs)],
-        defaultProbs
-      ))
-    ) {
-      stop(
-        "'monotone' forces birth/death-only proposals; a non-default ",
-        "'proposal.probs' cannot be honored under the constraint"
-      )
-    }
-    control@proposal.probs <- c(
-      birth_death = 1,
-      swap = 0,
-      change = 0,
-      perturb = 0,
-      rule_gibbs = 0,
-      birth = 0.5
-    )
+    control@proposal.probs <- monotoneProposalProbs(control@proposal.probs)
   }
   validObject(control)
 

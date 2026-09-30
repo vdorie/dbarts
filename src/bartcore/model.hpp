@@ -423,6 +423,179 @@ double monotoneIntegrate(F f, double a, double b, double tol = 1e-12,
   return total;
 }
 
+/// Adaptive Simpson over [a, b] from a single initial panel, for integrands
+/// the caller has already confined to a few peak widths; 0 on an empty
+/// interval.
+template <typename F>
+double monotoneSimpson(F f, double a, double b, double tol) {
+  if (!(b > a)) return 0.0;
+  double m = 0.5 * (a + b);
+  double fa = f(a), fm = f(m), fb = f(b);
+  double whole = (b - a) / 6.0 * (fa + 4.0 * fm + fb);
+  return monotoneAdaptiveSimpson(f, a, m, b, fa, fm, fb, whole, tol, 30);
+}
+
+/// log(Phi(hi) - Phi(lo)) for standardized bounds; -HUGE_VAL on an empty
+/// interval. A difference of upper tails when the interval sits above zero and
+/// of lower tails otherwise, each taken in logs, so a mass deep in either tail
+/// neither cancels nor underflows. Infinite bounds are resolved here: the log
+/// pnorm the engine links returns 0, not -Inf, at an infinite argument.
+inline double logStandardNormalMass(double lo, double hi) {
+  if (!(hi > lo)) return -HUGE_VAL;
+  bool upperTail = lo > 0.0;
+  double nearTail, farTail;
+  if (upperTail) {
+    nearTail = Rf_pnorm5(lo, 0.0, 1.0, 0, 1);
+    farTail = std::isinf(hi) ? -HUGE_VAL : Rf_pnorm5(hi, 0.0, 1.0, 0, 1);
+  } else {
+    nearTail = std::isinf(hi) ? 0.0 : Rf_pnorm5(hi, 0.0, 1.0, 1, 1);
+    farTail = std::isinf(lo) ? -HUGE_VAL : Rf_pnorm5(lo, 0.0, 1.0, 1, 1);
+  }
+  double d = farTail - nearTail;  // <= 0
+  return nearTail + (d > -std::numbers::ln2 ? std::log(-std::expm1(d))
+                                            : std::log1p(-std::exp(d)));
+}
+
+/// Inverse CDF at u in [0, 1) of a log-concave density on [lo, hi], given as
+/// its log up to a constant. `start` lies in [lo, hi] at or left of the mode
+/// (the density is nondecreasing on [lo, start]) and `scale` is a positive
+/// length the searches start from. Everything is taken relative to the peak's
+/// log density, so a density deep in a tail neither underflows nor cancels:
+/// a golden-section search for the mode; the support cut on each side at the
+/// first doubling step where the log density is 50 below the peak
+/// (log-concavity keeps everything past the cut lower still, decaying at least
+/// as fast, so the mass cut is of order e^-50 of the mass kept); a composite
+/// adaptive Simpson cumulative over 16 panels a side, each at most a few peak
+/// widths since a log-concave density that falls 1 within w of its mode falls
+/// 50 within 50 w; and safeguarded Newton inside the panel holding the target,
+/// bisecting whenever a step leaves the panel's bracket.
+template <typename F>
+double monotoneInvertLogConcave(F logDensity, double lo, double hi,
+                                double start, double scale, double u) {
+  constexpr double maxDrop = 50.0;
+  constexpr int panelsPerSide = 16;
+  constexpr int maxDoublings = 2100;  // past the double range from any start
+  const double h0 = 1e-3 * scale;
+
+  // bracket the mode: walk right from start, doubling, until the density
+  // falls; the mode then lies in [left, right]
+  double left = start, best = start, fBest = logDensity(start), right = hi;
+  {
+    double h = h0;
+    for (int it = 0; it < maxDoublings; ++it, h *= 2.0) {
+      double t = start + h;
+      if (!(t < hi)) break;
+      double ft = logDensity(t);
+      if (ft < fBest) {
+        right = t;
+        break;
+      }
+      left = best;
+      best = t;
+      fBest = ft;
+    }
+    if (!std::isfinite(right)) right = start + h;
+  }
+
+  // golden-section search inside the bracket; the peak only anchors the scale
+  // and the cuts, so a location good to a small fraction of its width is
+  // enough
+  const double g = 0.3819660112501051;  // 2 - golden ratio
+  double a = left, b = right;
+  double c = a + g * (b - a), d = b - g * (b - a);
+  double fc = logDensity(c), fd = logDensity(d);
+  for (int it = 0; it < 200; ++it) {
+    if (!(b - a > 1e-14 * (std::fabs(a) + std::fabs(b)) + 1e-9 * scale))
+      break;
+    if (fc >= fd) {
+      b = d;
+      d = c;
+      fd = fc;
+      c = a + g * (b - a);
+      fc = logDensity(c);
+    } else {
+      a = c;
+      c = d;
+      fc = fd;
+      d = b - g * (b - a);
+      fd = logDensity(d);
+    }
+  }
+  double mode = best, peak = fBest;
+  if (fc > peak) {
+    mode = c;
+    peak = fc;
+  }
+  if (fd > peak) {
+    mode = d;
+    peak = fd;
+  }
+  if (!std::isfinite(peak)) return std::clamp(mode, lo, hi);
+
+  // the cut on one side: the first doubling step past which the log density
+  // is maxDrop below the peak, or the interval's end
+  const double hStart = std::max(1e-7 * scale, 4.0 * (b - a));
+  auto cutAt = [&](double sign, double end) {
+    double h = hStart;
+    for (int it = 0; it < maxDoublings; ++it, h *= 2.0) {
+      double t = mode + sign * h;
+      if (sign < 0.0 ? !(t > end) : !(t < end)) return end;
+      if (peak - logDensity(t) >= maxDrop) return t;
+    }
+    return mode + sign * h;
+  };
+  double lower = mode > lo ? cutAt(-1.0, lo) : mode;
+  double upper = mode < hi ? cutAt(1.0, hi) : mode;
+  if (!(upper > lower)) return std::clamp(mode, lo, hi);
+
+  auto density = [&](double x) { return std::exp(logDensity(x) - peak); };
+  std::array<double, 2 * panelsPerSide + 1> edges, cumulative;
+  int numEdges = 0;
+  for (int k = 0; k < panelsPerSide && mode > lower; ++k)
+    edges[numEdges++] = lower + (mode - lower) * k / panelsPerSide;
+  edges[numEdges++] = mode;
+  for (int k = 1; k <= panelsPerSide && upper > mode; ++k)
+    edges[numEdges++] = k == panelsPerSide
+      ? upper : mode + (upper - mode) * k / panelsPerSide;
+  cumulative[0] = 0.0;
+  for (int k = 1; k < numEdges; ++k)
+    cumulative[k] = cumulative[k - 1] +
+      monotoneSimpson(density, edges[k - 1], edges[k],
+                      1e-10 * (edges[k] - edges[k - 1]));
+  double total = cumulative[numEdges - 1];
+  if (!(total > 0.0)) return std::clamp(mode, lo, hi);
+
+  double target = u * total;
+  int j = 0;
+  while (j < numEdges - 2 && !(cumulative[j + 1] > target)) ++j;
+  double xa = edges[j], xb = edges[j + 1];
+  double width = xb - xa, mass = cumulative[j + 1] - cumulative[j];
+  double remainder = target - cumulative[j];
+  double x = mass > 0.0 ? xa + width * std::min(1.0, remainder / mass)
+                        : xa + 0.5 * width;
+  // the cumulative is carried from the last evaluated point, so each step
+  // integrates only the distance it moved
+  double xRef = edges[j], cumulativeRef = 0.0;
+  for (int it = 0; it < 100; ++it) {
+    double step = x >= xRef
+      ? monotoneSimpson(density, xRef, x, 1e-11 * width)
+      : -monotoneSimpson(density, x, xRef, 1e-11 * width);
+    xRef = x;
+    cumulativeRef += step;
+    double excess = cumulativeRef - remainder;
+    if (excess == 0.0) break;
+    if (excess > 0.0) xb = x;
+    else              xa = x;
+    double fx = density(x);
+    double next = x - excess / fx;
+    if (!(fx > 0.0) || !(next > xa && next < xb)) next = 0.5 * (xa + xb);
+    bool converged = std::fabs(next - x) <= 1e-12 * width;
+    x = next;
+    if (converged || !(xb - xa > 1e-12 * width)) break;
+  }
+  return std::clamp(x, lo, hi);
+}
+
 /// Ordinal code-box of a leaf along one predictor: codes in [lo, hi] reach it.
 /// From the ancestor-constrained cut interval (Tree::splitInterval): its left
 /// is the low code, its right + 1 the high code.
@@ -523,9 +696,12 @@ inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
 }
 
 /// True when every leaf's value lies within its neighbor bounds - the monotone
-/// feasibility invariant. MonotoneConstantGaussianLeaf::drawFromPriorForTree
-/// calls it as the acceptance predicate of the constrained prior's rejection
-/// sampler, so tol is part of a live draw law and not a test-only slack.
+/// feasibility invariant. Empty leaves are held to it too: they carry drawn
+/// values, and the cone and its normalizer range over every leaf. It reads
+/// the cut grid and the leaf values only, never the partition.
+/// MonotoneConstantGaussianLeaf::drawFromPriorForTree calls it as the
+/// acceptance predicate of the constrained prior's rejection sampler, so tol
+/// is part of a live draw law and not a test-only slack.
 inline bool monotoneTreeIsFeasible(const Tree& tree, const ColumnStore& data,
                                    const std::int8_t* directions,
                                    const double* mu, double tol = 1e-9) {
@@ -533,7 +709,6 @@ inline bool monotoneTreeIsFeasible(const Tree& tree, const ColumnStore& data,
   s.allBottoms.clear();
   tree.fillBottom(0, s.allBottoms);
   for (std::int32_t leaf : s.allBottoms) {
-    if (tree.at(leaf).numObservations() == 0) continue;
     double a, b;
     bool constrained;
     monotoneNeighborBounds(tree, data, directions, s.allBottoms, leaf, mu,
@@ -610,44 +785,77 @@ struct MonotoneConstantGaussianLeaf {
   }
 
   // Draw from N(m, s^2) truncated to (a, b], using the sd-1 primitives; an
-  // unbounded side passes through, and a numerically empty interval falls back
-  // to the clamped `fallback`.
-  static double drawTruncatedNormal(ext_rng* rng, double m, double s, double a,
-                                    double b, double fallback) {
+  // unbounded side passes through. A two-sided interval above the mean is
+  // reflected below it and the draw negated: the primitive's inverse-CDF path
+  // differences lower-tail CDFs, which cancel near 1 (7.5 sd above the mean
+  // they collapse the draw onto a few hundred values) and keep full relative
+  // precision near 0. Nan when a two-sided draw lands outside [a, b], which
+  // is how a stalled tail rejection in the primitive shows: it hands back its
+  // last rejected proposal. A stall ending on a proposal inside the interval
+  // is not caught here. Requires a < b.
+  static double drawTruncatedNormalOrNaN(ext_rng* rng, double m, double s,
+                                         double a, double b) {
     if (!std::isfinite(a) && !std::isfinite(b))
       return m + s * ext_rng_simulateStandardNormal(rng);
     if (!std::isfinite(a))
       return ext_rng_simulateUpperTruncatedNormal(rng, m, s, b);
     if (!std::isfinite(b))
       return ext_rng_simulateLowerTruncatedNormal(rng, m, s, a);
-    double z = ext_rng_simulateTruncatedNormalScale1(rng, m / s, a / s, b / s);
-    return std::isnan(z) ? std::clamp(fallback, a, b) : s * z;
+    double mean = m / s, lo = a / s, hi = b / s;
+    double z = lo > mean
+      ? -ext_rng_simulateTruncatedNormalScale1(rng, -mean, -hi, -lo)
+      : ext_rng_simulateTruncatedNormalScale1(rng, mean, lo, hi);
+    double x = s * z;
+    // the slack covers only the rounding of s * z at a bound
+    double slack = 1e-12 * std::max(std::fabs(a), std::fabs(b));
+    return x >= a - slack && x <= b + slack
+      ? x : std::numeric_limits<double>::quiet_NaN();
+  }
+
+  // The truncated draw with its result held inside [a, b]: a degenerate
+  // interval returns its point without drawing, a stalled tail rejection the
+  // clamped mean, and an interval crossed by rounding (a > b, which a feasible
+  // state reaches only through the ulps a draw can land past its bound) its
+  // midpoint, so the clamp never runs with lo > hi.
+  static double drawTruncatedNormal(ext_rng* rng, double m, double s, double a,
+                                    double b) {
+    if (!(a < b)) return a <= b ? a : 0.5 * (a + b);
+    double x = drawTruncatedNormalOrNaN(rng, m, s, a, b);
+    return std::clamp(std::isnan(x) ? m : x, a, b);
+  }
+
+  // A leaf's conditional mean and sd given its data: an empty leaf has none,
+  // so its conditional is its prior, read without the node's statistics.
+  void leafPosterior(const Node& node, double residualVariance,
+                     double priorStdDev, double* mean, double* stdDev) const {
+    if (node.numObservations() == 0) {
+      *mean = 0.0;
+      *stdDev = priorStdDev;
+      return;
+    }
+    posterior(node.sumWeights, node.sumWeightedResponse, residualVariance,
+              priorStdDev, mean, stdDev);
   }
 
   // ---- the constrained leaf-parameter draw (TreeDrawLeafModel) -------------
   // One leaf's truncated-normal full conditional, shared by the tree-wide sweep
-  // and the birth/death redraws. Empty leaves get mu = 0. `bottoms` is the leaf
-  // set monotoneNeighborBounds walks for frozen neighbors; skip/numSkip exclude
+  // and the birth/death redraws. An empty leaf draws its prior truncated to the
+  // same bounds, so every leaf stays in the cone. `bottoms` is the leaf set
+  // monotoneNeighborBounds walks for frozen neighbors; skip/numSkip exclude
   // co-drawn siblings. Fixed k: the truncated draw carries no clean chi-squared
   // statistic (design section 6), so no sumSquaredParams accumulation.
   void drawOneLeaf(ext_rng* rng, const Tree& tree, std::int32_t leaf,
                    const std::vector<std::int32_t>& bottoms,
                    const std::int32_t* skip, std::size_t numSkip, double k,
                    double residualVariance, double* mu) const {
-    const Node& node = tree.at(leaf);
-    if (node.numObservations() == 0) {
-      mu[leaf] = 0.0;
-      return;
-    }
     double a, b;
     bool constrained;
     monotoneNeighborBounds(tree, *data, directions.data(), bottoms, leaf, mu,
                            skip, numSkip, scratch, &a, &b, &constrained);
-    double sd = priorSd(k, constrained);
     double m, s;
-    posterior(node.sumWeights, node.sumWeightedResponse, residualVariance, sd,
-              &m, &s);
-    mu[leaf] = constrained ? drawTruncatedNormal(rng, m, s, a, b, mu[leaf])
+    leafPosterior(tree.at(leaf), residualVariance, priorSd(k, constrained), &m,
+                  &s);
+    mu[leaf] = constrained ? drawTruncatedNormal(rng, m, s, a, b)
                            : m + s * ext_rng_simulateStandardNormal(rng);
   }
 
@@ -662,21 +870,19 @@ struct MonotoneConstantGaussianLeaf {
   }
 
   // Exact draw of a tree's leaf vector from the CONSTRAINED prior, by
-  // rejection: the leaves' independent (c-inflated) prior marginals, accepted
-  // only when the whole vector lands in the monotone cone. A sequential sweep
-  // of the truncated full conditionals is NOT the joint truncated law, so
-  // rejection is the exact route. Acceptance runs ~1/L! over L leaves chained
-  // on a constrained axis, worst when every axis is constrained and best with
-  // only one, and prior-drawn trees average 2.5 leaves, so the cap only
-  // catches a pathologically deep structure. Empty leaves take mu = 0
-  // as everywhere else, flagged by a zero prior sd.
+  // rejection: every leaf's independent (c-inflated) prior marginal, empty
+  // leaves included, accepted only when the whole vector lands in the
+  // monotone cone. A sequential sweep of the truncated full conditionals is
+  // NOT the joint truncated law, so rejection is the exact route. Acceptance
+  // runs ~1/L! over L leaves chained on a constrained axis, worst when every
+  // axis is constrained and best with only one, and prior-drawn trees average
+  // 2.5 leaves, so the cap only catches a pathologically deep structure.
   static constexpr int priorDrawMaxAttempts = 1000000;
   bool drawFromPriorForTree(ext_rng* rng, const Tree& tree,
                             const std::vector<std::int32_t>& bottoms, double k,
                             double* mu) const {
     std::vector<double> priorSds(bottoms.size(), 0.0);
     for (std::size_t i = 0; i < bottoms.size(); ++i) {
-      if (tree.at(bottoms[i]).numObservations() == 0) continue;
       double a, b;
       bool constrained;
       monotoneNeighborBounds(tree, *data, directions.data(), bottoms,
@@ -686,9 +892,7 @@ struct MonotoneConstantGaussianLeaf {
     }
     for (int attempt = 0; attempt < priorDrawMaxAttempts; ++attempt) {
       for (std::size_t i = 0; i < bottoms.size(); ++i)
-        mu[bottoms[i]] = priorSds[i] == 0.0
-          ? 0.0
-          : priorSds[i] * ext_rng_simulateStandardNormal(rng);
+        mu[bottoms[i]] = priorSds[i] * ext_rng_simulateStandardNormal(rng);
       if (monotoneTreeIsFeasible(tree, *data, directions.data(), mu))
         return true;
     }
@@ -707,13 +911,15 @@ struct MonotoneConstantGaussianLeaf {
                 residualVariance, mu);
   }
 
-  // Redraw of an accepted birth's two children from their EXACT
-  // constrained conditional posterior over the cone {aL<=mu_lower<=bL,
-  // aR<=mu_upper<=bR, mu_lower<=mu_upper}: draw mu_upper from its marginal by
-  // rejection off the frozen-bound truncated normal (accept in proportion to
-  // the mu_lower mass it admits), then mu_lower | mu_upper. Exact, and cheap
-  // (the acceptance averages ~1/2). A non-constrained-axis split leaves the two
-  // independent, each its own 1-D truncated draw.
+  // Redraw of an accepted birth's two children from their EXACT constrained
+  // conditional over the cone {aL <= mu_lower <= bL, aU <= mu_upper <= bU,
+  // mu_lower <= mu_upper}: mu_upper from its marginal (drawPairUpper), then
+  // mu_lower on [aL, min(bL, mu_upper)], which contains aL <= mu_upper and so
+  // is never empty. Empty children draw the same way with their prior in place
+  // of a posterior. Both children's slots may hold a recycled node's stale
+  // value, so neither is read before it is written: each child's bounds skip
+  // its sibling. A split on an unconstrained axis relates neither child to the
+  // other, so each takes its own 1-D truncated draw.
   void redrawAfterBirth(ext_rng* rng, const Tree& tree, std::int32_t parent,
                         double k, double residualVariance, double* mu) const {
     scratch.allBottoms.clear();
@@ -727,46 +933,70 @@ struct MonotoneConstantGaussianLeaf {
     }
     std::int32_t lower = directions[splitVar] > 0 ? left : left + 1;
     std::int32_t upper = directions[splitVar] > 0 ? left + 1 : left;
-    const Node& nodeL = tree.at(lower);
-    const Node& nodeR = tree.at(upper);
-    if (nodeL.numObservations() == 0 || nodeR.numObservations() == 0) {
-      redrawLeafFree(rng, tree, lower, upper, k, residualVariance, mu);
-      redrawLeafFree(rng, tree, upper, lower, k, residualVariance, mu);
-      return;
-    }
-    double aL, bL, aR, bR;
-    bool cL, cR;
+    double aL, bL, aU, bU;
+    bool cL, cU;
     std::int32_t skipU = upper, skipL = lower;
     monotoneNeighborBounds(tree, *data, directions.data(), scratch.allBottoms,
                            lower, mu, &skipU, 1, scratch, &aL, &bL, &cL);
     monotoneNeighborBounds(tree, *data, directions.data(), scratch.allBottoms,
-                           upper, mu, &skipL, 1, scratch, &aR, &bR, &cR);
+                           upper, mu, &skipL, 1, scratch, &aU, &bU, &cU);
     double sd = priorSd(k, true);
-    double mL, sL, mR, sR;
-    posterior(nodeL.sumWeights, nodeL.sumWeightedResponse, residualVariance, sd,
-              &mL, &sL);
-    posterior(nodeR.sumWeights, nodeR.sumWeightedResponse, residualVariance, sd,
-              &mR, &sR);
-    double lowR = std::max(aR, aL);
-    double hiL = std::isfinite(bR) ? std::min(bL, bR) : bL;  // max reachable min(bL, muR)
-    double acceptMax = normalMass(aL, hiL, mL, sL);
-    double muUpper = mu[upper], muLower = mu[lower];
+    double mL, sL, mU, sU;
+    leafPosterior(tree.at(lower), residualVariance, sd, &mL, &sL);
+    leafPosterior(tree.at(upper), residualVariance, sd, &mU, &sU);
+    double muUpper =
+      drawPairUpper(rng, mU, sU, std::max(aU, aL), bU, aL, bL, mL, sL);
+    mu[lower] = drawTruncatedNormal(rng, mL, sL, aL, std::min(bL, muUpper));
+    mu[upper] = muUpper;
+  }
+
+  // Cap on drawPairUpper's rejection before it falls back to the inversion.
+  static constexpr int pairRejectionMaxTries = 100;
+
+  // The upper leaf of a constrained sibling pair, from its marginal on
+  // [lo, hi] (lo = max(aU, aL), hi = bU): density proportional to
+  // phi((u - mU) / sU) [Phi((min(bL, u) - mL) / sL) - Phi((aL - mL) / sL)].
+  // First a capped rejection off the upper leaf's own truncated normal,
+  // accepting in proportion to the lower-leaf mass the candidate admits,
+  // which is exact whenever it accepts; when the cap is reached, a candidate
+  // comes back nan (a stalled tail draw), or the largest admitted mass
+  // underflows, the exact inverse-CDF draw. A mixture of an exact capped
+  // rejection and an exact fallback is exact.
+  static double drawPairUpper(ext_rng* rng, double mU, double sU, double lo,
+                              double hi, double aL, double bL, double mL,
+                              double sL) {
+    if (!(lo < hi)) return lo <= hi ? lo : 0.5 * (lo + hi);
+    double acceptMax = normalMass(aL, std::min(bL, hi), mL, sL);
     if (acceptMax > 0.0) {
-      for (int tries = 0; tries < 100; ++tries) {
-        double candidate = drawTruncatedNormal(rng, mR, sR, lowR, bR, muUpper);
-        double admitted =
-          normalMass(aL, std::isfinite(bL) ? std::min(bL, candidate) : candidate,
-                     mL, sL);
-        if (ext_rng_simulateContinuousUniform(rng) * acceptMax <= admitted) {
-          muUpper = candidate;
-          break;
-        }
+      for (int tries = 0; tries < pairRejectionMaxTries; ++tries) {
+        double candidate = drawTruncatedNormalOrNaN(rng, mU, sU, lo, hi);
+        if (std::isnan(candidate)) break;
+        candidate = std::clamp(candidate, lo, hi);
+        double admitted = normalMass(aL, std::min(bL, candidate), mL, sL);
+        if (ext_rng_simulateContinuousUniform(rng) * acceptMax <= admitted)
+          return candidate;
       }
     }
-    double upperL = std::isfinite(bL) ? std::min(bL, muUpper) : muUpper;
-    muLower = drawTruncatedNormal(rng, mL, sL, aL, upperL, muLower);
-    mu[lower] = muLower;
-    mu[upper] = muUpper;
+    return drawPairUpperByInversion(rng, mU, sU, lo, hi, aL, bL, mL, sL);
+  }
+
+  // drawPairUpper's exact fallback: the marginal is log-concave (a normal
+  // density times a truncated normal CDF of min(bL, u)) and nondecreasing up
+  // to min(mU, hi), so monotoneInvertLogConcave inverts its CDF from there.
+  // Consumes one uniform. Requires lo < hi.
+  static double drawPairUpperByInversion(ext_rng* rng, double mU, double sU,
+                                         double lo, double hi, double aL,
+                                         double bL, double mL, double sL) {
+    const double zA = (aL - mL) / sL;
+    auto logDensity = [&](double u) {
+      double z = (u - mU) / sU;
+      return -0.5 * z * z +
+             logStandardNormalMass(zA, (std::min(bL, u) - mL) / sL);
+    };
+    double u = ext_rng_simulateContinuousUniform(rng);
+    return monotoneInvertLogConcave(logDensity, lo, hi,
+                                    std::clamp(mU, lo, hi), std::min(sU, sL),
+                                    u);
   }
 
   // one child's independent 1-D truncated conditional (unconstrained split axis)
@@ -901,10 +1131,15 @@ struct MonotoneConstantGaussianLeaf {
       loU, hiU);
   }
 
+  // P(a <= X <= b) for X ~ N(mean, stdDev^2); 0 on an empty interval. An
+  // interval above the mean is a difference of upper tails, so a mass deep in
+  // the upper tail does not cancel to zero.
   static double normalMass(double a, double b, double mean, double stdDev) {
-    double hi = std::isfinite(b) ? gaussianCdf((b - mean) / stdDev) : 1.0;
-    double lo = std::isfinite(a) ? gaussianCdf((a - mean) / stdDev) : 0.0;
-    return hi - lo;
+    double lo = (a - mean) / stdDev, hi = (b - mean) / stdDev;
+    if (!(hi > lo)) return 0.0;
+    if (lo > 0.0)
+      return Rf_pnorm5(lo, 0.0, 1.0, 0, 0) - Rf_pnorm5(hi, 0.0, 1.0, 0, 0);
+    return gaussianCdf(hi) - gaussianCdf(lo);
   }
 };
 

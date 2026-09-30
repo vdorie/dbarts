@@ -2422,6 +2422,16 @@ dbartsSampler <- setRefClass(
         stop("keepTrees requires 'n.samples' to be specified")
       }
 
+      # a monotone sampler is birth/death-only, as creation forces: a defaulted
+      # mixture is rewritten and one proposing other moves refused, before
+      # anything is installed
+      if (!is.null(attr(model, "monotone"))) {
+        newControl@proposal.probs <- monotoneProposalProbs(
+          newControl@proposal.probs,
+          allowBirthDeath = TRUE
+        )
+      }
+
       mixtureMoved <- !identical(
         newControl@proposal.probs,
         control@proposal.probs

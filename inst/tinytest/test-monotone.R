@@ -286,3 +286,278 @@ samplesPri <- samplerPri$run(10L, 10L)
 expect_true(all(is.finite(samplesPri$train)))
 
 rm(nPri, xPri, samplerPri, priorEv, samplesPri)
+
+# ---- reachability: every state the sampler holds lies in the cone ----
+
+# x1 carries the constraint and x2 is free; predictions along x1 at fixed x2
+# read the fitted function, including leaves a test row reaches but no
+# training row does
+set.seed(404L)
+nReach <- 200L
+xReach <- matrix(
+  runif(nReach * 2L),
+  nReach,
+  2L,
+  dimnames = list(NULL, c("x1", "x2"))
+)
+xReach[1L, ] <- 0
+xReach[2L, ] <- 1
+# decreasing along the constrained axis, so the unconstrained fit and the
+# constrained likelihood both pull against the cone
+yReach <- -2 * xReach[, 1L] + sin(4 * xReach[, 2L]) + rnorm(nReach, 0, 0.2)
+controlReach <- function(n.trees = 20L, ...) {
+  dbarts::dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = n.trees,
+    n.samples = 1L,
+    updateState = TRUE,
+    ...
+  )
+}
+gridReach <- as.matrix(expand.grid(
+  x1 = seq(0, 1, length.out = 101L),
+  x2 = c(0.1, 0.5, 0.9)
+))
+# the largest fall along x1 at any fixed x2; 0 for a monotone fit
+maxDrop <- function(sampler) {
+  fits <- matrix(sampler$predict(gridReach), 101L)
+  -min(apply(fits, 2L, diff))
+}
+monoReach <- dbarts::dbarts(
+  xReach,
+  yReach,
+  monotone = c(x1 = "increasing"),
+  control = controlReach()
+)
+freeReach <- dbarts::dbarts(xReach, yReach, control = controlReach())
+invisible(freeReach$run(200L, 1L))
+invisible(monoReach$run(50L, 1L))
+birthDeath <- c(
+  birth_death = 1,
+  swap = 0,
+  change = 0,
+  perturb = 0,
+  rule_gibbs = 0,
+  birth = 0.5
+)
+
+# setControl mirrors creation: a defaulted mixture is rewritten to
+# birth/death-only, and a mixture proposing other moves is refused with the
+# control left as it was
+monoReach$setControl(controlReach(printEvery = 50L))
+expect_equal(monoReach$control@proposal.probs, birthDeath)
+expect_error(
+  monoReach$setControl(controlReach(
+    proposal.probs = c(birth_death = 0.5, change = 0.5)
+  )),
+  "birth/death-only"
+)
+expect_equal(monoReach$control@proposal.probs, birthDeath)
+
+# the bridge refuses the mixture on its own, keyed on the engine's leaf kind:
+# a control slipped past the R check meets it at the prior install
+changeControl <- monoReach$control
+changeControl@proposal.probs[] <- c(0.5, 0, 0.5, 0, 0, 0.5)
+storedControl <- monoReach$control
+monoReach$control <- changeControl
+expect_error(
+  monoReach$setModel(monoReach$model),
+  "proposes only birth and death"
+)
+monoReach$control <- storedControl
+rm(changeControl, storedControl)
+
+# a warm start from an unconstrained donor installs its trees, reseeding
+# every tree outside the cone to all-zero, so the fit is monotone at once
+expect_true(maxDrop(freeReach) > 0.1)
+monoReach$installTrees(freeReach)
+expect_true(maxDrop(monoReach) <= 1e-8)
+invisible(monoReach$run(0L, 1L))
+expect_true(maxDrop(monoReach) <= 1e-8)
+
+# setState of the donor's state is refused whole, and the sampler keeps its
+# state and its fit
+stateBefore <- monoReach$state
+fitBefore <- monoReach$predict(gridReach)
+expect_error(
+  monoReach$setState(freeReach$state),
+  "leaf values violate this sampler's monotone constraint"
+)
+expect_identical(monoReach$state, stateBefore)
+expect_identical(monoReach$predict(gridReach), fitBefore)
+rm(stateBefore, fitBefore)
+
+# grow-from-root regrows every tree over recycled node slots; the regrown
+# leaves draw from the all-zero seed, and one sweep later the fit is monotone
+monoReach$growFromRoot(2L)
+expect_true(maxDrop(monoReach) <= 1e-8)
+invisible(monoReach$run(0L, 1L))
+expect_true(maxDrop(monoReach) <= 1e-8)
+
+# a long run against the constraint stays in the cone: a copy (setState
+# through the stored state) and a state round trip both install
+invisible(monoReach$run(2000L, 1L))
+expect_true(maxDrop(monoReach) <= 1e-8)
+monoCopy <- monoReach$copy()
+expect_identical(monoCopy$predict(gridReach), monoReach$predict(gridReach))
+monoReach$setState(monoReach$state)
+expect_true(maxDrop(monoCopy) <= 1e-8)
+rm(monoCopy)
+
+# a hand-built tree over x1 (increasing) and x2 (free): x1 splits at 0.5 and
+# each side splits x2 at 0.3, leaves J, K (x1 low) and S1, S2 (x1 high), with
+# J < S1 and K < S2 the only relations. A forced update emptying S1 collapses
+# x1's high side into one leaf holding S2's value, which now borders J from
+# above and sits below it; the merged tree is reseeded, so the fit stays
+# monotone and the state reinstalls
+handReach <- dbarts::dbarts(
+  xReach,
+  yReach,
+  monotone = c(x1 = "increasing"),
+  control = controlReach(n.trees = 1L)
+)
+handState <- handReach$state
+cuts <- attr(handState, "cutPoints")
+cut1 <- cuts[[1L]][which.max(cuts[[1L]] >= 0.5)]
+cut2 <- cuts[[2L]][which.max(cuts[[2L]] >= 0.3)]
+handTree <- handState[[1L]]$forests[[1L]]
+handTree$tree.vars <- c(1L, 2L, -1L, -1L, 2L, -1L, -1L)
+handTree$tree.values <- writeBin(
+  c(cut1, cut2, 0, -0.1, cut2, 0.02, -0.09),
+  raw()
+)
+handTree$tree.sizes <- 7L
+handTree$tree.flags <- as.raw(c(2L, 2L, 0L, 0L, 2L, 0L, 0L))
+handState[[1L]]$forests[[1L]] <- handTree
+handReach$setState(handState)
+xEmpty <- xReach
+movedRows <- xEmpty[, 1L] > cut1 & xEmpty[, 2L] <= cut2
+xEmpty[movedRows, 2L] <- (cut2 + 1) / 2
+expect_true(any(movedRows))
+handReach$setPredictor(xEmpty, forceUpdate = TRUE)
+expect_true(maxDrop(handReach) <= 1e-8)
+handReach$storeState()
+expect_silent(handReach$setState(handReach$state))
+expect_equal(handReach$state[[1L]]$forests[[1L]]$tree.sizes, 5L)
+rm(handReach, handState, cuts, cut1, cut2, handTree, xEmpty, movedRows)
+
+# a forced predictor update that flattens x2 empties one side of every x2
+# split; the collapse merges leaves across the free axis, relating each merged
+# leaf to neighbors it did not border, and a merged tree outside the cone is
+# reseeded
+xFlat <- xReach
+xFlat[-(1:2), 2L] <- 0.5
+monoReach$setPredictor(xFlat, forceUpdate = TRUE)
+expect_true(maxDrop(monoReach) <= 1e-8)
+monoReach$storeState()
+monoReach$setState(monoReach$state)
+invisible(monoReach$run(20L, 1L))
+expect_true(maxDrop(monoReach) <= 1e-8)
+rm(xFlat)
+
+# empty leaves carry drawn values in the cone: a 20-tree fit warm-started
+# from a monotone donor over [0, 1] into rows that leave x1 in (0.6, 1) empty
+# (the endpoints keep the grids equal, so the trees install verbatim) strands
+# leaves where the fit sits above 0. The structure is then frozen (the
+# all-zero mixture, which a monotone sampler allows), so the empty leaves are
+# redrawn every sweep instead of being merged away by the first death. Every
+# tree is checked on its own, read through getTrees and evaluated at the
+# midpoint of every cell its splits cut out, so no other tree's rise can mask
+# a fall and no cell is missed
+donorReach <- dbarts::dbarts(
+  xReach,
+  -yReach,
+  monotone = c(x1 = "increasing"),
+  control = controlReach()
+)
+invisible(donorReach$run(300L, 1L))
+xGap <- xReach
+xGap[-(1:2), 1L] <- runif(nReach - 2L, 0, 0.6)
+gapReach <- dbarts::dbarts(
+  xGap,
+  -yReach,
+  monotone = c(x1 = "increasing"),
+  control = controlReach()
+)
+gapReach$installTrees(donorReach)
+gapReach$setControl(controlReach(
+  proposal.probs = c(birth_death = 0, change = 0)
+))
+# one tree's leaf values at x, its nodes in pre-order (var -1 marks a leaf, a
+# row goes left when x[, var] <= value)
+treeAt <- function(nodes, x) {
+  position <- 0L
+  descend <- function(rows) {
+    position <<- position + 1L
+    var <- nodes$var[position]
+    value <- nodes$value[position]
+    if (var < 0L) {
+      return(rep(value, length(rows)))
+    }
+    goesLeft <- x[rows, var] <= value
+    out <- numeric(length(rows))
+    out[goesLeft] <- descend(rows[goesLeft])
+    out[!goesLeft] <- descend(rows[!goesLeft])
+    out
+  }
+  descend(seq_len(nrow(x)))
+}
+# the largest fall along x1 in any single tree, over every cell of that tree
+worstTreeDrop <- function(sampler) {
+  trees <- sampler$getTrees()
+  drops <- vapply(
+    split(trees, trees$tree),
+    function(nodes) {
+      mids <- lapply(1:2, function(j) {
+        edges <- sort(unique(c(0, 1, nodes$value[nodes$var == j])))
+        (edges[-1L] + edges[-length(edges)]) / 2
+      })
+      cells <- as.matrix(expand.grid(mids[[1L]], mids[[2L]]))
+      fits <- matrix(treeAt(nodes, cells), length(mids[[1L]]))
+      if (nrow(fits) < 2L) 0 else -min(apply(fits, 2L, diff))
+    },
+    0.0
+  )
+  max(drops)
+}
+# the sum of the trees read this way is the sampler's own fit up to its
+# response scale, so the reader routes as the engine does
+treesGap <- gapReach$getTrees()
+totalGap <- Reduce(
+  `+`,
+  lapply(split(treesGap, treesGap$tree), treeAt, x = gridReach)
+)
+expect_equal(cor(totalGap, gapReach$predict(gridReach)), 1)
+expect_true(any(treesGap$var < 0L & treesGap$n == 0L))
+dropsGap <- vapply(
+  seq_len(20L),
+  function(i) {
+    invisible(gapReach$run(0L, 1L))
+    worstTreeDrop(gapReach)
+  },
+  0.0
+)
+expect_true(all(dropsGap <= 1e-12))
+treesGap <- gapReach$getTrees()
+expect_true(any(treesGap$var < 0L & treesGap$n == 0L))
+
+rm(
+  nReach,
+  xReach,
+  yReach,
+  controlReach,
+  gridReach,
+  maxDrop,
+  monoReach,
+  freeReach,
+  birthDeath,
+  donorReach,
+  xGap,
+  gapReach,
+  treeAt,
+  worstTreeDrop,
+  treesGap,
+  totalGap,
+  dropsGap
+)
