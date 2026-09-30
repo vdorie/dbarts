@@ -789,10 +789,9 @@ struct MonotoneConstantGaussianLeaf {
   // reflected below it and the draw negated: the primitive's inverse-CDF path
   // differences lower-tail CDFs, which cancel near 1 (7.5 sd above the mean
   // they collapse the draw onto a few hundred values) and keep full relative
-  // precision near 0. Nan when a two-sided draw lands outside [a, b], which
-  // is how a stalled tail rejection in the primitive shows: it hands back its
-  // last rejected proposal. A stall ending on a proposal inside the interval
-  // is not caught here. Requires a < b.
+  // precision near 0. NaN when the primitive's tail rejection stalls, which
+  // it reports as NaN itself; a two-sided draw outside [a, b] is also NaN, as
+  // a backstop. Requires a < b.
   static double drawTruncatedNormalOrNaN(ext_rng* rng, double m, double s,
                                          double a, double b) {
     if (!std::isfinite(a) && !std::isfinite(b))
