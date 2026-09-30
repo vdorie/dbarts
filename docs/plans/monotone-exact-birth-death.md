@@ -650,6 +650,8 @@ constrained value waits for step 12.
      own, as setControl mirrors creation, refuses a model lacking the monotone attribute on a monotone sampler,
      and refuses one adding the attribute to an unconstrained sampler (dec-A128). Today a model lacking it is
      accepted, and copy() then fits unconstrained: a 0.34 drop along x1 in the critique's probe.
+     As implemented: the bridge compares against the engine's own directions and prior, which SamplerShape now
+     carries, so a model all-zero in directions counts as unconstrained.
    - Commit 1. growForestFromRoot reseeds mu to the all-zero feasible seed before its draw.
    - Commit 1. Reseed, then validate (dec-A128). [`Chain::installForest`](../../src/bartcore/chain.hpp) reaches
      the trees through [`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp) or
@@ -847,6 +849,17 @@ constrained value waits for step 12.
       as setState's rebuild. Every state after a cancel is then consistent and valid, but the sweep may be
       partly applied: earlier trees of that sweep hold their new draws. The run's results are discarded as on
       any interrupt, and the sampler can run again.
+    - As implemented (commit 5): the poll sits in the forward DP, the backward counts and the position laws, one
+      per down-set, every 2^16 by default. Only totalFits is rebuilt, re-summed from the trees in tree order: the
+      running residual needs nothing, since each sweep's first roll rewrites it whole from totalFits, and the test
+      totals are rebuilt by every recorded sweep before they are read. A move's allocation failure is rethrown as
+      bartcore::CountOutOfMemory, still a bad_alloc, whose message names the remedies. sampleNodeParametersFromPrior
+      rebuilds totalFits the same way before its allocation failure goes on. The tally and the threshold live on the
+      monotone leaf; the threshold, the poll interval and a one-shot injected allocation failure are process-wide
+      test knobs (monotoneCountHooks), R reaching the first and third through an unexported bridge entry. The
+      bridge attaches the tally as a "slow.count" attribute; a burn-only run, which returns NULL, returns an empty
+      list carrying it when a count was slow. bart()'s burn-in and kept runs merge their tallies and warn once.
+      The burn-only and per-sweep-callback run entries now capture engine exceptions as the main one does.
 16. SBC arms (benchmarks/R/sbc.R has none today; ~120 lines), as
     [Monotone arm: design](sbc-family-tiers.md#monotone-arm-design) lays them out: the burn-monotone run, the
     monotone-1 and 20-tree arms once per prior, each naming its prior, and the unconstrained monotone-bd twin
