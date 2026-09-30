@@ -230,6 +230,6 @@ of two leaves keep MH, so both kernels mix in one chain.
 ## 8. Open
 
 - B's default. 2^22 keeps every unswitched count under ~0.25 s and switches nothing at 10 or more trees in the
-  measured fits. The corrected engine's checkpoint fits (plan, step 3) should confirm it, and give the
-  switched share and a_B / a_MH per fit.
+  measured fits. The corrected engine's checkpoint fits (plan, Staging: the checkpoint) should confirm it, and
+  give the switched share and a_B / a_MH per fit.
 - Whether it goes in before release: the plan's checkpoint decides (dec-B149).
