@@ -86,6 +86,21 @@ expect_error(
   "should be one of"
 )
 expect_error(dbarts::dbartsForests$monotone(), "requires 'directions'")
+expect_error(
+  dbarts::dbartsForests$monotone(c(a = 1), prior = NA),
+  "'prior' must be one of \"leaf\", \"joint\"",
+  fixed = TRUE
+)
+# a partly named vector and a predictor named twice are refused, not resolved
+# by position or by the last name
+expect_error(
+  monotoneOf(x, y, monotone = c(a = 1, 0, 0)),
+  "must be all named or all unnamed"
+)
+expect_error(
+  monotoneOf(x, y, monotone = c(a = 1, a = -1)),
+  "names a predictor more than once: 'a'"
+)
 # the vocabulary is checked at fit time, where the columns resolve
 expect_error(
   monotoneOf(x, y, monotone = monotone(c(a = "+"), prior = "leaf")),

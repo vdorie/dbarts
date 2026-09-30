@@ -705,9 +705,20 @@ resolveMonotone <- function(spec, data) {
   numColumns <- ncol(data@x)
   columnNames <- colnames(data@x)
   result <- integer(numColumns)
+  assigned <- logical(numColumns)
 
   monotoneNames <- names(directions)
   if (!is.null(monotoneNames) && any(nzchar(monotoneNames))) {
+    if (!all(nzchar(monotoneNames))) {
+      stop("'monotone' directions must be all named or all unnamed")
+    }
+    if (anyDuplicated(monotoneNames)) {
+      stop(
+        "'monotone' names a predictor more than once: '",
+        monotoneNames[anyDuplicated(monotoneNames)],
+        "'"
+      )
+    }
     if (is.null(columnNames)) {
       stop(
         "cannot assign monotone constraints: model matrix has no column names"
@@ -728,6 +739,14 @@ resolveMonotone <- function(spec, data) {
           "'"
         )
       }
+      if (any(assigned[columns])) {
+        stop(
+          "'monotone' names a predictor more than once: '",
+          name,
+          "' overlaps a column named earlier"
+        )
+      }
+      assigned[columns] <- TRUE
       result[columns] <- direction
     }
   } else {
@@ -1849,6 +1868,15 @@ MONOTONE_PRIORS <- c("leaf", "joint")
 monotone <- function(directions, prior) {
   if (missing(directions) || is.null(directions)) {
     stop("monotone() requires 'directions', the per-predictor directions")
+  }
+  if (
+    !missing(prior) &&
+      (!is.character(prior) || length(prior) != 1L || is.na(prior))
+  ) {
+    stop(
+      "monotone() 'prior' must be one of ",
+      paste0("\"", MONOTONE_PRIORS, "\"", collapse = ", ")
+    )
   }
   prior <- match.arg(prior)
   structure(
