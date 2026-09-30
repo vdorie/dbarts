@@ -101,7 +101,19 @@ forest(
   \\K = 2\\ is the fixed point of both statements, \\\sqrt{2/2} = 1\\. A
   value declared here overrides its default and keeps its per-forest
   reading at every \\K\\, so `sd = 1` on each basis forest recovers the
-  pre-\\K\\-aware model exactly.
+  pre-\\K\\-aware model exactly. It must be positive and finite.
+
+  It is the one argument a live sampler restates:
+  `$setLeafPrior(forests = list(forest(sd = ), ...))` writes it in the
+  channel creation gave the forest, and `$getLeafPrior(f)$leaf.prior`
+  reads it back as `forest(sd = )` (see
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
+  The channel is fixed at creation: a forest created without a basis
+  keeps its half-Cauchy median after `$setForestBasis` gives it one, so
+  its `forest(sd = )` round-trips through `$setLeafPrior`, while a fresh
+  [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+  given the same bases would read the same `sd` as a leaf-scale factor
+  and build a different prior.
 
 - interactions, blocks:
 

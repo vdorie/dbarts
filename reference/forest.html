@@ -148,7 +148,16 @@ The constructor is not exported: it resolves by bare name inside the
     statements, \(\sqrt{2/2} = 1\). A value declared here
     overrides its default and keeps its per-forest reading at every \(K\),
     so <code>sd = 1</code> on each basis forest recovers the pre-\(K\)-aware
-    model exactly.</p></dd>
+    model exactly. It must be positive and finite.</p>
+<p>It is the one argument a live sampler restates:
+    <code>$setLeafPrior(forests = list(forest(sd = ), ...))</code> writes it in the
+    channel creation gave the forest, and <code>$getLeafPrior(f)$leaf.prior</code>
+    reads it back as <code>forest(sd = )</code> (see <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>).
+    The channel is fixed at creation: a forest created without a basis keeps
+    its half-Cauchy median after <code>$setForestBasis</code> gives it one, so its
+    <code>forest(sd = )</code> round-trips through <code>$setLeafPrior</code>, while a
+    fresh <code><a href="dbarts.html">dbarts()</a></code> given the same bases would read the same <code>sd</code>
+    as a leaf-scale factor and build a different prior.</p></dd>
 
   <dt id="arg-interactions-blocks">interactions, blocks<a class="anchor" aria-label="anchor" href="#arg-interactions-blocks"></a></dt>
 <dd><p>Optional <code><a href="interactions.html">interactions</a></code> and <code><a href="blocks.html">blocks</a></code> constraints on

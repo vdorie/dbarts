@@ -97,7 +97,7 @@ getLeafPrior(forest = NULL)
 # S4 method for class 'dbartsSampler'
 getK(forest = NULL)
 # S4 method for class 'dbartsSampler'
-setLeafPrior(leaf.prior, updateState = NULL)
+setLeafPrior(leaf.prior, forests = NULL, updateState = NULL)
 # S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL)
 # S4 method for class 'dbartsSampler'
@@ -651,9 +651,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   so the default costs nothing on an ordinary sampler.
   `setForestWeights` and `setForestBasis` have no default: a writer
   names one target rather than reading every one. `setLeafPrior` takes
-  no `forest`: it is refused on every multi-forest sampler, since a
-  calibration map owns those forests' scales, so the only forest it can
-  write is a single-forest sampler's own. A Bayesian causal forest's
+  no `forest`: a multinomial sampler's `normal(k = )` states every
+  category forest, and a sampler whose forests carry amplitudes names
+  its forests by position in `forests`. A Bayesian causal forest's
   prognostic forest is `1` and its basis forest `2`; `setForestWeights`
   and `setForestBasis` are both refused on a sampler whose forests carry
   no amplitudes, but not with the same message - `setForestWeights`
@@ -683,7 +683,28 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   It must name the sampler's own leaf model - `normal` for the constant
   and monotone leaves - and may omit leaf-model details such as a linear
   leaf's `columns`; any it states must match. Changing the leaf model,
-  or anything else about the model, is `setModel`'s.
+  or anything else about the model, is `setModel`'s. A multinomial
+  sampler takes `normal(k = )` with a fixed `k`, `Inf` included, as its
+  creation does. A sampler whose forests carry amplitudes takes
+  `forests` instead; its creation also accepts `normal()` and
+  `normal(k = 2)`, which change nothing here.
+
+- forests:
+
+  For `setLeafPrior` on a sampler whose forests carry amplitudes, the
+  spreads its creation took: `list(forest(sd = ), ...)` in the same
+  positions, resolved inside the call as at creation (see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)).
+  Names, where given, must be the creation's. A short list reaches only
+  the first forests, and a forest whose `sd` is not stated is left as it
+  is; every other
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
+  argument is fixed at creation (a basis changes through
+  `setForestBasis`). Each `sd` lands in the channel creation gave it -
+  the half-Cauchy median of a forest created without a basis, the
+  leaf-scale factor of one created with one - and is recorded on the
+  `control` attribute creation reads, so every re-creation builds with
+  it. Give exactly one of `leaf.prior` and `forests`.
 
 - cuts:
 
@@ -955,14 +976,15 @@ is the softmax's null direction), `$setWeights` (an integer case weight
 is already row-wise replication in the count response, and a non-integer
 one has no exact augmentation sampler), `$setSigma` (no residual scale),
 `$setData` and `$setModel` (the K category forests fix their data and
-their calibration at creation), `$setLeafPrior` (the softmax map owns
-every category forest's leaf scale), `$setForestWeights` and
-`$setForestBasis` (its forests are its categories, which carry no
-amplitudes), and `$getFitsWithoutOffset` (its reported channels are
-probabilities, not one additive location). Per-forest masking is refused
-permanently rather than pending: a category's margin is a log-sum-exp
-over the other \\K-1\\, so a mask on one forest alone has no conditional
-to be a mask of.
+their calibration at creation), a named sd or a `k` hyperprior on
+`$setLeafPrior`, which takes `normal(k = )` with a fixed `k` (the
+softmax map owns every category forest's leaf scale),
+`$setForestWeights` and `$setForestBasis` (its forests are its
+categories, which carry no amplitudes), and `$getFitsWithoutOffset` (its
+reported channels are probabilities, not one additive location).
+Per-forest masking is refused permanently rather than pending: a
+category's margin is a log-sum-exp over the other \\K-1\\, so a mask on
+one forest alone has no conditional to be a mask of.
 
 The composition rule follows from the table: an outer block conditions
 on \\f(x_i)\\, so it reads `$getFitsWithoutOffset()` and adds back
@@ -1503,22 +1525,32 @@ samplers makes, is `NA`. A drawn `k` is chain state, read by `getK`. At
 the default `forest = NULL` a multi-forest sampler returns an unnamed
 list of one prior per forest; a single-forest sampler's `NULL` read is
 bitwise its `forest = 1` read. An `NA` spread cannot be written back:
-`setLeafPrior`, `setModel` and the fitting functions refuse it.
+`setLeafPrior`, `setModel` and the fitting functions refuse it. On a
+forest whose scale a multi-forest calibration map sets, `k` is pinned at
+1 and `leaf.prior` is the
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)`(sd = )`
+creation takes, which goes back into `setLeafPrior(forests = )`: the
+half-Cauchy median, with `prior.sd.of` `"amplitude scale"`, on a forest
+created without a basis, and the leaf-scale factor, with `prior.sd.of`
+`"forest total"`, on one created with one. After a state install brings
+a leaf scale the map did not derive, the latter reads `forest(sd = NA)`
+until `setLeafPrior` or `setForestBasis` re-imposes the map. The list
+then adds `basis.row.norm`, `leaf.scale.factor`, `leaf.scale.divisor`
+and one of `amplitude.prior.variance` or `amplitude.prior.scale`.
 
 On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
 sampler built with `forests =` or `dbartsData(bases = )` (see
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), `k` is
-pinned at 1, `leaf.prior` is `normal(sd = )` at the map's leaf scale,
-which is also `anchor`, and the list adds four entries, absent (so
-`NULL`) on every other forest, a multinomial one included. One of
-`amplitude.prior.variance` or `amplitude.prior.scale`: a forest whose
-amplitudes carry a fixed prior variance reports that variance, and one
-whose amplitude carries the half-Cauchy scale mixture (a forest
-declaring no basis) reports its median. Each is a prior the caller may
-set; neither moves with the scale mixture's own variance auxiliary,
-which is drawn. `leaf.scale.factor` and `leaf.scale.divisor` are the
-map's two factors and `basis.row.norm` the median nonzero row norm of
-the forest's basis IN FORCE, which `setForestBasis` re-derives.
+pinned at 1, `anchor` is the map's leaf scale, and the list adds four
+entries, absent (so `NULL`) on every other forest, a multinomial one
+included. One of `amplitude.prior.variance` or `amplitude.prior.scale`:
+a forest whose amplitudes carry a fixed prior variance reports that
+variance, and one whose amplitude carries the half-Cauchy scale mixture
+(a forest declaring no basis) reports its median. Each is a prior the
+caller may set; neither moves with the scale mixture's own variance
+auxiliary, which is drawn. `leaf.scale.factor` and `leaf.scale.divisor`
+are the map's two factors and `basis.row.norm` the median nonzero row
+norm of the forest's basis IN FORCE, which `setForestBasis` re-derives.
 
 Together they decompose the map's leaf scale as
 `anchor = leaf.scale.factor * s / (leaf.scale.divisor * basis.row.norm)`,
@@ -1574,14 +1606,20 @@ back. The write takes effect on the next sweep, reinterpreting no leaf
 value already drawn; a write that reproduces what is already in force is
 skipped bitwise, so a read followed by a write cannot perturb a draw. It
 is total over the four leaf models, and a DART sampler, which `setModel`
-refuses, is served. It is refused on an amplitude-coupled multi-forest
-sampler, whose spreads are stated per forest at creation through
-[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)`(sd = )`,
-and on a multinomial sampler, whose per-forest leaf scales come from the
-softmax calibration map; neither takes a mid-run change in this version.
-A value that is not a single positive finite number is an error. A
-heteroscedastic sampler's variance forest is a separate leaf model and
-is not addressable. `setModel` changes everything else.
+refuses, is served. A multinomial sampler takes `normal(k = )` and
+applies the `k` to every category forest, leaving the softmax map's leaf
+scale; a named sd or a `k` hyperprior is refused there, as at creation.
+A sampler whose forests carry amplitudes takes
+`forests = list(forest(sd = ), ...)`, restating each named forest's
+spread in the channel its creation gave it, and any `leaf.prior` other
+than the no-ops `normal()` and `normal(k = 2)` is refused there. Both
+writes are recorded where re-creation reads them. The map's anchor is
+recorded at creation too, so a re-creation after `setResponse` or
+`setOffset` at `updateScale = FALSE` states every forest against the
+same anchor as the live sampler. A value that is not a single positive
+finite number is an error. A heteroscedastic sampler's variance forest
+is a separate leaf model and is not addressable. `setModel` changes
+everything else.
 
 For `storeState`, `NULL` invisibly; it is called for its side effect of
 capturing the sampler's current engine state into the serializable

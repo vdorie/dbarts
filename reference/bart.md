@@ -1494,9 +1494,10 @@ that margin. `fit` is present whenever `keepTrees` is `TRUE` *or*
 `dbartsSampler` whose K-forest engine actually ran (one
 `bartcore_create`, not a discarded host), fully mutable and readable on
 the channels the softmax gives meaning to - `$setCounts`,
-`$setCategoryOffset`, `$setPredictor`, and the rest - and refused by
-name on the ones it does not (`$setResponse`, `$setOffset`, `$setSigma`,
-`$setLeafPrior`, `$setForestWeights`); `fit$storeState()` followed by
+`$setCategoryOffset`, `$setPredictor`, `$setLeafPrior(normal(k = ))`,
+and the rest - and refused by name on the ones it does not
+(`$setResponse`, `$setOffset`, `$setSigma`, `$setForestWeights`);
+`fit$storeState()` followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
 restores a sampler `predict.bartMultinomial` can replay through.
 `predict` still requires `keepTrees = TRUE` - a kept `fit` alone carries
@@ -1834,7 +1835,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001666
+#> total seconds in loop: 0.001569
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1883,7 +1884,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002055
+#> total seconds in loop: 0.002052
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 
