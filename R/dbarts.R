@@ -2439,8 +2439,10 @@ dbartsSampler <- setRefClass(
 
       ptr <- getPointer()
       oldControl <- control
+      # the engine takes the control first: a refusal there leaves the stored
+      # control the one the engine still has
+      .Call(C_dbarts_bartcore_setControl, ptr, newControl)
       selfEnv$control <- newControl
-      .Call(C_dbarts_bartcore_setControl, ptr, control)
       # the engine reads the mixture off the control when the priors are
       # installed, so a changed one is pushed through the prior install and
       # meets every refusal that install already carries. A refusal rolls the

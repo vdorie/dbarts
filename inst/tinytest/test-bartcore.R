@@ -891,6 +891,19 @@ control.bad <- control.sc
 control.bad@seed <- 71L
 expect_error(sampler.sc$setControl(control.bad), pattern = "seed")
 
+# a control the bridge refuses is not stored: the sampler keeps the control it
+# had and runs under it
+control.bad <- control.sc
+control.bad@n.samples <- NA_integer_
+control.before <- sampler.sc$control
+expect_error(
+  sampler.sc$setControl(control.bad),
+  pattern = "number of samples cannot be NA"
+)
+expect_identical(sampler.sc$control, control.before)
+expect_equal(dim(sampler.sc$run(0L, 8L)$train), c(n, 8L))
+rm(control.before)
+
 # thinning through setControl matches creating with the rate
 control.thin <- dbartsControl(
   n.chains = 1L,
