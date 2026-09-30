@@ -1,7 +1,8 @@
 # Forest Specification Constructors
 
 A list of the constructor functions building the forest specifications
-that the `interactions`, `blocks`, `variance` and `forests` arguments of
+that the `monotone`, `interactions`, `blocks`, `variance` and `forests`
+arguments of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
 and [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) accept.
@@ -30,6 +31,11 @@ A list of functions:
 
   Block-additive constraints; see
   [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md).
+
+- `monotone`:
+
+  Monotone constraints and their prior; see
+  [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md).
 
 - `forest`:
 

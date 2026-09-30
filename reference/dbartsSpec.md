@@ -50,8 +50,9 @@ dbartsSpec(
   leaf values, `sigma` and the family's latents. The prior arguments are
   evaluated in dbarts's own prior vocabulary, so bare expressions such
   as `normal(k = chi(1.25, Inf))` resolve regardless of what the caller
-  has attached; so do the forest constructors inside `interactions`,
-  `blocks`, `variance` and `forests`, evaluated in `parentEnv` (see
+  has attached; so do the forest constructors inside `monotone`,
+  `interactions`, `blocks`, `variance` and `forests`, evaluated in
+  `parentEnv` (see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md)).
   The residual prior rides `family` here as everywhere
   (`family = gaussian(sigma = chisq(df, quant))`); the 0.9-x spellings
