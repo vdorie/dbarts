@@ -776,3 +776,12 @@ ordinal-exact quick byte-identical; R CMD check --as-cran one NOTE (Date); stan4
 fallback, the empty-leaf pin, the up-front setState check, the growForestFromRoot reseed, the collapse
 reseed and the reflection each fail the new tests. Calls made while implementing: dec-A129.
 
+Stage 2, 2026-09-30: the monotone() constructor, the direction vocabulary and the caller sweep
+(bcab58b2), and the review follow-ups: a partly named or doubly named vector and a non-string prior
+refused, bart.Rd's bare-name note (dc15a41b). prior = "joint" is refused until stage 4; the default
+constant MONOTONE_PRIORS holds "leaf" first, provisionally. Reviewed by an independent reader; tinytest
+10,795/0, the lint chain clean, pkgdown clean, R CMD check --as-cran one NOTE (Date); on the reference
+build the three equivalence compares bitwise 53/15/11 and the snapshots unchanged; stan4bart 566/566,
+bartCause 0 failures. Mutations restoring case-insensitive matching and the sign glyphs fail the tests.
+Calls made while implementing: dec-A130.
+
