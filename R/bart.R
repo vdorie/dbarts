@@ -662,6 +662,12 @@ buildHostSamplerCall <- function(
 runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
   burnInSigma <- NULL
   burnInK <- NULL
+  # slow monotone counts in either run are warned once, after both
+  slowCountTally <- NULL
+  keepSlowCount <- function(w) {
+    slowCountTally <<- mergeSlowCountTallies(slowCountTally, w$tally)
+    invokeRestart("muffleWarning")
+  }
   if (control@n.burn > 0L) {
     oldX.test <- sampler$data@x.test
     oldOffset.test <- sampler$data@offset.test
@@ -684,7 +690,8 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
     # verbose output is silenced for the same reason
     samples <- withCallingHandlers(
       sampler$run(0L, control@n.burn, updateState = FALSE),
-      dbartsGPFallbackWarning = function(w) invokeRestart("muffleWarning")
+      dbartsGPFallbackWarning = function(w) invokeRestart("muffleWarning"),
+      dbartsSlowCountWarning = keepSlowCount
     )
     if (!is.null(samples$sigma)) {
       burnInSigma <- samples$sigma
@@ -704,15 +711,22 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
     }
     sampler$setControl(control)
 
-    samples <- sampler$run(
-      0L,
-      control@n.samples,
-      updateState = FALSE,
-      callback = callback
+    samples <- withCallingHandlers(
+      sampler$run(
+        0L,
+        control@n.samples,
+        updateState = FALSE,
+        callback = callback
+      ),
+      dbartsSlowCountWarning = keepSlowCount
     )
   } else {
-    samples <- sampler$run(updateState = FALSE, callback = callback)
+    samples <- withCallingHandlers(
+      sampler$run(updateState = FALSE, callback = callback),
+      dbartsSlowCountWarning = keepSlowCount
+    )
   }
+  warnOnSlowCount(structure(list(), slow.count = slowCountTally))
   list(samples = samples, burnInSigma = burnInSigma, burnInK = burnInK)
 }
 
@@ -2592,6 +2606,7 @@ bart2Negbin <- function(
   # the per-call tallies are summed here and warned on once below
   bc <- list(ptr = sampler$getPointer())
   gpFallbackTally <- NULL
+  slowCountTally <- NULL
 
   for (s in seq_len(n.samples)) {
     # the first kept sample absorbs the burn-in, so every run keeps one sample
@@ -2604,6 +2619,10 @@ bart2Negbin <- function(
         gpFallbackTally + tally
       }
     }
+    slowCountTally <- mergeSlowCountTallies(
+      slowCountTally,
+      attr(r, "slow.count")
+    )
     # sigma-shaped, so a single-sample run's channel is exactly this row
     dispersionRaw[s, ] <- r$dispersion
     if (is.null(varcountRaw)) {
@@ -2630,6 +2649,7 @@ bart2Negbin <- function(
   if (!is.null(gpFallbackTally)) {
     warnOnGPFallback(structure(list(), "gp.fallback" = gpFallbackTally))
   }
+  warnOnSlowCount(structure(list(), slow.count = slowCountTally))
 
   # drop the trailing singleton chain margin so the reshapers see the
   # n.chains == 1 layout their gaussian siblings emit (dispersionRaw keeps its

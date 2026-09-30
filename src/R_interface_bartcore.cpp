@@ -1496,6 +1496,34 @@ const char* const monotoneProposalMixMessage =
   "a monotone sampler proposes only birth and death moves: 'proposal.probs' "
   "must give swap, change, perturb and rule_gibbs zero probability";
 
+/// The monotone constraint is part of the leaf model's instantiation, so a
+/// model given to setModel must carry the sampler's own: the same directions
+/// and prior on a monotone sampler, none on an unconstrained one. Returns the
+/// refusal, or null.
+const char* monotoneModelChangeRefusal(const bartcore::SamplerShape& shape,
+                                       const ParsedModel& model,
+                                       std::size_t numPredictors) {
+  bool constrained = false;
+  for (std::int8_t d : model.monotoneDirections) constrained |= d != 0;
+  if (shape.monotoneDirections == nullptr)
+    return constrained
+      ? "a monotone constraint is fixed when a sampler is created, and this "
+        "sampler has none; make a new sampler instead"
+      : nullptr;
+  if (model.monotoneDirections.empty())
+    return "this sampler's monotone constraint is fixed when it is created, "
+           "and the model carries none; give it the sampler's own 'monotone'";
+  if (model.monotoneDirections.size() != numPredictors ||
+      !std::equal(model.monotoneDirections.begin(),
+                  model.monotoneDirections.end(), shape.monotoneDirections))
+    return "the monotone directions are fixed when a sampler is created; make "
+           "a new sampler instead";
+  if (model.monotonePrior != shape.monotonePrior)
+    return "the monotone prior is fixed when a sampler is created; make a new "
+           "sampler instead";
+  return nullptr;
+}
+
 void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   SEXP slotExpr;
   PROTECT_INDEX slotIndex;
@@ -4612,6 +4640,41 @@ static bool bartcore_userInterrupted() {
   return R_ToplevelExec(bartcore_checkInterrupt, nullptr) == FALSE;
 }
 
+// The last run's slow order counts as a named double vector on `target`'s
+// "slow.count" attribute, absent when no count was slow; R warns from it
+// (warnOnSlowCount).
+static void attachSlowCountTally(SEXP target,
+                                 const bartcore::SamplerBase& sampler) {
+  bartcore::SlowCountTally tally = sampler.slowCountTally();
+  if (tally.slowCounts == 0) return;
+  SEXP tallyExpr = PROTECT(Rf_allocVector(REALSXP, 4));
+  REAL(tallyExpr)[0] = static_cast<double>(tally.slowCounts);
+  REAL(tallyExpr)[1] = tally.slowestSeconds;
+  REAL(tallyExpr)[2] = static_cast<double>(tally.slowestLeaves);
+  REAL(tallyExpr)[3] = static_cast<double>(tally.slowestDownSets);
+  SEXP tallyNames = PROTECT(Rf_allocVector(STRSXP, 4));
+  SET_STRING_ELT(tallyNames, 0, Rf_mkChar("counts"));
+  SET_STRING_ELT(tallyNames, 1, Rf_mkChar("slowest.seconds"));
+  SET_STRING_ELT(tallyNames, 2, Rf_mkChar("slowest.leaves"));
+  SET_STRING_ELT(tallyNames, 3, Rf_mkChar("slowest.down.sets"));
+  Rf_setAttrib(tallyExpr, R_NamesSymbol, tallyNames);
+  Rf_setAttrib(target, Rf_install("slow.count"), tallyExpr);
+  UNPROTECT(2);
+}
+
+// Test hook, unexported: sets the process-wide slow-count threshold in
+// seconds (NA leaves it) and arms a one-shot allocation failure in the next
+// order count, returning the threshold it replaced.
+SEXP bartcore_setMonotoneCountHooks(SEXP slowSecondsExpr,
+                                    SEXP failNextCountExpr) {
+  bartcore::MonotoneCountHooks& hooks = bartcore::monotoneCountHooks();
+  double previous = hooks.slowSeconds.load();
+  double slowSeconds = Rf_asReal(slowSecondsExpr);
+  if (!ISNAN(slowSeconds)) hooks.slowSeconds.store(slowSeconds);
+  hooks.failNextCount.store(Rf_asLogical(failNextCountExpr) == TRUE);
+  return Rf_ScalarReal(previous);
+}
+
 // The per-draw observer's two halves, read out of external pointers: the
 // function address (R_MakeExternalPtrFn, so no function-to-object-pointer cast
 // crosses the boundary) and the caller's context, handed back untouched. A
@@ -4725,11 +4788,23 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
 
   if (numSamples == 0) {
     bartcore::Results empty;
+    bool cancelled = false;
+    bartcore_bridge::CapturedError error;
     GetRNGstate();
-    bool cancelled = sampler.run(numBurnIn, 0, empty, bartcore_userInterrupted);
+    captureExceptions(error, [&]() {
+      cancelled =
+        sampler.run(numBurnIn, 0, empty, bartcore_userInterrupted);
+    });
     PutRNGstate();
+    if (error.failed) Rf_error("%s", error.message);
     if (cancelled) Rf_error("sampler run interrupted");
-    return R_NilValue;
+    // a burn-only run returns NULL, or an empty list carrying the tally
+    // when a count was slow
+    if (sampler.slowCountTally().slowCounts == 0) return R_NilValue;
+    SEXP carrier = PROTECT(Rf_allocVector(VECSXP, 0));
+    attachSlowCountTally(carrier, sampler);
+    UNPROTECT(1);
+    return carrier;
   }
 
   // ordinal reports its K-1 thresholds in an extra channel appended after ranef;
@@ -4989,6 +5064,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
     Rf_setAttrib(resultExpr, Rf_install("gp.fallback"), tallyExpr);
     UNPROTECT(2);
   }
+  attachSlowCountTally(resultExpr, sampler);
 
   UNPROTECT(1);
   return resultExpr;
@@ -5060,8 +5136,13 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
       return stop;
     };
 
-  bool cancelled = sampler.run(numBurnIn, numSamples, results,
-                               bartcore_userInterrupted, onSweep);
+  bool cancelled = false;
+  bartcore_bridge::CapturedError error;
+  captureExceptions(error, [&]() {
+    cancelled = sampler.run(numBurnIn, numSamples, results,
+                            bartcore_userInterrupted, onSweep);
+  });
+  if (error.failed) Rf_error("%s", error.message);
   if (callbackErrored)
     Rf_error("error evaluating the sweep callback");
   if (cancelled && !closureStopped) Rf_error("sampler run interrupted");
@@ -5532,6 +5613,9 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
     parseProposalProbs(model, controlExpr);
     if (proposalMixIsRefused(shape.leafModel, model))
       Rf_error("%s", monotoneProposalMixMessage);
+    if (const char* refusal =
+          monotoneModelChangeRefusal(shape, model, shape.numPredictors))
+      Rf_error("%s", refusal);
 
     // the leaf model is a template instantiation: the designation and its
     // kind are fixed at creation, so a replacement prior must carry the same

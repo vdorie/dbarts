@@ -225,10 +225,14 @@ bartcoreSamplerRun <- function(
     resolved$context,
     control@keepFits
   )
-  if (is.null(result)) {
+  # a burn-only run returns NULL, or an empty list carrying only the
+  # slow-count tally
+  if (length(result) == 0L) {
+    warnOnSlowCount(result)
     return(invisible(NULL))
   }
   warnOnGPFallback(result)
+  warnOnSlowCount(result)
   result
 }
 
@@ -265,6 +269,49 @@ warnOnGPFallback <- function(result) {
     class = c("dbartsGPFallbackWarning", "dbartsWarning")
   ))
   invisible(NULL)
+}
+
+# Under monotone(prior = "leaf") every structure move counts its tree's leaf
+# order, with no limit, so a large tree's count can take seconds and a lot of
+# memory. The engine records the counts over about a second and attaches them
+# to the run; this warns once per run() call, and runWithBurnIn merges its two
+# runs' tallies so one fit warns once. The tally rides the condition.
+warnOnSlowCount <- function(result) {
+  tally <- attr(result, "slow.count")
+  if (is.null(tally) || tally[["counts"]] <= 0) {
+    return(invisible(NULL))
+  }
+  warning(warningCondition(
+    sprintf(
+      paste0(
+        "%d monotone leaf-order count%s took more than about a second ",
+        "(the slowest %.1f seconds, over %d leaves): under prior = \"leaf\" ",
+        "a large tree's leaf order is costly to count, in time and in ",
+        "memory; use more trees, which keeps trees small, or ",
+        "monotone(prior = \"joint\"), which counts nothing"
+      ),
+      as.integer(tally[["counts"]]),
+      if (tally[["counts"]] == 1) "" else "s",
+      tally[["slowest.seconds"]],
+      as.integer(tally[["slowest.leaves"]])
+    ),
+    class = c("dbartsSlowCountWarning", "dbartsWarning"),
+    tally = tally
+  ))
+  invisible(NULL)
+}
+
+# Sums slow-count tallies: counts add, the slowest count wins.
+mergeSlowCountTallies <- function(a, b) {
+  if (is.null(a)) {
+    return(b)
+  }
+  if (is.null(b)) {
+    return(a)
+  }
+  merged <- if (b[["slowest.seconds"]] > a[["slowest.seconds"]]) b else a
+  merged[["counts"]] <- a[["counts"]] + b[["counts"]]
+  merged
 }
 
 # Resolves a character 'column' against source's colnames into a 1-based
