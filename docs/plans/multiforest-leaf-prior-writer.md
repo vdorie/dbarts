@@ -74,7 +74,8 @@ effect on the next sweep, reinterprets no drawn value, and survives re-creation.
    - Names on the list must equal the creation labels; different ones are refused.
    - A short list reaches only the first forests, as at creation. An undeclared `sd` leaves its
      forest as it is.
-   - Rejected: a `forest` index argument, which would put a `forest()` in `leaf.prior`.
+   - Rejected: a `forest` index argument, which would put a `forest()` in `leaf.prior`. R would
+     partially match `forest =` to `forests =`, so the method refuses it by name.
    - `setLeafPrior` never reached main, so the new argument order breaks no released call.
 2. Multinomial: nothing in the softmax map is recomputed. The anchor and the leaf scale stay; only
    each forest's k moves.
@@ -94,7 +95,9 @@ effect on the next sweep, reinterprets no drawn value, and survives re-creation.
    - Accepted as no-op writes, because creation accepts them: `leaf.prior = normal()` and
      `normal(k = 2)`.
 4. Anchor carry. At first creation R records s, read off the engine, as `bartcore.forests$anchor`.
-   `applyAmplitudeSpec` passes it to a new `AmplitudeSpec` field. When that field is finite, the
+   [`applyForestAttributes`](../../src/R_interface_bartcore.cpp) passes it to a new
+   `AmplitudeSpec` field (implemented there rather than in `applyAmplitudeSpec`, which never sees
+   the attribute list). When that field is finite, the
    constructor uses it instead of `latentScaleAnchor`.
    - It is the same double creation computed, so re-creation is bitwise.
    - A control without the field (a fit saved before this slice) behaves as today.
@@ -174,7 +177,9 @@ effect on the next sweep, reinterprets no drawn value, and survives re-creation.
      accepted. The multinomial predicate is the same on every forest, so a refusal comes before any
      write.
    - `bartcore_setForestSd(ptr, forest, sd)`, refusing sd that is not positive and finite.
-   - `applyAmplitudeSpec` reads `anchor`, and `bartcore_getLeafPrior` gains the `mapAnchor` column.
+   - `applyForestAttributes` reads `anchor`, and `bartcore_getLeafPrior` gains the `mapAnchor`
+     column (named `map.anchor`). `bartcore_setForestK` also gates on the counts capability, since a
+     single-forest sampler at a fixed k meets the engine predicate.
    - Registration in [`R_callMethods`](../../src/R_interface.cpp). `bartcore_setLeafPrior`'s
      backstop names both routes.
 4. R:
