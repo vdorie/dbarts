@@ -237,9 +237,15 @@ jobs:
             if (fail) quit(status = 1L)
           '
 
+  # one job per prior: both in one job ran 34 minutes (23 of them the gate)
+  # against the 40-minute timeout
   monotone-exact-enumeration:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        prior: [leaf, joint]
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -267,7 +273,10 @@ jobs:
       - name: Install the package
         run: R CMD INSTALL .
 
-      # every design under both priors, quick even under mode=full: full mode
-      # triples the draws and would pass the timeout, so it stays a local run
+      # every design under the job's prior, quick even under mode=full: full
+      # mode triples the draws and would pass the timeout, so it stays a local
+      # run
       - name: Run the monotone enumeration gate
-        run: Rscript benchmarks/R/monotone-exact-enumeration.R quick engine
+        run: >-
+          Rscript benchmarks/R/monotone-exact-enumeration.R quick engine
+          ${{ matrix.prior }}
