@@ -22,11 +22,11 @@
 #   Rscript benchmarks/R/sbc.R burn-bcf-probit 40000 24 # its repriced ladder
 #   Rscript benchmarks/R/sbc.R burn-aft 20000 3     # the aft arm's own
 #   Rscript benchmarks/R/sbc.R burn-hetero 40000 24 # the two hetero arms' own
-#   Rscript benchmarks/R/sbc.R monotone-1-leaf 400 100 50 # one tree, sensitive
+#   Rscript benchmarks/R/sbc.R monotone-1-leaf 400 100 50 # one tree, diagnostic
 #   Rscript benchmarks/R/sbc.R monotone-1-joint 400 100 50
 #   Rscript benchmarks/R/sbc.R monotone-bd 400 100 50 # unconstrained twin
 #   Rscript benchmarks/R/sbc.R burn-monotone-leaf 40000 3 # 20-tree arm's burn
-#   Rscript benchmarks/R/sbc.R monotone-leaf 200 150 30 <burn> # and -joint
+#   Rscript benchmarks/R/sbc.R monotone-leaf 200 150 100 # and -joint
 # Positional args: config R L thin, plus an optional 5th, the burn in absolute
 # sweeps, and an optional 6th, the driver seed. Or source() the file to reuse
 # the API:
@@ -2189,6 +2189,11 @@ sbcMonotoneFunctionals <- function(config, fTrain, fTest, sigma) {
   if (config$p >= 2L) {
     result["ctrl.x2"] <- fTest[k + 6L] - fTest[k + 5L]
   }
+  # a one-tree arm's leaf count, the number of distinct training fits: the
+  # functional that shows the one-tree mixing limit
+  if (config$nTrees == 1L) {
+    result["leaves"] <- length(unique(round(fTrain, 9)))
+  }
   result
 }
 
@@ -2247,26 +2252,31 @@ sbcFamilyConfig <- function(family) {
     "bcf-logistic-weak" = sbcBCFLatentConfig("logistic", n = 40L),
     "monotone-leaf" = sbcConfigMonotone("leaf", "monotone-leaf"),
     "monotone-joint" = sbcConfigMonotone("joint", "monotone-joint"),
-    # the sensitive one-tree arm: one constrained axis and no other, so every
-    # multi-split tree gives a touched leaf a frozen constrained neighbor
+    # the one-tree arms are a mixing diagnostic, not a pass requirement: a
+    # one-tree birth/death chain does not mix its structure on an informative
+    # design (the unconstrained twin included), and under the constraint the
+    # extra leaves it strands steepen f. At n 20 the likelihood is weak enough
+    # that the f functionals nearly pass; the leaf count still shows the limit.
+    # Exactness is monotone-successive-conditional.R's and the enumeration
+    # gate's (docs/plans/monotone-exact-birth-death.md, step 16)
     "monotone-1-leaf" = sbcConfigMonotone(
       "leaf",
       "monotone-1-leaf",
-      n = 100L,
+      n = 20L,
       p = 1L,
       nTrees = 1L
     ),
     "monotone-1-joint" = sbcConfigMonotone(
       "joint",
       "monotone-1-joint",
-      n = 100L,
+      n = 20L,
       p = 1L,
       nTrees = 1L
     ),
     "monotone-bd" = sbcConfigMonotone(
       NULL,
       "monotone-bd",
-      n = 100L,
+      n = 20L,
       p = 1L,
       nTrees = 1L
     ),
@@ -2392,15 +2402,19 @@ sbcBurnSweeps <- c(
   # affordable covers prog_j
   "bcf-probit" = 12000,
   "bcf-logistic" = 12000,
-  # the one-tree monotone arms and their twin, read at thin 50: at the
-  # design's thin 10 and 1000 sweeps the unconstrained twin flags sigma
-  # (ecdfDiff 0.101 against band 0.066 at R 400), and at thin 50 and 5000 it
-  # passes every functional. Not a measured ladder. The 20-tree arms have no
-  # entry until burn-monotone-leaf or burn-monotone-joint is run; their burn
-  # rides the 5th positional argument meanwhile
+  # the one-tree monotone diagnostic arms and their twin, read at thin 50 and
+  # 5000 sweeps. Not a measured ladder: no burn discharges the one-tree
+  # structure trap, which outlasts 20,000 sweeps at n 100
   "monotone-1-leaf" = 5000,
   "monotone-1-joint" = 5000,
-  "monotone-bd" = 5000
+  "monotone-bd" = 5000,
+  # the 20-tree arms, from burn-monotone-leaf and -joint (40000 sweeps x 3
+  # datasets, 2026-09-30): the transient sits in the first two or three
+  # 4000-sweep blocks (sigma and mono.local up to z 33 in block 1 under
+  # "leaf"); most functionals clear ACF 0.1 by lag 100, the slowest by lag
+  # ~200 ("leaf") and ~140 ("joint"), and the arms run at thin 100
+  "monotone-leaf" = 12000,
+  "monotone-joint" = 12000
 )
 
 # Rank R replications of a family-spec configuration. The generic sibling of
