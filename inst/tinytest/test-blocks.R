@@ -262,7 +262,7 @@ fitMono <- do.call(
       y ~ x1 + x2 + x3,
       df,
       blocks = dbarts::dbartsForests$blocks(groups = list("x1", c("x2", "x3"))),
-      monotone = c(x1 = "+", x3 = "+")
+      monotone = c(x1 = "increasing", x3 = "increasing")
     ),
     fitArgs
   )

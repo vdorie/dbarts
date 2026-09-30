@@ -588,29 +588,34 @@ resolveLeafHyperprior <- function(
   stop("'k' must be a positive scalar or a hyperprior specification")
 }
 
-## Sign of a single monotone direction element: the sign glyphs, the words, or
-## an integer in {-1, 0, 1}.
+## The monotone direction vocabulary, matched exactly and case-sensitively:
+## the words, and the codes as the numbers 1, -1 and 0 or as the strings c()
+## makes of them when words and codes share a vector.
+MONOTONE_DIRECTION_CODES <- c(
+  increasing = 1L,
+  decreasing = -1L,
+  "1" = 1L,
+  "-1" = -1L,
+  "0" = 0L
+)
+
+## Code of a single monotone direction element, in {-1, 0, 1}.
 parseMonotoneSign <- function(value) {
-  if (is.character(value)) {
-    switch(
-      tolower(value),
-      "+" = 1L,
-      "increasing" = 1L,
-      "-" = -1L,
-      "decreasing" = -1L,
-      "0" = 0L,
-      stop(
-        "'direction' must be one of '+'/'-', 'increasing'/'decreasing', ",
-        "or +1/-1"
-      )
-    )
-  } else {
-    direction <- as.integer(round(as.numeric(value)))
-    if (is.na(direction) || direction < -1L || direction > 1L) {
-      stop("'direction' must be one of -1, 0, 1")
-    }
-    direction
+  direction <- NA_integer_
+  if (length(value) == 1L && is.character(value)) {
+    direction <- unname(MONOTONE_DIRECTION_CODES[value])
+  } else if (length(value) == 1L && is.numeric(value)) {
+    direction <- match(value, c(-1, 0, 1)) - 2L
   }
+  if (is.na(direction)) {
+    stop(
+      "monotone directions must be one of \"increasing\", \"decreasing\", ",
+      "1, -1, 0; got '",
+      toString(value),
+      "'"
+    )
+  }
+  direction
 }
 
 ## Resolve one predictor selector name to its 1-based model-matrix column
@@ -673,28 +678,43 @@ resolveColumnVector <- function(
   }
 }
 
-## Resolve the 'monotone' argument into a per-column direction vector in
-## {-1, 0, +1} of length ncol(data@x): a named vector assigns by column or
-## expanded-term name, an unnamed vector of length p assigns by position.
+## Resolve the 'monotone' argument, a monotone() specification or the plain
+## direction vector that is shorthand for monotone(directions) at the default
+## prior, into list(directions = , prior = ): directions is a per-column
+## vector in {-1, 0, +1} of length ncol(data@x), a named vector assigning by
+## column or expanded-term name and an unnamed one of length p by position.
 ## Categorical predictors refuse the constraint (their codes are unordered);
 ## numeric and ordinal columns are eligible. NULL when no constraint is active.
-resolveMonotone <- function(monotone, data) {
-  if (is.null(monotone) || length(monotone) == 0L) {
+resolveMonotone <- function(spec, data) {
+  if (is.null(spec)) {
+    return(NULL)
+  }
+  if (!inherits(spec, "dbartsMonotone")) {
+    spec <- monotone(spec)
+  }
+  if (identical(spec$prior, "joint")) {
+    stop(
+      "monotone prior \"joint\" is not available yet: it arrives with the ",
+      "corrected birth/death move"
+    )
+  }
+  directions <- spec$directions
+  if (length(directions) == 0L) {
     return(NULL)
   }
   numColumns <- ncol(data@x)
   columnNames <- colnames(data@x)
   result <- integer(numColumns)
 
-  monotoneNames <- names(monotone)
+  monotoneNames <- names(directions)
   if (!is.null(monotoneNames) && any(nzchar(monotoneNames))) {
     if (is.null(columnNames)) {
       stop(
         "cannot assign monotone constraints: model matrix has no column names"
       )
     }
-    for (i in seq_along(monotone)) {
-      direction <- parseMonotoneSign(monotone[[i]])
+    for (i in seq_along(directions)) {
+      direction <- parseMonotoneSign(directions[[i]])
       name <- monotoneNames[i]
       columns <- resolveTermColumns(
         name,
@@ -711,7 +731,7 @@ resolveMonotone <- function(monotone, data) {
       result[columns] <- direction
     }
   } else {
-    if (length(monotone) != numColumns) {
+    if (length(directions) != numColumns) {
       stop(
         "unnamed 'monotone' must have length ",
         numColumns,
@@ -719,7 +739,7 @@ resolveMonotone <- function(monotone, data) {
       )
     }
     for (i in seq_len(numColumns)) {
-      result[i] <- parseMonotoneSign(monotone[[i]])
+      result[i] <- parseMonotoneSign(directions[[i]])
     }
   }
 
@@ -735,7 +755,7 @@ resolveMonotone <- function(monotone, data) {
   if (all(result == 0L)) {
     return(NULL)
   }
-  result
+  list(directions = result, prior = spec$prior)
 }
 
 # Resolve the `variance` heteroscedastic selector to 1-based model-matrix
@@ -1815,6 +1835,29 @@ interactions <- function(max.order = NULL, groups = NULL, forbid = NULL) {
   )
 }
 
+## The monotone priors, the default first: the one place the default is set.
+## It is monotone()'s prior formal, so match.arg takes its first element when
+## prior is not given, as the plain-vector shorthand does.
+MONOTONE_PRIORS <- c("leaf", "joint")
+
+## Per-predictor monotone constraint and the prior it is read under, passed as
+## monotone = to dbarts()/bart()/dbartsSpec(). directions is the vector the
+## plain shorthand takes, named or positional, so a predictor named "prior"
+## needs nothing special; it resolves against the model matrix, and every
+## element is validated, at fit time in resolveMonotone. prior is matched here.
+## Not exported, like interactions().
+monotone <- function(directions, prior) {
+  if (missing(directions) || is.null(directions)) {
+    stop("monotone() requires 'directions', the per-predictor directions")
+  }
+  prior <- match.arg(prior)
+  structure(
+    list(directions = directions, prior = prior),
+    class = "dbartsMonotone"
+  )
+}
+formals(monotone)$prior <- MONOTONE_PRIORS
+
 ## Per-forest block-additive constraint (variant A), passed as blocks = to
 ## dbarts() / bart2() (and mu.blocks / tau.blocks to bcf()). Confines each
 ## WHOLE tree to one
@@ -1949,6 +1992,7 @@ dbartsPriors <- list(
 dbartsForests <- list(
   interactions = interactions,
   blocks = blocks,
+  monotone = monotone,
   forest = forest,
   varianceForest = varianceForest
 )
@@ -1960,6 +2004,7 @@ FOREST_ARGUMENT_VOCABULARIES <- list(
   forests = c("forest", "interactions", "blocks"),
   interactions = "interactions",
   blocks = "blocks",
+  monotone = "monotone",
   variance = "varianceForest"
 )
 

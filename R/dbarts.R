@@ -825,6 +825,7 @@ dbarts <- function(
   forests <- forestArguments$forests
   interactions <- forestArguments$interactions
   blocks <- forestArguments$blocks
+  monotone <- forestArguments$monotone
   variance <- forestArguments$variance
 
   # a forest() formula term declares an additional amplitude-coupled forest

@@ -290,7 +290,7 @@ expect_true(sameDraws(defaultedNaAction, explicitNaAction))
 
 # the mixture rides the control now - a defaulted bart call still composes
 # with monotone
-expect_silent(fit2(y.gaussian, monotone = c(a = "+")))
+expect_silent(fit2(y.gaussian, monotone = c(a = "increasing")))
 
 # callback/control are the last two NAMED formals, added after
 # storage/updateState; the trailing '...' exists for the transition release

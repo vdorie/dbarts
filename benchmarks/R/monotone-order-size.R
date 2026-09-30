@@ -246,8 +246,13 @@ runFit <- function(nTrees, n, p, nc, seed, nBurn, nKept) {
     updateState = FALSE,
     seed = seed + 1L
   )
-  monotone <- setNames(rep(1L, nc), colnames(x)[seq_len(nc)])
-  sampler <- dbarts(x, y, control = control, monotone = monotone)
+  directions <- setNames(rep(1L, nc), colnames(x)[seq_len(nc)])
+  sampler <- dbarts(
+    x,
+    y,
+    control = control,
+    monotone = monotone(directions, prior = "leaf")
+  )
   invisible(sampler$run(nBurn, 0L))
   seconds <- system.time(invisible(sampler$run(0L, nKept)))[["elapsed"]]
   trees <- sampler$getTrees()

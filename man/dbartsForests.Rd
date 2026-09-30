@@ -4,8 +4,8 @@
 \title{Forest Specification Constructors}
 \description{
   A list of the constructor functions building the forest specifications that
-  the \code{interactions}, \code{blocks}, \code{variance} and \code{forests}
-  arguments of \code{\link{dbarts}}, \code{\link{dbartsSpec}} and
+  the \code{monotone}, \code{interactions}, \code{blocks}, \code{variance} and
+  \code{forests} arguments of \code{\link{dbarts}}, \code{\link{dbartsSpec}} and
   \code{\link{bart}} accept. The constructors are not exported, so that names
   like \code{forest} and \code{blocks} stay out of the search path, where
   another package could mask them or be masked depending on attach order.
@@ -24,6 +24,9 @@
     }
     \item{\code{blocks}}{
       Block-additive constraints; see \code{\link{blocks}}.
+    }
+    \item{\code{monotone}}{
+      Monotone constraints and their prior; see \code{\link{monotone}}.
     }
     \item{\code{forest}}{
       One forest of a multi-forest model; see \code{\link{forest}}.

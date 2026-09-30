@@ -175,7 +175,7 @@ monotoneSampler <- dbarts(
   x,
   y,
   control = priorControl(),
-  monotone = c(x1 = 1),
+  monotone = monotone(c(x1 = 1), prior = "leaf"),
   leaf.prior = normal(sd = priorSd)
 )
 monotoneRows <- rbind(x[1L, ], x[1L, ], x[1L, ], x[1L, ], x[1L, ])

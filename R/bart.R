@@ -1217,13 +1217,16 @@ bart <- function(
     } else {
       evalInVocabulary(matchedCall[["tree.prior"]], dbartsPriors, callingEnv)
     }
+    forestArguments <- resolveForestArguments(
+      matchedCall,
+      callingEnv,
+      c("monotone", "variance")
+    )
     unsupported <- c(
       "a DART 'tree.prior'" = inherits(treePrior, "dbartsDartPrior"),
       "'split.probs'" = !is.null(split.probs),
-      "'monotone'" = !is.null(monotone),
-      "'variance'" = !is.null(
-        resolveForestArguments(matchedCall, callingEnv, "variance")$variance
-      )
+      "'monotone'" = !is.null(forestArguments$monotone),
+      "'variance'" = !is.null(forestArguments$variance)
     )
     if (any(unsupported)) {
       stop(

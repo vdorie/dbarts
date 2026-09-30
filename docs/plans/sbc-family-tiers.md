@@ -341,10 +341,10 @@ at alpha = 0.05, so nothing previously recorded is invalidated.
 Not run. Probes: the maintainer's laptop (arm64, one thread), 2026-09-29.
 
 DGP. The gaussian arm's design (n 150, p 3, x ~ U(0, 1) at configSeed 1, the
-five random test rows) with monotone = c(x1 = "+"), 20 trees, k fixed at 2 by
-an explicit normal(2) leaf prior (monotone refuses a chi k), sigma chisq(3, 0.9)
-at sigest 1, proposal.probs left at the default so the engine forces
-birth/death only. sbcReplication's steps are unchanged. theta0 is
+five random test rows) with monotone = c(x1 = "increasing"), 20 trees, k fixed
+at 2 by an explicit normal(2) leaf prior (monotone refuses a chi k), sigma
+chisq(3, 0.9) at sigest 1, proposal.probs left at the default so the engine
+forces birth/death only. sbcReplication's steps are unchanged. theta0 is
 [`dbartsSampler$sampleTreesFromPrior`](../../man/dbartsSampler-class.Rd) (CGM(0.95, 2) conditioned on no empty
 leaf by whole-tree rejection), then [`dbartsSampler$sampleLeafParametersFromPrior`](../../man/dbartsSampler-class.Rd),
 which under monotone reaches [`MonotoneConstantGaussianLeaf::drawFromPriorForTree`](../../src/bartcore/model.hpp): per
@@ -370,7 +370,7 @@ Does the sampler target that prior? No, on the derivation and one probe.
   f(x*) agree with the rejection draw (|z| <= 2.1 over 28 comparisons). Expected:
   at a flat likelihood numerator equals d, so the structure chain ignores the
   leaves. A prior-only check cannot validate the normalizer.
-- Mini SBC (1 tree, p 1, n 100, x1 "+", R 400/200/80): f(0.1), f(0.9) and
+- Mini SBC (1 tree, p 1, n 100, x1 increasing, R 400/200/80): f(0.1), f(0.9) and
   f(0.9) - f(0.1) FLAG at thin 10, 50 and 250; ecdfDiff / band 2.35, 2.10,
   1.36 for the contrast, whose mean rank sits 8%, 13%, 13% low - plateau, not
   shrinkage. The sign is the predicted tilt: the posterior is too steep along

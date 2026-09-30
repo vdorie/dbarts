@@ -272,8 +272,9 @@
             adds a forest for the residual variance, reported as
             \code{s.train} and \code{s.test}. For gaussian and
             \code{"aft"} responses.
-      \item Constraints. \code{monotone = c(x1 = "+", x2 = "-")} makes the
-            fit monotone in named predictors (Chipman et al. 2022);
+      \item Constraints. \code{monotone = c(x1 = "increasing", x2 =
+            "decreasing")} makes the fit monotone in named predictors
+            (Chipman et al. 2022);
             \code{interactions = \link{interactions}(max.order = , forbid =
             , groups = )} limits which predictors may interact; and
             \code{blocks = \link{blocks}(...)} makes the fit an exact sum

@@ -513,7 +513,7 @@ engineKeys <- function(design, nDraw, seed) {
     tree.prior = cgm(power, base),
     leaf.prior = normal(kLeaf),
     family = gaussian(sigma = fixed(design$spec$sigma^2)),
-    monotone = mono
+    monotone = monotone(mono, prior = "leaf")
   )
   cuts <- lapply(nc, function(n) seq(1, n, length.out = n + 1L)[-c(1L, n + 1L)])
   keyOf <- function(var, value) {

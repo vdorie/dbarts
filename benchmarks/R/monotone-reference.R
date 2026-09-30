@@ -60,8 +60,8 @@ runSampler <- function(
     seed = seed,
     n.cuts = length(unique(x)) - 1L
   )
-  monotone <- c(1L)
-  names(monotone) <- colnames(x)
+  directions <- c(1L)
+  names(directions) <- colnames(x)
   sampler <- dbarts(
     x,
     y,
@@ -73,7 +73,7 @@ runSampler <- function(
     # internal (range-scaled) residual variance is priorSigma^2 / yRange^2 =
     # (priorSigma / yRange)^2, matching residVar in the quadrature
     family = gaussian(sigma = fixed(priorSigma^2)),
-    monotone = monotone
+    monotone = monotone(directions, prior = "leaf")
   )
   stopifnot(sampler$control@proposal.probs[["birth_death"]] == 1)
   stopifnot(is.null(sampler$data@offset))

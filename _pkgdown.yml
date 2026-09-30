@@ -32,6 +32,7 @@ reference:
   - dbartsForests
   - interactions
   - blocks
+  - monotone
   - forest
   - varianceForest
   - dbartsAugmentation

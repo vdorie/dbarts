@@ -199,8 +199,9 @@ more values ([`augVector`](../../R/augmentation.R)); do not introduce
 `stop("'chainNums' must be in [1, ", control@n.chains, "]")`
 (["'chainNums' must be in \[1, "](../../R/dbarts.R)). The
 example this rule first cited, `"invalid monotone direction '", value, "'; use
--1, 0, or +1"`, did not survive: R12's rewording left [`parseMonotoneSign`](../../R/model.R)
-a fixed two-literal message that interpolates nothing.
+-1, 0, or +1"`, did not survive; [`parseMonotoneSign`](../../R/model.R) now
+appends the refused value through `stop()`'s own concatenation, this rule's
+form.
 
 C: `Rf_error`'s only mechanism is its own printf placeholders (`%s`, `%d`,
 `%zu`) - no alternative exists. Quote `%s` in `'...'` when it echoes a name or
@@ -507,8 +508,8 @@ Appending `"; got '<value>'"` is now encouraged, not mandated (see below).
 Conformance (shape): `"'forest' must name one of '", paste0(..., collapse =
 "', '"), "'"` (["'forest' must name one of '"](../../R/generics.R)). The
 monotone-direction violation is retired:
-["'direction' must be one of -1, 0, 1"](../../R/model.R) now reads `"'direction'
-must be one of -1, 0, 1"`, with no `got` value - this rule's shape exactly.
+["monotone directions must be one of"](../../R/model.R) names the whole
+vocabulary and appends the refused value - this rule's shape.
 Still open: `"unrecognized response family for a binary response"`
 (["unrecognized response family for a binary response"](../../src/R_interface_bartcore.cpp))
 - names no choices at all.

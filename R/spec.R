@@ -359,10 +359,9 @@ resolveSamplerSpec <- function(
     blocks <- firstForest$blocks
   }
 
-  # resolve the monotone spec here, where its argument is a forced value (a
-  # wrapper forwarding it through ... would otherwise reach parsePriors as an
-  # unevaluated ...-reference); the resolved direction vector is injected below
-  monotoneDirections <- resolveMonotone(monotone, data)
+  # the monotone spec arrives resolved by name at the door; its direction
+  # vector is injected below, and its prior is only validated so far
+  monotoneDirections <- resolveMonotone(monotone, data)$directions
 
   parsePriorsCall <- redirectCall(matchedCall, quoteInNamespace(parsePriors))
   parsePriorsCall <- setDefaultsFromFormals(
@@ -961,6 +960,7 @@ dbartsSpec <- function(
   forests <- forestArguments$forests
   interactions <- forestArguments$interactions
   blocks <- forestArguments$blocks
+  monotone <- forestArguments$monotone
   variance <- forestArguments$variance
 
   # this surface does no data ingestion of its own, so a declared basis is

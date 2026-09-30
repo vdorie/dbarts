@@ -84,14 +84,17 @@ vector is treated as null and selects the existing constant-leaf path unchanged
 and keeps the constraint out of the data container - the same data can be fit
 constrained or not.
 
-**Surface (recommend `monotone`, a named vector).**
+**Surface (`monotone`, a named vector or a `monotone()` specification).**
 
-    dbarts(y ~ ., data, monotone = c(x1 = "+", x3 = "-"))
-    bart2(x, y, monotone = c(x1 = "+", x3 = "-"))
+    dbarts(y ~ ., data, monotone = c(x1 = "increasing", x3 = "decreasing"))
+    bart(x, y, monotone = monotone(c(x1 = 1, x3 = -1), prior = "leaf"))
 
-Accept the sign glyphs "+"/"-", the words "increasing"/"decreasing", and the
-integers +1/-1; unnamed integer/character vectors of length p are accepted as a
-positional {-1,0,+1} spec (the XGBoost/LightGBM form). Names resolve against the
+Accept the words "increasing"/"decreasing" and the numbers 1/-1, with 0
+unconstrained, matched case-sensitively (dec-B147); unnamed vectors of length p
+are accepted as a positional {-1,0,+1} spec (the XGBoost/LightGBM form). The
+plain vector is shorthand for `monotone(directions)` at the default prior; the
+constructor, resolved by bare name like `interactions()` and `blocks()`, also
+carries the prior (dec-B146, dec-B150). Names resolve against the
 model-matrix column names after expansion; a name that does not resolve, or a
 sign on a categorical column, is a hard error at spec time (see below). The
 argument also rides `dbartsData`/`dbartsSampler` and `setModel` refuses to change

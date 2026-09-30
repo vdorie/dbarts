@@ -28,41 +28,132 @@ n <- 60L
 x <- matrix(runif(n * 3L), n, 3L, dimnames = list(NULL, c("a", "b", "c")))
 y <- x[, 1L] - x[, 3L] + rnorm(n, 0, 0.2)
 
-# glyphs, words, and integers all resolve to {-1, 0, +1} by column name
-expect_equal(
-  monotoneOf(x, y, monotone = c(a = "+", c = "-"))$directions,
-  c(1L, 0L, -1L)
-)
+# words and integers resolve to {-1, 0, +1} by column name
 expect_equal(
   monotoneOf(x, y, monotone = c(a = "increasing", c = "decreasing"))$directions,
   c(1L, 0L, -1L)
-)
-# matching the documented tokens is case-insensitive
-expect_equal(
-  monotoneOf(x, y, monotone = c(a = "Increasing", c = "DECREASING"))$directions,
-  c(1L, 0L, -1L)
-)
-# the undocumented abbreviations are refused, not silently accepted
-expect_error(
-  monotoneOf(x, y, monotone = c(a = "inc")),
-  "'direction' must be one of"
-)
-expect_error(
-  monotoneOf(x, y, monotone = c(a = "dec")),
-  "'direction' must be one of"
 )
 expect_equal(
   monotoneOf(x, y, monotone = c(a = 1L, c = -1L))$directions,
   c(1L, 0L, -1L)
 )
-# an unnamed length-p vector is positional
+# a named 0 is unconstrained, as in the positional form
+expect_equal(
+  monotoneOf(x, y, monotone = c(a = 1, b = 0, c = -1))$directions,
+  c(1L, 0L, -1L)
+)
+# an unnamed length-p vector is positional, 0 unconstrained; words and codes
+# may share one, which c() makes a character vector
 expect_equal(
   monotoneOf(x, y, monotone = c(1L, 0L, -1L))$directions,
   c(1L, 0L, -1L)
 )
+expect_equal(
+  monotoneOf(x, y, monotone = c("increasing", 0, -1))$directions,
+  c(1L, 0L, -1L)
+)
+# matching is exact and case-sensitive, as match.arg's is: the sign glyphs, a
+# case variant, an abbreviation and a non-code number are refused, naming
+# the vocabulary
+for (bad in list("+", "-", "Increasing", "DECREASING", "inc", 2, 0.5, NA)) {
+  expect_error(
+    monotoneOf(x, y, monotone = list(a = bad)),
+    "monotone directions must be one of \"increasing\", \"decreasing\", 1",
+    fixed = TRUE
+  )
+}
+rm(bad)
+
+# monotone() carries the directions and the prior; the plain vector is
+# shorthand for it at the default prior
+spec <- dbarts::dbartsForests$monotone(c(a = "increasing"))
+expect_inherits(spec, "dbartsMonotone")
+expect_identical(spec$prior, "leaf")
+expect_identical(
+  spec,
+  dbarts::dbartsForests$monotone(c(a = "increasing"), prior = "leaf")
+)
+expect_identical(
+  monotoneOf(x, y, monotone = monotone(c(a = "increasing")))$directions,
+  monotoneOf(x, y, monotone = c(a = "increasing"))$directions
+)
+# it has no print method of its own; the default print shows both parts
+printed <- capture.output(print(spec))
+expect_true(any(grepl("increasing", printed, fixed = TRUE)))
+expect_true(any(grepl("leaf", printed, fixed = TRUE)))
+expect_error(
+  dbarts::dbartsForests$monotone(c(a = 1), prior = "tree"),
+  "should be one of"
+)
+expect_error(dbarts::dbartsForests$monotone(), "requires 'directions'")
+# the vocabulary is checked at fit time, where the columns resolve
+expect_error(
+  monotoneOf(x, y, monotone = monotone(c(a = "+"), prior = "leaf")),
+  "must be one of"
+)
+# the joint prior waits for the move that samples it exactly
+expect_error(
+  monotoneOf(x, y, monotone = monotone(c(a = 1), prior = "joint")),
+  "arrives with the corrected birth/death move"
+)
+
+# monotone() resolves by bare name inside the argument, also forwarded
+# through a wrapper's dots (monotoneOf) and on dbartsSpec; a bare name the
+# caller bound is that value, while a call is still the constructor
+expect_equal(
+  monotoneOf(x, y, monotone = monotone(c(c = "decreasing")))$directions,
+  c(0L, 0L, -1L)
+)
+expect_equal(
+  attr(
+    dbarts::dbartsSpec(
+      dbarts::dbartsData(x, y),
+      control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L),
+      monotone = monotone(c(b = "increasing"))
+    )$model,
+    "monotone"
+  ),
+  c(0L, 1L, 0L)
+)
+local({
+  monotone <- c(a = "decreasing")
+  expect_equal(monotoneOf(x, y, monotone = monotone)$directions, c(-1L, 0L, 0L))
+  expect_equal(
+    monotoneOf(x, y, monotone = monotone(monotone))$directions,
+    c(-1L, 0L, 0L)
+  )
+})
+# the multinomial door resolves it before refusing it
+expect_error(
+  dbarts::bart(
+    x,
+    cbind(rpois(n, 2), rpois(n, 2)),
+    family = "multinomial",
+    monotone = monotone(c(a = "increasing")),
+    verbose = FALSE
+  ),
+  "does not support 'monotone'"
+)
+
+# a predictor named prior is constrained through the directions
+xPrior <- x
+colnames(xPrior)[2L] <- "prior"
+expect_equal(
+  monotoneOf(
+    xPrior,
+    y,
+    monotone = monotone(c(prior = "increasing"), prior = "leaf")
+  )$directions,
+  c(0L, 1L, 0L)
+)
+expect_equal(
+  monotoneOf(xPrior, y, monotone = c(prior = "decreasing"))$directions,
+  c(0L, -1L, 0L)
+)
+rm(spec, printed, xPrior)
 
 # a monotone fit is forced to birth/death-only, fixed k = 2
-forced <- monotoneOf(x, y, monotone = c(a = "+"))
+forced <- monotoneOf(x, y, monotone = c(a = "increasing"))
 expect_equal(forced$p.birth_death, 1)
 expect_equal(forced$p.swap, 0)
 expect_equal(forced$p.change, 0)
@@ -85,13 +176,13 @@ expect_null(monotoneOf(x, y, monotone = c(a = 0L, b = 0L, c = 0L))$directions)
 xf <- data.frame(a = runif(n), g = factor(sample(letters[1:3], n, TRUE)))
 yf <- xf$a + rnorm(n, 0, 0.2)
 expect_error(
-  dbarts::dbarts(yf ~ ., data = xf, monotone = c(g = "+")),
+  dbarts::dbarts(yf ~ ., data = xf, monotone = c(g = "increasing")),
   "categorical"
 )
 
 # an unrecognized name is an error
 expect_error(
-  monotoneOf(x, y, monotone = c(nosuchcolumn = "+")),
+  monotoneOf(x, y, monotone = c(nosuchcolumn = "increasing")),
   "unrecognized"
 )
 
@@ -100,7 +191,7 @@ expect_error(
   dbarts::dbarts(
     x,
     y,
-    monotone = c(a = "+"),
+    monotone = c(a = "increasing"),
     leaf.prior = normal(chi(1.5, 2)),
     control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
   ),
@@ -112,7 +203,7 @@ expect_error(
   dbarts::dbarts(
     x,
     y,
-    monotone = c(a = "+"),
+    monotone = c(a = "increasing"),
     proposal.probs = c(
       birth_death = 0.6,
       swap = 0.1,
@@ -131,7 +222,7 @@ expect_equal(
   monotoneOf(
     x,
     y,
-    monotone = c(a = "+"),
+    monotone = c(a = "increasing"),
     proposal.probs = c(
       birth_death = 0.6,
       swap = 0,
@@ -152,14 +243,19 @@ ctrlD4 <- dbarts::dbartsControl(
   n.burn = 5L,
   seed = 55L
 )
-defaultedD4 <- dbarts::dbarts(x, y, monotone = c(a = "+"), control = ctrlD4)
+defaultedD4 <- dbarts::dbarts(
+  x,
+  y,
+  monotone = c(a = "increasing"),
+  control = ctrlD4
+)
 defaultedD4$sampleTreesFromPrior()
 samplesDefaultedD4 <- defaultedD4$run(0L, 5L)
 
 explicitNullD4 <- dbarts::dbarts(
   x,
   y,
-  monotone = c(a = "+"),
+  monotone = c(a = "increasing"),
   proposal.probs = NULL,
   control = ctrlD4
 )
@@ -198,7 +294,7 @@ fitArgs <- list(
 )
 fitMono <- do.call(
   dbarts::bart,
-  c(list(xRec, yRec, monotone = c(x1 = "+")), fitArgs)
+  c(list(xRec, yRec, monotone = c(x1 = "increasing")), fitArgs)
 )
 fitFree <- do.call(dbarts::bart, c(list(xRec, yRec), fitArgs))
 
@@ -222,7 +318,7 @@ set.seed(202L)
 yBump <- sin(2 * pi * xRec[, 1L]) + rnorm(nRec, 0, 0.3)
 fitBump <- do.call(
   dbarts::bart,
-  c(list(xRec, yBump, monotone = c(x1 = "+")), fitArgs)
+  c(list(xRec, yBump, monotone = c(x1 = "increasing")), fitArgs)
 )
 fitBumpFree <- do.call(dbarts::bart, c(list(xRec, yBump), fitArgs))
 # the fit stays monotone (the true rise-then-fall is flattened, not recovered)
@@ -263,7 +359,7 @@ xPri <- matrix(sort(runif(nPri)), nPri, 1L, dimnames = list(NULL, "x1"))
 samplerPri <- dbarts::dbarts(
   xPri,
   xPri[, 1L] + rnorm(nPri, 0, 0.3),
-  monotone = c(x1 = "+"),
+  monotone = c(x1 = "increasing"),
   control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L)
 )
 

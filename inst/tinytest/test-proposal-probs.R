@@ -199,14 +199,14 @@ expect_error(
 # a defaulted mixture is rewritten birth/death-only; a non-default one errors
 forced <- fit(
   c(birth_death = 0.6, swap = 0, change = 0.4, birth = 0.5),
-  monotone = c(a = "+")
+  monotone = c(a = "increasing")
 )$control
 expect_equal(forced@proposal.probs[["birth_death"]], 1)
 expect_equal(forced@proposal.probs[["swap"]], 0)
 expect_equal(forced@proposal.probs[["change"]], 0)
 expect_equal(forced@proposal.probs[["perturb"]], 0)
 expect_equal(forced@proposal.probs[["rule_gibbs"]], 0)
-expect_error(fit(threeMove, monotone = c(a = "+")), "proposal.probs")
+expect_error(fit(threeMove, monotone = c(a = "increasing")), "proposal.probs")
 
 # the refusal must not fire on a caller who spells the documented default and
 # omits the move that ships at zero: the comparison fills it first
@@ -219,7 +219,7 @@ forcedFull <- fit(
     rule_gibbs = 0,
     birth = 0.5
   ),
-  monotone = c(a = "+")
+  monotone = c(a = "increasing")
 )$control
 expect_equal(forcedFull@proposal.probs[["birth_death"]], 1)
 expect_equal(forcedFull@proposal.probs[["perturb"]], 0)

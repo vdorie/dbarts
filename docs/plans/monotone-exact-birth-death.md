@@ -693,6 +693,12 @@ Checkpoint (stop and report), after commit 4, before the feel study and before s
       form, a named 0 accepted as unconstrained, a predictor named prior constrained through directions, the
       default print of a monotone() object showing its directions and prior (no print or format method), and
       each prior fitting monotone.
+    - As implemented (commit 2): the one constant is MONOTONE_PRIORS, the prior values with the default first,
+      installed as monotone()'s prior formal, so match.arg and the shorthand both read it. The direction
+      vocabulary also takes "1", "-1" and "0" as strings, the values c() makes of the codes when words share
+      the vector ("0" was already accepted); a number must be exactly -1, 0 or 1 (0.6 no longer rounds to 1),
+      and a logical is refused. prior is matched at construction; "joint" is refused at fit time, in
+      resolveMonotone, whose prior goes no further than R until commit 4.
 15. Slow counts (dec-B149).
     - Tally: each chain times every count and records those over a threshold, default one second: how many,
       the slowest, and its component's size and down-sets. It resets at the start of each run, as the GP

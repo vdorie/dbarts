@@ -1,5 +1,5 @@
-# The forest constructors (dec-A67): interactions, blocks, forest and
-# varianceForest are not exported. Inside the arguments that take them they
+# The forest constructors (dec-A67): interactions, blocks, monotone, forest
+# and varianceForest are not exported. Inside the arguments that take them they
 # resolve by bare name, a bare name the caller binds taking the caller's value;
 # outside, dbartsForests is their exported face.
 
@@ -25,7 +25,7 @@ expect_true(is.list(dbartsForests))
 expect_true(all(vapply(dbartsForests, is.function, logical(1L))))
 expect_equal(
   sort(names(dbartsForests)),
-  sort(c("interactions", "blocks", "forest", "varianceForest"))
+  sort(c("interactions", "blocks", "monotone", "forest", "varianceForest"))
 )
 for (name in names(dbartsForests)) {
   expect_false(name %in% getNamespaceExports("dbarts"))
@@ -248,6 +248,19 @@ passOn <- function(interactions) {
 }
 expect_equal(maxOrder(passOn(obj)), 1L)
 expect_error(passOn(interactions(max.order = 1)), hint)
+
+passOnMonotone <- function(monotone) {
+  attr(dbarts::dbarts(x, y, monotone = monotone)$model, "monotone")
+}
+directions <- c(1, rep(0, ncol(x) - 1L))
+expect_equal(
+  passOnMonotone(dbartsForests$monotone(directions)),
+  as.integer(directions)
+)
+expect_error(
+  passOnMonotone(monotone(directions)),
+  "outside the argument that takes it, write dbartsForests\\$monotone"
+)
 
 # (6, 7) an unsupplied formal is the door default, whatever its default
 passOnNull <- function(interactions = NULL) {
