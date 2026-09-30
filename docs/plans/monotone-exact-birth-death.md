@@ -591,6 +591,18 @@ constrained value waits for step 12.
      unmeasured. (A two-stage acceptance, min(1, a) min(1, b), is also exact but lowers acceptance.)
    - A slow count never rejects or stops the move; an interrupt or allocation failure during it cancels the
      move and the run (step 15).
+   - As implemented (commit 4): the seam is `NormalizedLeafModel`, split in two. `prepareLogNormalizerRatio`
+     builds T*'s order while T* is in place (after `tree.birth`, before `orphanChildren`) and returns log m;
+     `logNormalizerRatio` counts off that order alone, never the tree, and runs only when the bound leaves the
+     decision open (`decideNormalizedMove`). A death's count therefore runs after `orphanChildren`, since r1
+     needs the merged leaf's score: a cancel there restores the node as the reject path does (step 15). The
+     count is held to log m, so rounding never lets the bound and the count disagree for one u. A death whose
+     merged cone is empty (r1 = 0) rejects without counting, and a pair of two isolated leaves gives 0 without
+     a count. The census writes a 'z' record per normalized move (m, the pair's component count, whether the
+     count was needed and ran, log Z_T0 - log Z_T*, time, down-sets, W(U), peak bytes, whether B = 2^22 would
+     switch it, a_B / a_MH, and on an accepted death the merged component's down-sets counted up to 2^20);
+     BARTCORE_MOVE_CENSUS_COUNT_ALL makes it count moves the bound decided too, the decision unchanged. The
+     'p' record's logPrior carries the Z term, NA when no count ran.
 3. Drop the d terms: `priorMass` in `oneLeafLogMarginal`, `denom` in `twoLeafCoupledLogMarginal`. Under "joint"
    this alone is the exact move.
 4. Exact pair redraw in `redrawAfterBirth`:
@@ -660,6 +672,8 @@ constrained value waits for step 12.
      prior is not restricted. Under "joint" it draws each tree jointly by rejection, a CGM tree and iid
      unconstrained leaves kept only when the leaves lie in its cone (acceptance is the prior mean of Z_T), with
      no count, and then discards the leaves, as its contract returns trees without leaf values.
+     As implemented: the cone test joins the empty-leaf test in the one rejection loop and shares its attempt
+     cap, which still bounds acceptance below by 1 - base, since the bare root always lands in its cone.
 8. tests/cpp:
    - The count against brute-force permutation counts on hand-built trees (1-3 axes, mixed directions, N, a
      star, a chain over 64 leaves) and 200 random trees.
@@ -737,6 +751,10 @@ constrained value waits for step 12.
     - Runtime: quick mode measured 8 min 15 s per prior over four designs, so with the mirrored design about
       10.5 min per prior and 21 min for both. The monotone gate runs as its own CI job with a 40-min timeout,
       and exact-gates.yaml keeps its job and timeout.
+    - As implemented (commit 4): the mirrored design is cM. With no prior named the script runs both, each
+      run naming its prior; `leaf` or `joint` on the command line runs one. The CI job is a second job in
+      exact-gates.yaml and always runs quick: full mode triples the draws and would pass the timeout. Quick,
+      both priors, six designs: about 21 minutes on arm64 macOS.
 11. Two monotone scenarios in benchmarks/R/equivalence.R (x1 and x2 constrained, 20 trees, one per prior): a
     55-scenario re-record, the other 53 bitwise, and MANIFEST rows naming the enumeration gate as their ORACLE
     (P17).
@@ -758,6 +776,12 @@ constrained value waits for step 12.
     and step 15 are active; under "joint" `logNormalizerRatio` is not evaluated, no
     count runs, and sampleTreesFromPrior draws jointly (step 7). Steps 3-6 apply to both. The fit object
     records the prior, and print and summary show it.
+    - As implemented (commit 4): the prior rides a second model attribute, monotone.prior ("leaf" or "joint"),
+      beside the monotone directions attribute rather than inside it, so the directions stay a plain integer
+      vector for the callers that read them. The bridge requires it wherever directions are present and holds
+      no default of its own. copy() and reload rebuild the sampler from the model, so both carry the prior;
+      setState installs trees and leaves only, so the sampler keeps its own. The fit carries monotone.prior,
+      absent without a constraint; print shows "monotone prior:" and summary "Monotone prior:".
 14. The monotone() constructor and vocabulary (dec-B146, dec-B147).
     - Signature (dec-B150): monotone(directions, prior = ), for example
       monotone(c(x1 = "increasing", x2 = "decreasing"), prior = "leaf"), following blocks(groups,
@@ -809,8 +833,8 @@ constrained value waits for step 12.
       stays blocked on workers as run() already arranges.
     - Mechanics. A cancel inside the count throws bartcore::CountCancelled (a new std::exception type); an
       allocation failure throws std::bad_alloc. birthOrDeathMove catches both, undoes the birth (the rollback
-      its reject path already takes) or leaves the death unapplied (the count runs before `orphanChildren`),
-      and rethrows. Chain::run catches both, rebuilds (below), and returns cancelled for CountCancelled or
+      its reject path already takes) or restores the dying node (the count reads T*'s order, built before
+      `orphanChildren`, but runs after it; step 2), and rethrows. Chain::run catches both, rebuilds (below), and returns cancelled for CountCancelled or
       rethrows bad_alloc. In Sampler::run each worker's try/catch sits inside its per-chain body, around
       chains_[c]->run, so numChainsRunning is still decremented and the join cannot deadlock; it stores the first
       exception_ptr and sets the cancel flag, and run() rethrows it after the join on the caller's thread, as

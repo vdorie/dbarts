@@ -29,6 +29,11 @@
 # bound is tighter than the shipped build's re-associated draw path can hold
 # across hosts. Everything above them is a shipped-build gate.
 #
+# The monotone enumeration gate (monotone-exact-enumeration.R: the corrected
+# birth/death move against the exact one-tree posterior, under both monotone
+# priors) runs as a job of its own, since it takes about 20 minutes in quick
+# mode on its own; the main job keeps its list and timeout.
+#
 # One job installs the package once, then runs every gate in `quick` mode
 # (reduced draws/seeds) so the whole suite shares a single ~4-minute C++20
 # compile instead of recompiling per gate. bcf-latent-exact.R is the long
@@ -231,3 +236,38 @@ jobs:
             }
             if (fail) quit(status = 1L)
           '
+
+  monotone-exact-enumeration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Bound apt network stalls
+        run: |
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::http::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::https::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+
+      - uses: r-lib/actions/setup-r@v2
+        timeout-minutes: 12
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        timeout-minutes: 15
+        with:
+          needs: check
+
+      - name: Install the package
+        run: R CMD INSTALL .
+
+      # every design under both priors, quick even under mode=full: full mode
+      # triples the draws and would pass the timeout, so it stays a local run
+      - name: Run the monotone enumeration gate
+        run: Rscript benchmarks/R/monotone-exact-enumeration.R quick engine

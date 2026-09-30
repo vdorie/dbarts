@@ -2,12 +2,14 @@
 
 # Exact enumeration of the monotone single-tree posterior over multi-split
 # trees, with an R prototype of the birth/death + leaf Gibbs chain
-# (docs/plans/monotone-exact-birth-death.md). The target is the documented
-# prior: the CGM tree prior and, given a tree T, iid (c-inflated) normal leaves
-# restricted to the monotone cone C(T), normalized per tree by
+# (docs/plans/monotone-exact-birth-death.md), under both monotone priors.
+# "leaf": the CGM tree prior and, given a tree T, iid (c-inflated) normal
+# leaves restricted to the monotone cone C(T), normalized per tree by
 # Z_T = P(unconstrained leaves in C(T)) = e(P_T) / L!, e the number of linear
 # extensions of the leaf order the constraints impose. A tree's posterior
 # weight is p(T) exp(sum of unconstrained leaf log-marginals) P_post(C(T)) / Z_T.
+# "joint": the CGM tree prior and iid leaves conditioned on the cone together,
+# unnormalized, so the weight drops the 1 / Z_T.
 #
 # Each design is a grid of cells on one to three predictors with 10 rows per
 # cell and sigma fixed; its tree structures are enumerated exactly. Draws are
@@ -18,7 +20,9 @@
 # (cells under 0.2% pooled into the omitted reference cell). A group fails at
 # p < 1e-4.
 #
-# Usage: Rscript monotone-exact-enumeration.R [quick] [mode] [design ...]
+# Usage: Rscript monotone-exact-enumeration.R [quick] [mode] [prior] [design ...]
+#   prior  leaf, joint (default: both, each run naming its prior); engine and
+#          prototype modes only, the others take "leaf"
 #   mode   engine (default): the installed dbarts sampler; exits 1 on failure
 #          prototype: the R prototype of the corrected move; exits 1 on failure
 #          prototype-old: the prototype with the conditional-d ratio the
@@ -33,7 +37,7 @@
 #          zcheck: Z_T = e(P_T) / L! against a brute-force monotonicity check
 #          unnormalized: the exact posterior against the one without 1 / Z_T
 #            (the BART prior conditioned on every tree being monotone); no sampling
-#   design c1 c2 c3 cN cF (default: all)
+#   design c1 c2 c3 cN cM cF (default: all)
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
@@ -49,6 +53,13 @@ modes <- c(
 )
 mode <- intersect(args, modes)
 mode <- if (length(mode)) mode[1L] else "engine"
+priors <- intersect(c("leaf", "joint"), args)
+if (!length(priors)) {
+  priors <- c("leaf", "joint")
+}
+if (!mode %in% c("engine", "prototype")) {
+  priors <- "leaf"
+}
 designs <- list(
   # one constrained predictor, four cells: every tree is a chain
   c1 = list(nc = 4L, dirs = 1L, mu = c(0, 0.2, 0.4, 0.6), sigma = 0.6),
@@ -75,6 +86,15 @@ designs <- list(
     sigma = 0.6,
     # a tree rooted on x2 holds its subtree roots for whole runs and carries
     # no N-shaped order, so only the x1-rooted group is tested
+    groups = "x1 cut 1"
+  ),
+  # cN's cells reflected along x1, with x1 decreasing: the same orders reached
+  # through a decreasing axis, the move's and the redraws' other direction
+  cM = list(
+    nc = c(2L, 3L),
+    dirs = c(-1L, 0L),
+    mu = c(3, 0, 3, 0.6, 3.6, 0.6),
+    sigma = 0.6,
     groups = "x1 cut 1"
   ),
   # x1 constrained and x2 a free two-level factor, x1 rising at one level and
@@ -304,18 +324,28 @@ buildDesign <- function(spec, nPer = 10L, seed = 11L) {
     trees[[t]] <- tr
   }
   names(trees) <- vapply(trees, `[[`, "", "key")
-  logW <- vapply(
-    trees,
-    function(tr) tr$logPrior + sum(tr$base) + tr$logPostCone - tr$logZ,
-    0
-  )
-  law <- exp(logW - max(logW))
+  # "leaf" divides by Z_T, "joint" does not
+  lawOf <- function(normalized) {
+    logW <- vapply(
+      trees,
+      function(tr) {
+        tr$logPrior +
+          sum(tr$base) +
+          tr$logPostCone -
+          if (normalized) tr$logZ else 0
+      },
+      0
+    )
+    law <- exp(logW - max(logW))
+    law / sum(law)
+  }
   list(
     spec = spec,
     x = x,
     y = y,
     trees = trees,
-    law = law / sum(law),
+    law = lawOf(TRUE),
+    laws = list(leaf = lawOf(TRUE), joint = lawOf(FALSE)),
     residVar = residVar
   )
 }
@@ -501,7 +531,7 @@ twoCoin <- function(logC, coin, birth) {
 
 # ---- samplers ----------------------------------------------------------------
 
-engineKeys <- function(design, nDraw, seed) {
+engineKeys <- function(design, nDraw, seed, prior) {
   suppressPackageStartupMessages(library(dbarts))
   nc <- design$spec$nc
   dirs <- design$spec$dirs
@@ -530,7 +560,7 @@ engineKeys <- function(design, nDraw, seed) {
     tree.prior = cgm(power, base),
     leaf.prior = normal(kLeaf),
     family = gaussian(sigma = fixed(design$spec$sigma^2)),
-    monotone = monotone(mono, prior = "leaf")
+    monotone = monotone(mono, prior = prior)
   )
   cuts <- lapply(nc, function(n) seq(1, n, length.out = n + 1L)[-c(1L, n + 1L)])
   # a two-level factor's split is its one cut; the engine's left child holds
@@ -603,14 +633,16 @@ drawTruncated <- function(m, s, a, b) {
 # with two leaf children), the touched leaves integrated out given the rest
 # and redrawn exactly on acceptance, then a Gibbs sweep over the leaves.
 # exact = FALSE divides each touched marginal by its conditional prior cone
-# mass d and drops the Z_T ratio, as the engine did before the fix.
+# mass d and drops the Z_T ratio, as the engine did before the fix; the "joint"
+# prior drops the Z_T ratio alone.
 prototypeKeys <- function(
   design,
   nDraw,
   seed,
   exact,
   switchAt = Inf,
-  coin = TRUE
+  coin = TRUE,
+  prior = "leaf"
 ) {
   set.seed(seed)
   trees <- design$trees
@@ -724,7 +756,9 @@ prototypeKeys <- function(
     }
     oneLeaf(tr, k[1L], mu, k[2L]) + oneLeaf(tr, k[2L], mu, k[1L])
   }
-  logZRatio <- function(from, to) if (exact) from$logZ - to$logZ else 0
+  logZRatio <- function(from, to) {
+    if (exact && prior == "leaf") from$logZ - to$logZ else 0
+  }
   # the pair (c1 lower, c2 upper) in the finer tree fine, and m, the size of
   # fine's components that hold it
   pairOf <- function(fine, r) {
@@ -1041,47 +1075,63 @@ if (mode == "unnormalized") {
 }
 
 anyFailure <- FALSE
-for (name in chosen) {
-  design <- buildDesign(designs[[name]])
-  cat(sprintf(
-    "%s: %d structures, %s draws over %d chains (%s)\n",
-    name,
-    length(design$trees),
-    format(nDraws, big.mark = ","),
-    nChains,
-    mode
-  ))
-  perChain <- nDraws %/% nChains
-  chains <- lapply(seq_len(nChains), function(s) {
-    switch(
-      mode,
-      engine = engineKeys(design, perChain, s),
-      prototype = prototypeKeys(design, perChain, s, exact = TRUE),
-      "prototype-old" = prototypeKeys(design, perChain, s, exact = FALSE),
-      hybrid = prototypeKeys(design, perChain, s, exact = TRUE, switchAt = 3L),
-      "hybrid-nocoin" = prototypeKeys(
-        design,
-        perChain,
-        s,
-        exact = TRUE,
-        switchAt = 3L,
-        coin = FALSE
-      )
-    )
-  })
-  if (startsWith(mode, "hybrid")) {
-    st <- Reduce(
-      function(a, b) Map(`+`, a, b),
-      lapply(chains, attr, "switched")
-    )
+for (prior in priors) {
+  for (name in chosen) {
+    design <- buildDesign(designs[[name]])
+    design$law <- design$laws[[prior]]
     cat(sprintf(
-      "  %d switched moves, %.2f coins each, acceptance %.3f of MH's\n",
-      st$switched,
-      st$draws / st$switched,
-      st$accB / st$accMH
+      "%s: %d structures, %s draws over %d chains (%s, prior \"%s\")\n",
+      name,
+      length(design$trees),
+      format(nDraws, big.mark = ","),
+      nChains,
+      mode,
+      prior
     ))
+    perChain <- nDraws %/% nChains
+    chains <- lapply(seq_len(nChains), function(s) {
+      switch(
+        mode,
+        engine = engineKeys(design, perChain, s, prior),
+        prototype = prototypeKeys(
+          design,
+          perChain,
+          s,
+          exact = TRUE,
+          prior = prior
+        ),
+        "prototype-old" = prototypeKeys(design, perChain, s, exact = FALSE),
+        hybrid = prototypeKeys(
+          design,
+          perChain,
+          s,
+          exact = TRUE,
+          switchAt = 3L
+        ),
+        "hybrid-nocoin" = prototypeKeys(
+          design,
+          perChain,
+          s,
+          exact = TRUE,
+          switchAt = 3L,
+          coin = FALSE
+        )
+      )
+    })
+    if (startsWith(mode, "hybrid")) {
+      st <- Reduce(
+        function(a, b) Map(`+`, a, b),
+        lapply(chains, attr, "switched")
+      )
+      cat(sprintf(
+        "  %d switched moves, %.2f coins each, acceptance %.3f of MH's\n",
+        st$switched,
+        st$draws / st$switched,
+        st$accB / st$accMH
+      ))
+    }
+    anyFailure <- testGroups(design, chains, name) || anyFailure
   }
-  anyFailure <- testGroups(design, chains, name) || anyFailure
 }
 
 if (anyFailure) {
