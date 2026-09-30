@@ -576,7 +576,7 @@ scale-mixture spellings of `ForestAmplitudePrior` - beside `leaf.scale.factor`,
 `bartcore_getLeafPrior` carries the five columns and
 `dbarts_forest_calibration` the five appended fields. The anchor s rides one
 more `bartcore_getLeafPrior` column, `map.anchor`, which the R reader does not
-report; it is recovered as `prior.sd * divisor * rowNorm / factor` whenever
+report; s is recovered as `prior.sd * divisor * rowNorm / factor` whenever
 `leaf.scale.factor` is not NaN, which is exactly when the calibration in force
 is the map's: a `setState` or `installTrees` that brings a foreign leaf scale
 clears both `leaf.scale` columns (the amplitude prior follows the state, the
