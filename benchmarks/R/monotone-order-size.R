@@ -32,9 +32,16 @@
 # logz mode prints, for a fit, how much -log Z_T its trees carry: the per-tree
 # weight the documented prior removes relative to the unnormalized one.
 #
+# pairs mode writes, on every fifth kept sweep, 10 random births and every
+# distinct death of each tree, as the pair of orders a move's ratio needs
+# (the components of the finer tree holding the two children, and the
+# component of the coarser tree holding their merged leaf), for
+# benchmarks/kernels/monotone_ratio.
+#
 # Usage: Rscript monotone-order-size.R nTrees n p nConstrained [seed] [masks=f]
 #        Rscript monotone-order-size.R closure
 #        Rscript monotone-order-size.R logz nTrees n p nConstrained [seed]
+#        Rscript monotone-order-size.R pairs nTrees n p nConstrained seed file
 #   x is uniform on [0, 1]^p; y increases in the first nConstrained axes and
 #   has 2 sin(2 pi x_free) (1 + x1) in the first free one; the installed
 #   engine runs 1000 burn-in and 200 kept sweeps (logz: 500 and 20).
@@ -256,7 +263,8 @@ runFit <- function(nTrees, n, p, nc, seed, nBurn, nKept) {
 
 # components written for the C++ counter, keyed by their relation
 maskStore <- new.env(hash = TRUE)
-storeComponent <- function(sub) {
+# each element's predecessor mask as two 64-bit hex words (high, low)
+maskWords <- function(sub) {
   hexWord <- function(bits) {
     nibbles <- matrix(as.integer(bits), 4L)
     paste(
@@ -264,18 +272,22 @@ storeComponent <- function(sub) {
       collapse = ""
     )
   }
+  words <- vapply(
+    seq_len(nrow(sub)),
+    function(k) {
+      bits <- c(sub[, k], rep(FALSE, 128L - nrow(sub)))
+      paste(hexWord(bits[65:128]), hexWord(bits[1:64]))
+    },
+    ""
+  )
+  paste(words, collapse = " ")
+}
+
+storeComponent <- function(sub) {
   key <- paste(nrow(sub), paste(which(sub), collapse = ","))
   if (is.null(maskStore[[key]]) && nrow(sub) <= 128L) {
-    words <- vapply(
-      seq_len(nrow(sub)),
-      function(k) {
-        bits <- c(sub[, k], rep(FALSE, 128L - nrow(sub)))
-        paste(hexWord(bits[65:128]), hexWord(bits[1:64]))
-      },
-      ""
-    )
     id <- sprintf("c%d", length(ls(maskStore)) + 1L)
-    assign(key, paste(id, nrow(sub), paste(words, collapse = " ")), maskStore)
+    assign(key, paste(id, nrow(sub), maskWords(sub)), maskStore)
   }
 }
 
@@ -426,6 +438,95 @@ fitNormalizers <- function(nTrees, n, p, nc, seed) {
   ))
 }
 
+# ---- move pairs for the ratio kernel ----------------------------------------
+
+# one move between tree (T0, the leaf at path) and grown (T*, its children at
+# path 3 and 4): the components of T* holding the children, with the lower
+# child c1 and the other c2, and the component of T0 holding the leaf
+pairLine <- function(id, tree, grown, path, p, nc) {
+  indexOf <- function(boxes, target) {
+    which(vapply(boxes, function(b) identical(b$path, target), TRUE))
+  }
+  boxes <- leafBoxes(grown, p)
+  rel <- leafOrder(boxes, nc)
+  children <- c(indexOf(boxes, c(path, 3L)), indexOf(boxes, c(path, 4L)))
+  parts <- components(rel)
+  held <- sort(unlist(parts[vapply(
+    parts,
+    function(ix) any(children %in% ix),
+    TRUE
+  )]))
+  boxes0 <- leafBoxes(tree, p)
+  rel0 <- leafOrder(boxes0, nc)
+  leaf <- indexOf(boxes0, path)
+  parts0 <- components(rel0)
+  c0 <- parts0[[which(vapply(parts0, function(ix) leaf %in% ix, TRUE))]]
+  if (length(held) > 128L) {
+    return(NULL)
+  }
+  sprintf(
+    "pair %s %d %d %d %d %s | %d %s",
+    id,
+    (if (length(path)) grown[[path]] else grown)[[1L]],
+    length(held),
+    match(children[1L], held) - 1L,
+    match(children[2L], held) - 1L,
+    maskWords(rel[held, held, drop = FALSE]),
+    length(c0),
+    maskWords(rel0[c0, c0, drop = FALSE])
+  )
+}
+
+# on every fifth kept sweep, 10 random births of each tree and all of its
+# deaths (each distinct death once), for benchmarks/kernels/monotone_ratio
+fitPairs <- function(nTrees, n, p, nc, seed, file) {
+  fit <- runFit(nTrees, n, p, nc, seed, 1000L, 200L)
+  con <- file(file, "w")
+  on.exit(close(con))
+  seen <- new.env(hash = TRUE)
+  for (r in seq_along(fit$trees)) {
+    if (fit$keys$sample[r] %% 5L) {
+      next
+    }
+    tree <- fromPreorder(fit$trees[[r]]$var, fit$trees[[r]]$value)
+    tag <- sprintf("s%d_t%d", fit$keys$sample[r], fit$keys$tree[r])
+    boxes <- leafBoxes(tree, p)
+    for (b in 1:10) {
+      box <- boxes[[sample.int(length(boxes), 1L)]]
+      v <- sample.int(p, 1L)
+      grid <- 1:99 / 100
+      cuts <- grid[grid > box$lo[v] & grid < box$hi[v]]
+      if (!length(cuts)) {
+        next
+      }
+      cut <- cuts[sample.int(length(cuts), 1L)]
+      grown <- setNode(tree, box$path, list(v, cut, list(), list()))
+      line <- pairLine(sprintf("B_%s_%d", tag, b), tree, grown, box$path, p, nc)
+      writeLines(line, con)
+    }
+    for (path in nogPaths(tree)) {
+      if (!length(path)) {
+        next
+      }
+      dead <- setNode(tree, path, list())
+      line <- pairLine(
+        sprintf("D_%s_%s", tag, paste(path, collapse = ".")),
+        dead,
+        tree,
+        path,
+        p,
+        nc
+      )
+      key <- sub("^pair \\S+ ", "", line)
+      if (length(line) && is.null(seen[[key]])) {
+        assign(key, TRUE, seen)
+        writeLines(line, con)
+      }
+    }
+  }
+  invisible()
+}
+
 # ---- closure under deaths ----------------------------------------------------
 
 randomTree <- function(nLeaves, p) {
@@ -542,7 +643,10 @@ closureCheck <- function(nTrees = 300L, seed = 5L) {
 
 masks <- sub("^masks=", "", grep("^masks=", args, value = TRUE))
 args <- grep("^masks=", args, value = TRUE, invert = TRUE)
-if (identical(args[1L], "closure")) {
+if (identical(args[1L], "pairs")) {
+  a <- as.integer(args[2:6])
+  fitPairs(a[1L], a[2L], a[3L], a[4L], a[5L], args[7L])
+} else if (identical(args[1L], "closure")) {
   closureCheck()
 } else if (identical(args[1L], "logz")) {
   a <- as.integer(args[-1L])

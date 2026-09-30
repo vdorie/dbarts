@@ -2,16 +2,18 @@
 
 Status: PLANNED 2026-09-29 (dec-B144), revised after a blind critique and a few-tree measurement. The maintainer
 then ruled that the package offers both monotone priors, "leaf" and "joint", chosen by monotone(prior = )
-(dec-B145 to dec-B148); the default stays open for the feel study below. Derivation and gate verified on an R
-prototype; not implemented.
+(dec-B145 to dec-B148); the default stays open for the feel study below. Every move is then counted on the finer
+tree's side (Counting: algorithm), so no move counts the component a death's merge creates. Derivation and gate
+verified on an R prototype; not implemented.
 
 agent: opus (engine numerics: move seam, order counting, exact pair redraw, gate)
 rng: posterior-changing for every fit with an active monotone constraint (all of its draws move, prior draws
 included); unconstrained fits byte-identical, since every engine change lives in the monotone instantiation
 window: before 1.0-0 (TODO monotone-exact-birth-death)
-budget: ~1,400 lines (engine ~500, bridge and R ~250, tests/cpp ~350, tinytest ~150, gate wiring ~30, docs
-~120; the gate script and the feel study's script excluded). The second prior adds ~150-250 of that and the
-monotone() constructor with its vocabulary ~100. Plan estimates have run 1.5-2x low: expect up to ~2,800.
+budget: ~1,500 lines (engine ~560, bridge and R ~250, tests/cpp ~390, tinytest ~150, gate wiring ~30, docs
+~120; the gate script and the feel study's script excluded). The second prior adds ~150-250 of that, the
+monotone() constructor with its vocabulary ~100, and counting on the finer tree's side ~100. Plan estimates have
+run 1.5-2x low: expect up to ~3,000.
 
 ## Goal
 
@@ -141,7 +143,9 @@ the state metric the table uses. Sweep time is per kept sweep.
 
 - Births create components up to 1.9x the largest state component. A death merges components: in the 5-tree,
   2-constrained + 1-free fit, 10% of trees have a death whose merged component passes 2^24 (up to 3.6e8), and
-  such a death is proposed about once in 30 sweeps.
+  such a death is proposed about once in 30 sweeps. Counting: algorithm counts every move on the finer tree's
+  side, so no move counts a merged component; the largest order a move then counts in these fits is 1.9e6
+  down-sets.
 - At ~2^24 down-sets the count is slower per unit: a 25-leaf star takes 15 s (36 ns per unit), a 60-leaf order
   of eight chains 17 s and 424 MB keeping two layers. Keeping every layer, as step 6's draw does, costs about
   1 GB.
@@ -176,15 +180,17 @@ the state metric the table uses. Sweep time is per kept sweep.
      a move, so it changes no model and needs no closure. The sampler keeps the tree it held before the move,
      so an embedded caller can catch the error, raise G and continue.
    - What a fit sees: at 20 or more trees nothing, at 10 up to 1.2x slower sweeps, at 1-5 trees the table's
-     slowdowns. The margin over proposals is ~9x in the 1-tree fits, and the 5-tree, 2-constrained fit above
-     would stop within its first few dozen sweeps at any G that can be counted.
+     slowdowns. With the count on the finer tree's side (Counting: algorithm) the guard sits 8.7x above the
+     largest order any move counts in the measured fits; the 5-tree, 2-constrained fit above, which the first
+     counting design stopped within a few dozen sweeps, runs 13x below it.
    - Exact holds for runs that complete. Rerunning with new seeds until one completes selects smaller trees;
      the help page says so.
    - Base-R-style fitters mostly cap up front or warn instead: glm's maxit warns, rstan's max_treedepth caps
      and warns, rpart's maxdepth and ranger's max.depth cap the tree. Here a cap is options 1-4, and a warning
      cannot continue without the count.
-   - A cheap exact shortcut cuts counts (steps 1 and 2). Splitting a component by series-parallel or modular
-     decomposition could shrink the counts further; unmeasured, future work.
+   - A cheap exact shortcut cuts counts (steps 1 and 2). Series-parallel and twin reductions were measured
+     (Counting: algorithm): the first barely splits these orders, the second cuts down-sets 2-10x; neither is
+     planned.
 6. The unnormalized prior (dec-B144's rejected alternative, reopened by the maintainer; taken as "joint"):
    p(T, M) proportional to p_CGM(T) prod phi 1{M in C(T)}, BART's prior conditioned on every tree being
    monotone.
@@ -267,6 +273,82 @@ gate in benchmarks/R.
   different tree-prior default under monotone, which users would meet as a surprise; the study reports that
   case separately.
 
+## Counting: algorithm
+
+Every move's ratio is counted on the side of the finer tree T*, the tree that holds the move's pair as two
+leaves c1 and c2 (c1 the lower child of a constrained split, the left child of a free one): for a birth the
+proposal, for a death the current tree. A death therefore never counts the component its merge creates.
+
+- Identity. The linear extensions of T0 correspond one to one with those of T* in which c2 immediately follows
+  c1: replace the merged leaf by c1 c2, or merge them back. Both directions hold because the merged leaf's
+  relations are the union of its children's (Context). Let U be the union of T*'s components holding c1 or c2,
+  m = |U| (the merged leaf's component size plus one), and theta the probability that c2 immediately follows c1
+  in a uniform linear extension of U. Then Z_T0 / Z_T* = m theta, and theta <= 1 gives step 2's free bounds with
+  m in place of L0 + 1 and L0.
+- The pair in one component C* of T*: theta = e(C0) / e(C*), with C0 the order of C* with c1 and c2 merged
+  (the union of their relations, closed). The layered DP counts both. C0's down-sets map injectively into C*'s,
+  so C0 costs no more than C*, and the current tree's count is kept, so a move counts one of the two.
+- The pair in two components C1 (holding c1, size a) and C2 (holding c2, size b), which a free split can
+  produce: with P1(i) the probability that c1 is i-th in a uniform extension of C1, and P2(j) that c2 is j-th in
+  C2, theta = sum over i and j of P1(i) P2(j) C(i+j-2, i-1) C(a+b-i-j, a-i) / C(a+b, a), the share of
+  interleavings that put c1 just before c2 (C(n, k) binomials, from a Pascal table). P1(i) sums
+  f(D) g(D + c1) / e(C1) over the down-sets D of size i-1 that c1 can extend, where f(D) counts the orderings of
+  D and g(D) the extensions of the rest: both come from the layered DP keeping every layer, as step 6 already
+  does. C0, whose down-sets can approach the product of C1's and C2's, is never counted.
+- The guard G applies to T*'s components, which bound a move's work in both cases. It is symmetric in the move
+  pair, since both directions count T*.
+- Measured with the pairs mode of [monotone-order-size.R](../../benchmarks/R/monotone-order-size.R) and
+  [monotone_ratio.cpp](../../benchmarks/kernels/monotone_ratio.cpp): eight of the Decision's fits (1 tree: four,
+  5 trees: three, 10 trees: one), all deaths and 10 random births per tree on every fifth kept sweep, 13,383
+  moves, 1,395 of them with the pair in two components.
+  - Exact: on the 13,361 moves whose C0 the direct count reaches, theta matches e(C0) / e(U) to relative
+    2.3e-14.
+  - The death that merges two components into 3.6e8 down-sets (5 trees, 2 constrained + 1 free) takes 34 ms,
+    from lattices of 4.6e3 and 1.0e5 down-sets. Counting C0 directly takes 1.9e10 down-set x leaf units: minutes
+    at the Decision's 6-36 ns per unit, and about 9 GB at its scaling.
+  - The largest order any move counts is 1.9e6 down-sets (a birth in the 1-tree, 60-leaf fit): 0.8 s with both
+    sides counted, and about half with the current tree's count kept. In the 5-tree, 2-constrained fit it is
+    1.2e6 and 0.5-0.6 s.
+- What does not help, measured on the same orders:
+  - Series-parallel decomposition. The merged 3.6e8 component is prime (53 of 53 elements); in the 5-tree,
+    2-constrained fit it trims 118 of 662 single components of T* by at most 5 elements.
+  - Twins, incomparable elements with the same relations (the antichain case of modular decomposition, where
+    e = k! e(with the twins chained)): 2-10x fewer down-sets (3.6e8 to 9.5e7, 6.1e5 to 6.1e4). A later
+    optimization at most.
+  - Width reaches 22 in the merged component, so the treewidth of its incomparability graph is at least 21. This
+    defeats both the DP's O(n^w) bound and the algorithm that is fixed-parameter tractable in that treewidth
+    (Eiben, Ganian, Kangas and Ordyniak, ESA 2016, Theorem 17). A DP over the guillotine tree must carry how each
+    cut face's leaves interleave, which is the down-set lattice again.
+- Literature, checked in the papers named: counting linear extensions is #P-complete (Brightwell and Winkler 1991, as
+  Dittmer and Pak and Eiben et al. state it); it stays #P-complete for height two, for dimension two, and for
+  incidence posets of graphs (Dittmer and Pak, Electron. J. Combin. 27(4), 2020); and it has no algorithm
+  fixed-parameter tractable in the treewidth of the cover graph unless FPT = W[1] (Eiben et al., Theorem 7). It
+  is polynomial for series-parallel orders and for orders whose cover graph is a polytree (as Eiben et al. cite).
+  Whether guillotine leaf orders form a tractable class is not known. The ratio is no easier than the count: a
+  chain of births from the root multiplies ratios into e(T).
+- Count-free alternative, not planned. The identity makes theta a coin: draw a uniform linear extension of U
+  exactly, and call it heads when c2 immediately follows c1.
+  - With R = r1 m theta (r1 the rest of the ratio), Barker's acceptance R / (1 + R) is then exact by the two-coin
+    algorithm (Goncalves, Latuszynski and Roberts, Braz. J. Probab. Stat. 31, 2017): with probability
+    c / (1 + c), c = r1 m, draw the coin and accept on heads, repeating on tails; otherwise reject. It never
+    counts. It takes c / (1 + c theta) <= min(c, 1 / theta) draws on average, and Barker's acceptance is at
+    least half of Metropolis-Hastings'.
+  - Exact draws come from Huber's bounding-chain coupling from the past (Discrete Math. 306, 2006), expected
+    O(n^3 log n) steps. For the 3.6e8 death it takes 4.4 ms per draw of T*'s two components (24 and 30
+    elements), and theta is 0.050 there, so at most about 20 draws (90 ms). Its draws matched the exact theta
+    over 692 moves (mean z 0.007, mean z^2 0.94).
+  - Used only when a move's T* components pass G (a symmetric rule, so each move pair keeps one exact kernel),
+    it would replace the guard's error with a slower exact move, retire the guard and step 7's pruning, and give
+    step 6 a draw that keeps no layers. That changes the ruled guard (dec-B145), so it waits for the maintainer.
+  - Simpler exact schemes lose acceptance. Accepting a birth with min(1, r1 m) times the coin, and a death with
+    min(1, 1 / (r1 m)) and no draw, matches Metropolis-Hastings when r1 m <= 1 but otherwise scales acceptance
+    by theta (0.02-0.2 on the large moves). The exchange algorithm (Murray, Ghahramani and MacKay, UAI 2006),
+    with an exact leaf draw from T*'s cone, likewise scales acceptance by the chance of an indicator. The
+    pseudo-marginal route needs an unbiased estimate of 1 / Z_T. One exists: adding the elements in turn, each
+    one's chance p_k of landing above its predecessors has a coin (one exact draw of the elements before it), and
+    the product of the geometric counts of trials to heads is unbiased. Its relative variance is the product of
+    (2 - p_k) less one, exponential in the component size, so the chain would stick.
+
 ## Constraints
 
 - Exact for each stated prior (dec-B14). Counts are held in double: exact to 2^53, with relative error under
@@ -282,18 +364,20 @@ gate in benchmarks/R.
    given-T leaf draw (step 6). Down-set keys are multi-word bitsets.
    - Relation: build the tree's relation matrix with the adjacency test of `monotoneNeighborBounds`, and split
      it into components.
-   - Count: run the layered down-set DP per component, keeping two layers (every layer only for step 6's
-     draw), and return the whole-tree log Z_T = sum over components of log e(C) - lgamma(|C| + 1). A component
-     whose down-sets pass the guard G (a dbartsControl argument, default 2^24; Decision) stops the count at
-     once and fails.
-   - A move changes only the component of the touched leaf in T0 and the component(s) holding the two children
-     in T*. After a free-axis birth the children may share a component: take the distinct components. Keep the
-     current tree's component counts, so a move counts only the components it creates.
-2. Seam, active under "leaf" only (step 13). Add an optional leaf concept, `logTreeNormalizer`, declared by
-   the monotone leaf.
-   [`birthOrDeathMove`](../../src/bartcore/moves.hpp) evaluates it in each state: before and after
-   `tree.birth`, before and after `orphanChildren`. It adds log Z_T0 - log Z_T* to the log prior ratio (logged
-   in the census's prior column).
+   - Count: run the layered down-set DP per component, keeping two layers (every layer for step 6's draw and
+     for position laws), and return the whole-tree log Z_T = sum over components of log e(C) - lgamma(|C| + 1).
+     A component whose down-sets pass the guard G (a dbartsControl argument, default 2^24; Decision) stops the
+     count at once and fails.
+   - Ratio (Counting: algorithm): a move changes only the component of the merged leaf in T0 and the
+     component(s) holding the two children in T*, and is counted on T*'s side. With the children in one
+     component C*, count C* and C0; the current tree's component counts are kept, so a move counts one of the
+     two. With the children in two components, take theta from the position laws of c1 and c2, and never count
+     C0. The guard applies to T*'s components.
+2. Seam, active under "leaf" only (step 13). Add an optional leaf concept, `logNormalizerRatio`, declared by
+   the monotone leaf. [`birthOrDeathMove`](../../src/bartcore/moves.hpp) evaluates it once per move while T*
+   is in place, after `tree.birth` or before `orphanChildren`, given the pair, and it returns
+   log Z_T0 - log Z_T* counted on T*'s side (Counting: algorithm). The move adds it to the log prior ratio
+   (logged in the census's prior column).
    - Free bounds: a birth never lowers e (a linear extension of T0 with the split leaf replaced by its two
      children in order is one of T*, and distinct extensions stay distinct), so a birth's Z_T0 / Z_T* =
      (L0 + 1) e(T0) / e(T*) is at most L0 + 1 and a death's is at least 1 / L0, L0 the current leaf count (0
@@ -346,6 +430,9 @@ gate in benchmarks/R.
 8. tests/cpp:
    - The count against brute-force permutation counts on hand-built trees (1-3 axes, mixed directions, N, a
      star, a chain over 64 leaves) and 200 random trees.
+   - The ratio on T*'s side against e(C0) / e(U) from direct counts, over every birth and death of those random
+     trees, with the pair in one component and in two (a free split of the middle of a three-chain gives
+     theta = 1/6), and the position law against brute force.
    - Log Z against the enumeration's e / L!.
    - RNG-free ratio tests on A < B -> A < B1 < B2 (constrained split) and A < B -> {A < B1, B2} (free split)
      with pinned mu_A. Compare the move's log alpha with the closed form of the corrected statement in Context
@@ -402,7 +489,7 @@ gate in benchmarks/R.
 13. The prior switch, end to end. R resolves monotone(prior = ) (step 14); the bridge passes it with the
     directions to the engine as a flag on the monotone leaf. The flag travels wherever the directions do: the
     model's monotone attribute, saved state, copy and reload, and setModel. Under "leaf" the Z seam (step 2),
-    the guard and the pruning of step 7 are active; under "joint" `logTreeNormalizer` is not evaluated, no
+    the guard and the pruning of step 7 are active; under "joint" `logNormalizerRatio` is not evaluated, no
     count runs, and sampleTreesFromPrior draws jointly (step 7). Steps 3-6 apply to both. The fit object
     records the prior, and print and summary show it.
 14. The monotone() constructor and vocabulary (dec-B146, dec-B147).

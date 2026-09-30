@@ -21,10 +21,13 @@ sparse: sparse.c $(MISC_LIB)
 monotone_count: monotone_count.cpp
 	$(CXX) $(OPT) -std=c++17 -o $@ monotone_count.cpp
 
+monotone_ratio: monotone_ratio.cpp
+	$(CXX) $(OPT) -std=c++17 -o $@ monotone_ratio.cpp
+
 $(MISC_LIB):
 	@echo "error: $(MISC_LIB) not found; run 'R CMD INSTALL .' from the package root first" >&2; exit 1
 
 clean:
-	rm -f bench sparse grow_from_root monotone_count
+	rm -f bench sparse grow_from_root monotone_count monotone_ratio
 
 .PHONY: all clean
