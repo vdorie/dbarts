@@ -1,7 +1,8 @@
 # monotone-exact-birth-death: the monotone birth/death move targets the documented prior
 
-Status: PLANNED 2026-09-29 (dec-B144), revised after a blind critique; the size budget below is a decision for
-the maintainer. Derivation and gate verified on an R prototype; not implemented.
+Status: PLANNED 2026-09-29 (dec-B144), revised after a blind critique; the Decision was reworked after a
+few-tree measurement and remains the maintainer's call. Derivation and gate verified on an R prototype; not
+implemented.
 
 agent: opus (engine numerics: move seam, order counting, exact pair redraw, gate)
 rng: posterior-changing for every fit with an active monotone constraint (all of its draws move, prior draws
@@ -98,27 +99,63 @@ guards the fix.
 
 ## Decision
 
-Question: should the exact count run under a work budget, and if so, measured how?
+Question: should the exact count run under a limit, and if so, one that changes the model or one that stops
+the run?
 
-1. Whole-tree down-set budget, B = 2^22 (recommended). Trees whose down-set count exceeds B get zero prior
-   mass, and that restriction is stated as part of the prior. The target stays exact for the stated prior, so
-   dec-B14 holds.
-   - Closure: deaths never raise the count, so the within-budget set is closed under deaths. Every
-     within-budget tree still reaches the root through within-budget trees, and the restricted chain stays
-     irreducible.
-   - Prior mass removed: exceeding B takes 23 or more leaves, which carry 1.4e-18 under CGM(0.95, 2). No
-     measured fit came within 5 orders of B.
-   - Cost: at most ~0.5 s and ~200 MB for one proposal.
-   - Handling: a birth over budget rejects. A current tree can never be over budget, because every entrance
-     prunes or refuses (step 7), so no death needs an uncountable Z_T0.
-   - Down-set keys are multi-word bitsets, so a long chain of any length is counted, not refused.
-2. No budget. The documented prior stays verbatim, but one pathological tree can stall a sweep (exponential
-   beyond ~40 leaves on a free axis) and exhaust memory. Every entrance must count whatever it installs.
-3. A per-component leaf cap. Simpler to state, but free-axis deaths merge components, so it is not closed
-   under deaths; it refuses cheap long chains and passes expensive wide stars. Not recommended.
+A limit that gives trees zero prior mass must be closed under deaths. Then every allowed tree reaches the root
+through allowed trees, the restricted chain is irreducible, and it targets the stated restricted prior. A limit
+that is not closed can trap trees away from the root, and the chain's target then depends on where it starts.
+A limit that stops the run changes no model and needs no closure.
 
-Option 1 costs ~50 lines over option 2. Evidence that would change the call: a real fit whose count exceeds
-~1 ms.
+Measured with [monotone-order-size.R](../../benchmarks/R/monotone-order-size.R): the current engine, n 5000,
+1-2 constrained and 1-2 free axes, 1-3 seeds, 200 kept sweeps per fit. Count cost is the touched component's
+down-sets x leaves at the stress rate above (0.1 s for 850k down-sets at 40 leaves, ~3 ns per unit), one count
+per move.
+
+| trees | fits | sweeps where a 2^22 whole-tree budget binds | largest component | sweep time with the count |
+|---|---|---|---|---|
+| 1 | 7 | all, in 1 fit (60 leaves, whole-tree up to 2.2e9) | 1.1e6 down-sets | 1.7x-160x today's (median 4x) |
+| 5 | 5 | all, in 4 fits; 4% in the fifth | 6.1e5 | 1.04x-17x (median 1.3x) |
+| 10 | 3 | none (up to 1.8e6) | 1.7e4 | 1.01x-1.18x |
+| 20 | 2 | none (up to 1.5e4) | 54 | under 1.001x |
+
+The current engine targets the d-normalized law, so the corrected one may grow different trees: on monotone
+data its 1/Z_T factor favours more constrained orders. That moves how much a budget truncates, but under
+option 5 it moves only the cost.
+
+1. Whole-tree down-set budget, B = 2^22 (the earlier recommendation). Closed: a death maps the new tree's
+   down-sets injectively into the old tree's. Cost at most ~0.5 s and ~200 MB per count. What a fit sees:
+   every sweep of 4 of 5 five-tree fits and of 1 of 7 one-tree fits has a tree past B, so births are refused
+   and the posterior is not the documented model's, with no signal to the user. Its premise held only at 75 trees.
+2. Whole-tree budget at a larger B. Closed. Clearing the measured fits needs B > 2.4e9 (~2^31), and more data
+   or more free axes go past any fixed B, since the product grows with the number of components. At such a B
+   the product no longer bounds the work: one component near B costs minutes and ~100 GB per count. It needs
+   option 5's guard anyway, and then its truncation buys nothing.
+3. Per-component budget: the largest or the touched component's count, or its width. It tracks the work but
+   is not closed: a free-axis death merges two components, and the merged count can approach their product.
+   4 of 1,164 deaths of random trees raise the largest component's count. The tree that splits x1
+   (constrained) and then x2 (free) on both sides has two 3-down-set components, and both of its deaths make
+   one of 5, so under a budget of 4 it cannot reach the root. The smallest closed bound is the largest
+   component count over every pruning of the tree; no cheap way to compute it below the whole-tree count is
+   known. Whole-tree width is closed (the same injection maps antichains), but it sums over components as the
+   count multiplies, so a cap on it binds on many-component trees whose counting is cheap, as option 1 does.
+   Not recommended.
+4. Leaf-count cap. Closed. It does not bound the work (one component of L leaves can have 2^(L-1) + 1
+   down-sets), so it needs option 5's guard too, and a cap low enough to matter truncates 1-tree fits (60
+   leaves seen). Not recommended.
+5. No budget, with a work guard (recommended). The documented prior holds verbatim for every fit. A count
+   whose component passes G = 2^24 down-sets stops the run with an error naming the order's size and
+   suggesting more trees. It never rejects a move, so it changes no model and needs no closure. What a fit
+   sees: at 20 or more trees nothing, at 10 up to ~20% slower sweeps, at 1-5 trees the table's slowdowns (up
+   to ~40 ms of counting per sweep). G is 16x the largest component measured; a count there takes ~3 s and
+   under 1 GB at 60 leaves. If the few-tree cost bites, a two-stage acceptance that counts only after the rest of
+   the ratio accepts is exact and skips the count on every move the rest rejects; it is out of scope here.
+
+Option 5 is recommended because it is the only one that leaves every fit's model as documented: options 1 and
+4 silently change realistic few-tree fits, option 2 truncates for no saving, and option 3 leaves the target
+unstated. Its price is speed in 1-5 tree fits and a loud stop far beyond any measured fit. Evidence that would
+change the call: a fit at 10 or more trees whose counting outweighs its sweep, or a few-tree use where the
+slowdown matters more than the documented model.
 
 ## Constraints
 
@@ -135,13 +172,16 @@ Option 1 costs ~50 lines over option 2. Evidence that would change the call: a r
    - Relation: build the tree's relation matrix with the adjacency test of `monotoneNeighborBounds`, and split
      it into components.
    - Count: run the layered down-set DP per component, keeping each layer's counts, and return the whole-tree
-     log Z_T = sum over components of log e(C) - lgamma(|C| + 1), or over-budget (Decision).
+     log Z_T = sum over components of log e(C) - lgamma(|C| + 1). A component whose down-sets pass the guard
+     G = 2^24 (Decision) stops the count at once and fails.
    - A move changes only the component of the touched leaf in T0 and the component(s) holding the two children
-     in T*. After a free-axis birth the children may share a component: take the distinct components.
+     in T*. After a free-axis birth the children may share a component: take the distinct components. Keep the
+     current tree's component counts, so a move counts only the components it creates.
 2. Seam. Add an optional leaf concept, `logTreeNormalizer`, declared by the monotone leaf.
    [`birthOrDeathMove`](../../src/bartcore/moves.hpp) evaluates it in each state: before and after
    `tree.birth`, before and after `orphanChildren`. It adds log Z_T0 - log Z_T* to the log prior ratio (logged
-   in the census's prior column), and an over-budget proposal rejects.
+   in the census's prior column). A count over the guard stops the run with an error the bridge raises; it
+   never rejects.
 3. Drop the d terms: `priorMass` in `oneLeafLogMarginal`, `denom` in `twoLeafCoupledLogMarginal`.
 4. Exact pair redraw in `redrawAfterBirth`:
    - Keep the capped rejection for the upper leaf; it is exact whenever it accepts.
@@ -171,12 +211,14 @@ Option 1 costs ~50 lines over option 2. Evidence that would change the call: a r
      non-birth/death one is refused.
    - growForestFromRoot reseeds mu to the all-zero feasible seed before its draw.
    - [`Chain::installForest`](../../src/bartcore/chain.hpp) reseeds infeasible leaves.
-   - growForestFromRoot and installForest both prune an over-budget tree by deaths of its deepest nodes until it
-     is within budget. This terminates because deaths never raise the count.
+   - growForestFromRoot and installForest both prune a tree with a component over the guard by deaths of its
+     deepest nodes until every component is within it. This ends at the root at worst, and a start state is
+     not part of the target.
    - [`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp) (setState, copy, reload) refuses an infeasible
-     or over-budget tree. With steps 4 and 5 every state the sampler produces passes this check.
-   - [`Chain::sampleTreesFromPrior`](../../src/bartcore/chain.hpp) adds "within budget" to its rejection
-     predicate.
+     tree or one over the guard. With steps 4 and 5 every state the sampler produces passes this check.
+   - [`Chain::sampleTreesFromPrior`](../../src/bartcore/chain.hpp) needs no new predicate: the prior is not
+     restricted, and passing the guard takes 25 or more leaves in one component, which carry less than 1.5e-18
+     under CGM(0.95, 2).
 8. tests/cpp:
    - The count against brute-force permutation counts on hand-built trees (1-3 axes, mixed directions, N, a
      star, a chain over 64 leaves) and 200 random trees.
@@ -186,8 +228,8 @@ Option 1 costs ~50 lines over option 2. Evidence that would change the call: a r
      (it must differ from the current code's value).
    - The pair redraw on a design with P_post(lower <= upper) ~ 1e-4, where the old loop exhausts almost every
      time: every draw is feasible, and the upper leaf's draws match the quadrature CDF (KS).
-   - The linear-extension draw is uniform over extensions (chi-square on a 5-leaf N-plus-chain), and the budget
-     flag fires.
+   - The linear-extension draw is uniform over extensions (chi-square on a 5-leaf N-plus-chain), and the guard
+     fires.
    - [`testMonotoneMarginal`](../../tests/cpp/test_model.cpp) loses its d_* = 1/2 check.
 9. tinytest ([test-monotone.R](../../inst/tinytest/test-monotone.R)):
    - a setControl change mix errors, and a defaulted one is rewritten;
@@ -217,13 +259,14 @@ Option 1 costs ~50 lines over option 2. Evidence that would change the call: a r
 12. Docs:
     - monotone.md sections 4, 9 and 11 and the Plan-vs-code note restate B' with the whole-tree normalizer, and
       record that mBART's d-normalized eq. 4.11 targets neither this prior nor the software's.
-    - The prior statement names the budget if option 1 is taken.
+    - The prior statement stays verbatim; the `monotone` argument's help names the guard's error and the
+      few-tree cost.
     - dec-B16 is marked superseded in part by dec-B144.
     - Status lines and INDEX at landing, and the TODO item removed.
 
 ## Verification
 
-- `cd tests/cpp && make && ./test_bartcore`: the count, ratio, redraw, extension-draw and budget checks pass.
+- `cd tests/cpp && make && ./test_bartcore`: the count, ratio, redraw, extension-draw and guard checks pass.
 - `R CMD INSTALL --preclean -l <lib> .`, then `R_LIBS=<lib> Rscript -e 'tinytest::test_package("dbarts")'`.
 - `R_LIBS=<lib> Rscript benchmarks/R/monotone-exact-enumeration.R quick`: every group passes. This takes about
   6 min; full mode runs 900k draws. The mutation run restores the d divisions and drops the Z term (then
@@ -242,5 +285,5 @@ Option 1 costs ~50 lines over option 2. Evidence that would change the call: a r
   (0.4 s per replicate) flags the current move and must pass; then the 20-tree arm (~85 min at R 200) must pass
   before admission.
 - Speed: on a quiet machine, monotone sweep time at 20 trees, 1 and 2 constrained predictors, within 5% of
-  today. bench-sampler compare unchanged on the unconstrained paths.
+  today; at 1 and 5 trees, the slowdown is recorded against the Decision's estimates. bench-sampler compare unchanged on the unconstrained paths.
 - `Rscript tools/check-doc-freshness.R .` passes.
