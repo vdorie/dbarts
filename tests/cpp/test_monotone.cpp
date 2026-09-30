@@ -3,6 +3,7 @@
 #include <chrono>
 #include <limits>
 #include <map>
+#include <memory>
 #include <set>
 
 // The monotone leaf-order counter: log Z_T, the birth/death ratio counted on
@@ -99,15 +100,15 @@ void makeStore(ColumnStore& store, size_t p, std::uint32_t cuts, size_t n) {
   built(store.build(x.data(), n, p, cuts));
 }
 
-// x0 numeric; x1 numeric, 30% missing; x2 a 4-level factor, none missing;
-// x3 a 70-level factor (pooled), 10% missing
+// x0 numeric; x1 numeric, 30% missing; x2 a 4-level factor, 20% missing; x3
+// a 70-level factor (pooled), 10% missing
 void makeMixedStore(ColumnStore& store, size_t n) {
   const double na = std::numeric_limits<double>::quiet_NaN();
   std::vector<double> x(n * 4);
   for (size_t i = 0; i < n; ++i) {
     x[i] = runif01();
     x[n + i] = runif01() < 0.3 ? na : runif01();
-    x[2 * n + i] = std::floor(4.0 * runif01());
+    x[2 * n + i] = runif01() < 0.2 ? na : std::floor(4.0 * runif01());
     x[3 * n + i] = runif01() < 0.1 ? na : static_cast<double>(i % 70);
   }
   const ColumnKind types[4] = {ColumnKind::numeric, ColumnKind::numeric,
@@ -118,8 +119,8 @@ void makeMixedStore(ColumnStore& store, size_t n) {
 
 // The order the constraint requires, from points, independently of the
 // engine's geometry: every combination of the tree's split variables' values
-// (each code or level, and missing, whether or not training had one) routed
-// as prediction routes it. Two points differing only in a constrained
+// (each code or level, and missing where training had one, as predict takes
+// it) routed as prediction routes it. Two points differing only in a constrained
 // predictor, by one observed code, require their leaves ordered. Returns the
 // (lower, upper) leaf pairs; withMissing false leaves missing values out.
 using LeafPairs = std::set<std::pair<std::int32_t, std::int32_t>>;
@@ -141,7 +142,7 @@ LeafPairs pointOrder(const Tree& tree, const ColumnStore& store,
     std::uint32_t count = subset ? store.categoryCounts[j] : store.numCuts[j] + 1;
     for (std::uint32_t c = 0; c < count; ++c)
       values[a].push_back(static_cast<xint_t>(c));
-    if (withMissing)
+    if (withMissing && store.hasMissing[j])
       values[a].push_back(subset ? missingCategoryCode(store.categoryCounts[j])
                                  : naCode);
     stride[a] = numPoints;
@@ -166,8 +167,11 @@ LeafPairs pointOrder(const Tree& tree, const ColumnStore& store,
   for (size_t a = 0; a < axes.size(); ++a) {
     std::int8_t d = dir[axes[a]];
     if (d == 0 || store.splitsBySubset(static_cast<size_t>(axes[a]))) continue;
-    // observed codes c and c + 1: the missing digit is last
-    size_t last = values[a].size() - (withMissing ? 2 : 1);
+    // observed codes c and c + 1: the missing digit, if any, is last
+    size_t last = values[a].size() -
+                  (withMissing && store.hasMissing[static_cast<size_t>(axes[a])]
+                       ? 2
+                       : 1);
     for (size_t point = 0; point < numPoints; ++point) {
       if ((point / stride[a]) % values[a].size() >= last) continue;
       std::int32_t low = leafOf[point], high = leafOf[point + stride[a]];
@@ -352,10 +356,71 @@ static void testMonotoneGeometryPoints() {
                    monotoneTreeIsFeasible(t.tree, store, dir, mu.data(), 0.0);
     }
   }
+  // hand-built: a relation only the pooled factor's missing value carries.
+  // x0 cut; below, x3's right side holds levels 0-34 and missing; above,
+  // levels 35-69 and missing. Three pairs: two through levels, one through
+  // missing alone.
+  {
+    const std::int8_t dir[4] = {1, 0, 0, 0};
+    TestTree t(mixed);
+    std::int32_t low = t.split(0, 0, 3);
+    size_t numWords = maskWordsForCount(mixed.categoryCounts[3]);
+    for (std::int32_t half : {low, low + 1}) {
+      size_t offset = t.tree.allocateMask(numWords);
+      std::uint64_t* words = t.tree.mutableMaskWordsFor(offset);
+      for (std::uint32_t c = 0; c < 70; ++c)
+        if ((c < 35) == (half == low)) maskSetBit(words, c);
+      maskSetBit(words, static_cast<std::uint32_t>(missingCategoryCode(70)));
+      Rule rule;
+      rule.variableIndex = 3;
+      rule.setMaskOffset(offset);
+      t.tree.birth(mixed, half, rule, t.y.data(), nullptr);
+    }
+    LeafPairs required = pointOrder(t.tree, mixed, dir);
+    buildMonotoneLeafOrder(t.tree, mixed, dir, order);
+    LeafPairs relation;
+    for (const MonotoneOrderComponent& c : order.components)
+      for (size_t x = 0; x < c.size; ++x)
+        for (size_t y = 0; y < c.size; ++y)
+          if ((c.predecessorsOf(x)[y / 64] >> (y % 64)) & 1u)
+            relation.insert({c.leaves[y], c.leaves[x]});
+    check(required.size() == 3 && relation == required,
+          "monotone geometry: a pooled factor's missing value relates leaves");
+  }
+  // a factor without missing values: the order does not depend on which side
+  // of a level split is called right (one partition, labelled two ways)
+  {
+    ColumnStore plain;
+    std::vector<double> x(2 * 400);
+    for (size_t i = 0; i < 400; ++i) {
+      x[i] = runif01();
+      x[400 + i] = static_cast<double>(i % 4);
+    }
+    const ColumnKind types[2] = {ColumnKind::numeric, ColumnKind::categorical};
+    built(plain.build(x.data(), 400, 2, 6, false, types));
+    const std::int8_t dir[2] = {1, 0};
+    MonotoneCountScratch count;
+    double logZ[2];
+    size_t numEdges[2];
+    for (int label = 0; label < 2; ++label) {
+      TestTree t(plain);
+      std::int32_t low = t.split(0, 0, 3);
+      for (std::int32_t half : {low, low + 1}) {
+        Rule rule;
+        rule.variableIndex = 1;
+        rule.setCategoryDirections(half == low || label == 0 ? 0x3u : 0xcu);
+        t.tree.birth(plain, half, rule, t.y.data(), nullptr);
+      }
+      logZ[label] = monotoneLogNormalizer(t.tree, plain, dir, count);
+      numEdges[label] = pointOrder(t.tree, plain, dir).size();
+    }
+    check(logZ[0] == logZ[1] && numEdges[0] == 2 && numEdges[1] == 2,
+          "monotone geometry: a level split's labels leave the order alone");
+  }
   check(relationOk, "monotone geometry: relation equals the point oracle");
   check(boundsOk, "monotone geometry: bounds read the required pairs");
   check(feasibleOk, "monotone geometry: feasibility agrees with the oracle");
-  check(factorPairs > 1000 && missingPairs > 25,
+  check(factorPairs > 1000 && missingPairs > 100,
         "monotone geometry: factor and missing-value pairs covered");
   printf("ok: monotone geometry vs point oracle (%d trees, %d pairs, %d in "
          "factor-split trees, %d through missing values)\n",
@@ -764,6 +829,99 @@ static void testMonotoneCountScale() {
       elapsed, ratioElapsed);
 }
 
+// A factor column that gains missing values gains a value on its axis, which
+// can relate leaves the order did not: x1 constrained, cut once, each half cut
+// on the factor f with the partition {a, b} | {c, d} labelled the other way on
+// the other half. Without missing values the order is two pairs and these
+// leaf values are feasible; once f has one, it goes left at both f rules and
+// relates the two left leaves, whose values then fall along x1. An accepted
+// predictor update, whole-matrix or row by row, reseeds the tree to all-zero.
+static void testMonotoneMissingArrives() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20261001u);
+  const size_t n = 400;
+  std::vector<double> x(2 * n), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 4);
+    x[n + i] = runif01();
+    y[i] = x[n + i];
+  }
+  const std::int8_t dir[2] = {0, 1};
+  const ColumnKind types[2] = {ColumnKind::categorical, ColumnKind::numeric};
+  SamplerOptions options;
+  options.numTrees = 1;
+  options.birthOrDeathProbability = 1.0;
+  options.swapProbability = 0.0;
+  options.changeProbability = 0.0;
+  options.monotoneDirections = dir;
+  options.predictors.columnTypes = types;
+
+  std::vector<double> withMissing(x);
+  withMissing[5] = std::numeric_limits<double>::quiet_NaN();
+  for (int path = 0; path < 2; ++path) {
+    Sampler<MonotoneConstantGaussianLeaf> sampler(
+        x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
+        1.0, 3.0, 0.37804942330213542, options, &rng);
+    const ColumnStore& store(sampler.data());
+    const std::vector<double>& cuts(store.cutPoints[1]);
+    double cut = *std::lower_bound(cuts.begin(), cuts.end(), 0.5);
+    std::vector<FlatNode> flat(7, FlatNode());
+    const double values[4] = {0.05, -0.05, -0.04, 0.06};
+    const std::uint64_t masks[2] = {0xcu, 0x3u};
+    flat[0].variable = 1;
+    flat[0].value = cut;
+    setFlatKind(flat[0], FlatKind::ordinal);
+    for (int half = 0; half < 2; ++half) {
+      FlatNode& rule = flat[1 + 3 * half];
+      rule.variable = 0;
+      rule.mask = masks[half];
+      setFlatKind(rule, FlatKind::categoricalInline);
+      flat[2 + 3 * half].value = values[2 * half];
+      flat[3 + 3 * half].value = values[2 * half + 1];
+    }
+    SamplerStateData state;
+    sampler.getState(state);
+    state.chains[0].forests[0].trees[0] = flat;
+    check(sampler.setState(state, nullptr),
+          "monotone missing arrives: the state installs");
+
+    auto liveValues = [&](std::vector<double>& out) {
+      std::vector<FlatNode> live;
+      std::vector<std::uint32_t> counts;
+      sampler.flattenTree(0, 0, live, counts);
+      out.clear();
+      for (const FlatNode& node : live)
+        if (node.variable == invalidVariable) out.push_back(node.value);
+    };
+    std::vector<double> before, after;
+    liveValues(before);
+    check(before.size() == 4 && before[0] == values[0] &&
+              before[2] == values[2],
+          "monotone missing arrives: feasible without missing values");
+    if (path == 0) {
+      check(sampler.setPredictor(withMissing.data(), false, false) ==
+                PredictorUpdateResult::accepted,
+            "monotone missing arrives: the update is accepted");
+    } else {
+      std::unique_ptr<bool[]> installed(new bool[n]);
+      check(sampler.updatePredictorPerObservation(withMissing.data(), 0,
+                                                  installed.get()) &&
+                installed[5],
+            "monotone missing arrives: the row update installs");
+    }
+    check(sampler.data().hasMissing[0] != 0,
+          "monotone missing arrives: the column has a missing value");
+    liveValues(after);
+    bool zero = after.size() == 4;
+    for (double v : after) zero = zero && v == 0.0;
+    check(zero, path == 0
+                    ? "monotone missing arrives: setPredictor reseeds"
+                    : "monotone missing arrives: a row update reseeds");
+  }
+  ext_rng_destroy(rng);
+  printf("ok: monotone order gains the missing value an update brings\n");
+}
+
 void runMonotoneTests() {
   std::uint64_t saved = rngState;
   rngState = 7071u;
@@ -787,6 +945,7 @@ void runMonotoneTests() {
   testMonotoneExtensionDraw();
   testMonotoneCountScale();
   testMonotoneGeometryPoints();
+  testMonotoneMissingArrives();
   {  // factor splits and missing values, in free and constrained predictors
     ColumnStore store;
     makeMixedStore(store, 700);

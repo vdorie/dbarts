@@ -2699,11 +2699,11 @@ public:
   /// residuals before any use. Function-valued leaves only refresh the
   /// covariate gather: their per-observation fits are the parameters and stay
   /// in place (the next sweep's draws replace them under the new values).
-  void rebuildFitsFromParameters(const ForestRevalidation& state) {
+  void rebuildFitsFromParameters(ForestRevalidation& state) {
     dropStaleMissingDirections();
     for (size_t f = 0; f < forests_.size(); ++f) {
       Forest<L, ResidT>& forest = forests_[f];
-      const TreeParameters& params = state.params[f];
+      TreeParameters& params = state.params[f];
       const std::vector<std::size_t>& survivors = state.survivors[f];
       if constexpr (L::hasFunctionParams) {
         (void) params;
@@ -2719,6 +2719,9 @@ public:
           // cached fits totalFits still sums; the map then tracks the
           // repartition revalidateTrees performed
           subtractTreeFitsFromTotal(forest, t);
+          // a column that gains missing values gains a value on its axis,
+          // which can relate leaves the monotone order did not
+          reseedInfeasibleMonotoneLeaves(forest, t, params[t]);
           setTreeFits(forest, t, params[t]);
           if constexpr (leafIsConstant) {
             installLeafOfAndAddToTotal(forest, t);

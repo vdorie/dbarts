@@ -603,8 +603,11 @@ double monotoneInvertLogConcave(F logDensity, double lo, double hi,
 /// the values its ancestors send its way:
 /// - threshold axis: codes [lo, hi] and whether a missing value reaches it;
 /// - subset axis: the reachable levels, the missing position included.
-/// Missing is a value on every axis, observed in training or not, as a test
-/// row can carry one. Two leaves are related along a constrained threshold
+/// A missing value is a value of an axis only when its training column has
+/// one (predict refuses one otherwise): where no rule was drawn for it, its
+/// route is a labelling artifact, and reading it would make the order depend
+/// on which side of a level split is called left. Two leaves are related
+/// along a constrained threshold
 /// axis when their intervals touch there and some value reaches both on every
 /// other axis: exactly when a point of one and a point of the other differ
 /// only in that predictor, by one code. A missing value in the constrained
@@ -644,7 +647,7 @@ struct MonotoneLeafGeometry {
       std::uint64_t* leafLevels = levels.data() + l * levelWords;
       for (std::size_t a = 0; a < numAxes; ++a) {
         std::size_t v = static_cast<std::size_t>(axes[a]);
-        leafMissing[a] = 1;
+        leafMissing[a] = data.hasMissing[v];
         if (!bySubset[a]) {
           leafLo[a] = 0;
           leafHi[a] = static_cast<std::int32_t>(data.numCuts[v]);
@@ -653,8 +656,9 @@ struct MonotoneLeafGeometry {
         std::uint32_t numCategories = data.categoryCounts[v];
         std::uint64_t* words = leafLevels + firstWord[a];
         for (std::uint32_t c = 0; c < numCategories; ++c) maskSetBit(words, c);
-        maskSetBit(words, static_cast<std::uint32_t>(
-                            missingCategoryCode(numCategories)));
+        if (data.hasMissing[v])
+          maskSetBit(words, static_cast<std::uint32_t>(
+                              missingCategoryCode(numCategories)));
       }
       std::int32_t current = leaves[l];
       while (tree.at(current).parent != invalidNode) {
@@ -742,30 +746,25 @@ struct MonotoneNeighborScratch {
   MonotoneLeafGeometry geometry;
 };
 
-/// Bounds [a, b] on leaf k's value from its neighbors' frozen mu, plus whether
-/// k has any neighbor along a constrained axis (c-inflation). A neighbor below
-/// k in the order (MonotoneLeafGeometry::relation) lower-bounds mu_k by mu_j,
-/// one above upper-bounds it. A neighbor whose index is in `skip` still marks
-/// k constrained but contributes no bound - the touched leaves of a move,
+/// Bounds [a, b] on the value of the leaf in geometry row rowK from its
+/// neighbors' frozen mu over rows [0, numRows), plus whether it has any
+/// neighbor along a constrained axis (c-inflation). A neighbor below it in
+/// the order (MonotoneLeafGeometry::relation) lower-bounds its value, one
+/// above upper-bounds it. A neighbor whose node is in `skip` still marks it
+/// constrained but contributes no bound - the touched leaves of a move,
 /// integrated out rather than frozen.
-inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
-                                   const std::int8_t* directions,
-                                   const std::vector<std::int32_t>& bottoms,
-                                   std::int32_t k, const double* mu,
-                                   const std::int32_t* skip, std::size_t numSkip,
-                                   MonotoneNeighborScratch& scratch, double* aOut,
-                                   double* bOut, bool* constrained) {
+inline void monotoneBoundsFromGeometry(const MonotoneLeafGeometry& geometry,
+                                       const std::int8_t* directions,
+                                       std::size_t numRows, std::size_t rowK,
+                                       const double* mu,
+                                       const std::int32_t* skip,
+                                       std::size_t numSkip, double* aOut,
+                                       double* bOut, bool* constrained) {
   double a = -HUGE_VAL, b = HUGE_VAL;
   bool hasConstrainedNeighbor = false;
-  scratch.leaves = bottoms;
-  std::size_t rowK = static_cast<std::size_t>(
-    std::find(scratch.leaves.begin(), scratch.leaves.end(), k) -
-    scratch.leaves.begin());
-  if (rowK == scratch.leaves.size()) scratch.leaves.push_back(k);
-  MonotoneLeafGeometry& geometry = scratch.geometry;
-  geometry.build(tree, data, scratch.leaves);
-  for (std::size_t row = 0; row < bottoms.size(); ++row) {
-    std::int32_t j = bottoms[row];
+  std::int32_t k = geometry.leaves[rowK];
+  for (std::size_t row = 0; row < numRows; ++row) {
+    std::int32_t j = geometry.leaves[row];
     if (j == k) continue;
     int relation = geometry.relation(row, rowK, directions);
     if (relation == 0) continue;
@@ -780,6 +779,25 @@ inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
   *aOut = a;
   *bOut = b;
   *constrained = hasConstrainedNeighbor;
+}
+
+/// monotoneBoundsFromGeometry for leaf k among `bottoms`, building the
+/// geometry in scratch.
+inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
+                                   const std::int8_t* directions,
+                                   const std::vector<std::int32_t>& bottoms,
+                                   std::int32_t k, const double* mu,
+                                   const std::int32_t* skip, std::size_t numSkip,
+                                   MonotoneNeighborScratch& scratch, double* aOut,
+                                   double* bOut, bool* constrained) {
+  scratch.leaves = bottoms;
+  std::size_t rowK = static_cast<std::size_t>(
+    std::find(scratch.leaves.begin(), scratch.leaves.end(), k) -
+    scratch.leaves.begin());
+  if (rowK == scratch.leaves.size()) scratch.leaves.push_back(k);
+  scratch.geometry.build(tree, data, scratch.leaves);
+  monotoneBoundsFromGeometry(scratch.geometry, directions, bottoms.size(), rowK,
+                             mu, skip, numSkip, aOut, bOut, constrained);
 }
 
 /// True when every leaf's value lies within its neighbor bounds - the monotone
@@ -1486,6 +1504,12 @@ struct MonotoneConstantGaussianLeaf {
     bool constrained;
     monotoneNeighborBounds(tree, *data, directions.data(), bottoms, leaf, mu,
                            skip, numSkip, scratch, &a, &b, &constrained);
+    drawOneLeafWithin(rng, tree, leaf, a, b, constrained, k, residualVariance,
+                      mu);
+  }
+  void drawOneLeafWithin(ext_rng* rng, const Tree& tree, std::int32_t leaf,
+                         double a, double b, bool constrained, double k,
+                         double residualVariance, double* mu) const {
     double m, s;
     leafPosterior(tree.at(leaf), residualVariance, priorSd(k, constrained), &m,
                   &s);
@@ -1496,11 +1520,20 @@ struct MonotoneConstantGaussianLeaf {
   // Sequential single-site truncated-normal Gibbs over the tree's leaves,
   // updating the SURVIVING mu block in place (the move phase keeps it feasible
   // through births/deaths).
+  // The geometry is a function of the structure alone, so it is built once.
   void drawParametersForTree(ext_rng* rng, const Tree& tree,
                              const std::vector<std::int32_t>& bottoms, double k,
                              double residualVariance, double* mu) const {
-    for (std::int32_t leaf : bottoms)
-      drawOneLeaf(rng, tree, leaf, bottoms, nullptr, 0, k, residualVariance, mu);
+    scratch.geometry.build(tree, *data, bottoms);
+    for (std::size_t row = 0; row < bottoms.size(); ++row) {
+      double a, b;
+      bool constrained;
+      monotoneBoundsFromGeometry(scratch.geometry, directions.data(),
+                                 bottoms.size(), row, mu, nullptr, 0, &a, &b,
+                                 &constrained);
+      drawOneLeafWithin(rng, tree, bottoms[row], a, b, constrained, k,
+                        residualVariance, mu);
+    }
   }
 
   // Exact draw of a tree's leaf vector from the CONSTRAINED prior, by

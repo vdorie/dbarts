@@ -483,28 +483,37 @@ Checkpoint (stop and report), after commit 4, before the feel study and before s
 ### Stage 3b: leaf geometry
 
 A point is one value per predictor: a code on a threshold axis (numeric or ordered factor), a level on a
-subset axis (unordered factor, pooled or not), or missing on either. Every rule tests one predictor, so the
+subset axis (unordered factor, pooled or not), or missing where the training column has missing values.
+Every rule tests one predictor, so the
 points prediction routes to a leaf form a product over predictors, and one helper
 (`MonotoneLeafGeometry`) records it per leaf and split variable:
 
 - threshold axis: the code interval [lo, hi], and whether a missing value reaches the leaf (every ancestor
   rule on the axis sends missing values to the leaf's side);
-- subset axis: the reachable level set with the missing position, each ancestor mask filtering it, as
-  `Tree::reachableCategories` and its pooled analogue do, except that the missing position is always in it.
+- subset axis: the reachable level set, with the missing position when the column has missing values, each
+  ancestor mask filtering it, as `Tree::reachableCategories` and its pooled analogue do.
 
 Calls:
 
 - Two leaves share an axis when some value reaches both: the intervals overlap or both reach missing values,
   or the level sets intersect. j is below k along a constrained axis when j's interval ends one code below
   k's start (direction -1 flips it) and they share every other axis. Only a threshold axis can be
-  constrained: R refuses a direction on an unordered factor, and the engine ignores one on a subset axis.
+  constrained: R refuses a direction on an unordered factor, and the facade drops the whole constraint when
+  any direction sits on a subset axis (`monotoneConstraintIsActive`, pre-existing).
 - A missing value in the constrained predictor x1 has no position along x1, so x1's own missing flag takes
   no part in adjacency along x1. The order claims that the fit is monotone in x1 along every line of points
   with x1 observed, the other predictors at any values, missing included, and claims nothing at x1 missing.
   A missing value in another constrained predictor is shared like any value.
-- Missing is a value on every axis, whether or not training had one, since a test row can. On a threshold
-  axis whose rules all send missing values left, the leaves it reaches are those with lo = 0, which overlap
-  anyway, so nothing changes there. On a subset axis it is one more level.
+- Missing is a value of an axis only when its training column has missing values, as the rules' reachable
+  sets already hold it; predict refuses a missing test value in a column that had none. Treating it as a
+  value everywhere was tried and rejected in review: where no rule was drawn for it, a missing value goes
+  left at every split, and which side of a level split is called left is an arbitrary label, so the order
+  (and log Z) of one partition would depend on its labelling, and ordinary factor fits would carry
+  constraints at points no one can predict at.
+- A setPredictor, a row-by-row update or setData that brings a column its first missing values gives its
+  axis that value, which can relate leaves the order did not. The accepted update paths reseed any tree
+  that leaves the cone to all-zero, as stage 1's collapse and remap paths do; the unforced and row-by-row
+  paths gained that reseed here.
 
 Why the order argument stands:
 
@@ -711,9 +720,10 @@ constrained value waits for step 12.
     - Designs, 10 rows per cell: c1, x1 constrained, 4 cells; c2, x1 and x2 constrained, 3x2; c3, x1
       constrained and x2 free, 3x2; cN, x1 constrained and x2 free, 2x3, where the two halves change level at
       different cuts, giving 26% N mass in the tested x1-rooted group; cF (stage 3b), c3's cells with x2 a
-      free two-level factor, x1 rising at one level and falling at the other. A two-level factor's one
-      partition is the enumeration's one cut, so the gate reads the engine's subset rule without enumerating
-      level sets; wider factors and missing values rest on tests/cpp's point oracle and the tinytest.
+      free two-level factor with no missing values, x1 rising at one level and falling at the other. A
+      two-level factor's one partition is the enumeration's one cut, and with no missing value its labelling
+      does not change the order, so the gate reads the engine's subset rule without enumerating level sets;
+      wider factors and missing values rest on tests/cpp's point oracle and the tinytest.
     - The script replaces the planned part (c) of monotone-reference.R. It joins exact-gates.yaml's list in the
       fix commit, since it fails the current engine by design.
     - The general DP beyond these sizes rests on step 8's brute-force checks.
@@ -821,11 +831,15 @@ constrained value waits for step 12.
 - `cd tests/cpp && make && ./test_bartcore`: the count, ratio, lazy-count, scale, redraw, extension-draw,
   slow-count, interrupt, allocation and "joint" checks pass.
 - Stage 3b: tests/cpp's point oracle routes every combination of the split variables' values, each level
-  and the missing value included, through random trees over a numeric store and one with a 4-level factor,
-  a pooled 70-level factor and missing values; the order builder's relation must equal the pairs of points
+  and the missing value where the column has one, through random trees over a numeric store and one with
+  a 4-level and a pooled 70-level factor and missing values; the order builder's relation must equal the
+  pairs of points
   one code apart along a constrained predictor, and the bounds and the feasibility check must read them.
-  The count and ratio brute-force checks also run on that store. Restoring the cut-interval reading of a
-  subset axis, or ignoring where missing values go, fails the oracle. test-monotone.R checks that one-tree
+  The count and ratio brute-force checks also run on that store. A hand-built tree relates two leaves
+  through the pooled factor's missing value alone, and one level partition labelled two ways must give one
+  order. Restoring the cut-interval reading of a subset axis, ignoring where missing values go, or moving
+  the pooled missing position off bit K fails them. An unforced and a row-by-row predictor update that
+  bring a factor its first missing value must reseed a tree the new value takes out of the cone. test-monotone.R checks that one-tree
   fits are monotone along x1 at every level of a free factor and at a free predictor's missing value; the
   engine before 3b fails both.
 - The checkpoint (Staging) is reported before commits 5 and 6.
