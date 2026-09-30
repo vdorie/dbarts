@@ -303,6 +303,204 @@ gate in benchmarks/R.
   ([monotone-barker-hybrid.md](../design/monotone-barker-hybrid.md)) the upgrade; the largest count time per
   fit is the evidence.
 
+### Results, 2026-09-30
+
+Run by [monotone-feel-study.R](../../benchmarks/R/monotone-feel-study.R) on a library built at d494eb41, arm64
+macOS, eight fits at once on a machine shared with other jobs (1-minute load average 80-160 on 10 cores).
+Every arm, tree count and truth ran; nothing was cut. Fits ran 8 replicates, twice the spec's 4, since the
+leaf-joint gap on the step truth at n 200 was a question more replicates could settle; about 1.1 CPU-hours.
+Per fit and per prior arm in
+[monotone-feel-d494eb41.csv](../../benchmarks/baselines/monotone-feel-d494eb41.csv). "joint, mBART" is "joint"
+under cgm(power = 0.8, base = 0.25); "free" is the unconstrained fit. A paired difference is an arm minus
+"leaf" on the same data set; its standard error is over the 8 replicates.
+
+Prior predictive, along x1 at five fixed x2 values, 500 draws; the response spans 1, so a rise of 1 is the
+whole observed range of y. Levels are distinct values on 201 points; largest jump is a share of the rise; flat
+intervals a share of the 200. The free arm's curves are read sorted (the draw with its values rearranged into
+increasing order); unsorted, 18%, 7% and 1% of its intervals fall at 200, 50 and 5 trees.
+
+| trees | arm | levels | largest jump | flat intervals | rise | curves with no rise | sd of f | x1 split share | leaves per tree |
+|---|---|---|---|---|---|---|---|---|---|
+| 200 | leaf | 74.3 | 0.05 | 0.63 | 2.94 | 0.00 | 0.28 | 0.50 | 2.48 |
+| 200 | joint | 51.1 | 0.07 | 0.75 | 1.64 | 0.00 | 0.26 | 0.31 | 2.24 |
+| 200 | joint, mBART | 13.1 | 0.22 | 0.94 | 0.31 | 0.00 | 0.26 | 0.32 | 1.22 |
+| 200 | free | 74.3 | 0.10 | 0.63 | 0.40 | 0.00 | 0.26 | 0.50 | 2.48 |
+| 50 | leaf | 28.8 | 0.12 | 0.86 | 1.45 | 0.00 | 0.28 | 0.50 | 2.48 |
+| 50 | joint | 16.9 | 0.18 | 0.92 | 0.82 | 0.00 | 0.28 | 0.31 | 2.24 |
+| 50 | joint, mBART | 4.2 | 0.59 | 0.98 | 0.16 | 0.04 | 0.27 | 0.32 | 1.22 |
+| 50 | free | 29.1 | 0.16 | 0.86 | 0.38 | 0.00 | 0.25 | 0.50 | 2.49 |
+| 5 | leaf | 4.3 | 0.60 | 0.98 | 0.45 | 0.02 | 0.28 | 0.52 | 2.48 |
+| 5 | joint | 2.8 | 0.78 | 0.99 | 0.27 | 0.13 | 0.26 | 0.32 | 2.25 |
+| 5 | joint, mBART | 1.4 | 0.95 | 1.00 | 0.06 | 0.70 | 0.25 | 0.32 | 1.23 |
+| 5 | free | 4.4 | 0.60 | 0.98 | 0.28 | 0.02 | 0.25 | 0.50 | 2.46 |
+
+Fit quality on the test grid: RMSE of the posterior mean against the truth and 95% interval coverage.
+
+| truth | n | trees | RMSE leaf | joint | joint, mBART | free | coverage leaf | joint | joint, mBART | free |
+|---|---|---|---|---|---|---|---|---|---|---|
+| ramp | 2000 | 200 | 0.022 | 0.023 | 0.018 | 0.024 | 0.99 | 0.98 | 0.94 | 0.98 |
+| ramp | 2000 | 50 | 0.019 | 0.021 | 0.019 | 0.019 | 0.94 | 0.91 | 0.78 | 0.95 |
+| ramp | 2000 | 5 | 0.020 | 0.022 | 0.022 | 0.021 | 0.74 | 0.66 | 0.67 | 0.71 |
+| ramp | 200 | 200 | 0.044 | 0.043 | 0.032 | 0.045 | 0.99 | 0.99 | 0.98 | 0.99 |
+| ramp | 200 | 50 | 0.040 | 0.042 | 0.035 | 0.041 | 0.99 | 0.98 | 0.93 | 0.99 |
+| ramp | 200 | 5 | 0.043 | 0.044 | 0.045 | 0.043 | 0.84 | 0.79 | 0.76 | 0.79 |
+| step | 2000 | 200 | 0.056 | 0.055 | 0.046 | 0.058 | 0.96 | 0.96 | 0.98 | 0.98 |
+| step | 2000 | 50 | 0.050 | 0.049 | 0.044 | 0.051 | 0.97 | 0.98 | 0.99 | 0.98 |
+| step | 2000 | 5 | 0.044 | 0.044 | 0.051 | 0.049 | 0.96 | 0.97 | 0.97 | 0.98 |
+| step | 200 | 200 | 0.117 | 0.104 | 0.075 | 0.091 | 0.91 | 0.94 | 0.95 | 0.97 |
+| step | 200 | 50 | 0.086 | 0.084 | 0.063 | 0.085 | 0.96 | 0.97 | 0.98 | 0.98 |
+| step | 200 | 5 | 0.070 | 0.077 | 0.044 | 0.061 | 0.96 | 0.98 | 0.98 | 0.99 |
+| hinge | 2000 | 200 | 0.028 | 0.027 | 0.018 | 0.028 | 0.96 | 0.97 | 0.96 | 0.98 |
+| hinge | 2000 | 50 | 0.020 | 0.022 | 0.018 | 0.023 | 0.96 | 0.93 | 0.90 | 0.93 |
+| hinge | 2000 | 5 | 0.020 | 0.021 | 0.020 | 0.019 | 0.84 | 0.82 | 0.71 | 0.80 |
+| hinge | 200 | 200 | 0.048 | 0.045 | 0.034 | 0.047 | 0.98 | 0.99 | 0.97 | 1.00 |
+| hinge | 200 | 50 | 0.042 | 0.045 | 0.036 | 0.045 | 0.97 | 0.98 | 0.92 | 0.99 |
+| hinge | 200 | 5 | 0.037 | 0.042 | 0.044 | 0.037 | 0.86 | 0.84 | 0.81 | 0.81 |
+| interaction | 2000 | 200 | 0.085 | 0.090 | 0.078 | 0.084 | 0.94 | 0.92 | 0.87 | 0.96 |
+| interaction | 2000 | 50 | 0.082 | 0.081 | 0.088 | 0.081 | 0.88 | 0.85 | 0.76 | 0.88 |
+| interaction | 2000 | 5 | 0.106 | 0.119 | 0.119 | 0.115 | 0.68 | 0.62 | 0.58 | 0.65 |
+| interaction | 200 | 200 | 0.148 | 0.146 | 0.130 | 0.141 | 0.97 | 0.98 | 0.96 | 0.99 |
+| interaction | 200 | 50 | 0.144 | 0.159 | 0.161 | 0.140 | 0.96 | 0.95 | 0.88 | 0.97 |
+| interaction | 200 | 5 | 0.215 | 0.207 | 0.237 | 0.219 | 0.74 | 0.74 | 0.63 | 0.68 |
+
+Paired, "joint" minus "leaf": the RMSE difference is within two standard errors of zero, or under 0.003, in
+all but five cells. "joint" is worse in four (interaction n 200 at 50 trees +0.014, se 0.006; interaction n
+2000 at 5 trees +0.013, se 0.004; hinge n 200 at 5 trees +0.005 and at 50 trees +0.003, se 0.002 and 0.001)
+and better in one, the step at n 200 and 200 trees (-0.012, se 0.002). Mean interval width, averaged over the
+truths, as a share of "leaf"'s:
+
+| n | trees | joint | joint, mBART | free |
+|---|---|---|---|---|
+| 2000 | 200 | 1.00 | 0.62 | 1.11 |
+| 2000 | 50 | 1.00 | 0.62 | 1.09 |
+| 2000 | 5 | 0.99 | 0.85 | 1.03 |
+| 200 | 200 | 0.99 | 0.70 | 1.07 |
+| 200 | 50 | 1.00 | 0.65 | 1.07 |
+| 200 | 5 | 0.99 | 0.81 | 1.00 |
+
+Partial dependence along x1 (the posterior mean averaged over the grid's rows), averaged over the truths: its
+RMSE against the truth's; the number of steps a single draw's curve takes over the 100 grid intervals; and the
+visible steps of the posterior-mean curve, increments over 5% of the truth's rise. Every constrained curve is
+nondecreasing; the free arm's posterior-mean curve falls, at its largest dip, by 2-5% of the truth's rise on
+average at 50 and 200 trees, and under 1% at 5.
+
+| n | trees | PD RMSE leaf | joint | joint, mBART | free | steps per draw leaf | joint | joint, mBART | free | visible steps leaf | joint | joint, mBART | free |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2000 | 200 | 0.027 | 0.027 | 0.029 | 0.032 | 34 | 27 | 17 | 60 | 1.8 | 2.6 | 4.9 | 3.9 |
+| 2000 | 50 | 0.029 | 0.030 | 0.032 | 0.031 | 19 | 16 | 12 | 24 | 4.7 | 5.7 | 6.9 | 5.1 |
+| 2000 | 5 | 0.034 | 0.036 | 0.035 | 0.035 | 13 | 13 | 12 | 11 | 7.4 | 7.2 | 7.5 | 6.9 |
+| 200 | 200 | 0.054 | 0.049 | 0.043 | 0.050 | 39 | 29 | 16 | 62 | 1.7 | 1.5 | 2.3 | 2.1 |
+| 200 | 50 | 0.047 | 0.051 | 0.053 | 0.051 | 17 | 13 | 8 | 24 | 3.1 | 4.0 | 4.8 | 3.8 |
+| 200 | 5 | 0.064 | 0.067 | 0.065 | 0.061 | 7 | 6 | 5 | 6 | 5.4 | 4.8 | 4.6 | 4.9 |
+
+The step truth at n 200 and 200 trees drives "leaf"'s larger PD RMSE there (0.104, against "joint" 0.091,
+"joint, mBART" 0.071, free 0.077).
+
+Variable importance: varcount shares, averaged over the truths, and splits per tree.
+
+| n | trees | x1 leaf | joint | joint, mBART | free | x3 (noise) leaf | joint | joint, mBART | free | splits per tree leaf | joint | joint, mBART | free |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2000 | 200 | 0.19 | 0.14 | 0.39 | 0.36 | 0.39 | 0.42 | 0.25 | 0.31 | 1.27 | 1.21 | 0.25 | 1.37 |
+| 2000 | 50 | 0.36 | 0.31 | 0.67 | 0.46 | 0.27 | 0.29 | 0.10 | 0.22 | 1.21 | 1.14 | 0.43 | 1.26 |
+| 2000 | 5 | 0.73 | 0.74 | 0.70 | 0.74 | 0.07 | 0.06 | 0.07 | 0.06 | 4.56 | 4.14 | 4.00 | 3.58 |
+| 200 | 200 | 0.20 | 0.14 | 0.31 | 0.35 | 0.40 | 0.42 | 0.32 | 0.32 | 1.36 | 1.29 | 0.30 | 1.46 |
+| 200 | 50 | 0.28 | 0.22 | 0.49 | 0.39 | 0.34 | 0.37 | 0.20 | 0.29 | 1.36 | 1.27 | 0.35 | 1.43 |
+| 200 | 5 | 0.67 | 0.64 | 0.78 | 0.69 | 0.11 | 0.12 | 0.05 | 0.09 | 2.23 | 1.91 | 1.51 | 1.83 |
+
+Held-out log predictive score, mean per point on 1000 fresh points (higher is better):
+
+| truth | n | trees | leaf | joint | joint, mBART | free |
+|---|---|---|---|---|---|---|
+| ramp | 2000 | 200 | 0.904 | 0.901 | 0.915 | 0.899 |
+| ramp | 2000 | 50 | 0.912 | 0.909 | 0.911 | 0.912 |
+| ramp | 2000 | 5 | 0.914 | 0.906 | 0.907 | 0.905 |
+| ramp | 200 | 200 | 0.832 | 0.833 | 0.869 | 0.823 |
+| ramp | 200 | 50 | 0.839 | 0.829 | 0.852 | 0.837 |
+| ramp | 200 | 5 | 0.823 | 0.824 | 0.818 | 0.817 |
+| step | 2000 | 200 | 0.317 | 0.317 | 0.332 | 0.314 |
+| step | 2000 | 50 | 0.328 | 0.329 | 0.334 | 0.328 |
+| step | 2000 | 5 | 0.334 | 0.337 | 0.331 | 0.332 |
+| step | 200 | 200 | 0.179 | 0.213 | 0.285 | 0.243 |
+| step | 200 | 50 | 0.259 | 0.260 | 0.303 | 0.267 |
+| step | 200 | 5 | 0.306 | 0.298 | 0.308 | 0.306 |
+| hinge | 2000 | 200 | 0.846 | 0.846 | 0.861 | 0.844 |
+| hinge | 2000 | 50 | 0.858 | 0.855 | 0.861 | 0.856 |
+| hinge | 2000 | 5 | 0.856 | 0.858 | 0.859 | 0.860 |
+| hinge | 200 | 200 | 0.758 | 0.760 | 0.809 | 0.757 |
+| hinge | 200 | 50 | 0.773 | 0.763 | 0.802 | 0.767 |
+| hinge | 200 | 5 | 0.801 | 0.787 | 0.773 | 0.797 |
+| interaction | 2000 | 200 | -0.126 | -0.128 | -0.126 | -0.129 |
+| interaction | 2000 | 50 | -0.126 | -0.127 | -0.138 | -0.130 |
+| interaction | 2000 | 5 | -0.172 | -0.175 | -0.163 | -0.165 |
+| interaction | 200 | 200 | -0.209 | -0.209 | -0.200 | -0.205 |
+| interaction | 200 | 50 | -0.225 | -0.237 | -0.251 | -0.220 |
+| interaction | 200 | 5 | -0.361 | -0.343 | -0.368 | -0.359 |
+
+Paired, the only score difference between "joint" and "leaf" both over 0.015 and beyond two standard errors is
+the step at n 200 and 200 trees (+0.034, se 0.003).
+
+Time and counts. CPU per sweep over "joint"'s in the same job, median over its 32 jobs (the four arms of a job
+ran back to back; the machine's load inflates absolute times, so only these within-job ratios compare); and
+"joint"'s and the free arm's CPU ms per sweep at n 2000 for scale.
+
+| n | trees | leaf | joint, mBART | free | joint ms (n 2000) | free ms (n 2000) |
+|---|---|---|---|---|---|---|
+| 2000 | 200 | 1.04 | 1.29 | 0.18 | 12.8 | 2.3 |
+| 2000 | 50 | 1.05 | 1.16 | 0.16 | 3.8 | 0.59 |
+| 2000 | 5 | 1.01 | 0.99 | 0.22 | 0.59 | 0.13 |
+| 200 | 200 | 1.04 | 1.27 | 0.13 | | |
+| 200 | 50 | 1.06 | 1.19 | 0.12 | | |
+| 200 | 5 | 0.95 | 0.97 | 0.13 | | |
+
+Under "leaf" a fit ran 0.3-0.6 order counts per tree per sweep (2,800 at 5 trees, 26,600-28,800 at 50,
+110,000-120,000 at 200). The largest count in any fit held 16 leaves and 598 down-sets (5 trees, n 2000); at
+50 trees 9 leaves and 126 down-sets, at 200 trees 4 and 14. The slow-count warning fired in no fit. The
+largest count's measured time was 0.08 s, on a 2-leaf count; counts this size take microseconds on an idle
+thread, so these times are the load descheduling the thread, not counting.
+
+Reading, against the criteria above. For "leaf":
+
+- Fit quality against "joint" at cgm() defaults: RMSE, coverage and held-out score match in most cells, and
+  where they differ "leaf" is ahead more often (RMSE on the interaction at n 200 and 50 trees and n 2000 and 5
+  trees, and on the hinge at n 200 and 5 or 50 trees; coverage on the ramp at n 2000 and 50 or 5 trees, 0.94
+  and 0.74 against 0.91 and 0.66). The exception is the steep step at n 200 and 200 trees, where "leaf" is
+  behind "joint" and the free fit alike (RMSE 0.117 against 0.104 and 0.091, coverage 0.91 against 0.94 and
+  0.97, score 0.179 against 0.213 and 0.243). Against the mBART-tuned "joint" the criterion fails on the step:
+  that arm has the lowest RMSE and best score there at every n and at 50 and 200 trees.
+- Variable importance: at 50 and 200 trees both priors report the constrained predictor below the free fit,
+  and the noise predictor above it. "leaf" is closer (x1 0.19 against free 0.36 at n 2000 and 200 trees;
+  "joint" 0.14), but neither is close. The mBART-tuned "joint" is closest at 200 trees and over-reports x1 at
+  50 (0.67 against 0.46).
+- Prior draws: "leaf" matches the free prior in levels, flat intervals, split share on x1 and tree size,
+  exactly as a per-tree sort of BART's leaves would. It differs in the rise: each tree's sorted leaves add up,
+  so the prior curve climbs 0.45, 1.45 and 2.94 response ranges at 5, 50 and 200 trees, with a pointwise sd of
+  0.28, where the free draws rearranged climb 0.3-0.4. "joint" has fewer levels (51 against 74 at 200 trees)
+  and about half as many splits on x1 (split share 0.31 against 0.50, in smaller trees), and climbs 1.64 at
+  200 trees.
+- Time: within 4-6% of "joint" at 50 and 200 trees, and no slow-count warning anywhere.
+
+For "joint": "leaf" does not over-split the constrained axis (posterior splits per tree 1.27 against 1.21,
+free 1.37), its intervals are no wider (width within 1% of "joint"'s), its held-out score is worse only on the
+one step cell, and its counts stay tiny at 50 trees and more. "joint" at cgm() defaults matches "leaf" on fit
+quality everywhere except that it is slightly behind in the cells listed above and ahead on that step cell.
+
+The mBART-tuned case, reported separately: that tree prior gives a different model, not a closer match. Trees
+hold 0.2-0.4 splits at 50 and 200 trees against 1.2-1.4; the prior curve takes 13 levels at 200 trees and is
+flat in 70% of draws at 5; intervals are 30-38% narrower at 50 and 200 trees. On RMSE and score it is best or
+tied on every truth at 200 trees, and on the step, hinge and ramp at 50, but under-covers the smooth truths at
+50 trees (ramp 0.78 and interaction 0.76 at n 2000), fits the interaction worse at 50 and 5 trees, and runs
+16-29% slower per sweep than "joint" at 50 and 200 trees.
+
+How a user would feel each default. Under either prior a constrained fit runs 4.5-8.5 times the CPU per sweep
+of the same fit without the constraint; that cost is the constraint's, not the prior's. With "leaf" a user
+sees fits, intervals and scores like "joint"'s and close to the free fit's; a smoother partial dependence (the
+fewest visible steps at n 2000 and 200 trees, and no dips, which the free fit shows); the constrained
+predictor's importance about half the free fit's at 200 trees and three quarters at 50; and, if they draw from the prior, curves that rise steeply
+with the tree count. With "joint" at cgm() defaults a user sees nearly the same fits with a lower importance
+on the constrained predictor and a gentler prior rise. A "joint" default tuned as mBART does would feel
+different from both: sharper, fewer steps, tighter intervals that under-cover smooth truths at 50 trees, and a
+tree prior that differs from the one users get without a constraint.
+
 ## Counting: algorithm
 
 Every move's ratio is counted on the side of the finer tree T*, the tree that holds the move's pair as two
