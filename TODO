@@ -194,8 +194,10 @@ items
     first; the normalizer counts the leaf orderings the constraints admit,
     and the design bounds its cost with several constrained predictors.
     Planned in docs/plans/monotone-exact-birth-death.md (dec-B145..B150);
-    stages 1 (redraw, empty leaves, reachability) and 2 (the monotone()
-    constructor and vocabulary) landed, stages 3-6 open.
+    stages 1 (redraw, empty leaves, reachability), 2 (the monotone()
+    constructor and vocabulary) and 3 (the counter, not wired in) landed;
+    3b (leaf geometry on factor and missing-value axes: a correctness bug
+    in the landed engine) and 4-6 open.
   installtrees-empty-leaf-state: installTrees onto the same grid rebuilds
     the live forest without collapsing, so a donor tree with a leaf no row
     reaches leaves a state that setState, copy() and save/load then refuse

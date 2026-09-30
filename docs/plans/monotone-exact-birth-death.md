@@ -428,6 +428,24 @@ Constraints) and every harness pinned, and step 12's docs wait for the default r
    saying it arrives with the corrected move, until commit 4; the default constant is "leaf", provisionally.
 3. The counter and the linear-extension draw with their tests/cpp checks, not wired in (steps 1, 6 and 8's
    counter checks), counting both sides of every move.
+3b. Leaf geometry on factor and missing-value axes, before the counter is wired in. monotoneLeafBox reads
+   every axis through Tree::splitInterval, which on a subset split (an unordered factor) returns the low
+   bits of the level mask with no cuts, and threshold boxes ignore where rows with a missing value go
+   (missingGoesRight). So monotoneNeighborBounds, monotoneTreeIsFeasible and buildMonotoneLeafOrder both
+   miss pairs the constraint requires and add pairs it does not: found in stage 3's review, a one-tree fit
+   with a free 4-level factor decreased along x1 for one level in 1.5% of draws, and with 40% missing in a
+   free predictor the fit at the missing value decreased along x1 in every draw under two of three seeds.
+   Ordered factors and cut remaps are unaffected apart from missing values; pooled factors are affected.
+   The fix: one helper gives each leaf, per axis, either a code interval plus whether it reaches missing
+   values (threshold axes) or its reachable level set (subset axes, pooled ones included); two leaves share
+   a free axis when their intervals overlap or both reach missing values, or their level sets intersect;
+   adjacency stays interval-touching on constrained axes. Leaf regions stay products, so the order
+   argument and the union-of-children merge hold. The bounds, the feasibility check, the builder and the
+   tests all use the helper. Oracles: a point-based geometry oracle in tests/cpp with factor and missing
+   columns (today's oracles share the bug), an exact-gate design with a free factor, and a tinytest that a
+   fitted surface is monotone per factor level and at the missing value. Draws change only for fits that
+   split on a factor or carry missing values in a free predictor. What a missing value in a CONSTRAINED
+   predictor means for the order is settled in this stage's design note, not assumed.
 4. The seam, the dropped d terms, the prior flag and the gate under both priors (steps 2, 3, 13, 10), step 6's
    switch of `drawFromPriorForTree` to the exact draw, and step 7's sampleTreesFromPrior bullet for both
    priors; prior = "joint" is accepted from here. Per-move count timing is recorded through the move census
@@ -806,4 +824,14 @@ constant MONOTONE_PRIORS holds "leaf" first, provisionally. Reviewed by an indep
 build the three equivalence compares bitwise 53/15/11 and the snapshots unchanged; stan4bart 566/566,
 bartCause 0 failures. Mutations restoring case-insensitive matching and the sign glyphs fail the tests.
 Calls made while implementing: dec-A130.
+
+Stage 3, 2026-09-30: the leaf-order builder, the down-set count, log Z_T, the move ratio on the finer
+tree's side, the position laws, the linear-extension draw and the exact prior leaf draw, none called yet
+(e33a79cb). Reviewed by an independent reader: count, ratio, draws and scaling verified; mutations of the
+position law and the extension weights fail the tests. tests/cpp with ASan/UBSan clean, tinytest
+10,795/0, the lint chain clean, R CMD check --as-cran one NOTE (Date); on the reference build the three
+equivalence compares bitwise 53/15/11. The engine counts the 25-leaf star (1.68e7 down-sets) in 4.6 s,
+about twice the prototype's speed. The review found the geometry defect that stage 3b now fixes, and the
+1-tree p 4 fit re-run on stage 1's draws needs 8.2e8 down-sets on its first move, which neither the engine
+nor the prototype counted in 10 minutes: the checkpoint's trigger is likely to fire.
 
