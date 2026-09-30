@@ -32,7 +32,11 @@
 # The monotone enumeration gate (monotone-exact-enumeration.R: the corrected
 # birth/death move against the exact one-tree posterior, under both monotone
 # priors) runs as a job of its own, since it takes about 20 minutes in quick
-# mode on its own; the main job keeps its list and timeout.
+# mode on its own; the main job keeps its list and timeout. The same job runs
+# the monotone successive-conditional check (monotone-successive-conditional.R:
+# the kernel from a prior draw against the prior-predictive joint, on trees too
+# deep to enumerate) first, about a minute per prior in quick mode, the
+# unconstrained twin with the "leaf" prior.
 #
 # One job installs the package once, then runs every gate in `quick` mode
 # (reduced draws/seeds) so the whole suite shares a single ~4-minute C++20
@@ -271,12 +275,20 @@ jobs:
           needs: check
 
       - name: Install the package
+        id: install
         run: R CMD INSTALL .
+
+      # quick even under mode=full, as the enumeration gate below
+      - name: Run the monotone successive-conditional check
+        run: >-
+          Rscript benchmarks/R/monotone-successive-conditional.R quick
+          ${{ matrix.prior }} ${{ matrix.prior == 'leaf' && 'twin' || '' }}
 
       # every design under the job's prior, quick even under mode=full: full
       # mode triples the draws and would pass the timeout, so it stays a local
-      # run
+      # run. Runs even when the check above fails, so one run surfaces both
       - name: Run the monotone enumeration gate
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: >-
           Rscript benchmarks/R/monotone-exact-enumeration.R quick engine
           ${{ matrix.prior }}
