@@ -1234,6 +1234,10 @@ Record: docs/design/negative-binomial.md. Marked: blank. [dec-B170]
 predict(), bart(test =) and dbartsData(test =) refuse a numeric or logical data-frame column whose training column was a factor (categorical or ordered), naming the column, as predict.lm does; a raw numeric matrix with no data frame is left as is. Until now such numbers were read silently as 0-based level codes, so as.integer(f) predicted every row one level up; 0.9-34 raised an error. The alternatives were reading numbers as 1-based codes and keeping 0-based codes, documented. This is the frame-entrance twin of dec-B156. The maintainer on 2026-10-01: "Refuse a numeric or logical column where training had a factor." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B171]
 
+**The uniform cut grid is built from the finite values**
+Under the default uniform cut grid, a predictor's range is taken over its finite values, so Inf and -Inf fall past the end cuts, as the quantile grid already does; when sigma cannot be estimated because a predictor is non-finite, the error names that column. Until now, and in 0.9-34, one Inf stretched the grid to infinity and silently made the column unusable, and the sigma error blamed sigma. The alternative was refusing non-finite predictors by column, as lm does. Only fits containing Inf change. The maintainer on 2026-10-01: "Option 1." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B172]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
