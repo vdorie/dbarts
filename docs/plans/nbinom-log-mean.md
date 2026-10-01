@@ -1,6 +1,6 @@
 # nbinom-log-mean: the forest models log(mean), and r is drawn given the mean
 
-Status: PLANNED (dec-B170 in [decisions.md](../decisions.md), 2026-10-01). Blocks 1.0-0: the third whole-branch
+Status: PLANNED (dec-B170 and dec-B183 in [decisions.md](../decisions.md), 2026-10-01). Blocks 1.0-0: the third whole-branch
 review's finding families-01 is a blocker.
 
 agent: opus for C1-C2 (engine numerics, the r step, the anchor, the exact-gate re-derivation); sonnet for C3-C5
@@ -9,7 +9,7 @@ rng: POSTERIOR-CHANGING for family = "nbinom" only - every nbinom draw moves, fi
 [Fixed r](#fixed-r)). NEUTRAL for every other family: no other ResponseModel, kernel or RNG call order is touched,
 so the equivalence compare must show the 54 non-nbinom scenarios identical and bcf/multinomial harnesses bitwise.
 window: pre-release, before the 1.0-0 merge.
-budget: ~920 lines (engine ~150, bridge ~15, R ~60 with Q1 (d), Rd and dbarts.h comments ~40, tests/cpp ~200,
+budget: ~920 lines (engine ~150, bridge ~15, R ~60 with dec-B183, Rd and dbarts.h comments ~40, tests/cpp ~200,
 tinytest ~90, negbin-exact.R ~70 changed, negbin-mixing.R ~170 new, sbc.R and sbc.yaml ~50, design doc ~120, records
 ~40). Plans have run 1.5-2x low: expect up to ~1800. Compute: the SBC nbinom arm (46 min at R=200 today) plus its
 burn ladder, the exact gates in FULL mode, the equivalence trio; bench-sampler.R compare is maintainer-run.
@@ -94,7 +94,7 @@ With r fixed, the PG draw and the tree block are the logit-p ones with anchor o 
 fixed-r log-mean model IS the logit-p model with offset o + c - log r. The likelihood family is the same; the
 reported link moves by log r (eta = psi + log r); the posterior moves only through the leaf prior. Logit-p centered
 the prior on log mu at log r + o (mean count r whatever the data); this plan centers it at c + o and recalibrates its
-spread (Q1). The two coincide only when c = log r and the leaf prior is kept, so under the defaults fixed-r draws move
+spread (dec-B183). The two coincide only when c = log r and the leaf prior is kept, so under the defaults fixed-r draws move
 as well, and fixed-r fits get a data-centered prior they lacked.
 
 ## Design
@@ -165,10 +165,10 @@ aft and hurdle.lognormal are gaussian on a log response), so there is no in-pack
 Spread: the sigma-free families fix an anchor A, with prior sd of f(x) = A/k. probit and logistic default to
 k ~ chi(1.5, 2) (the binary hyperprior, [`isBinaryFamily`](../../R/spec.R) covers only those two); ordinal and
 nbinom default to a fixed k = 2, so nbinom today has sd pi sqrt(3)/2 = 2.72. The anchor in
-[`defaultLeafScale`](../../R/model.R) (and its C backstop) and, under Q1's recommendation, the k default in
-[`resolveLeafHyperprior`](../../R/model.R) move; the values are Q1.
+[`defaultLeafScale`](../../R/model.R) (and its C backstop) and the k default in
+[`resolveLeafHyperprior`](../../R/model.R) move; dec-B183 set the values, option (d) below.
 
-Probe for Q1 (not checked in): a scratch build of this design (the engine change above, anchor settable), r
+Probe behind dec-B183 (not checked in): a scratch build of this design (the engine change above, anchor settable), r
 estimated, one chain, 500 + 500 sweeps, default trees, 500 test rows, 8 replicates at each of n = 300 and n = 2000,
 six designs (log-mean signal sd 0.06 to 2, one a step of 3 on the log scale; true r 2 to 30). Fresh-y coverage is
 by randomized PIT. Means over designs and replicates:
@@ -348,17 +348,13 @@ Each commit passes its gates before the next starts; landing per [Landing](READM
 - Pre-change nbinom states and saved fits from development builds stop loading (refused by fitMax <= fitMin). No
   release carried them.
 
-## Open questions for the maintainer
+## Rulings
 
-Q1. The leaf prior on the log-mean scale: anchor A and the k default (prior sd of f is A/k). Numbers in
-[Leaf prior](#leaf-prior).
-- (a) Keep A = pi sqrt(3), k = 2 (sd 2.72): the width logit-p had. Worst on RMSE at both n and in r placement at
-  n = 300.
-- (b) A = 3, k = 2 (sd 1.5, probit's anchor): beats (a) everywhere; second-best coverage.
-- (c) A = 2, k = 2 (sd 1.0): good RMSE at n = 2000, but under-covers the strong signal at n = 300 (0.78).
-- (d) A = 3, k ~ chi(1.5, 2), the binary families' default form: lowest RMSE at both n, coverage at or near the
-  best. Cost: nbinom joins probit and logistic in drawing k, so the ordinal-negbin-k-gap TODO's nbinom half (a k
-  channel packageNegbinResults drops) becomes part of C2, about 20 more lines.
-Recommendation: (d). It wins on accuracy without the coverage loss of (c), and it matches what the other
-fixed-scale binary-link families already do. What would change it: a realistic count design where the k draw
-under-covers, which would argue for (b).
+All ruled 2026-10-01 in [decisions.md](../decisions.md); this plan carries them out.
+- dec-B170: the forest models the log mean and r is drawn given it (this plan).
+- dec-B183 (was Q1): option (d), A = 3 with k ~ chi(1.5, 2), the binary families' default form. nbinom joins
+  probit and logistic in drawing k, so packageNegbinResults carries a k channel (the nbinom half of the
+  ordinal-negbin-k-gap TODO) in C2. The probe numbers are in [Leaf prior](#leaf-prior); the alternatives were
+  (a) A = pi sqrt(3), k = 2, (b) A = 3, k = 2 and (c) A = 2, k = 2.
+- dec-B179: nbinom accepts 0/1 weights as the active-row mask, as probit and ordinal do; other weights stay
+  refused. It rides C2, since it touches the same R entry and help.
