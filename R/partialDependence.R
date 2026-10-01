@@ -21,7 +21,11 @@ pdbart.getAndInitializeSampler <- function(bartCall, evalEnv) {
   control@verbose <- control@keepTrainingFits <- FALSE
   sampler$setControl(control)
 
-  samples <- sampler$run(0L, sampler$control@n.burn, updateState = FALSE)
+  # a run of no sweeps at all is refused, as in 0.9-x, so nskip = 0 skips the
+  # burn-in phase rather than asking for one
+  samples <- if (sampler$control@n.burn > 0L) {
+    sampler$run(0L, sampler$control@n.burn, updateState = FALSE)
+  }
   fit <- list(first.sigma = samples$sigma)
   control@verbose <- verbose
   control@keepTrainingFits <- keepTrainingFits

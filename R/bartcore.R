@@ -199,6 +199,12 @@ bartcoreSamplerRun <- function(
   control <- sampler$control
   numBurnIn <- coerceOrError(numBurnIn, "integer")
   numSamples <- coerceOrError(numSamples, "integer")
+  if (length(numBurnIn) != 1L) {
+    stop("'numBurnIn' must be a single integer", call. = FALSE)
+  }
+  if (length(numSamples) != 1L) {
+    stop("'numSamples' must be a single integer", call. = FALSE)
+  }
   if (is.na(numBurnIn)) {
     numBurnIn <- control@n.burn
   }
@@ -207,6 +213,20 @@ bartcoreSamplerRun <- function(
   }
   if (is.na(numSamples)) {
     stop("bartcore engine samplers require 'numSamples' to be specified")
+  }
+  # as 0.9-x refused them: a negative count would otherwise reach the engine
+  # as a wrapped size and report draws it never recorded
+  if (numBurnIn < 0L) {
+    stop(
+      "number of burn-in steps must be greater than or equal to 0",
+      call. = FALSE
+    )
+  }
+  if (numSamples < 0L) {
+    stop("number of samples must be greater than or equal to 0", call. = FALSE)
+  }
+  if (numBurnIn == 0L && numSamples == 0L) {
+    stop("either number of burn-in or samples must be positive", call. = FALSE)
   }
 
   resolved <- validateCallback(callback)
@@ -316,8 +336,13 @@ mergeSlowCountTallies <- function(a, b) {
 
 # Resolves a character 'column' against source's colnames into a 1-based
 # integer index (or indices); NULL or an already-numeric 'column' passes
-# through unchanged. 'what' names source for the not-found message.
+# through unchanged. 'what' names source for the not-found message. A missing
+# index is refused by name here, ahead of the range checks it would otherwise
+# reach as a bare missing condition.
 resolveColumnIndex <- function(source, column, what) {
+  if (anyNA(column)) {
+    stop("'column' contains missing values", call. = FALSE)
+  }
   if (is.null(column) || !is.character(column)) {
     return(column)
   }

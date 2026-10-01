@@ -4675,6 +4675,22 @@ SEXP bartcore_setMonotoneCountHooks(SEXP slowSecondsExpr,
   return Rf_ScalarReal(previous);
 }
 
+// A run's burn-in and sample counts, refused as 0.9-x refused them: a single
+// non-negative integer each, not both zero. A negative count cast to size_t
+// would wrap the sweep total and record nothing into slots the run then
+// reports as drawn.
+static void readRunCounts(SEXP numBurnInExpr, SEXP numSamplesExpr,
+                          size_t& numBurnIn, size_t& numSamples) {
+  numBurnIn = static_cast<size_t>(
+    rc_getInt(numBurnInExpr, "number of burn-in steps", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END));
+  numSamples = static_cast<size_t>(
+    rc_getInt(numSamplesExpr, "number of samples", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END));
+  if (numBurnIn == 0 && numSamples == 0)
+    Rf_error("either number of burn-in or samples must be positive");
+}
+
 // The per-draw observer's two halves, read out of external pointers: the
 // function address (R_MakeExternalPtrFn, so no function-to-object-pointer cast
 // crosses the boundary) and the caller's context, handed back untouched. A
@@ -4719,8 +4735,8 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
 
-  size_t numBurnIn = static_cast<size_t>(Rf_asInteger(numBurnInExpr));
-  size_t numSamples = static_cast<size_t>(Rf_asInteger(numSamplesExpr));
+  size_t numBurnIn, numSamples;
+  readRunCounts(numBurnInExpr, numSamplesExpr, numBurnIn, numSamples);
   // per RUN, and the engine hook below borrows it, so it lives in this frame
   // for as long as the run does
   bartcore_bridge::ShippedDrawHook drawHook =
@@ -5092,8 +5108,8 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
     Rf_error("a run with a draw callback requires a single chain");
   if (!Rf_isFunction(callbackExpr)) Rf_error("callback must be a function");
 
-  size_t numBurnIn = static_cast<size_t>(Rf_asInteger(numBurnInExpr));
-  size_t numSamples = static_cast<size_t>(Rf_asInteger(numSamplesExpr));
+  size_t numBurnIn, numSamples;
+  readRunCounts(numBurnInExpr, numSamplesExpr, numBurnIn, numSamples);
 
   SEXP sigmaExpr = rc_getListElement(resultsExpr, "sigma");
   SEXP trainExpr = rc_getListElement(resultsExpr, "train");

@@ -3466,6 +3466,15 @@ dbartsSampler <- setRefClass(
 
       chainNums <- coerceOrError(chainNums, "integer")
 
+      if (anyNA(chainNums)) {
+        stop("'chainNums' contains missing values")
+      }
+      if (useSaved && anyNA(sampleNums)) {
+        stop("'sampleNums' contains missing values")
+      }
+      if (treeNumsSupplied && anyNA(treeNums)) {
+        stop("'treeNums' contains missing values")
+      }
       if (any(chainNums <= 0 | chainNums > control@n.chains)) {
         stop("'chainNums' must be in [1, ", control@n.chains, "]")
       }
