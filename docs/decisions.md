@@ -1194,6 +1194,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B160]
 The package classes the few warnings a caller has a concrete reason to catch, as base R does with .Deprecated()'s deprecatedWarning and library()'s packageNotFoundError: deprecations (dbartsDeprecatedWarning, also carrying base R's deprecatedWarning), the monotone slow-count warning, and the fallbacks that report a substituted input (sigma, sparse sigma, Gaussian-process and the general fallback). Every other warning is a plain warning(), and the warning-style rule that every warning carries a class, which claimed a ruling the ledger does not record, is replaced. The alternatives were classing every warning, and classing none, as 0.9-34 and the model-fitting packages surveyed (survival, Matrix, mgcv, nlme, lme4, MASS, rstan, brms, glmnet, ranger, BART, bartMachine among them) do; classed conditions are common only in the rlang/cli toolkit. A user can silence a deprecation, a slow count or a fallback by class; the package carries a handful of public class names instead of about fifteen. The maintainer on 2026-10-01, asking "What do other well-respected packages do?" and shown that survey: "Option 2."
 Record: docs/design/error-style.md (R15). Marked: blank. [dec-B161]
 
+**dbartsWarning stays as the parent of the classed warnings**
+The classed warnings of dec-B161 share the parent class dbartsWarning, so a caller can silence or catch every classed dbarts warning in one place, for example inside a loop or a function that also calls other packages. Base R has no per-package parent class, and no consumer catches it today. The alternative was dropping it, each class sitting directly under warning; adding it later would break nothing, removing it after release could. The maintainer on 2026-10-01: "Let's leave it - it could be nice to selective supress warnings in case it's in a loop or function with other stuff."
+Record: docs/design/error-style.md (R15). Marked: blank. [dec-B162]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
