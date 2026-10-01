@@ -15,7 +15,8 @@ call is forwarded unchanged, with a warning the first time in a session.
 The rest of the registry is names still reachable on entry points that
 keep their own page, rather than functions of their own: each is
 accepted for one release, mapped onto its successor with a
-once-per-session warning (or refused by name, where noted), and removed
+once-per-session warning of class `dbartsDeprecatedWarning`, which
+inherits `dbartsWarning` (or refused by name, where noted), and removed
 in dbarts 1.1-0.
 
 - `rngSeed`:
@@ -168,13 +169,6 @@ in dbarts 1.1-0.
   and [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md);
   `suppressMessages` silences it, and a call made from package code
   prints nothing.
-
-`control` on
-[`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) is no
-longer a tombstone: both `bart` and `xbart` now take a
-`control = `[`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
-formal, reaching every setting neither door spells flatly, so the
-earlier retirement (which refused the argument outright) is reversed.
 
 Every entry above, `bart2` and `rbart_vi`, is one row of
 `dbarts:::dbartsTombstones`, the registry this page documents by hand.

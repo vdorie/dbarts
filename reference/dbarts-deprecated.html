@@ -51,7 +51,7 @@ rbart_vi and its methods are deprecated, and documented on rbart_vi."></head><bo
 
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>The rest of the registry is names still reachable on entry points that keep their own page, rather than functions of their own: each is accepted for one release, mapped onto its successor with a once-per-session warning (or refused by name, where noted), and removed in dbarts 1.1-0.</p>
+    <p>The rest of the registry is names still reachable on entry points that keep their own page, rather than functions of their own: each is accepted for one release, mapped onto its successor with a once-per-session warning of class <code>dbartsDeprecatedWarning</code>, which inherits <code>dbartsWarning</code> (or refused by name, where noted), and removed in dbarts 1.1-0.</p>
 <p></p><dl><dt><code>rngSeed</code></dt>
 <dd><p>On <code><a href="bart.html">bart</a></code> and <code><a href="dbartsControl.html">dbartsControl</a></code>: the engine seed, now <code>seed</code>.</p></dd>
 
@@ -104,8 +104,7 @@ rbart_vi and its methods are deprecated, and documented on rbart_vi."></head><bo
 <dd><p>A <code><a href="bart.html">bart</a></code> call that names no <code>bartBT</code> argument and whose first argument is not a formula - a 0.9-x call such as <code>bart(x.train, y.train, x.test)</code> - binds the same way under both doors, so nothing forwards it and it runs under <code>bart</code>'s own defaults. The first such call in a session prints a message of class <code>dbartsFrontDoorMessage</code> naming the change and <code><a href="bartBT.html">bartBT</a></code>; <code>suppressMessages</code> silences it, and a call made from package code prints nothing.</p></dd>
 
 
-</dl><p><code>control</code> on <code><a href="xbart.html">xbart</a></code> is no longer a tombstone: both <code>bart</code> and <code>xbart</code> now take a <code>control = <a href="dbartsControl.html">dbartsControl()</a></code> formal, reaching every setting neither door spells flatly, so the earlier retirement (which refused the argument outright) is reversed.</p>
-<p>Every entry above, <code>bart2</code> and <code>rbart_vi</code>, is one row of <code>dbarts:::dbartsTombstones</code>, the registry this page documents by hand.</p>
+</dl><p>Every entry above, <code>bart2</code> and <code>rbart_vi</code>, is one row of <code>dbarts:::dbartsTombstones</code>, the registry this page documents by hand.</p>
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>

@@ -345,10 +345,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   unconditionally: the whole-data conduit has no `updateScale` to pin
   the transform with, so a replacement data set always re-anchors it. On
   `setResponse`, supplying this argument positionally
-  (`setResponse(y, TRUE)`) rather than by name warns once per session
-  (class `dbartsPositionalArgsWarning`) - it is the second argument,
-  where a caller porting code written before this order had
-  `updateState` there instead.
+  (`setResponse(y, TRUE)`) rather than by name warns once per session -
+  it is the second argument, where a caller porting code written before
+  this order had `updateState` there instead.
 
 - offset.test:
 
@@ -419,24 +418,24 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   column \\k\\ holding category \\k\\'s successes, with trials \\n_i =
   \sum_k\\ `counts[i, ]` at least 0: a row with no trial enters no
   likelihood and still receives fitted probabilities, and the first such
-  row in a session warns (class `dbartsZeroTrialsWarning`). Both \\n\\
-  and \\K\\ are fixed at creation - every combiner buffer is sized by
-  \\n\\, and \\K\\ is the forest count - so only the values may change;
-  a matrix of the wrong shape is refused naming the count in force. The
-  trees carry over, fitted to the previous counts exactly as
-  `setResponse` leaves a single-forest sampler's, and the next `run`
-  forms every category's working response against the new matrix. The
-  matrix is written to both the engine and `data@counts` (its row sums
-  to `data@y`), so `getPointer`'s transparent re-creation after save and
-  load carries the current response rather than the one the sampler was
-  created with. Cost, not a defect: the sweep draws \\n_i\\ Polya-Gamma
-  variates per observation per category, so replacing single-trial
-  labels with grouped counts multiplies sweep cost by `mean(n_i)`. A
-  missing count is refused, as a missing response is by `setResponse`;
-  to leave a row out of the likelihood mid-chain, mark it inactive with
-  `setActiveRows`, as in every family, or write zeros into it, which is
-  the same as far as the likelihood goes. Refused, naming the reason, on
-  any sampler that carries no count response.
+  row in a session warns. Both \\n\\ and \\K\\ are fixed at creation -
+  every combiner buffer is sized by \\n\\, and \\K\\ is the forest
+  count - so only the values may change; a matrix of the wrong shape is
+  refused naming the count in force. The trees carry over, fitted to the
+  previous counts exactly as `setResponse` leaves a single-forest
+  sampler's, and the next `run` forms every category's working response
+  against the new matrix. The matrix is written to both the engine and
+  `data@counts` (its row sums to `data@y`), so `getPointer`'s
+  transparent re-creation after save and load carries the current
+  response rather than the one the sampler was created with. Cost, not a
+  defect: the sweep draws \\n_i\\ Polya-Gamma variates per observation
+  per category, so replacing single-trial labels with grouped counts
+  multiplies sweep cost by `mean(n_i)`. A missing count is refused, as a
+  missing response is by `setResponse`; to leave a row out of the
+  likelihood mid-chain, mark it inactive with `setActiveRows`, as in
+  every family, or write zeros into it, which is the same as far as the
+  likelihood goes. Refused, naming the reason, on any sampler that
+  carries no count response.
 
 - weights:
 
@@ -781,10 +780,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   or print from `printTrees`. Applies only when `keepTrees` is `TRUE`
   and `current` is `FALSE`; otherwise the live working trees have no
   sample dimension, and supplying it explicitly is ignored, with a
-  warning (class `dbartsIgnoredArgWarning`). Sample numbers address
-  recorded DRAWS on the oldest-first axis `predict` reports - `1` to the
-  number of draws recorded, at most `control@n.samples` - and not the
-  store's internal slots.
+  warning. Sample numbers address recorded DRAWS on the oldest-first
+  axis `predict` reports - `1` to the number of draws recorded, at most
+  `control@n.samples` - and not the store's internal slots.
 
 - current:
 

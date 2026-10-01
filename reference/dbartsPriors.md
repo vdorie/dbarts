@@ -135,13 +135,14 @@ A list of functions:
   not a Gaussian process over the leaves that took it - every leaf
   evaluation is counted. The counts ride the fit as `gp.fallback` (a
   named pair, `evaluations` and `fallbacks`), and a run in which more
-  than a quarter of evaluations fell back warns once, giving the share:
-  at the default cap on a design of any size that is the normal outcome,
-  not an error, and the warning is the notice that the cap rather than
-  the kernel is doing the modeling. The remedies are the two the
-  paragraph above names, in the order it names them. Function-valued
-  fits ride prediction only: `getTrees` reports `NA` leaf values, and
-  `keepTrees` storage grows with the leaf sizes.
+  than a quarter of evaluations fell back warns once (class
+  `dbartsGPFallbackWarning`), giving the share: at the default cap on a
+  design of any size that is the normal outcome, not an error, and the
+  warning is the notice that the cap rather than the kernel is doing the
+  modeling. The remedies are the two the paragraph above names, in the
+  order it names them. Function-valued fits ride prediction only:
+  `getTrees` reports `NA` leaf values, and `keepTrees` storage grows
+  with the leaf sizes.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
   the same specification through its own `leaf.prior` argument. `k` and
   `sd` name the spread as they do for `normal`, `sd` as the amplitude of
@@ -276,9 +277,14 @@ set.seed(2)
 y.gp <- sin(2 * pi * x1) + rnorm(n, 0, 0.2)
 df.gp <- data.frame(x1, x2, y.gp)
 fit.gp <- dbarts(y.gp ~ x1 + x2, df.gp,
-                 leaf.prior = gp("x1", max.leaf.size = 30L),
+                 leaf.prior = gp("x1", max.leaf.size = 52L),
                  control = dbartsControl(n.trees = 10L, n.chains = 1L,
                                           n.threads = 1L))
 samples.gp <- fit.gp$run(20L, 20L)
-#> Warning: 35.6% of Gaussian-process leaf evaluations fell back to a constant leaf because the leaf held more than 'max.leaf.size' observations, so most of this fit is not a Gaussian process; raise the cap with gp(max.leaf.size = ), which costs roughly ten times per doubling, or use FEWER trees, which grows deeper trees and so smaller leaves
+## the cap of 52 observations per leaf sends some leaves to the constant
+## fallback (about a tenth of the evaluations here), counted in gp.fallback;
+## a warning comes only when more than a quarter fall back
+print(unlist(attr(samples.gp, "gp.fallback")))
+#> evaluations   fallbacks 
+#>        2285         260 
 ```

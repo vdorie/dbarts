@@ -52,13 +52,13 @@ prior vocabulary inside the family call. The retired spellings
 `resid.prior`, `sigdf` and `sigquant` are accepted for one release with
 a once-per-session warning and are removed in dbarts 1.1-0;
 `resid.prior` is retired that way on
-[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
-and [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) as
-well, so the family object is the one home of the residual prior. A call
-that writes the prior both ways is refused where the two disagree,
-naming both spellings, and accepted in silence where they say the same
-thing.
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+[`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) as well
+([`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+refuses it), so the family object is the one home of the residual prior.
+A call that writes the prior both ways is refused where the two
+disagree, naming both spellings, and accepted in silence where they say
+the same thing.
 
 ## Usage
 

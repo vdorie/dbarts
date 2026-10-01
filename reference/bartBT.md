@@ -131,10 +131,9 @@ family(object, ...)
   sparse-backed predictor columns skips the linear model altogether and
   falls back the same way (class `dbartsSparseSigmaFallbackWarning`, a
   `dbartsSigmaFallbackWarning`). See `sigquant` for more information.
-  Not applicable when \\y\\ is binary. Same concept as `sigma` in
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md);
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) spells
-  it `sigest` too.
+  Not applicable when \\y\\ is binary. Same concept as `sigest` in
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md).
 
 - sigdf:
 
@@ -414,7 +413,8 @@ family(object, ...)
 - newdata:
 
   Test data for prediction. Obeys all the same rules as `x.train` but
-  cannot be missing.
+  cannot be missing. An unnamed matrix given to a fit whose predictors
+  are named is matched by position, with a warning.
 
 - offset:
 
@@ -615,8 +615,8 @@ family(object, ...)
   name that is a formal on `predict`, `extract`, `fitted`, or
   `residuals` but foreign to the method actually called is refused by
   name rather than silently discarded. Any other unrecognized name warns
-  instead - a warning of class `dbartsUnusedArgsWarning`, not an error,
-  so that a subclass method forwarding its own formals through
+  instead - a warning, not an error, so that a subclass method
+  forwarding its own formals through
   [`NextMethod`](https://rdrr.io/r/base/UseMethod.html) is never refused
   for an argument its caller legitimately supplied.
 
@@ -1133,27 +1133,27 @@ bartFit <- bart(x, y)
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> [2] iteration: 100 (of 500)
 #> [1] iteration: 100 (of 500)
-#> [2] iteration: 200 (of 500)
+#> [2] iteration: 100 (of 500)
 #> [1] iteration: 200 (of 500)
-#> [2] iteration: 300 (of 500)
+#> [2] iteration: 200 (of 500)
 #> [1] iteration: 300 (of 500)
-#> [2] iteration: 400 (of 500)
+#> [2] iteration: 300 (of 500)
 #> [1] iteration: 400 (of 500)
-#> [2] iteration: 500 (of 500)
+#> [2] iteration: 400 (of 500)
 #> [1] iteration: 500 (of 500)
-#> [4] iteration: 100 (of 500)
+#> [2] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
-#> [4] iteration: 200 (of 500)
+#> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
-#> [4] iteration: 300 (of 500)
+#> [4] iteration: 200 (of 500)
 #> [3] iteration: 300 (of 500)
+#> [4] iteration: 300 (of 500)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 400 (of 500)
 #> [4] iteration: 500 (of 500)
 #> [3] iteration: 500 (of 500)
-#> total seconds in loop: 0.150619
+#> total seconds in loop: 0.125175
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

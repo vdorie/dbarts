@@ -40,9 +40,8 @@ purpose and the estimate falls back to the unconditional `sd(y)`
 instead - discarding every dense column's information along with the
 sparse one's. The fallback warns (class
 `dbartsSparseSigmaFallbackWarning`) rather than passing silently. This
-is current behavior, not a documented guarantee; supply
-[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-`sigma` (`sigest` in
+is current behavior, not a documented guarantee; supply `sigest`
+([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) explicitly
 if the default matters to you.
 

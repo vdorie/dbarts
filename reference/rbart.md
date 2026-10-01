@@ -2,13 +2,19 @@
 
 **Deprecated.** `rbart_vi` and its methods run the implementation from
 dbarts 0.9-x, kept for one release, and are removed in dbarts 1.1-0. A
-warning says so the first time `rbart_vi` is called in a session.
-Grouped random effects live in the stan4bart package
-(`stan4bart::stan4bart`), whose prior on the group spread differs from
-the one used here, so a refit there moves the results rather than
-reproducing them.
+warning (class `dbartsDeprecatedWarning`) says so the first time
+`rbart_vi` is called in a session. Grouped random effects live in the
+stan4bart package (`stan4bart::stan4bart`), whose prior on the group
+spread differs from the one used here, so a refit there moves the
+results rather than reproducing them.
 
-Fits a varying intercept/random effect BART model.
+Fits a varying intercept/random effect BART model. A fallback this
+function makes (running single-threaded, disabling verbose output for
+several threads, recycling `group.by`, drawing effects for unseen
+levels, a failed rejection sample) warns with class
+`dbartsFallbackWarning`, and the deprecated `value` argument and
+`type = "post-mean"` of `predict` warn with class
+`dbartsDeprecatedWarning`.
 
 ## Usage
 

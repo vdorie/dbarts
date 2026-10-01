@@ -292,8 +292,7 @@ df <- data.frame(y, x)
 set.seed(99)
 bartFit <- bart(
     y ~ rob + hugh + ed, df,
-    keepevery = 10, ntree = 100, keeptrees = TRUE, verbose = FALSE)
-#> Warning: 'keepevery' is dbarts 0.9-x's BayesTree-style 'bart' argument; that function is now 'bartBT' and this call was forwarded to it. 'bart' is the modern front door and takes different names and defaults. Forwarding is removed in dbarts 1.1-0.
+    n.thin = 10, n.trees = 100, keepTrees = TRUE, verbose = FALSE)
 pdb3 <- pdbart(bartFit, xind = rob + ed, pl = FALSE)
 # }
 ```

@@ -51,21 +51,15 @@ library(dbarts, quietly = TRUE)
 
 bartFit <- bart(
     y ~ ., data,
-    ndpost = 4,   # number of posterior samples
-    nskip = 1000, # number of "warmup" samples to discard
-    nchain = 2,   # number of independent, parallel chains
-    nthread = 1,  # units of parallel execution
-    ntree = 3,    # number of trees per chain
-    seed = 56,    # chosen to generate a deep tree
-    keeptrees = TRUE,
+    n.samples = 4,   # number of posterior samples
+    n.burn = 1000,   # number of "warmup" samples to discard
+    n.chains = 2,    # number of independent, parallel chains
+    n.threads = 1,   # units of parallel execution
+    n.trees = 3,     # number of trees per chain
+    seed = 56,       # chosen to generate a deep tree
+    keepTrees = TRUE,
     verbose = FALSE)
 ```
-
-    ## Warning in warnOnce("tombstone.bartShim", "'", legacy[1L], "' is dbarts 0.9-x's
-    ## BayesTree-style 'bart' argument; that function is ", : 'ndpost' is dbarts
-    ## 0.9-x's BayesTree-style 'bart' argument; that function is now 'bartBT' and this
-    ## call was forwarded to it. 'bart' is the modern front door and takes different
-    ## names and defaults. Forwarding is removed in dbarts 1.1-0.
 
 ## Extracting Trees
 
@@ -91,17 +85,17 @@ traversal.
 print(head(trees, n = 10))
 ```
 
-    ##    chain sample tree   n var        value
-    ## 1      1      1    1 100   5  0.172099022
-    ## 2      1      1    1  19  -1 -0.161987541
-    ## 3      1      1    1  81   2  0.415258286
-    ## 4      1      1    1  20  -1 -0.067348401
-    ## 5      1      1    1  61  -1  0.060031278
-    ## 6      1      1    2 100   4  0.849325015
-    ## 7      1      1    2  82   4  0.571833524
-    ## 8      1      1    2  51  -1 -0.008752156
-    ## 9      1      1    2  31  -1  0.192449201
-    ## 10     1      1    2  18  -1  0.315472253
+    ##    chain sample tree   n var       value
+    ## 1      1      1    1 100   2  0.46454671
+    ## 2      1      1    1  35   7  0.24853041
+    ## 3      1      1    1   6  -1  0.04584981
+    ## 4      1      1    1  29  -1 -0.02522418
+    ## 5      1      1    1  65   5  0.26888559
+    ## 6      1      1    1  15  -1  0.04883142
+    ## 7      1      1    1  50  -1  0.17614013
+    ## 8      1      1    2 100   4  0.25606734
+    ## 9      1      1    2  32   3  0.93191654
+    ## 10     1      1    2  31  -1 -0.11875045
 
 The columns refer to:
 
@@ -229,46 +223,46 @@ print(rebuildTree(treeOfInterest, bartFit))
 ```
 
     ## $value
-    ## [1] 0.172099
+    ## [1] 0.4645467
     ## 
     ## $n
     ## [1] 100
     ## 
     ## $var
-    ## [1] "X5"
+    ## [1] "X2"
     ## 
     ## $left
     ## $left$value
-    ## [1] -0.1603787
+    ## [1] 0.009059387
     ## 
     ## $left$n
-    ## [1] 19
+    ## [1] 35
     ## 
     ## 
     ## $right
     ## $right$value
-    ## [1] 0.4152583
+    ## [1] 0.2688856
     ## 
     ## $right$n
-    ## [1] 81
+    ## [1] 65
     ## 
     ## $right$var
-    ## [1] "X2"
+    ## [1] "X5"
     ## 
     ## $right$left
     ## $right$left$value
-    ## [1] -0.1087984
+    ## [1] 0.06530634
     ## 
     ## $right$left$n
-    ## [1] 20
+    ## [1] 15
     ## 
     ## 
     ## $right$right
     ## $right$right$value
-    ## [1] 0.05573811
+    ## [1] 0.1580289
     ## 
     ## $right$right$n
-    ## [1] 61
+    ## [1] 50
 
 Under a `linear` leaf prior, the same function attaches each leaf’s
 slopes as `$beta`:
@@ -389,7 +383,7 @@ getPredictionsForTree <- function(tree, x) {
 getPredictionsForTree(treeOfInterest, bartFit$fit$data@x[1:5,])
 ```
 
-    ## [1] -0.10879844  0.05573811  0.05573811 -0.16037867 -0.16037867
+    ## [1] 0.009059387 0.158028894 0.158028894 0.009059387 0.065306342
 
 A `by` statement can be used to obtain all predictions for all trees.
 
@@ -404,25 +398,17 @@ same form as for `predict`.
 
 ``` r
 
-newData <- x[1:5,]
+newData <- data[1:5, ]
 newTrees <- extract(bartFit, "trees", newdata = newData, sampleNums = 3, treeNums = 1)
-```
-
-    ## Warning: 'test' is unnamed but 'x' had named predictors, matched to 'x' by
-    ## position (column 1 = 'X1', column 2 = 'X2', column 3 = 'X3', ...); supply
-    ## 'test' with column names to match by name instead
-
-``` r
-
 print(subset(newTrees, chain == 1))
 ```
 
     ##   chain sample tree n var       value
-    ## 1     1      3    1 5   5  0.17209902
-    ## 2     1      3    1 2  -1 -0.16037867
-    ## 3     1      3    1 3   2  0.41525829
-    ## 4     1      3    1 1  -1 -0.10879844
-    ## 5     1      3    1 2  -1  0.05573811
+    ## 1     1      3    1 5   2 0.464546706
+    ## 2     1      3    1 2  -1 0.009059387
+    ## 3     1      3    1 3   5 0.268885592
+    ## 4     1      3    1 1  -1 0.065306342
+    ## 5     1      3    1 2  -1 0.158028894
 
 ## Advanced Traversal
 
@@ -539,10 +525,10 @@ print(interactionData$hasInteraction)
     ##         descendant
     ## ancestor    X1    X2    X3    X4    X5    X6    X7    X8    X9   X10
     ##      X1  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
-    ##      X2  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+    ##      X2  FALSE FALSE FALSE FALSE  TRUE FALSE FALSE FALSE FALSE FALSE
     ##      X3  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X4  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
-    ##      X5  FALSE  TRUE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+    ##      X5  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X6  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X7  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X8  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE

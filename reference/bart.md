@@ -224,8 +224,9 @@ print(x, ...)
 
   An optional matrix or data frame with the same number of predictors as
   `data`, or `formula` in backward-compatibility mode; if column names
-  are present, a matching algorithm is used. Refused, by name, when
-  `formula` carries a
+  are present, a matching algorithm is used, and an unnamed matrix
+  against named predictors is matched by position with a warning.
+  Refused, by name, when `formula` carries a
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
   (‘Formula Terms’): an amplitude-coupled fit has no per-observation
   test replay in this version.
@@ -429,13 +430,12 @@ print(x, ...)
   is the same model as the factor response above, reproduced bit for
   bit. A row with \\n_i = 0\\ contributes nothing to the likelihood and
   still receives fitted probabilities, as `glm` fits a row of zero prior
-  weight, and the first such row in a session warns (class
-  `dbartsZeroTrialsWarning`); its `residuals` are the negated fitted
-  probabilities (observed 0, `glm`'s response residual there), and its
-  `extract(type = "loglik")` column is 0 in every draw, so drop those
-  columns before passing the matrix to loo, which reports an infinite
-  Pareto k for a constant column. The formula interface is supported
-  alongside the matrix one:
+  weight, and the first such row in a session warns; its `residuals` are
+  the negated fitted probabilities (observed 0, `glm`'s response
+  residual there), and its `extract(type = "loglik")` column is 0 in
+  every draw, so drop those columns before passing the matrix to loo,
+  which reports an infinite Pareto k for a constant column. The formula
+  interface is supported alongside the matrix one:
   `bart(formula, data, family = "multinomial")` with a factor (or
   character) left-hand side routes to the factor response above, and a
   `cbind(c1, ..., cK) ~ x` left-hand side (the same idiom `glm`'s
@@ -681,9 +681,9 @@ print(x, ...)
   applicable when \\y\\ is binary: under a family with no free residual
   scale (`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`, the hazard
   families, `"multinomial"`) it is inert and is diagnosed rather than
-  silently dropped (a `dbartsFamilyGatedWarning`), as are the retired
-  `resid.prior`, `sigdf` and `sigquant`, which such a family overwrites
-  with `fixed(1)` regardless. Same concept as `sigest` in
+  silently dropped, as are the retired `resid.prior`, `sigdf` and
+  `sigquant`, which such a family overwrites with `fixed(1)` regardless.
+  Same concept as `sigest` in
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md). It is
   the estimate a `chisq` residual prior's quantile is calibrated
@@ -988,8 +988,8 @@ print(x, ...)
 - keepTrees:
 
   A fit saved to disk and reloaded needs its sampler's state stored
-  first, with `fit$storeState()`; `predict` on a fit reloaded without it
-  refuses, naming `storeState()` (see
+  first, with `fit$fit$storeState()`; `predict` on a fit reloaded
+  without it refuses, naming `storeState()` (see
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   ‘Saving’ section). Logical; must be `TRUE` in order to use `predict`
   with the result of a fit. Note that for models with a large number of
@@ -1013,13 +1013,13 @@ print(x, ...)
 
   Passed through to
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md);
-  a formal on both `bartBT` and `bart`. A character string selecting the
-  precision of the internal running residual; see `dbartsControl`'s
-  `storage` for the full description. The default `"double"` reproduces
-  existing draws bitwise; `"single"` changes the numbers a fit returns -
-  the sampled values shift slightly - in exchange for a bandwidth-bound
-  speedup, and is currently supported only for continuous (gaussian)
-  responses with constant leaves.
+  a `bart` formal. A character string selecting the precision of the
+  internal running residual; see `dbartsControl`'s `storage` for the
+  full description. The default `"double"` reproduces existing draws
+  bitwise; `"single"` changes the numbers a fit returns - the sampled
+  values shift slightly - in exchange for a bandwidth-bound speedup, and
+  is currently supported only for continuous (gaussian) responses with
+  constant leaves.
 
 - updateState:
 
@@ -1106,9 +1106,8 @@ print(x, ...)
   `bartMultinomial`/`bartOrdinal`/`bartNegbin`/`bartHurdle` methods
   below for S3 generic compatibility, but not silently discarded: a name
   foreign to the method called is refused by name, and any other
-  unrecognized name warns (class `dbartsUnusedArgsWarning`). On `bart`
-  itself `...` is instead the transition release's retired-spelling
-  channel, as on
+  unrecognized name warns. On `bart` itself `...` is instead the
+  transition release's retired-spelling channel, as on
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md): a
   retired name (`power`, `base`, and `split.probs`, which ride
   `tree.prior`, built with `cgm()` or `dart()`; `resid.prior`, `sigdf`,
@@ -1127,7 +1126,8 @@ print(x, ...)
 - newdata:
 
   Test data for prediction. Obeys the same rules as `data`/`test` but
-  cannot be missing.
+  cannot be missing. An unnamed matrix given to a fit whose predictors
+  are named is matched by position, with a warning.
 
 - type:
 
@@ -1308,6 +1308,20 @@ not rely on `bart(seed = S)` and `set.seed(S); bart()` giving the same
 draws. They currently agree under R's default generator, but this is not
 guaranteed; only `seed` gives the same draws under any
 [`RNGkind`](https://rdrr.io/r/base/Random.html).
+
+**Warning classes.** Only the warnings a caller has a reason to catch or
+mute apart from the rest carry a class, and every such class inherits
+`dbartsWarning`: deprecations (`dbartsDeprecatedWarning`, which also
+inherits base R's `deprecatedWarning`; see
+[`dbarts-deprecated`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)),
+the slow-count warning of a monotone fit (`dbartsSlowCountWarning`; see
+[`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)),
+and warnings that a supplied input was replaced by another
+(`dbartsFallbackWarning`; `dbartsSigmaFallbackWarning` and
+`dbartsSparseSigmaFallbackWarning` for the starting `sigma`;
+`dbartsGPFallbackWarning` for Gaussian-process leaves, see
+[`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)).
+Every other warning is an ordinary one, matched by its text.
 
 **Chains and `n.threads`.** Results never depend on the thread count: a
 fit, its `predict`, and
@@ -1840,7 +1854,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002006
+#> total seconds in loop: 0.001383
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1889,7 +1903,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001891
+#> total seconds in loop: 0.001756
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

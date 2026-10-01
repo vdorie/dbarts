@@ -75,17 +75,15 @@ dbarts(
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) vector
   `y.train`. The response, however supplied, is checked for
   near-degeneracy at double precision and warns when too few distinct
-  values remain to fit against (class
-  `dbartsDegenerateResponseWarning`).
+  values remain to fit against.
 
 - test:
 
   An optional matrix or data frame with the same number of predictors as
   `data`, or `formula` in backwards compatibility mode. If column names
-  are present, a matching algorithm is used; when `test`'s columns
-  cannot all be matched by name to `data`'s, they are matched by
-  position instead, with a warning (class
-  `dbartsPositionalArgsWarning`).
+  are present, a matching algorithm is used; when both are named,
+  `test`'s names must cover `data`'s (an error otherwise); when only one
+  is named, columns are matched by position instead, with a warning.
 
 - subset:
 
@@ -108,13 +106,13 @@ dbarts(
   as observation counts and so requires positive integers (its
   Polya-Gamma latent for a count \\w\\ is a sum of \\w\\ unit draws). A
   weight of 0 is honored but adds no information while still costing
-  computation, and is warned about (class `dbartsIgnoredArgWarning`)
-  unless every weight is 0 or 1 - a vector of nothing but those states
-  which rows are in the data set rather than carrying an inert value
-  among real weights, and is the active-row mask outright for a
-  `"probit"` or `"ordinal"` fit; the same class covers `weights` going
-  unused for `test` - when the model is not specified as a formula, and
-  when `weights` names a column `test` does not carry.
+  computation, and is warned about unless every weight is 0 or 1 - a
+  vector of nothing but those states which rows are in the data set
+  rather than carrying an inert value among real weights, and is the
+  active-row mask outright for a `"probit"` or `"ordinal"` fit; the same
+  class covers `weights` going unused for `test` - when the model is not
+  specified as a formula, and when `weights` names a column `test` does
+  not carry.
 
 - offset:
 
@@ -529,12 +527,11 @@ dbarts(
   the \\K\\ category probabilities, summing to one across the second
   dimension. A row with no trial contributes nothing to the likelihood
   and still receives fitted probabilities, as `glm` fits a row of zero
-  prior weight; the first such row a sampler takes in a session warns
-  (class `dbartsZeroTrialsWarning`). Like probit there is no residual
-  scale to draw, and weights are not supported: an integer case weight
-  is already row-wise replication in the count response, and a
-  non-integer one has no exact augmentation sampler. The sampler is an
-  ordinary
+  prior weight; the first such row a sampler takes in a session warns.
+  Like probit there is no residual scale to draw, and weights are not
+  supported: an integer case weight is already row-wise replication in
+  the count response, and a non-integer one has no exact augmentation
+  sampler. The sampler is an ordinary
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   whose response and per-category offsets are mutable through
   `$setCounts`, `$setCategoryOffset` and `$setCategoryTestOffset`; see

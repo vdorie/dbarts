@@ -177,7 +177,7 @@ The residual priors chisq and fixed are what a family
       not a Gaussian process over the leaves that took it - every leaf
       evaluation is counted. The counts ride the fit as <code>gp.fallback</code>
       (a named pair, <code>evaluations</code> and <code>fallbacks</code>), and a run in
-      which more than a quarter of evaluations fell back warns once, giving
+      which more than a quarter of evaluations fell back warns once (class <code>dbartsGPFallbackWarning</code>), giving
       the share: at the default cap on a design of any size that is the
       normal outcome, not an error, and the warning is the notice that the
       cap rather than the kernel is doing the modeling. The remedies are the
@@ -318,11 +318,16 @@ The residual priors chisq and fixed are what a family
 <span class="r-in"><span><span class="va">y.gp</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Trig.html" class="external-link">sin</a></span><span class="op">(</span><span class="fl">2</span> <span class="op">*</span> <span class="va">pi</span> <span class="op">*</span> <span class="va">x1</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0</span>, <span class="fl">0.2</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">df.gp</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="va">x1</span>, <span class="va">x2</span>, <span class="va">y.gp</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">fit.gp</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y.gp</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span>, <span class="va">df.gp</span>,</span></span>
-<span class="r-in"><span>                 leaf.prior <span class="op">=</span> <span class="fu">gp</span><span class="op">(</span><span class="st">"x1"</span>, max.leaf.size <span class="op">=</span> <span class="fl">30L</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                 leaf.prior <span class="op">=</span> <span class="fu">gp</span><span class="op">(</span><span class="st">"x1"</span>, max.leaf.size <span class="op">=</span> <span class="fl">52L</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>                 control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.trees <span class="op">=</span> <span class="fl">10L</span>, n.chains <span class="op">=</span> <span class="fl">1L</span>,</span></span>
 <span class="r-in"><span>                                          n.threads <span class="op">=</span> <span class="fl">1L</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">samples.gp</span> <span class="op">&lt;-</span> <span class="va">fit.gp</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="fl">20L</span>, <span class="fl">20L</span><span class="op">)</span></span></span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>35.6% of Gaussian-process leaf evaluations fell back to a constant leaf because the leaf held more than 'max.leaf.size' observations, so most of this fit is not a Gaussian process; raise the cap with gp(max.leaf.size = ), which costs roughly ten times per doubling, or use FEWER trees, which grows deeper trees and so smaller leaves</span>
+<span class="r-in"><span><span class="co">## the cap of 52 observations per leaf sends some leaves to the constant</span></span></span>
+<span class="r-in"><span><span class="co">## fallback (about a tenth of the evaluations here), counted in gp.fallback;</span></span></span>
+<span class="r-in"><span><span class="co">## a warning comes only when more than a quarter fall back</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">samples.gp</span>, <span class="st">"gp.fallback"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> evaluations   fallbacks </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        2285         260 </span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
