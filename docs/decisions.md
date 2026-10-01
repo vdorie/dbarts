@@ -1294,6 +1294,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B185]
 test-capi.R keeps compiling its small C consumer of the shipped header with R CMD SHLIB (via R.home("bin")) and loading it during R CMD check, CRAN included; it skips only when no compiler or make is found, and a compile error of the consumer fails the test instead of skipping it. The CRAN policy bans neither compiling nor system2 in tests; Writing R Extensions assumes compiling in tests (section 1.1.3) and asks for R.home("bin") (section 1.6); inline, cpp11 and pkgbuild compile in their CRAN-run tests, and Rcpp gates its compile tests off for suite size, not a rule. The alternatives were running it only at home (at_home), and keeping one consumer build on CRAN with the handshake builds at home. The shipped header is then checked under CRAN's own compilers, sanitizer and valgrind flavors, at a few seconds of check time. The maintainer on 2026-10-01, after asking for Writing R Extensions and public R-package-devel discussions to be checked: "Use option 1."
 Record: docs/decisions.md. Marked: blank. [dec-B186]
 
+**The configure-stub tinytest is deleted; the lint job's check remains**
+inst/tinytest/test-configure-removed-flags.R, which ran ./configure with each removed 0.9-x configure option and without any, is deleted: it could not find configure under any R CMD check and so tested nothing on CRAN or in CI, while lint.yaml's configure-stubs job runs the same four assertions on every push. The alternative was keeping it gated on at_home for local runs. The maintainer on 2026-10-01: "Oh, you can delete it."
+Record: docs/decisions.md. Marked: blank. [dec-B187]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
