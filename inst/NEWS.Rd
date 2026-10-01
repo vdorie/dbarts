@@ -273,13 +273,19 @@
             \code{s.train} and \code{s.test}. For gaussian and
             \code{"aft"} responses.
       \item Constraints. \code{monotone = c(x1 = "increasing", x2 =
-            "decreasing")} makes the fit monotone in named predictors
-            (Chipman et al. 2022);
+            "decreasing")}, or \code{1}, \code{-1} and \code{0} by name
+            or position, makes the fit monotone in those predictors
+            (Chipman et al. 2022). \code{\link{monotone}(directions,
+            prior = )} also chooses the prior: \code{"joint"}, the
+            default, conditions the trees and their leaf values on
+            monotonicity together; \code{"leaf"} keeps the ordinary tree
+            prior and restricts only the leaf values, at a cost in run
+            time with very few trees.
             \code{interactions = \link{interactions}(max.order = , forbid =
-            , groups = )} limits which predictors may interact; and
+            , groups = )} limits which predictors may interact, and
             \code{blocks = \link{blocks}(...)} makes the fit an exact sum
-            of functions of separate predictor groups. On \code{bart} and
-            \code{dbarts}.
+            of functions of separate predictor groups. All three on
+            \code{bart} and \code{dbarts}.
       \item Predictors. Factors split on level subsets, with up to 65535
             levels; missing predictor values are modelled in place, each
             split learning which way they go (Twala et al. 2008). Sparse
