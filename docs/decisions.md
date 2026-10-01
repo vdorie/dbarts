@@ -1250,6 +1250,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B174]
 pdbart() and pd2bart() evaluate a factor predictor at every level by default, accept and report levels by name in levs and the results, and plot one point per level instead of a line, as pdp, iml and DALEX do. Until now they took quantiles of the 0-based category codes, which could error between codes or skip levels (four of fifteen in a probe) and labelled results by code. The alternatives were refusing factor predictors and pointing to predict(), and every code labelled by name with the line plot kept. The maintainer on 2026-10-01: "Treat factors as factors." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B175]
 
+**xbart estimates the default sigma per fold**
+When sigest is not given, xbart() estimates it for each fold from that fold's training rows (one linear model per fold), so no fold's prior calibration reads its held-out responses. Until now, and in 0.9-34, it was estimated once on all rows. The alternative was keeping the single estimate and documenting the leak. Every default xbart result moves slightly and its reproducibility snapshot is re-recorded. The implementation must not repeat an expensive estimate per fold where the data are degenerate (a rank-deficient or fallback estimate, such as the sparse or marginal sigma fallbacks, recomputed for every fold and repetition). The maintainer on 2026-10-01: "Estimate sigma per fold from that fold's training rows. We might need to be careful around degeneracies so we don't repeat expensive calls over and over." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B176]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
