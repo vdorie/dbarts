@@ -263,6 +263,9 @@ Rulings, 2026-09-29:
   monotone(c(x1 = "increasing", x2 = "decreasing"), prior = "leaf"). Not chosen: directions as named
   arguments with prior = reserved, which collides with a predictor named "prior", and accepting both forms.
   "Use option 1."
+- Default (dec-B151, 2026-09-30): "joint". "I think we'll want to use \"joint\" since it seems
+  indistinguishable." Not chosen: "leaf". Its tree prior, cgm()'s defaults or mBART's base 0.25 and power 0.8
+  whenever a constraint is present, is settled by the rule in "Tree prior under joint" below: "Measure first."
 
 ## Default: feel study
 
@@ -500,6 +503,32 @@ with the tree count. With "joint" at cgm() defaults a user sees nearly the same 
 on the constrained predictor and a gentler prior rise. A "joint" default tuned as mBART does would feel
 different from both: sharper, fewer steps, tighter intervals that under-cover smooth truths at 50 trees, and a
 tree prior that differs from the one users get without a constraint.
+
+### Tree prior under "joint"
+
+The feel study's one design (a constrained, a free and a noise predictor) left the tree prior under "joint"
+open: at 200 trees mBART's cgm(power = 0.8, base = 0.25) had the lowest error and best score on every truth,
+with intervals 30-38% narrower, but at 50 trees it under-covered the ramp (0.78) and the interaction (0.76)
+and fit the interaction worse. This second study widens the designs and decides by a rule fixed before it
+runs.
+
+- Arms: "joint" under cgm() (base .95, power 2); "joint" under cgm(power = 0.8, base = 0.25); the
+  unconstrained fit under cgm() as reference. Tree counts 200 and 50.
+- Designs, predictors uniform on [0, 1]^p:
+  - friedman: p 10, f = 10 sin(pi x1 x2 / 2) + 20 (x3 - 0.5)^2 + 10 x4 + 5 x5, increasing in x1, x2, x4 and
+    x5 (constrained), x3 free, x6-x10 noise;
+  - additive: p 10, f = 2 x1 + 1{x2 > 0.5} + exp(2 x3) / e^2 - sin(2 pi x4), increasing in x1, x2 and x3
+    (constrained), x4 free, x5-x10 noise;
+  - interaction: p 5, f = x1 (1 + 4 x2) + x1 x3 + sin(2 pi x2), increasing in x1 (constrained), x2 and x3
+    free, x4 and x5 noise.
+- Noise sd a third of the truth's sd, and equal to it; n 200 and 2000; 8 replicates; one chain of 500 burn-in
+  and 500 kept sweeps. Measures as in the feel study's fits: RMSE of the posterior mean against the truth and
+  95% interval coverage on 2000 held-out points from the design's law, held-out log predictive score, interval
+  width, varcount shares, time per sweep.
+- Rule: mBART's values become the tree prior under every monotone fit if (a) at 200 trees, in every design, n
+  and noise cell, their RMSE and score are no worse than cgm()'s defaults beyond two paired standard errors,
+  and (b) their 95% coverage is at least 0.90 in every cell at 200 and 50 trees. Otherwise cgm()'s defaults
+  stay.
 
 ## Counting: algorithm
 

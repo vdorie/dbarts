@@ -193,7 +193,7 @@ items
     multi-split trees and the monotone SBC arm as verification. Design
     first; the normalizer counts the leaf orderings the constraints admit,
     and the design bounds its cost with several constrained predictors.
-    Planned in docs/plans/monotone-exact-birth-death.md (dec-B145..B150);
+    Planned in docs/plans/monotone-exact-birth-death.md (dec-B145..B151);
     stages 1 (redraw, empty leaves, reachability), 2 (the monotone()
     constructor and vocabulary) and 3 (the counter, not wired in) landed;
     3b (leaf geometry on factor and missing-value axes), 4 (the exact move
@@ -201,9 +201,10 @@ items
     landed; the checkpoint fired its trigger, so the Barker hybrid
     (docs/design/monotone-barker-hybrid.md) waits for the maintainer.
     Stage 6's equivalence scenarios, the successive-conditional check and
-    the SBC arms landed (both 20-tree arms pass), and the feel study ran;
-    the default (dec-B148's order) waits for the maintainer, then step 12's
-    docs; 4b waits for the hybrid call.
+    the SBC arms landed (both 20-tree arms pass), and the feel study ran.
+    The default is "joint" (dec-B151); its tree prior waits for the plan's
+    second study ("Tree prior under joint"), then step 12's docs; the hybrid
+    and 4b wait for the maintainer's call.
   monotone-factor-direction-host: a host that hands the engine a monotone
     direction on an unordered-factor column gets an unconstrained sampler
     without a word: the facade's monotoneConstraintIsActive returns false
