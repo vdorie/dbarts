@@ -302,8 +302,8 @@ countWarnings <- function(expr) {
   count <- 0L
   withCallingHandlers(
     expr,
-    dbartsPositionalArgsWarning = function(w) {
-      count <<- count + 1L
+    warning = function(w) {
+      count <<- count + grepl("by position", conditionMessage(w))
       invokeRestart("muffleWarning")
     }
   )

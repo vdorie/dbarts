@@ -125,7 +125,7 @@ expect_error(
 # otherwise inert in '...' - warn once rather than silently discard it
 warningCount.bogus <- countWarnings(
   predBogus <- predict(bart2FitKT, testData$x, bogus = 1),
-  "dbartsUnusedArgsWarning"
+  pattern = "will be disregarded"
 )
 expect_equal(warningCount.bogus, 1L)
 expect_true(!is.null(predBogus))
@@ -139,7 +139,6 @@ expect_identical(
   conditionMessage(warnings.bogus[[1L]]),
   "extra argument 'bogus' passed to predict on a bart fit will be disregarded"
 )
-expect_inherits(warnings.bogus[[1L]], "dbartsWarning")
 # every unknown name is named, in one warning
 warnings.twoBogus <- captureWarnings(
   predict(bart2FitKT, testData$x, bogus = 1, alsoBogus = 2)
@@ -168,7 +167,7 @@ throwawayFit <- bart2FitKT
 class(throwawayFit) <- c("dbartsThrowawaySubclass", class(throwawayFit))
 warningCount.subclass <- countWarnings(
   predSubclass <- predict(throwawayFit, testData$x, extra = "unused"),
-  "dbartsUnusedArgsWarning"
+  pattern = "will be disregarded"
 )
 expect_equal(warningCount.subclass, 1L)
 expect_true(!is.null(predSubclass))

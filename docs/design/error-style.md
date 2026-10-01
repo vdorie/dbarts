@@ -609,77 +609,51 @@ wording needed no change to already match the more common external idiom for
 this family of refusal. **R14 is CONFIRMED unchanged**, reinforced by the
 same data set that left R13 SILENT-KEPT.
 
-## R15. Warning classes — every `warning()` carries a class under `dbartsWarning` — RULED
+## R15. Warning classes - only the warnings a caller has a reason to catch carry one - RULED
 
-Ruled by the project lead 2026-09-02: every warning the package raises is
-signaled as `warning(warningCondition(<message>, class = c("dbarts<Thing>Warning",
-"dbartsWarning")))`, the shape already in use for the family-gating,
-unused-`...`-argument, and sigma-fallback warnings
-([`warnFamilyGatedArgs`](../../R/utility.R), [`warnUnusedDots`](../../R/utility.R),
-[`estimateSigmaFromLinearModel`](../../R/utility.R)). A bare, unclassed `warning()`
-is a defect under this rule wherever `R/` can reach it. `<Thing>` names the
-CONDITION being reported, not the call site: two sites that report the same
-condition through different messages share one class, the way a sampler
-that is not keeping trees and a `bart` fit that was not kept both report
-"the input supplied cannot serve this call as given, so one was
-substituted" under one `dbartsFallbackWarning`
-([`pdbart.prologue`](../../R/partialDependence.R)).
-Conversely, sites a caller would want to catch apart do not share a class
-however similar their prose, and promoting one to an error with
-`options(warn = 2)` should not promote the others. A subclass is for a
-condition that is honestly a narrower case of its parent's, the way
-`dbartsSparseSigmaFallbackWarning` narrows `dbartsSigmaFallbackWarning`
-([`estimateSigmaFromLinearModel`](../../R/utility.R)).
+Ruled by the maintainer 2026-10-01 (dec-B161), after a survey of how
+base R and the model-fitting packages classify warnings: base R classes the
+few warnings a caller can act on (`.Deprecated()`'s `deprecatedWarning`),
+and survival, Matrix, mgcv, nlme, lme4, MASS, rstan, brms, glmnet, ranger,
+BART and bartMachine class none. These warnings carry a class, signaled as
+`warning(warningCondition(<message>, class = c("dbarts<Thing>Warning",
+"dbartsWarning")))`:
 
-The message body is unaffected by this rule and keeps following R1-R6
-exactly as an unclassed message did - the class is metadata a caller can
-`tryCatch`/`withCallingHandlers` on by name, not a rewording. The R-side
-corpus drops R's own "In `f(...)`:" call prefix the way it always has;
-classing a warning changes neither that nor anything else about how the
-message prints.
+- deprecations and retired spellings: `dbartsDeprecatedWarning`, whose class
+  vector also carries base R's `deprecatedWarning`, so
+  `suppressWarnings(classes = "deprecatedWarning")` reaches it;
+- the monotone slow-count warning: `dbartsSlowCountWarning`;
+- a fallback that reports a substituted input: `dbartsFallbackWarning`
+  (the input supplied cannot serve the call, so another was used),
+  `dbartsSigmaFallbackWarning` and its narrower case
+  `dbartsSparseSigmaFallbackWarning`, and `dbartsGPFallbackWarning`.
 
-Each class is documented with one plain sentence on the help page of the
-exported function whose call raises it, placed where that page already
-discusses the behavior in question, following the precedent
-`dbartsFamilyGatedWarning` and `dbartsUnusedArgsWarning` set: "... warns
-(class `dbartsXWarning`)" folded into existing prose, no dedicated help
-topic. A warning raised inside an internal helper is documented on the
-exported function a user actually calls to reach it; a helper no current
-call site can make an exported function reach is still classed, just left
-undocumented, rather than inventing help text for behavior no one can
-trigger.
+Every other warning is a plain `warning()`, or a plain `warnOnce()` with a
+string, matched by its text; a test checks that such a warning fires by
+message. `dbartsWarning` stays as the common parent of the classed ones
+(dec-B162), so a caller can mute or catch every classed dbarts warning in
+one place. `<Thing>` names the CONDITION reported, not the call site: sites
+that report the same condition share one class. A subclass is for a
+condition that is honestly a narrower case of its parent's. A new class needs
+a reason of the kind above, and is documented with one plain sentence on the
+help page of the exported function whose call raises it.
 
-`warnOnce`'s session-scoped key ([`onceWarnState`](../../R/utility.R)) is a
-separate mechanism from the class, not a substitute for one: the key
-dedupes repeated firings of the same warning inside one session (a Gibbs
-loop calling `$setResponse` every sweep, say), while the class is what a
-caller matches on regardless of how many times, or how few, the warning
-actually fires. A `warnOnce` call site is classed one of two ways: it passes
-the message pieces with `class = "dbarts<Thing>Warning"` (the form new sites
-use; `warnOnce` builds the condition and adds `dbartsWarning`), or it passes
-one ready-made classed `warningCondition`. With neither, `warnOnce` refuses.
-A `dbartsDeprecatedWarning` also carries base R's `deprecatedWarning`, so
-`suppressWarnings(classes = "deprecatedWarning")` reaches it.
+`warnOnce`'s session-scoped key ([`onceWarnState`](../../R/utility.R))
+dedupes repeated firings inside one session; it is independent of the class.
+A `warnOnce` site passes a plain message, or `class = "dbarts<Thing>Warning"`
+for one of the classed kinds above (`warnOnce` builds the condition and adds
+`dbartsWarning`), or one ready-made classed `warningCondition`.
 
-Inventory, one representative site per class (existing classes carried
-over unchanged):
+Inventory, one representative site per class:
 
 | class | represented by |
 | --- | --- |
-| `dbartsFamilyGatedWarning` | [`warnFamilyGatedArgs`](../../R/utility.R) |
-| `dbartsUnusedArgsWarning` | [`warnUnusedDots`](../../R/utility.R) |
+| `dbartsDeprecatedWarning` | [`warnOnce`](../../R/utility.R) at every retired-spelling site in the tombstone registry |
+| `dbartsSlowCountWarning` | [`warnOnSlowCount`](../../R/bartcore.R) |
+| `dbartsFallbackWarning` | [`pdbart.prologue`](../../R/partialDependence.R) |
 | `dbartsSigmaFallbackWarning` | [`estimateSigmaFromLinearModel`](../../R/utility.R) |
 | `dbartsSparseSigmaFallbackWarning` | [`estimateSigmaFromLinearModel`](../../R/utility.R) |
-| `dbartsPositionalArgsWarning` | [`dbartsSampler$setResponse`](../../R/dbarts.R) |
-| `dbartsIgnoredArgWarning` | [`dbartsSampler$printTrees`](../../R/dbarts.R) |
-| `dbartsFallbackWarning` | [`pdbart.prologue`](../../R/partialDependence.R) |
-| `dbartsDegenerateResponseWarning` | [`dbartsData`](../../R/data.R) |
-| `dbartsDuplicateNameWarning` | ["\[<-.lval"](../../R/multipleAssignment.R) |
-| `dbartsZeroTrialsWarning` | [`warnZeroTrials`](../../R/data.R) |
-| `dbartsDeprecatedWarning` | [`warnOnce`](../../R/utility.R) at every retired-spelling site (`R/tombstones.R`) |
-| `dbartsExcessThreadsWarning` | [`dbarts`](../../R/dbarts.R) |
 | `dbartsGPFallbackWarning` | [`warnOnGPFallback`](../../R/bartcore.R) |
-| `dbartsSlowCountWarning` | [`warnOnSlowCount`](../../R/bartcore.R) |
 
 ---
 

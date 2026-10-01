@@ -1410,7 +1410,7 @@ check-rc-codoc OK. The tour and the plans INDEX are stamped current at
 
 ### Every warning classed under dbartsWarning, rule R15 (be6e372b, dbb58595, 2026-09-02)
 
-Rule R15 of [R15. Warning classes — every warning() carries a class under dbartsWarning — RULED](../design/error-style.md#r15-warning-classes--every-warning-carries-a-class-under-dbartswarning--ruled), ruled
+Rule R15 of [R15. Warning classes - only the warnings a caller has a reason to catch carry one - RULED](../design/error-style.md#r15-warning-classes---only-the-warnings-a-caller-has-a-reason-to-catch-carry-one---ruled), ruled
 2026-09-02: every warning the package raises is signaled as a classed
 condition, `c("dbarts<Thing>Warning", "dbartsWarning")`, where Thing names
 the condition reported and sites reporting one condition share a class;

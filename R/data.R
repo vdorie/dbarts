@@ -693,7 +693,7 @@ preparePredictRows <- function(newdata, x.train, na.action, channels = NULL) {
 suppressPositionalWarnings <- function(expr) {
   withCallingHandlers(
     expr,
-    dbartsPositionalArgsWarning = function(w) invokeRestart("muffleWarning")
+    warning = function(w) invokeRestart("muffleWarning")
   )
 }
 
@@ -1010,11 +1010,9 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
         "'",
         collapse = ", "
       )
-      # shares dbartsPositionalArgsWarning with $setResponse's positional
-      # warning and the massign position-only site: all three report the
-      # same condition, columns/arguments matched by position rather than
-      # by name
-      warning(warningCondition(
+      # suppressPositionalWarnings mutes every warning this function raises,
+      # all of which report columns matched by position rather than by name
+      warning(
         paste0(
           "'test' is unnamed but the fit's predictors are named, matched by ",
           "position (",
@@ -1022,16 +1020,16 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
           if (numPredictors > shown) ", ..." else "",
           "); supply 'test' with column names to match by name instead"
         ),
-        class = c("dbartsPositionalArgsWarning", "dbartsWarning")
-      ))
+        call. = FALSE
+      )
     } else if (
       (!xIsNamed && testIsNamed) ||
         length(unique(predictorNames)) != length(predictorNames)
     ) {
-      warning(warningCondition(
+      warning(
         "'x' and 'test' are not both named; columns of 'test' will be matched by position",
-        class = c("dbartsPositionalArgsWarning", "dbartsWarning")
-      ))
+        call. = FALSE
+      )
     } else if (xIsNamed && testIsNamed) {
       matchIndices <- match(predictorNames, colnames(x.test))
       if (any(is.na(matchIndices))) {
@@ -1796,16 +1794,14 @@ warnZeroTrials <- function(counts) {
   if (numEmpty > 0L) {
     warnOnce(
       "multinomialZeroTrials",
-      warningCondition(
-        sprintf(
-          paste0(
-            "multinomial count rows with zero trials (%d of %d) contribute ",
-            "nothing to the likelihood and still receive fitted probabilities"
-          ),
-          numEmpty,
-          nrow(counts)
+
+      sprintf(
+        paste0(
+          "multinomial count rows with zero trials (%d of %d) contribute ",
+          "nothing to the likelihood and still receive fitted probabilities"
         ),
-        class = c("dbartsZeroTrialsWarning", "dbartsWarning")
+        numEmpty,
+        nrow(counts)
       )
     )
   }
@@ -1970,10 +1966,10 @@ dbartsData <- function(
         !basesIsMissing ||
         !countsIsMissing
     ) {
-      warning(warningCondition(
+      warning(
         "if data supplied as dbartsData, remaining arguments are ignored",
-        class = c("dbartsIgnoredArgWarning", "dbartsWarning")
-      ))
+        call. = FALSE
+      )
     }
     return(formula)
   }
@@ -2711,10 +2707,10 @@ dbartsData <- function(
   weights.test <- NULL
   if (!is.null(x.test) && !is.null(matchedCall$weights)) {
     if (!is.formula(formula)) {
-      warning(warningCondition(
+      warning(
         "'weights' are ignored for test data when model is not specified as a formula; this only impacts extracting samples from the posterior predictive distribution of the test data",
-        class = c("dbartsIgnoredArgWarning", "dbartsWarning")
-      ))
+        call. = FALSE
+      )
     } else {
       testFormula <- formula
       lhs <- testFormula[[2L]]
@@ -2729,10 +2725,10 @@ dbartsData <- function(
         error = function(e) e
       )
       if (inherits(tryResult, "error")) {
-        warning(warningCondition(
+        warning(
           "weights specified but not found in test data - ignoring",
-          class = c("dbartsIgnoredArgWarning", "dbartsWarning")
-        ))
+          call. = FALSE
+        )
       } else {
         weights.test <- testFrame[["(weights)"]]
       }
@@ -2832,7 +2828,7 @@ dbartsData <- function(
   yRange <- diff(range(y))
   yScale <- max(abs(y))
   if (is.null(counts) && yScale > 0 && yRange / yScale < 1e-10) {
-    warning(warningCondition(
+    warning(
       paste0(
         "response values are indistinguishable, or nearly so, at double ",
         "precision (",
@@ -2841,8 +2837,8 @@ dbartsData <- function(
         length(y),
         " observations); center and/or rescale the response before fitting"
       ),
-      class = c("dbartsDegenerateResponseWarning", "dbartsWarning")
-    ))
+      call. = FALSE
+    )
   }
 
   sparseAllMissingCheck <- function(x.sparse) {

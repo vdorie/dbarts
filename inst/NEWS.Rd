@@ -196,10 +196,17 @@
             is a 1 x samples matrix rather than a vector.
             \code{extract(type = "trees")} always has a \code{chain}
             column.
-      \item Every warning the package raises from its R code has a class
-            inheriting from \code{dbartsWarning}, documented on the help page of the
-            function that raises it, so it can be caught or muted without
-            matching its text. \code{bart} now warns when a supplied
+      \item The warnings a caller has a reason to catch apart from the rest
+            carry a class inheriting from \code{dbartsWarning}, so they can
+            be caught or muted without matching their text: deprecations
+            (\code{dbartsDeprecatedWarning}, also a base R
+            \code{deprecatedWarning}), the slow-count warning of a monotone
+            fit (\code{dbartsSlowCountWarning}), and warnings that a supplied
+            input was replaced by another (\code{dbartsFallbackWarning},
+            \code{dbartsSigmaFallbackWarning},
+            \code{dbartsSparseSigmaFallbackWarning} and
+            \code{dbartsGPFallbackWarning}). Every other warning is an
+            ordinary one. \code{bart} now warns when a supplied
             \code{sigest} has no effect because the family fixes the
             residual scale; 0.9-34 ignored it silently.
     }

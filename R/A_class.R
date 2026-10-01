@@ -740,10 +740,10 @@ methods::setValidity("dbartsData", function(object) {
       # rather than an inert value among real weights, and a probit or
       # ordinal fit reads such a vector as its active-row mask outright, so
       # calling the zeros ignored would be false as well as unwanted
-      warning(warningCondition(
+      warning(
         "'weights' of 0 will be ignored but increase computation time",
-        class = c("dbartsIgnoredArgWarning", "dbartsWarning")
-      ))
+        call. = FALSE
+      )
     }
   }
   if (!is.null(object@offset) && length(object@offset) != numObservations) {

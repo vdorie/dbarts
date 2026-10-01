@@ -371,9 +371,9 @@ warnings.setResponsePositionalClass <- captureWarnings(
   sampler$setResponse(yForResponse, TRUE)
 )
 expect_equal(length(warnings.setResponsePositionalClass), 1L)
-expect_inherits(
-  warnings.setResponsePositionalClass[[1L]],
-  "dbartsPositionalArgsWarning"
+expect_match(
+  conditionMessage(warnings.setResponsePositionalClass[[1L]]),
+  "second argument to .setResponse"
 )
 # a named call never warns, whichever name is used
 warnings.setResponseNamed <- captureWarnings(

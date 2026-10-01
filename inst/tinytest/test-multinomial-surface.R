@@ -481,8 +481,7 @@ expect_warning(
     n.burn = 5L,
     verbose = FALSE
   ),
-  "zero trials",
-  class = "dbartsZeroTrialsWarning"
+  "zero trials"
 )
 expect_error(
   bart(x2, badCounts[, 1L, drop = FALSE], family = "multinomial"),

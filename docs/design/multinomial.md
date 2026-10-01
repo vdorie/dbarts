@@ -233,7 +233,7 @@ both supported (below).
   equivalence baseline; K defaults to one past the largest code on the
   label entry and to the column count on the count entry. An empty row
   (n_i = 0) is accepted at creation and through $setCounts, and the first
-  in a session warns (class dbartsZeroTrialsWarning). Its likelihood
+  in a session warns. Its likelihood
   factor is the constant 1 - PG(0, .) is the point mass at 0 and
   y_ik - n_i/2 = 0 - so the coupling composes it into its global
   active-row mask ([Per family](active-rows-mask.md#per-family)): no

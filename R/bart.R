@@ -2954,7 +2954,9 @@ bart2Hurdle <- function(
   # raised it for the same n.threads and n.chains
   positive <- withCallingHandlers(
     eval(positiveCall, callingEnv),
-    dbartsExcessThreadsWarning = function(w) invokeRestart("muffleWarning")
+    warning = function(w) {
+      if (isExcessThreadsWarning(w)) invokeRestart("muffleWarning")
+    }
   )
 
   result <- list(
@@ -3530,15 +3532,18 @@ bartBT <- function(
   # missing predictors; this door adds no capability.
   # dbarts() warns about a thread budget above the chain count in the modern
   # door's n.threads/n.chains; this door's caller typed nthread/nchain, so the
-  # warning is re-issued under those names, same class and same numbers
+  # warning is re-issued under those names, same numbers
   # this door has no 'family' formal, so the "auto" resolution dbarts()
   # announces for the modern door is muted here
   sampler <- tryCatch(
     withCallingHandlers(
       do.call(dbarts::dbarts, args, envir = parent.frame(1L)),
       dbartsAutoFamilyMessage = function(m) invokeRestart("muffleMessage"),
-      dbartsExcessThreadsWarning = function(w) {
-        warning(warningCondition(
+      warning = function(w) {
+        if (!isExcessThreadsWarning(w)) {
+          return()
+        }
+        warning(
           sprintf(
             paste0(
               "nthread (%d) exceeds nchain (%d); tree sampling uses at ",
@@ -3549,8 +3554,8 @@ bartBT <- function(
             control@n.chains,
             control@testFitParallelCutoff
           ),
-          class = c("dbartsExcessThreadsWarning", "dbartsWarning")
-        ))
+          call. = FALSE
+        )
         invokeRestart("muffleWarning")
       }
     ),

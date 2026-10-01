@@ -29,26 +29,24 @@ massign <- structure(NA, class = "lval")
     # a name bound more than once on one side is an ambiguous-match
     # condition, distinct from the position-only fallback below - shared
     # with the RHS duplicate case further down, not with it
-    warning(warningCondition(
+    warning(
       paste0(
         "names on left-hand-side of assignment appear more than once: ",
         paste0(varNamesNoSkip[duplicateVarNames], collapse = ", "),
         "; result undefined"
       ),
-      class = c("dbartsDuplicateNameWarning", "dbartsWarning")
-    ))
+      call. = FALSE
+    )
   }
 
   ## for unnamed rhs, we go entirely by position
   if (is.null(valueNames)) {
     if (any(argNames != "")) {
-      # shares dbartsPositionalArgsWarning with $setResponse's positional
-      # warning and the data.R test-column-by-position sites: all report
-      # the same condition, matched by position rather than by name
-      warning(warningCondition(
+      # matched by position rather than by name
+      warning(
         "right-hand-side of assignment is unnamed; using position only",
-        class = c("dbartsPositionalArgsWarning", "dbartsWarning")
-      ))
+        call. = FALSE
+      )
     }
 
     for (i in seq_along(varNames)) {
@@ -85,14 +83,14 @@ massign <- structure(NA, class = "lval")
     }
 
     if (numMatches > 1L) {
-      warning(warningCondition(
+      warning(
         paste0(
           "'",
           valueName,
           "' present multiple times in right-hand-side of assignment; only first will be used"
         ),
-        class = c("dbartsDuplicateNameWarning", "dbartsWarning")
-      ))
+        call. = FALSE
+      )
       selectionIndex <- which.max(sel)
       sel <- logical(length(value))
       sel[selectionIndex] <- TRUE

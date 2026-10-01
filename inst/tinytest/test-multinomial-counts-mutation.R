@@ -310,8 +310,7 @@ emptyKeyEnv <- dbarts:::onceWarnState
 emptyKeyEnv[["multinomialZeroTrials"]] <- NULL
 expect_warning(
   sampler.mn$setCounts(counts.empty),
-  "zero trials",
-  class = "dbartsZeroTrialsWarning"
+  "zero trials"
 )
 expect_identical(sampler.mn$data@counts, counts.empty)
 expect_silent(sampler.mn$setCounts(countsA))

@@ -2735,9 +2735,9 @@ predictForeignReasons <- list(
 # pointing the caller at a typo. warnUnusedDots warns on it (never errors,
 # so a subclass method forwarding its own extra formals through NextMethod's
 # '...' is not refused for arguments its caller legitimately supplied). It is
-# package-local rather than base's chkDots because chkDots signals an
-# unclassed warning before R 4.6, and this diagnosis must be catchable by
-# class on every R the package supports.
+# package-local rather than base's chkDots, which quotes with the locale's
+# fancy quotes before R 4.6; this diagnosis must be matchable by message on
+# every R the package supports.
 
 extractReplaysNothingReason <- "extract reads stored channels and replays nothing"
 extractForeignReasons <- list(

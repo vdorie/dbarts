@@ -18,12 +18,23 @@ countZeroTrialsWarnings <- function(expr) {
   numWarnings <- 0L
   value <- withCallingHandlers(
     expr,
-    dbartsZeroTrialsWarning = function(w) {
-      numWarnings <<- numWarnings + 1L
-      invokeRestart("muffleWarning")
+    warning = function(w) {
+      if (grepl("zero trials", conditionMessage(w), fixed = TRUE)) {
+        numWarnings <<- numWarnings + 1L
+        invokeRestart("muffleWarning")
+      }
     }
   )
   list(value = value, numWarnings = numWarnings)
+}
+
+# evaluates expr with the zero-trial warnings muffled
+suppressZeroTrials <- function(expr) {
+  withCallingHandlers(expr, warning = function(w) {
+    if (grepl("zero trials", conditionMessage(w), fixed = TRUE)) {
+      invokeRestart("muffleWarning")
+    }
+  })
 }
 
 set.seed(2609)
@@ -62,9 +73,8 @@ control <- dbartsControl(
 )
 build <- function(xs, cs, seed, mask = NULL) {
   set.seed(seed)
-  sampler <- suppressWarnings(
-    dbarts(xs, cs, family = "multinomial", control = control),
-    classes = "dbartsZeroTrialsWarning"
+  sampler <- suppressZeroTrials(
+    dbarts(xs, cs, family = "multinomial", control = control)
   )
   if (!is.null(mask)) {
     sampler$setActiveRows(mask)
@@ -85,13 +95,13 @@ created <- countZeroTrialsWarnings(
 )
 expect_identical(created$numWarnings, 1L)
 expect_true(isTRUE(dbarts:::onceWarnState[[zeroTrialsKey]]))
-# the class and the counts the message reports
+# the counts the message reports
 resetZeroTrialsKey()
 caught <- tryCatch(
   dbarts(xAll, countsEmpty, family = "multinomial", control = control),
-  dbartsZeroTrialsWarning = function(w) w
+  warning = function(w) w
 )
-expect_inherits(caught, c("dbartsZeroTrialsWarning", "dbartsWarning"))
+expect_inherits(caught, "warning")
 expect_true(grepl(
   sprintf("zero trials (%d of %d)", numEmpty, n + numEmpty),
   conditionMessage(caught),
@@ -245,7 +255,7 @@ expect_silent(summary(fit))
 # the single-trial panel, whose observed category an empty row does not have
 oneHot <- matrix(0L, n, K)
 oneHot[cbind(dataRows, max.col(counts, "first"))] <- 1L
-fitOneHot <- suppressWarnings(
+fitOneHot <- suppressZeroTrials(
   bart(
     xAll,
     rbind(oneHot, matrix(0L, numEmpty, K)),
@@ -255,8 +265,7 @@ fitOneHot <- suppressWarnings(
     n.samples = 10L,
     n.burn = 10L,
     verbose = FALSE
-  ),
-  classes = "dbartsZeroTrialsWarning"
+  )
 )
 pdf(NULL)
 expect_silent(plot(fit))
@@ -279,7 +288,7 @@ swapped <- countZeroTrialsWarnings(sampler$setCounts(allZero))
 expect_identical(swapped$numWarnings, 1L)
 expect_true(isSimplex(sampler$run(0L, 10L)$train))
 # plot has no observed panel to draw and says so, without warning
-fitAllZero <- suppressWarnings(
+fitAllZero <- suppressZeroTrials(
   bart(
     x,
     allZero,
@@ -289,8 +298,7 @@ fitAllZero <- suppressWarnings(
     n.samples = 10L,
     n.burn = 10L,
     verbose = FALSE
-  ),
-  classes = "dbartsZeroTrialsWarning"
+  )
 )
 plotWarnings <- 0L
 pdf(NULL)
@@ -312,7 +320,7 @@ countsNoFirst[, 2L] <- countsNoFirst[, 2L] + countsNoFirst[, 1L]
 countsNoFirst[, 1L] <- 0L
 extremeOffset <- matrix(0, n + numEmpty, K)
 extremeOffset[, 1L] <- -1000
-fitExtreme <- suppressWarnings(
+fitExtreme <- suppressZeroTrials(
   bart(
     xAll,
     countsNoFirst,
@@ -323,8 +331,7 @@ fitExtreme <- suppressWarnings(
     n.samples = 10L,
     n.burn = 10L,
     verbose = FALSE
-  ),
-  classes = "dbartsZeroTrialsWarning"
+  )
 )
 extremeProbs <- extract(fitExtreme, type = "ev")
 extremeLoglik <- extract(fitExtreme, type = "loglik")
@@ -356,9 +363,8 @@ controlState <- control
 controlState@updateState <- TRUE
 buildState <- function(cs, seed, mask = NULL) {
   set.seed(seed)
-  sampler <- suppressWarnings(
-    dbarts(xAll, cs, family = "multinomial", control = controlState),
-    classes = "dbartsZeroTrialsWarning"
+  sampler <- suppressZeroTrials(
+    dbarts(xAll, cs, family = "multinomial", control = controlState)
   )
   if (!is.null(mask)) {
     sampler$setActiveRows(mask)

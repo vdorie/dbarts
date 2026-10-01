@@ -172,8 +172,8 @@ before `group.by` would have passed a factor as a thread count.
 The formal is appended last, before `...`, and `...` is no longer inert:
 every predict method refuses by name the arguments belonging to a
 sibling method of this surface ("'forest' is not used by extract on a
-bart fit: ...") along with any unnamed extra, then warns once, under
-condition class `dbartsUnusedArgsWarning`, on every other unknown name
+bart fit: ...") along with any unnamed extra, then warns once
+on every other unknown name
 rather than discarding it. A warning rather than a refusal there is
 what lets a subclass method forward its own formals through
 `NextMethod()`'s `...`. `n.threads` is a formal on all five, so it

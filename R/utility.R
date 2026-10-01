@@ -96,8 +96,8 @@ familyGatingInventory <- list(
 )
 
 # Warns once, naming every argument this call's resolved 'family' cannot act
-# on, why, and the family itself (one warning per call, a classed
-# condition). suppliedNames is the caller's own argNames snapshot - the
+# on, why, and the family itself (one warning per call).
+# suppliedNames is the caller's own argNames snapshot - the
 # matchedCall names taken before any family branch, so an unsupplied
 # (defaulted) argument never appears here. A no-op when nothing is gated.
 warnFamilyGatedArgs <- function(suppliedNames, family) {
@@ -123,7 +123,7 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
     },
     character(1L)
   )
-  warning(warningCondition(
+  warning(
     paste0(
       "family = \"",
       family,
@@ -131,8 +131,8 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
       paste0(clauses, collapse = "; "),
       "; ignored"
     ),
-    class = c("dbartsFamilyGatedWarning", "dbartsWarning")
-  ))
+    call. = FALSE
+  )
   invisible(NULL)
 }
 
@@ -146,9 +146,8 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
 # supplied. Takes the dots already materialized as a list rather than
 # reading them itself, so the diagnosis names the method it was given and is
 # unaffected by how the dots were forwarded. Package-local, not base's
-# chkDots: before R 4.6 chkDots signals an unclassed warning and quotes with
-# the locale's fancy quotes, and this diagnosis must be catchable by class
-# and matchable by message on every R the package supports.
+# chkDots: it quotes with the locale's fancy quotes before R 4.6, and this
+# diagnosis must be matchable by message on every R the package supports.
 warnUnusedDots <- function(dots, generic, class) {
   supplied <- names(dots)
   unused <- if (is.null(supplied)) {
@@ -159,7 +158,7 @@ warnUnusedDots <- function(dots, generic, class) {
   if (length(unused) == 0L) {
     return(invisible(NULL))
   }
-  warning(warningCondition(
+  warning(
     paste0(
       "extra argument",
       if (length(unused) > 1L) "s" else "",
@@ -171,8 +170,8 @@ warnUnusedDots <- function(dots, generic, class) {
       class,
       " fit will be disregarded"
     ),
-    class = c("dbartsUnusedArgsWarning", "dbartsWarning")
-  ))
+    call. = FALSE
+  )
   invisible(NULL)
 }
 
@@ -333,15 +332,18 @@ warnOnce <- function(key, ..., class = NULL) {
   }
   onceWarnState[[key]] <- TRUE
   if (is.null(class)) {
-    args <- list(...)
-    if (length(args) != 1L || !inherits(args[[1L]], "condition")) {
-      stop("warnOnce needs a class, or a single condition object")
-    }
-    warning(args[[1L]])
+    warning(..., call. = FALSE)
   } else {
     warnClassed(class, ...)
   }
   invisible(NULL)
+}
+
+## Whether a warning is dbarts()'s thread-budget one, which two doors repeat
+## under their own argument names and which a second component of one fit
+## mutes.
+isExcessThreadsWarning <- function(w) {
+  grepl("^n\\.threads \\([0-9]+\\) exceeds n\\.chains", conditionMessage(w))
 }
 
 ## A warning of the given class, which also inherits dbartsWarning; the
@@ -629,13 +631,7 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
     stop("x is not a dataframe")
   }
   if (ncol(x) > 0L && nrow(x) == 0L) {
-    stop(structure(
-      class = c("dbartsZeroRowInputError", "error", "condition"),
-      list(
-        message = "x has no rows; a model matrix needs at least one row",
-        call = NULL
-      )
-    ))
+    stop("x has no rows; a model matrix needs at least one row")
   }
   if (is.logical(drop) && (length(drop) != 1L || is.na(drop))) {
     stop("when logical, drop must be TRUE or FALSE")

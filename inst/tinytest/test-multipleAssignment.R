@@ -28,7 +28,6 @@ expect_match(
   conditionMessage(warnings.unnamedRhs[[1L]]),
   "right-hand-side of assignment is unnamed; using position only"
 )
-expect_inherits(warnings.unnamedRhs[[1L]], "dbartsPositionalArgsWarning")
 rm(a)
 
 rm(rh)
@@ -59,7 +58,6 @@ expect_match(
   conditionMessage(warnings.dupLhs[[1L]]),
   "names on left-hand-side of assignment appear more than once: c"
 )
-expect_inherits(warnings.dupLhs[[1L]], "dbartsDuplicateNameWarning")
 rm(c)
 
 rh <- c(a = 2, a = 5)
@@ -69,7 +67,6 @@ expect_match(
   conditionMessage(warnings.dupRhs[[1L]]),
   "'a' present multiple times in right-hand-side of assignment"
 )
-expect_inherits(warnings.dupRhs[[1L]], "dbartsDuplicateNameWarning")
 expect_equal(b, 2)
 expect_equal(c, 5)
 rm(b, c)

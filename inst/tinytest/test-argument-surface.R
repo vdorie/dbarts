@@ -42,7 +42,6 @@ warnings.multiSigest <- captureWarnings(
 )
 expect_equal(length(warnings.multiSigest), 1L)
 expect_match(conditionMessage(warnings.multiSigest[[1L]]), "sigest")
-expect_inherits(warnings.multiSigest[[1L]], "dbartsFamilyGatedWarning")
 
 # 'resid.prior' rides '...' for the transition release, so the retirement's
 # own once-per-session warning stands beside the gating one
@@ -54,7 +53,7 @@ warnings.ordinalResidPrior <- captureWarnings(
   )
 )
 gated.ordinalResidPrior <- Filter(
-  function(w) inherits(w, "dbartsFamilyGatedWarning"),
+  function(w) grepl("has no use for", conditionMessage(w), fixed = TRUE),
   warnings.ordinalResidPrior
 )
 expect_equal(length(gated.ordinalResidPrior), 1L)
@@ -74,7 +73,7 @@ warnings.nbinomSigquant <- captureWarnings(
   fit2(y.count, family = "nbinom", sigquant = 0.8)
 )
 gated.nbinomSigquant <- Filter(
-  function(w) inherits(w, "dbartsFamilyGatedWarning"),
+  function(w) grepl("has no use for", conditionMessage(w), fixed = TRUE),
   warnings.nbinomSigquant
 )
 expect_equal(length(gated.nbinomSigquant), 1L)
@@ -91,7 +90,7 @@ expect_silent(fit2(y.binary, family = "probit"))
 expect_equal(
   countWarnings(
     fit2(y.binary, family = "probit", sigest = 5, sigdf = 5),
-    "dbartsFamilyGatedWarning"
+    pattern = "has no use for"
   ),
   1L
 )
@@ -105,7 +104,6 @@ expect_match(
   conditionMessage(warnings.samplerOnly[[1L]]),
   "family = \"probit\" has no use for 'sigest'"
 )
-expect_inherits(warnings.samplerOnly[[1L]], "dbartsFamilyGatedWarning")
 
 # hurdle.lognormal: sigest is live on the positive half, so the rule's own
 # scoping ("an argument whose only effect is on a family this fit is not")
@@ -116,7 +114,7 @@ y.hurdle <- c(rep(0, n / 2L), abs(rnorm(n / 2L)) + 0.1)
 expect_equal(
   countWarnings(
     fit2(y.hurdle, family = "hurdle.lognormal", sigest = 5),
-    "dbartsFamilyGatedWarning"
+    pattern = "has no use for"
   ),
   0L
 )
@@ -132,7 +130,7 @@ expect_equal(
       family = "hurdle.lognormal",
       resid.prior = dbarts::dbartsPriors$chisq()
     ),
-    "dbartsFamilyGatedWarning"
+    pattern = "has no use for"
   ),
   0L
 )
@@ -672,7 +670,7 @@ expect_error(
 # (silently overwritten with fixed(1), R/spec.R) under a fixed-unit-scale
 # family, now diagnosed instead of silent
 warnings.residPrior <- Filter(
-  function(w) inherits(w, "dbartsFamilyGatedWarning"),
+  function(w) grepl("has no use for", conditionMessage(w), fixed = TRUE),
   captureWarnings(
     fit2(
       y.binary,
@@ -683,7 +681,6 @@ warnings.residPrior <- Filter(
 )
 expect_equal(length(warnings.residPrior), 1L)
 expect_match(conditionMessage(warnings.residPrior[[1L]]), "resid.prior")
-expect_inherits(warnings.residPrior[[1L]], "dbartsFamilyGatedWarning")
 expect_equal(
   countWarnings(
     fit2(
@@ -691,7 +688,7 @@ expect_equal(
       family = "probit",
       resid.prior = dbarts::dbartsPriors$fixed(2)
     ),
-    "dbartsFamilyGatedWarning"
+    pattern = "has no use for"
   ),
   1L
 )

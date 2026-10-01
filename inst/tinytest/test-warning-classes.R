@@ -1,6 +1,6 @@
-# Every warning the package raises carries a class that inherits from
-# dbartsWarning; the retired spellings' once-per-session warnings are
-# dbartsDeprecatedWarning, the substitution warnings dbartsFallbackWarning.
+# The classed warnings inherit from dbartsWarning; the retired spellings'
+# once-per-session warnings are dbartsDeprecatedWarning (also base R's
+# deprecatedWarning), the substitution warnings dbartsFallbackWarning.
 
 resetOnce <- function() {
   env <- dbarts:::onceWarnState
@@ -25,6 +25,9 @@ expectClassed <- function(expr, class) {
   )
   expect_true(inherits(w, class))
   expect_true(inherits(w, "dbartsWarning"))
+  if (class == "dbartsDeprecatedWarning") {
+    expect_true(inherits(w, "deprecatedWarning"))
+  }
 }
 
 set.seed(1)
@@ -255,9 +258,8 @@ expectClassed(
   "dbartsFallbackWarning"
 )
 
-# zero-row input to the model-matrix builder is a classed error
+# zero-row input to the model-matrix builder is refused
 expect_error(
   dbarts:::makeModelMatrixFromDataFrame(d[0L, ]),
-  class = "dbartsZeroRowInputError",
   pattern = "no rows"
 )

@@ -1127,7 +1127,7 @@ dbarts <- function(
   # fit. The row count it names is the control's own testFitParallelCutoff,
   # so a caller who moved that cutoff is told the number actually in force.
   if (control@n.threads > control@n.chains) {
-    warning(warningCondition(
+    warning(
       sprintf(
         paste0(
           "n.threads (%d) exceeds n.chains (%d); tree sampling uses at ",
@@ -1138,8 +1138,8 @@ dbarts <- function(
         control@n.chains,
         control@testFitParallelCutoff
       ),
-      class = c("dbartsExcessThreadsWarning", "dbartsWarning")
-    ))
+      call. = FALSE
+    )
   }
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
@@ -2566,18 +2566,14 @@ dbartsSampler <- setRefClass(
       }
       unnamedArgs <- sum(!nzchar(rawCallArgNames))
       if (unnamedArgs >= 2L && "updateScale" %not_in% rawCallArgNames) {
-        # warnOnce's session-scoped key is a separate mechanism from the
-        # class below - it dedupes repeated calls inside one loop, the class
-        # is what a caller catches; the two do not substitute for one another
+        # warnOnce's session-scoped key dedupes repeated calls inside one loop
         warnOnce(
           "setResponsePositionalUpdateScale",
-          warningCondition(
-            paste0(
-              "the second argument to $setResponse is 'updateScale' in dbarts ",
-              ">= 1.0-0, and 'updateState' has moved to third; pass both by ",
-              "name to avoid depending on this order"
-            ),
-            class = c("dbartsPositionalArgsWarning", "dbartsWarning")
+
+          paste0(
+            "the second argument to $setResponse is 'updateScale' in dbarts ",
+            ">= 1.0-0, and 'updateState' has moved to third; pass both by ",
+            "name to avoid depending on this order"
           )
         )
       }
@@ -2676,7 +2672,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setCounts = function(counts, updateState = NULL) {
-      "Replaces a multinomial sampler's response: the n x K matrix of non-negative integer counts whose column k holds category k's successes, with trials n_i = sum_k counts[i, k] at least 0: a row with no trial enters no likelihood and still receives fitted probabilities, and the first such row in a session warns (class dbartsZeroTrialsWarning). n and K are fixed at creation - every combiner buffer is sized by n, and K is the forest count - so only the values change. The trees carry over, fitted to the previous counts exactly as setResponse leaves a single-forest sampler's, and the next run forms every category's working response against the new matrix. The matrix is mirrored into data@counts, and its row sums into data@y, so getPointer's transparent re-creation after save/load carries the current response rather than the one the sampler was created with. The sweep draws n_i Polya-Gamma variates per observation per category, so replacing single-trial labels with grouped counts multiplies sweep cost by mean(n_i). updateState follows control@updateState; see setData."
+      "Replaces a multinomial sampler's response: the n x K matrix of non-negative integer counts whose column k holds category k's successes, with trials n_i = sum_k counts[i, k] at least 0: a row with no trial enters no likelihood and still receives fitted probabilities, and the first such row in a session warns. n and K are fixed at creation - every combiner buffer is sized by n, and K is the forest count - so only the values change. The trees carry over, fitted to the previous counts exactly as setResponse leaves a single-forest sampler's, and the next run forms every category's working response against the new matrix. The matrix is mirrored into data@counts, and its row sums into data@y, so getPointer's transparent re-creation after save/load carries the current response rather than the one the sampler was created with. The sweep draws n_i Polya-Gamma variates per observation per category, so replacing single-trial labels with grouped counts multiplies sweep cost by mean(n_i). updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       requireCountsCapability(.self, "$setCounts")
       ptr <- bartcoreSamplerSetCounts(.self, counts)
@@ -3402,10 +3398,10 @@ dbartsSampler <- setRefClass(
         sampleNums <- NULL
       } else {
         if (!control@keepTrees) {
-          warning(warningCondition(
+          warning(
             "sampleNums ignored if keepTrees is FALSE",
-            class = c("dbartsIgnoredArgWarning", "dbartsWarning")
-          ))
+            call. = FALSE
+          )
           sampleNums <- NULL
         } else {
           sampleNums <- coerceOrError(sampleNums, "integer")
@@ -3447,14 +3443,14 @@ dbartsSampler <- setRefClass(
         sampleNums <- NULL
       } else {
         if (!useSaved) {
-          warning(warningCondition(
+          warning(
             if (current) {
               "sampleNums ignored if current is TRUE"
             } else {
               "sampleNums ignored if keepTrees is FALSE"
             },
-            class = c("dbartsIgnoredArgWarning", "dbartsWarning")
-          ))
+            call. = FALSE
+          )
           sampleNums <- NULL
         } else {
           sampleNums <- coerceOrError(sampleNums, "integer")
