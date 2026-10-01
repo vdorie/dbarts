@@ -38,9 +38,32 @@ estimateStartingSigma <- function(data) {
     error = function(e) e
   )
   if (inherits(tryResult, "error")) {
+    nonFinite <- nonFinitePredictorNames(data@x)
+    if (length(nonFinite) > 0L) {
+      stop(
+        "unable to obtain a starting estimate of sigma: predictor ",
+        paste0("'", nonFinite, "'", collapse = ", "),
+        " has infinite values; remove them or provide 'sigest'"
+      )
+    }
     stop("unable to obtain a starting estimate of sigma; provide one instead")
   }
   tryResult
+}
+
+## The names (or 1-based positions) of a dense predictor source's columns
+## holding an infinite value, which the linear fit behind the starting sigma
+## estimate cannot take.
+nonFinitePredictorNames <- function(x) {
+  if (predictorSourceIsSparse(x)) {
+    return(character())
+  }
+  x <- as.matrix(x)
+  bad <- which(colSums(is.infinite(x)) > 0L)
+  if (length(bad) == 0L) {
+    return(character())
+  }
+  if (is.null(colnames(x))) as.character(bad) else colnames(x)[bad]
 }
 
 ## The binary/ordinal/nbinom weight policy, shared by every entry point that
@@ -948,7 +971,7 @@ dbartsSpec <- function(
   # object already carrying resolved per-column counts keeps them - a consumer
   # that set them deliberately is not silently overridden
   if (length(data@n.cuts) != ncol(data@x) || anyNA(data@n.cuts)) {
-    data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
+    data@n.cuts <- recycleNumCuts(control@n.cuts, ncol(data@x))
   }
   # an explicit sigest overrides whatever the data carries; NULL leaves it
   # alone, so a consumer's own starting estimate survives (an unset one is

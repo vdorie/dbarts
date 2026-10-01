@@ -76,8 +76,8 @@ xbart <- function(
   # dbartsControl's own validity messages, then folded into the control
   # xbart builds for itself below
   n.cuts <- coerceOrError(n.cuts, "integer")
-  if (is.na(n.cuts) || n.cuts <= 0L) {
-    stop("'n.cuts' must be a positive integer")
+  if (length(n.cuts) == 0L || anyNA(n.cuts) || any(n.cuts <= 0L)) {
+    stop("'n.cuts' must contain positive integers")
   }
   useQuantiles <- coerceOrError(useQuantiles, "logical")
   if (is.na(useQuantiles)) {
@@ -206,7 +206,7 @@ xbart <- function(
       "with bart()/dbarts() using family = \"aft\" or \"hazard\" instead"
     )
   }
-  data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
+  data@n.cuts <- recycleNumCuts(control@n.cuts, ncol(data@x))
   data@sigma <- sigest
 
   # a factor/logical/character response is a classification; xbart cross-

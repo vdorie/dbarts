@@ -434,6 +434,23 @@ ifelse_3 <- function(cond1, cond2, then1, then2, else_) {
   }
 }
 
+## n.cuts per predictor column: a shorter vector recycles, as dbartsControl
+## documents; a longer one is refused, since its extra entries could never
+## apply.
+recycleNumCuts <- function(n.cuts, numPredictors) {
+  if (length(n.cuts) > numPredictors) {
+    stop(
+      "'n.cuts' has ",
+      length(n.cuts),
+      " values but the model has ",
+      numPredictors,
+      " predictor column",
+      if (numPredictors != 1L) "s"
+    )
+  }
+  rep_len(n.cuts, numPredictors)
+}
+
 ## evaluates the expression 'e' after first replacing all instances of 'x' with
 ## the expression passed as x
 evalx <- function(x, e) {
@@ -856,11 +873,23 @@ makeCategoricalModelMatrix <- function(x) {
         },
         sep = "."
       )
-    } else if (is.numeric(column) || is.logical(column)) {
-      columns[[j]] <- as.double(column)
+    } else if (
+      is.numeric(column) ||
+        is.logical(column) ||
+        (is.atomic(column) && (is.double(column) || is.integer(column)))
+    ) {
+      # a classed number (Date, POSIXct, difftime) splits on its value, as
+      # the indicators route and lm() read it
+      columns[[j]] <- as.double(unclass(column))
       columnTypes[[j]] <- ORDINAL_VARIABLE
       columnLevels[[j]] <- list(NULL)
       columnNames[[j]] <- name
+    } else if (inherits(column, "POSIXlt")) {
+      stop(
+        "column '",
+        name,
+        "' is a POSIXlt date-time; convert it with as.POSIXct()"
+      )
     } else {
       stop("column '", name, "' cannot be converted to a predictor")
     }
@@ -1134,8 +1163,18 @@ mapFactorColumnsToTrainingLevels <- function(
       )
       next
     }
+    # numbers here would read as 0-based level codes, one level off the
+    # 1-based codes as.integer() gives; refused as predict.lm refuses them
     if (!is.factor(column) && !is.character(column)) {
-      next
+      stop(
+        "test column '",
+        name,
+        "' is ",
+        class(column)[1L],
+        " but the training column '",
+        name,
+        "' is a factor; supply it as a factor or character"
+      )
     }
     refactored <- factor(as.character(column), levels = factorLevels[[j]])
     # an unseen level codes to NA; a value already missing is not one, and a

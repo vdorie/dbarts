@@ -307,8 +307,10 @@ rbart_vi <- function(
   }
 
   dataCall <- redirectCall(matchedCall, dbarts::dbartsData)
-  dataCall$factors <- "indicators"
-  dataCall$na.action <- quote(stats::na.omit)
+  if (!inherits(formula, "dbartsData")) {
+    dataCall$factors <- "indicators"
+    dataCall$na.action <- quote(stats::na.omit)
+  }
   data <- withMatrixResponseRestated(
     "rbart_vi()",
     "auto",

@@ -1374,7 +1374,7 @@ dbarts <- function(
     data <- setDataRowNames(data, "test", hazardNames$test)
   }
 
-  data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
+  data@n.cuts <- recycleNumCuts(control@n.cuts, ncol(data@x))
   data@sigma <- sigest
 
   # a forest() term's bases were already evaluated against the model frame

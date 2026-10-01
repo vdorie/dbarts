@@ -278,7 +278,7 @@ bart(
      Logical; if \code{TRUE}, samples are returned collapsed across chains rather than in a chains-by-samples array. Default \code{TRUE}, as for \code{\link{bartBT}}; the number of chains is tracked regardless on the returned object's \code{n.chains} component (see \sQuote{Value}). On \code{extract}, \code{predict} and \code{\link{survivalProbabilities}}, \code{FALSE} keeps that leading chains margin - length 1 on a one-chain fit - rather than dropping it there; see \code{\link{bartBT}}'s \code{combinechains} item.
    }
    \item{n.cuts}{
-     The maximum number of possible values used in decision rules (see \code{useQuantiles}, and \code{\link{bartBT}}'s \sQuote{Decision Rules} details). If a single number, it is recycled for all variables; otherwise must be a vector of length equal to the number of predictor columns. Fewer rules may be used if a covariate lacks enough unique values. Factor predictors take no rules from it, of either kind: a factor's grid follows its level table.
+     The maximum number of possible values used in decision rules (see \code{useQuantiles}, and \code{\link{bartBT}}'s \sQuote{Decision Rules} details). A vector shorter than the number of predictor columns is recycled, so a single number applies to every column; a longer one is refused. Fewer rules may be used if a covariate lacks enough unique values. Factor predictors take no rules from it, of either kind: a factor's grid follows its level table.
    }
    \item{useQuantiles}{
      When \code{TRUE}, determine tree decision rules using estimated quantiles derived from the predictor variables. When \code{FALSE}, splits are determined using values equally spaced across the range of a variable. See \code{\link{bartBT}}'s \sQuote{Decision Rules} details.
@@ -348,7 +348,7 @@ bart(
      An object of class \code{bartMultinomial}, \code{bartOrdinal}, \code{bartNegbin}, or \code{bartHurdle}, returned by \code{bart} under the corresponding \code{family}.
    }
    \item{newdata}{
-     Test data for prediction. Obeys the same rules as \code{data}/\code{test} but cannot be missing. An unnamed matrix given to a fit whose predictors are named is matched by position, with a warning.
+     Test data for prediction. Obeys the same rules as \code{data}/\code{test} but cannot be missing. An unnamed matrix given to a fit whose predictors are named is matched by position, with a warning. A data-frame column for a predictor that was a factor in training must be a factor or character, matched to the training levels by label; a numeric or logical one is refused, naming it, as \code{\link{predict.lm}} refuses it.
    }
    \item{type}{
      The quantity to return; see \sQuote{Value} below for what each family's generics accept and produce. As on a \code{"bart"} fit (\code{\link{bartBT}}'s \code{type} item), \code{"response"} is a synonym for \code{"ev"} and \code{"link"} for \code{"bart"}, on every method here; a value a method does not offer is an error naming the ones it does, and one it names only to refuse is an error naming the reason.

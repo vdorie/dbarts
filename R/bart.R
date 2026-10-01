@@ -1064,8 +1064,13 @@ bart <- function(
   # one must be resolved here, in this function's own frame, and stamped onto
   # matchedCall unconditionally, or it would silently take dbarts()'s own
   # default rather than the token this signature advertises.
+  # A dbartsData object was already built, so an unsupplied 'factors' is not
+  # stamped onto it, where it would be reported as ignored.
+  factorsSupplied <- !missing(factors)
   factors <- match.arg(factors)
-  matchedCall$factors <- factors
+  if (factorsSupplied || !inherits(formula, "dbartsData")) {
+    matchedCall$factors <- factors
+  }
 
   controlSupplied <- "control" %in% names(matchedCall)
   suppliedControl <- if (controlSupplied) {
