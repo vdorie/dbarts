@@ -120,8 +120,9 @@ The constructor is not exported: it resolves by bare name inside the
   to minutes per move, and its memory grows with it, to hundreds of
   megabytes for the largest counts seen. There is no limit: the run
   finishes on the stated model, and afterwards a warning of class
-  <code>"dbartsSlowCountWarning"</code> reports counts that took more than about a second and names the remedies,
-  more trees or <code>prior = "joint"</code>. A count can be interrupted, and a
+  <code>"dbartsSlowCountWarning"</code> reports counts that took more than about
+  a second and names the remedies, more trees or <code>prior = "joint"</code>. A
+  count can be interrupted, and a
   count that runs out of memory is an ordinary error; either way the
   sampler is left in a valid state.</p>
 <p>The tree prior is the fit's <code>tree.prior</code>, as without a constraint:
