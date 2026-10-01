@@ -537,3 +537,53 @@ fittedPpd <- fitted(fit, type = "ppd")
 expect_equal(length(fittedPpd), n)
 expect_true(all(fittedPpd >= 0))
 expect_equal(fittedPpd, fitted(fit, type = "ev"), tolerance = 0.5)
+
+# predict(type = "ppd") pairs each mean-count draw with its own draw's
+# dispersion whichever layout the fit stored and the caller asks for
+x.pair <- data.frame(x = runif(60L))
+y.pair <- rnbinom(60L, size = 4L, mu = 3 * exp(x.pair$x))
+newdata.pair <- data.frame(x = c(0.2, 0.8))
+for (fitCombined in c(TRUE, FALSE)) {
+  fit.pair <- bart(
+    x.pair,
+    y.pair,
+    family = "nbinom",
+    n.chains = 2L,
+    n.threads = 1L,
+    n.samples = 25L,
+    n.burn = 20L,
+    n.trees = 10L,
+    keepTrees = TRUE,
+    combineChains = fitCombined,
+    verbose = FALSE,
+    seed = 1L
+  )
+  for (predictCombined in c(TRUE, FALSE)) {
+    means <- predict(fit.pair, newdata.pair, combineChains = predictCombined)
+    r <- fit.pair$dispersion.raw
+    # samples x chains, laid out as the means' draw margin is
+    r <- if (predictCombined) as.vector(r) else as.vector(t(r))
+    set.seed(3L)
+    expected <- rnbinom(length(means), size = rep(r, 2L), mu = as.vector(means))
+    set.seed(3L)
+    ppd <- predict(
+      fit.pair,
+      newdata.pair,
+      type = "ppd",
+      combineChains = predictCombined
+    )
+    expect_equal(as.vector(ppd), expected)
+  }
+}
+rm(
+  x.pair,
+  y.pair,
+  newdata.pair,
+  fitCombined,
+  fit.pair,
+  predictCombined,
+  means,
+  r,
+  expected,
+  ppd
+)

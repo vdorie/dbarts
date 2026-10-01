@@ -2521,7 +2521,20 @@ predict.bartNegbin <- function(
   means <- convertSamplesForCaller(means, n.chains, combineChains)
   means <- nameObservationMargin(means, rowNames)
   if (type == "ppd") {
-    means <- negbinPpd(means, object$dispersion)
+    # each count is drawn with its own draw's dispersion: the dispersions are
+    # laid out as the means are and take the caller's layout with them,
+    # whichever layout the fit stored its own in
+    dispersions <- array(
+      rep(disp, each = n.new),
+      c(n.new, n.samples, n.chains)
+    )
+    if (n.chains == 1L) {
+      dispersions <- matrix(dispersions, n.new, n.samples)
+    }
+    means <- negbinPpd(
+      means,
+      convertSamplesForCaller(dispersions, n.chains, combineChains)
+    )
   }
   if (!is.null(ci.level)) {
     return(padPredictedRows(
