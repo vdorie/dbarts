@@ -1218,6 +1218,10 @@ Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B166]
 The flat C API change for multinomial (dec-B160) also closes TODO monotone-count-host-interrupt: dbarts_sampler_run honours R's interrupt poll during a long leaf-order count and reports slow counts, as R's run does. The alternative was leaving it to its own item, since the interrupt needs no ABI change. A host's monotone fit under the "leaf" prior can be interrupted mid-count and learns of slow counts; stan4bart's behaviour on interrupt and warnings is reviewed with the change. How slow counts are reported (a warning the entry raises, or a results field) is a separate question. The maintainer on 2026-10-01: "Bundle it into this change." See also: [dec-B149], [dec-B160].
 Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B167]
 
+**The flat run raises the slow-count warning itself**
+dbarts_sampler_run raises the same R warning (dbartsSlowCountWarning) that R's run raises when a leaf-order count was slow, so the reporting stays on dbarts' side and the results struct gains no field. The alternative was a results field the host aggregates and reports itself. How often the entry warns when a host calls it once per sweep is a separate question. The maintainer on 2026-10-01: "That seems like engine/BART business, and is an argument for the fast proposal we talked about. I'd rather keep that on dbarts' side for now. So I think the C run raises the R warning itself." See also: [dec-B153], [dec-B167].
+Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B168]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**

@@ -190,7 +190,9 @@ items
     count-free Barker move for large "leaf" moves
     (docs/design/monotone-barker-hybrid.md), with stage 4b's order-count
     cache (dec-A134). Only "leaf" fits of one to five trees are slow today;
-    they keep the slow-count warning and interrupt.
+    they keep the slow-count warning and interrupt. The maintainer noted
+    (2026-10-01, dec-B168) that slow-count reporting through the flat C
+    run is an argument for it.
   monotone-exact-birth-death: before 1.0-0 (VD 2026-09-29,
     docs/decisions.md dec-B144): the monotone birth/death move targets the
     documented prior exactly - the whole tree's cone normalizer ratio in
