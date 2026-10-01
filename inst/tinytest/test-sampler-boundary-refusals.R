@@ -150,3 +150,45 @@ expect_error(
   "'updateScale' must be TRUE or FALSE"
 )
 expect_identical(bcf$data@offset, rep(0.5, nb))
+
+# --- allocation failures raise rather than abort: a tree store far past what
+# the process can hold, at creation and through setControl
+expect_error(
+  dbarts(
+    x,
+    y,
+    control = dbartsControl(
+      n.trees = 200000L,
+      n.samples = .Machine$integer.max,
+      keepTrees = TRUE,
+      n.chains = 1L,
+      n.threads = 1L,
+      verbose = FALSE
+    )
+  ),
+  "sampler creation failed"
+)
+wide <- dbarts(
+  x,
+  y,
+  control = dbartsControl(
+    n.trees = 200000L,
+    n.samples = 4L,
+    keepTrees = TRUE,
+    n.chains = 2L,
+    n.threads = 1L,
+    updateState = FALSE,
+    verbose = FALSE
+  )
+)
+wideControl <- wide$control
+wideControl@n.samples <- .Machine$integer.max
+expect_error(
+  wide$setControl(wideControl),
+  "saved-tree storage for 2147483647 samples cannot be allocated"
+)
+expect_identical(wide$control@n.samples, 4L)
+# the store is back at its previous capacity on every chain
+invisible(wide$run(0L, 4L))
+expect_identical(dim(wide$predict(x[1:3, , drop = FALSE])), c(3L, 4L, 2L))
+rm(wide, wideControl)

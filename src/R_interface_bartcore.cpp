@@ -2246,6 +2246,25 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   return options;
 }
 
+// Runs a sampler factory with its C++ exceptions turned into an R error: a
+// tree store sized from a huge sample count, or any other allocation the
+// build makes, throws std::bad_alloc, which must not cross into R. The chain
+// rngs the factory borrowed are destroyed before the raise, as every other
+// creation refusal destroys them; the factory leaves nothing else behind.
+template <typename Factory>
+std::unique_ptr<bartcore::SamplerBase>
+createSamplerOrRaise(std::vector<ext_rng*>& rngs, Factory&& factory) {
+  std::unique_ptr<bartcore::SamplerBase> sampler;
+  bartcore_bridge::CapturedError error;
+  captureExceptions(error, [&]() { sampler = factory(); });
+  if (error.failed) {
+    for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+    rngs.clear();
+    Rf_error("sampler creation failed: %s", error.message);
+  }
+  return sampler;
+}
+
 // Every chain gets its own Mersenne twister, so worker threads never touch
 // the R API and results do not depend on the thread count. A control rngSeed
 // makes results reproducible without R's stream: it seeds a dedicated
@@ -3500,17 +3519,19 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // dispatches on the leaf model: a linear leaf prior's designated columns
     // select the linear-leaf instantiation, everything else the constant leaf
     std::unique_ptr<bartcore::SamplerBase> sampler =
-      carriesAmplitudes
-        ? bartcore::createAmplitudeSampler(
-            data.predictors.denseValues, y, data.numObservations,
-            data.numPredictors, weights, offset, data.sigmaEstimate,
-            model.sigmaDf, model.sigmaRawScale, options, amplitudeSpec,
-            rngs.data())
-        : bartcore::createSampler(
-            data.predictors.denseValues, y, data.numObservations,
-            data.numPredictors, weights, offset, family,
-            data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
-            rngs.data());
+      createSamplerOrRaise(rngs, [&]() {
+        return carriesAmplitudes
+          ? bartcore::createAmplitudeSampler(
+              data.predictors.denseValues, y, data.numObservations,
+              data.numPredictors, weights, offset, data.sigmaEstimate,
+              model.sigmaDf, model.sigmaRawScale, options, amplitudeSpec,
+              rngs.data())
+          : bartcore::createSampler(
+              data.predictors.denseValues, y, data.numObservations,
+              data.numPredictors, weights, offset, family,
+              data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
+              rngs.data());
+      });
     if (sampler == NULL) {
       // the R surface refuses these first, so only an entrance that skips it
       // (the flat C API) reaches this
@@ -3662,10 +3683,12 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   spec.forest.birthProbability = model.birthProbability;
 
   std::unique_ptr<bartcore::SamplerBase> sampler =
-    bartcore::createMultinomialSampler(data.predictors.denseValues,
-                                       data.numObservations,
-                                       data.numPredictors, options, spec,
-                                       rngs.data());
+    createSamplerOrRaise(rngs, [&]() {
+      return bartcore::createMultinomialSampler(data.predictors.denseValues,
+                                                data.numObservations,
+                                                data.numPredictors, options,
+                                                spec, rngs.data());
+    });
   // the factory returns null on a composition it cannot build - a variance
   // forest, whose precision channel the softmax's own augmentation owns.
   // Storing that unchecked would hand back a live external pointer wrapping a
@@ -4060,11 +4083,14 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
     rngs = createChainRngs(control, options.numChains);
 
     std::unique_ptr<bartcore::SamplerBase> sampler =
-      bartcore::createSamplerOverStore(
-        std::move(store), response.data(),
-        data.weights != NULL ? weights.data() : NULL,
-        data.offset != NULL ? offset.data() : NULL, family, data.sigmaEstimate,
-        model.sigmaDf, model.sigmaRawScale, options, rngs.data());
+      createSamplerOrRaise(rngs, [&]() {
+        return bartcore::createSamplerOverStore(
+          std::move(store), response.data(),
+          data.weights != NULL ? weights.data() : NULL,
+          data.offset != NULL ? offset.data() : NULL, family,
+          data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
+          rngs.data());
+      });
     if (sampler == NULL) {
       // R-side resolution validates column legality first, so what lands here
       // is a covariate the handle did not gather raw for at creation
@@ -5226,9 +5252,13 @@ SEXP bartcore_growFromRoot(SEXP ptrExpr, SEXP numSweepsExpr) {
   int numSweeps = Rf_asInteger(numSweepsExpr);
   if (numSweeps == NA_INTEGER || numSweeps <= 0)
     Rf_error("n.sweeps must be a positive integer");
+  bartcore_bridge::CapturedError error;
   GetRNGstate();
-  holder.sampler->growFromRoot(static_cast<size_t>(numSweeps));
+  captureExceptions(error, [&]() {
+    holder.sampler->growFromRoot(static_cast<size_t>(numSweeps));
+  });
   PutRNGstate();
+  if (error.failed) Rf_error("%s", error.message);
   return R_NilValue;
 }
 
@@ -5611,11 +5641,21 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
     Rf_error("the bartcore engine cannot change the number of trees of an "
              "existing sampler");
 
+  // the store resize allocates, and fails as an R error with the sampler on
+  // its previous capacity; it goes first so a refusal changes nothing else
+  bartcore_bridge::CapturedError storageError;
+  captureExceptions(storageError, [&]() {
+    sampler.setTreeStorage(control.keepTrees, control.defaultNumSamples);
+  });
+  if (storageError.failed)
+    Rf_error("$setControl: saved-tree storage for %lu samples cannot be "
+             "allocated (%s)",
+             static_cast<unsigned long>(control.defaultNumSamples),
+             storageError.message);
   holder.keepTrainingFits = control.keepTrainingFits;
   sampler.setNumThreads(control.numThreads);
   sampler.setNumThin(control.treeThinningRate);
   sampler.setVerbose(control.verbose, control.printEvery);
-  sampler.setTreeStorage(control.keepTrees, control.defaultNumSamples);
 
   return R_NilValue;
 }
@@ -7907,6 +7947,32 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     }
   }
 
+  // A store switched on or resized through the flat API is recorded in no R
+  // object's control, so a sampler re-created from that control (after a save
+  // and load) holds another capacity than the state it continues. A state
+  // whose saved trees declare a capacity resizes the store to it first, and a
+  // refused state puts the previous capacity back; the stored draws then
+  // restore as the live sampler held them.
+  size_t previousCapacity = shape.savedTreeCapacity;
+  size_t stateCapacity = previousCapacity;
+  if (errorMessage == NULL && !state.chains[0].forests.empty()) {
+    const bartcore::ForestStateData& forestState = state.chains[0].forests[0];
+    size_t numTrees = forestState.trees.size();
+    if (!forestState.savedTrees.empty() && numTrees > 0 &&
+        forestState.savedTrees.size() % numTrees == 0)
+      stateCapacity = forestState.savedTrees.size() / numTrees;
+  }
+  bool storeResized = false;
+  if (stateCapacity != previousCapacity) {
+    bartcore_bridge::CapturedError resizeError;
+    captureExceptions(resizeError,
+                      [&]() { sampler.setTreeStorage(true, stateCapacity); });
+    if (resizeError.failed)
+      errorMessage = "state's saved trees cannot be stored by this sampler";
+    else
+      storeResized = true;
+  }
+
   bool columnMaskRefused = false, monotoneRefused = false;
   bool restored =
     errorMessage == NULL &&
@@ -7915,6 +7981,14 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   {
     bartcore::SamplerStateData empty;
     std::swap(state, empty);  // free before a potential longjmp
+  }
+  if (!restored && storeResized) {
+    // the previous store held at most what it is given back, so this restores
+    // an allocation that already fit
+    bartcore_bridge::CapturedError restoreError;
+    captureExceptions(restoreError, [&]() {
+      sampler.setTreeStorage(previousCapacity > 0, previousCapacity);
+    });
   }
   if (errorMessage != NULL) Rf_error("%s", errorMessage);
   if (columnMaskRefused) Rf_error("%s", columnMaskMismatchMessage);

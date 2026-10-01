@@ -138,6 +138,40 @@ public:
   virtual bool finalize() = 0;
 };
 
+/// Starts numWorkers threads, worker w running body(w), with SIGINT blocked
+/// across the spawn so the workers inherit the block and a Ctrl-C reaches only
+/// the calling thread, whose mask is restored before return. body is copied
+/// into each thread, so it must capture only what outlives the caller's join.
+/// A spawn that fails (std::system_error at the process thread limit) must not
+/// unwind past a joinable std::thread, which is std::terminate: stopStarted
+/// tells the workers already running to finish early, they are joined, and the
+/// exception is rethrown on the caller's thread with workers left empty.
+template <typename Body, typename StopStarted>
+void spawnWorkers(std::vector<std::thread>& workers, std::size_t numWorkers,
+                  const Body& body, StopStarted&& stopStarted) {
+  workers.reserve(numWorkers);
+#ifndef _WIN32
+  sigset_t interruptSet, previousSet;
+  sigemptyset(&interruptSet);
+  sigaddset(&interruptSet, SIGINT);
+  pthread_sigmask(SIG_BLOCK, &interruptSet, &previousSet);
+#endif
+  try {
+    for (std::size_t w = 0; w < numWorkers; ++w) workers.emplace_back(body, w);
+  } catch (...) {
+#ifndef _WIN32
+    pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
+#endif
+    stopStarted();
+    for (std::thread& worker : workers) worker.join();
+    workers.clear();
+    throw;
+  }
+#ifndef _WIN32
+  pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
+#endif
+}
+
 /// The sampler proper: a shared column store and one or more chains over it.
 /// Chains run independently (optionally on worker threads) and hold all
 /// per-chain state; the sampler owns the data and orchestrates transactions,
@@ -540,60 +574,50 @@ public:
       std::function<bool()> workerCancel = [&cancelFlag]() {
         return cancelFlag.load(std::memory_order_relaxed);
       };
+      // the workers are spawned with SIGINT blocked so a Ctrl-C is delivered
+      // only to this (the main) thread, whose poll turns it into a
+      // cooperative cancel; a worker running R's interrupt handler could
+      // longjmp across threads. (On Windows R's console Ctrl-C already runs
+      // on the main thread, so no masking is needed.) A failed spawn cancels
+      // the chains already started, which stop at their next sweep boundary.
       std::vector<std::thread> workers;
-      workers.reserve(numWorkers);
-#ifndef _WIN32
-      // spawn the workers with SIGINT blocked so they inherit the block and a
-      // Ctrl-C is delivered only to this (the main) thread, whose poll turns
-      // it into a cooperative cancel. A worker running R's interrupt handler
-      // could longjmp across threads. The main thread's mask is restored right
-      // after, before it polls. (On Windows R's console Ctrl-C already runs on
-      // the main thread, so no masking is needed.)
-      sigset_t interruptSet, previousSet;
-      sigemptyset(&interruptSet);
-      sigaddset(&interruptSet, SIGINT);
-      pthread_sigmask(SIG_BLOCK, &interruptSet, &previousSet);
-#endif
-      for (size_t w = 0; w < numWorkers; ++w) {
-        workers.emplace_back([this, w, numWorkers, numChains, numBurnIn,
-                              numSamples, &chainResults, &progress,
-                              &chainsMutex, &chainsDone, &numChainsRunning,
-                              &workerCancel, &cancelFlag, &firstError,
-                              onDrawPtr]() {
-          for (size_t c = w; c < numChains; c += numWorkers) {
-            // a chain that stopped itself - its observer returned nonzero -
-            // publishes the stop, so every other chain, this worker's own
-            // remaining ones included, sees it at its next sweep boundary.
-            // A chain that throws is stopped the same way, its exception
-            // kept for the caller. The catch must stay inside this body:
-            // the decrement below has to run for every chain, or the wait
-            // for numChainsRunning never ends.
-            try {
-              if (chains_[c]->run(numBurnIn, numSamples, chainResults[c],
-                                  &progress, c, &workerCancel, nullptr,
-                                  onDrawPtr))
-                cancelFlag.store(true, std::memory_order_relaxed);
-            } catch (...) {
-              {
-                std::lock_guard<std::mutex> lock(chainsMutex);
-                if (!firstError) firstError = std::current_exception();
-              }
+      auto worker = [this, numWorkers, numChains, numBurnIn, numSamples,
+                     &chainResults, &progress, &chainsMutex, &chainsDone,
+                     &numChainsRunning, &workerCancel, &cancelFlag,
+                     &firstError, onDrawPtr](size_t w) {
+        for (size_t c = w; c < numChains; c += numWorkers) {
+          // a chain that stopped itself - its observer returned nonzero -
+          // publishes the stop, so every other chain, this worker's own
+          // remaining ones included, sees it at its next sweep boundary.
+          // A chain that throws is stopped the same way, its exception
+          // kept for the caller. The catch must stay inside this body:
+          // the decrement below has to run for every chain, or the wait
+          // for numChainsRunning never ends.
+          try {
+            if (chains_[c]->run(numBurnIn, numSamples, chainResults[c],
+                                &progress, c, &workerCancel, nullptr,
+                                onDrawPtr))
               cancelFlag.store(true, std::memory_order_relaxed);
-            }
-            bool last;
+          } catch (...) {
             {
               std::lock_guard<std::mutex> lock(chainsMutex);
-              last = --numChainsRunning == 0;
+              if (!firstError) firstError = std::current_exception();
             }
-            // notified with the mutex released: the one waiter wakes to an
-            // unheld lock, and the count it re-tests is already zero
-            if (last) chainsDone.notify_one();
+            cancelFlag.store(true, std::memory_order_relaxed);
           }
-        });
-      }
-#ifndef _WIN32
-      pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
-#endif
+          bool last;
+          {
+            std::lock_guard<std::mutex> lock(chainsMutex);
+            last = --numChainsRunning == 0;
+          }
+          // notified with the mutex released: the one waiter wakes to an
+          // unheld lock, and the count it re-tests is already zero
+          if (last) chainsDone.notify_one();
+        }
+      };
+      spawnWorkers(workers, numWorkers, worker, [&cancelFlag]() {
+        cancelFlag.store(true, std::memory_order_relaxed);
+      });
       {
         std::unique_lock<std::mutex> lock(chainsMutex);
         while (numChainsRunning > 0) {
@@ -825,33 +849,24 @@ public:
     std::vector<char> failed(numWorkers, 0);
     std::vector<std::string> firstError(numWorkers);
     std::vector<std::thread> workers;
-    workers.reserve(numWorkers);
-#ifndef _WIN32
-    sigset_t interruptSet, previousSet;
-    sigemptyset(&interruptSet);
-    sigaddset(&interruptSet, SIGINT);
-    pthread_sigmask(SIG_BLOCK, &interruptSet, &previousSet);
-#endif
-    for (size_t w = 0, begin = 0; w < numWorkers; ++w) {
+    // worker w's block starts after every earlier worker's, the first
+    // `remainder` of which carry one extra slab
+    auto worker = [&body, &scratch, &failed, &firstError, base,
+                   remainder](size_t w) {
+      size_t begin = w * base + (w < remainder ? w : remainder);
       size_t end = begin + base + (w < remainder ? 1 : 0);
-      workers.emplace_back([&body, &scratch, &failed, &firstError, w, begin,
-                            end]() {
-        try {
-          for (size_t slab = begin; slab < end; ++slab)
-            body(slab, scratch[w]);
-        } catch (const std::exception& error) {
-          failed[w] = 1;
-          firstError[w] = error.what();
-        } catch (...) {
-          failed[w] = 1;
-          firstError[w] = "unknown exception";
-        }
-      });
-      begin = end;
-    }
-#ifndef _WIN32
-    pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
-#endif
+      try {
+        for (size_t slab = begin; slab < end; ++slab) body(slab, scratch[w]);
+      } catch (const std::exception& error) {
+        failed[w] = 1;
+        firstError[w] = error.what();
+      } catch (...) {
+        failed[w] = 1;
+        firstError[w] = "unknown exception";
+      }
+    };
+    // a failed spawn lets the started workers finish their own blocks
+    spawnWorkers(workers, numWorkers, worker, []() {});
     for (std::thread& worker : workers) worker.join();
     for (size_t w = 0; w < numWorkers; ++w)
       if (failed[w] != 0)
@@ -1438,16 +1453,27 @@ public:
   /// Reconfigure saved-tree storage: toggling keepTrees or changing the
   /// capacity reallocates every chain's slots and resets the write position;
   /// a no-op when nothing changes, preserving stored samples.
+  ///
+  /// An allocation that fails part way (a capacity too large to hold) throws
+  /// with every chain restored to the previous capacity and settings, the
+  /// store empty: the stored draws are gone either way, but the chains and the
+  /// options never disagree about how many slots exist.
   void setTreeStorage(bool keepTrees, size_t numSamplesToStore) {
     size_t capacity =
       keepTrees ? (numSamplesToStore > 0 ? numSamplesToStore : 1) : 0;
-    if (keepTrees == options_.keepTrees && capacity == savedTreeCapacity())
+    size_t previousCapacity = savedTreeCapacity();
+    if (keepTrees == options_.keepTrees && capacity == previousCapacity)
       return;
-    options_.keepTrees = keepTrees;
-    options_.numSamplesToStore = numSamplesToStore;
-    for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
     currentSampleNum_ = 0;
     recordedDraws_ = 0;
+    try {
+      for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
+    } catch (...) {
+      for (auto& chain : chains_) chain->initializeSavedTrees(previousCapacity);
+      throw;
+    }
+    options_.keepTrees = keepTrees;
+    options_.numSamplesToStore = numSamplesToStore;
   }
 
   /// Install a replacement prior on every chain; see ModelParameters.
@@ -1491,27 +1517,27 @@ public:
       return;
     }
 
+    // spawned with SIGINT blocked, as run() spawns. An exception escaping a
+    // thread body is std::terminate, so each worker keeps the first one a
+    // chain throws and it is rethrown here after the join; a failed spawn
+    // lets the started workers finish their chains.
+    std::mutex errorMutex;
+    std::exception_ptr firstError;
     std::vector<std::thread> workers;
-    workers.reserve(numWorkers);
-#ifndef _WIN32
-    // spawn with SIGINT blocked so a Ctrl-C during the grow phase reaches only
-    // the main thread, never a worker that has no R interrupt handler; the
-    // main thread's mask is restored right after the spawn (mirrors run())
-    sigset_t interruptSet, previousSet;
-    sigemptyset(&interruptSet);
-    sigaddset(&interruptSet, SIGINT);
-    pthread_sigmask(SIG_BLOCK, &interruptSet, &previousSet);
-#endif
-    for (size_t w = 0; w < numWorkers; ++w) {
-      workers.emplace_back([this, w, numWorkers, numChains, numSweeps]() {
-        for (size_t c = w; c < numChains; c += numWorkers)
+    auto worker = [this, numWorkers, numChains, numSweeps, &errorMutex,
+                   &firstError](size_t w) {
+      for (size_t c = w; c < numChains; c += numWorkers) {
+        try {
           chains_[c]->growForestFromRoot(numSweeps);
-      });
-    }
-#ifndef _WIN32
-    pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
-#endif
+        } catch (...) {
+          std::lock_guard<std::mutex> lock(errorMutex);
+          if (!firstError) firstError = std::current_exception();
+        }
+      }
+    };
+    spawnWorkers(workers, numWorkers, worker, []() {});
     for (std::thread& worker : workers) worker.join();
+    if (firstError) std::rethrow_exception(firstError);
   }
 
   /// Info dump of forest forestIndex; the per-node output format is R-visible

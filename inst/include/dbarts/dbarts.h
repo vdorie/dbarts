@@ -912,7 +912,10 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
 /// Turns saved-tree storage on or off; numSamplesToStore sizes the buffer
 /// when on. Turn on for recorded iterations to predict from them later.
 /// Changing either discards what the store held: its recorded-draw count
-/// returns to 0.
+/// returns to 0. A capacity too large to allocate raises, leaving the store
+/// empty at its previous capacity. The R object's control does not record
+/// this setting, but a state the R object stores carries the store, and a
+/// re-creation from that state takes its capacity.
 void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
                                    size_t numSamplesToStore);
 /// Prints forest number forest's trees to R's console: pre-order, var 1-based

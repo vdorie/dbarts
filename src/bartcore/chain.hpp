@@ -3101,7 +3101,22 @@ public:
   // the sampler before every run so chains write consistent slots without
   // sharing mutable state.
 
+  /// Sizes every forest's store to capacity slots. A capacity whose slot count
+  /// overflows the store's size type throws std::length_error before any
+  /// forest is touched, rather than wrapping to a short store the run would
+  /// then write past; an allocation failure part way leaves the forests
+  /// already sized, which the sampler restores.
   void initializeSavedTrees(size_t capacity) {
+    for (const Forest<L, ResidT>& forest : forests_)
+      if (forest.numTrees != 0 &&
+          capacity > forest.savedTrees.max_size() / forest.numTrees)
+        throw std::length_error("saved-tree storage of this many samples "
+                                "exceeds the addressable size");
+    if (varianceForest_ && varianceForest_->numTrees != 0 &&
+        capacity >
+          varianceForest_->savedTrees.max_size() / varianceForest_->numTrees)
+      throw std::length_error("saved-tree storage of this many samples "
+                              "exceeds the addressable size");
     if (varianceForest_) {
       // a scale leaf's default is the MULTIPLICATIVE identity 1.0, not the
       // mean side's additive 0.0: predictVarianceFromSavedSample forms s^2 as

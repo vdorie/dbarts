@@ -1242,3 +1242,35 @@ expect_error(
 finiteRun <- specFinite$run(0L, 2L)
 expect_true(all(is.finite(finiteRun$sigma)))
 rm(specFinite, ptrFinite, finiteRun)
+
+# a store too large to hold raises from the flat setter rather than aborting,
+# and leaves the store at its previous capacity
+specStorage <- dbarts(x, y, control = control)
+ptrStorage <- specStorage$getPointer()
+CALL("capi_set_tree_storage", ptrStorage, TRUE, 3L)
+expect_error(
+  CALL("capi_set_tree_storage", ptrStorage, TRUE, -1L),
+  "dbarts_sampler_setTreeStorage"
+)
+invisible(specStorage$run(0L, 3L))
+expect_identical(dim(specStorage$predict(x))[2L], 3L)
+rm(specStorage, ptrStorage)
+
+# a store switched on through the flat API survives a save and load: the
+# state the R object stores carries it, and the re-created sampler takes its
+# capacity, so predict and run work as on the live one
+storageControl <- control
+storageControl@keepTrees <- FALSE
+specFlatStore <- dbarts(x, y, control = storageControl)
+CALL("capi_set_tree_storage", specFlatStore$getPointer(), TRUE, 4L)
+invisible(specFlatStore$run(3L, 4L))
+specFlatStore$storeState()
+livePredict <- specFlatStore$predict(x)
+storeFile <- tempfile(fileext = ".rds")
+saveRDS(specFlatStore, storeFile)
+reloaded <- readRDS(storeFile)
+unlink(storeFile)
+expect_identical(reloaded$predict(x), livePredict)
+expect_silent(invisible(reloaded$run(0L, 1L)))
+rm(specFlatStore, reloaded, storageControl, livePredict, storeFile)
+invisible(gc(FALSE))
