@@ -1214,6 +1214,10 @@ Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B165]
 dbarts_sampler_predict on a multinomial sampler reads a non-null offsetTest as a rows x K matrix added before the softmax, and refuses a null one where R's predict does (a sampler carrying a category offset); non-finite entries are refused, as R refuses them. The alternative was refusing any offset, leaving samplers fit with a category offset no flat predict at all. A host can predict from C with every multinomial sampler R can; the caller sizes the matrix, as it sizes out. The maintainer on 2026-10-01: "Read the offset as a rows x K matrix, as R does, and require one where R does." See also: [dec-B160].
 Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B166]
 
+**The flat run's monotone interrupt and slow-count gaps ride the multinomial ABI change**
+The flat C API change for multinomial (dec-B160) also closes TODO monotone-count-host-interrupt: dbarts_sampler_run honours R's interrupt poll during a long leaf-order count and reports slow counts, as R's run does. The alternative was leaving it to its own item, since the interrupt needs no ABI change. A host's monotone fit under the "leaf" prior can be interrupted mid-count and learns of slow counts; stan4bart's behaviour on interrupt and warnings is reviewed with the change. How slow counts are reported (a warning the entry raises, or a results field) is a separate question. The maintainer on 2026-10-01: "Bundle it into this change." See also: [dec-B149], [dec-B160].
+Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B167]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
