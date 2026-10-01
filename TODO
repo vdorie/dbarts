@@ -235,17 +235,6 @@ items
     ("state is not consistent with this sampler") until sampling moves the
     empty leaf away; unconstrained samplers too. Every state a sampler
     produces should reinstall. Found in the monotone stage-1 review.
-  monotone-leaf-quadrature: coneProbability's adaptive-Simpson
-    quadrature (src/bartcore/model.hpp) dominates the monotone
-    branch-score profile - 3227 of 3232 samples - and no alternative
-    has been benched. Record:
-    docs/plans/review-2026-08-24/memos/monotone-branch-fill-bench.md.
-  truncated-normal-upper-tail: ext_rng_simulateTruncatedNormalScale1's
-    inverse-CDF path differences lower-tail CDFs, which lose precision on
-    intervals far above the mean (7.5 sd: a few hundred distinct values in
-    200k draws). The monotone leaf reflects such intervals before calling
-    it; the ordinal latent draw does not, and reflecting there moves
-    ordinal draws (an equivalence re-record with its oracle).
   multiforest-mutation-gaps: two doors
     (docs/plans/archive/multiforest-mutation-gaps.md).
     BCF whole-data setData (n free, z required): KEEP UNDESIGNED,

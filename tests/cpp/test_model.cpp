@@ -7583,10 +7583,11 @@ static void testMonotoneMarginal() {
       return (inner > 0.0 ? inner : 0.0) * normalPdf(xr, 0.0, sd);
     },
     aL, 12.0 * (leaf.scale / kEff));
-  double coneNum =
-    leaf.coneProbability(aL, HUGE_VAL, aL, HUGE_VAL, mL, sL, mR, sR);
-  double coneDen = leaf.coneProbability(aL, HUGE_VAL, aL, HUGE_VAL, 0.0,
-                                        leaf.scale / kEff, 0.0, leaf.scale / kEff);
+  double coneNum = std::exp(MonotoneConstantGaussianLeaf::logConeProbability(
+    aL, HUGE_VAL, aL, HUGE_VAL, mL, sL, mR, sR));
+  double coneDen = std::exp(MonotoneConstantGaussianLeaf::logConeProbability(
+    aL, HUGE_VAL, aL, HUGE_VAL, 0.0, leaf.scale / kEff, 0.0,
+    leaf.scale / kEff));
   checkNear(coneNum, numerRef, 1e-6, "monotone cone numerator vs quadrature");
   checkNear(coneDen, denomRef, 1e-6, "monotone cone normalizer vs quadrature");
 
@@ -7930,6 +7931,82 @@ static void testTruncatedNormalFarTail() {
   }
   ext_rng_destroy(rng);
   printf("ok: far-tail truncated normal (worst |z| %.2f)\n", worstZ);
+}
+
+// The two-sided primitive's inverse-CDF path on intervals far above the mean,
+// where the gap has not yet underflowed: differenced lower-tail CDFs near 1
+// collapse the draws onto a few values (two on (8.2, 9], biased by 3 sd), so
+// the interval is drawn reflected below the mean. Every draw lies in its
+// interval, the draws do not collapse, and mean and variance match the exact
+// truncated moments (upper-tail closed forms). The reflection is the draw the
+// monotone leaf took before the primitive made it: same seed, same value.
+static void testTruncatedNormalUpperBulk() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7033);
+  struct Case {
+    double mean, lower, upper;
+  };
+  // the last two straddle where the tail probability turns subnormal (about
+  // 37.5 sd), past which the draw is the rejection sampler's
+  const Case cases[] = {{0.0, 7.5, 8.0},   {0.0, 8.0, 9.0},  {0.0, 8.2, 9.0},
+                        {-1.5, 6.6, 7.0},  {0.0, 0.5, 2.0},  {0.0, 37.0, 38.0},
+                        {0.0, 38.2, 39.0}};
+  const int numDraws = 100000;
+  double worstZ = 0.0;
+  bool reflected = true;
+  for (const Case& cs : cases) {
+    // exact moments of N(0, 1) on (a, b], density relative to its value at a
+    double a = cs.lower - cs.mean, b = cs.upper - cs.mean;
+    double sw = 0.0, sxw = 0.0, sx2w = 0.0;
+    const int grid = 200000;
+    for (int j = 0; j < grid; ++j) {
+      double x = a + (j + 0.5) * (b - a) / grid;
+      double w = std::exp(-0.5 * (x - a) * (x + a));
+      sw += w;
+      sxw += x * w;
+      sx2w += x * x * w;
+    }
+    double refMean = sxw / sw, refVar = sx2w / sw - refMean * refMean;
+    std::vector<double> draws(static_cast<size_t>(numDraws));
+    bool inside = true;
+    double sum = 0.0, sumSq = 0.0;
+    for (int i = 0; i < numDraws; ++i) {
+      double x = ext_rng_simulateTruncatedNormalScale1(rng, cs.mean, cs.lower,
+                                                       cs.upper);
+      if (!(x >= cs.lower && x <= cs.upper)) inside = false;
+      draws[static_cast<size_t>(i)] = x;
+      sum += x - cs.mean;
+      sumSq += (x - cs.mean) * (x - cs.mean);
+    }
+    std::sort(draws.begin(), draws.end());
+    size_t distinct = static_cast<size_t>(
+      std::unique(draws.begin(), draws.end()) - draws.begin());
+    double mean = sum / numDraws, var = sumSq / numDraws - mean * mean;
+    double zScore = (mean - refMean) / std::sqrt(refVar / numDraws);
+    worstZ = std::max(worstZ, std::fabs(zScore));
+    check(inside, "upper bulk truncated normal: every draw lies in its "
+                  "interval");
+    check(distinct > static_cast<size_t>(0.99 * numDraws),
+          "upper bulk truncated normal: the draws do not collapse");
+    check(std::fabs(zScore) < 5.0,
+          "upper bulk truncated normal: the mean matches the exact mean");
+    checkNear(var, refVar, 0.03 * refVar,
+              "upper bulk truncated normal: the variance matches");
+
+    for (std::uint32_t seed = 1; seed <= 200; ++seed) {
+      ext_rng_setSeed(rng, seed);
+      double direct = ext_rng_simulateTruncatedNormalScale1(rng, cs.mean,
+                                                            cs.lower, cs.upper);
+      ext_rng_setSeed(rng, seed);
+      double mirror = -ext_rng_simulateTruncatedNormalScale1(
+        rng, -cs.mean, -cs.upper, -cs.lower);
+      reflected = reflected && direct == mirror;
+    }
+  }
+  check(reflected, "upper bulk truncated normal: the draw is its reflection "
+                   "below the mean, bitwise");
+  ext_rng_destroy(rng);
+  printf("ok: upper bulk truncated normal (worst |z| %.2f)\n", worstZ);
 }
 
 // (f) Empty leaves are leaves of the cone: the feasibility predicate holds
@@ -8579,6 +8656,7 @@ void runModelTests(ext_rng* rng) {
   testMonotonePairRedraw();
   testMonotoneTruncatedTail();
   testTruncatedNormalFarTail();
+  testTruncatedNormalUpperBulk();
   testMonotoneEmptyLeaf();
   testMonotoneReachability();
   // the heteroscedastic end-to-end fits build full chains; they run last so
