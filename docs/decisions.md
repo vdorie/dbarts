@@ -1198,6 +1198,10 @@ Record: docs/design/error-style.md (R15). Marked: blank. [dec-B161]
 The classed warnings of dec-B161 share the parent class dbartsWarning, so a caller can silence or catch every classed dbarts warning in one place, for example inside a loop or a function that also calls other packages. Base R has no per-package parent class, and no consumer catches it today. The alternative was dropping it, each class sitting directly under warning; adding it later would break nothing, removing it after release could. The maintainer on 2026-10-01: "Let's leave it - it could be nice to selective supress warnings in case it's in a loop or function with other stuff."
 Record: docs/design/error-style.md (R15). Marked: blank. [dec-B162]
 
+**The flat C API's K accessor is dbarts_sampler_numFittedValuesPerObservation**
+The new entry that reports how many fitted values a sampler produces per observation in each draw (K for a multinomial sampler, 1 for every other) is dbarts_sampler_numFittedValuesPerObservation, and the per-draw callback struct's field of the same meaning, numReportedLocations, is renamed numFittedValuesPerObservation in the same ABI event; no consumer reads that field. The alternatives were numReportedLocations, numCategories (wrong off multinomial, and an ordinal sampler has categories but reports one value), numValuesPerObservation, numOutputsPerObservation, and numResponseValuesPerObservation (wrong for survival and binomial-with-trials responses, which carry two values but report one). A host sizes the train, test and predict buffers as observations x this x draws x chains. The maintainer on 2026-10-01, after asking for "something more literal but generally applicable": "Yes, let's use that." See also: [dec-B160].
+Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B163]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
