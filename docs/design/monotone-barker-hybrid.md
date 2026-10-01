@@ -1,6 +1,6 @@
 # Monotone "leaf" prior: a hybrid birth/death move that never runs a large count
 
-Status: PROPOSED 2026-09-29; the upgrade dec-B149 names; not ruled.
+Status: PROPOSED 2026-09-29; the upgrade dec-B149 names; deferred to after 1.0-0 (dec-B153).
 
 Under monotone(prior = "leaf") every birth/death move needs Z_T0 / Z_T* = m theta
 ([Counting: algorithm](../plans/monotone-exact-birth-death.md#counting-algorithm)): T* is the finer

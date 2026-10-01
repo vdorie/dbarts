@@ -271,6 +271,8 @@ Rulings, 2026-09-29:
 - Tree prior under "joint" (dec-B152, 2026-10-01): cgm()'s defaults, with mBART's values documented in the
   monotone() help as an opt-in. "Yes, use option 1." Not chosen: mBART's values whenever a constraint is
   present, and a search for an intermediate setting.
+- Hybrid (dec-B153, 2026-10-01): deferred to after 1.0-0; the slow-count warning and interrupt stay. "Option
+  2." Stage 4b's cache goes with it (dec-A134).
 
 ## Default: feel study
 
@@ -704,7 +706,7 @@ Constraints) and every harness pinned, and step 12's docs wait for the default r
    (BARTCORE_MOVE_CENSUS; step 2). Then the checkpoint below, and stop. Until commit 5's setModel refusal,
    setModel silently accepts a changed monotone prior (the engine keeps the old one); commits 4 and 5 are
    pushed together, so no pushed tip carries it.
-4b. The lazy cache (step 1), after the checkpoint: the checkpoint sees the uncached worst case, since the cache
+4b. Deferred to after 1.0-0 with the hybrid (dec-A134). The lazy cache (step 1), after the checkpoint: the checkpoint sees the uncached worst case, since the cache
    changes only cost, and its fits are re-timed with the cache.
 5. Slow-count warning, interrupt, allocation and rebuild (step 15), and step 7's setModel refusal (dec-A128).
    Commit 4 alone cannot be interrupted mid-count, and an allocation failure on a worker thread there calls
