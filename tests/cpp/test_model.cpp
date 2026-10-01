@@ -7932,6 +7932,72 @@ static void testTruncatedNormalFarTail() {
   printf("ok: far-tail truncated normal (worst |z| %.2f)\n", worstZ);
 }
 
+// The two-sided primitive's inverse-CDF path on intervals far above the mean,
+// where the gap has not yet underflowed: differenced lower-tail CDFs near 1
+// collapse the draws onto a few values (two on (8.2, 9], biased by 3 sd), so
+// the interval is drawn reflected below the mean. Every draw lies in its
+// interval, the draws do not collapse, and mean and variance match the exact
+// truncated moments (upper-tail closed forms). The reflection is the draw the
+// monotone leaf took before the primitive made it: same seed, same value.
+static void testTruncatedNormalUpperBulk() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7033);
+  struct Case {
+    double mean, lower, upper;
+  };
+  const Case cases[] = {{0.0, 7.5, 8.0}, {0.0, 8.0, 9.0}, {0.0, 8.2, 9.0},
+                        {-1.5, 6.6, 7.0}, {0.0, 0.5, 2.0}};
+  const int numDraws = 100000;
+  double worstZ = 0.0;
+  bool reflected = true;
+  for (const Case& cs : cases) {
+    double a = cs.lower - cs.mean, b = cs.upper - cs.mean;
+    double z = Rf_pnorm5(a, 0.0, 1.0, 0, 0) - Rf_pnorm5(b, 0.0, 1.0, 0, 0);
+    double pa = gaussianPdf(a), pb = gaussianPdf(b);
+    double refMean = (pa - pb) / z;
+    double refVar = 1.0 + (a * pa - b * pb) / z - refMean * refMean;
+    std::vector<double> draws(static_cast<size_t>(numDraws));
+    bool inside = true;
+    double sum = 0.0, sumSq = 0.0;
+    for (int i = 0; i < numDraws; ++i) {
+      double x = ext_rng_simulateTruncatedNormalScale1(rng, cs.mean, cs.lower,
+                                                       cs.upper);
+      if (!(x >= cs.lower && x <= cs.upper)) inside = false;
+      draws[static_cast<size_t>(i)] = x;
+      sum += x - cs.mean;
+      sumSq += (x - cs.mean) * (x - cs.mean);
+    }
+    std::sort(draws.begin(), draws.end());
+    size_t distinct = static_cast<size_t>(
+      std::unique(draws.begin(), draws.end()) - draws.begin());
+    double mean = sum / numDraws, var = sumSq / numDraws - mean * mean;
+    double zScore = (mean - refMean) / std::sqrt(refVar / numDraws);
+    worstZ = std::max(worstZ, std::fabs(zScore));
+    check(inside, "upper bulk truncated normal: every draw lies in its "
+                  "interval");
+    check(distinct > static_cast<size_t>(0.99 * numDraws),
+          "upper bulk truncated normal: the draws do not collapse");
+    check(std::fabs(zScore) < 5.0,
+          "upper bulk truncated normal: the mean matches the exact mean");
+    checkNear(var, refVar, 0.03 * refVar,
+              "upper bulk truncated normal: the variance matches");
+
+    for (std::uint32_t seed = 1; seed <= 200; ++seed) {
+      ext_rng_setSeed(rng, seed);
+      double direct = ext_rng_simulateTruncatedNormalScale1(rng, cs.mean,
+                                                            cs.lower, cs.upper);
+      ext_rng_setSeed(rng, seed);
+      double mirror = -ext_rng_simulateTruncatedNormalScale1(
+        rng, -cs.mean, -cs.upper, -cs.lower);
+      reflected = reflected && direct == mirror;
+    }
+  }
+  check(reflected, "upper bulk truncated normal: the draw is its reflection "
+                   "below the mean, bitwise");
+  ext_rng_destroy(rng);
+  printf("ok: upper bulk truncated normal (worst |z| %.2f)\n", worstZ);
+}
+
 // (f) Empty leaves are leaves of the cone: the feasibility predicate holds
 // them to their bounds, and the leaf draw gives one its prior truncated to
 // them rather than pinning it at 0.
@@ -8579,6 +8645,7 @@ void runModelTests(ext_rng* rng) {
   testMonotonePairRedraw();
   testMonotoneTruncatedTail();
   testTruncatedNormalFarTail();
+  testTruncatedNormalUpperBulk();
   testMonotoneEmptyLeaf();
   testMonotoneReachability();
   // the heteroscedastic end-to-end fits build full chains; they run last so

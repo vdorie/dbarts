@@ -458,7 +458,11 @@ extern double Rf_qnorm5(double, double, double, int, int);
 
 // X ~ N(mean, 1) | lower < X <= upper. In the bulk the inverse-CDF transform
 // X = mean + qnorm(Phi(lower - mean) + U (Phi(upper - mean) - Phi(lower - mean)))
-// draws exactly; deep in a tail the probability gap underflows to zero, so fall
+// draws exactly; an interval above the mean is drawn reflected below it,
+// X = mean - qnorm(Phi(mean - upper) + U (Phi(mean - lower) - Phi(mean - upper))),
+// since lower-tail CDFs near 1 cancel (7.5 sd above the mean they collapse the
+// draw onto a few hundred values, biased) and near 0 keep full relative
+// precision. Deep in a tail the probability gap underflows to zero, so fall
 // back to Robert (1995) two-sided rejection, reflecting the interval into the
 // right tail first: a uniform proposal on a narrow interval, accepted with
 // exp(-(x^2 - lo^2) / 2) (at least 1/e when (hi^2 - lo^2) / 2 <= 1), and an
@@ -473,11 +477,13 @@ double ext_rng_simulateTruncatedNormalScale1(
   double upper
 ) {
   double a = lower - mean, b = upper - mean;
-  double pLower = Rf_pnorm5(a, 0.0, 1.0, 1, 0);
-  double gap = Rf_pnorm5(b, 0.0, 1.0, 1, 0) - pLower;
+  bool above = a > 0.0;
+  double pLower = Rf_pnorm5(above ? -b : a, 0.0, 1.0, 1, 0);
+  double gap = Rf_pnorm5(above ? -a : b, 0.0, 1.0, 1, 0) - pLower;
   if (gap > 0.0) {
     double u = ext_rng_simulateContinuousUniform(generator);
-    double x = mean + Rf_qnorm5(pLower + u * gap, 0.0, 1.0, 1, 0);
+    double z = Rf_qnorm5(pLower + u * gap, 0.0, 1.0, 1, 0);
+    double x = above ? mean - z : mean + z;
     return x < lower ? lower : (x > upper ? upper : x);
   }
   bool reflect = a < 0.0;              // interval sits in the left tail
