@@ -260,8 +260,20 @@ xbart <- function(
   }
   data <- weightPolicy$data
 
+  # An unsupplied sigest is estimated per fold from the fold's training rows,
+  # so no fold's residual prior reads its held-out responses. The estimate on
+  # all rows still runs once, here, to raise any refusal or fallback once and
+  # to choose the per-fold route: where it fell back to the marginal sd (a
+  # sparse design, or no residual degrees of freedom), each fold takes its
+  # own marginal sd and no fold attempts the linear fit again.
+  sigmaPerFold <- NULL
   if (is.na(data@sigma) && !control@binary) {
-    data@sigma <- estimateStartingSigma(data)
+    fellBack <- FALSE
+    data@sigma <- withCallingHandlers(
+      estimateStartingSigma(data),
+      dbartsSigmaFallbackWarning = function(w) fellBack <<- TRUE
+    )
+    sigmaPerFold <- if (fellBack) "marginal" else "linear"
   }
 
   if (
@@ -288,7 +300,6 @@ xbart <- function(
     if (length(formals(loss)) != 3L) {
       stop("supplied loss function must take exactly three arguments")
     }
-    loss <- list(loss, evalEnv)
   } else if (is.list(loss)) {
     if (!is.function(loss[[1L]])) {
       stop("first member of loss-list must be a function")
@@ -601,6 +612,7 @@ xbart <- function(
     base,
     cells,
     lossFunction,
+    sigmaPerFold,
     # a worker starts a fresh session; it is handed this one's warned-once
     # keys so a key already warned here stays silent there. A new key fires
     # once per worker, and the caller's deduplication reports it once
@@ -854,10 +866,17 @@ xbart <- function(
 ## binary responses. The built-in binary losses transform by the family's
 ## link.
 xbartLossFunction <- function(loss, control, family) {
+  # a supplied function keeps its own environment, so a closure keeps what it
+  # captured; the list form calls it from the given environment
+  if (is.function(loss)) {
+    return(loss)
+  }
   if (is.list(loss)) {
-    result <- loss[[1L]]
-    environment(result) <- loss[[2L]]
-    return(result)
+    lossFunction <- loss[[1L]]
+    lossEnv <- loss[[2L]]
+    return(function(y.test, testSamples, weights) {
+      eval(as.call(list(lossFunction, y.test, testSamples, weights)), lossEnv)
+    })
   }
 
   if (!is.character(loss) || loss[1L] %not_in% c("rmse", "log", "mcr")) {
@@ -936,6 +955,33 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     }
   handle <- bartcoreDataHandle(spec$control, data, leafCovariateColumns)
 
+  # the per-fold sigma's dense design is built once per chunk, not per fold
+  sigmaDesign <- if (identical(spec$sigmaPerFold, "linear")) {
+    sigmaDesignMatrix(data@x)
+  }
+  foldData <- function(trainRows) {
+    if (is.null(spec$sigmaPerFold)) {
+      return(data)
+    }
+    offset <- if (!is.null(data@offset)) data@offset[trainRows]
+    y <- data@y[trainRows]
+    residual <- if (!is.null(offset)) y - offset else y
+    data@sigma <- if (is.null(sigmaDesign)) {
+      floorMarginalSigma(sd(residual), residual)
+    } else {
+      floorSigmaEstimate(
+        residualStandardError(
+          y,
+          sigmaDesign[trainRows, , drop = FALSE],
+          if (hasWeights) data@weights[trainRows],
+          offset
+        ),
+        residual
+      )
+    }
+    data
+  }
+
   cellModel <- function(cell) {
     result <- spec$model
     result@tree.prior@power <- spec$power[cells$iPower[cell]]
@@ -957,6 +1003,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
   # dbarts generator rather than R's stream.
   sweepCells <- function(testRows, treeSeeds) {
     trainRows <- seq_len(numObservations)[-testRows]
+    trainData <- foldData(trainRows)
     y.test <- data@y[testRows]
     weights.test <- if (hasWeights) data@weights[testRows] else NULL
 
@@ -977,7 +1024,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
           handle,
           cellControl,
           cellModel(cell),
-          data,
+          trainData,
           trainRows,
           testRows,
           family
@@ -985,7 +1032,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
         currentTrees <- spec$n.trees[cells$iTrees[cell]]
         numBurnIn <- spec$n.burn[1L]
       } else {
-        bartcoreSetModel(sampler, cellModel(cell), data, cellControl)
+        bartcoreSetModel(sampler, cellModel(cell), trainData, cellControl)
         numBurnIn <- spec$n.burn[2L]
       }
 

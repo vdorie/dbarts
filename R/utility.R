@@ -1020,6 +1020,7 @@ residualStandardError <- function(y, x, weights, offset) {
 ## variance prior.
 estimateSigmaFromLinearModel <- function(data) {
   x <- data@x
+  residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
   # a sparse design would densify under the linear fit and is typically wide
   # anyway; the marginal estimate still anchors the residual variance prior.
   # A dense container (a frame with factors) still fits; only CSC-backed
@@ -1037,9 +1038,19 @@ estimateSigmaFromLinearModel <- function(data) {
         "dbartsWarning"
       )
     ))
-    residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
     return(sd(residual))
   }
+  sigma <- residualStandardError(
+    data@y,
+    sigmaDesignMatrix(x),
+    data@weights,
+    data@offset
+  )
+  floorSigmaEstimate(sigma, residual)
+}
+
+## The dense design the starting sigma's linear fit reads: NAs mean-imputed.
+sigmaDesignMatrix <- function(x) {
   x <- as.matrix(x)
   if (anyNA(x)) {
     for (j in seq_len(ncol(x))) {
@@ -1050,8 +1061,11 @@ estimateSigmaFromLinearModel <- function(data) {
       }
     }
   }
-  sigma <- residualStandardError(data@y, x, data@weights, data@offset)
-  residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
+  x
+}
+
+## A linear fit's residual standard error made a usable starting sigma.
+floorSigmaEstimate <- function(sigma, residual) {
   # A design with no residual degrees of freedom (or another reason the
   # fit's residual variance comes out undefined) leaves sigma non-finite; a
   # non-finite value is not an estimate at all, so fall back to the marginal
@@ -1068,17 +1082,20 @@ estimateSigmaFromLinearModel <- function(data) {
     ))
     sigma <- sd(residual)
   }
-  # A response the fit reproduces exactly returns rounding noise instead of
-  # a meaningful sigma - down to landing at precisely 0 - and which exact
-  # value it lands on is a property of the host's BLAS kernel; the sampler
-  # refuses a non-positive sigma outright, so a host-dependent noise floor
-  # would make dbarts() itself succeed or fail by hardware. Floor the final
-  # estimate (raw fit or the marginal fallback above) at a relative epsilon
-  # so it is host-independent. Uses the unweighted residual: weights
-  # rescale the fit's effective sample, not the response's own scale, so
-  # they play no part in the floor. sd() of a length-1 residual is itself
-  # NA (undefined, not merely small), which the fallback above can hand
-  # here; re-check finiteness rather than let that NA reach the comparison.
+  floorMarginalSigma(sigma, residual)
+}
+
+## A response the fit reproduces exactly returns rounding noise instead of
+## a meaningful sigma - down to landing at precisely 0 - and which exact
+## value it lands on is a property of the host's BLAS kernel; the sampler
+## refuses a non-positive sigma outright, so a host-dependent noise floor
+## would make dbarts() itself succeed or fail by hardware. Floor the final
+## estimate (raw fit or the marginal fallback) at a relative epsilon so it is
+## host-independent. Uses the unweighted residual: weights rescale the fit's
+## effective sample, not the response's own scale, so they play no part in
+## the floor. sd() of a length-1 residual is itself NA (undefined, not merely
+## small); re-check finiteness rather than let that NA reach the comparison.
+floorMarginalSigma <- function(sigma, residual) {
   sigmaFloor <- sqrt(.Machine$double.eps) * max(1, max(abs(residual)))
   if (!is.finite(sigma) || sigma < sigmaFloor) sigmaFloor else sigma
 }
