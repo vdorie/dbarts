@@ -1210,6 +1210,10 @@ Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B164]
 The second new entry, which reports how many sets of split counts a run writes per draw (K on multinomial, 2 on BCF, 1 elsewhere; a variance forest keeps none), is dbarts_sampler_numVariableCountForests, the name of the callback struct's existing field and of R's varcount. The alternative was numSplitCountForests with the callback field renamed to match, plainer words that would give the quantity a second name beside R's varcount. The maintainer on 2026-10-01: "dbarts_sampler_numVariableCountForests." See also: [dec-B164].
 Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B165]
 
+**Flat predict on a multinomial sampler reads its offset as a rows x K matrix, as R does**
+dbarts_sampler_predict on a multinomial sampler reads a non-null offsetTest as a rows x K matrix added before the softmax, and refuses a null one where R's predict does (a sampler carrying a category offset); non-finite entries are refused, as R refuses them. The alternative was refusing any offset, leaving samplers fit with a category offset no flat predict at all. A host can predict from C with every multinomial sampler R can; the caller sizes the matrix, as it sizes out. The maintainer on 2026-10-01: "Read the offset as a rows x K matrix, as R does, and require one where R does." See also: [dec-B160].
+Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B166]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
