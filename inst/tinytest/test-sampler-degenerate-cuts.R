@@ -211,4 +211,34 @@ expect_error(
   "predictor 'z' has infinite values"
 )
 
+# The quantile grid is over finite values too: a column holding only -Inf and
+# Inf, or a few infinite values among finite ones, gives a grid whose state
+# restores, so the saved fit predicts after reloading.
+set.seed(3)
+infiniteFrame <- data.frame(
+  y = rnorm(40L),
+  a = runif(40L),
+  b = rep(c(-Inf, Inf), 20L),
+  c = c(Inf, -Inf, runif(38L))
+)
+fit <- bart(
+  y ~ .,
+  infiniteFrame,
+  useQuantiles = TRUE,
+  sigest = 1,
+  n.samples = 5L,
+  n.burn = 5L,
+  n.chains = 1L,
+  n.trees = 5L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+expect_true(all(is.finite(unlist(attr(fit$fit$state, "cutPoints")))))
+expected <- predict(fit, infiniteFrame[1:3, ])
+fit$fit$storeState()
+reloaded <- unserialize(serialize(fit, NULL))
+expect_identical(predict(reloaded, infiniteFrame[1:3, ]), expected)
+rm(infiniteFrame)
+
 rm(frame, fit, expected, reloaded, sampler, z, y)
