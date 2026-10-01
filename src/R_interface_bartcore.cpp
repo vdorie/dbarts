@@ -4672,21 +4672,25 @@ SEXP bartcore_getForestVariableCounts(SEXP ptrExpr, SEXP forestExpr) {
   return result;
 }
 
+} // extern "C"
+
+namespace bartcore_bridge {
+
+std::atomic<int> interruptAfterPolls{0};
+
 // R_CheckUserInterrupt longjmps when an interrupt is pending; running it
 // through R_ToplevelExec catches that jump so the sampler can join its worker
 // threads before the interrupt becomes an error (a bare longjmp would strand
-// them). Must be called only on the main R thread. R_ToplevelExec returns
-// FALSE when the wrapped call jumped, i.e. when an interrupt was pending.
-static void bartcore_checkInterrupt(void*) { R_CheckUserInterrupt(); }
-static bool bartcore_userInterrupted() {
-  return R_ToplevelExec(bartcore_checkInterrupt, nullptr) == FALSE;
+// them). R_ToplevelExec returns FALSE when the wrapped call jumped, i.e. when
+// an interrupt was pending.
+static void checkInterrupt(void*) { R_CheckUserInterrupt(); }
+bool userInterrupted() {
+  int armed = interruptAfterPolls.load();
+  if (armed > 0 && interruptAfterPolls.fetch_sub(1) == 1) return true;
+  return R_ToplevelExec(checkInterrupt, nullptr) == FALSE;
 }
 
-// The last run's slow order counts as a named double vector on `target`'s
-// "slow.count" attribute, absent when no count was slow; R warns from it
-// (warnOnSlowCount).
-static void attachSlowCountTally(SEXP target,
-                                 const bartcore::SamplerBase& sampler) {
+void attachSlowCountTally(SEXP target, const bartcore::SamplerBase& sampler) {
   bartcore::SlowCountTally tally = sampler.slowCountTally();
   if (tally.slowCounts == 0) return;
   SEXP tallyExpr = PROTECT(Rf_allocVector(REALSXP, 4));
@@ -4704,16 +4708,32 @@ static void attachSlowCountTally(SEXP target,
   UNPROTECT(2);
 }
 
+} // namespace bartcore_bridge
+
+extern "C" {
+
+using bartcore_bridge::attachSlowCountTally;
+static bool bartcore_userInterrupted() {
+  return bartcore_bridge::userInterrupted();
+}
+
 // Test hook, unexported: sets the process-wide slow-count threshold in
-// seconds (NA leaves it) and arms a one-shot allocation failure in the next
-// order count, returning the threshold it replaced.
+// seconds (NA leaves it), arms a one-shot allocation failure in the next
+// order count, and arms the shared interrupt poll to report an interrupt on
+// its interruptAfterPolls-th call (NA leaves it, 0 disarms), returning the
+// threshold it replaced.
 SEXP bartcore_setMonotoneCountHooks(SEXP slowSecondsExpr,
-                                    SEXP failNextCountExpr) {
+                                    SEXP failNextCountExpr,
+                                    SEXP interruptAfterPollsExpr) {
   bartcore::MonotoneCountHooks& hooks = bartcore::monotoneCountHooks();
   double previous = hooks.slowSeconds.load();
   double slowSeconds = Rf_asReal(slowSecondsExpr);
   if (!ISNAN(slowSeconds)) hooks.slowSeconds.store(slowSeconds);
   hooks.failNextCount.store(Rf_asLogical(failNextCountExpr) == TRUE);
+  int interruptAfter = Rf_asInteger(interruptAfterPollsExpr);
+  if (interruptAfter != NA_INTEGER)
+    bartcore_bridge::interruptAfterPolls.store(
+      interruptAfter > 0 ? interruptAfter : 0);
   return Rf_ScalarReal(previous);
 }
 

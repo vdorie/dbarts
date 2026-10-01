@@ -815,6 +815,22 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// under which that is allowed, and what the sampler looks like afterwards,
 /// are dbarts_draw_callback's.
 ///
+/// The run polls for R's user interrupt, as the R run does, at sweep
+/// boundaries and inside a monotone leaf-order count. An interrupt stops the
+/// run and RAISES "sampler run interrupted" once every worker has joined,
+/// leaving the sampler in the state a callback's nonzero return leaves:
+/// results and any saved trees of this call are discarded, and the handle
+/// stays valid.
+///
+/// A run whose monotone leaf-order counts were slow raises R's
+/// dbartsSlowCountWarning at most once per sampler, after the run completes
+/// and with nothing of the library's live. "Once" is per engine handle: an
+/// R-side re-creation from a stored state builds a new one, which may warn
+/// once more. A handler that exits on the warning - options(warn = 2),
+/// tryCatch(warning = ), a calling handler that stops or invokes a restart -
+/// turns it into a jump out of this entry; the run's results are complete
+/// and the sampler consistent when it happens.
+///
 /// No error raised under this call strands anything the library owns: the
 /// callback's jump is caught at the callback, an engine failure travels out as
 /// a C++ exception and becomes an R error only at this boundary, once its

@@ -265,7 +265,7 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_run", bartcore_run, 6),
   DEF_FUNC("dbarts_bartcore_runWithCallback", bartcore_runWithCallback, 6),
   DEF_FUNC("dbarts_bartcore_setMonotoneCountHooks",
-           bartcore_setMonotoneCountHooks, 2),
+           bartcore_setMonotoneCountHooks, 3),
   DEF_FUNC("dbarts_bartcore_setOffset", bartcore_setOffset, 3),
   DEF_FUNC("dbarts_bartcore_setResponse", bartcore_setResponse, 4),
   DEF_FUNC("dbarts_bartcore_setSigma", bartcore_setSigma, 2),

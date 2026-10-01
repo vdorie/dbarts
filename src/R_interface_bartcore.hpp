@@ -34,7 +34,8 @@ SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
                   SEXP callbackFn, SEXP callbackContext, SEXP keepFits);
 SEXP bartcore_runWithCallback(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
                               SEXP results, SEXP callback, SEXP rho);
-SEXP bartcore_setMonotoneCountHooks(SEXP slowSeconds, SEXP failNextCount);
+SEXP bartcore_setMonotoneCountHooks(SEXP slowSeconds, SEXP failNextCount,
+                                    SEXP interruptAfterPolls);
 SEXP bartcore_setOffset(SEXP ptr, SEXP offset, SEXP updateScale);
 SEXP bartcore_setResponse(SEXP ptr, SEXP y, SEXP updateScale,
                           SEXP status);

@@ -428,6 +428,15 @@ SEXP capi_predict_canaried(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
   return result;
 }
 
+/* a run with no result buffers at all: the sweeps run and the chains
+ * advance, which is what the interrupt and slow-count arms drive */
+SEXP capi_run_plain(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
+  dbarts_sampler_run(samplerFromExpr(ptrExpr),
+                     (size_t) Rf_asInteger(numBurnInExpr),
+                     (size_t) Rf_asInteger(numSamplesExpr), NULL);
+  return Rf_ScalarLogical(1);
+}
+
 /* the write-guard canary: simulate an OLD, smaller caller by pinning
  * structSize to the offset of `test`, so only sigma and train are present-by-
  * size. Every field past that boundary is set to a poisoned pointer; the

@@ -524,6 +524,21 @@ static_assert(dbarts_apiToken() == DBARTS_C_API_HASH,
               "inst/include/dbarts/dbarts.h (and bump DBARTS_C_API_MAJOR or "
               "DBARTS_C_API_MINOR as the change warrants)");
 
+namespace {
+// R's own dbartsSlowCountWarning, raised by evaluating warnOnSlowCount from the
+// dbarts namespace on the carrier the R run builds, so the class, sentence and
+// tally are the R route's.
+void raiseSlowCountWarning(const bartcore::SamplerBase& sampler) {
+  SEXP carrier = PROTECT(Rf_allocVector(VECSXP, 0));
+  bartcore_bridge::attachSlowCountTally(carrier, sampler);
+  SEXP name = PROTECT(Rf_mkString("dbarts"));
+  SEXP ns = PROTECT(R_FindNamespace(name));
+  SEXP call = PROTECT(Rf_lang2(Rf_install("warnOnSlowCount"), carrier));
+  Rf_eval(call, ns);
+  UNPROTECT(4);
+}
+} // namespace
+
 extern "C" {
 
 int dbarts_apiMajorVersion(void) { return DBARTS_C_API_MAJOR; }
@@ -562,6 +577,7 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
   // below where nothing is in flight.
   bartcore_bridge::CapturedError error;
   SEXP continuation = NULL;
+  bool cancelled = false, stoppedByCallback = false;
   try {
     DrawCallbackProtection armed(sampler->drawHook);
     bartcore_bridge::captureExceptions(error, [&]() {
@@ -600,10 +616,13 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
       // so no GetRNGstate/PutRNGstate bracket is needed here - and none is
       // left unbalanced by a longjmp out of the engine.
       // the registered observer, adapted to the shipped draw struct one draw
-      // at a time; an empty hook when nothing is registered, which is the run
-      // this entry made before the callback existed
-      samplerOf(sampler).run(numBurnIn, numSamples, engineResults, {}, {},
-                             sampler->drawHook.engineHook());
+      // at a time; an empty hook when nothing is registered. The interrupt
+      // poll is the R route's, so a pending interrupt cancels the run at the
+      // next sweep boundary or inside a leaf-order count, and the engine says
+      // whether a cancel was the callback's stop rather than an interrupt.
+      cancelled = samplerOf(sampler).run(
+        numBurnIn, numSamples, engineResults, bartcore_bridge::userInterrupted,
+        {}, sampler->drawHook.engineHook(), &stoppedByCallback);
     });
   } catch (const UnwindJump& jump) {
     // the protection is disarmed by now: the throw ran every destructor
@@ -615,6 +634,17 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
   // same reason captureExceptions copies its message out before raising
   if (continuation != NULL) R_ContinueUnwind(continuation); // does not return
   if (error.failed) Rf_error("dbarts_sampler_run: %s", error.message);
+  // a callback's stop keeps its contract and returns normally; a real cancel
+  // leaves the sampler as that stop does and raises
+  if (cancelled && !stoppedByCallback)
+    Rf_error("dbarts_sampler_run: sampler run interrupted");
+  // once per holder, last, with nothing of the library's live: any handler
+  // that exits on the warning jumps out of a complete run
+  if (!sampler->slowCountWarned &&
+      samplerOf(sampler).slowCountTally().slowCounts > 0) {
+    sampler->slowCountWarned = true;
+    raiseSlowCountWarning(samplerOf(sampler));
+  }
 }
 
 /// The setter copies the pair into the sampler and nothing else: no call is

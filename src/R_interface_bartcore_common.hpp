@@ -5,6 +5,7 @@
 // (R_interface_bartcore.cpp) and the flat C API (C_interface.cpp);
 // definitions live in R_interface_bartcore.cpp
 
+#include <atomic>    // atomic
 #include <cstddef>   // size_t
 #include <cstdint>   // int32_t
 #include <cstdio>    // snprintf
@@ -317,6 +318,12 @@ struct dbarts_sampler_t {
   // the test rows under one is refused rather than reinterpreted.
   std::vector<double> ownedCategoryTestOffset{};
 
+  // whether the flat run has raised its slow-count warning on this holder,
+  // which lives as long as the engine handle. LAST, because the creation
+  // sites build the holder by positional aggregate initialization: a member
+  // placed anywhere else would shift every initializer after it.
+  bool slowCountWarned = false;
+
   ~dbarts_sampler_t() {
     for (std::size_t c = rngs.size(); c > 0; --c)
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
@@ -500,6 +507,22 @@ void validateResponseSupport(bartcore::ResponseFamily family,
 /// value is put back.
 void refuseNonFinite(const double* values, std::size_t count,
                      const char* caller, const char* what);
+
+/// The interrupt poll both run routes hand the engine: R_CheckUserInterrupt
+/// under R_ToplevelExec, so a pending interrupt is reported rather than
+/// longjmped and the sampler can join its workers before it becomes an error.
+/// Main R thread only. While interruptAfterPolls is armed at N > 0 the Nth poll
+/// reports an interrupt without touching R's signal state and disarms it.
+bool userInterrupted();
+
+/// The test hook userInterrupted counts down; process-wide, so a test that
+/// arms it resets it to 0 whatever the arm's outcome.
+extern std::atomic<int> interruptAfterPolls;
+
+/// Attaches the last run's slow order counts to \p target as a named double
+/// vector on its "slow.count" attribute, absent when no count was slow; R
+/// warns from it (warnOnSlowCount).
+void attachSlowCountTally(SEXP target, const bartcore::SamplerBase& sampler);
 
 /// The two refusals a multi-location (multinomial) predict offset meets, worded
 /// once for the R and the flat route. The first: the sampler carries a train or

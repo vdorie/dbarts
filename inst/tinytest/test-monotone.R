@@ -836,11 +836,16 @@ local({
 
 # ---- setModel keeps the sampler's own constraint; slow counts ----
 
-countHooks <- function(slowSeconds = NA_real_, failNextCount = FALSE) {
+countHooks <- function(
+  slowSeconds = NA_real_,
+  failNextCount = FALSE,
+  interruptAfterPolls = NA_integer_
+) {
   .Call(
     dbarts:::C_dbarts_bartcore_setMonotoneCountHooks,
     as.double(slowSeconds),
-    failNextCount
+    failNextCount,
+    as.integer(interruptAfterPolls)
   )
 }
 set.seed(31L)
@@ -960,3 +965,103 @@ countHooks(1)
 expect_equal(length(warnings), 1L)
 expect_inherits(warnings[[1L]], "dbartsSlowCountWarning")
 rm(warnings, sampler, model, other, freeSlow, constrained)
+
+# ---- the interrupt poll, on both run routes, and the flat run's slow-count
+# warning. The interrupt hook makes the shared poll report an interrupt on its
+# Nth call without touching R's signal state; it is process-wide, so every arm
+# disarms it on the way out whatever happened. Where the interrupt lands is
+# not asserted: the first poll comes at a sweep boundary, and the relay into a
+# leaf-order count is pinned by the C++ tests.
+
+countWarnings <- function(expr) {
+  count <- 0L
+  last <- NULL
+  withCallingHandlers(
+    expr,
+    warning = function(w) {
+      if (inherits(w, "dbartsSlowCountWarning")) {
+        count <<- count + 1L
+        last <<- w
+      }
+      invokeRestart("muffleWarning")
+    }
+  )
+  list(count = count, last = last)
+}
+runInterrupted <- function(run) {
+  on.exit(countHooks(interruptAfterPolls = 0L))
+  countHooks(interruptAfterPolls = 1L)
+  tryCatch(
+    {
+      run()
+      "not interrupted"
+    },
+    error = conditionMessage
+  )
+}
+
+sampler <- slowSampler("leaf")
+expect_true(grepl(
+  "sampler run interrupted",
+  runInterrupted(function() sampler$run(10L, 1L))
+))
+expect_true(is.list(sampler$run(10L, 1L)))
+
+# the R route warns on every run with a slow count, the flag never reaching it
+countHooks(-1)
+expect_equal(countWarnings(invisible(sampler$run(10L, 1L)))$count, 1L)
+expect_equal(countWarnings(invisible(sampler$run(10L, 1L)))$count, 1L)
+countHooks(1)
+
+source(
+  system.file("common", "capiConsumer.R", package = "dbarts"),
+  local = TRUE
+)
+consumer <- compileCapiConsumer("monotone", "the C API consumer")
+if (is.null(consumer$skip)) {
+  CALL <- consumer$CALL
+
+  # the flat run is interruptible, and the handle runs on afterwards
+  sampler <- slowSampler("leaf")
+  ptr <- sampler$getPointer()
+  expect_true(grepl(
+    "dbarts_sampler_run: sampler run interrupted",
+    runInterrupted(function() CALL("capi_run_plain", ptr, 10L, 1L))
+  ))
+  expect_true(CALL("capi_run_plain", ptr, 10L, 1L))
+
+  # a callback's stop is not an interrupt: the flat run returns normally
+  CALL("capi_draw_reset", 0L)
+  CALL("capi_set_draw_callback", ptr, TRUE)
+  expect_true(CALL("capi_run_plain", ptr, 0L, 3L))
+  expect_equal(sum(CALL("capi_draw_report")$calls), 1L)
+  CALL("capi_set_draw_callback", ptr, FALSE)
+
+  # a slow count warns once per sampler through the flat route, with the R
+  # route's class and sentence; a fresh sampler warns once again, and a
+  # "joint" sampler, which counts nothing, never does
+  countHooks(-1)
+  first <- countWarnings(CALL("capi_run_plain", ptr, 10L, 1L))
+  expect_equal(first$count, 1L)
+  expect_inherits(first$last, "dbartsSlowCountWarning")
+  expect_true(grepl("more trees", conditionMessage(first$last)))
+  expect_false(is.null(first$last$tally))
+  later <- 0L
+  for (i in 1:3) {
+    later <- later + countWarnings(CALL("capi_run_plain", ptr, 10L, 1L))$count
+  }
+  expect_equal(later, 0L)
+  fresh <- slowSampler("leaf")
+  expect_equal(
+    countWarnings(CALL("capi_run_plain", fresh$getPointer(), 10L, 1L))$count,
+    1L
+  )
+  joint <- slowSampler("joint")
+  expect_equal(
+    countWarnings(CALL("capi_run_plain", joint$getPointer(), 10L, 1L))$count,
+    0L
+  )
+  countHooks(1)
+  rm(ptr, first, later, fresh, joint, CALL)
+}
+rm(sampler, consumer)
