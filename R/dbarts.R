@@ -293,10 +293,28 @@ appendHazardPeriodColumn <- function(x, period) {
   if (!is.null(kept$factor.levels)) {
     attr(out, "factor.levels") <- c(kept$factor.levels, list(NULL))
   }
+  if (!is.null(kept$indicator.levels)) {
+    attr(out, "indicator.levels") <- c(
+      kept$indicator.levels,
+      list(period = NULL)
+    )
+  }
+  # the formula's terms cover the original columns; the period column is
+  # read back by name
+  if (!is.null(kept$terms)) {
+    attr(out, "terms") <- kept$terms
+  }
   out
 }
 
-hazardDesignAttrs <- c("term.labels", "drop", "varTypes", "factor.levels")
+hazardDesignAttrs <- c(
+  "term.labels",
+  "drop",
+  "varTypes",
+  "factor.levels",
+  "indicator.levels",
+  "terms"
+)
 
 # Row subset of a predictor set that keeps a container's columnar form and a
 # matrix's builder attributes, which a bare subset drops.

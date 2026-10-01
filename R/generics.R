@@ -489,6 +489,16 @@ refusePredictOffsetChannel <- function(offset, class) {
   invisible(NULL)
 }
 
+# The offset predict applies at newdata: a formula fit's offset() terms
+# evaluated there, as predict.lm does, plus the caller's 'offset'. The
+# 'offset' a fit was given is not reapplied unless given again.
+predictTermOffset <- function(x.train, newdata, offset) {
+  if (missing(newdata) || is.null(newdata)) {
+    return(offset)
+  }
+  addFormulaTermOffset(x.train, newdata, offset, "offset", "newdata")
+}
+
 predict.bart <- function(
   object,
   newdata,
@@ -570,6 +580,9 @@ predict.bart <- function(
     )
   }
 
+  # a formula's offset() terms are evaluated on newdata, as predict.lm does,
+  # and added to an 'offset' given here
+  offset <- predictTermOffset(object$fit$data@x, newdata, offset)
   # validated once, here; the rows na.action keeps are what every arm below
   # predicts, and padPredictedRows puts them back on newdata's rows. A
   # missing offset or weight marks its row incomplete the same way (dec-A89).
@@ -2458,6 +2471,7 @@ predict.bartNegbin <- function(
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
+  offset <- predictTermOffset(object$fit$data@x, newdata, offset)
   # a missing offset row is incomplete the same way an unroutable predictor
   # is (dec-A89)
   rows <- preparePredictRows(

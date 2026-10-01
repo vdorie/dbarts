@@ -196,6 +196,17 @@
             is a 1 x samples matrix rather than a vector.
             \code{extract(type = "trees")} always has a \code{chain}
             column.
+      \item An \code{offset()} term in a formula is used, as in \code{lm}:
+            it is added to any \code{offset} argument at fit time and
+            evaluated on \code{test} and on \code{predict}'s
+            \code{newdata}, which must then be data frames carrying its
+            variables. 0.9-34 ignored it unless an \code{offset} vector was
+            also given. The \code{offset} argument keeps its behaviour,
+            left out of predictions unless given again. An explicit
+            \code{offset.test} is one value or one per test row, where
+            0.9-34 recycled or cut it, and a bare name given as
+            \code{offset.test} is looked up in \code{test} before
+            \code{data}.
       \item The warnings a caller has a reason to catch apart from the rest
             carry a class inheriting from \code{dbartsWarning}, so they can
             be caught or muted without matching their text: deprecations
@@ -417,6 +428,11 @@
             its \code{\dots} on to \code{bart}, \code{bartBT}, \code{dbarts}
             or \code{xbart}; it failed with \dQuote{..1 used in an incorrect
             context}.
+      \item A data-dependent formula term, such as \code{poly()},
+            \code{ns()} or \code{scale()}, is rebuilt on \code{test} and on
+            \code{predict}'s \code{newdata} from the training data, as
+            \code{predict.lm} rebuilds it; 0.9-34 recomputed it from the new
+            rows, so a prediction depended on the other rows given with it.
       \item A formula with no response is refused by \code{bart} and
             \code{xbart}; 0.9-34 failed, or silently fit an all-zero
             response when \code{sigest} was given.

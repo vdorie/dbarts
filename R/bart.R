@@ -1498,7 +1498,9 @@ bart <- function(
     if (!missing(subset)) {
       stop("family = \"hurdle.lognormal\" does not support 'subset'")
     }
-    if (!missing(offset) || !missing(offset.test)) {
+    if (
+      !missing(offset) || !missing(offset.test) || formulaHasOffsetTerm(formula)
+    ) {
       stop(
         "family = \"hurdle.lognormal\" does not support 'offset'/'offset.test'"
       )
@@ -1710,13 +1712,28 @@ extractMultinomialFormulaData <- function(
   if (is.empty.model(modelTerms)) {
     stop("predictors must be specified for regression tree analysis")
   }
+  # an offset() term is a flat offset, refused as the 'offset' argument is
+  if (!is.null(attr(modelTerms, "offset"))) {
+    refuseFlatOffsetOnMultinomial(model.offset(modelFrame))
+  }
   termLabels <- attr(modelTerms, "term.labels")
   badLabels <- grepl("`.* .*`", termLabels)
   if (sum(badLabels) > 0) {
     termLabels[badLabels] <- gsub("^`(.*)`$", "\\1", termLabels[badLabels])
   }
 
-  list(y = y, x = modelFrame[termLabels])
+  # the predictor terms, with their predvars, ride to the coded design so
+  # predict rebuilds a data-dependent basis from the training values
+  x <- modelFrame[termLabels]
+  attr(x, "dbartsTerms") <- predictorTerms(modelTerms)
+  list(y = y, x = x)
+}
+
+# Whether a formula carries an offset() term, for the fits that refuse an
+# offset before any model frame is built.
+formulaHasOffsetTerm <- function(formula) {
+  is.formula(formula) &&
+    !is.null(attr(terms(formula, allowDotAsName = TRUE), "offset"))
 }
 
 # family = "auto" peek for bart2: a 3+-level UNORDERED factor or character
@@ -3134,7 +3151,19 @@ hazardSurvivalProbabilities <- function(
       # hazards through the correct link (type = "ev" keys on $family, the
       # binary token); predict codes bigX to the training columns and
       # replays the trees
-      haz <- predict(object, bigX, type = "ev", combineChains = FALSE)
+      # read through the coded rows directly: bigX is the coded design, on
+      # which a formula's offset() term cannot be evaluated, and the hazards
+      # here are offset-free as on the newdata branch below
+      haz <- codedRowDraws(
+        object,
+        validateXTest(bigX, fitX, refuseMissing = FALSE),
+        "ev",
+        object$fit$control@n.threads,
+        NULL
+      )
+      if (n.chains == 1L) {
+        haz <- addChainDimension(haz)
+      }
     } else {
       rows <- hazardPredictRows(object, bigX, n, K, subjectNames, na.action)
       n <- rows$numPredicted

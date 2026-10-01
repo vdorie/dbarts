@@ -796,6 +796,127 @@ protectRandomSeed <- function() {
   }
 }
 
+## A formula fit's predictor terms, kept on the design matrix as its "terms"
+## attribute: the training terms without the response, carrying the predvars
+## model.frame stamped on them, so that a data-dependent basis (poly(), ns(),
+## scale()) is rebuilt on the test set and on predict's newdata from the
+## training values, as predict.lm rebuilds it, and the offset() terms can be
+## evaluated there.
+predictorTerms <- function(modelTerms) {
+  stats::delete.response(modelTerms)
+}
+
+## The same terms without their offset() terms, for rebuilding the predictors
+## alone; model.frame reads only the variables and predvars.
+dropOffsetTerms <- function(terms) {
+  offsets <- attr(terms, "offset")
+  if (is.null(offsets)) {
+    return(terms)
+  }
+  keep <- -(offsets + 1L)
+  attr(terms, "variables") <- attr(terms, "variables")[keep]
+  if (!is.null(attr(terms, "predvars"))) {
+    attr(terms, "predvars") <- attr(terms, "predvars")[keep]
+  }
+  if (!is.null(attr(terms, "dataClasses"))) {
+    attr(terms, "dataClasses") <- attr(terms, "dataClasses")[-offsets]
+  }
+  attr(terms, "offset") <- NULL
+  terms
+}
+
+## Names the variables an expression list needs that 'data' does not carry,
+## rather than letting model.frame or eval find a same-named object in an
+## enclosing scope (a predictor 'c' binding to base::c).
+refuseMissingVariables <- function(neededVars, data, argument, what) {
+  missingVars <- neededVars[neededVars %not_in% names(data)]
+  if (length(missingVars) > 0L) {
+    stop(
+      "'",
+      argument,
+      "' data is missing ",
+      if (length(missingVars) > 1L) "variables" else "variable",
+      " required by ",
+      what,
+      ": '",
+      toString(missingVars),
+      "'"
+    )
+  }
+  invisible(NULL)
+}
+
+## The fit's offset() terms evaluated on 'newdata', as predict.lm evaluates
+## them, or NULL when the fit's formula has none.
+formulaTermOffset <- function(x.train, newdata, argument) {
+  terms <- attr(x.train, "terms")
+  offsets <- attr(terms, "offset")
+  if (is.null(offsets)) {
+    return(NULL)
+  }
+  if (!is.data.frame(newdata) && !(is.list(newdata) && !is.object(newdata))) {
+    stop(
+      "the fit's formula has an offset() term, which is evaluated on '",
+      argument,
+      "'; supply '",
+      argument,
+      "' as a data frame"
+    )
+  }
+  variables <- attr(terms, "variables")
+  expressions <- lapply(offsets, function(i) variables[[i + 1L]])
+  refuseMissingVariables(
+    unique(unlist(lapply(expressions, all.vars))),
+    newdata,
+    argument,
+    "the formula's offset() term"
+  )
+  n <- if (is.data.frame(newdata)) nrow(newdata) else NROW(newdata[[1L]])
+  result <- numeric(n)
+  for (expression in expressions) {
+    value <- as.double(eval(expression, newdata, environment(terms)))
+    if (length(value) != n && length(value) != 1L) {
+      stop(
+        "the formula's offset() term '",
+        deparse1(expression),
+        "' has ",
+        length(value),
+        " values for the ",
+        n,
+        " rows of '",
+        argument,
+        "'"
+      )
+    }
+    result <- result + value
+  }
+  result
+}
+
+## The offset a formula fit's test set or predict's newdata carries: its
+## offset() terms evaluated there plus the offset the caller gives for those
+## rows, a single number or one per row; either alone when the other is
+## absent.
+addFormulaTermOffset <- function(x.train, newdata, offset, argument, rows) {
+  termOffset <- formulaTermOffset(x.train, newdata, rows)
+  if (is.null(termOffset) || is.null(offset)) {
+    return(if (is.null(termOffset)) offset else termOffset)
+  }
+  if (
+    !is.null(dim(offset)) ||
+      (length(offset) != 1L && length(offset) != length(termOffset))
+  ) {
+    stop(
+      "'",
+      argument,
+      "' must have the same number of rows as '",
+      rows,
+      "'"
+    )
+  }
+  termOffset + offset
+}
+
 validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   termLabels <- attr(x.train, "term.labels")
   numPredictors <- ncol(x.train)
@@ -826,30 +947,52 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
       testFactorLevels <- lapply(x.test[isFactorCol], levels)
     }
     isSparseColumn <- vapply(x.test, isSparseDataFrameColumn, FALSE)
-    # the term replay: names an absent variable up front and runs
-    # model.frame over the given term labels
+    # the term replay: names an absent variable up front and rebuilds the
+    # given term labels on the test rows. A formula fit's training terms
+    # rebuild them with the training predvars, as predict.lm does, so a
+    # data-dependent basis means at a test row what it meant in training,
+    # whatever other rows the test set holds; a label they do not cover (a
+    # hazard fit's appended period) is read by its own name
+    trainTerms <- attr(x.train, "terms")
     replayTerms <- function(data, labels) {
-      testFormula <- as.formula(paste("~", paste(labels, collapse = " + ")))
-      # model.frame resolves an absent term in the enclosing scope, so a
-      # predictor missing from newdata that shares a name with a base object
-      # (e.g. 'c') silently binds to it and fails with an opaque
-      # "invalid type (builtin)"; name the missing variables up front instead
-      neededVars <- all.vars(testFormula)
-      missingVars <- neededVars[neededVars %not_in% names(data)]
-      if (length(missingVars) > 0L) {
-        stop(
-          "'test' data is missing ",
-          if (length(missingVars) > 1L) "variables" else "variable",
-          " required by the model: '",
-          toString(missingVars),
-          "'"
+      replayLabels <- labels
+      frame <- NULL
+      if (!is.null(trainTerms)) {
+        predictorOnly <- dropOffsetTerms(trainTerms)
+        refuseMissingVariables(
+          all.vars(attr(predictorOnly, "variables")),
+          data,
+          "test",
+          "the model"
         )
+        frame <- model.frame(
+          predictorOnly,
+          data = data,
+          na.action = stats::na.pass
+        )
+        replayLabels <- labels[labels %not_in% names(frame)]
+        frame <- frame[labels[labels %in% names(frame)]]
       }
-      model.frame(
-        formula = testFormula,
-        data = data,
-        na.action = stats::na.pass
-      )
+      if (length(replayLabels) > 0L) {
+        testFormula <- as.formula(paste(
+          "~",
+          paste(replayLabels, collapse = " + ")
+        ))
+        refuseMissingVariables(all.vars(testFormula), data, "test", "the model")
+        replayed <- model.frame(
+          formula = testFormula,
+          data = data,
+          na.action = stats::na.pass
+        )
+        if (is.null(frame)) {
+          return(replayed)
+        }
+        for (label in replayLabels) {
+          frame[[label]] <- replayed[[label]]
+        }
+        frame <- frame[labels]
+      }
+      frame
     }
     if (any(isSparseColumn)) {
       # sparse columns ride to the engine unexpanded, coded over the training
@@ -1131,6 +1274,19 @@ getTestOffset <- quote({
       ))
     }
 
+    # a test-set column comes first: the test offset belongs to the test
+    # rows, as predict.lm evaluates an offset in newdata
+    if (
+      !testIsMissing &&
+        (is.data.frame(test) || (is.list(test) && !is.object(test))) &&
+        any(names(test) == testOffsetName)
+    ) {
+      return(list(
+        offset.test = test[[testOffsetName]],
+        testUsesRegularOffset = FALSE
+      ))
+    }
+
     if (is.formula(formula)) {
       if (!dataIsMissing && any(names(data) == testOffsetName)) {
         return(list(
@@ -1169,6 +1325,19 @@ getTestOffset <- quote({
       baseOffset
     )
 
+    if (
+      !testIsMissing &&
+        (is.data.frame(test) || (is.list(test) && !is.object(test))) &&
+        any(all.vars(testOffset) %in% names(test))
+    ) {
+      tryResult <- with(
+        test,
+        tryCatch(eval(testOffset), error = function(e) e)
+      )
+      if (!inherits(tryResult, "error")) {
+        return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+      }
+    }
     if (is.formula(formula)) {
       if (!dataIsMissing) {
         tryResult <- with(
@@ -1947,6 +2116,10 @@ dbartsData <- function(
 
   offsetGivenAsScalar <- NA
   testUsesRegularOffset <- NA
+  # a formula's offset() terms, and the 'offset' argument's own share of the
+  # training offset beside them (set in the formula branch)
+  hasOffsetTerm <- FALSE
+  argumentOffset <- NULL
   # the response's original type, recorded on the result so the fitters can
   # route family = "auto" and reject a categorical response an unsupported
   # family cannot fit; each y-producing branch below refreshes it
@@ -2326,11 +2499,21 @@ dbartsData <- function(
       weights <- as.double(weights)
     }
 
-    ## offset, when in data frame
+    ## offset: every offset() term plus the 'offset' argument, as in lm. The
+    ## argument's own share is kept apart, since its default test offset
+    ## follows its own rule (below), where the terms are evaluated on 'test'
+    hasOffsetTerm <- !is.null(attr(terms(modelFrame), "offset"))
     if (identical(offsetGivenAsScalar, FALSE)) {
+      argumentOffset <- as.vector(modelFrame[["(offset)"]])
       offset <- as.vector(model.offset(modelFrame))
     } else if (identical(offsetGivenAsScalar, TRUE)) {
+      argumentOffset <- offset
       offset <- rep_len(offset, numObservations)
+      if (hasOffsetTerm) {
+        offset <- offset + as.vector(model.offset(modelFrame))
+      }
+    } else if (hasOffsetTerm) {
+      offset <- as.vector(model.offset(modelFrame))
     }
 
     ## predictors
@@ -2380,6 +2563,7 @@ dbartsData <- function(
       }
     }
     x <- makeModelMatrix(predictorFrame)
+    attr(x, "terms") <- predictorTerms(modelTerms)
 
     if (!testIsMissing) {
       testCall <- matchedCall
@@ -2536,7 +2720,11 @@ dbartsData <- function(
     y <- y[subset]
 
     if (is.data.frame(formula)) {
+      # a formula fit's predictor frame handed on by bart()'s multinomial
+      # door carries its terms (extractMultinomialFormulaData)
+      frameTerms <- attr(formula, "dbartsTerms")
       formula <- makeModelMatrix(formula)
+      attr(formula, "terms") <- frameTerms
     }
     xIsMixed <- inherits(formula, "dbartsMixedMatrix")
     x <- if (is.matrix(formula) || xIsMixed) {
@@ -2657,7 +2845,25 @@ dbartsData <- function(
   }
 
   if (!is.null(x.test)) {
-    if (testOffsetIsMissing) {
+    if (testOffsetIsMissing && hasOffsetTerm) {
+      ## the offset() terms evaluated on 'test', plus the argument's own share
+      ## by its rule below; the test rows no longer carry the training offset
+      if (identical(offsetGivenAsScalar, FALSE)) {
+        if (nrow(x.test) != length(y)) {
+          stop(
+            "vectored 'offset' cannot be directly applied to test data of unequal length"
+          )
+        }
+      }
+      offset.test <- addFormulaTermOffset(
+        x,
+        test,
+        argumentOffset,
+        "offset",
+        "test"
+      )
+      testUsesRegularOffset <- FALSE
+    } else if (testOffsetIsMissing) {
       ## default is offset.test = offset
       if (identical(offsetGivenAsScalar, TRUE)) {
         offset.test <- rep_len(offset[1L], nrow(x.test))
@@ -2682,7 +2888,24 @@ dbartsData <- function(
           !is.matrix(offset.test) &&
           !is.data.frame(offset.test)
       ) {
+        # one number recycles; anything else is one per test row, refused
+        # rather than recycled or cut, as predict refuses its 'offset'
+        if (length(offset.test) != 1L && length(offset.test) != nrow(x.test)) {
+          stop("'offset.test' must have the same number of rows as 'test'")
+        }
         offset.test <- rep_len(offset.test, nrow(x.test))
+      }
+      if (
+        hasOffsetTerm && !is.matrix(offset.test) && !is.data.frame(offset.test)
+      ) {
+        offset.test <- addFormulaTermOffset(
+          x,
+          test,
+          offset.test,
+          "offset.test",
+          "test"
+        )
+        testUsesRegularOffset <- FALSE
       }
     }
   } else {

@@ -1151,6 +1151,10 @@ predict.rbart <- function(
   if (missing(offset)) {
     offset <- NULL
   }
+  # a formula's offset() terms are evaluated on newdata, as predict.lm does
+  if (type != "ranef") {
+    offset <- predictTermOffset(object$fit[[1L]]$data@x, newdata, offset)
+  }
 
   n.chains <- if (is.null(object$n.chains)) {
     length(object$fit)
