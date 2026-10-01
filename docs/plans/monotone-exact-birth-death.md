@@ -870,24 +870,50 @@ constrained value waits for step 12.
     monotone-1 and 20-tree arms once per prior, each naming its prior, and the unconstrained monotone-bd twin
     once. monotone-1 at 0.4 s per replicate, the 20-tree arm ~85 min at R 200.
     - As implemented (stage 6): arms monotone-leaf, monotone-joint (20 trees, n 150, p 3), monotone-1-leaf,
-      monotone-1-joint and monotone-bd (1 tree, n 100, p 1, the design's mini SBC), and the ladders
+      monotone-1-joint and monotone-bd (1 tree, p 1, the design's mini SBC; n 100, then n 20 below), and the ladders
       burn-monotone-leaf and burn-monotone-joint. Each runs the gaussian replication as a family-spec arm, so
       every rank takes sbcDiscreteRank's tie-break (mono.local has an atom at 0) and the ladder applies. The
       20-tree arms read their band at 0.05 / (57 + 20), both arms joining the matrix, not 0.05 / (57 + 10).
     - The design's one-tree setting (thin 10, 1000 burn sweeps) is too short: there the twin flags sigma
       (ecdfDiff 0.101 against a band of 0.066) and f.star3 (0.075). At thin 50 and 5000 burn sweeps it passes
       all nine functionals, so the one-tree arms run at thin 50.
-    - Result, R 400, L 100, on arm64 macOS: monotone-1 FLAGS under both priors, and it does not shrink from
-      thin 10 to thin 50. At thin 50, "leaf" flags eight of nine functionals: mono.wide 0.181, mono.local
-      0.150, sigma 0.112, f.star1-5 0.080-0.165 (band 0.066). "joint" flags four: mono.wide 0.147,
-      mono.local 0.138, f.star3 0.099, f.star4 0.120; sigma sits at the band. The twin passes at the same
-      settings. Ranks pile at 0 (mono.wide 70 of 400 in the lowest bin under "leaf", 64 under "joint"), so the
-      posterior contrast is too steep, the same sign as the old engine's tilt. Checked: the prior draw agrees
-      with the chain run at a near-flat likelihood (weights 1e-30) on f(x*), mono.wide and mono.local under
-      both priors, |z| <= 1.6. That prior-only check cannot see the move's normalizer. The enumeration gate
-      passes at this tip under both priors, but only on grids of at most six cells; monotone-1's trees are
-      deeper. Open: the plan requires monotone-1 to pass. The 20-tree arms and their burn ladders are not
-      run.
+    - First result, R 400, L 100, thin 50, n 100, on arm64 macOS: monotone-1 flagged under both priors ("leaf" eight
+      of nine functionals, mono.wide 0.181 against a band of 0.066; "joint" four), ranks piling at 0: the posterior
+      contrast too steep. The twin passed.
+    - Finding (dec-A133): no engine defect; a one-tree birth/death chain does not mix its structure on an
+      informative design, the twin included.
+      - The kernel is exact. A successive-conditional check (Geweke 2004: draw theta0 from the prior, simulate y,
+        run K sweeps from theta0, compare paired functionals) shows no drift at K 1 (100,000 replications), 20
+        (20,000) and 200 (21,000) under both priors and for the twin, every |z| under 2. The SBC with the tree
+        held at the generating one (the all-zero mixture) passes every functional under both priors: the leaf
+        Gibbs sweep and the sigma step are exact given T.
+      - The chain is trapped. On one dataset, a chain started at the truth stays near the true leaf count while
+        one started from a prior draw, or from the root, holds 4 to 9.5 leaves against 2 to 4.4 for 20,000
+        sweeps. The twin traps the same way: its leaf count fails SBC (rank z -13) while its f functionals pass,
+        since extra leaves at one level do not bias an unconstrained fit. Under the constraint they do: the
+        ordered, truncated leaves of a flat stretch spread apart, so f steepens and sigma grows, the flagged
+        pattern under both priors, which is why "joint", which never counts, flags as well.
+      - Larger enumerations measure mixing, not exactness: a six-cell one-predictor design with a step and
+        strong data fails the enumeration gate under "leaf" (T2 up to 1.2e6), and so does its unconstrained
+        birth/death twin (T2 up to 9.7e5), each chain holding an over-split tree whose exact conditional mass is
+        0.06 at 0.88. A flat five-cell design passes.
+    - So monotone-1 is a mixing diagnostic, not a pass requirement (dec-A133), at n 20, where the likelihood is
+      weak enough to let the chain move, with the leaf count among its functionals. Result, R 400, L 100, thin
+      50: "leaf" passes the f functionals, sigma and mono.wide (0.060) and flags mono.local (0.107) and the leaf
+      count (0.268); "joint" flags mono.wide (0.093) and the leaf count (0.230); the twin flags only the leaf
+      count (0.193).
+    - Exactness at depth is benchmarks/R/monotone-successive-conditional.R's: one tree, n 100, tree prior power
+      0.5 so most moves touch a leaf with a frozen constrained neighbor, K 20, under both priors and the twin.
+      It needs no mixing, since the chain starts at a posterior draw. Quick mode (6,000 replications, about a
+      minute) passes at worst |z| 2.1 and fails the old ratio (the d divisions restored, the Z term dropped) at
+      |z| 9.0 under "leaf" and 31 under "joint" on the leaf count; at the default tree prior the old ratio read
+      only |z| 2.3. It runs in the monotone CI job, per prior. Full mode (20,000 replications, about 2.5 minutes) passes at worst |z| 1.9.
+    - The 20-tree arms: the ladders (40000 sweeps x 3 datasets) put the transient in the first two or three
+      4000-sweep blocks and the slowest functionals past ACF 0.1 at lag ~200 ("leaf") and ~140 ("joint"), so
+      the arms run at 12000 burn sweeps and thin 100. Result, R 200, L 150, band 0.137 at 0.05 / (57 + 20), on arm64 macOS:
+      both PASS every functional. "leaf" worst ecdfDiff 0.075 (mono.local), mono.wide 0.073, sigma 0.042;
+      "joint" worst 0.082 (f.star1), mono.wide 0.036, sigma 0.045. About 31 s per replicate of CPU at one
+      thread, under unrelated load.
 
 ## Verification
 
@@ -924,8 +950,10 @@ constrained value waits for step 12.
 - `Rscript benchmarks/R/equivalence.R compare <current>`: the 53 unconstrained scenarios "identical draws (same
   RNG stream)" and no "max |z|", after the 55-scenario re-record. BCF and multinomial compare identical. The
   snapshot files carry no monotone fit.
-- Release level: step 16's SBC arms, once per prior. monotone-1 (0.4 s per replicate) flags the current move and
-  must pass; then the 20-tree arm (~85 min at R 200) must pass before admission.
+- `R_LIBS=<lib> Rscript benchmarks/R/monotone-successive-conditional.R quick`: every arm passes; with the d
+  divisions restored and the Z term dropped, "leaf" and "joint" fail.
+- Release level: step 16's 20-tree SBC arms, once per prior, must pass before admission. monotone-1 is a
+  mixing diagnostic (dec-A133): its leaf count flags for the twin too, and it gates nothing.
 - Speed: on a quiet machine, under each prior, monotone sweep time at 20 trees, 1 and 2 constrained predictors,
   within 5% of today; at 1 and 5 trees under "leaf", the slowdown is recorded against the Decision's estimates.
   bench-sampler compare unchanged on the unconstrained paths.
