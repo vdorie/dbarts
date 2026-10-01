@@ -5432,6 +5432,10 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
           Rf_error("%s", message);
     }
 
+    // the swap conduits' finiteness rule, ahead of anything installed
+    refuseNonFinite(data.y, data.numObservations, "$setData", "response");
+    refuseNonFinite(data.offset, data.numObservations, "$setData", "offset");
+
     // COPY-ON-SET at the one conduit that MOVES the counts: the resize comes
     // FIRST and covers every buffer, the ones a null replacement leaves
     // uncopied included, so none is left the old n wide for a later set to

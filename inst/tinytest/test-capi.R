@@ -1244,6 +1244,10 @@ expect_error(
   CALL("capi_set_offset", ptrFinite, replace(numeric(n), 1L, NaN), FALSE),
   "dbarts_sampler_setOffset: offset contains non-finite values"
 )
+expect_error(
+  CALL("capi_set_sigma", ptrFinite, Inf),
+  "dbarts_sampler_setSigma: sigma must be finite and positive"
+)
 finiteRun <- specFinite$run(0L, 2L)
 expect_true(all(is.finite(finiteRun$sigma)))
 rm(specFinite, ptrFinite, finiteRun)

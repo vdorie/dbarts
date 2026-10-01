@@ -2837,8 +2837,8 @@ dbartsSampler <- setRefClass(
       if (length(sigma) != 1L) {
         stop("'sigma' must be of length 1")
       }
-      if (is.na(sigma) || sigma <= 0.0) {
-        stop("'sigma' must be positive")
+      if (!is.finite(sigma) || sigma <= 0.0) {
+        stop("'sigma' must be finite and positive")
       }
 
       ptr <- getPointer()

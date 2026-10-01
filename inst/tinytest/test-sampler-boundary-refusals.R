@@ -115,6 +115,28 @@ expect_null(sampler$data@offset)
 r <- sampler$run(0L, 2L)
 expect_true(all(is.finite(r$sigma)) && all(is.finite(r$train)))
 
+# the data conduits state the same rule: dbartsData refuses an infinite
+# offset as it refuses an infinite response, and the whole-data swap's entry
+# refuses either on a data object that skipped that check
+expect_error(
+  dbartsData(x, y, offset = replace(numeric(n), 3L, Inf)),
+  "'offset' contains non-finite values"
+)
+badData <- sampler$data
+badData@y <- replace(y, 2L, Inf)
+expect_error(
+  .Call(dbarts:::C_dbarts_bartcore_setData, sampler$getPointer(), badData),
+  "\\$setData: response contains non-finite values"
+)
+badData <- sampler$data
+badData@offset <- replace(numeric(n), 2L, -Inf)
+expect_error(
+  .Call(dbarts:::C_dbarts_bartcore_setData, sampler$getPointer(), badData),
+  "\\$setData: offset contains non-finite values"
+)
+expect_error(sampler$setSigma(Inf), "'sigma' must be finite and positive")
+rm(badData)
+
 # --- updateScale is a single TRUE or FALSE: 1 rescaled the engine while the R
 # side skipped its own rescaling steps
 expect_error(

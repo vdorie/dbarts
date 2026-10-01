@@ -898,7 +898,8 @@ int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
 /// without unwinding.
 ///
 /// A CAPABILITY STATUS: 1 on a write, 0 touching nothing on either pinned
-/// case.
+/// case. A sigma that is not finite and positive is the other channel and
+/// raises.
 int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
 /// Copies the current draw of the augmentation variable (numObservations x
 /// numChains) into out. Returns 1, or 0 without touching out when the family

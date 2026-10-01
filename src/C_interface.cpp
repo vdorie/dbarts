@@ -715,6 +715,10 @@ int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma) {
   // families (probit, logistic, ordinal, nbinom, multinomial) and the
   // heteroscedastic gaussian dbartsSpec(variance = ) builds included
   if (sigmaIsPinned(samplerOf(sampler))) return 0;
+  // a non-finite or non-positive sd poisons every later draw, as a
+  // non-finite response does
+  if (!R_finite(sigma) || sigma <= 0.0)
+    Rf_error("dbarts_sampler_setSigma: sigma must be finite and positive");
   samplerOf(sampler).setSigma(sigma);
   return 1;
 }
