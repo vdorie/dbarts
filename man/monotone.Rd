@@ -40,7 +40,7 @@ monotone(directions, prior = c("joint", "leaf"))
       The ordinary BART prior on the trees and their leaf values, conditioned
       on every tree being monotone. A tree whose leaf values would seldom be
       in order under the ordinary prior becomes less likely, so the
-      constrained predictors get about half as many splits as in an
+      constrained predictors get about half the share of splits they get in an
       unconstrained fit at 200 trees, and split counts understate their
       importance (less so under \code{"leaf"}).
     }
@@ -62,8 +62,8 @@ monotone(directions, prior = c("joint", "leaf"))
   one to five trees a tree can grow large enough that a count takes seconds
   to minutes per move, and its memory grows with it, to hundreds of
   megabytes for the largest counts seen. There is no limit: the run
-  finishes on the stated model, and afterwards a warning of class \code{"dbartsSlowCountWarning"}
-  reports counts that took more than about a second and names the remedies,
+  finishes on the stated model, and afterwards a warning of class
+  \code{"dbartsSlowCountWarning"} reports counts that took more than about a second and names the remedies,
   more trees or \code{prior = "joint"}. A count can be interrupted, and a
   count that runs out of memory is an ordinary error; either way the
   sampler is left in a valid state.
