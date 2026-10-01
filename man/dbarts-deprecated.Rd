@@ -10,7 +10,7 @@
   \code{rbart_vi} and its methods are deprecated, and documented on \code{\link{rbart_vi}}.
 }
 \details{
-  The rest of the registry is names still reachable on entry points that keep their own page, rather than functions of their own: each is accepted for one release, mapped onto its successor with a once-per-session warning (or refused by name, where noted), and removed in dbarts 1.1-0.
+  The rest of the registry is names still reachable on entry points that keep their own page, rather than functions of their own: each is accepted for one release, mapped onto its successor with a once-per-session warning of class \code{dbartsDeprecatedWarning}, which inherits \code{dbartsWarning} (or refused by name, where noted), and removed in dbarts 1.1-0.
 
   \describe{
     \item{\code{rngSeed}}{
@@ -65,8 +65,6 @@
       A \code{\link{bart}} call that names no \code{bartBT} argument and whose first argument is not a formula - a 0.9-x call such as \code{bart(x.train, y.train, x.test)} - binds the same way under both doors, so nothing forwards it and it runs under \code{bart}'s own defaults. The first such call in a session prints a message of class \code{dbartsFrontDoorMessage} naming the change and \code{\link{bartBT}}; \code{suppressMessages} silences it, and a call made from package code prints nothing.
     }
   }
-
-  \code{control} on \code{\link{xbart}} is no longer a tombstone: both \code{bart} and \code{xbart} now take a \code{control = \link{dbartsControl}()} formal, reaching every setting neither door spells flatly, so the earlier retirement (which refused the argument outright) is reversed.
 
   Every entry above, \code{bart2} and \code{rbart_vi}, is one row of \code{dbarts:::dbartsTombstones}, the registry this page documents by hand.
 }

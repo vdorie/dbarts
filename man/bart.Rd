@@ -268,7 +268,7 @@ bart(
      Integer specifying how many independent tree sets and fits should be calculated. Default 4; \code{\link{bartBT}}'s default is 1, BayesTree's historical single-chain convention.
    }
    \item{n.threads}{
-     A positive integer giving a total thread budget, distinct from \code{n.chains}: chains run in parallel across it, but tree sampling itself uses at most one thread per chain, so a budget above \code{n.chains} buys the sampler's own sweep nothing. The surplus still feeds the test-fit pool and \code{predict}'s own fan-out, and a fit warns once, naming both counts, when an explicit budget exceeds the chain count. Defaults to \code{\link{guessNumCores}} capped at \code{n.chains}.
+     A positive integer giving a total thread budget, distinct from \code{n.chains}: chains run in parallel across it, but tree sampling itself uses at most one thread per chain, so a budget above \code{n.chains} buys the sampler's own sweep nothing. The surplus still feeds the test-fit pool and \code{predict}'s own fan-out, and a fit warns once, naming both counts, when an explicit budget exceeds the chain count (class \code{dbartsExcessThreadsWarning}). Defaults to \code{\link{guessNumCores}} capped at \code{n.chains}.
 
      On \code{predict}, \code{n.threads} is a per-call worker count for the saved-tree replay, defaulting to the fit's own: the replay is partitioned by (chain, posterior draw), each partition writing its own rows and nothing being reduced across workers, so the answer is identical bit for bit at every value and only the time taken changes.
    }
@@ -312,7 +312,7 @@ bart(
      Logical; if \code{FALSE} suppress printing, including the one-line message \code{family = "auto"} prints naming the family it resolves to (a message of class \code{dbartsAutoFamilyMessage}).
    }
    \item{keepTrees}{
-     A fit saved to disk and reloaded needs its sampler's state stored first, with \code{fit$storeState()}; \code{predict} on a fit reloaded without it refuses, naming \code{storeState()} (see \code{\link{bartBT}}'s \sQuote{Saving} section). Logical; must be \code{TRUE} in order to use \code{predict} with the result of a fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.
+     A fit saved to disk and reloaded needs its sampler's state stored first, with \code{fit$fit$storeState()}; \code{predict} on a fit reloaded without it refuses, naming \code{storeState()} (see \code{\link{bartBT}}'s \sQuote{Saving} section). Logical; must be \code{TRUE} in order to use \code{predict} with the result of a fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.
    }
    \item{keepCall}{
      Logical; if \code{FALSE}, the returned object has \code{call} set to \code{call("NULL")}, otherwise the call used to instantiate BART.
@@ -324,7 +324,7 @@ bart(
    \strong{Engine.}
 
    \item{storage}{
-     Passed through to \code{\link{dbartsControl}}; a formal on both \code{bartBT} and \code{bart}. A character string selecting the precision of the internal running residual; see \code{dbartsControl}'s \code{storage} for the full description. The default \code{"double"} reproduces existing draws bitwise; \code{"single"} changes the numbers a fit returns - the sampled values shift slightly - in exchange for a bandwidth-bound speedup, and is currently supported only for continuous (gaussian) responses with constant leaves.
+     Passed through to \code{\link{dbartsControl}}; a \code{bart} formal. A character string selecting the precision of the internal running residual; see \code{dbartsControl}'s \code{storage} for the full description. The default \code{"double"} reproduces existing draws bitwise; \code{"single"} changes the numbers a fit returns - the sampled values shift slightly - in exchange for a bandwidth-bound speedup, and is currently supported only for continuous (gaussian) responses with constant leaves.
    }
    \item{updateState}{
      Passed through to \code{\link{dbartsControl}}. A logical setting the default behavior for many \code{\link[=dbartsSampler-class]{sampler}} methods with regards to the immediate updating of the cached state of the object; see \code{dbartsControl}'s \code{updateState}.
@@ -410,6 +410,8 @@ A handful of shapes are refused outright rather than silently misinterpreted, ea
   draws. They currently agree under R's default generator, but this is not
   guaranteed; only \code{seed} gives the same draws under any
   \code{\link{RNGkind}}.
+
+  \strong{Warning classes.} Every warning the package raises has a class that inherits from \code{dbartsWarning}, so a caller can catch or mute it by class rather than by text, and each class is named on the help page of the function that raises it. The warnings that retired spellings raise once per session have class \code{dbartsDeprecatedWarning}; see \code{\link{dbarts-deprecated}}.
 
   \strong{Chains and \code{n.threads}.} Results never depend on the thread
   count: a fit, its \code{predict}, and \code{\link{samplePriorPredictive}}

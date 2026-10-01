@@ -96,6 +96,10 @@
             \code{NA} for such rows. 0.9-34 also dropped a data frame's
             incomplete rows, returning fewer rows than given; see
             \code{\link{na.keepPredictors}}.
+      \item An unnamed \code{test} or \code{newdata} matrix given to a fit
+            whose predictors are named warns on every call, saying which
+            columns it was matched to by position; 0.9-34 matched silently.
+            Give the matrix column names to match by name.
       \item Argument checking is stricter. A fractional value for a count
             (\code{n.trees = 100.5}, say) is an error rather than truncated.
             \code{predict}, \code{extract}, \code{fitted} and
@@ -112,9 +116,9 @@
             \code{updateScale = TRUE} restores that.
             \code{$getSumsOfSquaredResiduals} returns the sum of squares
             itself rather than that sum divided by the response range.
-      \item \code{names(fit)} no longer lists \code{yhat.test}, or on a
-            \code{bartBT} fit without an offset \code{binaryOffset}, when the
-            fit has none; test with \code{is.null} rather than \code{names}.
+      \item \code{names(fit)} no longer lists \code{yhat.test}, or, on a
+            binary \code{bart} fit without an offset, \code{binaryOffset},
+            when the fit has none; test with \code{is.null} rather than \code{names}.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{
@@ -209,8 +213,7 @@
             times at 10,000, 1.7 times for four chains on four threads, and
             1.6 times for a probit fit. The gap widens with the number of
             observations. \code{storage = "single"} (a
-            \code{\link{dbartsControl}}, \code{bart}, \code{bartBT} and
-            \code{xbart} argument) keeps the running residual in single
+            \code{\link{dbartsControl}} and \code{bart} argument) keeps the running residual in single
             precision for a further 10 to 30 percent at a million
             observations; it is opt-in, for continuous responses with
             constant leaves.
@@ -306,7 +309,7 @@
             structural probabilities, holding the trees' shapes fixed while
             everything else is sampled. \code{dbartsControl(treeShift = )}
             adds a step that improves mixing of the leaf values when the
-            shapes are fixed. \code{bart} and \code{xbart} gain a
+            shapes are fixed. \code{bart} gains a
             \code{control} argument for these and other
             \code{\link{dbartsControl}} settings.
       \item Prediction and summaries. \code{fitted} and \code{predict} take
@@ -324,7 +327,8 @@
             interrupted with Ctrl-C.
       \item \code{xbart} runs over the same sampler as \code{bart}, so it
             takes \code{family}, \code{factors}, \code{tree.prior},
-            \code{leaf.prior}, \code{storage} and sparse predictors. Its
+            \code{leaf.prior} and sparse predictors; it accepts only
+            \code{storage = "double"}. Its
             \code{k} may mix fixed values and hyperpriors
             (\code{k = list(1, 2, chi())}), \code{sd} crossvalidates the
             leaf spread, and \code{parallel} and \code{cl} choose forked,

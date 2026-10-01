@@ -134,7 +134,7 @@
       not a Gaussian process over the leaves that took it - every leaf
       evaluation is counted. The counts ride the fit as \code{gp.fallback}
       (a named pair, \code{evaluations} and \code{fallbacks}), and a run in
-      which more than a quarter of evaluations fell back warns once, giving
+      which more than a quarter of evaluations fell back warns once (class \code{dbartsGPFallbackWarning}), giving
       the share: at the default cap on a design of any size that is the
       normal outcome, not an error, and the warning is the notice that the
       cap rather than the kernel is doing the modeling. The remedies are the
@@ -255,7 +255,7 @@ set.seed(2)
 y.gp <- sin(2 * pi * x1) + rnorm(n, 0, 0.2)
 df.gp <- data.frame(x1, x2, y.gp)
 fit.gp <- dbarts(y.gp ~ x1 + x2, df.gp,
-                 leaf.prior = gp("x1", max.leaf.size = 30L),
+                 leaf.prior = gp("x1", max.leaf.size = 60L),
                  control = dbartsControl(n.trees = 10L, n.chains = 1L,
                                           n.threads = 1L))
 samples.gp <- fit.gp$run(20L, 20L)

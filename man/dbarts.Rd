@@ -29,7 +29,7 @@ dbarts(
     An optional data frame, list, or environment containing predictors to be used with the model. For backwards compatibility, can also be the \code{\link{bartBT}} vector \code{y.train}. The response, however supplied, is checked for near-degeneracy at double precision and warns when too few distinct values remain to fit against (class \code{dbartsDegenerateResponseWarning}).
   }
   \item{test}{
-    An optional matrix or data frame with the same number of predictors as \code{data}, or \code{formula} in backwards compatibility mode. If column names are present, a matching algorithm is used; when \code{test}'s columns cannot all be matched by name to \code{data}'s, they are matched by position instead, with a warning (class \code{dbartsPositionalArgsWarning}).
+    An optional matrix or data frame with the same number of predictors as \code{data}, or \code{formula} in backwards compatibility mode. If column names are present, a matching algorithm is used; when both are named, \code{test}'s names must cover \code{data}'s (an error otherwise); when only one is named, columns are matched by position instead, with a warning (class \code{dbartsPositionalArgsWarning}).
   }
   \item{subset}{
     An optional vector specifying a subset of observations to be used in the fitting process.

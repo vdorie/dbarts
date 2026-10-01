@@ -48,8 +48,8 @@
   vocabulary inside the family call. The retired spellings
   \code{resid.prior}, \code{sigdf} and \code{sigquant} are accepted for
   one release with a once-per-session warning and are removed in dbarts
-  1.1-0; \code{resid.prior} is retired that way on \code{\link{dbarts}},
-  \code{\link{dbartsSpec}} and \code{\link{xbart}} as well, so the family
+  1.1-0; \code{resid.prior} is retired that way on \code{\link{dbarts}}
+  and \code{\link{xbart}} as well (\code{\link{dbartsSpec}} refuses it), so the family
   object is the one home of the residual prior. A call that writes the prior
   both ways is refused where the two disagree, naming both spellings, and
   accepted in silence where they say the same thing.

@@ -8,7 +8,7 @@
 \alias{print.rbart}
 \title{Bayesian Additive Regression Trees with Random Effects}
 \description{
-  \strong{Deprecated.} \code{rbart_vi} and its methods run the implementation from dbarts 0.9-x, kept for one release, and are removed in dbarts 1.1-0. A warning says so the first time \code{rbart_vi} is called in a session. Grouped random effects live in the \pkg{stan4bart} package (\code{stan4bart::stan4bart}), whose prior on the group spread differs from the one used here, so a refit there moves the results rather than reproducing them.
+  \strong{Deprecated.} \code{rbart_vi} and its methods run the implementation from dbarts 0.9-x, kept for one release, and are removed in dbarts 1.1-0. A warning (class \code{dbartsDeprecatedWarning}) says so the first time \code{rbart_vi} is called in a session. Grouped random effects live in the \pkg{stan4bart} package (\code{stan4bart::stan4bart}), whose prior on the group spread differs from the one used here, so a refit there moves the results rather than reproducing them.
 
   Fits a varying intercept/random effect BART model.
 }
