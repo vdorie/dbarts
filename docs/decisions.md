@@ -1242,6 +1242,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B172]
 The richness of data-frame input is the reference: the x/y door, test sets and predict() accept every predictor type a data-frame fit accepts. Integer and logical matrices are taken as numbers, and any Matrix sparse class is converted to the one dbarts uses, in fitting and in predict() alike. Until now the formula path already took integer and logical columns, while the x/y door refused integer matrices ("'x' must be numeric", also in 0.9-34) and logical matrices and sparse classes other than dgCMatrix ("unrecognized 'formula' type"), and predict() took integer but not logical matrices. The alternative was keeping the refusals with correct messages. No existing fit changes. The maintainer on 2026-10-01: "I want test data and the predict function to accept as rich a set of data types as the training data.", and, told the formula path already accepts them: "Use option 1 then, and base your comparisons on the richness of data.frame inputs." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B173]
 
+**n.cuts recycles a short vector and refuses a long one**
+A vector n.cuts shorter than the number of predictors recycles, as dbartsControl's help documents, and bart's help now says so instead of requiring a match; a vector longer than the number of predictors is refused, since its extra entries can never apply. Until now, and in 0.9-34, a long vector was silently truncated. The alternatives were fixing the help only, and requiring length one or one per predictor. A call that passed too many values errors. The maintainer on 2026-10-01: "Option 1." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B174]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
