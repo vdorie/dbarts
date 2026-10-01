@@ -337,10 +337,9 @@ items
     test-mutate-sparse-valued.R's all-absent middle-column arms, the same
     before sparse-mutation-direct). Door: whether a rollback should keep
     or restore the cached fits rather than rebuild them.
-  sbc-family-tiers: two open arms (docs/plans/sbc-family-tiers.md,
-    docs/plans/archive/runsbcbcf-repair.md): the monotone follow-on,
-    the first arm the constrained prior draw unblocks; and the full-R
-    ladder re-runs, whose commands the plan records.
+  sbc-family-tiers: one open arm (docs/plans/sbc-family-tiers.md,
+    docs/plans/archive/runsbcbcf-repair.md): the full-R ladder re-runs,
+    whose commands the plan records.
   sbc-ordered-factor-arm: benchmarks/R/sbc.R carries no ordered-factor
     PREDICTOR arm - its ordered factors are ordinal RESPONSES - so the
     midpoint cut grid's posterior shift is adjudicated only at the four-
