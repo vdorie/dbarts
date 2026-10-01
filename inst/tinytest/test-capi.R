@@ -1288,8 +1288,8 @@ invisible(gc(FALSE))
 # compared bitwise against what the R route returns on the same seed.
 
 tailFactor <- 3L
-widths <- function(sampler, F) {
-  c(F, dbarts:::bartcoreNumForests(sampler$getPointer()))
+widths <- function(sampler, numFitted) {
+  c(numFitted, dbarts:::bartcoreNumForests(sampler$getPointer()))
 }
 channelOk <- function(channel) {
   isTRUE(channel$tail.intact)
