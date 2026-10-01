@@ -274,9 +274,17 @@ options, and what mBART actually does:
       (their only shared neighbor bound), so the marginal is a PRODUCT of two 1-D
       Gaussian-times-truncated-Gaussian integrals - closed form in Phi. A birth
       ON a constrained axis couples them only through mu_L <= mu_R, a single
-      linear inequality; the marginal is one bivariate-normal box probability,
-      one 1-D adaptive quadrature (not a 20x20 grid). Death is always 1-D
-      (eq. 4.18), closed form.
+      linear inequality; the marginal is one bivariate-normal box probability:
+      with no bound set, the closed form log Phi of the standardized gap between
+      the two posterior means; otherwise one 1-D integral (not a 20x20 grid),
+      taken in logs relative to its peak
+      ([`MonotoneConstantGaussianLeaf::logConeProbability`](../../src/bartcore/model.hpp),
+      locating the peak with the pair redraw's inversion,
+      [`monotoneLogConcaveSupport`](../../src/bartcore/model.hpp)), so a cone
+      the data run against by any number of sd, or a frozen bound far above a
+      leaf's mean, scores finite and only an empty cone scores -Inf. Death is
+      always 1-D (eq. 4.18), closed form, also in logs
+      ([`logStandardNormalMass`](../../src/bartcore/model.hpp)).
     * The redraw of the touched leaves is EXACT, not gridded: the constrained-axis
       birth draws (mu_R, then mu_L | mu_R) as two sequential 1-D truncated normals
       honoring mu_L <= mu_R; every other case is independent 1-D truncated

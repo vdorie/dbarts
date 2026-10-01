@@ -662,8 +662,8 @@ next move touching it pays its count (step 1).
   (dec-B151), "leaf" provisionally until that ruling, matching the old target. Every harness or test that
   encodes the "leaf" target names prior = "leaf" explicitly (monotone-reference.R and
   test-calibration-prior-draws.R's monotone block among them), so the default ruling changed no gate.
-- Out of scope: change moves under the constraint, quadrature speed (TODO monotone-leaf-quadrature), and
-  reconciling a chi k hyperprior with the truncated law.
+- Out of scope: change moves under the constraint, quadrature speed (since resolved: the cone is a closed
+  form or a log-space integral), and reconciling a chi k hyperprior with the truncated law.
 
 ## Staging
 
