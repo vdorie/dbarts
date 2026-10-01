@@ -2383,6 +2383,18 @@ struct LinearGaussianLeaf {
     }
   }
 
+  /// Install saved standardization constants, numCovariates() of each with
+  /// every sd finite and positive, and regather the training and test
+  /// covariates under them: a restore reads its slopes on the scale they
+  /// were drawn on.
+  void restoreCalibration(const ColumnStore& data, const double* means,
+                          const double* sds) {
+    means_.assign(means, means + numCovariates_);
+    sds_.assign(sds, sds + numCovariates_);
+    regatherTrainingCovariates(data);
+    rebuildTestCovariates(data);
+  }
+
   /// Drop the crossproduct cache when U'WU's other inputs change: the case
   /// weights (setWeights) or the per-sweep Polya-Gamma refresh of a latent
   /// family. Covariate and whole-data mutations clear it through the two
@@ -2837,6 +2849,21 @@ struct GPGaussianLeaf {
       for (std::size_t i = 0; i < numObservations_; ++i)
         u[i] = isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];
     }
+  }
+
+  /// Install saved standardization constants and, when non-null,
+  /// lengthscales, numCovariates() of each with every sd and lengthscale
+  /// finite and positive, and regather the training and test covariates
+  /// under them: a restore reads its function values and kernels on the
+  /// scale they were drawn on.
+  void restoreCalibration(const ColumnStore& data, const double* means,
+                          const double* sds, const double* lengthscales) {
+    means_.assign(means, means + numCovariates_);
+    sds_.assign(sds, sds + numCovariates_);
+    if (lengthscales != nullptr)
+      lengthscales_.assign(lengthscales, lengthscales + numCovariates_);
+    regatherTrainingCovariates(data);
+    rebuildTestCovariates(data);
   }
 
   /// Regather the test covariates under the training standardization; called

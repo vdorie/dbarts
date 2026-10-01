@@ -2009,6 +2009,44 @@ static void testLinearLeafFormats(ext_rng* rng) {
   check(!sampler->setState(malformed, nullptr),
         "a state with mismatched slopes is refused");
 
+  // an in-place update of the designated column keeps the creation-time
+  // standardization (it is sticky); the state carries it, so a sampler built
+  // over the UPDATED values and restored from that state replays the saved
+  // slopes as the live one does, where recomputing the constants from the
+  // updated values would read them on another scale
+  std::vector<double> xMut(x);
+  for (size_t i = 0; i < n; ++i) xMut[i + n] = 3.0 * x[i + n] + 1.0;
+  check(sampler->setPredictor(xMut.data(), true, false) ==
+          PredictorUpdateResult::accepted,
+        "the designated column updates in place");
+  SamplerStateData mutated;
+  sampler->getState(mutated);
+  check(mutated.chains[0].forests[0].leafCovariateScales ==
+          state.chains[0].forests[0].leafCovariateScales,
+        "the update leaves the standardization as it was");
+  ext_rng* rng3 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng3, 4322);
+  std::unique_ptr<SamplerBase> recreated = createSampler(
+    xMut.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    1.0, 3.0, 0.37804942330213542, options, &rng3);
+  check(recreated->setState(mutated, xMut.data()),
+        "the mutated state restores over the updated values");
+  std::vector<double> livePredictions(numTest * numSamples),
+    recreatedPredictions(numTest * numSamples);
+  sampler->predict(xTest.data(), numTest, 1, livePredictions.data());
+  recreated->predict(xTest.data(), numTest, 1, recreatedPredictions.data());
+  check(livePredictions == recreatedPredictions,
+        "the re-created sampler replays the saved slopes as the live one does");
+  SamplerStateData badScale = mutated;
+  badScale.chains[0].forests[0].leafCovariateScales[0] = 0.0;
+  check(!recreated->setState(badScale, nullptr),
+        "a non-positive standardization scale is refused");
+  SamplerStateData lengthscaleOnLinear = mutated;
+  lengthscaleOnLinear.chains[0].forests[0].leafLengthscales.assign(1, 1.0);
+  check(!recreated->setState(lengthscaleOnLinear, nullptr),
+        "a linear leaf takes no lengthscales");
+
+  ext_rng_destroy(rng3);
   ext_rng_destroy(rng2);
   printf("ok: linear leaf formats\n");
 }

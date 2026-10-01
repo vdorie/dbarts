@@ -54,6 +54,16 @@ struct ForestStateData {
   /// non-finite or non-positive value - deliberately the same permissive
   /// posture k has, rather than a new refusal.
   double leafScale = 0.0;
+  /// Leaf-covariate (linear and gp) leaves only: the standardization each
+  /// designated column's raw values are read through, one entry per column,
+  /// and under gp the kernel lengthscales. A predictor update keeps them
+  /// (the calibration is sticky), so a re-created sampler recomputing them
+  /// from the updated values would read the saved coefficients and kernels on
+  /// another scale. OPTIONAL and append-only: empty means absent, and an
+  /// absent block leaves the destination's own constants. A warm start never
+  /// copies them; it reads the donor's trees on the destination's data.
+  std::vector<double> leafCovariateCenters, leafCovariateScales;
+  std::vector<double> leafLengthscales;
 };
 
 /// Everything a chain's posterior state comprises, in host-exchangeable form:
@@ -366,7 +376,8 @@ inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
 }
 
 /// One category forest's calibration for a multinomial sampler; the K forests
-/// are symmetric, so a single spec builds them all (mbart2's convention). Node
+/// are symmetric, so a single spec builds them all (mbart2's convention),
+/// interaction and block constraints included. Node
 /// scale is not spec'd here: the chain constructor sets every forest's leaf
 /// scale from nodeScale (the pi*sqrt(3)/sqrt(2) anchor) and k.
 struct MultinomialForestSpec {
@@ -375,6 +386,16 @@ struct MultinomialForestSpec {
   double birthOrDeathProbability = 0.6, swapProbability = 0.0,
          changeProbability = 0.4, perturbProbability = 0.0,
          ruleGibbsProbability = 0.0, birthProbability = 0.5;
+  // optional interaction and block-additive constraints, the same fields with
+  // the same contracts as ForestStructureSpec's (borrowed, consumed at
+  // construction), installed identically on every category forest. The
+  // defaults leave each forest unconstrained, byte-for-byte.
+  std::size_t interactionMaxOrder = 0;
+  const std::size_t* interactionForbiddenPairs = nullptr;
+  std::size_t interactionNumForbiddenPairs = 0;
+  std::size_t numBlocks = 0;
+  const std::int32_t* blockOfColumn = nullptr;
+  const std::size_t* blockTreeCounts = nullptr;
 };
 
 /// The specification a multinomial (softmax) chain is built from: K symmetric

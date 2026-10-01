@@ -851,17 +851,9 @@ public:
     // Per-forest interaction constraint, installed like the column mask: an
     // unset (or inactive) constraint leaves every tree's pointer null and the
     // availability path byte-for-byte unchanged.
-    if (options.interactionMaxOrder > 0 || options.interactionNumForbiddenPairs > 0) {
-      forest.interaction = std::make_unique<InteractionConstraint>();
-      forest.interaction->build(data.numPredictors, options.interactionMaxOrder,
-                                options.interactionForbiddenPairs,
-                                options.interactionNumForbiddenPairs);
-      if (forest.interaction->active())
-        for (size_t t = 0; t < forest.numTrees; ++t)
-          forest.trees[t].setInteractionConstraint(forest.interaction.get());
-      else
-        forest.interaction.reset();
-    }
+    installInteraction(forest, data.numPredictors, options.interactionMaxOrder,
+                       options.interactionForbiddenPairs,
+                       options.interactionNumForbiddenPairs);
     options_.interactionForbiddenPairs = nullptr;  // consumed above
 
     // Block-additive constraint: confine each tree to one group. The
@@ -1029,6 +1021,10 @@ public:
                   "multinomial is a constant-leaf model");
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
+    // the constraints ride spec.forest; these borrowed copies are read by nothing
+    options_.interactionForbiddenPairs = nullptr;
+    options_.blockOfColumn = nullptr;
+    options_.blockTreeCounts = nullptr;
     response_ = std::make_unique<MultinomialResponse>(data.numObservations);
     // logistic marks the binary-family sigma semantics (fixed at 1); the
     // softmax has no sigma of its own, and family() is not read on this path.
@@ -3613,6 +3609,15 @@ public:
       // the block is self-describing, and a data-independent scale simply
       // records the value a same-spec destination already constructed
       fs.leafScale = forest.leaf.scale;
+      fs.leafCovariateCenters.clear();
+      fs.leafCovariateScales.clear();
+      fs.leafLengthscales.clear();
+      if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+        fs.leafCovariateCenters = forest.leaf.covariateMeans();
+        fs.leafCovariateScales = forest.leaf.covariateSds();
+      }
+      if constexpr (L::hasFunctionParams)
+        fs.leafLengthscales = forest.leaf.lengthscales();
     }
     Forest<L, ResidT>& forest = forests_[0];
     state.sigma = sigma();
@@ -3713,6 +3718,7 @@ public:
       if (!fs.savedTrees.empty() &&
           fs.savedTrees.size() != savedCapacity * forest.numTrees)
         return false;
+      if (!leafCalibrationIsValid(forest, fs)) return false;
       // mask channels pair with their flat trees when present; trees holding
       // wide rules without a channel fail the rebuild below
       if (!fs.treeMasks.empty() && fs.treeMasks.size() != forest.numTrees)
@@ -4409,6 +4415,40 @@ public:
     return true;
   }
 
+  /// Whether a state's leaf-covariate calibration block fits this forest's
+  /// leaf: absent, or one finite center and one finite positive scale per
+  /// designated column, and under gp absent or, beside the centers, one
+  /// finite positive lengthscale per column. A leaf without covariates takes
+  /// no block.
+  static bool leafCalibrationIsValid(const Forest<L, ResidT>& forest,
+                                     const ForestStateData& fs) {
+    std::size_t q = 0;
+    if constexpr (L::hasVectorParams || L::hasFunctionParams)
+      q = forest.leaf.numCovariates();
+    else
+      (void) forest;
+    const bool haveCenters = !fs.leafCovariateCenters.empty();
+    if (haveCenters != !fs.leafCovariateScales.empty()) return false;
+    if (haveCenters) {
+      if (q == 0 || fs.leafCovariateCenters.size() != q ||
+          fs.leafCovariateScales.size() != q)
+        return false;
+      for (std::size_t j = 0; j < q; ++j)
+        if (!std::isfinite(fs.leafCovariateCenters[j]) ||
+            !std::isfinite(fs.leafCovariateScales[j]) ||
+            !(fs.leafCovariateScales[j] > 0.0))
+          return false;
+    }
+    if (!fs.leafLengthscales.empty()) {
+      if (!L::hasFunctionParams || !haveCenters ||
+          fs.leafLengthscales.size() != q)
+        return false;
+      for (double l : fs.leafLengthscales)
+        if (!std::isfinite(l) || !(l > 0.0)) return false;
+    }
+    return true;
+  }
+
   /// Installs a state stateIsValid accepted; false only on the invariant
   /// violation of a validated tree failing to rebuild.
   bool setState(const ChainStateData& state) {
@@ -4425,6 +4465,19 @@ public:
     for (size_t f = 0; f < forests_.size(); ++f) {
       Forest<L, ResidT>& forest = forests_[f];
       const ForestStateData& fs = state.forests[f];
+      // the saved calibration goes in before the trees, whose fits and
+      // future draws read the covariates through it
+      if constexpr (L::hasVectorParams) {
+        if (!fs.leafCovariateCenters.empty())
+          forest.leaf.restoreCalibration(data_, fs.leafCovariateCenters.data(),
+                                         fs.leafCovariateScales.data());
+      } else if constexpr (L::hasFunctionParams) {
+        if (!fs.leafCovariateCenters.empty())
+          forest.leaf.restoreCalibration(
+            data_, fs.leafCovariateCenters.data(),
+            fs.leafCovariateScales.data(),
+            fs.leafLengthscales.empty() ? nullptr : fs.leafLengthscales.data());
+      }
       if (!rebuildLiveForest(f, fs, params)) return false;
       if (!fs.savedTrees.empty()) {
         forest.savedTrees = fs.savedTrees;
@@ -6204,6 +6257,26 @@ private:
         forest.blockMasks.data() + forest.blockOfTree[tt] * numPredictors);
   }
 
+  /// Installs a forest's optional interaction constraint on every tree: a
+  /// max-order cap (0 = uncapped) and numPairs borrowed 0-based (a, b)
+  /// forbidden pairs. An unset or inactive constraint leaves every tree's
+  /// pointer null and the availability path byte-for-byte unchanged.
+  static void installInteraction(Forest<L, ResidT>& forest,
+                                 std::size_t numPredictors,
+                                 std::size_t maxOrder,
+                                 const std::size_t* forbiddenPairs,
+                                 std::size_t numPairs) {
+    if (maxOrder == 0 && numPairs == 0) return;
+    forest.interaction = std::make_unique<InteractionConstraint>();
+    forest.interaction->build(numPredictors, maxOrder, forbiddenPairs,
+                              numPairs);
+    if (forest.interaction->active())
+      for (std::size_t t = 0; t < forest.numTrees; ++t)
+        forest.trees[t].setInteractionConstraint(forest.interaction.get());
+    else
+      forest.interaction.reset();
+  }
+
   /// A BCF forest, built self-contained so the single-forest constructor
   /// (covered by the draw-for-draw equivalence benchmark) is untouched:
   /// constant leaf, fixed k = 1 (the map's convention), no DART. nodeScale is
@@ -6244,20 +6317,11 @@ private:
         forest.trees[t].setColumnMask(forest.columnMask.data());
     }
 
-    // this forest's optional interaction constraint (installed like the single-
-    // forest ctor): mu and tau carry independent caps. An unset (or inactive)
-    // constraint leaves every tree's pointer null and the path unchanged.
-    if (spec.interactionMaxOrder > 0 || spec.interactionNumForbiddenPairs > 0) {
-      forest.interaction = std::make_unique<InteractionConstraint>();
-      forest.interaction->build(data_.numPredictors, spec.interactionMaxOrder,
-                                spec.interactionForbiddenPairs,
-                                spec.interactionNumForbiddenPairs);
-      if (forest.interaction->active())
-        for (std::size_t t = 0; t < spec.numTrees; ++t)
-          forest.trees[t].setInteractionConstraint(forest.interaction.get());
-      else
-        forest.interaction.reset();
-    }
+    // this forest's optional interaction constraint: mu and tau carry
+    // independent caps
+    installInteraction(forest, data_.numPredictors, spec.interactionMaxOrder,
+                       spec.interactionForbiddenPairs,
+                       spec.interactionNumForbiddenPairs);
 
     // Variant A block-additive constraint (mu / tau independent): the block rows
     // intersect tau's moderator columnMask installed above, so a restricted
@@ -6271,8 +6335,9 @@ private:
   }
 
   /// One symmetric category forest for a multinomial chain: constant leaf, no
-  /// DART, no split restriction, fixed k, leaf scale nodeScale/sqrt(numTrees)
-  /// (the pi*sqrt(3)/sqrt(2) anchor). Every category forest is identical.
+  /// DART, fixed k, leaf scale nodeScale/sqrt(numTrees) (the pi*sqrt(3)/sqrt(2)
+  /// anchor), and the spec's interaction and block constraints. Every category
+  /// forest is identical.
   void buildMultinomialForest(const MultinomialForestSpec& spec,
                               double nodeScale, double k) {
     std::size_t n = data_.numObservations;
@@ -6296,6 +6361,11 @@ private:
     forest.trees.resize(spec.numTrees);
     for (std::size_t t = 0; t < spec.numTrees; ++t)
       forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
+    installInteraction(forest, data_.numPredictors, spec.interactionMaxOrder,
+                       spec.interactionForbiddenPairs,
+                       spec.interactionNumForbiddenPairs);
+    installBlockMasks(forest, data_.numPredictors, spec.numBlocks,
+                      spec.blockOfColumn, spec.blockTreeCounts);
     initForestFitStorage(forest, n);
     forest.totalFits.assign(n, 0.0);
     forest.treeY.resize(n);

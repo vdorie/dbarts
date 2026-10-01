@@ -59,7 +59,7 @@ bool sameFlatTrees(const std::vector<std::vector<FlatNode>>& a,
 static_assert(sizeof(void*) != 8 || sizeof(ChainStateData) == 384,
               "ChainStateData gained or lost a field; add its comparison to "
               "statesAgree below and update this size");
-static_assert(sizeof(void*) != 8 || sizeof(ForestStateData) == 160,
+static_assert(sizeof(void*) != 8 || sizeof(ForestStateData) == 232,
               "ForestStateData gained or lost a field; add its comparison to "
               "statesAgree below and update this size");
 
@@ -79,7 +79,10 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
           xf.savedTreeParams != yf.savedTreeParams ||
           xf.treeMasks != yf.treeMasks ||
           xf.savedTreeMasks != yf.savedTreeMasks || xf.k != yf.k ||
-          xf.leafScale != yf.leafScale)
+          xf.leafScale != yf.leafScale ||
+          xf.leafCovariateCenters != yf.leafCovariateCenters ||
+          xf.leafCovariateScales != yf.leafCovariateScales ||
+          xf.leafLengthscales != yf.leafLengthscales)
         return false;
     }
     // the variance forest sits outside forests_, so its flat trees are
