@@ -719,6 +719,51 @@ static void testStateValidation(ext_rng* rng) {
   printf("ok: state validation\n");
 }
 
+// A column whose range is one value (constant, or narrower than its uniform
+// spacing) gets a grid of equal cuts, and an infinite value must not stretch
+// the uniform grid: the store's own grids restore, while NaN or an over-long
+// grid is refused.
+static void testDegenerateGridRestores(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  for (size_t i = 0; i < n; ++i) x[i + n] = 0.0;  // constant second column
+  x[0] = std::numeric_limits<double>::infinity();
+  std::unique_ptr<ConstantLeafSampler> samplerPtr =
+    makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& sampler(*samplerPtr);
+
+  const std::vector<double>& cuts0 = sampler.data().cutPoints[0];
+  const std::vector<double>& cuts1 = sampler.data().cutPoints[1];
+  check(std::isfinite(cuts0.front()) && std::isfinite(cuts0.back()) &&
+          cuts0.back() < 1.0,
+        "the uniform grid spans the finite values only");
+  check(cuts1.size() > 1 && cuts1.front() == cuts1.back(),
+        "a constant column's uniform grid repeats one value");
+
+  SamplerStateData state;
+  sampler.getState(state);
+  check(sampler.setState(state, nullptr),
+        "a state carrying a repeated grid restores");
+
+  SamplerStateData bad(state);
+  bad.cutPoints[0][1] = std::numeric_limits<double>::quiet_NaN();
+  check(!sampler.setState(bad, nullptr), "setState rejects a NaN cut");
+  bad = state;
+  bad.cutPoints[0][0] = std::numeric_limits<double>::quiet_NaN();
+  check(!sampler.setState(bad, nullptr), "setState rejects a leading NaN cut");
+  bad = state;
+  bad.cutPoints[0].assign(maxNumCutsRepresentable + 1u, 0.5);
+  check(!sampler.setState(bad, nullptr),
+        "setState rejects a grid past the representable count");
+  check(sampler.setState(state, nullptr), "the original state still restores");
+
+  check(cutGridIsValid(cuts1.data(), cuts1.size(), false) &&
+          !cutGridIsValid(cuts1.data(), cuts1.size(), true),
+        "a repeated grid is valid only non-strictly");
+  printf("ok: degenerate grid restores\n");
+}
+
 // ---------------------------------------------------------------------------
 // Interaction containment (docs/design/interaction-constraints.md,
 // "Containment"): a state install or warm start must not admit a tree that
@@ -1980,6 +2025,7 @@ void runStateTests(ext_rng* rng) {
   testStateRoundTripLatents(rng);
   testStateRoundTripStudentT(rng);
   testStateValidation(rng);
+  testDegenerateGridRestores(rng);
   testInteractionContainment();
   testBlockAdditiveConfinement();
   testCrossGridWarmStart();

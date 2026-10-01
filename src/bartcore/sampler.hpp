@@ -1131,12 +1131,9 @@ public:
     for (size_t j = 0; j < data_.numPredictors; ++j) {
       if (data_.splitsBySubset(j)) {
         if (!state.cutPoints[j].empty()) return false;
-      } else if (state.cutPoints[j].empty() ||
-                 state.cutPoints[j].size() > 65535) {
+      } else if (!cutGridIsValid(state.cutPoints[j].data(),
+                                 state.cutPoints[j].size(), false)) {
         return false;
-      } else {
-        for (size_t k = 1; k < state.cutPoints[j].size(); ++k)
-          if (state.cutPoints[j][k] <= state.cutPoints[j][k - 1]) return false;
       }
     }
 
@@ -1251,9 +1248,9 @@ public:
         bool categorical = data_.splitsBySubset(j);
         if (categorical != donor.cutPoints[j].empty())
           return WarmStartResult::gridMismatch;
-        for (size_t k = 1; k < donor.cutPoints[j].size(); ++k)
-          if (donor.cutPoints[j][k] <= donor.cutPoints[j][k - 1])
-            return WarmStartResult::gridMismatch;
+        if (!categorical && !cutGridIsValid(donor.cutPoints[j].data(),
+                                            donor.cutPoints[j].size(), false))
+          return WarmStartResult::gridMismatch;
       }
     }
 

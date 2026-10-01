@@ -5978,18 +5978,21 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
 
       SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(k));
       R_xlen_t numCuts = Rf_xlength(cutsExpr);
-      if (numCuts > 65535)  // codes must fit xint_t, including numCuts itself
-        Rf_error("$setCutPoints: cut point vector too long");
+      // codes must fit xint_t with naCode reserved, so a grid past
+      // maxNumCutsRepresentable would pool its top bin with missing values
+      if (static_cast<std::uint64_t>(numCuts) >
+          bartcore::maxNumCutsRepresentable)
+        Rf_error("$setCutPoints: at most %u cut points per column",
+                 static_cast<unsigned int>(bartcore::maxNumCutsRepresentable));
       // an ordinal column with no cut point is not a state the store can hold:
       // its own validator refuses one, so the sampler could not restore itself
       if (numCuts < 1)
         Rf_error("$setCutPoints: requires at least one cut point per "
                  "column");
       const double* cuts = REAL(cutsExpr);
-      for (R_xlen_t i = 1; i < numCuts; ++i)
-        if (cuts[i] <= cuts[i - 1])
-          Rf_error("$setCutPoints: requires strictly increasing cut "
-                   "points");
+      if (!bartcore::cutGridIsValid(cuts, static_cast<size_t>(numCuts), true))
+        Rf_error("$setCutPoints: requires strictly increasing cut "
+                 "points, none of them NaN");
       cutPoints[k] = cuts;
       numCutPoints[k] = static_cast<std::uint32_t>(numCuts);
     }
