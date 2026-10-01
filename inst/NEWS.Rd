@@ -55,6 +55,9 @@
             rather than \code{NA} now means \dQuote{not given}; where
             0.9-34's default was \code{NA}, an explicit \code{NA} is still
             read as \code{NULL} with a warning.
+      \item An \code{n.cuts} with more values than there are predictor
+            columns is an error; 0.9-34 dropped the extra values silently.
+            A shorter one is recycled, as before.
       \item A package that forwards arguments to dbarts by filtering them
             against \code{formals(dbartsControl)} will now silently drop
             \code{rngSeed} and fit unseeded; accept \code{seed} instead.
@@ -206,11 +209,23 @@
             then has a labelled \code{k} dimension. \code{n.burn} takes two
             values; a third is an error. A chain is no longer carried from
             one fold or replication to the next (0.9-34 could score a
-            setting on rows it had effectively been trained on), and every
-            fold uses the full data's cut points, so results change. Seeded
+            setting on rows it had effectively been trained on), the
+            default \code{sigest} is estimated from each fold's training
+            rows rather than from all rows, held-out responses included,
+            and every fold uses the full data's cut points, so results
+            change. Seeded
             runs are reproducible at any \code{n.threads} and leave
             \code{.Random.seed} as they found it, and warnings from the
             workers are now reported.
+      \item A predictor holding \code{Inf} or \code{-Inf} is split over the
+            range of its finite values, the infinite ones falling past the
+            end cut points, as under \code{useQuantiles = TRUE}; 0.9-34
+            stretched the cut points to infinity, leaving the column unused.
+            When the starting \code{sigest} cannot be estimated because of
+            such a value, the error names the column.
+      \item \code{pdbart} and \code{pd2bart} evaluate a factor predictor
+            at every level by default, take and report its levels by name
+            in \code{levs}, and plot one point per level.
       \item Output shapes. Per-observation results carry the data's row
             names. Under \code{combineChains = FALSE}, \code{extract} and
             \code{predict} keep the chain dimension on a one-chain fit, so a scalar such as \code{sigma}
@@ -345,7 +360,10 @@
             \code{Matrix::dgCMatrix} predictors are used without being
             expanded, and a data frame may mix
             ordinary columns with sparse ones, including the new
-            \code{\link{sparseFactor}} column.
+            \code{\link{sparseFactor}} column. Any other sparse
+            \code{Matrix} class is converted, and integer and logical
+            matrices are taken as numbers, in fitting and in
+            \code{predict}; 0.9-34 refused an integer matrix.
       \item Starting points. \code{bart}'s \code{warm.start} starts the
             chains from a previous fit's trees, and \code{n.grow.sweeps}
             builds the starting trees by XBART-style grow-from-root sweeps
@@ -486,6 +504,19 @@
             updates work. A sampler run more than once with
             \code{keepTrees} replays its saved trees in the order they were
             drawn; they had been rotated against the other results.
+      \item \code{pd2bart} on a model with exactly two predictors returns
+            one column per grid point, where it averaged over the whole
+            grid and \code{plot} then failed.
+      \item Arguments given beside a \code{dbartsData} object, which it
+            already fixes, such as \code{subset} and \code{weights}, are
+            reported in a warning rather than ignored silently.
+      \item \code{$setCutPoints} refuses a \code{NaN} cut point.
+      \item \code{rbart_vi}'s \code{prior} may name the caller's own
+            function, or be passed on by a wrapper, and an unknown name is
+            refused by name; only the built-in names worked.
+            \code{predict} takes a character or numeric \code{group.by},
+            as the fit does; random effects came back empty and unseen
+            groups failed.
       \item \code{rbart_vi}: the intercepts are drawn with precision weights
             and start from a sweep of the trees, where a start from prior
             trees could inflate the posterior of \code{tau} many times over
