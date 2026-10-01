@@ -88,6 +88,13 @@ bartFn <- if (
 } else {
   dbarts::bart
 }
+# 0.9-34 names the residual prior by its own argument; 1.0-0 carries it on
+# the family
+residPriorArgs <- if (packageVersion("dbarts") < "1.0") {
+  list(resid.prior = quote(chisq(3.0, 0.90)))
+} else {
+  list(family = quote(gaussian(sigma = chisq(3.0, 0.90))))
+}
 # 0.9-34's dbartsControl has no mixture slot (the model object carried it),
 # so xbart - which exposes no flat knob on either release - can only be set
 # through the control under 1.0-0.
@@ -520,9 +527,9 @@ makeSampler <- function(scn, nChains = 1L) {
       control = quote(makeControl(scn, nChains)),
       tree.prior = quote(cgm(2.0, 0.95)),
       node.prior = nodePrior,
-      family = quote(gaussian(sigma = chisq(3.0, 0.90))),
       sigma = NA_real_
     ),
+    residPriorArgs,
     # omitted, not passed as NULL, when the mixture is left to the release's
     # own default: 1.0-0 reads this name off '...', where a NULL is a value
     if (!is.null(proposalProbs)) list(proposal.probs = quote(proposalProbs)),
@@ -649,24 +656,29 @@ fitViaXbart <- function(scn) {
   frame <- data.frame(y = scn[["y"]], scn[["x"]])
   nTreesGrid <- c(20L, 100L)
   kGrid <- c(1, 2, 4)
-  loss <- quietly(xbart(
-    y ~ .,
-    frame,
-    n.samples = if (quick) 50L else 150L,
-    method = "k-fold",
-    n.test = 5L,
-    n.reps = scn[["n.reps"]],
-    n.burn = if (quick) c(50L, 25L) else c(150L, 75L),
-    loss = "rmse",
-    n.threads = 1L,
-    n.trees = nTreesGrid,
-    k = kGrid,
-    power = 2.0,
-    base = 0.95,
-    family = gaussian(sigma = chisq(3.0, 0.90)),
-    drop = TRUE,
-    verbose = FALSE,
-    control = do.call(dbartsControl, controlArgs)
+  loss <- quietly(do.call(
+    xbart,
+    c(
+      list(
+        y ~ .,
+        frame,
+        n.samples = if (quick) 50L else 150L,
+        method = "k-fold",
+        n.test = 5L,
+        n.reps = scn[["n.reps"]],
+        n.burn = if (quick) c(50L, 25L) else c(150L, 75L),
+        loss = "rmse",
+        n.threads = 1L,
+        n.trees = nTreesGrid,
+        k = kGrid,
+        power = 2.0,
+        base = 0.95,
+        drop = TRUE,
+        verbose = FALSE,
+        control = do.call(dbartsControl, controlArgs)
+      ),
+      residPriorArgs
+    )
   ))
   # n.reps x n.trees x k
   cellMean <- apply(loss, c(2L, 3L), mean)
