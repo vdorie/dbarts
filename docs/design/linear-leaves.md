@@ -123,6 +123,12 @@ Stage-3 deltas:
   re-initializes constants the way it rebuilds the cut grid, carrying
   the persisted parameters across as the same approximate continuation
   the split remap embodies. Collapse merges average per coordinate.
+  Because the constants are sticky, the chain state carries them
+  (ForestStateData::leafCovariateCenters/leafCovariateScales, read by
+  name and absent in older states), so a copy, a reload or a dead-pointer
+  re-creation, which rebuilds over the updated values, restores the
+  constants the live sampler kept. A warm start does not copy them: it
+  reads the donor's trees on the destination's data, as setData does.
 - Every stage-2 refusal is lifted; xbart views remain the stage-4 item
   (ColumnStore views hold no raw covariates yet), and the bridge still
   instantiates only the constant leaf.
