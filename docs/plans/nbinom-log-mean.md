@@ -193,7 +193,7 @@ conversion (fitScale = 1).
 
 | surface | value |
 |---|---|
-| link / "bart" | eta + o = log mean, per draw (latent.train / latent.test) |
+| link / "bart" | eta = f + c + o = log mean, per draw (latent.train / latent.test) |
 | response / "ev" | exp(link) per draw; r no longer enters ([`negbinMeanCounts`](../../R/bart.R) drops it) |
 | ppd | rnbinom(size = r_s, mu = mu_s), unchanged in form, now with r mixing |
 | loglik | dnbinom(y, size = r_s, mu = mu_s), unchanged ([`negbinLogLik`](../../R/generics.R)) |

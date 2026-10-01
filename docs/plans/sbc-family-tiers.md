@@ -327,12 +327,12 @@ at alpha = 0.05, so nothing previously recorded is invalidated.
   per-leaf conditional. The reported deliverable (the softmax probabilities) is
   unaffected. Next step is an exact-conditional derivation for the centering
   draw checked against the code, not another SBC run.
-- The two ridges are mixing-efficiency items, not correctness items, and both
-  already have a named remedy shape in their design notes: ordinal.md section 9
+- The ordinal ridge is a mixing-efficiency item, not a correctness item, and it
+  already has a named remedy shape in its design note: ordinal.md section 9
   asks for a joint (f-level, gamma) shift move (the centering-move analog). The
   nbinom r-vs-psi ridge is closed: the log-mean model draws r given the means,
   orthogonal to them (nbinom-log-mean.md).
-- Third ladder points (thin ~300) at full R=200 for ordinal, nbinom and
+- Third ladder points (thin ~300) at full R=200 for ordinal and
   multinomial, if a stronger monotone-shrinkage statement is wanted than two
   points support.
 - Out of the matrix still: hazard and hurdle, whose design depends on y0.

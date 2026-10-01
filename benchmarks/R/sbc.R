@@ -3269,11 +3269,14 @@ if (sys.nframe() == 0L) {
 
   cat(sprintf("\n== SBC run (%s R=%d L=%d thin=%d) ==\n", which, R, L, thin))
   fit <- if (isFamilyTier || isLatentBCF) {
-    if (is.null(burnSweeps)) {
-      runSbcFamily(config, R = R, L = L, thin = thin)
-    } else {
-      runSbcFamily(config, R = R, L = L, thin = thin, burnSweeps = burnSweeps)
+    familyArgs <- list(config, R = R, L = L, thin = thin)
+    if (!is.null(burnSweeps)) {
+      familyArgs$burnSweeps <- burnSweeps
     }
+    if (!is.null(runSeed)) {
+      familyArgs$seed <- runSeed
+    }
+    do.call(runSbcFamily, familyArgs)
   } else if (isDart) {
     runSbcDart(config, R = R, L = L, thin = thin)
   } else if (isBCF) {

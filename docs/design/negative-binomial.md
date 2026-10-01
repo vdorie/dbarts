@@ -49,7 +49,7 @@ the anchor a_i = o_i + c - log r, the trees see the working response
 z_i = kappa_i/omega_i - a_i under per-sweep precisions omega_i - the
 LogisticResponse seam, with c and -log r entering exactly as an offset does.
 sigma is fixed at 1. f is the log mean less c and the offset, so the reported
-link (the train channel, type = "link") is eta + o, and the mean count is
+link (the train channel, type = "link") is eta = f + c + o, and the mean count is
 exp(link) with no r in it ([`negbinMeanCounts`](../../R/bart.R)).
 
 **Why log-mean: r mixes.** In the NB2 (mu, r) parameterization the Fisher
@@ -451,15 +451,16 @@ envelope that stays exact for integer w (w (y_i + r) is integer), but it also
 multiplies the count histogram into the grid kernel and the exposure question
 into the likelihood, and the usual "weight" a count modeler reaches for is
 EXPOSURE, which belongs in the offset (log-exposure), not in replication. v1
-refuses weights by name at ingestion, beside the probit/logistic/ordinal weight
+refused weights by name at ingestion, beside the probit/logistic/ordinal weight
 policy ([`enforceWeightPolicy`](../../R/spec.R)), keeping the surface honest rather than guessing
-which weighting the user meant. Door: integer frequency weights are EXACT under
+which weighting the user meant; dec-B179 kept that refusal for every weight
+but 0/1. Door: integer frequency weights are EXACT under
 fork (A) and cheap to add later (weight the grid statistics and the PG shape);
 continuous weights inherit the real-shape question and wait on the section 7
 weighted-binary fork.
 
 **Prediction / reporting.** type = "bart"/"link" returns the log mean
-eta + o = f + c + o per draw. type = "ev"/"response" returns the mean counts
+eta = f + c + o per draw. type = "ev"/"response" returns the mean counts
 mu = exp(link), which no longer read r. The r draws are still a first-class
 posterior output, the `dispersion` field (the count analog of gaussian's sigma
 and ordinal's thresholds; section 5), which ppd (rnbinom(size = r_s, mu = mu_s))
