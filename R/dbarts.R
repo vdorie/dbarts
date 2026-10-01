@@ -2227,7 +2227,8 @@ dbartsSampler <- setRefClass(
         "'$sampleLeafParametersFromPrior'; this call was forwarded. The old ",
         "name is removed in dbarts ",
         tombstoneExpiry,
-        "."
+        ".",
+        class = "dbartsDeprecatedWarning"
       )
       sampleLeafParametersFromPrior(updateState)
     },

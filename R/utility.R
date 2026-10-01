@@ -327,13 +327,26 @@ resolveSeedArg <- function(seed, caller, refuse = FALSE) {
 # replacement form to write the mutated environment back through.
 onceWarnState <- new.env(parent = emptyenv())
 
-warnOnce <- function(key, ...) {
+warnOnce <- function(key, ..., class = NULL) {
   if (isTRUE(onceWarnState[[key]])) {
     return(invisible(NULL))
   }
   onceWarnState[[key]] <- TRUE
-  warning(...)
+  if (is.null(class)) {
+    warning(...)
+  } else {
+    warnClassed(class, ...)
+  }
   invisible(NULL)
+}
+
+## A warning of the given class, which also inherits dbartsWarning; the
+## message is the pasted arguments.
+warnClassed <- function(class, ...) {
+  warning(warningCondition(
+    paste0(...),
+    class = c(class, "dbartsWarning")
+  ))
 }
 
 ## The keys this session has warned under; a reset key may hold NULL.

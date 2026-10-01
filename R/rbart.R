@@ -83,7 +83,8 @@ rbart_vi <- function(
     "'rbart_vi' is deprecated and is removed in dbarts ",
     tombstoneExpiry,
     "; grouped random effects live in stan4bart (stan4bart::stan4bart), whose ",
-    "group-spread prior differs, so results move."
+    "group-spread prior differs, so results move.",
+    class = "dbartsDeprecatedWarning"
   )
 
   # the argument list is 0.9-34's, NA defaults included; NULL is the absent
@@ -146,7 +147,10 @@ rbart_vi <- function(
   control@n.threads <- max(control@n.threads %/% n.chains, 1L)
   if (n.chains > 1L && n.threads > 1L) {
     if (control@verbose) {
-      warning("verbose output disabled for multiple threads")
+      warnClassed(
+        "dbartsFallbackWarning",
+        "verbose output disabled for multiple threads"
+      )
     }
     control@verbose <- FALSE
   }
@@ -342,7 +346,10 @@ rbart_vi <- function(
     }
     group.by.test <- droplevels(as.factor(group.by.test))
   } else if (!is.null(data@x.test)) {
-    warning("'test' supplied by 'group.by.test' missing; recycling 'group.by'")
+    warnClassed(
+      "dbartsFallbackWarning",
+      "'test' supplied by 'group.by.test' missing; recycling 'group.by'"
+    )
     group.by.test <- rep_len(group.by, nrow(data@x.test))
   } else {
     group.by.test <- NULL
@@ -405,7 +412,8 @@ rbart_vi <- function(
     }
 
     if (inherits(tryResult, "error")) {
-      warning(
+      warnClassed(
+        "dbartsFallbackWarning",
         "unable to multithread, defaulting to single: ",
         tryResult$message
       )
@@ -440,7 +448,8 @@ rbart_vi <- function(
       stopCluster(cluster)
 
       if (inherits(tryResult, "error")) {
-        warning(
+        warnClassed(
+          "dbartsFallbackWarning",
           "error running multithreaded, defaulting to single: ",
           tryResult$message
         )
@@ -847,7 +856,8 @@ packageRbartResults <- function(
       !is.null(group.by.test) &&
         any(unmeasuredLevels <- levels(group.by.test) %not_in% levels(group.by))
     ) {
-      warning(
+      warnClassed(
+        "dbartsFallbackWarning",
         "test includes random effect levels not present in training - ranef estimates default to draws from the ranef distribution parameterized by the posterior of its variance"
       )
       n.samples <- dim(chainResults[[1L]]$ranef)[2L]
@@ -981,7 +991,8 @@ packageRbartResults <- function(
       !is.null(group.by.test) &&
         any(unmeasuredLevels <- levels(group.by.test) %not_in% levels(group.by))
     ) {
-      warning(
+      warnClassed(
+        "dbartsFallbackWarning",
         "test includes random effect levels not present in training - ranef estimates default to draws from the ranef distribution parameterized by the posterior of its variance"
       )
       n.unmeasured <- sum(unmeasuredLevels)
@@ -1102,7 +1113,10 @@ predict.rbart <- function(
 
   dotsList <- list(...)
   if (!is.null(dotsList[["value"]])) {
-    warning("argument 'value' has been deprecated; use 'type' instead")
+    warnClassed(
+      "dbartsDeprecatedWarning",
+      "argument 'value' has been deprecated; use 'type' instead"
+    )
     type <- dotsList[["value"]]
     dotsList[["value"]] <- NULL
   }
@@ -1115,7 +1129,10 @@ predict.rbart <- function(
     }
   }
   if (is.character(type) && length(type) > 0L && type[1L] == "post-mean") {
-    warning("type of 'post-mean' for predict deprecated; use 'ev' instead")
+    warnClassed(
+      "dbartsDeprecatedWarning",
+      "type of 'post-mean' for predict deprecated; use 'ev' instead"
+    )
     type[1L] <- "ev"
   }
   if (
@@ -1199,7 +1216,8 @@ predict.rbart <- function(
     }
 
     if (!all(measuredLevels <- ranefNames.test %in% ranefNames.train)) {
-      warning(
+      warnClassed(
+        "dbartsFallbackWarning",
         "test includes random effect levels not present in training - ranef estimates default to draws from their latent distribution parameterized by the posterior of its variance; draws may not be the same across future calls to 'predict'"
       )
       n.unmeasured <- sum(!measuredLevels)
@@ -1953,7 +1971,8 @@ sliceSample <- function(
       error = function(e) e
     )
     if (inherits(tryResult, "error")) {
-      warning(
+      warnClassed(
+        "dbartsFallbackWarning",
         "rejection sample failed after ",
         maxIter,
         " iterations; dominating function may require hand-tuning"

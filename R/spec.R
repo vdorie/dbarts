@@ -575,7 +575,7 @@ resolveSamplerSpec <- function(
       stop(
         "a variance forest requires family = \"gaussian\" or \"aft\"; ",
         "family \"",
-        requestedFamily,
+        family,
         "\" routes precision through its own latent channel instead"
       )
     }

@@ -1765,7 +1765,8 @@ chi <- function(df = 1.5, scale = 2.0, degreesOfFreedom) {
       "chi()'s 'degreesOfFreedom' is now 'df'; the value was used. The old ",
       "name is removed in dbarts ",
       tombstoneExpiry,
-      "."
+      ".",
+      class = "dbartsDeprecatedWarning"
     )
     df <- degreesOfFreedom
   }

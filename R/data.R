@@ -1016,7 +1016,7 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
       # by name
       warning(warningCondition(
         paste0(
-          "'test' is unnamed but 'x' had named predictors, matched to 'x' by ",
+          "'test' is unnamed but the fit's predictors are named, matched by ",
           "position (",
           mapping,
           if (numPredictors > shown) ", ..." else "",

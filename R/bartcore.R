@@ -259,7 +259,7 @@ warnOnGPFallback <- function(result) {
       paste0(
         "%.1f%% of Gaussian-process leaf evaluations fell back to a ",
         "constant leaf because the leaf held more than 'max.leaf.size' ",
-        "observations, so most of this fit is not a Gaussian process; ",
+        "observations, so much of this fit is not a Gaussian process; ",
         "raise the cap with gp(max.leaf.size = ), which costs roughly ten ",
         "times per doubling, or use FEWER trees, which grows deeper trees ",
         "and so smaller leaves"

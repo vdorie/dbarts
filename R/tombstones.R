@@ -318,7 +318,8 @@ bart2 <- function() {
     "tombstone.bart2",
     "'bart2' is now 'bart'; this call was forwarded. The alias is removed ",
     "in dbarts ",
-    tombstoneExpiry
+    tombstoneExpiry,
+    class = "dbartsDeprecatedWarning"
   )
   onceWarnState[[frontDoorDefaultsKey]] <- TRUE
   eval(matchedCall, parent.frame())
@@ -350,7 +351,8 @@ forwardToLegacyDoor <- function(suppliedCall, supplied, callingEnv) {
     "front door and takes different names and defaults. Forwarding is ",
     "removed in dbarts ",
     tombstoneExpiry,
-    "."
+    ".",
+    class = "dbartsDeprecatedWarning"
   )
   suppliedCall[[1L]] <- quote(dbarts::bartBT)
   list(value = eval(suppliedCall, envir = callingEnv))
@@ -578,7 +580,8 @@ resolveConsolidatedArgs <- function(matchedCall, supplied, caller, evalEnv) {
       caller,
       "': ",
       consolidatedArgReasons[[name]],
-      ". The value was used."
+      ". The value was used.",
+      class = "dbartsDeprecatedWarning"
     )
     # resid.prior alone is still written in a vocabulary this package holds:
     # the prior constructors, which are not exported
@@ -780,7 +783,8 @@ resolveRenamedSeed <- function(rngSeed, caller, seed) {
     "'rngSeed' is now 'seed'; the value was used. The old name is removed ",
     "in dbarts ",
     tombstoneExpiry,
-    "."
+    ".",
+    class = "dbartsDeprecatedWarning"
   )
   # 0.9-x's rngSeed = NA meant no seed; the warning above covers the name
   refuseNaN(rngSeed, "rngSeed")
@@ -819,7 +823,8 @@ resolveRenamedSigma <- function(
     caller,
     "'; the value was used. The old name is removed in dbarts ",
     tombstoneExpiry,
-    "."
+    ".",
+    class = "dbartsDeprecatedWarning"
   )
   sigma
 }
@@ -843,7 +848,8 @@ warnNAForNull <- function(argument, caller) {
     "'; the NA was read as NULL. NA is a missing value, and reading it as ",
     "absent is removed in dbarts ",
     tombstoneExpiry,
-    "."
+    ".",
+    class = "dbartsDeprecatedWarning"
   )
 }
 
@@ -940,7 +946,8 @@ resolveRenamedLeafPrior <- function(
     caller,
     "'; the value was used. The old name is removed in dbarts ",
     tombstoneExpiry,
-    "."
+    ".",
+    class = "dbartsDeprecatedWarning"
   )
   # a plain $<- assignment of NULL deletes the element instead of setting
   # it, and node.prior = NULL is a supplied value here (nodePriorSupplied
@@ -966,7 +973,8 @@ noOpThreadMethod <- function(name) {
     "uses control@n.threads; $setControl changes it. The method is removed ",
     "in dbarts ",
     tombstoneExpiry,
-    "."
+    ".",
+    class = "dbartsDeprecatedWarning"
   )
   invisible(NULL)
 }
@@ -1007,7 +1015,8 @@ ignoreRunThreadCount <- function(...) {
     "uses the sampler's own, control@n.threads, which $setControl changes, ",
     "and the draws do not depend on it. The argument is removed in dbarts ",
     tombstoneExpiry,
-    "."
+    ".",
+    class = "dbartsDeprecatedWarning"
   )
   invisible(NULL)
 }
