@@ -112,6 +112,10 @@
             use instead of ignoring them. On \code{predict.bart},
             \code{type} now comes before \code{offset} and \code{weights},
             and \code{n.threads} is last; pass them by name.
+            \code{dbartsControl}'s \code{proposal.probs} must name every
+            entry from its moves; an unnamed vector or an unknown name is
+            an error listing them, where 0.9-34 dropped such entries and ran
+            the default mixture.
       \item The sampler's \code{$setResponse} gains \code{updateScale} as its
             second argument, pushing \code{updateState} to third, so pass
             \code{updateState} by name. It defaults to \code{FALSE}: the
