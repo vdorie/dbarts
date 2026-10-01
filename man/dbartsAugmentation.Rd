@@ -55,7 +55,9 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
   }
   \item{dispersion}{
     \code{"nbinom"} only, and required there: the current dispersion \eqn{r}{r}, a positive whole
-    number, as \code{\link[=dbartsSampler-class]{getDispersion}} reports it.
+    number, as \code{\link[=dbartsSampler-class]{getDispersion}} reports it. An \code{"nbinom"}
+    location is a log mean, so the Polya-Gamma draw reads the log-odds
+    \eqn{\psi_i = f_i + o_i - \log r}{psi_i = f_i + o_i - log r}.
   }
   \item{thresholds}{
     \code{"ordinal"} only, and required there: the \eqn{K - 1}{K - 1} strictly increasing category
@@ -78,7 +80,7 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
   LOCATION and the working response is that location less the offset. For \code{"logistic"} and
   \code{"nbinom"} it is a PRECISION - the Polya-Gamma \eqn{\omega_i}{omega_i} - and what a host
   regresses on is \eqn{w_i (y_i - 1/2) / \omega_i - o_i}{w_i (y_i - 1/2) / omega_i - o_i} and
-  \eqn{(y_i - r) / (2 \omega_i) - o_i}{(y_i - r) / (2 omega_i) - o_i} respectively, under per-row
+  \eqn{(y_i - r) / (2 \omega_i) + \log r - o_i}{(y_i - r) / (2 omega_i) + log r - o_i} respectively, under per-row
   precision weights \eqn{\omega_i}{omega_i}. For \code{"student"} the latent is the scale-mixing
   \eqn{\lambda_i}{lambda_i}, which weights the row rather than entering the response, so the working
   response is the gaussian one. A host that regresses on the latent itself is fitting a different

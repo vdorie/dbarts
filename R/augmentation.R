@@ -2,7 +2,8 @@
 # family's engine site runs every sweep, made callable from R against R's own
 # random number stream. 'fit' is the location
 # WITHOUT the offset - what $getFitsWithoutOffset() reports - and the bridge
-# forms the linear predictor as fit + offset.
+# forms the linear predictor as fit + offset; for nbinom that is the log mean,
+# and the Polya-Gamma law reads it less log(dispersion).
 
 augFamilies <- c("probit", "logistic", "ordinal", "aft", "nbinom", "student")
 

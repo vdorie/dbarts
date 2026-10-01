@@ -4040,8 +4040,8 @@ inline double simulatePolyaGammaShape(ext_rng* rng, double b, double z) {
 
 /// Reshift a Polya-Gamma latent family's working response when only the offset
 /// changes: the omega draws and the kappa / omega term stand, so each entry
-/// trades the old offset for the new. A null pointer is a zero offset. Shared
-/// by LogisticResponse::setOffset and NBResponse::setOffset.
+/// trades the old offset for the new. A null pointer is a zero offset. Used by
+/// LogisticResponse::setOffset.
 inline void reshiftWorkingForOffset(double* working, const double* oldOffset,
                                     const double* newOffset, std::size_t n) {
   for (std::size_t i = 0; i < n; ++i) {
@@ -4180,8 +4180,10 @@ public:
 
   /// State serialization of the response transform: gaussian's offset-
   /// adjusted (min, max), whose evolution under setOffset(updateScale) is
-  /// otherwise unrecoverable from the data; scale-free families report
-  /// (0, 0) and ignore restoration.
+  /// otherwise unrecoverable from the data, and nbinom's log-mean shift c as
+  /// (c, c + 1); scale-free families report (0, 0) and ignore restoration.
+  /// A family that reports a transform reports an increasing pair, which is
+  /// what the chain keys restoration on.
   virtual void getScale(double& min, double& max) const { min = max = 0.0; }
   virtual void restoreScale(double /*min*/, double /*max*/) {}
 
@@ -5808,19 +5810,17 @@ private:
 };
 
 /// Sampled negative-binomial dispersion r on a capped positive-integer grid
-/// under a normalized gamma(2, 0.1) prior. This is the r-update seam: a
-/// grid full conditional today, a
-/// Chinese-restaurant-table (CRT) or real-valued-r strategy later, with
-/// integrality assumed only inside it. Under
-/// the logit-p parameterization p_i is r-free, so the log full conditional at
-/// grid point r_k separates (dropping the r-free normalizer) into
-///   L_k + r_k * S + log p(r_k),
-/// L_k = sum_c n_c [lgamma(c + r_k) - lgamma(r_k)] over the count histogram n_c,
-/// S = sum_i log(1 - p_i). L_k derives ONLY from the fixed counts, so it
-/// precomputes once per response (computeKernel); each sweep is one O(n)
-/// reduction for S plus O(grid) multiply-adds - the ResidualDfPrior economics,
-/// now an exact analogy. The grid is dense where dispersion matters and sparse
-/// toward the Poisson-like cap at r = 50.
+/// under a normalized gamma(2, 0.1) prior. This is the r-update seam: a grid
+/// full conditional today, a slice or Metropolis step for a real r later, with
+/// integrality assumed only inside it. r is drawn given the log means
+/// eta_i = log mu_i, collapsed over the Polya-Gamma latents, so the log full
+/// conditional at grid point r_k is, dropping r-free terms,
+///   K_k - sum_i (y_i + r_k) log(1 + mu_i / r_k) + log p(r_k),
+///   K_k = sum_c n_c [lgamma(c + r_k) - lgamma(r_k)] - Y log r_k,
+/// over the count histogram n_c, with Y = sum_i y_i. K_k derives ONLY from the
+/// counts, so it precomputes once per response (computeKernel); each sweep is
+/// one exp per row and one log1p per row and grid point. The grid is dense
+/// where dispersion matters and sparse toward the Poisson-like cap at r = 50.
 struct NBDispersionPrior {
   static constexpr std::size_t gridSize = 13;
   static constexpr double grid[gridSize] = {1.0,  2.0,  3.0,  4.0,  5.0,
@@ -5832,6 +5832,7 @@ struct NBDispersionPrior {
     double priorTotal = 0.0;
     for (std::size_t k = 0; k < gridSize; ++k) {
       kernel_[k] = 0.0;
+      inverseGrid_[k] = 1.0 / grid[k];
       logPrior_[k] = grid[k] * std::exp(-0.1 * grid[k]);  // gamma(2, 0.1) kernel
       priorTotal += logPrior_[k];
     }
@@ -5839,20 +5840,21 @@ struct NBDispersionPrior {
       logPrior_[k] = std::log(logPrior_[k] / priorTotal);
   }
 
-  /// Precompute the count-dependent lgamma kernel L_k from the response: tally
-  /// the integer-count histogram n_c, then L_k = sum_c n_c [lgamma(c + r_k) -
-  /// lgamma(r_k)]. Called at construction and whenever y changes (setResponse/
-  /// setData), the count analogue of a fixed-data precompute. A non-null active
-  /// restricts BOTH passes to the rows in the data set, so the kernel is the
-  /// retained subsample's; that makes an active-row mask change a rebuild, at
-  /// O(n + maxCount * gridSize), the one real per-install cost of the channel.
+  /// Precompute the count-only kernel K_k from the response: tally the
+  /// integer-count histogram n_c, then K_k = sum_c n_c [lgamma(c + r_k) -
+  /// lgamma(r_k)] - Y log r_k. Called at construction and whenever y changes
+  /// (setResponse/setData). A non-null active restricts BOTH passes to the rows
+  /// in the data set, so the kernel is the retained subsample's; that makes an
+  /// active-row mask change a rebuild, at O(n + maxCount * gridSize).
   void computeKernel(const double* y, std::size_t numObservations,
                      const double* active = nullptr) {
     std::size_t maxCount = 0;
+    double total = 0.0;
     for (std::size_t i = 0; i < numObservations; ++i) {
       if (active != nullptr && active[i] == 0.0) continue;
       std::size_t c = static_cast<std::size_t>(std::lround(y[i]));
       if (c > maxCount) maxCount = c;
+      total += y[i];
     }
     std::vector<double> histogram(maxCount + 1, 0.0);
     for (std::size_t i = 0; i < numObservations; ++i) {
@@ -5866,15 +5868,27 @@ struct NBDispersionPrior {
         if (histogram[c] != 0.0)
           L += histogram[c] *
                (std::lgamma(static_cast<double>(c) + grid[k]) - lgammaR);
-      kernel_[k] = L;
+      kernel_[k] = L - total * std::log(grid[k]);
     }
   }
 
-  /// Draw a grid index from the discrete full conditional given the collapsed
-  /// statistic S = sum_i log(1 - p_i).
-  std::size_t drawIndex(ext_rng* rng, double sumLog1mP) {
+  /// Draw a grid index from the discrete full conditional given the log means
+  /// eta_i = fits_i + shift + offset_i (offset may be null) over the rows
+  /// active marks (null: all). Rows outer, grid inner, in a fixed order, so the
+  /// draw is deterministic given its inputs.
+  std::size_t drawIndex(ext_rng* rng, const double* y, const double* fits,
+                        const double* offset, double shift,
+                        std::size_t numObservations,
+                        const double* active = nullptr) {
     for (std::size_t k = 0; k < gridSize; ++k)
-      weight_[k] = kernel_[k] + grid[k] * sumLog1mP + logPrior_[k];
+      weight_[k] = kernel_[k] + logPrior_[k];
+    for (std::size_t i = 0; i < numObservations; ++i) {
+      if (active != nullptr && active[i] == 0.0) continue;
+      double mean =
+        std::exp(fits[i] + shift + (offset != nullptr ? offset[i] : 0.0));
+      for (std::size_t k = 0; k < gridSize; ++k)
+        weight_[k] -= (y[i] + grid[k]) * std::log1p(mean * inverseGrid_[k]);
+    }
     return drawFromLogWeights(rng, weight_.data(), gridSize);
   }
 
@@ -5882,26 +5896,38 @@ private:
   friend struct TestPeer;
 
   std::array<double, gridSize> kernel_;
+  std::array<double, gridSize> inverseGrid_;
   std::array<double, gridSize> logPrior_;
   std::array<double, gridSize> weight_;
 };
 
 /// Negative-binomial counts by the Polya-Gamma augmentation (Polson-Scott-Windle
-/// 2013; Zhou-Li-Dunson-Carin 2012) under the logit-p parameterization:
-/// the forest fits the log-odds latent
-/// psi_i = f(x_i) + offset_i, the count law is y_i ~ NB(r, plogis(psi_i)) with
-/// dispersion r, and E[y_i] = r exp(psi_i) so the offset is a log-exposure. The
-/// augmentation generalizes LogisticResponse: omega_i ~ PG(y_i + r, psi_i) (a
-/// real shape in general, integer while r is integer-valued), kappa_i =
-/// (y_i - r)/2, working response
-/// z_i = kappa_i/omega_i - offset_i under per-sweep precisions omega_i, sigma
-/// fixed at 1. r is a positive integer, fixed (user-supplied) or estimated on
-/// the capped grid by the closed-form discrete full conditional
-/// (NBDispersionPrior); real-valued r stays deferred to a future extension.
-/// Counts
-/// enter kappa directly, so like the binary families it does not rescale the
-/// response. Weights are unsupported (exposure belongs in the offset).
-/// latents() exposes the omega draws.
+/// 2013; Zhou-Li-Dunson-Carin 2012) on a log-mean link: the forest fits
+/// eta_i = f(x_i) + c + offset_i = log E[y_i], the count law is
+/// y_i ~ NB(r, p_i) with p_i = mu_i / (mu_i + r), so the offset is a
+/// log-exposure. In log-odds terms psi_i = eta_i - log r and
+/// omega_i ~ PG(y_i + r, psi_i) (integer shape while r is integer-valued),
+/// kappa_i = (y_i - r)/2, working response z_i = kappa_i/omega_i - a_i under
+/// per-sweep precisions omega_i with the anchor a_i = offset_i + c - log r;
+/// sigma is fixed at 1.
+///
+/// c is the response transform: log(max(sum y, 1/2) / sum exp(offset)), the
+/// intercept of the Poisson model with offset, computed over ALL rows (a mask
+/// does not move it). It is fitShift, so reported fits and the leaf prior's
+/// center carry it; fitScale stays 1. The state block stores it as
+/// (c, c + 1), which decodes exactly; a state whose pair is not increasing is
+/// not from this model.
+///
+/// r is a positive integer, fixed (user-supplied) or estimated on the capped
+/// grid given the means (NBDispersionPrior), which is orthogonal to them in the
+/// Fisher information, so a move of r costs nothing through the mean. Weights
+/// are unsupported (exposure belongs in the offset). latents() exposes the
+/// omega draws.
+///
+/// Whenever c, r or the offset change without an omega draw the working
+/// response is REBUILT from omega through the one expression the draw uses,
+/// never shifted by a delta, so every path to a given state is bitwise the
+/// same.
 class NBResponse final : public ResponseModel {
 public:
   /// dispersion > 0 fixes r there (an integer; the host validates integrality);
@@ -5912,7 +5938,9 @@ public:
     : y_(y), offset_(offset), numObservations_(numObservations),
       estimateR_(!(dispersion > 0.0)),
       r_(estimateR_ ? NBDispersionPrior::grid[NBDispersionPrior::medianIndex]
-                    : dispersion) {
+                    : dispersion),
+      logR_(std::log(r_)),
+      shift_(computeShift(y, offset, numObservations)) {
     omega_.resize(numObservations);
     working_.resize(numObservations);
     rPrior_.computeKernel(y, numObservations);
@@ -5928,27 +5956,27 @@ public:
   bool workingWeightsVaryPerSweep() const override { return true; }
   const double* offset() const override { return offset_; }
 
-  /// Per sweep, in the partially-collapsed order (section 5, van Dyk-Park):
-  /// (1) update r from its grid full conditional given the fit, COLLAPSED over
-  /// omega (it reads only S = sum_i log(1 - p_i), never the omega draws); then
-  /// (2) draw omega_i ~ PG(y_i + r_new, psi_i) at the NEW r; then (3) rebuild the
-  /// working response with r_new. The reverse order is not invariant - the trees
-  /// would consume an omega whose shape carries the stale r. sigma is ignored
-  /// (fixed at 1). Fixed-r mode skips step (1) and draws no dispersion variate.
-  /// Under a mask both halves of the r update are the subsample's: S sums the
-  /// active rows and the count histogram behind L_k was rebuilt over them.
+  /// Per sweep, as a two-block Gibbs step: (1) r from its grid full
+  /// conditional given the log means, COLLAPSED over omega (it never reads the
+  /// omega draws); then (2) omega_i ~ PG(y_i + r_new, psi_i) at the NEW r and
+  /// (3) the working response rebuilt with r_new. Together (1)-(3) draw
+  /// (r, omega) jointly given the trees. The reverse order is not invariant -
+  /// the trees would consume an omega whose shape carries the stale r. sigma
+  /// is ignored (fixed at 1). Fixed-r mode skips step (1) and draws no
+  /// dispersion variate. Under a mask the r step is the subsample's.
   void refreshLatents(ext_rng* rng, const double* totalFits, double) override {
     if (estimateR_)
-      r_ = NBDispersionPrior::grid[rPrior_.drawIndex(
-        rng, collapsedStatistic(totalFits))];
+      setDispersion(NBDispersionPrior::grid[rPrior_.drawIndex(
+        rng, y_, totalFits, offset_, shift_, numObservations_,
+        activePointer())]);
     drawOmega(rng, totalFits);
   }
 
   bool supportsActiveRows() const override { return true; }
 
   /// Beyond the logistic composition, the dispersion block is the subsample's:
-  /// the count-histogram kernel is REBUILT over the active rows here, which is
-  /// the channel's one per-install cost.
+  /// the count kernel is REBUILT over the active rows here, which is the
+  /// channel's one per-install cost. The shift c stays the full-data one.
   bool setActiveRows(const double* active) override {
     if (active == nullptr) {
       activeRows_.clear();
@@ -5967,26 +5995,28 @@ public:
 
   /// Embedded-Gibbs y swap: keep the slow-moving r (a global the outer sampler
   /// persists across a small y perturbation - the kept-cutpoints/nu clause),
-  /// recompute the count-histogram kernel under the new y, and redraw omega and
-  /// working against the current fit.
+  /// re-anchor c to the new counts when updateScale, recompute the count
+  /// kernel, and redraw omega and working against the current fit.
   void setResponse(const double* y, ext_rng* rng, const double* totalFits,
-                   bool, double*) override {
+                   bool updateScale, double*) override {
     y_ = y;
+    if (updateScale) shift_ = computeShift(y_, offset_, numObservations_);
     rPrior_.computeKernel(y, numObservations_, activePointer());
     drawOmega(rng, totalFits);
   }
 
-  void setOffset(const double* offset, bool, double*) override {
-    // omega and kappa / omega stand; only the shift into the working response
-    // moves (the LogisticResponse setOffset)
-    reshiftWorkingForOffset(working_.data(), offset_, offset, numObservations_);
+  /// omega stands; c is re-anchored to the new offset when updateScale, and
+  /// the working response is rebuilt under the new anchor.
+  void setOffset(const double* offset, bool updateScale, double*) override {
     offset_ = offset;
+    if (updateScale) shift_ = computeShift(y_, offset_, numObservations_);
+    rebuildWorking();
   }
 
-  /// Data swap: everything stale, so cold-init r to the grid median (or the
-  /// held fixed value), rebuild the kernel, and cold-start omega at its
-  /// PG(y+r, 0) mean (y_i + r)/4 (the LogisticResponse w/4 generalization); the
-  /// first sweep's draw replaces it.
+  /// Data swap: everything stale, so re-anchor c, cold-init r to the grid
+  /// median (or the held fixed value), rebuild the kernel, and cold-start
+  /// omega at its PG(y+r, 0) mean (y_i + r)/4; the first sweep's draw replaces
+  /// it.
   void setData(const double* y, const double* offset, const double*,
                std::size_t numObservations, double*) override {
     y_ = y;
@@ -5997,28 +6027,37 @@ public:
     omega_.resize(numObservations);
     working_.resize(numObservations);
     if (estimateR_)
-      r_ = NBDispersionPrior::grid[NBDispersionPrior::medianIndex];
+      setDispersion(NBDispersionPrior::grid[NBDispersionPrior::medianIndex]);
+    shift_ = computeShift(y, offset, numObservations);
     rPrior_.computeKernel(y, numObservations);
     coldStart();
   }
 
   const double* latents() const override { return omega_.data(); }
 
-  /// Rebuild the working response from the restored omega AND the current r.
-  /// RESTORE CONTRACT (section 5): restoreDispersion MUST run before this, since
-  /// the rebuild reads r; a restore that installs omega before r rebuilds
-  /// against the stale r.
+  /// Rebuild the working response from the restored omega AND the current r
+  /// and c. RESTORE CONTRACT: restoreDispersion and restoreScale MUST run
+  /// before this, since the rebuild reads both.
   void restoreLatents(const double* latents) override {
     std::memcpy(omega_.data(), latents, numObservations_ * sizeof(double));
-    for (std::size_t i = 0; i < numObservations_; ++i)
-      working_[i] = 0.5 * (y_[i] - r_) / omega_[i] -
-                    (offset_ != nullptr ? offset_[i] : 0.0);
+    rebuildWorking();
     recompose();
+  }
+
+  /// The shift c as (c, c + 1): min decodes it exactly, and the pair is
+  /// increasing, which is what marks a state of this model.
+  void getScale(double& min, double& max) const override {
+    min = shift_;
+    max = shift_ + 1.0;
+  }
+  void restoreScale(double min, double) override {
+    shift_ = min;
+    rebuildWorking();
   }
 
   double initialSigma() const override { return 1.0; }
   double fitScale() const override { return 1.0; }
-  double fitShift() const override { return 0.0; }
+  double fitShift() const override { return shift_; }
   double sigmaScale() const override { return 1.0; }
 
   /// The dispersion r for the by-name "dispersion" state block: getState reads
@@ -6027,11 +6066,14 @@ public:
   /// (the restore contract above).
   bool carriesDispersion() const override { return true; }
   double dispersion() const override { return r_; }
-  void restoreDispersion(double dispersion) override { r_ = dispersion; }
+  void restoreDispersion(double dispersion) override {
+    setDispersion(dispersion);
+  }
 
-  /// log dnbinom(y_i; r, plogis(eta_i)) with eta the log-odds f(x) + offset:
+  /// log dnbinom(y_i; r, mu_i) with log mu_i = f(x_i) + c + offset_i, in
+  /// log-odds form with psi = log mu - log r:
   ///   lgamma(y+r) - lgamma(r) - lgamma(y+1) + y log p + r log(1 - p),
-  /// using the stable log p = -log(1 + e^{-eta}), log(1 - p) = -log(1 + e^{eta}).
+  /// using the stable log p = -log(1 + e^{-psi}), log(1 - p) = -log(1 + e^psi).
   void computeLogLikelihood(const double* totalFits, double,
                             std::size_t numObservations,
                             double* out) const override {
@@ -6041,11 +6083,24 @@ public:
         out[i] = std::numeric_limits<double>::quiet_NaN();
         continue;
       }
-      double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+      double psi = totalFits[i] + anchor(i);
       double y = y_[i];
       out[i] = std::lgamma(y + r_) - lgammaR - std::lgamma(y + 1.0) -
-               y * logOnePlusExp(-eta) - r_ * logOnePlusExp(eta);
+               y * logOnePlusExp(-psi) - r_ * logOnePlusExp(psi);
     }
+  }
+
+  /// The response transform c = log(max(sum y, 1/2) / sum exp(offset)) over
+  /// all n rows; a null offset sums to n. The floor keeps an all-zero response
+  /// finite.
+  static double computeShift(const double* y, const double* offset,
+                             std::size_t numObservations) {
+    double total = 0.0, exposure = 0.0;
+    for (std::size_t i = 0; i < numObservations; ++i) {
+      total += y[i];
+      exposure += offset != nullptr ? std::exp(offset[i]) : 1.0;
+    }
+    return std::log(std::max(total, 0.5) / exposure);
   }
 
 private:
@@ -6058,16 +6113,15 @@ private:
     return activeRows_.empty() ? nullptr : activeRows_.data();
   }
 
-  /// S = sum_i log(1 - p_i) = -sum_i log(1 + e^psi_i), the collapsed statistic
-  /// the dispersion grid draw reads, over the ACTIVE rows only.
-  double collapsedStatistic(const double* totalFits) const {
-    double sumLog1mP = 0.0;
-    for (std::size_t i = 0; i < numObservations_; ++i) {
-      if (!isActive(i)) continue;
-      sumLog1mP -=
-        logOnePlusExp(totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0));
-    }
-    return sumLog1mP;
+  /// a_i = offset_i + c - log r, what the trees' working response is shifted
+  /// by; one expression for every site, so the rebuilds are bitwise the draw's.
+  double anchor(std::size_t i) const {
+    return (offset_ != nullptr ? offset_[i] : 0.0) + shift_ - logR_;
+  }
+
+  void setDispersion(double r) {
+    r_ = r;
+    logR_ = std::log(r);
   }
 
   /// c_i = a_i omega_i, the served precisions while a mask is installed.
@@ -6077,6 +6131,12 @@ private:
       composite_[i] = activeRows_[i] * omega_[i];
   }
 
+  /// z_i = kappa_i / omega_i - a_i from the omega in place, every row.
+  void rebuildWorking() {
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      working_[i] = 0.5 * (y_[i] - r_) / omega_[i] - anchor(i);
+  }
+
   /// Steps (2)-(3) of the sweep at the CURRENT r: draw omega_i ~ PG(y_i + r,
   /// psi_i) and rebuild the working response. Shared by refreshLatents (after
   /// its r step) and setResponse (which keeps r, the ordinal drawLatents
@@ -6084,25 +6144,21 @@ private:
   void drawOmega(ext_rng* rng, const double* totalFits) {
     for (std::size_t i = 0; i < numObservations_; ++i) {
       if (!isActive(i)) continue;
-      double offset = offset_ != nullptr ? offset_[i] : 0.0;
-      double psi = totalFits[i] + offset;
-      double omega = simulatePolyaGammaShape(rng, y_[i] + r_, psi);
+      double a = anchor(i);
+      double omega = simulatePolyaGammaShape(rng, y_[i] + r_, totalFits[i] + a);
       omega_[i] = omega;
-      working_[i] = 0.5 * (y_[i] - r_) / omega - offset;
+      working_[i] = 0.5 * (y_[i] - r_) / omega - a;
     }
     recompose();
   }
 
   /// Deterministic cold start: omega at PG(y+r, 0)'s mean (y_i + r)/4, so the
-  /// working response starts at 2 (y_i - r)/(y_i + r) - offset independent of the
+  /// working response starts at 2 (y_i - r)/(y_i + r) - a_i independent of the
   /// fit; real draws replace it after the first sweep.
   void coldStart() {
-    for (std::size_t i = 0; i < numObservations_; ++i) {
-      double omega = 0.25 * (y_[i] + r_);
-      omega_[i] = omega;
-      working_[i] =
-        0.5 * (y_[i] - r_) / omega - (offset_ != nullptr ? offset_[i] : 0.0);
-    }
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      omega_[i] = 0.25 * (y_[i] + r_);
+    rebuildWorking();
   }
 
   const double* y_;
@@ -6110,6 +6166,8 @@ private:
   std::size_t numObservations_;
   bool estimateR_;
   double r_;
+  double logR_;   // log r_, kept in step by setDispersion
+  double shift_;  // c, the log-mean transform (fitShift)
   std::vector<double> activeRows_;  // the 0/1 mask; empty when none
   std::vector<double> composite_;   // c_i = a_i omega_i, served while masked
   std::vector<double> omega_;

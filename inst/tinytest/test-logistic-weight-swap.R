@@ -196,9 +196,9 @@ expect_false(isTRUE(all.equal(pinned$getLatents(), 0.25 * w2)))
 expect_true(all(pinned$getLatents() > 0))
 
 # --- the families that decline by identification ---------------------------
-# probit and ordinal carry no precision but do carry the mask, so a 0/1 vector
-# is membership and lands there; w2 is a count vector and stays refused on both
-# conduits. nbinom has no mask route and declines either vector.
+# probit, ordinal and nbinom carry no precision but do carry the mask, so a
+# 0/1 vector is membership and lands there; w2 is a count vector and stays
+# refused on both conduits.
 masked <- list(
   probit = list(
     y = y,
@@ -207,6 +207,10 @@ masked <- list(
   ordinal = list(
     y = as.double(1L + (seq_len(n) %% 3L)),
     text = "ordinal models do not support case weights other than 0 and 1"
+  ),
+  nbinom = list(
+    y = as.double(seq_len(n) %% 5L),
+    text = "nbinom models do not support case weights other than 0 and 1"
   )
 )
 for (name in names(masked)) {
@@ -223,20 +227,6 @@ for (name in names(masked)) {
     info = name
   )
 }
-nbinomFit <- dbarts(
-  x,
-  as.double(seq_len(n) %% 5L),
-  family = "nbinom",
-  control = logisticControl()
-)
-expect_error(
-  nbinomFit$setWeights(w1),
-  "nbinom \\(count\\) models do not support case weights"
-)
-expect_error(
-  nbinomFit$setData(dbartsData(x, as.double(seq_len(n) %% 5L), weights = w1)),
-  "nbinom \\(count\\) models do not support case weights"
-)
 aftFit <- dbarts(
   x,
   cbind(exp(f + rnorm(n)), rep_len(c(1L, 0L), n)),

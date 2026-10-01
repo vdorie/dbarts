@@ -2672,9 +2672,9 @@ double defaultLeafScale(bartcore::ResponseFamily family) {
   switch (family) {
   case bartcore::ResponseFamily::probit:
   case bartcore::ResponseFamily::ordinal:
+  case bartcore::ResponseFamily::nbinom:
     return 3.0;
   case bartcore::ResponseFamily::logistic:
-  case bartcore::ResponseFamily::nbinom:
     return std::numbers::pi * std::sqrt(3.0);
   // gaussian and aft state the scale in response units, below. Every
   // enumerator is listed and there is no default arm: a family added without
@@ -7171,9 +7171,9 @@ static void drawAugmentationLaws(ext_rng* rng, AugmentationLaw law,
       result[i] = omega;
       break;
     }
-    case AL::nbinom:
-      result[i] =
-        bartcore::simulatePolyaGammaShape(rng, in.y[i] + in.dispersion, psi);
+    case AL::nbinom: // fit + offset is the log mean; the law reads log-odds
+      result[i] = bartcore::simulatePolyaGammaShape(
+        rng, in.y[i] + in.dispersion, psi - std::log(in.dispersion));
       break;
     case AL::studentT: { // the Student-t scale mixer
       double residual = in.y[i] - psi;
@@ -7216,8 +7216,9 @@ void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
       value = (in.weights != NULL ? in.weights[i] : 1.0) * (in.y[i] - 0.5) /
         latent[i];
       break;
-    case AL::nbinom:
-      value = 0.5 * (in.y[i] - in.dispersion) / latent[i];
+    case AL::nbinom: // back on the log-mean scale the fit is reported on
+      value = 0.5 * (in.y[i] - in.dispersion) / latent[i] +
+        std::log(in.dispersion);
       break;
     case AL::studentT: // the mixer's working response is y itself
       value = in.y[i];

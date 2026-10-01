@@ -47,7 +47,7 @@
       \code{k} is relative to the anchor the data fixes: a positive scalar,
       a hyperprior on \code{k} built with \code{chi}, or \code{NULL} for
       the default, 2 for continuous responses and \code{chi(1.5, 2)} for
-      binary ones. The continuous default follows Chipman, George, and
+      binary ones and counts (\code{nbinom}). The continuous default follows Chipman, George, and
       McCulloch's argument that with leaf standard deviation
       \code{sigma_mu = 0.5 / (k * sqrt(m))} for \code{m} trees, \code{k}
       prior standard deviations of \eqn{f(x)} span the whole response
@@ -65,7 +65,8 @@
         gaussian, student \tab response units \tab half the training response range \cr
         aft \tab log survival time \tab half the observed log-time range \cr
         probit, ordinal \tab probit latent \tab 3 \cr
-        logistic, nbinom \tab log-odds latent \tab \eqn{\pi\sqrt{3}}{pi * sqrt(3)} \cr
+        logistic \tab log-odds latent \tab \eqn{\pi\sqrt{3}}{pi * sqrt(3)} \cr
+        nbinom \tab log mean \tab 3 \cr
         hazard \tab its link's latent \tab 3 or \eqn{\pi\sqrt{3}}{pi * sqrt(3)}
       }
       so a fixed \code{k} is the \code{sd} anchor / \code{k}. For the

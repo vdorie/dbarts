@@ -277,8 +277,8 @@ expect_equal(
 )
 
 # --- end to end: bart(family = "nbinom") reads the channel rather than
-# serializing state per sweep, and its reported draws still pair with the
-# latent psi through mu = r exp(psi)
+# serializing state per sweep, and its mean counts are exp of the reported
+# log mean, draw by draw
 
 fit <- bart(
   x,
@@ -294,4 +294,4 @@ expect_true(!is.null(fit$dispersion))
 expect_equal(length(fit$dispersion), 12L)
 expect_true(all(fit$dispersion %in% dispersionGrid))
 expect_true(length(unique(fit$dispersion)) >= 2L)
-expect_equal(fit$yhat.train, fit$dispersion * exp(fit$latent.train))
+expect_equal(fit$yhat.train, exp(fit$latent.train))

@@ -6442,11 +6442,13 @@ static void testActiveRowsLogisticKernel(ext_rng*) {
 }
 
 // The logistic omega arm above PLUS the dispersion block, which is where
-// nbinom carries more than a composition. The count-histogram kernel L_k
-// is REBUILT over the active counts at every mask change and the collapsed
-// statistic S = sum log(1 - p_i) sums only active rows, so the whole grid full
-// conditional - hence the r draw, hence every omega shape after it - is the
-// retained subsample's. Local generators, restored rngState.
+// nbinom carries more than a composition. The count kernel K_k is REBUILT
+// over the active counts at every mask change and the r weights sum only
+// active rows, so the whole grid full conditional - hence the r draw, hence
+// every omega shape after it - is the retained subsample's. The log-mean shift
+// c is the full-data one by design, so the compacted twin is handed the
+// masked response's c before the streams are compared. Local generators,
+// restored rngState.
 static void testActiveRowsNBKernels(ext_rng*) {
   uint64_t savedRngState = rngState;
   const std::size_t n = 36;
@@ -6484,9 +6486,10 @@ static void testActiveRowsNBKernels(ext_rng*) {
         "the inactive counts do move the kernel, so the pin can fail");
   check(kernelExact,
         "a masked nbinom rebuilds the dispersion kernel over the active counts");
-  check(TestPeer::collapsedStatistic(masked, fits.data()) ==
-          TestPeer::collapsedStatistic(compact, fitsCompact.data()),
-        "a masked nbinom collapses S over the active rows, bitwise");
+  check(masked.fitShift() == full.fitShift() &&
+          masked.fitShift() != compact.fitShift(),
+        "a mask leaves the nbinom log-mean shift at its full-data value");
+  compact.restoreScale(masked.fitShift(), masked.fitShift() + 1.0);
 
   ext_rng* rngMasked = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng* rngCompact = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -6805,60 +6808,94 @@ static void testNBPolyaGammaShapeMoments(ext_rng*) {
   printf("ok: nb polya-gamma shape moments\n");
 }
 
-// The NB dispersion grid draw reproduces the hand-computed discrete full
-// conditional: for fixed counts y and a fixed fit, w_k proportional to
-// exp(L_k + r_k S + log prior_k) with S = sum_i log(1 - p_i), L_k the count-
-// histogram lgamma kernel checked against a direct evaluation, prior the
-// renormalized gamma(2, 0.1). The ResidualDfPrior drawIndex test pattern. Local
-// generator, restored global rngState.
+// The NB dispersion grid draw reproduces the discrete full conditional given
+// the log means: w_k proportional to prod_i dnbinom(y_i; r_k, mu_i) times the
+// renormalized gamma(2, 0.1) prior, the reference evaluated row by row in the
+// plain dnbinom form. The kernel K_k is checked against a direct lgamma sum
+// less Y log r_k, the drawn probabilities against the reference, and a sampled
+// histogram against both. Local generator, restored global rngState.
 static void testNBDispersionGridConditional(ext_rng*) {
   std::uint64_t savedRngState = rngState;
   NBDispersionPrior prior;
   std::vector<double> y = {0, 1, 2, 2, 3, 5, 1, 0, 4, 2, 7, 1};
+  std::vector<double> offset = {0.0, 0.2, -0.1, 0.0, 0.3, 0.0,
+                                -0.2, 0.1, 0.0, 0.0, 0.4, -0.3};
   const std::size_t n = y.size();
+  const double shift = 0.4;
   prior.computeKernel(y.data(), n);
+  std::vector<double> fits(n), logMean(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    fits[i] = 0.3 * static_cast<double>(i) - 1.2;
+    logMean[i] = fits[i] + shift + offset[i];
+  }
 
-  // a fixed fit -> S = sum_i log(1 - plogis(psi_i)) = -sum_i log(1 + e^{psi_i})
-  double S = 0.0;
-  for (std::size_t i = 0; i < n; ++i)
-    S -= logOnePlusExp(0.3 * static_cast<double>(i) - 1.2);
-
-  // (a) the kernel matches a direct lgamma evaluation
+  // (a) the kernel matches a direct lgamma evaluation less Y log r_k
+  double total = 0.0;
+  for (double count : y) total += count;
   bool kernelExact = true;
   for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
     double rk = NBDispersionPrior::grid[k];
-    double L = 0.0;
+    double K = 0.0;
     for (std::size_t i = 0; i < n; ++i)
-      L += std::lgamma(y[i] + rk) - std::lgamma(rk);
-    if (std::fabs(TestPeer::kernelValue(prior, k) - L) > 1e-9)
+      K += std::lgamma(y[i] + rk) - std::lgamma(rk);
+    K -= total * std::log(rk);
+    if (std::fabs(TestPeer::kernelValue(prior, k) - K) > 1e-9)
       kernelExact = false;
   }
   check(kernelExact, "nb dispersion kernel matches direct lgamma sum");
 
-  // (b) reference posterior over the grid
+  // (b) reference posterior over the grid from the per-row dnbinom form
   double expected[NBDispersionPrior::gridSize];
   double maxLog = -HUGE_VAL;
   for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
     double rk = NBDispersionPrior::grid[k];
-    double logPost =
-      TestPeer::kernelValue(prior, k) + rk * S + std::log(rk) - 0.1 * rk;
+    double logPost = std::log(rk) - 0.1 * rk;
+    for (std::size_t i = 0; i < n; ++i) {
+      double mu = std::exp(logMean[i]);
+      logPost += std::lgamma(y[i] + rk) - std::lgamma(rk) -
+                 std::lgamma(y[i] + 1.0) + y[i] * std::log(mu / (mu + rk)) +
+                 rk * std::log(rk / (mu + rk));
+    }
     expected[k] = logPost;
     if (logPost > maxLog) maxLog = logPost;
   }
-  double total = 0.0;
+  double norm = 0.0;
   for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
     expected[k] = std::exp(expected[k] - maxLog);
-    total += expected[k];
+    norm += expected[k];
   }
   for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k)
-    expected[k] /= total;
+    expected[k] /= norm;
 
-  // (c) sampled histogram
+  // (c) the draw's own probabilities, then a sampled histogram
   ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(localRng, 1729u);
+  prior.drawIndex(localRng, y.data(), fits.data(), offset.data(), shift, n);
+  bool weightsExact = true;
+  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k)
+    if (std::fabs(TestPeer::drawnProbability(prior, k) - expected[k]) > 1e-10)
+      weightsExact = false;
+  check(weightsExact,
+        "nb dispersion weights match the per-row dnbinom posterior");
+  // the log means alone enter: the same eta through a null offset and its
+  // shift folded into the fits draws the same weights
+  {
+    NBDispersionPrior folded;
+    folded.computeKernel(y.data(), n);
+    folded.drawIndex(localRng, y.data(), logMean.data(), nullptr, 0.0, n);
+    bool same = true;
+    for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k)
+      if (std::fabs(TestPeer::drawnProbability(folded, k) - expected[k]) >
+          1e-10)
+        same = false;
+    check(same, "nb dispersion weights read only the log means");
+  }
+
   const int numDraws = 400000;
   std::vector<int> counts(NBDispersionPrior::gridSize, 0);
-  for (int d = 0; d < numDraws; ++d) ++counts[prior.drawIndex(localRng, S)];
+  for (int d = 0; d < numDraws; ++d)
+    ++counts[prior.drawIndex(localRng, y.data(), fits.data(), offset.data(),
+                             shift, n)];
 
   for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
     double freq = static_cast<double>(counts[k]) / numDraws;
@@ -6872,15 +6909,15 @@ static void testNBDispersionGridConditional(ext_rng*) {
   printf("ok: nb dispersion grid full conditional\n");
 }
 
-// The r-FIRST partially-collapsed sweep order (section 5), reconstructed bit for
-// bit: refreshLatents must (1) draw r from the grid conditional against S from
-// the CURRENT fit, then (2) draw omega at r_new, then (3) rebuild working with
-// r_new. An independent replay on an identically seeded generator - drawIndex on
-// the same S, then the shape draws at r_new - reproduces the dispersion, the
-// omega, and the working response exactly. Then the restore contract: restoring
-// r before latents reproduces working exactly, and restoring latents under a
-// stale r yields a different working (so order matters). Local generators,
-// restored global rngState.
+// The r-FIRST sweep order, reconstructed bit for bit: refreshLatents must (1)
+// draw r from the grid conditional given the CURRENT log means, then (2) draw
+// omega at r_new against psi = fit + a_i, a_i = offset_i + c - log r_new, then
+// (3) rebuild working as kappa / omega - a_i. An independent replay on an
+// identically seeded generator reproduces the dispersion, the omega and the
+// working response exactly. Then the restore contract: restoring r before
+// latents reproduces working exactly, and restoring latents under a stale r
+// yields a different working (so order matters). Local generators, restored
+// global rngState.
 static void testNBSweepOrderAndRestore(ext_rng*) {
   std::uint64_t savedRngState = rngState;
   std::vector<double> y = {0, 2, 1, 4, 3, 1, 2, 5, 0, 2};
@@ -6893,6 +6930,10 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
 
   NBResponse resp(y.data(), offset.data(), n, -1.0);  // grid mode
   check(resp.carriesDispersion(), "nb grid mode carries dispersion");
+  const double c = resp.fitShift();
+  auto anchor = [&](std::size_t i, double r) {
+    return offset[i] + c - std::log(r);
+  };
 
   ext_rng* rResp = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng* rRef = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -6903,28 +6944,27 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
   // independent replay in the mandated order on the same rng stream
   NBDispersionPrior refPrior;
   refPrior.computeKernel(y.data(), n);
-  double S = 0.0;
-  for (std::size_t i = 0; i < n; ++i)
-    S -= logOnePlusExp(totalFits[i] + offset[i]);
-  double rNew = NBDispersionPrior::grid[refPrior.drawIndex(rRef, S)];
+  double rNew = NBDispersionPrior::grid[refPrior.drawIndex(
+    rRef, y.data(), totalFits.data(), offset.data(), c, n)];
   check(rNew == resp.dispersion(),
         "nb r drawn first from the grid conditional at the current fit");
   bool omegaMatch = true, workingMatch = true;
   const double* omega = resp.latents();
   const double* working = resp.workingResponse();
   for (std::size_t i = 0; i < n; ++i) {
-    double psi = totalFits[i] + offset[i];
-    double refOmega = simulatePolyaGammaShape(rRef, y[i] + rNew, psi);
+    double a = anchor(i, rNew);
+    double refOmega =
+      simulatePolyaGammaShape(rRef, y[i] + rNew, totalFits[i] + a);
     if (refOmega != omega[i]) omegaMatch = false;
-    if (working[i] != 0.5 * (y[i] - rNew) / refOmega - offset[i])
-      workingMatch = false;
+    if (working[i] != 0.5 * (y[i] - rNew) / refOmega - a) workingMatch = false;
   }
   check(omegaMatch, "nb omega drawn at r_new in the mandated order bit for bit");
-  check(workingMatch, "nb working rebuilt with r_new bit for bit");
+  check(workingMatch, "nb working is kappa / omega - a_i at r_new bit for bit");
 
   // setResponse keeps r (the kept-cutpoints/nu clause): a y swap in grid mode
   // draws NO r variate, only omega at the CURRENT r - proved bitwise, since an
-  // r draw would consume a uniform first and shift every omega draw after it
+  // r draw would consume a uniform first and shift every omega draw after it.
+  // updateScale = false keeps c too.
   {
     std::vector<double> ySwap(y);
     ySwap[3] += 1.0;
@@ -6934,22 +6974,30 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
     ext_rng_setSeed(rSet, 55555u);
     ext_rng_setSeed(rSetRef, 55555u);
     resp.setResponse(ySwap.data(), rSet, totalFits.data(), false, nullptr);
-    check(resp.dispersion() == rKept, "nb setResponse keeps the current r");
+    check(resp.dispersion() == rKept && resp.fitShift() == c,
+          "nb setResponse keeps the current r, and c without updateScale");
     bool swapExact = true;
     for (std::size_t i = 0; i < n; ++i) {
-      double psi = totalFits[i] + offset[i];
-      double refOmega = simulatePolyaGammaShape(rSetRef, ySwap[i] + rKept, psi);
+      double a = anchor(i, rKept);
+      double refOmega =
+        simulatePolyaGammaShape(rSetRef, ySwap[i] + rKept, totalFits[i] + a);
       if (resp.latents()[i] != refOmega ||
-          resp.workingResponse()[i] !=
-            0.5 * (ySwap[i] - rKept) / refOmega - offset[i])
+          resp.workingResponse()[i] != 0.5 * (ySwap[i] - rKept) / refOmega - a)
         swapExact = false;
     }
     check(swapExact, "nb setResponse redraws omega at the kept r bit for bit");
+    ext_rng_setSeed(rSet, 55555u);
+    resp.setResponse(ySwap.data(), rSet, totalFits.data(), true, nullptr);
+    check(resp.fitShift() ==
+            NBResponse::computeShift(ySwap.data(), offset.data(), n) &&
+            resp.fitShift() != c,
+          "nb setResponse with updateScale re-anchors c to the new counts");
     ext_rng_destroy(rSetRef);
     ext_rng_destroy(rSet);
     // put the fixture back for the restore-contract block below
     ext_rng_setSeed(rResp, 424242u);
-    resp.setResponse(y.data(), rResp, totalFits.data(), false, nullptr);
+    resp.setResponse(y.data(), rResp, totalFits.data(), true, nullptr);
+    check(resp.fitShift() == c, "nb c is a function of the counts alone");
   }
 
   // restore contract: r before latents reproduces working exactly
@@ -6977,7 +7025,7 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
   bool usesCurrentR = true, differsFromSaved = false;
   for (std::size_t i = 0; i < n; ++i) {
     if (stale.workingResponse()[i] !=
-        0.5 * (y[i] - staleR) / omegaSaved[i] - offset[i])
+        0.5 * (y[i] - staleR) / omegaSaved[i] - anchor(i, staleR))
       usesCurrentR = false;
     if (stale.workingResponse()[i] != workingSaved[i]) differsFromSaved = true;
   }
@@ -7005,6 +7053,91 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
   ext_rng_destroy(rResp);
   rngState = savedRngState;
   printf("ok: nb sweep order and restore contract\n");
+}
+
+// The log-mean shift c = log(max(sum y, 1/2) / sum exp(offset)): its formula
+// with and without an offset and at the all-zero floor; fitShift reports it and
+// the pointwise log-likelihood is dnbinom at mu = exp(fit + c + offset). An
+// offset swap with updateScale re-derives c and rebuilds working so that it is
+// BITWISE creation with that offset; without, c is kept and only the anchor's
+// offset moves. restoreScale decodes c from (c, c + 1) and rebuilds. No draws.
+static void testNBLogMeanAnchor() {
+  std::vector<double> y = {0, 3, 1, 6, 2, 0, 4, 1};
+  std::vector<double> offset = {0.5, -0.4, 0.0, 0.7, 0.2, -0.1, 0.3, -0.6};
+  const std::size_t n = y.size();
+  double total = 0.0, exposure = 0.0;
+  for (std::size_t i = 0; i < n; ++i) {
+    total += y[i];
+    exposure += std::exp(offset[i]);
+  }
+
+  NBResponse plain(y.data(), nullptr, n, 3.0);
+  NBResponse offsetFit(y.data(), offset.data(), n, 3.0);
+  checkNear(plain.fitShift(), std::log(total / static_cast<double>(n)), 1e-14,
+            "nb c is the log mean count without an offset");
+  checkNear(offsetFit.fitShift(), std::log(total / exposure), 1e-14,
+            "nb c is the log rate per unit exposure under an offset");
+  std::vector<double> zeros(n, 0.0);
+  NBResponse allZero(zeros.data(), nullptr, n, 3.0);
+  checkNear(allZero.fitShift(), std::log(0.5 / static_cast<double>(n)), 1e-14,
+            "nb c floors an all-zero response at a total of 1/2");
+  check(plain.fitScale() == 1.0, "nb fitScale stays the identity");
+
+  // the cold working response is kappa / omega - a_i at omega = (y + r)/4
+  bool cold = true;
+  for (std::size_t i = 0; i < n; ++i) {
+    double a = offset[i] + offsetFit.fitShift() - std::log(3.0);
+    if (offsetFit.workingResponse()[i] !=
+        0.5 * (y[i] - 3.0) / (0.25 * (y[i] + 3.0)) - a)
+      cold = false;
+  }
+  check(cold, "nb cold working response is kappa / omega - a_i");
+
+  // log-likelihood at mu = exp(fit + c + offset)
+  std::vector<double> fits(n), loglik(n);
+  for (std::size_t i = 0; i < n; ++i) fits[i] = 0.1 * i - 0.3;
+  offsetFit.computeLogLikelihood(fits.data(), 1.0, n, loglik.data());
+  bool density = true;
+  for (std::size_t i = 0; i < n; ++i) {
+    double mu = std::exp(fits[i] + offsetFit.fitShift() + offset[i]);
+    double ref = std::lgamma(y[i] + 3.0) - std::lgamma(3.0) -
+                 std::lgamma(y[i] + 1.0) + y[i] * std::log(mu / (mu + 3.0)) +
+                 3.0 * std::log(3.0 / (mu + 3.0));
+    if (std::fabs(loglik[i] - ref) > 1e-10) density = false;
+  }
+  check(density, "nb log-likelihood is dnbinom at the log mean");
+
+  // setOffset(updateScale = true) on an offset-free response is creation with
+  // the offset, bitwise; false keeps c and moves only the offset in the anchor
+  NBResponse swapped(y.data(), nullptr, n, 3.0);
+  swapped.setOffset(offset.data(), true, nullptr);
+  bool asCreated = swapped.fitShift() == offsetFit.fitShift();
+  for (std::size_t i = 0; i < n; ++i)
+    if (swapped.workingResponse()[i] != offsetFit.workingResponse()[i])
+      asCreated = false;
+  check(asCreated, "nb setOffset with updateScale is creation, bitwise");
+  NBResponse kept(y.data(), nullptr, n, 3.0);
+  kept.setOffset(offset.data(), false, nullptr);
+  bool keptShift = kept.fitShift() == plain.fitShift();
+  for (std::size_t i = 0; i < n; ++i) {
+    double a = offset[i] + plain.fitShift() - std::log(3.0);
+    if (kept.workingResponse()[i] !=
+        0.5 * (y[i] - 3.0) / (0.25 * (y[i] + 3.0)) - a)
+      keptShift = false;
+  }
+  check(keptShift, "nb setOffset without updateScale keeps c");
+
+  // the state pair: (c, c + 1) out, c back in and working rebuilt, exactly
+  double lo = 0.0, hi = 0.0;
+  offsetFit.getScale(lo, hi);
+  check(lo == offsetFit.fitShift() && hi == lo + 1.0 && hi > lo,
+        "nb reports its shift as the increasing pair (c, c + 1)");
+  NBResponse target(y.data(), offset.data(), n, 3.0);
+  target.restoreScale(plain.fitShift(), plain.fitShift() + 1.0);
+  check(target.fitShift() == plain.fitShift() &&
+          target.workingResponse()[0] == kept.workingResponse()[0],
+        "nb restoreScale installs c and rebuilds working");
+  printf("ok: nb log-mean anchor\n");
 }
 
 // The nbinom dispersion state block round-trips through the Chain serialization
@@ -7079,6 +7212,20 @@ static void testNBStateRoundTrip() {
           "nb dispersion round-trips exactly");
     check(reState.chains[0].latents == state.chains[0].latents,
           "nb omega round-trips exactly");
+    check(state.chains[0].fitMin ==
+              NBResponse::computeShift(y.data(), nullptr, n) &&
+            state.chains[0].fitMax == state.chains[0].fitMin + 1.0 &&
+            reState.chains[0].fitMin == state.chains[0].fitMin &&
+            reState.chains[0].fitMax == state.chains[0].fitMax,
+          "nb fit scale carries (c, c + 1) and round-trips exactly");
+
+    // a state whose fit scale is not increasing - every state written before
+    // the log-mean model, (0, 0) - is refused rather than installed without
+    // its shift
+    SamplerStateData flat(state);
+    for (auto& ch : flat.chains) ch.fitMin = ch.fitMax = 0.0;
+    check(!restored->setState(flat, nullptr),
+          "an nb state without its log-mean shift is refused");
 
     // a state whose dispersion block is absent (an old or non-count state) is
     // refused: r is NaN and stateIsValid rejects it
@@ -8625,6 +8772,7 @@ void runModelTests(ext_rng* rng) {
   testNBPolyaGammaShapeMoments(rng);
   testNBDispersionGridConditional(rng);
   testNBSweepOrderAndRestore(rng);
+  testNBLogMeanAnchor();
   testNBStateRoundTrip();
   testSparseKernel();
   testSparseColumnStore();

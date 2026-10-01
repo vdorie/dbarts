@@ -25,7 +25,7 @@
 # the gate stays non-blocking.
 #
 # Timeouts are ~3x the measured single-thread wall-clock on the maintainer's
-# laptop (ordinal 6.6 min, nbinom 46 min, t 2.6 min, multinomial 7.3 min,
+# laptop (ordinal 6.6 min, nbinom 8.5 min, t 2.6 min, multinomial 7.3 min,
 # aft 79 s, hetero 2.2 min, hetero-aft 4.4 min and each monotone arm ~103 min
 # (31 s per replicate) at R=200; gaussian 5 min at R=100). nbinom is the
 # expensive arm: its Polya-Gamma draw loops sum(y_i + r) times per sweep. aft and the two heteroscedastic arms take the gaussian row's
@@ -92,16 +92,13 @@ jobs:
             samples: 150
             thin: 30
             timeout: 40
+          # thin 10 clears the worst ACF-under-0.1 lag the log-mean ladder
+          # read, 7 over 24 prior-drawn datasets; no functional is waived
           - config: nbinom
             reps: 200
             samples: 150
-            thin: 30
-            timeout: 180
-            # r/agg.psi: adjudicated MIXING, an identifiability ridge, not a
-            # defect (docs/plans/sbc-family-tiers.md Step 3; confirmed
-            # 2026-08-18). Waiver is per functional, not per arm: any other
-            # FLAG in this arm still fails.
-            SBC_EXPECTED_FLAGS: r,agg.psi
+            thin: 10
+            timeout: 30
           - config: t
             reps: 200
             samples: 150

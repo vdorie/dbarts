@@ -41,7 +41,7 @@ repoRoot <- normalizePath(file.path(scriptDir, "..", ".."))
 # kEquiv's compare stays statistical (no --bitwise): the battery installs the
 # shipped build, which owes the reference-build baselines only the
 # statistical match, and its equivalence killers catch a posterior shift.
-equivBaseline <- "benchmarks/baselines/equivalence-d23673b5.rds"
+equivBaseline <- "benchmarks/baselines/equivalence-fdfc1fe4.rds"
 
 ## ---- mutation-list constructors -------------------------------------------
 

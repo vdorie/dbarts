@@ -94,7 +94,9 @@
       Unordered K-category softmax and ordered cumulative-probit models.
     }
     \item{\code{nbinom(dispersion = NULL)}}{
-      Negative-binomial counts. \code{NULL} estimates the dispersion
+      Negative-binomial counts on a log link: the forest models the log of
+      the mean count, and the variance is \eqn{\mu + \mu^2 / r}{mu + mu^2 / r}.
+      \code{NULL} estimates the dispersion
       \eqn{r} on a capped positive-integer grid; a positive integer fixes
       it. Each sweep's latent draw costs time in proportion to
       \eqn{y + r}{y + r}, so a large fixed \eqn{r} is slow: at

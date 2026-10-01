@@ -859,10 +859,10 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 /// (the dispersion grid's count histogram is sized from the largest count, so
 /// a larger one allocates without bound). A non-finite or out-of-support value
 /// is an error, as it is at creation; gaussian and aft (log survival times)
-/// constrain nothing beyond finiteness. updateScale re-derives the internal response transform
-/// from the new response, as dbarts_sampler_setOffset's argument does (gaussian
-/// only); pass false once burnt in so fits stay comparable. true is refused on
-/// any multi-forest sampler, at any forest count, whose per-forest leaf
+/// constrain nothing beyond finiteness. updateScale re-derives the internal
+/// response transform from the new response, as dbarts_sampler_setOffset's
+/// argument does (gaussian and nbinom); pass false once burnt in so fits stay
+/// comparable. true is refused on any multi-forest sampler, at any forest count, whose per-forest leaf
 /// calibrations are stated against the transform it was built with; on a
 /// heteroscedastic sampler it restates the variance forest on the new transform
 /// as well. The swap itself is refused outright on a coupling that caches
@@ -875,9 +875,9 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                                int updateScale);
 /// offset has numObservations finite values or is null to remove; a non-finite
-/// value is an error, as it is at setResponse. updateScale
-/// rescales the internal response transform to the offset-adjusted range
-/// (gaussian only); pass false once burnt in so fits stay comparable. A
+/// value is an error, as it is at setResponse. updateScale re-derives the
+/// internal response transform from the offset-adjusted response (gaussian and
+/// nbinom); pass false once burnt in so fits stay comparable. A
 /// multi-forest sampler, at any forest count, refuses true (see setResponse).
 /// COPIED, on the copy-on-set rule above: the caller's offset is free on
 /// return.
@@ -920,10 +920,10 @@ int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
 int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out);
 
 /// Fits for new data on the original response scale (binary families give
-/// the latent scale), from a borrowed source declaring numPredictors columns
-/// over the rows to predict. With tree storage out is xTest->numRows x F x
-/// numSavedSamples x numChains from the saved trees; without, xTest->numRows
-/// x F x numChains from the live trees, F being
+/// the latent scale, nbinom the log mean), from a borrowed source declaring
+/// numPredictors columns over the rows to predict. With tree storage out is
+/// xTest->numRows x F x numSavedSamples x numChains from the saved trees;
+/// without, xTest->numRows x F x numChains from the live trees, F being
 /// dbarts_sampler_numFittedValuesPerObservation (category probabilities on
 /// multinomial). The saved draws come out OLDEST FIRST - the
 /// numSavedSamples most recent recorded draws, however many runs recorded

@@ -88,7 +88,9 @@ for (sigma in c(0.5, 2)) {
 
 # Polya-Gamma at three shapes: 1 (unit-weight logistic), 3 (a logistic count
 # weight, the sum of 3 independent PG(1, psi) draws) and 5 (nbinom's y + r,
-# which is why that fixture is y = 2, r = 3 and not the shape-1 corner)
+# which is why that fixture is y = 2, r = 3 and not the shape-1 corner). An
+# nbinom fit is a log mean, whose log-odds is the fit less log r, so its
+# fixture adds log 3 back to land on the same psi.
 oneN <- rep(1, N)
 twoN <- rep(2, N)
 threeN <- rep(3, N)
@@ -96,7 +98,7 @@ for (psi in c(0, 0.5, 2, 5)) {
   psiN <- rep(psi, N)
   unit <- dbartsDrawLatents("logistic", psiN, oneN)
   weighted <- dbartsDrawLatents("logistic", psiN, oneN, weights = threeN)
-  counts <- dbartsDrawLatents("nbinom", psiN, twoN, dispersion = 3)
+  counts <- dbartsDrawLatents("nbinom", psiN + log(3), twoN, dispersion = 3)
   expect_true(abs(momentZ(unit, pgMoments(1, psi))) < 4)
   expect_true(abs(momentZ(weighted, pgMoments(3, psi))) < 4)
   expect_true(abs(momentZ(counts, pgMoments(5, psi))) < 4)
@@ -215,7 +217,7 @@ for (law in names(lawY)) {
   expected <- switch(
     law,
     logistic = lawWeights * (yLaw - 0.5) / as.vector(latent),
-    nbinom = 0.5 * (yLaw - 3) / as.vector(latent),
+    nbinom = 0.5 * (yLaw - 3) / as.vector(latent) + log(3),
     student = yLaw,
     as.vector(latent)
   )

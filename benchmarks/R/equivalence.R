@@ -537,8 +537,9 @@ makeScenarios <- function() {
   # newly reachable via family = "nbinom": overdispersed counts drawn from an
   # NB with a nonlinear log-mean, estimated dispersion (the default). The
   # Polya-Gamma count augmentation, the grid r update, and the mean-count
-  # reporting all do real work. Recorded channels: the latent test fits
-  # (fhat.test = psi), varcount, the per-draw dispersion r, and the
+  # reporting all do real work. Recorded channels: the test log means
+  # (fhat.test = eta, the forest models the log mean), varcount, the per-draw
+  # dispersion r, and the
   # posterior-mean test mean counts (fitViaNbinom/fitSummaries). The omega
   # augmentation drives the trees, so its stream is locked transitively through
   # these downstream channels (the ordinal precedent, which likewise locked its
@@ -1684,8 +1685,8 @@ fitViaOrdinal <- function(scenario) {
 
 # runs bart2's negative-binomial count path (docs/design/negative-binomial.md):
 # family = "nbinom" explicitly (a count response is never auto), estimated
-# dispersion (the default). yhat.test carries the LATENT psi draws on the test
-# rows (the identified log-odds quantity, the standard fhat.test channel shape);
+# dispersion (the default). yhat.test carries the log-mean draws on the test
+# rows (the link scale, the standard fhat.test channel shape);
 # the nbinom-only channels - the per-draw dispersion r and the posterior-mean
 # test mean counts - ride their own fields, summarized by fitSummaries' guarded
 # blocks.
