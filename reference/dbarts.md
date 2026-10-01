@@ -111,21 +111,24 @@ dbarts(
   Binary responses differ: a `"probit"` model does not support a
   weighted likelihood (a weighted probit has no tractable
   latent-variable form), except that weights identically 1 are treated
-  as absent. A `"probit"` or `"ordinal"` fit does accept weights that
-  are all 0 and 1: those name the rows in the data set rather than a
-  precision, so they install as the sampler's active-row mask, where a 0
-  row leaves the likelihood but keeps its leaf occupancy, its latent and
-  its fitted value. A `"logistic"` model differs again: it treats them
-  as observation counts and so requires positive integers (its
-  Polya-Gamma latent for a count \\w\\ is a sum of \\w\\ unit draws). A
-  weight of 0 is honored but adds no information while still costing
-  computation, and is warned about unless every weight is 0 or 1 - a
-  vector of nothing but those states which rows are in the data set
-  rather than carrying an inert value among real weights, and is the
-  active-row mask outright for a `"probit"` or `"ordinal"` fit; the same
-  class covers `weights` going unused for `test` - when the model is not
-  specified as a formula, and when `weights` names a column `test` does
-  not carry.
+  as absent. A `"probit"`, `"ordinal"` or `"nbinom"` fit does accept
+  weights that are all 0 and 1: those name the rows in the data set
+  rather than a precision, so they install as the sampler's active-row
+  mask, where a 0 row leaves the likelihood but keeps its leaf
+  occupancy, its latent and its fitted value. For `"nbinom"` a 0 row
+  still counts toward the leaf prior's centre, the log of the total
+  count over the total exposure, as a gaussian or aft fit's response
+  transform is taken over all rows. A `"logistic"` model differs again:
+  it treats them as observation counts and so requires positive integers
+  (its Polya-Gamma latent for a count \\w\\ is a sum of \\w\\ unit
+  draws). A weight of 0 is honored but adds no information while still
+  costing computation, and is warned about unless every weight is 0 or
+  1 - a vector of nothing but those states which rows are in the data
+  set rather than carrying an inert value among real weights, and is the
+  active-row mask outright for a `"probit"`, `"ordinal"` or `"nbinom"`
+  fit; the same class covers `weights` going unused for `test` - when
+  the model is not specified as a formula, and when `weights` names a
+  column `test` does not carry.
 
 - offset:
 
@@ -587,18 +590,20 @@ dbarts(
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
 
   `"nbinom"` fits a non-negative integer (count) response by a
-  negative-binomial model with the Polya-Gamma augmentation: the forest
-  fits a log-odds latent \\\psi = f(x) + o\\ and \\y \sim \mathrm{NB}(r,
-  \mathrm{plogis}(\psi))\\, with mean \\E\[y \mid x\] = r e^{\psi}\\, so
-  the offset enters multiplicatively as a log-exposure. The response
+  negative-binomial model on a log link with the Polya-Gamma
+  augmentation: the forest fits the log mean \\\eta = f(x) + c + o\\ and
+  \\y \sim \mathrm{NB}(\mathrm{size} = r, \mathrm{mu} = e^{\eta})\\, so
+  the offset enters the mean multiplicatively as a log-exposure; \\c\\,
+  the log of the total count over the total exposure, is a data
+  transform that centers the leaf prior, and fits carry it. The response
   must be a non-negative integer no larger than \\10^6\\ (the dispersion
   grid's count histogram is sized from the largest count), and
   `"nbinom"` is never inferred - a count carries no unambiguous class,
   so it must be requested explicitly. The dispersion `r` is estimated by
-  default (see `dispersion`); like probit, the latent scale is fixed at
-  1, fits are on the latent (log-odds) scale, and weights are not
-  supported (exposure belongs in the offset). `bart` reports mean
-  counts; see
+  default (see `dispersion`); like probit, there is no residual scale,
+  fits are on the log-mean scale, and weights are accepted only as 0 and
+  1, marking rows in and out of the likelihood (exposure belongs in the
+  offset). `bart` reports mean counts; see
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
 
   `"hazard"` and `"hazard.logistic"` fit a discrete-time survival hazard

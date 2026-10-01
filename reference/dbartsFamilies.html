@@ -221,7 +221,9 @@ Every setting that only one family reads rides its family object rather
 <dd><p>Unordered K-category softmax and ordered cumulative-probit models.</p></dd>
 
     <dt><code>nbinom(dispersion = NULL)</code></dt>
-<dd><p>Negative-binomial counts. <code>NULL</code> estimates the dispersion
+<dd><p>Negative-binomial counts on a log link: the forest models the log of
+      the mean count, and the variance is \(\mu + \mu^2 / r\).
+      <code>NULL</code> estimates the dispersion
       \(r\) on a capped positive-integer grid; a positive integer fixes
       it. Each sweep's latent draw costs time in proportion to
       \(y + r\), so a large fixed \(r\) is slow: at

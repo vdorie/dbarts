@@ -100,7 +100,7 @@ The residual priors chisq and fixed are what a family
 <p><code>k</code> is relative to the anchor the data fixes: a positive scalar,
       a hyperprior on <code>k</code> built with <code>chi</code>, or <code>NULL</code> for
       the default, 2 for continuous responses and <code>chi(1.5, 2)</code> for
-      binary ones. The continuous default follows Chipman, George, and
+      binary ones and counts (<code>nbinom</code>). The continuous default follows Chipman, George, and
       McCulloch's argument that with leaf standard deviation
       <code>sigma_mu = 0.5 / (k * sqrt(m))</code> for <code>m</code> trees, <code>k</code>
       prior standard deviations of \(f(x)\) span the whole response
@@ -111,7 +111,7 @@ The residual priors chisq and fixed are what a family
       model's own parameter, for the forest total, on the scale the
       family's forest fits: a positive number, or a hyperprior on the sd
       itself built with <code>invchi</code>. It takes no string form. The scale
-      and the anchor <code>k</code> is relative to, per family:</p><table class="table table"><tr><td>family</td><td><code>sd</code> is stated in</td><td>anchor at <code>k = 1</code></td></tr><tr><td>gaussian, student</td><td>response units</td><td>half the training response range</td></tr><tr><td>aft</td><td>log survival time</td><td>half the observed log-time range</td></tr><tr><td>probit, ordinal</td><td>probit latent</td><td>3</td></tr><tr><td>logistic, nbinom</td><td>log-odds latent</td><td>\(\pi\sqrt{3}\)</td></tr><tr><td>hazard</td><td>its link's latent</td><td>3 or \(\pi\sqrt{3}\)</td></tr></table><p>so a fixed <code>k</code> is the <code>sd</code> anchor / <code>k</code>. For the
+      and the anchor <code>k</code> is relative to, per family:</p><table class="table table"><tr><td>family</td><td><code>sd</code> is stated in</td><td>anchor at <code>k = 1</code></td></tr><tr><td>gaussian, student</td><td>response units</td><td>half the training response range</td></tr><tr><td>aft</td><td>log survival time</td><td>half the observed log-time range</td></tr><tr><td>probit, ordinal</td><td>probit latent</td><td>3</td></tr><tr><td>logistic</td><td>log-odds latent</td><td>\(\pi\sqrt{3}\)</td></tr><tr><td>nbinom</td><td>log mean</td><td>3</td></tr><tr><td>hazard</td><td>its link's latent</td><td>3 or \(\pi\sqrt{3}\)</td></tr></table><p>so a fixed <code>k</code> is the <code>sd</code> anchor / <code>k</code>. For the
       constant leaf <code>sd</code> is exactly the prior standard deviation of
       \(f(x)\) at every \(x\); for the other leaf models it is the sd of
       their parameter, and the prior spread of \(f(x)\) it implies is a

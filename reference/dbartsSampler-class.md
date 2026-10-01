@@ -470,9 +470,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   identification: a weighted probit has no tractable latent-variable
   form, `ordinal` inherits that, `aft` fixes its censoring structure at
   creation, and `nbinom`'s Polya-Gamma shape is \\y_i + r\\ with no
-  weight slot. On a `probit` or `ordinal` sampler a vector of 0s and 1s
-  is accepted all the same: it names the rows in the data set rather
-  than a precision, so `setWeights` routes it to `active` below -
+  weight slot. On a `probit`, `ordinal` or `nbinom` sampler a vector of
+  0s and 1s is accepted all the same: it names the rows in the data set
+  rather than a precision, so `setWeights` routes it to `active` below -
   installing the mask, all-ones clearing it - and leaves the data
   object's `weights` slot empty; any other value keeps the refusal.
   `setData` carries the same rule on the whole-data conduit, and redraws
@@ -540,9 +540,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   where an all-ones vector installs and is measurably distinct from
   carrying no weights at all. One channel states membership, the other
   precision, and the two deliberately carry opposite degenerate-value
-  policies. A `probit` or `ordinal` sampler, which carries no precision
-  channel at all, reaches this one through `setWeights` and `setData` as
-  well: 0/1 weights there install the mask rather than being refused.
+  policies. A `probit`, `ordinal` or `nbinom` sampler, which carries no
+  precision channel at all, reaches this one through `setWeights` and
+  `setData` as well: 0/1 weights there install the mask rather than
+  being refused.
 
   An inactive row (`active[i] == 0`) contributes nothing to any leaf
   sufficient statistic, branch log-likelihood, birth-scan weight total,

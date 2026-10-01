@@ -44,11 +44,12 @@ A list of functions:
 
   `k` is relative to the anchor the data fixes: a positive scalar, a
   hyperprior on `k` built with `chi`, or `NULL` for the default, 2 for
-  continuous responses and `chi(1.5, 2)` for binary ones. The continuous
-  default follows Chipman, George, and McCulloch's argument that with
-  leaf standard deviation `sigma_mu = 0.5 / (k * sqrt(m))` for `m`
-  trees, `k` prior standard deviations of \\f(x)\\ span the whole
-  response range regardless of `m`; see
+  continuous responses and `chi(1.5, 2)` for binary ones and counts
+  (`nbinom`). The continuous default follows Chipman, George, and
+  McCulloch's argument that with leaf standard deviation
+  `sigma_mu = 0.5 / (k * sqrt(m))` for `m` trees, `k` prior standard
+  deviations of \\f(x)\\ span the whole response range regardless of
+  `m`; see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   Details for the response-scaling caveat this relies on. A string such
   as `"chi(1.5)"` is kept for 0.9-x.
@@ -65,7 +66,8 @@ A list of functions:
   | gaussian, student | response units    | half the training response range |
   | aft               | log survival time | half the observed log-time range |
   | probit, ordinal   | probit latent     | 3                                |
-  | logistic, nbinom  | log-odds latent   | \\\pi\sqrt{3}\\                  |
+  | logistic          | log-odds latent   | \\\pi\sqrt{3}\\                  |
+  | nbinom            | log mean          | 3                                |
   | hazard            | its link's latent | 3 or \\\pi\sqrt{3}\\             |
 
   so a fixed `k` is the `sd` anchor / `k`. For the constant leaf `sd` is

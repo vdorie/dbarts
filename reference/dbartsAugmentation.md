@@ -76,7 +76,8 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
   `"nbinom"` only, and required there: the current dispersion \\r\\, a
   positive whole number, as
   [`getDispersion`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  reports it.
+  reports it. An `"nbinom"` location is a log mean, so the Polya-Gamma
+  draw reads the log-odds \\\psi_i = f_i + o_i - \log r\\.
 
 - thresholds:
 
@@ -103,7 +104,7 @@ Pass the offset as `offset` to both.
 latent is a LOCATION and the working response is that location less the
 offset. For `"logistic"` and `"nbinom"` it is a PRECISION - the
 Polya-Gamma \\\omega_i\\ - and what a host regresses on is \\w_i (y_i -
-1/2) / \omega_i - o_i\\ and \\(y_i - r) / (2 \omega_i) - o_i\\
+1/2) / \omega_i - o_i\\ and \\(y_i - r) / (2 \omega_i) + \log r - o_i\\
 respectively, under per-row precision weights \\\omega_i\\. For
 `"student"` the latent is the scale-mixing \\\lambda_i\\, which weights
 the row rather than entering the response, so the working response is
