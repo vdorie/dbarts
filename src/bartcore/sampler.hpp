@@ -101,9 +101,14 @@ struct SamplerStateData {
 
 /// Why a warm start (installForests) refused; ok on success. A single donor
 /// forest can seed several chains, so the donor's chain count need not match.
+/// varianceShapeMismatch: the donor's variance forest holds another tree
+/// count. rebuildFailed: a donor tree that passed every up-front check failed
+/// to rebuild on this sampler's data, the one refusal that arrives mid-install
+/// and is undone.
 enum class WarmStartResult {
   ok, shapeMismatch, gridMismatch, dartMismatch, interactionMismatch,
-  columnMaskMismatch, varianceMismatch, varianceSlotMismatch
+  columnMaskMismatch, varianceMismatch, varianceSlotMismatch,
+  varianceShapeMismatch, rebuildFailed
 };
 
 /// A sequential per-observation predictor update: stage one observation's
@@ -1195,8 +1200,9 @@ public:
   /// the same slot as the mean forest. A donor on a different cut grid has its
   /// splits remapped onto this sampler's grid (starved splits collapse), as
   /// setData remaps a data replacement; the donor must still share this
-  /// sampler's per-forest tree counts and DART mode. On any mismatch nothing is
-  /// touched.
+  /// sampler's per-forest tree counts, variance tree count and DART mode. On
+  /// any mismatch nothing is touched: a rebuild that fails part way restores
+  /// every chain installed before it.
   WarmStartResult installForests(
       const SamplerStateData& donor,
       const std::vector<std::pair<size_t, int>>& sampleMap) {
@@ -1331,6 +1337,13 @@ public:
         if (!scaleLeavesArePositive(dst.varianceTrees))
           return WarmStartResult::varianceMismatch;
       }
+      // the variance forest's count, like each mean forest's, is a shape the
+      // donor must share; caught here, ahead of any install, and after the
+      // slot arm's stride check so a donor contradicting its own stride is
+      // named as that
+      if (chains_[c]->hasVarianceForest() &&
+          dst.varianceTrees.size() != chains_[c]->numVarianceTrees())
+        return WarmStartResult::varianceShapeMismatch;
     }
 
     // containment (design "Containment"): a donor grown under a different (or
@@ -1361,19 +1374,48 @@ public:
     }
     if (containment != WarmStartResult::ok) return containment;
 
+    // The rebuilds below are the one check that cannot run ahead of the
+    // install: a donor tree can fail to rebuild on this data, or a rebuilt
+    // variance tree leave a leaf empty, on any chain. Every chain's live state
+    // is therefore snapshotted first, store excluded since nothing here writes
+    // it, and a refusal restores every chain it touched. The restore rebuilds
+    // the trees from their flattened form, as a save and load does.
+    using Marks = typename Chain<L, ResidT>::InstallMarks;
+    std::vector<ChainStateData> snapshot(chains_.size());
+    std::vector<Marks> marks(chains_.size());
+    for (size_t c = 0; c < chains_.size(); ++c) {
+      chains_[c]->getState(snapshot[c], false);
+      marks[c] = chains_[c]->installMarks();
+    }
+    // chains [0, end) were touched; the restore re-accumulates their fits, so
+    // they match the snapshot to rounding, and an untouched chain is left be
+    auto restoreChains = [&](size_t end) {
+      for (size_t c = 0; c < end; ++c) {
+        chains_[c]->setState(snapshot[c]);
+        chains_[c]->restoreInstallMarks(marks[c]);
+      }
+    };
+
     const std::vector<std::vector<double>>* donorGridPtr =
       crossGrid ? &donor.cutPoints : nullptr;
-    for (size_t c = 0; c < chains_.size(); ++c)
-      if (!chains_[c]->installForest(install[c], donorGridPtr, &data_))
-        return WarmStartResult::shapeMismatch;
+    for (size_t c = 0; c < chains_.size(); ++c) {
+      if (!chains_[c]->installForest(install[c], donorGridPtr, &data_)) {
+        restoreChains(c + 1);
+        return WarmStartResult::rebuildFailed;
+      }
+    }
     // the variance half, separately so a refusal names the variance forest;
-    // the shape gate above pairs hasVarianceForest with a non-empty block
-    for (size_t c = 0; c < chains_.size(); ++c)
+    // the shape gate above pairs hasVarianceForest with a non-empty block of
+    // the same tree count
+    for (size_t c = 0; c < chains_.size(); ++c) {
       if (chains_[c]->hasVarianceForest() &&
           !chains_[c]->installVarianceForest(install[c].varianceTrees,
                                              install[c].varianceTreeMasks,
-                                             donorGridPtr, &data_))
+                                             donorGridPtr, &data_)) {
+        restoreChains(chains_.size());
         return WarmStartResult::varianceMismatch;
+      }
+    }
     // the store itself is left alone, so the draws it holds belong to the
     // donor's fit, not this one's: drop them rather than let a read replay
     // another sampler's posterior

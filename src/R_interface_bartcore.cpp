@@ -8291,8 +8291,15 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
       }
     }
 
-    if (errorMessage == NULL)
-      result = sampler.installForests(donor, sampleMap);
+    // the snapshot that makes a refused install undoable allocates
+    if (errorMessage == NULL) {
+      bartcore_bridge::CapturedError installError;
+      captureExceptions(installError, [&]() {
+        result = sampler.installForests(donor, sampleMap);
+      });
+      if (installError.failed)
+        errorMessage = "warm-start install failed: out of memory";
+    }
   }
   {
     bartcore::SamplerStateData empty;
@@ -8321,7 +8328,7 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "sampler's data (a rebuilt variance tree leaves a leaf empty, a "
                "scale leaf is not positive, or a flat tree failed to rebuild); "
                "the donor's variance surface is incompatible with this "
-               "sampler");
+               "sampler, and nothing was installed");
     case bartcore::WarmStartResult::varianceSlotMismatch:
       Rf_error("warm-start donor's saved variance buffer does not hold the "
                "requested sample; a warm start from a saved sample installs "
@@ -8331,6 +8338,13 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
       Rf_error("warm-start donor is not shape-compatible with this sampler "
                "(number of trees, forests, or predictors differ, or only one "
                "of the two carries a variance forest)");
+    case bartcore::WarmStartResult::varianceShapeMismatch:
+      Rf_error("warm-start donor's variance forest has a different number of "
+               "trees than this sampler's");
+    case bartcore::WarmStartResult::rebuildFailed:
+      Rf_error("warm-start donor's trees cannot be rebuilt on this sampler's "
+               "data (a donor tree no longer routes onto the current "
+               "predictors); nothing was installed");
   }
 }
 

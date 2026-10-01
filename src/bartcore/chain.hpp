@@ -3510,7 +3510,10 @@ public:
   // all-or-none; setState trusts that check. Vector-parameter leaves carry
   // their slopes in treeParams/savedTreeParams alongside the flat trees.
 
-  void getState(ChainStateData& state) {
+  /// includeSavedTrees false leaves every saved-tree block empty, which
+  /// setState reads as "keep the store as it is": the snapshot a warm start
+  /// takes to undo a refused install, without copying the store.
+  void getState(ChainStateData& state, bool includeSavedTrees = true) {
     state.forests.resize(forests_.size());
     for (size_t f = 0; f < forests_.size(); ++f) {
       Forest<L, ResidT>& forest = forests_[f];
@@ -3518,7 +3521,7 @@ public:
       fs.trees.resize(forest.numTrees);
       if (data_.hasPooledCategorical) {
         fs.treeMasks.resize(forest.numTrees);
-        fs.savedTreeMasks = forest.savedTreeMasks;
+        if (includeSavedTrees) fs.savedTreeMasks = forest.savedTreeMasks;
       } else {
         fs.treeMasks.clear();
         fs.savedTreeMasks.clear();
@@ -3542,7 +3545,7 @@ public:
                                   &fs.treeParams[t],
                                   data_.hasPooledCategorical ? &fs.treeMasks[t]
                                                            : nullptr);
-        fs.savedTreeParams = forest.savedTreeParams;
+        if (includeSavedTrees) fs.savedTreeParams = forest.savedTreeParams;
       } else {
         // function-valued leaves: records carry reporting means, and each
         // live tree's parameters ARE its fits - one slab per tree in
@@ -3560,9 +3563,15 @@ public:
           fs.treeParams[t].assign(forest.treeFits.data() + t * n,
                                   forest.treeFits.data() + (t + 1) * n);
         }
-        fs.savedTreeParams = forest.savedTreeParams;
+        if (includeSavedTrees) fs.savedTreeParams = forest.savedTreeParams;
       }
-      fs.savedTrees = forest.savedTrees;
+      if (includeSavedTrees) {
+        fs.savedTrees = forest.savedTrees;
+      } else {
+        fs.savedTrees.clear();
+        fs.savedTreeParams.clear();
+        fs.savedTreeMasks.clear();
+      }
       fs.k = forest.k;
       // written for EVERY forest, not just the response-derived ones (BCF's):
       // the block is self-describing, and a data-independent scale simply
@@ -3630,8 +3639,13 @@ public:
       // the only record of the kept samples' scale surface, and a re-created
       // sampler that rebuilds only the live trees predicts off its identity
       // fill instead
-      state.savedVarianceTrees = vf.savedTrees;
-      state.savedVarianceTreeMasks = vf.savedTreeMasks;
+      if (includeSavedTrees) {
+        state.savedVarianceTrees = vf.savedTrees;
+        state.savedVarianceTreeMasks = vf.savedTreeMasks;
+      } else {
+        state.savedVarianceTrees.clear();
+        state.savedVarianceTreeMasks.clear();
+      }
     } else {
       state.varianceTrees.clear();
       state.varianceTreeMasks.clear();
@@ -4173,6 +4187,23 @@ public:
   /// them onto the live grid, collapsing starved splits (a cross-grid start),
   /// and requires store - this chain's shared data, mutable so the donor grid
   /// can be swapped in for the structural build.
+  /// What an install records beyond the state getState captures: whether each
+  /// forest's leaf scale is still the calibration map's, and the reported
+  /// amplitude prior. A warm start undoing a refused install restores these
+  /// after the state, since restoring the state alone would leave them as the
+  /// donor set them.
+  struct InstallMarks {
+    std::vector<char> nodeScaleIsMapDerived;
+    std::vector<double> amplitudePriorVariances;
+  };
+  InstallMarks installMarks() const {
+    return InstallMarks{nodeScaleIsMapDerived_, amplitudePriorVariances_};
+  }
+  void restoreInstallMarks(const InstallMarks& marks) {
+    nodeScaleIsMapDerived_ = marks.nodeScaleIsMapDerived;
+    amplitudePriorVariances_ = marks.amplitudePriorVariances;
+  }
+
   bool installForest(const ChainStateData& state,
                      const std::vector<std::vector<double>>* donorCutPoints =
                        nullptr,

@@ -192,3 +192,84 @@ expect_identical(wide$control@n.samples, 4L)
 invisible(wide$run(0L, 4L))
 expect_identical(dim(wide$predict(x[1:3, , drop = FALSE])), c(3L, 4L, 2L))
 rm(wide, wideControl)
+
+# --- a refused warm start touches no chain. A donor whose trees no longer
+# route onto the predictors it now holds fails to rebuild part way through
+# the install; every chain installed before it is put back
+set.seed(1)
+nw <- 12L
+xw <- data.frame(
+  a = rnorm(nw),
+  b = factor(sample(letters[1:3], nw, TRUE)),
+  c = rnorm(nw)
+)
+yw <- xw$a + rnorm(nw)
+warmControl <- dbartsControl(
+  n.chains = 2L,
+  n.threads = 1L,
+  n.trees = 3L,
+  keepTrees = TRUE,
+  updateState = FALSE,
+  verbose = FALSE,
+  seed = 3L
+)
+donor <- dbarts(yw ~ ., xw, control = warmControl)
+invisible(donor$run(2L, 2L))
+invisible(donor$setPredictor(xw$c * 2, 3L))
+donor$setData(donor$data)
+recipientControl <- warmControl
+recipientControl@keepTrees <- FALSE
+recipientControl@seed <- 7L
+recipient <- dbarts(yw ~ ., xw, control = recipientControl)
+twin <- dbarts(yw ~ ., xw, control = recipientControl)
+invisible(recipient$run(5L, 1L))
+invisible(twin$run(5L, 1L))
+predictBefore <- recipient$predict(xw)
+treesBefore <- recipient$getTrees()
+expect_error(
+  recipient$installTrees(donor, samples = c(1L, 3L)),
+  "cannot be rebuilt on this sampler's data"
+)
+expect_identical(recipient$predict(xw), predictBefore)
+expect_identical(recipient$getTrees(), treesBefore)
+# the restore re-accumulates the touched chain's fits, so the continuation
+# matches the untouched twin to rounding
+expect_equal(recipient$run(5L, 5L), twin$run(5L, 5L))
+
+# --- a heteroscedastic donor whose variance forest holds another tree count
+# is refused before any mean forest is replaced, and says so
+set.seed(0)
+nh <- 80L
+xh <- cbind(x1 = runif(nh), x2 = runif(nh))
+yh <- 2 * xh[, 1L] + rnorm(nh, 0, 0.2 + xh[, 2L])
+hetero <- function(keepTrees, seed, numVarianceTrees, numChains) {
+  dbarts(
+    xh,
+    yh,
+    variance = dbartsForests$varianceForest(n.trees = numVarianceTrees),
+    control = dbartsControl(
+      n.trees = 6L,
+      n.chains = numChains,
+      n.threads = 1L,
+      seed = seed,
+      keepTrees = keepTrees,
+      updateState = TRUE,
+      verbose = FALSE
+    )
+  )
+}
+heteroDonor <- hetero(TRUE, 1L, 4L, 1L)
+invisible(heteroDonor$run(50L, 3L))
+heteroRecipient <- hetero(FALSE, 2L, 5L, 2L)
+heteroTwin <- hetero(FALSE, 2L, 5L, 2L)
+invisible(heteroRecipient$run(30L, 1L))
+invisible(heteroTwin$run(30L, 1L))
+fitsBefore <- heteroRecipient$getForestFits()
+varianceBefore <- heteroRecipient$getVariance()
+expect_error(
+  heteroRecipient$installTrees(heteroDonor),
+  "variance forest has a different number of trees"
+)
+expect_identical(heteroRecipient$getForestFits(), fitsBefore)
+expect_identical(heteroRecipient$getVariance(), varianceBefore)
+expect_identical(heteroRecipient$run(5L, 5L), heteroTwin$run(5L, 5L))
