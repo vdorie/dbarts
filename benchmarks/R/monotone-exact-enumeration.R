@@ -37,7 +37,8 @@
 #          zcheck: Z_T = e(P_T) / L! against a brute-force monotonicity check
 #          unnormalized: the exact posterior against the one without 1 / Z_T
 #            (the BART prior conditioned on every tree being monotone); no sampling
-#   design c1 c2 c3 cN cM cF (default: all)
+#   design c1 c2 c3 cN cM cF k1 k1r k3 (default: all; k1, k1r and k3 engine
+#          only, since the prototype scores pairs in linear space)
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
@@ -107,11 +108,63 @@ designs <- list(
     mu = c(0, 0.3, 0.6, 0.6, 0.3, 0),
     sigma = 1.0,
     factor = 2L
+  ),
+  # contrary data: one row 4.2 below a 200-row cell, sigma 0.5, noise-free,
+  # so the split's two children run against the constraint by 8.4 joint
+  # posterior sd with posterior sds 13 times apart - the regime where a cone
+  # probability below 1e-12 was scored by an unrefined quadrature (exact
+  # P(split) 0.21 leaf, 0.12 joint; that engine drew 0.38 and 0.23). Every
+  # draw is tested against the whole two-tree law
+  k1 = list(
+    nc = 2L,
+    dirs = 1L,
+    mu = c(0, -4.2),
+    sigma = 0.5,
+    nPer = c(200L, 1L),
+    noise = 0,
+    groups = "all",
+    engineOnly = TRUE
+  ),
+  # the k1 control at equal cells, 12 joint sd against the constraint: the
+  # unrefined quadrature erred least where the children's sds were close
+  k1r = list(
+    nc = 2L,
+    dirs = 1L,
+    mu = c(0, -2.7),
+    sigma = 0.5,
+    nPer = c(10L, 10L),
+    noise = 0,
+    groups = "all",
+    engineOnly = TRUE
+  ),
+  # a frozen neighbor far above: under the x1 cut-1 root, the birth that
+  # splits cell 2 from cell 3 bounds cell 2's leaf below by cell 1's, about
+  # 9 sd above its posterior mean, where a difference of lower-tail CDFs
+  # rounded the cone probability to zero and the birth was never taken
+  k3 = list(
+    nc = 3L,
+    dirs = 1L,
+    mu = c(0, -4.5, 0.3),
+    sigma = 0.5,
+    nPer = c(200L, 1L, 200L),
+    noise = 0,
+    engineOnly = TRUE
   )
 )
 chosen <- intersect(args, names(designs))
 if (!length(chosen)) {
   chosen <- names(designs)
+  if (mode != "engine") {
+    chosen <- chosen[
+      !vapply(
+        designs[chosen],
+        function(d) {
+          isTRUE(d$engineOnly)
+        },
+        NA
+      )
+    ]
+  }
 }
 nDraws <- if (quick) 300000L else 900000L
 nChains <- 4L
@@ -224,8 +277,9 @@ downSetLayers <- function(rel) {
 }
 
 # a quantity propagated over the down-set lattice: value(I + x) accumulates
-# step(x, value(I)) over every x minimal outside I; returns value(all leaves)
-propagate <- function(rel, start, step) {
+# step(x, value(I)) over every x minimal outside I, by `combine`; returns
+# value(all leaves)
+propagate <- function(rel, start, step, combine = `+`) {
   layers <- downSetLayers(rel)
   vals <- list(start)
   for (size in seq_len(nrow(rel))) {
@@ -246,7 +300,7 @@ propagate <- function(rel, start, step) {
         nextVals[[idx]] <- if (is.null(nextVals[[idx]])) {
           add
         } else {
-          nextVals[[idx]] + add
+          combine(nextVals[[idx]], add)
         }
       }
     }
@@ -257,39 +311,66 @@ propagate <- function(rel, start, step) {
 
 countExtensions <- function(rel) propagate(rel, 1, function(x, v) v)
 
-# P(independent N(m_k, s_k^2) leaves respect the order): the same lattice
-# recursion carrying G_I(x) = P(leaves of I fall below x in an order the
-# constraints admit), the new minimum's density integrated against it by the
-# trapezoid rule at steps min(s) / 100 and / 200, Richardson-extrapolated
-orderProbability <- function(rel, m, s) {
+logSumExp2 <- function(a, b) {
+  hi <- pmax(a, b)
+  ifelse(is.finite(hi), hi + log1p(exp(-abs(a - b))), hi)
+}
+
+# log P(independent N(m_k, s_k^2) leaves respect the order). One relation
+# between two leaves is the closed form log Phi((m_hi - m_lo) / sqrt(s_lo^2 +
+# s_hi^2)). Otherwise the same lattice recursion carrying log G_I(x) = log
+# P(leaves of I fall below x in an order the constraints admit), the new
+# minimum's density integrated against it by the trapezoid rule at steps
+# min(s) / 100 and / 200, Richardson-extrapolated, each cumulative taken
+# relative to its integrand's peak: exact while no point the order reaches
+# sits more than about 35 sd below that peak, where e^-(35^2 / 2) underflows
+logOrderProbability <- function(rel, m, s) {
+  if (!any(rel)) {
+    return(0)
+  }
+  if (nrow(rel) == 2L) {
+    lo <- if (rel[1L, 2L]) 1L else 2L
+    hi <- 3L - lo
+    return(pnorm(
+      (m[hi] - m[lo]) / sqrt(s[lo]^2 + s[hi]^2),
+      log.p = TRUE
+    ))
+  }
   atStep <- function(h) {
     grid <- seq(min(m - 10 * s), max(m + 10 * s), by = h)
-    step <- function(x, g) {
-      f <- dnorm(grid, m[x], s[x]) * g
-      c(0, cumsum((f[-1L] + f[-length(f)]) * h / 2))
+    step <- function(x, logG) {
+      f <- dnorm(grid, m[x], s[x], log = TRUE) + logG
+      peak <- max(f)
+      if (!is.finite(peak)) {
+        return(rep(-Inf, length(grid)))
+      }
+      w <- exp(f - peak)
+      peak + log(c(0, cumsum((w[-1L] + w[-length(w)]) * h / 2)))
     }
-    g <- propagate(rel, rep(1, length(grid)), step)
-    g[length(g)]
+    logG <- propagate(rel, rep(0, length(grid)), step, logSumExp2)
+    logG[length(logG)]
   }
   # trapezoid error is O(h^2): one Richardson step removes it
   coarse <- atStep(min(s) / 100)
   fine <- atStep(min(s) / 200)
-  (4 * fine - coarse) / 3
+  fine + log((4 - exp(coarse - fine)) / 3)
 }
 
 # ---- designs: data, enumeration, exact law -----------------------------------
 
-buildDesign <- function(spec, nPer = 10L, seed = 11L) {
+buildDesign <- function(spec, seed = 11L) {
   set.seed(seed)
   nc <- spec$nc
   cells <- as.matrix(expand.grid(lapply(nc, seq_len)))
-  cellOf <- rep(seq_len(nrow(cells)), each = nPer)
+  nPer <- if (is.null(spec$nPer)) 10L else spec$nPer
+  noise <- if (is.null(spec$noise)) 0.3 else spec$noise
+  cellOf <- rep(seq_len(nrow(cells)), times = rep_len(nPer, nrow(cells)))
   x <- matrix(
     as.double(cells[cellOf, ]),
     ncol = length(nc),
     dimnames = list(NULL, paste0("x", seq_along(nc)))
   )
-  y <- spec$mu[cellOf] + rnorm(length(cellOf), sd = 0.3)
+  y <- spec$mu[cellOf] + rnorm(length(cellOf), sd = noise)
   yRange <- max(y) - min(y)
   z <- (y - min(y)) / yRange - 0.5
   residVar <- (spec$sigma / yRange)^2
@@ -319,7 +400,7 @@ buildDesign <- function(spec, nPer = 10L, seed = 11L) {
       0.5 * (tr$sumZ / residVar)^2 / prec
     tr$e <- countExtensions(tr$rel)
     tr$logZ <- log(tr$e) - lfactorial(length(tr$leaves))
-    tr$logPostCone <- log(orderProbability(tr$rel, tr$m, tr$s))
+    tr$logPostCone <- logOrderProbability(tr$rel, tr$m, tr$s)
     tr$avail <- lapply(tr$leaves, function(l) which(l$hi > l$lo))
     trees[[t]] <- tr
   }
@@ -879,9 +960,14 @@ prototypeKeys <- function(
 testGroups <- function(design, chains, label) {
   law <- design$law
   keys <- names(law)
-  group <- rootRule(keys)
+  groupOf <- if (identical(design$spec$groups, "all")) {
+    function(k) rep("all", length(k))
+  } else {
+    rootRule
+  }
+  group <- groupOf(keys)
   failed <- FALSE
-  chainGroups <- lapply(chains, rootRule)
+  chainGroups <- lapply(chains, groupOf)
   tested <- setdiff(sort(unique(group)), "")
   if (!is.null(design$spec$groups)) {
     tested <- intersect(tested, design$spec$groups)
@@ -904,13 +990,18 @@ testGroups <- function(design, chains, label) {
       lapply(inGroup, function(k) {
         len <- length(k) %/% nb * nb
         batch <- split(k[seq_len(len)], rep(seq_len(nb), each = len / nb))
-        t(vapply(
-          batch,
-          function(b) {
-            as.numeric(table(factor(b, levels = keys[kept]))) / length(b)
-          },
-          numeric(length(kept))
-        ))
+        # one row per batch, also when a single cell is kept
+        matrix(
+          vapply(
+            batch,
+            function(b) {
+              as.numeric(table(factor(b, levels = keys[kept]))) / length(b)
+            },
+            numeric(length(kept))
+          ),
+          ncol = length(kept),
+          byrow = TRUE
+        )
       })
     )
     diff <- colMeans(means) - lawG[kept]
@@ -1043,17 +1134,28 @@ compareUnnormalized <- function(name) {
 
 # ---- main --------------------------------------------------------------------
 
-# the lattice quadrature against the closed form for two leaves
+# the lattice quadrature against closed forms: a chain of two leaves beside a
+# third, unrelated leaf (so the lattice runs, not the two-leaf closed form),
+# up to 12 sd against the order, and a chain of three iid leaves (1/6)
 local({
   worst <- 0
+  rel3 <- matrix(FALSE, 3L, 3L)
+  rel3[1L, 2L] <- TRUE
   for (s in c(0.2, 0.05, 0.005)) {
-    for (gap in c(0, -2, 3)) {
-      m <- c(0.1, 0.1 + gap * s)
-      rel <- matrix(c(FALSE, FALSE, TRUE, FALSE), 2L)
-      exact <- pnorm((m[2L] - m[1L]) / (sqrt(2) * s))
-      worst <- max(worst, abs(orderProbability(rel, m, c(s, s)) / exact - 1))
+    for (gap in c(0, -2, 3, -7, -12)) {
+      for (ratio in c(1, 5)) {
+        m <- c(0.1, 0.1 + gap * s * sqrt(1 + ratio^2), 0.3)
+        sd <- c(s, ratio * s, s)
+        exact <- pnorm(gap, log.p = TRUE)
+        got <- logOrderProbability(rel3, m, sd)
+        worst <- max(worst, abs(got - exact) / max(1, abs(exact)))
+      }
     }
   }
+  chain <- matrix(FALSE, 3L, 3L)
+  chain[1L, 2L] <- chain[2L, 3L] <- TRUE
+  got <- logOrderProbability(chain, rep(0.1, 3L), rep(0.05, 3L))
+  worst <- max(worst, abs(got - log(1 / 6)))
   cat(sprintf("quadrature self-check: worst relative error %.1e\n", worst))
   if (worst > 1e-6) stop("order-probability quadrature is inaccurate")
 })
