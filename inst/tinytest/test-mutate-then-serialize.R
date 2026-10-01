@@ -3,7 +3,8 @@
 # replaced (setPredictor forceUpdate), runs again, and stores its state; a cold
 # sampler built over the ORIGINAL data then takes the same mutation and the
 # stored state and must reproduce the same model. Covered for linear and gp
-# leaves, plus the default constant leaf.
+# leaves, plus the default constant leaf, and for the copy() and readRDS routes
+# that re-create over the mutated data.
 source(
   system.file("common", "stateContinuation.R", package = "dbarts"),
   local = TRUE
@@ -86,7 +87,89 @@ cold.const$setState(warm.const$state)
 cold.const$storeState()
 statesAgree(cold.const$state, warm.const$state)
 
+# re-creation over the MUTATED data: copy() and saveRDS/readRDS rebuild from
+# data@x, which already holds the replaced column, and must still read the
+# saved slopes and kernels through the creation-time standardization the live
+# sampler kept, which the state carries
+x.new <- data.frame(x1 = runif(20L), x2 = runif(20L, -1, 1), x3 = runif(20L))
+recreated <- function(sampler) {
+  sampler$storeState()
+  path <- tempfile(fileext = ".rds")
+  on.exit(unlink(path))
+  saveRDS(sampler, path)
+  list(copy = sampler$copy(), reloaded = readRDS(path))
+}
+keep.control <- dbartsControl(
+  n.chains = 2L,
+  n.threads = 1L,
+  n.trees = 10L,
+  n.samples = 3L,
+  keepTrees = TRUE,
+  updateState = FALSE
+)
+for (leaf in c("linear", "gp")) {
+  live <- dbarts(
+    y ~ x1 + x2 + x3,
+    df,
+    leaf.prior = if (leaf == "linear") {
+      linear("x2")
+    } else {
+      gp("x2", max.leaf.size = 200L)
+    },
+    control = keep.control
+  )
+  invisible(live$run(20L, 3L))
+  expect_true(live$setPredictor(2 * x2.new, "x2"), info = leaf)
+  invisible(live$run(0L, 3L))
+  live.pred <- live$predict(x.new)
+  for (route in recreated(live)) {
+    expect_identical(route$predict(x.new), live.pred, info = leaf)
+  }
+  if (leaf == "linear") {
+    # given the carried rng the continuation is the live one, to the ulps a
+    # restore's re-summed fits may differ by
+    copied <- live$copy()
+    expect_equal(copied$run(0L, 2L)$train, live$run(0L, 2L)$train, info = leaf)
+  }
+}
+
+# a calibration block the leaf cannot read is refused
+live$storeState()
+bad <- live$state
+bad[[1L]]$forests[[1L]]$leaf.covariate.scale <- 0
+expect_error(live$setState(bad), "not consistent with this sampler")
+bad <- live$state
+bad[[1L]]$forests[[1L]]$leaf.lengthscales <- c(1, 1)
+expect_error(live$setState(bad), "not consistent with this sampler")
+bad <- live$state
+bad[[1L]]$forests[[1L]]$leaf.covariate.center <- "a"
+expect_error(live$setState(bad), "'leaf.covariate.center' is malformed")
+# a state from before the blocks existed restores from the sampler's own data
+old <- live$state
+for (chain in seq_along(old)) {
+  for (block in c(
+    "leaf.covariate.center",
+    "leaf.covariate.scale",
+    "leaf.lengthscales"
+  )) {
+    old[[chain]]$forests[[1L]][[block]] <- NULL
+  }
+}
+expect_silent(live$setState(old))
+
 rm(
+  x.new,
+  recreated,
+  keep.control,
+  leaf,
+  live,
+  live.pred,
+  route,
+  copied,
+  bad,
+  old,
+  chain,
+  block,
   warm.lin,
   cold.lin,
   warm.gp,

@@ -1,9 +1,9 @@
 # The exported channels that report a residual scale read a heteroscedastic
-# fit's per-observation s(x), not the scalar sigma it also carries - which
-# under this parameterization is a fixed unit residual times the response
-# range, a constant with no posterior content. loglik scores at s(x),
-# extract/predict draw their posterior predictive noise at it, and summary()
-# reports it in place of that constant.
+# fit's per-observation s(x). Such a fit has no scalar sigma - the engine pins
+# one at a unit residual times the response range, a constant with no
+# posterior content - so it carries none. loglik scores at s(x),
+# extract/predict draw their posterior predictive noise at it and return it as
+# type = "sigma", and summary() reports it in place of sigma.
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
@@ -30,9 +30,30 @@ fit <- bart(
   verbose = FALSE
 )
 
-# the placeholder this whole file is about: sigma carries no posterior content
-expect_equal(length(unique(fit$sigma)), 1L)
-expect_equal(fit$sigma[1L], diff(range(y)))
+# the pinned scalar the engine runs at, which the fit does not carry
+pinned <- diff(range(y))
+expect_false(any(c("sigma", "first.sigma") %in% names(fit)))
+expect_null(fit$fit$getSigmas())
+expect_equal(nrow(fit$fit$getVariance()), n)
+
+# ---- type = "sigma" is the per-observation scale ----
+expect_identical(extract(fit, type = "sigma"), fit$s.train)
+expect_identical(extract(fit, type = "sigma", sample = "test"), fit$s.test)
+sigmaSplit <- extract(fit, type = "sigma", combineChains = FALSE)
+expect_identical(dim(sigmaSplit), c(1L, 200L, n))
+expect_identical(as.vector(sigmaSplit), as.vector(fit$s.train))
+expect_equal(
+  unname(predict(fit, x.test, type = "sigma")),
+  unname(attr(predict(fit, x.test), "s"))
+)
+expect_equal(
+  unname(predict(fit, x.test, type = "sigma")),
+  unname(fit$s.test)
+)
+expect_error(
+  predict(fit, x.test, type = "sigma", weights = rep(1, 40L)),
+  "does not support 'weights'"
+)
 
 # ---- loglik scores at s(x) ----
 ev <- extract(fit, type = "ev")
@@ -57,7 +78,7 @@ expect_equal(loglik, expected, tolerance = 1e-12)
 atScalar <- dnorm(
   rep(y, each = n.draws),
   as.vector(ev),
-  fit$sigma[1L],
+  pinned,
   log = TRUE
 )
 expect_true(sum(expected) - sum(atScalar) > 1000)
@@ -134,7 +155,7 @@ expect_true(cor(noiseSd, sMean) > 0.9)
 # a per-row scale, not a global one: the ratio has no trend against s(x)
 expect_true(abs(cor(noiseSd / sMean, sMean)) < 0.3)
 # and it is nowhere near the constant it used to be drawn at
-expect_true(mean(noiseSd) < 0.25 * fit$sigma[1L])
+expect_true(mean(noiseSd) < 0.25 * pinned)
 
 # ---- predict(type = "ppd") draws at s(x) too, at the new rows ----
 predEv <- predict(fit, x.test, type = "ev")
@@ -148,7 +169,7 @@ expect_identical(predict(fit, x.test, type = "ppd"), predPpd)
 noiseSd.test <- apply(predPpd - predEv, 2L, sd)
 sMean.test <- apply(sTest, 2L, mean)
 expect_true(cor(noiseSd.test, sMean.test) > 0.9)
-expect_true(mean(noiseSd.test) < 0.25 * fit$sigma[1L])
+expect_true(mean(noiseSd.test) < 0.25 * pinned)
 
 # the stored test channel draws at the same scale as the replay
 set.seed(33, sample.kind = "Rejection")
@@ -183,6 +204,20 @@ fitHom <- bart(
 )
 expect_true("sigma" %in% summary(fitHom)$stats$variable)
 expect_false("mean.s" %in% summary(fitHom)$stats$variable)
+# and its type = "sigma" stays the scalar draws, which predict does not take
+expect_identical(extract(fitHom, type = "sigma"), fitHom$sigma)
+expect_error(extract(fitHom, type = "sigma", sample = "train"), "not used")
+expect_error(
+  predict(fitHom, x.test, type = "sigma"),
+  "predicts a heteroscedastic fit's per-observation scale"
+)
+
+# plot draws no sigma trace for a heteroscedastic fit
+pdfFile <- tempfile(fileext = ".pdf")
+grDevices::pdf(pdfFile)
+expect_silent(plot(fit))
+grDevices::dev.off()
+unlink(pdfFile)
 
 # ---- refusals: a scale the fit does not carry is named, not substituted ----
 fitNoTestScale <- fit

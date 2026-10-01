@@ -379,3 +379,30 @@ expect_error(wsTarget$installTrees(wsDonor), "column restriction")
 # still usable afterwards
 wsSamples <- wsTarget$run()
 expect_equal(dim(wsSamples$train), c(n, 15L))
+
+# ---- multinomial: every category forest is confined ------------------------
+yc <- factor(ifelse(x1 > 0.5 & x2 > 0.5, "a", ifelse(x3 > 0.5, "b", "c")))
+mnControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 10L,
+  n.samples = 1L,
+  updateState = FALSE
+)
+mnBlocked <- dbarts(
+  cbind(x1, x2, x3),
+  yc,
+  family = "multinomial",
+  blocks = blocks(
+    groups = list("x1", c("x2", "x3")),
+    trees.per.group = c(5L, 5L)
+  ),
+  control = mnControl
+)
+invisible(mnBlocked$run(100L, 0L))
+mnTrees <- mnBlocked$getTrees(current = TRUE)
+expect_identical(sort(unique(mnTrees$forest)), 1:3)
+expect_true(someSplit(mnTrees))
+expect_true(allConfined(mnTrees, groups))
+# the contiguous capacity holds per category forest: trees 1-5 use x1 alone
+expect_true(all(mnTrees$var[mnTrees$tree <= 5L & mnTrees$var > 0L] == 1L))

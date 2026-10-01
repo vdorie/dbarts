@@ -219,6 +219,16 @@ expect_error(
   "variance forest requires"
 )
 
+# ---- constant leaves only: a leaf covariate is refused by name ----
+expect_error(
+  dbarts(x, y, variance = TRUE, leaf.prior = linear(1L)),
+  "variance forest is not supported with a linear leaf prior"
+)
+expect_error(
+  dbarts(x, y, variance = TRUE, leaf.prior = gp(1L)),
+  "variance forest is not supported with a Gaussian-process leaf prior"
+)
+
 # ---- Student-t residuals: unadjudicated with 'variance' ----
 # a bare family constructor is NSE (parsed in
 # dbarts's own vocabulary), so these stay literal calls rather than do.call.

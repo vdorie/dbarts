@@ -30,16 +30,20 @@ statesAgree <- function(reState, saved, expect = TRUE) {
     return(invisible(FALSE))
   }
   isField(length(reState), length(saved), "number of chains")
-  # the leaf prior's two halves (k, leaf.scale): a restore that reconstructed
-  # the trees but not the calibration they were drawn under would leave a
-  # hybrid, and a comparison of the trees alone cannot see it
+  # the leaf prior's two halves (k, leaf.scale) and a linear or gp leaf's
+  # covariate calibration: a restore that reconstructed the trees but not the
+  # calibration they were drawn under would leave a hybrid, and a comparison of
+  # the trees alone cannot see it
   forestFields <- c(
     "tree.vars",
     "tree.sizes",
     "tree.flags",
     "tree.params",
     "k",
-    "leaf.scale"
+    "leaf.scale",
+    "leaf.covariate.center",
+    "leaf.covariate.scale",
+    "leaf.lengthscales"
   )
   # chain-level blocks the per-forest loop cannot reach: the variance forest
   # sits outside the forests list, so its LIVE and SAVED trees are siblings of

@@ -70,8 +70,11 @@ expect_true(s.high > 0.6 && s.high < 1.6)
 # the mean surface still tracks the signal
 expect_true(cor(fit$yhat.train.mean, f) > 0.8)
 
-# sigma is the pinned constant carrying no posterior content
-expect_equal(length(unique(fit$sigma)), 1L)
+# the fit carries no scalar sigma: the engine pins one at a unit residual
+# times the response range, which carries no posterior content
+expect_false(any(c("sigma", "first.sigma") %in% names(fit)))
+expect_identical(extract(fit, type = "sigma"), fit$s.train)
+pinned <- diff(range(fit$y))
 
 # ---- the log-likelihood scores at s(x_i), events and censored rows alike ----
 ev <- extract(fit, type = "bart", sample = "train")
@@ -93,11 +96,11 @@ expected[censored] <- pnorm(
 expect_equal(loglik, matrix(expected, n.draws, n), tolerance = 1e-12)
 
 # and is nowhere near the pinned scalar's answer, so the check has teeth
-at.scalar <- dnorm(y.rep, loc, fit$sigma[1L], log = TRUE)
+at.scalar <- dnorm(y.rep, loc, pinned, log = TRUE)
 at.scalar[censored] <- pnorm(
   y.rep[censored],
   loc[censored],
-  fit$sigma[1L],
+  pinned,
   lower.tail = FALSE,
   log.p = TRUE
 )
