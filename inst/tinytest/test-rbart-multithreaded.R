@@ -48,4 +48,25 @@ expect_inherits(
   "rbart"
 )
 
+
+# set.seed reproduces a multithreaded run: without 'seed', each chain's seed is
+# drawn from R's stream
+x <- testData$x
+y <- testData$y
+g <- factor(testData$g)
+rbartTwice <- function() {
+  set.seed(11L)
+  dbarts::rbart_vi(
+    y ~ x,
+    group.by = g,
+    n.samples = 7L,
+    n.burn = 0L,
+    n.chains = 2L,
+    n.trees = 10L,
+    n.threads = 2L,
+    verbose = FALSE
+  )$yhat.train
+}
+expect_identical(rbartTwice(), rbartTwice())
+rm(x, y, g, rbartTwice)
 rm(testData)

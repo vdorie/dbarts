@@ -381,7 +381,7 @@ packageBartResults <- function(
 
   if (responseIsBinary) {
     result <- list(
-      call = fit$control@call,
+      call = storedFitCall(fit$control@call),
       family = familySpec@token,
       family.spec = familySpec,
       yhat.train = yhat.train,
@@ -394,7 +394,7 @@ packageBartResults <- function(
     )
   } else {
     result <- list(
-      call = fit$control@call,
+      call = storedFitCall(fit$control@call),
       family = familySpec@token,
       family.spec = familySpec,
       resid.scale = residScale,
@@ -871,6 +871,15 @@ bart <- function(
   # ahead of sampler construction below, so a malformed pair fails here
   # rather than after the (possibly expensive) sampler is already built
   validateCallback(callback)
+  # refused by name, as the control's own flags (keepTrees, verbose) are,
+  # before anything branches on it
+  if (
+    !is.logical(combineChains) ||
+      length(combineChains) != 1L ||
+      is.na(combineChains)
+  ) {
+    stop("'combineChains' must be TRUE/FALSE")
+  }
   # the names dec-B98's consolidation moved onto the family and prior
   # objects: read once, then cleared from the matched call so no forwarding
   # can carry an old spelling on to dbarts()
@@ -1132,6 +1141,17 @@ bart <- function(
     expandForwardedCall(storedCall, callingEnv)
   } else {
     call("NULL")
+  }
+  # k forwarded through a wrapper's dots arrives as ..N, which the leaf prior
+  # built below would force where the wrapper's caller wrote it, outside the
+  # prior vocabulary; it is resolved here instead, as dbarts() resolves its
+  # own prior arguments, once the stored call has its written form
+  if (isDotsReference(matchedCall[["k"]])) {
+    matchedCall["k"] <- list(evalInVocabulary(
+      matchedCall[["k"]],
+      dbartsPriors,
+      callingEnv
+    ))
   }
   control@n.burn <- control@n.burn %/% control@n.thin
   control@n.samples <- control@n.samples %/% control@n.thin
@@ -2257,7 +2277,7 @@ packageMultinomialResults <- function(
   }
 
   result <- list(
-    call = control@call,
+    call = storedFitCall(control@call),
     family = "multinomial",
     levels = levels,
     levels.source = levels.source,
@@ -2475,7 +2495,7 @@ packageOrdinalResults <- function(
   )
 
   result <- list(
-    call = control@call,
+    call = storedFitCall(control@call),
     family = "ordinal",
     levels = levels,
     K = K,
@@ -2738,7 +2758,7 @@ packageNegbinResults <- function(
   )
 
   result <- list(
-    call = control@call,
+    call = storedFitCall(control@call),
     family = "nbinom",
     n.chains = n.chains,
     n.trees = control@n.trees,
@@ -2982,7 +3002,7 @@ bart2Hurdle <- function(
   )
 
   result <- list(
-    call = control@call,
+    call = storedFitCall(control@call),
     family = "hurdle.lognormal",
     # both components come from the same matchedCall, so they share n.chains
     n.chains = zero$n.chains,

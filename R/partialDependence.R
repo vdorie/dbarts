@@ -72,7 +72,11 @@ pdbart.prologue <- function(x.train, matchedCall, callingEnv, name) {
     sampler <- fit$fit
     if (is.null(sampler)) {
       bartCall <- fit$call
-      if (bartCall == call("NA") || bartCall == call("NULL")) {
+      if (
+        !is.call(bartCall) ||
+          identical(bartCall, call("NA")) ||
+          identical(bartCall, call("NULL"))
+      ) {
         stop(
           "calling ",
           name,

@@ -562,3 +562,18 @@ expect_equal(lat.hs[status.hs2 == 1], y.hs[status.hs2 == 1])
 expect_true(all(lat.hs[newly] > y.hs[newly]))
 expect_true(all(lat.hs[status.hs2 == 0] >= y.hs[status.hs2 == 0]))
 expect_silent(invisible(s.reloaded$run(0L, 1L)))
+
+# a survival formula writes its response with Surv(); cbind() on the left is
+# refused under an explicit survival family, naming Surv()
+d.cbind <- data.frame(x1 = x[, 1L], time = exp(log.t), status = rep(1, n))
+for (family in c("aft", "hazard")) {
+  expect_error(
+    bart(cbind(time, status) ~ x1, data = d.cbind, family = family),
+    pattern = paste0(
+      "family = \"",
+      family,
+      "\" takes a formula response written survival::Surv\\(time, status\\)"
+    )
+  )
+}
+rm(d.cbind, family)

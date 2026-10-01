@@ -1475,6 +1475,20 @@ restateMatrixResponseError <- function(e, entry, family) {
       "instead - ",
       readings
     )
+  } else if (
+    family %in% c("aft", "hazard", "hazard.probit", "hazard.logistic")
+  ) {
+    # the caller already named the survival family; what is wrong is the
+    # spelling of the response, which a formula writes as Surv()
+    paste0(
+      "family = \"",
+      family,
+      "\" takes a formula response written survival::Surv(time, status); ",
+      "'y' is an n x ",
+      K,
+      " matrix, and cbind() on the left of a formula is not read as a ",
+      "time and a status"
+    )
   } else if (family != "auto") {
     paste0(
       "family = \"",

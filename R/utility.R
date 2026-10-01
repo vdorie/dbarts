@@ -377,7 +377,18 @@ warnedOnceKeys <- function() {
 ## into c("::", "dbarts", "bart2") - comparing that to a name is a
 ## length-3 condition, an error since R 4.2.
 callName <- function(call) {
+  # a fit kept without its call stores none
+  if (!is.call(call)) {
+    return("")
+  }
   sub("^.*::", "", deparse(call[[1L]])[1L])
+}
+
+## The call a fit stores: NULL for one made with keepCall = FALSE, as base R
+## fits without a call have none. The control's call slot takes a call, so it
+## holds the placeholder NULL() instead.
+storedFitCall <- function(x) {
+  if (identical(x, call("NULL"))) NULL else x
 }
 
 evalx.recurse <- function(x, e) {

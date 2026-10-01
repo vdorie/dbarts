@@ -128,6 +128,10 @@
       \item \code{names(fit)} no longer lists \code{yhat.test}, or, on a
             binary \code{bart} fit without an offset, \code{binaryOffset},
             when the fit has none; test with \code{is.null} rather than \code{names}.
+      \item A fit made with \code{keepCall = FALSE} stores \code{call =
+            NULL}, as base R fits without a call do, so \code{update}
+            refuses it as it refuses such an \code{lm} fit; 0.9-34 stored
+            the placeholder call \code{NULL()}.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{
@@ -449,8 +453,9 @@
             get a clear one: a non-finite response, zero rows, a multi-column
             response to \code{dbartsData}, a sample count that thins to
             zero, a \code{:} or \code{*} term in a formula, heavy thinning
-            that drove \code{printEvery} to zero, and
-            \code{predict(type = "ppd")} on a fit without \code{keepTrees}.
+            that drove \code{printEvery} to zero, and \code{predict} on a
+            multi-chain fit, or \code{predict(type = "ppd")} on any fit,
+            kept without \code{keepTrees}.
       \item The starting estimate of \code{sigma} no longer depends on the
             machine's linear algebra library: an exactly fit response could
             give an estimate of 0, which the sampler then refused.
@@ -471,8 +476,9 @@
             \code{predict} with several chains handles groups the fit did
             not see; a one-chain \code{extract(type = "trees")} works;
             \code{group.by} names not in \code{data} are found in the
-            calling environment, as documented; and a seeded call leaves
-            the random stream as it found it.
+            calling environment, as documented; a seeded call leaves
+            the random stream as it found it; and \code{set.seed}
+            reproduces a multithreaded run.
     }
   }
 }

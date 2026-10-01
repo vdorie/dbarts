@@ -555,12 +555,7 @@ printSummaryBartBody <- function(x, ...) {
 }
 
 print.summary.bart <- function(x, ...) {
-  cat(
-    "\nCall:\n",
-    paste(deparse(x$call), sep = "\n", collapse = "\n"),
-    "\n\n",
-    sep = ""
-  )
+  printCall(x)
   if (!is.null(x$monotone.prior)) {
     cat("Monotone prior: ", x$monotone.prior, "\n\n", sep = "")
   }
@@ -569,12 +564,7 @@ print.summary.bart <- function(x, ...) {
 }
 
 print.summary.bartHurdle <- function(x, ...) {
-  cat(
-    "\nCall:\n",
-    paste(deparse(x$call), sep = "\n", collapse = "\n"),
-    "\n\n",
-    sep = ""
-  )
+  printCall(x)
   cat("Zero-part component (probit, 1(y > 0)):\n")
   printSummaryBartBody(x$zero, ...)
   cat("\nPositive-part component (lognormal, y | y > 0):\n")

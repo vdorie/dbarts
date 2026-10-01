@@ -460,3 +460,53 @@ rm(
   seenAlias,
   warnState
 )
+
+# argument checks on bart's own surface
+set.seed(17L)
+d.fd <- data.frame(x = runif(40L))
+d.fd$y <- d.fd$x + rnorm(40L, 0, 0.1)
+smallFit <- function(...) {
+  bart(
+    y ~ x,
+    data = d.fd,
+    n.trees = 5L,
+    n.samples = 10L,
+    n.burn = 10L,
+    n.threads = 1L,
+    verbose = FALSE,
+    ...
+  )
+}
+
+# combineChains is refused by name, as keepTrees is
+for (value in list(NA, "yes", c(TRUE, FALSE))) {
+  expect_error(
+    smallFit(combineChains = value),
+    pattern = "'combineChains' must be TRUE/FALSE"
+  )
+}
+
+# keepCall = FALSE stores no call, as a base R fit without one has none
+fit.noCall <- smallFit(n.chains = 1L, keepCall = FALSE)
+expect_null(fit.noCall$call)
+expect_false(any(grepl("Call", capture.output(summary(fit.noCall)))))
+expect_false(any(grepl("Call", capture.output(print(fit.noCall)))))
+expect_error(update(fit.noCall, n.trees = 3L), pattern = "call component")
+
+# k = chi() forwarded through a wrapper's dots resolves in the prior
+# vocabulary, as it does written directly
+wrapper <- function(...) smallFit(n.chains = 1L, seed = 3L, ...)
+expect_identical(
+  wrapper(k = chi(1.5, 2))$k,
+  smallFit(n.chains = 1L, seed = 3L, k = chi(1.5, 2))$k
+)
+
+# a multi-chain fit kept without its trees has only each chain's current
+# trees, which are no draws to predict from
+fit.noTrees <- smallFit(n.chains = 2L, keepSampler = TRUE, keepTrees = FALSE)
+expect_error(
+  predict(fit.noTrees, d.fd[1:3, ]),
+  pattern = "predict requires the fit's saved trees; refit with keepTrees = TRUE"
+)
+
+rm(d.fd, smallFit, value, fit.noCall, wrapper, fit.noTrees)

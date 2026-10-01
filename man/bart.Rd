@@ -317,7 +317,7 @@ bart(
      A fit saved to disk and reloaded needs its sampler's state stored first, with \code{fit$fit$storeState()}; \code{predict} on a fit reloaded without it refuses, naming \code{storeState()} (see \code{\link{bartBT}}'s \sQuote{Saving} section). Logical; must be \code{TRUE} in order to use \code{predict} with the result of a fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.
    }
    \item{keepCall}{
-     Logical; if \code{FALSE}, the returned object has \code{call} set to \code{call("NULL")}, otherwise the call used to instantiate BART.
+     Logical; if \code{FALSE}, the returned object has \code{call} set to \code{NULL}, as a base R fit without a call has, so \code{\link{update}} refuses it; otherwise the call used to instantiate BART.
    }
    \item{keepSampler}{
      Logical that can be used to save the underlying \code{\link{dbartsSampler-class}} object even if \code{keepTrees} is false.

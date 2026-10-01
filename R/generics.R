@@ -455,7 +455,7 @@ refuseWithoutTrees <- function(what, keepTrees = "keepTrees") {
 }
 
 # bartBT spells it 'keeptrees', bart 'keepTrees'. A fit kept with
-# keepCall = FALSE stores call("NULL") and names neither, so it takes bart's
+# keepCall = FALSE stores no call and names neither, so it takes bart's
 # spelling, which is the surface such a fit most likely came from.
 bartKeepTreesArgument <- function(object) {
   if (callName(object[["call"]]) == "bartBT") "keeptrees" else "keepTrees"
@@ -549,6 +549,18 @@ predict.bart <- function(
       " = TRUE: an amplitude-coupled fit pairs each saved draw's forests ",
       "with that draw's own amplitudes, and without the tree store only the ",
       "current trees replay, one set for every draw"
+    )
+  }
+
+  # without the tree store only the current trees replay: one chain's are the
+  # long-standing keepTrees-free reading, but several chains' current trees
+  # are one evaluation each, not a sequence of draws to report
+  if (!object$fit$control@keepTrees && object$fit$control@n.chains > 1L) {
+    stop(
+      "predict requires the fit's saved trees; refit with ",
+      bartKeepTreesArgument(object),
+      " = TRUE: without the tree store only each chain's current trees ",
+      "replay, one evaluation per chain rather than a draw per sample"
     )
   }
 
@@ -1889,10 +1901,11 @@ predict.bartMultinomial <- function(
   padPredictedRows(probs, rows, trailing = if (type == "ppd") 0L else 1L)
 }
 
-# Shared "Call:" preamble for the print methods. A fit kept with
-# keepCall = FALSE stores call("NULL") as a placeholder, which is suppressed.
+# Shared "Call:" preamble for the print and summary methods. A fit kept with
+# keepCall = FALSE stores no call, and one saved by an earlier version the
+# placeholder call("NULL"); either is omitted.
 printCall <- function(x) {
-  if (!identical(x[["call"]], call("NULL"))) {
+  if (is.call(x[["call"]]) && !identical(x[["call"]], call("NULL"))) {
     cat(
       "\nCall:\n",
       paste(deparse(x$call), sep = "\n", collapse = "\n"),

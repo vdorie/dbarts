@@ -147,7 +147,7 @@ bartFit <- dbarts::bart(
   ntree = n.trees,
   keepcall = FALSE
 )
-expect_equal(bartFit$call, call("NULL"))
+expect_null(bartFit$call)
 
 rm(bartFit, sampler, control, n.trees, n.burn, n.samples)
 
