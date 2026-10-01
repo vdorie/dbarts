@@ -72,6 +72,53 @@ expect_equal(
   rep(1, 10L)
 )
 
+# ---- an offset expression mixing a data column and a local is evaluated as
+# model.frame does - the column from data, the local from the calling scope -
+# at fit, for the default test offset, and at predict
+
+mixedOffset <- function(data, test) {
+  k <- 2
+  bart(
+    y ~ x,
+    data,
+    test = test,
+    offset = o * k,
+    n.trees = 10L,
+    n.samples = 10L,
+    n.burn = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    seed = 5L,
+    keepTrees = TRUE
+  )
+}
+fit.mixed <- mixedOffset(d, nd)
+expect_identical(fit.mixed$fit$data@offset, d$o * 2)
+expect_identical(fit.mixed$fit$data@offset.test, nd$o * 2)
+expect_equal(unname(predict(fit.mixed, nd)), unname(fit.mixed$yhat.test))
+fit.literal <- bart(
+  y ~ x,
+  d,
+  offset = o * 2,
+  n.trees = 10L,
+  n.samples = 10L,
+  n.burn = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 5L,
+  keepTrees = TRUE
+)
+expect_identical(fit.mixed$yhat.train, fit.literal$yhat.train)
+# a name found in neither the data nor any calling scope is refused, not
+# dropped
+expect_error(
+  bart(y ~ x, d, offset = o * not.anywhere, verbose = FALSE),
+  pattern = "'offset' cannot be evaluated: object 'not.anywhere' not found"
+)
+rm(mixedOffset, fit.mixed, fit.literal)
+
 # ---- a local constant in a term or offset predicts the same after a reload
 
 localFit <- function(data) {

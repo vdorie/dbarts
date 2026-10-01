@@ -1063,6 +1063,20 @@ offsetArgumentFormula <- function(expr, env, dataNames, numRows, value) {
   result
 }
 
+## A formula fit's 'offset' expression evaluated as model.frame evaluates
+## one: in 'data', with 'env' for every name it does not carry. Returns the
+## error rather than signalling it.
+evaluateOffsetExpression <- function(expr, data, env) {
+  tryCatch(
+    if (is.environment(data)) {
+      eval(expr, data)
+    } else {
+      eval(expr, data, env)
+    },
+    error = function(e) e
+  )
+}
+
 ## How an offset argument reads in a message: its expression, or a plain
 ## vector by its kind.
 describeOffsetArgument <- function(argument) {
@@ -2471,14 +2485,35 @@ dbartsData <- function(
       offset <- NULL
       modelFrameArgs <- c("formula", "data", "subset", "weights")
     } else {
-      offsetCall <- matchedCall
-      offsetCall <- offsetCall[c(
-        1L,
-        match(c("formula", "data", "offset"), names(offsetCall), nomatch = 0L)
-      )]
-      names(offsetCall)[which(names(offsetCall) == "offset")] <- "term"
-      offsetCall[[1L]] <- quoteInNamespace(findTermInFormulaData)
-      offset <- eval(offsetCall, parent.frame())
+      # as model.frame evaluates an offset: data columns first, every other
+      # name from the formula's environment, or failing that the caller's;
+      # a name found in none of them is an error, never a dropped offset
+      written <- if (isDotsReference(matchedCall$offset)) {
+        recoverForwardedArgument(matchedCall$offset, parent.frame())
+      } else {
+        list(expr = matchedCall$offset, env = environment(formula))
+      }
+      offsetEnv <- written$env
+      offset <- evaluateOffsetExpression(
+        written$expr,
+        if (dataIsMissing) NULL else data,
+        offsetEnv
+      )
+      if (inherits(offset, "error") && !identical(offsetEnv, parent.frame())) {
+        offsetEnv <- parent.frame()
+        offset <- evaluateOffsetExpression(
+          written$expr,
+          if (dataIsMissing) NULL else data,
+          offsetEnv
+        )
+      }
+      if (inherits(offset, "error")) {
+        stop(
+          "'offset' cannot be evaluated: ",
+          conditionMessage(offset),
+          call. = FALSE
+        )
+      }
 
       # a matrix-shaped offset declares a multinomial category shift, one
       # column per category, never a flat per-row one; set it aside before the
@@ -2499,12 +2534,8 @@ dbartsData <- function(
 
       if (!is.null(offset)) {
         offsetArgument <- offsetArgumentFormula(
-          matchedCall$offset,
-          if (isDotsReference(matchedCall$offset)) {
-            parent.frame()
-          } else {
-            environment(formula)
-          },
+          written$expr,
+          offsetEnv,
           if (!dataIsMissing) formulaDataNames(data),
           if (!dataIsMissing && is.data.frame(data)) {
             nrow(data)
