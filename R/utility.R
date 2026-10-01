@@ -333,7 +333,11 @@ warnOnce <- function(key, ..., class = NULL) {
   }
   onceWarnState[[key]] <- TRUE
   if (is.null(class)) {
-    warning(...)
+    args <- list(...)
+    if (length(args) != 1L || !inherits(args[[1L]], "condition")) {
+      stop("warnOnce needs a class, or a single condition object")
+    }
+    warning(args[[1L]])
   } else {
     warnClassed(class, ...)
   }
@@ -341,8 +345,12 @@ warnOnce <- function(key, ..., class = NULL) {
 }
 
 ## A warning of the given class, which also inherits dbartsWarning; the
-## message is the pasted arguments.
+## message is the pasted arguments. A deprecation also carries base R's
+## "deprecatedWarning", so suppressWarnings(classes = ) can name either.
 warnClassed <- function(class, ...) {
+  if ("dbartsDeprecatedWarning" %in% class) {
+    class <- c(class, "deprecatedWarning")
+  }
   warning(warningCondition(
     paste0(...),
     class = c(class, "dbartsWarning")
@@ -619,6 +627,15 @@ sparseFactorIndicatorSlices <- function(column, name, dropSpec) {
 makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   if (!is.data.frame(x)) {
     stop("x is not a dataframe")
+  }
+  if (ncol(x) > 0L && nrow(x) == 0L) {
+    stop(structure(
+      class = c("dbartsZeroRowInputError", "error", "condition"),
+      list(
+        message = "x has no rows; a model matrix needs at least one row",
+        call = NULL
+      )
+    ))
   }
   if (is.logical(drop) && (length(drop) != 1L || is.na(drop))) {
     stop("when logical, drop must be TRUE or FALSE")

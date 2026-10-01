@@ -654,8 +654,12 @@ separate mechanism from the class, not a substitute for one: the key
 dedupes repeated firings of the same warning inside one session (a Gibbs
 loop calling `$setResponse` every sweep, say), while the class is what a
 caller matches on regardless of how many times, or how few, the warning
-actually fires. A `warnOnce` call site still passes a classed
-`warningCondition` object as its message.
+actually fires. A `warnOnce` call site is classed one of two ways: it passes
+the message pieces with `class = "dbarts<Thing>Warning"` (the form new sites
+use; `warnOnce` builds the condition and adds `dbartsWarning`), or it passes
+one ready-made classed `warningCondition`. With neither, `warnOnce` refuses.
+A `dbartsDeprecatedWarning` also carries base R's `deprecatedWarning`, so
+`suppressWarnings(classes = "deprecatedWarning")` reaches it.
 
 Inventory, one representative site per class (existing classes carried
 over unchanged):
@@ -672,6 +676,10 @@ over unchanged):
 | `dbartsDegenerateResponseWarning` | [`dbartsData`](../../R/data.R) |
 | `dbartsDuplicateNameWarning` | ["\[<-.lval"](../../R/multipleAssignment.R) |
 | `dbartsZeroTrialsWarning` | [`warnZeroTrials`](../../R/data.R) |
+| `dbartsDeprecatedWarning` | [`warnOnce`](../../R/utility.R) at every retired-spelling site (`R/tombstones.R`) |
+| `dbartsExcessThreadsWarning` | [`dbarts`](../../R/dbarts.R) |
+| `dbartsGPFallbackWarning` | [`warnOnGPFallback`](../../R/bartcore.R) |
+| `dbartsSlowCountWarning` | [`warnOnSlowCount`](../../R/bartcore.R) |
 
 ---
 

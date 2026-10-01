@@ -185,7 +185,7 @@ bart(
      An optional data frame, list, or environment containing predictors, used together with a formula \code{formula}. For backward compatibility, can also be the \code{\link{bartBT}} vector \code{y.train}.
    }
    \item{test}{
-     An optional matrix or data frame with the same number of predictors as \code{data}, or \code{formula} in backward-compatibility mode; if column names are present, a matching algorithm is used. Refused, by name, when \code{formula} carries a \code{forest()} term (\sQuote{Formula Terms}): an amplitude-coupled fit has no per-observation test replay in this version.
+     An optional matrix or data frame with the same number of predictors as \code{data}, or \code{formula} in backward-compatibility mode; if column names are present, a matching algorithm is used, and an unnamed matrix against named predictors is matched by position with a warning (class \code{dbartsPositionalArgsWarning}). Refused, by name, when \code{formula} carries a \code{forest()} term (\sQuote{Formula Terms}): an amplitude-coupled fit has no per-observation test replay in this version.
    }
    \item{subset}{
      An optional vector of logicals or indices used to subset the data. Can be missing. A \code{forest()} term's basis is evaluated inside the same subsetted model frame as every other predictor (\sQuote{Formula Terms}); a basis given directly through \code{\link{dbarts}}'s \code{forests =} instead follows that argument's own subsetting rule (see \code{\link{forest}}'s \code{basis} item).
@@ -346,7 +346,7 @@ bart(
      An object of class \code{bartMultinomial}, \code{bartOrdinal}, \code{bartNegbin}, or \code{bartHurdle}, returned by \code{bart} under the corresponding \code{family}.
    }
    \item{newdata}{
-     Test data for prediction. Obeys the same rules as \code{data}/\code{test} but cannot be missing.
+     Test data for prediction. Obeys the same rules as \code{data}/\code{test} but cannot be missing. An unnamed matrix given to a fit whose predictors are named is matched by position, with a warning (class \code{dbartsPositionalArgsWarning}).
    }
    \item{type}{
      The quantity to return; see \sQuote{Value} below for what each family's generics accept and produce. As on a \code{"bart"} fit (\code{\link{bartBT}}'s \code{type} item), \code{"response"} is a synonym for \code{"ev"} and \code{"link"} for \code{"bart"}, on every method here; a value a method does not offer is an error naming the ones it does, and one it names only to refuse is an error naming the reason.
@@ -411,7 +411,7 @@ A handful of shapes are refused outright rather than silently misinterpreted, ea
   guaranteed; only \code{seed} gives the same draws under any
   \code{\link{RNGkind}}.
 
-  \strong{Warning classes.} Every warning the package raises has a class that inherits from \code{dbartsWarning}, so a caller can catch or mute it by class rather than by text, and each class is named on the help page of the function that raises it. The warnings that retired spellings raise once per session have class \code{dbartsDeprecatedWarning}; see \code{\link{dbarts-deprecated}}.
+  \strong{Warning classes.} Every warning the package raises from its R code has a class that inherits from \code{dbartsWarning}, so a caller can catch or mute it by class rather than by text, and each class is named on the help page of the function that raises it. The warnings that retired spellings raise once per session have class \code{dbartsDeprecatedWarning}; see \code{\link{dbarts-deprecated}}.
 
   \strong{Chains and \code{n.threads}.} Results never depend on the thread
   count: a fit, its \code{predict}, and \code{\link{samplePriorPredictive}}

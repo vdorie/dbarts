@@ -172,7 +172,7 @@ extract(object, \dots)
      An object of class \code{bart}, returned from either the function \code{bartBT} or \code{bart}.
    }
    \item{newdata}{
-     Test data for prediction. Obeys all the same rules as \code{x.train} but cannot be missing.
+     Test data for prediction. Obeys all the same rules as \code{x.train} but cannot be missing. An unnamed matrix given to a fit whose predictors are named is matched by position, with a warning (class \code{dbartsPositionalArgsWarning}).
    }
    \item{offset}{
      For \code{predict}: an optional offset for \code{newdata}, applied the same way \code{\link{dbarts}}'s \code{offset.test} is at fit time. It shifts the PREDICTED rows, not the training ones - a different channel from \code{offset.test}, which is why it carries its own name rather than that one's. \code{NULL} (the default, when missing) applies none. Refused, by name, with \code{type = "forest"}: an offset shifts the recombination of the forests, never any one forest's own total, so it belongs to the arithmetic under \sQuote{Value} rather than to what comes back. On an amplitude-coupled fit's combined arms (\code{type = "ev"}, \code{"ppd"}, \code{"bart"}) it is that recombination, and enters the sum of trees before the family's link, exactly as it does for a single forest.

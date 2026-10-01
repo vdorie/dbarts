@@ -9,9 +9,18 @@ resetOnce <- function() {
 expectClassed <- function(expr, class) {
   resetOnce()
   w <- tryCatch(
-    withCallingHandlers(expr, message = function(m) {
-      invokeRestart("muffleMessage")
-    }),
+    withCallingHandlers(
+      expr,
+      message = function(m) invokeRestart("muffleMessage"),
+      warning = function(w) {
+        if (
+          class != "dbartsDeprecatedWarning" &&
+            inherits(w, "dbartsDeprecatedWarning")
+        ) {
+          invokeRestart("muffleWarning")
+        }
+      }
+    ),
     warning = function(w) w
   )
   expect_true(inherits(w, class))
@@ -25,6 +34,7 @@ d <- data.frame(y, x)
 quick <- list(
   n.samples = 4L,
   n.burn = 2L,
+  n.thin = 1L,
   n.chains = 1L,
   n.threads = 1L,
   n.trees = 3L,
@@ -99,6 +109,7 @@ expectClassed(
     group.by = factor(rep(1:3, 10L)),
     n.samples = 4L,
     n.burn = 2L,
+    n.thin = 1L,
     n.chains = 1L,
     n.threads = 1L,
     n.trees = 3L,
@@ -110,3 +121,143 @@ expectClassed(
 sf <- dbarts::sparseFactor(c("u", "v", "u", "v"))
 expectClassed(sf[1L] <- "w", "dbartsFallbackWarning")
 expectClassed(sf < sf, "dbartsFallbackWarning")
+
+# the retired thread method, and the remaining retired arguments
+expectClassed(sampler$stopThreads(), "dbartsDeprecatedWarning")
+expectClassed(
+  dbarts::bart(
+    y ~ .,
+    d,
+    resid.prior = dbarts::dbartsPriors$chisq(3, 0.9),
+    n.samples = 4L,
+    n.burn = 2L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 3L,
+    verbose = FALSE
+  ),
+  "dbartsDeprecatedWarning"
+)
+expectClassed(
+  dbarts::bart(
+    y ~ .,
+    d,
+    power = 1,
+    n.samples = 4L,
+    n.burn = 2L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 3L,
+    verbose = FALSE
+  ),
+  "dbartsDeprecatedWarning"
+)
+expectClassed(
+  dbarts::bart(
+    y ~ .,
+    d,
+    proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4),
+    n.samples = 4L,
+    n.burn = 2L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 3L,
+    verbose = FALSE
+  ),
+  "dbartsDeprecatedWarning"
+)
+expect_true(inherits(
+  tryCatch(
+    {
+      resetOnce()
+      dbarts::bart2(
+        y ~ .,
+        d,
+        n.samples = 4L,
+        n.burn = 2L,
+        n.thin = 1L,
+        n.chains = 1L,
+        n.threads = 1L,
+        n.trees = 3L,
+        verbose = FALSE
+      )
+    },
+    warning = function(w) w
+  ),
+  "deprecatedWarning"
+))
+
+# rbart_vi's fallbacks and predict's retired arguments
+g <- factor(rep(1:3, 10L))
+fitR <- function(...) {
+  suppressWarnings(dbarts::rbart_vi(
+    y ~ a + b,
+    d,
+    group.by = g,
+    n.samples = 4L,
+    n.burn = 2L,
+    n.thin = 1L,
+    n.trees = 3L,
+    verbose = FALSE,
+    ...
+  ))
+}
+expectClassed(
+  dbarts::rbart_vi(
+    y ~ a + b,
+    d,
+    group.by = g,
+    n.samples = 4L,
+    n.burn = 2L,
+    n.thin = 1L,
+    n.chains = 2L,
+    n.threads = 2L,
+    n.trees = 3L,
+    verbose = TRUE
+  ),
+  "dbartsDeprecatedWarning"
+)
+rfit <- fitR(n.chains = 1L, n.threads = 1L, keepTrees = TRUE)
+expectClassed(
+  dbarts::rbart_vi(
+    y ~ a + b,
+    d,
+    group.by = g,
+    test = d[1:5, c("a", "b")],
+    n.samples = 4L,
+    n.burn = 2L,
+    n.thin = 1L,
+    n.trees = 3L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  "dbartsFallbackWarning"
+)
+expectClassed(
+  predict(rfit, d[1:3, ], group.by = factor(c("9", "9", "1")), value = "ev"),
+  "dbartsDeprecatedWarning"
+)
+expectClassed(
+  predict(
+    rfit,
+    d[1:3, ],
+    group.by = factor(c("9", "9", "1")),
+    type = "post-mean"
+  ),
+  "dbartsDeprecatedWarning"
+)
+expectClassed(
+  predict(rfit, d[1:3, ], group.by = factor(c("9", "9", "1")), type = "ev"),
+  "dbartsFallbackWarning"
+)
+
+# zero-row input to the model-matrix builder is a classed error
+expect_error(
+  dbarts:::makeModelMatrixFromDataFrame(d[0L, ]),
+  class = "dbartsZeroRowInputError",
+  pattern = "no rows"
+)

@@ -196,8 +196,8 @@
             is a 1 x samples matrix rather than a vector.
             \code{extract(type = "trees")} always has a \code{chain}
             column.
-      \item Every warning the package raises has a class inheriting from
-            \code{dbartsWarning}, documented on the help page of the
+      \item Every warning the package raises from its R code has a class
+            inheriting from \code{dbartsWarning}, documented on the help page of the
             function that raises it, so it can be caught or muted without
             matching its text. \code{bart} now warns when a supplied
             \code{sigest} has no effect because the family fixes the

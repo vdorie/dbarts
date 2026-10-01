@@ -88,6 +88,9 @@ rbart_vi(
   \item{newdata}{
     Same as \code{test}, but named to match \code{\link{predict}} generic.
   }
+  \item{Warning classes}{
+    A fallback this function makes (running single-threaded, recycling \code{group.by}, drawing effects for unseen levels, a failed rejection sample) warns with class \code{dbartsFallbackWarning}; the deprecated \code{value} and \code{post-mean} arguments of \code{predict} warn with class \code{dbartsDeprecatedWarning}.
+  }
   \item{type}{
     One of \code{"ev"}, \code{"ppd"}, \code{"bart"}, \code{"ranef"}, or \code{"trees"} for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. To synergize with \code{\link[stats]{predict.glm}}, \code{"response"} can be used as a synonym for \code{"value"} and \code{"link"} can be used as a synonym for \code{"bart"}. For additional details on tree extraction, see the corresponding subsection in \code{\link{bart}}.
   }
