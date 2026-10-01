@@ -1045,17 +1045,25 @@ formulaTermOffset <- function(x.train, newdata, argument) {
 ## the environment it is evaluated in, so that predict and the test-set default
 ## re-evaluate it on new rows, as predict.lm re-evaluates lm's call$offset. An
 ## argument forwarded through a wrapper's dots is recovered as written.
-offsetArgumentFormula <- function(expr, env, dataNames, numRows, value) {
+offsetArgumentFormula <- function(expr, env, dataNames, numRows) {
   if (isDotsReference(expr)) {
     written <- recoverForwardedArgument(expr, env)
     expr <- written$expr
     env <- written$env
   }
-  # an expression calling a function from no package cannot be stored, so its
-  # value is, which is then a plain vector for the training rows
+  # a function from no package is refused, as in a formula
   frozen <- tryCatch(
     freezeExpression(expr, dataNames, env, numRows),
-    error = function(e) value
+    error = function(e) {
+      stop(
+        sub(
+          "^the formula calls",
+          "the 'offset' expression calls",
+          conditionMessage(e)
+        ),
+        call. = FALSE
+      )
+    }
   )
   result <- stats::as.formula(call("~", frozen), env = baseenv())
   # the expression as written, for messages
@@ -2541,8 +2549,7 @@ dbartsData <- function(
             nrow(data)
           } else {
             NA_integer_
-          },
-          offset
+          }
         )
         offsetGivenAsScalar <- length(offset) == 1
         if (offsetGivenAsScalar) {
@@ -3003,8 +3010,7 @@ dbartsData <- function(
         matchedCall$offset,
         parent.frame(),
         as.character(colnames(formula)),
-        initialNumObservations,
-        offset
+        initialNumObservations
       )
     }
     offsetResult <- validateXYOffset(
@@ -3126,8 +3132,7 @@ dbartsData <- function(
         matchedCall$offset,
         parent.frame(),
         as.character(colnames(formula)),
-        initialNumObservations,
-        offset
+        initialNumObservations
       )
     }
     offsetResult <- validateXYOffset(

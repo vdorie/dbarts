@@ -190,6 +190,24 @@ expect_error(
   dbarts::xbart(y ~ myTransform(x), d, n.reps = 1L, verbose = FALSE),
   pattern = "the formula calls 'myTransform'"
 )
+# and in the offset expression, on either interface
+expect_error(
+  do.call(bart, c(list(y ~ x, d, offset = quote(myTransform(o))), fitArgs)),
+  pattern = "the 'offset' expression calls 'myTransform', a function from no package"
+)
+expect_error(
+  bart(
+    d["x"],
+    d$y,
+    offset = myTransform(d$o),
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    verbose = FALSE
+  ),
+  pattern = "the 'offset' expression calls 'myTransform'"
+)
 
 # ---- xbart and bartBT inside a function carry no frame either
 

@@ -221,9 +221,10 @@
             \code{newdata}, as \code{predict.lm} does: the expression it was
             given as, such as \code{offset = log(exposure)}, is evaluated on
             \code{newdata}, and an \code{offset} given to \code{predict}
-            adds to it. One given as a plain vector for the training rows,
-            which cannot be evaluated there, is refused unless
-            \code{predict} is given an \code{offset} for the new rows.
+            adds to it. One given as a plain vector for the training rows
+            applies only to a \code{newdata} of as many rows, as in
+            \code{lm}, and is otherwise refused unless \code{predict} is
+            given an \code{offset} for the new rows.
             0.9-34 predicted without the fit's offset. The default
             \code{offset.test} is formed the same way on \code{test}.
             Ordinal fits, and \code{survivalProbabilities} on hazard fits,
