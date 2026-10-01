@@ -71,4 +71,41 @@ expect_inherits(
 rm(k)
 
 
+# A user prior is taken by name, through a wrapper's argument, or as a
+# built-in's name; an unknown name is refused, listing the built-ins.
+priorFrame <- data.frame(y = rnorm(60L), x = runif(60L))
+priorGroups <- rep(1:6, 10L)
+myPrior <- function(x, rel.scale) dcauchy(x, 0, rel.scale * 2.5, TRUE)
+fitPrior <- function(prior) {
+  suppressWarnings(rbart_vi(
+    y ~ x,
+    priorFrame,
+    group.by = priorGroups,
+    prior = prior,
+    n.samples = 10L,
+    n.burn = 10L,
+    n.chains = 1L,
+    n.trees = 5L,
+    n.threads = 1L,
+    verbose = FALSE
+  ))
+}
+fit <- suppressWarnings(rbart_vi(
+  y ~ x,
+  priorFrame,
+  group.by = priorGroups,
+  prior = myPrior,
+  n.samples = 10L,
+  n.burn = 10L,
+  n.chains = 1L,
+  n.trees = 5L,
+  n.threads = 1L,
+  verbose = FALSE
+))
+expect_true(inherits(fit, "rbart"))
+expect_true(inherits(fitPrior("gamma"), "rbart"))
+expect_true(inherits(fitPrior(myPrior), "rbart"))
+expect_error(fitPrior("nope"), "'cauchy', 'gamma'")
+rm(priorFrame, priorGroups, myPrior, fitPrior, fit)
+
 rm(testData)

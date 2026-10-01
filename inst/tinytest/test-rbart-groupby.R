@@ -379,3 +379,64 @@ rm(
   fwdGamma,
   dfFwd
 )
+
+
+# predict takes a character or numeric group.by as the fit does: random
+# effects by level, and an unseen level drawn from its distribution.
+groupFrame <- data.frame(y = rnorm(60L), x = runif(60L))
+characterGroups <- rep(c("a", "b", "c"), 20L)
+characterFit <- suppressWarnings(rbart_vi(
+  y ~ x,
+  groupFrame,
+  group.by = characterGroups,
+  n.samples = 10L,
+  n.burn = 10L,
+  n.chains = 1L,
+  n.trees = 5L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+))
+ranef <- predict(
+  characterFit,
+  groupFrame[1:3, ],
+  group.by = c("a", "b", "c"),
+  type = "ranef"
+)
+expect_equal(
+  ranef,
+  predict(
+    characterFit,
+    groupFrame[1:3, ],
+    group.by = factor(c("a", "b", "c")),
+    type = "ranef"
+  )
+)
+expect_equal(ncol(ranef), 3L)
+expect_warning(
+  unseen <- predict(
+    characterFit,
+    groupFrame[1:3, ],
+    group.by = c("a", "b", "zz")
+  ),
+  "not present in training"
+)
+expect_equal(ncol(unseen), 3L)
+numericFit <- suppressWarnings(rbart_vi(
+  y ~ x,
+  groupFrame,
+  group.by = rep(1:3, 20L),
+  n.samples = 10L,
+  n.burn = 10L,
+  n.chains = 1L,
+  n.trees = 5L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+))
+expect_warning(
+  unseen <- predict(numericFit, groupFrame[1:3, ], group.by = c(1, 2, 9)),
+  "not present in training"
+)
+expect_equal(ncol(unseen), 3L)
+rm(groupFrame, characterGroups, characterFit, ranef, unseen, numericFit)

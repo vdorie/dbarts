@@ -62,13 +62,13 @@ rbart_vi(
 }
 \arguments{
   \item{group.by}{
-    Grouping factor. Can be an integer vector/factor, or a reference to such in \code{data}.
+    Grouping factor. Can be an integer vector/factor, or a reference to such in \code{data}. In \code{predict}, a character or numeric vector names its groups by value, as a factor of it does.
   }
   \item{group.by.test}{
     Grouping factor for test data, of the same type as \code{group.by}. Can be missing.
   }
   \item{prior}{
-    A function or symbolic reference to built-in priors. Determines the prior over the standard deviation of the random effects. Supplied functions take two arguments, \code{x} - the standard deviation, and \code{rel.scale} - the standard deviation of the response variable before random effects are fit. Built in priors are \code{cauchy} with a scale of 2.5 times the relative scale and \code{gamma} with a shape of 2.5 and scale of 2.5 times the relative scale.
+    A function or symbolic reference to built-in priors. A built-in is named by symbol or string (\code{cauchy}, \code{"gamma"}); any other name refers to the caller's function, and an unknown string is refused. Determines the prior over the standard deviation of the random effects. Supplied functions take two arguments, \code{x} - the standard deviation, and \code{rel.scale} - the standard deviation of the response variable before random effects are fit. Built in priors are \code{cauchy} with a scale of 2.5 times the relative scale and \code{gamma} with a shape of 2.5 and scale of 2.5 times the relative scale.
   }
   \item{n.thin}{
     The number of tree jumps taken for every stored sample, but also the number of samples from the posterior of the standard deviation of the random effects before one is kept.
