@@ -268,6 +268,9 @@ Rulings, 2026-09-29:
   whenever a constraint is present, is measured first ("Measure first.") by the second study in "Tree prior
   under joint" below; the maintainer makes the final ruling on its results: "Bring the results to me and let
   me make the final ruling."
+- Tree prior under "joint" (dec-B152, 2026-10-01): cgm()'s defaults, with mBART's values documented in the
+  monotone() help as an opt-in. "Yes, use option 1." Not chosen: mBART's values whenever a constraint is
+  present, and a search for an intermediate setting.
 
 ## Default: feel study
 
@@ -531,6 +534,26 @@ verdict; the maintainer rules on the results.
   and noise cell, their RMSE and score are no worse than cgm()'s defaults beyond two paired standard errors,
   and (b) their 95% coverage is at least 0.90 in every cell at 200 and 50 trees. Otherwise cgm()'s defaults
   are.
+
+### Results, 2026-09-30
+
+Run by [monotone-treeprior-study.R](../../benchmarks/R/monotone-treeprior-study.R) on a library built at
+7593a0d4, arm64 macOS, six fits at once; all 192 jobs, 8 replicates; per fit in
+[monotone-treeprior-7593a0d4.csv](../../benchmarks/baselines/monotone-treeprior-7593a0d4.csv). "Low" noise is
+a third of the truth's sd, "high" equal to it.
+
+- At 200 trees mBART's values have lower RMSE (4-25%) and a better held-out score than cgm()'s defaults in all
+  12 cells, mostly beyond two paired standard errors. Their intervals are 23-34% narrower and cover 0.84, 0.88
+  and 0.86 (friedman, additive, interaction) at n 2000 and low noise, where the defaults cover 0.93-0.96 and
+  the free fit 0.96; elsewhere 0.93-0.97.
+- At 50 trees mBART's values are worse at n 2000 and low noise in all three designs beyond two standard
+  errors, better at n 200, and cover 0.70-0.94, under 0.90 in 9 of 12 cells; the defaults miss 0.90 in 5 and
+  the free fit in 3.
+- The constrained predictors' varcount share at 200 trees: defaults 0.15-0.17, mBART 0.29-0.38, free
+  0.31-0.34. Splits per tree 1.2-1.3 against 0.3-0.66. mBART costs 4-21% more CPU per sweep. No monotone draw
+  fell along any line.
+- The advisory rule: clause (a) passes in every cell, clause (b) fails in 12 of 24, so it favours cgm()'s
+  defaults. The maintainer ruled the same (dec-B152).
 
 ## Counting: algorithm
 
