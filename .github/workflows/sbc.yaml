@@ -27,8 +27,8 @@
 # Timeouts are ~3x the measured single-thread wall-clock on the maintainer's
 # laptop (ordinal 6.6 min, nbinom 46 min, t 2.6 min, multinomial 7.3 min,
 # aft 79 s, hetero 2.2 min, hetero-aft 4.4 min and each monotone arm ~103 min
-# (31 s per replicate) at R=200; gaussian 5 min at R=100). nbinom is the expensive arm: its Polya-Gamma draw loops sum(y_i + r)
-# times per sweep. aft and the two heteroscedastic arms take the gaussian row's
+# (31 s per replicate) at R=200; gaussian 5 min at R=100). nbinom is the
+# expensive arm: its Polya-Gamma draw loops sum(y_i + r) times per sweep. aft and the two heteroscedastic arms take the gaussian row's
 # 15 minutes rather than their own 3x: under a quarter hour the job's floor is
 # the dependency install and the package build, not the arm.
 #
