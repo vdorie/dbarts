@@ -17,9 +17,11 @@
 #define DBARTS_USE_STUBS
 #include <dbarts/dbarts.h>
 
+#include <limits.h> /* INT_MAX */
 #include <math.h>   /* fabs */
 #include <stdio.h>  /* snprintf */
-#include <string.h> /* memcpy, strcmp */
+#include <stdlib.h> /* malloc, free */
+#include <string.h> /* memcpy, memcmp, strcmp */
 
 #include <R_ext/Rdynload.h> /* R_GetCCallable, for the raw canary below */
 
@@ -173,7 +175,7 @@ SEXP capi_sampler_family(SEXP ptrExpr) {
 
 SEXP capi_dims(SEXP ptrExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
-  SEXP result = PROTECT(Rf_allocVector(INTSXP, 8));
+  SEXP result = PROTECT(Rf_allocVector(INTSXP, 10));
   int* dims = INTEGER(result);
   dims[0] = (int) dbarts_sampler_numObservations(sampler);
   dims[1] = (int) dbarts_sampler_numPredictors(sampler);
@@ -183,6 +185,8 @@ SEXP capi_dims(SEXP ptrExpr) {
   dims[5] = (int) dbarts_sampler_numSavedSamples(sampler);
   dims[6] = dbarts_sampler_kIsSampled(sampler);
   dims[7] = dbarts_sampler_usesDart(sampler);
+  dims[8] = (int) dbarts_sampler_numFittedValuesPerObservation(sampler);
+  dims[9] = (int) dbarts_sampler_numVariableCountForests(sampler);
   UNPROTECT(1);
   return result;
 }
@@ -250,6 +254,187 @@ SEXP capi_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
 
   UNPROTECT(6);
   return resultExpr;
+}
+
+/* ------------------------------------------------------------------------
+ * Canaried buffers. Every buffer is a body of the size the header documents,
+ * sized from the F (fitted values per observation) and V (split-count sets per
+ * draw) the R side hands in - never from the accessors, so a wrong accessor
+ * cannot also size the buffer that would expose it - plus a tail tailFactor
+ * bodies long. Body and tail start as a canary distinct from anything the
+ * library writes: a quiet NaN with payload 0x7FF8DEADBEEF0001 for doubles, and
+ * 0xDEADBEEF for the split counts. tailFactor 0 mallocs each body at exactly
+ * its size, which is the AddressSanitizer case: a write past the body is a
+ * heap-buffer-overflow there, not a canary hit.
+ * ------------------------------------------------------------------------ */
+
+static dbarts_predictor_source denseSource(SEXP xExpr);
+
+static const uint64_t capi_canaryBits = 0x7FF8DEADBEEF0001ULL;
+static const uint32_t capi_canaryCount = 0xDEADBEEFU;
+
+typedef struct {
+  void* data;
+  size_t body;      /* elements the header documents */
+  size_t total;     /* body plus tail */
+  size_t width;     /* sizeof an element: 8 or 4 */
+} capi_canaried;
+
+static void capi_canaryFill(capi_canaried* buffer, size_t body,
+                            size_t tailFactor, size_t width) {
+  size_t i;
+  buffer->body = body;
+  buffer->total = body + body * tailFactor;
+  buffer->width = width;
+  /* at least one byte, so a zero-length body is still a distinct pointer */
+  buffer->data = malloc(buffer->total > 0 ? buffer->total * width : 1);
+  if (buffer->data == NULL) Rf_error("capi consumer: out of memory");
+  for (i = 0; i < buffer->total; ++i) {
+    if (width == sizeof(uint64_t))
+      memcpy((char*) buffer->data + i * width, &capi_canaryBits, width);
+    else
+      memcpy((char*) buffer->data + i * width, &capi_canaryCount, width);
+  }
+}
+
+static int capi_isCanary(const capi_canaried* buffer, size_t i) {
+  const char* at = (const char*) buffer->data + i * buffer->width;
+  return buffer->width == sizeof(uint64_t)
+    ? memcmp(at, &capi_canaryBits, sizeof(uint64_t)) == 0
+    : memcmp(at, &capi_canaryCount, sizeof(uint32_t)) == 0;
+}
+
+/* one channel's report: the body as R reads it, whether the tail is intact,
+ * whether the body is untouched or fully written, and (doubles) whether every
+ * body word is bitwise the quiet NaN std::numeric_limits gives */
+static SEXP capi_canaryReport(const capi_canaried* buffer) {
+  const char* names[] = { "body", "tail.intact", "body.untouched",
+                          "body.written", "all.quiet.nan", "" };
+  SEXP result = PROTECT(Rf_mkNamed(VECSXP, names));
+  SEXP body;
+  size_t i;
+  int tailIntact = 1, untouched = 1, written = 1, quietNaN = 1;
+  const uint64_t quietNaNBits = 0x7FF8000000000000ULL;
+  for (i = buffer->body; i < buffer->total; ++i)
+    if (!capi_isCanary(buffer, i)) tailIntact = 0;
+  for (i = 0; i < buffer->body; ++i) {
+    if (capi_isCanary(buffer, i)) written = 0; else untouched = 0;
+    if (buffer->width == sizeof(uint64_t) &&
+        memcmp((const char*) buffer->data + i * sizeof(uint64_t),
+               &quietNaNBits, sizeof(uint64_t)) != 0)
+      quietNaN = 0;
+  }
+  if (buffer->width == sizeof(uint64_t)) {
+    body = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) buffer->body));
+    if (buffer->body > 0)
+      memcpy(REAL(body), buffer->data, buffer->body * sizeof(double));
+  } else {
+    body = PROTECT(Rf_allocVector(INTSXP, (R_xlen_t) buffer->body));
+    for (i = 0; i < buffer->body; ++i) {
+      uint32_t count = ((const uint32_t*) buffer->data)[i];
+      INTEGER(body)[i] = count > (uint32_t) INT_MAX ? NA_INTEGER : (int) count;
+    }
+    quietNaN = 0;
+  }
+  SET_VECTOR_ELT(result, 0, body);
+  SET_VECTOR_ELT(result, 1, Rf_ScalarLogical(tailIntact));
+  SET_VECTOR_ELT(result, 2, Rf_ScalarLogical(buffer->body > 0 && untouched));
+  SET_VECTOR_ELT(result, 3, Rf_ScalarLogical(buffer->body > 0 && written));
+  SET_VECTOR_ELT(result, 4, Rf_ScalarLogical(buffer->body > 0 && quietNaN));
+  UNPROTECT(2);
+  return result;
+}
+
+/* a run passing all nine dbarts_results pointers, each canaried */
+SEXP capi_run_canaried(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
+                       SEXP fExpr, SEXP vExpr, SEXP tailFactorExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
+  size_t S = (size_t) Rf_asInteger(numSamplesExpr);
+  size_t F = (size_t) Rf_asInteger(fExpr);
+  size_t V = (size_t) Rf_asInteger(vExpr);
+  size_t tail = (size_t) Rf_asInteger(tailFactorExpr);
+  size_t n = dbarts_sampler_numObservations(sampler);
+  size_t p = dbarts_sampler_numPredictors(sampler);
+  size_t nTest = dbarts_sampler_numTestObservations(sampler);
+  size_t C = dbarts_sampler_numChains(sampler);
+  const char* names[] = { "sigma", "train", "test", "varcount", "k",
+                          "varprobs", "logLikelihood", "dispersion",
+                          "residualDf", "" };
+  capi_canaried buffers[9];
+  dbarts_results results = DBARTS_RESULTS_INIT;
+  SEXP result;
+  int i;
+
+  capi_canaryFill(&buffers[0], S * C, tail, sizeof(double));
+  capi_canaryFill(&buffers[1], n * F * S * C, tail, sizeof(double));
+  capi_canaryFill(&buffers[2], nTest * F * S * C, tail, sizeof(double));
+  capi_canaryFill(&buffers[3], p * V * S * C, tail, sizeof(uint32_t));
+  capi_canaryFill(&buffers[4], S * C, tail, sizeof(double));
+  capi_canaryFill(&buffers[5], p * S * C, tail, sizeof(double));
+  capi_canaryFill(&buffers[6], n * S * C, tail, sizeof(double));
+  capi_canaryFill(&buffers[7], S * C, tail, sizeof(double));
+  capi_canaryFill(&buffers[8], S * C, tail, sizeof(double));
+  results.sigma = (double*) buffers[0].data;
+  results.train = (double*) buffers[1].data;
+  results.test = (double*) buffers[2].data;
+  results.varcount = (uint32_t*) buffers[3].data;
+  results.k = (double*) buffers[4].data;
+  results.varprobs = (double*) buffers[5].data;
+  results.logLikelihood = (double*) buffers[6].data;
+  results.dispersion = (double*) buffers[7].data;
+  results.residualDf = (double*) buffers[8].data;
+
+  /* an error here leaks the nine buffers; the arms that drive this expect
+   * none */
+  dbarts_sampler_run(sampler, numBurnIn, S, &results);
+
+  result = PROTECT(Rf_mkNamed(VECSXP, names));
+  for (i = 0; i < 9; ++i) {
+    SET_VECTOR_ELT(result, i, capi_canaryReport(&buffers[i]));
+    free(buffers[i].data);
+  }
+  UNPROTECT(1);
+  return result;
+}
+
+/* a canaried predict: out is numRows x F x S' x numChains, S' the saved draw
+ * count or 1, and offsetExpr (NULL or a double vector) passes through as is */
+SEXP capi_predict_canaried(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
+                           SEXP fExpr, SEXP tailFactorExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  dbarts_predictor_source source = denseSource(xTestExpr);
+  size_t F = (size_t) Rf_asInteger(fExpr);
+  size_t tail = (size_t) Rf_asInteger(tailFactorExpr);
+  size_t saved = dbarts_sampler_numSavedSamples(sampler);
+  size_t numSamples = saved > 0 ? saved : 1;
+  const char* names[] = { "status", "out", "" };
+  capi_canaried out;
+  SEXP result;
+  int status;
+
+  capi_canaryFill(&out,
+                  source.numRows * F * numSamples *
+                    dbarts_sampler_numChains(sampler),
+                  tail, sizeof(double));
+  status = dbarts_sampler_predict(
+    sampler, &source, Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr), 0,
+    (double*) out.data);
+  result = PROTECT(Rf_mkNamed(VECSXP, names));
+  SET_VECTOR_ELT(result, 0, Rf_ScalarInteger(status));
+  SET_VECTOR_ELT(result, 1, capi_canaryReport(&out));
+  free(out.data);
+  UNPROTECT(1);
+  return result;
+}
+
+/* a run with no result buffers at all: the sweeps run and the chains
+ * advance, which is what the interrupt and slow-count arms drive */
+SEXP capi_run_plain(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
+  dbarts_sampler_run(samplerFromExpr(ptrExpr),
+                     (size_t) Rf_asInteger(numBurnInExpr),
+                     (size_t) Rf_asInteger(numSamplesExpr), NULL);
+  return Rf_ScalarLogical(1);
 }
 
 /* the write-guard canary: simulate an OLD, smaller caller by pinning
@@ -667,7 +852,8 @@ typedef struct {
   size_t structSize;
   size_t numObservations;
   size_t numPredictors;
-  size_t numReportedLocations;
+  size_t numFittedValuesPerObservation;
+  size_t numVariableCountForests;
   long stopAfter; /* -1 never; else return nonzero once drawIndex reaches it */
 } capi_draw_counter;
 
@@ -703,7 +889,9 @@ static int capi_countingDraw(void* context, const dbarts_draw* draw)
     counter->structSize = draw->structSize;
     counter->numObservations = draw->numObservations;
     counter->numPredictors = draw->numPredictors;
-    counter->numReportedLocations = draw->numReportedLocations;
+    counter->numFittedValuesPerObservation =
+      draw->numFittedValuesPerObservation;
+    counter->numVariableCountForests = draw->numVariableCountForests;
   }
   if (counter->stopAfter >= 0 &&
       draw->drawIndex >= (size_t) counter->stopAfter)
@@ -747,7 +935,8 @@ SEXP capi_draw_report(void) {
   const char* names[] = { "calls", "last.draw.index", "last.sigma", "status",
                           "struct.size", "expected.struct.size",
                           "num.observations", "num.predictors",
-                          "num.reported.locations", "" };
+                          "num.fitted.values.per.observation",
+                          "num.variable.count.forests", "" };
   SEXP result = PROTECT(Rf_mkNamed(VECSXP, names));
   SEXP calls = PROTECT(Rf_allocVector(INTSXP, CAPI_DRAW_MAX_CHAINS));
   SEXP last = PROTECT(Rf_allocVector(INTSXP, CAPI_DRAW_MAX_CHAINS));
@@ -771,8 +960,11 @@ SEXP capi_draw_report(void) {
   SET_VECTOR_ELT(result, 6,
                  Rf_ScalarInteger((int) capi_counter.numObservations));
   SET_VECTOR_ELT(result, 7, Rf_ScalarInteger((int) capi_counter.numPredictors));
-  SET_VECTOR_ELT(result, 8,
-                 Rf_ScalarInteger((int) capi_counter.numReportedLocations));
+  SET_VECTOR_ELT(
+    result, 8,
+    Rf_ScalarInteger((int) capi_counter.numFittedValuesPerObservation));
+  SET_VECTOR_ELT(result, 9,
+                 Rf_ScalarInteger((int) capi_counter.numVariableCountForests));
   UNPROTECT(5);
   return result;
 }
@@ -874,10 +1066,10 @@ static int capi_meanDraw(void* context, const dbarts_draw* draw)
   double* out;
   double m;
   size_t i;
-  /* numReportedLocations is train's column count: 1 on every model but a
-   * multi-location one, whose draw this reduction is not written for */
+  /* numFittedValuesPerObservation is train's column count: 1 on every model
+   * but multinomial, whose draw this reduction is not written for */
   if (draw->train == NULL || draw->numObservations != ctx->n ||
-      draw->numReportedLocations != 1 ||
+      draw->numFittedValuesPerObservation != 1 ||
       draw->chainIndex >= ctx->numChains) {
     ctx->status = 1;
     return 0;

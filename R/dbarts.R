@@ -2855,8 +2855,8 @@ dbartsSampler <- setRefClass(
       if (length(sigma) != 1L) {
         stop("'sigma' must be of length 1")
       }
-      if (is.na(sigma) || sigma <= 0.0) {
-        stop("'sigma' must be positive")
+      if (!is.finite(sigma) || sigma <= 0.0) {
+        stop("'sigma' must be finite and positive")
       }
 
       ptr <- getPointer()
@@ -3325,11 +3325,14 @@ dbartsSampler <- setRefClass(
         )
         # a same-spec continuation skips re-quantization; data@x serves any
         # cross-grid column (the engine keeps no predictor matrix)
+        # a store sized through the flat API is in no control, so the
+        # re-created sampler takes the stored state's capacity
         .Call(
           C_dbarts_bartcore_setState,
           ptr,
           state,
-          rawPredictorMatrix(data@x)
+          rawPredictorMatrix(data@x),
+          TRUE
         )
         reapplyForestWeights(ptr)
         reapplyActiveRows(ptr)
@@ -3363,7 +3366,8 @@ dbartsSampler <- setRefClass(
         C_dbarts_bartcore_setState,
         ptr,
         newState,
-        rawPredictorMatrix(data@x)
+        rawPredictorMatrix(data@x),
+        FALSE
       )
       reapplyForestWeights(ptr)
       reapplyActiveRows(ptr)
@@ -3484,6 +3488,15 @@ dbartsSampler <- setRefClass(
 
       chainNums <- coerceOrError(chainNums, "integer")
 
+      if (anyNA(chainNums)) {
+        stop("'chainNums' contains missing values")
+      }
+      if (useSaved && anyNA(sampleNums)) {
+        stop("'sampleNums' contains missing values")
+      }
+      if (treeNumsSupplied && anyNA(treeNums)) {
+        stop("'treeNums' contains missing values")
+      }
       if (any(chainNums <= 0 | chainNums > control@n.chains)) {
         stop("'chainNums' must be in [1, ", control@n.chains, "]")
       }

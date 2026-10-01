@@ -101,9 +101,14 @@ struct SamplerStateData {
 
 /// Why a warm start (installForests) refused; ok on success. A single donor
 /// forest can seed several chains, so the donor's chain count need not match.
+/// varianceShapeMismatch: the donor's variance forest holds another tree
+/// count. rebuildFailed: a donor tree that passed every up-front check failed
+/// to rebuild on this sampler's data, the one refusal that arrives mid-install
+/// and is undone.
 enum class WarmStartResult {
   ok, shapeMismatch, gridMismatch, dartMismatch, interactionMismatch,
-  columnMaskMismatch, varianceMismatch, varianceSlotMismatch
+  columnMaskMismatch, varianceMismatch, varianceSlotMismatch,
+  varianceShapeMismatch, rebuildFailed
 };
 
 /// A sequential per-observation predictor update: stage one observation's
@@ -137,6 +142,44 @@ public:
   /// admits no empty leaves, so false is an internal invariant violation.
   virtual bool finalize() = 0;
 };
+
+/// Starts numWorkers threads, worker w running body(w), with SIGINT blocked
+/// across the spawn so the workers inherit the block and a Ctrl-C reaches only
+/// the calling thread, whose mask is restored before return. body is copied
+/// into each thread, so it must capture only what outlives the caller's join.
+/// A spawn that fails (std::system_error at the process thread limit) must not
+/// unwind past a joinable std::thread, which is std::terminate: stopStarted
+/// tells the workers already running to finish early, they are joined, and the
+/// exception is rethrown on the caller's thread with workers left empty.
+template <typename Body, typename StopStarted>
+void spawnWorkers(std::vector<std::thread>& workers, std::size_t numWorkers,
+                  const Body& body, StopStarted&& stopStarted) {
+  workers.reserve(numWorkers);
+#ifndef _WIN32
+  sigset_t interruptSet, previousSet;
+  sigemptyset(&interruptSet);
+  sigaddset(&interruptSet, SIGINT);
+  pthread_sigmask(SIG_BLOCK, &interruptSet, &previousSet);
+#endif
+  try {
+    for (std::size_t w = 0; w < numWorkers; ++w) workers.emplace_back(body, w);
+  } catch (...) {
+#ifndef _WIN32
+    pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
+#endif
+    stopStarted();
+    for (std::thread& worker : workers) worker.join();
+    workers.clear();
+    throw;
+  }
+#ifndef _WIN32
+  pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
+#endif
+}
+
+/// Sampler::setState's adoptCapacity default: judge a state's saved trees
+/// against the live store and leave its capacity alone.
+inline constexpr std::size_t keepStoreCapacity = static_cast<std::size_t>(-1);
 
 /// The sampler proper: a shared column store and one or more chains over it.
 /// Chains run independently (optionally on worker threads) and hold all
@@ -540,60 +583,50 @@ public:
       std::function<bool()> workerCancel = [&cancelFlag]() {
         return cancelFlag.load(std::memory_order_relaxed);
       };
+      // the workers are spawned with SIGINT blocked so a Ctrl-C is delivered
+      // only to this (the main) thread, whose poll turns it into a
+      // cooperative cancel; a worker running R's interrupt handler could
+      // longjmp across threads. (On Windows R's console Ctrl-C already runs
+      // on the main thread, so no masking is needed.) A failed spawn cancels
+      // the chains already started, which stop at their next sweep boundary.
       std::vector<std::thread> workers;
-      workers.reserve(numWorkers);
-#ifndef _WIN32
-      // spawn the workers with SIGINT blocked so they inherit the block and a
-      // Ctrl-C is delivered only to this (the main) thread, whose poll turns
-      // it into a cooperative cancel. A worker running R's interrupt handler
-      // could longjmp across threads. The main thread's mask is restored right
-      // after, before it polls. (On Windows R's console Ctrl-C already runs on
-      // the main thread, so no masking is needed.)
-      sigset_t interruptSet, previousSet;
-      sigemptyset(&interruptSet);
-      sigaddset(&interruptSet, SIGINT);
-      pthread_sigmask(SIG_BLOCK, &interruptSet, &previousSet);
-#endif
-      for (size_t w = 0; w < numWorkers; ++w) {
-        workers.emplace_back([this, w, numWorkers, numChains, numBurnIn,
-                              numSamples, &chainResults, &progress,
-                              &chainsMutex, &chainsDone, &numChainsRunning,
-                              &workerCancel, &cancelFlag, &firstError,
-                              onDrawPtr]() {
-          for (size_t c = w; c < numChains; c += numWorkers) {
-            // a chain that stopped itself - its observer returned nonzero -
-            // publishes the stop, so every other chain, this worker's own
-            // remaining ones included, sees it at its next sweep boundary.
-            // A chain that throws is stopped the same way, its exception
-            // kept for the caller. The catch must stay inside this body:
-            // the decrement below has to run for every chain, or the wait
-            // for numChainsRunning never ends.
-            try {
-              if (chains_[c]->run(numBurnIn, numSamples, chainResults[c],
-                                  &progress, c, &workerCancel, nullptr,
-                                  onDrawPtr))
-                cancelFlag.store(true, std::memory_order_relaxed);
-            } catch (...) {
-              {
-                std::lock_guard<std::mutex> lock(chainsMutex);
-                if (!firstError) firstError = std::current_exception();
-              }
+      auto worker = [this, numWorkers, numChains, numBurnIn, numSamples,
+                     &chainResults, &progress, &chainsMutex, &chainsDone,
+                     &numChainsRunning, &workerCancel, &cancelFlag,
+                     &firstError, onDrawPtr](size_t w) {
+        for (size_t c = w; c < numChains; c += numWorkers) {
+          // a chain that stopped itself - its observer returned nonzero -
+          // publishes the stop, so every other chain, this worker's own
+          // remaining ones included, sees it at its next sweep boundary.
+          // A chain that throws is stopped the same way, its exception
+          // kept for the caller. The catch must stay inside this body:
+          // the decrement below has to run for every chain, or the wait
+          // for numChainsRunning never ends.
+          try {
+            if (chains_[c]->run(numBurnIn, numSamples, chainResults[c],
+                                &progress, c, &workerCancel, nullptr,
+                                onDrawPtr))
               cancelFlag.store(true, std::memory_order_relaxed);
-            }
-            bool last;
+          } catch (...) {
             {
               std::lock_guard<std::mutex> lock(chainsMutex);
-              last = --numChainsRunning == 0;
+              if (!firstError) firstError = std::current_exception();
             }
-            // notified with the mutex released: the one waiter wakes to an
-            // unheld lock, and the count it re-tests is already zero
-            if (last) chainsDone.notify_one();
+            cancelFlag.store(true, std::memory_order_relaxed);
           }
-        });
-      }
-#ifndef _WIN32
-      pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
-#endif
+          bool last;
+          {
+            std::lock_guard<std::mutex> lock(chainsMutex);
+            last = --numChainsRunning == 0;
+          }
+          // notified with the mutex released: the one waiter wakes to an
+          // unheld lock, and the count it re-tests is already zero
+          if (last) chainsDone.notify_one();
+        }
+      };
+      spawnWorkers(workers, numWorkers, worker, [&cancelFlag]() {
+        cancelFlag.store(true, std::memory_order_relaxed);
+      });
       {
         std::unique_lock<std::mutex> lock(chainsMutex);
         while (numChainsRunning > 0) {
@@ -825,33 +858,24 @@ public:
     std::vector<char> failed(numWorkers, 0);
     std::vector<std::string> firstError(numWorkers);
     std::vector<std::thread> workers;
-    workers.reserve(numWorkers);
-#ifndef _WIN32
-    sigset_t interruptSet, previousSet;
-    sigemptyset(&interruptSet);
-    sigaddset(&interruptSet, SIGINT);
-    pthread_sigmask(SIG_BLOCK, &interruptSet, &previousSet);
-#endif
-    for (size_t w = 0, begin = 0; w < numWorkers; ++w) {
+    // worker w's block starts after every earlier worker's, the first
+    // `remainder` of which carry one extra slab
+    auto worker = [&body, &scratch, &failed, &firstError, base,
+                   remainder](size_t w) {
+      size_t begin = w * base + (w < remainder ? w : remainder);
       size_t end = begin + base + (w < remainder ? 1 : 0);
-      workers.emplace_back([&body, &scratch, &failed, &firstError, w, begin,
-                            end]() {
-        try {
-          for (size_t slab = begin; slab < end; ++slab)
-            body(slab, scratch[w]);
-        } catch (const std::exception& error) {
-          failed[w] = 1;
-          firstError[w] = error.what();
-        } catch (...) {
-          failed[w] = 1;
-          firstError[w] = "unknown exception";
-        }
-      });
-      begin = end;
-    }
-#ifndef _WIN32
-    pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
-#endif
+      try {
+        for (size_t slab = begin; slab < end; ++slab) body(slab, scratch[w]);
+      } catch (const std::exception& error) {
+        failed[w] = 1;
+        firstError[w] = error.what();
+      } catch (...) {
+        failed[w] = 1;
+        firstError[w] = "unknown exception";
+      }
+    };
+    // a failed spawn lets the started workers finish their own blocks
+    spawnWorkers(workers, numWorkers, worker, []() {});
     for (std::thread& worker : workers) worker.join();
     for (size_t w = 0; w < numWorkers; ++w)
       if (failed[w] != 0)
@@ -1089,10 +1113,17 @@ public:
   /// non-null, separates that refusal from every other invalid state so the
   /// host can name it; monotoneRefused does the same for leaf values outside
   /// a monotone sampler's cone.
+  ///
+  /// adoptCapacity, when not keepStoreCapacity, judges the state's saved trees
+  /// against a store of that many samples and, only once the state is
+  /// accepted, resizes the store to it before installing them: a refused state
+  /// leaves the store and its draws as they were. An allocation failure in the
+  /// resize throws with the cut grid restored and nothing else changed.
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors,
                 bool* columnMaskRefused = nullptr,
-                bool* monotoneRefused = nullptr) {
+                bool* monotoneRefused = nullptr,
+                size_t adoptCapacity = keepStoreCapacity) {
     if (columnMaskRefused != nullptr) *columnMaskRefused = false;
     if (monotoneRefused != nullptr) *monotoneRefused = false;
     if (state.chains.size() != chains_.size()) return false;
@@ -1139,8 +1170,12 @@ public:
     for (size_t c = 0; c < chains_.size() && columnMaskOk; ++c)
       columnMaskOk = chains_[c]->columnMaskStateFeasible(state.chains[c]);
     bool allValid = columnMaskOk;
+    size_t liveCapacity = savedTreeCapacity();
+    bool resize =
+      adoptCapacity != keepStoreCapacity && adoptCapacity != liveCapacity;
+    size_t judgedCapacity = resize ? adoptCapacity : liveCapacity;
     for (size_t c = 0; c < chains_.size() && allValid; ++c)
-      allValid = chains_[c]->stateIsValid(state.chains[c]);
+      allValid = chains_[c]->stateIsValid(state.chains[c], judgedCapacity);
     // a monotone sampler's constrained draws start only from leaf values in
     // the cone; unlike a warm start, which reseeds, a state is a continuation
     // and is refused whole
@@ -1149,7 +1184,7 @@ public:
       monotoneOk = chains_[c]->monotoneStateFeasible(state.chains[c]);
     allValid = allValid && monotoneOk;
 
-    if (!allValid) {
+    auto restoreGrid = [&]() {
       data_.cutPoints = std::move(oldCutPoints);
       data_.numCuts = std::move(oldNumCuts);
       data_.maxNumCuts = std::move(oldMaxNumCuts);
@@ -1157,9 +1192,22 @@ public:
       data_.test.codes = std::move(oldTestCodes);
       data_.train.sparseColumns = std::move(oldSparseColumns);
       data_.test.sparseColumns = std::move(oldTestSparseColumns);
+    };
+    if (!allValid) {
+      restoreGrid();
       if (columnMaskRefused != nullptr) *columnMaskRefused = !columnMaskOk;
       if (monotoneRefused != nullptr) *monotoneRefused = !monotoneOk;
       return false;
+    }
+    if (resize) {
+      try {
+        resizeSavedTrees(adoptCapacity);
+      } catch (...) {
+        restoreGrid();
+        throw;
+      }
+      options_.keepTrees = adoptCapacity > 0;
+      options_.numSamplesToStore = adoptCapacity;
     }
 
     for (size_t c = 0; c < chains_.size(); ++c)
@@ -1180,8 +1228,9 @@ public:
   /// the same slot as the mean forest. A donor on a different cut grid has its
   /// splits remapped onto this sampler's grid (starved splits collapse), as
   /// setData remaps a data replacement; the donor must still share this
-  /// sampler's per-forest tree counts and DART mode. On any mismatch nothing is
-  /// touched.
+  /// sampler's per-forest tree counts, variance tree count and DART mode. On
+  /// any mismatch nothing is touched: a rebuild that fails part way restores
+  /// every chain installed before it.
   WarmStartResult installForests(
       const SamplerStateData& donor,
       const std::vector<std::pair<size_t, int>>& sampleMap) {
@@ -1316,6 +1365,13 @@ public:
         if (!scaleLeavesArePositive(dst.varianceTrees))
           return WarmStartResult::varianceMismatch;
       }
+      // the variance forest's count, like each mean forest's, is a shape the
+      // donor must share; caught here, ahead of any install, and after the
+      // slot arm's stride check so a donor contradicting its own stride is
+      // named as that
+      if (chains_[c]->hasVarianceForest() &&
+          dst.varianceTrees.size() != chains_[c]->numVarianceTrees())
+        return WarmStartResult::varianceShapeMismatch;
     }
 
     // containment (design "Containment"): a donor grown under a different (or
@@ -1328,6 +1384,9 @@ public:
     // for the scratch builds these feasibility checks make (ScopedCutGrid
     // restores the live grid on scope exit); the remap only ever collapses
     // splits, so a donor feasible pre-remap stays feasible after.
+    // The rebuild itself is judged here too, on scratch trees over the same
+    // grid: a donor tree that does not build, or a same-grid variance tree
+    // that leaves a bottom node empty, is refused before anything is touched.
     auto checkContainment = [&]() -> WarmStartResult {
       for (size_t c = 0; c < chains_.size(); ++c)
         if (!chains_[c]->interactionStateFeasible(install[c]))
@@ -1335,6 +1394,15 @@ public:
       for (size_t c = 0; c < chains_.size(); ++c)
         if (!chains_[c]->columnMaskStateFeasible(install[c]))
           return WarmStartResult::columnMaskMismatch;
+      for (size_t c = 0; c < chains_.size(); ++c)
+        if (!chains_[c]->forestsRebuildable(install[c]))
+          return WarmStartResult::rebuildFailed;
+      for (size_t c = 0; c < chains_.size(); ++c)
+        if (chains_[c]->hasVarianceForest() &&
+            !chains_[c]->varianceForestRebuildable(
+              install[c].varianceTrees, install[c].varianceTreeMasks,
+              !crossGrid))
+          return WarmStartResult::varianceMismatch;
       return WarmStartResult::ok;
     };
     WarmStartResult containment;
@@ -1346,19 +1414,55 @@ public:
     }
     if (containment != WarmStartResult::ok) return containment;
 
+    // Every check above ran before this point, so the installs below are not
+    // expected to fail. They are still undoable: each chain's live state is
+    // snapshotted first, store excluded since nothing here writes it, and a
+    // rebuild that fails anyway, or an exception (an allocation), restores
+    // every chain touched - from the flattened trees, as a save and load
+    // does, so its fits match the snapshot to rounding - before the refusal
+    // or the rethrow.
+    using Marks = typename Chain<L, ResidT>::InstallMarks;
+    std::vector<ChainStateData> snapshot(chains_.size());
+    std::vector<Marks> marks(chains_.size());
+    for (size_t c = 0; c < chains_.size(); ++c) {
+      chains_[c]->getState(snapshot[c], false);
+      marks[c] = chains_[c]->installMarks();
+    }
+    size_t touched = 0;
+    auto restoreTouched = [&]() {
+      for (size_t c = 0; c < touched; ++c) {
+        chains_[c]->setState(snapshot[c]);
+        chains_[c]->restoreInstallMarks(marks[c]);
+      }
+    };
+
     const std::vector<std::vector<double>>* donorGridPtr =
       crossGrid ? &donor.cutPoints : nullptr;
-    for (size_t c = 0; c < chains_.size(); ++c)
-      if (!chains_[c]->installForest(install[c], donorGridPtr, &data_))
-        return WarmStartResult::shapeMismatch;
-    // the variance half, separately so a refusal names the variance forest;
-    // the shape gate above pairs hasVarianceForest with a non-empty block
-    for (size_t c = 0; c < chains_.size(); ++c)
-      if (chains_[c]->hasVarianceForest() &&
-          !chains_[c]->installVarianceForest(install[c].varianceTrees,
-                                             install[c].varianceTreeMasks,
-                                             donorGridPtr, &data_))
-        return WarmStartResult::varianceMismatch;
+    WarmStartResult failure = WarmStartResult::ok;
+    try {
+      for (size_t c = 0; c < chains_.size() && failure ==
+             WarmStartResult::ok; ++c) {
+        touched = c + 1;
+        if (!chains_[c]->installForest(install[c], donorGridPtr, &data_))
+          failure = WarmStartResult::rebuildFailed;
+      }
+      // the variance half, separately so a refusal names the variance forest
+      for (size_t c = 0; c < chains_.size() && failure ==
+             WarmStartResult::ok; ++c) {
+        if (chains_[c]->hasVarianceForest() &&
+            !chains_[c]->installVarianceForest(install[c].varianceTrees,
+                                               install[c].varianceTreeMasks,
+                                               donorGridPtr, &data_))
+          failure = WarmStartResult::varianceMismatch;
+      }
+    } catch (...) {
+      restoreTouched();
+      throw;
+    }
+    if (failure != WarmStartResult::ok) {
+      restoreTouched();
+      return failure;
+    }
     // the store itself is left alone, so the draws it holds belong to the
     // donor's fit, not this one's: drop them rather than let a read replay
     // another sampler's posterior
@@ -1438,14 +1542,32 @@ public:
   /// Reconfigure saved-tree storage: toggling keepTrees or changing the
   /// capacity reallocates every chain's slots and resets the write position;
   /// a no-op when nothing changes, preserving stored samples.
+  ///
+  /// Every chain's new store is built aside before any is swapped in, so an
+  /// allocation that fails (a capacity too large to hold) throws with the
+  /// store, its capacity and its recorded draws exactly as they were. The old
+  /// and new stores coexist for the length of the swap.
   void setTreeStorage(bool keepTrees, size_t numSamplesToStore) {
     size_t capacity =
       keepTrees ? (numSamplesToStore > 0 ? numSamplesToStore : 1) : 0;
     if (keepTrees == options_.keepTrees && capacity == savedTreeCapacity())
       return;
+    resizeSavedTrees(capacity);
     options_.keepTrees = keepTrees;
     options_.numSamplesToStore = numSamplesToStore;
-    for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
+  }
+
+  /// Builds every chain's store at capacity, then swaps them all in and
+  /// empties the store's draw count; throws, changing nothing, if any build
+  /// fails.
+  void resizeSavedTrees(size_t capacity) {
+    using Store = typename Chain<L, ResidT>::SavedTreeStore;
+    std::vector<Store> stores;
+    stores.reserve(chains_.size());
+    for (auto& chain : chains_)
+      stores.push_back(chain->prepareSavedTrees(capacity));
+    for (size_t c = 0; c < chains_.size(); ++c)
+      chains_[c]->installSavedTrees(stores[c]);
     currentSampleNum_ = 0;
     recordedDraws_ = 0;
   }
@@ -1491,27 +1613,27 @@ public:
       return;
     }
 
+    // spawned with SIGINT blocked, as run() spawns. An exception escaping a
+    // thread body is std::terminate, so each worker keeps the first one a
+    // chain throws and it is rethrown here after the join; a failed spawn
+    // lets the started workers finish their chains.
+    std::mutex errorMutex;
+    std::exception_ptr firstError;
     std::vector<std::thread> workers;
-    workers.reserve(numWorkers);
-#ifndef _WIN32
-    // spawn with SIGINT blocked so a Ctrl-C during the grow phase reaches only
-    // the main thread, never a worker that has no R interrupt handler; the
-    // main thread's mask is restored right after the spawn (mirrors run())
-    sigset_t interruptSet, previousSet;
-    sigemptyset(&interruptSet);
-    sigaddset(&interruptSet, SIGINT);
-    pthread_sigmask(SIG_BLOCK, &interruptSet, &previousSet);
-#endif
-    for (size_t w = 0; w < numWorkers; ++w) {
-      workers.emplace_back([this, w, numWorkers, numChains, numSweeps]() {
-        for (size_t c = w; c < numChains; c += numWorkers)
+    auto worker = [this, numWorkers, numChains, numSweeps, &errorMutex,
+                   &firstError](size_t w) {
+      for (size_t c = w; c < numChains; c += numWorkers) {
+        try {
           chains_[c]->growForestFromRoot(numSweeps);
-      });
-    }
-#ifndef _WIN32
-    pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
-#endif
+        } catch (...) {
+          std::lock_guard<std::mutex> lock(errorMutex);
+          if (!firstError) firstError = std::current_exception();
+        }
+      }
+    };
+    spawnWorkers(workers, numWorkers, worker, []() {});
     for (std::thread& worker : workers) worker.join();
+    if (firstError) std::rethrow_exception(firstError);
   }
 
   /// Info dump of forest forestIndex; the per-node output format is R-visible

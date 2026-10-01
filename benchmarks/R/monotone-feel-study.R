@@ -304,10 +304,16 @@ runFitJob <- function(job) {
       previous <- .Call(
         dbarts:::C_dbarts_bartcore_setMonotoneCountHooks,
         -1,
-        FALSE
+        FALSE,
+        NA_integer_
       )
       on.exit(
-        .Call(dbarts:::C_dbarts_bartcore_setMonotoneCountHooks, previous, FALSE)
+        .Call(
+          dbarts:::C_dbarts_bartcore_setMonotoneCountHooks,
+          previous,
+          FALSE,
+          NA_integer_
+        )
       )
     }
     start <- proc.time()

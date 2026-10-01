@@ -140,10 +140,10 @@ typedef struct dbarts_draw_t {
   size_t structSize;   /* library sets; read through DBARTS_HAS_FIELD */
   size_t chainIndex, drawIndex;   /* 0-based; drawIndex over THIS run */
   size_t numObservations, numTestObservations, numPredictors;
-  size_t numReportedLocations;    /* L: 1, or K for multinomial */
+  size_t numFittedValuesPerObservation; /* F: 1, or K for multinomial */
   size_t numVariableCountForests, numForests, numAmplitudes;
   size_t numOrdinalThresholds;
-  const double *train, *test;                    /* n x L; nTest x L */
+  const double *train, *test;                    /* n x F; nTest x F */
   const double *varianceFits, *varianceTestFits; /* n; nTest */
   const double* forestFits;         /* n x numForests, forest-major */
   const double* glue;               /* numAmplitudes, ragged, forest-major */
@@ -161,8 +161,10 @@ not a selection. A pointer is null wherever the fit does not carry that
 channel (the variance pair off heteroscedastic, the forest pair off a
 multi-forest coupling, thresholds off ordinal, split probabilities off DART)
 and the scalars are NaN rather than absent, so a callback tests the channel,
-never the family. Two layout facts: `train` carries L channels with any
-offset folded in at L = 1, and `varcount` is
+never the family. Two layout facts: `train` carries F =
+`numFittedValuesPerObservation` values per observation - K category
+probabilities on multinomial, one fitted value with any offset folded in on
+every other model - and `varcount` is
 `numPredictors * numVariableCountForests`, forest-major within a draw - one
 slab for a single-forest model, K for multinomial and for a multi-forest
 amplitude model, `Sampler::run` clamping the count to what the combiner can
@@ -398,7 +400,7 @@ stan4bart's embedding pattern - per-iteration caller-owned buffers, one draw
 at a time, chains in separate single-chain samplers - is this shape reached
 from C, and is the second consumer. Rcpp itself is not a dbarts dependency:
 the repo's precedent for a compiled example under test is
-["consumer source not installed"](../../inst/common/capiConsumer.R), plain C
+["no C compiler found"](../../inst/common/capiConsumer.R), plain C
 through `R CMD SHLIB`, self-gating on the toolchain. Fork 6.
 
 ## 6. Memory consequence
@@ -475,7 +477,7 @@ Minimum shippable surface, pre-release (VD raised the priority, 2026-09-10):
 4. The example, a seventh recipe in `vignettes/dbarts-as-a-component.Rmd`.
 5. Tests: a plain-C callback compiled with `R CMD SHLIB`, its accumulated
    mean checked against the same fit's `yhat.train` mean and self-gating like
-   ["consumer source not installed"](../../inst/common/capiConsumer.R); a
+   ["no C compiler found"](../../inst/common/capiConsumer.R); a
    multi-chain run asserting per-chain call counts and ordering; a run
    asserting exactly `n.samples` calls at the `bart()` defaults (the burn-in
    regression); a stop-flag run; heteroscedastic and BCF fits asserting the

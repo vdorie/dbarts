@@ -137,9 +137,9 @@ expect_identical(sampler$data@offset, offsetBefore)
 sigmasBefore <- sampler$getSigmas()
 expect_error(sampler$setSigma(c(1, 2)), "'sigma' must be of length 1")
 expect_identical(sampler$getSigmas(), sigmasBefore)
-expect_error(sampler$setSigma(NA_real_), "'sigma' must be positive")
+expect_error(sampler$setSigma(NA_real_), "'sigma' must be finite and positive")
 expect_identical(sampler$getSigmas(), sigmasBefore)
-expect_error(sampler$setSigma(-1), "'sigma' must be positive")
+expect_error(sampler$setSigma(-1), "'sigma' must be finite and positive")
 expect_identical(sampler$getSigmas(), sigmasBefore)
 
 # a well-formed value is installed on the gaussian sampler the rejections above

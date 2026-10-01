@@ -76,9 +76,13 @@ expect_false(identical(hashes$text, "0x616ffcda8c947777"))
 # one struct added to the layout fold, so a token blind to either half would
 # still read this
 expect_false(identical(hashes$text, "0xab4909b71853c7df"))
+# the token before the multinomial run and predict: two accessors appended to
+# the surface and the draw struct's numReportedLocations renamed, so a token
+# blind to an appended entry or a field name would still read this
+expect_false(identical(hashes$text, "0x6380bf095d5cae3f"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0x6380bf095d5cae3f")
+expect_identical(hashes$text, "0xa7415a6f1bcc93c3")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -116,7 +120,7 @@ spec <- dbarts(x, y, test = x.test, control = control)
 # queries and a run into caller-owned buffers
 ptr1 <- spec$getPointer()
 dims <- CALL("capi_dims", ptr1)
-expect_equal(dims, c(n, p, 20L, 1L, 25L, 0L, 0L, 0L))
+expect_equal(dims, c(n, p, 20L, 1L, 25L, 0L, 0L, 0L, 1L, 1L))
 expect_equal(CALL("capi_sampler_family", ptr1), familyConstants[["gaussian"]])
 
 CALL("capi_sample_trees_from_prior", ptr1)
@@ -196,7 +200,8 @@ expect_equal(sum(drawReport$status), 0L)
 expect_equal(drawReport$struct.size, drawReport$expected.struct.size)
 expect_equal(drawReport$num.observations, n)
 expect_equal(drawReport$num.predictors, p)
-expect_equal(drawReport$num.reported.locations, 1L)
+expect_equal(drawReport$num.fitted.values.per.observation, 1L)
+expect_equal(drawReport$num.variable.count.forests, 1L)
 # and the draw the callback saw IS the draw the run recorded
 expect_equal(drawReport$last.sigma[1L], rDraw$sigma[nSamples])
 
@@ -1137,30 +1142,11 @@ compileHandshakeConsumer <- function(label, extraFlags) {
     sprintf('PKG_CPPFLAGS = -I"%s" %s', includeDir, extraFlags),
     file.path(dir, "Makevars")
   )
-  owd <- setwd(dir)
-  output <- tryCatch(
-    suppressWarnings(system2(
-      file.path(R.home("bin"), "R"),
-      c("CMD", "SHLIB", paste0(label, ".c")),
-      stdout = TRUE,
-      stderr = TRUE
-    )),
-    error = function(e) e
+  compileCapiSource(
+    dir,
+    paste0(label, ".c"),
+    paste0("the ", label, " C API consumer")
   )
-  setwd(owd)
-  lib <- file.path(dir, paste0(label, .Platform$dynlib.ext))
-  if (!file.exists(lib)) {
-    if (nzchar(Sys.getenv("CI", ""))) {
-      stop(
-        "could not compile the ",
-        label,
-        " C API consumer under CI:\n",
-        paste(output, collapse = "\n")
-      )
-    }
-    return(NULL)
-  }
-  lib
 }
 
 libWrongHashAlone <- compileHandshakeConsumer(
@@ -1226,3 +1212,404 @@ if (!is.null(libCorrectExact)) {
   expect_equal(dimsCorrectExact[1L], n)
   dyn.unload(libCorrectExact)
 }
+
+# the flat conduits refuse a non-finite value, as creation does, and the
+# sampler runs on unharmed
+specFinite <- dbarts(x, y, control = control)
+ptrFinite <- specFinite$getPointer()
+expect_error(
+  CALL("capi_set_response", ptrFinite, replace(y, 1L, Inf), FALSE),
+  "dbarts_sampler_setResponse: response contains non-finite values"
+)
+expect_error(
+  CALL("capi_set_offset", ptrFinite, replace(numeric(n), 1L, NaN), FALSE),
+  "dbarts_sampler_setOffset: offset contains non-finite values"
+)
+expect_error(
+  CALL("capi_set_sigma", ptrFinite, Inf),
+  "dbarts_sampler_setSigma: sigma must be finite and positive"
+)
+finiteRun <- specFinite$run(0L, 2L)
+expect_true(all(is.finite(finiteRun$sigma)))
+rm(specFinite, ptrFinite, finiteRun)
+
+# a store too large to hold raises from the flat setter rather than aborting,
+# and leaves the store at its previous capacity
+specStorage <- dbarts(x, y, control = control)
+ptrStorage <- specStorage$getPointer()
+CALL("capi_set_tree_storage", ptrStorage, TRUE, 3L)
+expect_error(
+  CALL("capi_set_tree_storage", ptrStorage, TRUE, -1L),
+  "dbarts_sampler_setTreeStorage"
+)
+invisible(specStorage$run(0L, 3L))
+expect_identical(dim(specStorage$predict(x))[2L], 3L)
+rm(specStorage, ptrStorage)
+
+# a store switched on through the flat API survives a save and load: the
+# state the R object stores carries it, and the re-created sampler takes its
+# capacity, so predict and run work as on the live one
+storageControl <- control
+storageControl@keepTrees <- FALSE
+specFlatStore <- dbarts(x, y, control = storageControl)
+CALL("capi_set_tree_storage", specFlatStore$getPointer(), TRUE, 4L)
+invisible(specFlatStore$run(3L, 4L))
+specFlatStore$storeState()
+livePredict <- specFlatStore$predict(x)
+storeFile <- tempfile(fileext = ".rds")
+saveRDS(specFlatStore, storeFile)
+reloaded <- readRDS(storeFile)
+unlink(storeFile)
+expect_identical(reloaded$predict(x), livePredict)
+expect_silent(invisible(reloaded$run(0L, 1L)))
+rm(specFlatStore, reloaded, storageControl, livePredict, storeFile)
+invisible(gc(FALSE))
+
+# ---- THE FITTED-VALUE AND SPLIT-COUNT WIDTHS. Every buffer below is sized by
+# the documented layout from an F and a V computed in R - F the count matrix's
+# column count (1 off multinomial), V the sampler's own forest count - and
+# carries a canaried tail K bodies long, so a write past the documented size
+# shows as a tail that moved. Every channel the flat struct carries is then
+# compared bitwise against what the R route returns on the same seed.
+
+tailFactor <- 3L
+widths <- function(sampler, numFitted) {
+  c(numFitted, dbarts:::bartcoreNumForests(sampler$getPointer()))
+}
+channelOk <- function(channel) {
+  isTRUE(channel$tail.intact)
+}
+
+set.seed(77)
+nW <- 40L
+xW <- matrix(runif(nW * 3L), nW, 3L)
+zW <- rbinom(nW, 1L, 0.5)
+wW <- runif(nW)
+yW <- xW[, 1L] + zW * (1 + xW[, 2L]) + wW * xW[, 3L] + rnorm(nW, sd = 0.2)
+xTestW <- xW[1:6, , drop = FALSE]
+KW <- 3L
+countsW <- matrix(rpois(nW * KW, 1.2), nW, KW)
+countsW[rowSums(countsW) == 0L, 1L] <- 1L
+storage.mode(countsW) <- "integer"
+widthControl <- function(keepTrees = TRUE) {
+  dbartsControl(
+    n.chains = 2L,
+    n.threads = 1L,
+    n.trees = 8L,
+    n.samples = 4L,
+    keepTrees = keepTrees,
+    updateState = FALSE,
+    seed = 21L
+  )
+}
+gaussianW <- function(keepTrees = TRUE) {
+  dbarts(xW, yW, test = xTestW, control = widthControl(keepTrees))
+}
+multinomialW <- function(keepTrees = TRUE) {
+  dbarts(
+    dbartsData(xW, counts = countsW, test = xTestW),
+    family = "multinomial",
+    control = widthControl(keepTrees)
+  )
+}
+bcfW <- function() {
+  dbarts(
+    xW,
+    yW,
+    forests = list(forest(), forest(basis = ~ factor(zW))),
+    control = widthControl()
+  )
+}
+threeW <- function() {
+  dbarts(
+    xW,
+    yW,
+    forests = list(
+      forest(),
+      forest(basis = ~ factor(zW)),
+      forest(basis = ~wW)
+    ),
+    control = widthControl()
+  )
+}
+
+# the accessors, each against its R-side count: F is K, 1, 1, 1 and V is K, 1,
+# 1, 2 on multinomial, gaussian, probit and BCF
+probitW <- dbarts(
+  xW,
+  as.numeric(yW > 1),
+  family = "probit",
+  control = widthControl()
+)
+for (case in list(
+  list(sampler = multinomialW(), F = KW),
+  list(sampler = gaussianW(), F = 1L),
+  list(sampler = probitW, F = 1L),
+  list(sampler = bcfW(), F = 1L)
+)) {
+  expected <- widths(case$sampler, case$F)
+  dimsW <- CALL("capi_dims", case$sampler$getPointer())
+  expect_equal(dimsW[9L], expected[1L])
+  expect_equal(dimsW[10L], expected[2L])
+}
+expect_equal(CALL("capi_dims", multinomialW()$getPointer())[9:10], c(KW, KW))
+expect_equal(CALL("capi_dims", bcfW()$getPointer())[9:10], c(1L, 2L))
+
+# the gaussian parity check comes first: a flat run and an R run of two
+# identically seeded samplers agree on every channel both carry
+flatG <- gaussianW()
+rG <- gaussianW()
+widthG <- widths(flatG, 1L)
+outG <- CALL(
+  "capi_run_canaried",
+  flatG$getPointer(),
+  3L,
+  4L,
+  widthG[1L],
+  widthG[2L],
+  tailFactor
+)
+runG <- rG$run(3L, 4L)
+expect_identical(outG$sigma$body, as.vector(runG$sigma))
+expect_identical(outG$train$body, as.vector(runG$train))
+expect_identical(outG$test$body, as.vector(runG$test))
+expect_identical(outG$varcount$body, as.vector(runG$varcount))
+expect_true(all(is.finite(outG$logLikelihood$body)))
+for (channel in c("k", "varprobs", "dispersion", "residualDf")) {
+  expect_true(outG[[channel]]$body.untouched, info = channel)
+}
+for (channel in names(outG)) {
+  expect_true(channelOk(outG[[channel]]), info = channel)
+}
+
+# multinomial: K fitted values per observation and K split-count sets, the
+# softmax probabilities with every row of K summing to 1, sigma the pinned 1,
+# and the log-likelihood the engine's quiet NaN in every word
+flatM <- multinomialW()
+rM <- multinomialW()
+widthM <- widths(flatM, KW)
+outM <- CALL(
+  "capi_run_canaried",
+  flatM$getPointer(),
+  3L,
+  4L,
+  widthM[1L],
+  widthM[2L],
+  tailFactor
+)
+runM <- rM$run(3L, 4L)
+expect_true(all(outM$sigma$body == 1))
+expect_identical(outM$train$body, as.vector(runM$train))
+expect_identical(outM$test$body, as.vector(runM$test))
+expect_true(all(abs(apply(runM$train, c(1L, 3L, 4L), sum) - 1) < 1e-12))
+expect_identical(outM$varcount$body, as.vector(runM$varcount))
+expect_true(outM$logLikelihood$all.quiet.nan)
+for (channel in c("k", "varprobs", "dispersion", "residualDf")) {
+  expect_true(outM[[channel]]$body.untouched, info = channel)
+}
+for (channel in names(outM)) {
+  expect_true(channelOk(outM[[channel]]), info = channel)
+}
+
+# BCF and a three-forest sampler: one split-count set per mean forest, the
+# prognostic forest's first
+flatB <- bcfW()
+widthB <- widths(flatB, 1L)
+outB <- CALL(
+  "capi_run_canaried",
+  flatB$getPointer(),
+  3L,
+  4L,
+  widthB[1L],
+  widthB[2L],
+  tailFactor
+)
+expect_identical(outB$varcount$body, as.vector(bcfW()$run(3L, 4L)$varcount))
+expect_true(channelOk(outB$varcount))
+flatT <- threeW()
+widthT <- widths(flatT, 1L)
+expect_equal(widthT[2L], 3L)
+expect_equal(CALL("capi_dims", flatT$getPointer())[10L], 3L)
+outT <- CALL(
+  "capi_run_canaried",
+  flatT$getPointer(),
+  3L,
+  4L,
+  widthT[1L],
+  widthT[2L],
+  tailFactor
+)
+runT <- threeW()$run(3L, 4L)
+expect_identical(outT$varcount$body, as.vector(runT$varcount))
+expect_identical(dim(runT$varcount), c(3L, 3L, 4L, 2L))
+expect_true(channelOk(outT$varcount))
+
+# the callback sees F and V equal to the accessors on every multi-forest model
+for (build in list(multinomialW, bcfW, threeW)) {
+  sampler <- build()
+  ptrW <- sampler$getPointer()
+  dimsW <- CALL("capi_dims", ptrW)
+  CALL("capi_draw_reset", -1L)
+  CALL("capi_set_draw_callback", ptrW, TRUE)
+  invisible(CALL(
+    "capi_run_canaried",
+    ptrW,
+    0L,
+    2L,
+    dimsW[9L],
+    dimsW[10L],
+    tailFactor
+  ))
+  CALL("capi_set_draw_callback", ptrW, FALSE)
+  report <- CALL("capi_draw_report")
+  expect_equal(report$num.fitted.values.per.observation, dimsW[9L])
+  expect_equal(report$num.variable.count.forests, dimsW[10L])
+}
+
+# predict, against $predict on the same sampler, with and without tree storage
+for (keepTrees in c(TRUE, FALSE)) {
+  sampler <- gaussianW(keepTrees)
+  invisible(sampler$run(3L, 4L))
+  flatPredict <- CALL(
+    "capi_predict_canaried",
+    sampler$getPointer(),
+    xTestW,
+    NULL,
+    1L,
+    tailFactor
+  )
+  expect_equal(flatPredict$status, 1L)
+  expect_identical(flatPredict$out$body, as.vector(sampler$predict(xTestW)))
+  expect_true(channelOk(flatPredict$out))
+
+  sampler <- multinomialW(keepTrees)
+  invisible(sampler$run(3L, 4L))
+  flatPredict <- CALL(
+    "capi_predict_canaried",
+    sampler$getPointer(),
+    xTestW,
+    NULL,
+    KW,
+    tailFactor
+  )
+  expect_equal(flatPredict$status, 1L)
+  expect_identical(flatPredict$out$body, as.vector(sampler$predict(xTestW)))
+  expect_true(channelOk(flatPredict$out))
+}
+
+# the offset arms. A gaussian offset still adds after the fit
+sampler <- gaussianW()
+invisible(sampler$run(3L, 4L))
+offsetG <- seq(-1, 1, length.out = nrow(xTestW))
+flatPredict <- CALL(
+  "capi_predict_canaried",
+  sampler$getPointer(),
+  xTestW,
+  offsetG,
+  1L,
+  tailFactor
+)
+expect_identical(
+  flatPredict$out$body,
+  as.vector(sampler$predict(xTestW, offset = offsetG))
+)
+
+# a multinomial one is rows x K, entering before the softmax, bitwise R's
+sampler <- multinomialW()
+invisible(sampler$run(3L, 4L))
+offsetM <- cbind(0.5 * xTestW[, 1L], -0.3, 0.2 * xTestW[, 2L])
+flatPredict <- CALL(
+  "capi_predict_canaried",
+  sampler$getPointer(),
+  xTestW,
+  offsetM,
+  KW,
+  tailFactor
+)
+expect_equal(flatPredict$status, 1L)
+expect_identical(
+  flatPredict$out$body,
+  as.vector(sampler$predict(xTestW, offset = offsetM))
+)
+expect_true(channelOk(flatPredict$out))
+expect_false(identical(
+  flatPredict$out$body,
+  as.vector(sampler$predict(xTestW))
+))
+# a non-finite entry raises, as R's does
+expect_error(
+  CALL(
+    "capi_predict_canaried",
+    sampler$getPointer(),
+    xTestW,
+    replace(offsetM, 2L, Inf),
+    KW,
+    tailFactor
+  ),
+  "dbarts_sampler_predict: offset requires every category offset entry"
+)
+# and the conduits a softmax has no use for answer 0
+expect_equal(CALL("capi_set_response", sampler$getPointer(), yW, FALSE), 0L)
+expect_equal(
+  CALL("capi_set_offset", sampler$getPointer(), numeric(nW), FALSE),
+  0L
+)
+
+# a sampler given a category offset from R - a train one, or only a test one -
+# refuses a predict that names none, and an all-zero matrix asks for the
+# offset-free surface exactly as R's does
+trainOffsetW <- cbind(0.4 * xW[, 1L], -0.2, 0.3 * xW[, 3L])
+testOffsetW <- cbind(0.1, 0.5 * xTestW[, 2L], -0.4)
+zeroOffsetW <- matrix(0, nrow(xTestW), KW)
+withTrain <- multinomialW()
+withTrain$setCategoryOffset(trainOffsetW, updateState = FALSE)
+withTest <- multinomialW()
+withTest$setCategoryTestOffset(testOffsetW, updateState = FALSE)
+for (sampler in list(withTrain, withTest)) {
+  invisible(sampler$run(3L, 4L))
+  expect_error(
+    CALL(
+      "capi_predict_canaried",
+      sampler$getPointer(),
+      xTestW,
+      NULL,
+      KW,
+      tailFactor
+    ),
+    "dbarts_sampler_predict: this sampler carries an n x K category offset"
+  )
+  expect_error(sampler$predict(xTestW), "carries an n x K category offset")
+  flatPredict <- CALL(
+    "capi_predict_canaried",
+    sampler$getPointer(),
+    xTestW,
+    zeroOffsetW,
+    KW,
+    tailFactor
+  )
+  expect_identical(
+    flatPredict$out$body,
+    as.vector(sampler$predict(xTestW, offset = zeroOffsetW))
+  )
+}
+rm(
+  flatG,
+  rG,
+  flatM,
+  rM,
+  flatB,
+  flatT,
+  runT,
+  probitW,
+  sampler,
+  withTrain,
+  withTest,
+  outG,
+  outM,
+  outB,
+  outT,
+  runG,
+  runM,
+  flatPredict
+)
+invisible(gc(FALSE))

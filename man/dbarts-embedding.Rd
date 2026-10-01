@@ -111,7 +111,11 @@
     What the header reaches is the per-sweep loop: \code{dbarts_sampler_run} into caller-owned
     buffers, the conditioning channels \code{setResponse}, \code{setOffset} and
     \code{setSigma}, \code{getLatents}, \code{predict}, tree storage and printing, and the
-    queries a host sizes its results struct from. Everything else in the table above - the
+    queries a host sizes its results struct from, among them
+    \code{dbarts_sampler_numFittedValuesPerObservation} and
+    \code{dbarts_sampler_numVariableCountForests}, the widths of a multinomial or multi-forest
+    sampler's fits and split counts; a flat run polls for R's interrupt as \code{$run} does, and
+    warns of a slow monotone leaf-order count once per sampler. Everything else in the table above - the
     predictor and weight channels, the active-row mask, the state round trip, tree extraction, the
     multi-forest surface - is an R method on the same object, and the two views drive one engine.
     The setters COPY what they are handed into buffers the sampler owns at creation, so the

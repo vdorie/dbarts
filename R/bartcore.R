@@ -199,6 +199,12 @@ bartcoreSamplerRun <- function(
   control <- sampler$control
   numBurnIn <- coerceOrError(numBurnIn, "integer")
   numSamples <- coerceOrError(numSamples, "integer")
+  if (length(numBurnIn) != 1L) {
+    stop("'numBurnIn' must be a single integer", call. = FALSE)
+  }
+  if (length(numSamples) != 1L) {
+    stop("'numSamples' must be a single integer", call. = FALSE)
+  }
   if (is.na(numBurnIn)) {
     numBurnIn <- control@n.burn
   }
@@ -207,6 +213,20 @@ bartcoreSamplerRun <- function(
   }
   if (is.na(numSamples)) {
     stop("bartcore engine samplers require 'numSamples' to be specified")
+  }
+  # as 0.9-x refused them: a negative count would otherwise reach the engine
+  # as a wrapped size and report draws it never recorded
+  if (numBurnIn < 0L) {
+    stop(
+      "number of burn-in steps must be greater than or equal to 0",
+      call. = FALSE
+    )
+  }
+  if (numSamples < 0L) {
+    stop("number of samples must be greater than or equal to 0", call. = FALSE)
+  }
+  if (numBurnIn == 0L && numSamples == 0L) {
+    stop("either number of burn-in or samples must be positive", call. = FALSE)
   }
 
   resolved <- validateCallback(callback)
@@ -316,8 +336,13 @@ mergeSlowCountTallies <- function(a, b) {
 
 # Resolves a character 'column' against source's colnames into a 1-based
 # integer index (or indices); NULL or an already-numeric 'column' passes
-# through unchanged. 'what' names source for the not-found message.
+# through unchanged. 'what' names source for the not-found message. A missing
+# index is refused by name here, ahead of the range checks it would otherwise
+# reach as a bare missing condition.
 resolveColumnIndex <- function(source, column, what) {
+  if (anyNA(column)) {
+    stop("'column' contains missing values", call. = FALSE)
+  }
   if (is.null(column) || !is.character(column)) {
     return(column)
   }
@@ -642,15 +667,35 @@ bartcoreSamplerSetPredictor <- function(
   if (!forceUpdate) updateSuccessful else invisible(NULL)
 }
 
+# The response conduits' updateScale: a single TRUE or FALSE. NA or 1 would
+# otherwise skip the isTRUE pre-checks below and reach the engine as a
+# different answer than the R side acted on.
+checkUpdateScale <- function(updateScale) {
+  if (
+    !is.logical(updateScale) ||
+      length(updateScale) != 1L ||
+      is.na(updateScale)
+  ) {
+    stop("'updateScale' must be TRUE or FALSE", call. = FALSE)
+  }
+  updateScale
+}
+
 bartcoreSamplerSetResponse <- function(
   sampler,
   y,
   updateScale = FALSE,
   status = NULL
 ) {
+  updateScale <- checkUpdateScale(updateScale)
   y <- as.double(y)
   if (anyNA(y)) {
     stop("response contains missing values")
+  }
+  # as creation refuses one: a single infinite value leaves sigma and every
+  # fit NaN, even after the response is put back
+  if (any(is.infinite(y))) {
+    stop("response contains non-finite values")
   }
   if (!is.null(status)) {
     status <- as.double(status)
@@ -689,7 +734,8 @@ bartcoreSamplerSetResponse <- function(
 }
 
 bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
-  if (isTRUE(updateScale)) {
+  updateScale <- checkUpdateScale(updateScale)
+  if (updateScale) {
     refuseAmplitudeMutation(
       sampler,
       "setOffset(updateScale = TRUE)",
@@ -708,6 +754,9 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
     offset <- as.double(offset)
     if (anyNA(offset)) {
       stop("'offset' contains missing values")
+    }
+    if (any(is.infinite(offset))) {
+      stop("'offset' contains non-finite values")
     }
     if (length(offset) == 1L) {
       if (identical(sampler$data@testUsesRegularOffset, TRUE)) {
@@ -739,13 +788,11 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
 
   ptr <- sampler$getPointer()
 
+  # the engine copies the offset, so the mirror is installed only once the
+  # engine has taken it: a refused swap leaves data@offset what the live
+  # sampler holds, which a save and load re-creates from
+  .Call(C_dbarts_bartcore_setOffset, ptr, offset, updateScale)
   sampler$data@offset <- offset
-  .Call(
-    C_dbarts_bartcore_setOffset,
-    ptr,
-    sampler$data@offset,
-    as.logical(updateScale)
-  )
 
   if (!identical(offset.test, NA)) {
     oldOffset.test <- sampler$data@offset.test

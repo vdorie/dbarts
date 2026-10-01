@@ -3428,6 +3428,11 @@ dbartsData <- function(
   if (any(is.infinite(y))) {
     stop("response contains non-finite values")
   }
+  # an infinite offset poisons sigma and every fit the same way, and the
+  # sampler's offset swap refuses one too
+  if (!is.null(offset) && any(is.infinite(offset))) {
+    stop("'offset' contains non-finite values")
+  }
 
   # Precision-degenerate response: a large magnitude but tiny spread
   # quantizes to (near-)identical doubles before the engine ever sees it,

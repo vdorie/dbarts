@@ -128,7 +128,7 @@ object's external pointer.
 | logistic | S [`xbart`](../../R/xbart.R), [`logistic`](../../R/xbart.R) | S [`resolveFamily`](../../src/R_interface_bartcore.cpp), [`logistic`](../../src/R_interface_bartcore.cpp) |
 | ordinal | R [`resolveClassificationFamily`](../../R/data.R) | S [`resolveFamily`](../../src/R_interface_bartcore.cpp), [`ordinal`](../../src/R_interface_bartcore.cpp) [f3] |
 | nbinom | M [`xbart`](../../R/xbart.R) | S [`resolveFamily`](../../src/R_interface_bartcore.cpp), [`nbinom`](../../src/R_interface_bartcore.cpp) [f3] |
-| multinom | R [`resolveClassificationFamily`](../../R/data.R) | M [f4] |
+| multinom | R [`resolveClassificationFamily`](../../R/data.R) | S [`dbarts_sampler_numFittedValuesPerObservation`](../../inst/include/dbarts/dbarts.h) [f4] |
 | aft | M [`xbart`](../../R/xbart.R) | S [`DBARTS_FAMILY_AFT`](../../inst/include/dbarts/dbarts.h) |
 | hazard | M [`xbart`](../../R/xbart.R) | M [f5] |
 | hurdle | M | M [f10] |
@@ -211,7 +211,6 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 | work item | unblocks | pointer |
 |---|---|---|
 | `xbart()` family coverage ([`xbart`](../../R/xbart.R) admits only auto/gaussian/probit/logistic) | student, nbinom, aft, hazard, hurdle, bcf, hetero | ordinal/multinom redirect to `bart()` instead |
-| Flat C reach for the K-forest softmax family | multinomial | [f4] |
 | Warm start / grow-from-root for the alternate-family `bart` arcs | ordinal, nbinom, multinomial, hurdle | [`checkFamilyUnsupportedArgs`](../../R/bart.R), [f12] |
 | Multi-forest donor warm start | bcf (multinomial hits the same guard independently) | [`refuseMultiForestWarmStart`](../../src/R_interface_bartcore.cpp), [f12] |
 | Real-valued (continuous) dispersion | nbinom | TODO `negbin-real-dispersion` |
@@ -267,7 +266,12 @@ being a control-attribute decoration. The header's specification-attribute block
 [f4] `dbarts(x, y, family = "multinomial")` (matrix interface only) takes a counts matrix or a
 one-hot-expanded factor response ([`dbarts`](../../R/dbarts.R), [`multinomial`](../../R/dbarts.R),
 [`resolveMultinomialCounts`](../../R/data.R)); there is no separate creation entry and no `dbarts.h`
-one at all, retired: [`creationFamilyName`](../../src/C_interface.cpp) refusing the token.
+one at all. A multinomial sampler built in R runs and predicts through the flat API: its train,
+test and predict buffers are K fitted values per observation wide
+([`dbarts_sampler_numFittedValuesPerObservation`](../../inst/include/dbarts/dbarts.h)), its split
+counts one set per category forest ([`dbarts_sampler_numVariableCountForests`](../../inst/include/dbarts/dbarts.h)),
+and a flat predict takes its offset as a rows x K matrix, as R's does. The counts and the
+category offsets stay R methods.
 
 [f5] The three `"hazard"` spellings are person-period ingestion sugar:
 [`expandDiscreteTimeHazard`](../../R/dbarts.R) expands the design and remaps the token -

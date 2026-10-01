@@ -56,6 +56,7 @@ using bartcore_bridge::UnwindJump;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::supportFamily;
 using bartcore_bridge::validateColumnValues;
+using bartcore_bridge::refuseNonFinite;
 using bartcore_bridge::validateResponseSupport;
 using bartcore_bridge::validateTestContainerAgainstStore;
 
@@ -2245,6 +2246,25 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   return options;
 }
 
+// Runs a sampler factory with its C++ exceptions turned into an R error: a
+// tree store sized from a huge sample count, or any other allocation the
+// build makes, throws std::bad_alloc, which must not cross into R. The chain
+// rngs the factory borrowed are destroyed before the raise, as every other
+// creation refusal destroys them; the factory leaves nothing else behind.
+template <typename Factory>
+std::unique_ptr<bartcore::SamplerBase>
+createSamplerOrRaise(std::vector<ext_rng*>& rngs, Factory&& factory) {
+  std::unique_ptr<bartcore::SamplerBase> sampler;
+  bartcore_bridge::CapturedError error;
+  captureExceptions(error, [&]() { sampler = factory(); });
+  if (error.failed) {
+    for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+    rngs.clear();
+    Rf_error("sampler creation failed: %s", error.message);
+  }
+  return sampler;
+}
+
 // Every chain gets its own Mersenne twister, so worker threads never touch
 // the R API and results do not depend on the thread count. A control rngSeed
 // makes results reproducible without R's stream: it seeds a dedicated
@@ -2797,8 +2817,8 @@ const double* validateCategoryOffset(SEXP offsetExpr, size_t n, size_t K,
   const double* src = REAL(offsetExpr);
   for (size_t j = 0; j < n * K; ++j)
     if (!R_finite(src[j]))
-      Rf_error("%s: requires every category offset entry to be finite",
-               caller);
+      Rf_error("%s: %s", caller,
+               bartcore_bridge::categoryOffsetNotFiniteMessage);
   return src;
 }
 
@@ -3213,6 +3233,21 @@ void validateResponseSupport(bartcore::ResponseFamily family,
   }
 }
 
+const char* const categoryOffsetRequiredMessage =
+  "this sampler carries an n x K category offset, and the predicted rows are "
+  "not its rows, so their offset cannot be inferred; pass one per predicted "
+  "row (an all-zero matrix for the offset-free surface)";
+const char* const categoryOffsetNotFiniteMessage =
+  "requires every category offset entry to be finite";
+
+void refuseNonFinite(const double* values, size_t count, const char* caller,
+                     const char* what) {
+  if (values == NULL) return;
+  for (size_t i = 0; i < count; ++i)
+    if (!std::isfinite(values[i]))
+      Rf_error("%s: %s contains non-finite values", caller, what);
+}
+
 // The single-forest test-fit and prediction surface has no meaning on a
 // coupling whose amplitudes have no off-sample basis to multiply: the blend
 // sum_f dot(a_f, B_f(i,.)) f_f(x_i) is ill-defined off the training rows, so
@@ -3491,17 +3526,19 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // dispatches on the leaf model: a linear leaf prior's designated columns
     // select the linear-leaf instantiation, everything else the constant leaf
     std::unique_ptr<bartcore::SamplerBase> sampler =
-      carriesAmplitudes
-        ? bartcore::createAmplitudeSampler(
-            data.predictors.denseValues, y, data.numObservations,
-            data.numPredictors, weights, offset, data.sigmaEstimate,
-            model.sigmaDf, model.sigmaRawScale, options, amplitudeSpec,
-            rngs.data())
-        : bartcore::createSampler(
-            data.predictors.denseValues, y, data.numObservations,
-            data.numPredictors, weights, offset, family,
-            data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
-            rngs.data());
+      createSamplerOrRaise(rngs, [&]() {
+        return carriesAmplitudes
+          ? bartcore::createAmplitudeSampler(
+              data.predictors.denseValues, y, data.numObservations,
+              data.numPredictors, weights, offset, data.sigmaEstimate,
+              model.sigmaDf, model.sigmaRawScale, options, amplitudeSpec,
+              rngs.data())
+          : bartcore::createSampler(
+              data.predictors.denseValues, y, data.numObservations,
+              data.numPredictors, weights, offset, family,
+              data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
+              rngs.data());
+      });
     if (sampler == NULL) {
       // the R surface refuses these first, so only an entrance that skips it
       // (the flat C API) reaches this
@@ -3653,10 +3690,12 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   spec.forest.birthProbability = model.birthProbability;
 
   std::unique_ptr<bartcore::SamplerBase> sampler =
-    bartcore::createMultinomialSampler(data.predictors.denseValues,
-                                       data.numObservations,
-                                       data.numPredictors, options, spec,
-                                       rngs.data());
+    createSamplerOrRaise(rngs, [&]() {
+      return bartcore::createMultinomialSampler(data.predictors.denseValues,
+                                                data.numObservations,
+                                                data.numPredictors, options,
+                                                spec, rngs.data());
+    });
   // the factory returns null on a composition it cannot build - a variance
   // forest, whose precision channel the softmax's own augmentation owns.
   // Storing that unchecked would hand back a live external pointer wrapping a
@@ -4051,11 +4090,14 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
     rngs = createChainRngs(control, options.numChains);
 
     std::unique_ptr<bartcore::SamplerBase> sampler =
-      bartcore::createSamplerOverStore(
-        std::move(store), response.data(),
-        data.weights != NULL ? weights.data() : NULL,
-        data.offset != NULL ? offset.data() : NULL, family, data.sigmaEstimate,
-        model.sigmaDf, model.sigmaRawScale, options, rngs.data());
+      createSamplerOrRaise(rngs, [&]() {
+        return bartcore::createSamplerOverStore(
+          std::move(store), response.data(),
+          data.weights != NULL ? weights.data() : NULL,
+          data.offset != NULL ? offset.data() : NULL, family,
+          data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
+          rngs.data());
+      });
     if (sampler == NULL) {
       // R-side resolution validates column legality first, so what lands here
       // is a covariate the handle did not gather raw for at creation
@@ -4630,21 +4672,25 @@ SEXP bartcore_getForestVariableCounts(SEXP ptrExpr, SEXP forestExpr) {
   return result;
 }
 
+} // extern "C"
+
+namespace bartcore_bridge {
+
+std::atomic<int> interruptAfterPolls{0};
+
 // R_CheckUserInterrupt longjmps when an interrupt is pending; running it
 // through R_ToplevelExec catches that jump so the sampler can join its worker
 // threads before the interrupt becomes an error (a bare longjmp would strand
-// them). Must be called only on the main R thread. R_ToplevelExec returns
-// FALSE when the wrapped call jumped, i.e. when an interrupt was pending.
-static void bartcore_checkInterrupt(void*) { R_CheckUserInterrupt(); }
-static bool bartcore_userInterrupted() {
-  return R_ToplevelExec(bartcore_checkInterrupt, nullptr) == FALSE;
+// them). R_ToplevelExec returns FALSE when the wrapped call jumped, i.e. when
+// an interrupt was pending.
+static void checkInterrupt(void*) { R_CheckUserInterrupt(); }
+bool userInterrupted() {
+  int armed = interruptAfterPolls.load();
+  if (armed > 0 && interruptAfterPolls.fetch_sub(1) == 1) return true;
+  return R_ToplevelExec(checkInterrupt, nullptr) == FALSE;
 }
 
-// The last run's slow order counts as a named double vector on `target`'s
-// "slow.count" attribute, absent when no count was slow; R warns from it
-// (warnOnSlowCount).
-static void attachSlowCountTally(SEXP target,
-                                 const bartcore::SamplerBase& sampler) {
+void attachSlowCountTally(SEXP target, const bartcore::SamplerBase& sampler) {
   bartcore::SlowCountTally tally = sampler.slowCountTally();
   if (tally.slowCounts == 0) return;
   SEXP tallyExpr = PROTECT(Rf_allocVector(REALSXP, 4));
@@ -4662,17 +4708,49 @@ static void attachSlowCountTally(SEXP target,
   UNPROTECT(2);
 }
 
+} // namespace bartcore_bridge
+
+extern "C" {
+
+using bartcore_bridge::attachSlowCountTally;
+static bool bartcore_userInterrupted() {
+  return bartcore_bridge::userInterrupted();
+}
+
 // Test hook, unexported: sets the process-wide slow-count threshold in
-// seconds (NA leaves it) and arms a one-shot allocation failure in the next
-// order count, returning the threshold it replaced.
+// seconds (NA leaves it), arms a one-shot allocation failure in the next
+// order count, and arms the shared interrupt poll to report an interrupt on
+// its interruptAfterPolls-th call (NA leaves it, 0 disarms), returning the
+// threshold it replaced.
 SEXP bartcore_setMonotoneCountHooks(SEXP slowSecondsExpr,
-                                    SEXP failNextCountExpr) {
+                                    SEXP failNextCountExpr,
+                                    SEXP interruptAfterPollsExpr) {
   bartcore::MonotoneCountHooks& hooks = bartcore::monotoneCountHooks();
   double previous = hooks.slowSeconds.load();
   double slowSeconds = Rf_asReal(slowSecondsExpr);
   if (!ISNAN(slowSeconds)) hooks.slowSeconds.store(slowSeconds);
   hooks.failNextCount.store(Rf_asLogical(failNextCountExpr) == TRUE);
+  int interruptAfter = Rf_asInteger(interruptAfterPollsExpr);
+  if (interruptAfter != NA_INTEGER)
+    bartcore_bridge::interruptAfterPolls.store(
+      interruptAfter > 0 ? interruptAfter : 0);
   return Rf_ScalarReal(previous);
+}
+
+// A run's burn-in and sample counts, refused as 0.9-x refused them: a single
+// non-negative integer each, not both zero. A negative count cast to size_t
+// would wrap the sweep total and record nothing into slots the run then
+// reports as drawn.
+static void readRunCounts(SEXP numBurnInExpr, SEXP numSamplesExpr,
+                          size_t& numBurnIn, size_t& numSamples) {
+  numBurnIn = static_cast<size_t>(
+    rc_getInt(numBurnInExpr, "number of burn-in steps", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END));
+  numSamples = static_cast<size_t>(
+    rc_getInt(numSamplesExpr, "number of samples", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END));
+  if (numBurnIn == 0 && numSamples == 0)
+    Rf_error("either number of burn-in or samples must be positive");
 }
 
 // The per-draw observer's two halves, read out of external pointers: the
@@ -4719,8 +4797,8 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
 
-  size_t numBurnIn = static_cast<size_t>(Rf_asInteger(numBurnInExpr));
-  size_t numSamples = static_cast<size_t>(Rf_asInteger(numSamplesExpr));
+  size_t numBurnIn, numSamples;
+  readRunCounts(numBurnInExpr, numSamplesExpr, numBurnIn, numSamples);
   // per RUN, and the engine hook below borrows it, so it lives in this frame
   // for as long as the run does
   bartcore_bridge::ShippedDrawHook drawHook =
@@ -5092,8 +5170,8 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
     Rf_error("a run with a draw callback requires a single chain");
   if (!Rf_isFunction(callbackExpr)) Rf_error("callback must be a function");
 
-  size_t numBurnIn = static_cast<size_t>(Rf_asInteger(numBurnInExpr));
-  size_t numSamples = static_cast<size_t>(Rf_asInteger(numSamplesExpr));
+  size_t numBurnIn, numSamples;
+  readRunCounts(numBurnInExpr, numSamplesExpr, numBurnIn, numSamples);
 
   SEXP sigmaExpr = rc_getListElement(resultsExpr, "sigma");
   SEXP trainExpr = rc_getListElement(resultsExpr, "train");
@@ -5201,9 +5279,13 @@ SEXP bartcore_growFromRoot(SEXP ptrExpr, SEXP numSweepsExpr) {
   int numSweeps = Rf_asInteger(numSweepsExpr);
   if (numSweeps == NA_INTEGER || numSweeps <= 0)
     Rf_error("n.sweeps must be a positive integer");
+  bartcore_bridge::CapturedError error;
   GetRNGstate();
-  holder.sampler->growFromRoot(static_cast<size_t>(numSweeps));
+  captureExceptions(error, [&]() {
+    holder.sampler->growFromRoot(static_cast<size_t>(numSweeps));
+  });
   PutRNGstate();
+  if (error.failed) Rf_error("%s", error.message);
   return R_NilValue;
 }
 
@@ -5218,6 +5300,7 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
        static_cast<size_t>(Rf_xlength(offsetExpr)) != shape.numObservations))
     Rf_error("length of replacement offset is not equal to number of observations");
   const double* offset = Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr);
+  refuseNonFinite(offset, shape.numObservations, "$setOffset", "offset");
   holder.sampler->setOffset(
     adoptVector(holder.ownedOffset, offset, shape.numObservations),
     updateScale == TRUE);
@@ -5241,6 +5324,8 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
     Rf_error("y must be of length equal to %lu",
              static_cast<unsigned long>(shape.numObservations));
   // support before install: the engine's latent refresh consumes y immediately
+  refuseNonFinite(REAL(yExpr), shape.numObservations, "$setResponse",
+                  "response");
   validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
                           REAL(yExpr), shape.numObservations,
                           "$setResponse");
@@ -5346,6 +5431,10 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
                                               j * data.numTestObservations]))
           Rf_error("%s", message);
     }
+
+    // the swap conduits' finiteness rule, ahead of anything installed
+    refuseNonFinite(data.y, data.numObservations, "$setData", "response");
+    refuseNonFinite(data.offset, data.numObservations, "$setData", "offset");
 
     // COPY-ON-SET at the one conduit that MOVES the counts: the resize comes
     // FIRST and covers every buffer, the ones a null replacement leaves
@@ -5583,11 +5672,21 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
     Rf_error("the bartcore engine cannot change the number of trees of an "
              "existing sampler");
 
+  // the store resize allocates, and fails as an R error with the store and
+  // its draws as they were; it goes first so a refusal changes nothing else
+  bartcore_bridge::CapturedError storageError;
+  captureExceptions(storageError, [&]() {
+    sampler.setTreeStorage(control.keepTrees, control.defaultNumSamples);
+  });
+  if (storageError.failed)
+    Rf_error("$setControl: saved-tree storage for %lu samples cannot be "
+             "allocated (%s)",
+             static_cast<unsigned long>(control.defaultNumSamples),
+             storageError.message);
   holder.keepTrainingFits = control.keepTrainingFits;
   sampler.setNumThreads(control.numThreads);
   sampler.setNumThin(control.treeThinningRate);
   sampler.setVerbose(control.verbose, control.printEvery);
-  sampler.setTreeStorage(control.keepTrees, control.defaultNumSamples);
 
   return R_NilValue;
 }
@@ -6312,7 +6411,8 @@ SEXP bartcore_storeState(SEXP ptrExpr) {
 }
 
 SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
-                       SEXP currentPredictorsExpr) {
+                       SEXP currentPredictorsExpr,
+                       SEXP adoptStoreCapacityExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   // restoring cut points re-quantizes from raw values, which views lack
   refuseMutationOnView(*holder.sampler, "$setState");
@@ -6320,7 +6420,10 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
   // a same-spec continuation skips per column, so a null source is harmless
   const double* currentPredictors =
     Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
-  bartcore_bridge::setState(*holder.sampler, stateExpr, currentPredictors);
+  // TRUE only from a re-creation, whose control may not record a store the
+  // flat API sized; a live $setState keeps the sampler's own capacity
+  bartcore_bridge::setState(*holder.sampler, stateExpr, currentPredictors,
+                            Rf_asLogical(adoptStoreCapacityExpr) == TRUE);
   return R_NilValue;
 }
 
@@ -6492,10 +6595,7 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
   // the offset-free surface just as wrongly as a test-only one would.
   if ((!holder.ownedCategoryOffset.empty() ||
        !holder.ownedCategoryTestOffset.empty()) && Rf_isNull(offsetExpr))
-    Rf_error("predict: this sampler carries an n x K category offset, "
-             "and the predicted rows are not its rows, so their offset cannot "
-             "be inferred; pass one per predicted row (an all-zero matrix for "
-             "the offset-free surface)");
+    Rf_error("predict: %s", bartcore_bridge::categoryOffsetRequiredMessage);
 
   // a sparse test set replays resident, off the view the container parses to;
   // the parse owns buffers, so the unwind-protected scope frees them on the
@@ -7481,7 +7581,7 @@ static const char* const columnMaskMismatchMessage =
   "column subset or a restricted variance forest) in force here";
 
 void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
-              const double* currentPredictors) {
+              const double* currentPredictors, bool adoptStoreCapacity) {
   bartcore::SamplerShape shape = sampler.shape();
   if (!Rf_inherits(stateExpr, "bartcoreState"))
     Rf_error("'state' must be a bartcore state object");
@@ -7879,11 +7979,33 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     }
   }
 
+  // A store switched on or resized through the flat API is recorded in no R
+  // object's control, so a sampler re-created from that control (after a save
+  // and load) holds another capacity than the state it continues. On that
+  // path, and only there, a state whose saved trees declare a capacity is
+  // judged against it and the store takes it once the state is accepted; a
+  // refused state leaves the store and its draws alone.
+  size_t adoptCapacity = bartcore::keepStoreCapacity;
+  if (adoptStoreCapacity && errorMessage == NULL &&
+      !state.chains[0].forests.empty()) {
+    const bartcore::ForestStateData& forestState = state.chains[0].forests[0];
+    size_t numTrees = forestState.trees.size();
+    if (!forestState.savedTrees.empty() && numTrees > 0 &&
+        forestState.savedTrees.size() % numTrees == 0)
+      adoptCapacity = forestState.savedTrees.size() / numTrees;
+  }
+
   bool columnMaskRefused = false, monotoneRefused = false;
-  bool restored =
-    errorMessage == NULL &&
-    sampler.setState(state, currentPredictors, &columnMaskRefused,
-                     &monotoneRefused);
+  bool restored = false;
+  if (errorMessage == NULL) {
+    bartcore_bridge::CapturedError restoreError;
+    captureExceptions(restoreError, [&]() {
+      restored = sampler.setState(state, currentPredictors, &columnMaskRefused,
+                                  &monotoneRefused, adoptCapacity);
+    });
+    if (restoreError.failed)
+      errorMessage = "state's saved trees cannot be stored by this sampler";
+  }
   {
     bartcore::SamplerStateData empty;
     std::swap(state, empty);  // free before a potential longjmp
@@ -8189,8 +8311,15 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
       }
     }
 
-    if (errorMessage == NULL)
-      result = sampler.installForests(donor, sampleMap);
+    // the snapshot that makes a refused install undoable allocates
+    if (errorMessage == NULL) {
+      bartcore_bridge::CapturedError installError;
+      captureExceptions(installError, [&]() {
+        result = sampler.installForests(donor, sampleMap);
+      });
+      if (installError.failed)
+        errorMessage = "warm-start install failed: out of memory";
+    }
   }
   {
     bartcore::SamplerStateData empty;
@@ -8219,7 +8348,7 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "sampler's data (a rebuilt variance tree leaves a leaf empty, a "
                "scale leaf is not positive, or a flat tree failed to rebuild); "
                "the donor's variance surface is incompatible with this "
-               "sampler");
+               "sampler, and nothing was installed");
     case bartcore::WarmStartResult::varianceSlotMismatch:
       Rf_error("warm-start donor's saved variance buffer does not hold the "
                "requested sample; a warm start from a saved sample installs "
@@ -8229,6 +8358,13 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
       Rf_error("warm-start donor is not shape-compatible with this sampler "
                "(number of trees, forests, or predictors differ, or only one "
                "of the two carries a variance forest)");
+    case bartcore::WarmStartResult::varianceShapeMismatch:
+      Rf_error("warm-start donor's variance forest has a different number of "
+               "trees than this sampler's");
+    case bartcore::WarmStartResult::rebuildFailed:
+      Rf_error("warm-start donor's trees cannot be rebuilt on this sampler's "
+               "data (a donor tree no longer routes onto the current "
+               "predictors); nothing was installed");
   }
 }
 

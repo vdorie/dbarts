@@ -5,6 +5,7 @@
 // (R_interface_bartcore.cpp) and the flat C API (C_interface.cpp);
 // definitions live in R_interface_bartcore.cpp
 
+#include <atomic>    // atomic
 #include <cstddef>   // size_t
 #include <cstdint>   // int32_t
 #include <cstdio>    // snprintf
@@ -117,7 +118,7 @@ inline void fillShippedDraw(dbarts_draw& draw, const bartcore::DrawInfo& info) {
   draw.numObservations = info.numObservations;
   draw.numTestObservations = info.numTestObservations;
   draw.numPredictors = info.numPredictors;
-  draw.numReportedLocations = info.numReportedLocations;
+  draw.numFittedValuesPerObservation = info.numReportedLocations;
   draw.numVariableCountForests = info.numVariableCountForests;
   draw.numForests = info.numForests;
   draw.numAmplitudes = info.numAmplitudes;
@@ -317,6 +318,12 @@ struct dbarts_sampler_t {
   // the test rows under one is refused rather than reinterpreted.
   std::vector<double> ownedCategoryTestOffset{};
 
+  // whether the flat run has raised its slow-count warning on this holder,
+  // which lives as long as the engine handle. LAST, because the creation
+  // sites build the holder by positional aggregate initialization: a member
+  // placed anywhere else would shift every initializer after it.
+  bool slowCountWarned = false;
+
   ~dbarts_sampler_t() {
     for (std::size_t c = rngs.size(); c > 0; --c)
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
@@ -354,9 +361,11 @@ SEXP storeState(bartcore::SamplerBase& sampler);
 /// errors on malformed or inconsistent states. currentPredictors is the
 /// call-time predictor matrix a cross-grid restore re-quantizes from (data@x,
 /// or the retained creation spec's @x); null for CSC/mixed stores and for a
-/// same-spec continuation, which re-quantizes nothing.
+/// same-spec continuation, which re-quantizes nothing. adoptStoreCapacity
+/// lets the state's saved-tree capacity replace the sampler's once the state
+/// is accepted, the re-creation path's need.
 void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
-              const double* currentPredictors);
+              const double* currentPredictors, bool adoptStoreCapacity);
 
 /// A data.frame of tree structure over 0-based index arrays; unprotected on
 /// return. Reads saved trees unless useLiveTrees (sample indices are then
@@ -492,6 +501,37 @@ bool familyCarriesNoWeights(const bartcore::SamplerBase& sampler);
 void validateResponseSupport(bartcore::ResponseFamily family,
                              std::size_t numCategories, const double* y,
                              std::size_t numObservations, const char* caller);
+
+/// Errors with "<caller>: <what> contains non-finite values" when any of the
+/// count values is NaN or infinite; a null values is a no-op. The swap
+/// conduits' half of the finiteness rule creation states in R: one infinite
+/// response or offset leaves sigma and every fit NaN for good, even after the
+/// value is put back.
+void refuseNonFinite(const double* values, std::size_t count,
+                     const char* caller, const char* what);
+
+/// The interrupt poll both run routes hand the engine: R_CheckUserInterrupt
+/// under R_ToplevelExec, so a pending interrupt is reported rather than
+/// longjmped and the sampler can join its workers before it becomes an error.
+/// Main R thread only. While interruptAfterPolls is armed at N > 0 the Nth poll
+/// reports an interrupt without touching R's signal state and disarms it.
+bool userInterrupted();
+
+/// The test hook userInterrupted counts down; process-wide, so a test that
+/// arms it resets it to 0 whatever the arm's outcome.
+extern std::atomic<int> interruptAfterPolls;
+
+/// Attaches the last run's slow order counts to \p target as a named double
+/// vector on its "slow.count" attribute, absent when no count was slow; R
+/// warns from it (warnOnSlowCount).
+void attachSlowCountTally(SEXP target, const bartcore::SamplerBase& sampler);
+
+/// The two refusals a multi-location (multinomial) predict offset meets, worded
+/// once for the R and the flat route. The first: the sampler carries a train or
+/// test category offset set from R, and a predict naming none cannot infer the
+/// predicted rows' offset. The second: an offset entry that is not finite.
+extern const char* const categoryOffsetRequiredMessage;
+extern const char* const categoryOffsetNotFiniteMessage;
 
 /// Errors on a multi-forest sampler (numForests >= 2) whose test fits are
 /// undefined, its amplitudes having no off-sample basis to multiply: the

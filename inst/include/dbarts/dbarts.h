@@ -44,8 +44,9 @@
 /// - Validation is deliberately partial: consumers are compiled packages, so
 ///   what an entry checks is what the engine's invariants or the caller's own
 ///   buffers depend on - a struct's structSize, a source's declared shape, a
-///   response value outside its family's support, a categorical code the
-///   sampler does not hold, a capability the model does not carry. What is NOT
+///   non-finite response or offset value, a response value outside its
+///   family's support, a categorical code the sampler does not hold, a
+///   capability the model does not carry. What is NOT
 ///   checked is the plain pointer: the sampler handle, an output buffer, and a
 ///   required input vector are dereferenced as handed, so a null (or
 ///   destroyed, or short) one crashes rather than raising. The one exception
@@ -70,7 +71,10 @@
 ///   after it - a tree index list is read against THAT forest's tree count.
 ///   0 is the only index a single-forest sampler has, and a sampler this
 ///   header can drive but not describe (a multi-forest one, built from R)
-///   states its count nowhere here. An index past the last forest RAISES on
+///   states its count nowhere here - except that on multinomial the K forests
+///   are the K fitted values per observation, and
+///   dbarts_sampler_numVariableCountForests states the count on both
+///   multi-forest models. An index past the last forest RAISES on
 ///   both entries that take one: dbarts_sampler_numTrees, whose size_t value
 ///   carries no refusal a caller could tell from a legitimate answer, and
 ///   dbarts_sampler_printTrees, which carries no status channel at all.
@@ -107,7 +111,8 @@
 ///   Nothing else here retains a pointer either: dbarts_sampler_predict reads
 ///   its source and its offset for the call alone.
 /// - Matrices are column-major. Result and prediction layouts put samples and
-///   then chains in trailing dimensions.
+///   then chains in trailing dimensions, after the fitted-value (or
+///   split-count) axis.
 
 // The only headers the prototype view needs: no R header is included here, so
 // this file's declarations compile as plain C (gcc -std=c99 -pedantic) with no
@@ -177,7 +182,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0x6380bf095d5cae3fULL
+#  define DBARTS_C_API_HASH 0xa7415a6f1bcc93c3ULL
 #endif
 
 #ifdef __cplusplus
@@ -226,20 +231,27 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// the response model to score - any sampler whose forests combine through
 /// amplitudes, at any forest count, and the multinomial softmax - and skipping
 /// it (null or absent-by-size) elides all of its computation.
-/// varcount reports the sampler's REPORTED forest, which on a multi-forest
-/// model is the prognostic forest (the first): this struct declares no forest
-/// count, so the engine writes exactly the numPredictors x numSamples x
-/// numChains slab documented below whatever the sampler's forest count is. A
-/// caller wanting every forest's split counts drives the sampler from R, whose
-/// run channel carries a forest axis.
+/// With F = dbarts_sampler_numFittedValuesPerObservation and V =
+/// dbarts_sampler_numVariableCountForests, observation (or predictor) varies
+/// fastest, then the F (or V) axis, then draw, then chain - R's own array
+/// order, so as.vector of the R run's channel equals the flat buffer. train
+/// and test carry F fitted values per observation: on multinomial each draw's
+/// F columns are the category probabilities, rows summing to 1, the softmax
+/// of the K forests plus any category offset set from R (a test offset set
+/// from R applies to test, never to predict). varcount carries one set of
+/// split counts per forest that keeps them, slab j forest j's: K on
+/// multinomial, the mean-forest count on an amplitude-coupled model (BCF's
+/// prognostic forest is slab 0). sigma is the pinned 1 on multinomial, and k,
+/// varprobs, dispersion and residualDf are untouched there, since no
+/// multinomial sampler carries them.
 /// Value-initialize with DBARTS_RESULTS_INIT (sets structSize, zeroes the rest):
 ///   dbarts_results results = DBARTS_RESULTS_INIT;
 typedef struct dbarts_results_t {
   size_t structSize;  ///< caller sets to sizeof(dbarts_results)
   double* sigma;      ///< numSamples x numChains
-  double* train;      ///< numObservations x numSamples x numChains
-  double* test;       ///< numTestObservations x numSamples x numChains
-  uint32_t* varcount; ///< numPredictors x numSamples x numChains
+  double* train;      ///< numObservations x F x numSamples x numChains
+  double* test;       ///< numTestObservations x F x numSamples x numChains
+  uint32_t* varcount; ///< numPredictors x V x numSamples x numChains
   double* k;          ///< numSamples x numChains
   double* varprobs;   ///< numPredictors x numSamples x numChains
   double* logLikelihood; ///< numObservations x numSamples x numChains
@@ -290,15 +302,17 @@ typedef struct dbarts_results_t {
 /// callback tests the channel, never the family.
 ///
 /// LAYOUT, observation fastest throughout: train is numObservations x
-/// numReportedLocations (L is 1 on every model but a multi-location one, which
-/// folds the offset in at L = 1), test the same over numTestObservations,
+/// numFittedValuesPerObservation (F, as
+/// dbarts_sampler_numFittedValuesPerObservation reports: K on multinomial, 1
+/// on every other model), test the same over numTestObservations,
 /// varianceFits and logLikelihood numObservations, varianceTestFits
 /// numTestObservations, forestFits numObservations x numForests forest-major,
 /// glue the ragged per-forest amplitude vector numAmplitudes long and
 /// forest-major, splitProbabilities numPredictors, ordinalThresholds
 /// numOrdinalThresholds, and varcount numPredictors x numVariableCountForests
-/// forest-major within the draw (one slab for a single-forest model, K for a
-/// multinomial or multi-forest one). Both indices are 0-based, and drawIndex
+/// forest-major within the draw (V slabs, as
+/// dbarts_sampler_numVariableCountForests reports, on either route). Both
+/// indices are 0-based, and drawIndex
 /// counts the saved draws of THIS run call rather than the sampler's life.
 ///
 /// VALIDITY IS THE CALL AND NO LONGER. A stored channel's pointer is into the
@@ -313,7 +327,7 @@ typedef struct dbarts_draw_t {
   size_t numObservations;
   size_t numTestObservations;
   size_t numPredictors;
-  size_t numReportedLocations;    ///< L: 1, or K for a multi-location model
+  size_t numFittedValuesPerObservation; ///< F: 1, or K on multinomial
   size_t numVariableCountForests; ///< varcount slabs in this draw
   size_t numForests;
   size_t numAmplitudes;           ///< glue entries in this draw
@@ -443,7 +457,12 @@ typedef enum { DBARTS_COLUMN_TYPE_LIST(DBARTS_ENUMERATOR) } dbarts_column_type;
 /// it is < 0; the CSC triple is the usual (column pointers of length
 /// numCscColumns + 1, row indices, values), and a CSC column's absent rows
 /// read its declared reference code when the sampler holds that column
-/// categorical, 0 otherwise.
+/// categorical, 0 otherwise. The triple's STRUCTURE is trusted, not checked:
+/// the R side validates a CSC matrix before it reaches the engine, but this
+/// entry replays pointers as handed, so non-decreasing column pointers whose
+/// last entry is the stored-entry count, and row indices in [0, numRows), are
+/// the caller's to guarantee; a violation reads out of bounds rather than
+/// raising.
 ///
 /// columnTypes and categoryCounts describe the view's own typing, and the
 /// entry that takes this struct is a replay path, where the SAMPLER's store
@@ -631,7 +650,11 @@ typedef enum { DBARTS_FAMILY_LIST(DBARTS_ENUMERATOR) } dbarts_family;
   X(int, dbarts_sampler_kIsSampled, (const dbarts_sampler* sampler), \
     (sampler)) \
   X(int, dbarts_sampler_usesDart, (const dbarts_sampler* sampler), (sampler)) \
-  X(int, dbarts_sampler_family, (const dbarts_sampler* sampler), (sampler))
+  X(int, dbarts_sampler_family, (const dbarts_sampler* sampler), (sampler)) \
+  X(size_t, dbarts_sampler_numFittedValuesPerObservation, \
+    (const dbarts_sampler* sampler), (sampler)) \
+  X(size_t, dbarts_sampler_numVariableCountForests, \
+    (const dbarts_sampler* sampler), (sampler))
 
 /// One stringized "returnType name(parameterList);" per list entry, adjacent
 /// string literals that concatenate into the full declaration text the
@@ -792,6 +815,23 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// under which that is allowed, and what the sampler looks like afterwards,
 /// are dbarts_draw_callback's.
 ///
+/// The run polls for R's user interrupt, as the R run does, at sweep
+/// boundaries and inside a monotone leaf-order count. An interrupt stops the
+/// run and RAISES "sampler run interrupted" once every worker has joined,
+/// leaving the sampler in the state a callback's nonzero return leaves:
+/// results and any saved trees of this call are discarded, and the handle
+/// stays valid.
+///
+/// A run whose monotone leaf-order counts were slow raises R's
+/// dbartsSlowCountWarning at most once per sampler, after the run returns
+/// and with nothing of the library's live - a run a callback stopped
+/// included, since the counts it made were slow all the same. "Once" is per engine handle: an
+/// R-side re-creation from a stored state builds a new one, which may warn
+/// once more. A handler that exits on the warning - options(warn = 2),
+/// tryCatch(warning = ), a calling handler that stops or invokes a restart -
+/// turns it into a jump out of this entry; the run's results are complete
+/// and the sampler consistent when it happens.
+///
 /// No error raised under this call strands anything the library owns: the
 /// callback's jump is caught at the callback, an engine failure travels out as
 /// a C++ exception and becomes an R error only at this boundary, once its
@@ -813,13 +853,13 @@ void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
 void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
                                     dbarts_draw_callback fn, void* context);
 
-/// y has numObservations values, which must lie in the family's support: 0/1
-/// for probit and logistic, an integer category index in [1, K] for ordinal, a
-/// finite non-negative integer count no larger than 1e6 for nbinom (the
-/// dispersion grid's count histogram is sized from the largest count, so a
-/// larger one allocates without bound). Out-of-support values are an
-/// error, as they are at creation; gaussian and aft (log survival times)
-/// constrain nothing. updateScale re-derives the internal response transform
+/// y has numObservations values, which must be finite and lie in the family's
+/// support: 0/1 for probit and logistic, an integer category index in [1, K]
+/// for ordinal, a non-negative integer count no larger than 1e6 for nbinom
+/// (the dispersion grid's count histogram is sized from the largest count, so
+/// a larger one allocates without bound). A non-finite or out-of-support value
+/// is an error, as it is at creation; gaussian and aft (log survival times)
+/// constrain nothing beyond finiteness. updateScale re-derives the internal response transform
 /// from the new response, as dbarts_sampler_setOffset's argument does (gaussian
 /// only); pass false once burnt in so fits stay comparable. true is refused on
 /// any multi-forest sampler, at any forest count, whose per-forest leaf
@@ -834,7 +874,8 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 /// other channel and raise.
 int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                                int updateScale);
-/// offset has numObservations values or is null to remove. updateScale
+/// offset has numObservations finite values or is null to remove; a non-finite
+/// value is an error, as it is at setResponse. updateScale
 /// rescales the internal response transform to the offset-adjusted range
 /// (gaussian only); pass false once burnt in so fits stay comparable. A
 /// multi-forest sampler, at any forest count, refuses true (see setResponse).
@@ -858,7 +899,8 @@ int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
 /// without unwinding.
 ///
 /// A CAPABILITY STATUS: 1 on a write, 0 touching nothing on either pinned
-/// case.
+/// case. A sigma that is not finite and positive is the other channel and
+/// raises.
 int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
 /// Copies the current draw of the augmentation variable (numObservations x
 /// numChains) into out. Returns 1, or 0 without touching out when the family
@@ -879,14 +921,21 @@ int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out);
 
 /// Fits for new data on the original response scale (binary families give
 /// the latent scale), from a borrowed source declaring numPredictors columns
-/// over the rows to predict. With tree storage out is xTest->numRows x
-/// numSavedSamples x numChains from the saved trees; without, one set per
-/// chain from the live trees. The saved draws come out OLDEST FIRST - the
+/// over the rows to predict. With tree storage out is xTest->numRows x F x
+/// numSavedSamples x numChains from the saved trees; without, xTest->numRows
+/// x F x numChains from the live trees, F being
+/// dbarts_sampler_numFittedValuesPerObservation (category probabilities on
+/// multinomial). The saved draws come out OLDEST FIRST - the
 /// numSavedSamples most recent recorded draws, however many runs recorded
 /// them - so the draw axis is chronological and pairs with the run channels
 /// that recorded it, and a store the sampler has recorded nothing into is
 /// refused rather than answered from its unwritten slots. offsetTest, when
-/// non-null, is added to every sample's fits. A CSC-backed source routes its rows resident, without
+/// non-null and F is 1, has xTest->numRows values added to every sample's
+/// fits. When F > 1 it is xTest->numRows x F, column-major, entering before
+/// the softmax as R's offset matrix does; every entry must be finite, and a
+/// null one raises when the sampler carries a train or test category offset
+/// set from R, whose rows are not the predicted rows (an all-zero matrix
+/// asks for the offset-free surface). A CSC-backed source routes its rows resident, without
 /// a dense materialization. Refused on any sampler whose blend is undefined -
 /// the predicate is the blend, not the forest count - which is a fixed
 /// property of how the sampler was built, so test it once at setup; a host
@@ -910,7 +959,10 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
 /// Turns saved-tree storage on or off; numSamplesToStore sizes the buffer
 /// when on. Turn on for recorded iterations to predict from them later.
 /// Changing either discards what the store held: its recorded-draw count
-/// returns to 0.
+/// returns to 0. A capacity too large to allocate raises, leaving the store
+/// and its draws as they were. The R object's control does not record this
+/// setting, but a state the R object stores carries the store, and a
+/// re-creation from that state takes its capacity.
 void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
                                    size_t numSamplesToStore);
 /// Prints forest number forest's trees to R's console: pre-order, var 1-based
@@ -958,6 +1010,17 @@ int dbarts_sampler_usesDart(const dbarts_sampler* sampler);
 /// DBARTS_FAMILY_MULTINOMIAL on a K-forest softmax coupling, the matching
 /// enumerator otherwise.
 int dbarts_sampler_family(const dbarts_sampler* sampler);
+/// The fitted values a draw carries per observation: K, the category count,
+/// on a multinomial sampler, and 1 on every other. A VALUE, never 0.
+/// dbarts_sampler_run's train and test, and dbarts_sampler_predict's out, are
+/// observations x this x draws x chains.
+size_t dbarts_sampler_numFittedValuesPerObservation(
+  const dbarts_sampler* sampler);
+/// The sets of split counts a run writes per draw, one per forest that keeps
+/// them: K on multinomial, the mean-forest count on an amplitude-coupled
+/// model (2 on BCF), 1 elsewhere (a variance forest keeps none). A VALUE,
+/// never 0. dbarts_results' varcount is numPredictors x this x draws x chains.
+size_t dbarts_sampler_numVariableCountForests(const dbarts_sampler* sampler);
 
 #endif // DBARTS_USE_STUBS
 

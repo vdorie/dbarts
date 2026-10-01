@@ -318,7 +318,7 @@ expect_true(all(after[[1L]]$latents > 0)) # omega are Polya-Gamma (positive)
 # count histogram through static_cast<size_t>(lround(y)), underflowing into a
 # ~1.8e19 allocation that took the process down uncatchably. Magnitude is the
 # same allocation defect from the other side (see the cap below); a non-finite
-# element is refused with the rest.
+# element is refused ahead of the support rule, as for every family.
 countRefusal <- "family \"nbinom\" requires a non-negative integer"
 expect_error(
   sampler$setResponse(replace(as.double(yNew), 1L, -1)),
@@ -330,7 +330,7 @@ expect_error(
 )
 expect_error(
   sampler$setResponse(replace(as.double(yNew), 1L, Inf)),
-  countRefusal
+  "response contains non-finite values"
 )
 # a refused swap leaves the installed response alone, and a valid one still
 # lands afterwards

@@ -219,10 +219,6 @@ items
     without a word: the facade's monotoneConstraintIsActive returns false
     and the whole constraint is dropped. R refuses such a direction before
     it reaches the engine; the flat C entry points should refuse it too.
-  monotone-count-host-interrupt: dbarts_sampler_run, the flat C entry
-    stan4bart runs through, passes no interrupt poll and returns no
-    slow-count tally, so a host's monotone fit cannot interrupt a long
-    order count mid-move and never warns; bart() and $run do both.
   monotone-count-alloc-message: only the move's normalizer ratio turns an
     allocation failure into the message naming the remedies; building
     the order and the exact prior leaf draw still surface a bare
@@ -264,9 +260,11 @@ items
   multinomial-doors: three entry-point doors, post-RC (VD 2026-09-01).
     A formula interface for dbarts(family = "multinomial") - a formula
     LHS carries no count matrix; bart2's cbind(c1, ..., cK) ~ x form
-    is the pattern to adopt if wanted. A dbarts.h creation path -
-    construction is R-bridge-only (docs/design/feature-matrix.md
-    [f4]); opens on a flat-C consumer wanting multinomial. The family
+    is the pattern to adopt if wanted. A dbarts.h creation path - run
+    and predict are open through the flat API (dec-B160), but
+    construction, the counts and the category offsets are R-only
+    (docs/design/feature-matrix.md [f4]); opens on a flat-C consumer
+    wanting to build one. The family
     token in xbart - bart has carried it since the front-door arc,
     and xbart additionally needs a multinomial loss defined, every
     loss it evaluates being written against one location.

@@ -1,7 +1,8 @@
 # capi-multinomial
 
-Status: PROPOSED 2026-10-01; questions ruled (dec-B160, dec-B163 to dec-B169
-in [decisions.md](../decisions.md)).
+Status: LANDED 2026-10-01 (5233f0ae, 58bface9, ae1f46cd; landing note at
+EOF); questions ruled (dec-B160, dec-B163 to dec-B169 in
+[decisions.md](../decisions.md)).
 
 agent: opus (commits 1 and 2: the header, the C entry file, the bridge
   poll and the test consumer; step 4's stan4bart review); sonnet (commit 3,
@@ -634,3 +635,72 @@ them out.
 - dec-B169: that warning fires once per sampler.
 
 No question remains open.
+
+## Landing note (2026-10-01)
+
+Landed on top of the review-3 bridge fixes (39b76a6b), as four dbarts
+commits and one stan4bart commit.
+
+- 5233f0ae, step 1, the ABI event. The two accessors, the field rename,
+  the layout and offset text, the predict offset checks ahead of the
+  captured body, V in the flat run, and the re-bake: `DBARTS_C_API_HASH`
+  0x6380bf095d5cae3f -> 0xa7415a6f1bcc93c3, signature token
+  0xb6f41cfcbd996897 -> 0xfbf29fc67c22558b, the pair held at 1/0. The
+  gaussian parity check passed first, every channel bitwise. One change
+  the plan did not list: the flat run wrote k on a sampler with no k
+  hyperprior (the R run passes null there, and the header already said
+  "left untouched otherwise"), so the gaussian and multinomial arms'
+  k-untouched checks failed; the flat run now passes null k off
+  `kIsSampled`. Neither consumer passes k without a hyperprior.
+  Mutation proofs: an accessor returning 1 fails 3 checks, dropping the V
+  line 6, each offset refusal (train, test, non-finite) 1, and dropping
+  the offset pass-through 2. AddressSanitizer: the slice-1 build, a
+  multinomial run sized F = V = 1 through `tailFactor` 0, reports a
+  heap-buffer-overflow; the slice build, sized by the accessors, reports
+  none.
+- 58bface9, step 2. Mutation proofs: dropping the holder flag fails the
+  once-per-sampler arm; passing `{}` again fails the flat interrupt arm.
+- ae1f46cd, step 3, docs. TODO lands with these records (the brief put
+  it here rather than in step 3).
+- fdddeff2, a lint fix to step 1's test helper.
+
+Gates at fdddeff2, `--preclean` private library: tinytest 204 files,
+11043 tests, 0 failures; tests/cpp all pass, the C99 and C++ header
+compiles included, and again under `-fsanitize=address,undefined` with
+no diagnostic; the R-loaded AddressSanitizer run of test-capi.R,
+test-monotone.R and test-callback-example.R, zero diagnostics; the
+equivalence trio bitwise (55/55 under `--strict-coverage`, BCF 15/15,
+multinomial 11/11); every exact gate in exact-gates.yaml in quick mode,
+the monotone successive-conditional and enumeration gates under both
+priors included, PASS; lintr, air, check-rc-codoc, check-win-drift and
+check-doc-freshness clean; check-api-hash skips (no tag); `R CMD check
+--as-cran` one NOTE (Date), run with `--no-tests` beside the full
+tinytest run above.
+
+Step 4, consumers, each installed from `git archive` into the private
+library.
+- Stale binaries: stan4bart bartcore (9a3be93) and treatSens dbarts-1.0
+  (7cc6a0f), built against the slice-1 dbarts, then the post-slice dbarts
+  installed `--preclean` beside them. stan4bart tinytest 566/0, treatSens
+  testthat 194/0.
+- Rebuilt `--preclean` with no source change: the same counts, 0
+  failures.
+- stan4bart review. An interrupt injected through the count hooks (the
+  fifth poll, inside warmup) ends the fit with "dbarts_sampler_run:
+  sampler run interrupted", and a fresh fit afterwards matches one made
+  before it. stan4bart reaches a monotone component through `bart_args`;
+  under prior "leaf" with the threshold lowered, one fit warns exactly
+  once. The cleanup lands on stan4bart as a2a94d4 on branch wt/capi
+  (worktree .claude/worktrees/capi, off bartcore 9a3be93, not pushed): the
+  run's draws land in the PROTECTed R list it returns, in place of the raw
+  `new`, and creation's first draw in R's transient storage; test-24
+  drives the hook and skips when the installed hook's arity is not 3.
+  stan4bart's suite on that commit: 570/0. Left as is: creation's
+  `std::unique_ptr<Sampler>` still leaks if an interrupt lands in its one
+  sweep, and an error from the R callback's `Rf_eval` longjmps past the
+  run as before.
+- treatSens review: its sensitivity loop holds raw `new[]` buffers (the
+  grid cells, the train and test stores, the per-cell state arrays)
+  across `dbarts_sampler_run`, so an interrupt there now leaks them, the
+  same class as stan4bart's; no slow-count warning is reachable (no
+  monotone component). Not fixed here.

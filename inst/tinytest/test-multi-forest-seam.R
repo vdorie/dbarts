@@ -89,11 +89,11 @@ expect_error(
   bc.bcf$setResponse(y.bcf + 1, updateScale = TRUE),
   "carries forest amplitudes"
 )
-# updateScale = NA is not caught by the R-side isTRUE() pre-check (isTRUE(NA)
-# is FALSE), so this one reaches the bridge's own "multi-forest" refusal
+# updateScale = NA is neither TRUE nor FALSE, and is refused as such before
+# either refusal above
 expect_error(
   bc.bcf$setResponse(y.bcf + 1, updateScale = NA),
-  "multi-forest"
+  "'updateScale' must be TRUE or FALSE"
 )
 # the case weights ride the same opt-in: Chain::setWeights is a pointer swap
 # plus a positive-weight recount, BCF re-derives every per-forest response and
@@ -167,11 +167,10 @@ expect_error(
   bc.bcf$setOffset(rep(0.1, n), updateScale = TRUE),
   "carries forest amplitudes"
 )
-# updateScale = NA reaches the bridge's own "multi-forest" wording unchanged,
-# as for setResponse above
+# and updateScale = NA is refused as for setResponse above
 expect_error(
   bc.bcf$setOffset(rep(0.1, n), updateScale = NA),
-  "multi-forest"
+  "'updateScale' must be TRUE or FALSE"
 )
 expect_silent(bc.bcf$setOffset(NULL))
 

@@ -34,7 +34,8 @@ SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
                   SEXP callbackFn, SEXP callbackContext, SEXP keepFits);
 SEXP bartcore_runWithCallback(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
                               SEXP results, SEXP callback, SEXP rho);
-SEXP bartcore_setMonotoneCountHooks(SEXP slowSeconds, SEXP failNextCount);
+SEXP bartcore_setMonotoneCountHooks(SEXP slowSeconds, SEXP failNextCount,
+                                    SEXP interruptAfterPolls);
 SEXP bartcore_setOffset(SEXP ptr, SEXP offset, SEXP updateScale);
 SEXP bartcore_setResponse(SEXP ptr, SEXP y, SEXP updateScale,
                           SEXP status);
@@ -81,7 +82,8 @@ SEXP bartcore_getTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
                        SEXP treeNums, SEXP current, SEXP newdata,
                        SEXP trainingData, SEXP forest);
 SEXP bartcore_storeState(SEXP ptr);
-SEXP bartcore_setState(SEXP ptr, SEXP state, SEXP currentPredictors);
+SEXP bartcore_setState(SEXP ptr, SEXP state, SEXP currentPredictors,
+                       SEXP adoptStoreCapacity);
 SEXP bartcore_installForests(SEXP ptr, SEXP donorState, SEXP samples);
 SEXP bartcore_sampleTreesFromPrior(SEXP ptr);
 SEXP bartcore_sampleLeafParametersFromPrior(SEXP ptr);
