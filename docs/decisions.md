@@ -1270,6 +1270,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B179]
 For aft and hazard fits a missing time or status is a missing response: under na.omit the row is dropped, under na.fail the fit fails, as for any other family and as survreg and coxph do. Until now a missing status failed with base R's "missing value where TRUE/FALSE needed" and a missing time was refused. The alternative was refusing with a message naming the time or status column. Rows that errored are dropped under the default na.omit. The maintainer on 2026-10-01: "Route missing survival responses through na.action." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B180]
 
+**Multinomial fits apply interactions() and blocks() to every category forest**
+A multinomial fit's interactions() and blocks() constraints apply to each of its K category forests, as they apply to every other family's forests, checked by a constrained case in the multinomial exactness gate. Until now multinomial accepted both and ignored them (6 of 18 trees broke max.order = 1 in a probe), contrary to the multinomial design's rule that unsupported options are refused by name. The alternative was refusing them on multinomial for 1.0-0 and filing the implementation. The maintainer on 2026-10-01: "Apply the constraint to every category forest." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B181]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
