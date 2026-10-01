@@ -1266,6 +1266,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B178]
 A negative-binomial fit accepts weights of exactly 0 and 1 as the active-row mask, as probit and ordinal fits do, dropping weight-0 rows from the likelihood; other weights stay refused. Until now nbinom refused 0/1 weights with a message about exposure, although the engine supports the mask for it. The alternative was keeping the refusal with a message pointing to subset or $setActiveRows(). The maintainer on 2026-10-01: "Accept 0/1 weights as the row mask on nbinom." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B179]
 
+**Missing survival responses go through na.action**
+For aft and hazard fits a missing time or status is a missing response: under na.omit the row is dropped, under na.fail the fit fails, as for any other family and as survreg and coxph do. Until now a missing status failed with base R's "missing value where TRUE/FALSE needed" and a missing time was refused. The alternative was refusing with a message naming the time or status column. Rows that errored are dropped under the default na.omit. The maintainer on 2026-10-01: "Route missing survival responses through na.action." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B180]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
