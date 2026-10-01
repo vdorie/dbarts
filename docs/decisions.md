@@ -1170,6 +1170,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B154]
 Under factors = "indicators", and always in bartBT, the fit stores the training levels (those with training rows) and recodes a test or newdata factor against them by label, so a test factor carrying only some of the levels predicts as the full-level one would; a level with no training rows is refused by name. Until now a partial-level test factor was refused with a message pointing a bart() caller to bart(), and a level with no training rows was predicted silently as another level, contrary to NEWS. The alternative was keeping the refusal with a clearer message, adding only the unseen-level error. A user's test factor works however its levels were declared, as with lm and the default categorical route; no draws move. The maintainer on 2026-10-01: "Use option 1." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B155]
 
+**A sampler column update on a categorical predictor takes labels, not numbers**
+$setPredictor(x, column) and $setTestPredictor(x, column) on a categorical column take a factor or character vector, matched by label against the training levels; unknown labels and missing values the column did not have are refused by name, and a numeric vector is refused. Until now a factor was shifted up one level silently (R's 1-based codes read as the engine's 0-based ones), a character vector became missing values, and only undocumented 0-based codes worked. The alternatives were accepting numbers as 0-based codes, documented, and as 1-based codes. A caller updates a categorical column the way the whole-frame update already works, and cannot get an off-by-one silently; column updates on categorical columns are new in 1.0-0. The maintainer on 2026-10-01: "Refuse numbers on a categorical columns." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B156]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
