@@ -136,29 +136,37 @@ file.fit <- tempfile(fileext = ".rds")
 fit.local$fit$storeState()
 saveRDS(fit.local, file.fit)
 expect_equal(predict(readRDS(file.fit), nd), before)
-# and in a fresh R session, where no K or deg exists anywhere
+# and in a fresh R session, where no K or deg exists anywhere; paths go in
+# as arguments and R_LIBS through the environment, since system2's env is
+# ignored on Windows and backslashed paths cannot be pasted into code
 file.newdata <- tempfile(fileext = ".rds")
 file.result <- tempfile(fileext = ".rds")
+file.script <- tempfile(fileext = ".R")
 saveRDS(nd, file.newdata)
-code <- sprintf(
-  paste0(
-    "suppressMessages(library(dbarts)); ",
-    "saveRDS(predict(readRDS('%s'), readRDS('%s')), '%s')"
+writeLines(
+  c(
+    "args <- commandArgs(trailingOnly = TRUE)",
+    "suppressMessages(library(dbarts))",
+    "saveRDS(predict(readRDS(args[1L]), readRDS(args[2L])), args[3L])"
   ),
-  file.fit,
-  file.newdata,
-  file.result
+  file.script
 )
+oldLibs <- Sys.getenv("R_LIBS", unset = NA)
+Sys.setenv(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep))
 status <- system2(
   file.path(R.home("bin"), "Rscript"),
-  c("-e", shQuote(code)),
-  env = paste0("R_LIBS=", paste(.libPaths(), collapse = .Platform$path.sep)),
+  shQuote(c(file.script, file.fit, file.newdata, file.result)),
   stdout = FALSE,
   stderr = FALSE
 )
+if (is.na(oldLibs)) {
+  Sys.unsetenv("R_LIBS")
+} else {
+  Sys.setenv(R_LIBS = oldLibs)
+}
 expect_identical(status, 0L)
 expect_equal(readRDS(file.result), before)
-invisible(file.remove(file.fit, file.newdata, file.result))
+invisible(file.remove(file.fit, file.newdata, file.result, file.script))
 
 # ---- package bases keep working, unqualified or qualified
 
@@ -262,7 +270,8 @@ rm(
   file.fit,
   file.newdata,
   file.result,
-  code,
+  file.script,
+  oldLibs,
   status,
   bs,
   ns,
