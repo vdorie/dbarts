@@ -531,7 +531,7 @@ struct MeanContext {
 extern "C" int meanCallback(void* context, const dbarts_draw* draw) {
   MeanContext* ctx = static_cast<MeanContext*>(context);
   if (draw->train == nullptr || draw->numObservations != ctx->n ||
-      draw->numReportedLocations != 1 ||    // train is n x L; this reduces L = 1
+      draw->numFittedValuesPerObservation != 1 ||  // train is n x F; F = 1 here
       draw->chainIndex >= ctx->numChains) {
     ctx->status = 1;     // record and continue; nonzero would ABORT the run
     return 0;
