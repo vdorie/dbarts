@@ -72,7 +72,8 @@ plot.bart <- function(
   on.exit(par(oldpar), add = TRUE)
 
   hasResidual <- fitHasResidual(x)
-  if (hasResidual) {
+  # a heteroscedastic fit has no scalar sigma to trace
+  if (hasResidual && !fitIsHeteroscedastic(x)) {
     par(mfrow = c(1L, 2L))
     plotSigmaTrace(x$first.sigma, x$sigma, ..., setLayout = FALSE)
   }

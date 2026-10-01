@@ -2819,7 +2819,10 @@ dbartsSampler <- setRefClass(
         stop("forest index out of range")
       }
       values <- validateForestBases(
-        list(expandForestBasis(evaluateForestBasis(basis))),
+        list(expandForestBasis(
+          evaluateForestBasis(basis),
+          allowEmptyLevels = TRUE
+        )),
         length(data@y),
         argument = "basis"
       )[[1L]]
@@ -3031,7 +3034,7 @@ dbartsSampler <- setRefClass(
       )
     },
     getSigmas = function(result) {
-      "Return current residual error term on original, standard deviation scale."
+      "Returns each chain's current residual standard deviation on the original response scale, or NULL on a heteroscedastic sampler, whose scale is the surface getVariance() reports."
 
       # the formal is held so it cannot be quietly repurposed: this reader
       # allocates its own vector, and filling a caller's buffer in place is
@@ -3042,6 +3045,9 @@ dbartsSampler <- setRefClass(
         )
       }
 
+      if (!is.null(attr(control, "bartcore.variance"))) {
+        return(NULL)
+      }
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getSigmas, ptr)
     },

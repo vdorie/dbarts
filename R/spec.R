@@ -503,7 +503,8 @@ resolveSamplerSpec <- function(
   # leaf-prior sd has nowhere to land. Every one of these would
   # otherwise be dropped in silence, changing the fitted model without a word;
   # name each one instead. The bridge keeps its own backstops for the callers
-  # that reach it without this layer.
+  # that reach it without this layer. interactions() and blocks() are not here:
+  # the bridge installs both on every category forest.
   if (identical(family, "multinomial")) {
     unsupportedMultinomial <- c(
       "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),
@@ -597,6 +598,20 @@ resolveSamplerSpec <- function(
     }
     if (!is.null(monotoneDirections)) {
       stop("a variance forest is not supported with monotone constraints")
+    }
+    if (
+      is(priors$leaf.prior, "dbartsLinearPrior") ||
+        is(priors$leaf.prior, "dbartsGPPrior")
+    ) {
+      stop(
+        "a variance forest is not supported with a ",
+        if (is(priors$leaf.prior, "dbartsLinearPrior")) {
+          "linear"
+        } else {
+          "Gaussian-process"
+        },
+        " leaf prior; it takes constant leaves only"
+      )
     }
     allColumns <- setequal(varianceColumns, seq_len(ncol(data@x)))
     varianceNTrees <- if (is.null(varianceSpec)) NULL else varianceSpec$n.trees

@@ -417,6 +417,14 @@ packageBartResults <- function(
   if (!is.null(naOmitted)) {
     result$na.action <- naOmitted
   }
+  # a heteroscedastic fit has no scalar residual scale: the engine pins its
+  # sigma at a unit residual times the response range, a constant that cannot
+  # be read as what the name says, so the elements are absent and s.train is
+  # the scale
+  if (hasVariance) {
+    result$sigma <- NULL
+    result$first.sigma <- NULL
+  }
   # absent when the rows carry no names, as for a bare matrix
   result$row.names.train <- trainNames
   result$row.names.test <- testNames
@@ -3388,9 +3396,20 @@ survivalProbabilities.bart <- function(
   # parks on its result. A sampler that replays no variance surface has no
   # scale at those rows, so the curves are refused rather than drawn at the
   # pinned sigma - the wording the ppd branch uses for the same gap.
-  scale <- if (is.null(object[["s.train"]])) {
+  # A heteroscedastic fit carries no sigma at all, so one whose s.train
+  # keepFits dropped has no scale at its training rows either.
+  heteroscedastic <- fitIsHeteroscedastic(object) ||
+    !is.null(object[["s.train"]])
+  scale <- if (!heteroscedastic) {
     object[["sigma"]]
   } else if (is.null(newdata)) {
+    if (is.null(object[["s.train"]])) {
+      stop(
+        "survival probabilities need this heteroscedastic fit's 's.train' ",
+        "draws, which 'keepFits = FALSE' dropped; refit with ",
+        "'keepFits = TRUE'"
+      )
+    }
     heteroscedasticScale(object[["s.train"]], n.chains)
   } else {
     replayed <- attr(linearPredictor, "s")

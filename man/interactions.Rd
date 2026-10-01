@@ -6,7 +6,8 @@
   may jointly shape a BART fit. Pass the result as the \code{interactions}
   argument of \code{\link{dbarts}} or \code{\link{bart}}. The constraint is
   applied per forest, so in a multi-forest model one forest can be held
-  additive-or-low-order while another stays free.
+  additive-or-low-order while another stays free. A multinomial fit applies it
+  to each of its category forests.
 
   The constructor is not exported: it resolves by bare name inside the
   arguments that take it, and elsewhere is written
