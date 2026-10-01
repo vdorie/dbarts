@@ -18,7 +18,7 @@ arguments that take it, and elsewhere is written
 ## Usage
 
 ``` r
-monotone(directions, prior = c("leaf", "joint"))
+monotone(directions, prior = c("joint", "leaf"))
 ```
 
 ## Arguments
@@ -35,13 +35,62 @@ monotone(directions, prior = c("leaf", "joint"))
 
 - prior:
 
-  The prior the constraint is read under. `"leaf"` restricts the
-  leaf-value prior to the leaf values that are monotone given the tree,
-  leaving the tree prior unchanged. `"joint"` conditions the tree
-  structure and its leaf values on monotonicity together; it is not
-  available yet, and a fit naming it is an error.
+  How the constraint enters the prior, `"joint"` (the default) or
+  `"leaf"`; see Details.
 
 ## Details
+
+Each tree is held monotone in the constrained predictors, so the sum of
+trees is too. The two priors differ in where the constraint acts.
+
+- `"joint"`:
+
+  The ordinary BART prior on the trees and their leaf values,
+  conditioned on every tree being monotone. A tree whose leaf values
+  would seldom be in order under the ordinary prior becomes less likely,
+  so the constrained predictors get about half the share of splits they
+  get in an unconstrained fit at 200 trees, and split counts understate
+  their importance (less so under `"leaf"`).
+
+- `"leaf"`:
+
+  The ordinary tree prior, unchanged; given a tree, its leaf values are
+  drawn from the ordinary prior restricted to values in order. A tree
+  move may then count the orderings of the tree's leaves that the
+  constraint allows.
+
+`"joint"` is the default because in a simulation study the two priors
+fit alike, and `"joint"` never counts leaf orderings while sampling, so
+its moves are never slow. (Drawing leaf values from the prior, as
+`samplePriorPredictive` does, counts under either prior.) Under either
+prior a constrained fit takes several times the time per sweep of the
+same fit without the constraint: 4.5 to 8.5 times in that study.
+
+Under `"leaf"` the count is negligible at 10 or more trees, but with one
+to five trees a tree can grow large enough that a count takes seconds to
+minutes per move, and its memory grows with it, to hundreds of megabytes
+for the largest counts seen. There is no limit: the run finishes on the
+stated model, and afterwards a warning of class
+`"dbartsSlowCountWarning"` reports counts that took more than about a
+second and names the remedies, more trees or `prior = "joint"`. A count
+can be interrupted, and a count that runs out of memory is an ordinary
+error; either way the sampler is left in a valid state.
+
+The tree prior is the fit's `tree.prior`, as without a constraint:
+`cgm()` at its defaults, `power = 2` and `base = 0.95` (see
+[`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
+unless another is given. The mBART paper used
+`cgm(power = 0.8, base = 0.25)`, which gives smaller trees; in a
+simulation study under `"joint"` at 200 trees it gave sharper and more
+accurate fits, but narrower intervals that under-covered with plentiful,
+low-noise data, and at 50 trees it was less accurate with such data and
+under-covered more often. Pass it as `tree.prior` to opt in (see
+Examples).
+
+The fit is monotone in a constrained predictor along every line on which
+that predictor is observed, the other predictors at any values, missing
+ones and every factor level included; nothing is claimed where the
+constrained predictor itself is missing.
 
 Only numeric and ordered columns are eligible: a direction on a
 categorical (unordered factor) predictor is an error. Names, positions
@@ -50,17 +99,20 @@ and every direction are validated against the model matrix at fit time;
 specification fits the unconstrained model.
 
 A constraint forces birth/death-only tree proposals (a `control` naming
-a non-default `proposal.probs` is then an error) and a fixed `k = 2` (an
-explicit `k` hyperprior is an error); linear and Gaussian-process
-leaves, variance forests and multi-forest models are not supported under
-it. It may be combined with
+a non-default `proposal.probs` is then an error). The leaf scale is
+fixed: `k` is 2 unless another number is given, or a fixed `sd` may be
+named, and a hyperprior on either is an error. Linear and
+Gaussian-process leaves, variance forests, multi-forest models and
+`family = "multinomial"` are not supported under it. It may be combined
+with
 [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md)
 and [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md).
 
 ## Value
 
 A `dbartsMonotone` specification object, a list of `directions` and
-`prior`, resolved when a sampler is built.
+`prior`, resolved when a sampler is built. A fit records the prior as
+`monotone.prior`, which `print` and `summary` show.
 
 ## References
 
@@ -71,6 +123,7 @@ Chipman, H. A., George, E. I., McCulloch, R. E., and Shively, T. S.
 ## See also
 
 [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md),
+[`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md),
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
 [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md),
@@ -85,16 +138,31 @@ x <- matrix(runif(n * 3), n, 3, dimnames = list(NULL, c("x1", "x2", "x3")))
 y <- 2 * x[, 1] - x[, 2] + sin(2 * pi * x[, 3]) + rnorm(n, 0, 0.2)
 df <- data.frame(y, x)
 
-## increasing in x1, decreasing in x2, free in x3
+## increasing in x1, decreasing in x2, free in x3, under the default prior
 fit <- bart(y ~ x1 + x2 + x3, df,
-             monotone = monotone(c(x1 = "increasing", x2 = "decreasing"),
-                                 prior = "leaf"),
-             n.trees = 25L, n.samples = 20L, n.burn = 20L,
-             n.chains = 1L, verbose = FALSE)
+            monotone = monotone(c(x1 = "increasing", x2 = "decreasing")),
+            n.trees = 25L, n.samples = 20L, n.burn = 20L,
+            n.chains = 1L, verbose = FALSE)
+fit$monotone.prior
+#> [1] "joint"
 
-## the plain vector, positionally, at the default prior
+## the plain vector, positionally, is the same specification
 fit.plain <- bart(y ~ x1 + x2 + x3, df,
-                   monotone = c(1, -1, 0),
-                   n.trees = 25L, n.samples = 20L, n.burn = 20L,
-                   n.chains = 1L, verbose = FALSE)
+                  monotone = c(1, -1, 0),
+                  n.trees = 25L, n.samples = 20L, n.burn = 20L,
+                  n.chains = 1L, verbose = FALSE)
+
+## the "leaf" prior
+fit.leaf <- bart(y ~ x1 + x2 + x3, df,
+                 monotone = monotone(c(x1 = "increasing", x2 = "decreasing"),
+                                     prior = "leaf"),
+                 n.trees = 25L, n.samples = 20L, n.burn = 20L,
+                 n.chains = 1L, verbose = FALSE)
+
+## the mBART paper's tree prior, as an opt-in
+fit.mbart <- bart(y ~ x1 + x2 + x3, df,
+                  monotone = c(x1 = "increasing", x2 = "decreasing"),
+                  tree.prior = cgm(power = 0.8, base = 0.25),
+                  n.trees = 25L, n.samples = 20L, n.burn = 20L,
+                  n.chains = 1L, verbose = FALSE)
 ```

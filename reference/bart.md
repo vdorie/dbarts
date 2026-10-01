@@ -743,15 +743,15 @@ print(x, ...)
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md); see
   its `monotone` argument. A
   [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)
-  specification, or its `directions` alone at the default prior: a named
-  vector selects predictors by model-matrix column name, each direction
-  `"increasing"` or `1`, `"decreasing"` or `-1`, or `0` for
-  unconstrained - matching is case-sensitive; only numeric and ordered
-  columns are eligible. A constraint forces birth/death-only proposals
-  and a fixed `k = 2`. `NULL` (the default) fits the unconstrained
-  model. The constructor resolves by bare name inside this argument,
-  whatever the caller has attached, and a bare name the caller has bound
-  to a value is that value; see
+  specification, or its `directions` alone at the default prior,
+  `"joint"`: a named vector selects predictors by model-matrix column
+  name, each direction `"increasing"` or `1`, `"decreasing"` or `-1`, or
+  `0` for unconstrained - matching is case-sensitive; only numeric and
+  ordered columns are eligible. A constraint forces birth/death-only
+  proposals and a fixed `k`, 2 unless another number is given. `NULL`
+  (the default) fits the unconstrained model. The constructor resolves
+  by bare name inside this argument, whatever the caller has attached,
+  and a bare name the caller has bound to a value is that value; see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
 
 - interactions:
@@ -1840,7 +1840,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001587
+#> total seconds in loop: 0.001599
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1889,7 +1889,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002040
+#> total seconds in loop: 0.001965
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

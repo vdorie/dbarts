@@ -185,15 +185,16 @@ dbarts(
   decreasing in each named predictor. Supply a
   [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)
   specification, `monotone(directions, prior = )`, or its `directions`
-  alone, shorthand for the default prior: a named vector selecting
-  predictors by model-matrix column name, each element `"increasing"` or
-  `1`, `"decreasing"` or `-1`, or `0` for unconstrained - matching is
-  case-sensitive; an unnamed vector of length equal to the number of
-  columns assigns directions positionally. Only numeric and ordered
-  columns are eligible - a direction on a categorical (unordered factor)
-  predictor is an error. A constraint forces birth/death-only tree
-  proposals (a `control` naming a non-default `proposal.probs` is then
-  an error) and a fixed `k = 2` (an explicit `k` hyperprior is an
+  alone, shorthand for the default prior, `"joint"`: a named vector
+  selecting predictors by model-matrix column name, each element
+  `"increasing"` or `1`, `"decreasing"` or `-1`, or `0` for
+  unconstrained - matching is case-sensitive; an unnamed vector of
+  length equal to the number of columns assigns directions positionally.
+  Only numeric and ordered columns are eligible - a direction on a
+  categorical (unordered factor) predictor is an error. A constraint
+  forces birth/death-only tree proposals (a `control` naming a
+  non-default `proposal.probs` is then an error) and a fixed leaf scale,
+  `k = 2` unless another number is given (a `k` or `sd` hyperprior is an
   error); linear and Gaussian-process leaves are not supported under the
   constraint. `NULL` (the default) or an all-zero vector fits the
   ordinary unconstrained model. The constructor resolves by bare name

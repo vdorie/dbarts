@@ -71,7 +71,7 @@ The constructor is not exported: it resolves by bare name inside the
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">monotone</span><span class="op">(</span><span class="va">directions</span>, prior <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"leaf"</span>, <span class="st">"joint"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">monotone</span><span class="op">(</span><span class="va">directions</span>, prior <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"joint"</span>, <span class="st">"leaf"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -87,31 +87,74 @@ The constructor is not exported: it resolves by bare name inside the
     <code>monotone(c(prior = "increasing"))</code>.</p></dd>
 
   <dt id="arg-prior">prior<a class="anchor" aria-label="anchor" href="#arg-prior"></a></dt>
-<dd><p>The prior the constraint is read under. <code>"leaf"</code> restricts the
-    leaf-value prior to the leaf values that are monotone given the tree,
-    leaving the tree prior unchanged. <code>"joint"</code> conditions the tree
-    structure and its leaf values on monotonicity together; it is not
-    available yet, and a fit naming it is an error.</p></dd>
+<dd><p>How the constraint enters the prior, <code>"joint"</code> (the default) or
+    <code>"leaf"</code>; see Details.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>Only numeric and ordered columns are eligible: a direction on a categorical
+    <p>Each tree is held monotone in the constrained predictors, so the sum of
+  trees is too. The two priors differ in where the constraint acts.</p><dl><dt><code>"joint"</code></dt>
+<dd><p>The ordinary BART prior on the trees and their leaf values, conditioned
+      on every tree being monotone. A tree whose leaf values would seldom be
+      in order under the ordinary prior becomes less likely, so the
+      constrained predictors get about half the share of splits they get in an
+      unconstrained fit at 200 trees, and split counts understate their
+      importance (less so under <code>"leaf"</code>).</p></dd>
+
+    <dt><code>"leaf"</code></dt>
+<dd><p>The ordinary tree prior, unchanged; given a tree, its leaf values are
+      drawn from the ordinary prior restricted to values in order. A tree
+      move may then count the orderings of the tree's leaves that the
+      constraint allows.</p></dd>
+
+
+</dl><p><code>"joint"</code> is the default because in a simulation study the two
+  priors fit alike, and <code>"joint"</code> never counts leaf orderings while
+  sampling, so its moves are never slow. (Drawing leaf values from the prior,
+  as <code>samplePriorPredictive</code> does, counts under either prior.) Under
+  either prior a constrained fit takes several times the time per sweep of
+  the same fit without the constraint: 4.5 to 8.5 times in that study.</p>
+<p>Under <code>"leaf"</code> the count is negligible at 10 or more trees, but with
+  one to five trees a tree can grow large enough that a count takes seconds
+  to minutes per move, and its memory grows with it, to hundreds of
+  megabytes for the largest counts seen. There is no limit: the run
+  finishes on the stated model, and afterwards a warning of class
+  <code>"dbartsSlowCountWarning"</code> reports counts that took more than about a second and names the remedies,
+  more trees or <code>prior = "joint"</code>. A count can be interrupted, and a
+  count that runs out of memory is an ordinary error; either way the
+  sampler is left in a valid state.</p>
+<p>The tree prior is the fit's <code>tree.prior</code>, as without a constraint:
+  <code>cgm()</code> at its defaults, <code>power = 2</code> and <code>base = 0.95</code>
+  (see <code><a href="dbartsPriors.html">dbartsPriors</a></code>), unless another is given. The mBART
+  paper used <code>cgm(power = 0.8, base = 0.25)</code>, which gives smaller
+  trees; in a simulation study under <code>"joint"</code> at 200 trees it gave
+  sharper and more accurate fits, but narrower intervals that under-covered
+  with plentiful, low-noise data, and at 50 trees it was less accurate with
+  such data and under-covered more often. Pass
+  it as <code>tree.prior</code> to opt in (see Examples).</p>
+<p>The fit is monotone in a constrained predictor along every line on which
+  that predictor is observed, the other predictors at any values, missing
+  ones and every factor level included; nothing is claimed where the
+  constrained predictor itself is missing.</p>
+<p>Only numeric and ordered columns are eligible: a direction on a categorical
   (unordered factor) predictor is an error. Names, positions and every
   direction are validated against the model matrix at fit time; <code>prior</code>
   is matched when the specification is built. An all-zero specification fits
   the unconstrained model.</p>
-<p>A constraint forces birth/death-only tree proposals (a <code>control</code> naming
-  a non-default <code>proposal.probs</code> is then an error) and a fixed
-  <code>k = 2</code> (an explicit <code>k</code> hyperprior is an error); linear and
-  Gaussian-process leaves, variance forests and multi-forest models are not
-  supported under it. It may be combined with <code><a href="interactions.html">interactions</a></code> and
-  <code><a href="blocks.html">blocks</a></code>.</p>
+<p>A constraint forces birth/death-only tree proposals (a <code>control</code>
+  naming a non-default <code>proposal.probs</code> is then an error). The leaf
+  scale is fixed: <code>k</code> is 2 unless another number is given, or a fixed
+  <code>sd</code> may be named, and a hyperprior on either is an error. Linear and
+  Gaussian-process leaves, variance forests, multi-forest models and
+  <code>family = "multinomial"</code> are not supported under it. It may be
+  combined with <code><a href="interactions.html">interactions</a></code> and <code><a href="blocks.html">blocks</a></code>.</p>
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A <code>dbartsMonotone</code> specification object, a list of <code>directions</code>
-  and <code>prior</code>, resolved when a sampler is built.</p>
+  and <code>prior</code>, resolved when a sampler is built. A fit records the prior
+  as <code>monotone.prior</code>, which <code>print</code> and <code>summary</code> show.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -121,7 +164,7 @@ The constructor is not exported: it resolves by bare name inside the
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dbartsForests.html">dbartsForests</a></code>,
+    <div class="dont-index"><p><code><a href="dbartsForests.html">dbartsForests</a></code>, <code><a href="dbartsPriors.html">dbartsPriors</a></code>,
   <code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart</a></code>, <code><a href="interactions.html">interactions</a></code>,
   <code><a href="blocks.html">blocks</a></code></p></div>
     </div>
@@ -134,18 +177,33 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fl">2</span> <span class="op">*</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span> <span class="op">-</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">2</span><span class="op">]</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/Trig.html" class="external-link">sin</a></span><span class="op">(</span><span class="fl">2</span> <span class="op">*</span> <span class="va">pi</span> <span class="op">*</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">3</span><span class="op">]</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0</span>, <span class="fl">0.2</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="va">y</span>, <span class="va">x</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co">## increasing in x1, decreasing in x2, free in x3</span></span></span>
+<span class="r-in"><span><span class="co">## increasing in x1, decreasing in x2, free in x3, under the default prior</span></span></span>
 <span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
-<span class="r-in"><span>             monotone <span class="op">=</span> <span class="fu">monotone</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>x1 <span class="op">=</span> <span class="st">"increasing"</span>, x2 <span class="op">=</span> <span class="st">"decreasing"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>                                 prior <span class="op">=</span> <span class="st">"leaf"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>             n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>
-<span class="r-in"><span>             n.chains <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span>            monotone <span class="op">=</span> <span class="fu">monotone</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>x1 <span class="op">=</span> <span class="st">"increasing"</span>, x2 <span class="op">=</span> <span class="st">"decreasing"</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>            n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>
+<span class="r-in"><span>            n.chains <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">fit</span><span class="op">$</span><span class="va">monotone.prior</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "joint"</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co">## the plain vector, positionally, at the default prior</span></span></span>
+<span class="r-in"><span><span class="co">## the plain vector, positionally, is the same specification</span></span></span>
 <span class="r-in"><span><span class="va">fit.plain</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
-<span class="r-in"><span>                   monotone <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="op">-</span><span class="fl">1</span>, <span class="fl">0</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>                   n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>
-<span class="r-in"><span>                   n.chains <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span>                  monotone <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="op">-</span><span class="fl">1</span>, <span class="fl">0</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                  n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>
+<span class="r-in"><span>                  n.chains <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">## the "leaf" prior</span></span></span>
+<span class="r-in"><span><span class="va">fit.leaf</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
+<span class="r-in"><span>                 monotone <span class="op">=</span> <span class="fu">monotone</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>x1 <span class="op">=</span> <span class="st">"increasing"</span>, x2 <span class="op">=</span> <span class="st">"decreasing"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                                     prior <span class="op">=</span> <span class="st">"leaf"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                 n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>
+<span class="r-in"><span>                 n.chains <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">## the mBART paper's tree prior, as an opt-in</span></span></span>
+<span class="r-in"><span><span class="va">fit.mbart</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
+<span class="r-in"><span>                  monotone <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>x1 <span class="op">=</span> <span class="st">"increasing"</span>, x2 <span class="op">=</span> <span class="st">"decreasing"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                  tree.prior <span class="op">=</span> <span class="fu">cgm</span><span class="op">(</span>power <span class="op">=</span> <span class="fl">0.8</span>, base <span class="op">=</span> <span class="fl">0.25</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                  n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>
+<span class="r-in"><span>                  n.chains <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
