@@ -1238,6 +1238,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B171]
 Under the default uniform cut grid, a predictor's range is taken over its finite values, so Inf and -Inf fall past the end cuts, as the quantile grid already does; when sigma cannot be estimated because a predictor is non-finite, the error names that column. Until now, and in 0.9-34, one Inf stretched the grid to infinity and silently made the column unusable, and the sigma error blamed sigma. The alternative was refusing non-finite predictors by column, as lm does. Only fits containing Inf change. The maintainer on 2026-10-01: "Option 1." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B172]
 
+**Every entry point accepts the predictor types a data frame does**
+The richness of data-frame input is the reference: the x/y door, test sets and predict() accept every predictor type a data-frame fit accepts. Integer and logical matrices are taken as numbers, and any Matrix sparse class is converted to the one dbarts uses, in fitting and in predict() alike. Until now the formula path already took integer and logical columns, while the x/y door refused integer matrices ("'x' must be numeric", also in 0.9-34) and logical matrices and sparse classes other than dgCMatrix ("unrecognized 'formula' type"), and predict() took integer but not logical matrices. The alternative was keeping the refusals with correct messages. No existing fit changes. The maintainer on 2026-10-01: "I want test data and the predict function to accept as rich a set of data types as the training data.", and, told the formula path already accepts them: "Use option 1 then, and base your comparisons on the richness of data.frame inputs." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B173]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
