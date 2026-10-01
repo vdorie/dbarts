@@ -266,8 +266,8 @@ expect_error(
   pattern = "reference level"
 )
 
-# --- a stored entry past the store's category count is refused with the
-# existing categorical text; the declared K of an argument is metadata only
+# --- a categorical column takes its labels, so a sparse matrix of codes - here
+# one past the store's category count - is refused by name
 over.k <- Matrix::sparseMatrix(
   i = c(2L, 7L),
   j = c(1L, 1L),
@@ -277,7 +277,7 @@ over.k <- Matrix::sparseMatrix(
 )
 expect_error(
   sampler.reference$setPredictor(over.k, column = 4L, forceUpdate = TRUE),
-  pattern = "existing category codes"
+  pattern = "column 'f' is categorical"
 )
 
 # --- an NA in a sparse argument is a stored NaN, and trips a data object
@@ -397,21 +397,22 @@ rolled <- expectTwinsAgree(
 )
 expect_false(rolled$result)
 
-# --- a bare dgCMatrix onto the sparseFactor column (4), whose reference is
-# "s2": its absent rows read level code 0, not the reference, so every one of
-# them becomes a stored entry of the store
-f.codes <- sample(0:2, n, replace = TRUE)
+# --- the sparseFactor column (4), whose reference is "s2", takes its labels:
+# as a sparseFactor, whose absent rows read its own reference, or as a plain
+# character vector, installing the same store
+f.labels <- levels.f[sample(1:3, n, replace = TRUE)]
 expectTwinsAgree(
   b.frame,
   y.b,
-  sparseBlock(matrix(f.codes, n, 1L)),
-  as.double(f.codes),
+  sparseFactor(f.labels, levels = levels.f, reference = "s1"),
+  f.labels,
   column = 4L
 )
 
 # --- a refused middle column leaves data@x and the next sweeps those of an
-# untouched twin: an off-table level code and a quantile precheck (errors), and
-# an all-absent column under forceUpdate = FALSE (FALSE, rolled back)
+# untouched twin: codes for a categorical column and a quantile precheck
+# (errors), and an all-absent column under forceUpdate = FALSE (FALSE, rolled
+# back)
 expectRefusalLeavesTwin <- function(
   design,
   y,
@@ -494,11 +495,11 @@ expectRefusalLeavesTwin(
   off.table,
   list(c(3L, 4L, 1L)),
   FALSE,
-  "existing category codes"
+  "column 'f' is categorical"
 )
 
-# --- a declared reference past the store's level count: the absent rows would
-# read a level the store has no code for, refused with the categorical text
+# --- a coded container is no label vector, so it is refused on the
+# categorical column as numbers are
 wide.levels <- paste0("s", 1:6)
 wide.frame <- data.frame(z = rep(0, n))
 wide.frame$z <- sparseFactor(
@@ -515,7 +516,7 @@ expect_error(
     column = 4L,
     forceUpdate = TRUE
   ),
-  pattern = "existing category codes"
+  pattern = "column 'f' is categorical"
 )
 
 # --- a column named twice and rolled back unwinds exactly, on a sparse and a

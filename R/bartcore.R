@@ -334,6 +334,93 @@ resolveColumnIndex <- function(source, column, what) {
   column
 }
 
+# A column update addressing a column the training design coded from a factor
+# takes that column's labels: a factor, character vector or sparseFactor,
+# matched by label against the training levels and installed as the engine's
+# 0-based codes, as a whole-frame update installs them. A label the column
+# does not declare, and a missing value where the column has none (no route
+# was learned for one), are refused by name; so is a number, which could only
+# be read as a code, and a coded matrix or container. A data frame addresses
+# several columns; other columns pass through as numbers.
+codeCategoricalColumnUpdate <- function(x.train, x, column) {
+  factorLevels <- attr(x.train, "factor.levels")
+  if (is.null(factorLevels) || !is.numeric(column) || anyNA(column)) {
+    return(x)
+  }
+  coded <- vapply(
+    column,
+    function(j) {
+      j >= 1L && j <= length(factorLevels) && !is.null(factorLevels[[j]])
+    },
+    FALSE
+  )
+  if (!any(coded)) {
+    return(x)
+  }
+  columnNames <- colnames(x.train)
+  label <- function(j) {
+    if (is.null(columnNames)) {
+      paste0("column ", j)
+    } else {
+      paste0("column '", columnNames[j], "'")
+    }
+  }
+  values <- if (is.data.frame(x)) {
+    as.list(x)
+  } else if (length(column) == 1L && is.null(dim(x))) {
+    list(x)
+  } else {
+    NULL
+  }
+  if (is.null(values) || length(values) != length(column)) {
+    stop(
+      label(column[which(coded)[1L]]),
+      " is categorical; give its values as a factor or character vector of ",
+      "its labels, or a data frame for several columns"
+    )
+  }
+  result <- matrix(NA_real_, NROW(values[[1L]]), length(column))
+  for (k in seq_along(column)) {
+    value <- values[[k]]
+    j <- column[k]
+    if (!coded[k]) {
+      result[, k] <- as.double(value)
+      next
+    }
+    if (
+      !is.factor(value) &&
+        !is.character(value) &&
+        !methods::is(value, "sparseFactor")
+    ) {
+      stop(
+        label(j),
+        " is categorical; give its values as a factor or character vector ",
+        "of its labels, not numbers"
+      )
+    }
+    labels <- as.character(value)
+    codes <- match(labels, factorLevels[[j]]) - 1L
+    unknown <- unique(labels[!is.na(labels) & is.na(codes)])
+    if (length(unknown) > 0L) {
+      stop(
+        label(j),
+        " has ",
+        if (length(unknown) > 1L) "labels " else "label ",
+        quotedNameList(unknown),
+        " not among its training levels"
+      )
+    }
+    if (
+      anyNA(labels) &&
+        !sourceColumnHasNA(x.train, j, ncol(x.train), nrow(x.train))
+    ) {
+      stop(label(j), " has missing values, which its training values do not")
+    }
+    result[, k] <- as.double(codes)
+  }
+  if (length(column) == 1L) result[, 1L] else result
+}
+
 bartcoreSamplerSetPredictor <- function(
   sampler,
   x,
@@ -359,6 +446,9 @@ bartcoreSamplerSetPredictor <- function(
     forceUpdate == "partial"
 
   column <- resolveColumnIndex(sampler$data@x, column, "current X")
+  if (!is.null(column)) {
+    x <- codeCategoricalColumnUpdate(sampler$data@x, x, column)
+  }
 
   # a triplet, row-compressed, symmetric, triangular, logical or pattern
   # sparse argument becomes the dgCMatrix the sparse path takes, rather than
@@ -787,6 +877,7 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
         "' is out of range"
       )
     }
+    x.test <- codeCategoricalColumnUpdate(sampler$data@x, x.test, column)
     xTestDim <- dim(x.test)
     if (!is.null(xTestDim) && xTestDim[2L] != length(column)) {
       stop("'x.test' must have ", length(column), " column(s)")

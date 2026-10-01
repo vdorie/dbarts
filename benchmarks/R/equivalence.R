@@ -1372,9 +1372,10 @@ makeScenarios <- function() {
       nTrees = 50L,
       recordVerdict = TRUE,
       mutate = list(
+        # a categorical column takes its labels: these are codes 0 and 1
         partial = list(
           index = 3L,
-          values = as.double(seq_len(n.fp) %% 2L)
+          values = letters[seq_len(n.fp) %% 2L + 1L]
         )
       )
     )

@@ -528,17 +528,17 @@ result.sparse.col.dense <- makeMixedSampler(test.mix.dense.s, 111L)$run(
 )
 expect_identical(result.sparse.col.index$test, result.sparse.col.dense$test)
 
-# BRIDGE REFUSAL ROLLS BACK: a per-column value that plants an out-of-range
-# category code past the training K is refused at the bridge exactly as a
-# whole-object container is (the codeMessage above), and the refusal leaves
-# @x.test/@offset.test as the prior, accepted container
+# A REFUSED COLUMN UPDATE LEAVES THE CONTAINER: a per-column value on a
+# categorical column is given by label, so a number - here one that would
+# plant a code past the training K - is refused by name before anything is
+# installed, and @x.test/@offset.test stay the prior, accepted container
 sampler.col.refuse <- makeMixedSampler(test.mix.sparse, 121L)
 before.col.refuse.x.test <- sampler.col.refuse$data@x.test
 before.col.refuse.offset.test <- sampler.col.refuse$data@offset.test
 bad.g.column <- Matrix::sparseVector(x = 9, i = 1L, length = n.mtest)
 expect_error(
   sampler.col.refuse$setTestPredictor(bad.g.column, column = "g"),
-  pattern = "existing category codes"
+  pattern = "column 'g' is categorical"
 )
 expect_identical(sampler.col.refuse$data@x.test, before.col.refuse.x.test)
 expect_identical(
@@ -805,8 +805,9 @@ expect_true(all(is.finite(sampler.bound$run(10L, 10L)$test)))
 # creation-pinned.
 codes.bound <- as.matrix(sampler.bound$data@x)[, 2L]
 new.codes <- (codes.bound + 1) %% 3
+new.labels <- levels.small[new.codes + 1]
 expect_silent(
-  sampler.bound$setPredictor(new.codes, column = 2L, forceUpdate = TRUE)
+  sampler.bound$setPredictor(new.labels, column = 2L, forceUpdate = TRUE)
 )
 expect_equal(as.matrix(sampler.bound$data@x)[, 2L], new.codes)
 expect_equal(sampler.bound$data@x$sparseReference, 0L)
@@ -853,7 +854,7 @@ mutationGate <- function(frame, seed) {
   set.seed(seed)
   sampler <- dbarts(frame, y.bound, sigest = 1.0, control = boundControl)
   invisible(sampler$run(5L, 5L))
-  invisible(sampler$setPredictor(new.codes, column = 2L, forceUpdate = TRUE))
+  invisible(sampler$setPredictor(new.labels, column = 2L, forceUpdate = TRUE))
   sampler$run(0L, 10L)
 }
 result.mutated.sparse <- mutationGate(train.bound, 4242L)
@@ -920,8 +921,9 @@ expect_equal(
 # and mutating the categorical column keeps the ordinal one bit-identical
 ordinal.before <- as.matrix(sampler.zero$data@x)[, 3L]
 new.zero.codes <- (as.matrix(sampler.zero$data@x)[, 2L] + 2) %% 3
+new.zero.labels <- levels.small[new.zero.codes + 1]
 expect_silent(
-  sampler.zero$setPredictor(new.zero.codes, column = 2L, forceUpdate = TRUE)
+  sampler.zero$setPredictor(new.zero.labels, column = 2L, forceUpdate = TRUE)
 )
 expect_equal(as.matrix(sampler.zero$data@x)[, 2L], new.zero.codes)
 expect_equal(as.matrix(sampler.zero$data@x)[, 3L], ordinal.before)
@@ -960,7 +962,7 @@ invisible(sampler.state$setPredictor(
   forceUpdate = TRUE
 ))
 invisible(
-  sampler.state$setPredictor(new.zero.codes, column = 2L, forceUpdate = TRUE)
+  sampler.state$setPredictor(new.zero.labels, column = 2L, forceUpdate = TRUE)
 )
 sampler.state$storeState()
 stateFile <- tempfile(fileext = ".rds")
