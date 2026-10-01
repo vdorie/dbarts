@@ -120,6 +120,38 @@ expect_true(inherits(
   "dbartsSampler"
 ))
 
+# a dense Matrix class is a plain matrix, and a sparseVector one sparse column
+fitDense <- quietBart(Matrix::Matrix(xInteger * 1.0), y, seed = 1L)
+expect_identical(fitDense$yhat.train, fitDouble$yhat.train)
+sparseColumn <- methods::as(c(0, 0, 1, 0, 2)[rep(1:5, 8L)], "sparseVector")
+fitVector <- quietBart(sparseColumn, y, seed = 1L, sigest = 1)
+fitColumn <- quietBart(
+  Matrix::Matrix(as.vector(sparseColumn), ncol = 1L, sparse = TRUE),
+  y,
+  seed = 1L,
+  sigest = 1
+)
+expect_identical(fitVector$yhat.train, fitColumn$yhat.train)
+
+## A POSIXlt column is refused by name at every door, before model.frame.
+posixltFrame <- data.frame(y = rnorm(20L), x = runif(20L))
+posixltFrame$w <- as.POSIXlt(
+  as.POSIXct("2020-01-01", tz = "UTC") + 3600 * (1:20)
+)
+for (factors in c("categorical", "indicators")) {
+  expect_error(quietBart(y ~ ., posixltFrame, factors = factors), "as.POSIXct")
+  expect_error(
+    quietBart(posixltFrame[-1L], posixltFrame$y, factors = factors),
+    "as.POSIXct"
+  )
+  ctFrame <- posixltFrame
+  ctFrame$w <- as.POSIXct(ctFrame$w)
+  fit <- quietBart(y ~ ., ctFrame, factors = factors, keepTrees = TRUE)
+  expect_error(predict(fit, posixltFrame[1:2, ]), "column 'w' is a POSIXlt")
+}
+# a POSIXlt column the formula does not use is left alone
+expect_true(inherits(quietBart(y ~ x, posixltFrame), "bart"))
+
 ## A numeric column where training had a factor is refused by name, at every
 ## entrance a data frame reaches.
 set.seed(4)
@@ -148,6 +180,22 @@ expect_error(
 )
 sampler <- dbarts(y ~ ., groupFrame)
 expect_error(sampler$setTestPredictor(newFrame[-1L]), "test column 'g'")
+# the indicators route refuses the same, on both doors
+for (indicatorFit in list(
+  quietBart(y ~ ., groupFrame, factors = "indicators", keepTrees = TRUE),
+  quietBart(
+    groupFrame[-1L],
+    groupFrame$y,
+    factors = "indicators",
+    keepTrees = TRUE
+  )
+)) {
+  newFrame <- groupFrame[1:3, ]
+  newFrame$g <- 1:3
+  expect_error(predict(indicatorFit, newFrame), "test column 'g' is integer")
+}
+newFrame <- groupFrame[1:3, ]
+newFrame$g <- c(0, 1, 2)
 # factor and character test columns still map by label
 newFrame$g <- c("a", "b", "c")
 expect_equal(dim(predict(fit, newFrame)), c(5L, 3L))
@@ -181,6 +229,18 @@ expect_equal(sampler$data@n.cuts, c(5L, 6L, 5L))
 expect_error(
   quietBart(x3[, 1:2], y, n.cuts = 5:7),
   "'n.cuts' has 3 values but the model has 2 predictor columns"
+)
+# the BayesTree door names its own argument
+expect_error(
+  suppressWarnings(bartBT(
+    x3[, 1:2],
+    y,
+    numcut = 5:7,
+    ndpost = 5L,
+    nskip = 5L,
+    verbose = FALSE
+  )),
+  "'numcut' has 3 values"
 )
 expect_error(
   xbart(x3[, 1:2], y, n.cuts = 5:7, n.reps = 1L, n.trees = 5L, verbose = FALSE),

@@ -442,4 +442,31 @@ expect_false(identical(
   changed[[trainsOnRowOne]]$draws,
   original[[trainsOnRowOne]]$draws
 ))
+
+# Under a fixed residual scale no estimate is read, so no fold fits the linear
+# model: a design whose folds have no residual degrees of freedom warns of the
+# fallback under the default prior and not under a fixed one.
+set.seed(7)
+xWide <- matrix(runif(120L), 12L, 10L)
+yWide <- rnorm(12L)
+xbartWide <- function(...) {
+  xbart(
+    xWide,
+    yWide,
+    n.samples = 5L,
+    n.burn = c(5L, 3L),
+    method = "k-fold",
+    n.test = 2L,
+    n.reps = 1L,
+    n.trees = 5L,
+    k = 2,
+    seed = 1L,
+    verbose = FALSE,
+    n.threads = 1L,
+    ...
+  )
+}
+expect_warning(xbartWide(), "falls back to the marginal response sd")
+expect_silent(xbartWide(family = gaussian(sigma = fixed(1))))
+rm(xWide, yWide, xbartWide)
 rm(foldDraws, foldY, changedY, original, changed, holdsRowOne, trainsOnRowOne)

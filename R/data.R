@@ -1194,9 +1194,17 @@ addFormulaTermOffset <- function(x.train, newdata, offset, argument, rows) {
 }
 
 ## Predictors given as a matrix or vector take the types a data frame column
-## does: integer and logical values are numbers, and any sparse Matrix class
-## is the dgCMatrix the engine ingests. A factor is left as is.
+## does: integer and logical values are numbers, any sparse Matrix class (a
+## sparseVector as one column) is the dgCMatrix the engine ingests, and a
+## dense Matrix class is a plain matrix. A factor is left as is.
 asNumericPredictors <- function(x) {
+  if (isS4(x) && methods::is(x, "sparseVector")) {
+    x <- methods::as(x, "CsparseMatrix")
+  } else if (
+    isS4(x) && methods::is(x, "Matrix") && !methods::is(x, "sparseMatrix")
+  ) {
+    x <- as.matrix(x)
+  }
   x <- asDgCMatrix(x)
   if (
     !is.factor(x) &&
@@ -1207,6 +1215,17 @@ asNumericPredictors <- function(x) {
     storage.mode(x) <- "double"
   }
   x
+}
+
+## The data columns a fit's predictors are read from: its stored terms'
+## variables, else its term labels' and column names.
+predictorDataNames <- function(x.train) {
+  trainTerms <- attr(x.train, "terms")
+  if (!is.null(trainTerms)) {
+    return(all.vars(attr(dropOffsetTerms(trainTerms), "variables")))
+  }
+  labels <- sub("^`(.*)`$", "\\1", attr(x.train, "term.labels"))
+  unique(c(labels, colnames(x.train)))
 }
 
 validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
@@ -1229,6 +1248,7 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   }
   testFactorLevels <- NULL
   if (is.data.frame(x.test)) {
+    refusePOSIXltColumns(x.test, predictorDataNames(x.train))
     # captured before any re-expansion below: on the indicators route
     # (factorLevels NULL, e.g. bart()'s x/y interface, which stores no
     # level table) a test factor with different levels re-expands to a
@@ -2774,6 +2794,13 @@ dbartsData <- function(
       # as they shape the frame: the frame's row names cannot serve, since
       # a repeated row is renamed ("1.1")
       modelFrameCall$dbartsRowIndex <- seq_len(nrow(data))
+    }
+    if (!dataIsMissing) {
+      formulaVars <- all.vars(formula)
+      refusePOSIXltColumns(
+        data,
+        if ("." %in% formulaVars) NULL else formulaVars
+      )
     }
     modelFrame <- eval(modelFrameCall, parent.frame())
     # the test frame is built from this call again, against rows these vectors

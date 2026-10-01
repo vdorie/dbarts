@@ -3684,6 +3684,10 @@ bartBT <- function(
       if (grepl("response is multinomial; fit it with", msg, fixed = TRUE)) {
         refuseLegacyFactorResponse()
       }
+      # this door spells the cut count 'numcut'
+      if (startsWith(msg, "'n.cuts' has ")) {
+        stop(sub("'n.cuts'", "'numcut'", msg, fixed = TRUE), call. = FALSE)
+      }
       stop(e)
     }
   )

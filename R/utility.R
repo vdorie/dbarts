@@ -688,6 +688,7 @@ makeIndicatorModelMatrix <- function(x, drop = TRUE) {
   if (!is.data.frame(x)) {
     stop("x is not a dataframe")
   }
+  refusePOSIXltColumns(x)
   if (ncol(x) > 0L && nrow(x) == 0L) {
     stop("x has no rows; a model matrix needs at least one row")
   }
@@ -1142,6 +1143,47 @@ remapSparseFactorToTrainingLevels <- function(column, trainingLevels, name) {
   )
 }
 
+## A POSIXlt column is a list of date-time fields, which neither route can
+## read as one predictor; refused by name before model.frame or a model matrix
+## builder sees it. 'names' limits the check to the columns a model uses.
+refusePOSIXltColumns <- function(frame, names = NULL) {
+  if (!is.list(frame)) {
+    return(invisible(NULL))
+  }
+  columns <- if (is.null(names)) {
+    names(frame)
+  } else {
+    intersect(names, names(frame))
+  }
+  for (name in columns) {
+    if (inherits(frame[[name]], "POSIXlt")) {
+      stop(
+        "column '",
+        name,
+        "' is a POSIXlt date-time; convert it with as.POSIXct()"
+      )
+    }
+  }
+  invisible(NULL)
+}
+
+## A numeric or logical test column where training had a factor would read as
+## level codes; refused by name, as predict.lm refuses it.
+refuseNumericForFactorColumn <- function(column, name) {
+  if (!is.factor(column) && !is.character(column)) {
+    stop(
+      "test column '",
+      name,
+      "' is ",
+      class(column)[1L],
+      " but the training column '",
+      name,
+      "' is a factor; supply it as a factor or character"
+    )
+  }
+  invisible(NULL)
+}
+
 ## Recode a test data.frame's factor, character, and sparseFactor columns
 ## against the training data's level tables (aligned with the training
 ## columns by name), so codes agree across the two; a sparseFactor stays
@@ -1184,18 +1226,8 @@ mapFactorColumnsToTrainingLevels <- function(
       next
     }
     # numbers here would read as 0-based level codes, one level off the
-    # 1-based codes as.integer() gives; refused as predict.lm refuses them
-    if (!is.factor(column) && !is.character(column)) {
-      stop(
-        "test column '",
-        name,
-        "' is ",
-        class(column)[1L],
-        " but the training column '",
-        name,
-        "' is a factor; supply it as a factor or character"
-      )
-    }
+    # 1-based codes as.integer() gives
+    refuseNumericForFactorColumn(column, name)
     refactored <- factor(as.character(column), levels = factorLevels[[j]])
     # an unseen level codes to NA; a value already missing is not one, and a
     # missing value elsewhere in the column must not let one through
@@ -1224,11 +1256,10 @@ mapFactorColumnsToIndicatorLevels <- function(x.test, levelTable, drop) {
   for (name in intersect(names(x.test), names(levelTable))) {
     trainingLevels <- levelTable[[name]]
     column <- x.test[[name]]
-    if (
-      is.null(trainingLevels) || (!is.factor(column) && !is.character(column))
-    ) {
+    if (is.null(trainingLevels)) {
       next
     }
+    refuseNumericForFactorColumn(column, name)
     counts <- if (is.list(drop)) drop[[name]]
     observed <- if (
       is.numeric(counts) && length(counts) == length(trainingLevels)

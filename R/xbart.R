@@ -493,6 +493,10 @@ xbart <- function(
   } else {
     chisq()
   }
+  # a fixed residual scale reads no estimate, so no fold fits one
+  if (is(resid.prior, "dbartsFixedPrior")) {
+    sigmaPerFold <- NULL
+  }
   model <- newValidated(
     "dbartsModel",
     tree.prior,

@@ -217,10 +217,11 @@
             runs are reproducible at any \code{n.threads} and leave
             \code{.Random.seed} as they found it, and warnings from the
             workers are now reported.
-      \item A predictor holding \code{Inf} or \code{-Inf} is split over the
-            range of its finite values, the infinite ones falling past the
-            end cut points, as under \code{useQuantiles = TRUE}; 0.9-34
-            stretched the cut points to infinity, leaving the column unused.
+      \item A predictor holding \code{Inf} or \code{-Inf} has its cut points
+            placed over its finite values, the infinite ones falling past the
+            end cut points; 0.9-34 stretched the cut points to infinity,
+            leaving the column unused, or under \code{useQuantiles = TRUE}
+            placed an infinite cut point.
             When the starting \code{sigest} cannot be estimated because of
             such a value, the error names the column.
       \item \code{pdbart} and \code{pd2bart} evaluate a factor predictor
@@ -361,8 +362,9 @@
             \code{Matrix::dgCMatrix} predictors are used without being
             expanded, and a data frame may mix
             ordinary columns with sparse ones, including the new
-            \code{\link{sparseFactor}} column. Any other sparse
-            \code{Matrix} class is converted, and integer and logical
+            \code{\link{sparseFactor}} column. Any other
+            \code{Matrix} class, dense or sparse, and a \code{sparseVector}
+            are converted, and integer and logical
             matrices are taken as numbers, in fitting and in
             \code{predict}; 0.9-34 refused an integer matrix.
       \item Starting points. \code{bart}'s \code{warm.start} starts the
