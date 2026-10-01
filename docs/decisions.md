@@ -1162,6 +1162,10 @@ Record: docs/plans/monotone-exact-birth-death.md. Marked: blank. [dec-B152]
 The hybrid move that decides large "leaf" moves by Barker's rule without counting leaf orderings is not built before release; the slow-count warning and interrupt stay. With "joint" the default, only a user who chooses "leaf" and fits one to five trees can meet a slow count. The alternatives were building it before release (about 700 lines, up to 1,400, removing slow counts and probably the warning) and dropping it. Such a user may wait through a long run before the warning names the remedies, more trees or "joint". The maintainer on 2026-10-01, offered building it now, deferring it, or dropping it: "Option 2." See also: [dec-B149], [dec-B151], [dec-A134].
 Record: docs/design/monotone-barker-hybrid.md; TODO monotone-barker-hybrid. Marked: blank. [dec-B153]
 
+**An offset() term in a formula counts, as in lm**
+A formula's offset() term is added to any offset = argument at fit time, and is evaluated on the test set and on predict()'s newdata, as predict.lm does; the offset = argument keeps its behaviour, left out of predictions unless given again, which is also base R's; a family that refuses an offset refuses the term with the same message. Until now the term was silently ignored unless a vector offset = was also given, in 0.9-34 as well. The alternatives were refusing the term with an error pointing to offset =, and leaving it ignored with corrected text. Fits that use an offset() term change, from ignoring it to using it; no recorded baseline uses one. The maintainer on 2026-10-01: "I had never seen adding offset to a formula. Go ahead and use option 1." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B154]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
