@@ -128,6 +128,14 @@
       \item \code{names(fit)} no longer lists \code{yhat.test}, or, on a
             binary \code{bart} fit without an offset, \code{binaryOffset},
             when the fit has none; test with \code{is.null} rather than \code{names}.
+      \item A formula calling a function from no package, such as one
+            defined in the session, is refused, naming it; compute the
+            column in \code{data} instead. A fit stores its formula's terms
+            and \code{offset} expression without their environment, with
+            every name that is not a data column fixed at its value when
+            fitting, so a fit predicts from \code{newdata} alone, the same
+            after a reload, and carries no frame of the function it was made
+            in.
       \item A fit made with \code{keepCall = FALSE} stores \code{call =
             NULL}, as base R fits without a call do, so \code{update}
             refuses it as it refuses such an \code{lm} fit; 0.9-34 stored
@@ -209,13 +217,23 @@
             is a 1 x samples matrix rather than a vector.
             \code{extract(type = "trees")} always has a \code{chain}
             column.
+      \item \code{predict} applies the fit's \code{offset} argument at
+            \code{newdata}, as \code{predict.lm} does: the expression it was
+            given as, such as \code{offset = log(exposure)}, is evaluated on
+            \code{newdata}, and an \code{offset} given to \code{predict}
+            adds to it. One given as a plain vector for the training rows,
+            which cannot be evaluated there, is refused unless
+            \code{predict} is given an \code{offset} for the new rows.
+            0.9-34 predicted without the fit's offset. The default
+            \code{offset.test} is formed the same way on \code{test}.
+            Ordinal fits, and \code{survivalProbabilities} on hazard fits,
+            refuse new rows when the fit has an offset.
       \item An \code{offset()} term in a formula is used, as in \code{lm}:
             it is added to any \code{offset} argument at fit time and
             evaluated on \code{test} and on \code{predict}'s
             \code{newdata}, which must then be data frames carrying its
             variables. 0.9-34 ignored it unless an \code{offset} vector was
-            also given. The \code{offset} argument keeps its behaviour,
-            left out of predictions unless given again. An explicit
+            also given. An explicit
             \code{offset.test} is one value or one per test row, where
             0.9-34 recycled or cut it, and a bare name given as
             \code{offset.test} is looked up in \code{test} before

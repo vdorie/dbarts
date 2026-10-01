@@ -1,0 +1,209 @@
+# A fit stores its formula's terms and its 'offset' expression with every name
+# that is no data column frozen at its fit-time value and with no environment
+# of its own, so it carries neither its caller's frame nor the global
+# environment, and predicts from newdata alone, before and after a reload. A
+# formula calling a function from no package is refused.
+
+fitArgs <- list(
+  n.trees = 10L,
+  n.samples = 10L,
+  n.burn = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 5L,
+  keepTrees = TRUE
+)
+
+set.seed(31L)
+n <- 50L
+d <- data.frame(x = runif(n), o = rnorm(n))
+d$y <- sin(3 * d$x) + d$o + rnorm(n, 0, 0.1)
+nd <- data.frame(x = c(0.2, 0.5, 0.8), o = c(1, 0, -1))
+
+serializedSize <- function(object) length(serialize(object, NULL))
+
+# ---- a fit made inside a function carries none of that function's frame
+
+topLevel <- do.call(bart, c(list(y ~ x + offset(o), d), fitArgs))
+insideFunction <- function(data) {
+  big <- numeric(5e6) # 40 MB that must not ride along
+  K <- 1
+  fit <- do.call(bart, c(list(y ~ x + offset(o * K), data), fitArgs))
+  invisible(big)
+  fit
+}
+wrapper <- function(data, ...) insideFunction(data, ...)
+nested <- wrapper(d)
+expect_true(abs(serializedSize(nested) - serializedSize(topLevel)) < 1e5)
+expect_identical(environment(attr(nested$fit$data@x, "terms")), baseenv())
+
+# the offset argument's expression is stored the same way
+argumentInside <- function(data) {
+  big <- numeric(5e6)
+  fit <- bart(
+    y ~ x,
+    data,
+    offset = o / 2,
+    n.trees = 10L,
+    n.samples = 10L,
+    n.burn = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    seed = 5L,
+    keepTrees = TRUE
+  )
+  invisible(big)
+  fit
+}
+fit.argument <- argumentInside(d)
+expect_true(serializedSize(fit.argument) < serializedSize(topLevel) + 1e5)
+expect_identical(
+  environment(attr(fit.argument$fit$data, "offset.argument")),
+  baseenv()
+)
+expect_equal(
+  unname(apply(
+    predict(fit.argument, nd[c(2L, 2L), ] + c(0, 0, 0, 2)),
+    1L,
+    diff
+  )),
+  rep(1, 10L)
+)
+
+# ---- a local constant in a term or offset predicts the same after a reload
+
+localFit <- function(data) {
+  K <- 2
+  deg <- 2L
+  do.call(bart, c(list(y ~ poly(x, deg) + offset(o * K), data), fitArgs))
+}
+fit.local <- localFit(d)
+before <- predict(fit.local, nd)
+expect_equal(
+  unname(apply(predict(fit.local, nd[c(2L, 2L), ] + c(0, 0, 0, 1)), 1L, diff)),
+  rep(2, 10L)
+)
+file.fit <- tempfile(fileext = ".rds")
+fit.local$fit$storeState()
+saveRDS(fit.local, file.fit)
+expect_equal(predict(readRDS(file.fit), nd), before)
+# and in a fresh R session, where no K or deg exists anywhere
+file.newdata <- tempfile(fileext = ".rds")
+file.result <- tempfile(fileext = ".rds")
+saveRDS(nd, file.newdata)
+code <- sprintf(
+  paste0(
+    "suppressMessages(library(dbarts)); ",
+    "saveRDS(predict(readRDS('%s'), readRDS('%s')), '%s')"
+  ),
+  file.fit,
+  file.newdata,
+  file.result
+)
+status <- system2(
+  file.path(R.home("bin"), "Rscript"),
+  c("-e", shQuote(code)),
+  env = paste0("R_LIBS=", paste(.libPaths(), collapse = .Platform$path.sep)),
+  stdout = FALSE,
+  stderr = FALSE
+)
+expect_identical(status, 0L)
+expect_equal(readRDS(file.result), before)
+invisible(file.remove(file.fit, file.newdata, file.result))
+
+# ---- package bases keep working, unqualified or qualified
+
+bs <- splines::bs
+ns <- splines::ns
+for (rhs in c("ns(x, 3)", "bs(x, 3)", "scale(x)", "log(x + 1)", "I(x^2)")) {
+  fit.basis <- do.call(
+    bart,
+    c(list(as.formula(paste("y ~", rhs, "+ offset(o)")), d), fitArgs)
+  )
+  expect_identical(
+    environment(attr(fit.basis$fit$data@x, "terms")),
+    baseenv()
+  )
+  expect_equal(
+    unname(predict(fit.basis, d[1:3, ])),
+    unname(fit.basis$yhat.train[, 1:3])
+  )
+}
+
+# ---- a function from no package is refused at fit, naming it
+
+myTransform <- function(v) v^2
+expect_error(
+  do.call(bart, c(list(y ~ myTransform(x), d), fitArgs)),
+  pattern = "the formula calls 'myTransform', a function from no package"
+)
+expect_error(
+  dbarts::xbart(y ~ myTransform(x), d, n.reps = 1L, verbose = FALSE),
+  pattern = "the formula calls 'myTransform'"
+)
+
+# ---- xbart and bartBT inside a function carry no frame either
+
+xbartInside <- function(data) {
+  big <- numeric(5e6)
+  K <- 1
+  result <- dbarts::xbart(
+    y ~ x + offset(o * K),
+    data,
+    n.reps = 1L,
+    n.trees = 10L,
+    n.samples = 10L,
+    n.burn = c(10L, 5L),
+    n.threads = 1L,
+    verbose = FALSE
+  )
+  invisible(big)
+  result
+}
+expect_true(serializedSize(xbartInside(d)) < 1e6)
+bartBTInside <- function(data) {
+  big <- numeric(5e6)
+  fit <- dbarts::bartBT(
+    data["x"],
+    data$y,
+    ntree = 10L,
+    ndpost = 10L,
+    nskip = 10L,
+    verbose = FALSE,
+    keeptrees = TRUE
+  )
+  invisible(big)
+  fit
+}
+expect_true(serializedSize(bartBTInside(d)) < serializedSize(topLevel) + 1e6)
+
+rm(
+  fitArgs,
+  n,
+  d,
+  nd,
+  serializedSize,
+  topLevel,
+  insideFunction,
+  wrapper,
+  nested,
+  argumentInside,
+  fit.argument,
+  localFit,
+  fit.local,
+  before,
+  file.fit,
+  file.newdata,
+  file.result,
+  code,
+  status,
+  bs,
+  ns,
+  rhs,
+  fit.basis,
+  myTransform,
+  xbartInside,
+  bartBTInside
+)

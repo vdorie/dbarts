@@ -1745,7 +1745,11 @@ extractMultinomialFormulaData <- function(
   # the predictor terms, with their predvars, ride to the coded design so
   # predict rebuilds a data-dependent basis from the training values
   x <- modelFrame[termLabels]
-  attr(x, "dbartsTerms") <- predictorTerms(modelTerms)
+  attr(x, "dbartsTerms") <- predictorTerms(
+    modelTerms,
+    formulaDataNames(data),
+    if (is.data.frame(data)) nrow(data) else NA_integer_
+  )
   list(y = y, x = x)
 }
 
@@ -3143,6 +3147,12 @@ hazardSurvivalProbabilities <- function(
       stop(
         "survivalProbabilities on a discrete-time hazard fit requires the ",
         "trees; refit with keepTrees = TRUE"
+      )
+    }
+    if (!is.null(newdata)) {
+      refuseNewRowOffset(
+        object$fit$data,
+        "survivalProbabilities on a hazard fit"
       )
     }
     periodCol <- ncol(object$fit$data@x)

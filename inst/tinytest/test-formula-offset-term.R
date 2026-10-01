@@ -64,13 +64,10 @@ expect_equal(
   unname(predict(f.test, te, offset = 10)),
   unname(p.test) + 10
 )
-# the fit's offset argument is not reapplied unless given again
+# the fit's offset argument is applied at predict as well, as in lm
 f.both <- fitWith(formula = y ~ a + offset(o), data = d, offset = 5, test = te)
 expect_identical(f.both$fit$data@offset.test, te$o + 5)
-expect_equal(
-  unname(predict(f.both, te, offset = 5)),
-  unname(f.both$yhat.test)
-)
+expect_equal(unname(predict(f.both, te)), unname(f.both$yhat.test))
 expect_error(
   predict(f.test, te[c("a", "c")]),
   pattern = "missing variable required by the formula's offset\\(\\) term: 'o'"
@@ -204,6 +201,127 @@ expect_identical(
     offset.test = 3
   )$fit$data@offset.test,
   rep(3, 5L)
+)
+
+# ---- offset.test naming 'offset' beside a term: the argument's own share,
+# evaluated on test, plus the term evaluated there - never the training term
+
+f.named.term <- fitWith(
+  formula = y ~ a + offset(o),
+  data = d,
+  test = te,
+  offset.test = offset
+)
+expect_identical(f.named.term$fit$data@offset.test, te$o)
+f.half <- fitWith(
+  formula = y ~ a + offset(o / 2),
+  data = d,
+  offset = o / 2,
+  test = te,
+  offset.test = offset
+)
+expect_identical(f.half$fit$data@offset.test, te$o)
+f.plus <- fitWith(
+  formula = y ~ a + offset(o),
+  data = d,
+  test = te,
+  offset.test = offset + 1
+)
+expect_identical(f.plus$fit$data@offset.test, te$o + 1)
+
+# ---- a name in the term found in the formula's environment, as in lm
+
+scale.o <- 2
+gone <- 1
+d.gone <- d
+f.env <- fitWith(formula = y ~ a + offset(o * scale.o), data = d, test = te)
+expect_identical(f.env$fit$data@offset.test, te$o * scale.o)
+# at one x, rows differing only in o differ by scale.o times that
+same.a <- data.frame(a = 0.5, c = 0.5, o = c(0, 1))
+expect_equal(
+  unname(apply(predict(f.env, same.a), 1L, diff)),
+  rep(scale.o, nrow(predict(f.env, same.a)))
+)
+# a name that is no data column is frozen at its fit-time value, so it is not
+# looked up again
+before.gone <- predict(
+  fitWith(formula = y ~ a + offset(o * gone), data = d),
+  te
+)
+f.gone <- fitWith(formula = y ~ a + offset(o * gone), data = d.gone)
+rm(gone)
+expect_equal(predict(f.gone, te), before.gone)
+
+# ---- the offset argument is re-evaluated on new rows, as predict.lm does
+
+d$e <- runif(n, 1, 3)
+te$e <- c(1, 2, 3)
+f.log <- fitWith(formula = y ~ a, data = d, offset = log(e))
+f.log.term <- fitWith(formula = y ~ a + offset(log(e)), data = d)
+expect_identical(f.log$yhat.train, f.log.term$yhat.train)
+expect_equal(predict(f.log, te), predict(f.log.term, te))
+# at one x, rows differing only in e differ by lm's offset difference
+same.x <- data.frame(a = 0.5, c = 0.5, o = 0, e = c(1, 4))
+lm.log <- lm(y ~ a, d, offset = log(e))
+expect_equal(
+  unname(apply(predict(f.log, same.x), 1L, diff)),
+  rep(unname(diff(predict(lm.log, same.x))), nrow(predict(f.log, same.x)))
+)
+# an offset given to predict adds to it
+expect_equal(predict(f.log, te, offset = 1), predict(f.log, te) + 1)
+# the test-set default reads the argument on test the same way
+f.log.test <- fitWith(formula = y ~ a, data = d, offset = log(e), test = te)
+expect_identical(f.log.test$fit$data@offset.test, log(te$e))
+expect_false(f.log.test$fit$data@testUsesRegularOffset)
+expect_equal(unname(predict(f.log.test, te)), unname(f.log.test$yhat.test))
+# a plain vector for the training rows cannot be evaluated on others: predict
+# asks for an offset, which then stands in for it
+f.vector.arg <- fitWith(formula = y ~ a, data = d, offset = d$o)
+expect_error(
+  predict(f.vector.arg, te),
+  pattern = "the fit's 'offset' was given as 'd\\$o', which cannot be evaluated"
+)
+expect_equal(
+  predict(f.vector.arg, te, offset = te$o),
+  predict(f.arg, te, offset = te$o)
+)
+expect_error(
+  fitWith(formula = y ~ a, data = d, offset = d$o, test = te),
+  pattern = "'offset' was given as 'd\\$o', which cannot be evaluated on the rows of 'test'"
+)
+
+# ---- reads at new rows with no offset channel yet refuse rather than drop it
+
+d$yo <- factor(cut(d$a, 3L), ordered = TRUE)
+f.ordinal <- fitWith(formula = yo ~ a + offset(o), data = d)
+expect_error(
+  predict(f.ordinal, te),
+  pattern = "offset \\('offset\\(o\\)'\\) is not yet supported by predict on an ordinal fit"
+)
+if (requireNamespace("survival", quietly = TRUE)) {
+  expect_error(
+    survivalProbabilities(f.haz.term, newdata = d[1:3, ]),
+    pattern = "offset \\('offset\\(lo\\)'\\) is not yet supported by survivalProbabilities"
+  )
+}
+
+rm(
+  f.named.term,
+  f.half,
+  f.plus,
+  scale.o,
+  f.env,
+  same.a,
+  d.gone,
+  f.gone,
+  before.gone,
+  f.log,
+  f.log.term,
+  same.x,
+  lm.log,
+  f.log.test,
+  f.vector.arg,
+  f.ordinal
 )
 
 rm(
