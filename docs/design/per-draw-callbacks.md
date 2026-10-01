@@ -140,7 +140,7 @@ typedef struct dbarts_draw_t {
   size_t structSize;   /* library sets; read through DBARTS_HAS_FIELD */
   size_t chainIndex, drawIndex;   /* 0-based; drawIndex over THIS run */
   size_t numObservations, numTestObservations, numPredictors;
-  size_t numReportedLocations;    /* L: 1, or K for multinomial */
+  size_t numFittedValuesPerObservation; /* F: 1, or K for multinomial */
   size_t numVariableCountForests, numForests, numAmplitudes;
   size_t numOrdinalThresholds;
   const double *train, *test;                    /* n x L; nTest x L */
