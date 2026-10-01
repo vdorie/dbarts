@@ -333,49 +333,37 @@ at alpha = 0.05, so nothing previously recorded is invalidated.
 - Out of the matrix still: hazard and hurdle, whose design depends on y0.
   aft and the two heteroscedastic arms have since been admitted, their enablers
   being the status setter and the variance-forest prior draw and surface
-  accessor; monotone, liftable after 173a710, is the first follow-on arm not
-  yet run.
+  accessor; monotone's two 20-tree arms, one per prior, pass and are not yet
+  admitted (Monotone arm: design).
 
 ## Monotone arm: design
 
-Not run. Probes: the maintainer's laptop (arm64, one thread), 2026-09-29.
+Run 2026-09-30 on arm64 macOS: both 20-tree arms pass every functional; not yet
+admitted to sbc.yaml's matrix. Built in monotone-exact-birth-death.md step 16
+(dec-A133).
 
 DGP. The gaussian arm's design (n 150, p 3, x ~ U(0, 1) at configSeed 1, the
-five random test rows) with monotone = c(x1 = "increasing"), 20 trees, k fixed
-at 2 by an explicit normal(2) leaf prior (monotone refuses a chi k), sigma
-chisq(3, 0.9) at sigest 1, proposal.probs left at the default so the engine
-forces birth/death only. sbcReplication's steps are unchanged. theta0 is
-[`dbartsSampler$sampleTreesFromPrior`](../../man/dbartsSampler-class.Rd) (CGM(0.95, 2) conditioned on no empty
-leaf by whole-tree rejection), then [`dbartsSampler$sampleLeafParametersFromPrior`](../../man/dbartsSampler-class.Rd),
-which under monotone reaches [`MonotoneConstantGaussianLeaf::drawFromPriorForTree`](../../src/bartcore/model.hpp): per
-tree, iid N(0, sd_l^2) leaves (sd_l = c scale / k for a leaf with a
-constrained-axis neighbor, c^2 = pi / (pi - 1)) accepted by
-[`monotoneTreeIsFeasible`](../../src/bartcore/model.hpp). Its law is p(T) prod N(mu_l) 1{C(T)} / Z_T, Z_T the
-whole tree's cone probability; the tree marginal stays CGM. sig0 is
-sbcSigmaDraw, as for gaussian.
+five random test rows) with x1 increasing, 20 trees, k fixed at 2 by an
+explicit normal(2) leaf prior (monotone refuses a chi k), sigma chisq(3, 0.9)
+at sigest 1, proposal.probs left at the default so the engine forces
+birth/death only ([`sbcConfigMonotone`](../../benchmarks/R/sbc.R)). One arm per
+prior, each naming it: monotone-leaf, `monotone(c(x1 = "increasing"), prior =
+"leaf")`, and monotone-joint, `prior = "joint"`. sbcReplication's steps are
+unchanged. theta0 is [`dbartsSampler$sampleTreesFromPrior`](../../man/dbartsSampler-class.Rd)
+then [`dbartsSampler$sampleLeafParametersFromPrior`](../../man/dbartsSampler-class.Rd).
+Under "leaf" the trees are CGM(0.95, 2) conditioned on no empty leaf, and the
+leaves an exact draw from each tree's truncated prior, p(T) prod N(mu_l)
+1{C(T)} / Z_T. Under "joint" trees and leaves are drawn together by rejection,
+p(T) prod N(mu_l) 1{C(T)}, the tree marginal p(T) Z_T. sig0 is sbcSigmaDraw, as
+for gaussian.
 
-Does the sampler target that prior? No, on the derivation and one probe.
-- Derivation. A birth or death scores the touched leaves by
-  [`MonotoneConstantGaussianLeaf::logLikelihoodForBranchWithParams`](../../src/bartcore/model.hpp), each marginal divided by
-  the prior mass of the touched leaves' cone GIVEN the frozen neighbors,
-  d(mu_same). The law above needs Z_T*/Z_T0 there instead. The two agree only
-  when the touched leaves have no frozen constrained neighbor - root births,
-  and every move of the one-cut exact gate ([9. Gates](../design/monotone.md#9-gates)), which
-  therefore cannot see this. A < B -> A < B1 < B2 has Z ratio 1/3 but d ratio
-  (1 - Phi(mu_A / sd)) / 2. No law w(T) x (truncated leaves | T) makes that
-  ratio exact, so the chain targets neither this prior nor mBART's d = 1 one;
-  [4. Decision - marginal likelihood for the structure moves](../design/monotone.md#4-decision---marginal-likelihood-for-the-structure-moves) took the step
-  on the paper's word, and dec-B16's exactness rests on it.
-- Prior-only probe (weights 1e-30, 1 tree, 20000 draws each): leaf counts and
-  f(x*) agree with the rejection draw (|z| <= 2.1 over 28 comparisons). Expected:
-  at a flat likelihood numerator equals d, so the structure chain ignores the
-  leaves. A prior-only check cannot validate the normalizer.
-- Mini SBC (1 tree, p 1, n 100, x1 increasing, R 400/200/80): f(0.1), f(0.9) and
-  f(0.9) - f(0.1) FLAG at thin 10, 50 and 250; ecdfDiff / band 2.35, 2.10,
-  1.36 for the contrast, whose mean rank sits 8%, 13%, 13% low - plateau, not
-  shrinkage. The sign is the predicted tilt: the posterior is too steep along
-  x1. The unconstrained twin (same design, birth/death only) passes f and
-  sigma. Mixing specific to the monotone leaf Gibbs is not excluded.
+Why the arm was first designed to flag. The move as first built divided each
+touched leaf's marginal by its cone mass given the frozen neighbours, which
+equals the whole tree's normalizer ratio only at root births, so it targeted
+neither prior; a one-tree mini SBC flagged the x1 contrasts with the posterior
+too steep. The corrected move ([4. Decision - marginal likelihood for the
+structure moves](../design/monotone.md#4-decision---marginal-likelihood-for-the-structure-moves))
+is exact under each prior.
 
 Exchangeability. Design, cut grid, test rows, build scale (setResponse with
 updateScale = FALSE) and k are fixed at build; weights are absent. Each rep
@@ -386,45 +374,38 @@ crosses a rep.
 Functionals (10), every rank tie-broken by sbcDiscreteRank: avg.f,
 f.star1-5, sigma; mono.wide = f(x1 = .9) - f(x1 = .1) and mono.local =
 f(.55) - f(.45), both at (x2, x3) = (.5, .5) (local has an atom at 0); and
-ctrl.x2, the wide contrast along unconstrained x2. Contrast rows join xTest.
-Leaf count is out: the unconstrained twin flags it too.
+ctrl.x2, the wide contrast along unconstrained x2
+([`sbcMonotoneFunctionals`](../../benchmarks/R/sbc.R)). Contrast rows join xTest.
 
-Chain and pass. L 150, thin 30, R 200. Burn from `sbc.R burn-monotone 40000
-3` first, since birth/death only mixes slower. Pass: rankUniformity's ecdf
-band at 0.05 / (57 + 10), band 0.135 at R 200. Kept out of sbcMatrixConfigs
-until it passes, since adding it widens every matrix arm's band.
+Chain and pass. The burn ladders (40000 sweeps x 3 datasets per prior) put the
+transient in the first two or three 4000-sweep blocks and the slowest
+functionals past ACF 0.1 at lag ~200 ("leaf") and ~140 ("joint"), so the arms
+run at 12000 burn sweeps, thin 100, L 150, R 200. Pass: rankUniformity's ecdf
+band at 0.05 / (57 + 20), both arms joining the matrix, band 0.137 at R 200.
+Kept out of sbcMatrixConfigs until admitted, since adding them widens every
+matrix arm's band.
 
-    Rscript benchmarks/R/sbc.R burn-monotone 40000 3
-    Rscript benchmarks/R/sbc.R monotone    200 150 30 <burn>
-    Rscript benchmarks/R/sbc.R monotone-1  400 100 10 1000   # 1 tree, sensitive
-    Rscript benchmarks/R/sbc.R monotone-bd 400 100 10 1000   # unconstrained twin
+    Rscript benchmarks/R/sbc.R burn-monotone-leaf  40000 3
+    Rscript benchmarks/R/sbc.R burn-monotone-joint 40000 3
+    Rscript benchmarks/R/sbc.R monotone-leaf  200 150 100
+    Rscript benchmarks/R/sbc.R monotone-joint 200 150 100
 
-As implemented (monotone-exact-birth-death.md step 16, dec-A133): one arm per
-prior (monotone-leaf, monotone-joint), at a measured 12000 burn sweeps and
-thin 100; the one-tree arms are a mixing diagnostic at n 20 with a leaf count,
-not a pass requirement, since a one-tree birth/death chain does not mix its
-structure on the n 100 design, the twin included, and the one-tree exactness
-check is benchmarks/R/monotone-successive-conditional.R.
+Result, R 200: "leaf" worst ecdfDiff 0.075 (mono.local), mono.wide 0.073,
+sigma 0.042; "joint" worst 0.082 (f.star1), mono.wide 0.036, sigma 0.045.
+About 31 s per replicate of CPU at one thread.
 
-Runtime. A monotone sweep costs 2.4 ms at 20 trees (x1), 4.6 ms (x1 and x2),
-6.8 ms at 50 trees, against ~0.04 ms unconstrained (TODO
-monotone-leaf-quadrature). At 20 trees, 4500 sampled sweeps take 10.2 s plus
-~2.4 s per 1000 burn sweeps: ~25 s/rep, ~85 min at R 200 with a 6000-sweep
-burn. 50 trees ~70 s/rep, ~4 h. monotone-1 runs at 0.4 s/rep.
+One-tree arms (monotone-1-leaf, monotone-1-joint, and the unconstrained
+birth/death twin monotone-bd; p 1, n 20, thin 50) are a mixing diagnostic, not
+a pass requirement (dec-A133): a one-tree birth/death chain does not mix its
+structure on an informative design, the twin included, so they carry a leaf
+count functional and gate nothing. Exactness at one tree is checked instead by
+benchmarks/R/monotone-successive-conditional.R, under both priors and the twin.
 
 Risks, and what makes the arm uninformative.
-- The normalizer above: the arm should FLAG the x1 contrasts. At 20 trees the
-  tilt may dilute into a false PASS. Run monotone-1 first; if it flags and the
-  20-tree arm passes, the pass is not evidence of exactness.
-- Birth/death-only structure mixing: if monotone-bd flags the same
-  functionals, or the A4e ladder shrinks the flag, the arm says nothing about
-  monotone. A tree.prior power of 30 (root births only, so d = Z) is NOT a
-  clean discriminator: both twins flag sigma there, stuck on a misplaced cut.
-- Empty leaves: [`monotoneTreeIsFeasible`](../../src/bartcore/model.hpp) skips them but lets their mu = 0
-  bound neighbors. Unreachable here, since the prior draw and the veto both
-  forbid empty leaves; a weighted or NA variant would reopen it.
-- Negligible: the feasibility tolerance 1e-9, quadrature tol 1e-12, the 1e6
-  rejection cap (63%/try with one axis constrained).
-- Decisions: dec-B16 (exact posterior) is what the arm tests. dec-A106
-  bounds the prior spread of a monotone f rather than stating it, which does
-  not matter here because theta0 comes from the engine's own draw.
+- Birth/death-only structure mixing: at 20 trees the ladders bound it; at one
+  tree it dominates (above).
+- Negligible: the feasibility tolerance 1e-9 and quadrature tol 1e-12.
+- Decisions: dec-B144 and dec-B145 (each prior targeted exactly) are what the
+  arms test. dec-A106 bounds the prior spread of a monotone f rather than
+  stating it, which does not matter here because theta0 comes from the engine's
+  own draw.

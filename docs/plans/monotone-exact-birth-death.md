@@ -1,14 +1,10 @@
 # monotone-exact-birth-death: the monotone chain targets the chosen prior exactly
 
-Status: PLANNED 2026-09-29 (dec-B144), revised after a blind critique and a few-tree measurement. The maintainer
-then ruled that the package offers both monotone priors, "leaf" and "joint", chosen by monotone(prior = )
-(dec-B145 to dec-B148); the default stays open for the feel study below. Every move is then counted on the finer
-tree's side (Counting: algorithm), so a death proposal never counts the component its merge creates; a later
-move touching an accepted merge does. Under "leaf" a slow count warns and never stops the run (dec-B149): there
-is no count limit. A blind critique of the counting then fixed its gaps, and a whole-plan critique found it not
-ready: the plan now stages the work in seven reviewed commits (Staging), with a checkpoint on the corrected
-engine's counts after the fourth, and records three orchestrator calls (dec-A128). The monotone() signature is
-monotone(directions, prior = ) (dec-B150). Derivation and gate verified on an R prototype; not implemented.
+Status: LANDED 2026-10-01 (stages 1-6; see Landing), all but the Verification's quiet-machine speed check.
+Both monotone priors ship, each targeted exactly, chosen by monotone(directions, prior = ); "joint" is the
+default (dec-B151) under cgm()'s tree prior (dec-B152). Stage 4b, the order-count cache, is deferred to after
+1.0-0 with the hybrid Barker move (dec-A134, dec-B153). Planned 2026-09-29 (dec-B144 to dec-B150, dec-A128) and
+revised after blind critiques and a few-tree measurement.
 
 agent: opus (engine numerics: move seam, order counting, exact pair redraw, gate)
 rng: posterior-changing for every fit with an active monotone constraint (all of its draws move, prior draws
@@ -31,7 +27,7 @@ targets the chosen one exactly:
 - "joint": p(T, M) proportional to p_CGM(T) prod phi 1{M in C(T)}, the tree's structure and leaf values
   conditioned on the cone together, so the tree marginal is p_CGM(T) Z_T.
 
-Which is the default is open (Default: feel study). Exactness covers four pieces under both:
+The default is "joint" (dec-B151, after Default: feel study). Exactness covers four pieces under both:
 
 - the birth/death acceptance;
 - the redraw of a birth's two children;
@@ -662,11 +658,10 @@ next move touching it pays its count (step 1).
   three existing monotone seams. No dbarts.h change. Not compiled out, and so checked for identical draws: a
   new facade virtual for the slow-count tally (a --preclean rebuild), the try/catch in run()'s worker bodies,
   and the cancel function passed down from Chain::run to the moves.
-- The default prior lives in one constant, read by monotone() and by the plain-vector shorthand; until the
-  default is ruled its value is "leaf", provisionally, matching today's target. Every harness or test that
-  encodes the "leaf" target names prior = "leaf" explicitly (monotone-reference.R part (a) and
-  test-calibration-prior-draws.R's monotone block use the shorthand today), so a default ruling changes no
-  gate.
+- The default prior lives in one constant, read by monotone() and by the plain-vector shorthand: "joint"
+  (dec-B151), "leaf" provisionally until that ruling, matching the old target. Every harness or test that
+  encodes the "leaf" target names prior = "leaf" explicitly (monotone-reference.R and
+  test-calibration-prior-draws.R's monotone block among them), so the default ruling changed no gate.
 - Out of scope: change moves under the constraint, quadrature speed (TODO monotone-leaf-quadrature), and
   reconciling a chi k hyperprior with the truncated law.
 
@@ -1032,6 +1027,12 @@ constrained value waits for step 12.
     - dec-B16 is marked superseded in part by dec-B144.
     - Status lines and INDEX at landing, and the TODO item removed. These docs land in phase two, after the
       default ruling (Staging).
+    - As implemented (stage 6 docs): the help also states what the constraint claims where a predictor is
+      missing (stage 3b) and corrects its fixed-k claim (k is 2 unless another number, or a fixed sd, is
+      given), as do dbarts.Rd and bart.Rd, which now name the default. The default flip pins test-monotone.R's
+      recovery fit to "leaf", so both priors keep a recovery check; every other shorthand use in the tests
+      checks behaviour both priors share and follows the default. The TODO item stays until the
+      Verification's quiet-machine speed check is recorded.
 13. The prior switch, end to end. R resolves monotone(prior = ) (step 14); the bridge passes it with the
     directions to the engine as a flag on the monotone leaf. The flag rides the model's monotone attribute with
     the directions, not the saved state, so stateFormatVersion does not change; copy and reload rebuild from the
@@ -1322,3 +1323,12 @@ study (7178b075, 922035df, 95eb4113). Both 20-tree SBC arms pass every functiona
 0.075 "leaf", 0.082 "joint", band 0.137). Lint chain clean; the equivalence file reproduces 55/55 bitwise
 on the reference build. Step 12's docs wait for the maintainer's default ruling.
 
+
+Stage 6 docs, 2026-10-01: the default flipped to "joint" (d701d0af), the help and NEWS for both priors
+(23ec2bfa), and step 12's design and plan records. Under the ruled default: test-monotone.R's default
+assertions read "joint" and its recovery fit names "leaf"; every harness already named its prior. Tinytest
+10,852/0; on the reference build the snapshots unchanged and the three equivalence compares bitwise
+55/15/11; the 25 exact gates quick; the enumeration gate quick under "leaf" (p 0.24-0.99) and "joint" (p
+0.55-0.97); the successive-conditional check quick under both priors and the twin (worst |z| 2.13); the
+lint chain clean; R CMD check --as-cran one NOTE (Date). Open: the Verification's quiet-machine speed
+check.

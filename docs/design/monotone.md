@@ -1,7 +1,11 @@
 # Per-variable monotone constraints (mBART): design
 
-Status: LANDED 2026-07-19 (ee4ca79). Plan: docs/plans/archive/monotone-bart.md (this is its
-step 1). Users declare a monotone-increasing or -decreasing relationship for any
+Status: LANDED 2026-07-19 (ee4ca79); REVISED 2026-10-01 (d701d0af, 23ec2bfa). Plan:
+docs/plans/archive/monotone-bart.md (this is its step 1). Revised by
+[monotone-exact-birth-death.md](../plans/monotone-exact-birth-death.md): two priors, "joint" (the
+default) and "leaf", each targeted exactly (sections 4 and 9).
+
+Users declare a monotone-increasing or -decreasing relationship for any
 subset of predictors; each tree of the forest is constrained to be monotone in
 those predictors, so the sum-of-trees fit is monotone (Chipman, George,
 McCulloch, Shively 2022, Bayesian Analysis 17(2):515-544; arXiv:1612.01619 -
@@ -92,9 +96,10 @@ constrained or not.
 Accept the words "increasing"/"decreasing" and the numbers 1/-1, with 0
 unconstrained, matched case-sensitively (dec-B147); unnamed vectors of length p
 are accepted as a positional {-1,0,+1} spec (the XGBoost/LightGBM form). The
-plain vector is shorthand for `monotone(directions)` at the default prior; the
-constructor, resolved by bare name like `interactions()` and `blocks()`, also
-carries the prior (dec-B146, dec-B150). Names resolve against the
+plain vector is shorthand for `monotone(directions)` at the default prior,
+"joint" (dec-B151); the constructor, resolved by bare name like
+`interactions()` and `blocks()`, also carries the prior, "joint" or "leaf"
+(section 4; dec-B146, dec-B148, dec-B150). Names resolve against the
 model-matrix column names after expansion; a name that does not resolve, or a
 sign on a categorical column, is a hard error at spec time (see below). The
 argument also rides `dbartsData`/`dbartsSampler` and `setModel` refuses to change
@@ -237,14 +242,14 @@ options, and what mBART actually does:
     ([`birthOrDeathMove`](../../src/bartcore/moves.hpp), birth and death branches). This is a valid
     MH-within-Gibbs block update of (T, touched-mu) with the other leaves held
     fixed, then a redraw of the touched mu from the truncated posterior over C
-    (eq. 4.17). It targets the EXACT constrained posterior - the conditioning is
-    not an approximation. That exactness is the paper's own derivation (Section
-    4.2, going from eq. 4.10 to eq. 4.11): the standard CGM98 reverse-move
-    probability q(T*->T0) supplies the transition ratio, and rsame gives "the
-    same multiplicative contribution to the top and bottom of the acceptance
-    ratio so that it cancels out" conditional on mu_same. Taken here on the
-    paper's word (the reverse-move-normalizer step is not re-derived in this
-    note); the exact-posterior gate (section 9) is what checks it empirically.
+    (eq. 4.17). The paper argues it targets the exact constrained posterior
+    (Section 4.2, going from eq. 4.10 to eq. 4.11): the standard CGM98
+    reverse-move probability q(T*->T0) supplies the transition ratio, and
+    rsame gives "the same multiplicative contribution to the top and bottom of
+    the acceptance ratio so that it cancels out" conditional on mu_same. This
+    note first took that on the paper's word. It does not hold in general: the
+    prior's normalizer belongs to the whole tree, not to the touched leaves
+    (the correction below).
 
 - **B'. B with HONEST normalizers (recommend).** mBART's IMPLEMENTATION (paper
   Section 4.3) then makes two approximations for speed that we should NOT inherit,
@@ -260,9 +265,10 @@ options, and what mBART actually does:
     alpha = .25 and beta = .8 rather than using standard BART default values of
     alpha = .95 and beta = 2" (Section 4.3; alpha/beta are the tree prior's
     base/power).
-  That couples the constraint to the tree prior and makes the sampler target an
-  approximation, which the exact-posterior gate (section 9) would then fail. We
-  keep the normalizers honest instead:
+  That couples the constraint to the tree prior and makes the sampler target a
+  prior other than the one the paper states ("joint" in the correction below),
+  which the exact-posterior gate (section 9) would then fail. We keep the
+  normalizers honest instead:
     * The touched-leaf marginal factorizes cleanly. A birth NOT on a constrained
       axis leaves mu_L, mu_R each independently truncated to their own [a,b]
       (their only shared neighbor bound), so the marginal is a PRODUCT of two 1-D
@@ -275,9 +281,10 @@ options, and what mBART actually does:
       birth draws (mu_R, then mu_L | mu_R) as two sequential 1-D truncated normals
       honoring mu_L <= mu_R; every other case is independent 1-D truncated
       normals. No mesh, no grid artifacts.
-  Honest d keeps the DEFAULT tree prior (base=0.95, power=2, [`SamplerOptions::base`](../../src/bartcore/chain.hpp), [`SamplerOptions::power`](../../src/bartcore/chain.hpp))
-  unchanged, so the constraint does not smuggle a different structural prior, and
-  the sampler targets the exact posterior up to 1-D quadrature error.
+  Honest d was meant to keep the DEFAULT tree prior (base=0.95, power=2, [`SamplerOptions::base`](../../src/bartcore/chain.hpp), [`SamplerOptions::power`](../../src/bartcore/chain.hpp))
+  unchanged, so the constraint does not smuggle a different structural prior. It
+  does so only where d equals the whole tree's normalizer ratio; the correction
+  below replaces d with that ratio.
 
 - **C. Fully non-conjugate MH (propose-and-draw).** Draw the touched leaves from
   the constrained prior as part of the proposal and accept on the joint
@@ -302,6 +309,51 @@ closure, k-default, the aspirational-hook framing), amended, and re-critiqued
 is byte-identical by construction-time instantiation + if-constexpr (section 8),
 so the abstraction costs no default-path speed - the work is the 600-1000 line
 engine leg (2a/2b/C3), not a tradeoff.
+
+**Correction: the normalizer is the whole tree's, and there are two priors
+(dec-B144, dec-B145).** The leaf prior of sections 1 and 3 normalizes a tree's
+truncated leaves by Z_T, the probability that unconstrained leaves fall in
+C(T). Integrating the touched leaves given the rest leaves Z_T in the target, so
+the exact birth ratio is the tree-prior and proposal terms times
+I_T*(same) / I_T0(same) times Z_T0 / Z_T*, where I_T is B's integral with d
+removed; death is the reverse. The ratio d* / d0 of the touched leaves' cone
+masses given their frozen neighbours equals Z_T* / Z_T0 only when no touched
+leaf has a frozen constrained neighbour: root births, and every move of the one-cut gate (section
+9), which is why that gate passed. Elsewhere B' as first built targeted neither
+prior below. The shipped move offers two, chosen by `monotone(prior = )`:
+
+- "joint", the default (dec-B151): p(T, M) proportional to
+  p_CGM(T) prod phi 1{M in C(T)}, BART's prior conditioned on every tree being
+  monotone. The move is B's score with d dropped, and nothing is counted. The
+  tree marginal becomes p_CGM(T) Z_T, so each constrained split costs prior
+  weight (about 0.85-1.0 nats in measured fits), and the constrained predictors
+  get fewer splits than under "leaf".
+- "leaf": the prior of sections 1 and 3, with the ratio above. Related leaves
+  share one prior sd, so Z_T = e(P_T) / L!, e the number of linear extensions
+  of the tree's leaf order. [`buildMonotoneLeafOrder`](../../src/bartcore/model.hpp)
+  builds that order and splits it into components;
+  [`monotoneLogPairRatio`](../../src/bartcore/model.hpp) counts the move's
+  component by a dynamic program over down-sets, on the finer tree's side, so a
+  death proposal never counts the component its merge would create. There is no
+  limit (dec-B149): with one to five trees a count can take seconds to minutes
+  and its memory grows with it; it polls for an interrupt, an allocation failure
+  is an R error, and R warns after the run ([`warnOnSlowCount`](../../R/bartcore.R)).
+  At 10 or more trees counts are negligible.
+- Both: [`MonotoneConstantGaussianLeaf::redrawAfterBirth`](../../src/bartcore/model.hpp)
+  redraws the touched pair exactly from its truncated posterior, an empty leaf
+  draws from its prior truncated to its neighbours' bounds rather than sitting
+  at 0, and
+  [`monotoneDrawPriorLeaves`](../../src/bartcore/model.hpp) draws a tree's prior
+  leaves exactly, as a uniform linear extension with sorted normal draws.
+
+What mBART samples. Its paper defines only the "leaf" prior (Section 3), but
+Section 4.3's d = 1 drops the normalizer outright, which is exactly the "joint"
+move, evaluated on a grid; its base .25 and power .8 retune the tree prior to
+offset the Z_T factor. Its software (bd.cpp) matches Section 4.3, so mBART users
+have fit "joint" under that tree prior. Here "joint" keeps cgm()'s defaults, and
+the help names mBART's values as an opt-in (dec-B152): in a simulation study
+they fit sharper and more accurately at 200 trees, with narrower intervals that
+under-covered with plentiful low-noise data.
 
 **Shared-machinery sequencing (flagged per the plan).** The current conjugate
 MoveStrategy reads NO leaf parameters - it integrates them all out. Both B' and
@@ -517,6 +569,26 @@ posterior and move score at <= 2-D, (b) the double-bounded interior leaf draw at
 for no extra coverage: its 3-leaf structures need exactly the 3-D quadrature (b)
 already does, atop the tree-space sum (a) already does.
 
+**What (a) and (b) cannot see, and the gates added for it.** Every move of
+(a) is a root birth or its death, where d equals the whole tree's normalizer
+ratio, so (a) passed a move that was wrong elsewhere (section 4's correction).
+Both parts run in
+[monotone-reference.R](../../benchmarks/R/monotone-reference.R) under "leaf",
+the prior they encode, named explicitly. Three checks cover both priors:
+
+- [monotone-exact-enumeration.R](../../benchmarks/R/monotone-exact-enumeration.R)
+  enumerates every one-tree structure on small cell grids, multi-split trees
+  with N-shaped leaf orders and a mirrored decreasing design included, and
+  tests the sampler's draws against the exact posterior under either prior.
+  It fails the old move decisively, and runs quick in CI once per prior.
+- [monotone-successive-conditional.R](../../benchmarks/R/monotone-successive-conditional.R)
+  draws a state from the prior, simulates a response, runs K sweeps from that
+  state, and checks that each functional's paired change is centred (Geweke
+  2004), on one-tree
+  designs too deep to enumerate, under both priors and the unconstrained twin.
+- The monotone SBC arms, one per prior at 20 trees (sbc-family-tiers.md), and
+  the two equivalence scenarios, one per prior, each naming its prior.
+
 **Component tests (RNG-free where possible).**
 - Neighbor geometry: on hand-built trees over 2-3 constrained axes, the
   above/below-neighbor sets and per-leaf [a,b] bounds match a brute-force box
@@ -577,7 +649,12 @@ the posterior-changing baseline for this arc.
   integrals (mostly 1-D closed form, 2-D only for a constrained-axis birth) should
   beat that, but constrained forests are inherently slower than unconstrained -
   acceptable because the cost falls only on declared columns and unconstrained
-  fits are untouched (section 8).
+  fits are untouched (section 8). Measured, a constrained fit runs 4.5-8.5 times
+  the CPU per sweep of the same fit without the constraint, under either prior.
+- The "leaf" count (section 4's correction). Negligible at 10 or more trees;
+  with one to five trees a count can take seconds to minutes and hundreds of
+  megabytes (70 s and 361 MB in a one-tree fit with one constrained and three
+  free predictors). "joint", the default, counts nothing.
 - Mixing. Birth/death-only (section 5) plus single-site leaf Gibbs can mix slowly
   when many leaves are mutually constrained (tight truncation intervals). The
   recovery test watches for it; random-scan Gibbs and the children-terminal change
@@ -585,28 +662,27 @@ the posterior-changing baseline for this arc.
 - Neighbor geometry is the correctness-critical new code; a wrong adjacency test
   silently fits the wrong constrained model. The brute-force oracle test (section
   9) is the guard.
-- Confidence in the constrained-draw algorithm AS SPECIFIED: HIGH for
-  birth/death plus single-site truncated-normal Gibbs. The paper is explicit and
-  the two structural claims that make it clean are verified here from the text -
-  the acceptance conditions on mu_same and reduces to the engine's existing ratio
-  shape (eq. 4.11), and a birth can never empty the cone (section 5). The
-  deviation from mBART (honest normalizers instead of d=1 plus a retuned tree
-  prior) STRENGTHENS correctness - it is what lets the exact-posterior gate pass -
-  at a modest, columns-only compute cost. The residual risk is engineering, not
-  algorithmic: the neighbor-adjacency geometry and the tree-granularity leaf-draw
-  seam, both covered by the component tests above.
+- Confidence: HIGH for both priors as shipped, on section 9's checks: the
+  enumeration gate passes every design under both priors and fails the old
+  move, the successive-conditional check passes on deep one-tree designs, and
+  both 20-tree SBC arms pass. The first version's confidence rested on the
+  paper's eq. 4.11 cancellation, which holds only for moves whose touched leaves
+  have no frozen constrained neighbour, and its one-cut gate could not see the
+  rest (section 4's correction). Residual risks: the neighbor geometry, factor
+  levels and missing values included, covered by a point oracle in the
+  component tests; and mixing, since a one-tree birth/death chain can stay
+  over-split on an informative design, constrained or not.
 
 ## Plan-vs-code note
 
 The plan stub (docs/plans/archive/monotone-bart.md) frames fork 3 as "exact
 constrained marginals vs mBART's approach," implying mBART's approach is not
-exact. Finding: mBART's TARGET is exact (the conditional-on-mu_same marginal,
-eq. 4.11, hits the true constrained posterior); only its IMPLEMENTATION
-approximates (grid + d=1 + retuned tree prior, Section 4.3, quoted verbatim in
-section 4 B'). The real fork is
-therefore B (mBART's approximated implementation) vs B' (mBART's exact target with
-honest, lower-dimensional numerics), not exact-vs-mBART - and B' is both exact and
-what the plan's own exact-posterior gate requires. The plan's "sequential
+exact. This note first found mBART's TARGET exact and only its IMPLEMENTATION
+approximate (grid + d=1 + retuned tree prior, Section 4.3, quoted verbatim in
+section 4 B'), and framed the fork as B vs B'. Corrected (section 4): the paper's
+stated prior, "leaf" here, needs the whole tree's normalizer, which neither its
+eq. 4.11 nor B' as first built carries; and its implementation's d = 1 samples
+a different prior exactly, "joint" here, up to its grid. Both ship, each exact. The plan's "sequential
 conditional truncated normals" description (line 23) is correct for the leaf draw
 and for the constrained-axis birth redraw; it is NOT how the structure-move
 MARGINAL is scored (that is a truncated integral, not a draw), a distinction

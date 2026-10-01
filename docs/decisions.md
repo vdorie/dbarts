@@ -484,7 +484,7 @@ Record: docs/design/negative-binomial.md, for the dispersion pick; docs/design/r
 
 **Monotone leaves target the exact posterior**
 Leaves constrained to be monotone in a predictor sample the exact target, with a constrained joint marginal at the seam where a tree move changes which constraints apply. The alternatives traded that exactness for a simpler move at the seam. The cost is 600 to 1000 lines of engine code and an adaptive quadrature that dominates the run time of a monotone fit. The record has the maintainer resolving for the exact shape and for proceeding with the monotone work at that point.
-Record: docs/design/monotone.md. Marked: not mine. [dec-B16]
+Record: docs/design/monotone.md. Marked: not mine; superseded in part by dec-B144: the move's conditional cone masses matched the whole tree's normalizer only at root births, so the move now carries the whole tree's normalizer. [dec-B16]
 
 **The variance forest rides the weight channel**
 A second forest modelling the residual variance enters the sampler through the observation weight channel, as a separately typed forest that may be absent. The alternative was giving it a channel of its own. Because the weight channel is then taken, a variance forest is refused for every family and model composition that already owns weights. The record has the maintainer resolving for this route and for implementing it at that point.
