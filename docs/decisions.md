@@ -1178,6 +1178,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B156]
 Under family = "aft" or "hazard" a formula's response is written survival::Surv(time, status); cbind(time, status) on the left of a formula stays refused, now with a message naming Surv(), where it suggested the family the caller had already given. The x/y door keeps taking a two-column matrix, having no formula to write Surv() in. The alternative was accepting cbind() on the formula door as well. In base R a cbind() response means a binomial glm's successes and failures or an lm's several responses, and no survival fitter reads it as time and status. The maintainer on 2026-10-01: "It sounds like there's no ambiguity, right? `cbind` always means binomial? If that's the case, then we should use option 1."; told that cbind() also means an lm's multivariate response, which leaves no survival meaning either, the orchestrator recorded option 1. Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B157]
 
+**keepCall = FALSE stores no call, as base R fits do**
+A fit made with keepCall = FALSE has call = NULL, so summary() omits the call and update() refuses with base R's "need an object with call component". Until now, and in 0.9-34, it stored the placeholder call NULL(), which summary() printed as "Call: `NULL`()" and which update() and formula() failed on with unrelated errors. The alternative was keeping the placeholder and teaching summary(), update() and formula() about it. Code that inspected the placeholder sees NULL instead. The maintainer on 2026-10-01: "Do option 1." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B158]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
