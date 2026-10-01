@@ -177,6 +177,10 @@ void spawnWorkers(std::vector<std::thread>& workers, std::size_t numWorkers,
 #endif
 }
 
+/// Sampler::setState's adoptCapacity default: judge a state's saved trees
+/// against the live store and leave its capacity alone.
+inline constexpr std::size_t keepStoreCapacity = static_cast<std::size_t>(-1);
+
 /// The sampler proper: a shared column store and one or more chains over it.
 /// Chains run independently (optionally on worker threads) and hold all
 /// per-chain state; the sampler owns the data and orchestrates transactions,
@@ -1109,10 +1113,17 @@ public:
   /// non-null, separates that refusal from every other invalid state so the
   /// host can name it; monotoneRefused does the same for leaf values outside
   /// a monotone sampler's cone.
+  ///
+  /// adoptCapacity, when not keepStoreCapacity, judges the state's saved trees
+  /// against a store of that many samples and, only once the state is
+  /// accepted, resizes the store to it before installing them: a refused state
+  /// leaves the store and its draws as they were. An allocation failure in the
+  /// resize throws with the cut grid restored and nothing else changed.
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors,
                 bool* columnMaskRefused = nullptr,
-                bool* monotoneRefused = nullptr) {
+                bool* monotoneRefused = nullptr,
+                size_t adoptCapacity = keepStoreCapacity) {
     if (columnMaskRefused != nullptr) *columnMaskRefused = false;
     if (monotoneRefused != nullptr) *monotoneRefused = false;
     if (state.chains.size() != chains_.size()) return false;
@@ -1159,8 +1170,12 @@ public:
     for (size_t c = 0; c < chains_.size() && columnMaskOk; ++c)
       columnMaskOk = chains_[c]->columnMaskStateFeasible(state.chains[c]);
     bool allValid = columnMaskOk;
+    size_t liveCapacity = savedTreeCapacity();
+    bool resize =
+      adoptCapacity != keepStoreCapacity && adoptCapacity != liveCapacity;
+    size_t judgedCapacity = resize ? adoptCapacity : liveCapacity;
     for (size_t c = 0; c < chains_.size() && allValid; ++c)
-      allValid = chains_[c]->stateIsValid(state.chains[c]);
+      allValid = chains_[c]->stateIsValid(state.chains[c], judgedCapacity);
     // a monotone sampler's constrained draws start only from leaf values in
     // the cone; unlike a warm start, which reseeds, a state is a continuation
     // and is refused whole
@@ -1169,7 +1184,7 @@ public:
       monotoneOk = chains_[c]->monotoneStateFeasible(state.chains[c]);
     allValid = allValid && monotoneOk;
 
-    if (!allValid) {
+    auto restoreGrid = [&]() {
       data_.cutPoints = std::move(oldCutPoints);
       data_.numCuts = std::move(oldNumCuts);
       data_.maxNumCuts = std::move(oldMaxNumCuts);
@@ -1177,9 +1192,22 @@ public:
       data_.test.codes = std::move(oldTestCodes);
       data_.train.sparseColumns = std::move(oldSparseColumns);
       data_.test.sparseColumns = std::move(oldTestSparseColumns);
+    };
+    if (!allValid) {
+      restoreGrid();
       if (columnMaskRefused != nullptr) *columnMaskRefused = !columnMaskOk;
       if (monotoneRefused != nullptr) *monotoneRefused = !monotoneOk;
       return false;
+    }
+    if (resize) {
+      try {
+        resizeSavedTrees(adoptCapacity);
+      } catch (...) {
+        restoreGrid();
+        throw;
+      }
+      options_.keepTrees = adoptCapacity > 0;
+      options_.numSamplesToStore = adoptCapacity;
     }
 
     for (size_t c = 0; c < chains_.size(); ++c)
@@ -1496,26 +1524,33 @@ public:
   /// capacity reallocates every chain's slots and resets the write position;
   /// a no-op when nothing changes, preserving stored samples.
   ///
-  /// An allocation that fails part way (a capacity too large to hold) throws
-  /// with every chain restored to the previous capacity and settings, the
-  /// store empty: the stored draws are gone either way, but the chains and the
-  /// options never disagree about how many slots exist.
+  /// Every chain's new store is built aside before any is swapped in, so an
+  /// allocation that fails (a capacity too large to hold) throws with the
+  /// store, its capacity and its recorded draws exactly as they were. The old
+  /// and new stores coexist for the length of the swap.
   void setTreeStorage(bool keepTrees, size_t numSamplesToStore) {
     size_t capacity =
       keepTrees ? (numSamplesToStore > 0 ? numSamplesToStore : 1) : 0;
-    size_t previousCapacity = savedTreeCapacity();
-    if (keepTrees == options_.keepTrees && capacity == previousCapacity)
+    if (keepTrees == options_.keepTrees && capacity == savedTreeCapacity())
       return;
-    currentSampleNum_ = 0;
-    recordedDraws_ = 0;
-    try {
-      for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
-    } catch (...) {
-      for (auto& chain : chains_) chain->initializeSavedTrees(previousCapacity);
-      throw;
-    }
+    resizeSavedTrees(capacity);
     options_.keepTrees = keepTrees;
     options_.numSamplesToStore = numSamplesToStore;
+  }
+
+  /// Builds every chain's store at capacity, then swaps them all in and
+  /// empties the store's draw count; throws, changing nothing, if any build
+  /// fails.
+  void resizeSavedTrees(size_t capacity) {
+    using Store = typename Chain<L, ResidT>::SavedTreeStore;
+    std::vector<Store> stores;
+    stores.reserve(chains_.size());
+    for (auto& chain : chains_)
+      stores.push_back(chain->prepareSavedTrees(capacity));
+    for (size_t c = 0; c < chains_.size(); ++c)
+      chains_[c]->installSavedTrees(stores[c]);
+    currentSampleNum_ = 0;
+    recordedDraws_ = 0;
   }
 
   /// Install a replacement prior on every chain; see ModelParameters.

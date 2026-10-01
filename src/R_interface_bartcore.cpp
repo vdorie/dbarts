@@ -5668,8 +5668,8 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
     Rf_error("the bartcore engine cannot change the number of trees of an "
              "existing sampler");
 
-  // the store resize allocates, and fails as an R error with the sampler on
-  // its previous capacity; it goes first so a refusal changes nothing else
+  // the store resize allocates, and fails as an R error with the store and
+  // its draws as they were; it goes first so a refusal changes nothing else
   bartcore_bridge::CapturedError storageError;
   captureExceptions(storageError, [&]() {
     sampler.setTreeStorage(control.keepTrees, control.defaultNumSamples);
@@ -6407,7 +6407,8 @@ SEXP bartcore_storeState(SEXP ptrExpr) {
 }
 
 SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
-                       SEXP currentPredictorsExpr) {
+                       SEXP currentPredictorsExpr,
+                       SEXP adoptStoreCapacityExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   // restoring cut points re-quantizes from raw values, which views lack
   refuseMutationOnView(*holder.sampler, "$setState");
@@ -6415,7 +6416,10 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
   // a same-spec continuation skips per column, so a null source is harmless
   const double* currentPredictors =
     Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
-  bartcore_bridge::setState(*holder.sampler, stateExpr, currentPredictors);
+  // TRUE only from a re-creation, whose control may not record a store the
+  // flat API sized; a live $setState keeps the sampler's own capacity
+  bartcore_bridge::setState(*holder.sampler, stateExpr, currentPredictors,
+                            Rf_asLogical(adoptStoreCapacityExpr) == TRUE);
   return R_NilValue;
 }
 
@@ -7573,7 +7577,7 @@ static const char* const columnMaskMismatchMessage =
   "column subset or a restricted variance forest) in force here";
 
 void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
-              const double* currentPredictors) {
+              const double* currentPredictors, bool adoptStoreCapacity) {
   bartcore::SamplerShape shape = sampler.shape();
   if (!Rf_inherits(stateExpr, "bartcoreState"))
     Rf_error("'state' must be a bartcore state object");
@@ -7973,46 +7977,34 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
   // A store switched on or resized through the flat API is recorded in no R
   // object's control, so a sampler re-created from that control (after a save
-  // and load) holds another capacity than the state it continues. A state
-  // whose saved trees declare a capacity resizes the store to it first, and a
-  // refused state puts the previous capacity back; the stored draws then
-  // restore as the live sampler held them.
-  size_t previousCapacity = shape.savedTreeCapacity;
-  size_t stateCapacity = previousCapacity;
-  if (errorMessage == NULL && !state.chains[0].forests.empty()) {
+  // and load) holds another capacity than the state it continues. On that
+  // path, and only there, a state whose saved trees declare a capacity is
+  // judged against it and the store takes it once the state is accepted; a
+  // refused state leaves the store and its draws alone.
+  size_t adoptCapacity = bartcore::keepStoreCapacity;
+  if (adoptStoreCapacity && errorMessage == NULL &&
+      !state.chains[0].forests.empty()) {
     const bartcore::ForestStateData& forestState = state.chains[0].forests[0];
     size_t numTrees = forestState.trees.size();
     if (!forestState.savedTrees.empty() && numTrees > 0 &&
         forestState.savedTrees.size() % numTrees == 0)
-      stateCapacity = forestState.savedTrees.size() / numTrees;
-  }
-  bool storeResized = false;
-  if (stateCapacity != previousCapacity) {
-    bartcore_bridge::CapturedError resizeError;
-    captureExceptions(resizeError,
-                      [&]() { sampler.setTreeStorage(true, stateCapacity); });
-    if (resizeError.failed)
-      errorMessage = "state's saved trees cannot be stored by this sampler";
-    else
-      storeResized = true;
+      adoptCapacity = forestState.savedTrees.size() / numTrees;
   }
 
   bool columnMaskRefused = false, monotoneRefused = false;
-  bool restored =
-    errorMessage == NULL &&
-    sampler.setState(state, currentPredictors, &columnMaskRefused,
-                     &monotoneRefused);
+  bool restored = false;
+  if (errorMessage == NULL) {
+    bartcore_bridge::CapturedError restoreError;
+    captureExceptions(restoreError, [&]() {
+      restored = sampler.setState(state, currentPredictors, &columnMaskRefused,
+                                  &monotoneRefused, adoptCapacity);
+    });
+    if (restoreError.failed)
+      errorMessage = "state's saved trees cannot be stored by this sampler";
+  }
   {
     bartcore::SamplerStateData empty;
     std::swap(state, empty);  // free before a potential longjmp
-  }
-  if (!restored && storeResized) {
-    // the previous store held at most what it is given back, so this restores
-    // an allocation that already fit
-    bartcore_bridge::CapturedError restoreError;
-    captureExceptions(restoreError, [&]() {
-      sampler.setTreeStorage(previousCapacity > 0, previousCapacity);
-    });
   }
   if (errorMessage != NULL) Rf_error("%s", errorMessage);
   if (columnMaskRefused) Rf_error("%s", columnMaskMismatchMessage);

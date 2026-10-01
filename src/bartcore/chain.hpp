@@ -3101,12 +3101,23 @@ public:
   // the sampler before every run so chains write consistent slots without
   // sharing mutable state.
 
-  /// Sizes every forest's store to capacity slots. A capacity whose slot count
-  /// overflows the store's size type throws std::length_error before any
-  /// forest is touched, rather than wrapping to a short store the run would
-  /// then write past; an allocation failure part way leaves the forests
-  /// already sized, which the sampler restores.
-  void initializeSavedTrees(size_t capacity) {
+  /// One chain's saved-tree buffers built aside: a resize either lands whole
+  /// or leaves the live store, and the draws it records, untouched.
+  struct SavedTreeStore {
+    std::size_t capacity = 0;
+    std::vector<std::vector<std::vector<FlatNode>>> trees;
+    std::vector<std::vector<std::vector<double>>> params;
+    std::vector<std::vector<std::vector<std::uint64_t>>> masks;
+    std::vector<std::vector<FlatNode>> varianceTrees;
+    std::vector<std::vector<std::uint64_t>> varianceMasks;
+  };
+
+  /// Builds every forest's store at capacity slots without touching the live
+  /// one. A capacity whose slot count overflows the store's size type throws
+  /// std::length_error before anything is allocated, rather than wrapping to a
+  /// short store the run would then write past; an allocation failure throws
+  /// with nothing live changed.
+  SavedTreeStore prepareSavedTrees(size_t capacity) const {
     for (const Forest<L, ResidT>& forest : forests_)
       if (forest.numTrees != 0 &&
           capacity > forest.savedTrees.max_size() / forest.numTrees)
@@ -3117,6 +3128,8 @@ public:
           varianceForest_->savedTrees.max_size() / varianceForest_->numTrees)
       throw std::length_error("saved-tree storage of this many samples "
                               "exceeds the addressable size");
+    SavedTreeStore store;
+    store.capacity = capacity;
     if (varianceForest_) {
       // a scale leaf's default is the MULTIPLICATIVE identity 1.0, not the
       // mean side's additive 0.0: predictVarianceFromSavedSample forms s^2 as
@@ -3125,31 +3138,54 @@ public:
       // applies to every saved variance tree
       FlatNode identity;
       identity.value = 1.0;
-      varianceForest_->savedTreeCapacity = capacity;
-      varianceForest_->savedTrees.assign(
-        capacity * varianceForest_->numTrees,
-        std::vector<FlatNode>(1, identity));
+      store.varianceTrees.assign(capacity * varianceForest_->numTrees,
+                                 std::vector<FlatNode>(1, identity));
       if (data_.hasPooledCategorical)
-        varianceForest_->savedTreeMasks.assign(
-          capacity * varianceForest_->numTrees, std::vector<std::uint64_t>());
+        store.varianceMasks.assign(capacity * varianceForest_->numTrees,
+                                   std::vector<std::uint64_t>());
     }
-    for (Forest<L, ResidT>& forest : forests_) {
-      forest.savedTreeCapacity = capacity;
-      forest.savedTrees.assign(capacity * forest.numTrees,
-                               std::vector<FlatNode>(1));
+    store.trees.resize(forests_.size());
+    store.params.resize(forests_.size());
+    store.masks.resize(forests_.size());
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      const Forest<L, ResidT>& forest = forests_[f];
+      store.trees[f].assign(capacity * forest.numTrees,
+                            std::vector<FlatNode>(1));
       // the default slot is a single zero leaf; its slopes are zero too, and
       // a function-valued slot holds one zero-constant block
       if constexpr (L::hasVectorParams)
-        forest.savedTreeParams.assign(
+        store.params[f].assign(
           capacity * forest.numTrees,
           std::vector<double>(forest.leaf.numParams() - 1, 0.0));
       else if constexpr (L::hasFunctionParams)
-        forest.savedTreeParams.assign(capacity * forest.numTrees,
-                                      std::vector<double>{0.0, 0.0});
+        store.params[f].assign(capacity * forest.numTrees,
+                               std::vector<double>{0.0, 0.0});
       if (data_.hasPooledCategorical)
-        forest.savedTreeMasks.assign(capacity * forest.numTrees,
-                                     std::vector<std::uint64_t>());
+        store.masks[f].assign(capacity * forest.numTrees,
+                              std::vector<std::uint64_t>());
     }
+    return store;
+  }
+
+  /// Swaps a prepared store in; the old buffers leave with \p store.
+  void installSavedTrees(SavedTreeStore& store) noexcept {
+    if (varianceForest_) {
+      varianceForest_->savedTreeCapacity = store.capacity;
+      varianceForest_->savedTrees.swap(store.varianceTrees);
+      varianceForest_->savedTreeMasks.swap(store.varianceMasks);
+    }
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      Forest<L, ResidT>& forest = forests_[f];
+      forest.savedTreeCapacity = store.capacity;
+      forest.savedTrees.swap(store.trees[f]);
+      forest.savedTreeParams.swap(store.params[f]);
+      forest.savedTreeMasks.swap(store.masks[f]);
+    }
+  }
+
+  void initializeSavedTrees(size_t capacity) {
+    SavedTreeStore store = prepareSavedTrees(capacity);
+    installSavedTrees(store);
   }
   void setSavedSlotBase(size_t base) {
     for (Forest<L, ResidT>& forest : forests_) forest.savedSlotBase = base;
@@ -3655,6 +3691,12 @@ public:
   }
 
   bool stateIsValid(const ChainStateData& state) const {
+    return stateIsValid(state, savedTreeCapacity());
+  }
+  /// The same, judging the state's saved-tree blocks against a store of
+  /// savedCapacity slots rather than the live one, for a restore that will
+  /// resize the store to that capacity once the state is accepted.
+  bool stateIsValid(const ChainStateData& state, size_t savedCapacity) const {
     if (state.forests.size() != forests_.size()) return false;
     // the amplitude block's LAYOUT, not just its total: a state carrying
     // q = (1, 3) into a live q = (2, 2) has the same four amplitudes and would
@@ -3669,7 +3711,7 @@ public:
       const ForestStateData& fs = state.forests[f];
       if (fs.trees.size() != forest.numTrees) return false;
       if (!fs.savedTrees.empty() &&
-          fs.savedTrees.size() != forest.savedTrees.size())
+          fs.savedTrees.size() != savedCapacity * forest.numTrees)
         return false;
       // mask channels pair with their flat trees when present; trees holding
       // wide rules without a channel fail the rebuild below
@@ -3804,7 +3846,8 @@ public:
       // would restore the destination's own identity fill and report a
       // plausible constant s(x) - strictly harder to notice than the zero it
       // replaces.
-      if (state.savedVarianceTrees.size() != varianceForest_->savedTrees.size())
+      if (state.savedVarianceTrees.size() !=
+          savedCapacity * varianceForest_->numTrees)
         return false;
       if (!state.savedVarianceTreeMasks.empty() &&
           state.savedVarianceTreeMasks.size() !=

@@ -361,9 +361,11 @@ SEXP storeState(bartcore::SamplerBase& sampler);
 /// errors on malformed or inconsistent states. currentPredictors is the
 /// call-time predictor matrix a cross-grid restore re-quantizes from (data@x,
 /// or the retained creation spec's @x); null for CSC/mixed stores and for a
-/// same-spec continuation, which re-quantizes nothing.
+/// same-spec continuation, which re-quantizes nothing. adoptStoreCapacity
+/// lets the state's saved-tree capacity replace the sampler's once the state
+/// is accepted, the re-creation path's need.
 void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
-              const double* currentPredictors);
+              const double* currentPredictors, bool adoptStoreCapacity);
 
 /// A data.frame of tree structure over 0-based index arrays; unprotected on
 /// return. Reads saved trees unless useLiveTrees (sample indices are then

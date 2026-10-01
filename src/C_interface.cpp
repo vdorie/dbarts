@@ -800,7 +800,7 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
 void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
                                    size_t numSamplesToStore) {
   // the store resize allocates; a capacity too large to hold raises with the
-  // sampler on its previous capacity
+  // store and its draws as they were
   callConvertingExceptions("dbarts_sampler_setTreeStorage", [&]() {
     samplerOf(sampler).setTreeStorage(keepTrees != 0, numSamplesToStore);
   });

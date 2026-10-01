@@ -3307,11 +3307,14 @@ dbartsSampler <- setRefClass(
         )
         # a same-spec continuation skips re-quantization; data@x serves any
         # cross-grid column (the engine keeps no predictor matrix)
+        # a store sized through the flat API is in no control, so the
+        # re-created sampler takes the stored state's capacity
         .Call(
           C_dbarts_bartcore_setState,
           ptr,
           state,
-          rawPredictorMatrix(data@x)
+          rawPredictorMatrix(data@x),
+          TRUE
         )
         reapplyForestWeights(ptr)
         reapplyActiveRows(ptr)
@@ -3345,7 +3348,8 @@ dbartsSampler <- setRefClass(
         C_dbarts_bartcore_setState,
         ptr,
         newState,
-        rawPredictorMatrix(data@x)
+        rawPredictorMatrix(data@x),
+        FALSE
       )
       reapplyForestWeights(ptr)
       reapplyActiveRows(ptr)

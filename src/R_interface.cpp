@@ -292,7 +292,7 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_predictPerForest", bartcore_predictPerForest, 4),
   DEF_FUNC("dbarts_bartcore_getTrees", bartcore_getTrees, 8),
   DEF_FUNC("dbarts_bartcore_storeState", bartcore_storeState, 1),
-  DEF_FUNC("dbarts_bartcore_setState", bartcore_setState, 3),
+  DEF_FUNC("dbarts_bartcore_setState", bartcore_setState, 4),
   DEF_FUNC("dbarts_bartcore_installForests", bartcore_installForests, 3),
   DEF_FUNC("dbarts_bartcore_sampleTreesFromPrior",
            bartcore_sampleTreesFromPrior, 1),

@@ -188,10 +188,55 @@ expect_error(
   "saved-tree storage for 2147483647 samples cannot be allocated"
 )
 expect_identical(wide$control@n.samples, 4L)
-# the store is back at its previous capacity on every chain
+# the new store is built aside, so the old one keeps its capacity and the
+# draws it recorded
 invisible(wide$run(0L, 4L))
-expect_identical(dim(wide$predict(x[1:3, , drop = FALSE])), c(3L, 4L, 2L))
-rm(wide, wideControl)
+widePredict <- wide$predict(x[1:3, , drop = FALSE])
+expect_error(wide$setControl(wideControl), "cannot be allocated")
+expect_identical(wide$predict(x[1:3, , drop = FALSE]), widePredict)
+expect_identical(dim(widePredict), c(3L, 4L, 2L))
+rm(wide, wideControl, widePredict)
+
+# --- a state with another store capacity. A live $setState keeps the
+# sampler's own capacity, so the state is refused and the draws stay; the
+# re-creation path takes the state's capacity only once the state is
+# accepted, so a refused one leaves the store and its draws alone too
+storeControl <- function(n.samples, n.trees = 5L) {
+  dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = n.trees,
+    n.samples = n.samples,
+    keepTrees = TRUE,
+    updateState = FALSE,
+    verbose = FALSE,
+    seed = 9L
+  )
+}
+held <- dbarts(x, y, control = storeControl(5L))
+invisible(held$run(2L, 5L))
+heldPredict <- held$predict(x)
+other <- dbarts(x, y, control = storeControl(3L))
+invisible(other$run(2L, 3L))
+other$storeState()
+expect_error(held$setState(other$state), "not consistent")
+expect_identical(held$predict(x), heldPredict)
+expect_identical(dim(held$predict(x)), c(n, 5L))
+wrongTrees <- dbarts(x, y, control = storeControl(3L, n.trees = 6L))
+invisible(wrongTrees$run(2L, 3L))
+wrongTrees$storeState()
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_setState,
+    held$getPointer(),
+    wrongTrees$state,
+    x,
+    TRUE
+  ),
+  "not consistent"
+)
+expect_identical(held$predict(x), heldPredict)
+rm(held, heldPredict, other, wrongTrees, storeControl)
 
 # --- a refused warm start touches no chain. A donor whose trees no longer
 # route onto the predictors it now holds fails to rebuild part way through

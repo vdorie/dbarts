@@ -339,10 +339,13 @@ public:
   /// column-mask containment one installForests names separately;
   /// monotoneRefused, whether it was a live tree's leaf values outside the
   /// monotone cone.
+  /// adoptCapacity is Sampler::setState's: a store capacity the state is
+  /// judged against and the store takes once the state is accepted.
   virtual bool setState(const SamplerStateData& state,
                         const double* currentPredictors,
                         bool* columnMaskRefused = nullptr,
-                        bool* monotoneRefused = nullptr) = 0;
+                        bool* monotoneRefused = nullptr,
+                        std::size_t adoptCapacity = keepStoreCapacity) = 0;
   virtual WarmStartResult installForests(
       const SamplerStateData& donor,
       const std::vector<std::pair<std::size_t, int>>& sampleMap) = 0;
@@ -648,9 +651,9 @@ public:
   void getState(SamplerStateData& state) override { impl_.getState(state); }
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors, bool* columnMaskRefused,
-                bool* monotoneRefused) override {
+                bool* monotoneRefused, std::size_t adoptCapacity) override {
     return impl_.setState(state, currentPredictors, columnMaskRefused,
-                          monotoneRefused);
+                          monotoneRefused, adoptCapacity);
   }
   WarmStartResult installForests(
       const SamplerStateData& donor,
