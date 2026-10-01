@@ -597,6 +597,8 @@ inline constexpr int numAugmentationLaws =
 /// is the location WITHOUT the offset - the engine's own totalFits convention -
 /// so the linear predictor psi = fit + offset is formed inside and a null
 /// offset is zero; a working response reads its latent through the same member.
+/// For nbinom fit + offset is the log mean, so its law reads psi - log
+/// dispersion and its working response adds log dispersion back.
 /// weights are the logistic counts (null is unit), ordinalThresholds the
 /// ordinal's K - 1, and the three scalars are read only by the law that names
 /// them.

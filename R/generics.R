@@ -804,6 +804,38 @@ addTreesChainColumn <- function(trees) {
   )
 }
 
+# extract's type = "k" and "sd": a fit reports its leaf prior in the terms it
+# was named in, drawn spreads on an sd-named fit, drawn k on a k-named one.
+# Shared by every fit class carrying the two channels.
+extractLeafSpread <- function(object, type, n.chains, combineChains) {
+  if (type == "sd") {
+    if (is.null(object[["sd"]])) {
+      stop(
+        "cannot extract 'sd': this fit's leaf-prior sd was not sampled",
+        if (!is.null(object[["k"]])) {
+          " (its leaf prior was named by 'k'; extract type = \"k\")"
+        }
+      )
+    }
+    return(reshapeScalarChannel(object[["sd"]], n.chains, combineChains))
+  }
+  if (is.null(object$k) && !is.null(object[["sd"]])) {
+    stop(
+      "cannot extract 'k': this fit's leaf prior was named by 'sd', and ",
+      "its draws are of the sd; extract type = \"sd\""
+    )
+  }
+  if (is.null(object$k)) {
+    stop(
+      "cannot extract 'k': this fit's k was fixed, not sampled",
+      if (fitAllowsKHyperprior(object)) {
+        " (specify k = chi(...) to sample it)"
+      }
+    )
+  }
+  reshapeScalarChannel(object$k, n.chains, combineChains)
+}
+
 extract.bart <- function(
   object,
   type = c(
@@ -898,34 +930,7 @@ extract.bart <- function(
       }
       return(reshapeScalarChannel(object$sigma, n.chains, combineChains))
     }
-    # a fit reports its leaf prior in the terms it was named in: drawn
-    # spreads on an sd-named fit, drawn k on a k-named one
-    if (type == "sd") {
-      if (is.null(object[["sd"]])) {
-        stop(
-          "cannot extract 'sd': this fit's leaf-prior sd was not sampled",
-          if (!is.null(object[["k"]])) {
-            " (its leaf prior was named by 'k'; extract type = \"k\")"
-          }
-        )
-      }
-      return(reshapeScalarChannel(object[["sd"]], n.chains, combineChains))
-    }
-    if (is.null(object$k) && !is.null(object[["sd"]])) {
-      stop(
-        "cannot extract 'k': this fit's leaf prior was named by 'sd', and ",
-        "its draws are of the sd; extract type = \"sd\""
-      )
-    }
-    if (is.null(object$k)) {
-      stop(
-        "cannot extract 'k': this fit's k was fixed, not sampled",
-        if (fitAllowsKHyperprior(object)) {
-          " (specify k = chi(...) to sample it)"
-        }
-      )
-    }
-    return(reshapeScalarChannel(object$k, n.chains, combineChains))
+    return(extractLeafSpread(object, type, n.chains, combineChains))
   }
 
   sample <- validateSample(sample, eval(formals(extract.bart)$sample))
@@ -2292,13 +2297,13 @@ print.bartOrdinal <- function(x, ...) {
 }
 
 # bart2(family = "nbinom") generics. The fit object is class "bartNegbin" -
-# never "bart" - so the count arrays
-# never fall through to the single-forest "bart" methods. A single forest fits
-# the log-odds latent psi = f(x) + o, so type = "bart" returns that latent (like
-# probit/logistic), while type = "ev" returns the mean counts mu = r exp(psi)
-# (the reported posterior mean count) and type = "ppd" draws one count per posterior draw
-# from NB(r, plogis(psi)). The per-draw dispersion r rides the fit's $dispersion
-# field, the count analog of gaussian's sigma.
+# never "bart" - so the count arrays never fall through to the single-forest
+# "bart" methods. A single forest fits the log mean eta = f(x) + c + o, so
+# type = "bart" returns eta, while type = "ev" returns the mean counts
+# mu = exp(eta) (the reported posterior mean count) and type = "ppd" draws one
+# count per posterior draw from NB(size = r, mu). The per-draw dispersion r
+# rides the fit's $dispersion field, the count analog of gaussian's sigma, and
+# a drawn leaf scale rides $k (or $sd), as on a bart fit.
 # nbinom has a single forest, so 'forest'/'contribution' refuse for the same
 # reason a bart-family single-forest fit does.
 negbinUnusedArgs <- list(
@@ -2308,7 +2313,7 @@ negbinUnusedArgs <- list(
 
 extract.bartNegbin <- function(
   object,
-  type = c("ev", "ppd", "bart", "loglik", "dispersion", "varcount"),
+  type = c("ev", "ppd", "bart", "loglik", "dispersion", "k", "sd", "varcount"),
   sample = c("train", "test"),
   combineChains = TRUE,
   ...
@@ -2326,10 +2331,13 @@ extract.bartNegbin <- function(
   )
   n.chains <- fitNChains(object)
 
-  if (type %in% c("dispersion", "varcount")) {
+  if (type %in% c("dispersion", "k", "sd", "varcount")) {
     refuseSampleOnModelType(type, sampleSupplied)
     if (type == "dispersion") {
       return(reshapeScalarChannel(object$dispersion, n.chains, combineChains))
+    }
+    if (type %in% c("k", "sd")) {
+      return(extractLeafSpread(object, type, n.chains, combineChains))
     }
     return(reshapeChainedChannel(object$varcount, n.chains, combineChains, 1L))
   }
@@ -2390,11 +2398,17 @@ negbinLogLik <- function(object, mu, n.chains) {
     mu = as.vector(mu),
     log = TRUE
   )
+  # a row the active-row mask takes out of the data set has no likelihood to
+  # report, as pointwiseLogLikelihood reports it
+  active <- object[["active"]]
+  if (!is.null(active)) {
+    result[rep(active, each = n.draws) == 0] <- NaN
+  }
   array(result, dim(mu), dimnames(mu))
 }
 
 # The posterior-mean count per observation (type = "ev"), the posterior-mean
-# log-odds latent per observation (type = "bart"), or a Monte Carlo mean over
+# log mean per observation (type = "bart"), or a Monte Carlo mean over
 # ppd draws (type = "ppd"). The observation margin is the array's last
 # dimension in every chain layout, so we take the mean over that observation
 # margin. ci.level opts into a credible band instead, taken on the full draws
@@ -2471,11 +2485,11 @@ residuals.bartNegbin <- function(object, ...) {
 }
 
 # Out-of-sample mean counts by replaying the saved forest's trees to the newdata
-# log-odds latent psi, then mu = r exp(psi) at the STORED per-draw
-# dispersion. A log-exposure offset.test enters psi
+# log mean eta, then mu = exp(eta). A log-exposure offset enters eta
 # additively, the fit-time convention. Requires a fit kept with keepTrees.
-# type = "bart" returns the replayed latent; type = "ppd" draws one count per
-# posterior draw. Only ppd touches the RNG, so type = "ev" is draw-neutral. The
+# type = "bart" returns the replayed log mean; type = "ppd" draws one count per
+# posterior draw at that draw's STORED dispersion r; type = "bart" and "ev"
+# read no r. Only ppd touches the RNG, so type = "ev" is draw-neutral. The
 # replay reads through $fit's own pointer: $fit is the sampler whose engine
 # actually ran, so getPointer() can re-create it from stored state after a
 # save/reload. The presence gate re-points to dispersion.raw, which is read
@@ -2525,7 +2539,7 @@ predict.bartNegbin <- function(
   rowNames <- rows$keptNames
   offset <- subsetPredictInput(offset, rows, "offset")
   n.chains <- object$n.chains
-  # raw is n.new x n.samples (x n.chains): the replayed log-odds latent psi
+  # raw is n.new x n.samples (x n.chains): the replayed log mean eta
   raw <- predictCodedTest(object$fit, rows$x, offset, n.threads)
   if (type == "bart") {
     result <- nameObservationMargin(
@@ -2550,7 +2564,7 @@ predict.bartNegbin <- function(
   means <- array(0, c(n.new, n.samples, n.chains))
   for (s in seq_len(n.samples)) {
     for (chain in seq_len(n.chains)) {
-      means[, s, chain] <- negbinMeanCounts(raw[, s, chain], disp[s, chain])
+      means[, s, chain] <- negbinMeanCounts(raw[, s, chain])
     }
   }
   if (n.chains == 1L) {
@@ -2586,7 +2600,7 @@ predict.bartNegbin <- function(
 
 print.bartNegbin <- function(x, ...) {
   printCall(x)
-  cat("family: negative binomial (log-odds latent)\n")
+  cat("family: negative binomial (log link)\n")
   cat(
     "posterior mean dispersion (r): ",
     format(mean(x$dispersion), digits = 4L),

@@ -3753,6 +3753,11 @@ public:
         state.dartProbabilities.size() != data_.numPredictors)
       return false;
     if (state.fitMax < state.fitMin) return false;
+    // an nbinom state always carries its log-mean shift as an increasing pair;
+    // an equal one is from no state this model writes, and installing it
+    // would silently skip the shift
+    if (response_->carriesDispersion() && !(state.fitMax > state.fitMin))
+      return false;
     // heteroscedastic: a variance state must carry one flat tree per variance
     // tree, each well-formed AND with every leaf a strictly positive scale (a
     // variance, unlike a Gaussian mean leaf) - the scale-leaf validation - AND

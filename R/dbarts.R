@@ -1972,7 +1972,7 @@ restateLeafPrior <- function(sampler, spec, expr) {
   }
   translated <- resolveLeafPrior(
     spec,
-    sampler$control@binary,
+    drawsLeafKByDefault(sampler$model@family),
     monotone = !is.null(attr(model, "monotone"))
   )
   current@k <- spec@k
@@ -2659,8 +2659,12 @@ dbartsSampler <- setRefClass(
             model@family,
             " models do not support case weights other than 0 and 1, which ",
             "mark rows in and out of the likelihood: such a vector installs ",
-            "as the active-row mask, and a weighted truncated-normal latent ",
-            "likelihood is not a coherent model"
+            "as the active-row mask, and ",
+            if (model@family == "nbinom") {
+              "an exposure belongs in the offset as a log-exposure term"
+            } else {
+              "a weighted truncated-normal latent likelihood is not a coherent model"
+            }
           )
         }
         setActiveRows(weights, updateState = updateState)

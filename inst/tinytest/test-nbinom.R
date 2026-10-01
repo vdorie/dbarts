@@ -54,7 +54,7 @@ suppressMessages(
 )
 expect_equal(fitAuto$family, "gaussian")
 
-# --- channel shapes: mean counts, latent psi, and the dispersion draws ---
+# --- channel shapes: mean counts, log means, and the dispersion draws ---
 
 expect_equal(dim(fit$yhat.train), c(n.samples, n))
 expect_equal(dim(fit$yhat.test), c(n.samples, 10L))
@@ -69,8 +69,9 @@ expect_true(all(
   fit$dispersion %in%
     c(1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 50)
 ))
-# mu = r exp(psi) holds draw by draw
-expect_equal(fit$yhat.train, fit$dispersion * exp(fit$latent.train))
+# the forest models the log mean: mu = exp(link) holds draw by draw, and r
+# does not enter it
+expect_equal(fit$yhat.train, exp(fit$latent.train))
 
 # --- fitted ---
 
@@ -228,6 +229,27 @@ expect_error(
 # weights identically 1 are treated as absent, the probit courtesy
 samplerW1 <- dbarts(x, y, family = "nbinom", weights = rep(1, n))
 expect_null(samplerW1$data@weights)
+# weights of 0 and 1 name the rows in the data set and install as the
+# active-row mask, as on probit and ordinal; the log-likelihood is NaN there
+mask01 <- rep_len(c(1, 1, 0), n)
+samplerMask <- dbarts(x, y, family = "nbinom", weights = mask01)
+expect_null(samplerMask$data@weights)
+expect_identical(samplerMask$activeRows, mask01)
+fitMask <- bart(
+  x,
+  y,
+  family = "nbinom",
+  weights = mask01,
+  n.samples = 5L,
+  n.burn = 5L,
+  n.trees = 10L,
+  n.chains = 1L,
+  verbose = FALSE
+)
+expect_identical(fitMask$active, mask01)
+loglikMask <- extract(fitMask, type = "loglik")
+expect_true(all(is.nan(loglikMask[, mask01 == 0])))
+expect_true(all(is.finite(loglikMask[, mask01 == 1])))
 
 # xbart refuses the count family (family-vector omission)
 expect_error(
@@ -246,7 +268,9 @@ control <- dbartsControl(
 sampler <- dbarts(x, y, family = "nbinom", control = control, verbose = FALSE)
 expect_equal(sampler$model@family, "nbinom")
 expect_equal(attr(sampler$control, "bartcore.dispersion"), -1)
-expect_equal(sampler$model@leaf.scale, pi * sqrt(3))
+# the log-mean anchor, with k drawn under the binary families' chi(1.5, 2)
+expect_equal(sampler$model@leaf.scale, 3)
+expect_true(is(sampler$model@leaf.hyperprior, "dbartsChiHyperprior"))
 
 invisible(sampler$run(20L, 5L))
 state1 <- sampler$state
@@ -284,6 +308,16 @@ fractional <- saved
 fractional[[1L]]$dispersion <- 2.5
 expect_error(samplerC$setState(fractional), "not consistent with this sampler")
 rm(fractional)
+
+# the state carries the log-mean shift c as the increasing pair (c, c + 1); a
+# state without it - (0, 0), every state written before the log-mean model -
+# is refused rather than installed without its shift
+expect_equal(saved[[1L]]$fit.scale[1L], log(sum(y) / n))
+expect_identical(saved[[1L]]$fit.scale[2L], saved[[1L]]$fit.scale[1L] + 1)
+unshifted <- saved
+unshifted[[1L]]$fit.scale <- c(0, 0)
+expect_error(samplerC$setState(unshifted), "not consistent with this sampler")
+rm(unshifted)
 
 # an nbinom sampler refuses a state lacking its dispersion/latents block
 gaussSampler <- dbarts(x, as.double(y), verbose = FALSE)
@@ -395,9 +429,26 @@ fitRec <- bart(
   verbose = FALSE
 )
 muHat <- fitted(fitRec)
-# mean counts track the truth, and the estimated dispersion brackets rTrue = 5
+# mean counts track the truth
 expect_true(mean(abs(muHat - muRec)) < 0.6)
-expect_true(abs(mean(fitRec$dispersion) - rTrue) < 3)
+# at means near 1, r is barely identified (the variance mu + mu^2 / r is
+# close to mu); at the mixing gate's means, about 8, it is, and the draws
+# leave the cold start of 8 and bracket rTrue
+yRec8 <- rnbinom(nRec, size = rTrue, mu = 8 * muRec)
+fitRec8 <- bart(
+  xRec,
+  yRec8,
+  family = "nbinom",
+  n.samples = 250L,
+  n.burn = 150L,
+  n.trees = 50L,
+  n.chains = 1L,
+  verbose = FALSE
+)
+rBand <- quantile(fitRec8$dispersion, c(0.025, 0.975), names = FALSE)
+expect_true(rBand[1L] <= rTrue && rTrue <= rBand[2L])
+expect_true(abs(mean(fitRec8$dispersion) - rTrue) < 2)
+expect_true(mean(fitRec8$dispersion == 8) < 0.5)
 
 # --- type synonyms: "response" and "link" are the predict.glm spellings of
 # "ev" and "bart", accepted here exactly as on a "bart" fit ---
@@ -518,6 +569,42 @@ expect_equal(restoredMfrow, c(3L, 3L))
 d <- extract(fit, type = "dispersion")
 expect_equal(d, fit$dispersion)
 rm(d)
+
+# --- extract(type = "k"): k is drawn under chi(1.5, 2) by default and its
+# --- draws are packaged, one per kept draw; a named sd reports the spread ---
+
+kDraws <- extract(fit, type = "k")
+expect_equal(length(kDraws), n.samples)
+expect_true(all(kDraws > 0) && length(unique(kDraws)) > 1L)
+expect_error(extract(fit, type = "sd"), "leaf-prior sd was not sampled")
+expect_error(extract(fit, type = "k", sample = "train"), "sample")
+fitSd <- bart(
+  x,
+  y,
+  family = "nbinom",
+  leaf.prior = normal(sd = invchi(1.5, 1.5)),
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = n.trees,
+  n.chains = 1L,
+  verbose = FALSE
+)
+expect_null(fitSd$k)
+expect_equal(length(extract(fitSd, type = "sd")), 10L)
+fitFixedK <- bart(
+  x,
+  y,
+  family = "nbinom",
+  k = 2,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = n.trees,
+  n.chains = 1L,
+  verbose = FALSE
+)
+expect_null(fitFixedK$k)
+expect_error(extract(fitFixedK, type = "k"), "fixed, not sampled")
+rm(kDraws, fitSd, fitFixedK)
 
 rm(
   combinedEv,

@@ -821,7 +821,7 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 /// error, as they are at creation; gaussian and aft (log survival times)
 /// constrain nothing. updateScale re-derives the internal response transform
 /// from the new response, as dbarts_sampler_setOffset's argument does (gaussian
-/// only); pass false once burnt in so fits stay comparable. true is refused on
+/// and nbinom); pass false once burnt in so fits stay comparable. true is refused on
 /// any multi-forest sampler, at any forest count, whose per-forest leaf
 /// calibrations are stated against the transform it was built with; on a
 /// heteroscedastic sampler it restates the variance forest on the new transform
@@ -835,8 +835,9 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                                int updateScale);
 /// offset has numObservations values or is null to remove. updateScale
-/// rescales the internal response transform to the offset-adjusted range
-/// (gaussian only); pass false once burnt in so fits stay comparable. A
+/// re-derives the internal response transform from the offset-adjusted
+/// response (gaussian and nbinom); pass false once burnt in so fits stay
+/// comparable. A
 /// multi-forest sampler, at any forest count, refuses true (see setResponse).
 /// COPIED, on the copy-on-set rule above: the caller's offset is free on
 /// return.
@@ -878,7 +879,7 @@ int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
 int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out);
 
 /// Fits for new data on the original response scale (binary families give
-/// the latent scale), from a borrowed source declaring numPredictors columns
+/// the latent scale, nbinom the log mean), from a borrowed source declaring numPredictors columns
 /// over the rows to predict. With tree storage out is xTest->numRows x
 /// numSavedSamples x numChains from the saved trees; without, one set per
 /// chain from the live trees. The saved draws come out OLDEST FIRST - the

@@ -74,8 +74,8 @@ ordinal.none <- recordOrdinal(ordinalSampler(NULL))
 expect_false(isTRUE(all.equal(ordinal.none$train, ordinal.created$train)))
 
 # --- nbinom: setOffset ---
-# The count mean is r exp(psi + o), so a log-exposure offset moves the
-# Polya-Gamma omega draws and the dispersion step as well as the latent fits.
+# The count mean is exp(f + c + o), so a log-exposure offset moves the
+# Polya-Gamma omega draws and the dispersion step as well as the fits.
 
 set.seed(101)
 yCount <- rnbinom(n, size = 5L, mu = exp(0.9 * (x[, 1L] - 0.5)))
@@ -108,9 +108,12 @@ nbinomSampler <- function(offset) {
 
 nbinom.created <- recordNbinom(nbinomSampler(offsetNbinom))
 
+# the log-mean shift c is stated against the offset, so the offset swap that
+# re-anchors it (updateScale = TRUE) is creation with the offset, bitwise; the
+# default keeps the creation-time c, the embedded-Gibbs lock, and differs
 nbinomSet <- nbinomSampler(NULL)
 expect_null(nbinomSet$data@offset)
-nbinomSet$setOffset(offsetNbinom)
+nbinomSet$setOffset(offsetNbinom, updateScale = TRUE)
 expect_equal(nbinomSet$data@offset, offsetNbinom)
 nbinom.set <- recordNbinom(nbinomSet)
 
@@ -118,6 +121,15 @@ expect_identical(nbinom.set$train, nbinom.created$train)
 expect_identical(nbinom.set$dispersion, nbinom.created$dispersion)
 expect_identical(nbinom.set$latents, nbinom.created$latents)
 expect_identical(nbinom.set$r, nbinom.created$r)
+
+nbinomKept <- nbinomSampler(NULL)
+shiftCreated <- nbinomKept$getLeafPrior()$response.shift
+nbinomKept$setOffset(offsetNbinom)
+expect_identical(nbinomKept$getLeafPrior()$response.shift, shiftCreated)
+expect_false(isTRUE(all.equal(
+  recordNbinom(nbinomKept)$train,
+  nbinom.created$train
+)))
 
 nbinom.none <- recordNbinom(nbinomSampler(NULL))
 expect_false(isTRUE(all.equal(nbinom.none$train, nbinom.created$train)))
