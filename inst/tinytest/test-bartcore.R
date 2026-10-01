@@ -510,10 +510,16 @@ residual.means <- tapply(
 )
 expect_true(max(abs(residual.means - c(2, -1, 3, 0))) < 0.5)
 
-# category codes outside the existing set are refused everywhere
+# a column update on a categorical column takes its labels, so numbers and a
+# label it does not declare are refused by name; codes outside the existing
+# set are refused on a whole-matrix update
 expect_error(
   sampler.cat$setPredictor(rep(9, n), 1L),
-  pattern = "existing category codes"
+  pattern = "column 'a' is categorical; give its values as a factor"
+)
+expect_error(
+  sampler.cat$setPredictor(rep("9", n), 1L),
+  pattern = "column 'a' has label '9' not among its training levels"
 )
 expect_error(
   sampler.cat$setTestPredictor(cbind(a = rep(7, 5L), b = runif(5L))),
@@ -526,7 +532,7 @@ expect_error(
 
 # valid categorical mutation routes through the mask logic
 installed.cat <- sampler.cat$setPredictor(
-  as.double((x.cat[, 1L] + 1) %% 4),
+  as.character((x.cat[, 1L] + 1) %% 4),
   1L,
   forceUpdate = "partial"
 )

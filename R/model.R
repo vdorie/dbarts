@@ -57,6 +57,37 @@ resolveProposalProbs <- function(proposal.probs) {
   if (is.null(proposal.probs)) {
     proposal.probs <- defaultProposalProbs
   }
+  ## every entry names its move; an unnamed entry or an unknown name would
+  ## otherwise be dropped by the lookups below and the default mix run
+  validNames <- names(defaultProposalProbs)
+  entryNames <- names(proposal.probs)
+  if (length(proposal.probs) > 0L) {
+    if (is.null(entryNames) || any(is.na(entryNames) | entryNames == "")) {
+      stop(
+        "'proposal.probs' must name each of its entries, from ",
+        quotedNameList(validNames)
+      )
+    }
+    duplicated <- unique(entryNames[duplicated(entryNames)])
+    if (length(duplicated) > 0L) {
+      stop(
+        "'proposal.probs' names ",
+        quotedNameList(duplicated),
+        " more than once; the moves are ",
+        quotedNameList(validNames)
+      )
+    }
+    unknown <- unique(entryNames[entryNames %not_in% validNames])
+    if (length(unknown) > 0L) {
+      stop(
+        "'proposal.probs' has unknown ",
+        if (length(unknown) > 1L) "names " else "name ",
+        quotedNameList(unknown),
+        "; the moves are ",
+        quotedNameList(validNames)
+      )
+    }
+  }
   ## Perturb and rule_gibbs resolve AHEAD of the fill and never enter it.
   ## Their defaults are numbers rather than shares, so an unnamed one is
   ## zero and the residual below is taken against 1 minus their sum.

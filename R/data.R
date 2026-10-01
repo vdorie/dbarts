@@ -796,6 +796,403 @@ protectRandomSeed <- function() {
   }
 }
 
+## The names an expression reads as data: its symbols, less the function in
+## each call, the pieces of a pkg::name reference and what follows a '$' or
+## '@'.
+expressionDataNames <- function(expr) {
+  if (is.symbol(expr)) {
+    name <- as.character(expr)
+    return(if (nzchar(name)) name)
+  }
+  if (!is.call(expr)) {
+    return(NULL)
+  }
+  head <- expr[[1L]]
+  if (is.symbol(head) && as.character(head) %in% c("::", ":::", "function")) {
+    return(NULL)
+  }
+  arguments <- as.list(expr)[-1L]
+  if (is.symbol(head) && as.character(head) %in% c("$", "@")) {
+    arguments <- arguments[1L]
+  }
+  unique(c(
+    if (is.call(head)) expressionDataNames(head),
+    unlist(lapply(arguments, expressionDataNames), use.names = FALSE)
+  ))
+}
+
+## The function a call names, as a stored expression resolves it with no
+## environment: a base function by its own name, a package function as
+## pkg::name (or the function itself, when it sits in its namespace under
+## another name). A function from no package is refused by name, since nothing
+## would carry it to another session.
+qualifyFunctionName <- function(head, env) {
+  name <- as.character(head)
+  fn <- get0(name, envir = env, mode = "function")
+  if (is.null(fn) || is.primitive(fn)) {
+    return(head)
+  }
+  fnEnv <- environment(fn)
+  if (identical(fnEnv, baseenv()) || identical(fnEnv, .BaseNamespaceEnv)) {
+    return(head)
+  }
+  if (!isNamespace(fnEnv)) {
+    stop(
+      "the formula calls '",
+      name,
+      "', a function from no package; a fit stores its formula without ",
+      "the environment that function lives in, so compute the column in ",
+      "'data' instead"
+    )
+  }
+  package <- getNamespaceName(fnEnv)
+  if (identical(package, "base")) {
+    return(head)
+  }
+  if (!identical(get0(name, envir = fnEnv, inherits = FALSE), fn)) {
+    return(fn)
+  }
+  call(
+    if (name %in% getNamespaceExports(fnEnv)) "::" else ":::",
+    as.name(package),
+    as.name(name)
+  )
+}
+
+## An expression stored on a fit, made independent of the environment it was
+## written in: a data column stays a name, read from new rows alone; every
+## other name is replaced by its fit-time value and every function call is
+## qualified (qualifyFunctionName). A name is a data column when 'data'
+## carries it ('dataNames'), or, when there is no 'data' (NULL), when its
+## value has one row per observation ('numRows').
+freezeExpression <- function(expr, dataNames, env, numRows) {
+  freeze <- function(e) {
+    if (is.symbol(e)) {
+      name <- as.character(e)
+      if (!nzchar(name) || name %in% dataNames) {
+        return(e)
+      }
+      value <- get0(name, envir = env, inherits = TRUE)
+      if (is.null(value) && !exists(name, envir = env)) {
+        return(e)
+      }
+      if (is.function(value)) {
+        return(qualifyFunctionName(e, env))
+      }
+      # without 'data', a value with one row per observation is a column
+      if (
+        is.null(dataNames) &&
+          (!is.null(dim(value)) ||
+            length(value) > 1L && (is.na(numRows) || NROW(value) == numRows))
+      ) {
+        return(e)
+      }
+      return(value)
+    }
+    if (!is.call(e)) {
+      return(e)
+    }
+    head <- e[[1L]]
+    if (is.symbol(head) && as.character(head) %in% c("::", ":::", "function")) {
+      return(e)
+    }
+    positions <- seq_along(e)[-1L]
+    if (is.symbol(head) && as.character(head) %in% c("$", "@")) {
+      positions <- 2L
+    }
+    if (is.symbol(head)) {
+      e[[1L]] <- qualifyFunctionName(head, env)
+    } else {
+      e[[1L]] <- freeze(head)
+    }
+    for (i in positions) {
+      if (!identical(e[[i]], quote(expr = ))) {
+        e[i] <- list(freeze(e[[i]]))
+      }
+    }
+    e
+  }
+  freeze(expr)
+}
+
+## A formula fit's predictor terms, kept on the design matrix as its "terms"
+## attribute: the training terms without the response, carrying the predvars
+## model.frame stamped on them, so that a data-dependent basis (poly(), ns(),
+## scale()) is rebuilt on the test set and on predict's newdata from the
+## training values, as predict.lm rebuilds it, and the offset() terms can be
+## evaluated there. The predvars are frozen (freezeExpression) and the terms
+## keep no environment but base, so a fit carries neither its caller's frame
+## nor the global environment and predicts from newdata alone; the variables
+## stay as written, since they name the columns.
+predictorTerms <- function(modelTerms, dataNames, numRows) {
+  terms <- stats::delete.response(modelTerms)
+  env <- environment(modelTerms)
+  predvars <- attr(terms, "predvars")
+  if (is.null(predvars)) {
+    predvars <- attr(terms, "variables")
+  }
+  attr(terms, "predvars") <- freezeExpression(
+    predvars,
+    dataNames,
+    env,
+    numRows
+  )
+  environment(terms) <- baseenv()
+  terms
+}
+
+## The names a formula's 'data' carries, and the rows it has (NA when that is
+## not known), against which freezeExpression tells data columns apart.
+formulaDataNames <- function(data) {
+  if (is.environment(data)) {
+    return(ls(data, all.names = TRUE))
+  }
+  names(data)
+}
+
+## The same terms without their offset() terms, for rebuilding the predictors
+## alone; model.frame reads only the variables and predvars.
+dropOffsetTerms <- function(terms) {
+  offsets <- attr(terms, "offset")
+  if (is.null(offsets)) {
+    return(terms)
+  }
+  keep <- -(offsets + 1L)
+  attr(terms, "variables") <- attr(terms, "variables")[keep]
+  if (!is.null(attr(terms, "predvars"))) {
+    attr(terms, "predvars") <- attr(terms, "predvars")[keep]
+  }
+  if (!is.null(attr(terms, "dataClasses"))) {
+    attr(terms, "dataClasses") <- attr(terms, "dataClasses")[-offsets]
+  }
+  attr(terms, "offset") <- NULL
+  terms
+}
+
+## Names the variables an expression list needs that 'data' does not carry,
+## rather than letting model.frame or eval find a same-named object in an
+## enclosing scope (a predictor 'c' binding to base::c).
+refuseMissingVariables <- function(neededVars, data, argument, what) {
+  missingVars <- neededVars[neededVars %not_in% names(data)]
+  if (length(missingVars) > 0L) {
+    stop(
+      "'",
+      argument,
+      "' data is missing ",
+      if (length(missingVars) > 1L) "variables" else "variable",
+      " required by ",
+      what,
+      ": '",
+      toString(missingVars),
+      "'"
+    )
+  }
+  invisible(NULL)
+}
+
+## The fit's offset() terms evaluated on 'newdata', as predict.lm evaluates
+## them, or NULL when the fit's formula has none.
+formulaTermOffset <- function(x.train, newdata, argument) {
+  terms <- attr(x.train, "terms")
+  offsets <- attr(terms, "offset")
+  if (is.null(offsets)) {
+    return(NULL)
+  }
+  if (!is.data.frame(newdata) && !(is.list(newdata) && !is.object(newdata))) {
+    stop(
+      "the fit's formula has an offset() term, which is evaluated on '",
+      argument,
+      "'; supply '",
+      argument,
+      "' as a data frame"
+    )
+  }
+  # the frozen expressions: data columns come from the new rows alone
+  predvars <- attr(terms, "predvars")
+  expressions <- lapply(offsets, function(i) predvars[[i + 1L]])
+  refuseMissingVariables(
+    unique(unlist(lapply(expressions, expressionDataNames))),
+    newdata,
+    argument,
+    "the formula's offset() term"
+  )
+  n <- if (is.data.frame(newdata)) nrow(newdata) else NROW(newdata[[1L]])
+  result <- numeric(n)
+  for (expression in expressions) {
+    value <- as.double(eval(expression, newdata, environment(terms)))
+    if (length(value) != n && length(value) != 1L) {
+      stop(
+        "the formula's offset() term '",
+        deparse1(expression),
+        "' has ",
+        length(value),
+        " values for the ",
+        n,
+        " rows of '",
+        argument,
+        "'"
+      )
+    }
+    result <- result + value
+  }
+  result
+}
+
+## The 'offset' argument as written, kept on the data object as its
+## "offset.argument" attribute (not on the design matrix, which is often the
+## caller's own and would be copied): a one-sided formula carrying the
+## expression and
+## the environment it is evaluated in, so that predict and the test-set default
+## re-evaluate it on new rows, as predict.lm re-evaluates lm's call$offset. An
+## argument forwarded through a wrapper's dots is recovered as written.
+offsetArgumentFormula <- function(expr, env, dataNames, numRows) {
+  if (isDotsReference(expr)) {
+    written <- recoverForwardedArgument(expr, env)
+    expr <- written$expr
+    env <- written$env
+  }
+  # a function from no package is refused, as in a formula
+  frozen <- tryCatch(
+    freezeExpression(expr, dataNames, env, numRows),
+    error = function(e) {
+      stop(
+        sub(
+          "^the formula calls",
+          "the 'offset' expression calls",
+          conditionMessage(e)
+        ),
+        call. = FALSE
+      )
+    }
+  )
+  result <- stats::as.formula(call("~", frozen), env = baseenv())
+  # the expression as written, for messages
+  attr(result, "written") <- if (is.language(expr)) deparse1(expr)
+  result
+}
+
+## A formula fit's 'offset' expression evaluated as model.frame evaluates
+## one: in 'data', with 'env' for every name it does not carry. Returns the
+## error rather than signalling it.
+evaluateOffsetExpression <- function(expr, data, env) {
+  tryCatch(
+    if (is.environment(data)) {
+      eval(expr, data)
+    } else {
+      eval(expr, data, env)
+    },
+    error = function(e) e
+  )
+}
+
+## How an offset argument reads in a message: its expression, or a plain
+## vector by its kind.
+describeOffsetArgument <- function(argument) {
+  text <- attr(argument, "written")
+  if (is.null(text)) {
+    return("a numeric vector")
+  }
+  paste0(
+    "'",
+    if (nchar(text) > 60L) paste0(substr(text, 1L, 57L), "...") else text,
+    "'"
+  )
+}
+
+## The fit's 'offset' argument evaluated on new rows: NULL when the fit had
+## none, FALSE when it cannot be (its names found neither in the new rows nor
+## in its environment, or a value of the wrong length - a plain vector given
+## for the training rows), and otherwise one value or one per row.
+evaluateOffsetArgument <- function(argument, newdata) {
+  if (is.null(argument)) {
+    return(NULL)
+  }
+  data <- if (
+    is.data.frame(newdata) || (is.list(newdata) && !is.object(newdata))
+  ) {
+    newdata
+  } else if (is.matrix(newdata) && !is.null(colnames(newdata))) {
+    as.data.frame(newdata)
+  }
+  n <- NROW(newdata)
+  value <- tryCatch(
+    as.double(eval(argument[[2L]], data, environment(argument))),
+    error = function(e) NULL
+  )
+  if (is.null(value) || (length(value) != 1L && length(value) != n)) {
+    return(FALSE)
+  }
+  value
+}
+
+## Refuses a read at new rows that has no offset channel yet, naming the fit's
+## offset() terms and 'offset' argument, rather than answering offset-free.
+refuseNewRowOffset <- function(data, what) {
+  terms <- attr(data@x, "terms")
+  offsets <- attr(terms, "offset")
+  argument <- attr(data, "offset.argument")
+  if (is.null(offsets) && is.null(argument)) {
+    return(invisible(NULL))
+  }
+  variables <- attr(terms, "variables")
+  named <- c(
+    vapply(
+      offsets,
+      function(i) paste0("'", deparse1(variables[[i + 1L]]), "'"),
+      ""
+    ),
+    if (!is.null(argument)) describeOffsetArgument(argument)
+  )
+  stop(
+    "the fit's offset (",
+    paste(named, collapse = ", "),
+    ") is not yet supported by ",
+    what,
+    " at new rows"
+  )
+}
+
+## Two shares of an offset at new rows summed, each a single value or one per
+## row; either alone when the other is absent.
+addOffsetShares <- function(share, offset, argument, rows) {
+  if (is.null(share) || is.null(offset)) {
+    return(if (is.null(share)) offset else share)
+  }
+  if (
+    !is.null(dim(offset)) ||
+      (length(offset) != 1L &&
+        length(share) != 1L &&
+        length(offset) != length(share))
+  ) {
+    stop("'", argument, "' must have the same number of rows as '", rows, "'")
+  }
+  share + offset
+}
+
+## The offset a formula fit's test set or predict's newdata carries: its
+## offset() terms evaluated there plus the offset the caller gives for those
+## rows, a single number or one per row; either alone when the other is
+## absent.
+addFormulaTermOffset <- function(x.train, newdata, offset, argument, rows) {
+  termOffset <- formulaTermOffset(x.train, newdata, rows)
+  if (is.null(termOffset) || is.null(offset)) {
+    return(if (is.null(termOffset)) offset else termOffset)
+  }
+  if (
+    !is.null(dim(offset)) ||
+      (length(offset) != 1L && length(offset) != length(termOffset))
+  ) {
+    stop(
+      "'",
+      argument,
+      "' must have the same number of rows as '",
+      rows,
+      "'"
+    )
+  }
+  termOffset + offset
+}
+
 validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   termLabels <- attr(x.train, "term.labels")
   numPredictors <- ncol(x.train)
@@ -826,30 +1223,52 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
       testFactorLevels <- lapply(x.test[isFactorCol], levels)
     }
     isSparseColumn <- vapply(x.test, isSparseDataFrameColumn, FALSE)
-    # the term replay: names an absent variable up front and runs
-    # model.frame over the given term labels
+    # the term replay: names an absent variable up front and rebuilds the
+    # given term labels on the test rows. A formula fit's training terms
+    # rebuild them with the training predvars, as predict.lm does, so a
+    # data-dependent basis means at a test row what it meant in training,
+    # whatever other rows the test set holds; a label they do not cover (a
+    # hazard fit's appended period) is read by its own name
+    trainTerms <- attr(x.train, "terms")
     replayTerms <- function(data, labels) {
-      testFormula <- as.formula(paste("~", paste(labels, collapse = " + ")))
-      # model.frame resolves an absent term in the enclosing scope, so a
-      # predictor missing from newdata that shares a name with a base object
-      # (e.g. 'c') silently binds to it and fails with an opaque
-      # "invalid type (builtin)"; name the missing variables up front instead
-      neededVars <- all.vars(testFormula)
-      missingVars <- neededVars[neededVars %not_in% names(data)]
-      if (length(missingVars) > 0L) {
-        stop(
-          "'test' data is missing ",
-          if (length(missingVars) > 1L) "variables" else "variable",
-          " required by the model: '",
-          toString(missingVars),
-          "'"
+      replayLabels <- labels
+      frame <- NULL
+      if (!is.null(trainTerms)) {
+        predictorOnly <- dropOffsetTerms(trainTerms)
+        refuseMissingVariables(
+          expressionDataNames(attr(predictorOnly, "predvars")),
+          data,
+          "test",
+          "the model"
         )
+        frame <- model.frame(
+          predictorOnly,
+          data = data,
+          na.action = stats::na.pass
+        )
+        replayLabels <- labels[labels %not_in% names(frame)]
+        frame <- frame[labels[labels %in% names(frame)]]
       }
-      model.frame(
-        formula = testFormula,
-        data = data,
-        na.action = stats::na.pass
-      )
+      if (length(replayLabels) > 0L) {
+        testFormula <- as.formula(paste(
+          "~",
+          paste(replayLabels, collapse = " + ")
+        ))
+        refuseMissingVariables(all.vars(testFormula), data, "test", "the model")
+        replayed <- model.frame(
+          formula = testFormula,
+          data = data,
+          na.action = stats::na.pass
+        )
+        if (is.null(frame)) {
+          return(replayed)
+        }
+        for (label in replayLabels) {
+          frame[[label]] <- replayed[[label]]
+        }
+        frame <- frame[labels]
+      }
+      frame
     }
     if (any(isSparseColumn)) {
       # sparse columns ride to the engine unexpanded, coded over the training
@@ -896,10 +1315,18 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
         )
         x.test <- makeCategoricalModelMatrix(x.test)
       } else {
+        indicatorLevels <- attr(x.train, "indicator.levels")
+        if (!is.null(indicatorLevels)) {
+          x.test <- mapFactorColumnsToIndicatorLevels(
+            x.test,
+            indicatorLevels,
+            drop
+          )
+        }
         if (is.list(drop) && length(drop) == length(x.test)) {
           refuseWiderTestColumns(x.test, drop)
         }
-        x.test <- makeModelMatrixFromDataFrame(
+        x.test <- makeIndicatorModelMatrix(
           x.test,
           if (!is.null(drop)) drop else TRUE
         )
@@ -985,8 +1412,8 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
           mismatched[1L],
           "' does not match training's indicator columns ('test' levels: ",
           toString(testFactorLevels[[mismatched[1L]]]),
-          "); use bart() or dbarts(), which track levels across predict ",
-          "by default"
+          "); give the test factor the training levels, factor(x, levels = ",
+          "...), or fit with factors = \"categorical\""
         )
       }
     }
@@ -1121,13 +1548,47 @@ getTestOffset <- quote({
     return(list(offset.test = NULL, testUsesRegularOffset = FALSE))
   }
 
+  # 'offset' named in offset.test is the argument: beside a formula's offset()
+  # terms, which the training offset already includes and which are evaluated
+  # on 'test' separately, it is the argument's own share - evaluated on 'test'
+  # as the default is, or failing that its training value - and 0 when not
+  # given
+  argumentShare <- if (hasOffsetTerm) {
+    testShare <- evaluateOffsetArgument(offsetArgument, test)
+    if (is.null(argumentOffset)) {
+      0
+    } else if (!isFALSE(testShare)) {
+      testShare
+    } else if (isTRUE(offsetGivenAsScalar)) {
+      argumentOffset[1L]
+    } else {
+      argumentOffset
+    }
+  }
+
   if (is.symbol(matchedCall$offset.test)) {
     testOffsetName <- as.character(matchedCall$offset.test)
 
+    if (identical(testOffsetName, "offset") && hasOffsetTerm) {
+      return(list(offset.test = argumentShare, testUsesRegularOffset = FALSE))
+    }
     if (identical(testOffsetName, "offset") && !is.null(offset)) {
       return(list(
-        offset.test = if (offsetGivenAsScalar == TRUE) offset[1] else offset,
+        offset.test = if (isTRUE(offsetGivenAsScalar)) offset[1] else offset,
         testUsesRegularOffset = TRUE
+      ))
+    }
+
+    # a test-set column comes first: the test offset belongs to the test
+    # rows, as predict.lm evaluates an offset in newdata
+    if (
+      !testIsMissing &&
+        (is.data.frame(test) || (is.list(test) && !is.object(test))) &&
+        any(names(test) == testOffsetName)
+    ) {
+      return(list(
+        offset.test = test[[testOffsetName]],
+        testUsesRegularOffset = FALSE
       ))
     }
 
@@ -1153,14 +1614,19 @@ getTestOffset <- quote({
     stop("cannot find test offset '", testOffsetName, "'")
   } else if (is.language(matchedCall$offset.test)) {
     ## offset.test could have been something like (offset + 0.5), or (offset + variable)
-    baseOffset <- if (is.null(offset)) {
+    baseOffset <- if (hasOffsetTerm) {
+      argumentShare
+    } else if (is.null(offset)) {
       NA_real_
     } else {
-      if (offsetGivenAsScalar == TRUE) offset[1] else offset
+      if (isTRUE(offsetGivenAsScalar)) offset[1] else offset
     }
 
     if (identical(matchedCall$offset.test, quote(offset))) {
-      return(list(offset.test = baseOffset, testUsesRegularOffset = TRUE))
+      return(list(
+        offset.test = baseOffset,
+        testUsesRegularOffset = !hasOffsetTerm
+      ))
     }
 
     testOffset <- subTermInLanguage(
@@ -1169,6 +1635,19 @@ getTestOffset <- quote({
       baseOffset
     )
 
+    if (
+      !testIsMissing &&
+        (is.data.frame(test) || (is.list(test) && !is.object(test))) &&
+        any(all.vars(testOffset) %in% names(test))
+    ) {
+      tryResult <- with(
+        test,
+        tryCatch(eval(testOffset), error = function(e) e)
+      )
+      if (!inherits(tryResult, "error")) {
+        return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+      }
+    }
     if (is.formula(formula)) {
       if (!dataIsMissing) {
         tryResult <- with(
@@ -1297,6 +1776,20 @@ restateMatrixResponseError <- function(e, entry, family) {
       " neither multinomial counts nor a survival response; use bart() ",
       "instead - ",
       readings
+    )
+  } else if (
+    family %in% c("aft", "hazard", "hazard.probit", "hazard.logistic")
+  ) {
+    # the caller already named the survival family; what is wrong is the
+    # spelling of the response, which a formula writes as Surv()
+    paste0(
+      "family = \"",
+      family,
+      "\" takes a formula response written survival::Surv(time, status); ",
+      "'y' is an n x ",
+      K,
+      " matrix, and cbind() on the left of a formula is not read as a ",
+      "time and a status"
     )
   } else if (family != "auto") {
     paste0(
@@ -1927,7 +2420,7 @@ dbartsData <- function(
   makeModelMatrix <- if (factors == "categorical") {
     makeCategoricalModelMatrix
   } else {
-    makeModelMatrixFromDataFrame
+    makeIndicatorModelMatrix
   }
   # the rows an incomplete case costs, and the record of them the training
   # fits pad through; NULL until an na.action drops something
@@ -1947,6 +2440,14 @@ dbartsData <- function(
 
   offsetGivenAsScalar <- NA
   testUsesRegularOffset <- NA
+  # a formula's offset() terms, and the 'offset' argument's own share of the
+  # training offset beside them (set in the formula branch)
+  hasOffsetTerm <- FALSE
+  # nolint next: object_usage_linter. getTestOffset reads it, through eval.
+  argumentOffset <- NULL
+  # the 'offset' argument as written, re-evaluated on new rows
+  # (offsetArgumentFormula)
+  offsetArgument <- NULL
   # the response's original type, recorded on the result so the fitters can
   # route family = "auto" and reject a categorical response an unsupported
   # family cannot fit; each y-producing branch below refreshes it
@@ -1992,14 +2493,35 @@ dbartsData <- function(
       offset <- NULL
       modelFrameArgs <- c("formula", "data", "subset", "weights")
     } else {
-      offsetCall <- matchedCall
-      offsetCall <- offsetCall[c(
-        1L,
-        match(c("formula", "data", "offset"), names(offsetCall), nomatch = 0L)
-      )]
-      names(offsetCall)[which(names(offsetCall) == "offset")] <- "term"
-      offsetCall[[1L]] <- quoteInNamespace(findTermInFormulaData)
-      offset <- eval(offsetCall, parent.frame())
+      # as model.frame evaluates an offset: data columns first, every other
+      # name from the formula's environment, or failing that the caller's;
+      # a name found in none of them is an error, never a dropped offset
+      written <- if (isDotsReference(matchedCall$offset)) {
+        recoverForwardedArgument(matchedCall$offset, parent.frame())
+      } else {
+        list(expr = matchedCall$offset, env = environment(formula))
+      }
+      offsetEnv <- written$env
+      offset <- evaluateOffsetExpression(
+        written$expr,
+        if (dataIsMissing) NULL else data,
+        offsetEnv
+      )
+      if (inherits(offset, "error") && !identical(offsetEnv, parent.frame())) {
+        offsetEnv <- parent.frame()
+        offset <- evaluateOffsetExpression(
+          written$expr,
+          if (dataIsMissing) NULL else data,
+          offsetEnv
+        )
+      }
+      if (inherits(offset, "error")) {
+        stop(
+          "'offset' cannot be evaluated: ",
+          conditionMessage(offset),
+          call. = FALSE
+        )
+      }
 
       # a matrix-shaped offset declares a multinomial category shift, one
       # column per category, never a flat per-row one; set it aside before the
@@ -2019,6 +2541,16 @@ dbartsData <- function(
       }
 
       if (!is.null(offset)) {
+        offsetArgument <- offsetArgumentFormula(
+          written$expr,
+          offsetEnv,
+          if (!dataIsMissing) formulaDataNames(data),
+          if (!dataIsMissing && is.data.frame(data)) {
+            nrow(data)
+          } else {
+            NA_integer_
+          }
+        )
         offsetGivenAsScalar <- length(offset) == 1
         if (offsetGivenAsScalar) {
           modelFrameArgs <- c("formula", "data", "subset", "weights")
@@ -2326,11 +2858,21 @@ dbartsData <- function(
       weights <- as.double(weights)
     }
 
-    ## offset, when in data frame
+    ## offset: every offset() term plus the 'offset' argument, as in lm. The
+    ## argument's own share is kept apart, since its default test offset
+    ## follows its own rule (below), where the terms are evaluated on 'test'
+    hasOffsetTerm <- !is.null(attr(terms(modelFrame), "offset"))
     if (identical(offsetGivenAsScalar, FALSE)) {
+      argumentOffset <- as.vector(modelFrame[["(offset)"]])
       offset <- as.vector(model.offset(modelFrame))
     } else if (identical(offsetGivenAsScalar, TRUE)) {
+      argumentOffset <- offset
       offset <- rep_len(offset, numObservations)
+      if (hasOffsetTerm) {
+        offset <- offset + as.vector(model.offset(modelFrame))
+      }
+    } else if (hasOffsetTerm) {
+      offset <- as.vector(model.offset(modelFrame))
     }
 
     ## predictors
@@ -2380,6 +2922,17 @@ dbartsData <- function(
       }
     }
     x <- makeModelMatrix(predictorFrame)
+    attr(x, "terms") <- predictorTerms(
+      modelTerms,
+      if (!dataIsMissing) formulaDataNames(data),
+      if (!dataIsMissing && is.data.frame(data)) {
+        nrow(data)
+      } else if (is.null(matchedCall$subset)) {
+        NROW(modelFrame) + length(naOmitted)
+      } else {
+        NA_integer_
+      }
+    )
 
     if (!testIsMissing) {
       testCall <- matchedCall
@@ -2451,6 +3004,14 @@ dbartsData <- function(
       }
       categoryOffset <- if (is.data.frame(offset)) as.matrix(offset) else offset
       offset <- NULL
+    }
+    if (!is.null(offset)) {
+      offsetArgument <- offsetArgumentFormula(
+        matchedCall$offset,
+        parent.frame(),
+        as.character(colnames(formula)),
+        initialNumObservations
+      )
     }
     offsetResult <- validateXYOffset(
       offset,
@@ -2536,7 +3097,11 @@ dbartsData <- function(
     y <- y[subset]
 
     if (is.data.frame(formula)) {
+      # a formula fit's predictor frame handed on by bart()'s multinomial
+      # door carries its terms (extractMultinomialFormulaData)
+      frameTerms <- attr(formula, "dbartsTerms")
       formula <- makeModelMatrix(formula)
+      attr(formula, "terms") <- frameTerms
     }
     xIsMixed <- inherits(formula, "dbartsMixedMatrix")
     x <- if (is.matrix(formula) || xIsMixed) {
@@ -2561,6 +3126,14 @@ dbartsData <- function(
       }
       categoryOffset <- if (is.data.frame(offset)) as.matrix(offset) else offset
       offset <- NULL
+    }
+    if (!is.null(offset)) {
+      offsetArgument <- offsetArgumentFormula(
+        matchedCall$offset,
+        parent.frame(),
+        as.character(colnames(formula)),
+        initialNumObservations
+      )
     }
     offsetResult <- validateXYOffset(
       offset,
@@ -2657,7 +3230,31 @@ dbartsData <- function(
   }
 
   if (!is.null(x.test)) {
-    if (testOffsetIsMissing) {
+    if (testOffsetIsMissing && (hasOffsetTerm || !is.null(offsetArgument))) {
+      ## the 'offset' argument re-evaluated on 'test', as predict re-evaluates
+      ## it on newdata, plus the offset() terms evaluated there; it stays
+      ## linked to the training offset only where it is that offset
+      argumentTest <- evaluateOffsetArgument(offsetArgument, test)
+      if (isFALSE(argumentTest)) {
+        stop(
+          "'offset' was given as ",
+          describeOffsetArgument(offsetArgument),
+          ", which cannot be evaluated on the rows of 'test'; give ",
+          "'offset.test' for them"
+        )
+      }
+      offset.test <- rep_len(
+        addFormulaTermOffset(x, test, argumentTest, "offset", "test"),
+        nrow(x.test)
+      )
+      testUsesRegularOffset <- !hasOffsetTerm &&
+        if (isTRUE(offsetGivenAsScalar)) {
+          length(argumentTest) == 1L &&
+            identical(argumentTest, as.double(offset[1L]))
+        } else {
+          identical(argumentTest, as.double(offset))
+        }
+    } else if (testOffsetIsMissing) {
       ## default is offset.test = offset
       if (identical(offsetGivenAsScalar, TRUE)) {
         offset.test <- rep_len(offset[1L], nrow(x.test))
@@ -2682,7 +3279,24 @@ dbartsData <- function(
           !is.matrix(offset.test) &&
           !is.data.frame(offset.test)
       ) {
+        # one number recycles; anything else is one per test row, refused
+        # rather than recycled or cut, as predict refuses its 'offset'
+        if (length(offset.test) != 1L && length(offset.test) != nrow(x.test)) {
+          stop("'offset.test' must have the same number of rows as 'test'")
+        }
         offset.test <- rep_len(offset.test, nrow(x.test))
+      }
+      if (
+        hasOffsetTerm && !is.matrix(offset.test) && !is.data.frame(offset.test)
+      ) {
+        offset.test <- addFormulaTermOffset(
+          x,
+          test,
+          offset.test,
+          "offset.test",
+          "test"
+        )
+        testUsesRegularOffset <- FALSE
       }
     }
   } else {
@@ -2912,6 +3526,9 @@ dbartsData <- function(
     sigma = NA_real_
   )
   result@na.action <- naOmitted
+  if (!is.null(offsetArgument)) {
+    attr(result, "offset.argument") <- offsetArgument
+  }
   if (!is.null(trainRowNames) || !is.null(testRowNames)) {
     result@rowNames <- list(train = trainRowNames, test = testRowNames)
   }

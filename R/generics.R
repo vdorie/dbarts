@@ -455,7 +455,7 @@ refuseWithoutTrees <- function(what, keepTrees = "keepTrees") {
 }
 
 # bartBT spells it 'keeptrees', bart 'keepTrees'. A fit kept with
-# keepCall = FALSE stores call("NULL") and names neither, so it takes bart's
+# keepCall = FALSE stores no call and names neither, so it takes bart's
 # spelling, which is the surface such a fit most likely came from.
 bartKeepTreesArgument <- function(object) {
   if (callName(object[["call"]]) == "bartBT") "keeptrees" else "keepTrees"
@@ -487,6 +487,31 @@ refusePredictOffsetChannel <- function(offset, class) {
     )
   }
   invisible(NULL)
+}
+
+# The offset predict applies at newdata, as predict.lm forms it: the fit's
+# 'offset' argument and offset() terms evaluated there, plus the caller's
+# 'offset'. An argument that cannot be evaluated there (a plain vector given
+# for the training rows) is refused unless the caller gives 'offset' for
+# these rows, which then stands in for it.
+predictTermOffset <- function(data, newdata, offset) {
+  if (missing(newdata) || is.null(newdata)) {
+    return(offset)
+  }
+  argument <- evaluateOffsetArgument(attr(data, "offset.argument"), newdata)
+  if (isFALSE(argument)) {
+    if (is.null(offset)) {
+      stop(
+        "the fit's 'offset' was given as ",
+        describeOffsetArgument(attr(data, "offset.argument")),
+        ", which cannot be evaluated on the rows of 'newdata'; give ",
+        "predict an 'offset' for them"
+      )
+    }
+    argument <- NULL
+  }
+  offset <- addOffsetShares(argument, offset, "offset", "newdata")
+  addFormulaTermOffset(data@x, newdata, offset, "offset", "newdata")
 }
 
 predict.bart <- function(
@@ -542,6 +567,18 @@ predict.bart <- function(
     )
   }
 
+  # without the tree store only the current trees replay: one chain's are the
+  # long-standing keepTrees-free reading, but several chains' current trees
+  # are one evaluation each, not a sequence of draws to report
+  if (!object$fit$control@keepTrees && object$fit$control@n.chains > 1L) {
+    stop(
+      "predict requires the fit's saved trees; refit with ",
+      bartKeepTreesArgument(object),
+      " = TRUE: without the tree store only each chain's current trees ",
+      "replay, one evaluation per chain rather than a draw per sample"
+    )
+  }
+
   # the per-forest arm answers off the sampler's own replay and shares none of
   # the combined arms' machinery below: there is no ci.level band, no latent
   # transform and no s(x) attribute on a raw per-forest total
@@ -570,6 +607,12 @@ predict.bart <- function(
     )
   }
 
+  # the fit's offset argument and offset() terms are evaluated on newdata, as
+  # predict.lm does, and added to an 'offset' given here; the per-forest arm
+  # reports each forest's own total, with no offset folded in
+  if (type != "forest") {
+    offset <- predictTermOffset(object$fit$data, newdata, offset)
+  }
   # validated once, here; the rows na.action keeps are what every arm below
   # predicts, and padPredictedRows puts them back on newdata's rows. A
   # missing offset or weight marks its row incomplete the same way (dec-A89).
@@ -1876,10 +1919,11 @@ predict.bartMultinomial <- function(
   padPredictedRows(probs, rows, trailing = if (type == "ppd") 0L else 1L)
 }
 
-# Shared "Call:" preamble for the print methods. A fit kept with
-# keepCall = FALSE stores call("NULL") as a placeholder, which is suppressed.
+# Shared "Call:" preamble for the print and summary methods. A fit kept with
+# keepCall = FALSE stores no call, and one saved by an earlier version the
+# placeholder call("NULL"); either is omitted.
 printCall <- function(x) {
-  if (!identical(x[["call"]], call("NULL"))) {
+  if (is.call(x[["call"]]) && !identical(x[["call"]], call("NULL"))) {
     cat(
       "\nCall:\n",
       paste(deparse(x$call), sep = "\n", collapse = "\n"),
@@ -2017,6 +2061,12 @@ ordinalLogLik <- function(object, probs) {
   k <- match(y, levels)
   idx <- rep(seq_len(nObs), each = n.draws)
   result <- log(flat[cbind(seq_len(n.draws * nObs), k[idx])])
+  # a row the active-row mask takes out of the data set has no likelihood to
+  # report, as pointwiseLogLikelihood reports it
+  active <- object[["active"]]
+  if (!is.null(active)) {
+    result[active[idx] == 0] <- NaN
+  }
   array(result, d[-length(d)], dimnames(probs)[-length(d)])
 }
 
@@ -2151,6 +2201,7 @@ predict.bartOrdinal <- function(
   if (is.null(object[["thresholds.raw"]])) {
     refuseWithoutTrees("predict")
   }
+  refuseNewRowOffset(object$fit$data, "predict on an ordinal fit")
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
@@ -2458,6 +2509,7 @@ predict.bartNegbin <- function(
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
+  offset <- predictTermOffset(object$fit$data, newdata, offset)
   # a missing offset row is incomplete the same way an unroutable predictor
   # is (dec-A89)
   rows <- preparePredictRows(
@@ -2507,7 +2559,20 @@ predict.bartNegbin <- function(
   means <- convertSamplesForCaller(means, n.chains, combineChains)
   means <- nameObservationMargin(means, rowNames)
   if (type == "ppd") {
-    means <- negbinPpd(means, object$dispersion)
+    # each count is drawn with its own draw's dispersion: the dispersions are
+    # laid out as the means are and take the caller's layout with them,
+    # whichever layout the fit stored its own in
+    dispersions <- array(
+      rep(disp, each = n.new),
+      c(n.new, n.samples, n.chains)
+    )
+    if (n.chains == 1L) {
+      dispersions <- matrix(dispersions, n.new, n.samples)
+    }
+    means <- negbinPpd(
+      means,
+      convertSamplesForCaller(dispersions, n.chains, combineChains)
+    )
   }
   if (!is.null(ci.level)) {
     return(padPredictedRows(

@@ -419,13 +419,12 @@ rbart_vi <- function(
       )
       runSingleThreaded <- TRUE
     } else {
+      # one seed per chain, drawn sequentially from the given seed or, without
+      # one, from R's own stream, so set.seed() reproduces the run
       if (!is.na(seed)) {
-        # one seed per chain, drawn sequentially from the given seed
         set.seed(seed)
-        randomSeeds <- sample.int(.Machine$integer.max, n.chains)
-      } else {
-        randomSeeds <- rep.int(NA_integer_, n.chains)
       }
+      randomSeeds <- sample.int(.Machine$integer.max, n.chains)
 
       clusterExport(
         cluster,
@@ -843,7 +842,11 @@ packageRbartResults <- function(
 
   responseIsBinary <- chainResults[[1L]]$sampler$control@binary
 
-  result <- list(call = control@call, y = data@y, group.by = group.by)
+  result <- list(
+    call = storedFitCall(control@call),
+    y = data@y,
+    group.by = group.by
+  )
   if (!responseIsBinary) {
     result$sigest <- chainResults[[1L]]$sampler$data@sigma
   }
@@ -1072,6 +1075,8 @@ packageRbartResults <- function(
     result$seed <- .GlobalEnv$.Random.seed
   }
 
+  # a fit kept without its call carries none, as a bart fit does
+  result <- dropAbsentCall(result)
   class(result) <- "rbart"
   result
 }
@@ -1150,6 +1155,10 @@ predict.rbart <- function(
 
   if (missing(offset)) {
     offset <- NULL
+  }
+  # a formula's offset() terms are evaluated on newdata, as predict.lm does
+  if (type != "ranef") {
+    offset <- predictTermOffset(object$fit[[1L]]$data, newdata, offset)
   }
 
   n.chains <- if (is.null(object$n.chains)) {
@@ -1556,12 +1565,7 @@ residuals.rbart <- function(object, ...) {
   object$y - fitted.rbart(object)
 }
 print.rbart <- function(x, ...) {
-  cat(
-    "\nCall:\n",
-    paste(deparse(x$call), sep = "\n", collapse = "\n"),
-    "\n\n",
-    sep = ""
-  )
+  printCall(x)
   invisible(x)
 }
 

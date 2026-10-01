@@ -157,7 +157,7 @@ extract(object, \dots)
      Logical; must be \code{TRUE} in order to use \code{predict} with the result of a \code{bart} fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.
    }
    \item{keepcall}{
-     Logical; if \code{FALSE}, returned object will have \code{call} set to \code{call("NULL")}, otherwise the call used to instantiate BART.
+     Logical; if \code{FALSE}, returned object will have \code{call} set to \code{NULL}, otherwise the call used to instantiate BART.
    }
    \item{seed}{
      Optional integer specifying the desired pRNG \link[=set.seed]{seed}. \code{NULL} (the default) leaves the fit unseeded, and an explicit \code{NA} is a missing value, as in \code{\link{set.seed}}: it reads as \code{NULL} for one release, with a once-per-session warning; a \code{\link{set.seed}} beforehand then suffices for reproducibility. Supplying \code{seed} instead gives reproducible results without touching R's stream. See the Reproducibility section of \link{bart}.
@@ -267,7 +267,7 @@ extract(object, \dots)
   \code{bartBT} and \code{\link{bart}} return lists assigned the class \code{bart} for the shared gaussian/probit/logistic/aft/hazard* families (\code{bart} reaches further response families under their own list classes and generics; see \code{\link{bart}}'s Value section). For applicable quantities, \code{ndpost / keepevery} samples are returned. In the numeric \eqn{y} case, the list has components:
 
   \item{\code{call}}{
-    The matched call, or \code{call("NULL")} when the fit was made with \code{keepcall}/\code{keepCall} equal to \code{FALSE}.
+    The matched call, or \code{NULL} when the fit was made with \code{keepcall}/\code{keepCall} equal to \code{FALSE}.
   }
   \item{\code{yhat.train}}{
     A array/matrix of posterior samples. The \eqn{(i, j, k)} value is the \eqn{j}th draw of the posterior of \eqn{f} evaluated at the \eqn{k}th row of \code{x.train} (i.e. \eqn{f^*(x_k)}{f(x_k)}) corresponding to chain \eqn{i}. When \code{nchain} is one or \code{combinechains} is \code{TRUE}, the result is collapsed down to a matrix: with \eqn{m = }\code{ndpost \%/\% keepevery} draws kept per chain, row \eqn{r} is chain \eqn{1 + (r - 1) \%/\% m}'s draw \eqn{1 + (r - 1) \%\% m} - chain 1's whole run first, then chain 2's, and so on (chain-major), not interleaved draw by draw. Every collapsed field a fit returns (\code{sigma}, \code{k}, \code{varcount}, ...) uses this same row order, so row \eqn{r} of one pairs with row \eqn{r} of another - e.g. \code{sigma[r]} is the residual scale that produced \code{yhat.train[r, ]}.

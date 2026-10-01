@@ -88,7 +88,12 @@
       \item New data given to \code{predict}. Test column names that do not
             cover the training columns are an error (0.9-34 warned and
             matched by position). A factor level that training never saw is
-            an error (0.9-34 silently predicted it as another level). A
+            an error (0.9-34 silently predicted it as another level); under
+            \code{factors = "indicators"} and in \code{bartBT} that includes
+            a level declared but with no training rows. There, a test factor
+            is now matched to the training levels by label, as in
+            \code{lm}, so one declaring only some of the levels predicts as
+            the full-level factor would, where 0.9-34 failed. A
             missing value in a column that had none in training is an error
             by default, naming the column (0.9-34 sent it down an arbitrary
             branch); the new \code{na.action} argument of every
@@ -107,6 +112,10 @@
             use instead of ignoring them. On \code{predict.bart},
             \code{type} now comes before \code{offset} and \code{weights},
             and \code{n.threads} is last; pass them by name.
+            \code{dbartsControl}'s \code{proposal.probs} must name every
+            entry from its moves; an unnamed vector or an unknown name is
+            an error listing them, where 0.9-34 dropped such entries and ran
+            the default mixture.
       \item The sampler's \code{$setResponse} gains \code{updateScale} as its
             second argument, pushing \code{updateState} to third, so pass
             \code{updateState} by name. It defaults to \code{FALSE}: the
@@ -119,6 +128,18 @@
       \item \code{names(fit)} no longer lists \code{yhat.test}, or, on a
             binary \code{bart} fit without an offset, \code{binaryOffset},
             when the fit has none; test with \code{is.null} rather than \code{names}.
+      \item A formula calling a function from no package, such as one
+            defined in the session, is refused, naming it; compute the
+            column in \code{data} instead. A fit stores its formula's terms
+            and \code{offset} expression without their environment, with
+            every name that is not a data column fixed at its value when
+            fitting, so a fit predicts from \code{newdata} alone, the same
+            after a reload, and carries no frame of the function it was made
+            in.
+      \item A fit made with \code{keepCall = FALSE} stores \code{call =
+            NULL}, as base R fits without a call do, so \code{update}
+            refuses it as it refuses such an \code{lm} fit; 0.9-34 stored
+            the placeholder call \code{NULL()}.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{
@@ -196,6 +217,28 @@
             is a 1 x samples matrix rather than a vector.
             \code{extract(type = "trees")} always has a \code{chain}
             column.
+      \item \code{predict} applies the fit's \code{offset} argument at
+            \code{newdata}, as \code{predict.lm} does: the expression it was
+            given as, such as \code{offset = log(exposure)}, is evaluated on
+            \code{newdata}, and an \code{offset} given to \code{predict}
+            adds to it. One given as a plain vector for the training rows
+            applies only to a \code{newdata} of as many rows, as in
+            \code{lm}, and is otherwise refused unless \code{predict} is
+            given an \code{offset} for the new rows.
+            0.9-34 predicted without the fit's offset. The default
+            \code{offset.test} is formed the same way on \code{test}.
+            Ordinal fits, and \code{survivalProbabilities} on hazard fits,
+            refuse new rows when the fit has an offset.
+      \item An \code{offset()} term in a formula is used, as in \code{lm}:
+            it is added to any \code{offset} argument at fit time and
+            evaluated on \code{test} and on \code{predict}'s
+            \code{newdata}, which must then be data frames carrying its
+            variables. 0.9-34 ignored it unless an \code{offset} vector was
+            also given. An explicit
+            \code{offset.test} is one value or one per test row, where
+            0.9-34 recycled or cut it, and a bare name given as
+            \code{offset.test} is looked up in \code{test} before
+            \code{data}.
       \item The warnings a caller has a reason to catch apart from the rest
             carry a class inheriting from \code{dbartsWarning}, so they can
             be caught or muted without matching their text: deprecations
@@ -417,6 +460,11 @@
             its \code{\dots} on to \code{bart}, \code{bartBT}, \code{dbarts}
             or \code{xbart}; it failed with \dQuote{..1 used in an incorrect
             context}.
+      \item A data-dependent formula term, such as \code{poly()},
+            \code{ns()} or \code{scale()}, is rebuilt on \code{test} and on
+            \code{predict}'s \code{newdata} from the training data, as
+            \code{predict.lm} rebuilds it; 0.9-34 recomputed it from the new
+            rows, so a prediction depended on the other rows given with it.
       \item A formula with no response is refused by \code{bart} and
             \code{xbart}; 0.9-34 failed, or silently fit an all-zero
             response when \code{sigest} was given.
@@ -424,8 +472,9 @@
             get a clear one: a non-finite response, zero rows, a multi-column
             response to \code{dbartsData}, a sample count that thins to
             zero, a \code{:} or \code{*} term in a formula, heavy thinning
-            that drove \code{printEvery} to zero, and
-            \code{predict(type = "ppd")} on a fit without \code{keepTrees}.
+            that drove \code{printEvery} to zero, and \code{predict} on a
+            multi-chain fit, or \code{predict(type = "ppd")} on any fit,
+            kept without \code{keepTrees}.
       \item The starting estimate of \code{sigma} no longer depends on the
             machine's linear algebra library: an exactly fit response could
             give an estimate of 0, which the sampler then refused.
@@ -446,8 +495,9 @@
             \code{predict} with several chains handles groups the fit did
             not see; a one-chain \code{extract(type = "trees")} works;
             \code{group.by} names not in \code{data} are found in the
-            calling environment, as documented; and a seeded call leaves
-            the random stream as it found it.
+            calling environment, as documented; a seeded call leaves
+            the random stream as it found it; and \code{set.seed}
+            reproduces a multithreaded run at the same \code{n.threads}.
     }
   }
 }

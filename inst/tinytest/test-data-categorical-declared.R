@@ -65,17 +65,55 @@ expect_true(all(is.finite(predictions.gap)))
 # SET PREDICTOR: installing the gap level into the training column is a valid
 # mutation, and the sampler still fits
 sampler.mut <- dbarts(train.gap, y.gap, control = control)
-codes.mut <- as.double(as.integer(g.gap) - 1L)
-codes.mut[1L] <- 3 # the declared-but-unobserved top level
-expect_true(sampler.mut$setPredictor(codes.mut, column = 2L))
+labels.mut <- as.character(g.gap)
+labels.mut[1L] <- "d" # the declared-but-unobserved top level
+expect_true(sampler.mut$setPredictor(labels.mut, column = 2L))
+expect_equal(unname(sampler.mut$data@x[1L, 2L]), 3)
 expect_true(all(is.finite(sampler.mut$run(20L, 20L)$train)))
 
-# STILL BOUNDED: a code at the declared count is out of range on both sides
-codes.over <- codes.mut
-codes.over[1L] <- 4
+# a column update takes the column's labels, for the test set as for the
+# training column, and installs what a whole-frame update installs
+sampler.col <- dbarts(train.gap, y.gap, control = control)
+sampler.col$setTestPredictor(test.gap)
+whole <- sampler.col$data@x.test
+sampler.col$setTestPredictor(test.gap[c(2:6, 1L), ])
+sampler.col$setTestPredictor(test.gap$g, column = "g")
+sampler.col$setTestPredictor(test.gap$x1, column = "x1")
+expect_identical(unname(sampler.col$data@x.test), unname(whole))
+sampler.col$setTestPredictor(as.character(test.gap$g[c(2:6, 1L)]), column = 2L)
+sampler.col$setTestPredictor(as.character(test.gap$g), column = 2L)
+expect_identical(unname(sampler.col$data@x.test), unname(whole))
 expect_error(
-  sampler.mut$setPredictor(codes.over, column = 2L),
-  pattern = "categorical predictor values must be existing category codes"
+  sampler.col$setTestPredictor(c(0, 1, 2, 3, 3, 0), column = "g"),
+  pattern = "column 'g' is categorical; give its values as a factor"
+)
+expect_error(
+  sampler.col$setTestPredictor(c("a", "b", "c", "e", "d", "a"), column = "g"),
+  pattern = "column 'g' has label 'e' not among its training levels"
+)
+expect_error(
+  sampler.col$setTestPredictor(c("a", NA, "c", "d", "d", "a"), column = "g"),
+  pattern = "column 'g' has missing values, which its training values do not"
+)
+expect_identical(unname(sampler.col$data@x.test), unname(whole))
+sampler.col$setPredictor(
+  factor(labels.mut, levels = levels.gap),
+  column = "g",
+  forceUpdate = TRUE
+)
+expect_equal(
+  unname(sampler.col$data@x[, 2L]),
+  match(labels.mut, levels.gap) - 1
+)
+rm(sampler.col, whole)
+
+# STILL BOUNDED: a label past the declared ones is refused by name, and a
+# code at the declared count is out of range on the matrix side
+labels.over <- labels.mut
+labels.over[1L] <- "e"
+expect_error(
+  sampler.mut$setPredictor(labels.over, column = 2L),
+  pattern = "column 'g' has label 'e' not among its training levels"
 )
 test.over <- cbind(rnorm(3L), c(0, 1, 4))
 colnames(test.over) <- c("x1", "g")

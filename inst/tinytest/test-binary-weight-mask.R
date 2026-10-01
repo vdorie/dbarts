@@ -353,6 +353,25 @@ expect_warning(
   "'weights' of 0 will be ignored"
 )
 
+# an ordinal bart fit records the mask too, and its log-likelihood is NaN at
+# the masked rows, as the probit fit's is
+fit.ordinal <- dbarts::bart(
+  x,
+  factor(y.ordinal, ordered = TRUE),
+  weights = a,
+  n.trees = 10L,
+  n.samples = 10L,
+  n.burn = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_equal(as.double(fit.ordinal$active), a)
+loglik.ordinal <- dbarts::extract(fit.ordinal, "loglik")
+expect_true(all(is.nan(loglik.ordinal[, a == 0])))
+expect_true(all(is.finite(loglik.ordinal[, a == 1])))
+rm(fit.ordinal, loglik.ordinal)
+
 rm(
   n,
   x,

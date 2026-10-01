@@ -92,7 +92,7 @@ expect_equal(data@testUsesRegularOffset, TRUE)
 
 expect_error(
   dbarts::dbartsData(Z ~ X, testData, testData$X[-1, ], offset = otherOffset),
-  "vectored 'offset' cannot be directly applied to test data of unequal length"
+  "'offset' was given as 'otherOffset', which cannot be evaluated on the rows of 'test'"
 )
 rm(data)
 

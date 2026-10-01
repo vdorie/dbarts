@@ -643,3 +643,28 @@ expect_equal(
     birth = 0.5
   )
 )
+
+# every entry names its move: an unnamed vector or an unknown name is refused,
+# listing the moves, rather than dropped for the default mixture
+expect_error(
+  dbartsControl(proposal.probs = c(0.5, 0.1, 0.4, 0)),
+  pattern = "'proposal.probs' must name each of its entries, from 'birth_death'"
+)
+expect_error(
+  dbartsControl(proposal.probs = c(birth_death = 0.5, 0.5)),
+  pattern = "'proposal.probs' must name each of its entries"
+)
+expect_error(
+  dbartsControl(proposal.probs = c(birth_death = 0.5, change = 0.5, foo = 0)),
+  pattern = "unknown name 'foo'; the moves are 'birth_death', 'swap', 'change'"
+)
+expect_error(
+  dbartsControl(proposal.probs = c(birthdeath = 0.5, chnge = 0.5)),
+  pattern = "unknown names 'birthdeath' and 'chnge'"
+)
+expect_error(
+  dbartsControl(
+    proposal.probs = c(birth_death = 0.5, change = 0.3, change = 0.2)
+  ),
+  pattern = "'proposal.probs' names 'change' more than once; the moves are"
+)

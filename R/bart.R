@@ -381,7 +381,7 @@ packageBartResults <- function(
 
   if (responseIsBinary) {
     result <- list(
-      call = fit$control@call,
+      call = storedFitCall(fit$control@call),
       family = familySpec@token,
       family.spec = familySpec,
       yhat.train = yhat.train,
@@ -394,7 +394,7 @@ packageBartResults <- function(
     )
   } else {
     result <- list(
-      call = fit$control@call,
+      call = storedFitCall(fit$control@call),
       family = familySpec@token,
       family.spec = familySpec,
       resid.scale = residScale,
@@ -871,6 +871,15 @@ bart <- function(
   # ahead of sampler construction below, so a malformed pair fails here
   # rather than after the (possibly expensive) sampler is already built
   validateCallback(callback)
+  # refused by name, as the control's own flags (keepTrees, verbose) are,
+  # before anything branches on it
+  if (
+    !is.logical(combineChains) ||
+      length(combineChains) != 1L ||
+      is.na(combineChains)
+  ) {
+    stop("'combineChains' must be TRUE/FALSE")
+  }
   # the names dec-B98's consolidation moved onto the family and prior
   # objects: read once, then cleared from the matched call so no forwarding
   # can carry an old spelling on to dbarts()
@@ -1132,6 +1141,17 @@ bart <- function(
     expandForwardedCall(storedCall, callingEnv)
   } else {
     call("NULL")
+  }
+  # k forwarded through a wrapper's dots arrives as ..N, which the leaf prior
+  # built below would force where the wrapper's caller wrote it, outside the
+  # prior vocabulary; it is resolved here instead, as dbarts() resolves its
+  # own prior arguments, once the stored call has its written form
+  if (isDotsReference(matchedCall[["k"]])) {
+    matchedCall["k"] <- list(evalInVocabulary(
+      matchedCall[["k"]],
+      dbartsPriors,
+      callingEnv
+    ))
   }
   control@n.burn <- control@n.burn %/% control@n.thin
   control@n.samples <- control@n.samples %/% control@n.thin
@@ -1498,7 +1518,9 @@ bart <- function(
     if (!missing(subset)) {
       stop("family = \"hurdle.lognormal\" does not support 'subset'")
     }
-    if (!missing(offset) || !missing(offset.test)) {
+    if (
+      !missing(offset) || !missing(offset.test) || formulaHasOffsetTerm(formula)
+    ) {
       stop(
         "family = \"hurdle.lognormal\" does not support 'offset'/'offset.test'"
       )
@@ -1710,13 +1732,32 @@ extractMultinomialFormulaData <- function(
   if (is.empty.model(modelTerms)) {
     stop("predictors must be specified for regression tree analysis")
   }
+  # an offset() term is a flat offset, refused as the 'offset' argument is
+  if (!is.null(attr(modelTerms, "offset"))) {
+    refuseFlatOffsetOnMultinomial(model.offset(modelFrame))
+  }
   termLabels <- attr(modelTerms, "term.labels")
   badLabels <- grepl("`.* .*`", termLabels)
   if (sum(badLabels) > 0) {
     termLabels[badLabels] <- gsub("^`(.*)`$", "\\1", termLabels[badLabels])
   }
 
-  list(y = y, x = modelFrame[termLabels])
+  # the predictor terms, with their predvars, ride to the coded design so
+  # predict rebuilds a data-dependent basis from the training values
+  x <- modelFrame[termLabels]
+  attr(x, "dbartsTerms") <- predictorTerms(
+    modelTerms,
+    formulaDataNames(data),
+    if (is.data.frame(data)) nrow(data) else NA_integer_
+  )
+  list(y = y, x = x)
+}
+
+# Whether a formula carries an offset() term, for the fits that refuse an
+# offset before any model frame is built.
+formulaHasOffsetTerm <- function(formula) {
+  is.formula(formula) &&
+    !is.null(attr(terms(formula, allowDotAsName = TRUE), "offset"))
 }
 
 # family = "auto" peek for bart2: a 3+-level UNORDERED factor or character
@@ -2240,7 +2281,7 @@ packageMultinomialResults <- function(
   }
 
   result <- list(
-    call = control@call,
+    call = storedFitCall(control@call),
     family = "multinomial",
     levels = levels,
     levels.source = levels.source,
@@ -2268,6 +2309,8 @@ packageMultinomialResults <- function(
   if (!is.null(data) && !is.null(data@na.action)) {
     result$na.action <- data@na.action
   }
+  # a fit kept without its call carries none, as a bart fit does
+  result <- dropAbsentCall(result)
   class(result) <- "bartMultinomial"
   result
 }
@@ -2458,7 +2501,7 @@ packageOrdinalResults <- function(
   )
 
   result <- list(
-    call = control@call,
+    call = storedFitCall(control@call),
     family = "ordinal",
     levels = levels,
     K = K,
@@ -2510,6 +2553,13 @@ packageOrdinalResults <- function(
   if (!is.null(sampler$data@na.action)) {
     result$na.action <- sampler$data@na.action
   }
+  # the active-row mask 0/1 case weights install, which the log-likelihood
+  # channel reads as bart's single-forest packager records it
+  if (!is.null(sampler$activeRows)) {
+    result$active <- sampler$activeRows
+  }
+  # a fit kept without its call carries none, as a bart fit does
+  result <- dropAbsentCall(result)
   class(result) <- "bartOrdinal"
   result
 }
@@ -2716,7 +2766,7 @@ packageNegbinResults <- function(
   )
 
   result <- list(
-    call = control@call,
+    call = storedFitCall(control@call),
     family = "nbinom",
     n.chains = n.chains,
     n.trees = control@n.trees,
@@ -2755,6 +2805,8 @@ packageNegbinResults <- function(
   if (!is.null(sampler$data@na.action)) {
     result$na.action <- sampler$data@na.action
   }
+  # a fit kept without its call carries none, as a bart fit does
+  result <- dropAbsentCall(result)
   class(result) <- "bartNegbin"
   result
 }
@@ -2960,7 +3012,7 @@ bart2Hurdle <- function(
   )
 
   result <- list(
-    call = control@call,
+    call = storedFitCall(control@call),
     family = "hurdle.lognormal",
     # both components come from the same matchedCall, so they share n.chains
     n.chains = zero$n.chains,
@@ -2979,6 +3031,8 @@ bart2Hurdle <- function(
   if (!is.null(zero[["na.action"]])) {
     result$na.action <- zero[["na.action"]]
   }
+  # a fit kept without its call carries none, as a bart fit does
+  result <- dropAbsentCall(result)
   class(result) <- "bartHurdle"
   result
 }
@@ -3095,6 +3149,12 @@ hazardSurvivalProbabilities <- function(
         "trees; refit with keepTrees = TRUE"
       )
     }
+    if (!is.null(newdata)) {
+      refuseNewRowOffset(
+        object$fit$data,
+        "survivalProbabilities on a hazard fit"
+      )
+    }
     periodCol <- ncol(object$fit$data@x)
     if (is.null(newdata)) {
       # reconstruct the per-subject covariates from the coded expanded
@@ -3134,7 +3194,19 @@ hazardSurvivalProbabilities <- function(
       # hazards through the correct link (type = "ev" keys on $family, the
       # binary token); predict codes bigX to the training columns and
       # replays the trees
-      haz <- predict(object, bigX, type = "ev", combineChains = FALSE)
+      # read through the coded rows directly: bigX is the coded design, on
+      # which a formula's offset() term cannot be evaluated, and the hazards
+      # here are offset-free as on the newdata branch below
+      haz <- codedRowDraws(
+        object,
+        validateXTest(bigX, fitX, refuseMissing = FALSE),
+        "ev",
+        object$fit$control@n.threads,
+        NULL
+      )
+      if (n.chains == 1L) {
+        haz <- addChainDimension(haz)
+      }
     } else {
       rows <- hazardPredictRows(object, bigX, n, K, subjectNames, na.action)
       n <- rows$numPredicted

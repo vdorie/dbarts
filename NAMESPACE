@@ -114,7 +114,7 @@ importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validO
 
 importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, naresid)
 importFrom(stats, lm.fit, lm.wfit, pnorm, plogis, quantile)
-importFrom(stats, as.formula, setNames, family)
+importFrom(stats, as.formula, setNames, family, getCall)
 
 importFrom(utils, str)
 importFrom(parallel, makeCluster, clusterExport, clusterEvalQ, clusterMap, stopCluster, splitIndices)
@@ -122,3 +122,10 @@ importFrom(stats, sd, rnorm, rexp, runif, rbinom, rnbinom, optim, optimHess, dno
 importFrom(stats, qchisq, rchisq, pchisq, ks.test, dcauchy, dgamma)
 
 importFrom(graphics, abline, contour, image, legend, lines, par, plot, plot.new, title, strheight, text)
+
+S3method(getCall, bart, getCallOfFit)
+S3method(getCall, bartMultinomial, getCallOfFit)
+S3method(getCall, bartOrdinal, getCallOfFit)
+S3method(getCall, bartNegbin, getCallOfFit)
+S3method(getCall, bartHurdle, getCallOfFit)
+S3method(getCall, rbart, getCallOfFit)
