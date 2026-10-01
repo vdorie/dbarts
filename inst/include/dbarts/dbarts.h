@@ -444,7 +444,12 @@ typedef enum { DBARTS_COLUMN_TYPE_LIST(DBARTS_ENUMERATOR) } dbarts_column_type;
 /// it is < 0; the CSC triple is the usual (column pointers of length
 /// numCscColumns + 1, row indices, values), and a CSC column's absent rows
 /// read its declared reference code when the sampler holds that column
-/// categorical, 0 otherwise.
+/// categorical, 0 otherwise. The triple's STRUCTURE is trusted, not checked:
+/// the R side validates a CSC matrix before it reaches the engine, but this
+/// entry replays pointers as handed, so non-decreasing column pointers whose
+/// last entry is the stored-entry count, and row indices in [0, numRows), are
+/// the caller's to guarantee; a violation reads out of bounds rather than
+/// raising.
 ///
 /// columnTypes and categoryCounts describe the view's own typing, and the
 /// entry that takes this struct is a replay path, where the SAMPLER's store
