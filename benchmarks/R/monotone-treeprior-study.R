@@ -43,12 +43,19 @@
 # cells failing each clause.
 #
 # Usage:
-#   run out=<dir> [quick] [cores=4] [reps=8]
-#     one result file per job in <dir>; a job whose file exists is skipped, so
-#     a stopped run resumes by running it again; <dir>/DONE is written last.
-#     quick: 2 replicates, 50 + 50 sweeps.
-#   report out=<dir> [csv=<file>]
-#     summary tables and the verdict on stdout; csv writes one row per fit
+#   run out=<dir> [quick] [cores=4] [reps=8] [commit=<sha>]
+#     one result file per job in <dir>, saving the settings it ran under
+#     (sweeps, replicates, dbarts version and commit); a job whose file exists
+#     under the same settings is skipped, so a stopped run resumes by running
+#     it again, and rerun otherwise; <dir>/DONE is written last. commit names
+#     the commit the library was built at, by default the working directory's
+#     git HEAD. quick: 2 replicates, 50 + 50 sweeps.
+#   report out=<dir> [quick] [reps=8] [commit=<sha>] [csv=<file>]
+#     summary tables and the verdict on stdout, over the jobs run would run
+#     with the same options; stops if a result's sweeps, replicates or dbarts
+#     version differ from the current ones, or its commit from the others' (or
+#     from commit= when given). The verdict needs every job present, with
+#     DONE reporting none missing. csv writes one row per fit
 
 args <- commandArgs(trailingOnly = TRUE)
 mode <- if (length(args)) args[1L] else "run"
@@ -72,6 +79,25 @@ nReps <- as.integer(option("reps", if (quick) "2" else "8"))
 nBurn <- if (quick) 50L else 500L
 nKept <- if (quick) 50L else 500L
 nHeldOut <- 2000L
+gitHead <- tryCatch(
+  suppressWarnings(system2(
+    "git",
+    c("rev-parse", "--short", "HEAD"),
+    stdout = TRUE,
+    stderr = FALSE
+  )),
+  error = function(e) character()
+)
+settings <- list(
+  nBurn = nBurn,
+  nKept = nKept,
+  nReps = nReps,
+  dbarts = as.character(utils::packageVersion("dbarts")),
+  commit = option(
+    "commit",
+    if (length(gitHead) == 1L) gitHead else NA_character_
+  )
+)
 nLines <- 3L
 nLinePoints <- 51L
 
@@ -268,9 +294,8 @@ runFitJob <- function(job) {
     start <- proc.time()
     fit <- fitArm(arm, design, data$train, data$test, job$trees, job$fitSeed)
     used <- proc.time() - start
-    if (
-      arm != "free" && !identical(fit$monotone.prior, sub("[.].*", "", arm))
-    ) {
+    expected <- if (arm == "free") NULL else sub("[.].*", "", arm)
+    if (!identical(fit$monotone.prior, expected)) {
       stop("arm ", arm, " fit under prior ", format(fit$monotone.prior))
     }
     sweeps <- nBurn + nKept
@@ -333,7 +358,7 @@ jobList <- function() {
 
 runJob <- function(job) {
   file <- file.path(outDir, paste0(job$id, ".rds"))
-  if (file.exists(file)) {
+  if (file.exists(file) && identical(readRDS(file)$settings, settings)) {
     return(invisible(NULL))
   }
   start <- Sys.time()
@@ -347,10 +372,17 @@ runJob <- function(job) {
   }
   temp <- paste0(file, ".tmp")
   saveRDS(
-    list(job = job, result = result, started = start, finished = Sys.time()),
+    list(
+      job = job,
+      settings = settings,
+      result = result,
+      started = start,
+      finished = Sys.time()
+    ),
     temp
   )
   file.rename(temp, file)
+  unlink(file.path(outDir, paste0(job$id, ".err")))
   cat(format(Sys.time(), "%H:%M:%S"), job$id, "\n")
   invisible(NULL)
 }
@@ -363,12 +395,14 @@ if (mode == "run") {
   jobs <- jobList()
   cat(length(jobs), "jobs,", cores, "workers\n")
   parallel::mclapply(jobs, runJob, mc.cores = cores, mc.preschedule = FALSE)
-  missing <- sum(
-    !file.exists(file.path(
-      outDir,
-      paste0(vapply(jobs, `[[`, "", "id"), ".rds")
-    ))
-  )
+  missing <- sum(vapply(
+    jobs,
+    function(job) {
+      file <- file.path(outDir, paste0(job$id, ".rds"))
+      !file.exists(file) || !identical(readRDS(file)$settings, settings)
+    },
+    TRUE
+  ))
   writeLines(
     sprintf("%d of %d jobs missing", missing, length(jobs)),
     file.path(outDir, "DONE")
@@ -380,14 +414,50 @@ if (mode == "run") {
 # ---- report ----------------------------------------------------------------
 
 if (mode == "report") {
-  files <- list.files(outDir, "[.]rds$", full.names = TRUE)
+  jobs <- jobList()
+  files <- file.path(outDir, paste0(vapply(jobs, `[[`, "", "id"), ".rds"))
+  files <- files[file.exists(files)]
   if (!length(files)) {
     stop("no results in ", outDir)
   }
+  results <- lapply(files, readRDS)
+  commits <- character()
+  for (i in seq_along(results)) {
+    saved <- results[[i]]$settings
+    current <- settings[c("nBurn", "nKept", "nReps", "dbarts")]
+    if (!identical(saved[names(current)], current)) {
+      stop(basename(files[i]), " ran under other settings")
+    }
+    commits[i] <- saved$commit
+  }
+  if (length(unique(commits)) != 1L) {
+    stop("results span commits ", paste(unique(commits), collapse = ", "))
+  }
+  given <- option("commit", NA_character_)
+  if (!is.na(given) && !identical(commits[1L], given)) {
+    stop("results ran at commit ", commits[1L], ", not ", given)
+  }
+  doneFile <- file.path(outDir, "DONE")
+  done <- file.exists(doneFile) &&
+    identical(
+      readLines(doneFile),
+      sprintf("0 of %d jobs missing", length(jobs))
+    )
+  cat(
+    sprintf(
+      "%d of %d jobs, dbarts %s at %s, %d + %d sweeps
+",
+      length(files),
+      length(jobs),
+      settings$dbarts,
+      commits[1L],
+      nBurn,
+      nKept
+    )
+  )
   fits <- do.call(
     rbind,
-    lapply(files, function(file) {
-      r <- readRDS(file)
+    lapply(results, function(r) {
       data.frame(
         design = r$job$design,
         noise = r$job$noise,
@@ -471,7 +541,9 @@ if (mode == "report") {
     !(verdict$score.diff >= -2 * verdict$score.se)
   verdict$fails.b <- !(verdict$mbart.coverage >= 0.90)
   cat("\njoint.mbart minus joint, paired over replicates, and mBART coverage\n")
-  print(verdict, row.names = FALSE)
+  shown <- verdict
+  shown$mbart.coverage <- sprintf("%.4f", shown$mbart.coverage)
+  print(shown, row.names = FALSE)
 
   cellName <- function(rows) {
     if (!nrow(rows)) {
@@ -496,14 +568,21 @@ if (mode == "report") {
   cat("    failing score:", cellName(verdict[verdict$fails.a.score, ]), "\n")
   cat("(b) mBART coverage >= 0.90, every cell at 200 and 50 trees\n")
   cat("    failing:", cellName(verdict[failsB, ]), "\n")
-  complete <- nrow(verdict) == expected && all(verdict$reps >= 2L)
+  complete <- done &&
+    length(files) == length(jobs) &&
+    nrow(verdict) == expected &&
+    all(verdict$reps == nReps) &&
+    nReps >= 2L
   cat(
     "verdict:",
     if (!complete) {
       sprintf(
-        "incomplete (%d of %d cells, or fewer than 2 reps)",
+        "incomplete (%d of %d jobs, %d of %d cells, DONE %s), no verdict",
+        length(files),
+        length(jobs),
         nrow(verdict),
-        expected
+        expected,
+        if (done) "clean" else "missing or reporting jobs missing"
       )
     } else if (any(failsA) || any(failsB)) {
       "cgm() defaults stay"
