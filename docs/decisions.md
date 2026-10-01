@@ -1186,6 +1186,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B158]
 dbartsControl's proposal.probs must name its entries from the move vocabulary; an unnamed vector or an unknown name is an error that lists the valid names. Until now, and in 0.9-34, such entries were dropped silently and the default mix ran. The alternatives were warning and falling back per entry, as optim does for unknown control names, and leaving it. A typo cannot change the sampler unnoticed; a call that passed a bad vector now errors. The maintainer on 2026-10-01: "Refuse unnamed vectors and unknown names, naming the valid ones." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B159]
 
+**The flat C API's run and predict support multinomial samplers**
+A multinomial sampler built in R and handed to the flat C API runs and predicts through it: the header documents the K-wide result layout of dbarts_sampler_run and dbarts_sampler_predict and gains an accessor for K, an ABI event that every LinkingTo consumer rebuilds against. Until now the header admitted multinomial handles but its buffer sizes assumed one location, so both entries wrote K times past a caller's buffers. The alternative was refusing result buffers and prediction on multinomial samplers with comment-only header edits, no consumer rebuild, leaving the K-aware entries to the post-RC multinomial doors. A host can drive a multinomial sampler from C; consumers rebuild once. The ruling covers run and predict on R-built handles only; a flat creation path for multinomial stays a post-RC door (TODO multinomial-doors). The maintainer on 2026-10-01: "Support it now." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B160]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
