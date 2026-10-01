@@ -206,7 +206,7 @@ bartBT is the BayesTree-compatible surface: 0.9-34's argument list exactly, no n
 <dd><p>Logical; must be <code>TRUE</code> in order to use <code>predict</code> with the result of a <code>bart</code> fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.</p></dd>
 
    <dt id="arg-keepcall">keepcall<a class="anchor" aria-label="anchor" href="#arg-keepcall"></a></dt>
-<dd><p>Logical; if <code>FALSE</code>, returned object will have <code>call</code> set to <code>call("NULL")</code>, otherwise the call used to instantiate BART.</p></dd>
+<dd><p>Logical; if <code>FALSE</code>, returned object will have <code>call</code> set to <code>NULL</code>, otherwise the call used to instantiate BART.</p></dd>
 
    <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
 <dd><p>Optional integer specifying the desired pRNG <a href="https://rdrr.io/r/base/Random.html" class="external-link">seed</a>. <code>NULL</code> (the default) leaves the fit unseeded, and an explicit <code>NA</code> is a missing value, as in <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code>: it reads as <code>NULL</code> for one release, with a once-per-session warning; a <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code> beforehand then suffices for reproducibility. Supplying <code>seed</code> instead gives reproducible results without touching R's stream. See the Reproducibility section of <a href="bart.html">bart</a>.</p></dd>
@@ -311,7 +311,7 @@ bartBT is the BayesTree-compatible surface: 0.9-34's argument list exactly, no n
     <p><code>bartBT</code> and <code><a href="bart.html">bart</a></code> return lists assigned the class <code>bart</code> for the shared gaussian/probit/logistic/aft/hazard* families (<code>bart</code> reaches further response families under their own list classes and generics; see <code><a href="bart.html">bart</a></code>'s Value section). For applicable quantities, <code>ndpost / keepevery</code> samples are returned. In the numeric \(y\) case, the list has components:</p>
 <p></p>
 <dl><dt><code>call</code></dt>
-<dd><p>The matched call, or <code>call("NULL")</code> when the fit was made with <code>keepcall</code>/<code>keepCall</code> equal to <code>FALSE</code>.</p></dd>
+<dd><p>The matched call, or <code>NULL</code> when the fit was made with <code>keepcall</code>/<code>keepCall</code> equal to <code>FALSE</code>.</p></dd>
 
   <dt><code>yhat.train</code></dt>
 <dd><p>A array/matrix of posterior samples. The \((i, j, k)\) value is the \(j\)th draw of the posterior of \(f\) evaluated at the \(k\)th row of <code>x.train</code> (i.e. \(f^*(x_k)\)) corresponding to chain \(i\). When <code>nchain</code> is one or <code>combinechains</code> is <code>TRUE</code>, the result is collapsed down to a matrix: with \(m = \)<code>ndpost %/% keepevery</code> draws kept per chain, row \(r\) is chain \(1 + (r - 1) \%/\% m\)'s draw \(1 + (r - 1) \%\% m\) - chain 1's whole run first, then chain 2's, and so on (chain-major), not interleaved draw by draw. Every collapsed field a fit returns (<code>sigma</code>, <code>k</code>, <code>varcount</code>, ...) uses this same row order, so row \(r\) of one pairs with row \(r\) of another - e.g. <code>sigma[r]</code> is the residual scale that produced <code>yhat.train[r, ]</code>.</p></dd>
@@ -490,7 +490,7 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 400 (of 500)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 500 (of 500)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 500 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.093067</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.153203</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 </span>

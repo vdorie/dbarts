@@ -200,8 +200,13 @@ print(x, ...)
 
   An object of class [`formula`](https://rdrr.io/r/stats/formula.html)
   following an analogous model description syntax as
-  [`lm`](https://rdrr.io/r/stats/lm.html), optionally carrying one or
-  more [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
+  [`lm`](https://rdrr.io/r/stats/lm.html), including its
+  [`offset()`](https://rdrr.io/r/stats/offset.html) terms and
+  data-dependent terms such as
+  [`poly()`](https://rdrr.io/r/stats/poly.html) (see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  `formula` item), optionally carrying one or more
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
   terms that declare additional per-observation-modulated forests (see
   ‘Formula Terms’ below). For backward compatibility, can also be the
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) matrix
@@ -270,7 +275,24 @@ print(x, ...)
   `offset` item for the exact per-family formula. The same concept as
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   `binaryOffset` (which only ever applies to that function's
-  probit/logistic default family). Can be missing.
+  probit/logistic default family). Can be missing. A formula's
+  [`offset()`](https://rdrr.io/r/stats/offset.html) terms are added to
+  it, as in [`lm`](https://rdrr.io/r/stats/lm.html), and a family that
+  refuses an offset refuses them alike.
+
+  For `predict` on a `bart` fit, the offset at the predicted rows: a
+  single value, or one per row of `newdata`. The fit's
+  [`offset()`](https://rdrr.io/r/stats/offset.html) terms and `offset`
+  argument are evaluated on `newdata`, as
+  [`predict.lm`](https://rdrr.io/r/stats/predict.lm.html) evaluates
+  them, and added to it, so `newdata` must then be a data frame carrying
+  their data columns; every other name in them was fixed at its value
+  when fitting. An `offset` argument given as a plain vector for the
+  training rows applies only to a `newdata` of as many rows, as in `lm`;
+  on any other `newdata` `predict` refuses unless given an `offset`,
+  which takes its place. A `bartOrdinal` fit, and
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  on a hazard fit, refuse new rows when the fit has an offset.
 
   For `predict` on a `bartMultinomial` fit, the same name carries a
   different shape: the per-category shift at the PREDICTED rows, an
@@ -307,9 +329,17 @@ print(x, ...)
 
   The equivalent of `offset` for test observations (for
   `family = "multinomial"`, an m x K matrix, see `family`). Defaults to
-  tracking `offset`: a scalar, or a vector already matching the test row
-  count, is reused directly, and any other length is refused by name
-  rather than silently recycled. See
+  the `offset` argument evaluated on `test`, as `predict` evaluates it
+  on `newdata`, plus the formula's
+  [`offset()`](https://rdrr.io/r/stats/offset.html) terms evaluated
+  there: a scalar is reused, `offset = log(exposure)` reads `test`'s
+  `exposure`, and a vector given for the training rows applies only to a
+  test set of as many rows, any other length refused by name rather than
+  silently recycled. Given explicitly, it is likewise a scalar or one
+  value per test row, a bare name is looked up in `test` before `data`,
+  and `offset` named in it is the argument's own value, the formula's
+  [`offset()`](https://rdrr.io/r/stats/offset.html) terms being
+  evaluated on `test` and added to it. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   ‘Test offset synchronization’ details for how a live sampler keeps the
   two linked after fitting.
@@ -338,11 +368,13 @@ print(x, ...)
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s,
   which always expands every factor into indicator columns;
   `"indicators"` instead expands each factor into binary indicator
-  columns, matching `bartBT`. A factor-predictor fit therefore changes
-  if moved between the two interfaces. Subset splits let a single split
-  separate any grouping of a factor's levels, where indicator columns
-  need a chain of splits to do the same, and they give a factor the
-  prior split probability of one predictor rather than one per level.
+  columns, matching `bartBT`, and matches a test factor to the training
+  levels by label, refusing by name a level with no training rows. A
+  factor-predictor fit therefore changes if moved between the two
+  interfaces. Subset splits let a single split separate any grouping of
+  a factor's levels, where indicator columns need a chain of splits to
+  do the same, and they give a factor the prior split probability of one
+  predictor rather than one per level.
 
 **Family and priors.**
 
@@ -998,8 +1030,10 @@ print(x, ...)
 
 - keepCall:
 
-  Logical; if `FALSE`, the returned object has `call` set to
-  `call("NULL")`, otherwise the call used to instantiate BART.
+  Logical; if `FALSE`, the returned object has `call` set to `NULL`, as
+  a base R fit without a call has, so
+  [`update`](https://rdrr.io/r/stats/update.html) refuses it; otherwise
+  the call used to instantiate BART.
 
 - keepSampler:
 
@@ -1854,7 +1888,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001073
+#> total seconds in loop: 0.001658
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1903,7 +1937,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001211
+#> total seconds in loop: 0.002045
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

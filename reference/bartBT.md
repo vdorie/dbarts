@@ -339,8 +339,8 @@ family(object, ...)
 
 - keepcall:
 
-  Logical; if `FALSE`, returned object will have `call` set to
-  `call("NULL")`, otherwise the call used to instantiate BART.
+  Logical; if `FALSE`, returned object will have `call` set to `NULL`,
+  otherwise the call used to instantiate BART.
 
 - seed:
 
@@ -799,7 +799,7 @@ returned. In the numeric \\y\\ case, the list has components:
 
 - `call`:
 
-  The matched call, or `call("NULL")` when the fit was made with
+  The matched call, or `NULL` when the fit was made with
   `keepcall`/`keepCall` equal to `FALSE`.
 
 - `yhat.train`:
@@ -1153,7 +1153,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.093067
+#> total seconds in loop: 0.153203
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

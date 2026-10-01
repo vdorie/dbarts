@@ -287,7 +287,15 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   A numeric predictor vector of length equal to that with which the
   sampler was created. Can be of a distinct number of rows for
-  `setTestPredictor`.
+  `setTestPredictor`. A column update (`column` given) on a column coded
+  from a factor takes that column's labels instead, for `setPredictor`
+  and `setTestPredictor` alike: a factor, character vector or
+  [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md),
+  matched by label against the training levels, as a whole data-frame
+  update is coded; several columns take a data frame. A label the column
+  does not declare, and a missing value in a column whose training
+  values have none, are refused by name, as is a number, which could
+  only be read as an internal code.
 
 - x.test:
 

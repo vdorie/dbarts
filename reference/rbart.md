@@ -126,11 +126,15 @@ print(x, ...)
   is applied only when supplied; otherwise the defaults are those of
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). A
   supplied `seed` is used for this call only: the caller's random number
-  stream is left as it was found. `weights` are precisions, so a row's
-  residual variance is \\\sigma^2 / w_i\\, and a binary response takes
-  only weights of 0 and 1; other weights are refused. A `dbartsData`
-  object carrying `bases` (a multi-forest model) is refused: `rbart_vi`
-  fits a single forest.
+  stream is left as it was found. Unlike `bart`, the thread count
+  changes the draws: with more than one thread the chains run in worker
+  processes, each seeded from `seed` or, without one, from R's random
+  number stream, so `set.seed` reproduces a run at the same `n.threads`,
+  while one thread runs the chains in turn on R's stream. `weights` are
+  precisions, so a row's residual variance is \\\sigma^2 / w_i\\, and a
+  binary response takes only weights of 0 and 1; other weights are
+  refused. A `dbartsData` object carrying `bases` (a multi-forest model)
+  is refused: `rbart_vi` fits a single forest.
 
 - object:
 

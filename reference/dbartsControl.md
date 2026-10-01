@@ -302,22 +302,24 @@ dbartsControl(
   rules and their probabilities. Elements should be `"birth_death"`,
   `"swap"`, `"change"`, `"perturb"` and `"rule_gibbs"` to control tree
   structure proposals, and `"birth"` to give the relative frequency of
-  birth/death in the `"birth_death"` step. The five structural
-  probabilities must sum to one. All five structural probabilities zero
-  is the frozen mixture: no structural proposal is made, the tree
-  structures stand where they are, and only the leaf values, `sigma` and
-  the family's latents keep being drawn, which is how a fitted forest is
-  re-sampled as a fixed basis. Under `dbartsControl`'s default
-  `treeShift = "auto"` a frozen forest additionally takes the
-  level-shifting Gibbs step each iteration, the leaf values then being
-  the only thing left to move. An unnamed `"perturb"` or `"rule_gibbs"`
-  is taken as zero and resolved before the rest; an unnamed `"swap"` is
-  taken as zero, and a single remaining unnamed element takes the
-  residual, so `c(birth_death = 0.7)` is birth/death 0.7, swap 0, change
-  0.3, perturb 0, rule_gibbs 0 and `c(birth_death = 0.5, change = 0.4)`
-  is swap 0.1; naming only the zero-default moves `"swap"`, `"perturb"`
-  and `"rule_gibbs"` leaves the birth/death-versus-change split
-  undetermined and is an error. The default is
+  birth/death in the `"birth_death"` step; every element must carry one
+  of these names, and an unnamed vector or an unknown name is an error
+  listing them. The five structural probabilities must sum to one. All
+  five structural probabilities zero is the frozen mixture: no
+  structural proposal is made, the tree structures stand where they are,
+  and only the leaf values, `sigma` and the family's latents keep being
+  drawn, which is how a fitted forest is re-sampled as a fixed basis.
+  Under `dbartsControl`'s default `treeShift = "auto"` a frozen forest
+  additionally takes the level-shifting Gibbs step each iteration, the
+  leaf values then being the only thing left to move. An unnamed
+  `"perturb"` or `"rule_gibbs"` is taken as zero and resolved before the
+  rest; an unnamed `"swap"` is taken as zero, and a single remaining
+  unnamed element takes the residual, so `c(birth_death = 0.7)` is
+  birth/death 0.7, swap 0, change 0.3, perturb 0, rule_gibbs 0 and
+  `c(birth_death = 0.5, change = 0.4)` is swap 0.1; naming only the
+  zero-default moves `"swap"`, `"perturb"` and `"rule_gibbs"` leaves the
+  birth/death-versus-change split undetermined and is an error. The
+  default is
   `c(birth_death = 0.6, swap = 0, change = 0.4, perturb = 0, rule_gibbs = 0, birth = 0.5)`.
   A `"swap"` element exchanges a parent's split rule with a child's; it
   defaults to zero because at production forest sizes it measures as a

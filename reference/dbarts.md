@@ -31,12 +31,25 @@ dbarts(
 
   An object of class [`formula`](https://rdrr.io/r/stats/formula.html)
   following an analogous model description syntax as
-  [`lm`](https://rdrr.io/r/stats/lm.html). For backwards compatibility,
-  can also be the
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) matrix
-  `x.train`, including a sparse `Matrix::dgCMatrix`: its columns enter
-  as ordinal predictors, sufficiently sparse columns are stored in a
-  compact rank-bitmap layout instead of being expanded, and the
+  [`lm`](https://rdrr.io/r/stats/lm.html). As in `lm`, an
+  [`offset()`](https://rdrr.io/r/stats/offset.html) term is added to
+  `offset` and is evaluated on `test` (see `offset.test`), and a
+  data-dependent term such as
+  [`poly()`](https://rdrr.io/r/stats/poly.html),
+  [`splines::ns()`](https://rdrr.io/r/splines/ns.html) or
+  [`scale()`](https://rdrr.io/r/base/scale.html) is rebuilt on `test`
+  and on `predict`'s `newdata` from the training values, as
+  [`predict.lm`](https://rdrr.io/r/stats/predict.lm.html) rebuilds it. A
+  fit stores these terms, and the `offset` expression, without an
+  environment: a name that is a column of `data` is read from the new
+  rows alone, and every other name is fixed at its value when fitting,
+  so a fit carries no frame of the function that made it. A formula
+  calling a function from no package, such as one defined in the
+  session, is refused, naming it. For backwards compatibility, can also
+  be the [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)
+  matrix `x.train`, including a sparse `Matrix::dgCMatrix`: its columns
+  enter as ordinal predictors, sufficiently sparse columns are stored in
+  a compact rank-bitmap layout instead of being expanded, and the
   predictor-mutation surface accepts both whole-matrix replacement,
   `setPredictor(x)`, and the column-granular
   `setPredictor(x, column = j)`, which replaces a sparse column whole; a
@@ -130,8 +143,17 @@ dbarts(
 
 - offset.test:
 
-  The equivalent of `offset` for test observations. Will attempt to use
-  `offset` when applicable.
+  The equivalent of `offset` for test observations. By default the
+  expression `offset` was given as is evaluated on `test`, as
+  [`predict.lm`](https://rdrr.io/r/stats/predict.lm.html) evaluates it
+  on new data: a scalar is reused, and a vector given for the training
+  rows applies only to a test set of as many rows, any other length
+  refused. Given explicitly, it is a single number or one value per row
+  of `test`, any other length refused, and a bare name is looked up in
+  `test` before `data`. A formula's
+  [`offset()`](https://rdrr.io/r/stats/offset.html) terms are evaluated
+  on `test`, which must then be a data frame carrying their variables,
+  and added to it.
 
 - verbose:
 
@@ -458,7 +480,10 @@ dbarts(
   model only the observed levels). `"indicators"` expands each factor
   into binary indicator columns, as previous versions always did and as
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) still
-  does. Subset splits let a single split separate any grouping of a
+  does; its training levels are kept too, so a test factor is matched to
+  them by label, as in [`lm`](https://rdrr.io/r/stats/lm.html), and a
+  level with no training rows, which has no indicator column, is refused
+  by name. Subset splits let a single split separate any grouping of a
   factor's levels, where indicator columns need a chain of splits to do
   the same, and they give a factor the prior split probability of one
   predictor rather than one per level.
@@ -654,8 +679,9 @@ for the column-type mapping (numeric, factor, sparse, and
 
 ### Test offset synchronization
 
-When `offset.test` is left at its default of tracking `offset`, the
-sampler links the two: the sampler's `setOffset` method re-derives
+When `offset.test` is left at its default and that evaluates to the
+training `offset` itself (a scalar, or a vector given for as many rows),
+the sampler links the two: the sampler's `setOffset` method re-derives
 `offset.test` from each new `offset` it is given. Calling the sampler's
 `setTestOffset` or `setTestPredictorAndOffset` methods breaks this link
 – `offset.test` is set independently from then on, and the link never

@@ -262,6 +262,29 @@ data
 #> attr(,"factor.levels")[[2]]
 #> [1] "a" "b" "c"
 #> 
+#> attr(,"terms")
+#> ~x + g
+#> attr(,"variables")
+#> list(x, g)
+#> attr(,"factors")
+#>   x g
+#> x 1 0
+#> g 0 1
+#> attr(,"term.labels")
+#> [1] "x" "g"
+#> attr(,"order")
+#> [1] 1 1
+#> attr(,"intercept")
+#> [1] 1
+#> attr(,"response")
+#> [1] 0
+#> attr(,".Environment")
+#> <environment: base>
+#> attr(,"predvars")
+#> list(x, g)
+#> attr(,"dataClasses")
+#>         y         x         g 
+#> "numeric" "numeric"  "factor" 
 #> 
 #> Slot "varTypes":
 #> [1] 0 1
