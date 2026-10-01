@@ -650,6 +650,13 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
     x[characterCols] <- lapply(x[characterCols], as.factor)
   }
 
+  # the training level table, built when the drop pattern is: each factor
+  # column's levels, against which a test factor is recoded by label
+  # (mapFactorColumnsToIndicatorLevels)
+  levelTable <- if (isTRUE(drop)) {
+    lapply(x, function(column) if (is.factor(column)) levels(column))
+  }
+
   columnIsSparse <- vapply(x, isSparseDataFrameColumn, FALSE)
   # a plain factor past sparseIndicatorLevelCutoff builds its dummy columns
   # sparse too (dec-B100), decided per column from nlevels alone - never
@@ -666,6 +673,7 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   if (!any(isSparseBlock)) {
     result <- .Call(C_dbarts_makeModelMatrixFromDataFrame, x, drop)
     attr(result, "term.labels") <- names(x)
+    attr(result, "indicator.levels") <- levelTable
     return(result)
   }
 
@@ -725,6 +733,7 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   }
   result <- assembleMixedMatrix(columns, isSparseBlock, blockNames, nrow(x))
   attr(result, "term.labels") <- names(x)
+  attr(result, "indicator.levels") <- levelTable
   if (!is.null(dropPattern)) {
     names(dropPattern) <- names(x)
     attr(result, "drop") <- dropPattern
@@ -1111,15 +1120,59 @@ mapFactorColumnsToTrainingLevels <- function(
   x.test
 }
 
-## The indicators route stores no level table; it replays the training drop
-## pattern positionally, and that pattern is sized by the table each training
-## column carried - a factor's per-level instance counts, a matrix's per-column
-## flags. A test column whose table is longer indexes off the end of it, so the
-## disagreement is named here rather than left to the column count the replay
-## happens to produce. The shorter direction indexes in bounds and is left to
-## the column-count and name checks downstream: a training level the data never
-## observed contributes no column, so a test frame that simply lacks it still
-## aligns.
+## Recode a test data.frame's factor and character columns against the
+## indicators route's training level table by label, so a test factor
+## declaring only some of the levels, or declaring them in another order,
+## expands to the training columns. A level with no training rows has no
+## indicator column of its own, and would otherwise read as the all-zero
+## pattern of another level, so it is refused by name; so is a label training
+## never declared. 'drop' is the training drop pattern, whose entry for a
+## factor column is its per-level instance count.
+mapFactorColumnsToIndicatorLevels <- function(x.test, levelTable, drop) {
+  for (name in intersect(names(x.test), names(levelTable))) {
+    trainingLevels <- levelTable[[name]]
+    column <- x.test[[name]]
+    if (
+      is.null(trainingLevels) || (!is.factor(column) && !is.character(column))
+    ) {
+      next
+    }
+    counts <- if (is.list(drop)) drop[[name]]
+    observed <- if (
+      is.numeric(counts) && length(counts) == length(trainingLevels)
+    ) {
+      trainingLevels[counts > 0]
+    } else {
+      trainingLevels
+    }
+    values <- as.character(column)
+    unseen <- unique(values[!is.na(values) & values %not_in% observed])
+    if (length(unseen) > 0L) {
+      stop(
+        "test data factor '",
+        name,
+        "' has ",
+        if (length(unseen) > 1L) "levels " else "level ",
+        quotedNameList(unseen),
+        " with no training rows"
+      )
+    }
+    x.test[[name]] <- factor(
+      values,
+      levels = trainingLevels,
+      ordered = is.ordered(column)
+    )
+  }
+  x.test
+}
+
+## A design without a level table (a matrix built by hand) replays the
+## training drop pattern positionally, and that pattern is sized by the table
+## each training column carried - a factor's per-level instance counts, a
+## matrix's per-column flags. A test column whose table is longer indexes off
+## the end of it, so the disagreement is named here rather than left to the
+## column count the replay happens to produce. The shorter direction indexes
+## in bounds and is left to the column-count and name checks downstream.
 refuseWiderTestColumns <- function(x.test, drop) {
   for (j in seq_along(x.test)) {
     column <- x.test[[j]]
@@ -1136,8 +1189,8 @@ refuseWiderTestColumns <- function(x.test, drop) {
           nlevels(column),
           " levels but the training design declared ",
           trained,
-          "; use bart() or dbarts(), which track levels across predict ",
-          "by default"
+          "; give the test factor the training levels, factor(x, levels = ",
+          "...), or fit with factors = \"categorical\""
         )
       }
     } else if (!is.null(dim(column)) && ncol(column) > trained) {

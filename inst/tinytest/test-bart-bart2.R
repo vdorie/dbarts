@@ -213,9 +213,10 @@ expect_silent(extract(fitKT, "trees"))
 
 rm(nKT, xKT, yKT, fitKT)
 
-# bartBT()'s x/y route (factors = "indicators", no stored level table) names
-# the mismatching factor and its levels rather than blaming the column
-# count when a test factor's levels differ from training's
+# bartBT()'s x/y route (factors = "indicators") keeps the training level
+# table and recodes a test factor against it by label, as lm does: a test
+# factor declaring fewer levels, or more unused ones, predicts as the
+# training-level one; a value with no training rows is refused by name
 set.seed(404)
 nF <- 60L
 dF <- data.frame(
@@ -228,59 +229,32 @@ dF$y <- dF$x1 *
   rnorm(nF, 0, 0.2)
 trF <- dF[1:40, c("x1", "f")]
 ytrF <- dF$y[1:40]
-teFewer <- dF[41:60, c("x1", "f")]
-teFewer <- teFewer[teFewer$f != "c", ]
+teSame <- dF[41:60, c("x1", "f")]
+teSame <- teSame[teSame$f != "c", ]
+teFewer <- teSame
 teFewer$f <- droplevels(teFewer$f)
-expect_error(
-  dbarts::bartBT(
-    trF,
-    ytrF,
-    teFewer,
-    ndpost = 5L,
-    nskip = 4L,
-    ntree = 5L,
-    nchain = 1L,
-    verbose = FALSE,
-    seed = 4L
-  ),
-  pattern = "'test' factor 'f' does not match training's indicator columns"
-)
-# a test factor declaring MORE levels than training's is named by the level
-# tables themselves, before the drop-pattern replay indexes past its end;
-# the count of undeclared levels is unbounded and does not change the refusal
-teExtra <- dF[41:60, c("x1", "f")]
-teExtra$f <- factor(teExtra$f, levels = c("a", "b", "c", "d"))
-teMany <- dF[41:60, c("x1", "f")]
+teExtra <- teSame
+teExtra$f <- factor(teExtra$f, levels = c("d", "b", "a", "c"))
+teMany <- teSame
 teMany$f <- factor(teMany$f, levels = c("a", "b", "c", paste0("z", 1:5000)))
-expect_error(
+fitBT <- function(test) {
   dbarts::bartBT(
     trF,
     ytrF,
-    teExtra,
+    test,
     ndpost = 5L,
     nskip = 4L,
     ntree = 5L,
     nchain = 1L,
     verbose = FALSE,
     seed = 4L
-  ),
-  pattern = "'test' factor 'f' declares 4 levels but the training design declared 3"
-)
-expect_error(
-  dbarts::bartBT(
-    trF,
-    ytrF,
-    teMany,
-    ndpost = 5L,
-    nskip = 4L,
-    ntree = 5L,
-    nchain = 1L,
-    verbose = FALSE,
-    seed = 4L
-  ),
-  pattern = "'test' factor 'f' declares 5003 levels"
-)
-# predict() reaches the same funnel with the fit's stored drop pattern
+  )$yhat.test
+}
+expected <- fitBT(teSame)
+expect_identical(fitBT(teFewer), expected)
+expect_identical(fitBT(teExtra), expected)
+expect_identical(fitBT(teMany), expected)
+# predict() reaches the same funnel with the fit's stored level table
 fitF <- dbarts::bartBT(
   trF,
   ytrF,
@@ -292,28 +266,68 @@ fitF <- dbarts::bartBT(
   seed = 4L,
   keeptrees = TRUE
 )
-expect_error(
-  predict(fitF, teExtra),
-  pattern = "'test' factor 'f' declares 4 levels but the training design declared 3"
-)
-expect_error(
-  predict(fitF, teMany),
-  pattern = "'test' factor 'f' declares 5003 levels"
-)
-expect_error(
-  predict(fitF, teFewer),
-  pattern = "'test' factor 'f' does not match training's indicator columns"
-)
-# a character test column is expanded as a factor, so its distinct values
-# are compared to the training table the same way
-teChar <- dF[41:60, c("x1", "f")]
+expected <- predict(fitF, teSame)
+expect_identical(predict(fitF, teFewer), expected)
+expect_identical(predict(fitF, teExtra), expected)
+expect_identical(predict(fitF, teMany), expected)
+# a character test column is recoded the same way, and a value training
+# never saw is refused by name
+teChar <- teSame
 teChar$f <- as.character(teChar$f)
+expect_identical(predict(fitF, teChar), expected)
 teChar$f[1L] <- "d"
 expect_error(
   predict(fitF, teChar),
-  pattern = "'test' factor 'f' declares 4 levels but the training design declared 3"
+  pattern = "test data factor 'f' has level 'd' with no training rows"
 )
-rm(nF, dF, trF, ytrF, teFewer, teExtra, teMany, teChar, fitF)
+rm(nF, dF, trF, ytrF, teSame, teFewer, teExtra, teMany, teChar, fitF)
+rm(fitBT, expected)
+
+# bart(factors = "indicators") keeps the table too: a level subset away from
+# training, or declared and never observed, has no indicator column and is
+# refused by name rather than predicted as another level
+set.seed(405)
+dI <- data.frame(
+  x = runif(90L),
+  g = factor(
+    sample(c("a", "b", "c"), 90L, TRUE),
+    levels = c("a", "b", "c", "z")
+  )
+)
+dI$y <- dI$x + 2 * (dI$g == "b") - 2 * (dI$g == "c") + rnorm(90L, 0, 0.1)
+fitIndicators <- function(rows = TRUE) {
+  bart(
+    y ~ x + g,
+    data = dI,
+    subset = rows,
+    factors = "indicators",
+    n.trees = 10L,
+    n.samples = 10L,
+    n.burn = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    verbose = FALSE,
+    seed = 2L
+  )
+}
+fitSubset <- fitIndicators(dI$g != "c")
+newI <- data.frame(x = 0.5, g = factor(c("a", "b"), levels = levels(dI$g)))
+expect_error(
+  predict(fitSubset, rbind(newI, data.frame(x = 0.5, g = "c"))),
+  pattern = "test data factor 'g' has level 'c' with no training rows"
+)
+fitAll <- fitIndicators()
+expect_error(
+  predict(fitAll, data.frame(x = 0.5, g = factor("z", levels = levels(dI$g)))),
+  pattern = "test data factor 'g' has level 'z' with no training rows"
+)
+# a test factor declaring only some levels predicts as the full-level one
+expect_identical(
+  predict(fitAll, data.frame(x = 0.5, g = factor("b"))),
+  predict(fitAll, data.frame(x = 0.5, g = factor("b", levels = levels(dI$g))))
+)
+rm(dI, fitIndicators, fitSubset, newI, fitAll)
 
 # bartBT() keeps 0.9-34's row rule: an incomplete row is dropped, not
 # modelled and not refused, and the door takes no na.action of its own

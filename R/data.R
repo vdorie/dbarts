@@ -1039,6 +1039,14 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
         )
         x.test <- makeCategoricalModelMatrix(x.test)
       } else {
+        indicatorLevels <- attr(x.train, "indicator.levels")
+        if (!is.null(indicatorLevels)) {
+          x.test <- mapFactorColumnsToIndicatorLevels(
+            x.test,
+            indicatorLevels,
+            drop
+          )
+        }
         if (is.list(drop) && length(drop) == length(x.test)) {
           refuseWiderTestColumns(x.test, drop)
         }
@@ -1128,8 +1136,8 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
           mismatched[1L],
           "' does not match training's indicator columns ('test' levels: ",
           toString(testFactorLevels[[mismatched[1L]]]),
-          "); use bart() or dbarts(), which track levels across predict ",
-          "by default"
+          "); give the test factor the training levels, factor(x, levels = ",
+          "...), or fit with factors = \"categorical\""
         )
       }
     }

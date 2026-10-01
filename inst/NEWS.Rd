@@ -88,7 +88,12 @@
       \item New data given to \code{predict}. Test column names that do not
             cover the training columns are an error (0.9-34 warned and
             matched by position). A factor level that training never saw is
-            an error (0.9-34 silently predicted it as another level). A
+            an error (0.9-34 silently predicted it as another level); under
+            \code{factors = "indicators"} and in \code{bartBT} that includes
+            a level declared but with no training rows. There, a test factor
+            is now matched to the training levels by label, as in
+            \code{lm}, so one declaring only some of the levels predicts as
+            the full-level factor would, where 0.9-34 failed. A
             missing value in a column that had none in training is an error
             by default, naming the column (0.9-34 sent it down an arbitrary
             branch); the new \code{na.action} argument of every
