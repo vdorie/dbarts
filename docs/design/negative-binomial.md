@@ -1,6 +1,8 @@
 # Negative-binomial count outcomes: design
 
-Status: LANDED 2026-07-18 (9c28b31). Section 4 is AMENDED by
+Status: LANDED 2026-07-18 (9c28b31); sections 1, 2A and 3-7 AMENDED by
+nbinom-log-mean ([Landing](../plans/nbinom-log-mean.md#landing)), LANDED 2026-10-01 (fdfc1fe4): the forest models the log
+mean and r is drawn given the means (dec-B170). Section 4 is also AMENDED by
 [front-door](../plans/front-door.md#front-door) S2, LANDED 2026-09-09
 (44b3fa6d): dispersion is not a `bart()`/`dbarts()` formal; it is the
 `nbinom(dispersion = NA)` [`dbartsFamily`](../../R/family.R) constructor's

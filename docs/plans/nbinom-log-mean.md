@@ -1,7 +1,7 @@
 # nbinom-log-mean: the forest models log(mean), and r is drawn given the mean
 
-Status: PLANNED (dec-B170 and dec-B183 in [decisions.md](../decisions.md), 2026-10-01). Blocks 1.0-0: the third whole-branch
-review's finding families-01 is a blocker.
+Status: LANDED 2026-10-01 (8394e4c5, fdfc1fe4, 35ad7fb7, 77ac6aa3); planned under dec-B170 and dec-B183 in
+[decisions.md](../decisions.md). Closes the third whole-branch review's finding families-01, a 1.0-0 blocker.
 
 agent: opus for C1-C2 (engine numerics, the r step, the anchor, the exact-gate re-derivation); sonnet for C3-C5
 (SBC arm, equivalence re-record, records). Serialized: one implementer, each commit gated before the next.
@@ -358,3 +358,37 @@ All ruled 2026-10-01 in [decisions.md](../decisions.md); this plan carries them 
   (a) A = pi sqrt(3), k = 2, (b) A = 3, k = 2 and (c) A = 2, k = 2.
 - dec-B179: nbinom accepts 0/1 weights as the active-row mask, as probit and ordinal do; other weights stay
   refused. It rides C2, since it touches the same R entry and help.
+
+## Landing
+
+dbarts, five commits, landing by merge: `A mixing gate for the negative-binomial dispersion` (8394e4c5, C1), the
+rulings fold (7c6bb8c4), the model change (fdfc1fe4, C2), the SBC arm (35ad7fb7, C3) and the equivalence re-record
+(77ac6aa3, C4). families-01 is closed: r leaves its cold start and the predictive law covers fresh counts.
+
+C1. The mixing gate fails at its parent as required: quick, every chain at r = 8 for all 500 draws in both cells,
+95% sets [8, 8], coverage 0.852 and 0.759; full, 11 of 12 chains frozen at 8 and one at 4, coverage 0.709-0.870.
+
+C2. dec-B179 rode this slice as planned: nbinom joins probit and ordinal in isMaskedWeightFamily, the fit records
+the mask and its log-likelihood is NaN there. Beyond the plan: extract(type = "k"/"sd") on a bartNegbin fit goes
+through a helper shared with extract.bart, and the fit packages a named sd as sd draws, as bart's packager does; the
+r-step weights use one exp per row and one log1p per row and grid point (the plan's cheap exact form) rather than 13 n
+logOnePlusExp calls. Gates at fdfc1fe4: mixing gate full PASS (r recovered at 5 and 2, split-Rhat <= 1.001,
+coverage 0.891-0.916); negbin-exact.R full PASS (estimated arm with exposure offset: mean-count gap 0.0018, grid gap
+0.0027; fixed arm 0.0017); every other exact-gates.yaml gate quick PASS except the two monotone jobs, not run (no
+nbinom path); tests/cpp green, plain and under ASan/UBSan; the nbinom tinytest files clean under ASan/UBSan on the
+R-loaded path; full tinytest 11085/11085 at n.threads <= 2; lintr, air, check-rc-codoc, check-win-drift,
+check-doc-freshness clean; NEWS parses (188 entries); R CMD check --as-cran 1 NOTE (Date), run as --no-tests
+with tinytest separately. bench-sampler.R compare left to the maintainer.
+
+C3. Ladder at 4000 sweeps x 24 datasets: no transient past the first 400-sweep block, every functional under ACF 0.1
+by lag 7, so burn 4000 (from 24000) and thin 10 (from 30). R=200, L=150: r, avg.mu, agg.eta all PASS (ecdfDiff
+0.078 / 0.033 / 0.050, band 0.1366), 8.5 min against the logit-p arm's 46; verdict in
+[sbc-family-tiers.md](sbc-family-tiers.md). The waiver is gone from sbc.yaml.
+
+C4. equivalence-fdfc1fe4: 54 of 55 bitwise against d23673b5 on the reference build, nbinom the mover; nbinom
+recorded fresh and merged into the 54 carried scenarios, as the MANIFEST row states. bcf and multinomial bitwise;
+seeded-drift snapshots pass.
+
+Records: the design note's sections 1-7 (log-mean model, logit-p recorded with its defect, the doors), TODO
+(negbin-real-dispersion's r step, ordinal-negbin-k-gap's nbinom half closed, the burn-in dispersion channel noted
+under second-review-followups).
