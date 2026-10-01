@@ -496,3 +496,15 @@ expect_error(
 )
 
 rm(mm, data, df, n)
+
+# the exported builder returns no level table; that stays internal
+frame.levels <- data.frame(g = factor(c("a", "b", "a")), x = 1:3)
+expect_null(attr(
+  makeModelMatrixFromDataFrame(frame.levels),
+  "indicator.levels"
+))
+expect_false(is.null(attr(
+  dbarts:::makeIndicatorModelMatrix(frame.levels),
+  "indicator.levels"
+)))
+rm(frame.levels)

@@ -2305,6 +2305,8 @@ packageMultinomialResults <- function(
   if (!is.null(data) && !is.null(data@na.action)) {
     result$na.action <- data@na.action
   }
+  # a fit kept without its call carries none, as a bart fit does
+  result <- dropAbsentCall(result)
   class(result) <- "bartMultinomial"
   result
 }
@@ -2552,6 +2554,8 @@ packageOrdinalResults <- function(
   if (!is.null(sampler$activeRows)) {
     result$active <- sampler$activeRows
   }
+  # a fit kept without its call carries none, as a bart fit does
+  result <- dropAbsentCall(result)
   class(result) <- "bartOrdinal"
   result
 }
@@ -2797,6 +2801,8 @@ packageNegbinResults <- function(
   if (!is.null(sampler$data@na.action)) {
     result$na.action <- sampler$data@na.action
   }
+  # a fit kept without its call carries none, as a bart fit does
+  result <- dropAbsentCall(result)
   class(result) <- "bartNegbin"
   result
 }
@@ -3021,6 +3027,8 @@ bart2Hurdle <- function(
   if (!is.null(zero[["na.action"]])) {
     result$na.action <- zero[["na.action"]]
   }
+  # a fit kept without its call carries none, as a bart fit does
+  result <- dropAbsentCall(result)
   class(result) <- "bartHurdle"
   result
 }

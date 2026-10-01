@@ -492,6 +492,57 @@ expect_null(fit.noCall$call)
 expect_false(any(grepl("Call", capture.output(summary(fit.noCall)))))
 expect_false(any(grepl("Call", capture.output(print(fit.noCall)))))
 expect_error(update(fit.noCall, n.trees = 3L), pattern = "call component")
+# a fit saved with the earlier placeholder call NULL() reads as having none
+fit.placeholder <- fit.noCall
+fit.placeholder$call <- call("NULL")
+expect_null(getCall(fit.placeholder))
+expect_error(update(fit.placeholder, n.trees = 3L), pattern = "call component")
+expect_false(any(grepl("Call", capture.output(summary(fit.placeholder)))))
+rm(fit.placeholder)
+# no fit made with keepCall = FALSE carries 'call', whatever its family
+set.seed(18L)
+d.fam <- data.frame(x = runif(40L))
+d.fam$k <- factor(sample(c("a", "b", "c"), 40L, TRUE))
+d.fam$o <- factor(d.fam$k, ordered = TRUE)
+d.fam$cnt <- rpois(40L, 2)
+d.fam$z <- ifelse(d.fam$x < 0.3, 0, exp(d.fam$x))
+familyFit <- function(formula, ...) {
+  bart(
+    formula,
+    data = d.fam,
+    keepCall = FALSE,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    ...
+  )
+}
+fits.noCall <- list(
+  familyFit(k ~ x),
+  familyFit(o ~ x),
+  familyFit(cnt ~ x, family = "nbinom"),
+  bart(
+    d.fam["x"],
+    d.fam$z,
+    family = "hurdle.lognormal",
+    keepCall = FALSE,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  fit.noCall
+)
+for (fit in fits.noCall) {
+  expect_false("call" %in% names(fit))
+  expect_null(getCall(fit))
+}
+rm(d.fam, familyFit, fits.noCall, fit)
 
 # k = chi() forwarded through a wrapper's dots resolves in the prior
 # vocabulary, as it does written directly

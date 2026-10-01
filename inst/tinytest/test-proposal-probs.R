@@ -662,3 +662,9 @@ expect_error(
   dbartsControl(proposal.probs = c(birthdeath = 0.5, chnge = 0.5)),
   pattern = "unknown names 'birthdeath' and 'chnge'"
 )
+expect_error(
+  dbartsControl(
+    proposal.probs = c(birth_death = 0.5, change = 0.3, change = 0.2)
+  ),
+  pattern = "'proposal.probs' names 'change' more than once; the moves are"
+)

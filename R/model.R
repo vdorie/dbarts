@@ -68,6 +68,15 @@ resolveProposalProbs <- function(proposal.probs) {
         quotedNameList(validNames)
       )
     }
+    duplicated <- unique(entryNames[duplicated(entryNames)])
+    if (length(duplicated) > 0L) {
+      stop(
+        "'proposal.probs' names ",
+        quotedNameList(duplicated),
+        " more than once; the moves are ",
+        quotedNameList(validNames)
+      )
+    }
     unknown <- unique(entryNames[entryNames %not_in% validNames])
     if (length(unknown) > 0L) {
       stop(

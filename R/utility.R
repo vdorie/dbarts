@@ -386,9 +386,24 @@ callName <- function(call) {
 
 ## The call a fit stores: NULL for one made with keepCall = FALSE, as base R
 ## fits without a call have none. The control's call slot takes a call, so it
-## holds the placeholder NULL() instead.
+## holds the placeholder NULL() instead, as fits saved by earlier versions do.
 storedFitCall <- function(x) {
-  if (identical(x, call("NULL"))) NULL else x
+  if (is.call(x) && identical(x[[1L]], as.name("NULL"))) NULL else x
+}
+
+## getCall for the fit classes: a saved fit's NULL() placeholder reads as no
+## call, so update() refuses it as base R refuses a fit without one.
+getCallOfFit <- function(x, ...) {
+  storedFitCall(x[["call"]])
+}
+
+## Removes a packaged fit's 'call' element when it holds none, so that a fit
+## kept with keepCall = FALSE has no 'call', whatever its class.
+dropAbsentCall <- function(result) {
+  if (is.null(result[["call"]])) {
+    result[["call"]] <- NULL
+  }
+  result
 }
 
 evalx.recurse <- function(x, e) {
@@ -641,8 +656,15 @@ sparseFactorIndicatorSlices <- function(column, name, dropSpec) {
 
 ## Turns data.frame w/factors into matrices of indicator variables. Differs from
 ## model.matrix as it doesn't drop columns for co-linearity even with multiple
-## factors
+## factors. The exported entry leaves out the training level table, which only
+## the package's own test-set coding reads.
 makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
+  result <- makeIndicatorModelMatrix(x, drop)
+  attr(result, "indicator.levels") <- NULL
+  result
+}
+
+makeIndicatorModelMatrix <- function(x, drop = TRUE) {
   if (!is.data.frame(x)) {
     stop("x is not a dataframe")
   }

@@ -1075,6 +1075,8 @@ packageRbartResults <- function(
     result$seed <- .GlobalEnv$.Random.seed
   }
 
+  # a fit kept without its call carries none, as a bart fit does
+  result <- dropAbsentCall(result)
   class(result) <- "rbart"
   result
 }

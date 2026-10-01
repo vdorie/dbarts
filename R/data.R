@@ -1050,7 +1050,7 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
         if (is.list(drop) && length(drop) == length(x.test)) {
           refuseWiderTestColumns(x.test, drop)
         }
-        x.test <- makeModelMatrixFromDataFrame(
+        x.test <- makeIndicatorModelMatrix(
           x.test,
           if (!is.null(drop)) drop else TRUE
         )
@@ -2118,7 +2118,7 @@ dbartsData <- function(
   makeModelMatrix <- if (factors == "categorical") {
     makeCategoricalModelMatrix
   } else {
-    makeModelMatrixFromDataFrame
+    makeIndicatorModelMatrix
   }
   # the rows an incomplete case costs, and the record of them the training
   # fits pad through; NULL until an na.action drops something

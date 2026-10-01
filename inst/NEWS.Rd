@@ -478,7 +478,7 @@
             \code{group.by} names not in \code{data} are found in the
             calling environment, as documented; a seeded call leaves
             the random stream as it found it; and \code{set.seed}
-            reproduces a multithreaded run.
+            reproduces a multithreaded run at the same \code{n.threads}.
     }
   }
 }
