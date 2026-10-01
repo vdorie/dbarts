@@ -168,14 +168,28 @@ pdbart.resolveXind <- function(xind, matchedCall, sampler) {
   xind
 }
 
+# The level table of each selected predictor that is a factor (categorical or
+# ordered), NULL for any other column.
+pdbart.factorLevels <- function(sampler, xind) {
+  factorLevels <- attr(sampler$data@x, "factor.levels")
+  lapply(xind, function(j) {
+    if (is.null(factorLevels)) NULL else factorLevels[[j]]
+  })
+}
+
 # Default the 'levs' list: for each of the first 'numVariables' selected
-# predictors, either the sorted unique values (when there are too few to bin)
-# or the unique quantiles at 'levquants'. 'cmp' is the comparison deciding
-# "too few": pdbart uses `<`, pd2bart uses `<=` (a long-standing difference in
-# the two entry points, preserved here rather than reconciled).
-pdbart.defaultLevs <- function(x, xind, levquants, numVariables, cmp) {
+# predictors, every level of a factor, by name; otherwise either the sorted
+# unique values (when there are too few to bin) or the unique quantiles at
+# 'levquants'. 'cmp' is the comparison deciding "too few": pdbart uses `<`,
+# pd2bart uses `<=` (a long-standing difference in the two entry points,
+# preserved here rather than reconciled).
+pdbart.defaultLevs <- function(x, xind, levquants, numVariables, cmp, levels) {
   levs <- vector("list", numVariables)
   for (j in seq_len(numVariables)) {
+    if (!is.null(levels[[j]])) {
+      levs[[j]] <- levels[[j]]
+      next
+    }
     uniqueValues <- unique(x[, xind[j]])
     levs[[j]] <-
       if (cmp(length(uniqueValues), length(levquants))) {
@@ -185,6 +199,64 @@ pdbart.defaultLevs <- function(x, xind, levquants, numVariables, cmp) {
       }
   }
   levs
+}
+
+# Validates user 'levs' against the factor columns: a factor's values are given
+# by level name (a character vector or a factor), as the results report them.
+pdbart.checkLevs <- function(levs, levels, xLabels) {
+  for (j in seq_along(levs)) {
+    if (is.null(levels[[j]])) {
+      next
+    }
+    values <- levs[[j]]
+    if (is.factor(values)) {
+      values <- as.character(values)
+    }
+    if (!is.character(values)) {
+      stop(
+        "'levs' for factor predictor '",
+        xLabels[j],
+        "' must name its levels"
+      )
+    }
+    unknown <- values[values %not_in% levels[[j]]]
+    if (length(unknown) > 0L) {
+      stop(
+        "'levs' for factor predictor '",
+        xLabels[j],
+        "' names levels not present in training: ",
+        paste0("'", unique(unknown), "'", collapse = ", ")
+      )
+    }
+    levs[[j]] <- values
+  }
+  levs
+}
+
+# The value a predictor column takes at one 'levs' entry: a factor level's
+# 0-based code, any other column's value itself.
+pdbart.levelValues <- function(levs, levels) {
+  lapply(seq_along(levs), function(j) {
+    if (is.null(levels[[j]])) {
+      levs[[j]]
+    } else {
+      match(levs[[j]], levels[[j]]) - 1
+    }
+  })
+}
+
+pdbart.xLabels <- function(sampler, xind) {
+  if (is.null(colnames(sampler$data@x))) {
+    paste0("x", xind)
+  } else {
+    colnames(sampler$data@x)[xind]
+  }
+}
+
+# Per-draw predictions at each row of a prediction channel, as draws x rows
+# with the chains in turn, the layout pdbart.drawMeans gives its means.
+pdbart.drawsByRow <- function(pred) {
+  t(matrix(pred, nrow = dim(pred)[1L]))
 }
 
 # The per-draw mean over the observation margin of a prediction channel: the
@@ -204,11 +276,7 @@ pdbart.drawMeans <- function(pred, n.chains) {
 # Assemble the returned pdbart/pd2bart result list. Identical between the two
 # entry points except for the S3 class stamped on it ('className').
 pdbart.buildResult <- function(sampler, fit, fdr, levs, xind, className) {
-  if (is.null(colnames(sampler$data@x))) {
-    xLabels <- paste0("x", xind)
-  } else {
-    xLabels <- colnames(sampler$data@x)[xind]
-  }
+  xLabels <- pdbart.xLabels(sampler, xind)
 
   if (sampler$control@binary == FALSE) {
     result <- list(
@@ -269,12 +337,16 @@ pdbart <- function(
   # materialize the predictor codes once: a dense-frame/mixed container serves
   # them through as.matrix, a plain matrix (or dgCMatrix) is itself
   x <- extract(sampler, "predictors")
+  levels <- pdbart.factorLevels(sampler, xind)
 
   if (is.null(levs)) {
-    levs <- pdbart.defaultLevs(x, xind, levquants, numVariables, `<`)
+    levs <- pdbart.defaultLevs(x, xind, levquants, numVariables, `<`, levels)
   } else if (length(levs) != numVariables) {
     stop("'levs' must have the same length as 'xind'")
+  } else {
+    levs <- pdbart.checkLevs(levs, levels, pdbart.xLabels(sampler, xind))
   }
+  values <- pdbart.levelValues(levs, levels)
 
   numLevels <- sapply(levs, length)
   numSamples <- sampler$control@n.samples * sampler$control@n.chains
@@ -285,7 +357,7 @@ pdbart <- function(
       fdr[[j]] <- matrix(NA_real_, numSamples, numLevels[j])
       for (i in seq_len(numLevels[j])) {
         x.test <- x
-        x.test[, xind[j]] <- levs[[j]][i]
+        x.test[, xind[j]] <- values[[j]][i]
 
         pred <- pdbart.drawMeans(
           sampler$predict(x.test),
@@ -300,7 +372,7 @@ pdbart <- function(
     for (j in seq_len(numVariables)) {
       for (i in seq_len(numLevels[j])) {
         temp <- x
-        temp[, xind[j]] <- levs[[j]][i]
+        temp[, xind[j]] <- values[[j]][i]
         x.test <- rbind(x.test, temp)
       }
     }
@@ -381,20 +453,30 @@ pd2bart <- function(
   # materialize the predictor codes once: a dense-frame/mixed container serves
   # them through as.matrix, a plain matrix (or dgCMatrix) is itself
   x <- extract(sampler, "predictors")
+  levels <- pdbart.factorLevels(sampler, xind)
 
   if (is.null(levs)) {
-    levs <- pdbart.defaultLevs(x, xind, levquants, 2L, `<=`)
+    levs <- pdbart.defaultLevs(x, xind, levquants, 2L, `<=`, levels)
+  } else {
+    levs <- pdbart.checkLevs(levs, levels, pdbart.xLabels(sampler, xind))
   }
+  values <- pdbart.levelValues(levs, levels)
   numSamples <- sampler$control@n.samples * sampler$control@n.chains
 
-  xValues <- as.matrix(expand.grid(levs[[1L]], levs[[2L]]))
+  xValues <- as.matrix(expand.grid(values[[1L]], values[[2L]]))
   numXValues <- nrow(xValues)
+
+  # with two predictors each grid point is itself a whole row, so its
+  # prediction needs no average over the training rows
+  gridAsRows <- function() {
+    x.test <- if (xind[1L] < xind[2L]) xValues else xValues[, c(2L, 1L)]
+    colnames(x.test) <- colnames(x)
+    x.test
+  }
 
   if (sampler$control@keepTrees == TRUE) {
     if (ncol(sampler$data@x) == 2L) {
-      x.test <- if (xind[1L] < xind[2L]) xValues else xValues[, c(2L, 1L)]
-      pred <- suppressWarnings(sampler$predict(x.test))
-      fdr <- as.matrix(pdbart.drawMeans(pred, sampler$control@n.chains))
+      fdr <- pdbart.drawsByRow(sampler$predict(gridAsRows()))
     } else {
       fdr <- matrix(NA_real_, numSamples, numXValues)
       for (i in seq_len(numXValues)) {
@@ -412,12 +494,9 @@ pd2bart <- function(
     }
   } else {
     if (ncol(sampler$data@x) == 2L) {
-      x.test <- if (xind[1L] < xind[2L]) xValues else xValues[, c(2L, 1L)]
-      sampler$setTestPredictor(x.test)
+      sampler$setTestPredictor(gridAsRows())
       samples <- sampler$run(0L, sampler$control@n.samples)
-      fdr <- as.matrix(
-        pdbart.drawMeans(samples$test, sampler$control@n.chains)
-      )
+      fdr <- pdbart.drawsByRow(samples$test)
     } else {
       x.test <- NULL
       for (i in seq_len(numXValues)) {
