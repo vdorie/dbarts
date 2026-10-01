@@ -340,16 +340,12 @@ methods::setReplaceMethod(
       }
       multiple <- length(positions) %% length(labels) == 0L
       if (any(labels %not_in% x@levels & !is.na(labels))) {
-        warnClassed(
-          "dbartsFallbackWarning",
-          "invalid factor level, NA generated"
-        )
+        warning("invalid factor level, NA generated")
       }
       labels <- rep_len(labels, length(positions))
       codes <- match(labels, x@levels)
       if (!multiple) {
-        warnClassed(
-          "dbartsFallbackWarning",
+        warning(
           "number of items to replace is not a multiple of replacement length"
         )
       }
@@ -540,10 +536,7 @@ na.omit.sparseFactor <- function(object, ...) {
 sparseFactorOps <- function(e1, e2) {
   generic <- .Generic # nolint: object_usage_linter.
   if (generic %not_in% c("==", "!=")) {
-    warnClassed(
-      "dbartsFallbackWarning",
-      gettextf("%s not meaningful for factors", sQuote(generic))
-    )
+    warning(gettextf("%s not meaningful for factors", sQuote(generic)))
     return(rep.int(NA, max(length(e1), length(e2))))
   }
   labels <- function(e) {

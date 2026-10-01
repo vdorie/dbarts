@@ -2569,7 +2569,6 @@ dbartsSampler <- setRefClass(
         # warnOnce's session-scoped key dedupes repeated calls inside one loop
         warnOnce(
           "setResponsePositionalUpdateScale",
-
           paste0(
             "the second argument to $setResponse is 'updateScale' in dbarts ",
             ">= 1.0-0, and 'updateState' has moved to third; pass both by ",

@@ -2901,7 +2901,7 @@ hurdleParts <- function(object, rows = NULL, n.threads = 1L) {
     # the positive part codes the same rows against its own training design;
     # the caller has already been warned about anything the coding says
     positiveTrain <- object$positive$fit$data@x
-    positiveX <- suppressPositionalWarnings(validateXTest(
+    positiveX <- suppressTestMatchWarnings(validateXTest(
       if (isTRUE(rows$placeholder)) {
         positiveTrain[1L, , drop = FALSE]
       } else {

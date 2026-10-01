@@ -122,8 +122,24 @@ expectClassed(
 )
 
 sf <- dbarts::sparseFactor(c("u", "v", "u", "v"))
-expectClassed(sf[1L] <- "w", "dbartsFallbackWarning")
-expectClassed(sf < sf, "dbartsFallbackWarning")
+expect_warning(sf[1L] <- "w", pattern = "invalid factor level")
+expect_warning(sf < sf, pattern = "not meaningful for factors")
+
+# warnOnce signals a ready-made condition as it is, and a string plainly
+resetOnce()
+w <- tryCatch(
+  dbarts:::warnOnce(
+    "testKey",
+    warningCondition("a message", class = "customWarning")
+  ),
+  warning = function(w) w
+)
+expect_true(inherits(w, "customWarning"))
+expect_warning(
+  dbarts:::warnOnce("testKey2", "plain ", "string"),
+  "plain string"
+)
+resetOnce()
 
 # the retired thread method, and the remaining retired arguments
 expectClassed(sampler$stopThreads(), "dbartsDeprecatedWarning")

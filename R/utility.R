@@ -332,7 +332,12 @@ warnOnce <- function(key, ..., class = NULL) {
   }
   onceWarnState[[key]] <- TRUE
   if (is.null(class)) {
-    warning(..., call. = FALSE)
+    args <- list(...)
+    if (length(args) == 1L && inherits(args[[1L]], "condition")) {
+      warning(args[[1L]])
+    } else {
+      warning(..., call. = FALSE)
+    }
   } else {
     warnClassed(class, ...)
   }

@@ -3209,7 +3209,7 @@ hazardPredictRows <- function(object, bigX, n, K, subjectNames, na.action) {
     # period
     first <- as.matrix(x.train[rep(1L, K), , drop = FALSE])
     first[, ncol(first)] <- seq_len(K)
-    rows$x <- suppressPositionalWarnings(validateXTest(
+    rows$x <- suppressTestMatchWarnings(validateXTest(
       first,
       x.train,
       refuseMissing = FALSE

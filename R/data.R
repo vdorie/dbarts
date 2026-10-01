@@ -674,7 +674,7 @@ preparePredictRows <- function(newdata, x.train, na.action, channels = NULL) {
   }
   result <- keptRowsRecord(resolved, rowNames)
   if (result$placeholder) {
-    result$x <- suppressPositionalWarnings(validateXTest(
+    result$x <- suppressTestMatchWarnings(validateXTest(
       x.train[1L, , drop = FALSE],
       x.train,
       refuseMissing = FALSE
@@ -690,7 +690,7 @@ preparePredictRows <- function(newdata, x.train, na.action, channels = NULL) {
   result
 }
 
-suppressPositionalWarnings <- function(expr) {
+suppressTestMatchWarnings <- function(expr) {
   withCallingHandlers(
     expr,
     warning = function(w) invokeRestart("muffleWarning")
@@ -1010,7 +1010,7 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
         "'",
         collapse = ", "
       )
-      # suppressPositionalWarnings mutes every warning this function raises,
+      # suppressTestMatchWarnings mutes every warning this function raises,
       # all of which report columns matched by position rather than by name
       warning(
         paste0(
@@ -1794,7 +1794,6 @@ warnZeroTrials <- function(counts) {
   if (numEmpty > 0L) {
     warnOnce(
       "multinomialZeroTrials",
-
       sprintf(
         paste0(
           "multinomial count rows with zero trials (%d of %d) contribute ",

@@ -255,12 +255,12 @@ set.seed(2)
 y.gp <- sin(2 * pi * x1) + rnorm(n, 0, 0.2)
 df.gp <- data.frame(x1, x2, y.gp)
 fit.gp <- dbarts(y.gp ~ x1 + x2, df.gp,
-                 leaf.prior = gp("x1", max.leaf.size = 40L),
+                 leaf.prior = gp("x1", max.leaf.size = 52L),
                  control = dbartsControl(n.trees = 10L, n.chains = 1L,
                                           n.threads = 1L))
 samples.gp <- fit.gp$run(20L, 20L)
-## the cap of 40 observations per leaf sends some leaves to the constant
-## fallback (about a fifth of the evaluations here), counted in gp.fallback;
+## the cap of 52 observations per leaf sends some leaves to the constant
+## fallback (about a tenth of the evaluations here), counted in gp.fallback;
 ## a warning comes only when more than a quarter fall back
 print(unlist(attr(samples.gp, "gp.fallback")))
 }
