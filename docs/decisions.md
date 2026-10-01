@@ -1254,6 +1254,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B175]
 When sigest is not given, xbart() estimates it for each fold from that fold's training rows (one linear model per fold), so no fold's prior calibration reads its held-out responses. Until now, and in 0.9-34, it was estimated once on all rows. The alternative was keeping the single estimate and documenting the leak. Every default xbart result moves slightly and its reproducibility snapshot is re-recorded. The implementation must not repeat an expensive estimate per fold where the data are degenerate (a rank-deficient or fallback estimate, such as the sparse or marginal sigma fallbacks, recomputed for every fold and repetition). The maintainer on 2026-10-01: "Estimate sigma per fold from that fold's training rows. We might need to be careful around degeneracies so we don't repeat expensive calls over and over." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B176]
 
+**A count-row multinomial fit's predictive draws are count vectors**
+On a multinomial fit whose rows are count vectors, extract(type = "ppd") draws for each row a vector of category counts with that row's number of trials (all zeros at zero trials), so the draws match the modelled response; predict() on new rows, whose trial count is unknown, keeps one-trial category draws, documented. Until now extract drew one category per draw on count rows as well, zero-trial rows included. The alternatives were refusing ppd on count-row fits with any row of more than one trial, and documenting only. The output on count fits becomes rows x K x draws counts. The maintainer on 2026-10-01: "On count-row fits, extract draws count vectors." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B177]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
