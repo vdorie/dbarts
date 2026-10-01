@@ -2421,6 +2421,7 @@ dbartsData <- function(
   # a formula's offset() terms, and the 'offset' argument's own share of the
   # training offset beside them (set in the formula branch)
   hasOffsetTerm <- FALSE
+  # nolint next: object_usage_linter. getTestOffset reads it, through eval.
   argumentOffset <- NULL
   # the 'offset' argument as written, re-evaluated on new rows
   # (offsetArgumentFormula)
