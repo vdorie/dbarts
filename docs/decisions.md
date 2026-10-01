@@ -1258,6 +1258,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B176]
 On a multinomial fit whose rows are count vectors, extract(type = "ppd") draws for each row a vector of category counts with that row's number of trials (all zeros at zero trials), so the draws match the modelled response; predict() on new rows, whose trial count is unknown, keeps one-trial category draws, documented. Until now extract drew one category per draw on count rows as well, zero-trial rows included. The alternatives were refusing ppd on count-row fits with any row of more than one trial, and documenting only. The output on count fits becomes rows x K x draws counts. The maintainer on 2026-10-01: "On count-row fits, extract draws count vectors." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B177]
 
+**survivalProbabilities uses the fit's offset and takes one for newdata**
+survivalProbabilities() replays a hazard or aft fit's own offset on its training rows, and gains an offset argument for newdata (per subject, repeated over periods for hazard); a formula offset() term is evaluated on newdata, per dec-B154. Until now a hazard fit's offset was silently dropped in-sample, enough in a probe to reverse two groups' order, and an offset on newdata was refused. The alternative was fixing the training rows and keeping the refusal, documented. The function is new in 1.0-0. The maintainer on 2026-10-01: "Use the fit's offset on training rows, and add an offset argument for newdata." See also: [dec-B154]. Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B178]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
