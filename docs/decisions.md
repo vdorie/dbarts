@@ -1222,6 +1222,10 @@ Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B167]
 dbarts_sampler_run raises the same R warning (dbartsSlowCountWarning) that R's run raises when a leaf-order count was slow, so the reporting stays on dbarts' side and the results struct gains no field. The alternative was a results field the host aggregates and reports itself. How often the entry warns when a host calls it once per sweep is a separate question. The maintainer on 2026-10-01: "That seems like engine/BART business, and is an argument for the fast proposal we talked about. I'd rather keep that on dbarts' side for now. So I think the C run raises the R warning itself." See also: [dec-B153], [dec-B167].
 Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B168]
 
+**The flat run's slow-count warning fires once per sampler**
+dbarts_sampler_run warns about slow leaf-order counts the first time a sampler has one, and stays silent for later calls on the same sampler, so a host calling it once per sweep warns about once per fit, as an R user of bart() sees. The alternatives were warning on every call with a slow count, possibly thousands of times per fit, and once per R session. A later slower stretch in the same fit is not re-announced. The maintainer on 2026-10-01: "Option 1." See also: [dec-B168].
+Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B169]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
