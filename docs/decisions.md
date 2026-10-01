@@ -1174,6 +1174,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B155]
 $setPredictor(x, column) and $setTestPredictor(x, column) on a categorical column take a factor or character vector, matched by label against the training levels; unknown labels and missing values the column did not have are refused by name, and a numeric vector is refused. Until now a factor was shifted up one level silently (R's 1-based codes read as the engine's 0-based ones), a character vector became missing values, and only undocumented 0-based codes worked. The alternatives were accepting numbers as 0-based codes, documented, and as 1-based codes. A caller updates a categorical column the way the whole-frame update already works, and cannot get an off-by-one silently; column updates on categorical columns are new in 1.0-0. The maintainer on 2026-10-01: "Refuse numbers on a categorical columns." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B156]
 
+**A survival formula takes Surv(), not cbind()**
+Under family = "aft" or "hazard" a formula's response is written survival::Surv(time, status); cbind(time, status) on the left of a formula stays refused, now with a message naming Surv(), where it suggested the family the caller had already given. The x/y door keeps taking a two-column matrix, having no formula to write Surv() in. The alternative was accepting cbind() on the formula door as well. In base R a cbind() response means a binomial glm's successes and failures or an lm's several responses, and no survival fitter reads it as time and status. The maintainer on 2026-10-01: "It sounds like there's no ambiguity, right? `cbind` always means binomial? If that's the case, then we should use option 1."; told that cbind() also means an lm's multivariate response, which leaves no survival meaning either, the orchestrator recorded option 1. Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B157]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
