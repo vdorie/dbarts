@@ -1166,6 +1166,10 @@ Record: docs/design/monotone-barker-hybrid.md; TODO monotone-barker-hybrid. Mark
 A formula's offset() term is added to any offset = argument at fit time, and is evaluated on the test set and on predict()'s newdata, as predict.lm does; the offset = argument keeps its behaviour, left out of predictions unless given again, which is also base R's; a family that refuses an offset refuses the term with the same message. Until now the term was silently ignored unless a vector offset = was also given, in 0.9-34 as well. The alternatives were refusing the term with an error pointing to offset =, and leaving it ignored with corrected text. Fits that use an offset() term change, from ignoring it to using it; no recorded baseline uses one. The maintainer on 2026-10-01: "I had never seen adding offset to a formula. Go ahead and use option 1." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B154]
 
+**The indicator route matches test factor levels by label, as lm does**
+Under factors = "indicators", and always in bartBT, the fit stores the training levels (those with training rows) and recodes a test or newdata factor against them by label, so a test factor carrying only some of the levels predicts as the full-level one would; a level with no training rows is refused by name. Until now a partial-level test factor was refused with a message pointing a bart() caller to bart(), and a level with no training rows was predicted silently as another level, contrary to NEWS. The alternative was keeping the refusal with a clearer message, adding only the unseen-level error. A user's test factor works however its levels were declared, as with lm and the default categorical route; no draws move. The maintainer on 2026-10-01: "Use option 1." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B155]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
