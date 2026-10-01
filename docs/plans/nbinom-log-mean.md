@@ -9,18 +9,19 @@ rng: POSTERIOR-CHANGING for family = "nbinom" only - every nbinom draw moves, fi
 [Fixed r](#fixed-r)). NEUTRAL for every other family: no other ResponseModel, kernel or RNG call order is touched,
 so the equivalence compare must show the 54 non-nbinom scenarios identical and bcf/multinomial harnesses bitwise.
 window: pre-release, before the 1.0-0 merge.
-budget: ~900 lines (engine ~150, bridge ~15, R ~40, Rd and dbarts.h comments ~40, tests/cpp ~200, tinytest ~90,
-negbin-exact.R ~70 changed, negbin-mixing.R ~170 new, sbc.R and sbc.yaml ~50, design doc ~120, records ~40).
-Plans have run 1.5-2x low: expect up to ~1800. Compute: the SBC nbinom arm (46 min at R=200 today) plus its burn
-ladder, the exact gates in FULL mode, the equivalence trio; bench-sampler.R compare is maintainer-run.
+budget: ~920 lines (engine ~150, bridge ~15, R ~60 with Q1 (d), Rd and dbarts.h comments ~40, tests/cpp ~200,
+tinytest ~90, negbin-exact.R ~70 changed, negbin-mixing.R ~170 new, sbc.R and sbc.yaml ~50, design doc ~120, records
+~40). Plans have run 1.5-2x low: expect up to ~1800. Compute: the SBC nbinom arm (46 min at R=200 today) plus its
+burn ladder, the exact gates in FULL mode, the equivalence trio; bench-sampler.R compare is maintainer-run.
 
 ## Goal
 
 A negative-binomial fit's forest models eta(x) = log E[y | x] less the offset, as MASS::glm.nb and Stan's
 neg_binomial_2 do. The dispersion r is a grid Gibbs step on p(r | mu, y), collapsed over the Polya-Gamma latents,
-and it mixes: every chain of the mixing gate visits the true r, predictive intervals cover at nominal rate, and the
-SBC arm passes with its waiver withdrawn. type = "link" is the log mean; the leaf prior is centered at the data's
-log rate and its spread recalibrated for the log-mean scale.
+and it mixes: every chain of the mixing gate leaves the cold start, the chains agree and the pooled posterior covers
+the true r, predictive intervals cover at nominal rate, and the SBC arm passes with its waiver withdrawn. type =
+"link" is the log mean; the leaf prior is centered at the data's log rate and its spread recalibrated for the
+log-mean scale.
 
 ## Context
 
@@ -74,9 +75,9 @@ r from its omega-marginal, then omega ~ PG(y + r, psi(r)) at the new r. A joint 
 step. The order is the one the code already uses (r first, never reading omega; omega regenerated before anything
 conditions on it), so the ordering argument of
 [5. State and mutation](../design/negative-binomial.md#5-state-and-mutation) carries over; what changes is what
-is held fixed while r moves: mu, not psi. Probe (not checked in): a cell-means stand-in (fixed partition, constant leaves, these two blocks,
-omega from [`dbartsDrawLatents`](../../R/augmentation.R)), n = 60 over 3 cells, 58000 kept draws: the grid
-posterior of r matches the quadrature reference within 0.0015 at every grid point.
+is held fixed while r moves: mu, not psi. Probe (not checked in): a cell-means stand-in (fixed partition, constant leaves, these
+two blocks, omega from [`dbartsDrawLatents`](../../R/augmentation.R)), n = 60 over 3 cells, 58000 kept draws: the
+grid posterior of r matches the quadrature reference within 0.0015 at every grid point.
 
 Why it mixes. In the NB2 (mu, r) parameterization the Fisher information is diagonal: d2l / dmu dr =
 (y - mu) / (mu + r)^2, mean zero. Conditioning r on mu is conditioning on an orthogonal parameter, so a move of r
@@ -93,7 +94,7 @@ With r fixed, the PG draw and the tree block are the logit-p ones with anchor o 
 fixed-r log-mean model IS the logit-p model with offset o + c - log r. The likelihood family is the same; the
 reported link moves by log r (eta = psi + log r); the posterior moves only through the leaf prior. Logit-p centered
 the prior on log mu at log r + o (mean count r whatever the data); this plan centers it at c + o and recalibrates its
-spread (Q1). The two coincide only when c = log r and the spread is kept, so under the defaults fixed-r draws move
+spread (Q1). The two coincide only when c = log r and the leaf prior is kept, so under the defaults fixed-r draws move
 as well, and fixed-r fits get a data-centered prior they lacked.
 
 ## Design
@@ -130,13 +131,15 @@ a_i = o_i + c - log r used by every working-response build:
   does; false locks it") now has a transform to act on: setResponse and setOffset with updateScale = TRUE
   recompute c from all rows, then rebuild; FALSE keeps c, the embedded-Gibbs default. setData always recomputes, as
   gaussian's does. setResponse keeps r and rebuilds the kernel, as today.
-- State. c rides the existing fit.scale block as (c - 1/2, c + 1/2): gaussian's (min, max) encoding with the range
-  pinned at 1, so shift = midrange and scale = width hold for both. getScale writes it; restoreScale sets c and
-  rebuilds, which [`Chain::installForest`](../../src/bartcore/chain.hpp) needs (it restores the scale but not the
-  latents). [`Chain::stateIsValid`](../../src/bartcore/chain.hpp) refuses an nbinom state whose fit.scale width is
-  not 1, which is every pre-change nbinom state ((0, 0)). No new block and no version bump: no state format has
-  shipped ([`stateFormatVersion`](../../src/R_interface_bartcore.cpp)). Copies go through the same state struct.
-  The restore contract (dispersion before latents) is unchanged; restoreDispersion also updates log r.
+- State. c rides the existing fit.scale block as (c, c + 1); restoreScale decodes c = min, an exact round trip (a
+  midrange encoding such as (c - 1/2, c + 1/2) does not round-trip for about 1% of values). fitScale stays the
+  constant 1 and never reads the width. getScale writes the pair; restoreScale sets c and rebuilds, which
+  [`Chain::installForest`](../../src/bartcore/chain.hpp) needs (it restores the scale but not the latents).
+  [`Chain::stateIsValid`](../../src/bartcore/chain.hpp) refuses an nbinom state with fitMax <= fitMin, which is
+  every pre-change nbinom state ((0, 0)) and the case setState would otherwise skip silently. No new block and no
+  version bump: no state format has shipped ([`stateFormatVersion`](../../src/R_interface_bartcore.cpp)). Copies go
+  through the same state struct. The restore contract (dispersion before latents) is unchanged; restoreDispersion
+  also updates log r.
 - Threading. NBResponse is per chain and c is chain-invariant; nothing is shared across chains, and the r step runs
   in the chain's own thread like the PG loop.
 
@@ -159,22 +162,31 @@ mean has no natural zero, so the gaussian/aft precedent applies on the link scal
 midrange because counts include zeros. dbarts has no other log-link family (hazard is a binary link on person-periods;
 aft and hurdle.lognormal are gaussian on a log response), so there is no in-package spread to copy.
 
-Spread: the sigma-free families fix an anchor A and default k = 2, prior sd of f(x) = A/k (probit 3 -> 1.5, logistic
-pi sqrt(3) -> 2.72), with k and its hyperprior handled as for logistic. Only nbinom's anchor in
-[`defaultLeafScale`](../../R/model.R) and its C backstop moves; the value is Q1. Probe for Q1 (not checked in): at
-fixed true r the new model is the shipped one with offset c - log r, so the shipped engine fits it exactly; n = 500,
-500 test rows, default trees, 500 + 500 sweeps, 3 replicates, 6 designs (log-mean signal sd from 0.06 to 2, r from
-2 to 30), varying k at the current anchor:
+Spread: the sigma-free families fix an anchor A, with prior sd of f(x) = A/k. probit and logistic default to
+k ~ chi(1.5, 2) (the binary hyperprior, [`isBinaryFamily`](../../R/spec.R) covers only those two); ordinal and
+nbinom default to a fixed k = 2, so nbinom today has sd pi sqrt(3)/2 = 2.72. The anchor in
+[`defaultLeafScale`](../../R/model.R) (and its C backstop) and, under Q1's recommendation, the k default in
+[`resolveLeafHyperprior`](../../R/model.R) move; the values are Q1.
 
-    prior sd of f    2.72 (A = pi sqrt(3))   1.50 (A = 3)   1.00 (A = 2)
-    test RMSE of eta and lpd, best in        0 of 6         2 of 6         4 of 6
-    beats sd 2.72 on both in                 -              6 of 6         6 of 6
-    90% band coverage of eta, strongest      0.86           0.85           0.79
-    signal (log mu = 1 + 2 z, r = 5)
+Probe for Q1 (not checked in): a scratch build of this design (the engine change above, anchor settable), r
+estimated, one chain, 500 + 500 sweeps, default trees, 500 test rows, 8 replicates at each of n = 300 and n = 2000,
+six designs (log-mean signal sd 0.06 to 2, one a step of 3 on the log scale; true r 2 to 30). Fresh-y coverage is
+by randomized PIT. Means over designs and replicates:
 
-Both tighter anchors beat the current one everywhere. A = 2 wins the four weak-signal designs (signal sd 0.06 to
-1); A = 3 wins the two strong ones (sd 2, and a step of 3 on the log scale) and holds coverage there, where A = 2
-drops to 0.79. A named sd (prior.scale) is stated on the log-mean scale with no
+    option                      n     RMSE eta  cov 90% mu  worst design  cov 90% y  r0 in 95%  best RMSE
+    (a) A = pi sqrt(3), k = 2   300   0.354     0.943       0.893         0.886      0.62       0 of 6
+                                2000  0.191     0.904       0.807         0.895      0.92       0 of 6
+    (b) A = 3, k = 2            300   0.289     0.954       0.887         0.896      0.90       1 of 6
+                                2000  0.175     0.921       0.828         0.897      0.92       0 of 6
+    (c) A = 2, k = 2            300   0.282     0.927       0.781         0.897      0.96       2 of 6
+                                2000  0.163     0.928       0.813         0.896      0.94       3 of 6
+    (d) A = 3, k ~ chi(1.5, 2)  300   0.251     0.957       0.898         0.892      0.92       3 of 6
+                                2000  0.152     0.934       0.826         0.896      0.94       3 of 6
+
+The worst design is always the strongest signal (log mu = 1 + 2 z). (d) has the lowest RMSE at both n, beating (b)
+in 78% and (c) in 73% of paired fits, with coverage of mu at or near the best; (c) under-covers the strong signal
+at n = 300 (0.78); (a) is worst throughout and, at n = 300, its wide prior lets the forest absorb over-dispersion
+(r0 inside the 95% set in 62% of fits). A named sd (prior.scale) is stated on the log-mean scale with no
 conversion (fitScale = 1).
 
 ### R surfaces afterwards
@@ -202,11 +214,17 @@ does not reopen it, and both gates below exercise it.
 
 ### Gates
 
-- Mixing gate, new: benchmarks/R/negbin-mixing.R, the verifier's spec. mu = 8 exp(x1), 5 uniform predictors,
-  two cells (r0 = 2 at n = 500, r0 = 30 at n = 1000, both grid members), default bart() settings except
-  n.chains = 2, fixed seeds. Pass when, per cell: every chain's r draws include r0; split-Rhat on r below 1.05
-  (computed in-script, base R); 90% equal-tailed ppd intervals at 1000 fresh rows cover fresh y in 0.90 +- 0.04.
-  quick and full differ in seeds only. Listed in exact-gates.yaml. Discrimination: it must FAIL at the parent commit
+- Mixing gate, new: benchmarks/R/negbin-mixing.R. mu = 8 exp(x1), 5 uniform predictors, default bart() settings
+  except n.chains = 2, fixed seeds, on cells where r is identified: r0 = 5 at n = 2000 and r0 = 2 at n = 500
+  (the scratch build: 5:488 6:12 and 5:469 6:31 per chain; 2:500 on both). Not r0 = 30: at these means r = 30 and
+  50 are barely distinguishable, the forest absorbs the variance difference, and a correct sampler puts most mass
+  on 50 depending on the seed (the scratch build: 98%; an independent emulation 74-100%). Pass when, per cell:
+  (i) each chain left the cold start, under half its draws at r = 8; (ii) the chains agree: split-Rhat on r below
+  1.05, where a split half with zero variance is handled by rule - every half constant at one shared value passes
+  (Rhat taken as 1), any other zero-variance case fails; (iii) the pooled central 95% set of r contains r0;
+  (iv) the 90% ppd coverage of 1000 fresh y by randomized PIT, u = F(y - 1) + V (F(y) - F(y - 1)) with F the
+  draws' ecdf and V uniform, lies in 0.90 +- 0.04 (the probe's randomized coverage sat at 0.886 to 0.897). quick
+  and full differ in seeds only. Listed in exact-gates.yaml. Discrimination: it must FAIL at the parent commit
   (r frozen at 8), the [Gate hygiene](README.md#gate-hygiene) rule. Estimated at about a minute from the probe's
   fit times.
 - [negbin-exact.R](../../benchmarks/R/negbin-exact.R), re-derived: the leaf m is the cell log mean with prior
@@ -236,8 +254,8 @@ does not reopen it, and both gates below exercise it.
   [`testNBSweepOrderAndRestore`](../../tests/cpp/test_model.cpp) and
   [`testActiveRowsNBKernels`](../../tests/cpp/test_model.cpp) for the anchor and the active-row K_k. New: c's formula
   (offset, all-zero floor), the working response equal to kappa/omega - a_i after refresh, setOffset at both
-  updateScale values, restoreScale and dispersion-then-latents restore; fit.scale round trip and the width-1
-  refusal.
+  updateScale values, restoreScale and dispersion-then-latents restore; the fit.scale round trip (exact) and the
+  fitMax <= fitMin refusal.
 - tinytest: [test-nbinom.R](../../inst/tinytest/test-nbinom.R) (ev = exp(link) draw by draw; leaf.scale = A; the
   recovery smoke's r band tightened to what the mixing gate supports; pre-change state refusal),
   [test-dispersion-channel.R](../../inst/tinytest/test-dispersion-channel.R) (the same identity),
@@ -316,27 +334,31 @@ Each commit passes its gates before the next starts; landing per [Landing](READM
 - Residual slowness between r and tree structure at small n (a small r absorbing heterogeneity the forest could
   fit). The level ridge is gone by orthogonality, but this one is not ruled out; the SBC arm at n = 150 is where it
   would show, and a flag there is a finding to bring back, not a waiver to restore.
-- The ppd coverage band for discrete counts: equal-tailed integer quantiles over-cover at small means. The gate's
-  means (8 to 22) keep it near nominal (0.915 measured with r fixed); a seed failing by discreteness, not mixing,
-  is resolved by stating the coverage rule, never by widening.
+- r is weakly identified at large r and moderate means (30 against 50 above): the posterior there leans on the
+  grid's cap and prior. The mixing gate avoids that cell on purpose; the help page should say r above about 20 is
+  hard to tell apart at ordinary counts.
+- Coverage of discrete counts: equal-tailed integer quantiles over-cover at small means, which the randomized PIT
+  removes; a seed failing anyway is a finding, never a reason to widen the band.
 - Cost, unmeasured: 13 n logOnePlusExp per sweep against sum_i (y_i + r) Devroye draws. A count of
   transcendental calls puts it well under the PG loop at the probe's means (y + r near 20) and comparable or above
   it when y + r is near 2. bench-sampler.R decides; the cheap exact fallback tabulates exp(eta_i) once per sweep
   and takes one log per row and grid point, halving the calls.
 - c is full-data and fixed under updateScale = FALSE: an embedded user who creates on a placeholder response gets
   that placeholder's center until they re-anchor, as with gaussian.
-- Pre-change nbinom states and saved fits from development builds stop loading (refused by the width-1 rule). No
+- Pre-change nbinom states and saved fits from development builds stop loading (refused by fitMax <= fitMin). No
   release carried them.
 
 ## Open questions for the maintainer
 
-Q1. The leaf anchor on the log-mean scale (prior sd of f at the default k = 2 is A/2).
-- (a) Keep A = pi sqrt(3), sd 2.72: the width logit-p had, so fixed-r fits change only by the center. Worst of
-  the three on test RMSE and lpd in all six probe designs.
-- (b) A = 3, sd 1.5 (probit's constant): beats (a) everywhere, best on the two strong-signal designs, coverage
-  held there. Its 95% prior band is exp(+-3), a factor of 20 either side of the mean count.
-- (c) A = 2, sd 1.0: best on the four weak-signal designs by a small margin, loses coverage on the strongest
-  (0.79 against 0.85).
-Recommendation: (b). It costs little where (c) wins and does not under-cover where effects are large, which is the
-failure a user cannot see. Evidence that would change it: a calibration study over realistic count designs
-favoring (c) without the coverage loss, or real effects beyond a factor of 20 that (b) over-shrinks.
+Q1. The leaf prior on the log-mean scale: anchor A and the k default (prior sd of f is A/k). Numbers in
+[Leaf prior](#leaf-prior).
+- (a) Keep A = pi sqrt(3), k = 2 (sd 2.72): the width logit-p had. Worst on RMSE at both n and in r placement at
+  n = 300.
+- (b) A = 3, k = 2 (sd 1.5, probit's anchor): beats (a) everywhere; second-best coverage.
+- (c) A = 2, k = 2 (sd 1.0): good RMSE at n = 2000, but under-covers the strong signal at n = 300 (0.78).
+- (d) A = 3, k ~ chi(1.5, 2), the binary families' default form: lowest RMSE at both n, coverage at or near the
+  best. Cost: nbinom joins probit and logistic in drawing k, so the ordinal-negbin-k-gap TODO's nbinom half (a k
+  channel packageNegbinResults drops) becomes part of C2, about 20 more lines.
+Recommendation: (d). It wins on accuracy without the coverage loss of (c), and it matches what the other
+fixed-scale binary-link families already do. What would change it: a realistic count design where the k draw
+under-covers, which would argue for (b).
