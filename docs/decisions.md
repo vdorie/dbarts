@@ -1230,6 +1230,10 @@ Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B169]
 A negative-binomial fit's forest models log(mean), as MASS::glm.nb and Stan's neg_binomial_2 do, and the dispersion r is drawn given the mean, still collapsed over the Polya-Gamma latents. Until now the forest modelled the log-odds of the success probability and r was drawn given it, which pins r to its current value at any realistic n: in the third whole-branch review's probes r never left its cold start of 8 (n 200 and 1000, true r 3 or 30), and 90% predictive intervals covered 78%. The alternatives were keeping the log-odds model with a joint move of r and every tree's level, and refusing estimated dispersion in 1.0-0. Users get a sampled r, honest predictive draws and log-likelihoods, and a link on the log-mean scale; every nbinom draw moves and the leaf prior is recalibrated for the new scale; the calibration suite's waiver of r as a mixing ridge is withdrawn. The maintainer on 2026-10-01: "Option 1." See also: [dec-B15].
 Record: docs/design/negative-binomial.md. Marked: blank. [dec-B170]
 
+**A numeric column where training had a factor is refused in test and newdata**
+predict(), bart(test =) and dbartsData(test =) refuse a numeric or logical data-frame column whose training column was a factor (categorical or ordered), naming the column, as predict.lm does; a raw numeric matrix with no data frame is left as is. Until now such numbers were read silently as 0-based level codes, so as.integer(f) predicted every row one level up; 0.9-34 raised an error. The alternatives were reading numbers as 1-based codes and keeping 0-based codes, documented. This is the frame-entrance twin of dec-B156. The maintainer on 2026-10-01: "Refuse a numeric or logical column where training had a factor." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B171]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
