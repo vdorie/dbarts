@@ -353,8 +353,10 @@ unchanged. theta0 is [`dbartsSampler$sampleTreesFromPrior`](../../man/dbartsSamp
 then [`dbartsSampler$sampleLeafParametersFromPrior`](../../man/dbartsSampler-class.Rd).
 Under "leaf" the trees are CGM(0.95, 2) conditioned on no empty leaf, and the
 leaves an exact draw from each tree's truncated prior, p(T) prod N(mu_l)
-1{C(T)} / Z_T. Under "joint" trees and leaves are drawn together by rejection,
-p(T) prod N(mu_l) 1{C(T)}, the tree marginal p(T) Z_T. sig0 is sbcSigmaDraw, as
+1{C(T)} / Z_T. Under "joint" the trees are drawn by rejection from the tree marginal
+p(T) Z_T (each tree accepted when an unconstrained leaf draw lands in its
+cone, that draw then discarded), and the leaves exactly given the tree, so
+the pair has the law p(T) prod N(mu_l) 1{C(T)}. sig0 is sbcSigmaDraw, as
 for gaussian.
 
 Why the arm was first designed to flag. The move as first built divided each

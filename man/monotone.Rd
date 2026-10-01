@@ -40,25 +40,29 @@ monotone(directions, prior = c("joint", "leaf"))
       The ordinary BART prior on the trees and their leaf values, conditioned
       on every tree being monotone. A tree whose leaf values would seldom be
       in order under the ordinary prior becomes less likely, so the
-      constrained predictors get somewhat fewer splits than in an
-      unconstrained fit.
+      constrained predictors get about half as many splits as in an
+      unconstrained fit at 200 trees, and split counts understate their
+      importance (less so under \code{"leaf"}).
     }
     \item{\code{"leaf"}}{
       The ordinary tree prior, unchanged; given a tree, its leaf values are
-      drawn from the ordinary prior restricted to values in order. Every tree
-      move then counts the orderings of the tree's leaves that the constraint
-      allows.
+      drawn from the ordinary prior restricted to values in order. A tree
+      move may then count the orderings of the tree's leaves that the
+      constraint allows.
     }
   }
   \code{"joint"} is the default because in a simulation study the two
-  priors fit alike, and \code{"joint"} never counts leaf orderings, so it is
-  never slow.
+  priors fit alike, and \code{"joint"} never counts leaf orderings while
+  sampling, so its moves are never slow. (Drawing leaf values from the prior,
+  as \code{samplePriorPredictive} does, counts under either prior.) Under
+  either prior a constrained fit takes several times the time per sweep of
+  the same fit without the constraint: 4.5 to 8.5 times in that study.
 
   Under \code{"leaf"} the count is negligible at 10 or more trees, but with
   one to five trees a tree can grow large enough that a count takes seconds
-  to minutes per move, and its memory grows with it, to a gigabyte or more
-  for the largest counts. There is no limit: the run finishes on the stated
-  model, and afterwards a warning of class \code{"dbartsSlowCountWarning"}
+  to minutes per move, and its memory grows with it, to hundreds of
+  megabytes for the largest counts seen. There is no limit: the run
+  finishes on the stated model, and afterwards a warning of class \code{"dbartsSlowCountWarning"}
   reports counts that took more than about a second and names the remedies,
   more trees or \code{prior = "joint"}. A count can be interrupted, and a
   count that runs out of memory is an ordinary error; either way the
@@ -66,10 +70,12 @@ monotone(directions, prior = c("joint", "leaf"))
 
   The tree prior is the fit's \code{tree.prior}, as without a constraint:
   \code{cgm()} at its defaults, \code{power = 2} and \code{base = 0.95}
-  (see \code{\link{dbartsPriors}}), unless another is given. The mBART paper used \code{cgm(power = 0.8, base =
-  0.25)}, which gives smaller trees; in a simulation study under
-  \code{"joint"} at 200 trees it gave sharper and more accurate fits, but
-  narrower intervals that under-covered with plentiful, low-noise data. Pass
+  (see \code{\link{dbartsPriors}}), unless another is given. The mBART
+  paper used \code{cgm(power = 0.8, base = 0.25)}, which gives smaller
+  trees; in a simulation study under \code{"joint"} at 200 trees it gave
+  sharper and more accurate fits, but narrower intervals that under-covered
+  with plentiful, low-noise data, and at 50 trees it was less accurate with
+  such data and under-covered more often. Pass
   it as \code{tree.prior} to opt in (see Examples).
 
   The fit is monotone in a constrained predictor along every line on which

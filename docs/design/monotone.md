@@ -353,7 +353,8 @@ offset the Z_T factor. Its software (bd.cpp) matches Section 4.3, so mBART users
 have fit "joint" under that tree prior. Here "joint" keeps cgm()'s defaults, and
 the help names mBART's values as an opt-in (dec-B152): in a simulation study
 they fit sharper and more accurately at 200 trees, with narrower intervals that
-under-covered with plentiful low-noise data.
+under-covered with plentiful low-noise data, and at 50 trees they were less
+accurate with such data and under-covered in 9 of 12 cells.
 
 **Shared-machinery sequencing (flagged per the plan).** The current conjugate
 MoveStrategy reads NO leaf parameters - it integrates them all out. Both B' and
@@ -654,7 +655,8 @@ the posterior-changing baseline for this arc.
 - The "leaf" count (section 4's correction). Negligible at 10 or more trees;
   with one to five trees a count can take seconds to minutes and hundreds of
   megabytes (70 s and 361 MB in a one-tree fit with one constrained and three
-  free predictors). "joint", the default, counts nothing.
+  free predictors). "joint", the default, counts nothing while sampling; the
+  prior leaf draw counts under both priors.
 - Mixing. Birth/death-only (section 5) plus single-site leaf Gibbs can mix slowly
   when many leaves are mutually constrained (tight truncation intervals). The
   recovery test watches for it; random-scan Gibbs and the children-terminal change
