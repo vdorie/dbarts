@@ -1334,3 +1334,16 @@ assertions read "joint" and its recovery fit names "leaf"; every harness already
 0.55-0.97); the successive-conditional check quick under both priors and the twin (worst |z| 2.13); the
 lint chain clean; R CMD check --as-cran one NOTE (Date). Open: the Verification's quiet-machine speed
 check.
+
+Cone accuracy, 2026-10-01: the pair's cone probability is the closed form log Phi with no bound set and
+otherwise a log-space integral over the narrower leaf, standardized (b009c54c, 7ce8dbe8, 7f0026ce,
+d23673b5). The old absolute-tolerance quadrature was off by up to 35 nats below a cone mass of 1e-12 and
+returned zero past about 38 sd, or under a frozen bound about 8 sd above the lower leaf's mean. The
+enumeration gate gained three contrary-data designs (k1, k1r, k3) that the old engine fails under both
+priors (p down to 1e-245), and its reference moved to log space (bed2f20d). At d23673b5: the enumeration
+gate quick passes every design under "leaf" (p 0.24-0.99) and "joint" (p 0.49-0.97); the
+successive-conditional check quick under both priors and the twin (worst |z| 2.13); monotone-reference.R
+quick; the 25 exact gates quick; tests/cpp clean, also under ASan/UBSan; tinytest 10,864/0; both
+monotone equivalence scenarios bitwise, the ordinal pair re-recorded (equivalence-d23673b5).
+Monotone sweeps run about 7 to 9 times faster on a loaded laptop (new/old 0.10-0.19 over five
+alternating rounds).
