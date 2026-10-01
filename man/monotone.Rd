@@ -63,8 +63,9 @@ monotone(directions, prior = c("joint", "leaf"))
   to minutes per move, and its memory grows with it, to hundreds of
   megabytes for the largest counts seen. There is no limit: the run
   finishes on the stated model, and afterwards a warning of class
-  \code{"dbartsSlowCountWarning"} reports counts that took more than about a second and names the remedies,
-  more trees or \code{prior = "joint"}. A count can be interrupted, and a
+  \code{"dbartsSlowCountWarning"} reports counts that took more than about
+  a second and names the remedies, more trees or \code{prior = "joint"}. A
+  count can be interrupted, and a
   count that runs out of memory is an ordinary error; either way the
   sampler is left in a valid state.
 
