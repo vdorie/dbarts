@@ -265,7 +265,9 @@ Rulings, 2026-09-29:
   "Use option 1."
 - Default (dec-B151, 2026-09-30): "joint". "I think we'll want to use \"joint\" since it seems
   indistinguishable." Not chosen: "leaf". Its tree prior, cgm()'s defaults or mBART's base 0.25 and power 0.8
-  whenever a constraint is present, is settled by the rule in "Tree prior under joint" below: "Measure first."
+  whenever a constraint is present, is measured first ("Measure first.") by the second study in "Tree prior
+  under joint" below; the maintainer makes the final ruling on its results: "Bring the results to me and let
+  me make the final ruling."
 
 ## Default: feel study
 
@@ -509,8 +511,8 @@ tree prior that differs from the one users get without a constraint.
 The feel study's one design (a constrained, a free and a noise predictor) left the tree prior under "joint"
 open: at 200 trees mBART's cgm(power = 0.8, base = 0.25) had the lowest error and best score on every truth,
 with intervals 30-38% narrower, but at 50 trees it under-covered the ramp (0.78) and the interaction (0.76)
-and fit the interaction worse. This second study widens the designs and decides by a rule fixed before it
-runs.
+and fit the interaction worse. This second study widens the designs. A rule fixed before it runs gives a
+verdict; the maintainer rules on the results.
 
 - Arms: "joint" under cgm() (base .95, power 2); "joint" under cgm(power = 0.8, base = 0.25); the
   unconstrained fit under cgm() as reference. Tree counts 200 and 50.
@@ -525,10 +527,10 @@ runs.
   and 500 kept sweeps. Measures as in the feel study's fits: RMSE of the posterior mean against the truth and
   95% interval coverage on 2000 held-out points from the design's law, held-out log predictive score, interval
   width, varcount shares, time per sweep.
-- Rule: mBART's values become the tree prior under every monotone fit if (a) at 200 trees, in every design, n
+- Rule (advisory): mBART's values are favoured as the tree prior under every monotone fit if (a) at 200 trees, in every design, n
   and noise cell, their RMSE and score are no worse than cgm()'s defaults beyond two paired standard errors,
   and (b) their 95% coverage is at least 0.90 in every cell at 200 and 50 trees. Otherwise cgm()'s defaults
-  stay.
+  are.
 
 ## Counting: algorithm
 

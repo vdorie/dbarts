@@ -203,7 +203,8 @@ items
     Stage 6's equivalence scenarios, the successive-conditional check and
     the SBC arms landed (both 20-tree arms pass), and the feel study ran.
     The default is "joint" (dec-B151); its tree prior waits for the plan's
-    second study ("Tree prior under joint"), then step 12's docs; the hybrid
+    second study ("Tree prior under joint") and the maintainer's ruling on
+    its results, then step 12's docs; the hybrid
     and 4b wait for the maintainer's call.
   monotone-factor-direction-host: a host that hands the engine a monotone
     direction on an unordered-factor column gets an unconstrained sampler
