@@ -73,7 +73,8 @@ void testAdapterCopiesEveryField() {
   bool copied = draw.structSize == sizeof(dbarts_draw) &&
     draw.chainIndex == 3 && draw.drawIndex == 5 && draw.numObservations == 7 &&
     draw.numTestObservations == 9 && draw.numPredictors == 11 &&
-    draw.numReportedLocations == 2 && draw.numVariableCountForests == 4 &&
+    draw.numFittedValuesPerObservation == 2 &&
+    draw.numVariableCountForests == 4 &&
     draw.numForests == 6 && draw.numAmplitudes == 8 &&
     draw.numOrdinalThresholds == 10 &&
     draw.train == values + 0 && draw.test == values + 1 &&

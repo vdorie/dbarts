@@ -117,7 +117,7 @@ inline void fillShippedDraw(dbarts_draw& draw, const bartcore::DrawInfo& info) {
   draw.numObservations = info.numObservations;
   draw.numTestObservations = info.numTestObservations;
   draw.numPredictors = info.numPredictors;
-  draw.numReportedLocations = info.numReportedLocations;
+  draw.numFittedValuesPerObservation = info.numReportedLocations;
   draw.numVariableCountForests = info.numVariableCountForests;
   draw.numForests = info.numForests;
   draw.numAmplitudes = info.numAmplitudes;
@@ -500,6 +500,13 @@ void validateResponseSupport(bartcore::ResponseFamily family,
 /// value is put back.
 void refuseNonFinite(const double* values, std::size_t count,
                      const char* caller, const char* what);
+
+/// The two refusals a multi-location (multinomial) predict offset meets, worded
+/// once for the R and the flat route. The first: the sampler carries a train or
+/// test category offset set from R, and a predict naming none cannot infer the
+/// predicted rows' offset. The second: an offset entry that is not finite.
+extern const char* const categoryOffsetRequiredMessage;
+extern const char* const categoryOffsetNotFiniteMessage;
 
 /// Errors on a multi-forest sampler (numForests >= 2) whose test fits are
 /// undefined, its amplitudes having no off-sample basis to multiply: the

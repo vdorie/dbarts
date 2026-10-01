@@ -2817,8 +2817,8 @@ const double* validateCategoryOffset(SEXP offsetExpr, size_t n, size_t K,
   const double* src = REAL(offsetExpr);
   for (size_t j = 0; j < n * K; ++j)
     if (!R_finite(src[j]))
-      Rf_error("%s: requires every category offset entry to be finite",
-               caller);
+      Rf_error("%s: %s", caller,
+               bartcore_bridge::categoryOffsetNotFiniteMessage);
   return src;
 }
 
@@ -3232,6 +3232,13 @@ void validateResponseSupport(bartcore::ResponseFamily family,
     break;
   }
 }
+
+const char* const categoryOffsetRequiredMessage =
+  "this sampler carries an n x K category offset, and the predicted rows are "
+  "not its rows, so their offset cannot be inferred; pass one per predicted "
+  "row (an all-zero matrix for the offset-free surface)";
+const char* const categoryOffsetNotFiniteMessage =
+  "requires every category offset entry to be finite";
 
 void refuseNonFinite(const double* values, size_t count, const char* caller,
                      const char* what) {
@@ -6560,10 +6567,7 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
   // the offset-free surface just as wrongly as a test-only one would.
   if ((!holder.ownedCategoryOffset.empty() ||
        !holder.ownedCategoryTestOffset.empty()) && Rf_isNull(offsetExpr))
-    Rf_error("predict: this sampler carries an n x K category offset, "
-             "and the predicted rows are not its rows, so their offset cannot "
-             "be inferred; pass one per predicted row (an all-zero matrix for "
-             "the offset-free surface)");
+    Rf_error("predict: %s", bartcore_bridge::categoryOffsetRequiredMessage);
 
   // a sparse test set replays resident, off the view the container parses to;
   // the parse owns buffers, so the unwind-protected scope frees them on the

@@ -431,7 +431,7 @@ constexpr std::uint64_t dbarts_fnv1aValue(std::uint64_t hash,
 // retype, which is what the offsets buy for the fields above.
 #define DBARTS_DRAW_POINTER_FIELDS(X) \
   X(structSize) X(chainIndex) X(drawIndex) X(numObservations) \
-  X(numTestObservations) X(numPredictors) X(numReportedLocations) \
+  X(numTestObservations) X(numPredictors) X(numFittedValuesPerObservation) \
   X(numVariableCountForests) X(numForests) X(numAmplitudes) \
   X(numOrdinalThresholds) X(train) X(test) X(varianceFits) \
   X(varianceTestFits) X(forestFits) X(glue) X(splitProbabilities) \
@@ -514,7 +514,7 @@ constexpr std::uint64_t dbarts_apiToken() {
   return dbarts_foldLayout(hash);
 }
 } // namespace
-static_assert(dbarts_apiSignatureToken == 0xb6f41cfcbd996897ULL,
+static_assert(dbarts_apiSignatureToken == 0xfbf29fc67c22558bULL,
               "dbarts.h C API signatures moved (the entry-point list, not the "
               "layout fold); re-bake this literal here and DBARTS_C_API_HASH "
               "with it");
@@ -567,17 +567,12 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
     bartcore_bridge::captureExceptions(error, [&]() {
       bartcore::SamplerShape shape = samplerOf(sampler).shape();
       bartcore::Results engineResults;
-      // the internal location stride (invisible to the frozen dbarts_results
-      // ABI): 1 for every dbarts.h-created sampler, since the flat C API
-      // builds no multi-location model, so the caller's n x numSamples
-      // train/test hold
-      //
-      // numVariableCountForests is deliberately NOT set: dbarts_results
-      // declares no forest count, so the field stays at its default 1 and the
-      // engine writes the single numPredictors slab per sample this struct
-      // documents - the reported (prognostic) forest - even on the BCF
-      // samplers this entry point can create
+      // the two widths the header states through its accessors: F fitted
+      // values per observation (K on multinomial, 1 elsewhere) for train and
+      // test, and V split-count sets per draw for varcount, exactly as the R
+      // run sets them, so a caller sizing by the accessors gets R's layout
       engineResults.numReportedLocations = shape.numReportedLocations;
+      engineResults.numVariableCountForests = shape.numVariableCountForests;
 
       if (results != NULL && numSamples > 0) {
         // A field is filled only when present-by-size AND non-null. offsetof
@@ -595,6 +590,9 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
         FILL(dispersion, dispersion);
         FILL(residualDf, residualDf);
 #undef FILL
+        // the header leaves k untouched without a k hyperprior, as the R run
+        // does; the engine writes it wherever the pointer is non-null
+        if (!shape.kIsSampled) engineResults.k = NULL;
       }
 
       // The engine samples only from each chain's own Mersenne Twister (seeded
@@ -712,6 +710,29 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
   // first forest's fit labelled as the whole; see
   // dbarts_sampler_setTestPredictors
   if (testFitsAreUndefined(engine)) return 0;
+  // A multi-location (multinomial) surface reads its offset as numRows x F,
+  // before the softmax, under R's two refusals. Both read only the shape, the
+  // holder's own category offsets and the caller's buffer, so they raise here,
+  // before anything is captured or allocated; a malformed source is left to
+  // translateSource below.
+  size_t numLocations = engine.shape().numReportedLocations;
+  if (numLocations > 1) {
+    if (offsetTest == NULL) {
+      if (!sampler->ownedCategoryOffset.empty() ||
+          !sampler->ownedCategoryTestOffset.empty())
+        Rf_error("dbarts_sampler_predict: %s",
+                 bartcore_bridge::categoryOffsetRequiredMessage);
+    } else if (xTest != NULL && xTest->structSize != 0) {
+      size_t numRows =
+        DBARTS_HAS_FIELD(dbarts_predictor_source, xTest, numRows)
+          ? xTest->numRows : 0;
+      size_t numOffsets = numRows * numLocations;
+      for (size_t i = 0; i < numOffsets; ++i)
+        if (!R_finite(offsetTest[i]))
+          Rf_error("dbarts_sampler_predict: offset %s",
+                   bartcore_bridge::categoryOffsetNotFiniteMessage);
+    }
+  }
   // The replay builds the CSC rank bitmaps a sparse view reads through and
   // fans across threads, so a worker failure arrives as a C++ exception whose
   // unwind frees both before this frame reports it to R.
@@ -728,10 +749,13 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
     validateTestSource(engine, source, "dbarts_sampler_predict");
     size_t numTestObservations = source.view.numRows;
 
-    engine.predict(source.view, numTestObservations, NULL, numThreads, out);
+    // F > 1: the offset is the per-category matrix the replay adds to each
+    // category's raw fits; F = 1: a vector added to the fits after
+    engine.predict(source.view, numTestObservations,
+                   numLocations > 1 ? offsetTest : NULL, numThreads, out);
     vmaxset(scratch);
 
-    if (offsetTest != NULL) {
+    if (offsetTest != NULL && numLocations == 1) {
       size_t capacity = shape.savedTreeCapacity;
       size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;
       for (size_t slab = 0; slab < numSamples * shape.numChains; ++slab)
@@ -848,8 +872,8 @@ int dbarts_sampler_usesDart(const dbarts_sampler* sampler) {
 int dbarts_sampler_family(const dbarts_sampler* sampler) {
   bartcore::SamplerShape shape = samplerOf(sampler).shape();
   // the counts-mutation capability is the multinomial coupling's own
-  // fingerprint; DBARTS_FAMILY_MULTINOMIAL is reserved for multinomial
-  // creation opening, though no entry here builds one yet. Every other
+  // fingerprint, and every multinomial handle is an R-built sampler's, since
+  // no entry here builds one. Every other
   // family maps one to one off shape().family, and AUTO/STUDENT are never
   // reported (creation resolves AUTO, and a Student-t sampler's family IS
   // gaussian)
@@ -864,6 +888,15 @@ int dbarts_sampler_family(const dbarts_sampler* sampler) {
   case RF::nbinom: return DBARTS_FAMILY_NBINOM;
   }
   return DBARTS_FAMILY_GAUSSIAN; // unreached: ResponseFamily is exhausted above
+}
+
+size_t dbarts_sampler_numFittedValuesPerObservation(
+  const dbarts_sampler* sampler) {
+  return samplerOf(sampler).shape().numReportedLocations;
+}
+
+size_t dbarts_sampler_numVariableCountForests(const dbarts_sampler* sampler) {
+  return samplerOf(sampler).shape().numVariableCountForests;
 }
 
 // Provider-side binding: each real function's address must
