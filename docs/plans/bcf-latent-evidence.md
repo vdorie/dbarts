@@ -88,8 +88,8 @@ stratum cannot be cleared at an affordable burn - the recorded expectation - the
 that stratum, not admitted. The matrix exclusion names the glue-on SIGMA channel
 (["Not in the matrix: BCF"](../../.github/workflows/sbc.yaml)); pinning sigma removes that readout, not the ridge behind
 it, so admission is earned from the ladder, not inherited. On admission: both arms with `SBC_EXPECTED_FLAGS:
-a,b1.minus.b0`, the ill-posed pair waived by name as nbinom's ridge pair is
-(["SBC_EXPECTED_FLAGS: r,agg.psi"](../../.github/workflows/sbc.yaml)), and
+a,b1.minus.b0`, the ill-posed pair waived by name as nbinom's ridge pair was until the log-mean model
+(`SBC_EXPECTED_FLAGS: r,agg.psi`, [.github/workflows/sbc.yaml:104](https://github.com/vdorie/dbarts/blob/01dee4b4f1a21565c91eceea391e666851662a0d/.github/workflows/sbc.yaml#L104)), and
 [`sbcMatrixFunctionals`](../../benchmarks/R/sbc.R) 30 to 56 beside [`sbcMatrixConfigs`](../../benchmarks/R/sbc.R), so
 the band WIDENS for every existing arm - no rank moves, no recorded PASS at risk. The gaussian arm stays out.
 

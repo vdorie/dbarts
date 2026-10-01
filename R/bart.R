@@ -1459,10 +1459,9 @@ bart <- function(
     ))
   }
 
-  # negative-binomial counts: a single-forest fixed-scale latent model whose
-  # mean counts mu = r exp(f + o) and per-draw
-  # dispersion r are synthesized in R (the engine reports the log-odds latent
-  # psi; r lives only in its state block), dispatched here so its bartNegbin fit
+  # negative-binomial counts: a single-forest log-mean model whose mean counts
+  # mu = exp(f + c + o) and per-draw dispersion r are packaged in R (the
+  # engine reports the log mean and r per draw), dispatched here so its bartNegbin fit
   # object (never "bart") stays distinct. family = "nbinom" is always explicit -
   # a count response has no unambiguous class to auto-detect.
   if (family == "nbinom") {
@@ -2573,12 +2572,11 @@ packageOrdinalResults <- function(
   result
 }
 
-# The negative-binomial mean counts for one posterior draw: given the
-# log-odds latent psi = f(x) + o and the dispersion r, the mean is
-# mu_i = r exp(psi_i). Shared by the fit-time
+# The negative-binomial mean counts for one posterior draw: the forest models
+# the log mean eta = f(x) + c + o, so mu_i = exp(eta_i). Shared by the fit-time
 # reshape and predict.bartNegbin's replay.
-negbinMeanCounts <- function(psi, r) {
-  r * exp(psi)
+negbinMeanCounts <- function(eta) {
+  exp(eta)
 }
 
 # One posterior-predictive count per (draw, observation) of a negative-binomial
@@ -2597,16 +2595,14 @@ negbinPpd <- function(mu, r) {
 }
 
 # The negative-binomial count fit path, reached from bart2's family =
-# "nbinom" branch. A SINGLE forest
-# fits the log-odds latent psi = f(x) + o (like logistic under the Polya-Gamma
-# augmentation); the mean counts mu = r exp(psi) and the per-draw dispersion r
-# are synthesized here. The run is driven one kept sample at a time because
-# mu = r exp(psi) pairs each sweep's latent draw with that
-# sweep's r; r itself comes from the run's own per-draw dispersion channel, so no
-# state is serialized per sweep. dbarts(family = "nbinom") does the count
-# validation, the fixed
-# unit scale, and attaches the dispersion spec, so this reuses the standard
-# bart2 host-build machinery. The fit is class "bartNegbin", never "bart".
+# "nbinom" branch. A SINGLE forest fits the log mean eta = f(x) + c + o under
+# the Polya-Gamma augmentation; the mean counts mu = exp(eta), the per-draw
+# dispersion r and the leaf-scale k are packaged here. The run is driven one
+# kept sample at a time; r and k come from the run's own per-draw channels, so
+# no state is serialized per sweep. dbarts(family = "nbinom") does the count
+# validation, the fixed unit scale, and attaches the dispersion spec, so this
+# reuses the standard bart2 host-build machinery. The fit is class
+# "bartNegbin", never "bart".
 bart2Negbin <- function(
   matchedCall,
   callingEnv,
@@ -2657,10 +2653,12 @@ bart2Negbin <- function(
   } else {
     NULL
   }
-  # r is a scalar per (sample, chain), so it rides a sigma-shaped matrix
+  # r is a scalar per (sample, chain), so it rides a sigma-shaped matrix, as
+  # does k when the leaf prior draws it
   dispersionRaw <- matrix(0, n.samples, n.chains)
+  kRaw <- NULL
   varcountRaw <- NULL
-  # one run call per kept sample (the dispersion MH step needs it) goes
+  # one run call per kept sample goes
   # through the quiet bartcoreRun, not $run, which would warn once per sample;
   # the per-call tallies are summed here and warned on once below
   bc <- list(ptr = sampler$getPointer())
@@ -2684,6 +2682,12 @@ bart2Negbin <- function(
     )
     # sigma-shaped, so a single-sample run's channel is exactly this row
     dispersionRaw[s, ] <- r$dispersion
+    if (!is.null(r[["k"]])) {
+      if (is.null(kRaw)) {
+        kRaw <- matrix(0, n.samples, n.chains)
+      }
+      kRaw[s, ] <- r[["k"]]
+    }
     if (is.null(varcountRaw)) {
       varWidth <- if (n.chains == 1L) {
         nrow(as.matrix(r$varcount))
@@ -2693,14 +2697,13 @@ bart2Negbin <- function(
       varcountRaw <- array(0, c(varWidth, n.samples, n.chains))
     }
     for (chain in seq_len(n.chains)) {
-      rDraw <- dispersionRaw[s, chain]
-      psiTrain <- channelColumn(r$train, 1L, chain, n.chains)
-      latentTrain[, s, chain] <- psiTrain
-      meanTrain[, s, chain] <- negbinMeanCounts(psiTrain, rDraw)
+      etaTrain <- channelColumn(r$train, 1L, chain, n.chains)
+      latentTrain[, s, chain] <- etaTrain
+      meanTrain[, s, chain] <- negbinMeanCounts(etaTrain)
       if (n.test > 0L) {
-        psiTest <- channelColumn(r$test, 1L, chain, n.chains)
-        latentTest[, s, chain] <- psiTest
-        meanTest[, s, chain] <- negbinMeanCounts(psiTest, rDraw)
+        etaTest <- channelColumn(r$test, 1L, chain, n.chains)
+        latentTest[, s, chain] <- etaTest
+        meanTest[, s, chain] <- negbinMeanCounts(etaTest)
       }
       varcountRaw[, s, chain] <- channelColumn(r$varcount, 1L, chain, n.chains)
     }
@@ -2732,12 +2735,13 @@ bart2Negbin <- function(
     meanTest,
     dispersionRaw,
     varcountRaw,
-    combineChains
+    combineChains,
+    kRaw
   )
   # keepTrees retains the saved trees predict.bartNegbin replays through (the
   # sweeps wrote them regardless), and dispersion.raw supplies predict's
   # per-draw r in the raw n.samples x n.chains layout that pairs with the
-  # replayed latent draws.
+  # replayed draws.
   if (control@keepTrees) {
     result$dispersion.raw <- dispersionRaw
   }
@@ -2748,10 +2752,11 @@ bart2Negbin <- function(
 }
 
 # Assemble a bart2(family = "nbinom") fit from the synthesized channels.
-# yhat.train/test are the mean counts mu = r exp(f + o), the reported
-# deliverable; latent.train/test are the
-# log-odds latent psi draws (type = "bart"/"link"); dispersion is the per-draw r,
-# the count analog of gaussian's sigma; y is the observed counts.
+# yhat.train/test are the mean counts mu = exp(eta), the reported deliverable;
+# latent.train/test are the log-mean eta draws (type = "bart"/"link");
+# dispersion is the per-draw r, the count analog of gaussian's sigma; k (or sd,
+# when the leaf prior was named by its spread) is the drawn leaf scale, absent
+# when fixed; y is the observed counts.
 packageNegbinResults <- function(
   control,
   sampler,
@@ -2761,7 +2766,8 @@ packageNegbinResults <- function(
   meanTest,
   dispersionRaw,
   varcountRaw,
-  combineChains
+  combineChains,
+  kRaw = NULL
 ) {
   n.chains <- control@n.chains
   trainNames <- dataRowNames(sampler$data, "train")
@@ -2786,12 +2792,12 @@ packageNegbinResults <- function(
       n.chains,
       combineChains
     ),
-    # the mean counts mu = r exp(f + o) (type = "ev"/"response")
+    # the mean counts mu = exp(eta) (type = "ev"/"response")
     yhat.train = nameObservationMargin(
       convertSamplesFromDbartsToBart(meanTrain, n.chains, combineChains),
       trainNames
     ),
-    # the log-odds latent psi = f(x) + o draws (type = "bart"/"link")
+    # the log-mean eta = f(x) + c + o draws (type = "bart"/"link")
     latent.train = nameObservationMargin(
       convertSamplesFromDbartsToBart(latentTrain, n.chains, combineChains),
       trainNames
@@ -2808,11 +2814,30 @@ packageNegbinResults <- function(
       testNames
     )
   }
+  if (!is.null(kRaw)) {
+    # a fit that names its leaf prior by sd reports the spread it named over
+    # the engine's drawn k, as bart's packager does
+    anchor <- sampler$model@prior.scale
+    channel <- if (is.na(anchor)) "k" else "sd"
+    if (n.chains == 1L) {
+      kRaw <- kRaw[, 1L]
+    }
+    result[[channel]] <- convertSamplesFromDbartsToBart(
+      if (is.na(anchor)) kRaw else anchor / kRaw,
+      n.chains,
+      combineChains
+    )
+  }
   result$row.names.train <- trainNames
   result$row.names.test <- testNames
   # absent, not NULL, off a complete fit, as bart's own packager keeps it
   if (!is.null(sampler$data@na.action)) {
     result$na.action <- sampler$data@na.action
+  }
+  # the active-row mask 0/1 case weights install, which the log-likelihood
+  # channel reads as bart's single-forest packager records it
+  if (!is.null(sampler$activeRows)) {
+    result$active <- sampler$activeRows
   }
   # a fit kept without its call carries none, as a bart fit does
   result <- dropAbsentCall(result)

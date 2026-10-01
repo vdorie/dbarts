@@ -19,6 +19,14 @@ isBinaryFamily <- function(family) {
   family %in% c("probit", "logistic")
 }
 
+## The families whose leaf-scale k defaults to the chi(1.5, 2) hyperprior: the
+## binary links, and nbinom, whose log-mean leaf prior has a fixed anchor and
+## no residual scale to calibrate against (dec-B183). Every other family's k
+## defaults to a fixed 2.
+drawsLeafKByDefault <- function(family) {
+  isBinaryFamily(family) || identical(family, "nbinom")
+}
+
 ## The latent-variable families that carry no case weight at all but do
 ## implement the active-row mask. A weight vector of 0s and 1s there is
 ## membership rather than precision - the row leaves the likelihood, keeps its
@@ -27,7 +35,7 @@ isBinaryFamily <- function(family) {
 ## is a weighted latent likelihood, which these families have no coherent form
 ## for, and stays refused.
 isMaskedWeightFamily <- function(family) {
-  family %in% c("probit", "ordinal")
+  family %in% c("probit", "ordinal", "nbinom")
 }
 
 ## Wraps estimateSigmaFromLinearModel so every caller needing a starting sigma
@@ -74,9 +82,9 @@ nonFinitePredictorNames <- function(x) {
 ## all 0 or 1 name the rows in the data set and resolve to the active-row mask
 ## (isMaskedWeightFamily above); a logistic model treats weights as
 ## observation counts (its Polya-Gamma latent is a sum of per-copy draws), so
-## they must be positive integers; ordinal follows probit, mask included;
-## nbinom refuses outright (exposure belongs in the offset, not observation
-## replication). Gaussian weights are unrestricted and reach here as a no-op.
+## they must be positive integers; ordinal and nbinom follow probit, mask
+## included (an nbinom exposure belongs in the offset, not in a weight).
+## Gaussian weights are unrestricted and reach here as a no-op.
 ##
 ## Returns the data with the policy applied and the mask the weights resolved
 ## to, NULL where they resolved to none: the weights slot is cleared in both
@@ -101,6 +109,13 @@ enforceWeightPolicy <- function(data, family) {
         "does; fit integer count weights with family = \"logistic\", or ",
         "model continuous weights' latents directly"
       )
+    } else if (family == "nbinom") {
+      stop(
+        "nbinom (count) models do not support weights other than 0 and 1, ",
+        "which mark rows in and out of the likelihood as the sampler's ",
+        "$setActiveRows does: exposure belongs in the offset as a ",
+        "log-exposure term"
+      )
     } else {
       stop(
         "ordinal models do not support weights other than 0 and 1, which ",
@@ -116,15 +131,6 @@ enforceWeightPolicy <- function(data, family) {
         "logistic weights are observation counts and must be positive ",
         "integers; drop zero-count rows, and use a gaussian model for ",
         "continuous weights"
-      )
-    }
-  } else if (family == "nbinom") {
-    if (all(data@weights == 1)) {
-      data@weights <- NULL
-    } else {
-      stop(
-        "nbinom (count) models do not support weights: exposure belongs in ",
-        "the offset as a log-exposure term"
       )
     }
   } else if (family == "multinomial") {
@@ -286,8 +292,8 @@ resolveSamplerSpec <- function(
   # fixed at 1, resid.prior fixed(1), no sigma estimate, leaf.scale 3.0 - but is
   # NOT binary: the bridge selects it by the bartcore.n.categories attribute
   # (not control@binary), and it reports K category levels. nbinom (counts) is
-  # likewise a fixed-unit-scale family (sigma fixed at 1, the log-odds latent
-  # entering kappa directly), selected by the bartcore.dispersion attribute.
+  # likewise a fixed-unit-scale family (sigma fixed at 1, the counts entering
+  # kappa directly), selected by the bartcore.dispersion attribute.
   # fixedUnitScale covers all
   # three families wherever the unit-scale handling matters.
   # multinomial (softmax) is the fourth: its K category forests take their leaf
@@ -405,6 +411,7 @@ resolveSamplerSpec <- function(
   # calibration map pins every forest's k, so the binary chi-k default is
   # redirected to the fixed 2 rather than refused below
   parsePriorsCall$multiForest <- !is.null(declaredBases)
+  parsePriorsCall$kHyperprior <- drawsLeafKByDefault(family)
   parsePriorsCall$parentEnv <- evalEnv
 
   # The residual prior has one home, the family object it rides, so it

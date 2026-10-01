@@ -174,50 +174,55 @@ expect_error(
 expect_identical(bcf$data@offset, rep(0.5, nb))
 
 # --- allocation failures raise rather than abort: a tree store far past what
-# the process can hold, at creation and through setControl
-expect_error(
-  dbarts(
+# the process can hold, at creation and through setControl. Only at home and
+# not under AddressSanitizer: ASan aborts on the deliberate oversize request
+# instead of letting it throw, and valgrind flags it as a silly argument, so
+# CRAN's memory-check flavors would report the request itself.
+if (at_home() && !nzchar(Sys.getenv("ASAN_OPTIONS"))) {
+  expect_error(
+    dbarts(
+      x,
+      y,
+      control = dbartsControl(
+        n.trees = 200000L,
+        n.samples = .Machine$integer.max,
+        keepTrees = TRUE,
+        n.chains = 1L,
+        n.threads = 1L,
+        verbose = FALSE
+      )
+    ),
+    "sampler creation failed"
+  )
+  wide <- dbarts(
     x,
     y,
     control = dbartsControl(
       n.trees = 200000L,
-      n.samples = .Machine$integer.max,
+      n.samples = 4L,
       keepTrees = TRUE,
-      n.chains = 1L,
+      n.chains = 2L,
       n.threads = 1L,
+      updateState = FALSE,
       verbose = FALSE
     )
-  ),
-  "sampler creation failed"
-)
-wide <- dbarts(
-  x,
-  y,
-  control = dbartsControl(
-    n.trees = 200000L,
-    n.samples = 4L,
-    keepTrees = TRUE,
-    n.chains = 2L,
-    n.threads = 1L,
-    updateState = FALSE,
-    verbose = FALSE
   )
-)
-wideControl <- wide$control
-wideControl@n.samples <- .Machine$integer.max
-expect_error(
-  wide$setControl(wideControl),
-  "saved-tree storage for 2147483647 samples cannot be allocated"
-)
-expect_identical(wide$control@n.samples, 4L)
-# the new store is built aside, so the old one keeps its capacity and the
-# draws it recorded
-invisible(wide$run(0L, 4L))
-widePredict <- wide$predict(x[1:3, , drop = FALSE])
-expect_error(wide$setControl(wideControl), "cannot be allocated")
-expect_identical(wide$predict(x[1:3, , drop = FALSE]), widePredict)
-expect_identical(dim(widePredict), c(3L, 4L, 2L))
-rm(wide, wideControl, widePredict)
+  wideControl <- wide$control
+  wideControl@n.samples <- .Machine$integer.max
+  expect_error(
+    wide$setControl(wideControl),
+    "saved-tree storage for 2147483647 samples cannot be allocated"
+  )
+  expect_identical(wide$control@n.samples, 4L)
+  # the new store is built aside, so the old one keeps its capacity and the
+  # draws it recorded
+  invisible(wide$run(0L, 4L))
+  widePredict <- wide$predict(x[1:3, , drop = FALSE])
+  expect_error(wide$setControl(wideControl), "cannot be allocated")
+  expect_identical(wide$predict(x[1:3, , drop = FALSE]), widePredict)
+  expect_identical(dim(widePredict), c(3L, 4L, 2L))
+  rm(wide, wideControl, widePredict)
+}
 
 # --- a state with another store capacity. A live $setState keeps the
 # sampler's own capacity, so the state is refused and the draws stay; the

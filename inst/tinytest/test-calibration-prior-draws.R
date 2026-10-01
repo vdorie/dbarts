@@ -272,3 +272,16 @@ for (familyName in names(anchorSamplers)) {
     info = paste0(familyName, ": ", measured, " vs ", priorSd)
   )
 }
+# an nbinom forest models the log mean, and its prior is centred on the data's
+# log rate c = log(sum(y) / n), which prior.mean reports and the prior draws
+# of the log mean average to
+nbinomCentre <- log(sum(yCounts) / n)
+expect_equal(
+  anchorSamplers$nbinom$getLeafPrior()$prior.mean,
+  nbinomCentre
+)
+set.seed(3)
+nbinomPrior <- priorDraws(anchorSamplers$nbinom, anchorRow, familyDraws)[, 1L]
+expect_true(
+  abs(mean(nbinomPrior) - nbinomCentre) < 4 * priorSd / sqrt(familyDraws)
+)

@@ -35,9 +35,10 @@
 # functional's verdict is FLAG; unset, the CLI always exits 0 (unchanged
 # default). Only affects Rscript use; source() usage is untouched.
 # SBC_EXPECTED_FLAGS (env var, opt-in) is a comma-separated list of functional
-# names allowed to FLAG without failing SBC_FAIL_ON_FLAG -- e.g. nbinom's r
-# and agg.psi trade off on an adjudicated identifiability ridge, not a defect
-# (docs/plans/sbc-family-tiers.md Step 3; confirmed 2026-08-18). A listed
+# names allowed to FLAG without failing SBC_FAIL_ON_FLAG -- an adjudicated
+# finding rather than a defect (no arm carries one today; nbinom's r ridge
+# waiver was withdrawn with the log-mean model, docs/plans/nbinom-log-mean.md).
+# A listed
 # functional that FLAGs prints "FLAG (expected)" and is excluded from the exit
 # check; one that PASSES is unaffected; any FLAG outside the list still fails
 # as before. Only the CLI reads this variable; source() usage is untouched.
@@ -291,7 +292,9 @@ sbcConfig <- function(
       ordered = TRUE
     )
   } else if (family == "nbinom") {
-    as.double(rep_len(c(0L, 1L, 2L, 4L), n))
+    # mean count 5: the build response fixes the log-mean shift c = log(5)
+    # the prior draw centres on, and the fit is rebuilt from it so it shares c
+    as.double(rep_len(c(2L, 4L, 6L, 8L), n))
   } else {
     as.double(rep_len(c(0L, 1L), n))
   }
@@ -1830,31 +1833,36 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       draw = function() {
         gen$sampleTreesFromPrior()
         gen$sampleLeafParametersFromPrior()
-        psi0 <- as.numeric(gen$predict(config$x))
-        psi0Test <- as.numeric(gen$predict(config$xTest))
+        # the generator's predictions are the log mean eta = f + c, with c
+        # the build response's log mean count
+        eta0 <- as.numeric(gen$predict(config$x))
+        eta0Test <- as.numeric(gen$predict(config$xTest))
         r0 <- drawR(1L)
-        # E[y | psi] = r exp(psi) under the engine's logit-p parameterization
-        y0 <- rnbinom(config$n, size = r0, mu = r0 * exp(psi0))
+        y0 <- rnbinom(config$n, size = r0, mu = exp(eta0))
         list(
           y = as.double(y0),
           theta = c(
             r = r0,
-            avg.mu = mean(r0 * exp(psi0)),
-            agg.psi = mean(psi0Test)
+            avg.mu = mean(exp(eta0)),
+            agg.eta = mean(eta0Test)
           )
         )
       },
+      # c is data-derived, so the fit is built from the generator's build
+      # response (the same c) and takes y with updateScale = FALSE; it is
+      # rebuilt per replication so r restarts at its cold start
       fit = function(y) {
-        f <- sbcMakeSampler(config, 1L, thin, seed, y = y)
+        f <- sbcMakeSampler(config, 1L, thin, seed)
         f$sampleTreesFromPrior()
         f$sampleLeafParametersFromPrior()
+        f$setResponse(y, updateScale = FALSE)
         f
       },
       burnRun = function(f, burn) f$run(burn, 0L),
       sample = function(f) {
         res <- f$run(0L, 1L)
         r <- f$getDispersion()
-        c(r, mean(r * exp(res$train[, 1])), mean(res$test[, 1]))
+        c(r, mean(exp(res$train[, 1])), mean(res$test[, 1]))
       }
     )
   } else if (config$family == "t") {
@@ -2231,15 +2239,16 @@ sbcArmName <- function(config) {
 # the R=200 verdict run and the CI matrix cannot drift apart. Sizing notes:
 # ordinal takes K = 4 because gamma_1 is pinned at 0 and only gamma_2..gamma_K-1
 # are free, so K >= 4 is what makes the cutpoint block a real (multi-cutpoint)
-# target; nbinom takes a TIGHTENED k = 8 (psi sd = leaf.scale/k = pi sqrt(3)/8
-# ~ 0.68 rather than 2.7) because the Polya-Gamma draw loops sum(y_i + r) times
-# per sweep and default-k psi draws are lognormal-tailed and unbudgetable - a
-# tightened prior still validates NB; multinomial takes K = 3 forests.
+# target; nbinom takes a TIGHTENED fixed k = 3 / 0.68 (log-mean sd =
+# leaf.scale/k = 0.68 rather than the default's draws around 1.5 and wider)
+# because the Polya-Gamma draw loops sum(y_i + r) times per sweep and wide
+# log-mean draws are lognormal-tailed and unbudgetable - a tightened prior
+# still validates NB; multinomial takes K = 3 forests.
 sbcFamilyConfig <- function(family) {
   switch(
     family,
     ordinal = sbcConfig(family = "ordinal", numCategories = 4L, nTest = 3L),
-    nbinom = sbcConfig(family = "nbinom", k = 8),
+    nbinom = sbcConfig(family = "nbinom", k = 3 / 0.68),
     t = sbcConfig(family = "t"),
     multinom = ,
     multinomial = sbcConfig(family = "multinomial", numCategories = 3L),
@@ -2285,7 +2294,7 @@ sbcFamilyConfig <- function(family) {
 }
 
 # predict() vs the recorded latent channel at ONE state: theta0's latent (the
-# ordinal eta, the nbinom psi, the Student-t f) is read with predict() while its
+# ordinal eta, the nbinom log mean, the Student-t f) is read with predict() while its
 # posterior draws come from the run's train/test channels, so the two maps must
 # agree exactly or the ranks compare different quantities.
 sbcCheckLatentConsistency <- function(config, seed = 99L) {
@@ -2356,9 +2365,13 @@ sbcCheckMultinomialProbs <- function(config, seed = 99L) {
 # LIKELIHOOD RIDGE, not by a transient: ordinal's free cutpoints trade against
 # the mean level (docs/design/ordinal.md section 9's f-vs-cutpoint-shift ridge -
 # gamma2/gamma3 and the p2 that reads them stay autocorrelated past lag 200,
-# while every eta functional clears 0.1 by lag ~16), and nbinom's r trades
-# against the psi level because only mu = r exp(psi) is identified (r and
-# agg.psi mirror each other block for block; avg.mu clears 0.1 at LAG 1). The
+# while every eta functional clears 0.1 by lag ~16). nbinom's r used to trade
+# against the log-odds level the same way under the logit-p model; under the
+# log-mean model (docs/plans/nbinom-log-mean.md) its 4000-sweep x 24-dataset
+# ladder at 400-sweep blocks shows no transient past the first block (mean
+# |z| by block 1.1-1.6 for r, 0.9-1.8 for agg.eta, 0.3-0.9 for avg.mu, the iid
+# block SE's inflation at short lags) and every functional clears ACF 0.1 by
+# lag 7, so its burn is 4000 and thin 10. The
 # Student-t settles in a couple of thousand sweeps with sigma/nu at lag ~40-60,
 # and multinomial mixes fastest of all (every functional under lag 10).
 # The aft arm, the two heteroscedastic arms and the two latent BCF arms were
@@ -2383,7 +2396,7 @@ sbcCheckMultinomialProbs <- function(config, seed = 99L) {
 # matrix members.
 sbcBurnSweeps <- c(
   ordinal = 36000,
-  nbinom = 24000,
+  nbinom = 4000,
   t = 12000,
   multinomial = 6000,
   # 10x the transient the 400-sweep-block ladder resolves; thin 40 covers the
@@ -3256,11 +3269,14 @@ if (sys.nframe() == 0L) {
 
   cat(sprintf("\n== SBC run (%s R=%d L=%d thin=%d) ==\n", which, R, L, thin))
   fit <- if (isFamilyTier || isLatentBCF) {
-    if (is.null(burnSweeps)) {
-      runSbcFamily(config, R = R, L = L, thin = thin)
-    } else {
-      runSbcFamily(config, R = R, L = L, thin = thin, burnSweeps = burnSweeps)
+    familyArgs <- list(config, R = R, L = L, thin = thin)
+    if (!is.null(burnSweeps)) {
+      familyArgs$burnSweeps <- burnSweeps
     }
+    if (!is.null(runSeed)) {
+      familyArgs$seed <- runSeed
+    }
+    do.call(runSbcFamily, familyArgs)
   } else if (isDart) {
     runSbcDart(config, R = R, L = L, thin = thin)
   } else if (isBCF) {

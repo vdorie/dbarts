@@ -297,11 +297,17 @@ at alpha = 0.05, so nothing previously recorded is invalidated.
                   the K category probabilities all calibrate.
     t             ALL PASS (4/4). The lambda scale mixture, the composite-
                   precision sigma draw and the grid nu conditional calibrate.
-    nbinom        avg.mu (the identified mean) PASSES cleanly; r and agg.psi
-                  flag at thin = 30 and cross into the band at 5x the spacing.
-                  Read as the r-vs-psi ridge mixing slowly (H-MIX), on two
-                  ladder points rather than three - a stronger statement wants
-                  the recorded full-R third point.
+    nbinom        ALL PASS (3/3) under the log-mean model
+                  (nbinom-log-mean.md), waiver withdrawn: R=200, L=150, thin 10,
+                  burn 4000 sweeps, n = 150, 50 trees, fixed k = 3 / 0.68 (sd
+                  of f 0.68) on a build response of mean count 5. r chisqP
+                  0.255, ecdfDiff 0.078; avg.mu 0.910, 0.033; agg.eta 0.196,
+                  0.050; band 0.1366. 8.5 min on one thread. The ladder
+                  (4000 sweeps x 24 datasets) shows no transient past the first
+                  400-sweep block and every functional under ACF 0.1 by lag 7.
+                  Under the logit-p model r and agg.psi flagged at thin 30 and
+                  were read as the r-vs-psi ridge (H-MIX, below); the
+                  reparameterization removed the ridge rather than the flag.
     multinomial   aggregate p_k(x*) ALL PASS at both chain lengths; the raw
                   per-forest f_ik cells carry a persistent U that the ladder
                   does not shrink. OPEN, routed below.
@@ -321,13 +327,12 @@ at alpha = 0.05, so nothing previously recorded is invalidated.
   per-leaf conditional. The reported deliverable (the softmax probabilities) is
   unaffected. Next step is an exact-conditional derivation for the centering
   draw checked against the code, not another SBC run.
-- The two ridges are mixing-efficiency items, not correctness items, and both
-  already have a named remedy shape in their design notes: ordinal.md section 9
-  asks for a joint (f-level, gamma) shift move (the centering-move analog) and
-  the nbinom r-vs-psi ridge would take the same treatment - a joint rescale of
-  (r, psi) - or the interweaving move bcf-ridge-interweaving already proposes
-  for the structurally identical (a, mu) ridge.
-- Third ladder points (thin ~300) at full R=200 for ordinal, nbinom and
+- The ordinal ridge is a mixing-efficiency item, not a correctness item, and it
+  already has a named remedy shape in its design note: ordinal.md section 9
+  asks for a joint (f-level, gamma) shift move (the centering-move analog). The
+  nbinom r-vs-psi ridge is closed: the log-mean model draws r given the means,
+  orthogonal to them (nbinom-log-mean.md).
+- Third ladder points (thin ~300) at full R=200 for ordinal and
   multinomial, if a stronger monotone-shrinkage statement is wanted than two
   points support.
 - Out of the matrix still: hazard and hurdle, whose design depends on y0.

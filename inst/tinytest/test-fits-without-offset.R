@@ -144,16 +144,30 @@ expect_equal(cell$fits + offGauss, cell$train)
 # --- nbinom
 
 yCount <- rnbinom(n, size = 4, mu = exp(0.5 + x[, 1L]))
-cell <- fitIdentity(dbarts(
+samplerNbinom <- dbarts(
   x,
   yCount,
   offset = offBinary,
   family = "nbinom",
   control = samplerControlFitsWithoutOffset()
-))
+)
+cell <- fitIdentity(samplerNbinom)
 expect_true(!is.null(cell$fits))
 expect_equal(dim(cell$fits), cell$shape)
 expect_equal(cell$fits + offBinary, cell$train)
+# the reported location is the log mean less the offset, so it carries the
+# log-mean shift c = log(sum(y) / sum(exp(offset))): the forest total plus c,
+# with no rescaling
+calibrationNbinom <- samplerNbinom$getLeafPrior(1L)
+expect_equal(calibrationNbinom$response.scale, 1)
+expect_equal(
+  calibrationNbinom$response.shift,
+  log(sum(yCount) / sum(exp(offBinary)))
+)
+expect_equal(
+  as.vector(samplerNbinom$getForestFits(1L)) + calibrationNbinom$response.shift,
+  as.vector(samplerNbinom$getFitsWithoutOffset())
+)
 
 # --- Bayesian causal forest: the accessor's whole justification, since no
 # other R route reaches the combined offset-free fit ($getForestFits gives one

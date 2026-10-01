@@ -334,11 +334,13 @@ logisticSamplerActiveRowsPins <- function(
 }
 
 # nbinom: the substituted counts move the dispersion kernel too, so this arm
-# also fails unless the count histogram behind L_k is rebuilt over the ACTIVE
-# rows at every mask change.
+# also fails unless the count kernel is rebuilt over the ACTIVE rows at every
+# mask change. The log-mean shift is the full-data one by design, as aft's
+# extremes are, so the substitution keeps the inactive rows' total count: it
+# piles that total on one inactive row and zeroes the rest.
 counts <- as.double(rpois(n, 3))
 counts.other <- counts
-counts.other[a == 0] <- counts[a == 0] + 5
+counts.other[a == 0] <- c(sum(counts[a == 0]), rep(0, sum(a == 0) - 1L))
 nbinomSamplerActiveRowsPins <- function(y.count, mask = a) {
   sampler <- dbarts::dbarts(x, y.count, family = "nbinom", control = control)
   if (!is.null(mask)) {

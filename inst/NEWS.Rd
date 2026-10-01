@@ -299,7 +299,8 @@
             augmentation, accepting integer count weights),
             \code{student()} (robust Student-t errors),
             \code{"multinomial"}, \code{"ordinal"} (cumulative probit),
-            \code{"nbinom"} (negative-binomial counts), \code{"aft"}
+            \code{"nbinom"} (negative-binomial counts on a log link, with
+            an integer dispersion fixed or sampled on a grid), \code{"aft"}
             (log-normal accelerated failure time for a right-censored
             \code{Surv} response), \code{"hazard"} and
             \code{"hazard.logistic"} (discrete-time survival), and

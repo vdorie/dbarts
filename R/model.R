@@ -228,6 +228,7 @@ parsePriors <- function(
   resid.prior,
   monotone = NULL,
   multiForest = FALSE,
+  kHyperprior = control@binary,
   parentEnv
 ) {
   matchedCall <- match.call()
@@ -297,7 +298,7 @@ parsePriors <- function(
   }
   resolved <- resolveLeafPrior(
     leaf.prior,
-    control@binary,
+    kHyperprior,
     monotone = !is.null(monotone),
     multiForest = isTRUE(multiForest)
   )
@@ -501,13 +502,14 @@ resolveSplitProbabilities <- function(prior, data) {
 
 ## The leaf scale a family that names no calibration takes, in the units its
 ## own latent scale is stated in: gaussian and aft the response range's 0.5,
-## the probit-scale families 3, and the log-odds families that same 3 widened
-## by the logistic latent's standard deviation pi / sqrt(3). One function
+## the probit-scale families 3, logistic that same 3 widened by the logistic
+## latent's standard deviation pi / sqrt(3), and nbinom 3 on the log mean,
+## the anchor its probe preferred with k drawn (dec-B183). One function
 ## rather than a switch per call site, since the multi-forest guard reads it
 ## too (a "non-default leaf scale" has always meant "differs from the family
 ## default"); the C bridge carries the twin it backstops direct-API consumers
 ## with. Ordinal reuses probit's latent scale (scheme C: the K = 2 anchor is
-## probit exactly) and nbinom's psi is a log-odds, so it reuses logistic's.
+## probit exactly).
 defaultLeafScale <- function(family) {
   switch(
     family,
@@ -515,7 +517,7 @@ defaultLeafScale <- function(family) {
     aft = 0.5,
     probit = 3.0,
     ordinal = 3.0,
-    nbinom = pi * sqrt(3.0),
+    nbinom = 3.0,
     logistic = pi * sqrt(3.0),
     # the K = 2 pairwise-log-odds anchor: the softmax calibration map owns
     # every category forest's leaf scale, so the engine never reads this value
@@ -584,7 +586,8 @@ refuseColliding <- function(
 }
 
 ## Turn a normal prior's raw k into the model's leaf hyperprior: NULL is the
-## family default (2 for continuous responses, chi(1.5, 2) for binary),
+## family default (2 for continuous responses, chi(1.5, 2) for binary and
+## nbinom, drawsLeafKByDefault; 'binary' carries that flag),
 ## a positive scalar is fixed, and a hyperprior object passes through. Under a
 ## monotone constraint k is fixed for both families (an unsupplied k resolves
 ## to 2, the truncated leaf law having no clean chi-k update) and a chi

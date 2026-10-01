@@ -281,8 +281,10 @@ items
   negbin-real-dispersion: real-valued dispersion needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
-    real-shape primitive (the CRT-Gamma machinery drops in as
-    specified), or a project-level decision to admit approximate MCMC -
+    real-shape primitive, or a project-level decision to admit
+    approximate MCMC - in either case r itself then moves by a slice or
+    Metropolis step on the collapsed likelihood the grid draws from,
+    since the log-mean model (dec-B170) has no CRT-Gamma conjugacy -
     dbarts' first documented-approximate family (truncated gamma-sum,
     bias bounded ~1e-3 at K = 200), which the record calls its own arc
     rather than a rider, and which equally gates weighted-binary's
@@ -292,13 +294,14 @@ items
     docs/design/negative-binomial.md sec 2 and sec 7. decision-gated,
     scheduled after 1.0-0 (VD 2026-08-28).
   ordinal-negbin-k-gap: door, no plan doc of its own. A bart(family =
-    "ordinal"/"nbinom") fit accepts and samples a requested k = chi(...)
-    hyperprior with no complaint - packageOrdinalResults and
-    packageNegbinResults never read samples$k, so the draw is silently
-    discarded and the packaged fit carries no k channel at all
-    (extract(type = "k") is offered on neither class; found while adding
-    it to bart and hurdle, extract-scalar-types.md). Fix (read and
-    package the channel) or refuse the hyperprior at fit time.
+    "ordinal") fit accepts and samples a requested k = chi(...)
+    hyperprior with no complaint - packageOrdinalResults never reads
+    samples$k, so the draw is silently discarded and the packaged fit
+    carries no k channel at all (extract(type = "k") is not offered;
+    found while adding it to bart and hurdle, extract-scalar-types.md).
+    Fix (read and package the channel) or refuse the hyperprior at fit
+    time. The nbinom half closed with the log-mean model, whose k is
+    drawn by default (dec-B183).
   python-bindings: a pybind11 facade wrapper is prototype-scale.
     Horizon, likely out-of-repo. The engine is not R-free below the
     bridge: model.hpp calls three Rmath density functions
@@ -342,7 +345,8 @@ items
     recorded, none with a decision yet - a negbin rootogram panel,
     ordinal log_diff_exp tail precision, and a negbin burn-in
     dispersion channel (bart2 negbin runs one run(n.burn, n.samples),
-    so plot draws no burn-in segment). Records:
+    so plot draws no burn-in segment; worth more since r moves under
+    the log-mean model). Records:
     docs/plans/release-candidate-review.md's wave-3 landing note; the
     review's own DEFER bin is
     docs/plans/review-2026-08-24/consolidated-report.md.

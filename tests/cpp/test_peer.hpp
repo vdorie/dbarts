@@ -207,18 +207,18 @@ struct TestPeer {
                           const double* totalFits) {
     response.drawLatents(rng, totalFits);
   }
-  /// The precomputed dispersion kernel L_k, and the one a negative binomial
-  /// response has installed, with the collapsed statistic S its grid draw
-  /// reads.
+  /// The precomputed dispersion kernel K_k, the one a negative binomial
+  /// response has installed, and the grid probabilities the last drawIndex
+  /// normalized in place.
   static double kernelValue(const NBDispersionPrior& prior, std::size_t k) {
     return prior.kernel_[k];
   }
   static double dispersionKernel(const NBResponse& response, std::size_t k) {
     return kernelValue(response.rPrior_, k);
   }
-  static double collapsedStatistic(const NBResponse& response,
-                                   const double* totalFits) {
-    return response.collapsedStatistic(totalFits);
+  static double drawnProbability(const NBDispersionPrior& prior,
+                                 std::size_t k) {
+    return prior.weight_[k];
   }
 };
 

@@ -6,14 +6,18 @@
 # structures - a shared root leaf, or a split into one leaf per cell - so the
 # posterior is a closed-form quadrature.
 #
-# The key simplification: the negative-binomial likelihood is CLOSED FORM in
-# (leaf log-odds mu, dispersion r) - the Polya-Gamma augmentation omega
-# integrates out - so the reference is omega-FREE. It integrates over the leaf
-# mean mu and, in the estimated arm, sums over the r GRID (a finite sum, cleaner
-# than a continuous integral). Agreement therefore validates the PG mean
-# augmentation, the grid r update, AND their composition into the sweep (the
-# section 5 r-first ordering; an invalid scan shifts the stationary law, which
-# this gate can see).
+# The forest models the log mean: a cell's log mean (offset aside) is
+# m = leaf + c, with c = log(max(sum y, 1/2) / sum exp(o)) the data transform,
+# so m ~ N(c, tau^2) a priori, tau = A / (k sqrt(numTrees)). The
+# negative-binomial likelihood is CLOSED FORM in (m, r) - the Polya-Gamma
+# augmentation omega integrates out:
+#   sum lgamma(y + r) - n lgamma(r) - sum lgamma(y + 1) + sum y (m + o)
+#     + n r log r - sum (y + r) log(r + exp(m + o)),
+# so the reference is omega-FREE. It integrates over m on a grid centred on c
+# and, in the estimated arm, sums over the r GRID. Agreement therefore
+# validates the PG mean augmentation, the grid r update given the means, AND
+# their composition into the sweep (an invalid scan shifts the stationary law,
+# which this gate can see).
 #
 # Two details keep the target the sampler's ACTUAL posterior:
 #   - the r grid and its prior weights are the shipped ones (NBDispersionPrior):
@@ -22,12 +26,15 @@
 #   - each structure's posterior weight is its tree prior TIMES its computed
 #     marginal, renormalized over the two structures. The two cells share r, so
 #     under the split they are conditionally independent given r: a per-r sum
-#     nesting an inner per-cell mu quadrature.
+#     nesting an inner per-cell m quadrature.
 #
 # BOTH modes are gated: the estimated arm (the grid r posterior AND the mean
-# counts) and a fixed-r arm (r pinned, mean counts). r is read from the engine's
-# state block (no run-output channel), so - as bart2's nbinom fit does - the run
-# is driven one kept sample at a time and r read from the state after each sweep.
+# counts exp(m)) under a two-level exposure offset (o in {0, log 2} within each
+# cell, so the anchor's offset, c and log r terms are all exercised), and a
+# fixed-r arm (r pinned, mean counts) without one. The engine's c is read from
+# the sampler and checked against the formula first. r is read from the
+# engine's state after each sweep, so the run is driven one kept sample at a
+# time; the gated mean is exp(train - offset) at one row of each cell.
 #
 # STATED LIMITATION: fork (A) draws only integer-shape (exact) PG variates, so
 # this gate exercises NO approximate path; the reference is omega-free.
@@ -51,15 +58,15 @@ quick <- "quick" %in% args
 ndpost <- if (quick) 12000L else 30000L
 nburn <- 4000L
 nSeeds <- 2L
-tolMean <- if (quick) 0.12 else 0.07 # mean counts mu = r exp(mu_leaf)
+tolMean <- if (quick) 0.12 else 0.07 # mean counts exp(m) per cell
 tolGrid <- if (quick) 0.045 else 0.025 # the grid r posterior distribution
 
 # ---- shipped constants (docs/design/negative-binomial.md sections 1, 3) ----
 
 k <- 2
 numTrees <- 1L
-nodeScale <- pi * sqrt(3) # nbinom reuses logistic's leaf.scale
-tau <- nodeScale / (k * sqrt(numTrees)) # leaf-prior sd, pi sqrt(3) / 2
+nodeScale <- 3 # nbinom's log-mean anchor
+tau <- nodeScale / (k * sqrt(numTrees)) # leaf-prior sd
 power <- 2.0
 base <- 0.95
 rFixed <- 5 # the fixed-r arm's pinned dispersion (a grid member)
@@ -76,50 +83,62 @@ cell <- rep(0:1, each = nPerCell)
 cntA <- rnbinom(nPerCell, size = 5L, mu = 1.5)
 cntB <- rnbinom(nPerCell, size = 5L, mu = 4.0)
 y <- as.double(c(cntA, cntB))
+# the estimated arm's exposure: alternating 1 and 2 within each cell
+offsetEst <- rep(c(0, log(2)), length.out = length(y))
+offsetFixed <- rep(0, length(y))
+
+shiftOf <- function(offset) log(max(sum(y), 0.5) / sum(exp(offset)))
 
 # ---- exact posterior by structure enumeration + nested quadrature ----
 
-muGrid <- seq(-10, 4, by = 0.01)
-dmu <- muGrid[2L] - muGrid[1L]
-wMu <- dnorm(muGrid, 0, tau) * dmu
-logP <- -log1p(exp(-muGrid)) # log plogis(mu)
-log1mP <- -log1p(exp(muGrid)) # log(1 - plogis(mu))
-meanByMu <- exp(muGrid) # mu = r exp(mu_leaf), the r factor applied per r
-
-# For a cell with integer counts cnt and dispersion r, integrate over the leaf
-# mean mu: g = marginal likelihood, mc = its mean-count numerator E[r exp(mu)].
-# An empty cell (length 0) returns g = 1 (the mu prior integrates to unity).
-cellIntegral <- function(cnt, r) {
-  nobs <- length(cnt)
-  if (nobs == 0L) {
-    return(list(g = 1, mc = 0))
-  }
-  # the mu-independent combinatorial term lgamma(y+r) - lgamma(r) - lgamma(y+1)
-  combTerm <- sum(lgamma(cnt + r)) - nobs * lgamma(r) - sum(lgamma(cnt + 1))
-  loglik <- combTerm + sum(cnt) * logP + nobs * r * log1mP
-  wl <- wMu * exp(loglik)
-  list(g = sum(wl), mc = r * sum(wl * meanByMu))
-}
-
-combined <- c(cntA, cntB)
 nGrid <- length(grid)
-rootG <- numeric(nGrid)
-rootMC <- numeric(nGrid)
-gA <- numeric(nGrid)
-gB <- numeric(nGrid)
-mcA <- numeric(nGrid)
-mcB <- numeric(nGrid)
-for (ki in seq_len(nGrid)) {
-  r <- grid[ki]
-  cr <- cellIntegral(combined, r)
-  rootG[ki] <- cr$g
-  rootMC[ki] <- cr$mc
-  ca <- cellIntegral(cntA, r)
-  cb <- cellIntegral(cntB, r)
-  gA[ki] <- ca$g
-  gB[ki] <- cb$g
-  mcA[ki] <- ca$mc
-  mcB[ki] <- cb$mc
+
+# The exact posterior for one arm: for a cell with counts cnt, offsets off and
+# dispersion r, integrate over the cell log mean m ~ N(c, tau^2): g = marginal
+# likelihood, mc = its mean-count numerator E[exp(m)].
+exactArm <- function(offset) {
+  c0 <- shiftOf(offset)
+  mGrid <- c0 + seq(-10, 10, by = 0.01)
+  wM <- dnorm(mGrid, c0, tau) * (mGrid[2L] - mGrid[1L])
+  cellIntegral <- function(rows, r) {
+    cnt <- y[rows]
+    off <- offset[rows]
+    nobs <- length(cnt)
+    loglik <- sum(lgamma(cnt + r)) -
+      nobs * lgamma(r) -
+      sum(lgamma(cnt + 1)) +
+      sum(cnt) * mGrid +
+      sum(cnt * off) +
+      nobs * r * log(r)
+    for (i in seq_len(nobs)) {
+      loglik <- loglik - (cnt[i] + r) * log(r + exp(mGrid + off[i]))
+    }
+    wl <- wM * exp(loglik)
+    list(g = sum(wl), mc = sum(wl * exp(mGrid)))
+  }
+  rowsA <- which(cell == 0L)
+  rowsB <- which(cell == 1L)
+  out <- list(
+    rootG = numeric(nGrid),
+    rootMC = numeric(nGrid),
+    gA = numeric(nGrid),
+    gB = numeric(nGrid),
+    mcA = numeric(nGrid),
+    mcB = numeric(nGrid)
+  )
+  for (ki in seq_len(nGrid)) {
+    r <- grid[ki]
+    cr <- cellIntegral(c(rowsA, rowsB), r)
+    ca <- cellIntegral(rowsA, r)
+    cb <- cellIntegral(rowsB, r)
+    out$rootG[ki] <- cr$g
+    out$rootMC[ki] <- cr$mc
+    out$gA[ki] <- ca$g
+    out$gB[ki] <- cb$g
+    out$mcA[ki] <- ca$mc
+    out$mcB[ki] <- cb$mc
+  }
+  out
 }
 
 # tree prior: a single binary predictor exhausts its one cut, so a split's
@@ -129,49 +148,60 @@ priorSplit <- base
 
 # ---- estimated arm: sum over the r grid ----
 
-rootMass <- priorRoot * priorW * rootG # per grid point
-splitMass <- priorSplit * priorW * gA * gB
+ex <- exactArm(offsetEst)
+rootMass <- priorRoot * priorW * ex$rootG # per grid point
+splitMass <- priorSplit * priorW * ex$gA * ex$gB
 den <- sum(rootMass) + sum(splitMass)
 gridPost <- (rootMass + splitMass) / den
 # root's mean count is shared by both cells; split's is per-cell (the other
 # leaf's marginal integrates out to its g factor)
-mcRootNum <- priorRoot * sum(priorW * rootMC)
-exactMeanA <- (mcRootNum + priorSplit * sum(priorW * mcA * gB)) / den
-exactMeanB <- (mcRootNum + priorSplit * sum(priorW * mcB * gA)) / den
+mcRootNum <- priorRoot * sum(priorW * ex$rootMC)
+exactMeanA <- (mcRootNum + priorSplit * sum(priorW * ex$mcA * ex$gB)) / den
+exactMeanB <- (mcRootNum + priorSplit * sum(priorW * ex$mcB * ex$gA)) / den
 
 # ---- fixed arm: r pinned at rFixed, no grid sum ----
 
+fx0 <- exactArm(offsetFixed)
 kf <- which(grid == rFixed)
-denF <- priorRoot * rootG[kf] + priorSplit * gA[kf] * gB[kf]
-mcRootNumF <- priorRoot * rootMC[kf]
-exactFixedA <- (mcRootNumF + priorSplit * mcA[kf] * gB[kf]) / denF
-exactFixedB <- (mcRootNumF + priorSplit * mcB[kf] * gA[kf]) / denF
+denF <- priorRoot * fx0$rootG[kf] + priorSplit * fx0$gA[kf] * fx0$gB[kf]
+mcRootNumF <- priorRoot * fx0$rootMC[kf]
+exactFixedA <- (mcRootNumF + priorSplit * fx0$mcA[kf] * fx0$gB[kf]) / denF
+exactFixedB <- (mcRootNumF + priorSplit * fx0$mcB[kf] * fx0$gA[kf]) / denF
 
 # ---- sampler fits: single tree, per-draw r and mean counts from the state ----
 
-fitSeed <- function(seed, dispersion) {
+fitSeed <- function(seed, dispersion, offset) {
   set.seed(seed)
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
     n.trees = numTrees,
-    updateState = FALSE
-  )
-  sampler <- dbarts(
-    data.frame(x1 = factor(cell)), # the cell predictor, categorical
-    y,
-    family = nbinom(dispersion = dispersion),
-    control = control,
-    tree.prior = cgm(power, base),
+    updateState = FALSE,
     proposal.probs = c(
       birth_death = 0.5,
       swap = 0.1,
       change = 0.4,
       birth = 0.5
-    ),
+    )
+  )
+  sampler <- dbarts(
+    data.frame(x1 = factor(cell)), # the cell predictor, categorical
+    y,
+    offset = offset,
+    family = nbinom(dispersion = dispersion),
+    control = control,
+    tree.prior = cgm(power, base),
     leaf.prior = normal(k),
     verbose = FALSE
   )
+  shiftGap <- abs(sampler$getLeafPrior()$response.shift - shiftOf(offset))
+  if (!(shiftGap <= 1e-12)) {
+    cat(sprintf(
+      "engine log-mean shift off the formula by %g <- FAIL\n",
+      shiftGap
+    ))
+    quit(status = 1L)
+  }
 
   iA <- which(cell == 0L)[1L]
   iB <- which(cell == 1L)[1L]
@@ -182,28 +212,28 @@ fitSeed <- function(seed, dispersion) {
     r <- sampler$run(if (s == 1L) nburn else 0L, 1L)
     rDraw <- sampler$getDispersion()
     gridCounts[match(rDraw, grid)] <- gridCounts[match(rDraw, grid)] + 1
-    meanA <- meanA + dbarts:::negbinMeanCounts(r$train[iA, 1L], rDraw)
-    meanB <- meanB + dbarts:::negbinMeanCounts(r$train[iB, 1L], rDraw)
+    meanA <- meanA + exp(r$train[iA, 1L] - offset[iA])
+    meanB <- meanB + exp(r$train[iB, 1L] - offset[iB])
   }
   c(meanA / ndpost, meanB / ndpost, gridCounts / ndpost)
 }
 
-runArm <- function(dispersion) {
+runArm <- function(dispersion, offset) {
   rows <- do.call(
     rbind,
-    lapply(seq_len(nSeeds), function(sd) fitSeed(sd, dispersion))
+    lapply(seq_len(nSeeds), function(sd) fitSeed(sd, dispersion, offset))
   )
   colMeans(rows)
 }
 
 # estimated arm
-est <- runArm(NULL)
+est <- runArm(NULL, offsetEst)
 fitMeanA <- est[1L]
 fitMeanB <- est[2L]
 fitGrid <- est[-(1:2)]
 
 # fixed arm
-fx <- runArm(rFixed)
+fx <- runArm(rFixed, offsetFixed)
 fitFixedA <- fx[1L]
 fitFixedB <- fx[2L]
 
@@ -212,7 +242,7 @@ gapGrid <- max(abs(fitGrid - gridPost))
 gapMeanFixed <- max(abs(c(fitFixedA - exactFixedA, fitFixedB - exactFixedB)))
 
 cat("Negative-binomial exact-posterior gate (single tree, two cells):\n")
-cat("--- estimated r (grid posterior) ---\n")
+cat("--- estimated r (grid posterior), exposure offset ---\n")
 cat(sprintf(
   "  mean count A  exact %.4f  sampler %.4f\n",
   exactMeanA,

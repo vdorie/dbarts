@@ -1,6 +1,8 @@
 # Negative-binomial count outcomes: design
 
-Status: LANDED 2026-07-18 (9c28b31). Section 4 is AMENDED by
+Status: LANDED 2026-07-18 (9c28b31); sections 1, 2A and 3-7 AMENDED by
+nbinom-log-mean ([Landing](../plans/nbinom-log-mean.md#landing)), LANDED 2026-10-01 (fdfc1fe4): the forest models the log
+mean and r is drawn given the means (dec-B170). Section 4 is also AMENDED by
 [front-door](../plans/front-door.md#front-door) S2, LANDED 2026-09-09
 (44b3fa6d): dispersion is not a `bart()`/`dbarts()` formal; it is the
 `nbinom(dispersion = NA)` [`dbartsFamily`](../../R/family.R) constructor's
@@ -8,8 +10,8 @@ argument, and `family = "nbinom"` resolves to `nbinom()`'s default. Plan: docs/p
 its step 1). Non-negative integer counts fit natively by the Polya-Gamma
 negative-binomial augmentation (Polson-Scott-Windle 2013; Zhou-Li-Dunson-Carin
 2012), riding the per-observation working weights the LogisticResponse port
-already carries ([`LogisticResponse`](../../src/bartcore/model.hpp)). The forest fits a log-odds latent
-psi; a dispersion parameter r governs over-dispersion. Surfaced as
+already carries ([`LogisticResponse`](../../src/bartcore/model.hpp)). The forest fits the log mean
+(section 1); a dispersion parameter r governs over-dispersion. Surfaced as
 `family = "nbinom"`. The load-bearing resolution (section 2): exact PG draws
 exist only for INTEGER shape, so v1 ships the exact envelope - r a positive
 integer, fixed or estimated on a capped grid by a closed-form conditional (the
@@ -22,87 +24,67 @@ addition plus its family plumbing, the robust-errors and ordinal precedent.
 
 ## 1. The model and link (the parameterization fork)
 
-A negative binomial with dispersion (shape) r > 0 and per-observation success
-odds set by the forest. Write the fit eta_i = f(x_i) + o_i for the sum-of-trees
-f and offset o_i. Two parameterizations put eta in different places; they share
-all machinery below but differ in what f MEANS and in whether the r update is
-conjugate (the coupling to section 2).
+A negative binomial with dispersion (size) r > 0 and a mean set by the forest.
+RESOLVED twice: logit-p shipped first (2026-07-18) and was replaced by the
+log-mean parameterization (dec-B170, 2026-10-01) after the third whole-branch
+review measured that r never moved under logit-p. Both are written down here,
+since they share every piece of machinery and differ in what f means and in
+what the r step holds fixed.
 
-**Logit-p (recommend): psi_i = logit(p_i) = f(x_i) + o_i.** The count law is
+**Log-mean (shipped): log mu_i = eta_i = f(x_i) + c + o_i.** The count law is
+NB2, the MASS::glm.nb and Stan `neg_binomial_2` convention:
 
-    y_i ~ NB(r, p_i),   P(y_i = k) = C(k + r - 1, k) (1 - p_i)^r p_i^k,
+    y_i ~ NB(size = r, mu = mu_i),   variance mu_i + mu_i^2 / r,
 
-with p_i = plogis(psi_i). As a function of psi_i the likelihood is the exact
-Polya-Gamma form
+with o_i = log(exposure_i) a log-exposure offset and c the response transform
+below. In log-odds terms p_i = mu_i / (mu_i + r) and psi_i = logit(p_i) =
+eta_i - log r, and as a function of psi_i the likelihood is the Polya-Gamma
+form
 
     p_i^{y_i} (1 - p_i)^r = e^{y_i psi_i} / (1 + e^{psi_i})^{y_i + r},
 
-so (PSW/Zhou) omega_i ~ PG(y_i + r, psi_i) and, with kappa_i = y_i - (y_i+r)/2 =
-(y_i - r)/2, the conditional is psi_i | omega_i ~ N(kappa_i/omega_i, 1/omega_i).
-The backfitting engine therefore sees working response z_i = kappa_i/omega_i - o_i
-= ((y_i - r)/2)/omega_i - o_i under per-iteration precision weights omega_i - the
-LogisticResponse seam exactly, with two changes: the PG shape is y_i + r (real,
-not 1) and kappa is (y_i - r)/2 (not y_i - 1/2). sigma is fixed at 1.
+so omega_i ~ PG(y_i + r, psi_i) and, with kappa_i = (y_i - r)/2,
+psi_i | omega_i ~ N(kappa_i/omega_i, 1/omega_i). Since psi_i = f_i + a_i with
+the anchor a_i = o_i + c - log r, the trees see the working response
+z_i = kappa_i/omega_i - a_i under per-sweep precisions omega_i - the
+LogisticResponse seam, with c and -log r entering exactly as an offset does.
+sigma is fixed at 1. f is the log mean less c and the offset, so the reported
+link (the train channel, type = "link") is eta = f + c + o, and the mean count is
+exp(link) with no r in it ([`negbinMeanCounts`](../../R/bart.R)).
 
-What f means to the user. The MEAN is
+**Why log-mean: r mixes.** In the NB2 (mu, r) parameterization the Fisher
+information is diagonal (d2l / dmu dr = (y - mu)/(mu + r)^2, mean zero), so
+drawing r given the means costs nothing through them. Under logit-p, moving r
+at fixed psi multiplies every mean by r'/r; the information on a common
+log-mean shift is sum_i r mu_i / (mu_i + r), so at n = 1000 and r = 8 the grid
+neighbour 8 -> 10 cost of order 10^2 nats, and the forest could follow r only
+by a coordinated level shift of every tree, which tree-local moves never
+propose. The review's probes (n 200 and 1000, mu = 8 exp(x1)) found every chain
+frozen within burn-in, mostly at the cold start r = 8, whatever the true r
+(3, 5, 30), with 90% predictive coverage of fresh counts 0.78. The same probe
+under log-mean: the mixing gate (section 6) passes, r recovered at 5 and 2 and
+coverage within 0.89-0.92.
 
-    E[y_i] = mu_i = r p_i/(1 - p_i) = r exp(psi_i) = r exp(f(x_i) + o_i),
+**Logit-p (the recorded alternative): psi_i = f(x_i) + o_i, mu_i = r exp(psi_i).**
+The form Zhou-Carin and Polson-Scott-Windle write down: the PG tilt is the fit
+itself, p_i is free of r, and so the r conditional separates into a precomputed
+kernel plus one O(n) statistic, and real r would have CRT-Gamma conjugacy. f is
+then a log-odds, log mu = log r + f + o, and the level of f and log r are the
+same direction in the likelihood - the ridge above, which made the cheap r
+update useless in practice.
 
-so **f is a log-odds latent, NOT the log-mean**: log mu_i = log r + f(x_i) + o_i.
-The offset enters the mean multiplicatively (mu_i scales by exp(o_i)), so
-o_i = log(exposure_i) is a clean log-exposure offset - the plan's requirement
-and the standard count-model convention, matching the gaussian offset's additive
-role on ITS scale (here the log-mean scale). The honest cost: the level of f and
-log r both shift the log-mean, so f's grand intercept and r confound (the
-mean-level ridge; section 2's mixing caveat, robust-errors' lambda-sigma and
-ordinal's f-vs-cutpoint analogs). Reporting mean counts requires r: a fitted or
-predicted mean is r_draw * exp(f + o) per posterior draw, so r must be a reported
-output (section 4).
-
-**Log-mean (the alternative): log mu_i = f(x_i) + o_i, i.e. psi_i = f + o - log r.**
-Now f IS the log-mean (the brms/Stan `neg_binomial_2` convention, section 3) and
-the offset is log-exposure with the identical meaning. The mean no longer rides
-r's level, so the interpretation is cleaner. Cost: psi_i now depends on r (through
-- log r), which (a) makes the PG working response's shift move every time r moves
-(a per-sweep re-anchor, cheap) and (b) degrades every r update: the CRT-Gamma
-conjugacy BREAKS ((1 - p_i)^r = (r/(mu_i + r))^r is no longer const^r, so r's
-full conditional is not Gamma), and the integer-grid conditional (section 2A)
-loses its precompute economics (p_i moves with each candidate r_k, so the
-per-sweep cost becomes O(n x grid) likelihood evaluations instead of one O(n)
-reduction). Under log-mean the r update is Metropolis on log r or a
-full-likelihood grid, both strictly worse than their logit-p forms.
-
-Recommendation: **logit-p.** It is the Zhou-Carin / PSW native form: the PG tilt
-psi IS the fit f + o, so the working-response identity is the LogisticResponse
-seam unchanged and nothing re-anchors when r moves. Decisively, it keeps p_i
-independent of r, which every good r update needs (section 2A): the integer-grid
-conditional's lgamma kernel precomputes once and its per-sweep cost collapses to
-one O(n) reduction (the ResidualDfPrior economics) only because the r-dependent
-likelihood term separates, and the CRT-Gamma conjugacy behind the real-r door
-requires it outright. The mean-interpretation cost (f is log-mean minus log r)
-is a reporting concern, discharged by exposing r and computing mu = r exp(f + o)
-at report time - not a modeling defect. The strongest argument against: users
-reason about counts on the log-mean scale, and logit-p makes the directly-fit
-quantity (log-odds) one step removed from the reported mean, with the
-f<->log r level confounding a real (if mitigated) mixing cost. If that bites,
-the log-mean surface is a documented follow-up reachable with the Metropolis r
-update and no new augmentation.
-
-**Response scaling / node.scale.** NB is a fixed-unit-scale family like probit
-and logistic: it does NOT center or [-0.5, 0.5]-rescale the response (y are
-counts, entering kappa directly), so fitScale = 1, fitShift = 0, sigmaScale = 1,
-initialSigma = 1, and sigma stays fixed at 1 (drawSigma returns sigma), exactly
-LogisticResponse ([`LogisticResponse::drawSigma`](../../src/bartcore/model.hpp), [`LogisticResponse::initialSigma`](../../src/bartcore/model.hpp), [`LogisticResponse::fitScale`](../../src/bartcore/model.hpp), [`LogisticResponse::fitShift`](../../src/bartcore/model.hpp), [`LogisticResponse::sigmaScale`](../../src/bartcore/model.hpp)). Leaf-prior calibration therefore rides
-node.scale, not a response range. psi is a log-odds, so v1 reuses **logistic's
-node.scale = pi*sqrt(3)** ([`defaultLeafScale`](../../R/model.R); the logistic-latent sd pi/sqrt(3)
-times probit's 3.0), giving a total-fit prior sd node.scale/k = pi*sqrt(3)/2 ~
-2.72 that admits a plausible several-unit swing in the log-odds. Honest caveat
-(the ordinal scheme-C / robust-errors k analog): the induced prior on the MEAN
-depends on r, since mu = r exp(f); a fixed node.scale on the psi scale does not
-fix the prior on counts, and at very small r (heavy over-dispersion) or extreme
-exposure the log-odds swing per unit count changes. v1 documents the induced
-prior and reuses the logistic constant rather than deriving an r-aware
-node.scale; an r-aware calibration is a follow-up.
+**Response transform and leaf prior.** c = log(max(sum_i y_i, 1/2) /
+sum_i exp(o_i)) is the intercept of the Poisson model with offset, computed
+over all rows (the aft precedent for a full-data transform), with the floor
+keeping an all-zero response finite. It is [`NBResponse::fitShift`](../../src/bartcore/model.hpp);
+fitScale and sigmaScale stay 1. The latent binary families center their leaf
+prior at 0 because their link has a natural zero; a log mean has none, so the
+gaussian and aft precedent applies on the link scale, with the log rate rather
+than a midrange because counts include zeros. Spread: anchor A = 3 on the
+log-mean scale ([`defaultLeafScale`](../../R/model.R)) with k drawn under
+chi(1.5, 2) by default, as for probit and logistic (dec-B183; the probe and the
+alternatives are in the plan's [Leaf prior](../plans/nbinom-log-mean.md#leaf-prior)). A named
+sd is stated on the log-mean scale with no conversion.
 
 ## 2. The r update and the exactness fork (the load-bearing decision)
 
@@ -203,18 +185,22 @@ precisely: r restricted to positive INTEGERS, whether fixed (user-supplied) or
 estimated. Estimation cannot be CRT-Gamma (its Gamma full conditional yields
 real draws, leaving the envelope), so the exact estimated mode is a **discrete
 grid full conditional against the closed-form NB likelihood - the robust-errors
-ResidualDfPrior pattern EXACTLY** ([`ResidualDfPrior`](../../src/bartcore/model.hpp): precomputed per-grid-point
-kernel, per-sweep scalar statistics, one discrete draw). Under logit-p it is
-just as economical: for grid values r_k the log full conditional is
+ResidualDfPrior pattern** ([`ResidualDfPrior`](../../src/bartcore/model.hpp): precomputed per-grid-point
+kernel, one discrete draw). Under the log-mean model r is drawn given the means
+eta_i = log mu_i, collapsed over omega; for grid values r_k the log full
+conditional is
 
-    log w_k = L_k + r_k * S + log prior_k,   S = sum_i log(1 - p_i),
-    L_k = sum_c n_c [lgamma(c + r_k) - lgamma(r_k)]
+    log w_k = K_k - sum_i (y_i + r_k) log(1 + mu_i / r_k) + log prior_k,
+    K_k = sum_c n_c [lgamma(c + r_k) - lgamma(r_k)] - Y log r_k,   Y = sum_i y_i,
 
-with n_c the count histogram (y is FIXED, so every L_k precomputes ONCE at
-construction, the ResidualDfPrior kernel_ move; the y_i log p_i term is
-r-free and cancels in the normalization). Per sweep: ONE O(n) reduction for S
-plus O(gridSize) multiply-adds - CHEAPER than CRT's O(sum y_i) Bernoullis, with
-no count-scaling and no tuning. All PG shapes stay integer, the shipped
+with n_c the count histogram, so K_k precomputes once per response
+([`NBDispersionPrior::computeKernel`](../../src/bartcore/model.hpp)). The rest
+does not separate - p_i moves with r_k - so a sweep costs one exp per row and
+one log1p per row and grid point, 13 n in all
+([`NBDispersionPrior::drawIndex`](../../src/bartcore/model.hpp)), beside the PG
+draw's sum_i (y_i + r) unit draws. (Under logit-p the conditional was
+L_k + r_k S + log prior_k with one O(n) statistic S = sum_i log(1 - p_i), cheaper,
+and useless for the reason section 1 gives.) No tuning. All PG shapes stay integer, the shipped
 integer-sum Devroye path serves every draw bit-exactly, and NO new RNG
 primitive is needed. Real r is deferred behind a recorded door (section 7)
 pending either an exact real-shape primitive or an explicit project-level
@@ -232,7 +218,9 @@ Gamma(a0, b0) prior (shape, rate) the full conditional is conjugate,
     r | {L_i}, {p_i} ~ Gamma(a0 + sum_i L_i, b0 - sum_i log(1 - p_i)),
 
 one Gamma draw; CRT needs only integer table counts and holds for real r, and
-the conjugacy requires p_i independent of r - logit-p only (section 1). The
+the conjugacy requires p_i independent of r - logit-p only (section 1), so
+under the shipped log-mean model this fork's r step would be a slice or
+Metropolis move on the same collapsed likelihood instead (section 7). The
 mean update then draws PG(y_i + r, psi) by integer-sum + truncated gamma-sum
 fractional part, with K sized so the one-sided bias is provably below a stated
 threshold (the (ii) bound: relative bias < 2/(pi^2 (K-1/2)); K = 200 -> ~1e-3,
@@ -406,11 +394,13 @@ but does not justify; the location is provisional, marked for the recovery
 gate to calibrate. Estimate r on the grid by default; allow a user-fixed
 integer r. (Under fork (B) the same gamma(2, 0.1) serves as the continuous
 CRT-conjugate prior; the prototype used it and recovered r across {0.5, 2, 10}.)
-BART-specific caveat, verbatim from robust-errors: a flexible mean confounds
-the dispersion (mean = r exp(f) shares its level with r); posterior-check the
-estimated r, and document that r is weakly identified when counts are small or
-the fit very flexible (the prototype's grid_sd shrinks only because psi is held
-fixed there).
+BART-specific caveat: under the log-mean model r is orthogonal to the means
+(section 1), so the level ridge logit-p had is gone, but r stays weakly
+identified when counts are small (the variance mu + mu^2/r is then close to mu)
+and at large r: at ordinary counts r = 30 and r = 50 are barely
+distinguishable, the posterior there leans on the grid's cap and prior, and the
+help says so. A flexible mean can still absorb part of the over-dispersion at
+small n; the SBC arm at n = 150 is where that would show.
 
 ## 4. Surface
 
@@ -450,30 +440,33 @@ residualDf and numCategories are ([`optionsFromParsed`](../../src/R_interface_ba
 
 **Offset.** o_i = log(exposure_i), entering the mean multiplicatively (section 1);
 a fixed-unit-scale family keeps its zero offset meaningful ([`resolveSamplerSpec`](../../R/spec.R)),
-as probit/logistic/ordinal do. No response de-scaling of the offset (fitShift = 0).
+as probit/logistic/ordinal do. The offset enters c (section 1), so an offset
+swap with updateScale re-derives c, as a gaussian swap re-derives its range.
 
-**Weights: refused in v1.** A frequency/case weight replicating an observation
+**Weights: refused, except 0/1 as the row mask (dec-B179).** Weights of 0
+and 1 name the rows in the data set and install as the active-row mask, as on
+probit and ordinal. Any other weight is refused. The original reasoning: a frequency/case weight replicating an observation
 w_i times would draw PG(w_i (y_i + r), psi) - inside fork (A)'s integer
 envelope that stays exact for integer w (w (y_i + r) is integer), but it also
 multiplies the count histogram into the grid kernel and the exposure question
 into the likelihood, and the usual "weight" a count modeler reaches for is
 EXPOSURE, which belongs in the offset (log-exposure), not in replication. v1
-refuses weights by name at ingestion, beside the probit/logistic/ordinal weight
+refused weights by name at ingestion, beside the probit/logistic/ordinal weight
 policy ([`enforceWeightPolicy`](../../R/spec.R)), keeping the surface honest rather than guessing
-which weighting the user meant. Door: integer frequency weights are EXACT under
+which weighting the user meant; dec-B179 kept that refusal for every weight
+but 0/1. Door: integer frequency weights are EXACT under
 fork (A) and cheap to add later (weight the grid statistics and the PG shape);
 continuous weights inherit the real-shape question and wait on the section 7
 weighted-binary fork.
 
-**Prediction / reporting.** type = "bart"/"link" returns the single latent
-column eta = f (as probit/logistic return their latent). type = "ev"/"response"
-returns the MEAN counts mu = r exp(f + o) - which REQUIRES r, so the r draws are a
-first-class posterior output, an n.samples-length `r` field (the count analog of
-gaussian's sigma and ordinal's thresholds; section 5). fitted()/predict() mean
-shapes match the gaussian single-column ev shape (n x n.chains x n.samples where
-extract does), computed per draw as r_draw * exp(f + o). predict requires
-keepTrees (the predict.bart guard). A "prob-like" latent p = plogis(eta) may also
-be exposed for diagnostics but the reported deliverable is the mean count.
+**Prediction / reporting.** type = "bart"/"link" returns the log mean
+eta = f + c + o per draw. type = "ev"/"response" returns the mean counts
+mu = exp(link), which no longer read r. The r draws are still a first-class
+posterior output, the `dispersion` field (the count analog of gaussian's sigma
+and ordinal's thresholds; section 5), which ppd (rnbinom(size = r_s, mu = mu_s))
+and loglik (dnbinom at the same pair) read. A drawn k rides `k` (or `sd`), as on
+a bart fit. fitted()/predict() mean shapes match the gaussian single-column ev
+shape. predict requires keepTrees (the predict.bart guard).
 
 **xbart refusal.** xbart's mechanism is match.arg over its family
 vector `c("auto", "gaussian", "probit", "logistic")` ([`xbart`](../../R/xbart.R), matched at
@@ -505,12 +498,29 @@ read tolerating absence ([`setState`](../../src/R_interface_bartcore.cpp)). Old 
 unchanged - the whole point of the additive by-name block; no
 state-format-version bump (additive, per the [`stateFormatVersion`](../../src/R_interface_bartcore.cpp) rule).
 
+**c rides the existing fit.scale block as (c, c + 1).** The response
+transform is state: under updateScale = FALSE it is not recoverable from the
+data. [`NBResponse::getScale`](../../src/bartcore/model.hpp) writes the pair and
+[`NBResponse::restoreScale`](../../src/bartcore/model.hpp) decodes c = min, an
+exact round trip (a midrange encoding such as (c - 1/2, c + 1/2) does not
+round-trip for about 1% of values); fitScale stays 1 and never reads the width.
+[`Chain::stateIsValid`](../../src/bartcore/chain.hpp) refuses an nbinom state
+whose pair is not increasing, which is every state written under logit-p
+((0, 0)) and the case the chain's restore would otherwise skip silently. No new
+block and no version bump: no state format has shipped.
+
+**Rebuild, never shift.** Whenever c, r or the offset change without an omega
+draw - setOffset, restoreScale, restoreLatents - the working response is
+REBUILT from omega as kappa_i/omega_i - a_i through the one expression the draw
+uses, so creation with an offset and setOffset(updateScale = TRUE) to it are
+bitwise the same state.
+
 **omega rides the existing latents slot.** The per-observation PG draws omega_i
 are the latents, serialized through the existing `latents` slot exactly as
 LogisticResponse's omega does ([`NBResponse::latents`](../../src/bartcore/model.hpp)); latents() returns omega_.data().
 **Restore-ordering REQUIREMENT: restoreR runs before restoreLatents.** The
-working response is ((y_i - r)/2)/omega_i - o_i, so restoreLatents rebuilds
-working from omega AND the current r; a restore that installs latents before r
+working response is ((y_i - r)/2)/omega_i - a_i, so restoreLatents rebuilds
+working from omega AND the current r and c; a restore that installs latents before r
 rebuilds working against the stale r. setState must sequence the r block ahead
 of the latents block (or restoreLatents must be the sole working-rebuild site
 and restoreR must re-trigger it); this ordering is a stated contract of the
@@ -519,15 +529,14 @@ true (per-sweep omega), dropping the sufficient-statistic caches each sweep
 ([`Chain::run`](../../src/bartcore/chain.hpp)), the logistic behavior.
 
 **refreshLatents order - r FIRST, then omega (the invariance requirement).**
-Per sweep: (1) update r from its full conditional given the fit - the grid
-draw against {p_i} = plogis(psi_i) (fork (A)), or CRT-Gamma (fork (B)) - both
-of which are COLLAPSED over omega: they condition on (y, f) only and never read
-the omega draws; (2) draw omega_i ~ PG(y_i + r_new, psi_i) at the NEW r;
-(3) rebuild the working response with r_new (kappa = (y_i - r_new)/2 over the
-fresh omega). This order is what makes the scan a valid partially-collapsed
-Gibbs sampler (van Dyk-Park): a draw made with a variable marginalized out
-requires that variable be REGENERATED from its conditional under the new value
-before anything conditions on it again. The reverse order (omega first, then r,
+Per sweep: (1) update r from its full conditional given the log means
+(section 2A), COLLAPSED over omega: it conditions on (y, f) only and never reads
+the omega draws; (2) draw omega_i ~ PG(y_i + r_new, psi_i) at the NEW r, with
+psi_i = f_i + a_i at the new log r; (3) rebuild the working response with r_new.
+The sweep is then a two-block Gibbs sampler: block 1 draws the trees given
+(omega, r, y), block 2 draws (r, omega) jointly given the trees as
+p(r | f, y) p(omega | r, f, y), and a joint draw of a block is a valid Gibbs
+step. What the r step holds fixed is the means, not psi. The reverse order (omega first, then r,
 then rebuild) is NOT invariant: omega would carry shape y + r_old while the
 tree stage consumes kappa built from r_new - the trees then condition on an
 omega that has the wrong distribution given the state they see. The first draft
@@ -550,32 +559,37 @@ ResidualDfPrior medianIndex convention, [`ResidualDfPrior`](../../src/bartcore/m
 value), rebuild the kernel, and cold-start omega at its PG(y+r, 0) mean
 (y_i + r)/4 - the LogisticResponse coldStart generalization
 ([`LogisticResponse::coldStart`](../../src/bartcore/model.hpp), which uses w/4) - so the working response starts deterministic and
-the first sweep's draw replaces it. setWeights is a no-op (weights refused);
-setSigmaPrior a no-op (sigma fixed); setOffset shifts the working response by
-the offset delta, keeping omega and kappa (the logistic setOffset,
-[`LogisticResponse::setOffset`](../../src/bartcore/model.hpp)).
+the first sweep's draw replaces it; setData recomputes c, setResponse and
+setOffset recompute it only under updateScale = TRUE (FALSE, the
+embedded-Gibbs default, keeps it, as gaussian keeps its range). setWeights is a
+no-op (weights refused; 0/1 weights reach the mask instead); setSigmaPrior a
+no-op (sigma fixed); setOffset keeps omega and kappa and rebuilds the working
+response under the new anchor.
 
 ## 6. Gates
 
 **Exact-posterior gate (single tree, small n, small counts).** In the single-tree
 enumeration style of the logistic and ordinal gates. The NB category likelihood
-is CLOSED FORM in (leaf log-odds, r) - the augmentation omega integrates out - so
-the reference is omega-FREE and the gate quadratures only over the leaf log-odds
-and sums over the r grid, never over omega, exactly as ordinal quadratures over
+is CLOSED FORM in (leaf log mean, r) - the augmentation omega integrates out -
+so the reference is omega-FREE and the gate quadratures only over the leaf log
+mean and sums over the r grid, never over omega, exactly as ordinal quadratures over
 leaf means + gamma_2 and never over z. Concretely, under fork (A): use the
 shipped grid and prior weights; enumerate the tree structures a single predictor
 with a few cuts admits (root, or one split into two leaves); for each structure
 the marginal is
 
-    sum over grid r_k of  prior_k  x  integral over (mu_leaf...) of
-      [ prod_i NB(y_i; r_k, plogis(mu_{node(i)} + o_i)) ]
-      x prod_leaf N(mu_leaf; 0, (nodeScale/(k sqrt(numTrees)))^2),
+    sum over grid r_k of  prior_k  x  integral over (m_leaf...) of
+      [ prod_i NB(y_i; size = r_k, mu = exp(m_{node(i)} + o_i)) ]
+      x prod_leaf N(m_leaf; c, (nodeScale/(k sqrt(numTrees)))^2),
 
 a 1-2-D quadrature per grid point (the r dimension is a FINITE SUM - cleaner
 than ordinal's continuous cutpoint integral). Renormalize each structure's
 tree-prior x marginal over the enumeration. Match the sampler's posterior means
-of the identified quantities - the leaf mean counts mu = r exp(f + o) and the
-posterior distribution over grid r - to the reference to Monte Carlo error;
+of the identified quantities - the cell mean counts exp(m) and the posterior
+distribution over grid r - to the reference to Monte Carlo error; the estimated
+arm carries a two-level exposure offset so the anchor's offset, c and log r
+terms are all exercised, and the script checks the engine's c against its
+formula first ([negbin-exact.R](../../benchmarks/R/negbin-exact.R));
 tolerances bound MC plus quadrature error and are never widened to pass.
 Agreement validates the PG mean augmentation, the grid r update, AND their
 composition into the sweep (the section 5 ordering; an invalid scan shifts the
@@ -598,15 +612,24 @@ reproducibility, never correctness.
   logistic's, generalized only in the summation count).
 - Grid r conditional: on a tiny fixed (y, {p_i}) the sampled grid-index
   histogram matches the hand-computed discrete full conditional
-  w_k proportional to exp(L_k + r_k S + log prior_k) (section 2A) - the
-  ResidualDfPrior drawIndex test pattern, with the L_k kernel checked against
-  a direct lgamma evaluation.
+  w_k (section 2A) against a per-row dnbinom-form sum - the ResidualDfPrior
+  drawIndex test pattern, with the K_k kernel checked against a direct lgamma
+  evaluation less Y log r_k.
 - Behind the (B) door only: the fractional PG moment test (tolerance = the
   K-truncation bound of 2B(ii), NOT exactness - the test that makes the
   approximation's size a checked contract) and the CRT moment / conditional
   test (E[L_i] = sum_{j=1}^{y_i} r/(r + j - 1); the r histogram against the
   collapsed Gamma conditional, for which the prototype's grid agreement is the
   pilot).
+
+**Mixing gate.** The exact gate checks the stationary law on one tree and
+n = 50, which cannot see a chain that never leaves its cold start: logit-p
+passed it while frozen. [negbin-mixing.R](../../benchmarks/R/negbin-mixing.R)
+fits the default forest with two chains at mu = 8 exp(x1), r0 = 5 at n = 2000
+and r0 = 2 at n = 500, and requires each chain to leave the cold start, split-Rhat
+on r below 1.05, the pooled 95% set to cover r0, and 90% predictive coverage
+of fresh counts by randomized PIT within 0.90 +- 0.04. It fails under logit-p
+(every chain at r = 8, coverage 0.71-0.87) and passes under log-mean.
 
 **Recovery.** Simulated NB counts over a nonlinear f at moderate n, checking
 mean-count calibration and r recovery against truth across grid values r in
@@ -647,17 +670,16 @@ primitive only if the (B) door opens).
 - **Real (continuous) r.** THE door this note's fork creates. Fork (A) defers
   real r pending one of two unlocks: an exact real-shape PG primitive (a
   Devroye-style sampler with proven series bounds for real b - if one is
-  published, the CRT-Gamma machinery of fork (B) drops in exactly, prototype-
-  validated), or an explicit project-level decision to admit approximate MCMC,
-  for which fork (B) is the fully specified plan (error budget, K sizing,
-  bias-aware component-test tolerances). Opening it later needs no design
-  revisit; this note IS the (B) design.
+  published), or an explicit project-level decision to admit approximate MCMC,
+  for which fork (B) specifies the PG side (error budget, K sizing, bias-aware
+  component-test tolerances). Its r step changes under the log-mean model:
+  CRT-Gamma conjugacy needs an r-free p_i, which logit-p had and log-mean does
+  not, so a real r would move by a slice or Metropolis step on the same
+  collapsed likelihood section 2A's grid draws from, still waiting on a
+  real-shape PG draw for the mean update.
 
-- **Log-mean surface.** The alternative parameterization (section 1), f =
-  log-mean directly, is a documented follow-up reachable with a Metropolis
-  update on log r (the prototype's MH arm) or an O(n x grid) full-likelihood
-  grid, and NO new augmentation - only a re-anchoring of the working response's
-  shift as r moves. Recorded as the escape if users need f on the count scale.
+- **Log-mean surface.** CLOSED: it is the shipped model (section 1,
+  dec-B170).
 
 - **dbarts.h exposure.** NONE in v1, the robust-errors / ordinal precedent. The
   flat C API (inst/include/dbarts/dbarts.h) is unchanged; NB is reachable only
