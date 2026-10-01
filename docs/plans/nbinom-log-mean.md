@@ -40,7 +40,7 @@ Mechanism. At fixed psi, r -> r' multiplies every mean by r'/r. The NB2 informat
 sum_i r mu_i / (mu_i + r) (about 5000 at the probe's n = 1000 and r = 8), so the grid neighbour 8 -> 10 (a shift
 of log 1.25) costs of order 10^2 nats. The forest could follow r only by a coordinated level shift of every tree, which
 tree-local moves never propose. negbin-exact.R (one tree, n = 50) checks the stationary law, not mixing; the SBC
-arm's r flag was waived as a ridge (["SBC_EXPECTED_FLAGS: r,agg.psi"](../../.github/workflows/sbc.yaml)).
+arm's r flag was waived as a ridge (`SBC_EXPECTED_FLAGS: r,agg.psi`, [.github/workflows/sbc.yaml:104](https://github.com/vdorie/dbarts/blob/01dee4b4f1a21565c91eceea391e666851662a0d/.github/workflows/sbc.yaml#L104)).
 
 ### The new conditionals
 
