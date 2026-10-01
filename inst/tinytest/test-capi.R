@@ -1226,3 +1226,19 @@ if (!is.null(libCorrectExact)) {
   expect_equal(dimsCorrectExact[1L], n)
   dyn.unload(libCorrectExact)
 }
+
+# the flat conduits refuse a non-finite value, as creation does, and the
+# sampler runs on unharmed
+specFinite <- dbarts(x, y, control = control)
+ptrFinite <- specFinite$getPointer()
+expect_error(
+  CALL("capi_set_response", ptrFinite, replace(y, 1L, Inf), FALSE),
+  "dbarts_sampler_setResponse: response contains non-finite values"
+)
+expect_error(
+  CALL("capi_set_offset", ptrFinite, replace(numeric(n), 1L, NaN), FALSE),
+  "dbarts_sampler_setOffset: offset contains non-finite values"
+)
+finiteRun <- specFinite$run(0L, 2L)
+expect_true(all(is.finite(finiteRun$sigma)))
+rm(specFinite, ptrFinite, finiteRun)

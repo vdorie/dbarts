@@ -370,13 +370,12 @@ expect_error(
   "n x K matrix"
 )
 expect_error(sampler.mn$setWeights(runif(n, 0.5, 1.5)), "row-wise")
-# and a BCF sampler, which DOES opt into the response conduit, keeps the
-# bridge's generic wording through updateScale = NA, which the R-side
-# amplitude guard's isTRUE() check does not catch (test-bcf-mutation-pins.R
-# pins the same guard at updateScale = TRUE, R-side)
+# and a BCF sampler, which DOES opt into the response conduit, refuses an
+# updateScale that is neither TRUE nor FALSE ahead of its amplitude guard
+# (test-bcf-mutation-pins.R pins that guard at updateScale = TRUE)
 expect_error(
   sampler.bcf$setResponse(rnorm(n), updateScale = NA),
-  "multi-forest"
+  "'updateScale' must be TRUE or FALSE"
 )
 
 # the whole-data and whole-model mutations the multinomial battery had never

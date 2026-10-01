@@ -493,6 +493,14 @@ void validateResponseSupport(bartcore::ResponseFamily family,
                              std::size_t numCategories, const double* y,
                              std::size_t numObservations, const char* caller);
 
+/// Errors with "<caller>: <what> contains non-finite values" when any of the
+/// count values is NaN or infinite; a null values is a no-op. The swap
+/// conduits' half of the finiteness rule creation states in R: one infinite
+/// response or offset leaves sigma and every fit NaN for good, even after the
+/// value is put back.
+void refuseNonFinite(const double* values, std::size_t count,
+                     const char* caller, const char* what);
+
 /// Errors on a multi-forest sampler (numForests >= 2) whose test fits are
 /// undefined, its amplitudes having no off-sample basis to multiply: the
 /// combined location is ill-defined off the training rows, so the engine would

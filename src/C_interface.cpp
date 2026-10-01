@@ -31,6 +31,7 @@ using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::sigmaIsPinned;
 using bartcore_bridge::testFitsAreUndefined;
 using bartcore_bridge::UnwindJump;
+using bartcore_bridge::refuseNonFinite;
 using bartcore_bridge::validateResponseSupport;
 using bartcore_bridge::validateTestContainerAgainstStore;
 
@@ -653,6 +654,8 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
   // silently garbage latent draw for probit/ordinal and, for nbinom, an
   // uncatchable crash inside the count histogram (see validateResponseSupport)
   bartcore::SamplerShape shape = samplerOf(sampler).shape();
+  refuseNonFinite(y, shape.numObservations, "dbarts_sampler_setResponse",
+                  "response");
   validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1, y,
                           shape.numObservations, "dbarts_sampler_setResponse");
   // the probit latent redraw draws from the chain RNG, not R's stream
@@ -670,6 +673,8 @@ int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
   refuseMultiForestResponseMutation(samplerOf(sampler),
                                     "dbarts_sampler_setOffset",
                                     ResponseConduit::offset, updateScale);
+  refuseNonFinite(offset, samplerOf(sampler).shape().numObservations,
+                  "dbarts_sampler_setOffset", "offset");
   samplerOf(sampler).setOffset(
     adoptVector(sampler->ownedOffset, offset,
                 samplerOf(sampler).shape().numObservations),

@@ -44,8 +44,9 @@
 /// - Validation is deliberately partial: consumers are compiled packages, so
 ///   what an entry checks is what the engine's invariants or the caller's own
 ///   buffers depend on - a struct's structSize, a source's declared shape, a
-///   response value outside its family's support, a categorical code the
-///   sampler does not hold, a capability the model does not carry. What is NOT
+///   non-finite response or offset value, a response value outside its
+///   family's support, a categorical code the sampler does not hold, a
+///   capability the model does not carry. What is NOT
 ///   checked is the plain pointer: the sampler handle, an output buffer, and a
 ///   required input vector are dereferenced as handed, so a null (or
 ///   destroyed, or short) one crashes rather than raising. The one exception
@@ -813,13 +814,13 @@ void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
 void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
                                     dbarts_draw_callback fn, void* context);
 
-/// y has numObservations values, which must lie in the family's support: 0/1
-/// for probit and logistic, an integer category index in [1, K] for ordinal, a
-/// finite non-negative integer count no larger than 1e6 for nbinom (the
-/// dispersion grid's count histogram is sized from the largest count, so a
-/// larger one allocates without bound). Out-of-support values are an
-/// error, as they are at creation; gaussian and aft (log survival times)
-/// constrain nothing. updateScale re-derives the internal response transform
+/// y has numObservations values, which must be finite and lie in the family's
+/// support: 0/1 for probit and logistic, an integer category index in [1, K]
+/// for ordinal, a non-negative integer count no larger than 1e6 for nbinom
+/// (the dispersion grid's count histogram is sized from the largest count, so
+/// a larger one allocates without bound). A non-finite or out-of-support value
+/// is an error, as it is at creation; gaussian and aft (log survival times)
+/// constrain nothing beyond finiteness. updateScale re-derives the internal response transform
 /// from the new response, as dbarts_sampler_setOffset's argument does (gaussian
 /// only); pass false once burnt in so fits stay comparable. true is refused on
 /// any multi-forest sampler, at any forest count, whose per-forest leaf
@@ -834,7 +835,8 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 /// other channel and raise.
 int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                                int updateScale);
-/// offset has numObservations values or is null to remove. updateScale
+/// offset has numObservations finite values or is null to remove; a non-finite
+/// value is an error, as it is at setResponse. updateScale
 /// rescales the internal response transform to the offset-adjusted range
 /// (gaussian only); pass false once burnt in so fits stay comparable. A
 /// multi-forest sampler, at any forest count, refuses true (see setResponse).

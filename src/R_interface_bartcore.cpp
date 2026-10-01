@@ -56,6 +56,7 @@ using bartcore_bridge::UnwindJump;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::supportFamily;
 using bartcore_bridge::validateColumnValues;
+using bartcore_bridge::refuseNonFinite;
 using bartcore_bridge::validateResponseSupport;
 using bartcore_bridge::validateTestContainerAgainstStore;
 
@@ -3213,6 +3214,14 @@ void validateResponseSupport(bartcore::ResponseFamily family,
   }
 }
 
+void refuseNonFinite(const double* values, size_t count, const char* caller,
+                     const char* what) {
+  if (values == NULL) return;
+  for (size_t i = 0; i < count; ++i)
+    if (!std::isfinite(values[i]))
+      Rf_error("%s: %s contains non-finite values", caller, what);
+}
+
 // The single-forest test-fit and prediction surface has no meaning on a
 // coupling whose amplitudes have no off-sample basis to multiply: the blend
 // sum_f dot(a_f, B_f(i,.)) f_f(x_i) is ill-defined off the training rows, so
@@ -5234,6 +5243,7 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
        static_cast<size_t>(Rf_xlength(offsetExpr)) != shape.numObservations))
     Rf_error("length of replacement offset is not equal to number of observations");
   const double* offset = Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr);
+  refuseNonFinite(offset, shape.numObservations, "$setOffset", "offset");
   holder.sampler->setOffset(
     adoptVector(holder.ownedOffset, offset, shape.numObservations),
     updateScale == TRUE);
@@ -5257,6 +5267,8 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
     Rf_error("y must be of length equal to %lu",
              static_cast<unsigned long>(shape.numObservations));
   // support before install: the engine's latent refresh consumes y immediately
+  refuseNonFinite(REAL(yExpr), shape.numObservations, "$setResponse",
+                  "response");
   validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
                           REAL(yExpr), shape.numObservations,
                           "$setResponse");
