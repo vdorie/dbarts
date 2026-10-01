@@ -1226,6 +1226,10 @@ Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B168]
 dbarts_sampler_run warns about slow leaf-order counts the first time a sampler has one, and stays silent for later calls on the same sampler, so a host calling it once per sweep warns about once per fit, as an R user of bart() sees. The alternatives were warning on every call with a slow count, possibly thousands of times per fit, and once per R session. A later slower stretch in the same fit is not re-announced. The maintainer on 2026-10-01: "Option 1." See also: [dec-B168].
 Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B169]
 
+**nbinom's forest models the log mean, and r is drawn given the mean**
+A negative-binomial fit's forest models log(mean), as MASS::glm.nb and Stan's neg_binomial_2 do, and the dispersion r is drawn given the mean, still collapsed over the Polya-Gamma latents. Until now the forest modelled the log-odds of the success probability and r was drawn given it, which pins r to its current value at any realistic n: in the third whole-branch review's probes r never left its cold start of 8 (n 200 and 1000, true r 3 or 30), and 90% predictive intervals covered 78%. The alternatives were keeping the log-odds model with a joint move of r and every tree's level, and refusing estimated dispersion in 1.0-0. Users get a sampled r, honest predictive draws and log-likelihoods, and a link on the log-mean scale; every nbinom draw moves and the leaf prior is recalibrated for the new scale; the calibration suite's waiver of r as a mixing ridge is withdrawn. The maintainer on 2026-10-01: "Option 1." See also: [dec-B15].
+Record: docs/design/negative-binomial.md. Marked: blank. [dec-B170]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
