@@ -1182,6 +1182,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B157]
 A fit made with keepCall = FALSE has call = NULL, so summary() omits the call and update() refuses with base R's "need an object with call component". Until now, and in 0.9-34, it stored the placeholder call NULL(), which summary() printed as "Call: `NULL`()" and which update() and formula() failed on with unrelated errors. The alternative was keeping the placeholder and teaching summary(), update() and formula() about it. Code that inspected the placeholder sees NULL instead. The maintainer on 2026-10-01: "Do option 1." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B158]
 
+**proposal.probs refuses unnamed vectors and unknown names**
+dbartsControl's proposal.probs must name its entries from the move vocabulary; an unnamed vector or an unknown name is an error that lists the valid names. Until now, and in 0.9-34, such entries were dropped silently and the default mix ran. The alternatives were warning and falling back per entry, as optim does for unknown control names, and leaving it. A typo cannot change the sampler unnoticed; a call that passed a bad vector now errors. The maintainer on 2026-10-01: "Refuse unnamed vectors and unknown names, naming the valid ones." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B159]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
