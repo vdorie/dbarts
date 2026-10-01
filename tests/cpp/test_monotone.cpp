@@ -1185,9 +1185,29 @@ static void testMonotoneConeDeepTail() {
       worst = std::max(worst, std::fabs(whole - exact) / scale);
       worst = std::max(worst, std::fabs(closed - exact) / scale);
     }
+  // children whose posterior sds differ by 1e3 to 1e10, either way round, and
+  // a captured pair 655 apart sitting 1.97 sd against the order
+  struct Wide {
+    double gap, sL, sR;
+  };
+  const Wide wides[] = {
+    {-1.97, 0.00177, 1.159}, {0.0, 1e-3, 1.0}, {-1.0, 1e-3, 1.0},
+    {3.0, 1e-3, 1.0}, {-8.0, 1e-6, 1.0}, {-2.0, 1e-6, 1.0},
+    {-30.0, 1e-6, 1.0}, {-2.0, 1e-10, 1.0}, {1.0, 1e-10, 1.0},
+    {-2.0, 1.0, 1e-3}, {-8.0, 1.0, 1e-6}, {-2.0, 1.0, 1e-10},
+  };
+  for (const Wide& w : wides) {
+    double mL = 0.4, mR = mL + w.gap * std::sqrt(w.sL * w.sL + w.sR * w.sR);
+    double exact = Rf_pnorm5(w.gap, 0.0, 1.0, 1, 1);
+    double hiR = std::max(mL, mR) + 80.0 * std::max(w.sL, w.sR);
+    double got = Leaf::logConeProbability(-HUGE_VAL, hiR, -HUGE_VAL, HUGE_VAL,
+                                          mL, w.sL, mR, w.sR);
+    finite = finite && std::isfinite(got);
+    worst = std::max(worst, std::fabs(got - exact) / std::max(1.0, std::fabs(exact)));
+  }
   check(finite, "monotone cone: finite at every gap");
-  check(worst <= 1e-9, "monotone cone: the integral matches the closed form "
-                       "to 1e-9 (relative past 1 nat)");
+  check(worst <= 1e-10, "monotone cone: the integral matches the closed form "
+                        "to 1e-10 (relative past 1 nat)");
 
   // bounded cones: {zA, bL - aL, lowR - aL, hiR - aL, mR - aL, sR}, the lower
   // leaf standard normal and aL = zA
@@ -1254,6 +1274,32 @@ static void testMonotoneConeDeepTail() {
   check(notNaN, "logStandardNormalMass: finite on an interval one ulp wide");
   check(worstUlp < 1e-12, "logStandardNormalMass: one ulp is width times "
                           "density");
+  // far out, where the log tails are so large that a narrow interval's
+  // difference of them is rounding: against the asymptotic series
+  // log Q(x) = -x^2 / 2 - log x - log sqrt(2 pi) + log(1 - x^-2 + 3 x^-4 -
+  // 15 x^-6), differenced analytically
+  bool finiteFar = true;
+  double worstFar = 0.0;
+  auto series = [](double x) {
+    double r = 1.0 / (x * x);
+    return std::log1p(-r + 3.0 * r * r - 15.0 * r * r * r);
+  };
+  for (double lo : {1e3, 3.5e4, 3.5e5, 1e6, 1e7})
+    for (double k : {0.5, 1.01, 2.0, 10.0, 1e2, 1e4, 1e6}) {
+      double width = k * 1e-5 / (1.0 + lo), hi = lo + width;
+      if (!(hi > lo)) continue;  // narrower than an ulp of lo
+      width = hi - lo;
+      double got = logStandardNormalMass(lo, hi);
+      double d = -0.5 * width * (lo + hi) - std::log1p(width / lo) +
+                 series(hi) - series(lo);
+      double ref = Rf_pnorm5(lo, 0.0, 1.0, 0, 1) + std::log(-std::expm1(d));
+      finiteFar = finiteFar && std::isfinite(got);
+      worstFar = std::max(worstFar, std::fabs(got - ref) / std::fabs(ref));
+    }
+  check(finiteFar, "logStandardNormalMass: finite on narrow far-tail "
+                   "intervals");
+  check(worstFar < 1e-12, "logStandardNormalMass: narrow far-tail intervals "
+                          "match the asymptotic series");
   printf("ok: monotone cone deep tail (worst %.1e closed form, %.1e bounded)\n",
          worst, worstBounded);
 }
