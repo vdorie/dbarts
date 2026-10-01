@@ -143,7 +143,7 @@ typedef struct dbarts_draw_t {
   size_t numFittedValuesPerObservation; /* F: 1, or K for multinomial */
   size_t numVariableCountForests, numForests, numAmplitudes;
   size_t numOrdinalThresholds;
-  const double *train, *test;                    /* n x L; nTest x L */
+  const double *train, *test;                    /* n x F; nTest x F */
   const double *varianceFits, *varianceTestFits; /* n; nTest */
   const double* forestFits;         /* n x numForests, forest-major */
   const double* glue;               /* numAmplitudes, ragged, forest-major */
@@ -161,8 +161,10 @@ not a selection. A pointer is null wherever the fit does not carry that
 channel (the variance pair off heteroscedastic, the forest pair off a
 multi-forest coupling, thresholds off ordinal, split probabilities off DART)
 and the scalars are NaN rather than absent, so a callback tests the channel,
-never the family. Two layout facts: `train` carries L channels with any
-offset folded in at L = 1, and `varcount` is
+never the family. Two layout facts: `train` carries F =
+`numFittedValuesPerObservation` values per observation - K category
+probabilities on multinomial, one fitted value with any offset folded in on
+every other model - and `varcount` is
 `numPredictors * numVariableCountForests`, forest-major within a draw - one
 slab for a single-forest model, K for multinomial and for a multi-forest
 amplitude model, `Sampler::run` clamping the count to what the combiner can

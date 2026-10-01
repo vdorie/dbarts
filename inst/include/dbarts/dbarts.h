@@ -823,8 +823,9 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// stays valid.
 ///
 /// A run whose monotone leaf-order counts were slow raises R's
-/// dbartsSlowCountWarning at most once per sampler, after the run completes
-/// and with nothing of the library's live. "Once" is per engine handle: an
+/// dbartsSlowCountWarning at most once per sampler, after the run returns
+/// and with nothing of the library's live - a run a callback stopped
+/// included, since the counts it made were slow all the same. "Once" is per engine handle: an
 /// R-side re-creation from a stored state builds a new one, which may warn
 /// once more. A handler that exits on the warning - options(warn = 2),
 /// tryCatch(warning = ), a calling handler that stops or invokes a restart -
