@@ -18,7 +18,11 @@
 # its arms would make the same error. Arm 7 reads the grand level itself
 # against the marginal N(0, tau^2/K) the move is an exact independence sampler
 # from at the intercept-only configuration - the only arm that sees the scale
-# of the shift rather than the direction it leaves alone.
+# of the shift rather than the direction it leaves alone. Arm 8 is arm 3's
+# enumeration under interactions(max.order = 1) on two binary predictors, the
+# only gate that the constraint reaches every category forest: on an
+# exclusive-or response, an unconstrained forest grows the depth-two trees the
+# constrained target excludes.
 #
 # The sampler's per-forest total-fit prior is symmetric N(0, tau^2)^K with
 #   tau = nodeScale / k,  nodeScale = pi*sqrt(3)/sqrt(2),  k = 2
@@ -683,6 +687,158 @@ armLevel <- function() {
   report("  arm7 level acf1", abs(acf1), 3 / sqrt(ndpost))
 }
 
+# ---------------------------------------------------------------------------
+# Arm 8: interactions(max.order = 1) on every category forest
+# ---------------------------------------------------------------------------
+
+# Gauss-Hermite nodes and weights for the weight exp(-z^2), by Golub-Welsch
+gaussHermite <- function(m) {
+  i <- seq_len(m - 1L)
+  J <- matrix(0, m, m)
+  J[cbind(i, i + 1L)] <- sqrt(i / 2)
+  J[cbind(i + 1L, i)] <- sqrt(i / 2)
+  e <- eigen(J, symmetric = TRUE)
+  list(z = e$values, w = sqrt(pi) * e$vectors[1L, ]^2)
+}
+
+armConstrained <- function() {
+  ndpost <- if (quick) 20000L else 60000L
+  nburn <- 4000L
+  nSeeds <- if (quick) 2L else 3L
+  tolerance <- if (quick) 0.02 else 0.015
+
+  set.seed(8118L)
+  K <- 3L
+  base <- 0.95
+  power <- 2.0
+  nPerCell <- 30L
+  # two binary predictors, four cells, and an exclusive-or response: a sum of
+  # one-variable trees cannot fit it, so an engine that drops the constraint on
+  # any forest grows depth-two trees and moves the cell probabilities
+  cells <- as.matrix(expand.grid(x1 = 0:1, x2 = 0:1)) + 0
+  cellProb <- list(
+    c(0.6, 0.25, 0.15),
+    c(0.15, 0.25, 0.6),
+    c(0.15, 0.25, 0.6),
+    c(0.6, 0.25, 0.15)
+  )
+  cellOf <- rep(seq_len(4L), each = nPerCell)
+  x <- cells[cellOf, , drop = FALSE]
+  labels <- integer(length(cellOf))
+  for (c in 1:4) {
+    idx <- which(cellOf == c)
+    labels[idx] <- sample.int(
+      K,
+      length(idx),
+      replace = TRUE,
+      prob = cellProb[[c]]
+    ) -
+      1L
+  }
+  counts <- t(vapply(
+    1:4,
+    function(c) tabulate(labels[cellOf == c] + 1L, K),
+    integer(K)
+  ))
+
+  # ---- exact posterior by joint tree enumeration + adaptive quadrature ----
+  # One tree per forest. Under max.order = 1 a forest is a root (prob
+  # 1 - base) or one split on x1 or on x2 (prob base / 2 each, the variable
+  # drawn uniformly); a child can split on neither (its own variable has no
+  # cut left, the other is banned), so it is a leaf with probability 1. That
+  # gives 3^K joint structures. Given one, the D raw leaves are N(0, tau^2)
+  # a priori and the likelihood is the product over cells of the softmax
+  # powers; the integral over the leaves is adaptive Gauss-Hermite, centered at
+  # the mode and scaled by the inverse Hessian, which with 9 nodes per
+  # dimension agrees with 11 nodes to 1e-7. The non-identified level is
+  # integrated with the rest, since the leaves are the model's own coordinates.
+  gh <- gaussHermite(9L)
+  leafOf <- function(s) if (s == 0L) rep(1L, 4L) else cells[, s] + 1L
+  rowMax <- function(f) do.call(pmax, lapply(seq_len(K), function(k) f[, k]))
+  combos <- as.matrix(expand.grid(rep(list(0:2), K)))
+  logZ <- numeric(nrow(combos))
+  logNum <- array(0, c(nrow(combos), 4L, K))
+  for (ci in seq_len(nrow(combos))) {
+    s <- combos[ci, ]
+    nLeaves <- ifelse(s == 0L, 1L, 2L)
+    D <- sum(nLeaves)
+    leafBase <- c(0L, cumsum(nLeaves))[seq_len(K)]
+    # cell x category -> index of the leaf giving that category's f there
+    A <- vapply(seq_len(K), function(k) leafBase[k] + leafOf(s[k]), integer(4L))
+    logPost <- function(V) {
+      ll <- 0
+      for (c in 1:4) {
+        f <- V[, A[c, ], drop = FALSE]
+        m <- rowMax(f)
+        lse <- m + log(rowSums(exp(f - m)))
+        ll <- ll + as.vector((f - lse) %*% counts[c, ])
+      }
+      ll - 0.5 * rowSums(V * V) / tau2 - 0.5 * D * log(2 * pi * tau2)
+    }
+    negLogPost <- function(v) -logPost(matrix(v, 1L))
+    opt <- optim(rep(0, D), negLogPost, method = "BFGS")
+    L <- t(chol(solve(optimHess(opt$par, negLogPost))))
+    Z <- as.matrix(expand.grid(rep(list(gh$z), D)))
+    logW <- rowSums(log(as.matrix(expand.grid(rep(list(gh$w), D))))) +
+      rowSums(Z * Z)
+    V <- sweep(sqrt(2) * Z %*% t(L), 2L, opt$par, "+")
+    lg <- logPost(V) + logW + sum(log(diag(L))) + 0.5 * D * log(2)
+    mx <- max(lg)
+    w <- exp(lg - mx)
+    comboLogPrior <- sum(ifelse(s == 0L, log(1 - base), log(base / 2)))
+    logZ[ci] <- comboLogPrior + mx + log(sum(w))
+    for (c in 1:4) {
+      f <- V[, A[c, ], drop = FALSE]
+      p <- exp(f - rowMax(f))
+      p <- p / rowSums(p)
+      logNum[ci, c, ] <- comboLogPrior + mx + log(colSums(p * w))
+    }
+  }
+  gmax <- max(logZ)
+  exact <- apply(exp(logNum - gmax), c(2L, 3L), sum) / sum(exp(logZ - gmax))
+
+  fitSeed <- function(seed) {
+    set.seed(seed)
+    control <- dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 1L,
+      updateState = FALSE,
+      proposal.probs = c(
+        birth_death = 0.5,
+        swap = 0.1,
+        change = 0.4,
+        birth = 0.5
+      )
+    )
+    bc <- dbarts(
+      x,
+      factor(labels, levels = seq.int(0L, K - 1L)),
+      family = "multinomial",
+      control = control,
+      tree.prior = cgm(power, base),
+      interactions = interactions(max.order = 1L)
+    )
+    r <- bc$run(nburn, ndpost)
+    t(vapply(
+      1:4,
+      function(c) apply(r$train[cellOf == c, , , drop = FALSE], 2L, mean),
+      numeric(K)
+    ))
+  }
+  fit <- Reduce(`+`, lapply(seq_len(nSeeds), fitSeed)) / nSeeds
+
+  cat("Arm 8 (max.order = 1 on every forest, K = 3, cells 00 10 01 11):\n")
+  for (c in 1:4) {
+    cat(sprintf(
+      "  exact   %s\n  sampler %s\n",
+      paste(sprintf("%.4f", exact[c, ]), collapse = " "),
+      paste(sprintf("%.4f", fit[c, ]), collapse = " ")
+    ))
+  }
+  report("  arm8 constrained K=3", max(abs(fit - exact)), tolerance)
+}
+
 arm1()
 cat("\n")
 arm2()
@@ -694,6 +850,8 @@ cat("\n")
 armOffset()
 cat("\n")
 armLevel()
+cat("\n")
+armConstrained()
 cat("\n")
 
 if (anyFailure) {
