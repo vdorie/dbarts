@@ -14,19 +14,21 @@ rng: NEUTRAL. No engine file changes and no draw moves. What changes is the
 window: nothing else edits `inst/include/dbarts/dbarts.h` while this is
   open. Lands before the 1.0-0 tag, or bumps the minor version (Constraints).
 budget: header ~+110 -30; C entry file ~+110 -15; bridge and common header
-  ~+50 -25; test consumer ~+280 -10; test files ~+300; tests/cpp, vignette
-  and test helper renames ~+15 -15; docs ~+60 -25; records ~+50. About 1000
-  lines; plan on 1500-2000.
+  ~+50 -25; test consumer ~+280 -10; test files ~+340; tests/cpp, vignette
+  and test helper renames ~+15 -15; docs ~+60 -25; records ~+50. About 1050
+  lines; plan on 1600-2100.
 
 ## Goal
 
 A multinomial sampler built in R runs and predicts through the flat C API,
 and a caller who sizes its buffers by the documented layouts gets bitwise
 what R's `$run` and `$predict` return on every channel the flat struct
-carries, on every model, BCF's split counts included.
+carries, on every model, the split counts of every multi-forest model
+included.
 - The header gains `dbarts_sampler_numFittedValuesPerObservation` (K on
   multinomial, 1 elsewhere) and `dbarts_sampler_numVariableCountForests` (K on
-  multinomial, 2 on BCF, 1 elsewhere).
+  multinomial, the mean-forest count on an amplitude-coupled model - 2 on
+  BCF, 3 on a three-forest `forests = list(...)` sampler - and 1 elsewhere).
 - The [`dbarts_draw`](../../inst/include/dbarts/dbarts.h) field `numReportedLocations` is renamed
   `numFittedValuesPerObservation`.
 - Flat predict reads a multinomial offset as a rows x K matrix where R does.
@@ -147,8 +149,8 @@ Consumers today.
 size_t dbarts_sampler_numFittedValuesPerObservation(
   const dbarts_sampler* sampler);
 /// The sets of split counts a run writes per draw, one per forest that keeps
-/// them: K on multinomial, 2 on BCF, 1 elsewhere (a variance forest keeps
-/// none). A VALUE, never 0. dbarts_results' varcount is numPredictors x this
+/// them: K on multinomial, the mean-forest count on an amplitude-coupled
+/// model (2 on BCF), 1 elsewhere (a variance forest keeps none). A VALUE, never 0. dbarts_results' varcount is numPredictors x this
 /// x draws x chains.
 size_t dbarts_sampler_numVariableCountForests(const dbarts_sampler* sampler);
 ```
@@ -244,7 +246,12 @@ Where the poll lives.
   defined in R_interface_bartcore.cpp.
 - [`bartcore_run`](../../src/R_interface_bartcore.cpp) and [`dbarts_sampler_run`](../../src/C_interface.cpp) pass
   the same function. The flat run replaces its `{}` with it.
-- After the jump handling, a cancelled flat run raises "dbarts_sampler_run:
+- The flat run passes `&stoppedByCallback` to the engine as
+  [`bartcore_run`](../../src/R_interface_bartcore.cpp) does. A run the engine reports cancelled
+  raises only when the stop was NOT the callback's. A callback's nonzero
+  return keeps its documented contract (the entry returns normally), which
+  the existing `capi_draw_reset(2L)` stop arms in test-capi.R pin.
+- After the jump handling, a real cancel raises "dbarts_sampler_run:
   sampler run interrupted". That is the R route's sentence with the entry's
   prefix, raised where nothing the library owns is live.
 - The sampler is then in the state a nonzero callback return leaves: cursors
@@ -260,11 +267,26 @@ The interrupt test hook.
   registration arity in [R_interface.cpp](../../src/R_interface.cpp) moves 2 -> 3).
 - When armed, the shared poll counts down and reports an interrupt on the
   armed poll without touching R's signal state. It disarms itself.
+- Every test that arms it resets it to 0 in its cleanup, whatever the
+  arm's outcome: it is process-wide, and a leftover count would interrupt
+  an unrelated later run.
 - Both routes get their first R-level interrupt test from it.
+- That test asserts the wiring, the "interrupted" error and a usable sampler
+  afterwards. It does not assert where the interrupt landed. The engine
+  throttles the poll to one per ~100 ms after an immediate first call, so
+  an armed count of 1 fires at a sweep boundary. Landing one inside a
+  leaf-order count from R would need a count lasting over 100 ms, which is
+  timing-dependent, and the count hooks carry no poll interval. The
+  in-count relay is engine mechanics, already pinned without timing by
+  tests/cpp `testMonotoneCountInterrupt` through its own poll-interval
+  knob, so it stays there.
 
 Where the once-per-sampler flag lives.
-- A `bool slowCountWarned = false` member on the holder, `dbarts_sampler_t`
-  in [R_interface_bartcore_common.hpp](../../src/R_interface_bartcore_common.hpp). The struct is opaque
+- A `bool slowCountWarned = false` member appended at the END of the
+  holder, `dbarts_sampler_t` in
+  [R_interface_bartcore_common.hpp](../../src/R_interface_bartcore_common.hpp). The creation sites build
+  the holder by positional aggregate initialization, so a member placed
+  anywhere else would shift every initializer after it. The struct is opaque
   in the shipped header, so this is no ABI change.
 - After a run that returns normally, the flat entry reads
   `sampler.slowCountTally()` (the last run's, summed over chains). If it
@@ -285,9 +307,11 @@ How the warning is raised.
   `tally` field are R's own.
 - This happens last in the entry, after every buffer is released and every
   engine frame unwound.
-- Under `options(warn = 2)` the warning is an error that longjmps out of the
-  entry. The run's results are already complete and the sampler
-  consistent. The header states both cases.
+- Any handler that exits on the warning turns it into a jump out of the
+  entry: `options(warn = 2)`, `tryCatch(warning = )`, `expect_warning`, or
+  a calling handler that stops or invokes a restart. The run's results are
+  already complete and the sampler consistent when that happens. The header
+  states this.
 
 What stan4bart sees.
 - A Ctrl-C during a fit used to be ignored until its `run` .Call returned,
@@ -301,12 +325,21 @@ What stan4bart sees.
 - The init path's `std::unique_ptr` and `std::vector` are skipped the same
   way.
 - The warning arrives inside the .Call as an ordinary deferred R warning,
-  shown at top level once per fit. Under `warn = 2` it takes the interrupt's
-  path.
-- Step 4 reviews these. The expected fix is stan4bart-side and small: own
-  the results with cleanup that runs on a jump (`R_UnwindProtect` around
-  the loop, or an R-allocated buffer in place of the raw `new`). It lands as
-  its own stan4bart commit on bartcore.
+  shown at top level once per fit. Any exiting handler around stan4bart's
+  fit (`warn = 2`, `tryCatch(warning = )`, `expect_warning` in its tests, a
+  calling handler that stops) turns it into the interrupt's jump.
+- Step 4 reviews these. The recommended fix is stan4bart-side and small:
+  hold the run's results in an R-allocated, PROTECTed buffer in place of
+  the raw `new`, so a jump leaks nothing. The alternative is a loop body
+  that catches every C++ exception before any R jump can cross it.
+  `R_UnwindProtect` around the whole loop is not recommended: the loop runs
+  WALNUTS code that can throw C++ exceptions, and those must not cross the
+  unwind-protect boundary. The fix lands as its own stan4bart commit on
+  bartcore.
+- A stan4bart test that drives `dbarts:::` hooks (the interrupt hook) skips
+  when the installed dbarts hook's arity differs from the one it was written
+  against, so stan4bart's suite does not break on an internal dbarts
+  change.
 - treatSens runs its fits through the same entry and gets the same review.
 
 ### Wrong sizes
@@ -328,11 +361,17 @@ predict would need a signature change that forces consumer source edits.
   [5. Hash re-bake](dbarts-h-freeze.md#5-hash-re-bake). Commit 2 changes header comments only and
   moves neither.
 - Version pair. It is held at 1/0: no version has shipped, and the header
-  says the constants do not move before the first release. If the 1.0-0 tag
-  exists when this lands, the same commit bumps `DBARTS_C_API_MINOR`.
-  [tools/check-api-hash.sh](../../tools/check-api-hash.sh) prints its skip line until a tag exists. A
-  field rename after 1.0-0 would instead be a major change, which is why it
-  rides now.
+  says the constants do not move before the first release.
+  [tools/check-api-hash.sh](../../tools/check-api-hash.sh) prints its skip line until a tag exists.
+- If the 1.0-0 tag exists before this lands, the additive parts (the two
+  entries) alone would bump `DBARTS_C_API_MINOR`. The field rename would
+  not fit a minor bump: renaming a field breaks a consumer's source. It
+  must then either bump `DBARTS_C_API_MAJOR`, which every stub consumer's
+  handshake refuses until rebuilt, or be dropped, keeping
+  `numReportedLocations` as the field name and adding the new name only as a
+  documented alias macro. Neither is wanted, which is why this lands before
+  the tag. If the tag wins the race, the choice goes back to the
+  maintainer.
 - Pin sites: the header, C_interface.cpp, and test-capi.R's
   ["expect_identical(hashes$text"](../../inst/tinytest/test-capi.R) line. The outgoing
   `0x6380bf095d5cae3f` joins the file's stale-token block with a one-line
@@ -435,6 +474,9 @@ predict would need a signature change that forces consumer source edits.
        - k, varprobs, dispersion and residualDf are body-untouched.
        - Tails are intact.
      - BCF arm: flat varcount equals R's p x 2 x S x C.
+     - Three-forest arm: a `forests = list(...)` sampler with three mean
+       forests. The accessor answers 3, and flat varcount equals R's
+       p x 3 x S x C.
      - Predict on gaussian and multinomial, against `$predict` on the same
        sampler, with and without tree storage.
      - Offset arms:
@@ -446,8 +488,10 @@ predict would need a signature change that forces consumer source edits.
          separately on one given only `$setCategoryTestOffset`.
        - An all-zero matrix on those samplers equals R's.
      - setResponse and setOffset return 0 on the multinomial handle.
-     - The callback reports F and V equal to the accessors on multinomial
-       and BCF.
+     - The callback reports F and V equal to the accessors on multinomial,
+       BCF and the three-forest sampler.
+     - The existing `capi_draw_reset(2L)` callback-stop arms still return
+       normally from the flat run, with no "interrupted" error.
    - Run the gaussian parity check first. If flat and R runs differ there,
      stop: that is a separate finding.
    - Mutation proofs, each reverted and the file `touch`ed:
@@ -463,12 +507,13 @@ predict would need a signature change that forces consumer source edits.
    - The bridge poll and `attachSlowCountTally` lifted into `bartcore_bridge`.
    - The `interruptAfterPolls` hook and the arity change.
    - The holder flag.
-   - The flat run's poll, the cancelled raise and the warning tail.
+   - The flat run's poll, `&stoppedByCallback`, the raise on a real cancel
+     only, and the warning tail.
    - Header comments on [`dbarts_sampler_run`](../../inst/include/dbarts/dbarts.h): it can raise on an
      interrupt, leaving the callback-abort state; it raises
      `dbartsSlowCountWarning` at most once per sampler (holder), and once
-     more after an R-side re-creation; under `warn = 2` that warning is an
-     error after complete results.
+     more after an R-side re-creation; any exiting warning handler turns
+     it into a jump after complete results.
    - consumer.c gains `capi_run_plain(ptr, burn, samples)` (no result
      buffers), for the warning and interrupt arms.
    - Tests, in test-monotone.R beside its slow-count block, using
@@ -476,9 +521,13 @@ predict would need a signature change that forces consumer source edits.
      `compileCapiConsumer` call there skips as test-capi.R does.
      - Interrupt, R route: `$run` with `interruptAfterPolls` armed raises
        "sampler run interrupted". A second `$run` afterwards succeeds.
-     - Interrupt, flat route: the same through `capi_run_plain`. One arm
-       uses `pollInterval` 1 so the poll lands inside a "leaf" count; the
-       in-count mechanics stay pinned in `testMonotoneCountInterrupt`.
+     - Interrupt, flat route: the same through `capi_run_plain`, on a
+       "leaf" sampler. It asserts only the "interrupted" error and a usable
+       sampler afterwards. Where the interrupt lands is left to
+       `testMonotoneCountInterrupt` (see "The interrupt test hook").
+     - Each interrupt arm resets `interruptAfterPolls` to 0 in its cleanup
+       (`on.exit` or a final `countHooks` call reached on every path).
+     - A callback-stop flat run with the hook unarmed returns normally.
      - Slow count, flat route: with the threshold at -1, the first
        `capi_run_plain` on a "leaf" sampler yields exactly one warning,
        counted with `withCallingHandlers`, inheriting
@@ -574,7 +623,8 @@ them out.
   and the callback field `numReportedLocations` is renamed to match in the
   same event.
 - dec-B164: varcount holds one set per forest that keeps split counts (K on
-  multinomial, 2 on BCF), matching R's run on every model.
+  multinomial, the mean-forest count on an amplitude model, 2 on BCF),
+  matching R's run on every model.
 - dec-B165: that width's accessor is `dbarts_sampler_numVariableCountForests`.
 - dec-B166: flat predict reads a multinomial offset as rows x K, requires one
   where R does, and refuses non-finite entries as R does.
