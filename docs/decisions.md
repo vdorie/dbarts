@@ -1202,6 +1202,10 @@ Record: docs/design/error-style.md (R15). Marked: blank. [dec-B162]
 The new entry that reports how many fitted values a sampler produces per observation in each draw (K for a multinomial sampler, 1 for every other) is dbarts_sampler_numFittedValuesPerObservation, and the per-draw callback struct's field of the same meaning, numReportedLocations, is renamed numFittedValuesPerObservation in the same ABI event; no consumer reads that field. The alternatives were numReportedLocations, numCategories (wrong off multinomial, and an ordinal sampler has categories but reports one value), numValuesPerObservation, numOutputsPerObservation, and numResponseValuesPerObservation (wrong for survival and binomial-with-trials responses, which carry two values but report one). A host sizes the train, test and predict buffers as observations x this x draws x chains. The maintainer on 2026-10-01, after asking for "something more literal but generally applicable": "Yes, let's use that." See also: [dec-B160].
 Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B163]
 
+**The flat C API reports split counts for every forest that has them**
+A flat run's per-draw split-count buffer holds one set per forest that keeps split counts (K on multinomial, 2 on BCF), sized by a second new accessor, so the flat API matches R's $run on every model. Until now it held one forest's counts (BCF's prognostic forest, a multinomial's first category). The alternatives were one set per fitted value per observation (K on multinomial, BCF still one, unlike R) and one set everywhere, documented. A host gets every forest's variable importance as R reports it; a stale binary that sized one set on a multinomial or BCF handle would overflow, and no consumer drives either through the flat API. The maintainer on 2026-10-01: "One set per forest that has split counts." See also: [dec-B160], [dec-B163].
+Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B164]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
