@@ -68,10 +68,10 @@ rm(bad)
 # shorthand for it at the default prior
 spec <- dbarts::dbartsForests$monotone(c(a = "increasing"))
 expect_inherits(spec, "dbartsMonotone")
-expect_identical(spec$prior, "leaf")
+expect_identical(spec$prior, "joint")
 expect_identical(
   spec,
-  dbarts::dbartsForests$monotone(c(a = "increasing"), prior = "leaf")
+  dbarts::dbartsForests$monotone(c(a = "increasing"), prior = "joint")
 )
 expect_identical(
   monotoneOf(x, y, monotone = monotone(c(a = "increasing")))$directions,
@@ -80,7 +80,7 @@ expect_identical(
 # it has no print method of its own; the default print shows both parts
 printed <- capture.output(print(spec))
 expect_true(any(grepl("increasing", printed, fixed = TRUE)))
-expect_true(any(grepl("leaf", printed, fixed = TRUE)))
+expect_true(any(grepl("joint", printed, fixed = TRUE)))
 expect_error(
   dbarts::dbartsForests$monotone(c(a = 1), prior = "tree"),
   "should be one of"
@@ -88,7 +88,7 @@ expect_error(
 expect_error(dbarts::dbartsForests$monotone(), "requires 'directions'")
 expect_error(
   dbarts::dbartsForests$monotone(c(a = 1), prior = NA),
-  "'prior' must be one of \"leaf\", \"joint\"",
+  "'prior' must be one of \"joint\", \"leaf\"",
   fixed = TRUE
 )
 # a partly named vector and a predictor named twice are refused, not resolved
@@ -122,7 +122,7 @@ expect_identical(
   "joint"
 )
 expect_identical(priorOf(monotone = monotone(c(a = 1), prior = "leaf")), "leaf")
-expect_identical(priorOf(monotone = c(a = 1)), "leaf")
+expect_identical(priorOf(monotone = c(a = 1)), "joint")
 expect_null(priorOf())
 expect_null(priorOf(monotone = c(a = 0)))
 
@@ -321,9 +321,20 @@ fitArgs <- list(
   keepTrees = FALSE,
   verbose = FALSE
 )
+# "leaf" here, so that with fitJoint below both priors recover the truth
 fitMono <- do.call(
   dbarts::bart,
-  c(list(xRec, yRec, monotone = c(x1 = "increasing")), fitArgs)
+  c(
+    list(
+      xRec,
+      yRec,
+      monotone = dbarts::dbartsForests$monotone(
+        c(x1 = "increasing"),
+        prior = "leaf"
+      )
+    ),
+    fitArgs
+  )
 )
 fitFree <- do.call(dbarts::bart, c(list(xRec, yRec), fitArgs))
 

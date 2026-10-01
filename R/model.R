@@ -1851,7 +1851,7 @@ interactions <- function(max.order = NULL, groups = NULL, forbid = NULL) {
 ## The monotone priors, the default first: the one place the default is set.
 ## It is monotone()'s prior formal, so match.arg takes its first element when
 ## prior is not given, as the plain-vector shorthand does.
-MONOTONE_PRIORS <- c("leaf", "joint")
+MONOTONE_PRIORS <- c("joint", "leaf")
 
 ## Per-predictor monotone constraint and the prior it is read under, passed as
 ## monotone = to dbarts()/bart()/dbartsSpec(). directions is the vector the
