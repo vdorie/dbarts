@@ -960,3 +960,70 @@ countHooks(1)
 expect_equal(length(warnings), 1L)
 expect_inherits(warnings[[1L]], "dbartsSlowCountWarning")
 rm(warnings, sampler, model, other, freeSlow, constrained)
+
+# ---- exact one-cut law against contrary data ----
+
+# One row 4.2 below a 200-row cell on an increasing axis, sigma fixed at 0.5:
+# the split's children run against the constraint by 8 joint posterior sd,
+# where the cone probability is far below 1e-12. With one tree and one cut
+# the structure law is {root, split} in closed form; the split frequency must
+# match it under both priors (a quadrature that lost the deep tail drew 0.38
+# and 0.23 here).
+yCut <- c(rep(0, 200L), -4.2)
+xCut <- data.frame(x = c(rep(1, 200L), 2))
+sigmaCut <- 0.5
+splitProbability <- function(prior) {
+  z <- (yCut - min(yCut)) / diff(range(yCut)) - 0.5
+  residVar <- (sigmaCut / diff(range(yCut)))^2
+  leafTerms <- function(sumZ, n, tau) {
+    prec <- n / residVar + 1 / tau^2
+    list(
+      logMarginal = -0.5 *
+        log(1 + n * tau^2 / residVar) +
+        0.5 * (sumZ / residVar)^2 / prec,
+      mean = sumZ / residVar / prec,
+      sd = sqrt(1 / prec)
+    )
+  }
+  tau <- 0.5 / 2
+  tauC <- tau * sqrt(pi / (pi - 1))
+  root <- log1p(-0.95) + leafTerms(sum(z), length(z), tau)$logMarginal
+  lower <- leafTerms(sum(z[1:200]), 200, tauC)
+  upper <- leafTerms(z[201L], 1, tauC)
+  split <- log(0.95) +
+    lower$logMarginal +
+    upper$logMarginal +
+    pnorm(
+      (upper$mean - lower$mean) / sqrt(lower$sd^2 + upper$sd^2),
+      log.p = TRUE
+    ) +
+    if (prior == "leaf") log(2) else 0
+  1 / (1 + exp(root - split))
+}
+for (prior in c("leaf", "joint")) {
+  sampler <- dbarts::dbarts(
+    xCut,
+    yCut,
+    control = dbarts::dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 1L,
+      n.samples = 20000L,
+      n.burn = 1000L,
+      n.cuts = 1L,
+      seed = 1L
+    ),
+    tree.prior = cgm(2, 0.95),
+    leaf.prior = normal(2),
+    family = gaussian(sigma = fixed(sigmaCut^2)),
+    monotone = monotone(c(x = "increasing"), prior = prior)
+  )
+  expect_equal(
+    mean(sampler$run()$varcount > 0L),
+    splitProbability(prior),
+    tolerance = 0.03,
+    scale = 1,
+    info = prior
+  )
+}
+rm(yCut, xCut, sigmaCut, splitProbability, sampler, prior)
