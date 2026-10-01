@@ -461,26 +461,29 @@ evalx <- function(x, e) {
   eval(e, callingEnv)
 }
 
-redirectCall <- function(call, fn, ...) {
-  matchedCall <- match.call()
-  extraArgs <- if (length(matchedCall) > 3L) {
-    as.character(matchedCall[-c(1L, 2L, 3L)])
-  } else {
-    character()
+## Re-targets a matched call at 'fn', keeping the arguments 'fn' takes, plus
+## those its caller would forward through '...' when both have dots; '...'
+## names a fixed set of arguments to keep instead. 'callFormals' are the
+## formals of the function the call matched, by default the caller's own: the
+## call's head is never evaluated, since an alias (fn <- bart; fn(...)) names
+## nothing here, or names the wrong thing.
+redirectCall <- function(call, fn, ..., callFormals = NULL) {
+  extraArgs <- as.character(match.call(expand.dots = FALSE)$...)
+  if (is.null(callFormals)) {
+    callFormals <- formals(sys.function(sys.parent()))
   }
 
-  originalFn <- eval(call[[1L]])
-  call[[1L]] <- if (is.function(fn)) matchedCall[[3L]] else fn
+  call[[1L]] <- if (is.function(fn)) match.call()$fn else fn
   if (length(extraArgs) == 0L) {
     fn <- if (is.function(fn)) fn else eval(fn)
 
     argsToKeep <- names(call)[-1L] %in% names(formals(fn))
     if (
-      any(names(formals(originalFn)) == "...") &&
+      any(names(callFormals) == "...") &&
         any(names(formals(fn)) == "...")
     ) {
       argsToKeep <- argsToKeep |
-        names(call)[-1L] %not_in% names(formals(originalFn))
+        names(call)[-1L] %not_in% names(callFormals)
     }
 
     call <- call[c(TRUE, argsToKeep)]

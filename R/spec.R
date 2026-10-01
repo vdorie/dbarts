@@ -387,7 +387,11 @@ resolveSamplerSpec <- function(
   monotoneResolved <- resolveMonotone(monotone, data)
   monotoneDirections <- monotoneResolved$directions
 
-  parsePriorsCall <- redirectCall(matchedCall, quoteInNamespace(parsePriors))
+  parsePriorsCall <- redirectCall(
+    matchedCall,
+    quoteInNamespace(parsePriors),
+    callFormals = callFormals
+  )
   parsePriorsCall <- setDefaultsFromFormals(
     parsePriorsCall,
     callFormals,

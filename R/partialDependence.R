@@ -45,11 +45,17 @@ pdbart.getAndInitializeSampler <- function(bartCall, evalEnv) {
 # ("pdbart"/"pd2bart") used only in the diagnostic messages.
 pdbart.prologue <- function(x.train, matchedCall, callingEnv, name) {
   sampler <- fit <- NULL
+  # the formals of pdbart or pd2bart, whose call this is
+  callerFormals <- formals(sys.function(sys.parent()))
   if (is.matrix(x.train) || is.data.frame(x.train) || is.formula(x.train)) {
     # pdbart/pd2bart carry the BayesTree spelling themselves (x.train,
     # y.train, and BayesTree names through '...'), so the fit they build is
     # the legacy door's, at 0.9-34's defaults
-    bartCall <- redirectCall(matchedCall, dbarts::bartBT)
+    bartCall <- redirectCall(
+      matchedCall,
+      dbarts::bartBT,
+      callFormals = callerFormals
+    )
     massign[sampler, fit] <- pdbart.getAndInitializeSampler(
       bartCall,
       callingEnv

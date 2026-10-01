@@ -621,7 +621,11 @@ buildHostSamplerCall <- function(
   family,
   sigest
 ) {
-  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
+  samplerCall <- redirectCall(
+    matchedCall,
+    dbarts::dbarts,
+    callFormals = formals(dbarts::bart)
+  )
   samplerCall$control <- control
   samplerCall$n.samples <- NULL
   samplerCall$tree.prior <- priors$tree.prior
@@ -2982,7 +2986,11 @@ bart2Hurdle <- function(
     componentCall
   }
 
-  zeroCall <- restoreConsolidated(redirectCall(matchedCall, dbarts::bart))
+  zeroCall <- restoreConsolidated(redirectCall(
+    matchedCall,
+    dbarts::bart,
+    callFormals = formals(dbarts::bart)
+  ))
   zeroCall[gatedOnZeroOnly] <- NULL
   zeroCall$formula <- formula
   zeroCall$data <- split$z
@@ -2991,7 +2999,11 @@ bart2Hurdle <- function(
   zeroCall$keepTrees <- control@keepTrees
   zero <- eval(zeroCall, callingEnv)
 
-  positiveCall <- restoreConsolidated(redirectCall(matchedCall, dbarts::bart))
+  positiveCall <- restoreConsolidated(redirectCall(
+    matchedCall,
+    dbarts::bart,
+    callFormals = formals(dbarts::bart)
+  ))
   positiveCall$formula <- xPositive
   positiveCall$data <- split$logPositive
   positiveCall$test <- formula
