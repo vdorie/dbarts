@@ -437,9 +437,9 @@ inline double gaussianCdf(double z) {
   return Rf_pnorm5(z, 0.0, 1.0, 1, 0);
 }
 
-/// Adaptive Simpson quadrature of a smooth integrand over [a, b]; the callers
-/// standardize so the integrand is a standard-normal density times a bounded
-/// factor, keeping the recursion shallow.
+/// Adaptive Simpson quadrature of a smooth integrand over [a, b] to the
+/// absolute tolerance `tol`; the callers scale the integrand to 1 at its peak
+/// and confine [a, b] to a few peak widths, keeping the recursion shallow.
 template <typename F>
 double monotoneAdaptiveSimpson(F f, double a, double m, double b, double fa,
                                double fm, double fb, double whole, double tol,
@@ -455,26 +455,6 @@ double monotoneAdaptiveSimpson(F f, double a, double m, double b, double fa,
                                  depth - 1) +
          monotoneAdaptiveSimpson(f, m, rm, b, fm, frm, fb, right, 0.5 * tol,
                                  depth - 1);
-}
-template <typename F>
-double monotoneIntegrate(F f, double a, double b, double tol = 1e-12,
-                         int maxDepth = 30) {
-  if (!(b > a)) return 0.0;
-  // an initial uniform split guarantees a narrow peak anywhere in [a, b] is
-  // sampled before the adaptive convergence test can stop early on a wide,
-  // near-flat interval; each panel is then refined to tolerance.
-  const int panels = 16;
-  double h = (b - a) / panels;
-  double total = 0.0;
-  for (int panel = 0; panel < panels; ++panel) {
-    double lo = a + panel * h, hi = lo + h;
-    double m = 0.5 * (lo + hi);
-    double fa = f(lo), fm = f(m), fb = f(hi);
-    double whole = (hi - lo) / 6.0 * (fa + 4.0 * fm + fb);
-    total += monotoneAdaptiveSimpson(f, lo, m, hi, fa, fm, fb, whole,
-                                     tol / panels, maxDepth);
-  }
-  return total;
 }
 
 /// Adaptive Simpson over [a, b] from a single initial panel, for integrands
@@ -492,10 +472,21 @@ double monotoneSimpson(F f, double a, double b, double tol) {
 /// log(Phi(hi) - Phi(lo)) for standardized bounds; -HUGE_VAL on an empty
 /// interval. A difference of upper tails when the interval sits above zero and
 /// of lower tails otherwise, each taken in logs, so a mass deep in either tail
-/// neither cancels nor underflows. Infinite bounds are resolved here: the log
-/// pnorm the engine links returns 0, not -Inf, at an infinite argument.
+/// neither cancels nor underflows. An interval narrower than the two tails'
+/// rounding can resolve takes the density at its midpoint times its width
+/// instead (relative error under 1e-11): pnorm is not monotone to the ulp, so
+/// the difference could otherwise come out positive and the log NaN. Infinite
+/// bounds are resolved here: the log pnorm the engine links returns 0, not
+/// -Inf, at an infinite argument.
 inline double logStandardNormalMass(double lo, double hi) {
   if (!(hi > lo)) return -HUGE_VAL;
+  double width = hi - lo;
+  if (width * (1.0 + std::max(std::fabs(lo), std::fabs(hi))) < 1e-5) {
+    double c = 0.5 * (lo + hi);
+    return std::log(width) - 0.5 * c * c -
+           0.5 * std::log(2.0 * std::numbers::pi) +
+           std::log1p((c * c - 1.0) * width * width / 24.0);
+  }
   bool upperTail = lo > 0.0;
   double nearTail, farTail;
   if (upperTail) {
@@ -505,29 +496,34 @@ inline double logStandardNormalMass(double lo, double hi) {
     nearTail = std::isinf(hi) ? 0.0 : Rf_pnorm5(hi, 0.0, 1.0, 1, 1);
     farTail = std::isinf(lo) ? -HUGE_VAL : Rf_pnorm5(lo, 0.0, 1.0, 1, 1);
   }
-  double d = farTail - nearTail;  // <= 0
+  double d = farTail - nearTail;  // < 0
   return nearTail + (d > -std::numbers::ln2 ? std::log(-std::expm1(d))
                                             : std::log1p(-std::exp(d)));
 }
 
-/// Inverse CDF at u in [0, 1) of a log-concave density on [lo, hi], given as
-/// its log up to a constant. `start` lies in [lo, hi] at or left of the mode
-/// (the density is nondecreasing on [lo, start]) and `scale` is a positive
-/// length the searches start from. Everything is taken relative to the peak's
-/// log density, so a density deep in a tail neither underflows nor cancels:
-/// a golden-section search for the mode; the support cut on each side at the
-/// first doubling step where the log density is 50 below the peak
-/// (log-concavity keeps everything past the cut lower still, decaying at least
-/// as fast, so the mass cut is of order e^-50 of the mass kept); a composite
-/// adaptive Simpson cumulative over 16 panels a side, each at most a few peak
-/// widths since a log-concave density that falls 1 within w of its mode falls
-/// 50 within 50 w; and safeguarded Newton inside the panel holding the target,
-/// bisecting whenever a step leaves the panel's bracket.
+/// Where a log-concave density on [lo, hi] lives, relative to its peak: the
+/// mode, the log density there, and the support cut on each side at the first
+/// doubling step where the log density is 50 below the peak (log-concavity
+/// keeps everything past the cut lower still, decaying at least as fast, so
+/// the mass cut is of order e^-50 of the mass kept). A log-concave density
+/// that falls 1 within w of its mode falls 50 within 50 w, so a fixed number
+/// of panels a side spans it at a few peak widths each. Taking everything
+/// relative to the peak means a density deep in a tail neither underflows nor
+/// cancels. peak is -Inf when the density is -Inf everywhere searched.
+struct LogConcaveSupport {
+  double mode, peak, lower, upper;
+};
+
+/// Locate the support of `logDensity` on [lo, hi]: a bracket and a
+/// golden-section search for the mode to `modeTolerance` times `scale`, then
+/// the cuts. `start` lies in [lo, hi] at or left of the mode (the density is
+/// nondecreasing on [lo, start]) and `scale` is a positive length the
+/// searches start from.
 template <typename F>
-double monotoneInvertLogConcave(F logDensity, double lo, double hi,
-                                double start, double scale, double u) {
+LogConcaveSupport monotoneLogConcaveSupport(F logDensity, double lo, double hi,
+                                            double start, double scale,
+                                            double modeTolerance) {
   constexpr double maxDrop = 50.0;
-  constexpr int panelsPerSide = 16;
   constexpr int maxDoublings = 2100;  // past the double range from any start
   const double h0 = 1e-3 * scale;
 
@@ -559,7 +555,8 @@ double monotoneInvertLogConcave(F logDensity, double lo, double hi,
   double c = a + g * (b - a), d = b - g * (b - a);
   double fc = logDensity(c), fd = logDensity(d);
   for (int it = 0; it < 200; ++it) {
-    if (!(b - a > 1e-14 * (std::fabs(a) + std::fabs(b)) + 1e-9 * scale))
+    if (!(b - a > 1e-14 * (std::fabs(a) + std::fabs(b)) +
+                    modeTolerance * scale))
       break;
     if (fc >= fd) {
       b = d;
@@ -575,16 +572,18 @@ double monotoneInvertLogConcave(F logDensity, double lo, double hi,
       fd = logDensity(d);
     }
   }
-  double mode = best, peak = fBest;
-  if (fc > peak) {
-    mode = c;
-    peak = fc;
+  LogConcaveSupport support{best, fBest, best, best};
+  if (fc > support.peak) {
+    support.mode = c;
+    support.peak = fc;
   }
-  if (fd > peak) {
-    mode = d;
-    peak = fd;
+  if (fd > support.peak) {
+    support.mode = d;
+    support.peak = fd;
   }
-  if (!std::isfinite(peak)) return std::clamp(mode, lo, hi);
+  const double mode = support.mode, peak = support.peak;
+  support.lower = support.upper = mode;
+  if (!std::isfinite(peak)) return support;
 
   // the cut on one side: the first doubling step past which the log density
   // is maxDrop below the peak, or the interval's end
@@ -598,8 +597,107 @@ double monotoneInvertLogConcave(F logDensity, double lo, double hi,
     }
     return mode + sign * h;
   };
-  double lower = mode > lo ? cutAt(-1.0, lo) : mode;
-  double upper = mode < hi ? cutAt(1.0, hi) : mode;
+  if (mode > lo) support.lower = cutAt(-1.0, lo);
+  if (mode < hi) support.upper = cutAt(1.0, hi);
+  return support;
+}
+
+/// Adaptive Gauss-Kronrod (7-point Gauss, 15-point Kronrod) quadrature over
+/// [a, b], bisecting while the two rules differ by more than `tol`; the
+/// Kronrod value is returned, whose error on a smooth panel is far below that
+/// difference.
+template <typename F>
+double monotoneGaussKronrod(F f, double a, double b, double tol, int depth) {
+  static constexpr double xgk[8] = {
+    0.991455371120812639206854697526329, 0.949107912342758524526189684047851,
+    0.864864423359769072789712788640926, 0.741531185599394439863864773280788,
+    0.586087235467691130294144845693013, 0.405845151377397166906606412076961,
+    0.207784955007898467600689403773245, 0.0};
+  static constexpr double wgk[8] = {
+    0.022935322010529224963732008058970, 0.063092092629978553290700663189204,
+    0.104790010322250183839876322541518, 0.140653259715525918745189590510238,
+    0.169004726639267902826583426598550, 0.190350578064785409913256402421014,
+    0.204432940075298892414161999234649, 0.209482141084727828012999174891714};
+  static constexpr double wg[4] = {
+    0.129484966168869693270611432679082, 0.279705391489276667901467771423780,
+    0.381830050505118944950369775488975, 0.417959183673469387755102040816327};
+  double center = 0.5 * (a + b), half = 0.5 * (b - a);
+  double fc = f(center);
+  double kronrod = wgk[7] * fc, gauss = wg[3] * fc;
+  for (int j = 0; j < 7; ++j) {
+    double pair = f(center - half * xgk[j]) + f(center + half * xgk[j]);
+    kronrod += wgk[j] * pair;
+    if (j % 2 == 1) gauss += wg[j / 2] * pair;
+  }
+  kronrod *= half;
+  gauss *= half;
+  if (depth <= 0 || std::fabs(kronrod - gauss) <= tol) return kronrod;
+  return monotoneGaussKronrod(f, a, center, 0.5 * tol, depth - 1) +
+         monotoneGaussKronrod(f, center, b, 0.5 * tol, depth - 1);
+}
+
+/// log of the integral over [lo, hi] of a log-concave density given as its
+/// log, with `start` and `scale` as for monotoneLogConcaveSupport: the peak
+/// plus the log of the peak-relative integral, so a density whose every
+/// value underflows still has a finite log integral. Gauss-Kronrod over 4
+/// panels a side of the cut support, split at `kink` when it falls inside
+/// (a point where the density is not smooth; NaN for none); relative error
+/// about 1e-10. -HUGE_VAL when the density is -Inf everywhere searched.
+template <typename F>
+double monotoneLogIntegrateLogConcave(F logDensity, double lo, double hi,
+                                      double start, double scale,
+                                      double kink) {
+  constexpr int panelsPerSide = 4;
+  LogConcaveSupport support =
+    monotoneLogConcaveSupport(logDensity, lo, hi, start, scale, 1e-3);
+  if (!std::isfinite(support.peak)) return -HUGE_VAL;
+  if (!(support.upper > support.lower)) return -HUGE_VAL;
+  const double peak = support.peak, mode = support.mode;
+  auto density = [&](double x) { return std::exp(logDensity(x) - peak); };
+  std::array<double, 2 * panelsPerSide + 2> edges;
+  int numEdges = 0;
+  for (int k = 0; k < panelsPerSide && mode > support.lower; ++k)
+    edges[numEdges++] =
+      support.lower + (mode - support.lower) * k / panelsPerSide;
+  edges[numEdges++] = mode;
+  for (int k = 1; k <= panelsPerSide && support.upper > mode; ++k)
+    edges[numEdges++] = k == panelsPerSide
+      ? support.upper : mode + (support.upper - mode) * k / panelsPerSide;
+  if (kink > support.lower && kink < support.upper) {
+    int k = numEdges;
+    while (k > 0 && edges[k - 1] > kink) {
+      edges[k] = edges[k - 1];
+      --k;
+    }
+    edges[k] = kink;
+    ++numEdges;
+  }
+  // the density is 1 at the mode, so the integral is at least of the order
+  // of the peak's width, which the support spans in a few panels
+  const double tol = 1e-11 * (support.upper - support.lower);
+  double total = 0.0;
+  for (int k = 1; k < numEdges; ++k)
+    if (edges[k] > edges[k - 1])
+      total += monotoneGaussKronrod(density, edges[k - 1], edges[k],
+                                    tol / (numEdges - 1), 12);
+  return peak + std::log(total);
+}
+
+/// Inverse CDF at u in [0, 1) of a log-concave density on [lo, hi], given as
+/// its log up to a constant, with `start` and `scale` as for
+/// monotoneLogConcaveSupport: a composite adaptive Simpson cumulative over
+/// 16 panels a side of the cut support, then safeguarded Newton inside the
+/// panel holding the target, bisecting whenever a step leaves the panel's
+/// bracket.
+template <typename F>
+double monotoneInvertLogConcave(F logDensity, double lo, double hi,
+                                double start, double scale, double u) {
+  constexpr int panelsPerSide = 16;
+  LogConcaveSupport support =
+    monotoneLogConcaveSupport(logDensity, lo, hi, start, scale, 1e-9);
+  const double mode = support.mode, peak = support.peak;
+  const double lower = support.lower, upper = support.upper;
+  if (!std::isfinite(peak)) return std::clamp(mode, lo, hi);
   if (!(upper > lower)) return std::clamp(mode, lo, hi);
 
   auto density = [&](double x) { return std::exp(logDensity(x) - peak); };
@@ -1665,13 +1763,9 @@ struct MonotoneConstantGaussianLeaf {
   }
 
   // Draw from N(m, s^2) truncated to (a, b], using the sd-1 primitives; an
-  // unbounded side passes through. A two-sided interval above the mean is
-  // reflected below it and the draw negated: the primitive's inverse-CDF path
-  // differences lower-tail CDFs, which cancel near 1 (7.5 sd above the mean
-  // they collapse the draw onto a few hundred values) and keep full relative
-  // precision near 0. NaN when the primitive's tail rejection stalls, which
-  // it reports as NaN itself; a two-sided draw outside [a, b] is also NaN, as
-  // a backstop. Requires a < b.
+  // unbounded side passes through. NaN when the primitive's tail rejection
+  // stalls, which it reports as NaN itself; a two-sided draw outside [a, b] is
+  // also NaN, as a backstop. Requires a < b.
   static double drawTruncatedNormalOrNaN(ext_rng* rng, double m, double s,
                                          double a, double b) {
     if (!std::isfinite(a) && !std::isfinite(b))
@@ -1680,10 +1774,7 @@ struct MonotoneConstantGaussianLeaf {
       return ext_rng_simulateUpperTruncatedNormal(rng, m, s, b);
     if (!std::isfinite(b))
       return ext_rng_simulateLowerTruncatedNormal(rng, m, s, a);
-    double mean = m / s, lo = a / s, hi = b / s;
-    double z = lo > mean
-      ? -ext_rng_simulateTruncatedNormalScale1(rng, -mean, -hi, -lo)
-      : ext_rng_simulateTruncatedNormalScale1(rng, mean, lo, hi);
+    double z = ext_rng_simulateTruncatedNormalScale1(rng, m / s, a / s, b / s);
     double x = s * z;
     // the slack covers only the rounding of s * z at a bound
     double slack = 1e-12 * std::max(std::fabs(a), std::fabs(b));
@@ -1883,19 +1974,27 @@ struct MonotoneConstantGaussianLeaf {
     return drawPairUpperByInversion(rng, mU, sU, lo, hi, aL, bL, mL, sL);
   }
 
-  // drawPairUpper's exact fallback: the marginal is log-concave (a normal
-  // density times a truncated normal CDF of min(bL, u)) and nondecreasing up
-  // to min(mU, hi), so monotoneInvertLogConcave inverts its CDF from there.
-  // Consumes one uniform. Requires lo < hi.
-  static double drawPairUpperByInversion(ext_rng* rng, double mU, double sU,
-                                         double lo, double hi, double aL,
-                                         double bL, double mL, double sL) {
-    const double zA = (aL - mL) / sL;
-    auto logDensity = [&](double u) {
+  /// The upper leaf's marginal over a constrained pair, as a log density up
+  /// to -log(sU sqrt(2 pi)): log phi((u - mU) / sU) plus the log of the lower
+  /// leaf's N(mL, sL^2) mass on [aL, min(bL, u)]. Log-concave (a normal log
+  /// density plus a log normal mass of a concave nondecreasing argument) and
+  /// nondecreasing up to mU, so monotoneLogConcaveFrame can start from
+  /// clamp(mU, lo, hi) at scale min(sU, sL). zA is (aL - mL) / sL.
+  struct PairUpperLogDensity {
+    double mU, sU, zA, bL, mL, sL;
+    double operator()(double u) const {
       double z = (u - mU) / sU;
       return -0.5 * z * z +
              logStandardNormalMass(zA, (std::min(bL, u) - mL) / sL);
-    };
+    }
+  };
+
+  // drawPairUpper's exact fallback: monotoneInvertLogConcave inverts the
+  // marginal's CDF. Consumes one uniform. Requires lo < hi.
+  static double drawPairUpperByInversion(ext_rng* rng, double mU, double sU,
+                                         double lo, double hi, double aL,
+                                         double bL, double mL, double sL) {
+    PairUpperLogDensity logDensity{mU, sU, (aL - mL) / sL, bL, mL, sL};
     double u = ext_rng_simulateContinuousUniform(rng);
     return monotoneInvertLogConcave(logDensity, lo, hi,
                                     std::clamp(mU, lo, hi), std::min(sU, sL),
@@ -1979,15 +2078,15 @@ struct MonotoneConstantGaussianLeaf {
     double m, s;
     posterior(node.sumWeights, node.sumWeightedResponse, residualVariance, sd,
               &m, &s);
-    double postMass = normalMass(a, b, m, s);
-    if (postMass <= 0.0) return -HUGE_VAL;
-    return base + std::log(postMass);
+    double logMass = logStandardNormalMass((a - m) / s, (b - m) / s);
+    if (logMass == -HUGE_VAL) return -HUGE_VAL;
+    return base + logMass;
   }
 
   // The bivariate constrained-axis marginal: the cone is
   // {aL <= mu_lower <= bL, aR <= mu_upper <= bR, mu_lower <= mu_upper}, so the
-  // touched-leaf integral is one 1-D quadrature (standardized on the upper
-  // leaf), not a grid (design section 4).
+  // touched-leaf integral is one 1-D integral over the upper leaf, not a grid
+  // (design section 4).
   double twoLeafCoupledLogMarginal(const Tree& tree, std::int32_t lower,
                                    std::int32_t upper, const double* mu, double k,
                                    double residualVariance) const {
@@ -2012,30 +2111,31 @@ struct MonotoneConstantGaussianLeaf {
         kEff, residualVariance, nodeL.sumWeights, nodeL.sumWeightedResponse) +
       ConstantGaussianLeaf{scale}.logIntegratedLikelihood(
         kEff, residualVariance, nodeR.sumWeights, nodeR.sumWeightedResponse);
-    double lowR = std::max(aR, aL);
-    if (lowR > bR) return -HUGE_VAL;
-    double numer = coneProbability(lowR, bR, aL, bL, mL, sL, mR, sR);
-    if (numer <= 0.0) return -HUGE_VAL;
-    return base + std::log(numer);
+    double logCone =
+      logConeProbability(std::max(aR, aL), bR, aL, bL, mL, sL, mR, sR);
+    if (logCone == -HUGE_VAL) return -HUGE_VAL;
+    return base + logCone;
   }
 
-  // P(a? <= mu_lower <= mu_upper, mu_lower in [aL, bL], mu_upper in [lowR, hiR])
-  // for independent mu_lower ~ N(mL, sL^2), mu_upper ~ N(mR, sR^2); standardized
-  // on the upper leaf so the integrand is a standard-normal density times a
-  // bounded CDF difference.
-  double coneProbability(double lowR, double hiR, double aL, double bL,
-                         double mL, double sL, double mR, double sR) const {
-    double loU = std::max((lowR - mR) / sR, -38.0);
-    double hiU = std::isfinite(hiR) ? std::min((hiR - mR) / sR, 38.0) : 38.0;
-    double lowerL = std::isfinite(aL) ? gaussianCdf((aL - mL) / sL) : 0.0;
-    return monotoneIntegrate(
-      [&](double u) {
-        double x = mR + sR * u;
-        double upper = std::isfinite(bL) ? std::min(bL, x) : x;
-        double inner = gaussianCdf((upper - mL) / sL) - lowerL;
-        return (inner > 0.0 ? inner : 0.0) * gaussianPdf(u);
-      },
-      loU, hiU);
+  /// log P(aL <= mu_lower <= min(bL, mu_upper), lowR <= mu_upper <= hiR) for
+  /// independent mu_lower ~ N(mL, sL^2), mu_upper ~ N(mR, sR^2), with
+  /// lowR >= aL. -HUGE_VAL only on an empty cone (lowR >= hiR or aL >= bL):
+  /// with no bound set it is the closed form log Phi((mR - mL) / sqrt(sL^2 +
+  /// sR^2)), and otherwise the log integral of PairUpperLogDensity, taken
+  /// relative to its peak, so a cone the data contradict by any number of sd,
+  /// or a frozen bound far above the lower leaf's mean, stays finite.
+  static double logConeProbability(double lowR, double hiR, double aL,
+                                   double bL, double mL, double sL, double mR,
+                                   double sR) {
+    if (!(lowR < hiR) || !(aL < bL)) return -HUGE_VAL;
+    if (lowR == -HUGE_VAL && hiR == HUGE_VAL && bL == HUGE_VAL)
+      return Rf_pnorm5((mR - mL) / std::sqrt(sL * sL + sR * sR), 0.0, 1.0, 1,
+                       1);
+    PairUpperLogDensity logDensity{mR, sR, (aL - mL) / sL, bL, mL, sL};
+    return monotoneLogIntegrateLogConcave(logDensity, lowR, hiR,
+                                          std::clamp(mR, lowR, hiR),
+                                          std::min(sR, sL), bL) -
+           std::log(sR) - 0.5 * std::log(2.0 * std::numbers::pi);
   }
 
   // P(a <= X <= b) for X ~ N(mean, stdDev^2); 0 on an empty interval. An

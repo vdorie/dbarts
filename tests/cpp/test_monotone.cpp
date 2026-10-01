@@ -1084,6 +1084,286 @@ static void testMonotoneMoveClosedForm() {
          checked);
 }
 
+namespace {
+
+// log P(a <= Z <= b) for a standard normal Z, from tails in logs; the cone
+// references' own arithmetic, -Inf where rounding leaves no mass
+double refLogMass(double a, double b) {
+  if (!(b > a)) return -HUGE_VAL;
+  double near, far;
+  if (a > 0.0) {
+    near = Rf_pnorm5(a, 0.0, 1.0, 0, 1);
+    far = std::isinf(b) ? -HUGE_VAL : Rf_pnorm5(b, 0.0, 1.0, 0, 1);
+  } else {
+    near = std::isinf(b) ? 0.0 : Rf_pnorm5(b, 0.0, 1.0, 1, 1);
+    far = std::isinf(a) ? -HUGE_VAL : Rf_pnorm5(a, 0.0, 1.0, 1, 1);
+  }
+  return near + std::log1p(-std::exp(std::min(far - near, 0.0)));
+}
+
+// log P(aL <= L <= min(bL, U), lo <= U <= hi) for independent
+// L ~ N(mL, sL^2), U ~ N(mR, sR^2), by brute force: the log integrand on a
+// 1e5-point grid over a range wide enough to hold it, the region within 60
+// nats of that grid's peak, then composite Simpson on 2e5 panels of
+// exp(log integrand - peak) over that region, split at bL so the kink sits on
+// a node
+double refLogCone(double lo, double hi, double aL, double bL, double mL,
+                  double sL, double mR, double sR) {
+  auto logF = [&](double x) {
+    double z = (x - mR) / sR;
+    return -0.5 * z * z - std::log(sR) -
+           0.5 * std::log(2.0 * std::numbers::pi) +
+           refLogMass((aL - mL) / sL, (std::min(bL, x) - mL) / sL);
+  };
+  double span = 100.0 * std::max(sL, sR);
+  double from = std::isfinite(lo) ? lo : std::min(mL, mR) - span;
+  double to = std::isfinite(hi) ? hi : std::max(std::max(mL, mR), from) + span;
+  const int coarse = 100000;
+  double h = (to - from) / coarse, peak = -HUGE_VAL;
+  std::vector<double> f(coarse + 1);
+  for (int i = 0; i <= coarse; ++i) {
+    f[static_cast<size_t>(i)] = logF(from + i * h);
+    peak = std::max(peak, f[static_cast<size_t>(i)]);
+  }
+  int first = coarse, last = 0;
+  for (int i = 0; i <= coarse; ++i)
+    if (f[static_cast<size_t>(i)] > peak - 60.0) {
+      first = std::min(first, i);
+      last = std::max(last, i);
+    }
+  double l = from + std::max(first - 2, 0) * h;
+  double r = from + std::min(last + 2, coarse) * h;
+  auto simpson = [&](double a, double b, int n) {
+    double w = (b - a) / n, sum = 0.0;
+    for (int i = 0; i <= n; ++i) {
+      double v = std::exp(logF(a + i * w) - peak);
+      sum += v * (i == 0 || i == n ? 1.0 : (i % 2 ? 4.0 : 2.0));
+    }
+    return sum * w / 3.0;
+  };
+  double total = bL > l && bL < r
+    ? simpson(l, bL, 100000) + simpson(bL, r, 100000)
+    : simpson(l, r, 200000);
+  return peak + std::log(total);
+}
+
+}  // namespace
+
+// The constrained pair's log cone probability against closed forms and a
+// brute-force log-space reference, deep in the tail: data that run against
+// the constraint by up to 200 sd, children whose posterior sds differ by up
+// to 50 times, and a frozen lower bound up to 20 sd above the lower leaf's
+// mean. A linear-space quadrature with an absolute tolerance is off by tens
+// of nats here and returns zero, which the move takes for an infeasible cone.
+static void testMonotoneConeDeepTail() {
+  using Leaf = MonotoneConstantGaussianLeaf;
+  const double gaps[] = {0, 2, 5, 6.5, 7, 7.5, 8, 10, 15, 30, 37, 40, 60, 200};
+  const double ratios[] = {0.05, 0.2, 1, 5, 20, 50};
+  double worst = 0.0;
+  bool finite = true;
+  for (double gap : gaps)
+    for (double ratio : ratios) {
+      double sL = 0.3, sR = ratio * sL, mL = 0.7;
+      double mR = mL - gap * std::sqrt(sL * sL + sR * sR);
+      double exact = Rf_pnorm5(-gap, 0.0, 1.0, 1, 1);
+      double scale = std::max(1.0, std::fabs(exact));
+      // a finite upper bound far past the integrand forces the integral
+      double hiR = std::max(mL, mR) + 80.0 * std::max(sL, sR);
+      double bounded =
+        Leaf::logConeProbability(-HUGE_VAL, hiR, -HUGE_VAL, HUGE_VAL, mL, sL,
+                                 mR, sR);
+      Leaf::PairUpperLogDensity logDensity{mR, sR, -HUGE_VAL, HUGE_VAL, mL,
+                                           sL};
+      double whole = monotoneLogIntegrateLogConcave(
+                       logDensity, -HUGE_VAL, HUGE_VAL, mR, std::min(sR, sL),
+                       std::numeric_limits<double>::quiet_NaN()) -
+                     std::log(sR) - 0.5 * std::log(2.0 * std::numbers::pi);
+      double closed = Leaf::logConeProbability(-HUGE_VAL, HUGE_VAL, -HUGE_VAL,
+                                               HUGE_VAL, mL, sL, mR, sR);
+      finite = finite && std::isfinite(bounded) && std::isfinite(whole);
+      worst = std::max(worst, std::fabs(bounded - exact) / scale);
+      worst = std::max(worst, std::fabs(whole - exact) / scale);
+      worst = std::max(worst, std::fabs(closed - exact) / scale);
+    }
+  check(finite, "monotone cone: finite at every gap");
+  check(worst <= 1e-9, "monotone cone: the integral matches the closed form "
+                       "to 1e-9 (relative past 1 nat)");
+
+  // bounded cones: {zA, bL - aL, lowR - aL, hiR - aL, mR - aL, sR}, the lower
+  // leaf standard normal and aL = zA
+  struct Case {
+    double zA, bL, lowR, hiR, mR, sR;
+  };
+  const Case cases[] = {
+    {6.0, 3.0, 0.0, HUGE_VAL, -5.0, 1.0},
+    {6.0, HUGE_VAL, 0.5, 10.0, 1.0, 0.2},
+    {8.7, 3.0, 0.0, 10.0, -5.0, 5.0},
+    {8.7, HUGE_VAL, 0.0, HUGE_VAL, -20.0, 1.0},
+    {8.7, 0.5, 0.2, 4.0, 2.0, 0.05},
+    {20.0, 3.0, 0.0, HUGE_VAL, -5.0, 0.2},
+    {20.0, HUGE_VAL, 0.1, 10.0, -30.0, 3.0},
+    {20.0, 0.01, 0.0, 1.0, 0.0, 1.0},
+  };
+  double worstBounded = 0.0;
+  for (const Case& cs : cases) {
+    double aL = cs.zA, bL = aL + cs.bL, lowR = aL + cs.lowR;
+    double hiR = aL + cs.hiR, mR = aL + cs.mR;
+    double got =
+      Leaf::logConeProbability(lowR, hiR, aL, bL, 0.0, 1.0, mR, cs.sR);
+    double ref = refLogCone(lowR, hiR, aL, bL, 0.0, 1.0, mR, cs.sR);
+    finite = finite && std::isfinite(got);
+    worstBounded =
+      std::max(worstBounded, std::fabs(got - ref) / std::max(1.0, std::fabs(ref)));
+  }
+  // a cone captured from a fit whose frozen bound sat 8.7 sd above the lower
+  // leaf: the lower-tail difference rounded the integrand to zero everywhere
+  {
+    double lowR = -0.054755, aL = -0.054755, mL = -0.129222, sL = 0.008561;
+    double mR = -0.059441, sR = 0.019915;
+    double got = Leaf::logConeProbability(lowR, HUGE_VAL, aL, HUGE_VAL, mL, sL,
+                                          mR, sR);
+    double ref = refLogCone(lowR, HUGE_VAL, aL, HUGE_VAL, mL, sL, mR, sR);
+    check(std::isfinite(got), "monotone cone: a frozen bound far above the "
+                              "lower leaf is not a false zero");
+    checkNear(got, -41.875, 1e-2, "monotone cone: the captured frozen-bound "
+                                  "cone");
+    worstBounded = std::max(worstBounded, std::fabs(got - ref) / std::fabs(ref));
+  }
+  check(finite, "monotone cone: finite with bounds set");
+  check(worstBounded <= 1e-8,
+        "monotone cone: bounded cones match the log-space reference");
+  check(Leaf::logConeProbability(1.0, 1.0, 0.0, HUGE_VAL, 0.0, 1.0, 0.0,
+                                 1.0) == -HUGE_VAL &&
+          Leaf::logConeProbability(0.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0) ==
+            -HUGE_VAL,
+        "monotone cone: -Inf on an empty cone");
+
+  // logStandardNormalMass on intervals one ulp wide: pnorm is not monotone to
+  // the ulp, so a difference of tails can come out positive
+  bool notNaN = true;
+  double worstUlp = 0.0;
+  for (int i = 0; i < 100000; ++i) {
+    double lo = -8.0 + 16.0 * (i + 0.5) / 100000;
+    double hi = std::nextafter(lo, HUGE_VAL);
+    double got = logStandardNormalMass(lo, hi);
+    if (!std::isfinite(got)) notNaN = false;
+    double ref = std::log(hi - lo) - 0.5 * lo * lo -
+                 0.5 * std::log(2.0 * std::numbers::pi);
+    worstUlp = std::max(worstUlp, std::fabs(got - ref) / std::fabs(ref));
+  }
+  check(notNaN, "logStandardNormalMass: finite on an interval one ulp wide");
+  check(worstUlp < 1e-12, "logStandardNormalMass: one ulp is width times "
+                          "density");
+  printf("ok: monotone cone deep tail (worst %.1e closed form, %.1e bounded)\n",
+         worst, worstBounded);
+}
+
+// The same scores through the move's seam, logLikelihoodForBranchWithParams,
+// on hand-built trees whose data run against an increasing constraint: a
+// two-leaf birth with unequal children at gaps 8 to 45 sd (closed form), a
+// pair under a frozen neighbor 9 and 25 sd above the lower child (log-space
+// reference), and one merged leaf under a frozen bound 45 sd above it.
+static void testMonotoneSeamDeepTail() {
+  const size_t n = 400;
+  std::vector<double> x(n), y(n), weights(n, 1.0);
+  for (size_t i = 0; i < n; ++i) x[i] = (static_cast<double>(i) + 0.5) / n;
+  ColumnStore store;
+  built(store.build(x.data(), n, 1, 40));
+  const double sig2 = 0.01, scale = 0.5, k = 2.0;
+  const double c = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
+  const double tauC = c * scale / k;
+  MonotoneConstantGaussianLeaf leaf;
+  leaf.scale = scale;
+  leaf.data = &store;
+  leaf.directions = {1};
+  leaf.cInflation = c;
+  std::vector<index_t> idx(n);
+  Tree tree;
+  auto split = [&](std::int32_t node, std::int32_t cut) {
+    Rule rule;
+    rule.variableIndex = 0;
+    rule.setSplitIndex(cut);
+    tree.birth(store, node, rule, y.data(), weights.data());
+    return tree.at(node).leftChild;
+  };
+  double worst = 0.0;
+  bool finite = true;
+  int checked = 0;
+
+  // one split at x = 0.1: 40 rows below, 360 above sitting delta lower
+  for (double delta : {0.25, 0.6, 1.4}) {
+    for (size_t i = 0; i < n; ++i) y[i] = x[i] <= 0.1 ? 0.5 : 0.5 - delta;
+    tree.initialize(idx.data(), n);
+    tree.computeLeafStats(0, y.data(), weights.data());
+    std::int32_t lower = split(0, 3), upper = lower + 1;
+    const Node& nL = tree.at(lower);
+    const Node& nR = tree.at(upper);
+    double mL, sL, mR, sR;
+    refPost(nL.sumWeights, nL.sumWeightedResponse, sig2, tauC, mL, sL);
+    refPost(nR.sumWeights, nR.sumWeightedResponse, sig2, tauC, mR, sR);
+    double ref = refBase(nL.sumWeights, nL.sumWeightedResponse, sig2, tauC) +
+                 refBase(nR.sumWeights, nR.sumWeightedResponse, sig2, tauC) +
+                 Rf_pnorm5((mR - mL) / std::sqrt(sL * sL + sR * sR), 0.0, 1.0,
+                           1, 1);
+    double got = leaf.logLikelihoodForBranchWithParams(tree, 0, y.data(),
+                                                       weights.data(), k, sig2,
+                                                       nullptr);
+    finite = finite && std::isfinite(got);
+    worst = std::max(worst, std::fabs(got - ref) / std::max(1.0, std::fabs(ref)));
+    ++checked;
+  }
+
+  // A | B1 | B2 at x = 0.5 and 0.75, mu_A frozen z sd above B1's mean
+  for (double z : {9.0, 25.0}) {
+    for (size_t i = 0; i < n; ++i)
+      y[i] = x[i] <= 0.5 ? 0.0 : (x[i] <= 0.75 ? -0.2 : 0.1);
+    tree.initialize(idx.data(), n);
+    tree.computeLeafStats(0, y.data(), weights.data());
+    std::int32_t a = split(0, 19), b = a + 1;
+    std::int32_t b1 = split(b, 29), b2 = b1 + 1;
+    const Node& n1 = tree.at(b1);
+    const Node& n2 = tree.at(b2);
+    double m1, s1, m2, s2;
+    refPost(n1.sumWeights, n1.sumWeightedResponse, sig2, tauC, m1, s1);
+    refPost(n2.sumWeights, n2.sumWeightedResponse, sig2, tauC, m2, s2);
+    std::vector<double> mu(tree.nodes.size(), 0.0);
+    mu[a] = m1 + z * s1;
+    double ref = refBase(n1.sumWeights, n1.sumWeightedResponse, sig2, tauC) +
+                 refBase(n2.sumWeights, n2.sumWeightedResponse, sig2, tauC) +
+                 refLogCone(mu[a], HUGE_VAL, mu[a], HUGE_VAL, m1, s1, m2, s2);
+    double got = leaf.logLikelihoodForBranchWithParams(
+      tree, b, y.data(), weights.data(), k, sig2, mu.data());
+    finite = finite && std::isfinite(got);
+    worst = std::max(worst, std::fabs(got - ref) / std::max(1.0, std::fabs(ref)));
+    ++checked;
+
+    // the merged leaf B under the same frozen bound, 45 sd above its mean
+    tree.initialize(idx.data(), n);
+    tree.computeLeafStats(0, y.data(), weights.data());
+    a = split(0, 19);
+    b = a + 1;
+    const Node& nB = tree.at(b);
+    double m, s;
+    refPost(nB.sumWeights, nB.sumWeightedResponse, sig2, tauC, m, s);
+    mu.assign(tree.nodes.size(), 0.0);
+    mu[a] = m + 45.0 * s;
+    ref = refBase(nB.sumWeights, nB.sumWeightedResponse, sig2, tauC) +
+          Rf_pnorm5(45.0, 0.0, 1.0, 0, 1);
+    got = leaf.logLikelihoodForBranchWithParams(tree, b, y.data(),
+                                                weights.data(), k, sig2,
+                                                mu.data());
+    finite = finite && std::isfinite(got);
+    worst = std::max(worst, std::fabs(got - ref) / std::max(1.0, std::fabs(ref)));
+    ++checked;
+  }
+  check(finite, "monotone seam: contrary data and far frozen bounds score "
+                "finite");
+  check(worst <= 1e-8, "monotone seam: deep-tail scores match their "
+                       "references");
+  printf("ok: monotone seam deep tail (%d scores, worst %.1e)\n", checked,
+         worst);
+}
+
 // The free bound decides a move only where the count would decide it the
 // same way, for the same u: over random trees, every nog node, births and
 // deaths, and a spread of the rest of the ratio.
@@ -1457,6 +1737,8 @@ void runMonotoneTests() {
   testMonotoneGeometryPoints();
   testMonotoneMissingArrives();
   testMonotoneMoveClosedForm();
+  testMonotoneConeDeepTail();
+  testMonotoneSeamDeepTail();
   testMonotoneFreeBound();
   testMonotoneJointTreePrior();
   testMonotoneCountInterrupt();

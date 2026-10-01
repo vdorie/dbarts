@@ -7583,10 +7583,11 @@ static void testMonotoneMarginal() {
       return (inner > 0.0 ? inner : 0.0) * normalPdf(xr, 0.0, sd);
     },
     aL, 12.0 * (leaf.scale / kEff));
-  double coneNum =
-    leaf.coneProbability(aL, HUGE_VAL, aL, HUGE_VAL, mL, sL, mR, sR);
-  double coneDen = leaf.coneProbability(aL, HUGE_VAL, aL, HUGE_VAL, 0.0,
-                                        leaf.scale / kEff, 0.0, leaf.scale / kEff);
+  double coneNum = std::exp(MonotoneConstantGaussianLeaf::logConeProbability(
+    aL, HUGE_VAL, aL, HUGE_VAL, mL, sL, mR, sR));
+  double coneDen = std::exp(MonotoneConstantGaussianLeaf::logConeProbability(
+    aL, HUGE_VAL, aL, HUGE_VAL, 0.0, leaf.scale / kEff, 0.0,
+    leaf.scale / kEff));
   checkNear(coneNum, numerRef, 1e-6, "monotone cone numerator vs quadrature");
   checkNear(coneDen, denomRef, 1e-6, "monotone cone normalizer vs quadrature");
 
