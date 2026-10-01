@@ -2030,6 +2030,12 @@ ordinalLogLik <- function(object, probs) {
   k <- match(y, levels)
   idx <- rep(seq_len(nObs), each = n.draws)
   result <- log(flat[cbind(seq_len(n.draws * nObs), k[idx])])
+  # a row the active-row mask takes out of the data set has no likelihood to
+  # report, as pointwiseLogLikelihood reports it
+  active <- object[["active"]]
+  if (!is.null(active)) {
+    result[active[idx] == 0] <- NaN
+  }
   array(result, d[-length(d)], dimnames(probs)[-length(d)])
 }
 

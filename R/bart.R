@@ -2527,6 +2527,11 @@ packageOrdinalResults <- function(
   if (!is.null(sampler$data@na.action)) {
     result$na.action <- sampler$data@na.action
   }
+  # the active-row mask 0/1 case weights install, which the log-likelihood
+  # channel reads as bart's single-forest packager records it
+  if (!is.null(sampler$activeRows)) {
+    result$active <- sampler$activeRows
+  }
   class(result) <- "bartOrdinal"
   result
 }
