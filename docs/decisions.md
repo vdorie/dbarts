@@ -1246,6 +1246,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B173]
 A vector n.cuts shorter than the number of predictors recycles, as dbartsControl's help documents, and bart's help now says so instead of requiring a match; a vector longer than the number of predictors is refused, since its extra entries can never apply. Until now, and in 0.9-34, a long vector was silently truncated. The alternatives were fixing the help only, and requiring length one or one per predictor. A call that passed too many values errors. The maintainer on 2026-10-01: "Option 1." Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B174]
 
+**Partial dependence treats factor predictors as factors**
+pdbart() and pd2bart() evaluate a factor predictor at every level by default, accept and report levels by name in levs and the results, and plot one point per level instead of a line, as pdp, iml and DALEX do. Until now they took quantiles of the 0-based category codes, which could error between codes or skip levels (four of fifteen in a probe) and labelled results by code. The alternatives were refusing factor predictors and pointing to predict(), and every code labelled by name with the line plot kept. The maintainer on 2026-10-01: "Treat factors as factors." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B175]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
