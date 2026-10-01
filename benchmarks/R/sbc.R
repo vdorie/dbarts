@@ -2747,7 +2747,7 @@ rankUniformity <- function(
 # so a full-matrix pass has probability ~0.95 on a fresh stream rather than each
 # arm alarming independently at its own nominal 5%. M is
 # gaussian 7 + ordinal 10 + nbinom 3 + t 4 + multinomial 6 + aft 9 +
-# hetero 8 + hetero-aft 10. aft counts
+# hetero 8 + hetero-aft 10 + monotone-leaf 10 + monotone-joint 10. aft counts
 # its censored-latent functional even though a replication that draws an empty
 # censored set contributes no rank there: the count is of functionals READ, not
 # of ranks collected, and an arm whose R varies by replication would otherwise
@@ -2761,19 +2761,15 @@ sbcMatrixConfigs <- c(
   "multinomial",
   "aft",
   "hetero",
-  "hetero-aft"
+  "hetero-aft",
+  "monotone-leaf",
+  "monotone-joint"
 )
-sbcMatrixFunctionals <- 7L + 10L + 3L + 4L + 6L + 9L + 8L + 10L
+sbcMatrixFunctionals <- 7L + 10L + 3L + 4L + 6L + 9L + 8L + 10L + 10L + 10L
 sbcMatrixAlpha <- 0.05 / sbcMatrixFunctionals
 
-# The two 20-tree monotone arms are read at the level the matrix would take
-# with both admitted, 10 functionals each (docs/plans/sbc-family-tiers.md,
-# Monotone arm: design); they stay out of sbcMatrixConfigs until both pass.
-# The one-tree arms and their twin are diagnostics, read per functional at 5%.
-sbcMonotoneAlpha <- c(
-  "monotone-leaf" = 0.05 / (sbcMatrixFunctionals + 20L),
-  "monotone-joint" = 0.05 / (sbcMatrixFunctionals + 20L)
-)
+# The one-tree monotone arms and their twin are diagnostics, read per
+# functional at 5% (docs/plans/sbc-family-tiers.md, Monotone arm: design).
 
 # A compact ASCII rank histogram with the +/- band around the uniform mean.
 sbcAsciiHistogram <- function(ranks, L, nBins = 20L, width = 40L) {
@@ -3303,8 +3299,6 @@ if (sys.nframe() == 0L) {
     fit,
     alpha = if (which %in% sbcMatrixConfigs) {
       sbcMatrixAlpha
-    } else if (which %in% names(sbcMonotoneAlpha)) {
-      sbcMonotoneAlpha[[which]]
     } else {
       0.05
     },

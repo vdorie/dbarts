@@ -58,7 +58,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | sbc-calibration.md | DONE (all tiers complete) | The simulation-based-calibration harness and its running log; found and diagnosed a BCF sigma-mixing issue and a cauchy-tau tooling gap along the way. |
-| sbc-family-tiers.md | BUILT d094675 (2026-08-04); aft and heteroscedastic arms admitted 2026-09-13 | Extends SBC calibration to ordinal, nbinom, Student-t and multinomial responses; all pass except a known ordinal ridge-mixing flag. aft and the two heteroscedastic arms have since been admitted to sbc.yaml's matrix; monotone's two 20-tree arms, one per prior, pass and are not yet admitted. |
+| sbc-family-tiers.md | BUILT d094675 (2026-08-04); aft and heteroscedastic arms admitted 2026-09-13, monotone arms 2026-10-01 | Extends SBC calibration to ordinal, nbinom, Student-t and multinomial responses; all pass except a known ordinal ridge-mixing flag. aft, the two heteroscedastic arms and monotone's two 20-tree arms (one per prior) have since been admitted to sbc.yaml's matrix. |
 
 ## Response-family / model-surface singletons
 

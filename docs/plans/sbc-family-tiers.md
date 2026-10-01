@@ -333,13 +333,13 @@ at alpha = 0.05, so nothing previously recorded is invalidated.
 - Out of the matrix still: hazard and hurdle, whose design depends on y0.
   aft and the two heteroscedastic arms have since been admitted, their enablers
   being the status setter and the variance-forest prior draw and surface
-  accessor; monotone's two 20-tree arms, one per prior, pass and are not yet
-  admitted (Monotone arm: design).
+  accessor; monotone's two 20-tree arms, one per prior, passed and have been
+  admitted too (Monotone arm: design).
 
 ## Monotone arm: design
 
-Run 2026-09-30 on arm64 macOS: both 20-tree arms pass every functional; not yet
-admitted to sbc.yaml's matrix. Built in monotone-exact-birth-death.md step 16
+Run 2026-09-30 on arm64 macOS: both 20-tree arms pass every functional; both
+admitted to sbc.yaml's matrix 2026-10-01. Built in monotone-exact-birth-death.md step 16
 (dec-A133).
 
 DGP. The gaussian arm's design (n 150, p 3, x ~ U(0, 1) at configSeed 1, the
@@ -383,9 +383,10 @@ Chain and pass. The burn ladders (40000 sweeps x 3 datasets per prior) put the
 transient in the first two or three 4000-sweep blocks and the slowest
 functionals past ACF 0.1 at lag ~200 ("leaf") and ~140 ("joint"), so the arms
 run at 12000 burn sweeps, thin 100, L 150, R 200. Pass: rankUniformity's ecdf
-band at 0.05 / (57 + 20), both arms joining the matrix, band 0.137 at R 200.
-Kept out of sbcMatrixConfigs until admitted, since adding them widens every
-matrix arm's band.
+band at 0.05 / (57 + 20), both arms in the matrix, band 0.137 at R 200.
+They are in sbcMatrixConfigs, so sbcMatrixFunctionals is 77 and every matrix
+arm's band is read at that width. The workflow gives each a 300 minute timeout
+(about 103 minutes of CPU at R 200).
 
     Rscript benchmarks/R/sbc.R burn-monotone-leaf  40000 3
     Rscript benchmarks/R/sbc.R burn-monotone-joint 40000 3

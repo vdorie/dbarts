@@ -3,16 +3,17 @@
 # plus the five family tiers (docs/plans/sbc-family-tiers.md) and the three
 # arms docs/design/aft-status-setter.md carries: aft, and the two
 # heteroscedastic ones composing a variance forest with the gaussian and aft
-# arms. Rank uniformity
+# arms, and the two 20-tree monotone arms, one per prior. Rank uniformity
 # is a statistical test that will occasionally false-alarm at its nominal level,
 # so this deliberately does NOT gate pull requests: only a scheduled,
 # workflow_dispatch-triggered run that turns visibly red on a FLAG.
 #
 # Admission: sbc.R Bonferroni's the ecdf band's alpha to 0.05/M over the
-# matrix's TOTAL functional count (M = 57), so a full matrix passes with
+# matrix's TOTAL functional count (M = 77), so a full matrix passes with
 # probability ~0.95 on a fresh stream rather than each arm alarming
-# independently at 5%. M sums the eight Bonferroni'd arms (gaussian, ordinal,
-# nbinom, t, multinomial, aft, hetero, hetero-aft); the matrix runs a ninth
+# independently at 5%. M sums the ten Bonferroni'd arms (gaussian, ordinal,
+# nbinom, t, multinomial, aft, hetero, hetero-aft, monotone-leaf,
+# monotone-joint); the matrix runs an eleventh
 # job, discrete-selfcheck, which is outside that count. fail-fast is off so one arm's
 # FLAG never hides another's.
 # A widening M can only turn a recorded FLAG into a PASS, so admitting an arm
@@ -25,8 +26,8 @@
 #
 # Timeouts are ~3x the measured single-thread wall-clock on the maintainer's
 # laptop (ordinal 6.6 min, nbinom 46 min, t 2.6 min, multinomial 7.3 min,
-# aft 79 s, hetero 2.2 min and hetero-aft 4.4 min at R=200; gaussian 5 min at
-# R=100). nbinom is the expensive arm: its Polya-Gamma draw loops sum(y_i + r)
+# aft 79 s, hetero 2.2 min, hetero-aft 4.4 min and each monotone arm ~103 min
+# (31 s per replicate) at R=200; gaussian 5 min at R=100). nbinom is the expensive arm: its Polya-Gamma draw loops sum(y_i + r)
 # times per sweep. aft and the two heteroscedastic arms take the gaussian row's
 # 15 minutes rather than their own 3x: under a quarter hour the job's floor is
 # the dependency install and the package build, not the arm.
@@ -40,8 +41,8 @@
 # (bcf-latent-evidence.md Decision 1, re-measured without the amplitude
 # rescaling move) -- a finding on chain length, the R=200 verdicts being
 # near-clean.
-# And the hazard / hurdle / monotone families: the first two are ill-posed for
-# SBC, monotone is liftable but not yet run (sbc-family-tiers.md). The
+# And the hazard / hurdle families, which are ill-posed for SBC
+# (sbc-family-tiers.md), and the one-tree monotone diagnostics. The
 # heteroscedastic pair left that list once the variance forest gained a
 # prior-draw entry and a current-state surface accessor (aft-status-setter.md).
 #
@@ -138,6 +139,20 @@ jobs:
             samples: 150
             thin: 100
             timeout: 15
+          # the two 20-tree monotone arms, one per prior. 12000 burn sweeps
+          # (sbcBurnSweeps) and thin 100 clear the ladder's slowest functional
+          # (ACF 0.1 at lag ~200 under "leaf", ~140 under "joint"); about
+          # 31 s per replicate, so ~103 min at R=200 and a 300 min timeout.
+          - config: monotone-leaf
+            reps: 200
+            samples: 150
+            thin: 100
+            timeout: 300
+          - config: monotone-joint
+            reps: 200
+            samples: 150
+            thin: 100
+            timeout: 300
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
