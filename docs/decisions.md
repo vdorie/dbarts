@@ -1206,6 +1206,10 @@ Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B163]
 A flat run's per-draw split-count buffer holds one set per forest that keeps split counts (K on multinomial, 2 on BCF), sized by a second new accessor, so the flat API matches R's $run on every model. Until now it held one forest's counts (BCF's prognostic forest, a multinomial's first category). The alternatives were one set per fitted value per observation (K on multinomial, BCF still one, unlike R) and one set everywhere, documented. A host gets every forest's variable importance as R reports it; a stale binary that sized one set on a multinomial or BCF handle would overflow, and no consumer drives either through the flat API. The maintainer on 2026-10-01: "One set per forest that has split counts." See also: [dec-B160], [dec-B163].
 Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B164]
 
+**The flat C API's split-count accessor is dbarts_sampler_numVariableCountForests**
+The second new entry, which reports how many sets of split counts a run writes per draw (K on multinomial, 2 on BCF, 1 elsewhere; a variance forest keeps none), is dbarts_sampler_numVariableCountForests, the name of the callback struct's existing field and of R's varcount. The alternative was numSplitCountForests with the callback field renamed to match, plainer words that would give the quantity a second name beside R's varcount. The maintainer on 2026-10-01: "dbarts_sampler_numVariableCountForests." See also: [dec-B164].
+Record: docs/plans/capi-multinomial.md. Marked: blank. [dec-B165]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
