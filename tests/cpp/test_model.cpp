@@ -7946,17 +7946,27 @@ static void testTruncatedNormalUpperBulk() {
   struct Case {
     double mean, lower, upper;
   };
-  const Case cases[] = {{0.0, 7.5, 8.0}, {0.0, 8.0, 9.0}, {0.0, 8.2, 9.0},
-                        {-1.5, 6.6, 7.0}, {0.0, 0.5, 2.0}};
+  // the last two straddle where the tail probability turns subnormal (about
+  // 37.5 sd), past which the draw is the rejection sampler's
+  const Case cases[] = {{0.0, 7.5, 8.0},   {0.0, 8.0, 9.0},  {0.0, 8.2, 9.0},
+                        {-1.5, 6.6, 7.0},  {0.0, 0.5, 2.0},  {0.0, 37.0, 38.0},
+                        {0.0, 38.2, 39.0}};
   const int numDraws = 100000;
   double worstZ = 0.0;
   bool reflected = true;
   for (const Case& cs : cases) {
+    // exact moments of N(0, 1) on (a, b], density relative to its value at a
     double a = cs.lower - cs.mean, b = cs.upper - cs.mean;
-    double z = Rf_pnorm5(a, 0.0, 1.0, 0, 0) - Rf_pnorm5(b, 0.0, 1.0, 0, 0);
-    double pa = gaussianPdf(a), pb = gaussianPdf(b);
-    double refMean = (pa - pb) / z;
-    double refVar = 1.0 + (a * pa - b * pb) / z - refMean * refMean;
+    double sw = 0.0, sxw = 0.0, sx2w = 0.0;
+    const int grid = 200000;
+    for (int j = 0; j < grid; ++j) {
+      double x = a + (j + 0.5) * (b - a) / grid;
+      double w = std::exp(-0.5 * (x - a) * (x + a));
+      sw += w;
+      sxw += x * w;
+      sx2w += x * x * w;
+    }
+    double refMean = sxw / sw, refVar = sx2w / sw - refMean * refMean;
     std::vector<double> draws(static_cast<size_t>(numDraws));
     bool inside = true;
     double sum = 0.0, sumSq = 0.0;

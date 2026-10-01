@@ -25,6 +25,7 @@
 
 #include <external/random.h>
 
+#include <float.h> // DBL_MIN
 #include <math.h> // exp, log, expm1, fabs, nan
 #include <stdbool.h>
 
@@ -462,8 +463,9 @@ extern double Rf_qnorm5(double, double, double, int, int);
 // X = mean - qnorm(Phi(mean - upper) + U (Phi(mean - lower) - Phi(mean - upper))),
 // since lower-tail CDFs near 1 cancel (7.5 sd above the mean they collapse the
 // draw onto a few hundred values, biased) and near 0 keep full relative
-// precision. Deep in a tail the probability gap underflows to zero, so fall
-// back to Robert (1995) two-sided rejection, reflecting the interval into the
+// precision. Deep in a tail the probabilities turn subnormal (lose precision,
+// about 37.5 sd out) or the gap underflows to zero, so fall back to Robert
+// (1995) two-sided rejection, reflecting the interval into the
 // right tail first: a uniform proposal on a narrow interval, accepted with
 // exp(-(x^2 - lo^2) / 2) (at least 1/e when (hi^2 - lo^2) / 2 <= 1), and an
 // exponential one otherwise, rejecting proposals past the upper bound. A
@@ -479,8 +481,9 @@ double ext_rng_simulateTruncatedNormalScale1(
   double a = lower - mean, b = upper - mean;
   bool above = a > 0.0;
   double pLower = Rf_pnorm5(above ? -b : a, 0.0, 1.0, 1, 0);
-  double gap = Rf_pnorm5(above ? -a : b, 0.0, 1.0, 1, 0) - pLower;
-  if (gap > 0.0) {
+  double pUpper = Rf_pnorm5(above ? -a : b, 0.0, 1.0, 1, 0);
+  double gap = pUpper - pLower;
+  if (gap > 0.0 && pUpper >= DBL_MIN) {
     double u = ext_rng_simulateContinuousUniform(generator);
     double z = Rf_qnorm5(pLower + u * gap, 0.0, 1.0, 1, 0);
     double x = above ? mean - z : mean + z;
