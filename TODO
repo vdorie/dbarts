@@ -199,8 +199,11 @@ items
     3b (leaf geometry on factor and missing-value axes), 4 (the exact move
     under both priors) and 5 (slow counts, cancel, setModel refusals)
     landed; the checkpoint fired its trigger, so the Barker hybrid
-    (docs/design/monotone-barker-hybrid.md) waits for the maintainer; 4b
-    and 6 open.
+    (docs/design/monotone-barker-hybrid.md) waits for the maintainer.
+    Stage 6's equivalence scenarios, the successive-conditional check and
+    the SBC arms landed (both 20-tree arms pass), and the feel study ran;
+    the default (dec-B148's order) waits for the maintainer, then step 12's
+    docs; 4b waits for the hybrid call.
   monotone-factor-direction-host: a host that hands the engine a monotone
     direction on an unordered-factor column gets an unconstrained sampler
     without a word: the facade's monotoneConstraintIsActive returns false

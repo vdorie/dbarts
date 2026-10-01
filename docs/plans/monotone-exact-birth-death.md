@@ -1256,3 +1256,13 @@ reference-build compares bitwise 53/15/11 and snapshots unchanged; the 25 exact 
 491/0, bartCause 0 failures. A real interrupt mid-count leaves a state equal to a rebuild of the same
 trees and takes effect in 33-47 ms. Calls made: dec-A132.
 
+Stage 6 (all but step 12's docs) and the feel study, 2026-09-30: the two monotone equivalence scenarios,
+one per prior, and equivalence-90074738 (55 scenarios, the other 53 bitwise as before; d80f27c7,
+4ff51229); the SBC arms (4d3c4041, f354dc6f, 90de0ba3); the successive-conditional check, which runs in
+the monotone CI job and fails the old move at |z| 9 under "leaf" and 31 under "joint" (d9807526,
+61bcc779); the one-tree SBC arm demoted to a mixing diagnostic after its flag was traced to birth/death
+mixing shared with the unconstrained twin, not to the kernel (dec-A133; 2ae44594, 2819d47a); and the feel
+study (7178b075, 922035df, 95eb4113). Both 20-tree SBC arms pass every functional (worst ecdf distance
+0.075 "leaf", 0.082 "joint", band 0.137). Lint chain clean; the equivalence file reproduces 55/55 bitwise
+on the reference build. Step 12's docs wait for the maintainer's default ruling.
+
