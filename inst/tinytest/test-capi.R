@@ -1142,30 +1142,11 @@ compileHandshakeConsumer <- function(label, extraFlags) {
     sprintf('PKG_CPPFLAGS = -I"%s" %s', includeDir, extraFlags),
     file.path(dir, "Makevars")
   )
-  owd <- setwd(dir)
-  output <- tryCatch(
-    suppressWarnings(system2(
-      file.path(R.home("bin"), "R"),
-      c("CMD", "SHLIB", paste0(label, ".c")),
-      stdout = TRUE,
-      stderr = TRUE
-    )),
-    error = function(e) e
+  compileCapiSource(
+    dir,
+    paste0(label, ".c"),
+    paste0("the ", label, " C API consumer")
   )
-  setwd(owd)
-  lib <- file.path(dir, paste0(label, .Platform$dynlib.ext))
-  if (!file.exists(lib)) {
-    if (nzchar(Sys.getenv("CI", ""))) {
-      stop(
-        "could not compile the ",
-        label,
-        " C API consumer under CI:\n",
-        paste(output, collapse = "\n")
-      )
-    }
-    return(NULL)
-  }
-  lib
 }
 
 libWrongHashAlone <- compileHandshakeConsumer(
