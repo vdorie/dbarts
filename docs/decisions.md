@@ -1262,6 +1262,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B177]
 survivalProbabilities() replays a hazard or aft fit's own offset on its training rows, and gains an offset argument for newdata (per subject, repeated over periods for hazard); a formula offset() term is evaluated on newdata, per dec-B154. Until now a hazard fit's offset was silently dropped in-sample, enough in a probe to reverse two groups' order, and an offset on newdata was refused. The alternative was fixing the training rows and keeping the refusal, documented. The function is new in 1.0-0. The maintainer on 2026-10-01: "Use the fit's offset on training rows, and add an offset argument for newdata." See also: [dec-B154]. Found by the third whole-branch review.
 Record: docs/decisions.md. Marked: blank. [dec-B178]
 
+**nbinom takes 0/1 weights as the row mask**
+A negative-binomial fit accepts weights of exactly 0 and 1 as the active-row mask, as probit and ordinal fits do, dropping weight-0 rows from the likelihood; other weights stay refused. Until now nbinom refused 0/1 weights with a message about exposure, although the engine supports the mask for it. The alternative was keeping the refusal with a message pointing to subset or $setActiveRows(). The maintainer on 2026-10-01: "Accept 0/1 weights as the row mask on nbinom." Found by the third whole-branch review.
+Record: docs/decisions.md. Marked: blank. [dec-B179]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
