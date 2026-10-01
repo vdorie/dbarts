@@ -277,9 +277,9 @@ expect_error(
 )
 expect_identical(recipient$predict(xw), predictBefore)
 expect_identical(recipient$getTrees(), treesBefore)
-# the restore re-accumulates the touched chain's fits, so the continuation
-# matches the untouched twin to rounding
-expect_equal(recipient$run(5L, 5L), twin$run(5L, 5L))
+# the rebuild is judged on scratch trees before anything is replaced, so the
+# continuation is the untouched twin's, bitwise
+expect_identical(recipient$run(5L, 5L), twin$run(5L, 5L))
 
 # --- a heteroscedastic donor whose variance forest holds another tree count
 # is refused before any mean forest is replaced, and says so

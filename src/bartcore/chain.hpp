@@ -4230,6 +4230,74 @@ public:
   /// them onto the live grid, collapsing starved splits (a cross-grid start),
   /// and requires store - this chain's shared data, mutable so the donor grid
   /// can be swapped in for the structural build.
+  /// Whether every live tree in \p state builds from its flat form against the
+  /// store as it stands - the live grid, or a donor grid the caller has swapped
+  /// in - on scratch trees, touching nothing: the one way installForest's
+  /// rebuild can fail that the warm start's other gates do not see, checked
+  /// before any chain is replaced.
+  bool forestsRebuildable(const ChainStateData& state) const {
+    if (state.forests.size() != forests_.size()) return false;
+    size_t n = data_.numObservations;
+    Tree scratch;
+    std::vector<index_t> scratchIndices(n);
+    std::vector<double> params;
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      const Forest<L, ResidT>& forest = forests_[f];
+      const ForestStateData& fs = state.forests[f];
+      if (fs.trees.size() != forest.numTrees) return false;
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        scratch.initialize(scratchIndices.data(), n);
+        const std::uint64_t* masks =
+          fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
+        size_t numMaskWords =
+          fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
+        bool built;
+        if constexpr (!L::hasVectorParams)
+          built = scratch.buildFromFlat(data_, fs.trees[t].data(),
+                                        fs.trees[t].size(), params, 1, nullptr,
+                                        masks, numMaskWords);
+        else
+          built = scratch.buildFromFlat(data_, fs.trees[t].data(),
+                                        fs.trees[t].size(), params,
+                                        forest.leaf.numParams(),
+                                        fs.treeParams[t].data(), masks,
+                                        numMaskWords);
+        if (!built) return false;
+      }
+    }
+    return true;
+  }
+
+  /// The variance forest's twin: every tree builds, and, where
+  /// \p checkOccupancy (a same-grid install, whose rebuild does not collapse),
+  /// routes this data to every bottom node.
+  bool varianceForestRebuildable(
+      const std::vector<std::vector<FlatNode>>& trees,
+      const std::vector<std::vector<std::uint64_t>>& masks,
+      bool checkOccupancy) const {
+    const VarianceForest& vf = *varianceForest_;
+    if (trees.size() != vf.numTrees) return false;
+    size_t n = data_.numObservations;
+    Tree scratch;
+    std::vector<index_t> scratchIndices(n);
+    std::vector<double> leafValues;
+    for (size_t j = 0; j < vf.numTrees; ++j) {
+      scratch.initialize(scratchIndices.data(), n);
+      const std::uint64_t* maskWords =
+        masks.empty() ? nullptr : masks[j].data();
+      size_t numMaskWords = masks.empty() ? 0 : masks[j].size();
+      if (!scratch.buildFromFlat(data_, trees[j].data(), trees[j].size(),
+                                 leafValues, 1, nullptr, maskWords,
+                                 numMaskWords))
+        return false;
+      if (checkOccupancy) {
+        scratch.repartitionSubtree(data_, 0);
+        if (!scratch.bottomNodesAreOccupied()) return false;
+      }
+    }
+    return true;
+  }
+
   /// What an install records beyond the state getState captures: whether each
   /// forest's leaf scale is still the calibration map's, and the reported
   /// amplitude prior. A warm start undoing a refused install restores these

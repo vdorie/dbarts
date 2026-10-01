@@ -1384,6 +1384,9 @@ public:
     // for the scratch builds these feasibility checks make (ScopedCutGrid
     // restores the live grid on scope exit); the remap only ever collapses
     // splits, so a donor feasible pre-remap stays feasible after.
+    // The rebuild itself is judged here too, on scratch trees over the same
+    // grid: a donor tree that does not build, or a same-grid variance tree
+    // that leaves a bottom node empty, is refused before anything is touched.
     auto checkContainment = [&]() -> WarmStartResult {
       for (size_t c = 0; c < chains_.size(); ++c)
         if (!chains_[c]->interactionStateFeasible(install[c]))
@@ -1391,6 +1394,15 @@ public:
       for (size_t c = 0; c < chains_.size(); ++c)
         if (!chains_[c]->columnMaskStateFeasible(install[c]))
           return WarmStartResult::columnMaskMismatch;
+      for (size_t c = 0; c < chains_.size(); ++c)
+        if (!chains_[c]->forestsRebuildable(install[c]))
+          return WarmStartResult::rebuildFailed;
+      for (size_t c = 0; c < chains_.size(); ++c)
+        if (chains_[c]->hasVarianceForest() &&
+            !chains_[c]->varianceForestRebuildable(
+              install[c].varianceTrees, install[c].varianceTreeMasks,
+              !crossGrid))
+          return WarmStartResult::varianceMismatch;
       return WarmStartResult::ok;
     };
     WarmStartResult containment;
@@ -1402,12 +1414,13 @@ public:
     }
     if (containment != WarmStartResult::ok) return containment;
 
-    // The rebuilds below are the one check that cannot run ahead of the
-    // install: a donor tree can fail to rebuild on this data, or a rebuilt
-    // variance tree leave a leaf empty, on any chain. Every chain's live state
-    // is therefore snapshotted first, store excluded since nothing here writes
-    // it, and a refusal restores every chain it touched. The restore rebuilds
-    // the trees from their flattened form, as a save and load does.
+    // Every check above ran before this point, so the installs below are not
+    // expected to fail. They are still undoable: each chain's live state is
+    // snapshotted first, store excluded since nothing here writes it, and a
+    // rebuild that fails anyway, or an exception (an allocation), restores
+    // every chain touched - from the flattened trees, as a save and load
+    // does, so its fits match the snapshot to rounding - before the refusal
+    // or the rethrow.
     using Marks = typename Chain<L, ResidT>::InstallMarks;
     std::vector<ChainStateData> snapshot(chains_.size());
     std::vector<Marks> marks(chains_.size());
@@ -1415,10 +1428,9 @@ public:
       chains_[c]->getState(snapshot[c], false);
       marks[c] = chains_[c]->installMarks();
     }
-    // chains [0, end) were touched; the restore re-accumulates their fits, so
-    // they match the snapshot to rounding, and an untouched chain is left be
-    auto restoreChains = [&](size_t end) {
-      for (size_t c = 0; c < end; ++c) {
+    size_t touched = 0;
+    auto restoreTouched = [&]() {
+      for (size_t c = 0; c < touched; ++c) {
         chains_[c]->setState(snapshot[c]);
         chains_[c]->restoreInstallMarks(marks[c]);
       }
@@ -1426,23 +1438,30 @@ public:
 
     const std::vector<std::vector<double>>* donorGridPtr =
       crossGrid ? &donor.cutPoints : nullptr;
-    for (size_t c = 0; c < chains_.size(); ++c) {
-      if (!chains_[c]->installForest(install[c], donorGridPtr, &data_)) {
-        restoreChains(c + 1);
-        return WarmStartResult::rebuildFailed;
+    WarmStartResult failure = WarmStartResult::ok;
+    try {
+      for (size_t c = 0; c < chains_.size() && failure ==
+             WarmStartResult::ok; ++c) {
+        touched = c + 1;
+        if (!chains_[c]->installForest(install[c], donorGridPtr, &data_))
+          failure = WarmStartResult::rebuildFailed;
       }
+      // the variance half, separately so a refusal names the variance forest
+      for (size_t c = 0; c < chains_.size() && failure ==
+             WarmStartResult::ok; ++c) {
+        if (chains_[c]->hasVarianceForest() &&
+            !chains_[c]->installVarianceForest(install[c].varianceTrees,
+                                               install[c].varianceTreeMasks,
+                                               donorGridPtr, &data_))
+          failure = WarmStartResult::varianceMismatch;
+      }
+    } catch (...) {
+      restoreTouched();
+      throw;
     }
-    // the variance half, separately so a refusal names the variance forest;
-    // the shape gate above pairs hasVarianceForest with a non-empty block of
-    // the same tree count
-    for (size_t c = 0; c < chains_.size(); ++c) {
-      if (chains_[c]->hasVarianceForest() &&
-          !chains_[c]->installVarianceForest(install[c].varianceTrees,
-                                             install[c].varianceTreeMasks,
-                                             donorGridPtr, &data_)) {
-        restoreChains(chains_.size());
-        return WarmStartResult::varianceMismatch;
-      }
+    if (failure != WarmStartResult::ok) {
+      restoreTouched();
+      return failure;
     }
     // the store itself is left alone, so the draws it holds belong to the
     // donor's fit, not this one's: drop them rather than let a read replay
