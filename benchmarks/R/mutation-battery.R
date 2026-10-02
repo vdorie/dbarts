@@ -731,13 +731,14 @@ mutations <- c(
       "m <- sum(periods < times[j])",
       c(
         kTests(
+          "test-hazard-grid-horizon.R",
           "test-hazard.R",
           "test-hazard-factors.R",
           "test-predict-na-action.R"
         ),
         kGate("hazard-exact.R")
       ),
-      "hazard survivalProbabilities: a horizon on a grid point excludes its own period"
+      "hazard survivalProbabilities: a horizon on a grid point excludes its own period; test-hazard-grid-horizon.R pins S(t) on and off the grid against the (1 - hazard) product"
     ),
     r3(
       "m52",
