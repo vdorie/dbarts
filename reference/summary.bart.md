@@ -48,11 +48,9 @@ print(x, ...)
 
   On a heteroscedastic fit the `sigma` token resolves to `mean.s`: the
   mean over the training observations of that draw's variance surface
-  \\s(x)\\, one value per draw. The `sigma` such a fit stores is the
-  variance forest parameterization's fixed unit residual times the range
-  of the response, a constant with no posterior content, so it is not
-  reported as a parameter; `s.train` itself is reachable by name,
-  contributing one variable per observation.
+  \\s(x)\\, one value per draw, since such a fit has no scalar `sigma`;
+  `s.train` itself is reachable by name, contributing one variable per
+  observation.
 
   For the four own-class fits, `vars` is scoped to that family's own
   vocabulary (see

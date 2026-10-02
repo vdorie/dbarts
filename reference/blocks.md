@@ -7,7 +7,9 @@ grouped-GAMI decomposition). Pass the result as the `blocks` argument of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md). The
 constraint is applied per forest, so in a multi-forest model each forest
-can carry its own partition.
+can carry its own partition. A multinomial fit applies it to each of its
+category forests, so `trees.per.group` sums to the trees in one category
+forest.
 
 The constructor is not exported: it resolves by bare name inside the
 arguments that take it, and elsewhere is written

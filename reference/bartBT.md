@@ -46,7 +46,7 @@ plot(
 # S3 method for class 'bart'
 predict(
     object, newdata,
-    type = c("ev", "ppd", "bart", "forest"),
+    type = c("ev", "ppd", "bart", "forest", "sigma"),
     offset = NULL, weights = NULL,
     combineChains = TRUE,
     ci.level = NULL,
@@ -482,45 +482,48 @@ family(object, ...)
   T\\), and a heteroscedastic fit
   ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `variance`) draws its noise at that observation's own
-  \\s(x_i)/\sqrt{w_i}\\; the scalar `sigma` such a fit reports is a
-  fixed unit residual times the range of the response and is not its
-  residual scale. For `"loglik"`, gaussian fits evaluate \\y_i \mid x_i
-  \sim N(\hat{f}(x_i), \sigma^2 / w_i)\\ in logs at each draw of \\f\\
-  and \\\sigma\\ - or, for a heteroscedastic fit, \\y_i \mid x_i \sim
-  N(\hat{f}(x_i), s^2(x_i) / w_i)\\ at each draw of \\f\\ and \\s\\, a
-  `family = student()` fit the corresponding marginal \\t\_\nu\\ density
-  at that draw's \\\nu\\ (the fit's `$resid.df`) rather than the normal
-  one, binary fits evaluate the Bernoulli log-likelihood of the fitted
-  probability, multiplied for a weighted logistic fit by the
-  observation-count weight \\w_i\\, and an aft fit contributes the log
-  density for an event and the log survival tail \\\log P(T \> C)\\ for
-  a right-censored observation, both on the log-time scale. When chains
-  are combined the result is a samples-by-observations matrix directly
-  consumable by WAIC/PSIS-LOO implementations such as those in the loo
-  package; the chains-first convention is kept, so a per-chain array
-  (`combineChains = FALSE`, dimension chains-by-samples-by-observations)
-  is reordered to the draws-by-chains-by-observations that
-  `loo::relative_eff` expects with `aperm(x, c(2, 1, 3))`. To synergize
-  with [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
+  \\s(x_i)/\sqrt{w_i}\\. For `"loglik"`, gaussian fits evaluate \\y_i
+  \mid x_i \sim N(\hat{f}(x_i), \sigma^2 / w_i)\\ in logs at each draw
+  of \\f\\ and \\\sigma\\ - or, for a heteroscedastic fit, \\y_i \mid
+  x_i \sim N(\hat{f}(x_i), s^2(x_i) / w_i)\\ at each draw of \\f\\ and
+  \\s\\, a `family = student()` fit the corresponding marginal
+  \\t\_\nu\\ density at that draw's \\\nu\\ (the fit's `$resid.df`)
+  rather than the normal one, binary fits evaluate the Bernoulli
+  log-likelihood of the fitted probability, multiplied for a weighted
+  logistic fit by the observation-count weight \\w_i\\, and an aft fit
+  contributes the log density for an event and the log survival tail
+  \\\log P(T \> C)\\ for a right-censored observation, both on the
+  log-time scale. When chains are combined the result is a
+  samples-by-observations matrix directly consumable by WAIC/PSIS-LOO
+  implementations such as those in the loo package; the chains-first
+  convention is kept, so a per-chain array (`combineChains = FALSE`,
+  dimension chains-by-samples-by-observations) is reordered to the
+  draws-by-chains-by-observations that `loo::relative_eff` expects with
+  `aperm(x, c(2, 1, 3))`. To synergize with
+  [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
   used as a synonym for `"bart"`; the
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
   extended-family methods take the same two synonyms, each against its
-  own set of types. `extract` alone also takes `"sigma"`, `"k"` and
-  `"sd"`, the residual scale and leaf-prior spread draws (`"sd"` on a
-  fit whose leaf prior was named by `sd`, `"k"` otherwise) as a
-  chain-combined vector or (`combineChains = FALSE`) a chains-by-samples
-  matrix, and `"varcount"`, the per-predictor split counts shaped as
-  `"ev"` is with predictors in place of observations - none of them
-  per-observation, so a supplied `sample` is refused by name on all
-  three, as is `forest` (see `forest` below). `sigma` on a weighted fit
-  is the scale at weight 1 (row i's is \\\sigma / \sqrt{w_i}\\); on a
-  `family = student()` fit it is the t scale, not the standard
-  deviation. A binary fit and a heteroscedastic fit have no scalar
-  `sigma` to extract (error naming the reason, the latter pointing at
-  `s.train` instead); a fixed (unmodelled) `k` likewise errors, naming a
-  `chi(...)` hyperprior as the fix where the fit could take one. For
-  information on extracting trees, see the subsection below.
+  own set of types. `extract` also takes `"sigma"`, `"k"` and `"sd"`,
+  the residual scale and leaf-prior spread draws (`"sd"` on a fit whose
+  leaf prior was named by `sd`, `"k"` otherwise) as a chain-combined
+  vector or (`combineChains = FALSE`) a chains-by-samples matrix, and
+  `"varcount"`, the per-predictor split counts shaped as `"ev"` is with
+  predictors in place of observations - none of them per-observation, so
+  a supplied `sample` is refused by name on all three, as is `forest`
+  (see `forest` below). `sigma` on a weighted fit is the scale at weight
+  1 (row i's is \\\sigma / \sqrt{w_i}\\); on a `family = student()` fit
+  it is the t scale, not the standard deviation. A binary fit has no
+  `sigma` to extract (error naming the reason). A heteroscedastic fit's
+  `"sigma"` is its per-observation scale \\s(x)\\, laid out as `"ev"` is
+  and taking `sample`: `extract` returns the stored `s.train` or
+  `s.test`, and `predict`, which takes `"sigma"` on such a fit only,
+  evaluates the variance forest at `newdata` (refusing `weights`, since
+  a case weight does not change \\s(x)\\). A fixed (unmodelled) `k`
+  errors, naming a `chi(...)` hyperprior as the fix where the fit could
+  take one. For information on extracting trees, see the subsection
+  below.
 
 - sample:
 
@@ -531,7 +534,8 @@ family(object, ...)
   is always the training rows - and is refused by name on `predict`,
   whose stored train and test channels are `extract`'s `sample` instead;
   also refused by name on `extract(type = "sigma")`/`"k"`/`"varcount"`,
-  none of them per-observation.
+  none of them per-observation (`"sigma"` excepted on a heteroscedastic
+  fit, where it is).
 
 - forest:
 
@@ -833,15 +837,17 @@ returned. In the numeric \\y\\ case, the list has components:
 - `sigma`:
 
   Matrix of posterior samples of `sigma`, the residual/error standard
-  deviation. Dimensions are equal to the number of chains times the
-  number of samples unless `nchain` is one or `combinechains` is `TRUE`,
-  in which case it collapses to a vector in the same chain-major order
-  as `yhat.train` (see above), so combined `sigma[r]` pairs with
-  combined `yhat.train[r, ]`.
+  deviation; absent on a heteroscedastic fit, which has no scalar
+  residual scale and whose scale draws are `s.train`/`s.test`.
+  Dimensions are equal to the number of chains times the number of
+  samples unless `nchain` is one or `combinechains` is `TRUE`, in which
+  case it collapses to a vector in the same chain-major order as
+  `yhat.train` (see above), so combined `sigma[r]` pairs with combined
+  `yhat.train[r, ]`.
 
 - `first.sigma`:
 
-  Burn-in draws of `sigma`.
+  Burn-in draws of `sigma`; absent where `sigma` is.
 
 - `varcount`:
 
@@ -1154,7 +1160,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.141168
+#> total seconds in loop: 0.147979
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

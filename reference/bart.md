@@ -854,8 +854,9 @@ print(x, ...)
   \\s(x)\\ is the residual scale the reporting channels use:
   `extract(type = "loglik")`, the `type = "ppd"` draws, and
   [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
-  `mean.s` row all read it instead of the fixed `sigma` such a fit
-  stores (see
+  `mean.s` row all read it, and `extract` and `predict` return it as
+  `type = "sigma"`; such a fit has no scalar `sigma`, and carries no
+  `sigma` or `first.sigma` (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
   constructor resolves by bare name inside this argument, whatever the
   caller has attached, and a bare name the caller has bound to a value
@@ -1909,7 +1910,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001550
+#> total seconds in loop: 0.001616
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1958,7 +1959,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001876
+#> total seconds in loop: 0.002023
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

@@ -5,6 +5,8 @@
   decomposition). Pass the result as the blocks argument of
   dbarts or bart. The constraint is applied per
   forest, so in a multi-forest model each forest can carry its own partition.
+  A multinomial fit applies it to each of its category forests, so
+  trees.per.group sums to the trees in one category forest.
 The constructor is not exported: it resolves by bare name inside the
   arguments that take it, and elsewhere is written
   dbartsForests$blocks(...); see dbartsForests."><meta property="og:description" content="Build a block-additive constraint confining each whole tree in a BART fit to
@@ -13,6 +15,8 @@ The constructor is not exported: it resolves by bare name inside the
   decomposition). Pass the result as the blocks argument of
   dbarts or bart. The constraint is applied per
   forest, so in a multi-forest model each forest can carry its own partition.
+  A multinomial fit applies it to each of its category forests, so
+  trees.per.group sums to the trees in one category forest.
 The constructor is not exported: it resolves by bare name inside the
   arguments that take it, and elsewhere is written
   dbartsForests$blocks(...); see dbartsForests."></head><body>
@@ -60,7 +64,9 @@ The constructor is not exported: it resolves by bare name inside the
   per-group functions \(f = \sum_G f_G\) (a functional-ANOVA / grouped-GAMI
   decomposition). Pass the result as the <code>blocks</code> argument of
   <code><a href="dbarts.html">dbarts</a></code> or <code><a href="bart.html">bart</a></code>. The constraint is applied per
-  forest, so in a multi-forest model each forest can carry its own partition.</p>
+  forest, so in a multi-forest model each forest can carry its own partition.
+  A multinomial fit applies it to each of its category forests, so
+  <code>trees.per.group</code> sums to the trees in one category forest.</p>
 <p>The constructor is not exported: it resolves by bare name inside the
   arguments that take it, and elsewhere is written
   <code>dbartsForests$blocks(...)</code>; see <code><a href="dbartsForests.html">dbartsForests</a></code>.</p>

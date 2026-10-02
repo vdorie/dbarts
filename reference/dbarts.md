@@ -286,13 +286,15 @@ dbarts(
   (default `40`) and tree-structure prior (default the mean forest's
   `tree.prior` `base`/`power`); a `varianceForest` with no `vars` reads
   every predictor, matching `TRUE`. Gaussian and `"aft"` (survival)
-  responses and constant leaves only; monotone constraints and the
-  latent families (`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`),
-  which route their own precisions through the channel the variance
-  forest divides into, are not supported. Under `"aft"` the model is
-  \\\log T = f(x) + s(x)\epsilon\\, so the dispersion of log survival
-  time varies with \\x\\ and each right-censored observation's latent
-  log-time is redrawn at its own \\s(x_i)\\;
+  responses and constant leaves only (a `linear()` or `gp()` leaf prior,
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md),
+  is refused by name); monotone constraints and the latent families
+  (`"probit"`, `"logistic"`, `"ordinal"`, `"nbinom"`), which route their
+  own precisions through the channel the variance forest divides into,
+  are not supported. Under `"aft"` the model is \\\log T = f(x) +
+  s(x)\epsilon\\, so the dispersion of log survival time varies with
+  \\x\\ and each right-censored observation's latent log-time is redrawn
+  at its own \\s(x_i)\\;
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   then divides by that surface rather than a scalar.
   `family = student()` residuals are also refused together with
@@ -308,8 +310,10 @@ dbarts(
   scores at \\s(x_i)/\sqrt{w_i}\\, `type = "ppd"` draws its noise there,
   and
   [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
-  summarizes `mean.s` in place of `sigma`, which under this
-  parameterization is held fixed and carries no posterior content. The
+  summarizes `mean.s` in place of `sigma`; `extract` and `predict`
+  return it as `type = "sigma"`. Such a fit carries no `sigma` or
+  `first.sigma`, and the sampler's `getSigmas()` returns `NULL`: the
+  engine holds the scalar fixed, so it carries no posterior content. The
   constructor resolves by bare name inside this argument, whatever the
   caller has attached, and a bare name the caller has bound to a value
   is that value; see

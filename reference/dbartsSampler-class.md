@@ -632,7 +632,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   whose amplitudes are \\(b_0, b_1)\\ - and a numeric vector or matrix
   is already those columns, which is the same expansion
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
-  applies at creation. Any forest takes a basis of any width.
+  applies at creation. Any forest takes a basis of any width. Unlike
+  creation, a factor basis may leave a level empty, its column all zeros
+  and its amplitude moving under its prior alone until a row takes it
+  again, so a swap inside a larger sampler can leave a level momentarily
+  unobserved; a numeric column of all zeros is still refused.
   `setForestBasis` is the *sole* route by which a basis changes after
   creation, and it applies only to a sampler whose forests carry
   amplitudes, built with `forests = ` (see
@@ -1211,62 +1215,68 @@ cross-sampler workflow follows for free: `donor$growFromRoot(k)` then
 
 ## Value
 
-For `run`, a named-list with contents `sigma`, `train`, `test`, and
-`varcount` (plus `k` and `varprobs` when applicable). `train` is an
-array of dimension n.obs x n.samples x n.chains, and likewise `test` (or
-`NULL` if the sampler has no test data) and `varcount` are n.predictors
-x n.samples x n.chains; `sigma` is n.samples x n.chains. When `n.chains`
-is `1` the trailing chain dimension is dropped, so `train` is a plain
-n.obs x n.samples matrix and `sigma` a plain vector of length n.samples.
-On a multi-forest (`forests`) sampler `varcount` gains a forest axis
-between the predictors and the samples - n.predictors x n.forests x
-n.samples x n.chains, forest-major within a draw and the prognostic
-forest first - so each forest's own per-draw split counts arrive from
-one call rather than only the reported forest's; a single-forest
-sampler's array keeps exactly its n.predictors x n.samples x n.chains
-shape, and the same widening is what a `family = "multinomial"`
-sampler's per-category counts ride. This is the RAW run shape; the
-packaged fit [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
-builds reshapes it draws-first with the forest names on the trailing
-margin, as it does for the multinomial channel.
-`$getForestVariableCounts` reads the same quantity for the CURRENT
-state, one forest at a time. A Bayesian causal forest adds two more:
-`forestFits`, an n.obs x n.forests x n.samples x n.chains array of each
-forest's fitted values on the internal scale (the prognostic \\\mu\\
-first, the treatment \\\tau\\ second), and `glue`, a sum(q) x n.samples
-x n.chains array of the amplitudes each draw combines them through,
-stacked forest-major and as wide as each forest's own basis (a Bayesian
-causal forest's \\(a, b_0, b_1)\\, three rows), so both surfaces and
-their recombination come from a single call; `train` carries the
-combination \\a \mu(x_i) + b\_{z_i} \tau(x_i)\\ on the response scale,
-or on the latent scale when the sampler was built under `"probit"` or
-`"logistic"`, and `test` is filled with `NaN` (there is no test
-treatment vector to combine off-sample). No other model reports either
-element. A `"nbinom"` sampler adds one of its own: `dispersion`, the
-negative-binomial \\r\\ each draw is conditioned on, shaped exactly as
-`sigma` (a length n.samples vector at one chain, an n.samples x n.chains
-matrix otherwise) because it is the count analog of it - fixed at the
-value the sampler was created with under a fixed `dispersion`, and that
-sweep's grid draw otherwise. It is written from the same state
-`storeState` serializes and consumes no random numbers, so reading it
-costs a run nothing. No other family carries the element at all: it is
-absent from the list, not `NULL` within it, so `run()$dispersion` is
-`NULL` on every non-`"nbinom"` sampler and a test of the channel must be
-`!is.null(...)` rather than a comparison, which `NULL` would satisfy
-vacuously. A sampler built with `family = student()` adds `resid.df` on
-exactly the same terms - the degrees of freedom \\\nu\\ each draw is
-conditioned on, shaped as `sigma`, written from settled state and
-consuming no random numbers, absent from the list under any other error
-law - fixed at the value supplied to `student(df = )`, and that sweep's
-grid draw when the degrees of freedom are estimated. A run can be
-interrupted with `Ctrl-C`: it stops between iterations - joining any
-worker threads first - and signals an error, returning no samples from
-the interrupted run. The sampler's chains are left at the iteration they
-reached, which is a valid state to run again from. Under
-`control@keepFits == FALSE`, `train`, `test`, and (when the model
-carries them) the variance and forest channels come back `NULL` rather
-than an array - present in the list, holding nothing, unlike
-`dispersion`/`resid.df` above, which are absent outright when
+For `run`, a named-list with contents `sigma` (absent on a
+heteroscedastic sampler, below), `train`, `test`, and `varcount` (plus
+`k` and `varprobs` when applicable). `train` is an array of dimension
+n.obs x n.samples x n.chains, and likewise `test` (or `NULL` if the
+sampler has no test data) and `varcount` are n.predictors x n.samples x
+n.chains; `sigma` is n.samples x n.chains. When `n.chains` is `1` the
+trailing chain dimension is dropped, so `train` is a plain n.obs x
+n.samples matrix and `sigma` a plain vector of length n.samples. On a
+multi-forest (`forests`) sampler `varcount` gains a forest axis between
+the predictors and the samples - n.predictors x n.forests x n.samples x
+n.chains, forest-major within a draw and the prognostic forest first -
+so each forest's own per-draw split counts arrive from one call rather
+than only the reported forest's; a single-forest sampler's array keeps
+exactly its n.predictors x n.samples x n.chains shape, and the same
+widening is what a `family = "multinomial"` sampler's per-category
+counts ride. This is the RAW run shape; the packaged fit
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) builds
+reshapes it draws-first with the forest names on the trailing margin, as
+it does for the multinomial channel. `$getForestVariableCounts` reads
+the same quantity for the CURRENT state, one forest at a time. A
+Bayesian causal forest adds two more: `forestFits`, an n.obs x n.forests
+x n.samples x n.chains array of each forest's fitted values on the
+internal scale (the prognostic \\\mu\\ first, the treatment \\\tau\\
+second), and `glue`, a sum(q) x n.samples x n.chains array of the
+amplitudes each draw combines them through, stacked forest-major and as
+wide as each forest's own basis (a Bayesian causal forest's \\(a, b_0,
+b_1)\\, three rows), so both surfaces and their recombination come from
+a single call; `train` carries the combination \\a \mu(x_i) + b\_{z_i}
+\tau(x_i)\\ on the response scale, or on the latent scale when the
+sampler was built under `"probit"` or `"logistic"`, and `test` is filled
+with `NaN` (there is no test treatment vector to combine off-sample). No
+other model reports either element. A `"nbinom"` sampler adds one of its
+own: `dispersion`, the negative-binomial \\r\\ each draw is conditioned
+on, shaped exactly as `sigma` (a length n.samples vector at one chain,
+an n.samples x n.chains matrix otherwise) because it is the count analog
+of it - fixed at the value the sampler was created with under a fixed
+`dispersion`, and that sweep's grid draw otherwise. It is written from
+the same state `storeState` serializes and consumes no random numbers,
+so reading it costs a run nothing. No other family carries the element
+at all: it is absent from the list, not `NULL` within it, so
+`run()$dispersion` is `NULL` on every non-`"nbinom"` sampler and a test
+of the channel must be `!is.null(...)` rather than a comparison, which
+`NULL` would satisfy vacuously. A sampler built with
+`family = student()` adds `resid.df` on exactly the same terms - the
+degrees of freedom \\\nu\\ each draw is conditioned on, shaped as
+`sigma`, written from settled state and consuming no random numbers,
+absent from the list under any other error law - fixed at the value
+supplied to `student(df = )`, and that sweep's grid draw when the
+degrees of freedom are estimated. A heteroscedastic (`variance` forest)
+sampler carries no `sigma` element - absent, as `dispersion` is off
+`"nbinom"` - since its engine holds the scalar fixed; it adds
+`variance`, the per-observation variance surface \\s^2(x_i)\\ on the
+original response scale, shaped as `train`, whose square root is the
+residual scale, and `varianceTest`, the same at the test rows (`NULL`
+without test data). A run can be interrupted with `Ctrl-C`: it stops
+between iterations - joining any worker threads first - and signals an
+error, returning no samples from the interrupted run. The sampler's
+chains are left at the iteration they reached, which is a valid state to
+run again from. Under `control@keepFits == FALSE`, `train`, `test`, and
+(when the model carries them) the variance and forest channels come back
+`NULL` rather than an array - present in the list, holding nothing,
+unlike `dispersion`/`resid.df` above, which are absent outright when
 inapplicable; see `callback` above and
 [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
 `keepFits`. A `callback` that returns nonzero ABORTS the run the same
@@ -1361,7 +1371,8 @@ standardized scale; internal nodes are `NA`.
 
 For `getSigmas`, a numeric vector of length equal to the number of
 chains, giving each chain's current residual standard deviation on the
-original response scale.
+original response scale, or `NULL` on a heteroscedastic sampler, whose
+residual scale is the surface `getVariance` reports.
 
 For `getK`, each chain's current `k`, the value `run()$k` records per
 draw, read without running, as `getSigmas` reports `sigma`: after a run

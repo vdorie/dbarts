@@ -37,10 +37,15 @@ forest(
   carry one, of any width: a two-level factor gives the pair whose
   amplitudes are \\(b_0, b_1)\\, a wider factor one amplitude per level,
   and a numeric vector or matrix is already those columns. Level order
-  is meaningful: the second level is the one \\b_1\\ scales. A forest
-  that declares none takes the implicit intercept its single amplitude
-  \\a\\ scales; every forest past the first needs one, since the
-  amplitudes multiplying it are what distinguish it from the first.
+  is meaningful: the second level is the one \\b_1\\ scales. At
+  creation, a column no observation enters - all zeros, or a factor
+  level no row takes - is refused, since its amplitude would move under
+  its prior alone, as is a basis so large or small that a row's norm is
+  not representable; `$setForestBasis` keeps an empty factor level (see
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
+  A forest that declares none takes the implicit intercept its single
+  amplitude \\a\\ scales; every forest past the first needs one, since
+  the amplitudes multiplying it are what distinguish it from the first.
   Reaching
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
   through an already-built `dbartsData` `formula` is the one route that
