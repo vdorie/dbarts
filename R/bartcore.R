@@ -453,12 +453,17 @@ bartcoreSamplerSetPredictor <- function(
   forceUpdate,
   updateCutPoints
 ) {
+  # read once: each sampler$data is a typed reference-class field's active
+  # binding, a few microseconds a read, against a rejected update's whole
+  # cost of under a hundred. Nothing below writes data@x before its last read.
+  currentX <- sampler$data@x
+
   # A sparse design - a pure dgCMatrix or a mixed dense/sparse container -
   # accepts column-granular and whole-matrix mutation, maintained R-side by
   # installPredictorColumns rather than by the dense branch's pointer swap;
   # only per-observation replacement of a sparse-backed column stays fixed at
   # creation. Read before data@x is swapped.
-  sparseSource <- predictorSourceIsSparse(sampler$data@x)
+  sparseSource <- predictorSourceIsSparse(currentX)
 
   # no BCF pre-check on the partial path either: the session's cell guard
   # caches every forest, pruned to the trees the column can move, so a row
@@ -470,9 +475,9 @@ bartcoreSamplerSetPredictor <- function(
     !is.na(forceUpdate) &&
     forceUpdate == "partial"
 
-  column <- resolveColumnIndex(sampler$data@x, column, "current X")
+  column <- resolveColumnIndex(currentX, column, "current X")
   if (!is.null(column)) {
-    x <- codeCategoricalColumnUpdate(sampler$data@x, x, column)
+    x <- codeCategoricalColumnUpdate(currentX, x, column)
   }
 
   # a triplet, row-compressed, symmetric, triangular, logical or pattern
@@ -494,7 +499,7 @@ bartcoreSamplerSetPredictor <- function(
     # without an O(nnz) shift per cell; a DENSE-backed column of a mixed design
     # can, and is the motivating IRT latent case, so the refusal is per
     # column rather than per design
-    if (predictorColumnIsSparseBacked(sampler$data@x, column)) {
+    if (predictorColumnIsSparseBacked(currentX, column)) {
       stop(
         "per-observation updates require a dense-backed column; replace a ",
         "sparse column wholesale with a non-partial update"
@@ -515,7 +520,7 @@ bartcoreSamplerSetPredictor <- function(
     # observations the scan installed; install by reference - the merge
     # starts from the old column and overwrites only the installed rows
     sampler$data@x <- installPredictorColumns(
-      sampler$data@x,
+      currentX,
       installed,
       column,
       x[installed]
@@ -542,14 +547,14 @@ bartcoreSamplerSetPredictor <- function(
   xDim <- dim(x)
   if (is.null(column)) {
     if (!is.null(xDim)) {
-      if (xDim[2L] != ncol(sampler$data@x)) {
-        stop("dimension of x must be equal to ", ncol(sampler$data@x))
+      if (xDim[2L] != ncol(currentX)) {
+        stop("dimension of x must be equal to ", ncol(currentX))
       }
-      if (xDim[1L] != nrow(sampler$data@x)) {
-        stop("dimension of x must be equal to ", nrow(sampler$data@x))
+      if (xDim[1L] != nrow(currentX)) {
+        stop("dimension of x must be equal to ", nrow(currentX))
       }
-    } else if (length(x) != prod(dim(sampler$data@x))) {
-      stop("'x' must have length ", prod(dim(sampler$data@x)))
+    } else if (length(x) != prod(dim(currentX))) {
+      stop("'x' must have length ", prod(dim(currentX)))
     }
     # a sparse-valued argument onto a sparse-backed design rides to the bridge
     # as supplied: the bridge hands its sparse columns to the engine as stored
@@ -565,18 +570,18 @@ bartcoreSamplerSetPredictor <- function(
       x <- if (!is.null(xDim)) {
         matrix(as.double(x), xDim[1L])
       } else {
-        matrix(as.double(x), nrow(sampler$data@x))
+        matrix(as.double(x), nrow(currentX))
       }
       dimnames(x) <- if (!is.null(xDimnames)) {
         xDimnames
       } else {
-        dimnames(sampler$data@x)
+        dimnames(currentX)
       }
     }
     if (!sparseSource) {
       # a pointer swap: the engine borrows data@x, so install there first and
       # revert if the transaction rolls back
-      oldX <- sampler$data@x
+      oldX <- currentX
       sampler$data@x <- x
       tryResult <- tryCatch(
         updateSuccessful <- .Call(
@@ -604,9 +609,9 @@ bartcoreSamplerSetPredictor <- function(
       # sparse: the engine and the splice both keep only the entries that
       # differ from its implicit value.
       newX <- installPredictorColumns(
-        sampler$data@x,
+        currentX,
         NULL,
-        seq_len(ncol(sampler$data@x)),
+        seq_len(ncol(currentX)),
         x
       )
       updateSuccessful <- .Call(
@@ -620,10 +625,10 @@ bartcoreSamplerSetPredictor <- function(
     }
   } else {
     column <- coerceOrError(column, "integer")
-    if (any(column < 1L | column > ncol(sampler$data@x))) {
+    if (any(column < 1L | column > ncol(currentX))) {
       stop(
         "column '",
-        column[which(column < 1L | column > ncol(sampler$data@x))[1L]],
+        column[which(column < 1L | column > ncol(currentX))[1L]],
         "' is out of range"
       )
     }
@@ -634,11 +639,11 @@ bartcoreSamplerSetPredictor <- function(
       if (xDim[2L] != length(column)) {
         stop("'x' must have ", length(column), " column(s)")
       }
-      if (xDim[1L] != nrow(sampler$data@x)) {
-        stop("'x' must have ", nrow(sampler$data@x), " row(s)")
+      if (xDim[1L] != nrow(currentX)) {
+        stop("'x' must have ", nrow(currentX), " row(s)")
       }
-    } else if (length(x) != nrow(sampler$data@x) * length(column)) {
-      stop("'x' must have length ", nrow(sampler$data@x) * length(column))
+    } else if (length(x) != nrow(currentX) * length(column)) {
+      stop("'x' must have length ", nrow(currentX) * length(column))
     }
     if (!(sparseSource && predictorSourceIsSparse(x))) {
       x <- as.double(x)
@@ -650,7 +655,7 @@ bartcoreSamplerSetPredictor <- function(
     # CSC-backed column's install rewrites the container's sparse slots, and a
     # throw there after acceptance would leave data@x describing the old design
     # (sampler re-creation after save/load reads it).
-    newX <- installPredictorColumns(sampler$data@x, NULL, column, x)
+    newX <- installPredictorColumns(currentX, NULL, column, x)
     updateSuccessful <- .Call(
       C_dbarts_bartcore_updatePredictor,
       ptr,
