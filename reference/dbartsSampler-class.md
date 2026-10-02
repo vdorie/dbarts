@@ -77,7 +77,7 @@ getTrees(
 # S4 method for class 'dbartsSampler'
 getSigmas(result)
 # S4 method for class 'dbartsSampler'
-getDispersion()
+getShape()
 # S4 method for class 'dbartsSampler'
 getLatents(result)
 # S4 method for class 'dbartsSampler'
@@ -244,11 +244,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   sampler was created, and lying in the response family's support: 0/1
   for `probit` and `logistic`, an integer category index in \\\[1, K\]\\
   for `ordinal`, and a finite non-negative integer count no larger than
-  \\10^6\\ for `nbinom` (the dispersion grid's count histogram is sized
-  from the largest count, so a larger one allocates without bound).
-  Values off the support are refused, as they are at creation;
-  `gaussian` and `aft` (log survival times) constrain nothing. A missing
-  value is refused in every family: to leave a row out of the likelihood
+  \\10^6\\ for `nbinom` (the shape grid's count histogram is sized from
+  the largest count, so a larger one allocates without bound). Values
+  off the support are refused, as they are at creation; `gaussian` and
+  `aft` (log survival times) constrain nothing. A missing value is
+  refused in every family: to leave a row out of the likelihood
   mid-chain, mark it inactive with `setActiveRows` and give it any value
   in the support, which enters no draw while the row stays inactive
   unless the call re-anchors the scale (`updateScale = TRUE`), which
@@ -548,7 +548,7 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   An inactive row (`active[i] == 0`) contributes nothing to any leaf
   sufficient statistic, branch log-likelihood, birth-scan weight total,
   leaf parameter draw, or family-level parameter update that sums over
-  rows (residual degrees of freedom, a dispersion statistic, a group's
+  rows (residual degrees of freedom, a shape statistic, a group's
   per-group sums, and so on). It still occupies its leaf for COUNT-based
   accounting - `numObservations`, the birth scan's own member count, and
   leaf collapsing, which triggers on member count regardless of
@@ -1247,27 +1247,26 @@ a single call; `train` carries the combination \\a \mu(x_i) + b\_{z_i}
 sampler was built under `"probit"` or `"logistic"`, and `test` is filled
 with `NaN` (there is no test treatment vector to combine off-sample). No
 other model reports either element. A `"nbinom"` sampler adds one of its
-own: `dispersion`, the negative-binomial \\r\\ each draw is conditioned
-on, shaped exactly as `sigma` (a length n.samples vector at one chain,
-an n.samples x n.chains matrix otherwise) because it is the count analog
-of it - fixed at the value the sampler was created with under a fixed
-`dispersion`, and that sweep's grid draw otherwise. It is written from
-the same state `storeState` serializes and consumes no random numbers,
-so reading it costs a run nothing. No other family carries the element
-at all: it is absent from the list, not `NULL` within it, so
-`run()$dispersion` is `NULL` on every non-`"nbinom"` sampler and a test
-of the channel must be `!is.null(...)` rather than a comparison, which
-`NULL` would satisfy vacuously. A sampler built with
-`family = student()` adds `resid.df` on exactly the same terms - the
-degrees of freedom \\\nu\\ each draw is conditioned on, shaped as
-`sigma`, written from settled state and consuming no random numbers,
-absent from the list under any other error law - fixed at the value
-supplied to `student(df = )`, and that sweep's grid draw when the
-degrees of freedom are estimated. A heteroscedastic (`variance` forest)
-sampler carries no `sigma` element - absent, as `dispersion` is off
-`"nbinom"` - since its engine holds the scalar fixed; it adds
-`variance`, the per-observation variance surface \\s^2(x_i)\\ on the
-original response scale, shaped as `train`, whose square root is the
+own: `shape`, the negative-binomial \\r\\ each draw is conditioned on,
+shaped exactly as `sigma` (a length n.samples vector at one chain, an
+n.samples x n.chains matrix otherwise) because it is the count analog of
+it - fixed at the value the sampler was created with under a fixed
+`shape`, and that sweep's grid draw otherwise. It is written from the
+same state `storeState` serializes and consumes no random numbers, so
+reading it costs a run nothing. No other family carries the element at
+all: it is absent from the list, not `NULL` within it, so `run()$shape`
+is `NULL` on every non-`"nbinom"` sampler and a test of the channel must
+be `!is.null(...)` rather than a comparison, which `NULL` would satisfy
+vacuously. A sampler built with `family = student()` adds `resid.df` on
+exactly the same terms - the degrees of freedom \\\nu\\ each draw is
+conditioned on, shaped as `sigma`, written from settled state and
+consuming no random numbers, absent from the list under any other error
+law - fixed at the value supplied to `student(df = )`, and that sweep's
+grid draw when the degrees of freedom are estimated. A heteroscedastic
+(`variance` forest) sampler carries no `sigma` element - absent, as
+`shape` is off `"nbinom"` - since its engine holds the scalar fixed; it
+adds `variance`, the per-observation variance surface \\s^2(x_i)\\ on
+the original response scale, shaped as `train`, whose square root is the
 residual scale, and `varianceTest`, the same at the test rows (`NULL`
 without test data). A run can be interrupted with `Ctrl-C`: it stops
 between iterations - joining any worker threads first - and signals an
@@ -1276,7 +1275,7 @@ chains are left at the iteration they reached, which is a valid state to
 run again from. Under `control@keepFits == FALSE`, `train`, `test`, and
 (when the model carries them) the variance and forest channels come back
 `NULL` rather than an array - present in the list, holding nothing,
-unlike `dispersion`/`resid.df` above, which are absent outright when
+unlike `shape`/`resid.df` above, which are absent outright when
 inapplicable; see `callback` above and
 [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
 `keepFits`. A `callback` that returns nonzero ABORTS the run the same
@@ -1384,16 +1383,19 @@ default `forest = NULL` on a multi-forest sampler, an n.forests x
 n.chains matrix; a single-forest sampler's `NULL` read is bitwise its
 `forest = 1` read.
 
-For `getDispersion`, the negative-binomial dispersion \\r\\ currently in
+For `getShape`, the shape parameter of the sampler's family currently in
 force, a numeric vector of length equal to the number of chains, and
-`NULL` on every other family - the count analog of `getSigmas`. It is
-the same scalar `run()$dispersion` records once per kept draw, read
-mid-sweep and without serializing state, so a host driving the sampler
-one sweep at a time reads it here rather than through `storeState()` and
-`state[[chain]]$dispersion`. Because the refusal for a family carrying
-no dispersion is a `NULL` and not an error, a caller distinguishing “no
-dispersion” from a value must test `!is.null(...)`; comparing to an
-expected number would pass vacuously.
+`NULL` on a family with none - the count analog of `getSigmas`. Only the
+negative-binomial family has one today, its \\r\\: the variance is
+\\\mu + \mu^2 / r\\, a larger shape is closer to Poisson, and \\r\\ is
+`size` in `rnbinom` and `theta` in MASS and mgcv. It is the same scalar
+`run()$shape` records once per kept draw, read mid-sweep and without
+serializing state, so a host driving the sampler one sweep at a time
+reads it here rather than through `storeState()` and
+`state[[chain]]$shape`. Because the refusal for a family carrying no
+shape is a `NULL` and not an error, a caller distinguishing “no shape”
+from a value must test `!is.null(...)`; comparing to an expected number
+would pass vacuously.
 
 For `getSumsOfSquaredResiduals`, a numeric vector of length equal to the
 number of chains, giving each chain's residual sum of squares \\\sum

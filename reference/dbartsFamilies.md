@@ -107,16 +107,17 @@ A list of functions:
 
   Unordered K-category softmax and ordered cumulative-probit models.
 
-- `nbinom(dispersion = NULL)`:
+- `nbinom(shape = NULL)`:
 
   Negative-binomial counts on a log link: the forest models the log of
-  the mean count, and the variance is \\\mu + \mu^2 / r\\. `NULL`
-  estimates the dispersion \\r\\ on a capped positive-integer grid; a
-  positive integer fixes it. Each sweep's latent draw costs time in
-  proportion to \\y + r\\, so a large fixed \\r\\ is slow: at \\r =
-  10^4\\, a thousand sweeps over a thousand observations take about half
-  an hour. By \\r\\ in the hundreds the model is already close to a
-  Poisson one.
+  the mean count, and the variance is \\\mu + \mu^2 / r\\ for shape
+  \\r\\. A larger shape is closer to Poisson; \\r\\ is `size` in
+  `rnbinom` and `theta` in MASS and mgcv. `NULL` estimates the shape
+  \\r\\ on a capped positive-integer grid; a positive integer fixes it.
+  Each sweep's latent draw costs time in proportion to \\y + r\\, so a
+  large fixed \\r\\ is slow: at \\r = 10^4\\, a thousand sweeps over a
+  thousand observations take about half an hour. By \\r\\ in the
+  hundreds the model is already close to a Poisson one.
 
 - `aft(sigma = NULL)`:
 

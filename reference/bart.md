@@ -110,7 +110,7 @@ family(object, ...)
 
 # S3 method for class 'bartNegbin'
 extract(
-    object, type = c("ev", "ppd", "bart", "loglik", "dispersion", "k", "sd", "varcount"),
+    object, type = c("ev", "ppd", "bart", "loglik", "shape", "k", "sd", "varcount"),
     sample = c("train", "test"),
     combineChains = TRUE, ...)
 
@@ -183,7 +183,7 @@ summary(object, ...)
 summary(object, vars = c("thresholds", "sigma", "k"), ...)
 
 # S3 method for class 'bartNegbin'
-summary(object, vars = c("dispersion", "sigma", "k"), ...)
+summary(object, vars = c("shape", "sigma", "k"), ...)
 
 # S3 method for class 'bartHurdle'
 summary(object, vars = c("sigma", "k", "sd"), ...)
@@ -573,10 +573,10 @@ print(x, ...)
   augmentation (a single forest, like logistic): the forest fits the log
   mean, \\\log E\[y_i \mid x\] = \eta_i = f(x_i) + c + o_i\\, and the
   count law is \\y_i \sim \mathrm{NB}(\mathrm{size} = r, \mathrm{mu} =
-  e^{\eta_i})\\ with dispersion \\r\\ and variance \\\mu + \mu^2 / r\\,
-  as [`MASS::glm.nb`](https://rdrr.io/pkg/MASS/man/glm.nb.html) and
-  Stan's `neg_binomial_2` parameterize it. The offset \\o_i\\ therefore
-  enters the mean multiplicatively and is a log-exposure (\\o_i =
+  e^{\eta_i})\\ with shape \\r\\ and variance \\\mu + \mu^2 / r\\, as
+  [`MASS::glm.nb`](https://rdrr.io/pkg/MASS/man/glm.nb.html) and Stan's
+  `neg_binomial_2` parameterize it. The offset \\o_i\\ therefore enters
+  the mean multiplicatively and is a log-exposure (\\o_i =
   \log(\mathrm{exposure}\_i)\\). The constant \\c = \log(\sum_i y_i /
   \sum_i e^{o_i})\\ (with the total count floored at 1/2) centers the
   leaf prior at the data's log rate; it is a data transform, as the
@@ -587,32 +587,31 @@ print(x, ...)
   `y.train` must be a non-negative integer count, and
   `family = "nbinom"` is always explicit - a count carries no
   unambiguous class, so it is never inferred under `family = "auto"` (a
-  numeric response there stays gaussian). The dispersion `r` is
-  estimated by default on a capped positive-integer grid (\\\\1, 2, 3,
-  4, 5, 6, 8, 10, 12, 15, 20, 30, 50\\\\) under a renormalized
-  \\\mathrm{gamma}(2, 0.1)\\ prior, drawn each sweep from its discrete
-  full conditional given the means; at ordinary counts a dispersion
-  above about 20 is hard to tell from a larger one, so the posterior
-  there leans on the grid's cap and prior. Passing `dispersion` as a
-  positive integer fixes \\r\\ instead (v1 ships the exact integer
-  envelope, so a real fixed dispersion is refused - continuous
-  dispersion is a recorded follow-up). Like probit, there is no residual
-  scale, and `weights` are accepted only as 0 and 1, marking rows in and
-  out of the likelihood (exposure belongs in the offset, not in
-  observation replication); `warm.start` and `n.grow.sweeps` are refused
-  with an error naming the limitation. `samplerOnly` is supported,
-  unlike multinomial: it returns the fitted sampler unrun, the same
-  object `fit` is under `keepSampler`. `test` and `keepTrees` are
-  supported as for ordinal, and `predict` replays the saved trees at new
-  predictors, reporting mean counts \\e^{\eta}\\, with `type = "ppd"`
-  drawing at the stored per-draw dispersion (a log-exposure offset
-  enters \\\eta\\ additively). `xbart` does not fit count responses
-  (real dispersion and a Poisson family are recorded follow-ups).
-  `y.train` is additionally capped at \\10^6\\: the dispersion grid's
-  count histogram is sized from the largest count, so a larger one
-  allocates without bound, and a count above it is refused at creation
-  and at every response swap alike. The fit's class is `"bartNegbin"`,
-  not `"bart"`: see ‘Value’ below.
+  numeric response there stays gaussian). The shape `r` is estimated by
+  default on a capped positive-integer grid (\\\\1, 2, 3, 4, 5, 6, 8,
+  10, 12, 15, 20, 30, 50\\\\) under a renormalized \\\mathrm{gamma}(2,
+  0.1)\\ prior, drawn each sweep from its discrete full conditional
+  given the means; at ordinary counts a shape above about 20 is hard to
+  tell from a larger one, so the posterior there leans on the grid's cap
+  and prior. Passing `shape` as a positive integer fixes \\r\\ instead
+  (v1 ships the exact integer envelope, so a real fixed shape is
+  refused - continuous shape is a recorded follow-up). Like probit,
+  there is no residual scale, and `weights` are accepted only as 0 and
+  1, marking rows in and out of the likelihood (exposure belongs in the
+  offset, not in observation replication); `warm.start` and
+  `n.grow.sweeps` are refused with an error naming the limitation.
+  `samplerOnly` is supported, unlike multinomial: it returns the fitted
+  sampler unrun, the same object `fit` is under `keepSampler`. `test`
+  and `keepTrees` are supported as for ordinal, and `predict` replays
+  the saved trees at new predictors, reporting mean counts \\e^{\eta}\\,
+  with `type = "ppd"` drawing at the stored per-draw shape (a
+  log-exposure offset enters \\\eta\\ additively). `xbart` does not fit
+  count responses (real shape and a Poisson family are recorded
+  follow-ups). `y.train` is additionally capped at \\10^6\\: the shape
+  grid's count histogram is sized from the largest count, so a larger
+  one allocates without bound, and a count above it is refused at
+  creation and at every response swap alike. The fit's class is
+  `"bartNegbin"`, not `"bart"`: see ‘Value’ below.
 
   `family = "hazard"` and `family = "hazard.logistic"` fit a
   discrete-time survival hazard model as *ingestion sugar* over the
@@ -1206,7 +1205,7 @@ print(x, ...)
   by name on `predict`, whose stored train and test channels are
   `extract`'s `sample` instead. Also refused by name on every model- or
   predictor-level type these families offer - `"varcount"` on all four,
-  `"thresholds"` on `bartOrdinal`, `"dispersion"`/`"k"`/`"sd"` on
+  `"thresholds"` on `bartOrdinal`, `"shape"`/`"k"`/`"sd"` on
   `bartNegbin`, `"sigma"`/`"k"` on `bartHurdle` - none of them
   per-observation.
 
@@ -1217,13 +1216,13 @@ print(x, ...)
   own `vars`; requested fields absent from `object` are silently
   dropped. `summary.bartOrdinal`'s `"thresholds"` contributes one draws
   variable per threshold \\\gamma_1, \ldots, \gamma\_{K-1}\\, the
-  ordinal analog of `sigma`; `summary.bartNegbin`'s `"dispersion"`
-  contributes the per-draw dispersion \\r\\, the count analog of
-  `sigma`. `summary.bartHurdle` applies `vars` separately to its `$zero`
-  and `$positive` component fits. `summary.bartMultinomial` has no
-  `vars` formal at all: it always pools the per-category
-  mean-probability channel (its only scalar convergence instrument), so
-  a supplied `vars` is refused by name rather than silently ignored.
+  ordinal analog of `sigma`; `summary.bartNegbin`'s `"shape"`
+  contributes the per-draw shape \\r\\, the count analog of `sigma`.
+  `summary.bartHurdle` applies `vars` separately to its `$zero` and
+  `$positive` component fits. `summary.bartMultinomial` has no `vars`
+  formal at all: it always pools the per-category mean-probability
+  channel (its only scalar convergence instrument), so a supplied `vars`
+  is refused by name rather than silently ignored.
 
 - x:
 
@@ -1743,18 +1742,18 @@ channel; `summary`'s own default `vars` is
 `test` was supplied) - the posterior draws of the mean counts \\\mu =
 e^{\eta}\\, shaped like a binary family's `yhat.train` - `latent.train`
 (and `latent.test`) - the corresponding draws of the log mean \\\eta =
-f(x) + c + o\\ - `dispersion` - the per-draw dispersion \\r\\, the count
-analog of gaussian's `sigma` - `k` (or `sd`, when the leaf prior was
-named by its spread) when the leaf scale is drawn, as on a `"bart"` fit,
-and `varcount`. `dispersion.raw` (the per-draw \\r\\ in the internal
-layout `predict` consumes) is present only under `keepTrees`. `fit` is
-present whenever `keepTrees` is `TRUE` *or* `keepSampler` is set,
-independent of `keepTrees`: it is the `dbartsSampler` whose engine
-actually ran, fully mutable and readable - `$getDispersion()` on it
-answers with the fit's own \\r\\ - and `fit$storeState()` followed by
+f(x) + c + o\\ - `shape` - the per-draw shape \\r\\, the count analog of
+gaussian's `sigma` - `k` (or `sd`, when the leaf prior was named by its
+spread) when the leaf scale is drawn, as on a `"bart"` fit, and
+`varcount`. `shape.raw` (the per-draw \\r\\ in the internal layout
+`predict` consumes) is present only under `keepTrees`. `fit` is present
+whenever `keepTrees` is `TRUE` *or* `keepSampler` is set, independent of
+`keepTrees`: it is the `dbartsSampler` whose engine actually ran, fully
+mutable and readable - `$getShape()` on it answers with the fit's own
+\\r\\ - and `fit$storeState()` followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
 restores a sampler `predict.bartNegbin` can replay through.
-`summary(object)` reports the dispersion draws alongside whatever
+`summary(object)` reports the shape draws alongside whatever
 mean-function scale `vars` finds present, pooled into posterior mean/sd,
 split-Rhat and bulk/tail ESS, the count analog of
 [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
@@ -1782,18 +1781,17 @@ including `combineChains`'s refusal on `fitted`/`residuals` and
 \\\mathrm{dnbinom}(y_i, \mathrm{size} = r_s, \mathrm{mu} =
 \mu\_{s,i})\\, extract-only, `sample = "test"` refused by name.
 `forest`/`contribution` on `extract`/`predict` and `sample` on `fitted`
-are refused by name. `plot(object)` traces the integer-gridded
-dispersion \\r\\ (a step plot; there is no burn-in channel to bridge
-from, since `bart` drives one `n.burn`/`n.samples` sweep for this
-family) alongside
+are refused by name. `plot(object)` traces the integer-gridded shape
+\\r\\ (a step plot; there is no burn-in channel to bridge from, since
+`bart` drives one `n.burn`/`n.samples` sweep for this family) alongside
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s own
 gaussian observed-vs-fitted panel, applied to the counts. `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
-are refused by name. `extract(object, type = "dispersion")` returns the
-per-draw dispersion \\r\\, `type = "k"` and `"sd"` the drawn leaf scale
-as on a `"bart"` fit, and `extract(object, type = "varcount")` the
+are refused by name. `extract(object, type = "shape")` returns the
+per-draw shape \\r\\, `type = "k"` and `"sd"` the drawn leaf scale as on
+a `"bart"` fit, and `extract(object, type = "varcount")` the
 per-predictor split-usage channel; `summary`'s own default `vars` is
-`c("dispersion", "sigma", "k")`.
+`c("shape", "sigma", "k")`.
 
 `bart(family = "hurdle.lognormal")` returns its own list, of class
 `"bartHurdle"`, holding both component fits (`$zero`, a `"bart"` probit
@@ -1923,7 +1921,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001576
+#> total seconds in loop: 0.001161
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1972,7 +1970,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002006
+#> total seconds in loop: 0.001338
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

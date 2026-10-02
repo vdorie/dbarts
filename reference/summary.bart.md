@@ -57,11 +57,11 @@ print(x, ...)
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)): a
   `"bartOrdinal"` fit's `"thresholds"` contributes `threshold[1]`
   (pinned at 0) through `threshold[K - 1]`; a `"bartNegbin"` fit's
-  `"dispersion"` contributes the per-draw dispersion \\r\\; a
-  `"bartMultinomial"` fit has no `vars` argument at all - its only
-  scalar posterior parameter is the per-category mean predicted
-  probability, reported as `prob[<level>]`; a `"bartHurdle"` fit applies
-  `vars` to both components separately.
+  `"shape"` contributes the per-draw shape \\r\\; a `"bartMultinomial"`
+  fit has no `vars` argument at all - its only scalar posterior
+  parameter is the per-category mean predicted probability, reported as
+  `prob[<level>]`; a `"bartHurdle"` fit applies `vars` to both
+  components separately.
 
 - ...:
 

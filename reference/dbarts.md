@@ -603,13 +603,13 @@ dbarts(
   the offset enters the mean multiplicatively as a log-exposure; \\c\\,
   the log of the total count over the total exposure, is a data
   transform that centers the leaf prior, and fits carry it. The response
-  must be a non-negative integer no larger than \\10^6\\ (the dispersion
+  must be a non-negative integer no larger than \\10^6\\ (the shape
   grid's count histogram is sized from the largest count), and
   `"nbinom"` is never inferred - a count carries no unambiguous class,
-  so it must be requested explicitly. The dispersion `r` is estimated by
-  default (see `dispersion`); like probit, there is no residual scale,
-  fits are on the log-mean scale, and weights are accepted only as 0 and
-  1, marking rows in and out of the likelihood (exposure belongs in the
+  so it must be requested explicitly. The shape `r` is estimated by
+  default (see `shape`); like probit, there is no residual scale, fits
+  are on the log-mean scale, and weights are accepted only as 0 and 1,
+  marking rows in and out of the likelihood (exposure belongs in the
   offset). `bart` reports mean counts; see
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
 

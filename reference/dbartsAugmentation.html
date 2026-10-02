@@ -63,10 +63,10 @@
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">dbartsDrawLatents</span><span class="op">(</span><span class="va">family</span>, <span class="va">fit</span>, <span class="va">y</span>, weights <span class="op">=</span> <span class="cn">NULL</span>, offset <span class="op">=</span> <span class="cn">NULL</span>, sigma <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>                  dispersion <span class="op">=</span> <span class="cn">NULL</span>, thresholds <span class="op">=</span> <span class="cn">NULL</span>, df <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
+<span>                  shape <span class="op">=</span> <span class="cn">NULL</span>, thresholds <span class="op">=</span> <span class="cn">NULL</span>, df <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">dbartsWorkingResponse</span><span class="op">(</span><span class="va">family</span>, <span class="va">latent</span>, <span class="va">y</span>, weights <span class="op">=</span> <span class="cn">NULL</span>, offset <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>                      dispersion <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+<span>                      shape <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -105,9 +105,9 @@
   <dt id="arg-sigma">sigma<a class="anchor" aria-label="anchor" href="#arg-sigma"></a></dt>
 <dd><p><code>"aft"</code> and <code>"student"</code> only: the residual standard deviation, in response units.</p></dd>
 
-  <dt id="arg-dispersion">dispersion<a class="anchor" aria-label="anchor" href="#arg-dispersion"></a></dt>
-<dd><p><code>"nbinom"</code> only, and required there: the current dispersion \(r\), a positive whole
-    number, as <code><a href="dbartsSampler-class.html">getDispersion</a></code> reports it. An <code>"nbinom"</code>
+  <dt id="arg-shape">shape<a class="anchor" aria-label="anchor" href="#arg-shape"></a></dt>
+<dd><p><code>"nbinom"</code> only, and required there: the current shape \(r\), a positive whole
+    number, as <code><a href="dbartsSampler-class.html">getShape</a></code> reports it. An <code>"nbinom"</code>
     location is a log mean, so the Polya-Gamma draw reads the log-odds
     \(\psi_i = f_i + o_i - \log r\).</p></dd>
 
@@ -154,7 +154,7 @@
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="dbartsSampler-class.html">dbartsSampler</a></code>, whose <code>getLatents</code>,
-  <code>getFitsWithoutOffset</code> and <code>getDispersion</code> methods report the same quantities from
+  <code>getFitsWithoutOffset</code> and <code>getShape</code> methods report the same quantities from
   inside a running sampler.</p></div>
     </div>
 

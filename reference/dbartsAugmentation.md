@@ -15,10 +15,10 @@ need not reimplement the family's augmentation.
 
 ``` r
 dbartsDrawLatents(family, fit, y, weights = NULL, offset = NULL, sigma = NULL,
-                  dispersion = NULL, thresholds = NULL, df = NULL)
+                  shape = NULL, thresholds = NULL, df = NULL)
 
 dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
-                      dispersion = NULL)
+                      shape = NULL)
 ```
 
 ## Arguments
@@ -71,11 +71,11 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
   `"aft"` and `"student"` only: the residual standard deviation, in
   response units.
 
-- dispersion:
+- shape:
 
-  `"nbinom"` only, and required there: the current dispersion \\r\\, a
+  `"nbinom"` only, and required there: the current shape \\r\\, a
   positive whole number, as
-  [`getDispersion`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`getShape`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   reports it. An `"nbinom"` location is a log mean, so the Polya-Gamma
   draw reads the log-odds \\\psi_i = f_i + o_i - \log r\\.
 
@@ -133,8 +133,8 @@ reports for that family.
 ## See also
 
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md),
-whose `getLatents`, `getFitsWithoutOffset` and `getDispersion` methods
-report the same quantities from inside a running sampler.
+whose `getLatents`, `getFitsWithoutOffset` and `getShape` methods report
+the same quantities from inside a running sampler.
 
 ## Examples
 
