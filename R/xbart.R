@@ -193,7 +193,11 @@ xbart <- function(
     "xbart cross-validates single-forest models"
   )
   refuseResponseFreeFormula(formula, "xbart()")
-  data <- withMatrixResponseRestated("xbart()", family, eval(dataCall, evalEnv))
+  data <- withMatrixResponseRestated(
+    "xbart()",
+    family,
+    withBinaryResponsePrecision(family, eval(dataCall, evalEnv))
+  )
   # a Surv formula response silently becomes log(time) with the censoring
   # status parked as an attribute (dbartsData()'s own short-circuit, which
   # has no family vocabulary to refuse it by) - xbart() reads neither the
@@ -228,14 +232,7 @@ xbart <- function(
     } else if (family != "gaussian" && !responseIsBinary) {
       # gaussian on a 0/1 response is a legitimate request; the binary
       # families need latent-variable coding
-      stop(
-        "family \"",
-        family,
-        "\" requires a response coded 0/1",
-        if (family == "logistic") {
-          " (family = binomial is the logit link, a logistic fit)"
-        }
-      )
+      refuseNonBinaryResponse(uniqueResponses, family)
     }
   }
   control@binary <- isBinaryFamily(family)

@@ -39,6 +39,65 @@ expect_error(
   pattern = "requires a response coded 0/1"
 )
 
+# a response of one class says so, with no warning to rescale it: every
+# response that warning fires on a binary family refuses
+singleClassWarnings <- list()
+y.ones <- rep(1, n)
+expect_error(
+  withCallingHandlers(
+    dbarts(y.ones ~ x, family = "probit", control = control),
+    warning = function(w) {
+      singleClassWarnings[[length(singleClassWarnings) + 1L]] <<- w
+      invokeRestart("muffleWarning")
+    }
+  ),
+  "family \"probit\" requires a response with both classes; the response has a single class",
+  fixed = TRUE
+)
+expect_identical(length(singleClassWarnings), 0L)
+expect_error(
+  dbarts(x, rep(0, n), family = "logistic", control = control),
+  "family \"logistic\" requires a response with both classes; the response has a single class",
+  fixed = TRUE
+)
+# a hazard fit's binary rows are the caller's subjects, which its refusals
+# name; the binary family underneath it is never named
+if (requireNamespace("survival", quietly = TRUE)) {
+  expect_error(
+    dbarts(x, survival::Surv(1 + rpois(n, 2), rep(0, n)), family = "hazard"),
+    "family \"hazard\" needs an event; every subject is censored",
+    fixed = TRUE
+  )
+  expect_error(
+    dbarts(x, survival::Surv(rep(1, n), rep(1, n)), family = "hazard.logistic"),
+    "family \"hazard.logistic\" needs a period at risk without an event",
+    fixed = TRUE
+  )
+  expect_error(
+    dbarts(
+      x,
+      survival::Surv(1 + rpois(n, 2), rbinom(n, 1L, 0.5)),
+      family = "hazard",
+      variance = TRUE
+    ),
+    "family \"hazard\" routes precision through its own latent channel",
+    fixed = TRUE
+  )
+}
+# a hurdle fit's zero part is a probit fit, which its refusal does not name
+expect_error(
+  bart(
+    x,
+    ifelse(y.binary == 1L, exp(y.continuous), 0),
+    family = "hurdle.lognormal",
+    variance = ~1,
+    verbose = FALSE
+  ),
+  "family = \"hurdle.lognormal\" does not take a variance forest",
+  fixed = TRUE
+)
+rm(singleClassWarnings, y.ones)
+
 control.bc <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 50L)
 sampler.logit <- dbarts(y.binary ~ x, family = "logistic", control = control.bc)
 expect_equal(sampler.logit$model@family, "logistic")

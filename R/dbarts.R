@@ -917,7 +917,7 @@ dbarts <- function(
   # the guards further down otherwise refuse
   survivalDataObject <- inherits(formula, "dbartsData") &&
     !is.null(attr(formula, "survivalStatus"))
-  hazardTokens <- c("hazard", "hazard.probit", "hazard.logistic")
+  hazardTokens <- hazardFamilyTokens
   # a Surv response declares the model, so it auto-dispatches to aft from
   # "auto"; an explicit hazard token selects the discrete-time model instead
   # (the guard whitelist admits it). Any
@@ -1243,7 +1243,7 @@ dbarts <- function(
     "bart()/dbarts()",
     requestedFamily,
     if (is.null(basisDeclarations)) {
-      eval(dataCall, evalEnv)
+      withBinaryResponsePrecision(family, eval(dataCall, evalEnv))
     } else {
       # the bases ride the data object's own 'bases' argument, which this caller
       # never wrote, so a refusal from it is restated in the word the caller
@@ -1251,7 +1251,7 @@ dbarts <- function(
       # anything not naming 'bases' - is not this call's to relabel, so it keeps
       # its own condition class and call
       tryCatch(
-        eval(dataCall, evalEnv),
+        withBinaryResponsePrecision(family, eval(dataCall, evalEnv)),
         error = function(e) {
           message <- conditionMessage(e)
           if (!grepl("'bases'", message, fixed = TRUE)) {

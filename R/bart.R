@@ -1535,6 +1535,12 @@ bart <- function(
     if (!missing(subset)) {
       stop("family = \"hurdle.lognormal\" does not support 'subset'")
     }
+    # its zero part is a probit fit, whose precision is its latent's own, so
+    # the refusal a component would raise would name a family the caller
+    # never asked for
+    if (!is.null(variance) && !isFALSE(variance)) {
+      stop("family = \"hurdle.lognormal\" does not take a variance forest")
+    }
     if (
       !missing(offset) || !missing(offset.test) || formulaHasOffsetTerm(formula)
     ) {

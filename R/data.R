@@ -111,6 +111,10 @@ rowsWithMissingPredictors <- function(x) {
 ## mean on this interface what they mean on the formula one. Returns the
 ## rows to keep and the record of what was dropped, or NULL when nothing is
 ## missing at all and no na.action can have anything to say.
+## The opening of dbartsData's precision-degenerate response warning, which
+## withBinaryResponsePrecision recognizes it by.
+responsePrecisionWarningStem <- "response values are indistinguishable"
+
 applyNaActionToXY <- function(na.action, y, x) {
   predictorNA <- rowsWithMissingPredictors(x)
   responseNA <- is.na(y)
@@ -3483,8 +3487,8 @@ dbartsData <- function(
   if (is.null(counts) && yScale > 0 && yRange / yScale < 1e-10) {
     warning(
       paste0(
-        "response values are indistinguishable, or nearly so, at double ",
-        "precision (",
+        responsePrecisionWarningStem,
+        ", or nearly so, at double precision (",
         length(unique(y)),
         " distinct value(s) among ",
         length(y),

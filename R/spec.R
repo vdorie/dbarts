@@ -15,6 +15,72 @@
 ## what control@binary, the weight policy, and the resid.prior override below
 ## all key off. Shared so no entry point's own family gate can drift from
 ## this one.
+## The discrete-time hazard tokens, each remapped to its binary link before
+## the engine sees it.
+hazardFamilyTokens <- c("hazard", "hazard.probit", "hazard.logistic")
+
+## Refuses a response a binary family cannot fit, saying what is wrong with
+## it: a 0/1 response with one class, or one not coded 0/1. A hazard fit
+## ('hazard', the token the caller gave) is a binary fit on person-period rows
+## the caller never wrote, so its refusal speaks of subjects and events.
+refuseNonBinaryResponse <- function(uniqueResponses, family, hazard = NULL) {
+  singleClass <- length(uniqueResponses) == 1L &&
+    uniqueResponses %in% c(0, 1)
+  if (!is.null(hazard) && singleClass) {
+    stop(
+      "family \"",
+      hazard,
+      "\" needs ",
+      if (uniqueResponses == 0) {
+        "an event; every subject is censored"
+      } else {
+        paste0(
+          "a period at risk without an event; every subject has its event ",
+          "in the first period"
+        )
+      },
+      call. = FALSE
+    )
+  }
+  if (singleClass) {
+    stop(
+      "family \"",
+      family,
+      "\" requires a response with both classes; the response has a single ",
+      "class",
+      call. = FALSE
+    )
+  }
+  stop(
+    "family \"",
+    family,
+    "\" requires a response coded 0/1",
+    if (family == "logistic") {
+      " (family = binomial is the logit link, a logistic fit)"
+    },
+    call. = FALSE
+  )
+}
+
+## dbartsData warns of a response whose values are indistinguishable at
+## double precision before any family is known; a binary family refuses every
+## response that warning fires on (a single class of 1, or values not coded
+## 0/1) with a message naming the actual problem, so the warning, whose remedy
+## is to rescale, is muffled there.
+withBinaryResponsePrecision <- function(family, expr) {
+  if (family %not_in% c("probit", "logistic", hazardFamilyTokens)) {
+    return(expr)
+  }
+  withCallingHandlers(
+    expr,
+    warning = function(w) {
+      if (startsWith(conditionMessage(w), responsePrecisionWarningStem)) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+}
+
 isBinaryFamily <- function(family) {
   family %in% c("probit", "logistic")
 }
@@ -275,13 +341,10 @@ resolveSamplerSpec <- function(
     } else if (family != "gaussian" && family != "aft" && !responseIsBinary) {
       # gaussian on a 0/1 response is a legitimate request; the binary
       # families need latent-variable coding. aft fits continuous log-times.
-      stop(
-        "family \"",
+      refuseNonBinaryResponse(
+        uniqueResponses,
         family,
-        "\" requires a response coded 0/1",
-        if (family == "logistic") {
-          " (family = binomial is the logit link, a logistic fit)"
-        }
+        if (!is.null(hazardPeriods)) requestedFamily
       )
     }
   }
@@ -607,10 +670,11 @@ resolveSamplerSpec <- function(
   )
   if (!is.null(varianceColumns)) {
     if (!family %in% c("gaussian", "aft")) {
+      # a hazard fit is a binary fit underneath; the caller named the hazard
       stop(
         "a variance forest requires family = \"gaussian\" or \"aft\"; ",
         "family \"",
-        family,
+        if (!is.null(hazardPeriods)) requestedFamily else family,
         "\" routes precision through its own latent channel instead"
       )
     }
