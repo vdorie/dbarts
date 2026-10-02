@@ -208,7 +208,10 @@ builds to resolve its own tree prior is discarded after
 buildMultinomialSampler copies only power/base/proposal-probability fields
 out of it, so DART (via either the dart argument or a DART tree.prior),
 split.probs, monotone, and variance are refused by name too, rather than
-silently reaching no K-forest engine slot. An n x K numeric matrix
+silently reaching no K-forest engine slot. interactions() and blocks() are
+not refused: MultinomialForestSpec carries both and
+Chain::buildMultinomialForest installs them on every category forest
+(dec-B181), gated by a constrained arm of the multinomial exactness gate. An n x K numeric matrix
 offset IS accepted (landed with the mutation channel below,
 docs/plans/archive/multinomial-counts-mutation.md S5): a creation-time argument on
 bart2's one-shot fit, threaded to the internal creator's own offset

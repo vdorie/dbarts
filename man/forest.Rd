@@ -32,7 +32,12 @@ forest(
     forest may carry one, of any width: a two-level factor gives the pair whose
     amplitudes are \eqn{(b_0, b_1)}{(b0, b1)}, a wider factor one amplitude per
     level, and a numeric vector or matrix is already those columns. Level order
-    is meaningful: the second level is the one \eqn{b_1}{b1} scales. A forest
+    is meaningful: the second level is the one \eqn{b_1}{b1} scales. At
+    creation, a column no observation enters - all zeros, or a factor level no
+    row takes - is refused, since its amplitude would move under its prior
+    alone, as is a basis so large or small that a row's norm is not
+    representable; \code{$setForestBasis} keeps an empty factor level (see
+    \code{\linkS4class{dbartsSampler}}). A forest
     that declares none takes the implicit intercept its single amplitude
     \eqn{a}{a} scales; every forest past the first needs one, since the
     amplitudes multiplying it are what distinguish it from the first.

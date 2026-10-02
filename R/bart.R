@@ -221,9 +221,11 @@ packageBartResults <- function(
     }
   }
 
-  if (!responseIsBinary) {
+  # a heteroscedastic run reports no sigma, so this stays NULL there
+  sigma <- NULL
+  if (!responseIsBinary && !is.null(samples[["sigma"]])) {
     sigma <- convertSamplesFromDbartsToBart(
-      samples$sigma,
+      samples[["sigma"]],
       n.chains,
       combineChains
     )
@@ -416,6 +418,13 @@ packageBartResults <- function(
   # exactly the elements it always did
   if (!is.null(naOmitted)) {
     result$na.action <- naOmitted
+  }
+  # a heteroscedastic fit has no scalar residual scale: its run reports no
+  # sigma, the engine holding the scalar fixed, so the elements are absent and
+  # s.train is the scale
+  if (hasVariance) {
+    result$sigma <- NULL
+    result$first.sigma <- NULL
   }
   # absent when the rows carry no names, as for a bare matrix
   result$row.names.train <- trainNames
@@ -697,8 +706,8 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
       dbartsGPFallbackWarning = function(w) invokeRestart("muffleWarning"),
       dbartsSlowCountWarning = keepSlowCount
     )
-    if (!is.null(samples$sigma)) {
-      burnInSigma <- samples$sigma
+    if (!is.null(samples[["sigma"]])) {
+      burnInSigma <- samples[["sigma"]]
     }
     if (!is.null(samples[["k"]])) {
       burnInK <- samples[["k"]]
@@ -3405,9 +3414,21 @@ survivalProbabilities.bart <- function(
   # parks on its result. A sampler that replays no variance surface has no
   # scale at those rows, so the curves are refused rather than drawn at the
   # pinned sigma - the wording the ppd branch uses for the same gap.
-  scale <- if (is.null(object[["s.train"]])) {
+  # A heteroscedastic fit carries no sigma at all, so one whose s.train
+  # keepFits dropped has no scale at its training rows either.
+  heteroscedastic <- fitIsHeteroscedastic(object) ||
+    !is.null(object[["s.train"]])
+  scale <- if (!heteroscedastic) {
     object[["sigma"]]
   } else if (is.null(newdata)) {
+    if (is.null(object[["s.train"]])) {
+      stop(
+        "survival probabilities need this heteroscedastic fit's 's.train' ",
+        "draws, which 'keepFits = FALSE' dropped (automatically, when a ",
+        "'callback' was supplied, unless overridden); refit with ",
+        "'keepFits = TRUE'"
+      )
+    }
     heteroscedasticScale(object[["s.train"]], n.chains)
   } else {
     replayed <- attr(linearPredictor, "s")

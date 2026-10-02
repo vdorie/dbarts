@@ -96,10 +96,8 @@ drawsField <- function(object, v) {
 }
 
 # "sigma" names the residual scale, which a heteroscedastic fit does not have
-# as a scalar: the sigma it stores is the variance forest parameterization's
-# fixed unit residual times the response range, constant across draws and
-# carrying no posterior content. The token resolves to the fit's own scale
-# channel there instead, so nothing reports that constant as a parameter.
+# as a scalar, and so does not carry. The token resolves to the fit's own
+# scale channel there instead.
 resolveDrawsVars <- function(object, vars) {
   if (is.null(object[["s.train"]])) {
     return(vars)

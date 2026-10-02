@@ -195,3 +195,20 @@ equalCountForests <- dbarts(
 )
 expect_identical(equalCountDirect@bases[[2L]], zBasis[recycled, ])
 expect_identical(equalCountForests$data@bases[[2L]], zBasis[recycled, ])
+
+## --- a basis already shortened by the na.action, with no 'subset': the
+## refusal names the rows the na.action kept, not a 'subset' never given ----
+dMissing <- d
+dMissing$y[3L] <- NA
+expect_error(
+  dbarts(
+    y ~ a,
+    dMissing,
+    forests = list(forest(), forest(basis = zBasis[-3L, ])),
+    control = seededControlForestBasisSubset()
+  ),
+  paste0(
+    "forest 2's 'basis' has 39 rows, matching the rows the na.action kept ",
+    "\\(39\\) but not the full data \\(40 rows\\)"
+  )
+)

@@ -129,10 +129,9 @@ probabilityFromLatents <- function(latents, object) {
 # used to the split, chain-fastest layout, so as.vector() on it enumerates
 # draws in the order as.vector() on the split fits does and the two pair
 # element for element. s(x) is already on the response scale (the working
-# surface times the response range), so it REPLACES the scalar sigma rather
-# than scaling it: under this parameterization sigma is a fixed unit residual
-# times that same range, a constant carrying no posterior content. NULL passes
-# through, marking a homoscedastic fit, whose scale is that scalar.
+# surface times the response range), so it is the fit's whole residual scale:
+# a heteroscedastic fit carries no scalar sigma to scale. NULL passes through,
+# marking a homoscedastic fit, whose scale is its scalar sigma.
 heteroscedasticScale <- function(s, n.chains) {
   if (is.null(s)) NULL else combineOrUncombineChains(s, n.chains, FALSE)
 }
@@ -517,7 +516,7 @@ predictTermOffset <- function(data, newdata, offset) {
 predict.bart <- function(
   object,
   newdata,
-  type = c("ev", "ppd", "bart", "forest"),
+  type = c("ev", "ppd", "bart", "forest", "sigma"),
   offset = NULL,
   weights = NULL,
   combineChains = TRUE,
@@ -546,8 +545,27 @@ predict.bart <- function(
   # above the type = "forest" and amplitude-blend returns below, so every arm's
   # value is checked rather than only the one that reaches the sampler here
   n.threads <- validatePredictThreads(n.threads)
-  refuseForestSelectionOutsideForestArm(type, forest)
+  refuseForestSelectionOutsideForestArm(
+    type,
+    forest,
+    fitIsHeteroscedastic(object)
+  )
   refuseDroppedForestChannel(object)
+  if (type == "sigma") {
+    if (!fitIsHeteroscedastic(object)) {
+      stop(
+        "type = \"sigma\" predicts a heteroscedastic fit's per-observation ",
+        "scale; this fit's sigma is one scalar per draw, which ",
+        "extract(type = \"sigma\") returns"
+      )
+    }
+    if (!is.null(weights)) {
+      stop(
+        "type = \"sigma\" does not support 'weights': it reports the ",
+        "variance forest's scale s(x), which a case weight does not change"
+      )
+    }
+  }
 
   # both amplitude arms read the SAVED trees draw by draw, pairing each draw's
   # forests with that draw's own amplitudes; without the tree store only the
@@ -689,6 +707,22 @@ predict.bart <- function(
     ))
     s <- nameObservationMargin(s, rowNames)
     result <- result$mean
+  }
+  if (type == "sigma") {
+    if (is.null(s)) {
+      stop(
+        "type = \"sigma\" is not available on a heteroscedastic fit whose ",
+        "sampler replays no variance surface"
+      )
+    }
+    if (!is.null(ci.level)) {
+      return(padPredictedRows(
+        posteriorInterval(s, ci.level),
+        rows,
+        first = TRUE
+      ))
+    }
+    return(padPredictedRows(s, rows))
   }
   # result is n.obs x n.samples x n.chains
   result <- convertSamplesForCaller(result, n.chains, combineChains)
@@ -889,7 +923,11 @@ extract.bart <- function(
     foreignArgsFor(extractForeignReasons, names(formals(extract.bart)))
   )
 
-  refuseForestSelectionOutsideForestArm(type, forest)
+  refuseForestSelectionOutsideForestArm(
+    type,
+    forest,
+    fitIsHeteroscedastic(object)
+  )
   if (type != "forest" && isTRUE(contribution)) {
     stop(
       "type = \"",
@@ -897,6 +935,27 @@ extract.bart <- function(
       "\" does not support 'contribution': the ",
       "per-observation decomposition applies to the per-forest channel alone"
     )
+  }
+
+  # a heteroscedastic fit's scale is per observation, so it reads like a
+  # fitted channel: train or test, chains split or combined
+  if (type == "sigma" && fitIsHeteroscedastic(object)) {
+    sample <- validateSample(sample, eval(formals(extract.bart)$sample))
+    s <- object[[if (sample == "train") "s.train" else "s.test"]]
+    # only bart() fits a variance forest, and only its keepFits drops s(x):
+    # keepTrainingFits leaves s.train in place
+    if (is.null(s)) {
+      stop(
+        "cannot extract 'sigma' at the ",
+        sample,
+        " rows: this heteroscedastic fit stores no per-observation scale ",
+        "draws there (",
+        if (sample == "test") "no test rows, or ",
+        "'keepFits = FALSE' dropped them, as a supplied 'callback' does ",
+        "unless 'keepFits' is given)"
+      )
+    }
+    return(combineOrUncombineChains(s, fitNChains(object), combineChains))
   }
 
   # served before any sample/test-channel check, so a fit kept with
@@ -919,13 +978,6 @@ extract.bart <- function(
           "cannot extract 'sigma': a ",
           fitFamily(object),
           " fit has no residual scale parameter"
-        )
-      }
-      if (fitIsHeteroscedastic(object)) {
-        stop(
-          "cannot extract 'sigma': a heteroscedastic fit has no scalar ",
-          "residual scale; its per-observation scale draws are the fit's ",
-          "'s.train'"
         )
       }
       return(reshapeScalarChannel(object$sigma, n.chains, combineChains))
@@ -2734,10 +2786,21 @@ foreignArgsFor <- function(reasons, own) {
 # reports; every other arm has already recombined them into the reported
 # location, so a selection there would silently choose nothing. The model
 # parameters and varcount are no recombined location, so they get their own
-# wording.
-refuseForestSelectionOutsideForestArm <- function(type, forest) {
+# wording, and so does a heteroscedastic fit's sigma, which is the variance
+# forest's surface rather than a model parameter.
+refuseForestSelectionOutsideForestArm <- function(
+  type,
+  forest,
+  heteroscedastic = FALSE
+) {
   if (is.null(forest)) {
     return(invisible(NULL))
+  }
+  if (type == "sigma" && heteroscedastic) {
+    stop(
+      "type = \"sigma\" on a heteroscedastic fit is the variance forest's ",
+      "per-observation scale, not a per-forest quantity of the mean"
+    )
   }
   if (type %in% c("sigma", "k", "sd", "dispersion", "thresholds")) {
     stop(
@@ -3412,6 +3475,12 @@ ppdNoiseScale <- function(sigma, s, weights, n.obs, n.draws) {
   sd
 }
 
+# the number of draws the noise scale spans: one per sigma draw, or, on a
+# heteroscedastic fit, which carries no sigma, one per row of s(x)'s draws
+ppdNumDraws <- function(sigma, s, n.obs) {
+  if (is.null(s)) length(sigma) else length(s) %/% n.obs
+}
+
 # ev (expected value) enters in the caller's requested layout: chains split
 # ((n.chains x) n.samples x n.obs, obs last) or chains combined ((n.chains *
 # n.samples) x n.obs, chain-blocked rows - all of chain 1's samples, then
@@ -3438,7 +3507,7 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
 
   responseIsBinary <- fitIsBinary(object)
   sigma <- object$sigma
-  if (!responseIsBinary && is.null(dim(sigma))) {
+  if (!responseIsBinary && !is.null(sigma) && is.null(dim(sigma))) {
     sigma <- uncombineChains(as.vector(sigma), n.chains)
   }
 
@@ -3476,7 +3545,7 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
       }
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
-      n.draws <- length(sigma)
+      n.draws <- ppdNumDraws(sigma, s, n.obs)
       noise <- rnorm(
         n.obs * n.draws,
         0,
@@ -3523,7 +3592,7 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
       }
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
-      n.draws <- length(sigma)
+      n.draws <- ppdNumDraws(sigma, s, n.obs)
       sd <- ppdNoiseScale(sigma, s, weights, n.obs, n.draws)
       noise <- rnorm(n.obs * n.draws, 0, sd)
       if (n.chains > 1L && length(dim(ev)) < 3L) {

@@ -154,7 +154,10 @@ observations; the GP leaf regathers covariates under existing constants
 (regatherTrainingCovariates precedent) and the transactional
 snapshot/rollback of fits already covers function-valued leaves because
 fits ARE the parameters. setData reinitializes constants like the
-rebuilt cut grid. No new refusals expected beyond what linear leaves
+rebuilt cut grid. The standardization constants and the heuristic
+lengthscales ride the chain state (ForestStateData::leafCovariateCenters,
+leafCovariateScales, leafLengthscales), as the linear leaf's do, so a
+re-creation over updated values restores what the live sampler kept. No new refusals expected beyond what linear leaves
 impose today; stage 3 verifies each path with component tests rather
 than assuming.
 

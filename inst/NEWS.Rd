@@ -340,8 +340,10 @@
             + x2}, \code{variance = TRUE} or a
             \code{\link{varianceForest}} in \code{bart} and \code{dbarts}
             adds a forest for the residual variance, reported as
-            \code{s.train} and \code{s.test}. For gaussian and
-            \code{"aft"} responses.
+            \code{s.train} and \code{s.test}, and returned by
+            \code{extract} and \code{predict} as \code{type = "sigma"}
+            in place of a scalar sigma. For gaussian and \code{"aft"}
+            responses.
       \item Constraints. \code{monotone = c(x1 = "increasing", x2 =
             "decreasing")}, or \code{1}, \code{-1} and \code{0} by name
             or position, makes the fit monotone in those predictors
@@ -355,7 +357,9 @@
             , groups = )} limits which predictors may interact, and
             \code{blocks = \link{blocks}(...)} makes the fit an exact sum
             of functions of separate predictor groups. All three on
-            \code{bart} and \code{dbarts}.
+            \code{bart} and \code{dbarts}; \code{interactions} and
+            \code{blocks} also hold on each category forest of a
+            multinomial fit.
       \item Predictors. Factors split on level subsets, with up to 65535
             levels; missing predictor values are modelled in place, each
             split learning which way they go (Twala et al. 2008). Sparse

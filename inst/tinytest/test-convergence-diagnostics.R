@@ -621,11 +621,8 @@ fitHetero <- dbarts::bart(
   n.threads = 1L,
   verbose = FALSE
 )
-expect_error(
-  extract(fitHetero, "sigma"),
-  "cannot extract 'sigma': a heteroscedastic fit has no scalar residual scale",
-  fixed = TRUE
-)
+# a heteroscedastic fit's "sigma" is its per-observation scale
+expect_identical(extract(fitHetero, "sigma"), fitHetero$s.train)
 
 # 'sample' and 'forest' are refused by name on these types
 expect_error(

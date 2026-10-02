@@ -26,7 +26,7 @@ pdbart.getAndInitializeSampler <- function(bartCall, evalEnv) {
   samples <- if (sampler$control@n.burn > 0L) {
     sampler$run(0L, sampler$control@n.burn, updateState = FALSE)
   }
-  fit <- list(first.sigma = samples$sigma)
+  fit <- list(first.sigma = samples[["sigma"]])
   control@verbose <- verbose
   control@keepTrainingFits <- keepTrainingFits
   sampler$setControl(control)

@@ -171,9 +171,14 @@ alignSubsetRowsToFrame <- function(subsetRows, naOmitted, keptRows) {
     # the na.action dropped, which is still a restriction a full-data basis
     # has to follow
     full <- keptRows + length(naOmitted)
-    return(list(full = full, index = seq_len(full)[-unclass(naOmitted)]))
+    return(list(
+      full = full,
+      index = seq_len(full)[-unclass(naOmitted)],
+      kept = "the rows the na.action kept"
+    ))
   }
   subsetRows$index <- subsetRows$index[-unclass(naOmitted)]
+  subsetRows$kept <- "the rows 'subset' and the na.action kept"
   subsetRows
 }
 

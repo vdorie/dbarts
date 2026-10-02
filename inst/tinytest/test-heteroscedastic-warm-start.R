@@ -218,10 +218,16 @@ expect_true(all(is.finite(strandDest$run(0L, 3L)$sigma)))
 # drops the rest, so a tree carrying a forbidden split is mis-scored for as
 # long as it lives. setState used to admit one where installTrees refused it;
 # the two entries now run the one predicate over every forest a state carries
-# and report the one message.
+# and report the one message, naming their own source.
 maskRefusal <- paste0(
   "warm-start donor holds a tree that splits on a variable outside this ",
   "forest's allowed column set; the donor's fit is incompatible with the ",
+  "column restriction (a forest's own column subset or a restricted ",
+  "variance forest) in force here"
+)
+stateMaskRefusal <- paste0(
+  "state holds a tree that splits on a variable outside this ",
+  "forest's allowed column set; the state is incompatible with the ",
   "column restriction (a forest's own column subset or a restricted ",
   "variance forest) in force here"
 )
@@ -256,9 +262,9 @@ expect_false(any(maskRecipient$state[[1L]][["variance.vars"]] == 1L))
 maskBefore <- maskRecipient$state
 expect_identical(
   refusalOf(maskRecipient$setState(maskDonor$state)),
-  maskRefusal
+  stateMaskRefusal
 )
-# the same donor at the other entry, in the same words: the two cannot disagree
+# the same donor at the other entry, in the same terms: the two cannot disagree
 expect_identical(refusalOf(maskRecipient$installTrees(maskDonor)), maskRefusal)
 # transactional: both refusals validate before they mutate, so the recipient is
 # the sampler it was, and still runs

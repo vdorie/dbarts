@@ -2796,7 +2796,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setForestBasis = function(forest, basis, updateState = NULL) {
-      "Changes the basis the named forest's amplitudes multiply, at any forest and any width. forest indexes from 1, as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). A factor (or a one-sided formula naming one) expands to its level indicators, one amplitude per level, with no reference level dropped; a numeric vector or matrix is already those columns. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
+      "Changes the basis the named forest's amplitudes multiply, at any forest and any width. forest indexes from 1, as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). A factor (or a one-sided formula naming one) expands to its level indicators, one amplitude per level, with no reference level dropped, and may leave a level empty (a swap can leave one momentarily unobserved); a numeric vector or matrix is already those columns, and one of all zeros is refused. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -2819,7 +2819,10 @@ dbartsSampler <- setRefClass(
         stop("forest index out of range")
       }
       values <- validateForestBases(
-        list(expandForestBasis(evaluateForestBasis(basis))),
+        list(expandForestBasis(
+          evaluateForestBasis(basis),
+          allowEmptyLevels = TRUE
+        )),
         length(data@y),
         argument = "basis"
       )[[1L]]
@@ -3031,7 +3034,7 @@ dbartsSampler <- setRefClass(
       )
     },
     getSigmas = function(result) {
-      "Return current residual error term on original, standard deviation scale."
+      "Returns each chain's current residual standard deviation on the original response scale, or NULL on a heteroscedastic sampler, whose scale is the surface getVariance() reports."
 
       # the formal is held so it cannot be quietly repurposed: this reader
       # allocates its own vector, and filling a caller's buffer in place is
@@ -3042,6 +3045,9 @@ dbartsSampler <- setRefClass(
         )
       }
 
+      if (!is.null(attr(control, "bartcore.variance"))) {
+        return(NULL)
+      }
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getSigmas, ptr)
     },

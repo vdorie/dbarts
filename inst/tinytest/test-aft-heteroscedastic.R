@@ -70,8 +70,11 @@ expect_true(s.high > 0.6 && s.high < 1.6)
 # the mean surface still tracks the signal
 expect_true(cor(fit$yhat.train.mean, f) > 0.8)
 
-# sigma is the pinned constant carrying no posterior content
-expect_equal(length(unique(fit$sigma)), 1L)
+# the fit carries no scalar sigma: the engine pins one at a unit residual
+# times the response range, which carries no posterior content
+expect_false(any(c("sigma", "first.sigma") %in% names(fit)))
+expect_identical(extract(fit, type = "sigma"), fit$s.train)
+pinned <- diff(range(fit$y))
 
 # ---- the log-likelihood scores at s(x_i), events and censored rows alike ----
 ev <- extract(fit, type = "bart", sample = "train")
@@ -93,11 +96,11 @@ expected[censored] <- pnorm(
 expect_equal(loglik, matrix(expected, n.draws, n), tolerance = 1e-12)
 
 # and is nowhere near the pinned scalar's answer, so the check has teeth
-at.scalar <- dnorm(y.rep, loc, fit$sigma[1L], log = TRUE)
+at.scalar <- dnorm(y.rep, loc, pinned, log = TRUE)
 at.scalar[censored] <- pnorm(
   y.rep[censored],
   loc[censored],
-  fit$sigma[1L],
+  pinned,
   lower.tail = FALSE,
   log.p = TRUE
 )
@@ -161,6 +164,21 @@ expect_equal(
   dim(survivalProbabilities(fit.no.trees, times)),
   c(20L, length(times), n)
 )
+# a fit whose s.train keepFits dropped has no scale at its training rows, and
+# the refusal names the argument bart() drops it by
+fit.no.scale <- fit.no.trees
+fit.no.scale$s.train <- NULL
+expect_error(
+  survivalProbabilities(fit.no.scale, times),
+  paste0(
+    "survival probabilities need this heteroscedastic fit's 's.train' ",
+    "draws, which 'keepFits = FALSE' dropped (automatically, when a ",
+    "'callback' was supplied, unless overridden); refit with ",
+    "'keepFits = TRUE'"
+  ),
+  fixed = TRUE
+)
+rm(fit.no.scale)
 
 # ---- the composed fit carries both families' refusals ----
 control <- dbartsControl(

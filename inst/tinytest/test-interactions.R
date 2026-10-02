@@ -278,3 +278,87 @@ expect_error(
   ),
   "a multi-forest sampler \\(2 forests\\) has no tested warm start from a donor"
 )
+
+# ---- multinomial: the constraint holds on every category forest -----------
+# The K category forests share the one constraint. The response wants an x1*x2
+# interaction, so a forest that dropped it would grow order-2 trees.
+yc <- factor(ifelse(x1 > 0.5 & x2 > 0.5, "a", ifelse(x3 > 0.5, "b", "c")))
+mnControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 10L,
+  n.samples = 1L,
+  updateState = FALSE
+)
+mnFree <- dbarts(
+  cbind(x1, x2, x3),
+  yc,
+  family = "multinomial",
+  control = mnControl
+)
+invisible(mnFree$run(100L, 0L))
+expect_true(worstOrder(mnFree$getTrees(current = TRUE)) >= 2L)
+
+mnCapped <- dbarts(
+  cbind(x1, x2, x3),
+  yc,
+  family = "multinomial",
+  interactions = interactions(max.order = 1L),
+  control = mnControl
+)
+invisible(mnCapped$run(100L, 0L))
+mnTrees <- mnCapped$getTrees(current = TRUE)
+expect_identical(sort(unique(mnTrees$forest)), 1:3)
+expect_equal(worstOrder(mnTrees), 1L)
+invisible(mnCapped$growFromRoot())
+expect_equal(worstOrder(mnCapped$getTrees(current = TRUE)), 1L)
+
+# a state grown without the cap is refused by name, and leaves the sampler as
+# it was
+mnFree$storeState()
+mnCapped$storeState()
+mnBefore <- mnCapped$state
+expect_error(
+  mnCapped$setState(mnFree$state),
+  "state holds a tree that violates this sampler's interaction constraint"
+)
+mnCapped$storeState()
+expect_identical(mnCapped$state, mnBefore)
+
+# bart() takes the same constraint to the same engine
+mnFit <- bart(
+  cbind(x1, x2, x3),
+  yc,
+  family = "multinomial",
+  interactions = interactions(forbid = list(c(1L, 2L))),
+  n.trees = 10L,
+  n.samples = 10L,
+  n.burn = 50L,
+  n.chains = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+expect_false(anyCoOccur(extract(mnFit, type = "trees"), c(1L, 2L)))
+
+# ---- setState names a violated constraint on a single forest too ----------
+ssControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 10L,
+  n.samples = 1L,
+  updateState = FALSE
+)
+ssFree <- dbarts(y ~ x1 + x2 + x3, df, control = ssControl)
+invisible(ssFree$run(100L, 0L))
+expect_true(worstOrder(ssFree$getTrees(current = TRUE)) >= 2L)
+ssFree$storeState()
+ssCapped <- dbarts(
+  y ~ x1 + x2 + x3,
+  df,
+  interactions = interactions(max.order = 1L),
+  control = ssControl
+)
+expect_error(
+  ssCapped$setState(ssFree$state),
+  "state holds a tree that violates this sampler's interaction constraint"
+)

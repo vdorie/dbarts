@@ -1112,7 +1112,8 @@ public:
   /// so a refusal leaves the sampler exactly as it was. columnMaskRefused, when
   /// non-null, separates that refusal from every other invalid state so the
   /// host can name it; monotoneRefused does the same for leaf values outside
-  /// a monotone sampler's cone.
+  /// a monotone sampler's cone, and interactionRefused for a live tree that
+  /// breaks a forest's interaction constraint.
   ///
   /// adoptCapacity, when not keepStoreCapacity, judges the state's saved trees
   /// against a store of that many samples and, only once the state is
@@ -1123,9 +1124,11 @@ public:
                 const double* currentPredictors,
                 bool* columnMaskRefused = nullptr,
                 bool* monotoneRefused = nullptr,
+                bool* interactionRefused = nullptr,
                 size_t adoptCapacity = keepStoreCapacity) {
     if (columnMaskRefused != nullptr) *columnMaskRefused = false;
     if (monotoneRefused != nullptr) *monotoneRefused = false;
+    if (interactionRefused != nullptr) *interactionRefused = false;
     if (state.chains.size() != chains_.size()) return false;
     if (state.cutPoints.size() != data_.numPredictors) return false;
     for (size_t j = 0; j < data_.numPredictors; ++j) {
@@ -1166,7 +1169,10 @@ public:
     bool columnMaskOk = true;
     for (size_t c = 0; c < chains_.size() && columnMaskOk; ++c)
       columnMaskOk = chains_[c]->columnMaskStateFeasible(state.chains[c]);
-    bool allValid = columnMaskOk;
+    bool interactionOk = true;
+    for (size_t c = 0; c < chains_.size() && columnMaskOk && interactionOk; ++c)
+      interactionOk = chains_[c]->interactionStateFeasible(state.chains[c]);
+    bool allValid = columnMaskOk && interactionOk;
     size_t liveCapacity = savedTreeCapacity();
     bool resize =
       adoptCapacity != keepStoreCapacity && adoptCapacity != liveCapacity;
@@ -1194,6 +1200,8 @@ public:
       restoreGrid();
       if (columnMaskRefused != nullptr) *columnMaskRefused = !columnMaskOk;
       if (monotoneRefused != nullptr) *monotoneRefused = !monotoneOk;
+      if (interactionRefused != nullptr)
+        *interactionRefused = columnMaskOk && !interactionOk;
       return false;
     }
     if (resize) {
@@ -1315,6 +1323,9 @@ public:
         // reassembled ForestStateData is the ONLY thing installForest sees, so
         // dropping it here would leave that path's install arm dead
         dfs.leafScale = sfs.leafScale;
+        // the leaf-covariate calibration is deliberately not copied: a warm
+        // start reads the donor's trees on this sampler's data, as setData
+        // re-derives the constants
       }
       dst.sigma = src.sigma;
       dst.fitMin = src.fitMin;

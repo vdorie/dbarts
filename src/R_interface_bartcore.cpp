@@ -3688,6 +3688,15 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   spec.forest.perturbProbability = model.perturbProbability;
   spec.forest.ruleGibbsProbability = model.ruleGibbsProbability;
   spec.forest.birthProbability = model.birthProbability;
+  // interactions() and blocks() apply to every category forest; optionsFromParsed
+  // already checked the block tree counts against the tree count
+  spec.forest.interactionMaxOrder = options.interactionMaxOrder;
+  spec.forest.interactionForbiddenPairs = options.interactionForbiddenPairs;
+  spec.forest.interactionNumForbiddenPairs =
+    options.interactionNumForbiddenPairs;
+  spec.forest.numBlocks = options.numBlocks;
+  spec.forest.blockOfColumn = options.blockOfColumn;
+  spec.forest.blockTreeCounts = options.blockTreeCounts;
 
   std::unique_ptr<bartcore::SamplerBase> sampler =
     createSamplerOrRaise(rngs, [&]() {
@@ -4907,7 +4916,11 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   // a Student-t error law appends its per-draw df nu next, on the same
   // arithmetic; no response carries both, but the count composes regardless
   bool hasResidualDf = shape.carriesResidualDf;
-  int numResultSlots = 6 + (hasOrdinalThresholds ? 1 : 0) +
+  // a heteroscedastic sampler reports no sigma: its engine holds the scalar
+  // fixed, and the per-observation variance channel is the residual scale
+  bool hasSigma = !hasVariance;
+  int numResultSlots = 5 + (hasSigma ? 1 : 0) +
+                       (hasOrdinalThresholds ? 1 : 0) +
                        (hasDispersion ? 1 : 0) + (hasResidualDf ? 1 : 0) +
                        (hasVariance ? 2 : 0) + (hasForestReporting ? 2 : 0);
 
@@ -4934,7 +4947,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
     return value;
   };
 
-  SEXP sigmaExpr = installChannel("sigma", allocScalarChannel());
+  SEXP sigmaExpr = !hasSigma
+    ? R_NilValue
+    : installChannel("sigma", allocScalarChannel());
   // a channel the run keeps at all: the existing gate, and then keepFits. A
   // gated-out channel keeps its slot and its name with a null value, exactly
   // as keepTrainingFits = FALSE has always left the training slot.
@@ -5023,7 +5038,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   auto scratchAt = [&](size_t offset) { return scratch.data() + offset; };
 
   bartcore::Results results;
-  results.sigma = REAL(sigmaExpr);
+  results.sigma = hasSigma ? REAL(sigmaExpr) : NULL;
   results.trainingFits = !hasTrain ? NULL
     : (keepFits ? REAL(trainExpr) : scratchAt(scratchTrain));
   results.testFits = !hasTest ? NULL
@@ -7308,7 +7323,8 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     FSLOT_TREE_PARAMS, FSLOT_TREE_MASKS,
     FSLOT_SAVED_VARS, FSLOT_SAVED_VALUES, FSLOT_SAVED_SIZES, FSLOT_SAVED_FLAGS,
     FSLOT_SAVED_PARAMS, FSLOT_SAVED_MASKS,
-    FSLOT_K, FSLOT_LEAF_SCALE, FSLOT_COUNT
+    FSLOT_K, FSLOT_LEAF_SCALE, FSLOT_LEAF_COVARIATE_CENTER,
+    FSLOT_LEAF_COVARIATE_SCALE, FSLOT_LEAF_LENGTHSCALES, FSLOT_COUNT
   };
   // append-only here too: leaf.scale is the leaf prior's scale factor, k's
   // other half (mu ~ N(0, (scale / k)^2)), added AFTER k and read as OPTIONAL,
@@ -7318,8 +7334,12 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     "tree.masks",
     "saved.vars", "saved.values", "saved.sizes", "saved.flags",
     "saved.params", "saved.masks",
-    "k", "leaf.scale"
+    "k", "leaf.scale",
+    "leaf.covariate.center", "leaf.covariate.scale", "leaf.lengthscales"
   };
+  // the leaf.covariate.* and leaf.lengthscales blocks are a linear or gp
+  // leaf's standardization constants and kernel lengthscales, NULL on every
+  // other leaf, likewise appended and read as OPTIONAL
 
   // append-only slot registry: new blocks go before SLOT_COUNT and do NOT bump
   // the format version (an old state simply lacks the name and decodes as
@@ -7385,6 +7405,18 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
       }
       SET_VECTOR_ELT(forestExpr, FSLOT_K, Rf_ScalarReal(fs.k));
       SET_VECTOR_ELT(forestExpr, FSLOT_LEAF_SCALE, Rf_ScalarReal(fs.leafScale));
+      const std::vector<double>* calibration[] = {
+        &fs.leafCovariateCenters, &fs.leafCovariateScales, &fs.leafLengthscales
+      };
+      for (int j = 0; j < 3; ++j) {
+        if (calibration[j]->empty()) continue;
+        SEXP valuesExpr = PROTECT(Rf_allocVector(
+          REALSXP, static_cast<R_xlen_t>(calibration[j]->size())));
+        std::memcpy(REAL(valuesExpr), calibration[j]->data(),
+                    calibration[j]->size() * sizeof(double));
+        SET_VECTOR_ELT(forestExpr, FSLOT_LEAF_COVARIATE_CENTER + j, valuesExpr);
+        UNPROTECT(1);
+      }
       SET_VECTOR_ELT(forestsExpr, static_cast<R_xlen_t>(f), forestExpr);
       UNPROTECT(1);
     }
@@ -7574,13 +7606,18 @@ bool readAmplitudeGlue(SEXP glueExpr, bartcore::ChainStateData& chainState) {
   return true;
 }
 
-/// The single refusal both tree-install entries report when an incoming tree
-/// splits on a column the recipient forest's mask forbids. setState and
-/// installForests run the one predicate, so they speak with the one voice: a
-/// state either entry refuses is refused by the other, in the same words.
+/// The refusal both tree-install entries report when an incoming tree splits
+/// on a column the recipient forest's mask forbids. setState and
+/// installForests run the one predicate, so a state either entry refuses is
+/// refused by the other, in the same words but for the name of the source.
 static const char* const columnMaskMismatchMessage =
   "warm-start donor holds a tree that splits on a variable outside "
   "this forest's allowed column set; the donor's fit is "
+  "incompatible with the column restriction (a forest's own "
+  "column subset or a restricted variance forest) in force here";
+static const char* const stateColumnMaskMessage =
+  "state holds a tree that splits on a variable outside "
+  "this forest's allowed column set; the state is "
   "incompatible with the column restriction (a forest's own "
   "column subset or a restricted variance forest) in force here";
 
@@ -7825,6 +7862,28 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
         }
         fs.leafScale = REAL(leafScaleExpr)[0];
       }
+
+      // OPTIONAL, append-only: a linear or gp leaf's calibration, absent in a
+      // state written before the blocks existed (the sampler then keeps the
+      // constants it built from its data). Lengths and values are judged
+      // against the leaf by the engine's stateIsValid.
+      static const char* const calibrationNames[] = {
+        "leaf.covariate.center", "leaf.covariate.scale", "leaf.lengthscales"
+      };
+      std::vector<double>* calibration[] = {
+        &fs.leafCovariateCenters, &fs.leafCovariateScales, &fs.leafLengthscales
+      };
+      for (int j = 0; j < 3 && errorMessage == NULL; ++j) {
+        SEXP valuesExpr = rc_getListElement(forestExpr, calibrationNames[j]);
+        if (Rf_isNull(valuesExpr)) continue;
+        if (!Rf_isReal(valuesExpr) || Rf_xlength(valuesExpr) == 0) {
+          errorMessage = malformedBlock(calibrationNames[j]);
+          break;
+        }
+        calibration[j]->assign(REAL(valuesExpr),
+                               REAL(valuesExpr) + Rf_xlength(valuesExpr));
+      }
+      if (errorMessage != NULL) break;
     }
     if (errorMessage != NULL) break;
 
@@ -8000,12 +8059,14 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   }
 
   bool columnMaskRefused = false, monotoneRefused = false;
+  bool interactionRefused = false;
   bool restored = false;
   if (errorMessage == NULL) {
     bartcore_bridge::CapturedError restoreError;
     captureExceptions(restoreError, [&]() {
       restored = sampler.setState(state, currentPredictors, &columnMaskRefused,
-                                  &monotoneRefused, adoptCapacity);
+                                  &monotoneRefused, &interactionRefused,
+                                  adoptCapacity);
     });
     if (restoreError.failed)
       errorMessage = "state's saved trees cannot be stored by this sampler";
@@ -8015,7 +8076,11 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     std::swap(state, empty);  // free before a potential longjmp
   }
   if (errorMessage != NULL) Rf_error("%s", errorMessage);
-  if (columnMaskRefused) Rf_error("%s", columnMaskMismatchMessage);
+  if (columnMaskRefused) Rf_error("%s", stateColumnMaskMessage);
+  if (interactionRefused)
+    Rf_error("state holds a tree that violates this sampler's interaction "
+             "constraint; the state is incompatible with the interactions() "
+             "prior in force here");
   if (monotoneRefused)
     Rf_error("state's leaf values violate this sampler's monotone "
              "constraint");
@@ -8154,7 +8219,9 @@ static const char* readWarmStartState(SEXP stateExpr,
       fs.k = REAL(kExpr)[0];
 
       // optional as in the setState parser above; installForest adopts it
-      // alongside k, so a donor's leaf calibration seeds the warm start
+      // alongside k, so a donor's leaf calibration seeds the warm start. The
+      // leaf-covariate blocks are not read: a warm start reads the donor's
+      // trees on this sampler's data
       SEXP leafScaleExpr = rc_getListElement(forestExpr, "leaf.scale");
       if (!Rf_isNull(leafScaleExpr)) {
         if (!Rf_isReal(leafScaleExpr) || Rf_xlength(leafScaleExpr) != 1) {

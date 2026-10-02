@@ -42,12 +42,9 @@
 
     On a heteroscedastic fit the \code{sigma} token resolves to
     \code{mean.s}: the mean over the training observations of that
-    draw's variance surface \eqn{s(x)}, one value per draw. The
-    \code{sigma} such a fit stores is the variance forest
-    parameterization's fixed unit residual times the range of the
-    response, a constant with no posterior content, so it is not
-    reported as a parameter; \code{s.train} itself is reachable by
-    name, contributing one variable per observation.
+    draw's variance surface \eqn{s(x)}, one value per draw, since
+    such a fit has no scalar \code{sigma}; \code{s.train} itself is
+    reachable by name, contributing one variable per observation.
 
     For the four own-class fits, \code{vars} is scoped to that
     family's own vocabulary (see \code{\link{bart}}): a

@@ -944,7 +944,11 @@ evaluateForestBasis <- function(basis, data = NULL) {
 ## needing a nonzero entry - because at prediction a constant arm is the whole
 ## point: everyone under z = 1 gives an all-zero control column, and the width
 ## it must match is the fit's, checked against it there.
-expandForestBasis <- function(basis, atPrediction = FALSE) {
+expandForestBasis <- function(
+  basis,
+  atPrediction = FALSE,
+  allowEmptyLevels = atPrediction
+) {
   if (is.null(basis)) {
     return(NULL)
   }
@@ -962,6 +966,18 @@ expandForestBasis <- function(basis, atPrediction = FALSE) {
       stop("a 'basis' factor must have at least two levels")
     }
     codes <- as.integer(basis)
+    # a level no row takes expands to an all-zero column, refused below for a
+    # numeric basis for the same reason; a mutation may keep a declared level
+    # the data currently leave empty, so the amplitudes keep their columns
+    empty <- tabulate(codes, nlevels(basis)) == 0L
+    if (!allowEmptyLevels && any(empty)) {
+      stop(
+        "a 'basis' factor level with no observations contributes nothing to ",
+        "a forest: '",
+        levels(basis)[which(empty)[1L]],
+        "'; drop it with droplevels()"
+      )
+    }
     expanded <- matrix(0, length(codes), nlevels(basis))
     expanded[cbind(seq_along(codes), codes)] <- 1
     return(expanded)
@@ -976,6 +992,15 @@ expandForestBasis <- function(basis, atPrediction = FALSE) {
   }
   if (!all(is.finite(basis))) {
     stop("a 'basis' must be finite")
+  }
+  # the calibration divides by the median nonzero row norm, so a norm that
+  # overflows, or underflows to zero on a nonzero row, poisons the sampler
+  rowNorms <- sqrt(rowSums(basis * basis))
+  if (any(!is.finite(rowNorms) | (rowNorms == 0 & rowSums(basis != 0) > 0L))) {
+    stop(
+      "a 'basis' row's norm is not representable; rescale the basis to ",
+      "moderate values"
+    )
   }
   # an all-zero column has no observation for its amplitude to multiply, so it
   # is not a degenerate prior but a missing predictor wearing one
@@ -1051,7 +1076,11 @@ resolveFormulaBasisSubset <- function(formula, data, subsetExpr) {
     function(expr) eval(expr, env)
   }
   full <- NROW(evalHere(as.name(vars[1L])))
-  list(full = full, index = seq_len(full)[evalHere(subsetExpr)])
+  list(
+    full = full,
+    index = seq_len(full)[evalHere(subsetExpr)],
+    kept = "'subset'"
+  )
 }
 
 ## Align one forest() declaration's evaluated basis to 'subsetRows'
@@ -1079,7 +1108,8 @@ alignForestBasisToSubset <- function(basis, forestIndex, subsetRows) {
       "'s 'basis' has ",
       n,
       " rows, matching ",
-      "'subset' (",
+      if (is.null(subsetRows$kept)) "'subset'" else subsetRows$kept,
+      " (",
       length(subsetRows$index),
       ") but not the full data (",
       subsetRows$full,

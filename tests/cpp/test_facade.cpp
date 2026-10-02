@@ -176,8 +176,8 @@ public:
   SPY_VOID(getState, (SamplerStateData& s), (s))
   SPY_RET(bool, setState,
           (const SamplerStateData& s, const double* cp, bool* r, bool* m,
-           std::size_t a),
-          (s, cp, r, m, a))
+           bool* i, std::size_t a),
+          (s, cp, r, m, i, a))
   SPY_RET(WarmStartResult, installForests,
           (const SamplerStateData& d,
            const std::vector<std::pair<std::size_t, int>>& m),

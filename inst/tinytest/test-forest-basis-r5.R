@@ -551,3 +551,30 @@ expect_error(
 )
 expect_true(all(is.finite(direct$run(0L, 2L)$sigma)))
 expect_equal(ncol(direct$data@bases[[2L]]), 2L)
+
+# --- edge bases: a factor level no row takes would leave an amplitude only
+# its prior moves, so creation refuses it, while setForestBasis keeps a
+# declared level the current data leave empty (test-bcf-r5-surface.R); a row
+# norm that overflows poisons the calibration that divides by it, at either
+emptyLevel <- factor(z, levels = 0:2)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = emptyLevel)),
+    control = seededControlForestBasisR5()
+  ),
+  "factor level with no observations contributes nothing to a forest: '2'"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = rep(1e300, n))),
+    control = seededControlForestBasisR5()
+  ),
+  "row's norm is not representable"
+)
+edge <- twoForests()
+expect_error(edge$setForestBasis(1L, rep(1e300, n)), "not representable")
+expect_true(all(is.finite(edge$run(0L, 2L)$train)))
