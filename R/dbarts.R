@@ -12,7 +12,8 @@ setMethod("initialize", "dbartsControl", function(.Object, ...) {
 # the value is not a survival response. Errors on a non-right Surv (with a
 # factor-status hint for "mright"), a non-two-column matrix, non-positive
 # times, or a status outside {0, 1}; a Surv-like object with no type attribute
-# is treated as right-censored. Shared by the aft ingestion (which logs the
+# is treated as right-censored. A missing time or status is a missing
+# response, left NA for the caller's na.action, as survreg and coxph take it. Shared by the aft ingestion (which logs the
 # time) and the discrete-time hazard expander (which keeps the raw time).
 parseSurvivalResponse <- function(value) {
   if (inherits(value, "Surv")) {
@@ -47,10 +48,11 @@ parseSurvivalResponse <- function(value) {
   } else {
     return(NULL)
   }
-  if (any(!is.finite(time)) || any(time <= 0.0)) {
+  observed <- !is.na(time)
+  if (any(!is.finite(time[observed])) || any(time[observed] <= 0.0)) {
     stop("survival times must be finite and positive")
   }
-  if (any(status != 0.0 & status != 1.0)) {
+  if (any(!is.na(status) & status != 0.0 & status != 1.0)) {
     stop("survival status must be 0 (censored) or 1 (event)")
   }
   list(time = time, status = status)
@@ -64,7 +66,10 @@ extractSurvivalResponse <- function(value) {
   if (is.null(survival)) {
     return(NULL)
   }
-  list(log.time = log(survival$time), status = survival$status)
+  # a row missing either part is a missing response
+  log.time <- log(survival$time)
+  log.time[is.na(survival$status)] <- NA_real_
+  list(log.time = log.time, status = survival$status)
 }
 
 # Discrete-time hazard ingestion: the RAW time and status, the AFT sibling
@@ -84,6 +89,8 @@ extractSurvivalTimes <- parseSurvivalResponse
 # k (its own interval's right edge). The grid comes from 'gridTime', the
 # subjects the fit keeps, and a later time is placed in the last period.
 resolveHazardGrid <- function(time, breaks, gridTime = time) {
+  # a subject with no time has no period, and no place in the grid
+  gridTime <- gridTime[!is.na(gridTime)]
   if (is.null(breaks)) {
     periods <- sort(unique(gridTime))
   } else {
@@ -105,7 +112,10 @@ resolveHazardGrid <- function(time, breaks, gridTime = time) {
       if (is.unsorted(breaks, strictly = TRUE)) {
         stop("'breaks' boundaries must be strictly increasing")
       }
-      if (any(time <= breaks[1L]) || any(time > breaks[length(breaks)])) {
+      if (
+        any(time <= breaks[1L], na.rm = TRUE) ||
+          any(time > breaks[length(breaks)], na.rm = TRUE)
+      ) {
         stop(
           "every survival time must lie within the 'breaks' boundaries ",
           "(b_1, b_K]; widen the outer boundaries to cover the data"
@@ -118,6 +128,7 @@ resolveHazardGrid <- function(time, breaks, gridTime = time) {
     findInterval(time, periods, left.open = TRUE) + 1L,
     length(periods)
   )
+  terminal[is.na(terminal)] <- 0L
   list(periods = periods, terminalPeriod = terminal)
 }
 
@@ -164,6 +175,10 @@ expandDiscreteTimeHazard <- function(
   subjectOf <- rep.int(seq_len(n), terminal)
   periodOf <- sequence(terminal)
   y <- as.double(periodOf == terminal[subjectOf] & status[subjectOf] == 1.0)
+  # a subject with a time but no status is at risk to it with a missing
+  # response, which the na.action then drops or refuses as it would any
+  # other; one with no time has no rows
+  y[is.na(status[subjectOf])] <- NA_real_
 
   if ("period" %in% hazardPredictorNames(x)) {
     stop(
@@ -961,10 +976,11 @@ dbarts <- function(
       }
     }
     # the na.action drops a subject's rows together, and the grid must not
-    # depend on them, as on the formula path
+    # depend on them, as on the formula path; a missing time or status is a
+    # missing response
     keptSubjects <- applyNaActionToXY(
       na.action,
-      timeForExpansion,
+      ifelse(is.na(statusForExpansion), NA_real_, timeForExpansion),
       xForExpansion
     )
     expansion <- expandDiscreteTimeHazard(

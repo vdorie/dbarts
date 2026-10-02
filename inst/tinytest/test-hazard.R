@@ -573,3 +573,89 @@ expect_error(
   fixed = TRUE
 )
 rm(n.off, x.off, o.off, fit.off, sp.off, ev.off, subject.off, i, atRisk, manual)
+
+# ---- a missing time or status is a missing response, as in coxph: the
+# na.action drops the subject (the fit equals one on the complete subjects,
+# on the matrix interface and a formula alike) or fails
+time.na <- d$time
+status.na <- d$status
+time.na[3L] <- NA
+status.na[5L] <- NA
+complete.na <- !is.na(time.na) & !is.na(status.na)
+naArgs <- replace(
+  fitArgs,
+  c("n.trees", "n.burn", "n.samples", "keepTrees"),
+  list(5L, 5L, 10L, FALSE)
+)
+fit.naOmit <- do.call(
+  dbarts::bart,
+  c(
+    list(
+      x,
+      cbind(time.na, status.na),
+      family = "hazard",
+      na.action = na.omit
+    ),
+    naArgs
+  )
+)
+fit.complete <- do.call(
+  dbarts::bart,
+  c(
+    list(
+      x[complete.na, ],
+      cbind(time.na, status.na)[complete.na, ],
+      family = "hazard"
+    ),
+    naArgs
+  )
+)
+expect_identical(
+  unname(fit.naOmit$yhat.train),
+  unname(fit.complete$yhat.train)
+)
+expect_identical(fit.naOmit$periods, fit.complete$periods)
+expect_error(
+  do.call(
+    dbarts::bart,
+    c(
+      list(
+        x,
+        cbind(time.na, status.na),
+        family = "hazard",
+        na.action = na.fail
+      ),
+      naArgs
+    )
+  ),
+  "missing values in object",
+  fixed = TRUE
+)
+if (requireNamespace("survival", quietly = TRUE)) {
+  d.na <- data.frame(x, time = time.na, status = status.na)
+  fit.naFormula <- do.call(
+    dbarts::bart,
+    c(
+      list(
+        survival::Surv(time, status) ~ .,
+        data = d.na,
+        family = "hazard",
+        na.action = na.omit
+      ),
+      naArgs
+    )
+  )
+  expect_identical(
+    unname(fit.naFormula$yhat.train),
+    unname(fit.complete$yhat.train)
+  )
+  # the subject missing only its status drops the rows its time puts it at
+  # risk in, on both interfaces
+  expect_identical(length(fit.naOmit$na.action), as.integer(time.na[5L]))
+  expect_identical(
+    as.vector(unclass(fit.naOmit$na.action)),
+    as.vector(unclass(fit.naFormula$na.action))
+  )
+  rm(d.na, fit.naFormula)
+}
+rm(time.na, status.na, complete.na, naArgs, fit.naOmit, fit.complete)

@@ -2824,7 +2824,10 @@ dbartsData <- function(
           eval(modelFrameCall, parent.frame())
         ))[unclass(naOmitted), 1L])
       }
+      # a status missing beside a time is a missing response, which only
+      # na.pass lets reach here
       y <- log(survival$time)
+      y[is.na(survival$status)] <- NA_real_
       responseInfo <- list(
         type = "numeric",
         n.levels = NA_integer_,

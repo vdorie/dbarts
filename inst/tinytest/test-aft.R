@@ -619,3 +619,65 @@ expect_error(
   fixed = TRUE
 )
 rm(o.aft, status.aft, fit.aftOff, sp.aftOff)
+
+# ---- a missing time or status is a missing response, as in survreg: the
+# na.action drops the row (the fit equals one on the complete rows) or fails
+set.seed(43L)
+time.na <- exp(log.t)
+status.na <- rbinom(n, 1L, 0.7)
+time.na[3L] <- NA
+status.na[5L] <- NA
+complete.na <- !is.na(time.na) & !is.na(status.na)
+naArgs <- list(
+  family = "aft",
+  n.trees = 5L,
+  n.burn = 5L,
+  n.samples = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 5L
+)
+fit.naOmit <- do.call(
+  bart,
+  c(list(x, cbind(time.na, status.na), na.action = na.omit), naArgs)
+)
+fit.complete <- do.call(
+  bart,
+  c(list(x[complete.na, ], cbind(time.na, status.na)[complete.na, ]), naArgs)
+)
+expect_identical(
+  unname(fit.naOmit$yhat.train),
+  unname(fit.complete$yhat.train)
+)
+expect_identical(as.vector(unclass(fit.naOmit$na.action)), c(3L, 5L))
+expect_error(
+  do.call(
+    bart,
+    c(list(x, cbind(time.na, status.na), na.action = na.fail), naArgs)
+  ),
+  "missing values in object",
+  fixed = TRUE
+)
+d.na <- data.frame(x, time = time.na, status = status.na)
+fit.naFormula <- do.call(
+  bart,
+  c(
+    list(survival::Surv(time, status) ~ ., data = d.na, na.action = na.omit),
+    naArgs
+  )
+)
+expect_identical(
+  unname(fit.naFormula$yhat.train),
+  unname(fit.complete$yhat.train)
+)
+rm(
+  time.na,
+  status.na,
+  complete.na,
+  naArgs,
+  fit.naOmit,
+  fit.complete,
+  d.na,
+  fit.naFormula
+)
