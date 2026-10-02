@@ -319,8 +319,8 @@ expect_error(
 # 10. a student() fit records its own family token AND the per-draw
 # degrees of freedom it conditioned each draw on, and its log-likelihood is
 # the marginal t density at that draw's (ev, sigma, df) - the quantity
-# loo/waic are defined on - rather than the gaussian density. The ppd draw
-# stays refused: its noise would be drawn gaussian.
+# loo/waic are defined on - rather than the gaussian density. Its ppd draws
+# t noise at that draw's (sigma, df), paired as the log-likelihood pairs them.
 set.seed(3, sample.kind = "Rejection")
 n.t <- 60L
 x.t <- matrix(runif(n.t * 2L), n.t, 2L)
@@ -359,9 +359,14 @@ expect_false(isTRUE(all.equal(
   dnorm(y.t[1L], ev.t[, 1L], fit.t$sigma, log = TRUE)
 )))
 
-expect_error(
-  extract(fit.t, type = "ppd"),
-  pattern = "posterior predictive sampling does not support student residuals"
+set.seed(5L)
+ppd.t <- extract(fit.t, type = "ppd")
+set.seed(5L)
+expect_identical(
+  ppd.t,
+  ev.t +
+    rep_len(as.vector(fit.t$sigma), length(ev.t)) *
+      rt(length(ev.t), rep_len(as.vector(fit.t$resid.df), length(ev.t)))
 )
 
 # an ESTIMATED df moves draw to draw, so the pairing is per draw and not a
@@ -395,6 +400,24 @@ for (i in c(2L, 44L)) {
   )
 }
 
+# the ppd pairs each draw's df with its own sigma across chains too, and a
+# combined draw is the split one with its chains stacked
+set.seed(7L)
+ppd.te <- extract(fit.te, type = "ppd", combineChains = FALSE)
+set.seed(7L)
+expect_identical(
+  ppd.te,
+  ev.te +
+    rep_len(as.vector(fit.te$sigma), length(ev.te)) *
+      rt(length(ev.te), rep_len(as.vector(fit.te$resid.df), length(ev.te)))
+)
+set.seed(7L)
+ppd.teCombined <- extract(fit.te, type = "ppd")
+expect_identical(
+  unname(ppd.teCombined),
+  unname(rbind(ppd.te[1L, , ], ppd.te[2L, , ]))
+)
+
 # a student fit serialized before the df channel existed carries the token
 # but not the draws: refused by name rather than scored at a guessed df
 fit.nodf <- fit.t
@@ -414,6 +437,9 @@ expect_error(
 )
 
 rm(
+  ppd.t,
+  ppd.te,
+  ppd.teCombined,
   fit.t,
   fit.te,
   fit.nodf,

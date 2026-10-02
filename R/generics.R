@@ -3512,6 +3512,16 @@ ppdNoiseScale <- function(sigma, s, weights, n.obs, n.draws) {
   sd
 }
 
+# The posterior predictive noise at scale 'sd', laid out as ppdNoiseScale lays
+# it out: gaussian, or, given a student() fit's per-draw degrees of freedom
+# (chain-fastest, as sigma), t with each draw's own, sd * t_nu.
+ppdNoise <- function(n, sd, df = NULL) {
+  if (is.null(df)) {
+    return(rnorm(n, 0, sd))
+  }
+  sd * rt(n, rep_len(as.vector(df), n))
+}
+
 # the number of draws the noise scale spans: one per sigma draw, or, on a
 # heteroscedastic fit, which carries no sigma, one per row of s(x)'s draws
 ppdNumDraws <- function(sigma, s, n.obs) {
@@ -3548,10 +3558,21 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
     sigma <- uncombineChains(as.vector(sigma), n.chains)
   }
 
-  # the noise added below is always gaussian (rnorm), which is wrong for
-  # student residuals, so the draw is refused rather than taken
+  # a student() fit's noise is t with each draw's own degrees of freedom,
+  # one scalar per draw as sigma is and paired with it the same way, as the
+  # pointwise log-likelihood pairs them
+  df <- NULL
   if (fitIsStudent(object)) {
-    stop("posterior predictive sampling does not support student residuals")
+    df <- object[["resid.df"]]
+    if (is.null(df)) {
+      stop(
+        "posterior predictive sampling needs the fit's per-draw residual ",
+        "degrees of freedom, which it does not store"
+      )
+    }
+    if (is.null(dim(df))) {
+      df <- uncombineChains(as.vector(df), n.chains)
+    }
   }
 
   if (is.null(weights)) {
@@ -3583,10 +3604,10 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
       n.draws <- ppdNumDraws(sigma, s, n.obs)
-      noise <- rnorm(
+      noise <- ppdNoise(
         n.obs * n.draws,
-        0,
-        ppdNoiseScale(sigma, s, NULL, n.obs, n.draws)
+        ppdNoiseScale(sigma, s, NULL, n.obs, n.draws),
+        df
       )
       if (n.chains > 1L && length(dim(ev)) < 3L) {
         noise <- combineChains(array(
@@ -3631,7 +3652,7 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
       n.obs <- dim(ev)[length(dim(ev))]
       n.draws <- ppdNumDraws(sigma, s, n.obs)
       sd <- ppdNoiseScale(sigma, s, weights, n.obs, n.draws)
-      noise <- rnorm(n.obs * n.draws, 0, sd)
+      noise <- ppdNoise(n.obs * n.draws, sd, df)
       if (n.chains > 1L && length(dim(ev)) < 3L) {
         noise <- combineChains(array(
           noise,
