@@ -62,23 +62,50 @@ refuseNonBinaryResponse <- function(uniqueResponses, family, hazard = NULL) {
   )
 }
 
+## Whether a coded response holds one class of a binary one: every value 0,
+## or every value 1, whatever encoding (numeric, logical, factor, character)
+## it was coded from.
+responseHasSingleClass <- function(y) {
+  values <- unique(y[!is.na(y)])
+  length(values) == 1L && values %in% c(0, 1)
+}
+
+## A single-class response that a binary family will refuse: an explicit
+## binary family, or "auto" on a categorical encoding, which resolves to one.
+refusesSingleClass <- function(data, family) {
+  responseHasSingleClass(data@y) &&
+    (family %in%
+      c("probit", "logistic", hazardFamilyTokens) ||
+      (identical(family, "auto") && data@response.type != "numeric"))
+}
+
 ## dbartsData warns of a response whose values are indistinguishable at
-## double precision before any family is known; a binary family refuses every
-## response that warning fires on (a single class of 1, or values not coded
-## 0/1) with a message naming the actual problem, so the warning, whose remedy
-## is to rescale, is muffled there.
+## double precision before any family is known, and a constant response is
+## one. Where that response is a single class a binary family refuses, the
+## refusal names the actual problem, so the warning, whose remedy is to
+## rescale, is held back there and raised everywhere else. A formula hazard
+## fit's response at this point is the log time standing in for the binary
+## rows it expands to, which the warning does not describe, so it is held back
+## there too.
 withBinaryResponsePrecision <- function(family, expr) {
-  if (family %not_in% c("probit", "logistic", hazardFamilyTokens)) {
-    return(expr)
-  }
-  withCallingHandlers(
+  held <- NULL
+  data <- withCallingHandlers(
     expr,
     warning = function(w) {
       if (startsWith(conditionMessage(w), responsePrecisionWarningStem)) {
+        held <<- w
         invokeRestart("muffleWarning")
       }
     }
   )
+  if (
+    !is.null(held) &&
+      family %not_in% hazardFamilyTokens &&
+      !(is(data, "dbartsData") && refusesSingleClass(data, family))
+  ) {
+    warning(held)
+  }
+  data
 }
 
 isBinaryFamily <- function(family) {
@@ -357,6 +384,15 @@ resolveSamplerSpec <- function(
         if (!is.null(hazardPeriods)) requestedFamily
       )
     }
+  }
+  # a factor, logical or character response of one class codes to a single
+  # 0/1 value, which the numeric check above never sees
+  if (isBinaryFamily(family) && responseHasSingleClass(data@y)) {
+    refuseNonBinaryResponse(
+      unique(data@y[!is.na(data@y)]),
+      family,
+      if (!is.null(hazardPeriods)) requestedFamily
+    )
   }
   # aft draws sigma and rescales like gaussian; only the binary families are
   # latent-variable models on a fixed unit scale

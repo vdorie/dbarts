@@ -235,6 +235,9 @@ xbart <- function(
       refuseNonBinaryResponse(uniqueResponses, family)
     }
   }
+  if (isBinaryFamily(family) && responseHasSingleClass(data@y)) {
+    refuseNonBinaryResponse(unique(data@y[!is.na(data@y)]), family)
+  }
   control@binary <- isBinaryFamily(family)
 
   # the shared weight policy (R/spec.R's enforceWeightPolicy): a probit has

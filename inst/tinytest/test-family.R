@@ -96,7 +96,68 @@ expect_error(
   "family = \"hurdle.lognormal\" does not take a variance forest",
   fixed = TRUE
 )
-rm(singleClassWarnings, y.ones)
+# every encoding of a one-class response is refused alike, on every binary
+# family and on "auto" where a categorical encoding resolves to one, and the
+# rescaling warning is held back exactly there
+singleClassResponses <- list(
+  logical = rep(TRUE, n),
+  factor = factor(rep("a", n), levels = c("a", "b")),
+  character = rep("b", n)
+)
+for (encoding in names(singleClassResponses)) {
+  for (familyName in c("probit", "logistic", "auto")) {
+    singleClassWarnings <- list()
+    expect_error(
+      withCallingHandlers(
+        dbarts(
+          x,
+          singleClassResponses[[encoding]],
+          family = familyName,
+          control = control
+        ),
+        warning = function(w) {
+          singleClassWarnings[[length(singleClassWarnings) + 1L]] <<- w
+          invokeRestart("muffleWarning")
+        }
+      ),
+      "requires a response with both classes; the response has a single class",
+      fixed = TRUE,
+      info = paste(encoding, familyName)
+    )
+    expect_identical(
+      length(singleClassWarnings),
+      0L,
+      info = paste(encoding, familyName)
+    )
+  }
+}
+# a near-constant response that is not one class keeps the warning beside
+# its refusal
+nearConstantWarnings <- list()
+expect_error(
+  withCallingHandlers(
+    dbarts(x, 1e15 + runif(n, 0, 1e-3), family = "probit", control = control),
+    warning = function(w) {
+      nearConstantWarnings[[length(nearConstantWarnings) + 1L]] <<- w
+      invokeRestart("muffleWarning")
+    }
+  ),
+  "requires a response coded 0/1",
+  fixed = TRUE
+)
+expect_identical(length(nearConstantWarnings), 1L)
+expect_true(grepl(
+  "indistinguishable",
+  conditionMessage(nearConstantWarnings[[1L]])
+))
+rm(
+  singleClassWarnings,
+  y.ones,
+  singleClassResponses,
+  encoding,
+  familyName,
+  nearConstantWarnings
+)
 
 control.bc <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 50L)
 sampler.logit <- dbarts(y.binary ~ x, family = "logistic", control = control.bc)
