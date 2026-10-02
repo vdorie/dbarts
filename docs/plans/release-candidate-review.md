@@ -554,6 +554,244 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Third whole-branch review: lenses, findings and fixes (01dee4b4..94b8fd40, 2026-10-01 to 2026-10-02)
+
+The third whole-branch review read the branch at 01dee4b4, 1,294 commits
+after the second review ended at 7ad0bbea. Its working records, one file
+per lens and verifier, are in
+[review-2026-10-01/README.md](review-2026-10-01/README.md).
+
+**How it ran.** Ten reviewers each took one lens, told to try to break the
+code rather than confirm it, with every finding backed by a probe that
+reproduces it or, where no probe was possible, an exact code argument. The
+first wave of five read the engine, the R-to-C++ bridge and flat C API, the
+R fitting functions, the methods on fits and samplers, and the help pages
+and NEWS. The second wave of four read data ingestion, xbart with partial
+dependence and rbart_vi, every response family end to end, and the models
+with several forests. Independent verifiers then re-derived each of those
+nine lenses' findings with their own probes and refuted none. The tenth
+lens re-ran the cross-implementation anchor: 0.9-34 and 1.0-0 fit side by
+side on 28 scenarios (the second review's 17 plus 11 new), with a
+ten-times-longer arm. A mutation leg planted 62 one-token defects in code
+changed since 7ad0bbea to see which the tests miss. A consumer sweep
+installed stan4bart (9a3be93), bartCause (f803ac9) and treatSens (7cc6a0f)
+fresh against 01dee4b4: 566, 1,136 and 194 tests passed, none failed.
+
+**What it found.** After verification, the nine verified lenses hold 67
+findings: 10 BLOCKER, 19 MAJOR and 38 MINOR. By lens: engine 0/1/0, bridge
+2/3/4, R fitting functions and methods together 2/5/6, help pages and NEWS
+0/2/12, ingestion and auxiliary functions together 2/5/8, families 2/2/6,
+multi-forest 2/1/2. Verifiers lowered two a grade (rgen-02 to MAJOR,
+ingest-05 to MINOR); where one put a finding on a grade boundary, the count
+takes the higher grade (bridge-01, bridge-05, families-02). The same
+dropped-offset defect was found twice (rfit-01 and rgen-01) and is counted
+once. The engine lens also brought new evidence on a known item, the
+truncated-normal draw far in the upper tail. Four verified findings were
+regressions against 0.9-34 (bridge-01, ingest-01, ingest-03, aux-01). The
+anchor found no posterior change that a recorded decision does not
+explain, and two findings of its own, not sent to a verifier: the 0.9-34
+side of the classic-compare release gate no longer ran (MAJOR, release
+process only), and `fn <- bart; fn(...)` failed (MINOR, a regression).
+
+The ten BLOCKERs and the one engine MAJOR, a sentence each:
+
+- A negative burn-in on the sampler's run returned uninitialized memory as
+  draws; 0.9-34 refused it (bridge-01).
+- The flat C API wrote past a caller's buffers when handed a multinomial
+  sampler (bridge-02).
+- nbinom's dispersion r never left its starting value at ordinary sample
+  sizes, so r, the predictive draws and the log-likelihood were wrong
+  (families-01).
+- survivalProbabilities dropped a hazard fit's offset and could not take
+  one for new data (families-02).
+- Multinomial fits silently ignored interactions() and blocks()
+  (multiforest-01).
+- After setPredictor on a linear- or GP-leaf column, a copied or reloaded
+  sampler predicted wrongly (multiforest-02).
+- An offset() term in a formula was silently dropped, as it was in 0.9-34
+  (rfit-01, rgen-01).
+- poly(), ns(), scale() and similar terms were refit on the rows being
+  predicted, so a prediction depended on which other rows were present
+  (rfit-02).
+- A constant predictor column made every saved state unrestorable, so a
+  saved fit could not predict (ingest-01).
+- A formula fit with a sparse column turned repeated subset rows into
+  missing values (ingest-02).
+- Monotone fits did not target the exact posterior when a pair of leaves'
+  data ran far against the constraint: the score was off by up to 35 nats
+  below a cone mass of about 1e-12 and was zero beyond about 38 sd
+  (engine-01, MAJOR).
+
+The mutation leg: of the 62 planted defects, the designated tests caught
+42, the full suite or an exact gate caught 4 more, and 16 survived: 2
+equivalent to the original code, 1 dropped because a landing rewrote its
+site, and 13 real gaps in the tests.
+
+**What the maintainer ruled.** Each ruling is one ledger entry:
+
+- Monotone, ruled the same day from the monotone plan's measurements: the
+  "joint" prior is the default (dec-B151); monotone fits keep cgm()'s
+  default tree prior, with mBART's values one argument away (dec-B152); the
+  Barker hybrid for slow "leaf" counts waits until after 1.0-0 (dec-B153).
+- Offsets and formulas follow lm: an offset() term counts (dec-B154); an
+  offset = expression is re-evaluated on newdata at predict, which corrects
+  dec-B154's premise (dec-B184); a stored formula freezes its non-data
+  references and keeps no environment (dec-B185).
+- Factor levels: the indicator route matches test levels by label
+  (dec-B155); a sampler column update on a categorical column takes labels,
+  not numbers (dec-B156); a numeric column where training had a factor is
+  refused (dec-B171).
+- Smaller surface calls: a survival formula takes Surv(), not cbind()
+  (dec-B157); keepCall = FALSE stores no call (dec-B158); proposal.probs
+  refuses unnamed vectors and unknown names (dec-B159).
+- Warnings carry a class only where a caller has a reason to catch them
+  (dec-B161), under dbartsWarning as parent (dec-B162).
+- The flat C API runs and predicts multinomial samplers (dec-B160), with
+  its accessors' names and widths (dec-B163, dec-B164, dec-B165), a rows x
+  K predict offset (dec-B166), and the monotone interrupt and slow-count
+  warning riding the same change (dec-B167, dec-B168, dec-B169). Its
+  consumer test runs on CRAN and fails on a compile error (dec-B186); the
+  configure-stub test is deleted (dec-B187).
+- nbinom's forest models the log mean and r is drawn given the mean
+  (dec-B170), with 0/1 weights as the row mask (dec-B179) and a leaf prior
+  of A = 3 with k under chi(1.5, 2) (dec-B183).
+- Ingestion and the auxiliary functions: the uniform cut grid is built from
+  finite values (dec-B172); every entry point accepts the predictor types a
+  data frame does (dec-B173); n.cuts recycles a short vector and refuses a
+  long one (dec-B174); partial dependence treats factors as factors
+  (dec-B175); xbart estimates the default sigma per fold (dec-B176).
+- Families: a count-row multinomial fit's predictive draws are count
+  vectors (dec-B177); survivalProbabilities uses the fit's offset and takes
+  one for newdata (dec-B178); missing survival responses go through
+  na.action (dec-B180).
+- Multi-forest: interactions() and blocks() apply to every multinomial
+  category forest (dec-B181); a heteroscedastic fit's "sigma" is its
+  per-observation scale (dec-B182), and its sampler's run() carries no
+  sigma (dec-B188).
+
+**How the fixes landed.** Each code-changing slice was built in its own
+worktree, reviewed by an independent reader and re-reviewed after its
+fixes, then merged with --no-ff so the hashes the records cite survive.
+The gates below are the slice's own and, where marked, the merged tree's;
+"the trio" is the bitwise equivalence compare of the gaussian, BCF and
+multinomial baselines (55, 15 and 11 scenarios). In landing order:
+
+- 71053644..6a7067b6, the help-page and NEWS findings and the warning
+  classes, five commits rebased onto the tip: tinytest 10,907 with no
+  failures, lint chain clean; no sampling code touched. CI green on all
+  seven workflows.
+- 8e7a3d19, the monotone cone score in log space (engine-01) and the
+  truncated-normal upper tail: tinytest 10,864/0; tests/cpp clean, also
+  under ASan/UBSan; the 25 exact gates quick; the enumeration gate, with
+  three new contrary-data designs the old engine fails, passes under both
+  priors. Only the two ordinal equivalence scenarios moved, re-recorded as
+  equivalence-d23673b5 with ordinal-exact as the oracle; BCF and
+  multinomial bitwise. Monotone sweeps run about 7 to 9 times faster. CI
+  green on all eight workflows.
+- 51bea192, the R fitting-surface findings under dec-B154 to dec-B159,
+  dec-B184 and dec-B185, plus k = chi() through a wrapper's dots (docs-11):
+  tinytest 11,073/0, trio bitwise, exact gates quick in its first round. CI
+  failed on Windows: a new test that reloaded a fit in a fresh R session
+  pasted backslashed paths into R code. 2cc476a9 passed the paths as
+  arguments; 1a480fef then replaced the subprocess with an in-process
+  check, and R CMD check passed on every platform.
+- b28a75fa, the bridge findings and flat C API multinomial support:
+  refusals before any state changes, all-or-nothing tree installs,
+  allocation failures as R errors, the K-wide layouts and their two
+  accessors, the interrupt poll and the once-per-sampler warning. tinytest
+  11,055/0 on the slice and 11,203/0 merged; tests/cpp also under
+  ASan/UBSan; trio bitwise; every exact gate; stan4bart and treatSens pass
+  against it with their old binaries and rebuilt. CI's sanitizer job
+  failed: AddressSanitizer aborts on a test's deliberately oversized
+  allocation instead of letting it throw. f7ada5bb runs those arms only at
+  home and outside AddressSanitizer, and CI went green on all seven
+  workflows.
+- 4cd88b2f, nbinom's log-mean model (families-01): a new mixing gate fails
+  on the old model and passes on the new; negbin-exact full passes; the SBC
+  arm passes and its waiver is withdrawn. Only nbinom moved, re-recorded as
+  equivalence-fdfc1fe4. Merged: tinytest 11,233/0 and all 55 scenarios
+  bitwise. CI green on all nine workflows, including a full SBC run.
+- 6b8a6932, the ingestion, auxiliary and anchor findings: tinytest
+  11,309/0; trio bitwise; exact gates quick. xbart's two equivalence
+  scenarios moved with the per-fold sigma (max |z| 0.54 and 0.38) and were
+  re-recorded into equivalence-54d8054b, and the xbart snapshot file was
+  re-recorded on the reference build. The 0.9-34 side of classic-compare
+  records again, and its six failing scenarios match the stored baseline
+  bitwise. CI green on all eight workflows.
+- 3dfa8df6, the multi-forest findings, with dec-B188 (c9b4b74f): a new
+  constrained arm in multinomial-exact fails on the old build and passes
+  on the new; all 26 exact gates quick. tinytest 11,400/0 on the slice and
+  11,468/0 merged; trio bitwise. CI green.
+- 22cb708d, the mutation follow-up, tests only: 12 of the 13 gaps now fail
+  their mutant, and the thirteenth (m80) turned out to be equivalent once
+  dec-B155's label matching landed. tinytest 11,490/0; tests/cpp pass on
+  the merged tree. CI green.
+- b5192199, the remaining families findings: offsets at predict on ordinal
+  fits and in survivalProbabilities, count-vector predictive draws,
+  missing survival responses through na.action, Student-t predictive
+  draws, refusals that name the problem, and model.frame's lookup for
+  offset, test and weights expressions, a defect found while landing the
+  multi-forest slice that was also in 0.9-x. Exact gates quick on the
+  slice; merged, tinytest 11,620/0 and the trio bitwise. CI on 94b8fd40,
+  which carries it, was still running when this note was written.
+
+Smaller commits in the range: d4b348af deletes the configure-stub test
+(dec-B187); 1ebb310b lowers the monotone SBC timeouts to about three times
+their CI time; 4bb99705 notes in the second review's anchor record that its
+rbart_vi scaling difference is gone. The consumer branches moved in
+lockstep: stan4bart cea5ab9 (flat run draws held in R storage, the
+interrupt hook), bartCause 3cba12c (no longer passes the data arguments to
+bart() twice) and treatSens 45cc9e4 (buffers held in R storage so an
+interrupt strands nothing), all pushed with green CI.
+
+**The x86 speed check and leg.** On an idle four-core x86 machine, the
+monotone engine at 4cd88b2f against the base 08ff79bf, n 5000: at 20 trees
+the tip is about 8 to 12 times faster under both priors, not merely within
+the plan's 5%. At 5 trees under "leaf" the median slowdown is about 3x against
+the plan's 1.5x. At 1 tree under "leaf" the trees grow to about 60 leaves,
+the slow-count warning fires, and late sweeps take 560-950 ms against
+0.10-0.29 ms; that is far past the plan's projection but in line with the
+checkpoint the hybrid ruling (dec-B153) was made on. bench-sampler read
+0.98-1.02 of base on every metric except a rejected setPredictor, 1.067 in
+4 of 4 compares, about 6 microseconds per rejected update. The cause was
+not monotone: 51bea192 added an extra read of the sampler's data field, an
+active binding, to R's setPredictor. 2fd103c2 reads it once per call, and
+the metric then read 0.88-0.89 of base on the same machine. The x86
+leg on 4cd88b2f: tests/cpp pass, also under ASan/UBSan; tinytest 11,260/0;
+the equivalence trio within tolerance under --cross-host (gaussian 55/55,
+worst max |z| 0.00; BCF 15/15; multinomial 11/11). Details: the monotone
+plan's Landing section.
+
+**What the agents settled.** Calls made while landing, each an unmarked
+ledger entry: the order-count cache waits with the hybrid (dec-A134);
+offsets and stored formulas at new rows (dec-A135) and the R surface's
+other calls (dec-A136); ordinal predict gains an offset channel (dec-A137);
+three bridge calls (dec-A138); the C API version pair stays at 1/0
+(dec-A139); the nbinom slice's gate rule, prior centre, SBC k and baseline
+(dec-A140); the ingestion and auxiliary calls (dec-A141); the
+oversize-allocation tests run only at home and outside AddressSanitizer
+(dec-A142); the families slice's survival and multinomial outputs
+(dec-A143) and its refusals, weights and name lookup (dec-A144). With no
+identified cost: k = chi() resolves through a wrapper's dots (dec-C11);
+which warnings carry a class at the edges of dec-B161 (dec-C12); argument
+forwarding through an alias, the fix for anchor-02 (dec-C13); a factor
+basis may leave a level empty on setForestBasis (dec-C14).
+
+**Still open.**
+
+- Every entry above, dec-B151 to dec-B188, dec-A134 to dec-A144 and dec-C11
+  to dec-C14, awaits the maintainer's mark. dec-A143 notes that the
+  count-vector draws come draws-first, not in the layout dec-B177's entry
+  describes.
+- After the release: the Barker hybrid move (dec-B153) and the order-count
+  cache that waits with it (dec-A134), under TODO monotone-barker-hybrid.
+- treatSens calls setResponse with the response scale re-anchored on every
+  sweep. 0.9-x did the same, so it is not a regression; whether to stop
+  after burn-in is a modelling question for after the release.
+- test-data-categorical.R prints a stray warning, the starting-sigma
+  fallback for sparse predictor columns. It predates the review and fails
+  nothing.
+
 ### bartBT keeps BayesTree's tree-move mixture (2026-09-23)
 
 VD asked that `bartBT` follow BayesTree more closely. Its
