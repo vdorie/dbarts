@@ -818,29 +818,28 @@ familySetting <- function(family, name, default) {
   if (is.null(value)) default else value
 }
 
-## The settings each family token takes, as its constructor names them;
-## "auto" carries the residual prior a door without a family of its own
-## stamps on before the response settles the family.
-familyTokenSettings <- list(
-  auto = "sigma",
-  gaussian = "sigma",
-  student = c("df", "sigma"),
-  probit = character(),
-  logistic = character(),
-  multinomial = character(),
-  ordinal = character(),
-  nbinom = "dispersion",
-  aft = "sigma",
-  hazard = c("breaks", "max.rows"),
-  hazard.probit = c("breaks", "max.rows"),
-  hazard.logistic = c("breaks", "max.rows"),
-  hurdle.lognormal = "sigma"
-)
+## The settings a family token takes: its constructor's arguments, a link
+## being folded into the token itself; NULL for a token no constructor builds,
+## which an entry point refuses by name later. "auto" carries the residual
+## prior a door without a family of its own stamps on before the response
+## settles the family.
+familyTokenSettings <- function(token) {
+  if (identical(token, "auto")) {
+    return("sigma")
+  }
+  constructor <- dbartsFamilies[[sub("^hazard\\..*$", "hazard", token)]]
+  if (is.null(constructor)) {
+    return(NULL)
+  }
+  # a constructor with no arguments takes no setting at all, character(0)
+  # rather than the NULL that means unjudged
+  setdiff(as.character(names(formals(constructor))), c("link", "..."))
+}
 
-## Whether a family token takes a setting; a token outside the table (one an
-## entry point refuses by name later) is not judged here.
+## Whether a family token takes a setting; a token outside the constructors is
+## not judged here.
 familyTakesSetting <- function(token, name) {
-  allowed <- familyTokenSettings[[token]]
+  allowed <- familyTokenSettings(token)
   is.null(allowed) || name %in% allowed
 }
 
@@ -852,7 +851,7 @@ familyRefusedSettings <- function(token, names) {
   if (length(extra) == 0L) {
     return(NULL)
   }
-  allowed <- familyTokenSettings[[token]]
+  allowed <- familyTokenSettings(token)
   paste0(
     "family \"",
     token,
