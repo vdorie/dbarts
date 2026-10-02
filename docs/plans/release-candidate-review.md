@@ -733,7 +733,7 @@ multinomial baselines (55, 15 and 11 scenarios). In landing order:
   offset, test and weights expressions, a defect found while landing the
   multi-forest slice that was also in 0.9-x. Exact gates quick on the
   slice; merged, tinytest 11,620/0 and the trio bitwise. CI on 94b8fd40,
-  which carries it, was still running when this note was written.
+  which carries it, green on all seven workflows.
 
 Smaller commits in the range: d4b348af deletes the configure-stub test
 (dec-B187); 1ebb310b lowers the monotone SBC timeouts to about three times
