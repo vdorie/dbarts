@@ -753,7 +753,9 @@ armConstrained <- function() {
   # dimension agrees with 11 nodes to 1e-7. The non-identified level is
   # integrated with the rest, since the leaves are the model's own coordinates.
   gh <- gaussHermite(9L)
-  leafOf <- function(s) if (s == 0L) rep(1L, 4L) else cells[, s] + 1L
+  leafOf <- function(s) {
+    if (s == 0L) rep(1L, 4L) else as.integer(cells[, s]) + 1L
+  }
   rowMax <- function(f) do.call(pmax, lapply(seq_len(K), function(k) f[, k]))
   combos <- as.matrix(expand.grid(rep(list(0:2), K)))
   logZ <- numeric(nrow(combos))
