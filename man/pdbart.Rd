@@ -45,10 +45,10 @@ pd2bart(
     Integer, character vector, or the right-hand side of a formula indicating which variables are to be plotted. In \code{pdbart}, corresponds to the variables (columns of \code{x.train}) for which a plot is to be constructed. In \code{plot.pdbart}, corresponds to the indices in list returned by \code{pdbart} for which plot is to be constructed. In \code{pd2bart}, the indices of a pair of variables (columns of \code{x.train}) to plot. If \code{NULL} a default of all columns is used for \code{pdbart} and the first two columns is used for \code{pd2bart}.
   }
    \item{levs}{
-     Gives the values of a variable at which the plot is to be constructed. Must be a list, where the \eqn{i}th component gives the values for the \eqn{i}th variable. In \code{pdbart}, it should have same length as \code{xind}. In \code{pd2bart}, it should have length 2. See also argument \code{levquants}.
+     Gives the values of a variable at which the plot is to be constructed. Must be a list, where the \eqn{i}th component gives the values for the \eqn{i}th variable. In \code{pdbart}, it should have same length as \code{xind}. In \code{pd2bart}, it should have length 2. The values of a factor predictor are level names. See also argument \code{levquants}.
    }
   \item{levquants}{
-    If \code{levs} is \code{NULL}, the values of each variable used in the plot are set to the quantiles (in \code{x.train}) indicated by levquants. Must be a vector of numeric type.
+    If \code{levs} is \code{NULL}, the values of each variable used in the plot are set to the quantiles (in \code{x.train}) indicated by levquants, and a factor predictor takes every level. Must be a vector of numeric type.
   }
   \item{pl}{
     For \code{pdbart} and \code{pd2bart}, if \code{TRUE}, plot is subsequently made (by calling \code{plot.*}).
@@ -92,7 +92,7 @@ pd2bart(
     For \code{pd2bart}, \code{fd} is a single matrix. The columns correspond to all possible pairs of values for the pair of variables indicated by \code{xind}. That is, all possible \eqn{(x_i, x_j)} where \eqn{x_i} is a value in the levs component corresponding to the first \eqn{x} and \eqn{x_j} is a value in the levs components corresponding to the second one. The first \eqn{x} changes first.
   }
   \item{levs}{
-    The list of levels used, each component corresponding to a variable. If argument \code{levs} was supplied it is unchanged. Otherwise, the levels in \code{levs} are as constructed using argument \code{levquants}.
+    The list of levels used, each component corresponding to a variable. If argument \code{levs} was supplied it is unchanged. Otherwise, the levels in \code{levs} are as constructed using argument \code{levquants}, or a factor predictor's level names. A factor predictor is plotted with one point and interval per level, and without contours in \code{plot.pd2bart}.
   }
   \item{xlbs}{
     A vector of character strings which are the plotting labels used for the variables.

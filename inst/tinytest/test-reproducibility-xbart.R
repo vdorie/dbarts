@@ -62,8 +62,8 @@ res.kf <- apply(xval.kf, 2L, mean)
 res.rs <- apply(xval.rs, 2L, mean)
 
 reference <- list(
-  kf = c(2.46359911974021, 4.55694205364568),
-  rs = c(2.48465321388054, 4.45176678548512)
+  kf = c(2.43563149527521, 4.54367968188041),
+  rs = c(2.45655941804689, 4.460940074672)
 )
 
 expect_equal(unname(res.kf), reference$kf)

@@ -561,3 +561,23 @@ expect_error(
 )
 
 rm(d.fd, smallFit, value, fit.noCall, wrapper, fit.noTrees)
+
+
+# A front door called through an alias forwards its arguments as when called
+# by name.
+aliasFrame <- data.frame(y = rnorm(30L), x = runif(30L))
+fn <- bart
+aliasFit <- suppressMessages(fn(
+  y ~ .,
+  data = aliasFrame,
+  n.samples = 5L,
+  n.burn = 5L,
+  n.chains = 1L,
+  n.trees = 5L,
+  n.threads = 1L,
+  verbose = FALSE
+))
+expect_true(inherits(aliasFit, "bart"))
+call <- dbarts
+expect_true(inherits(call(y ~ ., aliasFrame), "dbartsSampler"))
+rm(aliasFrame, fn, aliasFit, call)

@@ -97,6 +97,21 @@ constexpr xint_t missingCategoryCode(std::uint32_t numCategories) {
 
 inline bool isNA(double value) { return value != value; }
 
+/// Whether an ordinal column's grid of numCuts points is one the store can
+/// hold: 1 to maxNumCutsRepresentable cuts, none NaN, and increasing -
+/// strictly when strict, otherwise allowing equal neighbours, which the store
+/// itself builds for a column whose range is a single value (or narrower than
+/// its spacing), so a saved state carrying that grid must restore. A NaN fails
+/// the negated comparison, so the loop catches it past the first cut.
+inline bool cutGridIsValid(const double* cuts, size_t numCuts, bool strict) {
+  if (numCuts < 1 || numCuts > maxNumCutsRepresentable || isNA(cuts[0]))
+    return false;
+  for (size_t k = 1; k < numCuts; ++k)
+    if (strict ? !(cuts[k] > cuts[k - 1]) : !(cuts[k] >= cuts[k - 1]))
+      return false;
+  return true;
+}
+
 /// One dense column's raw as ingestion reads it: the host's doubles, or its
 /// int32 level codes. Exactly one channel is present, so isCoded discriminates
 /// and at() serves either - a code widens, and naDenseCode becomes the NaN
@@ -1076,15 +1091,17 @@ struct ColumnStore {
   QuantileGrid quantileGridForColumn(size_t j, const double* values) const {
     QuantileGrid grid;
     grid.sortedUnique.reserve(numObservations);
-    // NaN would break the sort's ordering; the grid is over observed values
+    // NaN would break the sort's ordering, and an infinite value would put an
+    // infinite or NaN midpoint on the grid; the grid is over finite values,
+    // and an infinite one codes past an end cut, as on the uniform grid
     for (size_t i = 0; i < numObservations; ++i)
-      if (!isNA(values[i])) grid.sortedUnique.push_back(values[i] + 0.0);
+      if (std::isfinite(values[i])) grid.sortedUnique.push_back(values[i] + 0.0);
     finishQuantileGrid(grid, j);
     return grid;
   }
 
-  /// The quantile grid over a CSC column's logical values: the observed
-  /// \p numNonzero entries of \p values plus a single zero when
+  /// The quantile grid over a CSC column's logical values: the finite
+  /// observed \p numNonzero entries of \p values plus a single zero when
   /// \p implicitPresent, the same value set the dense collector sees over
   /// the materialized column, so the induced grid is identical. Numeric
   /// columns only, whose implicit rows read zero.
@@ -1095,7 +1112,7 @@ struct ColumnStore {
     grid.sortedUnique.reserve(numNonzero + 1);
     if (implicitPresent) grid.sortedUnique.push_back(0.0);
     for (size_t k = 0; k < numNonzero; ++k)
-      if (!isNA(values[k])) grid.sortedUnique.push_back(values[k] + 0.0);
+      if (std::isfinite(values[k])) grid.sortedUnique.push_back(values[k] + 0.0);
     finishQuantileGrid(grid, j);
     return grid;
   }
@@ -1149,15 +1166,17 @@ struct ColumnStore {
       cutPoints[j][k] = xMin + static_cast<double>(k + 1) * increment;
   }
 
+  /// The range is over the column's FINITE values, so an infinite value codes
+  /// past an end cut, as on the quantile grid, instead of stretching every cut
+  /// to infinity.
   void fillCutsUniformly(size_t j, const double* column) {
-    // the range is over observed values; NaN never satisfies a comparison,
-    // so only the seed needs the explicit skip
     double xMin = 0.0, xMax = 0.0;
     size_t i = 0;
-    while (i < numObservations && isNA(column[i])) ++i;
+    while (i < numObservations && !std::isfinite(column[i])) ++i;
     if (i < numObservations) {
       xMin = xMax = column[i];
       for (++i; i < numObservations; ++i) {
+        if (!std::isfinite(column[i])) continue;
         if (column[i] < xMin) xMin = column[i];
         if (column[i] > xMax) xMax = column[i];
       }
@@ -1166,19 +1185,20 @@ struct ColumnStore {
   }
 
   /// The dense range scan over a CSC column's logical values: implicit
-  /// zeros seed the range at 0, observed stored entries fold in.
+  /// zeros seed the range at 0, finite stored entries fold in.
   void fillCutsUniformlyCsc(size_t j) {
     const CscColumnSlice& slice = train.sources[j].slice;
     double xMin = 0.0, xMax = 0.0;
     size_t k = 0;
     if (slice.numNonzero == numObservations) {  // no implicit zeros
-      while (k < slice.numNonzero && isNA(slice.values[k])) ++k;
+      while (k < slice.numNonzero && !std::isfinite(slice.values[k])) ++k;
       if (k < slice.numNonzero) {
         xMin = xMax = slice.values[k];
         ++k;
       }
     }
     for (; k < slice.numNonzero; ++k) {
+      if (!std::isfinite(slice.values[k])) continue;
       if (slice.values[k] < xMin) xMin = slice.values[k];
       if (slice.values[k] > xMax) xMax = slice.values[k];
     }

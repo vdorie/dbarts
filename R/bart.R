@@ -621,7 +621,11 @@ buildHostSamplerCall <- function(
   family,
   sigest
 ) {
-  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
+  samplerCall <- redirectCall(
+    matchedCall,
+    dbarts::dbarts,
+    callFormals = formals(dbarts::bart)
+  )
   samplerCall$control <- control
   samplerCall$n.samples <- NULL
   samplerCall$tree.prior <- priors$tree.prior
@@ -1064,8 +1068,13 @@ bart <- function(
   # one must be resolved here, in this function's own frame, and stamped onto
   # matchedCall unconditionally, or it would silently take dbarts()'s own
   # default rather than the token this signature advertises.
+  # A dbartsData object was already built, so an unsupplied 'factors' is not
+  # stamped onto it, where it would be reported as ignored.
+  factorsSupplied <- !missing(factors)
   factors <- match.arg(factors)
-  matchedCall$factors <- factors
+  if (factorsSupplied || !inherits(formula, "dbartsData")) {
+    matchedCall$factors <- factors
+  }
 
   controlSupplied <- "control" %in% names(matchedCall)
   suppliedControl <- if (controlSupplied) {
@@ -3002,7 +3011,11 @@ bart2Hurdle <- function(
     componentCall
   }
 
-  zeroCall <- restoreConsolidated(redirectCall(matchedCall, dbarts::bart))
+  zeroCall <- restoreConsolidated(redirectCall(
+    matchedCall,
+    dbarts::bart,
+    callFormals = formals(dbarts::bart)
+  ))
   zeroCall[gatedOnZeroOnly] <- NULL
   zeroCall$formula <- formula
   zeroCall$data <- split$z
@@ -3011,7 +3024,11 @@ bart2Hurdle <- function(
   zeroCall$keepTrees <- control@keepTrees
   zero <- eval(zeroCall, callingEnv)
 
-  positiveCall <- restoreConsolidated(redirectCall(matchedCall, dbarts::bart))
+  positiveCall <- restoreConsolidated(redirectCall(
+    matchedCall,
+    dbarts::bart,
+    callFormals = formals(dbarts::bart)
+  ))
   positiveCall$formula <- xPositive
   positiveCall$data <- split$logPositive
   positiveCall$test <- formula
@@ -3666,6 +3683,10 @@ bartBT <- function(
       # 'family' formal, so its own two-remedy message stands in
       if (grepl("response is multinomial; fit it with", msg, fixed = TRUE)) {
         refuseLegacyFactorResponse()
+      }
+      # this door spells the cut count 'numcut'
+      if (startsWith(msg, "'n.cuts' has ")) {
+        stop(sub("'n.cuts'", "'numcut'", msg, fixed = TRUE), call. = FALSE)
       }
       stop(e)
     }

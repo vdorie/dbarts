@@ -164,4 +164,40 @@ rm(oldOptions, failed, failing, runFailing, fitFailing, failingLoss, lossCalls)
 rm(warned.2, warned.1, runWarned, warningLoss)
 rm(xval, constantLoss, mad, base, power, k, n.trees, n.reps, y, x)
 
+
+# A custom loss keeps its own environment: a closure from a factory reads what
+# it captured, not a same-named variable in the caller's frame.
+makeScaledLoss <- function(multiplier) {
+  function(y.test, testSamples, weights) {
+    multiplier * sqrt(mean((y.test - rowMeans(testSamples))^2))
+  }
+}
+xbartArgs <- list(
+  testData$x,
+  testData$y,
+  n.samples = 5L,
+  n.burn = c(5L, 3L),
+  n.reps = 1L,
+  n.trees = 5L,
+  k = 2,
+  seed = 1L,
+  verbose = FALSE,
+  n.threads = 1L
+)
+plainLoss <- do.call(xbart, xbartArgs)
+scaledLoss <- do.call(xbart, c(xbartArgs, loss = makeScaledLoss(10)))
+expect_equal(scaledLoss, 10 * plainLoss)
+shadowedCall <- function() {
+  multiplier <- 1
+  do.call(xbart, c(xbartArgs, loss = makeScaledLoss(10)))
+}
+expect_equal(shadowedCall(), 10 * plainLoss)
+# the list form calls it from the given environment, closure intact
+listLoss <- do.call(
+  xbart,
+  c(xbartArgs, loss = list(list(makeScaledLoss(10), globalenv())))
+)
+expect_equal(listLoss, 10 * plainLoss)
+rm(makeScaledLoss, xbartArgs, plainLoss, scaledLoss, shadowedCall, listLoss)
+
 rm(testData)

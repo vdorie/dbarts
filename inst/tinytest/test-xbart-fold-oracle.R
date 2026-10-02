@@ -388,3 +388,85 @@ rm(
 
 suppressWarnings(RNGkind(sample.kind = oldSampleKind))
 rm(oldSampleKind, testData)
+
+
+# The default sigest is estimated per fold from the fold's training rows: the
+# fold that holds a row out fits exactly the same whatever that row's
+# response, while a fixed sigest stays one value for every fold.
+foldDraws <- function(y, ...) {
+  record <- new.env()
+  record$draws <- list()
+  recordLoss <- function(y.test, testSamples, weights) {
+    record$draws[[length(record$draws) + 1L]] <- list(
+      y = y.test,
+      draws = testSamples
+    )
+    0
+  }
+  set.seed(5)
+  x <- matrix(runif(60L), 30L, 2L)
+  xbart(
+    x,
+    y,
+    n.samples = 5L,
+    n.burn = c(5L, 3L),
+    method = "k-fold",
+    n.test = 3L,
+    n.reps = 1L,
+    n.trees = 5L,
+    k = 2,
+    loss = recordLoss,
+    seed = 2L,
+    verbose = FALSE,
+    n.threads = 1L,
+    ...
+  )
+  record$draws
+}
+set.seed(6)
+foldY <- rnorm(30L)
+changedY <- foldY
+changedY[1L] <- foldY[1L] + 50
+original <- foldDraws(foldY)
+changed <- foldDraws(changedY)
+holdsRowOne <- which(vapply(
+  changed,
+  function(fold) any(fold$y == changedY[1L]),
+  FALSE
+))
+expect_equal(length(holdsRowOne), 1L)
+expect_identical(changed[[holdsRowOne]]$draws, original[[holdsRowOne]]$draws)
+# a fold that trains on the changed row does move
+trainsOnRowOne <- setdiff(seq_along(changed), holdsRowOne)[1L]
+expect_false(identical(
+  changed[[trainsOnRowOne]]$draws,
+  original[[trainsOnRowOne]]$draws
+))
+
+# Under a fixed residual scale no estimate is read, so no fold fits the linear
+# model: a design whose folds have no residual degrees of freedom warns of the
+# fallback under the default prior and not under a fixed one.
+set.seed(7)
+xWide <- matrix(runif(120L), 12L, 10L)
+yWide <- rnorm(12L)
+xbartWide <- function(...) {
+  xbart(
+    xWide,
+    yWide,
+    n.samples = 5L,
+    n.burn = c(5L, 3L),
+    method = "k-fold",
+    n.test = 2L,
+    n.reps = 1L,
+    n.trees = 5L,
+    k = 2,
+    seed = 1L,
+    verbose = FALSE,
+    n.threads = 1L,
+    ...
+  )
+}
+expect_warning(xbartWide(), "falls back to the marginal response sd")
+expect_silent(xbartWide(family = gaussian(sigma = fixed(1))))
+rm(xWide, yWide, xbartWide)
+rm(foldDraws, foldY, changedY, original, changed, holdsRowOne, trainsOnRowOne)

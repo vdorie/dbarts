@@ -1193,6 +1193,41 @@ addFormulaTermOffset <- function(x.train, newdata, offset, argument, rows) {
   termOffset + offset
 }
 
+## Predictors given as a matrix or vector take the types a data frame column
+## does: integer and logical values are numbers, any sparse Matrix class (a
+## sparseVector as one column) is the dgCMatrix the engine ingests, and a
+## dense Matrix class is a plain matrix. A factor is left as is.
+asNumericPredictors <- function(x) {
+  if (isS4(x) && methods::is(x, "sparseVector")) {
+    x <- methods::as(x, "CsparseMatrix")
+  } else if (
+    isS4(x) && methods::is(x, "Matrix") && !methods::is(x, "sparseMatrix")
+  ) {
+    x <- as.matrix(x)
+  }
+  x <- asDgCMatrix(x)
+  if (
+    !is.factor(x) &&
+      (is.matrix(x) || is.null(dim(x))) &&
+      (is.integer(x) || is.logical(x))
+  ) {
+    # storage.mode<- keeps the dimnames that as.double() would drop
+    storage.mode(x) <- "double"
+  }
+  x
+}
+
+## The data columns a fit's predictors are read from: its stored terms'
+## variables, else its term labels' and column names.
+predictorDataNames <- function(x.train) {
+  trainTerms <- attr(x.train, "terms")
+  if (!is.null(trainTerms)) {
+    return(all.vars(attr(dropOffsetTerms(trainTerms), "variables")))
+  }
+  labels <- sub("^`(.*)`$", "\\1", attr(x.train, "term.labels"))
+  unique(c(labels, colnames(x.train)))
+}
+
 validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   termLabels <- attr(x.train, "term.labels")
   numPredictors <- ncol(x.train)
@@ -1204,6 +1239,7 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   if (is.null(x.test)) {
     return(x.test)
   }
+  x.test <- asNumericPredictors(x.test)
   if (is.numeric(x.test) && is.null(dim(x.test)) && length(x.test) > 0L) {
     x.test <- matrix(x.test, ncol = length(x.test))
   }
@@ -1212,6 +1248,7 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   }
   testFactorLevels <- NULL
   if (is.data.frame(x.test)) {
+    refusePOSIXltColumns(x.test, predictorDataNames(x.train))
     # captured before any re-expansion below: on the indicators route
     # (factorLevels NULL, e.g. bart()'s x/y interface, which stores no
     # level table) a test factor with different levels re-expands to a
@@ -1385,11 +1422,11 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   }
 
   if (!xTestIsSparseContainer) {
-    if (!is.numeric(x.test)) {
+    if (!is.numeric(x.test) && !is.logical(x.test)) {
       stop("test matrix must be numeric")
     }
 
-    if (is.integer(x.test)) {
+    if (is.integer(x.test) || is.logical(x.test)) {
       # storage.mode<- keeps the dimnames that matrix() would drop
       storage.mode(x.test) <- "double"
     }
@@ -2402,8 +2439,6 @@ dbartsData <- function(
   testIsMissing <- missing(test)
   offsetIsMissing <- missing(offset)
   testOffsetIsMissing <- missing(offset.test)
-  basesIsMissing <- missing(bases)
-  countsIsMissing <- missing(counts)
   matchedCall <- match.call()
   # a matrix-shaped 'offset'/'offset.test' declares a multinomial category
   # shift (one column per category), never a flat per-row one; the matrix
@@ -2458,20 +2493,31 @@ dbartsData <- function(
   }
 
   if (inherits(formula, "dbartsData")) {
-    if (
-      !dataIsMissing ||
-        !testIsMissing ||
-        !offsetIsMissing ||
-        !testOffsetIsMissing ||
-        !basesIsMissing ||
-        !countsIsMissing
-    ) {
+    ignored <- c(
+      "data",
+      "test",
+      "subset",
+      "weights",
+      "offset",
+      "offset.test",
+      "factors",
+      "na.action",
+      "bases",
+      "counts"
+    )
+    ignored <- ignored[ignored %in% names(matchedCall)]
+    if (length(ignored) > 0L) {
       warning(
-        "if data supplied as dbartsData, remaining arguments are ignored",
+        "if data supplied as dbartsData, remaining arguments are ignored: ",
+        paste0("'", ignored, "'", collapse = ", "),
         call. = FALSE
       )
     }
     return(formula)
+  }
+
+  if (!is.formula(formula)) {
+    formula <- asNumericPredictors(formula)
   }
 
   if (is.formula(formula)) {
@@ -2744,11 +2790,23 @@ dbartsData <- function(
         sparseMissing[sparseMissingRows] <- NA_real_
         modelFrameCall$dbartsSparseMissing <- sparseMissing
       }
+      # the source row of each frame row, which 'subset' and na.action shape
+      # as they shape the frame: the frame's row names cannot serve, since
+      # a repeated row is renamed ("1.1")
+      modelFrameCall$dbartsRowIndex <- seq_len(nrow(data))
+    }
+    if (!dataIsMissing) {
+      formulaVars <- all.vars(formula)
+      refusePOSIXltColumns(
+        data,
+        if ("." %in% formulaVars) NULL else formulaVars
+      )
     }
     modelFrame <- eval(modelFrameCall, parent.frame())
-    # the test frame is built from this call again, against rows this vector
-    # does not cover
+    # the test frame is built from this call again, against rows these vectors
+    # do not cover
     modelFrameCall$dbartsSparseMissing <- NULL
+    modelFrameCall$dbartsRowIndex <- NULL
     naOmitted <- attr(modelFrame, "na.action")
     # a model frame always names its rows, "1".."n" when the data has none,
     # as lm does
@@ -2909,13 +2967,9 @@ dbartsData <- function(
 
     predictorFrame <- modelFrame[termLabels]
     if (length(sparseColumns) > 0L) {
-      # rownames(modelFrame) is character; a sparse column carries no row
-      # names of its own, so its rows are resolved by matching the model
-      # frame's back into the (already sparse-column-pulled) 'data' this
-      # sparse column itself still indexes by - a match that aligns under
-      # 'subset' and na.action together, since both already shaped
-      # modelFrame's own rows by the time this runs
-      pos <- match(rownames(modelFrame), rownames(data))
+      # a sparse column is indexed by the source rows the frame carries,
+      # which 'subset' and na.action have already shaped
+      pos <- modelFrame[["(dbartsRowIndex)"]]
       for (sparseName in names(sparseColumns)) {
         predictorFrame[[sparseName]] <-
           subsetSparseColumn(sparseColumns[[sparseName]], pos)

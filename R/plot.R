@@ -416,6 +416,11 @@ plot.bartHurdle <- function(
   invisible(x)
 }
 
+## A factor predictor's levels are names; they plot at positions 1..K.
+pdAxisPositions <- function(levs) {
+  if (is.character(levs)) seq_along(levs) else levs
+}
+
 plot.pdbart <- function(
   x,
   xind = seq_along(x$fd),
@@ -431,17 +436,28 @@ plot.pdbart <- function(
       quantile,
       probs = c(plquants[1], .5, plquants[2])
     )
+    levs <- x$levs[[i]]
+    isFactor <- is.character(levs)
+    at <- pdAxisPositions(levs)
     plot(
-      range(x$levs[[i]]),
+      if (isFactor) c(0.5, length(levs) + 0.5) else range(levs),
       rgy,
       type = "n",
       xlab = x$xlbs[i],
       ylab = "partial-dependence",
+      xaxt = if (isFactor) "n" else "s",
       ...
     )
-    lines(x$levs[[i]], tsum[2, ], col = cols[1], type = "b")
-    lines(x$levs[[i]], tsum[1, ], col = cols[2], type = "b")
-    lines(x$levs[[i]], tsum[3, ], col = cols[2], type = "b")
+    if (isFactor) {
+      # one point per level, no line: the levels carry no order to join
+      axis(1, at = at, labels = levs)
+      segments(at, tsum[1, ], at, tsum[3, ], col = cols[2])
+      points(at, tsum[2, ], col = cols[1], pch = 19)
+    } else {
+      lines(levs, tsum[2, ], col = cols[1], type = "b")
+      lines(levs, tsum[1, ], col = cols[2], type = "b")
+      lines(levs, tsum[3, ], col = cols[2], type = "b")
+    }
   }
 }
 
@@ -467,26 +483,39 @@ plot.pd2bart <- function(
     zlim <- range(qq)
     vind <- 1:3
   }
+  isFactor <- vapply(x$levs[1:2], is.character, FALSE)
+  at <- lapply(x$levs[1:2], pdAxisPositions)
   for (i in vind) {
     image(
-      x = x$levs[[1]],
-      y = x$levs[[2]],
+      x = at[[1]],
+      y = at[[2]],
       qq[[i]],
       zlim = zlim,
       xlab = x$xlbs[1],
       ylab = x$xlbs[2],
+      xaxt = if (isFactor[1]) "n" else "s",
+      yaxt = if (isFactor[2]) "n" else "s",
       ...
     )
-    contour(
-      x = x$levs[[1]],
-      y = x$levs[[2]],
-      qq[[i]],
-      zlim = zlim,
-      ,
-      add = TRUE,
-      method = "edge",
-      col = contour.color
-    )
+    if (isFactor[1]) {
+      axis(1, at = at[[1]], labels = x$levs[[1]])
+    }
+    if (isFactor[2]) {
+      axis(2, at = at[[2]], labels = x$levs[[2]])
+    }
+    # contours interpolate between neighbours, which factor levels are not
+    if (!any(isFactor)) {
+      contour(
+        x = at[[1]],
+        y = at[[2]],
+        qq[[i]],
+        zlim = zlim,
+        ,
+        add = TRUE,
+        method = "edge",
+        col = contour.color
+      )
+    }
     title(main = c("Lower quantile", "Median", "Upper quantile")[i])
   }
 }

@@ -171,11 +171,11 @@ expect_error(
 # shape-check refusals (f2), mirroring dbartsControl's own validity messages
 expect_error(
   quickXbart(n.cuts = 0L),
-  pattern = "'n.cuts' must be a positive integer"
+  pattern = "'n.cuts' must contain positive integers"
 )
 expect_error(
   quickXbart(n.cuts = NA_integer_),
-  pattern = "'n.cuts' must be a positive integer"
+  pattern = "'n.cuts' must contain positive integers"
 )
 expect_error(
   quickXbart(useQuantiles = NA),

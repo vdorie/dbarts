@@ -434,6 +434,23 @@ ifelse_3 <- function(cond1, cond2, then1, then2, else_) {
   }
 }
 
+## n.cuts per predictor column: a shorter vector recycles, as dbartsControl
+## documents; a longer one is refused, since its extra entries could never
+## apply.
+recycleNumCuts <- function(n.cuts, numPredictors) {
+  if (length(n.cuts) > numPredictors) {
+    stop(
+      "'n.cuts' has ",
+      length(n.cuts),
+      " values but the model has ",
+      numPredictors,
+      " predictor column",
+      if (numPredictors != 1L) "s"
+    )
+  }
+  rep_len(n.cuts, numPredictors)
+}
+
 ## evaluates the expression 'e' after first replacing all instances of 'x' with
 ## the expression passed as x
 evalx <- function(x, e) {
@@ -444,26 +461,29 @@ evalx <- function(x, e) {
   eval(e, callingEnv)
 }
 
-redirectCall <- function(call, fn, ...) {
-  matchedCall <- match.call()
-  extraArgs <- if (length(matchedCall) > 3L) {
-    as.character(matchedCall[-c(1L, 2L, 3L)])
-  } else {
-    character()
+## Re-targets a matched call at 'fn', keeping the arguments 'fn' takes, plus
+## those its caller would forward through '...' when both have dots; '...'
+## names a fixed set of arguments to keep instead. 'callFormals' are the
+## formals of the function the call matched, by default the caller's own: the
+## call's head is never evaluated, since an alias (fn <- bart; fn(...)) names
+## nothing here, or names the wrong thing.
+redirectCall <- function(call, fn, ..., callFormals = NULL) {
+  extraArgs <- as.character(match.call(expand.dots = FALSE)$...)
+  if (is.null(callFormals)) {
+    callFormals <- formals(sys.function(sys.parent()))
   }
 
-  originalFn <- eval(call[[1L]])
-  call[[1L]] <- if (is.function(fn)) matchedCall[[3L]] else fn
+  call[[1L]] <- if (is.function(fn)) match.call()$fn else fn
   if (length(extraArgs) == 0L) {
     fn <- if (is.function(fn)) fn else eval(fn)
 
     argsToKeep <- names(call)[-1L] %in% names(formals(fn))
     if (
-      any(names(formals(originalFn)) == "...") &&
+      any(names(callFormals) == "...") &&
         any(names(formals(fn)) == "...")
     ) {
       argsToKeep <- argsToKeep |
-        names(call)[-1L] %not_in% names(formals(originalFn))
+        names(call)[-1L] %not_in% names(callFormals)
     }
 
     call <- call[c(TRUE, argsToKeep)]
@@ -668,6 +688,7 @@ makeIndicatorModelMatrix <- function(x, drop = TRUE) {
   if (!is.data.frame(x)) {
     stop("x is not a dataframe")
   }
+  refusePOSIXltColumns(x)
   if (ncol(x) > 0L && nrow(x) == 0L) {
     stop("x has no rows; a model matrix needs at least one row")
   }
@@ -856,11 +877,23 @@ makeCategoricalModelMatrix <- function(x) {
         },
         sep = "."
       )
-    } else if (is.numeric(column) || is.logical(column)) {
-      columns[[j]] <- as.double(column)
+    } else if (
+      is.numeric(column) ||
+        is.logical(column) ||
+        (is.atomic(column) && (is.double(column) || is.integer(column)))
+    ) {
+      # a classed number (Date, POSIXct, difftime) splits on its value, as
+      # the indicators route and lm() read it
+      columns[[j]] <- as.double(unclass(column))
       columnTypes[[j]] <- ORDINAL_VARIABLE
       columnLevels[[j]] <- list(NULL)
       columnNames[[j]] <- name
+    } else if (inherits(column, "POSIXlt")) {
+      stop(
+        "column '",
+        name,
+        "' is a POSIXlt date-time; convert it with as.POSIXct()"
+      )
     } else {
       stop("column '", name, "' cannot be converted to a predictor")
     }
@@ -988,6 +1021,7 @@ residualStandardError <- function(y, x, weights, offset) {
 ## variance prior.
 estimateSigmaFromLinearModel <- function(data) {
   x <- data@x
+  residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
   # a sparse design would densify under the linear fit and is typically wide
   # anyway; the marginal estimate still anchors the residual variance prior.
   # A dense container (a frame with factors) still fits; only CSC-backed
@@ -1005,9 +1039,19 @@ estimateSigmaFromLinearModel <- function(data) {
         "dbartsWarning"
       )
     ))
-    residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
     return(sd(residual))
   }
+  sigma <- residualStandardError(
+    data@y,
+    sigmaDesignMatrix(x),
+    data@weights,
+    data@offset
+  )
+  floorSigmaEstimate(sigma, residual)
+}
+
+## The dense design the starting sigma's linear fit reads: NAs mean-imputed.
+sigmaDesignMatrix <- function(x) {
   x <- as.matrix(x)
   if (anyNA(x)) {
     for (j in seq_len(ncol(x))) {
@@ -1018,8 +1062,11 @@ estimateSigmaFromLinearModel <- function(data) {
       }
     }
   }
-  sigma <- residualStandardError(data@y, x, data@weights, data@offset)
-  residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
+  x
+}
+
+## A linear fit's residual standard error made a usable starting sigma.
+floorSigmaEstimate <- function(sigma, residual) {
   # A design with no residual degrees of freedom (or another reason the
   # fit's residual variance comes out undefined) leaves sigma non-finite; a
   # non-finite value is not an estimate at all, so fall back to the marginal
@@ -1036,17 +1083,20 @@ estimateSigmaFromLinearModel <- function(data) {
     ))
     sigma <- sd(residual)
   }
-  # A response the fit reproduces exactly returns rounding noise instead of
-  # a meaningful sigma - down to landing at precisely 0 - and which exact
-  # value it lands on is a property of the host's BLAS kernel; the sampler
-  # refuses a non-positive sigma outright, so a host-dependent noise floor
-  # would make dbarts() itself succeed or fail by hardware. Floor the final
-  # estimate (raw fit or the marginal fallback above) at a relative epsilon
-  # so it is host-independent. Uses the unweighted residual: weights
-  # rescale the fit's effective sample, not the response's own scale, so
-  # they play no part in the floor. sd() of a length-1 residual is itself
-  # NA (undefined, not merely small), which the fallback above can hand
-  # here; re-check finiteness rather than let that NA reach the comparison.
+  floorMarginalSigma(sigma, residual)
+}
+
+## A response the fit reproduces exactly returns rounding noise instead of
+## a meaningful sigma - down to landing at precisely 0 - and which exact
+## value it lands on is a property of the host's BLAS kernel; the sampler
+## refuses a non-positive sigma outright, so a host-dependent noise floor
+## would make dbarts() itself succeed or fail by hardware. Floor the final
+## estimate (raw fit or the marginal fallback) at a relative epsilon so it is
+## host-independent. Uses the unweighted residual: weights rescale the fit's
+## effective sample, not the response's own scale, so they play no part in
+## the floor. sd() of a length-1 residual is itself NA (undefined, not merely
+## small); re-check finiteness rather than let that NA reach the comparison.
+floorMarginalSigma <- function(sigma, residual) {
   sigmaFloor <- sqrt(.Machine$double.eps) * max(1, max(abs(residual)))
   if (!is.finite(sigma) || sigma < sigmaFloor) sigmaFloor else sigma
 }
@@ -1093,6 +1143,47 @@ remapSparseFactorToTrainingLevels <- function(column, trainingLevels, name) {
   )
 }
 
+## A POSIXlt column is a list of date-time fields, which neither route can
+## read as one predictor; refused by name before model.frame or a model matrix
+## builder sees it. 'names' limits the check to the columns a model uses.
+refusePOSIXltColumns <- function(frame, names = NULL) {
+  if (!is.list(frame)) {
+    return(invisible(NULL))
+  }
+  columns <- if (is.null(names)) {
+    names(frame)
+  } else {
+    intersect(names, names(frame))
+  }
+  for (name in columns) {
+    if (inherits(frame[[name]], "POSIXlt")) {
+      stop(
+        "column '",
+        name,
+        "' is a POSIXlt date-time; convert it with as.POSIXct()"
+      )
+    }
+  }
+  invisible(NULL)
+}
+
+## A numeric or logical test column where training had a factor would read as
+## level codes; refused by name, as predict.lm refuses it.
+refuseNumericForFactorColumn <- function(column, name) {
+  if (!is.factor(column) && !is.character(column)) {
+    stop(
+      "test column '",
+      name,
+      "' is ",
+      class(column)[1L],
+      " but the training column '",
+      name,
+      "' is a factor; supply it as a factor or character"
+    )
+  }
+  invisible(NULL)
+}
+
 ## Recode a test data.frame's factor, character, and sparseFactor columns
 ## against the training data's level tables (aligned with the training
 ## columns by name), so codes agree across the two; a sparseFactor stays
@@ -1134,9 +1225,9 @@ mapFactorColumnsToTrainingLevels <- function(
       )
       next
     }
-    if (!is.factor(column) && !is.character(column)) {
-      next
-    }
+    # numbers here would read as 0-based level codes, one level off the
+    # 1-based codes as.integer() gives
+    refuseNumericForFactorColumn(column, name)
     refactored <- factor(as.character(column), levels = factorLevels[[j]])
     # an unseen level codes to NA; a value already missing is not one, and a
     # missing value elsewhere in the column must not let one through
@@ -1165,11 +1256,10 @@ mapFactorColumnsToIndicatorLevels <- function(x.test, levelTable, drop) {
   for (name in intersect(names(x.test), names(levelTable))) {
     trainingLevels <- levelTable[[name]]
     column <- x.test[[name]]
-    if (
-      is.null(trainingLevels) || (!is.factor(column) && !is.character(column))
-    ) {
+    if (is.null(trainingLevels)) {
       next
     }
+    refuseNumericForFactorColumn(column, name)
     counts <- if (is.list(drop)) drop[[name]]
     observed <- if (
       is.numeric(counts) && length(counts) == length(trainingLevels)

@@ -280,4 +280,91 @@ expect_error(
 )
 rm(negbinFit)
 
+
+# A factor predictor is evaluated at every level by default, levels are given
+# and reported by name, and each value equals a direct prediction at the level.
+set.seed(7)
+factorFrame <- data.frame(
+  y = rnorm(150L),
+  x1 = runif(150L),
+  f = factor(sample(LETTERS[1:15], 150L, TRUE))
+)
+factorFrame$y <- factorFrame$y + as.integer(factorFrame$f)
+factorFit <- suppressMessages(bart(
+  y ~ .,
+  factorFrame,
+  n.samples = 10L,
+  n.burn = 10L,
+  n.chains = 2L,
+  n.trees = 10L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+))
+pd <- pdbart(factorFit, xind = "f", pl = FALSE)
+expect_identical(pd$levs[[1L]], LETTERS[1:15])
+atLevel <- factorFrame
+atLevel$f <- factor("C", levels = levels(factorFrame$f))
+expect_equal(pd$fd[[1L]][, 3L], rowMeans(predict(factorFit, atLevel)))
+pd <- pdbart(factorFit, xind = "f", levs = list(c("D", "A")), pl = FALSE)
+expect_identical(pd$levs[[1L]], c("D", "A"))
+atLevel$f <- factor("A", levels = levels(factorFrame$f))
+expect_equal(pd$fd[[1L]][, 2L], rowMeans(predict(factorFit, atLevel)))
+expect_error(
+  pdbart(factorFit, xind = "f", levs = list(c("A", "ZZ")), pl = FALSE),
+  "'ZZ'"
+)
+expect_error(
+  pdbart(factorFit, xind = "f", levs = list(1:2), pl = FALSE),
+  "must name its levels"
+)
+pd2 <- pd2bart(factorFit, xind = c("x1", "f"), pl = FALSE)
+expect_identical(pd2$levs[[2L]], LETTERS[1:15])
+expect_equal(ncol(pd2$fd), length(pd2$levs[[1L]]) * 15L)
+grDevices::pdf(NULL)
+plot(pd)
+plot(pd2)
+grDevices::dev.off()
+rm(factorFrame, factorFit, pd, atLevel, pd2)
+
+# With exactly two predictors each grid point is a whole row: the result keeps
+# one column per grid point, equal to a direct prediction there, for named
+# predictors, a fit object, and either keepTrees setting.
+set.seed(8)
+xTwo <- matrix(runif(100L), 50L, 2L, dimnames = list(NULL, c("x1", "x2")))
+yTwo <- 2 * xTwo[, 1L] + rnorm(50L, sd = 0.1)
+for (keepTrees in c(TRUE, FALSE)) {
+  pd2 <- pd2bart(
+    xTwo,
+    yTwo,
+    xind = c(1L, 2L),
+    pl = FALSE,
+    keeptrees = keepTrees,
+    ndpost = 10L,
+    nskip = 10L,
+    ntree = 10L,
+    verbose = FALSE
+  )
+  expect_equal(dim(pd2$fd), c(10L, 121L))
+}
+grDevices::pdf(NULL)
+plot(pd2)
+grDevices::dev.off()
+twoFit <- suppressMessages(bart(
+  xTwo,
+  yTwo,
+  n.samples = 10L,
+  n.burn = 10L,
+  n.chains = 2L,
+  n.trees = 10L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+))
+pd2 <- pd2bart(twoFit, xind = c(2L, 1L), pl = FALSE)
+grid <- as.matrix(expand.grid(pd2$levs[[1L]], pd2$levs[[2L]]))[, c(2L, 1L)]
+colnames(grid) <- c("x1", "x2")
+expect_equal(pd2$fd, predict(twoFit, grid), check.attributes = FALSE)
+rm(xTwo, yTwo, keepTrees, pd2, twoFit, grid)
+
 rm(testData)

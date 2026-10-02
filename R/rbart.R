@@ -298,17 +298,33 @@ rbart_vi <- function(
     )$expr
   }
 
+  # a built-in is taken by name, written as a symbol or a string; any other
+  # symbol is the caller's own function (or a wrapper's argument naming one)
+  priorExpr <- matchedCall$prior
   if (
-    is.symbol(matchedCall$prior) ||
-      is.character(matchedCall$prior) &&
-        any(names(rbart.priors) == matchedCall$prior)
+    (is.symbol(priorExpr) || is.character(priorExpr)) &&
+      as.character(priorExpr)[1L] %in% names(rbart.priors)
   ) {
-    prior <- rbart.priors[[which(names(rbart.priors) == matchedCall$prior)]]
+    prior <- rbart.priors[[as.character(priorExpr)[1L]]]
+  } else if (
+    is.character(prior) &&
+      length(prior) == 1L &&
+      prior %in% names(rbart.priors)
+  ) {
+    prior <- rbart.priors[[prior]]
+  }
+  if (!is.function(prior)) {
+    stop(
+      "'prior' must be a function or the name of a built-in prior: ",
+      paste0("'", names(rbart.priors), "'", collapse = ", ")
+    )
   }
 
   dataCall <- redirectCall(matchedCall, dbarts::dbartsData)
-  dataCall$factors <- "indicators"
-  dataCall$na.action <- quote(stats::na.omit)
+  if (!inherits(formula, "dbartsData")) {
+    dataCall$factors <- "indicators"
+    dataCall$na.action <- quote(stats::na.omit)
+  }
   data <- withMatrixResponseRestated(
     "rbart_vi()",
     "auto",
@@ -1152,6 +1168,10 @@ predict.rbart <- function(
     )
   }
   type <- type[1L]
+  # a character or numeric grouping names its levels by value, as at fit
+  if (!missing(group.by) && !is.factor(group.by)) {
+    group.by <- as.factor(group.by)
+  }
 
   if (missing(offset)) {
     offset <- NULL
