@@ -1,7 +1,8 @@
 # setstate-mixed-chains: setState refuses chains saved under different leaf priors
 
-Status: PLANNED 2026-10-02 under dec-B191 in [decisions.md](../decisions.md). Starts after
-[nbinom-dispersion-name.md](nbinom-dispersion-name.md) lands: both edit the bridge's state code.
+Status: ON HOLD. Planned 2026-10-02 under dec-B191 in [decisions.md](../decisions.md) and overtaken the same day:
+under dec-B195 a state carries no leaf spread or anchor, and the check that remains, on the response scale and
+shift, would refuse stan4bart's multi-chain fits that keep their trees. Do not implement as written.
 
 agent: opus implementer, one; opus reviewer.
 rng: NEUTRAL. A state that installed and ran correctly before installs and runs bitwise as before; only a state

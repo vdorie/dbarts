@@ -148,11 +148,29 @@ items
     list, and a new sampler reader, getK, returns each chain's current k
     as run records it (docs/decisions.md dec-B141, VD 2026-09-29).
     bartCause's bcf changes in lockstep.
-  setstate-mixed-chains: setState refuses a state whose chains disagree
-    on a forest's leaf spread or anchor or on the response scale and
-    shift, naming which; getLeafPrior then never reports NA for
-    disagreeing chains (docs/decisions.md dec-B191, VD 2026-10-02).
-    Plan: docs/plans/setstate-mixed-chains.md.
+  setstate-mixed-chains: setState was to refuse a state whose chains
+    disagree on a forest's leaf spread or anchor or on the response
+    scale and shift (docs/decisions.md dec-B191, VD 2026-10-02). ON
+    HOLD, not to be implemented as planned: under state-not-model a
+    state carries no spread or anchor, and the remaining check would
+    refuse stan4bart's multi-chain keepTrees fits, whose restored state
+    holds one chain from each per-chain sampler, each under its own
+    response transform. Back to VD with that use. Plan:
+    docs/plans/setstate-mixed-chains.md.
+  state-not-model: a saved state holds the chain and not the model (VD
+    2026-10-02, docs/decisions.md dec-B195, dec-B196). The leaf scale
+    and a fixed-variance forest's amplitude prior variance leave the
+    state; sigma, k, the Student-t df, the negative-binomial shape and
+    the DART concentration are written and installed only where the
+    sampler draws them, so getLeafPrior reads the same before and
+    after setState, copy or a reload. Found in design, same rule:
+    amplitudes held fixed, and a sigma installed into a family that
+    pins it (a gaussian state leaves a probit sampler at sigma 1.26).
+    Open with VD: what setSigma does on a sampler that does not draw
+    sigma; whether a warm start keeps the recipient's model; a supplied
+    gp lengthscale; and the response transform, cut points and leaf
+    standardization, which only the state carries once frozen. Engine,
+    bridge and R; no header change expected. No plan yet.
   fit-stores-k: a bart fit with a drawn leaf scale carries k and first.k
     under every naming, with the anchor, and extract(type = "sd")
     converts; sd and first.sd leave the fit (docs/decisions.md dec-B192,
@@ -161,7 +179,7 @@ items
     included (dec-B193); the type is "leaf.prior.sd". A parameter held
     fixed comes back as one number, a sampled one as draws, for sigma,
     shape, k and leaf.prior.sd alike (dec-B194). R only: the fit's packaging, extract, summary, plot, the
-    manual and the tests. After setstate-mixed-chains. No plan yet.
+    manual and the tests. No plan yet.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
