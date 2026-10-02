@@ -1,6 +1,6 @@
 # monotone-exact-birth-death: the monotone chain targets the chosen prior exactly
 
-Status: LANDED 2026-10-01 (stages 1-6; see Landing), all but the Verification's quiet-machine speed check.
+Status: LANDED 2026-10-01 (stages 1-6; see Landing); the Verification's speed check ran 2026-10-02.
 Both monotone priors ship, each targeted exactly, chosen by monotone(directions, prior = ); "joint" is the
 default (dec-B151) under cgm()'s tree prior (dec-B152). Stage 4b, the order-count cache, is deferred to after
 1.0-0 with the hybrid Barker move (dec-A134, dec-B153). Planned 2026-09-29 (dec-B144 to dec-B150, dec-A128) and
@@ -1348,3 +1348,18 @@ quick; the 25 exact gates quick; tests/cpp clean, also under ASan/UBSan; tinytes
 monotone equivalence scenarios bitwise, the ordinal pair re-recorded (equivalence-d23673b5).
 Monotone sweeps run about 7 to 9 times faster on a loaded laptop (new/old 0.10-0.19 over five
 alternating rounds).
+
+Speed check, 2026-10-02: on the idle four-core x86 box (load 0.7-1.0), base 08ff79bf against 4cd88b2f, n
+5000, one free axis, per-round minima over alternating rounds. At 20 trees the tip is faster, not within 5%:
+with one constrained predictor base 2.74 ms per sweep, "leaf" 0.31 (0.11x), "joint" 0.22 (0.08x); with two,
+base 3.06, "leaf" 0.41 (0.13x), "joint" 0.37 (0.12x). At 5 trees under "leaf", seeds 1-3: 8.5x, 0.33x and
+0.20x with one constrained predictor, 21.9x, 0.20x and 5.4x with two; median about 3x against the Decision's
+1.5x (1.06x-14x). At 1 tree under "leaf" the trees grow to 59-60 leaves, the slow-count warning fires, and
+late sweeps take 560-950 ms against base's 0.10-0.29 ms; one of four fits finished its 1200 sweeps inside
+170-240 s. That is far past the Decision's projection (6x median, 710x worst sweep), which was made on the
+old engine's trees, and in line with the stage 4 checkpoint the hybrid ruling (dec-B153) was made on (the
+1-tree 1 + 1 fit, 11 minutes for 1200 sweeps). bench-sampler, base recorded and the tip compared: every
+metric 0.98-1.02 except setPredictor-reject-n1000-t75 at 1.067 in 4 of 4 compares, about 6 microseconds per
+rejected update, which is not a monotone path and is being traced separately. The x86 leg on 4cd88b2f:
+tests/cpp plain and under ASan/UBSan pass 333 checks; tinytest 11,260/0; equivalence-fdfc1fe4 55/55 by max
+|z| (worst 0.00), bcf-d49e2103 15/15 and multinomial-80b1c8d4 11/11 under --cross-host.
