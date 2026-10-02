@@ -129,10 +129,9 @@ probabilityFromLatents <- function(latents, object) {
 # used to the split, chain-fastest layout, so as.vector() on it enumerates
 # draws in the order as.vector() on the split fits does and the two pair
 # element for element. s(x) is already on the response scale (the working
-# surface times the response range), so it REPLACES the scalar sigma rather
-# than scaling it: under this parameterization sigma is a fixed unit residual
-# times that same range, a constant carrying no posterior content. NULL passes
-# through, marking a homoscedastic fit, whose scale is that scalar.
+# surface times the response range), so it is the fit's whole residual scale:
+# a heteroscedastic fit carries no scalar sigma to scale. NULL passes through,
+# marking a homoscedastic fit, whose scale is its scalar sigma.
 heteroscedasticScale <- function(s, n.chains) {
   if (is.null(s)) NULL else combineOrUncombineChains(s, n.chains, FALSE)
 }
@@ -546,7 +545,11 @@ predict.bart <- function(
   # above the type = "forest" and amplitude-blend returns below, so every arm's
   # value is checked rather than only the one that reaches the sampler here
   n.threads <- validatePredictThreads(n.threads)
-  refuseForestSelectionOutsideForestArm(type, forest)
+  refuseForestSelectionOutsideForestArm(
+    type,
+    forest,
+    fitIsHeteroscedastic(object)
+  )
   refuseDroppedForestChannel(object)
   if (type == "sigma") {
     if (!fitIsHeteroscedastic(object)) {
@@ -920,7 +923,11 @@ extract.bart <- function(
     foreignArgsFor(extractForeignReasons, names(formals(extract.bart)))
   )
 
-  refuseForestSelectionOutsideForestArm(type, forest)
+  refuseForestSelectionOutsideForestArm(
+    type,
+    forest,
+    fitIsHeteroscedastic(object)
+  )
   if (type != "forest" && isTRUE(contribution)) {
     stop(
       "type = \"",
@@ -935,12 +942,17 @@ extract.bart <- function(
   if (type == "sigma" && fitIsHeteroscedastic(object)) {
     sample <- validateSample(sample, eval(formals(extract.bart)$sample))
     s <- object[[if (sample == "train") "s.train" else "s.test"]]
+    # only bart() fits a variance forest, and only its keepFits drops s(x):
+    # keepTrainingFits leaves s.train in place
     if (is.null(s)) {
       stop(
         "cannot extract 'sigma' at the ",
         sample,
         " rows: this heteroscedastic fit stores no per-observation scale ",
-        "draws there (no test rows, or 'keepFits = FALSE' dropped them)"
+        "draws there (",
+        if (sample == "test") "no test rows, or ",
+        "'keepFits = FALSE' dropped them, as a supplied 'callback' does ",
+        "unless 'keepFits' is given)"
       )
     }
     return(combineOrUncombineChains(s, fitNChains(object), combineChains))
@@ -2774,10 +2786,21 @@ foreignArgsFor <- function(reasons, own) {
 # reports; every other arm has already recombined them into the reported
 # location, so a selection there would silently choose nothing. The model
 # parameters and varcount are no recombined location, so they get their own
-# wording.
-refuseForestSelectionOutsideForestArm <- function(type, forest) {
+# wording, and so does a heteroscedastic fit's sigma, which is the variance
+# forest's surface rather than a model parameter.
+refuseForestSelectionOutsideForestArm <- function(
+  type,
+  forest,
+  heteroscedastic = FALSE
+) {
   if (is.null(forest)) {
     return(invisible(NULL))
+  }
+  if (type == "sigma" && heteroscedastic) {
+    stop(
+      "type = \"sigma\" on a heteroscedastic fit is the variance forest's ",
+      "per-observation scale, not a per-forest quantity of the mean"
+    )
   }
   if (type %in% c("sigma", "k", "sd", "dispersion", "thresholds")) {
     stop(

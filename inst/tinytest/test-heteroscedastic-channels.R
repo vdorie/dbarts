@@ -212,14 +212,81 @@ expect_error(
   "predicts a heteroscedastic fit's per-observation scale"
 )
 
-# plot draws no sigma trace for a heteroscedastic fit
-pdfFile <- tempfile(fileext = ".pdf")
-grDevices::pdf(pdfFile)
-expect_silent(plot(fit))
-grDevices::dev.off()
-unlink(pdfFile)
+# plot draws no sigma trace for a heteroscedastic fit: its display list
+# opens one panel, the interval, where a homoscedastic fit's opens the trace
+# beside it, and no panel is titled "sigma"
+recordFitPlot <- function(object) {
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off())
+  grDevices::dev.control("enable")
+  plot(object)
+  grDevices::recordPlot()[[1L]]
+}
+displayListOps <- function(displayList) {
+  vapply(
+    displayList,
+    function(op) {
+      fn <- op[[2L]][[1L]]
+      if (is.list(fn) && !is.null(fn$name)) fn$name else NA_character_
+    },
+    ""
+  )
+}
+hasSigmaTitle <- function(displayList) {
+  any(vapply(
+    displayList[displayListOps(displayList) %in% "C_title"],
+    function(op) any(vapply(op[[2L]][-1L], identical, NA, "sigma")),
+    NA
+  ))
+}
+expect_silent(plotHet <- recordFitPlot(fit))
+plotHom <- recordFitPlot(fitHom)
+expect_identical(sum(displayListOps(plotHom) %in% "C_plot_new"), 2L)
+expect_true(hasSigmaTitle(plotHom))
+expect_identical(sum(displayListOps(plotHet) %in% "C_plot_new"), 1L)
+expect_false(hasSigmaTitle(plotHet))
+rm(recordFitPlot, displayListOps, hasSigmaTitle, plotHet, plotHom)
 
 # ---- refusals: a scale the fit does not carry is named, not substituted ----
+# 'forest' selects a mean forest, and s(x) is the variance forest's surface
+expect_error(
+  extract(fit, type = "sigma", forest = 1L),
+  paste0(
+    "type = \"sigma\" on a heteroscedastic fit is the variance forest's ",
+    "per-observation scale, not a per-forest quantity of the mean"
+  ),
+  fixed = TRUE
+)
+expect_error(
+  predict(fit, x.test, type = "sigma", forest = 1L),
+  "the variance forest's per-observation scale",
+  fixed = TRUE
+)
+# keepFits = FALSE drops s.train and s.test alike
+fitNoScale <- fit
+fitNoScale$s.train <- NULL
+fitNoScale$s.test <- NULL
+expect_error(
+  extract(fitNoScale, type = "sigma"),
+  paste0(
+    "cannot extract 'sigma' at the train rows: this heteroscedastic fit ",
+    "stores no per-observation scale draws there ('keepFits = FALSE' ",
+    "dropped them, as a supplied 'callback' does unless 'keepFits' is given)"
+  ),
+  fixed = TRUE
+)
+expect_error(
+  extract(fitNoScale, type = "sigma", sample = "test"),
+  paste0(
+    "cannot extract 'sigma' at the test rows: this heteroscedastic fit ",
+    "stores no per-observation scale draws there (no test rows, or ",
+    "'keepFits = FALSE' dropped them, as a supplied 'callback' does unless ",
+    "'keepFits' is given)"
+  ),
+  fixed = TRUE
+)
+rm(fitNoScale)
+
 fitNoTestScale <- fit
 fitNoTestScale$s.test <- NULL
 noTestScaleRefusal <- tryCatch(

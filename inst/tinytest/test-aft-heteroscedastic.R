@@ -164,6 +164,21 @@ expect_equal(
   dim(survivalProbabilities(fit.no.trees, times)),
   c(20L, length(times), n)
 )
+# a fit whose s.train keepFits dropped has no scale at its training rows, and
+# the refusal names the argument bart() drops it by
+fit.no.scale <- fit.no.trees
+fit.no.scale$s.train <- NULL
+expect_error(
+  survivalProbabilities(fit.no.scale, times),
+  paste0(
+    "survival probabilities need this heteroscedastic fit's 's.train' ",
+    "draws, which 'keepFits = FALSE' dropped (automatically, when a ",
+    "'callback' was supplied, unless overridden); refit with ",
+    "'keepFits = TRUE'"
+  ),
+  fixed = TRUE
+)
+rm(fit.no.scale)
 
 # ---- the composed fit carries both families' refusals ----
 control <- dbartsControl(

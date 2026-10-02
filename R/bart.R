@@ -3406,7 +3406,8 @@ survivalProbabilities.bart <- function(
     if (is.null(object[["s.train"]])) {
       stop(
         "survival probabilities need this heteroscedastic fit's 's.train' ",
-        "draws, which 'keepFits = FALSE' dropped; refit with ",
+        "draws, which 'keepFits = FALSE' dropped (automatically, when a ",
+        "'callback' was supplied, unless overridden); refit with ",
         "'keepFits = TRUE'"
       )
     }
