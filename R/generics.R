@@ -488,6 +488,21 @@ refusePredictOffsetChannel <- function(offset, class) {
   invisible(NULL)
 }
 
+# An offset is a number per row, or a matrix of them; a logical or character
+# value would be coerced silently into one (TRUE an offset of 1), so it is
+# refused by name. A missing scalar stays for the refusals that name it.
+refuseNonNumericOffset <- function(offset) {
+  if (
+    is.null(offset) ||
+      is.numeric(offset) ||
+      (is.logical(offset) && all(is.na(offset))) ||
+      (is.data.frame(offset) && all(vapply(offset, is.numeric, logical(1L))))
+  ) {
+    return(invisible(NULL))
+  }
+  stop("'offset' must be numeric", call. = FALSE)
+}
+
 # The offset predict applies at newdata, as predict.lm forms it: the fit's
 # 'offset' argument and offset() terms evaluated there, plus the caller's
 # 'offset'. An argument that cannot be evaluated there (a plain vector given
@@ -542,6 +557,7 @@ predict.bart <- function(
     )
   )
   warnUnusedDots(list(...), "predict", "bart")
+  refuseNonNumericOffset(offset)
   type <- validateType(type, eval(formals(predict.bart)$type))
   # above the type = "forest" and amplitude-blend returns below, so every arm's
   # value is checked rather than only the one that reaches the sampler here
@@ -1939,6 +1955,7 @@ predict.bartMultinomial <- function(
     )
   )
   warnUnusedDots(list(...), "predict", "bartMultinomial")
+  refuseNonNumericOffset(offset)
   refuseClassCiLevel(type, ci.level)
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     refuseWithoutTrees("predict")
@@ -2303,6 +2320,7 @@ predict.bartOrdinal <- function(
     )
   )
   warnUnusedDots(list(...), "predict", "bartOrdinal")
+  refuseNonNumericOffset(offset)
   refuseClassCiLevel(type, ci.level)
   if (is.null(object[["thresholds.raw"]])) {
     refuseWithoutTrees("predict")
@@ -2624,6 +2642,7 @@ predict.bartNegbin <- function(
     )
   )
   warnUnusedDots(list(...), "predict", "bartNegbin")
+  refuseNonNumericOffset(offset)
   if (is.null(object[["dispersion.raw"]])) {
     refuseWithoutTrees("predict")
   }

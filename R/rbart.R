@@ -1135,6 +1135,9 @@ predict.rbart <- function(
     stop("predict requires rbart to be called with 'keepTrees' == TRUE")
   }
   refuseLegacyRbart(object)
+  if (!missing(offset)) {
+    refuseNonNumericOffset(offset)
+  }
 
   dotsList <- list(...)
   if (!is.null(dotsList[["value"]])) {

@@ -618,6 +618,18 @@ expect_error(
   "give survivalProbabilities an 'offset' for them",
   fixed = TRUE
 )
+# a non-numeric offset is refused by name, not coerced: FALSE given where
+# combineChains was before offset took its place is not an offset of 0
+expect_error(
+  survivalProbabilities(fit.aftOff, 1, x[1:3, ], FALSE),
+  "'offset' must be numeric",
+  fixed = TRUE
+)
+expect_error(
+  predict(fit.aftOff, x[1:3, ], offset = TRUE),
+  "'offset' must be numeric",
+  fixed = TRUE
+)
 rm(o.aft, status.aft, fit.aftOff, sp.aftOff)
 
 # ---- a missing time or status is a missing response, as in survreg: the

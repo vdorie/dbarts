@@ -3438,6 +3438,7 @@ survivalProbabilities.bart <- function(
       names(formals(survivalProbabilities.bart))
     )
   )
+  refuseNonNumericOffset(offset)
   # the training rows carry the fit's own offset; one given here is for the
   # rows of 'newdata', as predict's is
   if (!is.null(offset) && is.null(newdata)) {
