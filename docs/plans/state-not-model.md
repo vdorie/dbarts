@@ -70,9 +70,12 @@ Open, each put to the maintainer on its own:
    a fit made at k = 4 runs at 4 while its model says 2. Recommended: the recipient keeps its model.
 2. A supplied gp lengthscale. Recommended: the sampler keeps it, and a state holding saved draws made under
    another is refused, since a saved gp draw cannot be replayed under another kernel.
-3. The frame: the response transform, cut points and leaf standardization stay in the state. Recommended: they
-   stay, described in the manual as the units the chain is stored in. Converting stored values to the
-   recipient's own transform is not bitwise and breaks stan4bart's replay.
+3. The frame: the response transform, cut points and leaf standardization stay in the state as the units the
+   chain is stored in. The maintainer, asked about the transform: "Well, prior != state, as we agreed." A
+   k-named leaf prior takes its centre and width from the transform, so an installed transform must not move
+   it: the sampler's prior stays its own in response units and is re-expressed in the installed units, as a
+   named sd and the sigma prior already are. The mechanism, and where the anchor is recorded so a re-creation
+   reproduces it, are being designed; step 3 grows by it.
 
 ## Constraints
 
