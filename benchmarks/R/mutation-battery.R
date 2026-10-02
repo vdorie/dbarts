@@ -485,6 +485,644 @@ mutations <- list(
     "poison 27: rule_gibbs neighbourhood weights lose the 1/|SI_v| rule factor, the low-cardinality bias change-balance.R's own gate repaired"
   )
 )
+
+## ---- third review: code changed since 7ad0bbea ----------------------------
+## m28-m89 are one-token defects in what landed after the second review: the
+## monotone engine, the multi-forest leaf-prior writer, the survival, hurdle,
+## zero-trial, nbinom, t and ordinal families, predictor-mutation rollback,
+## data ingestion, the bridge's validation, and the generics. Killers are the
+## tinytest files, tests/cpp and quick exact gates that own each site.
+## Of the thirteen that first survived the full tinytest suite, tests/cpp and
+## the cheap quick gates, twelve (m38, m42, m59, m63, m67, m71, m74, m76, m78,
+## m79, m84, m87) each have a killing test now and are KILL_EXPECTED; r3s stays
+## for the next gap found. m80 (mapFactorColumnsToTrainingLevels coding a test
+## factor against its own levels) is equivalent: every validateXTest path then
+## builds a container that alignContainerFactorLevels re-codes by label, and
+## the unseen-level refusal it would skip raises there with the same message.
+## Ids left
+## unassigned: m36 (monotoneMovePair flip) and m55 (aft setSurvivalStatus
+## restoring logT_) are equivalent on every reachable path - a split on a
+## constrained axis keeps its children in one component, where the ratio is
+## symmetric, and setResponse overwrites logT_ right after the status
+## install; m40 (redrawAfterBirth's pair floor) rides on drawPairUpper's
+## inversion, which 8e7a3d19 rewrote.
+
+kTests <- function(...) {
+  do.call(
+    c,
+    lapply(c(...), function(f) kTinytest(file.path("inst/tinytest", f)))
+  )
+}
+kGate <- function(name) kScript(file.path("benchmarks/R", name), "quick")
+r3 <- function(id, file, text, mutant, killers, note) {
+  mk(id, file, text, mutant, "KILL_EXPECTED", killers, note)
+}
+r3s <- function(id, file, text, mutant, killers, note) {
+  mk(id, file, text, mutant, "SURVIVE_DOCUMENTED", killers, note)
+}
+kMonotone <- c(
+  kTests("test-monotone.R"),
+  kCpp(),
+  kGate("monotone-reference.R")
+)
+mh <- "src/bartcore/model.hpp"
+
+mutations <- c(
+  mutations,
+  list(
+    r3(
+      "m28",
+      mh,
+      "bool rightAbove = hi[il] + 1 == lo[ir];",
+      "bool rightAbove = hi[il] == lo[ir];",
+      kMonotone,
+      "monotone geometry: the adjacency test along an ordered axis loses its +1"
+    ),
+    r3(
+      "m29",
+      mh,
+      "return std::max(lo[il], lo[ir]) <= std::min(hi[il], hi[ir]) ||",
+      "return std::max(lo[il], lo[ir]) < std::min(hi[il], hi[ir]) ||",
+      kMonotone,
+      "monotone geometry: two leaves sharing one cut cell no longer share the axis"
+    ),
+    r3(
+      "m30",
+      mh,
+      "if (tree.ruleMissingGoesRight(data, rule) != isRight) leafMissing[a] = 0;",
+      "if (tree.ruleMissingGoesRight(data, rule) == isRight) leafMissing[a] = 0;",
+      c(kMonotone, kTests("test-data-missing.R")),
+      "monotone geometry on a missing axis: the reaches-missing flag clears on the wrong side"
+    ),
+    r3(
+      "m31",
+      mh,
+      "if ((wl[w] & wr[w]) != 0) return true;",
+      "if ((wl[w] & wr[w]) == 0) return true;",
+      c(kMonotone, kTests("test-data-categorical.R")),
+      "monotone geometry on a factor axis: level-set overlap inverted"
+    ),
+    r3(
+      "m32",
+      mh,
+      "next.forward[monotoneLayerInsert(next, s.key.data(), words)] += count;",
+      "next.forward[monotoneLayerInsert(next, s.key.data(), words)] = count;",
+      c(kMonotone, kGate("monotone-successive-conditional.R")),
+      "monotone order count: the down-set DP overwrites rather than sums its forward counts"
+    ),
+    r3(
+      "m33",
+      mh,
+      "up.backwardExponent) * std::numbers::ln2 -",
+      "0) * std::numbers::ln2 -",
+      c(kMonotone, kGate("monotone-successive-conditional.R")),
+      "monotone position law drops the backward counts' binary exponent (matters once a layer rescales)"
+    ),
+    r3(
+      "m34",
+      mh,
+      "return firstLaw[i - 1] + secondLaw[j - 1] + logChoose(i + j - 2, i - 1) +",
+      "return firstLaw[i - 1] + secondLaw[j - 1] + logChoose(i + j - 1, i - 1) +",
+      c(kMonotone, kGate("monotone-successive-conditional.R")),
+      "monotone two-component ratio: interleaving binomial off by one"
+    ),
+    r3(
+      "m35",
+      mh,
+      "result = std::log(static_cast<double>(first.size + second.size)) +",
+      "result = std::log(static_cast<double>(first.size)) +",
+      c(kMonotone, kGate("monotone-successive-conditional.R")),
+      "monotone two-component ratio: m loses the second component's size"
+    ),
+    r3(
+      "m37",
+      "src/bartcore/moves.hpp",
+      "*ratio *= std::exp(birth ? logRatio : -logRatio);",
+      "*ratio *= std::exp(birth ? -logRatio : logRatio);",
+      c(kMonotone, kGate("monotone-successive-conditional.R")),
+      "monotone leaf prior: Z_T ratio applied with the wrong sign on both moves"
+    ),
+    r3(
+      "m38",
+      mh,
+      "drawn[next++] = freeSd * ext_rng_simulateStandardNormal(rng);",
+      "drawn[next++] = constrainedSd * ext_rng_simulateStandardNormal(rng);",
+      kMonotone,
+      "monotone prior leaf draw: an isolated leaf takes the c-inflated sd; killed by test_monotone.cpp's exact prior draw, whose leaf variances now match rejection sampling"
+    ),
+    r3(
+      "m39",
+      mh,
+      "return (constrained ? cInflation : 1.0) * scale / k;",
+      "return (constrained ? 1.0 : cInflation) * scale / k;",
+      c(kMonotone, kGate("monotone-successive-conditional.R")),
+      "monotone prior sd: c-inflation applied to the free leaves instead of the constrained"
+    ),
+    r3(
+      "m41",
+      mh,
+      "mu[lower] = drawTruncatedNormal(rng, mL, sL, aL, std::min(bL, muUpper));",
+      "mu[lower] = drawTruncatedNormal(rng, mL, sL, aL, bL);",
+      kMonotone,
+      "monotone birth redraw: the lower child is not capped by its drawn sibling"
+    ),
+    r3(
+      "m42",
+      mh,
+      "if (lower > upper) return false;",
+      "if (lower < upper) return false;",
+      c(kMonotone, kGate("monotone-successive-conditional.R")),
+      "monotone joint prior: the structure draw's cone test inverted; equivalent in the tree law (negated iid draws of one sd map the cone onto its reverse), killed by test_monotone.cpp's accept-is-cone-test check against the point oracle's pairs"
+    ),
+    r3(
+      "m43",
+      "src/bartcore/chain.hpp",
+      "forest.leaf.prior = options.monotonePrior == 1 ? MonotonePrior::joint",
+      "forest.leaf.prior = options.monotonePrior == 0 ? MonotonePrior::joint",
+      c(kMonotone, kGate("monotone-successive-conditional.R")),
+      "monotone prior switch: joint and leaf exchanged at creation"
+    ),
+    r3(
+      "m44",
+      "src/bartcore/chain.hpp",
+      "if (forest.leaf.prior != MonotonePrior::joint ||",
+      "if (forest.leaf.prior == MonotonePrior::joint ||",
+      c(kMonotone, kTests("test-calibration-prior-draws.R")),
+      "monotone prior tree draw: the joint prior's accept step runs under leaf instead"
+    ),
+    r3(
+      "m45",
+      "src/bartcore/chain.hpp",
+      paste0(
+        "    nodeScaleFactors_[f] = sd;\n",
+        "    forests_[f].leaf.scale = mapLeafScale(f);\n"
+      ),
+      "    nodeScaleFactors_[f] = sd;\n",
+      kTests(
+        "test-multiforest-leaf-prior-writer.R",
+        "test-calibration-midchain.R",
+        "test-forest-basis-r5.R"
+      ),
+      "leaf-prior writer: forest(sd = ) on a fixed-variance map forest records the factor but never re-derives the leaf scale"
+    ),
+    r3(
+      "m46",
+      "R/dbarts.R",
+      ".Call(C_dbarts_bartcore_setForestSd, ptr, index - 1L, sds[[index]])",
+      ".Call(C_dbarts_bartcore_setForestSd, ptr, index, sds[[index]])",
+      kTests(
+        "test-multiforest-leaf-prior-writer.R",
+        "test-calibration-midchain.R",
+        "test-forest-basis-r5.R"
+      ),
+      "leaf-prior writer: forest index passed 1-based to the engine"
+    ),
+    r3(
+      "m47",
+      "R/dbarts.R",
+      "params[[if (params[[7L]] > 0) 7L else 4L]] <- sds[[index]]",
+      "params[[if (params[[7L]] < 0) 7L else 4L]] <- sds[[index]]",
+      kTests(
+        "test-multiforest-leaf-prior-writer.R",
+        "test-calibration-midchain.R",
+        "test-forest-basis-r5.R"
+      ),
+      "leaf-prior writer: the control mirror writes the wrong channel, so a re-creation restates the creation sd"
+    ),
+    r3(
+      "m48",
+      "src/bartcore/chain.hpp",
+      "if (k != forests_[f].k) forests_[f].k = k;",
+      "if (k == forests_[f].k) forests_[f].k = k;",
+      kTests(
+        "test-multiforest-leaf-prior-writer.R",
+        "test-multinomial-r5-surface.R"
+      ),
+      "leaf-prior writer: a multinomial normal(k = ) restatement never writes k"
+    ),
+    r3(
+      "m49",
+      "R/dbarts.R",
+      "findInterval(time, periods, left.open = TRUE) + 1L,",
+      "findInterval(time, periods, left.open = FALSE) + 1L,",
+      c(
+        kTests("test-hazard.R", "test-hazard-factors.R"),
+        kGate("hazard-exact.R"),
+        kGate("hazard-reduction.R")
+      ),
+      "hazard grid: a time on a grid point lands in the next period"
+    ),
+    r3(
+      "m50",
+      "R/dbarts.R",
+      "result$offset <- offset[subjectOf]",
+      "result$offset <- offset[periodOf]",
+      c(
+        kTests(
+          "test-hazard.R",
+          "test-hazard-factors.R",
+          "test-family-offset.R",
+          "test-family-mutation-parity.R"
+        ),
+        kGate("hazard-reduction.R")
+      ),
+      "hazard expansion: offsets replicated by period instead of subject"
+    ),
+    r3(
+      "m51",
+      "R/bart.R",
+      "m <- sum(periods <= times[j])",
+      "m <- sum(periods < times[j])",
+      c(
+        kTests(
+          "test-hazard-grid-horizon.R",
+          "test-hazard.R",
+          "test-hazard-factors.R",
+          "test-predict-na-action.R"
+        ),
+        kGate("hazard-exact.R")
+      ),
+      "hazard survivalProbabilities: a horizon on a grid point excludes its own period; test-hazard-grid-horizon.R pins S(t) on and off the grid against the (1 - hazard) product"
+    ),
+    r3(
+      "m52",
+      "R/bart.R",
+      "bigX[[\"period\"]] <- rep(seq_len(K), each = n)",
+      "bigX[[\"period\"]] <- rep(seq_len(K), times = n)",
+      kTests(
+        "test-hazard.R",
+        "test-hazard-factors.R",
+        "test-predict-na-action.R"
+      ),
+      "hazard survivalProbabilities on a data.frame newdata: period column misaligned with the period-major rows"
+    ),
+    r3(
+      "m53",
+      "R/generics.R",
+      "ev = piVec * exp(fVec + 0.5 * sigmaVec^2),",
+      "ev = piVec * exp(fVec + sigmaVec^2),",
+      c(
+        kTests("test-hurdle.R", "test-hurdle-surface.R"),
+        kGate("hurdle-exact.R")
+      ),
+      "hurdle ev: lognormal mean loses the 1/2 on sigma^2"
+    ),
+    r3(
+      "m54",
+      "R/generics.R",
+      "    ) -\n    log(yRep[positive])",
+      "    ) +\n    log(yRep[positive])",
+      kTests(
+        "test-hurdle.R",
+        "test-hurdle-surface.R",
+        "test-pointwise-loglik.R"
+      ),
+      "hurdle loglik: lognormal Jacobian added instead of subtracted"
+    ),
+    r3(
+      "m56",
+      mh,
+      "variance_ != nullptr ? std::sqrt(variance_[i]) * varianceScale : sd;",
+      "variance_ != nullptr ? variance_[i] * varianceScale : sd;",
+      c(kTests("test-aft-heteroscedastic.R"), kGate("aft-exact.R")),
+      "heteroscedastic aft: censored redraw uses the variance as the sd"
+    ),
+    r3(
+      "m57",
+      "src/bartcore/combiner.hpp",
+      "for (int c = 1; c < trials_[i]; ++c)",
+      "for (int c = 1; c <= trials_[i]; ++c)",
+      c(
+        kTests(
+          "test-multinomial-counts-mutation.R",
+          "test-multinomial-surface.R"
+        ),
+        kGate("multinomial-exact.R")
+      ),
+      "multinomial counts: one extra Polya-Gamma draw per row"
+    ),
+    r3(
+      "m58",
+      "src/bartcore/combiner.hpp",
+      "    while (i < n && trials_[i] != 0) ++i;\n    if (i == n) return;",
+      "    while (i < n && trials_[i] != 0) ++i;\n    if (i != n) return;",
+      kTests(
+        "test-multinomial-zero-trials.R",
+        "test-multinomial-counts-mutation.R"
+      ),
+      "multinomial zero-trial rows never composed into the effective mask"
+    ),
+    r3(
+      "m59",
+      "R/data.R",
+      "codes <- if (is.factor(y)) as.integer(y) else as.integer(y) + 1L",
+      "codes <- if (is.factor(y)) as.integer(y) else as.integer(y)",
+      kTests(
+        "test-multinomial-numeric-codes.R",
+        "test-multinomial-surface.R",
+        "test-multinomial-generics.R"
+      ),
+      "multinomial numeric category codes not shifted to 1-based"
+    ),
+    r3(
+      "m60",
+      "R/generics.R",
+      "logCoef <- lgamma(n + 1) - rowSums(lgamma(counts + 1))",
+      "logCoef <- lgamma(n + 1)",
+      kTests(
+        "test-multinomial-generics.R",
+        "test-multinomial-zero-trials.R",
+        "test-pointwise-loglik.R"
+      ),
+      "multinomial loglik: count-matrix multinomial coefficient loses its denominator"
+    ),
+    r3(
+      "m61",
+      mh,
+      paste0(
+        "      if (active != nullptr && active[i] == 0.0) continue;\n",
+        "      histogram["
+      ),
+      "      histogram[",
+      c(kTests("test-nbinom.R", "test-active-rows-pins.R"), kCpp()),
+      "nbinom dispersion kernel: count histogram ignores the active-row mask"
+    ),
+    r3(
+      "m62",
+      mh,
+      "rPrior_.computeKernel(y_, numObservations_, activePointer());",
+      "rPrior_.computeKernel(y_, numObservations_);",
+      c(kTests("test-nbinom.R", "test-active-rows-pins.R"), kCpp()),
+      "nbinom setActiveRows: kernel not rebuilt over the subsample"
+    ),
+    r3(
+      "m63",
+      mh,
+      "y * logOnePlusExp(-psi) - r_ * logOnePlusExp(psi);",
+      "y * logOnePlusExp(psi) - r_ * logOnePlusExp(psi);",
+      c(kTests("test-nbinom.R", "test-pointwise-loglik.R"), kCpp()),
+      "nbinom pointwise loglik: log p sign flipped (re-pointed to the log-mean form, psi = log mu - log r); killed by test_model.cpp's nb log-mean anchor, which checks it against dnbinom at mu"
+    ),
+    r3(
+      "m64",
+      "R/generics.R",
+      "    rep(y, each = n.draws),\n    size = disp,",
+      "    rep(y, times = n.draws),\n    size = disp,",
+      kTests("test-nbinom.R", "test-pointwise-loglik.R"),
+      "nbinom R loglik: response replicated in the wrong layout"
+    ),
+    r3(
+      "m65",
+      mh,
+      "ext_rng_simulateGamma(rng, shape, 2.0 / (nu_ + w * r * r / sigmaSq));",
+      "ext_rng_simulateGamma(rng, shape, 2.0 / (nu_ + r * r / sigmaSq));",
+      c(kTests("test-bart-weights-parity.R"), kGate("t-exact.R"), kCpp()),
+      "student t: lambda draw ignores the user weight"
+    ),
+    r3(
+      "m66",
+      mh,
+      "if (w * a > 0.0) {",
+      "if (w > 0.0) {",
+      c(kTests("test-active-rows-pins.R"), kGate("t-exact.R"), kCpp()),
+      "student t: nu statistics count masked rows"
+    ),
+    r3(
+      "m67",
+      mh,
+      "? sigmaOriginal / std::sqrt(userWeights_[i])",
+      "? sigmaOriginal / userWeights_[i]",
+      c(
+        kTests("test-pointwise-loglik.R", "test-bart-weights-parity.R"),
+        kCpp()
+      ),
+      "student t loglik: weighted scale divides by w rather than sqrt(w); killed by test_model.cpp's weighted t log-likelihood against the closed-form dt"
+    ),
+    r3(
+      "m68",
+      mh,
+      "if (s < numCategories_ - 1)  // finite upper gap only below the top cutpoint",
+      "if (s <= numCategories_ - 1)  // finite upper gap only below the top cutpoint",
+      c(kTests("test-ordinal.R"), kGate("ordinal-exact.R"), kCpp()),
+      "ordinal cutpoint MH: top cutpoint scored against an infinite upper gap"
+    ),
+    r3(
+      "m69",
+      mh,
+      "if (!isActive(i)) continue;  // the target is the subsample's likelihood",
+      "// the target is the subsample's likelihood",
+      c(kTests("test-ordinal.R", "test-active-rows-pins.R"), kCpp()),
+      "ordinal cutpoint MH: masked rows enter the acceptance likelihood"
+    ),
+    r3(
+      "m70",
+      "R/generics.R",
+      "  idx <- rep(seq_len(nObs), each = n.draws)\n  result <- log(",
+      "  idx <- rep(seq_len(nObs), times = n.draws)\n  result <- log(",
+      kTests("test-ordinal.R", "test-pointwise-loglik.R"),
+      "ordinal R loglik: observation index replicated in the wrong layout"
+    ),
+    r3(
+      "m71",
+      "src/bartcore/sampler.hpp",
+      "      data_.gatheredRawValues = std::move(oldGatheredRaw);\n",
+      "",
+      c(
+        kTests(
+          "test-linear-leaves.R",
+          "test-gp-leaves.R",
+          "test-composition-sequences.R"
+        ),
+        kCpp()
+      ),
+      "predictor rollback: leaf-covariate raw copies not restored; killed by test-linear-leaves.R's refused replacement against a twin that never attempted it"
+    ),
+    r3(
+      "m72",
+      "src/bartcore/sampler.hpp",
+      "      for (auto& chain : chains_) chain->repartitionTrees();\n",
+      "",
+      c(
+        kTests("test-sampler-predictors.R", "test-data-mixed-mutation.R"),
+        kCpp()
+      ),
+      "predictor rollback: trees not repartitioned after the restore"
+    ),
+    r3(
+      "m73",
+      "src/bartcore/sampler.hpp",
+      "if ((updateCutPoints || data_.isFactor(j)) &&",
+      "if (updateCutPoints &&",
+      c(
+        kTests("test-data-categorical.R", "test-data-categorical-declared.R"),
+        kCpp()
+      ),
+      "predictor mutation: factor level-code precheck skipped without a cut refresh"
+    ),
+    r3(
+      "m74",
+      "src/bartcore/sampler.hpp",
+      "        data.hasMissing[j] = oldHasMissing[k];\n",
+      "",
+      c(kTests("test-data-missing.R", "test-sampler-predictors.R"), kCpp()),
+      "subset predictor rollback: missingness flags not restored; killed by test_sampler.cpp's subset rollback missingness"
+    ),
+    r3(
+      "m75",
+      "src/bartcore/data.hpp",
+      "value < static_cast<double>(categoryCounts[variable]) &&",
+      "value <= static_cast<double>(categoryCounts[variable]) &&",
+      c(
+        kTests("test-data-categorical.R", "test-data-categorical-declared.R"),
+        kCpp()
+      ),
+      "factor ingestion: a code one past the level table is accepted"
+    ),
+    r3(
+      "m76",
+      "src/bartcore/data.hpp",
+      "splitsBySubset(j) && source.slice.numNonzero < numObservations",
+      "source.slice.numNonzero < numObservations",
+      c(kTests("test-sparse-factor.R", "test-data-sparse.R"), kCpp()),
+      "sparse ingestion: an ordered factor's reference folds into its level count; killed by test_data.cpp's undeclared CSC ordered factor (unreachable from R, which declares K or passes reference 0)"
+    ),
+    r3(
+      "m77",
+      "src/bartcore/data.hpp",
+      paste0(
+        "    return nzCodes[wordRanks[i >> 6] +\n",
+        "                   static_cast<size_t>(std::popcount(word & (bit - 1u)))];"
+      ),
+      paste0(
+        "    return nzCodes[wordRanks[i >> 6] +\n",
+        "                   static_cast<size_t>(std::popcount(word & ((bit << 1) - 1u)))];"
+      ),
+      c(kTests("test-data-sparse.R", "test-sparse-factor.R"), kCpp()),
+      "sparse rank storage: a row's nonzero rank counts its own bit"
+    ),
+    r3(
+      "m78",
+      "R/data.R",
+      "rows[x@i[missingEntries] + 1L] <- TRUE",
+      "rows[x@i[missingEntries]] <- TRUE",
+      kTests(
+        "test-na-action-sparse.R",
+        "test-sparse-factor-na.R",
+        "test-predict-na-action.R",
+        "test-na-action.R"
+      ),
+      "sparse missing rows: 0-based row index used as 1-based"
+    ),
+    r3(
+      "m79",
+      "R/data.R",
+      "rows <- rows | rowsWithMissingPredictors(x$sparse)",
+      "rows <- rowsWithMissingPredictors(x$sparse)",
+      kTests(
+        "test-na-action-sparse.R",
+        "test-sparse-factor-na.R",
+        "test-predict-na-action.R",
+        "test-na-action.R"
+      ),
+      "mixed container missing rows: dense-column NA rows dropped when a sparse block is present"
+    ),
+    r3(
+      "m81",
+      "R/utility.R",
+      "referenceTaken <- length(column@i) < column@length",
+      "referenceTaken <- length(column@i) <= column@length",
+      kTests(
+        "test-sparse-factor.R",
+        "test-sparse-factor-frames.R",
+        "test-predict-sparse.R",
+        "test-sparse-factor-na.R"
+      ),
+      "sparseFactor test remap: a fully stored column still demands its reference be a training level"
+    ),
+    r3(
+      "m82",
+      "src/R_interface_bartcore.cpp",
+      "y[i] != std::floor(y[i]) || y[i] < 1.0 ||",
+      "y[i] != std::floor(y[i]) || y[i] < 0.0 ||",
+      kTests("test-ordinal.R", "test-sampler-bridge-errors.R"),
+      "bridge: ordinal response category 0 accepted"
+    ),
+    r3(
+      "m83",
+      "src/R_interface_bartcore.cpp",
+      "if (!std::isfinite(y[i]) || y[i] < 0.0 || y[i] != std::floor(y[i]))",
+      "if (!std::isfinite(y[i]) || y[i] < 0.0)",
+      kTests("test-nbinom.R", "test-sampler-bridge-errors.R"),
+      "bridge: nbinom fractional counts accepted"
+    ),
+    r3(
+      "m84",
+      "src/R_interface_bartcore.cpp",
+      "if (active[i] != 0.0 && active[i] != 1.0)",
+      "if (active[i] != 0.0 && active[i] > 1.0)",
+      kTests("test-active-rows-pins.R", "test-sampler-bridge-errors.R"),
+      "bridge: fractional active-row mask accepted (the R method refuses first, so the killer calls the bridge directly)"
+    ),
+    r3(
+      "m85",
+      "src/R_interface_bartcore.cpp",
+      "      static_cast<size_t>(INTEGER(dimsExpr)[1]) != K)\n    Rf_error(\"%s: requires a real matrix",
+      "      static_cast<size_t>(INTEGER(dimsExpr)[0]) != K)\n    Rf_error(\"%s: requires a real matrix",
+      kTests(
+        "test-multinomial-category-offset.R",
+        "test-multinomial-test-offset.R"
+      ),
+      "bridge: category offset column count checked against the row dim"
+    ),
+    r3(
+      "m86",
+      "src/R_interface_bartcore.cpp",
+      paste0(
+        "  // capacity: a run short of capacity reports the draws it made\n",
+        "  size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;"
+      ),
+      paste0(
+        "  // capacity: a run short of capacity reports the draws it made\n",
+        "  size_t numSamples = capacity > 0 ? capacity : 1;"
+      ),
+      kTests(
+        "test-predict-forest.R",
+        "test-tree-store-order.R",
+        "test-bartcore-keepfits.R"
+      ),
+      "bridge predict: draw axis sized to capacity, not recorded draws"
+    ),
+    r3(
+      "m87",
+      "R/generics.R",
+      "probs <- c((1 - ci.level) / 2, 1 - (1 - ci.level) / 2)",
+      "probs <- c((1 - ci.level) / 2, 1 - (1 - ci.level))",
+      kTests("test-generics-intervals.R", "test-hurdle.R", "test-ordinal.R"),
+      "posteriorInterval: upper quantile loses the /2"
+    ),
+    r3(
+      "m88",
+      "R/generics.R",
+      "if (combine) as.vector(t(x)) else x",
+      "if (combine) as.vector(x) else x",
+      kTests(
+        "test-one-chain-dimension.R",
+        "test-nbinom.R",
+        "test-utility-chains.R",
+        "test-convergence-diagnostics.R"
+      ),
+      "reshapeScalarChannel: a split scalar channel combined sample-major"
+    ),
+    r3(
+      "m89",
+      "R/data.R",
+      "    codes <- as.integer(data@y) + 1L",
+      "    codes <- as.integer(data@y)",
+      kTests("test-ordinal.R"),
+      "ordinal R ingestion: 0-based factor codes handed to the engine (control: the bridge refuses)"
+    )
+  )
+)
 names(mutations) <- vapply(mutations, `[[`, character(1), "id")
 
 ## ---- shared plumbing --------------------------------------------------

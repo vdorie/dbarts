@@ -294,3 +294,35 @@ expect_error(
   sampler.codes$setCutPoints(list(c(0.5, 2.5)), 1L),
   pattern = "cannot set cut points for an ordered factor predictor"
 )
+
+# a test factor holding only some training levels, its own levels() that
+# subset, codes against the TRAINING level table: a label keeps the code it
+# has in training, not its position among the test set's own levels
+test.subset <- data.frame(
+  g = factor(c("green", "red", "red")),
+  o = factor(c("mid", "high", "high"), levels = c("mid", "high")),
+  z = c(0.2, 0.5, 0.8),
+  b = c(TRUE, FALSE, TRUE),
+  s = c("dog", "dog", "dog"),
+  stringsAsFactors = FALSE
+)
+data.subset <- dbartsData(
+  df[c("g", "o", "z", "b", "s")],
+  df$y,
+  test = test.subset
+)
+trainLevels <- attr(data.subset@x, "factor.levels")
+for (name in c("g", "o", "s")) {
+  expect_equal(
+    as.double(data.subset@x.test[, name]),
+    as.double(
+      match(
+        as.character(test.subset[[name]]),
+        trainLevels[[match(name, colnames(data.subset@x))]]
+      ) -
+        1L
+    ),
+    info = name
+  )
+}
+rm(test.subset, data.subset, trainLevels, name)

@@ -3164,6 +3164,56 @@ static void testMissingEndToEnd() {
   printf("ok: missing end to end\n");
 }
 
+// A rejected subset update puts the column's missingness flag back: a
+// replacement that brings a missing value into a complete column AND empties a
+// leaf is rolled back, leaving the flags as an untouched twin's. An accepted
+// one of the same kind, without the emptying, raises the flag. Own rng;
+// restores the runif01 stream.
+static void testSubsetRollbackMissingness() {
+  std::uint64_t savedRngState = rngState;
+  const size_t n = 200;
+  std::vector<double> x(n * 2), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    y[i] = (x[i] > 0.5 ? 2.0 : 0.0) + 0.1 * (runif01() - 0.5);
+  }
+  SamplerOptions options;
+  options.numTrees = 10;
+  options.numChains = 1;
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 74);
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+  Results none;
+  sampler.run(100, 0, none);
+  check(sampler.data().hasMissing[0] == 0,
+        "subset rollback: the column starts complete");
+
+  // a constant column empties every leaf a split on it bounds; one cell missing
+  std::vector<double> column(n, 0.5);
+  column[3] = std::nan("");
+  const size_t which = 0;
+  check(sampler.updatePredictor(column.data(), &which, 1, false, false) ==
+          PredictorUpdateResult::rolledBack,
+        "subset rollback: an emptying update with a missing cell is refused");
+  check(sampler.data().hasMissing[0] == 0,
+        "subset rollback: the refused update leaves the column complete");
+
+  // the same missing cell without the emptying is kept and flagged
+  std::vector<double> kept(x.begin(), x.begin() + n);
+  kept[3] = std::nan("");
+  check(sampler.updatePredictor(kept.data(), &which, 1, false, false) ==
+            PredictorUpdateResult::accepted &&
+          sampler.data().hasMissing[0] != 0,
+        "subset rollback: an accepted missing cell flags the column");
+
+  ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: subset rollback missingness\n");
+}
+
 // BCF two-forest sampler: creation, a short run moving both forests, sane
 // glue (finite, b0 != b1), setTreatment refresh. Statistical validation is
 // benchmarks/R/bcf-exact.R; this is sanity only.
@@ -7860,6 +7910,7 @@ void runSamplerTests(ext_rng* rng) {
   testFrozenForest();
   testLevelGibbsAutomatic();
   testMissingEndToEnd();
+  testSubsetRollbackMissingness();
   testLogLikelihood();
   testForestCalibration();
   testForestMapWriters();
