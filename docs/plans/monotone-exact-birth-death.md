@@ -1323,7 +1323,8 @@ study (7178b075, 922035df, 95eb4113). Both 20-tree SBC arms pass every functiona
 0.075 "leaf", 0.082 "joint", band 0.137). Lint chain clean; the equivalence file reproduces 55/55 bitwise
 on the reference build. Step 12's docs wait for the maintainer's default ruling.
 
-SBC admission, 2026-10-01: both 20-tree arms joined sbc.yaml's matrix (R 200, L 150, thin 100, 300 minute timeout), the Bonferroni total now 77.
+SBC admission, 2026-10-01: both 20-tree arms joined sbc.yaml's matrix (R 200, L 150, thin 100, 300 minute timeout), the Bonferroni total now 77. After the engine fix (8e7a3d19) the arms ran in
+12.6 and 8.2 minutes on CI, so the timeouts dropped to 40 ("leaf") and 25 ("joint").
 
 
 Stage 6 docs, 2026-10-01: the default flipped to "joint" (d701d0af), the help and NEWS for both priors

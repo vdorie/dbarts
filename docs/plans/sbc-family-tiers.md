@@ -390,8 +390,9 @@ functionals past ACF 0.1 at lag ~200 ("leaf") and ~140 ("joint"), so the arms
 run at 12000 burn sweeps, thin 100, L 150, R 200. Pass: rankUniformity's ecdf
 band at 0.05 / (57 + 20), both arms in the matrix, band 0.137 at R 200.
 They are in sbcMatrixConfigs, so sbcMatrixFunctionals is 77 and every matrix
-arm's band is read at that width. The workflow gives each a 300 minute timeout
-(about 103 minutes of CPU at R 200).
+arm's band is read at that width. After the engine's monotone fix the arms run
+in 12.6 ("leaf") and 8.2 ("joint") minutes on a GitHub runner; the workflow gives
+them 40 and 25 minute timeouts.
 
     Rscript benchmarks/R/sbc.R burn-monotone-leaf  40000 3
     Rscript benchmarks/R/sbc.R burn-monotone-joint 40000 3

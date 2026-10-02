@@ -26,8 +26,9 @@
 #
 # Timeouts are ~3x the measured single-thread wall-clock on the maintainer's
 # laptop (ordinal 6.6 min, nbinom 8.5 min, t 2.6 min, multinomial 7.3 min,
-# aft 79 s, hetero 2.2 min, hetero-aft 4.4 min and each monotone arm ~103 min
-# (31 s per replicate) at R=200; gaussian 5 min at R=100). nbinom is the
+# aft 79 s, hetero 2.2 min, hetero-aft 4.4 min at R=200; gaussian 5 min at
+# R=100); the monotone arms' are ~3x their GitHub runner job time (leaf 12.6
+# min, joint 8.2 min at R=200). nbinom is the
 # expensive arm: its Polya-Gamma draw loops sum(y_i + r) times per sweep. aft and the two heteroscedastic arms take the gaussian row's
 # 15 minutes rather than their own 3x: under a quarter hour the job's floor is
 # the dependency install and the package build, not the arm.
@@ -138,18 +139,17 @@ jobs:
             timeout: 15
           # the two 20-tree monotone arms, one per prior. 12000 burn sweeps
           # (sbcBurnSweeps) and thin 100 clear the ladder's slowest functional
-          # (ACF 0.1 at lag ~200 under "leaf", ~140 under "joint"); about
-          # 31 s per replicate, so ~103 min at R=200 and a 300 min timeout.
+          # (ACF 0.1 at lag ~200 under "leaf", ~140 under "joint").
           - config: monotone-leaf
             reps: 200
             samples: 150
             thin: 100
-            timeout: 300
+            timeout: 40
           - config: monotone-joint
             reps: 200
             samples: 150
             thin: 100
-            timeout: 300
+            timeout: 25
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
