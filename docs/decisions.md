@@ -1390,6 +1390,10 @@ Record: docs/plans/state-not-model.md. Marked: blank. [dec-B197]
 extract(type = "sigma") returns 1 on a fit whose family has no residual scale to estimate - probit, logistic, hazard, ordinal, negative-binomial and multinomial - as stats::sigma does on a binomial or Poisson glm, lme4's on a binomial glmer and mgcv's on a binomial gam, each run to check, and rstanarm's by its source. Until now a probit fit refused with "a probit fit has no residual scale parameter" and some of the others did not take the type. The alternatives were keeping the refusal, which the plan's author recommended, and returning 1 only where a latent normal error with that sd exists, refusing on the rest. On a count or multinomial fit the 1 is not a residual sd in any units. The maintainer on 2026-10-02: "That's fine, you can return 1. It's a bit silly, since sigma isn't defined in that case, but if that's whatever else does then we can go with it." See also: [dec-B194].
 Record: this register; TODO, fit-stores-k. Marked: blank. [dec-B198]
 
+**summary names a fixed parameter under its table**
+summary's table holds only the parameters a fit sampled, and a line under it names each one the fit held fixed with its value, as summary.glm's "(Dispersion parameter for binomial family taken to be 1)" and survreg's "Scale fixed at 1" do. Until now a fixed sigma or negative-binomial shape was a row repeating one number, with sd 0 and NA for R-hat and the effective sample sizes, while a fixed k and a fixed Student-t df had no row at all. The alternatives were leaving fixed parameters out, and giving every one a row with NA diagnostics, as posterior and coda do with a constant. Code that expects a sigma row on every gaussian fit must now check for it. The maintainer on 2026-10-02, offered the three: "Option 1." Which leaf-scale quantity the line names is not ruled. See also: [dec-B194], [dec-B198].
+Record: this register; TODO, fit-stores-k. Marked: blank. [dec-B199]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
