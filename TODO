@@ -154,6 +154,11 @@ items
     disagreeing chains (docs/decisions.md dec-B191, VD 2026-10-02).
     After nbinom-dispersion-name. Plan:
     docs/plans/setstate-mixed-chains.md.
+  fit-stores-k: a bart fit with a drawn leaf scale carries k and first.k
+    under every naming, with the anchor, and extract(type = "sd")
+    converts; sd and first.sd leave the fit (docs/decisions.md dec-B192,
+    VD 2026-10-02). R only: the fit's packaging, extract, summary, plot,
+    the manual and the tests. After setstate-mixed-chains. No plan yet.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
