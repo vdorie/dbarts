@@ -1,8 +1,9 @@
 # setstate-mixed-chains: setState refuses chains saved under different leaf priors
 
-Status: ON HOLD. Planned 2026-10-02 under dec-B191 in [decisions.md](../decisions.md) and overtaken the same day:
-under dec-B195 a state carries no leaf spread or anchor, and the check that remains, on the response scale and
-shift, would refuse stan4bart's multi-chain fits that keep their trees. Do not implement as written.
+Status: WITHDRAWN 2026-10-02, never implemented. Planned that day under dec-B191 in
+[decisions.md](../decisions.md): under dec-B195 a state carries no leaf spread or anchor, the check that remained,
+on the response scale and shift, would have refused stan4bart's multi-chain fits that keep their trees, and the
+maintainer withdrew the refusal. What follows is the plan as written.
 
 agent: opus implementer, one; opus reviewer.
 rng: NEUTRAL. A state that installed and ran correctly before installs and runs bitwise as before; only a state

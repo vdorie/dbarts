@@ -99,8 +99,8 @@ Open:
   [`getPointer`](../../R/dbarts.R).
 - The undo of a failed warm start keeps working: what it snapshots and puts back must still return the
   recipient to where it was. With no model value installed, there is none to put back.
-- The reader's NA for chains that disagree on the response scale, shift and prior mean stays: stan4bart's
-  restored samplers are such chains. dec-B191's check is not built here.
+- No install is refused because its chains carry different response transforms: stan4bart's restored samplers
+  are such chains, and dec-B191's refusal is withdrawn. What the reader reports for them follows Decision 3.
 - The transform, the cut grid, the leaf standardization and a heuristic lengthscale install as today.
 - No new entry or field in the shipped header; no change to either state-format constant.
 - Out of scope: a family check in the state validity test (a gaussian state installs into a probit sampler

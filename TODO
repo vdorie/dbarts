@@ -148,15 +148,6 @@ items
     list, and a new sampler reader, getK, returns each chain's current k
     as run records it (docs/decisions.md dec-B141, VD 2026-09-29).
     bartCause's bcf changes in lockstep.
-  setstate-mixed-chains: setState was to refuse a state whose chains
-    disagree on a forest's leaf spread or anchor or on the response
-    scale and shift (docs/decisions.md dec-B191, VD 2026-10-02). ON
-    HOLD, not to be implemented as planned: under state-not-model a
-    state carries no spread or anchor, and the remaining check would
-    refuse stan4bart's multi-chain keepTrees fits, whose restored state
-    holds one chain from each per-chain sampler, each under its own
-    response transform. Back to VD with that use. Plan:
-    docs/plans/setstate-mixed-chains.md.
   state-not-model: a saved state holds the chain and not the model (VD
     2026-10-02, docs/decisions.md dec-B195 to dec-B197). The leaf scale
     and a fixed-variance forest's amplitude prior variance leave the
