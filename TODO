@@ -157,8 +157,11 @@ items
   fit-stores-k: a bart fit with a drawn leaf scale carries k and first.k
     under every naming, with the anchor, and extract(type = "sd")
     converts; sd and first.sd leave the fit (docs/decisions.md dec-B192,
-    VD 2026-10-02). R only: the fit's packaging, extract, summary, plot,
-    the manual and the tests. After setstate-mixed-chains. No plan yet.
+    VD 2026-10-02). extract returns both the leaf prior's sd, in the
+    units the forest fits, and the raw k on every fit, a fixed leaf scale
+    included (dec-B193). Open with VD: the extract type's name in place
+    of "sd". R only: the fit's packaging, extract, summary, plot, the
+    manual and the tests. After setstate-mixed-chains. No plan yet.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
