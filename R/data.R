@@ -1519,8 +1519,12 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
 ## it cannot be evaluated there, which leaves the caller its plain argument.
 findTermInFormulaData <- function(formula, data, term) {
   expr <- substitute(term)
-  if (!is.language(expr)) {
+  if (is.numeric(expr)) {
     return(term)
+  }
+  # any other constant is model.frame's to judge
+  if (!is.language(expr)) {
+    return(NULL)
   }
   enclos <- environment(formula)
   value <- tryCatch(
