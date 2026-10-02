@@ -15,6 +15,99 @@
 ## what control@binary, the weight policy, and the resid.prior override below
 ## all key off. Shared so no entry point's own family gate can drift from
 ## this one.
+## The discrete-time hazard tokens, each remapped to its binary link before
+## the engine sees it.
+hazardFamilyTokens <- c("hazard", "hazard.probit", "hazard.logistic")
+
+## Refuses a response a binary family cannot fit, saying what is wrong with
+## it: a 0/1 response with one class, or one not coded 0/1. A hazard fit
+## ('hazard', the token the caller gave) is a binary fit on person-period rows
+## the caller never wrote, so its refusal speaks of subjects and events.
+refuseNonBinaryResponse <- function(uniqueResponses, family, hazard = NULL) {
+  singleClass <- length(uniqueResponses) == 1L &&
+    uniqueResponses %in% c(0, 1)
+  if (!is.null(hazard) && singleClass) {
+    stop(
+      "family \"",
+      hazard,
+      "\" needs ",
+      if (uniqueResponses == 0) {
+        "an event; every subject is censored"
+      } else {
+        paste0(
+          "a period at risk without an event; every subject has its event ",
+          "in the first period"
+        )
+      },
+      call. = FALSE
+    )
+  }
+  if (singleClass) {
+    stop(
+      "family \"",
+      family,
+      "\" requires a response with both classes; the response has a single ",
+      "class",
+      call. = FALSE
+    )
+  }
+  stop(
+    "family \"",
+    family,
+    "\" requires a response coded 0/1",
+    if (family == "logistic") {
+      " (family = binomial is the logit link, a logistic fit)"
+    },
+    call. = FALSE
+  )
+}
+
+## Whether a coded response holds one class of a binary one: every value 0,
+## or every value 1, whatever encoding (numeric, logical, factor, character)
+## it was coded from.
+responseHasSingleClass <- function(y) {
+  values <- unique(y[!is.na(y)])
+  length(values) == 1L && values %in% c(0, 1)
+}
+
+## A single-class response that a binary family will refuse: an explicit
+## binary family, or "auto" on a categorical encoding, which resolves to one.
+refusesSingleClass <- function(data, family) {
+  responseHasSingleClass(data@y) &&
+    (family %in%
+      c("probit", "logistic", hazardFamilyTokens) ||
+      (identical(family, "auto") && data@response.type != "numeric"))
+}
+
+## dbartsData warns of a response whose values are indistinguishable at
+## double precision before any family is known, and a constant response is
+## one. Where that response is a single class a binary family refuses, the
+## refusal names the actual problem, so the warning, whose remedy is to
+## rescale, is held back there and raised everywhere else. A formula hazard
+## fit's response at this point is the log time standing in for the binary
+## rows it expands to, which the warning does not describe, so it is held back
+## there too.
+withBinaryResponsePrecision <- function(family, expr) {
+  held <- NULL
+  data <- withCallingHandlers(
+    expr,
+    warning = function(w) {
+      if (startsWith(conditionMessage(w), responsePrecisionWarningStem)) {
+        held <<- w
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+  if (
+    !is.null(held) &&
+      family %not_in% hazardFamilyTokens &&
+      !(is(data, "dbartsData") && refusesSingleClass(data, family))
+  ) {
+    warning(held)
+  }
+  data
+}
+
 isBinaryFamily <- function(family) {
   family %in% c("probit", "logistic")
 }
@@ -90,6 +183,20 @@ nonFinitePredictorNames <- function(x) {
 ## to, NULL where they resolved to none: the weights slot is cleared in both
 ## the all-ones and the mask case, since neither family carries a weight
 ## channel, so the caller must install the mask on the sampler it builds.
+## A logistic fit's weights are observation counts, and the weights of a
+## binary fit's posterior predictive draw at new rows are its trial counts;
+## either way, positive integers. 'what' names whose weights they are.
+refuseNonCountWeights <- function(
+  w,
+  remedy = "",
+  what = "logistic weights are observation counts"
+) {
+  if (anyNA(w) || any(w <= 0) || any(w != round(w))) {
+    stop(what, " and must be positive integers", remedy, call. = FALSE)
+  }
+  invisible(NULL)
+}
+
 enforceWeightPolicy <- function(data, family) {
   if (is.null(data@weights)) {
     return(list(data = data, active = NULL))
@@ -125,14 +232,10 @@ enforceWeightPolicy <- function(data, family) {
       )
     }
   } else if (family == "logistic") {
-    w <- data@weights
-    if (anyNA(w) || any(w <= 0) || any(w != round(w))) {
-      stop(
-        "logistic weights are observation counts and must be positive ",
-        "integers; drop zero-count rows, and use a gaussian model for ",
-        "continuous weights"
-      )
-    }
+    refuseNonCountWeights(
+      data@weights,
+      "; drop zero-count rows, and use a gaussian model for continuous weights"
+    )
   } else if (family == "multinomial") {
     if (all(data@weights == 1)) {
       data@weights <- NULL
@@ -275,15 +378,21 @@ resolveSamplerSpec <- function(
     } else if (family != "gaussian" && family != "aft" && !responseIsBinary) {
       # gaussian on a 0/1 response is a legitimate request; the binary
       # families need latent-variable coding. aft fits continuous log-times.
-      stop(
-        "family \"",
+      refuseNonBinaryResponse(
+        uniqueResponses,
         family,
-        "\" requires a response coded 0/1",
-        if (family == "logistic") {
-          " (family = binomial is the logit link, a logistic fit)"
-        }
+        if (!is.null(hazardPeriods)) requestedFamily
       )
     }
+  }
+  # a factor, logical or character response of one class codes to a single
+  # 0/1 value, which the numeric check above never sees
+  if (isBinaryFamily(family) && responseHasSingleClass(data@y)) {
+    refuseNonBinaryResponse(
+      unique(data@y[!is.na(data@y)]),
+      family,
+      if (!is.null(hazardPeriods)) requestedFamily
+    )
   }
   # aft draws sigma and rescales like gaussian; only the binary families are
   # latent-variable models on a fixed unit scale
@@ -607,10 +716,11 @@ resolveSamplerSpec <- function(
   )
   if (!is.null(varianceColumns)) {
     if (!family %in% c("gaussian", "aft")) {
+      # a hazard fit is a binary fit underneath; the caller named the hazard
       stop(
         "a variance forest requires family = \"gaussian\" or \"aft\"; ",
         "family \"",
-        family,
+        if (!is.null(hazardPeriods)) requestedFamily else family,
         "\" routes precision through its own latent channel instead"
       )
     }

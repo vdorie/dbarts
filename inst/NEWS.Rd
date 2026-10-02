@@ -243,8 +243,6 @@
             given an \code{offset} for the new rows.
             0.9-34 predicted without the fit's offset. The default
             \code{offset.test} is formed the same way on \code{test}.
-            Ordinal fits, and \code{survivalProbabilities} on hazard fits,
-            refuse new rows when the fit has an offset.
       \item An \code{offset()} term in a formula is used, as in \code{lm}:
             it is added to any \code{offset} argument at fit time and
             evaluated on \code{test} and on \code{predict}'s
@@ -475,6 +473,16 @@
       \item Prior arguments no longer see internal variables named
             \code{control} and \code{data}, which had shadowed the caller's
             own (as in \code{tree.prior = cgm(2, 0.95, data)}).
+      \item An \code{offset.test} expression is evaluated in \code{test},
+            then in \code{data}, each with the formula's environment, as
+            \code{model.frame} evaluates its arguments, and failing that in
+            the caller's frame; without a formula, in the caller's frame. A
+            formula fit's \code{test} and \code{weights} are evaluated in
+            \code{data} with the formula's environment, and otherwise taken
+            as given. They had seen internal variables such as \code{x}, and
+            then the global environment ahead of the caller's own objects, so
+            \code{offset.test = d$o} inside a function could read a global
+            \code{d}.
       \item \code{xbart}'s weighted RMSE loss is on the scale of the
             response, and \code{loss = "log"} on a continuous response is an
             error rather than silently computing RMSE.

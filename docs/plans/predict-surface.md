@@ -788,3 +788,12 @@ bairrtt unaffected (zero hits, re-verified by the critique). Residue: [docs/desi
 [docs/design/model-space-survey.md:429](https://github.com/vdorie/dbarts/blob/78f334c164290f4d7e788df0046cf47460ba48f2/docs/design/model-space-survey.md#L429) was stale before the slice (frozen exempt). The two settled-sub-choice doors that remain open:
 extract gains no "class" (a reduction over draws, not a channel) and fitted gains no "forest" (the last-margin reduction would
 average over forests, not observations).
+
+## Note (2026-10-01): ordinal predict has an offset channel
+
+The record above, and dec-A114 in docs/decisions.md, rest on ordinal fits having no
+out-of-sample offset. That premise no longer holds: an ordinal fit takes `offset` and
+`offset.test`, and under dec-B154 and dec-B184 (implemented for ordinal per dec-A137)
+[`predict.bartOrdinal`](../../R/generics.R) evaluates the fit's `offset()` terms and `offset`
+argument on `newdata` and adds an `offset` given to it, the latent being f + o as for probit.
+Only the hurdle fit keeps the refusing formal described above.

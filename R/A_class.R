@@ -249,6 +249,10 @@ methods::setValidity("dbartsFamily", function(object) {
   if (is.null(names(object@settings)) && length(object@settings) > 0L) {
     return("'settings' must be named")
   }
+  refused <- familyRefusedSettings(object@token, names(object@settings))
+  if (length(refused) > 0L) {
+    return(refused)
+  }
   TRUE
 })
 

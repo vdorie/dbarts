@@ -49,9 +49,16 @@ expect_error(
   bart(x, y - 10, family = "hurdle.lognormal"),
   "non-negative"
 )
+# a missing response is the na.action's, as on any other fit
 expect_error(
-  bart(x, c(NA_real_, y[-1L]), family = "hurdle.lognormal"),
-  "non-negative"
+  bart(
+    x,
+    c(NA_real_, y[-1L]),
+    family = "hurdle.lognormal",
+    na.action = na.fail
+  ),
+  "missing values in object",
+  fixed = TRUE
 )
 expect_error(
   bart(x, rep(0, n), family = "hurdle.lognormal"),

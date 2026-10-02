@@ -249,8 +249,13 @@ loglik <- extract(fit, type = "loglik")
 expect_true(all(loglik[, emptyRows] == 0))
 expect_true(all(is.finite(loglik[, dataRows])))
 expect_true(all(loglik[, dataRows] < 0))
+# a count-row fit's rows draw count vectors of their own trials, all zeros
+# where there is none
 ppd <- extract(fit, type = "ppd")
-expect_true(all(ppd %in% seq_len(K)))
+expect_identical(dim(ppd), dim(extract(fit, type = "ev")))
+expect_true(is.integer(ppd))
+expect_true(all(apply(ppd, 1L, rowSums) == rowSums(countsEmpty)))
+expect_true(all(ppd[, emptyRows, ] == 0L))
 expect_silent(summary(fit))
 # the single-trial panel, whose observed category an empty row does not have
 oneHot <- matrix(0L, n, K)

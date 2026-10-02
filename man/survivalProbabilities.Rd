@@ -26,6 +26,7 @@ survivalProbabilities(object, ...)
   object,
   times,
   newdata = NULL,
+  offset = NULL,
   combineChains = TRUE,
   na.action = dbarts::na.keepPredictors,
   ...
@@ -62,6 +63,14 @@ survivalProbabilities(object, ...)
     \code{test} set (below), whose stored draws are read instead; otherwise
     \code{object} must have been fit with \code{keepTrees = TRUE}.
   }
+  \item{offset}{
+    The offset at the subjects of \code{newdata}, as \code{\link[=predict.bart]{predict}}
+    takes it: a single value or one per row of \code{newdata}, added to the
+    fit's \code{offset()} terms and \code{offset} argument evaluated on
+    \code{newdata} (see \code{offset} in \code{\link{bart}}). For a hazard fit
+    a subject's offset applies at every period. Without \code{newdata} the
+    training subjects take the fit's own offset and this argument is refused.
+  }
   \item{combineChains}{
     A logical determining whether the chain dimension is collapsed into the
     draw dimension, as elsewhere in the package.
@@ -74,7 +83,7 @@ survivalProbabilities(object, ...)
   }
   \item{...}{
     Not a formal on the method: a name belonging to a sibling generic
-    (\code{type}, \code{sample}, \code{ci.level}, \code{offset},
+    (\code{type}, \code{sample}, \code{ci.level},
     \code{weights}, \code{n.threads}, \code{forest}, \code{contribution},
     \code{bases}) is refused by name rather than silently ignored, since this
     method returns the draws of \eqn{S(t \mid x)} at \code{times} alone.
@@ -86,7 +95,8 @@ survivalProbabilities(object, ...)
   \deqn{S(t \mid x) = 1 - \Phi\left(\frac{\log t - f(x)}{\sigma}\right),}
   where \eqn{f(x)} is the linear predictor \eqn{E[\log T \mid x]} - the
   log-time-scale quantity that \code{\link[=predict.bart]{predict}} and
-  \code{\link[=extract.bart]{extract}} return for an \code{"aft"} fit - and
+  \code{\link[=extract.bart]{extract}} return for an \code{"aft"} fit, the
+  offset included - and
   \eqn{\sigma} the residual standard deviation. The probability is evaluated
   at every posterior draw of \eqn{f(x)} and \eqn{\sigma}, following the
   package's convention that draw-level functions return draws: take means or
@@ -96,7 +106,9 @@ survivalProbabilities(object, ...)
   product
   \deqn{S(t \mid x) = \prod_{k \,:\, \mathrm{periods}[k] \le t} (1 - h(k \mid x)),}
   where \eqn{h(k \mid x) = g(f(x, k) + o)} is the per-period hazard through the
-  fit's binary link \eqn{g}. Because the training design is ragged (each
+  fit's binary link \eqn{g} and \eqn{o} the subject's offset: the fit's own on
+  the training subjects, and on \code{newdata} the one formed from
+  \code{offset} as above. Because the training design is ragged (each
   subject carries only its at-risk rows), the method ALWAYS re-expands its
   subjects onto the full grid and replays the trees - so it requires
   \code{keepTrees = TRUE} even for the training data (\code{newdata = NULL}).

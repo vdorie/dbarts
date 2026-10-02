@@ -577,3 +577,119 @@ for (family in c("aft", "hazard")) {
   )
 }
 rm(d.cbind, family)
+
+# ---- an offset fit's curves carry its offset: the training rows read the
+# stored channel, which carries it, and newdata the fit's offset re-evaluated
+# there or the one given for it
+set.seed(41L)
+o.aft <- rep(c(-1, 1), n / 2L)
+status.aft <- rbinom(n, 1L, 0.7)
+fit.aftOff <- bart(
+  x,
+  cbind(exp(log.t + o.aft), status.aft),
+  family = "aft",
+  offset = o.aft,
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 20L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+sp.aftOff <- survivalProbabilities(fit.aftOff, c(0.5, 1))
+expect_equal(
+  survivalProbabilities(fit.aftOff, c(0.5, 1), newdata = x),
+  sp.aftOff,
+  tolerance = 1e-12
+)
+expect_equal(
+  unname(survivalProbabilities(
+    fit.aftOff,
+    c(0.5, 1),
+    newdata = x[1:3, ],
+    offset = o.aft[1:3]
+  )),
+  unname(sp.aftOff[,, 1:3]),
+  tolerance = 1e-12
+)
+expect_error(
+  survivalProbabilities(fit.aftOff, 1, newdata = x[1:3, ]),
+  "give survivalProbabilities an 'offset' for them",
+  fixed = TRUE
+)
+# a non-numeric offset is refused by name, not coerced: FALSE given where
+# combineChains was before offset took its place is not an offset of 0
+expect_error(
+  survivalProbabilities(fit.aftOff, 1, x[1:3, ], FALSE),
+  "'offset' must be numeric",
+  fixed = TRUE
+)
+expect_error(
+  predict(fit.aftOff, x[1:3, ], offset = TRUE),
+  "'offset' must be numeric",
+  fixed = TRUE
+)
+rm(o.aft, status.aft, fit.aftOff, sp.aftOff)
+
+# ---- a missing time or status is a missing response, as in survreg: the
+# na.action drops the row (the fit equals one on the complete rows) or fails
+set.seed(43L)
+time.na <- exp(log.t)
+status.na <- rbinom(n, 1L, 0.7)
+time.na[3L] <- NA
+status.na[5L] <- NA
+complete.na <- !is.na(time.na) & !is.na(status.na)
+naArgs <- list(
+  family = "aft",
+  n.trees = 5L,
+  n.burn = 5L,
+  n.samples = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 5L
+)
+fit.naOmit <- do.call(
+  bart,
+  c(list(x, cbind(time.na, status.na), na.action = na.omit), naArgs)
+)
+fit.complete <- do.call(
+  bart,
+  c(list(x[complete.na, ], cbind(time.na, status.na)[complete.na, ]), naArgs)
+)
+expect_identical(
+  unname(fit.naOmit$yhat.train),
+  unname(fit.complete$yhat.train)
+)
+expect_identical(as.vector(unclass(fit.naOmit$na.action)), c(3L, 5L))
+expect_error(
+  do.call(
+    bart,
+    c(list(x, cbind(time.na, status.na), na.action = na.fail), naArgs)
+  ),
+  "missing values in object",
+  fixed = TRUE
+)
+d.na <- data.frame(x, time = time.na, status = status.na)
+fit.naFormula <- do.call(
+  bart,
+  c(
+    list(survival::Surv(time, status) ~ ., data = d.na, na.action = na.omit),
+    naArgs
+  )
+)
+expect_identical(
+  unname(fit.naFormula$yhat.train),
+  unname(fit.complete$yhat.train)
+)
+rm(
+  time.na,
+  status.na,
+  complete.na,
+  naArgs,
+  fit.naOmit,
+  fit.complete,
+  d.na,
+  fit.naFormula
+)

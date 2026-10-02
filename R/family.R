@@ -552,10 +552,10 @@ formatResidPrior <- function(prior) {
 ## The residual prior a door resolved from a retired flat spelling, stamped
 ## onto the family object that door forwards: the prior has one home, so a
 ## door that still reads an old spelling has to put it there. NULL leaves
-## the family untouched. A family with no free residual scale carries the
-## setting inertly - the fixed-unit-scale rule overwrites it downstream.
+## the family untouched, as does a family with no free residual scale, whose
+## constructor takes no 'sigma'.
 withResidPrior <- function(family, residPrior) {
-  if (!is.null(residPrior)) {
+  if (!is.null(residPrior) && familyTakesSetting(family@token, "sigma")) {
     family@settings$sigma <- residPrior
   }
   family
@@ -701,6 +701,12 @@ resolveFamily <- function(
     return(value)
   }
   refuseUnsupportedFamily(value@token, tokens, caller)
+  # a family object given whole is held to what its constructor takes, as one
+  # built by that constructor already is
+  refusedSettings <- familyRefusedSettings(value@token, names(value@settings))
+  if (!is.null(refusedSettings)) {
+    stop(refusedSettings, call. = FALSE)
+  }
   value
 }
 
@@ -812,6 +818,51 @@ familySetting <- function(family, name, default) {
   if (is.null(value)) default else value
 }
 
+## The settings a family token takes: its constructor's arguments, a link
+## being folded into the token itself; NULL for a token no constructor builds,
+## which an entry point refuses by name later. "auto" carries the residual
+## prior a door without a family of its own stamps on before the response
+## settles the family.
+familyTokenSettings <- function(token) {
+  if (identical(token, "auto")) {
+    return("sigma")
+  }
+  constructor <- dbartsFamilies[[sub("^hazard\\..*$", "hazard", token)]]
+  if (is.null(constructor)) {
+    return(NULL)
+  }
+  # a constructor with no arguments takes no setting at all, character(0)
+  # rather than the NULL that means unjudged
+  setdiff(as.character(names(formals(constructor))), c("link", "..."))
+}
+
+## Whether a family token takes a setting; a token outside the constructors is
+## not judged here.
+familyTakesSetting <- function(token, name) {
+  allowed <- familyTokenSettings(token)
+  is.null(allowed) || name %in% allowed
+}
+
+## The validity message for settings a family token does not take, so a
+## family object built by hand, or read back from a fit that predates this
+## check, is refused by name rather than carried inertly; NULL when all fit.
+familyRefusedSettings <- function(token, names) {
+  extra <- names[!vapply(names, familyTakesSetting, logical(1L), token = token)]
+  if (length(extra) == 0L) {
+    return(NULL)
+  }
+  allowed <- familyTokenSettings(token)
+  paste0(
+    "family \"",
+    token,
+    "\" takes no setting ",
+    paste0("'", extra, "'", collapse = ", "),
+    if (length(allowed) > 0L) {
+      paste0("; it takes ", paste0("'", allowed, "'", collapse = ", "))
+    }
+  )
+}
+
 ## The family a fit was specified with once "auto" has resolved, with its
 ## settings: what family() on the fit returns, and whose token is the fit's
 ## $family. The engine family the link and likelihood follow, which a
@@ -825,5 +876,18 @@ specifiedFamily <- function(familySpec, resolved) {
   } else if (identical(token, "hazard")) {
     token <- "hazard.probit"
   }
-  newValidated("dbartsFamily", token = token, settings = familySpec@settings)
+  # a residual prior stamped on "auto" means nothing once it has resolved to
+  # a family with a fixed latent scale, whose constructor takes none
+  settings <- familySpec@settings
+  settings <- settings[vapply(
+    names(settings),
+    familyTakesSetting,
+    logical(1L),
+    token = token
+  )]
+  # an emptied list keeps no names, as a constructor's own empty one has none
+  if (length(settings) == 0L) {
+    settings <- list()
+  }
+  newValidated("dbartsFamily", token = token, settings = settings)
 }

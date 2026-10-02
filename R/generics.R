@@ -460,9 +460,9 @@ bartKeepTreesArgument <- function(object) {
   if (callName(object[["call"]]) == "bartBT") "keeptrees" else "keepTrees"
 }
 
-# An offset shifts the latent at rows the sampler never saw, and these two
-# families replay their trees with no offset channel at all, so either spelling
-# would be dropped rather than applied.
+# An offset shifts the latent at rows the sampler never saw, and a hurdle fit
+# replays its trees with no offset channel at all, so either spelling would be
+# dropped rather than applied.
 noPredictOffsetReason <- paste0(
   "this fit has no out-of-sample offset channel; predict replays the ",
   "offset-free surface"
@@ -473,9 +473,9 @@ predictNoOffsetUnusedArgs <- list(
 )
 
 # 'offset' occupies the same slot on all six predict methods so the argument
-# order is uniform in position and not merely in relative order; the two
-# families with no offset channel take it as a formal and refuse a non-NULL
-# value with the same wording it would carry out of '...'.
+# order is uniform in position and not merely in relative order; the family
+# with no offset channel takes it as a formal and refuses a non-NULL value with
+# the same wording it would carry out of '...'.
 refusePredictOffsetChannel <- function(offset, class) {
   if (!is.null(offset)) {
     refuseUnusedGenericArgs(
@@ -488,12 +488,27 @@ refusePredictOffsetChannel <- function(offset, class) {
   invisible(NULL)
 }
 
+# An offset is a number per row, or a matrix of them; a logical or character
+# value would be coerced silently into one (TRUE an offset of 1), so it is
+# refused by name. A missing scalar stays for the refusals that name it.
+refuseNonNumericOffset <- function(offset) {
+  if (
+    is.null(offset) ||
+      is.numeric(offset) ||
+      (is.logical(offset) && all(is.na(offset))) ||
+      (is.data.frame(offset) && all(vapply(offset, is.numeric, logical(1L))))
+  ) {
+    return(invisible(NULL))
+  }
+  stop("'offset' must be numeric", call. = FALSE)
+}
+
 # The offset predict applies at newdata, as predict.lm forms it: the fit's
 # 'offset' argument and offset() terms evaluated there, plus the caller's
 # 'offset'. An argument that cannot be evaluated there (a plain vector given
 # for the training rows) is refused unless the caller gives 'offset' for
 # these rows, which then stands in for it.
-predictTermOffset <- function(data, newdata, offset) {
+predictTermOffset <- function(data, newdata, offset, caller = "predict") {
   if (missing(newdata) || is.null(newdata)) {
     return(offset)
   }
@@ -504,7 +519,8 @@ predictTermOffset <- function(data, newdata, offset) {
         "the fit's 'offset' was given as ",
         describeOffsetArgument(attr(data, "offset.argument")),
         ", which cannot be evaluated on the rows of 'newdata'; give ",
-        "predict an 'offset' for them"
+        caller,
+        " an 'offset' for them"
       )
     }
     argument <- NULL
@@ -541,6 +557,7 @@ predict.bart <- function(
     )
   )
   warnUnusedDots(list(...), "predict", "bart")
+  refuseNonNumericOffset(offset)
   type <- validateType(type, eval(formals(predict.bart)$type))
   # above the type = "forest" and amplitude-blend returns below, so every arm's
   # value is checked rather than only the one that reaches the sampler here
@@ -646,6 +663,18 @@ predict.bart <- function(
   }
   offset <- subsetPredictInput(offset, rows, "offset")
   weights <- subsetPredictInput(weights, rows, "weights")
+  # a binary draw's weights at new rows are its trial counts, Binomial(w, p),
+  # under either link, as a logistic fit's own weights are
+  if (type == "ppd" && !is.null(weights) && fitIsBinary(object)) {
+    refuseNonCountWeights(
+      weights,
+      what = paste0(
+        "the posterior predictive 'weights' of a ",
+        fitEngineFamily(object),
+        " fit are trial counts"
+      )
+    )
+  }
 
   if (type == "forest") {
     return(padPredictedRows(
@@ -1681,6 +1710,12 @@ extract.bartMultinomial <- function(
   if (type == "ev") {
     return(probs)
   }
+  # a count-row fit's own rows draw what it modelled, a count vector of each
+  # row's trials; test rows have no trial count, so they draw one category
+  # per draw, as predict does
+  if (sample == "train" && !is.factor(object[["y"]])) {
+    return(multinomialCountPpdFromProbs(probs, rowSums(object[["y"]])))
+  }
   multinomialPpdFromProbs(probs)
 }
 
@@ -1737,6 +1772,35 @@ multinomialPpdFromProbs <- function(probs) {
   dim(flat) <- c(prod(d[-length(d)]), K)
   codes <- apply(flat, 1L, function(p) sample.int(K, 1L, prob = p))
   array(codes, d[-length(d)], dimnames(probs)[-length(d)])
+}
+
+# The count-row counterpart: a Multinomial(n_i, p) count vector per draw and
+# row, laid out as probs is (K trailing), a row of zero trials all zeros. Drawn
+# as rmultinom draws it, by sequential binomials - category k takes
+# Binomial(the trials left, p_k / the probability left) - but one category at
+# a time across every (draw, row) at once rather than one call per row.
+multinomialCountPpdFromProbs <- function(probs, trials) {
+  d <- dim(probs)
+  K <- d[length(d)]
+  nObs <- d[length(d) - 1L]
+  n.draws <- length(probs) %/% (nObs * K)
+  flat <- probs
+  dim(flat) <- c(n.draws * nObs, K)
+  remaining <- rep(as.integer(trials), each = n.draws)
+  probabilityLeft <- rowSums(flat)
+  counts <- matrix(0L, n.draws * nObs, K)
+  for (k in seq_len(K - 1L)) {
+    conditional <- ifelse(
+      probabilityLeft > 0,
+      pmin(1, flat[, k] / probabilityLeft),
+      0
+    )
+    counts[, k] <- stats::rbinom(length(remaining), remaining, conditional)
+    remaining <- remaining - counts[, k]
+    probabilityLeft <- pmax(0, probabilityLeft - flat[, k])
+  }
+  counts[, K] <- remaining
+  array(counts, d, dimnames(probs))
 }
 
 # The posterior-mean n x K probability matrix (colnames = levels(y)), or
@@ -1891,6 +1955,7 @@ predict.bartMultinomial <- function(
     )
   )
   warnUnusedDots(list(...), "predict", "bartMultinomial")
+  refuseNonNumericOffset(offset)
   refuseClassCiLevel(type, ci.level)
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     refuseWithoutTrees("predict")
@@ -2223,7 +2288,9 @@ residuals.bartOrdinal <- function(object, ...) {
 # Out-of-sample category probabilities by replaying the saved forest's trees to
 # the newdata latent, then differencing the cumulative probit at the STORED
 # per-draw thresholds. Requires a fit kept with
-# keepTrees. type = "bart" returns the replayed latent eta; type = "ppd" draws
+# keepTrees. The latent is f + o, as probit's: the fit's offset argument and
+# offset() terms evaluated on newdata plus the 'offset' given here.
+# type = "bart" returns the replayed latent eta; type = "ppd" draws
 # one category per posterior draw. Only ppd touches the RNG, so type = "ev" is
 # draw-neutral. The replay reads through $fit's own pointer: $fit is the
 # sampler whose engine actually ran, so getPointer() can re-create it from
@@ -2248,30 +2315,36 @@ predict.bartOrdinal <- function(
     "bartOrdinal",
     c(
       ordinalUnusedArgs,
-      predictNoOffsetUnusedArgs,
+      predictOffsetUnusedArgs,
       foreignArgsFor(predictForeignReasons, names(formals(predict.bartOrdinal)))
     )
   )
   warnUnusedDots(list(...), "predict", "bartOrdinal")
-  refusePredictOffsetChannel(offset, "bartOrdinal")
+  refuseNonNumericOffset(offset)
   refuseClassCiLevel(type, ci.level)
   if (is.null(object[["thresholds.raw"]])) {
     refuseWithoutTrees("predict")
   }
-  refuseNewRowOffset(object$fit$data, "predict on an ordinal fit")
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
-  rows <- preparePredictRows(newdata, object$fit$data@x, na.action)
+  offset <- predictTermOffset(object$fit$data, newdata, offset)
+  rows <- preparePredictRows(
+    newdata,
+    object$fit$data@x,
+    na.action,
+    list(offset = offset)
+  )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
     on.exit(restoreSeed(), add = TRUE)
   }
+  offset <- subsetPredictInput(offset, rows, "offset")
   rowNames <- rows$keptNames
   n.chains <- object$n.chains
-  # raw is n.new x n.samples (x n.chains): the replayed latent eta, the test
-  # channel's shape
-  raw <- predictCodedTest(object$fit, rows$x, NULL, n.threads)
+  # raw is n.new x n.samples (x n.chains): the replayed latent eta + o, the
+  # test channel's shape
+  raw <- predictCodedTest(object$fit, rows$x, offset, n.threads)
   if (type == "bart") {
     result <- nameObservationMargin(
       convertSamplesForCaller(raw, n.chains, combineChains),
@@ -2569,6 +2642,7 @@ predict.bartNegbin <- function(
     )
   )
   warnUnusedDots(list(...), "predict", "bartNegbin")
+  refuseNonNumericOffset(offset)
   if (is.null(object[["dispersion.raw"]])) {
     refuseWithoutTrees("predict")
   }
@@ -2914,12 +2988,11 @@ residualsForeignReasons <- list(
 )
 
 survivalProbabilitiesDrawsReason <- "survivalProbabilities returns the draws of S(t | x) at 'times'"
-survivalProbabilitiesOwnArgsReason <- "survivalProbabilities takes 'times' and 'newdata' alone"
+survivalProbabilitiesOwnArgsReason <- "survivalProbabilities takes 'times', 'newdata' and 'offset' alone"
 survivalProbabilitiesForeignReasons <- list(
   type = survivalProbabilitiesDrawsReason,
   sample = survivalProbabilitiesDrawsReason,
   ci.level = survivalProbabilitiesDrawsReason,
-  offset = survivalProbabilitiesOwnArgsReason,
   weights = survivalProbabilitiesOwnArgsReason,
   n.threads = survivalProbabilitiesOwnArgsReason,
   forest = survivalProbabilitiesOwnArgsReason,
@@ -2995,8 +3068,15 @@ combineHurdleChannel <- function(
 # A single-forest fit's draws at coded rows, uncombined, as
 # predict(type = "ev") and predict(type = "bart") report them: a hurdle
 # component's, or a discrete-time hazard fit's per-period hazards.
-codedRowDraws <- function(component, x, type, n.threads, rowNames) {
-  raw <- predictCodedTest(component$fit, x, NULL, n.threads)
+codedRowDraws <- function(
+  component,
+  x,
+  type,
+  n.threads,
+  rowNames,
+  offset = NULL
+) {
+  raw <- predictCodedTest(component$fit, x, offset, n.threads)
   if (is.list(raw)) {
     raw <- raw$mean
   }
@@ -3475,6 +3555,16 @@ ppdNoiseScale <- function(sigma, s, weights, n.obs, n.draws) {
   sd
 }
 
+# The posterior predictive noise at scale 'sd', laid out as ppdNoiseScale lays
+# it out: gaussian, or, given a student() fit's per-draw degrees of freedom
+# (chain-fastest, as sigma), t with each draw's own, sd * t_nu.
+ppdNoise <- function(n, sd, df = NULL) {
+  if (is.null(df)) {
+    return(rnorm(n, 0, sd))
+  }
+  sd * stats::rt(n, rep_len(as.vector(df), n))
+}
+
 # the number of draws the noise scale spans: one per sigma draw, or, on a
 # heteroscedastic fit, which carries no sigma, one per row of s(x)'s draws
 ppdNumDraws <- function(sigma, s, n.obs) {
@@ -3511,10 +3601,21 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
     sigma <- uncombineChains(as.vector(sigma), n.chains)
   }
 
-  # the noise added below is always gaussian (rnorm), which is wrong for
-  # student residuals, so the draw is refused rather than taken
+  # a student() fit's noise is t with each draw's own degrees of freedom,
+  # one scalar per draw as sigma is and paired with it the same way, as the
+  # pointwise log-likelihood pairs them
+  df <- NULL
   if (fitIsStudent(object)) {
-    stop("posterior predictive sampling does not support student residuals")
+    df <- object[["resid.df"]]
+    if (is.null(df)) {
+      stop(
+        "posterior predictive sampling needs the fit's per-draw residual ",
+        "degrees of freedom, which it does not store"
+      )
+    }
+    if (is.null(dim(df))) {
+      df <- uncombineChains(as.vector(df), n.chains)
+    }
   }
 
   if (is.null(weights)) {
@@ -3546,10 +3647,10 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
       n.draws <- ppdNumDraws(sigma, s, n.obs)
-      noise <- rnorm(
+      noise <- ppdNoise(
         n.obs * n.draws,
-        0,
-        ppdNoiseScale(sigma, s, NULL, n.obs, n.draws)
+        ppdNoiseScale(sigma, s, NULL, n.obs, n.draws),
+        df
       )
       if (n.chains > 1L && length(dim(ev)) < 3L) {
         noise <- combineChains(array(
@@ -3594,7 +3695,7 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
       n.obs <- dim(ev)[length(dim(ev))]
       n.draws <- ppdNumDraws(sigma, s, n.obs)
       sd <- ppdNoiseScale(sigma, s, weights, n.obs, n.draws)
-      noise <- rnorm(n.obs * n.draws, 0, sd)
+      noise <- ppdNoise(n.obs * n.draws, sd, df)
       if (n.chains > 1L && length(dim(ev)) < 3L) {
         noise <- combineChains(array(
           noise,

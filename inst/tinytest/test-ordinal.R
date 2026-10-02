@@ -492,11 +492,10 @@ expect_equal(
 )
 # 'offset' holds the fourth position on every predict method, so a positional
 # fourth argument is an offset here as it is on bart, rather than binding
-# 'combineChains'; this family has no offset channel and refuses it
-expect_error(
-  predict(fit, x.test, "ev", FALSE),
-  "'offset' is not used by predict on a bartOrdinal fit: this fit has no out-of-sample offset channel",
-  fixed = TRUE
+# 'combineChains'
+expect_equal(
+  predict(fit, x.test, "bart", 1),
+  predict(fit, x.test, "bart") + 1
 )
 expect_equal(
   dim(predict(fit2c, x.test, "ev", combineChains = FALSE)),
@@ -574,3 +573,40 @@ rm(
   fit2,
   mfrowK2
 )
+
+# --- an offset fit's predict carries the offset: the training rows replay the
+# fit's own offset and reproduce the stored probabilities, and new rows take
+# the offset given for them, as probit's predict does ---
+
+offOrd <- rep(c(-1, 1), n / 2L)
+fitOff <- bart(
+  x,
+  y,
+  family = "ordinal",
+  offset = offOrd,
+  n.samples = 20L,
+  n.burn = 10L,
+  n.trees = 5L,
+  n.chains = 2L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrees = TRUE
+)
+for (combine in c(TRUE, FALSE)) {
+  expect_equal(
+    predict(fitOff, x, combineChains = combine),
+    extract(fitOff, type = "ev", combineChains = combine),
+    tolerance = 1e-12
+  )
+}
+expect_equal(
+  unname(predict(fitOff, x[1:4, ], offset = offOrd[1:4])),
+  unname(extract(fitOff, type = "ev")[, 1:4, ]),
+  tolerance = 1e-12
+)
+expect_error(
+  predict(fitOff, x[1:4, ]),
+  "which cannot be evaluated on the rows of 'newdata'; give predict an 'offset'",
+  fixed = TRUE
+)
+rm(offOrd, fitOff, combine)

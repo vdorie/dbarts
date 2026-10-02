@@ -60,7 +60,8 @@
 \arguments{
   \item{object}{
     A family object, as one of the constructors below returns. Printing one
-    names the call that would build it.
+    names the call that would build it. A family object carrying a setting
+    its constructor does not take is refused by name.
   }
 }
 \format{

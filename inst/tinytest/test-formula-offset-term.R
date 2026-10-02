@@ -192,6 +192,63 @@ f.expr <- fitWith(
   offset.test = o / 2
 )
 expect_identical(f.expr$fit$data@offset.test, rep(50, 5L))
+# A name in the caller's offset.test expression resolves
+# where model.frame resolves one - in the data, then the formula's
+# environment, or the caller's frame without a formula - and never in this
+# package's own frames, whose locals ('x', 'data', 'offset') and namespace
+# lie on the evaluator's own enclosure chain. Each case runs inside a
+# function whose local takes a name those frames also bind, so the test
+# needs no change to the global environment, which a conflicting global
+# would otherwise be the way to show.
+shadowedFit <- function() {
+  x <- rep(7, 5L)
+  fitWith(
+    formula = y ~ a,
+    data = d,
+    offset = o,
+    test = te5[, c("a", "o")],
+    offset.test = o * 0 + x
+  )
+}
+expect_identical(shadowedFit()$fit$data@offset.test, rep(7, 5L))
+shadowedMatrixFit <- function() {
+  x <- rep(3, 5L)
+  bart(
+    as.matrix(d["a"]),
+    d$y,
+    test = as.matrix(te5["a"]),
+    offset = 1,
+    offset.test = x + 0,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    keepTrees = TRUE
+  )
+}
+expect_identical(shadowedMatrixFit()$fit$data@offset.test, rep(3, 5L))
+# the caller-frame fallback passes over a function for the value it masks:
+# a wrapper's local 't', given as offset.test beside a formula made outside
+# it, is the local and not base's t, which the formula's environment reaches
+# first
+formulaOutside <- y ~ a
+wrapperWithT <- function(formula) {
+  t <- rep(4, 5L)
+  fitWith(
+    formula = formula,
+    data = d,
+    offset = o,
+    test = te5[, c("a", "o")],
+    offset.test = t
+  )
+}
+expect_identical(
+  wrapperWithT(formulaOutside)$fit$data@offset.test,
+  rep(4, 5L)
+)
+rm(shadowedFit, shadowedMatrixFit, formulaOutside, wrapperWithT)
 expect_identical(
   fitWith(
     formula = y ~ a,
@@ -290,18 +347,46 @@ expect_error(
   pattern = "'offset' was given as 'd\\$o', which cannot be evaluated on the rows of 'test'"
 )
 
-# ---- reads at new rows with no offset channel yet refuse rather than drop it
+# ---- ordinal predict and survivalProbabilities evaluate the offset on new
+# rows as predict does
 
-d$yo <- factor(cut(d$a, 3L), ordered = TRUE)
-f.ordinal <- fitWith(formula = yo ~ a + offset(o), data = d)
-expect_error(
-  predict(f.ordinal, te),
-  pattern = "offset \\('offset\\(o\\)'\\) is not yet supported by predict on an ordinal fit"
+d$yo <- factor(cut(d$a + d$o / 10, 3L), ordered = TRUE)
+f.ordinal <- fitWith(formula = yo ~ a + offset(o / 10), data = d)
+# the training rows replay the fit's own offset
+expect_equal(
+  unname(predict(f.ordinal, d)),
+  unname(extract(f.ordinal, type = "ev")),
+  tolerance = 1e-12
+)
+# an offset given to predict adds to the term evaluated on newdata
+expect_equal(
+  predict(f.ordinal, te, offset = 1, type = "bart"),
+  predict(f.ordinal, transform(te, o = o + 10), type = "bart")
 )
 if (requireNamespace("survival", quietly = TRUE)) {
+  # a subject's offset() term is evaluated on newdata and applies at every
+  # period, so the training subjects come back as the fit's own curves
+  expect_equal(
+    unname(survivalProbabilities(f.haz.term, newdata = d)),
+    unname(survivalProbabilities(f.haz.term)),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    survivalProbabilities(f.haz.term, newdata = d[1:3, ], offset = 0.5),
+    survivalProbabilities(
+      f.haz.term,
+      newdata = transform(d[1:3, ], lo = lo + 0.5)
+    )
+  )
+  # the argument given as a training vector applies at as many rows only
+  expect_equal(
+    unname(survivalProbabilities(f.haz.arg, newdata = d)),
+    unname(survivalProbabilities(f.haz.arg)),
+    tolerance = 1e-12
+  )
   expect_error(
-    survivalProbabilities(f.haz.term, newdata = d[1:3, ]),
-    pattern = "offset \\('offset\\(lo\\)'\\) is not yet supported by survivalProbabilities"
+    survivalProbabilities(f.haz.arg, newdata = d[1:3, ]),
+    pattern = "give survivalProbabilities an 'offset' for them"
   )
 }
 

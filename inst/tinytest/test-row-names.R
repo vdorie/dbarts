@@ -443,7 +443,8 @@ if (requireNamespace("survival", quietly = TRUE)) {
   expect_identical(names(fitZFE$na.action), dropped)
   expect_identical(fitZFE$row.names.train, setdiff(allNames, dropped))
   expect_identical(names(fitted(fitZFE)), allNames)
-  # a subject with no time has no rows to pad
+  # a subject with no time keeps its first-period row, as the expansion gives
+  # every subject, so the record names that row and fitted() pads it
   hazardFrameMissing$time[4L] <- NA
   fitZFN <- quick(
     survival::Surv(time, status) ~ a + b,
@@ -451,8 +452,9 @@ if (requireNamespace("survival", quietly = TRUE)) {
     na.action = na.exclude,
     family = quote(hazard(breaks = c(0, 1, 2, 3)))
   )
-  expect_null(fitZFN$na.action)
+  expect_identical(names(fitZFN$na.action), dropped[1L])
   expect_identical(fitZFN$row.names.train, setdiff(allNames, dropped))
+  expect_identical(names(fitted(fitZFN)), setdiff(allNames, dropped[-1L]))
 }
 
 # --- the sampler's test setters keep the record in step with the rows ---

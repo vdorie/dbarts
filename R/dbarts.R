@@ -12,7 +12,8 @@ setMethod("initialize", "dbartsControl", function(.Object, ...) {
 # the value is not a survival response. Errors on a non-right Surv (with a
 # factor-status hint for "mright"), a non-two-column matrix, non-positive
 # times, or a status outside {0, 1}; a Surv-like object with no type attribute
-# is treated as right-censored. Shared by the aft ingestion (which logs the
+# is treated as right-censored. A missing time or status is a missing
+# response, left NA for the caller's na.action, as survreg and coxph take it. Shared by the aft ingestion (which logs the
 # time) and the discrete-time hazard expander (which keeps the raw time).
 parseSurvivalResponse <- function(value) {
   if (inherits(value, "Surv")) {
@@ -47,10 +48,11 @@ parseSurvivalResponse <- function(value) {
   } else {
     return(NULL)
   }
-  if (any(!is.finite(time)) || any(time <= 0.0)) {
+  observed <- !is.na(time)
+  if (any(!is.finite(time[observed])) || any(time[observed] <= 0.0)) {
     stop("survival times must be finite and positive")
   }
-  if (any(status != 0.0 & status != 1.0)) {
+  if (any(!is.na(status) & status != 0.0 & status != 1.0)) {
     stop("survival status must be 0 (censored) or 1 (event)")
   }
   list(time = time, status = status)
@@ -64,7 +66,10 @@ extractSurvivalResponse <- function(value) {
   if (is.null(survival)) {
     return(NULL)
   }
-  list(log.time = log(survival$time), status = survival$status)
+  # a row missing either part is a missing response
+  log.time <- log(survival$time)
+  log.time[is.na(survival$status)] <- NA_real_
+  list(log.time = log.time, status = survival$status)
 }
 
 # Discrete-time hazard ingestion: the RAW time and status, the AFT sibling
@@ -84,6 +89,8 @@ extractSurvivalTimes <- parseSurvivalResponse
 # k (its own interval's right edge). The grid comes from 'gridTime', the
 # subjects the fit keeps, and a later time is placed in the last period.
 resolveHazardGrid <- function(time, breaks, gridTime = time) {
+  # a subject with no time has no period, and no place in the grid
+  gridTime <- gridTime[!is.na(gridTime)]
   if (is.null(breaks)) {
     periods <- sort(unique(gridTime))
   } else {
@@ -105,7 +112,10 @@ resolveHazardGrid <- function(time, breaks, gridTime = time) {
       if (is.unsorted(breaks, strictly = TRUE)) {
         stop("'breaks' boundaries must be strictly increasing")
       }
-      if (any(time <= breaks[1L]) || any(time > breaks[length(breaks)])) {
+      if (
+        any(time <= breaks[1L], na.rm = TRUE) ||
+          any(time > breaks[length(breaks)], na.rm = TRUE)
+      ) {
         stop(
           "every survival time must lie within the 'breaks' boundaries ",
           "(b_1, b_K]; widen the outer boundaries to cover the data"
@@ -118,6 +128,9 @@ resolveHazardGrid <- function(time, breaks, gridTime = time) {
     findInterval(time, periods, left.open = TRUE) + 1L,
     length(periods)
   )
+  # a subject with no time is at risk in the first period at least, as every
+  # subject is; it keeps that one row, with a missing response
+  terminal[is.na(terminal)] <- 1L
   list(periods = periods, terminalPeriod = terminal)
 }
 
@@ -164,6 +177,10 @@ expandDiscreteTimeHazard <- function(
   subjectOf <- rep.int(seq_len(n), terminal)
   periodOf <- sequence(terminal)
   y <- as.double(periodOf == terminal[subjectOf] & status[subjectOf] == 1.0)
+  # a subject missing its time or its status is at risk with a missing
+  # response, which the na.action then drops or refuses as it would any
+  # other: to its time when it has one, and otherwise in the first period
+  y[is.na(status[subjectOf]) | is.na(time[subjectOf])] <- NA_real_
 
   if ("period" %in% hazardPredictorNames(x)) {
     stop(
@@ -196,8 +213,9 @@ expandDiscreteTimeHazard <- function(
 # rows. The na.action ran on the subjects, before expansion, so the dropped
 # subjects' rows are rebuilt from their own times on the kept subjects' grid,
 # as the matrix interface, which expands first, would have dropped them; a
-# subject with no time has no rows. Returns the record and the kept rows'
-# make.unique names, taken over every subject so that they match that path.
+# subject with no time has its first-period row. Returns the record and the
+# kept rows' make.unique names, taken over every subject so that they match
+# that path.
 hazardOmittedRows <- function(omitted, omittedTime, expansion, keptNames) {
   K <- length(expansion$periods)
   omittedSubjects <- unclass(omitted)
@@ -213,7 +231,8 @@ hazardOmittedRows <- function(omitted, omittedTime, expansion, keptNames) {
     findInterval(omittedTime, expansion$periods, left.open = TRUE) + 1L,
     K
   )
-  omittedCounts[is.na(omittedCounts)] <- 0L
+  # a subject with no time keeps the first period, as the expansion gives it
+  omittedCounts[is.na(omittedCounts)] <- 1L
   periodCounts[omittedSubjects] <- omittedCounts
   subjectOf <- rep.int(seq_len(numSubjects), periodCounts)
   droppedRows <- which(subjectOf %in% omittedSubjects)
@@ -902,7 +921,7 @@ dbarts <- function(
   # the guards further down otherwise refuse
   survivalDataObject <- inherits(formula, "dbartsData") &&
     !is.null(attr(formula, "survivalStatus"))
-  hazardTokens <- c("hazard", "hazard.probit", "hazard.logistic")
+  hazardTokens <- hazardFamilyTokens
   # a Surv response declares the model, so it auto-dispatches to aft from
   # "auto"; an explicit hazard token selects the discrete-time model instead
   # (the guard whitelist admits it). Any
@@ -931,6 +950,7 @@ dbarts <- function(
   # whether the expansion ran before the na.action did
   hazardNames <- NULL
   hazardExpandedFirst <- FALSE
+  hazardOffsetArgument <- NULL
   if (family %in% hazardTokens && directResponse) {
     survival <- extractSurvivalTimes(data)
     if (is.null(survival)) {
@@ -960,10 +980,11 @@ dbarts <- function(
       }
     }
     # the na.action drops a subject's rows together, and the grid must not
-    # depend on them, as on the formula path
+    # depend on them, as on the formula path; a missing time or status is a
+    # missing response
     keptSubjects <- applyNaActionToXY(
       na.action,
-      timeForExpansion,
+      ifelse(is.na(statusForExpansion), NA_real_, timeForExpansion),
       xForExpansion
     )
     expansion <- expandDiscreteTimeHazard(
@@ -986,6 +1007,14 @@ dbarts <- function(
       matchedCall$subset <- NULL
     }
     if (!is.null(expansion$offset)) {
+      # the per-subject 'offset' as written, which the expanded data object's
+      # record of it replaces once that object exists (below)
+      hazardOffsetArgument <- offsetArgumentFormula(
+        matchedCall$offset,
+        evalEnv,
+        as.character(colnames(formula)),
+        NROW(formula)
+      )
       matchedCall$offset <- expansion$offset
     }
     if (!is.null(expansion$weights)) {
@@ -1218,7 +1247,7 @@ dbarts <- function(
     "bart()/dbarts()",
     requestedFamily,
     if (is.null(basisDeclarations)) {
-      eval(dataCall, evalEnv)
+      withBinaryResponsePrecision(family, eval(dataCall, evalEnv))
     } else {
       # the bases ride the data object's own 'bases' argument, which this caller
       # never wrote, so a refusal from it is restated in the word the caller
@@ -1226,7 +1255,7 @@ dbarts <- function(
       # anything not naming 'bases' - is not this call's to relabel, so it keeps
       # its own condition class and call
       tryCatch(
-        eval(dataCall, evalEnv),
+        withBinaryResponsePrecision(family, eval(dataCall, evalEnv)),
         error = function(e) {
           message <- conditionMessage(e)
           if (!grepl("'bases'", message, fixed = TRUE)) {
@@ -1354,6 +1383,12 @@ dbarts <- function(
     )
   }
 
+  # a subject's offset is re-evaluated on a new subject, as predict and
+  # survivalProbabilities form it, never the person-period vector the
+  # expansion turned it into
+  if (!is.null(hazardOffsetArgument)) {
+    attr(data, "offset.argument") <- hazardOffsetArgument
+  }
   if (!is.null(hazardNames)) {
     # the matrix interface expands before the na.action runs, so any rows it
     # dropped are person-period rows

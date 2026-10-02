@@ -111,6 +111,10 @@ rowsWithMissingPredictors <- function(x) {
 ## mean on this interface what they mean on the formula one. Returns the
 ## rows to keep and the record of what was dropped, or NULL when nothing is
 ## missing at all and no na.action can have anything to say.
+## The opening of dbartsData's precision-degenerate response warning, which
+## withBinaryResponsePrecision recognizes it by.
+responsePrecisionWarningStem <- "response values are indistinguishable"
+
 applyNaActionToXY <- function(na.action, y, x) {
   predictorNA <- rowsWithMissingPredictors(x)
   responseNA <- is.na(y)
@@ -1130,33 +1134,6 @@ evaluateOffsetArgument <- function(argument, newdata) {
   value
 }
 
-## Refuses a read at new rows that has no offset channel yet, naming the fit's
-## offset() terms and 'offset' argument, rather than answering offset-free.
-refuseNewRowOffset <- function(data, what) {
-  terms <- attr(data@x, "terms")
-  offsets <- attr(terms, "offset")
-  argument <- attr(data, "offset.argument")
-  if (is.null(offsets) && is.null(argument)) {
-    return(invisible(NULL))
-  }
-  variables <- attr(terms, "variables")
-  named <- c(
-    vapply(
-      offsets,
-      function(i) paste0("'", deparse1(variables[[i + 1L]]), "'"),
-      ""
-    ),
-    if (!is.null(argument)) describeOffsetArgument(argument)
-  )
-  stop(
-    "the fit's offset (",
-    paste(named, collapse = ", "),
-    ") is not yet supported by ",
-    what,
-    " at new rows"
-  )
-}
-
 ## Two shares of an offset at new rows summed, each a single value or one per
 ## row; either alone when the other is absent.
 addOffsetShares <- function(share, offset, argument, rows) {
@@ -1535,49 +1512,34 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   x.test
 }
 
+## A formula fit's 'weights' or 'test' argument as model.frame reads its
+## extras: the expression evaluated in 'data' with the formula's environment
+## for every name 'data' does not carry, so a name is never looked up in this
+## package's own frames, whatever the caller has defined globally. NULL when
+## it cannot be evaluated there, which leaves the caller its plain argument.
 findTermInFormulaData <- function(formula, data, term) {
-  dataIsMissing <- missing(data)
-  matchedCall <- match.call()
-
-  if (is.numeric(matchedCall$term)) {
+  expr <- substitute(term)
+  if (is.numeric(expr)) {
     return(term)
   }
-
-  if (!dataIsMissing) {
-    if (is.symbol(matchedCall$term)) {
-      if (any(names(data) == as.character(matchedCall$term))) {
-        return(data[[as.character(matchedCall$term)]])
-      }
-    } else if (is.language(matchedCall$term)) {
-      tryResult <- with(
-        data,
-        tryCatch(eval(matchedCall$term), error = function(e) e)
-      )
-      if (!inherits(tryResult, "error")) return(tryResult)
-    }
+  # any other constant is model.frame's to judge
+  if (!is.language(expr)) {
+    return(NULL)
   }
-  if (is.symbol(matchedCall$term)) {
-    if (any(ls(environment(formula)) == as.character(matchedCall$term))) {
-      return(get(as.character(matchedCall$term), envir = environment(formula)))
-    }
-    tryResult <- tryCatch(
-      get(as.character(matchedCall$term)),
-      error = function(e) e
-    )
-    if (!inherits(tryResult, "error") && !is.null(tryResult)) return(tryResult)
-  } else if (is.language(matchedCall$term)) {
-    tryResult <- tryCatch(
-      eval(matchedCall$term, environment(formula)),
-      error = function(e) e
-    )
-    if (!inherits(tryResult, "error")) {
-      return(tryResult)
-    }
-    tryResult <- tryCatch(eval(matchedCall$term), error = function(e) e)
-    if (!inherits(tryResult, "error")) return(tryResult)
-  }
-
-  NULL
+  enclos <- environment(formula)
+  value <- tryCatch(
+    if (missing(data) || is.null(data)) {
+      eval(expr, enclos)
+    } else if (is.environment(data)) {
+      eval(expr, data)
+    } else {
+      eval(expr, data, enclos)
+    },
+    error = function(e) NULL
+  )
+  # a name that reached a function (base's t, say) found no value of the
+  # caller's
+  if (is.function(value)) NULL else value
 }
 
 ## A block of code rather than a function: evaluating a function this way in
@@ -1634,23 +1596,28 @@ getTestOffset <- quote({
       ))
     }
 
-    if (is.formula(formula)) {
-      if (!dataIsMissing && any(names(data) == testOffsetName)) {
-        return(list(
-          offset.test = data[[testOffsetName]],
-          testUsesRegularOffset = FALSE
-        ))
-      }
-      if (any(ls(environment(formula)) == testOffsetName)) {
-        return(list(
-          offset.test = get(testOffsetName, environment(formula)),
-          testUsesRegularOffset = FALSE
-        ))
-      }
+    if (
+      is.formula(formula) &&
+        !dataIsMissing &&
+        any(names(data) == testOffsetName)
+    ) {
+      return(list(
+        offset.test = data[[testOffsetName]],
+        testUsesRegularOffset = FALSE
+      ))
     }
-    tryResult <- tryCatch(get(testOffsetName), error = function(e) e)
-    if (!inherits(tryResult, "error") && !is.null(tryResult)) {
-      return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+    # then the enclosure model.frame reads it in, and failing that the
+    # caller's frame; never this function's own, which would answer a name
+    # such as 'x' with the predictors. An offset is a value, so a function
+    # met first along either chain - base's t, stats' df or sigma - is passed
+    # over for the value it masks
+    for (env in unique(list(testOffsetEnclos, callerEnv))) {
+      for (mode in c("numeric", "list")) {
+        value <- get0(testOffsetName, envir = env, mode = mode)
+        if (!is.null(value)) {
+          return(list(offset.test = value, testUsesRegularOffset = FALSE))
+        }
+      }
     }
 
     stop("cannot find test offset '", testOffsetName, "'")
@@ -1677,43 +1644,46 @@ getTestOffset <- quote({
       baseOffset
     )
 
+    # in 'test', then 'data', each with the enclosure model.frame reads an
+    # expression in for every name it does not carry; then that enclosure and
+    # the caller's frame alone
+    evaluateTestOffset <- function(where) {
+      tryCatch(
+        if (is.null(where)) {
+          eval(testOffset, testOffsetEnclos)
+        } else if (is.environment(where)) {
+          eval(testOffset, where)
+        } else {
+          eval(testOffset, where, testOffsetEnclos)
+        },
+        error = function(e) e
+      )
+    }
     if (
       !testIsMissing &&
         (is.data.frame(test) || (is.list(test) && !is.object(test))) &&
         any(all.vars(testOffset) %in% names(test))
     ) {
-      tryResult <- with(
-        test,
-        tryCatch(eval(testOffset), error = function(e) e)
-      )
+      tryResult <- evaluateTestOffset(test)
       if (!inherits(tryResult, "error")) {
         return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
       }
     }
-    if (is.formula(formula)) {
-      if (!dataIsMissing) {
-        tryResult <- with(
-          data,
-          tryCatch(eval(testOffset), error = function(e) e)
-        )
-        if (!inherits(tryResult, "error")) {
-          return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
-        }
-      }
-      tryResult <- tryCatch(
-        eval(testOffset, environment(formula)),
-        error = function(e) e
-      )
+    if (is.formula(formula) && !dataIsMissing) {
+      tryResult <- evaluateTestOffset(data)
       if (!inherits(tryResult, "error")) {
         return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
       }
     }
-    tryResult <- tryCatch(
-      eval(testOffset, parent.frame(3L)),
-      error = function(e) e
-    )
+    tryResult <- evaluateTestOffset(NULL)
     if (!inherits(tryResult, "error")) {
       return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+    }
+    if (!identical(testOffsetEnclos, callerEnv)) {
+      tryResult <- tryCatch(eval(testOffset, callerEnv), error = function(e) e)
+      if (!inherits(tryResult, "error")) {
+        return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+      }
     }
   }
 
@@ -2445,6 +2415,11 @@ dbartsData <- function(
   offsetIsMissing <- missing(offset)
   testOffsetIsMissing <- missing(offset.test)
   matchedCall <- match.call()
+  # where the caller's own expressions are evaluated when no formula supplies
+  # an environment for them, as model.frame falls back; never this function's
+  # frame, whose locals ('x', 'data', 'offset') would shadow the caller's names
+  # nolint next: object_usage_linter. getTestOffset reads it, through eval.
+  callerEnv <- parent.frame()
   # a matrix-shaped 'offset'/'offset.test' declares a multinomial category
   # shift (one column per category), never a flat per-row one; the matrix
   # interface branches below set these aside as they resolve the ordinary
@@ -2851,7 +2826,10 @@ dbartsData <- function(
           eval(modelFrameCall, parent.frame())
         ))[unclass(naOmitted), 1L])
       }
+      # a status missing beside a time is a missing response, which only
+      # na.pass lets reach here
       y <- log(survival$time)
+      y[is.na(survival$status)] <- NA_real_
       responseInfo <- list(
         type = "numeric",
         n.levels = NA_integer_,
@@ -3328,6 +3306,12 @@ dbartsData <- function(
         testUsesRegularOffset <- TRUE
       }
     } else {
+      # nolint next: object_usage_linter. getTestOffset reads it, through eval.
+      testOffsetEnclos <- if (is.formula(formula)) {
+        environment(formula)
+      } else {
+        callerEnv
+      }
       testOffsetInfo <- eval(getTestOffset)
 
       offset.test <- testOffsetInfo$offset.test
@@ -3507,8 +3491,8 @@ dbartsData <- function(
   if (is.null(counts) && yScale > 0 && yRange / yScale < 1e-10) {
     warning(
       paste0(
-        "response values are indistinguishable, or nearly so, at double ",
-        "precision (",
+        responsePrecisionWarningStem,
+        ", or nearly so, at double precision (",
         length(unique(y)),
         " distinct value(s) among ",
         length(y),
