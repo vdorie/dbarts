@@ -274,11 +274,12 @@ items
   nbinom-dispersion-name: the negative-binomial r is named dispersion
     across nbinom(dispersion = ), getDispersion, extract(type =
     "dispersion") and run()$dispersion, a name never put to VD. VD
-    (2026-10-02, dec-B189): it is shape, nbinom(shape = ). Open: the
-    spellings outside the family argument (the sampler's reader,
-    extract's type, the fit's and run()'s components), then the rename
-    itself across R, the engine's state slot, dbarts.h, the manual and
-    the tests, in one slice. New in 1.0-0, so no tombstone.
+    (2026-10-02): it is shape, nbinom(shape = ) (dec-B189), read by an
+    overloaded getShape (dec-B190); bare shape everywhere else is an
+    agent call (dec-A145). Open: the rename itself across R, the engine,
+    the saved state, dbarts.h, the manual and the tests, in one slice.
+    New in 1.0-0, so no tombstone. Plan:
+    docs/plans/nbinom-dispersion-name.md.
   negbin-real-dispersion: real-valued dispersion needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
