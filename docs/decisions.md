@@ -1330,6 +1330,10 @@ Record: docs/decisions.md. Marked: blank. [dec-B186]
 inst/tinytest/test-configure-removed-flags.R, which ran ./configure with each removed 0.9-x configure option and without any, is deleted: it could not find configure under any R CMD check and so tested nothing on CRAN or in CI, while lint.yaml's configure-stubs job runs the same four assertions on every push. The alternative was keeping it gated on at_home for local runs. The maintainer on 2026-10-01: "Oh, you can delete it."
 Record: docs/decisions.md. Marked: blank. [dec-B187]
 
+**A heteroscedastic sampler's run() carries no sigma**
+On a sampler with a variance forest, the list run() returns has no sigma element, as it has no dispersion off nbinom; the variance and varianceTest channels, the per-observation variance draws, are the values R takes the square root of for the per-observation scale. Until now run() returned a sigma channel there holding a constant, the response's range (10.88 against a true noise of about 0.7 in a probe), which no part of dec-B182 used. The alternatives were keeping the constant and documenting it, and returning the per-observation scale under sigma. Code reading run()$sigma on such a sampler gets NULL; variance forests are new in 1.0-0. The maintainer on 2026-10-02, offered those three: "`run()` in C always returns either parameter samples or whatever yhat.train is, right (more or less). In general, it doesn't return transformed parameters and leaves that to R. So it makes sense to return the per-observation values that have to be transformed in order to get the per-observation sigmas." See also: [dec-B182]. Found by the review of the multiforest fixes.
+Record: commit c9b4b74f. Marked: blank. [dec-B188]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
@@ -1387,3 +1391,7 @@ Record: commits 120644f4 and 6a7067b6. Marked: blank. [dec-C12]
 **Argument forwarding reads the formals of the function the call matched**
 redirectCall, which re-targets a front door's matched call at the function it forwards to, reads the formals of the function the call matched (its caller by default, or those the caller passes) instead of evaluating the call's head, so a front door called through an alias (fn <- bart; fn(...)) forwards its arguments as when called by name; it had found its own formal fn and sent every bart argument to dbartsControl. The alternative was evaluating the head in another frame, where an alias may name nothing or the wrong function. Nothing is visible beyond the fix. Not yet ruled on.
 Record: commit d6389c28. Marked: blank. [dec-C13]
+
+**A factor basis may leave a level empty on setForestBasis**
+setForestBasis accepts a factor basis one of whose levels no row carries, so a basis swap inside a larger sampler can leave a level unobserved for a while, its column contributing nothing until a row returns to it; a numeric all-zero column stays refused, as at creation, where an empty column of either kind is refused. The alternatives were refusing the empty level on the swap as at creation, and accepting numeric zero columns too. Nothing breaks; the help for forest() and setForestBasis says which is accepted where. Not yet ruled on.
+Record: commits 6b44f394 and f2142251. Marked: blank. [dec-C14]
