@@ -1386,6 +1386,10 @@ Record: this register; TODO, state-not-model. Marked: blank. [dec-B196]
 On a sampler that does not draw sigma, setSigma rewrites the model's fixed value: the R method records the new value on the model, as setLeafPrior records a spread, so copy and a save and load keep it and sigma follows dec-B196 with no exception. On a sampler that draws sigma it stays a write of the current value, which the next sweep redraws. The alternative was leaving the model alone, the written value living only in the engine, so any copy or reload returned to the model's value. A write through the C header changes the engine and cannot reach the R object, so a sampler reloaded after one holds creation's value until the next write; stan4bart and treatSens, which write sigma that way, do so before every step. The maintainer on 2026-10-02, offered the two: "It rewrites the model's fixed value." See also: [dec-B196], [dec-B195].
 Record: docs/plans/state-not-model.md. Marked: blank. [dec-B197]
 
+**extract returns 1 for sigma on a family with no free residual scale**
+extract(type = "sigma") returns 1 on a fit whose family has no residual scale to estimate - probit, logistic, hazard, ordinal, negative-binomial and multinomial - as stats::sigma does on a binomial or Poisson glm, lme4's on a binomial glmer and mgcv's on a binomial gam, each run to check, and rstanarm's by its source. Until now a probit fit refused with "a probit fit has no residual scale parameter" and some of the others did not take the type. The alternatives were keeping the refusal, which the plan's author recommended, and returning 1 only where a latent normal error with that sd exists, refusing on the rest. On a count or multinomial fit the 1 is not a residual sd in any units. The maintainer on 2026-10-02: "That's fine, you can return 1. It's a bit silly, since sigma isn't defined in that case, but if that's whatever else does then we can go with it." See also: [dec-B194].
+Record: this register; TODO, fit-stores-k. Marked: blank. [dec-B198]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**

@@ -168,11 +168,13 @@ items
     under every naming, with the anchor, and extract(type = "sd")
     converts; sd and first.sd leave the fit (docs/decisions.md dec-B192,
     VD 2026-10-02). extract returns both the leaf prior's sd, in the
-    units the forest fits, and the raw k on every fit, a fixed leaf scale
-    included (dec-B193); the type is "leaf.prior.sd". A parameter held
-    fixed comes back as one number, a sampled one as draws, for sigma,
-    shape, k and leaf.prior.sd alike (dec-B194). R only: the fit's packaging, extract, summary, plot, the
-    manual and the tests. No plan yet.
+    units the forest fits, and the raw k on every fit, a fixed leaf
+    scale included (dec-B193); the type is "leaf.prior.sd". A parameter
+    held fixed comes back as one number, a sampled one as draws, for
+    sigma, shape, k and leaf.prior.sd alike (dec-B194); sigma on a
+    family with no free residual scale is 1 (dec-B198). R only: the
+    fit's packaging, extract, summary, plot, the manual and the tests.
+    No plan yet.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
