@@ -1,8 +1,8 @@
 # What a fit is: $family (the family as specified), family() (the same with
 # its settings), and the stored descriptors a family or model fixes -
-# resid.scale on a family with a residual law, n.forests on every bart fit -
-# none of them logical and none inferred from which draw channels a run
-# kept.
+# resid.scale on a family with a residual law, n.forests on every bart fit,
+# leaf.prior and fixed on every fit and hurdle part - none of them logical and
+# none inferred from which draw channels a run kept.
 
 set.seed(71L)
 n <- 60L
@@ -90,6 +90,30 @@ expect_null(fits$heteroscedastic$s.train)
 for (name in names(fits)[vapply(fits, inherits, logical(1L), "bart")]) {
   expect_identical(fits[[name]]$n.forests, 1L, info = name)
 }
+
+# leaf.prior (the sampler reader's list) and fixed (the scalars it held fixed)
+# are on every fit and on each hurdle part, whatever the run kept, and a fixed
+# one is never a logical
+carriers <- c(
+  fits[names(fits) != "hurdle"],
+  list(zero = fits$hurdle$zero, positive = fits$hurdle$positive)
+)
+for (name in names(carriers)) {
+  fit <- carriers[[name]]
+  expect_true(is.list(fit$leaf.prior), info = name)
+  expect_true("anchor" %in% names(fit$leaf.prior), info = name)
+  expect_true(is.list(fit$fixed), info = name)
+  expect_true(all(vapply(fit$fixed, is.numeric, NA)), info = name)
+  # no channel stands in for them: a k appears only when drawn
+  expect_identical(is.null(fit[["k"]]), "k" %in% names(fit$fixed), info = name)
+}
+expect_null(fits$hurdle$leaf.prior)
+expect_identical(names(fits$gaussian$fixed), "k")
+expect_identical(names(fits$student$fixed), c("k", "resid.df"))
+expect_identical(names(fits$heteroscedastic$fixed), "k")
+expect_identical(length(fits$probit$fixed), 0L)
+expect_identical(names(fits$ordinal$fixed), "k")
+expect_identical(names(carriers$positive$fixed), "k")
 
 # the hurdle's components carry their own specified families
 expect_identical(family(fits$hurdle$zero)@token, "probit")

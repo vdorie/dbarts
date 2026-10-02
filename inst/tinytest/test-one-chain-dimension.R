@@ -211,13 +211,15 @@ expectKeptChain(
 kUncombined <- extract(fitH, "k", combineChains = FALSE)
 kCombined <- extract(fitH, "k")
 expect_identical(names(kUncombined), names(kCombined))
-for (part in names(kCombined)) {
-  expectKeptChain(
-    kUncombined[[part]],
-    kCombined[[part]],
-    info = paste("k", part)
-  )
-}
+# the zero part draws its k; the positive part holds it fixed, one number with
+# no chain margin under either setting
+expectKeptChain(
+  kUncombined$zero,
+  kCombined$zero,
+  info = "k zero"
+)
+expect_identical(kUncombined$positive, kCombined$positive)
+expect_null(dim(kUncombined$positive))
 vcUncombined <- extract(fitH, "varcount", combineChains = FALSE)
 vcCombined <- extract(fitH, "varcount")
 for (part in names(vcCombined)) {

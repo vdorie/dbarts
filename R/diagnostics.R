@@ -62,22 +62,30 @@ toDrawsArray <- function(x, n.chains, isScalar) {
 scalarFields <- c(
   "sigma",
   "k",
-  "sd",
+  "leaf.prior.sd",
   "first.sigma",
   "first.k",
-  "first.sd",
   "resid.df",
   "mean.s",
   "shape"
 )
 
-# One draws field by name: a stored channel, or the synthetic "mean.s" of a
-# heteroscedastic fit - the mean of s(x) over the training observations, one
+# One draws field by name: a stored channel, or a synthetic one. "mean.s" is a
+# heteroscedastic fit's mean of s(x) over the training observations, one
 # value per draw, in sigma's own (n.chains, n.samples) scalar-field layout.
 # The variance surface has no scalar to summarize (summarizing every
 # observation's draws would swamp the table), so its convergence is read off
 # that pooled mean, as bartMultinomial's is off its pooled per-category prob.
+# "leaf.prior.sd" is the anchor over a drawn k, in k's own layout; with k
+# fixed there are no draws and the value is the fixed line's.
 drawsField <- function(object, v) {
+  if (identical(v, "leaf.prior.sd")) {
+    prior <- object[["leaf.prior"]]
+    if (is.null(object[["k"]]) || is.null(prior[["leaf.prior"]])) {
+      return(NULL)
+    }
+    return(prior$anchor / object[["k"]])
+  }
   if (!identical(v, "mean.s")) {
     return(object[[v]])
   }
@@ -108,21 +116,37 @@ resolveDrawsVars <- function(object, vars) {
 # the requested fields this fit actually carries, in the requested order
 presentDrawsVars <- function(object, vars) {
   vars <- resolveDrawsVars(object, vars)
-  vars[!vapply(vars, function(v) is.null(drawsField(object, v)), logical(1L))]
+  vars <- vars[
+    !vapply(vars, function(v) is.null(drawsField(object, v)), logical(1L))
+  ]
+  if (numSampledThresholds(object) == 0L) {
+    vars <- setdiff(vars, "thresholds")
+  }
+  vars
 }
 
 # bart(family = "ordinal")'s per-draw thresholds, the K - 1 gamma_1 < ... <
 # gamma_{K-1}, in the (iteration, chain, variable) convention, labelled
 # threshold[j]. They are stored like any per-column field, (n.samples [*
-# n.chains]) x (K - 1) combined or chains x n.samples x (K - 1) not.
-ordinalThresholdsArray <- function(object) {
+# n.chains]) x (K - 1) combined or chains x n.samples x (K - 1) not. The
+# first is pinned at zero; sampledOnly leaves it out, as the table of
+# parameters does.
+ordinalThresholdsArray <- function(object, sampledOnly = FALSE) {
   arr <- toDrawsArray(object$thresholds, object$n.chains, isScalar = FALSE)
+  first <- if (sampledOnly) 2L else 1L
+  arr <- arr[,, seq.int(first, dim(arr)[3L]), drop = FALSE]
   dimnames(arr) <- list(
     NULL,
     NULL,
-    paste0("threshold[", seq_len(dim(arr)[3L]), "]")
+    paste0("threshold[", seq.int(first, length.out = dim(arr)[3L]), "]")
   )
   arr
+}
+
+# the thresholds there are to tabulate: none when only the pinned one exists
+numSampledThresholds <- function(object) {
+  d <- dim(object[["thresholds"]])
+  if (is.null(d)) 0L else d[length(d)] - 1L
 }
 
 # gathers one or more chain-dimensioned fields off a bart/bart2 fit
@@ -142,7 +166,7 @@ bartDrawsArray <- function(object, vars) {
   }
   pieces <- lapply(present, function(v) {
     if (identical(v, "thresholds")) {
-      return(ordinalThresholdsArray(object))
+      return(ordinalThresholdsArray(object, sampledOnly = TRUE))
     }
     piece <- toDrawsArray(drawsField(object, v), n.chains, v %in% scalarFields)
     dimnames(piece)[[3L]] <- if (v %in% scalarFields) {
@@ -404,31 +428,94 @@ summariseDraws <- function(arr) {
   out
 }
 
+# What summary names as fixed under the table instead of tabulating: each
+# requested parameter the fit held fixed, by its label, with its value - one
+# number, or one per forest - and the ordinal's first threshold, pinned at
+# zero. A fit saved before fits recorded what they held fixed names none, and
+# its constant channels tabulate as they always did.
+fixedSummaryValues <- function(object, vars) {
+  fixed <- object[["fixed"]]
+  values <- list()
+  for (v in vars) {
+    if (v == "thresholds") {
+      if (!is.null(object[["thresholds"]])) {
+        values[["threshold[1]"]] <- object[["thresholds"]][1L]
+      }
+      next
+    }
+    value <- if (v == "leaf.prior.sd") {
+      if (!is.null(fixed[["k"]])) extractParameter(object, v, TRUE)
+    } else {
+      fixed[[v]]
+    }
+    if (!is.null(value)) {
+      values[[v]] <- value
+    }
+  }
+  values
+}
+
+# the leaf-scale quantity a fit is reported in follows how it named its leaf
+# prior: leaf.prior.sd for an sd, and k otherwise. A fit that records no
+# naming keeps both.
+defaultLeafScaleVars <- function(object, vars) {
+  prior <- object[["leaf.prior"]]
+  if (is.null(prior)) {
+    return(vars)
+  }
+  if (is.null(prior[["leaf.prior"]])) {
+    prior <- prior[[1L]]
+  }
+  named <- if (
+    !is.null(prior[["basis.row.norm"]]) || !is.null(prior$leaf.prior@prior.sd)
+  ) {
+    "leaf.prior.sd"
+  } else {
+    "k"
+  }
+  setdiff(vars, setdiff(c("k", "leaf.prior.sd"), named))
+}
+
 # rhat > 1.01 is noted in the printed summary, not enforced: dbarts does not
-# refuse to summarize a non-converged fit
-summary.bart <- function(object, vars = c("sigma", "k", "sd"), ...) {
-  present <- presentDrawsVars(object, vars)
+# refuse to summarize a non-converged fit. Parameters the fit held fixed are
+# named under the table, not tabulated as constants.
+summary.bart <- function(
+  object,
+  vars = c("sigma", "k", "leaf.prior.sd"),
+  ...
+) {
+  if (missing(vars)) {
+    vars <- defaultLeafScaleVars(object, vars)
+  }
+  fixed <- fixedSummaryValues(object, vars)
+  present <- presentDrawsVars(object, setdiff(vars, names(fixed)))
   stats <- if (length(present) == 0L) {
     NULL
   } else {
     summariseDraws(bartDrawsArray(object, present))
   }
-  result <- list(call = object[["call"]], stats = stats, vars = vars)
+  result <- list(
+    call = object[["call"]],
+    stats = stats,
+    vars = vars,
+    fixed = fixed
+  )
   # the monotone prior, absent on a fit without a constraint
   result$monotone.prior <- object[["monotone.prior"]]
   structure(result, class = "summary.bart")
 }
 
-# bart2(family = "ordinal")'s scalar summary is the K - 1 thresholds, the only
-# parameters this family's outer fit carries beyond whatever mean-function
-# scale it shares with 'vars': neither sigma nor k is tracked on the
-# ordinal fit object, so the summary is thresholds alone; any that are later
-# tracked would be picked up automatically through 'vars'.
+# bart2(family = "ordinal")'s scalar summary is the sampled thresholds beside
+# whatever leaf scale the fit draws; its first threshold is pinned and named
+# under the table, and sigma is not a parameter of the family.
 summary.bartOrdinal <- function(
   object,
-  vars = c("thresholds", "sigma", "k"),
+  vars = c("thresholds", "sigma", "k", "leaf.prior.sd"),
   ...
 ) {
+  if (missing(vars)) {
+    vars <- defaultLeafScaleVars(object, vars)
+  }
   summary.bart(object, vars = vars, ...)
 }
 
@@ -437,9 +524,12 @@ summary.bartOrdinal <- function(
 # sigma's shape, so this is summary.bart with a widened default 'vars'.
 summary.bartNegbin <- function(
   object,
-  vars = c("shape", "sigma", "k"),
+  vars = c("shape", "sigma", "k", "leaf.prior.sd"),
   ...
 ) {
+  if (missing(vars)) {
+    vars <- defaultLeafScaleVars(object, vars)
+  }
   summary.bart(object, vars = vars, ...)
 }
 
@@ -447,12 +537,24 @@ summary.bartNegbin <- function(
 # hood - a zero-part probit on 1{y > 0} and a lognormal fit on the positive
 # part - so each summarizes through summary.bart unchanged; only the
 # packaging (both components, one call) and the print layout are new.
-summary.bartHurdle <- function(object, vars = c("sigma", "k", "sd"), ...) {
+summary.bartHurdle <- function(
+  object,
+  vars = c("sigma", "k", "leaf.prior.sd"),
+  ...
+) {
+  defaulted <- missing(vars)
+  partSummary <- function(part) {
+    if (defaulted) {
+      summary.bart(part, ...)
+    } else {
+      summary.bart(part, vars = vars, ...)
+    }
+  }
   structure(
     list(
       call = object[["call"]],
-      zero = summary.bart(object$zero, vars = vars, ...),
-      positive = summary.bart(object$positive, vars = vars, ...)
+      zero = partSummary(object$zero),
+      positive = partSummary(object$positive)
     ),
     class = "summary.bartHurdle"
   )
@@ -529,6 +631,33 @@ summary.bartMultinomial <- function(object, ...) {
   )
 }
 
+# one line under the table naming each parameter held fixed and its value, in
+# summary.glm's manner; a value per forest is labelled by forest
+printFixedLine <- function(fixed) {
+  if (length(fixed) == 0L) {
+    return(invisible(NULL))
+  }
+  labels <- unlist(Map(
+    function(name, value) {
+      if (length(value) == 1L) {
+        paste0(name, " = ", format(value, digits = 4L))
+      } else {
+        paste0(
+          name,
+          "[",
+          names(value),
+          "] = ",
+          format(unname(value), digits = 4L)
+        )
+      }
+    },
+    names(fixed),
+    fixed
+  ))
+  cat("(Fixed, not sampled: ", paste0(labels, collapse = ", "), ")\n", sep = "")
+  invisible(NULL)
+}
+
 # the row-table body of a summary.bart object, with no Call: header - shared
 # by print.summary.bart and print.summary.bartHurdle, which prints one header
 # for the fit and this body once per component
@@ -541,9 +670,11 @@ printSummaryBartBody <- function(x, ...) {
       ") to summarize.\n",
       sep = ""
     )
+    printFixedLine(x$fixed)
     return(invisible(NULL))
   }
   print(x$stats, ...)
+  printFixedLine(x$fixed)
   if (any(x$stats$rhat > 1.01, na.rm = TRUE)) {
     cat(
       "\nNote: some R-hat values exceed 1.01; chains may not have converged.\n"

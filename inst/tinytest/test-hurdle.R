@@ -324,14 +324,20 @@ dev.off()
 expect_equal(restoredMfrow, c(3L, 3L))
 
 # extract(fit, "sigma") is positive$sigma alone (the only sigma the
-# composition carries); extract(fit, "k") is a list keyed zero/positive,
-# with a fixed component left out - positive's k is fixed at its non-binary
-# default (2), so only zero's modelled chi(1.5, 2) draw survives
+# composition carries); extract(fit, "k") is a list keyed zero/positive, each
+# part's own - positive's k is fixed at its non-binary default (2), so it is
+# the one number, and zero's modelled chi(1.5, 2) is its draws
 expect_equal(extract(fit, "sigma"), fit$positive$sigma)
 kList <- extract(fit, "k")
-expect_equal(names(kList), "zero")
+expect_equal(names(kList), c("zero", "positive"))
 expect_equal(kList$zero, fit$zero$k)
-rm(kList)
+expect_equal(kList$positive, 2)
+expect_equal(kList$positive, fit$positive$fixed$k)
+sdList <- extract(fit, "leaf.prior.sd")
+expect_equal(names(sdList), c("zero", "positive"))
+expect_equal(sdList$zero, fit$zero$leaf.prior$anchor / fit$zero$k)
+expect_equal(sdList$positive, fit$positive$leaf.prior$anchor / 2)
+rm(kList, sdList)
 vcList <- extract(fit, "varcount")
 expect_equal(names(vcList), c("zero", "positive"))
 expect_equal(vcList$zero, fit$zero$varcount)

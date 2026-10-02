@@ -72,8 +72,11 @@ plot.bart <- function(
   on.exit(par(oldpar), add = TRUE)
 
   hasResidual <- fitHasResidual(x)
-  # a heteroscedastic fit has no scalar sigma to trace
-  if (hasResidual && !fitIsHeteroscedastic(x)) {
+  # a heteroscedastic fit has no scalar sigma to trace, nor has a fit that
+  # held sigma fixed
+  if (
+    hasResidual && !fitIsHeteroscedastic(x) && is.null(x[["fixed"]][["sigma"]])
+  ) {
     par(mfrow = c(1L, 2L))
     plotSigmaTrace(x$first.sigma, x$sigma, ..., setLayout = FALSE)
   }
@@ -303,12 +306,12 @@ plot.bartOrdinal <- function(x, plquants = c(0.05, 0.95), cols = NULL, ...) {
   invisible(x)
 }
 
-# P1: the shape trace. There is no burn-in channel (bart2 negbin drives
-# one run(n.burn, n.samples), so there is no first.shape to bridge
-# from, unlike plot.bart's sigma panel), and r is drawn on an integer grid,
-# so the trace is a step plot rather than a scatter. P2: plot.bart's
-# gaussian panel verbatim on counts - observed y vs the posterior interval
-# of the mean count.
+# P1: the shape trace, left out when the shape was held fixed. There is no
+# burn-in channel (bart2 negbin drives one run(n.burn, n.samples), so there is
+# no first.shape to bridge from, unlike plot.bart's sigma panel), and r is
+# drawn on an integer grid, so the trace is a step plot rather than a scatter.
+# P2: plot.bart's gaussian panel verbatim on counts - observed y vs the
+# posterior interval of the mean count.
 plot.bartNegbin <- function(
   x,
   plquants = c(0.05, 0.95),
@@ -317,21 +320,23 @@ plot.bartNegbin <- function(
 ) {
   oldpar <- par(no.readonly = TRUE)
   on.exit(par(oldpar), add = TRUE)
-  par(mfrow = c(1L, 2L))
-  disp <- x$shape
-  if (is.null(dim(disp))) {
-    plot(disp, type = "s", xlab = "iteration", ylab = "shape (r)")
-  } else {
-    plot(
-      NULL,
-      type = "n",
-      xlim = c(1L, ncol(disp)),
-      ylim = range(disp),
-      xlab = "iteration",
-      ylab = "shape (r)"
-    )
-    for (i in seq_len(nrow(disp))) {
-      lines(disp[i, ], type = "s", lty = i)
+  if (is.null(x[["fixed"]][["shape"]])) {
+    par(mfrow = c(1L, 2L))
+    disp <- x$shape
+    if (is.null(dim(disp))) {
+      plot(disp, type = "s", xlab = "iteration", ylab = "shape (r)")
+    } else {
+      plot(
+        NULL,
+        type = "n",
+        xlim = c(1L, ncol(disp)),
+        ylim = range(disp),
+        xlab = "iteration",
+        ylab = "shape (r)"
+      )
+      for (i in seq_len(nrow(disp))) {
+        lines(disp[i, ], type = "s", lty = i)
+      }
     }
   }
 
@@ -352,9 +357,10 @@ plot.bartNegbin <- function(
 }
 
 # Two component fits and a composed model need four panels. P1 reuses
-# plotSigmaTrace verbatim (setLayout = FALSE: the 2x2 grid is already set):
+# plotSigmaTrace verbatim (setLayout = FALSE: the grid is already set):
 # the positive part is an ordinary gaussian bart fit and carries both
-# channels. P2 the zero part's probability, plot.bart's binary panel. P3 the
+# channels; it is left out, and the grid made 1x3, when that part held
+# sigma fixed. P2 the zero part's probability, plot.bart's binary panel. P3 the
 # positive part on the scale it actually fit (log y over the y > 0 rows). P4
 # the composed natural-scale mean over ALL n rows (zeros included) - the only
 # panel that shows the model this family exists for.
@@ -366,8 +372,12 @@ plot.bartHurdle <- function(
 ) {
   oldpar <- par(no.readonly = TRUE)
   on.exit(par(oldpar), add = TRUE)
-  par(mfrow = c(2L, 2L))
-  plotSigmaTrace(x$positive$first.sigma, x$positive$sigma, setLayout = FALSE)
+  if (is.null(x$positive[["fixed"]][["sigma"]])) {
+    par(mfrow = c(2L, 2L))
+    plotSigmaTrace(x$positive$first.sigma, x$positive$sigma, setLayout = FALSE)
+  } else {
+    par(mfrow = c(1L, 3L))
+  }
 
   piBand <- drawInterval(
     lastMarginMatrix(extract(x$zero, type = "ev", sample = "train")),

@@ -218,9 +218,15 @@ sFirstSigma <- summary(studentFit, vars = "first.sigma")$stats
 expect_equal(nrow(sFirstSigma), 1L)
 expect_equal(sFirstSigma$mean, mean(studentFit$first.sigma))
 
-sResidDf <- summary(studentFit, vars = "resid.df")$stats
-expect_equal(nrow(sResidDf), 1L)
-expect_equal(sResidDf$mean, 5)
+# a fixed df is no parameter the table tabulates: it is named on the line under
+# the table, with its value
+sResidDf <- summary(studentFit, vars = "resid.df")
+expect_null(sResidDf$stats)
+expect_equal(sResidDf$fixed, list(resid.df = 5))
+expect_equal(studentFit$fixed$resid.df, 5)
+expect_stdout(print(sResidDf), "Fixed, not sampled: resid.df = 5", fixed = TRUE)
+# and the draws it repeats keep their layout
+expect_equal(dim(studentFit$resid.df), c(3L, 10L))
 
 rm(studentFit, sFirstSigma, sResidDf)
 
@@ -573,8 +579,7 @@ expect_equal(
   c(1L, 12L, ncol(testData$x))
 )
 
-# a fixed k errors, without chi advice under a monotone constraint even when
-# the sampler was not kept
+# a fixed k is one number, the sampler's, even when the sampler was not kept
 fitFixedK <- dbarts::bart(
   testData$y ~ testData$x,
   n.chains = 1L,
@@ -586,10 +591,8 @@ fitFixedK <- dbarts::bart(
   verbose = FALSE
 )
 expect_null(fitFixedK$fit)
-expect_error(
-  extract(fitFixedK, "k"),
-  "cannot extract 'k': this fit's k was fixed, not sampled$"
-)
+expect_identical(extract(fitFixedK, "k"), 2)
+expect_identical(extract(fitFixedK, "k", combineChains = FALSE), 2)
 
 # a binary fit and a heteroscedastic fit have no sigma
 n.bin2 <- 40L
@@ -604,11 +607,8 @@ fitBinaryScalar <- dbarts::bart(
   n.threads = 1L,
   verbose = FALSE
 )
-expect_error(
-  extract(fitBinaryScalar, "sigma"),
-  "cannot extract 'sigma': a probit fit has no residual scale parameter",
-  fixed = TRUE
-)
+expect_identical(extract(fitBinaryScalar, "sigma"), 1)
+expect_identical(extract(fitBinaryScalar, "sigma", combineChains = FALSE), 1)
 
 fitHetero <- dbarts::bart(
   runif(40L),

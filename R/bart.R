@@ -168,6 +168,83 @@ nameVarcount <- function(raw, predictorNames, n.chains, combineChains) {
   varcount
 }
 
+# One value for a quantity every chain holds alike; NA where the chains
+# disagree, which only a setState of chains saved from different samplers
+# makes.
+sharedValue <- function(x) {
+  values <- unique(as.vector(x))
+  if (length(values) == 1L) values else NA_real_
+}
+
+# Whether a forest's k is drawn from a hyperprior: a calibration-mapped
+# forest pins it, and elsewhere the reader states a drawn k as a law object and
+# a fixed one as a number.
+leafPriorIsDrawn <- function(prior) {
+  if (!is.null(prior[["basis.row.norm"]])) {
+    return(FALSE)
+  }
+  spec <- prior$leaf.prior
+  isS4(spec@k) || isS4(spec@prior.sd)
+}
+
+# The two descriptors a fit carries about the sampler that made it, both read
+# from the sampler's readers rather than the model: leaf.prior, the reader's
+# list as the run ended (one list on a single forest, one per forest on
+# several, a multinomial sampler's forests sharing the first's), and fixed,
+# the scalars the sampler held fixed - sigma, shape, k and resid.df, among
+# those the fit has - empty when none. Whether a quantity is fixed is the
+# model's law; its value is the sampler's. 'samples' is the run's channels,
+# the one place a Student-t df is recorded.
+fitDescriptors <- function(sampler, samples = NULL) {
+  priors <- sampler$getLeafPrior()
+  multinomial <- samplerCarriesCounts(sampler)
+  several <- is.null(priors[["leaf.prior"]])
+  if (several && multinomial) {
+    priors <- priors[[1L]]
+    several <- FALSE
+  }
+  forestNames <- if (several) paste0("forest", seq_along(priors))
+  if (several) {
+    names(priors) <- forestNames
+  }
+
+  model <- sampler$model
+  fixed <- list()
+  if (
+    model@family %in%
+      c("gaussian", "aft") &&
+      is(model@resid.prior, "dbartsFixedPrior")
+  ) {
+    sigmas <- sampler$getSigmas()
+    if (!is.null(sigmas)) {
+      fixed$sigma <- sharedValue(sigmas)
+    }
+  }
+  familySpec <- attr(model, "family.spec")
+  if (
+    identical(model@family, "nbinom") &&
+      !is.null(familySpec) &&
+      is.numeric(familySpec@settings[["shape"]])
+  ) {
+    fixed$shape <- sharedValue(sampler$getShape())
+  }
+  if (
+    !any(vapply(if (several) priors else list(priors), leafPriorIsDrawn, NA))
+  ) {
+    k <- sampler$getK()
+    fixed$k <- if (is.matrix(k) && several) {
+      setNames(apply(k, 1L, sharedValue), forestNames)
+    } else {
+      sharedValue(k)
+    }
+  }
+  df <- attr(model, "resid.df")
+  if (!is.null(df) && df > 0 && !is.null(samples[["resid.df"]])) {
+    fixed$resid.df <- sharedValue(samples[["resid.df"]])
+  }
+  list(leaf.prior = priors, fixed = fixed)
+}
+
 packageBartResults <- function(
   fit,
   samples,
@@ -497,23 +574,20 @@ packageBartResults <- function(
   # it, so any other threshold can be checked by hand.
   result$gp.fallback <- attr(samples, "gp.fallback")
   result$n.chains <- n.chains
+  descriptors <- fitDescriptors(fit, samples)
+  result$leaf.prior <- descriptors$leaf.prior
+  result$fixed <- descriptors$fixed
+  # the sampler's k as it recorded it, whatever terms the leaf prior was named
+  # in, present only when drawn
   if (!is.null(samples[["k"]])) {
-    # a fit that names its leaf prior by sd reports the spread it named, the
-    # anchor in force over the engine's drawn k, in place of that k
-    anchor <- fit$model@prior.scale
-    spreadNamed <- !is.na(anchor)
-    toReported <- function(draws) {
-      if (is.null(draws) || !spreadNamed) draws else anchor / draws
-    }
-    channel <- if (spreadNamed) "sd" else "k"
-    result[[channel]] <- convertSamplesFromDbartsToBart(
-      toReported(samples[["k"]]),
+    result[["k"]] <- convertSamplesFromDbartsToBart(
+      samples[["k"]],
       n.chains,
       combineChains
     )
     if (!is.null(burnInK)) {
-      result[[paste0("first.", channel)]] <- convertSamplesFromDbartsToBart(
-        toReported(burnInK),
+      result[["first.k"]] <- convertSamplesFromDbartsToBart(
+        burnInK,
         n.chains,
         combineChains
       )
@@ -2063,6 +2137,7 @@ bart2Multinomial <- function(
 
   result <- packageMultinomialResults(
     control,
+    sampler,
     y,
     levels(y),
     K,
@@ -2166,6 +2241,7 @@ bart2MultinomialCounts <- function(
 
   result <- packageMultinomialResults(
     control,
+    sampler,
     y,
     levels,
     K,
@@ -2276,6 +2352,7 @@ reshapeChainedChannel <- function(x, n.chains, combine, trailing) {
 # margin, one K-margin array like every other K-shaped output here.
 packageMultinomialResults <- function(
   control,
+  sampler,
   y,
   levels,
   K,
@@ -2327,6 +2404,9 @@ packageMultinomialResults <- function(
   if (!is.null(samples$test)) {
     result$yhat.test <- shapeChannel(samples$test, testNames)
   }
+  descriptors <- fitDescriptors(sampler)
+  result$leaf.prior <- descriptors$leaf.prior
+  result$fixed <- descriptors$fixed
   result$row.names.train <- trainNames
   result$row.names.test <- testNames
   # absent, not NULL, off a complete fit, as bart's own packager keeps it
@@ -2425,6 +2505,9 @@ bart2Ordinal <- function(
   # (r$thresholds, present because the ordinal family carries them), aligned with
   # each kept sweep's latent draw, so no per-sample state read is needed
   r <- sampler$run(control@n.burn, n.samples, updateState = FALSE)
+  # the run's own k channel, present only when drawn; one run drives burn-in
+  # and samples both, so there is no burn-in channel to keep
+  kRaw <- r[["k"]]
 
   varWidth <- if (n.chains == 1L) {
     nrow(as.matrix(r$varcount))
@@ -2478,7 +2561,8 @@ bart2Ordinal <- function(
     latentTest,
     thresholdsRaw,
     varcountRaw,
-    combineChains
+    combineChains,
+    kRaw
   )
   # keepTrees retains the saved trees predict.bartOrdinal replays through (the
   # sweeps wrote them regardless), and the sampler codes newdata to the
@@ -2511,7 +2595,8 @@ packageOrdinalResults <- function(
   latentTest,
   thresholdsRaw,
   varcountRaw,
-  combineChains
+  combineChains,
+  kRaw = NULL
 ) {
   n.chains <- control@n.chains
   trainNames <- dataRowNames(sampler$data, "train")
@@ -2571,6 +2656,16 @@ packageOrdinalResults <- function(
       testNames
     )
   }
+  if (!is.null(kRaw)) {
+    result[["k"]] <- convertSamplesFromDbartsToBart(
+      kRaw,
+      n.chains,
+      combineChains
+    )
+  }
+  descriptors <- fitDescriptors(sampler)
+  result$leaf.prior <- descriptors$leaf.prior
+  result$fixed <- descriptors$fixed
   result$row.names.train <- trainNames
   result$row.names.test <- testNames
   # absent, not NULL, off a complete fit, as bart's own packager keeps it
@@ -2770,9 +2865,8 @@ bart2Negbin <- function(
 # Assemble a bart2(family = "nbinom") fit from the synthesized channels.
 # yhat.train/test are the mean counts mu = exp(eta), the reported deliverable;
 # latent.train/test are the log-mean eta draws (type = "bart"/"link");
-# shape is the per-draw r, the count analog of gaussian's sigma; k (or sd,
-# when the leaf prior was named by its spread) is the drawn leaf scale, absent
-# when fixed; y is the observed counts.
+# shape is the per-draw r, the count analog of gaussian's sigma; k is the drawn
+# leaf scale, absent when fixed; y is the observed counts.
 packageNegbinResults <- function(
   control,
   sampler,
@@ -2831,19 +2925,15 @@ packageNegbinResults <- function(
     )
   }
   if (!is.null(kRaw)) {
-    # a fit that names its leaf prior by sd reports the spread it named over
-    # the engine's drawn k, as bart's packager does
-    anchor <- sampler$model@prior.scale
-    channel <- if (is.na(anchor)) "k" else "sd"
-    if (n.chains == 1L) {
-      kRaw <- kRaw[, 1L]
-    }
-    result[[channel]] <- convertSamplesFromDbartsToBart(
-      if (is.na(anchor)) kRaw else anchor / kRaw,
+    result[["k"]] <- convertSamplesFromDbartsToBart(
+      if (n.chains == 1L) kRaw[, 1L] else kRaw,
       n.chains,
       combineChains
     )
   }
+  descriptors <- fitDescriptors(sampler)
+  result$leaf.prior <- descriptors$leaf.prior
+  result$fixed <- descriptors$fixed
   result$row.names.train <- trainNames
   result$row.names.test <- testNames
   # absent, not NULL, off a complete fit, as bart's own packager keeps it

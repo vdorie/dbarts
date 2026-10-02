@@ -389,12 +389,21 @@
             \code{ci.level} to return credible or prediction intervals.
             \code{predict}'s \code{n.threads} splits the work across draws,
             so single-chain fits parallelize too, with identical results.
-            \code{\link{summary.bart}} reports \code{sigma} and \code{k}
-            with split R-hat and effective sample sizes.
+            \code{\link{summary.bart}} tabulates the parameters a fit
+            sampled, \code{sigma} and the leaf scale (\code{k}, or
+            \code{leaf.prior.sd} on a fit whose leaf prior was named by
+            \code{sd}), with split R-hat and effective sample sizes, and
+            names the ones it held fixed on a line under the table.
             \code{extract(type = "loglik")} returns the pointwise
             log-likelihood, for use with WAIC or PSIS-LOO (for example
             \pkg{loo}), and \code{extract} also reads \code{"sigma"},
-            \code{"k"} and \code{"varcount"}. \code{\link{plotTree}} plots a
+            \code{"k"}, \code{"leaf.prior.sd"} and \code{"varcount"}:
+            draws for a parameter the fit sampled and one number for one it
+            held fixed, \code{"sigma"} being 1 on a family with no residual
+            scale, and \code{"k"} and \code{"leaf.prior.sd"} one number
+            per forest on a fit with several. A fit stores the \code{k} its
+            sampler recorded, the \code{leaf.prior} it ran under and the
+            scalars it held \code{fixed}. \code{\link{plotTree}} plots a
             tree directly from a fit. \code{\link{samplePriorPredictive}}
             draws from a model's prior before fitting it. Runs can be
             interrupted with Ctrl-C.

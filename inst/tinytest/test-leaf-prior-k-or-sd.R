@@ -348,8 +348,8 @@ expect_identical(
   as.vector(do.call(xbart, c(xbartArgs, list(sd = 0.25))))
 )
 
-# --- a fit reports the leaf prior in the terms it was named in: drawn spreads
-# on an sd-named fit, drawn k on a k-named one ---
+# --- a fit stores the sampler's k whatever terms the leaf prior was named in,
+# and the leaf prior it ran under; the spread is the anchor over k ---
 fitOf <- function(leafPrior) {
   eval(bquote(bart(
     x,
@@ -367,15 +367,28 @@ fitOf <- function(leafPrior) {
 }
 kNamed <- fitOf(quote(normal()))
 sdNamed <- fitOf(quote(normal(sd = invchi(1.5, 1.5))))
-expect_null(sdNamed[["k"]])
-expect_null(kNamed[["sd"]])
-# the same chain: the spread draws are the anchor over the k draws
-expect_identical(sdNamed[["sd"]], 3 / kNamed[["k"]])
-expect_identical(sdNamed[["first.sd"]], 3 / kNamed[["first.k"]])
-expect_identical(extract(sdNamed, "sd"), 3 / extract(kNamed, "k"))
-expect_error(extract(sdNamed, "k"), "named by 'sd'.*type = \"sd\"")
-expect_error(extract(kNamed, "sd"), "named by 'k'.*type = \"k\"")
-expect_true("sd" %in% summary(sdNamed)$stats$variable)
+# no spread channel stands in for k, drawn or burn-in
+expect_identical(grep("^(first[.])?sd$", names(sdNamed)), integer())
+# the same chain: both carry the raw k draws and the burn-in's, and the
+# spread is the anchor over them
+expect_identical(sdNamed[["k"]], kNamed[["k"]])
+expect_identical(sdNamed[["first.k"]], kNamed[["first.k"]])
+expect_identical(extract(sdNamed, "k"), extract(kNamed, "k"))
+expect_equal(sdNamed$leaf.prior$anchor, 3)
+expect_equal(extract(sdNamed, "leaf.prior.sd"), 3 / extract(kNamed, "k"))
+expect_equal(extract(kNamed, "leaf.prior.sd"), 3 / extract(kNamed, "k"))
+expect_identical(sdNamed$fixed, list())
+expect_error(extract(sdNamed, "sd"), "type must be in")
+# summary follows the naming: leaf.prior.sd on the sd-named fit, k on the
+# k-named one, and either on request
+expect_true("leaf.prior.sd" %in% summary(sdNamed)$stats$variable)
+expect_false("k" %in% summary(sdNamed)$stats$variable)
+expect_true("k" %in% summary(kNamed)$stats$variable)
+expect_false("leaf.prior.sd" %in% summary(kNamed)$stats$variable)
+expect_true("k" %in% summary(sdNamed, vars = "k")$stats$variable)
+expect_true(
+  "first.k" %in% summary(sdNamed, vars = "first.k")$stats$variable
+)
 # and the reader of the fit's sampler agrees about the terms
 expect_identical(
   sdNamed$fit$getLeafPrior()$leaf.prior@prior.sd,

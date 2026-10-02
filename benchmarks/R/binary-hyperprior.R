@@ -588,10 +588,12 @@ fitAndScore <- function(arm, case, mcmcSeed) {
   # Two scalar series per fit carry the mixing report: the sampled k, which is
   # the quantity the prior is about, and the held-out mean probability, which
   # is the forest's own summary and moves even when k is fixed.
-  kMatrix <- if (is.null(fit$k)) {
+  # the channel is read by exact name: `$` matches a component by prefix, and
+  # a fixed k must read as absent
+  kMatrix <- if (is.null(fit[["k"]])) {
     NULL
   } else {
-    matrix(as.vector(t(as.matrix(fit$k))), nSamples, nChains)
+    matrix(as.vector(t(as.matrix(fit[["k"]]))), nSamples, nChains)
   }
   kDraws <- if (is.null(kMatrix)) {
     rep(arm$fixed.k, nSamples * nChains)

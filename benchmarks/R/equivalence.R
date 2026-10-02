@@ -2132,8 +2132,10 @@ fitSummaries <- function(scenario, seed) {
   if (!scenario$binary) {
     result <- c(result, sigma.mean = mean(fit$sigma), sigma.sd = sd(fit$sigma))
   }
-  if (!is.null(fit$k)) {
-    result <- c(result, k.mean = mean(fit$k), k.sd = sd(fit$k))
+  # exact name: `$` matches a component by prefix, and a fixed k must read as
+  # absent
+  if (!is.null(fit[["k"]])) {
+    result <- c(result, k.mean = mean(fit[["k"]]), k.sd = sd(fit[["k"]]))
   }
   # ordinal-only channels (fitViaOrdinal); NULL - and so absent - for every
   # other fitter, leaving the existing scenarios' summary vectors untouched.

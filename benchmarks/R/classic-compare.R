@@ -781,8 +781,10 @@ summarizeFit <- function(scn, fit) {
       sigma.sd = sd(fit$sigma)
     )
   }
-  if (!is.null(fit$k)) {
-    result <- c(result, k.mean = mean(fit$k), k.sd = sd(fit$k))
+  # exact name: `$` matches a component by prefix, and a fixed k must read as
+  # absent
+  if (!is.null(fit[["k"]])) {
+    result <- c(result, k.mean = mean(fit[["k"]]), k.sd = sd(fit[["k"]]))
   }
   result
 }

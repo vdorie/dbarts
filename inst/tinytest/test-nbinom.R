@@ -576,7 +576,10 @@ rm(d)
 kDraws <- extract(fit, type = "k")
 expect_equal(length(kDraws), n.samples)
 expect_true(all(kDraws > 0) && length(unique(kDraws)) > 1L)
-expect_error(extract(fit, type = "sd"), "leaf-prior sd was not sampled")
+expect_equal(
+  extract(fit, type = "leaf.prior.sd"),
+  fit$leaf.prior$anchor / kDraws
+)
 expect_error(extract(fit, type = "k", sample = "train"), "sample")
 fitSd <- bart(
   x,
@@ -589,8 +592,13 @@ fitSd <- bart(
   n.chains = 1L,
   verbose = FALSE
 )
-expect_null(fitSd$k)
-expect_equal(length(extract(fitSd, type = "sd")), 10L)
+# named by sd, k is still the sampler's: a drawn k, and the spread is the
+# anchor over it
+expect_equal(length(fitSd[["k"]]), 10L)
+expect_equal(
+  extract(fitSd, type = "leaf.prior.sd"),
+  fitSd$leaf.prior$anchor / extract(fitSd, type = "k")
+)
 fitFixedK <- bart(
   x,
   y,
@@ -602,8 +610,14 @@ fitFixedK <- bart(
   n.chains = 1L,
   verbose = FALSE
 )
-expect_null(fitFixedK$k)
-expect_error(extract(fitFixedK, type = "k"), "fixed, not sampled")
+# a fixed k is no channel, and extract returns it as the one number
+expect_null(fitFixedK[["k"]])
+expect_identical(extract(fitFixedK, type = "k"), 2)
+expect_identical(extract(fitFixedK, type = "k", combineChains = FALSE), 2)
+expect_equal(
+  extract(fitFixedK, type = "leaf.prior.sd"),
+  fitFixedK$leaf.prior$anchor / 2
+)
 rm(kDraws, fitSd, fitFixedK)
 
 rm(
