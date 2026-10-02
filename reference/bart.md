@@ -293,9 +293,10 @@ print(x, ...)
   when fitting. An `offset` argument given as a plain vector for the
   training rows applies only to a `newdata` of as many rows, as in `lm`;
   on any other `newdata` `predict` refuses unless given an `offset`,
-  which takes its place. A `bartOrdinal` fit, and
-  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
-  on a hazard fit, refuse new rows when the fit has an offset.
+  which takes its place. The same holds for `predict` on a `bartOrdinal`
+  fit, whose latent is shifted by the offset before the thresholds are
+  applied, and for
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md).
 
   For `predict` on a `bartMultinomial` fit, the same name carries a
   different shape: the per-category shift at the PREDICTED rows, an
@@ -322,10 +323,10 @@ print(x, ...)
   missing value there is governed by `na.action` (see ‘At Prediction’ in
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)).
 
-  For `predict` on a `bartOrdinal` or `bartHurdle` fit the name is a
-  formal only so that the fourth position means the same thing on all
-  six `predict` methods: neither family has an out-of-sample offset
-  channel, so any value but `NULL` is refused by name.
+  For `predict` on a `bartHurdle` fit the name is a formal only so that
+  the fourth position means the same thing on all six `predict` methods:
+  that family has no out-of-sample offset channel, so any value but
+  `NULL` is refused by name.
 
 - offset.test:
 
@@ -353,7 +354,8 @@ print(x, ...)
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)
   drops rows with a missing RESPONSE and keeps rows with missing
   predictors, which the trees route; the base functions keep their usual
-  meaning. See
+  meaning. A survival response is missing where its time or its status
+  is, as `survreg` and `coxph` take it. See
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
 
   For `predict`, what to do with the rows of `newdata` that have missing
@@ -674,11 +676,15 @@ print(x, ...)
   heteroscedastic positive part, both follow-ups). `y.train` must be
   non-negative and finite and must carry at least one exact zero and one
   positive value (a response with no zeros, or none positive, is refused
-  by name). By default `predict`/`fitted`/`extract` report the NATURAL
-  (response) scale via posterior-predictive Monte Carlo: \\E\[y \mid x\]
-  = P(y \> 0 \mid x)\\e^{f(x) + \sigma^2 / 2}\\ computed per posterior
-  draw from the positive part's single \\\sigma\\ per draw, recycled
-  across observations (the positive part is always homoscedastic; a
+  by name). `na.action` settles the rows before the response is split,
+  so a row it drops is dropped from both parts; a predictor it keeps
+  missing only on zero rows is refused, since the positive part would
+  learn no route for it. A variance forest is refused by name. By
+  default `predict`/`fitted`/`extract` report the NATURAL (response)
+  scale via posterior-predictive Monte Carlo: \\E\[y \mid x\] = P(y \> 0
+  \mid x)\\e^{f(x) + \sigma^2 / 2}\\ computed per posterior draw from
+  the positive part's single \\\sigma\\ per draw, recycled across
+  observations (the positive part is always homoscedastic; a
   heteroscedastic positive part is not reachable, see the recorded
   limitation above). `type = "prob"` returns the zero part's own
   probability \\\pi(x) = P(y \> 0 \mid x)\\ through the probit link;
@@ -1586,7 +1592,12 @@ as a factor over the original levels - a classification convenience.
 if the fit carries no test channel); `extract(object, type = "ppd")`
 draws one category per posterior draw from its probability vector,
 returned as an integer code (1-based, indexing the fit's captured
-`levels`) in an array shaped like `"ev"` minus the K margin.
+`levels`) in an array shaped like `"ev"` minus the K margin; on a fit
+whose response is a count matrix, its training rows instead draw a
+vector of category counts with that row's number of trials,
+`rmultinom(1, n_i, p)` per draw and row (all zeros at a row with no
+trial), in an array shaped like `"ev"`, while its test rows, whose trial
+counts are unknown, draw one category as above.
 `extract`/`fitted`/`predict` with `type = "bart"`, and
 `extract`/`predict` with `type = "forest"`, error naming the reason: the
 run records only the identified softmax probabilities, and a category's
@@ -1599,9 +1610,11 @@ of the reported probabilities carry. `predict(object, newdata)` requires
 returns a levels-named (`n.chains` \\\times\\) `n.samples` \\\times\\
 number of new observations \\\times\\ K probability array, the
 `yhat.test`/`yhat.train` convention; `type = "ppd"` draws one category
-per posterior draw the same way `extract(object, type = "ppd")` does;
-`type = "bart"` and `type = "forest"` are named only to be refused, for
-the non-identification reason above; `type = "class"` returns the same
+per posterior draw the same way `extract(object, type = "ppd")` does on
+a factor response, a single trial on a count-matrix fit too, since the
+trial count of a new row is unknown; `type = "bart"` and
+`type = "forest"` are named only to be refused, for the
+non-identification reason above; `type = "class"` returns the same
 argmax factor `fitted(object, type = "class")` does, over the
 probability draws `predict` itself replays; paired with `ci.level` it is
 refused by name instead - a class prediction is a label rather than a
@@ -1624,8 +1637,8 @@ refused by name on `residuals` (as
 `ci.level` item). `extract(object, type = "loglik")` is the multinomial
 log-density of the observed row (its coefficient included, so it reduces
 to \\\log p\_{i, y_i}\\ for a one-trial row), extract-only,
-`sample = "test"` refused by name, shaped like `"ppd"` (the K margin
-dropped) - loo/WAIC on it is leave-one-*row*-out, since the likelihood
+`sample = "test"` refused by name, shaped like `"ev"` minus the K
+margin - loo/WAIC on it is leave-one-*row*-out, since the likelihood
 unit is the whole count row. `forest`/`contribution` on
 `extract`/`predict` (outside `extract(object, type = "trees")`,
 described below), `sample` on `fitted`, `type` on `residuals`, and
@@ -1910,7 +1923,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001643
+#> total seconds in loop: 0.001576
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1959,7 +1972,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001995
+#> total seconds in loop: 0.002006
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

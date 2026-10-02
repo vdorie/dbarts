@@ -23,6 +23,7 @@ survivalProbabilities(
   object,
   times,
   newdata = NULL,
+  offset = NULL,
   combineChains = TRUE,
   na.action = dbarts::na.keepPredictors,
   ...
@@ -68,6 +69,18 @@ survivalProbabilities(object, ...)
   `test` set (below), whose stored draws are read instead; otherwise
   `object` must have been fit with `keepTrees = TRUE`.
 
+- offset:
+
+  The offset at the subjects of `newdata`, as
+  [`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
+  it: a single value or one per row of `newdata`, added to the fit's
+  [`offset()`](https://rdrr.io/r/stats/offset.html) terms and `offset`
+  argument evaluated on `newdata` (see `offset` in
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)). For a
+  hazard fit a subject's offset applies at every period. Without
+  `newdata` the training subjects take the fit's own offset and this
+  argument is refused.
+
 - combineChains:
 
   A logical determining whether the chain dimension is collapsed into
@@ -83,10 +96,10 @@ survivalProbabilities(object, ...)
 - ...:
 
   Not a formal on the method: a name belonging to a sibling generic
-  (`type`, `sample`, `ci.level`, `offset`, `weights`, `n.threads`,
-  `forest`, `contribution`, `bases`) is refused by name rather than
-  silently ignored, since this method returns the draws of \\S(t \mid
-  x)\\ at `times` alone.
+  (`type`, `sample`, `ci.level`, `weights`, `n.threads`, `forest`,
+  `contribution`, `bases`) is refused by name rather than silently
+  ignored, since this method returns the draws of \\S(t \mid x)\\ at
+  `times` alone.
 
 ## Details
 
@@ -97,19 +110,21 @@ the linear predictor \\E\[\log T \mid x\]\\ - the log-time-scale
 quantity that
 [`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md) and
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md) return
-for an `"aft"` fit - and \\\sigma\\ the residual standard deviation. The
-probability is evaluated at every posterior draw of \\f(x)\\ and
-\\\sigma\\, following the package's convention that draw-level functions
-return draws: take means or quantiles over the draw margin for point
-estimates and credible bands.
+for an `"aft"` fit, the offset included - and \\\sigma\\ the residual
+standard deviation. The probability is evaluated at every posterior draw
+of \\f(x)\\ and \\\sigma\\, following the package's convention that
+draw-level functions return draws: take means or quantiles over the draw
+margin for point estimates and credible bands.
 
 For a discrete-time hazard fit, the survival function is the cumulative
 product \$\$S(t \mid x) = \prod\_{k \\:\\ \mathrm{periods}\[k\] \le t}
 (1 - h(k \mid x)),\$\$ where \\h(k \mid x) = g(f(x, k) + o)\\ is the
-per-period hazard through the fit's binary link \\g\\. Because the
-training design is ragged (each subject carries only its at-risk rows),
-the method ALWAYS re-expands its subjects onto the full grid and replays
-the trees - so it requires `keepTrees = TRUE` even for the training data
+per-period hazard through the fit's binary link \\g\\ and \\o\\ the
+subject's offset: the fit's own on the training subjects, and on
+`newdata` the one formed from `offset` as above. Because the training
+design is ragged (each subject carries only its at-risk rows), the
+method ALWAYS re-expands its subjects onto the full grid and replays the
+trees - so it requires `keepTrees = TRUE` even for the training data
 (`newdata = NULL`). With `newdata`, each new subject is expanded to one
 row per period and its curve evaluated the same way. The one exception:
 a `test` set that rode the fit call (the matrix interface's own hazard

@@ -477,9 +477,13 @@ family(object, ...)
   caller, where the combined arms (`"ev"`, `"ppd"`, `"bart"`) perform it
   given the bases at those rows (see `bases`). For `"ppd"`, a weighted
   logistic fit draws the number of successes among the observation-count
-  weight, \\\mathrm{Binomial}(w_i, p_i)\\ (see `weights`), an aft
-  (survival) fit draws on the log-time scale (the fit models \\\log
-  T\\), and a heteroscedastic fit
+  weight, \\\mathrm{Binomial}(w_i, p_i)\\ (see `weights`), and `weights`
+  given to `predict` on a probit or logistic fit are likewise trial
+  counts, positive integers, each new row drawing
+  \\\mathrm{Binomial}(w_i, p_i)\\, an aft (survival) fit draws on the
+  log-time scale (the fit models \\\log T\\), a `family = student()` fit
+  draws \\f + \sigma t\_\nu / \sqrt{w_i}\\ at each draw's own \\\sigma\\
+  and \\\nu\\ (the fit's `$resid.df`), and a heteroscedastic fit
   ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `variance`) draws its noise at that observation's own
   \\s(x_i)/\sqrt{w_i}\\. For `"loglik"`, gaussian fits evaluate \\y_i
@@ -1140,27 +1144,27 @@ bartFit <- bart(x, y)
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> [2] iteration: 100 (of 500)
 #> [1] iteration: 100 (of 500)
-#> [2] iteration: 200 (of 500)
+#> [2] iteration: 100 (of 500)
 #> [1] iteration: 200 (of 500)
-#> [2] iteration: 300 (of 500)
+#> [2] iteration: 200 (of 500)
 #> [1] iteration: 300 (of 500)
+#> [2] iteration: 300 (of 500)
 #> [2] iteration: 400 (of 500)
 #> [1] iteration: 400 (of 500)
 #> [2] iteration: 500 (of 500)
 #> [1] iteration: 500 (of 500)
-#> [4] iteration: 100 (of 500)
 #> [3] iteration: 100 (of 500)
-#> [4] iteration: 200 (of 500)
+#> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
-#> [4] iteration: 300 (of 500)
+#> [4] iteration: 200 (of 500)
 #> [3] iteration: 300 (of 500)
-#> [4] iteration: 400 (of 500)
+#> [4] iteration: 300 (of 500)
 #> [3] iteration: 400 (of 500)
-#> [4] iteration: 500 (of 500)
+#> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
-#> total seconds in loop: 0.150389
+#> [4] iteration: 500 (of 500)
+#> total seconds in loop: 0.147668
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 
