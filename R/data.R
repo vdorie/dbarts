@@ -1537,7 +1537,9 @@ findTermInFormulaData <- function(formula, data, term) {
     },
     error = function(e) NULL
   )
-  value
+  # a name that reached a function (base's t, say) found no value of the
+  # caller's
+  if (is.function(value)) NULL else value
 }
 
 ## A block of code rather than a function: evaluating a function this way in
@@ -1606,11 +1608,15 @@ getTestOffset <- quote({
     }
     # then the enclosure model.frame reads it in, and failing that the
     # caller's frame; never this function's own, which would answer a name
-    # such as 'x' with the predictors
+    # such as 'x' with the predictors. An offset is a value, so a function
+    # met first along either chain - base's t, stats' df or sigma - is passed
+    # over for the value it masks
     for (env in unique(list(testOffsetEnclos, callerEnv))) {
-      value <- get0(testOffsetName, envir = env)
-      if (!is.null(value)) {
-        return(list(offset.test = value, testUsesRegularOffset = FALSE))
+      for (mode in c("numeric", "list")) {
+        value <- get0(testOffsetName, envir = env, mode = mode)
+        if (!is.null(value)) {
+          return(list(offset.test = value, testUsesRegularOffset = FALSE))
+        }
       }
     }
 

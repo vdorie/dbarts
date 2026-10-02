@@ -473,12 +473,14 @@
       \item Prior arguments no longer see internal variables named
             \code{control} and \code{data}, which had shadowed the caller's
             own (as in \code{tree.prior = cgm(2, 0.95, data)}).
-      \item An \code{offset.test} expression, and a formula fit's
-            \code{test} and \code{weights}, are evaluated as
-            \code{model.frame} evaluates its arguments: in the data, then in
-            the formula's environment, or the caller's without a formula.
-            They had seen internal variables such as \code{x}, and then the
-            global environment ahead of the caller's own objects, so
+      \item An \code{offset.test} expression is evaluated in \code{test},
+            then in \code{data}, each with the formula's environment, as
+            \code{model.frame} evaluates its arguments, and failing that in
+            the caller's frame; without a formula, in the caller's frame. A
+            formula fit's \code{test} and \code{weights} are evaluated in
+            \code{data} with the formula's environment, and otherwise taken
+            as given. They had seen internal variables such as \code{x}, and
+            then the global environment ahead of the caller's own objects, so
             \code{offset.test = d$o} inside a function could read a global
             \code{d}.
       \item \code{xbart}'s weighted RMSE loss is on the scale of the

@@ -229,7 +229,26 @@ shadowedMatrixFit <- function() {
   )
 }
 expect_identical(shadowedMatrixFit()$fit$data@offset.test, rep(3, 5L))
-rm(shadowedFit, shadowedMatrixFit)
+# the caller-frame fallback passes over a function for the value it masks:
+# a wrapper's local 't', given as offset.test beside a formula made outside
+# it, is the local and not base's t, which the formula's environment reaches
+# first
+formulaOutside <- y ~ a
+wrapperWithT <- function(formula) {
+  t <- rep(4, 5L)
+  fitWith(
+    formula = formula,
+    data = d,
+    offset = o,
+    test = te5[, c("a", "o")],
+    offset.test = t
+  )
+}
+expect_identical(
+  wrapperWithT(formulaOutside)$fit$data@offset.test,
+  rep(4, 5L)
+)
+rm(shadowedFit, shadowedMatrixFit, formulaOutside, wrapperWithT)
 expect_identical(
   fitWith(
     formula = y ~ a,
