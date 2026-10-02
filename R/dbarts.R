@@ -128,7 +128,9 @@ resolveHazardGrid <- function(time, breaks, gridTime = time) {
     findInterval(time, periods, left.open = TRUE) + 1L,
     length(periods)
   )
-  terminal[is.na(terminal)] <- 0L
+  # a subject with no time is at risk in the first period at least, as every
+  # subject is; it keeps that one row, with a missing response
+  terminal[is.na(terminal)] <- 1L
   list(periods = periods, terminalPeriod = terminal)
 }
 
@@ -175,10 +177,10 @@ expandDiscreteTimeHazard <- function(
   subjectOf <- rep.int(seq_len(n), terminal)
   periodOf <- sequence(terminal)
   y <- as.double(periodOf == terminal[subjectOf] & status[subjectOf] == 1.0)
-  # a subject with a time but no status is at risk to it with a missing
+  # a subject missing its time or its status is at risk with a missing
   # response, which the na.action then drops or refuses as it would any
-  # other; one with no time has no rows
-  y[is.na(status[subjectOf])] <- NA_real_
+  # other: to its time when it has one, and otherwise in the first period
+  y[is.na(status[subjectOf]) | is.na(time[subjectOf])] <- NA_real_
 
   if ("period" %in% hazardPredictorNames(x)) {
     stop(
@@ -211,8 +213,9 @@ expandDiscreteTimeHazard <- function(
 # rows. The na.action ran on the subjects, before expansion, so the dropped
 # subjects' rows are rebuilt from their own times on the kept subjects' grid,
 # as the matrix interface, which expands first, would have dropped them; a
-# subject with no time has no rows. Returns the record and the kept rows'
-# make.unique names, taken over every subject so that they match that path.
+# subject with no time has its first-period row. Returns the record and the
+# kept rows' make.unique names, taken over every subject so that they match
+# that path.
 hazardOmittedRows <- function(omitted, omittedTime, expansion, keptNames) {
   K <- length(expansion$periods)
   omittedSubjects <- unclass(omitted)
@@ -228,7 +231,8 @@ hazardOmittedRows <- function(omitted, omittedTime, expansion, keptNames) {
     findInterval(omittedTime, expansion$periods, left.open = TRUE) + 1L,
     K
   )
-  omittedCounts[is.na(omittedCounts)] <- 0L
+  # a subject with no time keeps the first period, as the expansion gives it
+  omittedCounts[is.na(omittedCounts)] <- 1L
   periodCounts[omittedSubjects] <- omittedCounts
   subjectOf <- rep.int(seq_len(numSubjects), periodCounts)
   droppedRows <- which(subjectOf %in% omittedSubjects)

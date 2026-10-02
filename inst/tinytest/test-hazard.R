@@ -650,12 +650,51 @@ if (requireNamespace("survival", quietly = TRUE)) {
     unname(fit.complete$yhat.train)
   )
   # the subject missing only its status drops the rows its time puts it at
-  # risk in, on both interfaces
-  expect_identical(length(fit.naOmit$na.action), as.integer(time.na[5L]))
+  # risk in, and the one missing its time its first-period row, on both
+  # interfaces
+  expect_identical(
+    length(fit.naOmit$na.action),
+    as.integer(time.na[5L]) + 1L
+  )
   expect_identical(
     as.vector(unclass(fit.naOmit$na.action)),
     as.vector(unclass(fit.naFormula$na.action))
   )
-  rm(d.na, fit.naFormula)
+  # a missing time alone is a missing response as a missing status is: under
+  # na.pass both interfaces refuse it
+  d.naTime <- data.frame(x, time = time.na, status = d$status)
+  expect_error(
+    do.call(
+      dbarts::bart,
+      c(
+        list(
+          survival::Surv(time, status) ~ .,
+          data = d.naTime,
+          family = "hazard",
+          na.action = na.pass
+        ),
+        naArgs
+      )
+    ),
+    "response contains missing values",
+    fixed = TRUE
+  )
+  expect_error(
+    do.call(
+      dbarts::bart,
+      c(
+        list(
+          x,
+          cbind(time.na, d$status),
+          family = "hazard",
+          na.action = na.pass
+        ),
+        naArgs
+      )
+    ),
+    "response contains missing values",
+    fixed = TRUE
+  )
+  rm(d.na, d.naTime, fit.naFormula)
 }
 rm(time.na, status.na, complete.na, naArgs, fit.naOmit, fit.complete)
