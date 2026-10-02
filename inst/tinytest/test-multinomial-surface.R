@@ -436,13 +436,25 @@ expect_identical(
   dim(extract(fit3c, type = "ev", combineChains = FALSE))
 )
 expect_true(all(apply(ppd3cSplit, c(1L, 2L), rowSums) == rowSums(counts3c)))
-# the draws are rmultinom(1, n_i, p) per draw and row, in "ev"'s order
-set.seed(5L)
-ppdSeeded <- extract(fit3c, type = "ppd")
-set.seed(5L)
-first <- stats::rmultinom(1L, sum(counts3c[1L, ]), ev3c[1L, 1L, ])
-expect_identical(as.vector(ppdSeeded[1L, 1L, ]), as.vector(first))
-rm(ppd3cSplit, ppdSeeded, first)
+# each draw is Multinomial(n_i, p): over many draws at fixed p the counts
+# average n_i p, and their covariance is n_i (diag(p) - p p'), at a row of
+# 6 trials and one of none
+pFixed <- c(0.2, 0.5, 0.3)
+probsFixed <- array(
+  rep(pFixed, each = 2L * 20000L),
+  c(20000L, 2L, 3L)
+)
+set.seed(9L)
+countsFixed <- dbarts:::multinomialCountPpdFromProbs(probsFixed, c(6L, 0L))
+expect_true(all(countsFixed[, 2L, ] == 0L))
+expect_true(all(rowSums(countsFixed[, 1L, ]) == 6L))
+expect_equal(colMeans(countsFixed[, 1L, ]), 6 * pFixed, tolerance = 0.02)
+expect_equal(
+  unname(cov(countsFixed[, 1L, ])),
+  6 * (diag(pFixed) - tcrossprod(pFixed)),
+  tolerance = 0.05
+)
+rm(ppd3cSplit, pFixed, probsFixed, countsFixed)
 
 set.seed(seed3c)
 fit3cKeep <- mfit(

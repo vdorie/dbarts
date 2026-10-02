@@ -1746,8 +1746,11 @@ multinomialPpdFromProbs <- function(probs) {
   array(codes, d[-length(d)], dimnames(probs)[-length(d)])
 }
 
-# The count-row counterpart: rmultinom(1, n_i, p) per draw and row, laid out
-# as probs is (K trailing), a row of zero trials all zeros.
+# The count-row counterpart: a Multinomial(n_i, p) count vector per draw and
+# row, laid out as probs is (K trailing), a row of zero trials all zeros. Drawn
+# as rmultinom draws it, by sequential binomials - category k takes
+# Binomial(the trials left, p_k / the probability left) - but one category at
+# a time across every (draw, row) at once rather than one call per row.
 multinomialCountPpdFromProbs <- function(probs, trials) {
   d <- dim(probs)
   K <- d[length(d)]
@@ -1755,11 +1758,20 @@ multinomialCountPpdFromProbs <- function(probs, trials) {
   n.draws <- length(probs) %/% (nObs * K)
   flat <- probs
   dim(flat) <- c(n.draws * nObs, K)
-  size <- rep(as.integer(trials), each = n.draws)
+  remaining <- rep(as.integer(trials), each = n.draws)
+  probabilityLeft <- rowSums(flat)
   counts <- matrix(0L, n.draws * nObs, K)
-  for (j in which(size > 0L)) {
-    counts[j, ] <- stats::rmultinom(1L, size[j], flat[j, ])
+  for (k in seq_len(K - 1L)) {
+    conditional <- ifelse(
+      probabilityLeft > 0,
+      pmin(1, flat[, k] / probabilityLeft),
+      0
+    )
+    counts[, k] <- stats::rbinom(length(remaining), remaining, conditional)
+    remaining <- remaining - counts[, k]
+    probabilityLeft <- pmax(0, probabilityLeft - flat[, k])
   }
+  counts[, K] <- remaining
   array(counts, d, dimnames(probs))
 }
 
@@ -3519,7 +3531,7 @@ ppdNoise <- function(n, sd, df = NULL) {
   if (is.null(df)) {
     return(rnorm(n, 0, sd))
   }
-  sd * rt(n, rep_len(as.vector(df), n))
+  sd * stats::rt(n, rep_len(as.vector(df), n))
 }
 
 # the number of draws the noise scale spans: one per sigma draw, or, on a
