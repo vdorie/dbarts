@@ -1360,6 +1360,7 @@ late sweeps take 560-950 ms against base's 0.10-0.29 ms; one of four fits finish
 old engine's trees, and in line with the stage 4 checkpoint the hybrid ruling (dec-B153) was made on (the
 1-tree 1 + 1 fit, 11 minutes for 1200 sweeps). bench-sampler, base recorded and the tip compared: every
 metric 0.98-1.02 except setPredictor-reject-n1000-t75 at 1.067 in 4 of 4 compares, about 6 microseconds per
-rejected update, which is not a monotone path and is being traced separately. The x86 leg on 4cd88b2f:
+rejected update, which is not a monotone path: an extra read of the sampler's data field in R's setPredictor
+(51bea192), fixed by 2fd103c2, after which the metric reads 0.88-0.89 of base on the same box. The x86 leg on 4cd88b2f:
 tests/cpp plain and under ASan/UBSan pass 333 checks; tinytest 11,260/0; equivalence-fdfc1fe4 55/55 by max
 |z| (worst 0.00), bcf-d49e2103 15/15 and multinomial-80b1c8d4 11/11 under --cross-host.
