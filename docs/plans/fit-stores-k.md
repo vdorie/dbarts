@@ -1,6 +1,6 @@
 # fit-stores-k: a fit stores k, extract converts, and a value held fixed comes back as one number
 
-Status: PLANNED 2026-10-02 under dec-B192, dec-B193, dec-B194, dec-B198 and dec-B199 in
+Status: LANDED 2026-10-02 (90157b89, 67ceb4cf, 7025de7a) under dec-B192, dec-B193, dec-B194, dec-B198 and dec-B199 in
 [decisions.md](../decisions.md). Lands before [state-not-model.md](state-not-model.md).
 
 agent: sonnet implementer, one; opus reviewer.
@@ -122,3 +122,34 @@ Against a private library:
   --as-cran` on a tarball from a clean export.
 - `git grep -nE 'first\.sd|type = "sd"' -- R man inst vignettes benchmarks` lists nothing; the report gives
   the output.
+
+## Landing
+
+LANDED 2026-10-02: the slice (90157b89), its cites (67ceb4cf) and the review's fixes (7025de7a). About 1550
+changed lines against the 950 budgeted.
+
+- The descriptors are built by [`fitDescriptors`](../../R/bart.R) and the four types are served by
+  [`extractParameter`](../../R/generics.R). `leaf.prior` is the reader's list, a list named by forest on
+  several forests and the first forest's on a multinomial fit; `fixed` is a named list among `sigma`, `shape`,
+  `k` and `resid.df`. Whether a quantity is fixed is the model's word; its value is the sampler's.
+- The line reads `(Fixed, not sampled: sigma = 0.5477, k = 2)`, on every class, the multinomial included. A
+  fixed Student-t df and the ordinal's first threshold are on it; a sigma the family pins at 1 is not. To name
+  a fixed df by default the df joined `summary`'s default parameters, so a sampled df is now a default row; its
+  tail effective sample size reads NA when the grid's top value is its 95 percent quantile, as posterior's does.
+- A quantity the model holds fixed but whose chains differ - today only after a warm start from a donor that
+  drew it - comes back as one value per chain, not NA. The manual does not say so: the case goes when
+  [state-not-model.md](state-not-model.md) lands, and its tests rewrite the block that pins it.
+- `forest =` takes an index or a name and is refused on a single forest; a fit saved without the descriptors
+  answers sigma, shape and a drawn k from its channels and refuses the rest by name; a hurdle fit with a fixed
+  positive-part sigma plots three panels in a row.
+- The review, an independent reader with its own builds, found the per-chain case returning NA, plot tests
+  that passed with the behaviour removed, stale sentences in three manual pages and the two summary gaps
+  above; all were fixed and re-checked. It compared 55 seeded fits and 7 pdbart and rbart objects between the
+  base and the slice: every shared component identical.
+- Verification: tinytest 12189 tests, 0 failures, the warning table identical to the base commit's, with three
+  assertions added afterwards and run in their own file; the exact
+  gates in quick mode; on a reference build the three equivalence compares identical on 55, 15 and 11
+  scenarios and the four snapshot files; bartCause's suite; the lint chain; `R CMD check --as-cran` with the
+  Date NOTE only; mutations of the fixed branch, the plot guards, the per-chain value and the multinomial line
+  each turning tests red.
+- Found on the way, not from this slice: a pdbart result loses its burn-in sigma (TODO, pdbart-burn-in-sigma).

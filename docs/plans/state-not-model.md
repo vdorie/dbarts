@@ -1,7 +1,7 @@
 # state-not-model: a saved state holds the chain, not the model
 
 Status: PLANNED 2026-10-02 under dec-B195, dec-B196, dec-B197 and dec-B200 in [decisions.md](../decisions.md).
-Starts after [fit-stores-k.md](fit-stores-k.md) lands.
+Follows [fit-stores-k.md](fit-stores-k.md), landed.
 
 agent: opus implementer, one; opus reviewer.
 rng: NEUTRAL. A state installed in a sampler under the model it was saved with gives the draws it gives today.
@@ -190,7 +190,8 @@ Ruled after the first two were applied:
    ["divergedScale"](../../inst/tinytest/test-calibration-midchain.R) and its neighbour "divergedK", the
    `leaf.scale` format cases and ["donor.sf"](../../inst/tinytest/test-sampler-state-format.R), the fixed-shape
    state oracle in inst/tinytest/test-shape-channel.R, the fixed-df and fixed-shape state checks and the
-   leaf-scale case in tests/cpp, and the two parser anchors in benchmarks/R/mutation-battery.R. Add: for each
+   leaf-scale case in tests/cpp, the two parser anchors in benchmarks/R/mutation-battery.R, and the warm-start block of
+   inst/tinytest/test-fit-stores-k.R, whose per-chain fixed values no longer arise. Add: for each
    of k, a named sd, a forest spread, sigma, the df, the shape, the concentration, a fixed amplitude variance
    and fixed amplitudes, store, write, restore, with the reader and the next draws matching a twin that only
    wrote; a state from one model installed under another leaves the recipient's reader unchanged; drawn values

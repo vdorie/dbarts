@@ -163,18 +163,6 @@ items
     (dec-A146). Left for later: the cut grid and leaf standardization,
     which a state still brings. Engine, bridge and R; no header change
     expected. After fit-stores-k. Plan: docs/plans/state-not-model.md.
-  fit-stores-k: a bart fit with a drawn leaf scale carries k and first.k
-    under every naming, and every fit the leaf prior it ran under; sd
-    and first.sd leave the fit (docs/decisions.md dec-B192, VD
-    2026-10-02). extract answers both k and leaf.prior.sd on every fit,
-    the sd in the units the forest fits (dec-B193), with one number for
-    a value held fixed and draws for a sampled one, sigma and shape
-    included (dec-B194), and 1 for sigma on a family with no free
-    residual scale (dec-B198). summary tabulates what was sampled and
-    names what was fixed under the table (dec-B199). Several forests
-    answer per forest and the summary's default leaf-scale row follows
-    the naming (dec-A147). R only. Before state-not-model. Plan:
-    docs/plans/fit-stores-k.md.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
@@ -329,6 +317,11 @@ items
     Fix (read and package the channel) or refuse the hyperprior at fit
     time. The nbinom half closed with the log-mean model, whose k is
     drawn by default (dec-B183).
+  pdbart-burn-in-sigma: a pdbart or pd2bart result's first.sigma is NULL
+    after a burn-in. The result builder hands the packager the fit's
+    sigma under the burn-in argument by a name the fit list it is given
+    does not carry. Pre-existing; pdbart objects have no extract method
+    and nothing in the package reads the component.
   python-bindings: a pybind11 facade wrapper is prototype-scale.
     Horizon, likely out-of-repo. The engine is not R-free below the
     bridge: model.hpp calls three Rmath density functions
