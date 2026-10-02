@@ -410,8 +410,12 @@ rbart_vi <- function(
   validationSampler <- do.call(dbarts::dbarts, samplerArgs)
   writeGlobalSeed(streamBefore)
   # "auto" resolved (and was announced) once, above; the chains take the
-  # resolved token so none of them announces it again
-  samplerArgs$family@token <- validationSampler$model@family
+  # resolved family so none of them announces it again, without the
+  # residual prior a binary one takes none of
+  samplerArgs$family <- specifiedFamily(
+    samplerArgs$family,
+    validationSampler$model@family
+  )
 
   chainResults <- vector("list", n.chains)
   runSingleThreaded <- n.threads <= 1L || n.chains <= 1L
