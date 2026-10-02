@@ -1,7 +1,7 @@
 # state-not-model: a saved state holds the chain, not the model
 
 Status: PLANNED 2026-10-02 under dec-B195, dec-B196 and dec-B197 in [decisions.md](../decisions.md).
-Decision-gated on the questions under Decision; only step 5 waits on them.
+Step 3 waits on the transform design under Decision.
 
 agent: opus implementer, one; opus reviewer.
 rng: NEUTRAL. A state installed in a sampler under the model it was saved with gives the draws it gives today.
@@ -64,12 +64,16 @@ Ruled: the leaf prior is the sampler's (dec-B195); a value held fixed is model a
 included (dec-B196); `setSigma` on a sampler that does not draw sigma rewrites the model's fixed value, recorded
 on the R object as `setLeafPrior` records a spread, so `copy` and a reload keep it (dec-B197). A write through
 the C header cannot reach the R object; a reloaded sampler then holds creation's value until the next write.
-Open, each put to the maintainer on its own:
+Applied under those rulings by the agents, recorded as dec-A146 for the maintainer's mark:
 
-1. Whether a warm start follows the same rule. Today `bart(leaf.prior = normal(k = 2), warm.start = fit)` with
-   a fit made at k = 4 runs at 4 while its model says 2. Recommended: the recipient keeps its model.
-2. A supplied gp lengthscale. Recommended: the sampler keeps it, and a state holding saved draws made under
-   another is refused, since a saved gp draw cannot be replayed under another kernel.
+1. A warm start follows the same rule: the recipient keeps its model, and the donor's trees and the values the
+   recipient draws seed it. Today `bart(leaf.prior = normal(k = 2), warm.start = fit)` with a fit made at k = 4
+   runs at 4 while its model says 2.
+2. A supplied gp lengthscale is the sampler's. A state holding saved draws made under another is refused, since
+   a saved gp draw cannot be replayed under another kernel; without saved draws it installs.
+
+Open:
+
 3. The frame: the response transform, cut points and leaf standardization stay in the state as the units the
    chain is stored in. The maintainer, asked about the transform: "Well, prior != state, as we agreed." A
    k-named leaf prior takes its centre and width from the transform, so an installed transform must not move
@@ -94,7 +98,7 @@ Open, each put to the maintainer on its own:
   the install used: [`reissueNamedLeafSd`](../../R/dbarts.R) fetches the pointer itself and would recurse inside
   [`getPointer`](../../R/dbarts.R).
 - The undo of a failed warm start keeps working: what it snapshots and puts back must still return the
-  recipient to where it was, model values included, whichever way Decision 1 goes.
+  recipient to where it was. With no model value installed, there is none to put back.
 - The reader's NA for chains that disagree on the response scale, shift and prior mean stays: stan4bart's
   restored samplers are such chains. dec-B191's check is not built here.
 - The transform, the cut grid, the leaf standardization and a heuristic lengthscale install as today.
@@ -122,7 +126,8 @@ Open, each put to the maintainer on its own:
    calibration NA branches in [`reportLeafPrior`](../../R/dbarts.R) and narrow the NA-sd refusal in
    [`resolveForestSpreads`](../../R/dbarts.R) to the disagreeing-chains case.
 4. `setSigma` on a sampler that does not draw sigma records the value on the model field.
-5. The warm start and the lengthscale, per Decisions 1 and 2.
+5. The warm start through the same install rule; the lengthscale refusal, with its own flag beside those the
+   install already reports.
 6. Manual: `setState`, `storeState`, `copy`, `getLeafPrior`, `setLeafPrior`, `setSigma`, `installTrees` and
    `warm.start`, and the docstrings they mirror: what a state holds, that the model is the sampler's, and that
    the transform, grid and standardization come with the state.
