@@ -64,7 +64,7 @@ extract(object, ...)
 extract(
     object,
     type = c("ev", "ppd", "bart", "loglik", "trees", "forest",
-             "sigma", "k", "sd", "varcount"),
+             "sigma", "k", "leaf.prior.sd", "varcount"),
     sample = c("train", "test"),
     combineChains = TRUE,
     forest = NULL,
@@ -509,25 +509,30 @@ family(object, ...)
   used as a synonym for `"bart"`; the
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
   extended-family methods take the same two synonyms, each against its
-  own set of types. `extract` also takes `"sigma"`, `"k"` and `"sd"`,
-  the residual scale and leaf-prior spread draws (`"sd"` on a fit whose
-  leaf prior was named by `sd`, `"k"` otherwise) as a chain-combined
-  vector or (`combineChains = FALSE`) a chains-by-samples matrix, and
-  `"varcount"`, the per-predictor split counts shaped as `"ev"` is with
-  predictors in place of observations - none of them per-observation, so
-  a supplied `sample` is refused by name on all three, as is `forest`
-  (see `forest` below). `sigma` on a weighted fit is the scale at weight
-  1 (row i's is \\\sigma / \sqrt{w_i}\\); on a `family = student()` fit
-  it is the t scale, not the standard deviation. A binary fit has no
-  `sigma` to extract (error naming the reason). A heteroscedastic fit's
-  `"sigma"` is its per-observation scale \\s(x)\\, laid out as `"ev"` is
-  and taking `sample`: `extract` returns the stored `s.train` or
-  `s.test`, and `predict`, which takes `"sigma"` on such a fit only,
-  evaluates the variance forest at `newdata` (refusing `weights`, since
-  a case weight does not change \\s(x)\\). A fixed (unmodelled) `k`
-  errors, naming a `chi(...)` hyperprior as the fix where the fit could
-  take one. For information on extracting trees, see the subsection
-  below.
+  own set of types. `extract` also takes `"sigma"`, `"k"` and
+  `"leaf.prior.sd"`, the residual scale, the leaf prior's `k` and its
+  standard deviation, and `"varcount"`, the per-predictor split counts
+  shaped as `"ev"` is with predictors in place of observations - none of
+  them per-observation, so a supplied `sample` is refused by name on all
+  of them. A parameter the fit sampled comes back as its draws, a
+  chain-combined vector or (`combineChains = FALSE`) a chains-by-samples
+  matrix; one the fit held fixed comes back as that one number, under
+  either `combineChains`, and `forest` selects among the forests of a
+  fit with several (see `forest` below and the ‘Leaf prior parameter
+  `k`’ subsection). `sigma` on a weighted fit is the scale at weight 1
+  (row i's is \\\sigma / \sqrt{w_i}\\); on a `family = student()` fit it
+  is the t scale, not the standard deviation. A fit whose family has no
+  residual scale to estimate - probit, logistic, hazard, and the
+  ordinal, negative-binomial and multinomial fits of
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) - answers
+  `"sigma"` with 1, as [`sigma`](https://rdrr.io/r/stats/sigma.html)
+  does on a binomial `glm`. A heteroscedastic fit's `"sigma"` is its
+  per-observation scale \\s(x)\\, laid out as `"ev"` is and taking
+  `sample`: `extract` returns the stored `s.train` or `s.test`, and
+  `predict`, which takes `"sigma"` on such a fit only, evaluates the
+  variance forest at `newdata` (refusing `weights`, since a case weight
+  does not change \\s(x)\\). For information on extracting trees, see
+  the subsection below.
 
 - sample:
 
@@ -537,9 +542,10 @@ family(object, ...)
   `forests =`). It is `extract`'s and `fitted`'s own argument - `fitted`
   is always the training rows - and is refused by name on `predict`,
   whose stored train and test channels are `extract`'s `sample` instead;
-  also refused by name on `extract(type = "sigma")`/`"k"`/`"varcount"`,
-  none of them per-observation (`"sigma"` excepted on a heteroscedastic
-  fit, where it is).
+  also refused by name on
+  `extract(type = "sigma")`/`"k"`/`"leaf.prior.sd"`/`"varcount"`, none
+  of them per-observation (`"sigma"` excepted on a heteroscedastic fit,
+  where it is).
 
 - forest:
 
@@ -547,12 +553,14 @@ family(object, ...)
   forest(s) to return, by 1-based index or by margin name (`"forest1"`,
   `"forest2"`, ...); `NULL` (the default) returns every forest. The
   returned array always keeps the trailing forest margin, subset to the
-  requested forests, even when only one is selected. Selecting a forest
-  outside `type = "forest"` is refused by name: every other arm has
-  already recombined the forests into the location it reports, except
-  `"sigma"`/`"k"` (model parameters with no forest axis) and
-  `"varcount"` (which already keeps every forest on its own trailing
-  margin), each naming its own reason instead.
+  requested forests, even when only one is selected. For
+  `extract(type = "k")` and `extract(type = "leaf.prior.sd")` on a fit
+  with several forests, it selects among the named per-forest numbers
+  (one number for a single forest). Selecting a forest outside those is
+  refused by name: every other arm has already recombined the forests
+  into the location it reports, except `"sigma"` (a model parameter with
+  no forest axis) and `"varcount"` (which already keeps every forest on
+  its own trailing margin), each naming its own reason instead.
 
 - bases:
 
@@ -679,6 +687,28 @@ median 1.9) while adapting to the data; pass `k = 2` for the fixed
 BART-package default. Crossvalidation may still be helpful, and running
 for a short time with a flat prior (`scale = Inf`) can show the range of
 `k` values the data are consistent with.
+
+A fit stores the `k` its sampler recorded, whatever terms the leaf prior
+was named in (`k`, or `sd` through `leaf.prior`; see
+[`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md));
+`extract(type = "k")` returns it on every fit. Under a `k`-named prior
+it is relative to the data's scale, and under an `sd`-named one relative
+to the anchor the fit stores (`leaf.prior$anchor`), not to the data.
+`extract(type = "leaf.prior.sd")` returns the anchor over `k`: the prior
+standard deviation of the forest's total, which is the spread the leaf
+prior states, in the units the forest fits - the response's on a
+gaussian or Student-t fit, log time on an accelerated failure time fit,
+the latent scale of the link on a probit, logistic or ordinal fit, and
+the log mean on a negative-binomial fit. What the standard deviation is
+the standard deviation of depends on the leaf model: the leaf value for
+a constant leaf, each coefficient for a linear leaf and the amplitude
+for a Gaussian-process leaf. Under a monotone constraint the total's
+prior spread runs a few percent wider than this number. On a fit with
+several forests it is each forest's own total before its amplitude
+multiplies it, one named number per forest (`forest1`, `forest2`, ...),
+or the one that `forest` selects; `k` is pinned at 1 on each. A hurdle
+fit returns a list of its zero and positive parts, each in its own
+units.
 
 ### Generics
 
@@ -970,23 +1000,34 @@ returned. In the numeric \\y\\ case, the list has components:
 
 - `k`:
 
-  Optional matrix of posterior samples of `k`. Only present when `k` is
-  modeled, i.e. there is a hyperprior. Collapses (when combined) in
+  Optional matrix of posterior samples of `k`, as the sampler recorded
+  them whatever terms the leaf prior was named in. Only present when `k`
+  is modeled, i.e. there is a hyperprior. Collapses (when combined) in
   `sigma`'s chain-major order.
 
 - `first.k`:
 
   Burn-in draws of `k`, if modeled.
 
-- `sd`, `first.sd`:
+- `leaf.prior`:
 
-  In place of `k` and `first.k` on a fit whose leaf prior was named by
-  `sd` with an `invchi` hyperprior
-  ([`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)):
-  the draws of the leaf prior's sd, the named anchor over each drawn
-  `k`, so the fit reports the quantity it was specified in.
-  `extract(type = "sd")` reads them, and `extract(type = "k")` on such a
-  fit is refused, naming it.
+  The leaf prior the fit ran under, on every fit: the sampler's own
+  reading as the run ended
+  ([`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
+  `getLeafPrior`), a list holding the prior as it was named, what its
+  standard deviation is the standard deviation of, and `anchor`, the
+  value `k` is relative to. A list of such lists, named `forest1`,
+  `forest2`, ..., on a fit with several forests.
+
+- `fixed`:
+
+  The scalars the sampler held fixed, a named list on every fit, empty
+  when there are none: among `sigma`, `k` and `resid.df`, and `shape` on
+  a negative-binomial fit, each read from the sampler. A fixed `sigma`
+  is the sampler's, the square root of the variance `fixed()` names; a
+  fixed `k` on a fit with several forests is a vector named by forest.
+  Their draw channels, where there are any, repeat the value; `extract`
+  and `summary` read this list in their place.
 
 - `binaryOffset`:
 
@@ -1037,14 +1078,15 @@ Note that in the binary \\y\\, case `yhat.train` and `yhat.test` are
 (`pnorm`) for `"probit"` fits, `plogis` for `"logistic"` ones.
 
 For continuous response fits, the `plot` method sets `mfrow` to
-`c(1, 2)` and makes two plots. The first plot is the sequence of kept
-draws of \\\sigma\\ including the burn-in draws. Initially these draws
-will decline as BART finds a good fit and then level off when the MCMC
-has burnt in. The second plot has \\y\\ on the horizontal axis and
-posterior intervals for the corresponding \\f(x)\\ on the vertical axis.
-For binary response fits, only this second kind of plot is drawn, with
-the posterior median of \\P(Y = 1 \mid x)\\ on the horizontal axis and
-its posterior interval on the vertical axis.
+`c(1, 2)` and makes two plots, unless `sigma` was held fixed, when it
+draws only the second. The first plot is the sequence of kept draws of
+\\\sigma\\ including the burn-in draws. Initially these draws will
+decline as BART finds a good fit and then level off when the MCMC has
+burnt in. The second plot has \\y\\ on the horizontal axis and posterior
+intervals for the corresponding \\f(x)\\ on the vertical axis. For
+binary response fits, only this second kind of plot is drawn, with the
+posterior median of \\P(Y = 1 \mid x)\\ on the horizontal axis and its
+posterior interval on the vertical axis.
 
 For `print.bart`, the fit itself (`x`), returned invisibly; the call and
 a short synopsis (family, chain/tree/burn counts, kept-draw count) print
@@ -1146,25 +1188,25 @@ bartFit <- bart(x, y)
 #> Running mcmc loop:
 #> [1] iteration: 100 (of 500)
 #> [2] iteration: 100 (of 500)
-#> [1] iteration: 200 (of 500)
 #> [2] iteration: 200 (of 500)
-#> [1] iteration: 300 (of 500)
+#> [1] iteration: 200 (of 500)
 #> [2] iteration: 300 (of 500)
+#> [1] iteration: 300 (of 500)
 #> [2] iteration: 400 (of 500)
 #> [1] iteration: 400 (of 500)
 #> [2] iteration: 500 (of 500)
 #> [1] iteration: 500 (of 500)
-#> [3] iteration: 100 (of 500)
 #> [4] iteration: 100 (of 500)
-#> [3] iteration: 200 (of 500)
+#> [3] iteration: 100 (of 500)
 #> [4] iteration: 200 (of 500)
-#> [3] iteration: 300 (of 500)
+#> [3] iteration: 200 (of 500)
 #> [4] iteration: 300 (of 500)
-#> [3] iteration: 400 (of 500)
+#> [3] iteration: 300 (of 500)
 #> [4] iteration: 400 (of 500)
-#> [3] iteration: 500 (of 500)
+#> [3] iteration: 400 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.166345
+#> [3] iteration: 500 (of 500)
+#> total seconds in loop: 0.086050
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

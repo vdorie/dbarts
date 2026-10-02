@@ -585,7 +585,9 @@ single-chain sampler per chain and threads them itself.
 This custom-loop bookkeeping is only needed when embedding BART in a
 larger sampler. A plain multi-chain `bart` fit already tracks its chain
 dimension: [`summary()`](https://rdrr.io/r/base/summary.html) reports
-split-R-hat and effective sample size for the scalar parameters (`sigma`
-and `k`) unconditionally, and
-`extract(fit, "sigma", combineChains = FALSE)` returns those same draws
-chain-separated, as a chains-by-samples matrix.
+split-R-hat and effective sample size for the scalar parameters the fit
+sampled (`sigma`, and `k` when it is drawn) and names any it held fixed
+on a line under the table, and
+`extract(fit, "sigma", combineChains = FALSE)` returns a sampled
+parameter’s draws chain-separated, as a chains-by-samples matrix; a
+parameter held fixed comes back as its one number.

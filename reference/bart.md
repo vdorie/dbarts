@@ -54,7 +54,8 @@ bart(
 # S3 method for class 'bartMultinomial'
 extract(
     object,
-    type = c("ev", "ppd", "bart", "forest", "loglik", "varcount", "trees"),
+    type = c("ev", "ppd", "bart", "forest", "loglik", "sigma", "k",
+             "leaf.prior.sd", "varcount", "trees"),
     sample = c("train", "test"),
     combineChains = TRUE, ...)
 
@@ -82,7 +83,8 @@ family(object, ...)
 
 # S3 method for class 'bartOrdinal'
 extract(
-    object, type = c("ev", "ppd", "bart", "loglik", "thresholds", "varcount"),
+    object, type = c("ev", "ppd", "bart", "loglik", "thresholds", "sigma", "k",
+                     "leaf.prior.sd", "varcount"),
     sample = c("train", "test"),
     combineChains = TRUE, ...)
 
@@ -110,7 +112,8 @@ family(object, ...)
 
 # S3 method for class 'bartNegbin'
 extract(
-    object, type = c("ev", "ppd", "bart", "loglik", "shape", "k", "sd", "varcount"),
+    object, type = c("ev", "ppd", "bart", "loglik", "shape", "sigma", "k",
+                     "leaf.prior.sd", "varcount"),
     sample = c("train", "test"),
     combineChains = TRUE, ...)
 
@@ -139,7 +142,8 @@ family(object, ...)
 # S3 method for class 'bartHurdle'
 extract(
     object,
-    type = c("ev", "ppd", "prob", "bart", "loglik", "sigma", "k", "varcount"),
+    type = c("ev", "ppd", "prob", "bart", "loglik", "sigma", "k",
+             "leaf.prior.sd", "varcount"),
     sample = c("train", "test"),
     combineChains = TRUE, ...)
 
@@ -180,13 +184,16 @@ plot(x, plquants = c(0.05, 0.95), cols = c("blue", "black"), ...)
 summary(object, ...)
 
 # S3 method for class 'bartOrdinal'
-summary(object, vars = c("thresholds", "sigma", "k"), ...)
+summary(object, vars = c("thresholds", "sigma", "k",
+                                "leaf.prior.sd"), ...)
 
 # S3 method for class 'bartNegbin'
-summary(object, vars = c("shape", "sigma", "k"), ...)
+summary(object, vars = c("shape", "sigma", "k",
+                               "leaf.prior.sd"), ...)
 
 # S3 method for class 'bartHurdle'
-summary(object, vars = c("sigma", "k", "sd"), ...)
+summary(object, vars = c("sigma", "k", "leaf.prior.sd",
+                               "resid.df"), ...)
 
 # S3 method for class 'summary.bartHurdle'
 print(x, ...)
@@ -1204,10 +1211,16 @@ print(x, ...)
   except `bartHurdle`, which has none and so takes no `sample`; refused
   by name on `predict`, whose stored train and test channels are
   `extract`'s `sample` instead. Also refused by name on every model- or
-  predictor-level type these families offer - `"varcount"` on all four,
-  `"thresholds"` on `bartOrdinal`, `"shape"`/`"k"`/`"sd"` on
-  `bartNegbin`, `"sigma"`/`"k"` on `bartHurdle` - none of them
-  per-observation.
+  predictor-level type these families offer - `"varcount"`, `"sigma"`,
+  `"k"` and `"leaf.prior.sd"` on all four, `"thresholds"` on
+  `bartOrdinal`, `"shape"` on `bartNegbin` - none of them
+  per-observation. On a fit that sampled a parameter these types return
+  its draws; on one that held it fixed, one number (see
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+  ‘Leaf prior parameter `k`’). `"sigma"` is 1 on every one of these
+  families but `bartHurdle`, whose `"sigma"` is its positive part's, and
+  `"k"` and `"leaf.prior.sd"` on a `bartHurdle` are lists of its zero
+  and positive parts.
 
 - vars:
 
@@ -1215,14 +1228,16 @@ print(x, ...)
   [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
   own `vars`; requested fields absent from `object` are silently
   dropped. `summary.bartOrdinal`'s `"thresholds"` contributes one draws
-  variable per threshold \\\gamma_1, \ldots, \gamma\_{K-1}\\, the
-  ordinal analog of `sigma`; `summary.bartNegbin`'s `"shape"`
+  variable per sampled threshold \\\gamma_2, \ldots, \gamma\_{K-1}\\,
+  the ordinal analog of `sigma` (the pinned \\\gamma_1 = 0\\ is named
+  under the table, not tabulated); `summary.bartNegbin`'s `"shape"`
   contributes the per-draw shape \\r\\, the count analog of `sigma`.
   `summary.bartHurdle` applies `vars` separately to its `$zero` and
   `$positive` component fits. `summary.bartMultinomial` has no `vars`
   formal at all: it always pools the per-category mean-probability
   channel (its only scalar convergence instrument), so a supplied `vars`
-  is refused by name rather than silently ignored.
+  is refused by name rather than silently ignored; its table is that
+  channel alone, and a line under it names the `k` the fit held fixed.
 
 - x:
 
@@ -1552,30 +1567,31 @@ factor response, or `colnames(y.train)` - falling back to
 `levels.source` (`"labels"`, or `"index"` when `levels` were synthesized
 from a count matrix without column names), `K`, `n.chains`, `n.trees`,
 `y` (the original response: the factor `y.train`, or the validated n x K
-count matrix when a count response was supplied), and `yhat.train` - the
-posterior draws of the K softmax probabilities, an array of dimension
-(`n.chains` \\\times\\, when `n.chains > 1` and `combineChains = FALSE`)
-`n.samples` \\\times\\ number of training observations \\\times\\ K,
-with the resolved category levels as the trailing dimension's names;
-`combineChains = TRUE` (the default) folds the chain margin into the
-samples margin as usual. `yhat.train` already holds PROBABILITIES, not a
-latent score - there is no `"bart"`-scale component to convert, unlike
-the binary families. When `test` was supplied, `yhat.test` is the same K
-softmax probabilities on the held-out rows, dimensioned like
-`yhat.train` with the training-observation margin replaced by the test
-one. `varcount` is the per-sample per-category split-usage channel: each
-category forest's per-draw variable counts, dimensioned like
-`yhat.train` but with the number of training predictors in place of the
-number of observations, and `colnames(x.train)` (when present) named on
-that margin. `fit` is present whenever `keepTrees` is `TRUE` *or*
-`keepSampler` is set, independent of `keepTrees`: it is the
-`dbartsSampler` whose K-forest engine actually ran (one
-`bartcore_create`, not a discarded host), fully mutable and readable on
-the channels the softmax gives meaning to - `$setCounts`,
-`$setCategoryOffset`, `$setPredictor`, `$setLeafPrior(normal(k = ))`,
-and the rest - and refused by name on the ones it does not
-(`$setResponse`, `$setOffset`, `$setSigma`, `$setForestWeights`);
-`fit$storeState()` followed by
+count matrix when a count response was supplied), `leaf.prior` and
+`fixed` (as on a `"bart"` fit, the K forests sharing one leaf prior, so
+one list and one `k`), and `yhat.train` - the posterior draws of the K
+softmax probabilities, an array of dimension (`n.chains` \\\times\\,
+when `n.chains > 1` and `combineChains = FALSE`) `n.samples` \\\times\\
+number of training observations \\\times\\ K, with the resolved category
+levels as the trailing dimension's names; `combineChains = TRUE` (the
+default) folds the chain margin into the samples margin as usual.
+`yhat.train` already holds PROBABILITIES, not a latent score - there is
+no `"bart"`-scale component to convert, unlike the binary families. When
+`test` was supplied, `yhat.test` is the same K softmax probabilities on
+the held-out rows, dimensioned like `yhat.train` with the
+training-observation margin replaced by the test one. `varcount` is the
+per-sample per-category split-usage channel: each category forest's
+per-draw variable counts, dimensioned like `yhat.train` but with the
+number of training predictors in place of the number of observations,
+and `colnames(x.train)` (when present) named on that margin. `fit` is
+present whenever `keepTrees` is `TRUE` *or* `keepSampler` is set,
+independent of `keepTrees`: it is the `dbartsSampler` whose K-forest
+engine actually ran (one `bartcore_create`, not a discarded host), fully
+mutable and readable on the channels the softmax gives meaning to -
+`$setCounts`, `$setCategoryOffset`, `$setPredictor`,
+`$setLeafPrior(normal(k = ))`, and the rest - and refused by name on the
+ones it does not (`$setResponse`, `$setOffset`, `$setSigma`,
+`$setForestWeights`); `fit$storeState()` followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
 restores a sampler `predict.bartMultinomial` can replay through.
 `predict` still requires `keepTrees = TRUE` - a kept `fit` alone carries
@@ -1679,19 +1695,23 @@ probit scale, shaped like a binary family's `yhat.train` -
 `thresholds` - the posterior draws of the K - 1 finite thresholds
 \\(\gamma_1 = 0, \gamma_2, \ldots)\\, dimensioned draws \\\times\\ (K -
 1), the ordinal analog of gaussian's `sigma`, from which probabilities
-at any latent value can be reconstructed - and `varcount`.
-`thresholds.raw` (the per-draw thresholds in the internal layout
-`predict` consumes) is present only under `keepTrees`. `fit` is present
-whenever `keepTrees` is `TRUE` *or* `keepSampler` is set, independent of
-`keepTrees`: it is the `dbartsSampler` whose engine actually ran, fully
-mutable and readable like any sampler
+at any latent value can be reconstructed - `k` when the leaf scale is
+drawn, `leaf.prior` and `fixed` as on a `"bart"` fit (see
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)), and
+`varcount`. `thresholds.raw` (the per-draw thresholds in the internal
+layout `predict` consumes) is present only under `keepTrees`. `fit` is
+present whenever `keepTrees` is `TRUE` *or* `keepSampler` is set,
+independent of `keepTrees`: it is the `dbartsSampler` whose engine
+actually ran, fully mutable and readable like any sampler
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) returns,
 and `fit$storeState()` followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
 restores a sampler `predict.bartOrdinal` can replay through.
-`summary(object)` reports the thresholds alongside whatever
-mean-function scale `vars` finds present, pooled into posterior mean/sd,
-split-Rhat and bulk/tail ESS, the ordinal analog of
+`summary(object)` reports the sampled thresholds alongside whatever
+mean-function scale `vars` finds present, naming the pinned first
+threshold and any parameter held fixed on a line under the table, pooled
+into posterior mean/sd, split-Rhat and bulk/tail ESS, the ordinal analog
+of
 [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
 \\\sigma\\/k/\\\tau\\ summary.
 
@@ -1734,7 +1754,8 @@ are refused by name. `extract(object, type = "thresholds")` returns the
 threshold draws, `threshold[1]` pinned at 0 through `threshold[K - 1]`,
 and `extract(object, type = "varcount")` the per-predictor split-usage
 channel; `summary`'s own default `vars` is
-`c("thresholds", "sigma", "k")`.
+`c("thresholds", "sigma", "k", "leaf.prior.sd")`, of which a fit keeps
+the leaf-scale one it named.
 
 `bart(family = "nbinom")` likewise returns its own list, of class
 `"bartNegbin"`. Components: `call`, `family` (`"nbinom"`), `n.chains`,
@@ -1743,9 +1764,9 @@ channel; `summary`'s own default `vars` is
 e^{\eta}\\, shaped like a binary family's `yhat.train` - `latent.train`
 (and `latent.test`) - the corresponding draws of the log mean \\\eta =
 f(x) + c + o\\ - `shape` - the per-draw shape \\r\\, the count analog of
-gaussian's `sigma` - `k` (or `sd`, when the leaf prior was named by its
-spread) when the leaf scale is drawn, as on a `"bart"` fit, and
-`varcount`. `shape.raw` (the per-draw \\r\\ in the internal layout
+gaussian's `sigma` - `k` when the leaf scale is drawn, as on a `"bart"`
+fit, `leaf.prior` and `fixed` (its shape, when held fixed, among them),
+and `varcount`. `shape.raw` (the per-draw \\r\\ in the internal layout
 `predict` consumes) is present only under `keepTrees`. `fit` is present
 whenever `keepTrees` is `TRUE` *or* `keepSampler` is set, independent of
 `keepTrees`: it is the `dbartsSampler` whose engine actually ran, fully
@@ -1753,9 +1774,10 @@ mutable and readable - `$getShape()` on it answers with the fit's own
 \\r\\ - and `fit$storeState()` followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
 restores a sampler `predict.bartNegbin` can replay through.
-`summary(object)` reports the shape draws alongside whatever
-mean-function scale `vars` finds present, pooled into posterior mean/sd,
-split-Rhat and bulk/tail ESS, the count analog of
+`summary(object)` reports the shape draws, when the shape was sampled,
+alongside whatever mean-function scale `vars` finds present (a shape or
+`k` held fixed is named on a line under the table), pooled into
+posterior mean/sd, split-Rhat and bulk/tail ESS, the count analog of
 [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)'s
 \\\sigma\\/k/\\\tau\\ summary.
 
@@ -1783,15 +1805,17 @@ including `combineChains`'s refusal on `fitted`/`residuals` and
 `forest`/`contribution` on `extract`/`predict` and `sample` on `fitted`
 are refused by name. `plot(object)` traces the integer-gridded shape
 \\r\\ (a step plot; there is no burn-in channel to bridge from, since
-`bart` drives one `n.burn`/`n.samples` sweep for this family) alongside
+`bart` drives one `n.burn`/`n.samples` sweep for this family; no trace
+is drawn for a shape held fixed, which `print` names instead) alongside
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s own
 gaussian observed-vs-fitted panel, applied to the counts. `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 are refused by name. `extract(object, type = "shape")` returns the
-per-draw shape \\r\\, `type = "k"` and `"sd"` the drawn leaf scale as on
-a `"bart"` fit, and `extract(object, type = "varcount")` the
+per-draw shape \\r\\, `type = "k"` and `"leaf.prior.sd"` the leaf scale
+as on a `"bart"` fit, and `extract(object, type = "varcount")` the
 per-predictor split-usage channel; `summary`'s own default `vars` is
-`c("shape", "sigma", "k")`.
+`c("shape", "sigma", "k", "leaf.prior.sd")`, of which a fit keeps the
+leaf-scale one it named.
 
 `bart(family = "hurdle.lognormal")` returns its own list, of class
 `"bartHurdle"`, holding both component fits (`$zero`, a `"bart"` probit
@@ -1827,9 +1851,10 @@ probability other implementations report (brms's `hu`), so the zero
 branch is \\\log(1 - \pi)\\ rather than \\\log \mathrm{hu}\\; a formula
 ported from one of those must be inverted. `forest`/`contribution` on
 `extract`/`predict` are refused by name (each component is a single
-forest). `plot(object)` draws four panels: the positive component's
-sigma trace; the zero part's probability \\\pi(x)\\; the positive part
-on the scale it fit (\\\log y\\ over the \\y \> 0\\ rows); and the
+forest). `plot(object)` draws four panels, three when the positive
+component held `sigma` fixed: the positive component's sigma trace (left
+out in that case); the zero part's probability \\\pi(x)\\; the positive
+part on the scale it fit (\\\log y\\ over the \\y \> 0\\ rows); and the
 composed natural-scale mean \\E\[y \mid x\] = \pi e^{f + \sigma^2/2}\\
 over all n rows, the only panel showing the model this family exists
 for. `plotTree` and
@@ -1838,9 +1863,10 @@ are refused by name, naming `object$zero$fit`/`object$positive$fit` as
 the route to the trees. `extract(object, type = "sigma")` returns
 `$positive`'s sigma draws, the only sigma the composition carries;
 `extract(object, type = "k")` and `type = "varcount"` each return a
-list, named `zero`/`positive`, of that component's own draws - a
-component whose `k` is fixed rather than modelled is left out of the
-`"k"` list, an error if both are (see `bart`'s `k` item).
+list, named `zero`/`positive`, of that component's own draws - each list
+holds both components, a component's draws where its `k` is modelled and
+one number where it is fixed; `type = "leaf.prior.sd"` is the same list
+of each component's own spread (see `bart`'s `k` item).
 `summary(object)` reports both components - `$zero`'s and `$positive`'s
 own
 [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
@@ -1921,7 +1947,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001651
+#> total seconds in loop: 0.001017
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1970,7 +1996,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002485
+#> total seconds in loop: 0.001197
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 
