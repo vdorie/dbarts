@@ -77,13 +77,14 @@ plot(
   Gives the values of a variable at which the plot is to be constructed.
   Must be a list, where the \\i\\th component gives the values for the
   \\i\\th variable. In `pdbart`, it should have same length as `xind`.
-  In `pd2bart`, it should have length 2. See also argument `levquants`.
+  In `pd2bart`, it should have length 2. The values of a factor
+  predictor are level names. See also argument `levquants`.
 
 - levquants:
 
   If `levs` is `NULL`, the values of each variable used in the plot are
-  set to the quantiles (in `x.train`) indicated by levquants. Must be a
-  vector of numeric type.
+  set to the quantiles (in `x.train`) indicated by levquants, and a
+  factor predictor takes every level. Must be a vector of numeric type.
 
 - pl:
 
@@ -187,7 +188,9 @@ through to stats' defaults and return `NULL`).
 
   The list of levels used, each component corresponding to a variable.
   If argument `levs` was supplied it is unchanged. Otherwise, the levels
-  in `levs` are as constructed using argument `levquants`.
+  in `levs` are as constructed using argument `levquants`, or a factor
+  predictor's level names. A factor predictor is plotted with one point
+  and interval per level, and without contours in `plot.pd2bart`.
 
 - xlbs:
 

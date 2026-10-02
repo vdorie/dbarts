@@ -170,7 +170,9 @@ xbart(
   root-mean-squared-error for continuous response), `log` - negative
   log-loss for binary response (`rmse` serves this purpose for
   continuous responses), a function, or a function-evaluation
-  environment list-pair. Functions should have prototypes of the form
+  environment list-pair. A function keeps its own environment, so a
+  closure reads what it captured; the list form calls the function from
+  the given environment. Functions should have prototypes of the form
   `function(y.test, y.test.hat, weights)`, where `y.test` is the held
   out test subsample, `y.test.hat` is a matrix of dimension
   `length(y.test)` \\\times\\ `n.samples`, and `weights` are an optional
@@ -294,8 +296,14 @@ xbart(
 
   A positive numeric estimate of the residual standard deviation. If
   `NULL` (the default), a linear model is used with all of the
-  predictors to obtain one; an explicit `NA` is a missing value and is
-  refused. Every entry point spells this `sigest` - `xbart`,
+  predictors to obtain one, fit separately for each fold on that fold's
+  training rows, so no fold's prior reads its held-out responses (a fit
+  on all rows runs once beforehand to raise any refusal or fallback
+  once; where that fit falls back to the marginal standard deviation, as
+  described below, each fold takes its own training rows' marginal
+  standard deviation without repeating the linear model); an explicit
+  `NA` is a missing value and is refused. Every entry point spells this
+  `sigest` - `xbart`,
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)/`bart`
   and the sampler constructors
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)/`dbartsSpec`

@@ -930,11 +930,11 @@ print(x, ...)
   The maximum number of possible values used in decision rules (see
   `useQuantiles`, and
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
-  ‘Decision Rules’ details). If a single number, it is recycled for all
-  variables; otherwise must be a vector of length equal to the number of
-  predictor columns. Fewer rules may be used if a covariate lacks enough
-  unique values. Factor predictors take no rules from it, of either
-  kind: a factor's grid follows its level table.
+  ‘Decision Rules’ details). A vector shorter than the number of
+  predictor columns is recycled, so a single number applies to every
+  column; a longer one is refused. Fewer rules may be used if a
+  covariate lacks enough unique values. Factor predictors take no rules
+  from it, of either kind: a factor's grid follows its level table.
 
 - useQuantiles:
 
@@ -1175,7 +1175,11 @@ print(x, ...)
 
   Test data for prediction. Obeys the same rules as `data`/`test` but
   cannot be missing. An unnamed matrix given to a fit whose predictors
-  are named is matched by position, with a warning.
+  are named is matched by position, with a warning. A data-frame column
+  for a predictor that was a factor in training must be a factor or
+  character, matched to the training levels by label; a numeric or
+  logical one is refused, naming it, as
+  [`predict.lm`](https://rdrr.io/r/stats/predict.lm.html) refuses it.
 
 - type:
 
@@ -1905,7 +1909,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001581
+#> total seconds in loop: 0.001269
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1954,7 +1958,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002017
+#> total seconds in loop: 0.001525
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

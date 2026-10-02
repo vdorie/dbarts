@@ -33,11 +33,11 @@ dbartsData(
   flat vector (or single number) is accepted, and a matrix is refused.
   `formula` may itself be a `dbartsData` object, in which case it is
   returned as-is; any other argument supplied alongside it is then
-  ignored, with a warning. `weights` are held as given, validated here
-  only for length, `NA` and non-negativity; the family's own rule
-  applies when a sampler is built from the object, where a `"probit"` or
-  `"ordinal"` fit accepts only weights of 0 and 1 and installs them as
-  its active-row mask.
+  ignored, with a warning naming each one. `weights` are held as given,
+  validated here only for length, `NA` and non-negativity; the family's
+  own rule applies when a sampler is built from the object, where a
+  `"probit"` or `"ordinal"` fit accepts only weights of 0 and 1 and
+  installs them as its active-row mask.
 
 - bases:
 
@@ -92,7 +92,9 @@ dbartsData(
 Data frame columns - through the formula interface or a frame passed as
 `x.train` - map to predictors as follows:
 
-- numeric and logical columns enter as ordinal predictors;
+- numeric and logical columns enter as ordinal predictors, as do classed
+  numbers such as `Date`, `POSIXct` and `difftime`, by their numeric
+  value (a `POSIXlt` column is refused; convert it with `as.POSIXct`);
 
 - unordered factors each become a single categorical predictor under the
   default `factors = "categorical"`, with splits sending a subset of

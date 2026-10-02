@@ -86,10 +86,10 @@
 <dd><p>Integer, character vector, or the right-hand side of a formula indicating which variables are to be plotted. In <code>pdbart</code>, corresponds to the variables (columns of <code>x.train</code>) for which a plot is to be constructed. In <code>plot.pdbart</code>, corresponds to the indices in list returned by <code>pdbart</code> for which plot is to be constructed. In <code>pd2bart</code>, the indices of a pair of variables (columns of <code>x.train</code>) to plot. If <code>NULL</code> a default of all columns is used for <code>pdbart</code> and the first two columns is used for <code>pd2bart</code>.</p></dd>
 
    <dt id="arg-levs">levs<a class="anchor" aria-label="anchor" href="#arg-levs"></a></dt>
-<dd><p>Gives the values of a variable at which the plot is to be constructed. Must be a list, where the \(i\)th component gives the values for the \(i\)th variable. In <code>pdbart</code>, it should have same length as <code>xind</code>. In <code>pd2bart</code>, it should have length 2. See also argument <code>levquants</code>.</p></dd>
+<dd><p>Gives the values of a variable at which the plot is to be constructed. Must be a list, where the \(i\)th component gives the values for the \(i\)th variable. In <code>pdbart</code>, it should have same length as <code>xind</code>. In <code>pd2bart</code>, it should have length 2. The values of a factor predictor are level names. See also argument <code>levquants</code>.</p></dd>
 
   <dt id="arg-levquants">levquants<a class="anchor" aria-label="anchor" href="#arg-levquants"></a></dt>
-<dd><p>If <code>levs</code> is <code>NULL</code>, the values of each variable used in the plot are set to the quantiles (in <code>x.train</code>) indicated by levquants. Must be a vector of numeric type.</p></dd>
+<dd><p>If <code>levs</code> is <code>NULL</code>, the values of each variable used in the plot are set to the quantiles (in <code>x.train</code>) indicated by levquants, and a factor predictor takes every level. Must be a vector of numeric type.</p></dd>
 
   <dt id="arg-pl">pl<a class="anchor" aria-label="anchor" href="#arg-pl"></a></dt>
 <dd><p>For <code>pdbart</code> and <code>pd2bart</code>, if <code>TRUE</code>, plot is subsequently made (by calling <code>plot.*</code>).</p></dd>
@@ -130,7 +130,7 @@
 <p>For <code>pd2bart</code>, <code>fd</code> is a single matrix. The columns correspond to all possible pairs of values for the pair of variables indicated by <code>xind</code>. That is, all possible \((x_i, x_j)\) where \(x_i\) is a value in the levs component corresponding to the first \(x\) and \(x_j\) is a value in the levs components corresponding to the second one. The first \(x\) changes first.</p></dd>
 
   <dt>levs</dt>
-<dd><p>The list of levels used, each component corresponding to a variable. If argument <code>levs</code> was supplied it is unchanged. Otherwise, the levels in <code>levs</code> are as constructed using argument <code>levquants</code>.</p></dd>
+<dd><p>The list of levels used, each component corresponding to a variable. If argument <code>levs</code> was supplied it is unchanged. Otherwise, the levels in <code>levs</code> are as constructed using argument <code>levquants</code>, or a factor predictor's level names. A factor predictor is plotted with one point and interval per level, and without contours in <code>plot.pd2bart</code>.</p></dd>
 
   <dt>xlbs</dt>
 <dd><p>A vector of character strings which are the plotting labels used for the variables.</p></dd>

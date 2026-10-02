@@ -78,7 +78,8 @@ print(x, ...)
 - group.by:
 
   Grouping factor. Can be an integer vector/factor, or a reference to
-  such in `data`.
+  such in `data`. In `predict`, a character or numeric vector names its
+  groups by value, as a factor of it does.
 
 - group.by.test:
 
@@ -87,8 +88,10 @@ print(x, ...)
 
 - prior:
 
-  A function or symbolic reference to built-in priors. Determines the
-  prior over the standard deviation of the random effects. Supplied
+  A function or symbolic reference to built-in priors. A built-in is
+  named by symbol or string (`cauchy`, `"gamma"`); any other name refers
+  to the caller's function, and an unknown string is refused. Determines
+  the prior over the standard deviation of the random effects. Supplied
   functions take two arguments, `x` - the standard deviation, and
   `rel.scale` - the standard deviation of the response variable before
   random effects are fit. Built in priors are `cauchy` with a scale of

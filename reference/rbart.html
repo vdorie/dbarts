@@ -105,13 +105,13 @@ Fits a varying intercept/random effect BART model. A fallback this function make
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <p></p>
 <dl><dt id="arg-group-by">group.by<a class="anchor" aria-label="anchor" href="#arg-group-by"></a></dt>
-<dd><p>Grouping factor. Can be an integer vector/factor, or a reference to such in <code>data</code>.</p></dd>
+<dd><p>Grouping factor. Can be an integer vector/factor, or a reference to such in <code>data</code>. In <code>predict</code>, a character or numeric vector names its groups by value, as a factor of it does.</p></dd>
 
   <dt id="arg-group-by-test">group.by.test<a class="anchor" aria-label="anchor" href="#arg-group-by-test"></a></dt>
 <dd><p>Grouping factor for test data, of the same type as <code>group.by</code>. Can be missing.</p></dd>
 
   <dt id="arg-prior">prior<a class="anchor" aria-label="anchor" href="#arg-prior"></a></dt>
-<dd><p>A function or symbolic reference to built-in priors. Determines the prior over the standard deviation of the random effects. Supplied functions take two arguments, <code>x</code> - the standard deviation, and <code>rel.scale</code> - the standard deviation of the response variable before random effects are fit. Built in priors are <code>cauchy</code> with a scale of 2.5 times the relative scale and <code>gamma</code> with a shape of 2.5 and scale of 2.5 times the relative scale.</p></dd>
+<dd><p>A function or symbolic reference to built-in priors. A built-in is named by symbol or string (<code>cauchy</code>, <code>"gamma"</code>); any other name refers to the caller's function, and an unknown string is refused. Determines the prior over the standard deviation of the random effects. Supplied functions take two arguments, <code>x</code> - the standard deviation, and <code>rel.scale</code> - the standard deviation of the response variable before random effects are fit. Built in priors are <code>cauchy</code> with a scale of 2.5 times the relative scale and <code>gamma</code> with a shape of 2.5 and scale of 2.5 times the relative scale.</p></dd>
 
   <dt id="arg-n-thin">n.thin<a class="anchor" aria-label="anchor" href="#arg-n-thin"></a></dt>
 <dd><p>The number of tree jumps taken for every stored sample, but also the number of samples from the posterior of the standard deviation of the random effects before one is kept.</p></dd>

@@ -47,11 +47,14 @@ dbarts(
   calling a function from no package, such as one defined in the
   session, is refused, naming it. For backwards compatibility, can also
   be the [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)
-  matrix `x.train`, including a sparse `Matrix::dgCMatrix`: its columns
-  enter as ordinal predictors, sufficiently sparse columns are stored in
-  a compact rank-bitmap layout instead of being expanded, and the
-  predictor-mutation surface accepts both whole-matrix replacement,
-  `setPredictor(x)`, and the column-granular
+  matrix `x.train`, whose integer and logical values are taken as
+  numbers, as in a data frame, including a sparse `Matrix::dgCMatrix`
+  (any other sparse `Matrix` class, or a `sparseVector` as one column,
+  is converted to one, and a dense `Matrix` is taken as a plain matrix):
+  its columns enter as ordinal predictors, sufficiently sparse columns
+  are stored in a compact rank-bitmap layout instead of being expanded,
+  and the predictor-mutation surface accepts both whole-matrix
+  replacement, `setPredictor(x)`, and the column-granular
   `setPredictor(x, column = j)`, which replaces a sparse column whole; a
   replaced sparse-backed column stays sparse, storing only the
   replacement's nonzeros, and a replacement's sparse columns are never

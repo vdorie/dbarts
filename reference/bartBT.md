@@ -639,10 +639,11 @@ Decision rules for any tree are of the form \\x \le c\\ vs. \\x \> c\\
 for each ‘\\x\\’ corresponding to a column of `x.train`. `usequants`
 determines the means by which the set of possible \\c\\ is determined.
 If `usequants` is `TRUE`, then the \\c\\ are a subset of the values
-interpolated half-way between the unique, sorted values obtained from
-the corresponding column of `x.train`. If `usequants` is `FALSE`, the
-cutoffs are equally spaced across the range of values taken on by the
-corresponding column of `x.train`.
+interpolated half-way between the unique, sorted, finite values obtained
+from the corresponding column of `x.train`. If `usequants` is `FALSE`,
+the cutoffs are equally spaced across the range of finite values taken
+on by the corresponding column of `x.train`; an infinite value falls
+past an end cutoff, as it does on the quantile grid.
 
 The number of possible values of \\c\\ is determined by `numcut`. If
 `usequants` is `FALSE`, `numcut` equally spaced cutoffs are used
@@ -1135,14 +1136,14 @@ bartFit <- bart(x, y)
 #> Running mcmc loop:
 #> [1] iteration: 100 (of 500)
 #> [2] iteration: 100 (of 500)
-#> [1] iteration: 200 (of 500)
 #> [2] iteration: 200 (of 500)
-#> [1] iteration: 300 (of 500)
+#> [1] iteration: 200 (of 500)
 #> [2] iteration: 300 (of 500)
-#> [1] iteration: 400 (of 500)
+#> [1] iteration: 300 (of 500)
 #> [2] iteration: 400 (of 500)
-#> [1] iteration: 500 (of 500)
+#> [1] iteration: 400 (of 500)
 #> [2] iteration: 500 (of 500)
+#> [1] iteration: 500 (of 500)
 #> [3] iteration: 100 (of 500)
 #> [4] iteration: 100 (of 500)
 #> [3] iteration: 200 (of 500)
@@ -1153,7 +1154,7 @@ bartFit <- bart(x, y)
 #> [4] iteration: 400 (of 500)
 #> [3] iteration: 500 (of 500)
 #> [4] iteration: 500 (of 500)
-#> total seconds in loop: 0.147836
+#> total seconds in loop: 0.120589
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 
