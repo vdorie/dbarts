@@ -34,6 +34,10 @@ records no decision itself.
 - `docs/plans/review-2026-08-24/` - the working records of the 2026-08-24
   whole-branch review: findings, evidence, and the scripts and logs behind
   them. Historical; TODO cites a few of its memos.
+- `docs/plans/review-2026-10-01/` - the working records of the 2026-10-01
+  whole-branch review: each lens's findings, their verification, the
+  0.9-34 anchor and the mutation leg. Historical; the landing note in
+  `docs/plans/release-candidate-review.md` says what came of them.
 
 Outside `docs/`: the repo-root `TODO` is the open backlog, forward-facing
 only, and most entries name a plan; `benchmarks/README.md` describes the
