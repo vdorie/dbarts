@@ -1130,33 +1130,6 @@ evaluateOffsetArgument <- function(argument, newdata) {
   value
 }
 
-## Refuses a read at new rows that has no offset channel yet, naming the fit's
-## offset() terms and 'offset' argument, rather than answering offset-free.
-refuseNewRowOffset <- function(data, what) {
-  terms <- attr(data@x, "terms")
-  offsets <- attr(terms, "offset")
-  argument <- attr(data, "offset.argument")
-  if (is.null(offsets) && is.null(argument)) {
-    return(invisible(NULL))
-  }
-  variables <- attr(terms, "variables")
-  named <- c(
-    vapply(
-      offsets,
-      function(i) paste0("'", deparse1(variables[[i + 1L]]), "'"),
-      ""
-    ),
-    if (!is.null(argument)) describeOffsetArgument(argument)
-  )
-  stop(
-    "the fit's offset (",
-    paste(named, collapse = ", "),
-    ") is not yet supported by ",
-    what,
-    " at new rows"
-  )
-}
-
 ## Two shares of an offset at new rows summed, each a single value or one per
 ## row; either alone when the other is absent.
 addOffsetShares <- function(share, offset, argument, rows) {

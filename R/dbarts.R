@@ -931,6 +931,7 @@ dbarts <- function(
   # whether the expansion ran before the na.action did
   hazardNames <- NULL
   hazardExpandedFirst <- FALSE
+  hazardOffsetArgument <- NULL
   if (family %in% hazardTokens && directResponse) {
     survival <- extractSurvivalTimes(data)
     if (is.null(survival)) {
@@ -986,6 +987,14 @@ dbarts <- function(
       matchedCall$subset <- NULL
     }
     if (!is.null(expansion$offset)) {
+      # the per-subject 'offset' as written, which the expanded data object's
+      # record of it replaces once that object exists (below)
+      hazardOffsetArgument <- offsetArgumentFormula(
+        matchedCall$offset,
+        evalEnv,
+        as.character(colnames(formula)),
+        NROW(formula)
+      )
       matchedCall$offset <- expansion$offset
     }
     if (!is.null(expansion$weights)) {
@@ -1354,6 +1363,12 @@ dbarts <- function(
     )
   }
 
+  # a subject's offset is re-evaluated on a new subject, as predict and
+  # survivalProbabilities form it, never the person-period vector the
+  # expansion turned it into
+  if (!is.null(hazardOffsetArgument)) {
+    attr(data, "offset.argument") <- hazardOffsetArgument
+  }
   if (!is.null(hazardNames)) {
     # the matrix interface expands before the na.action runs, so any rows it
     # dropped are person-period rows

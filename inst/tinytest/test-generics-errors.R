@@ -240,12 +240,7 @@ ordinalFitKT <- dbarts::bart(
 )
 expect_error(
   predict(ordinalFitKT, xSmall, offset.test = 0),
-  "this fit has no out-of-sample offset channel",
-  fixed = TRUE
-)
-expect_error(
-  predict(ordinalFitKT, xSmall, offset = 0),
-  "this fit has no out-of-sample offset channel",
+  "this fit's out-of-sample offset argument is named 'offset'",
   fixed = TRUE
 )
 expect_error(

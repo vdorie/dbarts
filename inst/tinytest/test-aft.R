@@ -577,3 +577,45 @@ for (family in c("aft", "hazard")) {
   )
 }
 rm(d.cbind, family)
+
+# ---- an offset fit's curves carry its offset: the training rows read the
+# stored channel, which carries it, and newdata the fit's offset re-evaluated
+# there or the one given for it
+set.seed(41L)
+o.aft <- rep(c(-1, 1), n / 2L)
+status.aft <- rbinom(n, 1L, 0.7)
+fit.aftOff <- bart(
+  x,
+  cbind(exp(log.t + o.aft), status.aft),
+  family = "aft",
+  offset = o.aft,
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 20L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+sp.aftOff <- survivalProbabilities(fit.aftOff, c(0.5, 1))
+expect_equal(
+  survivalProbabilities(fit.aftOff, c(0.5, 1), newdata = x),
+  sp.aftOff,
+  tolerance = 1e-12
+)
+expect_equal(
+  unname(survivalProbabilities(
+    fit.aftOff,
+    c(0.5, 1),
+    newdata = x[1:3, ],
+    offset = o.aft[1:3]
+  )),
+  unname(sp.aftOff[,, 1:3]),
+  tolerance = 1e-12
+)
+expect_error(
+  survivalProbabilities(fit.aftOff, 1, newdata = x[1:3, ]),
+  "give survivalProbabilities an 'offset' for them",
+  fixed = TRUE
+)
+rm(o.aft, status.aft, fit.aftOff, sp.aftOff)

@@ -460,9 +460,9 @@ bartKeepTreesArgument <- function(object) {
   if (callName(object[["call"]]) == "bartBT") "keeptrees" else "keepTrees"
 }
 
-# An offset shifts the latent at rows the sampler never saw, and these two
-# families replay their trees with no offset channel at all, so either spelling
-# would be dropped rather than applied.
+# An offset shifts the latent at rows the sampler never saw, and a hurdle fit
+# replays its trees with no offset channel at all, so either spelling would be
+# dropped rather than applied.
 noPredictOffsetReason <- paste0(
   "this fit has no out-of-sample offset channel; predict replays the ",
   "offset-free surface"
@@ -473,9 +473,9 @@ predictNoOffsetUnusedArgs <- list(
 )
 
 # 'offset' occupies the same slot on all six predict methods so the argument
-# order is uniform in position and not merely in relative order; the two
-# families with no offset channel take it as a formal and refuse a non-NULL
-# value with the same wording it would carry out of '...'.
+# order is uniform in position and not merely in relative order; the family
+# with no offset channel takes it as a formal and refuses a non-NULL value with
+# the same wording it would carry out of '...'.
 refusePredictOffsetChannel <- function(offset, class) {
   if (!is.null(offset)) {
     refuseUnusedGenericArgs(
@@ -493,7 +493,7 @@ refusePredictOffsetChannel <- function(offset, class) {
 # 'offset'. An argument that cannot be evaluated there (a plain vector given
 # for the training rows) is refused unless the caller gives 'offset' for
 # these rows, which then stands in for it.
-predictTermOffset <- function(data, newdata, offset) {
+predictTermOffset <- function(data, newdata, offset, caller = "predict") {
   if (missing(newdata) || is.null(newdata)) {
     return(offset)
   }
@@ -504,7 +504,8 @@ predictTermOffset <- function(data, newdata, offset) {
         "the fit's 'offset' was given as ",
         describeOffsetArgument(attr(data, "offset.argument")),
         ", which cannot be evaluated on the rows of 'newdata'; give ",
-        "predict an 'offset' for them"
+        caller,
+        " an 'offset' for them"
       )
     }
     argument <- NULL
@@ -2223,7 +2224,9 @@ residuals.bartOrdinal <- function(object, ...) {
 # Out-of-sample category probabilities by replaying the saved forest's trees to
 # the newdata latent, then differencing the cumulative probit at the STORED
 # per-draw thresholds. Requires a fit kept with
-# keepTrees. type = "bart" returns the replayed latent eta; type = "ppd" draws
+# keepTrees. The latent is f + o, as probit's: the fit's offset argument and
+# offset() terms evaluated on newdata plus the 'offset' given here.
+# type = "bart" returns the replayed latent eta; type = "ppd" draws
 # one category per posterior draw. Only ppd touches the RNG, so type = "ev" is
 # draw-neutral. The replay reads through $fit's own pointer: $fit is the
 # sampler whose engine actually ran, so getPointer() can re-create it from
@@ -2248,30 +2251,35 @@ predict.bartOrdinal <- function(
     "bartOrdinal",
     c(
       ordinalUnusedArgs,
-      predictNoOffsetUnusedArgs,
+      predictOffsetUnusedArgs,
       foreignArgsFor(predictForeignReasons, names(formals(predict.bartOrdinal)))
     )
   )
   warnUnusedDots(list(...), "predict", "bartOrdinal")
-  refusePredictOffsetChannel(offset, "bartOrdinal")
   refuseClassCiLevel(type, ci.level)
   if (is.null(object[["thresholds.raw"]])) {
     refuseWithoutTrees("predict")
   }
-  refuseNewRowOffset(object$fit$data, "predict on an ordinal fit")
   # after the store check, whose absence the default here would otherwise
   # report as a missing slot
   n.threads <- validatePredictThreads(n.threads)
-  rows <- preparePredictRows(newdata, object$fit$data@x, na.action)
+  offset <- predictTermOffset(object$fit$data, newdata, offset)
+  rows <- preparePredictRows(
+    newdata,
+    object$fit$data@x,
+    na.action,
+    list(offset = offset)
+  )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
     on.exit(restoreSeed(), add = TRUE)
   }
+  offset <- subsetPredictInput(offset, rows, "offset")
   rowNames <- rows$keptNames
   n.chains <- object$n.chains
-  # raw is n.new x n.samples (x n.chains): the replayed latent eta, the test
-  # channel's shape
-  raw <- predictCodedTest(object$fit, rows$x, NULL, n.threads)
+  # raw is n.new x n.samples (x n.chains): the replayed latent eta + o, the
+  # test channel's shape
+  raw <- predictCodedTest(object$fit, rows$x, offset, n.threads)
   if (type == "bart") {
     result <- nameObservationMargin(
       convertSamplesForCaller(raw, n.chains, combineChains),
@@ -2914,12 +2922,11 @@ residualsForeignReasons <- list(
 )
 
 survivalProbabilitiesDrawsReason <- "survivalProbabilities returns the draws of S(t | x) at 'times'"
-survivalProbabilitiesOwnArgsReason <- "survivalProbabilities takes 'times' and 'newdata' alone"
+survivalProbabilitiesOwnArgsReason <- "survivalProbabilities takes 'times', 'newdata' and 'offset' alone"
 survivalProbabilitiesForeignReasons <- list(
   type = survivalProbabilitiesDrawsReason,
   sample = survivalProbabilitiesDrawsReason,
   ci.level = survivalProbabilitiesDrawsReason,
-  offset = survivalProbabilitiesOwnArgsReason,
   weights = survivalProbabilitiesOwnArgsReason,
   n.threads = survivalProbabilitiesOwnArgsReason,
   forest = survivalProbabilitiesOwnArgsReason,
@@ -2995,8 +3002,15 @@ combineHurdleChannel <- function(
 # A single-forest fit's draws at coded rows, uncombined, as
 # predict(type = "ev") and predict(type = "bart") report them: a hurdle
 # component's, or a discrete-time hazard fit's per-period hazards.
-codedRowDraws <- function(component, x, type, n.threads, rowNames) {
-  raw <- predictCodedTest(component$fit, x, NULL, n.threads)
+codedRowDraws <- function(
+  component,
+  x,
+  type,
+  n.threads,
+  rowNames,
+  offset = NULL
+) {
+  raw <- predictCodedTest(component$fit, x, offset, n.threads)
   if (is.list(raw)) {
     raw <- raw$mean
   }

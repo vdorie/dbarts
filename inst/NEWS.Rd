@@ -243,8 +243,6 @@
             given an \code{offset} for the new rows.
             0.9-34 predicted without the fit's offset. The default
             \code{offset.test} is formed the same way on \code{test}.
-            Ordinal fits, and \code{survivalProbabilities} on hazard fits,
-            refuse new rows when the fit has an offset.
       \item An \code{offset()} term in a formula is used, as in \code{lm}:
             it is added to any \code{offset} argument at fit time and
             evaluated on \code{test} and on \code{predict}'s

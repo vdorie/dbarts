@@ -510,3 +510,66 @@ expect_true(cor(as.vector(estSurv), as.vector(trueSurv)) > 0.75)
 # nonlinear, so a per-cell correlation understates the recovery)
 highRisk <- f > median(f)
 expect_true(mean(estSurv[, highRisk]) < mean(estSurv[, !highRisk]))
+
+# ---- an offset fit's curves carry its offset: the training subjects replay
+# the fit's own, S is the cumulative product of the stored hazards over each
+# subject's at-risk periods, and newdata takes the fit's offset re-evaluated
+# there or the one given for its subjects
+set.seed(31L)
+n.off <- 40L
+x.off <- x[seq_len(n.off), ]
+o.off <- rep(c(-1, 1), n.off / 2L)
+fit.off <- do.call(
+  dbarts::bart,
+  c(
+    list(
+      x.off,
+      cbind(d$time[seq_len(n.off)], d$status[seq_len(n.off)]),
+      family = "hazard",
+      offset = o.off
+    ),
+    replace(fitArgs, c("n.trees", "n.burn", "n.samples"), list(10L, 10L, 20L))
+  )
+)
+sp.off <- survivalProbabilities(fit.off)
+ev.off <- extract(fit.off, type = "ev")
+subject.off <- cumsum(fit.off$fit$data@x[, ncol(fit.off$fit$data@x)] == 1)
+for (i in seq_len(n.off)) {
+  atRisk <- sum(subject.off == i)
+  # draws x periods, one column a subject at risk in one period has
+  manual <- matrix(
+    t(apply(1 - ev.off[, subject.off == i, drop = FALSE], 1L, cumprod)),
+    ncol = atRisk
+  )
+  expect_equal(
+    as.vector(sp.off[, seq_len(atRisk), i]),
+    as.vector(manual),
+    tolerance = 1e-12
+  )
+}
+# the per-subject training vector applies to a newdata of as many subjects
+expect_equal(
+  unname(survivalProbabilities(fit.off, newdata = x.off)),
+  unname(sp.off),
+  tolerance = 1e-12
+)
+expect_equal(
+  unname(survivalProbabilities(
+    fit.off,
+    newdata = x.off[1:3, ],
+    offset = o.off[1:3]
+  )),
+  unname(sp.off[,, 1:3]),
+  tolerance = 1e-12
+)
+expect_error(
+  survivalProbabilities(fit.off, newdata = x.off[1:3, ]),
+  "give survivalProbabilities an 'offset' for them",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(fit.off, offset = 1),
+  "'offset' is for the rows of 'newdata'",
+  fixed = TRUE
+)
+rm(n.off, x.off, o.off, fit.off, sp.off, ev.off, subject.off, i, atRisk, manual)

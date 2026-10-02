@@ -3150,7 +3150,10 @@ survivalProbabilitiesFromDraws <- function(
 # Survival-probability draws from a discrete-time hazard fit. The fit is an
 # ordinary binary fit on the person-period-expanded rows, so the
 # per-(subject, period) hazards are
-# h(k | x) = g(f(x, k) + o) through the fit's link (probit/logistic), and
+# h(k | x) = g(f(x, k) + o) through the fit's link (probit/logistic), with o
+# the subject's offset at every period - the fit's own on its training rows,
+# and on 'newdata' the fit's offset argument and offset() terms evaluated
+# there plus the 'offset' given for them - and
 # S(t | x) = prod_{k : periods[k] <= t} (1 - h(k | x)). A subject that rode
 # 'test' at fit time (dbarts()'s own hazard test acceptance, person-period-
 # expanded on the SAME training grid) has its hazards already stored, read
@@ -3167,6 +3170,7 @@ hazardSurvivalProbabilities <- function(
   object,
   times,
   newdata,
+  offset,
   combineChains,
   na.action = na.keepPredictors
 ) {
@@ -3200,12 +3204,6 @@ hazardSurvivalProbabilities <- function(
         "trees; refit with keepTrees = TRUE"
       )
     }
-    if (!is.null(newdata)) {
-      refuseNewRowOffset(
-        object$fit$data,
-        "survivalProbabilities on a hazard fit"
-      )
-    }
     periodCol <- ncol(object$fit$data@x)
     if (is.null(newdata)) {
       # reconstruct the per-subject covariates from the coded expanded
@@ -3220,6 +3218,14 @@ hazardSurvivalProbabilities <- function(
       # a subject's period-1 row carries its own name under make.unique
       subjectNames <- object[["row.names.train"]][firstPeriod]
       bigX <- hazardRowSubset(subject, rep(seq_len(n), times = K))
+      # each subject's own offset, the one its period-1 row carries, at every
+      # period
+      trainOffset <- object$fit$data@offset
+      bigOffset <- if (length(trainOffset) > 1L) {
+        rep(trainOffset[firstPeriod], times = K)
+      } else {
+        trainOffset
+      }
       periodValues <- as.double(rep(seq_len(K), each = n))
       if (inherits(bigX, "dbartsMixedMatrix")) {
         bigX$dense[[bigX$map[periodCol]]] <- periodValues
@@ -3227,11 +3233,23 @@ hazardSurvivalProbabilities <- function(
         bigX[, periodCol] <- periodValues
       }
     } else if (is.data.frame(newdata)) {
+      offset <- predictTermOffset(
+        object$fit$data,
+        newdata,
+        offset,
+        "survivalProbabilities"
+      )
       n <- nrow(newdata)
       subjectNames <- rownames(newdata)
       bigX <- newdata[rep(seq_len(n), times = K), , drop = FALSE]
       bigX[["period"]] <- rep(seq_len(K), each = n)
     } else {
+      offset <- predictTermOffset(
+        object$fit$data,
+        newdata,
+        offset,
+        "survivalProbabilities"
+      )
       subjectNames <- observationRowNames(newdata)
       newdata <- as.matrix(newdata)
       n <- nrow(newdata)
@@ -3246,27 +3264,39 @@ hazardSurvivalProbabilities <- function(
       # binary token); predict codes bigX to the training columns and
       # replays the trees
       # read through the coded rows directly: bigX is the coded design, on
-      # which a formula's offset() term cannot be evaluated, and the hazards
-      # here are offset-free as on the newdata branch below
+      # which a formula's offset() term cannot be evaluated, so the fit's
+      # stored offset is replayed instead
       haz <- codedRowDraws(
         object,
         validateXTest(bigX, fitX, refuseMissing = FALSE),
         "ev",
         object$fit$control@n.threads,
-        NULL
+        NULL,
+        bigOffset
       )
       if (n.chains == 1L) {
         haz <- addChainDimension(haz)
       }
     } else {
-      rows <- hazardPredictRows(object, bigX, n, K, subjectNames, na.action)
+      rows <- hazardPredictRows(
+        object,
+        bigX,
+        n,
+        K,
+        subjectNames,
+        na.action,
+        offset
+      )
+      offset <- subsetPredictInput(offset, rows, "offset")
       n <- rows$numPredicted
       haz <- codedRowDraws(
         object,
         rows$x,
         "ev",
         object$fit$control@n.threads,
-        NULL
+        NULL,
+        # per subject, period-major as the rows are
+        if (length(offset) > 1L) rep(offset, times = K) else offset
       )
       # codedRowDraws reads through predictCodedTest directly rather than
       # predict(), so it carries none of predict's own chain margin; add the
@@ -3311,16 +3341,31 @@ hazardSurvivalProbabilities <- function(
 # The rows of a discrete-time hazard 'newdata' to predict, resolved under
 # 'na.action' at the subject level, before expansion: the n subjects are the
 # first n rows of the period-major expanded design, and each subject keeps or
-# loses all K of its rows. When no subject survives, the first training
-# subject stands in, at every period, as preparePredictRows's placeholder
-# does.
-hazardPredictRows <- function(object, bigX, n, K, subjectNames, na.action) {
+# loses all K of its rows; a missing per-subject offset marks its subject
+# incomplete, as preparePredictRows's channels do. When no subject survives,
+# the first training subject stands in, at every period, as
+# preparePredictRows's placeholder does.
+hazardPredictRows <- function(
+  object,
+  bigX,
+  n,
+  K,
+  subjectNames,
+  na.action,
+  offset = NULL
+) {
   x.train <- object$fit$data@x
   coded <- validateXTest(bigX, x.train, refuseMissing = FALSE)
+  extra <- list()
+  incomplete <- predictChannelIncomplete(offset, n, "offset")
+  if (!is.null(incomplete)) {
+    extra$offset <- incomplete
+  }
   resolved <- resolvePredictRows(
     resolvePredictNaAction(na.action),
     coded[seq_len(n), , drop = FALSE],
-    x.train
+    x.train,
+    extra
   )
   if (is.null(resolved)) {
     return(list(x = coded, numPredicted = n, keptNames = subjectNames))
@@ -3360,6 +3405,7 @@ survivalProbabilities.bart <- function(
   object,
   times,
   newdata = NULL,
+  offset = NULL,
   combineChains = TRUE,
   na.action = dbarts::na.keepPredictors,
   ...
@@ -3373,11 +3419,20 @@ survivalProbabilities.bart <- function(
       names(formals(survivalProbabilities.bart))
     )
   )
+  # the training rows carry the fit's own offset; one given here is for the
+  # rows of 'newdata', as predict's is
+  if (!is.null(offset) && is.null(newdata)) {
+    stop(
+      "'offset' is for the rows of 'newdata'; the training rows use the ",
+      "fit's own offset"
+    )
+  }
   if (fitIsHazard(object)) {
     return(hazardSurvivalProbabilities(
       object,
       if (missing(times)) NULL else times,
       newdata,
+      offset,
       combineChains,
       na.action
     ))
@@ -3399,10 +3454,16 @@ survivalProbabilities.bart <- function(
   linearPredictor <- if (is.null(newdata)) {
     extract(object, type = "bart", sample = "train", combineChains = FALSE)
   } else {
+    # predict forms the offset at 'newdata'; asked here first only so that a
+    # fit offset it cannot evaluate there is refused in this function's name
+    if (is.null(offset) && !is.null(object[["fit"]])) {
+      predictTermOffset(object$fit$data, newdata, NULL, "survivalProbabilities")
+    }
     predict(
       object,
       newdata,
       type = "bart",
+      offset = offset,
       combineChains = FALSE,
       na.action = na.action
     )
