@@ -425,8 +425,24 @@ expect_true(is.factor(fitted3c.class))
 expect_equal(levels(fitted3c.class), c("lo", "mid", "hi"))
 ev3c <- extract(fit3c, type = "ev")
 expect_identical(ev3c, fit3c$yhat.train)
+# the response is counts, so its own rows draw counts of their trials, in
+# "ev"'s layout, chains kept apart or merged alike
 ppd3c <- extract(fit3c, type = "ppd")
-expect_true(all(ppd3c %in% seq_len(3L)))
+expect_identical(dim(ppd3c), dim(ev3c))
+expect_true(all(apply(ppd3c, 1L, rowSums) == rowSums(counts3c)))
+ppd3cSplit <- extract(fit3c, type = "ppd", combineChains = FALSE)
+expect_identical(
+  dim(ppd3cSplit),
+  dim(extract(fit3c, type = "ev", combineChains = FALSE))
+)
+expect_true(all(apply(ppd3cSplit, c(1L, 2L), rowSums) == rowSums(counts3c)))
+# the draws are rmultinom(1, n_i, p) per draw and row, in "ev"'s order
+set.seed(5L)
+ppdSeeded <- extract(fit3c, type = "ppd")
+set.seed(5L)
+first <- stats::rmultinom(1L, sum(counts3c[1L, ]), ev3c[1L, 1L, ])
+expect_identical(as.vector(ppdSeeded[1L, 1L, ]), as.vector(first))
+rm(ppd3cSplit, ppdSeeded, first)
 
 set.seed(seed3c)
 fit3cKeep <- mfit(

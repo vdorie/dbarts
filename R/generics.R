@@ -1682,6 +1682,12 @@ extract.bartMultinomial <- function(
   if (type == "ev") {
     return(probs)
   }
+  # a count-row fit's own rows draw what it modelled, a count vector of each
+  # row's trials; test rows have no trial count, so they draw one category
+  # per draw, as predict does
+  if (sample == "train" && !is.factor(object[["y"]])) {
+    return(multinomialCountPpdFromProbs(probs, rowSums(object[["y"]])))
+  }
   multinomialPpdFromProbs(probs)
 }
 
@@ -1738,6 +1744,23 @@ multinomialPpdFromProbs <- function(probs) {
   dim(flat) <- c(prod(d[-length(d)]), K)
   codes <- apply(flat, 1L, function(p) sample.int(K, 1L, prob = p))
   array(codes, d[-length(d)], dimnames(probs)[-length(d)])
+}
+
+# The count-row counterpart: rmultinom(1, n_i, p) per draw and row, laid out
+# as probs is (K trailing), a row of zero trials all zeros.
+multinomialCountPpdFromProbs <- function(probs, trials) {
+  d <- dim(probs)
+  K <- d[length(d)]
+  nObs <- d[length(d) - 1L]
+  n.draws <- length(probs) %/% (nObs * K)
+  flat <- probs
+  dim(flat) <- c(n.draws * nObs, K)
+  size <- rep(as.integer(trials), each = n.draws)
+  counts <- matrix(0L, n.draws * nObs, K)
+  for (j in which(size > 0L)) {
+    counts[j, ] <- stats::rmultinom(1L, size[j], flat[j, ])
+  }
+  array(counts, d, dimnames(probs))
 }
 
 # The posterior-mean n x K probability matrix (colnames = levels(y)), or
