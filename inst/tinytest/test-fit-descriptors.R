@@ -98,3 +98,48 @@ expect_identical(family(fits$hurdle$positive)@token, "gaussian")
 # a hazard fit is recognized by its specified family: survivalProbabilities
 # takes the hazard branch, which then asks for the trees
 expect_error(survivalProbabilities(fits$hazard), "keepTrees")
+
+# a bartBT fit's binary family carries no residual prior: the one bartBT
+# stamps on before the response settles the family means nothing to probit,
+# whose constructor takes none, so family() names a call probit() can build
+# and passing it back to bart() fits the same family
+fitBT <- suppressWarnings(bartBT(
+  x,
+  yBinary,
+  ntree = 5L,
+  ndpost = 4L,
+  nskip = 2L,
+  verbose = FALSE
+))
+expect_identical(family(fitBT)@settings, list())
+expect_identical(family(fitBT), dbartsFamilies$probit())
+fitBack <- fitOf(yBinary, family = family(fitBT))
+expect_identical(family(fitBack), family(fitBT))
+# a continuous bartBT fit keeps the prior, which gaussian() takes
+fitBTGaussian <- suppressWarnings(bartBT(
+  x,
+  y,
+  ntree = 5L,
+  ndpost = 4L,
+  nskip = 2L,
+  verbose = FALSE
+))
+expect_identical(
+  family(fitBTGaussian),
+  dbartsFamilies$gaussian(sigma = dbartsPriors$chisq(3, 0.9))
+)
+# a family object carrying a setting its constructor does not take, as one
+# read back from an older fit can, is refused by name
+stale <- family(fitBT)
+stale@settings$sigma <- dbartsPriors$chisq(3, 0.9)
+expect_error(
+  fitOf(yBinary, family = stale),
+  "family \"probit\" takes no setting 'sigma'",
+  fixed = TRUE
+)
+expect_error(
+  new("dbartsFamily", token = "nbinom", settings = list(sigma = 1)),
+  "family \"nbinom\" takes no setting 'sigma'; it takes 'dispersion'",
+  fixed = TRUE
+)
+rm(fitBT, fitBack, fitBTGaussian, stale)
