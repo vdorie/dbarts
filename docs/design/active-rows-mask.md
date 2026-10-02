@@ -136,11 +136,11 @@ Logistic and negative binomial serve a *separate* composite `a * omega` rather
 than writing the zero into omega itself: the working response divides by omega,
 and 0 times infinity in the node kernels is a NaN
 ([`LogisticResponse::workingWeights`](../../src/bartcore/model.hpp)). Negative
-binomial also restricts the collapsed statistic the dispersion grid draw reads,
+binomial also restricts the collapsed statistic the shape grid draw reads,
 and rebuilds the count histogram the grid's own kernel is built from over the
 active rows at every mask change - the channel's only per-install cost above a
 pass over the rows ([`NBResponse::setActiveRows`](../../src/bartcore/model.hpp),
-[`NBDispersionPrior::computeKernel`](../../src/bartcore/model.hpp)).
+[`NBShapePrior::computeKernel`](../../src/bartcore/model.hpp)).
 
 AFT composes into its contained gaussian, inheriting that recount, and skips an
 inactive censored row's log-time redraw; the response transform stays the

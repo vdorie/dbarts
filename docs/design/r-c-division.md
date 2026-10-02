@@ -43,7 +43,7 @@ multinomial-counts-mutation plan.
   production precedent (stan4bart's bernoulli path). Route-(b)
   compositions reach oracle accuracy for probit, logistic and negative
   binomial (critique probes B/D, E3, F; the nbinom route uses the
-  shipped per-sweep state-read of the dispersion, the same idiom
+  shipped per-sweep state-read of the shape, the same idiom
   bart2Negbin itself uses).
 - Splitting the mean across K samplers is NOT Gaussian-only and NOT
   broken: a host that draws the latents against the COMBINED fit (or
@@ -264,7 +264,7 @@ budgets)
   "Defects"). G2 (getLatents location-vs-precision docs, the wrong
   "(gaussian)" parenthetical in dbarts.h) IS the committed getLatents
   docs slice (defect 5) - no new entry. G3: export the nbinom
-  dispersion r per draw as a first-class surface (a run-result slot or
+  shape r per draw as a first-class surface (a run-result slot or
   getter, dbarts.h plus R5) in place of the bart2Negbin per-sweep
   state-read idiom; small pre-release slice, scheduled after the
   getLatents docs slice. No VD fork: every remaining item carries a
@@ -386,7 +386,7 @@ commit does not close.
   fact 12's latent draw, live at [`refreshLatents`](../../src/bartcore/chain.hpp)).
 - The census memo's tier (iii).1, its fork-1/fork-2 "strengthened"
   justifications, its two-sampler latent probe, and its "nbinom
-  dispersion unreachable" gap are superseded per the critique
+  shape unreachable" gap are superseded per the critique
   (recorded here; the artifact is gitignored and left as written).
 
 ## The latent-family weight channel (G4), adjudicated 2026-08-15

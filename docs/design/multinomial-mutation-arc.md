@@ -186,7 +186,7 @@ deleted with the mechanism at S4/F1), [`forestWeights`](../../R/dbarts.R)).
   `setTestPredictorAndOffset`, `setTestOffset`, `setCalibration`,
   `setState`, `installTrees`.
 - **2 carried `refuseHostRead`** (retired: [`refuseHostRead`](../../R/dbarts.R) - the guard is gone; both methods
-  remain): [`getDispersion`](../../R/dbarts.R), [`getFitsWithoutOffset`](../../R/dbarts.R).
+  remain): `getShape` (retired: [`getDispersion`](../../R/dbarts.R), the earlier name), [`getFitsWithoutOffset`](../../R/dbarts.R).
 - **13 substantive methods answer from the placeholder, unguarded**:
   `copy`, `predict`, `getLatents`, `getSigmas`,
   `getSumsOfSquaredResiduals`, `getForestFits`, `getForestAmplitudes`,

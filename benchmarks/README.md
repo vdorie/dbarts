@@ -234,7 +234,7 @@ hazard-reduction and hurdle-reduction, compare draws bitwise against a
 hand-built reference fit instead of an analytic target, take no `quick`
 argument, and otherwise run and exit like the rest. negbin-mixing is a
 fixed-seed mixing gate rather than an exactness one: at n of 500 and 2000 with
-the default forest, two chains of the negative-binomial dispersion must leave
+the default forest, two chains of the negative-binomial shape must leave
 the cold start, agree by split-Rhat, cover the true r and cover fresh counts at
 90% by randomized PIT; `quick` and full differ in seeds only.
 

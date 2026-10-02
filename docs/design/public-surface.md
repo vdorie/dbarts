@@ -14,7 +14,7 @@ door is `bartBT`, not `bart` - every `bart2`/`bart` naming below predates the
 swap. S2, LANDED 2026-09-09 (44b3fa6d): `family` in section 3 now accepts a
 token or a pre-built [`dbartsFamily`](../../R/family.R) object (`gaussian()`,
 `student(df)`, `probit()`, `logistic()`, `multinomial()`, `ordinal()`,
-`nbinom(dispersion)`, `aft()`, `hazard(breaks, max.rows, link)`,
+`nbinom(shape)`, `aft()`, `hazard(breaks, max.rows, link)`,
 `hurdle.lognormal()`), exported as `dbartsFamilies` beside section 3a's
 `dbartsPriors` and resolved by the same bare-name vocabulary rule.
 Sections 1 and 5's "one handle per worker chunk" xbart description is

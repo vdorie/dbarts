@@ -148,7 +148,7 @@ move kept, in the same words.
 - **Constant gaussian leaf: YES**, unchanged, the derivation of section 1.
 - **Latent families (probit, logistic, multinomial, ordinal, nbinom, hurdle, t, AFT, hazard): YES**, unchanged. The leaves fit the
   working response and the shift leaves `f` fixed, so nothing outside the forest can observe it: an offset, an intercept held
-  outside the forest, the ordinal thresholds, the nbinom dispersion, the Student-t degrees of freedom and every latent refresh read
+  outside the forest, the ordinal thresholds, the nbinom shape, the Student-t degrees of freedom and every latent refresh read
   `f` and only `f`. Enumerated the other way, the only channels in the engine that read LEAF VALUES rather than fits are the `k`
   hyperprior (section 2's placement), the amplitude ridge, the monotone truncation, and the empty-leaf convention above. Multinomial
   gains a SECOND level step beside the one it ships: its cross-forest direction shifts every forest by a common `c` (softmax-

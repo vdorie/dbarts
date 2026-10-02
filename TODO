@@ -37,7 +37,7 @@ items
     every-draw-exact rule. Covers the negative-binomial latent at large
     shape (cost linear in y + r today; the exact construction, 1,000 to
     2,000 lines, is designed in docs/plans/nbinom-large-shape-pg.md and
-    not scheduled), real dispersion (negbin-real-dispersion) and
+    not scheduled), real shape (negbin-real-dispersion) and
     non-integer logistic weights (weighted-binary).
   bcf-latent-mixing: research door, no plan doc of its own; for the
     post-merge mixing research. The probit and logistic BCF chains mix
@@ -295,7 +295,7 @@ items
     the saved state, dbarts.h, the manual and the tests, in one slice.
     New in 1.0-0, so no tombstone. Plan:
     docs/plans/nbinom-dispersion-name.md.
-  negbin-real-dispersion: real-valued dispersion needs a
+  negbin-real-dispersion: real-valued shape needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
     real-shape primitive, or a project-level decision to admit
@@ -361,7 +361,7 @@ items
   second-review-followups: three doors the second whole-branch review
     recorded, none with a decision yet - a negbin rootogram panel,
     ordinal log_diff_exp tail precision, and a negbin burn-in
-    dispersion channel (bart2 negbin runs one run(n.burn, n.samples),
+    shape channel (bart2 negbin runs one run(n.burn, n.samples),
     so plot draws no burn-in segment; worth more since r moves under
     the log-mean model). Records:
     docs/plans/release-candidate-review.md's wave-3 landing note; the

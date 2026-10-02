@@ -73,7 +73,7 @@ branch.
 | probit, weighted binary | probit latent | 1 | 0 |
 | ordinal | probit latent, relative to the pinned first cutpoint | 1 | 0 |
 | logistic | logistic latent (log-odds) | 1 | 0 |
-| nbinom | log-odds `psi`; a mean-scale reading needs the current dispersion | 1 | 0 |
+| nbinom | log-odds `psi`; a mean-scale reading needs the current shape | 1 | 0 |
 | multinomial | softmax log-odds, per category forest | 1 | 0 |
 | BCF | response; `k` fixed at 1 by the map | `range_` | `range_*0.5 + min_` |
 | BCF, probit | probit latent; `k` fixed at 1 by the map | 1 | 0 |

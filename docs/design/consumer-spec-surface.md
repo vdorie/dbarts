@@ -14,7 +14,7 @@ resolution; no draw-law change, no engine code).
 
 Every feature the bartcore program added is configured through attributes parked on
 the control and model SEXPs plus a family string: `bartcore.n.categories` (ordinal),
-`bartcore.dispersion` (nbinom), `bartcore.survival` (aft), `bartcore.variance`
+`bartcore.shape` (nbinom), `bartcore.survival` (aft), `bartcore.variance`
 (heteroscedastic), `bartcore.hazard.periods`, `monotone`, `resid.df`,
 `interaction.max.order`, `interaction.forbidden`, `block.of.column`,
 `block.tree.counts`. All three SEXPs cross `dbarts_sampler_create(control, model,

@@ -64,7 +64,7 @@ r step. Integrating omega out of p(y, omega | f, r) returns the NB likelihood, s
 
 using (y + r) log(mu + r) = (y + r) log r + (y + r) log(1 + mu/r) and n r_k log r_k - sum_i (y_i + r_k) log r_k =
 -Y log r_k. K_k depends on y alone and precomputes where L_k does
-([`NBDispersionPrior::computeKernel`](../../src/bartcore/model.hpp)). The rest no longer separates: under logit-p
+((retired: [`NBDispersionPrior::computeKernel`](../../src/bartcore/model.hpp), now `NBShapePrior::computeKernel`)). The rest no longer separates: under logit-p
 p_i was r-free and the eta-dependence collapsed to one statistic S; now p_i moves with r_k, so the per-sweep cost is
 13 n evaluations of [`logOnePlusExp`](../../src/bartcore/model.hpp) (one per row and grid point), beside the PG
 draw's sum_i (y_i + r) unit draws.
@@ -114,10 +114,10 @@ a_i = o_i + c - log r used by every working-response build:
   [`Chain::forestCalibration`](../../src/bartcore/chain.hpp)). The internal fits keep their zero-centered prior,
   as gaussian's do.
 - [`NBResponse::refreshLatents`](../../src/bartcore/model.hpp): (1) when estimating, eta_i = totalFits_i + c + o_i
-  and r from [`NBDispersionPrior::drawIndex`](../../src/bartcore/model.hpp), now taking (y, eta, active) and
+  and r from (retired: [`NBDispersionPrior::drawIndex`](../../src/bartcore/model.hpp), now `NBShapePrior::drawIndex`), now taking (y, eta, active) and
   forming w_k above; update log r; (2)-(3) [`NBResponse::drawOmega`](../../src/bartcore/model.hpp) with
   psi_i = totalFits_i + a_i and z_i = kappa_i/omega_i - a_i. `collapsedStatistic` is deleted.
-  [`NBDispersionPrior::computeKernel`](../../src/bartcore/model.hpp) folds -Y log r_k (Y over the active rows) into
+  (retired: [`NBDispersionPrior::computeKernel`](../../src/bartcore/model.hpp), now `NBShapePrior::computeKernel`) folds -Y log r_k (Y over the active rows) into
   the kernel; log r_k is a constant table. The weight loop is scalar and fixed-order (rows outer, grid inner), so the
   reference and shipped builds stay bitwise.
 - [`NBResponse::coldStart`](../../src/bartcore/model.hpp), [`NBResponse::restoreLatents`](../../src/bartcore/model.hpp)
@@ -249,7 +249,7 @@ does not reopen it, and both gates below exercise it.
   identical, nbinom the mover. P17 oracle (MANIFEST rule): negbin-exact.R FULL (both arms) and negbin-mixing.R at
   the tip on the shipped build, plus the SBC arm's R=200 verdict. Neutrality: bcf-equivalence and
   multinomial-equivalence bitwise; the four seeded-drift snapshot files carry no nbinom and must pass unchanged.
-- tests/cpp: rewrite [`testNBDispersionGridConditional`](../../tests/cpp/test_model.cpp) against w_k above, with K_k
+- tests/cpp: rewrite (retired: [`testNBDispersionGridConditional`](../../tests/cpp/test_model.cpp), now `testNBShapeGridConditional`) against w_k above, with K_k
   checked against a direct lgamma sum and the weights against a per-row dnbinom-form sum;
   [`testNBSweepOrderAndRestore`](../../tests/cpp/test_model.cpp) and
   [`testActiveRowsNBKernels`](../../tests/cpp/test_model.cpp) for the anchor and the active-row K_k. New: c's formula
@@ -258,7 +258,7 @@ does not reopen it, and both gates below exercise it.
   fitMax <= fitMin refusal.
 - tinytest: [test-nbinom.R](../../inst/tinytest/test-nbinom.R) (ev = exp(link) draw by draw; leaf.scale = A; the
   recovery smoke's r band tightened to what the mixing gate supports; pre-change state refusal),
-  [test-dispersion-channel.R](../../inst/tinytest/test-dispersion-channel.R) (the same identity),
+  `test-dispersion-channel.R` (retired: now `test-shape-channel.R`) (the same identity),
   [test-augmentation.R](../../inst/tinytest/test-augmentation.R) (helper parity with the engine, psi less log r),
   [test-family-mutation-parity.R](../../inst/tinytest/test-family-mutation-parity.R) (creation with offset equals
   setOffset(updateScale = TRUE), bitwise; updateScale = FALSE keeps c and differs),

@@ -22,7 +22,7 @@ r = 64 does. b <= 64 keeps today's integer sum of PG(1) draws bit for bit.
   weights ([`LogisticResponse::refreshLatents`](../../src/bartcore/model.hpp), the bridge's logistic arm) and
   multinomial trials ([`MultinomialForestCombiner::drawForestGlue`](../../src/bartcore/combiner.hpp)) sum
   PG(1) in their own loops and are not routed through the seam.
-- Where large b comes from: estimated r is capped at 50 by [`NBDispersionPrior`](../../src/bartcore/model.hpp),
+- Where large b comes from: estimated r is capped at 50 by (retired: [`NBDispersionPrior`](../../src/bartcore/model.hpp), now `NBShapePrior`),
   so large shapes come from a large fixed dispersion or from large counts (b = y + r).
 - Notation (Windle, Polson and Scott 2014, arXiv:1405.0506, "WPS"): PG(b, psi) = J*(b, z)/4, z = |psi|/2.
   J*(1, z) = sum_n g_n / d_n, g_n ~ Exp(1), d_n = pi^2 (n + 1/2)^2 / 2 + z^2 / 2 (WPS Fact 3). K(t) is the

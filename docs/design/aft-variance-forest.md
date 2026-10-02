@@ -66,7 +66,7 @@ asserting the pointer equals `varianceFits()` after each. It owns the TRAIN vect
 `combinedVarianceTest` reallocating in [`Chain::resizeTestStorage`](../../src/bartcore/chain.hpp) where no latent draw reads
 it.
 
-RESTORE CONTRACT, in the shape [`NBResponse`](../../src/bartcore/model.hpp)'s dispersion states: [`Chain::setState`](../../src/bartcore/chain.hpp)
+RESTORE CONTRACT, in the shape [`NBResponse`](../../src/bartcore/model.hpp)'s shape states: [`Chain::setState`](../../src/bartcore/chain.hpp)
 restores the latents BEFORE rebuilding the surface, safe only because `AFTResponse::restoreLatents`
 is a memcpy plus a working rebuild reading neither sigma nor surface. Keep `restoreLatents`
 surface-free, or move the rebuild ahead of it.

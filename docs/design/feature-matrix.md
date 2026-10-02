@@ -43,7 +43,7 @@ or rule says so.
 | probit | Binary probit ([`ProbitResponse`](../../src/bartcore/model.hpp)) |
 | logistic | Binary logistic, weights = observation counts ([`LogisticResponse`](../../src/bartcore/model.hpp)) |
 | ordinal | Ordered categorical, cumulative probit ([`OrdinalResponse`](../../src/bartcore/model.hpp)) |
-| nbinom | Negative binomial, positive-integer dispersion ([`NBResponse`](../../src/bartcore/model.hpp)) |
+| nbinom | Negative binomial, positive-integer shape ([`NBResponse`](../../src/bartcore/model.hpp)) |
 | multinom | Multinomial softmax, K forests ([`MultinomialResponse`](../../src/bartcore/model.hpp) + combiner) |
 | aft | AFT survival, log-normal ([`AFTResponse`](../../src/bartcore/model.hpp)) |
 | hazard | Discrete-time hazard (person-period sugar, [`expandDiscreteTimeHazard`](../../R/dbarts.R)) |
@@ -213,7 +213,7 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 | `xbart()` family coverage ([`xbart`](../../R/xbart.R) admits only auto/gaussian/probit/logistic) | student, nbinom, aft, hazard, hurdle, bcf, hetero | ordinal/multinom redirect to `bart()` instead |
 | Warm start / grow-from-root for the alternate-family `bart` arcs | ordinal, nbinom, multinomial, hurdle | [`checkFamilyUnsupportedArgs`](../../R/bart.R), [f12] |
 | Multi-forest donor warm start | bcf (multinomial hits the same guard independently) | [`refuseMultiForestWarmStart`](../../src/R_interface_bartcore.cpp), [f12] |
-| Real-valued (continuous) dispersion | nbinom | TODO `negbin-real-dispersion` |
+| Real-valued (continuous) shape | nbinom | TODO `negbin-real-dispersion` |
 | SBC at full chain length (r/agg.psi ridge) | nbinom | docs/plans/sbc-family-tiers.md |
 | SBC gamma3 re-run at full chain length | ordinal | docs/plans/sbc-family-tiers.md |
 | An engine per-observation log-likelihood channel | multinomial | [`multinomialLogLik`](../../R/generics.R) |
@@ -260,7 +260,7 @@ augmentation entries alone.
 [f3] Ordinal and nbinom each ship a `DBARTS_FAMILY_*` enumerator; heteroscedastic has none,
 being a control-attribute decoration. The header's specification-attribute block
 (retired: ["SPECIFICATION ATTRIBUTES"](../../inst/include/dbarts/dbarts.h)) documents all three selectors - `bartcore.n.categories`,
-`bartcore.dispersion` ([`parseControl`](../../src/R_interface_bartcore.cpp)) and `bartcore.variance`
+`bartcore.shape` ([`parseControl`](../../src/R_interface_bartcore.cpp)) and `bartcore.variance`
 ([`applyVarianceAttributes`](../../src/R_interface_bartcore.cpp)).
 
 [f4] `dbarts(x, y, family = "multinomial")` (matrix interface only) takes a counts matrix or a

@@ -333,7 +333,7 @@ and the 17 tinytest files. Everything else on this list is an edit.
   this change.
 - **The `bartcore.*` control-attribute mechanism**, which also carries
   `bartcore.survival`, `bartcore.variance`, `bartcore.forests` and
-  `bartcore.dispersion`. Only the `bartcore.groups` key retires.
+  `bartcore.shape`. Only the `bartcore.groups` key retires.
 - **The state-restore machinery**, minus two `ChainStateData` members and two
   R slots.
 
@@ -348,12 +348,12 @@ The structSize contract cannot cover this in principle. It is safe only under
 the header's stated rule - fields append below the boundary and never reorder,
 which does not authorise a removal at all - so a stale binary would pass a
 *larger* structSize and the library would fill what it believes are
-`logLikelihood`, `dispersion` and `residualDf` two pointers off.
+`logLikelihood`, `shape` and `residualDf` two pointers off.
 
 In practice both that hazard and its named mitigation are inert against the
 only consumer that exists. stan4bart's `setCurrentPointers` fills `sigma`,
 `train`, `test`, `varcount` and `k` and leaves `varprobs`, `logLikelihood`,
-`dispersion` and `residualDf` NULL - every field at or below the removed pair
+`shape` and `residualDf` NULL - every field at or below the removed pair
 is NULL on both sides of the shift, so nothing is mis-written. Symmetrically,
 stan4bart does not define `DBARTS_REQUIRE_EXACT_ABI`, so the load-time check
 the header offers is not armed there either. What actually protects it is the

@@ -150,7 +150,7 @@ typedef struct dbarts_draw_t {
   const double *splitProbabilities, *logLikelihood;  /* numPredictors; n */
   const double* ordinalThresholds;  /* numOrdinalThresholds */
   const uint32_t* varcount;  /* numPredictors x numVariableCountForests */
-  double sigma, k, dispersion, residualDf;  /* NaN where inapplicable */
+  double sigma, k, shape, residualDf;  /* NaN where inapplicable */
 } dbarts_draw;
 
 typedef int (*dbarts_draw_callback)(void* context, const dbarts_draw* draw);

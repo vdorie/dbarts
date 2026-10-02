@@ -229,7 +229,7 @@ both supported (below).
   binomial(n_i, sigmoid(eta_ik)), augmented by omega_ik ~ PG(n_i, eta_ik)
   drawn as the sum of n_i PG(1, .) draws - exact, because the shape is
   observed integer data, never sampled, so the real-shape gap that
-  constrains negative binomial's dispersion has no analog here (landed
+  constrains negative binomial's shape has no analog here (landed
   2bd34db, docs/plans/archive/multinomial-counts.md). Single-trial labels
   (0..K-1 codes) enter as a one-hot counts matrix with unit trials, the
   byte-identical n_i = 1 reduction that anchors every recorded

@@ -13,7 +13,7 @@ Shipped. Continuous responses with Gaussian errors, and the same with Student-t
 errors by scale mixture. Binary responses through a probit latent and through a
 logistic Polya-Gamma augmentation, the latter taking trial counts as weights.
 Ordered categorical responses by cumulative probit with sampled cutpoints.
-Counts by negative binomial with an integer dispersion. Log-normal accelerated
+Counts by negative binomial with an integer shape. Log-normal accelerated
 failure time with right censoring, and discrete-time hazard as a person-period
 recoding of the binary families. Multinomial responses as one forest per
 category coupled by a softmax. Semicontinuous two-part responses composed in R
@@ -26,7 +26,7 @@ covariates; a sparsity-inducing prior on split variables; per-forest interaction
 and column restrictions.
 
 Designed but unbuilt, or plausibly next. Real-valued negative-binomial
-dispersion. Exact serially-correlated or spatially-correlated errors, which need
+shape. Exact serially-correlated or spatially-correlated errors, which need
 a banded rather than diagonal precision. Multivariate responses, which today are
 composed outside the engine as one sampler per outcome exchanging offsets and
 scales. Varying-coefficient models, which the multiplier family expresses except
@@ -93,7 +93,7 @@ owning whatever augmentation that takes.
 
 **D. The global blocks.** Decided per sweep, carried in state. The residual
 scale, each forest's leaf-prior scale, the sparsity weights, the ordinal
-cutpoints, the dispersion, the residual degrees of freedom, the amplitudes.
+cutpoints, the shape, the residual degrees of freedom, the amplitudes.
 Every one of these is the same kind of thing: a small named block a family or a
 coupling draws each sweep, serializes, and reports.
 
@@ -280,7 +280,7 @@ The response family as a runtime interface, and the working-response-and-precisi
 backbone of section 2:
 [`ResponseModel`, `ResponseFamily`, `workingResponse`, `workingWeights`, `refreshLatents`](../../src/bartcore/model.hpp).
 The three global blocks of section 4 and their per-family accessors:
-[`carriesOrdinalThresholds`, `carriesDispersion`, `carriesResidualDf`](../../src/bartcore/model.hpp).
+[`carriesOrdinalThresholds`, `carriesShape`, `carriesResidualDf`](../../src/bartcore/model.hpp).
 
 The forest as the composable unit, and the coupling object that answers per-forest
 response, precisions and combined location:

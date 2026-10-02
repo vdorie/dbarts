@@ -4,14 +4,14 @@ Status: LANDED 2026-07-18 (9c28b31); sections 1, 2A and 3-7 AMENDED by
 nbinom-log-mean ([Landing](../plans/nbinom-log-mean.md#landing)), LANDED 2026-10-01 (fdfc1fe4): the forest models the log
 mean and r is drawn given the means (dec-B170). Section 4 is also AMENDED by
 [front-door](../plans/front-door.md#front-door) S2, LANDED 2026-09-09
-(44b3fa6d): dispersion is not a `bart()`/`dbarts()` formal; it is the
-`nbinom(dispersion = NA)` [`dbartsFamily`](../../R/family.R) constructor's
+(44b3fa6d): shape is not a `bart()`/`dbarts()` formal; it is the
+`nbinom(shape = NA)` [`dbartsFamily`](../../R/family.R) constructor's
 argument, and `family = "nbinom"` resolves to `nbinom()`'s default. Plan: docs/plans/archive/negative-binomial.md (this is
 its step 1). Non-negative integer counts fit natively by the Polya-Gamma
 negative-binomial augmentation (Polson-Scott-Windle 2013; Zhou-Li-Dunson-Carin
 2012), riding the per-observation working weights the LogisticResponse port
 already carries ([`LogisticResponse`](../../src/bartcore/model.hpp)). The forest fits the log mean
-(section 1); a dispersion parameter r governs over-dispersion. Surfaced as
+(section 1); a shape parameter r governs over-dispersion. Surfaced as
 `family = "nbinom"`. The load-bearing resolution (section 2): exact PG draws
 exist only for INTEGER shape, so v1 ships the exact envelope - r a positive
 integer, fixed or estimated on a capped grid by a closed-form conditional (the
@@ -24,7 +24,7 @@ addition plus its family plumbing, the robust-errors and ordinal precedent.
 
 ## 1. The model and link (the parameterization fork)
 
-A negative binomial with dispersion (size) r > 0 and a mean set by the forest.
+A negative binomial with shape (size) r > 0 and a mean set by the forest.
 RESOLVED twice: logit-p shipped first (2026-07-18) and was replaced by the
 log-mean parameterization (dec-B170, 2026-10-01) after the third whole-branch
 review measured that r never moved under logit-p. Both are written down here,
@@ -88,17 +88,17 @@ sd is stated on the log-mean scale with no conversion.
 
 ## 2. The r update and the exactness fork (the load-bearing decision)
 
-RESOLVED (VD 2026-07-18): fork (A) - integer dispersion, fully exact; r
+RESOLVED (VD 2026-07-18): fork (A) - integer shape, fully exact; r
 fixed or estimated on the capped grid by the closed-form discrete
-conditional; real dispersion stays behind the recorded door carrying
+conditional; real shape stays behind the recorded door carrying
 fork (B)'s spec. VD's rider: design decisions should accommodate a
 later real-r expansion where possible. Binding accommodations:
 - The by-name state slot stores r as a real-valued scalar under a
-  parameterization-neutral name ("dispersion"); grid mode writes
+  parameterization-neutral name ("shape"); grid mode writes
   integer-valued doubles, so a real-r mode later loads and saves with
   no state-format change.
-- The R surface takes dispersion as a positive number; v1 refuses a
-  non-integer fixed value informatively ("real dispersion is not yet
+- The R surface takes shape as a positive number; v1 refuses a
+  non-integer fixed value informatively ("real shape is not yet
   supported"), so admitting it later is a validation relaxation, not a
   signature change.
 - In the engine, the omega loop calls a shape-parameterized PG helper
@@ -194,10 +194,10 @@ conditional is
     K_k = sum_c n_c [lgamma(c + r_k) - lgamma(r_k)] - Y log r_k,   Y = sum_i y_i,
 
 with n_c the count histogram, so K_k precomputes once per response
-([`NBDispersionPrior::computeKernel`](../../src/bartcore/model.hpp)). The rest
+([`NBShapePrior::computeKernel`](../../src/bartcore/model.hpp)). The rest
 does not separate - p_i moves with r_k - so a sweep costs one exp per row and
 one log1p per row and grid point, 13 n in all
-([`NBDispersionPrior::drawIndex`](../../src/bartcore/model.hpp)), beside the PG
+([`NBShapePrior::drawIndex`](../../src/bartcore/model.hpp)), beside the PG
 draw's sum_i (y_i + r) unit draws. (Under logit-p the conditional was
 L_k + r_k S + log prior_k with one O(n) statistic S = sum_i log(1 - p_i), cheaper,
 and useless for the reason section 1 gives.) No tuning. All PG shapes stay integer, the shipped
@@ -207,7 +207,7 @@ pending either an exact real-shape primitive or an explicit project-level
 decision to admit approximate MCMC. Cost, stated plainly: **r in (0, 1) - the
 heavy-over-dispersion regime, variance > mu + mu^2 - is unrepresentable**, and
 r between grid points is rounded to the grid; the ecosystem estimates
-continuous dispersion everywhere (section 3), so integer-r is a genuine
+continuous shape everywhere (section 3), so integer-r is a genuine
 modeling restriction, not just a discretization.
 
 **(B) Real r estimated by CRT-Gamma, with the truncated fractional primitive,
@@ -305,7 +305,7 @@ family note. It also ships with ZERO new RNG primitives and the cheapest r
 update on the table. Strongest argument against: **integer r cannot represent
 r < 1**, heavy over-dispersion (variance > mu + mu^2), a genuinely common
 count-data regime - this note's own prototype headline includes r = 0.5 - and
-no mainstream package restricts the dispersion's support, so (A) may be judged
+no mainstream package restricts the shape's support, so (A) may be judged
 too weak to ship as "negative binomial"; if VD weighs that regime above exact-
 MCMC uniformity, (B) is the coherent alternative and its error budget is
 specified above, ready to implement.
@@ -385,7 +385,7 @@ renormalized prior over it - which makes the robust-errors nu analogy EXACT
 (ResidualDfPrior: capped grid, gamma-kernel prior weights, [`ResidualDfPrior`](../../src/bartcore/model.hpp))
 and turns the tail question into a grid-cap question. Proposed default,
 PROVISIONAL pending recovery-gate calibration: grid {1, 2, 3, 4, 5, 6, 8, 10,
-12, 15, 20, 30, 50} (dense where dispersion matters, sparse toward the
+12, 15, 20, 30, 50} (dense where overdispersion matters, sparse toward the
 Poisson-like cap; cap justified because at r >= 50 the NB is practically
 Poisson for moderate mu) with prior weights the gamma(2, 0.1) kernel
 renormalized on the grid - noting honestly that gamma(2, 0.1)'s mean of 20 is
@@ -462,7 +462,7 @@ weighted-binary fork.
 **Prediction / reporting.** type = "bart"/"link" returns the log mean
 eta = f + c + o per draw. type = "ev"/"response" returns the mean counts
 mu = exp(link), which no longer read r. The r draws are still a first-class
-posterior output, the `dispersion` field (the count analog of gaussian's sigma
+posterior output, the `shape` field (the count analog of gaussian's sigma
 and ordinal's thresholds; section 5), which ppd (rnbinom(size = r_s, mu = mu_s))
 and loglik (dnbinom at the same pair) read. A drawn k rides `k` (or `sd`), as on
 a bart fit. fitted()/predict() mean shapes match the gaussian single-column ev
@@ -480,18 +480,18 @@ ordinal precedent.
 
 **r in a new by-name scalar state block - the resid.df pattern EXACTLY.** Add the
 virtual trio carriesR() / r() / restoreR() to ResponseModel (default false / 0 /
-no-op - retired: shipped as carriesDispersion() / dispersion() /
-restoreDispersion() instead, [`NBResponse::carriesDispersion`](../../src/bartcore/model.hpp), [`NBResponse::dispersion`](../../src/bartcore/model.hpp), [`NBResponse::restoreDispersion`](../../src/bartcore/model.hpp)), mirroring carriesResidualDf() / residualDf() / restoreResidualDf()
+no-op - retired: shipped as carriesShape() / shape() /
+restoreShape() instead, [`NBResponse::carriesShape`](../../src/bartcore/model.hpp), [`NBResponse::shape`](../../src/bartcore/model.hpp), [`NBResponse::restoreShape`](../../src/bartcore/model.hpp)), mirroring carriesResidualDf() / residualDf() / restoreResidualDf()
 ([`TResponse::carriesResidualDf`](../../src/bartcore/model.hpp), [`TResponse::residualDf`](../../src/bartcore/model.hpp), [`TResponse::restoreResidualDf`](../../src/bartcore/model.hpp)). r is a scalar, so it needs no length (the residualDf
 analog, not the thresholds vector analog); in grid mode the stored value is a
 grid member, the TResponse estimatesResidualDf convention (retired: [`TResponse::estimatesResidualDfForTesting`](../../src/bartcore/model.hpp)).
 ChainStateData gains a scalar field near its residualDf field, named
-`dispersion` as shipped (retired: proposed as `r`; [`ChainStateData::dispersion`](../../src/bartcore/combiner.hpp), NaN
+`shape` as shipped (retired: proposed as `r`; [`ChainStateData::shape`](../../src/bartcore/combiner.hpp), NaN
 marking absent);
 getState writes it when carriesR() ([`Chain::getState`](../../src/bartcore/chain.hpp), the residualDf line);
 stateIsValid refuses an NB state with a non-finite/non-positive r
 ([`Chain::stateIsValid`](../../src/bartcore/chain.hpp)); setState restoreR()s it ([`Chain::setState`](../../src/bartcore/chain.hpp)). The bridge adds a
-SLOT_DISPERSION enum (retired: renamed from SLOT_R) + name to slotNames
+SLOT_SHAPE enum (retired: renamed from SLOT_R) + name to slotNames
 ([`storeState`](../../src/R_interface_bartcore.cpp)), a
 conditional write when finite ([`storeState`](../../src/R_interface_bartcore.cpp), the resid.df line), and a by-name
 read tolerating absence ([`setState`](../../src/R_interface_bartcore.cpp)). Old states omit the slot and load
