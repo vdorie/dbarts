@@ -492,8 +492,10 @@ mutations <- list(
 ## zero-trial, nbinom, t and ordinal families, predictor-mutation rollback,
 ## data ingestion, the bridge's validation, and the generics. Killers are the
 ## tinytest files, tests/cpp and quick exact gates that own each site.
-## SURVIVE_DOCUMENTED entries here were replanted against the full tinytest
-## suite, tests/cpp and the cheap quick gates and still lived. Ids left
+## The thirteen that first survived the full tinytest suite, tests/cpp and the
+## cheap quick gates (m38, m42, m59, m63, m67, m71, m74, m76, m78, m79, m80,
+## m84, m87) each have a killing test now and are KILL_EXPECTED; r3s stays for
+## the next gap found. Ids left
 ## unassigned: m36 (monotoneMovePair flip) and m55 (aft setSurvivalStatus
 ## restoring logT_) are equivalent on every reachable path - a split on a
 ## constrained axis keeps its children in one component, where the ratio is
@@ -596,13 +598,13 @@ mutations <- c(
       c(kMonotone, kGate("monotone-successive-conditional.R")),
       "monotone leaf prior: Z_T ratio applied with the wrong sign on both moves"
     ),
-    r3s(
+    r3(
       "m38",
       mh,
       "drawn[next++] = freeSd * ext_rng_simulateStandardNormal(rng);",
       "drawn[next++] = constrainedSd * ext_rng_simulateStandardNormal(rng);",
       kMonotone,
-      "monotone prior leaf draw: an isolated leaf takes the c-inflated sd; survives the full suite: no test checks the free leaves of a monotone prior leaf draw have sd scale/k"
+      "monotone prior leaf draw: an isolated leaf takes the c-inflated sd; killed by test_monotone.cpp's exact prior draw, whose leaf variances now match rejection sampling"
     ),
     r3(
       "m39",
@@ -620,13 +622,13 @@ mutations <- c(
       kMonotone,
       "monotone birth redraw: the lower child is not capped by its drawn sibling"
     ),
-    r3s(
+    r3(
       "m42",
       mh,
       "if (lower > upper) return false;",
       "if (lower < upper) return false;",
       c(kMonotone, kGate("monotone-successive-conditional.R")),
-      "monotone joint prior: the structure draw's cone test inverted; survives the full suite: no test draws monotone trees from the joint prior and checks the accept rate"
+      "monotone joint prior: the structure draw's cone test inverted; equivalent in the tree law (negated iid draws of one sd map the cone onto its reverse), killed by test_monotone.cpp's accept-is-cone-test check against the point oracle's pairs"
     ),
     r3(
       "m43",
@@ -805,13 +807,17 @@ mutations <- c(
       ),
       "multinomial zero-trial rows never composed into the effective mask"
     ),
-    r3s(
+    r3(
       "m59",
       "R/data.R",
       "codes <- if (is.factor(y)) as.integer(y) else as.integer(y) + 1L",
       "codes <- if (is.factor(y)) as.integer(y) else as.integer(y)",
-      kTests("test-multinomial-surface.R", "test-multinomial-generics.R"),
-      "multinomial numeric category codes not shifted to 1-based; survives the full suite: no fit with a numeric (0-based) multinomial response checks its count matrix"
+      kTests(
+        "test-multinomial-numeric-codes.R",
+        "test-multinomial-surface.R",
+        "test-multinomial-generics.R"
+      ),
+      "multinomial numeric category codes not shifted to 1-based"
     ),
     r3(
       "m60",
@@ -844,13 +850,13 @@ mutations <- c(
       c(kTests("test-nbinom.R", "test-active-rows-pins.R"), kCpp()),
       "nbinom setActiveRows: kernel not rebuilt over the subsample"
     ),
-    r3s(
+    r3(
       "m63",
       mh,
-      "y * logOnePlusExp(-eta) - r_ * logOnePlusExp(eta);",
-      "y * logOnePlusExp(eta) - r_ * logOnePlusExp(eta);",
+      "y * logOnePlusExp(-psi) - r_ * logOnePlusExp(psi);",
+      "y * logOnePlusExp(psi) - r_ * logOnePlusExp(psi);",
       c(kTests("test-nbinom.R", "test-pointwise-loglik.R"), kCpp()),
-      "nbinom pointwise loglik: log p sign flipped; survives the full suite: the engine nbinom loglik reaches only the flat C API, which no test checks against dnbinom"
+      "nbinom pointwise loglik: log p sign flipped (re-pointed to the log-mean form, psi = log mu - log r); killed by test_model.cpp's nb log-mean anchor, which checks it against dnbinom at mu"
     ),
     r3(
       "m64",
@@ -876,7 +882,7 @@ mutations <- c(
       c(kTests("test-active-rows-pins.R"), kGate("t-exact.R"), kCpp()),
       "student t: nu statistics count masked rows"
     ),
-    r3s(
+    r3(
       "m67",
       mh,
       "? sigmaOriginal / std::sqrt(userWeights_[i])",
@@ -885,7 +891,7 @@ mutations <- c(
         kTests("test-pointwise-loglik.R", "test-bart-weights-parity.R"),
         kCpp()
       ),
-      "student t loglik: weighted scale divides by w rather than sqrt(w); survives the full suite: no weighted t fit checks the engine loglik (flat C API) against dt"
+      "student t loglik: weighted scale divides by w rather than sqrt(w); killed by test_model.cpp's weighted t log-likelihood against the closed-form dt"
     ),
     r3(
       "m68",
@@ -911,7 +917,7 @@ mutations <- c(
       kTests("test-ordinal.R", "test-pointwise-loglik.R"),
       "ordinal R loglik: observation index replicated in the wrong layout"
     ),
-    r3s(
+    r3(
       "m71",
       "src/bartcore/sampler.hpp",
       "      data_.gatheredRawValues = std::move(oldGatheredRaw);\n",
@@ -924,7 +930,7 @@ mutations <- c(
         ),
         kCpp()
       ),
-      "predictor rollback: leaf-covariate raw copies not restored; survives the full suite: no rejected predictor update on a linear/gp leaf sampler checks the leaf covariates after"
+      "predictor rollback: leaf-covariate raw copies not restored; killed by test-linear-leaves.R's refused replacement against a twin that never attempted it"
     ),
     r3(
       "m72",
@@ -948,13 +954,13 @@ mutations <- c(
       ),
       "predictor mutation: factor level-code precheck skipped without a cut refresh"
     ),
-    r3s(
+    r3(
       "m74",
       "src/bartcore/sampler.hpp",
       "        data.hasMissing[j] = oldHasMissing[k];\n",
       "",
       c(kTests("test-data-missing.R", "test-sampler-predictors.R"), kCpp()),
-      "subset predictor rollback: missingness flags not restored; survives the full suite: no rejected subset update that introduced NA checks the missingness afterwards"
+      "subset predictor rollback: missingness flags not restored; killed by test_sampler.cpp's subset rollback missingness"
     ),
     r3(
       "m75",
@@ -967,13 +973,13 @@ mutations <- c(
       ),
       "factor ingestion: a code one past the level table is accepted"
     ),
-    r3s(
+    r3(
       "m76",
       "src/bartcore/data.hpp",
       "splitsBySubset(j) && source.slice.numNonzero < numObservations",
       "source.slice.numNonzero < numObservations",
       c(kTests("test-sparse-factor.R", "test-data-sparse.R"), kCpp()),
-      "sparse ingestion: an ordered factor's reference folds into its level count; survives the full suite: no sparse ordered factor with an implicit reference above its stored codes checks its cut count"
+      "sparse ingestion: an ordered factor's reference folds into its level count; killed by test_data.cpp's undeclared CSC ordered factor (unreachable from R, which declares K or passes reference 0)"
     ),
     r3(
       "m77",
@@ -989,31 +995,33 @@ mutations <- c(
       c(kTests("test-data-sparse.R", "test-sparse-factor.R"), kCpp()),
       "sparse rank storage: a row's nonzero rank counts its own bit"
     ),
-    r3s(
+    r3(
       "m78",
       "R/data.R",
       "rows[x@i[missingEntries] + 1L] <- TRUE",
       "rows[x@i[missingEntries]] <- TRUE",
       kTests(
+        "test-na-action-sparse.R",
         "test-sparse-factor-na.R",
         "test-predict-na-action.R",
         "test-na-action.R"
       ),
-      "sparse missing rows: 0-based row index used as 1-based; survives the full suite: no sparse dgCMatrix with an NA entry checks which row na.omit drops"
+      "sparse missing rows: 0-based row index used as 1-based"
     ),
-    r3s(
+    r3(
       "m79",
       "R/data.R",
       "rows <- rows | rowsWithMissingPredictors(x$sparse)",
       "rows <- rowsWithMissingPredictors(x$sparse)",
       kTests(
+        "test-na-action-sparse.R",
         "test-sparse-factor-na.R",
         "test-predict-na-action.R",
         "test-na-action.R"
       ),
-      "mixed container missing rows: dense-column NA rows dropped when a sparse block is present; survives the full suite: no mixed container with dense NA plus a sparse block checks na.omit"
+      "mixed container missing rows: dense-column NA rows dropped when a sparse block is present"
     ),
-    r3s(
+    r3(
       "m80",
       "R/utility.R",
       "refactored <- factor(as.character(column), levels = factorLevels[[j]])",
@@ -1023,7 +1031,7 @@ mutations <- c(
         "test-predict-na-action.R",
         "test-generics-correctValues.R"
       ),
-      "test factor coding: levels recoded against the test set's own levels; survives the full suite: no predict on a test factor holding a strict subset of training levels"
+      "test factor coding: levels recoded against the test set's own levels"
     ),
     r3(
       "m81",
@@ -1054,13 +1062,13 @@ mutations <- c(
       kTests("test-nbinom.R", "test-sampler-bridge-errors.R"),
       "bridge: nbinom fractional counts accepted"
     ),
-    r3s(
+    r3(
       "m84",
       "src/R_interface_bartcore.cpp",
       "if (active[i] != 0.0 && active[i] != 1.0)",
       "if (active[i] != 0.0 && active[i] > 1.0)",
       kTests("test-active-rows-pins.R", "test-sampler-bridge-errors.R"),
-      "bridge: fractional active-row mask accepted; survives the full suite: no test hands $setActiveRows a fractional mask"
+      "bridge: fractional active-row mask accepted (the R method refuses first, so the killer calls the bridge directly)"
     ),
     r3(
       "m85",
@@ -1091,13 +1099,13 @@ mutations <- c(
       ),
       "bridge predict: draw axis sized to capacity, not recorded draws"
     ),
-    r3s(
+    r3(
       "m87",
       "R/generics.R",
       "probs <- c((1 - ci.level) / 2, 1 - (1 - ci.level) / 2)",
       "probs <- c((1 - ci.level) / 2, 1 - (1 - ci.level))",
       kTests("test-generics-intervals.R", "test-hurdle.R", "test-ordinal.R"),
-      "posteriorInterval: upper quantile loses the /2; survives the full suite: no test compares ci.upper to the (1 + ci.level) / 2 quantile"
+      "posteriorInterval: upper quantile loses the /2"
     ),
     r3(
       "m88",
