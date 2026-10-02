@@ -773,17 +773,28 @@ static void testMonotoneExtensionDraw() {
     }
   }
   check(feasible, "monotone prior draw: every draw in the cone");
-  double worstZ = 0.0;
+  // variances too: an isolated leaf drawn at the constrained sd keeps its
+  // mean at zero and moves only its spread. The z is against the normal-
+  // theory sd of a sample variance, 2 v^2 / N per arm.
+  double worstZ = 0.0, worstVarianceZ = 0.0;
   for (std::int32_t leaf : leaves) {
     double m1 = sumExact[leaf] / priorDraws, m2 = sumReject[leaf] / priorDraws;
     double v1 = sqExact[leaf] / priorDraws - m1 * m1,
            v2 = sqReject[leaf] / priorDraws - m2 * m2;
     worstZ = std::max(worstZ,
                       std::fabs(m1 - m2) / std::sqrt((v1 + v2) / priorDraws));
+    worstVarianceZ =
+        std::max(worstVarianceZ,
+                 std::fabs(v1 - v2) /
+                     std::sqrt(2.0 * (v1 * v1 + v2 * v2) / priorDraws));
   }
   check(worstZ < 4.5, "monotone prior draw: means match rejection");
-  printf("ok: monotone exact prior draw (%zu leaves, worst mean |z| %.2f)\n",
-         leaves.size(), worstZ);
+  check(worstVarianceZ < 4.5,
+        "monotone prior draw: variances match rejection, the isolated leaf's "
+        "at the free sd");
+  printf("ok: monotone exact prior draw (%zu leaves, worst mean |z| %.2f, "
+         "variance |z| %.2f)\n",
+         leaves.size(), worstZ, worstVarianceZ);
   ext_rng_destroy(rng);
 }
 
@@ -1529,6 +1540,50 @@ static void testMonotoneJointTreePrior() {
          stat[0][0], stat[1][1]);
 }
 
+// The joint prior's accept step keeps a tree exactly when the iid leaves it
+// drew lie in the cone, read here off the point oracle's required pairs. The
+// tree law alone cannot see a reversed test: negating iid draws of a common
+// sd maps the cone onto its reverse, so both are accepted at the rate Z_T.
+// Own rng; restores the runif01 stream the random trees consume.
+static void testMonotoneJointAcceptIsConeTest() {
+  std::uint64_t saved = rngState;
+  ColumnStore store;
+  makeStore(store, 3, 8, 200);
+  const std::int8_t dir[3] = {1, -1, 0};
+  MonotoneConstantGaussianLeaf leaf;
+  leaf.scale = 1.0;
+  leaf.data = &store;
+  leaf.directions.assign(dir, dir + 3);
+  leaf.cInflation = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
+  leaf.prior = MonotonePrior::joint;
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20261001u);
+  int mismatches = 0, accepted = 0, rejected = 0;
+  for (int trial = 0; trial < 60; ++trial) {
+    TestTree t(store);
+    t.growRandom(1 + trial % 5);
+    LeafPairs pairs = pointOrder(t.tree, store, dir);
+    for (int draw = 0; draw < 20; ++draw) {
+      bool accept = leaf.jointPriorAccepts(rng, t.tree, 2.0);
+      bool inCone = true;
+      for (const auto& pair : pairs)
+        inCone = inCone &&
+                 leaf.jointDraw[pair.first] <= leaf.jointDraw[pair.second];
+      mismatches += accept != inCone;
+      (accept ? accepted : rejected)++;
+    }
+  }
+  check(mismatches == 0,
+        "monotone joint prior: a tree is kept exactly when its draws lie in "
+        "the cone");
+  check(accepted > 100 && rejected > 100,
+        "monotone joint prior: draws kept and refused both");
+  ext_rng_destroy(rng);
+  rngState = saved;
+  printf("ok: monotone joint accept is the cone test (%d kept, %d refused)\n",
+         accepted, rejected);
+}
+
 namespace {
 using MonotoneSampler = Sampler<MonotoneConstantGaussianLeaf>;
 
@@ -1787,6 +1842,7 @@ void runMonotoneTests() {
   testMonotoneSeamDeepTail();
   testMonotoneFreeBound();
   testMonotoneJointTreePrior();
+  testMonotoneJointAcceptIsConeTest();
   testMonotoneCountInterrupt();
   {  // factor splits and missing values, in free and constrained predictors
     ColumnStore store;

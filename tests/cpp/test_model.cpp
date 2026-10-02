@@ -5608,6 +5608,42 @@ static void testTLambdaMoments(ext_rng*) {
   printf("ok: t lambda conditional moments\n");
 }
 
+// The pointwise log-likelihood of a weighted t fit is the marginal t density
+// at scale sigma / sqrt(w_i) on the response scale, computed here in closed
+// form from the response's range transform: mu = range * f + min + range / 2
+// and log dt(z; nu) = lgamma((nu + 1)/2) - lgamma(nu/2) - log(nu pi)/2 -
+// (nu + 1)/2 log(1 + z^2/nu). A zero weight is out of the model, so NaN. No
+// draws.
+static void testTLogLikelihoodWeighted() {
+  const std::size_t n = 5;
+  const double nu = 4.0, sigma = 0.3;
+  std::vector<double> y = {0.2, -1.1, 0.7, 1.9, 0.4};
+  std::vector<double> weights = {0.25, 1.0, 4.0, 2.5, 0.0};
+  std::vector<double> fits = {0.1, -0.3, 0.05, 0.4, 0.0};
+  TResponse resp(y.data(), nullptr, weights.data(), n, 1.0, 3.0,
+                 0.37804942330213542, nu);
+  std::vector<double> loglik(n);
+  resp.computeLogLikelihood(fits.data(), sigma, n, loglik.data());
+
+  double lo = *std::min_element(y.begin(), y.end());
+  double range = *std::max_element(y.begin(), y.end()) - lo;
+  double logNormalizer = std::lgamma(0.5 * (nu + 1.0)) - std::lgamma(0.5 * nu) -
+                         0.5 * std::log(nu * std::numbers::pi);
+  bool density = true;
+  for (std::size_t i = 0; i + 1 < n; ++i) {
+    double mu = range * fits[i] + lo + 0.5 * range;
+    double s = sigma * range / std::sqrt(weights[i]);
+    double z = (y[i] - mu) / s;
+    double ref = logNormalizer - 0.5 * (nu + 1.0) * std::log1p(z * z / nu) -
+                 std::log(s);
+    if (!(std::fabs(loglik[i] - ref) <= 1e-10)) density = false;
+  }
+  check(density, "weighted t log-likelihood is dt at scale sigma / sqrt(w)");
+  check(std::isnan(loglik[n - 1]),
+        "a zero-weight t row reports NaN in the log-likelihood channel");
+  printf("ok: weighted t log-likelihood\n");
+}
+
 // the sampled-nu grid draw reproduces the hand-computed full conditional: for
 // a fixed lambda vector the empirical grid frequencies match the normalized
 // product of Gamma(lambda_i; nu/2, nu/2) densities times the gamma(2, 0.1)
@@ -8793,6 +8829,7 @@ void runModelTests(ext_rng* rng) {
   testAFTStateRoundTrip();
   testAFTStatusSetter(rng);
   testTLambdaMoments(rng);
+  testTLogLikelihoodWeighted();
   testTNuGridPosterior(rng);
   testTCompositeWeightDelegation(rng);
   testTFixedNuNoDraw(rng);

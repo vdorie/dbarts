@@ -1643,6 +1643,44 @@ void testIngestionRefusals() {
     }
   }
 
+  // with no declared K the count is inferred, and only a categorical column's
+  // implicit rows read the reference: an ordered factor's read a structural
+  // zero, so a reference above every stored code leaves its count at the
+  // stored maximum plus one
+  {
+    std::vector<int> pointers = {0, 0}, rows;
+    std::vector<double> values;
+    for (size_t i = 0; i < n; i += 3) {
+      rows.push_back(static_cast<int>(i));
+      values.push_back(static_cast<double>((i / 3) % 3));
+    }
+    pointers[1] = static_cast<int>(rows.size());
+    const std::int32_t sources[1] = { ~static_cast<std::int32_t>(0) };
+    const xint_t references[1] = { 5 };
+    for (size_t j = 0; j < p; ++j) {
+      PredictorSource view;
+      view.numRows = n;
+      view.numColumns = 1;
+      view.cscColumnPointers = pointers.data();
+      view.cscRowIndices = rows.data();
+      view.cscValues = values.data();
+      view.columnSources = sources;
+      view.columnTypes = &kinds[j];
+      view.referenceCodes = references;
+      ColumnStore store;
+      built(store.build(view, nullptr, 10u, false));
+      bool ordered = kinds[j] == ColumnKind::orderedFactor;
+      check(store.categoryCounts[0] == (ordered ? 3u : 6u),
+            ordered ? "an undeclared CSC ordered factor counts its stored "
+                      "codes, not its reference"
+                    : "an undeclared CSC categorical column counts its "
+                      "reference");
+      if (ordered)
+        check(store.numCuts[0] == 2,
+              "and takes the midpoint grid of that count");
+    }
+  }
+
   // the TEST entrance checks against the training level table, which is fixed
   // rather than inferred, so it sweeps the view first and a refusal leaves the
   // test store exactly as it was
