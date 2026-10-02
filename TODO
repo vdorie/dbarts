@@ -273,11 +273,12 @@ items
     forests. consumer-gated.
   nbinom-dispersion-name: the negative-binomial r is named dispersion
     across nbinom(dispersion = ), getDispersion, extract(type =
-    "dispersion") and run()$dispersion, a name never put to VD; glm's
-    dispersion is a different quantity (phi) and r runs inverse to it.
-    VD (2026-09-29): the accessor and the parameter use names that are
-    widely recognized; getSize alone is not specific enough. To be
-    addressed later; new in 1.0-0, so no tombstone.
+    "dispersion") and run()$dispersion, a name never put to VD. VD
+    (2026-10-02, dec-B189): it is shape, nbinom(shape = ). Open: the
+    spellings outside the family argument (the sampler's reader,
+    extract's type, the fit's and run()'s components), then the rename
+    itself across R, the engine's state slot, dbarts.h, the manual and
+    the tests, in one slice. New in 1.0-0, so no tombstone.
   negbin-real-dispersion: real-valued dispersion needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
