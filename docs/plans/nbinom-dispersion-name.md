@@ -1,6 +1,6 @@
 # nbinom-dispersion-name: the negative-binomial r is named shape
 
-Status: PLANNED 2026-10-02 under dec-B189, dec-B190 and dec-A145 in [decisions.md](../decisions.md).
+Status: LANDED 2026-10-02 (32ea44b2, 0a4680c6) under dec-B189, dec-B190 and dec-A145 in [decisions.md](../decisions.md).
 
 agent: sonnet implementer, one, serialized; opus reviewer.
 rng: NEUTRAL. A rename: no draw, no RNG call order and no default moves. Every equivalence scenario stays
@@ -90,3 +90,22 @@ Against a private library, installed with `--preclean`:
   `tools/check-doc-freshness.R` pass, each on its own exit status.
 - `git grep -i dispersion -- R src inst man tests benchmarks/R .github` lists only the concept, glm comparisons and
   the baseline key names; the report gives that list.
+
+## Landing
+
+LANDED 2026-10-02: the rename (32ea44b2) and the present-facing docs (0a4680c6).
+
+- One departure from the mapping: the facade virtual is `shapeParameter(chainNum)`, `shape()` there already
+  returning the sampler's `SamplerShape`. `DBARTS_C_API_HASH` is 0xa33182bf349aa60d.
+- The review, an independent reader with its own builds, found the rename had also taken the concept's word in
+  four places - the AFT variance forest's "dispersion of log survival time" in two manual pages and two test
+  comments - and those were put back before landing. Nothing else in the diff was other than a substitution.
+- A state carrying the old block name is refused by an nbinom sampler as inconsistent, not misread.
+- Verification, by the reviewer against its own libraries: tests/cpp; tinytest 11621 tests, 0 failures, the
+  warning table identical to the base commit's; the lint chain; `R CMD check --as-cran` with the Date NOTE only;
+  the two negative-binomial exact gates in quick mode; a mutation of the recorded channel turning
+  test-shape-channel.R red; stan4bart's suite built against the new header; on a reference build the equivalence
+  compare identical on 55 of 55 scenarios, multinomial 11 of 11, BCF 15 of 15, and the four snapshot files.
+- Left as they were: R locals named `disp`, and the baseline key names in the equivalence harness.
+- Found on the way, not from this slice: one tests/cpp run in sixteen failed the monotone slow-count tally check
+  (TODO, monotone-slow-count-test-intermittent).

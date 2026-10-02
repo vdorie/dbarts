@@ -152,8 +152,7 @@ items
     on a forest's leaf spread or anchor or on the response scale and
     shift, naming which; getLeafPrior then never reports NA for
     disagreeing chains (docs/decisions.md dec-B191, VD 2026-10-02).
-    After nbinom-dispersion-name. Plan:
-    docs/plans/setstate-mixed-chains.md.
+    Plan: docs/plans/setstate-mixed-chains.md.
   fit-stores-k: a bart fit with a drawn leaf scale carries k and first.k
     under every naming, with the anchor, and extract(type = "sd")
     converts; sd and first.sd leave the fit (docs/decisions.md dec-B192,
@@ -229,6 +228,13 @@ items
     quiet-machine speed check (monotone sweep time at 20 trees under each
     prior within 5% of the pre-plan engine, and bench-sampler compare on
     the unconstrained paths).
+  monotone-slow-count-test-intermittent: tests/cpp's "monotone slow
+    counts: a lowered threshold tallies counts and sizes" failed once in
+    sixteen runs of an unchanged test_monotone.cpp. The check asks that
+    the slowest count seen had at least two leaves; which count is
+    slowest is decided by wall time, so a stump's count can win. Unproven
+    reading - reproduce, then pin the tally on something the clock does
+    not choose.
   monotone-factor-direction-host: a host that hands the engine a monotone
     direction on an unordered-factor column gets an unconstrained sampler
     without a word: the facade's monotoneConstraintIsActive returns false
@@ -286,15 +292,6 @@ items
     Per-forest masking is NOT a door - permanently refused, a
     category's margin being a log-sum-exp over the other K - 1
     forests. consumer-gated.
-  nbinom-dispersion-name: the negative-binomial r is named dispersion
-    across nbinom(dispersion = ), getDispersion, extract(type =
-    "dispersion") and run()$dispersion, a name never put to VD. VD
-    (2026-10-02): it is shape, nbinom(shape = ) (dec-B189), read by an
-    overloaded getShape (dec-B190); bare shape everywhere else is an
-    agent call (dec-A145). Open: the rename itself across R, the engine,
-    the saved state, dbarts.h, the manual and the tests, in one slice.
-    New in 1.0-0, so no tombstone. Plan:
-    docs/plans/nbinom-dispersion-name.md.
   negbin-real-dispersion: real-valued shape needs a
     non-integer-shape Polya-Gamma draw, for which no exact sampler
     exists, so it opens on one of two unlocks: a published exact
