@@ -60,6 +60,16 @@ pci <- predict(fit, x[1:5, ], ci.level = 0.9)
 expect_true(is.matrix(pci) && nrow(pci) == 5L)
 expect_equal(colnames(pci), c("est", "ci.lower", "ci.upper"))
 
+# the band is the equal-tailed one: the (1 - ci.level) / 2 and
+# (1 + ci.level) / 2 quantiles of the draws, per observation
+draws <- predict(fit, x[1:5, ])
+expect_equal(
+  unname(pci[, c("ci.lower", "ci.upper")]),
+  unname(t(apply(draws, 2L, quantile, probs = c(0.05, 0.95))))
+)
+expect_equal(unname(pci[, "est"]), unname(colMeans(draws)))
+rm(draws)
+
 # ci.level is validated
 expect_error(fitted(fit, ci.level = 1.2), pattern = "must be a single number")
 expect_error(

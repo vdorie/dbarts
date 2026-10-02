@@ -75,4 +75,23 @@ expect_error(
   pattern = "keepTrees requires 'n.samples'"
 )
 
+# an active-row mask is 0/1 membership: the R method refuses a fractional
+# value, and the bridge behind it refuses one below 1 as it does one above
+expect_error(
+  sampler$setActiveRows(c(0.5, rep(1, n - 1L))),
+  pattern = "must be all 0 or 1"
+)
+for (value in c(0.5, -1, 2)) {
+  expect_error(
+    .Call(
+      dbarts:::C_dbarts_bartcore_setActiveRows,
+      sampler$getPointer(),
+      c(value, rep(1, n - 1L))
+    ),
+    pattern = "exactly 0 or 1",
+    info = format(value)
+  )
+}
+rm(value)
+
 rm(sampler, control, x, y, n)

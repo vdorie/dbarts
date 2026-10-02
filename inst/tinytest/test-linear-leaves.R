@@ -265,3 +265,44 @@ rm(
   xbart.linear,
   xbart.grid
 )
+
+# a refused whole-matrix replacement leaves the leaf covariates as they were:
+# a constant x1 empties every leaf a split on it bounds, so the change rolls
+# back, and the sampler then continues as a twin that never attempted it.
+# The rollback repartitions, so the fits agree to rounding, not bitwise.
+set.seed(711)
+n <- 120L
+df.roll <- data.frame(x1 = runif(n), x2 = runif(n, -1, 1))
+df.roll$y <- ifelse(df.roll$x1 > 0.5, df.roll$x2, 0) + rnorm(n, 0, 0.2)
+control.roll <- dbartsControl(
+  n.trees = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.samples = 20L,
+  updateState = FALSE
+)
+makeRollSampler <- function() {
+  set.seed(712)
+  sampler <- dbarts(
+    y ~ x1 + x2,
+    df.roll,
+    leaf.prior = linear("x2"),
+    control = control.roll
+  )
+  set.seed(713)
+  invisible(sampler$run(30L, 0L))
+  sampler
+}
+refused <- makeRollSampler()
+twin <- makeRollSampler()
+expect_false(refused$setPredictor(
+  cbind(x1 = rep(0.5, n), x2 = -df.roll$x2),
+  forceUpdate = FALSE
+))
+set.seed(714)
+samples.refused <- refused$run(0L, 20L)
+set.seed(714)
+samples.twin <- twin$run(0L, 20L)
+expect_equal(samples.refused$train, samples.twin$train, tolerance = 1e-10)
+rm(n, df.roll, control.roll, makeRollSampler, refused, twin)
+rm(samples.refused, samples.twin)
