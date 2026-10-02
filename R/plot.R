@@ -303,8 +303,8 @@ plot.bartOrdinal <- function(x, plquants = c(0.05, 0.95), cols = NULL, ...) {
   invisible(x)
 }
 
-# P1: the dispersion trace. There is no burn-in channel (bart2 negbin drives
-# one run(n.burn, n.samples), so there is no first.dispersion to bridge
+# P1: the shape trace. There is no burn-in channel (bart2 negbin drives
+# one run(n.burn, n.samples), so there is no first.shape to bridge
 # from, unlike plot.bart's sigma panel), and r is drawn on an integer grid,
 # so the trace is a step plot rather than a scatter. P2: plot.bart's
 # gaussian panel verbatim on counts - observed y vs the posterior interval
@@ -318,9 +318,9 @@ plot.bartNegbin <- function(
   oldpar <- par(no.readonly = TRUE)
   on.exit(par(oldpar), add = TRUE)
   par(mfrow = c(1L, 2L))
-  disp <- x$dispersion
+  disp <- x$shape
   if (is.null(dim(disp))) {
-    plot(disp, type = "s", xlab = "iteration", ylab = "dispersion (r)")
+    plot(disp, type = "s", xlab = "iteration", ylab = "shape (r)")
   } else {
     plot(
       NULL,
@@ -328,7 +328,7 @@ plot.bartNegbin <- function(
       xlim = c(1L, ncol(disp)),
       ylim = range(disp),
       xlab = "iteration",
-      ylab = "dispersion (r)"
+      ylab = "shape (r)"
     )
     for (i in seq_len(nrow(disp))) {
       lines(disp[i, ], type = "s", lty = i)

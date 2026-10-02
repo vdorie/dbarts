@@ -1,6 +1,6 @@
 # The negative-binomial (count) R surface: explicit family dispatch
-# and refusals, response and dispersion validation, fit-object shapes, the
-# dispersion draws and mean-count reporting, prediction, offset (log-exposure)
+# and refusals, response and shape validation, fit-object shapes, the
+# shape draws and mean-count reporting, prediction, offset (log-exposure)
 # semantics, state save/load through the R surface, setResponse mutation
 # semantics (r kept), and a seeded statistical recovery smoke. The
 # exact-posterior gate lives in benchmarks/R/negbin-exact.R.
@@ -54,19 +54,19 @@ suppressMessages(
 )
 expect_equal(fitAuto$family, "gaussian")
 
-# --- channel shapes: mean counts, log means, and the dispersion draws ---
+# --- channel shapes: mean counts, log means, and the shape draws ---
 
 expect_equal(dim(fit$yhat.train), c(n.samples, n))
 expect_equal(dim(fit$yhat.test), c(n.samples, 10L))
 expect_equal(dim(fit$latent.train), c(n.samples, n))
 expect_equal(dim(fit$latent.test), c(n.samples, 10L))
-expect_equal(length(fit$dispersion), n.samples)
+expect_equal(length(fit$shape), n.samples)
 expect_equal(dim(fit$varcount), c(n.samples, 3L))
 expect_equal(length(fit$y), n)
-# mean counts are positive; dispersion draws lie on the shipped positive grid
+# mean counts are positive; shape draws lie on the shipped positive grid
 expect_true(all(fit$yhat.train > 0))
 expect_true(all(
-  fit$dispersion %in%
+  fit$shape %in%
     c(1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 50)
 ))
 # the forest models the log mean: mu = exp(link) holds draw by draw, and r
@@ -154,20 +154,20 @@ expect_false(is.null(fitKeepSampler$fit))
 rm(fitKeepSampler)
 
 # --- the retained $fit is the engine that ran: reads and mutations
-# succeed, and getDispersion() answers with the fit's own last r ---
+# succeed, and getShape() answers with the fit's own last r ---
 expect_equal(ncol(fit$fit$data@x), ncol(x))
 expect_equal(predict(fit, x.test), fit$yhat.test)
-expect_equal(fit$fit$getDispersion(), fit$dispersion[n.samples])
+expect_equal(fit$fit$getShape(), fit$shape[n.samples])
 expect_silent(fit$fit$setResponse(as.double(y)))
 expect_identical(fit$fit$data@y, as.double(y))
 expect_silent(fit$fit$setData(dbartsData(x, as.double(y))))
 expect_silent(invisible(fit$fit$run(0L, 1L)))
 
-# --- print names the family and reports the dispersion ---
+# --- print names the family and reports the shape ---
 
 printed <- capture.output(print(fit))
 expect_true(any(grepl("negative binomial", printed)))
-expect_true(any(grepl("dispersion", printed)))
+expect_true(any(grepl("shape", printed)))
 
 # --- multi-chain shapes, uncombined ---
 
@@ -184,25 +184,25 @@ fit2c <- bart(
   keepTrees = TRUE
 )
 expect_equal(dim(fit2c$yhat.train), c(2L, 20L, n))
-expect_equal(dim(fit2c$dispersion), c(2L, 20L))
+expect_equal(dim(fit2c$shape), c(2L, 20L))
 expect_equal(
   dim(predict(fit2c, x.test, combineChains = FALSE)),
   c(2L, 20L, 10L)
 )
 
-# --- fixed dispersion: r held at the supplied integer, no grid draw ---
+# --- fixed shape: r held at the supplied integer, no grid draw ---
 
 fitFixed <- bart(
   x,
   y,
-  family = nbinom(dispersion = 4),
+  family = nbinom(shape = 4),
   n.samples = 20L,
   n.burn = 10L,
   n.trees = n.trees,
   n.chains = 1L,
   verbose = FALSE
 )
-expect_true(all(fitFixed$dispersion == 4))
+expect_true(all(fitFixed$shape == 4))
 
 # --- validation refusals ---
 
@@ -215,11 +215,11 @@ expect_error(
   pattern = "non-negative integer"
 )
 expect_error(
-  dbarts(x, y, family = nbinom(dispersion = 2.5)),
+  dbarts(x, y, family = nbinom(shape = 2.5)),
   pattern = "single positive whole number"
 )
 expect_error(
-  dbarts(x, y, family = nbinom(dispersion = -3)),
+  dbarts(x, y, family = nbinom(shape = -3)),
   pattern = "positive"
 )
 expect_error(
@@ -267,15 +267,15 @@ control <- dbartsControl(
 )
 sampler <- dbarts(x, y, family = "nbinom", control = control, verbose = FALSE)
 expect_equal(sampler$model@family, "nbinom")
-expect_equal(attr(sampler$control, "bartcore.dispersion"), -1)
+expect_equal(attr(sampler$control, "bartcore.shape"), -1)
 # the log-mean anchor, with k drawn under the binary families' chi(1.5, 2)
 expect_equal(sampler$model@leaf.scale, 3)
 expect_true(is(sampler$model@leaf.hyperprior, "dbartsChiHyperprior"))
 
 invisible(sampler$run(20L, 5L))
 state1 <- sampler$state
-expect_true(state1[[1L]]$dispersion > 0)
-expect_true(is.finite(state1[[1L]]$dispersion))
+expect_true(state1[[1L]]$shape > 0)
+expect_true(is.finite(state1[[1L]]$shape))
 expect_equal(length(state1[[1L]]$latents), n)
 
 # a zero (default) offset is kept for this fixed-unit-scale family, as probit's
@@ -297,15 +297,15 @@ samplerC <- dbarts(x, y, family = "nbinom", control = control, verbose = FALSE)
 samplerB$setState(saved)
 samplerC$setState(saved)
 statesAgree(samplerB$state, saved)
-expect_identical(samplerB$state[[1L]]$dispersion, saved[[1L]]$dispersion)
+expect_identical(samplerB$state[[1L]]$shape, saved[[1L]]$shape)
 rB <- samplerB$run(0L, 5L)
 rC <- samplerC$run(0L, 5L)
 expect_identical(rB$train, rC$train)
 
-# a state whose dispersion is not a whole number is refused, as the augmentation
-# draws only whole dispersions
+# a state whose shape is not a whole number is refused, as the augmentation
+# draws only whole shapes
 fractional <- saved
-fractional[[1L]]$dispersion <- 2.5
+fractional[[1L]]$shape <- 2.5
 expect_error(samplerC$setState(fractional), "not consistent with this sampler")
 rm(fractional)
 
@@ -319,7 +319,7 @@ unshifted[[1L]]$fit.scale <- c(0, 0)
 expect_error(samplerC$setState(unshifted), "not consistent with this sampler")
 rm(unshifted)
 
-# an nbinom sampler refuses a state lacking its dispersion/latents block
+# an nbinom sampler refuses a state lacking its shape/latents block
 gaussSampler <- dbarts(x, as.double(y), verbose = FALSE)
 invisible(gaussSampler$run(5L, 2L))
 expect_error(
@@ -330,7 +330,7 @@ expect_error(
 # --- mutation semantics: setResponse keeps r, redraws omega ---
 
 before <- sampler$state
-rBefore <- before[[1L]]$dispersion
+rBefore <- before[[1L]]$shape
 latentsBefore <- before[[1L]]$latents
 
 set.seed(101)
@@ -343,12 +343,12 @@ sampler$setResponse(as.double(yNew), updateState = TRUE)
 
 after <- sampler$state
 # r is a slow-moving global the count swap keeps; the omega latents are redrawn
-expect_identical(after[[1L]]$dispersion, rBefore)
+expect_identical(after[[1L]]$shape, rBefore)
 expect_false(identical(after[[1L]]$latents, latentsBefore))
 expect_true(all(after[[1L]]$latents > 0)) # omega are Polya-Gamma (positive)
 
 # the support rule creation applies is applied at mutation too. A negative
-# element is memory safety, not taste: it used to size the dispersion kernel's
+# element is memory safety, not taste: it used to size the shape kernel's
 # count histogram through static_cast<size_t>(lround(y)), underflowing into a
 # ~1.8e19 allocation that took the process down uncatchably. Magnitude is the
 # same allocation defect from the other side (see the cap below); a non-finite
@@ -373,7 +373,7 @@ sampler$setResponse(as.double(replace(yNew, 1L, yNew[1L] + 1L)))
 expect_identical(sampler$data@y, as.double(replace(yNew, 1L, yNew[1L] + 1L)))
 
 # --- the magnitude cap: 1e6, at creation and on both mutation conduits ---
-# NBDispersionPrior::computeKernel allocates maxCount + 1 doubles, 8 bytes per
+# NBShapePrior::computeKernel allocates maxCount + 1 doubles, 8 bytes per
 # unit of the largest count, so an unbounded y is the same allocation defect a
 # negative one is: y = 1e9 asks for 8 GB where no R error can be raised. The
 # bound pins that at 8 MB, and creation and every conduit that swaps y state it
@@ -445,10 +445,10 @@ fitRec8 <- bart(
   n.chains = 1L,
   verbose = FALSE
 )
-rBand <- quantile(fitRec8$dispersion, c(0.025, 0.975), names = FALSE)
+rBand <- quantile(fitRec8$shape, c(0.025, 0.975), names = FALSE)
 expect_true(rBand[1L] <= rTrue && rTrue <= rBand[2L])
-expect_true(abs(mean(fitRec8$dispersion) - rTrue) < 2)
-expect_true(mean(fitRec8$dispersion == 8) < 0.5)
+expect_true(abs(mean(fitRec8$shape) - rTrue) < 2)
+expect_true(mean(fitRec8$shape == 8) < 0.5)
 
 # --- type synonyms: "response" and "link" are the predict.glm spellings of
 # "ev" and "bart", accepted here exactly as on a "bart" fit ---
@@ -482,13 +482,13 @@ expect_equal(dim(combinedEv), c(40L, n))
 splitBart <- extract(fit2c, type = "bart", combineChains = FALSE)
 expect_equal(dim(splitBart), c(2L, 20L, n))
 
-# --- extract(type = "loglik"): dnbinom(y, size = dispersion, mu = yhat.train)
+# --- extract(type = "loglik"): dnbinom(y, size = shape, mu = yhat.train)
 # against an independently coded oracle; extract-only, sample = "test"
 # refused, dims = dim(ev) (no K margin for this family) ---
 
 ll <- extract(fit, type = "loglik")
 ev <- extract(fit, type = "ev")
-oracleLl <- dnbinom(y, size = fit$dispersion[1L], mu = ev[1L, ], log = TRUE)
+oracleLl <- dnbinom(y, size = fit$shape[1L], mu = ev[1L, ], log = TRUE)
 expect_equal(ll[1L, ], oracleLl, tolerance = 1e-12)
 expect_equal(dim(ll), dim(ev))
 expect_error(
@@ -553,7 +553,7 @@ expect_error(
   fixed = TRUE
 )
 
-# --- plot(object): dispersion step-trace + counts panel, and the caller's
+# --- plot(object): shape step-trace + counts panel, and the caller's
 # par is restored afterward - assert restoration against a sentinel value
 # distinct from both the plot's own layout and the device default ---
 
@@ -564,10 +564,10 @@ restoredMfrow <- par("mfrow")
 dev.off()
 expect_equal(restoredMfrow, c(3L, 3L))
 
-# --- extract(type = "dispersion"): the per-draw dispersion r ---
+# --- extract(type = "shape"): the per-draw shape r ---
 
-d <- extract(fit, type = "dispersion")
-expect_equal(d, fit$dispersion)
+d <- extract(fit, type = "shape")
+expect_equal(d, fit$shape)
 rm(d)
 
 # --- extract(type = "k"): k is drawn under chi(1.5, 2) by default and its
@@ -626,7 +626,7 @@ expect_true(all(fittedPpd >= 0))
 expect_equal(fittedPpd, fitted(fit, type = "ev"), tolerance = 0.5)
 
 # predict(type = "ppd") pairs each mean-count draw with its own draw's
-# dispersion whichever layout the fit stored and the caller asks for
+# shape whichever layout the fit stored and the caller asks for
 x.pair <- data.frame(x = runif(60L))
 y.pair <- rnbinom(60L, size = 4L, mu = 3 * exp(x.pair$x))
 newdata.pair <- data.frame(x = c(0.2, 0.8))
@@ -647,7 +647,7 @@ for (fitCombined in c(TRUE, FALSE)) {
   )
   for (predictCombined in c(TRUE, FALSE)) {
     means <- predict(fit.pair, newdata.pair, combineChains = predictCombined)
-    r <- fit.pair$dispersion.raw
+    r <- fit.pair$shape.raw
     # samples x chains, laid out as the means' draw margin is
     r <- if (predictCombined) as.vector(r) else as.vector(t(r))
     set.seed(3L)

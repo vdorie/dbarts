@@ -845,7 +845,7 @@ mutations <- c(
       ),
       "      histogram[",
       c(kTests("test-nbinom.R", "test-active-rows-pins.R"), kCpp()),
-      "nbinom dispersion kernel: count histogram ignores the active-row mask"
+      "nbinom shape kernel: count histogram ignores the active-row mask"
     ),
     r3(
       "m62",

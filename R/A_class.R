@@ -233,7 +233,7 @@ methods::setValidity("dbartsFixedPrior", function(object) {
 ## A response family and the settings that ride only on it. `token` is the
 ## front-door spelling ("gaussian", "student", "hazard.probit", ...) and
 ## `settings` holds that family's own arguments - a Student-t df, a count
-## dispersion, a hazard time grid - so that no family-specific name has to
+## shape, a hazard time grid - so that no family-specific name has to
 ## live on a fitting function's signature. The constructors are in
 ## R/family.R and the resolution into the engine's own family list is in
 ## R/spec.R.

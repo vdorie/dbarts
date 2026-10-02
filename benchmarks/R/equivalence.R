@@ -535,11 +535,11 @@ makeScenarios <- function() {
 
   # negative-binomial counts (NBResponse, docs/design/negative-binomial.md),
   # newly reachable via family = "nbinom": overdispersed counts drawn from an
-  # NB with a nonlinear log-mean, estimated dispersion (the default). The
+  # NB with a nonlinear log-mean, estimated shape (the default). The
   # Polya-Gamma count augmentation, the grid r update, and the mean-count
   # reporting all do real work. Recorded channels: the test log means
   # (fhat.test = eta, the forest models the log mean), varcount, the per-draw
-  # dispersion r, and the
+  # shape r, and the
   # posterior-mean test mean counts (fitViaNbinom/fitSummaries). The omega
   # augmentation drives the trees, so its stream is locked transitively through
   # these downstream channels (the ordinal precedent, which likewise locked its
@@ -1685,9 +1685,9 @@ fitViaOrdinal <- function(scenario) {
 
 # runs bart2's negative-binomial count path (docs/design/negative-binomial.md):
 # family = "nbinom" explicitly (a count response is never auto), estimated
-# dispersion (the default). yhat.test carries the log-mean draws on the test
+# shape (the default). yhat.test carries the log-mean draws on the test
 # rows (the link scale, the standard fhat.test channel shape);
-# the nbinom-only channels - the per-draw dispersion r and the posterior-mean
+# the nbinom-only channels - the per-draw shape r and the posterior-mean
 # test mean counts - ride their own fields, summarized by fitSummaries' guarded
 # blocks.
 fitViaNbinom <- function(scenario) {
@@ -1707,7 +1707,7 @@ fitViaNbinom <- function(scenario) {
   list(
     yhat.test = fit$latent.test,
     varcount = fit$varcount,
-    dispersion = fit$dispersion,
+    dispersion = fit$shape, # the recorded baselines' key for the shape
     means.test = fit$yhat.test
   )
 }
@@ -2159,9 +2159,10 @@ fitSummaries <- function(scenario, seed) {
   }
   # nbinom-only channels (fitViaNbinom); NULL - and so absent - for every other
   # fitter, leaving the existing scenarios' summary vectors untouched. The
-  # per-draw dispersion r and the posterior-mean test mean counts.
+  # per-draw shape r and the posterior-mean test mean counts.
   if (!is.null(fit[["dispersion"]])) {
     d <- as.vector(fit[["dispersion"]])
+    # dispersion.* are the recorded baselines' key names for the shape
     result <- c(result, dispersion.mean = mean(d), dispersion.sd = sd(d))
   }
   if (!is.null(fit[["means.test"]])) {

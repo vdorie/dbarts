@@ -1469,7 +1469,7 @@ bart <- function(
   }
 
   # negative-binomial counts: a single-forest log-mean model whose mean counts
-  # mu = exp(f + c + o) and per-draw dispersion r are packaged in R (the
+  # mu = exp(f + c + o) and per-draw shape r are packaged in R (the
   # engine reports the log mean and r per draw), dispatched here so its bartNegbin fit
   # object (never "bart") stays distinct. family = "nbinom" is always explicit -
   # a count response has no unambiguous class to auto-detect.
@@ -2597,8 +2597,8 @@ negbinMeanCounts <- function(eta) {
 
 # One posterior-predictive count per (draw, observation) of a negative-binomial
 # fit: y ~ NB(size = r, mean = mu) with mu the draw's mean count and r its
-# dispersion. mu is a (chains x) draws x obs array; r is the draws-shaped
-# dispersion, broadcast across the observation
+# shape. mu is a (chains x) draws x obs array; r is the draws-shaped
+# shape, broadcast across the observation
 # margin so each column shares its draw's r. Only this and predict's ppd touch
 # the RNG, so type = "ev"/"bart" stay draw-neutral.
 negbinPpd <- function(mu, r) {
@@ -2613,10 +2613,10 @@ negbinPpd <- function(mu, r) {
 # The negative-binomial count fit path, reached from bart2's family =
 # "nbinom" branch. A SINGLE forest fits the log mean eta = f(x) + c + o under
 # the Polya-Gamma augmentation; the mean counts mu = exp(eta), the per-draw
-# dispersion r and the leaf-scale k are packaged here. The run is driven one
+# shape r and the leaf-scale k are packaged here. The run is driven one
 # kept sample at a time; r and k come from the run's own per-draw channels, so
 # no state is serialized per sweep. dbarts(family = "nbinom") does the count
-# validation, the fixed unit scale, and attaches the dispersion spec, so this
+# validation, the fixed unit scale, and attaches the shape spec, so this
 # reuses the standard bart2 host-build machinery. The fit is class
 # "bartNegbin", never "bart".
 bart2Negbin <- function(
@@ -2671,7 +2671,7 @@ bart2Negbin <- function(
   }
   # r is a scalar per (sample, chain), so it rides a sigma-shaped matrix, as
   # does k when the leaf prior draws it
-  dispersionRaw <- matrix(0, n.samples, n.chains)
+  shapeRaw <- matrix(0, n.samples, n.chains)
   kRaw <- NULL
   varcountRaw <- NULL
   # one run call per kept sample goes
@@ -2697,7 +2697,7 @@ bart2Negbin <- function(
       attr(r, "slow.count")
     )
     # sigma-shaped, so a single-sample run's channel is exactly this row
-    dispersionRaw[s, ] <- r$dispersion
+    shapeRaw[s, ] <- r$shape
     if (!is.null(r[["k"]])) {
       if (is.null(kRaw)) {
         kRaw <- matrix(0, n.samples, n.chains)
@@ -2730,7 +2730,7 @@ bart2Negbin <- function(
   warnOnSlowCount(structure(list(), slow.count = slowCountTally))
 
   # drop the trailing singleton chain margin so the reshapers see the
-  # n.chains == 1 layout their gaussian siblings emit (dispersionRaw keeps its
+  # n.chains == 1 layout their gaussian siblings emit (shapeRaw keeps its
   # matrix form, the sigma channel's shape)
   if (n.chains == 1L) {
     latentTrain <- matrix(latentTrain, n.obs, n.samples)
@@ -2749,17 +2749,17 @@ bart2Negbin <- function(
     meanTrain,
     latentTest,
     meanTest,
-    dispersionRaw,
+    shapeRaw,
     varcountRaw,
     combineChains,
     kRaw
   )
   # keepTrees retains the saved trees predict.bartNegbin replays through (the
-  # sweeps wrote them regardless), and dispersion.raw supplies predict's
+  # sweeps wrote them regardless), and shape.raw supplies predict's
   # per-draw r in the raw n.samples x n.chains layout that pairs with the
   # replayed draws.
   if (control@keepTrees) {
-    result$dispersion.raw <- dispersionRaw
+    result$shape.raw <- shapeRaw
   }
   if (control@keepTrees || keepSampler) {
     result$fit <- sampler
@@ -2770,7 +2770,7 @@ bart2Negbin <- function(
 # Assemble a bart2(family = "nbinom") fit from the synthesized channels.
 # yhat.train/test are the mean counts mu = exp(eta), the reported deliverable;
 # latent.train/test are the log-mean eta draws (type = "bart"/"link");
-# dispersion is the per-draw r, the count analog of gaussian's sigma; k (or sd,
+# shape is the per-draw r, the count analog of gaussian's sigma; k (or sd,
 # when the leaf prior was named by its spread) is the drawn leaf scale, absent
 # when fixed; y is the observed counts.
 packageNegbinResults <- function(
@@ -2780,7 +2780,7 @@ packageNegbinResults <- function(
   meanTrain,
   latentTest,
   meanTest,
-  dispersionRaw,
+  shapeRaw,
   varcountRaw,
   combineChains,
   kRaw = NULL
@@ -2802,9 +2802,9 @@ packageNegbinResults <- function(
     n.chains = n.chains,
     n.trees = control@n.trees,
     y = sampler$data@y,
-    # the per-draw dispersion r, the sigma-shaped count analog
-    dispersion = convertSamplesFromDbartsToBart(
-      if (n.chains == 1L) dispersionRaw[, 1L] else dispersionRaw,
+    # the per-draw shape r, the sigma-shaped count analog
+    shape = convertSamplesFromDbartsToBart(
+      if (n.chains == 1L) shapeRaw[, 1L] else shapeRaw,
       n.chains,
       combineChains
     ),

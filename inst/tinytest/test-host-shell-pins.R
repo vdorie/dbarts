@@ -72,7 +72,7 @@ expect_identical(
     "setLeafPrior",
     "setState",
     "installTrees",
-    "getDispersion",
+    "getShape",
     "getFitsWithoutOffset",
     "getVariance",
     "copy",
@@ -119,7 +119,7 @@ fitSpot <- bart(
   keepTrees = TRUE
 )
 expect_error(fitSpot$fit$setResponse(rnorm(nSpot)), "\\$setCounts")
-expect_null(fitSpot$fit$getDispersion())
+expect_null(fitSpot$fit$getShape())
 predSpot <- fitSpot$fit$predict(xSpot)
 expect_equal(dim(predSpot), c(nSpot, 3L, 2L))
 expect_equal(apply(predSpot[,, 1L], 1L, sum), rep(1.0, nSpot))

@@ -135,7 +135,7 @@ inline void fillShippedDraw(dbarts_draw& draw, const bartcore::DrawInfo& info) {
   draw.varcount = info.varcount;
   draw.sigma = info.sigma;
   draw.k = info.k;
-  draw.dispersion = info.dispersion;
+  draw.shape = info.shape;
   draw.residualDf = info.residualDf;
 }
 
@@ -491,7 +491,7 @@ bool familyCarriesNoWeights(const bartcore::SamplerBase& sampler);
 /// built: 0/1 for probit and logistic, an integer category index in [1, K] for
 /// ordinal, a finite non-negative integer count no larger than 1e6 for nbinom.
 /// gaussian and aft (log survival times) constrain nothing, so they pass
-/// through. Memory safety, not only modelling: NBDispersionPrior::computeKernel
+/// through. Memory safety, not only modelling: NBShapePrior::computeKernel
 /// sizes its count histogram from lround(max y), which a negative element
 /// underflows into a ~1.8e19 allocation and an unbounded positive one grows
 /// linearly out of memory. numCategories is K for ordinal and ignored
@@ -638,7 +638,7 @@ inline constexpr int numAugmentationLaws =
 /// so the linear predictor psi = fit + offset is formed inside and a null
 /// offset is zero; a working response reads its latent through the same member.
 /// For nbinom fit + offset is the log mean, so its law reads psi - log
-/// dispersion and its working response adds log dispersion back.
+/// shape and its working response adds log shape back.
 /// weights are the logistic counts (null is unit), ordinalThresholds the
 /// ordinal's K - 1, and the three scalars are read only by the law that names
 /// them.
@@ -651,7 +651,7 @@ struct AugmentationInputs {
   const double* ordinalThresholds;
   std::size_t numOrdinalThresholds;
   double sigma;
-  double dispersion;
+  double shape;
   double df;
 };
 

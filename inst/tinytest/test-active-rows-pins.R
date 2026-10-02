@@ -333,7 +333,7 @@ logisticSamplerActiveRowsPins <- function(
   sampler
 }
 
-# nbinom: the substituted counts move the dispersion kernel too, so this arm
+# nbinom: the substituted counts move the shape kernel too, so this arm
 # also fails unless the count kernel is rebuilt over the ACTIVE rows at every
 # mask change. The log-mean shift is the full-data one by design, as aft's
 # extremes are, so the substitution keeps the inactive rows' total count: it

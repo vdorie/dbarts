@@ -56,7 +56,7 @@ toDrawsArray <- function(x, n.chains, isScalar) {
 }
 
 # fields with no per-variable axis; every other requested field (varcount,
-# varprobs, yhat.train, yhat.test, ..., and nbinom's 'dispersion') has
+# varprobs, yhat.train, yhat.test, ..., and nbinom's 'shape') has
 # the same (n.chains-combined-or-not) scalar shape as sigma - one draws
 # variable per column/observation, named "field[inner]"
 scalarFields <- c(
@@ -68,7 +68,7 @@ scalarFields <- c(
   "first.sd",
   "resid.df",
   "mean.s",
-  "dispersion"
+  "shape"
 )
 
 # One draws field by name: a stored channel, or the synthetic "mean.s" of a
@@ -432,12 +432,12 @@ summary.bartOrdinal <- function(
   summary.bart(object, vars = vars, ...)
 }
 
-# bart2(family = "nbinom")'s per-draw dispersion r rides its own 'dispersion'
+# bart2(family = "nbinom")'s per-draw shape r rides its own 'shape'
 # field, the count analog of gaussian's sigma; scalarFields already gives it
 # sigma's shape, so this is summary.bart with a widened default 'vars'.
 summary.bartNegbin <- function(
   object,
-  vars = c("dispersion", "sigma", "k"),
+  vars = c("shape", "sigma", "k"),
   ...
 ) {
   summary.bart(object, vars = vars, ...)

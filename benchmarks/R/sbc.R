@@ -114,7 +114,7 @@ sbcCheckSigmaPrior <- function(sigest, df, quant, nDraws = 2e5L) {
 # functional rather than only the declared-discrete ones (with no ties it is
 # #{draws < theta0} exactly, and it consumes no rng, so an atomless functional
 # is untouched). The obvious kind is a genuinely DISCRETE parameter - nbinom's
-# grid dispersion r, the Student-t grid nu. The second is NUMERICAL: an ordinal
+# grid shape r, the Student-t grid nu. The second is NUMERICAL: an ordinal
 # top-category probability is mean_i (1 - Phi(gamma_K-1 - eta_i)), which
 # UNDERFLOWS to exactly 0 whenever the prior draws the top cutpoint far out (a
 # quarter of replications at K = 4, the empty-cell case ordinal.md section 9
@@ -133,7 +133,7 @@ sbcDiscreteRank <- function(draws, theta0) {
 }
 
 # The engine's two DISCRETE grid priors, transcribed from src/bartcore/model.hpp
-# (NBDispersionPrior, ResidualDfPrior): both normalize the same gamma(2, 0.1)
+# (NBShapePrior, ResidualDfPrior): both normalize the same gamma(2, 0.1)
 # kernel w_k propto grid_k * exp(-0.1 * grid_k) over a fixed capped grid, so a
 # self-consistent prior draw must use the identical grid AND weights.
 sbcNbGrid <- c(1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 50)
@@ -168,7 +168,7 @@ sbcCheckGridPrior <- function(grid, nDraws = 2e5L) {
 # Step-1 self-check for sbcDiscreteRank: a synthetic conjugate case whose
 # posterior is available in CLOSED FORM, so the L "posterior draws" are exact
 # and iid and any non-uniformity is the ranking rule's fault rather than a
-# sampler's. The case mirrors the engine's own dispersion update - r0 from the
+# sampler's. The case mirrors the engine's own shape update - r0 from the
 # nbinom grid prior, counts y_i ~ NB(r0, p) at a KNOWN p, posterior propto
 # prior_k * prod_i dnbinom(y_i, r_k, p) over the same grid - so it also
 # exercises the grid prior the nbinom arm draws from. n is small on purpose:
@@ -383,7 +383,7 @@ sbcAddBCF <- function(
 # replications: the prior draw advances its internal RNG, setResponse swaps y
 # in place, and the fixed build scale is never disturbed. `y` overrides the
 # build response for the families whose fit is REBUILT per replication (ordinal
-# and nbinom keep a slow-moving global - the cutpoints, the dispersion - across
+# and nbinom keep a slow-moving global - the cutpoints, the shape - across
 # setResponse, which would break rank iid-ness); those families run at a fixed
 # unit scale, so a rebuild re-anchors nothing.
 sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
@@ -1861,7 +1861,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       burnRun = function(f, burn) f$run(burn, 0L),
       sample = function(f) {
         res <- f$run(0L, 1L)
-        r <- f$getDispersion()
+        r <- f$getShape()
         c(r, mean(exp(res$train[, 1])), mean(res$test[, 1]))
       }
     )
@@ -1904,7 +1904,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       burnRun = function(f, burn) f$run(burn, 0L),
       sample = function(f) {
         res <- f$run(0L, 1L)
-        # no public reader mirrors getDispersion() for the t arm's residual
+        # no public reader mirrors getShape() for the t arm's residual
         # df (no C_dbarts_bartcore_getResidualDf); this state round-trip is
         # the one thing here a method cannot reach
         nu <- .Call(storeState, f$getPointer())[[1L]]$resid.df

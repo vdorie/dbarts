@@ -1,6 +1,6 @@
 ## Response families as objects. A fitting function takes one 'family'
 ## argument; every setting that only one family reads - a Student-t degrees
-## of freedom, a count dispersion, a discrete-time hazard's period grid -
+## of freedom, a count shape, a discrete-time hazard's period grid -
 ## rides the object rather than a formal that is inert for every other
 ## family. glm()'s idiom, with the same two spellings: a token string
 ## ("gaussian") means the family at its defaults, and a call
@@ -327,7 +327,7 @@ resolvedAs <- function(name, classes, what, topic = "dbartsPriors") {
 ## The residual scale's own prior, carried by every family that draws one.
 ## NULL leaves the package default (chisq(3, 0.9)) standing; a bare
 ## constructor name means its defaults; anything else must be a residual
-## prior object. The name is the PARAMETER, as 'dispersion' and 'df' are on
+## prior object. The name is the PARAMETER, as 'shape' and 'df' are on
 ## their families: 'sigest' is the estimate supplied at creation and
 ## $setSigma writes the parameter itself, so 'sigma' here is the law that
 ## parameter is drawn under.
@@ -437,27 +437,27 @@ ordinal <- function() {
   newValidated("dbartsFamily", token = "ordinal")
 }
 
-## Negative-binomial counts. dispersion = NULL estimates the dispersion r;
+## Negative-binomial counts. shape = NULL estimates the shape r;
 ## a positive value fixes it. The setting stores NA_real_ for "estimate".
-nbinom <- function(dispersion = NULL) {
-  if (is.null(dispersion)) {
-    dispersion <- NA_real_
+nbinom <- function(shape = NULL) {
+  if (is.null(shape)) {
+    shape <- NA_real_
   } else if (
-    length(dispersion) != 1L ||
-      !is.numeric(dispersion) ||
-      !is.finite(dispersion) ||
-      dispersion <= 0.0 ||
-      dispersion != round(dispersion)
+    length(shape) != 1L ||
+      !is.numeric(shape) ||
+      !is.finite(shape) ||
+      shape <= 0.0 ||
+      shape != round(shape)
   ) {
     stop(
-      "nbinom 'dispersion' must be NULL (estimate it) or a single positive ",
+      "nbinom 'shape' must be NULL (estimate it) or a single positive ",
       "whole number"
     )
   }
   newValidated(
     "dbartsFamily",
     token = "nbinom",
-    settings = list(dispersion = as.double(dispersion))
+    settings = list(shape = as.double(shape))
   )
 }
 
@@ -610,9 +610,7 @@ formatFamilyCall <- function(token, settings) {
       value <- settings[[name]]
       shown <- if (is(value, "dbartsResidPrior")) {
         formatResidPrior(value)
-      } else if (
-        name %in% c("dispersion", "df") && identical(value, NA_real_)
-      ) {
+      } else if (name %in% c("shape", "df") && identical(value, NA_real_)) {
         # stored as NA_real_, spelled NULL: the constructors refuse the NA
         "NULL"
       } else {

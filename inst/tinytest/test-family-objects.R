@@ -52,12 +52,12 @@ expect_equal(dbartsFamilies$hazard()@token, "hazard.probit")
 expect_equal(dbartsFamilies$hazard(link = "logistic")@token, "hazard.logistic")
 expect_equal(dbartsFamilies$hazard()@settings$max.rows, 1e7)
 expect_null(dbartsFamilies$hazard()@settings$breaks)
-expect_equal(dbartsFamilies$nbinom(dispersion = 3)@settings$dispersion, 3)
-expect_true(is.na(dbartsFamilies$nbinom()@settings$dispersion))
+expect_equal(dbartsFamilies$nbinom(shape = 3)@settings$shape, 3)
+expect_true(is.na(dbartsFamilies$nbinom()@settings$shape))
 
 # validation, by name
-expect_error(dbartsFamilies$nbinom(dispersion = -1), "positive")
-expect_error(dbartsFamilies$nbinom(dispersion = c(1, 2)), "single positive")
+expect_error(dbartsFamilies$nbinom(shape = -1), "positive")
+expect_error(dbartsFamilies$nbinom(shape = c(1, 2)), "single positive")
 expect_error(dbartsFamilies$hazard(max.rows = 0), "positive")
 expect_error(dbartsFamilies$hazard(breaks = "five"), "NULL or numeric")
 expect_error(dbartsFamilies$hazard(link = "cloglog"), "should be one of")
@@ -361,13 +361,13 @@ specStudent <- dbarts::dbartsSpec(
 expect_equal(attr(specStudent$model, "resid.df"), 9)
 expect_equal(specStudent$family, "gaussian")
 
-# a count dispersion written on nbinom() is the dispersion the fit reports
+# a count shape written on nbinom() is the shape the fit reports
 set.seed(93L)
 yCount <- rpois(length(y), 4)
-fitFixedDispersion <- dbarts::bart(
+fitFixedShape <- dbarts::bart(
   x,
   yCount,
-  family = nbinom(dispersion = 4),
+  family = nbinom(shape = 4),
   n.trees = 10L,
   n.samples = 10L,
   n.burn = 5L,
@@ -375,7 +375,7 @@ fitFixedDispersion <- dbarts::bart(
   n.threads = 1L,
   verbose = FALSE
 )
-expect_true(all(fitFixedDispersion$dispersion == 4))
+expect_true(all(fitFixedShape$shape == 4))
 
 # a hazard grid written on hazard() is the grid the expansion uses
 set.seed(94L)

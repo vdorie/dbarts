@@ -3874,7 +3874,7 @@ struct CGMTreePrior {
 /// sum-exp (subtract the max, exponentiate, sum, divide), then draw a discrete
 /// index. `logWeights` is overwritten in place with the normalized
 /// probabilities. Shared by the grid full conditionals (DartPrior's alpha,
-/// ResidualDfPrior's nu, NBDispersionPrior's r), each of which fills the array
+/// ResidualDfPrior's nu, NBShapePrior's r), each of which fills the array
 /// with its own log-posterior first.
 inline std::size_t drawFromLogWeights(ext_rng* rng, double* logWeights,
                                       std::size_t n) {
@@ -4253,16 +4253,16 @@ public:
   virtual void restoreOrdinalThresholds(const double* /*gamma*/) {}
 
   /// Count responses under a negative-binomial law (NBResponse) carry a scalar
-  /// dispersion r the state block serializes as a by-name "dispersion" slot;
+  /// shape r the state block serializes as a by-name "shape" slot;
   /// other families carry none, so their states omit it and an NB sampler
   /// refuses a state lacking one (the residualDf scalar analog). The name is
   /// parameterization-neutral and the value real-valued (grid mode stores an
   /// integer-valued double), so a later real-r mode loads and saves with no
-  /// state-format change. RESTORE CONTRACT: restoreDispersion MUST run before
+  /// state-format change. RESTORE CONTRACT: restoreShape MUST run before
   /// restoreLatents, which rebuilds the working response from omega AND r.
-  virtual bool carriesDispersion() const { return false; }
-  virtual double dispersion() const { return 0.0; }
-  virtual void restoreDispersion(double /*r*/) {}
+  virtual bool carriesShape() const { return false; }
+  virtual double shape() const { return 0.0; }
+  virtual void restoreShape(double /*r*/) {}
 };
 
 class GaussianResponse final : public ResponseModel {
@@ -5836,7 +5836,7 @@ private:
   ResidualDfPrior nuPrior_;         // grid machinery, used only when estimating
 };
 
-/// Sampled negative-binomial dispersion r on a capped positive-integer grid
+/// Sampled negative-binomial shape r on a capped positive-integer grid
 /// under a normalized gamma(2, 0.1) prior. This is the r-update seam: a grid
 /// full conditional today, a slice or Metropolis step for a real r later, with
 /// integrality assumed only inside it. r is drawn given the log means
@@ -5847,15 +5847,16 @@ private:
 /// over the count histogram n_c, with Y = sum_i y_i. K_k derives ONLY from the
 /// counts, so it precomputes once per response (computeKernel); each sweep is
 /// one exp per row and one log1p per row and grid point. The grid is dense
-/// where dispersion matters and sparse toward the Poisson-like cap at r = 50.
-struct NBDispersionPrior {
+/// where overdispersion matters and sparse toward the Poisson-like cap at
+/// r = 50.
+struct NBShapePrior {
   static constexpr std::size_t gridSize = 13;
   static constexpr double grid[gridSize] = {1.0,  2.0,  3.0,  4.0,  5.0,
                                             6.0,  8.0,  10.0, 12.0, 15.0,
                                             20.0, 30.0, 50.0};
   static constexpr std::size_t medianIndex = 6;  // r = 8, the cold-start value
 
-  NBDispersionPrior() {
+  NBShapePrior() {
     double priorTotal = 0.0;
     for (std::size_t k = 0; k < gridSize; ++k) {
       kernel_[k] = 0.0;
@@ -5946,7 +5947,7 @@ private:
 /// not from this model.
 ///
 /// r is a positive integer, fixed (user-supplied) or estimated on the capped
-/// grid given the means (NBDispersionPrior), which is orthogonal to them in the
+/// grid given the means (NBShapePrior), which is orthogonal to them in the
 /// Fisher information, so a move of r costs nothing through the mean. Weights
 /// are unsupported (exposure belongs in the offset). latents() exposes the
 /// omega draws.
@@ -5957,15 +5958,15 @@ private:
 /// same.
 class NBResponse final : public ResponseModel {
 public:
-  /// dispersion > 0 fixes r there (an integer; the host validates integrality);
-  /// a non-positive dispersion estimates r on the grid, cold-started at its
+  /// shape > 0 fixes r there (an integer; the host validates integrality);
+  /// a non-positive shape estimates r on the grid, cold-started at its
   /// median. offset may be null; weights are unsupported.
   NBResponse(const double* y, const double* offset,
-             std::size_t numObservations, double dispersion)
+             std::size_t numObservations, double shape)
     : y_(y), offset_(offset), numObservations_(numObservations),
-      estimateR_(!(dispersion > 0.0)),
-      r_(estimateR_ ? NBDispersionPrior::grid[NBDispersionPrior::medianIndex]
-                    : dispersion),
+      estimateR_(!(shape > 0.0)),
+      r_(estimateR_ ? NBShapePrior::grid[NBShapePrior::medianIndex]
+                    : shape),
       logR_(std::log(r_)),
       shift_(computeShift(y, offset, numObservations)) {
     omega_.resize(numObservations);
@@ -5990,10 +5991,10 @@ public:
   /// (r, omega) jointly given the trees. The reverse order is not invariant -
   /// the trees would consume an omega whose shape carries the stale r. sigma
   /// is ignored (fixed at 1). Fixed-r mode skips step (1) and draws no
-  /// dispersion variate. Under a mask the r step is the subsample's.
+  /// shape variate. Under a mask the r step is the subsample's.
   void refreshLatents(ext_rng* rng, const double* totalFits, double) override {
     if (estimateR_)
-      setDispersion(NBDispersionPrior::grid[rPrior_.drawIndex(
+      setShape(NBShapePrior::grid[rPrior_.drawIndex(
         rng, y_, totalFits, offset_, shift_, numObservations_,
         activePointer())]);
     drawOmega(rng, totalFits);
@@ -6001,7 +6002,7 @@ public:
 
   bool supportsActiveRows() const override { return true; }
 
-  /// Beyond the logistic composition, the dispersion block is the subsample's:
+  /// Beyond the logistic composition, the shape block is the subsample's:
   /// the count kernel is REBUILT over the active rows here, which is the
   /// channel's one per-install cost. The shift c stays the full-data one.
   bool setActiveRows(const double* active) override {
@@ -6054,7 +6055,7 @@ public:
     omega_.resize(numObservations);
     working_.resize(numObservations);
     if (estimateR_)
-      setDispersion(NBDispersionPrior::grid[NBDispersionPrior::medianIndex]);
+      setShape(NBShapePrior::grid[NBShapePrior::medianIndex]);
     shift_ = computeShift(y, offset, numObservations);
     rPrior_.computeKernel(y, numObservations);
     coldStart();
@@ -6063,7 +6064,7 @@ public:
   const double* latents() const override { return omega_.data(); }
 
   /// Rebuild the working response from the restored omega AND the current r
-  /// and c. RESTORE CONTRACT: restoreDispersion and restoreScale MUST run
+  /// and c. RESTORE CONTRACT: restoreShape and restoreScale MUST run
   /// before this, since the rebuild reads both.
   void restoreLatents(const double* latents) override {
     std::memcpy(omega_.data(), latents, numObservations_ * sizeof(double));
@@ -6087,14 +6088,14 @@ public:
   double fitShift() const override { return shift_; }
   double sigmaScale() const override { return 1.0; }
 
-  /// The dispersion r for the by-name "dispersion" state block: getState reads
-  /// dispersion() when carriesDispersion(), stateIsValid refuses a non-finite/
-  /// non-positive r, and setState restoreDispersion()s it BEFORE restoreLatents
+  /// The shape r for the by-name "shape" state block: getState reads
+  /// shape() when carriesShape(), stateIsValid refuses a non-finite/
+  /// non-positive r, and setState restoreShape()s it BEFORE restoreLatents
   /// (the restore contract above).
-  bool carriesDispersion() const override { return true; }
-  double dispersion() const override { return r_; }
-  void restoreDispersion(double dispersion) override {
-    setDispersion(dispersion);
+  bool carriesShape() const override { return true; }
+  double shape() const override { return r_; }
+  void restoreShape(double shape) override {
+    setShape(shape);
   }
 
   /// log dnbinom(y_i; r, mu_i) with log mu_i = f(x_i) + c + offset_i, in
@@ -6146,7 +6147,7 @@ private:
     return (offset_ != nullptr ? offset_[i] : 0.0) + shift_ - logR_;
   }
 
-  void setDispersion(double r) {
+  void setShape(double r) {
     r_ = r;
     logR_ = std::log(r);
   }
@@ -6193,13 +6194,13 @@ private:
   std::size_t numObservations_;
   bool estimateR_;
   double r_;
-  double logR_;   // log r_, kept in step by setDispersion
+  double logR_;   // log r_, kept in step by setShape
   double shift_;  // c, the log-mean transform (fitShift)
   std::vector<double> activeRows_;  // the 0/1 mask; empty when none
   std::vector<double> composite_;   // c_i = a_i omega_i, served while masked
   std::vector<double> omega_;
   std::vector<double> working_;
-  NBDispersionPrior rPrior_;
+  NBShapePrior rPrior_;
 };
 
 }  // namespace bartcore

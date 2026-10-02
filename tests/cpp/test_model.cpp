@@ -6515,7 +6515,7 @@ static void testActiveRowsLogisticKernel(ext_rng*) {
   printf("ok: active rows, logistic omega kernel\n");
 }
 
-// The logistic omega arm above PLUS the dispersion block, which is where
+// The logistic omega arm above PLUS the shape block, which is where
 // nbinom carries more than a composition. The count kernel K_k is REBUILT
 // over the active counts at every mask change and the r weights sum only
 // active rows, so the whole grid full conditional - hence the r draw, hence
@@ -6548,18 +6548,18 @@ static void testActiveRowsNBKernels(ext_rng*) {
         "nbinom accepts an active-row mask");
 
   bool kernelExact = true, kernelMoved = false;
-  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
-    if (TestPeer::dispersionKernel(masked, k) !=
-        TestPeer::dispersionKernel(compact, k))
+  for (std::size_t k = 0; k < NBShapePrior::gridSize; ++k) {
+    if (TestPeer::shapeKernel(masked, k) !=
+        TestPeer::shapeKernel(compact, k))
       kernelExact = false;
-    if (TestPeer::dispersionKernel(full, k) !=
-        TestPeer::dispersionKernel(compact, k))
+    if (TestPeer::shapeKernel(full, k) !=
+        TestPeer::shapeKernel(compact, k))
       kernelMoved = true;
   }
   check(kernelMoved,
         "the inactive counts do move the kernel, so the pin can fail");
   check(kernelExact,
-        "a masked nbinom rebuilds the dispersion kernel over the active counts");
+        "a masked nbinom rebuilds the shape kernel over the active counts");
   check(masked.fitShift() == full.fitShift() &&
           masked.fitShift() != compact.fitShift(),
         "a mask leaves the nbinom log-mean shift at its full-data value");
@@ -6585,7 +6585,7 @@ static void testActiveRowsNBKernels(ext_rng*) {
         !(masked.latents()[i] > 0.0))
       composed = false;
   }
-  check(masked.dispersion() == compact.dispersion(),
+  check(masked.shape() == compact.shape(),
         "a masked nbinom draws r from the retained subsample's conditional");
   check(exact, "masked nbinom omega is bitwise the compacted kernel's");
   check(held && composed,
@@ -6607,7 +6607,7 @@ static void testActiveRowsNBKernels(ext_rng*) {
   ext_rng_destroy(rngCompact);
   ext_rng_destroy(rngMasked);
   rngState = savedRngState;
-  printf("ok: active rows, nbinom omega and dispersion kernels\n");
+  printf("ok: active rows, nbinom omega and shape kernels\n");
 }
 
 // The masked aft censored-row redraw. The comparator PRESERVES ROW ORDER, since
@@ -6882,15 +6882,15 @@ static void testNBPolyaGammaShapeMoments(ext_rng*) {
   printf("ok: nb polya-gamma shape moments\n");
 }
 
-// The NB dispersion grid draw reproduces the discrete full conditional given
+// The NB shape grid draw reproduces the discrete full conditional given
 // the log means: w_k proportional to prod_i dnbinom(y_i; r_k, mu_i) times the
 // renormalized gamma(2, 0.1) prior, the reference evaluated row by row in the
 // plain dnbinom form. The kernel K_k is checked against a direct lgamma sum
 // less Y log r_k, the drawn probabilities against the reference, and a sampled
 // histogram against both. Local generator, restored global rngState.
-static void testNBDispersionGridConditional(ext_rng*) {
+static void testNBShapeGridConditional(ext_rng*) {
   std::uint64_t savedRngState = rngState;
-  NBDispersionPrior prior;
+  NBShapePrior prior;
   std::vector<double> y = {0, 1, 2, 2, 3, 5, 1, 0, 4, 2, 7, 1};
   std::vector<double> offset = {0.0, 0.2, -0.1, 0.0, 0.3, 0.0,
                                 -0.2, 0.1, 0.0, 0.0, 0.4, -0.3};
@@ -6907,8 +6907,8 @@ static void testNBDispersionGridConditional(ext_rng*) {
   double total = 0.0;
   for (double count : y) total += count;
   bool kernelExact = true;
-  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
-    double rk = NBDispersionPrior::grid[k];
+  for (std::size_t k = 0; k < NBShapePrior::gridSize; ++k) {
+    double rk = NBShapePrior::grid[k];
     double K = 0.0;
     for (std::size_t i = 0; i < n; ++i)
       K += std::lgamma(y[i] + rk) - std::lgamma(rk);
@@ -6916,13 +6916,13 @@ static void testNBDispersionGridConditional(ext_rng*) {
     if (std::fabs(TestPeer::kernelValue(prior, k) - K) > 1e-9)
       kernelExact = false;
   }
-  check(kernelExact, "nb dispersion kernel matches direct lgamma sum");
+  check(kernelExact, "nb shape kernel matches direct lgamma sum");
 
   // (b) reference posterior over the grid from the per-row dnbinom form
-  double expected[NBDispersionPrior::gridSize];
+  double expected[NBShapePrior::gridSize];
   double maxLog = -HUGE_VAL;
-  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
-    double rk = NBDispersionPrior::grid[k];
+  for (std::size_t k = 0; k < NBShapePrior::gridSize; ++k) {
+    double rk = NBShapePrior::grid[k];
     double logPost = std::log(rk) - 0.1 * rk;
     for (std::size_t i = 0; i < n; ++i) {
       double mu = std::exp(logMean[i]);
@@ -6934,11 +6934,11 @@ static void testNBDispersionGridConditional(ext_rng*) {
     if (logPost > maxLog) maxLog = logPost;
   }
   double norm = 0.0;
-  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
+  for (std::size_t k = 0; k < NBShapePrior::gridSize; ++k) {
     expected[k] = std::exp(expected[k] - maxLog);
     norm += expected[k];
   }
-  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k)
+  for (std::size_t k = 0; k < NBShapePrior::gridSize; ++k)
     expected[k] /= norm;
 
   // (c) the draw's own probabilities, then a sampled histogram
@@ -6946,48 +6946,48 @@ static void testNBDispersionGridConditional(ext_rng*) {
   ext_rng_setSeed(localRng, 1729u);
   prior.drawIndex(localRng, y.data(), fits.data(), offset.data(), shift, n);
   bool weightsExact = true;
-  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k)
+  for (std::size_t k = 0; k < NBShapePrior::gridSize; ++k)
     if (std::fabs(TestPeer::drawnProbability(prior, k) - expected[k]) > 1e-10)
       weightsExact = false;
   check(weightsExact,
-        "nb dispersion weights match the per-row dnbinom posterior");
+        "nb shape weights match the per-row dnbinom posterior");
   // the log means alone enter: the same eta through a null offset and its
   // shift folded into the fits draws the same weights
   {
-    NBDispersionPrior folded;
+    NBShapePrior folded;
     folded.computeKernel(y.data(), n);
     folded.drawIndex(localRng, y.data(), logMean.data(), nullptr, 0.0, n);
     bool same = true;
-    for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k)
+    for (std::size_t k = 0; k < NBShapePrior::gridSize; ++k)
       if (std::fabs(TestPeer::drawnProbability(folded, k) - expected[k]) >
           1e-10)
         same = false;
-    check(same, "nb dispersion weights read only the log means");
+    check(same, "nb shape weights read only the log means");
   }
 
   const int numDraws = 400000;
-  std::vector<int> counts(NBDispersionPrior::gridSize, 0);
+  std::vector<int> counts(NBShapePrior::gridSize, 0);
   for (int d = 0; d < numDraws; ++d)
     ++counts[prior.drawIndex(localRng, y.data(), fits.data(), offset.data(),
                              shift, n)];
 
-  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
+  for (std::size_t k = 0; k < NBShapePrior::gridSize; ++k) {
     double freq = static_cast<double>(counts[k]) / numDraws;
     double se = std::sqrt(expected[k] * (1.0 - expected[k]) / numDraws);
     checkNear(freq, expected[k], std::max(0.003, 5.0 * se),
-              "nb dispersion grid frequency matches the hand-computed posterior");
+              "nb shape grid frequency matches the hand-computed posterior");
   }
 
   ext_rng_destroy(localRng);
   rngState = savedRngState;
-  printf("ok: nb dispersion grid full conditional\n");
+  printf("ok: nb shape grid full conditional\n");
 }
 
 // The r-FIRST sweep order, reconstructed bit for bit: refreshLatents must (1)
 // draw r from the grid conditional given the CURRENT log means, then (2) draw
 // omega at r_new against psi = fit + a_i, a_i = offset_i + c - log r_new, then
 // (3) rebuild working as kappa / omega - a_i. An independent replay on an
-// identically seeded generator reproduces the dispersion, the omega and the
+// identically seeded generator reproduces the shape, the omega and the
 // working response exactly. Then the restore contract: restoring r before
 // latents reproduces working exactly, and restoring latents under a stale r
 // yields a different working (so order matters). Local generators, restored
@@ -7003,7 +7003,7 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
     totalFits[i] = 0.2 * static_cast<double>(i) - 0.7;
 
   NBResponse resp(y.data(), offset.data(), n, -1.0);  // grid mode
-  check(resp.carriesDispersion(), "nb grid mode carries dispersion");
+  check(resp.carriesShape(), "nb grid mode carries shape");
   const double c = resp.fitShift();
   auto anchor = [&](std::size_t i, double r) {
     return offset[i] + c - std::log(r);
@@ -7016,11 +7016,11 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
   resp.refreshLatents(rResp, totalFits.data(), 1.0);
 
   // independent replay in the mandated order on the same rng stream
-  NBDispersionPrior refPrior;
+  NBShapePrior refPrior;
   refPrior.computeKernel(y.data(), n);
-  double rNew = NBDispersionPrior::grid[refPrior.drawIndex(
+  double rNew = NBShapePrior::grid[refPrior.drawIndex(
     rRef, y.data(), totalFits.data(), offset.data(), c, n)];
-  check(rNew == resp.dispersion(),
+  check(rNew == resp.shape(),
         "nb r drawn first from the grid conditional at the current fit");
   bool omegaMatch = true, workingMatch = true;
   const double* omega = resp.latents();
@@ -7042,13 +7042,13 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
   {
     std::vector<double> ySwap(y);
     ySwap[3] += 1.0;
-    double rKept = resp.dispersion();
+    double rKept = resp.shape();
     ext_rng* rSet = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     ext_rng* rSetRef = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     ext_rng_setSeed(rSet, 55555u);
     ext_rng_setSeed(rSetRef, 55555u);
     resp.setResponse(ySwap.data(), rSet, totalFits.data(), false, nullptr);
-    check(resp.dispersion() == rKept && resp.fitShift() == c,
+    check(resp.shape() == rKept && resp.fitShift() == c,
           "nb setResponse keeps the current r, and c without updateScale");
     bool swapExact = true;
     for (std::size_t i = 0; i < n; ++i) {
@@ -7075,26 +7075,26 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
   }
 
   // restore contract: r before latents reproduces working exactly
-  double rSaved = resp.dispersion();
+  double rSaved = resp.shape();
   std::vector<double> omegaSaved(omega, omega + n);
   std::vector<double> workingSaved(working, working + n);
 
   NBResponse dst(y.data(), offset.data(), n, -1.0);
-  dst.restoreDispersion(rSaved);
+  dst.restoreShape(rSaved);
   dst.restoreLatents(omegaSaved.data());
   bool restoreExact = true;
   for (std::size_t i = 0; i < n; ++i)
     if (dst.workingResponse()[i] != workingSaved[i]) restoreExact = false;
   check(restoreExact,
-        "nb restoreDispersion-then-restoreLatents reproduces working exactly");
+        "nb restoreShape-then-restoreLatents reproduces working exactly");
 
   // stale-r sensitivity: restoring latents under a different r rebuilds working
   // against that r, so restoring latents before r (the forbidden order) is
   // observably wrong
   double staleR = rSaved + 1.0;
   NBResponse stale(y.data(), offset.data(), n, staleR);  // fixed at staleR
-  check(stale.dispersion() == staleR,
-        "nb fixed mode holds the supplied dispersion");
+  check(stale.shape() == staleR,
+        "nb fixed mode holds the supplied shape");
   stale.restoreLatents(omegaSaved.data());
   bool usesCurrentR = true, differsFromSaved = false;
   for (std::size_t i = 0; i < n; ++i) {
@@ -7112,12 +7112,12 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
     ext_rng* rSweep = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     ext_rng_setSeed(rSweep, 31337u);
     bool fixedHeld = true, gridMoved = false;
-    const double gridR = dst.dispersion();
+    const double gridR = dst.shape();
     for (int sweep = 0; sweep < 20; ++sweep) {
       stale.refreshLatents(rSweep, totalFits.data(), 1.0);
       dst.refreshLatents(rSweep, totalFits.data(), 1.0);
-      fixedHeld = fixedHeld && stale.dispersion() == staleR;
-      gridMoved = gridMoved || dst.dispersion() != gridR;
+      fixedHeld = fixedHeld && stale.shape() == staleR;
+      gridMoved = gridMoved || dst.shape() != gridR;
     }
     check(fixedHeld && gridMoved, "nb fixed r is held across sweeps, grid moves");
     ext_rng_destroy(rSweep);
@@ -7214,10 +7214,10 @@ static void testNBLogMeanAnchor() {
   printf("ok: nb log-mean anchor\n");
 }
 
-// The nbinom dispersion state block round-trips through the Chain serialization
+// The nbinom shape state block round-trips through the Chain serialization
 // (getState/setState): the scalar r rides its own by-name block and the omega
 // latents ride the shared latents block, both exact, in fixed and grid-estimated
-// modes. The restore ORDER (restoreDispersion before restoreLatents) is a stated
+// modes. The restore ORDER (restoreShape before restoreLatents) is a stated
 // contract - a wrong order rebuilds the working response against a stale r, the
 // sensitivity testNBSweepOrderAndRestore proves at the model level above; here
 // the sampler-level round trip is asserted exact under setState's ordering. A
@@ -7242,21 +7242,21 @@ static void testNBStateRoundTrip() {
       ext_rng_setSeed(rngs[c], base + static_cast<std::uint32_t>(c));
     }
   };
-  auto buildNB = [&](double dispersion, std::vector<ext_rng*>& rngs,
+  auto buildNB = [&](double shape, std::vector<ext_rng*>& rngs,
                      std::uint32_t seed) {
     SamplerOptions options;
     options.numTrees = 20;
     options.numChains = numChains;
-    options.dispersion = dispersion;
+    options.shape = shape;
     makeRngs(rngs, seed);
     return std::make_unique<ConstantLeafSampler>(
       x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::nbinom, 1.0,
       3.0, 0.37804942330213542, options, rngs.data());
   };
 
-  auto runOneMode = [&](double dispersion, bool estimated, const char* tag) {
+  auto runOneMode = [&](double shape, bool estimated, const char* tag) {
     std::vector<ext_rng*> rngs(numChains, nullptr), rngs2(numChains, nullptr);
-    auto original = buildNB(dispersion, rngs, 71000);
+    auto original = buildNB(shape, rngs, 71000);
     Results empty;
     original->run(40, 0, empty);
 
@@ -7264,26 +7264,26 @@ static void testNBStateRoundTrip() {
     original->getState(state);
     check(state.chains[0].latents.size() == n,
           "nb state carries the omega latents");
-    check(std::isfinite(state.chains[0].dispersion) &&
-            state.chains[0].dispersion > 0.0,
-          "nb state carries a finite positive dispersion");
+    check(std::isfinite(state.chains[0].shape) &&
+            state.chains[0].shape > 0.0,
+          "nb state carries a finite positive shape");
     if (!estimated)
-      check(state.chains[0].dispersion == dispersion,
-            "fixed-r nb state records the supplied dispersion");
+      check(state.chains[0].shape == shape,
+            "fixed-r nb state records the supplied shape");
 
-    // a fresh sampler with a DIFFERENT seed: the serialized dispersion and omega
+    // a fresh sampler with a DIFFERENT seed: the serialized shape and omega
     // must win over the cold-start median r
-    auto restored = buildNB(dispersion, rngs2, 99000);
+    auto restored = buildNB(shape, rngs2, 99000);
     check(restored->setState(state, nullptr), "an nb state restores");
-    // statesAgree compares the dispersion and omega, both bitwise: restore
-    // reconstructs the block, and setState's restoreDispersion-before-
+    // statesAgree compares the shape and omega, both bitwise: restore
+    // reconstructs the block, and setState's restoreShape-before-
     // restoreLatents order rebuilt working under the restored r
     checkStructuralRoundTrip(state, *restored,
-                             "restored nb dispersion and omega agree");
+                             "restored nb shape and omega agree");
     SamplerStateData reState;
     restored->getState(reState);
-    check(reState.chains[0].dispersion == state.chains[0].dispersion,
-          "nb dispersion round-trips exactly");
+    check(reState.chains[0].shape == state.chains[0].shape,
+          "nb shape round-trips exactly");
     check(reState.chains[0].latents == state.chains[0].latents,
           "nb omega round-trips exactly");
     check(state.chains[0].fitMin ==
@@ -7301,29 +7301,29 @@ static void testNBStateRoundTrip() {
     check(!restored->setState(flat, nullptr),
           "an nb state without its log-mean shift is refused");
 
-    // a state whose dispersion block is absent (an old or non-count state) is
+    // a state whose shape block is absent (an old or non-count state) is
     // refused: r is NaN and stateIsValid rejects it
     SamplerStateData noR(state);
     for (auto& ch : noR.chains)
-      ch.dispersion = std::numeric_limits<double>::quiet_NaN();
+      ch.shape = std::numeric_limits<double>::quiet_NaN();
     check(!restored->setState(noR, nullptr),
-          "an nb state lacking a finite dispersion is refused");
-    // a non-positive dispersion is refused (the grid holds positive integers)
+          "an nb state lacking a finite shape is refused");
+    // a non-positive shape is refused (the grid holds positive integers)
     SamplerStateData badR(state);
-    for (auto& ch : badR.chains) ch.dispersion = 0.0;
+    for (auto& ch : badR.chains) ch.shape = 0.0;
     check(!restored->setState(badR, nullptr),
-          "an nb state with a non-positive dispersion is refused");
+          "an nb state with a non-positive shape is refused");
 
     for (ext_rng* r : rngs) ext_rng_destroy(r);
     for (ext_rng* r : rngs2) ext_rng_destroy(r);
-    printf("ok: nb dispersion state round trip (%s)\n", tag);
+    printf("ok: nb shape state round trip (%s)\n", tag);
   };
 
   runOneMode(-1.0, true, "grid estimated");
   runOneMode(4.0, false, "fixed r");
 
   // an nb sampler refuses a gaussian state: it carries neither the omega latents
-  // nor a dispersion, so the shared latents check and the dispersion requirement
+  // nor a shape, so the shared latents check and the shape requirement
   // together reject it (the cross-family refusal, resid.df/cutpoints precedent)
   {
     std::vector<ext_rng*> rngsG(numChains, nullptr), rngsN(numChains, nullptr);
@@ -7338,8 +7338,8 @@ static void testNBStateRoundTrip() {
     gaussian.run(20, 0, emptyG);
     SamplerStateData gaussState;
     gaussian.getState(gaussState);
-    check(std::isnan(gaussState.chains[0].dispersion),
-          "gaussian state carries no dispersion");
+    check(std::isnan(gaussState.chains[0].shape),
+          "gaussian state carries no shape");
     auto nbSampler = buildNB(-1.0, rngsN, 5353);
     check(!nbSampler->setState(gaussState, nullptr),
           "an nb sampler refuses a gaussian state");
@@ -7348,7 +7348,7 @@ static void testNBStateRoundTrip() {
   }
 
   rngState = savedRngState;
-  printf("ok: nb dispersion state round trip\n");
+  printf("ok: nb shape state round trip\n");
 }
 
 namespace {
@@ -8845,7 +8845,7 @@ void runModelTests(ext_rng* rng) {
   testActiveRowsNBKernels(rng);
   testActiveRowsAFTCensored(rng);
   testNBPolyaGammaShapeMoments(rng);
-  testNBDispersionGridConditional(rng);
+  testNBShapeGridConditional(rng);
   testNBSweepOrderAndRestore(rng);
   testNBLogMeanAnchor();
   testNBStateRoundTrip();

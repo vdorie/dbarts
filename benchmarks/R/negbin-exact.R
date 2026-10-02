@@ -20,7 +20,7 @@
 # which this gate can see).
 #
 # Two details keep the target the sampler's ACTUAL posterior:
-#   - the r grid and its prior weights are the shipped ones (NBDispersionPrior):
+#   - the r grid and its prior weights are the shipped ones (NBShapePrior):
 #     grid {1,2,3,4,5,6,8,10,12,15,20,30,50}, weights the gamma(2, 0.1) kernel
 #     r exp(-0.1 r) renormalized over the grid;
 #   - each structure's posterior weight is its tree prior TIMES its computed
@@ -69,7 +69,7 @@ nodeScale <- 3 # nbinom's log-mean anchor
 tau <- nodeScale / (k * sqrt(numTrees)) # leaf-prior sd
 power <- 2.0
 base <- 0.95
-rFixed <- 5 # the fixed-r arm's pinned dispersion (a grid member)
+rFixed <- 5 # the fixed-r arm's pinned shape (a grid member)
 
 grid <- c(1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 50)
 priorKernel <- grid * exp(-0.1 * grid) # gamma(2, 0.1) kernel
@@ -94,7 +94,7 @@ shiftOf <- function(offset) log(max(sum(y), 0.5) / sum(exp(offset)))
 nGrid <- length(grid)
 
 # The exact posterior for one arm: for a cell with counts cnt, offsets off and
-# dispersion r, integrate over the cell log mean m ~ N(c, tau^2): g = marginal
+# shape r, integrate over the cell log mean m ~ N(c, tau^2): g = marginal
 # likelihood, mc = its mean-count numerator E[exp(m)].
 exactArm <- function(offset) {
   c0 <- shiftOf(offset)
@@ -170,7 +170,7 @@ exactFixedB <- (mcRootNumF + priorSplit * fx0$mcB[kf] * fx0$gA[kf]) / denF
 
 # ---- sampler fits: single tree, per-draw r and mean counts from the state ----
 
-fitSeed <- function(seed, dispersion, offset) {
+fitSeed <- function(seed, shape, offset) {
   set.seed(seed)
   control <- dbartsControl(
     n.chains = 1L,
@@ -188,7 +188,7 @@ fitSeed <- function(seed, dispersion, offset) {
     data.frame(x1 = factor(cell)), # the cell predictor, categorical
     y,
     offset = offset,
-    family = nbinom(dispersion = dispersion),
+    family = nbinom(shape = shape),
     control = control,
     tree.prior = cgm(power, base),
     leaf.prior = normal(k),
@@ -210,7 +210,7 @@ fitSeed <- function(seed, dispersion, offset) {
   gridCounts <- numeric(nGrid)
   for (s in seq_len(ndpost)) {
     r <- sampler$run(if (s == 1L) nburn else 0L, 1L)
-    rDraw <- sampler$getDispersion()
+    rDraw <- sampler$getShape()
     gridCounts[match(rDraw, grid)] <- gridCounts[match(rDraw, grid)] + 1
     meanA <- meanA + exp(r$train[iA, 1L] - offset[iA])
     meanB <- meanB + exp(r$train[iB, 1L] - offset[iB])
@@ -218,10 +218,10 @@ fitSeed <- function(seed, dispersion, offset) {
   c(meanA / ndpost, meanB / ndpost, gridCounts / ndpost)
 }
 
-runArm <- function(dispersion, offset) {
+runArm <- function(shape, offset) {
   rows <- do.call(
     rbind,
-    lapply(seq_len(nSeeds), function(sd) fitSeed(sd, dispersion, offset))
+    lapply(seq_len(nSeeds), function(sd) fitSeed(sd, shape, offset))
   )
   colMeans(rows)
 }

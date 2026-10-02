@@ -139,7 +139,7 @@ expect_error(
 )
 expect_error(
   new("dbartsFamily", token = "nbinom", settings = list(sigma = 1)),
-  "family \"nbinom\" takes no setting 'sigma'; it takes 'dispersion'",
+  "family \"nbinom\" takes no setting 'sigma'; it takes 'shape'",
   fixed = TRUE
 )
 rm(fitBT, fitBack, fitBTGaussian, stale)

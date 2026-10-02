@@ -50,8 +50,8 @@
     family's own vocabulary (see \code{\link{bart}}): a
     \code{"bartOrdinal"} fit's \code{"thresholds"} contributes
     \code{threshold[1]} (pinned at 0) through \code{threshold[K - 1]};
-    a \code{"bartNegbin"} fit's \code{"dispersion"} contributes the
-    per-draw dispersion \eqn{r}; a \code{"bartMultinomial"} fit has no
+    a \code{"bartNegbin"} fit's \code{"shape"} contributes the
+    per-draw shape \eqn{r}; a \code{"bartMultinomial"} fit has no
     \code{vars} argument at all - its only scalar posterior parameter
     is the per-category mean predicted probability, reported as
     \code{prob[<level>]}; a \code{"bartHurdle"} fit applies \code{vars}

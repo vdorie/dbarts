@@ -305,7 +305,7 @@ static_assert(offsetof(dbarts_results, varcount) == sizeof(size_t) + 3 * sizeof(
 static_assert(offsetof(dbarts_results, k) == sizeof(size_t) + 4 * sizeof(double*));
 static_assert(offsetof(dbarts_results, varprobs) == sizeof(size_t) + 5 * sizeof(double*));
 static_assert(offsetof(dbarts_results, logLikelihood) == sizeof(size_t) + 6 * sizeof(double*));
-static_assert(offsetof(dbarts_results, dispersion) == sizeof(size_t) + 7 * sizeof(double*));
+static_assert(offsetof(dbarts_results, shape) == sizeof(size_t) + 7 * sizeof(double*));
 static_assert(offsetof(dbarts_results, residualDf) == sizeof(size_t) + 8 * sizeof(double*));
 static_assert(sizeof(dbarts_results) == sizeof(size_t) + 9 * sizeof(double*),
               "dbarts_results layout changed; update these offsets, and bump "
@@ -360,7 +360,7 @@ static_assert(offsetof(dbarts_draw, varcount) ==
               11 * sizeof(size_t) + 9 * sizeof(double*));
 static_assert(offsetof(dbarts_draw, k) ==
               offsetof(dbarts_draw, sigma) + 1 * sizeof(double));
-static_assert(offsetof(dbarts_draw, dispersion) ==
+static_assert(offsetof(dbarts_draw, shape) ==
               offsetof(dbarts_draw, sigma) + 2 * sizeof(double));
 static_assert(offsetof(dbarts_draw, residualDf) ==
               offsetof(dbarts_draw, sigma) + 3 * sizeof(double));
@@ -416,7 +416,7 @@ constexpr std::uint64_t dbarts_fnv1aValue(std::uint64_t hash,
 // pointer-width, which the alignment asserts hold a future author to.
 #define DBARTS_RESULTS_FIELDS(X) \
   X(structSize) X(sigma) X(train) X(test) X(varcount) X(k) X(varprobs) \
-  X(logLikelihood) X(dispersion) X(residualDf)
+  X(logLikelihood) X(shape) X(residualDf)
 #define DBARTS_PREDICTOR_SOURCE_FIELDS(X) \
   X(structSize) X(numRows) X(numColumns) X(denseValues) X(numCscColumns) \
   X(cscColumnPointers) X(cscRowIndices) X(cscValues) X(columnSources) \
@@ -437,7 +437,7 @@ constexpr std::uint64_t dbarts_fnv1aValue(std::uint64_t hash,
   X(varianceTestFits) X(forestFits) X(glue) X(splitProbabilities) \
   X(logLikelihood) X(ordinalThresholds) X(varcount)
 #define DBARTS_DRAW_SCALAR_FIELDS(X) \
-  X(sigma, 0) X(k, 1) X(dispersion, 2) X(residualDf, 3)
+  X(sigma, 0) X(k, 1) X(shape, 2) X(residualDf, 3)
 #define DBARTS_ALIGN_ASSERT(type, field) \
   static_assert(offsetof(type, field) % sizeof(void*) == 0, \
                 "flat C API field is not pointer-aligned; the token folds " \
@@ -603,7 +603,7 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
         FILL(k, k);
         FILL(varprobs, splitProbabilities);
         FILL(logLikelihood, logLikelihood);
-        FILL(dispersion, dispersion);
+        FILL(shape, shape);
         FILL(residualDf, residualDf);
 #undef FILL
         // the header leaves k untouched without a k hyperprior, as the R run

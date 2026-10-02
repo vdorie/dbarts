@@ -2037,28 +2037,28 @@ resolveOrdinalResponse <- function(data) {
   list(y = as.double(codes), K = as.integer(K), levels = labels)
 }
 
-# Resolve the negative-binomial dispersion argument to the length-1 real the C
-# bridge reads off the control's bartcore.dispersion attribute. NA (the
+# Resolve the negative-binomial shape argument to the length-1 real the C
+# bridge reads off the control's bartcore.shape attribute. NA (the
 # default) estimates r on the capped integer grid, encoded as a non-positive
 # spec; a supplied value FIXES r as a single positive integer - the exact
-# integer envelope v1 ships, real dispersion not yet supported.
-resolveDispersion <- function(dispersion) {
-  if (length(dispersion) != 1L) {
-    stop("'dispersion' must be a single value")
+# integer envelope v1 ships, real shape not yet supported.
+resolveShape <- function(shape) {
+  if (length(shape) != 1L) {
+    stop("'shape' must be a single value")
   }
-  if (is.na(dispersion)) {
+  if (is.na(shape)) {
     return(-1) # a non-positive spec estimates r on the grid
   }
-  if (!is.numeric(dispersion) || dispersion <= 0) {
-    stop("'dispersion' must be a positive number")
+  if (!is.numeric(shape) || shape <= 0) {
+    stop("'shape' must be a positive number")
   }
-  if (dispersion != round(dispersion)) {
+  if (shape != round(shape)) {
     stop(
-      "family \"nbinom\" fits an integer dispersion; real dispersion is not ",
+      "family \"nbinom\" fits an integer shape; real shape is not ",
       "yet supported"
     )
   }
-  as.double(dispersion)
+  as.double(shape)
 }
 
 # Validate and subset a user-supplied weights vector for the x/y interfaces

@@ -88,11 +88,11 @@ struct ChainStateData {
   // vector at capture. Empty marks absent, so every non-ordinal state carries
   // no threshold block and an ordinal sampler refuses a state lacking one.
   std::vector<double> ordinalThresholds;
-  // negative-binomial counts (NBResponse) only: the dispersion r at capture.
-  // NaN marks absent, so every non-NB state carries no dispersion block and
+  // negative-binomial counts (NBResponse) only: the shape r at capture.
+  // NaN marks absent, so every non-NB state carries no shape block and
   // an NB sampler refuses a state lacking one.
   // omega rides the latents block above; this is its companion scalar.
-  double dispersion = std::numeric_limits<double>::quiet_NaN();
+  double shape = std::numeric_limits<double>::quiet_NaN();
   std::vector<double> dartProbabilities;  // empty when DART is off
   double dartAlpha = 1.0;
   size_t dartNumUpdatesSkipped = 0;

@@ -75,7 +75,7 @@ expect_false(isTRUE(all.equal(ordinal.none$train, ordinal.created$train)))
 
 # --- nbinom: setOffset ---
 # The count mean is exp(f + c + o), so a log-exposure offset moves the
-# Polya-Gamma omega draws and the dispersion step as well as the fits.
+# Polya-Gamma omega draws and the shape step as well as the fits.
 
 set.seed(101)
 yCount <- rnbinom(n, size = 5L, mu = exp(0.9 * (x[, 1L] - 0.5)))
@@ -85,9 +85,9 @@ recordNbinom <- function(sampler) {
   result <- sampler$run(n.burn, n.samples)
   list(
     train = result$train,
-    dispersion = result$dispersion,
+    shape = result$shape,
     latents = sampler$getLatents(),
-    r = sampler$getDispersion()
+    r = sampler$getShape()
   )
 }
 
@@ -118,7 +118,7 @@ expect_equal(nbinomSet$data@offset, offsetNbinom)
 nbinom.set <- recordNbinom(nbinomSet)
 
 expect_identical(nbinom.set$train, nbinom.created$train)
-expect_identical(nbinom.set$dispersion, nbinom.created$dispersion)
+expect_identical(nbinom.set$shape, nbinom.created$shape)
 expect_identical(nbinom.set$latents, nbinom.created$latents)
 expect_identical(nbinom.set$r, nbinom.created$r)
 

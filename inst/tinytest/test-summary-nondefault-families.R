@@ -2,7 +2,7 @@
 # (bartOrdinal, bartNegbin, bartHurdle): before these existed, summary()
 # fell through to summary.default and printed a raw Length/Class/Mode table.
 # Pinned here: each returns a non-default summary object whose print output
-# names the family-specific rows (thresholds, dispersion, or both hurdle
+# names the family-specific rows (thresholds, shape, or both hurdle
 # components), reusing summary.bart's own row-table machinery rather than
 # duplicating it.
 
@@ -35,7 +35,7 @@ ordinalOutput <- capture.output(print(summaryOrdinal))
 expect_true(any(grepl("threshold\\[1\\]", ordinalOutput)))
 expect_true(any(grepl("threshold\\[2\\]", ordinalOutput)))
 
-## --- nbinom: dispersion, not summary.default -------------------------------
+## --- nbinom: shape, not summary.default -------------------------------
 yCount <- rpois(n, lambda = 4)
 fitNegbin <- do.call(
   bart,
@@ -45,7 +45,7 @@ expect_false(identical(class(summary(fitNegbin)), "summary.default"))
 summaryNegbin <- summary(fitNegbin)
 expect_true(inherits(summaryNegbin, "summary.bart"))
 negbinOutput <- capture.output(print(summaryNegbin))
-expect_true(any(grepl("^1 dispersion", negbinOutput)))
+expect_true(any(grepl("^1 +shape", negbinOutput)))
 
 ## --- hurdle: both components, not summary.default --------------------------
 yHurdle <- ifelse(runif(n) < 0.3, 0, rexp(n, rate = 0.5))

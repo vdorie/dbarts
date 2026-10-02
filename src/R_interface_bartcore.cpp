@@ -193,13 +193,13 @@ struct ParsedControl {
   // negative-binomial count response shape: the fourth response shape
   // beside the binary, ordinal, and continuous ones. countResponse marks it
   // (a count is none of the others);
-  // dispersion is the r spec, the residualDf sign convention - a positive value
+  // shape is the r spec, the residualDf sign convention - a positive value
   // fixes r there (an integer), a non-positive value estimates r on the grid.
   // The dbarts()/bart2 surface attaches both through one control attribute
-  // (bartcore.dispersion); parseControl reads them here. Absent (the default) leaves a non-count response, so every
+  // (bartcore.shape); parseControl reads them here. Absent (the default) leaves a non-count response, so every
   // existing family parses byte-for-byte unchanged.
   bool countResponse = false;
-  double dispersion = NA_REAL;
+  double shape = NA_REAL;
   bool verbose = false;
   bool keepTrainingFits = true;
   bool useQuantiles = false;
@@ -570,15 +570,15 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
 
   // optional count shape: a length-1 real the R surface attaches for a
   // count response, guarded like bartcore.n.categories. Its presence marks
-  // the count shape; its value is the dispersion spec (positive fixes r,
+  // the count shape; its value is the shape spec (positive fixes r,
   // non-positive estimates on the grid). Absent (the default) leaves a
   // non-count response, so every existing family parses byte-for-byte
   // unchanged.
-  SEXP dispersionExpr =
-    Rf_getAttrib(controlExpr, Rf_install("bartcore.dispersion"));
-  if (Rf_isReal(dispersionExpr) && Rf_xlength(dispersionExpr) == 1) {
+  SEXP shapeExpr =
+    Rf_getAttrib(controlExpr, Rf_install("bartcore.shape"));
+  if (Rf_isReal(shapeExpr) && Rf_xlength(shapeExpr) == 1) {
     control.countResponse = true;
-    control.dispersion = REAL(dispersionExpr)[0];
+    control.shape = REAL(shapeExpr)[0];
   }
 
   UNPROTECT(1);
@@ -2143,10 +2143,10 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   // ordinal construction reads this: K >= 2 selects OrdinalResponse with a
   // K-1 threshold vector, 0 leaves a non-ordinal response
   options.numCategories = control.numOrdinalCategories;
-  // nbinom construction reads this: a positive value fixes the dispersion r,
+  // nbinom construction reads this: a positive value fixes the shape r,
   // a non-positive value estimates it on the grid; NaN (a non-count
   // response) is ignored
-  options.dispersion = control.dispersion;
+  options.shape = control.shape;
   options.k = model.k;
   options.nodeScale = model.nodeScale;
   // NA_REAL is a NaN, so the engine's isfinite test reads "unnamed" from it
@@ -2658,7 +2658,7 @@ const char* refusedAmplitudeFamilyReason(bartcore::ResponseFamily family) {
     return "an ordinal response: its threshold block is not shown to interleave "
            "with the amplitude block";
   case bartcore::ResponseFamily::nbinom:
-    return "a count (nbinom) response: its dispersion block is not shown to "
+    return "a count (nbinom) response: its shape block is not shown to "
            "interleave with the amplitude block";
   }
   return "this response family";
@@ -3163,7 +3163,7 @@ void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
 }
 
 // The largest count any surface accepts for nbinom. The bound is an ALLOCATION
-// bound: NBDispersionPrior::computeKernel sizes its count histogram as
+// bound: NBShapePrior::computeKernel sizes its count histogram as
 // maxCount + 1 doubles, 8 bytes per unit of the largest count, so y = 1e9 asks
 // for 8 GB where no R error can be raised, while this bound pins the request
 // at 8 * (1e6 + 1) = 8 MB and the kernel's rebuild at 13e6 multiply-adds -
@@ -3178,7 +3178,7 @@ constexpr double maximumCount = 1.0e6;
 // swap walks the sampler off its family's support. Two harms, both confirmed:
 // probit/ordinal latents drawn against an out-of-support y are silently garbage
 // (a non-0/1 y drives probit latents into the hundreds), and an nbinom count
-// that is negative underflows NBDispersionPrior::computeKernel's
+// that is negative underflows NBShapePrior::computeKernel's
 // static_cast<size_t>(lround(y)) into a ~1.8e19 histogram allocation - an
 // uncatchable crash, not an error. gaussian and aft impose nothing (aft's y is
 // a log survival time, any real), so they pass through; multinomial counts are
@@ -3218,7 +3218,7 @@ void validateResponseSupport(bartcore::ResponseFamily family,
                  "(count) response", caller);
       if (y[i] > maximumCount)
         Rf_error("%s: family \"nbinom\" requires counts no larger than %.0f; "
-                 "the dispersion grid's count histogram is sized from the "
+                 "the shape grid's count histogram is sized from the "
                  "largest count, so a larger one allocates without bound",
                  caller, maximumCount);
     }
@@ -4909,10 +4909,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   // computes nothing for them
   bool hasForestReporting = shape.forestReportingIsDefined;
   size_t numForests = shape.numForests;
-  // an nbinom sampler appends its per-draw dispersion r right after the ordinal
+  // an nbinom sampler appends its per-draw shape r right after the ordinal
   // threshold slot, so every later conditional slot shifts by it; no family
   // carries both, but the arithmetic composes regardless of that
-  bool hasDispersion = shape.carriesDispersion;
+  bool hasShape = shape.carriesShape;
   // a Student-t error law appends its per-draw df nu next, on the same
   // arithmetic; no response carries both, but the count composes regardless
   bool hasResidualDf = shape.carriesResidualDf;
@@ -4921,7 +4921,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   bool hasSigma = !hasVariance;
   int numResultSlots = 5 + (hasSigma ? 1 : 0) +
                        (hasOrdinalThresholds ? 1 : 0) +
-                       (hasDispersion ? 1 : 0) + (hasResidualDf ? 1 : 0) +
+                       (hasShape ? 1 : 0) + (hasResidualDf ? 1 : 0) +
                        (hasVariance ? 2 : 0) + (hasForestReporting ? 2 : 0);
 
   // several chains add a trailing chain dimension. Every column roots in the
@@ -4974,10 +4974,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
     ? R_NilValue
     : installChannel("thresholds",
                      allocChannel(REALSXP, {numOrdinalThresholds}));
-  // one scalar per draw, so the dispersion channel takes sigma's own shape
-  SEXP dispersionExpr = !hasDispersion
+  // one scalar per draw, so the shape channel takes sigma's own shape
+  SEXP shapeExpr = !hasShape
     ? R_NilValue
-    : installChannel("dispersion", allocScalarChannel());
+    : installChannel("shape", allocScalarChannel());
   // likewise one scalar per draw, so the df channel takes sigma's shape too
   SEXP residualDfExpr = !hasResidualDf
     ? R_NilValue
@@ -5070,9 +5070,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   results.ordinalThresholds =
     hasOrdinalThresholds ? REAL(ordinalThresholdsExpr) : NULL;
   results.numOrdinalThresholds = numOrdinalThresholds;
-  // the dispersion r each draw is conditioned on; null off nbinom, which is the
+  // the shape r each draw is conditioned on; null off nbinom, which is the
   // guard storeSample's write shares
-  results.dispersion = hasDispersion ? REAL(dispersionExpr) : NULL;
+  results.shape = hasShape ? REAL(shapeExpr) : NULL;
   // the residual df nu each draw is conditioned on; null off a Student-t error
   // law, the guard storeSample's write shares
   results.residualDf = hasResidualDf ? REAL(residualDfExpr) : NULL;
@@ -5818,20 +5818,20 @@ SEXP bartcore_getSigmas(SEXP ptrExpr) {
   return result;
 }
 
-// The dispersion r in force on each chain - the mid-sweep read of the scalar
-// the recorded dispersion channel stores once per kept draw, without
+// The shape r in force on each chain - the mid-sweep read of the scalar
+// the recorded shape channel stores once per kept draw, without
 // serializing state. NULL, rather than a filler value, off a family that
-// carries no dispersion: the caller then tests for the channel instead of
+// carries no shape: the caller then tests for the channel instead of
 // comparing against a number that would mean nothing.
-SEXP bartcore_getDispersion(SEXP ptrExpr) {
+SEXP bartcore_getShape(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
-  if (!shape.carriesDispersion) return R_NilValue;
+  if (!shape.carriesShape) return R_NilValue;
   size_t numChains = shape.numChains;
   SEXP result =
     PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numChains)));
   for (size_t c = 0; c < numChains; ++c)
-    REAL(result)[c] = holder.sampler->dispersion(c);
+    REAL(result)[c] = holder.sampler->shapeParameter(c);
   UNPROTECT(1);
   return result;
 }
@@ -7003,7 +7003,7 @@ static AugmentationInputs augmentationInputs(SEXP fitExpr, SEXP yExpr,
                                              SEXP weightsExpr, SEXP offsetExpr,
                                              SEXP ordinalThresholdsExpr,
                                              SEXP sigmaExpr,
-                                             SEXP dispersionExpr, SEXP dfExpr) {
+                                             SEXP shapeExpr, SEXP dfExpr) {
   AugmentationInputs in;
   in.numObservations = static_cast<size_t>(Rf_xlength(fitExpr));
   in.fit = REAL(fitExpr);
@@ -7015,7 +7015,7 @@ static AugmentationInputs augmentationInputs(SEXP fitExpr, SEXP yExpr,
   in.numOrdinalThresholds = Rf_isNull(ordinalThresholdsExpr)
     ? 0 : static_cast<size_t>(Rf_xlength(ordinalThresholdsExpr));
   in.sigma = Rf_asReal(sigmaExpr);       // a null scalar reads as NA, which
-  in.dispersion = Rf_asReal(dispersionExpr);  // only an arm that ignores it
+  in.shape = Rf_asReal(shapeExpr);  // only an arm that ignores it
   in.df = Rf_asReal(dfExpr);                  // ever sees
   return in;
 }
@@ -7025,12 +7025,12 @@ static AugmentationInputs augmentationInputs(SEXP fitExpr, SEXP yExpr,
 // the same function every conduit that swaps a y calls.
 SEXP bartcore_drawLatents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
                           SEXP weightsExpr, SEXP offsetExpr, SEXP sigmaExpr,
-                          SEXP dispersionExpr, SEXP ordinalThresholdsExpr,
+                          SEXP shapeExpr, SEXP ordinalThresholdsExpr,
                           SEXP dfExpr) {
   AugmentationLaw law = augmentationLaw(CHAR(STRING_ELT(familyExpr, 0)));
   AugmentationInputs in =
     augmentationInputs(fitExpr, yExpr, weightsExpr, offsetExpr,
-                       ordinalThresholdsExpr, sigmaExpr, dispersionExpr,
+                       ordinalThresholdsExpr, sigmaExpr, shapeExpr,
                        dfExpr);
   validateResponseSupport(supportFamily(law), in.numOrdinalThresholds + 1, in.y,
                           in.numObservations, "dbartsDrawLatents");
@@ -7048,11 +7048,11 @@ SEXP bartcore_drawLatents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
 
 SEXP bartcore_workingResponse(SEXP familyExpr, SEXP latentExpr, SEXP yExpr,
                               SEXP weightsExpr, SEXP offsetExpr,
-                              SEXP dispersionExpr) {
+                              SEXP shapeExpr) {
   AugmentationLaw law = augmentationLaw(CHAR(STRING_ELT(familyExpr, 0)));
   AugmentationInputs in =
     augmentationInputs(latentExpr, yExpr, weightsExpr, offsetExpr, R_NilValue,
-                       R_NilValue, dispersionExpr, R_NilValue);
+                       R_NilValue, shapeExpr, R_NilValue);
   // the ordinal working response is the latent less the offset, so y never
   // enters it and there is no category count here to state its support against
   if (law != AugmentationLaw::ordinal)
@@ -7191,7 +7191,7 @@ static void drawAugmentationLaws(ext_rng* rng, AugmentationLaw law,
     }
     case AL::nbinom: // fit + offset is the log mean; the law reads log-odds
       result[i] = bartcore::simulatePolyaGammaShape(
-        rng, in.y[i] + in.dispersion, psi - std::log(in.dispersion));
+        rng, in.y[i] + in.shape, psi - std::log(in.shape));
       break;
     case AL::studentT: { // the Student-t scale mixer
       double residual = in.y[i] - psi;
@@ -7235,8 +7235,8 @@ void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
         latent[i];
       break;
     case AL::nbinom: // back on the log-mean scale the fit is reported on
-      value = 0.5 * (in.y[i] - in.dispersion) / latent[i] +
-        std::log(in.dispersion);
+      value = 0.5 * (in.y[i] - in.shape) / latent[i] +
+        std::log(in.shape);
       break;
     case AL::studentT: // the mixer's working response is y itself
       value = in.y[i];
@@ -7348,7 +7348,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   enum {
     SLOT_FORESTS = 0, SLOT_SIGMA, SLOT_FIT_SCALE, SLOT_LATENTS,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
-    SLOT_RNG_STATE, SLOT_GLUE, SLOT_RESID_DF, SLOT_THRESHOLDS, SLOT_DISPERSION,
+    SLOT_RNG_STATE, SLOT_GLUE, SLOT_RESID_DF, SLOT_THRESHOLDS, SLOT_SHAPE,
     SLOT_VARIANCE_VARS, SLOT_VARIANCE_VALUES, SLOT_VARIANCE_SIZES,
     SLOT_VARIANCE_FLAGS, SLOT_VARIANCE_MASKS,
     SLOT_VARIANCE_SAVED_VARS, SLOT_VARIANCE_SAVED_VALUES,
@@ -7360,7 +7360,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     "forests", "sigma", "fit.scale",
     "latents",
     "dart.probabilities", "dart.alpha", "dart.updates.skipped",
-    "rng.state", "glue", "resid.df", "thresholds", "dispersion",
+    "rng.state", "glue", "resid.df", "thresholds", "shape",
     "variance.vars", "variance.values", "variance.sizes", "variance.flags",
     "variance.masks",
     "variance.saved.vars", "variance.saved.values", "variance.saved.sizes",
@@ -7521,12 +7521,12 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
                   chainState.ordinalThresholds.size() * sizeof(double));
     }
 
-    // the nbinom-only dispersion r; omega already rode the latents slot above. A
+    // the nbinom-only shape r; omega already rode the latents slot above. A
     // non-count chain carries NaN and writes no block, so old and other-family
     // states omit the slot.
-    if (std::isfinite(chainState.dispersion))
-      SET_VECTOR_ELT(chainExpr, SLOT_DISPERSION,
-                     Rf_ScalarReal(chainState.dispersion));
+    if (std::isfinite(chainState.shape))
+      SET_VECTOR_ELT(chainExpr, SLOT_SHAPE,
+                     Rf_ScalarReal(chainState.shape));
 
     SET_VECTOR_ELT(resultExpr, static_cast<R_xlen_t>(c), chainExpr);
     UNPROTECT(1);
@@ -8032,13 +8032,13 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
     // additive nbinom-only block: absent (an old or non-count state) leaves the
     // NaN default, which stateIsValid refuses only for an NB sampler
-    SEXP dispersionExpr = rc_getListElement(chainExpr, "dispersion");
-    if (!Rf_isNull(dispersionExpr)) {
-      if (!Rf_isReal(dispersionExpr) || Rf_xlength(dispersionExpr) != 1) {
-        errorMessage = malformedBlock("dispersion");
+    SEXP shapeExpr = rc_getListElement(chainExpr, "shape");
+    if (!Rf_isNull(shapeExpr)) {
+      if (!Rf_isReal(shapeExpr) || Rf_xlength(shapeExpr) != 1) {
+        errorMessage = malformedBlock("shape");
         break;
       }
-      chainState.dispersion = REAL(dispersionExpr)[0];
+      chainState.shape = REAL(shapeExpr)[0];
     }
   }
 

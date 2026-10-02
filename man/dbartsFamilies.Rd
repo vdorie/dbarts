@@ -94,10 +94,12 @@
     \item{\code{multinomial()}, \code{ordinal()}}{
       Unordered K-category softmax and ordered cumulative-probit models.
     }
-    \item{\code{nbinom(dispersion = NULL)}}{
+    \item{\code{nbinom(shape = NULL)}}{
       Negative-binomial counts on a log link: the forest models the log of
-      the mean count, and the variance is \eqn{\mu + \mu^2 / r}{mu + mu^2 / r}.
-      \code{NULL} estimates the dispersion
+      the mean count, and the variance is \eqn{\mu + \mu^2 / r}{mu + mu^2 / r}
+      for shape \eqn{r}. A larger shape is closer to Poisson; \eqn{r} is
+      \code{size} in \code{rnbinom} and \code{theta} in MASS and mgcv.
+      \code{NULL} estimates the shape
       \eqn{r} on a capped positive-integer grid; a positive integer fixes
       it. Each sweep's latent draw costs time in proportion to
       \eqn{y + r}{y + r}, so a large fixed \eqn{r} is slow: at

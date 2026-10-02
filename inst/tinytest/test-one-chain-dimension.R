@@ -32,7 +32,7 @@ seeded <- function(expr) {
 # checks that 'uncombined' is 'combined' with a leading length-1 chain
 # margin, values and all
 expectKeptChain <- function(uncombined, combined, info = "") {
-  # a combined scalar type (sigma, k, dispersion) is a plain vector, with no
+  # a combined scalar type (sigma, k, shape) is a plain vector, with no
   # dim of its own to prepend the chain margin to
   combinedShape <- if (is.null(dim(combined))) {
     length(combined)
@@ -182,14 +182,14 @@ expectKeptChain(
   info = "ordinal predict"
 )
 
-# --- negbin: dispersion is a scalar-per-draw field, no observation margin ---
+# --- negbin: shape is a scalar-per-draw field, no observation margin ---
 
 counts <- rpois(n, 3)
 fitN <- quick(counts, family = "nbinom")
 expectKeptChain(
-  extract(fitN, "dispersion", combineChains = FALSE),
-  extract(fitN, "dispersion"),
-  info = "negbin dispersion"
+  extract(fitN, "shape", combineChains = FALSE),
+  extract(fitN, "shape"),
+  info = "negbin shape"
 )
 expectKeptChain(
   predict(fitN, newX, combineChains = FALSE),

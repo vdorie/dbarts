@@ -359,7 +359,7 @@ SEXP capi_run_canaried(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   size_t nTest = dbarts_sampler_numTestObservations(sampler);
   size_t C = dbarts_sampler_numChains(sampler);
   const char* names[] = { "sigma", "train", "test", "varcount", "k",
-                          "varprobs", "logLikelihood", "dispersion",
+                          "varprobs", "logLikelihood", "shape",
                           "residualDf", "" };
   capi_canaried buffers[9];
   dbarts_results results = DBARTS_RESULTS_INIT;
@@ -382,7 +382,7 @@ SEXP capi_run_canaried(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   results.k = (double*) buffers[4].data;
   results.varprobs = (double*) buffers[5].data;
   results.logLikelihood = (double*) buffers[6].data;
-  results.dispersion = (double*) buffers[7].data;
+  results.shape = (double*) buffers[7].data;
   results.residualDf = (double*) buffers[8].data;
 
   /* an error here leaks the nine buffers; the arms that drive this expect
@@ -602,13 +602,13 @@ SEXP capi_get_latents(SEXP ptrExpr) {
   return haveLatents ? result : R_NilValue;
 }
 
-/* the dispersion channel a count host reads, both spellings. The recorded slot
+/* the shape channel a count host reads, both spellings. The recorded slot
  * is NA-poisoned before the run, so a library that never fills it reads back as
  * NA rather than as a plausible number, and the second run pins structSize
  * below the appended field over a poisoned pointer: a size-blind write would
- * dereference it on the one family that HAS a dispersion to write. */
-SEXP capi_run_dispersion(SEXP ptrExpr, SEXP numBurnInExpr,
-                         SEXP numSamplesExpr) {
+ * dereference it on the one family that HAS a shape to write. */
+SEXP capi_run_shape(SEXP ptrExpr, SEXP numBurnInExpr,
+                    SEXP numSamplesExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
   size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
@@ -619,21 +619,21 @@ SEXP capi_run_dispersion(SEXP ptrExpr, SEXP numBurnInExpr,
   double* sigma = (double*) R_alloc(length, sizeof(double));
 
   dbarts_results older = DBARTS_RESULTS_INIT;
-  older.structSize = offsetof(dbarts_results, dispersion);
+  older.structSize = offsetof(dbarts_results, shape);
   older.sigma = sigma;
-  older.dispersion = (double*) (uintptr_t) 0x1;
+  older.shape = (double*) (uintptr_t) 0x1;
   dbarts_sampler_run(sampler, numBurnIn, numSamples, &older);
 
   /* second, so the state the getter reads afterwards is this run's last draw */
   dbarts_results results = DBARTS_RESULTS_INIT;
   results.sigma = sigma;
-  results.dispersion = REAL(recorded);
+  results.shape = REAL(recorded);
   dbarts_sampler_run(sampler, 0, numSamples, &results);
 
   SEXP result = PROTECT(Rf_allocVector(VECSXP, 3));
   SET_VECTOR_ELT(result, 0, recorded);
   SET_VECTOR_ELT(
-    result, 1, Rf_ScalarLogical(DBARTS_RESULTS_HAS(&results, dispersion)));
+    result, 1, Rf_ScalarLogical(DBARTS_RESULTS_HAS(&results, shape)));
   SET_VECTOR_ELT(result, 2, Rf_ScalarLogical(1));
   SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
   SET_STRING_ELT(namesExpr, 0, Rf_mkChar("recorded"));
@@ -645,7 +645,7 @@ SEXP capi_run_dispersion(SEXP ptrExpr, SEXP numBurnInExpr,
 }
 
 /* the Student-t df channel a robust host reads: the results slot appended to
- * dbarts_results after the dispersion one. Same discipline as the dispersion
+ * dbarts_results after the shape one. Same discipline as the shape
  * shim above - the recorded slot is NA-poisoned before the run, so an error law
  * that never fills it reads back as NA rather than as a plausible number, and
  * the first run pins structSize below the appended field over a poisoned

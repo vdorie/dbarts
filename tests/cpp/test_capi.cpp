@@ -63,7 +63,7 @@ void testAdapterCopiesEveryField() {
   info.varcount = counts;
   info.sigma = 0.25;
   info.k = 2.5;
-  info.dispersion = std::numeric_limits<double>::quiet_NaN();
+  info.shape = std::numeric_limits<double>::quiet_NaN();
   info.residualDf = 4.5;
 
   dbarts_draw draw;
@@ -82,7 +82,7 @@ void testAdapterCopiesEveryField() {
     draw.forestFits == values + 4 && draw.glue == values + 5 &&
     draw.splitProbabilities == values + 6 && draw.logLikelihood == values + 7 &&
     draw.ordinalThresholds == nullptr && draw.varcount == counts &&
-    draw.sigma == 0.25 && draw.k == 2.5 && std::isnan(draw.dispersion) &&
+    draw.sigma == 0.25 && draw.k == 2.5 && std::isnan(draw.shape) &&
     draw.residualDf == 4.5;
   check(copied, "capi draw: the adapter copies every channel and scalar");
 }

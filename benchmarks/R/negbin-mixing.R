@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 
-# Mixing gate for the negative-binomial dispersion r
+# Mixing gate for the negative-binomial shape r
 # (docs/plans/nbinom-log-mean.md, Gates). negbin-exact.R checks the stationary
 # law on one tree and n = 50; it cannot see a chain that never leaves its cold
 # start. This gate fits the default forest at realistic n and checks that r
@@ -85,7 +85,7 @@ runCell <- function(cell, seed) {
     seed = seed,
     verbose = FALSE
   )
-  r <- extract(fit, type = "dispersion", combineChains = FALSE)
+  r <- extract(fit, type = "shape", combineChains = FALSE)
   if (is.null(dim(r))) {
     r <- matrix(r, ncol = 2L)
   } else if (nrow(r) == 2L) {
@@ -141,4 +141,4 @@ results <- unlist(lapply(cells, function(cell) {
 if (!all(results)) {
   quit(status = 1L)
 }
-cat("\nOK: the dispersion mixes and the predictive law covers fresh counts\n")
+cat("\nOK: the shape mixes and the predictive law covers fresh counts\n")

@@ -145,7 +145,7 @@ expect_false(identical(
 # forestWeights stores it, 1-based via a hole at index 1) rather than through
 # setForestWeights: that method's own C-level install would stick on an
 # already-valid pointer regardless of the field, since setState touches
-# trees/sigma/k/leaf scale/dispersion/latents/residual df and nothing about
+# trees/sigma/k/leaf scale/shape/latents/residual df and nothing about
 # a forest weight buffer - so a real pre-install would confound this
 # comparison rather than isolate setState's reapply call
 donorState <- buildWeighted()$state

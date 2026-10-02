@@ -56,14 +56,14 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrs, SEXP x,
 SEXP bartcore_setCutPoints(SEXP ptr, SEXP cutPoints, SEXP columns,
                            SEXP currentPredictors);
 SEXP bartcore_getSigmas(SEXP ptr);
-SEXP bartcore_getDispersion(SEXP ptr);
+SEXP bartcore_getShape(SEXP ptr);
 SEXP bartcore_isValidPointer(SEXP ptr);
 SEXP bartcore_getLatents(SEXP ptr, SEXP result);
 SEXP bartcore_drawLatents(SEXP family, SEXP fit, SEXP y, SEXP weights,
-                          SEXP offset, SEXP sigma, SEXP dispersion,
+                          SEXP offset, SEXP sigma, SEXP shape,
                           SEXP ordinalThresholds, SEXP df);
 SEXP bartcore_workingResponse(SEXP family, SEXP latent, SEXP y, SEXP weights,
-                              SEXP offset, SEXP dispersion);
+                              SEXP offset, SEXP shape);
 SEXP bartcore_predict(SEXP ptr, SEXP x_test, SEXP offset_test,
                       SEXP n_threads);
 SEXP bartcore_predictPerForest(SEXP ptr, SEXP x_test, SEXP offset_test,

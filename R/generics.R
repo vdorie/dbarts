@@ -88,7 +88,7 @@ fitAllowsKHyperprior <- function(object) {
   is.null(object[["call"]][["monotone"]])
 }
 
-# extract's model- and predictor-level types (sigma, k, dispersion,
+# extract's model- and predictor-level types (sigma, k, shape,
 # thresholds, varcount) refuse a caller-supplied 'sample' by name
 refuseSampleOnModelType <- function(type, sampleSupplied) {
   if (sampleSupplied) {
@@ -383,7 +383,7 @@ combineOrUncombineChains <- function(x, n.chains, combine) {
   x
 }
 
-# combineOrUncombineChains for a scalar-per-draw field (sigma, k, dispersion):
+# combineOrUncombineChains for a scalar-per-draw field (sigma, k, shape):
 # combined is a chain-major vector, uncombined a chains x samples matrix (a
 # 1 x samples one at one chain, dec-A79)
 reshapeScalarChannel <- function(x, n.chains, combine) {
@@ -2426,8 +2426,8 @@ print.bartOrdinal <- function(x, ...) {
 # "bart" methods. A single forest fits the log mean eta = f(x) + c + o, so
 # type = "bart" returns eta, while type = "ev" returns the mean counts
 # mu = exp(eta) (the reported posterior mean count) and type = "ppd" draws one
-# count per posterior draw from NB(size = r, mu). The per-draw dispersion r
-# rides the fit's $dispersion field, the count analog of gaussian's sigma, and
+# count per posterior draw from NB(size = r, mu). The per-draw shape r
+# rides the fit's $shape field, the count analog of gaussian's sigma, and
 # a drawn leaf scale rides $k (or $sd), as on a bart fit.
 # nbinom has a single forest, so 'forest'/'contribution' refuse for the same
 # reason a bart-family single-forest fit does.
@@ -2438,7 +2438,7 @@ negbinUnusedArgs <- list(
 
 extract.bartNegbin <- function(
   object,
-  type = c("ev", "ppd", "bart", "loglik", "dispersion", "k", "sd", "varcount"),
+  type = c("ev", "ppd", "bart", "loglik", "shape", "k", "sd", "varcount"),
   sample = c("train", "test"),
   combineChains = TRUE,
   ...
@@ -2456,10 +2456,10 @@ extract.bartNegbin <- function(
   )
   n.chains <- fitNChains(object)
 
-  if (type %in% c("dispersion", "k", "sd", "varcount")) {
+  if (type %in% c("shape", "k", "sd", "varcount")) {
     refuseSampleOnModelType(type, sampleSupplied)
-    if (type == "dispersion") {
-      return(reshapeScalarChannel(object$dispersion, n.chains, combineChains))
+    if (type == "shape") {
+      return(reshapeScalarChannel(object$shape, n.chains, combineChains))
     }
     if (type %in% c("k", "sd")) {
       return(extractLeafSpread(object, type, n.chains, combineChains))
@@ -2495,11 +2495,11 @@ extract.bartNegbin <- function(
   if (type == "ev") {
     return(combineOrUncombineChains(mu, n.chains, combineChains))
   }
-  # type == "ppd": pair mu with dispersion in a common split layout so the two
+  # type == "ppd": pair mu with shape in a common split layout so the two
   # align regardless of either's own storage, then reshape the result to the
   # caller's request
   muSplit <- combineOrUncombineChains(mu, n.chains, FALSE)
-  disp <- scalarDrawVec(object$dispersion, n.chains, length(muSplit))
+  disp <- scalarDrawVec(object$shape, n.chains, length(muSplit))
   result <- array(
     rnbinom(length(muSplit), size = disp, mu = as.vector(muSplit)),
     dim(muSplit),
@@ -2508,15 +2508,15 @@ extract.bartNegbin <- function(
   combineOrUncombineChains(result, n.chains, combineChains)
 }
 
-# l[s,i] = dnbinom(y_i, size = dispersion[s], mu = yhat.train[s,i]); the
-# per-draw dispersion pairs with the draws the same chain-fastest way the
-# gaussian arm pairs sigma (dispersion is already sigma-shaped). mu enters
+# l[s,i] = dnbinom(y_i, size = shape[s], mu = yhat.train[s,i]); the
+# per-draw shape pairs with the draws the same chain-fastest way the
+# gaussian arm pairs sigma (shape is already sigma-shaped). mu enters
 # forced to the split (chains x) samples x obs layout so it aligns with
 # scalarDrawVec's own normalization regardless of either's own storage.
 negbinLogLik <- function(object, mu, n.chains) {
   y <- object[["y"]]
   n.draws <- length(mu) %/% length(y)
-  disp <- scalarDrawVec(object[["dispersion"]], n.chains, length(mu))
+  disp <- scalarDrawVec(object[["shape"]], n.chains, length(mu))
   result <- dnbinom(
     rep(y, each = n.draws),
     size = disp,
@@ -2567,7 +2567,7 @@ fitted.bartNegbin <- function(
     bart = if (sample == "test") object$latent.test else object$latent.train,
     ev = if (sample == "test") object$yhat.test else object$yhat.train,
     # the ppd arm is a draw, not a stored channel; extract pairs each mu with
-    # its own draw's dispersion, and the mean over the observation margin
+    # its own draw's shape, and the mean over the observation margin
     # below is invariant to the chain layout it returns
     ppd = extract.bartNegbin(object, type = "ppd", sample = sample)
   )
@@ -2613,11 +2613,11 @@ residuals.bartNegbin <- function(object, ...) {
 # log mean eta, then mu = exp(eta). A log-exposure offset enters eta
 # additively, the fit-time convention. Requires a fit kept with keepTrees.
 # type = "bart" returns the replayed log mean; type = "ppd" draws one count per
-# posterior draw at that draw's STORED dispersion r; type = "bart" and "ev"
+# posterior draw at that draw's STORED shape r; type = "bart" and "ev"
 # read no r. Only ppd touches the RNG, so type = "ev" is draw-neutral. The
 # replay reads through $fit's own pointer: $fit is the sampler whose engine
 # actually ran, so getPointer() can re-create it from stored state after a
-# save/reload. The presence gate re-points to dispersion.raw, which is read
+# save/reload. The presence gate re-points to shape.raw, which is read
 # below and rides the same keepTrees gate.
 predict.bartNegbin <- function(
   object,
@@ -2643,7 +2643,7 @@ predict.bartNegbin <- function(
   )
   warnUnusedDots(list(...), "predict", "bartNegbin")
   refuseNonNumericOffset(offset)
-  if (is.null(object[["dispersion.raw"]])) {
+  if (is.null(object[["shape.raw"]])) {
     refuseWithoutTrees("predict")
   }
   # after the store check, whose absence the default here would otherwise
@@ -2684,7 +2684,7 @@ predict.bartNegbin <- function(
   if (length(dim(raw)) == 2L) {
     dim(raw) <- c(dim(raw), 1L)
   }
-  disp <- object$dispersion.raw # n.samples x n.chains
+  disp <- object$shape.raw # n.samples x n.chains
   n.new <- dim(raw)[1L]
   n.samples <- dim(raw)[2L]
   means <- array(0, c(n.new, n.samples, n.chains))
@@ -2699,19 +2699,19 @@ predict.bartNegbin <- function(
   means <- convertSamplesForCaller(means, n.chains, combineChains)
   means <- nameObservationMargin(means, rowNames)
   if (type == "ppd") {
-    # each count is drawn with its own draw's dispersion: the dispersions are
+    # each count is drawn with its own draw's shape: the shapes are
     # laid out as the means are and take the caller's layout with them,
     # whichever layout the fit stored its own in
-    dispersions <- array(
+    shapes <- array(
       rep(disp, each = n.new),
       c(n.new, n.samples, n.chains)
     )
     if (n.chains == 1L) {
-      dispersions <- matrix(dispersions, n.new, n.samples)
+      shapes <- matrix(shapes, n.new, n.samples)
     }
     means <- negbinPpd(
       means,
-      convertSamplesForCaller(dispersions, n.chains, combineChains)
+      convertSamplesForCaller(shapes, n.chains, combineChains)
     )
   }
   if (!is.null(ci.level)) {
@@ -2728,8 +2728,8 @@ print.bartNegbin <- function(x, ...) {
   printCall(x)
   cat("family: negative binomial (log link)\n")
   cat(
-    "posterior mean dispersion (r): ",
-    format(mean(x$dispersion), digits = 4L),
+    "posterior mean shape (r): ",
+    format(mean(x$shape), digits = 4L),
     "\n",
     sep = ""
   )
@@ -2876,7 +2876,7 @@ refuseForestSelectionOutsideForestArm <- function(
       "per-observation scale, not a per-forest quantity of the mean"
     )
   }
-  if (type %in% c("sigma", "k", "sd", "dispersion", "thresholds")) {
+  if (type %in% c("sigma", "k", "sd", "shape", "thresholds")) {
     stop(
       "type = \"",
       type,
@@ -3025,7 +3025,7 @@ hurdleNChains <- function(object) {
   }
 }
 
-# A scalar-per-draw field (sigma, dispersion, ...) as a flat vector aligned,
+# A scalar-per-draw field (sigma, shape, ...) as a flat vector aligned,
 # draw for draw, with the fit draws' as.vector order (chain-fastest, then
 # sample, then observation - the layout pointwiseLogLikelihood and
 # sampleFromPPD pair sigma with fits in); the field may be stored combined

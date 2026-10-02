@@ -56,11 +56,11 @@ struct SamplerShape {
   /// "thresholds" channel, present only when nonzero; internal, invisible to
   /// dbarts.h.
   std::size_t numOrdinalThresholds;
-  /// Whether the response family carries a dispersion r (nbinom alone). The run
-  /// bridge reads it to decide whether the dispersion channel exists and the
+  /// Whether the response family carries a shape r (nbinom alone). The run
+  /// bridge reads it to decide whether the shape channel exists and the
   /// mid-sweep read to decide whether it answers at all; internal, invisible to
   /// dbarts.h.
-  bool carriesDispersion;
+  bool carriesShape;
   /// Whether the response family carries a residual df nu (a Student-t error
   /// law). The run bridge reads it to decide whether the per-draw df channel
   /// exists; internal, invisible to dbarts.h.
@@ -384,11 +384,11 @@ public:
   virtual const ColumnStore& data() const = 0;
   virtual const double* latents(std::size_t chainNum) const = 0;
   virtual double sigma(std::size_t chainNum) const = 0;
-  /// Chain chainNum's dispersion r in force - the same scalar the recorded
-  /// dispersion channel stores once per kept draw, read mid-sweep and without
+  /// Chain chainNum's shape r in force - the same scalar the recorded
+  /// shape channel stores once per kept draw, read mid-sweep and without
   /// serializing state. 0 off a family carrying one, so a caller gates on
-  /// SamplerShape::carriesDispersion rather than on the value.
-  virtual double dispersion(std::size_t chainNum) const = 0;
+  /// SamplerShape::carriesShape rather than on the value.
+  virtual double shapeParameter(std::size_t chainNum) const = 0;
   /// The per-forest amplitude basis: installs forest
   /// forestIndex's n x numColumns ROW-major basis, COPIED, in every chain;
   /// false, installing nothing, off a coupling that carries amplitudes, on an
@@ -504,7 +504,7 @@ public:
     s.numVariableCountForests = impl_.numVariableCountForests();
     s.numAmplitudes = impl_.totalAmplitudes();
     s.numOrdinalThresholds = impl_.numOrdinalThresholds();
-    s.carriesDispersion = impl_.carriesDispersion();
+    s.carriesShape = impl_.carriesShape();
     s.carriesResidualDf = impl_.carriesResidualDf();
     s.savedTreeCapacity = impl_.savedTreeCapacity();
     s.numSavedDraws = impl_.filledSavedDraws();
@@ -715,8 +715,8 @@ public:
   double sigma(std::size_t chainNum) const override {
     return impl_.sigma(chainNum);
   }
-  double dispersion(std::size_t chainNum) const override {
-    return impl_.dispersion(chainNum);
+  double shapeParameter(std::size_t chainNum) const override {
+    return impl_.shape(chainNum);
   }
   bool setForestBasis(std::size_t forestIndex, const double* values,
                       std::size_t numColumns) override {
@@ -1019,7 +1019,7 @@ inline std::unique_ptr<SamplerBase> createAmplitudeSampler(
   // createSampler does
   if (options.numVarianceTrees > 0) return nullptr;
   // the doors: aft draws sigma and needs its censoring status threaded here,
-  // ordinal its threshold block and nbinom its dispersion block shown to
+  // ordinal its threshold block and nbinom its shape block shown to
   // interleave with the amplitude block. Each is refused rather than built as
   // the default arm's gaussian
   if (spec.family != ResponseFamily::gaussian &&

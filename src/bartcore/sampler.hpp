@@ -497,8 +497,8 @@ public:
       if (results.ordinalThresholds != nullptr)
         r.ordinalThresholds =
           results.ordinalThresholds + c * numSamples * numOrdinalThresholds;
-      if (results.dispersion != nullptr)
-        r.dispersion = results.dispersion + c * numSamples;
+      if (results.shape != nullptr)
+        r.shape = results.shape + c * numSamples;
       if (results.residualDf != nullptr)
         r.residualDf = results.residualDf + c * numSamples;
       if (results.varianceFits != nullptr)
@@ -1878,12 +1878,12 @@ public:
   size_t numOrdinalThresholds() const {
     return chains_[0]->numOrdinalThresholds();
   }
-  /// Whether the response family carries a dispersion r; chain 0 answers for
+  /// Whether the response family carries a shape r; chain 0 answers for
   /// all, as every chain carries the same family.
-  bool carriesDispersion() const { return chains_[0]->carriesDispersion(); }
-  /// Chain chainNum's dispersion r in force, 0 off a family carrying one.
-  double dispersion(size_t chainNum) const {
-    return chains_[chainNum]->dispersion();
+  bool carriesShape() const { return chains_[0]->carriesShape(); }
+  /// Chain chainNum's shape r in force, 0 off a family carrying one.
+  double shape(size_t chainNum) const {
+    return chains_[chainNum]->shape();
   }
   /// Whether the response family carries a residual df nu; chain 0 answers for
   /// all, as every chain carries the same error law.

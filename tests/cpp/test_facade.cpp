@@ -45,7 +45,7 @@ enum class FacadeVirtual {
   setVerbose, fitScale, gpFallbackTally, slowCountTally, setTreeStorage,
   setModel,
   sumOfSquaredResiduals,
-  printTrees, rng, data, latents, sigma, dispersion, setForestBasis,
+  printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
   setForestWeights, forestCalibration, setForestPriorScale, setForestFixedK,
   setForestMapSd, setActiveRows,
   setCounts, setCategoryOffset, setCategoryTestOffset, totalAmplitudes,
@@ -204,7 +204,7 @@ public:
   SPY_RET(const ColumnStore&, data, () const, ())
   SPY_RET(const double*, latents, (std::size_t c) const, (c))
   SPY_RET(double, sigma, (std::size_t c) const, (c))
-  SPY_RET(double, dispersion, (std::size_t c) const, (c))
+  SPY_RET(double, shapeParameter, (std::size_t c) const, (c))
   SPY_RET(bool, setForestBasis,
           (std::size_t f, const double* v, std::size_t n), (f, v, n))
   SPY_RET(bool, setForestWeights, (std::size_t f, const double* w), (f, w))
@@ -491,7 +491,7 @@ struct Fixtures {
   void buildNegativeBinomial() {
     SamplerOptions options;
     options.numTrees = 6;
-    options.dispersion = 2.5;  // positive: r is fixed there
+    options.shape = 2.5;  // positive: r is fixed there
     ext_rng* one = newRng(51010u);
     nb.build(x.data(), yCount.data(), n, p, nullptr, nullptr,
              ResponseFamily::nbinom, 1.0, 3.0, 0.37804942330213542, options,
@@ -551,9 +551,9 @@ const Row rows[] = {
     check(f.b.base().shape().numAmplitudes == f.b.impl().totalAmplitudes() &&
             f.b.base().shape().numAmplitudes == 3,
           "facade shape: the amplitude total is the combiner's");
-    check(f.nb.base().shape().carriesDispersion &&
-            !f.g.base().shape().carriesDispersion,
-          "facade shape: the dispersion flag is the family's");
+    check(f.nb.base().shape().carriesShape &&
+            !f.g.base().shape().carriesShape,
+          "facade shape: the shape flag is the family's");
     check(f.b.base().shape().forestReportingIsDefined &&
             !f.g.base().shape().forestReportingIsDefined,
           "facade shape: the per-forest reporting flag is the coupling's");
@@ -1070,11 +1070,11 @@ const Row rows[] = {
             f.g.base().sigma(0) != f.g.base().sigma(1),
           "facade sigma: the named chain's sigma answers");
   }},
-  {FacadeVirtual::dispersion, "dispersion", [](Fixtures& f) {
-    check(f.nb.base().dispersion(0) == f.nb.impl().dispersion(0) &&
-            f.nb.base().dispersion(0) == 2.5 &&
-            f.g.base().dispersion(0) == 0.0,
-          "facade dispersion: the family that carries one reports it");
+  {FacadeVirtual::shapeParameter, "shapeParameter", [](Fixtures& f) {
+    check(f.nb.base().shapeParameter(0) == f.nb.impl().shape(0) &&
+            f.nb.base().shapeParameter(0) == 2.5 &&
+            f.g.base().shapeParameter(0) == 0.0,
+          "facade shape: the family that carries one reports it");
   }},
   {FacadeVirtual::setForestBasis, "setForestBasis", [](Fixtures& f) {
     double before = f.b.impl().forestCalibration(0, 0).basisRowNorm;

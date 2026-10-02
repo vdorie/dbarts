@@ -182,7 +182,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0xa7415a6f1bcc93c3ULL
+#  define DBARTS_C_API_HASH 0xa33182bf349aa60dULL
 #endif
 
 #ifdef __cplusplus
@@ -221,7 +221,7 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// that quantity, and a zero or unset structSize makes dbarts_sampler_run error
 /// rather than silently produce no output. k requires a k
 /// hyperprior (dbarts_sampler_kIsSampled), varprobs a DART tree prior
-/// (dbarts_sampler_usesDart), dispersion a count (nbinom) response, and
+/// (dbarts_sampler_usesDart), shape a count (nbinom) response, and
 /// residualDf a Student-t residual law; each is
 /// left untouched otherwise. logLikelihood
 /// carries the per-draw training-data log-likelihood for the gaussian,
@@ -242,7 +242,7 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// split counts per forest that keeps them, slab j forest j's: K on
 /// multinomial, the mean-forest count on an amplitude-coupled model (BCF's
 /// prognostic forest is slab 0). sigma is the pinned 1 on multinomial, and k,
-/// varprobs, dispersion and residualDf are untouched there, since no
+/// varprobs, shape and residualDf are untouched there, since no
 /// multinomial sampler carries them.
 /// Value-initialize with DBARTS_RESULTS_INIT (sets structSize, zeroes the rest):
 ///   dbarts_results results = DBARTS_RESULTS_INIT;
@@ -255,7 +255,7 @@ typedef struct dbarts_results_t {
   double* k;          ///< numSamples x numChains
   double* varprobs;   ///< numPredictors x numSamples x numChains
   double* logLikelihood; ///< numObservations x numSamples x numChains
-  double* dispersion;    ///< numSamples x numChains, the nbinom r per draw
+  double* shape;    ///< numSamples x numChains, the nbinom r per draw
   double* residualDf;    ///< numSamples x numChains, the Student-t nu per draw
   /* 1.0-0 field boundary: every future append goes below this line, never
      above. An append after 1.0-0 bumps DBARTS_C_API_MINOR; a pre-1.0-0 one
@@ -344,7 +344,7 @@ typedef struct dbarts_draw_t {
   const uint32_t* varcount;
   double sigma;
   double k;
-  double dispersion;   ///< NaN off a count (nbinom) response
+  double shape;   ///< NaN off a count (nbinom) response
   double residualDf;   ///< NaN off a Student-t residual law
   /* 1.0-0 field boundary: every future append goes below this line, never
      above, and bumps DBARTS_C_API_MINOR after 1.0-0. */
@@ -856,7 +856,7 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 /// y has numObservations values, which must be finite and lie in the family's
 /// support: 0/1 for probit and logistic, an integer category index in [1, K]
 /// for ordinal, a non-negative integer count no larger than 1e6 for nbinom
-/// (the dispersion grid's count histogram is sized from the largest count, so
+/// (the shape grid's count histogram is sized from the largest count, so
 /// a larger one allocates without bound). A non-finite or out-of-support value
 /// is an error, as it is at creation; gaussian and aft (log survival times)
 /// constrain nothing beyond finiteness. updateScale re-derives the internal

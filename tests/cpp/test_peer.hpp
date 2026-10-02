@@ -207,16 +207,16 @@ struct TestPeer {
                           const double* totalFits) {
     response.drawLatents(rng, totalFits);
   }
-  /// The precomputed dispersion kernel K_k, the one a negative binomial
+  /// The precomputed shape kernel K_k, the one a negative binomial
   /// response has installed, and the grid probabilities the last drawIndex
   /// normalized in place.
-  static double kernelValue(const NBDispersionPrior& prior, std::size_t k) {
+  static double kernelValue(const NBShapePrior& prior, std::size_t k) {
     return prior.kernel_[k];
   }
-  static double dispersionKernel(const NBResponse& response, std::size_t k) {
+  static double shapeKernel(const NBResponse& response, std::size_t k) {
     return kernelValue(response.rPrior_, k);
   }
-  static double drawnProbability(const NBDispersionPrior& prior,
+  static double drawnProbability(const NBShapePrior& prior,
                                  std::size_t k) {
     return prior.weight_[k];
   }

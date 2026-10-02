@@ -241,12 +241,12 @@ struct SamplerOptions {
   // from the ordered-factor level count and refuses K < 2.
   std::size_t numCategories = 0;
 
-  // negative-binomial counts (nbinom family) only: the dispersion spec, the
+  // negative-binomial counts (nbinom family) only: the shape spec, the
   // residualDf sign convention - a positive value fixes r there (an
   // integer), a non-positive value estimates r on the capped grid. Only the
   // nbinom construction reads it;
   // NaN (default) is ignored by every other family.
-  double dispersion = std::numeric_limits<double>::quiet_NaN();
+  double shape = std::numeric_limits<double>::quiet_NaN();
 
   // when set, every kept sample's trees are flattened into a circular buffer
   // of numSamplesToStore slots (at least 1) per chain, for prediction and
@@ -382,12 +382,12 @@ struct Results {
   // only when the response family carriesOrdinalThresholds() (ordinal's K-1
   // thresholds). Every other family leaves it null and allocates nothing.
   double* ordinalThresholds = nullptr;
-  // per-draw negative-binomial dispersion r, numSamples, or null; filled only
-  // when the response family carriesDispersion() (nbinom alone). A pure read of
+  // per-draw negative-binomial shape r, numSamples, or null; filled only
+  // when the response family carriesShape() (nbinom alone). A pure read of
   // state the sweep already settled on - fixed r repeats the installed value,
   // grid-estimated r reports that sweep's draw - so the channel consumes no rng.
   // Every other family leaves it null and allocates nothing.
-  double* dispersion = nullptr;
+  double* shape = nullptr;
   // per-draw Student-t residual degrees of freedom nu, numSamples, or null;
   // filled only when the response family carriesResidualDf() (a Student-t error
   // law). A pure read of state the sweep already settled on - a fixed nu repeats
@@ -510,7 +510,7 @@ struct DrawInfo {
   const std::uint32_t* varcount = nullptr;
   double sigma = 0.0;
   double k = 0.0;
-  double dispersion = 0.0;
+  double shape = 0.0;
   double residualDf = 0.0;
 };
 
@@ -795,10 +795,10 @@ public:
       break;
     case ResponseFamily::nbinom:
       // y holds non-negative counts; the forest fits the log-odds latent under
-      // the Polya-Gamma augmentation, sigma fixed at 1, with dispersion r fixed
-      // (options.dispersion > 0) or grid-estimated
+      // the Polya-Gamma augmentation, sigma fixed at 1, with shape r fixed
+      // (options.shape > 0) or grid-estimated
       response_ = std::make_unique<NBResponse>(y, offset, numObservations,
-                                               options.dispersion);
+                                               options.shape);
       break;
     }
     options_.survivalStatus = nullptr;  // consumed above
@@ -911,7 +911,7 @@ public:
     // share gaussian's arm only because there is no response of theirs to
     // build. Not lifted out of the single-forest constructor's six-arm switch:
     // three of those arms are unreachable here and four of the option channels
-    // they read (residualDf, survivalStatus, numCategories, dispersion) are
+    // they read (residualDf, survivalStatus, numCategories, shape) are
     // ones this path does not carry.
     switch (spec.family) {
     case ResponseFamily::probit:
@@ -1163,12 +1163,12 @@ public:
   std::size_t numOrdinalThresholds() const {
     return response_->numOrdinalThresholds();
   }
-  /// Whether the response family carries a dispersion r (nbinom alone) - the
-  /// gate the recorded dispersion channel and the mid-sweep read share.
-  bool carriesDispersion() const { return response_->carriesDispersion(); }
-  /// The dispersion r in force, 0 off a family carrying one. Fixed at creation
-  /// (options.dispersion > 0) or redrawn on the grid every sweep.
-  double dispersion() const { return response_->dispersion(); }
+  /// Whether the response family carries a shape r (nbinom alone) - the
+  /// gate the recorded shape channel and the mid-sweep read share.
+  bool carriesShape() const { return response_->carriesShape(); }
+  /// The shape r in force, 0 off a family carrying one. Fixed at creation
+  /// (options.shape > 0) or redrawn on the grid every sweep.
+  double shape() const { return response_->shape(); }
   /// Whether the response family carries a residual df nu (a Student-t error
   /// law) - the gate the recorded df channel and the serialized state share.
   bool carriesResidualDf() const { return response_->carriesResidualDf(); }
@@ -2174,7 +2174,7 @@ public:
   ///
   /// The reset is FOREST-ONLY. sigma, k, the DART probabilities, the BCF /
   /// multinomial glue, the variance forest, the saved-tree buffers and the
-  /// response's latent block (z, omega, cutpoints, dispersion) are untouched,
+  /// response's latent block (z, omega, cutpoints, shape) are untouched,
   /// exactly as sampleNodeParametersFromPrior leaves them; a caller wanting a
   /// true restart on a latent family follows with setResponse.
   ///
@@ -3642,10 +3642,10 @@ public:
     } else {
       state.ordinalThresholds.clear();
     }
-    // an NB response's dispersion r is a companion scalar block (the resid.df
+    // an NB response's shape r is a companion scalar block (the resid.df
     // pattern); omega rides latents above. Absent (NaN) for every other family.
-    state.dispersion = response_->carriesDispersion()
-                         ? response_->dispersion()
+    state.shape = response_->carriesShape()
+                         ? response_->shape()
                          : std::numeric_limits<double>::quiet_NaN();
     if (forest.useDart) {
       state.dartProbabilities = forest.dart.probabilities;
@@ -3819,12 +3819,12 @@ public:
         state.ordinalThresholds.size() != response_->numOrdinalThresholds())
       return false;
     // an NB sampler needs both its omega latents (in latents) and a finite
-    // positive whole dispersion r, the only kind the augmentation draws; an old
+    // positive whole shape r, the only kind the augmentation draws; an old
     // state, or one from another family, carries neither and cannot continue
-    if (response_->carriesDispersion() &&
-        (state.latents.size() != n || !(state.dispersion > 0.0) ||
-         !std::isfinite(state.dispersion) ||
-         state.dispersion != std::round(state.dispersion)))
+    if (response_->carriesShape() &&
+        (state.latents.size() != n || !(state.shape > 0.0) ||
+         !std::isfinite(state.shape) ||
+         state.shape != std::round(state.shape)))
       return false;
     if (forests_[0].useDart && !state.dartProbabilities.empty() &&
         state.dartProbabilities.size() != data_.numPredictors)
@@ -3833,7 +3833,7 @@ public:
     // an nbinom state always carries its log-mean shift as an increasing pair;
     // an equal one is from no state this model writes, and installing it
     // would silently skip the shift
-    if (response_->carriesDispersion() && !(state.fitMax > state.fitMin))
+    if (response_->carriesShape() && !(state.fitMax > state.fitMin))
       return false;
     // heteroscedastic: a variance state must carry one flat tree per variance
     // tree, each well-formed AND with every leaf a strictly positive scale (a
@@ -4502,11 +4502,11 @@ public:
     setSigma(state.sigma);
     // RESTORE CONTRACT: an NB response's restoreLatents rebuilds the
     // working response from omega AND r,
-    // so the dispersion MUST be reinstalled before the latents - a restore that
+    // so the shape MUST be reinstalled before the latents - a restore that
     // installs omega first would rebuild working against the stale r. stateIsValid
     // guaranteed a finite positive r for an NB sampler.
-    if (response_->carriesDispersion())
-      response_->restoreDispersion(state.dispersion);
+    if (response_->carriesShape())
+      response_->restoreShape(state.shape);
     if (!state.latents.empty())
       response_->restoreLatents(state.latents.data());
     // RESTORE CONTRACT: a heteroscedastic aft restores its censored latents
@@ -6464,8 +6464,8 @@ private:
     // slabs, so they are readable whether or not the caller kept the channel
     draw.sigma = sigma_ * response_->sigmaScale();
     draw.k = forest.k;
-    draw.dispersion = response_->carriesDispersion()
-      ? response_->dispersion() : std::numeric_limits<double>::quiet_NaN();
+    draw.shape = response_->carriesShape()
+      ? response_->shape() : std::numeric_limits<double>::quiet_NaN();
     draw.residualDf = response_->carriesResidualDf()
       ? response_->residualDf() : std::numeric_limits<double>::quiet_NaN();
   }
@@ -6634,14 +6634,14 @@ private:
                   numOrdinalThresholds * sizeof(double));
     }
 
-    // the dispersion r this draw is conditioned on, the count analog of sigma;
+    // the shape r this draw is conditioned on, the count analog of sigma;
     // the grid draw ran inside refreshLatents before this store, so r is the
     // value the recorded latents and fits are consistent with
-    if (results.dispersion != nullptr && response_->carriesDispersion())
-      results.dispersion[sampleNum] = response_->dispersion();
+    if (results.shape != nullptr && response_->carriesShape())
+      results.shape[sampleNum] = response_->shape();
 
     // the residual df nu this draw is conditioned on, the t analog of the
-    // dispersion r; the grid draw ran inside refreshLatents before this store,
+    // shape r; the grid draw ran inside refreshLatents before this store,
     // so nu is the value the recorded latents and fits are consistent with
     if (results.residualDf != nullptr && response_->carriesResidualDf())
       results.residualDf[sampleNum] = response_->residualDf();

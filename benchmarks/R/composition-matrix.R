@@ -242,7 +242,7 @@ buildBase <- function(family, seed, extra = list()) {
       d$x,
       d$yNb,
       test = d$x[1:5, , drop = FALSE],
-      family = dbarts:::nbinom(dispersion = 5),
+      family = dbarts:::nbinom(shape = 5),
       control = ctl(seed)
     ),
     aft = list(

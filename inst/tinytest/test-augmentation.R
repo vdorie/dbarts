@@ -98,7 +98,7 @@ for (psi in c(0, 0.5, 2, 5)) {
   psiN <- rep(psi, N)
   unit <- dbartsDrawLatents("logistic", psiN, oneN)
   weighted <- dbartsDrawLatents("logistic", psiN, oneN, weights = threeN)
-  counts <- dbartsDrawLatents("nbinom", psiN + log(3), twoN, dispersion = 3)
+  counts <- dbartsDrawLatents("nbinom", psiN + log(3), twoN, shape = 3)
   expect_true(abs(momentZ(unit, pgMoments(1, psi))) < 4)
   expect_true(abs(momentZ(weighted, pgMoments(3, psi))) < 4)
   expect_true(abs(momentZ(counts, pgMoments(5, psi))) < 4)
@@ -159,7 +159,7 @@ quantityOf <- function(family) {
       0.2,
       1,
       thresholds = if (family == "ordinal") 0,
-      dispersion = if (family == "nbinom") 2,
+      shape = if (family == "nbinom") 2,
       df = if (family == "student") 5
     ),
     "quantity"
@@ -201,7 +201,7 @@ for (law in names(lawY)) {
     weights = if (law == "logistic") lawWeights,
     offset = lawOffset,
     sigma = if (law %in% c("aft", "student")) 1.2,
-    dispersion = if (law == "nbinom") 3,
+    shape = if (law == "nbinom") 3,
     thresholds = if (law == "ordinal") c(-0.5, 0.7),
     df = if (law == "student") 5
   )
@@ -212,7 +212,7 @@ for (law in names(lawY)) {
     yLaw,
     weights = if (law == "logistic") lawWeights,
     offset = lawOffset,
-    dispersion = if (law == "nbinom") 3
+    shape = if (law == "nbinom") 3
   )
   expected <- switch(
     law,
@@ -396,8 +396,8 @@ expect_error(
   "'weights' applies only to family \"logistic\""
 )
 expect_error(
-  dbartsDrawLatents("aft", fitRng, yRng, dispersion = 2),
-  "'dispersion' applies only to family \"nbinom\""
+  dbartsDrawLatents("aft", fitRng, yRng, shape = 2),
+  "'shape' applies only to family \"nbinom\""
 )
 expect_error(
   dbartsDrawLatents("probit", fitRng, yRng, thresholds = 0),
@@ -424,7 +424,7 @@ expect_error(
 )
 expect_error(
   dbartsDrawLatents("nbinom", fitRng, rep(2, 6L)),
-  "family \"nbinom\" requires 'dispersion'"
+  "family \"nbinom\" requires 'shape'"
 )
 expect_error(
   dbartsDrawLatents("ordinal", fitRng, rep(1, 6L)),
@@ -446,7 +446,7 @@ expect_error(
   "must be coded 0 or 1"
 )
 expect_error(
-  dbartsDrawLatents("nbinom", fitRng, rep(-1, 6L), dispersion = 2),
+  dbartsDrawLatents("nbinom", fitRng, rep(-1, 6L), shape = 2),
   "non-negative integer"
 )
 expect_error(
@@ -464,8 +464,8 @@ expect_error(
   "positive whole numbers"
 )
 expect_error(
-  dbartsDrawLatents("nbinom", fitRng, rep(2, 6L), dispersion = 1.5),
-  "'dispersion' must be a whole number"
+  dbartsDrawLatents("nbinom", fitRng, rep(2, 6L), shape = 1.5),
+  "'shape' must be a whole number"
 )
 expect_error(
   dbartsDrawLatents("ordinal", fitRng, rep(1, 6L), thresholds = c(1, 0)),

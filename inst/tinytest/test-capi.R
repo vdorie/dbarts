@@ -80,9 +80,12 @@ expect_false(identical(hashes$text, "0xab4909b71853c7df"))
 # the surface and the draw struct's numReportedLocations renamed, so a token
 # blind to an appended entry or a field name would still read this
 expect_false(identical(hashes$text, "0x6380bf095d5cae3f"))
+# the token before the nbinom shape fields: two struct fields renamed, which only
+# the by-name layout fold sees
+expect_false(identical(hashes$text, "0xa7415a6f1bcc93c3"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0xa7415a6f1bcc93c3")
+expect_identical(hashes$text, "0xa33182bf349aa60d")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -521,7 +524,7 @@ expect_equal(rBinLL$loglik[finite], twinLL[finite], tolerance = 1e-9)
 expect_equal(CALL("capi_set_sigma", ptrBinary, 0.5), 0L)
 
 # the nbinom magnitude cap at the flat funnel, which has no R layer ahead of it
-# to state the rule: the dispersion grid's count histogram is sized from the
+# to state the rule: the shape grid's count histogram is sized from the
 # largest count, so the bound is an allocation bound, and creation and the one
 # conduit that swaps y here both carry it. The counts are built without drawing,
 # so the stream stays where the seeds above put it
@@ -534,16 +537,16 @@ expect_error(
   capRefusal
 )
 
-# the dispersion channel from C: the results slot appended to dbarts_results.
+# the shape channel from C: the results slot appended to dbarts_results.
 # The slot is NA-poisoned before the run, so an unfilled channel cannot pass
 # for a filled one
-disp <- CALL("capi_run_dispersion", ptrCount, 2L, 3L)
+disp <- CALL("capi_run_shape", ptrCount, 2L, 3L)
 expect_true(disp$present)
 expect_equal(length(disp$recorded), 3L)
 expect_true(all(is.finite(disp$recorded)))
 expect_true(all(disp$recorded > 0))
 # a caller whose structSize predates the field is never written past, on the
-# one family that HAS a dispersion to write
+# one family that HAS a shape to write
 expect_true(disp$guarded)
 expect_equal(CALL("capi_sampler_family", ptrCount), familyConstants[["nbinom"]])
 
@@ -974,7 +977,7 @@ expect_false(identical(printSrcLive, printSrcSaved))
 
 
 # the Student-t df channel from C: the results slot appended to
-# dbarts_results after the dispersion one, on a sampler whose error law is
+# dbarts_results after the shape one, on a sampler whose error law is
 # selected by the model's resid.df attribute rather than by the family
 # string. The slot is NA-poisoned before the run, so an unfilled channel
 # cannot pass for a filled one
@@ -1375,7 +1378,7 @@ expect_identical(outG$train$body, as.vector(runG$train))
 expect_identical(outG$test$body, as.vector(runG$test))
 expect_identical(outG$varcount$body, as.vector(runG$varcount))
 expect_true(all(is.finite(outG$logLikelihood$body)))
-for (channel in c("k", "varprobs", "dispersion", "residualDf")) {
+for (channel in c("k", "varprobs", "shape", "residualDf")) {
   expect_true(outG[[channel]]$body.untouched, info = channel)
 }
 for (channel in names(outG)) {
@@ -1404,7 +1407,7 @@ expect_identical(outM$test$body, as.vector(runM$test))
 expect_true(all(abs(apply(runM$train, c(1L, 3L, 4L), sum) - 1) < 1e-12))
 expect_identical(outM$varcount$body, as.vector(runM$varcount))
 expect_true(outM$logLikelihood$all.quiet.nan)
-for (channel in c("k", "varprobs", "dispersion", "residualDf")) {
+for (channel in c("k", "varprobs", "shape", "residualDf")) {
   expect_true(outM[[channel]]$body.untouched, info = channel)
 }
 for (channel in names(outM)) {

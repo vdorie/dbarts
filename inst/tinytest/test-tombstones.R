@@ -174,18 +174,18 @@ consControl <- dbarts::dbartsControl(
 
 # --- names that never reached main (dec-2026-09-24) ---
 
-# resid.dist, dispersion, breaks, max.rows, dart, levelGibbs and prior.scale
-# only ever existed on the development branch; none is in 0.9-x, so there is
-# no compatibility to preserve and each is simply an unknown argument now, on
+# resid.dist, breaks, max.rows, dart, levelGibbs and prior.scale only ever
+# existed on the development branch; none is in 0.9-x, so there is no
+# compatibility to preserve and each is simply an unknown argument now, on
 # whichever door used to carry it - a plain "unused argument" refusal, not a
-# silent drop
+# silent drop. shape, which only nbinom() takes, is refused the same way
 expect_error(
   dbarts::bart(xCons, yCons, resid.dist = 1, verbose = FALSE),
   pattern = "unused argument 'resid.dist'"
 )
 expect_error(
-  dbarts::bart(xCons, yCons, dispersion = 1, verbose = FALSE),
-  pattern = "unused argument 'dispersion'"
+  dbarts::bart(xCons, yCons, shape = 1, verbose = FALSE),
+  pattern = "unused argument 'shape'"
 )
 expect_error(
   dbarts::bart(xCons, yCons, breaks = 1, verbose = FALSE),
@@ -212,8 +212,8 @@ expect_error(
   pattern = "unused argument 'resid.dist'"
 )
 expect_error(
-  dbarts::dbarts(xCons, yCons, dispersion = 1, control = consControl),
-  pattern = "unused argument 'dispersion'"
+  dbarts::dbarts(xCons, yCons, shape = 1, control = consControl),
+  pattern = "unused argument 'shape'"
 )
 expect_error(
   dbarts::dbarts(xCons, yCons, breaks = 1, control = consControl),
@@ -229,8 +229,8 @@ expect_error(
   pattern = "unused argument 'resid.dist'"
 )
 expect_error(
-  dbarts::dbartsSpec(consData, dispersion = 1, control = consControl),
-  pattern = "unused argument 'dispersion'"
+  dbarts::dbartsSpec(consData, shape = 1, control = consControl),
+  pattern = "unused argument 'shape'"
 )
 expect_error(
   dbarts::xbart(xCons, yCons, dart = TRUE, n.reps = 1L),

@@ -410,15 +410,15 @@ fitTreeShift <- callBart(
 expect_false(fitTreeShift$fit$control@levelGibbs)
 rm(fitTreeShift)
 
-# ---- site 5: nbinom(dispersion = NULL) ----
+# ---- site 5: nbinom(shape = NULL) ----
 
 nbinom <- dbarts:::dbartsFamilies$nbinom
-expect_null(formals(nbinom)[["dispersion"]])
-expect_true(is.na(nbinom()@settings$dispersion))
-expect_identical(nbinom(dispersion = NULL)@settings, nbinom()@settings)
-expect_equal(nbinom(dispersion = 3)@settings$dispersion, 3)
+expect_null(formals(nbinom)[["shape"]])
+expect_true(is.na(nbinom()@settings$shape))
+expect_identical(nbinom(shape = NULL)@settings, nbinom()@settings)
+expect_equal(nbinom(shape = 3)@settings$shape, 3)
 for (bad in list(NA, NA_real_, 0, -1, Inf, "a", c(1, 2))) {
-  expect_error(nbinom(dispersion = bad), "'dispersion' must be NULL")
+  expect_error(nbinom(shape = bad), "'shape' must be NULL")
 }
 
 # ---- site 6: run(numBurnIn = NULL, numSamples = NULL) ----
@@ -554,7 +554,7 @@ rm(nanRunner)
 expect_error(priors$dart(rho = NaN), "'rho'")
 expect_error(priors$dart(update.delay = NaN), "'update.delay'")
 expect_error(priors$normal(sd = NaN), "'sd'")
-expect_error(nbinom(dispersion = NaN), "'dispersion'")
+expect_error(nbinom(shape = NaN), "'shape'")
 
 # ---- the 0.9-34 sigma and rngSeed reach NULL under the rename warning only ----
 
@@ -591,7 +591,7 @@ expect_no_warning_of(callBart(
 # ---- show prints the spelling the constructor takes ----
 
 expect_true(grepl(
-  "dispersion = NULL",
+  "shape = NULL",
   paste(capture.output(show(nbinom())), collapse = "")
 ))
 expect_true(grepl(

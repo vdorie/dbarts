@@ -259,7 +259,7 @@ resolveSamplerSpec <- function(
   data,
   family,
   requestedFamily,
-  dispersion,
+  shape,
   residDf,
   proposal.probs,
   monotone,
@@ -362,13 +362,13 @@ resolveSamplerSpec <- function(
     if (anyNA(y) || any(y < 0) || any(y != round(y))) {
       stop("family \"nbinom\" requires a non-negative integer (count) response")
     }
-    # the dispersion r: NA (the default) estimates it on the capped integer grid;
+    # the shape r: NA (the default) estimates it on the capped integer grid;
     # a supplied value FIXES it and must be a positive integer (v1 ships the
     # exact integer envelope, section 2). The C bridge reads the resolved spec
     # off the control attribute the sampler build attaches below: a positive
     # value fixes r, a non-positive value estimates it on the grid.
-    dispersionSpec <- resolveDispersion(dispersion)
-    attr(control, "bartcore.dispersion") <- dispersionSpec
+    shapeSpec <- resolveShape(shape)
+    attr(control, "bartcore.shape") <- shapeSpec
   } else if (data@response.type == "numeric") {
     uniqueResponses <- unique(data@y)
     responseIsBinary <- length(uniqueResponses) == 2 &&
@@ -402,7 +402,7 @@ resolveSamplerSpec <- function(
   # NOT binary: the bridge selects it by the bartcore.n.categories attribute
   # (not control@binary), and it reports K category levels. nbinom (counts) is
   # likewise a fixed-unit-scale family (sigma fixed at 1, the counts entering
-  # kappa directly), selected by the bartcore.dispersion attribute.
+  # kappa directly), selected by the bartcore.shape attribute.
   # fixedUnitScale covers all
   # three families wherever the unit-scale handling matters.
   # multinomial (softmax) is the fourth: its K category forests take their leaf
@@ -854,7 +854,7 @@ resolveSamplerSpec <- function(
             "amplitude block"
           ),
           nbinom = paste0(
-            "its dispersion block is not shown to interleave with the ",
+            "its shape block is not shown to interleave with the ",
             "amplitude block"
           ),
           multinomial = paste0(
@@ -1069,7 +1069,7 @@ dbartsSpec <- function(
     parentEnv
   )
   family <- familySpec@token
-  dispersion <- familySetting(familySpec, "dispersion", NA_real_)
+  shape <- familySetting(familySpec, "shape", NA_real_)
   residPrior <- familySetting(familySpec, "sigma", NULL)
   refuseSigestUnderFixedPrior(residPrior, sigest, "sigest")
   # Student-t is a gaussian response carrying a degrees-of-freedom attribute
@@ -1151,7 +1151,7 @@ dbartsSpec <- function(
     data,
     family,
     requestedFamily = familySpec@token,
-    dispersion = dispersion,
+    shape = shape,
     residDf = residDf,
     # the flat argument wins where the caller named it, and leaves the
     # control's own slot standing where they did not

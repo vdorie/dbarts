@@ -3,7 +3,7 @@
 # random number stream. 'fit' is the location
 # WITHOUT the offset - what $getFitsWithoutOffset() reports - and the bridge
 # forms the linear predictor as fit + offset; for nbinom that is the log mean,
-# and the Polya-Gamma law reads it less log(dispersion).
+# and the Polya-Gamma law reads it less log(shape).
 
 augFamilies <- c("probit", "logistic", "ordinal", "aft", "nbinom", "student")
 
@@ -64,7 +64,7 @@ dbartsDrawLatents <- function(
   weights = NULL,
   offset = NULL,
   sigma = NULL,
-  dispersion = NULL,
+  shape = NULL,
   thresholds = NULL,
   df = NULL
 ) {
@@ -80,7 +80,7 @@ dbartsDrawLatents <- function(
   if (!is.null(sigma)) {
     augRestrict(TRUE, "sigma", family, c("aft", "student"))
   }
-  augRestrict(!is.null(dispersion), "dispersion", family, "nbinom")
+  augRestrict(!is.null(shape), "shape", family, "nbinom")
   augRestrict(!is.null(thresholds), "thresholds", family, "ordinal")
   augRestrict(!is.null(df), "df", family, "student")
 
@@ -90,8 +90,8 @@ dbartsDrawLatents <- function(
   if (!is.null(offset)) {
     offset <- augVector(offset, "offset", n)
   }
-  if (!is.null(dispersion)) {
-    dispersion <- augScalar(dispersion, "dispersion", whole = TRUE)
+  if (!is.null(shape)) {
+    shape <- augScalar(shape, "shape", whole = TRUE)
   }
   if (!is.null(df)) {
     df <- augScalar(df, "df")
@@ -126,7 +126,7 @@ dbartsDrawLatents <- function(
     weights,
     offset,
     naIfNull(sigma),
-    naIfNull(dispersion),
+    naIfNull(shape),
     thresholds,
     naIfNull(df)
   )
@@ -138,7 +138,7 @@ dbartsWorkingResponse <- function(
   y,
   weights = NULL,
   offset = NULL,
-  dispersion = NULL
+  shape = NULL
 ) {
   family <- match.arg(family, augFamilies)
   latent <- augVector(latent, "latent")
@@ -148,7 +148,7 @@ dbartsWorkingResponse <- function(
   if (!is.null(weights)) {
     augRestrict(TRUE, "weights", family, "logistic")
   }
-  augRestrict(!is.null(dispersion), "dispersion", family, "nbinom")
+  augRestrict(!is.null(shape), "shape", family, "nbinom")
 
   if (family %in% c("logistic", "nbinom") && any(latent <= 0)) {
     stop(
@@ -164,8 +164,8 @@ dbartsWorkingResponse <- function(
   if (!is.null(offset)) {
     offset <- augVector(offset, "offset", n, "latent")
   }
-  if (!is.null(dispersion)) {
-    dispersion <- augScalar(dispersion, "dispersion", whole = TRUE)
+  if (!is.null(shape)) {
+    shape <- augScalar(shape, "shape", whole = TRUE)
   }
 
   .Call(
@@ -175,6 +175,6 @@ dbartsWorkingResponse <- function(
     y,
     weights,
     offset,
-    naIfNull(dispersion)
+    naIfNull(shape)
   )
 }

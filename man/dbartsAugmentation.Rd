@@ -14,10 +14,10 @@
 }
 \usage{
 dbartsDrawLatents(family, fit, y, weights = NULL, offset = NULL, sigma = NULL,
-                  dispersion = NULL, thresholds = NULL, df = NULL)
+                  shape = NULL, thresholds = NULL, df = NULL)
 
 dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
-                      dispersion = NULL)
+                      shape = NULL)
 }
 \arguments{
   \item{family}{
@@ -53,9 +53,9 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
   \item{sigma}{
     \code{"aft"} and \code{"student"} only: the residual standard deviation, in response units.
   }
-  \item{dispersion}{
-    \code{"nbinom"} only, and required there: the current dispersion \eqn{r}{r}, a positive whole
-    number, as \code{\link[=dbartsSampler-class]{getDispersion}} reports it. An \code{"nbinom"}
+  \item{shape}{
+    \code{"nbinom"} only, and required there: the current shape \eqn{r}{r}, a positive whole
+    number, as \code{\link[=dbartsSampler-class]{getShape}} reports it. An \code{"nbinom"}
     location is a log mean, so the Polya-Gamma draw reads the log-odds
     \eqn{\psi_i = f_i + o_i - \log r}{psi_i = f_i + o_i - log r}.
   }
@@ -101,7 +101,7 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
 }
 \seealso{
   \code{\link[=dbartsSampler-class]{dbartsSampler}}, whose \code{getLatents},
-  \code{getFitsWithoutOffset} and \code{getDispersion} methods report the same quantities from
+  \code{getFitsWithoutOffset} and \code{getShape} methods report the same quantities from
   inside a running sampler.
 }
 \examples{

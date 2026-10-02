@@ -581,7 +581,7 @@ refuseCollidingMixture <- function(control) {
 }
 
 ## A control taken from a fitted sampler carries that fit's model configuration
-## on bartcore.* attributes - the variance forest, the dispersion, the survival
+## on bartcore.* attributes - the variance forest, the shape, the survival
 ## status, the forest map - which a new fit over new data has no claim to.
 ## bart and xbart, which build their own control, refuse it by name; dbarts and
 ## dbartsSpec, where passing a sampler's control on is a 0.9-x pattern, strip
@@ -831,7 +831,7 @@ dbarts <- function(
 
   # the family-only settings, read off the object rather than off formals
   # this signature no longer carries
-  dispersion <- familySetting(familySpec, "dispersion", NA_real_)
+  shape <- familySetting(familySpec, "shape", NA_real_)
   breaks <- familySetting(familySpec, "breaks", NULL)
   max.rows <- familySetting(familySpec, "max.rows", 1e7)
   # The residual scale's prior has one home, the family object it rides; the
@@ -1462,7 +1462,7 @@ dbarts <- function(
     data,
     family,
     requestedFamily = requestedFamily,
-    dispersion = dispersion,
+    shape = shape,
     residDf = residDf,
     proposal.probs = proposal.probs,
     monotone = monotone,
@@ -3086,10 +3086,10 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getSigmas, ptr)
     },
-    getDispersion = function() {
-      "Returns the negative-binomial dispersion r currently in force, one per chain, or NULL on every other family - the count analog of getSigmas(). It is the same scalar run()$dispersion records once per kept draw, read mid-sweep and without serializing state, so a host driving the sampler one sweep at a time reads it here instead of through storeState()$dispersion. Under a fixed dispersion it repeats the value the sampler was created with; otherwise it is that sweep's grid draw."
+    getShape = function() {
+      "Returns the shape parameter of the sampler's family currently in force, one per chain, or NULL on a family with none (only nbinom has one today) - the count analog of getSigmas(). It is the same scalar run()$shape records once per kept draw, read mid-sweep and without serializing state, so a host driving the sampler one sweep at a time reads it here instead of through storeState()$shape. Under a fixed shape it repeats the value the sampler was created with; otherwise it is that sweep's grid draw."
       ptr <- getPointer()
-      .Call(C_dbarts_bartcore_getDispersion, ptr)
+      .Call(C_dbarts_bartcore_getShape, ptr)
     },
     getSumsOfSquaredResiduals = function(result) {
       "Return sum( (y - y.hat)^2 ) on original scale."
