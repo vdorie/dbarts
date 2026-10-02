@@ -192,6 +192,44 @@ f.expr <- fitWith(
   offset.test = o / 2
 )
 expect_identical(f.expr$fit$data@offset.test, rep(50, 5L))
+# A name in the caller's offset.test expression resolves
+# where model.frame resolves one - in the data, then the formula's
+# environment, or the caller's frame without a formula - and never in this
+# package's own frames, whose locals ('x', 'data', 'offset') and namespace
+# lie on the evaluator's own enclosure chain. Each case runs inside a
+# function whose local takes a name those frames also bind, so the test
+# needs no change to the global environment, which a conflicting global
+# would otherwise be the way to show.
+shadowedFit <- function() {
+  x <- rep(7, 5L)
+  fitWith(
+    formula = y ~ a,
+    data = d,
+    offset = o,
+    test = te5[, c("a", "o")],
+    offset.test = o * 0 + x
+  )
+}
+expect_identical(shadowedFit()$fit$data@offset.test, rep(7, 5L))
+shadowedMatrixFit <- function() {
+  x <- rep(3, 5L)
+  bart(
+    as.matrix(d["a"]),
+    d$y,
+    test = as.matrix(te5["a"]),
+    offset = 1,
+    offset.test = x + 0,
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    keepTrees = TRUE
+  )
+}
+expect_identical(shadowedMatrixFit()$fit$data@offset.test, rep(3, 5L))
+rm(shadowedFit, shadowedMatrixFit)
 expect_identical(
   fitWith(
     formula = y ~ a,
