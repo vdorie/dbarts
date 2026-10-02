@@ -104,19 +104,41 @@ expect_error(
 newRows <- data.frame(x = I(x[1:3, , drop = FALSE]))
 expect_error(
   predict(fit.w, newRows, type = "ppd", weights = c(1.5, 2, 3)),
-  "logistic weights are observation counts and must be positive integers",
+  "the posterior predictive 'weights' of a logistic fit are trial counts and must be positive integers",
   fixed = TRUE
 )
 expect_error(
   predict(fit.w, newRows, type = "ppd", weights = c(0, 2, 3)),
-  "logistic weights are observation counts and must be positive integers",
+  "the posterior predictive 'weights' of a logistic fit are trial counts and must be positive integers",
   fixed = TRUE
 )
 ppdCounts <- predict(fit.w, newRows, type = "ppd", weights = c(1, 2, 3))
 expect_true(all(
   ppdCounts >= 0 & ppdCounts <= rep(c(1, 2, 3), each = nrow(ppdCounts))
 ))
-rm(newRows, ppdCounts)
+# a probit fit takes no weights of its own, but its draws at new rows take
+# trial counts under the same policy
+fit.p <- bart(
+  y ~ x,
+  family = "probit",
+  n.samples = 10L,
+  n.burn = 10L,
+  n.trees = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrees = TRUE
+)
+expect_error(
+  predict(fit.p, newRows, type = "ppd", weights = c(1.5, 2, 3)),
+  "the posterior predictive 'weights' of a probit fit are trial counts and must be positive integers",
+  fixed = TRUE
+)
+ppdProbit <- predict(fit.p, newRows, type = "ppd", weights = c(1, 2, 3))
+expect_true(all(
+  ppdProbit >= 0 & ppdProbit <= rep(c(1, 2, 3), each = nrow(ppdProbit))
+))
+rm(newRows, ppdCounts, fit.p, ppdProbit)
 
 # the dbarts sampler surface accepts integer-count logistic weights directly
 control <- dbartsControl(

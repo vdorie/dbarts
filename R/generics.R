@@ -647,6 +647,18 @@ predict.bart <- function(
   }
   offset <- subsetPredictInput(offset, rows, "offset")
   weights <- subsetPredictInput(weights, rows, "weights")
+  # a binary draw's weights at new rows are its trial counts, Binomial(w, p),
+  # under either link, as a logistic fit's own weights are
+  if (type == "ppd" && !is.null(weights) && fitIsBinary(object)) {
+    refuseNonCountWeights(
+      weights,
+      what = paste0(
+        "the posterior predictive 'weights' of a ",
+        fitEngineFamily(object),
+        " fit are trial counts"
+      )
+    )
+  }
 
   if (type == "forest") {
     return(padPredictedRows(
@@ -3558,10 +3570,6 @@ ppdNumDraws <- function(sigma, s, n.obs) {
 # residual scale in that same split layout (heteroscedasticScale); it is NULL
 # for a homoscedastic fit, whose scale is the per-draw scalar sigma.
 sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
-  # a logistic fit's weights are trial counts, at new rows as at its own
-  if (!is.null(weights) && identical(fitEngineFamily(object), "logistic")) {
-    refuseNonCountWeights(weights)
-  }
   oldSeed <- NULL
   if (!is.null(object[["seed"]])) {
     oldSeed <- .GlobalEnv$.Random.seed

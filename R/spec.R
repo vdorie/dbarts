@@ -183,16 +183,16 @@ nonFinitePredictorNames <- function(x) {
 ## to, NULL where they resolved to none: the weights slot is cleared in both
 ## the all-ones and the mask case, since neither family carries a weight
 ## channel, so the caller must install the mask on the sampler it builds.
-## A logistic fit's weights are observation counts, at fit time and in the
-## draws predict makes at new rows alike.
-refuseNonCountWeights <- function(w, remedy = "") {
+## A logistic fit's weights are observation counts, and the weights of a
+## binary fit's posterior predictive draw at new rows are its trial counts;
+## either way, positive integers. 'what' names whose weights they are.
+refuseNonCountWeights <- function(
+  w,
+  remedy = "",
+  what = "logistic weights are observation counts"
+) {
   if (anyNA(w) || any(w <= 0) || any(w != round(w))) {
-    stop(
-      "logistic weights are observation counts and must be positive ",
-      "integers",
-      remedy,
-      call. = FALSE
-    )
+    stop(what, " and must be positive integers", remedy, call. = FALSE)
   }
   invisible(NULL)
 }
