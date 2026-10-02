@@ -148,6 +148,12 @@ items
     list, and a new sampler reader, getK, returns each chain's current k
     as run records it (docs/decisions.md dec-B141, VD 2026-09-29).
     bartCause's bcf changes in lockstep.
+  setstate-mixed-chains: setState refuses a state whose chains disagree
+    on a forest's leaf spread or anchor or on the response scale and
+    shift, naming which; getLeafPrior then never reports NA for
+    disagreeing chains (docs/decisions.md dec-B191, VD 2026-10-02).
+    After nbinom-dispersion-name. Plan:
+    docs/plans/setstate-mixed-chains.md.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
