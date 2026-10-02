@@ -25,7 +25,7 @@
   line.
 }
 \usage{
-\method{summary}{bart}(object, vars = c("sigma", "k", "leaf.prior.sd"), \dots)
+\method{summary}{bart}(object, vars = c("sigma", "k", "leaf.prior.sd", "resid.df"), \dots)
 \method{print}{summary.bart}(x, \dots)
 }
 \arguments{
@@ -43,7 +43,8 @@
     draws. A requested parameter the fit held fixed (\code{sigma} under
     \code{fixed()}, a fixed \code{k} or \code{leaf.prior.sd}, a fixed
     \code{shape} or \code{resid.df}) is not tabulated but named on the
-    line under the table; other requested fields absent from
+    line under the table; with the default \code{vars} that includes a
+    fixed Student-t \code{resid.df}, and a sampled one is tabulated; other requested fields absent from
     \code{object} are silently dropped. \code{sigma}, \code{k} and
     \code{leaf.prior.sd} contribute one summarized variable each; any other field (\code{varcount}, \code{varprobs},
     \code{yhat.train}, \code{yhat.test}) contributes one variable per

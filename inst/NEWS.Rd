@@ -393,7 +393,8 @@
             sampled, \code{sigma} and the leaf scale (\code{k}, or
             \code{leaf.prior.sd} on a fit whose leaf prior was named by
             \code{sd}), with split R-hat and effective sample sizes, and
-            names the ones it held fixed on a line under the table.
+            names every one it held fixed, a Student-t df included, on a line
+            under the table.
             \code{extract(type = "loglik")} returns the pointwise
             log-likelihood, for use with WAIC or PSIS-LOO (for example
             \pkg{loo}), and \code{extract} also reads \code{"sigma"},

@@ -915,7 +915,12 @@ selectForests <- function(value, forest) {
   if (is.null(forest)) {
     return(value)
   }
-  chosen <- value[resolveForestSelection(forest, names(value))]
+  perForest <- if (is.matrix(value)) rownames(value) else names(value)
+  index <- resolveForestSelection(forest, perForest)
+  if (is.matrix(value)) {
+    return(drop(value[index, , drop = FALSE]))
+  }
+  chosen <- value[index]
   if (length(chosen) == 1L) unname(chosen) else chosen
 }
 

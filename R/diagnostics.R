@@ -481,7 +481,7 @@ defaultLeafScaleVars <- function(object, vars) {
 # named under the table, not tabulated as constants.
 summary.bart <- function(
   object,
-  vars = c("sigma", "k", "leaf.prior.sd"),
+  vars = c("sigma", "k", "leaf.prior.sd", "resid.df"),
   ...
 ) {
   if (missing(vars)) {
@@ -539,7 +539,7 @@ summary.bartNegbin <- function(
 # packaging (both components, one call) and the print layout are new.
 summary.bartHurdle <- function(
   object,
-  vars = c("sigma", "k", "leaf.prior.sd"),
+  vars = c("sigma", "k", "leaf.prior.sd", "resid.df"),
   ...
 ) {
   defaulted <- missing(vars)
@@ -625,7 +625,11 @@ summary.bartMultinomial <- function(object, ...) {
     list(
       call = object[["call"]],
       stats = summariseDraws(arr),
-      vars = "prob"
+      vars = "prob",
+      fixed = fixedSummaryValues(
+        object,
+        defaultLeafScaleVars(object, c("k", "leaf.prior.sd"))
+      )
     ),
     class = "summary.bart"
   )
@@ -637,11 +641,12 @@ printFixedLine <- function(fixed) {
   if (length(fixed) == 0L) {
     return(invisible(NULL))
   }
+  show <- function(value) toString(format(unname(value), digits = 4L))
   labels <- unlist(Map(
     function(name, value) {
-      if (length(value) == 1L) {
-        paste0(name, " = ", format(value, digits = 4L))
-      } else {
+      if (is.matrix(value)) {
+        paste0(name, "[", rownames(value), "] = ", apply(value, 1L, show))
+      } else if (!is.null(names(value))) {
         paste0(
           name,
           "[",
@@ -649,6 +654,8 @@ printFixedLine <- function(fixed) {
           "] = ",
           format(unname(value), digits = 4L)
         )
+      } else {
+        paste0(name, " = ", show(value))
       }
     },
     names(fixed),

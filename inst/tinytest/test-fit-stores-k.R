@@ -26,7 +26,7 @@ nSamples <- 5L
 # the front door re-reads its own call, so a literal TRUE or FALSE is what
 # reaches keepSampler; the flag's name is one no argument of bart abbreviates
 fitOf <- function(y, .keep, ...) {
-  suppressWarnings(suppressMessages(
+  suppressMessages(
     if (.keep) {
       bart(
         x,
@@ -56,7 +56,7 @@ fitOf <- function(y, .keep, ...) {
         verbose = FALSE
       )
     }
-  ))
+  )
 }
 
 # the sampler's reading of a quantity, one value when its chains agree
@@ -311,8 +311,12 @@ for (name in names(scenarios)) {
   fit <- scenarios[[name]][[1L]](FALSE)
   expect_identical(is.null(fit$k), is.null(fit[["k"]]), info = name)
   expect_true(all(c("leaf.prior", "fixed") %in% names(fit)), info = name)
-  expect_false(
-    any(grepl("^(k|sigma|shape|first|fit|y)", c("leaf.prior", "fixed"))),
+  # summary's printed output names what the fit held fixed, and only then; an
+  # ordinal fit always holds its first threshold
+  printed <- capture.output(print(summary(fit)))
+  expect_identical(
+    any(grepl("(Fixed, not sampled: ", printed, fixed = TRUE)),
+    length(fit$fixed) > 0L || inherits(fit, "bartOrdinal"),
     info = name
   )
 }
@@ -333,7 +337,7 @@ expect_identical(dim(extract(heteroscedastic, "sigma")), c(2L * nSamples, n))
 
 dat <- data.frame(x, y = yGaussian + rbinom(n, 1L, 0.5))
 dat$z <- rbinom(n, 1L, 0.5)
-forests <- suppressWarnings(bart(
+forests <- bart(
   y ~ x1 + x2 + x3 + z:forest(x1 + x2),
   dat,
   n.trees = 5L,
@@ -344,7 +348,7 @@ forests <- suppressWarnings(bart(
   seed = 7L,
   keepSampler = TRUE,
   verbose = FALSE
-))
+)
 expect_identical(forests$n.forests, 2L)
 expect_identical(names(forests$leaf.prior), c("forest1", "forest2"))
 expect_null(forests[["k"]])
@@ -481,24 +485,110 @@ expect_stdout(
 
 # --- plot and print: a parameter held fixed has no trace ---
 
-pdf(NULL)
-par(mfrow = c(3L, 3L))
-plot(fixedSigmaFit)
-expect_equal(par("mfrow"), c(3L, 3L))
-dev.off()
+# the panels a plot actually draws, counted at each new plot
+panelsDrawn <- function(fit) {
+  hooks <- getHook("plot.new")
+  panels <- 0L
+  pdf(NULL)
+  on.exit({
+    setHook("plot.new", hooks, "replace")
+    dev.off()
+  })
+  setHook("plot.new", function(...) panels <<- panels + 1L, "append")
+  plot(fit)
+  panels
+}
+expect_identical(panelsDrawn(fitOf(yGaussian, TRUE)), 2L)
+expect_identical(panelsDrawn(fixedSigmaFit), 1L)
 nbinomFixedFit <- fitOf(
   yCount,
   TRUE,
   family = dbartsFamilies$nbinom(shape = 3),
   k = 2
 )
+nbinomDrawnFit <- fitOf(yCount, TRUE, family = "nbinom")
+expect_identical(panelsDrawn(nbinomDrawnFit), 2L)
+expect_identical(panelsDrawn(nbinomFixedFit), 1L)
+expect_identical(panelsDrawn(hurdle), 4L)
+hurdleFixed <- fitOf(
+  yHurdle,
+  TRUE,
+  family = dbartsFamilies$hurdle.lognormal(sigma = dbartsPriors$fixed(0.3))
+)
+expect_identical(panelsDrawn(hurdleFixed), 3L)
 expect_stdout(print(nbinomFixedFit), "shape (r): fixed at 3", fixed = TRUE)
+expect_stdout(print(nbinomDrawnFit), "posterior mean shape (r)", fixed = TRUE)
+
+# --- chains that hold different values of a fixed quantity, as a warm start
+# from a donor that drew them leaves them: one value per chain, in chain order ---
+
+donor <- fitOf(yGaussian, TRUE, k = dbartsPriors$chi(2, 1))
+warmed <- fitOf(
+  yGaussian,
+  TRUE,
+  family = dbartsFamilies$gaussian(sigma = dbartsPriors$fixed(1)),
+  warm.start = donor
+)
+expect_identical(length(unique(warmed$fit$getSigmas())), 2L)
+expect_identical(warmed$fixed$sigma, as.vector(warmed$fit$getSigmas()))
+expect_identical(warmed$fixed$k, as.vector(warmed$fit$getK()))
+for (type in c("sigma", "k")) {
+  held <- if (type == "sigma") warmed$fit$getSigmas() else warmed$fit$getK()
+  expect_identical(extract(warmed, type), as.vector(held), info = type)
+  expect_identical(
+    extract(warmed, type, combineChains = FALSE),
+    as.vector(held),
+    info = type
+  )
+}
+expect_equal(
+  extract(warmed, "leaf.prior.sd"),
+  warmed$leaf.prior$anchor / as.vector(warmed$fit$getK())
+)
 expect_stdout(
-  print(fitOf(yCount, TRUE, family = "nbinom")),
-  "posterior mean shape (r)",
+  print(summary(warmed)),
+  paste0(
+    "sigma = ",
+    toString(format(as.vector(warmed$fit$getSigmas()), digits = 4L))
+  ),
   fixed = TRUE
 )
-pdf(NULL)
-plot(nbinomFixedFit)
-expect_equal(par("mfrow"), c(1L, 1L))
-dev.off()
+
+# --- summary names every parameter held fixed, the Student-t df and a
+# multinomial fit's k among them ---
+
+studentSummary <- capture.output(
+  print(summary(fitOf(
+    yGaussian,
+    TRUE,
+    family = dbartsFamilies$student(df = 5)
+  )))
+)
+expect_true(any(grepl(
+  "(Fixed, not sampled: k = 2, resid.df = 5)",
+  studentSummary,
+  fixed = TRUE
+)))
+multinomialSummary <- summary(fitOf(yClass, TRUE, family = "multinomial"))
+expect_equal(multinomialSummary$fixed, list(k = 2))
+expect_stdout(
+  print(multinomialSummary),
+  "(Fixed, not sampled: k = 2)",
+  fixed = TRUE
+)
+# a sigma of 1 the family pins is not named
+probitSummary <- summary(fitOf(yBinary, TRUE))
+expect_false("sigma" %in% names(probitSummary$fixed))
+expect_false(any(grepl(
+  "sigma",
+  capture.output(print(probitSummary)),
+  fixed = TRUE
+)))
+# a sampled df is a row of the default table and is not on the line
+sampledDf <- summary(fitOf(
+  yGaussian,
+  TRUE,
+  family = dbartsFamilies$student()
+))
+expect_true("resid.df" %in% sampledDf$stats$variable)
+expect_false("resid.df" %in% names(sampledDf$fixed))

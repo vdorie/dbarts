@@ -612,6 +612,7 @@ fitFixedK <- bart(
 )
 # a fixed k is no channel, and extract returns it as the one number
 expect_null(fitFixedK[["k"]])
+expect_null(fitFixedK$k)
 expect_identical(extract(fitFixedK, type = "k"), 2)
 expect_identical(extract(fitFixedK, type = "k", combineChains = FALSE), 2)
 expect_equal(

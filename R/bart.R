@@ -168,12 +168,13 @@ nameVarcount <- function(raw, predictorNames, n.chains, combineChains) {
   varcount
 }
 
-# One value for a quantity every chain holds alike; NA where the chains
-# disagree, which only a setState of chains saved from different samplers
-# makes.
+# One value for a quantity every chain holds alike, and each chain's own, in
+# chain order, where they differ: a model that fixes a quantity still leaves
+# each chain at the value it was installed with, as a warm start from chains
+# that drew it does.
 sharedValue <- function(x) {
-  values <- unique(as.vector(x))
-  if (length(values) == 1L) values else NA_real_
+  values <- as.vector(x)
+  if (length(unique(values)) == 1L) values[1L] else values
 }
 
 # Whether a forest's k is drawn from a hyperprior: a calibration-mapped
@@ -233,7 +234,17 @@ fitDescriptors <- function(sampler, samples = NULL) {
   ) {
     k <- sampler$getK()
     fixed$k <- if (is.matrix(k) && several) {
-      setNames(apply(k, 1L, sharedValue), forestNames)
+      perForest <- lapply(seq_len(nrow(k)), function(i) sharedValue(k[i, ]))
+      if (all(lengths(perForest) == 1L)) {
+        setNames(unlist(perForest), forestNames)
+      } else {
+        `rownames<-`(
+          do.call(rbind, lapply(perForest, rep_len, ncol(k))),
+          forestNames
+        )
+      }
+    } else if (is.matrix(k)) {
+      sharedValue(k[1L, ])
     } else {
       sharedValue(k)
     }
