@@ -198,3 +198,12 @@ ADD an anchored row, but not as a re-recordable baseline and not in equivalence.
 If only one thing is adopted, adopt the expected-difference table: the current baselines are
 self-referential because nothing in the tree records what the released engine's posterior looked
 like, and sections 3-4 are that record - cheap, because `main` still builds.
+
+## Addendum, third review (2026-10-01, tip 01dee4b4)
+
+The record above stays as written. Re-run against 0.9-34 at 01dee4b4, every scenario agrees or
+differs only as a recorded decision explains, with one change: E3 has gone. The in-core grouped
+Gibbs that caused it was removed (dec-A01), and rbart_vi is 0.9-34's R loop on the new sampler
+(dec-B130, dec-A99). rbart_sym now AGREES (sigma 0.9077 vs 0.9094, z -0.68), so section 7's
+expected difference "rbart_sym sigma -1.8%" no longer holds and that scenario must agree; the small
+residual left at 10x precision is E1.
