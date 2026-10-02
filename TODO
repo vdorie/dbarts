@@ -170,7 +170,8 @@ items
     sigma; whether a warm start keeps the recipient's model; a supplied
     gp lengthscale; and the response transform, cut points and leaf
     standardization, which only the state carries once frozen. Engine,
-    bridge and R; no header change expected. No plan yet.
+    bridge and R; no header change expected. Plan:
+    docs/plans/state-not-model.md.
   fit-stores-k: a bart fit with a drawn leaf scale carries k and first.k
     under every naming, with the anchor, and extract(type = "sd")
     converts; sd and first.sd leave the fit (docs/decisions.md dec-B192,
