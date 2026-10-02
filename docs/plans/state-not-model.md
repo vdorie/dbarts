@@ -1,21 +1,23 @@
 # state-not-model: a saved state holds the chain, not the model
 
-Status: PLANNED 2026-10-02 under dec-B195, dec-B196 and dec-B197 in [decisions.md](../decisions.md).
-Step 3 waits on the transform design under Decision.
+Status: PLANNED 2026-10-02 under dec-B195, dec-B196, dec-B197 and dec-B200 in [decisions.md](../decisions.md).
+Starts after [fit-stores-k.md](fit-stores-k.md) lands.
 
 agent: opus implementer, one; opus reviewer.
 rng: NEUTRAL. A state installed in a sampler under the model it was saved with gives the draws it gives today.
 Only an install across a model change behaves differently, and no recorded baseline contains one.
 window: pre-release, before the 1.0-0 merge.
-budget: ~900 lines (engine ~150, bridge ~90, R ~50, manual ~50, tests ~500, records ~40). Plans have run 1.5-2x
-low.
+budget: ~1400 lines (engine ~260, bridge ~110, R ~120, manual ~70, tests ~780, records ~60). Plans have run
+1.5-2x low.
 
 ## Goal
 
 A state holds what the chain is: trees, leaf values, the quantities the sampler draws, the generator, and the
-frame those numbers are stored in. It holds no prior parameter and no value the sampler holds fixed. Installing
-a state through `setState`, `copy` or a reload never changes the sampler's model, and `getLeafPrior` reads the
-same before and after.
+units those numbers are stored in. It holds no prior parameter and no value the sampler holds fixed. A sampler
+has one set of units, fixed by its model and data, and a state stored in other units is converted into them as
+it is installed. Installing a state through `setState`, `copy`, a reload or a warm start never changes the
+sampler's model, `getLeafPrior` reads the same before and after and never reports NA, and every chain of a
+sampler runs under one prior.
 
 ## Context
 
@@ -38,8 +40,9 @@ same before and after.
   | `leaf.scale` | model | installed; marks a calibration-map forest foreign | not written, not installed |
   | glue: amplitude prior variance | state on a scale-mixture forest, model on a fixed-variance one | installed on both | installed on a scale-mixture forest only |
   | glue: amplitudes of a forest created with `update.amplitude = FALSE` | model | installed | not installed |
-  | `fit.scale`, `cutPoints`, `leaf.covariate.center` and `.scale`, a heuristic gp lengthscale | scratch, but frozen while the data moves, so only the state has them | installed | unchanged (Decision 3) |
-  | a supplied gp lengthscale | model | installed | Decision 2 |
+  | `fit.scale` | the units the chain's numbers are stored in | installed, and a k-named prior's centre and width move with it | compared with the sampler's own; stored numbers converted when they differ |
+  | `cutPoints`, `leaf.covariate.center` and `.scale`, a heuristic gp lengthscale | scratch, but frozen while the data moves, so only the state has them | installed | unchanged |
+  | a supplied gp lengthscale | model | installed | the sampler's (dec-A146) |
   | weights and survival digests | data, by digest | compared | unchanged |
 
 - No model value is a unit of a stored number. Leaf values, slopes and amplitudes are stored raw; the scale and k
@@ -54,9 +57,29 @@ same before and after.
   [`calibrateVarianceLeaf`](../../src/bartcore/chain.hpp) for the variance leaf.
 - The registry rule at [`stateFormatVersion`](../../src/R_interface_bartcore.cpp): no format has shipped, so
   neither constant moves.
+- The response transform and the prior. A k-named leaf prior's width is a constant times the range of the
+  chain's transform and every leaf prior's centre is its midpoint; the calibration map's forest scales and the
+  negative-binomial centre follow it too. Measured: installing a state saved on 3y + 10 moves a k-named
+  sampler's anchor from 3.92 to 11.77 and its centre from 3.36 to 20.08, and a sampler given chains in two
+  transforms runs them as two posteriors. No R field holds the transform: after a response swapped without the
+  scale update, a sampler rebuilt from its own control, model and data derives another one, and only the state
+  brings the saver's back.
+- Each chain holds its own rescaled response, so the engine has no single transform today;
+  [`GaussianResponse::restoreScale`](../../src/bartcore/model.hpp) moves a chain to an installed one and carries
+  the sigma prior, inexactly: at an unchanged range the carry moves the prior by an ulp in about a third of
+  cases, so one call more or fewer than today changes draws.
+- Conversion, emulated in R on a constant leaf by rewriting a state before today's install: every leaf value,
+  saved draws included, times the ratio of the ranges, plus the shift difference over the range spread across
+  the trees. Replayed predictions agree with today's to 5e-16 relative and the converted chain then runs as a
+  sampler wholly in those units does. By reading, a monotone leaf converts the same way, a linear leaf's slopes
+  scale and its intercept shifts, the negative-binomial has a shift only, and variance-forest factors take the
+  squared ratio spread over the trees as [`reanchorVarianceForest`](../../src/bartcore/chain.hpp) does to a live
+  forest. A gp leaf's saved draw has no mean to shift, and with amplitudes a shift has no forest to own it.
 - Consumers. stan4bart restores, for replay of kept trees, a state holding one chain from each of its per-chain
-  samplers; the chains' response transforms differ, its sigma is held fixed and written during sampling, and
-  the replay reads neither sigma nor the leaf prior. bartCause and treatSens install no state.
+  samplers, into a sampler created from its specification's model; the chains' transforms differ from each
+  other and from that sampler's, its sigma is held fixed and written during sampling, and the replay reads
+  neither sigma nor the leaf prior. Its suite compares replays to 1e-10. bartCause and treatSens install no
+  state. rbart's per-chain samplers come back from workers with a transform frozen away from the data's.
 
 ## Decision
 
@@ -72,14 +95,14 @@ Applied under those rulings by the agents, recorded as dec-A146 for the maintain
 2. A supplied gp lengthscale is the sampler's. A state holding saved draws made under another is refused, since
    a saved gp draw cannot be replayed under another kernel; without saved draws it installs.
 
-Open:
+Ruled after the first two were applied:
 
-3. The frame: the response transform, cut points and leaf standardization stay in the state as the units the
-   chain is stored in. The maintainer, asked about the transform: "Well, prior != state, as we agreed." A
-   k-named leaf prior takes its centre and width from the transform, so an installed transform must not move
-   it: the sampler's prior stays its own in response units and is re-expressed in the installed units, as a
-   named sd and the sigma prior already are. The mechanism, and where the anchor is recorded so a re-creation
-   reproduces it, are being designed; step 3 grows by it.
+3. The response transform (dec-B200). The maintainer, asked what an installed transform does to the prior:
+   "Well, prior != state, as we agreed."; and, offered conversion against each chain keeping its units with the
+   prior re-expressed per chain: "Convert on install." The range a k-named prior is anchored to is a model
+   value, recorded on the R object, set when the sampler is created or deliberately re-anchored and by nothing
+   else. A re-anchor is therefore a model change that restoring a state does not undo: the restored values are
+   converted into the re-anchored units.
 
 ## Constraints
 
@@ -99,9 +122,31 @@ Open:
   [`getPointer`](../../R/dbarts.R).
 - The undo of a failed warm start keeps working: what it snapshots and puts back must still return the
   recipient to where it was. With no model value installed, there is none to put back.
-- No install is refused because its chains carry different response transforms: stan4bart's restored samplers
-  are such chains, and dec-B191's refusal is withdrawn. What the reader reports for them follows Decision 3.
-- The transform, the cut grid, the leaf standardization and a heuristic lengthscale install as today.
+- The record is an attribute on the model object, the engine's exact pair; a slot would break samplers saved
+  before it existed. `initialize` writes it from the engine on a first creation, whatever the model handed in
+  carries, so a sampler made from another's model on other data anchors to its own data as today. The
+  re-anchoring calls - `setResponse` and `setOffset` with the scale update, `setData` - refresh it; `setModel`
+  carries it over; `setState`, `copy`, a reload and `installTrees` never write it. A re-anchor through the C
+  header cannot reach it, the gap dec-B197 states for sigma.
+- A sampler re-created from its own R object is in the record's units before anything reads it. Where an
+  install follows the creation - a reload with a state, `copy` - the install's own move does this, exactly as
+  today; where none follows, creation moves the chains itself. About ten entries read the transform before any
+  run, the reader, `storeState`, predict and the prior draws among them, so the move is never deferred.
+- Conversion is a pass over the incoming state ahead of the install, comparing each chain's `fit.scale` with
+  the sampler's pair by exact equality. Equal: nothing is touched and today's install runs, its one
+  `restoreScale` included, so the invariant above holds by construction. Different: the stored numbers are
+  rewritten and the chain's `fit.scale` set to the sampler's, and the same install runs. The caller's state
+  object is not modified.
+- What cannot be converted is refused by name, with the sampler unchanged: a gp leaf or forests with amplitudes
+  when the shift differs. Their scale converts.
+- No install is refused because its chains carry different transforms from each other: stan4bart's restored
+  samplers are such chains, and dec-B191's refusal is withdrawn. They are converted, each from its own units.
+- A warm start converts the donor's values into the recipient's units and no longer adopts the donor's
+  transform, so a donor on another range seeds the function it held.
+- The reader takes the anchor, the prior mean and the response scale and shift from the sampler's one
+  transform. Its branch for chains that disagree goes.
+- The cut grid, the leaf standardization and a heuristic lengthscale install as today. They shape a prior too -
+  the slope prior, the gp kernel, the split rule - and are left for a later item, named in the Landing note.
 - No new entry or field in the shipped header; no change to either state-format constant.
 - Out of scope: a family check in the state validity test (a gaussian state installs into a probit sampler
   today and still will, less its sigma); `copy()` reading the stored state rather than the live chain; recording
@@ -122,16 +167,23 @@ Open:
    [`InstallMarks`](../../src/bartcore/chain.hpp). tests/cpp follows.
 2. Bridge. `leaf.scale` leaves both parsers and the writer; `k`, `sigma`, `resid.df`, `shape` and `dart.alpha`
    become optional in both, `dart.alpha` no longer required beside `dart.probabilities`.
-3. R. Re-state a named sd after the install in the three paths that install a state. Drop the reader's
-   calibration NA branches in [`reportLeafPrior`](../../R/dbarts.R) and narrow the NA-sd refusal in
-   [`resolveForestSpreads`](../../R/dbarts.R) to the disagreeing-chains case.
+3. R. Re-state a named sd after the install in the three paths that install a state. Drop every NA branch of
+   [`reportLeafPrior`](../../R/dbarts.R) and the NA-sd refusal in
+   [`resolveForestSpreads`](../../R/dbarts.R).
 4. `setSigma` on a sampler that does not draw sigma records the value on the model field.
 5. The warm start through the same install rule; the lengthscale refusal, with its own flag beside those the
    install already reports.
-6. Manual: `setState`, `storeState`, `copy`, `getLeafPrior`, `setLeafPrior`, `setSigma`, `installTrees` and
-   `warm.start`, and the docstrings they mirror: what a state holds, that the model is the sampler's, and that
-   the transform, grid and standardization come with the state.
-7. Tests. Rewrite the cases that pin a model value riding the state:
+6. The anchor. The engine holds the sampler's pair apart from each chain's transform; the bridge passes the
+   record at creation and reads the pair back; the record attribute and its four writers in R; the creation
+   route that moves the chains when no install follows, with `copy` routed as an install.
+7. Conversion: the pass over the incoming state for each leaf model and for variance factors, saved draws
+   included, ahead of [`Sampler::setState`](../../src/bartcore/sampler.hpp) and
+   [`installForests`](../../src/bartcore/sampler.hpp); the two refusals.
+8. Manual: `setState`, `storeState`, `copy`, `getLeafPrior`, `setLeafPrior`, `setSigma`, `installTrees` and
+   `warm.start`, and the docstrings they mirror: what a state holds, that the model is the sampler's, that a
+   state in other units is converted and to what accuracy, that a re-anchor is a model change a restore does
+   not undo, with the sequence that rolls one back, and that the grid and standardization come with the state.
+9. Tests. Rewrite the cases that pin a model value riding the state:
    ["FOREIGN CALIBRATION"](../../inst/tinytest/test-forest-basis-r5.R),
    ["a pre-write state"](../../inst/tinytest/test-multiforest-leaf-prior-writer.R),
    ["the per-forest leaf scale rides the state"](../../inst/tinytest/test-bcf.R),
@@ -143,8 +195,15 @@ Open:
    and fixed amplitudes, store, write, restore, with the reader and the next draws matching a twin that only
    wrote; a state from one model installed under another leaves the recipient's reader unchanged; drawn values
    still install; a state with the old blocks present installs; a gaussian state leaves a probit sampler's
-   sigma at 1.
-8. Records: a design note carrying the block inventory and where the four-way division holds and does not, the
+   sigma at 1. For the anchor and conversion: the reader identical across an install from a sampler on a
+   rescaled response, for each naming and leaf model; prior-only draws at the sampler's anchor after it; the
+   converted state's replayed predictions equal to the donor's to rounding and the live fit preserved, for
+   constant, monotone and linear leaves, a variance forest, the negative-binomial and a gp leaf on an equal
+   shift; the two refusals, sampler unchanged; chains from two samplers on different ranges combined into one
+   state, installed, and run as one posterior; a re-creation after a swap without the scale update bitwise
+   today's with its state, and under the saver's prior without one; a copy and a reload whose stored state
+   predates a re-anchor; the rollback sequence; a warm start from a donor on another range.
+10. Records: a design note carrying the block inventory and where the four-way division holds and does not, the
    state paragraph of docs/architecture.md, the ledger entries for the calls made here, the index row, the TODO
    item, and the Landing note naming every install path covered.
 
@@ -161,5 +220,8 @@ Against a private library, installed with `--preclean` (step 1 changes virtuals)
   carries changes.
 - stan4bart's suite, its store-trees test with several chains included, bartCause's and treatSens's pass
   against a private-library chain built on this tip.
+- Mutation, run once and reported: with the conversion pass skipped, the combined-chains test fails.
+- Sanitizers on tests/cpp and on the R-loaded path for the new state tests, as Gate hygiene describes: the
+  conversion pass writes through every stored tree.
 - `lintr::lint_package()`, `air format --check .`, `tools/check-rc-codoc.R`, `tools/check-win-drift.R` and
   `tools/check-doc-freshness.R` pass, each on its own exit status.

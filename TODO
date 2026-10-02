@@ -149,21 +149,20 @@ items
     as run records it (docs/decisions.md dec-B141, VD 2026-09-29).
     bartCause's bcf changes in lockstep.
   state-not-model: a saved state holds the chain and not the model (VD
-    2026-10-02, docs/decisions.md dec-B195 to dec-B197). The leaf scale
-    and a fixed-variance forest's amplitude prior variance leave the
-    state; sigma, k, the Student-t df, the negative-binomial shape and
-    the DART concentration are written and installed only where the
-    sampler draws them, so getLeafPrior reads the same before and after
-    setState, copy or a reload. Found in design, same rule: amplitudes
-    held fixed, and a sigma installed into a family that pins it (a
-    gaussian state leaves a probit sampler at sigma 1.26). setSigma on a
-    sampler that does not draw sigma rewrites the model's fixed value
-    (dec-B197). A warm start follows the same rule and a supplied gp
-    lengthscale is the sampler's (dec-A146). In design: keeping a
-    k-named prior, which takes its centre and width from the response
-    transform, unmoved when a state brings another transform. Engine,
-    bridge and R; no header change expected. Plan:
-    docs/plans/state-not-model.md.
+    2026-10-02, docs/decisions.md dec-B195 to dec-B197, dec-B200). The
+    leaf scale and a fixed-variance forest's amplitude prior variance
+    leave the state; sigma, k, the Student-t df, the negative-binomial
+    shape and the DART concentration are written and installed only
+    where the sampler draws them; setSigma on a sampler that does not
+    draw sigma rewrites the model's fixed value. The range a k-named
+    prior is anchored to becomes a recorded model value, and a state
+    stored in another response transform is converted into the sampler's
+    on install, so getLeafPrior reads the same before and after
+    setState, copy, a reload or a warm start and never NA. A warm start
+    follows the same rule and a supplied gp lengthscale is the sampler's
+    (dec-A146). Left for later: the cut grid and leaf standardization,
+    which a state still brings. Engine, bridge and R; no header change
+    expected. After fit-stores-k. Plan: docs/plans/state-not-model.md.
   fit-stores-k: a bart fit with a drawn leaf scale carries k and first.k
     under every naming, and every fit the leaf prior it ran under; sd
     and first.sd leave the fit (docs/decisions.md dec-B192, VD
