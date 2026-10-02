@@ -307,10 +307,9 @@ test.subset <- data.frame(
   stringsAsFactors = FALSE
 )
 data.subset <- dbartsData(
-  y ~ g + o + z + b + s,
-  df,
-  test = test.subset,
-  factors = "categorical"
+  df[c("g", "o", "z", "b", "s")],
+  df$y,
+  test = test.subset
 )
 trainLevels <- attr(data.subset@x, "factor.levels")
 for (name in c("g", "o", "s")) {

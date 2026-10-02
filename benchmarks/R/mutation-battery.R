@@ -492,10 +492,14 @@ mutations <- list(
 ## zero-trial, nbinom, t and ordinal families, predictor-mutation rollback,
 ## data ingestion, the bridge's validation, and the generics. Killers are the
 ## tinytest files, tests/cpp and quick exact gates that own each site.
-## The thirteen that first survived the full tinytest suite, tests/cpp and the
-## cheap quick gates (m38, m42, m59, m63, m67, m71, m74, m76, m78, m79, m80,
-## m84, m87) each have a killing test now and are KILL_EXPECTED; r3s stays for
-## the next gap found. Ids left
+## Of the thirteen that first survived the full tinytest suite, tests/cpp and
+## the cheap quick gates, twelve (m38, m42, m59, m63, m67, m71, m74, m76, m78,
+## m79, m84, m87) each have a killing test now and are KILL_EXPECTED; r3s stays
+## for the next gap found. m80 (mapFactorColumnsToTrainingLevels coding a test
+## factor against its own levels) is equivalent: every validateXTest path then
+## builds a container that alignContainerFactorLevels re-codes by label, and
+## the unseen-level refusal it would skip raises there with the same message.
+## Ids left
 ## unassigned: m36 (monotoneMovePair flip) and m55 (aft setSurvivalStatus
 ## restoring logT_) are equivalent on every reachable path - a split on a
 ## constrained axis keeps its children in one component, where the ratio is
@@ -1021,18 +1025,6 @@ mutations <- c(
         "test-na-action.R"
       ),
       "mixed container missing rows: dense-column NA rows dropped when a sparse block is present"
-    ),
-    r3(
-      "m80",
-      "R/utility.R",
-      "refactored <- factor(as.character(column), levels = factorLevels[[j]])",
-      "refactored <- factor(as.character(column))",
-      kTests(
-        "test-data-categorical.R",
-        "test-predict-na-action.R",
-        "test-generics-correctValues.R"
-      ),
-      "test factor coding: levels recoded against the test set's own levels"
     ),
     r3(
       "m81",
