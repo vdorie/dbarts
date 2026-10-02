@@ -469,3 +469,63 @@ newHBoth <- cbind(x1 = runif(4L), x2 = runif(4L), x4 = c(NA_real_, runif(3L)))
 predHBoth <- predict(fitHBoth, newHBoth)
 expect_equal(dim(predHBoth), c(6L, 4L))
 expect_true(!anyNA(predHBoth))
+
+# the na.action settles the rows before the response is split, as on any
+# other fit: under na.omit a row missing a predictor is dropped from both
+# parts, wherever its missing values sit, so neither refusal above applies,
+# and the fit is the one on the complete rows; under na.exclude the readers
+# pad the dropped rows back
+hurdleNaFit <- function(x, y, ...) {
+  bart(
+    x,
+    y,
+    family = "hurdle.lognormal",
+    n.samples = 5L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.chains = 1L,
+    verbose = FALSE,
+    seed = 15L,
+    ...
+  )
+}
+xH5 <- runif(nH)
+xH5[which(!occupiedH)[1:2]] <- NA_real_
+xHZero <- cbind(x1 = xH1, x2 = xH2, x5 = xH5)
+completeH <- !is.na(xH5)
+fitHOmit <- hurdleNaFit(xHZero, yH, na.action = na.omit)
+fitHComplete <- hurdleNaFit(xHZero[completeH, ], yH[completeH])
+expect_identical(
+  unname(fitted(fitHOmit)),
+  unname(fitted(fitHComplete))
+)
+expect_identical(
+  as.vector(unclass(fitHOmit$na.action)),
+  which(!completeH)
+)
+fitHBothOmit <- hurdleNaFit(xHBoth, yH, na.action = na.omit)
+expect_identical(length(fitted(fitHBothOmit)), nH - 2L)
+fitHExclude <- hurdleNaFit(xHBoth, yH, na.action = na.exclude)
+fittedExclude <- fitted(fitHExclude)
+expect_identical(length(fittedExclude), nH)
+expect_true(all(is.na(fittedExclude[c(posIdxH, zeroIdxH)])))
+expect_identical(
+  unname(fittedExclude[-c(posIdxH, zeroIdxH)]),
+  unname(fitted(fitHBothOmit))
+)
+expect_error(
+  hurdleNaFit(xHBoth, yH, na.action = na.fail),
+  "missing values in object",
+  fixed = TRUE
+)
+rm(
+  hurdleNaFit,
+  xH5,
+  xHZero,
+  completeH,
+  fitHOmit,
+  fitHComplete,
+  fitHBothOmit,
+  fitHExclude,
+  fittedExclude
+)

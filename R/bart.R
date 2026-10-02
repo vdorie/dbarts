@@ -1565,7 +1565,8 @@ bart <- function(
         data,
         seed,
         consolidated,
-        residPrior
+        residPrior,
+        na.action
       )
     ))
   }
@@ -2956,7 +2957,8 @@ bart2Hurdle <- function(
   data,
   seed,
   consolidated = list(),
-  residPrior = NULL
+  residPrior = NULL,
+  na.action = dbarts::na.keepPredictors
 ) {
   if (
     is.formula(formula) ||
@@ -2989,6 +2991,17 @@ bart2Hurdle <- function(
         "or fit the two parts separately"
       )
     }
+  }
+
+  # the na.action settles the rows before the response is split, as it would
+  # on any other fit: the two parts then see the same complete rows, and a
+  # row dropped for a missing predictor is gone from both
+  omitted <- NULL
+  naRows <- applyNaActionToXY(na.action, as.double(data), formula)
+  if (!is.null(naRows)) {
+    omitted <- nameOmittedRows(naRows$na.action, observationRowNames(formula))
+    formula <- formula[naRows$keep, , drop = FALSE]
+    data <- data[naRows$keep]
   }
 
   split <- splitHurdleResponse(data)
@@ -3081,12 +3094,12 @@ bart2Hurdle <- function(
     positive = positive
   )
   result$row.names.train <- zero[["row.names.train"]]
-  # the zero component trains on all n rows, so its na.action is the
-  # one that describes the rows this hurdle fit as a whole dropped; the
-  # positive component's own na.action is over its y > 0 subset alone, a
-  # different domain that residuals()/fitted() padding here must not use
-  if (!is.null(zero[["na.action"]])) {
-    result$na.action <- zero[["na.action"]]
+  # the rows this hurdle fit as a whole dropped were dropped above, before
+  # either component saw them; the positive component's own na.action is
+  # over its y > 0 subset alone, a different domain that residuals()/fitted()
+  # padding here must not use
+  if (!is.null(omitted)) {
+    result$na.action <- omitted
   }
   # a fit kept without its call carries none, as a bart fit does
   result <- dropAbsentCall(result)
