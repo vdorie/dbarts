@@ -65,7 +65,7 @@ Four facts found while planning correct the record this ruling was made on.
    [`refuseMultiForestTestOffset`](../../src/R_interface_bartcore.cpp); R's
    [`refuseMultiForestWarmStart`](../../R/bartcore.R), and in the fit object
    [`packageBartResults`](../../R/bart.R)'s `hasForestReporting` and forest naming,
-   [`refuseDroppedForestChannel`](../../R/generics.R), [`fitAllowsKHyperprior`](../../R/generics.R). At one forest
+   [`refuseDroppedForestChannel`](../../R/generics.R), retired: [`fitAllowsKHyperprior`](../../R/generics.R). At one forest
    each would read the sampler as single-forest: `setModel` would reprice the forest off the host model, a donor
    warm start would pair one draw's trees with another's amplitudes, and the sampler's own `predict` would return
    the bare forest without its multiplier. The flat C API calls the same predicates, so it follows the fix; no
@@ -185,7 +185,7 @@ S1 - code, in one worktree off `origin/bartcore`, with a private library.
 5. R fit object and readers: [`packageBartResults`](../../R/bart.R) names forests and stores `forestFits`, `glue`
    and `bases` on the coupling, not on `numForests > 1L`, and stores `bases` whenever the data carries them, so a
    `keepFits = FALSE` fit still knows it was coupled. One R predicate on the fit (`bases` present) replaces the count
-   in [`refuseDroppedForestChannel`](../../R/generics.R) and [`fitAllowsKHyperprior`](../../R/generics.R); R's
+   in [`refuseDroppedForestChannel`](../../R/generics.R) and retired: [`fitAllowsKHyperprior`](../../R/generics.R); R's
    [`refuseMultiForestWarmStart`](../../R/bartcore.R) takes the capability too (via
    [`samplerCarriesAmplitudes`](../../R/bartcore.R)). The `varcount` margin, [`fitSynopsis`](../../R/generics.R) and
    `extract(type = "varcount")` stay on the count. Tree readers per Q3.

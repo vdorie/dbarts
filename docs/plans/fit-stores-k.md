@@ -33,7 +33,7 @@ The fit's `sd` and `first.sd` are gone.
   a drawn k; a `forest()` fit has k pinned at 1 on each forest and refuses k as fixed; no fit carries an anchor.
 - R's `$` matches a list component by prefix. A new component whose name starts with `k` would answer `fit$k`
   on every fit whose k is fixed, where the equivalence harness, two benchmark scripts and
-  ["expect_null(fitFixedK$k)"](../../inst/tinytest/test-nbinom.R) take NULL to mean fixed.
+  retired: ["expect_null(fitFixedK$k)"](../../inst/tinytest/test-nbinom.R) take NULL to mean fixed.
 - The sampler and the model can disagree about a fixed value: `fixed(0.3)` names a variance and the sampler
   holds its square root, and until state-not-model lands a warm start leaves the sampler at the donor's values.
   The sampler's readers say what the draws were made under.
@@ -86,8 +86,8 @@ The fit's `sd` and `first.sd` are gone.
 
 1. Packaging: the descriptor helper, [`packageBartResults`](../../R/bart.R) and the negative-binomial, ordinal
    and multinomial packagers beside it, with the ordinal k channel from [`bart2Ordinal`](../../R/bart.R).
-2. extract: one shared reader in place of [`extractLeafSpread`](../../R/generics.R) and
-   [`fitAllowsKHyperprior`](../../R/generics.R); the methods' type lists; sigma's 1; the per-forest answer and
+2. extract: one shared reader in place of retired: [`extractLeafSpread`](../../R/generics.R) and
+   retired: [`fitAllowsKHyperprior`](../../R/generics.R); the methods' type lists; sigma's 1; the per-forest answer and
    [`refuseForestSelectionOutsideForestArm`](../../R/generics.R), which calls k a model parameter today.
 3. summary, print and plot: [`scalarFields`](../../R/diagnostics.R), [`drawsField`](../../R/diagnostics.R),
    [`plotSigmaTrace`](../../R/plot.R), the fixed line and its component on the summary object.
@@ -96,10 +96,10 @@ The fit's `sd` and `first.sd` are gone.
 5. Tests: one new file over every fit class, drawn and fixed, chains combined and separate, with and without
    the kept sampler, each extract answer checked against the sampler's readers; the descriptor presence rows in
    inst/tinytest/test-fit-descriptors.R. Rewrite the blocks that pin today's behaviour:
-   ["a fit reports the leaf prior in the terms"](../../inst/tinytest/test-leaf-prior-k-or-sd.R),
-   ["leaf-prior sd was not sampled"](../../inst/tinytest/test-nbinom.R),
-   ["k was fixed, not sampled"](../../inst/tinytest/test-convergence-diagnostics.R) and the fixed-df summary
-   beside it, ["with a fixed component left out"](../../inst/tinytest/test-hurdle.R), and the hurdle k loop of
+   retired: ["a fit reports the leaf prior in the terms"](../../inst/tinytest/test-leaf-prior-k-or-sd.R),
+   retired: ["leaf-prior sd was not sampled"](../../inst/tinytest/test-nbinom.R),
+   retired: ["k was fixed, not sampled"](../../inst/tinytest/test-convergence-diagnostics.R) and the fixed-df summary
+   beside it, retired: ["with a fixed component left out"](../../inst/tinytest/test-hurdle.R), and the hurdle k loop of
    inst/tinytest/test-one-chain-dimension.R.
 6. Benchmarks: the three readers of a fit's k read it by exact name, with a comment saying why.
 7. Records: the Landing note, the index row, the TODO item, and a ledger entry for the calls made here: the
