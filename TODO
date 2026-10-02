@@ -159,8 +159,8 @@ items
     converts; sd and first.sd leave the fit (docs/decisions.md dec-B192,
     VD 2026-10-02). extract returns both the leaf prior's sd, in the
     units the forest fits, and the raw k on every fit, a fixed leaf scale
-    included (dec-B193). Open with VD: the extract type's name in place
-    of "sd". R only: the fit's packaging, extract, summary, plot, the
+    included (dec-B193); the type is "leaf.prior.sd". Open with VD: what
+    extract returns for a fixed leaf scale. R only: the fit's packaging, extract, summary, plot, the
     manual and the tests. After setstate-mixed-chains. No plan yet.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
