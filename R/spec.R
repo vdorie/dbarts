@@ -156,6 +156,20 @@ nonFinitePredictorNames <- function(x) {
 ## to, NULL where they resolved to none: the weights slot is cleared in both
 ## the all-ones and the mask case, since neither family carries a weight
 ## channel, so the caller must install the mask on the sampler it builds.
+## A logistic fit's weights are observation counts, at fit time and in the
+## draws predict makes at new rows alike.
+refuseNonCountWeights <- function(w, remedy = "") {
+  if (anyNA(w) || any(w <= 0) || any(w != round(w))) {
+    stop(
+      "logistic weights are observation counts and must be positive ",
+      "integers",
+      remedy,
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 enforceWeightPolicy <- function(data, family) {
   if (is.null(data@weights)) {
     return(list(data = data, active = NULL))
@@ -191,14 +205,10 @@ enforceWeightPolicy <- function(data, family) {
       )
     }
   } else if (family == "logistic") {
-    w <- data@weights
-    if (anyNA(w) || any(w <= 0) || any(w != round(w))) {
-      stop(
-        "logistic weights are observation counts and must be positive ",
-        "integers; drop zero-count rows, and use a gaussian model for ",
-        "continuous weights"
-      )
-    }
+    refuseNonCountWeights(
+      data@weights,
+      "; drop zero-count rows, and use a gaussian model for continuous weights"
+    )
   } else if (family == "multinomial") {
     if (all(data@weights == 1)) {
       data@weights <- NULL

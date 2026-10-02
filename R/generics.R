@@ -3546,6 +3546,10 @@ ppdNumDraws <- function(sigma, s, n.obs) {
 # residual scale in that same split layout (heteroscedasticScale); it is NULL
 # for a homoscedastic fit, whose scale is the per-draw scalar sigma.
 sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
+  # a logistic fit's weights are trial counts, at new rows as at its own
+  if (!is.null(weights) && identical(fitEngineFamily(object), "logistic")) {
+    refuseNonCountWeights(weights)
+  }
   oldSeed <- NULL
   if (!is.null(object[["seed"]])) {
     oldSeed <- .GlobalEnv$.Random.seed

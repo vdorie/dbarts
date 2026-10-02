@@ -98,6 +98,26 @@ expect_error(
   pattern = "probit models do not support weights"
 )
 
+# predict's posterior predictive draws at new rows hold their weights to the
+# counts the fit takes, refusing a fractional one by name rather than drawing
+# NA; integer counts draw that many trials
+newRows <- data.frame(x = I(x[1:3, , drop = FALSE]))
+expect_error(
+  predict(fit.w, newRows, type = "ppd", weights = c(1.5, 2, 3)),
+  "logistic weights are observation counts and must be positive integers",
+  fixed = TRUE
+)
+expect_error(
+  predict(fit.w, newRows, type = "ppd", weights = c(0, 2, 3)),
+  "logistic weights are observation counts and must be positive integers",
+  fixed = TRUE
+)
+ppdCounts <- predict(fit.w, newRows, type = "ppd", weights = c(1, 2, 3))
+expect_true(all(
+  ppdCounts >= 0 & ppdCounts <= rep(c(1, 2, 3), each = nrow(ppdCounts))
+))
+rm(newRows, ppdCounts)
+
 # the dbarts sampler surface accepts integer-count logistic weights directly
 control <- dbartsControl(
   n.chains = 1L,
