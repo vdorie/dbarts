@@ -4916,7 +4916,11 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   // a Student-t error law appends its per-draw df nu next, on the same
   // arithmetic; no response carries both, but the count composes regardless
   bool hasResidualDf = shape.carriesResidualDf;
-  int numResultSlots = 6 + (hasOrdinalThresholds ? 1 : 0) +
+  // a heteroscedastic sampler reports no sigma: its engine holds the scalar
+  // fixed, and the per-observation variance channel is the residual scale
+  bool hasSigma = !hasVariance;
+  int numResultSlots = 5 + (hasSigma ? 1 : 0) +
+                       (hasOrdinalThresholds ? 1 : 0) +
                        (hasDispersion ? 1 : 0) + (hasResidualDf ? 1 : 0) +
                        (hasVariance ? 2 : 0) + (hasForestReporting ? 2 : 0);
 
@@ -4943,7 +4947,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
     return value;
   };
 
-  SEXP sigmaExpr = installChannel("sigma", allocScalarChannel());
+  SEXP sigmaExpr = !hasSigma
+    ? R_NilValue
+    : installChannel("sigma", allocScalarChannel());
   // a channel the run keeps at all: the existing gate, and then keepFits. A
   // gated-out channel keeps its slot and its name with a null value, exactly
   // as keepTrainingFits = FALSE has always left the training slot.
@@ -5032,7 +5038,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   auto scratchAt = [&](size_t offset) { return scratch.data() + offset; };
 
   bartcore::Results results;
-  results.sigma = REAL(sigmaExpr);
+  results.sigma = hasSigma ? REAL(sigmaExpr) : NULL;
   results.trainingFits = !hasTrain ? NULL
     : (keepFits ? REAL(trainExpr) : scratchAt(scratchTrain));
   results.testFits = !hasTest ? NULL

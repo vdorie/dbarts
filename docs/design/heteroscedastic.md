@@ -812,3 +812,7 @@ draws no sigma trace. `type = "sigma"` means the per-observation scale on such a
 fit: `extract` returns the stored `s.train`/`s.test` in the layout of `"ev"`,
 and `predict` evaluates the variance forest at `newdata`. On every other fit
 `type = "sigma"` stays the scalar draws, and `predict` refuses it.
+A heteroscedastic sampler's `run()` likewise carries no `sigma` element,
+absent as `dispersion` is off nbinom: run returns parameter draws and fitted
+values and leaves transformed quantities to R, and the per-observation
+`variance` channel, whose square root is the residual scale, is already there.

@@ -217,7 +217,6 @@ expect_null(rVariance$dispersion)
 expect_equal(
   names(rVariance),
   c(
-    "sigma",
     "train",
     "test",
     "varcount",

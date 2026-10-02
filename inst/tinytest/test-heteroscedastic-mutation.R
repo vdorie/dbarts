@@ -395,7 +395,17 @@ expect_identical(
 )
 dataSwappedDraws <- dataSwapped$run(0L, 3L)
 dataFreshDraws <- dataFresh$run(0L, 3L)
-expect_equal(dataSwappedDraws$sigma, dataFreshDraws$sigma, tolerance = 1e-12)
+# run() reports no sigma on a heteroscedastic sampler, so the pinned value is
+# read off the stored state, on the original scale
+pinnedSigma <- function(sampler) {
+  sampler$storeState()
+  sampler$state[[1L]]$sigma
+}
+expect_equal(
+  pinnedSigma(dataSwapped),
+  pinnedSigma(dataFresh),
+  tolerance = 1e-12
+)
 expect_equal(
   dataSwappedDraws$variance,
   dataFreshDraws$variance,
@@ -407,8 +417,8 @@ expect_equal(dataSwappedDraws$train, dataFreshDraws$train, tolerance = 1e-10)
 # old one pinned reports the value the sampler had BEFORE it - a different
 # number here by more than half - and the surface, an original-scale quantity,
 # is off by the square of the response factor rather than by rounding.
-staleSigma <- pinnedSampler(xDataSwap, yDataSwap)$run(0L, 1L)$sigma
-expect_true(abs(dataFreshDraws$sigma[1L] / staleSigma - 1) > 0.5)
+staleSigma <- pinnedSigma(pinnedSampler(xDataSwap, yDataSwap))
+expect_true(abs(pinnedSigma(dataFresh) / staleSigma - 1) > 0.5)
 expect_true(
   mean(dataFreshDraws$variance) >
     4 * mean(pinnedSampler(xDataRepl, yDataRepl)$run(0L, 3L)$variance)
@@ -427,6 +437,7 @@ rm(
   dataSwappedDraws,
   dataFreshDraws,
   staleSigma,
+  pinnedSigma,
   nScale,
   xScale,
   yScale,

@@ -221,9 +221,11 @@ packageBartResults <- function(
     }
   }
 
-  if (!responseIsBinary) {
+  # a heteroscedastic run reports no sigma, so this stays NULL there
+  sigma <- NULL
+  if (!responseIsBinary && !is.null(samples[["sigma"]])) {
     sigma <- convertSamplesFromDbartsToBart(
-      samples$sigma,
+      samples[["sigma"]],
       n.chains,
       combineChains
     )
@@ -417,10 +419,9 @@ packageBartResults <- function(
   if (!is.null(naOmitted)) {
     result$na.action <- naOmitted
   }
-  # a heteroscedastic fit has no scalar residual scale: the engine pins its
-  # sigma at a unit residual times the response range, a constant that cannot
-  # be read as what the name says, so the elements are absent and s.train is
-  # the scale
+  # a heteroscedastic fit has no scalar residual scale: its run reports no
+  # sigma, the engine holding the scalar fixed, so the elements are absent and
+  # s.train is the scale
   if (hasVariance) {
     result$sigma <- NULL
     result$first.sigma <- NULL
@@ -701,8 +702,8 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
       dbartsGPFallbackWarning = function(w) invokeRestart("muffleWarning"),
       dbartsSlowCountWarning = keepSlowCount
     )
-    if (!is.null(samples$sigma)) {
-      burnInSigma <- samples$sigma
+    if (!is.null(samples[["sigma"]])) {
+      burnInSigma <- samples[["sigma"]]
     }
     if (!is.null(samples[["k"]])) {
       burnInK <- samples[["k"]]

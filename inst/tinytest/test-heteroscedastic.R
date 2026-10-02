@@ -325,7 +325,7 @@ expect_true(
 )
 expect_true(all(afterDraw$variance > 0))
 expect_true(all(afterDraw$varianceTest > 0))
-# the mean forest and the fixed sigma are untouched by a variance-forest entry
+# the mean forest is untouched by a variance-forest entry
 expect_identical(
   beforeTrees[beforeTrees$sample == 4L, c("var", "value")],
   priorSampler$getTrees()[
@@ -333,7 +333,11 @@ expect_identical(
     c("var", "value")
   ]
 )
-expect_equal(afterDraw$sigma[[1L]], beforeDraw$sigma[[4L]])
+# a heteroscedastic run carries no sigma - absent, not NULL within the list -
+# and its variance channel is the per-observation scale squared
+expect_false("sigma" %in% names(beforeDraw))
+expect_true(all(c("variance", "varianceTest") %in% names(beforeDraw)))
+expect_identical(dim(beforeDraw$variance), c(nPrior, 4L))
 
 # and the drawn state is live state: the validation a restore runs demands
 # every variance leaf a positive scale and every bottom occupied
@@ -361,6 +365,9 @@ homoControl <- dbartsControl(
 )
 homo <- dbarts(xPrior, yPrior, control = homoControl)
 homoBefore <- homo$run(5L, 4L)
+# a homoscedastic run still carries its sigma draws and no variance channel
+expect_identical(length(homoBefore$sigma), 4L)
+expect_false("variance" %in% names(homoBefore))
 homoAgain <- dbarts(xPrior, yPrior, control = homoControl)
 expect_silent(homoAgain$sampleVarianceForestFromPrior())
 expect_identical(homoAgain$run(5L, 4L)$train, homoBefore$train)
