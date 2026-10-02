@@ -30,6 +30,17 @@ jobs:
           # and fails outright on a shallow clone
           fetch-depth: 0
 
+      # a device name (aux.md) or a character NTFS refuses fails the Windows
+      # checkout, and a docs-only push runs no Windows job to say so
+      - name: Refuse paths Windows cannot check out
+        run: |
+          bad=$(git ls-files | grep -iE '(^|/)(con|prn|aux|nul|com[0-9]|lpt[0-9])(\.[^/]*)?(/|$)|[<>:"|?*\\]|[. ](/|$)' || true)
+          if [ -n "$bad" ]; then
+            echo "paths Windows cannot check out:"
+            echo "$bad"
+            exit 1
+          fi
+
       - uses: r-lib/actions/setup-r@v2
         timeout-minutes: 12
         with:

@@ -38,8 +38,10 @@ Second wave:
 
 - ingest.md - data ingestion: factors, missing values, sparse input, dates,
   the cut grid.
-- aux.md - xbart, partial dependence, rbart_vi and diagnostics.
-- wave2a-verify.md - verification of ingest.md and aux.md.
+- auxiliary.md - xbart, partial dependence, rbart_vi and diagnostics.
+  Written as aux.md, a name Windows cannot check out, and cited under
+  that name by the files here.
+- wave2a-verify.md - verification of ingest.md and auxiliary.md.
 - families.md - every response family end to end.
 - families-verify.md - verification of families.md.
 - multiforest.md - models with several forests: BCF, variance forests,
