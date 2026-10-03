@@ -1,6 +1,6 @@
 # A saved state holds the chain, not the model
 
-Status: LANDED 2026-10-02 (3f2c46fc). Plan: docs/plans/state-not-model.md. Rulings: dec-B195, dec-B196,
+Status: LANDED 2026-10-02 (3f2c46fc to 8b5191d0). Plan: docs/plans/state-not-model.md. Rulings: dec-B195, dec-B196,
 dec-B197 and dec-B200 in docs/decisions.md; the calls made under them, dec-A146 and dec-A148.
 
 The package's original division was four kinds of thing. Data is what the caller supplies. The model is the

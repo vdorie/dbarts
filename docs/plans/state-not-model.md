@@ -1,6 +1,6 @@
 # state-not-model: a saved state holds the chain, not the model
 
-Status: LANDED 2026-10-02 (3f2c46fc) under dec-B195, dec-B196, dec-B197 and dec-B200 in
+Status: LANDED 2026-10-02 (3f2c46fc to 8b5191d0) under dec-B195, dec-B196, dec-B197 and dec-B200 in
 [decisions.md](../decisions.md); the agents' calls are dec-A146 and dec-A148.
 Follows [fit-stores-k.md](fit-stores-k.md), landed.
 
@@ -230,7 +230,7 @@ Against a private library, installed with `--preclean` (step 1 changes virtuals)
 
 ## Landing
 
-LANDED 2026-10-02 (3f2c46fc). About 2190 changed lines (1480 added) against the 1400 budgeted, before these
+LANDED 2026-10-02 (3f2c46fc to 8b5191d0). About 2190 changed lines (1480 added) against the 1400 budgeted, before these
 records: engine 625, bridge 172, R 165, manual 50, tests 1174.
 
 - Install paths covered, each through [`Sampler::setState`](../../src/bartcore/sampler.hpp) or
@@ -269,11 +269,17 @@ records: engine 625, bridge 172, R 165, manual 50, tests 1174.
   assertions there, and three in inst/tinytest/test-bcf.R.
 - Also measured, outside the suite: 36 configurations, every install path, draws and reader identical between
   the base commit's library and this one, frozen transforms and a fixed sigma written by `setSigma` included.
-- Review fixes, in the commit after 08ab22ef: whether a state's pair names units is decided by the family, so
-  a constant response's (c, c), the transform spanning 1 upward from c, converts both ways, where a sampler on one had taken a
-  normal state's units and a state stored in one had replayed at a relative error of 0.79; a constant-response
-  sampler's own state still installs untouched. The design note and the manual corrected on amplitudes and on
+- Review fixes, in ca7437da: whether a state's pair names units is decided by the family, so a constant
+  response's (c, c), the transform spanning 1 upward from c, converts both ways, where a sampler on one had
+  taken a normal state's units and a state stored in one had replayed at a relative error of 0.79; a
+  constant-response sampler's own state still installs untouched. The design note and the manual corrected on amplitudes and on
   the gp refusal. The warm start's undo has no test and none can reach it without a fault hook: TODO,
   warm-start-undo-test. Afterwards tests/cpp passes, tinytest 12325 tests with 0 failures and no new warning,
   the lint chain passes, and on a reference build the compares are identical on 55, 15 and 11 scenarios and
   the four snapshot files pass.
+- Second review fix, in 8b5191d0: the bridge refuses a `response.anchor` record that is not two finite numbers
+  in order, and on the count family an equal pair. Afterwards tests/cpp passes, tinytest 12328 tests with 0
+  failures, the lint chain passes and stan4bart's suite at home passes, 570 tests, against a chain built on it.
+  The reviewer's own builds found same-model installs bitwise against the base commit's on every family and
+  leaf model, constant and near-constant responses included, and `R CMD check --as-cran` with one note, the
+  Date field's age.
