@@ -70,3 +70,9 @@ Landed in 499cb3c3.
 - Gates: tinytest 12341 tests, 0 failures, 0 new warnings; tests/cpp passes; lintr, air, check-rc-codoc,
   check-win-drift and check-doc-freshness pass. Against a chain built on this tip, stan4bart's suite at home
   passes (570 tests), and bartCause's and treatSens's testthat suites pass. No consumer reads the field or the attribute.
+- Review corrections, in 56f3fa9e: the two vignettes and the backfit-exact gate read `k.scale`; the bridge's refusal
+  of a non-positive leaf-prior sd no longer says anchor; the nbinom manual line and the prior-defaults note
+  name the `prior.scale` slot where the slot is meant and qualify the k-named case. Afterwards tinytest passes,
+  12341 tests, tests/cpp and the lint chain pass, every gate of exact-gates.yaml passes in quick mode
+  (the two cross-host equivalence compares need the reference build and were not run), and the package builds
+  with its vignettes, whose purled code runs.
