@@ -4613,7 +4613,7 @@ SEXP bartcore_setLeafPrior(SEXP ptrExpr, SEXP forestExpr,
   size_t forestIndex = forestIndexFrom(forestExpr, shape);
   double priorScale = Rf_asReal(priorScaleExpr);
   if (!std::isfinite(priorScale) || priorScale <= 0.0)
-    Rf_error("the leaf-prior anchor must be a positive finite number");
+    Rf_error("the leaf prior's sd must be a positive finite number");
   // $setLeafPrior routes every combiner-carrying sampler to the two entries
   // below first, so this generic message only backstops a caller that skips
   // the R5 layer.

@@ -187,7 +187,7 @@ control <- recipeControl(5L)
 blocks <- list(x[, 1:2, drop = FALSE], x[, 3:4, drop = FALSE])
 samplers <- lapply(blocks, function(xb) dbarts(xb, y, control = control))
 
-base <- samplers[[1L]]$getLeafPrior()$anchor / samplers[[1L]]$getK()[1L]
+base <- samplers[[1L]]$getLeafPrior()$k.scale / samplers[[1L]]$getK()[1L]
 for (s in samplers) s$setLeafPrior(normal(sd = base / sqrt(K)))
 
 # the composed prior on the TOTAL, against a single sampler's

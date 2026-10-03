@@ -146,7 +146,7 @@ backfitArm <- function(
     all(sampler$getK() == kLeaf),
     isTRUE(all.equal(calibration$response.scale, yRange)),
     isTRUE(all.equal(calibration$response.shift, shift)),
-    isTRUE(all.equal(calibration$anchor, nodeScale * yRange))
+    isTRUE(all.equal(calibration$k.scale, nodeScale * yRange))
   )
 
   # pre-order node rows, one block per (sweep, tree)
