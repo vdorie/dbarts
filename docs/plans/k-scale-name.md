@@ -1,6 +1,6 @@
 # k-scale-name: the value k is measured against is k.scale
 
-Status: LANDED 2026-10-02 (499cb3c3) under dec-B201 in [decisions.md](../decisions.md).
+Status: LANDED 2026-10-02 (499cb3c3 to 56f3fa9e) under dec-B201 in [decisions.md](../decisions.md).
 Follows [state-not-model.md](state-not-model.md), landed.
 
 agent: sonnet implementer, one; opus reviewer.
