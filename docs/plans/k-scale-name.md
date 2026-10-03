@@ -1,6 +1,6 @@
 # k-scale-name: the value k is measured against is k.scale
 
-Status: PLANNED 2026-10-02 under dec-B201 in [decisions.md](../decisions.md).
+Status: LANDED 2026-10-02 (499cb3c3) under dec-B201 in [decisions.md](../decisions.md).
 Follows [state-not-model.md](state-not-model.md), landed.
 
 agent: sonnet implementer, one; opus reviewer.
@@ -50,3 +50,23 @@ Against a private library:
   and no consumer reads the field (`git -C <repo> grep -n anchor`).
 - `lintr::lint_package()`, `air format --check .`, `tools/check-rc-codoc.R`, `tools/check-win-drift.R` and
   `tools/check-doc-freshness.R` pass, each on its own exit status.
+
+## Landing
+
+Landed in 499cb3c3.
+
+- Renamed: the reader's field `anchor` is `k.scale` in `getLeafPrior()`, in the fit's `leaf.prior`, in the
+  readers of it (`extract`'s leaf.prior.sd, the diagnostics) and in the docstrings, the manual pages and the
+  design notes that name it; the model attribute `response.anchor` is `response.range`, and the bridge's
+  refusal message for a bad record names it. "Relative to the data's anchor" is "relative to the data's scale"
+  in the messages and the manual. Values are unchanged.
+- One test, test-k-scale-name.R: the names carry `k.scale` and no `anchor` on a single-forest sampler, a
+  multi-forest sampler and a fit; the attribute is `response.range`.
+- Hits of the word kept in R and the manual: internal names (`recordAnchor`, `applyAnchor`, the control's
+  per-forest `anchor` record and the bridge's `map.anchor`, which no reader returns) and comments on them; "re-anchor"
+  and "anchored", the verb for a response-transform change; internal comments on the model's `prior.scale`
+  and the calibration map's leaf scale. In the C++ tests (tests/cpp) the engine's own names stay. In
+  inst/tinytest the remaining hits are the control's `anchor` record and comments.
+- Gates: tinytest 12341 tests, 0 failures, 0 new warnings; tests/cpp passes; lintr, air, check-rc-codoc,
+  check-win-drift and check-doc-freshness pass. Against a chain built on this tip, stan4bart's suite at home
+  passes (570 tests), and bartCause's and treatSens's testthat suites pass. No consumer reads the field or the attribute.
