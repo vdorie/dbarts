@@ -693,10 +693,10 @@ was named in (`k`, or `sd` through `leaf.prior`; see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md));
 `extract(type = "k")` returns it on every fit. Under a `k`-named prior
 it is relative to the data's scale, and under an `sd`-named one relative
-to the anchor the fit stores (`leaf.prior$anchor`), not to the data.
-`extract(type = "leaf.prior.sd")` returns the anchor over `k`: the prior
-standard deviation of the forest's total, which is the spread the leaf
-prior states, in the units the forest fits - the response's on a
+to the `k.scale` the fit stores (`leaf.prior$k.scale`), not to the data.
+`extract(type = "leaf.prior.sd")` returns the `k.scale` over `k`: the
+prior standard deviation of the forest's total, which is the spread the
+leaf prior states, in the units the forest fits - the response's on a
 gaussian or Student-t fit, log time on an accelerated failure time fit,
 the latent scale of the link on a probit, logistic or ordinal fit, and
 the log mean on a negative-binomial fit. What the standard deviation is
@@ -1015,7 +1015,7 @@ returned. In the numeric \\y\\ case, the list has components:
   reading as the run ended
   ([`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   `getLeafPrior`), a list holding the prior as it was named, what its
-  standard deviation is the standard deviation of, and `anchor`, the
+  standard deviation is the standard deviation of, and `k.scale`, the
   value `k` is relative to. A list of such lists, named `forest1`,
   `forest2`, ..., on a fit with several forests.
 
@@ -1186,10 +1186,10 @@ bartFit <- bart(x, y)
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> [1] iteration: 100 (of 500)
 #> [2] iteration: 100 (of 500)
-#> [1] iteration: 200 (of 500)
+#> [1] iteration: 100 (of 500)
 #> [2] iteration: 200 (of 500)
+#> [1] iteration: 200 (of 500)
 #> [1] iteration: 300 (of 500)
 #> [2] iteration: 300 (of 500)
 #> [2] iteration: 400 (of 500)
@@ -1206,7 +1206,7 @@ bartFit <- bart(x, y)
 #> [3] iteration: 400 (of 500)
 #> [4] iteration: 500 (of 500)
 #> [3] iteration: 500 (of 500)
-#> total seconds in loop: 0.117611
+#> total seconds in loop: 0.095214
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 

@@ -1419,7 +1419,7 @@ For `getK`, each chain's current `k`, the value `run()$k` records per
 draw, read without running, as `getSigmas` reports `sigma`: after a run
 it is bitwise the last draw. A fixed `k` repeats per chain, and a forest
 whose scale a calibration map sets reports 1. It is `k` whatever terms
-the prior was named in, relative to `getLeafPrior()$anchor`. A numeric
+the prior was named in, relative to `getLeafPrior()$k.scale`. A numeric
 vector of length equal to the number of chains at one forest, or, at the
 default `forest = NULL` on a multi-forest sampler, an n.forests x
 n.chains matrix; a single-forest sampler's `NULL` read is bitwise its
@@ -1574,11 +1574,11 @@ into `setLeafPrior` or a fitting function's `leaf.prior` as is;
 `leaf.model`, one of `"constant"`, `"monotone"`, `"linear"`, or `"gp"`;
 `prior.sd.of`, what the sd is the sd of: `"leaf value"`, `"coefficient"`
 (linear, per standardized covariate) or `"amplitude"` (gp);
-`prior.mean`; `anchor`, the value `k` is relative to, so the spread in
-force on each chain is `anchor / getK()` - the data's anchor under a
+`prior.mean`; `k.scale`, the value `k` is relative to, so the spread in
+force on each chain is `k.scale / getK()` - the data's scale under a
 `k`-named prior and under `sd = invchi(df, 0)`, and otherwise, under an
 `sd`-named prior, twice the sd or `invchi` scale in force (the named
-value, whose reference `k` is 2), not the data's anchor; and
+value, whose reference `k` is 2), not the data's scale; and
 `response.scale` and `response.shift`. A fixed value is the one in
 force, read off the engine. Every chain runs under the sampler's one
 prior and one response transform, which no state install moves, so every
@@ -1600,7 +1600,7 @@ created without a basis, and the leaf-scale factor, with `prior.sd.of`
 On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
 sampler built with `forests =` or `dbartsData(bases = )` (see
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), `k` is
-pinned at 1, `anchor` is the map's leaf scale, and the list adds four
+pinned at 1, `k.scale` is the map's leaf scale, and the list adds four
 entries, absent (so `NULL`) on every other forest, a multinomial one
 included. One of `amplitude.prior.variance` or `amplitude.prior.scale`:
 a forest whose amplitudes carry a fixed prior variance reports that
@@ -1612,14 +1612,14 @@ are the map's two factors and `basis.row.norm` the median nonzero row
 norm of the forest's basis IN FORCE, which `setForestBasis` re-derives.
 
 Together they decompose the map's leaf scale as
-`anchor = leaf.scale.factor * s / (leaf.scale.divisor * basis.row.norm)`,
-exactly, so the family's own latent anchor \\s\\ - data-dependent under
-a gaussian response - is recovered as
-`anchor * leaf.scale.divisor * basis.row.norm / leaf.scale.factor`. No
+`k.scale = leaf.scale.factor * s / (leaf.scale.divisor * basis.row.norm)`,
+exactly, so the family's own latent scale \\s\\ - data-dependent under a
+gaussian response - is recovered as
+`k.scale * leaf.scale.divisor * basis.row.norm / leaf.scale.factor`. No
 state install changes any of the four: a state carries neither a leaf
 scale nor a fixed amplitude prior, and the bases are not state.
 
-The spread (`anchor / k`) describes the LEAF-PARAMETER scale of the
+The spread (`k.scale / k`) describes the LEAF-PARAMETER scale of the
 forest total. It equals the prior standard deviation of \\f(x)\\ at
 every \\x\\ for the constant leaf only; for the other three the prior of
 \\f(x)\\ is x-dependent and the spread bounds it in a leaf-specific
@@ -1652,8 +1652,8 @@ or the hyperprior it is drawn under, on every chain, and nothing else:
 not the response transform, not `sigma` (which `setModel` re-pins on a
 fixed-sigma gaussian sampler), not the tree prior or a DART split prior.
 Under a drawn `k` the engine keeps its current `k` across the write, so
-a change of anchor - between the `k` and `sd` forms, or of an `invchi`
-scale - scales the next sweep's spread by new anchor / old anchor, and
+a change of k.scale - between the `k` and `sd` forms, or of an `invchi`
+scale - scales the next sweep's spread by new k.scale / old k.scale, and
 `getK` and the spread in force jump with it until the law pulls `k`
 back. The write takes effect on the next sweep, reinterpreting no leaf
 value already drawn; a write that reproduces what is already in force is
@@ -1666,10 +1666,10 @@ A sampler whose forests carry amplitudes takes
 `forests = list(forest(sd = ), ...)`, restating each named forest's
 spread in the channel its creation gave it, and any `leaf.prior` other
 than the no-ops `normal()` and `normal(k = 2)` is refused there. Both
-writes are recorded where re-creation reads them. The map's anchor is
+writes are recorded where re-creation reads them. The map's k.scale is
 recorded at creation too, so a re-creation after `setResponse` or
 `setOffset` at `updateScale = FALSE` states every forest against the
-same anchor as the live sampler. A value that is not a single positive
+same k.scale as the live sampler. A value that is not a single positive
 finite number is an error. A heteroscedastic sampler's variance forest
 is a separate leaf model and is not addressable. `setModel` changes
 everything else.

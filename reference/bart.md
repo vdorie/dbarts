@@ -535,7 +535,7 @@ print(x, ...)
   with an `offset` replays as well, given `predict`'s `offset` at the
   new rows, and refuses by name without it: no resident offset describes
   rows the fit never saw. The per-forest leaf scale follows its own
-  K-dependent calibration (the K = 2 anchor is the logistic scale
+  K-dependent calibration (the K = 2 scale is the logistic scale
   \\\pi\sqrt{3}\\ divided by \\\sqrt{2}\\, for the identified pairwise
   log-odds); `k` is read from the usual leaf prior exactly as for any
   other family, but the leaf prior's scale itself is NOT consulted - the
@@ -588,8 +588,9 @@ print(x, ...)
   \sum_i e^{o_i})\\ (with the total count floored at 1/2) centers the
   leaf prior at the data's log rate; it is a data transform, as the
   response range is for a gaussian fit, so `f` is zero-centered a
-  priori. The leaf prior's anchor is 3 on the log-mean scale and `k` is
-  drawn from `chi(1.5, 2)` by default, as for probit; see
+  priori. Under a `k`-named leaf prior, `k.scale` is 3 on the log-mean
+  scale (under an `sd`-named one it is twice the `sd`) and `k` is drawn
+  from `chi(1.5, 2)` by default, as for probit; see
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
   `y.train` must be a non-negative integer count, and
   `family = "nbinom"` is always explicit - a count carries no
@@ -1949,7 +1950,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001268
+#> total seconds in loop: 0.001078
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1998,7 +1999,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001547
+#> total seconds in loop: 0.001251
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

@@ -182,7 +182,7 @@ The constructor is not exported: it resolves by bare name inside the
     rather than a variance. It is a free multiplier on the induced prior: the
     prior standard deviation of the combined location at row \(i\) is
     \(\sqrt{\sum_f s_f^2 v_f \|B_f(i,\cdot)\|^2}\) over the forests carrying a basis, with \(s_f\)
-    read from <code>$getLeafPrior(f)$anchor</code> and \(v_f\)
+    read from <code>$getLeafPrior(f)$k.scale</code> and \(v_f\)
     this argument; a basis-free forest's own term is Cauchy and has no
     standard deviation. The budget that sum sits in is set by <code>sd</code>, whose
     default already divides it among the \(K\) forests, so raising this
@@ -308,7 +308,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-in"><span><span class="co"># than recomputed from the call: forest 2 is the one carrying a basis</span></span></span>
 <span class="r-in"><span><span class="va">calibration</span> <span class="op">&lt;-</span> <span class="va">sampler</span><span class="op">$</span><span class="fu">getLeafPrior</span><span class="op">(</span><span class="fl">2L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">basis</span> <span class="op">&lt;-</span> <span class="va">sampler</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">bases</span><span class="op">[[</span><span class="fl">2L</span><span class="op">]</span><span class="op">]</span></span></span>
-<span class="r-in"><span><span class="va">indexSd</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">calibration</span><span class="op">$</span><span class="va">anchor</span><span class="op">^</span><span class="fl">2</span> <span class="op">*</span></span></span>
+<span class="r-in"><span><span class="va">indexSd</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">calibration</span><span class="op">$</span><span class="va">k.scale</span><span class="op">^</span><span class="fl">2</span> <span class="op">*</span></span></span>
 <span class="r-in"><span>                <span class="va">calibration</span><span class="op">$</span><span class="va">amplitude.prior.variance</span> <span class="op">*</span></span></span>
 <span class="r-in"><span>                <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">basis</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span><span class="op">)</span></span></span>
 </code></pre></div>

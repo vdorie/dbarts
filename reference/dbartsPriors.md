@@ -42,7 +42,7 @@ A list of functions:
   Either names the spread of the whole forest - the sum of trees - not
   of one tree.
 
-  `k` is relative to the anchor the data fixes: a positive scalar, a
+  `k` is relative to the scale the data fixes: a positive scalar, a
   hyperprior on `k` built with `chi`, or `NULL` for the default, 2 for
   continuous responses and `chi(1.5, 2)` for binary ones and counts
   (`nbinom`). The continuous default follows Chipman, George, and
@@ -57,12 +57,12 @@ A list of functions:
   `sd` is the standard deviation of the normal prior on the leaf model's
   own parameter, for the forest total, on the scale the family's forest
   fits: a positive number, or a hyperprior on the sd itself built with
-  `invchi`. It takes no string form. The scale and the anchor `k` is
+  `invchi`. It takes no string form. The scale and the `k.scale` `k` is
   relative to, per family:
 
   |                   |                   |                                  |
   |-------------------|-------------------|----------------------------------|
-  | family            | `sd` is stated in | anchor at `k = 1`                |
+  | family            | `sd` is stated in | `k.scale` at `k = 1`             |
   | gaussian, student | response units    | half the training response range |
   | aft               | log survival time | half the observed log-time range |
   | probit, ordinal   | probit latent     | 3                                |
@@ -70,11 +70,11 @@ A list of functions:
   | nbinom            | log mean          | 3                                |
   | hazard            | its link's latent | 3 or \\\pi\sqrt{3}\\             |
 
-  so a fixed `k` is the `sd` anchor / `k`. For the constant leaf `sd` is
-  exactly the prior standard deviation of \\f(x)\\ at every \\x\\; for
-  the other leaf models it is the sd of their parameter, and the prior
-  spread of \\f(x)\\ it implies is a consequence stated under each.
-  Under a `monotone` constraint (see
+  so a fixed `k` is the `sd` `k.scale` / `k`. For the constant leaf `sd`
+  is exactly the prior standard deviation of \\f(x)\\ at every \\x\\;
+  for the other leaf models it is the sd of their parameter, and the
+  prior spread of \\f(x)\\ it implies is a consequence stated under
+  each. Under a `monotone` constraint (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)) `sd`
   is the prior sd of a leaf value that no ordered neighbor bounds; a
   leaf a neighbor bounds is drawn from a normal \\\sqrt{\pi / (\pi -
@@ -166,12 +166,12 @@ A list of functions:
   `scale`. The default, `chi(1.5, 2)`, centers the sampled `k` near the
   field-standard fixed value of 2 (prior median 1.9) while letting it
   adapt to the data. It is the same prior as
-  `sd = invchi(df, anchor / scale)`. `scale = Inf` remains accepted, but
-  the posterior it gives `k` is improper: with little signal, few trees
-  or many degrees of freedom, `k` can drift to infinity, where every
-  leaf is zero and the trees add nothing to the fit. The first argument
-  was `degreesOfFreedom` in 0.9-x; that name is accepted, with a
-  warning, until dbarts 1.1-0.
+  `sd = invchi(df, k.scale / scale)`. `scale = Inf` remains accepted,
+  but the posterior it gives `k` is improper: with little signal, few
+  trees or many degrees of freedom, `k` can drift to infinity, where
+  every leaf is zero and the trees add nothing to the fit. The first
+  argument was `degreesOfFreedom` in 0.9-x; that name is accepted, with
+  a warning, until dbarts 1.1-0.
 
 - `invchi(df = 1.5, scale)`:
 
@@ -180,7 +180,7 @@ A list of functions:
   scaled inverse chi-square with `df` degrees of freedom. `scale` has no
   default, since a spread on the family's scale has no data-free one;
   `scale = 0` is the improper \\sd^{-(df + 1)}\\ limit. It is the same
-  prior as `k = chi(df, anchor / scale)`, and `chi(df, Inf)` is
+  prior as `k = chi(df, k.scale / scale)`, and `chi(df, Inf)` is
   `invchi(df, 0)`; the binary defaults are `invchi(1.5, 1.5)` on probit
   and `invchi(1.5, pi * sqrt(3) / 2)` on logistic. In Stan's terms it is
   `scaled_inv_chi_square(df, scale / sqrt(df))` on the variance, and an

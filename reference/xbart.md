@@ -258,10 +258,10 @@ xbart(
   or a [`list`](https://rdrr.io/r/base/list.html) mixing them with
   `invchi` laws. Each spread is held fixed across folds, where a `k` is
   relative to each fold's own training range; on a binary family, whose
-  anchor is a constant of the latent scale, a grid of fixed cells is the
-  same sweep either way (`sd = anchor / k`); a modelled cell is not,
-  since `invchi(df, c)` starts its chain at the spread `c` where
-  `chi(df, anchor / c)` starts at `anchor / 2`. A `k` inside
+  `k.scale` is a constant of the latent scale, a grid of fixed cells is
+  the same sweep either way (`sd = k.scale / k`); a modelled cell is
+  not, since `invchi(df, c)` starts its chain at the spread `c` where
+  `chi(df, k.scale / c)` starts at `k.scale / 2`. A `k` inside
   `leaf.prior` beside an `sd` grid is refused, as an `sd` there is
   beside either grid. The cells are swept most shrunk first - the
   smallest sd - with the warm starts and unit parallelism the `k` grid

@@ -45,7 +45,7 @@ print(x, ...)
 
   Character vector of fields to summarize. By default the leaf-scale
   field follows how the leaf prior was named: `k` for a fit that named
-  it by `k`, `leaf.prior.sd` (the anchor over `k`; see
+  it by `k`, `leaf.prior.sd` (the `k.scale` over `k`; see
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)) for
   one that named it by `sd`, and either can be requested by name, as can
   `first.k`, the burn-in draws. A requested parameter the fit held fixed
