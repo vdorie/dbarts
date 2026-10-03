@@ -221,11 +221,11 @@ for (name in names(scenarios)) {
   }
 
   # leaf.prior.sd: the reader's anchor over k, draws or one number alike
-  anchor <- sampler$getLeafPrior()$anchor
+  anchor <- sampler$getLeafPrior()$k.scale
   if (is.null(anchor)) {
-    anchor <- sampler$getLeafPrior()[[1L]]$anchor
+    anchor <- sampler$getLeafPrior()[[1L]]$k.scale
   }
-  expect_equal(fit$leaf.prior$anchor, anchor, info = name)
+  expect_equal(fit$leaf.prior$k.scale, anchor, info = name)
   for (combine in c(TRUE, FALSE)) {
     expect_equal(
       extract(fit, "leaf.prior.sd", combineChains = combine),
@@ -353,7 +353,7 @@ expect_identical(forests$n.forests, 2L)
 expect_identical(names(forests$leaf.prior), c("forest1", "forest2"))
 expect_null(forests[["k"]])
 perForest <- forests$fit$getLeafPrior()
-anchors <- vapply(perForest, function(prior) prior$anchor, 0)
+anchors <- vapply(perForest, function(prior) prior$k.scale, 0)
 expect_equal(
   extract(forests, "leaf.prior.sd"),
   setNames(
@@ -401,10 +401,10 @@ for (combine in c(TRUE, FALSE)) {
   )
   expect_identical(kParts$positive, held(hurdle$positive$fit$getK()))
   sdParts <- extract(hurdle, "leaf.prior.sd", combineChains = combine)
-  expect_equal(sdParts$zero, hurdle$zero$leaf.prior$anchor / kParts$zero)
+  expect_equal(sdParts$zero, hurdle$zero$leaf.prior$k.scale / kParts$zero)
   expect_equal(
     sdParts$positive,
-    hurdle$positive$fit$getLeafPrior()$anchor / kParts$positive
+    hurdle$positive$fit$getLeafPrior()$k.scale / kParts$positive
   )
 }
 expect_identical(
@@ -541,7 +541,7 @@ for (type in c("sigma", "k")) {
     info = type
   )
 }
-expect_equal(extract(warmed, "leaf.prior.sd"), warmed$leaf.prior$anchor / 2)
+expect_equal(extract(warmed, "leaf.prior.sd"), warmed$leaf.prior$k.scale / 2)
 expect_stdout(
   print(summary(warmed)),
   "(Fixed, not sampled: sigma = 1, k = 2)",

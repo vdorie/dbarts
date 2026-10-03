@@ -65,7 +65,7 @@ expect_true(
 )
 # the two pins the recipe rests on: no free residual scale, a stated leaf prior
 expect_equal(as.numeric(host$getSigmas()), 1)
-expect_equal(host$getLeafPrior()$anchor / host$getK()[[1L]], 1)
+expect_equal(host$getLeafPrior()$k.scale / host$getK()[[1L]], 1)
 
 ## 2. OFFSET BLOCK: BOTH blocks' truth. A partially linear model whose linear
 ## coefficient rides the offset channel must recover the coefficient AND the
@@ -214,7 +214,7 @@ blocks <- list(x3[, 1:2, drop = FALSE], x3[, 3:4, drop = FALSE])
 samplers <- lapply(blocks, function(xb) {
   dbarts(xb, y3, control = recipeControl(5L))
 })
-base <- samplers[[1L]]$getLeafPrior()$anchor / samplers[[1L]]$getK()[[1L]]
+base <- samplers[[1L]]$getLeafPrior()$k.scale / samplers[[1L]]$getK()[[1L]]
 # MUTATION 1 lives here: drop this loop
 for (s in samplers) {
   s$setLeafPrior(normal(sd = base / sqrt(kForest)))
@@ -239,7 +239,7 @@ priorRatio <- priorTotalSd(samplers) / priorTotalSd(list(single))
 # clean run by 5.1x and is exceeded by 2.5x under the mutation
 expect_true(abs(priorRatio - 1) < 0.15)
 expect_equal(
-  samplers[[1L]]$getLeafPrior()$anchor / samplers[[1L]]$getK()[[1L]],
+  samplers[[1L]]$getLeafPrior()$k.scale / samplers[[1L]]$getK()[[1L]],
   base / sqrt(kForest)
 )
 

@@ -355,7 +355,7 @@ probitForests <- function() {
   )
 }
 priorScale <- function(sampler, forest) {
-  sampler$getLeafPrior(forest)$anchor
+  sampler$getLeafPrior(forest)$k.scale
 }
 
 # (i) STALENESS: a basis whose median nonzero row norm is 4x the old one moves
@@ -465,7 +465,7 @@ expect_identical(priorScale(recipient, 2L), recipientScale)
 expect_identical(mapColumn(recipient, 2L, "leaf.scale.factor"), 0.5)
 expect_identical(mapColumn(recipient, 2L, "leaf.scale.divisor"), 0.674)
 expect_equal(
-  mapColumn(recipient, 2L, "anchor") *
+  mapColumn(recipient, 2L, "k.scale") *
     mapColumn(recipient, 2L, "leaf.scale.divisor") *
     mapColumn(recipient, 2L, "basis.row.norm") /
     mapColumn(recipient, 2L, "leaf.scale.factor"),
@@ -497,7 +497,7 @@ expect_equal(mapColumn(recipient, 2L, "leaf.scale.factor"), 0.5)
 expect_equal(mapColumn(recipient, 2L, "leaf.scale.divisor"), 0.674)
 expect_equal(mapColumn(recipient, 2L, "basis.row.norm"), 4)
 expect_equal(
-  mapColumn(recipient, 2L, "anchor") *
+  mapColumn(recipient, 2L, "k.scale") *
     mapColumn(recipient, 2L, "leaf.scale.divisor") *
     mapColumn(recipient, 2L, "basis.row.norm") /
     mapColumn(recipient, 2L, "leaf.scale.factor"),
@@ -519,7 +519,7 @@ expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.factor"), 2)
 expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.divisor"), 0.674)
 expect_equal(mapColumn(selfRestore, 2L, "amplitude.prior.variance"), 0.125)
 expect_equal(
-  mapColumn(selfRestore, 2L, "anchor") *
+  mapColumn(selfRestore, 2L, "k.scale") *
     mapColumn(selfRestore, 2L, "leaf.scale.divisor") *
     mapColumn(selfRestore, 2L, "basis.row.norm") /
     mapColumn(selfRestore, 2L, "leaf.scale.factor"),

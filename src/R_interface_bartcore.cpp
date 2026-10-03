@@ -6462,7 +6462,7 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr, SEXP installFollowsExpr) {
     if (record == nullptr || !std::isfinite(record[0]) ||
         !std::isfinite(record[1]) || record[1] < record[0] ||
         (count && record[1] == record[0]))
-      Rf_error("the model's response.anchor record must be two finite "
+      Rf_error("the model's response.range record must be two finite "
                "numbers, the second %s the first",
                count ? "above" : "not below");
     holder.sampler->setAnchor(record[0], record[1],

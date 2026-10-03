@@ -101,7 +101,7 @@ carriers <- c(
 for (name in names(carriers)) {
   fit <- carriers[[name]]
   expect_true(is.list(fit$leaf.prior), info = name)
-  expect_true("anchor" %in% names(fit$leaf.prior), info = name)
+  expect_true("k.scale" %in% names(fit$leaf.prior), info = name)
   expect_true(is.list(fit$fixed), info = name)
   expect_true(all(vapply(fit$fixed, is.numeric, NA)), info = name)
   # no channel stands in for them: a k appears only when drawn

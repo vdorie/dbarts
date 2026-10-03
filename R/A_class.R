@@ -521,7 +521,7 @@ methods::setClass(
   "dbartsModel",
   slots = list(
     leaf.scale = "numeric",
-    # The anchor a named leaf-prior sd translates to, in response units: the
+    # The k.scale a named leaf-prior sd translates to, in response units: the
     # forest total's prior sd at k = 1, or NA to inherit leaf.scale's
     # family-keyed internal-unit default. It records the named intent, which
     # the sampler re-issues after every channel that re-anchors the response

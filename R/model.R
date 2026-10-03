@@ -1695,7 +1695,7 @@ validateLeafSd <- function(sd) {
     stop(
       "'sd' takes a number or invchi(), a law on the sd itself; a law on k ",
       "is spelled k = chi(), and the same prior on the sd is ",
-      "sd = invchi(df, anchor / scale)"
+      "sd = invchi(df, k.scale / scale)"
     )
   }
   if (is.character(sd)) {
@@ -1802,7 +1802,7 @@ normal <- function(k = NULL, sd = NULL) {
   sd <- validateLeafSd(sd)
   if (!is.null(k) && !is.null(sd)) {
     stop(
-      "give either 'k' (relative to the data's anchor) or 'sd' (on the ",
+      "give either 'k' (relative to the data's scale) or 'sd' (on the ",
       "family's scale) to a leaf prior, not both"
     )
   }

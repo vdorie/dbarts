@@ -424,7 +424,7 @@ makeBC <- function(y) {
     family = gaussian(sigma = fixed(0.2))
   )
 }
-anchors.ls <- function(bc) vapply(bc$getLeafPrior(), `[[`, 0, "anchor")
+anchors.ls <- function(bc) vapply(bc$getLeafPrior(), `[[`, 0, "k.scale")
 
 set.seed(101)
 donor.ls <- makeBC(y.a)

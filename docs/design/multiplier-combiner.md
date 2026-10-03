@@ -534,7 +534,7 @@ are stated PER UNIT OF BASIS ROW NORM: a forest whose basis rows have median
 nonzero norm c contributes the scale named, and the map divides c out.
 (2) The induced prior sd on the index at row i is
 `sqrt( sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2 )` over the fixed-variance
-forests, `prior.sd_f` read from `$getLeafPrior(f)$anchor` (k is pinned at 1) and
+forests, `prior.sd_f` read from `$getLeafPrior(f)$k.scale` (k is pinned at 1) and
 `v_f` the forest's `amplitude.prior.variance` (default 0.5); a basis-free
 forest's own contribution is Cauchy with no sd. (3) Under probit and logistic
 that index is in LATENT sd units and sigma is PINNED, so nothing absorbs a

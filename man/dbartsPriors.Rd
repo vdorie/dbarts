@@ -44,7 +44,7 @@
       Either names the spread of the whole forest - the sum of trees - not
       of one tree.
 
-      \code{k} is relative to the anchor the data fixes: a positive scalar,
+      \code{k} is relative to the scale the data fixes: a positive scalar,
       a hyperprior on \code{k} built with \code{chi}, or \code{NULL} for
       the default, 2 for continuous responses and \code{chi(1.5, 2)} for
       binary ones and counts (\code{nbinom}). The continuous default follows Chipman, George, and
@@ -59,9 +59,9 @@
       model's own parameter, for the forest total, on the scale the
       family's forest fits: a positive number, or a hyperprior on the sd
       itself built with \code{invchi}. It takes no string form. The scale
-      and the anchor \code{k} is relative to, per family:
+      and the \code{k.scale} \code{k} is relative to, per family:
       \tabular{lll}{
-        family \tab \code{sd} is stated in \tab anchor at \code{k = 1} \cr
+        family \tab \code{sd} is stated in \tab \code{k.scale} at \code{k = 1} \cr
         gaussian, student \tab response units \tab half the training response range \cr
         aft \tab log survival time \tab half the observed log-time range \cr
         probit, ordinal \tab probit latent \tab 3 \cr
@@ -69,7 +69,7 @@
         nbinom \tab log mean \tab 3 \cr
         hazard \tab its link's latent \tab 3 or \eqn{\pi\sqrt{3}}{pi * sqrt(3)}
       }
-      so a fixed \code{k} is the \code{sd} anchor / \code{k}. For the
+      so a fixed \code{k} is the \code{sd} \code{k.scale} / \code{k}. For the
       constant leaf \code{sd} is exactly the prior standard deviation of
       \eqn{f(x)} at every \eqn{x}; for the other leaf models it is the sd of
       their parameter, and the prior spread of \eqn{f(x)} it implies is a
@@ -163,7 +163,7 @@
       of freedom and scale \code{scale}. The default, \code{chi(1.5, 2)},
       centers the sampled \code{k} near the field-standard fixed value of
       2 (prior median 1.9) while letting it adapt to the data. It is the
-      same prior as \code{sd = invchi(df, anchor / scale)}. \code{scale =
+      same prior as \code{sd = invchi(df, k.scale / scale)}. \code{scale =
       Inf} remains accepted, but the posterior it gives \code{k} is
       improper: with little signal, few trees or many degrees of freedom,
       \code{k} can drift to infinity, where every leaf is zero and the
@@ -178,7 +178,7 @@
       \code{df} degrees of freedom. \code{scale} has no default, since a
       spread on the family's scale has no data-free one; \code{scale = 0}
       is the improper \eqn{sd^{-(df + 1)}}{sd^-(df + 1)} limit. It is the
-      same prior as \code{k = chi(df, anchor / scale)}, and
+      same prior as \code{k = chi(df, k.scale / scale)}, and
       \code{chi(df, Inf)} is \code{invchi(df, 0)}; the binary defaults are
       \code{invchi(1.5, 1.5)} on probit and
       \code{invchi(1.5, pi * sqrt(3) / 2)} on logistic. In Stan's terms it

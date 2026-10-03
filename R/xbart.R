@@ -352,7 +352,7 @@ xbart <- function(
   sdGiven <- !is.null(matchedCall[["sd"]])
   if (kGiven && sdGiven) {
     stop(
-      "give either 'k' (relative to each fold's anchor) or 'sd' (absolute ",
+      "give either 'k' (relative to each fold's scale) or 'sd' (absolute ",
       "spreads on the family's scale) as the grid, not both"
     )
   }

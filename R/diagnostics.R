@@ -76,7 +76,7 @@ scalarFields <- c(
 # The variance surface has no scalar to summarize (summarizing every
 # observation's draws would swamp the table), so its convergence is read off
 # that pooled mean, as bartMultinomial's is off its pooled per-category prob.
-# "leaf.prior.sd" is the anchor over a drawn k, in k's own layout; with k
+# "leaf.prior.sd" is the k.scale over a drawn k, in k's own layout; with k
 # fixed there are no draws and the value is the fixed line's.
 drawsField <- function(object, v) {
   if (identical(v, "leaf.prior.sd")) {
@@ -84,7 +84,7 @@ drawsField <- function(object, v) {
     if (is.null(object[["k"]]) || is.null(prior[["leaf.prior"]])) {
       return(NULL)
     }
-    return(prior$anchor / object[["k"]])
+    return(prior$k.scale / object[["k"]])
   }
   if (!identical(v, "mean.s")) {
     return(object[[v]])

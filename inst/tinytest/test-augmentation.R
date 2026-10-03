@@ -269,7 +269,7 @@ augAgreement <- function(family, y, coldStart, link) {
     family = gaussian(sigma = fixed(1))
   )
   host$setLeafPrior(normal(
-    sd = native$getLeafPrior()$anchor / native$getK()[[1L]]
+    sd = native$getLeafPrior()$k.scale / native$getK()[[1L]]
   ))
   fits <- matrix(0, nObs, nDraws)
   for (s in seq_len(nBurn + nDraws)) {
@@ -298,8 +298,8 @@ augAgreement <- function(family, y, coldStart, link) {
     signal = cor(composed, fTrue),
     sigma = as.numeric(host$getSigmas()),
     scales = c(
-      host$getLeafPrior()$anchor / host$getK()[[1L]],
-      native$getLeafPrior()$anchor / native$getK()[[1L]]
+      host$getLeafPrior()$k.scale / host$getK()[[1L]],
+      native$getLeafPrior()$k.scale / native$getK()[[1L]]
     )
   )
 }

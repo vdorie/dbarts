@@ -712,7 +712,7 @@ bartcoreSamplerSetResponse <- function(
     refuseAmplitudeMutation(
       sampler,
       "setResponse(updateScale = TRUE)",
-      "every forest keeps its leaf calibration stated against the anchor ",
+      "every forest keeps its leaf calibration stated against the scale ",
       "fixed at creation; use updateScale = FALSE instead"
     )
   }
@@ -744,7 +744,7 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
     refuseAmplitudeMutation(
       sampler,
       "setOffset(updateScale = TRUE)",
-      "every forest keeps its leaf calibration stated against the anchor ",
+      "every forest keeps its leaf calibration stated against the scale ",
       "fixed at creation; use updateScale = FALSE instead"
     )
   }

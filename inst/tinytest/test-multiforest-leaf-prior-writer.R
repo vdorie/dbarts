@@ -168,7 +168,7 @@ a <- amplitudeSampler(twoDefault)
 b <- amplitudeSampler(twoDefault)
 a$setLeafPrior(forests = list(forest(), forest(sd = 0.6)))
 expect_equal(
-  a$getLeafPrior(2L)$anchor / b$getLeafPrior(2L)$anchor,
+  a$getLeafPrior(2L)$k.scale / b$getLeafPrior(2L)$k.scale,
   0.6,
   tolerance = 1e-14
 )
@@ -179,7 +179,7 @@ a <- amplitudeSampler(twoDefault)
 b <- amplitudeSampler(twoDefault)
 a$setLeafPrior(forests = list(forest(sd = 0.35)))
 expect_identical(a$getLeafPrior(1L)$amplitude.prior.scale, 0.35)
-expect_identical(a$getLeafPrior(1L)$anchor, b$getLeafPrior(1L)$anchor)
+expect_identical(a$getLeafPrior(1L)$k.scale, b$getLeafPrior(1L)$k.scale)
 expect_false(identical(counted(a$run(3L, 2L)), counted(b$run(3L, 2L))))
 
 # --- re-creation: the anchor s is carried, so a response swap at
@@ -189,7 +189,7 @@ counted(live$run(3L, 2L))
 live$setResponse(y + 3 * x[, 3L], updateScale = FALSE)
 live$storeState()
 anchorOf <- function(sampler) {
-  vapply(sampler$getLeafPrior(), `[[`, 0, "anchor")
+  vapply(sampler$getLeafPrior(), `[[`, 0, "k.scale")
 }
 factorOf <- function(sampler) sampler$getLeafPrior(2L)$leaf.scale.factor
 copied <- live$copy()

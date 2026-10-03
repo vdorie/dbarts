@@ -127,7 +127,7 @@ forest(
     prior standard deviation of the combined location at row \eqn{i}{i} is
     \eqn{\sqrt{\sum_f s_f^2 v_f \|B_f(i,\cdot)\|^2}}{sqrt(sum_f s_f^2 v_f
     ||B_f(i, .)||^2)} over the forests carrying a basis, with \eqn{s_f}{s_f}
-    read from \code{$getLeafPrior(f)$anchor} and \eqn{v_f}{v_f}
+    read from \code{$getLeafPrior(f)$k.scale} and \eqn{v_f}{v_f}
     this argument; a basis-free forest's own term is Cauchy and has no
     standard deviation. The budget that sum sits in is set by \code{sd}, whose
     default already divides it among the \eqn{K}{K} forests, so raising this
@@ -253,7 +253,7 @@ amplitudes <- sampler$getForestAmplitudes()
 # than recomputed from the call: forest 2 is the one carrying a basis
 calibration <- sampler$getLeafPrior(2L)
 basis <- sampler$data@bases[[2L]]
-indexSd <- sqrt(calibration$anchor^2 *
+indexSd <- sqrt(calibration$k.scale^2 *
                 calibration$amplitude.prior.variance *
                 rowSums(basis^2))
 }

@@ -82,7 +82,7 @@ continuous ones too via `leaf.prior = normal(chi(1.5, 2))`) - letting
 the leaf scale adapt some of the outlier's effect away rather than
 letting a fixed `k` absorb it.
 
-Because the anchor is fixed from the data at creation, a Gibbs sampler
+Because the k.scale is fixed from the data at creation, a Gibbs sampler
 that swaps `y` or the offset between draws (the `dbartsSampler` use
 case) would otherwise let the effective prior drift as the range
 changes. `setResponse` and `setOffset` both take `updateScale` (default
@@ -93,42 +93,42 @@ mid-run makes fits across iterations no longer comparable.
 
 ## Naming the leaf prior: k or sd
 
-Locking the anchor is not the same as choosing it. A composed model -
+Locking the k.scale is not the same as choosing it. A composed model -
 one whose driving R program hands the sampler latents, residuals or
 another block's offsets - still inherits whatever spread the
 CONSTRUCTION vector implied, which is an accident of how the outer loop
 was initialized rather than a modelling statement. So the leaf prior is
-named one of two ways, never both: `k`, relative to the anchor the data
+named one of two ways, never both: `k`, relative to the scale the data
 fixes (a number, or a law on k, `chi(df, scale)`), or `sd`, the prior sd
 of the forest total's leaf parameter on the scale the family's forest
 fits (a number, or a law on the sd itself, `invchi(df, scale)`). For the
 constant leaf `sd` is the prior sd of f(x); for linear leaves it is each
 coefficient's, per standardized covariate; for GP leaves the amplitude.
 
-Only the ratio of anchor to k enters a draw law. Under k ~ s chi_df the
-spread is (anchor / s) / chi_df, a scaled inverse chi on the sd, so a
-named anchor and the k hyperprior's scale are not separately identified:
-`chi(df, s)` is `invchi(df, anchor / s)`, and `chi(df, Inf)`, the
+Only the ratio of k.scale to k enters a draw law. Under k ~ s chi_df the
+spread is (k.scale / s) / chi_df, a scaled inverse chi on the sd, so a
+named k.scale and the k hyperprior's scale are not separately identified:
+`chi(df, s)` is `invchi(df, k.scale / s)`, and `chi(df, Inf)`, the
 improper sd^-(df + 1), is `invchi(df, 0)`. That family is the only law on
 the sd offered because it is the one conjugate to the normal leaves.
 
 The translation rides a reference k of 2: `sd = x` reaches the engine
-as anchor 2x with k fixed at 2, and `invchi(df, c)` as anchor 2c with
-k ~ chi(df, 2); `invchi(df, 0)` is no anchor with chi(df, Inf). A drawn
+as k.scale 2x with k fixed at 2, and `invchi(df, c)` as k.scale 2c with
+k ~ chi(df, 2); `invchi(df, 0)` is no k.scale with chi(df, Inf). A drawn
 k starts at 2, so the chain starts at the named spread, and the binary
 default and the old k spellings at their defaults keep bitwise engine
-inputs. The anchor is the dbartsModel slot `prior.scale`, which
+inputs. The k.scale is the dbartsModel slot `prior.scale`, which
 overrides the family-keyed `leaf.scale` above and is converted
 engine-side against the transform in force, at creation and on every
 model install.
 
-A named sd is absolute. The sampler restates the named anchor after
+A named sd is absolute. The sampler restates the named k.scale after
 every channel that re-anchors the response transform
 ([`reissueNamedLeafSd`](../../R/dbarts.R)), using the latest
 `$setLeafPrior` write, which the R5 model records; a k moves with the
 data. The reader reports in the terms the prior was named in: `prior.sd`,
 the sd law in force while k is drawn, and k relative to the data's
-`anchor` ([`reportLeafPrior`](../../R/dbarts.R)); a fit named by an sd
+`k.scale` ([`reportLeafPrior`](../../R/dbarts.R)); a fit named by an sd
 hyperprior carries draws of the sd in place of k. The two-forest and
 multinomial models have their own calibration maps and refuse a named
 sd rather than drop it, as does a hurdle fit, whose two parts are on

@@ -578,7 +578,7 @@ expect_equal(length(kDraws), n.samples)
 expect_true(all(kDraws > 0) && length(unique(kDraws)) > 1L)
 expect_equal(
   extract(fit, type = "leaf.prior.sd"),
-  fit$leaf.prior$anchor / kDraws
+  fit$leaf.prior$k.scale / kDraws
 )
 expect_error(extract(fit, type = "k", sample = "train"), "sample")
 fitSd <- bart(
@@ -597,7 +597,7 @@ fitSd <- bart(
 expect_equal(length(fitSd[["k"]]), 10L)
 expect_equal(
   extract(fitSd, type = "leaf.prior.sd"),
-  fitSd$leaf.prior$anchor / extract(fitSd, type = "k")
+  fitSd$leaf.prior$k.scale / extract(fitSd, type = "k")
 )
 fitFixedK <- bart(
   x,
@@ -617,7 +617,7 @@ expect_identical(extract(fitFixedK, type = "k"), 2)
 expect_identical(extract(fitFixedK, type = "k", combineChains = FALSE), 2)
 expect_equal(
   extract(fitFixedK, type = "leaf.prior.sd"),
-  fitFixedK$leaf.prior$anchor / 2
+  fitFixedK$leaf.prior$k.scale / 2
 )
 rm(kDraws, fitSd, fitFixedK)
 

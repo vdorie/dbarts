@@ -68,7 +68,7 @@ basisSampler <- function(y, bases, family = "auto", ...) {
 priorScales <- function(sampler) {
   unname(vapply(
     seq_along(sampler$data@bases),
-    function(f) sampler$getLeafPrior(f)$anchor,
+    function(f) sampler$getLeafPrior(f)$k.scale,
     numeric(1L)
   ))
 }
@@ -187,7 +187,7 @@ for (family in names(anchors)) {
     expect_equal(reported$leaf.scale.divisor, 0.674)
     expect_equal(reported$basis.row.norm, medianRowNorm(pinBases[[f]]))
     expect_equal(
-      reported$anchor *
+      reported$k.scale *
         reported$leaf.scale.divisor *
         reported$basis.row.norm /
         reported$leaf.scale.factor,

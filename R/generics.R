@@ -856,7 +856,7 @@ addTreesChainColumn <- function(trees) {
 # them: a parameter the fit sampled comes back as its draws, in the layout the
 # chain margin asks for, and one it held fixed as one number (fixed holds what
 # the sampler held; the draw channel of a fixed sigma or shape repeats it).
-# k is the sampler's own, and leaf.prior.sd the anchor over it - the forest
+# k is the sampler's own, and leaf.prior.sd the k.scale over it - the forest
 # total's prior sd in the units the forest fits - so it is a fixed number or
 # draws exactly as k is. A fit with several forests has one k and one sd per
 # forest, named, or the one 'forest' selects. A fit saved before fits stored
@@ -882,9 +882,9 @@ extractParameter <- function(
       )
     }
     anchor <- if (is.null(prior[["leaf.prior"]])) {
-      vapply(prior, function(forestPrior) forestPrior$anchor, 0)
+      vapply(prior, function(forestPrior) forestPrior$k.scale, 0)
     } else {
-      prior$anchor
+      prior$k.scale
     }
     k <- if (!is.null(fixed[["k"]])) {
       fixed[["k"]]

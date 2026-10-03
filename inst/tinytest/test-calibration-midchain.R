@@ -36,7 +36,7 @@ namedSampler <- function(response = y, ...) {
 }
 # the spread in force on each chain, which the reader states as anchor / k
 priorSdOf <- function(sampler, forest = 1L) {
-  sampler$getLeafPrior(forest)$anchor / sampler$getK(forest)
+  sampler$getLeafPrior(forest)$k.scale / sampler$getK(forest)
 }
 # a specification built in the constructors' own vocabulary
 priorOf <- function(expr) eval(substitute(expr), dbartsPriors, parent.frame())
@@ -61,7 +61,7 @@ expect_identical(
     "leaf.model",
     "prior.sd.of",
     "prior.mean",
-    "anchor",
+    "k.scale",
     "response.scale",
     "response.shift"
   )
@@ -84,7 +84,7 @@ expect_identical(calibration$leaf.prior, priorOf(normal(k = 2)))
 # it reads the ENGINE, so an unnamed model reports the family-keyed default
 # converted to response units: leaf.scale 0.5 times the response range, and
 # getK is bitwise the engine's k
-expect_equal(calibration$anchor, 0.5 * (max(y) - min(y)))
+expect_equal(calibration$k.scale, 0.5 * (max(y) - min(y)))
 expect_identical(plain$getK(), engineReading(plain)[, "k"])
 expect_identical(plain$getK(), c(2, 2))
 expect_equal(calibration$prior.mean, (max(y) + min(y)) / 2)
@@ -94,7 +94,7 @@ expect_equal(calibration$response.scale, max(y) - min(y))
 named <- namedSampler()
 namedReading <- named$getLeafPrior()
 expect_identical(namedReading$leaf.prior, priorOf(normal(sd = 0.75)))
-expect_identical(namedReading$anchor, 1.5)
+expect_identical(namedReading$k.scale, 1.5)
 expect_identical(named$getK(), c(2, 2))
 # the leaf model qualifies what the sd is the sd of
 expect_identical(
@@ -171,7 +171,7 @@ binaryA <- dbarts(x, yBinary, control = midControl())
 binaryB <- dbarts(x, yBinary, control = midControl())
 binaryRead <- binaryB$getLeafPrior()
 expect_identical(binaryRead$leaf.prior, priorOf(normal(k = chi(1.5, 2))))
-binaryB$setLeafPrior(normal(sd = invchi(1.5, binaryRead$anchor / 2)))
+binaryB$setLeafPrior(normal(sd = invchi(1.5, binaryRead$k.scale / 2)))
 expect_identical(binaryA$run(20L, 10L)$train, binaryB$run(20L, 10L)$train)
 # and the reader's own output written back, for a drawn k and for each
 # spelling of an sd law, which reads its scale off the anchor in force
@@ -259,7 +259,7 @@ staticSampler <- function(numTrees) {
 # 0.5, whose response-unit reading is 0.5 times the range at every tree count
 staticRead <- vapply(
   c(50L, 200L),
-  function(numTrees) staticSampler(numTrees)$getLeafPrior()$anchor,
+  function(numTrees) staticSampler(numTrees)$getLeafPrior()$k.scale,
   numeric(1L)
 )
 expect_true(max(abs(staticRead / (0.5 * (max(y) - min(y))) - 1)) < 1e-12)
@@ -487,7 +487,7 @@ expect_identical(
 )
 expect_identical(bcfCalibration$prior.sd.of, "amplitude scale")
 expect_identical(bcfCalibration2$prior.sd.of, "forest total")
-expect_true(bcfCalibration$anchor > 0 && bcfCalibration2$anchor > 0)
+expect_true(bcfCalibration$k.scale > 0 && bcfCalibration2$k.scale > 0)
 # here the map entries are the ones IN FORCE, and the two amplitude entries
 # are EXCLUSIVE per forest: forest 1 declares no basis, so it carries the
 # half-Cauchy scale mixture and no variance, and forest 2 the reverse
@@ -517,7 +517,7 @@ expect_identical(bcf$getK(), rbind(bcf$getK(1L), bcf$getK(2L)))
 # the reported decomposition (k is pinned at 1, so the anchor is the map's leaf
 # scale): the two forests recover the SAME s
 recoveredAnchor <- function(prior) {
-  prior$anchor *
+  prior$k.scale *
     prior$leaf.scale.divisor *
     prior$basis.row.norm /
     prior$leaf.scale.factor

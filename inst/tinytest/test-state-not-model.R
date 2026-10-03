@@ -342,14 +342,14 @@ expect_identical(sweeps(constantSelf), sweeps(constantTwin))
 # non-finite or decreasing pair anywhere, and an equal one on the count family
 withRecord <- function(sampler, record) {
   model <- sampler$model
-  attr(model, "response.anchor") <- record
+  attr(model, "response.range") <- record
   sampler$model <- model
   sampler
 }
 for (record in list(c(NaN, NaN), c(2, 1))) {
   expect_error(
     withRecord(make(), record)$copy(),
-    "response.anchor record must be two finite numbers"
+    "response.range record must be two finite numbers"
   )
 }
 expect_error(
@@ -371,7 +371,7 @@ priorDraws <- vapply(
   },
   numeric(1L)
 )
-spread <- lp$anchor / priorRecipient$getK()[[1L]]
+spread <- lp$k.scale / priorRecipient$getK()[[1L]]
 expect_true(abs(mean(priorDraws) - lp$prior.mean) < 4 * spread / sqrt(300))
 expect_true(abs(sd(priorDraws) / spread - 1) < 0.15)
 

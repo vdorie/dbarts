@@ -37,7 +37,7 @@
   \item{vars}{
     Character vector of fields to summarize. By default the leaf-scale
     field follows how the leaf prior was named: \code{k} for a fit that
-    named it by \code{k}, \code{leaf.prior.sd} (the anchor over \code{k};
+    named it by \code{k}, \code{leaf.prior.sd} (the \code{k.scale} over \code{k};
     see \code{\link{bartBT}}) for one that named it by \code{sd}, and
     either can be requested by name, as can \code{first.k}, the burn-in
     draws. A requested parameter the fit held fixed (\code{sigma} under
