@@ -2054,6 +2054,28 @@ public:
   /// its family pin it, or carrying the residual scale in a variance forest.
   bool drawsSigma() const { return !sigmaIsFixed_; }
 
+  /// Whether (min, max) names response units this chain can hold its numbers
+  /// in: any pair on a gaussian-style family, where (c, c) is a constant
+  /// response's range-1 transform, and an increasing one on the count family,
+  /// whose state always carries one. Never on a scale-free family, which
+  /// reports (0, 0).
+  bool carriesUnits(double min, double max) const {
+    if (family_ == ResponseFamily::nbinom) return max > min;
+    return family_ == ResponseFamily::gaussian ||
+           family_ == ResponseFamily::aft;
+  }
+
+  /// Whether an install must move this chain into the state's transform. An
+  /// increasing pair always does, exactly as before; a constant response's
+  /// (c, c) only where it is not already the chain's own.
+  bool installsScale(const ChainStateData& state) const {
+    if (state.fitMax > state.fitMin) return true;
+    if (!carriesUnits(state.fitMin, state.fitMax)) return false;
+    double min, max;
+    response_->getScale(min, max);
+    return state.fitMin != min || state.fitMax != max;
+  }
+
   /// Moves the chain's transform to (min, max) while its trees are still
   /// creation's: sigma, its prior and a variance forest keep their
   /// original-scale values, as at a re-anchoring response swap, and no leaf
@@ -2078,7 +2100,7 @@ public:
   /// stand. The result agrees with the stored function to rounding, not
   /// bitwise. False, the state untouched, where the shift cannot be
   /// carried: a gp leaf's saved draw has no mean term, and under amplitudes
-  /// no forest owns one. Both pairs increasing.
+  /// no forest owns one. Both pairs carry units (carriesUnits).
   bool convertStateUnits(ChainStateData& state, double min, double max) const {
     double fromScale, fromShift, toScale, toShift;
     unitsOf(state.fitMin, state.fitMax, fromScale, fromShift);
@@ -4418,7 +4440,7 @@ public:
                      ColumnStore* store = nullptr) {
     if (state.forests.size() != forests_.size()) return false;
     double ownSigma = sigma();
-    if (state.fitMax > state.fitMin) {
+    if (installsScale(state)) {
       response_->restoreScale(state.fitMin, state.fitMax);
       // the scale leaf is stated on the working scale this transform defines
       if constexpr (leafSupportsVarianceForest)
@@ -4550,7 +4572,7 @@ public:
     // the internal-scale tree parameters and fits below were recorded under
     // this transform; scale-free states leave creation's. restoreScale
     // re-anchors the variance prior through it.
-    if (state.fitMax > state.fitMin) {
+    if (installsScale(state)) {
       response_->restoreScale(state.fitMin, state.fitMax);
       if constexpr (leafSupportsVarianceForest)  // as in installForest
         if (varianceForest_) calibrateVarianceLeaf();

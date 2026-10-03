@@ -242,7 +242,11 @@ records: engine 625, bridge 172, R 165, manual 50, tests 1174.
 - The record is the model attribute `response.anchor`, written by `initialize` on a first creation and by
   `setResponse` and `setOffset` with the scale update and `setData`, carried by `setModel`, and handed to the
   engine by [`applyAnchor`](../../R/dbarts.R) through one new bridge entry, `bartcore_anchor`, rather than a
-  creation argument. A model saved without it reads NULL and its sampler anchors to its data.
+  creation argument. An object saved before the record existed carries none, and reloads in its data's
+  units with its state converted into them, not adopted: a sampler saved after a swap without the scale
+  update comes back anchored to the data as it now stands. No shipped object is affected. A sampler created
+  from a model that never carried a sampler's record, as stan4bart's restore is, anchors to its data the
+  same way.
 - A drawn df or shape block that is present is still checked; an absent one keeps the sampler's. The gp and
   amplitude refusals compare shifts exactly. The reader takes every value from the first chain, which after
   any install is in the sampler's units. See dec-A148 for these and the other calls.
@@ -265,4 +269,11 @@ records: engine 625, bridge 172, R 165, manual 50, tests 1174.
   assertions there, and three in inst/tinytest/test-bcf.R.
 - Also measured, outside the suite: 36 configurations, every install path, draws and reader identical between
   the base commit's library and this one, frozen transforms and a fixed sigma written by `setSigma` included.
-
+- Review fixes, in the commit after 08ab22ef: whether a state's pair names units is decided by the family, so
+  a constant response's (c, c), its range-1 transform, converts both ways, where a sampler on one had taken a
+  normal state's units and a state stored in one had replayed at a relative error of 0.79; a constant-response
+  sampler's own state still installs untouched. The design note and the manual corrected on amplitudes and on
+  the gp refusal. The warm start's undo has no test and none can reach it without a fault hook: TODO,
+  warm-start-undo-test. Afterwards tests/cpp passes, tinytest 12325 tests with 0 failures and no new warning,
+  the lint chain passes, and on a reference build the compares are identical on 55, 15 and 11 scenarios and
+  the four snapshot files pass.

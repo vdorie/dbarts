@@ -80,7 +80,8 @@ struct ChainStateData {
   double sigma = std::numeric_limits<double>::quiet_NaN();
   // the response transform the stored leaf values are in: the units of the
   // state, converted to the sampler's own at install when the two differ
-  // (Chain::convertStateUnits); max <= min marks scale-free
+  // (Chain::convertStateUnits); (0, 0) on a scale-free family, and a
+  // gaussian (c, c) a constant response's range-1 transform
   double fitMin = 0.0, fitMax = 0.0;
   std::vector<double> latents;            // empty for gaussian; lambda under t
   // Student-t continuous errors (TResponse) only, and only where nu is drawn:

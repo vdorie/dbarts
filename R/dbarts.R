@@ -3438,7 +3438,7 @@ dbartsSampler <- setRefClass(
       pointer
     },
     setState = function(newState) {
-      "Installs a stored state: the chains, never the model. A state in other response units is converted into the sampler's. See Saving in ?dbartsSampler."
+      "Installs a stored state: the chains, never the model. A state in other response units is converted into the sampler's; a Gaussian-process leaf or forests with amplitudes refuse one under another response shift, saved draws or not. See Saving in ?dbartsSampler."
       refuseLegacyState(newState)
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")

@@ -1532,10 +1532,10 @@ public:
   /// moveChains every chain is moved there now (Chain::moveScale), which
   /// requires trees that are still creation's; without, the install that
   /// follows moves them, its state converted into these units. A chain
-  /// already there is left untouched. Ignored on a scale-free sampler or
-  /// pair.
+  /// already there is left untouched. Ignored where the family carries no
+  /// such units.
   void setAnchor(double min, double max, bool moveChains) {
-    if (!(max > min) || !(anchorMax_ > anchorMin_)) return;
+    if (!chains_[0]->carriesUnits(min, max)) return;
     anchorMin_ = min;
     anchorMax_ = max;
     if (!moveChains) return;
@@ -2127,10 +2127,11 @@ private:
   void recordAnchor() { chains_[0]->getScale(anchorMin_, anchorMax_); }
 
   /// Whether a chain's state is stored in other units than the sampler's:
-  /// both pairs increasing and not equal. Exact comparison, so a state in the
-  /// sampler's own units is never touched.
+  /// the family carries units (Chain::carriesUnits) and the pairs are not
+  /// equal. Exact comparison, so a state in the sampler's own units is never
+  /// touched.
   bool unitsDiffer(const ChainStateData& state) const {
-    return state.fitMax > state.fitMin && anchorMax_ > anchorMin_ &&
+    return chains_[0]->carriesUnits(state.fitMin, state.fitMax) &&
            (state.fitMin != anchorMin_ || state.fitMax != anchorMax_);
   }
 

@@ -304,6 +304,39 @@ acrossUnits("gp", list(leaf.prior = gp("x2")), stretched, centred)
 acrossUnits("variance forest", list(variance = TRUE))
 acrossUnits("count", list(family = nbinom()), 2L * counts, counts)
 
+# a constant response's transform is units too, range 1 about its value: a
+# sampler on one keeps them across an install from a normal response, a state
+# stored in them replays in a normal recipient, and its own state is untouched
+makeConstant <- function(...) {
+  sampler <- NULL
+  expect_warning(
+    sampler <- make(response = rep(2, n), ...),
+    "indistinguishable"
+  )
+  sampler
+}
+constantRecipient <- makeConstant()
+constantPrior <- constantRecipient$getLeafPrior()
+constantRecipient$setState(stored(make()))
+expect_identical(constantRecipient$getLeafPrior(), constantPrior)
+expect_identical(units(constantRecipient), c(2, 2))
+keepConstant <- stateControl(keepTrees = TRUE)
+constantDonor <- makeConstant(control = keepConstant)
+invisible(constantDonor$run(0L, 3L))
+normalRecipient <- make(control = keepConstant)
+normalRecipient$setState(stored(constantDonor))
+expect_equal(
+  normalRecipient$predict(x),
+  constantDonor$predict(x),
+  tolerance = 1e-12
+)
+constantSelf <- makeConstant()
+constantState <- stored(constantSelf)
+constantSelf$setState(constantState)
+constantTwin <- makeConstant()
+constantTwin$setState(constantState)
+expect_identical(sweeps(constantSelf), sweeps(constantTwin))
+
 # prior-only draws are at the recipient's anchor after it, not the donor's
 priorRecipient <- make()
 priorRecipient$setState(stored(make(response = rescaled)))

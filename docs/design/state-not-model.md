@@ -40,13 +40,15 @@ The sampler now holds one transform. It is set when the sampler is created, and 
 `setOffset` with `updateScale = TRUE`, or `setData`, re-anchors it; nothing else moves it. The R object records
 it on the model, so a copy or a reload is re-created in it. A state stored in other units has its numbers
 rewritten into the sampler's as it is installed: every leaf value is multiplied by the ratio of the two ranges
-and shifted by the difference of the shifts, split evenly over the trees; slopes, gp fits and amplitudes take
-the ratio alone and variance factors its square, split over the variance trees. The replayed function agrees
+and shifted by the difference of the shifts, split evenly over the trees; slopes and gp fits take the ratio
+alone, and variance factors its square, split over the variance trees. Amplitudes are multipliers and stay
+as they are: the leaf values beneath them carry the ratio. A constant response's transform has range 1
+about its value and converts like any other. The replayed function agrees
 with the stored one to rounding. A state in the sampler's own units is not touched and installs bit for bit.
 
 Two kinds of chain cannot take a different shift - a gp leaf's saved draws carry no mean term, and with
 amplitudes no single forest owns the location - and a state stored under another shift is refused there by
-name. Another range at the same shift converts.
+name, a gp state whether or not it holds saved draws. Another range at the same shift converts.
 
 A re-anchor is a model change, so restoring a state saved before one does not undo it: the state is converted
 into the new units. To roll a re-anchoring proposal back, re-anchor to the old response and then restore.

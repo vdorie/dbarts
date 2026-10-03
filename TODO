@@ -148,6 +148,15 @@ items
     list, and a new sampler reader, getK, returns each chain's current k
     as run records it (docs/decisions.md dec-B141, VD 2026-09-29).
     bartCause's bcf changes in lockstep.
+  warm-start-undo-test: Sampler::installForests undoes a refused warm
+    start by snapshotting each touched chain's state and setting it back
+    (restoreTouched), and nothing tests it. Every refusal it guards is
+    checked before any chain is touched, so the undo runs only on an
+    allocation failure or a rebuild that passed its pre-check and then
+    failed; neither can be reached from tinytest or tests/cpp without a
+    fault-injection hook. Add one (a tests/cpp peer that fails the Nth
+    installForest) and check the recipient is restored: trees, sigma, k,
+    DART state, transform and the next draws.
   state-frame-prior: the cut grid, a linear or gp leaf's covariate
     standardization and a heuristic gp lengthscale are derived from data
     once and then kept while the data moves, so a saved state still brings
