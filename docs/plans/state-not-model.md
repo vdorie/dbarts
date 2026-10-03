@@ -1,6 +1,7 @@
 # state-not-model: a saved state holds the chain, not the model
 
-Status: PLANNED 2026-10-02 under dec-B195, dec-B196, dec-B197 and dec-B200 in [decisions.md](../decisions.md).
+Status: LANDED 2026-10-02 (3f2c46fc) under dec-B195, dec-B196, dec-B197 and dec-B200 in
+[decisions.md](../decisions.md); the agents' calls are dec-A146 and dec-A148.
 Follows [fit-stores-k.md](fit-stores-k.md), landed.
 
 agent: opus implementer, one; opus reviewer.
@@ -226,3 +227,42 @@ Against a private library, installed with `--preclean` (step 1 changes virtuals)
   conversion pass writes through every stored tree.
 - `lintr::lint_package()`, `air format --check .`, `tools/check-rc-codoc.R`, `tools/check-win-drift.R` and
   `tools/check-doc-freshness.R` pass, each on its own exit status.
+
+## Landing
+
+LANDED 2026-10-02 (3f2c46fc). About 2190 changed lines (1480 added) against the 1400 budgeted, before these
+records: engine 625, bridge 172, R 165, manual 50, tests 1174.
+
+- Install paths covered, each through [`Sampler::setState`](../../src/bartcore/sampler.hpp) or
+  [`Sampler::installForests`](../../src/bartcore/sampler.hpp) and so through the units pass: `$setState` on a
+  live pointer and on a dead one, a reload through `getPointer`, `copy` with a stored state, `$installTrees` and
+  `bart(warm.start = )`, and the warm start's undo of a refused install. `copy` with no stored state and the
+  private sampler of `samplePriorPredictive` are re-created in the record and moved there by
+  [`Chain::moveScale`](../../src/bartcore/chain.hpp). The flat C API installs no state.
+- The record is the model attribute `response.anchor`, written by `initialize` on a first creation and by
+  `setResponse` and `setOffset` with the scale update and `setData`, carried by `setModel`, and handed to the
+  engine by [`applyAnchor`](../../R/dbarts.R) through one new bridge entry, `bartcore_anchor`, rather than a
+  creation argument. A model saved without it reads NULL and its sampler anchors to its data.
+- A drawn df or shape block that is present is still checked; an absent one keeps the sampler's. The gp and
+  amplitude refusals compare shifts exactly. The reader takes every value from the first chain, which after
+  any install is in the sampler's units. See dec-A148 for these and the other calls.
+- Rewritten tests: the cases the plan named, plus the heteroscedastic pinned-sigma read in
+  inst/tinytest/test-heteroscedastic-mutation.R, the adopted-calibration and save/load arms of
+  inst/tinytest/test-calibration-midchain.R, and in tests/cpp the moved-scale round trip (now one bitwise arm
+  with the record and one converted arm without) and a BCF fixture that set a pinned amplitude through
+  `restoreGlue`. New: inst/tinytest/test-state-not-model.R.
+- Verification: tests/cpp passes, and under address and undefined sanitizers with no report. tinytest 12317
+  tests, 0 failures, each file's warning count the base commit's. On a reference build the three equivalence
+  compares report identical draws on 55, 15 and 11 scenarios with no skip and no |z| line, and the four
+  seeded-drift snapshot files pass (14, 3, 7 and 3 assertions). The 25 exact gates of the main job in quick
+  mode, the two cross-host compares, both monotone successive-conditional checks and both monotone
+  enumeration priors pass. stan4bart's suite at home, 570 tests including 44 in its two-chain store-trees file,
+  bartCause's 1145 and treatSens's 203 pass against a chain built on this tip. The R-loaded path under the
+  address sanitizer runs the twelve state test files with no report. The lint chain passes.
+- Mutations, each in a scratch copy: installing the leaf scale again fails the forest-spread store, write,
+  restore case and the old-blocks case of inst/tinytest/test-state-not-model.R, and cases in five other files;
+  skipping the units pass fails the combined-chains run (the chain mean and the row-mean spread) and 30 other
+  assertions there, and three in inst/tinytest/test-bcf.R.
+- Also measured, outside the suite: 36 configurations, every install path, draws and reader identical between
+  the base commit's library and this one, frozen transforms and a fixed sigma written by `setSigma` included.
+

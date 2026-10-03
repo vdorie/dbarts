@@ -348,6 +348,9 @@ mutations are legal when. Three kinds:
   mismatch fails before any state does. `setResponse` and `setOffset` keep
   the response transform - the location and scale that map the response onto
   the tree prior's scale - as it was at creation unless `updateScale` is set.
+  That transform is the sampler's, held apart from each chain's and moved by
+  creation, `updateScale` and `setData` alone; a state install never moves
+  it.
   When it is set under a variance forest, the variance forest's prior and its
   current surface are restated in the new working units as well, so the chain
   matches one created on the new response.
@@ -410,7 +413,14 @@ built on top of `FlatNode`.
   `minReadableStateFormatVersion` (`src/R_interface_bartcore.cpp`); blocks
   are read by name and an absent optional block is defaulted, so adding one
   bumps neither number - an older reader ignores the name it does not know,
-  and a newer reader defaults it when an older state omits it. Restore is
+  and a newer reader defaults it when an older state omits it. A state holds
+  the chain and not the model: no leaf scale, and sigma, k, the Student-t df,
+  the negative-binomial shape and the DART concentration only where the
+  sampler draws them, each installed only where the recipient does. It
+  records the response transform its values are stored in, and a chain stored
+  in other units than the sampler's is converted into them ahead of the
+  install; [A saved state holds the chain, not the model](design/state-not-model.md#a-saved-state-holds-the-chain-not-the-model)
+  has the inventory. Restore is
   semantic, not bitwise: a restored chain rebuilds partitions from tree
   structure and cut points and `totalFits` by summing tree fits, and
   restates the residual prior - a variance forest's included - on the
