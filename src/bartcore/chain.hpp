@@ -974,12 +974,10 @@ public:
     nodeScaleFactors_.resize(forestSpecs.size());
     nodeScaleDivisors_.resize(forestSpecs.size());
     // the reader's echo of the map: the two exclusive amplitude
-    // spellings, and the row norm otherwise computed here and discarded. The
-    // flag says the map is still the decomposition in force.
+    // spellings, and the row norm otherwise computed here and discarded
     amplitudePriorVariances_.resize(forestSpecs.size());
     amplitudePriorScales_.resize(forestSpecs.size());
     basisRowNorms_.resize(forestSpecs.size());
-    nodeScaleIsMapDerived_.assign(forestSpecs.size(), 1);
     double notMapped = std::numeric_limits<double>::quiet_NaN();
     for (std::size_t f = 0; f < forestSpecs.size(); ++f) {
       const ForestSpec& forestSpec = forestSpecs[f];
@@ -1213,9 +1211,6 @@ public:
       basisRowNorms_[f] =
         basisRowNorm(values, numColumns, data_.numObservations);
       forests_[f].leaf.scale = mapLeafScale(f);
-      // and this RE-IMPOSES the map, so a forest a state install made foreign
-      // reports its decomposition again
-      nodeScaleIsMapDerived_[f] = 1;
     }
     return true;
   }
@@ -1379,13 +1374,8 @@ public:
       calibration.amplitudePriorVariance = amplitudePriorVariances_[f];
       calibration.amplitudePriorScale = amplitudePriorScales_[f];
       calibration.basisRowNorm = basisRowNorms_[f];
-      // the two factors only while the scale in force is the map's: reporting
-      // a pair that no longer decomposes priorScale would make the identity
-      // false inside one returned reading
-      if (nodeScaleIsMapDerived_[f]) {
-        calibration.nodeScaleFactor = nodeScaleFactors_[f];
-        calibration.nodeScaleDivisor = nodeScaleDivisors_[f];
-      }
+      calibration.nodeScaleFactor = nodeScaleFactors_[f];
+      calibration.nodeScaleDivisor = nodeScaleDivisors_[f];
       calibration.mapAnchor = nodeScaleAnchor_;
     }
     return calibration;
@@ -1431,10 +1421,8 @@ public:
   /// as at creation: a scale-mixture forest takes sd as its half-Cauchy
   /// median, leaving its leaf scale and the live auxiliary; a fixed-variance
   /// forest takes it as the map's leaf-scale factor and re-derives its leaf
-  /// scale from the retained anchor, divisor and row norm, which re-imposes
-  /// the map. False, writing nothing, off a map forest. A write of the value in
-  /// force is skipped - on a fixed-variance forest only while the map is still
-  /// the decomposition in force.
+  /// scale from the retained anchor, divisor and row norm. False, writing
+  /// nothing, off a map forest. A write of the value in force is skipped.
   bool setForestMapSd(std::size_t f, double sd) {
     if (f >= nodeScaleFactors_.size()) return false;
     if (!std::isnan(amplitudePriorScales_[f])) {
@@ -1443,10 +1431,9 @@ public:
       amplitudePriorScales_[f] = sd;
       return true;
     }
-    if (sd == nodeScaleFactors_[f] && nodeScaleIsMapDerived_[f]) return true;
+    if (sd == nodeScaleFactors_[f]) return true;
     nodeScaleFactors_[f] = sd;
     forests_[f].leaf.scale = mapLeafScale(f);
-    nodeScaleIsMapDerived_[f] = 1;
     return true;
   }
 
@@ -2036,10 +2023,10 @@ public:
       if (response_->workingWeightsVaryPerSweep())
         forests_[0].leaf.invalidateStatistics();
   }
-  /// Unguarded for the structurally pinned binary families: their restore
-  /// paths (setState and installForest) reinstall the donor's own pinned
-  /// value, so the write is benign, and the user-facing change is refused at
-  /// the bridge (refusePinnedSigmaChange). Under a variance forest sigma is
+  /// Unguarded for the structurally pinned binary families: the restore
+  /// paths (setState and installForest) install a stored sigma only where it
+  /// is drawn, and the user-facing change is refused at the bridge
+  /// (refusePinnedSigmaChange). Under a variance forest sigma is
   /// not a parameter at all - buildVarianceForest pins it at 1 on the working
   /// scale and the variance surface carries the residual scale from there - so
   /// every write is dropped, which is what closes the internal callers that
@@ -2058,6 +2045,120 @@ public:
   /// The multiplier taking internal-scale fits to the original response
   /// scale: the response range for gaussian, 1 for the binary families.
   double fitScale() const { return response_->fitScale(); }
+  /// The response transform the chain's numbers are stored in, as a state
+  /// records it: (min, max), nbinom's (c, c + 1), (0, 0) when scale-free.
+  void getScale(double& min, double& max) const {
+    response_->getScale(min, max);
+  }
+  /// Whether this chain draws sigma, as opposed to holding it fixed, having
+  /// its family pin it, or carrying the residual scale in a variance forest.
+  bool drawsSigma() const { return !sigmaIsFixed_; }
+
+  /// Moves the chain's transform to (min, max) while its trees are still
+  /// creation's: sigma, its prior and a variance forest keep their
+  /// original-scale values, as at a re-anchoring response swap, and no leaf
+  /// value is converted, none having been drawn. A pair equal to the one in
+  /// force is the caller's to skip.
+  void moveScale(double min, double max) {
+    double sigmaOriginal = sigma();
+    double previousSigmaScale = varianceScaleAnchor();
+    response_->restoreScale(min, max);
+    setSigma(sigmaOriginal);
+    if constexpr (leafSupportsVarianceForest)
+      if (varianceForest_) reanchorVarianceForest(previousSigmaScale);
+  }
+
+  /// Rewrites a state stored under the transform it names into (min, max),
+  /// so the same install then lands it in those units. With r the ratio of
+  /// the two multipliers and d the shift difference over the new multiplier,
+  /// every mean leaf value, live and saved, becomes r v + d / m (m the
+  /// forest's tree count): a linear leaf's intercept that way and its slopes
+  /// by r, a gp leaf's fits and saved kernel weights by r, each variance
+  /// factor by r^(2 / m'). Sigma and the latents are in response units and
+  /// stand. The result agrees with the stored function to rounding, not
+  /// bitwise. False, the state untouched, where the shift cannot be
+  /// carried: a gp leaf's saved draw has no mean term, and under amplitudes
+  /// no forest owns one. Both pairs increasing.
+  bool convertStateUnits(ChainStateData& state, double min, double max) const {
+    double fromScale, fromShift, toScale, toShift;
+    unitsOf(state.fitMin, state.fitMax, fromScale, fromShift);
+    unitsOf(min, max, toScale, toShift);
+    double ratio = fromScale / toScale;
+    double shift = (fromShift - toShift) / toScale;
+    if (shift != 0.0 &&
+        (L::hasFunctionParams || (combiner_ && combiner_->totalAmplitudes() > 0)))
+      return false;
+    std::size_t numForests = std::min(state.forests.size(), forests_.size());
+    for (std::size_t f = 0; f < numForests; ++f) {
+      ForestStateData& fs = state.forests[f];
+      double perTree = shift / static_cast<double>(forests_[f].numTrees);
+      for (auto* trees : {&fs.trees, &fs.savedTrees})
+        for (std::vector<FlatNode>& tree : *trees)
+          for (FlatNode& node : tree)
+            if (flatKindOf(node) == FlatKind::leaf)
+              node.value = node.value * ratio + perTree;
+      if constexpr (L::hasVectorParams) {
+        for (auto* params : {&fs.treeParams, &fs.savedTreeParams})
+          for (std::vector<double>& slopes : *params)
+            for (double& slope : slopes) slope *= ratio;
+      } else if constexpr (L::hasFunctionParams) {
+        for (std::vector<double>& fits : fs.treeParams)
+          for (double& fit : fits) fit *= ratio;
+        // each saved leaf's block is [0, constant] or [count, alpha, rows];
+        // a block that does not walk is left for stateIsValid to refuse
+        std::vector<std::size_t> offsets;
+        std::size_t numCovariates = forests_[f].leaf.numCovariates();
+        for (std::size_t t = 0;
+             t < fs.savedTrees.size() && t < fs.savedTreeParams.size(); ++t) {
+          std::vector<double>& blocks = fs.savedTreeParams[t];
+          if (!computeFunctionBlockOffsets(blocks.data(), blocks.size(),
+                                           (fs.savedTrees[t].size() + 1) / 2,
+                                           numCovariates, offsets))
+            continue;
+          for (std::size_t offset : offsets) {
+            std::size_t count = static_cast<std::size_t>(blocks[offset]);
+            std::size_t width = count == 0 ? 1 : count;
+            for (std::size_t j = 1; j <= width; ++j) blocks[offset + j] *= ratio;
+          }
+        }
+      }
+    }
+    if (varianceForest_ && ratio != 1.0) {
+      double factor = std::pow(ratio * ratio,
+                               1.0 / static_cast<double>(varianceForest_->numTrees));
+      for (auto* trees : {&state.varianceTrees, &state.savedVarianceTrees})
+        for (std::vector<FlatNode>& tree : *trees)
+          for (FlatNode& node : tree)
+            if (flatKindOf(node) == FlatKind::leaf) node.value *= factor;
+    }
+    state.fitMin = min;
+    state.fitMax = max;
+    return true;
+  }
+
+  /// Whether a state's saved gp draws can be replayed here: a saved draw
+  /// replays only under the kernel it was drawn with, and a supplied
+  /// lengthscale is this sampler's model, so saved draws made under other
+  /// lengthscales are refused. True off a gp leaf, on derived lengthscales
+  /// (which install with the state), and without saved draws.
+  bool lengthscaleStateFeasible(const ChainStateData& state,
+                                bool hasSavedDraws) const {
+    if constexpr (L::hasFunctionParams) {
+      if (!hasSavedDraws || state.forests.size() != forests_.size())
+        return true;
+      for (std::size_t f = 0; f < forests_.size(); ++f) {
+        const ForestStateData& fs = state.forests[f];
+        if (forests_[f].leaf.lengthscalesAreSupplied() &&
+            !fs.savedTrees.empty() && !fs.leafLengthscales.empty() &&
+            fs.leafLengthscales != forests_[f].leaf.lengthscales())
+          return false;
+      }
+    } else {
+      (void) state;
+      (void) hasSavedDraws;
+    }
+    return true;
+  }
 
   /// Install a replacement prior; see ModelParameters for the semantics.
   void setModel(const ModelParameters& model) {
@@ -3544,8 +3645,11 @@ public:
 
   /// includeSavedTrees false leaves every saved-tree block empty, which
   /// setState reads as "keep the store as it is": the snapshot a warm start
-  /// takes to undo a refused install, without copying the store.
+  /// takes to undo a refused install, without copying the store. A scalar
+  /// the chain holds fixed is written as absent (NaN): it is model, and an
+  /// install leaves the destination's own.
   void getState(ChainStateData& state, bool includeSavedTrees = true) {
+    const double absent = std::numeric_limits<double>::quiet_NaN();
     state.forests.resize(forests_.size());
     for (size_t f = 0; f < forests_.size(); ++f) {
       Forest<L, ResidT>& forest = forests_[f];
@@ -3604,11 +3708,7 @@ public:
         fs.savedTreeParams.clear();
         fs.savedTreeMasks.clear();
       }
-      fs.k = forest.k;
-      // written for EVERY forest, not just the response-derived ones (BCF's):
-      // the block is self-describing, and a data-independent scale simply
-      // records the value a same-spec destination already constructed
-      fs.leafScale = forest.leaf.scale;
+      fs.k = forest.updateK ? forest.k : absent;
       fs.leafCovariateCenters.clear();
       fs.leafCovariateScales.clear();
       fs.leafLengthscales.clear();
@@ -3620,7 +3720,7 @@ public:
         fs.leafLengthscales = forest.leaf.lengthscales();
     }
     Forest<L, ResidT>& forest = forests_[0];
-    state.sigma = sigma();
+    state.sigma = drawsSigma() ? sigma() : absent;
     response_->getScale(state.fitMin, state.fitMax);
     if (response_->latents() != nullptr) {
       state.latents.assign(response_->latents(),
@@ -3628,11 +3728,10 @@ public:
     } else {
       state.latents.clear();
     }
-    // a t response's lambda rides latents above; its nu is the companion
-    // scalar block, absent (NaN) for every other family
-    state.residualDf = response_->carriesResidualDf()
-                         ? response_->residualDf()
-                         : std::numeric_limits<double>::quiet_NaN();
+    // a t response's lambda rides latents above; its nu, where drawn, is the
+    // companion scalar block
+    state.residualDf =
+      response_->drawsResidualDf() ? response_->residualDf() : absent;
     // the ordinal-only cutpoint vector (length K-1); z rides latents above. A
     // non-ordinal chain carries none and writes no block.
     if (response_->carriesOrdinalThresholds()) {
@@ -3642,14 +3741,12 @@ public:
     } else {
       state.ordinalThresholds.clear();
     }
-    // an NB response's shape r is a companion scalar block (the resid.df
-    // pattern); omega rides latents above. Absent (NaN) for every other family.
-    state.shape = response_->carriesShape()
-                         ? response_->shape()
-                         : std::numeric_limits<double>::quiet_NaN();
+    // an NB response's shape r, where drawn, is a companion scalar block (the
+    // resid.df pattern); omega rides latents above
+    state.shape = response_->drawsShape() ? response_->shape() : absent;
     if (forest.useDart) {
       state.dartProbabilities = forest.dart.probabilities;
-      state.dartAlpha = forest.dart.alpha;
+      state.dartAlpha = forest.dart.updateAlpha ? forest.dart.alpha : absent;
       state.dartNumUpdatesSkipped = forest.dart.numUpdatesSkipped();
     } else {
       state.dartProbabilities.clear();
@@ -3807,23 +3904,28 @@ public:
     if (!state.latents.empty() &&
         (response_->latents() == nullptr || state.latents.size() != n))
       return false;
-    // a t sampler needs both its mixing precisions (lambda, in latents) and a
-    // positive residual df; an old gaussian state, or one from a gaussian
-    // sampler, carries neither and cannot continue the mixture
-    if (response_->carriesResidualDf() &&
-        (state.latents.size() != n || !(state.residualDf > 0.0)))
+    // a t sampler needs its mixing precisions (lambda, in latents); a state
+    // from a gaussian sampler carries none and cannot continue the mixture.
+    // The df is judged only where this sampler draws it and the state holds
+    // one: absent leaves the sampler's own.
+    if (response_->carriesResidualDf() && state.latents.size() != n)
+      return false;
+    if (response_->drawsResidualDf() && !std::isnan(state.residualDf) &&
+        !(state.residualDf > 0.0))
       return false;
     // an ordinal sampler needs its full length-(K-1) cutpoint vector; an old
     // state, or one from another family, carries none and cannot continue
     if (response_->carriesOrdinalThresholds() &&
         state.ordinalThresholds.size() != response_->numOrdinalThresholds())
       return false;
-    // an NB sampler needs both its omega latents (in latents) and a finite
-    // positive whole shape r, the only kind the augmentation draws; an old
-    // state, or one from another family, carries neither and cannot continue
-    if (response_->carriesShape() &&
-        (state.latents.size() != n || !(state.shape > 0.0) ||
-         !std::isfinite(state.shape) ||
+    // an NB sampler needs its omega latents (in latents); a state from
+    // another family carries none and cannot continue. The shape is judged
+    // only where this sampler draws it and the state holds one - finite,
+    // positive and whole, the only kind the augmentation draws - and absent
+    // leaves the sampler's own.
+    if (response_->carriesShape() && state.latents.size() != n) return false;
+    if (response_->drawsShape() && !std::isnan(state.shape) &&
+        (!(state.shape > 0.0) || !std::isfinite(state.shape) ||
          state.shape != std::round(state.shape)))
       return false;
     if (forests_[0].useDart && !state.dartProbabilities.empty() &&
@@ -4232,10 +4334,11 @@ public:
     return true;
   }
 
-  /// Warm start: seed the live forest(s), sigma, and k from a donor's flat
-  /// trees, leaving this chain's rng, latents, and saved-tree
-  /// buffer untouched - the donor supplies a starting position, not a
-  /// continuation. Callers guarantee shape compatibility; false signals only a
+  /// Warm start: seed the live forest(s) from a donor's flat trees, and
+  /// sigma, k, the DART concentration and the amplitudes where this chain
+  /// draws them, leaving its rng, latents, and saved-tree buffer untouched -
+  /// the donor supplies a starting position, not a continuation, and never a
+  /// model value. Callers guarantee shape compatibility; false signals only a
   /// flat tree that failed to rebuild. donorCutPoints null installs the donor's
   /// splits verbatim (the donor shares this sampler's grid); non-null remaps
   /// them onto the live grid, collapsing starved splits (a cross-grid start),
@@ -4309,28 +4412,12 @@ public:
     return true;
   }
 
-  /// What an install records beyond the state getState captures: whether each
-  /// forest's leaf scale is still the calibration map's, and the reported
-  /// amplitude prior. A warm start undoing a refused install restores these
-  /// after the state, since restoring the state alone would leave them as the
-  /// donor set them.
-  struct InstallMarks {
-    std::vector<char> nodeScaleIsMapDerived;
-    std::vector<double> amplitudePriorVariances;
-  };
-  InstallMarks installMarks() const {
-    return InstallMarks{nodeScaleIsMapDerived_, amplitudePriorVariances_};
-  }
-  void restoreInstallMarks(const InstallMarks& marks) {
-    nodeScaleIsMapDerived_ = marks.nodeScaleIsMapDerived;
-    amplitudePriorVariances_ = marks.amplitudePriorVariances;
-  }
-
   bool installForest(const ChainStateData& state,
                      const std::vector<std::vector<double>>* donorCutPoints =
                        nullptr,
                      ColumnStore* store = nullptr) {
     if (state.forests.size() != forests_.size()) return false;
+    double ownSigma = sigma();
     if (state.fitMax > state.fitMin) {
       response_->restoreScale(state.fitMin, state.fitMax);
       // the scale leaf is stated on the working scale this transform defines
@@ -4345,26 +4432,10 @@ public:
         ? rebuildLiveForest(f, fs, params)
         : rebuildLiveForestRemapped(f, fs, *donorCutPoints, params, *store);
       if (!rebuilt) return false;
-      forests_[f].k = fs.k;
-      // the leaf prior's other half, adopted like k, sigma, the transform, DART
-      // and the glue already are: a donor's trees were drawn under its scale, so
-      // installing the trees without it leaves a hybrid (donor units,
-      // destination calibration). An absent block (0.0, or any non-positive or
-      // non-finite value - k's posture, no new refusal) leaves construction's.
-      noteInstalledLeafScale(f, fs.leafScale);
-      if (fs.leafScale > 0.0) forests_[f].leaf.scale = fs.leafScale;
+      if (forests_[f].updateK && !std::isnan(fs.k)) forests_[f].k = fs.k;
     }
-    setSigma(state.sigma);
-    Forest<L, ResidT>& forest = forests_[0];
-    if (forest.useDart && !state.dartProbabilities.empty()) {
-      std::memcpy(forest.dart.probabilities.data(),
-                  state.dartProbabilities.data(),
-                  state.dartProbabilities.size() * sizeof(double));
-      forest.dart.alpha = state.dartAlpha;
-      forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
-    }
+    installDrawnScalars(state, ownSigma);
     if (combiner_) combiner_->restoreGlue(state);
-    adoptInstalledAmplitudePriors(state);
     return true;
   }
 
@@ -4449,10 +4520,33 @@ public:
     return true;
   }
 
+  /// What both installs do with the chain-level scalars: sigma and the DART
+  /// concentration go in only where this chain draws them and the state holds
+  /// one. A sigma that is not installed is still re-expressed, from
+  /// \p ownSigma, the chain's original-scale value read before the install
+  /// moved the transform. The DART split weights and delay counter are state
+  /// whatever the concentration is.
+  void installDrawnScalars(const ChainStateData& state, double ownSigma) {
+    setSigma(drawsSigma() && !std::isnan(state.sigma) ? state.sigma : ownSigma);
+    Forest<L, ResidT>& forest = forests_[0];
+    if (forest.useDart && !state.dartProbabilities.empty()) {
+      // the tree prior points at this vector's storage; overwrite in place
+      std::memcpy(forest.dart.probabilities.data(),
+                  state.dartProbabilities.data(),
+                  state.dartProbabilities.size() * sizeof(double));
+      if (forest.dart.updateAlpha && !std::isnan(state.dartAlpha))
+        forest.dart.alpha = state.dartAlpha;
+      forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
+    }
+  }
+
   /// Installs a state stateIsValid accepted; false only on the invariant
-  /// violation of a validated tree failing to rebuild.
+  /// violation of a validated tree failing to rebuild. The model is this
+  /// chain's and stays: the leaf scale, a supplied gp lengthscale, and every
+  /// scalar, amplitude and amplitude variance the chain holds fixed.
   bool setState(const ChainStateData& state) {
     if (state.forests.size() != forests_.size()) return false;
+    double ownSigma = sigma();
     // the internal-scale tree parameters and fits below were recorded under
     // this transform; scale-free states leave creation's. restoreScale
     // re-anchors the variance prior through it.
@@ -4476,7 +4570,8 @@ public:
           forest.leaf.restoreCalibration(
             data_, fs.leafCovariateCenters.data(),
             fs.leafCovariateScales.data(),
-            fs.leafLengthscales.empty() ? nullptr : fs.leafLengthscales.data());
+            fs.leafLengthscales.empty() || forest.leaf.lengthscalesAreSupplied()
+              ? nullptr : fs.leafLengthscales.data());
       }
       if (!rebuildLiveForest(f, fs, params)) return false;
       if (!fs.savedTrees.empty()) {
@@ -4491,21 +4586,15 @@ public:
             forest.savedTreeMasks = fs.savedTreeMasks;
         }
       }
-      forest.k = fs.k;
-      // as in installForest above. CONSEQUENCE: a setModel(node.scale) issued
-      // AFTER the last storeState no longer survives a save/load re-creation,
-      // since the state's scale now wins - exactly the wart k already had,
-      // applied consistently to both halves of the leaf prior.
-      noteInstalledLeafScale(f, fs.leafScale);
-      if (fs.leafScale > 0.0) forest.leaf.scale = fs.leafScale;
+      if (forest.updateK && !std::isnan(fs.k)) forest.k = fs.k;
     }
-    setSigma(state.sigma);
+    installDrawnScalars(state, ownSigma);
     // RESTORE CONTRACT: an NB response's restoreLatents rebuilds the
     // working response from omega AND r,
-    // so the shape MUST be reinstalled before the latents - a restore that
-    // installs omega first would rebuild working against the stale r. stateIsValid
-    // guaranteed a finite positive r for an NB sampler.
-    if (response_->carriesShape())
+    // so a drawn shape MUST be reinstalled before the latents - a restore that
+    // installs omega first would rebuild working against the stale r.
+    // stateIsValid guaranteed a finite positive r where one is present.
+    if (response_->drawsShape() && !std::isnan(state.shape))
       response_->restoreShape(state.shape);
     if (!state.latents.empty())
       response_->restoreLatents(state.latents.data());
@@ -4514,25 +4603,15 @@ public:
     // admissible only because AFTResponse::restoreLatents is a memcpy plus a
     // working-response rebuild reading NEITHER sigma nor the surface. Keep it
     // surface-free, or move the variance rebuild ahead of it.
-    // stateIsValid guaranteed a positive df for a t sampler; fixed mode
-    // reinstalls its constant, estimated mode its last grid draw
-    if (response_->carriesResidualDf())
+    // estimated mode reinstalls its last grid draw, which stateIsValid found
+    // positive; fixed mode keeps its own constant
+    if (response_->drawsResidualDf() && !std::isnan(state.residualDf))
       response_->restoreResidualDf(state.residualDf);
     // stateIsValid guaranteed a full length-(K-1) cutpoint vector for an
     // ordinal sampler; z was restored above under these same cutpoints
     if (response_->carriesOrdinalThresholds())
       response_->restoreOrdinalThresholds(state.ordinalThresholds.data());
-    Forest<L, ResidT>& forest = forests_[0];
-    if (forest.useDart && !state.dartProbabilities.empty()) {
-      // the tree prior points at this vector's storage; overwrite in place
-      std::memcpy(forest.dart.probabilities.data(),
-                  state.dartProbabilities.data(),
-                  state.dartProbabilities.size() * sizeof(double));
-      forest.dart.alpha = state.dartAlpha;
-      forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
-    }
     if (combiner_) combiner_->restoreGlue(state);
-    adoptInstalledAmplitudePriors(state);
     // heteroscedastic: rebuild the variance trees and recompute s^2(x) from the
     // restored positive factors (stateIsValid checked count, form, positivity)
     if (varianceForest_) {
@@ -4736,6 +4815,20 @@ private:
     }
   }
 
+  /// The multiplier and shift a response transform pair (getScale's) takes
+  /// internal fits to the response scale with, as fitScale and fitShift
+  /// would report them under it.
+  void unitsOf(double min, double max, double& scale, double& shift) const {
+    if (family_ == ResponseFamily::nbinom) {
+      scale = 1.0;
+      shift = min;
+      return;
+    }
+    scale = max - min;
+    if (scale == 0.0) scale = 1.0;
+    shift = scale * 0.5 + min;
+  }
+
   /// The internal-unit node scale in force: a named priorScale is the forest
   /// total's prior sd at k = 1 in RESPONSE units, so dividing by the response
   /// transform's multiplier converts it, and a non-finite one leaves the
@@ -4756,37 +4849,6 @@ private:
   double priorScaleFactor(const Forest<L, ResidT>& forest) const {
     return response_->fitScale() *
            std::sqrt(static_cast<double>(forest.numTrees));
-  }
-
-  /// The map-decomposition half of the state-install truthfulness rule: a
-  /// state installing a leaf scale differing BITWISE from the one in force
-  /// leaves the stored
-  /// factor and divisor no longer its decomposition, so forestCalibration
-  /// reports NaN for both until setForestBasis re-imposes the map. Called
-  /// BEFORE the assignment, which lets a self-restore keep its columns; the
-  /// stored values stay, being what the re-imposition re-derives from.
-  void noteInstalledLeafScale(std::size_t f, double leafScale) {
-    if (f < nodeScaleIsMapDerived_.size() && leafScale > 0.0 &&
-        leafScale != forests_[f].leaf.scale)
-      nodeScaleIsMapDerived_[f] = 0;
-  }
-
-  /// The amplitude half of the same rule: the reported prior FOLLOWS an
-  /// installed state, under exactly the guard restoreGlue uses to reach its own
-  /// variance loop, so the reader cannot print the recipient's prior beside a
-  /// donor's amplitudes. Only a FIXED-VARIANCE forest is written - the
-  /// mixture's serialized variance is the live auxiliary, not a prior.
-  /// glueIsValid is the combiner's EXISTING virtual, which is what keeps this
-  /// slice off the vtable.
-  void adoptInstalledAmplitudePriors(const ChainStateData& state) {
-    if (!combiner_ || !state.hasAmplitudes || state.amplitudeWidths.empty())
-      return;
-    if (!combiner_->glueIsValid(state)) return;
-    std::size_t numForests = std::min(amplitudePriorVariances_.size(),
-                                      state.amplitudeVariances.size());
-    for (std::size_t f = 0; f < numForests; ++f)
-      if (!std::isnan(amplitudePriorVariances_[f]))
-        amplitudePriorVariances_[f] = state.amplitudeVariances[f];
   }
 
   /// Composes forest f's installed per-observation weight into the precisions
@@ -6693,9 +6755,6 @@ private:
   // and the row norm the constructor and setForestBasis already compute
   std::vector<double> amplitudePriorVariances_, amplitudePriorScales_,
     basisRowNorms_;
-  // whether the scale in force is still the map's product of the two stored
-  // factors, per forest (noteInstalledLeafScale)
-  std::vector<char> nodeScaleIsMapDerived_;
 
   // caller-supplied per-forest observation weights, one BORROWED pointer per
   // forest (null = none). Left EMPTY until the first install, which is the

@@ -85,6 +85,7 @@ SEXP bartcore_storeState(SEXP ptr);
 SEXP bartcore_setState(SEXP ptr, SEXP state, SEXP currentPredictors,
                        SEXP adoptStoreCapacity);
 SEXP bartcore_installForests(SEXP ptr, SEXP donorState, SEXP samples);
+SEXP bartcore_anchor(SEXP ptr, SEXP record, SEXP installFollows);
 SEXP bartcore_sampleTreesFromPrior(SEXP ptr);
 SEXP bartcore_sampleLeafParametersFromPrior(SEXP ptr);
 SEXP bartcore_sampleVarianceForestFromPrior(SEXP ptr);

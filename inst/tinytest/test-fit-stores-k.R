@@ -519,8 +519,9 @@ expect_identical(panelsDrawn(hurdleFixed), 3L)
 expect_stdout(print(nbinomFixedFit), "shape (r): fixed at 3", fixed = TRUE)
 expect_stdout(print(nbinomDrawnFit), "posterior mean shape (r)", fixed = TRUE)
 
-# --- chains that hold different values of a fixed quantity, as a warm start
-# from a donor that drew them leaves them: one value per chain, in chain order ---
+# --- a warm start from a donor that drew sigma and k seeds a recipient that
+# holds both fixed with its trees alone: the fixed values stay the recipient's,
+# one value each ---
 
 donor <- fitOf(yGaussian, TRUE, k = dbartsPriors$chi(2, 1))
 warmed <- fitOf(
@@ -529,28 +530,21 @@ warmed <- fitOf(
   family = dbartsFamilies$gaussian(sigma = dbartsPriors$fixed(1)),
   warm.start = donor
 )
-expect_identical(length(unique(warmed$fit$getSigmas())), 2L)
-expect_identical(warmed$fixed$sigma, as.vector(warmed$fit$getSigmas()))
-expect_identical(warmed$fixed$k, as.vector(warmed$fit$getK()))
+expect_identical(length(unique(warmed$fit$getSigmas())), 1L)
+expect_equal(warmed$fixed$sigma, 1)
+expect_identical(warmed$fixed$k, 2)
 for (type in c("sigma", "k")) {
-  held <- if (type == "sigma") warmed$fit$getSigmas() else warmed$fit$getK()
-  expect_identical(extract(warmed, type), as.vector(held), info = type)
+  expect_identical(extract(warmed, type), warmed$fixed[[type]], info = type)
   expect_identical(
     extract(warmed, type, combineChains = FALSE),
-    as.vector(held),
+    warmed$fixed[[type]],
     info = type
   )
 }
-expect_equal(
-  extract(warmed, "leaf.prior.sd"),
-  warmed$leaf.prior$anchor / as.vector(warmed$fit$getK())
-)
+expect_equal(extract(warmed, "leaf.prior.sd"), warmed$leaf.prior$anchor / 2)
 expect_stdout(
   print(summary(warmed)),
-  paste0(
-    "sigma = ",
-    toString(format(as.vector(warmed$fit$getSigmas()), digits = 4L))
-  ),
+  "(Fixed, not sampled: sigma = 1, k = 2)",
   fixed = TRUE
 )
 

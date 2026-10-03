@@ -56,16 +56,16 @@ expect_error(
   pattern = "encoding version 0.*oldest this dbarts \\(1\\)"
 )
 
-# naming: a missing REQUIRED per-chain block is refused, naming the block.
+# sigma is present only where the saver drew it, so a state without it loads
+# and the sampler keeps its own
+expect_true(is.numeric(state[[1L]][["sigma"]]))
 missingSigma <- state
 missingSigma[[1L]][["sigma"]] <- NULL
-expect_error(
-  bartFit$fit$setState(missingSigma),
-  pattern = "missing required block 'sigma'"
-)
+bartFit$fit$setState(missingSigma)
+expect_equal(predict(bartFit, testData$x), preds)
 
-# a REQUIRED block present but of the wrong type is named as malformed, not
-# missing - the two-message convention.
+# a block present but of the wrong type is named as malformed, not missing -
+# the two-message convention.
 badSigma <- state
 badSigma[[1L]][["sigma"]] <- "not a number"
 expect_error(
@@ -88,31 +88,22 @@ noRng[[1L]][["rng.state"]] <- NULL
 bartFit$fit$setState(noRng)
 expect_equal(predict(bartFit, testData$x), preds)
 
-# leaf.scale: the newest OPTIONAL per-forest block. Pin its name, that an
-# absent block still loads - the append-only contract, and what it now
-# installs.
+# leaf.scale: the leaf prior's scale is model, so a state holds no block for
+# it, and k is written only where it is drawn. A state written before, which
+# carries the block, still installs: the block is not read, whatever it holds.
 forest1 <- state[[1L]][["forests"]][[1L]]
-expect_true("leaf.scale" %in% names(forest1))
-expect_true(is.numeric(forest1[["leaf.scale"]]))
-expect_equal(length(forest1[["leaf.scale"]]), 1L)
+expect_false("leaf.scale" %in% names(forest1))
+expect_null(forest1[["k"]])
+for (oldValue in list(0.2, c(1, 2), "not a number")) {
+  withLeafScale <- state
+  withLeafScale[[1L]][["forests"]][[1L]][["leaf.scale"]] <- oldValue
+  bartFit$fit$setState(withLeafScale)
+  expect_equal(predict(bartFit, testData$x), preds)
+}
 
-noLeafScale <- state
-noLeafScale[[1L]][["forests"]][[1L]][["leaf.scale"]] <- NULL
-bartFit$fit$setState(noLeafScale)
-expect_equal(predict(bartFit, testData$x), preds)
-
-# a present block is type/length checked and named when malformed
-badLeafScale <- state
-badLeafScale[[1L]][["forests"]][[1L]][["leaf.scale"]] <- c(1, 2)
-expect_error(
-  bartFit$fit$setState(badLeafScale),
-  pattern = "block 'leaf.scale' is malformed"
-)
-
-# the leaf prior is mu ~ N(0, (scale / k)^2) and the state already restored k;
-# it now restores the scale too, so a donor's leaf.scale survives a restore the
-# way its k always has. CONSEQUENCE: a setModel(leaf.scale) issued after the
-# last storeState() no longer survives a save/load re-creation.
+# the donor's model does not ride its state: a destination keeps its own leaf
+# prior and its own fixed sigma, and a state that carries the donor's leaf
+# scale, k and sigma, as one written before did, installs the same way
 control.ls <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
@@ -138,59 +129,40 @@ donor.sf$model@leaf.scale <- 1.5
 donor.sf$setModel(donor.sf$model)
 invisible(donor.sf$run(25L, 5L))
 state.sf <- grabState(donor.sf)
-# nodeScale / sqrt(numTrees)
-expect_equal(state.sf[[1L]][["forests"]][[1L]][["leaf.scale"]], 1.5 / 5)
+expect_null(state.sf[[1L]][["sigma"]])
 
 dest.sf <- makeSF(testData$x, testData$y)
-expect_equal(
-  grabState(dest.sf)[[1L]][["forests"]][[1L]][["leaf.scale"]],
-  0.5 / 5
-)
+priorBefore <- dest.sf$getLeafPrior()
+sigmaBefore <- dest.sf$getSigmas()
+expect_true(priorBefore$anchor != donor.sf$getLeafPrior()$anchor)
 dest.sf$setState(state.sf)
-expect_equal(
-  grabState(dest.sf)[[1L]][["forests"]][[1L]][["leaf.scale"]],
-  1.5 / 5
-)
+expect_identical(dest.sf$getLeafPrior(), priorBefore)
+expect_equal(dest.sf$getSigmas(), sigmaBefore)
 
-# stripped, the destination keeps what it constructed
-state.stripped <- state.sf
-state.stripped[[1L]][["forests"]][[1L]][["leaf.scale"]] <- NULL
+state.old <- state.sf
+state.old[[1L]][["forests"]][[1L]][["leaf.scale"]] <- 1.5 / 5
+state.old[[1L]][["forests"]][[1L]][["k"]] <- 4
+state.old[[1L]][["sigma"]] <- 2
 old.sf <- makeSF(testData$x, testData$y)
-old.sf$setState(state.stripped)
-expect_equal(
-  grabState(old.sf)[[1L]][["forests"]][[1L]][["leaf.scale"]],
-  0.5 / 5
-)
-
-# hostile VALUES match k's posture exactly - no new refusal class. A leaf scale
-# is strictly positive, so non-finite and non-positive fall closed to the
-# construction value; anything else flows through as k's does.
-for (badValue in list(NaN, 0, -1)) {
-  hostile <- state.sf
-  hostile[[1L]][["forests"]][[1L]][["leaf.scale"]] <- badValue
-  hostile.sf <- makeSF(testData$x, testData$y)
-  hostile.sf$setState(hostile)
-  expect_equal(
-    grabState(hostile.sf)[[1L]][["forests"]][[1L]][["leaf.scale"]],
-    0.5 / 5
-  )
-}
+old.sf$setState(state.old)
+expect_identical(old.sf$getLeafPrior(), priorBefore)
+expect_equal(old.sf$getSigmas(), sigmaBefore)
+expect_identical(old.sf$run(0L, 3L), dest.sf$run(0L, 3L))
 
 rm(
   forest1,
-  noLeafScale,
-  badLeafScale,
+  oldValue,
+  withLeafScale,
   control.ls,
   makeSF,
   grabState,
   donor.sf,
   state.sf,
   dest.sf,
-  state.stripped,
-  old.sf,
-  badValue,
-  hostile,
-  hostile.sf
+  priorBefore,
+  sigmaBefore,
+  state.old,
+  old.sf
 )
 
 # --- a refused install is transactional ------------------------------------

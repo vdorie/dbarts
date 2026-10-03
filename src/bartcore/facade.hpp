@@ -339,7 +339,8 @@ public:
   /// column-mask containment one installForests names separately;
   /// monotoneRefused, whether it was a live tree's leaf values outside the
   /// monotone cone; interactionRefused, whether a live tree breaks an
-  /// interaction constraint.
+  /// interaction constraint; lengthscaleRefused and unitsRefused,
+  /// Sampler::setState's two refusals of what cannot be installed here.
   /// adoptCapacity is Sampler::setState's: a store capacity the state is
   /// judged against and the store takes once the state is accepted.
   virtual bool setState(const SamplerStateData& state,
@@ -347,7 +348,13 @@ public:
                         bool* columnMaskRefused = nullptr,
                         bool* monotoneRefused = nullptr,
                         bool* interactionRefused = nullptr,
+                        bool* lengthscaleRefused = nullptr,
+                        bool* unitsRefused = nullptr,
                         std::size_t adoptCapacity = keepStoreCapacity) = 0;
+  /// The sampler's response transform, Sampler::setAnchor's: written by a
+  /// host re-creating a sampler from its record, read back to keep one.
+  virtual void setAnchor(double min, double max, bool moveChains) = 0;
+  virtual void getAnchor(double& min, double& max) const = 0;
   virtual WarmStartResult installForests(
       const SamplerStateData& donor,
       const std::vector<std::pair<std::size_t, int>>& sampleMap) = 0;
@@ -654,9 +661,17 @@ public:
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors, bool* columnMaskRefused,
                 bool* monotoneRefused, bool* interactionRefused,
+                bool* lengthscaleRefused, bool* unitsRefused,
                 std::size_t adoptCapacity) override {
     return impl_.setState(state, currentPredictors, columnMaskRefused,
-                          monotoneRefused, interactionRefused, adoptCapacity);
+                          monotoneRefused, interactionRefused,
+                          lengthscaleRefused, unitsRefused, adoptCapacity);
+  }
+  void setAnchor(double min, double max, bool moveChains) override {
+    impl_.setAnchor(min, max, moveChains);
+  }
+  void getAnchor(double& min, double& max) const override {
+    impl_.getAnchor(min, max);
   }
   WarmStartResult installForests(
       const SamplerStateData& donor,

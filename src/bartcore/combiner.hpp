@@ -44,16 +44,11 @@ struct ForestStateData {
   // parallel to trees/savedTrees. Empty otherwise.
   std::vector<std::vector<std::uint64_t>> treeMasks;
   std::vector<std::vector<std::uint64_t>> savedTreeMasks;
-  double k = 2.0;
-  /// The leaf prior's other half - the constant leaf is mu ~ N(0, (scale / k)^2)
-  /// (model.hpp) - so a continuation that restores k without it would pair a
-  /// donor's trees with the destination's calibration. OPTIONAL and append-only:
-  /// a live leaf scale is strictly positive, so 0.0 is an unambiguous ABSENT
-  /// sentinel and a state written before this block existed restores exactly as
-  /// it did then. Both restore paths guard with > 0.0, which also swallows a
-  /// non-finite or non-positive value - deliberately the same permissive
-  /// posture k has, rather than a new refusal.
-  double leafScale = 0.0;
+  /// The leaf prior's k where the forest draws it; NaN, absent, where the
+  /// forest holds it fixed. An install writes it only into a forest that
+  /// draws k, and an absent one leaves the forest's own. The leaf scale k
+  /// divides is the destination's and is never carried.
+  double k = std::numeric_limits<double>::quiet_NaN();
   /// Leaf-covariate (linear and gp) leaves only: the standardization each
   /// designated column's raw values are read through, one entry per column,
   /// and under gp the kernel lengthscales. A predictor update keeps them
@@ -69,6 +64,11 @@ struct ForestStateData {
 /// Everything a chain's posterior state comprises, in host-exchangeable form:
 /// one-or-more forests' trees, plus the chain-shared sigma (original scale),
 /// response latents, DART state, the serialized rng, and BCF's glue scalars.
+/// It holds no prior parameter and no value the chain holds fixed: sigma, k,
+/// the residual df, the shape and the DART concentration are each present
+/// only where the chain draws them (NaN marks absent), and an install writes
+/// each only into a chain that draws it, an absent one leaving the chain's
+/// own.
 /// Restore rebuilds the rest canonically - partitions from the tree structure
 /// and cut points, totalFits by summing the tree fits, the variance prior by
 /// re-anchoring through the transform - so a restored chain continues
@@ -76,25 +76,27 @@ struct ForestStateData {
 /// is not reproduced.
 struct ChainStateData {
   std::vector<ForestStateData> forests;
-  double sigma = 1.0;  // original response scale
-  // the gaussian response transform at capture; max <= min marks scale-free
+  // original response scale; NaN where the chain does not draw it
+  double sigma = std::numeric_limits<double>::quiet_NaN();
+  // the response transform the stored leaf values are in: the units of the
+  // state, converted to the sampler's own at install when the two differ
+  // (Chain::convertStateUnits); max <= min marks scale-free
   double fitMin = 0.0, fitMax = 0.0;
   std::vector<double> latents;            // empty for gaussian; lambda under t
-  // Student-t continuous errors (TResponse) only: the residual df nu at
-  // capture. NaN marks absent, so gaussian and every non-t state carry no nu
-  // block and a t sampler refuses a state lacking one.
+  // Student-t continuous errors (TResponse) only, and only where nu is drawn:
+  // the residual df at capture. NaN marks absent.
   double residualDf = std::numeric_limits<double>::quiet_NaN();
   // ordinal (cumulative-probit) responses only: the length-(K-1) threshold
   // vector at capture. Empty marks absent, so every non-ordinal state carries
   // no threshold block and an ordinal sampler refuses a state lacking one.
   std::vector<double> ordinalThresholds;
-  // negative-binomial counts (NBResponse) only: the shape r at capture.
-  // NaN marks absent, so every non-NB state carries no shape block and
-  // an NB sampler refuses a state lacking one.
-  // omega rides the latents block above; this is its companion scalar.
+  // negative-binomial counts (NBResponse) only, and only where r is drawn:
+  // the shape at capture. NaN marks absent. omega rides the latents block
+  // above; this is its companion scalar.
   double shape = std::numeric_limits<double>::quiet_NaN();
   std::vector<double> dartProbabilities;  // empty when DART is off
-  double dartAlpha = 1.0;
+  // the DART concentration where it is drawn; NaN marks absent
+  double dartAlpha = std::numeric_limits<double>::quiet_NaN();
   size_t dartNumUpdatesSkipped = 0;
   std::vector<unsigned char> rngState;
   // The amplitude glue a combining response carries; false off a coupling
@@ -102,8 +104,10 @@ struct ChainStateData {
   // layout: q = (1, 3) and q = (2, 2) both carry four amplitudes, so the
   // per-forest widths travel with them or a restore silently permutes the
   // blocks. amplitudes is forest-major, block f at the widths' prefix sum;
-  // amplitudeVariances is one prior variance per forest, live only where a
-  // scale mixture refreshes it.
+  // amplitudeVariances is one prior variance per forest. The layout is
+  // positional, so every forest's entries are written; a restore reads a
+  // forest's amplitudes only where the forest updates them and its variance
+  // only where a scale mixture refreshes it.
   bool hasAmplitudes = false;
   std::vector<std::size_t> amplitudeWidths;
   std::vector<double> amplitudes;
@@ -1031,6 +1035,10 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// by the host across a re-creation the way the design matrix is, and they
   /// arrive at CONSTRUCTION - so a widening applied after a restore preserves
   /// and remaps the RESTORED amplitudes rather than the constructed ones.
+  ///
+  /// restoreGlue installs what a forest draws and nothing it holds fixed: its
+  /// amplitudes where the forest updates them, its prior variance where a
+  /// scale mixture refreshes it. The rest are the destination's model.
   void serializeGlue(ChainStateData& state) const override {
     state.hasAmplitudes = true;
     std::size_t numForests = glue_.basis.size();
@@ -1055,16 +1063,24 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
       // a hand-written bcf-shaped state: the four named scalars are the whole
       // block, and only on the layout they name
       if (glue_.amplitudes.size() != 3 || glue_.numAmplitudes(0) != 1) return;
-      glue_.a() = state.a;
-      glue_.aVariance() = state.aVariance;
-      glue_.b0() = state.b0;
-      glue_.b1() = state.b1;
+      if (glue_.prior[0].update) glue_.a() = state.a;
+      if (glue_.prior[0].halfCauchyScale > 0.0)
+        glue_.aVariance() = state.aVariance;
+      if (glue_.prior[1].update) {
+        glue_.b0() = state.b0;
+        glue_.b1() = state.b1;
+      }
       return;
     }
     if (!glueIsValid(state)) return;
-    glue_.amplitudes = state.amplitudes;
-    for (std::size_t f = 0; f < glue_.prior.size(); ++f)
-      glue_.prior[f].variance = state.amplitudeVariances[f];
+    for (std::size_t f = 0; f < glue_.prior.size(); ++f) {
+      ForestAmplitudePrior& prior = glue_.prior[f];
+      if (prior.update)
+        std::copy_n(state.amplitudes.data() + glue_.amplitudeOffset[f],
+                    glue_.numAmplitudes(f), glue_.amplitudesOf(f));
+      if (prior.halfCauchyScale > 0.0)
+        prior.variance = state.amplitudeVariances[f];
+    }
   }
   bool glueIsValid(const ChainStateData& state) const override {
     if (!state.hasAmplitudes || state.amplitudeWidths.empty()) return true;

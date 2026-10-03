@@ -6445,6 +6445,24 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
   return R_NilValue;
 }
 
+// The sampler's response transform, (min, max) as a state's fit.scale holds
+// it: the host's record of the anchor a k-named leaf prior takes. A non-NULL
+// record makes it the sampler's, moving the chains there unless an install
+// follows (Sampler::setAnchor); the pair in force is returned either way.
+SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr, SEXP installFollowsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  if (!Rf_isNull(recordExpr)) {
+    if (!Rf_isReal(recordExpr) || Rf_xlength(recordExpr) != 2)
+      Rf_error("a sampler's recorded anchor must be a numeric pair");
+    holder.sampler->setAnchor(REAL(recordExpr)[0], REAL(recordExpr)[1],
+                              Rf_asLogical(installFollowsExpr) != TRUE);
+  }
+  SEXP resultExpr = PROTECT(Rf_allocVector(REALSXP, 2));
+  holder.sampler->getAnchor(REAL(resultExpr)[0], REAL(resultExpr)[1]);
+  UNPROTECT(1);
+  return resultExpr;
+}
+
 SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                              SEXP samplesExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
@@ -7317,24 +7335,23 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   size_t numChains = state.chains.size();
   size_t numObservations = sampler.shape().numObservations;
 
-  // per-forest tree channels (a length-1 list off BCF); the k rides here too
+  // per-forest tree channels (a length-1 list off BCF); a drawn k rides here
+  // too. A state holds no prior parameter: the leaf scale, which an earlier
+  // writer added after k, is no longer written, and the readers ignore it.
   enum {
     FSLOT_TREE_VARS = 0, FSLOT_TREE_VALUES, FSLOT_TREE_SIZES, FSLOT_TREE_FLAGS,
     FSLOT_TREE_PARAMS, FSLOT_TREE_MASKS,
     FSLOT_SAVED_VARS, FSLOT_SAVED_VALUES, FSLOT_SAVED_SIZES, FSLOT_SAVED_FLAGS,
     FSLOT_SAVED_PARAMS, FSLOT_SAVED_MASKS,
-    FSLOT_K, FSLOT_LEAF_SCALE, FSLOT_LEAF_COVARIATE_CENTER,
+    FSLOT_K, FSLOT_LEAF_COVARIATE_CENTER,
     FSLOT_LEAF_COVARIATE_SCALE, FSLOT_LEAF_LENGTHSCALES, FSLOT_COUNT
   };
-  // append-only here too: leaf.scale is the leaf prior's scale factor, k's
-  // other half (mu ~ N(0, (scale / k)^2)), added AFTER k and read as OPTIONAL,
-  // so a state written before it existed decodes as absent.
   static const char* forestSlotNames[FSLOT_COUNT] = {
     "tree.vars", "tree.values", "tree.sizes", "tree.flags", "tree.params",
     "tree.masks",
     "saved.vars", "saved.values", "saved.sizes", "saved.flags",
     "saved.params", "saved.masks",
-    "k", "leaf.scale",
+    "k",
     "leaf.covariate.center", "leaf.covariate.scale", "leaf.lengthscales"
   };
   // the leaf.covariate.* and leaf.lengthscales blocks are a linear or gp
@@ -7403,8 +7420,10 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
         if (!fs.savedTreeMasks.empty())
           storeTreeMasks(forestExpr, FSLOT_SAVED_MASKS, fs.savedTreeMasks);
       }
-      SET_VECTOR_ELT(forestExpr, FSLOT_K, Rf_ScalarReal(fs.k));
-      SET_VECTOR_ELT(forestExpr, FSLOT_LEAF_SCALE, Rf_ScalarReal(fs.leafScale));
+      // k, sigma, the df, the shape and the DART concentration are written
+      // only where drawn; the engine marks a fixed one NaN
+      if (!std::isnan(fs.k))
+        SET_VECTOR_ELT(forestExpr, FSLOT_K, Rf_ScalarReal(fs.k));
       const std::vector<double>* calibration[] = {
         &fs.leafCovariateCenters, &fs.leafCovariateScales, &fs.leafLengthscales
       };
@@ -7446,7 +7465,8 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
                        chainState.savedVarianceTreeMasks);
     }
 
-    SET_VECTOR_ELT(chainExpr, SLOT_SIGMA, Rf_ScalarReal(chainState.sigma));
+    if (!std::isnan(chainState.sigma))
+      SET_VECTOR_ELT(chainExpr, SLOT_SIGMA, Rf_ScalarReal(chainState.sigma));
 
     SET_VECTOR_ELT(chainExpr, SLOT_FIT_SCALE, Rf_allocVector(REALSXP, 2));
     REAL(VECTOR_ELT(chainExpr, SLOT_FIT_SCALE))[0] = chainState.fitMin;
@@ -7468,8 +7488,9 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
       std::memcpy(REAL(VECTOR_ELT(chainExpr, SLOT_DART_PROBABILITIES)),
                   chainState.dartProbabilities.data(),
                   chainState.dartProbabilities.size() * sizeof(double));
-      SET_VECTOR_ELT(chainExpr, SLOT_DART_ALPHA,
-                     Rf_ScalarReal(chainState.dartAlpha));
+      if (!std::isnan(chainState.dartAlpha))
+        SET_VECTOR_ELT(chainExpr, SLOT_DART_ALPHA,
+                       Rf_ScalarReal(chainState.dartAlpha));
       SET_VECTOR_ELT(chainExpr, SLOT_DART_UPDATES_SKIPPED,
                      Rf_ScalarInteger(static_cast<int>(
                        chainState.dartNumUpdatesSkipped)));
@@ -7503,8 +7524,8 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
           chainState.amplitudeVariances[f];
     }
 
-    // the t-only residual df; lambda already rode the latents slot above. A
-    // gaussian (or any non-t) chain carries NaN and writes no block.
+    // the t-only residual df where drawn; lambda already rode the latents
+    // slot above. Any other chain carries NaN and writes no block.
     if (std::isfinite(chainState.residualDf))
       SET_VECTOR_ELT(chainExpr, SLOT_RESID_DF,
                      Rf_ScalarReal(chainState.residualDf));
@@ -7521,9 +7542,8 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
                   chainState.ordinalThresholds.size() * sizeof(double));
     }
 
-    // the nbinom-only shape r; omega already rode the latents slot above. A
-    // non-count chain carries NaN and writes no block, so old and other-family
-    // states omit the slot.
+    // the nbinom-only shape r where drawn; omega already rode the latents
+    // slot above. Any other chain carries NaN and writes no block.
     if (std::isfinite(chainState.shape))
       SET_VECTOR_ELT(chainExpr, SLOT_SHAPE,
                      Rf_ScalarReal(chainState.shape));
@@ -7615,6 +7635,19 @@ static const char* const columnMaskMismatchMessage =
   "this forest's allowed column set; the donor's fit is "
   "incompatible with the column restriction (a forest's own "
   "column subset or a restricted variance forest) in force here";
+/// The refusal both installs report for a state stored under another response
+/// shift than the sampler's, on a leaf model that cannot carry one; \p what
+/// names the source. The buffer is static: the message is raised at once.
+static const char* unitsRefusalMessage(const char* what) {
+  static char message[320];
+  std::snprintf(message, sizeof message,
+                "%s is stored in other response units than this sampler's, "
+                "and its response shift cannot be converted: a gp leaf's saved "
+                "draws and forests carrying amplitudes hold no mean term; "
+                "nothing was installed", what);
+  return message;
+}
+
 static const char* const stateColumnMaskMessage =
   "state holds a tree that splits on a variable outside "
   "this forest's allowed column set; the state is "
@@ -7836,31 +7869,16 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
           break;
       }
 
+      // OPTIONAL: present only where the saver drew k, and installed only
+      // where this sampler does; absent leaves the sampler's own. A leaf.scale
+      // block, which states written earlier carry, is model and not read.
       SEXP kExpr = rc_getListElement(forestExpr, "k");
-      if (Rf_isNull(kExpr)) {
-        errorMessage = missingBlock("k");
-        break;
-      }
-      if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {
-        errorMessage = malformedBlock("k");
-        break;
-      }
-      fs.k = REAL(kExpr)[0];
-
-      // OPTIONAL, append-only: a state written before the block existed lacks
-      // the name and keeps the 0.0 ABSENT sentinel, restoring exactly as it
-      // did then. Presence need not be uniform across a chain's forests. The
-      // type/length check names the block; a present but non-finite or
-      // non-positive VALUE is NOT refused - it falls through the restore
-      // paths' > 0.0 guard as absent, matching k's permissive posture rather
-      // than inventing a stricter one.
-      SEXP leafScaleExpr = rc_getListElement(forestExpr, "leaf.scale");
-      if (!Rf_isNull(leafScaleExpr)) {
-        if (!Rf_isReal(leafScaleExpr) || Rf_xlength(leafScaleExpr) != 1) {
-          errorMessage = malformedBlock("leaf.scale");
+      if (!Rf_isNull(kExpr)) {
+        if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {
+          errorMessage = malformedBlock("k");
           break;
         }
-        fs.leafScale = REAL(leafScaleExpr)[0];
+        fs.k = REAL(kExpr)[0];
       }
 
       // OPTIONAL, append-only: a linear or gp leaf's calibration, absent in a
@@ -7887,16 +7905,15 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     }
     if (errorMessage != NULL) break;
 
+    // OPTIONAL as k is: present only where the saver drew sigma
     SEXP sigmaExpr = rc_getListElement(chainExpr, "sigma");
-    if (Rf_isNull(sigmaExpr)) {
-      errorMessage = missingBlock("sigma");
-      break;
+    if (!Rf_isNull(sigmaExpr)) {
+      if (!Rf_isReal(sigmaExpr) || Rf_xlength(sigmaExpr) != 1) {
+        errorMessage = malformedBlock("sigma");
+        break;
+      }
+      chainState.sigma = REAL(sigmaExpr)[0];
     }
-    if (!Rf_isReal(sigmaExpr) || Rf_xlength(sigmaExpr) != 1) {
-      errorMessage = malformedBlock("sigma");
-      break;
-    }
-    chainState.sigma = REAL(sigmaExpr)[0];
 
     // heteroscedastic variance forest: optional blocks, absent (empty) off a
     // variance state. stateIsValid refuses a variance sampler lacking them and
@@ -7969,11 +7986,14 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     SEXP dartProbabilitiesExpr =
       rc_getListElement(chainExpr, "dart.probabilities");
     if (!Rf_isNull(dartProbabilitiesExpr)) {
+      // the concentration is present only where the saver drew it
       SEXP dartAlphaExpr = rc_getListElement(chainExpr, "dart.alpha");
       SEXP dartSkippedExpr =
         rc_getListElement(chainExpr, "dart.updates.skipped");
-      if (!Rf_isReal(dartProbabilitiesExpr) || !Rf_isReal(dartAlphaExpr) ||
-          Rf_xlength(dartAlphaExpr) != 1 || !Rf_isInteger(dartSkippedExpr) ||
+      if (!Rf_isReal(dartProbabilitiesExpr) ||
+          (!Rf_isNull(dartAlphaExpr) &&
+           (!Rf_isReal(dartAlphaExpr) || Rf_xlength(dartAlphaExpr) != 1)) ||
+          !Rf_isInteger(dartSkippedExpr) ||
           Rf_xlength(dartSkippedExpr) != 1 || INTEGER(dartSkippedExpr)[0] < 0) {
         errorMessage = "malformed dart state in bartcore state";
         break;
@@ -7981,7 +8001,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       chainState.dartProbabilities.assign(
         REAL(dartProbabilitiesExpr),
         REAL(dartProbabilitiesExpr) + Rf_xlength(dartProbabilitiesExpr));
-      chainState.dartAlpha = REAL(dartAlphaExpr)[0];
+      if (!Rf_isNull(dartAlphaExpr)) chainState.dartAlpha = REAL(dartAlphaExpr)[0];
       chainState.dartNumUpdatesSkipped =
         static_cast<size_t>(INTEGER(dartSkippedExpr)[0]);
     }
@@ -8006,8 +8026,8 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       }
     }
 
-    // additive t-only block: absent (an old or gaussian state) leaves the NaN
-    // default, which stateIsValid refuses only for a t sampler
+    // additive t-only block, present where the saver drew nu: absent leaves
+    // the NaN default and the sampler's own df
     SEXP residDfExpr = rc_getListElement(chainExpr, "resid.df");
     if (!Rf_isNull(residDfExpr)) {
       if (!Rf_isReal(residDfExpr) || Rf_xlength(residDfExpr) != 1) {
@@ -8030,8 +8050,8 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
         REAL(ordinalThresholdsExpr) + Rf_xlength(ordinalThresholdsExpr));
     }
 
-    // additive nbinom-only block: absent (an old or non-count state) leaves the
-    // NaN default, which stateIsValid refuses only for an NB sampler
+    // additive nbinom-only block, present where the saver drew r: absent
+    // leaves the NaN default and the sampler's own shape
     SEXP shapeExpr = rc_getListElement(chainExpr, "shape");
     if (!Rf_isNull(shapeExpr)) {
       if (!Rf_isReal(shapeExpr) || Rf_xlength(shapeExpr) != 1) {
@@ -8059,13 +8079,15 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   }
 
   bool columnMaskRefused = false, monotoneRefused = false;
-  bool interactionRefused = false;
+  bool interactionRefused = false, lengthscaleRefused = false;
+  bool unitsRefused = false;
   bool restored = false;
   if (errorMessage == NULL) {
     bartcore_bridge::CapturedError restoreError;
     captureExceptions(restoreError, [&]() {
       restored = sampler.setState(state, currentPredictors, &columnMaskRefused,
                                   &monotoneRefused, &interactionRefused,
+                                  &lengthscaleRefused, &unitsRefused,
                                   adoptCapacity);
     });
     if (restoreError.failed)
@@ -8084,6 +8106,11 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   if (monotoneRefused)
     Rf_error("state's leaf values violate this sampler's monotone "
              "constraint");
+  if (lengthscaleRefused)
+    Rf_error("state holds saved gp draws made under other lengthscales than "
+             "the ones this sampler was given; a saved draw replays only under "
+             "the kernel it was drawn with");
+  if (unitsRefused) Rf_error("%s", unitsRefusalMessage("state"));
   if (!restored)
     Rf_error("state is not consistent with this sampler");
 
@@ -8211,36 +8238,29 @@ static const char* readWarmStartState(SEXP stateExpr,
           break;
       }
 
+      // optional as in the setState parser above; the leaf scale and the
+      // leaf-covariate blocks are not read: a warm start keeps this sampler's
+      // model and reads the donor's trees on its data
       SEXP kExpr = rc_getListElement(forestExpr, "k");
-      if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {
-        errorMessage = "malformed parameters in warm-start donor";
-        break;
-      }
-      fs.k = REAL(kExpr)[0];
-
-      // optional as in the setState parser above; installForest adopts it
-      // alongside k, so a donor's leaf calibration seeds the warm start. The
-      // leaf-covariate blocks are not read: a warm start reads the donor's
-      // trees on this sampler's data
-      SEXP leafScaleExpr = rc_getListElement(forestExpr, "leaf.scale");
-      if (!Rf_isNull(leafScaleExpr)) {
-        if (!Rf_isReal(leafScaleExpr) || Rf_xlength(leafScaleExpr) != 1) {
+      if (!Rf_isNull(kExpr)) {
+        if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {
           errorMessage = "malformed parameters in warm-start donor";
           break;
         }
-        fs.leafScale = REAL(leafScaleExpr)[0];
+        fs.k = REAL(kExpr)[0];
       }
     }
     if (errorMessage != NULL) break;
 
     SEXP sigmaExpr = rc_getListElement(chainExpr, "sigma");
     SEXP fitScaleExpr = rc_getListElement(chainExpr, "fit.scale");
-    if (!Rf_isReal(sigmaExpr) || Rf_xlength(sigmaExpr) != 1 ||
+    if ((!Rf_isNull(sigmaExpr) &&
+         (!Rf_isReal(sigmaExpr) || Rf_xlength(sigmaExpr) != 1)) ||
         !Rf_isReal(fitScaleExpr) || Rf_xlength(fitScaleExpr) != 2) {
       errorMessage = "malformed parameters in warm-start donor";
       break;
     }
-    chainState.sigma = REAL(sigmaExpr)[0];
+    if (!Rf_isNull(sigmaExpr)) chainState.sigma = REAL(sigmaExpr)[0];
     chainState.fitMin = REAL(fitScaleExpr)[0];
     chainState.fitMax = REAL(fitScaleExpr)[1];
 
@@ -8250,8 +8270,10 @@ static const char* readWarmStartState(SEXP stateExpr,
       SEXP dartAlphaExpr = rc_getListElement(chainExpr, "dart.alpha");
       SEXP dartSkippedExpr =
         rc_getListElement(chainExpr, "dart.updates.skipped");
-      if (!Rf_isReal(dartProbabilitiesExpr) || !Rf_isReal(dartAlphaExpr) ||
-          Rf_xlength(dartAlphaExpr) != 1 || !Rf_isInteger(dartSkippedExpr) ||
+      if (!Rf_isReal(dartProbabilitiesExpr) ||
+          (!Rf_isNull(dartAlphaExpr) &&
+           (!Rf_isReal(dartAlphaExpr) || Rf_xlength(dartAlphaExpr) != 1)) ||
+          !Rf_isInteger(dartSkippedExpr) ||
           Rf_xlength(dartSkippedExpr) != 1 || INTEGER(dartSkippedExpr)[0] < 0) {
         errorMessage = "malformed dart state in warm-start donor";
         break;
@@ -8259,7 +8281,7 @@ static const char* readWarmStartState(SEXP stateExpr,
       chainState.dartProbabilities.assign(
         REAL(dartProbabilitiesExpr),
         REAL(dartProbabilitiesExpr) + Rf_xlength(dartProbabilitiesExpr));
-      chainState.dartAlpha = REAL(dartAlphaExpr)[0];
+      if (!Rf_isNull(dartAlphaExpr)) chainState.dartAlpha = REAL(dartAlphaExpr)[0];
       chainState.dartNumUpdatesSkipped =
         static_cast<size_t>(INTEGER(dartSkippedExpr)[0]);
     }
@@ -8432,6 +8454,8 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
     case bartcore::WarmStartResult::varianceShapeMismatch:
       Rf_error("warm-start donor's variance forest has a different number of "
                "trees than this sampler's");
+    case bartcore::WarmStartResult::unitsMismatch:
+      Rf_error("%s", unitsRefusalMessage("warm-start donor"));
     case bartcore::WarmStartResult::rebuildFailed:
       Rf_error("warm-start donor's trees cannot be rebuilt on this sampler's "
                "data (a donor tree no longer routes onto the current "

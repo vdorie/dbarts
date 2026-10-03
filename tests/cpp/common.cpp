@@ -59,9 +59,15 @@ bool sameFlatTrees(const std::vector<std::vector<FlatNode>>& a,
 static_assert(sizeof(void*) != 8 || sizeof(ChainStateData) == 384,
               "ChainStateData gained or lost a field; add its comparison to "
               "statesAgree below and update this size");
-static_assert(sizeof(void*) != 8 || sizeof(ForestStateData) == 232,
+static_assert(sizeof(void*) != 8 || sizeof(ForestStateData) == 224,
               "ForestStateData gained or lost a field; add its comparison to "
               "statesAgree below and update this size");
+
+// a scalar a state holds only where it is drawn is NaN, absent, otherwise;
+// two absent values agree
+static bool sameScalar(double x, double y) {
+  return (std::isnan(x) && std::isnan(y)) || x == y;
+}
 
 bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
   if (a.chains.size() != b.chains.size()) return false;
@@ -78,8 +84,7 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
       if (xf.treeParams != yf.treeParams ||
           xf.savedTreeParams != yf.savedTreeParams ||
           xf.treeMasks != yf.treeMasks ||
-          xf.savedTreeMasks != yf.savedTreeMasks || xf.k != yf.k ||
-          xf.leafScale != yf.leafScale ||
+          xf.savedTreeMasks != yf.savedTreeMasks || !sameScalar(xf.k, yf.k) ||
           xf.leafCovariateCenters != yf.leafCovariateCenters ||
           xf.leafCovariateScales != yf.leafCovariateScales ||
           xf.leafLengthscales != yf.leafLengthscales)
@@ -101,21 +106,17 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
         x.dartProbabilities != y.dartProbabilities ||
         x.rngState != y.rngState)
       return false;
-    // nu round-trips bitwise; a gaussian state carries NaN on both sides, which
-    // an == would reject, so treat both-absent as agreement
-    bool bothNu = std::isnan(x.residualDf) && std::isnan(y.residualDf);
-    if (!bothNu && x.residualDf != y.residualDf) return false;
+    // nu round-trips bitwise where drawn and is absent on both sides otherwise
+    if (!sameScalar(x.residualDf, y.residualDf)) return false;
     // the ordinal threshold vector round-trips bitwise
     // (restoreOrdinalThresholds is a copy); a non-ordinal state carries an
     // empty vector on both sides
     if (x.ordinalThresholds != y.ordinalThresholds) return false;
-    // the nbinom shape r round-trips bitwise (restoreShape is a copy);
-    // a non-count state carries NaN on both sides, which an == would reject
-    bool bothShape =
-      std::isnan(x.shape) && std::isnan(y.shape);
-    if (!bothShape && x.shape != y.shape) return false;
+    // the nbinom shape r round-trips bitwise (restoreShape is a copy) where
+    // drawn
+    if (!sameScalar(x.shape, y.shape)) return false;
     if (x.fitMin != y.fitMin || x.fitMax != y.fitMax ||
-        x.dartAlpha != y.dartAlpha ||
+        !sameScalar(x.dartAlpha, y.dartAlpha) ||
         x.dartNumUpdatesSkipped != y.dartNumUpdatesSkipped)
       return false;
     if (x.hasAmplitudes != y.hasAmplitudes ||
@@ -123,7 +124,8 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
         x.amplitudes != y.amplitudes ||
         x.amplitudeVariances != y.amplitudeVariances)
       return false;
-    if (std::fabs(x.sigma - y.sigma) > 1e-9 * (1.0 + std::fabs(x.sigma)))
+    if (std::isnan(x.sigma) != std::isnan(y.sigma) ||
+        std::fabs(x.sigma - y.sigma) > 1e-9 * (1.0 + std::fabs(x.sigma)))
       return false;
   }
   return true;

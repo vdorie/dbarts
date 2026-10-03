@@ -120,12 +120,9 @@ expect_identical(
 # implies and the engine SKIPS a write reproducing what is in force, so a
 # round trip cannot perturb the last bit and move a draw. ---
 leafScales <- function(sampler) {
-  sampler$storeState()
-  vapply(
-    sampler$state,
-    function(chain) chain$forests[[1L]]$leaf.scale,
-    numeric(1L)
-  )
+  .Call(dbarts:::C_dbarts_bartcore_getLeafPrior, sampler$getPointer(), 0L)[,
+    "prior.scale"
+  ]
 }
 inertA <- namedSampler()
 inertB <- namedSampler()
@@ -302,21 +299,22 @@ staticDrawn <- vapply(
 )
 expect_true(max(abs(staticDrawn / 0.75 - 1)) < 0.1)
 
-# --- a divergent LEAF SCALE is reported as missing rather than hidden, and
-# the write flattens it, which is the documented every-chain rule ---
+# --- a state holds neither the leaf scale nor a fixed k, so one that names
+# them - an earlier writer's blocks, here edited on one chain - installs
+# without them and every chain stays under the sampler's prior; the reader
+# never reports NA, and an NA spread is still refused on write ---
 divergedScale <- namedSampler()
+priorBefore <- divergedScale$getLeafPrior()
 divergedScale$storeState()
 scaleState <- divergedScale$state
-scaleState[[2L]]$forests[[1L]]$leaf.scale <-
-  2 * scaleState[[2L]]$forests[[1L]]$leaf.scale
+expect_null(scaleState[[2L]]$forests[[1L]]$leaf.scale)
+scaleState[[2L]]$forests[[1L]]$leaf.scale <- 0.123
 divergedScale$setState(scaleState)
-expect_identical(divergedScale$getLeafPrior()$anchor, NA_real_)
-expect_identical(divergedScale$getLeafPrior()$leaf.prior@prior.sd, NA_real_)
+expect_identical(divergedScale$getLeafPrior(), priorBefore)
 expect_identical(divergedScale$getK(), c(2, 2))
-# an NA spread is not writable: the reader's NA is not the unnamed spelling
 naSd <- divergedScale$getLeafPrior()$leaf.prior
-expect_error(divergedScale$setLeafPrior(naSd), "'sd' is NA.*chains disagree")
-expect_true(is.na(priorSdOf(divergedScale)[[1L]]))
+naSd@prior.sd <- NA_real_
+expect_error(divergedScale$setLeafPrior(naSd), "'sd' is NA")
 naModel <- divergedScale$model
 naModel@leaf.prior <- naSd
 expect_error(divergedScale$setModel(naModel), "'sd' is NA.*name a value")
@@ -325,17 +323,18 @@ expect_error(
   "'sd' is NA"
 )
 expect_error(new("dbartsNormalPrior", prior.sd = NA_real_), "'sd' is NA")
-# and a fixed k the chains disagree on reads NA and is refused the same way
 divergedK <- dbarts(x, y, control = midControl())
 divergedK$storeState()
 kState <- divergedK$state
+expect_null(kState[[2L]]$forests[[1L]]$k)
 kState[[2L]]$forests[[1L]]$k <- 3
 divergedK$setState(kState)
-expect_identical(divergedK$getK(), c(2, 3))
+expect_identical(divergedK$getK(), c(2, 2))
 naK <- divergedK$getLeafPrior()$leaf.prior
-expect_identical(naK@k, NA_real_)
-expect_error(divergedK$setLeafPrior(naK), "'k' is NA.*chains disagree")
-expect_identical(divergedK$getK(), c(2, 3))
+expect_identical(naK@k, 2)
+naK@k <- NA_real_
+expect_error(divergedK$setLeafPrior(naK), "'k' is NA")
+expect_identical(divergedK$getK(), c(2, 2))
 divergedScale$setLeafPrior(normal(sd = 0.75))
 expect_true(max(abs(priorSdOf(divergedScale) / 0.75 - 1)) < 1e-14)
 
@@ -672,8 +671,9 @@ expect_identical(isolated$getK(), kBefore)
 unmoved <- c("prior.mean", "response.scale", "response.shift")
 expect_identical(isolatedAfter[unmoved], isolatedBefore[unmoved])
 
-# $setModel re-pins a fixed sigma; $setLeafPrior does not, whether it writes
-# the spread alone or changes the hyperprior
+# $setModel re-pins a fixed sigma at the model's value, which $setSigma
+# rewrites; $setLeafPrior does not re-pin, whether it writes the spread alone
+# or changes the hyperprior
 repinned <- dbarts(
   x,
   y,
@@ -686,35 +686,34 @@ repinned$setLeafPrior(normal(sd = 0.5))
 expect_equal(unname(repinned$getSigmas()), c(3.5, 3.5))
 repinned$setLeafPrior(normal(k = 3))
 expect_equal(unname(repinned$getSigmas()), c(3.5, 3.5))
+expect_equal(repinned$model@resid.prior@value, 3.5^2)
 repinned$setModel(repinned$model)
-expect_equal(unname(repinned$getSigmas()), c(1, 1))
+expect_equal(unname(repinned$getSigmas()), c(3.5, 3.5))
 
-# storeState / setState adopt the calibration from the state, which is what
-# makes the getter - rather than the model slot - the authoritative reader
-# after a restore
+# storeState / setState leave the recipient's calibration: the leaf prior is
+# the sampler's model, and the state carries none of it
 adopted <- namedSampler()
 adopted$setLeafPrior(normal(sd = 0.3))
 adopted$storeState()
 donorState <- adopted$state
 recipient <- namedSampler()
 recipient$setState(donorState)
-expect_identical(priorSdOf(recipient), priorSdOf(adopted))
+expect_true(max(abs(priorSdOf(recipient) / 0.75 - 1)) < 1e-14)
 expect_equal(recipient$model@prior.scale, 1.5)
 
-# a warm start ADOPTS the donor's calibration - its trees were drawn under it -
-# and the documented recipe is to restate the prior afterwards
+# a warm start leaves it too: the donor's trees seed the recipient, which runs
+# under its own prior
 warmDonor <- namedSampler()
 warmDonor$setLeafPrior(normal(sd = 0.3))
 invisible(warmDonor$run(20L, 10L))
 warmDonor$storeState()
 warmRecipient <- namedSampler()
 warmRecipient$installTrees(warmDonor)
-expect_true(max(abs(priorSdOf(warmRecipient) / 0.3 - 1)) < 1e-14)
-warmRecipient$setLeafPrior(normal(sd = 0.75))
 expect_true(max(abs(priorSdOf(warmRecipient) / 0.75 - 1)) < 1e-14)
 
-# --- the save/load gate: updateState = TRUE captures the write, and the
-# prior survives the serialize/re-create round trip. ---
+# --- the save/load gate: the write is recorded on the model, so the prior
+# survives the serialize/re-create round trip whether or not the state was
+# stored after it. ---
 roundTripCalibrationMidchain <- function(object) {
   tempFile <- tempfile()
   on.exit(unlink(tempFile))
@@ -728,12 +727,11 @@ saved$setLeafPrior(normal(sd = 0.3), updateState = TRUE)
 restored <- roundTripCalibrationMidchain(saved)
 expect_true(max(abs(priorSdOf(restored) / 0.3 - 1)) < 1e-14)
 expect_identical(priorSdOf(restored), priorSdOf(saved))
-# non-vacuity: without the capture the write does not reach the saved state
 uncaptured <- namedSampler()
 invisible(uncaptured$run(10L, 5L))
 uncaptured$storeState()
 uncaptured$setLeafPrior(normal(sd = 0.3))
 expect_true(
-  max(abs(priorSdOf(roundTripCalibrationMidchain(uncaptured)) / 0.75 - 1)) <
+  max(abs(priorSdOf(roundTripCalibrationMidchain(uncaptured)) / 0.3 - 1)) <
     1e-14
 )

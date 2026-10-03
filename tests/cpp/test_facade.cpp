@@ -39,7 +39,8 @@ enum class FacadeVirtual {
   updatePredictor, setCutPoints, updatePredictorPerObservation,
   beginPredictorUpdate, currentSampleNum, savedSlotForDraw, savedTree,
   savedTreeSlopes, savedTreeMasks, flattenTree, predict, predictPerForest,
-  predictVariance, getState, setState, installForests, sampleTreesFromPrior,
+  predictVariance, getState, setState, setAnchor, getAnchor, installForests,
+  sampleTreesFromPrior,
   sampleNodeParametersFromPrior, sampleVarianceForestFromPrior, growFromRoot,
   setNumThreads, setNumThin,
   setVerbose, fitScale, gpFallbackTally, slowCountTally, setTreeStorage,
@@ -176,8 +177,10 @@ public:
   SPY_VOID(getState, (SamplerStateData& s), (s))
   SPY_RET(bool, setState,
           (const SamplerStateData& s, const double* cp, bool* r, bool* m,
-           bool* i, std::size_t a),
-          (s, cp, r, m, i, a))
+           bool* i, bool* l, bool* u, std::size_t a),
+          (s, cp, r, m, i, l, u, a))
+  SPY_VOID(setAnchor, (double lo, double hi, bool m), (lo, hi, m))
+  SPY_VOID(getAnchor, (double& lo, double& hi) const, (lo, hi))
   SPY_RET(WarmStartResult, installForests,
           (const SamplerStateData& d,
            const std::vector<std::pair<std::size_t, int>>& m),
@@ -905,6 +908,28 @@ const Row rows[] = {
     f.gt.impl().getState(restored);
     check(statesAgree(donor, restored),
           "facade setState: the twin now reproduces the donor's state");
+  }},
+  {FacadeVirtual::setAnchor, "setAnchor", [](Fixtures& f) {
+    // the count family's pair is its shift, which a move carries exactly,
+    // so the fixture is put back where it was
+    double lo, hi;
+    f.nb.impl().getAnchor(lo, hi);
+    f.nb.base().setAnchor(lo + 0.5, hi + 0.5, true);
+    double movedLo, movedHi;
+    f.nb.impl().getAnchor(movedLo, movedHi);
+    double shift = f.nb.impl().forestCalibration(0, 0).responseShift;
+    check(movedLo == lo + 0.5 && movedHi == hi + 0.5 && shift == lo + 0.5,
+          "facade setAnchor: the impl takes the pair and moves its chains");
+    f.nb.base().setAnchor(lo, hi, true);
+  }},
+  {FacadeVirtual::getAnchor, "getAnchor", [](Fixtures& f) {
+    double lo, hi;
+    f.g.base().getAnchor(lo, hi);
+    SamplerStateData state;
+    f.g.impl().getState(state);
+    check(hi > lo && lo == state.chains[0].fitMin &&
+            hi == state.chains[0].fitMax,
+          "facade getAnchor: the boundary reports the transform in force");
   }},
   {FacadeVirtual::installForests, "installForests", [](Fixtures& f) {
     Results results;

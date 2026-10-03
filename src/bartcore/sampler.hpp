@@ -102,13 +102,15 @@ struct SamplerStateData {
 /// Why a warm start (installForests) refused; ok on success. A single donor
 /// forest can seed several chains, so the donor's chain count need not match.
 /// varianceShapeMismatch: the donor's variance forest holds another tree
-/// count. rebuildFailed: a donor tree that passed every up-front check failed
-/// to rebuild on this sampler's data, the one refusal that arrives mid-install
-/// and is undone.
+/// count. unitsMismatch: the donor is stored under another response shift
+/// than this sampler's and its leaf model cannot carry one
+/// (Chain::convertStateUnits). rebuildFailed: a donor tree that passed every
+/// up-front check failed to rebuild on this sampler's data, the one refusal
+/// that arrives mid-install and is undone.
 enum class WarmStartResult {
   ok, shapeMismatch, gridMismatch, dartMismatch, interactionMismatch,
   columnMaskMismatch, varianceMismatch, varianceSlotMismatch,
-  varianceShapeMismatch, rebuildFailed
+  varianceShapeMismatch, unitsMismatch, rebuildFailed
 };
 
 /// A sequential per-observation predictor update: stage one observation's
@@ -274,6 +276,7 @@ public:
         options_.numSamplesToStore > 0 ? options_.numSamplesToStore : 1;
       for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
     }
+    recordAnchor();
   }
 
   /// A K-forest multinomial (softmax) sampler over dense predictors:
@@ -313,6 +316,7 @@ public:
         options_.numSamplesToStore > 0 ? options_.numSamplesToStore : 1;
       for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
     }
+    recordAnchor();
   }
 
   // chains reference the store member, so the sampler's address is pinned
@@ -1113,7 +1117,17 @@ public:
   /// non-null, separates that refusal from every other invalid state so the
   /// host can name it; monotoneRefused does the same for leaf values outside
   /// a monotone sampler's cone, and interactionRefused for a live tree that
-  /// breaks a forest's interaction constraint.
+  /// breaks a forest's interaction constraint. lengthscaleRefused names a
+  /// state whose saved gp draws were made under other lengthscales than the
+  /// ones this sampler was given (Chain::lengthscaleStateFeasible), and
+  /// unitsRefused one stored under another response shift than the sampler's
+  /// on a leaf model that cannot carry one (Chain::convertStateUnits); both
+  /// are judged before anything is touched.
+  ///
+  /// The units pass: a chain stored in other units than the sampler's is
+  /// converted into them, on a copy, ahead of everything else, and is then
+  /// validated and installed as one stored in them would be. A chain in the
+  /// sampler's own units is not touched.
   ///
   /// adoptCapacity, when not keepStoreCapacity, judges the state's saved trees
   /// against a store of that many samples and, only once the state is
@@ -1125,10 +1139,14 @@ public:
                 bool* columnMaskRefused = nullptr,
                 bool* monotoneRefused = nullptr,
                 bool* interactionRefused = nullptr,
+                bool* lengthscaleRefused = nullptr,
+                bool* unitsRefused = nullptr,
                 size_t adoptCapacity = keepStoreCapacity) {
     if (columnMaskRefused != nullptr) *columnMaskRefused = false;
     if (monotoneRefused != nullptr) *monotoneRefused = false;
     if (interactionRefused != nullptr) *interactionRefused = false;
+    if (lengthscaleRefused != nullptr) *lengthscaleRefused = false;
+    if (unitsRefused != nullptr) *unitsRefused = false;
     if (state.chains.size() != chains_.size()) return false;
     if (state.cutPoints.size() != data_.numPredictors) return false;
     for (size_t j = 0; j < data_.numPredictors; ++j) {
@@ -1138,6 +1156,26 @@ public:
                                  state.cutPoints[j].size(), false)) {
         return false;
       }
+    }
+    for (size_t c = 0; c < chains_.size(); ++c) {
+      if (!chains_[c]->lengthscaleStateFeasible(state.chains[c],
+                                                state.recordedDraws > 0)) {
+        if (lengthscaleRefused != nullptr) *lengthscaleRefused = true;
+        return false;
+      }
+    }
+    std::vector<ChainStateData> converted(chains_.size());
+    std::vector<const ChainStateData*> chainStates(chains_.size());
+    for (size_t c = 0; c < chains_.size(); ++c) {
+      chainStates[c] = &state.chains[c];
+      if (!unitsDiffer(state.chains[c])) continue;
+      converted[c] = state.chains[c];
+      if (!chains_[c]->convertStateUnits(converted[c], anchorMin_,
+                                         anchorMax_)) {
+        if (unitsRefused != nullptr) *unitsRefused = true;
+        return false;
+      }
+      chainStates[c] = &converted[c];
     }
 
     // install the state's cuts, snapshotting for rollback: tree validity is
@@ -1168,23 +1206,23 @@ public:
     // host can name it as installForests does
     bool columnMaskOk = true;
     for (size_t c = 0; c < chains_.size() && columnMaskOk; ++c)
-      columnMaskOk = chains_[c]->columnMaskStateFeasible(state.chains[c]);
+      columnMaskOk = chains_[c]->columnMaskStateFeasible(*chainStates[c]);
     bool interactionOk = true;
     for (size_t c = 0; c < chains_.size() && columnMaskOk && interactionOk; ++c)
-      interactionOk = chains_[c]->interactionStateFeasible(state.chains[c]);
+      interactionOk = chains_[c]->interactionStateFeasible(*chainStates[c]);
     bool allValid = columnMaskOk && interactionOk;
     size_t liveCapacity = savedTreeCapacity();
     bool resize =
       adoptCapacity != keepStoreCapacity && adoptCapacity != liveCapacity;
     size_t judgedCapacity = resize ? adoptCapacity : liveCapacity;
     for (size_t c = 0; c < chains_.size() && allValid; ++c)
-      allValid = chains_[c]->stateIsValid(state.chains[c], judgedCapacity);
+      allValid = chains_[c]->stateIsValid(*chainStates[c], judgedCapacity);
     // a monotone sampler's constrained draws start only from leaf values in
     // the cone; unlike a warm start, which reseeds, a state is a continuation
     // and is refused whole
     bool monotoneOk = true;
     for (size_t c = 0; c < chains_.size() && allValid && monotoneOk; ++c)
-      monotoneOk = chains_[c]->monotoneStateFeasible(state.chains[c]);
+      monotoneOk = chains_[c]->monotoneStateFeasible(*chainStates[c]);
     allValid = allValid && monotoneOk;
 
     auto restoreGrid = [&]() {
@@ -1216,7 +1254,7 @@ public:
     }
 
     for (size_t c = 0; c < chains_.size(); ++c)
-      if (!chains_[c]->setState(state.chains[c])) return false;
+      if (!chains_[c]->setState(*chainStates[c])) return false;
     size_t capacity = savedTreeCapacity();
     currentSampleNum_ = capacity > 0 ? state.currentSampleNum % capacity : 0;
     recordedDraws_ =
@@ -1227,9 +1265,12 @@ public:
   /// Warm start: seed each chain's live forest from a donor sample. sampleMap
   /// selects, for destination chain c, a donor (chain, slot); slot < 0 takes
   /// the donor chain's live trees, else its saved slot (slot-major, one forest
-  /// per slot). Only trees, sigma, k, and DART transfer - rng and auxiliary
-  /// state stay fresh, so each chain evolves independently from its own
-  /// stream. Under a variance forest the scale surface rides along, taken from
+  /// per slot). Only trees, DART, and the sigma, k, concentration and
+  /// amplitudes this sampler draws transfer - rng and auxiliary state stay
+  /// fresh, so each chain evolves independently from its own stream - and a
+  /// donor stored in other units is converted into this sampler's, so it
+  /// seeds the function it held. Under a variance forest the scale surface
+  /// rides along, taken from
   /// the same slot as the mean forest. A donor on a different cut grid has its
   /// splits remapped onto this sampler's grid (starved splits collapse), as
   /// setData remaps a data replacement; the donor must still share this
@@ -1319,10 +1360,6 @@ public:
                                  sfs.savedTreeMasks.begin() + base + nt);
         }
         dfs.k = sfs.k;
-        // the per-forest leaf scale rides the warm start with k; this
-        // reassembled ForestStateData is the ONLY thing installForest sees, so
-        // dropping it here would leave that path's install arm dead
-        dfs.leafScale = sfs.leafScale;
         // the leaf-covariate calibration is deliberately not copied: a warm
         // start reads the donor's trees on this sampler's data, as setData
         // re-derives the constants
@@ -1380,6 +1417,11 @@ public:
       if (chains_[c]->hasVarianceForest() &&
           dst.varianceTrees.size() != chains_[c]->numVarianceTrees())
         return WarmStartResult::varianceShapeMismatch;
+      // the donor's values in this sampler's units; installForest's
+      // restoreScale then puts the chain where it already is
+      if (unitsDiffer(dst) &&
+          !chains_[c]->convertStateUnits(dst, anchorMin_, anchorMax_))
+        return WarmStartResult::unitsMismatch;
     }
 
     // containment (design "Containment"): a donor grown under a different (or
@@ -1428,20 +1470,14 @@ public:
     // rebuild that fails anyway, or an exception (an allocation), restores
     // every chain touched - from the flattened trees, as a save and load
     // does, so its fits match the snapshot to rounding - before the refusal
-    // or the rethrow.
-    using Marks = typename Chain<L, ResidT>::InstallMarks;
+    // or the rethrow. A warm start installs no model value, so the state is
+    // all there is to put back.
     std::vector<ChainStateData> snapshot(chains_.size());
-    std::vector<Marks> marks(chains_.size());
-    for (size_t c = 0; c < chains_.size(); ++c) {
+    for (size_t c = 0; c < chains_.size(); ++c)
       chains_[c]->getState(snapshot[c], false);
-      marks[c] = chains_[c]->installMarks();
-    }
     size_t touched = 0;
     auto restoreTouched = [&]() {
-      for (size_t c = 0; c < touched; ++c) {
-        chains_[c]->setState(snapshot[c]);
-        chains_[c]->restoreInstallMarks(marks[c]);
-      }
+      for (size_t c = 0; c < touched; ++c) chains_[c]->setState(snapshot[c]);
     };
 
     const std::vector<std::vector<double>>* donorGridPtr =
@@ -1483,9 +1519,35 @@ public:
   // are the caller's problem.
   void setOffset(const double* offset, bool updateScale) {
     for (auto& chain : chains_) chain->setOffset(offset, updateScale);
+    if (updateScale) recordAnchor();
   }
   void setResponse(const double* y, bool updateScale) {
     for (auto& chain : chains_) chain->setResponse(y, updateScale);
+    if (updateScale) recordAnchor();
+  }
+
+  /// Makes (min, max) the sampler's transform - the units its chains hold
+  /// their numbers in, and the range a k-named leaf prior is anchored to - as
+  /// a sampler re-created from its host's record takes the one recorded. With
+  /// moveChains every chain is moved there now (Chain::moveScale), which
+  /// requires trees that are still creation's; without, the install that
+  /// follows moves them, its state converted into these units. A chain
+  /// already there is left untouched. Ignored on a scale-free sampler or
+  /// pair.
+  void setAnchor(double min, double max, bool moveChains) {
+    if (!(max > min) || !(anchorMax_ > anchorMin_)) return;
+    anchorMin_ = min;
+    anchorMax_ = max;
+    if (!moveChains) return;
+    for (auto& chain : chains_) {
+      double chainMin, chainMax;
+      chain->getScale(chainMin, chainMax);
+      if (chainMin != min || chainMax != max) chain->moveScale(min, max);
+    }
+  }
+  void getAnchor(double& min, double& max) const {
+    min = anchorMin_;
+    max = anchorMax_;
   }
   /// Case weights: a pointer swap entering the next iteration's node
   /// statistics and sigma draw with nothing rescaled, plus, for logistic -
@@ -1740,6 +1802,7 @@ public:
     for (size_t c = 0; c < chains_.size(); ++c)
       chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c],
                                varianceParams[c]);
+    recordAnchor();
     return true;
   }
 
@@ -2056,6 +2119,19 @@ private:
         options_.numSamplesToStore > 0 ? options_.numSamplesToStore : 1;
       for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
     }
+    recordAnchor();
+  }
+
+  /// The sampler's transform becomes the one its chains were just put in;
+  /// every chain shares it after a creation or a re-anchor.
+  void recordAnchor() { chains_[0]->getScale(anchorMin_, anchorMax_); }
+
+  /// Whether a chain's state is stored in other units than the sampler's:
+  /// both pairs increasing and not equal. Exact comparison, so a state in the
+  /// sampler's own units is never touched.
+  bool unitsDiffer(const ChainStateData& state) const {
+    return state.fitMax > state.fitMin && anchorMax_ > anchorMin_ &&
+           (state.fitMin != anchorMin_ || state.fitMax != anchorMax_);
   }
 
   /// Two-phase transaction over every chain: validate all trees of all
@@ -2375,6 +2451,11 @@ private:
   ColumnStore data_;
   std::vector<std::unique_ptr<Chain<L, ResidT>>> chains_;
   size_t currentSampleNum_ = 0;  // next saved-tree slot, wrapping circularly
+  // the sampler's response transform, held apart from each chain's: what a
+  // k-named leaf prior is anchored to and what an installed state is
+  // converted into. Set by creation, a re-anchor and setAnchor; an install
+  // never moves it. (0, 0) on a scale-free family.
+  double anchorMin_ = 0.0, anchorMax_ = 0.0;
   size_t recordedDraws_ = 0;     // slots written since the last reset, capped
                                  // at capacity; the extent of every read
   double runningTime_ = 0.0;     // seconds accumulated across runs

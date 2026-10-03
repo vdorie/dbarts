@@ -432,10 +432,10 @@ expect_equal(
   tolerance = 1e-12
 )
 
-# --- the SPEC ECHO's truthfulness across a state install. $setState and
-# $installTrees both adopt the donor's leaf scale by design, so a reader that
-# echoed the recipient's own spec would print a decomposition of a number the
-# recipient no longer runs under. Three rules, four arms. ---
+# --- the SPEC ECHO across a state install. A state carries no leaf scale and
+# no fixed amplitude variance - both are model - so the recipient's map is
+# still the decomposition in force after $setState, whatever the donor ran
+# under. Four arms. ---
 donorForests <- function(sd, variance) {
   dbarts(
     x,
@@ -455,38 +455,34 @@ expect_true(priorScale(donor, 2L) != priorScale(recipient, 2L))
 donor$run(5L, 1L)
 donor$storeState()
 donorState <- donor$state
-donorScale <- priorScale(donor, 2L)
+recipientScale <- priorScale(recipient, 2L)
 
-# (a) FOREIGN CALIBRATION. The install is accepted - the widths and tree
-# counts agree, and neither the state gate nor the forest gate looks at a leaf
-# scale - so the recipient runs under the donor's scale. Its stored factor and
-# divisor no longer decompose it, and the reader says so with NA rather than
-# printing a decomposition that would recover a wrong anchor.
+# (a) THE RECIPIENT'S CALIBRATION STANDS. The install is accepted - the
+# widths and tree counts agree - and the recipient runs under its own scale,
+# which its factor and divisor still decompose.
 recipient$setState(donorState)
-expect_equal(priorScale(recipient, 2L), donorScale)
-expect_identical(mapColumn(recipient, 2L, "leaf.scale.factor"), NA_real_)
-expect_identical(mapColumn(recipient, 2L, "leaf.scale.divisor"), NA_real_)
-# the anchor is therefore NOT computable, which is the point of the NA
-expect_true(is.na(
+expect_identical(priorScale(recipient, 2L), recipientScale)
+expect_identical(mapColumn(recipient, 2L, "leaf.scale.factor"), 0.5)
+expect_identical(mapColumn(recipient, 2L, "leaf.scale.divisor"), 0.674)
+expect_equal(
   mapColumn(recipient, 2L, "anchor") *
     mapColumn(recipient, 2L, "leaf.scale.divisor") *
     mapColumn(recipient, 2L, "basis.row.norm") /
-    mapColumn(recipient, 2L, "leaf.scale.factor")
-))
+    mapColumn(recipient, 2L, "leaf.scale.factor"),
+  1,
+  tolerance = 1e-12
+)
 # the row norm needs no rule - bases are not state, so the recipient's own is
 # still the one in force
 expect_equal(mapColumn(recipient, 2L, "basis.row.norm"), 1)
-# and forest 1's columns SURVIVE: both samplers calibrate it identically, so
-# the installed scale is bitwise the one in force. The rule compares before it
-# assigns, and a rule that cleared on every install would lose this.
 expect_equal(mapColumn(recipient, 1L, "leaf.scale.factor"), 1)
 expect_equal(mapColumn(recipient, 1L, "leaf.scale.divisor"), 1)
 
-# (d) THE AMPLITUDE PRIOR FOLLOWS THE STATE, which is what the next draw will
-# use: the recipient reports the DONOR's variance, not its own 0.5. Forest 1
-# carries the scale mixture, whose serialized variance is a live auxiliary
-# rather than a prior, so its two amplitude entries keep their exclusivity.
-expect_equal(mapColumn(recipient, 2L, "amplitude.prior.variance"), 0.125)
+# (d) THE AMPLITUDE PRIOR IS THE RECIPIENT'S, which is what the next draw will
+# use: its own fixed 0.5, not the donor's 0.125. Forest 1 carries the scale
+# mixture, whose serialized variance is a live auxiliary rather than a prior,
+# so its two amplitude entries keep their exclusivity.
+expect_equal(mapColumn(recipient, 2L, "amplitude.prior.variance"), 0.5)
 expect_null(mapColumn(recipient, 2L, "amplitude.prior.scale"))
 expect_null(mapColumn(recipient, 1L, "amplitude.prior.variance"))
 # neither sampler declares that forest's sd, so both carry the family's own
@@ -494,9 +490,8 @@ expect_null(mapColumn(recipient, 1L, "amplitude.prior.variance"))
 # error sd and sigma is pinned, rather than gaussian's 2
 expect_equal(mapColumn(recipient, 1L, "amplitude.prior.scale"), 1)
 
-# (c) RE-IMPOSITION. $setForestBasis re-derives the leaf scale from the stored
-# factor and divisor, so both columns come back and the identity holds again -
-# on the RECIPIENT's own calibration, since the map is what was re-imposed.
+# (c) RE-DERIVATION. $setForestBasis re-derives the leaf scale from the stored
+# factor and divisor and the new basis, and the identity holds on it.
 recipient$setForestBasis(2L, 4 * zBasis)
 expect_equal(mapColumn(recipient, 2L, "leaf.scale.factor"), 0.5)
 expect_equal(mapColumn(recipient, 2L, "leaf.scale.divisor"), 0.674)
@@ -511,9 +506,7 @@ expect_equal(
 )
 
 # (b) SELF-RESTORE. A store, a run and a restore of a sampler's OWN state
-# installs a bitwise-identical scale, so every entry survives non-NA and the
-# identity still holds. This is the arm that keeps the rule from being "clear
-# on any install".
+# leaves every entry and the identity as they were.
 selfRestore <- donorForests(2, 0.125)
 selfRestore$run(5L, 1L)
 selfRestore$storeState()

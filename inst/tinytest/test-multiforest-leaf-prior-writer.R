@@ -222,21 +222,23 @@ expect_identical(copied$getLeafPrior(1L)$leaf.prior, forest(sd = 0.35))
 expect_identical(copied$getLeafPrior(2L)$leaf.prior, forest(sd = 0.6))
 expect_identical(copied$getLeafPrior(), a$getLeafPrior())
 
-# a pre-write state makes the fixed-variance forest foreign until a write
-# re-imposes the map; the median stays as written
+# a pre-write state leaves the write standing on both forests: a state holds
+# no leaf scale and no fixed amplitude variance, so restoring one undoes
+# neither, and the reader and the next draws are a twin's that wrote and then
+# restored its own state
 a <- amplitudeSampler(twoDefault)
+twin <- amplitudeSampler(twoDefault)
 a$storeState()
 before <- a$state
 a$setLeafPrior(forests = list(forest(sd = 0.35), forest(sd = 0.6)))
 a$setState(before)
-expect_identical(a$getLeafPrior(2L)$leaf.prior, forest(sd = NA_real_))
-expect_identical(a$getLeafPrior(1L)$leaf.prior, forest(sd = 0.35))
-expect_error(
-  a$setLeafPrior(forests = list(forest(), a$getLeafPrior(2L)$leaf.prior)),
-  "'sd' is NA"
-)
-a$setLeafPrior(forests = list(forest(), forest(sd = 0.6)))
+twin$setLeafPrior(forests = list(forest(sd = 0.35), forest(sd = 0.6)))
+twin$storeState()
+twin$setState(twin$state)
 expect_identical(a$getLeafPrior(2L)$leaf.prior, forest(sd = 0.6))
+expect_identical(a$getLeafPrior(1L)$leaf.prior, forest(sd = 0.35))
+expect_identical(a$getLeafPrior(), twin$getLeafPrior())
+expect_identical(a$run(0L, 3L), twin$run(0L, 3L))
 
 # a basis install on the scale-mixture forest keeps its median and channel
 a <- amplitudeSampler(twoDefault)
@@ -286,7 +288,7 @@ for (bad in list(0, -1, Inf, NaN, c(1, 2))) {
 }
 expect_error(
   a$setLeafPrior(forests = list(forest(sd = NA))),
-  "'sd' is NA, a missing value"
+  "single positive finite number"
 )
 expect_error(
   a$setLeafPrior(normal(), forests = list(forest())),

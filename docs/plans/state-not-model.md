@@ -161,10 +161,10 @@ Ruled after the first two were applied:
    block is present, an amplitude variance only on a scale-mixture forest (the hand-written BCF arm of
    [`restoreGlue`](../../src/bartcore/combiner.hpp) included), amplitudes only where the forest updates them,
    and never the leaf scale. The validity check requires a df or shape only of a sampler that draws one. Remove
-   [`noteInstalledLeafScale`](../../src/bartcore/chain.hpp),
-   [`adoptInstalledAmplitudePriors`](../../src/bartcore/chain.hpp),
-   [`nodeScaleIsMapDerived_`](../../src/bartcore/chain.hpp) and their part of
-   [`InstallMarks`](../../src/bartcore/chain.hpp). tests/cpp follows.
+   retired: [`noteInstalledLeafScale`](../../src/bartcore/chain.hpp),
+   retired: [`adoptInstalledAmplitudePriors`](../../src/bartcore/chain.hpp),
+   retired: [`nodeScaleIsMapDerived_`](../../src/bartcore/chain.hpp) and their part of
+   retired: [`InstallMarks`](../../src/bartcore/chain.hpp). tests/cpp follows.
 2. Bridge. `leaf.scale` leaves both parsers and the writer; `k`, `sigma`, `resid.df`, `shape` and `dart.alpha`
    become optional in both, `dart.alpha` no longer required beside `dart.probabilities`.
 3. R. Re-state a named sd after the install in the three paths that install a state. Drop every NA branch of
@@ -184,9 +184,9 @@ Ruled after the first two were applied:
    state in other units is converted and to what accuracy, that a re-anchor is a model change a restore does
    not undo, with the sequence that rolls one back, and that the grid and standardization come with the state.
 9. Tests. Rewrite the cases that pin a model value riding the state:
-   ["FOREIGN CALIBRATION"](../../inst/tinytest/test-forest-basis-r5.R),
+   retired: ["FOREIGN CALIBRATION"](../../inst/tinytest/test-forest-basis-r5.R),
    ["a pre-write state"](../../inst/tinytest/test-multiforest-leaf-prior-writer.R),
-   ["the per-forest leaf scale rides the state"](../../inst/tinytest/test-bcf.R),
+   retired: ["the per-forest leaf scale rides the state"](../../inst/tinytest/test-bcf.R),
    ["divergedScale"](../../inst/tinytest/test-calibration-midchain.R) and its neighbour "divergedK", the
    `leaf.scale` format cases and ["donor.sf"](../../inst/tinytest/test-sampler-state-format.R), the fixed-shape
    state oracle in inst/tinytest/test-shape-channel.R, the fixed-df and fixed-shape state checks and the

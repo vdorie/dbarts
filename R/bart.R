@@ -169,9 +169,7 @@ nameVarcount <- function(raw, predictorNames, n.chains, combineChains) {
 }
 
 # One value for a quantity every chain holds alike, and each chain's own, in
-# chain order, where they differ: a model that fixes a quantity still leaves
-# each chain at the value it was installed with, as a warm start from chains
-# that drew it does.
+# chain order, where they differ.
 sharedValue <- function(x) {
   values <- as.vector(x)
   if (length(unique(values)) == 1L) values[1L] else values

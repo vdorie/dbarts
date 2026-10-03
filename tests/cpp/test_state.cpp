@@ -350,8 +350,10 @@ static void testPredictCurrentTrees(ext_rng* rng) {
 
 static void testStateRoundTripScaledOffset() {
   // setOffset(updateScale) moves the gaussian response transform after
-  // creation; the state must carry it or a restored sampler mis-scales
-  // every internal quantity
+  // creation; the state carries the units its values are stored in. A host
+  // that recorded the moved transform re-creates the sampler in it and the
+  // state installs bitwise; one that did not keeps its own, and the state is
+  // converted into it
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
@@ -387,8 +389,9 @@ static void testStateRoundTripScaledOffset() {
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rngB);
   // a host reinstalls the current offset but cannot reproduce the scale
-  // trajectory that produced the state; the stored transform must win
+  // trajectory that produced the state; its record of the transform can
   restored.setOffset(offset.data(), false);
+  restored.setAnchor(state.chains[0].fitMin, state.chains[0].fitMax, false);
   check(restored.setState(state, nullptr), "scaled state restores");
 
   // the moved transform round-trips: the restored model matches the source,
@@ -405,9 +408,41 @@ static void testStateRoundTripScaledOffset() {
   check(predictionsA == predictionsB,
         "scaled restore predicts on the original scale");
 
+  // without the record the sampler keeps the transform its own creation
+  // derived, and the state's values are rewritten into it: the function and
+  // the pair the sampler reports are its own, and nothing is bitwise
+  ext_rng* rngC = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngC, 79);
+  ConstantLeafSampler converted(x.data(), y.data(), n, 2, nullptr, nullptr,
+                                ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, &rngC);
+  converted.setOffset(offset.data(), false);
+  double ownMin, ownMax;
+  converted.getAnchor(ownMin, ownMax);
+  check(ownMin != state.chains[0].fitMin && ownMax != state.chains[0].fitMax,
+        "converted state: the two transforms differ");
+  check(converted.setState(state, nullptr), "converted state: installs");
+  SamplerStateData convertedState;
+  converted.getState(convertedState);
+  double anchorMin, anchorMax;
+  converted.getAnchor(anchorMin, anchorMax);
+  check(anchorMin == ownMin && anchorMax == ownMax &&
+          convertedState.chains[0].fitMin == ownMin &&
+          convertedState.chains[0].fitMax == ownMax,
+        "converted state: the sampler keeps its own transform");
+  std::vector<double> predictionsC(20);
+  converted.predict(xTest.data(), 20, 1, predictionsC.data());
+  double worst = 0.0;
+  for (size_t i = 0; i < 20; ++i)
+    worst = std::max(worst, std::fabs(predictionsC[i] - predictionsA[i]) /
+                              (1.0 + std::fabs(predictionsA[i])));
+  check(worst < 1.0e-12 && predictionsC != predictionsA,
+        "converted state: the function is the stored one to rounding");
+
+  ext_rng_destroy(rngC);
   ext_rng_destroy(rngB);
   ext_rng_destroy(rngA);
-  printf("ok: state round-trip with a moved scale\n");
+  printf("ok: state round-trip with a moved scale (converted %.2e)\n", worst);
 }
 
 static void testStateRoundTrip() {
@@ -568,11 +603,10 @@ static void testStateRoundTripStudentT(ext_rng* /*rng*/) {
     original.getState(state);
     check(state.chains[0].latents.size() == n,
           "t state carries the mixing precisions");
-    check(state.chains[0].residualDf > 0.0,
-          "t state carries a positive residual df");
-    if (!estimated)
-      check(state.chains[0].residualDf == residualDf,
-            "fixed-nu state records the exact df");
+    // a fixed nu is model and the state holds no block for it
+    check(estimated ? state.chains[0].residualDf > 0.0
+                    : std::isnan(state.chains[0].residualDf),
+          "a drawn-nu t state carries a positive df, a fixed-nu one none");
 
     ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
                             ResponseFamily::gaussian, 1.0, 3.0,
@@ -585,7 +619,8 @@ static void testStateRoundTripStudentT(ext_rng* /*rng*/) {
                              "restored t state reproduces the model");
     SamplerStateData reState;
     restored.getState(reState);
-    check(reState.chains[0].residualDf == state.chains[0].residualDf,
+    check(std::isnan(state.chains[0].residualDf) ||
+            reState.chains[0].residualDf == state.chains[0].residualDf,
           "nu round-trips exactly");
     check(reState.chains[0].latents == state.chains[0].latents,
           "lambda round-trips exactly");
@@ -622,7 +657,8 @@ static void testStateRoundTripStudentT(ext_rng* /*rng*/) {
     check(dfRecorded, "the df channel records a positive nu every draw");
     SamplerStateData postState;
     original.getState(postState);
-    check(nuA[window - 1] == postState.chains[0].residualDf,
+    check(nuA[window - 1] ==
+            (estimated ? postState.chains[0].residualDf : residualDf),
           "the last recorded df is the nu the sampler holds");
 
     ext_rng_destroy(rngB);
@@ -1271,13 +1307,11 @@ static void testVarianceWarmStart() {
   printf("ok: variance-forest warm start\n");
 }
 
-// The per-forest leaf scale rides the state (docs/plans/multiforest-mutation-
-// gaps.md item 3). BCF derives both forests' scales from the response's SHAPE,
-// so a destination built on a differently shaped response constructs different
-// ones and a restore must install the donor's. Forest 1's scale is unreadable
-// through Chain::leaf() (forest 0 only), so gate both through a re-captured
-// state; statesAgree compares the field, which is what keeps the fuzzer's
-// OP_STATE round trip covering it.
+// The per-forest leaf scale is model: no install carries it. BCF derives both
+// forests' scales from the response's SHAPE, so a destination built on a
+// differently shaped response constructs different ones, and both a restore
+// and a warm start leave them as constructed. y2 keeps y1's range, so the two
+// samplers share their units and nothing is converted.
 static void testStateLeafScale(ext_rng* rng) {
   const size_t n = 300, p = 2;
   std::vector<double> x(n * p), z(n), y1(n), y2(n);
@@ -1306,63 +1340,35 @@ static void testStateLeafScale(ext_rng* rng) {
       x.data(), y, n, p, nullptr, nullptr, 1.0, 3.0, 0.37804942330213542,
       options, spec, &rng);
   };
+  auto scales = [](const Sampler<ConstantGaussianLeaf>& sampler) {
+    return std::vector<double>{sampler.forestCalibration(0, 0).priorScale,
+                               sampler.forestCalibration(0, 1).priorScale};
+  };
 
   auto donor = make(y1.data());
   Results empty;
   donor->run(10, 2, empty);
   SamplerStateData donorState;
   donor->getState(donorState);
-  const ForestStateData& d0 = donorState.chains[0].forests[0];
-  const ForestStateData& d1 = donorState.chains[0].forests[1];
-  check(d0.leafScale > 0.0 && d1.leafScale > 0.0,
-        "leaf scale: every forest's scale is stored");
-  check(d0.leafScale != d1.leafScale,
-        "leaf scale: BCF's two forests calibrate differently");
 
   auto dest = make(y2.data());
-  SamplerStateData destState;
-  dest->getState(destState);
+  std::vector<double> constructed = scales(*dest);
   // not a vacuous arm: the destination constructed its own, different scales
-  check(destState.chains[0].forests[0].leafScale != d0.leafScale &&
-          destState.chains[0].forests[1].leafScale != d1.leafScale,
+  check(constructed[0] != scales(*donor)[0] &&
+          constructed[1] != scales(*donor)[1],
         "leaf scale: a different-shape response constructs different scales");
-
   check(dest->setState(donorState, nullptr), "leaf scale: the donor restores");
-  SamplerStateData reState;
-  dest->getState(reState);
-  check(reState.chains[0].forests[0].leafScale == d0.leafScale &&
-          reState.chains[0].forests[1].leafScale == d1.leafScale,
-        "leaf scale: both forests install the donor's scale");
+  check(scales(*dest) == constructed,
+        "leaf scale: a restore leaves the destination's scales");
 
-  // a state stripped of the block (every pre-block state) restores exactly as
-  // it did before: the destination keeps the scales it constructed
-  SamplerStateData stripped = donorState;
-  for (ForestStateData& fs : stripped.chains[0].forests) fs.leafScale = 0.0;
-  auto old = make(y2.data());
-  check(old->setState(stripped, nullptr),
-        "leaf scale: a state without the block restores");
-  SamplerStateData oldState;
-  old->getState(oldState);
-  check(oldState.chains[0].forests[0].leafScale ==
-          destState.chains[0].forests[0].leafScale &&
-          oldState.chains[0].forests[1].leafScale ==
-          destState.chains[0].forests[1].leafScale,
-        "leaf scale: an absent block leaves construction's scales");
-
-  // installForests is the OTHER restore path, and it reassembles its own
-  // ForestStateData from the donor's - so it needs the field copied through
-  // (sampler.hpp) or its install arm would be dead
   auto warm = make(y2.data());
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
   check(warm->installForests(donorState, liveMap) == WarmStartResult::ok,
         "leaf scale: the donor warm-starts");
-  SamplerStateData warmState;
-  warm->getState(warmState);
-  check(warmState.chains[0].forests[0].leafScale == d0.leafScale &&
-          warmState.chains[0].forests[1].leafScale == d1.leafScale,
-        "leaf scale: a warm start adopts the donor's scale too");
+  check(scales(*warm) == constructed,
+        "leaf scale: a warm start leaves the destination's scales");
 
-  printf("ok: per-forest leaf scale rides the state\n");
+  printf("ok: per-forest leaf scale stays the sampler's\n");
 }
 
 // The variance forest's own prior draw (docs/design/aft-status-setter.md
@@ -1409,6 +1415,7 @@ static void testVarianceForestPriorDraw() {
   sampler->run(60, 0, empty);
   SamplerStateData before;
   sampler->getState(before);
+  double sigmaBefore = sampler->chain(0).sigma();
   std::vector<double> surfaceBefore(
     TestPeer::varianceFits(sampler->chain(0)),
     TestPeer::varianceFits(sampler->chain(0)) + n);
@@ -1440,7 +1447,7 @@ static void testVarianceForestPriorDraw() {
   check(sameFlatTrees(after.chains[0].forests[0].trees,
                       before.chains[0].forests[0].trees),
         "variance prior draw: the mean forest is untouched");
-  check(after.chains[0].sigma == before.chains[0].sigma,
+  check(sampler->chain(0).sigma() == sigmaBefore,
         "variance prior draw: sigma is untouched");
   auto restored = makeSampler(4141, numVarianceTrees, 0.95);
   check(restored->setState(after, nullptr),

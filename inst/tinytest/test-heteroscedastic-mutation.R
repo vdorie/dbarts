@@ -395,12 +395,10 @@ expect_identical(
 )
 dataSwappedDraws <- dataSwapped$run(0L, 3L)
 dataFreshDraws <- dataFresh$run(0L, 3L)
-# run() reports no sigma on a heteroscedastic sampler, so the pinned value is
-# read off the stored state, on the original scale
-pinnedSigma <- function(sampler) {
-  sampler$storeState()
-  sampler$state[[1L]]$sigma
-}
+# run() reports no sigma on a heteroscedastic sampler and its state holds
+# none, sigma being pinned; the pinned 1 on the original scale is the
+# response scale in force
+pinnedSigma <- function(sampler) sampler$getLeafPrior()$response.scale
 expect_equal(
   pinnedSigma(dataSwapped),
   pinnedSigma(dataFresh),

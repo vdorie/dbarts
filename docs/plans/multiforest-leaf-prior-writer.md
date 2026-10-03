@@ -55,8 +55,8 @@ effect on the next sweep, reinterprets no drawn value, and survives re-creation.
   defect; the writer would inherit it.
 - State: [`ForestStateData`](../../src/bartcore/combiner.hpp) carries each forest's k and leaf scale,
   and a state install overwrites both. It does not carry the half-Cauchy scale; the saved variance is
-  the live auxiliary. See [`Chain::noteInstalledLeafScale`](../../src/bartcore/chain.hpp),
-  [`Chain::adoptInstalledAmplitudePriors`](../../src/bartcore/chain.hpp).
+  the live auxiliary. See retired: [`Chain::noteInstalledLeafScale`](../../src/bartcore/chain.hpp),
+  retired: [`Chain::adoptInstalledAmplitudePriors`](../../src/bartcore/chain.hpp).
 - Creation reads per-forest values from `attr(control, "bartcore.forests")`
   ([`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)).
   [`bartcoreSamplerSetResponse`](../../R/bartcore.R) already mirrors a mutation into a control

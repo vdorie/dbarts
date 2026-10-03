@@ -388,19 +388,20 @@ expect_true(
 )
 expect_true(mean(abs(arm.swap$fits - arm.keep$fits)) > 0.5)
 
-# --- the per-forest leaf scale rides the state. BCF derives both forests'
-# leaf scales from the response's SHAPE (the sd of the range-scaled y), so a
-# destination built on a
-# differently shaped response calibrates differently; the state now carries the
-# scale like it already carried k, and both restore paths install it. ---
+# --- the per-forest leaf scale is model: no state carries it. BCF derives
+# both forests' leaf scales from the response's SHAPE (the sd of the
+# range-scaled y), so a destination built on a differently shaped response
+# calibrates differently, and it keeps that calibration across a restore.
+# A state stored in other units is converted into the destination's where
+# only the range differs; under amplitudes a shift has no forest to own it,
+# and that install is refused whole. ---
 set.seed(11)
 n.ls <- 200L
 x.ls <- matrix(runif(n.ls * 3L), n.ls, 3L)
 z.ls <- rbinom(n.ls, 1L, 0.5)
 base.ls <- runif(n.ls)
-# identical endpoints, different interior: the transform is the SAME on both
-# (so a fit.scale guard would admit the divergent case) and only the shape,
-# hence the leaf scale, moves
+# identical endpoints, different interior: the transform is the SAME on both,
+# so nothing is converted, and only the shape, hence the leaf scale, moves
 y.a <- base.ls
 y.a[1L] <- 0
 y.a[n.ls] <- 1
@@ -423,39 +424,33 @@ makeBC <- function(y) {
     family = gaussian(sigma = fixed(0.2))
   )
 }
+anchors.ls <- function(bc) vapply(bc$getLeafPrior(), `[[`, 0, "anchor")
 
 set.seed(101)
 donor.ls <- makeBC(y.a)
 donor.ls$run(30L, 10L)
 donor.ls$storeState()
 state.ls <- donor.ls$state
-
-# stored for every forest, positive, and in the calibration map's ratio:
-# mu's is s / sqrt(m.mu) and tau's sdModerate s / (0.674 sqrt(m.tau)), so with
-# sdModerate = 1 the ratio is sqrt(m.mu / m.tau) / 0.674
-scale.mu <- state.ls[[1L]]$forests[[1L]]$leaf.scale
-scale.tau <- state.ls[[1L]]$forests[[2L]]$leaf.scale
-expect_true(is.numeric(scale.mu) && length(scale.mu) == 1L)
-expect_true(scale.mu > 0 && scale.tau > 0)
-expect_equal(scale.tau / scale.mu, sqrt(30 / 15) / 0.674, tolerance = 1e-8)
+expect_null(state.ls[[1L]]$forests[[1L]]$leaf.scale)
+expect_null(state.ls[[1L]]$forests[[2L]]$leaf.scale)
 
 set.seed(101)
 dest.same <- makeBC(y.a)
 set.seed(101)
 dest.shape <- makeBC(y.b)
+shape.before <- anchors.ls(dest.shape)
 # the arm is not vacuous: the two destinations calibrate differently, while the
-# transform - what a fit.scale guard would compare - is identical
+# transform is identical
+expect_true(all(shape.before != anchors.ls(dest.same)))
 dest.shape$storeState()
-expect_true(
-  dest.shape$state[[1L]]$forests[[1L]]$leaf.scale != scale.mu
-)
 expect_identical(
   dest.shape$state[[1L]]$fit.scale,
   state.ls[[1L]]$fit.scale
 )
 
-# THE closure: one donor state into both destinations, responses then equalized
-# (the conditioning-conduit pattern), and identical sweeps agree BITWISE
+# one donor state into both destinations, responses then equalized (the
+# conditioning-conduit pattern): each keeps its own calibration and runs
+# under it
 restoreArm <- function(bc, state) {
   bc$setState(state)
   bc$setResponse(y.a, updateScale = FALSE)
@@ -463,35 +458,40 @@ restoreArm <- function(bc, state) {
 }
 fits.same <- restoreArm(dest.same, state.ls)
 fits.shape <- restoreArm(dest.shape, state.ls)
-expect_identical(fits.shape, fits.same)
+expect_identical(anchors.ls(dest.shape), shape.before)
+expect_identical(anchors.ls(dest.same), anchors.ls(donor.ls))
+expect_true(max(abs(fits.shape - fits.same)) > 0.1)
 
-# cross-range: the anchor is invariant to an affine rescaling of y, so a 10*y
-# destination was never miscalibrated - it stays admitted and consistent
-set.seed(101)
-dest.range <- makeBC(10 * y.a)
-dest.range$storeState()
-expect_equal(
-  dest.range$state[[1L]]$forests[[1L]]$leaf.scale,
-  scale.mu
-)
-expect_identical(restoreArm(dest.range, state.ls), fits.same)
-
-# an old state (the block stripped) restores with no error and reproduces
-# PRE-change behavior exactly: the same-shape arm is untouched, and the
-# different-shape arm diverges again, which is the defect this closes
+# a state written before the change, its leaf.scale blocks present, installs
+# the same way: the blocks are not read
 state.old <- state.ls
 for (f.ls in seq_along(state.old[[1L]]$forests)) {
-  state.old[[1L]]$forests[[f.ls]]$leaf.scale <- NULL
+  state.old[[1L]]$forests[[f.ls]]$leaf.scale <- 0.05
 }
 set.seed(101)
-old.same <- makeBC(y.a)
-set.seed(101)
 old.shape <- makeBC(y.b)
-old.fits.same <- restoreArm(old.same, state.old)
-old.fits.shape <- restoreArm(old.shape, state.old)
-expect_identical(old.fits.same, fits.same)
-expect_false(identical(old.fits.shape, old.fits.same))
-expect_true(max(abs(old.fits.shape - old.fits.same)) > 0.1)
+expect_identical(restoreArm(old.shape, state.old), fits.shape)
+
+# another range at the same midpoint: the forests' values are rescaled into
+# the destination's units, and the live fit is the donor's to rounding
+set.seed(101)
+dest.range <- makeBC(0.5 + 10 * (y.a - 0.5))
+dest.range$setState(state.ls)
+dest.range$storeState()
+expect_identical(dest.range$state[[1L]]$fit.scale, c(-4.5, 5.5))
+expect_equal(
+  dest.range$getFitsWithoutOffset(),
+  donor.ls$getFitsWithoutOffset(),
+  tolerance = 1e-12
+)
+# and another shift is refused by name, the sampler unchanged
+set.seed(101)
+dest.shift <- makeBC(10 * y.a)
+dest.shift$storeState()
+shift.before <- dest.shift$state
+expect_error(dest.shift$setState(state.ls), "response shift cannot be")
+dest.shift$storeState()
+expect_identical(dest.shift$state, shift.before)
 
 rm(
   n.ls,
@@ -502,20 +502,19 @@ rm(
   y.b,
   control.ls,
   makeBC,
+  anchors.ls,
   donor.ls,
   state.ls,
-  scale.mu,
-  scale.tau,
   dest.same,
   dest.shape,
+  shape.before,
   restoreArm,
   fits.same,
   fits.shape,
-  dest.range,
   state.old,
   f.ls,
-  old.same,
   old.shape,
-  old.fits.same,
-  old.fits.shape
+  dest.range,
+  dest.shift,
+  shift.before
 )

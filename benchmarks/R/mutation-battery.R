@@ -385,14 +385,12 @@ mutations <- list(
     "m22",
     "src/R_interface_bartcore.cpp",
     paste0(
-      "      if (!Rf_isReal(dartProbabilitiesExpr) || !Rf_isReal(dartAlphaExpr) ||\n",
-      "          Rf_xlength(dartAlphaExpr) != 1 || !Rf_isInteger(dartSkippedExpr) ||\n",
+      "          !Rf_isInteger(dartSkippedExpr) ||\n",
       "          Rf_xlength(dartSkippedExpr) != 1 || INTEGER(dartSkippedExpr)[0] < 0) {\n",
       "        errorMessage = \"malformed dart state in bartcore state\";"
     ),
     paste0(
-      "      if (!Rf_isReal(dartProbabilitiesExpr) || !Rf_isReal(dartAlphaExpr) ||\n",
-      "          Rf_xlength(dartAlphaExpr) != 1 || !Rf_isInteger(dartSkippedExpr) ||\n",
+      "          !Rf_isInteger(dartSkippedExpr) ||\n",
       "          Rf_xlength(dartSkippedExpr) != 1) {\n",
       "        errorMessage = \"malformed dart state in bartcore state\";"
     ),
@@ -405,20 +403,12 @@ mutations <- list(
     "m23",
     "src/R_interface_bartcore.cpp",
     paste0(
-      "      SEXP kExpr = rc_getListElement(forestExpr, \"k\");\n",
-      "      if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {\n",
-      "        errorMessage = \"malformed parameters in warm-start donor\";\n",
-      "        break;\n",
-      "      }\n",
-      "      fs.k = REAL(kExpr)[0];"
+      "        if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {\n",
+      "          errorMessage = \"malformed parameters in warm-start donor\";"
     ),
     paste0(
-      "      SEXP kExpr = rc_getListElement(forestExpr, \"k\");\n",
-      "      if (!Rf_isReal(kExpr)) {\n",
-      "        errorMessage = \"malformed parameters in warm-start donor\";\n",
-      "        break;\n",
-      "      }\n",
-      "      fs.k = REAL(kExpr)[0];"
+      "        if (!Rf_isReal(kExpr)) {\n",
+      "          errorMessage = \"malformed parameters in warm-start donor\";"
     ),
     "SURVIVE_DOCUMENTED",
     c(kCpp(), kTinytest("inst/tinytest/test-warm-start.R")),

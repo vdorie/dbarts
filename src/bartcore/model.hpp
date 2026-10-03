@@ -2787,6 +2787,10 @@ struct GPGaussianLeaf {
   const std::vector<double>& covariateMeans() const { return means_; }
   const std::vector<double>& covariateSds() const { return sds_; }
   const std::vector<double>& lengthscales() const { return lengthscales_; }
+  /// Whether the kernel lengthscales were supplied at creation rather than
+  /// derived from the covariates: supplied ones are model, and no state
+  /// install replaces them.
+  bool lengthscalesAreSupplied() const { return !suppliedLengthscales_.empty(); }
 
   /// Gather and standardize the designated columns and fix the kernel
   /// lengthscales: the supplied per-column values (standardized scale) when
@@ -4235,10 +4239,12 @@ public:
   }
 
   /// Continuous responses under a Student-t error law (TResponse) carry a
-  /// residual degrees of freedom nu the state block serializes alongside the
-  /// mixing precisions in latents(); other families carry none, so their
-  /// states omit the nu block and a t sampler refuses a state lacking one.
+  /// residual degrees of freedom nu beside the mixing precisions in
+  /// latents(). carriesResidualDf marks the family: it gates the recorded df
+  /// channel and the latents a state must hold. drawsResidualDf says nu is
+  /// drawn rather than held fixed, and gates the state's nu block alone.
   virtual bool carriesResidualDf() const { return false; }
+  virtual bool drawsResidualDf() const { return false; }
   virtual double residualDf() const { return 0.0; }
   virtual void restoreResidualDf(double /*nu*/) {}
 
@@ -4253,14 +4259,16 @@ public:
   virtual void restoreOrdinalThresholds(const double* /*gamma*/) {}
 
   /// Count responses under a negative-binomial law (NBResponse) carry a scalar
-  /// shape r the state block serializes as a by-name "shape" slot;
-  /// other families carry none, so their states omit it and an NB sampler
-  /// refuses a state lacking one (the residualDf scalar analog). The name is
+  /// shape r. carriesShape marks the family: it gates the recorded shape
+  /// channel, the latents a state must hold and its shift pair. drawsShape
+  /// says r is drawn rather than held fixed, and gates the state's by-name
+  /// "shape" block alone (the residualDf scalar analog). The name is
   /// parameterization-neutral and the value real-valued (grid mode stores an
   /// integer-valued double), so a later real-r mode loads and saves with no
   /// state-format change. RESTORE CONTRACT: restoreShape MUST run before
   /// restoreLatents, which rebuilds the working response from omega AND r.
   virtual bool carriesShape() const { return false; }
+  virtual bool drawsShape() const { return false; }
   virtual double shape() const { return 0.0; }
   virtual void restoreShape(double /*r*/) {}
 };
@@ -5759,10 +5767,11 @@ public:
     recompose();
   }
 
-  /// The current residual df and, for the state block, whether it is sampled;
-  /// restoreResidualDf reinstalls a stored nu (a grid value in grid mode). The
-  /// state block serializes nu whenever carriesResidualDf() is true.
+  /// The current residual df and whether it is sampled; restoreResidualDf
+  /// reinstalls a stored nu, a grid value. The state block serializes nu only
+  /// where it is drawn.
   bool carriesResidualDf() const override { return true; }
+  bool drawsResidualDf() const override { return estimateNu_; }
   double residualDf() const override { return nu_; }
   void restoreResidualDf(double nu) override { nu_ = nu; }
 
@@ -6089,10 +6098,11 @@ public:
   double sigmaScale() const override { return 1.0; }
 
   /// The shape r for the by-name "shape" state block: getState reads
-  /// shape() when carriesShape(), stateIsValid refuses a non-finite/
-  /// non-positive r, and setState restoreShape()s it BEFORE restoreLatents
-  /// (the restore contract above).
+  /// shape() where r is drawn, stateIsValid refuses a non-finite or
+  /// non-positive r there, and setState restoreShape()s it BEFORE
+  /// restoreLatents (the restore contract above).
   bool carriesShape() const override { return true; }
+  bool drawsShape() const override { return estimateR_; }
   double shape() const override { return r_; }
   void restoreShape(double shape) override {
     setShape(shape);

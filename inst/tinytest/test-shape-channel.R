@@ -2,9 +2,10 @@
 # the $getShape() mid-sweep read, and the state-block read they replace.
 #
 # THE ORACLE is that state read: at every sweep the recorded slot, the getter
-# and $state[[chain]]$shape are one scalar, for every chain and under both
-# r-modes. storeState() returns invisible(NULL), so the state comes off the
-# field afterwards.
+# and $state[[chain]]$shape are one scalar, for every chain, where r is drawn;
+# where r is fixed it is model and the state holds no shape block, so the
+# oracle there is the value the sampler was created with. storeState() returns
+# invisible(NULL), so the state comes off the field afterwards.
 #
 # Every shape assertion tests !is.null and the shape BEFORE any value,
 # because the channel is NULL on every non-nbinom sampler and
@@ -58,7 +59,11 @@ shapeCell <- function(sampler) {
   list(
     slot = as.vector(r$shape),
     getter = sampler$getShape(),
-    state = vapply(sampler$state, function(s) s$shape, numeric(1L))
+    state = vapply(
+      sampler$state,
+      function(s) if (is.null(s$shape)) NA_real_ else s$shape,
+      numeric(1L)
+    )
   )
 }
 
@@ -119,8 +124,8 @@ seriesFix1 <- shapeSeries(
 )
 expect_true(!is.null(seriesFix1$slot))
 expect_equal(dim(seriesFix1$slot), c(5L, 1L))
-expect_equal(seriesFix1$slot, seriesFix1$state)
-expect_equal(seriesFix1$getter, seriesFix1$state)
+expect_true(all(is.na(seriesFix1$state)))
+expect_equal(seriesFix1$getter, seriesFix1$slot)
 expect_true(all(seriesFix1$slot == 8))
 
 seriesFix2 <- shapeSeries(
@@ -129,8 +134,8 @@ seriesFix2 <- shapeSeries(
 )
 expect_true(!is.null(seriesFix2$slot))
 expect_equal(dim(seriesFix2$slot), c(5L, 2L))
-expect_equal(seriesFix2$slot, seriesFix2$state)
-expect_equal(seriesFix2$getter, seriesFix2$state)
+expect_true(all(is.na(seriesFix2$state)))
+expect_equal(seriesFix2$getter, seriesFix2$slot)
 expect_true(all(seriesFix2$slot == 8))
 
 # --- a MULTI-sample run: the within-run sample stride and the chain-major

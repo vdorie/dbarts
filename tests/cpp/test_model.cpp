@@ -7264,12 +7264,14 @@ static void testNBStateRoundTrip() {
     original->getState(state);
     check(state.chains[0].latents.size() == n,
           "nb state carries the omega latents");
-    check(std::isfinite(state.chains[0].shape) &&
-            state.chains[0].shape > 0.0,
-          "nb state carries a finite positive shape");
-    if (!estimated)
-      check(state.chains[0].shape == shape,
-            "fixed-r nb state records the supplied shape");
+    // a fixed r is model and the state holds no block for it
+    if (estimated)
+      check(std::isfinite(state.chains[0].shape) &&
+              state.chains[0].shape > 0.0,
+            "a drawn-r nb state carries a finite positive shape");
+    else
+      check(std::isnan(state.chains[0].shape),
+            "a fixed-r nb state carries no shape");
 
     // a fresh sampler with a DIFFERENT seed: the serialized shape and omega
     // must win over the cold-start median r
@@ -7282,8 +7284,9 @@ static void testNBStateRoundTrip() {
                              "restored nb shape and omega agree");
     SamplerStateData reState;
     restored->getState(reState);
-    check(reState.chains[0].shape == state.chains[0].shape,
-          "nb shape round-trips exactly");
+    check(estimated ? reState.chains[0].shape == state.chains[0].shape
+                    : restored->chain(0).shape() == shape,
+          "nb shape round-trips exactly, or stays the sampler's when fixed");
     check(reState.chains[0].latents == state.chains[0].latents,
           "nb omega round-trips exactly");
     check(state.chains[0].fitMin ==
@@ -7301,18 +7304,20 @@ static void testNBStateRoundTrip() {
     check(!restored->setState(flat, nullptr),
           "an nb state without its log-mean shift is refused");
 
-    // a state whose shape block is absent (an old or non-count state) is
-    // refused: r is NaN and stateIsValid rejects it
+    // a state with no shape block installs and leaves the sampler's own r
+    double held = restored->chain(0).shape();
     SamplerStateData noR(state);
     for (auto& ch : noR.chains)
       ch.shape = std::numeric_limits<double>::quiet_NaN();
-    check(!restored->setState(noR, nullptr),
-          "an nb state lacking a finite shape is refused");
-    // a non-positive shape is refused (the grid holds positive integers)
+    check(restored->setState(noR, nullptr) &&
+            restored->chain(0).shape() == held,
+          "an nb state lacking a shape installs and keeps the sampler's");
+    // a non-positive shape is refused where r is drawn (the grid holds
+    // positive integers) and not read where it is fixed
     SamplerStateData badR(state);
     for (auto& ch : badR.chains) ch.shape = 0.0;
-    check(!restored->setState(badR, nullptr),
-          "an nb state with a non-positive shape is refused");
+    check(restored->setState(badR, nullptr) != estimated,
+          "an nb state with a non-positive shape is refused where r is drawn");
 
     for (ext_rng* r : rngs) ext_rng_destroy(r);
     for (ext_rng* r : rngs2) ext_rng_destroy(r);

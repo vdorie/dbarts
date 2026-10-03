@@ -170,6 +170,14 @@ struct TestPeer {
     a = glue.a(); b0 = glue.b0(); b1 = glue.b1();
     return true;
   }
+  /// Writes bcf's (a, b0, b1) whatever the forests' update switches say,
+  /// which restoreGlue does not: a pinned amplitude is model there.
+  template <IntegrableLeafModel L, typename R>
+  static void setBcfGlue(AmplitudeForestCombiner<L, R>& combiner, double a,
+                         double b0, double b1) {
+    auto& glue = combiner.glue_;
+    glue.a() = a; glue.b0() = b0; glue.b1() = b1;
+  }
 
   // Leaf and response models
 

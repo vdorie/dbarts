@@ -141,8 +141,8 @@ methods::setValidity("dbartsSdHyperprior", function(object) {
 
 
 methods::setClass("dbartsLeafPrior")
-# an NA spread states no prior; $getLeafPrior reports one where the chains
-# disagree, and it must not write back as the unnamed spelling
+# an NA spread states no prior, and it must not write back as the unnamed
+# spelling
 methods::setValidity("dbartsLeafPrior", function(object) {
   for (name in c("k", "prior.sd")) {
     value <- methods::slot(object, name)
@@ -150,8 +150,7 @@ methods::setValidity("dbartsLeafPrior", function(object) {
       return(paste0(
         "the leaf prior's '",
         if (name == "k") "k" else "sd",
-        "' is NA, a missing value: $getLeafPrior() reports NA where the ",
-        "chains disagree on it; name a value"
+        "' is NA, a missing value; name a value"
       ))
     }
   }

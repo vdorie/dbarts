@@ -4507,12 +4507,7 @@ static void testGeneralAmplitudeConditional() {
     spec.bPriorVariance = priorVariance;
     AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
     combiner.installForestBasis(1, wide.data(), 2);
-    ChainStateData glue;
-    glue.hasAmplitudes = true;
-    glue.a = aFixed;
-    glue.b0 = 0.0;
-    glue.b1 = 0.0;
-    combiner.restoreGlue(glue);
+    TestPeer::setBcfGlue(combiner, aFixed, 0.0, 0.0);
 
     std::vector<Forest<ConstantGaussianLeaf>> forests(2);
     forests[0].totalFits = mu;
