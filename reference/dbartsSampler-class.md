@@ -208,11 +208,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   A logical determining if the copy should retain the underlying data of
   the sampler (`TRUE`) or have its own copies (`FALSE`). Either way, the
-  copy installs the original's stored state and so continues the same
-  generator streams as the original - not an independent chain -
-  typically matching an uninterrupted run to the last few digits, not
-  bitwise; see the Reproducibility section of
-  [bart](https://vdorie.github.io/dbarts/reference/bart.md).
+  copy keeps the original's model, the response transform its leaf prior
+  is anchored to included, and installs the original's stored state, so
+  it continues the same generator streams as the original - not an
+  independent chain - typically matching an uninterrupted run to the
+  last few digits, not bitwise; see the Reproducibility section of
+  [bart](https://vdorie.github.io/dbarts/reference/bart.md). With no
+  state stored, the copy starts from fresh trees in that transform.
 
 - newControl:
 
@@ -417,7 +419,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   the residual scale. A gaussian sampler with
   `family = gaussian(sigma = fixed())` is not fixed in this sense and is
   still accepted: suppressing the internal draw so an outer sampler owns
-  `sigma` is what that prior is for.
+  `sigma` is what that prior is for. There the write rewrites the
+  model's fixed value, recorded on the `model` field, so a `copy` or a
+  save and load keeps it; a write through the C API reaches the engine
+  alone, and a sampler re-created after one holds the model's value
+  until the next write.
 
 - counts:
 
@@ -877,11 +883,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - newState:
 
-  For `setState`, a state object previously produced by this sampler
-  over the same model: its `state` field, calling `storeState()` first
-  to refresh it if a later mutation may have gone unstored (`storeState`
-  itself returns `NULL` invisibly, so its return value cannot be passed
-  here). Must inherit from `bartcoreState`.
+  For `setState`, a state object previously produced by this sampler or
+  another over the same data: its `state` field, calling `storeState()`
+  first to refresh it if a later mutation may have gone unstored
+  (`storeState` itself returns `NULL` invisibly, so its return value
+  cannot be passed here). Must inherit from `bartcoreState`.
 
 - ...:
 
@@ -929,17 +935,21 @@ Route changes through the `set*` methods instead.
 - `state`:
 
   The cached, serializable engine state, or `NULL` until one is
-  materialized. It also carries each chain's generator state, so
-  restoring it continues the same streams the sampler was drawing from,
-  typically to the last few digits, not bitwise. The saved-tree store's
-  write position and the number of draws it has recorded both ride it,
-  so `predict` after a `setState` reports the same draws, in the same
-  order, as before the store. Reading it forces the sampler's *current*
-  state only the first time, before any value has been materialized;
-  once set, it is a cached snapshot that a later mutation does not
-  refresh automatically - call `storeState` again, or pass
-  `updateState = TRUE` to the mutating call (see `updateState` above),
-  to bring it forward. It is the only field
+  materialized. It holds the chains and not the model: trees, leaf
+  values, the quantities the sampler draws, the cut grid and
+  leaf-covariate standardization they are read through, and the response
+  units the values are stored in - no leaf prior and no value the
+  sampler holds fixed (see ‘Saving’). It also carries each chain's
+  generator state, so restoring it continues the same streams the
+  sampler was drawing from, typically to the last few digits, not
+  bitwise. The saved-tree store's write position and the number of draws
+  it has recorded both ride it, so `predict` after a `setState` reports
+  the same draws, in the same order, as before the store. Reading it
+  forces the sampler's *current* state only the first time, before any
+  value has been materialized; once set, it is a cached snapshot that a
+  later mutation does not refresh automatically - call `storeState`
+  again, or pass `updateState = TRUE` to the mutating call (see
+  `updateState` above), to bring it forward. It is the only field
   [`save`](https://rdrr.io/r/base/save.html) needs, and restoring one
   requires `setState` - see ‘Saving’.
 
@@ -1058,14 +1068,43 @@ restore leaves the sampler exactly as it was. Assigning the field
 directly (`sampler$state <- newState`) does *not* restore the sampler -
 it only overwrites the R-side cache, leaving the engine untouched, so
 the next run continues from the engine's own state rather than the
-assigned one. Always route a restore through `setState`. The case
-weights are not in the state, so a restore is reconciled against the
-DESTINATION's own rather than governed by the source's: where they
-differ from the weights the state was stored under, the weight-dependent
-latents are re-derived against the destination's before `setState`
-returns (see `weights` above). An `aft` sampler's censoring status is
-reconciled the same way and for the same reason - it too rides the
-sampler rather than the state - so where the status in force differs
+assigned one. Always route a restore through `setState`.
+
+A state never changes the sampler's model. The leaf prior, its `k` where
+fixed, a fixed `sigma`, Student-t df, negative-binomial shape or DART
+concentration, a fixed amplitude prior or amplitude, and a supplied
+Gaussian-process lengthscale are the sampler's own, before and after; a
+value the sampler draws is installed where the state holds one and kept
+where it does not, so a state written before these blocks were dropped
+still installs. The response transform a `k`-named prior is anchored to,
+and which every leaf value is stored relative to, is model too: set when
+the sampler is created and when `setResponse` or `setOffset` at
+`updateScale = TRUE`, or `setData`, re-anchors it, and recorded on the
+`model` field so a `copy` or a reload is re-created in it. A state
+stored in other units - one whose chains came from samplers on another
+response, or one stored before a re-anchor - has its leaf values, saved
+draws included, converted into the sampler's as it is installed, which
+reproduces the stored function to rounding rather than bitwise; a state
+in the sampler's own units installs bit for bit. A Gaussian-process
+leaf, whose saved draws carry no mean term, and forests carrying
+amplitudes cannot take a different response shift: such a state is
+refused, a Gaussian-process one whether or not it holds saved draws, as
+is one whose saved Gaussian-process draws were made under other
+lengthscales than the ones this sampler was given. Because a re-anchor
+is a model change, restoring a state stored before one does not undo it;
+to roll a re-anchoring `setResponse(y2, updateScale = TRUE)` back,
+re-anchor to the old response with `setResponse(y, updateScale = TRUE)`
+and then `setState` the saved state. The cut grid and a linear or
+Gaussian-process leaf's covariate standardization come with the state as
+they are.
+
+The case weights are not in the state, so a restore is reconciled
+against the DESTINATION's own rather than governed by the source's:
+where they differ from the weights the state was stored under, the
+weight-dependent latents are re-derived against the destination's before
+`setState` returns (see `weights` above). An `aft` sampler's censoring
+status is reconciled the same way and for the same reason - it too rides
+the sampler rather than the state - so where the status in force differs
 from the one the state was stored under, the censored latents are
 redrawn off the restored generators before `setState` returns; an event
 row's observed log time is data and is never overwritten by a state at
@@ -1174,9 +1213,12 @@ needs no guard.
 
 `installTrees` seeds the sampler's forests from a `donor` instead of
 drawing trees from the prior, for scaling to more chains or embedding a
-fit in a larger sampler. Only the donor's trees, `sigma`, and `k`
-transfer; each chain keeps its own random-number stream and redraws
-everything else, so several chains seeded from one donor stay
+fit in a larger sampler. Only the donor's trees, and its `sigma`, `k`
+and DART state where this sampler draws them, transfer: the sampler
+keeps its own model, as `setState` does, and a donor stored in other
+response units is converted into this sampler's, so it seeds the
+function it held. Each chain keeps its own random-number stream and
+redraws everything else, so several chains seeded from one donor stay
 overdispersed. A donor with a different tree count or DART setting is
 refused rather than silently reshaped; a donor fit on a different cut
 grid is instead remapped onto this sampler's grid, collapsing any splits
@@ -1391,11 +1433,10 @@ negative-binomial family has one today, its \\r\\: the variance is
 `size` in `rnbinom` and `theta` in MASS and mgcv. It is the same scalar
 `run()$shape` records once per kept draw, read mid-sweep and without
 serializing state, so a host driving the sampler one sweep at a time
-reads it here rather than through `storeState()` and
-`state[[chain]]$shape`. Because the refusal for a family carrying no
-shape is a `NULL` and not an error, a caller distinguishing “no shape”
-from a value must test `!is.null(...)`; comparing to an expected number
-would pass vacuously.
+reads it here; `state[[chain]]$shape` holds it only where it is drawn.
+Because the refusal for a family carrying no shape is a `NULL` and not
+an error, a caller distinguishing “no shape” from a value must test
+`!is.null(...)`; comparing to an expected number would pass vacuously.
 
 For `getSumsOfSquaredResiduals`, a numeric vector of length equal to the
 number of chains, giving each chain's residual sum of squares \\\sum
@@ -1539,24 +1580,22 @@ force on each chain is `anchor / getK()` - the data's anchor under a
 `sd`-named prior, twice the sd or `invchi` scale in force (the named
 value, whose reference `k` is 2), not the data's anchor; and
 `response.scale` and `response.shift`. A fixed value is the one in
-force, read off the engine. Every value is shared by the chains; one
-they disagree on, which only a `setState` of chains saved from different
-samplers makes, is `NA`. A drawn `k` is chain state, read by `getK`. At
-the default `forest = NULL` a multi-forest sampler returns an unnamed
-list of one prior per forest; a single-forest sampler's `NULL` read is
-bitwise its `forest = 1` read. An `NA` spread cannot be written back:
-`setLeafPrior`, `setModel` and the fitting functions refuse it. On a
-forest whose scale a multi-forest calibration map sets, `k` is pinned at
-1 and `leaf.prior` is the
+force, read off the engine. Every chain runs under the sampler's one
+prior and one response transform, which no state install moves, so every
+value is shared by the chains. A drawn `k` is chain state, read by
+`getK`. At the default `forest = NULL` a multi-forest sampler returns an
+unnamed list of one prior per forest; a single-forest sampler's `NULL`
+read is bitwise its `forest = 1` read. An `NA` spread is refused by
+`setLeafPrior`, `setModel` and the fitting functions. On a forest whose
+scale a multi-forest calibration map sets, `k` is pinned at 1 and
+`leaf.prior` is the
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)`(sd = )`
 creation takes, which goes back into `setLeafPrior(forests = )`: the
 half-Cauchy median, with `prior.sd.of` `"amplitude scale"`, on a forest
 created without a basis, and the leaf-scale factor, with `prior.sd.of`
-`"forest total"`, on one created with one. After a state install brings
-a leaf scale the map did not derive, the latter reads `forest(sd = NA)`
-until `setLeafPrior` or `setForestBasis` re-imposes the map. The list
-then adds `basis.row.norm`, `leaf.scale.factor`, `leaf.scale.divisor`
-and one of `amplitude.prior.variance` or `amplitude.prior.scale`.
+`"forest total"`, on one created with one. The list then adds
+`basis.row.norm`, `leaf.scale.factor`, `leaf.scale.divisor` and one of
+`amplitude.prior.variance` or `amplitude.prior.scale`.
 
 On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
 sampler built with `forests =` or `dbartsData(bases = )` (see
@@ -1576,15 +1615,9 @@ Together they decompose the map's leaf scale as
 `anchor = leaf.scale.factor * s / (leaf.scale.divisor * basis.row.norm)`,
 exactly, so the family's own latent anchor \\s\\ - data-dependent under
 a gaussian response - is recovered as
-`anchor * leaf.scale.divisor * basis.row.norm / leaf.scale.factor`. Both
-`leaf.scale` entries are `NA` when `setState` or `installTrees` installs
-a leaf scale differing from the one in force: the donor's trees arrive
-with the donor's calibration, and the stored factor and divisor no
-longer decompose it. The other two are unaffected - the amplitude prior
-FOLLOWS the installed state, and the bases are not state - and a
-`setForestBasis` on that forest re-imposes the map and restores both.
-Restoring a sampler's own state installs a bitwise-identical scale and
-so changes nothing.
+`anchor * leaf.scale.divisor * basis.row.norm / leaf.scale.factor`. No
+state install changes any of the four: a state carries neither a leaf
+scale nor a fixed amplitude prior, and the bases are not state.
 
 The spread (`anchor / k`) describes the LEAF-PARAMETER scale of the
 forest total. It equals the prior standard deviation of \\f(x)\\ at
@@ -1609,10 +1642,10 @@ This is the authoritative reader of the prior in force. A named `sd` is
 absolute: the sampler restates it after every channel that re-anchors
 the response transform - `setResponse` or `setOffset` at
 `updateScale = TRUE`, and `setData` - using the latest `setLeafPrior`
-write, recorded on the `model` field. A `k` is relative to the data and
-moves with the transform. A state install (`setState`, `installTrees`)
-brings the donor's spread, which `getLeafPrior` shows; restate the prior
-afterwards to put the sampler's own back.
+write, recorded on the `model` field. A `k` is relative to the response
+transform recorded at creation or at the last re-anchor, and moves only
+with it. A state install (`setState`, `installTrees`, `copy`, a reload)
+leaves the prior as it was.
 
 For `setLeafPrior`, `NULL` invisibly. It changes the leaf prior's spread
 or the hyperprior it is drawn under, on every chain, and nothing else:
