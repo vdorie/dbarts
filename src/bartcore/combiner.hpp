@@ -81,7 +81,7 @@ struct ChainStateData {
   // the response transform the stored leaf values are in: the units of the
   // state, converted to the sampler's own at install when the two differ
   // (Chain::convertStateUnits); (0, 0) on a scale-free family, and a
-  // gaussian (c, c) a constant response's range-1 transform
+  // gaussian (c, c) a constant response's transform, the window [c, c + 1]
   double fitMin = 0.0, fitMax = 0.0;
   std::vector<double> latents;            // empty for gaussian; lambda under t
   // Student-t continuous errors (TResponse) only, and only where nu is drawn:

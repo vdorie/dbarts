@@ -304,7 +304,8 @@ acrossUnits("gp", list(leaf.prior = gp("x2")), stretched, centred)
 acrossUnits("variance forest", list(variance = TRUE))
 acrossUnits("count", list(family = nbinom()), 2L * counts, counts)
 
-# a constant response's transform is units too, range 1 about its value: a
+# a constant response's transform is units too, spanning 1 upward from its
+# value: a
 # sampler on one keeps them across an install from a normal response, a state
 # stored in them replays in a normal recipient, and its own state is untouched
 makeConstant <- function(...) {
@@ -336,6 +337,25 @@ constantSelf$setState(constantState)
 constantTwin <- makeConstant()
 constantTwin$setState(constantState)
 expect_identical(sweeps(constantSelf), sweeps(constantTwin))
+
+# a record that is not a transform is refused when a re-creation reads it: a
+# non-finite or decreasing pair anywhere, and an equal one on the count family
+withRecord <- function(sampler, record) {
+  model <- sampler$model
+  attr(model, "response.anchor") <- record
+  sampler$model <- model
+  sampler
+}
+for (record in list(c(NaN, NaN), c(2, 1))) {
+  expect_error(
+    withRecord(make(), record)$copy(),
+    "response.anchor record must be two finite numbers"
+  )
+}
+expect_error(
+  withRecord(make(response = counts, family = nbinom()), c(1, 1))$copy(),
+  "the second above the first"
+)
 
 # prior-only draws are at the recipient's anchor after it, not the donor's
 priorRecipient <- make()

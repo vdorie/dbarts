@@ -6448,13 +6448,24 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
 // The sampler's response transform, (min, max) as a state's fit.scale holds
 // it: the host's record of the anchor a k-named leaf prior takes. A non-NULL
 // record makes it the sampler's, moving the chains there unless an install
-// follows (Sampler::setAnchor); the pair in force is returned either way.
+// follows (Sampler::setAnchor); the pair in force is returned either way. A
+// record is two finite numbers, the second not below the first; an equal pair
+// is a constant response's, which the count family's shift never is.
 SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr, SEXP installFollowsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   if (!Rf_isNull(recordExpr)) {
-    if (!Rf_isReal(recordExpr) || Rf_xlength(recordExpr) != 2)
-      Rf_error("a sampler's recorded anchor must be a numeric pair");
-    holder.sampler->setAnchor(REAL(recordExpr)[0], REAL(recordExpr)[1],
+    const double* record =
+      Rf_isReal(recordExpr) && Rf_xlength(recordExpr) == 2 ? REAL(recordExpr)
+                                                            : nullptr;
+    bool count =
+      holder.sampler->shape().family == bartcore::ResponseFamily::nbinom;
+    if (record == nullptr || !std::isfinite(record[0]) ||
+        !std::isfinite(record[1]) || record[1] < record[0] ||
+        (count && record[1] == record[0]))
+      Rf_error("the model's response.anchor record must be two finite "
+               "numbers, the second %s the first",
+               count ? "above" : "not below");
+    holder.sampler->setAnchor(record[0], record[1],
                               Rf_asLogical(installFollowsExpr) != TRUE);
   }
   SEXP resultExpr = PROTECT(Rf_allocVector(REALSXP, 2));

@@ -2056,7 +2056,8 @@ public:
 
   /// Whether (min, max) names response units this chain can hold its numbers
   /// in: any pair on a gaussian-style family, where (c, c) is a constant
-  /// response's range-1 transform, and an increasing one on the count family,
+  /// response's transform, the window [c, c + 1], and an increasing one on
+  /// the count family,
   /// whose state always carries one. Never on a scale-free family, which
   /// reports (0, 0).
   bool carriesUnits(double min, double max) const {

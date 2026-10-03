@@ -270,7 +270,7 @@ records: engine 625, bridge 172, R 165, manual 50, tests 1174.
 - Also measured, outside the suite: 36 configurations, every install path, draws and reader identical between
   the base commit's library and this one, frozen transforms and a fixed sigma written by `setSigma` included.
 - Review fixes, in the commit after 08ab22ef: whether a state's pair names units is decided by the family, so
-  a constant response's (c, c), its range-1 transform, converts both ways, where a sampler on one had taken a
+  a constant response's (c, c), the transform spanning 1 upward from c, converts both ways, where a sampler on one had taken a
   normal state's units and a state stored in one had replayed at a relative error of 0.79; a constant-response
   sampler's own state still installs untouched. The design note and the manual corrected on amplitudes and on
   the gp refusal. The warm start's undo has no test and none can reach it without a fault hook: TODO,
