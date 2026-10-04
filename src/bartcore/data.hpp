@@ -1675,8 +1675,8 @@ struct ColumnStore {
   /// at all.
   ///
   /// False REFUSES the build: some cell of a factor column is not a level code
-  /// the store can represent, or some column asks for more than
-  /// maxNumCutsRepresentable cuts. The store is left partly built and the caller
+  /// the store can represent, or some column asks for no cuts or for more than
+  /// maxNumCutsRepresentable. The store is left partly built and the caller
   /// discards it - a creation build has nothing to preserve - and the refusal
   /// travels out as a status rather than an exception, since the hosts that
   /// raise on it cross a C boundary.
@@ -1708,9 +1708,11 @@ struct ColumnStore {
     // past the ceiling is REFUSED rather than quantized onto a grid the
     // caller did not ask for: silently returning 65533 cuts for 100000 is a
     // different model with no notice, and the level counts a few lines below
-    // have always refused by name.
+    // have always refused by name. Zero is refused too: the quantile grid
+    // divides by it and the uniform one leaves a column no state can hold.
     for (size_t j = 0; j < p; ++j)
-      if (maxNumCuts[j] > maxNumCutsRepresentable) return false;
+      if (maxNumCuts[j] < 1 || maxNumCuts[j] > maxNumCutsRepresentable)
+        return false;
     train.codeOffsets.assign(p, 0);
     resetTrainStorage();
     if (mapped) {

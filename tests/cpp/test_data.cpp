@@ -1604,6 +1604,17 @@ void testIngestionRefusals() {
           "a cut request past the cap is refused, not clamped");
     check(!perVariablePastCap.build(ordinal.data(), n, 1, pastCap, false),
           "the per-variable spelling refuses the same way");
+
+    // and below one, which the quantile grid would divide by and the uniform
+    // grid would leave as a column no stored state can hold
+    const std::uint32_t none[1] = { 0u };
+    for (bool useQuantiles : { false, true }) {
+      ColumnStore scalarNone, perVariableNone;
+      check(!scalarNone.build(ordinal.data(), n, 1, 0u, useQuantiles),
+            "a cut request of zero is refused");
+      check(!perVariableNone.build(ordinal.data(), n, 1, none, useQuantiles),
+            "the per-variable spelling refuses zero the same way");
+    }
   }
 
   // the mapped entrance: a CSC-backed factor column's stored nonzeros carry

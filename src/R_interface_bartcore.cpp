@@ -1433,7 +1433,12 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   for (size_t j = 0; j < data.numPredictors; ++j) {
     // named here rather than left to the store's own refusal, which travels
     // as a status and would reach the caller as the generic specification
-    // error; the factor level ceilings refuse by name the same way
+    // error; the factor level ceilings refuse by name the same way. NA is
+    // INT_MIN, so it lands in the first arm
+    if (maxNumCuts[j] < 1)
+      Rf_error("'n.cuts' of %d for predictor %d is below one, the fewest cuts "
+               "a predictor's grid can carry",
+               maxNumCuts[j], static_cast<int>(j + 1));
     if (static_cast<uint32_t>(maxNumCuts[j]) >
         bartcore::maxNumCutsRepresentable)
       Rf_error("'n.cuts' of %d for predictor %d is over the cap of %u, the "

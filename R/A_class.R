@@ -887,6 +887,9 @@ methods::setValidity("dbartsData", function(object) {
   if (!anyNA(object@n.cuts) && length(object@n.cuts) != ncol(object@x)) {
     return(paste0("'n.cuts' must have length ", ncol(object@x)))
   }
+  if (!anyNA(object@n.cuts) && any(object@n.cuts < 1L)) {
+    return("'n.cuts' must contain only positive integers")
+  }
 
   if (!is.na(object@sigma) && object@sigma <= 0.0) {
     return("'sigma' must be positive")

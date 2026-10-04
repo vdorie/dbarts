@@ -1,5 +1,6 @@
 # Inputs that never produced a valid fit are refused by name: an infinite case
-# weight on every weighted entry.
+# weight on every weighted entry, a per-column cut count below one on the data
+# object's slot.
 
 set.seed(0)
 n <- 20L
@@ -116,3 +117,22 @@ expect_error(
   "logistic weights are observation counts"
 )
 rm(gaussianSampler, logisticSampler, sampler)
+
+## a cut count below one reaches the engine only through a data object's
+## edited slot, which dbartsSpec keeps; quantile mode would divide by it, and
+## uniform mode builds a column no stored state can hold. The control already
+## refuses it at its own validity.
+data <- dbartsData(x, y)
+data@n.cuts <- c(0L, 100L)
+expect_error(validObject(data), "'n.cuts' must contain only positive integers")
+for (useQuantiles in c(FALSE, TRUE)) {
+  specControl <- control
+  specControl@useQuantiles <- useQuantiles
+  spec <- dbartsSpec(data, specControl)
+  expect_identical(spec$data@n.cuts, c(0L, 100L))
+  expect_error(
+    new("dbartsSampler", spec$control, spec$model, spec$data),
+    "'n.cuts' of 0 for predictor 1 is below one"
+  )
+}
+rm(data, specControl, spec)
