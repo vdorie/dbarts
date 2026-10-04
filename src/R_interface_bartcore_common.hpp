@@ -454,7 +454,7 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
 /// weighted probit has no tractable latent-variable form; the R layer resolves
 /// a probit or ordinal vector of 0s and 1s to an active-row mask before it
 /// reaches here, so what arrives is a weighted likelihood), logistic on any
-/// element that is not a positive integer, since its weights are observation
+/// element that is not a finite positive integer, since its weights are observation
 /// counts and PG(w, psi) is the sum of w PG(1, psi) draws, and gaussian on any
 /// element that is not finite and non-negative, since a case weight is a
 /// precision multiplier there and a negative one subtracts information from a

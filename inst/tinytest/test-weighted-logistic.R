@@ -112,6 +112,11 @@ expect_error(
   "the posterior predictive 'weights' of a logistic fit are trial counts and must be positive integers",
   fixed = TRUE
 )
+expect_error(
+  predict(fit.w, newRows, type = "ppd", weights = c(Inf, 2, 3)),
+  "the posterior predictive 'weights' of a logistic fit are trial counts and must be positive integers",
+  fixed = TRUE
+)
 ppdCounts <- predict(fit.w, newRows, type = "ppd", weights = c(1, 2, 3))
 expect_true(all(
   ppdCounts >= 0 & ppdCounts <= rep(c(1, 2, 3), each = nrow(ppdCounts))

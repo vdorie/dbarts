@@ -3100,7 +3100,8 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
 // mask before it reaches here, membership being the one thing those families
 // can read off a weight, so what arrives is always a weighted likelihood;
 // logistic treats weights as observation counts (its PG(w, psi) latent is the
-// sum of w PG(1, psi) draws), so they must be positive integers; gaussian
+// sum of w PG(1, psi) draws), so they must be finite positive integers - an
+// infinite count never finishes its draw; gaussian
 // takes any finite non-negative weight. The R layer mirrors this, so these
 // errors backstop direct-API consumers, and the mutation entries reuse it
 // rather than stating a second text.
@@ -3116,7 +3117,8 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
              "\"logistic\"");
   if (family == bartcore::ResponseFamily::logistic)
     for (size_t i = 0; i < numObservations; ++i)
-      if (!(weights[i] > 0.0) || weights[i] != std::floor(weights[i]))
+      if (!(weights[i] > 0.0) || !std::isfinite(weights[i]) ||
+          weights[i] != std::floor(weights[i]))
         Rf_error("logistic weights are observation counts and must be "
                  "positive integers; drop zero-count rows, and use a gaussian "
                  "model for continuous weights");

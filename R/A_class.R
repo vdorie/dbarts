@@ -731,6 +731,9 @@ methods::setValidity("dbartsData", function(object) {
     if (any(object@weights < 0.0)) {
       return("'weights' must all be non-negative")
     }
+    if (!all(is.finite(object@weights))) {
+      return("'weights' must all be finite")
+    }
     if (
       any(object@weights == 0.0) &&
         !all(object@weights == 0.0 | object@weights == 1.0)

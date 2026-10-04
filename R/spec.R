@@ -191,7 +191,7 @@ refuseNonCountWeights <- function(
   remedy = "",
   what = "logistic weights are observation counts"
 ) {
-  if (anyNA(w) || any(w <= 0) || any(w != round(w))) {
+  if (anyNA(w) || any(w <= 0) || !all(is.finite(w)) || any(w != round(w))) {
     stop(what, " and must be positive integers", remedy, call. = FALSE)
   }
   invisible(NULL)

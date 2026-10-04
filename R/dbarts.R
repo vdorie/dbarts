@@ -2727,6 +2727,9 @@ dbartsSampler <- setRefClass(
       if (any(weights < 0.0)) {
         stop("'weights' must all be non-negative")
       }
+      if (!all(is.finite(weights))) {
+        stop("'weights' must all be finite")
+      }
       # the latent families that carry no weight at all but do carry the mask:
       # a 0/1 vector there is membership, not precision, so it goes to the
       # channel that means it - all-ones included, which the mask normalizes
