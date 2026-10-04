@@ -9,7 +9,7 @@
 \description{
   Posterior draws of the survival probability \eqn{S(t \mid x)} from a survival
   fit: an accelerated failure time (AFT) log-normal fit produced by
-  \code{\link{bart}} (or \code{\link{bartBT}}) with \code{family = "aft"},
+  \code{\link{bart}} with \code{family = "aft"},
   or a discrete-time hazard fit produced by
   \code{\link{bart}} with \code{family = "hazard"} (or
   \code{"hazard.logistic"}).
@@ -60,8 +60,9 @@ survivalProbabilities(object, ...)
   \item{newdata}{
     Optional predictors at which to evaluate. When \code{NULL} the training
     observations are used, EXCEPT for a hazard fit that also carries a
-    \code{test} set (below), whose stored draws are read instead; otherwise
-    \code{object} must have been fit with \code{keepTrees = TRUE}.
+    \code{test} set (below), whose stored draws are read instead, and for an AFT
+    fit, which reads its stored draws; otherwise a hazard \code{object} must
+    have been fit with \code{keepTrees = TRUE}.
   }
   \item{offset}{
     The offset at the subjects of \code{newdata}, as \code{\link[=predict.bart]{predict}}

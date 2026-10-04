@@ -24,7 +24,7 @@
       \code{$setResponse(y)} \tab the regression target \tab a partial residual, a working response, an imputed outcome \cr
       \code{$setOffset(o)} \tab an additive term BART does not fit \tab another block's linear predictor, a fixed exposure \cr
       \code{$setWeights(w)} \tab per-observation precision \tab a Polya-Gamma precision, a variance mixture, survey weights \cr
-      \code{$setSigma(s)} \tab the residual standard deviation \tab a scale drawn elsewhere; requires \code{family = gaussian(sigma = fixed())} \cr
+      \code{$setSigma(s)} \tab the residual standard deviation \tab a scale drawn elsewhere; use with \code{family = gaussian(sigma = fixed())} so the next \code{run()} does not redraw it \cr
       \code{$setPredictor(x, column)} \tab one predictor column \tab a latent covariate, an imputed predictor \cr
       \code{$setActiveRows(a)} \tab which rows enter the likelihood \tab a subset indicator drawn by another block \cr
       \code{$setLeafPrior(normal(sd = ))} \tab the leaf prior's spread \tab stating the prior a cold-start vector did not

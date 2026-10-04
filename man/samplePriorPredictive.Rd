@@ -59,7 +59,7 @@ samplePriorPredictive(
 
   For \code{type = "ppd"} on a gaussian sampler, sigma is drawn once per sample from the model's
   residual-variance prior: a scaled-inverse-chi-squared calibrated so that
-  \eqn{P(\sigma < \code{sigest}) = \code{quantile}}{P(sigma < sigest) = quantile} when the prior is
+  \eqn{P(\sigma < \code{sigest}) = \code{quant}}{P(sigma < sigest) = quant} when the prior is
   \code{chisq} (see \code{\link{dbartsPriors}}), or the sampler's fixed value when the prior is
   \code{fixed}.
 
@@ -76,7 +76,7 @@ samplePriorPredictive(
   draws that are already independent by construction.
 
   Seeding follows from the private sampler being constructed fresh on every call. When the
-  \code{\link[=dbartsControl]{control}}'s \code{seed} is \code{NA} (the default), the engine RNG
+  \code{\link[=dbartsControl]{control}}'s \code{seed} is \code{NULL} (the default), the engine RNG
   is seeded from R's random number stream at construction, so successive calls return independent
   draws, and a \code{\link{set.seed}} beforehand makes the whole draw - forests and observation
   layer alike - reproducible. When the control fixes \code{seed}, the engine stream is pinned:

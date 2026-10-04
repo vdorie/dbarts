@@ -89,7 +89,7 @@ rbart_vi(
     Same as \code{test}, but named to match \code{\link{predict}} generic.
   }
   \item{type}{
-    One of \code{"ev"}, \code{"ppd"}, \code{"bart"}, \code{"ranef"}, or \code{"trees"} for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. To synergize with \code{\link[stats]{predict.glm}}, \code{"response"} can be used as a synonym for \code{"value"} and \code{"link"} can be used as a synonym for \code{"bart"}. For additional details on tree extraction, see the corresponding subsection in \code{\link{bart}}.
+    One of \code{"ev"}, \code{"ppd"}, \code{"bart"}, \code{"ranef"}, or \code{"trees"} for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. To synergize with \code{\link[stats]{predict.glm}}, \code{"response"} can be used as a synonym for \code{"ev"} and \code{"link"} can be used as a synonym for \code{"bart"}. For additional details on tree extraction, see the corresponding subsection in \code{\link{bartBT}}.
   }
   \item{sample}{
     One of \code{"train"} or \code{"test"}, referring to the training or tests samples respectively.
@@ -117,7 +117,7 @@ For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_
 }
 
 \subsection{Generics}{
-  See the generics section of \code{\link{bart}}.
+  See the generics section of \code{\link{bartBT}}.
 }
 }
 \value{

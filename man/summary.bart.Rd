@@ -75,7 +75,7 @@
   \code{NULL} if none of \code{vars} are present on the fit), \code{vars},
   and \code{fixed}, a named list of the requested parameters the fit held
   fixed and their values (a named vector, by forest, on a fit with several
-  forests). \code{stats} has columns \code{mean}, \code{median},
+  forests). \code{stats} has columns \code{variable}, \code{mean}, \code{median},
   \code{sd}, \code{mad}, \code{q5}, \code{q95}, \code{rhat},
   \code{ess_bulk}, and \code{ess_tail} - the same columns
   \code{posterior::summarise_draws} reports for a plain array, computed

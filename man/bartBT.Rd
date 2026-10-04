@@ -403,7 +403,7 @@ y  <- rnorm(n, Ey, sigma)
 
 ## run BART
 set.seed(99)
-bartFit <- bart(x, y)
+bartFit <- bartBT(x, y)
 
 plot(bartFit)
 
@@ -433,8 +433,8 @@ samples.na <- fit.na$run()
 ## are "in" the model from one run() to the next, without rebuilding the
 ## sampler and without losing any row's fitted value; see the "active" entry
 ## of \link{dbartsSampler-class} for the full semantics. Unlike zero case
-## weights (gaussian only), this reaches probit, ordinal, logistic, nbinom
-## and aft samplers - and an emptied stratum is a legal all-zeros mask
+## weights (gaussian, probit, ordinal and nbinom only), this also reaches
+## logistic and aft samplers - and an emptied stratum is a legal all-zeros mask
 ## rather than a case the caller must special-case and skip.
 set.seed(3)
 n <- 120L

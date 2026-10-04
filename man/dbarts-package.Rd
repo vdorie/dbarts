@@ -17,7 +17,7 @@
     \item \code{\link{pdbart}} - partial dependence plots for one or two variables.
   }
 
-  Fits support \code{\link[=predict.bart]{predict}}, \code{\link[=fitted.bart]{fitted}}, \code{\link[=residuals.bart]{residuals}}, \code{\link{extract}}, \code{\link[=plot.bart]{plot}}, and \code{\link[=summary.bart]{summary}}; see \code{\link{bart}}'s \sQuote{Generics} section for what each returns and on which scale. \code{\link{survivalProbabilities}} turns a survival fit into survival-curve draws.
+  Fits support \code{\link[=predict.bart]{predict}}, \code{\link[=fitted.bart]{fitted}}, \code{\link[=residuals.bart]{residuals}}, \code{\link{extract}}, \code{\link[=plot.bart]{plot}}, and \code{\link[=summary.bart]{summary}}; see \code{\link{bartBT}}'s \sQuote{Generics} section for what each returns and on which scale. \code{\link{survivalProbabilities}} turns a survival fit into survival-curve draws.
 }
 \section{Driving the sampler directly}{
   \code{\link{dbarts}} builds a \code{\link[=dbartsSampler-class]{dbartsSampler}} without running it. The sampler is a \link[=ReferenceClasses]{reference class} whose methods - \code{run}, \code{setResponse}, \code{setPredictor}, \code{setOffset}, \code{setWeights}, and the rest - map onto the underlying C++ engine, so an outer sampler can alternate its own draws with BART's. \code{\link{dbartsData}} and \code{\link{dbartsControl}} build its data and control objects, \code{\link{dbartsPriors}} its priors, and \code{\link{samplePriorPredictive}} draws from the prior for calibration before any fitting. \code{\link{dbartsSpec}} resolves the same specification without constructing a sampler, for packages that embed dbarts and supply their own design matrix.
