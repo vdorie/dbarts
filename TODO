@@ -144,10 +144,6 @@ items
     samplePriorPredictive already draws f from the prior at x.test; the
     helper would summarize it, or compute it in closed form where one
     exists (constant, linear).
-  leaf-prior-reader-shape: getLeafPrior returns the prior alone as a
-    list, and a new sampler reader, getK, returns each chain's current k
-    as run records it (docs/decisions.md dec-B141, VD 2026-09-29).
-    bartCause's bcf changes in lockstep.
   warm-start-undo-test: Sampler::installForests undoes a refused warm
     start by snapshotting each touched chain's state and setting it back
     (restoreTouched), and nothing tests it. Every refusal it guards is
@@ -310,15 +306,6 @@ items
     docs/plans/archive/negative-binomial.md,
     docs/design/negative-binomial.md sec 2 and sec 7. decision-gated,
     scheduled after 1.0-0 (VD 2026-08-28).
-  ordinal-negbin-k-gap: door, no plan doc of its own. A bart(family =
-    "ordinal") fit accepts and samples a requested k = chi(...)
-    hyperprior with no complaint - packageOrdinalResults never reads
-    samples$k, so the draw is silently discarded and the packaged fit
-    carries no k channel at all (extract(type = "k") is not offered;
-    found while adding it to bart and hurdle, extract-scalar-types.md).
-    Fix (read and package the channel) or refuse the hyperprior at fit
-    time. The nbinom half closed with the log-mean model, whose k is
-    drawn by default (dec-B183).
   pdbart-burn-in-sigma: a pdbart or pd2bart result's first.sigma is NULL
     after a burn-in. The result builder hands the packager the fit's
     sigma under the burn-in argument by a name the fit list it is given
