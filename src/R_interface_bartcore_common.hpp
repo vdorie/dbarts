@@ -479,12 +479,6 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
 /// weight conduits are its only callers.
 void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler);
 
-/// True on a family that carries no case weights at all - probit, ordinal, aft
-/// and nbinom - which is exactly refuseBinaryWeightChange's condition. The
-/// value rule for the families that DO carry weights (logistic counts) is
-/// enforceBinaryWeightPolicy's and stays a raise.
-bool familyCarriesNoWeights(const bartcore::SamplerBase& sampler);
-
 /// Errors on a response value outside the family's support, the post-creation
 /// half of the rule the R surface (R/spec.R) enforces when the sampler is
 /// built: 0/1 for probit and logistic, an integer category index in [1, K] for

@@ -3148,7 +3148,7 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
 // response" they had not asked for.
 // The flat C API has no weight entry, so weights reach the engine only through
 // the R methods' conduits, which raise through refuseBinaryWeightChange.
-bool familyCarriesNoWeights(const bartcore::SamplerBase& sampler) {
+static bool familyCarriesNoWeights(const bartcore::SamplerBase& sampler) {
   bartcore::ResponseFamily family = sampler.shape().family;
   return family != bartcore::ResponseFamily::gaussian &&
          family != bartcore::ResponseFamily::logistic;

@@ -132,10 +132,12 @@ rm(data)
 
 ## a continuous fit's posterior predictive weights are precision multipliers:
 ## an infinite one would draw the expected value and a negative one NaN
-for (family in c("gaussian", "student")) {
+time <- exp(y)
+status <- rep_len(c(1L, 1L, 0L), n)
+for (family in c("gaussian", "student", "aft")) {
   fit <- bart(
     x,
-    y,
+    if (family == "aft") cbind(time, status) else y,
     family = if (family == "student") student(5) else family,
     n.samples = 2L,
     n.burn = 2L,
@@ -157,7 +159,7 @@ for (family in c("gaussian", "student")) {
     )
   }
 }
-rm(fit)
+rm(fit, time, status)
 
 ## a cut count below one reaches the engine only through a data object's
 ## edited slot, which dbartsSpec keeps; quantile mode would divide by it, and

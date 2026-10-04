@@ -659,12 +659,9 @@ predict.bart <- function(
         " fit are trial counts"
       )
     )
-  } else if (
-    type == "ppd" &&
-      !is.null(weights) &&
-      fitEngineFamily(object) == "gaussian"
-  ) {
-    # a precision multiplier, sd_i = scale_i / sqrt(w_i): an infinite one
+  } else if (type == "ppd" && !is.null(weights) && fitHasResidual(object)) {
+    # a precision multiplier, sd_i = scale_i / sqrt(w_i), on every family with
+    # a residual law, aft's log-time one included: an infinite one
     # silently draws the expected value and a negative one draws NaN. A
     # missing one is the row's na.action's to answer
     observed <- weights[!is.na(weights)]
