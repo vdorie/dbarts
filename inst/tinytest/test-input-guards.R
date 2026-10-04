@@ -118,6 +118,47 @@ expect_error(
 )
 rm(gaussianSampler, logisticSampler, sampler)
 
+## a data object's slot edited past its validity check, handed to the two
+## routes that take a data object, is refused before the starting sigma
+## estimate rather than failing on it
+for (bad in c(Inf, -Inf)) {
+  rule <- if (bad > 0) "'weights' must all be finite" else "non-negative"
+  data <- dbartsData(x, y)
+  data@weights <- replace(rep(1, n), 3L, bad)
+  expect_error(dbartsSpec(data, control), rule)
+  expect_error(dbarts(data, control = control), rule)
+}
+rm(data)
+
+## a continuous fit's posterior predictive weights are precision multipliers:
+## an infinite one would draw the expected value and a negative one NaN
+for (family in c("gaussian", "student")) {
+  fit <- bart(
+    x,
+    y,
+    family = if (family == "student") student(5) else family,
+    n.samples = 2L,
+    n.burn = 2L,
+    n.trees = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    keepTrees = TRUE
+  )
+  for (bad in c(Inf, -1, -Inf)) {
+    expect_error(
+      predict(fit, x[1:3, ], type = "ppd", weights = c(bad, 1, 1)),
+      paste0(
+        "the posterior predictive 'weights' of a ",
+        family,
+        " fit are precision multipliers and must be finite and non-negative"
+      ),
+      fixed = TRUE
+    )
+  }
+}
+rm(fit)
+
 ## a cut count below one reaches the engine only through a data object's
 ## edited slot, which dbartsSpec keeps; quantile mode would divide by it, and
 ## uniform mode builds a column no stored state can hold. The control already
@@ -137,10 +178,15 @@ for (useQuantiles in c(FALSE, TRUE)) {
 }
 rm(data, specControl, spec)
 
-## pdbart and pd2bart return the burn-in sigma draws, one per burn-in sweep
+## pdbart and pd2bart return the burn-in sigma draws a bartBT fit of the same
+## call and seed returns
+set.seed(1)
+reference <- bartBT(x, y, ndpost = 3L, nskip = 7L, verbose = FALSE)$first.sigma
+expect_equal(length(reference), 7L)
+set.seed(1)
 fit <- pdbart(x, y, xind = 1L, ndpost = 3L, nskip = 7L, verbose = FALSE)
-expect_equal(length(fit$first.sigma), 7L)
-expect_true(all(fit$first.sigma > 0))
+expect_identical(fit$first.sigma, reference)
+set.seed(1)
 fit <- pd2bart(x, y, xind = 1:2, ndpost = 3L, nskip = 7L, verbose = FALSE)
-expect_equal(length(fit$first.sigma), 7L)
-rm(fit)
+expect_identical(fit$first.sigma, reference)
+rm(fit, reference)

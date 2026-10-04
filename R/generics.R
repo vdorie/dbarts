@@ -659,6 +659,23 @@ predict.bart <- function(
         " fit are trial counts"
       )
     )
+  } else if (
+    type == "ppd" &&
+      !is.null(weights) &&
+      fitEngineFamily(object) == "gaussian"
+  ) {
+    # a precision multiplier, sd_i = scale_i / sqrt(w_i): an infinite one
+    # silently draws the expected value and a negative one draws NaN. A
+    # missing one is the row's na.action's to answer
+    observed <- weights[!is.na(weights)]
+    if (any(observed < 0) || !all(is.finite(observed))) {
+      stop(
+        "the posterior predictive 'weights' of a ",
+        fitFamily(object),
+        " fit are precision multipliers and must be finite and non-negative",
+        call. = FALSE
+      )
+    }
   }
 
   if (type == "forest") {

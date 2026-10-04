@@ -201,6 +201,16 @@ enforceWeightPolicy <- function(data, family) {
   if (is.null(data@weights)) {
     return(list(data = data, active = NULL))
   }
+  # a data object's slot can be edited past its validity check, and a gaussian
+  # fit would otherwise fail on the starting sigma without naming the weights;
+  # NA is left to each family's own rule
+  observed <- data@weights[!is.na(data@weights)]
+  if (any(observed < 0)) {
+    stop("'weights' must all be non-negative")
+  }
+  if (!all(is.finite(observed))) {
+    stop("'weights' must all be finite")
+  }
   active <- NULL
   if (isMaskedWeightFamily(family)) {
     w <- data@weights
