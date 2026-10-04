@@ -383,7 +383,7 @@ pdbart <- function(
       fit <- packageBartResults(
         sampler,
         samples,
-        fit$sigma,
+        fit$first.sigma,
         fit[["k"]],
         TRUE,
         TRUE
@@ -528,7 +528,7 @@ pd2bart <- function(
       fit <- packageBartResults(
         sampler,
         samples,
-        fit$sigma,
+        fit$first.sigma,
         fit[["k"]],
         TRUE,
         TRUE

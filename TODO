@@ -312,11 +312,6 @@ items
     docs/plans/archive/negative-binomial.md,
     docs/design/negative-binomial.md sec 2 and sec 7. decision-gated,
     scheduled after 1.0-0 (VD 2026-08-28).
-  pdbart-burn-in-sigma: a pdbart or pd2bart result's first.sigma is NULL
-    after a burn-in. The result builder hands the packager the fit's
-    sigma under the burn-in argument by a name the fit list it is given
-    does not carry. Pre-existing; pdbart objects have no extract method
-    and nothing in the package reads the component.
   python-bindings: a pybind11 facade wrapper is prototype-scale.
     Horizon, likely out-of-repo. The engine is not R-free below the
     bridge: model.hpp calls three Rmath density functions

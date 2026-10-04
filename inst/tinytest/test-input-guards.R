@@ -1,6 +1,6 @@
 # Inputs that never produced a valid fit are refused by name: an infinite case
 # weight on every weighted entry, a per-column cut count below one on the data
-# object's slot.
+# object's slot. Also pins pdbart's burn-in sigma.
 
 set.seed(0)
 n <- 20L
@@ -136,3 +136,11 @@ for (useQuantiles in c(FALSE, TRUE)) {
   )
 }
 rm(data, specControl, spec)
+
+## pdbart and pd2bart return the burn-in sigma draws, one per burn-in sweep
+fit <- pdbart(x, y, xind = 1L, ndpost = 3L, nskip = 7L, verbose = FALSE)
+expect_equal(length(fit$first.sigma), 7L)
+expect_true(all(fit$first.sigma > 0))
+fit <- pd2bart(x, y, xind = 1:2, ndpost = 3L, nskip = 7L, verbose = FALSE)
+expect_equal(length(fit$first.sigma), 7L)
+rm(fit)
