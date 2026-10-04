@@ -4048,6 +4048,49 @@ template <typename L> constexpr LeafModelKind leafModelKindOf() {
 /// (NBResponse).
 enum class ResponseFamily { gaussian, probit, logistic, aft, ordinal, nbinom };
 
+/// The largest count any surface accepts, one bound for a negative-binomial
+/// response, a logistic count weight and a fixed negative-binomial shape. A
+/// count of c costs c Polya-Gamma draws per row per sweep, about 160 ns each,
+/// so a row at the bound takes about 0.16 s a sweep and one past it soon makes
+/// a run that cannot finish; the response's count histogram is also sized by
+/// its largest count, at 8 bytes a unit. A drawn shape stays on NBShapePrior's
+/// grid, which stops far below it.
+inline constexpr double maximumCount = 1.0e6;
+
+/// Thrown from inside a Polya-Gamma latent refresh whose cancel function
+/// turned true, as CountCancelled is from inside an order count.
+struct RefreshCancelled : std::exception {
+  const char* what() const noexcept override {
+    return "the latent refresh was interrupted";
+  }
+};
+
+/// The run's cancel function as a Polya-Gamma refresh polls it: once every
+/// pollDraws draws, about 10 ms of them, and through the run's own throttle,
+/// so the host is asked no more often than between sweeps and a worker chain
+/// reads only the run's cancel flag. It draws nothing and reads no clock
+/// between polls, so a refresh that is not stopped takes exactly the draws it
+/// would take without it. Null outside a run, where nothing is polled.
+class RefreshPoll {
+public:
+  static constexpr long pollDraws = 1L << 16;
+
+  void set(const std::function<bool()>* cancel) {
+    cancel_ = cancel;
+    untilPoll_ = pollDraws;
+  }
+  /// Counts one draw; true when a poll falls due and the run asked to stop.
+  bool stop() {
+    if (--untilPoll_ > 0) return false;
+    untilPoll_ = pollDraws;
+    return cancel_ != nullptr && (*cancel_)();
+  }
+
+private:
+  const std::function<bool()>* cancel_ = nullptr;
+  long untilPoll_ = pollDraws;
+};
+
 /// Numerically stable log(1 + exp(x)): the logistic log-likelihood's building
 /// block, guarding against overflow for large x.
 inline double logOnePlusExp(double x) {
@@ -4067,6 +4110,20 @@ inline double simulatePolyaGammaShape(ext_rng* rng, double b, double z) {
   for (long c = 0; c < reps; ++c)
     omega += ext_rng_simulatePolyaGamma(rng, z);
   return omega;
+}
+
+/// simulatePolyaGammaShape polling after every draw, the same draws in the
+/// same order: false, with omega unset, once the poll asks to stop.
+inline bool simulatePolyaGammaShape(ext_rng* rng, double b, double z,
+                                    RefreshPoll& poll, double& omega) {
+  long reps = std::lround(b);
+  double sum = 0.0;
+  for (long c = 0; c < reps; ++c) {
+    sum += ext_rng_simulatePolyaGamma(rng, z);
+    if (poll.stop()) return false;
+  }
+  omega = sum;
+  return true;
 }
 
 /// Reshift a Polya-Gamma latent family's working response when only the offset
@@ -4271,6 +4328,15 @@ public:
   virtual bool drawsShape() const { return false; }
   virtual double shape() const { return 0.0; }
   virtual void restoreShape(double /*r*/) {}
+
+  /// The run's cancel function, which the Polya-Gamma refreshes poll inside
+  /// their draws and answer by throwing RefreshCancelled; null outside a run.
+  void setRefreshCancel(const std::function<bool()>* cancel) {
+    refreshPoll_.set(cancel);
+  }
+
+protected:
+  RefreshPoll refreshPoll_;
 };
 
 class GaussianResponse final : public ResponseModel {
@@ -5035,6 +5101,11 @@ public:
   /// discard would desynchronize the stream against a sampler built on the
   /// retained rows. Its omega_ and working_ keep their last values, which are
   /// finite and positive, and are stale until the row is active again.
+  ///
+  /// A cancel polled inside the draws throws RefreshCancelled with the row
+  /// being drawn left as it was, so every row holds this sweep's draw or the
+  /// previous one; the rows are conditionally independent given the fits, so
+  /// redrawing any subset of them is itself a valid Gibbs step.
   void refreshLatents(ext_rng* rng, const double* totalFits,
                       double) override {
     for (std::size_t i = 0; i < numObservations_; ++i) {
@@ -5043,8 +5114,15 @@ public:
       double psi = totalFits[i] + offset;
       long reps = weights_ != nullptr ? std::lround(weights_[i]) : 1L;
       double omega = ext_rng_simulatePolyaGamma(rng, psi);
-      for (long c = 1; c < reps; ++c)
+      bool stop = refreshPoll_.stop();
+      for (long c = 1; c < reps && !stop; ++c) {
         omega += ext_rng_simulatePolyaGamma(rng, psi);
+        stop = refreshPoll_.stop();
+      }
+      if (stop) {
+        recompose();
+        throw RefreshCancelled();
+      }
       omega_[i] = omega;
       double weight = weights_ != nullptr ? weights_[i] : 1.0;
       working_[i] = weight * (y_[i] - 0.5) / omega - offset;
@@ -6001,12 +6079,34 @@ public:
   /// the trees would consume an omega whose shape carries the stale r. sigma
   /// is ignored (fixed at 1). Fixed-r mode skips step (1) and draws no
   /// shape variate. Under a mask the r step is the subsample's.
+  ///
+  /// A cancel polled inside the omega draws throws RefreshCancelled. At a
+  /// fixed r every row then holds this sweep's draw or the previous one, a
+  /// valid Gibbs step since the rows are conditionally independent given r and
+  /// the fits. A drawn r is not: it was drawn collapsed over omega, so a row
+  /// left at its previous omega would pair a draw at the old r with the new
+  /// one. The refresh is put back whole instead - r and every omega as they
+  /// were, the working response rebuilt from them - which is the state ahead
+  /// of the refresh, the sweep's trees keeping their draws.
   void refreshLatents(ext_rng* rng, const double* totalFits, double) override {
-    if (estimateR_)
-      setShape(NBShapePrior::grid[rPrior_.drawIndex(
-        rng, y_, totalFits, offset_, shift_, numObservations_,
-        activePointer())]);
-    drawOmega(rng, totalFits);
+    if (!estimateR_) {
+      drawOmega(rng, totalFits);
+      return;
+    }
+    double previousR = r_;
+    setShape(NBShapePrior::grid[rPrior_.drawIndex(
+      rng, y_, totalFits, offset_, shift_, numObservations_,
+      activePointer())]);
+    previousOmega_.assign(omega_.begin(), omega_.end());
+    try {
+      drawOmega(rng, totalFits);
+    } catch (const RefreshCancelled&) {
+      omega_.swap(previousOmega_);
+      setShape(previousR);
+      rebuildWorking();
+      recompose();
+      throw;
+    }
   }
 
   bool supportsActiveRows() const override { return true; }
@@ -6183,7 +6283,12 @@ private:
     for (std::size_t i = 0; i < numObservations_; ++i) {
       if (!isActive(i)) continue;
       double a = anchor(i);
-      double omega = simulatePolyaGammaShape(rng, y_[i] + r_, totalFits[i] + a);
+      double omega;
+      if (!simulatePolyaGammaShape(rng, y_[i] + r_, totalFits[i] + a,
+                                   refreshPoll_, omega)) {
+        recompose();
+        throw RefreshCancelled();
+      }
       omega_[i] = omega;
       working_[i] = 0.5 * (y_[i] - r_) / omega - a;
     }
@@ -6209,6 +6314,7 @@ private:
   std::vector<double> activeRows_;  // the 0/1 mask; empty when none
   std::vector<double> composite_;   // c_i = a_i omega_i, served while masked
   std::vector<double> omega_;
+  std::vector<double> previousOmega_;  // omega ahead of a refresh drawing r
   std::vector<double> working_;
   NBShapePrior rPrior_;
 };

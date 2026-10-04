@@ -43,7 +43,7 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
     \code{"student"} constrains nothing.
   }
   \item{weights}{
-    \code{"logistic"} only, refused by name elsewhere: observation counts, positive whole numbers,
+    \code{"logistic"} only, refused by name elsewhere: observation counts, positive whole numbers no larger than \eqn{10^6}{1e6},
     each entering as the sum of that many independent \eqn{PG(1, \psi)}{PG(1, psi)} draws.
   }
   \item{offset}{
@@ -55,7 +55,7 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
   }
   \item{shape}{
     \code{"nbinom"} only, and required there: the current shape \eqn{r}{r}, a positive whole
-    number, as \code{\link[=dbartsSampler-class]{getShape}} reports it. An \code{"nbinom"}
+    number no larger than \eqn{10^6}{1e6}, as \code{\link[=dbartsSampler-class]{getShape}} reports it. An \code{"nbinom"}
     location is a log mean, so the Polya-Gamma draw reads the log-odds
     \eqn{\psi_i = f_i + o_i - \log r}{psi_i = f_i + o_i - log r}.
   }

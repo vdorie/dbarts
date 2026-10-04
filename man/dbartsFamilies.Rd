@@ -105,7 +105,8 @@
       \eqn{y + r}{y + r}, so a large fixed \eqn{r} is slow: at
       \eqn{r = 10^4}{r = 1e4}, a thousand sweeps over a thousand
       observations take about half an hour. By \eqn{r}{r} in the hundreds
-      the model is already close to a Poisson one.
+      the model is already close to a Poisson one. A fixed shape above
+      \eqn{10^6}{1e6} is refused, as a count above it is.
     }
     \item{\code{aft(sigma = NULL)}}{
       Accelerated failure time (log-normal) survival. The log-time

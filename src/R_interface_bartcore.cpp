@@ -2916,6 +2916,13 @@ bartcore::ResponseFamily parseSamplerSpecification(
                                            control.numOrdinalCategories, data.y,
                                            data.numObservations,
                                            "sampler creation");
+  // a fixed shape r is a Polya-Gamma draw per unit per row per sweep, the
+  // cost the logistic counts carry; the grid a drawn one comes from stops at 50
+  if (family == bartcore::ResponseFamily::nbinom &&
+      control.shape > bartcore::maximumCount)
+    Rf_error("nbinom 'shape' must be no larger than %.0f: each unit of a "
+             "fixed shape costs a Polya-Gamma draw per row per sweep",
+             bartcore::maximumCount);
   // a weighted truncated-latent draw is not a coherent likelihood; AFT v1
   // rejects weights
   if (family == bartcore::ResponseFamily::aft && data.weights != NULL)
@@ -3121,12 +3128,17 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
              "active-row mask, and weighted binary regression is family = "
              "\"logistic\"");
   if (family == bartcore::ResponseFamily::logistic)
-    for (size_t i = 0; i < numObservations; ++i)
+    for (size_t i = 0; i < numObservations; ++i) {
       if (!(weights[i] > 0.0) || !std::isfinite(weights[i]) ||
           weights[i] != std::floor(weights[i]))
         Rf_error("logistic weights are observation counts and must be "
                  "positive integers; drop zero-count rows, and use a gaussian "
                  "model for continuous weights");
+      if (weights[i] > bartcore::maximumCount)
+        Rf_error("logistic 'weights' are observation counts and must be no "
+                 "larger than %.0f: each count costs a Polya-Gamma draw per "
+                 "sweep", bartcore::maximumCount);
+    }
   // a gaussian weight enters the leaf sufficient statistics as a precision, so
   // a negative one subtracts information and NaN/Inf poisons the sum - both
   // fit silently rather than erroring. !(w >= 0.0) catches NaN. The O(n) scan
@@ -3168,17 +3180,6 @@ void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
            "model fits a weighted likelihood", name);
 }
 
-// The largest count any surface accepts for nbinom. The bound is an ALLOCATION
-// bound: NBShapePrior::computeKernel sizes its count histogram as
-// maxCount + 1 doubles, 8 bytes per unit of the largest count, so y = 1e9 asks
-// for 8 GB where no R error can be raised, while this bound pins the request
-// at 8 * (1e6 + 1) = 8 MB and the kernel's rebuild at 13e6 multiply-adds -
-// trivially safe on every host, and orders of magnitude past any count a
-// negative-binomial regression is a sensible model for. The exact Polya-Gamma
-// augmentation's O(y + r) draw cost stays a recorded family cost above and
-// below the bound; it is not what this refuses.
-constexpr double maximumCount = 1.0e6;
-
 // The post-creation half of the response-support policy the R surface applies
 // at creation (R/spec.R): mutation must accept exactly what creation does, or a
 // swap walks the sampler off its family's support. Two harms, both confirmed:
@@ -3188,9 +3189,10 @@ constexpr double maximumCount = 1.0e6;
 // static_cast<size_t>(lround(y)) into a ~1.8e19 histogram allocation - an
 // uncatchable crash, not an error. gaussian and aft impose nothing (aft's y is
 // a log survival time, any real), so they pass through; multinomial counts are
-// not reachable by this conduit. Magnitude is bounded for the same allocation
-// reason the sign is (see maximumCount), at creation and at every mutation
-// alike. A multinomial sampler reports the logistic family, but the
+// not reachable by this conduit. Magnitude is bounded at
+// bartcore::maximumCount for the same allocation reason the sign is - the
+// histogram holds maxCount + 1 doubles, so y = 1e9 asks for 8 GB where no R
+// error can be raised - at creation and at every mutation alike. A multinomial sampler reports the logistic family, but the
 // multi-forest response guard refuses every conduit that reaches this ahead of
 // it, so its counts are never read against the binary rule.
 // External linkage: the creation prologue and the flat C API both call this, so
@@ -3222,11 +3224,11 @@ void validateResponseSupport(bartcore::ResponseFamily family,
       if (!std::isfinite(y[i]) || y[i] < 0.0 || y[i] != std::floor(y[i]))
         Rf_error("%s: family \"nbinom\" requires a non-negative integer "
                  "(count) response", caller);
-      if (y[i] > maximumCount)
+      if (y[i] > bartcore::maximumCount)
         Rf_error("%s: family \"nbinom\" requires counts no larger than %.0f; "
                  "the shape grid's count histogram is sized from the "
                  "largest count, so a larger one allocates without bound",
-                 caller, maximumCount);
+                 caller, bartcore::maximumCount);
     }
     break;
   // gaussian and aft constrain nothing (any real y). Every enumerator is
@@ -7055,6 +7057,20 @@ static AugmentationInputs augmentationInputs(SEXP fitExpr, SEXP yExpr,
   return in;
 }
 
+// The count bound a sampler holds its logistic weights and a fixed shape to,
+// stated for the helpers too, which draw the same number of variates.
+static void refuseAugmentationCountsOverCap(const AugmentationInputs& in,
+                                            const char* caller) {
+  if (in.weights != NULL)
+    for (size_t i = 0; i < in.numObservations; ++i)
+      if (in.weights[i] > bartcore::maximumCount)
+        Rf_error("%s: 'weights' must be counts no larger than %.0f", caller,
+                 bartcore::maximumCount);
+  if (in.shape > bartcore::maximumCount)
+    Rf_error("%s: 'shape' must be no larger than %.0f", caller,
+             bartcore::maximumCount);
+}
+
 // R/augmentation.R has validated every length, every family's applicable
 // arguments and the scalars' ranges; the response support is stated HERE, by
 // the same function every conduit that swaps a y calls.
@@ -7069,6 +7085,7 @@ SEXP bartcore_drawLatents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
                        dfExpr);
   validateResponseSupport(supportFamily(law), in.numOrdinalThresholds + 1, in.y,
                           in.numObservations, "dbartsDrawLatents");
+  refuseAugmentationCountsOverCap(in, "dbartsDrawLatents");
   // everything that can longjmp runs BEFORE the generator exists, the result
   // vector included, so the draw loop cannot strand it
   SEXP result =
@@ -7093,6 +7110,7 @@ SEXP bartcore_workingResponse(SEXP familyExpr, SEXP latentExpr, SEXP yExpr,
   if (law != AugmentationLaw::ordinal)
     validateResponseSupport(supportFamily(law), 0, in.y, in.numObservations,
                             "dbartsWorkingResponse");
+  refuseAugmentationCountsOverCap(in, "dbartsWorkingResponse");
   SEXP result =
     PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(in.numObservations)));
   computeWorkingResponse(law, in, REAL(latentExpr), REAL(result));

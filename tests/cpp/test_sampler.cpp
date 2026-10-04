@@ -1429,6 +1429,86 @@ static void testWeightedLogistic(ext_rng* rng) {
   printf("ok: weighted logistic\n");
 }
 
+// A cancel polled inside a Polya-Gamma latent refresh stops the sweep there.
+// Every row's count is about half RefreshPoll::pollDraws, so the cancel's
+// second call - the first is the sweep's own - falls in the refresh's third
+// row. Logistic and a fixed nbinom shape keep rows 0 and 1 at this sweep's
+// draw and the rest at the previous one; a drawn nbinom shape puts the whole
+// refresh back. The chain runs on and its state restores, and a drawn shape
+// past maximumCount is refused at install.
+static void testRefreshInterrupt() {
+  const size_t n = 6;
+  const double count = 30000.0;
+  std::vector<double> x = {0.1, 0.5, 0.9, 0.3, 0.7, 0.2};
+  std::vector<double> binary = {0, 1, 0, 1, 1, 0}, small = {0, 2, 1, 4, 3, 5};
+  std::vector<double> large(n, count), weights(n, count);
+  struct Case {
+    const char* name;
+    ResponseFamily family;
+    const double* y;
+    const double* w;
+    double shape;
+  };
+  const Case cases[] = {
+    {"logistic", ResponseFamily::logistic, binary.data(), weights.data(), -1.0},
+    {"fixed nbinom", ResponseFamily::nbinom, small.data(), nullptr, count},
+    {"drawn nbinom", ResponseFamily::nbinom, large.data(), nullptr, -1.0}};
+  for (const Case& c : cases) {
+    std::string name(c.name);
+    SamplerOptions options;
+    options.numTrees = 5;
+    options.shape = c.shape;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20261004u);
+    ConstantLeafSampler sampler(x.data(), c.y, n, 1, c.w, nullptr, c.family,
+                                1.0, 3.0, 1.0, options, &rng);
+    Results none;
+    sampler.run(1, 0, none);
+    std::vector<double> before(sampler.latents(0), sampler.latents(0) + n);
+    double shapeBefore = sampler.chain(0).shape();
+    int calls = 0;
+    std::function<bool()> cancel = [&calls]() { return ++calls >= 2; };
+    bool stopped = sampler.chain(0).run(1, 0, none, nullptr, 0, &cancel);
+    check(stopped && calls == 2,
+          (name + ": a refresh stops at its own poll").c_str());
+    size_t moved = 0;
+    bool prefix = true, valid = true;
+    for (size_t i = 0; i < n; ++i) {
+      double omega = sampler.latents(0)[i];
+      valid = valid && omega > 0.0 && std::isfinite(omega);
+      if (omega == before[i]) continue;
+      prefix = prefix && moved == i;
+      ++moved;
+    }
+    check(valid, (name + ": every latent is finite and positive").c_str());
+    if (c.shape > 0.0 || c.family == ResponseFamily::logistic)
+      check(prefix && moved == 2,
+            (name + ": the drawn rows lead and the rest are as they were")
+              .c_str());
+    else
+      check(moved == 0 && sampler.chain(0).shape() == shapeBefore,
+            (name + ": the shape and every latent are put back").c_str());
+    sampler.run(1, 0, none);
+    valid = true;
+    for (size_t i = 0; i < n; ++i)
+      valid = valid && sampler.latents(0)[i] > 0.0 &&
+              std::isfinite(sampler.latents(0)[i]);
+    SamplerStateData state;
+    sampler.getState(state);
+    check(valid && sampler.setState(state, nullptr),
+          (name + ": the chain runs on and its state restores").c_str());
+    if (c.shape < 0.0 && c.family == ResponseFamily::nbinom) {
+      state.chains[0].shape = maximumCount;
+      check(sampler.setState(state, nullptr), "a drawn shape at the cap installs");
+      state.chains[0].shape = maximumCount + 1.0;
+      check(!sampler.setState(state, nullptr),
+            "a drawn shape past the cap is refused");
+    }
+    ext_rng_destroy(rng);
+  }
+  printf("ok: latent refresh interrupt\n");
+}
+
 static void testMultiChain() {
   const size_t n = 300, numChains = 3, numSamples = 50;
   std::vector<double> x, y;
@@ -7894,6 +7974,7 @@ void runSamplerTests(ext_rng* rng) {
   testMultiChainSetData();
   testEndToEndLogistic(rng);
   testWeightedLogistic(rng);
+  testRefreshInterrupt();
   testEndToEndCategorical(rng);
   testWideCategorical(rng);
   testPooledMaskSampler(rng);

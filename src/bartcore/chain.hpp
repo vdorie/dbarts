@@ -1530,37 +1530,46 @@ public:
   /// state is valid though the sweep's earlier trees keep their new draws. A
   /// cancel returns true; an allocation failure in the count is rethrown
   /// after the same rebuild.
+  ///
+  /// A Polya-Gamma latent refresh polls it too, inside its draws, and stops
+  /// the sweep there: the fits were finalized ahead of the refresh, and each
+  /// latent is this sweep's draw or the previous one, a valid state of the
+  /// chain (the response model says why), so the sweep's later blocks are
+  /// skipped as a cancel between sweeps skips the whole of the next one.
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
            ProgressSink* progress = nullptr, size_t chainIndex = 0,
            const std::function<bool()>* shouldCancel = nullptr,
            const SweepCallback* onSweep = nullptr,
            const DrawHook* onDraw = nullptr) {
-    if constexpr (NormalizedLeafModel<L>) {
-      // the cancel function lives in the caller's frame, so it is cleared on
-      // every way out
-      struct CancelScope {
-        std::vector<Forest<L, ResidT>>& forests;
-        ~CancelScope() {
-          for (Forest<L, ResidT>& forest : forests)
-            forest.leaf.setCountCancel(nullptr);
-        }
-      } scope{forests_};
-      for (Forest<L, ResidT>& forest : forests_)
-        forest.leaf.setCountCancel(shouldCancel);
-      try {
-        return runSweeps(numBurnIn, numSamples, results, progress, chainIndex,
-                         shouldCancel, onSweep, onDraw);
-      } catch (const CountCancelled&) {
-        rebuildTotalFitsFromTrees();
-        return true;
-      } catch (const std::bad_alloc&) {
-        rebuildTotalFitsFromTrees();
-        throw;
-      }
-    } else {
+    // the cancel function lives in the caller's frame, so it is cleared on
+    // every way out
+    struct CancelScope {
+      Chain& chain;
+      ~CancelScope() { chain.setCancel(nullptr); }
+    } scope{*this};
+    setCancel(shouldCancel);
+    try {
       return runSweeps(numBurnIn, numSamples, results, progress, chainIndex,
                        shouldCancel, onSweep, onDraw);
+    } catch (const RefreshCancelled&) {
+      return true;
+    } catch (const CountCancelled&) {
+      rebuildTotalFitsFromTrees();
+      return true;
+    } catch (const std::bad_alloc&) {
+      if constexpr (NormalizedLeafModel<L>) rebuildTotalFitsFromTrees();
+      throw;
     }
+  }
+
+  /// Installs the run's cancel function where a sweep polls it inside a
+  /// block - the response's latent refresh and a normalized leaf's order
+  /// count; null clears it.
+  void setCancel(const std::function<bool()>* cancel) {
+    response_->setRefreshCancel(cancel);
+    if constexpr (NormalizedLeafModel<L>)
+      for (Forest<L, ResidT>& forest : forests_)
+        forest.leaf.setCountCancel(cancel);
   }
 
   /// This chain's slow-count tally since its last run began, summed over
@@ -3944,12 +3953,14 @@ public:
     // an NB sampler needs its omega latents (in latents); a state from
     // another family carries none and cannot continue. The shape is judged
     // only where this sampler draws it and the state holds one - finite,
-    // positive and whole, the only kind the augmentation draws - and absent
-    // leaves the sampler's own.
+    // positive and whole, the only kind the augmentation draws, and no larger
+    // than maximumCount, since a y swap draws omega at it without first
+    // redrawing it - and absent leaves the sampler's own.
     if (response_->carriesShape() && state.latents.size() != n) return false;
     if (response_->drawsShape() && !std::isnan(state.shape) &&
         (!(state.shape > 0.0) || !std::isfinite(state.shape) ||
-         state.shape != std::round(state.shape)))
+         state.shape != std::round(state.shape) ||
+         state.shape > maximumCount))
       return false;
     if (forests_[0].useDart && !state.dartProbabilities.empty() &&
         state.dartProbabilities.size() != data_.numPredictors)
