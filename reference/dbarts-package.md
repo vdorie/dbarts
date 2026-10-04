@@ -40,7 +40,7 @@ Fits support
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md),
 [`plot`](https://vdorie.github.io/dbarts/reference/bartBT.md), and
 [`summary`](https://vdorie.github.io/dbarts/reference/summary.bart.md);
-see [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+see [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
 ‘Generics’ section for what each returns and on which scale.
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 turns a survival fit into survival-curve draws.

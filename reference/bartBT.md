@@ -1156,14 +1156,12 @@ y  <- rnorm(n, Ey, sigma)
 
 ## run BART
 set.seed(99)
-bartFit <- bart(x, y)
-#> dbarts: 'bart' is the function 0.9-x called 'bart2', with its own defaults (75 trees; four chains, their draws merged) rather than those of 0.9-x's 'bart' (200 trees, one chain). Call 'bartBT' for the BayesTree-style fit and its defaults. Shown once per session until dbarts 1.1-0.
-#> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
+bartFit <- bartBT(x, y)
 #> 
 #> Running BART with numeric y
 #> 
-#> number of trees: 75
-#> number of chains: 4, default number of threads 2
+#> number of trees: 200
+#> number of chains: 1, default number of threads 1
 #> tree thinning rate: 1
 #> Prior:
 #>  k prior fixed to 2.000000
@@ -1173,7 +1171,7 @@ bartFit <- bart(x, y)
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
 #>  level fibre gibbs step: auto
-#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
+#>  proposal probabilities: birth/death 0.50, swap 0.10, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 100
 #>  number of test observations: 0
@@ -1186,49 +1184,34 @@ bartFit <- bart(x, y)
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> [1] iteration: 100 (of 500)
-#> [2] iteration: 100 (of 500)
-#> [1] iteration: 200 (of 500)
-#> [2] iteration: 200 (of 500)
-#> [2] iteration: 300 (of 500)
-#> [1] iteration: 300 (of 500)
-#> [2] iteration: 400 (of 500)
-#> [1] iteration: 400 (of 500)
-#> [2] iteration: 500 (of 500)
-#> [1] iteration: 500 (of 500)
-#> [4] iteration: 100 (of 500)
-#> [3] iteration: 100 (of 500)
-#> [4] iteration: 200 (of 500)
-#> [3] iteration: 200 (of 500)
-#> [4] iteration: 300 (of 500)
-#> [3] iteration: 300 (of 500)
-#> [4] iteration: 400 (of 500)
-#> [3] iteration: 400 (of 500)
-#> [4] iteration: 500 (of 500)
-#> [3] iteration: 500 (of 500)
-#> total seconds in loop: 0.137692
+#> iteration: 100 (of 1000)
+#> iteration: 200 (of 1000)
+#> iteration: 300 (of 1000)
+#> iteration: 400 (of 1000)
+#> iteration: 500 (of 1000)
+#> iteration: 600 (of 1000)
+#> iteration: 700 (of 1000)
+#> iteration: 800 (of 1000)
+#> iteration: 900 (of 1000)
+#> iteration: 1000 (of 1000)
+#> total seconds in loop: 0.216714
 #> 
 #> Tree sizes, last iteration:
-#> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 
-#> 3 2 2 2 3 2 2 2 2 2 2 3 2 2 2 3 3 2 4 3 
-#> 4 3 2 2 2 2 4 2 2 4 2 4 2 3 1 3 2 2 2 3 
-#> 3 2 2 4 2 2 2 2 2 2 3 3 2 2 2 2 2 
-#> [2] 2 2 2 1 2 2 2 2 2 2 3 2 3 2 2 2 2 2 
-#> 2 2 2 2 2 2 2 3 4 2 2 2 3 3 2 3 3 4 3 3 
-#> 2 2 3 2 2 4 3 1 2 2 3 3 2 2 2 2 2 3 2 2 
-#> 3 2 3 2 3 2 4 2 4 3 3 3 2 2 2 2 2 
-#> [3] 2 3 2 2 2 3 2 4 3 2 3 3 2 3 2 2 3 4 
-#> 3 3 2 3 3 2 2 2 3 4 2 2 3 3 2 3 4 3 3 2 
-#> 4 2 2 2 2 2 3 3 2 1 2 4 2 2 2 2 3 2 3 2 
-#> 3 2 2 2 2 2 3 2 2 2 2 2 2 2 2 2 2 
-#> [4] 2 2 4 2 2 2 2 2 1 2 2 2 3 2 2 1 4 3 
-#> 3 2 2 2 2 2 3 2 1 3 2 3 2 2 2 3 2 3 4 2 
-#> 3 3 2 4 2 2 4 2 4 2 3 2 2 4 2 2 2 2 2 2 
-#> 4 4 2 2 1 2 2 2 2 2 2 3 3 5 2 2 1 
+#> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
+#> 2 2 4 2 2 3 3 2 2 2 2 3 2 2 2 1 3 3 2 2 
+#> 2 2 3 4 2 2 2 4 3 2 2 3 1 2 3 2 2 3 3 2 
+#> 3 2 2 2 2 3 2 2 3 2 2 2 2 2 2 2 2 3 2 2 
+#> 2 2 2 2 3 5 2 2 3 2 2 2 1 3 2 2 2 3 2 2 
+#> 1 2 5 1 3 3 3 4 2 2 2 2 3 2 2 2 2 2 2 1 
+#> 2 4 2 2 2 2 3 2 2 2 2 4 2 2 3 2 2 2 2 3 
+#> 2 3 2 2 2 2 2 1 2 4 4 3 2 4 4 3 2 1 2 3 
+#> 3 4 3 2 3 2 2 2 2 2 2 4 2 3 2 3 3 2 2 2 
+#> 3 2 2 3 2 2 2 4 4 2 3 1 3 2 2 2 1 3 2 4 
+#> 2 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 36) (2: 48) (3: 50) (4: 53) (5: 43) 
-#> (6: 44) (7: 46) (8: 31) (9: 39) (10: 38) 
+#> (1: 34) (2: 29) (3: 29) (4: 30) (5: 25) 
+#> (6: 25) (7: 36) (8: 21) (9: 28) (10: 16) 
 #> 
 #> DONE BART
 #> 
@@ -1243,10 +1226,10 @@ fitmat <- cbind(y, Ey, lmFit$fitted, bartFit$yhat.train.mean)
 colnames(fitmat) <- c('y', 'Ey', 'lm', 'bart')
 print(cor(fitmat))
 #>              y        Ey        lm      bart
-#> y    1.0000000 0.9847984 0.8841787 0.9985355
-#> Ey   0.9847984 1.0000000 0.9009389 0.9887035
-#> lm   0.8841787 0.9009389 1.0000000 0.8963237
-#> bart 0.9985355 0.9887035 0.8963237 1.0000000
+#> y    1.0000000 0.9847984 0.8841787 0.9984931
+#> Ey   0.9847984 1.0000000 0.9009389 0.9886903
+#> lm   0.8841787 0.9009389 1.0000000 0.8975062
+#> bart 0.9984931 0.9886903 0.8975062 1.0000000
 
 ## fit with missing predictor values: every split rule learns a
 ## direction for NAs (MIA, always on; no argument selects it)
@@ -1267,8 +1250,8 @@ samples.na <- fit.na$run()
 ## are "in" the model from one run() to the next, without rebuilding the
 ## sampler and without losing any row's fitted value; see the "active" entry
 ## of \link{dbartsSampler-class} for the full semantics. Unlike zero case
-## weights (gaussian only), this reaches probit, ordinal, logistic, nbinom
-## and aft samplers - and an emptied stratum is a legal all-zeros mask
+## weights (gaussian, probit, ordinal and nbinom only), this also reaches
+## logistic and aft samplers - and an emptied stratum is a legal all-zeros mask
 ## rather than a case the caller must special-case and skip.
 set.seed(3)
 n <- 120L

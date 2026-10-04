@@ -44,15 +44,16 @@ dbartsSpec(
 - control, tree.prior, leaf.prior, proposal.probs, monotone,
   interactions, blocks, variance, forests, sigest, seed, family, ...:
 
-  As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-  including the frozen `proposal.probs` mixture - all five structural
-  probabilities zero, which proposes no structure and draws only the
-  leaf values, `sigma` and the family's latents. The prior arguments are
-  evaluated in dbarts's own prior vocabulary, so bare expressions such
-  as `normal(k = chi(1.25, Inf))` resolve regardless of what the caller
-  has attached; so do the forest constructors inside `monotone`,
-  `interactions`, `blocks`, `variance` and `forests`, evaluated in
-  `parentEnv` (see
+  As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+  (except that `proposal.probs` is a formal of this function rather than
+  of `control`), including the frozen `proposal.probs` mixture - all
+  five structural probabilities zero, which proposes no structure and
+  draws only the leaf values, `sigma` and the family's latents. The
+  prior arguments are evaluated in dbarts's own prior vocabulary, so
+  bare expressions such as `normal(k = chi(1.25, Inf))` resolve
+  regardless of what the caller has attached; so do the forest
+  constructors inside `monotone`, `interactions`, `blocks`, `variance`
+  and `forests`, evaluated in `parentEnv` (see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md)).
   The residual prior rides `family` here as everywhere
   (`family = gaussian(sigma = chisq(df, quant))`); the 0.9-x spellings
@@ -125,11 +126,12 @@ is built with, and the `dbarts_family` enumerator
 `dbarts_sampler_family` reports for it (`"gaussian"` names
 `DBARTS_FAMILY_GAUSSIAN`, and so on). `"auto"` asks this function to
 dispatch on the shape of the response, which is correct for
-`"gaussian"`, `"probit"`, `"ordinal"`, and `"nbinom"` - each is
-inferable from the response coding or from an attribute - but is *wrong*
-for `"aft"` and `"logistic"`, which are indistinguishable by shape from
-`"gaussian"` and `"probit"` respectively. Name the family and the
-question does not arise.
+`"gaussian"`, `"probit"`, and `"ordinal"` - each is inferable from the
+response coding or from an attribute - but is *wrong* for `"aft"` and
+`"logistic"`, which are indistinguishable by shape from `"gaussian"` and
+`"probit"` respectively, and for `"nbinom"`, which is never inferred (a
+count vector resolves to `"gaussian"`). Name the family and the question
+does not arise.
 
 ### Differences from dbarts()
 
@@ -175,11 +177,11 @@ A list with components
 
 - active:
 
-  the active-row mask a `"probit"` or `"ordinal"` fit's 0/1 case weights
-  resolved to, `NULL` when they resolved to none; the `data` object's
-  weights slot is cleared either way, since neither family carries one,
-  so a caller building a sampler from this list must install the mask on
-  it.
+  the active-row mask a `"probit"`, `"ordinal"` or `"nbinom"` fit's 0/1
+  case weights resolved to, `NULL` when they resolved to none; the
+  `data` object's weights slot is cleared either way, since neither
+  family carries one, so a caller building a sampler from this list must
+  install the mask on it.
 
 ## See also
 

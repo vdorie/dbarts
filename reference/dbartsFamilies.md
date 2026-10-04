@@ -192,4 +192,5 @@ fit <- bart(
   family = student(df = 4),
   n.samples = 50L, n.burn = 50L, n.chains = 1L, verbose = FALSE
 )
+#> dbarts: 'bart' is the function 0.9-x called 'bart2', with its own defaults (75 trees; four chains, their draws merged) rather than those of 0.9-x's 'bart' (200 trees, one chain). Call 'bartBT' for the BayesTree-style fit and its defaults. Shown once per session until dbarts 1.1-0.
 ```

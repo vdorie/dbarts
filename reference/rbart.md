@@ -157,10 +157,10 @@ print(x, ...)
   the random effects, while the posterior predictive distribution is a
   response sampled with that mean. To synergize with
   [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
-  `"response"` can be used as a synonym for `"value"` and `"link"` can
-  be used as a synonym for `"bart"`. For additional details on tree
+  `"response"` can be used as a synonym for `"ev"` and `"link"` can be
+  used as a synonym for `"bart"`. For additional details on tree
   extraction, see the corresponding subsection in
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md).
 
 - sample:
 
@@ -210,7 +210,7 @@ binary.
 ### Generics
 
 See the generics section of
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md).
 
 ## Value
 

@@ -36,8 +36,8 @@ dbartsData(
   ignored, with a warning naming each one. `weights` are held as given,
   validated here only for length, `NA` and non-negativity; the family's
   own rule applies when a sampler is built from the object, where a
-  `"probit"` or `"ordinal"` fit accepts only weights of 0 and 1 and
-  installs them as its active-row mask.
+  `"probit"`, `"ordinal"` or `"nbinom"` fit accepts only weights of 0
+  and 1 and installs them as its active-row mask.
 
 - bases:
 

@@ -83,7 +83,7 @@ of the result, unlike a posterior sample from `run`.
 
 For `type = "ppd"` on a gaussian sampler, sigma is drawn once per sample
 from the model's residual-variance prior: a scaled-inverse-chi-squared
-calibrated so that \\P(\sigma \< \code{sigest}) = \code{quantile}\\ when
+calibrated so that \\P(\sigma \< \code{sigest}) = \code{quant}\\ when
 the prior is `chisq` (see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
 or the sampler's fixed value when the prior is `fixed`.
@@ -106,7 +106,7 @@ draws that are already independent by construction.
 Seeding follows from the private sampler being constructed fresh on
 every call. When the
 [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
-`seed` is `NA` (the default), the engine RNG is seeded from R's random
+`seed` is `NULL` (the default), the engine RNG is seeded from R's random
 number stream at construction, so successive calls return independent
 draws, and a [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand
 makes the whole draw - forests and observation layer alike -

@@ -165,8 +165,9 @@ xbart(
 
 - loss:
 
-  Either one of the pre-set loss functions as character-strings (`mcr` -
-  misclassification rate for binary responses, `rmse` -
+  Either one of the pre-set loss functions as character-strings (the
+  default is `"rmse"` for a continuous response and `"log"` for a binary
+  one; `mcr` - misclassification rate for binary responses, `rmse` -
   root-mean-squared-error for continuous response), `log` - negative
   log-loss for binary response (`rmse` serves this purpose for
   continuous responses), a function, or a function-evaluation

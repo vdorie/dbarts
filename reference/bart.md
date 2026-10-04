@@ -765,13 +765,13 @@ print(x, ...)
   family's own scale, `leaf.prior = normal(sd = )`; see
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
   The default, `NULL`, uses the value 2 for continuous responses and the
-  `chi(1.5, 2)` hyperprior for binary ones, which centers the sampled
-  `k` near the field-standard fixed value of 2 (prior median 1.9) while
-  adapting to the data; pass `k = 2` for the fixed BART-package default,
-  or `chi(1.5, Inf)` for the old improper prior. See
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s `k`
-  item, and the ‘Leaf prior parameter `k`’ details there, for the full
-  calibration argument and its outlier-sensitivity caveat.
+  `chi(1.5, 2)` hyperprior for binary and `"nbinom"` ones, which centers
+  the sampled `k` near the field-standard fixed value of 2 (prior median
+  1.9) while adapting to the data; pass `k = 2` for the fixed
+  BART-package default, or `chi(1.5, Inf)` for the old improper prior.
+  See [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+  `k` item, and the ‘Leaf prior parameter `k`’ details there, for the
+  full calibration argument and its outlier-sensitivity caveat.
 
 - tree.prior, leaf.prior:
 
@@ -1533,7 +1533,8 @@ and its aliases), `bart` returns a list of class `"bart"`, documented in
 full under
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
 ‘Value’ section - the same `yhat.train`/`sigma`/`varcount`/...
-components, including `forestFits`, `glue`, `bases`, `n.forests`, and a
+components (but no `binaryOffset` on a binary fit, which only `bartBT`
+returns), including `forestFits`, `glue`, `bases`, `n.forests`, and a
 `"forest.labels"` attribute when the formula carries a
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
 (‘Formula Terms’ above): that term route is the only way `bart` itself
@@ -1950,7 +1951,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001471
+#> total seconds in loop: 0.001528
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1999,7 +2000,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001751
+#> total seconds in loop: 0.001976
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

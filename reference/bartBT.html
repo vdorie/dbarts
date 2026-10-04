@@ -444,14 +444,12 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co">## run BART</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">99</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">bartFit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span><span class="op">)</span></span></span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> dbarts: 'bart' is the function 0.9-x called 'bart2', with its own defaults (75 trees; four chains, their draws merged) rather than those of 0.9-x's 'bart' (200 trees, one chain). Call 'bartBT' for the BayesTree-style fit and its defaults. Shown once per session until dbarts 1.1-0.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override</span>
+<span class="r-in"><span><span class="va">bartFit</span> <span class="op">&lt;-</span> <span class="fu">bartBT</span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running BART with numeric y</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> number of trees: 75</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> number of chains: 4, default number of threads 2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> number of trees: 200</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> number of chains: 1, default number of threads 1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> tree thinning rate: 1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Prior:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	k prior fixed to 2.000000</span>
@@ -461,7 +459,7 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	power and base for tree prior: 2.000000 0.950000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	use quantiles for rule cut points: false</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	level fibre gibbs step: auto</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.50, swap 0.10, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> data:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	number of training observations: 100</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	number of test observations: 0</span>
@@ -474,49 +472,34 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] iteration: 100 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [2] iteration: 100 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] iteration: 200 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [2] iteration: 200 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [2] iteration: 300 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] iteration: 300 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [2] iteration: 400 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] iteration: 400 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [2] iteration: 500 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] iteration: 500 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 100 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 100 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 200 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 200 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 300 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 300 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 400 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 400 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [4] iteration: 500 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3] iteration: 500 (of 500)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.137692</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 100 (of 1000)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 200 (of 1000)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 300 (of 1000)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 400 (of 1000)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 500 (of 1000)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 600 (of 1000)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 700 (of 1000)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.216714</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 3 3 2 3 2 3 3 3 3 3 2 2 2 3 3 3 3 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 2 2 2 3 2 2 2 2 2 2 3 2 2 2 3 3 2 4 3 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 3 2 2 2 2 4 2 2 4 2 4 2 3 1 3 2 2 2 3 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 2 2 4 2 2 2 2 2 2 3 3 2 2 2 2 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [2] 2 2 2 1 2 2 2 2 2 2 3 2 3 2 2 2 2 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 2 2 2 2 2 2 3 4 2 2 2 3 3 2 3 3 4 3 3 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 2 3 2 2 4 3 1 2 2 3 3 2 2 2 2 2 3 2 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 2 3 2 3 2 4 2 4 3 3 3 2 2 2 2 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3] 2 3 2 2 2 3 2 4 3 2 3 3 2 3 2 2 3 4 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 3 2 3 3 2 2 2 3 4 2 2 3 3 2 3 4 3 3 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 2 2 2 2 2 3 3 2 1 2 4 2 2 2 2 3 2 3 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 2 2 2 2 2 3 2 2 2 2 2 2 2 2 2 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [4] 2 2 4 2 2 2 2 2 1 2 2 2 3 2 2 1 4 3 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 2 2 2 2 2 3 2 1 3 2 3 2 2 2 3 2 3 4 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 3 2 4 2 2 4 2 4 2 3 2 2 4 2 2 2 2 2 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 4 2 2 1 2 2 2 2 2 2 3 3 5 2 2 1 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 2 4 2 2 3 3 2 2 2 2 3 2 2 2 1 3 3 2 2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 2 3 4 2 2 2 4 3 2 2 3 1 2 3 2 2 3 3 2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 2 2 2 2 3 2 2 3 2 2 2 2 2 2 2 2 3 2 2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 2 2 2 3 5 2 2 3 2 2 2 1 3 2 2 2 3 2 2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 2 5 1 3 3 3 4 2 2 2 2 3 2 2 2 2 2 2 1 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 4 2 2 2 2 3 2 2 2 2 4 2 2 3 2 2 2 2 3 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 3 2 2 2 2 2 1 2 4 4 3 2 4 4 3 2 1 2 3 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 4 3 2 3 2 2 2 2 2 2 4 2 3 2 3 3 2 2 2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 2 2 3 2 2 2 4 4 2 3 1 3 2 2 2 1 3 2 4 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 2 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Variable Usage, last iteration (var:count):</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 36) (2: 48) (3: 50) (4: 53) (5: 43) </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (6: 44) (7: 46) (8: 31) (9: 39) (10: 38) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 34) (2: 29) (3: 29) (4: 30) (5: 25) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (6: 25) (7: 36) (8: 21) (9: 28) (10: 16) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
@@ -531,10 +514,10 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">fitmat</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'y'</span>, <span class="st">'Ey'</span>, <span class="st">'lm'</span>, <span class="st">'bart'</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="va">fitmat</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>              y        Ey        lm      bart</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> y    1.0000000 0.9847984 0.8841787 0.9985355</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Ey   0.9847984 1.0000000 0.9009389 0.9887035</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> lm   0.8841787 0.9009389 1.0000000 0.8963237</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> bart 0.9985355 0.9887035 0.8963237 1.0000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> y    1.0000000 0.9847984 0.8841787 0.9984931</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Ey   0.9847984 1.0000000 0.9009389 0.9886903</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> lm   0.8841787 0.9009389 1.0000000 0.8975062</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> bart 0.9984931 0.9886903 0.8975062 1.0000000</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co">## fit with missing predictor values: every split rule learns a</span></span></span>
 <span class="r-in"><span><span class="co">## direction for NAs (MIA, always on; no argument selects it)</span></span></span>
@@ -555,8 +538,8 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-in"><span><span class="co">## are "in" the model from one run() to the next, without rebuilding the</span></span></span>
 <span class="r-in"><span><span class="co">## sampler and without losing any row's fitted value; see the "active" entry</span></span></span>
 <span class="r-in"><span><span class="co">## of \link{dbartsSampler-class} for the full semantics. Unlike zero case</span></span></span>
-<span class="r-in"><span><span class="co">## weights (gaussian only), this reaches probit, ordinal, logistic, nbinom</span></span></span>
-<span class="r-in"><span><span class="co">## and aft samplers - and an emptied stratum is a legal all-zeros mask</span></span></span>
+<span class="r-in"><span><span class="co">## weights (gaussian, probit, ordinal and nbinom only), this also reaches</span></span></span>
+<span class="r-in"><span><span class="co">## logistic and aft samplers - and an emptied stratum is a legal all-zeros mask</span></span></span>
 <span class="r-in"><span><span class="co">## rather than a case the caller must special-case and skip.</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">120L</span></span></span>

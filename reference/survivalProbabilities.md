@@ -2,8 +2,7 @@
 
 Posterior draws of the survival probability \\S(t \mid x)\\ from a
 survival fit: an accelerated failure time (AFT) log-normal fit produced
-by [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) (or
-[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)) with
+by [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) with
 `family = "aft"`, or a discrete-time hazard fit produced by
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) with
 `family = "hazard"` (or `"hazard.logistic"`).
@@ -66,8 +65,9 @@ survivalProbabilities(object, ...)
 
   Optional predictors at which to evaluate. When `NULL` the training
   observations are used, EXCEPT for a hazard fit that also carries a
-  `test` set (below), whose stored draws are read instead; otherwise
-  `object` must have been fit with `keepTrees = TRUE`.
+  `test` set (below), whose stored draws are read instead, and for an
+  AFT fit, which reads its stored draws; otherwise a hazard `object`
+  must have been fit with `keepTrees = TRUE`.
 
 - offset:
 

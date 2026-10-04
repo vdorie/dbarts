@@ -132,7 +132,7 @@ Fits a varying intercept/random effect BART model. A fallback this function make
 <dd><p>Same as <code>test</code>, but named to match <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></code> generic.</p></dd>
 
   <dt id="arg-type">type<a class="anchor" aria-label="anchor" href="#arg-type"></a></dt>
-<dd><p>One of <code>"ev"</code>, <code>"ppd"</code>, <code>"bart"</code>, <code>"ranef"</code>, or <code>"trees"</code> for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. To synergize with <code><a href="https://rdrr.io/r/stats/predict.glm.html" class="external-link">predict.glm</a></code>, <code>"response"</code> can be used as a synonym for <code>"value"</code> and <code>"link"</code> can be used as a synonym for <code>"bart"</code>. For additional details on tree extraction, see the corresponding subsection in <code><a href="bart.html">bart</a></code>.</p></dd>
+<dd><p>One of <code>"ev"</code>, <code>"ppd"</code>, <code>"bart"</code>, <code>"ranef"</code>, or <code>"trees"</code> for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. To synergize with <code><a href="https://rdrr.io/r/stats/predict.glm.html" class="external-link">predict.glm</a></code>, <code>"response"</code> can be used as a synonym for <code>"ev"</code> and <code>"link"</code> can be used as a synonym for <code>"bart"</code>. For additional details on tree extraction, see the corresponding subsection in <code><a href="bartBT.html">bartBT</a></code>.</p></dd>
 
   <dt id="arg-sample">sample<a class="anchor" aria-label="anchor" href="#arg-sample"></a></dt>
 <dd><p>One of <code>"train"</code> or <code>"test"</code>, referring to the training or tests samples respectively.</p></dd>
@@ -159,7 +159,7 @@ Fits a varying intercept/random effect BART model. A fallback this function make
 
 <div class="section">
 <h3 id="generics">Generics<a class="anchor" aria-label="anchor" href="#generics"></a></h3>
-<p>See the generics section of <code><a href="bart.html">bart</a></code>.</p>
+<p>See the generics section of <code><a href="bartBT.html">bartBT</a></code>.</p>
 </div>
 
     </div>

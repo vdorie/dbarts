@@ -509,8 +509,9 @@ dbarts(
   and (time, status)). A two-level factor, logical, or two-level
   character response is also detected and fit as probit. Every
   resolution of `"auto"` is reported in a one-line message naming the
-  family fit (printed only under `verbose = TRUE`), while a factor (or
-  character) response with three or more levels is an error directing to
+  family fit (printed only under `verbose = TRUE`), while an unordered
+  factor (or character) response with three or more levels is an error
+  directing to
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
   `family = "multinomial"`. An explicit family that a factor response
   cannot support (e.g. `"gaussian"`) is also an error rather than a
