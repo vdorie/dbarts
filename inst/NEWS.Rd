@@ -118,7 +118,11 @@
             \code{dbartsControl}'s \code{proposal.probs} must name every
             entry from its moves; an unnamed vector or an unknown name is
             an error listing them, where 0.9-34 dropped such entries and ran
-            the default mixture.
+            the default mixture. New arguments make three shortened names
+            ambiguous, so they are errors: \code{t =} and \code{u =} on
+            \code{bart} (0.9-34's \code{bart2} read them as \code{test} and
+            \code{useQuantiles}) and \code{n.th =} on \code{xbart} (read as
+            \code{n.threads}); write the name in full.
       \item The sampler's \code{$setResponse} gains \code{updateScale} as its
             second argument, pushing \code{updateState} to third, so pass
             \code{updateState} by name. It defaults to \code{FALSE}: the
@@ -542,6 +546,8 @@
             \code{predict} takes a character or numeric \code{group.by},
             as the fit does; random effects came back empty and unseen
             groups failed.
+      \item An \code{n.cuts} above 65533, the most a predictor's grid can
+            hold, is an error; 0.9-34 accepted it and could hang.
       \item \code{rbart_vi}: the intercepts are drawn with precision weights
             and start from a sweep of the trees, where a start from prior
             trees could inflate the posterior of \code{tau} many times over
