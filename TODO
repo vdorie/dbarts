@@ -89,6 +89,9 @@ items
     on a consumer demanding exact AR-1 errors. Record:
     docs/design/correlated-outcomes.md (A). causal-motivated,
     decision-gated.
+  count-cap: cap logistic count weights and a fixed negative-binomial
+    shape at one million and interrupt long sweeps (dec-B202).
+    docs/plans/count-cap.md.
   doc-freshness-guard-tightening: door, VD decision. The symbol rule
     in tools/check-doc-freshness.R accepts a cite when each component
     occurs anywhere in the target file, and the guard reads docs/design
