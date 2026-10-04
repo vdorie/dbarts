@@ -165,8 +165,6 @@ items
     way, became a recorded model value with installs converted into it
     (docs/design/state-not-model.md, dec-B200); these three are the rest of
     that question. Not designed.
-  input-guards: refuse an infinite case weight and a cut count below one,
-    and keep pdbart's burn-in sigma. docs/plans/input-guards.md.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply

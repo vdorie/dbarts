@@ -1,6 +1,6 @@
 # input-guards: refuse infinite case weights and a cut count below one; keep pdbart's burn-in sigma
 
-Status: IMPLEMENTED 2026-10-04, pending review (62455dec, a8a3bc6c, 8c0060ef, fc7eb072, ac4689be, 06e26224).
+Status: LANDED 2026-10-04 (8090138b to 7d383099).
 
 agent: opus implementer, one; opus reviewer.
 rng: NEUTRAL. Each change refuses an input that never produced a valid fit, or fills a result component that
@@ -57,3 +57,13 @@ wherever the cap of 65533 is checked. A pdbart or pd2bart result carries `first.
 - `R CMD INSTALL` into the slice's own library, single job; the new and touched tinytest files pass;
   `tests/cpp` builds and `./test_bartcore` passes.
 - `lintr::lint_package()`, `air format --check .`, `tools/check-doc-freshness.R` clean.
+
+## Landing note
+
+Landed 2026-10-04 as 8090138b (infinite case weights), fcf79de9 (cut count below one), 4a89236e (pdbart
+burn-in sigma), 9a74bbf4 and 2605d509 (review fixes: a data object's weights slot reaching `dbartsSpec` or
+`dbarts`, and posterior predictive weights on gaussian, student and aft fits), edbb0595 (comments), with
+records 893ec0f8, a023ba46 and 7d383099. Review SOUND WITH CORRECTIONS twice, corrections taken. Full tinytest
+12394 results, 0 failures; tests/cpp, lintr, air and the tools/ checks clean; R CMD check --as-cran one NOTE
+(incoming feasibility). Out of scope and open: a huge finite logistic count weight or negative-binomial shape
+still makes a sweep that cannot be interrupted.
