@@ -3106,10 +3106,10 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
 // can read off a weight, so what arrives is always a weighted likelihood;
 // logistic treats weights as observation counts (its PG(w, psi) latent is the
 // sum of w PG(1, psi) draws), so they must be finite positive integers - an
-// infinite count never finishes its draw; gaussian
-// takes any finite non-negative weight. The R layer mirrors this, so these
-// errors backstop direct-API consumers, and the mutation entries reuse it
-// rather than stating a second text.
+// infinite count never finishes its draw; gaussian takes any finite
+// non-negative weight. The R layer mirrors this, so these errors backstop
+// direct-API consumers, and the mutation entries reuse it rather than stating
+// a second text.
 void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                                const double* weights,
                                size_t numObservations) {
@@ -3146,9 +3146,8 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
 // change under any surface. Naming the actual family matters: the one message
 // this used to carry told an aft, ordinal or nbinom caller about "a binary
 // response" they had not asked for.
-// External linkage: the flat C API answers the same condition on
-// dbarts_sampler_setWeights, through the predicate below, rather than
-// dropping a probit/ordinal/aft/nbinom weight change silently as it once did.
+// The flat C API has no weight entry, so weights reach the engine only through
+// the R methods' conduits, which raise through refuseBinaryWeightChange.
 bool familyCarriesNoWeights(const bartcore::SamplerBase& sampler) {
   bartcore::ResponseFamily family = sampler.shape().family;
   return family != bartcore::ResponseFamily::gaussian &&
