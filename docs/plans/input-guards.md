@@ -1,6 +1,6 @@
 # input-guards: refuse infinite case weights and a cut count below one; keep pdbart's burn-in sigma
 
-Status: IMPLEMENTED 2026-10-04, pending review (62455dec, a8a3bc6c, 8c0060ef, fc7eb072, ac4689be).
+Status: IMPLEMENTED 2026-10-04, pending review (62455dec, a8a3bc6c, 8c0060ef, fc7eb072, ac4689be, 06e26224).
 
 agent: opus implementer, one; opus reviewer.
 rng: NEUTRAL. Each change refuses an input that never produced a valid fit, or fills a result component that
