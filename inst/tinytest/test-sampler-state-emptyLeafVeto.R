@@ -54,8 +54,9 @@ state <- sampler$state
 # crossed veto turns into an empty leaf
 expect_true(max(state[[1L]]$forests[[1L]]$tree.sizes) >= 30L)
 
-# restoring into a fresh sampler over the same data must succeed: any empty
-# leaf carried in the state trips "state is not consistent with this sampler"
+# restoring into a fresh sampler over the same data must succeed, and an empty
+# leaf carried in the state would be merged at install, which the round trip
+# below detects
 restored <- dbarts::dbarts(
   y ~ x,
   control = control,

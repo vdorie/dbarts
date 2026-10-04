@@ -1124,6 +1124,12 @@ public:
   /// on a leaf model that cannot carry one (Chain::convertStateUnits); both
   /// are judged before anything is touched.
   ///
+  /// A live tree that routes no row of the current data to some bottom node,
+  /// as a state stored before setPredictor(forceUpdate) leaves, is accepted
+  /// and merged at install the way the forced update merges it
+  /// (Chain::rebuildLiveForest, Chain::rebuildVarianceForest); a state whose
+  /// trees are all occupied installs exactly.
+  ///
   /// The units pass: a chain stored in other units than the sampler's is
   /// converted into them, on a copy, ahead of everything else, and is then
   /// validated and installed as one stored in them would be. A chain in the
@@ -1286,7 +1292,8 @@ public:
     // A donor grown on a different cut grid is remapped onto this sampler's
     // grid at install (as setData remaps a data replacement's old splits onto
     // the freshly rebuilt cuts), collapsing splits the new grid starves; a
-    // same-grid donor installs verbatim. Only a structural predictor mismatch
+    // same-grid donor installs verbatim but for a bottom node no row of this
+    // data reaches, which merges into its parent. Only a structural predictor mismatch
     // the remap cannot bridge - a categorical/continuous disagreement, or a
     // malformed donor grid - is refused here as gridMismatch.
     bool crossGrid = donor.cutPoints != data_.cutPoints;
@@ -1435,8 +1442,9 @@ public:
     // restores the live grid on scope exit); the remap only ever collapses
     // splits, so a donor feasible pre-remap stays feasible after.
     // The rebuild itself is judged here too, on scratch trees over the same
-    // grid: a donor tree that does not build, or a same-grid variance tree
-    // that leaves a bottom node empty, is refused before anything is touched.
+    // grid: a donor tree that does not build is refused before anything is
+    // touched. A bottom node the destination's rows do not reach is merged at
+    // install, on either grid.
     auto checkContainment = [&]() -> WarmStartResult {
       for (size_t c = 0; c < chains_.size(); ++c)
         if (!chains_[c]->interactionStateFeasible(install[c]))
@@ -1450,8 +1458,7 @@ public:
       for (size_t c = 0; c < chains_.size(); ++c)
         if (chains_[c]->hasVarianceForest() &&
             !chains_[c]->varianceForestRebuildable(
-              install[c].varianceTrees, install[c].varianceTreeMasks,
-              !crossGrid))
+              install[c].varianceTrees, install[c].varianceTreeMasks))
           return WarmStartResult::varianceMismatch;
       return WarmStartResult::ok;
     };

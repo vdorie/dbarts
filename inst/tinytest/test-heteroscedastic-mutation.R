@@ -232,13 +232,12 @@ pinnedRun <- pinned$run(0L, 5L)
 expect_true(all(is.finite(pinnedRun$variance)))
 expect_true(all(pinnedRun$variance > 0))
 
-# ---- setState now validates variance tree occupancy ----
+# ---- setState merges a variance bottom no row reaches ----
 # The transactional entries above install a row only if it empties no leaf of
-# any tree, the variance forest included. setState imposed that criterion on
-# every mean tree and on no variance tree, so the route the old refusal message
-# recommended admitted states the veto refuses: a variance bottom no row reaches
-# carries no drawn scale. It is checked now, which is a behavior CHANGE - such
-# a state used to install.
+# any tree, the variance forest included. A state can still carry a variance
+# bottom no row of this data reaches; it carries no drawn scale, so setState
+# merges it into its parent, as a forced setPredictor does, and the installed
+# tree is occupied.
 set.seed(53, sample.kind = "Rejection")
 stateSampler <- buildVarianceSampler(xPin, yPin)
 # an explicit grid, so the hand-built splits below sit on known cut values
@@ -277,7 +276,14 @@ strandedState <- replaceFirstVarianceTree(
   stateSampler$state,
   c(0.25, 0.75, 1.3, 0.7, 1.1)
 )
-expect_error(stateSampler$setState(strandedState), "not consistent")
+expect_silent(stateSampler$setState(strandedState))
+stateSampler$storeState()
+# the nested split merged away: root split, then its two leaves
+expect_identical(stateSampler$state[[1L]]$variance.sizes[1L], 3L)
+expect_identical(
+  stateSampler$state[[1L]]$variance.vars[1:3],
+  c(1L, -1L, -1L)
+)
 # non-vacuity: the same hand-built shape with the nesting the other way round
 # leaves every bottom occupied and installs
 occupiedState <- replaceFirstVarianceTree(

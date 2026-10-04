@@ -199,17 +199,15 @@ expect_identical(liveVariance(dest$state), expected)
 expect_true(all(is.finite(dest$run(0L, 3L)$sigma)))
 
 ## ---- a saved slot the destination's rows no longer support ----
-# saved variance trees are exempt from the occupancy pass that live ones take,
-# so a donor that kept sweeps and then had its rows moved can hold a slot whose
-# region is empty against the destination. That is refused by the variance
-# install, not silently installed: an unoccupied scale leaf reports a scale the
-# data never supported.
+# a donor that kept sweeps can hold a slot whose region is empty against the
+# destination's rows. The variance install merges a scale leaf no row reaches
+# into its parent, as a forced setPredictor does, so no installed leaf reports
+# a scale the data never supported and the sampler restores itself.
 strandDest <- hetSampler(FALSE)
 strandDest$setPredictor(rep(0.97, n), 1L, forceUpdate = TRUE)
-expect_error(
-  strandDest$installTrees(donor, samples = 1L),
-  "variance surface is incompatible"
-)
+expect_silent(strandDest$installTrees(donor, samples = 1L))
+strandDest$storeState()
+expect_silent(strandDest$setState(strandDest$state))
 expect_true(all(is.finite(strandDest$run(0L, 3L)$sigma)))
 
 ## ---- setState is held to the column mask installTrees is ----

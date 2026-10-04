@@ -3910,9 +3910,9 @@ public:
                                    fs.trees[t].size(), params, 1, nullptr,
                                    masks, numMaskWords))
           return false;
-        scratch.repartitionSubtree(data_, 0);
-        if (!scratch.bottomNodesAreOccupied()) return false;
-        // a state install must not admit a tree that violates the constraint
+        // a bottom node no row of this data reaches is not a refusal: the
+        // install merges it into its parent (rebuildLiveForest).
+        // A state install must not admit a tree that violates the constraint
         // (design "Containment"): the availability predicate is not self-
         // checking, so treeLogProbability would mis-score a donor grown
         // unconstrained. Trivially passes for an unconstrained forest.
@@ -3962,12 +3962,10 @@ public:
       return false;
     // heteroscedastic: a variance state must carry one flat tree per variance
     // tree, each well-formed AND with every leaf a strictly positive scale (a
-    // variance, unlike a Gaussian mean leaf) - the scale-leaf validation - AND
-    // with every bottom occupied against this sampler's data, the criterion the
-    // mean branch above imposes tree by tree. Without the occupancy pass an
-    // installed variance tree could report a scale no row supports, which is
-    // exactly what the transactional veto refuses to create. The SAVED buffer
-    // is held to form and positivity only (see below).
+    // variance, unlike a Gaussian mean leaf) - the scale-leaf validation. A
+    // bottom no row of this data reaches is merged at install
+    // (rebuildVarianceForest), as on the mean side. The SAVED buffer is held to
+    // form and positivity only (see below).
     if (varianceForest_) {
       if (state.varianceTrees.size() != varianceForest_->numTrees) return false;
       // mask channels pair one-to-one with their flat trees when present;
@@ -4011,8 +4009,6 @@ public:
         if (!scratch.buildFromFlat(data_, tree.data(), tree.size(), params, 1,
                                    nullptr, masks, numMaskWords))
           return false;
-        scratch.repartitionSubtree(data_, 0);
-        if (!scratch.bottomNodesAreOccupied()) return false;
         // the mean loop's containment law, applied to the scale surface: a
         // variance tree splitting on a column `variance = ~ subset` forbids
         // would be scored against an availability menu that excludes it, so
@@ -4020,10 +4016,9 @@ public:
         // an unrestricted variance forest (null mask short-circuit).
         if (!scratch.columnMaskSubtreeIsValid(0)) return false;
       }
-      // the saved trees: form and the scale-leaf positivity law, but NOT the
-      // occupancy pass. A saved slot is a historical replay target routed over
-      // NEW rows, never over this sampler's partition - which is why the mean
-      // side does not occupancy-check its saved trees either.
+      // the saved trees: form and the scale-leaf positivity law. A saved slot
+      // is a historical replay target routed over NEW rows, never over this
+      // sampler's partition.
       for (size_t s = 0; s < state.savedVarianceTrees.size(); ++s) {
         const std::vector<FlatNode>& saved(state.savedVarianceTrees[s]);
         const std::uint64_t* masks = state.savedVarianceTreeMasks.empty()
@@ -4219,11 +4214,20 @@ public:
   /// live channel against the current cut grid, zeroing and re-accumulating
   /// totalFits. False if a flat tree fails to rebuild. Shared by setState and
   /// the warm-start installForest.
+  ///
+  /// A tree that routes no row of the current data to some bottom node (its
+  /// predictors changed after it was drawn) is merged as forceRefreshTrees
+  /// merges it: constant and vector leaves take the weighted mean of the
+  /// subtree they replace, function leaves keep their per-observation fits,
+  /// and a monotone tree the merge takes out of the cone is reseeded. A tree
+  /// whose bottoms are all occupied is installed exactly.
   bool rebuildLiveForest(size_t f, const ForestStateData& fs,
                          std::vector<double>& params) {
     Forest<L, ResidT>& forest = forests_[f];
     size_t n = data_.numObservations;
     misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+    size_t paramStride = 1;
+    if constexpr (L::hasVectorParams) paramStride = forest.leaf.numParams();
     for (size_t t = 0; t < forest.numTrees; ++t) {
       forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
       const std::uint64_t* masks =
@@ -4244,6 +4248,9 @@ public:
           return false;
       }
       forest.trees[t].repartitionSubtree(data_, 0);
+      if (!forest.trees[t].bottomNodesAreOccupied())
+        forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
+                                           params, paramStride);
       // containment backstop (design): the live tree carries this forest's
       // constraint and column mask, so a warm-start donor grown unconstrained is
       // caught before treeLogProbability can mis-score it. installForests
@@ -4257,9 +4264,9 @@ public:
         std::memcpy(forest.treeFits.data() + t * n, fs.treeParams[t].data(),
                     n * sizeof(double));
       } else {
-        // a warm start's donor may be unconstrained; setState refused an
-        // infeasible state up front (monotoneStateFeasible), so there it is a
-        // no-op
+        // a warm start's donor may be unconstrained, and a merge above can
+        // leave the cone; setState refused a state infeasible as stored
+        // (monotoneStateFeasible)
         reseedInfeasibleMonotoneLeaves(forest, t, params);
         setTreeFits(forest, t, params);
       }
@@ -4405,13 +4412,10 @@ public:
     return true;
   }
 
-  /// The variance forest's twin: every tree builds, and, where
-  /// \p checkOccupancy (a same-grid install, whose rebuild does not collapse),
-  /// routes this data to every bottom node.
+  /// The variance forest's twin: every tree builds.
   bool varianceForestRebuildable(
       const std::vector<std::vector<FlatNode>>& trees,
-      const std::vector<std::vector<std::uint64_t>>& masks,
-      bool checkOccupancy) const {
+      const std::vector<std::vector<std::uint64_t>>& masks) const {
     const VarianceForest& vf = *varianceForest_;
     if (trees.size() != vf.numTrees) return false;
     size_t n = data_.numObservations;
@@ -4427,10 +4431,6 @@ public:
                                  leafValues, 1, nullptr, maskWords,
                                  numMaskWords))
         return false;
-      if (checkOccupancy) {
-        scratch.repartitionSubtree(data_, 0);
-        if (!scratch.bottomNodesAreOccupied()) return false;
-      }
     }
     return true;
   }
@@ -4471,11 +4471,8 @@ public:
   /// refreshVarianceForest's remap arm, mirroring rebuildLiveForestRemapped
   /// (the recovered factors come from the flat trees, not from the live slab,
   /// which still holds the destination's own surface). False when a flat tree
-  /// fails to rebuild, or when a rebuilt tree leaves a bottom unoccupied: an
-  /// empty bottom carries no drawn factor, and while recoverVarianceLeafValues
-  /// keeps that safe by abstaining (1.0), installing one would report a scale
-  /// this data never supported. Only the same-grid arm can produce one - the
-  /// cross-grid remap collapses empty nodes.
+  /// fails to rebuild. Both arms merge a bottom no row reaches, so no installed
+  /// tree reports a scale this data never supported.
   bool installVarianceForest(
       const std::vector<std::vector<FlatNode>>& trees,
       const std::vector<std::vector<std::uint64_t>>& masks,
@@ -4504,8 +4501,6 @@ public:
       }
       refreshVarianceForest(donorCutPoints, &recovered);
     }
-    for (std::size_t j = 0; j < vf.numTrees; ++j)
-      if (!vf.trees[j].bottomNodesAreOccupied()) return false;
     return true;
   }
 
@@ -5235,10 +5230,10 @@ private:
   /// DO have support instead of zero, and a flattened state stays inside its
   /// own strict-positivity check. The empty-leaf veto keeps a live tree's
   /// bottoms occupied, and every public route that can install a variance
-  /// state - setState and a warm start through installForests - now refuses
-  /// one with an unoccupied bottom, so the fallback is unreachable from any
-  /// public route; it remains a defensive floor for a recover call over a tree
-  /// admitted some other way. refreshVarianceForest asserts the live invariant
+  /// state - setState and a warm start through installForests - merges an
+  /// unoccupied bottom into its parent, so the fallback is unreachable from
+  /// any public route; it remains a defensive floor for a recover call over a
+  /// tree admitted some other way. refreshVarianceForest asserts the live invariant
   /// at its recover step.
   /// Internal slots are never read - flatten and the merges take bottoms only.
   void recoverVarianceLeafValues(const VarianceForest& vf, std::size_t j,
@@ -5307,7 +5302,10 @@ private:
 
   /// Rebuild the variance forest from a flat state's variance trees: rebuild
   /// each tree, scatter its positive leaf factors to the per-observation slab
-  /// through the restored partition, then recompute s^2(x) as the product.
+  /// through the restored partition, then recompute s^2(x) as the product. A
+  /// bottom no row of the current data reaches is merged into its parent with
+  /// the geometric mean, as refreshVarianceForest merges it; a tree whose
+  /// bottoms are all occupied is installed exactly.
   bool rebuildVarianceForest(
       const std::vector<std::vector<FlatNode>>& trees,
       const std::vector<std::vector<std::uint64_t>>& masks) {
@@ -5326,6 +5324,9 @@ private:
                               leafValues, 1, nullptr, maskWords, numMaskWords))
         return false;
       tree.repartitionSubtree(data_, 0);
+      if (!tree.bottomNodesAreOccupied())
+        tree.collapseEmptyNodes<GeometricMerge>(
+          data_, response_->workingWeights(), leafValues);
       // containment backstop, the variance analogue of rebuildLiveForest's:
       // the live tree carries this forest's column mask, so a forbidden split
       // cannot reach the sweep by any live-install path. The two entries

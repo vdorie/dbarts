@@ -1237,8 +1237,8 @@ static void testVarianceWarmStart() {
   check(coarse->setState(remappedState, nullptr),
         "variance warm start: the remapped surface serializes legally");
 
-  // (3) an install leaving a variance bottom unoccupied is refused: x0 <=
-  // cut[2] then x0 > cut[8] is a region no row can reach
+  // (3) a variance bottom no row reaches merges at install: x0 <= cut[2] then
+  // x0 > cut[8] is a region no row can reach
   SamplerStateData emptyBottom = donorState;
   const std::vector<double>& cuts(donorState.cutPoints[0]);
   check(cuts.size() > 8, "variance warm start: enough cuts for the nesting");
@@ -1255,8 +1255,13 @@ static void testVarianceWarmStart() {
   stranded[4].value = 1.1;
   auto strandTarget = makeSampler(8096, 100, false);
   check(strandTarget->installForests(emptyBottom, liveMap) ==
-          WarmStartResult::varianceMismatch,
-        "variance warm start: an unoccupied variance bottom is refused");
+          WarmStartResult::ok,
+        "variance warm start: an unoccupied variance bottom installs");
+  SamplerStateData strandedAfter;
+  strandTarget->getState(strandedAfter);
+  check(strandedAfter.chains[0].varianceTrees[0].size() == 3 &&
+          strandTarget->chain(0).varianceTree(0).bottomNodesAreOccupied(),
+        "variance warm start: and merges into its sibling");
 
   // (4) a donor variance tree splitting outside a `variance = ~ x0`
   // destination's columns is refused, and a compliant one is not
@@ -2021,6 +2026,189 @@ static void testMultiChainPartialFillPredict() {
   printf("ok: multi-chain partial-fill predict\n");
 }
 
+/// Whether every live tree of every chain, mean and variance, routes a row to
+/// each bottom node.
+template <typename L>
+static bool liveTreesAreOccupied(Sampler<L>& sampler) {
+  for (size_t c = 0; c < sampler.numChains(); ++c) {
+    auto& chain = sampler.chain(c);
+    for (size_t f = 0; f < chain.numForests(); ++f)
+      for (size_t t = 0; t < chain.numTreesInForest(f); ++t)
+        if (!chain.treeInForest(f, t).bottomNodesAreOccupied()) return false;
+    if (chain.hasVarianceForest())
+      for (size_t j = 0; j < chain.numVarianceTrees(); ++j)
+        if (!chain.varianceTree(j).bottomNodesAreOccupied()) return false;
+  }
+  return true;
+}
+
+/// The live trees and leaf parameters of two states, every chain and forest.
+static bool sameLiveTrees(const SamplerStateData& a,
+                          const SamplerStateData& b) {
+  if (a.chains.size() != b.chains.size()) return false;
+  for (size_t c = 0; c < a.chains.size(); ++c) {
+    const ChainStateData& x(a.chains[c]);
+    const ChainStateData& y(b.chains[c]);
+    if (x.forests.size() != y.forests.size()) return false;
+    for (size_t f = 0; f < x.forests.size(); ++f)
+      if (!sameFlatTrees(x.forests[f].trees, y.forests[f].trees) ||
+          x.forests[f].treeParams != y.forests[f].treeParams)
+        return false;
+    if (!sameFlatTrees(x.varianceTrees, y.varianceTrees)) return false;
+  }
+  return true;
+}
+
+/// A state stored before a forced setPredictor routes no row to some of its
+/// bottom nodes. Restoring it, or warm-starting from it on the same grid,
+/// merges those nodes exactly as the forced update merged them, leaves every
+/// live tree occupied, and the sampler then runs and restores itself.
+template <typename L>
+static void checkStaleStateMerges(Sampler<L>& sampler,
+                                  const std::vector<double>& xNew,
+                                  const char* label) {
+  Results empty;
+  sampler.run(40, 0, empty);
+  SamplerStateData stale;
+  sampler.getState(stale);
+  sampler.setPredictor(xNew.data(), true, false);
+  SamplerStateData forced;
+  sampler.getState(forced);
+  bool merged = !sameLiveTrees(stale, forced);
+
+  bool restores = sampler.setState(stale, nullptr);
+  SamplerStateData restored;
+  sampler.getState(restored);
+  bool restoredAsForced = statesAgree(forced, restored);
+  bool restoredOccupied = liveTreesAreOccupied(sampler);
+
+  std::vector<std::pair<size_t, int>> liveMap;
+  for (size_t c = 0; c < sampler.numChains(); ++c) liveMap.push_back({c, -1});
+  bool warmStarts = sampler.installForests(stale, liveMap) ==
+    WarmStartResult::ok;
+  SamplerStateData warm;
+  sampler.getState(warm);
+  bool warmAsForced = sameLiveTrees(forced, warm);
+  bool warmOccupied = liveTreesAreOccupied(sampler);
+
+  sampler.run(5, 0, empty);
+  SamplerStateData after;
+  sampler.getState(after);
+  bool continues = sampler.setState(after, nullptr);
+
+  char line[160];
+  snprintf(line, sizeof line, "%s: the forced update merged a stale leaf",
+           label);
+  check(merged, line);
+  snprintf(line, sizeof line, "%s: the stale state restores", label);
+  check(restores, line);
+  snprintf(line, sizeof line, "%s: the restore merges as the forced update",
+           label);
+  check(restoredAsForced, line);
+  snprintf(line, sizeof line, "%s: no restored tree has an empty leaf", label);
+  check(restoredOccupied, line);
+  snprintf(line, sizeof line, "%s: a same-grid warm start installs", label);
+  check(warmStarts, line);
+  snprintf(line, sizeof line, "%s: the warm start merges as the forced update",
+           label);
+  check(warmAsForced, line);
+  snprintf(line, sizeof line, "%s: no warm-started tree has an empty leaf",
+           label);
+  check(warmOccupied, line);
+  snprintf(line, sizeof line, "%s: the sampler runs and restores itself",
+           label);
+  check(continues, line);
+}
+
+static void testStaleStateMerge() {
+  const size_t n = 200, p = 2;
+  std::vector<double> x(n * p), y(n), z(n), xNew;
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    y[i] = 4.0 * (x[i] > 0.5 ? 1.0 : 0.0) + x[i + n] +
+      0.2 * (runif01() - 0.5);
+    z[i] = i % 2 == 0 ? 1.0 : 0.0;
+  }
+  // the extremes stay, so the grid would not move; the interior collapses
+  xNew = x;
+  double lo = *std::min_element(x.begin(), x.begin() + n);
+  double hi = *std::max_element(x.begin(), x.begin() + n);
+  for (size_t i = 0; i < n; ++i)
+    if (xNew[i] > lo && xNew[i] < hi) xNew[i] = 0.5;
+
+  std::vector<ext_rng*> rngs;
+  auto newRng = [&](std::uint32_t seed) {
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return r;
+  };
+  const double rawScale = 0.37804942330213542;
+
+  {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.numVarianceTrees = 4;
+    ext_rng* r = newRng(711u);
+    ConstantLeafSampler s(x.data(), y.data(), n, p, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0, rawScale,
+                          options, &r);
+    checkStaleStateMerges(s, xNew, "constant and variance leaves");
+  }
+  std::vector<size_t> covariates = {0};
+  {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.leafCovariateColumns = covariates.data();
+    options.numLeafCovariates = 1;
+    ext_rng* r = newRng(712u);
+    Sampler<LinearGaussianLeaf> s(x.data(), y.data(), n, p, nullptr, nullptr,
+                                  ResponseFamily::gaussian, 1.0, 3.0, rawScale,
+                                  options, &r);
+    checkStaleStateMerges(s, xNew, "linear leaf");
+  }
+  {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.gpLeaves = true;
+    options.leafCovariateColumns = covariates.data();
+    options.numLeafCovariates = 1;
+    ext_rng* r = newRng(713u);
+    Sampler<GPGaussianLeaf> s(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0, rawScale,
+                              options, &r);
+    checkStaleStateMerges(s, xNew, "gp leaf");
+  }
+  {
+    std::int8_t directions[] = {1, 0};
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.monotoneDirections = directions;
+    ext_rng* r = newRng(714u);
+    Sampler<MonotoneConstantGaussianLeaf> s(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, rawScale, options, &r);
+    checkStaleStateMerges(s, xNew, "monotone leaf");
+  }
+  {
+    SamplerOptions options;
+    AmplitudeSpec spec;
+    spec.mu.numTrees = 10;
+    spec.mu.base = 0.95;
+    spec.mu.power = 2.0;
+    spec.tau.numTrees = 6;
+    spec.tau.base = 0.25;
+    spec.tau.power = 3.0;
+    spec.z = z.data();
+    ext_rng* r = newRng(715u);
+    ConstantLeafSampler s(x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+                          rawScale, options, spec, &r);
+    checkStaleStateMerges(s, xNew, "two-forest sampler");
+  }
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  printf("ok: a stale state merges empty leaves on install\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -2038,6 +2226,7 @@ void runStateTests(ext_rng* rng) {
   testCrossGridWarmStart();
   testVarianceWarmStart();
   testVarianceWarmStartSlot();
+  testStaleStateMerge();
   testVarianceForestPriorDraw();
   testCurrentVarianceRead();
   testVarianceSavedTreeState();

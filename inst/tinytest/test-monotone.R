@@ -664,15 +664,15 @@ invisible(monoReach$run(20L, 1L))
 expect_true(maxDrop(monoReach) <= 1e-8)
 rm(xFlat)
 
-# empty leaves carry drawn values in the cone: a 20-tree fit warm-started
-# from a monotone donor over [0, 1] into rows that leave x1 in (0.6, 1) empty
-# (the endpoints keep the grids equal, so the trees install verbatim) strands
-# leaves where the fit sits above 0. The structure is then frozen (the
-# all-zero mixture, which a monotone sampler allows), so the empty leaves are
-# redrawn every sweep instead of being merged away by the first death. Every
-# tree is checked on its own, read through getTrees and evaluated at the
-# midpoint of every cell its splits cut out, so no other tree's rise can mask
-# a fall and no cell is missed
+# a warm start leaves no empty leaf and stays in the cone: a 20-tree fit
+# warm-started from a monotone donor over [0, 1] into rows that leave x1 in
+# (0.6, 1) empty (the endpoints keep the grids equal) has the leaves no row
+# reaches merged into their parents, and a merged tree outside the cone
+# reseeded. The structure is then frozen (the all-zero mixture, which a
+# monotone sampler allows), so only leaf draws move the trees. Every tree is
+# checked on its own, read through getTrees and evaluated at the midpoint of
+# every cell its splits cut out, so no other tree's rise can mask a fall and no
+# cell is missed
 donorReach <- dbarts::dbarts(
   xReach,
   -yReach,
@@ -737,7 +737,7 @@ totalGap <- Reduce(
   lapply(split(treesGap, treesGap$tree), treeAt, x = gridReach)
 )
 expect_equal(cor(totalGap, gapReach$predict(gridReach)), 1)
-expect_true(any(treesGap$var < 0L & treesGap$n == 0L))
+expect_false(any(treesGap$var < 0L & treesGap$n == 0L))
 dropsGap <- vapply(
   seq_len(20L),
   function(i) {
@@ -748,7 +748,7 @@ dropsGap <- vapply(
 )
 expect_true(all(dropsGap <= 1e-12))
 treesGap <- gapReach$getTrees()
-expect_true(any(treesGap$var < 0L & treesGap$n == 0L))
+expect_false(any(treesGap$var < 0L & treesGap$n == 0L))
 
 rm(
   nReach,
