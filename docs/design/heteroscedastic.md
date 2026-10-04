@@ -663,15 +663,14 @@ new partition, and recomputes `combinedVariance`. `Chain::repartitionTrees`
 rejected transaction restores the variance trees' partitions exactly rather
 than leaving them re-routed by the declined proposal.
 
-The acceptance criterion is the one this document's variance forest has always
-needed and did not fully have: `Chain::stateIsValid`'s variance branch checked
-tree well-formedness and strict leaf positivity but not occupancy, so
-`$setState` could install a variance state with an unoccupied bottom - one that
-carries no drawn scale - where its mean-forest sibling had refused the
-analogous state all along. S3 closes that gap: the variance branch now builds
-the same scratch-tree-and-repartition check the mean branch already ran, so
-`$setState` refuses such a state too. This is a behavior change (a state that
-used to install now does not) and ships its own NEWS bullet and tinytest.
+A stored state is held to the same law by merging rather than refusing.
+`Chain::stateIsValid`'s variance branch checks tree well-formedness and strict
+leaf positivity; a variance bottom the current data leaves empty, which would
+carry no drawn scale, is merged into its parent at install with the geometric
+mean, as `refreshVarianceForest` merges after a forced predictor swap
+([`Chain::rebuildVarianceForest`](../../src/bartcore/chain.hpp)). The mean
+forests merge the same way, so `$setState`, `copy()`, a reload and a warm start
+never install a bottom no row reaches.
 
 Net effect: a heteroscedastic sampler now accepts `$setPredictor` - whole
 matrix, column subset, and per-observation alike - and the per-observation
@@ -742,14 +741,11 @@ Semantics:
   the scale-leaf positivity law to saved trees, it would make the engine's own
   `storeState` emit a state its own `stateIsValid` rejects.
 - Saved trees are held to form (`flatTreeIsWellFormed`, masks included) and leaf
-  positivity, but NOT to the occupancy pass section 14 added for the live trees.
-  A saved slot is a historical replay target routed over NEW rows, never over
-  this sampler's partition; the mean side does not occupancy-check its saved
-  trees either. A slot-sourced warm start is the one path that makes a saved
-  slot LIVE, and it is occupancy-checked there, by `installVarianceForest` -
-  so a donor that kept sweeps and then had its rows moved can hold a slot the
-  destination refuses. Refusing is right: an unoccupied scale leaf reports a
-  scale the data never supported.
+  positivity only. A saved slot is a historical replay target routed over NEW
+  rows, never over this sampler's partition. A slot-sourced warm start is the
+  one path that makes a saved slot LIVE, and `installVarianceForest` merges
+  there, as every install does, a bottom the destination's rows leave empty, so
+  no installed scale leaf reports a scale the data never supported.
 - `setTreeStorage` re-runs `initializeSavedTrees` and resets the sample counter,
   so a capacity change followed by `$setState` refuses under the size gate -
   already the mean-side behavior.

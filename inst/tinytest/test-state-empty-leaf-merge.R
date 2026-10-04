@@ -27,6 +27,10 @@ control <- dbartsControl(
   updateState = FALSE,
   seed = 17L
 )
+# the merged leaf values, which statesAgree leaves out
+treeValues <- function(state) {
+  lapply(state, function(chain) lapply(chain$forests, `[[`, "tree.values"))
+}
 noEmptyLeaf <- function(sampler) {
   trees <- sampler$getTrees()
   !any(trees$var == -1L & trees$n == 0L)
@@ -55,9 +59,11 @@ checkStaleRestore <- function(make, info) {
   expect_silent(sampler$setState(stale))
   sampler$storeState()
   statesAgree(sampler$state, forced)
+  expect_identical(treeValues(sampler$state), treeValues(forced), info = info)
   for (route in list(duplicate, reloaded)) {
     route$storeState()
     statesAgree(route$state, forced)
+    expect_identical(treeValues(route$state), treeValues(forced), info = info)
   }
   for (route in list(sampler, duplicate, reloaded)) {
     result <- route$run(0L, 3L)
@@ -96,6 +102,56 @@ invisible(exact$run(0L, 3L))
 exact$setState(held)
 exact$storeState()
 statesAgree(exact$state, held)
+
+# a merge weighs a subtree's leaves under the state's own latents, not the
+# destination's: a sampler whose latents moved after the forced update and a
+# copy() starting cold restore the same stale state to the same trees, leaf
+# values and next draws. Whether a merged subtree's leaf weights differ is
+# draw-dependent, so each family runs over several seeds
+yCount <- rpois(n, exp(x[, 1L] + x[, 2L]))
+makeLatentSampler <- function(name, seed) {
+  control <- dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 20L,
+    n.samples = 3L,
+    updateState = FALSE,
+    seed = seed
+  )
+  switch(
+    name,
+    logistic = dbarts(
+      x,
+      as.integer(y > 2.5),
+      family = binomial(link = "logit"),
+      control = control
+    ),
+    nbinom = dbarts(x, yCount, family = "nbinom", control = control),
+    student = dbarts(x, y, family = student(df = 5), control = control)
+  )
+}
+for (name in c("logistic", "nbinom", "student")) {
+  for (seed in 1:6) {
+    info <- paste(name, seed)
+    moved <- makeLatentSampler(name, seed)
+    invisible(moved$run(40L, 3L))
+    moved$storeState()
+    stale <- moved$state
+    moved$setPredictor(xNew, forceUpdate = TRUE)
+    invisible(moved$run(0L, 5L))
+    cold <- moved$copy()
+    moved$setState(stale)
+    moved$storeState()
+    cold$storeState()
+    statesAgree(moved$state, cold$state)
+    expect_identical(
+      treeValues(moved$state),
+      treeValues(cold$state),
+      info = info
+    )
+    expect_identical(moved$run(0L, 3L), cold$run(0L, 3L), info = info)
+  }
+}
 
 # a same-grid warm start whose donor leaves a leaf with no rows: the
 # destination's trees are merged, so it carries no empty leaf, and it restores

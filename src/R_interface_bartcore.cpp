@@ -8455,10 +8455,9 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
       Rf_error("%s", columnMaskMismatchMessage);
     case bartcore::WarmStartResult::varianceMismatch:
       Rf_error("warm-start donor's variance trees cannot be installed on this "
-               "sampler's data (a rebuilt variance tree leaves a leaf empty, a "
-               "scale leaf is not positive, or a flat tree failed to rebuild); "
-               "the donor's variance surface is incompatible with this "
-               "sampler, and nothing was installed");
+               "sampler's data (a scale leaf is not positive, or a flat tree "
+               "failed to rebuild); the donor's variance surface is "
+               "incompatible with this sampler, and nothing was installed");
     case bartcore::WarmStartResult::varianceSlotMismatch:
       Rf_error("warm-start donor's saved variance buffer does not hold the "
                "requested sample; a warm start from a saved sample installs "

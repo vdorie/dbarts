@@ -207,6 +207,14 @@ strandDest <- hetSampler(FALSE)
 strandDest$setPredictor(rep(0.97, n), 1L, forceUpdate = TRUE)
 expect_silent(strandDest$installTrees(donor, samples = 1L))
 strandDest$storeState()
+# the merge itself: on the same grid an unmerged slot would install verbatim,
+# node for node, so fewer live nodes than the slot carried is the merge
+slotSizes <- donor$state[[1L]][["variance.saved.sizes"]][
+  seq_len(nVarianceTrees)
+]
+expect_true(
+  sum(strandDest$state[[1L]][["variance.sizes"]]) < sum(slotSizes)
+)
 expect_silent(strandDest$setState(strandDest$state))
 expect_true(all(is.finite(strandDest$run(0L, 3L)$sigma)))
 

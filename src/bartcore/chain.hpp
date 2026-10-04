@@ -4573,6 +4573,29 @@ public:
       if constexpr (leafSupportsVarianceForest)  // as in installForest
         if (varianceForest_) calibrateVarianceLeaf();
     }
+    // RESTORE CONTRACT: the response's own state goes in BEFORE the trees, so
+    // a merge of a leaf no row reaches weighs its subtree under the state's
+    // working weights (omega, lambda) rather than the destination's. Each
+    // restore below is fit-free - a copy plus a working-response or weight
+    // rebuild that reads no tree, sigma or surface - which is what makes that
+    // order admissible; keep them so.
+    // An NB response's restoreLatents rebuilds the working response from omega
+    // AND r, so a drawn shape MUST be reinstalled before the latents - a
+    // restore that installs omega first would rebuild working against the
+    // stale r. stateIsValid guaranteed a finite positive r where one is
+    // present.
+    if (response_->drawsShape() && !std::isnan(state.shape))
+      response_->restoreShape(state.shape);
+    if (!state.latents.empty())
+      response_->restoreLatents(state.latents.data());
+    // estimated mode reinstalls its last grid draw, which stateIsValid found
+    // positive; fixed mode keeps its own constant
+    if (response_->drawsResidualDf() && !std::isnan(state.residualDf))
+      response_->restoreResidualDf(state.residualDf);
+    // stateIsValid guaranteed a full length-(K-1) cutpoint vector for an
+    // ordinal sampler; z was restored above under these same cutpoints
+    if (response_->carriesOrdinalThresholds())
+      response_->restoreOrdinalThresholds(state.ordinalThresholds.data());
     std::vector<double> params;
     for (size_t f = 0; f < forests_.size(); ++f) {
       Forest<L, ResidT>& forest = forests_[f];
@@ -4607,28 +4630,6 @@ public:
       if (forest.updateK && !std::isnan(fs.k)) forest.k = fs.k;
     }
     installDrawnScalars(state, ownSigma);
-    // RESTORE CONTRACT: an NB response's restoreLatents rebuilds the
-    // working response from omega AND r,
-    // so a drawn shape MUST be reinstalled before the latents - a restore that
-    // installs omega first would rebuild working against the stale r.
-    // stateIsValid guaranteed a finite positive r where one is present.
-    if (response_->drawsShape() && !std::isnan(state.shape))
-      response_->restoreShape(state.shape);
-    if (!state.latents.empty())
-      response_->restoreLatents(state.latents.data());
-    // RESTORE CONTRACT: a heteroscedastic aft restores its censored latents
-    // HERE, ahead of the rebuildVarianceForest below that recomputes s^2(x) -
-    // admissible only because AFTResponse::restoreLatents is a memcpy plus a
-    // working-response rebuild reading NEITHER sigma nor the surface. Keep it
-    // surface-free, or move the variance rebuild ahead of it.
-    // estimated mode reinstalls its last grid draw, which stateIsValid found
-    // positive; fixed mode keeps its own constant
-    if (response_->drawsResidualDf() && !std::isnan(state.residualDf))
-      response_->restoreResidualDf(state.residualDf);
-    // stateIsValid guaranteed a full length-(K-1) cutpoint vector for an
-    // ordinal sampler; z was restored above under these same cutpoints
-    if (response_->carriesOrdinalThresholds())
-      response_->restoreOrdinalThresholds(state.ordinalThresholds.data());
     if (combiner_) combiner_->restoreGlue(state);
     // heteroscedastic: rebuild the variance trees and recompute s^2(x) from the
     // restored positive factors (stateIsValid checked count, form, positivity)

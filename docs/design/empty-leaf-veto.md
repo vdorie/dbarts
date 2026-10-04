@@ -124,8 +124,8 @@ nothing to estimate should contribute nothing. Equal rank at level 1 is what
 keeps a vetoed forest moving: the tree mixes under prior x transition at a
 constant likelihood, and any move clearing the veto is a rank decrease,
 accepted outright. Level 2 stays separate so the MEMBERSHIP law - what
-`bottomNodesAreOccupied`, state export/restore and the predictor surface all
-require - is never violated from a vetoed state.
+`bottomNodesAreOccupied` answers, the predictor surface requires and a state
+install restores by merging - is never violated from a vetoed state.
 
 Stationarity. The target is the CGM prior x marginal restricted to the
 admissible set S and renormalized, which IS the veto's definition. On S x S the
@@ -204,25 +204,22 @@ the exact-posterior gates as the arbiter.
 ## The invariant elsewhere: the transactional predictor surface
 
 The empty-leaf invariant this note keeps (no live tree may hold an unoccupied
-bottom) is not confined to the move kernels. `Chain::stateIsValid`'s mean
-branch has always re-derived it structurally - build a scratch tree per stored
-tree, repartition against the sampler's current data, and refuse unless every
-bottom is occupied - as the criterion `$setState` and a warm start
-(`installForests`) both gate on. `docs/plans/archive/multiforest-predictor-mutation.md`
-made the TRANSACTIONAL predictor surface (`$setPredictor` - whole matrix,
-column subset, or per-observation - and the cross-sampler per-observation
-session) enforce that same criterion rather than a weaker one: a row installs
-only if it empties no leaf in any tree of any forest of any chain, exactly
-what `stateIsValid` already required of a
-restored state. That arc did not invent a new invariant; it closed a gap
-between two paths that were supposed to agree and did not.
+bottom) is not confined to the move kernels. The TRANSACTIONAL predictor
+surface (`$setPredictor` - whole matrix, column subset, or per-observation -
+and the cross-sampler per-observation session) enforces it by refusal: a row
+installs only if it empties no leaf in any tree of any forest of any chain. The
+forced predictor swap, `setCutPoints` and `setData` enforce it by merging an
+emptied bottom into its parent.
 
-One asymmetry survived until that arc's S3: the variance forest's branch of
-`stateIsValid` checked well-formedness and strict leaf positivity but not
-occupancy, so a heteroscedastic sampler's `$setState` could install a variance
-state the mutation veto would have refused. S3 (2026-08-12) closed it, adding
-the same scratch-build-and-repartition occupancy check to the variance branch;
-see docs/design/heteroscedastic.md section 14.
+Every install of stored trees enforces it by the same merge. `$setState`,
+`copy()`, a reload and a warm start build each stored tree against the
+sampler's current data and merge a bottom no row reaches into its parent, mean
+and variance forests alike
+([`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp),
+[`Chain::rebuildVarianceForest`](../../src/bartcore/chain.hpp)); a tree whose
+bottoms are all occupied installs exactly. `Chain::stateIsValid` judges a
+stored tree's form, not its occupancy. See docs/design/heteroscedastic.md
+section 14 for the variance forest.
 
 ## What counts as empty: the weight law (2026-08-12)
 
@@ -295,12 +292,12 @@ depends on this and is written against it):
   on structure that must be legal after a data or cut-grid change, where a
   member-empty leaf is unrepresentable and a zero-weight one is merely
   uninformative.
-- `Tree::bottomNodesAreOccupied` and `Chain::stateIsValid`'s scratch rebuild -
-  the transactional predictor surface and the state-restore criterion. These
-  answer "is this partition representable against this data", a question about
-  membership; a weight-based criterion there would refuse a state the sampler
-  itself could have drawn under a different weight vector, since weights do not
-  ride the state block.
+- `Tree::bottomNodesAreOccupied` - the transactional predictor surface's
+  criterion and the test a state install merges on. It answers "is this
+  partition representable against this data", a question about membership; a
+  weight-based criterion there would refuse or merge a state the sampler itself
+  could have drawn under a different weight vector, since weights do not ride
+  the state block.
 - `Tree::numObservations` itself, and the chi-k leaf-count gates that read it.
 
 The weight law therefore changes which branches are VETOED, not which are
