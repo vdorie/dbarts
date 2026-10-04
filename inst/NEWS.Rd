@@ -548,6 +548,12 @@
             groups failed.
       \item An \code{n.cuts} above 65533, the most a predictor's grid can
             hold, is an error; 0.9-34 accepted it and could hang.
+      \item \code{predict} on a fit kept with \code{keepSampler = TRUE}
+            and \code{keepTrees = FALSE} is an error when the fit has more
+            than one chain, asking for \code{keepTrees = TRUE}; 0.9-34
+            returned the first chain's values and arbitrary numbers for
+            the others. A one-chain fit still predicts from its current
+            trees.
       \item \code{rbart_vi}: the intercepts are drawn with precision weights
             and start from a sweep of the trees, where a start from prior
             trees could inflate the posterior of \code{tau} many times over
