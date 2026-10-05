@@ -1460,6 +1460,10 @@ Record: this register; TODO pdbart-closed-arguments. Marked: blank. [dec-B212]
 Under dec-B206, a pdbart or pd2bart call that passes data and names no BayesTree argument shows its own once-per-session message that the fit now uses bart's defaults and that pdbart(bartBT(x, y, keeptrees = TRUE)) gives the 0.9-34 model; it is not shown for a fit passed in or to calls from another package's code, and is removed at 1.1-0 with the other transition notices. bart's own message is held back inside pdbart without using up its showing. The alternative was NEWS alone. The maintainer on 2026-10-04: "pdbart gets its own once-per-session message."
 Record: this register. Marked: blank. [dec-B213]
 
+**pdbart averages unweighted unless given average.weights**
+Under dec-B203, pdbart and pd2bart average over the fit's rows (or newdata's) unweighted, leaving out rows the fit excludes with a 0 weight, since a fit's weights are a precision, a trial count or a row mask and not a population weight; they gain average.weights, one non-negative weight per averaged row, normalized, for a weighted population average, as randomForest::partialPlot's w. The name avoids weights, which reaches bart through ... as the fit's weights. The alternatives were averaging by the fit's weights, unweighted only with average weights left for later, and the names w and pd.weights. The maintainer on 2026-10-04: "Option 3 seems cheap now." and "average.weights."
+Record: this register. Marked: blank. [dec-B214]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
