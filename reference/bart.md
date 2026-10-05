@@ -61,7 +61,7 @@ extract(
 
 # S3 method for class 'bartMultinomial'
 fitted(
-    object, type = c("ev", "class", "bart"),
+    object, type = c("ev", "class", "bart", "forest"),
     sample = c("train", "test"),
     ci.level = NULL, ...)
 
@@ -1619,10 +1619,10 @@ vector of category counts with that row's number of trials,
 trial), in an array shaped like `"ev"`, while its test rows, whose trial
 counts are unknown, draw one category as above.
 `extract`/`fitted`/`predict` with `type = "bart"`, and
-`extract`/`predict` with `type = "forest"`, error naming the reason: the
-run records only the identified softmax probabilities, and a category's
-forest is a latent whose level is reproducibly structured yet not
-identified (in the same sense as BCF's \\a\\), so a raw replay would
+`extract`/`fitted`/`predict` with `type = "forest"`, error naming the
+reason: the run records only the identified softmax probabilities, and a
+category's forest is a latent whose level is reproducibly structured yet
+not identified (in the same sense as BCF's \\a\\), so a raw replay would
 read as signal - the identified content is the log-ratio, which the logs
 of the reported probabilities carry. `predict(object, newdata)` requires
 `object` fit with `keepTrees = TRUE` (error otherwise); it codes
@@ -1952,7 +1952,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001588
+#> total seconds in loop: 0.001599
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -2001,7 +2001,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001975
+#> total seconds in loop: 0.001996
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

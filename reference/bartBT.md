@@ -73,7 +73,7 @@ extract(
 # S3 method for class 'bart'
 fitted(
     object,
-    type = c("ev", "ppd", "bart"),
+    type = c("ev", "ppd", "bart", "forest"),
     sample = c("train", "test"),
     ci.level = NULL,
     ...)
@@ -464,11 +464,11 @@ family(object, ...)
   predictive distribution, `"loglik"` - for `extract` only, the
   log-likelihood of each training observation at each posterior draw,
   `"trees"` - a data frame with tree information for when model was fit
-  with `keepTrees` equal to `TRUE`, and `"forest"` - for `extract` and
-  `predict`, the per-forest channels of an amplitude-coupled
-  multi-forest fit (see `forest`, `contribution`, and the
-  `forestFits`/`glue`/`bases` components under ‘Value’); an error naming
-  the reason on any other fit, a
+  with `keepTrees` equal to `TRUE`, and `"forest"` - for `extract`,
+  `predict` and `fitted`, the per-forest channels of an
+  amplitude-coupled multi-forest fit (see `forest`, `contribution`, and
+  the `forestFits`/`glue`/`bases` components under ‘Value’); an error
+  naming the reason on any other fit, a
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
   multinomial one included, whose K forests are per-category latents
   rather than additive components of one location.
@@ -476,15 +476,21 @@ family(object, ...)
   `predict(type = "forest")` replays each forest at `newdata`; both
   report the raw per-forest total, leaving the recombination to the
   caller, where the combined arms (`"ev"`, `"ppd"`, `"bart"`) perform it
-  given the bases at those rows (see `bases`). For `"ppd"`, a weighted
-  logistic fit draws the number of successes among the observation-count
-  weight, \\\mathrm{Binomial}(w_i, p_i)\\ (see `weights`), and `weights`
-  given to `predict` on a probit or logistic fit are likewise trial
-  counts, positive integers, each new row drawing
-  \\\mathrm{Binomial}(w_i, p_i)\\, an aft (survival) fit draws on the
-  log-time scale (the fit models \\\log T\\), a `family = student()` fit
-  draws \\f + \sigma t\_\nu / \sqrt{w_i}\\ at each draw's own \\\sigma\\
-  and \\\nu\\ (the fit's `$resid.df`), and a heteroscedastic fit
+  given the bases at those rows (see `bases`). `fitted(type = "forest")`
+  is the posterior mean of what `extract` reports, a rows-by-forests
+  matrix with `extract`'s dimnames, pooled over all samples and chains
+  and refused wherever `extract` refuses it; it is each forest's own
+  total BEFORE its basis and amplitude multiply it, so it is not that
+  forest's contribution to the fitted value, and `residuals` refuses it.
+  For `"ppd"`, a weighted logistic fit draws the number of successes
+  among the observation-count weight, \\\mathrm{Binomial}(w_i, p_i)\\
+  (see `weights`), and `weights` given to `predict` on a probit or
+  logistic fit are likewise trial counts, positive integers, each new
+  row drawing \\\mathrm{Binomial}(w_i, p_i)\\, an aft (survival) fit
+  draws on the log-time scale (the fit models \\\log T\\), a
+  `family = student()` fit draws \\f + \sigma t\_\nu / \sqrt{w_i}\\ at
+  each draw's own \\\sigma\\ and \\\nu\\ (the fit's `$resid.df`), and a
+  heteroscedastic fit
   ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `variance`) draws its noise at that observation's own
   \\s(x_i)/\sqrt{w_i}\\. For `"loglik"`, gaussian fits evaluate \\y_i
@@ -616,11 +622,14 @@ family(object, ...)
   the conditional mean (a probability for binary responses), `"ppd"` a
   prediction interval that additionally carries the residual noise (and
   so is wider), and `"bart"` a credible interval on the latent scale.
-  Refused, by name, with `type = "forest"` - that arm reports each
-  forest's own total before any basis - and on `residuals`, where it
-  would band a constant minus an increasing triple and so mislabel two
-  of its three columns; take `y - fitted(object, ci.level = )` instead,
-  where the reversal is visible at the call site.
+  For `fitted(type = "forest")` it returns the rows-by-forests-by-3
+  array of `est`, `ci.lower` and `ci.upper`, as for a multinomial fit;
+  `predict(type = "forest")` refuses it by name, since that arm reports
+  each forest's own total before any basis. It is also refused on
+  `residuals`, where it would band a constant minus an increasing triple
+  and so mislabel two of its three columns; take
+  `y - fitted(object, ci.level = )` instead, where the reversal is
+  visible at the call site.
 
 - ...:
 
@@ -1195,7 +1204,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.219672
+#> total seconds in loop: 0.221368
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

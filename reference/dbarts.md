@@ -198,7 +198,11 @@ dbarts(
   `gp(columns, k, lengthscale, max.leaf.size)` fits each leaf with a
   smooth Gaussian-process function of the designated columns under a
   squared-exponential kernel; leaves larger than `max.leaf.size` fall
-  back to constant fits.
+  back to constant fits. An ordered factor may be designated under
+  either, and enters as its level codes 1, 2, and so on, which treats
+  its levels as equally spaced, as the linear contrast
+  [`lm`](https://rdrr.io/r/stats/lm.html) gives an ordered factor does;
+  levels spaced otherwise need a numeric column holding their scores.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
   the same specifications through its own `leaf.prior` argument. See
   “Response scaling” below for how `k` interacts with the response's
