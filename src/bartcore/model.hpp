@@ -4218,7 +4218,17 @@ public:
   /// COPIED, so the caller's array is free the moment this returns. The host
   /// has already validated the values and normalized an all-ones mask to a
   /// null pointer; false is the refusal of a family that implements none.
-  virtual bool setActiveRows(const double*) { return false; }
+  ///
+  /// A family holding a per-row latent between sweeps redraws it here for
+  /// every row the mask REACTIVATES - inactive under the mask in force, active
+  /// under the new one - from the row's conditional given totalFits (the
+  /// combined location) and sigma, off rng and in row order. Such a row's
+  /// latent was last drawn against the fit of the sweep it left on, and the
+  /// next sweep moves its trees before it refreshes any latent. Rows that stay
+  /// active keep theirs, and a mask reactivating none consumes no variate.
+  virtual bool setActiveRows(const double*, ext_rng*, const double*, double) {
+    return false;
+  }
 
   /// Replace the residual-variance prior: re-anchors to the supplied
   /// original-scale sigma estimate exactly as construction does, so a swap
@@ -4342,7 +4352,28 @@ public:
   }
 
 protected:
+  /// Fills reactivatedRows_ with 1 at each row inactive under `previous` (empty
+  /// when no mask is in force) and active under `next` (null when the new mask
+  /// is none) and 0 elsewhere, and returns whether any row is. Installed as a
+  /// family's mask for the length of one latent refresh, it restricts that
+  /// refresh to exactly the reactivated rows.
+  bool findReactivatedRows(const std::vector<double>& previous,
+                           const double* next) {
+    if (previous.empty()) return false;
+    std::size_t n = previous.size();
+    reactivatedRows_.resize(n);
+    bool any = false;
+    for (std::size_t i = 0; i < n; ++i) {
+      bool reactivated =
+        previous[i] == 0.0 && (next == nullptr || next[i] != 0.0);
+      reactivatedRows_[i] = reactivated ? 1.0 : 0.0;
+      any |= reactivated;
+    }
+    return any;
+  }
+
   RefreshPoll refreshPoll_;
+  std::vector<double> reactivatedRows_;  // findReactivatedRows's scratch
 };
 
 class GaussianResponse final : public ResponseModel {
@@ -4432,8 +4463,9 @@ public:
   /// a_i multiplies the case weight, so a masked gaussian is exactly
   /// setWeights(w * a) - including the sigma posterior's degrees of freedom,
   /// which installWeights RECOUNTS off the composite rather than leaving at
-  /// the unmasked total.
-  bool setActiveRows(const double* active) override {
+  /// the unmasked total. No latent, so nothing is drawn for a reactivated row.
+  bool setActiveRows(const double* active, ext_rng*, const double*,
+                     double) override {
     if (active == nullptr) {
       if (activeRows_.empty()) return true;
       activeRows_.clear();
@@ -4678,7 +4710,15 @@ public:
 
   bool supportsActiveRows() const override { return true; }
 
-  bool setActiveRows(const double* active) override {
+  /// A reactivated row's z is redrawn from its truncated normal at the
+  /// current fit: the refresh below runs under the reactivated rows as its
+  /// mask, so it draws for those rows alone.
+  bool setActiveRows(const double* active, ext_rng* rng,
+                     const double* totalFits, double) override {
+    if (findReactivatedRows(activeRows_, active)) {
+      activeRows_.swap(reactivatedRows_);
+      refreshLatents(rng, totalFits, 1.0);
+    }
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + numObservations_);
     return true;
@@ -4809,8 +4849,16 @@ public:
 
   /// Both cutpoint sums restrict to the active rows, so the proposal scale -
   /// a function of the category counts - is recomputed here; the target
-  /// (ordinalThresholdLogAcceptance) reads the mask directly.
-  bool setActiveRows(const double* active) override {
+  /// (ordinalThresholdLogAcceptance) reads the mask directly. A reactivated
+  /// row's z is redrawn on its category interval at the current fit and
+  /// cutpoints, as probit's is; the cutpoints themselves do not move here.
+  bool setActiveRows(const double* active, ext_rng* rng,
+                     const double* totalFits, double) override {
+    if (findReactivatedRows(activeRows_, active)) {
+      activeRows_.swap(reactivatedRows_);
+      drawLatents(rng, totalFits);
+      rebuildWorking();
+    }
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + numObservations_);
     computeScales();
@@ -5140,8 +5188,15 @@ public:
 
   /// The mask is NOT redundant with the count weights: a zero count is refused
   /// at creation, no count change is accepted afterwards, and a zero-count row
-  /// would still consume one PG variate here.
-  bool setActiveRows(const double* active) override {
+  /// would still consume one PG variate here. A reactivated row's omega is
+  /// redrawn as PG(w, psi) at the current fit, as a count swap redraws an
+  /// active row's.
+  bool setActiveRows(const double* active, ext_rng* rng,
+                     const double* totalFits, double) override {
+    if (findReactivatedRows(activeRows_, active)) {
+      activeRows_.swap(reactivatedRows_);
+      refreshLatents(rng, totalFits, 1.0);
+    }
     if (active == nullptr) {
       activeRows_.clear();
       return true;
@@ -5323,7 +5378,10 @@ public:
   /// widening the probe keeps SamplerShape::supportsActiveRows derived from the
   /// single predicate the setter refuses on.
   bool supportsActiveRows() const override { return true; }
-  bool setActiveRows(const double*) override { return true; }
+  bool setActiveRows(const double*, ext_rng*, const double*,
+                     double) override {
+    return true;
+  }
 
   // The multinomial response is the borrowed n x K count matrix on the spec,
   // which a flat double* cannot express; the softmax is invariant to a common
@@ -5450,10 +5508,17 @@ public:
   /// statistics and the sigma posterior's degrees of freedom inherit it through
   /// the same recount a masked gaussian gets; the response transform stays the
   /// FULL-data one (rescale spans all n rows), as it does under zero weights.
-  bool setActiveRows(const double* active) override {
+  /// A reactivated censored row's log-time is redrawn above its bound at the
+  /// current fit and residual scale; an event row holds data and draws none.
+  bool setActiveRows(const double* active, ext_rng* rng,
+                     const double* totalFits, double sigma) override {
+    if (findReactivatedRows(activeRows_, active)) {
+      activeRows_.swap(reactivatedRows_);
+      redrawCensored(rng, totalFits, sigma, gaussian_->fitScale());
+    }
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + numObservations_);
-    return gaussian_->setActiveRows(active);
+    return gaussian_->setActiveRows(active, rng, totalFits, sigma);
   }
 
   double drawSigma(ext_rng* rng, const double* totalFits,
@@ -5832,8 +5897,21 @@ public:
   /// The mask joins the mixture composite, c_i = w_i lambda_i a_i, so the
   /// contained Gaussian inherits it through the pointer it is already handed -
   /// node statistics, sigma df and all. The lambda draw itself continues at
-  /// every row; refreshLatents states why.
-  bool setActiveRows(const double* active) override {
+  /// every row; refreshLatents states why. That keeps an inactive row's
+  /// lambda one sigma and nu update behind, so a reactivated row's is redrawn
+  /// from refreshLatents' own conditional at the current fit, sigma and nu.
+  bool setActiveRows(const double* active, ext_rng* rng,
+                     const double* totalFits, double sigma) override {
+    if (findReactivatedRows(activeRows_, active)) {
+      const double* z = gaussian_->workingResponse();
+      for (std::size_t i = 0; i < numObservations_; ++i) {
+        if (reactivatedRows_[i] == 0.0) continue;
+        double w = userWeights_ != nullptr ? userWeights_[i] : 1.0;
+        double r = z[i] - totalFits[i];
+        lambda_[i] = ext_rng_simulateGamma(
+          rng, 0.5 * (nu_ + 1.0), 2.0 / (nu_ + w * r * r / (sigma * sigma)));
+      }
+    }
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + numObservations_);
     recompose();
@@ -6119,8 +6197,15 @@ public:
 
   /// Beyond the logistic composition, the shape block is the subsample's:
   /// the count kernel is REBUILT over the active rows here, which is the
-  /// channel's one per-install cost. The shift c stays the full-data one.
-  bool setActiveRows(const double* active) override {
+  /// channel's one per-install cost. The shift c stays the full-data one. A
+  /// reactivated row's omega is redrawn as PG(y + r, psi) at the current fit
+  /// and r, which is not redrawn here.
+  bool setActiveRows(const double* active, ext_rng* rng,
+                     const double* totalFits, double) override {
+    if (findReactivatedRows(activeRows_, active)) {
+      activeRows_.swap(reactivatedRows_);
+      drawOmega(rng, totalFits);
+    }
     if (active == nullptr) {
       activeRows_.clear();
     } else {

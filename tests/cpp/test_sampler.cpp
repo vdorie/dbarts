@@ -2804,6 +2804,47 @@ static void testActiveRows() {
       ext_rng_destroy(rng);
     }
 
+    // The sampler surface redraws a reactivated row's latent before the call
+    // returns, off the chain's own generator: clearing a mask moves the
+    // latents of exactly the rows it switches back in. A mask that reactivates
+    // none consumes nothing: a twin that reinstalls the mask in force draws
+    // what the one that does not draws.
+    for (const Reachable& r : reachable) {
+      ext_rng *rng, *rngTwin;
+      auto sampler = makeSampler(rng, r.family, r.response, nullptr);
+      auto twin = makeSampler(rngTwin, r.family, r.response, nullptr);
+      std::vector<double> sigmaR(numSamples), trainR(n * numSamples);
+      std::vector<double> sigmaT(numSamples), trainT(n * numSamples);
+      Results resultsR, resultsT;
+      resultsR.sigma = sigmaR.data();
+      resultsR.trainingFits = trainR.data();
+      resultsT.sigma = sigmaT.data();
+      resultsT.trainingFits = trainT.data();
+      sampler->run(10, numSamples, resultsR);
+      twin->run(10, numSamples, resultsT);
+      sampler->setActiveRows(active.data());
+      twin->setActiveRows(active.data());
+      sampler->run(10, numSamples, resultsR);
+      twin->run(10, numSamples, resultsT);
+      sampler->setActiveRows(active.data());  // the mask already in force
+      sampler->run(0, numSamples, resultsR);
+      twin->run(0, numSamples, resultsT);
+      check(trainR == trainT,
+            "reinstalling the mask in force consumes no variate");
+      std::vector<double> held(sampler->latents(), sampler->latents() + n);
+      sampler->setActiveRows(nullptr);
+      const double* latents = sampler->latents();
+      bool redrawn = true, kept = true;
+      for (size_t i = 0; i < n; ++i) {
+        if (active[i] == 0.0) redrawn = redrawn && latents[i] != held[i];
+        else kept = kept && latents[i] == held[i];
+      }
+      check(redrawn, "clearing the mask redraws every reactivated row's latent");
+      check(kept, "and leaves the latent of every row that stayed active");
+      ext_rng_destroy(rngTwin);
+      ext_rng_destroy(rng);
+    }
+
     // an all-zeros mask on logistic and nbinom also runs finite, exactly as
     // the gaussian arm above
     for (const Reachable& r : reachable) {

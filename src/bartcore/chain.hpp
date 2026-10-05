@@ -2009,6 +2009,13 @@ public:
   /// moves under the CGM prior x the transition at constant likelihood, over
   /// the same set of trees it moves over under any other mask.
   ///
+  /// A row the mask switches from inactive to active has its latent redrawn
+  /// here, from its conditional given the current fit and off this chain's
+  /// generator, on every family that holds one between sweeps: a host that
+  /// redraws the mask from the fit with the latents integrated out thereby
+  /// draws (mask, latent) jointly. A row that stays active keeps its latent,
+  /// and a mask that reactivates no row consumes no variate.
+  ///
   /// The scan lives here rather than in a host because the engine is the only
   /// site under every surface; a flat caller inherits it.
   bool setActiveRows(const double* active) {
@@ -2022,7 +2029,11 @@ public:
       }
       if (numInactive == 0) active = nullptr;  // all ones is no mask
     }
-    if (!response_->setActiveRows(active)) return false;
+    // the location is read only by a family that holds a latent to redraw,
+    // and is the COMBINED one for the reason setResponse states
+    const double* fits =
+      response_->latents() != nullptr ? combinedFits() : nullptr;
+    if (!response_->setActiveRows(active, rng_, fits, sigma_)) return false;
     // a coupling that owns its own per-observation precisions takes the mask
     // here, since the response has none to compose it into (the multinomial
     // softmax); inert for an additive coupling, whose per-forest precisions are

@@ -1442,6 +1442,11 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// go stale. A count or offset swap leaves it standing: it names rows, not
   /// responses. Clearing it does not re-admit a zero-trial row, which stays
   /// out through the composed effective mask.
+  ///
+  /// A row the mask switches back in needs no redraw here: omega is per-sweep
+  /// scratch, each category's column drawn against the current margins by
+  /// drawForestGlue immediately before that forest reads it, so no tree update
+  /// ever sees a latent drawn while the row was out.
   void setActiveRows(const double* active) override {
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + data_.numObservations);
