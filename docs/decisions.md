@@ -1468,6 +1468,10 @@ Record: this register. Marked: blank. [dec-B214]
 Under dec-B207, a pdbart or pd2bart result records the type it was computed on, and the plot methods label the vertical axis by scale and family ("probability" or "probit scale" on a binary fit, "log time" on aft, "mean response" on hurdle, the response's name otherwise), pd2bart's panel titles likewise; a user's ylab or main still wins. The alternative was recording the type with the labels left at "partial-dependence". The maintainer on 2026-10-04: "The result records its type, and the plots label the axis by scale."
 Record: this register. Marked: blank. [dec-B215]
 
+**pdbart's newdata is coded as predict codes it and sets the default grid**
+Under dec-B207, pdbart's and pd2bart's newdata is coded as predict(fit, newdata) codes new rows, and when given, the default grid is levquants' quantiles of the varied variable in newdata, so a subgroup is plotted over the range its rows cover; a factor still shows every level the fit knows, and levs gives several subgroups a common grid. Without newdata the grid is 0.9-34's, quantiles of the training column. Put to the maintainer with the landscape, checked from source: randomForest::partialPlot and pdp::partial take the grid from the rows they average over, bartMachine's pd_plot averages over a subsample of the training rows its grid comes from, and SoftBart requires the grid; none takes the grid from one population and averages over another. The alternative was the grid from the training rows always. The maintainer on 2026-10-04: "OK, do that then."
+Record: this register. Marked: blank. [dec-B216]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
