@@ -1512,6 +1512,10 @@ Record: this register. Marked: blank. [dec-B225]
 Under dec-B209 and dec-B221, pdbart and pd2bart on an aft fit default, as on a hazard fit, to the survival probability at the training data's median survival time, computed per subject as survivalProbabilities does and averaged last, with "event", "cumhaz" and times as on hazard; the log-time location, the scale on which the model is additive, is type = "link". This departs, for aft, from dec-B207's link default, as the hurdle default does. Put to the maintainer with the landscape: survreg's predict defaults to the time scale, pdp::partial on a survreg fit plots median survival time, flexsurv's summary defaults to survival, survex is survival-based throughout, and none plots log time. The alternatives were the log-time default with times opt-in, and that with a time-scale type. The maintainer on 2026-10-04: "Default to survival at the median survival time, as for hazard; log time via type = \"link\"."
 Record: this register. Marked: blank. [dec-B226]
 
+**pdbart's type defaults to "auto"**
+pdbart's and pd2bart's type has the formal default "auto", as bart's family does, resolving per family: survival at the median survival time on hazard and aft fits (dec-B221, dec-B226), the mean response on hurdle fits (dec-B207), the link scale on every other (dec-B207); every explicit value stays available, the help page carries the table, and the result records the resolved type and the plot labels it (dec-B215). The alternatives were a fixed formal default, which three families would override, and NULL, which hides that a choice is made. The maintainer on 2026-10-04, asking whether there should be "a `type = \"auto\"` just like there is for families on `bart`": "OK, do that."
+Record: this register. Marked: blank. [dec-B227]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
