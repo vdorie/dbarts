@@ -1426,6 +1426,10 @@ Record: this register. Marked: blank. [dec-B204]
 Under dec-B203, a pdbart or pd2bart call written in BayesTree's names (ntree, ndpost, nskip, keepevery, keeptrees, binaryOffset, numcut and the rest, x.train and y.train included) has each name translated to bart's spelling, with a once-per-session warning per name that names the replacement and says the settings not named take bart's defaults, so the model is not 0.9-34's; from 1.1-0 such names are refused with a message naming the bart spelling, as bart's own transition ends. A call giving both spellings of one setting is refused naming both. treatSens, which calls pdbart with ntree, nskip and ndpost, changes in lockstep. The alternatives were translating silently with no end, refusing now, and sending such calls to bartBT for one release. The maintainer on 2026-10-04: "Yes, translate to bart's names with a warning for this release, then refuse from 1.1-0."
 Record: this register. Marked: blank. [dec-B205]
 
+**pdbart fits under bart's defaults**
+Under dec-B203, a pdbart or pd2bart call fits under bart's defaults for every setting it does not name (75 trees, four chains of 500 kept draws after 500 burn-in, merged; up to four threads; k drawn on a binary response; a factor as one predictor; rows with a missing predictor kept), so pdbart(x, y) and pdbart(bart(x, y, keepTrees = TRUE)) agree at the same seed. Against 0.9-34 a call's results change, and at 1,000 rows and five predictors it ran in about a sixth of the time and an eighth of the memory. The alternative was bart's model with a lighter run for pdbart. The maintainer on 2026-10-04: "use bart's defaults." Not ruled: how the result shows chains (fd kept a matrix with n.chains added, or a chains x draws x levels array under combineChains = FALSE).
+Record: this register. Marked: blank. [dec-B206]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
