@@ -482,6 +482,40 @@ expect_equal(
   drop(predict(gaussianFit, atTwo[sampled, ]) %*% weights[sampled]) /
     sum(weights[sampled])
 )
+# weights on newdata's rows are normalized too
+newWeights <- runif(20L)
+expect_equal(
+  dbarts::pdbart(
+    gaussianFit,
+    xind = "a",
+    levs = list(2),
+    newdata = df[1:20, ],
+    average.weights = newWeights,
+    pl = FALSE
+  )$fd[[1L]][, 1L],
+  drop(predict(gaussianFit, atTwo[1:20, ]) %*% newWeights) / sum(newWeights)
+)
+# a subsample is drawn only from rows with a positive weight
+sparseWeights <- replace(weights, seq_len(n) %% 2L == 0L, 0)
+set.seed(13)
+pdSparse <- dbarts::pdbart(
+  gaussianFit,
+  xind = "a",
+  levs = list(2),
+  n.average.rows = 8L,
+  average.weights = sparseWeights,
+  pl = FALSE
+)
+set.seed(13)
+positive <- which(sparseWeights > 0)
+sampled <- positive[sort(sample.int(length(positive), 8L))]
+expect_equal(
+  pdSparse$fd[[1L]][, 1L],
+  drop(predict(gaussianFit, atTwo[sampled, ]) %*% sparseWeights[sampled]) /
+    sum(sparseWeights[sampled])
+)
+rm(newWeights, sparseWeights, pdSparse, positive)
+
 # offsets under a subsample: an expression is evaluated on the rows, a plain
 # vector gives each row its own value
 expressionFit <- fitSmall(y ~ a + b, df, offset = b / 2)
@@ -527,21 +561,48 @@ rm(pdZero, pdBoth, expressionFit, pdExpression, pdVector, xAtTwo)
 rm(offsetValues, vectorFit)
 
 # --- pd2bart's two-predictor shortcut ---
-# it ignores the averaging arguments, saying so
+# it ignores the subsample and the weights, saying so
 warnings.shortcut <- captureWarnings(
   pdShort <- dbarts::pd2bart(
     gaussianFit,
     levs = list(2, 0),
-    newdata = df[1:5, ],
+    average.weights = runif(n),
     pl = FALSE
   )
 )
 expect_equal(length(warnings.shortcut), 1L)
-expect_true(grepl("'newdata'", conditionMessage(warnings.shortcut[[1L]])))
+expect_true(grepl(
+  "'average.weights'",
+  conditionMessage(warnings.shortcut[[1L]])
+))
 expect_equal(
   pdShort$fd[, 1L],
   rowMeanAt(gaussianFit, df, list(a = 2, b = 0))
 )
+# while newdata still gives the grid, silently, and serves a fit kept
+# without its call
+subgroup <- df[df$f == "v", ]
+warnings.grid <- captureWarnings(
+  pdGrid <- dbarts::pd2bart(gaussianFit, newdata = subgroup, pl = FALSE)
+)
+expect_equal(length(warnings.grid), 0L)
+expect_equal(
+  pdGrid$levs[[1L]],
+  quantile(subgroup$a, c(0.05, seq(0.1, 0.9, 0.1), 0.95)),
+  check.attributes = FALSE
+)
+noCallFit <- fitSmall(y ~ a + b, df, keepCall = FALSE)
+pdNoCall <- dbarts::pd2bart(
+  noCallFit,
+  levs = list(2, 0),
+  newdata = subgroup,
+  pl = FALSE
+)
+expect_equal(
+  pdNoCall$fd[, 1L],
+  rowMeanAt(noCallFit, subgroup, list(a = 2, b = 0))
+)
+rm(subgroup, warnings.grid, pdGrid, noCallFit, pdNoCall)
 # but a posterior predictive draw takes the general route, averaging each
 # row's own draw
 set.seed(2)
@@ -557,6 +618,62 @@ expect_equal(
   rowMeanAt(gaussianFit, df, list(a = 2, b = 0), type = "ppd")
 )
 rm(warnings.shortcut, pdShort, pdDraw)
+
+# --- a formula fit with no data argument ---
+# its variables are found where pdbart is called, and refused when gone
+aa <- df$a
+bb <- df$b
+yy <- df$y
+envFit <- fitSmall(yy ~ aa + bb)
+pdEnv <- dbarts::pdbart(envFit, xind = "aa", levs = list(2), pl = FALSE)
+expect_equal(
+  pdEnv$fd[[1L]][, 1L],
+  rowMeans(predict(envFit, data.frame(aa = 2, bb = bb)))
+)
+localFit <- (function() {
+  aaa <- df$a
+  yyy <- df$y
+  fitSmall(yyy ~ aaa)
+})()
+expect_error(
+  dbarts::pdbart(localFit, pl = FALSE),
+  "give the rows as 'newdata'"
+)
+rm(aa, bb, yy, envFit, pdEnv, localFit)
+
+# --- refusals and aliases ---
+# a type the family does not take is refused before anything is fit
+expect_error(
+  dbarts::pdbart(x, df$y, type = "prob", n.trees = -1L, pl = FALSE),
+  "does not take type = \"prob\""
+)
+expect_error(
+  dbarts::pdbart(
+    x,
+    df$count,
+    family = "nbinom",
+    type = "sigma",
+    n.trees = -1L,
+    pl = FALSE
+  ),
+  "does not take type = \"sigma\""
+)
+# a hurdle fit takes predict's "log"
+hurdleLog <- dbarts::pdbart(
+  fitSmall(x, df$semi, family = "hurdle.lognormal"),
+  xind = "a",
+  levs = list(2),
+  type = "log",
+  pl = FALSE
+)
+expect_identical(hurdleLog$type, "bart")
+# a variable only in the offset is not a predictor
+offsetOnlyFit <- fitSmall(y ~ a + offset(log(b + 5)), df)
+expect_error(
+  dbarts::pdbart(offsetOnlyFit, xind = "b", pl = FALSE),
+  "only through its offset"
+)
+rm(hurdleLog, offsetOnlyFit)
 
 rm(fitSmall, rowMeanAt, n, df, x, probitFit, negbinFit, gaussianFit)
 rm(factorFit)

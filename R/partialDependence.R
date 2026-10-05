@@ -122,7 +122,14 @@ pdbart.flag <- function(value, name) {
 # A data call: the caller's call rewritten into a bart call, with trees and
 # sampler kept, and evaluated where the caller wrote it, so an unevaluated
 # argument resolves as bart would resolve it there.
-pdbart.fitData <- function(object, getData, matchedCall, callingEnv, caller) {
+pdbart.fitData <- function(
+  object,
+  getData,
+  matchedCall,
+  callingEnv,
+  caller,
+  type
+) {
   call <- matchedCall[names(matchedCall) %not_in% pdbart.ownArgs]
   argNames <- names(call)[-1L]
   refused <- intersect(argNames, names(pdbart.setInternally))
@@ -157,10 +164,9 @@ pdbart.fitData <- function(object, getData, matchedCall, callingEnv, caller) {
   } else {
     TRUE
   }
-  pdbart.refuseFamily(
-    pdbart.dataFamily(call, object, getData, callingEnv, caller),
-    caller
-  )
+  family <- pdbart.dataFamily(call, object, getData, callingEnv, caller)
+  pdbart.refuseFamily(family, caller)
+  pdbart.checkFamilyType(type, family, caller)
   call$keepTrees <- TRUE
   call$keepSampler <- TRUE
   call[[1L]] <- quote(dbarts::bart)
@@ -215,7 +221,14 @@ pdbart.refit <- function(fit, callingEnv, caller) {
 # The sampler pdbart predicts from and the fit it reports, from whatever was
 # passed first: data, a fit or a sampler. 'object' is list(value) or NULL
 # when nothing was passed; 'getData' returns the data argument the same way.
-pdbart.prologue <- function(object, getData, matchedCall, callingEnv, caller) {
+pdbart.prologue <- function(
+  object,
+  getData,
+  matchedCall,
+  callingEnv,
+  caller,
+  type
+) {
   if (is.null(object)) {
     stop(
       "'formula' is required: a matrix, data frame or formula, a fit, or a ",
@@ -234,14 +247,16 @@ pdbart.prologue <- function(object, getData, matchedCall, callingEnv, caller) {
       getData,
       matchedCall,
       callingEnv,
-      caller
+      caller,
+      type
     )
     return(list(
       sampler = pdbart.rowSampler(fit),
       fit = fit,
       keepSampler = keepSampler,
       isSampler = FALSE,
-      getData = getData
+      getData = getData,
+      callingEnv = callingEnv
     ))
   }
 
@@ -316,7 +331,8 @@ pdbart.prologue <- function(object, getData, matchedCall, callingEnv, caller) {
     fit = fit,
     keepSampler = keepSampler,
     isSampler = FALSE,
-    getData = pdbart.storedData(fit, callingEnv)
+    getData = pdbart.storedData(fit, callingEnv),
+    callingEnv = callingEnv
   )
 }
 
@@ -375,15 +391,53 @@ pdbart.formulaVariables <- function(sampler) {
 
 # The values 'type' can take before the fit is known; each is checked against
 # the fit once there is one.
-pdbart.types <- c("auto", "bart", "link", "ev", "response", "ppd", "prob")
-pdbart.types <- c(pdbart.types, "sigma")
+pdbart.types <- c("auto", "bart", "link", "log", "ev", "response", "ppd")
+pdbart.types <- c(pdbart.types, "prob", "sigma")
+
+# The types a family's predict takes, less "forest", and a type with its
+# aliases folded as that predict folds them.
+pdbart.familyTypes <- function(family) {
+  if (identical(family, "hurdle.lognormal")) {
+    c("ev", "ppd", "prob", "bart")
+  } else if (identical(family, "nbinom")) {
+    c("ev", "ppd", "bart")
+  } else {
+    c("ev", "ppd", "bart", "sigma")
+  }
+}
+
+pdbart.foldType <- function(type, family) {
+  type <- foldTypeAliases(type)
+  if (type == "log" && identical(family, "hurdle.lognormal")) "bart" else type
+}
+
+# A type the family does not take is refused by name, before fitting when
+# the family is known then.
+pdbart.checkFamilyType <- function(type, family, caller) {
+  type <- pdbart.foldType(type, family)
+  allowed <- pdbart.familyTypes(family)
+  if (type != "auto" && type %not_in% allowed) {
+    stop(
+      "'",
+      caller,
+      "' on a ",
+      family,
+      " fit does not take type = \"",
+      type,
+      "\"; it takes ",
+      quotedNameList(allowed),
+      call. = FALSE
+    )
+  }
+  type
+}
 
 # The type a fit's averages are taken on: "auto" is the link scale, except
 # the mean response on a hurdle fit. A sampler carries no fit to transform
 # through, so it takes the link scale only.
 pdbart.resolveType <- function(type, fit, isSampler, caller) {
-  type <- foldTypeAliases(type)
   if (isSampler) {
+    type <- foldTypeAliases(type)
     if (type %not_in% c("auto", "bart")) {
       stop(
         "a sampler passed to '",
@@ -395,29 +449,10 @@ pdbart.resolveType <- function(type, fit, isSampler, caller) {
     }
     return("bart")
   }
-  hurdle <- inherits(fit, "bartHurdle")
+  family <- pdbart.fitFamily(fit)
+  type <- pdbart.checkFamilyType(type, family, caller)
   if (type == "auto") {
-    return(if (hurdle) "ev" else "bart")
-  }
-  allowed <- if (hurdle) {
-    c("ev", "ppd", "prob", "bart")
-  } else if (inherits(fit, "bartNegbin")) {
-    c("ev", "ppd", "bart")
-  } else {
-    c("ev", "ppd", "bart", "sigma")
-  }
-  if (type %not_in% allowed) {
-    stop(
-      "'",
-      caller,
-      "' on a ",
-      pdbart.fitFamily(fit),
-      " fit does not take type = \"",
-      type,
-      "\"; it takes ",
-      quotedNameList(allowed),
-      call. = FALSE
-    )
+    return(if (identical(family, "hurdle.lognormal")) "ev" else "bart")
   }
   if (type == "sigma" && !fitIsHeteroscedastic(fit)) {
     stop(
@@ -514,6 +549,18 @@ pdbart.resolveXind <- function(xind, matchedCall, sampler, formulaFit) {
       )
     }
     unknown <- xind %not_in% available
+    if (formulaFit) {
+      offsetOnly <- xind[unknown] %in%
+        all.vars(attr(sampler$data@x, "terms"))
+      if (any(offsetOnly)) {
+        stop(
+          "'",
+          xind[unknown][offsetOnly][1L],
+          "' enters the fit only through its offset and is not a predictor",
+          call. = FALSE
+        )
+      }
+    }
     if (any(unknown)) {
       stop(
         "unrecognized ",
@@ -680,7 +727,7 @@ pdbart.setVariables <- function(rows, keys, values) {
 # get_all_vars collects them and cut to the rows the fit was made on by their
 # names. 'getData' gives the data as list(value), NULL when the call named
 # none, or FALSE when it cannot be had.
-pdbart.trainingRows <- function(sampler, getData, caller) {
+pdbart.trainingRows <- function(sampler, getData, callingEnv, caller) {
   refuse <- function() {
     stop(
       "'",
@@ -694,7 +741,10 @@ pdbart.trainingRows <- function(sampler, getData, caller) {
   if (isFALSE(data)) {
     refuse()
   }
+  # a variable the data does not carry is found where pdbart was called, as
+  # the call's own data is
   terms <- attr(sampler$data@x, "terms")
+  environment(terms) <- callingEnv
   rows <- tryCatch(
     if (is.null(data)) {
       stats::get_all_vars(terms)
@@ -758,6 +808,21 @@ pdbart.storedOffset <- function(sampler, all, rows, index) {
   if (length(share) == 1L) share else share[index]
 }
 
+# The offset predict is to add to pd2bart's grid rows when every row has one
+# offset: NULL when predict evaluates the fit's own on them, otherwise the
+# argument's share of that offset, the rows' offset() terms evaluated by
+# predict.
+pdbart.gridOffset <- function(sampler, rows) {
+  argument <- attr(sampler$data, "offset.argument")
+  if (is.null(argument) || !isFALSE(evaluateOffsetArgument(argument, rows))) {
+    return(NULL)
+  }
+  termOffset <- if (pdbart.isFormulaFit(sampler)) {
+    formulaTermOffset(sampler$data@x, rows[1L, , drop = FALSE], "rows")
+  }
+  sampler$data@offset[1L] - if (is.null(termOffset)) 0 else termOffset
+}
+
 # The rows averaged over and the weight each gets (NULL for equal weights):
 # 'newdata' as given, or the fit's own rows less those it weights 0 or masks
 # out, subsampled when asked. 'source' is where the default grid is read:
@@ -766,6 +831,7 @@ pdbart.frame <- function(
   sampler,
   formulaFit,
   getData,
+  callingEnv,
   newdata,
   n.average.rows,
   average.weights,
@@ -799,7 +865,7 @@ pdbart.frame <- function(
   }
 
   all <- if (formulaFit) {
-    pdbart.trainingRows(sampler, getData, caller)
+    pdbart.trainingRows(sampler, getData, callingEnv, caller)
   } else {
     extract(sampler, "predictors")
   }
@@ -1049,6 +1115,7 @@ pdbart.setup <- function(
         sampler,
         formulaFit,
         prologue$getData,
+        prologue$callingEnv,
         newdata,
         n.average.rows,
         average.weights,
@@ -1175,7 +1242,8 @@ pdbart <- function(
     },
     matchedCall,
     callingEnv,
-    "pdbart"
+    "pdbart",
+    type
   )
   setup <- pdbart.setup(
     prologue,
@@ -1266,7 +1334,8 @@ pd2bart <- function(
     },
     matchedCall,
     callingEnv,
-    "pd2bart"
+    "pd2bart",
+    type
   )
   sampler <- prologue$sampler
 
@@ -1285,7 +1354,6 @@ pd2bart <- function(
     foldTypeAliases(type) != "ppd"
   if (shortcut) {
     unused <- c(
-      if (!is.null(newdata)) "newdata",
       if (!is.null(n.average.rows)) "n.average.rows",
       if (!is.null(average.weights)) "average.weights"
     )
@@ -1299,7 +1367,7 @@ pd2bart <- function(
         call. = FALSE
       )
     }
-    newdata <- n.average.rows <- average.weights <- NULL
+    n.average.rows <- average.weights <- NULL
   }
   setup <- pdbart.setup(
     prologue,
@@ -1352,12 +1420,7 @@ pd2bart <- function(
         setup$fit,
         gridRows,
         setup$type,
-        pdbart.storedOffset(
-          sampler,
-          frame$source,
-          gridRows,
-          frame$index[first]
-        )
+        pdbart.gridOffset(sampler, gridRows)
       )
     }
   } else {

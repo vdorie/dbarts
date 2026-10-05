@@ -93,5 +93,6 @@ the rows, `predict` evaluates it there; where it cannot, it was a plain
 vector for the training rows, and each row passes its own stored share
 ([`pdbart.storedOffset`](../../R/partialDependence.R)). pd2bart's
 single-row shortcut applies only on two predictors with one offset for
-every row and outside `type = "ppd"`, and then ignores the averaging
-arguments with a warning.
+every row and outside `type = "ppd"`; `newdata` still gives the grid
+there, and `n.average.rows` and `average.weights` are ignored with a
+warning.
