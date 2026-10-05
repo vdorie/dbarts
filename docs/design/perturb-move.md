@@ -130,11 +130,10 @@ and death, so the new `StepType` falls through as swap and change do. The snapsh
 [`SubtreeSnapshot`](../../src/bartcore/tree.hpp) from [`MoveScratch`](../../src/bartcore/moves.hpp), node CONTENTS for a fixed id
 set, all a shape-preserving move needs.
 
-`[lo, hi]` guarantees logical satisfiability, never occupancy: a displaced cut can empty a descendant leaf, raising the proposal's
-rank in [`resolveVetoRank`](../../src/bartcore/moves.hpp) and driving `alpha` to 0 whenever the CURRENT branch is the better ranked
-one ([Which move paths can create an empty leaf](empty-leaf-veto.md#which-move-paths-can-create-an-empty-leaf)); from an
-already-vetoed state the ordering runs the other way and a rank-improving proposal is accepted outright. At `w = 1` only one cut
-bin's rows cross, so the exposure is small, and it is inside the probe's band, which folded `resolveVetoRank`'s `-Inf` into its log
+`[lo, hi]` guarantees logical satisfiability, never occupancy: a displaced cut can empty a descendant leaf, which
+[`resolveEmptyLeafVeto`](../../src/bartcore/moves.hpp) refuses, driving `alpha` to 0
+([Which move paths can create an empty leaf](empty-leaf-veto.md#which-move-paths-can-create-an-empty-leaf)). At `w = 1` only one cut
+bin's rows cross, so the exposure is small, and it is inside the probe's band, which folded the veto's `-Inf` into its log
 ratio. PERTURB'S OWN veto share is the unrecorded `vetoed.pct` column of section 7; the 0.13 to 0.27 percent of a cell's rejections
 6.1's two-move re-run reports is birth, death and change's, quoted here only as an order of magnitude.
 
@@ -272,18 +271,18 @@ for a per-kernel exact gate on the WITHIN-VARIABLE cut distribution, the one qua
 computes it in [`cutReport`](../../benchmarks/R/change-balance.R) and only PRINTS it, its own pass/fail statistic being a
 root-split-VARIABLE marginal at `|z| < 4` on a different problem, which this gate neither borrows nor supersedes.
 
-**The target.** The active-row mask is a PRECISION channel, so under an all-zeros mask
-[`Tree::leafVetoRank`](../../src/bartcore/tree.hpp) returns 1 for a leaf holding rows and 2 for one holding none: the rank-0 set is
-empty, the likelihood difference is exactly 0 on both branches, and the kernel is reversible with respect to the CGM prior TRUNCATED
-to MEMBER-OCCUPIED trees and renormalized - [`Tree::bottomNodesAreOccupied`](../../src/bartcore/tree.hpp)'s predicate, NOT
-`bd-balance.R`'s `isAdmissible`, which tests positive weight and is empty under this mask.
+**The target.** The active-row mask is a PRECISION channel, so under an all-zeros mask every leaf holding rows scores exactly 0 and
+[`Tree::leafIsEmpty`](../../src/bartcore/tree.hpp) refuses one holding none: the likelihood difference is exactly 0 on both branches,
+and the kernel is reversible with respect to the CGM prior TRUNCATED
+to MEMBER-OCCUPIED trees and renormalized - [`Tree::bottomNodesAreOccupied`](../../src/bartcore/tree.hpp)'s predicate, the set the
+kernel moves over under any mask.
 
 **The design makes that truncation vacuous.** Two ordinal columns of 6 and 4 distinct values as a FULL FACTORIAL, at least one row
 per cell of the 24, and `useQuantiles = TRUE`, which is what gives 5 and 3 cuts
 ([`finishQuantileGrid`](../../src/bartcore/data.hpp): `inducedNumCuts = numUnique - 1`; the default FALSE would lay 100 uniform cuts
 over 6 values and make empty leaves common). Quantile cuts fall between consecutive distinct values, so every leaf of every
-reachable tree holds a cell and the target is the plain CGM prior. Every chain starts at a bare root, the initializer taking a stump
-rather than a prior draw under an all-zero composed vector, so the run needs a burn-in it would not otherwise.
+reachable tree holds a cell and the target is the plain CGM prior. Every chain starts at a bare root, so the run needs a burn-in
+it would not otherwise.
 
 **Three statistics; the space is not enumerable.** With 5 and 3 cuts there are 33,610,060,775 distinct trees, so no chi-square over
 trees. (1) The root's (variable, cut) marginal plus the stump, NINE states, closed form `P(grow) x P(v) x 1/|SI_v|`: 0.095 for each
@@ -339,7 +338,7 @@ statistic 1. A
 third check is a tests/cpp assertion rather than a poison: `findGoodOrdinalRules` must return the same pair before and after any
 in-interval rule is installed at the node, the invariance the reverse count rests on.
 
-**The confirmation arm.** The prior-only arm never exercises the likelihood term or the rank-1/rank-2 boundary. **A, ship it
+**The confirmation arm.** The prior-only arm never exercises the likelihood term or a refused empty leaf. **A, ship it
 alone**, cheap, the likelihood path being verbatim `changeMove`'s and already gated; **B, add an exact-posterior arm** on the same
 grid with positive weights and NO mask - the mask is what makes the likelihood constant, so the arms cannot share a configuration -
 scored against `change-balance.R`'s region dynamic program, 150 to 200 lines plus a calibration match. **RECOMMEND B**: a defect in

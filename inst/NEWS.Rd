@@ -517,10 +517,10 @@
             \code{useQuantiles = FALSE}, are unaffected.
       \item The \code{chi(df)} hyperprior on \code{k} samples the degrees of
             freedom asked for; it had sampled \code{chi(2 * df - 1)}.
-      \item Observations of weight zero are fully ignored: they no longer
-            count in the residual variance's degrees of freedom, which had
-            biased \code{sigma} low, and a leaf holding only such
-            observations counts as empty.
+      \item Observations of weight zero no longer count in the residual
+            variance's degrees of freedom, which had biased \code{sigma}
+            low. Such an observation is still in the design, as before: it
+            occupies a leaf and receives a fitted value.
       \item The starting forest, and trees drawn from the prior by
             \code{$sampleTreesFromPrior}, now follow the sampler's tree
             prior, which excludes empty leaves; they had been drawn without

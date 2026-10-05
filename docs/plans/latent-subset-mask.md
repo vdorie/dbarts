@@ -184,16 +184,20 @@ Surfaces:
 2. The row STILL OCCUPIES its leaf for COUNT-based accounting:
    `numObservations()` counts it, the scan's `count` sees it, and
    `collapseEmptyNodes` TRIGGERS on member count regardless of weights.
-   The empty-leaf VETO does NOT: since empty-leaf-veto-fix (21fc29c3) it
-   counts POSITIVE-WEIGHT members, so an all-inactive leaf IS vetoed.
+   So does the empty-leaf VETO (amended 2026-10-05, dec-B238; from 21fc29c3
+   until then it counted POSITIVE-WEIGHT members and vetoed an all-inactive
+   leaf): an all-inactive leaf is legal, scores nothing and draws its value
+   from the prior, so the trees a sampler may hold do not depend on the mask
+   ([What counts as empty: membership](../design/empty-leaf-veto.md#what-counts-as-empty-membership)).
 3. The row STILL RECEIVES A FIT. `totalFits` spans all n rows, so `run()$train`,
    `getForestFits` and `predict` report `f(x_i)` at an inactive row - the
    shipped zero-weight contract. This is what makes the channel worth more than
    compaction to the demand class.
 4. The row's LATENT DRAW IS SKIPPED, **for probit, ordinal, logistic, nbinom,
    multinomial and aft**. No rng is consumed for it and `latents()` returns its
-   last drawn value, which is STALE. Documented, not silent; the correct read at
-   an inactive row is its fit, not its latent. Forced by binding decision 1.
+   last drawn value, which is STALE while the row is out. Documented, not
+   silent; the correct read at an inactive row is its fit, not its latent.
+   Forced by binding decision 1.
 
    **EXCEPTION, Student-t.** Rule 4 does NOT apply to `TResponse`. Its per-row
    latent `lambda_i` is drawn unconditionally for every row; the mask
@@ -223,14 +227,19 @@ Surfaces:
    bitwise inert until a mask is installed (T2(a)). And it reintroduces for t the
    UNBOUNDED-AGE latent staleness that annihilation removes - a row inactive for
    k sweeps would reactivate on a lambda k sweeps old.
-5. **Reactivation is a one-sweep MODEL hazard, not just a read hazard.** The
-   sweep runs trees first and `refreshLatents` after, so the first sweep after a
-   row REACTIVATES conditions that sweep's tree moves and leaf draws on the row's
-   STALE latent (probit/ordinal z) or on a lambda drawn while the row was out
-   (t). It does not disturb the subsample posterior while the mask is held fixed,
-   and nothing was found that makes it incorrect, but for the target consumer - a
-   mask that moves every outer iteration - it is not transient. It goes in the Rd
-   beside rule 4.
+5. **A reactivated row's latent is REDRAWN by the install** (amended
+   2026-10-05). The sweep runs trees first and `refreshLatents` after, so a row
+   that REACTIVATED on the latent it left with would condition the next sweep's
+   tree moves and leaf draws on a STALE latent (probit/ordinal z) or on a lambda
+   drawn one sigma update back (t). As first shipped that was left as a
+   documented one-sweep hazard; measured on a probit mixture whose mask is
+   redrawn every sweep it is a bias and not a transient (membership
+   probabilities off by 0.004, the fit by 0.05 of a posterior standard
+   deviation, its spread 5 to 7 percent too narrow). `setActiveRows` now
+   redraws the latent of every row it switches from inactive to active, from
+   its conditional given the current fit and before it returns; a row that
+   stays active keeps its latent and a mask that reactivates none draws
+   nothing ([The mechanism](../design/active-rows-mask.md#the-mechanism)).
 6. The row's POINTWISE LOG-LIKELIHOOD is NaN (V3).
 7. The row drops from every family-level parameter update that is a sum over
    rows, enumerated per family below.

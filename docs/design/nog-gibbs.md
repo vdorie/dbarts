@@ -73,7 +73,7 @@ probe omits. The census identity of section 5 is therefore stated at `dart = FAL
 scan's entry wherever both children carry positive weight, which is every candidate with no mask installed and no missing member at
 the node; section 2.2 gives it in general.
 
-Draw `(v, c)` from the normalized weights. Acceptance is one; no pairwise [`resolveVetoRank`](../../src/bartcore/moves.hpp)
+Draw `(v, c)` from the normalized weights. Acceptance is one; no pairwise [`resolveEmptyLeafVeto`](../../src/bartcore/moves.hpp)
 comparison - 2.2 does that law's work in the enumeration instead - no snapshot-and-restore, no `logProposalCorrection`. Node
 selection is uniform over the eligible nog nodes and its reciprocal cancels because that set is invariant under the move: shape is
 preserved, so `fillNoGrand`'s set does not move ([`Tree::fillNoGrand`](../../src/bartcore/tree.hpp)), and NO NOG NODE IS AN ANCESTOR
@@ -86,14 +86,28 @@ walk: `tree.interactionSubtreeIsValid` exists because a redrawn variable can str
 
 ### 2.2 The veto's law, and what the scan must emit
 
+**Amendment (2026-10-05): the veto counts members, and the stratum is gone.** This section was written while the veto counted
+positive-weight members and ranked a leaf with members but no weight between an empty leaf and an ordinary one. That middle rank no
+longer exists ([What counts as empty: membership](empty-leaf-veto.md#what-counts-as-empty-membership)), and what follows reads with
+three substitutions. A candidate is a rule that leaves NEITHER CHILD EMPTY, routed missing rows counted; every candidate's marginal
+`S` is the sum over both children, a child of only zero-weight members scoring 0; and the kernel draws over ALL the candidates, the
+incumbent always among them, so the draw is the full conditional restricted to the set and the Metropolis-within-Gibbs case below
+does not arise. Of the two disagreements between scan and veto only the routed missing row is left, and the scan answers it with a
+flag instead of a rank out-parameter: asked for the moves' reading of occupancy, [`scanOrdinalCuts`](../../src/bartcore/scan.hpp)
+sentinels exactly the candidates [`logLikelihoodForBranch`](../../src/bartcore/moves.hpp) would refuse. A weight mask moves a
+candidate's weight and never the candidate set; under an all-zero one `S` is 0 throughout and the draw is the prior conditional,
+which is section 5's prior-only arm unchanged. Three symbols the original text names are gone:
+retired: [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp), retired: [`resolveVetoRank`](../../src/bartcore/moves.hpp) and
+retired: [`Tree::bottomNodesHaveWeight`](../../src/bartcore/tree.hpp).
+
 **The scan's occupancy test is not the veto's, and the gap is what defines the neighbourhood.**
 [`scanOrdinalCuts`](../../src/bartcore/scan.hpp) writes [`cutScanEmptySentinel`](../../src/bartcore/scan.hpp), `-inf`, when either
 side's weight over the NON-MISSING bins is non-positive, and on that branch it writes the sentinel to both missing directions and
-computes neither side's marginal. The veto reads something else. [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp) is 2 when a leaf
+computes neither side's marginal. The veto reads something else. retired: [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp) is 2 when a leaf
 holds no member, 1 when it holds members but no positive weight and 0 otherwise, all three off the leaf's ACTUAL index span with any
 routed missing rows in it; [`logLikelihoodForBranch`](../../src/bartcore/moves.hpp) takes a branch's rank as the maximum over its
 leaves and its log-likelihood as the marginal summed over the RANK-0 leaves alone; and
-[`resolveVetoRank`](../../src/bartcore/moves.hpp) applies that pair LEXICOGRAPHICALLY - a rank-improving proposal takes `-HUGE_VAL`
+retired: [`resolveVetoRank`](../../src/bartcore/moves.hpp) applies that pair LEXICOGRAPHICALLY - a rank-improving proposal takes `-HUGE_VAL`
 on the current side and is accepted outright, a rank-worsening one takes it on the proposal side and is refused, and at equal ranks
 the finite parts are compared as they always were.
 
@@ -143,7 +157,7 @@ of its members by section 2.1's `log w` with `S` as the marginal term. The law h
 `r*` is never WORSE than the incumbent's rank, so the stratum is never empty: `collectAvailableVariables` and `splitInterval` both
 ignore `u`'s own rule, so the incumbent is always a candidate, and its own rank is at most 1 because every site outside the move
 kernels enforces `bottomNodesAreOccupied`. With no weight vector installed the incumbent is rank 0 and the stratum is the whole
-occupied candidate set - the rank-0 law is [`Tree::bottomNodesHaveWeight`](../../src/bartcore/tree.hpp), and tree.hpp's own note is
+occupied candidate set - the rank-0 law is retired: [`Tree::bottomNodesHaveWeight`](../../src/bartcore/tree.hpp), and tree.hpp's own note is
 that it and the membership law agree exactly there.
 
 **The missing direction is part of the candidate exactly when the node routes a missing row.** `scanOrdinalCuts` returns `2 * numCuts`

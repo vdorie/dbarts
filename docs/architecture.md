@@ -248,17 +248,15 @@ forests, so no move is proposed and none of its randomness is drawn, while
 leaf values, sigma and the family's latents keep sampling - a fitted forest
 re-sampled as a fixed basis.
 
-Every candidate branch's empty-leaf veto is ranked
-(`Tree::leafVetoRank`, [`resolveVetoRank`](../src/bartcore/moves.hpp)): rank 2 is
-a leaf with no member at all, rank 1 a leaf whose members all carry zero
-weight, rank 0 a leaf a likelihood term reaches. Comparing a (current,
-proposal) pair, the worse-ranked branch takes `-HUGE_VAL` outright; when both
-ranks are equal the comparison runs on the finite log-likelihoods as usual.
-Only rank 2 is absolute - no move may install a leaf with no member, from any
-state - so a chain sitting on a rank-1 branch still mixes under the prior and
-transition kernel at constant likelihood rather than freezing. Member-empty
-leaves stay out of the chain state entirely; a weight-emptied leaf is
-penalized rather than forbidden (docs/design/empty-leaf-veto.md).
+A candidate branch that would leave a leaf no row reaches is refused
+(`Tree::leafIsEmpty`, [`resolveEmptyLeafVeto`](../src/bartcore/moves.hpp)):
+comparing a (current, proposal) pair, the branch holding an empty leaf takes
+`-HUGE_VAL` outright, and otherwise the comparison runs on the finite
+log-likelihoods as usual. Emptiness is membership. A leaf whose members all
+carry zero weight, or are all switched off by the active-row mask, is an
+ordinary leaf that no likelihood term reaches: it scores 0 and its value is a
+draw from the prior, so the set of trees a chain may hold does not depend on
+the weights or the mask (docs/design/empty-leaf-veto.md).
 
 Rules themselves are typed by column: ordinal rules compare a code against a
 threshold, categorical rules test a bit of a direction mask. Masks up to 63

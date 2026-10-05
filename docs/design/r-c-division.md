@@ -185,7 +185,7 @@ including an independent re-check of Sun and Song)
   attribution are corrected and withdrawn: re-verified first-hand at
   princeBART 0.2.0, no such distinct artifact was found.) CRITIQUE:
   REFUTED as an unmet affordance - Gaussian row subsetting already
-  ships from R via zero weights (["a weight of zero excludes an observation from the likelihood while keeping its fitted values"](../../man/dbartsSampler-class.Rd)); the
+  ships from R via zero weights (["a weight of zero takes an observation out of the likelihood"](../../man/dbartsSampler-class.Rd)); the
   real gaps are the empty-leaf veto counting zero-weight rows as
   occupied, the latent-family refusal on sigma/weight mutation
   (clause 1's identification parenthetical), and a missing
@@ -234,14 +234,14 @@ budgets)
   needing to be guarded around - and both were stronger demand evidence
   than the count that was wrong.
 - The empty-leaf veto fix (DISCHARGED; the named TODO entry is gone, the
-  outcome is `docs/design/empty-leaf-veto.md` - the veto is now a
-  lexicographic rank over leaves that separates "no member" from "no
-  positive-weight member" - with the plan at
-  `docs/plans/archive/empty-leaf-veto.md`): its own
-  measured slice, a draw-law change - the veto counted LEAF MEMBERS
-  where it should count POSITIVE-WEIGHT members
-  (`src/bartcore/moves.hpp`, the `numObservations() == 0` veto site);
-  expect to re-record the zero-weight baseline.
+  outcome is `docs/design/empty-leaf-veto.md` - the veto refuses a leaf
+  no row reaches outright rather than charging a finite penalty - with
+  the plan at `docs/plans/archive/empty-leaf-veto.md`): its own
+  measured slice, a draw-law change. As adopted it also moved the veto
+  from counting LEAF MEMBERS to counting POSITIVE-WEIGHT members
+  (`src/bartcore/moves.hpp`, the `numObservations() == 0` veto site),
+  which was reversed on 2026-10-05: the veto counts members again, a
+  zero-weight or masked row among them (dec-B238).
 - A composition validator (DISCHARGED; the named TODO entry is gone, the
   outcome is `docs/plans/adoption-slate.md` S5 and its landing note; SBC
   over a user-supplied one-sweep closure): the item that catches the measured

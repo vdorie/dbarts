@@ -4,9 +4,16 @@ Status: PLANNED.
 
 agent: opus implementer, one; opus reviewer.
 rng: POSTERIOR-CHANGING for a fit with a zero case weight, a zero per-forest weight, an active-row mask or a
-zero-trial multinomial row: the set of trees the sampler may hold changes, and a latent family redraws the
-latents of rows a mask switches back in. NEUTRAL for every other fit, whose
-draws are bit for bit unchanged.
+zero-trial multinomial row, and for a multi-forest fit whose basis and amplitudes give some rows zero weight
+in a forest although no weight is installed - a treatment forest whose amplitudes are held at (b0, b1) =
+(0, 1), where every control row is weightless for the whole run: the set of trees the sampler may hold
+changes, and a latent family redraws the latents of rows a mask switches back in. DRAW-SHIFTING in principle
+for any other two-forest fit: its amplitudes start at (1, 0, 1), so its treatment forest is in the same
+position for the prior draw and the first sweep, until b0 is first drawn. NEUTRAL for every other fit. Shown
+bit for bit on the shipped build: 52 of 55 scenarios of the gaussian harness (all but zeroweights, maskprobit
+and maskordinal), 13 of 15 of the BCF harness (all but masked and glue_toggle; the thirteen include every
+drawn-amplitude scenario that installs no mask, none of which met the first-sweep case), and 11 of 11
+multinomial; the four seeded snapshot files pass unchanged on the reference build.
 window: pre-release (dec-B238).
 budget: ~800 lines (C++ ~150, tests/cpp ~200, tinytest ~150, a tracked exact harness ~200, design notes, manual
 and records ~100). Plans have run 1.5-2x low.
@@ -22,8 +29,8 @@ every sweep samples the model it assumes.
 ## Context
 
 - Today a leaf with members but no positive-weight member loses outright to any branch a likelihood term
-  reaches ([`Tree::leafVetoRank`](../../src/bartcore/tree.hpp), rank 1; the cut scan's sentinels in
-  scan.hpp read the weight on each side). That made a fixed zero weight the same as deleting the row, and made
+  reaches (retired: [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp), rank 1, which step 1
+  removes; the cut scan's sentinels in scan.hpp read the weight on each side). That made a fixed zero weight the same as deleting the row, and made
   the set of allowed trees depend on the mask.
 - Measured against the exact posterior of a two-part mixture whose membership is redrawn every sweep, ten
   rows, one and two trees: under today's rule the long-run membership probabilities are off by up to 0.066
@@ -31,7 +38,15 @@ every sweep samples the model it assumes.
   too small; judging by membership, every quantity is within Monte Carlo error. At 300 rows and 50 trees the
   two rules differ by up to 0.044 in a membership probability, where a region is mostly switched off, and by
   under 0.005 in 290 of 300 rows.
-- With no zero weight and no mask the two rules are the same numbers and the draws are identical.
+- With no zero weight and no mask the two rules are the same numbers and the draws are identical, in a
+  single-forest fit. Found in implementation: a multi-forest sampler composes each forest's precisions from
+  its amplitudes, and a multiplier of zero is a zero weight in that forest that nobody installed. A
+  two-forest fit starts at amplitudes (1, 0, 1), so every control row is weightless in the treatment forest
+  until b0 is first drawn, and for good when (b0, b1) is held at (0, 1). The old rule conditioned that
+  forest's prior draw and its moves on holding a treated row in every leaf; the new one does not. The BCF
+  equivalence scenario with held amplitudes (glue_toggle) leaves its recorded stream; over 20 seeds no
+  posterior summary of it moves beyond a standard error, the change being 0.05 treatment-forest leaves per
+  sweep that hold control rows only. The drawn-amplitude scenarios were bitwise.
 - The same holds, measured the same way, with an unordered factor (the old rule's worst case: membership off
   by 0.21, the new within noise), with zero case weights in place of the mask, with a mask that empties whole
   regions, and after grow-from-root under a mask.
@@ -51,8 +66,11 @@ every sweep samples the model it assumes.
 
 ## Constraints
 
-- A fit that installs no zero weight, no per-forest zero weight, no mask and no zero-trial row draws exactly
-  what it draws now: the seeded snapshot files and every equivalence scenario without one are unchanged.
+- A single-forest fit that installs no zero weight, no mask and no zero-trial row draws exactly what it
+  draws now: the seeded snapshot files and every equivalence scenario of the gaussian and multinomial
+  harnesses without one are unchanged. A multi-forest fit does too unless a forest's own multiplier is zero
+  at some rows (Context): held there, the fit is posterior-changing; zero only at creation, its draws can
+  shift from the first sweep on with the posterior unchanged.
 - One rule on every path that decides whether a branch is legal: the moves, the cut scans (ordinal and
   categorical), grow-from-root, the per-forest weight composition of a multi-forest sampler, and the variance
   forest.
@@ -64,12 +82,15 @@ every sweep samples the model it assumes.
   times, Student-t's scales, multinomial), a row the mask switches back in has its latent redrawn from its
   conditional given the current fit before the call returns, from the sampler's own generators, as a logistic
   count swap already does. Rows that stay active keep their latents, and a mask that reactivates no row draws
-  nothing, so a sampler whose mask does not change consumes no extra variates.
+  nothing, so a sampler whose mask does not change consumes no extra variates. Found in implementation:
+  multinomial holds no latent between sweeps - each category's Polya-Gamma column is drawn inside the sweep,
+  immediately before that forest reads it - so it has nothing to redraw and redraws nothing.
 - No NEWS entry: this restores what 0.9-34 counted, and the mask is new in 1.0-0.
 
 ## Steps
 
-1. The rule: emptiness by member count in [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp) and the scan
+1. The rule: emptiness by member count in retired: [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp), which
+   [`Tree::leafIsEmpty`](../../src/bartcore/tree.hpp) replaces, and the scan
    sentinels, and wherever else a zero weight sum is read as "empty". Remove what the middle rank needed and
    nothing else uses. tests/cpp: a move that leaves a leaf of only zero-weight rows is accepted on its
    likelihood, on each leaf model; such a leaf's value is a prior draw; a leaf no row reaches is still

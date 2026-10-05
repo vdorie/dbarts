@@ -1538,7 +1538,7 @@ gone; footnotes that narrated history state the constraint;
 
 Design docs and NEWS (4be8d448): empty-leaf-veto.md's "Where the
 constant is read" describes the shipped rank mechanism
-([`resolveVetoRank`](../../src/bartcore/moves.hpp)); bcf.md's "Mutation
+(retired: [`resolveVetoRank`](../../src/bartcore/moves.hpp), the rank since removed); bcf.md's "Mutation
 surface" states what the engine refuses; bart-as-a-component.md gains
 "The mutation-legality table", so the tour's name for it is literal;
 NEWS.Rd's UPGRADING cross-references four breaks that lived only under

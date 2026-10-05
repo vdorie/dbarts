@@ -240,13 +240,29 @@ per cent error in the divisor grows into a gap this large because it
 compounds - a residual scale drawn too small makes the trees chase
 noise, which makes the residual sum smaller, which makes the next draw
 smaller still. A second change rides along and is not separately
-visible here: empty or zero-weight leaves are now vetoed on the count
-of positive-weight members rather than carrying a finite penalty. With
-every weight positive the two counts coincide and nothing moves, which
-is what the ordinary weighted scenario shows - it is clean in both
-tables. So this is a repair, and the measurement quantifies it: on
-this data, 0.9-x understated the residual scale by a factor of about
-two and a half.
+visible here: a tree move that would leave a leaf empty is now refused
+outright where 0.9-34 charged it a finite penalty. What counts as empty
+is the same in both releases - a leaf no row at all reaches, a
+zero-weight row being a member of its leaf like any other (dec-B238).
+The tables above were taken while the branch counted only
+positive-weight rows there, a rule it held from 2026-08-12 to
+2026-10-05, and the zero-weight row was re-run on 2026-10-05 with the
+member count against the same 0.9-34 recording. It stands where it
+stood: a largest statistic of 51.40 on the mean residual scale, 0.29
+against 0.72, with 26 of the 64 summaries above three, 21 above four
+and three seed ranges disjoint, where the build before gave 47.28, 26,
+23 and four. The two builds of 1.0-0 agree with each other on this
+scenario at a largest statistic of 2.45, none above three. So the
+degrees of freedom are the whole of this row's gap, and which rows the
+emptiness rule counts moves nothing here that twenty seeds can see;
+with every weight positive the two counts coincide and nothing moves
+at all, which is what the ordinary weighted scenario shows - it is
+clean in both tables. A fit carrying zero weights is no longer exactly
+the fit on the remaining rows, since a tree may now hold a leaf of
+zero-weight rows only, and the residual scale it reports here is 0.72
+where the fit without those rows gives 0.73. So this is a repair, and
+the measurement quantifies it: on this data, 0.9-x understated the
+residual scale by a factor of about two and a half.
 
 The second is crossvalidation. Every cell of the grid comes out lower
 under 0.9-34 than under 1.0-0 - a mean loss of 1.34 against 1.56 - and

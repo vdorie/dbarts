@@ -217,7 +217,8 @@ put to VD before the slice starts.
    empty row to one trial.
 6. Docs: [The surface](../design/multinomial.md#the-surface) count bullet; a sentence in
    [Per family](../design/active-rows-mask.md#per-family) (a zero-trial row is an inactive row, composed in the
-   coupling) and its test list; [Which weights the predicate sees](../design/empty-leaf-veto.md#which-weights-the-predicate-sees);
+   coupling) and its test list; [One predicate on every path](../design/empty-leaf-veto.md#one-predicate-on-every-path) (the section that
+   replaced the one this step edited);
    the class row in the R15 inventory of [error-style.md](../design/error-style.md).
    Rd: `dbartsData`'s `counts`, `dbarts`'s multinomial item, `bart`'s count-matrix text (n_i >= 0, the class
    sentence, residuals -p, loglik 0 and dropping those columns before loo), `dbartsSampler`'s `setCounts`. NEWS

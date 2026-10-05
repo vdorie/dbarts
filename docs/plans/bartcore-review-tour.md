@@ -482,16 +482,16 @@ the source of why a guard keys on the family rather than an internal flag.
 
 Open `docs/design/empty-leaf-veto.md`,
 [Where the constant is read](../design/empty-leaf-veto.md#where-the-constant-is-read),
-[Is vetoed-vs-vetoed reachable? Yes; the veto is a RANK (2026-08-18)](../design/empty-leaf-veto.md#is-vetoed-vs-vetoed-reachable-yes-the-veto-is-a-rank-2026-08-18),
-[What counts as empty: the weight law (2026-08-12)](../design/empty-leaf-veto.md#what-counts-as-empty-the-weight-law-2026-08-12)
+[Is vetoed-vs-vetoed reachable? No](../design/empty-leaf-veto.md#is-vetoed-vs-vetoed-reachable-no),
+[What counts as empty: membership](../design/empty-leaf-veto.md#what-counts-as-empty-membership)
 and
-[Which weights the predicate sees](../design/empty-leaf-veto.md#which-weights-the-predicate-sees),
-about 1,470 words: why a leaf with no members vetoes a move outright while
-a leaf with members but no weight is only penalized. Then the code:
+[One predicate on every path](../design/empty-leaf-veto.md#one-predicate-on-every-path):
+why a leaf with no members vetoes a move outright while
+a leaf with members but no weight is an ordinary leaf. Then the code:
 [`metropolisJumpForTree`](../../src/bartcore/moves.hpp) and
-[`resolveVetoRank`](../../src/bartcore/moves.hpp);
+[`resolveEmptyLeafVeto`](../../src/bartcore/moves.hpp);
 [`Tree`](../../src/bartcore/tree.hpp),
-[`Tree::leafVetoRank`](../../src/bartcore/tree.hpp),
+[`Tree::leafIsEmpty`](../../src/bartcore/tree.hpp),
 [`columnMaskSubtreeIsValid`](../../src/bartcore/tree.hpp);
 [`scanOrdinalCuts`](../../src/bartcore/scan.hpp);
 [`growTreeFromRoot`](../../src/bartcore/grow.hpp);

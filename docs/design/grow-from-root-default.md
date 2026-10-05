@@ -841,7 +841,7 @@ through that unchanged skeleton (`Tree::refreshSubtree`, called at
 [`refreshSubtree`](../../src/bartcore/moves.hpp)) and rescores the FULL subtree's likelihood under the new
 routing (`logLikelihoodForBranch`, [`logLikelihoodForBranch`](../../src/bartcore/moves.hpp), walking every
 bottom descendant via `fillBottom` and vetoing with `-HUGE_VAL` if any
-leaf empties, [`leafVetoRank`](../../src/bartcore/moves.hpp)). Acceptance is `alpha = exp((belowY-belowX) +
+leaf empties, [`resolveEmptyLeafVeto`](../../src/bartcore/moves.hpp)). Acceptance is `alpha = exp((belowY-belowX) +
 (yLogL-xLogL) + correction)`, capped at 1 ([`changeMove`](../../src/bartcore/moves.hpp)). At the root
 of a tree with any depth, "the subtree below the changed node" is the
 entire tree: rerouting all n observations through a new top split while

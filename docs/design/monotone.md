@@ -399,7 +399,7 @@ the structure makes the answer clean, and it differs by move:
   max-below above its min-above). Handled with NO special-casing: the constrained
   marginal integrates the truncated-normal product over an empty region to 0, so
   p(r_new | T*, mu_same) = 0 and alpha = 0 - the move is rejected by the ordinary
-  acceptance test, the same way the empty-leaf veto (-HUGE_VAL, [`resolveVetoRank`](../../src/bartcore/moves.hpp))
+  acceptance test, the same way the empty-leaf veto (-HUGE_VAL, [`resolveEmptyLeafVeto`](../../src/bartcore/moves.hpp))
   already rejects unoccupied leaves. No infeasible state can be accepted.
 
 **v1 move set (scope decision).** Restrict the constrained forest to birth/death

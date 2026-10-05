@@ -27,6 +27,16 @@ its leaf occupancy and its fitted value ([`setActiveRows`](../../R/dbarts.R),
 [`setActiveRows`](../../man/dbartsSampler-class.Rd)). Whether its own latent is drawn
 as well is a per-family matter, settled under "The mechanism".
 
+An inactive row is IN THE DESIGN AND NOT IN THE LIKELIHOOD. It counts as a
+member of its leaf wherever members are counted, the rule against empty leaves
+included, so the trees a sampler may hold do not depend on the mask and a leaf
+may hold inactive rows only, its value then a draw from the prior. That is
+what makes a mask redrawn every sweep sample the joint model the outer code
+assumes, and it is why a fit under a fixed mask is close to the fit on the
+active rows alone and not equal to it
+([What counts as empty: membership](empty-leaf-veto.md#what-counts-as-empty-membership)
+has the measurement and the sizes).
+
 Zero case weights already do this for a gaussian response - a masked gaussian
 sampler is bitwise `setWeights(w * a)` with no mask - and for Student-t through
 the same composite. What the channel adds is the families zero weights cannot
@@ -105,13 +115,39 @@ Polya-Gamma variate behind logistic, negative binomial and multinomial - the
 number of uniforms consumed depends on the argument, so an inactive row's draw
 is skipped rather than taken and discarded: a discard would desynchronize the
 chain's generator from a sampler built on the retained rows alone. That row's
-latent keeps its last drawn value, which stays finite, and is stale until the
-row is active again
+latent keeps its last drawn value, which stays finite, and is stale for as
+long as the row is out
 ([`ProbitResponse::refreshLatents`](../../src/bartcore/model.hpp)). Student-t is the
 deliberate exception. Its lambda comes from a gamma whose consumption depends
 on the shape `(nu + 1) / 2` and not on the mask, so lambda is drawn at every
 row and the mask annihilates it through the composite instead, at no cost to
 the generator ([`TResponse::refreshLatents`](../../src/bartcore/model.hpp)).
+
+A stale latent must not come back into the likelihood. A sweep moves its trees
+first and refreshes latents after, so a row switched back in would otherwise
+enter the next tree update with the latent it left on, drawn against an older
+fit. `setActiveRows` therefore redraws the latent of every row it switches
+from inactive to active, from the row's conditional given the current fit,
+off the chain's own generator and before it returns
+([`ResponseModel::setActiveRows`](../../src/bartcore/model.hpp),
+[`Chain::setActiveRows`](../../src/bartcore/chain.hpp)): probit and ordinal
+redraw z on its interval, logistic and negative binomial omega at the current
+count and shape, AFT a censored log-time above its bound, Student-t lambda at
+the current sigma and nu, which an inactive row's running draw is one update
+behind. A host that draws the mask from the fit with the latents integrated
+out thereby draws mask and latents jointly. A row that stays active keeps its
+latent, which is a valid step and not an economy: redrawing it would also be
+valid and would consume variates a fixed mask never asks for. A mask that
+reactivates no row - the first install, the mask already in force, one that
+only switches rows off - draws nothing. Multinomial needs no redraw: its
+Polya-Gamma variates are per-sweep scratch, each category's column drawn
+against the current margins immediately before that forest reads it
+([`MultinomialForestCombiner::setActiveRows`](../../src/bartcore/combiner.hpp)).
+Gaussian has no latent. Measured on a probit mixture whose mask is redrawn
+every sweep, against the exact joint by enumeration: without the redraw the
+membership probabilities are off by 0.004 and the fit by 0.055, 0.05 of a
+posterior standard deviation, its spread 5 to 7 percent too narrow; with it
+both are within Monte Carlo error.
 
 ## Per family
 
@@ -221,7 +257,9 @@ under a refusal they all share, so an install cannot land half applied.
 
 Per family, the masked n-row kernel against the same kernel run over the
 compacted active rows, bitwise in value and in variates consumed - which is
-what tells a skipped draw from a discarded one
+what tells a skipped draw from a discarded one. The compacted arm is the
+kernel's, not the sampler's: given the trees, an inactive row is out of every
+draw, while the trees themselves count it as a member
 ([`testActiveRowsProbitKernel`](../../tests/cpp/test_model.cpp),
 [`testActiveRowsOrdinalKernels`](../../tests/cpp/test_model.cpp),
 [`testActiveRowsLogisticKernel`](../../tests/cpp/test_model.cpp),
@@ -235,17 +273,27 @@ weights, the degrees-of-freedom recount included
 ([`testActiveRowsGaussianDf`](../../tests/cpp/test_model.cpp),
 [`testActiveRowsStudentComposite`](../../tests/cpp/test_model.cpp)).
 
+The reactivation redraw, per family, against the conditional drawn from a
+generator cloned ahead of the call - bitwise in value and in variates
+consumed, every other row's latent untouched, and nothing drawn by a first
+install or by the mask in force
+([`testReactivatedLatents`](../../tests/cpp/test_model.cpp),
+["redraws the latent of every row it switches from inactive to"](../../inst/tinytest/test-active-rows-reactivation.R)),
+and the combined sampler against the exact joint, whose probit arm fails
+without it (`benchmarks/R/mask-redraw-exact.R`).
+
 At sampler level: the normalizer, the value refusal, the all-zeros run and a
 gaussian arm against `setWeights(w * a)`
-([`testActiveRows`](../../tests/cpp/test_sampler.cpp)); the same on a forest already
-grown into the rows the mask removes
+([`testActiveRows`](../../tests/cpp/test_sampler.cpp)); a forest already
+grown into the rows the mask removes, which keeps moving and holds leaves of
+only inactive rows
 ([`testActiveRowsOnGrownForest`](../../tests/cpp/test_sampler.cpp)); substituted
 responses at the inactive rows leaving every active row's recorded draw bitwise
 (["logistic, nbinom and aft"](../../inst/tinytest/test-active-rows-pins.R),
 ["multinomial, GLOBAL only"](../../inst/tinytest/test-active-rows-pins.R));
 zero-trial rows against the same rows carrying counts and masked, through
-creation, `$setCounts`, `$sampleTreesFromPrior` and re-creation, and against
-the fit without them
+creation, `$setCounts`, `$sampleTreesFromPrior` and re-creation, and beside
+the fit without them, which they are close to and not equal to
 (["empty rows are masked rows"](../../inst/tinytest/test-multinomial-zero-trials.R)); the
 gaussian, Student-t, BCF and heteroscedastic arms bitwise against
 `setWeights(w * a)` (["heteroSampler"](../../inst/tinytest/test-active-rows-pins.R));

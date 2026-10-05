@@ -42,8 +42,9 @@ not gaussian's 2 ([`defaultAmplitudePriorScale`](../../R/model.R)). The glue IS 
 
 The gaussian arm today. [`sbcBCFGlueDraw`](../../benchmarks/R/sbc.R) draws `a ~ Cauchy(0, sd.control)` and `b0, b1 ~
 N(0, bPriorVariance)`; [`sbcInstallBCFGlue`](../../benchmarks/R/sbc.R) installs them through the state BEFORE the
-forests, the prior tree draw conditioning on each forest's own veto vector
-([`formForestVetoWeights`](../../src/bartcore/combiner.hpp)); the engine's prior-draw entry points supply the forests;
+forests, the prior tree draw then conditioning on each forest's own veto vector
+(retired: [`formForestVetoWeights`](../../src/bartcore/combiner.hpp), gone since the
+veto counts members and the prior draw reads no weight); the engine's prior-draw entry points supply the forests;
 sigma comes from the reported-scale scaled-inverse-chi-squared; `y0` is the affine-mapped index plus gaussian noise. The
 fit re-inits from a second prior draw, `setResponse` swaps `y0` at the pinned scale, and draws come one at a time, the
 glue and per-forest fits being current-state only. Fifteen functionals: `sigma`, raw `a` and `b1.minus.b0`, `abs.a` and

@@ -157,7 +157,7 @@ through `proposal.probs`; only the default moved.
   over the descendant-valid set. **The entire skeleton below the node is
   held fixed** ([`changeMove`](../../src/bartcore/moves.hpp)) and every observation is rerouted
   through it, with a hard veto if any descendant leaf empties
-  ([`resolveVetoRank`](../../src/bartcore/moves.hpp)).
+  ([`resolveEmptyLeafVeto`](../../src/bartcore/moves.hpp)).
 
 Three consequences.
 
@@ -1384,8 +1384,8 @@ Both addenda below were measured at the former default, where swap carried
 ([Removing the swap tree-proposal](swap-removal.md#removing-the-swap-tree-proposal)).
 
 **Addendum (2026-09-06): the first bullet is now measured.** A scaffold
-build that instrumented the four [`resolveVetoRank`](../../src/bartcore/moves.hpp)
-call sites for a different purpose - the occupancy veto's rejection budget -
+build that instrumented the four [`resolveEmptyLeafVeto`](../../src/bartcore/moves.hpp)
+call sites (the veto's resolution, then under another name) for a different purpose - the occupancy veto's rejection budget -
 also classified every structural proposal by move type and outcome, and
 those counts carry the per-move acceptance rates this bullet asks for. At
 the default mixture, the default prior, n = 2000, p = 10, 200 trees, 200

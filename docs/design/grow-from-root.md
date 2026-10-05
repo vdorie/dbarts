@@ -254,9 +254,9 @@ score and one candidate carrying their combined mass, and a symmetric coin picks
 within the pair after the draw. That is the same rule the categorical branch
 follows, where a present missing pseudo-category is a real histogram bin the
 partition routes and an absent one gets a coin. Occupancy stays on the
-NON-MISSING weights of both sides, which is what keeps an out-of-interval cut
-undrawable; a candidate that survives it carries positive weight in both
-children a fortiori.
+NON-MISSING members of both sides, which is what keeps an out-of-interval cut
+undrawable; a candidate that survives it leaves neither child empty a
+fortiori.
 
 It did not always, in two independent ways, both measured on one signal-free
 64-row fixture with one 4-cut ordinal column and 8 missing rows, over the 9-cell

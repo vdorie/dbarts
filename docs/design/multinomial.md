@@ -240,12 +240,14 @@ both supported (below).
   factor is the constant 1 - PG(0, .) is the point mass at 0 and
   y_ik - n_i/2 = 0 - so the coupling composes it into its global
   active-row mask ([Per family](active-rows-mask.md#per-family)): no
-  latent is drawn and no forest's sufficient statistics or veto see it,
-  while it keeps its leaf occupancy and reports K probabilities, as glm
+  latent is drawn and no forest's sufficient statistics see it,
+  while it keeps its leaf occupancy - it is a member for the empty-leaf
+  veto, as any row is - and reports K probabilities, as glm
   keeps a fitted value at a zero-weight row. Its log-likelihood is 0 in
   every draw, its response residual -p (observed 0, glm's convention),
-  and a fit with added empty rows is the fit without them to rounding
-  when those rows add no cut points. K = 2 counts reduce to
+  and a fit with added empty rows is close to the fit without them and
+  not equal to it: a category forest may hold a leaf of only empty rows,
+  whose value is a draw from the prior. K = 2 counts reduce to
   binomial(n_i, p) distributionally (not bitwise - two forests, a
   different draw stream). The counts (or labels) are the response, so
   the host sampler's own response is ignored. Real-shape (non-integer)

@@ -196,7 +196,7 @@ declares:
   ([`logLikelihoodForBranch`](../../src/bartcore/moves.hpp)) - the variance leaf provides logIntegratedLikelihoodForNode over
   its own (n_k, weighted sum of scaled squared residuals) suffstat and falls through
   the SAME conjugate path, no ParamScoringLeafModel override. The empty-leaf veto
-  ([`Tree::leafVetoRank`](../../src/bartcore/tree.hpp)) applies unchanged.
+  ([`Tree::leafIsEmpty`](../../src/bartcore/tree.hpp)) applies unchanged.
 
 - **Draw.** drawFromPosteriorForNode returns a scaled-inverse-chi-squared draw
   chi^-2(nu' + n_k, [nu' lambda'^2 + sum_{i in k} w_i e_i^2 / s^2_{-j}(x_i)] /

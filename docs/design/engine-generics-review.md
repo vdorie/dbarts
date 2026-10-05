@@ -140,8 +140,8 @@ scale, column restriction and interaction constraint - is right, and is already
 heterogeneous across the forests of one chain in every respect but one. The
 coupling object is the right shape for axis B: it is asked, per forest per sweep,
 for that forest's response and precisions and for the combined location. And the
-interface a proposal needs from a leaf turns out to be two numbers - a veto rank
-and a log marginal - which is as small as it could be.
+interface a proposal needs from a leaf turns out to be two things - whether it is
+empty and a log marginal - which is as small as it could be.
 
 What does not match, in descending order of consequence.
 
@@ -299,9 +299,9 @@ The erasure boundary, its capability record, the per-leaf instantiation set, and
 the composition refusals of section 3:
 [`SamplerBase`, `SamplerFacade`, `SamplerShape`, `createSampler`, `createAmplitudeSampler`, `createMultinomialSampler`, `varianceForestIsRefused`](../../src/bartcore/facade.hpp).
 
-What a proposal asks of a leaf - a veto rank and a log marginal:
-[`metropolisJumpForTree`, `logLikelihoodForBranch`, `BranchScore`, `resolveVetoRank`](../../src/bartcore/moves.hpp),
-[`leafVetoRank`, `Rule`](../../src/bartcore/tree.hpp),
+What a proposal asks of a leaf - whether it is empty and a log marginal:
+[`metropolisJumpForTree`, `logLikelihoodForBranch`, `BranchScore`, `resolveEmptyLeafVeto`](../../src/bartcore/moves.hpp),
+[`leafIsEmpty`, `Rule`](../../src/bartcore/tree.hpp),
 [`ColumnStore`](../../src/bartcore/data.hpp).
 
 The host dependencies of section 6: the four mathematical functions
