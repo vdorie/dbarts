@@ -95,7 +95,7 @@
     <code>"student"</code> constrains nothing.</p></dd>
 
   <dt id="arg-weights">weights<a class="anchor" aria-label="anchor" href="#arg-weights"></a></dt>
-<dd><p><code>"logistic"</code> only, refused by name elsewhere: observation counts, positive whole numbers,
+<dd><p><code>"logistic"</code> only, refused by name elsewhere: observation counts, positive whole numbers no larger than \(10^6\),
     each entering as the sum of that many independent \(PG(1, \psi)\) draws.</p></dd>
 
   <dt id="arg-offset">offset<a class="anchor" aria-label="anchor" href="#arg-offset"></a></dt>
@@ -107,7 +107,7 @@
 
   <dt id="arg-shape">shape<a class="anchor" aria-label="anchor" href="#arg-shape"></a></dt>
 <dd><p><code>"nbinom"</code> only, and required there: the current shape \(r\), a positive whole
-    number, as <code><a href="dbartsSampler-class.html">getShape</a></code> reports it. An <code>"nbinom"</code>
+    number no larger than \(10^6\), as <code><a href="dbartsSampler-class.html">getShape</a></code> reports it. An <code>"nbinom"</code>
     location is a log mean, so the Polya-Gamma draw reads the log-odds
     \(\psi_i = f_i + o_i - \log r\).</p></dd>
 

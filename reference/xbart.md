@@ -102,7 +102,9 @@ xbart(
   installs as an active-row mask is refused here, cross-validation
   partitioning the rows itself; a `"logistic"` model treats them as
   observation counts and so requires positive integers (its Polya-Gamma
-  latent for a count \\w\\ is a sum of \\w\\ unit draws).
+  latent for a count \\w\\ is a sum of \\w\\ unit draws, so a sweep's
+  time grows with the total count, and a count above \\10^6\\ is
+  refused).
 
 - offset:
 

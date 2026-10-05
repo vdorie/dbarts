@@ -58,8 +58,8 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
 - weights:
 
   `"logistic"` only, refused by name elsewhere: observation counts,
-  positive whole numbers, each entering as the sum of that many
-  independent \\PG(1, \psi)\\ draws.
+  positive whole numbers no larger than \\10^6\\, each entering as the
+  sum of that many independent \\PG(1, \psi)\\ draws.
 
 - offset:
 
@@ -74,7 +74,7 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
 - shape:
 
   `"nbinom"` only, and required there: the current shape \\r\\, a
-  positive whole number, as
+  positive whole number no larger than \\10^6\\, as
   [`getShape`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   reports it. An `"nbinom"` location is a log mean, so the Polya-Gamma
   draw reads the log-odds \\\psi_i = f_i + o_i - \log r\\.

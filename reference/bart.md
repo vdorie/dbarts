@@ -272,7 +272,8 @@ print(x, ...)
   centre, the log of the total count over the total exposure, as a
   gaussian or aft fit's response transform is taken over all rows); a
   `family = "logistic"` fit treats them as observation counts and
-  requires positive integers. For a weighted logistic fit, the `"ppd"`
+  requires positive integers no larger than \\10^6\\, as a sweep's time
+  grows with the total count. For a weighted logistic fit, the `"ppd"`
   draw at an observation with weight \\w\\ is the number of successes
   among \\w\\ trials, \\\mathrm{Binomial}(w, p)\\ with \\p\\ the fitted
   probability.
@@ -1951,7 +1952,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001496
+#> total seconds in loop: 0.001302
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -2000,7 +2001,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001784
+#> total seconds in loop: 0.001804
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 1 2 2 2 3 2 

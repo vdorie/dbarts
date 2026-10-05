@@ -430,26 +430,26 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   For `setCounts`, the replacement response of a multinomial (softmax)
   sampler: an \\n \times K\\ matrix of non-negative integer counts,
   column \\k\\ holding category \\k\\'s successes, with trials \\n_i =
-  \sum_k\\ `counts[i, ]` at least 0: a row with no trial enters no
-  likelihood and still receives fitted probabilities, and the first such
-  row in a session warns. Both \\n\\ and \\K\\ are fixed at creation -
-  every combiner buffer is sized by \\n\\, and \\K\\ is the forest
-  count - so only the values may change; a matrix of the wrong shape is
-  refused naming the count in force. The trees carry over, fitted to the
-  previous counts exactly as `setResponse` leaves a single-forest
-  sampler's, and the next `run` forms every category's working response
-  against the new matrix. The matrix is written to both the engine and
-  `data@counts` (its row sums to `data@y`), so `getPointer`'s
-  transparent re-creation after save and load carries the current
-  response rather than the one the sampler was created with. Cost, not a
-  defect: the sweep draws \\n_i\\ Polya-Gamma variates per observation
-  per category, so replacing single-trial labels with grouped counts
-  multiplies sweep cost by `mean(n_i)`. A missing count is refused, as a
-  missing response is by `setResponse`; to leave a row out of the
-  likelihood mid-chain, mark it inactive with `setActiveRows`, as in
-  every family, or write zeros into it, which is the same as far as the
-  likelihood goes. Refused, naming the reason, on any sampler that
-  carries no count response.
+  \sum_k\\ `counts[i, ]` at least 0 and no larger than \\10^6\\: a row
+  with no trial enters no likelihood and still receives fitted
+  probabilities, and the first such row in a session warns. Both \\n\\
+  and \\K\\ are fixed at creation - every combiner buffer is sized by
+  \\n\\, and \\K\\ is the forest count - so only the values may change;
+  a matrix of the wrong shape is refused naming the count in force. The
+  trees carry over, fitted to the previous counts exactly as
+  `setResponse` leaves a single-forest sampler's, and the next `run`
+  forms every category's working response against the new matrix. The
+  matrix is written to both the engine and `data@counts` (its row sums
+  to `data@y`), so `getPointer`'s transparent re-creation after save and
+  load carries the current response rather than the one the sampler was
+  created with. Cost, not a defect: the sweep draws \\n_i\\ Polya-Gamma
+  variates per observation per category, so replacing single-trial
+  labels with grouped counts multiplies sweep cost by `mean(n_i)`. A
+  missing count is refused, as a missing response is by `setResponse`;
+  to leave a row out of the likelihood mid-chain, mark it inactive with
+  `setActiveRows`, as in every family, or write zeros into it, which is
+  the same as far as the likelihood goes. Refused, naming the reason, on
+  any sampler that carries no count response.
 
 - weights:
 
@@ -458,48 +458,49 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   gaussian-family sampler it is a precision, non-negative, and a weight
   of zero excludes an observation from the likelihood while keeping its
   fitted values; for a `logistic`-family sampler it is an observation
-  COUNT and must be a positive integer, a zero count being a dropped row
-  rather than a down-weighted one (`active` is the supported way to take
-  a row out of the data set for a sweep). Installed BETWEEN samples on a
-  forest that has already grown, a vector of zeros can leave leaves that
-  no positive-weight row reaches - the trees were drawn before it
-  existed, and weights are not part of the saved `state` - which is a
-  legal, transient state rather than an error: such a tree keeps moving
-  under the tree prior at a constant likelihood and returns to leaves
-  the likelihood reaches. `setWeights` applies to gaussian- and
-  `logistic`-family samplers. A logistic swap is a model change with a
-  defined meaning rather than a reweighting: the counts are the shape of
-  the Polya-Gamma latents, which are redrawn against the new counts
-  before the call returns - from the sampler's own generators, not R's
-  stream - so an outer sampler can vary exposure between runs. `probit`,
-  `ordinal`, `aft` and `nbinom` refuse a weighted likelihood by
-  identification: a weighted probit has no tractable latent-variable
-  form, `ordinal` inherits that, `aft` fixes its censoring structure at
-  creation, and `nbinom`'s Polya-Gamma shape is \\y_i + r\\ with no
-  weight slot. On a `probit`, `ordinal` or `nbinom` sampler a vector of
-  0s and 1s is accepted all the same: it names the rows in the data set
-  rather than a precision, so `setWeights` routes it to `active` below -
-  installing the mask, all-ones clearing it - and leaves the data
-  object's `weights` slot empty; any other value keeps the refusal.
-  `setData` carries the same rule on the whole-data conduit, and redraws
-  the latents against the counts the replacement data carries;
-  replacement data given without weights is single-trial, as at
-  creation, so a logistic sampler built with counts and handed
-  weightless data becomes an unweighted one. Under an installed mask a
-  swap redraws only the ACTIVE rows - an inactive row consumes no random
-  numbers and returns to its deterministic cold start against the new
-  count. The weights themselves are not part of the saved `state`, but a
-  digest of the ones in force when it was stored is: `setState` compares
-  it against the destination's own weights and, where the two disagree,
-  re-derives the weight-dependent latents against the DESTINATION's - so
-  a restore lands where the same `setWeights` call would rather than
-  pairing one vector's latents with another's counts, silently and off
-  the restored generators. A matched round trip re-derives nothing and
-  installs the stored state unchanged. Only a family whose augmentation
-  is stated against the weights moves under it (`logistic`); for
-  gaussian, Student-t and every weight-refusing family it is a no-op.
-  See [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-  for the family-specific weight rules that apply at creation time.
+  COUNT and must be a positive integer no larger than \\10^6\\, a zero
+  count being a dropped row rather than a down-weighted one (`active` is
+  the supported way to take a row out of the data set for a sweep).
+  Installed BETWEEN samples on a forest that has already grown, a vector
+  of zeros can leave leaves that no positive-weight row reaches - the
+  trees were drawn before it existed, and weights are not part of the
+  saved `state` - which is a legal, transient state rather than an
+  error: such a tree keeps moving under the tree prior at a constant
+  likelihood and returns to leaves the likelihood reaches. `setWeights`
+  applies to gaussian- and `logistic`-family samplers. A logistic swap
+  is a model change with a defined meaning rather than a reweighting:
+  the counts are the shape of the Polya-Gamma latents, which are redrawn
+  against the new counts before the call returns - from the sampler's
+  own generators, not R's stream - so an outer sampler can vary exposure
+  between runs. `probit`, `ordinal`, `aft` and `nbinom` refuse a
+  weighted likelihood by identification: a weighted probit has no
+  tractable latent-variable form, `ordinal` inherits that, `aft` fixes
+  its censoring structure at creation, and `nbinom`'s Polya-Gamma shape
+  is \\y_i + r\\ with no weight slot. On a `probit`, `ordinal` or
+  `nbinom` sampler a vector of 0s and 1s is accepted all the same: it
+  names the rows in the data set rather than a precision, so
+  `setWeights` routes it to `active` below - installing the mask,
+  all-ones clearing it - and leaves the data object's `weights` slot
+  empty; any other value keeps the refusal. `setData` carries the same
+  rule on the whole-data conduit, and redraws the latents against the
+  counts the replacement data carries; replacement data given without
+  weights is single-trial, as at creation, so a logistic sampler built
+  with counts and handed weightless data becomes an unweighted one.
+  Under an installed mask a swap redraws only the ACTIVE rows - an
+  inactive row consumes no random numbers and returns to its
+  deterministic cold start against the new count. The weights themselves
+  are not part of the saved `state`, but a digest of the ones in force
+  when it was stored is: `setState` compares it against the
+  destination's own weights and, where the two disagree, re-derives the
+  weight-dependent latents against the DESTINATION's - so a restore
+  lands where the same `setWeights` call would rather than pairing one
+  vector's latents with another's counts, silently and off the restored
+  generators. A matched round trip re-derives nothing and installs the
+  stored state unchanged. Only a family whose augmentation is stated
+  against the weights moves under it (`logistic`); for gaussian,
+  Student-t and every weight-refusing family it is a no-op. See
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
+  the family-specific weight rules that apply at creation time.
 
   For `setForestWeights`, a distinct per-FOREST case weight on a
   Bayesian causal forest (built with `forests = `, see
@@ -1311,14 +1312,17 @@ adds `variance`, the per-observation variance surface \\s^2(x_i)\\ on
 the original response scale, shaped as `train`, whose square root is the
 residual scale, and `varianceTest`, the same at the test rows (`NULL`
 without test data). A run can be interrupted with `Ctrl-C`: it stops
-between iterations - joining any worker threads first - and signals an
-error, returning no samples from the interrupted run. The sampler's
-chains are left at the iteration they reached, which is a valid state to
-run again from. Under `control@keepFits == FALSE`, `train`, `test`, and
-(when the model carries them) the variance and forest channels come back
-`NULL` rather than an array - present in the list, holding nothing,
-unlike `shape`/`resid.df` above, which are absent outright when
-inapplicable; see `callback` above and
+between iterations, or inside an iteration's Polya-Gamma latent draws,
+whose time grows with a logistic, negative-binomial or multinomial fit's
+counts - joining any worker threads first - and signals an error,
+returning no samples from the interrupted run. The sampler's chains are
+left where they stopped, each latent at this iteration's draw or the
+previous one, which is a valid state to run again from. Under
+`control@keepFits == FALSE`, `train`, `test`, and (when the model
+carries them) the variance and forest channels come back `NULL` rather
+than an array - present in the list, holding nothing, unlike
+`shape`/`resid.df` above, which are absent outright when inapplicable;
+see `callback` above and
 [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
 `keepFits`. A `callback` that returns nonzero ABORTS the run the same
 way an interrupt does: the results are discarded and `run` signals an

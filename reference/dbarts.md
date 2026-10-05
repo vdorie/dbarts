@@ -124,14 +124,15 @@ dbarts(
   transform is taken over all rows. A `"logistic"` model differs again:
   it treats them as observation counts and so requires positive integers
   (its Polya-Gamma latent for a count \\w\\ is a sum of \\w\\ unit
-  draws). A weight of 0 is honored but adds no information while still
-  costing computation, and is warned about unless every weight is 0 or
-  1 - a vector of nothing but those states which rows are in the data
-  set rather than carrying an inert value among real weights, and is the
-  active-row mask outright for a `"probit"`, `"ordinal"` or `"nbinom"`
-  fit; the same class covers `weights` going unused for `test` - when
-  the model is not specified as a formula, and when `weights` names a
-  column `test` does not carry.
+  draws, so a sweep's time grows with the total count, and a count above
+  \\10^6\\ is refused). A weight of 0 is honored but adds no information
+  while still costing computation, and is warned about unless every
+  weight is 0 or 1 - a vector of nothing but those states which rows are
+  in the data set rather than carrying an inert value among real
+  weights, and is the active-row mask outright for a `"probit"`,
+  `"ordinal"` or `"nbinom"` fit; the same class covers `weights` going
+  unused for `test` - when the model is not specified as a formula, and
+  when `weights` names a column `test` does not carry.
 
 - offset:
 
@@ -546,15 +547,16 @@ dbarts(
   \\K\\ forests, one per category, with the interleaved one-vs-rest
   Polya-Gamma augmentation. The response is an \\n \times K\\ matrix of
   non-negative integer counts - column \\k\\ holding category \\k\\'s
-  successes, with trials \\n_i = \sum_k y\_{ik} \ge 0\\ - or, the
-  single-trial special case, a factor, character or non-negative
-  integer-code vector, which is one-hot expanded to exactly that matrix
-  with every trial 1. Column names on the matrix, or the levels of a
-  factor, label the categories. Under `family = "auto"` a matrix of
-  three or more columns of non-negative whole numbers is read as this
-  model, but a three-or-more-level factor is not - it is an error
-  directing here, since an unordered categorical response is equally a
-  candidate for several models. The response rides
+  successes, with trials \\n_i = \sum_k y\_{ik} \ge 0\\, no larger than
+  \\10^6\\ since each trial costs a Polya-Gamma draw per category per
+  sweep - or, the single-trial special case, a factor, character or
+  non-negative integer-code vector, which is one-hot expanded to exactly
+  that matrix with every trial 1. Column names on the matrix, or the
+  levels of a factor, label the categories. Under `family = "auto"` a
+  matrix of three or more columns of non-negative whole numbers is read
+  as this model, but a three-or-more-level factor is not - it is an
+  error directing here, since an unordered categorical response is
+  equally a candidate for several models. The response rides
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)'s
   `counts` argument, and `data@y` is the derived trials vector; the
   per-category shift is an \\n \times K\\ matrix `offset` (entering the

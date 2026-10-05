@@ -232,7 +232,8 @@ Every setting that only one family reads rides its family object rather
       \(y + r\), so a large fixed \(r\) is slow: at
       \(r = 10^4\), a thousand sweeps over a thousand
       observations take about half an hour. By \(r\) in the hundreds
-      the model is already close to a Poisson one.</p></dd>
+      the model is already close to a Poisson one. A fixed shape above
+      \(10^6\) is refused, as a count above it is.</p></dd>
 
     <dt><code>aft(sigma = NULL)</code></dt>
 <dd><p>Accelerated failure time (log-normal) survival. The log-time

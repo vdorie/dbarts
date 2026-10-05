@@ -222,7 +222,8 @@ family(object, ...)
   mask, a 0 row leaving the likelihood but keeping its leaf occupancy,
   its latent and its fitted value (the same holds for
   `family = "ordinal"`); a `family = "logistic"` fit treats them as
-  observation counts and requires positive integers. For a weighted
+  observation counts and requires positive integers no larger than
+  \\10^6\\, as a sweep's time grows with the total count. For a weighted
   logistic fit, the `"ppd"` draw at an observation with weight \\w\\ is
   the number of successes among \\w\\ trials, \\\mathrm{Binomial}(w,
   p)\\ with \\p\\ the fitted probability.
@@ -1194,7 +1195,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.204416
+#> total seconds in loop: 0.173412
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
