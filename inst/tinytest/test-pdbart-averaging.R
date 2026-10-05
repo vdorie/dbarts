@@ -645,7 +645,7 @@ rm(aa, bb, yy, envFit, pdEnv, localFit)
 # a type the family does not take is refused before anything is fit
 expect_error(
   dbarts::pdbart(x, df$y, type = "prob", n.trees = -1L, pl = FALSE),
-  "does not take type = \"prob\""
+  "on this fit does not take type = \"prob\""
 )
 expect_error(
   dbarts::pdbart(

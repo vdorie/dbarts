@@ -420,8 +420,8 @@ pdbart.checkFamilyType <- function(type, family, caller) {
     stop(
       "'",
       caller,
-      "' on a ",
-      family,
+      "' on ",
+      if (identical(family, "auto")) "this" else paste("a", family),
       " fit does not take type = \"",
       type,
       "\"; it takes ",
