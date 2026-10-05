@@ -1,7 +1,7 @@
 # The quantile grid covers the whole column
 
-Status: IMPLEMENTED 2026-10-05, landing not yet recorded. Plan: docs/plans/quantile-grid-spread.md. Ruling:
-dec-B235 in docs/decisions.md.
+Status: LANDED 2026-10-05 (36d4ff88). Plan: docs/plans/quantile-grid-spread.md. Ruling: dec-B235 in
+docs/decisions.md.
 
 With `useQuantiles = TRUE` (`usequants = TRUE` on `bartBT`) a numeric column's split points are midpoints between
 its sorted distinct finite values. A column with no more distinct values than its cut count plus one takes every
