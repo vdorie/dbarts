@@ -1434,6 +1434,10 @@ Record: this register. Marked: blank. [dec-B206]
 Under dec-B203, pdbart and pd2bart gain a type argument choosing the scale of the plotted function, with predict.bart's values and default, so a binary fit's partial dependence can be read as a probability averaged over the rows rather than only on the latent scale, and a newdata argument naming the rows averaged over, a subgroup or a subsample, where only the training rows were used. Individual conditional expectation curves, one per row, are scheduled after 1.0-0. Put to the maintainer with the landscape: pdp::partial takes prob, train and ice, randomForest::partialPlot pred.data, bartMachine's pd_plot prop_data, SoftBart's partial_dependence_regression test_data. The maintainer on 2026-10-04: "Go ahead and add the two now. Is it worth adding ICE eventually? If so, stage it for post-1.0." The arguments' details come back as their own questions.
 Record: this register; TODO pdbart-ice. Marked: blank. [dec-B207]
 
+**In a formula fit, pdbart varies variables of the data**
+Under dec-B203, in a pdbart or pd2bart formula fit xind names variables of the data: xind = "a" varies a over its quantiles and rebuilds every term made from it (log(a), poly(a, 2), interactions) through the fit's stored formula, as predict(fit, newdata) does, so a transformed or multi-column term gets its partial dependence; matrix fits keep naming columns. Variable names are the only form in a formula fit, as presented. 0.9-34 named model-matrix columns, refused a variable name and varied one column of a multi-column term alone. The alternatives were keeping model-matrix columns with a refusal for one column of a multi-column term, and that now with variables after 1.0-0. The landscape put to the maintainer: pdp::partial, randomForest::partialPlot and SoftBart vary data variables. The maintainer on 2026-10-04: "Go ahead and use option 2 now."
+Record: this register. Marked: blank. [dec-B208]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
