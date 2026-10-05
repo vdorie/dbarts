@@ -177,7 +177,11 @@ items
     variance forest; DART's own settings, and the ordinary prior
     settings on a DART sampler; and five defects: run()'s k column after
     k is switched between fixed and drawn (a regression against 0.9-34),
-    a zero split probability on a column the trees use, a tree-move
+    a zero split probability on a column the trees use (and, with it,
+    that a zero-probability column is still split on once the
+    positive ones run out along a path, as in 0.9-34:
+    CGMTreePrior::drawSplitVariable returns the first available column
+    whatever its probability), a tree-move
     mixture that does not reach the variance forest, raw leaf-prior
     slots edited alone, and a residual prior stored on a family with no
     residual scale.

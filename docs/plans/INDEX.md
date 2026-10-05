@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (77 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (79 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) -
@@ -119,6 +119,8 @@ Columns: `file | STATUS | one-liner`.
 | quantile-grid-spread.md | LANDED 2026-10-05 (36d4ff88, 45dd3d09; dec-B235) | Spreads a quantile grid's split points evenly over the midpoints between a column's distinct values, at creation and refresh and on every entry point, so the top of a column is no longer left without one. |
 | restore-status.md | LANDED 2026-10-05 (bdc3cd0c, a63e4554; dec-B234) | Makes `setState` return, invisibly, whether the state was installed with nothing changed, so code that restores to reject a proposal can test for an exact restore. |
 | empty-leaf-membership.md | PLANNED (dec-B238) | Judges an empty leaf by membership again, as 0.9-34 did, so rows of zero weight and masked rows hold their leaf and a sampler that redraws the mask every sweep samples the model it assumes. |
+| single-forest-vars.md | PLANNED | Gives a single declared forest the column mask every other forest has, so `forest(vars = )` on the only forest restricts its splits; today the argument is ignored there. |
+| consumer-prep.md | PLANNED (dec-B239, dec-B240, dec-B241) | Moves stan4bart, bartCause, treatSens and bairrtt onto spellings of the tree count, cut count and family that build the same sampler before and after the control migration. |
 | count-cap.md | LANDED 2026-10-04 (ad62c2e0 to 3ecc8281; dec-B202) | Caps logistic count weights and a fixed negative-binomial shape at one million, as the negative-binomial response already is, and lets an interrupt stop a sweep inside its Polya-Gamma draws. |
 | pdbart-on-bart.md | LANDED 2026-10-05 (d0dd9b63 to 4ecaf2aa; dec-B203 to dec-B229) | Fits pdbart and pd2bart through `bart` under its names and defaults, BayesTree spellings translated for one release; adds `type` (link by default, the mean response on hurdle, survival at the median survival time on aft and hazard), `newdata`, a row subsample, averaging weights, variables in formula fits, and survival partial dependence with a size check on hazard fits. |
 | setstate-mixed-chains.md | WITHDRAWN 2026-10-02, never implemented (dec-B191, withdrawn by the maintainer) | Has `setState` refuse a state whose chains disagree on a forest's leaf spread or anchor or on the response scale and shift, so `getLeafPrior` never reports NA for chains that disagree. |
