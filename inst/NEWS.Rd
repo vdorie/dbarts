@@ -591,8 +591,10 @@
             fits; a fit saved and reloaded predicts as before;
             \code{predict} with several chains handles groups the fit did
             not see; a one-chain \code{extract(type = "trees")} works;
-            \code{group.by} names not in \code{data} are found in the
-            calling environment, as documented; a seeded call leaves
+            a \code{group.by} naming a variable that is not a column of
+            \code{data} is found in the calling environment, as documented,
+            where 0.9-34 grouped by the first column of \code{data} without
+            a warning; a seeded call leaves
             the random stream as it found it; and \code{set.seed}
             reproduces a multithreaded run at the same \code{n.threads}.
     }
