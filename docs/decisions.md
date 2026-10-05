@@ -1508,6 +1508,10 @@ Record: this register. Marked: blank. [dec-B224]
 Under dec-B216 and dec-B221, pdbart's and pd2bart's newdata and n.average.rows on a hazard fit are subject rows, as survivalProbabilities takes them, expanded internally, and the default time stays the training data's median survival time, so subgroup plots are at one time and newdata needs no outcomes. Put to the maintainer with the landscape: randomForestSRC's plot.variable averages over a subset of the training rows at the median of the fit's time grid whatever the subset; survex takes its default time from the explained data's own outcomes, which it requires. The alternative was the default time from newdata's own outcomes when present. The maintainer on 2026-10-04: "OK, option 1 then. Subject rows, with the default time from the training data."
 Record: this register. Marked: blank. [dec-B225]
 
+**pdbart on an aft fit defaults to survival at the median survival time**
+Under dec-B209 and dec-B221, pdbart and pd2bart on an aft fit default, as on a hazard fit, to the survival probability at the training data's median survival time, computed per subject as survivalProbabilities does and averaged last, with "event", "cumhaz" and times as on hazard; the log-time location, the scale on which the model is additive, is type = "link". This departs, for aft, from dec-B207's link default, as the hurdle default does. Put to the maintainer with the landscape: survreg's predict defaults to the time scale, pdp::partial on a survreg fit plots median survival time, flexsurv's summary defaults to survival, survex is survival-based throughout, and none plots log time. The alternatives were the log-time default with times opt-in, and that with a time-scale type. The maintainer on 2026-10-04: "Default to survival at the median survival time, as for hazard; log time via type = \"link\"."
+Record: this register. Marked: blank. [dec-B226]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
