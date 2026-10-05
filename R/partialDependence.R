@@ -117,7 +117,8 @@ pdbart.fitData <- function(
   matchedCall,
   callingEnv,
   caller,
-  type
+  type,
+  times
 ) {
   call <- matchedCall[names(matchedCall) %not_in% pdbart.ownArgs]
   argNames <- names(call)[-1L]
@@ -155,7 +156,14 @@ pdbart.fitData <- function(
   }
   family <- pdbart.dataFamily(call, object, getData, callingEnv, caller)
   pdbart.refuseFamily(family, caller)
-  pdbart.checkFamilyType(type, family, caller)
+  type <- pdbart.checkFamilyType(type, family, caller)
+  if (
+    !is.null(times) &&
+      (!(identical(family, "aft") || pdbart.isHazardFamily(family)) ||
+        type %not_in% c("auto", pdbart.survivalTypes))
+  ) {
+    pdbart.refuseTimes(type)
+  }
   call$keepTrees <- TRUE
   call$keepSampler <- TRUE
   call[[1L]] <- quote(dbarts::bart)
@@ -216,7 +224,8 @@ pdbart.prologue <- function(
   matchedCall,
   callingEnv,
   caller,
-  type
+  type,
+  times = NULL
 ) {
   if (is.null(object)) {
     stop(
@@ -237,7 +246,8 @@ pdbart.prologue <- function(
       matchedCall,
       callingEnv,
       caller,
-      type
+      type,
+      times
     )
     return(list(
       sampler = pdbart.rowSampler(fit),
@@ -488,6 +498,14 @@ pdbart.resolveType <- function(type, fit, isSampler, caller, sampler = NULL) {
     )
   }
   type
+}
+
+pdbart.refuseTimes <- function(type) {
+  stop(
+    "'times' applies to the survival scales of an aft or hazard fit, not ",
+    if (type == "auto") "to this fit" else paste0("to type = \"", type, "\""),
+    call. = FALSE
+  )
 }
 
 # The averaging arguments, checked before anything is fit.
@@ -802,7 +820,14 @@ pdbart.setVariables <- function(rows, keys, values) {
 # get_all_vars collects them and cut to the rows the fit was made on by their
 # names. 'getData' gives the data as list(value), NULL when the call named
 # none, or FALSE when it cannot be had.
-pdbart.trainingRows <- function(sampler, getData, callingEnv, caller) {
+pdbart.trainingRows <- function(
+  sampler,
+  getData,
+  callingEnv,
+  caller,
+  rowNames = sampler$data@rowNames$train,
+  count = NROW(sampler$data@y)
+) {
   refuse <- function() {
     stop(
       "'",
@@ -828,13 +853,8 @@ pdbart.trainingRows <- function(sampler, getData, callingEnv, caller) {
     },
     error = function(e) NULL
   )
-  rowNames <- sampler$data@rowNames$train
   index <- if (!is.null(rows)) match(rowNames, rownames(rows))
-  if (
-    is.null(rows) ||
-      length(rowNames) != NROW(sampler$data@y) ||
-      anyNA(index)
-  ) {
+  if (is.null(rows) || length(rowNames) != count || anyNA(index)) {
     refuse()
   }
   rows[index, , drop = FALSE]
@@ -995,13 +1015,20 @@ pdbart.subsample <- function(keep, average.weights, n.average.rows) {
   list(index = index, weights = weights)
 }
 
-# A hazard fit's subjects, as coded rows without the period column: its own,
-# each at period 1, with the offset its period-1 row carries, or 'newdata'
-# coded as predict codes it. 'n.average.rows' and 'average.weights' count
-# subjects.
+# A hazard fit's subjects: in a formula fit the variables of its data, read
+# from the data its call names for the subjects its period-1 rows carry, or
+# 'newdata'; otherwise its coded period-1 rows, or 'newdata' coded. Each grid
+# value is set in these rows before they are coded and their offset is
+# evaluated (pdbart.hazardSubjects). 'share' is each subject's share of the
+# fit's offset argument where that argument cannot be evaluated on the rows,
+# as a plain vector cannot on a subsample. 'n.average.rows' and
+# 'average.weights' count subjects.
 pdbart.hazardFrame <- function(
   fit,
   sampler,
+  formulaFit,
+  getData,
+  callingEnv,
   newdata,
   n.average.rows,
   average.weights,
@@ -1010,52 +1037,96 @@ pdbart.hazardFrame <- function(
   x <- extract(sampler, "predictors")
   periodColumn <- ncol(x)
   if (!is.null(newdata)) {
-    offset <- predictTermOffset(sampler$data, newdata, NULL, caller)
-    withPeriod <- if (is.data.frame(newdata)) {
-      newdata$period <- 1
-      newdata
-    } else {
-      appendHazardPeriodColumn(as.matrix(newdata), 1)
+    if (formulaFit && !is.data.frame(newdata)) {
+      stop("'newdata' for a formula fit must be a data frame", call. = FALSE)
     }
-    subjects <- as.matrix(validateXTest(
-      withPeriod,
-      sampler$data@x,
-      refuseMissing = FALSE
-    ))[, -periodColumn, drop = FALSE]
-    weights <- pdbart.averageWeights(
-      average.weights,
-      nrow(subjects),
-      "'newdata'"
-    )
+    rows <- if (formulaFit) newdata else pdbart.codeSubjects(sampler, newdata)
+    weights <- pdbart.averageWeights(average.weights, NROW(rows), "'newdata'")
     return(list(
-      rows = subjects,
+      rows = rows,
       weights = if (!is.null(weights)) weights / sum(weights),
-      offset = offset,
-      source = subjects
+      raw = formulaFit,
+      share = NULL,
+      source = rows
     ))
   }
   first <- x[, periodColumn] == 1
-  subjects <- x[first, -periodColumn, drop = FALSE]
-  offset <- sampler$data@offset
-  if (length(offset) > 1L) {
-    offset <- offset[first]
+  all <- if (formulaFit) {
+    pdbart.trainingRows(
+      sampler,
+      getData,
+      callingEnv,
+      caller,
+      fit$row.names.train[first],
+      sum(first)
+    )
+  } else {
+    x[first, -periodColumn, drop = FALSE]
   }
   drawn <- pdbart.subsample(
-    rep_len(TRUE, nrow(subjects)),
+    rep_len(TRUE, NROW(all)),
     average.weights,
     n.average.rows
   )
   index <- drawn$index
-  weights <- drawn$weights
+  share <- NULL
+  argument <- attr(sampler$data, "offset.argument")
+  if (!is.null(argument)) {
+    share <- evaluateOffsetArgument(argument, all)
+    if (isFALSE(share)) {
+      termOffset <- if (formulaFit) {
+        formulaTermOffset(sampler$data@x, all, "rows")
+      }
+      share <- sampler$data@offset[first] -
+        if (is.null(termOffset)) 0 else termOffset
+    }
+    if (length(share) > 1L) {
+      share <- share[index]
+    }
+  }
   list(
-    rows = subjects[index, , drop = FALSE],
-    weights = weights,
-    offset = if (length(offset) > 1L) {
-      offset[index]
-    } else if (length(offset)) {
-      offset
-    },
-    source = subjects
+    rows = all[index, , drop = FALSE],
+    weights = drawn$weights,
+    raw = formulaFit,
+    share = share,
+    source = all
+  )
+}
+
+# Subject rows coded as the fit's period-1 rows are, without the period.
+pdbart.codeSubjects <- function(sampler, rows) {
+  withPeriod <- if (is.data.frame(rows)) {
+    rows$period <- 1
+    rows
+  } else {
+    appendHazardPeriodColumn(as.matrix(rows), 1)
+  }
+  coded <- as.matrix(validateXTest(
+    withPeriod,
+    sampler$data@x,
+    refuseMissing = FALSE
+  ))
+  coded[, -ncol(coded), drop = FALSE]
+}
+
+# A hazard frame's rows, a grid value set in them, coded, with each subject's
+# offset: the fit's offset argument and offset() terms evaluated on them, as
+# predict evaluates them, and a subject's stored share where the argument
+# cannot be evaluated there.
+pdbart.hazardSubjects <- function(sampler, frame, rows, caller) {
+  argument <- attr(sampler$data, "offset.argument")
+  terms <- attr(sampler$data@x, "terms")
+  offset <- if (!is.null(argument) || !is.null(attr(terms, "offset"))) {
+    share <- if (
+      !is.null(argument) && isFALSE(evaluateOffsetArgument(argument, rows))
+    ) {
+      frame$share
+    }
+    predictTermOffset(sampler$data, rows, share, caller)
+  }
+  list(
+    x = if (frame$raw) pdbart.codeSubjects(sampler, rows) else rows,
+    offset = offset
   )
 }
 
@@ -1266,23 +1337,18 @@ pdbart.setup <- function(
     )
   }
   hazard <- !isSampler && fitIsHazard(prologue$fit)
-  formulaFit <- !isSampler && !hazard && pdbart.isFormulaFit(sampler)
+  formulaFit <- !isSampler && pdbart.isFormulaFit(sampler)
   xind <- pdbart.resolveXind(xind, matchedCall, sampler, formulaFit, hazard)
   type <- pdbart.resolveType(type, prologue$fit, isSampler, caller, sampler)
   survival <- type %in% pdbart.survivalTypes
   if (!is.null(times) && !survival) {
-    stop(
-      "'times' applies to the survival scales of an aft or hazard fit, not ",
-      "to type = \"",
-      type,
-      "\"",
-      call. = FALSE
-    )
+    pdbart.refuseTimes(type)
   }
   list(
     sampler = sampler,
     fit = prologue$fit,
     isSampler = isSampler,
+    caller = caller,
     type = type,
     hazard = hazard,
     survival = survival,
@@ -1309,6 +1375,9 @@ pdbart.setup <- function(
       pdbart.hazardFrame(
         prologue$fit,
         sampler,
+        formulaFit,
+        prologue$getData,
+        prologue$callingEnv,
         newdata,
         n.average.rows,
         average.weights,
@@ -1572,11 +1641,12 @@ pdbart.survivalDrawsAt <- function(setup, settings, bound) {
       settings[[i]]$values
     )
     draws <- if (setup$hazard) {
+      subjects <- pdbart.hazardSubjects(sampler, frame, rows, setup$caller)
       pdbart.hazardAverage(
         fit,
         sampler,
-        rows,
-        frame$offset,
+        subjects$x,
+        subjects$offset,
         times,
         setup$type,
         frame$weights,
@@ -1711,7 +1781,8 @@ pdbart <- function(
     matchedCall,
     callingEnv,
     "pdbart",
-    type
+    type,
+    times
   )
   setup <- pdbart.setup(
     prologue,
@@ -1818,7 +1889,8 @@ pd2bart <- function(
     matchedCall,
     callingEnv,
     "pd2bart",
-    type
+    type,
+    times
   )
   sampler <- prologue$sampler
 

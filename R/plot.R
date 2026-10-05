@@ -479,9 +479,10 @@ pdRefuseCurves <- function(x) {
   if (length(x$times) < 3L) {
     stop(
       "plot.type = \"curves\" draws curves over time and needs at least ",
-      "three times; ",
+      "three times; only ",
       length(x$times),
-      " were computed",
+      if (length(x$times) == 1L) " was" else " were",
+      " computed",
       call. = FALSE
     )
   }
@@ -607,24 +608,33 @@ plot.pdbart <- function(
           bty = "n"
         )
       } else {
-        # the variable on the axis, one line per time
+        # the variable on the axis, the median and the plquants interval
+        # per time, told apart by line type
         frame(xRange, rgy, x$xlbs[i], isFactor)
         if (isFactor) {
           axis(1, at = at, labels = levs)
         }
         for (j in seq_along(x$times)) {
+          tsum <- apply(
+            matrix(fd[[i]][, j, ], dim(fd[[i]])[1L]),
+            2,
+            quantile,
+            probs = c(plquants[1], .5, plquants[2])
+          )
           if (isFactor) {
-            points(at, medians[j, ], col = j, pch = 19)
+            segments(at, tsum[1, ], at, tsum[3, ], col = cols[2], lty = j)
+            points(at, tsum[2, ], col = cols[1], pch = 18 + j)
           } else {
-            lines(levs, medians[j, ], col = j, type = lineType)
+            lines(levs, tsum[2, ], col = cols[1], lty = j, type = lineType)
+            lines(levs, tsum[1, ], col = cols[2], lty = j, type = lineType)
+            lines(levs, tsum[3, ], col = cols[2], lty = j, type = lineType)
           }
         }
         if (length(x$times) > 1L) {
           legend(
             "topright",
             legend = paste0("t = ", format(x$times)),
-            col = seq_along(x$times),
-            lty = 1L,
+            lty = seq_along(x$times),
             bty = "n"
           )
         }
@@ -666,16 +676,23 @@ plot.pd2bart <- function(
   survival <- !is.null(x$times)
   fd <- pdMergedDraws(x$fd, survival)
   if (plot.type == "curves") {
-    # time on the axis, one curve per grid point
-    medians <- pdTimeMedians(fd)
-    graphics::matplot(
-      x$times,
-      medians,
-      type = "l",
-      lty = 1L,
-      xlab = "time",
-      ylab = pdScaleLabel(x),
-      ...
+    # time on the axis, one median curve per grid point
+    dots <- list(...)
+    if (is.null(dots$xlab)) {
+      dots$xlab <- "time"
+    }
+    if (is.null(dots$ylab)) {
+      dots$ylab <- pdScaleLabel(x)
+    }
+    if (is.null(dots$type)) {
+      dots$type <- "l"
+    }
+    if (is.null(dots$lty)) {
+      dots$lty <- 1L
+    }
+    do.call(
+      graphics::matplot,
+      c(list(x$times, pdTimeMedians(fd)), dots)
     )
     return(invisible(NULL))
   }

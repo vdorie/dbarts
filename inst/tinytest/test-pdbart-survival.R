@@ -402,5 +402,205 @@ expect_identical(
   "cumulative hazard"
 )
 
+# --- variables, offsets, links and weights on hazard fits ---
+# a formula hazard fit varies variables of the data, and an offset() term in
+# the varied variable moves with it
+termHazard <- fitSmall(
+  Surv(t, s) ~ log(a + 1) + b + offset(0.5 * a),
+  df,
+  family = "hazard"
+)
+pdTerms <- dbarts::pdbart(
+  termHazard,
+  xind = "a",
+  levs = list(0.7),
+  times = times,
+  pl = FALSE
+)
+expect_identical(pdTerms$xlbs, "a")
+expect_equal(
+  pdTerms$fd[[1L]][,, 1L],
+  subjectMean(dbarts::survivalProbabilities(termHazard, times, atA(0.7))),
+  check.attributes = FALSE
+)
+expect_identical(
+  dbarts::pdbart(termHazard, levs = list(0.5, 0), pl = FALSE)$xlbs,
+  c("a", "b")
+)
+# times on the period grid read that period
+onGrid <- hazardFit$periods[c(10L, 30L)]
+expect_equal(
+  dbarts::pdbart(
+    hazardFit,
+    xind = "a",
+    levs = list(0.7),
+    times = onGrid,
+    pl = FALSE
+  )$fd[[1L]][,, 1L],
+  subjectMean(dbarts::survivalProbabilities(hazardFit, onGrid, atA(0.7))),
+  check.attributes = FALSE
+)
+# the logistic link
+logisticHazard <- fitSmall(Surv(t, s) ~ a + b, df, family = "hazard.logistic")
+expect_equal(
+  dbarts::pdbart(
+    logisticHazard,
+    xind = "a",
+    levs = list(0.7),
+    times = times,
+    pl = FALSE
+  )$fd[[1L]][,, 1L],
+  subjectMean(dbarts::survivalProbabilities(logisticHazard, times, atA(0.7))),
+  check.attributes = FALSE
+)
+# a subject's own offset, a plain vector, follows it: on every subject, under
+# a subsample, and across chunks
+offsetValues <- runif(n, -0.5, 0.5)
+xHazard <- as.matrix(df[, c("a", "b")])
+offsetHazard <- fitSmall(
+  xHazard,
+  Surv(df$t, df$s),
+  family = "hazard",
+  offset = offsetValues
+)
+xAt <- xHazard
+xAt[, "a"] <- 0.7
+expect_equal(
+  dbarts::pdbart(
+    offsetHazard,
+    xind = "a",
+    levs = list(0.7),
+    times = times,
+    pl = FALSE
+  )$fd[[1L]][,, 1L],
+  subjectMean(dbarts::survivalProbabilities(offsetHazard, times, xAt)),
+  check.attributes = FALSE
+)
+set.seed(8)
+pdSubsample <- dbarts::pdbart(
+  offsetHazard,
+  xind = "a",
+  levs = list(0.7),
+  times = times,
+  n.average.rows = 20L,
+  pl = FALSE
+)
+set.seed(8)
+sampled <- sort(sample.int(n, 20L))
+expect_equal(
+  pdSubsample$fd[[1L]][,, 1L],
+  subjectMean(dbarts::survivalProbabilities(
+    offsetHazard,
+    times,
+    xAt[sampled, ],
+    offset = offsetValues[sampled]
+  )),
+  check.attributes = FALSE
+)
+chunks <- function(bound) {
+  dbarts:::pdbart.hazardAverage(
+    offsetHazard,
+    offsetHazard$fit,
+    xAt,
+    offsetValues,
+    times,
+    "survival",
+    NULL,
+    bound
+  )
+}
+expect_equal(chunks(500), chunks(5e6))
+# averaging weights, on both families
+subjectWeights <- runif(n)
+weightedMean <- function(survival) {
+  apply(survival, c(1L, 2L), function(v) sum(v * subjectWeights)) /
+    sum(subjectWeights)
+}
+for (fit in list(aftFit, hazardFit)) {
+  expect_equal(
+    dbarts::pdbart(
+      fit,
+      xind = "a",
+      levs = list(0.7),
+      times = times,
+      average.weights = subjectWeights,
+      pl = FALSE
+    )$fd[[1L]][,, 1L],
+    weightedMean(dbarts::survivalProbabilities(fit, times, atA(0.7))),
+    check.attributes = FALSE
+  )
+}
+rm(termHazard, pdTerms, onGrid, logisticHazard, offsetValues, xHazard)
+rm(offsetHazard, xAt, pdSubsample, sampled, chunks, subjectWeights)
+rm(weightedMean, fit)
+
+# --- times and the default time, in detail ---
+# the times are sorted
+expect_identical(
+  dbarts::pdbart(
+    aftFit,
+    xind = "a",
+    levs = list(0.5),
+    times = c(1.5, 0.3),
+    pl = FALSE
+  )$times,
+  c(0.3, 1.5)
+)
+# where the curve sits at exactly one half, the midpoint to the next event
+expect_equal(dbarts:::pdbart.medianTime(c(1, 2, 3, 4), rep(1, 4)), 2.5)
+expect_equal(
+  dbarts:::pdbart.medianTime(c(1, 2, 3, 4), rep(1, 4)),
+  survfitMedian(c(1, 2, 3, 4), rep(1, 4))
+)
+# a wrong 'times' is refused before anything is fit
+expect_error(
+  dbarts::pdbart(df[, c("a", "b")], df$t, times = 1, n.trees = -1L, pl = FALSE),
+  "'times' applies"
+)
+expect_error(
+  dbarts::pdbart(
+    Surv(t, s) ~ a + b,
+    df,
+    type = "link",
+    times = 1,
+    n.trees = -1L,
+    pl = FALSE
+  ),
+  "'times' applies"
+)
+
+# --- the plots, in detail ---
+pdTwo <- dbarts::pdbart(
+  hazardFit,
+  xind = "a",
+  times = times[1:2],
+  pl = FALSE
+)
+pdf(NULL)
+expect_error(plot(pdTwo, plot.type = "curves"), "only 2 were computed")
+expect_silent(plot(
+  dbarts::pd2bart(
+    hazardFit,
+    levs = list(c(0.2, 0.7), c(0, 1)),
+    times = times,
+    pl = FALSE
+  ),
+  plot.type = "curves",
+  ylab = "S"
+))
+dev.off()
+# the dependence view draws the plquants interval in the caller's colours
+drawing <- function(...) {
+  psFile <- tempfile(fileext = ".ps")
+  on.exit(unlink(psFile))
+  postscript(psFile)
+  plot(pdTwo, ...)
+  dev.off()
+  grep("^%%", readLines(psFile, warn = FALSE), value = TRUE, invert = TRUE)
+}
+expect_false(identical(drawing(plquants = c(0.25, 0.75)), drawing()))
+expect_false(identical(drawing(cols = c("red", "green")), drawing()))
+rm(pdTwo, drawing)
+
 rm(Surv, fitSmall, subjectMean, n, df, atA, aftFit, hazardFit, times)
 rm(pdAft, pdHazard, mergedFit, survfitMedian)

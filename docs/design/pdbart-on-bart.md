@@ -109,8 +109,11 @@ are read on its period grid. A survival result's `fd` is draws x times x
 grid values, the times margin kept and named, chains leading when split.
 
 An aft fit's survival comes from `survivalProbabilities` on the varied rows,
-in chunks of rows. A hazard fit's subjects are its period-1 rows, or
-`newdata` coded as subject rows; each grid value is set in them, their rows
+in chunks of rows. A hazard fit's subjects are, in a formula fit, the
+variables of its data for the subjects its period-1 rows carry, or
+`newdata`; otherwise its coded period-1 rows. Each grid value is set in them
+and they are coded with their offset
+([`pdbart.hazardSubjects`](../../R/partialDependence.R)), their rows
 expanded to the periods up to the largest time only and replayed through the
 sampler in chunks of whole subjects, and each chunk's hazards cumulated into
 survival per subject ([`pdbart.hazardAverage`](../../R/partialDependence.R)).
