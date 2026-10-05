@@ -485,7 +485,7 @@ The agents had a dbartsSampler passed to pdbart or pd2bart take only type = "bar
 Record: docs/plans/pdbart-on-bart.md. Marked: blank. [dec-A150]
 
 **pd2bart's two-predictor shortcut, narrowed**
-pd2bart's shortcut, which predicts each grid point as a single row when a fit has exactly two predictors, applies only when every averaged row is identical once the two are set - no offset or a constant one - and type is not "ppd", whose rows each draw their own noise; then newdata, n.average.rows and average.weights have no effect and a warning names whichever was given. Otherwise the general route runs. The alternatives were the shortcut on every two-predictor fit, which ignores a varying offset and the averaging weights, and dropping it. Not yet ruled on. See also: [dec-B211], [dec-B214].
+pd2bart's shortcut, which predicts each grid point as a single row when a fit has exactly two predictors, applies only when every averaged row is identical once the two are set - no offset or a constant one - and type is not "ppd", whose rows each draw their own noise; then n.average.rows and average.weights have no effect and a warning names whichever was given, while newdata still supplies the grid, as dec-B216 requires. Otherwise the general route runs. The alternatives were the shortcut on every two-predictor fit, which ignores a varying offset and the averaging weights, and dropping it. Not yet ruled on. See also: [dec-B211], [dec-B214].
 Record: docs/plans/pdbart-on-bart.md. Marked: blank. [dec-A151]
 
 **pdbart's subsample and averaging weights in detail**
