@@ -115,7 +115,7 @@ muffleBenignWarning <- function(w) {
   msg <- conditionMessage(w)
   if (
     grepl("'weights' are ignored for test data", msg) ||
-      grepl("'weights' of 0 will be ignored", msg) ||
+      grepl("'weights' of 0 ", msg, fixed = TRUE) ||
       grepl("columns of 'test' will be matched by position", msg) ||
       grepl("weights specified but not found in test data", msg) ||
       grepl("deprecated", msg) ||

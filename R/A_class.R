@@ -749,16 +749,15 @@ methods::setValidity("dbartsData", function(object) {
       any(object@weights == 0.0) &&
         !all(object@weights == 0.0 | object@weights == 1.0)
     ) {
-      # a supplied value with no effect in the current context is the same
-      # condition wherever it recurs - shared with sampleNums/verbose/weights
-      # sites elsewhere that are likewise ignored rather than refused. A
-      # vector of nothing but 0s and 1s is exempt, on every family: there the
-      # zeros ARE the statement being made - which rows are in the data set -
-      # rather than an inert value among real weights, and a probit or
-      # ordinal fit reads such a vector as its active-row mask outright, so
-      # calling the zeros ignored would be false as well as unwanted
+      # a zero among real weights is likely an accident, and what it does is
+      # not what dropping the row does: the row leaves the likelihood and the
+      # residual degrees of freedom but stays in the design, occupying a leaf
+      # the trees may split around. A vector of nothing but 0s and 1s is
+      # exempt, on every family: there the zeros ARE the statement being made
+      # - which rows are in the data set - and a probit or ordinal fit reads
+      # such a vector as its active-row mask outright
       warning(
-        "'weights' of 0 will be ignored but increase computation time",
+        "rows with 'weights' of 0 are left out of the likelihood but stay in the fit; use 'subset' to drop them",
         call. = FALSE
       )
     }
