@@ -255,6 +255,17 @@ items
     slowest is decided by wall time, so a stump's count can win. Unproven
     reading - reproduce, then pin the tally on something the clock does
     not choose.
+  gp-kept-draw-kernel (dec-B237, after 1.0-0): a kept draw from a gp leaf
+    stores the centre, scale and lengthscale it was drawn under and
+    replays under them, so a gp-leaf sampler holding kept draws can take a
+    change of standardization (setData deriving one, or
+    updateStandardization = TRUE) and a state whose kept gp draws were
+    made under another, which 1.0-0 refuses. Conditional: only a gp
+    sampler that keeps draws carries the record. About 350 lines: the
+    ring store and its resize, the writer, the one replay routine every
+    predict path reaches, the state writer and reader. Then restate or
+    drop the refusal of kept gp draws under another named lengthscale
+    (dec-A146), whose reason this removes.
   pooled-missing-direction-drop: after a column's missing values are
     filled, a pooled categorical rule keeps its missing-direction bit (the
     forced update and a state install both leave it), so swap and change
