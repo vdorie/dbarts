@@ -165,6 +165,22 @@ items
     probability as the variable moves, a category margin on the result
     and one line per category in the plots. Refused until then.
     Scheduled after 1.0-0 (VD 2026-10-04, dec-B209).
+  setmodel-parameters-not-structure: setModel changes a model's
+    parameters and refuses a model that differs in structure, by name,
+    before anything is stored (VD 2026-10-05, dec-B254). To build, for
+    1.0-0, after the merge to main if need be: the refusal of every
+    structural difference (today another family's model, a Student-t
+    change, interaction limits, blocks and Gaussian-process settings are
+    accepted and not honoured); setters for the Student-t degrees of
+    freedom, a fixed negative-binomial shape, a Gaussian-process
+    lengthscale and tree priors on forests past the first and on the
+    variance forest; DART's own settings, and the ordinary prior
+    settings on a DART sampler; and five defects: run()'s k column after
+    k is switched between fixed and drawn (a regression against 0.9-34),
+    a zero split probability on a column the trees use, a tree-move
+    mixture that does not reach the variance forest, raw leaf-prior
+    slots edited alone, and a residual prior stored on a family with no
+    residual scale.
   warm-start-across-models: a warm start from a donor that is another
     model, such as a fast fit on a transformed response seeding a slower
     model on the original scale, with whatever scale or dispersion the
