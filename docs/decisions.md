@@ -1500,6 +1500,10 @@ Record: this register. Marked: blank. [dec-B222]
 Under dec-B209 and dec-B210, pdbart and pd2bart on a hazard fit take type values for survival (the default), 1 - S(t) and the cumulative hazard -log S(t), each computed per row and then averaged, so each is the posterior mean of the quantity asked for; the cumulative hazard cannot be had afterwards from averaged survival. The cumulative hazard is "cumhaz", as survival (survfit's cumhaz, plot.survfit(fun = "cumhaz")) and flexsurv (summary(type = "cumhaz")) name it, where ranger, randomForestSRC and survex say "chf". The maintainer on 2026-10-04: "My general rule is average last so that they are posterior means of desired quantities. I think that implies using survival by default, plus risk and cumulative hazard", and, on the name: "OK, we're using \"cumhaz\" on your recommendation". 1 - S(t) is "event", survival's name for it in plot.survfit(fun = "event"), since "risk" means exp(lp) in survival's predict.coxph; the names offered were event, risk and cdf, and the maintainer: "\"event\" is fine." The alternatives were survival only, and adding the per-period hazard.
 Record: this register. Marked: blank. [dec-B223]
 
+**pdbart's hazard plots: the variable on the axis, curves over time on request**
+Under dec-B209, the plot methods for a pdbart or pd2bart result on a hazard fit put the varied variable on the horizontal axis with one line per time by default, and switch on request to time on the axis with one curve per grid value - survex's default view and how the BART package's papers draw survival partial dependence - refusing that view when too few times were computed to draw curves; pd2bart draws one image per time. Labels follow type. The alternatives were the variable view only, and curves over time by default. The maintainer on 2026-10-04: "Variable on the axis by default, plus a plot option to switch to curves over time." The option's name is not ruled.
+Record: this register. Marked: blank. [dec-B224]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
