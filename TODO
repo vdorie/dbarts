@@ -565,7 +565,17 @@ frequency weights (decided, VD 2026-09-24; docs/decisions.md dec-B125)
   counts are already binomial trials, a different thing), the
   argument's name and shape on bart, dbarts, the sampler and dbarts.h,
   whether non-integer frequency weights are refused, and zero weights
-  (excluded, as now). The weights docs say which a weight is.
+  (excluded, as now). The weights docs say which a weight is. The note
+  also answers the maintainer's question of 2026-10-05, what the
+  package pays for one weights argument meaning a precision (gaussian,
+  Student-t), a trial count (logistic) and membership (0/1 on probit and
+  ordinal, installed as the row mask): whether probit and ordinal keep
+  taking 0/1 weights as a mask or take membership by its own name, so
+  that each of the three has one spelling. Measured on a loaded machine,
+  20000 rows, 50 trees: the weighted path costs about 14 percent over
+  the unweighted one, an all-ones mask nothing, and a row masked out
+  costs as much per sweep as an active row (half the rows masked 1.14
+  of the full unmasked time, the active half alone 0.55).
 
 engine constants audit (decided, VD 2026-09-08; docs/decisions.md
   dec-B91; LANDED; plan docs/plans/engine-performance.md)
