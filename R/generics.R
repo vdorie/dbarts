@@ -1483,7 +1483,7 @@ predictBlend <- function(
 
 fitted.bart <- function(
   object,
-  type = c("ev", "ppd", "bart"),
+  type = c("ev", "ppd", "bart", "forest"),
   sample = c("train", "test"),
   ci.level = NULL,
   ...
@@ -1508,6 +1508,16 @@ fitted.bart <- function(
     function(value) padOmittedRows(object[["na.action"]], value)
   } else {
     identity
+  }
+
+  # type = "forest" keeps its forest margin: the draws x rows x forests array
+  # extract reports reduces to a rows x forests matrix, or a rows x forests x
+  # 3 array under ci.level
+  if (type == "forest") {
+    if (!is.null(ci.level)) {
+      return(padded(posteriorInterval(result, ci.level, trailing = 2L)))
+    }
+    return(padded(channelMeans(result, 2L)))
   }
 
   # ci.level opts into a per-observation est + credible band instead of the
@@ -1542,6 +1552,12 @@ residuals.bart <- function(object, type = "ev", ...) {
   # type flows to fitted so link-scale (type = "bart") residuals are reachable;
   # residuals are always against the training response, so sample is pinned
   refuseResidualsSample(list(...))
+  if (identical(type, "forest")) {
+    stop(
+      "type = \"forest\" is not used by residuals: a per-forest total is ",
+      "not something a response can be subtracted from"
+    )
+  }
   refuseUnusedGenericArgs(
     list(...),
     "residuals",
@@ -1856,7 +1872,7 @@ multinomialCountPpdFromProbs <- function(probs, trials) {
 # meaningful regardless of 'type'.
 fitted.bartMultinomial <- function(
   object,
-  type = c("ev", "class", "bart"),
+  type = c("ev", "class", "bart", "forest"),
   sample = c("train", "test"),
   ci.level = NULL,
   ...
