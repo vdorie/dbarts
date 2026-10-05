@@ -1053,12 +1053,11 @@ struct ColumnStore {
            value == static_cast<double>(static_cast<xint_t>(value));
   }
 
-  /// Quantile-mode support: sorted unique values of a column and the
-  /// stepping that thins their midpoints to at most maxNumCuts[j] cuts.
+  /// Quantile-mode support: sorted unique finite values of a column and the
+  /// number of cuts they induce, their midpoints capped at maxNumCuts[j].
   struct QuantileGrid {
     std::vector<double> sortedUnique;
     std::uint32_t inducedNumCuts = 0;
-    size_t step = 1, offset = 0;
   };
 
   void finishQuantileGrid(QuantileGrid& grid, size_t j) const {
@@ -1079,8 +1078,6 @@ struct ColumnStore {
       grid.inducedNumCuts = static_cast<std::uint32_t>(numUnique - 1);
     } else {
       grid.inducedNumCuts = maxNumCuts[j];
-      grid.step = numUnique / grid.inducedNumCuts;
-      grid.offset = grid.step / 2;
     }
   }
 
@@ -1123,6 +1120,13 @@ struct ColumnStore {
                                   slice.numNonzero < numObservations);
   }
 
+  /// Fills column j's numCuts[j] cuts from the grid's M midpoints, midpoint i
+  /// lying between sorted distinct values i and i + 1: cut k is midpoint
+  /// floor((2k + 1) M / (2c)) for c = numCuts[j], the centre of the k-th of c
+  /// equal shares of the midpoints. The cuts strictly ascend and leave at most
+  /// floor(M / (2c)) + 1 distinct values beyond either end cut; at c == M they
+  /// are every midpoint in order. Requires c <= M, which creation satisfies by
+  /// taking the induced count and a refresh by its feasibility check.
   void fillCutsFromQuantileGrid(size_t j, const QuantileGrid& grid) {
     cutPoints[j].resize(numCuts[j]);
     if (grid.sortedUnique.size() < 2) {  // degenerate: no midpoint to take
@@ -1130,9 +1134,13 @@ struct ColumnStore {
       std::fill(cutPoints[j].begin(), cutPoints[j].end(), value);
       return;
     }
+    // 64 bits hold (2k + 1) M: a count is at most maxNumCutsRepresentable, so
+    // 2k + 1 is under 2^17 and the product overflows only past 2^47 midpoints
+    const std::uint64_t numMidpoints = grid.sortedUnique.size() - 1;
+    const std::uint64_t twiceCount = 2 * static_cast<std::uint64_t>(numCuts[j]);
     for (std::uint32_t k = 0; k < numCuts[j]; ++k) {
-      size_t index = std::min(static_cast<size_t>(k) * grid.step + grid.offset,
-                              grid.sortedUnique.size() - 2);
+      size_t index = static_cast<size_t>(
+        (2 * static_cast<std::uint64_t>(k) + 1) * numMidpoints / twiceCount);
       cutPoints[j][k] =
         0.5 * (grid.sortedUnique[index] + grid.sortedUnique[index + 1]);
     }
@@ -1325,8 +1333,8 @@ struct ColumnStore {
   /// Recompute cuts for a column's current values, keeping numCuts[j] fixed.
   /// Refuses (returns false, keeping the old grid) when the fixed count cannot
   /// yield a strictly ascending grid: quantile mode with fewer induced cuts
-  /// than existing (extra induced cuts are silently thinned), or a degenerate
-  /// range under two or more uniform cuts
+  /// than existing (with more, the existing count is spread over all the
+  /// midpoints), or a degenerate range under two or more uniform cuts
   /// (a re-cut there would repeat a value). A forced update then routes the
   /// new values through the retained grid and collapses what empties.
   /// A factor column of either kind has nothing to refresh: its grid follows

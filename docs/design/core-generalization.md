@@ -372,7 +372,8 @@ partitioning entirely; a different library sharing only the tree structure).
    per-column cut counts and caps (heterogeneous n.cuts now accepted by the
    bridge) and a quantile mode (control.useQuantiles): cuts at sorted
    unique-value midpoints, thinned to the per-column cap with the reference
-   engine's step/offset rule, counts fixed after construction. Predictor
+   engine's step/offset rule (since replaced by an even spread,
+   quantile-grid.md), counts fixed after construction. Predictor
    updates that refresh cuts pre-check quantile feasibility (a column
    inducing fewer cuts than existing splits require returns
    invalidCutPoints without mutating anything -- an improvement on the

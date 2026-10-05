@@ -68,6 +68,7 @@ Columns: `file | STATUS | one-liner`.
 | sparse-columns.md | LANDED, 2026-07-04 | Adds a sparse-column representation for wide, mostly-zero designs (dense/sparse mixed input accepted), densifying automatically above 20% nonzero density. |
 | pooled-masks.md | LANDED, 2026-07-04 | Raises the categorical-predictor level cap to 65535 via pooled masks; the shipped inline/pooled boundary is 63 categories. |
 | mia-missingness.md | LANDED, 2026-07-04; AMENDED 2026-09-09 by [front-door](../plans/front-door.md#front-door) S2 (`missing` argument retired, incorporation unconditional) | Adds Missing Incorporated in Attributes: every split learns a missing-value direction so predictor NAs route through splits instead of being dropped. |
+| quantile-grid.md | IMPLEMENTED, 2026-10-05 | Spreads a quantile grid's split points evenly over the midpoints between a column's distinct values, at creation and at a refresh, on every entry point; the rule inherited from BayesTree stopped short of the top of any column whose distinct values were not a multiple of the cut count. |
 
 ## Core/infra & surface
 

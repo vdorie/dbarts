@@ -139,9 +139,10 @@ sets the worker count, and `merge` joins chunked recordings. The 0.9-34 side
 is kept as baselines/classic-compare-0.9-34.rds; the 1.0-0 side is the compare
 side and is not. A full recording takes under two minutes on seven cores;
 re-record the 0.9-34 side only when a scenario is added. Findings:
-docs/plans/classic-compare.md - 22 scenarios agree at the null's own rate,
-and the four that do not are the zero-weight fit, the two crossvalidation
-rows and the unequal-cut-point probe of the change move.
+docs/plans/classic-compare.md - 21 scenarios agree at the null's own rate,
+and the five that do not are the zero-weight fit, the two crossvalidation
+rows, the unequal-cut-point probe of the change move and, since the
+quantile grid was spread over the whole column, the quantile row.
 
 ## R/classic-timing.R - 0.9-34 wall time (measurement, not a gate)
 

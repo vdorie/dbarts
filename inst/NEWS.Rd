@@ -497,6 +497,21 @@
             their number of cut points, so variable selection in mixed
             continuous and categorical designs, and under DART, is now
             correct.
+      \item With \code{useQuantiles = TRUE} (\code{usequants} on
+            \code{bartBT}), a predictor with more distinct values than its
+            cut points can separate has them spread evenly over the whole
+            column. They had been taken at a fixed stride from the bottom,
+            which could stop well short of the top, where no tree could
+            then split: at the default 100 cut points, a third of the
+            distinct values lay above the highest one at 150 distinct
+            values, half at 199 and a tenth at 999. Results change for
+            nearly every such fit, \code{bartBT}'s included, and likewise
+            for a
+            \code{$setPredictor(updateCutPoints = TRUE)} onto more distinct
+            values than the column's cut points can separate, which had
+            kept only the lowest ones, with a warning. A predictor with no
+            more than \code{n.cuts + 1} distinct values, and the default
+            \code{useQuantiles = FALSE}, are unaffected.
       \item The \code{chi(df)} hyperprior on \code{k} samples the degrees of
             freedom asked for; it had sampled \code{chi(2 * df - 1)}.
       \item Observations of weight zero are fully ignored: they no longer

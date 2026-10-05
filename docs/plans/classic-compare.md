@@ -172,11 +172,14 @@ mixture change moves the chain, not the distribution it converges to.
 
 ## What agrees
 
-Twenty-two of the twenty-six scenarios agree to within Monte Carlo
-error, and they agree across the whole range of things a user can ask
+Twenty-two of the twenty-six scenarios agreed to within Monte Carlo
+error when the tables were taken. The quantile row has since left that
+set (the fourth difference below), which leaves twenty-one agreeing and
+five that do not. The twenty-one agree across the whole range of things
+a user can ask
 for: a continuous response and a binary one, positive weights, an
 offset on either scale, a fixed k and a drawn one, a cut grid of five
-points and one of a thousand, quantile cut points, a factor reached
+points and one of a thousand, a factor reached
 either through a data frame or through its own indicator columns, an
 ordered factor, one tree and two hundred, five hundred observations and
 five thousand, one chain and four, a test set outside the training
@@ -207,8 +210,9 @@ the third difference below.
 
 ## What differs, and why
 
-Three things differ, and all three are decided changes rather than
-surprises.
+Four things differ, and all four are decided changes rather than
+surprises. The first three are in the tables above; the fourth entered
+on 2026-10-05, after the tables were taken.
 
 The first is the zero-weight fit. Carrying rows at weight zero,
 0.9-34 reports a posterior mean residual scale of 0.29 where 1.0-0
@@ -308,6 +312,28 @@ predictor the same number of cut points - shows nothing. The size of
 the effect is a property of this design, not a general figure: it grows
 with the change move's share of the proposal mass and with how unequal
 the cut counts are.
+
+The fourth is the quantile grid. Where a column has more distinct
+values than cut points plus one, 0.9-34 steps through the midpoints
+between them from the bottom and can stop short of the top, and 1.0-0
+now spreads the same number of split points evenly over the whole
+column (docs/design/quantile-grid.md, dec-B235), so the two releases fit
+over different grids. The quantile scenario has 500 distinct values in
+every column and 20 cut points. There the two grids share their ten
+lowest points and each of the upper ten sits one distinct value lower
+under 1.0-0, so ten rows in each column fall on the other side of their
+nearest split point. That is enough to separate the row: against the
+0.9-34 recording the largest statistic is 6.92, with eleven above three
+and three above four, all three of them training fitted values, which
+move by up to 0.30 against a residual standard deviation of 1. No seed
+ranges are disjoint, and the residual scale and every test row stay
+under four, at 3.21 and 3.93. The control is the build immediately
+before the change, the same engine with the old rule: it agrees with
+0.9-34 at 3.01, the figure in Table 1, so the grid is the whole of the
+difference. The row therefore no longer measures engine agreement. It
+would again if the scenario gave its columns no more distinct values
+than cut points plus one, where the two rules build one grid; that
+needs the 0.9-34 side taken again and has not been done.
 
 ## Wall time
 

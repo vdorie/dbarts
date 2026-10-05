@@ -272,7 +272,10 @@
   \item{updateCutPoints}{
     For \code{setPredictor}, a logical; when \code{TRUE} the cut points (split
     candidate locations) for the replaced column(s) are recomputed from the new
-    values, otherwise the existing cut points are kept. Defaults to \code{FALSE}
+    values, otherwise the existing cut points are kept. A column keeps the
+    number of cut points it has: under \code{useQuantiles = TRUE} they are
+    spread evenly over the new values, and new values with too few distinct
+    ones to hold that many are an error. Defaults to \code{FALSE}
     and cannot be combined with \code{forceUpdate = "partial"}.
   }
   \item{treeNums}{

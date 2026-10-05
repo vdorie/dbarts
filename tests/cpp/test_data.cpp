@@ -444,17 +444,18 @@ static void testQuantileCutPoints() {
     discreteCodesMatch &= store.train.codes[i + n] == static_cast<xint_t>(i % 10);
   check(discreteCodesMatch, "discrete quantile codes are value ranks");
 
-  // continuous column: reference the thinning directly
+  // continuous column: cut k is the midpoint at the centre of the k-th of 20
+  // equal shares of the n - 1 midpoints
   std::vector<double> sorted(x.begin(), x.begin() + n);
   std::sort(sorted.begin(), sorted.end());
-  size_t step = n / 20, offset = step / 2;
   bool continuousCutsMatch = true;
   for (std::uint32_t k = 0; k < 20; ++k) {
-    size_t index = std::min(static_cast<size_t>(k) * step + offset, n - 2);
+    size_t index = (2 * static_cast<size_t>(k) + 1) * (n - 1) / 40;
     continuousCutsMatch &=
       store.cutPoints[0][k] == 0.5 * (sorted[index] + sorted[index + 1]);
   }
-  check(continuousCutsMatch, "continuous quantile cuts thin sorted uniques");
+  check(continuousCutsMatch,
+        "continuous quantile cuts spread over the sorted uniques");
 
   // refresh feasibility: fewer uniques than existing cuts is invalid
   std::vector<double> coarse(n);
@@ -467,6 +468,180 @@ static void testQuantileCutPoints() {
         "finer column passes the quantile feasibility check");
 
   printf("ok: quantile cut points\n");
+}
+
+// A quantile grid's cuts are spread over all of a column's midpoints, at
+// creation and at a refresh, whatever the column's storage.
+static void testQuantileGridSpread() {
+  uint64_t savedRngState = rngState;
+  auto spreadIndex = [](size_t k, size_t numUnique, size_t count) {
+    return (2 * k + 1) * (numUnique - 1) / (2 * count);
+  };
+  // BayesTree's rule, a fixed stride from the bottom: the same grid only where
+  // no midpoint is dropped
+  auto steppedIndex = [](size_t k, size_t numUnique, size_t count) {
+    size_t step = numUnique <= count + 1 ? 1 : numUnique / count;
+    return std::min(k * step + step / 2, numUnique - 2);
+  };
+
+  bool matches = true, ascends = true, reaches = true, shortGridKept = true;
+  bool steppedFallsShort = false;
+  for (size_t m : { 1, 7, 20, 100 }) {
+    const size_t sizes[] = { 2, m / 2 + 2, m + 1, m + 2, 2 * m - 1, 2 * m,
+                             3 * m - 1, 10 * m };
+    for (size_t numUnique : sizes) {
+      if (numUnique < 2) continue;
+      // irregularly spaced distinct values, in shuffled row order
+      std::vector<double> sorted(numUnique), x(numUnique);
+      double value = -3.0;
+      for (double& v : sorted) v = (value += 0.01 + runif01());
+      for (size_t i = 0; i < numUnique; ++i)
+        x[i] = sorted[(i * 7919) % numUnique];
+
+      ColumnStore store;
+      built(store.build(x.data(), numUnique, 1, static_cast<std::uint32_t>(m),
+                        true));
+      size_t count = std::min(m, numUnique - 1);
+      matches &= store.numCuts[0] == count;
+      const std::vector<double>& cuts = store.cutPoints[0];
+      for (size_t k = 0; k < count; ++k) {
+        size_t index = spreadIndex(k, numUnique, count);
+        // a midpoint, never an observed value
+        matches &= cuts[k] == 0.5 * (sorted[index] + sorted[index + 1]);
+        ascends &= k == 0 || cuts[k - 1] < cuts[k];
+        if (numUnique <= m + 1)
+          shortGridKept &= index == steppedIndex(k, numUnique, count) &&
+                           index == k;
+      }
+      // distinct values beyond either end cut, counted off the grid itself
+      size_t bound = (numUnique - 1) / (2 * count) + 1;
+      size_t below = static_cast<size_t>(
+        std::lower_bound(sorted.begin(), sorted.end(), cuts.front()) -
+        sorted.begin());
+      size_t above = static_cast<size_t>(
+        sorted.end() -
+        std::upper_bound(sorted.begin(), sorted.end(), cuts.back()));
+      reaches &= below >= 1 && below <= bound && above >= 1 && above <= bound;
+      if (numUnique == 2 * m - 1 && m > 1)
+        steppedFallsShort |=
+          numUnique - 1 - steppedIndex(count - 1, numUnique, count) > bound;
+    }
+  }
+  check(matches, "quantile cuts are the midpoints at evenly spread ranks");
+  check(ascends, "quantile cuts strictly ascend");
+  check(reaches, "quantile cuts reach both ends of the column");
+  check(shortGridKept, "few uniques still take every midpoint");
+  check(steppedFallsShort, "the stepped rule leaves the top of a column bare");
+
+  // creation through a view, over a CSC-backed column and as a row subset:
+  // one grid. Zero is among the values, so the CSC column carries it
+  // implicitly.
+  const size_t n = 240;
+  auto cycle = [](size_t numLevels, std::vector<double>& column) {
+    column.resize(n);
+    for (size_t i = 0; i < n; ++i)
+      column[i] = static_cast<double>((i * 7) % numLevels);
+  };
+  auto toCsc = [](const std::vector<double>& column, std::vector<int>& rows,
+                  std::vector<double>& values) {
+    rows.clear();
+    values.clear();
+    for (size_t i = 0; i < n; ++i)
+      if (column[i] != 0.0) {
+        rows.push_back(static_cast<int>(i));
+        values.push_back(column[i]);
+      }
+  };
+  auto cscSource = [](const int* pointers, const std::vector<int>& rows,
+                      const std::vector<double>& values,
+                      const std::int32_t* sources) {
+    PredictorSource source;
+    source.numRows = n;
+    source.numColumns = 1;
+    source.cscColumnPointers = pointers;
+    source.cscRowIndices = rows.data();
+    source.cscValues = values.data();
+    source.columnSources = sources;
+    return source;
+  };
+  const std::int32_t cscColumn = ~0;
+  std::vector<double> wide;
+  std::vector<int> rows;
+  std::vector<double> values;
+  cycle(60, wide);
+  toCsc(wide, rows, values);
+  int pointers[2] = { 0, static_cast<int>(rows.size()) };
+  ColumnStore dense, viaView, fromCsc, subset;
+  built(dense.build(wide.data(), n, 1, 25, true));
+  PredictorSource denseView;
+  denseView.numRows = n;
+  denseView.numColumns = 1;
+  denseView.denseValues = wide.data();
+  built(viaView.build(denseView, nullptr, 25, true));
+  built(fromCsc.build(cscSource(pointers, rows, values, &cscColumn), nullptr,
+                      25, true));
+  std::vector<size_t> subsetRows;
+  for (size_t i = 0; i < n; i += 3) subsetRows.push_back(i);
+  subset.buildFromParent(dense, subsetRows.data(), subsetRows.size(), nullptr,
+                         0);
+  bool storagesAgree = dense.numCuts[0] == 25 && fromCsc.columnIsCscBacked(0);
+  for (size_t k = 0; k < 25; ++k)
+    storagesAgree &= dense.cutPoints[0][k] ==
+                     static_cast<double>(spreadIndex(k, 60, 25)) + 0.5;
+  storagesAgree &= viaView.cutPoints == dense.cutPoints &&
+                   fromCsc.cutPoints == dense.cutPoints &&
+                   subset.cutPoints == dense.cutPoints;
+  check(storagesAgree, "one quantile grid whatever the column's storage");
+
+  // a refresh spreads the held count: 4 cuts onto 50 distinct values, 10
+  // onto 60
+  bool refreshSpreads = true;
+  const size_t fromLevels[2] = { 5, 11 }, ontoLevels[2] = { 50, 60 };
+  for (size_t r = 0; r < 2; ++r) {
+    std::vector<double> narrow, replacement;
+    cycle(fromLevels[r], narrow);
+    cycle(ontoLevels[r], replacement);
+    toCsc(narrow, rows, values);
+    pointers[1] = static_cast<int>(rows.size());
+    const size_t held = fromLevels[r] - 1, column = 0;
+
+    // the dense path, the journaled path of a column-subset transaction, and
+    // a CSC-backed column refreshed from a dense and from a CSC replacement
+    ColumnStore plain, journaled, cscFromDense, cscFromCsc;
+    for (ColumnStore* s : { &plain, &journaled })
+      built(s->build(narrow.data(), n, 1, 100, true));
+    for (ColumnStore* s : { &cscFromDense, &cscFromCsc })
+      built(s->build(cscSource(pointers, rows, values, &cscColumn), nullptr,
+                     100, true));
+    refreshSpreads &= plain.numCuts[0] == held &&
+                      cscFromCsc.numCuts[0] == held &&
+                      cscFromCsc.columnIsCscBacked(0) &&
+                      plain.cutsWouldRemainValid(0, replacement.data());
+    plain.setColumns(replacement.data(), &column, 1, true);
+    ColumnStore::ColumnCodeRollback rollback;
+    journaled.setColumnJournaled(0, replacement.data(), true, n / 4, rollback);
+    cscFromDense.mutateCscColumnFromDense(0, replacement.data(), true);
+    toCsc(replacement, rows, values);
+    cscFromCsc.mutateCscColumnFromCsc(0, rows.data(), values.data(),
+                                      rows.size(), 0.0, true);
+    for (const ColumnStore* s :
+         { &plain, &journaled, &cscFromDense, &cscFromCsc }) {
+      refreshSpreads &= s->numCuts[0] == held && s->cutPoints[0].size() == held;
+      for (size_t k = 0; k < held && refreshSpreads; ++k)
+        refreshSpreads &=
+          s->cutPoints[0][k] ==
+          static_cast<double>(spreadIndex(k, ontoLevels[r], held)) + 0.5;
+      // every row sits where the refreshed grid puts it
+      for (size_t i = 0; i < n && refreshSpreads; ++i)
+        refreshSpreads &= s->codeAt(0, i) == s->codeFor(0, replacement[i]);
+    }
+    // 10 held cuts over 59 midpoints: the last leaves 3 values above it
+    if (r == 1) refreshSpreads &= plain.cutPoints[0][held - 1] == 56.5;
+  }
+  check(refreshSpreads, "a quantile refresh spreads the held count");
+
+  rngState = savedRngState;
+  printf("ok: quantile grid spread\n");
 }
 
 static void testMapOldCutPointsOntoNew() {
@@ -2422,6 +2597,7 @@ void runDataTests() {
   testCodeForOrdinalBoundaries();
   testSetCutPointsOrphan();
   testQuantileCutPoints();
+  testQuantileGridSpread();
   testMapOldCutPointsOntoNew();
   testMapOldCutPointsStarvedWeightedMerge();
   testMissingIngestion();
