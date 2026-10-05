@@ -577,6 +577,16 @@ bartcoreSamplerSetPredictor <- function(
       } else {
         dimnames(currentX)
       }
+      # the design's builder attributes describe its columns, which a
+      # replacement of the rows does not change. A re-creation reads a
+      # factor's declared levels from them, and counting levels from the
+      # codes instead comes up short when the new rows miss the top one,
+      # leaving the sampler's own state unbuildable on its copy or reload.
+      for (name in hazardDesignAttrs) {
+        if (is.null(attr(x, name))) {
+          attr(x, name) <- attr(currentX, name)
+        }
+      }
     }
     if (!sparseSource) {
       # a pointer swap: the engine borrows data@x, so install there first and

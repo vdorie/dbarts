@@ -253,3 +253,43 @@ rm(
   n,
   n.wide
 )
+
+# a whole-matrix predictor replacement keeps the declared level tables, so a
+# sampler whose new rows miss a factor's top level still copies and reloads:
+# the level count is the declared one, not the largest code left
+local({
+  set.seed(3002L)
+  n.keep <- 120L
+  frame <- data.frame(
+    a = runif(n.keep),
+    f = factor(sample(letters[1:5], n.keep, TRUE), levels = letters[1:5]),
+    o = factor(sample(1:6, n.keep, TRUE), levels = 1:6, ordered = TRUE)
+  )
+  response <- frame$a +
+    as.integer(frame$f) / 3 +
+    as.integer(frame$o) / 4 +
+    rnorm(n.keep, 0, 0.2)
+  sampler <- dbarts(
+    response ~ a + f + o,
+    frame,
+    control = dbartsControl(
+      n.trees = 20L,
+      n.chains = 1L,
+      n.threads = 1L,
+      n.samples = 5L,
+      n.burn = 50L,
+      updateState = FALSE
+    )
+  )
+  invisible(sampler$run())
+  levelsBefore <- attr(sampler$data@x, "factor.levels")
+  low <- which(as.integer(frame$f) <= 3L & as.integer(frame$o) <= 3L)
+  replacement <- as.matrix(sampler$data@x)[sample(low, n.keep, TRUE), ]
+  sampler$setPredictor(replacement, forceUpdate = TRUE)
+  expect_identical(attr(sampler$data@x, "factor.levels"), levelsBefore)
+  sampler$storeState()
+  copied <- sampler$copy()
+  expect_true(all(is.finite(copied$run(0L, 2L)$train)))
+  reloaded <- unserialize(serialize(sampler, NULL))
+  expect_true(all(is.finite(reloaded$run(0L, 2L)$train)))
+})
