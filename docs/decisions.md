@@ -1520,6 +1520,10 @@ Record: this register. Marked: blank. [dec-B227]
 Under dec-B214 and dec-B218, average.weights is given for all of the fit's rows; with n.average.rows the sampled rows keep their weights, renormalized, so the estimate targets the same weighted average with or without the subsample. The alternatives were sampling with probability proportional to the weights and averaging unweighted, and refusing the pair. The maintainer on 2026-10-04: "Weights are given for all of the fit's rows; the sampled rows keep theirs and are renormalized."
 Record: this register. Marked: blank. [dec-B228]
 
+**pdbart's translation warning reaches package callers**
+Under dec-B205, the once-per-session warning for a pdbart or pd2bart call written in BayesTree's names fires for a call from package code as well, as bart's own forwarding warning does and as R's .Deprecated does, so the package's author hears of the change before 1.1-0 removes the names; the informational defaults message of dec-B213 stays held back for package callers. treatSens, the one package found calling pdbart with BayesTree names, is updated in lockstep to bart's names. The alternative was exempting package callers, as the informational message is. The maintainer on 2026-10-04: "Warn for package callers too - we can notify package authors. And yes, update treatSens ourselves."
+Record: this register. Marked: blank. [dec-B229]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
