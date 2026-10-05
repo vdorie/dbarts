@@ -2,12 +2,13 @@
 
 Fit a model with
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md), or take a
-fit or sampler, and average its predictions over the fit's rows with one
+fit or sampler, and average its predictions over a set of rows with one
 variable (`pdbart`) or a pair of variables (`pd2bart`) set to each of a
-grid of values, so that a plot can display that variable's effect. The
-averages are on the scale of the model's linear predictor: if \\y\\ is
-binary with \\P(Y=1 \| x) = F(f(x))\\, \\F\\ the standard normal cdf,
-then the plots are all on the \\f\\ scale.
+grid of values, so that a plot can display that variable's effect. By
+default the averages are on the scale of the model's linear predictor:
+if \\y\\ is binary with \\P(Y=1 \| x) = F(f(x))\\, \\F\\ the standard
+normal cdf, then the plots are on the \\f\\ scale; `type` chooses
+another.
 
 ## Usage
 
@@ -17,6 +18,8 @@ pdbart(
     xind = NULL,
     levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
     pl = TRUE, plquants = c(0.05, 0.95),
+    type = "auto", newdata = NULL,
+    n.average.rows = NULL, average.weights = NULL,
     ...)
 
 # S3 method for class 'pdbart'
@@ -31,6 +34,8 @@ pd2bart(
     xind = NULL,
     levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
     pl = TRUE, plquants = c(0.05, 0.95),
+    type = "auto", newdata = NULL,
+    n.average.rows = NULL, average.weights = NULL,
     ...)
 
 # S3 method for class 'pd2bart'
@@ -65,13 +70,16 @@ plot(
 - xind:
 
   Integer, character vector, or the right-hand side of a formula
-  indicating which variables are to be plotted. In `pdbart`, corresponds
-  to the variables (columns of the predictor matrix) for which a plot is
-  to be constructed. In `plot.pdbart`, corresponds to the indices in
-  list returned by `pdbart` for which plot is to be constructed. In
-  `pd2bart`, the indices of a pair of variables (columns of the
-  predictor matrix) to plot. If `NULL` a default of all columns is used
-  for `pdbart` and the first two columns is used for `pd2bart`.
+  indicating which variables are to be plotted. In a formula fit, these
+  are variables of the data, named, and every term built from one -
+  `log(a)`, `poly(a, 2)` - moves with it; a column number is refused.
+  Otherwise, in `pdbart`, corresponds to the variables (columns of the
+  predictor matrix) for which a plot is to be constructed. In
+  `plot.pdbart`, corresponds to the indices in list returned by `pdbart`
+  for which plot is to be constructed. In `pd2bart`, the indices of a
+  pair of variables (columns of the predictor matrix) to plot. If `NULL`
+  a default of all columns is used for `pdbart` and the first two
+  columns is used for `pd2bart`.
 
 - levs:
 
@@ -84,9 +92,10 @@ plot(
 - levquants:
 
   If `levs` is `NULL`, the values of each variable used in the plot are
-  set to the quantiles (in the training data, missing values left out)
-  indicated by levquants, and a factor predictor takes every level. Must
-  be a vector of numeric type.
+  set to the quantiles indicated by levquants of its values in the
+  training data, or in `newdata` when given, missing values left out; a
+  factor predictor takes every level the fit knows. Must be a vector of
+  numeric type.
 
 - pl:
 
@@ -99,6 +108,46 @@ plot(
   posterior median and a lower and upper quantile. `plquants` is a
   double vector of length two giving the lower and upper quantiles.
 
+- type:
+
+  The scale averaged on, one of `predict`'s types for the fit (see
+  [`predict.bart`](https://vdorie.github.io/dbarts/reference/bartBT.md)),
+  each row's prediction transformed and then averaged. `"auto"` is the
+  link scale, `"bart"` (also spelled `"link"`), on every family but the
+  hurdle, where it is the mean response, `"ev"`. A gaussian or Student-t
+  fit also takes `"ev"`, `"ppd"` and, with a variance forest, `"sigma"`;
+  a probit or logistic fit `"ev"`, the probability, and `"ppd"`; a
+  negative binomial fit `"ev"`, the mean count, and `"ppd"`; a hurdle
+  fit `"prob"`, the probability of a positive response, `"bart"` (also
+  `"log"`), the positive part's log scale, and `"ppd"`. A type the
+  family does not take is refused before anything is fit when the family
+  is named. `"forest"` is refused. A sampler passed in takes only
+  `"bart"`.
+
+- newdata:
+
+  Rows to average over in place of the fit's own, coded as
+  [`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md) codes
+  them, a data frame in a formula fit. The fit's offset is evaluated on
+  them as `predict` evaluates it; an offset given as a plain vector
+  cannot be, unless `newdata` has as many rows, and is refused. The
+  default grid is taken from these rows.
+
+- n.average.rows:
+
+  A number of the fit's rows to average over, drawn at random without
+  replacement from those with a positive `average.weights` (all rows
+  when none are given); `set.seed` beforehand reproduces it. Refused
+  with `newdata`.
+
+- average.weights:
+
+  One finite, non-negative weight per row averaged over - per row of the
+  fit, before any it gives a weight of 0 are left out, or per row of
+  `newdata` - not all zero, for a weighted average; normalized. With
+  `n.average.rows`, the sampled rows keep their weights, renormalized.
+  Not `bart`'s `weights`, which go to the fit.
+
 - ...:
 
   In `pdbart` and `pd2bart`, arguments of
@@ -108,7 +157,8 @@ plot(
   test rows, so `keepTrees = FALSE`, `samplerOnly`, `test` and
   `offset.test` are refused; `keepSampler = FALSE` drops the sampler
   from the result. With a fit or sampler passed in, only `keepSampler`
-  is taken. BayesTree's spellings, as
+  is taken, and a sampler takes no `newdata`, `n.average.rows` or
+  `average.weights`. BayesTree's spellings, as
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
   them (`x.train`, `y.train`, `ntree`, `ndpost`, `nskip`, `keepevery`,
   `binaryOffset` and the rest), are translated to `bart`'s with a
@@ -120,8 +170,10 @@ plot(
   In `plot.pdbart`, arguments are passed on to
   [`plot`](https://rdrr.io/r/graphics/plot.default.html), except `type`,
   which is passed to the lines drawn, and `xlab` and `ylab`, which
-  replace the method's own labels. In `plot.pd2bart`, they are passed on
-  to [`image`](https://rdrr.io/r/graphics/image.html).
+  replace the method's own labels, the vertical one naming the scale. In
+  `plot.pd2bart`, they are passed on to
+  [`image`](https://rdrr.io/r/graphics/image.html), and a `main`
+  replaces the panel titles.
 
 - x:
 
@@ -164,12 +216,24 @@ to obtain intervals for \\f_s(x_s)\\.
 In `pdbart` \\x_s\\ consists of a single variable in \\x\\ and in
 `pd2bart` it is a pair of variables.
 
-The rows averaged over are the fit's own: those it was fit to, less any
-it gives a weight of 0, which for a binary response masks a row out.
-Each row's offset, `bart`'s `offset`, is added to its prediction before
-averaging, so a value equals the row mean of
-[`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md)`(fit, newdata, type = "bart")`
+The rows averaged over are the fit's own unless `newdata` is given:
+those it was fit to, less any it gives a weight of 0, which for a binary
+response masks a row out, and less any dropped for a missing response.
+In a formula fit they are read from the data the fit's call names,
+re-evaluated, which a fit kept without its call cannot do; give
+`newdata` then. Each row's offset is added to its prediction once: the
+fit's offset expression or
+[`offset()`](https://rdrr.io/r/stats/offset.html) term evaluated on the
+row with the variable set, or, for an offset given as a plain vector,
+the row's own value. A value is therefore the (weighted) row mean of
+[`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md)`(fit, rows, type = type)`
 with the variable set.
+
+In `pd2bart`, when the fit has two predictors and one offset for every
+row, each grid point is a single row and is predicted once; `newdata`
+then gives only the default grid, and `n.average.rows` and
+`average.weights` have no effect, with a warning. `type = "ppd"`, which
+draws noise for each row, always averages over the rows.
 
 A data call fits through
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) at its
@@ -180,11 +244,11 @@ the saved trees, so `pdbart(x, y, seed = s)` and
 fit. The first data call in a session prints a message saying so; a call
 from package code does not.
 
-`pdbart` and `pd2bart` serve gaussian, Student-t, probit and logistic
-fits. Multinomial and ordinal fits, whose prediction is a probability
-per category, are refused; `predict` on rows with the variable set gives
-each category's. Negative binomial, hurdle, accelerated failure time and
-hazard fits are refused in this version. Each refusal comes before
+`pdbart` and `pd2bart` serve gaussian, Student-t, probit, logistic,
+negative binomial and hurdle fits. Multinomial and ordinal fits, whose
+prediction is a probability per category, are refused; `predict` on rows
+with the variable set gives each category's. Accelerated failure time
+and hazard fits are refused in this version. Each refusal comes before
 anything is fit, whether the family is named, resolved by
 `family = "auto"` from the response, or that of a fit or sampler passed
 in.
@@ -248,6 +312,15 @@ through to stats' defaults and return `NULL`).
 
   The number of chains.
 
+- type:
+
+  The scale averaged on, as resolved: `"bart"` for `"link"` and, except
+  on a hurdle fit, for `"auto"`.
+
+- family:
+
+  The fit's family, which with `type` sets the plot labels.
+
 The remaining components are passed on from the fit, under
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own names
 (see its ‘Value’ section) with one rename and several omissions - the
@@ -256,8 +329,9 @@ component is carried over. For a continuous response the remaining
 components are `bartcall`, `yhat.train`, `first.sigma`, `sigma`,
 `yhat.train.mean`, `sigest`, `y`, and `fit`, the sampler, which
 `keepSampler = FALSE` leaves out. For a binary response only `bartcall`,
-`yhat.train`, `y`, and `fit` are present. `pd2bart` follows the same
-rules. The function
+`yhat.train`, `y`, and `fit` are present. For a hurdle fit, `fit` is a
+list of the two parts' samplers, `zero` and `positive`, and no draws are
+carried over. `pd2bart` follows the same rules. The function
 [`plot.bart`](https://vdorie.github.io/dbarts/reference/bartBT.md) can
 be applied to the object returned by `pdbart` or `pd2bart` to examine
 the BART run.
@@ -345,5 +419,8 @@ bartFit <- bart(
     n.thin = 10, n.trees = 100, n.chains = 2, n.threads = 1, seed = 99,
     keepTrees = TRUE, verbose = FALSE)
 pdb3 <- pdbart(bartFit, xind = rob + ed, pl = FALSE)
+
+## averaged over a subgroup's rows, with the grid from them
+pdb4 <- pdbart(bartFit, xind = "rob", newdata = df[df$hugh > 0, ], pl = FALSE)
 # }
 ```
