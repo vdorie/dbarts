@@ -239,7 +239,7 @@ records: engine 625, bridge 172, R 165, manual 50, tests 1174.
   `bart(warm.start = )`, and the warm start's undo of a refused install. `copy` with no stored state and the
   private sampler of `samplePriorPredictive` are re-created in the record and moved there by
   [`Chain::moveScale`](../../src/bartcore/chain.hpp). The flat C API installs no state.
-- The record is the model attribute `response.anchor`, written by `initialize` on a first creation and by
+- The record is the model attribute `response.range`, written by `initialize` on a first creation and by
   `setResponse` and `setOffset` with the scale update and `setData`, carried by `setModel`, and handed to the
   engine by [`applyAnchor`](../../R/dbarts.R) through one new bridge entry, `bartcore_anchor`, rather than a
   creation argument. An object saved before the record existed carries none, and reloads in its data's
@@ -277,7 +277,7 @@ records: engine 625, bridge 172, R 165, manual 50, tests 1174.
   warm-start-undo-test. Afterwards tests/cpp passes, tinytest 12325 tests with 0 failures and no new warning,
   the lint chain passes, and on a reference build the compares are identical on 55, 15 and 11 scenarios and
   the four snapshot files pass.
-- Second review fix, in 8b5191d0: the bridge refuses a `response.anchor` record that is not two finite numbers
+- Second review fix, in 8b5191d0: the bridge refuses a `response.range` record that is not two finite numbers
   in order, and on the count family an equal pair. Afterwards tests/cpp passes, tinytest 12328 tests with 0
   failures, the lint chain passes and stan4bart's suite at home passes, 570 tests, against a chain built on it.
   The reviewer's own builds found same-model installs bitwise against the base commit's on every family and

@@ -266,12 +266,6 @@ items
     "std::bad_alloc", and the run-level catch that makes any allocation
     failure an R error also covers failures outside a count, where the
     leaf store may be half-written when the fits are re-summed.
-  installtrees-empty-leaf-state: installTrees onto the same grid rebuilds
-    the live forest without collapsing, so a donor tree with a leaf no row
-    reaches leaves a state that setState, copy() and save/load then refuse
-    ("state is not consistent with this sampler") until sampling moves the
-    empty leaf away; unconstrained samplers too. Every state a sampler
-    produces should reinstall. Found in the monotone stage-1 review.
   multiforest-mutation-gaps: two doors
     (docs/plans/archive/multiforest-mutation-gaps.md).
     BCF whole-data setData (n free, z required): KEEP UNDESIGNED,
