@@ -1,8 +1,7 @@
 # pdbart-on-bart: pdbart and pd2bart fit through bart, with type, newdata and the survival families
 
-Status: PLANNED 2026-10-04. Ruled: dec-B203 to dec-B229 in
-[decisions.md](../decisions.md); one agents' call (9, the default time's
-fallback) pending the maintainer before slice 3.
+Status: PLANNED 2026-10-04. Every question ruled: dec-B203 to dec-B229 in
+[decisions.md](../decisions.md), dec-B221 as revised.
 
 agent: one implementer per slice (R only); an Opus reviewer per slice.
 rng: posterior-changing at the R layer only, with the gate exception stated
@@ -111,10 +110,9 @@ Ruled, and not restated here:
   The translation warning for package callers: dec-B229.
 
 Calls made by the agents in drafting. Those marked (*) change what a user
-sees and go on the register as agent-made decisions (step 13). Those marked
-(pending the maintainer) depart from, or cut against, a ruling's wording:
-each is put to the maintainer, one per message, before the slice that would
-implement it, and that behaviour is not built until ruled.
+sees and go on the register as agent-made decisions (step 13). Three that
+departed from a ruling's wording were put to the maintainer and are now
+ruled; they are cited by their rulings below.
 
 1. A data call fits `bart(..., keepTrees = TRUE, keepSampler = TRUE)` and
    predicts each grid value from the saved trees, replacing the `samplerOnly`
@@ -176,12 +174,11 @@ implement it, and that behaviour is not built until ruled.
    is only suggested): on an aft fit from `exp(fit$y)` and `fit$status`; on a
    hazard fit from its person-period rows, on its period grid, so with
    `hazard(breaks = )` it is the Kaplan-Meier median of the coarsened times.
-   (pending the maintainer, before slice 3) The condition for falling back
-   to the median follow-up: dec-B221 says "when fewer than half the subjects
-   have the event"; the plan's draft was "when the Kaplan-Meier curve does
-   not reach 0.5", the condition under which no median exists. Under
-   censoring the two differ in both directions. (*) The median follow-up is
-   the median of all subjects' observed times, events and censored alike.
+   The default is the Kaplan-Meier median survival time when the curve
+   reaches 0.5, and otherwise the median of the observed event times, as
+   randomForestSRC defaults (dec-B221 as revised): on an aft fit the times
+   `exp(fit$y)` where `fit$status` is 1; on a hazard fit the period at which
+   each subject's event row falls, read on the period grid.
 10. (*) `plot.type = "curves"` is refused when fewer than three times were
     computed, and on a result with no times margin.
 11. (*) `plot.pdbart` takes `type`, `xlab` and `ylab` out of `...` for its
@@ -343,7 +340,8 @@ Slice 2 - `type`, `newdata`, variables, subsamples and weights.
 
 Slice 3 - survival on aft and hazard fits.
 
-10. `times`, `NULL` meaning the default time of agents' call 9; refused per
+10. `times`, `NULL` meaning the default time of dec-B221 as revised (agents'
+    call 9 for how it is computed); refused per
     agents' call 12. `type` on aft and hazard: `"survival"` (the `"auto"`
     default), `"event"`, `"cumhaz"`, each per subject then averaged; aft also
     takes `"bart"` and its other `predict` values, which give no times
@@ -366,14 +364,14 @@ Slice 3 - survival on aft and hazard fits.
     the subject means of 1 - S and -log S, the latter differing from -log of
     the mean; the default time against `survival::survfit` when installed -
     on aft's times, on a hazard fit's default grid, and under `hazard(breaks
-    = )` on the coarsened times - and its fallback on a fit whose curve stays
-    above 0.5; the size check refusing with its levers, not firing on a
+    = )` on the coarsened times - and, on a fit whose curve stays above 0.5
+    (heavy censoring), the median of the observed event times instead, on
+    both families; the size check refusing with its levers, not firing on a
     20-period fit, and counting a product above 2^31 without overflow;
     `n.max.predictions` raising it and refused when not a positive number;
     `xind = "period"` refused and left out of the default; shapes under both
     `combineChains`; a hazard sampler refused after this slice, and an aft
-    sampler served with `type = "bart"` and refused under `"auto"`; the
-    fallback condition as the maintainer rules on agents' call 9.
+    sampler served with `type = "bart"` and refused under `"auto"`.
 12. Plots: `plot.type = c("dependence", "curves")` on both methods; the
     default puts the variable on the axis with one line per time, the time
     named; `"curves"` puts time on the axis with one curve per grid value;
@@ -381,18 +379,18 @@ Slice 3 - survival on aft and hazard fits.
     refusals of agents' call 10, the labels. Help page (the type table; the
     pictures named: a partial dependence plot, adjusted curves or direct
     adjustment; `type` chooses what is computed and `plot.type` how it is
-    drawn), NEWS and the design note for this slice.
+    drawn; a fixed horizon, such as 5-year survival, as the usual reason to
+    pass `times`; the default time and its fallback, per dec-B221), NEWS and
+    the design note for this slice.
 
 Records, with slice 1 and at the end.
 
-13. Before slice 3 is built: agents' call 9 put to the maintainer, its
-    ruling recorded in the register and this plan updated. Before slice 1
-    lands: the agents' calls marked (*) - 3's translation table, 5, 6, 7,
-    9's median follow-up, 10, 11's `plot.pdbart` half, 12 and 13 - entered
+13. Before slice 1 lands: the agents' calls marked (*) - 3's translation
+    table, 5, 6, 7, 10, 11's `plot.pdbart` half, 12 and 13 - entered
     on the register as agent-made decisions with a blank "Marked:" line. At each
     slice's landing: this plan's Landing note, the INDEX row's status, and
     the design note's Status line. After slice 3: "Marked:" filled on dec-B203
-    to dec-B228 as the maintainer marks them, and the TODO item pdbart-on-bart
+    to dec-B229 as the maintainer marks them, and the TODO item pdbart-on-bart
     removed.
 
 Lockstep, with slice 1: treatSens, on its `dbarts-1.0` branch, in
