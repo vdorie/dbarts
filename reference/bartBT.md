@@ -462,13 +462,16 @@ family(object, ...)
   models but on the latent scale (probit or logistic, matching the fit's
   family) for binary ones, `"ppd"` - samples from the posterior
   predictive distribution, `"loglik"` - for `extract` only, the
-  log-likelihood of each training observation at each posterior draw,
-  `"trees"` - a data frame with tree information for when model was fit
-  with `keepTrees` equal to `TRUE`, and `"forest"` - for `extract`,
-  `predict` and `fitted`, the per-forest channels of an
-  amplitude-coupled multi-forest fit (see `forest`, `contribution`, and
-  the `forestFits`/`glue`/`bases` components under ‘Value’); an error
-  naming the reason on any other fit, a
+  log-likelihood of each training observation at each posterior draw (a
+  row whose weight is a count has its value multiplied by the count; a
+  row with a precision weight of zero, or masked out of the data, is not
+  in the likelihood and is `NaN`, so drop those columns before handing
+  the matrix to a tool such as loo), `"trees"` - a data frame with tree
+  information for when model was fit with `keepTrees` equal to `TRUE`,
+  and `"forest"` - for `extract`, `predict` and `fitted`, the per-forest
+  channels of an amplitude-coupled multi-forest fit (see `forest`,
+  `contribution`, and the `forestFits`/`glue`/`bases` components under
+  ‘Value’); an error naming the reason on any other fit, a
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
   multinomial one included, whose K forests are per-category latents
   rather than additive components of one location.
@@ -1204,7 +1207,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.221097
+#> total seconds in loop: 0.212928
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
