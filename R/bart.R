@@ -3030,10 +3030,12 @@ refuseHurdlePositiveMissingness <- function(x, positive) {
     if (length(labels) > 5L) {
       paste0(" and ", length(labels) - 5L, " more column(s)")
     },
-    " carry missing values only on the zero (y == 0) rows: the positive ",
-    "part trains on the positive rows alone, so it learns no route for ",
-    "them, and the hurdle composition evaluates the positive part on ",
-    "every row"
+    if (length(labels) == 1L) " has" else " have",
+    " missing values only on rows where y is zero, so the positive part, ",
+    "which is fit to the positive rows, cannot learn where to send them. ",
+    "If the values are missing because y is zero, the column follows from ",
+    "the outcome and should not be a predictor; otherwise drop those rows ",
+    "(na.action = na.omit) or impute them"
   )
 }
 

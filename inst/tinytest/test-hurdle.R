@@ -446,7 +446,7 @@ expect_error(
     verbose = FALSE,
     seed = 13L
   ),
-  pattern = "carry missing values only on the zero"
+  pattern = "missing values only on rows where y is zero.*na.action = na.omit"
 )
 
 # NA on both row sets stays constructible: the positive part saw the
