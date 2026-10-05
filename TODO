@@ -144,6 +144,10 @@ items
     samplePriorPredictive already draws f from the prior at x.test; the
     helper would summarize it, or compute it in closed form where one
     exists (constant, linear).
+  pdbart-closed-arguments: at 1.1-0, when pdbart's BayesTree spellings
+    are refused, replace pdbart's and pd2bart's ... with bart's usable
+    arguments listed explicitly, pinned by a test against bart's formals
+    less the excluded set (VD 2026-10-04, dec-B212).
   pdbart-hazard-compiled: a compiled routine for pdbart's survival-scale
     partial dependence on hazard fits, so a fine period grid (the
     default, from the observed event times) runs at sizes the fit

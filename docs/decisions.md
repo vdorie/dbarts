@@ -1452,6 +1452,10 @@ Record: this register. Marked: blank. [dec-B210]
 Under dec-B203, pdbart and pd2bart add each row's offset before averaging, so the value at a grid point equals the average of predict(fit, newdata) there, as predict.lm and 1.0-0's predict include it; in a formula fit an offset built from the varied variable moves with it. 0.9-34's pdbart left the offset out, as its predict did, while BayesTree's included binaryOffset, so a 0.9-34 call with binaryOffset = 2 moves by 2, to what BayesTree returned; NEWS says so. The alternative was keeping the offset out and documenting it. The maintainer on 2026-10-04: "Add each row's offset before averaging."
 Record: this register. Marked: blank. [dec-B211]
 
+**pdbart's argument list: refusals now, a closed list at 1.1-0**
+Under dec-B203, pdbart and pd2bart refuse by name the bart arguments they set themselves - keepTrees = FALSE, samplerOnly, test and offset.test, and their BayesTree spellings - and honour keepSampler = FALSE by dropping the sampler from the result; keepTrees = TRUE is accepted as a no-op. Their ... reaches only the fit, never the plot, and stays in 1.0-0 because it is how the BayesTree spellings are accepted and translated (dec-B205). At 1.1-0, when those spellings are refused, the ... is replaced by bart's usable arguments listed explicitly, with a test that pdbart's and pd2bart's arguments equal bart's less the excluded set, so the list cannot drift; the plot methods keep their own ..., which go to plot and image. The alternatives were overriding the four silently, keeping ... permanently with the refusals, copying bart's arguments now, and taking bart's settings as a list argument. The maintainer on 2026-10-04 asked: "Would it make sense to keep `...` for now but once the old arguments are refused close the argument list to just those that can actually be used?", and, told that pdbart's ... never reaches the plot: "Let's do that."
+Record: this register; TODO pdbart-closed-arguments. Marked: blank. [dec-B212]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
