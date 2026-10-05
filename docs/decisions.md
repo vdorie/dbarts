@@ -1430,6 +1430,10 @@ Record: this register. Marked: blank. [dec-B205]
 Under dec-B203, a pdbart or pd2bart call fits under bart's defaults for every setting it does not name (75 trees, four chains of 500 kept draws after 500 burn-in, merged; up to four threads; k drawn on a binary response; a factor as one predictor; rows with a missing predictor kept), so pdbart(x, y) and pdbart(bart(x, y, keepTrees = TRUE)) agree at the same seed. Against 0.9-34 a call's results change, and at 1,000 rows and five predictors it ran in about a sixth of the time and an eighth of the memory. The alternative was bart's model with a lighter run for pdbart. The maintainer on 2026-10-04: "use bart's defaults." Not ruled: how the result shows chains (fd kept a matrix with n.chains added, or a chains x draws x levels array under combineChains = FALSE).
 Record: this register. Marked: blank. [dec-B206]
 
+**pdbart gains a scale and a set of rows to average over; individual curves follow 1.0-0**
+Under dec-B203, pdbart and pd2bart gain a type argument choosing the scale of the plotted function, with predict.bart's values and default, so a binary fit's partial dependence can be read as a probability averaged over the rows rather than only on the latent scale, and a newdata argument naming the rows averaged over, a subgroup or a subsample, where only the training rows were used. Individual conditional expectation curves, one per row, are scheduled after 1.0-0. Put to the maintainer with the landscape: pdp::partial takes prob, train and ice, randomForest::partialPlot pred.data, bartMachine's pd_plot prop_data, SoftBart's partial_dependence_regression test_data. The maintainer on 2026-10-04: "Go ahead and add the two now. Is it worth adding ICE eventually? If so, stage it for post-1.0." The arguments' details come back as their own questions.
+Record: this register; TODO pdbart-ice. Marked: blank. [dec-B207]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
