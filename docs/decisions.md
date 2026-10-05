@@ -1476,6 +1476,10 @@ Record: this register. Marked: blank. [dec-B216]
 Under dec-B211 and dec-B216, pdbart and pd2bart evaluate the fit's offset on newdata rows as predict does: an offset expression or offset() term is evaluated on the new rows, and a fit whose offset was a plain vector is refused with a newdata of another row count, the message saying to write the offset as a column of the data. No offset argument is added. The alternative was an offset argument for the new rows. The maintainer on 2026-10-04: "Follow predict, with no new argument."
 Record: this register. Marked: blank. [dec-B217]
 
+**pdbart can average over a random subsample of the fit's rows: n.average.rows**
+Under dec-B207, pdbart and pd2bart take n.average.rows, the number of the fit's own rows (after its subset and the rows it dropped) to sample at random and average over, all rows by default; a set.seed before the call reproduces it, as with type = "ppd", and it is refused together with newdata. A count rather than a fraction, since the cost grows with the rows averaged whatever the data's size. The landscape put to the maintainer: bartMachine's pd_plot takes prop_data, a fraction, all rows by default; survex averages over N = 100 sampled rows by default; pdp and randomForest have none. The alternatives were no shortcut with the newdata line in the help page, a sampled default, and the names average.rows, n.rows and n.average. The maintainer on 2026-10-04: "Sure, option 2." and, on the name, "n.average.rows".
+Record: this register. Marked: blank. [dec-B218]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
