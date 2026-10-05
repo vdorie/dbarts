@@ -256,8 +256,8 @@ mutations <- list(
   mk(
     "m11",
     "src/bartcore/model.hpp",
-    "        omega += ext_rng_simulatePolyaGamma(rng, psi);\n      omega_[i] = omega;\n      double weight = weights_ != nullptr ? weights_[i] : 1.0;",
-    "        omega += ext_rng_simulatePolyaGamma(rng, psi);\n      omega_[i] = omega * omega;\n      double weight = weights_ != nullptr ? weights_[i] : 1.0;",
+    "      omega_[i] = omega;\n      double weight = weights_ != nullptr ? weights_[i] : 1.0;",
+    "      omega_[i] = omega * omega;\n      double weight = weights_ != nullptr ? weights_[i] : 1.0;",
     "KILL_EXPECTED",
     kEquiv("logistic"),
     "poison 11: logistic response reports omega^2 as its working weight, though the working response itself still divides by the true omega (was model.hpp:2180)"
@@ -780,8 +780,8 @@ mutations <- c(
     r3(
       "m57",
       "src/bartcore/combiner.hpp",
-      "for (int c = 1; c < trials_[i]; ++c)",
-      "for (int c = 1; c <= trials_[i]; ++c)",
+      "for (int c = 1; c < trials_[i] && !stop; ++c)",
+      "for (int c = 1; c <= trials_[i] && !stop; ++c)",
       c(
         kTests(
           "test-multinomial-counts-mutation.R",
