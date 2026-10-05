@@ -434,8 +434,57 @@ pdAxisPositions <- function(levs) {
 
 # A chains x draws x values array, as pdbart gives under combineChains =
 # FALSE, as one draws x values matrix.
-pdMergedDraws <- function(fd) {
-  if (length(dim(fd)) == 3L) combineChains(fd) else fd
+pdMergedDraws <- function(fd, survival = FALSE) {
+  if (!survival) {
+    return(if (length(dim(fd)) == 3L) combineChains(fd) else fd)
+  }
+  if (length(dim(fd)) == 3L) {
+    return(fd)
+  }
+  dims <- dim(fd)
+  result <- aperm(fd, c(2L, 1L, 3L, 4L))
+  dim(result) <- c(dims[1L] * dims[2L], dims[3L], dims[4L])
+  result
+}
+
+# The median over draws of a draws x times x values array, times x values.
+pdTimeMedians <- function(fd) {
+  apply(fd, c(2L, 3L), stats::median)
+}
+
+# The survival scales' labels, and the time read when there is one.
+pdSurvivalLabel <- function(x) {
+  label <- switch(
+    x$type,
+    survival = "survival probability",
+    event = "event probability",
+    cumhaz = "cumulative hazard"
+  )
+  if (length(x$times) == 1L) {
+    paste0(label, " at t = ", format(x$times))
+  } else {
+    label
+  }
+}
+
+# The curves view, refused where there are too few times to draw curves.
+pdRefuseCurves <- function(x) {
+  if (is.null(x$times)) {
+    stop(
+      "plot.type = \"curves\" needs a result with a times margin, from a ",
+      "survival type on an aft or hazard fit",
+      call. = FALSE
+    )
+  }
+  if (length(x$times) < 3L) {
+    stop(
+      "plot.type = \"curves\" draws curves over time and needs at least ",
+      "three times; ",
+      length(x$times),
+      " were computed",
+      call. = FALSE
+    )
+  }
 }
 
 # The response's name as the fit's call wrote it: a formula's left-hand side,
@@ -466,9 +515,14 @@ pdScaleLabel <- function(x) {
   }
   binary <- family %in% c("probit", "logistic")
   hurdle <- family == "hurdle.lognormal"
+  if (type %in% c("survival", "event", "cumhaz")) {
+    return(pdSurvivalLabel(x))
+  }
   switch(
     type,
-    bart = if (family == "probit") {
+    bart = if (family == "aft") {
+      "log time"
+    } else if (family == "probit") {
       "probit scale"
     } else if (family == "logistic") {
       "logit scale"
@@ -498,8 +552,13 @@ plot.pdbart <- function(
   xind = seq_along(x$fd),
   plquants = c(0.05, 0.95),
   cols = c("blue", "black"),
+  plot.type = c("dependence", "curves"),
   ...
 ) {
+  plot.type <- match.arg(plot.type)
+  if (plot.type == "curves") {
+    pdRefuseCurves(x)
+  }
   # type, xlab and ylab are this method's own for the frame it draws, so a
   # caller's go to the lines and the axes rather than colliding with them
   dots <- list(...)
@@ -507,33 +566,78 @@ plot.pdbart <- function(
   xlab <- dots$xlab
   ylab <- if (is.null(dots$ylab)) pdScaleLabel(x) else dots$ylab
   dots$type <- dots$xlab <- dots$ylab <- NULL
+  frame <- function(xRange, yRange, xLabel, factorAxis) {
+    do.call(
+      plot,
+      c(
+        list(
+          xRange,
+          yRange,
+          type = "n",
+          xlab = if (is.null(xlab)) xLabel else xlab,
+          ylab = ylab,
+          xaxt = if (factorAxis) "n" else "s"
+        ),
+        dots
+      )
+    )
+  }
 
-  fd <- lapply(x$fd, pdMergedDraws)
+  survival <- !is.null(x$times)
+  fd <- lapply(x$fd, pdMergedDraws, survival)
   rgy <- range(fd)
   for (i in xind) {
+    levs <- x$levs[[i]]
+    isFactor <- is.character(levs)
+    at <- pdAxisPositions(levs)
+    xRange <- if (isFactor) c(0.5, length(levs) + 0.5) else range(levs)
+    if (survival) {
+      medians <- pdTimeMedians(fd[[i]])
+      if (plot.type == "curves") {
+        # time on the axis, one curve per grid value
+        frame(range(x$times), rgy, "time", FALSE)
+        for (l in seq_along(levs)) {
+          lines(x$times, medians[, l], col = l, type = lineType)
+        }
+        legend(
+          "topright",
+          legend = paste0(x$xlbs[i], " = ", format(levs)),
+          col = seq_along(levs),
+          lty = 1L,
+          bty = "n"
+        )
+      } else {
+        # the variable on the axis, one line per time
+        frame(xRange, rgy, x$xlbs[i], isFactor)
+        if (isFactor) {
+          axis(1, at = at, labels = levs)
+        }
+        for (j in seq_along(x$times)) {
+          if (isFactor) {
+            points(at, medians[j, ], col = j, pch = 19)
+          } else {
+            lines(levs, medians[j, ], col = j, type = lineType)
+          }
+        }
+        if (length(x$times) > 1L) {
+          legend(
+            "topright",
+            legend = paste0("t = ", format(x$times)),
+            col = seq_along(x$times),
+            lty = 1L,
+            bty = "n"
+          )
+        }
+      }
+      next
+    }
     tsum <- apply(
       fd[[i]],
       2,
       quantile,
       probs = c(plquants[1], .5, plquants[2])
     )
-    levs <- x$levs[[i]]
-    isFactor <- is.character(levs)
-    at <- pdAxisPositions(levs)
-    do.call(
-      plot,
-      c(
-        list(
-          if (isFactor) c(0.5, length(levs) + 0.5) else range(levs),
-          rgy,
-          type = "n",
-          xlab = if (is.null(xlab)) x$xlbs[i] else xlab,
-          ylab = ylab,
-          xaxt = if (isFactor) "n" else "s"
-        ),
-        dots
-      )
-    )
+    frame(xRange, rgy, x$xlbs[i], isFactor)
     if (isFactor) {
       # one point per level, no line: the levels carry no order to join
       axis(1, at = at, labels = levs)
@@ -552,70 +656,108 @@ plot.pd2bart <- function(
   plquants = c(0.05, 0.95),
   contour.color = "white",
   justmedian = TRUE,
+  plot.type = c("dependence", "curves"),
   ...
 ) {
-  pdquants <- apply(
-    pdMergedDraws(x$fd),
-    2,
-    quantile,
-    probs = c(plquants[1], .5, plquants[2])
-  )
-  qq <- vector("list", 3)
-  for (i in 1:3) {
-    qq[[i]] <- matrix(pdquants[i, ], nrow = length(x$levs[[1]]))
+  plot.type <- match.arg(plot.type)
+  if (plot.type == "curves") {
+    pdRefuseCurves(x)
   }
-  if (justmedian) {
-    zlim <- range(qq[[2]])
-    vind <- c(2)
+  survival <- !is.null(x$times)
+  fd <- pdMergedDraws(x$fd, survival)
+  if (plot.type == "curves") {
+    # time on the axis, one curve per grid point
+    medians <- pdTimeMedians(fd)
+    graphics::matplot(
+      x$times,
+      medians,
+      type = "l",
+      lty = 1L,
+      xlab = "time",
+      ylab = pdScaleLabel(x),
+      ...
+    )
+    return(invisible(NULL))
+  }
+  # one picture per time on a survival scale
+  slices <- if (survival) {
+    lapply(seq_along(x$times), function(j) {
+      matrix(fd[, j, ], dim(fd)[1L])
+    })
   } else {
+    list(fd)
+  }
+  if (!justmedian) {
     oldpar <- par(no.readonly = TRUE)
     on.exit(par(oldpar), add = TRUE)
     par(mfrow = c(1, 3))
-    zlim <- range(qq)
-    vind <- 1:3
   }
   isFactor <- vapply(x$levs[1:2], is.character, FALSE)
   at <- lapply(x$levs[1:2], pdAxisPositions)
-  for (i in vind) {
-    image(
-      x = at[[1]],
-      y = at[[2]],
-      qq[[i]],
-      zlim = zlim,
-      xlab = x$xlbs[1],
-      ylab = x$xlbs[2],
-      xaxt = if (isFactor[1]) "n" else "s",
-      yaxt = if (isFactor[2]) "n" else "s",
-      ...
+  for (j in seq_along(slices)) {
+    pdquants <- apply(
+      slices[[j]],
+      2,
+      quantile,
+      probs = c(plquants[1], .5, plquants[2])
     )
-    if (isFactor[1]) {
-      axis(1, at = at[[1]], labels = x$levs[[1]])
+    qq <- vector("list", 3)
+    for (i in 1:3) {
+      qq[[i]] <- matrix(pdquants[i, ], nrow = length(x$levs[[1]]))
     }
-    if (isFactor[2]) {
-      axis(2, at = at[[2]], labels = x$levs[[2]])
+    if (justmedian) {
+      zlim <- range(qq[[2]])
+      vind <- c(2)
+    } else {
+      zlim <- range(qq)
+      vind <- 1:3
     }
-    # contours interpolate between neighbours, which factor levels are not
-    if (!any(isFactor)) {
-      contour(
+    for (i in vind) {
+      image(
         x = at[[1]],
         y = at[[2]],
         qq[[i]],
         zlim = zlim,
-        ,
-        add = TRUE,
-        method = "edge",
-        col = contour.color
+        xlab = x$xlbs[1],
+        ylab = x$xlbs[2],
+        xaxt = if (isFactor[1]) "n" else "s",
+        yaxt = if (isFactor[2]) "n" else "s",
+        ...
       )
-    }
-    # a caller's main went to image with the other arguments
-    if (is.null(list(...)$main)) {
-      title(
-        main = paste0(
-          c("Lower quantile", "Median", "Upper quantile")[i],
-          ", ",
-          pdScaleLabel(x)
+      if (isFactor[1]) {
+        axis(1, at = at[[1]], labels = x$levs[[1]])
+      }
+      if (isFactor[2]) {
+        axis(2, at = at[[2]], labels = x$levs[[2]])
+      }
+      # contours interpolate between neighbours, which factor levels are not
+      if (!any(isFactor)) {
+        contour(
+          x = at[[1]],
+          y = at[[2]],
+          qq[[i]],
+          zlim = zlim,
+          ,
+          add = TRUE,
+          method = "edge",
+          col = contour.color
         )
-      )
+      }
+      # a caller's main went to image with the other arguments
+      if (is.null(list(...)$main)) {
+        label <- if (survival && length(x$times) > 1L) {
+          paste0(pdScaleLabel(x), ", t = ", format(x$times[j]))
+        } else {
+          pdScaleLabel(x)
+        }
+        title(
+          main = paste0(
+            c("Lower quantile", "Median", "Upper quantile")[i],
+            ", ",
+            label
+          )
+        )
+      }
     }
   }
 }

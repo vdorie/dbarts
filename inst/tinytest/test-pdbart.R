@@ -659,8 +659,6 @@ noFit <- function(...) {
 set.seed(5)
 n <- nrow(x)
 counts <- matrix(rpois(3L * n, 2), n, 3L)
-expect_error(noFit(x, y, family = "aft"), "family = \"aft\"")
-expect_error(noFit(x, y, family = "hazard"), "family = \"hazard\"")
 expect_error(
   noFit(x, factor(sample(letters[1:3], n, TRUE))),
   "multinomial fit"
@@ -670,22 +668,16 @@ expect_error(
   "ordinal fit"
 )
 expect_error(noFit(x, counts), "multinomial fit")
-if (requireNamespace("survival", quietly = TRUE)) {
-  expect_error(
-    noFit(x, survival::Surv(rexp(n), rbinom(n, 1L, 0.7))),
-    "family = \"aft\""
-  )
-}
 expect_error(
   dbarts::pd2bart(
     x,
     y,
-    family = "aft",
+    family = "multinomial",
     pl = FALSE,
     n.trees = -1L,
     verbose = FALSE
   ),
-  "'pd2bart' does not yet serve"
+  "'pd2bart' does not serve a multinomial fit"
 )
 
 # and a fit or sampler of each refused family passed in
@@ -707,23 +699,17 @@ refusedFits <- list(
   multinomial = tiny(factor(sample(letters[1:3], n, TRUE))),
   ordinal = tiny(factor(sample(letters[1:3], n, TRUE), ordered = TRUE))
 )
-if (requireNamespace("survival", quietly = TRUE)) {
-  times <- survival::Surv(rexp(n), rbinom(n, 1L, 0.7))
-  refusedFits$aft <- tiny(times)
-  refusedFits$hazard <- tiny(times, family = "hazard")
-  rm(times)
-}
 for (family in names(refusedFits)) {
   refusedFit <- refusedFits[[family]]
   expect_error(
     dbarts::pdbart(refusedFit, pl = FALSE),
-    "does not (yet )?serve",
+    "does not serve",
     info = family
   )
   if (!is.null(refusedFit$fit)) {
     expect_error(
       dbarts::pd2bart(refusedFit$fit, pl = FALSE),
-      "does not (yet )?serve",
+      "does not serve",
       info = family
     )
   }

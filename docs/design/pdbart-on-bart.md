@@ -2,7 +2,7 @@
 
 Status: PLANNED 2026-10-04.
 Plan: [pdbart-on-bart.md](../plans/pdbart-on-bart.md). Grown slice by slice;
-this text covers slices 1 and 2.
+this text covers all three slices.
 
 ## The fit route
 
@@ -96,3 +96,30 @@ single-row shortcut applies only on two predictors with one offset for
 every row and outside `type = "ppd"`; `newdata` still gives the grid
 there, and `n.average.rows` and `average.weights` are ignored with a
 warning.
+
+## Survival on aft and hazard fits
+
+On an aft or hazard fit `type` defaults to survival, with the event
+probability and the cumulative hazard beside it, each computed per subject
+at the chosen times and averaged last. The default time is the training
+data's Kaplan-Meier median survival time, or the median of the observed
+event times where the curve does not reach one half
+([`pdbart.medianTime`](../../R/partialDependence.R)); a hazard fit's times
+are read on its period grid. A survival result's `fd` is draws x times x
+grid values, the times margin kept and named, chains leading when split.
+
+An aft fit's survival comes from `survivalProbabilities` on the varied rows,
+in chunks of rows. A hazard fit's subjects are its period-1 rows, or
+`newdata` coded as subject rows; each grid value is set in them, their rows
+expanded to the periods up to the largest time only and replayed through the
+sampler in chunks of whole subjects, and each chunk's hazards cumulated into
+survival per subject ([`pdbart.hazardAverage`](../../R/partialDependence.R)).
+Before any replay the work - subjects x periods x draws x grid values,
+counted in double precision - is checked against `n.max.predictions`
+([`pdbart.survivalDrawsAt`](../../R/partialDependence.R)). The period is the
+time axis, never a predictor, and a hazard sampler, whose rows are
+person-period rows, is refused.
+
+The plot methods draw the partial dependence plot by default, the variable
+on the axis with one line or image per time, and adjusted curves under
+`plot.type = "curves"`, time on the axis with one curve per grid value.

@@ -39,8 +39,7 @@
             subject to the changes below. In a formula fit \code{xind}
             names variables of the data, where it named model-matrix
             columns. Multinomial and ordinal fits are refused, pointing at
-            \code{predict}; accelerated failure time and hazard fits are
-            refused for now.
+            \code{predict}.
       \item Every name and argument kept reachable for one release past its
             removal or rename (a tombstone) warns once per session, names
             its successor, and is removed in dbarts 1.1-0; the list is on
@@ -295,9 +294,13 @@
     \itemize{
       \item \code{pdbart} and \code{pd2bart} take \code{type}
             (\code{"auto"}: the link scale, 0.9-34's, except the mean
-            response on hurdle fits), \code{newdata}, \code{n.average.rows}
-            and \code{average.weights}; they serve negative binomial and
-            hurdle fits, and their plots label the scale.
+            response on hurdle fits and survival at the median survival
+            time on accelerated failure time and hazard fits, with
+            \code{"event"}, \code{"cumhaz"} and \code{times}),
+            \code{newdata}, \code{n.average.rows}, \code{average.weights}
+            and \code{n.max.predictions}; they serve negative binomial,
+            hurdle, accelerated failure time and hazard fits, and their
+            plots label the scale and take \code{plot.type}.
       \item Sampling is faster. Against 0.9-34 on a four-core x86-64
             machine, fitting through the BayesTree-style interface with 200
             trees and 1000 draws after 500, with defaults that changed

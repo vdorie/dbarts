@@ -15,12 +15,14 @@ pdbart(
     pl = TRUE, plquants = c(0.05, 0.95),
     type = "auto", newdata = NULL,
     n.average.rows = NULL, average.weights = NULL,
+    times = NULL, n.max.predictions = 5e9,
     \dots)
 
 \method{plot}{pdbart}(
     x,
     xind = seq_along(x$fd),
     plquants = c(0.05, 0.95), cols = c('blue', 'black'),
+    plot.type = c("dependence", "curves"),
     \dots)
 
 pd2bart(
@@ -30,12 +32,14 @@ pd2bart(
     pl = TRUE, plquants = c(0.05, 0.95),
     type = "auto", newdata = NULL,
     n.average.rows = NULL, average.weights = NULL,
+    times = NULL, n.max.predictions = 5e9,
     \dots)
 
 \method{plot}{pd2bart}(
     x,
     plquants = c(0.05, 0.95), contour.color = 'white',
     justmedian = TRUE,
+    plot.type = c("dependence", "curves"),
     \dots)
 }
 \arguments{
@@ -61,7 +65,18 @@ pd2bart(
     In the plots, beliefs about \eqn{f(x)} are indicated by plotting the posterior median and a lower and upper quantile. \code{plquants} is a double vector of length two giving the lower and upper quantiles.
   }
   \item{type}{
-    The scale averaged on, one of \code{predict}'s types for the fit (see \code{\link{predict.bart}}), each row's prediction transformed and then averaged. \code{"auto"} is the link scale, \code{"bart"} (also spelled \code{"link"}), on every family but the hurdle, where it is the mean response, \code{"ev"}. A gaussian or Student-t fit also takes \code{"ev"}, \code{"ppd"} and, with a variance forest, \code{"sigma"}; a probit or logistic fit \code{"ev"}, the probability, and \code{"ppd"}; a negative binomial fit \code{"ev"}, the mean count, and \code{"ppd"}; a hurdle fit \code{"prob"}, the probability of a positive response, \code{"bart"} (also \code{"log"}), the positive part's log scale, and \code{"ppd"}. A type the family does not take is refused before anything is fit when the family is named. \code{"forest"} is refused. A sampler passed in takes only \code{"bart"}.
+    The scale averaged on, one of \code{predict}'s types for the fit (see \code{\link{predict.bart}}), each row's prediction transformed and then averaged. \code{"auto"} is the link scale, \code{"bart"} (also spelled \code{"link"}), on every family but the hurdle, where it is the mean response, \code{"ev"}. A gaussian or Student-t fit also takes \code{"ev"}, \code{"ppd"} and, with a variance forest, \code{"sigma"}; a probit or logistic fit \code{"ev"}, the probability, and \code{"ppd"}; a negative binomial fit \code{"ev"}, the mean count, and \code{"ppd"}; a hurdle fit \code{"prob"}, the probability of a positive response, \code{"bart"} (also \code{"log"}), the positive part's log scale, and \code{"ppd"}. On an accelerated failure time or hazard fit, \code{"auto"} is \code{"survival"}, the survival probability \eqn{S(t)} at each of \code{times}; \code{"event"} is \eqn{1 - S(t)} and \code{"cumhaz"} the cumulative hazard \eqn{-\log S(t)}, each computed per subject and averaged last, so that each is the posterior mean of the quantity asked for. A hazard fit takes these three only; an accelerated failure time fit also takes \code{"bart"}, the log-time scale, and its other \code{predict} types, which have no times. A type the family does not take is refused before anything is fit when the family is named. \code{"forest"} is refused. A sampler passed in takes only \code{"bart"}, and a hazard sampler is refused.
+
+    \code{type} chooses what is computed; the plot methods' \code{plot.type} chooses how it is drawn.
+  }
+  \item{times}{
+    On a survival \code{type}, the times at which survival is read. The usual reason to give them is a fixed horizon, such as 5-year survival. By default, the training data's Kaplan-Meier median survival time, or, when the Kaplan-Meier curve does not reach one half, the median of the observed event times; on a hazard fit the times are read on its period grid. Refused on any other \code{type}.
+  }
+  \item{n.max.predictions}{
+    On a hazard fit, the most predictions to make, one being one person-period row under one draw at one grid value: subjects x periods up to the largest time x draws x grid values, counted before anything runs. A call above it is refused, naming the count and the ways to reduce it - a coarser period grid, fewer subjects, fewer grid values, an earlier largest time - or this argument to raise it. The default, \code{5e9}, takes on the order of ten minutes.
+  }
+  \item{plot.type}{
+    On a result with times, \code{"dependence"}, the partial dependence plot, puts the varied variable on the horizontal axis with one line (\code{plot.pd2bart}: one image) per time; \code{"curves"}, adjusted survival curves or direct adjustment, puts time on the axis with one curve per grid value and needs at least three times.
   }
   \item{newdata}{
     Rows to average over in place of the fit's own, coded as \code{\link[=predict.bart]{predict}} codes them, a data frame in a formula fit. The fit's offset is evaluated on them as \code{predict} evaluates it; an offset given as a plain vector cannot be, unless \code{newdata} has as many rows, and is refused. The default grid is taken from these rows.
@@ -101,7 +116,7 @@ pd2bart(
 
    A data call fits through \code{\link{bart}} at its defaults, keeping trees and sampler, and predicts each grid value from the saved trees, so \code{pdbart(x, y, seed = s)} and \code{pdbart(bart(x, y, seed = s, keepTrees = TRUE))} agree. \code{pdbart(bartBT(x, y, keeptrees = TRUE))} gives the model dbarts 0.9-34 fit. The first data call in a session prints a message saying so; a call from package code does not.
 
-   \code{pdbart} and \code{pd2bart} serve gaussian, Student-t, probit, logistic, negative binomial and hurdle fits. Multinomial and ordinal fits, whose prediction is a probability per category, are refused; \code{predict} on rows with the variable set gives each category's. Accelerated failure time and hazard fits are refused in this version. Each refusal comes before anything is fit, whether the family is named, resolved by \code{family = "auto"} from the response, or that of a fit or sampler passed in.
+   \code{pdbart} and \code{pd2bart} serve gaussian, Student-t, probit, logistic, negative binomial and hurdle fits. Multinomial and ordinal fits, whose prediction is a probability per category, are refused; \code{predict} on rows with the variable set gives each category's. On accelerated failure time and hazard fits they average survival, the event probability or the cumulative hazard per subject at chosen times; on a hazard fit each subject's rows are expanded to the periods up to the largest time and replayed in chunks, so the work grows with the period grid and is counted against \code{n.max.predictions} first. \code{newdata} and \code{n.average.rows} there are subject rows, and the default time stays the training data's. Each refusal comes before anything is fit, whether the family is named, resolved by \code{family = "auto"} from the response, or that of a fit or sampler passed in.
 
    This is a computationally intensive procedure. For example, in \code{pdbart}, to compute the partial dependence plot for 5 \eqn{x_s} values, we need to compute \eqn{f(x_s, x_c)} for all possible \eqn{(x_s, x_{ic})} and there would be \eqn{5n} of these where \eqn{n} is the sample size. All of that computation would be done for each kept BART draw. For this reason thinning the draws with \code{n.thin} larger than 1 (eg. 10) makes the procedure much faster.
 }
@@ -117,6 +132,8 @@ pd2bart(
 
     For \code{pd2bart}, \code{fd} is a single matrix. The columns correspond to all possible pairs of values for the pair of variables indicated by \code{xind}. That is, all possible \eqn{(x_i, x_j)} where \eqn{x_i} is a value in the levs component corresponding to the first \eqn{x} and \eqn{x_j} is a value in the levs components corresponding to the second one. The first \eqn{x} changes first.
 
+    On a survival \code{type}, each matrix is instead an array of draws x times x values, the times margin kept at length one and named by the times.
+
     The draws of every chain are merged, each chain's in turn. When the fit keeps its chains apart (\code{combineChains = FALSE} with more than one chain), each matrix gains a leading chain margin, chains x draws x values, as the fit's own components do.
   }
   \item{levs}{
@@ -129,10 +146,13 @@ pd2bart(
     The number of chains.
   }
   \item{type}{
-    The scale averaged on, as resolved: \code{"bart"} for \code{"link"} and, except on a hurdle fit, for \code{"auto"}.
+    The scale averaged on, as resolved: \code{"bart"} for \code{"link"}, and for \code{"auto"} the link scale, the mean response \code{"ev"} on a hurdle fit, or \code{"survival"} on an accelerated failure time or hazard fit.
   }
   \item{family}{
     The fit's family, which with \code{type} sets the plot labels.
+  }
+  \item{times}{
+    On a survival \code{type}, the times survival was read at; \code{NULL} otherwise.
   }
    
   The remaining components are passed on from the fit, under \code{\link{bart}}'s own names (see its \sQuote{Value} section) with one rename and several omissions - the fit's call is under \code{bartcall} rather than \code{call}, and not every \code{bart} component is carried over. For a continuous response the remaining components are \code{bartcall}, \code{yhat.train}, \code{first.sigma}, \code{sigma}, \code{yhat.train.mean}, \code{sigest}, \code{y}, and \code{fit}, the sampler, which \code{keepSampler = FALSE} leaves out. For a binary response only \code{bartcall}, \code{yhat.train}, \code{y}, and \code{fit} are present. For a hurdle fit, \code{fit} is a list of the two parts' samplers, \code{zero} and \code{positive}, and no draws are carried over. \code{pd2bart} follows the same rules. The function \code{\link{plot.bart}} can be applied to the object returned by \code{pdbart} or \code{pd2bart} to examine the BART run.
@@ -215,6 +235,22 @@ pdb3 <- pdbart(bartFit, xind = rob + ed, pl = FALSE)
 
 ## averaged over a subgroup's rows, with the grid from them
 pdb4 <- pdbart(bartFit, xind = "rob", newdata = df[df$hugh > 0, ], pl = FALSE)
+}
+
+\donttest{
+## survival at three times on a discrete-time hazard fit, drawn both ways
+if (requireNamespace("survival", quietly = TRUE)) {
+  time <- rexp(n, exp(x[, "rob"]))
+  status <- rbinom(n, 1, 0.8)
+  hazardFit <- bart(
+      x, survival::Surv(time, status),
+      family = hazard(breaks = c(0, quantile(time, seq(0.1, 1, 0.1)))),
+      n.chains = 2, n.threads = 1, keepTrees = TRUE, verbose = FALSE)
+  pdb5 <- pdbart(hazardFit, xind = "rob",
+                 times = quantile(time, c(0.25, 0.5, 0.75)), pl = FALSE)
+  plot(pdb5)
+  plot(pdb5, plot.type = "curves")
+}
 }}
 \keyword{nonparametric}
 \keyword{tree}
