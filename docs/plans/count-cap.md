@@ -1,13 +1,7 @@
 # count-cap: cap logistic count weights, a fixed negative-binomial shape and multinomial trials at one million; interrupt long sweeps
 
-Status: IMPLEMENTED 2026-10-04 on wt/count-cap, under dec-B202 in [decisions.md](../decisions.md) as the
-maintainer extended it to multinomial trials; not yet landed. Logistic and nbinom at cc9a6a8a, multinomial
-at 6334bffb, the first review's corrections at 58dc34e2 (the poll armed only around a sweep's own draws, a
-linear leaf's cached U'WU dropped on a stop, one refusal phrasing). A sampled shape cannot reach the cap, its grid stopping at 50. An interrupted refresh
-that drew the shape is put back whole, since its rows left at the previous omega would pair a draw at the old
-shape with the new one. An interrupted multinomial glue draw leaves no latent in the chain's state: omega and
-the margins are per-sweep scratch, written before each read, so what stands is the tree updates of the
-categories before the stop.
+Status: LANDED 2026-10-04 (ad62c2e0 to 3ecc8281) under dec-B202 in [decisions.md](../decisions.md),
+as the maintainer extended it to multinomial trials.
 
 agent: opus implementer, one; opus reviewer.
 rng: NEUTRAL. Accepted inputs below the cap take the same path and the interrupt poll draws nothing; only
@@ -79,3 +73,17 @@ a sweep's Polya-Gamma draws stops the run within about a tenth of a second and l
 - Timing check: a 100-row logistic fit at a million trials per row, and a multinomial fit at a million
   trials per row, still run, and an interrupt sent during the first sweep returns within a second.
 - `lintr::lint_package()`, `air format --check .`, the three tools/ checks, and `R CMD check --as-cran`.
+
+## Landing note
+
+Landed 2026-10-04 as ad62c2e0 (logistic counts and a fixed negative-binomial shape capped, the in-refresh
+interrupt), 2c671aa7 (multinomial trials capped, the interrupt in its glue draws) and cc7c3785 (review fixes: the poll
+armed only around a sweep's own draws, so a host hook's mutation mid-run cannot be interrupted into a crash; a
+linear leaf's cached weight sum dropped on a stop; one refusal phrasing; clock-dependent interrupt tests moved
+to tests/cpp), with records 3ecc8281 and 6ebbf090. A sampled shape cannot reach the cap, its grid stopping at
+50; an interrupted refresh that drew the shape is put back whole; an interrupted multinomial glue draw leaves
+the categories before the stop updated and the rest untouched, a valid state. Review SOUND WITH CORRECTIONS,
+then SOUND. On the tree rebased onto restore-empty-leaf: full tinytest 13185 results, 0 failures; tests/cpp
+passes; the four seeded snapshot files pass on the reference build; lintr and air clean. Before the rebase:
+equivalence in statistical mode 55 of 55 identical, BCF 15 of 15 and multinomial 11 of 11 bitwise; ASan and
+UBSan clean; an interrupt two seconds into a sweep at a million trials per row returned within 0.1 seconds.
