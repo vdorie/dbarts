@@ -1,7 +1,8 @@
 # pdbart and pd2bart fit through bart
 
-Status: PLANNED 2026-10-04. Plan: [pdbart-on-bart.md](../plans/pdbart-on-bart.md).
-Grown slice by slice; this text covers slice 1, the fit route.
+Status: PLANNED 2026-10-04.
+Plan: [pdbart-on-bart.md](../plans/pdbart-on-bart.md). Grown slice by slice;
+this text covers slice 1, the fit route.
 
 ## The fit route
 
@@ -57,7 +58,8 @@ per name and function, package callers included. `power`, `base` and
 copy of the caller's control or on a fresh one; `sigdf` and `sigquant` reach
 `bart` under their own names, since the residual prior rides a family that
 cannot be built before the response is known. A setting under both
-spellings is refused. `bart`'s defaults message and its `sigdf` and `sigquant` warnings are held back
-inside pdbart, their keys restored as they were found
+spellings is refused. `bart`'s defaults message and its `sigdf` and
+`sigquant` warnings are held back inside pdbart, their keys restored as they
+were found
 ([`holdingBartNotices`](../../R/tombstones.R)); pdbart shows its own
 defaults message instead ([`notePdbartDefaults`](../../R/tombstones.R)).

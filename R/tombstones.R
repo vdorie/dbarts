@@ -505,8 +505,9 @@ pdbartBayesTreeSpelling <- c(
 ## ones to change the call. sigdf and sigquant stay under their own names,
 ## which bart still reads: the residual prior rides a family that cannot be
 ## built before the response is known. A setting given in both spellings is
-## refused naming both.
-translatePdbartCall <- function(call, legacy, callingEnv, caller) {
+## refused naming both. 'fits' is FALSE where nothing is fit, a fit or sampler
+## having been passed in, and the warning then says nothing of defaults.
+translatePdbartCall <- function(call, legacy, callingEnv, caller, fits = TRUE) {
   argNames <- names(call)[-1L]
   for (old in legacy) {
     new <- pdbartBayesTreeNames[[old]]
@@ -537,11 +538,20 @@ translatePdbartCall <- function(call, legacy, callingEnv, caller) {
       old,
       "' is BayesTree's spelling; '",
       caller,
-      "' now fits through 'bart', which takes '",
+      if (fits) {
+        "' now fits through 'bart', which takes '"
+      } else {
+        "' takes bart's spelling, '"
+      },
       spelling,
-      "', and the value was used. Settings not named take bart's defaults, ",
-      "so the model is not the one dbarts 0.9-34 fit. BayesTree spellings ",
-      "are refused from dbarts ",
+      "', and the value was used. ",
+      if (fits) {
+        paste0(
+          "Settings not named take bart's defaults, so the model is not the ",
+          "one dbarts 0.9-34 fit. "
+        )
+      },
+      "BayesTree spellings are refused from dbarts ",
       tombstoneExpiry,
       ".",
       class = "dbartsDeprecatedWarning"

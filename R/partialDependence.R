@@ -250,7 +250,8 @@ pdbart.prologue <- function(object, getData, matchedCall, callingEnv, caller) {
     matchedCall,
     intersect(names(matchedCall), "keepsampler"),
     callingEnv,
-    caller
+    caller,
+    fits = FALSE
   )
   extra <- setdiff(
     names(matchedCall)[-1L],

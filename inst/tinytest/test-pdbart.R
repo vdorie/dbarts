@@ -235,6 +235,7 @@ warnings.keep <- captureWarnings(
 )
 expect_equal(length(warnings.keep), 1L)
 expect_true(grepl("'keepsampler'", conditionMessage(warnings.keep[[1L]])))
+expect_false(grepl("defaults", conditionMessage(warnings.keep[[1L]])))
 expect_false("fit" %in% names(pdbKeep))
 rm(warnings.keep, pdbKeep)
 
