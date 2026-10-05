@@ -2490,12 +2490,14 @@ static size_t countMissingRight(const std::vector<std::vector<FlatNode>>& trees)
 /// update dropped them and reproduces its trees, the saved draws keep theirs,
 /// a sampler built over the filled rows and a same-grid warm start take the
 /// state too, and the sampler then runs and restores itself. make(x, seed)
-/// builds the sampler over a predictor matrix.
+/// builds the sampler over a predictor matrix; `seed` is one whose draws leave
+/// every forest carrying a missing-right rule, which the first report checks.
 template <typename Make>
 static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
                                         const std::vector<double>& xFilled,
-                                        bool inlineOnly, const char* label) {
-  auto sampler = make(x, 721u), recipient = make(xFilled, 722u);
+                                        bool inlineOnly, const char* label,
+                                        std::uint32_t seed = 721u) {
+  auto sampler = make(x, seed), recipient = make(xFilled, seed + 1u);
   Results empty;
   sampler->run(60, 2, empty);
   SamplerStateData stale, forced, restored, other, warm, after;
@@ -2618,7 +2620,7 @@ static void testStaleMissingDirectionRestores() {
         data.data(), y.data(), n, 2, nullptr, nullptr, 1.0, 3.0, rawScale,
         options, spec, newRng(seed));
     },
-    x, xFilled, true, "two-forest sampler");
+    x, xFilled, true, "two-forest sampler", 724u);
   for (ext_rng* r : rngs) ext_rng_destroy(r);
   rngState = savedRngState;
   printf("ok: a stale missing direction is dropped on install\n");

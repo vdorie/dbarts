@@ -357,8 +357,10 @@ struct ConstantVarianceLeaf {
   /// positive-weight rows and ssr = sum w_i r_i^2:
   ///   (nu/2) log(nu scale / 2) - lgamma(nu/2)
   ///     + lgamma((n+nu)/2) - ((n+nu)/2) log((ssr + nu scale)/2).
-  /// Empty (n = 0) returns 0, so the empty-leaf veto (moves.hpp) is unchanged.
+  /// A leaf no positive-weight row reaches (n = 0) returns exactly 0: the
+  /// four terms cancel there in exact arithmetic and not in floating point.
   double logIntegratedLikelihood(double n, double ssr) const {
+    if (n == 0.0) return 0.0;
     double priorScale = degreesOfFreedom * scale;
     return 0.5 * degreesOfFreedom * std::log(0.5 * priorScale) -
            std::lgamma(0.5 * degreesOfFreedom) +
@@ -2034,13 +2036,13 @@ struct MonotoneConstantGaussianLeaf {
     scratch.branch.clear();
     tree.fillBottom(branchIndex, scratch.branch);
     // The empty-leaf veto is NOT applied here even though this branch owns the
-    // whole marginal: it is the caller's branch RANK (moves.hpp), taken over
-    // the same leaves for every leaf model, so that two vetoed branches stay
-    // comparable. What survives below is the
+    // whole marginal: it is the caller's (moves.hpp), taken over the same
+    // leaves for every leaf model. What survives below is the
     // FEASIBILITY sentinel, a different -HUGE_VAL: an empty constraint cone
     // has no draw at all. A zero-weight leaf's conditional is its prior
-    // truncated to the neighbor bounds, which is finite and is what the
-    // constrained forest should sit at where it has nothing to fit.
+    // truncated to the neighbor bounds, so its term is the prior mass of
+    // those bounds - finite, and what the constrained forest should sit at
+    // where it has nothing to fit.
     scratch.allBottoms.clear();
     tree.fillBottom(0, scratch.allBottoms);
 
@@ -2453,6 +2455,10 @@ struct LinearGaussianLeaf {
     double crossproduct[maxStatisticSize], projection[maxNumCovariates + 1];
     accumulateNodeStatistics(tree, y, weights, nodeIndex, crossproduct,
                              projection);
+    // the leading entry of U'WU is the members' total weight: with none, no
+    // likelihood term reaches the leaf and its marginal is exactly 0, which
+    // the formula below reaches only to rounding
+    if (!(crossproduct[0] > 0.0)) return 0.0;
 
     double ridge = (k / scale) * (k / scale) * residualVariance;
     // an infinite ridge (k infinite, or large enough that it overflows) pins

@@ -511,14 +511,6 @@ struct Row {
   void (*body)(Fixtures&);
 };
 
-/// Sum of a variable-count channel, the observable several rows read a forest's
-/// split usage through.
-std::size_t totalSplits(const std::vector<std::uint32_t>& counts) {
-  std::size_t total = 0;
-  for (std::uint32_t value : counts) total += value;
-  return total;
-}
-
 /// Every tree of forest 0, chain 0, in one fingerprint: a structural row wants
 /// "some tree moved", which one tree alone does not answer.
 std::uint64_t forestSignature(Fixture& fixture) {
@@ -1123,27 +1115,17 @@ const Row rows[] = {
   }},
   {FacadeVirtual::setForestWeights, "setForestWeights", [](Fixtures& f) {
     std::vector<double> zeros(Fixtures::n, 0.0);
-    std::vector<std::uint32_t> forestZero(Fixtures::p, 0),
-      forestOne(Fixtures::p, 0);
     check(!f.b.base().setForestWeights(2, zeros.data()) &&
             !f.g.base().setForestWeights(0, zeros.data()),
           "facade setForestWeights: an absent forest and a coupling-free "
           "sampler refuse");
     check(f.b.base().setForestWeights(1, zeros.data()),
           "facade setForestWeights: the named forest installs");
-    // with no positive-weight row a forest's prior draw is all bare roots,
-    // which is the per-forest observable: forest 1 stops splitting, forest 0
-    // does not
-    f.b.impl().sampleTreesFromPrior();
-    f.b.impl().forestVariableCounts(0, 0, forestZero.data());
-    f.b.impl().forestVariableCounts(0, 1, forestOne.data());
-    check(totalSplits(forestOne) == 0 && totalSplits(forestZero) > 0,
+    check(TestPeer::forestWeights(f.b.impl().chain(0), 1) == zeros.data() &&
+            TestPeer::forestWeights(f.b.impl().chain(0), 0) == nullptr,
           "facade setForestWeights: the weight lands on forest 1, not on "
           "forest 0");
     f.b.base().setForestWeights(1, nullptr);
-    f.b.impl().sampleTreesFromPrior();
-    Results results;
-    f.b.impl().run(0, 1, results);  // the prior draw leaves the fits stale
   }},
   {FacadeVirtual::forestCalibration, "forestCalibration", [](Fixtures& f) {
     ForestCalibration viaBase = f.b.base().forestCalibration(1, 1);

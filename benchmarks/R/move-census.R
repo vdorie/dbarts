@@ -332,7 +332,7 @@ gibbsNames <- c(
   "eligible",
   "scanned",
   "candidates",
-  "stratum"
+  "drew"
 )
 shapeNames <- c("kind", "sweep", "forest", "tree", "leaves", "interior", "nog")
 
@@ -728,7 +728,6 @@ gibbsCostTable <- function(g) {
         } else {
           NA
         },
-        vetoed.pct = 100 * mean(f$stratum > 0L),
         scans.per.sweep = sum(f$scanned) / length(unique(f$sweep)),
         stringsAsFactors = FALSE
       )

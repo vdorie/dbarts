@@ -1,5 +1,8 @@
 #include "common.hpp"
 
+#include <array>
+#include <numbers>
+
 static void testLogisticMutation(ext_rng* rng) {
   const size_t n = 200, n2 = 260;
   std::vector<double> x, f;
@@ -948,15 +951,16 @@ static void testOrderedFactorMutation(ext_rng* rng) {
 }
 
 // ---------------------------------------------------------------------------
-// The empty-leaf veto counts POSITIVE-WEIGHT members, not members. A leaf all
-// of whose rows carry weight zero enters no likelihood term, so a branch
-// holding one scores the sentinel; a chain driven under such weights may never
-// settle on one. With NO weight vector the veto stays the member count it has
-// always been - the same decision and the same arithmetic
+// The empty-leaf veto counts MEMBERS, whatever weight they carry. A leaf all
+// of whose rows carry weight zero is in the design and not in the likelihood:
+// its branch is legal and it adds exactly 0 to the branch's score, so a chain
+// driven under such weights does settle on one. A leaf NO row reaches is
+// refused with or without weights, and with no weight vector the score is the
+// same decision and the same arithmetic it has always been
 // (docs/design/empty-leaf-veto.md). A local generator leaves the shared stream
 // untouched for the suites that follow.
 // ---------------------------------------------------------------------------
-static void testEmptyLeafVetoCountsWeight() {
+static void testEmptyLeafVetoCountsMembers() {
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rng, 20260812u);
   const size_t n = 256, p = 2;
@@ -970,7 +974,7 @@ static void testEmptyLeafVetoCountsWeight() {
   built(store.build(x.data(), n, p, 7));
 
   // the lowest cut of x0 isolates the code-0 rows; weight zero exactly there
-  std::vector<double> zeroed(n, 1.0), positive(n, 1.0);
+  std::vector<double> zeroed(n, 1.0);
   for (size_t i = 0; i < n; ++i)
     if (i % 8 == 0) zeroed[i] = 0.0;
 
@@ -1003,22 +1007,15 @@ static void testEmptyLeafVetoCountsWeight() {
                       zeroed.data(), k,   scratch};
   BranchScore zeroScore =
     logLikelihoodForBranch(zeroCtx, leaf, tree, 0, y.data(), sigma);
-  check(zeroScore.rank == 1,
-        "a leaf of only zero-weight rows vetoes its branch");
-  check(std::isfinite(zeroScore.logLikelihood),
-        "the vetoed branch's finite part skips the vetoed leaf");
-
-  buildSplit(positive.data());
-  MoveContext positiveCtx{store,           prior, 0.5, 0.1, 0.0, 0.0, 0.5,
-                          positive.data(), k,     scratch};
-  BranchScore positiveScore =
-    logLikelihoodForBranch(positiveCtx, leaf, tree, 0, y.data(), sigma);
-  check(positiveScore.rank == 0 && std::isfinite(positiveScore.logLikelihood),
-        "the same leaf under positive weights scores finite");
+  check(!zeroScore.empty,
+        "a leaf of only zero-weight rows does not veto its branch");
+  check(zeroScore.logLikelihood ==
+          leaf.logIntegratedLikelihoodForNode(tree, y.data(), zeroed.data(), k,
+                                              sigma * sigma, left + 1),
+        "such a leaf adds exactly 0: the branch scores its sibling alone");
 
   // the no-weights path: the same branch, scored with no weight vector, is
-  // bitwise the sum of its leaves' marginals, and the veto there is still the
-  // member count
+  // bitwise the sum of its leaves' marginals
   buildSplit(nullptr);
   MoveContext nullCtx{store,   prior, 0.5, 0.1, 0.0, 0.0, 0.5,
                       nullptr, k,     scratch};
@@ -1029,30 +1026,28 @@ static void testEmptyLeafVetoCountsWeight() {
     reference +=
       leaf.logIntegratedLikelihoodForNode(tree, y.data(), nullptr, k,
                                           sigma * sigma, b);
-  check(logLikelihoodForBranch(nullCtx, leaf, tree, 0, y.data(), sigma)
-            .logLikelihood == reference,
+  BranchScore nullScore =
+    logLikelihoodForBranch(nullCtx, leaf, tree, 0, y.data(), sigma);
+  check(!nullScore.empty && nullScore.logLikelihood == reference,
         "the no-weights branch score is bitwise the leaf marginals");
-  bool countLaw = true;
-  for (size_t i = 0; i < tree.nodes.size(); ++i)
-    countLaw &= tree.leafHasNoWeight(static_cast<int32_t>(i), nullptr) ==
-                (tree.at(static_cast<int32_t>(i)).numObservations() == 0);
-  check(countLaw, "with no weights, emptiness is exactly the member count");
 
+  // a leaf no row reaches vetoes its branch, with no weights and under them
   Node saved = tree.at(left);
   tree.at(left).end = tree.at(left).begin;  // strand the leaf outright
-  check(logLikelihoodForBranch(nullCtx, leaf, tree, 0, y.data(), sigma).rank ==
-          2,
-        "a member-empty leaf still vetoes with no weights");
+  check(tree.leafIsEmpty(left) && !tree.bottomNodesAreOccupied() &&
+          logLikelihoodForBranch(nullCtx, leaf, tree, 0, y.data(), sigma)
+            .empty &&
+          logLikelihoodForBranch(zeroCtx, leaf, tree, 0, y.data(), sigma).empty,
+        "a member-empty leaf vetoes its branch whatever the weights");
   tree.at(left) = saved;
 
-  // the invariant a move chain must maintain under those weights, and the
-  // non-vacuity measurement beside it: the same chain under the count law (no
-  // weights installed) settles on leaves the weight law forbids
+  // what a move chain does under those weights: it keeps every leaf occupied
+  // and, non-vacuously, it does settle on leaves of only zero-weight rows
   auto driveChain = [&](const double* weights) {
     tree.initialize(indexBuffer.data(), n);
     tree.computeLeafStats(0, y.data(), weights);
     MoveContext ctx{store, prior, 0.5, 0.1, 0.0, 0.0, 0.5, weights, k, scratch};
-    size_t violations = 0, accepted = 0;
+    size_t weightless = 0, memberEmpty = 0, accepted = 0;
     for (int iter = 0; iter < 4000; ++iter) {
       bool stepTaken = false;
       StepType stepType;
@@ -1061,45 +1056,48 @@ static void testEmptyLeafVetoCountsWeight() {
       accepted += stepTaken ? 1 : 0;
       bottoms.clear();
       tree.fillBottom(0, bottoms);
-      for (int32_t b : bottoms)
-        violations += tree.leafHasNoWeight(b, zeroed.data()) ? 1 : 0;
+      for (int32_t b : bottoms) {
+        const Node& node(tree.at(b));
+        memberEmpty += node.numObservations() == 0 ? 1 : 0;
+        bool anyWeight = false;
+        for (size_t j = node.begin; j < node.end; ++j)
+          anyWeight |= zeroed[tree.indices[j]] > 0.0;
+        weightless += !anyWeight ? 1 : 0;
+      }
     }
-    return std::pair<size_t, size_t>{violations, accepted};
+    return std::array<size_t, 3>{weightless, memberEmpty, accepted};
   };
 
   auto weighted = driveChain(zeroed.data());
-  check(weighted.second > 0, "the weighted move chain moves");
-  check(weighted.first == 0,
-        "no accepted move leaves a leaf of only zero-weight rows");
+  check(weighted[2] > 0, "the weighted move chain moves");
+  check(weighted[1] == 0, "no accepted move leaves a leaf no row reaches");
+  check(weighted[0] > 0,
+        "accepted moves do leave leaves of only zero-weight rows");
   auto counted = driveChain(nullptr);
-  check(counted.first > 0,
-        "non-vacuity: the count law does settle on such leaves");
+  check(counted[1] == 0, "nor does one with no weights installed");
 
   ext_rng_destroy(rng);
-  printf("ok: empty-leaf veto counts weight (%zu count-law leaves of only "
-         "zero-weight rows, %zu under the weight law)\n",
-         counted.first, weighted.first);
+  printf("ok: empty-leaf veto counts members (%zu leaves of only zero-weight "
+         "rows held over 4000 moves under the weights, %zu with none "
+         "installed)\n",
+         weighted[0], counted[0]);
 }
 
 // ---------------------------------------------------------------------------
 // Weights do not ride the tree, so a vector installed on a GROWN tree can
-// leave leaves the veto refuses - a CURRENT state outside the admissible set,
-// which the veto owes a law. The rank supplies it: two vetoed branches compare
-// by rank before likelihood, so no acceptance ratio is NaN, the structure
-// keeps moving (under prior x transition, at constant likelihood), no move
-// installs a MEMBER-empty leaf (the state law the rest of the engine enforces,
-// which the second rank level keeps absolute), and a partially stranded tree
-// is absorbed back into the admissible set. Total zeroing is the frozen-forest
-// case outright; the partial arm is the one a masking host actually reaches.
+// leave leaves that hold only zero-weight rows. Those are legal leaves: the
+// structure keeps moving, at constant likelihood where every row is zeroed,
+// no acceptance ratio is NaN and no move installs a member-empty leaf. Total
+// zeroing is the all-zeros mask; the partial arm is the install a masking host
+// makes every sweep.
 // ---------------------------------------------------------------------------
-static void testVetoRankUnfreezesStrandedTree() {
+static void testZeroWeightTreeKeepsMoving() {
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rng, 20260817u);
-  // continuous predictors on a fine grid, deliberately NOT the lattice the
-  // veto-predicate fixture above uses: a cut interval is constrained by the
+  // continuous predictors on a fine grid: a cut interval is constrained by the
   // ancestors, never by occupancy, so a small node here has cuts on both sides
-  // of its whole member set and MEMBER-empty proposals are common. That is
-  // what makes the rank's second level testable at all.
+  // of its whole member set and MEMBER-empty proposals are common, which is
+  // what makes their refusal testable
   const size_t n = 256, p = 2;
   std::vector<double> x(n * p), y(n);
   for (size_t i = 0; i < n; ++i) {
@@ -1136,24 +1134,29 @@ static void testVetoRankUnfreezesStrandedTree() {
     }
   };
 
-  auto countVetoed = [&](const double* weights) {
+  auto countWeightless = [&](const double* weights) {
     std::vector<int32_t> bottoms;
     tree.fillBottom(0, bottoms);
-    size_t vetoed = 0;
-    for (int32_t b : bottoms)
-      vetoed += tree.leafVetoRank(b, weights) != 0 ? 1 : 0;
-    return vetoed;
+    size_t weightless = 0;
+    for (int32_t b : bottoms) {
+      const Node& node(tree.at(b));
+      bool anyWeight = false;
+      for (size_t j = node.begin; j < node.end; ++j)
+        anyWeight |= weights[tree.indices[j]] > 0.0;
+      weightless += !anyWeight ? 1 : 0;
+    }
+    return weightless;
   };
 
   struct Driven {
     size_t nanAlpha = 0;
     size_t structureChanges = 0;
     size_t memberEmpty = 0;
-    size_t vetoedAtEnd = 0;
-    int absorbed = -1;  // first sweep at which no leaf is vetoed
+    size_t weightlessSweeps = 0;  // sweeps ending with a zero-weight-only leaf
   };
   auto drive = [&](const double* weights, int iterations) {
     MoveContext ctx{store, prior, 0.5, 0.1, 0.0, 0.0, 0.5, weights, k, scratch};
+    tree.setNodeAverages(y.data(), weights);
     Driven driven;
     std::uint64_t signature = treeStructureSignature(tree);
     std::vector<int32_t> bottoms;
@@ -1170,86 +1173,73 @@ static void testVetoRankUnfreezesStrandedTree() {
       }
       bottoms.clear();
       tree.fillBottom(0, bottoms);
-      size_t vetoed = 0;
-      for (int32_t b : bottoms) {
-        // membership is read straight off the node, not through the rank: the
-        // state law must hold even if the rank is the thing that is wrong
+      for (int32_t b : bottoms)
         if (tree.at(b).numObservations() == 0) ++driven.memberEmpty;
-        if (tree.leafVetoRank(b, weights) != 0) ++vetoed;
-      }
-      if (vetoed == 0 && driven.absorbed < 0) driven.absorbed = iter;
-      driven.vetoedAtEnd = vetoed;
+      if (countWeightless(weights) > 0) ++driven.weightlessSweeps;
     }
     return driven;
   };
 
-  // ---- every leaf stranded: the whole tree is out of the admissible set ----
+  // ---- every row zeroed: the tree moves under its prior ----
   growTree(20260818u);
-  check(!tree.hasSingleNode(), "the stranded-tree fixture grows past the root");
+  check(!tree.hasSingleNode(), "the zeroed-tree fixture grows past the root");
   std::vector<int32_t> grownBottoms;
   tree.fillBottom(0, grownBottoms);
-  check(countVetoed(zeros.data()) == grownBottoms.size(),
-        "non-vacuity: an all-zero vector strands every leaf of the grown tree");
-  Driven stranded = drive(zeros.data(), 2000);
-  check(stranded.nanAlpha == 0,
-        "a wholly stranded tree reports no NaN acceptance probability");
-  check(stranded.structureChanges > 0,
-        "a wholly stranded tree keeps moving rather than freezing");
-  check(stranded.memberEmpty == 0,
-        "no move installs a member-empty leaf from a stranded state");
+  Driven zeroed = drive(zeros.data(), 2000);
+  check(zeroed.nanAlpha == 0,
+        "a wholly zeroed tree reports no NaN acceptance probability");
+  check(zeroed.structureChanges > 0, "a wholly zeroed tree keeps moving");
+  check(zeroed.memberEmpty == 0,
+        "no move installs a member-empty leaf under an all-zero vector");
 
-  // ---- partially stranded: the tree must find its way back to the set ----
-  // strand every third leaf by construction, zeroing exactly its members: the
-  // worst case of the install a masking host makes, and non-vacuous by
-  // construction rather than by luck of the grown partition
+  // ---- partially zeroed: every third leaf loses all its weight ----
   growTree(20260819u);
   std::vector<double> partial(n, 1.0);
-  std::vector<int32_t> toStrand;
-  tree.fillBottom(0, toStrand);
-  for (size_t b = 0; b < toStrand.size(); b += 3) {
-    const Node& node(tree.at(toStrand[b]));
+  std::vector<int32_t> toZero;
+  tree.fillBottom(0, toZero);
+  for (size_t b = 0; b < toZero.size(); b += 3) {
+    const Node& node(tree.at(toZero[b]));
     for (size_t j = node.begin; j < node.end; ++j)
       partial[tree.indices[j]] = 0.0;
   }
-  size_t strandedLeaves = countVetoed(partial.data());
-  check(strandedLeaves > 0,
-        "non-vacuity: the half-space vector strands part of the grown tree");
+  size_t zeroedLeaves = countWeightless(partial.data());
+  check(zeroedLeaves > 0,
+        "non-vacuity: the vector leaves leaves of only zero-weight rows");
   Driven partialDriven = drive(partial.data(), 2000);
   check(partialDriven.nanAlpha == 0,
-        "a partially stranded tree reports no NaN acceptance probability");
-  check(partialDriven.absorbed >= 0 && partialDriven.vetoedAtEnd == 0,
-        "a partially stranded tree is absorbed back into the admissible set");
+        "a partially zeroed tree reports no NaN acceptance probability");
+  check(partialDriven.structureChanges > 0,
+        "a partially zeroed tree keeps moving");
   check(partialDriven.memberEmpty == 0,
-        "no move installs a member-empty leaf while stranded");
+        "no move installs a member-empty leaf under a partial vector");
+  check(partialDriven.weightlessSweeps > 0,
+        "the chain does hold leaves of only zero-weight rows");
 
   ext_rng_destroy(rng);
-  printf("ok: veto rank unfreezes a stranded tree (%zu leaves, %zu structure "
-         "changes while wholly stranded; %zu leaves stranded by the partial "
-         "vector, absorbed at sweep %d)\n",
-         grownBottoms.size(), stranded.structureChanges, strandedLeaves,
-         partialDriven.absorbed);
+  printf("ok: a zero-weight tree keeps moving (%zu leaves, %zu structure "
+         "changes wholly zeroed; %zu leaves zeroed by the partial vector, %zu "
+         "of 2000 moves ending with one)\n",
+         grownBottoms.size(), zeroed.structureChanges, zeroedLeaves,
+         partialDriven.weightlessSweeps);
 }
 
 // ---------------------------------------------------------------------------
-// EQUAL RANK 1 - both compared branches weight-vetoed - is the veto rank's one
-// CHANGED comparison and the one that unfreezes a stranded forest. Its law
-// (docs/design/empty-leaf-veto.md, "Is vetoed-vs-vetoed reachable?"): equal
-// rank takes the acceptance arithmetic unchanged on the finite parts, and the
-// finite part SKIPS the vetoed leaves rather than summing their marginals, so a
-// wholly vetoed pair contributes exactly 1 and the tree mixes under prior x
-// transition at constant likelihood.
+// What a leaf of only zero-weight rows contributes, in closed form and on
+// every leaf model: nothing to a branch comparison, and a value drawn from the
+// prior.
 //
-// The fixture puts that law in closed form. One binary split column carries
-// exactly one cut, so the only rule the prior can draw halves the members and
-// neither child can split again; an all-zero weight vector then puts the root,
-// the split branch and every leaf of both at rank 1, which the checks below
-// read directly off the fixture. No comparison in the move arms can therefore
-// be anything but equal rank 1 - the current state is occupied and weightless
-// whatever the move does, and so is the one proposal available - and each
-// prior x transition ratio is a hand-derived constant. A local generator
-// leaves the shared stream untouched for the suites that follow.
+// One binary split column carries exactly one cut, so the only rule the prior
+// can draw halves the members and neither child can split again. From the
+// root the birth step is forced and the reverse death is forced back, so the
+// transition ratio is exactly 1 and the prior ratio is base / (1 - base).
+// Under an all-zero weight vector every leaf of both branches is weightless
+// and the likelihood ratio is exactly 1; under a vector zeroing one half the
+// split's zero-weight child scores 0 and its sibling holds every weighted row
+// the root does, so the ratio is 1 again to rounding. Either way prior x
+// transition is the whole acceptance. A local generator leaves the shared
+// stream untouched for the suites that follow.
 // ---------------------------------------------------------------------------
-static void testEqualRankOneComparison() {
+static void testZeroWeightLeafContributesNothing() {
   const size_t n = 64, p = 1;
   std::vector<double> x(n * p), y(n);
   for (size_t i = 0; i < n; ++i) {
@@ -1257,23 +1247,31 @@ static void testEqualRankOneComparison() {
     y[i] = 0.3 * x[i] + 0.01 * static_cast<double>(i) - 0.5;
   }
   ColumnStore store;
-  // the store owns a raw copy of column 0, which the linear leaf below reads
-  // as its covariate through rawColumn
+  // the store owns a raw copy of column 0, which the linear and GP leaves
+  // below read as their covariate through rawColumn
   size_t leafGather[] = {0};
   built(store.build(x.data(), n, p, 1, false, nullptr, leafGather, 1));
   check(store.numCuts[0] == 1,
-        "equal-rank fixture: the split column carries exactly one cut");
+        "zero-weight fixture: the split column carries exactly one cut");
 
-  std::vector<double> zeros(n, 0.0);
+  std::vector<double> zeros(n, 0.0), half(n, 1.0);
+  for (size_t i = 0; i < n; i += 2) half[i] = 0.0;  // the x = 0 rows
   const double sigma = 1.3, k = 2.0;
   ConstantGaussianLeaf constant{0.7};
-  // the same branch under a leaf model whose zero-weight marginal is NOT zero:
-  // over p parameters the linear leaf's is 0.5 p log(ridge) - p log(sqrt(ridge)),
-  // which cancels in exact arithmetic and does not in doubles
+  size_t covariates[] = {0};
   LinearGaussianLeaf linear;
   linear.scale = 0.7;
-  size_t covariates[] = {0};
   linear.initialize(store, covariates, 1);
+  double lengthscale[] = {1.0};
+  GPGaussianLeaf gp;
+  gp.scale = 0.7;
+  gp.initialize(store, covariates, 1, lengthscale, 256);
+  ConstantVarianceLeaf variance{3.0, 0.8};
+  MonotoneConstantGaussianLeaf monotone;
+  monotone.scale = 0.7;
+  monotone.data = &store;
+  monotone.directions = {1};
+  monotone.cInflation = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
 
   CGMTreePrior growPrior;  // birth arm: prior ratio 0.25 / 0.75
   growPrior.base = 0.25;
@@ -1285,124 +1283,162 @@ static void testEqualRankOneComparison() {
   MoveScratch scratch;
   std::vector<index_t> indexBuffer(n);
   Tree tree;
-  auto buildRoot = [&]() {
+  auto buildRoot = [&](const double* weights) {
     tree.initialize(indexBuffer.data(), n);
-    tree.computeLeafStats(0, y.data(), zeros.data());
+    tree.computeLeafStats(0, y.data(), weights);
   };
-  auto buildSplit = [&]() {
-    buildRoot();
+  auto buildSplit = [&](const double* weights) {
+    buildRoot(weights);
     Rule rule;
     rule.variableIndex = 0;
     rule.setSplitIndex(0);
-    tree.birth(store, 0, rule, y.data(), zeros.data());
+    tree.birth(store, 0, rule, y.data(), weights);
   };
 
-  // ---- the resolution: equal rank hands the move its own operands ----
-  double currentLogL, proposalLogL, rank0Current, rank0Proposal;
-  resolveVetoRank({1, -2.5}, {1, 4.25}, &currentLogL, &proposalLogL);
+  // ---- the resolution of a (current, proposal) pair ----
+  double currentLogL, proposalLogL;
+  resolveEmptyLeafVeto({false, -2.5}, {false, 4.25}, &currentLogL,
+                       &proposalLogL);
   check(currentLogL == -2.5 && proposalLogL == 4.25,
-        "equal rank 1 passes both operands through unchanged");
-  resolveVetoRank({0, -2.5}, {0, 4.25}, &rank0Current, &rank0Proposal);
-  check(currentLogL == rank0Current && proposalLogL == rank0Proposal,
-        "equal rank 1 resolves bitwise as equal rank 0 does");
-  resolveVetoRank({1, -2.5}, {0, 4.25}, &currentLogL, &proposalLogL);
+        "two occupied branches pass both operands through unchanged");
+  resolveEmptyLeafVeto({false, -2.5}, {true, 4.25}, &currentLogL,
+                       &proposalLogL);
+  check(currentLogL == -2.5 && proposalLogL == -HUGE_VAL,
+        "a proposal holding an empty leaf loses outright");
+  resolveEmptyLeafVeto({true, -2.5}, {false, 4.25}, &currentLogL,
+                       &proposalLogL);
   check(currentLogL == -HUGE_VAL && proposalLogL == 4.25,
-        "a vetoed current against an admissible proposal loses outright");
-  resolveVetoRank({0, -2.5}, {1, 4.25}, &currentLogL, &proposalLogL);
-  check(currentLogL == -2.5 && proposalLogL == -HUGE_VAL,
-        "a vetoed proposal against an admissible current loses outright");
-  resolveVetoRank({1, -2.5}, {2, 4.25}, &currentLogL, &proposalLogL);
-  check(currentLogL == -2.5 && proposalLogL == -HUGE_VAL,
-        "a member-empty proposal loses to a weight-vetoed current");
+        "and so would a current branch holding one");
   // the one -HUGE_VAL pair that is not the veto: a constrained leaf model's
   // feasibility sentinel on both sides rejects rather than reporting NaN
-  resolveVetoRank({1, -HUGE_VAL}, {1, -HUGE_VAL}, &currentLogL, &proposalLogL);
+  resolveEmptyLeafVeto({false, -HUGE_VAL}, {false, -HUGE_VAL}, &currentLogL,
+                       &proposalLogL);
   check(currentLogL == 0.0 && proposalLogL == -HUGE_VAL,
-        "two sentinels at equal rank reject rather than differencing to NaN");
+        "two feasibility sentinels reject rather than differencing to NaN");
 
-  // ---- the finite parts the equal-rank comparison differences ----
-  buildSplit();
+  // ---- the score: exactly 0 on every leaf model ----
+  buildSplit(zeros.data());
   int32_t leftChild = tree.at(0).leftChild;
   check(tree.at(leftChild).numObservations() == n / 2 &&
           tree.at(leftChild + 1).numObservations() == n / 2,
-        "equal-rank fixture: the one rule halves the members");
-  check(tree.leafVetoRank(leftChild, zeros.data()) == 1 &&
-          tree.leafVetoRank(leftChild + 1, zeros.data()) == 1,
-        "equal-rank fixture: both children are weight-vetoed, neither empty");
-
+        "zero-weight fixture: the one rule halves the members");
   MoveContext ctx{store,        growPrior, 1.0, 0.0, 0.0, 0.0, 0.5,
                   zeros.data(), k,         scratch};
-  BranchScore splitScore =
-    logLikelihoodForBranch(ctx, constant, tree, 0, y.data(), sigma);
-  check(splitScore.rank == 1 && splitScore.logLikelihood == 0.0,
-        "a wholly vetoed branch scores rank 1 and exactly zero");
-  double naive = linear.logIntegratedLikelihoodForNode(
-                   tree, y.data(), zeros.data(), k, sigma * sigma, leftChild) +
-                 linear.logIntegratedLikelihoodForNode(
-                   tree, y.data(), zeros.data(), k, sigma * sigma,
-                   leftChild + 1);
-  check(naive != 0.0,
-        "non-vacuity: the linear leaf's zero-weight marginals do not sum to 0");
-  BranchScore linearScore =
-    logLikelihoodForBranch(ctx, linear, tree, 0, y.data(), sigma);
-  check(linearScore.rank == 1 && linearScore.logLikelihood == 0.0,
-        "the skip holds for a leaf model whose vetoed marginal is not zero");
+  auto scoresZero = [&](const auto& leafModel) {
+    BranchScore score =
+      logLikelihoodForBranch(ctx, leafModel, tree, 0, y.data(), sigma);
+    return !score.empty && score.logLikelihood == 0.0;
+  };
+  check(scoresZero(constant) && scoresZero(linear) && scoresZero(gp) &&
+          scoresZero(variance),
+        "a branch of zero-weight leaves is legal and scores exactly zero under "
+        "the constant, linear, GP and variance leaves");
 
-  buildRoot();
-  BranchScore rootScore =
-    logLikelihoodForBranch(ctx, constant, tree, 0, y.data(), sigma);
-  check(rootScore.rank == 1 && rootScore.logLikelihood == 0.0,
-        "the undivided branch is vetoed too, and scores exactly zero");
-  resolveVetoRank(rootScore, splitScore, &currentLogL, &proposalLogL);
-  check(std::exp(proposalLogL - currentLogL) == 1.0,
-        "an equal-rank-1 pair contributes exactly 1 to the acceptance ratio");
+  // the monotone leaf owns its branch marginal: two weightless leaves on a
+  // constrained axis score the prior mass of their cone, P(lower <= upper) =
+  // 1/2 with no neighbor to bound them. That mass is the tree's own
+  // normalizer, which the move divides back out
+  std::vector<double> mu(tree.nodes.size(), 0.0);
+  checkNear(monotone.logLikelihoodForBranchWithParams(
+              tree, 0, y.data(), zeros.data(), k, sigma * sigma, mu.data()),
+            std::log(0.5), 1e-12,
+            "a monotone branch of zero-weight leaves scores its prior cone");
+  // a lone leaf's cone is bounded by its sibling's value, here 0: half again
+  checkNear(monotone.logLikelihoodForBranchWithParams(
+              tree, leftChild, y.data(), zeros.data(), k, sigma * sigma,
+              mu.data()),
+            std::log(0.5), 1e-12,
+            "and one such leaf scores the prior mass below its sibling");
 
-  // ---- the moves, whose comparisons the fixture forces to equal rank 1 ----
-  // From the root the birth step is forced (a single-node tree births with
-  // probability 1) and the reverse death is forced back (the split tree has no
-  // birthable node), so transitionRatio is exactly 1 and priorRatio is
-  // base (1 - 0)(1 - 0) / (1 - base) - neither child can split again. At
-  // base = 0.25 that is 0.25 / 0.75, and the equal-rank-1 likelihood is the
-  // only remaining factor: prior x transition is the whole acceptance.
+  // ---- the draw: a zero-weight leaf's value is a draw from its prior ----
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  auto reseed = [&]() { ext_rng_setSeed(rng, 20260822u); };
+  reseed();
+  double constantDraw = constant.drawFromPosteriorForNode(
+    rng, tree, k, sigma * sigma, leftChild);
+  reseed();
+  checkNear(constantDraw, constant.drawFromPrior(rng, k), 1e-14,
+            "the constant leaf's zero-weight draw is its prior draw");
+  double linearDraw[2], linearPrior[2];
+  reseed();
+  linear.drawFromPosteriorForNode(rng, tree, y.data(), zeros.data(), k,
+                                  sigma * sigma, leftChild, linearDraw);
+  reseed();
+  linear.drawFromPrior(rng, k, linearPrior);
+  checkNear(linearDraw[0], linearPrior[0], 1e-13,
+            "the linear leaf's zero-weight intercept is its prior draw");
+  checkNear(linearDraw[1], linearPrior[1], 1e-13,
+            "the linear leaf's zero-weight slope is its prior draw");
+  reseed();
+  double varianceDraw = variance.drawFromPosteriorForNode(
+    rng, tree, y.data(), zeros.data(), k, sigma * sigma, leftChild);
+  reseed();
+  check(varianceDraw == variance.drawFromPrior(rng),
+        "the variance leaf's zero-weight draw is its prior draw");
+  std::vector<double> gpDraw(n, 0.0), gpPrior(n, 0.0);
+  gp.beginTreeDraw(tree);
+  reseed();
+  gp.drawFromPosteriorForNode(rng, tree, y.data(), zeros.data(), k,
+                              sigma * sigma, leftChild, gpDraw.data());
+  reseed();
+  gp.drawFromPriorForNode(rng, tree, k, leftChild, gpPrior.data());
+  check(gpDraw == gpPrior,
+        "the GP leaf's zero-weight draw is its prior draw at every member");
+
+  // ---- the moves: prior x transition is the whole acceptance ----
   const double expected = 0.25 / 0.75;
   struct MoveOutcome {
     double alpha;
     bool stepTaken;
     bool wasBirth;
   };
-  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  auto runBirth = [&](const auto& leafModel, const double* response,
-                      double leafSigma, double leafK) {
+  auto runBirth = [&](const auto& leafModel, const double* weights,
+                      const double* response, double leafSigma, double leafK) {
     ext_rng_setSeed(rng, 20260819u);
-    buildRoot();
-    MoveContext armCtx{store,        growPrior, 1.0, 0.0, 0.0, 0.0, 0.5,
-                       zeros.data(), leafK,     scratch};
+    buildRoot(weights);
+    MoveContext armCtx{store,   growPrior, 1.0, 0.0, 0.0, 0.0, 0.5,
+                       weights, leafK,     scratch};
     MoveOutcome out{0.0, false, false};
     out.alpha = birthOrDeathMove(armCtx, leafModel, rng, tree, response,
                                  leafSigma, &out.stepTaken, &out.wasBirth);
     return out;
   };
 
-  MoveOutcome birth = runBirth(constant, y.data(), sigma, k);
-  check(birth.wasBirth, "the equal-rank birth arm takes a birth step");
+  MoveOutcome birth = runBirth(constant, zeros.data(), y.data(), sigma, k);
+  check(birth.wasBirth, "the zero-weight birth arm takes a birth step");
   check(birth.alpha == expected,
-        "an equal-rank-1 birth accepts on prior x transition alone");
+        "a birth of zero-weight leaves accepts on prior x transition alone");
   std::vector<double> shifted(n);
   for (size_t i = 0; i < n; ++i) shifted[i] = 100.0 * y[i] + 7.0;
-  check(runBirth(constant, shifted.data(), sigma, k).alpha == expected,
-        "the equal-rank-1 acceptance does not read the response");
-  check(runBirth(constant, y.data(), 4.0 * sigma, 0.5 * k).alpha == expected,
-        "the equal-rank-1 acceptance does not read sigma or k");
-  check(runBirth(linear, y.data(), sigma, k).alpha == expected,
-        "the equal-rank-1 acceptance does not read the leaf model");
+  check(runBirth(constant, zeros.data(), shifted.data(), sigma, k).alpha ==
+          expected,
+        "that acceptance does not read the response");
+  check(runBirth(constant, zeros.data(), y.data(), 4.0 * sigma, 0.5 * k)
+            .alpha == expected,
+        "nor sigma or k");
+  check(runBirth(linear, zeros.data(), y.data(), sigma, k).alpha == expected &&
+          runBirth(gp, zeros.data(), y.data(), sigma, k).alpha == expected &&
+          runBirth(variance, zeros.data(), y.data(), sigma, k).alpha ==
+            expected,
+        "nor the leaf model: linear, GP and variance leaves agree exactly");
 
-  // The death of a parent whose children are BOTH weight-vetoed inherits their
-  // veto (its members are their union), so the collapse that repairs a stranded
-  // pair is an equal-rank-1 comparison, not a rank improvement. Same closed
-  // form with the prior inverted: 0.25 / 0.75 again at base = 0.75.
+  // one half zeroed: the birth splits the weightless rows off, and is
+  // accepted on its likelihood, which is the root's own
+  checkNear(runBirth(constant, half.data(), y.data(), sigma, k).alpha,
+            expected, 1e-12,
+            "a birth isolating the zero-weight rows has likelihood ratio 1");
+  checkNear(runBirth(linear, half.data(), y.data(), sigma, k).alpha, expected,
+            1e-10, "under the linear leaf as well");
+  checkNear(runBirth(gp, half.data(), y.data(), sigma, k).alpha, expected,
+            1e-10, "and under the GP leaf");
+  checkNear(runBirth(variance, half.data(), y.data(), sigma, k).alpha,
+            expected, 1e-12, "and under the variance leaf");
+
+  // the death of a parent whose children are both weightless: the same closed
+  // form with the prior inverted, 0.25 / 0.75 again at base = 0.75
   auto runDeath = [&](const auto& leafModel) {
     ext_rng_setSeed(rng, 20260820u);
-    buildSplit();
+    buildSplit(zeros.data());
     MoveContext armCtx{store,        prunePrior, 1.0, 0.0, 0.0, 0.0, 0.5,
                        zeros.data(), k,          scratch};
     MoveOutcome out{0.0, false, false};
@@ -1411,29 +1447,29 @@ static void testEqualRankOneComparison() {
     return out;
   };
   MoveOutcome death = runDeath(constant);
-  check(!death.wasBirth, "the equal-rank death arm takes a death step");
+  check(!death.wasBirth, "the zero-weight death arm takes a death step");
   check(death.alpha == expected,
-        "an equal-rank-1 death accepts on prior x transition alone");
+        "a death of zero-weight leaves accepts on prior x transition alone");
   check(runDeath(linear).alpha == expected,
-        "the equal-rank-1 death does not read the leaf model either");
+        "and does not read the leaf model either");
 
-  // the change move's own resolution: the single available rule is the current
-  // one, so the subtree prior and the proposal correction both cancel and the
-  // acceptance is the equal-rank-1 likelihood by itself
+  // the change move: the single available rule is the current one, so the
+  // subtree prior and the proposal correction both cancel and the acceptance
+  // is the likelihood ratio by itself
   ext_rng_setSeed(rng, 20260821u);
-  buildSplit();
+  buildSplit(zeros.data());
   MoveContext changeCtx{store,        growPrior, 0.0, 0.0, 0.0, 0.0, 0.0,
                         zeros.data(), k,         scratch};
   bool changeTaken = false;
   double changeAlpha = changeMove(changeCtx, constant, rng, tree, y.data(),
                                   sigma, &changeTaken);
   check(changeAlpha == 1.0,
-        "an equal-rank-1 change move scores exactly 1, not 0 and not NaN");
+        "a change move between zero-weight branches scores exactly 1");
 
   ext_rng_destroy(rng);
-  printf("ok: equal-rank-1 veto comparison (birth and death alpha %.17g, "
-         "change 1.0, linear-leaf vetoed marginals %.3e)\n",
-         expected, naive);
+  printf("ok: a zero-weight leaf contributes nothing (birth and death alpha "
+         "%.17g, change 1.0)\n",
+         expected);
 }
 
 static void testLinearLeafMutation(ext_rng* rng) {
@@ -2025,11 +2061,11 @@ static void testPerturbMove() {
 // Four claims. FIRST, the neighbourhood identity: the kernel's own log weights
 // must agree, candidate for candidate, with a reference assembly that installs
 // each rule, refreshes the subtree and reads CGMTreePrior and
-// logLikelihoodForBranch directly - the same (rank, log-likelihood) pair the
-// acceptance would have compared. SECOND, the veto's law rather than the scan's
-// occupancy sentinel: under a weight vector that strands one side of a cut, the
-// candidate carries rank 1 and the surviving side's marginal, and the draw runs
-// over the rank-0 stratum alone. THIRD, closure: the enumeration reads ancestors
+// logLikelihoodForBranch directly - the same score the acceptance would have
+// compared, and no candidate that score refuses. SECOND, emptiness is
+// membership: under a weight vector that leaves one side of a cut no weight,
+// the candidate set does not move and that candidate scores its weighted
+// side's marginal alone. THIRD, closure: the enumeration reads ancestors
 // only, so installing any candidate at the node leaves the candidate set where
 // it was, which is what lets the draw skip a reverse count. FOURTH, the draw
 // itself: at a one-split tree the conditional is fixed and enumerable, so the
@@ -2075,9 +2111,9 @@ static void testRuleGibbsMove() {
   const double sigma = 1.0;
 
   // the reference assembly, candidate by candidate: the node's own prior
-  // factors, the prior strictly below it and the branch's veto-ranked score,
-  // read off the tree with the candidate installed
-  auto reference = [&](const MoveContext& context, std::vector<int>* ranks) {
+  // factors, the prior strictly below it and the branch's score, read off the
+  // tree with the candidate installed
+  auto reference = [&](const MoveContext& context, bool* anyEmpty) {
     std::vector<double> out;
     int32_t leftChild = tree.at(0).leftChild;
     Rule incumbent = tree.at(0).rule;
@@ -2098,33 +2134,29 @@ static void testRuleGibbsMove() {
                     prior.treeLogProbability(tree, store, leftChild) +
                     prior.treeLogProbability(tree, store, leftChild + 1) +
                     score.logLikelihood);
-      if (ranks != nullptr) ranks->push_back(score.rank);
+      if (anyEmpty != nullptr) *anyEmpty |= score.empty;
       tree.restoreSubtree(snapshot);
       tree.at(0).rule = incumbent;
     }
     return out;
   };
 
-  // normalized over one rank stratum, which is what the draw runs over
-  auto normalize = [&](const std::vector<double>& logWeight, int stratum) {
+  // normalized over the candidates, which is what the draw runs over
+  auto normalize = [&](const std::vector<double>& logWeight) {
     std::vector<double> out(logWeight.size(), 0.0);
     double largest = -HUGE_VAL, total = 0.0;
     for (size_t i = 0; i < logWeight.size(); ++i)
-      if (scratch.candidates[i].rank == stratum && logWeight[i] > largest)
-        largest = logWeight[i];
+      if (logWeight[i] > largest) largest = logWeight[i];
     for (size_t i = 0; i < logWeight.size(); ++i)
-      if (scratch.candidates[i].rank == stratum)
-        total += std::exp(logWeight[i] - largest);
+      total += std::exp(logWeight[i] - largest);
     for (size_t i = 0; i < logWeight.size(); ++i)
-      if (scratch.candidates[i].rank == stratum)
-        out[i] = std::exp(logWeight[i] - largest) / total;
+      out[i] = std::exp(logWeight[i] - largest) / total;
     return out;
   };
 
   // ---- the neighbourhood identity ----
-  int stratum = enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(),
-                                              sigma);
-  check(stratum == 0, "with every member weighted the stratum is rank 0");
+  check(enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(), sigma),
+        "the enumeration finds candidates");
 #ifdef BARTCORE_RULE_GIBBS_CUT_ONLY
   // the cut-only build holds the incumbent variable, so the set is x1's four
   // cuts and every claim below reads on those
@@ -2140,23 +2172,21 @@ static void testRuleGibbsMove() {
         "two variables at four cuts each, none of them occupancy-empty");
 #endif
 
-  std::vector<int> referenceRanks;
-  std::vector<double> referenceWeight = reference(ctx, &referenceRanks);
+  bool referenceEmpty = false;
+  std::vector<double> referenceWeight = reference(ctx, &referenceEmpty);
   std::vector<double> kernelWeight;
   for (const NogRuleCandidate& candidate : scratch.candidates)
     kernelWeight.push_back(candidate.logWeight);
-  std::vector<double> kernelProbability = normalize(kernelWeight, stratum);
-  std::vector<double> referenceProbability = normalize(referenceWeight, stratum);
+  std::vector<double> kernelProbability = normalize(kernelWeight);
+  std::vector<double> referenceProbability = normalize(referenceWeight);
   double worstIdentity = 0.0;
-  bool ranksAgree = true;
   for (size_t i = 0; i < kernelWeight.size(); ++i) {
     double gap =
       std::fabs(kernelProbability[i] - referenceProbability[i]);
     if (gap > worstIdentity) worstIdentity = gap;
-    ranksAgree &= referenceRanks[i] == scratch.candidates[i].rank;
   }
-  check(ranksAgree,
-        "every candidate's scan rank is logLikelihoodForBranch's branch rank");
+  check(!referenceEmpty,
+        "no candidate is a rule logLikelihoodForBranch would refuse");
   check(worstIdentity < 1e-12,
         "the kernel's normalized weights are the reference assembly's");
 
@@ -2180,8 +2210,7 @@ static void testRuleGibbsMove() {
   for (size_t i = 0; sameSet && i < fromIncumbent.size(); ++i) {
     sameSet &= fromIncumbent[i].variableIndex ==
                  scratch.candidates[i].variableIndex &&
-               fromIncumbent[i].splitIndex == scratch.candidates[i].splitIndex &&
-               fromIncumbent[i].rank == scratch.candidates[i].rank;
+               fromIncumbent[i].splitIndex == scratch.candidates[i].splitIndex;
     double gap = std::fabs(fromIncumbent[i].logWeight -
                            scratch.candidates[i].logWeight);
     if (gap > worstWeightGap) worstWeightGap = gap;
@@ -2191,48 +2220,47 @@ static void testRuleGibbsMove() {
   tree.at(0).rule = rootRule;
   tree.refreshSubtree(store, 0, y.data(), ctx.weights);
 
-  // ---- the veto's law, where the scan's occupancy test disagrees ----
+  // ---- emptiness is membership: weights never move the candidate set ----
   // zeroing every member of the first bin leaves the cut at index 0 a left
-  // side holding members but no weight: rank 1, not the sentinel's nothing,
-  // and its right side's marginal is the branch's whole score
+  // side holding members but no weight: still a candidate, and its right
+  // side's marginal is the branch's whole score
   std::vector<double> masked(ones);
   for (size_t i = 0; i < n; ++i)
     if (store.codeAt(0, i) == 0) masked[i] = 0.0;
   MoveContext maskedCtx{store,         prior, 0.0, 0.0, 0.0, 1.0, 0.5,
                         masked.data(), 2.0,   scratch};
   tree.refreshSubtree(store, 0, y.data(), maskedCtx.weights);
-  int maskedStratum = enumerateNogRuleNeighbourhood(maskedCtx, constant, tree, 0,
-                                                    y.data(), sigma);
-  check(maskedStratum == 0, "the stratum is still the incumbent's rank 0");
-  int rankOneCandidates = 0;
-  for (const NogRuleCandidate& candidate : scratch.candidates)
-    if (candidate.rank == 1) ++rankOneCandidates;
-  check(rankOneCandidates == 1,
-        "the stranded cut is enumerated at rank 1 rather than dropped");
-  std::vector<int> maskedReferenceRanks;
-  std::vector<double> maskedReference =
-    reference(maskedCtx, &maskedReferenceRanks);
-  bool maskedRanksAgree = true;
+  check(enumerateNogRuleNeighbourhood(maskedCtx, constant, tree, 0, y.data(),
+                                      sigma),
+        "the enumeration finds candidates under the weights");
+  bool sameUnderWeights = scratch.candidates.size() == fromIncumbent.size();
+  for (size_t i = 0; sameUnderWeights && i < fromIncumbent.size(); ++i)
+    sameUnderWeights &=
+      fromIncumbent[i].variableIndex == scratch.candidates[i].variableIndex &&
+      fromIncumbent[i].splitIndex == scratch.candidates[i].splitIndex;
+  check(sameUnderWeights,
+        "the candidate set under the weights is the unweighted one");
+  bool maskedEmpty = false;
+  std::vector<double> maskedReference = reference(maskedCtx, &maskedEmpty);
   double worstMaskedGap = 0.0;
   for (size_t i = 0; i < scratch.candidates.size(); ++i) {
-    maskedRanksAgree &=
-      maskedReferenceRanks[i] == scratch.candidates[i].rank;
     double gap = std::fabs((maskedReference[i] - maskedReference[0]) -
                            (scratch.candidates[i].logWeight -
                             scratch.candidates[0].logWeight));
     if (gap > worstMaskedGap) worstMaskedGap = gap;
   }
-  check(maskedRanksAgree,
-        "a stranded side's rank is the branch rank at every candidate");
+  check(!maskedEmpty,
+        "a side of only zero-weight members is no empty leaf to the branch "
+        "score either");
   check(worstMaskedGap < 1e-12,
-        "a rank-1 candidate's weight is its rank-0 side's marginal");
+        "and the candidate isolating it scores its weighted side's marginal");
   tree.refreshSubtree(store, 0, y.data(), ctx.weights);
 
   // ---- the draw: a fixed conditional, and the frequencies that match it ----
   // the tree keeps its shape and its member set, so the conditional does not
   // move between steps and the walk is an iid sample from it
   enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(), sigma);
-  std::vector<double> expected = normalize(reference(ctx, nullptr), 0);
+  std::vector<double> expected = normalize(reference(ctx, nullptr));
   std::vector<NogRuleCandidate> states(scratch.candidates);
 
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -2504,9 +2532,9 @@ void runMovesTests(ext_rng* rng) {
   testCategoricalMutation(rng);
   testOrderedFactorMutation(rng);
   testLinearLeafMutation(rng);
-  testEmptyLeafVetoCountsWeight();
-  testVetoRankUnfreezesStrandedTree();
-  testEqualRankOneComparison();
+  testEmptyLeafVetoCountsMembers();
+  testZeroWeightTreeKeepsMoving();
+  testZeroWeightLeafContributesNothing();
   testMoveValidityPredicates();
   testPerturbMove();
   testRuleGibbsMove();

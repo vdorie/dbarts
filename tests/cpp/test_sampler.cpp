@@ -2931,13 +2931,11 @@ static void testActiveRows() {
   printf("ok: active rows at the sampler surface\n");
 }
 
-// The mask installed on a GROWN forest, which is where the veto's weight law
-// has no gate to hold it: masking rows a tree already split on leaves leaves
-// no likelihood term reaches. The forest must keep moving there (the promise
-// setActiveRows makes: it sits at its PRIOR, which is a distribution, not a
-// freeze), must never install a member-empty leaf while it does - the state
-// law export and restore require - and must recover an admissible forest once
-// the mask lifts.
+// The mask installed on a GROWN forest: masking rows a tree already split on
+// leaves leaves no likelihood term reaches, which are legal. The forest must
+// keep moving there (the promise setActiveRows makes: it sits at its PRIOR,
+// which is a distribution, not a freeze) and must never install a member-empty
+// leaf while it does - the state law export and restore require.
 static void testActiveRowsOnGrownForest() {
   const size_t n = 300, numSamples = 4;
   std::vector<double> x, y;
@@ -2966,16 +2964,22 @@ static void testActiveRowsOnGrownForest() {
               static_cast<std::uint64_t>(t);
     return hash;
   };
-  auto countVetoed = [&](const double* weights) {
-    size_t vetoed = 0;
+  // leaves every member of which the mask switches off
+  auto countInactiveOnly = [&](const double* mask) {
+    size_t inactiveOnly = 0;
     for (size_t t = 0; t < options.numTrees; ++t) {
       const Tree& tree(sampler.chain(0).tree(t));
       std::vector<std::int32_t> bottoms;
       tree.fillBottom(0, bottoms);
-      for (std::int32_t b : bottoms)
-        vetoed += tree.leafVetoRank(b, weights) != 0 ? 1 : 0;
+      for (std::int32_t b : bottoms) {
+        const Node& node(tree.at(b));
+        bool anyActive = false;
+        for (size_t j = node.begin; j < node.end; ++j)
+          anyActive = anyActive || mask[tree.indices[j]] != 0.0;
+        inactiveOnly += !anyActive ? 1 : 0;
+      }
     }
-    return vetoed;
+    return inactiveOnly;
   };
   auto occupied = [&]() {
     bool all = true;
@@ -2984,9 +2988,9 @@ static void testActiveRowsOnGrownForest() {
     return all;
   };
 
-  // ---- the whole forest stranded ----
+  // ---- every row switched off ----
   check(sampler.setActiveRows(zeros.data()), "an all-zeros mask installs");
-  size_t strandedLeaves = countVetoed(zeros.data());
+  size_t maskedLeaves = countInactiveOnly(zeros.data());
   std::uint64_t before = forestSignature();
   sampler.run(100, numSamples, results);
   check(forestSignature() != before,
@@ -3012,26 +3016,34 @@ static void testActiveRowsOnGrownForest() {
                            "the masked state reproduces the model");
   ext_rng_destroy(rng2);
 
-  // ---- the mask lifts: every leaf must be admissible again ----
+  // ---- the mask lifts ----
   check(sampler.setActiveRows(nullptr), "the mask clears");
   sampler.run(0, numSamples, results);
-  check(countVetoed(nullptr) == 0,
-        "the forest is admissible again once the mask lifts");
+  check(occupied(), "the forest holds no empty leaf once the mask lifts");
 
-  // ---- a PARTIAL mask on the grown forest is absorbed back into the set ----
+  // ---- a PARTIAL mask on the grown forest: leaves of only inactive rows are
+  // legal, so the forest goes on holding some and goes on moving ----
   check(sampler.setActiveRows(partial.data()), "a partial mask installs");
-  size_t strandedPartial = countVetoed(partial.data());
-  check(strandedPartial > 0,
-        "non-vacuity: the partial mask strands leaves of the grown forest");
-  sampler.run(200, 0, results);
-  check(countVetoed(partial.data()) == 0,
-        "the partially masked forest is absorbed back into the admissible set");
-  check(occupied(), "and installs no member-empty leaf getting there");
+  size_t maskedPartial = countInactiveOnly(partial.data());
+  check(maskedPartial > 0,
+        "non-vacuity: the partial mask leaves leaves of only inactive rows");
+  before = forestSignature();
+  size_t heldPartial = 0;
+  for (int sweep = 0; sweep < 200; ++sweep) {
+    sampler.run(1, 0, results);
+    heldPartial += countInactiveOnly(partial.data()) > 0 ? 1 : 0;
+  }
+  check(forestSignature() != before,
+        "the partially masked forest keeps moving");
+  check(heldPartial > 0,
+        "and holds leaves of only inactive rows, which the moves admit");
+  check(occupied(), "while installing no member-empty leaf");
 
   ext_rng_destroy(rng);
-  printf("ok: active rows on a grown forest (%zu leaves stranded by the full "
-         "mask, %zu by the partial one)\n",
-         strandedLeaves, strandedPartial);
+  printf("ok: active rows on a grown forest (%zu leaves of only inactive rows "
+         "under the full mask, %zu under the partial one, some held in %zu of "
+         "200 sweeps)\n",
+         maskedLeaves, maskedPartial, heldPartial);
 }
 
 static void testSetWeightsAndTestOffset() {
@@ -3833,12 +3845,15 @@ static void testBCFGrowForestFromRoot() {
   // two-forest state. Deterministic given the local fixture stream and
   // localRng seed 90210, in a filtered run as in a full one; a relocation
   // that shifts the grow sweep's draw order or the coupling moves it far past
-  // the tolerance, while it survives benign cross-build FP reassociation.
+  // the tolerance, while it survives benign cross-build FP reassociation. The
+  // creation glue holds b0 at 0, so the first grow sweep scans the treatment
+  // forest with every control row weightless: the value is the one a scan
+  // admitting children of only such rows draws.
   double combinedMean = 0.0;
   for (size_t i = 0; i < n; ++i)
     combinedMean += a * muFits[i] + (z[i] != 0.0 ? b1 : b0) * tauFits[i];
   combinedMean /= static_cast<double>(n);
-  checkNear(combinedMean, -0.0282212024950307, 1e-6,
+  checkNear(combinedMean, -0.0249917413184204, 1e-6,
             "BCF grow-from-root combined fit characteristic value");
 
   ext_rng_destroy(localRng);
@@ -7000,10 +7015,6 @@ static void testZeroTrialsMultinomialKernel() {
           zeroed = zeroed && ff.weights[i] == 0.0;
           finite = finite && std::isfinite(ff.response[i]);
         }
-      // the veto precisions count the same rows absent
-      const double* veto = full.combiner->formForestVetoWeights(f, nullptr);
-      for (size_t i = 0; i < n; ++i)
-        zeroed = zeroed && (isKept[i] ? veto[i] > 0.0 : veto[i] == 0.0);
     }
     bool sameStream = ext_rng_simulateContinuousUniform(rngFull) ==
                       ext_rng_simulateContinuousUniform(rngCompacted);
@@ -7029,7 +7040,7 @@ static void testZeroTrialsMultinomialKernel() {
   build(nonEmpty, counts.data(), trials.data(), compacted);
   check(compare(withEmpty, compacted, nonEmpty, 20260928u, "unmasked"),
         "zero-trial rows are bitwise the compacted multinomial kernel: zero "
-        "precision and veto weight, finite response, no variate drawn");
+        "precision, finite response, no variate drawn");
 
   // composed with a caller's mask over other rows, and the clear keeps the
   // empty rows out

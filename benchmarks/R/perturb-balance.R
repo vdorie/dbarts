@@ -16,10 +16,11 @@
 # ---- the prior-only arm ----
 #
 # An all-zero weight vector installed with $setWeights turns the likelihood
-# off: every occupied leaf takes veto rank 1, every member-empty leaf rank 2,
-# no leaf enters a likelihood term, and both branches of every acceptance score
-# exactly 0. The kernel is then reversible with respect to the CGM tree prior
-# truncated to the member-occupied trees, and the design makes that truncation
+# off: every occupied leaf is legal and scores exactly 0, a proposal leaving a
+# leaf no row reaches is refused, no leaf enters a likelihood term, and both
+# branches of every acceptance score exactly 0. The kernel is then reversible
+# with respect to the CGM tree prior truncated to the member-occupied trees -
+# the set it moves over under any weights - and the design makes that truncation
 # vacuous: two ordinal columns of 6 and 4 distinct values as a FULL FACTORIAL
 # with useQuantiles = TRUE, which puts 5 and 3 cuts at the midpoints between
 # consecutive distinct values, so every leaf of every reachable tree holds a

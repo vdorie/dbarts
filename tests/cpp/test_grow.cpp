@@ -1398,10 +1398,9 @@ void testCategoricalGrowGaugeAndCoins() {
       expectedUniforms += positiveGrowthNodeCount(tree, store, prior);
       tally.occupied &= tree.bottomNodesAreOccupied();
       if (weights != nullptr) {
-        // the side occupancy vetoes: occupied, so not member-empty, and
-        // carrying no mass at all. mixedLeaves is the non-vacuity - the
-        // weightless rows are in the tree, absorbed into leaves that carry
-        // weight, rather than absent from the fixture
+        // a side occupancy admits: occupied, so not member-empty, and
+        // carrying no mass at all. mixedLeaves says the weightless rows also
+        // share leaves with rows that carry weight
         bottom.clear();
         tree.fillBottom(0, bottom);
         for (std::int32_t node : bottom) {
@@ -1481,9 +1480,9 @@ void testCategoricalGrowGaugeAndCoins() {
             "the missing pseudo-category is placed as a bin at some nodes and "
             "drawn as an absent position at others");
     if (fixture.zeroWeightCategory) {
-      check(weightlessLeaves == 0,
-            "no leaf of a grown tree holds a weightless present category "
-            "alone");
+      check(weightlessLeaves > 0,
+            "a grown tree may hold a weightless present category alone: the "
+            "leaf is occupied, which is all legality asks");
       check(mixedLeaves > 0,
             "the weightless rows are in the grown trees, sharing leaves with "
             "rows that carry weight");

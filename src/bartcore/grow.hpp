@@ -169,11 +169,11 @@ void growCategoricalRule(const ColumnStore& data, const L& leaf, ext_rng* rng,
 /// Occupancy (scan.hpp) subsumes the ancestor split interval - members
 /// violating an ancestor cut have codes confined to the interval, so
 /// out-of-interval cuts have an empty side and are already zeroed - and keeps
-/// both children carrying positive WEIGHT against the vector passed here, so
-/// the built tree satisfies the same structural invariant the MH moves veto
-/// on. That vector is the caller's composed one,
-/// per-forest under a coupling, which is why the law can be read off the scan's
-/// own sums rather than off member counts. The categorical branch's enumeration
+/// both children holding a member, so the built tree satisfies the same
+/// structural invariant the MH moves veto on (Tree::leafIsEmpty). The weights
+/// passed here move a candidate's score and never whether it is one: a child
+/// of only zero-weight members is legal and scores 0. The categorical
+/// branch's enumeration
 /// domain rules out an empty side by construction, and its mask comes out
 /// nonzero, a strict subset of the node's reachable set and unequal to it,
 /// which is buildFromFlat's gauge.

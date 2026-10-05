@@ -27,24 +27,24 @@
 # sigma = 1 / range, constant-leaf conjugate marginal with
 # priorPrecision = (k / scale)^2, scale = leaf.scale / sqrt(ntree) = 0.5.
 #
-# The veto arm (Rscript bd-balance.R veto) replaces the exact arm with the
-# same gate run from OUTSIDE the admissible set: a weight vector installed
-# between samples zeroes one cell's rows, so every partition isolating that
-# cell holds a leaf no likelihood term reaches and is vetoed. The exact target
-# is then this enumeration restricted to the admissible partitions and
-# renormalized, with the leaf marginals taken over the positive-weight rows
-# alone (docs/design/empty-leaf-veto.md). The chain is started STRANDED - grown
-# under positive weights until it holds the offending cut, then handed the
-# zeroing vector - so the arm also measures the absorption time and checks that
-# the admissible set is absorbing thereafter.
+# The zero-weight arm (Rscript bd-balance.R zeroweight) replaces the exact arm
+# with the same gate under a weight vector, installed between samples on a
+# grown tree, that zeroes two adjacent cells' rows. A zero-weight row is in the
+# design and not in the likelihood: a partition isolating those cells holds a
+# leaf no likelihood term reaches, which is legal and scores nothing
+# (docs/design/empty-leaf-veto.md). The exact target is then the WHOLE
+# enumeration, the tree prior unchanged, with the leaf marginals taken over the
+# positive-weight rows alone - not the enumeration restricted to the partitions
+# whose every leaf holds a weighted row, which the arm reports its distance
+# from.
 #
-# Usage: Rscript bd-balance.R [quick] [veto]
+# Usage: Rscript bd-balance.R [quick] [zeroweight]
 
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
-vetoArm <- "veto" %in% args
+zeroWeightArm <- "zeroweight" %in% args
 
 nKept <- if (quick) 100000L else 300000L
 batchSize <- if (quick) 25000L else 50000L
@@ -85,17 +85,18 @@ logSumExp <- function(v) {
 # ---- integrated likelihood, verbatim from ConstantGaussianLeaf ----
 
 priorPrecision <- (kLeaf / nodeScale)^2
-# a zero weight is absence: the row leaves the leaf's sufficient statistics
-# outright, exactly as it leaves the veto's count. Two ADJACENT cells are
-# zeroed rather than one so that the stranded start below is vetoed on both
-# sides of a split - the comparison the veto rank exists for. One zeroed cell
-# would only ever strand a leaf beside a live sibling, whose collapse is a
-# rank DECREASE and was already accepted before the rank existed.
-kept <- if (vetoArm) cell == 1L | cell == K else rep(TRUE, n)
+# a zero weight leaves the row out of the leaf's sufficient statistics and in
+# its member count. Two ADJACENT cells are zeroed rather than one so that the
+# trees include a split with no weighted row on either side, whose two leaves
+# and their parent all score nothing.
+kept <- if (zeroWeightArm) cell == 1L | cell == K else rep(TRUE, n)
 logIL <- function(cells) {
   idx <- cell >= cells[1L] & cell <= cells[2L] & kept
   z <- zScaled[idx]
   nLeaf <- length(z)
+  if (nLeaf == 0L) {
+    return(0)
+  }
   posteriorPrecision <- nLeaf / residVar
   mean <- sum(z) / nLeaf
   centeredSumOfSquares <- sum(z * z) - sum(z) * mean
@@ -152,10 +153,9 @@ signatureOf <- function(cutIndices) {
   paste(sort(cutIndices), collapse = "+")
 }
 
-# the veto's own definition of the target: a tree is admissible when every one
-# of its leaves holds a positive-weight row, and the target is the enumeration
-# restricted to those and renormalized
-isAdmissible <- function(leaves) {
+# whether every leaf of a tree holds a positive-weight row: the trees a rule
+# counting weight rather than members would keep
+holdsWeightThroughout <- function(leaves) {
   all(vapply(
     leaves,
     function(range) any(kept & cell >= range[1L] & cell <= range[2L]),
@@ -165,12 +165,10 @@ isAdmissible <- function(leaves) {
 
 logW <- numeric(length(trees))
 signatures <- character(length(trees))
+weighted <- logical(length(trees))
 for (t in seq_along(trees)) {
   signatures[t] <- signatureOf(trees[[t]]$cutsUsed)
-  if (!isAdmissible(trees[[t]]$leaves)) {
-    logW[t] <- -Inf
-    next
-  }
+  weighted[t] <- holdsWeightThroughout(trees[[t]]$leaves)
   lw <- trees[[t]]$logPrior
   for (cellRange in trees[[t]]$leaves) {
     lw <- lw + logIL(cellRange)
@@ -179,11 +177,13 @@ for (t in seq_along(trees)) {
 }
 w <- exp(logW - logSumExp(logW))
 exactPartition <- vapply(split(w, signatures), sum, 0)
-vetoedNames <- names(exactPartition)[exactPartition == 0]
-partitionNames <- names(sort(
-  exactPartition[exactPartition > 0],
-  decreasing = TRUE
-))
+partitionNames <- names(sort(exactPartition, decreasing = TRUE))
+# the same enumeration restricted to the trees holding weight in every leaf
+restrictedPartition <- vapply(
+  split(w * weighted / sum(w * weighted), signatures),
+  sum,
+  0
+)
 
 # ---- engine arm: pure birth/death kernel ----
 
@@ -210,57 +210,17 @@ sampler <- dbarts(
 )
 stopifnot(is.null(sampler$data@offset))
 
-# ---- the stranded start ----
+# ---- the weights go in on a grown tree ----
 #
-# Grow under positive weights until the live tree splits the cells that are
-# about to be zeroed apart from each other, then install the zeroing vector.
-# The current state is now outside the admissible set - the state no
-# install-time gate can prevent, since weights do not ride the tree - and it is
-# stranded on BOTH sides of a split, so the collapse that repairs it is an
-# equal-rank comparison. That comparison is NaN without the rank, and a chain
-# that reaches it never leaves.
-absorbed <- NA_integer_
-if (vetoArm) {
-  cutsHeld <- function() {
-    live <- sampler$getTrees(current = TRUE)
-    match(live$value[live$var == 1L], cuts)
-  }
-  partitionHeld <- function() signatureOf(cutsHeld())
-  # The one shape that makes the two zeroed cells SIBLINGS: the cuts in
-  # depth-first order are 1, then 3, then 2, so the leaves holding cells 2 and
-  # 3 are the children of one parent whose own range is entirely zero-weight.
-  # Their collapse is then an EQUAL-rank comparison - the one the veto rank
-  # decides and the one that is NaN without it - and it is the tree's only
-  # death, so a chain that cannot take it cannot leave this partition at all.
-  strandedShape <- c(1L, 3L, 2L)
-  stranded <- FALSE
-  for (sweep in seq_len(20000L)) {
-    invisible(sampler$run(1L, 1L))
-    if (identical(cutsHeld(), strandedShape)) {
-      stranded <- TRUE
-      break
-    }
-  }
-  if (!stranded) {
-    cat("\nFAIL: could not grow the tree the arm strands\n")
-    quit(status = 1L)
-  }
+# Weights do not ride the tree, so the install lands on whatever partition the
+# chain holds; the first batch's burn-in follows it.
+if (zeroWeightArm) {
+  invisible(sampler$run(nBurn, 1L))
   sampler$setWeights(as.double(kept))
-  for (sweep in seq_len(20000L)) {
-    invisible(sampler$run(0L, 1L))
-    if (partitionHeld() %in% partitionNames) {
-      absorbed <- sweep
-      break
-    }
-  }
-  if (is.na(absorbed)) {
-    cat("\nFAIL: the stranded chain never re-entered the admissible set\n")
-    quit(status = 1L)
-  }
   cat(sprintf(
-    "stranded with cells %s zeroed as siblings, absorbed after %d sweeps\n",
+    "cells %s zeroed; %.4f of the exact posterior sits on partitions with a leaf of only zero-weight rows\n",
     paste(which(!kept[seq_len(K) * nPer]), collapse = "+"),
-    absorbed
+    1 - sum(w * weighted)
   ))
 }
 
@@ -305,17 +265,6 @@ cat(sprintf(
 ))
 
 anyFailure <- FALSE
-if (vetoArm) {
-  # the admissible set is absorbing: from inside it, a vetoed partition has
-  # acceptance exactly zero, so the run must contain none at all
-  visits <- sum(engineSignatures %in% vetoedNames)
-  cat(sprintf(
-    "vetoed partitions (%s): %d visits after absorption\n",
-    paste(vetoedNames, collapse = ", "),
-    visits
-  ))
-  anyFailure <- visits > 0L
-}
 for (name in partitionNames) {
   engineProb <- mean(engineSignatures == name)
   se <- batchMeanSE(engineSignatures == name)
@@ -330,6 +279,21 @@ for (name in partitionNames) {
     se,
     z,
     if (failed) " <- FAIL" else ""
+  ))
+}
+
+if (zeroWeightArm) {
+  # non-vacuity: the target that counts weight instead of members is a
+  # different distribution, and the chain is not on it
+  engineProbs <- vapply(
+    partitionNames,
+    function(name) mean(engineSignatures == name),
+    0
+  )
+  cat(sprintf(
+    "total variation from the exact posterior %.4f, from the one restricted to weighted leaves %.4f\n",
+    0.5 * sum(abs(engineProbs - exactPartition[partitionNames])),
+    0.5 * sum(abs(engineProbs - restrictedPartition[partitionNames]))
   ))
 }
 

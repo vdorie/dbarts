@@ -1316,12 +1316,10 @@ public:
   /// the combination (the row still receives m_f f_f(x_i)), or from the
   /// residual sigma degrees of freedom, which count positive OBSERVATION
   /// weights; s_i = 0 says only that row i carries no information about forest
-  /// f, and its leaves stay well-defined prior draws. It DOES reach forest f's
-  /// empty-leaf veto, which counts positive composed weights: forest f
-  /// cannot hold a leaf whose every member has s_i = 0, since no likelihood
-  /// term of that forest reaches it -
-  /// installed on a grown forest it can strand one, which the moves then price
-  /// their way out of rather than freeze on.
+  /// f, and its leaves stay well-defined prior draws. Nor does it reach forest
+  /// f's empty-leaf veto, which counts members: forest f may hold a leaf whose
+  /// every member has s_i = 0, which no likelihood term of that forest reaches
+  /// and whose value is a draw from the prior.
   ///
   /// It is a WORKING precision under every family, which is what keeps it off
   /// the observation weight's family-specific meaning: by the time the
@@ -1921,12 +1919,10 @@ public:
     if constexpr (leafSupportsVarianceForest)
       if (varianceForest_) reanchorVarianceForest(previousSigmaScale);
   }
-  /// Weights do not ride the tree state, so a vector zeroing rows a GROWN
-  /// forest already split on can leave leaves the moves veto. That is a
-  /// legal state, not an error:
-  /// the veto ranks such a branch below an admissible one, so the tree keeps
-  /// moving under prior x transition and any move clearing the veto is
-  /// accepted outright. No check here refuses it.
+  /// A vector zeroing rows a GROWN forest already split on can leave leaves
+  /// that hold only zero-weight rows. That is a legal state under every vector:
+  /// emptiness is membership, so such a leaf enters no likelihood term, scores
+  /// 0 and draws its value from the prior. No check here refuses it.
   /// The location handed to the response is the COMBINED one, for the reason
   /// setResponse states: a family whose latents are stated against the weights
   /// redraws them here, and must draw against the whole fit.
@@ -2009,11 +2005,9 @@ public:
   /// measurably leaves the fused path - one channel is membership, the other
   /// precision). An all-ZEROS mask is accepted and runs: the forest sits at
   /// its prior and every row still receives a fit. Literally so, on a grown
-  /// forest as on a fresh one - every branch is vetoed there, and the veto
-  /// ranks equals, so the structure keeps moving under the CGM prior x the
-  /// transition at constant likelihood; a PARTIAL mask strands only the
-  /// leaves it empties and the trees absorb
-  /// back into the admissible set as those leaves clear.
+  /// forest as on a fresh one - every leaf scores 0 there, so the structure
+  /// moves under the CGM prior x the transition at constant likelihood, over
+  /// the same set of trees it moves over under any other mask.
   ///
   /// The scan lives here rather than in a host because the engine is the only
   /// site under every surface; a flat caller inherits it.
@@ -2316,10 +2310,8 @@ public:
   /// Acceptance is bounded below by the probability of the bare root, 1 - base,
   /// positive on every legal prior (base lies in (0, 1)); even at base = 0.99
   /// exhausting the cap has probability 4e-44, so exhaustion never reports an
-  /// unlucky run. The one state that could exhaust it - an empty conditioning
-  /// event, where no row carries positive weight - is settled before the loop
-  /// by a scan that takes the bare root instead, so reaching the cap now says
-  /// that scan and this predicate disagree, a bug worth faulting on.
+  /// unlucky run. The bare root holds every row, so the conditioning event is
+  /// never empty and reaching the cap is a bug worth faulting on.
   static constexpr int priorTreeDrawMaxAttempts = 10000;
 
   /// Replace every tree's structure with a draw from the tree prior over the
@@ -2362,32 +2354,6 @@ public:
     const double* weights = response_->workingWeights();
     for (size_t f = 0; f < forests_.size(); ++f) {
       Forest<L, ResidT>& forest = forests_[f];
-      // The conditioning event is FOREST f's OWN. Its moves veto against the
-      // composed precisions - the coupling's per-forest weights carrying the
-      // glue, times any weight installed for f - so conditioning every forest
-      // on the chain's global weights would draw from a law no forest holds:
-      // under bcf's creation glue (b0 = 0) the treatment forest reaches no
-      // control row at all. The WEIGHTS-ONLY path is required, not an
-      // optimization: formForestResponse owes an immediately preceding
-      // drawForestGlue for the same f, which no initializer performs.
-      // Composed inside the loop because the scratch is chain-owned, so a
-      // hoisted pointer would alias the next forest's composition.
-      const double* forestWeights =
-        combiner_ != nullptr ? combiner_->formForestVetoWeights(f, weights)
-                             : weights;
-      forestWeights = composeForestWeights(f, forestWeights);
-      // One O(n) scan settles the EMPTY EVENT for the whole forest: with no
-      // row carrying positive weight no tree is admissible, so the conditional
-      // law does not exist and every tree takes the bare root - the unique
-      // structure no later weight restore can strand a member-empty leaf in,
-      // since every row sits in its one leaf. UNCONDITIONAL, coupling or not:
-      // an all-zero active-row mask composes into the global weights and is a
-      // legal state a host whose stratum emptied reaches. The attempt cap
-      // stays the backstop, where exhaustion now means this scan and the
-      // predicate disagree.
-      bool anyWeight = forestWeights == nullptr;
-      for (size_t i = 0; !anyWeight && i < n; ++i)
-        if (forestWeights[i] > 0.0) anyWeight = true;
       for (size_t t = 0; t < forest.numTrees; ++t) {
         Tree& tree(forest.trees[t]);
         // Rejection, not projection: the moves price the CGM prior restricted
@@ -2398,12 +2364,14 @@ public:
         // instead of removing it. The retry is WHOLE-TREE because the
         // conditioning tilts every draw the recursion made, the parent's rule
         // included; regrowing only the offending subtree would leave that rule
-        // at its unconditioned law. The predicate is the veto's own, so a leaf
-        // of only zero-weight rows - which the collapse's member count spares
-        // and the veto forbids - is rejected here too.
-        // y stays the chain's working response under a coupling: no structural
-        // draw reads it, only the node statistics birth caches, which the next
-        // sweep recomputes against the per-forest residual.
+        // at its unconditioned law. The predicate is the veto's own,
+        // membership: the conditioning event reads the predictors alone, so
+        // it is the same for every forest and under every weight vector and
+        // mask, an all-zero one included.
+        // y and weights stay the chain's working ones under a coupling: no
+        // structural draw reads either, only the node statistics birth caches,
+        // which the next sweep recomputes against the per-forest residual and
+        // precisions.
         // Under the monotone "joint" prior the tree marginal is p_CGM(T) Z_T,
         // so the same rejection also keeps a tree only when iid leaves drawn
         // for it land in its cone (acceptance the prior mean of Z_T; the bare
@@ -2412,16 +2380,15 @@ public:
         int rejected = 0, outsideCone = 0;
         while (true) {
           tree.initialize(forest.indexBuffer.data() + t * n, n);
-          if (!anyWeight) break;
-          growSubtreeFromPrior(forest, tree, 0, y, forestWeights);
+          growSubtreeFromPrior(forest, tree, 0, y, weights);
           if constexpr (TreeDrawLeafModel<L>) {
-            if (tree.bottomNodesHaveWeight(forestWeights)) {
+            if (tree.bottomNodesAreOccupied()) {
               if (forest.leaf.prior != MonotonePrior::joint ||
                   forest.leaf.jointPriorAccepts(rng_, tree, forest.k))
                 break;
               ++outsideCone;
             }
-          } else if (tree.bottomNodesHaveWeight(forestWeights)) {
+          } else if (tree.bottomNodesAreOccupied()) {
             break;
           }
           // a C++ throw, never a raise into R: the engine is R-agnostic, and
@@ -2434,8 +2401,7 @@ public:
               " draws were rejected (" +
               std::to_string(rejected - outsideCone) +
               " left an empty leaf, " + std::to_string(outsideCone) +
-              " drew leaves outside the monotone prior's cone), against a "
-              "weight vector carrying a positive entry");
+              " drew leaves outside the monotone prior's cone)");
         }
         // fresh structures carry zero parameter blocks until the next draw
         if constexpr (L::hasVectorParams)
@@ -2596,11 +2562,10 @@ public:
   /// A homoscedastic chain has nothing to draw and returns.
   ///
   /// Both halves are the sweep's own laws. The structure is the CGM prior
-  /// CONDITIONED on carrying no empty leaf, drawn by whole-tree rejection
-  /// against the USER weights - the same predicate the variance moves veto on,
-  /// since their MoveContext carries those weights - under
-  /// sampleTreesFromPrior's attempt cap and its one-scan settlement of the
-  /// empty conditioning event. The leaf factors are ConstantVarianceLeaf's
+  /// CONDITIONED on carrying no empty leaf, drawn by whole-tree rejection on
+  /// membership - the same predicate the variance moves veto on - under
+  /// sampleTreesFromPrior's attempt cap. The leaf factors are
+  /// ConstantVarianceLeaf's
   /// prior draw, the chi^-2(nu', lambda'^2) the per-tree calibration states,
   /// one per bottom.
   ///
@@ -2621,30 +2586,22 @@ public:
     VarianceForest& vf = *varianceForest_;
     size_t n = data_.numObservations;
     const double* weights = response_->workingWeights();
-    // One O(n) scan settles the empty conditioning event for the whole forest,
-    // exactly as sampleTreesFromPrior's does: with no row carrying positive
-    // weight no tree is admissible, so every tree takes the bare root.
-    bool anyWeight = weights == nullptr;
-    for (size_t i = 0; !anyWeight && i < n; ++i)
-      if (weights[i] > 0.0) anyWeight = true;
     for (size_t j = 0; j < vf.numTrees; ++j) {
       Tree& tree = vf.trees[j];
       int rejected = 0;
       while (true) {
         tree.initialize(vf.indexBuffer.data() + j * n, n);
-        if (!anyWeight) break;
         // treeResidual is the sweep's own per-tree scratch and is refilled by
         // formTreeResidual before anything reads it again; birth caches node
         // statistics off it, which no structural draw reads.
         growSubtreeFromPrior(vf.treePrior, tree, 0, vf.treeResidual.data(),
                              weights);
-        if (tree.bottomNodesHaveWeight(weights)) break;
+        if (tree.bottomNodesAreOccupied()) break;
         if (++rejected == priorTreeDrawMaxAttempts)
           throw std::runtime_error(
             "variance tree prior draw: every one of " +
             std::to_string(priorTreeDrawMaxAttempts) +
-            " draws left an empty leaf, against a weight vector carrying a "
-            "positive entry");
+            " draws left an empty leaf");
       }
       double* factor = vf.factorByTree.data() + j * n;
       tree.bottomScratch.clear();

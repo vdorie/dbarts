@@ -1,16 +1,16 @@
 # The no-empty-leaf conditioning the initializer applies
-# (test-prior-init-empty-leaves.R) is PER
-# FOREST. A move vetoes forest f's trees against the COMPOSED precisions - the
-# coupling's own per-forest weights, which carry the glue, times whatever
-# weight is installed for f - so each forest's rejection draw must condition on
-# exactly that vector. The chain's global weights are the wrong one by
-# DEFAULT, not in a corner: a two-forest construction seeds its amplitudes at
-# (a, b0, b1) = (1, 0, 1), which leaves every control row weightless in the
-# treatment forest.
+# (test-prior-init-empty-leaves.R) is ONE law for every forest. A move refuses
+# a tree of forest f that leaves a leaf no row reaches, and reads neither the
+# coupling's per-forest precisions - which carry the glue - nor a weight
+# installed for f, so each forest's rejection draw conditions on membership
+# alone. That matters by DEFAULT, not in a corner: a two-forest construction
+# seeds its amplitudes at (a, b0, b1) = (1, 0, 1), which leaves every control
+# row weightless in the treatment forest, and a treatment tree may still hold a
+# leaf of control rows only.
 #
-# The oracle is the sibling file's - route ONLY the rows the forest's vector
-# reaches through the drawn trees (getTrees(newdata = )) and read the per-node
-# counts, so a leaf no such row reaches reports n == 0 - taken through the
+# The oracle is the sibling file's - the drawn trees report the rows that reach
+# each node, and routing ONLY the rows a forest's precisions reach through them
+# (getTrees(newdata = )) the rows its likelihood sees - taken through the
 # public $getTrees' own forest argument.
 
 set.seed(20260818L)
@@ -31,7 +31,7 @@ control <- dbarts::dbartsControl(
 # a deep growth prior, stated for BOTH forests so the treatment forest does not
 # fall back to the shallower per-forest default: the conditioning is what these
 # arms measure, and a difference in the prior would stand in for it. Deep trees
-# also make the wrong law's illegal leaves common rather than rare.
+# also make leaves of few rows common rather than rare.
 deep <- list(base = 0.95, power = 0.5)
 treePrior <- dbarts::dbartsPriors$cgm(power = deep$power, base = deep$base)
 
@@ -67,29 +67,31 @@ forestNodes <- function(sampler, forest, rows = NULL) {
 }
 leavesPerTree <- function(nodes) tapply(nodes$var == -1L, nodes$tree, sum)
 
-# --- the per-forest law, on the DEFAULT construction ------------------------
-# One pass collects both claims: no treatment-forest leaf that no treated row
-# reaches, and the tree SHAPE that conditioning on 40 rows rather than 80
-# produces. The shape matters because support is not the whole of a law: the
-# composed conditioning removes whole trees, so it tilts the leaf-count
-# distribution away from the global law's, which a single forest over the same
-# design, prior and cut grid draws from.
+# --- one law for both forests, on the DEFAULT construction ------------------
+# One pass collects three claims: every leaf of either forest holds a row; a
+# treatment-forest leaf that no treated row reaches is legal and common; and
+# the treatment trees have the SHAPE the same prior draws over all 80 rows in a
+# single forest of the same design, prior and cut grid, not the smaller one
+# that conditioning on the 40 treated rows would give.
 sampler <- makeBCF()
 expect_equal(as.vector(sampler$getForestAmplitudes()), c(1, 0, 1))
 reference <- dbarts::dbarts(x, y, control = control, tree.prior = treePrior)
 
 tauLeaves <- 0L
+tauEmpty <- 0L
+muEmpty <- 0L
 tauUnreached <- 0L
-muUnreached <- 0L
 tauCounts <- numeric(0)
 referenceCounts <- numeric(0)
 for (i in seq_len(150L)) {
   sampler$sampleTreesFromPrior()
+  tauMembers <- forestNodes(sampler, 2L)
+  muMembers <- forestNodes(sampler, 1L)
   tau <- forestNodes(sampler, 2L, treated)
-  mu <- forestNodes(sampler, 1L, treated)
   tauLeaves <- tauLeaves + sum(tau$var == -1L)
+  tauEmpty <- tauEmpty + sum(tauMembers$var == -1L & tauMembers$n == 0L)
+  muEmpty <- muEmpty + sum(muMembers$var == -1L & muMembers$n == 0L)
   tauUnreached <- tauUnreached + sum(tau$var == -1L & tau$n == 0L)
-  muUnreached <- muUnreached + sum(mu$var == -1L & mu$n == 0L)
   tauCounts <- c(tauCounts, leavesPerTree(tau))
   reference$sampleTreesFromPrior()
   referenceCounts <- c(
@@ -98,62 +100,53 @@ for (i in seq_len(150L)) {
   )
 }
 expect_true(tauLeaves > 5000L) # the trees grew; the check bites
-expect_equal(tauUnreached, 0L)
-# non-vacuity, and the control arm of the same law: the prognostic forest
-# reaches every row (a = 1), so a leaf only control rows reach is LEGAL there
-# and the same routing over the same draws finds plenty
-expect_true(muUnreached > 200L)
-# the shape gap, measured over 3000 trees per arm: 2.97 leaves per treatment
-# tree against 3.46 for the global law, a gap of 0.48 with a Monte Carlo error
-# near 0.09, and 0.023 more single-leaf trees, error near 0.009. Conditioning
-# on the global vector instead closes both to noise (measured -0.05 and 0.001),
-# so the bars sit between the two rather than on either.
-expect_true(mean(referenceCounts) - mean(tauCounts) > 0.2)
-expect_true(mean(tauCounts == 1) - mean(referenceCounts == 1) > 0.005)
+expect_equal(tauEmpty, 0L)
+expect_equal(muEmpty, 0L)
+expect_true(tauUnreached > 200L)
+# the shape, over 3000 trees per arm: conditioning the treatment forest on its
+# 40 treated rows alone would leave it 0.48 leaves per tree short of the
+# single forest's 3.46 and with 0.023 more single-leaf trees, against Monte
+# Carlo errors near 0.09 and 0.009
+expect_true(abs(mean(referenceCounts) - mean(tauCounts)) < 0.2)
+expect_true(abs(mean(tauCounts == 1) - mean(referenceCounts == 1)) < 0.02)
 
-# --- the empty conditioning event: bare roots, never a fault ----------------
-# With no row carrying positive weight the conditional law does not exist, and
-# the bare root is the only structure a later weight restore cannot strand a
-# member-empty leaf in - every row sits in its one leaf. Reachable per forest,
-# through a zero per-forest weight ...
+# --- no row weighted at all: the same law, never a fault ---------------------
+# A forest whose every row carries zero weight draws its trees from the same
+# conditioned prior, since the conditioning does not read the weights.
+# Reachable per forest, through a zero per-forest weight ...
 zeroed <- makeBCF()
 zeroed$setForestWeights(2L, rep(0, n))
 zeroed$sampleTreesFromPrior()
 tauNodes <- forestNodes(zeroed, 2L)
-expect_equal(nrow(tauNodes), numTrees) # one node per tree
-expect_true(all(tauNodes$var == -1L))
-expect_true(all(tauNodes$value == 0))
-# ... while the OTHER forest of the same sampler draws its own law untouched
+expect_true(nrow(tauNodes) > 2L * numTrees)
+expect_true(all(tauNodes$n[tauNodes$var == -1L] > 0L))
+expect_true(all(tauNodes$value[tauNodes$var == -1L] == 0))
 expect_true(nrow(forestNodes(zeroed, 1L)) > 2L * numTrees)
 zeroedDraws <- zeroed$run(2L, 2L)
 expect_true(all(is.finite(zeroedDraws$train)))
 
-# ... and globally, with no coupling at all: an all-zero active-row mask
-# composes into the chain's own weights, a state a host whose stratum has
-# emptied reaches and one the sampler accepts and runs
-# (test-active-rows-pins.R). Drawing from the prior in it used to exhaust the
-# rejection cap and fault.
+# ... and globally, with no coupling at all: an all-zero active-row mask is a
+# state a host whose stratum has emptied reaches and one the sampler accepts
+# and runs (test-active-rows-pins.R)
 masked <- dbarts::dbarts(x, y, control = control, tree.prior = treePrior)
 masked$setActiveRows(rep(0, n))
 masked$sampleTreesFromPrior()
-bare <- masked$getTrees(current = TRUE)
-expect_equal(nrow(bare), numTrees)
-expect_true(all(bare$var == -1L))
-expect_true(all(bare$value == 0))
+maskedNodes <- masked$getTrees(current = TRUE)
+expect_true(nrow(maskedNodes) > 2L * numTrees)
+expect_true(all(maskedNodes$n[maskedNodes$var == -1L] > 0L))
 maskedDraws <- masked$run(2L, 2L)
 expect_true(all(is.finite(maskedDraws$train)))
-# the guard is on the event, not on the sampler: with the mask lifted the same
-# sampler draws grown trees again
+# with the mask lifted the same sampler draws from the same law
 masked$setActiveRows(rep(1, n))
 masked$sampleTreesFromPrior()
 expect_true(nrow(masked$getTrees(current = TRUE)) > 2L * numTrees)
 
 # --- grow-from-root holds the same law -------------------------------------
 # XBART-style initialization keeps both children non-empty through the scan's
-# occupancy gate, which counted MEMBERS while the moves count positive weight,
-# so it could land exactly the states the prior draw is now conditioned away
-# from. The amplitude is held fixed so the composed vector - w * b_z^2 * s - is
-# the same one across every repetition.
+# occupancy gate, which counts MEMBERS as the moves do: every grown leaf holds
+# a row, and one may hold only rows the forest's precisions do not reach. The
+# amplitude is held fixed so the composed vector - w * b_z^2 * s - is the same
+# one across every repetition.
 grown <- makeBCF(update.amplitude = FALSE)
 forestWeight <- as.double(x[, 1L] <= 0.5)
 grown$setForestWeights(2L, forestWeight)
@@ -161,15 +154,19 @@ reached <- treated & forestWeight > 0
 expect_true(sum(reached) > 5L && sum(reached) < n %/% 3L)
 
 grownLeaves <- 0L
+grownEmpty <- 0L
 grownUnreached <- 0L
 for (i in seq_len(30L)) {
   grown$growFromRoot(1L)
+  tauMembers <- forestNodes(grown, 2L)
   tau <- forestNodes(grown, 2L, reached)
   grownLeaves <- grownLeaves + sum(tau$var == -1L)
+  grownEmpty <- grownEmpty + sum(tauMembers$var == -1L & tauMembers$n == 0L)
   grownUnreached <- grownUnreached + sum(tau$var == -1L & tau$n == 0L)
 }
 expect_true(grownLeaves > 30L * numTrees) # the trees grew; the check bites
-expect_equal(grownUnreached, 0L)
+expect_equal(grownEmpty, 0L)
+expect_true(grownUnreached > 0L)
 
 rm(
   n,
@@ -187,22 +184,25 @@ rm(
   sampler,
   reference,
   tauLeaves,
+  tauEmpty,
+  muEmpty,
   tauUnreached,
-  muUnreached,
   tauCounts,
   referenceCounts,
   i,
   tau,
-  mu,
+  tauMembers,
+  muMembers,
   zeroed,
   tauNodes,
   zeroedDraws,
   masked,
-  bare,
+  maskedNodes,
   maskedDraws,
   grown,
   forestWeight,
   reached,
   grownLeaves,
+  grownEmpty,
   grownUnreached
 )

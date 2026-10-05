@@ -486,10 +486,10 @@ expect_error(
   "not available on a multinomial sampler"
 )
 
-# The mask is the category forests' VETO vector as well as the sweep's
-# precisions: with every row inactive no leaf may hold a row the likelihood
-# sees, so the prior draw returns one bare root per tree. Reading omega alone
-# leaves every row positive-precision and the same draw grows trees.
+# The mask is the sweep's precisions and nothing the tree prior reads: an
+# inactive row occupies its leaf, so with every row inactive the prior draw
+# returns the forest it returns with no mask at all, not one bare root per
+# tree.
 priorNodes <- function(mask) {
   sampler <- multinomialSamplerActiveRowsPins(counts.mn, mask)
   sampler$sampleTreesFromPrior()
@@ -500,11 +500,15 @@ priorNodes <- function(mask) {
     forest = 1L
   )
 }
-barePrior <- priorNodes(rep(0, n))
-expect_equal(nrow(barePrior), control@n.trees)
-expect_true(all(barePrior$var == -1L))
-# non-vacuity: unmasked, the same category forest grows past its roots
-expect_true(nrow(priorNodes(NULL)) > 2L * control@n.trees)
+maskedPrior <- priorNodes(rep(0, n))
+unmaskedPrior <- priorNodes(NULL)
+expect_identical(
+  maskedPrior[c("tree", "n", "var")],
+  unmaskedPrior[c("tree", "n", "var")]
+)
+expect_true(all(maskedPrior$n[maskedPrior$var == -1L] > 0L))
+# non-vacuity: the category forest grows past its roots
+expect_true(nrow(unmaskedPrior) > 2L * control@n.trees)
 
 rm(
   K.mn,
@@ -516,7 +520,8 @@ rm(
   train.mn.b,
   train.mn.empty,
   priorNodes,
-  barePrior,
+  maskedPrior,
+  unmaskedPrior,
   n,
   x,
   y,

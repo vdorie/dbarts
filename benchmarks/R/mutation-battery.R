@@ -290,8 +290,8 @@ mutations <- list(
   mk(
     "m15",
     "src/bartcore/model.hpp",
-    "                             projection);\n\n    double ridge = (k / scale) * (k / scale) * residualVariance;",
-    "                             projection);\n\n    double ridge = (k / scale) * (k / scale);",
+    "    if (!(crossproduct[0] > 0.0)) return 0.0;\n\n    double ridge = (k / scale) * (k / scale) * residualVariance;",
+    "    if (!(crossproduct[0] > 0.0)) return 0.0;\n\n    double ridge = (k / scale) * (k / scale);",
     "KILL_EXPECTED",
     kScript("benchmarks/R/linear-exact.R"),
     "poison 15: linear leaf's branch marginal (score side only) drops sigma^2 from the ridge (was model.hpp:304); gate-hardening-1.0 sub-item 4 added linear-exact.R for exactly this"

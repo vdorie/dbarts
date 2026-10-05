@@ -1,14 +1,14 @@
 # sampleTreesFromPrior draws the tree prior CONDITIONED on the empty-leaf-free
 # set the move kernels price, by per-tree
-# rejection. The conditioning predicate is the veto's own - positive WEIGHT,
-# not membership - so under a zero-weight half-space no leaf of a from-prior
-# forest may hold only zero-weight rows. The projection this replaced collapsed
-# on the member count, which spares such a leaf; a birth out of one then
-# compared -HUGE_VAL to -HUGE_VAL, a NaN ratio that rejected silently.
+# rejection. The conditioning predicate is the veto's own - membership, not
+# weight - so every leaf of a from-prior forest holds a row, a leaf may hold
+# only zero-weight rows, and the draw does not read the weights at all: a
+# sampler carrying a zero-weight half-space and one carrying no weights draw
+# the same forests from the same seed.
 #
-# The oracle needs no tree walk: routing ONLY the positive-weight rows through
-# the drawn trees (getTrees(newdata = )) counts, per node, the rows the
-# likelihood can see, so the law says every leaf reports n > 0.
+# The oracle needs no tree walk: the drawn trees report, per node, the rows
+# that reach it (getTrees) and, routing ONLY the positive-weight rows through
+# them (getTrees(newdata = )), the rows the likelihood can see.
 
 set.seed(20260818L)
 n <- 60L
@@ -26,35 +26,65 @@ control <- dbarts::dbartsControl(
 )
 
 # 300 forests of 20 trees each, all from the C-side stream the control seed
-# fixes, so the count is deterministic
-drawAndCountEmptyLeaves <- function(weights) {
-  args <- list(x, y, control = control)
-  if (!is.null(weights)) {
-    args$weights <- weights
-  }
-  sampler <- suppressWarnings(do.call(dbarts::dbarts, args))
+# fixes, so the counts are deterministic
+drawAndCountLeaves <- function(weights) {
+  sampler <- dbarts::dbarts(x, y, weights = weights, control = control)
   empty <- 0L
+  weightless <- 0L
   leaves <- 0L
+  structure <- character(300L)
   for (i in seq_len(300L)) {
     sampler$sampleTreesFromPrior()
-    trees <- sampler$getTrees(
+    members <- sampler$getTrees(current = TRUE)
+    weighted <- sampler$getTrees(
       current = TRUE,
       newdata = x[kept, , drop = FALSE]
     )
-    bottoms <- trees[trees$var == -1L, ]
-    leaves <- leaves + nrow(bottoms)
-    empty <- empty + sum(bottoms$n == 0L)
+    isLeaf <- members$var == -1L
+    leaves <- leaves + sum(isLeaf)
+    empty <- empty + sum(members$n[isLeaf] == 0L)
+    weightless <- weightless + sum(weighted$n[isLeaf] == 0L)
+    structure[i] <- paste0(members$n, ":", members$var, collapse = "|")
   }
-  c(leaves = leaves, empty = empty)
+  list(
+    leaves = leaves,
+    empty = empty,
+    weightless = weightless,
+    structure = structure
+  )
 }
 
-weighted <- drawAndCountEmptyLeaves(w)
-expect_true(weighted[["leaves"]] > 6000L) # the trees grew; the check bites
-expect_equal(weighted[["empty"]], 0L)
+weighted <- drawAndCountLeaves(w)
+expect_true(weighted$leaves > 6000L) # the trees grew; the check bites
+expect_equal(weighted$empty, 0L)
+# leaves that no positive-weight row reaches are legal, and common
+expect_true(weighted$weightless > 100L)
 
-# non-vacuity: with no weight vector installed the same fixture conditions on
-# membership alone, and leaves that no positive-weight row reaches are common
-counted <- drawAndCountEmptyLeaves(NULL)
-expect_true(counted[["empty"]] > 100L)
+# the prior over trees does not depend on the weights
+counted <- drawAndCountLeaves(NULL)
+expect_identical(weighted$structure, counted$structure)
 
-rm(n, x, w, kept, y, control, drawAndCountEmptyLeaves, weighted, counted)
+# nor on an active-row mask, an all-zeros one included: the forests are the
+# same draws, not one bare root per tree
+masked <- dbarts::dbarts(x, y, control = control)
+masked$setActiveRows(rep(0, n))
+masked$sampleTreesFromPrior()
+maskedTrees <- masked$getTrees(current = TRUE)
+expect_identical(
+  paste0(maskedTrees$n, ":", maskedTrees$var, collapse = "|"),
+  counted$structure[1L]
+)
+
+rm(
+  n,
+  x,
+  w,
+  kept,
+  y,
+  control,
+  drawAndCountLeaves,
+  weighted,
+  counted,
+  masked,
+  maskedTrees
+)

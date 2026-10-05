@@ -47,6 +47,11 @@ struct TestPeer {
                                                       std::size_t f) {
     return chain.forests_[f].totalFits;
   }
+  /// The per-observation weight installed on forest f, or null when none is.
+  template <IntegrableLeafModel L, typename R>
+  static const double* forestWeights(const Chain<L, R>& chain, std::size_t f) {
+    return chain.forestWeights_.empty() ? nullptr : chain.forestWeights_[f];
+  }
   /// Tree t's obs-to-leaf map (constant leaf, forest 0), where entry i is the
   /// arena bottom-node index owning observation i.
   template <IntegrableLeafModel L, typename R>

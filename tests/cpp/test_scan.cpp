@@ -199,11 +199,11 @@ void testHistogramTotals() {
 // The bin's split, pinned at a fixture where it bites: count tallies MEMBERS,
 // sumWeights sums their weights, so a bin made entirely of zero-weight members
 // carries positive count and zero sumWeights at once (ConstantLeafScanBin,
-// scan.hpp). The occupancy gate reads sumWeights, the emptiness law the move
-// kernels hold (docs/design/empty-leaf-veto.md), so a cut isolating such a bin
-// is VETOED with the sentinel rather than scored - it would otherwise land a
-// leaf whose every member is invisible to the likelihood, out of which a birth
-// compares -inf against -inf.
+// scan.hpp). The occupancy gate reads count, the emptiness the move kernels
+// hold (docs/design/empty-leaf-veto.md), so a cut isolating such a bin is
+// SCORED - its zero-weight side at exactly 0, its other side at the whole
+// node's marginal - and the candidate set is the one the same members give
+// with no weights at all.
 void testCountWeightSplit() {
   // a saved snapshot of the shared runif01 stream keeps the seed-pinned suites
   // downstream of this TU bitwise intact
@@ -242,22 +242,30 @@ void testCountWeightSplit() {
                   "zero sumWeights");
 
   // the scan over the same fixture: the cut isolating those codes carries no
-  // weight on one side and is vetoed, while a cut with weight on both sides
-  // still scores - the veto is the weight law, not a blanket refusal
+  // weight on one side and is a candidate all the same, scored at the other
+  // side's marginal alone
   size_t isolatingCut = static_cast<size_t>(boundaryCode) - 1;
   ConstantGaussianLeaf leaf{0.5};
   std::vector<ConstantLeafScanBin> binScratch;
-  std::vector<double> scan(numCuts);
+  std::vector<double> scan(numCuts), unweighted(numCuts);
   scanOrdinalCuts(store, 0, members.data(), n, y.data(), w.data(), leaf, 2.0,
                   0.7, binScratch, scan.data());
-  check(scan[isolatingCut] == cutScanEmptySentinel,
-        "a zero-weight-only side is vetoed, member count notwithstanding");
-  size_t weightedCut = static_cast<size_t>(store.codeAt(0, n / 2));
-  check(weightedCut > static_cast<size_t>(boundaryCode) &&
-          weightedCut + 1 < numCuts,
-        "the fixture leaves a cut with weight on both sides");
-  check(std::isfinite(scan[weightedCut]),
-        "a cut carrying weight on both sides still scores");
+  ConstantLeafScanBin weighted;
+  for (size_t code = 0; code < numBins; ++code) weighted.addBin(bins[code]);
+  check(scan[isolatingCut] ==
+          leaf.logIntegratedLikelihood(2.0, 0.7, weighted.sumWeights,
+                                       weighted.sumWeightedResponse),
+        "a zero-weight-only side scores 0 and its sibling the node's marginal");
+  check(leaf.logIntegratedLikelihood(2.0, 0.7, 0.0, 0.0) == 0.0,
+        "the marginal at no weight is exactly 0");
+  scanOrdinalCuts(store, 0, members.data(), n, y.data(), nullptr, leaf, 2.0,
+                  0.7, binScratch, unweighted.data());
+  bool sameCandidates = true;
+  for (size_t cut = 0; cut < numCuts; ++cut)
+    sameCandidates &= (scan[cut] == cutScanEmptySentinel) ==
+                      (unweighted[cut] == cutScanEmptySentinel);
+  check(sameCandidates,
+        "the weights move the scores and never which cuts are candidates");
 
   rngState = savedRngState;
   printf("ok: scan count/sumWeights split\n");
@@ -471,6 +479,55 @@ void testMissingRouted() {
   check(pairedSentinel,
         "a one-sided cut sentinels BOTH missing directions, and a splittable "
         "one neither");
+
+  // The MOVES' reading of the same member set, which a kernel holding the
+  // ancestor interval itself asks for: a child is empty only when no member
+  // reaches it, routed rows included, so a one-sided cut is legal in the
+  // direction that sends the missing rows to the side the others left. Under
+  // weights zeroing the band the candidate set must not move.
+  std::vector<double> bandWeights(n, 1.0);
+  for (index_t m : banded)
+    if (store.codeAt(0, m) != naCode) bandWeights[m] = 0.0;
+  for (const double* weights : {static_cast<const double*>(nullptr),
+                                static_cast<const double*>(bandWeights.data())}) {
+    std::vector<double> movesScan(2 * numCuts, poison);
+    scanOrdinalCuts(store, 0, banded.data(), banded.size(), y.data(), weights,
+                    leaf, k, residualVariance, binScratch, movesScan.data(),
+                    true);
+    bool legalExact = true, scoresExact = true, sawRoutedOnly = false;
+    for (size_t cut = 0; cut < numCuts; ++cut) {
+      for (size_t side = 0; side < 2; ++side) {
+        double lw = 0.0, lwz = 0.0, rw = 0.0, rwz = 0.0;
+        size_t lc = 0, rc = 0;
+        for (index_t m : banded) {
+          xint_t code = store.codeAt(0, m);
+          bool left = code == naCode ? side == 0
+                                     : static_cast<size_t>(code) <= cut;
+          double w = weights == nullptr ? 1.0 : weights[m];
+          if (left) { ++lc; lw += w; lwz += w * y[m]; }
+          else { ++rc; rw += w; rwz += w * y[m]; }
+        }
+        double entry = movesScan[2 * cut + side];
+        bool legal = lc > 0 && rc > 0;
+        legalExact &= (entry != cutScanEmptySentinel) == legal;
+        sawRoutedOnly |=
+          legal && bandedScan[2 * cut + side] == cutScanEmptySentinel;
+        if (!legal) continue;
+        double expected =
+          leaf.logIntegratedLikelihood(k, residualVariance, lw, lwz) +
+          leaf.logIntegratedLikelihood(k, residualVariance, rw, rwz);
+        scoresExact &= std::fabs(entry - expected) <=
+                       1e-11 * (1.0 + std::fabs(expected));
+      }
+    }
+    check(legalExact,
+          "under the moves' reading a candidate is refused exactly when a "
+          "child holds no member, whatever the weights");
+    check(scoresExact,
+          "and every other candidate scores its two children's marginals");
+    check(sawRoutedOnly,
+          "non-vacuity: some cut is legal only through its routed rows");
+  }
 
   printf("ok: scan missing routed\n");
 }

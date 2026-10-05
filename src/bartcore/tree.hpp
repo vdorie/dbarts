@@ -347,34 +347,16 @@ public:
   Node& at(int32_t i) { return nodes[static_cast<size_t>(i)]; }
   const Node& at(int32_t i) const { return nodes[static_cast<size_t>(i)]; }
 
-  /// Emptiness as the branch log-likelihood's veto means it: a leaf is empty
-  /// when no member carries positive weight. With no weight vector installed
-  /// this IS the member count, bit for bit the test the veto has always run;
-  /// with one, a zero-weight row is absent from the likelihood rather than
-  /// downweighted, so a leaf of only such rows carries
-  /// nothing to estimate a parameter from and its branch must be vetoed. The
-  /// scan stops at the first positive weight, so an ordinary leaf costs one
-  /// gather; only a leaf that is about to be vetoed walks its members.
-  bool leafHasNoWeight(int32_t i, const double* weights) const {
-    const Node& node(at(i));
-    if (weights == nullptr) return node.numObservations() == 0;
-    for (size_t j = node.begin; j < node.end; ++j)
-      if (weights[indices[j]] > 0.0) return false;
-    return true;
-  }
-  /// The leaf's rank under the branch veto: 2 when it holds no member at all,
-  /// 1 when it holds members but none of positive weight, 0 when a likelihood
-  /// term reaches it. The two vetoed levels stay apart because they answer to
-  /// different laws. Level 2 is the MEMBERSHIP law every site outside the move
-  /// kernels enforces (bottomNodesAreOccupied), so no move may install one
-  /// even from a state that is already vetoed; level 1 is the move kernels'
-  /// own law and IS reachable in the current state, since weights do not ride
-  /// the tree and any weight install can strand a leaf, so a move out of such
-  /// a state must be priced rather than compared against a like penalty.
-  int leafVetoRank(int32_t i, const double* weights) const {
-    if (at(i).numObservations() == 0) return 2;
-    return leafHasNoWeight(i, weights) ? 1 : 0;
-  }
+  /// Whether leaf i is empty: no row reaches it. The one definition every path
+  /// that decides whether a branch is legal reads - the moves' branch score,
+  /// the cut scans, the prior initializers and bottomNodesAreOccupied. It
+  /// counts MEMBERS, whatever weight they carry: a row of zero weight, or one
+  /// an active-row mask switches off, is in the design and occupies its leaf,
+  /// so the set of legal trees is a function of the predictors alone and does
+  /// not move when the weights or the mask do. A leaf of only such rows is
+  /// legal; no likelihood term reaches it, so it scores 0 and its parameter
+  /// is a draw from the prior.
+  bool leafIsEmpty(int32_t i) const { return at(i).numObservations() == 0; }
   bool hasSingleNode() const { return at(0).isBottom(); }
 
   bool childrenAreBottom(int32_t i) const {
@@ -977,22 +959,11 @@ public:
     repartitionSubtree(data, at(nodeIndex).leftChild + 1);
   }
 
-  /// Validity criterion after a predictor change: no bottom node may be left
-  /// without observations.
+  /// Whether no bottom node is empty (leafIsEmpty): the set of trees the moves
+  /// admit, the validity criterion after a predictor change and the test a
+  /// state install merges on.
   bool bottomNodesAreOccupied() const {
     return bottomNodesAreOccupiedBelow(0);
-  }
-
-  /// Whether the tree is in the set the branch log-likelihood's veto admits:
-  /// no bottom node fails leafHasNoWeight. This is the emptiness law of the
-  /// move kernels, not the membership law
-  /// bottomNodesAreOccupied answers for state restore; the two agree exactly
-  /// when no weight vector is installed. leafVetoRank splits the failure into
-  /// the two levels the moves order lexicographically: a tree can leave this
-  /// set through a weight install (rank 1, transient - the moves price their
-  /// way out) but never through a move (rank 2 is refused absolutely).
-  bool bottomNodesHaveWeight(const double* weights) const {
-    return bottomNodesHaveWeightBelow(0, weights);
   }
 
   /// Repartition a subtree after its rule changed, recomputing leaf stats.
@@ -1323,15 +1294,9 @@ private:
   }
 
   bool bottomNodesAreOccupiedBelow(int32_t i) const {
-    if (at(i).isBottom()) return at(i).numObservations() > 0;
+    if (at(i).isBottom()) return !leafIsEmpty(i);
     return bottomNodesAreOccupiedBelow(at(i).leftChild) &&
            bottomNodesAreOccupiedBelow(at(i).leftChild + 1);
-  }
-
-  bool bottomNodesHaveWeightBelow(int32_t i, const double* weights) const {
-    if (at(i).isBottom()) return !leafHasNoWeight(i, weights);
-    return bottomNodesHaveWeightBelow(at(i).leftChild, weights) &&
-           bottomNodesHaveWeightBelow(at(i).leftChild + 1, weights);
   }
 
   void collapseSubtreeToLeaf(int32_t nodeIndex) {

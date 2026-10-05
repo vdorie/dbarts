@@ -538,18 +538,6 @@ struct ForestCombiner {
       const std::vector<Forest<L, ResidT>>& forests, const double* y,
       const double* w) = 0;
 
-  /// Forest f's per-observation VETO precisions: the weights half of
-  /// formForestResponse, formed alone so a caller holding no glue draw can
-  /// still ask which rows forest f's likelihood reaches. The tree prior is
-  /// conditioned on exactly that support, so an override owes the vector its
-  /// own formForestResponse would return, and
-  /// may read nothing the response half draws. w is the chain's working
-  /// precisions; the pointer aliases combiner scratch, valid until the next
-  /// call. Pure rather than inert: a coupling defaulted to the global weights
-  /// would draw initial forests from a law its own moves reject.
-  virtual const double* formForestVetoWeights(std::size_t f,
-                                              const double* w) = 0;
-
   /// The combined per-observation location over all forests; the pointer aliases
   /// combiner scratch, valid only until the next call.
   virtual const double* combinedFits(const std::vector<Forest<L, ResidT>>& forests) = 0;
@@ -909,22 +897,6 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
       glue_.forestWeights[i] = (w == nullptr ? 1.0 : w[i]) * m * m;
     }
     return {glue_.forestResponse.data(), glue_.forestWeights.data()};
-  }
-
-  /// The precisions above without the response: w_i m_f(i)^2 under the same
-  /// near-zero snap, so a row the reparameterization drops is a row no leaf of
-  /// forest f may hold alone. The snap is what makes bcf's creation glue visible
-  /// here - b0 = 0 leaves every control row weightless in the treatment forest.
-  const double* formForestVetoWeights(std::size_t f, const double* w) override {
-    std::size_t n = data_.numObservations;
-    glue_.forestWeights.resize(n);
-    for (std::size_t i = 0; i < n; ++i) {
-      double m = forestMultiplier(f, i);
-      glue_.forestWeights[i] = std::fabs(m) < zeroMultiplierTolerance
-        ? 0.0
-        : (w == nullptr ? 1.0 : w[i]) * m * m;
-    }
-    return glue_.forestWeights.data();
   }
 
   /// The combined location, sum_f m_f(i) f_f(x_i), accumulated WITHIN the row
@@ -1347,9 +1319,9 @@ inline void softmaxLocationMajor(const double* raw, std::size_t n,
 /// factor 1: PG(0, .) is the point mass at 0 and kappa = y_ik - n_i/2 = 0. It
 /// is therefore exactly an inactive row of the global mask, and is composed
 /// into it (effectiveRows_ = mask AND n_i > 0) rather than tested in the sweep
-/// loops: its latents are skipped, its precision is zero in every category and
-/// the empty-leaf veto counts it absent, while it keeps its leaf occupancy and
-/// its reported probabilities. A data set with no such row serves the caller's
+/// loops: its latents are skipped and its precision is zero in every category,
+/// while it keeps its leaf occupancy - it counts toward the empty-leaf veto as
+/// any member does - and its reported probabilities. A data set with no such row serves the caller's
 /// mask, or none, exactly as without this composition.
 template <IntegrableLeafModel L, typename ResidT = double>
 struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
@@ -1490,9 +1462,8 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// A cancel polled inside the draws throws RefreshCancelled before forest
   /// f's tree update, leaving omega's f-th column part this sweep's draw and
   /// part the last, and margins_ part written. Neither is state of the chain:
-  /// formForestResponse(f), their only reader, is skipped, the next sweep
-  /// writes every column before it reads it, and a veto reads only omega's
-  /// support, which is positive either way. What stands is the tree updates of
+  /// formForestResponse(f), their only reader, is skipped, and the next sweep
+  /// writes every column before it reads it. What stands is the tree updates of
   /// the categories before f, each a valid Gibbs step, as a cancel between
   /// sweeps leaves; lastF_ = f routes the next f == 0 call through the full
   /// rebuild.
@@ -1623,21 +1594,6 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
       for (std::size_t i = 0; i < n; ++i)
         forestWeights_[i] *= effectiveRows_[i];
     return {forestResponse_.data(), forestWeights_.data()};
-  }
-
-  /// Category f's veto precisions: omega_if under the effective mask (the
-  /// active-row mask with the zero-trial rows composed in), the same product
-  /// the response half composes. The chain's w is ignored here as it is there -
-  /// this family carries its precisions in omega, which is strictly positive
-  /// whether drawn or cold-started, so the effective mask is the only zero.
-  const double* formForestVetoWeights(std::size_t f,
-                                      const double* /*w*/) override {
-    std::size_t n = data_.numObservations;
-    const double* omega = omega_.data() + f * n;
-    for (std::size_t i = 0; i < n; ++i)
-      forestWeights_[i] =
-        effectiveRows_.empty() ? omega[i] : omega[i] * effectiveRows_[i];
-    return forestWeights_.data();
   }
 
   /// The K softmax probabilities per observation, location-major (channel k at

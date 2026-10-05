@@ -7511,9 +7511,9 @@ static void testMonotoneFeasibility() {
   check(sentinel == -HUGE_VAL, "monotone empty cone scores the sentinel");
 
   // the constrained leaf owns the whole branch marginal, but NOT the veto:
-  // that is the caller's branch rank, taken over the same leaves for every
-  // leaf model (docs/design/empty-leaf-veto.md), so a leaf of only zero-weight
-  // rows leaves the marginal finite here and is refused one level up
+  // that is the caller's, taken over the same leaves for every leaf model
+  // (docs/design/empty-leaf-veto.md). A leaf of only zero-weight rows is no
+  // empty leaf: the marginal stays finite here and the caller admits it
   std::vector<double> muFeasible(tree.nodes.size(), 0.0);
   muFeasible[lowLeaf] = -1.0;
   muFeasible[highLeaf] = 1.0;  // increasing, so every cone is non-degenerate
@@ -7528,9 +7528,8 @@ static void testMonotoneFeasibility() {
   check(std::isfinite(leaf.logLikelihoodForBranchWithParams(
           tree, 0, yg.data(), midZeroed.data(), 2.0, 1.0, muFeasible.data())),
         "monotone branch scores a leaf of only zero-weight rows finite");
-  check(tree.leafVetoRank(midLeaf, midZeroed.data()) == 1 &&
-          tree.leafVetoRank(midLeaf, unitWeights.data()) == 0,
-        "the rank vetoes that leaf on the branch's behalf");
+  check(!tree.leafIsEmpty(midLeaf) && tree.bottomNodesAreOccupied(),
+        "and that leaf is occupied, so its branch is legal");
 
   // draw sweep keeps the tree feasible from a feasible start
   std::vector<double> mu2(tree.nodes.size(), 0.0);

@@ -5,7 +5,8 @@
 # The leading oracle is a sampler whose empty rows instead carry other counts
 # and are masked through $setActiveRows: the mask's own arms pin that path, so
 # agreement there says a zero-trial row IS an inactive row. The fresh-x arm
-# then ties the rows to the fit without them.
+# then says what such a row still is: a row of the design, which occupies its
+# leaf, so the fit is not the fit without it.
 
 zeroTrialsKey <- "multinomialZeroTrials"
 resetZeroTrialsKey <- function() {
@@ -166,9 +167,9 @@ expect_true(isSimplex(emptyRun$train))
 both <- build(xAll, countsEmpty, 12L, maskEmpty)
 expect_identical(both$run(30L, 20L)$train, emptyRun$train)
 
-# the veto: $sampleTreesFromPrior is the one reader of the veto precisions.
-# The empty rows sit apart from the data rows, so a prior split between them
-# leaves a leaf of only empty rows, which the veto must count absent
+# the prior draw: the empty rows sit apart from the data rows, so a prior
+# split between them leaves a leaf of only empty rows, which is legal with the
+# rows empty and with them masked alike
 xApart <- rbind(x, cbind(runif(numEmpty, 1.2, 1.5), runif(numEmpty)))
 empty <- build(xApart, countsEmpty, 13L)
 masked <- build(xApart, countsFilled, 13L, maskEmpty)
@@ -180,7 +181,11 @@ expect_identical(
 )
 
 # --- against the fit without the rows --------------------------------------
-# many more empty rows than data rows, so leaves holding only empty rows arise
+# An empty row is in the design and not in the likelihood. It occupies its
+# leaf, so a category forest may hold a leaf of only empty rows, whose value is
+# a draw from the prior, and the fit is then close to the fit without the rows
+# and not equal to it. Many more empty rows than data rows, so such leaves
+# arise.
 numMany <- 300L
 xMany <- rbind(
   x,
@@ -190,12 +195,43 @@ xMany <- rbind(
   )
 )
 countsMany <- rbind(counts, matrix(0L, numMany, K))
-withRows <- build(xMany, countsMany, 14L)$run(30L, 20L)
-withoutRows <- build(x, counts, 14L)$run(30L, 20L)
-expect_equal(
-  withRows$train[dataRows, , ],
-  withoutRows$train,
-  tolerance = 1e-12
+withMany <- build(xMany, countsMany, 14L)
+invisible(withMany$run(30L, 1L))
+# over 40 states of the three category forests: every leaf holds a row, and
+# about one in a hundred holds no data row
+numUnoccupied <- 0L
+numEmptyOnly <- 0L
+for (i in seq_len(40L)) {
+  invisible(withMany$run(0L, 5L))
+  for (category in seq_len(K)) {
+    members <- withMany$getTrees(
+      chainNums = 1L,
+      current = TRUE,
+      forest = category
+    )
+    dataMembers <- withMany$getTrees(
+      chainNums = 1L,
+      current = TRUE,
+      forest = category,
+      newdata = x
+    )
+    isLeaf <- members$var == -1L
+    numUnoccupied <- numUnoccupied + sum(members$n[isLeaf] == 0L)
+    numEmptyOnly <- numEmptyOnly + sum(dataMembers$n[isLeaf] == 0L)
+  }
+}
+expect_identical(numUnoccupied, 0L)
+expect_true(numEmptyOnly > 0L)
+withRows <- withMany$run(0L, 200L)
+withoutRows <- build(x, counts, 14L)$run(30L, 200L)
+# the data rows' posterior mean probabilities stay those of the fit without
+# the empty rows to Monte Carlo error, which is 0.06 between two seeds here
+expect_true(
+  max(abs(
+    apply(withRows$train[dataRows, , ], c(1L, 2L), mean) -
+      apply(withoutRows$train, c(1L, 2L), mean)
+  )) <
+    0.15
 )
 # non-vacuity: the same rows with counts are a different posterior
 filledRows <- build(
@@ -203,10 +239,13 @@ filledRows <- build(
   rbind(counts, countsMany[n + seq_len(numMany), ] + 1L),
   14L
 )
-expect_false(isTRUE(all.equal(
-  filledRows$run(30L, 20L)$train[dataRows, , ],
-  withoutRows$train
-)))
+expect_true(
+  max(abs(
+    apply(filledRows$run(30L, 200L)$train[dataRows, , ], c(1L, 2L), mean) -
+      apply(withoutRows$train, c(1L, 2L), mean)
+  )) >
+    0.15
+)
 
 # --- mid-run: $setCounts emptying rows is $setActiveRows on them -------------
 emptied <- build(xAll, countsFilled, 15L)

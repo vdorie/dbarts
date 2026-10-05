@@ -1155,11 +1155,11 @@ sbcCheckVarianceChannel <- function(config, seed = 99L) {
 # driver is runSbcFamily, off the sbcFamilySpec branch below, so one generator
 # serves both the burn ladder and the R-replication run.
 
-# Install a drawn (a, b0, b1) as the sampler's LIVE glue. The tree prior is
-# glue-dependent: each forest's prior trees are drawn conditioned on the
-# no-empty-leaf set of that forest's own veto vector, w * b_z^2 for the
-# treatment forest, so trees drawn before the glue is installed come from a
-# different law than the theta0 that reports them. Round-tripped through the
+# Install a drawn (a, b0, b1) as the sampler's LIVE glue, so the theta0 a
+# replication reports and the state its fit starts from carry the same one.
+# The tree prior does not read it: each forest's prior trees are drawn
+# conditioned on holding no leaf that no row reaches, whatever precision the
+# glue gives a row. Round-tripped through the
 # state, whose glue block is [K, q_1..q_K, amplitudes, K prior variances] - here
 # K = 2 with widths (1, 2) - and which is re-installed exactly as stored in
 # every other respect, the rng included.
@@ -1702,8 +1702,7 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
       if (!is.null(a)) {
         g0$a <- a
       }
-      # the glue is installed BEFORE the forests: each forest's prior trees are
-      # drawn against its own veto vector, which the glue sets
+      # the glue is installed first; the forests' prior draws do not read it
       sbcInstallBCFGlue(bcf, g0)
       bcf$sampleTreesFromPrior()
       bcf$sampleLeafParametersFromPrior()

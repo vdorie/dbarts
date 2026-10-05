@@ -25,14 +25,13 @@
 # ---- the prior-only arm ----
 #
 # An all-zero weight vector installed with $setWeights turns the likelihood
-# off. Under it every leaf holding rows takes veto rank 1 and every leaf
-# holding none rank 2, so the smallest rank the candidates carry is 1, the
-# stratum the kernel draws over is exactly the member-occupied candidate set,
-# and the scan's rank-admitted marginal S is 0 across all of it: EVERY
-# candidate's occupancy rank is the same, the stratum is the whole
-# neighbourhood, and the draw is the prior conditional on the rule at that
-# node. So this arm exercises the node selection, the enumeration, the rank
-# stratum, the rule prior and the two `1 - growth` factors, and it does NOT
+# off. Under it every leaf holding rows is legal and scores 0 and a rule
+# leaving a leaf no row reaches is no candidate, so the set the kernel draws
+# over is exactly the member-occupied candidate set - the one it draws over
+# under any weights - and the scan's marginal S is 0 across all of it: the
+# draw is the prior conditional on the rule at that node. So this arm
+# exercises the node selection, the enumeration, the refusal of an empty
+# child, the rule prior and the two `1 - growth` factors, and it does NOT
 # exercise one scan entry - which is why the confirmation arm below is
 # mandatory here rather than optional as it is for a Metropolis move.
 #
