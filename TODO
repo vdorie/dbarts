@@ -637,9 +637,9 @@ hurdle feature completion (VD 2026-09-26: part of feature completion,
   the R composition uses the positive part's test slot to hand that
   sampler the full training x. Owed: a real test channel (extract and
   fitted then take sample), and weights, subset and offset where the
-  two-part model defines them. The same slot is why a hurdle fit refuses
-  na.omit/na.exclude on a missing predictor: a row dropped from the
-  positive part's training stays, now unroutable, in its full-x test.
+  two-part model defines them. An offset has to say which part it
+  enters: pscl::hurdle puts its offset argument in the positive part and
+  takes a zero-part offset as a formula term.
   The real channel must also reduce the fit's stored y by the
   zero part's na.action, which fitted/residuals already pad through.
   Schedule not yet set by VD.
