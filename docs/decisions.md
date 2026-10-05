@@ -1456,6 +1456,10 @@ Record: this register. Marked: blank. [dec-B211]
 Under dec-B203, pdbart and pd2bart refuse by name the bart arguments they set themselves - keepTrees = FALSE, samplerOnly, test and offset.test, and their BayesTree spellings - and honour keepSampler = FALSE by dropping the sampler from the result; keepTrees = TRUE is accepted as a no-op. Their ... reaches only the fit, never the plot, and stays in 1.0-0 because it is how the BayesTree spellings are accepted and translated (dec-B205). At 1.1-0, when those spellings are refused, the ... is replaced by bart's usable arguments listed explicitly, with a test that pdbart's and pd2bart's arguments equal bart's less the excluded set, so the list cannot drift; the plot methods keep their own ..., which go to plot and image. The alternatives were overriding the four silently, keeping ... permanently with the refusals, copying bart's arguments now, and taking bart's settings as a list argument. The maintainer on 2026-10-04 asked: "Would it make sense to keep `...` for now but once the old arguments are refused close the argument list to just those that can actually be used?", and, told that pdbart's ... never reaches the plot: "Let's do that."
 Record: this register; TODO pdbart-closed-arguments. Marked: blank. [dec-B212]
 
+**pdbart says once per session that its defaults changed**
+Under dec-B206, a pdbart or pd2bart call that passes data and names no BayesTree argument shows its own once-per-session message that the fit now uses bart's defaults and that pdbart(bartBT(x, y, keeptrees = TRUE)) gives the 0.9-34 model; it is not shown for a fit passed in or to calls from another package's code, and is removed at 1.1-0 with the other transition notices. bart's own message is held back inside pdbart without using up its showing. The alternative was NEWS alone. The maintainer on 2026-10-04: "pdbart gets its own once-per-session message."
+Record: this register. Marked: blank. [dec-B213]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
