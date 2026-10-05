@@ -1,6 +1,6 @@
 # quantile-grid-spread: quantile split points cover the whole column
 
-Status: PLANNED.
+Status: LANDED 2026-10-05 (36d4ff88, 45dd3d09).
 
 agent: opus implementer, one; opus reviewer.
 rng: POSTERIOR-CHANGING for a fit with `useQuantiles = TRUE` (or `usequants = TRUE`) on a column with more
@@ -88,3 +88,23 @@ floor((U - 1) / (2m)) + 1 distinct values beyond either end cut. A refresh appli
   more distinct values than cuts plus one, so none is expected to move.
 - `lintr::lint_package()`, `air format --check .`, the three tools/ checks and
   `Rscript benchmarks/R/mutation-battery.R verify-anchors` clean.
+
+## Landing note
+
+Landed 2026-10-05 as 36d4ff88 (the rule, tests, design note, manual and NEWS) and 45dd3d09 (the equivalence
+baseline's quantile scenario re-recorded on the reference build as equivalence-36d4ff88, the other 54
+scenarios carried bit for bit, and the pins moved). Review SOUND WITH CORRECTIONS: the engine change stood,
+and the corrections were the baseline's name after the rebase, counts, and wording. Full tinytest 13815
+results, 0 failures; tests/cpp passes, clean under ASan and UBSan; the four seeded snapshot files unchanged on
+the reference build; equivalence 55 of 55 bitwise against the new baseline on the reference and shipped
+builds, BCF 15 of 15 and multinomial 11 of 11; all 30 exact gates pass in quick mode. Against the previous
+baseline the quantile scenario's largest z was 3.06. The engine matches an independent R implementation of
+the rule over 307 pairs of distinct-value and cut counts, and five wrong variants of the index each fail
+tests/cpp.
+
+The compare against 0.9-34: its quantile row, 500 distinct values at 20 cuts, no longer agrees (largest z
+6.92 against 3.01 on a build without the change), which is the grid itself and is listed with the explained
+differences. That row therefore no longer measures the engine; a quantile scenario with no more distinct
+values than cuts plus one, its 0.9-34 side re-taken, is queued in TODO. A held count is still not raised at a
+refresh; that is queued too. `xbart` returns no sampler to read a grid from, so the entry-point test covers
+`dbarts`, `bart`, `bartBT`, a BayesTree-spelled `bart` call, `rbart_vi`, `pdbart` and `pd2bart`.

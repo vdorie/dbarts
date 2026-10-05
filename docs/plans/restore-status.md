@@ -1,6 +1,6 @@
 # restore-status: setState returns whether the restore was exact
 
-Status: PLANNED.
+Status: LANDED 2026-10-05 (bdc3cd0c, a63e4554).
 
 agent: opus implementer, one; opus reviewer.
 rng: NEUTRAL. Only a return value is added; no install changes.
@@ -82,3 +82,18 @@ without touching the bridge or R again.
 - The equivalence compares in statistical (z) mode against the current baselines: every scenario identical.
 - `lintr::lint_package()`, `air format --check .`, the three tools/ checks and
   `Rscript benchmarks/R/mutation-battery.R verify-anchors` clean.
+
+## Landing note
+
+Landed 2026-10-05 as bdc3cd0c (the flag, from the live build to the R method) and a63e4554 (review
+correction: a units pass counts only when it moves a value, so two ranges that are the same units leave the
+value `TRUE`). Review SOUND WITH CORRECTIONS, then SOUND. Full tinytest 13858 results, 0 failures; tests/cpp
+passes, clean under ASan and UBSan; the four seeded snapshot files unchanged on the reference build;
+equivalence 55 of 55 identical, BCF 15 of 15 and multinomial 11 of 11; draws identical to the parent build
+through `setState`, `copy`, a reload, `installTrees` and a warm start on ten sampler kinds. Over 260 restores
+on 18 sampler kinds and the missing-value and factor cases the value equalled "the restored trees are the
+stored ones". A flag forced clear fails 22 tests/cpp checks and 37 tinytest results.
+
+Two things about `TRUE`. The identity rewrite still runs when the units are the same, so a stored leaf value
+of -0.0 comes back +0.0. And a state on another cut grid returns `TRUE` today, because the state's grid is
+installed with its trees; that changes when a state stops installing its grid.

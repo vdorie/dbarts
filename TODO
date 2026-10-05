@@ -266,6 +266,31 @@ items
     predict path reaches, the state writer and reader. Then restate or
     drop the refusal of kept gp draws under another named lengthscale
     (dec-A146), whose reason this removes.
+  classic-compare-quantile-row: the compare against 0.9-34 has one
+    quantile scenario, 500 distinct values at 20 cuts, and since the
+    quantile split points were spread over the whole column (dec-B235)
+    it separates on the grid alone, so no row of the release battery
+    measures the engine under useQuantiles. Add a scenario whose columns
+    have no more distinct values than cuts plus one, where the old and
+    new grids are the same, and take its 0.9-34 side.
+  quantile-refresh-held-count: a quantile column keeps the cut count it
+    was created with at every refresh (setPredictor with
+    updateCutPoints = TRUE), so a column created with few distinct
+    values, a latent that starts constant for one, never gains split
+    points however many values it later takes. Raise the count toward
+    n.cuts at a refresh; trees hold split indices, so it needs the
+    by-value move a data replacement uses.
+  partial-update-missing-gauge: after per-observation updates
+    (forceUpdate = "partial") fill every missing value of a column, the
+    live sampler still treats the column as holding missing values and
+    keeps its rules' missing directions, while copy() of the same state
+    drops them (28 rules live, 7 after the copy in a probe). Re-derive
+    the column's missing flag when a partial update removes its last
+    missing value.
+  setpredictor-forced-return: setPredictor returns NULL invisibly for a
+    forced update, a whole-matrix call with forceUpdate missing
+    included, where the manual says TRUE or FALSE; the same since 2019
+    and in 0.9-34. Return TRUE there.
   pooled-missing-direction-drop: after a column's missing values are
     filled, a pooled categorical rule keeps its missing-direction bit (the
     forced update and a state install both leave it), so swap and change
