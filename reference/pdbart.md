@@ -20,6 +20,7 @@ pdbart(
     pl = TRUE, plquants = c(0.05, 0.95),
     type = "auto", newdata = NULL,
     n.average.rows = NULL, average.weights = NULL,
+    times = NULL, n.max.predictions = 5e9,
     ...)
 
 # S3 method for class 'pdbart'
@@ -27,6 +28,7 @@ plot(
     x,
     xind = seq_along(x$fd),
     plquants = c(0.05, 0.95), cols = c('blue', 'black'),
+    plot.type = c("dependence", "curves"),
     ...)
 
 pd2bart(
@@ -36,6 +38,7 @@ pd2bart(
     pl = TRUE, plquants = c(0.05, 0.95),
     type = "auto", newdata = NULL,
     n.average.rows = NULL, average.weights = NULL,
+    times = NULL, n.max.predictions = 5e9,
     ...)
 
 # S3 method for class 'pd2bart'
@@ -43,6 +46,7 @@ plot(
     x,
     plquants = c(0.05, 0.95), contour.color = 'white',
     justmedian = TRUE,
+    plot.type = c("dependence", "curves"),
     ...)
 ```
 
@@ -119,10 +123,49 @@ plot(
   a probit or logistic fit `"ev"`, the probability, and `"ppd"`; a
   negative binomial fit `"ev"`, the mean count, and `"ppd"`; a hurdle
   fit `"prob"`, the probability of a positive response, `"bart"` (also
-  `"log"`), the positive part's log scale, and `"ppd"`. A type the
+  `"log"`), the positive part's log scale, and `"ppd"`. On an
+  accelerated failure time or hazard fit, `"auto"` is `"survival"`, the
+  survival probability \\S(t)\\ at each of `times`; `"event"` is \\1 -
+  S(t)\\ and `"cumhaz"` the cumulative hazard \\-\log S(t)\\, each
+  computed per subject and averaged last, so that each is the posterior
+  mean of the quantity asked for. A hazard fit takes these three only;
+  an accelerated failure time fit also takes `"bart"`, the log-time
+  scale, and its other `predict` types, which have no times. A type the
   family does not take is refused before anything is fit when the family
   is named. `"forest"` is refused. A sampler passed in takes only
-  `"bart"`.
+  `"bart"`, and a hazard sampler is refused.
+
+  `type` chooses what is computed; the plot methods' `plot.type` chooses
+  how it is drawn.
+
+- times:
+
+  On a survival `type`, the times at which survival is read. The usual
+  reason to give them is a fixed horizon, such as 5-year survival. By
+  default, the training data's Kaplan-Meier median survival time, or,
+  when the Kaplan-Meier curve does not reach one half, the median of the
+  observed event times; on a hazard fit the times are read on its period
+  grid. Refused on any other `type`.
+
+- n.max.predictions:
+
+  On a hazard fit, the most predictions to make, one being one
+  person-period row under one draw at one grid value: subjects x periods
+  up to the largest time x draws x grid values, counted before anything
+  runs. A call above it is refused, naming the count and the ways to
+  reduce it - a coarser period grid, fewer subjects, fewer grid values,
+  an earlier largest time - or this argument to raise it. The default,
+  `5e9`, takes on the order of ten minutes.
+
+- plot.type:
+
+  On a result with times, `"dependence"`, the partial dependence plot,
+  puts the varied variable on the horizontal axis with one line
+  (`plot.pd2bart`: one image) per time; `"curves"`, adjusted survival
+  curves or direct adjustment, puts time on the axis with one median
+  curve per grid value and needs at least three times. The dependence
+  view draws the median and the `plquants` interval at each time, in
+  `cols`, the times told apart by line type.
 
 - newdata:
 
@@ -247,9 +290,17 @@ from package code does not.
 `pdbart` and `pd2bart` serve gaussian, Student-t, probit, logistic,
 negative binomial and hurdle fits. Multinomial and ordinal fits, whose
 prediction is a probability per category, are refused; `predict` on rows
-with the variable set gives each category's. Accelerated failure time
-and hazard fits are refused in this version. Each refusal comes before
-anything is fit, whether the family is named, resolved by
+with the variable set gives each category's. On accelerated failure time
+and hazard fits they average survival, the event probability or the
+cumulative hazard per subject at chosen times; on a hazard fit each
+subject's rows are expanded to the periods up to the largest time and
+replayed in chunks, so the work grows with the period grid and is
+counted against `n.max.predictions` first. `newdata` and
+`n.average.rows` there are subject rows, and the default time stays the
+training data's. In a formula hazard fit the subjects are read from the
+data the call names, as in any formula fit, and coded with their offset
+at each grid value; the period is never a predictor. Each refusal comes
+before anything is fit, whether the family is named, resolved by
 `family = "auto"` from the response, or that of a fit or sampler passed
 in.
 
@@ -290,6 +341,9 @@ through to stats' defaults and return `NULL`).
   a value in the levs components corresponding to the second one. The
   first \\x\\ changes first.
 
+  On a survival `type`, each matrix is instead an array of draws x times
+  x values, the times margin kept at length one and named by the times.
+
   The draws of every chain are merged, each chain's in turn. When the
   fit keeps its chains apart (`combineChains = FALSE` with more than one
   chain), each matrix gains a leading chain margin, chains x draws x
@@ -314,12 +368,18 @@ through to stats' defaults and return `NULL`).
 
 - type:
 
-  The scale averaged on, as resolved: `"bart"` for `"link"` and, except
-  on a hurdle fit, for `"auto"`.
+  The scale averaged on, as resolved: `"bart"` for `"link"`, and for
+  `"auto"` the link scale, the mean response `"ev"` on a hurdle fit, or
+  `"survival"` on an accelerated failure time or hazard fit.
 
 - family:
 
   The fit's family, which with `type` sets the plot labels.
+
+- times:
+
+  On a survival `type`, the times survival was read at; `NULL`
+  otherwise.
 
 The remaining components are passed on from the fit, under
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own names
@@ -422,5 +482,23 @@ pdb3 <- pdbart(bartFit, xind = rob + ed, pl = FALSE)
 
 ## averaged over a subgroup's rows, with the grid from them
 pdb4 <- pdbart(bartFit, xind = "rob", newdata = df[df$hugh > 0, ], pl = FALSE)
+# }
+
+# \donttest{
+## survival at three times on a discrete-time hazard fit, drawn both ways
+if (requireNamespace("survival", quietly = TRUE)) {
+  time <- rexp(n, exp(x[, "rob"]))
+  status <- rbinom(n, 1, 0.8)
+  hazardFit <- bart(
+      x, survival::Surv(time, status),
+      family = hazard(breaks = c(0, quantile(time, seq(0.1, 1, 0.1)))),
+      n.chains = 2, n.threads = 1, keepTrees = TRUE, verbose = FALSE)
+  pdb5 <- pdbart(hazardFit, xind = "rob",
+                 times = quantile(time, c(0.25, 0.5, 0.75)), pl = FALSE)
+  plot(pdb5)
+  plot(pdb5, plot.type = "curves")
+}
+
+
 # }
 ```
