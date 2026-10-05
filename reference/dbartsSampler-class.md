@@ -1065,11 +1065,25 @@ moderator-restricted mean forest, or a `variance = ~ x1 + x2` variance
 forest - is refused with the message `installTrees` gives the same
 donor, the two entries sharing one rule so neither admits what the other
 refuses. Every check runs before any live state is touched, so a refused
-restore leaves the sampler exactly as it was. Assigning the field
-directly (`sampler$state <- newState`) does *not* restore the sampler -
-it only overwrites the R-side cache, leaving the engine untouched, so
-the next run continues from the engine's own state rather than the
-assigned one. Always route a restore through `setState`.
+restore leaves the sampler exactly as it was. The trees are restored
+against the predictors the sampler holds at the call, as a forced
+`setPredictor` leaves them: a split with a side no row of those
+predictors reaches becomes a single leaf, along with everything beneath
+it, and a rule stops recording a side for missing values where its
+column no longer has any. To undo a predictor change exactly, put the
+old predictor back first, with `setPredictor(..., forceUpdate = TRUE)`,
+and then call `setState`. An unforced `setPredictor` can be refused,
+returning `FALSE` and leaving the changed predictor in place; `setState`
+then restores against the changed predictor, as it does when called
+before the predictor is put back, and merges what that predictor leaves
+empty. A factor column does not take missing values back through a
+column update, so a change that filled a factor column's missing values
+is undone by replacing the whole data with `setData` and then calling
+`setState`. Assigning the field directly (`sampler$state <- newState`)
+does *not* restore the sampler - it only overwrites the R-side cache,
+leaving the engine untouched, so the next run continues from the
+engine's own state rather than the assigned one. Always route a restore
+through `setState`.
 
 A state never changes the sampler's model. The leaf prior, its `k` where
 fixed, a fixed `sigma`, Student-t df, negative-binomial shape or DART
