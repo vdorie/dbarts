@@ -1,7 +1,8 @@
 # pdbart-on-bart: pdbart and pd2bart fit through bart, with type, newdata and the survival families
 
 Status: PLANNED 2026-10-04. Every question ruled: dec-B203 to dec-B229 in
-[decisions.md](../decisions.md), dec-B221 as revised.
+[decisions.md](../decisions.md), dec-B221 as revised. Slice 2 IMPLEMENTED
+2026-10-05 (8dc9a5b2), not landed; slice 3 open.
 
 agent: one implementer per slice (R only); an Opus reviewer per slice.
 rng: posterior-changing at the R layer only, with the gate exception stated
