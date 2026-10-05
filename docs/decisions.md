@@ -1472,6 +1472,10 @@ Record: this register. Marked: blank. [dec-B215]
 Under dec-B207, pdbart's and pd2bart's newdata is coded as predict(fit, newdata) codes new rows, and when given, the default grid is levquants' quantiles of the varied variable in newdata, so a subgroup is plotted over the range its rows cover; a factor still shows every level the fit knows, and levs gives several subgroups a common grid. Without newdata the grid is 0.9-34's, quantiles of the training column. Put to the maintainer with the landscape, checked from source: randomForest::partialPlot and pdp::partial take the grid from the rows they average over, bartMachine's pd_plot averages over a subsample of the training rows its grid comes from, and SoftBart requires the grid; none takes the grid from one population and averages over another. The alternative was the grid from the training rows always. The maintainer on 2026-10-04: "OK, do that then."
 Record: this register. Marked: blank. [dec-B216]
 
+**pdbart evaluates offsets on newdata as predict does**
+Under dec-B211 and dec-B216, pdbart and pd2bart evaluate the fit's offset on newdata rows as predict does: an offset expression or offset() term is evaluated on the new rows, and a fit whose offset was a plain vector is refused with a newdata of another row count, the message saying to write the offset as a column of the data. No offset argument is added. The alternative was an offset argument for the new rows. The maintainer on 2026-10-04: "Follow predict, with no new argument."
+Record: this register. Marked: blank. [dec-B217]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
