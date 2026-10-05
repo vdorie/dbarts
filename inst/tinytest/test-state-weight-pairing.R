@@ -129,7 +129,8 @@ liveArm <- logisticSamplerStateWeightPairing(wA)
 liveArm$setState(state.wA)
 liveArm$setWeights(wB)
 stateArm <- logisticSamplerStateWeightPairing(wB)
-stateArm$setState(state.wA)
+# the chains are the stored ones: re-derived latents do not make it inexact
+expect_true(stateArm$setState(state.wA))
 expect_identical(stateArm$getLatents(), liveArm$getLatents())
 expect_identical(stateArm$run(0L, 3L)$train, liveArm$run(0L, 3L)$train)
 

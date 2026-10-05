@@ -154,7 +154,8 @@ sampler <- dbarts(
 )
 invisible(sampler$run(5L, 5L))
 expect_true(inherits(sampler$copy(), "dbartsSampler"))
-expect_silent(sampler$setState(sampler$state))
+expect_silent(status <- sampler$setState(sampler$state))
+expect_true(status)
 
 # a column whose spread is below its own spacing collapses its uniform cuts
 # too, and restores the same way
@@ -164,7 +165,8 @@ sampler <- dbarts(
   control = dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 5L)
 )
 invisible(sampler$run(5L, 5L))
-expect_silent(sampler$setState(sampler$state))
+expect_silent(status <- sampler$setState(sampler$state))
+expect_true(status)
 
 # setCutPoints refuses a grid past the representable count, whose top bin
 # would share the missing value's code, and a NaN cut

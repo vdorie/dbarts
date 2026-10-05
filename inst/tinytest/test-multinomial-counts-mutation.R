@@ -196,7 +196,8 @@ sampler.state$run(20L, 4L)
 sampler.state$storeState()
 state.A <- sampler.state$state
 sampler.state$setCounts(countsB, updateState = FALSE)
-expect_silent(sampler.state$setState(state.A))
+expect_silent(status <- sampler.state$setState(state.A))
+expect_true(status)
 res.restored <- sampler.state$run(0L, 4L)
 expect_true(all(is.finite(res.restored$train)))
 # the restored trees run against B, not against the A they were fitted to: the

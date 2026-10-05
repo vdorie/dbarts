@@ -4257,8 +4257,13 @@ public:
   /// subtree they replace, function leaves keep their per-observation fits,
   /// and a monotone tree the merge takes out of the cone is reseeded. A tree
   /// whose bottoms are all occupied is installed exactly.
+  ///
+  /// altered, when non-null, is set if any tree was installed other than as
+  /// its flat form holds it - a bottom merged, a missing direction dropped -
+  /// and is never cleared.
   bool rebuildLiveForest(size_t f, const ForestStateData& fs,
-                         std::vector<double>& params) {
+                         std::vector<double>& params,
+                         bool* altered = nullptr) {
     Forest<L, ResidT>& forest = forests_[f];
     size_t n = data_.numObservations;
     misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
@@ -4273,20 +4278,23 @@ public:
       if constexpr (!L::hasVectorParams) {
         if (!forest.trees[t].buildFromFlat(data_, fs.trees[t].data(),
                                            fs.trees[t].size(), params, 1,
-                                           nullptr, masks, numMaskWords))
+                                           nullptr, masks, numMaskWords,
+                                           altered))
           return false;
       } else {
         if (!forest.trees[t].buildFromFlat(data_, fs.trees[t].data(),
                                            fs.trees[t].size(), params,
                                            forest.leaf.numParams(),
                                            fs.treeParams[t].data(), masks,
-                                           numMaskWords))
+                                           numMaskWords, altered))
           return false;
       }
       forest.trees[t].repartitionSubtree(data_, 0);
-      if (!forest.trees[t].bottomNodesAreOccupied())
+      if (!forest.trees[t].bottomNodesAreOccupied()) {
         forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                            params, paramStride);
+        if (altered != nullptr) *altered = true;
+      }
       // containment backstop (design): the live tree carries this forest's
       // constraint and column mask, so a warm-start donor grown unconstrained is
       // caught before treeLogProbability can mis-score it. installForests
@@ -4598,7 +4606,13 @@ public:
   /// violation of a validated tree failing to rebuild. The model is this
   /// chain's and stays: the leaf scale, a supplied gp lengthscale, and every
   /// scalar, amplitude and amplitude variance the chain holds fixed.
-  bool setState(const ChainStateData& state) {
+  ///
+  /// altered, when non-null, is set if a live tree, mean or variance, was
+  /// installed other than as stored (rebuildLiveForest,
+  /// rebuildVarianceForest) and is never cleared. A value the chain keeps as
+  /// its own, a generator it does not take and the saved draws, which are
+  /// copied, leave it alone.
+  bool setState(const ChainStateData& state, bool* altered = nullptr) {
     if (state.forests.size() != forests_.size()) return false;
     double ownSigma = sigma();
     // the internal-scale tree parameters and fits below were recorded under
@@ -4650,7 +4664,7 @@ public:
             fs.leafLengthscales.empty() || forest.leaf.lengthscalesAreSupplied()
               ? nullptr : fs.leafLengthscales.data());
       }
-      if (!rebuildLiveForest(f, fs, params)) return false;
+      if (!rebuildLiveForest(f, fs, params, altered)) return false;
       if (!fs.savedTrees.empty()) {
         forest.savedTrees = fs.savedTrees;
         if constexpr (L::hasVectorParams || L::hasFunctionParams)
@@ -4670,7 +4684,8 @@ public:
     // heteroscedastic: rebuild the variance trees and recompute s^2(x) from the
     // restored positive factors (stateIsValid checked count, form, positivity)
     if (varianceForest_) {
-      if (!rebuildVarianceForest(state.varianceTrees, state.varianceTreeMasks))
+      if (!rebuildVarianceForest(state.varianceTrees, state.varianceTreeMasks,
+                                 altered))
         return false;
       // the mean side's shape: an empty block carries nothing, which off
       // keepTrees is the only thing there is to carry
@@ -5342,10 +5357,12 @@ private:
   /// through the restored partition, then recompute s^2(x) as the product. A
   /// bottom no row of the current data reaches is merged into its parent with
   /// the geometric mean, as refreshVarianceForest merges it; a tree whose
-  /// bottoms are all occupied is installed exactly.
+  /// bottoms are all occupied is installed exactly. altered is
+  /// rebuildLiveForest's.
   bool rebuildVarianceForest(
       const std::vector<std::vector<FlatNode>>& trees,
-      const std::vector<std::vector<std::uint64_t>>& masks) {
+      const std::vector<std::vector<std::uint64_t>>& masks,
+      bool* altered = nullptr) {
     VarianceForest& vf = *varianceForest_;
     std::size_t n = data_.numObservations;
     if (trees.size() != vf.numTrees) return false;
@@ -5358,12 +5375,15 @@ private:
         masks.empty() ? nullptr : masks[j].data();
       std::size_t numMaskWords = masks.empty() ? 0 : masks[j].size();
       if (!tree.buildFromFlat(data_, trees[j].data(), trees[j].size(),
-                              leafValues, 1, nullptr, maskWords, numMaskWords))
+                              leafValues, 1, nullptr, maskWords, numMaskWords,
+                              altered))
         return false;
       tree.repartitionSubtree(data_, 0);
-      if (!tree.bottomNodesAreOccupied())
+      if (!tree.bottomNodesAreOccupied()) {
         tree.collapseEmptyNodes<GeometricMerge>(
           data_, response_->workingWeights(), leafValues);
+        if (altered != nullptr) *altered = true;
+      }
       // containment backstop, the variance analogue of rebuildLiveForest's:
       // the live tree carries this forest's column mask, so a forbidden split
       // cannot reach the sweep by any live-install path. The two entries

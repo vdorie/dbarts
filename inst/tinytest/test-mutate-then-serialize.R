@@ -155,7 +155,8 @@ for (chain in seq_along(old)) {
     old[[chain]]$forests[[1L]][[block]] <- NULL
   }
 }
-expect_silent(live$setState(old))
+expect_silent(status <- live$setState(old))
+expect_true(status)
 
 rm(
   x.new,

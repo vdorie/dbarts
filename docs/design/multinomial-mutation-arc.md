@@ -247,7 +247,7 @@ families.** No shipped test covers this; no `saveRDS` appears in
 `test-multinomial-*.R`, `test-ordinal.R`, or `test-nbinom.R`.
 
 The engine half exists: store/restore work on a multinomial sampler
-(["expect_silent(sampler.state$setState(state.A))"](../../inst/tinytest/test-multinomial-counts-mutation.R)). What is missing is an
+(["expect_silent(status <- sampler.state$setState(state.A))"](../../inst/tinytest/test-multinomial-counts-mutation.R)). What is missing is an
 object to hang the state on, and somewhere for the counts to live - they
 are data and ride no state block ([The surface](multinomial.md#the-surface); that test
 file's header, ["the counts are not in the serialized state"](../../inst/tinytest/test-multinomial-counts-mutation.R)).

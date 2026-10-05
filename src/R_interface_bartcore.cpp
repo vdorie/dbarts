@@ -6460,9 +6460,10 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
     Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
   // TRUE only from a re-creation, whose control may not record a store the
   // flat API sized; a live $setState keeps the sampler's own capacity
-  bartcore_bridge::setState(*holder.sampler, stateExpr, currentPredictors,
-                            Rf_asLogical(adoptStoreCapacityExpr) == TRUE);
-  return R_NilValue;
+  bool exact =
+    bartcore_bridge::setState(*holder.sampler, stateExpr, currentPredictors,
+                              Rf_asLogical(adoptStoreCapacityExpr) == TRUE);
+  return Rf_ScalarLogical(exact);
 }
 
 // The sampler's response transform, (min, max) as a state's fit.scale holds
@@ -7703,7 +7704,7 @@ static const char* const stateColumnMaskMessage =
   "incompatible with the column restriction (a forest's own "
   "column subset or a restricted variance forest) in force here";
 
-void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
+bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
               const double* currentPredictors, bool adoptStoreCapacity) {
   bartcore::SamplerShape shape = sampler.shape();
   if (!Rf_inherits(stateExpr, "bartcoreState"))
@@ -8129,14 +8130,14 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
   bool columnMaskRefused = false, monotoneRefused = false;
   bool interactionRefused = false, lengthscaleRefused = false;
-  bool unitsRefused = false;
+  bool unitsRefused = false, altered = false;
   bool restored = false;
   if (errorMessage == NULL) {
     bartcore_bridge::CapturedError restoreError;
     captureExceptions(restoreError, [&]() {
       restored = sampler.setState(state, currentPredictors, &columnMaskRefused,
                                   &monotoneRefused, &interactionRefused,
-                                  &lengthscaleRefused, &unitsRefused,
+                                  &lengthscaleRefused, &unitsRefused, &altered,
                                   adoptCapacity);
     });
     if (restoreError.failed)
@@ -8177,6 +8178,8 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   // row is not reached at all - restoreLatents installs the censored rows
   // only, an observed log-time being data no state overwrites.
   if (survivalDiffers) sampler.reapplySurvivalStatus();
+  // neither reconciliation above counts: the chains are the stored ones
+  return !altered;
 }
 
 // Parses a "bartcoreState" donor into a SamplerStateData for a warm start,

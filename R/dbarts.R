@@ -3441,7 +3441,7 @@ dbartsSampler <- setRefClass(
       pointer
     },
     setState = function(newState) {
-      "Installs a stored state: the chains, never the model. A state in other response units is converted into the sampler's; a Gaussian-process leaf or forests with amplitudes refuse one under another response shift, saved draws or not. See Saving in ?dbartsSampler."
+      "Installs a stored state: the chains, never the model. A state in other response units is converted into the sampler's; a Gaussian-process leaf or forests with amplitudes refuse one under another response shift, saved draws or not. Invisibly returns TRUE when nothing had to be changed to install it, FALSE otherwise. See Saving and Value in ?dbartsSampler."
       refuseLegacyState(newState)
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
@@ -3451,7 +3451,7 @@ dbartsSampler <- setRefClass(
       if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
         ptr <- recreatePointer(control, model, data, TRUE)
       }
-      .Call(
+      exact <- .Call(
         C_dbarts_bartcore_setState,
         ptr,
         newState,
@@ -3466,7 +3466,7 @@ dbartsSampler <- setRefClass(
       # unfitted, and leaves 'state' the one that is still installed
       selfEnv$pointer <- ptr
       selfEnv$state <- newState
-      invisible(NULL)
+      invisible(exact)
     },
     startThreads = function(n.threads = control@n.threads) {
       "Retired: threads are owned by each run. Does nothing."

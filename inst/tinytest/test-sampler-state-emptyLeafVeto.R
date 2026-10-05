@@ -62,7 +62,8 @@ restored <- dbarts::dbarts(
   control = control,
   family = gaussian(sigma = fixed(1e-6))
 )
-expect_silent(restored$setState(state))
+expect_silent(status <- restored$setState(state))
+expect_true(status)
 
 # the restored trees round-trip exactly (a re-store reproduces the forests)
 restored$storeState()

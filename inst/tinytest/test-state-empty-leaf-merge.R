@@ -56,7 +56,8 @@ checkStaleRestore <- function(make, info) {
     statesAgree(forced, stale, expect = FALSE),
     info = paste(info, "the forced update merged a leaf")
   )
-  expect_silent(sampler$setState(stale))
+  expect_silent(status <- sampler$setState(stale))
+  expect_false(status, info = info)
   sampler$storeState()
   statesAgree(sampler$state, forced)
   expect_identical(treeValues(sampler$state), treeValues(forced), info = info)
@@ -93,15 +94,36 @@ checkStaleRestore(
 )
 
 # a restore with every leaf occupied merges nothing: it reinstalls the stored
-# trees as they were
+# trees as they were, and says so invisibly
 exact <- dbarts(x, y, control = control)
 invisible(exact$run(40L, 3L))
 exact$storeState()
 held <- exact$state
 invisible(exact$run(0L, 3L))
-exact$setState(held)
+expect_identical(
+  withVisible(exact$setState(held)),
+  list(value = TRUE, visible = FALSE)
+)
 exact$storeState()
 statesAgree(exact$state, held)
+
+# undoing a predictor change: restored against the changed predictor the state
+# merges and the value is FALSE, invisibly too; with the old predictor put
+# back first it is the stored state again
+exact$setPredictor(xNew, forceUpdate = TRUE)
+expect_identical(
+  withVisible(exact$setState(held)),
+  list(value = FALSE, visible = FALSE)
+)
+exact$setPredictor(x, forceUpdate = TRUE)
+expect_true(exact$setState(held))
+exact$storeState()
+statesAgree(exact$state, held)
+expect_identical(treeValues(exact$state), treeValues(held))
+# copy() has no value to carry: it merges as quietly as before
+exact$setPredictor(xNew, forceUpdate = TRUE)
+expect_silent(exactCopy <- exact$copy())
+expect_true(all(is.finite(exactCopy$run(0L, 1L)$train)))
 
 # a merge weighs a subtree's leaves under the state's own latents, not the
 # destination's: a sampler whose latents moved after the forced update and a
@@ -140,7 +162,7 @@ for (name in c("logistic", "nbinom", "student")) {
     moved$setPredictor(xNew, forceUpdate = TRUE)
     invisible(moved$run(0L, 5L))
     cold <- moved$copy()
-    moved$setState(stale)
+    expect_false(moved$setState(stale), info = info)
     moved$storeState()
     cold$storeState()
     statesAgree(moved$state, cold$state)
@@ -164,6 +186,7 @@ destination$installTrees(donor)
 invisible(destination$run(0L, 1L))
 expect_true(noEmptyLeaf(destination))
 destination$storeState()
-expect_silent(destination$setState(destination$state))
+expect_silent(status <- destination$setState(destination$state))
+expect_true(status)
 destinationCopy <- destination$copy()
 expect_true(all(is.finite(destinationCopy$run(0L, 3L)$train)))

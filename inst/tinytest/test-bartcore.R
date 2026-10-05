@@ -1116,7 +1116,8 @@ sampler.g3 <- dbarts(x, y, control = control.g3, sigest = 1)
 state.g <- states.g[[1L]]
 state.g[[2L]] <- states.g[[2L]][[1L]]
 state.g[[3L]] <- states.g[[3L]][[1L]]
-expect_silent(sampler.g3$setState(state.g))
+expect_silent(status <- sampler.g3$setState(state.g))
+expect_true(status)
 pred.g <- sampler.g3$predict(x[1:4, , drop = FALSE])
 expect_equal(dim(pred.g), c(4L, 6L, 3L))
 # each restored chain predicts what its source sampler predicts

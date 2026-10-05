@@ -392,7 +392,7 @@ static void testStateRoundTripScaledOffset() {
   // trajectory that produced the state; its record of the transform can
   restored.setOffset(offset.data(), false);
   restored.setAnchor(state.chains[0].fitMin, state.chains[0].fitMax, false);
-  check(restored.setState(state, nullptr), "scaled state restores");
+  check(restoresExactly(restored, state), "scaled state restores as stored");
 
   // the moved transform round-trips: the restored model matches the source,
   // and its live-tree predictions land on the original scale, both before
@@ -421,7 +421,8 @@ static void testStateRoundTripScaledOffset() {
   converted.getAnchor(ownMin, ownMax);
   check(ownMin != state.chains[0].fitMin && ownMax != state.chains[0].fitMax,
         "converted state: the two transforms differ");
-  check(converted.setState(state, nullptr), "converted state: installs");
+  check(restoresAltered(converted, state),
+        "converted state: installs and reports the conversion");
   SamplerStateData convertedState;
   converted.getState(convertedState);
   double anchorMin, anchorMax;
@@ -1952,6 +1953,13 @@ static void testWeightsDigest() {
   check(sigmaRepaired == sigmaUntouched,
         "reapplyWeights is inert on a chain that reads weights as precisions");
 
+  // the engine installs a state stored under other weights as it stands; the
+  // repair above is the host's, and moves latents, not the chain
+  SamplerStateData weightedState;
+  weightedA.getState(weightedState);
+  check(restoresExactly(weightedB, weightedState),
+        "a state stored under other weights installs as stored");
+
   for (ext_rng* r : rngs) ext_rng_destroy(r);
   rngState = savedRngState;
   printf("ok: weights digest and repair\n");
@@ -2076,7 +2084,7 @@ static void checkStaleStateMerges(Sampler<L>& sampler,
   sampler.getState(forced);
   bool merged = !sameLiveTrees(stale, forced);
 
-  bool restores = sampler.setState(stale, nullptr);
+  bool restores = restoresAltered(sampler, stale);
   SamplerStateData restored;
   sampler.getState(restored);
   bool restoredAsForced = statesAgree(forced, restored);
@@ -2094,13 +2102,21 @@ static void checkStaleStateMerges(Sampler<L>& sampler,
   sampler.run(5, 0, empty);
   SamplerStateData after;
   sampler.getState(after);
-  bool continues = sampler.setState(after, nullptr);
+  bool continues = restoresExactly(sampler, after);
+  // one rule sent the way its column cannot route: dropped, nothing merged
+  SamplerStateData flagged(after);
+  bool dropReported = sendFirstOrdinalRuleMissingRight(
+                        flagged.chains[0].forests[0].trees) &&
+    restoresAltered(sampler, flagged);
 
   char line[160];
+  snprintf(line, sizeof line, "%s: a dropped direction is reported", label);
+  check(dropReported, line);
   snprintf(line, sizeof line, "%s: the forced update merged a stale leaf",
            label);
   check(merged, line);
-  snprintf(line, sizeof line, "%s: the stale state restores", label);
+  snprintf(line, sizeof line, "%s: the stale state restores, reported altered",
+           label);
   check(restores, line);
   snprintf(line, sizeof line, "%s: the restore merges as the forced update",
            label);
@@ -2115,8 +2131,8 @@ static void checkStaleStateMerges(Sampler<L>& sampler,
   snprintf(line, sizeof line, "%s: no warm-started tree has an empty leaf",
            label);
   check(warmOccupied, line);
-  snprintf(line, sizeof line, "%s: the sampler runs and restores itself",
-           label);
+  snprintf(line, sizeof line,
+           "%s: the sampler runs and restores itself as stored", label);
   check(continues, line);
 }
 
@@ -2209,6 +2225,105 @@ static void testStaleStateMerge() {
   printf("ok: a stale state merges empty leaves on install\n");
 }
 
+/// Sampler::setState's altered flag, one cause at a time on states that
+/// differ from an exact one in that cause alone: a merge in the variance
+/// trees only and in the mean trees only, a direction dropped from a mean
+/// and from a variance tree with nothing merged, and one inexact chain of
+/// two. A state refused after its scratch builds dropped a direction reports
+/// nothing.
+static void testRestoreStatus() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 31337u;
+  const size_t n = 200, p = 2, numChains = 2;
+  std::vector<double> x(n * p), y(n), xNew;
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i)
+    y[i] = 4.0 * (x[i] > 0.5 ? 1.0 : 0.0) + x[i + n] +
+      (x[i] > 0.5 ? 2.0 : 0.2) * (runif01() - 0.5);
+  xNew = x;
+  double lo = *std::min_element(x.begin(), x.begin() + n);
+  double hi = *std::max_element(x.begin(), x.begin() + n);
+  for (size_t i = 0; i < n; ++i)
+    if (xNew[i] > lo && xNew[i] < hi) xNew[i] = 0.5;
+
+  std::vector<ext_rng*> rngs(numChains);
+  for (size_t c = 0; c < numChains; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(rngs[c], 731u + static_cast<std::uint_least32_t>(c));
+  }
+  SamplerOptions options;
+  options.numTrees = 10;
+  options.numVarianceTrees = 6;
+  options.numChains = numChains;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, rngs.data());
+  Results empty;
+  sampler.run(60, 0, empty);
+  SamplerStateData own, forced, restored;
+  sampler.getState(own);
+  check(restoresExactly(sampler, own),
+        "restore status: a two-chain sampler's own state installs as stored");
+
+  // one rule of one tree of the second chain: no row moves, nothing merges
+  SamplerStateData meanFlagged(own), varianceFlagged(own);
+  bool flagged = sendFirstOrdinalRuleMissingRight(
+                   meanFlagged.chains[1].forests[0].trees) &&
+    sendFirstOrdinalRuleMissingRight(varianceFlagged.chains[1].varianceTrees);
+  check(flagged, "restore status: a mean and a variance tree split");
+  bool meanDropped = restoresAltered(sampler, meanFlagged);
+  sampler.getState(restored);
+  check(meanDropped && statesAgree(own, restored) &&
+          restoresExactly(sampler, own),
+        "restore status: a direction dropped from one chain's mean tree");
+  bool varianceDropped = restoresAltered(sampler, varianceFlagged);
+  sampler.getState(restored);
+  check(varianceDropped && statesAgree(own, restored) &&
+          restoresExactly(sampler, own),
+        "restore status: a direction dropped from one chain's variance tree");
+
+  // the forced update's state with the stored trees of one kind put back
+  sampler.setPredictor(xNew.data(), true, false);
+  sampler.getState(forced);
+  SamplerStateData meanStale(forced), varianceStale(forced);
+  bool meanMerged = false, varianceMerged = false;
+  for (size_t c = 0; c < numChains; ++c) {
+    meanStale.chains[c].forests[0].trees = own.chains[c].forests[0].trees;
+    varianceStale.chains[c].varianceTrees = own.chains[c].varianceTrees;
+    meanMerged = meanMerged ||
+      !sameFlatTrees(own.chains[c].forests[0].trees,
+                     forced.chains[c].forests[0].trees);
+    varianceMerged = varianceMerged ||
+      !sameFlatTrees(own.chains[c].varianceTrees,
+                     forced.chains[c].varianceTrees);
+  }
+  check(meanMerged && varianceMerged,
+        "restore status: the forced update merged trees of each kind");
+  check(restoresAltered(sampler, varianceStale) &&
+          liveTreesAreOccupied(sampler) && restoresExactly(sampler, forced),
+        "restore status: a merge in the variance trees alone");
+  check(restoresAltered(sampler, meanStale) && liveTreesAreOccupied(sampler) &&
+          restoresExactly(sampler, forced),
+        "restore status: a merge in the mean trees alone");
+  // refused for its last tree, after the first chain's merges and a dropped
+  // direction passed validation
+  SamplerStateData bad(meanStale);
+  FlatNode childless;
+  childless.variable = 0;
+  setFlatKind(childless, FlatKind::ordinal);
+  childless.value = bad.cutPoints[0][0];
+  bad.chains[1].forests[0].trees.back().assign(1, childless);
+  bool altered = sendFirstOrdinalRuleMissingRight(
+    bad.chains[0].forests[0].trees);
+  check(!sampler.setState(bad, nullptr, nullptr, nullptr, nullptr, nullptr,
+                          nullptr, &altered) && !altered,
+        "restore status: a refused state reports nothing");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: a state install reports whether it altered the state\n");
+}
+
 /// A flat tree drawn while a column held a missing value builds against a
 /// store whose column holds none: the direction is dropped, a rule that split
 /// the missing value from every level keeps a side nothing reaches, and a
@@ -2225,9 +2340,12 @@ static void testStaleMissingDirectionBuild() {
   std::vector<index_t> indices(n);
   std::vector<double> params;
   Tree tree;
+  bool dropped = false;
   auto builds = [&](const std::vector<FlatNode>& flat) {
     tree.initialize(indices.data(), n);
-    return tree.buildFromFlat(store, flat.data(), flat.size(), params);
+    dropped = false;
+    return tree.buildFromFlat(store, flat.data(), flat.size(), params, 1,
+                              nullptr, nullptr, 0, &dropped);
   };
   auto rule = [](int32_t variable, FlatKind kind, bool missingRight) {
     FlatNode node;
@@ -2249,6 +2367,15 @@ static void testStaleMissingDirectionBuild() {
           !tree.at(tree.at(0).leftChild).rule.missingGoesRight() &&
           tree.at(tree.at(0).leftChild).rule.splitIndex() == 4,
         "stale direction: an ordinal and a categorical rule build without it");
+  bool bothDropped = dropped;
+  FlatNode plain = cut;
+  plain.flags &= static_cast<std::uint8_t>(~flatMissingGoesRight);
+  check(bothDropped &&
+          builds({levels(0x6, false), plain, leaf, leaf, leaf}) && !dropped &&
+          builds({levels(0x6, false), cut, leaf, leaf, leaf}) && dropped &&
+          builds({levels(0x6, true), plain, leaf, leaf, leaf}) && dropped,
+        "stale direction: a build reports a drop of either kind, and none "
+        "where the tree carries none");
   check(builds({levels(0x0, true), leaf, leaf}) &&
           tree.at(0).rule.categoryDirections() == 0x0 &&
           builds({levels(0xf, false), leaf, leaf}) &&
@@ -2277,12 +2404,14 @@ static void testStaleMissingDirectionBuild() {
   std::vector<index_t> wideIndices(wide.size());
   auto buildsWide = [&]() {
     tree.initialize(wideIndices.data(), wide.size());
+    dropped = false;
     return tree.buildFromFlat(pooled, flat.data(), flat.size(), params, 1,
-                              nullptr, words.data(), words.size());
+                              nullptr, words.data(), words.size(), &dropped);
   };
   bool wideBuilt = pooled.columnIsPooled(0) && !pooled.hasMissing[0] &&
     buildsWide() && tree.ruleMissingGoesRight(pooled, tree.at(0).rule);
-  check(wideBuilt, "stale direction: a pooled rule builds and keeps its word");
+  check(wideBuilt && !dropped,
+        "stale direction: a pooled rule builds and keeps its word, unreported");
   // a refused build leaves the tree half-built
   if (wideBuilt)
     tree.flatten(pooled, params.data(), flatAfter, nullptr, 1, nullptr,
@@ -2342,7 +2471,7 @@ static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
   bool filled = sampler->setPredictor(xFilled.data(), true, false) ==
     PredictorUpdateResult::accepted;
   sampler->getState(forced);
-  bool restores = sampler->setState(stale, nullptr);
+  bool restores = restoresAltered(*sampler, stale);
   sampler->getState(restored);
   size_t left = countMissingRight(restored.chains[0].varianceTrees);
   bool savedKept = true;
@@ -2354,7 +2483,7 @@ static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
   }
   bool occupied = liveTreesAreOccupied(*sampler);
 
-  bool otherRestores = recipient->setState(stale, xFilled.data());
+  bool otherRestores = restoresAltered(*recipient, stale, xFilled.data());
   recipient->getState(other);
   bool warmStarts = sampler->installForests(stale, {{0, -1}}) ==
     WarmStartResult::ok;
@@ -2362,7 +2491,7 @@ static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
   sampler->run(5, 0, empty);
   recipient->run(5, 0, empty);
   sampler->getState(after);
-  bool continues = sampler->setState(after, nullptr);
+  bool continues = restoresExactly(*sampler, after);
 
   char line[160];
   auto report = [&](bool ok, const char* what) {
@@ -2370,7 +2499,8 @@ static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
     check(ok, line);
   };
   report(carries, "every forest's live and saved trees send missing right");
-  report(filled && restores, "the stale state restores once they are filled");
+  report(filled && restores,
+         "the stale state restores once they are filled, reported altered");
   report(statesAgree(forced, restored),
          "the restore reproduces the forced update");
   report(inlineOnly ? left == 0 : left > 0,
@@ -2381,7 +2511,7 @@ static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
          "a sampler over the filled rows restores it to the same trees");
   report(warmStarts && sameLiveTrees(forced, warm),
          "a same-grid warm start installs the same trees");
-  report(continues, "the sampler runs and restores itself");
+  report(continues, "the sampler runs and restores itself as stored");
 }
 
 static void testStaleMissingDirectionRestores() {
@@ -2473,6 +2603,7 @@ void runStateTests(ext_rng* rng) {
   testVarianceWarmStart();
   testVarianceWarmStartSlot();
   testStaleStateMerge();
+  testRestoreStatus();
   testStaleMissingDirectionBuild();
   testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();

@@ -341,6 +341,8 @@ public:
   /// monotone cone; interactionRefused, whether a live tree breaks an
   /// interaction constraint; lengthscaleRefused and unitsRefused,
   /// Sampler::setState's two refusals of what cannot be installed here.
+  /// altered, when non-null, reports whether an accepted state was installed
+  /// other than as stored (Sampler::setState).
   /// adoptCapacity is Sampler::setState's: a store capacity the state is
   /// judged against and the store takes once the state is accepted.
   virtual bool setState(const SamplerStateData& state,
@@ -350,6 +352,7 @@ public:
                         bool* interactionRefused = nullptr,
                         bool* lengthscaleRefused = nullptr,
                         bool* unitsRefused = nullptr,
+                        bool* altered = nullptr,
                         std::size_t adoptCapacity = keepStoreCapacity) = 0;
   /// The sampler's response transform, Sampler::setAnchor's: written by a
   /// host re-creating a sampler from its record, read back to keep one.
@@ -661,11 +664,12 @@ public:
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors, bool* columnMaskRefused,
                 bool* monotoneRefused, bool* interactionRefused,
-                bool* lengthscaleRefused, bool* unitsRefused,
+                bool* lengthscaleRefused, bool* unitsRefused, bool* altered,
                 std::size_t adoptCapacity) override {
     return impl_.setState(state, currentPredictors, columnMaskRefused,
                           monotoneRefused, interactionRefused,
-                          lengthscaleRefused, unitsRefused, adoptCapacity);
+                          lengthscaleRefused, unitsRefused, altered,
+                          adoptCapacity);
   }
   void setAnchor(double min, double max, bool moveChains) override {
     impl_.setAnchor(min, max, moveChains);

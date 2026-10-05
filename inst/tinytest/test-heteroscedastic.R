@@ -351,7 +351,8 @@ restored <- dbarts(
   variance = varianceForest(n.trees = 5L),
   control = priorControl
 )
-expect_silent(restored$setState(drawnState))
+expect_silent(status <- restored$setState(drawnState))
+expect_true(status)
 
 # a homoscedastic sampler has nothing to draw: not a refusal, and not a
 # generator call either, so the next draws are the ones it would have made

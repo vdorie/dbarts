@@ -49,6 +49,18 @@ bool sameFlatTrees(const std::vector<std::vector<FlatNode>>& a,
   return true;
 }
 
+bool sendFirstOrdinalRuleMissingRight(
+    std::vector<std::vector<FlatNode>>& trees) {
+  for (std::vector<FlatNode>& tree : trees)
+    for (FlatNode& node : tree)
+      if (node.variable != invalidVariable &&
+          flatKindOf(node) == FlatKind::ordinal) {
+        node.flags |= flatMissingGoesRight;
+        return true;
+      }
+  return false;
+}
+
 // Tripwire for the comparison below and for the fuzz snapshot built on it: a
 // new PERSISTED field must gain a comparison here, and a state field that
 // nothing compares is a state field a rollback or restore gate cannot see. The

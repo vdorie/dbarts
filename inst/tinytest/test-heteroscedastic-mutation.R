@@ -81,7 +81,8 @@ expect_true(numDistinct(quantized$train) <= 27L)
 # rebuild matches each flattened cut value against the current cut points
 # exactly, so a state carrying a stale threshold cannot restore
 coarse$storeState()
-expect_silent(coarse$setState(coarse$state))
+expect_silent(status <- coarse$setState(coarse$state))
+expect_true(status)
 expect_true(numDistinct(coarse$run(0L, 1L)$variance) <= 27L)
 
 # ---- statistical agreement with a from-scratch fit: a repair that re-routes
@@ -276,7 +277,8 @@ strandedState <- replaceFirstVarianceTree(
   stateSampler$state,
   c(0.25, 0.75, 1.3, 0.7, 1.1)
 )
-expect_silent(stateSampler$setState(strandedState))
+expect_silent(status <- stateSampler$setState(strandedState))
+expect_false(status)
 stateSampler$storeState()
 # the nested split merged away: root split, then its two leaves
 expect_identical(stateSampler$state[[1L]]$variance.sizes[1L], 3L)
@@ -290,7 +292,8 @@ occupiedState <- replaceFirstVarianceTree(
   stateSampler$state,
   c(0.5, 0.25, 1.3, 0.7, 1.1)
 )
-expect_silent(stateSampler$setState(occupiedState))
+expect_silent(status <- stateSampler$setState(occupiedState))
+expect_true(status)
 stateRun <- stateSampler$run(0L, 3L)
 expect_true(all(is.finite(stateRun$variance)))
 expect_true(all(stateRun$variance > 0))

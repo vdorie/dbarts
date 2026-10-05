@@ -290,7 +290,8 @@ acrossUnits <- function(label, args, response = rescaled, base = y) {
   unitsBefore <- units(recipient)
   donor <- do.call(make, c(args, list(response = response)))
   expect_false(identical(units(donor), unitsBefore), info = label)
-  recipient$setState(stored(donor))
+  # a converted state is not the stored one
+  expect_false(recipient$setState(stored(donor)), info = label)
   expect_identical(recipient$getLeafPrior(), priorBefore, info = label)
   expect_identical(units(recipient), unitsBefore, info = label)
 }
@@ -550,11 +551,11 @@ untouched <- make()
 saved <- stored(proposer)
 proposer$setResponse(rescaled, updateScale = TRUE)
 invisible(proposer$run(0L, 2L))
-proposer$setState(saved)
+expect_false(proposer$setState(saved))
 expect_false(identical(proposer$getLeafPrior(), untouched$getLeafPrior()))
 proposer$setResponse(y, updateScale = TRUE)
-proposer$setState(saved)
-untouched$setState(saved)
+expect_true(proposer$setState(saved))
+expect_true(untouched$setState(saved))
 expect_identical(proposer$getLeafPrior(), untouched$getLeafPrior())
 # the two re-anchors carry the sigma prior out and back, which need not
 # return to its last bit

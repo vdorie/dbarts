@@ -1289,12 +1289,15 @@ public:
   /// the pooled categorical side channel, whose offsets must be pre-order
   /// sequential and fully consumed. Returns false - possibly half-built -
   /// on a malformed input; validate on a scratch tree before building into
-  /// live state.
+  /// live state. directionDropped, when non-null, is set when a direction
+  /// was dropped; it is never cleared here, so one flag gathers the builds of
+  /// a forest.
   bool buildFromFlat(const ColumnStore& data, const FlatNode* flatNodes,
                      size_t numNodes, std::vector<double>& paramByNode,
                      size_t paramStride = 1, const double* slopes = nullptr,
                      const std::uint64_t* masks = nullptr,
-                     size_t numMaskWords = 0) {
+                     size_t numMaskWords = 0,
+                     bool* directionDropped = nullptr) {
     paramByNode.clear();
     size_t pos = 0, leafPos = 0, maskPos = 0;
     if (!buildFromFlatBelow(0, data, flatNodes, numNodes, pos, paramByNode,
@@ -1304,7 +1307,8 @@ public:
     if (pos != numNodes) return false;
     if (maskPos != numMaskWords) return false;
     paramByNode.resize(nodes.size() * paramStride, 0.0);
-    dropStaleMissingDirectionsBelow(0, data);
+    bool dropped = dropStaleMissingDirectionsBelow(0, data);
+    if (dropped && directionDropped != nullptr) *directionDropped = true;
     return true;
   }
 
@@ -1357,16 +1361,18 @@ private:
     return true;
   }
 
-  void dropStaleMissingDirectionsBelow(int32_t nodeIndex,
+  /// Whether any rule at or below nodeIndex lost its direction.
+  bool dropStaleMissingDirectionsBelow(int32_t nodeIndex,
                                        const ColumnStore& data) {
     Node& node(at(nodeIndex));
-    if (node.isBottom()) return;
+    if (node.isBottom()) return false;
     size_t j = static_cast<size_t>(node.rule.variableIndex);
-    if (!data.hasMissing[j] && !data.columnIsPooled(j) &&
-        node.rule.missingGoesRight())
-      node.rule.setMissingGoesRight(false);
-    dropStaleMissingDirectionsBelow(node.leftChild, data);
-    dropStaleMissingDirectionsBelow(node.leftChild + 1, data);
+    bool dropped = !data.hasMissing[j] && !data.columnIsPooled(j) &&
+      node.rule.missingGoesRight();
+    if (dropped) node.rule.setMissingGoesRight(false);
+    dropped |= dropStaleMissingDirectionsBelow(node.leftChild, data);
+    dropped |= dropStaleMissingDirectionsBelow(node.leftChild + 1, data);
+    return dropped;
   }
 
   /// minIndices are inclusive, maxIndices exclusive; both are saved and

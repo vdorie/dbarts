@@ -177,8 +177,8 @@ public:
   SPY_VOID(getState, (SamplerStateData& s), (s))
   SPY_RET(bool, setState,
           (const SamplerStateData& s, const double* cp, bool* r, bool* m,
-           bool* i, bool* l, bool* u, std::size_t a),
-          (s, cp, r, m, i, l, u, a))
+           bool* i, bool* l, bool* u, bool* e, std::size_t a),
+          (s, cp, r, m, i, l, u, e, a))
   SPY_VOID(setAnchor, (double lo, double hi, bool m), (lo, hi, m))
   SPY_VOID(getAnchor, (double& lo, double& hi) const, (lo, hi))
   SPY_RET(WarmStartResult, installForests,
@@ -908,6 +908,13 @@ const Row rows[] = {
     f.gt.impl().getState(restored);
     check(statesAgree(donor, restored),
           "facade setState: the twin now reproduces the donor's state");
+    // a direction the columns cannot route is dropped on the way in
+    SamplerStateData flagged(donor);
+    check(restoresExactly(f.gt.base(), donor) &&
+            sendFirstOrdinalRuleMissingRight(
+              flagged.chains[0].forests[0].trees) &&
+            restoresAltered(f.gt.base(), flagged),
+          "facade setState: the altered flag crosses the boundary both ways");
   }},
   {FacadeVirtual::setAnchor, "setAnchor", [](Fixtures& f) {
     // the count family's pair is its shift, which a move carries exactly,

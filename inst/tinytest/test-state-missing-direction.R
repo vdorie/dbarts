@@ -80,8 +80,10 @@ invisible(other$run(5L, 1L))
 
 sampler$storeState()
 forced <- sampler$state
-expect_silent(sampler$setState(stale))
-expect_silent(other$setState(stale))
+expect_silent(status <- sampler$setState(stale))
+expect_false(status)
+expect_silent(status <- other$setState(stale))
+expect_false(status)
 for (route in list(sampler, duplicate, reloaded, other)) {
   route$storeState()
   statesAgree(route$state, forced)
@@ -111,7 +113,7 @@ kept$storeState()
 held <- kept$state
 expect_true(any(unlist(liveTrees(held)$right)))
 invisible(kept$run(0L, 3L))
-kept$setState(held)
+expect_true(kept$setState(held))
 kept$storeState()
 statesAgree(kept$state, held)
 expect_identical(treeValues(kept$state), treeValues(held))
@@ -130,7 +132,8 @@ checkRestores <- function(sampler, fill, info) {
   duplicate <- sampler$copy()
   sampler$storeState()
   forced <- sampler$state
-  expect_silent(sampler$setState(stale), info = info)
+  expect_silent(status <- sampler$setState(stale), info = info)
+  expect_false(status, info = info)
   for (route in list(sampler, duplicate)) {
     route$storeState()
     statesAgree(route$state, forced)

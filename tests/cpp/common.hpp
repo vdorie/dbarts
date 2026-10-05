@@ -97,6 +97,31 @@ static void checkStructuralRoundTrip(const SamplerStateData& saved,
   check(statesAgree(saved, reState), label);
 }
 
+// Installs a state and holds Sampler::setState's altered flag to the answer
+// named, the flag preset to the other one so an install that never writes it
+// fails.
+template <typename S>
+static bool restoresWithStatus(S& sampler, const SamplerStateData& state,
+                               const double* currentPredictors, bool expected) {
+  bool altered = !expected;
+  return sampler.setState(state, currentPredictors, nullptr, nullptr, nullptr,
+                          nullptr, nullptr, &altered) &&
+         altered == expected;
+}
+template <typename S>
+static bool restoresExactly(S& sampler, const SamplerStateData& state,
+                            const double* currentPredictors = nullptr) {
+  return restoresWithStatus(sampler, state, currentPredictors, false);
+}
+template <typename S>
+static bool restoresAltered(S& sampler, const SamplerStateData& state,
+                            const double* currentPredictors = nullptr) {
+  return restoresWithStatus(sampler, state, currentPredictors, true);
+}
+// Flags the first ordinal rule among flat trees as sending missing values
+// right; false when none splits on an ordinal column.
+bool sendFirstOrdinalRuleMissingRight(std::vector<std::vector<FlatNode>>& trees);
+
 // A burned-in sampler for mutation tests: strong signal in both columns so
 // trees certainly split.
 std::unique_ptr<ConstantLeafSampler> makeBurnedInSampler(

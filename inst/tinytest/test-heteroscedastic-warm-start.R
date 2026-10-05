@@ -215,7 +215,8 @@ slotSizes <- donor$state[[1L]][["variance.saved.sizes"]][
 expect_true(
   sum(strandDest$state[[1L]][["variance.sizes"]]) < sum(slotSizes)
 )
-expect_silent(strandDest$setState(strandDest$state))
+expect_silent(status <- strandDest$setState(strandDest$state))
+expect_true(status)
 expect_true(all(is.finite(strandDest$run(0L, 3L)$sigma)))
 
 ## ---- setState is held to the column mask installTrees is ----
