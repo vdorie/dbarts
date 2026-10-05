@@ -1464,6 +1464,10 @@ Record: this register. Marked: blank. [dec-B213]
 Under dec-B203, pdbart and pd2bart average over the fit's rows (or newdata's) unweighted, leaving out rows the fit excludes with a 0 weight, since a fit's weights are a precision, a trial count or a row mask and not a population weight; they gain average.weights, one non-negative weight per averaged row, normalized, for a weighted population average, as randomForest::partialPlot's w. The name avoids weights, which reaches bart through ... as the fit's weights. The alternatives were averaging by the fit's weights, unweighted only with average weights left for later, and the names w and pd.weights. The maintainer on 2026-10-04: "Option 3 seems cheap now." and "average.weights."
 Record: this register. Marked: blank. [dec-B214]
 
+**pdbart's result records its scale and the plots label it**
+Under dec-B207, a pdbart or pd2bart result records the type it was computed on, and the plot methods label the vertical axis by scale and family ("probability" or "probit scale" on a binary fit, "log time" on aft, "mean response" on hurdle, the response's name otherwise), pd2bart's panel titles likewise; a user's ylab or main still wins. The alternative was recording the type with the labels left at "partial-dependence". The maintainer on 2026-10-04: "The result records its type, and the plots label the axis by scale."
+Record: this register. Marked: blank. [dec-B215]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
