@@ -160,6 +160,9 @@
             NULL}, as base R fits without a call do, so \code{update}
             refuses it as it refuses such an \code{lm} fit; 0.9-34 stored
             the placeholder call \code{NULL()}.
+      \item The sampler's \code{$setControl} refuses a control whose
+            \code{n.trees} differs from the sampler's; 0.9-34 resized the
+            sampler in place. Create a new sampler with the count wanted.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{

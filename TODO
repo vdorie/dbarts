@@ -165,6 +165,17 @@ items
     probability as the variable moves, a category margin on the result
     and one line per category in the plots. Refused until then.
     Scheduled after 1.0-0 (VD 2026-10-04, dec-B209).
+  warm-start-tree-count: a warm start (bart's warm.start, the sampler's
+    installTrees) from a donor with another tree count, partially
+    populated: a smaller recipient takes some of the donor's trees, a
+    larger one takes them all and starts the rest empty. Today a donor
+    with another count is refused as not shape-compatible. It is the
+    path for what 0.9-34's setControl did when given another n.trees,
+    which 1.0-0 refuses (VD 2026-10-05, dec-B247: "maybe we can add only
+    partially populating trees from another model in the warm-starts to
+    handle the big -> small, small -> big scenarios"). To design: which
+    trees a smaller recipient takes, and whether leaf values are rescaled
+    for the recipient's count.
   warm-start-undo-test: Sampler::installForests undoes a refused warm
     start by snapshotting each touched chain's state and setting it back
     (restoreTouched), and nothing tests it. Every refusal it guards is
