@@ -90,7 +90,12 @@ dbartsControl(
   Logical to determine if the empirical quantiles of the columns of
   predictors should be used to determine the tree decision rules. If
   `FALSE`, the rules are spaced uniformly throughout the range of
-  covariate values.
+  covariate values. If `TRUE`, a numeric predictor's rules lie half-way
+  between its sorted, distinct, finite values: at every such point when
+  there are no more than `n.cuts` of them, and otherwise at `n.cuts` of
+  them spread evenly over the whole column. See
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+  ‘Decision Rules’ details.
 
 - treeShift:
 

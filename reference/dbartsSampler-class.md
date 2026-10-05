@@ -782,8 +782,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   For `setPredictor`, a logical; when `TRUE` the cut points (split
   candidate locations) for the replaced column(s) are recomputed from
-  the new values, otherwise the existing cut points are kept. Defaults
-  to `FALSE` and cannot be combined with `forceUpdate = "partial"`.
+  the new values, otherwise the existing cut points are kept. A column
+  keeps the number of cut points it has: under `useQuantiles = TRUE`
+  they are spread evenly over the new values, and new values with too
+  few distinct ones to hold that many are an error. Defaults to `FALSE`
+  and cannot be combined with `forceUpdate = "partial"`.
 
 - treeNums:
 
@@ -1072,7 +1075,10 @@ predictors reaches becomes a single leaf, along with everything beneath
 it, and a rule stops recording a side for missing values where its
 column no longer has any. To undo a predictor change exactly, put the
 old predictor back first, with `setPredictor(..., forceUpdate = TRUE)`,
-and then call `setState`. An unforced `setPredictor` can be refused,
+and then call `setState`. `setState` invisibly returns `TRUE` when the
+state went in as stored and `FALSE` when it did not (see ‘Value’), so
+code that restores in order to reject a proposal can check that the
+rejection was exact. An unforced `setPredictor` can be refused,
 returning `FALSE` and leaving the changed predictor in place; `setState`
 then restores against the changed predictor, as it does when called
 before the predictor is put back, and merges what that predictor leaves
@@ -1352,6 +1358,20 @@ instead returns a logical vector of length equal to the number of
 observations, `TRUE` where that observation's new value was installed
 and `FALSE` where it was rolled back to its previous value to keep every
 tree of every forest valid.
+
+For `setState`, invisibly, `TRUE` when nothing had to be changed to
+install the state and `FALSE` otherwise. It is `FALSE` when, in any tree
+of any chain, a leaf that no row of the current predictors reaches was
+merged into its parent, or a rule lost its side for missing values
+because its column no longer has any; and when the state was stored in
+other response units and its leaf values were converted. No warning is
+given. `TRUE` means the trees and leaf values are the stored ones. It
+does not promise the latents, which are re-derived when the case weights
+or an `aft` censoring status differ from those the state was stored
+under, or the generator, which is left as the sampler's own when the
+state's is of another kind; nor does it cover a value the sampler holds
+fixed, which a state never changes. `copy` and a reload install a state
+the same way and report nothing.
 
 Under `keepTrees` the draws `predict`, `predictForests`, `getTrees` and
 `printTrees` report come out OLDEST FIRST: the store keeps the most
