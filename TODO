@@ -147,6 +147,12 @@ items
     samplePriorPredictive already draws f from the prior at x.test; the
     helper would summarize it, or compute it in closed form where one
     exists (constant, linear).
+  pdbart-hazard-compiled: a compiled routine for pdbart's survival-scale
+    partial dependence on hazard fits, so a fine period grid (the
+    default, from the observed event times) runs at sizes the fit
+    itself does; the R route's work grows with the square of the
+    subjects there and a size check stops it. Scheduled after 1.0-0
+    (VD 2026-10-04, dec-B209).
   pdbart-ice: individual conditional expectation curves from pdbart and
     pd2bart - one posterior curve per row beside their average - so
     effect heterogeneity shows with its uncertainty (pdp::partial's
