@@ -1,6 +1,10 @@
 # count-cap: cap logistic count weights and a fixed negative-binomial shape at one million; interrupt long sweeps
 
-Status: PLANNED 2026-10-04 under dec-B202 in [decisions.md](../decisions.md).
+Status: IMPLEMENTED 2026-10-04 at cc9a6a8a on wt/count-cap, under dec-B202 in
+[decisions.md](../decisions.md); not yet reviewed or landed. A sampled shape cannot reach the cap, its grid
+stopping at 50. An interrupted refresh that drew the shape is put back whole, since its rows left at the
+previous omega would pair a draw at the old shape with the new one. Multinomial trial counts take the same
+per-trial draw and are neither capped nor polled here.
 
 agent: opus implementer, one; opus reviewer.
 rng: NEUTRAL. Accepted inputs below the cap take the same path and the interrupt poll draws nothing; only
