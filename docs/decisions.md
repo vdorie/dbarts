@@ -1484,6 +1484,10 @@ Record: this register. Marked: blank. [dec-B218]
 Under dec-B208, a formula fit passed to pdbart or pd2bart without newdata has its data re-evaluated from the fit's stored call, keeping the rows the fit used by their row names (after its subset, without rows dropped for a missing response), as termplot evaluates model$call$data and pdp::partial recovers training data from the call; if the data changed since the fit the average is over the changed values, and a fit whose call cannot be evaluated (keepCall = FALSE, or the data gone) is refused with a request for newdata. The alternatives were requiring newdata for a formula fit passed in, and storing the data on the fit. The maintainer on 2026-10-04: "Use option 1."
 Record: this register. Marked: blank. [dec-B219]
 
+**pdbart's hazard size check: about ten minutes, raised by an argument**
+Under dec-B209, pdbart and pd2bart on a hazard fit count their work before starting - subjects x periods up to the largest requested time x draws x grid values - and refuse above 5e9, about ten minutes at the measured 5 to 11 million a second on four threads, naming the ways out (a coarser period grid, fewer subjects through newdata or n.average.rows, fewer grid values, an earlier largest time) and the argument that raises the limit, as hazard(max.rows = ) raises its own. Every coarse-grid case measured runs (5,000 subjects on 20 periods: 4.6e9); default-grid fits run to about 320 subjects at three predictors. The alternatives were 1e10, a projected time budget, an R option, and no override. The maintainer on 2026-10-04: "5 x 10^9, about 10 minutes and An argument on pdbart, named in the refusal message." The argument's name is not ruled.
+Record: this register. Marked: blank. [dec-B220]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
