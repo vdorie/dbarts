@@ -171,12 +171,35 @@ withoutDigest <- function(state) {
 for (make in list(gaussianSampler, studentSampler, varianceSampler)) {
   donor <- storedFrom(make(wA))
   repaired <- make(wB)
-  repaired$setState(donor)
+  # other weights leave the chains the stored ones
+  expect_true(repaired$setState(donor))
   inert <- make(wB)
   inert$setState(withoutDigest(donor))
   expect_identical(repaired$getLatents(), inert$getLatents())
   expect_identical(repaired$run(0L, 3L)$train, inert$run(0L, 3L)$train)
 }
+
+# an aft sampler's censoring status is reconciled the same way, its censored
+# latents redrawn: a state stored with censored rows goes into a sampler that
+# scores every row an event, and the chains are still the stored ones
+time <- exp(yContinuous / 3)
+bound <- as.double(quantile(time, 0.7))
+aftSampler <- function(status) {
+  dbarts::dbarts(
+    x,
+    cbind(pmin(time, bound), status),
+    family = "aft",
+    control = stateControl
+  )
+}
+aftState <- storedFrom(aftSampler(as.double(time <= bound)))
+allEvents <- aftSampler(rep(1, n))
+expect_true(allEvents$setState(aftState))
+allEvents$storeState()
+expect_false(identical(
+  attr(allEvents$state, "survival.digest"),
+  attr(aftState, "survival.digest")
+))
 
 # a multinomial sampler refuses weights at creation, so its digest can only be
 # made to differ by hand; the repair still fires and is still inert, because

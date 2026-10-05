@@ -2136,7 +2136,12 @@ public:
   /// bitwise. False, the state untouched, where the shift cannot be
   /// carried: a gp leaf's saved draw has no mean term, and under amplitudes
   /// no forest owns one. Both pairs carry units (carriesUnits).
-  bool convertStateUnits(ChainStateData& state, double min, double max) const {
+  ///
+  /// changed, when non-null, receives on success whether the rewrite moves
+  /// any value, r other than 1 or d other than 0: unequal pairs can name the
+  /// same units, as a constant response's (c, c) and (c, c + 1) do.
+  bool convertStateUnits(ChainStateData& state, double min, double max,
+                         bool* changed = nullptr) const {
     double fromScale, fromShift, toScale, toShift;
     unitsOf(state.fitMin, state.fitMax, fromScale, fromShift);
     unitsOf(min, max, toScale, toShift);
@@ -2145,6 +2150,7 @@ public:
     if (shift != 0.0 &&
         (L::hasFunctionParams || (combiner_ && combiner_->totalAmplitudes() > 0)))
       return false;
+    if (changed != nullptr) *changed = ratio != 1.0 || shift != 0.0;
     std::size_t numForests = std::min(state.forests.size(), forests_.size());
     for (std::size_t f = 0; f < numForests; ++f) {
       ForestStateData& fs = state.forests[f];

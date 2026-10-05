@@ -1143,12 +1143,14 @@ public:
   ///
   /// altered, when non-null, reports whether an accepted state was installed
   /// other than as stored: false exactly when every chain's live trees and
-  /// leaf values are the state's own. A chain the units pass converted sets
-  /// it, as does a live tree, mean or variance, that had a bottom merged or a
-  /// missing direction dropped (Chain::setState). Only the installing build
-  /// reports: the scratch builds that validate a state never do, and a
-  /// refusal leaves it false. Any further way an install comes to differ from
-  /// its state reports here too, this being the one such flag a host reads.
+  /// leaf values are the state's own. A chain whose values the units pass
+  /// moved sets it - not one stored under another pair naming the same units
+  /// (Chain::convertStateUnits) - as does a live tree, mean or variance, that
+  /// had a bottom merged or a missing direction dropped (Chain::setState).
+  /// Only the installing build reports: the scratch builds that validate a
+  /// state never do, and a refusal leaves it false. Any further way an
+  /// install comes to differ from its state reports here too, this being the
+  /// one such flag a host reads.
   /// Not reported, since the chain is still the stored one: a value the
   /// sampler holds fixed or the state lacks, a generator of another kind left
   /// in place, a pooled categorical rule keeping a missing bit its column no
@@ -1192,13 +1194,14 @@ public:
       chainStates[c] = &state.chains[c];
       if (!unitsDiffer(state.chains[c])) continue;
       converted[c] = state.chains[c];
+      bool valuesMoved = false;
       if (!chains_[c]->convertStateUnits(converted[c], anchorMin_,
-                                         anchorMax_)) {
+                                         anchorMax_, &valuesMoved)) {
         if (unitsRefused != nullptr) *unitsRefused = true;
         return false;
       }
       chainStates[c] = &converted[c];
-      installAltered = true;
+      installAltered = installAltered || valuesMoved;
     }
 
     // install the state's cuts, snapshotting for rollback: tree validity is

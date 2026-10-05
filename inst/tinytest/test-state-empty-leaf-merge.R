@@ -120,7 +120,7 @@ expect_true(exact$setState(held))
 exact$storeState()
 statesAgree(exact$state, held)
 expect_identical(treeValues(exact$state), treeValues(held))
-# copy() has no value to carry: it merges as quietly as before
+# copy() has no value to carry: a merge on the way in raises nothing
 exact$setPredictor(xNew, forceUpdate = TRUE)
 expect_silent(exactCopy <- exact$copy())
 expect_true(all(is.finite(exactCopy$run(0L, 1L)$train)))

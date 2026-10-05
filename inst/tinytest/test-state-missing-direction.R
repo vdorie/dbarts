@@ -141,6 +141,9 @@ checkRestores <- function(sampler, fill, info) {
     expect_false(any(sendsRight(route$state)), info = info)
     expect_true(all(is.finite(route$run(0L, 3L)$train)), info = info)
   }
+  # its own fresh state is the stored one
+  sampler$storeState()
+  expect_true(sampler$setState(sampler$state), info = info)
 }
 twoChains <- control
 twoChains@n.chains <- 2L

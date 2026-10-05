@@ -440,6 +440,45 @@ static void testStateRoundTripScaledOffset() {
   check(worst < 1.0e-12 && predictionsC != predictionsA,
         "converted state: the function is the stored one to rounding");
 
+  // unequal pairs naming the same units: a constant response's (0, 0) and a
+  // response spanning exactly (0, 1) both take multiplier 1 and shift 0.5,
+  // so the conversion moves no value and the install is the stored chain
+  std::vector<double> yConstant(n, 0.0), yUnit(n);
+  for (size_t i = 0; i < n; ++i) yUnit[i] = static_cast<double>(i % 5) / 4.0;
+  ext_rng* rngD = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngE = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngD, 80);
+  ext_rng_setSeed(rngE, 81);
+  ConstantLeafSampler constant(x.data(), yConstant.data(), n, 2, nullptr,
+                               nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                               0.37804942330213542, options, &rngD);
+  ConstantLeafSampler unit(x.data(), yUnit.data(), n, 2, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, options, &rngE);
+  constant.run(20, 0, empty);
+  SamplerStateData constantState, unitState;
+  constant.getState(constantState);
+  unit.getAnchor(ownMin, ownMax);
+  bool pairsDiffer = constantState.chains[0].fitMax != ownMax &&
+    constantState.chains[0].fitMin == ownMin && ownMax == ownMin + 1.0;
+  bool sameUnits = restoresExactly(unit, constantState);
+  unit.getState(unitState);
+  const auto& storedTrees = constantState.chains[0].forests[0].trees;
+  const auto& installedTrees = unitState.chains[0].forests[0].trees;
+  bool bitwise = storedTrees.size() == installedTrees.size();
+  for (size_t t = 0; bitwise && t < storedTrees.size(); ++t) {
+    bitwise = storedTrees[t].size() == installedTrees[t].size();
+    for (size_t i = 0; bitwise && i < storedTrees[t].size(); ++i)
+      bitwise = storedTrees[t][i].variable == installedTrees[t][i].variable &&
+        std::memcmp(&storedTrees[t][i].value, &installedTrees[t][i].value,
+                    sizeof(double)) == 0;
+  }
+  check(pairsDiffer && sameUnits && bitwise,
+        "converted state: another pair naming the same units installs as "
+        "stored, bit for bit");
+
+  ext_rng_destroy(rngE);
+  ext_rng_destroy(rngD);
   ext_rng_destroy(rngC);
   ext_rng_destroy(rngB);
   ext_rng_destroy(rngA);
