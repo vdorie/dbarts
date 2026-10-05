@@ -1496,6 +1496,10 @@ Record: this register. Marked: blank. [dec-B221]
 Under dec-B209, a pdbart or pd2bart result on a hazard fit has fd as draws x times x grid values, never dropping the times margin, with a chain margin leading under combineChains = FALSE: survivalProbabilities' layout (draws x times x observations, kept at length 1 for one time, as extract keeps its margins) with grid values for observations, so one time's slice is the draws x grid values matrix pdbart returns on every other family. The alternatives were draws x grid values x times, and dropping the times margin for one time. survex, pdp and randomForestSRC return summaries in data frames or lists, not draw arrays. The maintainer on 2026-10-04, asking what comparable packages do and what users expect: "OK, draws x times x grid values then."
 Record: this register. Marked: blank. [dec-B222]
 
+**pdbart's hazard scales: survival, the event probability and the cumulative hazard, each averaged last**
+Under dec-B209 and dec-B210, pdbart and pd2bart on a hazard fit take type values for survival (the default), 1 - S(t) and the cumulative hazard -log S(t), each computed per row and then averaged, so each is the posterior mean of the quantity asked for; the cumulative hazard cannot be had afterwards from averaged survival. The cumulative hazard is "cumhaz", as survival (survfit's cumhaz, plot.survfit(fun = "cumhaz")) and flexsurv (summary(type = "cumhaz")) name it, where ranger, randomForestSRC and survex say "chf". The maintainer on 2026-10-04: "My general rule is average last so that they are posterior means of desired quantities. I think that implies using survival by default, plus risk and cumulative hazard", and, on the name: "OK, we're using \"cumhaz\" on your recommendation". The name for 1 - S(t) is not ruled: "risk" means exp(lp) in survival's predict.coxph, and survival calls 1 - S(t) "event" in plot.survfit. The alternatives were survival only, and adding the per-period hazard.
+Record: this register. Marked: blank. [dec-B223]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
