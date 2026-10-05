@@ -153,6 +153,11 @@ items
     ice, iml). Memory grows as rows x grid points x draws; a per-row
     posterior mean and interval keeps it bounded. Scheduled after 1.0-0
     (VD 2026-10-04, dec-B207).
+  pdbart-per-category: partial dependence per category for multinomial
+    and ordinal fits from pdbart and pd2bart - each category's
+    probability as the variable moves, a category margin on the result
+    and one line per category in the plots. Refused until then.
+    Scheduled after 1.0-0 (VD 2026-10-04, dec-B209).
   warm-start-undo-test: Sampler::installForests undoes a refused warm
     start by snapshotting each touched chain's state and setting it back
     (restoreTouched), and nothing tests it. Every refusal it guards is
