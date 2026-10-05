@@ -1492,6 +1492,10 @@ Record: this register. Marked: blank. [dec-B220]
 Under dec-B209, whose "times the caller names" was the agents' wording rather than a choice put to the maintainer, pdbart and pd2bart on a hazard fit take times defaulting to the training data's Kaplan-Meier median survival time, or, when fewer than half the subjects have the event, the median follow-up time, and the plot says which time it used; several times give one line each. Put to the maintainer with the landscape: survex's plot of a variable at fixed times defaults to the median survival time, randomForestSRC's plot.variable to the median of its time grid, and the BART package's papers draw survival curves over time; none requires a time. The alternatives were requiring times and every period of the fit's grid. The maintainer on 2026-10-04: "Ok, use your recommendation and default to one sensible time: the median survival time from the training data."
 Record: this register. Marked: blank. [dec-B221]
 
+**pdbart's hazard result is draws x times x grid values**
+Under dec-B209, a pdbart or pd2bart result on a hazard fit has fd as draws x times x grid values, never dropping the times margin, with a chain margin leading under combineChains = FALSE: survivalProbabilities' layout (draws x times x observations, kept at length 1 for one time, as extract keeps its margins) with grid values for observations, so one time's slice is the draws x grid values matrix pdbart returns on every other family. The alternatives were draws x grid values x times, and dropping the times margin for one time. survex, pdp and randomForestSRC return summaries in data frames or lists, not draw arrays. The maintainer on 2026-10-04, asking what comparable packages do and what users expect: "OK, draws x times x grid values then."
+Record: this register. Marked: blank. [dec-B222]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
