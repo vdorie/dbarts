@@ -222,8 +222,8 @@ residual shortfall persists even at the doc's longest chains.
 The exact-posterior gates (aft-exact, aft-hetero-pit, backfit-exact,
 bcf-exact[-weak, -restricted], bcf-latent-exact, categorical-exact,
 hazard-exact, heteroscedastic-exact, hurdle-exact, linear-exact,
-multinomial-exact, negbin-exact, ordinal-exact, t-exact, logistic-reference,
-monotone-reference) and the detailed-balance gates (bd-balance = birth/death,
+mask-redraw-exact, multinomial-exact, negbin-exact, ordinal-exact, t-exact,
+logistic-reference, monotone-reference) and the detailed-balance gates (bd-balance = birth/death,
 change-balance = change, swap-balance = swap, perturb-balance = perturb,
 rule-gibbs-balance = rule_gibbs) each drive a long fixed-seed MCMC run and
 compare the engine's draws to an analytic or brute-force-enumerated target with
@@ -238,6 +238,26 @@ fixed-seed mixing gate rather than an exactness one: at n of 500 and 2000 with
 the default forest, two chains of the negative-binomial shape must leave
 the cold start, agree by split-Rhat, cover the true r and cover fresh counts at
 90% by randomized PIT; `quick` and full differ in seeds only.
+
+mask-redraw-exact is the gate for a mask redrawn every sweep by a larger
+sampler: a two-part mixture over ten rows and one tree, whose joint posterior
+over trees and masks is enumerated, against a combined sampler that alternates
+a sweep with a redraw of every row's membership and `$setActiveRows`. It
+compares the long-run membership probabilities and the fitted means, on a
+gaussian arm, an unordered-factor arm and a probit arm. It fails if the trees
+a sampler may hold depend on the mask, and its probit arm fails if a row
+switched back in keeps the latent it left with (docs/design/empty-leaf-veto.md,
+"What counts as empty: membership").
+Quick mode is about 45 seconds and bounds each of 44 z statistics at 4.5, a
+false failure once in 1400 fresh seeds for a correct sampler; an arm can be
+run alone by naming it.
+
+    Rscript benchmarks/R/mask-redraw-exact.R quick probit
+
+bd-balance takes a second arm, `zeroweight`, outside the workflow's loop: the
+same enumeration under a weight vector that zeroes two cells, installed on a
+grown tree that holds those cells as sibling leaves, against the exact
+posterior in which a leaf of only zero-weight rows is legal and scores nothing.
 
     Rscript benchmarks/R/change-balance.R        # full
     Rscript benchmarks/R/change-balance.R quick  # fast smoke

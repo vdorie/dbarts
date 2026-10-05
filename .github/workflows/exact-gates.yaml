@@ -1,8 +1,8 @@
 # Deterministic correctness gates for the bartcore MCMC engine: the balance
 # gates (birth/death, change, swap, perturb and rule_gibbs detailed balance)
 # and the exact-posterior / reference gates (aft, bcf, categorical, hazard,
-# heteroscedastic, hurdle, linear, multinomial, negbin, ordinal, t, logistic,
-# monotone), and the negbin mixing gate, which checks at realistic n that the
+# heteroscedastic, hurdle, linear, mask-redraw, multinomial, negbin, ordinal,
+# t, logistic, monotone), and the negbin mixing gate, which checks at realistic n that the
 # shape leaves its cold start and the predictive law covers fresh counts. Each script drives a long MCMC run with a fixed seed and compares
 # the engine's draws to an analytic or brute-force-enumerated target with a
 # z-score / tolerance bound it computes IN-SCRIPT (no recorded baseline), then
@@ -138,7 +138,7 @@ jobs:
             aft-exact.R aft-hetero-pit.R backfit-exact.R bcf-exact.R bcf-exact-weak.R bcf-exact-restricted.R
             bcf-latent-exact.R
             categorical-exact.R heteroscedastic-exact.R linear-exact.R
-            hazard-exact.R hurdle-exact.R
+            hazard-exact.R hurdle-exact.R mask-redraw-exact.R
             multinomial-exact.R negbin-exact.R negbin-mixing.R ordinal-exact.R
             t-exact.R
             logistic-reference.R monotone-reference.R
