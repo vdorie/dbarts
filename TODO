@@ -165,6 +165,10 @@ items
     probability as the variable moves, a category margin on the result
     and one line per category in the plots. Refused until then.
     Scheduled after 1.0-0 (VD 2026-10-04, dec-B209).
+  warm-start-across-models: a warm start from a donor that is another
+    model, such as a fast fit on a transformed response seeding a slower
+    model on the original scale, with whatever scale or dispersion the
+    two do not share translated. After 1.0-0 (VD 2026-10-05, dec-B248).
   warm-start-tree-count: a warm start (bart's warm.start, the sampler's
     installTrees) from a donor with another tree count, partially
     populated: a smaller recipient takes some of the donor's trees, a
