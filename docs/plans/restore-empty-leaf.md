@@ -1,6 +1,6 @@
 # restore-empty-leaf: a state install merges leaves no row reaches, as 0.9-34 did
 
-Status: IMPLEMENTED 2026-10-04 (276eddce, 84babf15), on wt/restore-empty-leaf, not landed.
+Status: LANDED 2026-10-04 (ec9bc2f4 to 5be59e94).
 
 agent: opus implementer, one; opus reviewer.
 rng: SHIFTING. Draws change only for a same-grid warm start whose donor leaves a leaf with no rows, which
@@ -62,3 +62,13 @@ always restore its own state and `copy()` itself after its predictors changed.
 - The equivalence compare in statistical (z) mode against the current baseline: no scenario warm-starts, so
   every scenario is expected to report identical draws.
 - `lintr::lint_package()`, `air format --check .`, and the three tools/ checks clean.
+
+## Landing note
+
+Landed 2026-10-04 as ec9bc2f4 (the merge on every install path, warm start included) and c9a85e0e (the
+response's own state restored before the merge, so a copy reproduces the original's restore; docs and the
+variance-mismatch message), with records 1cc1ab6f and 5be59e94. Review SOUND WITH CORRECTIONS, then SOUND.
+On the tree rebased onto input-guards: full tinytest 13167 results, 0 failures; tests/cpp passes; the four
+seeded snapshot files pass on the reference build. Before the rebase: equivalence in statistical mode 55 of
+55 identical, BCF 15 of 15 and multinomial 11 of 11 bitwise; ASan and UBSan clean; installs accepted before
+the change draw identically across 17 sampler kinds.

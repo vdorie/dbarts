@@ -147,10 +147,6 @@ items
     samplePriorPredictive already draws f from the prior at x.test; the
     helper would summarize it, or compute it in closed form where one
     exists (constant, linear).
-  restore-empty-leaf: a state install refuses a tree with a leaf no row
-    reaches, so a sampler cannot restore or copy itself after its
-    predictors change; 0.9-34 merged such leaves.
-    docs/plans/restore-empty-leaf.md.
   warm-start-undo-test: Sampler::installForests undoes a refused warm
     start by snapshotting each touched chain's state and setting it back
     (restoreTouched), and nothing tests it. Every refusal it guards is
