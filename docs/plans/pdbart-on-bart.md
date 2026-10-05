@@ -2,7 +2,8 @@
 
 Status: PLANNED 2026-10-04. Every question ruled: dec-B203 to dec-B229 in
 [decisions.md](../decisions.md), dec-B221 as revised. Slices 1 and 2 landed
-on bartcore; slice 3 IMPLEMENTED 2026-10-05 (eec4b0d8), not landed.
+on bartcore; slice 3 IMPLEMENTED 2026-10-05 (eec4b0d8, review corrections
+26ef4669), not landed.
 
 agent: one implementer per slice (R only); an Opus reviewer per slice.
 rng: posterior-changing at the R layer only, with the gate exception stated
