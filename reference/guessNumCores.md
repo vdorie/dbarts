@@ -26,7 +26,9 @@ itself.
 
 ## Value
 
-An integer, or `NA` if no clear answer was obtained.
+An integer, or `NA` if no clear answer was obtained. The fitting
+functions take their default `n.threads` from this value and refuse an
+`NA`, so on such a system `n.threads` must be given.
 
 ## Author
 
