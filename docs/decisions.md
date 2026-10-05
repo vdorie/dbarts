@@ -1418,6 +1418,10 @@ Record: this register; docs/plans/count-cap.md. Marked: blank. [dec-B202]
 pdbart and pd2bart fit their model through bart, the modern front door, taking bart's arguments under bart's names, where they have handed their extra arguments to the BayesTree-style fitter (0.9-34's bart, now bartBT) and silently dropped any name it does not take, so n.trees = 10 ran 200 trees and a misspelled argument ran the default fit; 0.9-34 behaved the same. The alternatives put to the maintainer were refusing unknown names while staying on bartBT, keeping 0.9-34's behaviour with the help page corrected, and refusing unknown names while also translating bart's names to bartBT's. The maintainer on 2026-10-04: "It should use `bart` and not `bartBT`, with appropriate options and option names. So I think that's sort-of option 3." Not ruled: the names of pdbart's own arguments, what a call using BayesTree spellings does, and the change of defaults that follows.
 Record: this register. Marked: blank. [dec-B203]
 
+**pdbart's data arguments take bart's names**
+Under dec-B203, pdbart and pd2bart name their two data arguments formula and data, as bart does, where they were BayesTree's x.train and y.train, and keep their own xind, levs, levquants, pl and plquants. A call passing its data by position, as the help examples, treatSens and glossa do, is unchanged. The alternatives were keeping all seven names, naming the first argument object, also renaming pl to plot, and a fit-first function that never fits. The maintainer on 2026-10-04: "Rename the two data arguments to formula and data; keep the other five." What a call naming x.train or y.train does is the question of BayesTree spellings, not ruled here.
+Record: this register. Marked: blank. [dec-B204]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
