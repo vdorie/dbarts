@@ -1516,6 +1516,10 @@ Record: this register. Marked: blank. [dec-B226]
 pdbart's and pd2bart's type has the formal default "auto", as bart's family does, resolving per family: survival at the median survival time on hazard and aft fits (dec-B221, dec-B226), the mean response on hurdle fits (dec-B207), the link scale on every other (dec-B207); every explicit value stays available, the help page carries the table, and the result records the resolved type and the plot labels it (dec-B215). The alternatives were a fixed formal default, which three families would override, and NULL, which hides that a choice is made. The maintainer on 2026-10-04, asking whether there should be "a `type = \"auto\"` just like there is for families on `bart`": "OK, do that."
 Record: this register. Marked: blank. [dec-B227]
 
+**pdbart's average.weights under a subsample**
+Under dec-B214 and dec-B218, average.weights is given for all of the fit's rows; with n.average.rows the sampled rows keep their weights, renormalized, so the estimate targets the same weighted average with or without the subsample. The alternatives were sampling with probability proportional to the weights and averaging unweighted, and refusing the pair. The maintainer on 2026-10-04: "Weights are given for all of the fit's rows; the sampled rows keep theirs and are renormalized."
+Record: this register. Marked: blank. [dec-B228]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
