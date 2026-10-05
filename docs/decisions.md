@@ -1480,6 +1480,10 @@ Record: this register. Marked: blank. [dec-B217]
 Under dec-B207, pdbart and pd2bart take n.average.rows, the number of the fit's own rows (after its subset and the rows it dropped) to sample at random and average over, all rows by default; a set.seed before the call reproduces it, as with type = "ppd", and it is refused together with newdata. A count rather than a fraction, since the cost grows with the rows averaged whatever the data's size. The landscape put to the maintainer: bartMachine's pd_plot takes prop_data, a fraction, all rows by default; survex averages over N = 100 sampled rows by default; pdp and randomForest have none. The alternatives were no shortcut with the newdata line in the help page, a sampled default, and the names average.rows, n.rows and n.average. The maintainer on 2026-10-04: "Sure, option 2." and, on the name, "n.average.rows".
 Record: this register. Marked: blank. [dec-B218]
 
+**pdbart finds a formula fit's rows from its stored call**
+Under dec-B208, a formula fit passed to pdbart or pd2bart without newdata has its data re-evaluated from the fit's stored call, keeping the rows the fit used by their row names (after its subset, without rows dropped for a missing response), as termplot evaluates model$call$data and pdp::partial recovers training data from the call; if the data changed since the fit the average is over the changed values, and a fit whose call cannot be evaluated (keepCall = FALSE, or the data gone) is refused with a request for newdata. The alternatives were requiring newdata for a formula fit passed in, and storing the data on the fit. The maintainer on 2026-10-04: "Use option 1."
+Record: this register. Marked: blank. [dec-B219]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
