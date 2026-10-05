@@ -103,6 +103,12 @@ rbart_vi and its methods are deprecated, and documented on rbart_vi."></head><bo
     <dt>The front-door defaults message</dt>
 <dd><p>A <code><a href="bart.html">bart</a></code> call that names no <code>bartBT</code> argument and whose first argument is not a formula - a 0.9-x call such as <code>bart(x.train, y.train, x.test)</code> - binds the same way under both doors, so nothing forwards it and it runs under <code>bart</code>'s own defaults. The first such call in a session prints a message of class <code>dbartsFrontDoorMessage</code> naming the change and <code><a href="bartBT.html">bartBT</a></code>; <code>suppressMessages</code> silences it, and a call made from package code prints nothing.</p></dd>
 
+    <dt>A BayesTree-spelled <code><a href="pdbart.html">pdbart</a></code> or <code>pd2bart</code> call</dt>
+<dd><p>Each name <code><a href="bartBT.html">bartBT</a></code> takes and <code><a href="bart.html">bart</a></code> does not is translated to <code>bart</code>'s spelling, after a once-per-session warning per name and function that also fires for a call from package code; <code>x.test</code> and <code>sampleronly</code> are refused. A setting given under both spellings is refused.</p></dd>
+
+    <dt>The pdbart defaults message</dt>
+<dd><p>The first <code><a href="pdbart.html">pdbart</a></code> or <code>pd2bart</code> call in a session that fits data and names no BayesTree argument prints a message of class <code>dbartsFrontDoorMessage</code> saying that the fit uses <code>bart</code>'s defaults and that <code>pdbart(bartBT(x, y, keeptrees = TRUE))</code> gives the 0.9-34 model; a call made from package code prints nothing.</p></dd>
+
 
 </dl><p>Every entry above, <code>bart2</code> and <code>rbart_vi</code>, is one row of <code>dbarts:::dbartsTombstones</code>, the registry this page documents by hand.</p>
     </div>

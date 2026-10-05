@@ -170,6 +170,28 @@ in dbarts 1.1-0.
   `suppressMessages` silences it, and a call made from package code
   prints nothing.
 
+- A BayesTree-spelled
+  [`pdbart`](https://vdorie.github.io/dbarts/reference/pdbart.md) or
+  `pd2bart` call:
+
+  Each name
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
+  and [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) does
+  not is translated to `bart`'s spelling, after a once-per-session
+  warning per name and function that also fires for a call from package
+  code; `x.test` and `sampleronly` are refused. A setting given under
+  both spellings is refused.
+
+- The pdbart defaults message:
+
+  The first
+  [`pdbart`](https://vdorie.github.io/dbarts/reference/pdbart.md) or
+  `pd2bart` call in a session that fits data and names no BayesTree
+  argument prints a message of class `dbartsFrontDoorMessage` saying
+  that the fit uses `bart`'s defaults and that
+  `pdbart(bartBT(x, y, keeptrees = TRUE))` gives the 0.9-34 model; a
+  call made from package code prints nothing.
+
 Every entry above, `bart2` and `rbart_vi`, is one row of
 `dbarts:::dbartsTombstones`, the registry this page documents by hand.
 

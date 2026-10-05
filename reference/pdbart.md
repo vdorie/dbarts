@@ -1,16 +1,19 @@
 # Partial Dependence Plots for BART
 
-Run [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) at test
-observations constructed so that a plot can be created displaying the
-effect of a single variable (`pdbart`) or pair of variables (`pd2bart`).
-Note that if \\y\\ is binary with \\P(Y=1 \| x) = F(f(x))\\, \\F\\ the
-standard normal cdf, then the plots are all on the \\f\\ scale.
+Fit a model with
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md), or take a
+fit or sampler, and average its predictions over the fit's rows with one
+variable (`pdbart`) or a pair of variables (`pd2bart`) set to each of a
+grid of values, so that a plot can display that variable's effect. The
+averages are on the scale of the model's linear predictor: if \\y\\ is
+binary with \\P(Y=1 \| x) = F(f(x))\\, \\F\\ the standard normal cdf,
+then the plots are all on the \\f\\ scale.
 
 ## Usage
 
 ``` r
 pdbart(
-    x.train, y.train,
+    formula, data,
     xind = NULL,
     levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
     pl = TRUE, plquants = c(0.05, 0.95),
@@ -24,7 +27,7 @@ plot(
     ...)
 
 pd2bart(
-    x.train, y.train,
+    formula, data,
     xind = NULL,
     levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
     pl = TRUE, plquants = c(0.05, 0.95),
@@ -40,37 +43,35 @@ plot(
 
 ## Arguments
 
-- x.train:
+- formula:
 
-  Explanatory variables for training (in sample) data. Can be any valid
-  input to [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-  such as a matrix or a formula. Also accepted are fitted `bart` models
-  or
-  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  with `keepTrees` equal to `TRUE`. A sampler passed without `keepTrees`
-  is used anyway, but generates fresh samples and changes its state in
-  the process, with a warning; a `bart` model without a kept sampler is
-  instead refit from its saved call, also with a warning (both class
-  `dbartsFallbackWarning`) - and is refused outright if no call was
-  saved either.
+  The data to fit, as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own
+  `formula`: a matrix, data frame or formula. Also accepted are a fitted
+  `bart` model kept with `keepTrees = TRUE`, or a
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md),
+  passed first. A `bart` model kept without its trees or sampler is
+  refit from its stored call by the function that made it, with a
+  warning of class `dbartsFallbackWarning`, and is refused if no call
+  was kept; a sampler without `keepTrees` is run, generating fresh
+  samples and changing its state, with the same warning.
 
-- y.train:
+- data:
 
-  Dependent variable for training (in sample) data. Can be a numeric
-  vector or, when passing `x.train` as a formula, a `data.frame` or
-  other object used to find variables. Not required if `x.train` is a
-  fitted model or sampler.
+  As [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  `data`: the response when `formula` is a matrix, or the data frame in
+  which to evaluate a formula. Not used with a fit or sampler.
 
 - xind:
 
   Integer, character vector, or the right-hand side of a formula
   indicating which variables are to be plotted. In `pdbart`, corresponds
-  to the variables (columns of `x.train`) for which a plot is to be
-  constructed. In `plot.pdbart`, corresponds to the indices in list
-  returned by `pdbart` for which plot is to be constructed. In
-  `pd2bart`, the indices of a pair of variables (columns of `x.train`)
-  to plot. If `NULL` a default of all columns is used for `pdbart` and
-  the first two columns is used for `pd2bart`.
+  to the variables (columns of the predictor matrix) for which a plot is
+  to be constructed. In `plot.pdbart`, corresponds to the indices in
+  list returned by `pdbart` for which plot is to be constructed. In
+  `pd2bart`, the indices of a pair of variables (columns of the
+  predictor matrix) to plot. If `NULL` a default of all columns is used
+  for `pdbart` and the first two columns is used for `pd2bart`.
 
 - levs:
 
@@ -83,8 +84,9 @@ plot(
 - levquants:
 
   If `levs` is `NULL`, the values of each variable used in the plot are
-  set to the quantiles (in `x.train`) indicated by levquants, and a
-  factor predictor takes every level. Must be a vector of numeric type.
+  set to the quantiles (in the training data, missing values left out)
+  indicated by levquants, and a factor predictor takes every level. Must
+  be a vector of numeric type.
 
 - pl:
 
@@ -99,12 +101,27 @@ plot(
 
 - ...:
 
-  Additional arguments. In `pdbart` and `pd2bart`, arguments are passed
-  on to [`bart`](https://vdorie.github.io/dbarts/reference/bart.md). In
-  `plot.pdbart`, they are passed on to
-  [`plot`](https://rdrr.io/r/graphics/plot.default.html). In
-  `plot.pd2bart`, they are passed on to
-  [`image`](https://rdrr.io/r/graphics/image.html).
+  In `pdbart` and `pd2bart`, arguments of
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md), under its
+  names and with its defaults; an argument `bart` does not take is an
+  error. `pdbart` sets `keepTrees` and `samplerOnly` itself and has no
+  test rows, so `keepTrees = FALSE`, `samplerOnly`, `test` and
+  `offset.test` are refused; `keepSampler = FALSE` drops the sampler
+  from the result. With a fit or sampler passed in, only `keepSampler`
+  is taken. BayesTree's spellings, as
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
+  them (`x.train`, `y.train`, `ntree`, `ndpost`, `nskip`, `keepevery`,
+  `binaryOffset` and the rest), are translated to `bart`'s with a
+  once-per-session warning until dbarts 1.1-0, when they are refused;
+  `power`, `base` and `splitprobs` become `tree.prior = cgm()`, and
+  `proposalprobs` the control's `proposal.probs`. A setting given under
+  both spellings is refused.
+
+  In `plot.pdbart`, arguments are passed on to
+  [`plot`](https://rdrr.io/r/graphics/plot.default.html), except `type`,
+  which is passed to the lines drawn, and `xlab` and `ylab`, which
+  replace the method's own labels. In `plot.pd2bart`, they are passed on
+  to [`image`](https://rdrr.io/r/graphics/image.html).
 
 - x:
 
@@ -147,13 +164,38 @@ to obtain intervals for \\f_s(x_s)\\.
 In `pdbart` \\x_s\\ consists of a single variable in \\x\\ and in
 `pd2bart` it is a pair of variables.
 
+The rows averaged over are the fit's own: those it was fit to, less any
+it gives a weight of 0, which for a binary response masks a row out.
+Each row's offset, `bart`'s `offset`, is added to its prediction before
+averaging, so a value equals the row mean of
+[`predict`](https://vdorie.github.io/dbarts/reference/bartBT.md)`(fit, newdata, type = "bart")`
+with the variable set.
+
+A data call fits through
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) at its
+defaults, keeping trees and sampler, and predicts each grid value from
+the saved trees, so `pdbart(x, y, seed = s)` and
+`pdbart(bart(x, y, seed = s, keepTrees = TRUE))` agree.
+`pdbart(bartBT(x, y, keeptrees = TRUE))` gives the model dbarts 0.9-34
+fit. The first data call in a session prints a message saying so; a call
+from package code does not.
+
+`pdbart` and `pd2bart` serve gaussian, Student-t, probit and logistic
+fits. Multinomial and ordinal fits, whose prediction is a probability
+per category, are refused; `predict` on rows with the variable set gives
+each category's. Negative binomial, hurdle, accelerated failure time and
+hazard fits are refused in this version. Each refusal comes before
+anything is fit, whether the family is named, resolved by
+`family = "auto"` from the response, or that of a fit or sampler passed
+in.
+
 This is a computationally intensive procedure. For example, in `pdbart`,
 to compute the partial dependence plot for 5 \\x_s\\ values, we need to
 compute \\f(x_s, x_c)\\ for all possible \\(x_s, x\_{ic})\\ and there
 would be \\5n\\ of these where \\n\\ is the sample size. All of that
 computation would be done for each kept BART draw. For this reason
-running BART with `keepevery` larger than 1 (eg. 10) makes the procedure
-much faster.
+thinning the draws with `n.thin` larger than 1 (eg. 10) makes the
+procedure much faster.
 
 ## Value
 
@@ -184,6 +226,11 @@ through to stats' defaults and return `NULL`).
   a value in the levs components corresponding to the second one. The
   first \\x\\ changes first.
 
+  The draws of every chain are merged, each chain's in turn. When the
+  fit keeps its chains apart (`combineChains = FALSE` with more than one
+  chain), each matrix gains a leading chain margin, chains x draws x
+  values, as the fit's own components do.
+
 - levs:
 
   The list of levels used, each component corresponding to a variable.
@@ -197,20 +244,20 @@ through to stats' defaults and return `NULL`).
   A vector of character strings which are the plotting labels used for
   the variables.
 
-The remaining components are passed on from the BART run used to create
-the partial dependence plot, under
+- n.chains:
+
+  The number of chains.
+
+The remaining components are passed on from the fit, under
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own names
 (see its ‘Value’ section) with one rename and several omissions - the
-fit's matched call is under `bartcall` rather than `call`, and not every
-`bart` component is carried over. For a continuous response the
-remaining components are `bartcall`, `yhat.train`, `first.sigma`,
-`sigma`, `yhat.train.mean`, `sigest`, `y`, and `fit`; `call`, `family`,
-`resid.dist`, `yhat.test`, `yhat.test.mean`, `s.train`, `s.test`,
-`varcount`, and `n.chains` are not present. For a binary response only
-`bartcall`, `yhat.train`, `y`, and `fit` are present; `first.sigma`,
-`sigma`, `yhat.train.mean`, `sigest`, and `binaryOffset` are absent as
-well, on top of the continuous-case omissions. `pd2bart` follows the
-same rules. The function
+fit's call is under `bartcall` rather than `call`, and not every `bart`
+component is carried over. For a continuous response the remaining
+components are `bartcall`, `yhat.train`, `first.sigma`, `sigma`,
+`yhat.train.mean`, `sigest`, `y`, and `fit`, the sampler, which
+`keepSampler = FALSE` leaves out. For a binary response only `bartcall`,
+`yhat.train`, `y`, and `fit` are present. `pd2bart` follows the same
+rules. The function
 [`plot.bart`](https://vdorie.github.io/dbarts/reference/bartBT.md) can
 be applied to the object returned by `pdbart` or `pd2bart` to examine
 the BART run.
@@ -253,19 +300,20 @@ y  <- rnorm(n, Ey, sigma)
 
 # \donttest{
 ## pdbart: one dimensional partial dependence plot
-set.seed(99)
 pdb1 <- pdbart(
     x, y, xind = c(1, 2),
     levs = list(seq(-1, 1, 0.2), seq(-1, 1, 0.2)),
-    pl = FALSE, keepevery = 10, ntree = 100, verbose = FALSE
+    pl = FALSE, n.thin = 10, n.trees = 100, n.chains = 2, n.threads = 1,
+    seed = 99, verbose = FALSE
 )
+#> dbarts: 'pdbart' and 'pd2bart' fit through 'bart', with its defaults (75 trees; four chains, their draws merged) rather than those of 0.9-x (200 trees, one chain). pdbart(bartBT(x, y, keeptrees = TRUE)) gives the 0.9-34 model. Shown once per session until dbarts 1.1-0.
 
 ## pd2bart: two dimensional partial dependence plot
-set.seed(99)
 pdb2 <- pd2bart(
     x, y, xind = c(2, 3),
     levquants = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
-    pl = FALSE, ntree = 100, keepevery = 10, verbose = FALSE)
+    pl = FALSE, n.thin = 10, n.trees = 100, n.chains = 2, n.threads = 1,
+    seed = 99, verbose = FALSE)
 
 ## the plot methods draw into the current device, so set up the layout and
 ## put the caller's graphical parameters back afterwards. The first two plot
@@ -283,19 +331,19 @@ fitmat <- cbind(y, Ey, lmFit$fitted, pdb1$yhat.train.mean)
 colnames(fitmat) <- c('y', 'Ey', 'lm', 'bart')
 print(cor(fitmat))
 #>              y        Ey        lm      bart
-#> y    1.0000000 0.9603886 0.4052732 0.9900234
-#> Ey   0.9603886 1.0000000 0.4457354 0.9813192
-#> lm   0.4052732 0.4457354 1.0000000 0.4375004
-#> bart 0.9900234 0.9813192 0.4375004 1.0000000
+#> y    1.0000000 0.9603886 0.4052732 0.9905071
+#> Ey   0.9603886 1.0000000 0.4457354 0.9807678
+#> lm   0.4052732 0.4457354 1.0000000 0.4336752
+#> bart 0.9905071 0.9807678 0.4336752 1.0000000
 # }
 
 # \donttest{
 ## example showing the use of a pre-fitted model
 df <- data.frame(y, x)
-set.seed(99)
 bartFit <- bart(
     y ~ rob + hugh + ed, df,
-    n.thin = 10, n.trees = 100, keepTrees = TRUE, verbose = FALSE)
+    n.thin = 10, n.trees = 100, n.chains = 2, n.threads = 1, seed = 99,
+    keepTrees = TRUE, verbose = FALSE)
 pdb3 <- pdbart(bartFit, xind = rob + ed, pl = FALSE)
 # }
 ```
