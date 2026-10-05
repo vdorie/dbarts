@@ -230,8 +230,10 @@ contribute nothing to that posterior's residual sum: the draw divided a
 sum over 425 rows by a chi-squared on 500. 1.0-0 counts only rows with
 positive weight, so the two agree. That is a defect rather than a
 convention, and 0.9-34's own documentation says so - it warns that
-weights of zero will be ignored, which is what 1.0-0 does and what
-0.9-34 did not. The mismatch is also the whole of the gap. Give those
+weights of zero will be ignored, and a row that is ignored cannot count
+toward the degrees of freedom. 1.0-0 leaves such a row out of the
+likelihood and the degrees of freedom alike, and words its warning to
+say so (dec-B251). The mismatch is also the whole of the gap. Give those
 75 rows a weight of a ten-billionth instead of zero, so that 1.0-0's
 own count of positive-weight rows reaches 500, and 1.0-0 collapses to
 the same place: residual scale 0.26 against 0.9-34's 0.29, and the same

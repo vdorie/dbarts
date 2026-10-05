@@ -335,7 +335,8 @@ Every path that decides whether a branch is legal reads membership:
   two-forest construction starts at amplitudes (1, 0, 1), so until the first
   amplitude draw - and for good under a fixed (b0, b1) = (0, 1) - every
   control row is weightless in the treatment forest, which may hold leaves of
-  control rows only.
+  control rows only. "Measured effect" has what that does to an ordinary
+  two-forest fit's draws.
 - The variance forest's moves, whose leaf counts positive-weight rows in its
   statistic and nowhere else.
 - A multinomial zero-trial row, composed into the coupling's mask
@@ -402,6 +403,19 @@ moved only `maskprobit` and `maskordinal` (0.48 and 0.65).
   per sweep in `glue_toggle`'s treatment forest (of 31) and 0.25 in
   `masked`'s prognostic forest (of 119).
   `multinomial-equivalence-80b1c8d4`: 11 of 11 bitwise.
+- An ordinary two-forest fit, amplitudes drawn, is DRAW-SHIFTING and
+  posterior-neutral. Its amplitudes start at (1, 0, 1), and the draws differ
+  from the build before exactly when the prior-drawn treatment forest holds a
+  leaf with no treated row, which that build never drew, or a first-sweep
+  move makes one before b0 is first drawn. Over 60 seeds, `bart()` on
+  two-forest data differs in 29 at 50 rows, 7 at 200 and 2 at 1000; a sampler
+  started from bare roots, as the BCF harness starts its own, in 3, 0 and 0.
+  Bit for bit unchanged are the single-forest fits with no zero weight, mask
+  or zero-trial row: 24 seeded fits on each of 19 paths (gaussian, two
+  chains, weighted, probit, logistic, Student-t, ordinal, negative binomial,
+  DART, linear and GP leaves, a variance forest, monotone, a factor with
+  missing values, grow-from-root, a warm start, the five-move mixture), and
+  the four seeded snapshot files on the reference build.
 - Oracle: `benchmarks/R/mask-redraw-exact.R`. On the build before the change
   its three arms miss the exact joint by 83 to 163 standard errors in quick
   mode (membership by 0.065, 0.208 and 0.058; the fit by 0.19, 0.67 and 0.45);
@@ -421,7 +435,12 @@ moved only `maskprobit` and `maskordinal` (0.48 and 0.65).
   ([`testZeroWeightLeafContributesNothing`](../../tests/cpp/test_moves.cpp));
   a chain driven under a zero-weight block holds a leaf of only such rows
   after 184 of 4000 moves and never a leaf no row reaches
-  ([`testEmptyLeafVetoCountsMembers`](../../tests/cpp/test_moves.cpp)).
+  ([`testEmptyLeafVetoCountsMembers`](../../tests/cpp/test_moves.cpp)). The
+  paths one gaussian forest does not reach have their own: a monotone birth
+  into such a leaf and its truncated-prior draw in the first of those tests,
+  and the variance forest's prior draw and a coupled sweep under a held zero
+  multiplier and under a per-forest weight in
+  [`testMembershipAcrossForests`](../../tests/cpp/test_sampler.cpp).
 - Cost: none on any path. The weighted path loses the per-leaf scan for a
   positive weight; the unweighted one compiles to the count test it always
   ran.

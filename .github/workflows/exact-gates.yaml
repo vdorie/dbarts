@@ -158,6 +158,16 @@ jobs:
             fi
             echo "::endgroup::"
           done
+          # bd-balance's second arm, a fixed zero-weight vector against the
+          # exact posterior in which a leaf of only such rows is legal
+          echo "::group::bd-balance.R zeroweight"
+          if Rscript benchmarks/R/bd-balance.R ${GATE_ARG} zeroweight; then
+            echo "PASS bd-balance.R zeroweight"
+          else
+            echo "::error::gate bd-balance.R zeroweight FAILED"
+            fail=1
+          fi
+          echo "::endgroup::"
           exit $fail
 
       # --preclean is not optional here: R tracks no dependency from the

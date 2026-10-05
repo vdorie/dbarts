@@ -2709,7 +2709,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setWeights = function(weights, updateState = NULL) {
-      "Changes the weights with which the sampler is fitted. A probit or ordinal sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. updateState follows control@updateState; see setData."
+      "Changes the weights with which the sampler is fitted. A row of weight 0 leaves the likelihood but stays in the fit, occupying a leaf. A probit or ordinal sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. A Student-t sampler redraws the scale of each row whose weight leaves zero, from the sampler's own generators. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -2805,7 +2805,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setActiveRows = function(active, updateState = NULL) {
-      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState follows control@updateState; see setData."
+      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. A row switched from inactive to active has its latent redrawn against the current fit before the call returns, from the sampler's own generators and not R's; a call that switches no row back in draws nothing. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       if (!is.null(active)) {
         active <- as.double(active)

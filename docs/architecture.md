@@ -165,13 +165,14 @@ instance, its split selector, and its own tree count, move probabilities and
 for BCF, one per category for multinomial.
 
 When a chain holds more than one forest it delegates their coupling to a
-`ForestCombiner<L, ResidT>` (combiner.hpp), which answers three questions per
+`ForestCombiner<L, ResidT>` (combiner.hpp), which answers two questions per
 sweep: `formForestResponse` gives forest f the response and precisions its
 own leaf draws see, the residual net of every other forest's scaled
-contribution; `formForestVetoWeights` gives the precisions forest f's
-empty-leaf veto reads; and `combinedFits` returns the per-observation
+contribution; and `combinedFits` returns the per-observation
 location all the forests together imply, which the response family's latent
-and sigma draws consume. A single-forest chain carries no combiner.
+and sigma draws consume. Which rows a leaf of forest f may hold is not a
+question for the coupling: a row a forest's precisions zero is still a member
+there. A single-forest chain carries no combiner.
 
 `AmplitudeForestCombiner` is the multiplier family. Each forest carries a
 `ForestBasis` - an n x q row-major matrix - and an amplitude block of q
@@ -579,8 +580,8 @@ lever is data layout, not SIMD reductions.
   coupling and the amplitude family.
 - docs/design/bart-as-a-component.md - what a host may mutate between sweeps.
 - docs/design/interaction-constraints.md - the containment predicates.
-- docs/design/empty-leaf-veto.md - the ranked veto and its stationarity
-  argument.
+- docs/design/empty-leaf-veto.md - the veto, what counts as empty, and its
+  stationarity argument.
 - docs/design/feature-matrix.md - what each response family and extension
   supports today.
 - docs/design/kernel-vocabulary.md - the compiled-kernel contract (`misc.a`)

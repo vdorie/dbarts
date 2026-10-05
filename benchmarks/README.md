@@ -254,9 +254,9 @@ run alone by naming it.
 
     Rscript benchmarks/R/mask-redraw-exact.R quick probit
 
-bd-balance takes a second arm, `zeroweight`, outside the workflow's loop: the
-same enumeration under a weight vector that zeroes two cells, installed on a
-grown tree that holds those cells as sibling leaves, against the exact
+bd-balance takes a second arm, `zeroweight`, which the workflow runs after its
+loop: the same enumeration under a weight vector that zeroes two adjacent
+cells, installed on whatever tree the chain has grown, against the exact
 posterior in which a leaf of only zero-weight rows is legal and scores nothing.
 
     Rscript benchmarks/R/change-balance.R        # full

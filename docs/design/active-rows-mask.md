@@ -132,9 +132,15 @@ off the chain's own generator and before it returns
 ([`ResponseModel::setActiveRows`](../../src/bartcore/model.hpp),
 [`Chain::setActiveRows`](../../src/bartcore/chain.hpp)): probit and ordinal
 redraw z on its interval, logistic and negative binomial omega at the current
-count and shape, AFT a censored log-time above its bound, Student-t lambda at
-the current sigma and nu, which an inactive row's running draw is one update
-behind. A host that draws the mask from the fit with the latents integrated
+count and shape, AFT a censored log-time above its bound. Student-t redraws
+lambda: its per-sweep draw runs at every row, so an inactive row's lambda is
+never old, but it was drawn before the sigma and nu updates that followed it
+and, at a zero weight, without the row's residual. For Student-t "back in"
+therefore means back into the likelihood by either channel - the mask
+switching the row on or `setWeights` taking its weight off zero - and the row
+is redrawn when its composed weight `w_i a_i` turns positive, not before; the
+response keeps its own record of which rows are in, the weights being
+borrowed ([`TResponse::setWeights`](../../src/bartcore/model.hpp)). A host that draws the mask from the fit with the latents integrated
 out thereby draws mask and latents jointly. A row that stays active keeps its
 latent, which is a valid step and not an economy: redrawing it would also be
 valid and would consume variates a fixed mask never asks for. A mask that
@@ -277,10 +283,14 @@ The reactivation redraw, per family, against the conditional drawn from a
 generator cloned ahead of the call - bitwise in value and in variates
 consumed, every other row's latent untouched, and nothing drawn by a first
 install or by the mask in force
-([`testReactivatedLatents`](../../tests/cpp/test_model.cpp),
-["redraws the latent of every row it switches from inactive to"](../../inst/tinytest/test-active-rows-reactivation.R)),
-and the combined sampler against the exact joint, whose probit arm fails
-without it (`benchmarks/R/mask-redraw-exact.R`).
+([`testReactivatedLatents`](../../tests/cpp/test_model.cpp), which runs
+Student-t through the mask and through its weights;
+["redraws the latent of every row it switches from inactive to"](../../inst/tinytest/test-active-rows-reactivation.R),
+which also tests the redrawn Student-t scale against its conditional); the
+location the chain hands the redraw, on a two-forest probit with an offset
+([`testMembershipAcrossForests`](../../tests/cpp/test_sampler.cpp)); and the
+combined sampler against the exact joint, whose probit arm fails without the
+redraw (`benchmarks/R/mask-redraw-exact.R`).
 
 At sampler level: the normalizer, the value refusal, the all-zeros run and a
 gaussian arm against `setWeights(w * a)`

@@ -1,6 +1,6 @@
 # rule_gibbs: an exact draw of the split rule at a nog node
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12); coverage flag dissolved by the reference arm 2026-09-08 (e002c10d); DOSE RESPONSE 2026-09-08 (17505c50). ADOPTED POST-RELEASE 2026-09-08: the maintainer adopts the cut-only rule draw at `d` = 0.16, to land after the first release.
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); AMENDED 2026-10-05 (the veto counts members, so the neighbourhood is every rule that leaves no child empty and the rank stratum is gone: section 2.2); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12); coverage flag dissolved by the reference arm 2026-09-08 (e002c10d); DOSE RESPONSE 2026-09-08 (17505c50). ADOPTED POST-RELEASE 2026-09-08: the maintainer adopts the cut-only rule draw at `d` = 0.16, to land after the first release.
 
 Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
 no longer declares the predictor, test-data, weight, active-row, per-forest, state,
@@ -10,8 +10,8 @@ this record says about the R and engine sides still holds.
 
 A fifth tree kernel that replaces the Metropolis change proposal at a nog node - an interior node whose two children are both
 leaves - with a draw from the rule's own full conditional. The neighbourhood is closed, the acceptance is identically one, and there
-is no reverse count - on the branch-rank stratum the empty-leaf veto's own lexicographic law makes current, which section 2.2 states
-and which is the whole of the correctness argument under a weight mask or a routed missing row.
+is no reverse count. The neighbourhood is every ordinal rule that leaves neither child empty, the empty-leaf veto's own set, which
+section 2.2 states and which is the whole of the correctness argument under a weight mask or a routed missing row.
 [15.3 Cross-lens ranking](tree-mixing-proposals.md#153-cross-lens-ranking) ranked it first of ten mechanisms on a validity argument
 and left two questions open; both have since been measured, by the nog probe of
 [6.1 Stage 0 - the move census (pilot; no kill criterion)](tree-mixing-proposals.md#61-stage-0---the-move-census-pilot-no-kill-criterion)'s
@@ -51,12 +51,12 @@ At a nog node `u`, the candidate set is every (available ordinal variable `v`, a
 satisfiable. So the neighbourhood does not depend on the incumbent rule, and neither does the node's member set - a rule change
 repartitions those members, it does not change which rows are there. Three consequences: the candidate set is identical from every
 state in it; its normalizer is the same before and after the draw; and no proposal count survives into the acceptance. Section 2.2
-restricts that set to one branch-rank stratum, which is ancestor-determined in the same way and carries the same three consequences;
-everything below reads on the stratum.
+restricts that set to the rules that leave neither child empty, which reads the ancestors and the node's members and so carries the
+same three consequences; everything below reads on the restricted set.
 
 The weight of a candidate is the tree posterior restricted to `u`'s rule, every factor that does not read it having cancelled:
 
-    log w(v, c) = S(v, c)                                          the children's collapsed marginals, 2.2's rank-0 sum
+    log w(v, c) = S(v, c)                                          the two children's collapsed marginals           
                 + log P_splitvar(v)                                VARIES only under DART
                 - log |SI_v(u)|  (- log 2 if the node routes NAs)  VARIES across variables
                 + log(1 - growth(left)) + log(1 - growth(right))   VARIES across candidates
@@ -70,8 +70,8 @@ candidate leaves that child no available variable at all, `log(1 - base/(1 + dep
 [`CGMTreePrior::splitVariableLogProbability`](../../src/bartcore/model.hpp) is `-log(numAvailable)` and cancels under the default
 prior; under DART it is `log(p_v / total)` and does NOT, so the kernel carries a per-variable `log splitProbabilities[v]` term the
 probe omits. The census identity of section 5 is therefore stated at `dart = FALSE`, which is what the census ran. `S` is the
-scan's entry wherever both children carry positive weight, which is every candidate with no mask installed and no missing member at
-the node; section 2.2 gives it in general.
+scan's entry, the sum of the two children's marginals, a child of only zero-weight members contributing exactly 0; section 2.2 says
+which entries are candidates.
 
 Draw `(v, c)` from the normalized weights. Acceptance is one; no pairwise [`resolveEmptyLeafVeto`](../../src/bartcore/moves.hpp)
 comparison - 2.2 does that law's work in the enumeration instead - no snapshot-and-restore, no `logProposalCorrection`. Node
@@ -86,79 +86,46 @@ walk: `tree.interactionSubtreeIsValid` exists because a redrawn variable can str
 
 ### 2.2 The veto's law, and what the scan must emit
 
-**Amendment (2026-10-05): the veto counts members, and the stratum is gone.** This section was written while the veto counted
-positive-weight members and ranked a leaf with members but no weight between an empty leaf and an ordinary one. That middle rank no
-longer exists ([What counts as empty: membership](empty-leaf-veto.md#what-counts-as-empty-membership)), and what follows reads with
-three substitutions. A candidate is a rule that leaves NEITHER CHILD EMPTY, routed missing rows counted; every candidate's marginal
-`S` is the sum over both children, a child of only zero-weight members scoring 0; and the kernel draws over ALL the candidates, the
-incumbent always among them, so the draw is the full conditional restricted to the set and the Metropolis-within-Gibbs case below
-does not arise. Of the two disagreements between scan and veto only the routed missing row is left, and the scan answers it with a
-flag instead of a rank out-parameter: asked for the moves' reading of occupancy, [`scanOrdinalCuts`](../../src/bartcore/scan.hpp)
-sentinels exactly the candidates [`logLikelihoodForBranch`](../../src/bartcore/moves.hpp) would refuse. A weight mask moves a
-candidate's weight and never the candidate set; under an all-zero one `S` is 0 throughout and the draw is the prior conditional,
-which is section 5's prior-only arm unchanged. Three symbols the original text names are gone:
-retired: [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp), retired: [`resolveVetoRank`](../../src/bartcore/moves.hpp) and
-retired: [`Tree::bottomNodesHaveWeight`](../../src/bartcore/tree.hpp).
-
-**The scan's occupancy test is not the veto's, and the gap is what defines the neighbourhood.**
+**The scan's own occupancy test is not the veto's where a node routes missing rows.**
 [`scanOrdinalCuts`](../../src/bartcore/scan.hpp) writes [`cutScanEmptySentinel`](../../src/bartcore/scan.hpp), `-inf`, when either
-side's weight over the NON-MISSING bins is non-positive, and on that branch it writes the sentinel to both missing directions and
-computes neither side's marginal. The veto reads something else. retired: [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp) is 2 when a leaf
-holds no member, 1 when it holds members but no positive weight and 0 otherwise, all three off the leaf's ACTUAL index span with any
-routed missing rows in it; [`logLikelihoodForBranch`](../../src/bartcore/moves.hpp) takes a branch's rank as the maximum over its
-leaves and its log-likelihood as the marginal summed over the RANK-0 leaves alone; and
-retired: [`resolveVetoRank`](../../src/bartcore/moves.hpp) applies that pair LEXICOGRAPHICALLY - a rank-improving proposal takes `-HUGE_VAL`
-on the current side and is accepted outright, a rank-worsening one takes it on the proposal side and is refused, and at equal ranks
-the finite parts are compared as they always were.
+side holds no NON-MISSING member, and writes it to both missing directions; that reading is what lets grow-from-root take the
+ancestor interval off occupancy. The veto reads something else. [`Tree::leafIsEmpty`](../../src/bartcore/tree.hpp) asks whether a
+leaf holds no row at all, off the leaf's ACTUAL index span with any routed missing rows in it;
+[`logLikelihoodForBranch`](../../src/bartcore/moves.hpp) reports whether any leaf of a branch is empty beside the sum of its leaves'
+marginals; and [`resolveEmptyLeafVeto`](../../src/bartcore/moves.hpp) refuses a proposal that holds one.
 
-Two states where the two laws disagree, and both are reachable.
+The two disagree in one reachable state. At a node holding missing members, a cut whose non-missing members all fall one way with
+the missing rows routed the other leaves both children a member, while the scan's default reading sentinels both of its
+directions. [`changeMove`](../../src/bartcore/moves.hpp) installs exactly that rule - at a nog node
+[`findGoodOrdinalRules`](../../src/bartcore/moves.hpp) collapses to [`Tree::splitInterval`](../../src/bartcore/tree.hpp), ancestors
+only and no member test, and the missing direction is a fair coin - so a neighbourhood defined by the default reading need not
+contain the incumbent, and a draw that leaves a positive-target state with probability one and cannot return is reversible with
+respect to nothing. **So the scan takes a flag.** Asked for the moves' reading, it counts each child's routed members and sentinels
+exactly the candidates `logLikelihoodForBranch` would refuse; the flag defaults off, so
+[`growTreeFromRoot`](../../src/bartcore/grow.hpp)'s call is untouched and bitwise unchanged.
 
-- **A routed missing row.** At a node holding missing members, a cut whose non-missing members all fall one way with the missing rows
-  routed the other leaves both children positive weight and branch rank 0, while the scan sentinels both of its directions.
-  [`changeMove`](../../src/bartcore/moves.hpp) installs exactly that rule - at a nog node
-  [`findGoodOrdinalRules`](../../src/bartcore/moves.hpp) collapses to [`Tree::splitInterval`](../../src/bartcore/tree.hpp), ancestors
-  only and no member test, and the missing direction is a fair coin - so a scan-defined neighbourhood need not contain the incumbent,
-  and a draw that leaves a positive-target state with probability one and cannot return is reversible with respect to nothing.
-- **An installed weight mask.** Weights do not ride the tree, so a mask install strands whole branches at rank 1 - members but no
-  positive weight - and from there the shipped moves compare finite parts and mix under prior x transition. The sentinel tests
-  WEIGHT, so under an all-zero mask every candidate is sentinelled and the neighbourhood is empty, which is exactly the configuration
-  the house's cheap balance gates run in.
+**A weight mask does not enter.** Emptiness is membership
+([What counts as empty: membership](empty-leaf-veto.md#what-counts-as-empty-membership)): a mask or a zero weight moves a
+candidate's score and never whether it is a candidate. A child of only zero-weight members is an ordinary child scoring 0, and under
+an all-zero mask `S` is 0 across the whole neighbourhood and the draw is the prior conditional, which is the configuration the
+house's cheap balance gates run in and section 5's prior-only arm.
 
-**So the scan has to emit per SIDE, not per branch.** A single branch-rank flag cannot reconstruct the score: a MIXED candidate, one
-child rank 0 and the other rank 1, has branch rank 1 and a log-likelihood equal to the rank-0 child's marginal alone, and the
-sentinel path never computes it. **A, weight occupancy only**: read the scan as it stands and no-op from a rank-1 branch. Free, and
-still wrong under routing unless the kernel also detects an incumbent it did not enumerate and no-ops there too; it costs section 5's
-prior-only arm outright. **B, a rank-aware scan**: an optional out-parameter, defaulted null so
-[`growTreeFromRoot`](../../src/bartcore/grow.hpp)'s call is untouched and bitwise unchanged, carrying per candidate the two SIDES'
-ranks under the ROUTED occupancy and the marginal summed over the rank-0 sides. About forty lines rather than fifteen: the routed
-count and weight are carried per side, and the sentinel branch computes the surviving side's marginal instead of skipping both.
-**RECOMMEND B.** It is what puts the kernel on the veto's own law rather than on a law that merely agrees with it in the common case,
-and it is the only thing that lets section 5's prior-only arm run at all.
+**The neighbourhood, and why the draw is exact.** A candidate is `(v, c, s)` - `s` the missing direction where the node routes
+missing rows - with `v` available at `u`, `c` in `SI_v(u)`, and neither child empty. `S(v, c, s)` is the two children's marginals,
+which is `logLikelihoodForBranch`'s log-likelihood for that candidate, candidate for candidate. The set is a function of the
+ancestors and of the node's members, neither of which the move changes, so it is identical from every state in it; and it contains
+the incumbent, since `collectAvailableVariables` and `splitInterval` both ignore `u`'s own rule and no live tree holds an empty
+leaf. **The kernel draws over all of it**, weighting each member by section 2.1's `log w`, and the draw IS the exact full
+conditional of the shipped chain's own target - the posterior truncated to trees with no empty leaf
+([Which move paths can create an empty leaf](empty-leaf-veto.md#which-move-paths-can-create-an-empty-leaf)) - restricted to the
+set. Acceptance is one.
 
-**The neighbourhood is a rank STRATUM, and that is what makes the draw exact.** For a candidate `(v, c, s)` - `s` the missing
-direction where the node routes missing rows - write `r_L` and `r_R` for its two sides' ranks and `S(v, c, s)` for the marginal
-summed over its rank-0 sides. Then `r = max(r_L, r_R)` is `logLikelihoodForBranch`'s rank for that candidate and `S` is its
-log-likelihood, candidate for candidate. Candidates of rank 2 are dropped absolutely: no move may install a member-empty leaf even
-from a vetoed state, the membership law [`Tree::bottomNodesAreOccupied`](../../src/bartcore/tree.hpp) every site outside the move
-kernels enforces. Let `r*` be the smallest rank the survivors carry. **The kernel draws over the `r*` stratum ALONE**, weighting each
-of its members by section 2.1's `log w` with `S` as the marginal term. The law has two cases and they are not the same law:
-
-- **`r*` equals the incumbent's rank.** The ordinary case, and the only one that occurs with no mask installed and no missing member
-  at the node. The stratum contains the incumbent and is ancestor-determined, so it is identical from every state in it, and the draw
-  IS the exact full conditional of the shipped chain's own target restricted to it: at `r* = 0` the posterior truncated to
-  occupancy-admissible trees
-  ([Which move paths can create an empty leaf](empty-leaf-veto.md#which-move-paths-can-create-an-empty-leaf)), at `r* = 1` the prior
-  times `exp S`, which is what the shipped moves compare when ranks are equal. Acceptance is one.
-- **`r*` is strictly better than the incumbent's.** The incumbent is outside the stratum and this is NOT a Gibbs step. It is a
-  Metropolis-within-Gibbs step with acceptance one, which is what `resolveVetoRank` already gives every rank-improving proposal, and
-  it is valid for the reason the shipped moves are: the better stratum is absorbing, no rank-worsening proposal ever being accepted,
-  so the chain enters it in one step and is stationary there. No stationarity is claimed for the stratum it leaves.
-
-`r*` is never WORSE than the incumbent's rank, so the stratum is never empty: `collectAvailableVariables` and `splitInterval` both
-ignore `u`'s own rule, so the incumbent is always a candidate, and its own rank is at most 1 because every site outside the move
-kernels enforces `bottomNodesAreOccupied`. With no weight vector installed the incumbent is rank 0 and the stratum is the whole
-occupied candidate set - the rank-0 law is retired: [`Tree::bottomNodesHaveWeight`](../../src/bartcore/tree.hpp), and tree.hpp's own note is
-that it and the membership law agree exactly there.
+As proposed and as first landed on 2026-09-07 this section was longer. The veto then counted positive-weight members and ranked a
+leaf with members but no weight between an empty leaf and an ordinary one, so a mask install could strand the incumbent; the scan
+emitted a branch rank per candidate, and the kernel drew over the stratum of smallest rank, a Metropolis-within-Gibbs step where
+the incumbent lay outside it. That law went on 2026-10-05 with the middle rank, and with it three symbols the landing records
+below name: retired: [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp), retired: [`resolveVetoRank`](../../src/bartcore/moves.hpp) and
+retired: [`Tree::bottomNodesHaveWeight`](../../src/bartcore/tree.hpp).
 
 **The missing direction is part of the candidate exactly when the node routes a missing row.** `scanOrdinalCuts` returns `2 * numCuts`
 entries then, scoring the direction rather than leaving it to a coin, and the rule prior widens by the same factor two the candidate
@@ -299,8 +266,8 @@ the all-unnamed guard becomes `perturb == 0 && rule_gibbs == 0`; the frozen test
 **C++, five files.** In src/bartcore/moves.hpp: the kernel beside [`perturbMove`](../../src/bartcore/moves.hpp), a fifth probability
 on [`MoveContext`](../../src/bartcore/moves.hpp), a sixth enumerator on [`StepType`](../../src/bartcore/moves.hpp), the dispatch
 branch, a fifth argument to [`structureIsFrozen`](../../src/bartcore/moves.hpp), and the census hooks and legend the other kernels
-carry. src/bartcore/scan.hpp takes section 2.2's per-side rank and
-rank-admitted marginal out-parameter. Then TWELVE in
+carry. src/bartcore/scan.hpp takes section 2.2's occupancy flag (as first landed, a rank
+out-parameter). Then TWELVE in
 [`SamplerOptions`, `ModelParameters`, `VarianceForest`](../../src/bartcore/chain.hpp) - three struct fields, four copies into a
 forest, the variance forest's copy, the two `MoveContext` initializers and the two `structureIsFrozen` call sites - and THREE in
 [`Forest`, `ForestStructureSpec`, `MultinomialForestSpec`](../../src/bartcore/combiner.hpp), without which the move is unreachable
@@ -333,9 +300,9 @@ probability crosses the ABI and no `LinkingTo` consumer recompiles.
 Two arms, and unlike perturb's the second is mandatory: the prior-only arm exercises the node selection, the enumeration and the prior
 factors but NOT one scan entry, and the scan-weighted draw is the whole new mechanism.
 
-**The prior-only arm and its target.** Under an all-zero weight mask every leaf holding rows is rank 1 and every leaf holding none is
-rank 2, so `r*` is 1, section 2.2's stratum is exactly the member-occupied candidate set, `S` is 0 across all of it and every
-candidate's weight collapses to its prior factors alone. The kernel is then reversible with respect to the CGM prior TRUNCATED to
+**The prior-only arm and its target.** Under an all-zero weight mask every leaf holding rows scores 0 and a rule leaving a child
+empty is no candidate, so section 2.2's neighbourhood is exactly the member-occupied candidate set, `S` is 0 across all of it and
+every candidate's weight collapses to its prior factors alone. The kernel is then reversible with respect to the CGM prior TRUNCATED to
 member-occupied trees and renormalized, the same target
 [4. Correctness: perturb-balance.R](perturb-move.md#4-correctness-perturb-balancer) names. **The design makes the truncation
 vacuous, and is chosen to make both poisons resolvable**: two ordinal columns as a FULL FACTORIAL, x1 on 6 distinct values
@@ -386,12 +353,11 @@ program ([The gate](change-move-balance.md#the-gate)), and it is what tests the 
 kernel, once by a reference that installs each candidate rule, calls [`Tree::refreshSubtree`](../../src/bartcore/tree.hpp) - without
 it [`ConstantGaussianLeaf`](../../src/bartcore/model.hpp)'s per-node marginal reads the STALE cached `sumWeights` and
 `sumWeightedResponse`, which is why `changeMove` refreshes before it scores - and only then calls
-[`CGMTreePrior::treeLogProbability`](../../src/bartcore/model.hpp) and `logLikelihoodForBranch`. Two things cannot be asserted per
-candidate as they stand. The `- log 2` for a missing direction is the column's in `ruleForVariableLogProbability` and the node's in
-the kernel, so on a column declaring missing values at a node holding none the two differ by `log 2` per variable; and a rank-1
-candidate's reference score has to be `logLikelihoodForBranch`'s partial sum, not a full branch marginal. **The assertion's fixture is
-therefore a design with no missing values and no mask installed**, where neither qualification bites and the identity holds candidate
-by candidate at 1e-12; the missing-data convention is asserted separately, PER CUT summed over its two directions, which is the form
+[`CGMTreePrior::treeLogProbability`](../../src/bartcore/model.hpp) and `logLikelihoodForBranch`. One thing cannot be asserted per
+candidate as it stands. The `- log 2` for a missing direction is the column's in `ruleForVariableLogProbability` and the node's in
+the kernel, so on a column declaring missing values at a node holding none the two differ by `log 2` per variable. **The assertion's
+fixture is therefore a design with no missing values**, where the identity holds candidate by candidate at 1e-12, with no mask and
+again under one that leaves a candidate's child no weight; the missing-data convention is asserted separately, PER CUT summed over its two directions, which is the form
 in which it is exact. That is stronger than agreeing with `census::nogProbe`, which the census build's own 3.7e-13 already records,
 and it does not need the census build to run.
 
@@ -563,7 +529,7 @@ arm A.
 [2.4 Cost, and the two restricted variants](#24-cost-and-the-two-restricted-variants)'s first restricted variant, built and measured
 on a private `-DBARTCORE_RULE_GIBBS_CUT_ONLY` build the way the census scaffolding is built, and off in every shipped build. With the
 macro defined [`enumerateNogRuleNeighbourhood`](../../src/bartcore/moves.hpp) holds the node's incumbent variable and enumerates that
-variable's cuts alone - ONE scan a proposal - and every other term of the law stands: the branch-rank stratum, the rank-admitted
+variable's cuts alone - ONE scan a proposal - and every other term of the law stands: the refusal of an empty child, the
 marginal, the missing coin, the categorical fixed point, and the prior factors, of which the split-variable prior and `1/|SI_v|` now
 cancel outright over one variable's cuts and are KEPT rather than dropped, so a candidate's weight stays on the joint kernel's own
 scale. It is still an exact Gibbs step: the restricted set is a deterministic function of state the move cannot change, so it is the
@@ -765,9 +731,10 @@ four-chain configuration, SETTLED. Nothing waits on perturb's slice 3.
    the test, where the realized draw frequencies must match it** - itself a correctness gate at the kernel level, and the one that
    would catch a mis-assembled weight before any script runs.
 
-   **Landed** (7fb166ca, 2026-09-07). Three design-versus-code points. (1) [`scanOrdinalCuts`](../../src/bartcore/scan.hpp)
+   **Landed** (7fb166ca, 2026-09-07), under the rank law section 2.2's last paragraph describes, which this item's text and
+   its gates name. Three design-versus-code points. (1) [`scanOrdinalCuts`](../../src/bartcore/scan.hpp)
    emits the branch rank alone - the max of the two sides - with the marginal summed over the rank-0 sides, not the two
-   sides' own ranks as section 2.2 specified; that pair is all section 2.2's law consumes. (2) The cut-only variant of
+   sides' own ranks as section 2.2 then specified; that pair is all that law consumed. (2) The cut-only variant of
    section 2.4 was not built - not free, only cheaper than the full draw, and slice 1 took 2.4's own recommendation to
    build the full rule draw first. (3) [`census::nogProbe`](../../src/bartcore/moves.hpp) now calls the shared enumerator
    for its weights, but its own eligibility gate is left at section 2.3's option A (every available variable ordinal)

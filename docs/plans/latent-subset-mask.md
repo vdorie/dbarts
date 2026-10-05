@@ -207,10 +207,11 @@ Surfaces:
    (`TResponse::refreshLatents`'s draw carries no weight gate), so the masked arm
    draws too - this is not compatibility with any external or historical stream,
    since the zero-weight Student-t path has never been published. (ii)
-   Reactivation freshness: an inactive row keeps a current fit (rule 3), so its
-   annihilated lambda is drawn from a conditional evaluated at current state, and
-   t therefore escapes the one-sweep staleness rule 5 names for the skipping
-   families - there is no stale latent to reactivate onto. (iii) The cost is one
+   Reactivation freshness, as first argued: an inactive row keeps a current
+   fit (rule 3), so its annihilated lambda is drawn from a conditional
+   evaluated at current state. That holds of the fit and not of sigma and nu,
+   which are updated after it, so rule 5 as amended redraws a re-entering
+   row's lambda like any other family's latent. (iii) The cost is one
    gamma draw per inactive row per sweep, and it is SCALE-FREE work:
    `ext_rng_simulateGamma`'s consumption depends on `shape` and the drawn
    variates only - `scale` multiplies at the exits and never enters an
@@ -880,8 +881,8 @@ pointer is restored BY IDENTITY, so the fused path comes back). A fractional
 value, an NA, a wrong length (all refuse, install nothing). `setWeights` before
 and after `setActiveRows`, in both orders, with the same final composite.
 `setData` under an installed mask (CLEARS). `setResponse` and `setOffset` under
-an installed mask (mask SURVIVES). A row reactivating after k sweeps (rule 5's
-one-sweep hazard, and for t the absence of one). A group all of whose rows are
+an installed mask (mask SURVIVES). A row reactivating after k sweeps (rule 5: its
+latent is redrawn by the install, t's lambda included). A group all of whose rows are
 inactive. A heteroscedastic sampler under a mask. A GP leaf under a mask. A
 linear leaf under a mask, with a cached leaf of at least 32 members. A masked
 sampler whose state is stored and restored into a fresh sampler (the mask is

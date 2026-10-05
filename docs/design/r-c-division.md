@@ -421,9 +421,10 @@ inactive row would desynchronize the stream against a sampler built on
 the retained rows - and the rest return to the deterministic cold start
 against the NEW counts, so none reactivates on a shape the sampler no
 longer holds. A zero count stays refused for a better reason than first
-recorded: `leafVetoRank` counts positive WORKING weights and a zero-count
-row still carries omega > 0, so it does not drop the row a zero gaussian
-weight drops; the mask is the only spelling that does.
+recorded: the working weights are the Polya-Gamma draws and a zero-count
+row still carries omega > 0, so a zero count does not take the row out of the
+likelihood as a zero gaussian weight does; the mask is the only spelling that
+does.
 `enforceBinaryWeightPolicy` states the admissible values once, at
 creation and on both mutation conduits, so the R bridge and the flat C
 entry cannot disagree, and `setData` hands the replacement counts through
