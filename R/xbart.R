@@ -557,7 +557,10 @@ xbart <- function(
   if (length(n.threads) != 1L) {
     stop("'n.threads' must be of length 1")
   }
-  if (is.na(n.threads) || n.threads <= 0L) {
+  if (is.na(n.threads)) {
+    stop(naThreadsMessage)
+  }
+  if (n.threads <= 0L) {
     stop("'n.threads' must be a positive integer")
   }
   if (!is.null(cl) && (!inherits(cl, "cluster") || length(cl) == 0L)) {

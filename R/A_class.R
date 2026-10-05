@@ -323,6 +323,14 @@ methods::setClass(
   )
 )
 
+## the thread defaults are guessNumCores(), which is NA when the cores
+## cannot be counted, so an NA budget names that cause and its remedy
+naThreadsMessage <- paste0(
+  "'n.threads' must be a positive integer, not NA; guessNumCores() returns ",
+  "NA when it cannot count this system's cores, and 'n.threads' must then ",
+  "be given"
+)
+
 methods::setValidity("dbartsControl", function(object) {
   if (length(object@verbose) != 1L) {
     return("'verbose' must be of length 1")
@@ -412,7 +420,10 @@ methods::setValidity("dbartsControl", function(object) {
   if (is.na(object@n.chains) || object@n.chains <= 0L) {
     return("'n.chains' must be a positive integer")
   }
-  if (is.na(object@n.threads) || object@n.threads <= 0L) {
+  if (is.na(object@n.threads)) {
+    return(naThreadsMessage)
+  }
+  if (object@n.threads <= 0L) {
     return("'n.threads' must be a positive integer")
   }
   if (is.na(object@n.thin) || object@n.thin <= 0L) {

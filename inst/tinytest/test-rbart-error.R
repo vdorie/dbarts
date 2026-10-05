@@ -27,6 +27,11 @@ testData$g <- g
 testData$b <- b
 rm(b, sigma.b, g, n.g)
 
+expect_error(
+  dbarts::rbart_vi(y ~ x, testData, group.by = g, n.threads = NA_integer_),
+  "'n.threads' must be a positive integer, not NA; guessNumCores"
+)
+
 # test that rbart fails with invalid group.by
 expect_error(
   dbarts::rbart_vi(y ~ x, testData, group.by = NA, n.threads = 1L),

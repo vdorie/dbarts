@@ -473,7 +473,8 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
   REPROTECT_SLOT(slotExpr, controlExpr, "categoricalExhaustiveCap", slotIndex);
   control.categoricalExhaustiveCap = static_cast<size_t>(
     rc_getInt(slotExpr, "categorical exhaustive cap", RC_LENGTH | RC_EQ,
-              rc_asRLength(1), RC_VALUE | RC_GEQ, 2, RC_END));
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 2, RC_VALUE | RC_LEQ, 30,
+              RC_END));
 
   REPROTECT_SLOT(slotExpr, controlExpr, "testFitParallelCutoff", slotIndex);
   control.testFitParallelCutoff = static_cast<size_t>(

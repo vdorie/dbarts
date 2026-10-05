@@ -117,7 +117,10 @@ rbart_vi <- function(
   }
 
   n.threads <- coerceOrError(n.threads, "integer")[1L]
-  if (is.na(n.threads) || n.threads < 1L) {
+  if (is.na(n.threads)) {
+    stop(naThreadsMessage)
+  }
+  if (n.threads < 1L) {
     stop("n.threads must be a non-negative integer")
   }
 

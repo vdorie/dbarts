@@ -16,7 +16,7 @@ guessNumCores(logical = FALSE)
   Because of different definitions of cores used by different manufacturers, the distinction between logical and physical cores is not universally recognized. This function will attempt to use operating system definitions when available, which should usually match the CPU itself.
 }
 \value{
-  An integer, or \code{NA} if no clear answer was obtained.
+  An integer, or \code{NA} if no clear answer was obtained. The fitting functions take their default \code{n.threads} from this value and refuse an \code{NA}, so on such a system \code{n.threads} must be given.
 }
 \author{
   Vincent Dorie: \email{vdorie@gmail.com}.

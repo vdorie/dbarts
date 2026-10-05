@@ -262,6 +262,15 @@ expect_error(
   dbarts::dbartsControl(categoricalExhaustiveCap = 31L),
   "8 to 14"
 )
+## the bridge holds the same bound, for a control whose slot was written
+## past the constructor's check
+capSampler <- dbarts(
+  y ~ x,
+  control = dbartsControl(n.chains = 1L, n.threads = 1L)
+)
+capSampler$control@categoricalExhaustiveCap <- 31L
+expect_error(capSampler$copy(), "categorical exhaustive cap")
+rm(capSampler)
 expect_error(
   dbarts::dbartsControl(testFitParallelCutoff = 0L),
   "positive integer"

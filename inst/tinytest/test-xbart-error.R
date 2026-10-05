@@ -160,6 +160,10 @@ expect_error(
   "'n.threads' must be a positive integer"
 )
 expect_error(
+  dbarts::xbart(y ~ x, n.threads = NA_integer_),
+  "'n.threads' must be a positive integer, not NA; guessNumCores"
+)
+expect_error(
   dbarts::xbart(y ~ x, n.threads = "not-a-integer"),
   "'n.threads' must be coercible to type: integer"
 )
