@@ -314,14 +314,14 @@ expect_warning(
 )
 expect_identical(sampler.mn$data@counts, counts.empty)
 expect_silent(sampler.mn$setCounts(countsA))
-# a row sum that overflows the int the trials are counted in: the accumulation
-# is checked, not wrapped
+# a row sum past the trial cap, here far enough past it to overflow the int
+# the trials are counted in: the accumulation is checked, not wrapped
 counts.overflow <- countsA
 counts.overflow[4L, 1L] <- 2000000000L
 counts.overflow[4L, 2L] <- 2000000000L
 expect_error(
   sampler.mn$setCounts(counts.overflow),
-  "fit in an integer"
+  "rows must total no more than 1000000 trials"
 )
 
 # a refusal leaves the sampler byte-identical, including one that fires PART
@@ -350,7 +350,7 @@ refusalArmCountsMutation <- function(attempt) {
 }
 arm.refused <- refusalArmCountsMutation(counts.overflow)
 arm.untouched <- refusalArmCountsMutation(NULL)
-expect_true(grepl("fit in an integer", arm.refused$refused))
+expect_true(grepl("no more than 1000000 trials", arm.refused$refused))
 expect_identical(arm.refused$train, arm.untouched$train)
 expect_identical(arm.refused$forestFits, arm.untouched$forestFits)
 expect_identical(arm.refused$runVarcount, arm.untouched$runVarcount)

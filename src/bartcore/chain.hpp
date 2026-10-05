@@ -1535,7 +1535,9 @@ public:
   /// the sweep there: the fits were finalized ahead of the refresh, and each
   /// latent is this sweep's draw or the previous one, a valid state of the
   /// chain (the response model says why), so the sweep's later blocks are
-  /// skipped as a cancel between sweeps skips the whole of the next one.
+  /// skipped as a cancel between sweeps skips the whole of the next one. A
+  /// multinomial glue draw stops the same way ahead of its forest's tree
+  /// update, its latents being per-sweep scratch (the combiner says why).
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
            ProgressSink* progress = nullptr, size_t chainIndex = 0,
            const std::function<bool()>* shouldCancel = nullptr,
@@ -1563,10 +1565,11 @@ public:
   }
 
   /// Installs the run's cancel function where a sweep polls it inside a
-  /// block - the response's latent refresh and a normalized leaf's order
-  /// count; null clears it.
+  /// block - the response's latent refresh, a combiner's glue draw and a
+  /// normalized leaf's order count; null clears it.
   void setCancel(const std::function<bool()>* cancel) {
     response_->setRefreshCancel(cancel);
+    if (combiner_) combiner_->setRefreshCancel(cancel);
     if constexpr (NormalizedLeafModel<L>)
       for (Forest<L, ResidT>& forest : forests_)
         forest.leaf.setCountCancel(cancel);

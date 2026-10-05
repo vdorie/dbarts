@@ -741,6 +741,15 @@ struct ForestCombiner {
   virtual void serializeGlue(ChainStateData&) const {}
   virtual void restoreGlue(const ChainStateData&) {}
   virtual bool glueIsValid(const ChainStateData&) const { return true; }
+
+  /// The run's cancel function, which a Polya-Gamma glue draw polls inside its
+  /// draws and answers by throwing RefreshCancelled; null outside a run.
+  void setRefreshCancel(const std::function<bool()>* cancel) {
+    refreshPoll_.set(cancel);
+  }
+
+protected:
+  RefreshPoll refreshPoll_;
 };
 
 /// BCF's combiner: a prognostic forest mu (forest 0) and a
@@ -1477,6 +1486,16 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// At n_i = 0 the law is PG(0, .), the point mass at 0, and the row is out of
   /// the effective mask, so the skip below is its exact draw and consumes no
   /// variate; the 0 itself lives in the composed precision, never in omega.
+  ///
+  /// A cancel polled inside the draws throws RefreshCancelled before forest
+  /// f's tree update, leaving omega's f-th column part this sweep's draw and
+  /// part the last, and margins_ part written. Neither is state of the chain:
+  /// formForestResponse(f), their only reader, is skipped, the next sweep
+  /// writes every column before it reads it, and a veto reads only omega's
+  /// support, which is positive either way. What stands is the tree updates of
+  /// the categories before f, each a valid Gibbs step, as a cancel between
+  /// sweeps leaves; lastF_ = f routes the next f == 0 call through the full
+  /// rebuild.
   void drawForestGlue(std::size_t f, ext_rng* rng,
                       const std::vector<Forest<L, ResidT>>& forests) override {
     std::size_t n = data_.numObservations;
@@ -1540,8 +1559,12 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
       if (active != nullptr && active[i] == 0.0) continue;
       double psi = fFits[i] - margin;
       double draw = ext_rng_simulatePolyaGamma(rng, psi);
-      for (int c = 1; c < trials_[i]; ++c)
+      bool stop = this->refreshPoll_.stop();
+      for (int c = 1; c < trials_[i] && !stop; ++c) {
         draw += ext_rng_simulatePolyaGamma(rng, psi);
+        stop = this->refreshPoll_.stop();
+      }
+      if (stop) throw RefreshCancelled();
       omega[i] = draw;
     }
   }

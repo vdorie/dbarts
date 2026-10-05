@@ -1509,6 +1509,64 @@ static void testRefreshInterrupt() {
   printf("ok: latent refresh interrupt\n");
 }
 
+// A cancel polled inside a multinomial glue draw stops the sweep ahead of
+// that category's tree update. Each row carries 30000 trials, so with the
+// first call the sweep's own, the second falls in category 0's draws and the
+// fourth in category 1's: the categories before the stop keep this sweep's
+// update and the rest are untouched. The chain runs on and its state
+// restores.
+static void testMultinomialRefreshInterrupt() {
+  const size_t n = 6, K = 3;
+  std::vector<double> x = {0.1, 0.5, 0.9, 0.3, 0.7, 0.2};
+  std::vector<int> counts(n * K, 10000), trials(n, 30000);
+  MultinomialSpec spec;
+  spec.numCategories = K;
+  spec.counts = counts.data();
+  spec.trials = trials.data();
+  spec.forest.numTrees = 5;
+  SamplerOptions options;
+  options.numTrees = 5;
+  auto fitsOf = [&](Sampler<ConstantGaussianLeaf>& sampler) {
+    std::vector<double> fits(n * K);
+    for (size_t k = 0; k < K; ++k)
+      sampler.forestTotalFits(0, k, fits.data() + k * n);
+    return fits;
+  };
+  for (int stopAt = 2; stopAt <= 4; stopAt += 2) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20261004u);
+    Sampler<ConstantGaussianLeaf> sampler(x.data(), n, 1, options, spec, &rng);
+    Results none;
+    sampler.run(1, 0, none);
+    std::vector<double> before = fitsOf(sampler);
+    int calls = 0;
+    std::function<bool()> cancel = [&]() { return ++calls >= stopAt; };
+    bool stopped = sampler.chain(0).run(1, 0, none, nullptr, 0, &cancel);
+    std::vector<double> after = fitsOf(sampler);
+    size_t updated = stopAt == 2 ? 0 : 1;
+    bool ok = stopped && calls == stopAt;
+    for (size_t k = 0; k < K; ++k) {
+      bool same = true;
+      for (size_t i = 0; i < n; ++i)
+        same = same && after[k * n + i] == before[k * n + i];
+      ok = ok && same == (k >= updated);
+    }
+    check(ok, stopAt == 2 ? "multinomial glue cancel in category 0: no "
+                            "category updated"
+                          : "multinomial glue cancel in category 1: category 0 "
+                            "updated, the rest untouched");
+    sampler.run(1, 0, none);
+    bool finite = true;
+    for (double v : fitsOf(sampler)) finite = finite && std::isfinite(v);
+    SamplerStateData state;
+    sampler.getState(state);
+    check(finite && sampler.setState(state, nullptr),
+          "multinomial glue cancel: the chain runs on and its state restores");
+    ext_rng_destroy(rng);
+  }
+  printf("ok: multinomial glue interrupt\n");
+}
+
 static void testMultiChain() {
   const size_t n = 300, numChains = 3, numSamples = 50;
   std::vector<double> x, y;
@@ -7975,6 +8033,7 @@ void runSamplerTests(ext_rng* rng) {
   testEndToEndLogistic(rng);
   testWeightedLogistic(rng);
   testRefreshInterrupt();
+  testMultinomialRefreshInterrupt();
   testEndToEndCategorical(rng);
   testWideCategorical(rng);
   testPooledMaskSampler(rng);

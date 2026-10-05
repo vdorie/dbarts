@@ -123,3 +123,40 @@ slow$setState(slow$state)
 expect_identical(slow$getLatents(), latents)
 expect_true(is.list(slow$run(0L, 1L)))
 expect_false(any(slow$getLatents() == heavy / 4))
+
+# --- multinomial: a count row's trial total, at creation and $setCounts ---
+trialRefusal <- "multinomial 'counts' rows must total no more than 1000000 trials"
+mnCounts <- function(first) {
+  counts <- matrix(1L, n, 3L)
+  counts[1L, ] <- as.integer(first)
+  counts
+}
+atTrialCap <- mnCounts(c(1e6 - 2, 1, 1))
+overTrialCap <- mnCounts(c(1e6 - 1, 1, 1))
+mnControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  updateState = TRUE,
+  seed = 17L
+)
+expect_error(
+  dbarts(
+    dbartsData(x, counts = overTrialCap),
+    family = "multinomial",
+    control = mnControl
+  ),
+  trialRefusal
+)
+expect_error(
+  bart(x, overTrialCap, family = "multinomial", control = mnControl),
+  trialRefusal
+)
+multinomial <- dbarts(
+  dbartsData(x, counts = atTrialCap),
+  family = "multinomial",
+  control = mnControl
+)
+expect_error(multinomial$setCounts(overTrialCap), trialRefusal)
+expect_identical(multinomial$data@counts, atTrialCap)
+multinomial$setCounts(atTrialCap)

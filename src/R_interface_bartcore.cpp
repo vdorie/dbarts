@@ -1,7 +1,6 @@
 #include "config.hpp"
 #include "R_interface_bartcore.hpp"
 
-#include <climits> // INT_MAX
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -3745,6 +3744,28 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   return sampler;
 }
 
+// The per-row trial totals n_i = sum_k Y_ik of a category-major n x K count
+// matrix, the rule creation and $setCounts share: every count non-negative
+// (NA_INTEGER is INT_MIN, so this catches NA too), and every total no larger
+// than bartcore::maximumCount, since a row costs n_i Polya-Gamma draws per
+// category per sweep. The bound also keeps the int totals the combiner's draw
+// loop counts in from overflowing.
+static void sumMultinomialTrials(const std::vector<int>& counts, size_t n,
+                                 size_t numCategories,
+                                 std::vector<int>& trials) {
+  trials.assign(n, 0);
+  for (size_t k = 0; k < numCategories; ++k)
+    for (size_t i = 0; i < n; ++i) {
+      int y = counts[k * n + i];
+      if (y < 0) Rf_error("multinomial counts must be non-negative");
+      if (static_cast<double>(trials[i]) + y > bartcore::maximumCount)
+        Rf_error("multinomial 'counts' rows must total no more than %.0f "
+                 "trials: each trial costs a Polya-Gamma draw per category "
+                 "per sweep", bartcore::maximumCount);
+      trials[i] += y;
+    }
+}
+
 // A K-forest multinomial (softmax) sampler over a GROUPED-COUNT response: Y is
 // an n x K nonnegative integer matrix, category-major (R column-major = the
 // combiner's counts_ layout, so the buffer copies directly), and the trials
@@ -3793,17 +3814,7 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
                static_cast<unsigned long>(n), numRowsGiven, numColumnsGiven);
     const int* src = INTEGER(countsExpr);
     counts.assign(src, src + n * numCategories);
-    trials.assign(n, 0);
-    for (size_t k = 0; k < numCategories; ++k)
-      for (size_t i = 0; i < n; ++i) {
-        int y = counts[k * n + i];
-        if (y < 0) Rf_error("multinomial counts must be non-negative");
-        // the trials are int, as the combiner's PG loop counter is; a row sum
-        // that overflows would wrap into a negative or absurd draw count
-        if (trials[i] > INT_MAX - y)
-          Rf_error("multinomial count row sums must fit in an integer");
-        trials[i] += y;
-      }
+    sumMultinomialTrials(counts, n, numCategories, trials);
     parseCategoryOffset(categoryOffsetExpr, n, numCategories, offset,
                         "multinomial category offset");
     parseCategoryTestOffset(categoryTestOffsetExpr, data.numTestObservations,
@@ -4209,17 +4220,7 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
     UNPROTECT(1);
     const int* src = INTEGER(countsExpr);
     counts.assign(src, src + n * K);
-    trials.assign(n, 0);
-    for (size_t k = 0; k < K; ++k)
-      for (size_t i = 0; i < n; ++i) {
-        int y = counts[k * n + i];
-        if (y < 0) Rf_error("multinomial counts must be non-negative");
-        // the trials are int, as the combiner's PG loop counter is; a row sum
-        // that overflows would wrap into a negative or absurd draw count
-        if (trials[i] > INT_MAX - y)
-          Rf_error("multinomial count row sums must fit in an integer");
-        trials[i] += y;
-      }
+    bartcore_bridge::sumMultinomialTrials(counts, n, K, trials);
 
     holder.ownedCounts.swap(counts);
     holder.ownedTrials.swap(trials);
