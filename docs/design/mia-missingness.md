@@ -61,8 +61,10 @@ response, weights, or offset stay rejected.
   so rule identity picks up the missing direction for free.
 - Per-column NA presence: ColumnStore grows hasMissing (one flag per
   column), set during build/quantize and refreshed by the mutation
-  surface. Columns without NAs never draw or store a missing direction
-  (the bit stays canonical zero), which is what keeps NA-free data
+  surface. Columns without NAs never draw a missing direction, and an
+  inline or ordinal rule stores none (the bit stays canonical zero, and is
+  cleared when a column loses its NAs; a pooled rule keeps it in its pool
+  words then, where it routes nothing), which is what keeps NA-free data
   bitwise identical to today - no extra RNG draws, no kernel changes on
   the fast path.
 
@@ -111,9 +113,11 @@ bit above 52) pushes the mask past 2^53 and doubles stop round-tripping
 integers exactly there. State objects are opaque and engine-specific, so
 tree.vars/tree.values grow a parallel tree.flags (raw or integer)
 element, absent meaning all-zero for restores of older states within the
-same major version. buildFromFlat validates flags (only bit 0) and drops
-the direction when the column lacks NAs, so a state stored while the
-column held them still installs.
+same major version. buildFromFlat validates flags: bits 1-2 carry the
+node's kind tag, which must match the column, and bit 0 is the only other
+bit allowed. A direction whose column lacks NAs is accepted and dropped,
+so a state stored while the column held them still installs; a pooled
+column's rule keeps it in its pool words.
 
 ## Bridge and R surface
 

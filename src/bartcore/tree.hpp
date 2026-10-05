@@ -1175,9 +1175,11 @@ public:
   /// did: hasMissing false puts the bit outside reachableCategories, and two
   /// rules that route alike would compare unequal on it. The bit routes
   /// nothing without missing observations, so clearing it moves nothing.
-  /// Pooled masks keep the bit in their words under their own scheme, so pass
-  /// through; a build has to leave them as a mutation does, since rule
-  /// equality compares those words and a copy must hold its original's.
+  /// A pooled mask passes through, its bit left in the pool words by a
+  /// mutation and a build alike, so a rebuilt tree holds the words the live
+  /// one does. The bit then sits outside reachableCategoriesWide: swap and
+  /// change take a subtree holding it for invalid and leave it alone until
+  /// the rule is pruned or redrawn. Routing is unaffected.
   void dropStaleMissingDirections(const ColumnStore& data) {
     dropStaleMissingDirectionsBelow(0, data);
   }

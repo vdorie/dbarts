@@ -49,7 +49,13 @@ liveTrees <- function(state) {
     right = split(bitwAnd(as.integer(forest$tree.flags), 1L) == 1L, tree)
   )
 }
-treeValues <- function(state) state[[1L]]$forests[[1L]]$tree.values
+treeValues <- function(state) {
+  lapply(state, function(chain) chain$forests[[1L]]$tree.values)
+}
+sendsRight <- function(state) {
+  flags <- lapply(state, function(chain) chain$forests[[1L]]$tree.flags)
+  bitwAnd(as.integer(unlist(flags)), 1L) == 1L
+}
 savedFields <- c("saved.vars", "saved.values", "saved.sizes", "saved.flags")
 
 sampler <- make(holed)
@@ -112,3 +118,54 @@ expect_identical(treeValues(kept$state), treeValues(held))
 first <- kept$run(0L, 3L)
 kept$setState(held)
 expect_identical(kept$run(0L, 3L), first)
+
+# two chains, and a sparse-backed column: the stale state restores through
+# setState and copy() to the forced update's trees, and both then run
+checkRestores <- function(sampler, fill, info) {
+  invisible(sampler$run(50L, 3L))
+  sampler$storeState()
+  stale <- sampler$state
+  expect_true(any(sendsRight(stale)), info = info)
+  fill(sampler)
+  duplicate <- sampler$copy()
+  sampler$storeState()
+  forced <- sampler$state
+  expect_silent(sampler$setState(stale), info = info)
+  for (route in list(sampler, duplicate)) {
+    route$storeState()
+    statesAgree(route$state, forced)
+    expect_identical(treeValues(route$state), treeValues(forced), info = info)
+    expect_false(any(sendsRight(route$state)), info = info)
+    expect_true(all(is.finite(route$run(0L, 3L)$train)), info = info)
+  }
+}
+twoChains <- control
+twoChains@n.chains <- 2L
+twoChains@n.threads <- 2L
+checkRestores(
+  dbarts(y ~ x1 + f + x2, holed, control = twoChains),
+  fill,
+  "two chains"
+)
+if (requireNamespace("Matrix", quietly = TRUE)) {
+  # mostly zero, so the column stays sparse-backed; its entries carry the holes
+  thin <- cbind(ifelse(seq_len(n) %% 4L == 0L, filled$x1, 0), filled$x2)
+  thinHoled <- thin
+  thinHoled[goneX & thin[, 1L] != 0, 1L] <- NA
+  yThin <- ifelse(is.na(thinHoled[, 1L]), 3, thin[, 1L]) + rnorm(n, sd = 0.2)
+  checkRestores(
+    dbarts(
+      Matrix::Matrix(thinHoled, sparse = TRUE),
+      yThin,
+      control = control,
+      sigest = 1
+    ),
+    function(sampler) {
+      sampler$setPredictor(
+        Matrix::Matrix(thin, sparse = TRUE),
+        forceUpdate = TRUE
+      )
+    },
+    "sparse-backed column"
+  )
+}

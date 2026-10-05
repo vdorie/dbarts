@@ -2292,6 +2292,19 @@ static void testStaleMissingDirectionBuild() {
   maskSetBit(words.data(), K + 1);
   check(!buildsWide(),
         "stale direction: a pooled bit past the missing position is refused");
+  // levels 2 and 3 right at the root, level 2 and missing right beneath it
+  FlatNode below = flat[0];
+  below.maskOffset = words.size();
+  flat = {flat[0], leaf, below, leaf, leaf};
+  words.assign(2 * words.size(), 0);
+  maskSetBit(words.data(), 2);
+  maskSetBit(words.data(), 3);
+  maskSetBit(words.data() + words.size() / 2, 2);
+  bool passedDown = buildsWide();
+  flat[0].flags &= static_cast<std::uint8_t>(~flatMissingGoesRight);
+  check(passedDown && !buildsWide(),
+        "stale direction: a pooled rule builds only where its ancestors pass "
+        "missing");
   printf("ok: a stale missing direction builds\n");
 }
 
