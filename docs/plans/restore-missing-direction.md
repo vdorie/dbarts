@@ -1,6 +1,6 @@
 # restore-missing-direction: a state install drops a missing direction its column no longer routes
 
-Status: PLANNED.
+Status: LANDED 2026-10-05 (5cac562f, ee7ce3e5).
 
 agent: opus implementer, one; opus reviewer.
 rng: NEUTRAL. Every `setState`, `copy`, reload, `installTrees` and warm start accepted today installs no rule
@@ -65,3 +65,26 @@ A sampler can always restore its own state and `copy()` itself after its predict
 - ASan and UBSan on tests/cpp.
 - `lintr::lint_package()`, `air format --check .`, the three tools/ checks and
   `Rscript benchmarks/R/mutation-battery.R verify-anchors` clean.
+
+## Landing note
+
+Landed 2026-10-05 as 5cac562f (the install accepts and drops the direction, in the one build every install
+path and validator shares) and ee7ce3e5 (review corrections: the manual's undo recipe, the pooled gate's test,
+two-chain and sparse-backed cases). Review SOUND WITH CORRECTIONS, then SOUND. Full tinytest 13746 results, 0
+failures; tests/cpp passes, clean under ASan and UBSan; the four seeded snapshot files pass on the reference
+build; equivalence in statistical mode 55 of 55 identical, BCF 15 of 15 and multinomial 11 of 11; installs
+accepted before the change draw identically across 24 sampler kinds.
+
+Three things differ from the plan as written.
+- A pooled categorical rule keeps its bit, as the forced update leaves it: the bit sits in the pool words,
+  which rule equality compares, and clearing it at install alone would make a restore differ from the forced
+  update. Such a rule routes nothing wrongly; tree moves leave its subtree alone until the rule is redrawn.
+  Clearing it on both paths changes draws after a pooled column is filled and is its own item (TODO).
+- A categorical mask that sends every reachable level one way with no missing flag, on a column that never
+  held a missing value, was refused and now installs and is merged: a state does not record which columns held
+  missing values, so the build cannot tell it from a rule that split the missing value from every level.
+- "Predict as the stored ones do" holds for trees the filled predictors left no empty leaf in; the others are
+  compared with the forced update.
+
+To undo a predictor change exactly the old predictor goes back with `forceUpdate = TRUE` before `setState`; a
+factor column does not take missing values back through a column update, so that case goes through `setData`.

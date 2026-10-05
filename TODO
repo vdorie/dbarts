@@ -255,6 +255,14 @@ items
     slowest is decided by wall time, so a stump's count can win. Unproven
     reading - reproduce, then pin the tally on something the clock does
     not choose.
+  pooled-missing-direction-drop: after a column's missing values are
+    filled, a pooled categorical rule keeps its missing-direction bit (the
+    forced update and a state install both leave it), so swap and change
+    treat the subtree holding it as invalid and skip it until the rule is
+    pruned or redrawn: 19 such rules after an install, 1 after 50 sweeps,
+    none after 250. Clearing the bit in the shared drop makes the tree
+    valid at once and changes draws after a pooled fill, so it is a
+    shifting slice with its own gates.
   monotone-factor-direction-host: a host that hands the engine a monotone
     direction on an unordered-factor column gets an unconstrained sampler
     without a word: the facade's monotoneConstraintIsActive returns false
