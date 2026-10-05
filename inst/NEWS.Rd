@@ -554,9 +554,7 @@
             one column per grid point, where it averaged over the whole
             grid and \code{plot} then failed.
       \item \code{plot} on a \code{pdbart} result accepts \code{type},
-            \code{xlab} and \code{ylab}, which collided with its own. A
-            training column with a missing value no longer stops
-            \code{pdbart}'s default grid.
+            \code{xlab} and \code{ylab}, which collided with its own.
       \item Arguments given beside a \code{dbartsData} object, which it
             already fixes, such as \code{subset} and \code{weights}, are
             reported in a warning rather than ignored silently.

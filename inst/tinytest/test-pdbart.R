@@ -102,6 +102,72 @@ expect_inherits(warnings.sampler[[1L]], "dbartsFallbackWarning")
 expect_equal(dim(pdbRun$fd[[1L]]), c(10L, 11L))
 expect_false(is.null(pdbRun$yhat.train))
 rm(pdbGrown, grownFit, atValue, fitWithTrees, control, sampler, pdbSampler)
+# and its rows' offsets enter the averages it runs: the same sampler, seeded,
+# run by hand over the same rows
+offsetSampler <- function() {
+  s <- dbarts::dbarts(
+    x,
+    y,
+    offset = x[, 3L],
+    control = dbarts::dbartsControl(
+      n.trees = 5L,
+      n.samples = 10L,
+      n.burn = 5L,
+      n.chains = 1L,
+      n.threads = 1L,
+      seed = 7L
+    )
+  )
+  invisible(s$run())
+  s
+}
+pdbRunOffset <- suppressWarnings(dbarts::pdbart(
+  offsetSampler(),
+  xind = 1L,
+  levs = list(0.5),
+  pl = FALSE
+))
+handSampler <- offsetSampler()
+atHalf <- x
+atHalf[, 1L] <- 0.5
+handSampler$setTestPredictor(atHalf)
+handSamples <- handSampler$run(0L, 10L)
+expect_equal(
+  pdbRunOffset$fd[[1L]][, 1L],
+  colMeans(handSamples$test) + mean(x[, 3L])
+)
+rm(offsetSampler, pdbRunOffset, handSampler, atHalf, handSamples)
+
+# a bartBT fit kept without trees is refit through bartBT, not forwarded to it
+# through bart, which would warn a second time
+onceState[["tombstone.bartShim"]] <- NULL
+legacyFit <- function(...) {
+  dbarts::bartBT(
+    x,
+    y,
+    ntree = 5L,
+    ndpost = 10L,
+    nskip = 5L,
+    seed = 3L,
+    verbose = FALSE,
+    ...
+  )
+}
+warnings.bartBT <- captureWarnings(
+  pdbBT <- dbarts::pdbart(legacyFit(), xind = 1L, levs = levs[1L], pl = FALSE)
+)
+expect_equal(length(warnings.bartBT), 1L)
+expect_inherits(warnings.bartBT[[1L]], "dbartsFallbackWarning")
+expect_identical(
+  pdbBT$fd,
+  dbarts::pdbart(
+    legacyFit(keeptrees = TRUE),
+    xind = 1L,
+    levs = levs[1L],
+    pl = FALSE
+  )$fd
+)
+rm(legacyFit, warnings.bartBT, pdbBT)
 rm(pdbRun, warnings.sampler, warnings.refit, pdb2, pdb3, bartFit)
 
 # a fit passed in takes no fitting argument, and named x.train it is used
@@ -163,6 +229,14 @@ expect_false(
   "fit" %in%
     names(dbarts::pdbart(bartFit, xind = 1L, pl = FALSE, keepSampler = FALSE))
 )
+resetPdbartKeys()
+warnings.keep <- captureWarnings(
+  pdbKeep <- dbarts::pdbart(bartFit, xind = 1L, pl = FALSE, keepsampler = FALSE)
+)
+expect_equal(length(warnings.keep), 1L)
+expect_true(grepl("'keepsampler'", conditionMessage(warnings.keep[[1L]])))
+expect_false("fit" %in% names(pdbKeep))
+rm(warnings.keep, pdbKeep)
 
 # --- the plot methods, on both shapes ---
 # one device page per entry of xind, each carrying that predictor's label
@@ -199,8 +273,18 @@ expect_equal(
   length(grep(paste0("(", pdb1$xlbs[1L], ")"), psLines, fixed = TRUE)),
   0L
 )
+# and the type drawn is the caller's: a frame with lines only differs from
+# one with lines and points
+drawing <- function(...) {
+  postscript(psFile, onefile = TRUE)
+  plot(pdb1, xind = 1L, ...)
+  dev.off()
+  grep("^%%", readLines(psFile, warn = FALSE), value = TRUE, invert = TRUE)
+}
+expect_false(identical(drawing(type = "l"), drawing()))
+expect_identical(drawing(type = "b"), drawing())
 unlink(psFile)
-rm(psFile, psLines, labelHits)
+rm(psFile, psLines, labelHits, drawing)
 
 pdf(NULL)
 expect_silent(plot(pdbSplit))
@@ -467,6 +551,31 @@ expect_equal(leafPrior@k@degreesOfFreedom, 1.25)
 expect_equal(leafPrior@k@scale, Inf)
 rm(chiCaller, pdbChi, leafPrior)
 
+# names pdbart does not translate still warn through bart: only the notices
+# pdbart replaces are held back
+for (name in c("resid.prior", "split.probs")) {
+  onceState[[paste0("tombstone.consolidated.", name, ".bart")]] <- NULL
+}
+warnings.retired <- captureWarnings(suppressMessages(dbarts::pdbart(
+  x,
+  y,
+  xind = 1L,
+  pl = FALSE,
+  resid.prior = chisq(3, 0.9),
+  split.probs = c(0.5, 0.25, 0.25),
+  n.trees = 3L,
+  n.samples = 2L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)))
+expect_equal(length(warnings.retired), 2L)
+retiredMessages <- vapply(warnings.retired, conditionMessage, "")
+expect_equal(sum(grepl("'resid.prior'", retiredMessages)), 1L)
+expect_equal(sum(grepl("'split.probs'", retiredMessages)), 1L)
+rm(name, warnings.retired, retiredMessages)
+
 # --- the defaults message ---
 # once per session, for a data call naming no BayesTree argument, and not for
 # package code; bart's own message is held back without using up its showing
@@ -488,6 +597,23 @@ countMessages <- function(expr) {
   )
   observed
 }
+# a BayesTree-spelled call has its translation warning instead
+expect_equal(
+  length(countMessages(suppressWarnings(dbarts::pdbart(
+    x,
+    y,
+    xind = 1L,
+    pl = FALSE,
+    ntree = 3L,
+    n.samples = 2L,
+    n.burn = 0L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )))),
+  0L
+)
+expect_false(isTRUE(onceState[[dbarts:::pdbartDefaultsKey]]))
 quietCaller <- function(x, y) {
   dbarts::pdbart(
     x,

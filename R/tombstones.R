@@ -625,13 +625,15 @@ notePdbartDefaults <- function(callingEnv) {
   invisible(NULL)
 }
 
-## The once-per-session notices bart shows that a call made inside pdbart
-## would use up: its defaults message and its consolidated-name warnings.
-## Held back for the duration of 'expr', each key restored as it was found.
+## The once-per-session notices bart shows that pdbart replaces with its
+## own: the defaults message and the warnings for sigdf and sigquant, which
+## pdbart translates. Held back for the duration of 'expr', each key
+## restored as it was found; every other retired name still warns through
+## bart.
 holdingBartNotices <- function(expr) {
   keys <- c(
     frontDoorDefaultsKey,
-    paste0("tombstone.consolidated.", consolidatedArgsFor$bart, ".bart")
+    paste0("tombstone.consolidated.", c("sigdf", "sigquant"), ".bart")
   )
   saved <- mget(
     keys,

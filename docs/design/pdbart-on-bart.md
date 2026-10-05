@@ -57,7 +57,7 @@ per name and function, package callers included. `power`, `base` and
 copy of the caller's control or on a fresh one; `sigdf` and `sigquant` reach
 `bart` under their own names, since the residual prior rides a family that
 cannot be built before the response is known. A setting under both
-spellings is refused. `bart`'s own once-per-session notices are held back
+spellings is refused. `bart`'s defaults message and its `sigdf` and `sigquant` warnings are held back
 inside pdbart, their keys restored as they were found
 ([`holdingBartNotices`](../../R/tombstones.R)); pdbart shows its own
 defaults message instead ([`notePdbartDefaults`](../../R/tombstones.R)).

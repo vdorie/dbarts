@@ -22,7 +22,8 @@ pdbart.refuseFamily <- function(token, caller) {
     stop(
       "'",
       caller,
-      "' does not serve a ",
+      "' does not serve ",
+      if (token == "ordinal") "an " else "a ",
       token,
       " fit, whose prediction is a probability per category; predict on ",
       "new rows with the variable set gives each category's",
@@ -245,6 +246,12 @@ pdbart.prologue <- function(object, getData, matchedCall, callingEnv, caller) {
       "' first, unnamed"
     )
   }
+  matchedCall <- translatePdbartCall(
+    matchedCall,
+    intersect(names(matchedCall), "keepsampler"),
+    callingEnv,
+    caller
+  )
   extra <- setdiff(
     names(matchedCall)[-1L],
     c("formula", "x.train", "keepSampler", pdbart.ownArgs)
@@ -334,7 +341,9 @@ pdbart.resolveXind <- function(xind, matchedCall, sampler) {
 
   if (is.character(xind)) {
     if (is.null(colnames(sampler$data@x))) {
-      stop("passing 'xind' by name requires 'x.train' to have column names")
+      stop(
+        "passing 'xind' by name requires the predictors to have column names"
+      )
     }
     unknownColumns <- xind %not_in% colnames(sampler$data@x)
     if (any(unknownColumns)) {
@@ -362,9 +371,9 @@ pdbart.factorLevels <- function(sampler, xind) {
 # Default the 'levs' list: for each of the first 'numVariables' selected
 # predictors, every level of a factor, by name; otherwise either the sorted
 # unique values (when there are too few to bin) or the unique quantiles at
-# 'levquants', missing values left out of both. 'cmp' is the comparison deciding "too few": pdbart uses `<`,
-# pd2bart uses `<=` (a long-standing difference in the two entry points,
-# preserved here rather than reconciled).
+# 'levquants', missing values left out of both. 'cmp' is the comparison
+# deciding "too few": pdbart uses `<`, pd2bart uses `<=` (a long-standing
+# difference in the two entry points, preserved here rather than reconciled).
 pdbart.defaultLevs <- function(x, xind, levquants, numVariables, cmp, levels) {
   levs <- vector("list", numVariables)
   for (j in seq_len(numVariables)) {

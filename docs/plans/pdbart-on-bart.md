@@ -437,8 +437,7 @@ release.
     aft and hazard fits, with `"event"`, `"cumhaz"` and `times`); `newdata`,
     `n.average.rows`, `average.weights`, `n.max.predictions`; `plot.type`.
   - BUG FIXES: `plot` on a pdbart result accepts `type`, `xlab` and `ylab`,
-    which collided with its own; a training column with a missing value no
-    longer stops the default grid.
+    which collided with its own.
 - The existing factor bullet stands.
 
 ## Verification
