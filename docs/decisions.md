@@ -1657,6 +1657,10 @@ Record: this register. Marked: blank. [dec-B250]
 When weights holds zeros among other values, dbarts warns 'weights' of 0 will be ignored but increase computation time, 0.9-34's text; 0.9-34 raised it for any zero weight, and the branch stays silent when every weight is 0 or 1, the zeros there being the statement of which rows are in (run on both, 2026-10-05). Under dec-B238 the text is no longer true: a zero-weight row is left out of the likelihood but stays in the fit, occupying a leaf the trees may split around. The warning is reworded to say so and to name subset as the way to drop rows, and the two tests matching the old text move with it. The alternatives were keeping 0.9-34's text, and dropping the warning, which leaves a caller who passes zeros by accident with no hint. A 0.9-x script that matches on the message text no longer matches. The maintainer on 2026-10-05: "Reword it to what is true." See also: [dec-B238].
 Record: this register. Marked: blank. [dec-B251]
 
+**The variance forest takes a tree prior object**
+varianceForest(vars, n.trees, base, power), which describes the residual-variance forest of a heteroscedastic fit, gives its tree prior as two flat numbers, the pattern dec-B246 removed from forest(); that ruling did not name it. It takes tree.prior = cgm(power, base) in their place, defaulting as before to the mean forest's tree prior, so a tree prior has one spelling at the front door, on forest() and on the variance forest; a tree prior the variance forest cannot use is refused by name. It has no leaf prior argument, its leaves having their own fixed prior. varianceForest() is new in 1.0-0, so nothing released changes. The alternative was leaving base and power. The maintainer on 2026-10-05, shown the orchestrator's recommendation of the tree prior object: "Use your recommendation for this decision." See also: [dec-B246].
+Record: this register. Marked: blank. [dec-B252]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
