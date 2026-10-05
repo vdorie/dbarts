@@ -1,6 +1,6 @@
 # restore-empty-leaf: a state install merges leaves no row reaches, as 0.9-34 did
 
-Status: IMPLEMENTED 2026-10-04 (276eddce), on wt/restore-empty-leaf, not landed.
+Status: IMPLEMENTED 2026-10-04 (276eddce, 84babf15), on wt/restore-empty-leaf, not landed.
 
 agent: opus implementer, one; opus reviewer.
 rng: SHIFTING. Draws change only for a same-grid warm start whose donor leaves a leaf with no rows, which
