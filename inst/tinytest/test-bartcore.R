@@ -254,9 +254,14 @@ expect_true(sampler.engine$setPredictor(
   sampler.engine$data@x[, 2L] + rnorm(n, 0, 1e-4),
   "x2"
 ))
-# full-matrix setPredictor defaults to forceUpdate = TRUE and returns
-# nothing; like the classic engine it replaces data@x wholesale
-expect_null(sampler.engine$setPredictor(matrix(runif(n * p), n, p)))
+# full-matrix setPredictor defaults to forceUpdate = TRUE, which always
+# installs and so returns TRUE, invisibly; it replaces data@x wholesale
+forcedReturn <- withVisible(
+  sampler.engine$setPredictor(matrix(runif(n * p), n, p))
+)
+expect_true(forcedReturn$value)
+expect_false(forcedReturn$visible)
+rm(forcedReturn)
 expect_true(all(is.finite(sampler.engine$run(0L, 2L)$train)))
 # a degenerate matrix rolls back when not forced, and data@x is untouched
 x.before <- sampler.engine$data@x

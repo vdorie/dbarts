@@ -287,10 +287,6 @@ items
     drops them (28 rules live, 7 after the copy in a probe). Re-derive
     the column's missing flag when a partial update removes its last
     missing value.
-  setpredictor-forced-return: setPredictor returns NULL invisibly for a
-    forced update, a whole-matrix call with forceUpdate missing
-    included, where the manual says TRUE or FALSE; the same since 2019
-    and in 0.9-34. Return TRUE there.
   pooled-missing-direction-drop: after a column's missing values are
     filled, a pooled categorical rule keeps its missing-direction bit (the
     forced update and a state install both leave it), so swap and change

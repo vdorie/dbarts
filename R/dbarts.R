@@ -2974,19 +2974,19 @@ dbartsSampler <- setRefClass(
       updateState <- checkUpdateState(updateState)
 
       checkMissingPolicy(data, sourceAnyNA(x), "predictors")
-      result <- bartcoreSamplerSetPredictor(
+      result <- withVisible(bartcoreSamplerSetPredictor(
         .self,
         x,
         column = if (missing(column)) NULL else column,
         forceUpdate = if (missing(forceUpdate)) NULL else forceUpdate,
         updateCutPoints = updateCutPoints
-      )
+      ))
       if (resolveUpdateState(updateState, control)) {
         storeState()
       }
-      # bartcoreSamplerSetPredictor returns invisible(NULL) or a visible
-      # logical; preserve that (a bare 'result' would always be visible)
-      if (is.null(result)) invisible(NULL) else result
+      # a forced update's TRUE comes back invisible and an unforced update's
+      # verdict visible; a bare value here would always be visible
+      if (result$visible) result$value else invisible(result$value)
     },
     setCutPoints = function(cuts, column, updateState = NULL) {
       "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty. updateState follows control@updateState; see setData."

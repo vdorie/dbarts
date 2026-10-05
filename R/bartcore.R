@@ -679,7 +679,9 @@ bartcoreSamplerSetPredictor <- function(
     }
   }
 
-  if (!forceUpdate) updateSuccessful else invisible(NULL)
+  # a forced update always installs; its TRUE is returned invisibly, so a
+  # loop of forced updates prints nothing at top level
+  if (!forceUpdate) updateSuccessful else invisible(TRUE)
 }
 
 # The response conduits' updateScale: a single TRUE or FALSE. NA or 1 would
