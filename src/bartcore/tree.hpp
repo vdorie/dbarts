@@ -1170,12 +1170,14 @@ public:
                              minIndices.data(), maxIndices.data(), paramStride);
   }
 
-  /// Drop a rule's missing direction after a data mutation stops its column
-  /// routing a missing value: hasMissing false puts the bit outside
-  /// reachableCategories, so buildFromFlat's gauge check would reject an
-  /// otherwise valid rule. The bit routes nothing without missing
-  /// observations, so clearing it moves nothing. Pooled masks keep the bit in
-  /// their words under their own scheme, so pass through.
+  /// Drop a rule's missing direction once its column routes no missing
+  /// value, after a data mutation or a build from a flat tree drawn while it
+  /// did: hasMissing false puts the bit outside reachableCategories, and two
+  /// rules that route alike would compare unequal on it. The bit routes
+  /// nothing without missing observations, so clearing it moves nothing.
+  /// Pooled masks keep the bit in their words under their own scheme, so pass
+  /// through; a build has to leave them as a mutation does, since rule
+  /// equality compares those words and a copy must hold its original's.
   void dropStaleMissingDirections(const ColumnStore& data) {
     dropStaleMissingDirectionsBelow(0, data);
   }
@@ -1272,7 +1274,13 @@ public:
   /// (single-root) tree. Split values map back onto rules exactly: an
   /// ordinal value must equal one of its variable's cuts, a categorical mask
   /// must be a canonical-gauge assignment of the categories reachable at its
-  /// node. Partitions are left stale (repartitionSubtree) and paramByNode
+  /// node. The flat tree may have been drawn while a column held a missing
+  /// value this store's no longer does, so the gauge counts the missing
+  /// position reachable either way and the directions the column cannot
+  /// route are dropped once the tree is built (dropStaleMissingDirections).
+  /// A rule that split the missing value from every reachable category is
+  /// then left with a side nothing reaches, which the caller's collapse
+  /// merges. Partitions are left stale (repartitionSubtree) and paramByNode
   /// receives leaf parameters by arena id, paramStride doubles per node -
   /// the record's value leading, then that leaf's paramStride - 1 entries of
   /// slopes (pre-order by leaf; the caller validates its length). masks is
@@ -1294,6 +1302,7 @@ public:
     if (pos != numNodes) return false;
     if (maskPos != numMaskWords) return false;
     paramByNode.resize(nodes.size() * paramStride, 0.0);
+    dropStaleMissingDirectionsBelow(0, data);
     return true;
   }
 
@@ -1327,6 +1336,23 @@ private:
     releasePair(node.leftChild);
     node.leftChild = invalidNode;
     node.rule = Rule();
+  }
+
+  /// Whether a missing value of variableIndex descends to nodeIndex: every
+  /// ancestor rule on the variable sends it down the side the path takes.
+  /// Reads the rules' own directions, whatever the store says the column
+  /// holds.
+  bool missingReaches(const ColumnStore& data, int32_t nodeIndex,
+                      int32_t variableIndex) const {
+    int32_t current = nodeIndex;
+    while (at(current).parent != invalidNode) {
+      bool isRightChild = current == at(at(current).parent).leftChild + 1;
+      current = at(current).parent;
+      if (at(current).rule.variableIndex == variableIndex &&
+          ruleMissingGoesRight(data, at(current).rule) != isRightChild)
+        return false;
+    }
+    return true;
   }
 
   void dropStaleMissingDirectionsBelow(int32_t nodeIndex,
@@ -1586,6 +1612,11 @@ private:
       if ((flat.flags & flatMissingGoesRight) != 0)
         maskSetBit(directions, numCategories);
       reachableCategoryWords(data, nodeIndex, flat.variable, reachableScratch_);
+      // the gauge of the data the tree was drawn on, which may have held a
+      // missing value where this column has none
+      if (!data.hasMissing[variable] &&
+          missingReaches(data, nodeIndex, flat.variable))
+        maskSetBit(reachableScratch_.data(), numCategories);
       if (maskIsZero(directions, numWords) ||
           !maskIsSubsetOf(directions, reachableScratch_.data(), numWords) ||
           maskEquals(directions, reachableScratch_.data(), numWords))
@@ -1601,6 +1632,11 @@ private:
         directions |= Rule::missingDirectionBit;
       std::uint64_t reachable =
         reachableCategories(data, nodeIndex, flat.variable);
+      // as for a pooled mask: the missing position is reachable in the gauge
+      // of the data the tree was drawn on
+      if (!data.hasMissing[variable] &&
+          missingReaches(data, nodeIndex, flat.variable))
+        reachable |= Rule::missingDirectionBit;
       // canonical gauge: bits confined to reachable, neither side empty
       if (directions == 0 || (directions & ~reachable) != 0 ||
           directions == reachable)
@@ -1614,10 +1650,9 @@ private:
       while (k < numCuts && cuts[k] < flat.value) ++k;
       if (k >= numCuts || cuts[k] != flat.value) return false;
       rule.setSplitIndex(static_cast<int32_t>(k));
-      if ((flat.flags & flatMissingGoesRight) != 0) {
-        if (!data.hasMissing[static_cast<size_t>(flat.variable)]) return false;
+      // a direction the column cannot route is dropped after the build
+      if ((flat.flags & flatMissingGoesRight) != 0)
         rule.setMissingGoesRight(true);
-      }
     }
 
     int32_t pair = acquirePair();

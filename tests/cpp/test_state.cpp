@@ -2209,6 +2209,239 @@ static void testStaleStateMerge() {
   printf("ok: a stale state merges empty leaves on install\n");
 }
 
+/// A flat tree drawn while a column held a missing value builds against a
+/// store whose column holds none: the direction is dropped, a rule that split
+/// the missing value from every level keeps a side nothing reaches, and a
+/// mask malformed in the donor's own gauge is still refused.
+static void testStaleMissingDirectionBuild() {
+  const size_t n = 12;
+  std::vector<double> x(n * 2);
+  for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i % 4);
+  for (size_t i = 0; i < n; ++i) x[i + n] = static_cast<double>(i) / (n - 1.0);
+  ColumnKind types[] = {ColumnKind::categorical, ColumnKind::numeric};
+  ColumnStore store;
+  built(store.build(x.data(), n, 2, 10, false, types));
+
+  std::vector<index_t> indices(n);
+  std::vector<double> params;
+  Tree tree;
+  auto builds = [&](const std::vector<FlatNode>& flat) {
+    tree.initialize(indices.data(), n);
+    return tree.buildFromFlat(store, flat.data(), flat.size(), params);
+  };
+  auto rule = [](int32_t variable, FlatKind kind, bool missingRight) {
+    FlatNode node;
+    node.variable = variable;
+    setFlatKind(node, kind);
+    if (missingRight) node.flags |= flatMissingGoesRight;
+    return node;
+  };
+  auto levels = [&](std::uint64_t mask, bool missingRight) {
+    FlatNode node = rule(0, FlatKind::categoricalInline, missingRight);
+    node.mask = mask;
+    return node;
+  };
+  FlatNode leaf, cut = rule(1, FlatKind::ordinal, true);
+  cut.value = store.cutPoints[1][4];
+
+  check(builds({levels(0x6, true), cut, leaf, leaf, leaf}) &&
+          tree.at(0).rule.categoryDirections() == 0x6 &&
+          !tree.at(tree.at(0).leftChild).rule.missingGoesRight() &&
+          tree.at(tree.at(0).leftChild).rule.splitIndex() == 4,
+        "stale direction: an ordinal and a categorical rule build without it");
+  check(builds({levels(0x0, true), leaf, leaf}) &&
+          tree.at(0).rule.categoryDirections() == 0x0 &&
+          builds({levels(0xf, false), leaf, leaf}) &&
+          tree.at(0).rule.categoryDirections() == 0xf,
+        "stale direction: a rule splitting missing from every level builds");
+  check(builds({levels(0x6, true), leaf, levels(0x2, true), leaf, leaf}) &&
+          !builds({levels(0x6, false), leaf, levels(0x2, true), leaf, leaf}),
+        "stale direction: it builds only where its ancestors pass missing");
+  check(!builds({levels(0xf, true), leaf, leaf}) &&
+          !builds({levels(0x0, false), leaf, leaf}),
+        "stale direction: a rule sending everything one way is refused");
+  check(!builds({levels(0x16, true), leaf, leaf}),
+        "stale direction: a level past the column's count is refused");
+
+  // a pooled mask keeps the bit in its words, as a data mutation leaves it
+  const std::uint32_t K = 70;
+  std::vector<double> wide(8 * K);
+  for (size_t i = 0; i < wide.size(); ++i) wide[i] = static_cast<double>(i % K);
+  ColumnStore pooled;
+  built(pooled.build(wide.data(), wide.size(), 1, 10, false, types));
+  std::vector<std::uint64_t> words(maskWordsForCount(K), 0), wordsAfter;
+  maskSetBit(words.data(), 2);
+  std::vector<FlatNode> flat = {rule(0, FlatKind::categoricalPooled, true),
+                                leaf, leaf}, flatAfter;
+  flat[0].numMaskWords = static_cast<std::uint32_t>(words.size());
+  std::vector<index_t> wideIndices(wide.size());
+  auto buildsWide = [&]() {
+    tree.initialize(wideIndices.data(), wide.size());
+    return tree.buildFromFlat(pooled, flat.data(), flat.size(), params, 1,
+                              nullptr, words.data(), words.size());
+  };
+  bool wideBuilt = pooled.columnIsPooled(0) && !pooled.hasMissing[0] &&
+    buildsWide() && tree.ruleMissingGoesRight(pooled, tree.at(0).rule);
+  check(wideBuilt, "stale direction: a pooled rule builds and keeps its word");
+  // a refused build leaves the tree half-built
+  if (wideBuilt)
+    tree.flatten(pooled, params.data(), flatAfter, nullptr, 1, nullptr,
+                 &wordsAfter);
+  check(wideBuilt && flatAfter[0].flags == flat[0].flags && wordsAfter == words,
+        "stale direction: and flattens to the state it was built from");
+  maskSetBit(words.data(), K + 1);
+  check(!buildsWide(),
+        "stale direction: a pooled bit past the missing position is refused");
+  printf("ok: a stale missing direction builds\n");
+}
+
+/// Rules flagged missing-right among flat trees.
+static size_t countMissingRight(const std::vector<std::vector<FlatNode>>& trees) {
+  size_t count = 0;
+  for (const std::vector<FlatNode>& tree : trees)
+    for (const FlatNode& node : tree)
+      count += (node.flags & flatMissingGoesRight) != 0 ? 1u : 0u;
+  return count;
+}
+
+/// A state stored while columns held missing values, restored after a forced
+/// setPredictor filled them: the install drops the directions as the forced
+/// update dropped them and reproduces its trees, the saved draws keep theirs,
+/// a sampler built over the filled rows and a same-grid warm start take the
+/// state too, and the sampler then runs and restores itself. make(x, seed)
+/// builds the sampler over a predictor matrix.
+template <typename Make>
+static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
+                                        const std::vector<double>& xFilled,
+                                        bool inlineOnly, const char* label) {
+  auto sampler = make(x, 721u), recipient = make(xFilled, 722u);
+  Results empty;
+  sampler->run(60, 2, empty);
+  SamplerStateData stale, forced, restored, other, warm, after;
+  sampler->getState(stale);
+  const ChainStateData& staleChain(stale.chains[0]);
+  bool carries = !sampler->hasVarianceForest() ||
+    countMissingRight(staleChain.varianceTrees) > 0;
+  for (const ForestStateData& fs : staleChain.forests)
+    carries = carries && countMissingRight(fs.trees) > 0 &&
+      countMissingRight(fs.savedTrees) > 0;
+
+  bool filled = sampler->setPredictor(xFilled.data(), true, false) ==
+    PredictorUpdateResult::accepted;
+  sampler->getState(forced);
+  bool restores = sampler->setState(stale, nullptr);
+  sampler->getState(restored);
+  size_t left = countMissingRight(restored.chains[0].varianceTrees);
+  bool savedKept = true;
+  for (size_t f = 0; f < staleChain.forests.size(); ++f) {
+    left += countMissingRight(restored.chains[0].forests[f].trees);
+    savedKept = savedKept &&
+      sameFlatTrees(staleChain.forests[f].savedTrees,
+                    restored.chains[0].forests[f].savedTrees);
+  }
+  bool occupied = liveTreesAreOccupied(*sampler);
+
+  bool otherRestores = recipient->setState(stale, xFilled.data());
+  recipient->getState(other);
+  bool warmStarts = sampler->installForests(stale, {{0, -1}}) ==
+    WarmStartResult::ok;
+  sampler->getState(warm);
+  sampler->run(5, 0, empty);
+  recipient->run(5, 0, empty);
+  sampler->getState(after);
+  bool continues = sampler->setState(after, nullptr);
+
+  char line[160];
+  auto report = [&](bool ok, const char* what) {
+    snprintf(line, sizeof line, "stale direction, %s: %s", label, what);
+    check(ok, line);
+  };
+  report(carries, "every forest's live and saved trees send missing right");
+  report(filled && restores, "the stale state restores once they are filled");
+  report(statesAgree(forced, restored),
+         "the restore reproduces the forced update");
+  report(inlineOnly ? left == 0 : left > 0,
+         "an inline direction is dropped, a pooled word kept");
+  report(occupied && savedKept,
+         "no leaf is left empty and the saved draws keep their directions");
+  report(otherRestores && sameLiveTrees(forced, other),
+         "a sampler over the filled rows restores it to the same trees");
+  report(warmStarts && sameLiveTrees(forced, warm),
+         "a same-grid warm start installs the same trees");
+  report(continues, "the sampler runs and restores itself");
+}
+
+static void testStaleMissingDirectionRestores() {
+  // a private data stream, so the fixture is the same under a suite filter
+  std::uint64_t savedRngState = rngState;
+  rngState = 2718u;
+  const size_t n = 300, p = 3;
+  const std::uint32_t K = 70;
+  // an ordinal, an inline categorical and a pooled categorical column, each
+  // missing in rows whose mean, treatment effect or spread differs
+  std::vector<double> x(n * p), y(n), z(n), xFilled;
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = static_cast<double>(i % 4);
+    x[i + 2 * n] = static_cast<double>(i % K);
+    z[i] = i % 2 == 0 ? 1.0 : 0.0;
+  }
+  xFilled = x;
+  for (size_t i = 0; i < n; ++i) {
+    bool gone[] = {i % 5 == 0, i % 7 == 0, i % 3 == 0};
+    y[i] = x[i] + (gone[0] ? 2.0 + 2.0 * z[i] : 0.0) +
+      (gone[1] ? -2.0 - 2.0 * z[i] : 0.0) + (gone[2] ? 1.5 : 0.0) +
+      (gone[0] || gone[1] ? 1.5 : 0.1) * (runif01() - 0.5);
+    for (size_t j = 0; j < p; ++j)
+      if (gone[j] && i >= K) x[i + j * n] = std::nan("");
+  }
+  ColumnKind kinds[] = {ColumnKind::numeric, ColumnKind::categorical,
+                        ColumnKind::categorical};
+  std::vector<ext_rng*> rngs;
+  auto newRng = [&](std::uint32_t seed) {
+    rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr));
+    ext_rng_setSeed(rngs.back(), seed);
+    return &rngs.back();
+  };
+  const double rawScale = 0.37804942330213542;
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.predictors.columnTypes = kinds;
+  options.keepTrees = true;
+  options.numSamplesToStore = 2;
+  auto single = [&](size_t numColumns) {
+    return [&, numColumns](const std::vector<double>& data,
+                           std::uint32_t seed) {
+      return std::make_unique<ConstantLeafSampler>(
+        data.data(), y.data(), n, numColumns, nullptr, nullptr,
+        ResponseFamily::gaussian, 1.0, 3.0, rawScale, options, newRng(seed));
+    };
+  };
+  checkStaleDirectionRestores(single(p), x, xFilled, false, "pooled column");
+  options.numVarianceTrees = 10;
+  checkStaleDirectionRestores(single(2), x, xFilled, true,
+                              "mean and variance trees");
+  options.numVarianceTrees = 0;
+  AmplitudeSpec spec;
+  spec.mu.numTrees = 20;
+  spec.mu.base = 0.95;
+  spec.mu.power = 2.0;
+  spec.tau.numTrees = 12;
+  spec.tau.base = 0.25;
+  spec.tau.power = 3.0;
+  spec.z = z.data();
+  checkStaleDirectionRestores(
+    [&](const std::vector<double>& data, std::uint32_t seed) {
+      return std::make_unique<ConstantLeafSampler>(
+        data.data(), y.data(), n, 2, nullptr, nullptr, 1.0, 3.0, rawScale,
+        options, spec, newRng(seed));
+    },
+    x, xFilled, true, "two-forest sampler");
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: a stale missing direction is dropped on install\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -2227,6 +2460,8 @@ void runStateTests(ext_rng* rng) {
   testVarianceWarmStart();
   testVarianceWarmStartSlot();
   testStaleStateMerge();
+  testStaleMissingDirectionBuild();
+  testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();
   testCurrentVarianceRead();
   testVarianceSavedTreeState();

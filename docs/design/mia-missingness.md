@@ -111,8 +111,9 @@ bit above 52) pushes the mask past 2^53 and doubles stop round-tripping
 integers exactly there. State objects are opaque and engine-specific, so
 tree.vars/tree.values grow a parallel tree.flags (raw or integer)
 element, absent meaning all-zero for restores of older states within the
-same major version. buildFromFlat validates flags (only bit 0, zero when
-the column lacks NAs).
+same major version. buildFromFlat validates flags (only bit 0) and drops
+the direction when the column lacks NAs, so a state stored while the
+column held them still installs.
 
 ## Bridge and R surface
 

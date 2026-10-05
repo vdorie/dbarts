@@ -3008,8 +3008,8 @@ public:
   /// (refreshVarianceForest's order): with hasMissing false for the column, the
   /// bit routes nothing, so clearing it before or after the routing is the same
   /// partition (tree.hpp, dropStaleMissingDirections). It runs over every tree,
-  /// as the mean side's chain-level drop does, since a stale bit outside the
-  /// reachable gauge would fail a later flatten wherever it sits.
+  /// as the mean side's chain-level drop does, since a rebuild from the flat
+  /// form drops the bit and would not reproduce a tree still holding one.
   void rebuildVarianceFactors(const ForestRevalidation& state) {
     VarianceForest& vf = *varianceForest_;
     std::size_t n = data_.numObservations;
