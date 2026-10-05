@@ -1448,6 +1448,10 @@ Record: this register; TODO pdbart-per-category, pdbart-hazard-compiled. Marked:
 Under dec-B207, when pdbart or pd2bart reports on a transformed scale (type = "ev" on a binary fit), each draw transforms every row's latent value and then averages over the rows, giving the average probability in the population of rows, as pdp's prob = TRUE and averaging predict(fit, type = "ev") do. The alternative was averaging the latent values and transforming the average, the probability of no actual row, pulled toward 0 and 1 by the link's curvature (0.058 against 0.037 and 0.753 against 0.785 at the two ends of one probit fit's grid). The maintainer on 2026-10-04: "Transform then average."
 Record: this register. Marked: blank. [dec-B210]
 
+**pdbart includes the offset**
+Under dec-B203, pdbart and pd2bart add each row's offset before averaging, so the value at a grid point equals the average of predict(fit, newdata) there, as predict.lm and 1.0-0's predict include it; in a formula fit an offset built from the varied variable moves with it. 0.9-34's pdbart left the offset out, as its predict did, while BayesTree's included binaryOffset, so a 0.9-34 call with binaryOffset = 2 moves by 2, to what BayesTree returned; NEWS says so. The alternative was keeping the offset out and documenting it. The maintainer on 2026-10-04: "Add each row's offset before averaging."
+Record: this register. Marked: blank. [dec-B211]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
