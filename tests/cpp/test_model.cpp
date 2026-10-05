@@ -6120,17 +6120,6 @@ static void testOrdinalStateRoundTrip() {
   printf("ok: ordinal cutpoint state round trip\n");
 }
 
-// Advance both generators past the kernel under test and compare the streams
-// they leave behind: identical tails prove identical consumption, which is
-// what a skipped (rather than drawn-and-discarded) latent buys.
-static bool rngStreamsAgree(ext_rng* a, ext_rng* b, int numDraws = 32) {
-  for (int j = 0; j < numDraws; ++j)
-    if (ext_rng_simulateContinuousUniform(a) !=
-        ext_rng_simulateContinuousUniform(b))
-      return false;
-  return true;
-}
-
 // The masked n-row latent kernel and the same kernel over the COMPACTED
 // active rows produce bit-identical latents at the active rows and consume
 // an identical rng stream, over lockstepped generators. The stream half is
@@ -6336,7 +6325,7 @@ static void testActiveRowsGaussianDf(ext_rng*) {
         "clearing the mask restores the pre-mask weight pointer by identity");
   check(resp.setActiveRows(active.data(), nullptr, nullptr, 1.0),
         "the mask reinstalls");
-  resp.setWeights(ones.data(), nullptr, nullptr);
+  resp.setWeights(ones.data(), nullptr, nullptr, 1.0);
   check(resp.workingWeights()[0] == 0.0 && resp.workingWeights()[1] == 1.0 &&
           TestPeer::sigmaDegreesOfFreedom(resp) ==
             sigmaDf + static_cast<double>(n - 5),
@@ -6347,7 +6336,7 @@ static void testActiveRowsGaussianDf(ext_rng*) {
   // the model: NaN, where a zero weight used to give -Inf through an infinite
   // residual sd and a masked probit would have given a finite number
   std::vector<double> loglik(n);
-  resp.setWeights(weights.data(), nullptr, nullptr);
+  resp.setWeights(weights.data(), nullptr, nullptr, 1.0);
   resp.computeLogLikelihood(fits.data(), sigma, n, loglik.data());
   bool flagged = std::isnan(loglik[0]) && std::isfinite(loglik[1]);
   for (std::size_t i = 0; i < n; ++i)
@@ -8539,25 +8528,6 @@ static void testFlatFamilyCreatePaths() {
   printf("ok: flat-C family create paths (logistic, ordinal, aft)\n");
 }
 
-// The ordinal per-observation log-likelihood, pinned against an independently
-// coded Phi difference. This is the channel every ordinal fit exports (loo and
-// WAIC read it), and it is the one place the cumulative-probit category
-// probability is written as a DIFFERENCE of two tails: the interior categories
-// need both, so a form that keeps only the upper one reports the probability of
-// "at most k" where the observation says "exactly k" - finite, ordered the same
-// way across observations, and wrong. Phi is coded here from erfc rather than
-// taken from the same library call the engine uses, so the two derivations are
-// independent; the etas and cutpoints keep every cell above 1e-3, where the
-// difference carries no cancellation error worth a tolerance.
-// A generator at the same position as `rng`, for a reference arm.
-static ext_rng* cloneRng(const ext_rng* rng) {
-  ext_rng* copy = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  std::vector<unsigned char> state(ext_rng_getSerializedStateLength(rng));
-  ext_rng_writeSerializedState(rng, state.data());
-  ext_rng_readSerializedState(copy, state.data());
-  return copy;
-}
-
 // setActiveRows redraws the latent of every row it switches from inactive to
 // active, from the row's conditional given the fit it is handed, and touches
 // nothing else: a row that stays active, stays inactive or is switched off
@@ -8565,12 +8535,14 @@ static ext_rng* cloneRng(const ext_rng* rng) {
 // install, or the mask already in force - consumes no variate. `reference`
 // draws what the reactivated rows owe from a generator cloned ahead of the
 // call, in row order, so the comparison is bitwise in value and in variates
-// consumed.
-template <typename Response, typename Reference>
+// consumed. `install` hands the response a 0/1 row pattern: as its mask, or,
+// for a family whose weights annihilate a latent, as zeros in its weights.
+template <typename Response, typename Reference, typename Install>
 static void checkReactivatedLatents(const char* family, Response& response,
                                     const std::vector<double>& fitsOld,
                                     const std::vector<double>& fitsNew,
-                                    double sigma, Reference reference) {
+                                    double sigma, Reference reference,
+                                    Install install) {
   const std::size_t n = fitsOld.size();
   // i % 4 == 0 starts inactive; of those i % 8 == 4 is switched back in and
   // i % 8 == 0 stays out, while i % 4 == 1 is switched off by the second mask
@@ -8597,7 +8569,7 @@ static void checkReactivatedLatents(const char* family, Response& response,
   response.refreshLatents(rng, fitsOld.data(), sigma);
   std::vector<double> held = latents();
   ext_rng* position = cloneRng(rng);
-  response.setActiveRows(first.data(), rng, fitsOld.data(), sigma);
+  install(response, first, rng, fitsOld.data(), sigma);
   ext_rng* replay = cloneRng(rng);
   check(untouched(position) && latents() == held, family);
   ext_rng_destroy(rng);
@@ -8608,14 +8580,14 @@ static void checkReactivatedLatents(const char* family, Response& response,
   response.refreshLatents(rng, fitsNew.data(), sigma);
   held = latents();
   position = cloneRng(rng);
-  response.setActiveRows(first.data(), rng, fitsNew.data(), sigma);
+  install(response, first, rng, fitsNew.data(), sigma);
   replay = cloneRng(rng);
   check(untouched(position) && latents() == held, family);
   ext_rng_destroy(rng);
   rng = replay;
 
   ext_rng* referenceRng = cloneRng(rng);
-  response.setActiveRows(second.data(), rng, fitsNew.data(), sigma);
+  install(response, second, rng, fitsNew.data(), sigma);
   std::vector<double> expected = reference(referenceRng, reactivated, held);
   std::vector<double> now = latents();
   bool redrawn = true, kept = true, moved = false;
@@ -8661,6 +8633,10 @@ static void testReactivatedLatents() {
   auto copyLatents = [](const ResponseModel& model, std::size_t m) {
     return std::vector<double>(model.latents(), model.latents() + m);
   };
+  auto byMask = [](ResponseModel& response, const std::vector<double>& rows,
+                   ext_rng* rng, const double* fits, double scale) {
+    response.setActiveRows(rows.data(), rng, fits, scale);
+  };
 
   ProbitResponse probit(binary.data(), nullptr, n);
   checkReactivatedLatents(
@@ -8670,7 +8646,7 @@ static void testReactivatedLatents() {
       ProbitResponse compact(y.data(), nullptr, y.size());
       compact.refreshLatents(rng, fits.data(), 1.0);
       return copyLatents(compact, y.size());
-    });
+    }, byMask);
 
   OrdinalResponse ordinal(category.data(), nullptr, n, 3);
   checkReactivatedLatents(
@@ -8683,7 +8659,7 @@ static void testReactivatedLatents() {
       // the latent draw alone, at the masked arm's cutpoints
       compact.setResponse(y.data(), rng, fits.data(), false, nullptr);
       return copyLatents(compact, y.size());
-    });
+    }, byMask);
 
   LogisticResponse logistic(binary.data(), nullptr, trials.data(), n);
   checkReactivatedLatents(
@@ -8694,7 +8670,7 @@ static void testReactivatedLatents() {
       LogisticResponse compact(y.data(), nullptr, w.data(), y.size());
       compact.refreshLatents(rng, fits.data(), 1.0);
       return copyLatents(compact, y.size());
-    });
+    }, byMask);
 
   NBResponse nbinom(count.data(), nullptr, n, 3.0);  // r held fixed
   checkReactivatedLatents(
@@ -8705,7 +8681,7 @@ static void testReactivatedLatents() {
       compact.restoreScale(nbinom.fitShift(), nbinom.fitShift() + 1.0);
       compact.refreshLatents(rng, fits.data(), 1.0);
       return copyLatents(compact, y.size());
-    });
+    }, byMask);
 
   // the two below rescale the response over all n rows, so a compacted arm
   // carries another transform and the reference is the conditional itself
@@ -8726,14 +8702,23 @@ static void testReactivatedLatents() {
           sigma * aft.fitScale(), time[i]));
       }
       return out;
-    });
+    }, byMask);
 
+  // Student-t twice: rows brought back by the mask, and rows brought back by
+  // a weight that leaves zero, which the mask never sees. Either way the row
+  // re-enters the likelihood and owes the same draw at its own weight.
   const double nu = 5.0;
-  TResponse student(time.data(), nullptr, weights.data(), n, 1.0, 3.0,
-                    0.37804942330213542, nu);
-  checkReactivatedLatents(
-    "student-t redraws the scales of reactivated rows alone", student, fitsOld,
-    fitsNew, sigma, [&](ext_rng* rng, const Rows& rows, const Held&) {
+  std::vector<double> installedWeights(n);
+  auto byWeights = [&](ResponseModel& response, const std::vector<double>& rows,
+                       ext_rng* rng, const double* fits, double scale) {
+    for (std::size_t i = 0; i < n; ++i)
+      installedWeights[i] = rows[i] * weights[i];
+    response.setWeights(installedWeights.data(), rng, fits, scale);
+  };
+  for (bool throughWeights : {false, true}) {
+    TResponse student(time.data(), nullptr, weights.data(), n, 1.0, 3.0,
+                      0.37804942330213542, nu);
+    auto conditional = [&](ext_rng* rng, const Rows& rows, const Held&) {
       std::vector<double> out;
       for (std::size_t i : rows) {
         double r = student.workingResponse()[i] - fitsNew[i];
@@ -8742,11 +8727,57 @@ static void testReactivatedLatents() {
           2.0 / (nu + weights[i] * r * r / (sigma * sigma))));
       }
       return out;
-    });
+    };
+    if (throughWeights)
+      checkReactivatedLatents(
+        "student-t redraws the scales of rows whose weight leaves zero alone",
+        student, fitsOld, fitsNew, sigma, conditional, byWeights);
+    else
+      checkReactivatedLatents(
+        "student-t redraws the scales of reactivated rows alone", student,
+        fitsOld, fitsNew, sigma, conditional, byMask);
+  }
+
+  // a row out through BOTH channels comes back only when both let it: the
+  // mask alone, over a zero weight, brings nothing in and draws nothing
+  {
+    std::vector<double> zeroed(weights), mask(n, 1.0);
+    zeroed[3] = 0.0;
+    mask[3] = 0.0;
+    TResponse student(time.data(), nullptr, zeroed.data(), n, 1.0, 3.0,
+                      0.37804942330213542, nu);
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20261006u);
+    student.refreshLatents(rng, fitsOld.data(), sigma);
+    student.setActiveRows(mask.data(), rng, fitsOld.data(), sigma);
+    std::vector<double> held = copyLatents(student, n);
+    ext_rng* position = cloneRng(rng);
+    student.setActiveRows(nullptr, rng, fitsNew.data(), sigma);
+    check(copyLatents(student, n) == held && rngStreamsAgree(position, rng),
+          "a mask lifted over a zero weight redraws no student-t scale");
+    ext_rng_destroy(position);
+    position = cloneRng(rng);
+    student.setWeights(weights.data(), rng, fitsNew.data(), sigma);
+    check(copyLatents(student, n)[3] != held[3] &&
+            !rngStreamsAgree(position, rng),
+          "the weight leaving zero then does");
+    ext_rng_destroy(position);
+    ext_rng_destroy(rng);
+  }
 
   printf("ok: reactivated rows' latents are redrawn\n");
 }
 
+// The ordinal per-observation log-likelihood, pinned against an independently
+// coded Phi difference. This is the channel every ordinal fit exports (loo and
+// WAIC read it), and it is the one place the cumulative-probit category
+// probability is written as a DIFFERENCE of two tails: the interior categories
+// need both, so a form that keeps only the upper one reports the probability of
+// "at most k" where the observation says "exactly k" - finite, ordered the same
+// way across observations, and wrong. Phi is coded here from erfc rather than
+// taken from the same library call the engine uses, so the two derivations are
+// independent; the etas and cutpoints keep every cell above 1e-3, where the
+// difference carries no cancellation error worth a tolerance.
 static void testOrdinalLogLikelihoodPin() {
   const std::size_t n = 8, K = 4;
   std::vector<double> y = {1, 2, 3, 4, 2, 3, 1, 4};
@@ -8816,7 +8847,7 @@ static void testLogisticWeightSwapColdStart() {
   active[0] = active[1] = 0.0;
   check(response.setActiveRows(active.data(), nullptr, nullptr, 1.0),
         "the logistic family takes an active-row mask");
-  response.setWeights(second.data(), rng, fits.data());
+  response.setWeights(second.data(), rng, fits.data(), 1.0);
 
   const double* omega = response.latents();
   const double* working = response.workingResponse();

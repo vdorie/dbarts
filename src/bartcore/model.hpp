@@ -4201,9 +4201,12 @@ public:
   /// counts are the Polya-Gamma shape - redraws its latents here instead of
   /// leaving them for the next sweep, which moves its trees first; that is why
   /// the chain generator and the location to draw against arrive too, on the
-  /// shape every other mutation setter already has. Families that need neither
-  /// take both and drop them. Default: a no-op (the host rejects earlier).
-  virtual void setWeights(const double*, ext_rng*, const double*) {}
+  /// shape every other mutation setter already has. A family holding a per-row
+  /// latent that the weights annihilate - Student-t's scales - redraws it for
+  /// each row whose weight leaves zero, at sigma, as setActiveRows does for a
+  /// row its mask switches back in. Families that need none of the three take
+  /// them and drop them. Default: a no-op (the host rejects earlier).
+  virtual void setWeights(const double*, ext_rng*, const double*, double) {}
 
   /// Whether this family implements the active-row channel. setActiveRows's
   /// own refusal reads it, so the advertised capability and the refusal
@@ -4453,7 +4456,8 @@ public:
   /// The two setters are absolute and independent: this replaces the borrowed
   /// user weights and recomposes against whatever mask is installed, so the
   /// served precisions are w * a in either call order.
-  void setWeights(const double* weights, ext_rng*, const double*) override {
+  void setWeights(const double* weights, ext_rng*, const double*,
+                  double) override {
     userWeights_ = weights;
     recomposeActiveRows();
   }
@@ -5227,7 +5231,7 @@ public:
   /// against its NEW count, so a row that reactivates cannot carry an omega
   /// shaped by counts the sampler no longer holds.
   void setWeights(const double* weights, ext_rng* rng,
-                  const double* totalFits) override {
+                  const double* totalFits, double) override {
     weights_ = weights;
     for (std::size_t i = 0; i < numObservations_; ++i)
       if (!isActive(i)) coldStartRow(i);
@@ -5810,6 +5814,7 @@ public:
     composite_.resize(numObservations);
     for (std::size_t i = 0; i < numObservations; ++i)
       composite_[i] = userWeights_ != nullptr ? userWeights_[i] : 1.0;
+    markInformative();
     gaussian_ = std::make_unique<GaussianResponse>(
       y, offset, composite_.data(), numObservations, sigmaEstimate, sigmaDf,
       sigmaRawScale);
@@ -5838,8 +5843,10 @@ public:
       double a = activeRows_.empty() ? 1.0 : activeRows_[i];
       double r = z[i] - totalFits[i];
       // lambda is drawn for EVERY row: the mask annihilates its value through
-      // the composite rather than suppressing the draw, which keeps an
-      // inactive row's lambda current for the sweep it reactivates on
+      // the composite rather than suppressing the draw, so the variates a
+      // sweep consumes do not depend on the mask. A row out of the likelihood
+      // draws at a conditional one sigma and nu update behind, which the
+      // setter that brings it back in replaces (redrawEntering)
       double lambda =
         ext_rng_simulateGamma(rng, shape, 2.0 / (nu_ + w * r * r / sigmaSq));
       lambda_[i] = lambda;
@@ -5855,7 +5862,7 @@ public:
     if (estimateNu_)
       nu_ = ResidualDfPrior::grid[nuPrior_.drawIndex(rng, numInformative,
                                                      sumLogLambda, sumLambda)];
-    gaussian_->setWeights(composite_.data(), nullptr, nullptr);
+    gaussian_->setWeights(composite_.data(), nullptr, nullptr, 0.0);
   }
 
   double drawSigma(ext_rng* rng, const double* totalFits,
@@ -5883,12 +5890,17 @@ public:
     activeRows_.clear();  // length-n and n may have changed
     lambda_.assign(numObservations, 1.0);
     composite_.assign(numObservations, 0.0);
+    markInformative();
     gaussian_->setData(y, offset, weights, numObservations, sigmaInOut);
     coldInit();
   }
 
-  void setWeights(const double* weights, ext_rng*, const double*) override {
+  /// A row whose weight leaves zero re-enters the likelihood, and its lambda
+  /// is redrawn as setActiveRows redraws a reactivated row's.
+  void setWeights(const double* weights, ext_rng* rng, const double* totalFits,
+                  double sigma) override {
     userWeights_ = weights;
+    redrawEntering(rng, totalFits, sigma);
     recompose();
   }
 
@@ -5897,23 +5909,13 @@ public:
   /// The mask joins the mixture composite, c_i = w_i lambda_i a_i, so the
   /// contained Gaussian inherits it through the pointer it is already handed -
   /// node statistics, sigma df and all. The lambda draw itself continues at
-  /// every row; refreshLatents states why. That keeps an inactive row's
-  /// lambda one sigma and nu update behind, so a reactivated row's is redrawn
-  /// from refreshLatents' own conditional at the current fit, sigma and nu.
+  /// every row; refreshLatents states why. A row the mask brings back into
+  /// the likelihood has its lambda redrawn (redrawEntering).
   bool setActiveRows(const double* active, ext_rng* rng,
                      const double* totalFits, double sigma) override {
-    if (findReactivatedRows(activeRows_, active)) {
-      const double* z = gaussian_->workingResponse();
-      for (std::size_t i = 0; i < numObservations_; ++i) {
-        if (reactivatedRows_[i] == 0.0) continue;
-        double w = userWeights_ != nullptr ? userWeights_[i] : 1.0;
-        double r = z[i] - totalFits[i];
-        lambda_[i] = ext_rng_simulateGamma(
-          rng, 0.5 * (nu_ + 1.0), 2.0 / (nu_ + w * r * r / (sigma * sigma)));
-      }
-    }
     if (active == nullptr) activeRows_.clear();
     else activeRows_.assign(active, active + numObservations_);
+    redrawEntering(rng, totalFits, sigma);
     recompose();
     return true;
   }
@@ -5977,6 +5979,40 @@ public:
   }
 
 private:
+  /// Whether row i is in the likelihood under the weights and mask in force:
+  /// a positive composed weight w_i a_i.
+  bool isInformative(std::size_t i) const {
+    return (userWeights_ != nullptr ? userWeights_[i] : 1.0) *
+             (activeRows_.empty() ? 1.0 : activeRows_[i]) > 0.0;
+  }
+  void markInformative() {
+    informative_.resize(numObservations_);
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      informative_[i] = isInformative(i) ? 1 : 0;
+  }
+
+  /// Redraws lambda_i for each row the weights or mask just installed bring
+  /// INTO the likelihood - out of it when last marked, in it now - from
+  /// refreshLatents' own conditional at the current fit, sigma and nu, in row
+  /// order, and marks every row afresh. A row that was already in keeps its
+  /// lambda and a row that stays out or goes out draws nothing, so a call
+  /// bringing no row in consumes no variate. The record is the response's own
+  /// because the weights are borrowed: by the time a new vector arrives the
+  /// old one may be gone or overwritten in place.
+  void redrawEntering(ext_rng* rng, const double* totalFits, double sigma) {
+    const double* z = gaussian_->workingResponse();
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      bool informative = isInformative(i);
+      if (informative && informative_[i] == 0) {
+        double w = userWeights_ != nullptr ? userWeights_[i] : 1.0;
+        double r = z[i] - totalFits[i];
+        lambda_[i] = ext_rng_simulateGamma(
+          rng, 0.5 * (nu_ + 1.0), 2.0 / (nu_ + w * r * r / (sigma * sigma)));
+      }
+      informative_[i] = informative ? 1 : 0;
+    }
+  }
+
   /// c_i = w_i lambda_i a_i, then hand the composite to the contained Gaussian
   /// so its weights, node statistics, and sigma draw all see the mixture.
   void recompose() {
@@ -5984,7 +6020,7 @@ private:
       composite_[i] =
         (userWeights_ != nullptr ? userWeights_[i] : 1.0) * lambda_[i] *
         (activeRows_.empty() ? 1.0 : activeRows_[i]);
-    gaussian_->setWeights(composite_.data(), nullptr, nullptr);
+    gaussian_->setWeights(composite_.data(), nullptr, nullptr, 0.0);
   }
 
   /// Cold state after a data swap: lambda = 1 (c_i = w_i) and, in grid mode,
@@ -6004,6 +6040,7 @@ private:
   std::vector<double> lambda_;      // per-observation mixing precisions
   std::vector<double> activeRows_;  // the 0/1 mask; empty when none
   std::vector<double> composite_;   // c_i = w_i lambda_i a_i, the Gaussian's weights
+  std::vector<unsigned char> informative_;  // w_i a_i > 0 when last marked
   ResidualDfPrior nuPrior_;         // grid machinery, used only when estimating
 };
 

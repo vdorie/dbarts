@@ -1925,10 +1925,12 @@ public:
   /// 0 and draws its value from the prior. No check here refuses it.
   /// The location handed to the response is the COMBINED one, for the reason
   /// setResponse states: a family whose latents are stated against the weights
-  /// redraws them here, and must draw against the whole fit.
+  /// redraws them here, and must draw against the whole fit. So must Student-t
+  /// for a row whose weight leaves zero, as setActiveRows does for a row its
+  /// mask switches back in.
   void setWeights(const double* weights) {
     weights_ = weights;
-    response_->setWeights(weights, rng_, combinedFits());
+    response_->setWeights(weights, rng_, combinedFits(), sigma_);
     if constexpr (L::hasVectorParams)
       forests_[0].leaf.invalidateStatistics();
   }
@@ -1962,11 +1964,12 @@ public:
   /// conduit, which is what "re-derive the weight-dependent latents" means for
   /// each family in turn: logistic redraws its Polya-Gamma variates against
   /// these counts, Student-t and gaussian recompose a composite that is
-  /// already what it should be, and a family that reads no weights takes the
+  /// already what it should be (no row's weight leaves zero, so Student-t
+  /// redraws no scale), and a family that reads no weights takes the
   /// base class's no-op. Nothing is refused, because nothing changes; the
   /// caller has installed a state whose latents another weight vector shaped.
   void reapplyWeights() {
-    response_->setWeights(weights_, rng_, combinedFits());
+    response_->setWeights(weights_, rng_, combinedFits(), sigma_);
     if constexpr (L::hasVectorParams)
       forests_[0].leaf.invalidateStatistics();
   }

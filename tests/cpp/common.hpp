@@ -56,6 +56,44 @@ inline std::vector<xint_t> storageDigest(const ColumnStore& data) {
   return digest;
 }
 
+// Leaves of `tree` that hold rows and none of positive weight: legal under the
+// membership rule, and what a weight-counting rule would never let a move or a
+// prior draw produce.
+inline std::size_t countWeightlessLeaves(const Tree& tree,
+                                         const double* weights) {
+  std::vector<std::int32_t> bottoms;
+  tree.fillBottom(0, bottoms);
+  std::size_t weightless = 0;
+  for (std::int32_t b : bottoms) {
+    const Node& node(tree.at(b));
+    bool anyWeight = false;
+    for (std::size_t j = node.begin; j < node.end; ++j)
+      anyWeight = anyWeight || weights[tree.indices[j]] > 0.0;
+    weightless += node.numObservations() > 0 && !anyWeight ? 1 : 0;
+  }
+  return weightless;
+}
+
+// A generator at the same position as `rng`, for a reference arm.
+inline ext_rng* cloneRng(const ext_rng* rng) {
+  ext_rng* copy = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  std::vector<unsigned char> state(ext_rng_getSerializedStateLength(rng));
+  ext_rng_writeSerializedState(rng, state.data());
+  ext_rng_readSerializedState(copy, state.data());
+  return copy;
+}
+
+// Advance both generators past the kernel under test and compare the streams
+// they leave behind: identical tails prove identical consumption, which is
+// what a skipped (rather than drawn-and-discarded) latent buys.
+inline bool rngStreamsAgree(ext_rng* a, ext_rng* b, int numDraws = 32) {
+  for (int j = 0; j < numDraws; ++j)
+    if (ext_rng_simulateContinuousUniform(a) !=
+        ext_rng_simulateContinuousUniform(b))
+      return false;
+  return true;
+}
+
 // A canonical fingerprint of a tree's live structure alone (which nodes are
 // split and on what), so a chain that MOVES can be told from one that only
 // redraws its leaf parameters.
