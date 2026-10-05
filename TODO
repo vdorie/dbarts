@@ -160,13 +160,6 @@ items
     ice, iml). Memory grows as rows x grid points x draws; a per-row
     posterior mean and interval keeps it bounded. Scheduled after 1.0-0
     (VD 2026-10-04, dec-B207).
-  pdbart-on-bart: before 1.0-0 (VD 2026-10-04, dec-B203 to dec-B228),
-    docs/plans/pdbart-on-bart.md. pdbart and pd2bart fit through bart
-    with its names and defaults, BayesTree spellings translated for one
-    release; type, newdata, n.average.rows and average.weights; variables
-    in formula fits; survival partial dependence on aft and hazard fits
-    with a size check. Three slices, landing together; treatSens changes
-    in lockstep.
   pdbart-per-category: partial dependence per category for multinomial
     and ordinal fits from pdbart and pd2bart - each category's
     probability as the variable moves, a category margin on the result

@@ -1,6 +1,6 @@
 # pdbart and pd2bart fit through bart
 
-Status: PLANNED 2026-10-04.
+Status: LANDED 2026-10-05 (d0dd9b63 to 4ecaf2aa).
 Plan: [pdbart-on-bart.md](../plans/pdbart-on-bart.md). Grown slice by slice;
 this text covers all three slices.
 

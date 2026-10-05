@@ -1,9 +1,7 @@
 # pdbart-on-bart: pdbart and pd2bart fit through bart, with type, newdata and the survival families
 
-Status: PLANNED 2026-10-04. Every question ruled: dec-B203 to dec-B229 in
-[decisions.md](../decisions.md), dec-B221 as revised. Slices 1 and 2 landed
-on bartcore; slice 3 IMPLEMENTED 2026-10-05 (eec4b0d8, review corrections
-26ef4669 and 0ebfd53f), not landed.
+Status: LANDED 2026-10-05 (d0dd9b63 to 4ecaf2aa). Every question ruled: dec-B203 to dec-B229 in
+[decisions.md](../decisions.md), dec-B221 as revised; the agents' calls are dec-A149 to dec-A156.
 
 agent: one implementer per slice (R only); an Opus reviewer per slice.
 rng: posterior-changing at the R layer only, with the gate exception stated
@@ -466,3 +464,18 @@ exception under Constraints, no snapshot, baseline or exact gate is
 re-recorded or rerun; the reviewer confirms by search that the slice's diff
 touches none of `bart`, `bartBT`, the bridge or the engine. treatSens: its
 own test suite and `R CMD check` against the slice-1 library.
+
+## Landing note
+
+Landed 2026-10-05 in three slices, each reviewed by an independent reader, corrected and re-reviewed before
+landing. Slice 1 (d0dd9b63, corrections 97593a33 and 72a1ca01): the fit through `bart`, the translated
+BayesTree spellings, the refusals, the defaults message, offsets and the chain margin. Slice 2 (139e6bc5,
+corrections e25b3253 and 75bf0064): `type`, `newdata`, data variables in formula fits, `n.average.rows` and
+`average.weights`, negative-binomial and hurdle fits. Slice 3 (eec4b0d8, corrections 26ef4669 and 0ebfd53f):
+survival, event probability and cumulative hazard on aft and hazard fits, the default time, the size check
+and `plot.type`. treatSens' dbarts-1.0 branch calls pdbart with `bart`'s names (6a906e4); its 203 tests pass
+without warnings. Each landed tree: full tinytest 0 failures (13455 results at the last), tests/cpp, the four
+seeded snapshot files unchanged on the reference build, lintr, air, the tools checks and mutation-battery
+anchors clean, `R CMD check --as-cran` one NOTE (the Date field). Measured at about 17 million predictions a
+second on four threads, the 5e9 size limit is about five minutes on the reference machine, against the ten
+the ruling estimated on a loaded one.
