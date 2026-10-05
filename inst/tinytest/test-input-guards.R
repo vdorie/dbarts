@@ -180,15 +180,43 @@ for (useQuantiles in c(FALSE, TRUE)) {
 }
 rm(data, specControl, spec)
 
-## pdbart and pd2bart return the burn-in sigma draws a bartBT fit of the same
+## pdbart and pd2bart return the burn-in sigma draws a bart fit of the same
 ## call and seed returns
-set.seed(1)
-reference <- bartBT(x, y, ndpost = 3L, nskip = 7L, verbose = FALSE)$first.sigma
+reference <- bart(
+  x,
+  y,
+  n.samples = 3L,
+  n.burn = 7L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 1L,
+  verbose = FALSE
+)$first.sigma
 expect_equal(length(reference), 7L)
-set.seed(1)
-fit <- pdbart(x, y, xind = 1L, ndpost = 3L, nskip = 7L, verbose = FALSE)
+fit <- pdbart(
+  x,
+  y,
+  xind = 1L,
+  pl = FALSE,
+  n.samples = 3L,
+  n.burn = 7L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 1L,
+  verbose = FALSE
+)
 expect_identical(fit$first.sigma, reference)
-set.seed(1)
-fit <- pd2bart(x, y, xind = 1:2, ndpost = 3L, nskip = 7L, verbose = FALSE)
+fit <- pd2bart(
+  x,
+  y,
+  xind = 1:2,
+  pl = FALSE,
+  n.samples = 3L,
+  n.burn = 7L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 1L,
+  verbose = FALSE
+)
 expect_identical(fit$first.sigma, reference)
 rm(fit, reference)

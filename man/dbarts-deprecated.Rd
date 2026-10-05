@@ -64,6 +64,12 @@
     \item{The front-door defaults message}{
       A \code{\link{bart}} call that names no \code{bartBT} argument and whose first argument is not a formula - a 0.9-x call such as \code{bart(x.train, y.train, x.test)} - binds the same way under both doors, so nothing forwards it and it runs under \code{bart}'s own defaults. The first such call in a session prints a message of class \code{dbartsFrontDoorMessage} naming the change and \code{\link{bartBT}}; \code{suppressMessages} silences it, and a call made from package code prints nothing.
     }
+    \item{A BayesTree-spelled \code{\link{pdbart}} or \code{pd2bart} call}{
+      Each name \code{\link{bartBT}} takes and \code{\link{bart}} does not is translated to \code{bart}'s spelling, after a once-per-session warning per name and function that also fires for a call from package code; \code{x.test} and \code{sampleronly} are refused. A setting given under both spellings is refused.
+    }
+    \item{The pdbart defaults message}{
+      The first \code{\link{pdbart}} or \code{pd2bart} call in a session that fits data and names no BayesTree argument prints a message of class \code{dbartsFrontDoorMessage} saying that the fit uses \code{bart}'s defaults and that \code{pdbart(bartBT(x, y, keeptrees = TRUE))} gives the 0.9-34 model; a call made from package code prints nothing.
+    }
   }
 
   Every entry above, \code{bart2} and \code{rbart_vi}, is one row of \code{dbarts:::dbartsTombstones}, the registry this page documents by hand.

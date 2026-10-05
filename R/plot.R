@@ -432,6 +432,12 @@ pdAxisPositions <- function(levs) {
   if (is.character(levs)) seq_along(levs) else levs
 }
 
+# A chains x draws x values array, as pdbart gives under combineChains =
+# FALSE, as one draws x values matrix.
+pdMergedDraws <- function(fd) {
+  if (length(dim(fd)) == 3L) combineChains(fd) else fd
+}
+
 plot.pdbart <- function(
   x,
   xind = seq_along(x$fd),
@@ -439,10 +445,19 @@ plot.pdbart <- function(
   cols = c("blue", "black"),
   ...
 ) {
-  rgy <- range(x$fd)
+  # type, xlab and ylab are this method's own for the frame it draws, so a
+  # caller's go to the lines and the axes rather than colliding with them
+  dots <- list(...)
+  lineType <- if (is.null(dots$type)) "b" else dots$type
+  xlab <- dots$xlab
+  ylab <- if (is.null(dots$ylab)) "partial-dependence" else dots$ylab
+  dots$type <- dots$xlab <- dots$ylab <- NULL
+
+  fd <- lapply(x$fd, pdMergedDraws)
+  rgy <- range(fd)
   for (i in xind) {
     tsum <- apply(
-      x$fd[[i]],
+      fd[[i]],
       2,
       quantile,
       probs = c(plquants[1], .5, plquants[2])
@@ -450,14 +465,19 @@ plot.pdbart <- function(
     levs <- x$levs[[i]]
     isFactor <- is.character(levs)
     at <- pdAxisPositions(levs)
-    plot(
-      if (isFactor) c(0.5, length(levs) + 0.5) else range(levs),
-      rgy,
-      type = "n",
-      xlab = x$xlbs[i],
-      ylab = "partial-dependence",
-      xaxt = if (isFactor) "n" else "s",
-      ...
+    do.call(
+      plot,
+      c(
+        list(
+          if (isFactor) c(0.5, length(levs) + 0.5) else range(levs),
+          rgy,
+          type = "n",
+          xlab = if (is.null(xlab)) x$xlbs[i] else xlab,
+          ylab = ylab,
+          xaxt = if (isFactor) "n" else "s"
+        ),
+        dots
+      )
     )
     if (isFactor) {
       # one point per level, no line: the levels carry no order to join
@@ -465,9 +485,9 @@ plot.pdbart <- function(
       segments(at, tsum[1, ], at, tsum[3, ], col = cols[2])
       points(at, tsum[2, ], col = cols[1], pch = 19)
     } else {
-      lines(levs, tsum[2, ], col = cols[1], type = "b")
-      lines(levs, tsum[1, ], col = cols[2], type = "b")
-      lines(levs, tsum[3, ], col = cols[2], type = "b")
+      lines(levs, tsum[2, ], col = cols[1], type = lineType)
+      lines(levs, tsum[1, ], col = cols[2], type = lineType)
+      lines(levs, tsum[3, ], col = cols[2], type = lineType)
     }
   }
 }
@@ -479,7 +499,12 @@ plot.pd2bart <- function(
   justmedian = TRUE,
   ...
 ) {
-  pdquants <- apply(x$fd, 2, quantile, probs = c(plquants[1], .5, plquants[2]))
+  pdquants <- apply(
+    pdMergedDraws(x$fd),
+    2,
+    quantile,
+    probs = c(plquants[1], .5, plquants[2])
+  )
   qq <- vector("list", 3)
   for (i in 1:3) {
     qq[[i]] <- matrix(pdquants[i, ], nrow = length(x$levs[[1]]))

@@ -27,6 +27,18 @@
             \code{bart2} defaulted to \code{FALSE}, so the draws of a
             multi-chain fit come back with the chains merged. Pass
             \code{combineChains = FALSE} for the previous shape.
+      \item \code{pdbart} and \code{pd2bart} fit through \code{bart}, with
+            its names and defaults (75 trees, four chains merged, so
+            \code{fd} has 2000 rows by default; a factor is one predictor).
+            Their data arguments are \code{formula} and \code{data};
+            positional calls are unchanged. A BayesTree name
+            (\code{ntree}, \code{keepevery}, \code{x.train}, ...) is
+            translated with a warning until 1.1-0, and an argument neither
+            takes is an error where it was ignored. The 0.9-34 model is
+            \code{pdbart(bartBT(x, y, keeptrees = TRUE))}, its results still
+            subject to the changes below. Multinomial and ordinal fits are
+            refused, pointing at \code{predict}; negative binomial, hurdle,
+            accelerated failure time and hazard fits are refused for now.
       \item Every name and argument kept reachable for one release past its
             removal or rename (a tombstone) warns once per session, names
             its successor, and is removed in dbarts 1.1-0; the list is on
@@ -231,6 +243,11 @@
       \item \code{pdbart} and \code{pd2bart} evaluate a factor predictor
             at every level by default, take and report its levels by name
             in \code{levs}, and plot one point per level.
+      \item \code{pdbart}'s and \code{pd2bart}'s \code{fd} includes the
+            fit's offset, as BayesTree's included \code{binaryOffset}; rows
+            a fit gives a 0 weight are left out of the average. The result
+            carries \code{n.chains}, and \code{combineChains = FALSE} gives
+            \code{fd} a chain margin.
       \item Output shapes. Per-observation results carry the data's row
             names. Under \code{combineChains = FALSE}, \code{extract} and
             \code{predict} keep the chain dimension on a one-chain fit, so a scalar such as \code{sigma}
@@ -536,6 +553,10 @@
       \item \code{pd2bart} on a model with exactly two predictors returns
             one column per grid point, where it averaged over the whole
             grid and \code{plot} then failed.
+      \item \code{plot} on a \code{pdbart} result accepts \code{type},
+            \code{xlab} and \code{ylab}, which collided with its own. A
+            training column with a missing value no longer stops
+            \code{pdbart}'s default grid.
       \item Arguments given beside a \code{dbartsData} object, which it
             already fixes, such as \code{subset} and \code{weights}, are
             reported in a warning rather than ignored silently.

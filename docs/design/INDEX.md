@@ -88,6 +88,7 @@ Columns: `file | STATUS | one-liner`.
 | kernel-vocabulary.md | REFERENCE | Standing reference for the contract between the generic BART core and the compiled kernel library (`misc.a`). |
 | robust-errors.md | LANDED, 2026-07-17; AMENDED 2026-09-09 by [front-door](../plans/front-door.md#front-door) S2 (`resid.dist` retired), removed outright 2026-09-24 (never reached main) | Adds outlier-robust Student-t residuals (`family = student(...)`) via scale-mixture augmentation. |
 | prior-defaults.md | REFERENCE | A plain record of every current prior default and its source. |
+| pdbart-on-bart.md | PLANNED 2026-10-04 | pdbart and pd2bart fit through `bart` under its names and defaults, averaging each grid value over the fit's own rows with their offsets; BayesTree spellings translated for one release. Grown with each slice of the plan. |
 | active-rows-mask.md | REFERENCE | Standing reference for the per-observation 0/1 active-row mask (`$setActiveRows`): its contract, how each response family composes it, and what it leaves untouched. |
 | nameable-calibration.md | ARC COMPLETE; vocabulary superseded by leaf-prior-k-or-sd | Lets a fit name its per-forest leaf-prior scale directly in response units (`prior.scale`), with a matching `$getLeafPrior`/`$setLeafPrior` pair, also reachable through the flat C API. The present spelling is `normal(sd = )`; see prior-defaults.md. |
 | change-move-balance.md | LANDED, 2026-07-08 | Fixes a detailed-balance defect in the tree change move that biased splits toward low-cardinality variables. |

@@ -244,6 +244,27 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
+    name = "BayesTree-spelled pdbart call",
+    kind = "behaviour",
+    owner = "pdbart",
+    successor = "bart's argument names",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "BayesTree-spelled pd2bart call",
+    kind = "behaviour",
+    owner = "pd2bart",
+    successor = "bart's argument names",
+    expires = tombstoneExpiry
+  ),
+  list(
+    name = "pdbart defaults message",
+    kind = "behaviour",
+    owner = "pdbart",
+    successor = "bartBT",
+    expires = tombstoneExpiry
+  ),
+  list(
     name = "NA sigest",
     kind = "behaviour",
     owner = "bart",
@@ -431,6 +452,201 @@ noteFrontDoorDefaults <- function(formula, callingEnv) {
     )
   ))
   invisible(NULL)
+}
+
+## ------------------------------------------------------------------
+## pdbart and pd2bart calls in BayesTree's spellings
+## ------------------------------------------------------------------
+
+## pdbart and pd2bart fit through bart. Every name bartBT takes and bart does
+## not is translated to the bart argument it lands on, after a warning per
+## name, except the two pdbart sets itself (x.test, sampleronly), which are
+## refused with bart's own spellings of them. The table is pinned by
+## inst/tinytest/test-pdbart.R.
+pdbartBayesTreeNames <- c(
+  x.train = "formula",
+  y.train = "data",
+  sigdf = "sigdf",
+  sigquant = "sigquant",
+  power = "tree.prior",
+  base = "tree.prior",
+  splitprobs = "tree.prior",
+  binaryOffset = "offset",
+  ntree = "n.trees",
+  ndpost = "n.samples",
+  nskip = "n.burn",
+  printevery = "printEvery",
+  keepevery = "n.thin",
+  keeptrainfits = "keepTrainingFits",
+  usequants = "useQuantiles",
+  numcut = "n.cuts",
+  printcutoffs = "printCutoffs",
+  nchain = "n.chains",
+  nthread = "n.threads",
+  combinechains = "combineChains",
+  keeptrees = "keepTrees",
+  keepcall = "keepCall",
+  proposalprobs = "control",
+  keepsampler = "keepSampler"
+)
+
+## The spelling a translation warning names, where it is not the bare name.
+pdbartBayesTreeSpelling <- c(
+  sigdf = "family = gaussian(sigma = chisq(df = ))",
+  sigquant = "family = gaussian(sigma = chisq(quant = ))",
+  power = "tree.prior = cgm(power = )",
+  base = "tree.prior = cgm(base = )",
+  splitprobs = "tree.prior = cgm(split.probs = )",
+  proposalprobs = "control = dbartsControl(proposal.probs = )"
+)
+
+## Rewrites a pdbart call's BayesTree spellings into bart's. Warns once per
+## name and function, package callers included, since their authors are the
+## ones to change the call. sigdf and sigquant stay under their own names,
+## which bart still reads: the residual prior rides a family that cannot be
+## built before the response is known. A setting given in both spellings is
+## refused naming both.
+translatePdbartCall <- function(call, legacy, callingEnv, caller) {
+  argNames <- names(call)[-1L]
+  for (old in legacy) {
+    new <- pdbartBayesTreeNames[[old]]
+    if (new != old && new != "control" && new %in% argNames) {
+      stop(
+        "'",
+        old,
+        "' and '",
+        new,
+        "' both set one setting of '",
+        caller,
+        "'; give '",
+        new,
+        "' alone",
+        call. = FALSE
+      )
+    }
+  }
+  for (old in legacy) {
+    spelling <- if (old %in% names(pdbartBayesTreeSpelling)) {
+      pdbartBayesTreeSpelling[[old]]
+    } else {
+      pdbartBayesTreeNames[[old]]
+    }
+    warnOnce(
+      paste0("tombstone.", caller, ".", old),
+      "'",
+      old,
+      "' is BayesTree's spelling; '",
+      caller,
+      "' now fits through 'bart', which takes '",
+      spelling,
+      "', and the value was used. Settings not named take bart's defaults, ",
+      "so the model is not the one dbarts 0.9-34 fit. BayesTree spellings ",
+      "are refused from dbarts ",
+      tombstoneExpiry,
+      ".",
+      class = "dbartsDeprecatedWarning"
+    )
+  }
+
+  priorNames <- c(power = "power", base = "base", splitprobs = "split.probs")
+  priorArgs <- list()
+  for (old in intersect(names(priorNames), legacy)) {
+    priorArgs[priorNames[[old]]] <- list(call[[old]])
+    call[[old]] <- NULL
+  }
+  if (length(priorArgs) > 0L) {
+    call$tree.prior <- as.call(c(list(quote(cgm)), priorArgs))
+  }
+
+  # the mixture is set on a copy of the caller's control, so the control's
+  # other settings stand as bart would read them
+  if ("proposalprobs" %in% legacy) {
+    probs <- eval(call$proposalprobs, callingEnv)
+    call$proposalprobs <- NULL
+    if ("control" %in% argNames) {
+      control <- eval(call$control, callingEnv)
+      control@proposal.probs <- dbartsControl(
+        proposal.probs = probs
+      )@proposal.probs
+      validObject(control)
+      call$control <- control
+    } else {
+      controlCall <- quote(dbarts::dbartsControl(proposal.probs = NULL))
+      controlCall["proposal.probs"] <- list(probs)
+      call$control <- controlCall
+    }
+  }
+
+  renamed <- setdiff(legacy, c(names(priorNames), "proposalprobs"))
+  callNames <- names(call)
+  callNames[callNames %in% renamed] <- pdbartBayesTreeNames[
+    callNames[callNames %in% renamed]
+  ]
+  names(call) <- callNames
+  call
+}
+
+## A pdbart or pd2bart call that passes data and names no BayesTree argument
+## fits under bart's defaults where 0.9-34 fit under BayesTree's. The first
+## such call in a session says so; a call from package code is exempt. One
+## key serves both functions.
+pdbartDefaultsKey <- "tombstone.pdbartDefaultsMessage"
+
+notePdbartDefaults <- function(callingEnv) {
+  if (isNamespace(topenv(callingEnv))) {
+    return(invisible(NULL))
+  }
+  if (isTRUE(onceWarnState[[pdbartDefaultsKey]])) {
+    return(invisible(NULL))
+  }
+  onceWarnState[[pdbartDefaultsKey]] <- TRUE
+  # built by hand: messageCondition() is newer than the R this package
+  # supports
+  message(structure(
+    class = c(
+      "dbartsFrontDoorMessage",
+      "dbartsMessage",
+      "message",
+      "condition"
+    ),
+    list(
+      message = paste0(
+        "dbarts: 'pdbart' and 'pd2bart' fit through 'bart', with its ",
+        "defaults (75 trees; four chains, their draws merged) rather than ",
+        "those of 0.9-x (200 trees, one chain). ",
+        "pdbart(bartBT(x, y, keeptrees = TRUE)) gives the 0.9-34 model. ",
+        "Shown once per session until dbarts ",
+        tombstoneExpiry,
+        ".\n"
+      ),
+      call = NULL
+    )
+  ))
+  invisible(NULL)
+}
+
+## The once-per-session notices bart shows that a call made inside pdbart
+## would use up: its defaults message and its consolidated-name warnings.
+## Held back for the duration of 'expr', each key restored as it was found.
+holdingBartNotices <- function(expr) {
+  keys <- c(
+    frontDoorDefaultsKey,
+    paste0("tombstone.consolidated.", consolidatedArgsFor$bart, ".bart")
+  )
+  saved <- mget(
+    keys,
+    envir = onceWarnState,
+    ifnotfound = rep_len(list(NULL), length(keys))
+  )
+  on.exit(
+    for (key in keys) {
+      onceWarnState[[key]] <- saved[[key]]
+    }
+  )
+  for (key in keys) {
+    onceWarnState[[key]] <- TRUE
+  }
+  expr
 }
 
 ## ------------------------------------------------------------------

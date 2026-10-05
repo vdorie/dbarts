@@ -31,7 +31,8 @@ scale it holds, and the plots label it.
   [`bartBT`](../../R/bart.R) in
   [`pdbart.prologue`](../../R/partialDependence.R), dropping any name `bartBT`
   does not take, take a sampler from `samplerOnly`, and run it in
-  [`pdbart.getAndInitializeSampler`](../../R/partialDependence.R). A fit
+  retired: [`pdbart.getAndInitializeSampler`](../../R/partialDependence.R),
+  which slice 1 removed. A fit
   passed in is predicted from its saved trees, or refit from its stored call
   through the same `samplerOnly` route. `xind` names model-matrix columns
   ([`pdbart.resolveXind`](../../R/partialDependence.R)); the default grid is
