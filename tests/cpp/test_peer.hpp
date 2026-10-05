@@ -19,6 +19,12 @@ namespace bartcore {
 struct TestPeer {
   // Chain
 
+  /// The working response the chain's trees are fitted to.
+  template <IntegrableLeafModel L, typename R>
+  static const double* workingResponse(Chain<L, R>& chain) {
+    return chain.response_->workingResponse();
+  }
+
   /// The dense per-tree fit slab of forest 0, materialized (the constant leaf
   /// gathers its compact tables into the returned buffer).
   template <IntegrableLeafModel L, typename R>

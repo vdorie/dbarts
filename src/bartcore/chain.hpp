@@ -1554,6 +1554,13 @@ public:
       return runSweeps(numBurnIn, numSamples, results, progress, chainIndex,
                        shouldCancel, onSweep, onDraw);
     } catch (const RefreshCancelled&) {
+      // rows already redrawn carry new precisions, which the vector leaf's
+      // cross-sweep U'WU cache is stated against; the sweep's own invalidation
+      // after the refresh was skipped
+      if constexpr (L::hasVectorParams)
+        if (response_->workingWeightsVaryPerSweep())
+          for (Forest<L, ResidT>& forest : forests_)
+            forest.leaf.invalidateStatistics();
       return true;
     } catch (const CountCancelled&) {
       rebuildTotalFitsFromTrees();
@@ -1565,14 +1572,25 @@ public:
   }
 
   /// Installs the run's cancel function where a sweep polls it inside a
-  /// block - the response's latent refresh, a combiner's glue draw and a
-  /// normalized leaf's order count; null clears it.
+  /// block - a normalized leaf's order count for the whole run, and the
+  /// response's latent refresh and a combiner's glue draw only while the
+  /// sweep itself draws them (armRefreshCancel); null clears it.
   void setCancel(const std::function<bool()>* cancel) {
-    response_->setRefreshCancel(cancel);
-    if (combiner_) combiner_->setRefreshCancel(cancel);
+    refreshCancel_ = cancel;
+    armRefreshCancel(false);
     if constexpr (NormalizedLeafModel<L>)
       for (Forest<L, ResidT>& forest : forests_)
         forest.leaf.setCountCancel(cancel);
+  }
+
+  /// Arms or disarms the refresh poll. It is armed only around the sweep's
+  /// own Polya-Gamma draws, which Chain::run catches the stop of: the same
+  /// draws reached from a host hook's setResponse or setWeights mid-run have
+  /// no catch between them and the host's frames, and must not throw.
+  void armRefreshCancel(bool armed) {
+    const std::function<bool()>* cancel = armed ? refreshCancel_ : nullptr;
+    response_->setRefreshCancel(cancel);
+    if (combiner_) combiner_->setRefreshCancel(cancel);
   }
 
   /// This chain's slow-count tally since its last run began, summed over
@@ -1703,7 +1721,9 @@ public:
           // the interleaved coupling draws forest f's latents against the
           // current margins here, immediately before formForestResponse reads
           // them (a no-op for BCF); base no-op keeps every additive path bitwise
+          armRefreshCancel(true);
           combiner_->drawForestGlue(f, rng_, forests_);
+          armRefreshCancel(false);
           ForestResponse fr = combiner_->formForestResponse(f, forests_, y,
                                                             weights);
           forestY = fr.response;
@@ -1827,7 +1847,9 @@ public:
 
       // a single forest reports its own fits; BCF the a mu + b_z tau blend
       const double* combined = combinedFits();
+      armRefreshCancel(true);
       response_->refreshLatents(rng_, combined, sigma_);
+      armRefreshCancel(false);
       y = response_->workingResponse();
       weights = response_->workingWeights();
       // a latent family's refresh changes the weights U'WU is cached against
@@ -6782,6 +6804,9 @@ private:
   // sampler, so the sweep, reporting, and state paths collapse to the direct
   // forest-0 path when so and pay no virtual call
   std::unique_ptr<ForestCombiner<L, ResidT>> combiner_;
+  // the run's cancel function, null outside a run; armRefreshCancel hands it
+  // to the response and the combiner for the sweep's own draws alone
+  const std::function<bool()>* refreshCancel_ = nullptr;
 
   // the calibration map's own inputs, retained per forest so setForestBasis
   // can re-derive a leaf scale from a new basis; empty off the K-forest

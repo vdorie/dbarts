@@ -2907,7 +2907,8 @@ bartcore::ResponseFamily parseSamplerSpecification(
   // value, so sigma enters as sqrt(value) and is never drawn
   if (sigmaIsFixed) data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
   bartcore_bridge::enforceBinaryWeightPolicy(family, data.weights,
-                                            data.numObservations);
+                                            data.numObservations,
+                                            "sampler creation");
   // the response-support rule, stated once for creation and every mutation
   // conduit: the R surface checks it first, so this is a no-op there and the
   // real gate for the flat C API, which has no R layer ahead of it
@@ -2919,9 +2920,9 @@ bartcore::ResponseFamily parseSamplerSpecification(
   // cost the logistic counts carry; the grid a drawn one comes from stops at 50
   if (family == bartcore::ResponseFamily::nbinom &&
       control.shape > bartcore::maximumCount)
-    Rf_error("nbinom 'shape' must be no larger than %.0f: each unit of a "
-             "fixed shape costs a Polya-Gamma draw per row per sweep",
-             bartcore::maximumCount);
+    bartcore_bridge::refuseCountOverCap(
+      "sampler creation", "nbinom", "a fixed 'shape'",
+      "each unit of the shape is a Polya-Gamma draw per row per sweep");
   // a weighted truncated-latent draw is not a coherent likelihood; AFT v1
   // rejects weights
   if (family == bartcore::ResponseFamily::aft && data.weights != NULL)
@@ -3116,9 +3117,15 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
 // non-negative weight. The R layer mirrors this, so these errors backstop
 // direct-API consumers, and the mutation entries reuse it rather than stating
 // a second text.
+void refuseCountOverCap(const char* caller, const char* family,
+                        const char* what, const char* reason) {
+  Rf_error("%s: family \"%s\" requires %s no larger than %.0f; %s", caller,
+           family, what, bartcore::maximumCount, reason);
+}
+
 void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                                const double* weights,
-                               size_t numObservations) {
+                               size_t numObservations, const char* caller) {
   if (weights == NULL) return;
   if (family == bartcore::ResponseFamily::probit)
     Rf_error("probit models do not support weights: a weighted probit has no "
@@ -3134,9 +3141,9 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                  "positive integers; drop zero-count rows, and use a gaussian "
                  "model for continuous weights");
       if (weights[i] > bartcore::maximumCount)
-        Rf_error("logistic 'weights' are observation counts and must be no "
-                 "larger than %.0f: each count costs a Polya-Gamma draw per "
-                 "sweep", bartcore::maximumCount);
+        refuseCountOverCap(caller, "logistic", "'weights'",
+                           "each unit of a count is a Polya-Gamma draw per "
+                           "sweep");
     }
   // a gaussian weight enters the leaf sufficient statistics as a precision, so
   // a negative one subtracts information and NaN/Inf poisons the sum - both
@@ -3191,9 +3198,10 @@ void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
 // not reachable by this conduit. Magnitude is bounded at
 // bartcore::maximumCount for the same allocation reason the sign is - the
 // histogram holds maxCount + 1 doubles, so y = 1e9 asks for 8 GB where no R
-// error can be raised - at creation and at every mutation alike. A multinomial sampler reports the logistic family, but the
-// multi-forest response guard refuses every conduit that reaches this ahead of
-// it, so its counts are never read against the binary rule.
+// error can be raised - at creation and at every mutation alike. A
+// multinomial sampler reports the logistic family, but the multi-forest
+// response guard refuses every conduit that reaches this ahead of it, so its
+// counts are never read against the binary rule.
 // External linkage: the creation prologue and the flat C API both call this, so
 // creation and every mutation conduit state one rule.
 void validateResponseSupport(bartcore::ResponseFamily family,
@@ -3224,10 +3232,10 @@ void validateResponseSupport(bartcore::ResponseFamily family,
         Rf_error("%s: family \"nbinom\" requires a non-negative integer "
                  "(count) response", caller);
       if (y[i] > bartcore::maximumCount)
-        Rf_error("%s: family \"nbinom\" requires counts no larger than %.0f; "
-                 "the shape grid's count histogram is sized from the "
-                 "largest count, so a larger one allocates without bound",
-                 caller, bartcore::maximumCount);
+        refuseCountOverCap(caller, "nbinom", "counts",
+                           "the shape grid's count histogram is sized from "
+                           "the largest count, so a larger one allocates "
+                           "without bound");
     }
     break;
   // gaussian and aft constrain nothing (any real y). Every enumerator is
@@ -3751,17 +3759,17 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
 // category per sweep. The bound also keeps the int totals the combiner's draw
 // loop counts in from overflowing.
 static void sumMultinomialTrials(const std::vector<int>& counts, size_t n,
-                                 size_t numCategories,
-                                 std::vector<int>& trials) {
+                                 size_t numCategories, std::vector<int>& trials,
+                                 const char* caller) {
   trials.assign(n, 0);
   for (size_t k = 0; k < numCategories; ++k)
     for (size_t i = 0; i < n; ++i) {
       int y = counts[k * n + i];
       if (y < 0) Rf_error("multinomial counts must be non-negative");
       if (static_cast<double>(trials[i]) + y > bartcore::maximumCount)
-        Rf_error("multinomial 'counts' rows must total no more than %.0f "
-                 "trials: each trial costs a Polya-Gamma draw per category "
-                 "per sweep", bartcore::maximumCount);
+        refuseCountOverCap(caller, "multinomial", "'counts' row totals",
+                           "each trial is a Polya-Gamma draw per category per "
+                           "sweep");
       trials[i] += y;
     }
 }
@@ -3814,7 +3822,8 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
                static_cast<unsigned long>(n), numRowsGiven, numColumnsGiven);
     const int* src = INTEGER(countsExpr);
     counts.assign(src, src + n * numCategories);
-    sumMultinomialTrials(counts, n, numCategories, trials);
+    sumMultinomialTrials(counts, n, numCategories, trials,
+                         "sampler creation");
     parseCategoryOffset(categoryOffsetExpr, n, numCategories, offset,
                         "multinomial category offset");
     parseCategoryTestOffset(categoryTestOffsetExpr, data.numTestObservations,
@@ -4220,7 +4229,7 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
     UNPROTECT(1);
     const int* src = INTEGER(countsExpr);
     counts.assign(src, src + n * K);
-    bartcore_bridge::sumMultinomialTrials(counts, n, K, trials);
+    bartcore_bridge::sumMultinomialTrials(counts, n, K, trials, "$setCounts");
 
     holder.ownedCounts.swap(counts);
     holder.ownedTrials.swap(trials);
@@ -5426,7 +5435,7 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
     if (data.weights != NULL) {
       refuseBinaryWeightChange(sampler);
       enforceBinaryWeightPolicy(shape.family, data.weights,
-                                data.numObservations);
+                                data.numObservations, "$setData");
     }
     // the whole-data conduit swaps y too, so it carries the same support rule
     validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1,
@@ -5668,7 +5677,8 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   // family's weight policy: a logistic count that is zero, negative or
   // fractional is silently rounded by the PG draw's lround and leaves a row
   // carrying a full PG(1, psi) precision it has no observation for
-  enforceBinaryWeightPolicy(shape.family, weights, numObservations);
+  enforceBinaryWeightPolicy(shape.family, weights, numObservations,
+                            "$setWeights");
   holder.sampler->setWeights(
     adoptVector(holder.ownedWeights, weights, numObservations));
   return R_NilValue;
@@ -7065,11 +7075,13 @@ static void refuseAugmentationCountsOverCap(const AugmentationInputs& in,
   if (in.weights != NULL)
     for (size_t i = 0; i < in.numObservations; ++i)
       if (in.weights[i] > bartcore::maximumCount)
-        Rf_error("%s: 'weights' must be counts no larger than %.0f", caller,
-                 bartcore::maximumCount);
+        bartcore_bridge::refuseCountOverCap(caller, "logistic", "'weights'",
+                                            "each unit of a count is a "
+                                            "Polya-Gamma draw");
   if (in.shape > bartcore::maximumCount)
-    Rf_error("%s: 'shape' must be no larger than %.0f", caller,
-             bartcore::maximumCount);
+    bartcore_bridge::refuseCountOverCap(caller, "nbinom", "'shape'",
+                                        "each unit of the shape is a "
+                                        "Polya-Gamma draw per row");
 }
 
 // R/augmentation.R has validated every length, every family's applicable

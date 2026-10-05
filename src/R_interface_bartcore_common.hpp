@@ -460,12 +460,19 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
 /// gaussian on any element that is not finite and non-negative, since a case
 /// weight is a precision multiplier there and a negative one subtracts
 /// information from a leaf's sufficient statistics. numObservations sizes the
-/// per-family scan; a null weights pointer is a no-op. Called at creation and
+/// per-family scan, and caller names the entry in the cap's refusal; a null
+/// weights pointer is a no-op. Called at creation and
 /// on every conduit that installs weights afterwards, so one text states the
 /// rule wherever it is enforced, and no caller repeats it.
 void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                                const double* weights,
-                               std::size_t numObservations);
+                               std::size_t numObservations, const char* caller);
+
+/// Errors on a count past bartcore::maximumCount in the one phrasing every
+/// such refusal shares: "<caller>: family "<family>" requires <what> no larger
+/// than 1000000; <reason>".
+[[noreturn]] void refuseCountOverCap(const char* caller, const char* family,
+                                     const char* what, const char* reason);
 
 /// Errors on a post-creation case-weight change under a family that carries no
 /// weights at all: probit, ordinal, aft and nbinom. A probit or ordinal 0/1

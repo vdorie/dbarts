@@ -4049,12 +4049,12 @@ template <typename L> constexpr LeafModelKind leafModelKindOf() {
 enum class ResponseFamily { gaussian, probit, logistic, aft, ordinal, nbinom };
 
 /// The largest count any surface accepts, one bound for a negative-binomial
-/// response, a logistic count weight and a fixed negative-binomial shape. A
-/// count of c costs c Polya-Gamma draws per row per sweep, about 160 ns each,
-/// so a row at the bound takes about 0.16 s a sweep and one past it soon makes
-/// a run that cannot finish; the response's count histogram is also sized by
-/// its largest count, at 8 bytes a unit. A drawn shape stays on NBShapePrior's
-/// grid, which stops far below it.
+/// response, a logistic count weight, a fixed negative-binomial shape and a
+/// multinomial row's trial total. A count of c costs c Polya-Gamma draws per
+/// row per sweep, so the time a sweep takes grows with it without limit; the
+/// response's count histogram is also sized by its largest count, at 8 bytes
+/// a unit. A drawn shape stays on NBShapePrior's grid, which stops far below
+/// it.
 inline constexpr double maximumCount = 1.0e6;
 
 /// Thrown from inside a Polya-Gamma latent refresh whose cancel function

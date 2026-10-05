@@ -1465,6 +1465,8 @@ static void testRefreshInterrupt() {
     Results none;
     sampler.run(1, 0, none);
     std::vector<double> before(sampler.latents(0), sampler.latents(0) + n);
+    const double* working = TestPeer::workingResponse(sampler.chain(0));
+    std::vector<double> workingBefore(working, working + n);
     double shapeBefore = sampler.chain(0).shape();
     int calls = 0;
     std::function<bool()> cancel = [&calls]() { return ++calls >= 2; };
@@ -1486,8 +1488,11 @@ static void testRefreshInterrupt() {
             (name + ": the drawn rows lead and the rest are as they were")
               .c_str());
     else
-      check(moved == 0 && sampler.chain(0).shape() == shapeBefore,
-            (name + ": the shape and every latent are put back").c_str());
+      check(moved == 0 && sampler.chain(0).shape() == shapeBefore &&
+              std::equal(workingBefore.begin(), workingBefore.end(),
+                         TestPeer::workingResponse(sampler.chain(0))),
+            (name + ": the shape, every latent and the working response are "
+                    "put back").c_str());
     sampler.run(1, 0, none);
     valid = true;
     for (size_t i = 0; i < n; ++i)
@@ -1499,7 +1504,8 @@ static void testRefreshInterrupt() {
           (name + ": the chain runs on and its state restores").c_str());
     if (c.shape < 0.0 && c.family == ResponseFamily::nbinom) {
       state.chains[0].shape = maximumCount;
-      check(sampler.setState(state, nullptr), "a drawn shape at the cap installs");
+      check(sampler.setState(state, nullptr),
+            "a drawn shape at the cap installs");
       state.chains[0].shape = maximumCount + 1.0;
       check(!sampler.setState(state, nullptr),
             "a drawn shape past the cap is refused");
@@ -1507,6 +1513,86 @@ static void testRefreshInterrupt() {
     ext_rng_destroy(rng);
   }
   printf("ok: latent refresh interrupt\n");
+}
+
+// The refresh poll's scope. A host hook's setWeights mid-run draws the same
+// latents with no poll, since nothing between it and the host would catch the
+// stop, and the sweep's own refresh then stops at its first poll. And a stop
+// in a logistic refresh on a linear leaf drops the leaf's cached U'WU, so the
+// next draws equal those of a fresh copy of the same state.
+static void testRefreshInterruptScope() {
+  {
+    const size_t n = 6;
+    std::vector<double> x = {0.1, 0.5, 0.9, 0.3, 0.7, 0.2};
+    std::vector<double> y = {0, 1, 0, 1, 1, 0};
+    std::vector<double> w(n, 30000.0), w2(n, 30001.0);
+    SamplerOptions options;
+    options.numTrees = 5;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20261005u);
+    ConstantLeafSampler sampler(x.data(), y.data(), n, 1, w.data(), nullptr,
+                                ResponseFamily::logistic, 1.0, 3.0, 1.0,
+                                options, &rng);
+    Results none;
+    sampler.run(1, 0, none);
+    int calls = 0;
+    bool hookReturned = false;
+    std::function<bool()> cancel = [&calls]() { return ++calls >= 2; };
+    SweepCallback hook = [&](size_t, size_t, bool) {
+      sampler.setWeights(w2.data());
+      hookReturned = true;
+      return false;
+    };
+    bool stopped =
+      sampler.chain(0).run(1, 0, none, nullptr, 0, &cancel, &hook);
+    check(stopped && hookReturned && calls == 2,
+          "a hook's setWeights draws unpolled, and the sweep's refresh stops");
+    ext_rng_destroy(rng);
+  }
+  {
+    const size_t n = 100, p = 2;
+    std::vector<double> x(n * p), y(n), w(n, 2000.0);
+    for (double& v : x) v = runif01();
+    for (size_t i = 0; i < n; ++i) y[i] = runif01() < x[i] ? 1.0 : 0.0;
+    const size_t columns[] = {1};
+    SamplerOptions options;
+    options.numTrees = 5;
+    options.leafCovariateColumns = columns;
+    options.numLeafCovariates = 1;
+    auto make = [&](ext_rng*& rng) {
+      rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rng, 20261006u);
+      return std::make_unique<Sampler<LinearGaussianLeaf>>(
+        x.data(), y.data(), n, p, w.data(), nullptr, ResponseFamily::logistic,
+        1.0, 3.0, 1.0, options, &rng);
+    };
+    ext_rng *rngA, *rngB;
+    auto a = make(rngA);
+    auto b = make(rngB);
+    Results none;
+    a->run(5, 0, none);
+    int calls = 0;
+    std::function<bool()> cancel = [&calls]() { return ++calls >= 2; };
+    bool stopped = a->chain(0).run(1, 0, none, nullptr, 0, &cancel);
+    SamplerStateData state;
+    a->getState(state);
+    bool installed = b->setState(state, nullptr);
+    const size_t numSamples = 3;
+    std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+    Results ra, rb;
+    ra.trainingFits = fitsA.data();
+    rb.trainingFits = fitsB.data();
+    a->run(0, numSamples, ra);
+    b->run(0, numSamples, rb);
+    double gap = 0.0;
+    for (size_t i = 0; i < fitsA.size(); ++i)
+      gap = std::max(gap, std::fabs(fitsA[i] - fitsB[i]));
+    check(stopped && installed && gap < 1e-9,
+          "a linear leaf's draws after a stopped refresh equal a fresh copy's");
+    ext_rng_destroy(rngA);
+    ext_rng_destroy(rngB);
+  }
+  printf("ok: refresh interrupt scope\n");
 }
 
 // A cancel polled inside a multinomial glue draw stops the sweep ahead of
@@ -8034,6 +8120,7 @@ void runSamplerTests(ext_rng* rng) {
   testWeightedLogistic(rng);
   testRefreshInterrupt();
   testMultinomialRefreshInterrupt();
+  testRefreshInterruptScope();
   testEndToEndCategorical(rng);
   testWideCategorical(rng);
   testPooledMaskSampler(rng);

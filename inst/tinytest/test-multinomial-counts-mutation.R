@@ -321,7 +321,7 @@ counts.overflow[4L, 1L] <- 2000000000L
 counts.overflow[4L, 2L] <- 2000000000L
 expect_error(
   sampler.mn$setCounts(counts.overflow),
-  "rows must total no more than 1000000 trials"
+  "requires 'counts' row totals no larger than 1000000"
 )
 
 # a refusal leaves the sampler byte-identical, including one that fires PART
@@ -350,7 +350,7 @@ refusalArmCountsMutation <- function(attempt) {
 }
 arm.refused <- refusalArmCountsMutation(counts.overflow)
 arm.untouched <- refusalArmCountsMutation(NULL)
-expect_true(grepl("no more than 1000000 trials", arm.refused$refused))
+expect_true(grepl("row totals no larger than 1000000", arm.refused$refused))
 expect_identical(arm.refused$train, arm.untouched$train)
 expect_identical(arm.refused$forestFits, arm.untouched$forestFits)
 expect_identical(arm.refused$runVarcount, arm.untouched$runVarcount)

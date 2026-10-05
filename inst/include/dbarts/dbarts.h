@@ -816,11 +816,14 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler);
 /// are dbarts_draw_callback's.
 ///
 /// The run polls for R's user interrupt, as the R run does, at sweep
-/// boundaries and inside a monotone leaf-order count. An interrupt stops the
-/// run and RAISES "sampler run interrupted" once every worker has joined,
-/// leaving the sampler in the state a callback's nonzero return leaves:
-/// results and any saved trees of this call are discarded, and the handle
-/// stays valid.
+/// boundaries, inside a monotone leaf-order count and inside a sweep's
+/// Polya-Gamma latent draws. An interrupt stops the run and RAISES "sampler
+/// run interrupted" once every worker has joined, leaving the sampler in the
+/// state a callback's nonzero return leaves: results and any saved trees of
+/// this call are discarded, and the handle stays valid. A stop inside the
+/// latent draws leaves a sweep partly done, each latent this sweep's draw or
+/// the previous one (a sampled negative-binomial shape's whole refresh put
+/// back), which is a valid state to run on from.
 ///
 /// A run whose monotone leaf-order counts were slow raises R's
 /// dbartsSlowCountWarning at most once per sampler, after the run returns
