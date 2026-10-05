@@ -1422,6 +1422,10 @@ Record: this register. Marked: blank. [dec-B203]
 Under dec-B203, pdbart and pd2bart name their two data arguments formula and data, as bart does, where they were BayesTree's x.train and y.train, and keep their own xind, levs, levquants, pl and plquants. A call passing its data by position, as the help examples, treatSens and glossa do, is unchanged. The alternatives were keeping all seven names, naming the first argument object, also renaming pl to plot, and a fit-first function that never fits. The maintainer on 2026-10-04: "Rename the two data arguments to formula and data; keep the other five." What a call naming x.train or y.train does is the question of BayesTree spellings, not ruled here.
 Record: this register. Marked: blank. [dec-B204]
 
+**pdbart translates BayesTree spellings for one release**
+Under dec-B203, a pdbart or pd2bart call written in BayesTree's names (ntree, ndpost, nskip, keepevery, keeptrees, binaryOffset, numcut and the rest, x.train and y.train included) has each name translated to bart's spelling, with a once-per-session warning per name that names the replacement and says the settings not named take bart's defaults, so the model is not 0.9-34's; from 1.1-0 such names are refused with a message naming the bart spelling, as bart's own transition ends. A call giving both spellings of one setting is refused naming both. treatSens, which calls pdbart with ntree, nskip and ndpost, changes in lockstep. The alternatives were translating silently with no end, refusing now, and sending such calls to bartBT for one release. The maintainer on 2026-10-04: "Yes, translate to bart's names with a warning for this release, then refuse from 1.1-0."
+Record: this register. Marked: blank. [dec-B205]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
