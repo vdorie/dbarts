@@ -255,7 +255,8 @@ pdbart.prologue <- function(
       keepSampler = keepSampler,
       isSampler = FALSE,
       getData = getData,
-      callingEnv = callingEnv
+      callingEnv = callingEnv,
+      dataCall = TRUE
     ))
   }
 
@@ -918,6 +919,21 @@ pdbart.gridOffset <- function(sampler, rows) {
   sampler$data@offset[1L] - if (is.null(termOffset)) 0 else termOffset
 }
 
+# A fit offset that cannot be evaluated on 'newdata', a plain vector given
+# for the training rows, is refused naming how to write it instead.
+pdbart.refuseNewdataOffset <- function(sampler, newdata) {
+  argument <- attr(sampler$data, "offset.argument")
+  if (isFALSE(evaluateOffsetArgument(argument, newdata))) {
+    stop(
+      "the fit's 'offset' was given as ",
+      describeOffsetArgument(argument),
+      ", which cannot be evaluated on the rows of 'newdata'; write the ",
+      "offset as a column of the data",
+      call. = FALSE
+    )
+  }
+}
+
 # The rows averaged over and the weight each gets (NULL for equal weights):
 # 'newdata' as given, or the fit's own rows less those it weights 0 or masks
 # out, subsampled when asked. 'source' is where the default grid is read:
@@ -936,16 +952,7 @@ pdbart.frame <- function(
     if (formulaFit && !is.data.frame(newdata)) {
       stop("'newdata' for a formula fit must be a data frame", call. = FALSE)
     }
-    argument <- attr(sampler$data, "offset.argument")
-    if (isFALSE(evaluateOffsetArgument(argument, newdata))) {
-      stop(
-        "the fit's 'offset' was given as ",
-        describeOffsetArgument(argument),
-        ", which cannot be evaluated on the rows of 'newdata'; write the ",
-        "offset as a column of the data",
-        call. = FALSE
-      )
-    }
+    pdbart.refuseNewdataOffset(sampler, newdata)
     weights <- pdbart.averageWeights(
       average.weights,
       NROW(newdata),
@@ -1040,6 +1047,7 @@ pdbart.hazardFrame <- function(
     if (formulaFit && !is.data.frame(newdata)) {
       stop("'newdata' for a formula fit must be a data frame", call. = FALSE)
     }
+    pdbart.refuseNewdataOffset(sampler, newdata)
     rows <- if (formulaFit) newdata else pdbart.codeSubjects(sampler, newdata)
     weights <- pdbart.averageWeights(average.weights, NROW(rows), "'newdata'")
     return(list(
@@ -1349,6 +1357,7 @@ pdbart.setup <- function(
     fit = prologue$fit,
     isSampler = isSampler,
     caller = caller,
+    dataCall = isTRUE(prologue$dataCall),
     type = type,
     hazard = hazard,
     survival = survival,
@@ -1629,6 +1638,12 @@ pdbart.survivalDrawsAt <- function(setup, settings, bound) {
         "('newdata' or 'n.average.rows'), fewer grid values ('levs' or ",
         "'levquants'), or an earlier largest time ('times'), or raise ",
         "'n.max.predictions'",
+        if (setup$dataCall) {
+          paste0(
+            ". Fit once with bart(..., keepTrees = TRUE) and pass the fit, ",
+            "so that a retry does not refit"
+          )
+        },
         call. = FALSE
       )
     }

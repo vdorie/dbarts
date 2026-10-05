@@ -315,6 +315,25 @@ expect_equal(
   dim(dbarts::pdbart(twentyFit, xind = "a", pl = FALSE)$fd[[1L]]),
   c(2000L, 1L, 11L)
 )
+# a data call refused there is told how not to refit on the retry
+expect_error(
+  dbarts::pdbart(
+    Surv(t, s) ~ a + b,
+    df,
+    family = "hazard",
+    xind = "a",
+    n.max.predictions = 1,
+    n.trees = 3L,
+    n.samples = 2L,
+    n.burn = 0L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    pl = FALSE
+  ),
+  "bart(..., keepTrees = TRUE)",
+  fixed = TRUE
+)
 expect_error(
   dbarts::pdbart(hazardFit, n.max.predictions = 0, pl = FALSE),
   "'n.max.predictions' must be a positive number"
@@ -496,6 +515,11 @@ expect_equal(
     offset = offsetValues[sampled]
   )),
   check.attributes = FALSE
+)
+# on other rows a plain-vector offset is refused, as on every family
+expect_error(
+  dbarts::pdbart(offsetHazard, newdata = xAt[1:10, ], pl = FALSE),
+  "write the offset as a column of the data"
 )
 chunks <- function(bound) {
   dbarts:::pdbart.hazardAverage(
