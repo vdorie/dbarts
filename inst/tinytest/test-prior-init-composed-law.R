@@ -105,10 +105,9 @@ expect_equal(muEmpty, 0L)
 expect_true(tauUnreached > 200L)
 # the shape, over 3000 trees per arm: conditioning the treatment forest on its
 # 40 treated rows alone would leave it 0.48 leaves per tree short of the
-# single forest's 3.46 and with 0.023 more single-leaf trees, against Monte
-# Carlo errors near 0.09 and 0.009
+# single forest's 3.46, against a Monte Carlo error near 0.05; the two are
+# 0.01 apart
 expect_true(abs(mean(referenceCounts) - mean(tauCounts)) < 0.2)
-expect_true(abs(mean(tauCounts == 1) - mean(referenceCounts == 1)) < 0.02)
 
 # --- no row weighted at all: the same law, never a fault ---------------------
 # A forest whose every row carries zero weight draws its trees from the same

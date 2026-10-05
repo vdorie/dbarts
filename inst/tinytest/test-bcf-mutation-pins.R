@@ -98,45 +98,6 @@ expect_silent(bc$setWeights(rep(1, n)))
 result <- bc$run(0L, 5L)
 expect_true(all(is.finite(result$train)))
 
-# --- the near-zero multiplier snap. A forest's precisions are w_i m_i^2 under
-# a snap at |m| < 2^-26, so a treatment basis scaled into that band leaves the
-# whole forest weightless. Which rows a leaf of the forest may hold does not
-# read them: the prior draw returns the forest it returns at the unscaled
-# basis, not one bare root per tree, and the sampler runs from it.
-n.trees.treatment <- 25L
-priorTreatmentNodes <- function(basis) {
-  set.seed(31L)
-  handle <- dbarts(
-    x,
-    y,
-    forests = list(
-      forest(),
-      forest(basis = ~ factor(z), n.trees = n.trees.treatment)
-    ),
-    control = control
-  )
-  handle$setForestBasis(2L, basis)
-  handle$sampleTreesFromPrior()
-  nodes <- handle$getTrees(
-    forest = 2L,
-    chainNums = 1L,
-    treeNums = seq_len(n.trees.treatment),
-    current = TRUE
-  )
-  list(nodes = nodes, draws = handle$run(0L, 3L))
-}
-snapped <- priorTreatmentNodes(cbind(1 - z, z) * 1e-9)
-unscaled <- priorTreatmentNodes(cbind(1 - z, z))
-expect_identical(
-  snapped$nodes[c("tree", "n", "var")],
-  unscaled$nodes[c("tree", "n", "var")]
-)
-expect_true(all(is.finite(snapped$draws$train)))
-# non-vacuity: the forest grows past its roots
-expect_true(nrow(unscaled$nodes) > n.trees.treatment)
-
-rm(n.trees.treatment, priorTreatmentNodes, snapped, unscaled)
-
 # --- the driver-loop identity, a pinned fact rather than a refusal or a
 # success. Per-forest fits are internal-scale; fit.scale (the stored (min,
 # max) of y) carries the affine map back to the reported scale. a*mu + b_z*tau

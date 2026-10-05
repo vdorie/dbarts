@@ -225,13 +225,14 @@ expect_true(numEmptyOnly > 0L)
 withRows <- withMany$run(0L, 200L)
 withoutRows <- build(x, counts, 14L)$run(30L, 200L)
 # the data rows' posterior mean probabilities stay those of the fit without
-# the empty rows to Monte Carlo error, which is 0.06 between two seeds here
+# the empty rows to Monte Carlo error: 0.064 here, 0.062 between two seeds of
+# one fit, against 0.28 below when the same rows carry counts
 expect_true(
   max(abs(
     apply(withRows$train[dataRows, , ], c(1L, 2L), mean) -
       apply(withoutRows$train, c(1L, 2L), mean)
   )) <
-    0.15
+    0.12
 )
 # non-vacuity: the same rows with counts are a different posterior
 filledRows <- build(
@@ -244,7 +245,7 @@ expect_true(
     apply(filledRows$run(30L, 200L)$train[dataRows, , ], c(1L, 2L), mean) -
       apply(withoutRows$train, c(1L, 2L), mean)
   )) >
-    0.15
+    0.2
 )
 
 # --- mid-run: $setCounts emptying rows is $setActiveRows on them -------------

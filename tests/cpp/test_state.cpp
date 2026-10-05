@@ -2492,6 +2492,9 @@ static size_t countMissingRight(const std::vector<std::vector<FlatNode>>& trees)
 /// state too, and the sampler then runs and restores itself. make(x, seed)
 /// builds the sampler over a predictor matrix; `seed` is one whose draws leave
 /// every forest carrying a missing-right rule, which the first report checks.
+/// The two-forest arm takes its own: a two-forest stream moved when a leaf of
+/// only control rows became legal in the treatment forest, and the shared
+/// seed's draws then left that forest no missing-right rule.
 template <typename Make>
 static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
                                         const std::vector<double>& xFilled,

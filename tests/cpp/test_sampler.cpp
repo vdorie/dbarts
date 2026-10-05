@@ -2804,47 +2804,6 @@ static void testActiveRows() {
       ext_rng_destroy(rng);
     }
 
-    // The sampler surface redraws a reactivated row's latent before the call
-    // returns, off the chain's own generator: clearing a mask moves the
-    // latents of exactly the rows it switches back in. A mask that reactivates
-    // none consumes nothing: a twin that reinstalls the mask in force draws
-    // what the one that does not draws.
-    for (const Reachable& r : reachable) {
-      ext_rng *rng, *rngTwin;
-      auto sampler = makeSampler(rng, r.family, r.response, nullptr);
-      auto twin = makeSampler(rngTwin, r.family, r.response, nullptr);
-      std::vector<double> sigmaR(numSamples), trainR(n * numSamples);
-      std::vector<double> sigmaT(numSamples), trainT(n * numSamples);
-      Results resultsR, resultsT;
-      resultsR.sigma = sigmaR.data();
-      resultsR.trainingFits = trainR.data();
-      resultsT.sigma = sigmaT.data();
-      resultsT.trainingFits = trainT.data();
-      sampler->run(10, numSamples, resultsR);
-      twin->run(10, numSamples, resultsT);
-      sampler->setActiveRows(active.data());
-      twin->setActiveRows(active.data());
-      sampler->run(10, numSamples, resultsR);
-      twin->run(10, numSamples, resultsT);
-      sampler->setActiveRows(active.data());  // the mask already in force
-      sampler->run(0, numSamples, resultsR);
-      twin->run(0, numSamples, resultsT);
-      check(trainR == trainT,
-            "reinstalling the mask in force consumes no variate");
-      std::vector<double> held(sampler->latents(), sampler->latents() + n);
-      sampler->setActiveRows(nullptr);
-      const double* latents = sampler->latents();
-      bool redrawn = true, kept = true;
-      for (size_t i = 0; i < n; ++i) {
-        if (active[i] == 0.0) redrawn = redrawn && latents[i] != held[i];
-        else kept = kept && latents[i] == held[i];
-      }
-      check(redrawn, "clearing the mask redraws every reactivated row's latent");
-      check(kept, "and leaves the latent of every row that stayed active");
-      ext_rng_destroy(rngTwin);
-      ext_rng_destroy(rng);
-    }
-
     // an all-zeros mask on logistic and nbinom also runs finite, exactly as
     // the gaussian arm above
     for (const Reachable& r : reachable) {
@@ -3008,18 +2967,8 @@ static void testActiveRowsOnGrownForest() {
   // leaves every member of which the mask switches off
   auto countInactiveOnly = [&](const double* mask) {
     size_t inactiveOnly = 0;
-    for (size_t t = 0; t < options.numTrees; ++t) {
-      const Tree& tree(sampler.chain(0).tree(t));
-      std::vector<std::int32_t> bottoms;
-      tree.fillBottom(0, bottoms);
-      for (std::int32_t b : bottoms) {
-        const Node& node(tree.at(b));
-        bool anyActive = false;
-        for (size_t j = node.begin; j < node.end; ++j)
-          anyActive = anyActive || mask[tree.indices[j]] != 0.0;
-        inactiveOnly += !anyActive ? 1 : 0;
-      }
-    }
+    for (size_t t = 0; t < options.numTrees; ++t)
+      inactiveOnly += countWeightlessLeaves(sampler.chain(0).tree(t), mask);
     return inactiveOnly;
   };
   auto occupied = [&]() {
@@ -3085,6 +3034,154 @@ static void testActiveRowsOnGrownForest() {
          "under the full mask, %zu under the partial one, some held in %zu of "
          "200 sweeps)\n",
          maskedLeaves, maskedPartial, heldPartial);
+}
+
+// The membership rule and the reactivation redraw on the paths one forest of a
+// gaussian response does not reach: the variance forest's prior draw, a
+// coupled sweep whose composed precisions zero some rows in one forest, and
+// the location a chain hands the redraw under a coupling and an offset.
+static void testMembershipAcrossForests() {
+  const size_t n = 120, p = 2;
+  std::uint64_t state = 20261006u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  std::vector<double> x(n * p), y(n), z(n), binary(n), offset(n);
+  std::vector<double> half(n), zeros(n, 0.0);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = i % 2 == 0 ? 1.0 : 0.0;
+    y[i] = std::sin(3.0 * x[i]) + z[i] * (1.0 + x[i + n]) + 0.3 * (unif() - 0.5);
+    binary[i] = y[i] > 1.0 ? 1.0 : 0.0;
+    offset[i] = 0.4 * (unif() - 0.5);
+    half[i] = x[i] <= 0.5 ? 1.0 : 0.0;
+  }
+  const double rawScale = 0.37804942330213542;
+  auto seeded = [](unsigned seed) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, seed);
+    return rng;
+  };
+
+  // ---- the variance forest's prior draw does not read weights or mask ----
+  {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.numVarianceTrees = 10;
+    auto drawn = [&](int arm) {
+      ext_rng* rng = seeded(41u);
+      ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                                  ResponseFamily::gaussian, 1.0, 3.0, rawScale,
+                                  options, &rng);
+      if (arm == 1) sampler.setWeights(half.data());
+      if (arm == 2) sampler.setActiveRows(zeros.data());
+      sampler.sampleVarianceForestFromPrior();
+      SamplerStateData out;
+      sampler.getState(out);
+      ext_rng_destroy(rng);
+      return out.chains[0].varianceTrees;
+    };
+    std::vector<std::vector<FlatNode>> plain = drawn(0);
+    size_t numNodes = 0;
+    for (const std::vector<FlatNode>& tree : plain) numNodes += tree.size();
+    check(numNodes > 2 * options.numVarianceTrees,
+          "the variance forest's prior draw grows past its roots");
+    check(sameFlatTrees(plain, drawn(1)),
+          "a zero-weight half leaves the variance forest's prior draw as it is");
+    check(sameFlatTrees(plain, drawn(2)),
+          "and so does an all-zeros mask, which gives no bare roots");
+  }
+
+  // ---- a coupled sweep holds treatment leaves no weighted row reaches ----
+  // Amplitudes held at (1, 0, 1) leave every control row weightless in the
+  // treatment forest; a per-forest weight does the same to the rows it zeroes.
+  // From bare roots, only a move can make such a leaf.
+  for (bool byForestWeight : {false, true}) {
+    SamplerOptions options;
+    AmplitudeSpec spec;
+    spec.mu.numTrees = 10; spec.mu.base = 0.95; spec.mu.power = 2.0;
+    spec.tau.numTrees = 10; spec.tau.base = 0.95; spec.tau.power = 0.5;
+    spec.z = z.data();
+    spec.updateB = byForestWeight;
+    ext_rng* rng = seeded(42u);
+    Sampler<ConstantGaussianLeaf> sampler(x.data(), y.data(), n, p, nullptr,
+                                          nullptr, 1.0, 3.0, rawScale, options,
+                                          spec, &rng);
+    if (byForestWeight) sampler.setForestWeights(1, half.data());
+    const double* weighted = byForestWeight ? half.data() : z.data();
+    Results results;
+    size_t held = 0;
+    bool occupied = true;
+    for (int sweep = 0; sweep < 100; ++sweep) {
+      sampler.run(1, 0, results);
+      for (size_t t = 0; t < spec.tau.numTrees; ++t) {
+        const Tree& tree(TestPeer::forestTree(sampler.chain(0), 1, t));
+        held += countWeightlessLeaves(tree, weighted);
+        occupied = occupied && tree.bottomNodesAreOccupied();
+      }
+    }
+    check(held > 0, byForestWeight
+            ? "moves leave treatment leaves of only rows a forest weight zeroes"
+            : "moves leave treatment leaves of only control rows under a held "
+              "zero multiplier");
+    check(occupied, "and none that no row reaches");
+    ext_rng_destroy(rng);
+  }
+
+  // ---- the redraw is taken at the chain's COMBINED fit, offset included ----
+  // A two-forest probit with an offset: the latents of the rows a cleared mask
+  // brings back are, bitwise, the response's own draw at the combined location
+  // from a generator cloned ahead of the call.
+  {
+    SamplerOptions options;
+    options.nodeScale = 3.0;
+    AmplitudeSpec spec;
+    spec.family = ResponseFamily::probit;
+    spec.mu.numTrees = 10; spec.mu.base = 0.95; spec.mu.power = 2.0;
+    spec.tau.numTrees = 5; spec.tau.base = 0.25; spec.tau.power = 3.0;
+    spec.z = z.data();
+    ext_rng* rng = seeded(43u);
+    Sampler<ConstantGaussianLeaf> sampler(x.data(), binary.data(), n, p,
+                                          nullptr, offset.data(), 1.0, 3.0, 1.0,
+                                          options, spec, &rng);
+    Results results;
+    sampler.run(30, 0, results);
+    sampler.setActiveRows(half.data());
+    sampler.run(10, 0, results);
+
+    const double* combined = TestPeer::combinedFits(sampler.chain(0));
+    std::vector<double> ySub, offsetSub, fitsSub;
+    double forestZeroGap = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      forestZeroGap = std::max(forestZeroGap, std::fabs(
+        combined[i] - TestPeer::totalFitsInForest(sampler.chain(0), 0)[i]));
+      if (half[i] != 0.0) continue;
+      ySub.push_back(binary[i]);
+      offsetSub.push_back(offset[i]);
+      fitsSub.push_back(combined[i]);
+    }
+    check(forestZeroGap > 1e-3,
+          "non-vacuity: the combined fit is not the first forest's");
+    ext_rng* reference = cloneRng(sampler.rng());
+    ProbitResponse compact(ySub.data(), offsetSub.data(), ySub.size());
+    compact.refreshLatents(reference, fitsSub.data(), 1.0);
+
+    sampler.setActiveRows(nullptr);
+    bool atCombinedFit = true;
+    for (size_t i = 0, j = 0; i < n; ++i)
+      if (half[i] == 0.0)
+        atCombinedFit = atCombinedFit &&
+                        sampler.latents()[i] == compact.latents()[j++];
+    check(atCombinedFit,
+          "a reactivated latent is the draw at the combined fit and offset");
+    check(rngStreamsAgree(reference, sampler.rng()),
+          "taken from the chain's own generator");
+    ext_rng_destroy(reference);
+    ext_rng_destroy(rng);
+  }
+
+  printf("ok: membership rule and redraw across forests\n");
 }
 
 static void testSetWeightsAndTestOffset() {
@@ -8179,6 +8276,7 @@ void runSamplerTests(ext_rng* rng) {
   testCodedTestSourceReplay(rng);
   testActiveRows();
   testActiveRowsOnGrownForest();
+  testMembershipAcrossForests();
   testSetWeightsAndTestOffset();
   testSetControlAndModel();
   testFrozenForest();

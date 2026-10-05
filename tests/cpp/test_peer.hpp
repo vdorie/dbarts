@@ -47,6 +47,16 @@ struct TestPeer {
                                                       std::size_t f) {
     return chain.forests_[f].totalFits;
   }
+  /// Tree t of forest f, and the location the chain hands a latent redraw.
+  template <IntegrableLeafModel L, typename R>
+  static const Tree& forestTree(const Chain<L, R>& chain, std::size_t f,
+                                std::size_t t) {
+    return chain.forests_[f].trees[t];
+  }
+  template <IntegrableLeafModel L, typename R>
+  static const double* combinedFits(Chain<L, R>& chain) {
+    return chain.combinedFits();
+  }
   /// The per-observation weight installed on forest f, or null when none is.
   template <IntegrableLeafModel L, typename R>
   static const double* forestWeights(const Chain<L, R>& chain, std::size_t f) {

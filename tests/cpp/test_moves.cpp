@@ -1056,14 +1056,9 @@ static void testEmptyLeafVetoCountsMembers() {
       accepted += stepTaken ? 1 : 0;
       bottoms.clear();
       tree.fillBottom(0, bottoms);
-      for (int32_t b : bottoms) {
-        const Node& node(tree.at(b));
-        memberEmpty += node.numObservations() == 0 ? 1 : 0;
-        bool anyWeight = false;
-        for (size_t j = node.begin; j < node.end; ++j)
-          anyWeight |= zeroed[tree.indices[j]] > 0.0;
-        weightless += !anyWeight ? 1 : 0;
-      }
+      for (int32_t b : bottoms)
+        memberEmpty += tree.at(b).numObservations() == 0 ? 1 : 0;
+      weightless += countWeightlessLeaves(tree, zeroed.data());
     }
     return std::array<size_t, 3>{weightless, memberEmpty, accepted};
   };
@@ -1134,20 +1129,6 @@ static void testZeroWeightTreeKeepsMoving() {
     }
   };
 
-  auto countWeightless = [&](const double* weights) {
-    std::vector<int32_t> bottoms;
-    tree.fillBottom(0, bottoms);
-    size_t weightless = 0;
-    for (int32_t b : bottoms) {
-      const Node& node(tree.at(b));
-      bool anyWeight = false;
-      for (size_t j = node.begin; j < node.end; ++j)
-        anyWeight |= weights[tree.indices[j]] > 0.0;
-      weightless += !anyWeight ? 1 : 0;
-    }
-    return weightless;
-  };
-
   struct Driven {
     size_t nanAlpha = 0;
     size_t structureChanges = 0;
@@ -1175,7 +1156,7 @@ static void testZeroWeightTreeKeepsMoving() {
       tree.fillBottom(0, bottoms);
       for (int32_t b : bottoms)
         if (tree.at(b).numObservations() == 0) ++driven.memberEmpty;
-      if (countWeightless(weights) > 0) ++driven.weightlessSweeps;
+      if (countWeightlessLeaves(tree, weights) > 0) ++driven.weightlessSweeps;
     }
     return driven;
   };
@@ -1202,7 +1183,7 @@ static void testZeroWeightTreeKeepsMoving() {
     for (size_t j = node.begin; j < node.end; ++j)
       partial[tree.indices[j]] = 0.0;
   }
-  size_t zeroedLeaves = countWeightless(partial.data());
+  size_t zeroedLeaves = countWeightlessLeaves(tree, partial.data());
   check(zeroedLeaves > 0,
         "non-vacuity: the vector leaves leaves of only zero-weight rows");
   Driven partialDriven = drive(partial.data(), 2000);
@@ -1339,10 +1320,13 @@ static void testZeroWeightLeafContributesNothing() {
   // 1/2 with no neighbor to bound them. That mass is the tree's own
   // normalizer, which the move divides back out
   std::vector<double> mu(tree.nodes.size(), 0.0);
-  checkNear(monotone.logLikelihoodForBranchWithParams(
-              tree, 0, y.data(), zeros.data(), k, sigma * sigma, mu.data()),
-            std::log(0.5), 1e-12,
-            "a monotone branch of zero-weight leaves scores its prior cone");
+  ctx.leafParams = mu.data();
+  BranchScore monotoneScore =
+    logLikelihoodForBranch(ctx, monotone, tree, 0, y.data(), sigma);
+  check(!monotoneScore.empty,
+        "a monotone branch of zero-weight leaves is legal too");
+  checkNear(monotoneScore.logLikelihood, std::log(0.5), 1e-12,
+            "and scores its prior cone");
   // a lone leaf's cone is bounded by its sibling's value, here 0: half again
   checkNear(monotone.logLikelihoodForBranchWithParams(
               tree, leftChild, y.data(), zeros.data(), k, sigma * sigma,
@@ -1393,11 +1377,13 @@ static void testZeroWeightLeafContributesNothing() {
     bool wasBirth;
   };
   auto runBirth = [&](const auto& leafModel, const double* weights,
-                      const double* response, double leafSigma, double leafK) {
-    ext_rng_setSeed(rng, 20260819u);
+                      const double* response, double leafSigma, double leafK,
+                      unsigned seed = 20260819u) {
+    ext_rng_setSeed(rng, seed);
     buildRoot(weights);
     MoveContext armCtx{store,   growPrior, 1.0, 0.0, 0.0, 0.0, 0.5,
                        weights, leafK,     scratch};
+    armCtx.leafParams = mu.data();  // read by the monotone leaf alone
     MoveOutcome out{0.0, false, false};
     out.alpha = birthOrDeathMove(armCtx, leafModel, rng, tree, response,
                                  leafSigma, &out.stepTaken, &out.wasBirth);
@@ -1433,6 +1419,28 @@ static void testZeroWeightLeafContributesNothing() {
             1e-10, "and under the GP leaf");
   checkNear(runBirth(variance, half.data(), y.data(), sigma, k).alpha,
             expected, 1e-12, "and under the variance leaf");
+  // the monotone leaf reports its acceptance ahead of its normalizer, so the
+  // closed form is not on offer: the same birth is legal and is taken
+  bool monotoneBorn = false;
+  for (unsigned seed = 1; seed <= 40 && !monotoneBorn; ++seed)
+    monotoneBorn =
+      runBirth(monotone, half.data(), y.data(), sigma, k, seed).stepTaken;
+  check(monotoneBorn,
+        "a monotone birth isolating the zero-weight rows is accepted");
+  // and the isolated leaf's value is its prior, truncated below its sibling
+  buildSplit(half.data());
+  std::vector<int32_t> bottoms;
+  tree.fillBottom(0, bottoms);
+  mu[leftChild + 1] = 0.4;
+  reseed();
+  monotone.drawOneLeaf(rng, tree, leftChild, bottoms, nullptr, 0, k,
+                       sigma * sigma, mu.data());
+  reseed();
+  checkNear(mu[leftChild],
+            ext_rng_simulateUpperTruncatedNormal(
+              rng, 0.0, monotone.priorSd(k, true), 0.4),
+            1e-10, "the monotone leaf's zero-weight draw is its truncated prior");
+  mu.assign(mu.size(), 0.0);
 
   // the death of a parent whose children are both weightless: the same closed
   // form with the prior inverted, 0.25 / 0.75 again at base = 0.75

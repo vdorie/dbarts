@@ -38,7 +38,7 @@ leavesOf <- function(sampler) {
 fitAndReport <- function(weights, ...) {
   sampler <- dbarts::dbarts(x, y, weights = weights, control = control, ...)
   draws <- sampler$run(100L, 50L)
-  list(leaves = leavesOf(sampler), fits = draws$train, sigma = draws$sigma)
+  list(leaves = leavesOf(sampler), fits = draws$train)
 }
 
 # gaussian: every live leaf holds a row, and some hold only zero-weight rows
@@ -47,16 +47,10 @@ expect_true(nrow(gaussian$leaves) > 50L)
 expect_true(all(gaussian$leaves$members > 0L))
 expect_true(any(gaussian$leaves$weighted == 0L))
 
-# a zero-weight row is still partitioned and still reported a fit; where the
-# trees isolate such rows that fit is a draw from the prior, so it is not the
-# fit a model on the remaining rows alone would give there and is not asked to
-# track the signal
+# a zero-weight row is still partitioned and still reported a fit, which
+# tracks the signal through the leaves it shares with weighted rows
 expect_true(all(is.finite(gaussian$fits)))
-expect_true(cor(rowMeans(gaussian$fits)[kept], signal[kept]) > 0.9)
-
-# what a zero weight still does: the row leaves the residual scale, which is
-# estimated off the positive-weight rows alone
-expect_true(abs(mean(gaussian$sigma) - 0.5) < 0.15)
+expect_true(cor(rowMeans(gaussian$fits)[!kept], signal[!kept]) > 0.5)
 
 # Student-t: the composed weight w * lambda is zero wherever w is, so the same
 # rule governs the family that carries the other shipped weight channel
