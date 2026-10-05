@@ -1444,6 +1444,10 @@ Under dec-B203, pdbart and pd2bart serve every family whose prediction is one va
 Revised the same day on measurement: the ruling assumed the survival route reuses survivalProbabilities cheaply, and it does not on a hazard fit's default period grid, taken from the observed event times, where the work grows with the square of the subjects: plotting three predictors at three times took about 4 minutes at 200 subjects and about 2.8 hours at 1,000, against 2 minutes at 1,000 and 7 minutes at 5,000 on a 20-period grid. Hazard fits are served with a size check before anything runs, which stops a call whose estimated work is too large and names the ways out (a coarser period grid, fewer subjects, fewer grid values); a compiled routine lifting the limit on fine grids is scheduled after 1.0-0. The alternatives were refusing hazard fits for 1.0-0 and building the compiled routine now. The maintainer: "Serve hazard now, with a size check before running." The check's threshold is not ruled.
 Record: this register; TODO pdbart-per-category, pdbart-hazard-compiled. Marked: blank. [dec-B209]
 
+**pdbart's type: how a probability is averaged**
+Under dec-B207, when pdbart or pd2bart reports on a transformed scale (type = "ev" on a binary fit), each draw transforms every row's latent value and then averages over the rows, giving the average probability in the population of rows, as pdp's prob = TRUE and averaging predict(fit, type = "ev") do. The alternative was averaging the latent values and transforming the average, the probability of no actual row, pulled toward 0 and 1 by the link's curvature (0.058 against 0.037 and 0.753 against 0.785 at the two ends of one probit fit's grid). The maintainer on 2026-10-04: "Transform then average."
+Record: this register. Marked: blank. [dec-B210]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
