@@ -36,9 +36,11 @@
             translated with a warning until 1.1-0, and an argument neither
             takes is an error where it was ignored. The 0.9-34 model is
             \code{pdbart(bartBT(x, y, keeptrees = TRUE))}, its results still
-            subject to the changes below. Multinomial and ordinal fits are
-            refused, pointing at \code{predict}; negative binomial, hurdle,
-            accelerated failure time and hazard fits are refused for now.
+            subject to the changes below. In a formula fit \code{xind}
+            names variables of the data, where it named model-matrix
+            columns. Multinomial and ordinal fits are refused, pointing at
+            \code{predict}; accelerated failure time and hazard fits are
+            refused for now.
       \item Every name and argument kept reachable for one release past its
             removal or rename (a tombstone) warns once per session, names
             its successor, and is removed in dbarts 1.1-0; the list is on
@@ -246,8 +248,8 @@
       \item \code{pdbart}'s and \code{pd2bart}'s \code{fd} includes the
             fit's offset, as BayesTree's included \code{binaryOffset}; rows
             a fit gives a 0 weight are left out of the average. The result
-            carries \code{n.chains}, and \code{combineChains = FALSE} gives
-            \code{fd} a chain margin.
+            carries \code{n.chains} and its \code{type}, and
+            \code{combineChains = FALSE} gives \code{fd} a chain margin.
       \item Output shapes. Per-observation results carry the data's row
             names. Under \code{combineChains = FALSE}, \code{extract} and
             \code{predict} keep the chain dimension on a one-chain fit, so a scalar such as \code{sigma}
@@ -291,6 +293,11 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item \code{pdbart} and \code{pd2bart} take \code{type}
+            (\code{"auto"}: the link scale, 0.9-34's, except the mean
+            response on hurdle fits), \code{newdata}, \code{n.average.rows}
+            and \code{average.weights}; they serve negative binomial and
+            hurdle fits, and their plots label the scale.
       \item Sampling is faster. Against 0.9-34 on a four-core x86-64
             machine, fitting through the BayesTree-style interface with 200
             trees and 1000 draws after 500, with defaults that changed

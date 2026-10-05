@@ -5,7 +5,7 @@
 \alias{pd2bart}
 \alias{plot.pd2bart}
 \description{
-   Fit a model with \code{\link{bart}}, or take a fit or sampler, and average its predictions over the fit's rows with one variable (\code{pdbart}) or a pair of variables (\code{pd2bart}) set to each of a grid of values, so that a plot can display that variable's effect. The averages are on the scale of the model's linear predictor: if \eqn{y} is binary with \eqn{P(Y=1 | x) = F(f(x))}, \eqn{F} the standard normal cdf, then the plots are all on the \eqn{f} scale.
+   Fit a model with \code{\link{bart}}, or take a fit or sampler, and average its predictions over a set of rows with one variable (\code{pdbart}) or a pair of variables (\code{pd2bart}) set to each of a grid of values, so that a plot can display that variable's effect. By default the averages are on the scale of the model's linear predictor: if \eqn{y} is binary with \eqn{P(Y=1 | x) = F(f(x))}, \eqn{F} the standard normal cdf, then the plots are on the \eqn{f} scale; \code{type} chooses another.
 }
 \usage{
 pdbart(
@@ -13,6 +13,8 @@ pdbart(
     xind = NULL,
     levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
     pl = TRUE, plquants = c(0.05, 0.95),
+    type = "auto", newdata = NULL,
+    n.average.rows = NULL, average.weights = NULL,
     \dots)
 
 \method{plot}{pdbart}(
@@ -26,6 +28,8 @@ pd2bart(
     xind = NULL,
     levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
     pl = TRUE, plquants = c(0.05, 0.95),
+    type = "auto", newdata = NULL,
+    n.average.rows = NULL, average.weights = NULL,
     \dots)
 
 \method{plot}{pd2bart}(
@@ -42,13 +46,13 @@ pd2bart(
     As \code{\link{bart}}'s \code{data}: the response when \code{formula} is a matrix, or the data frame in which to evaluate a formula. Not used with a fit or sampler.
   }
   \item{xind}{
-    Integer, character vector, or the right-hand side of a formula indicating which variables are to be plotted. In \code{pdbart}, corresponds to the variables (columns of the predictor matrix) for which a plot is to be constructed. In \code{plot.pdbart}, corresponds to the indices in list returned by \code{pdbart} for which plot is to be constructed. In \code{pd2bart}, the indices of a pair of variables (columns of the predictor matrix) to plot. If \code{NULL} a default of all columns is used for \code{pdbart} and the first two columns is used for \code{pd2bart}.
+    Integer, character vector, or the right-hand side of a formula indicating which variables are to be plotted. In a formula fit, these are variables of the data, named, and every term built from one - \code{log(a)}, \code{poly(a, 2)} - moves with it; a column number is refused. Otherwise, in \code{pdbart}, corresponds to the variables (columns of the predictor matrix) for which a plot is to be constructed. In \code{plot.pdbart}, corresponds to the indices in list returned by \code{pdbart} for which plot is to be constructed. In \code{pd2bart}, the indices of a pair of variables (columns of the predictor matrix) to plot. If \code{NULL} a default of all columns is used for \code{pdbart} and the first two columns is used for \code{pd2bart}.
   }
    \item{levs}{
      Gives the values of a variable at which the plot is to be constructed. Must be a list, where the \eqn{i}th component gives the values for the \eqn{i}th variable. In \code{pdbart}, it should have same length as \code{xind}. In \code{pd2bart}, it should have length 2. The values of a factor predictor are level names. See also argument \code{levquants}.
    }
   \item{levquants}{
-    If \code{levs} is \code{NULL}, the values of each variable used in the plot are set to the quantiles (in the training data, missing values left out) indicated by levquants, and a factor predictor takes every level. Must be a vector of numeric type.
+    If \code{levs} is \code{NULL}, the values of each variable used in the plot are set to the quantiles indicated by levquants of its values in the training data, or in \code{newdata} when given, missing values left out; a factor predictor takes every level the fit knows. Must be a vector of numeric type.
   }
   \item{pl}{
     For \code{pdbart} and \code{pd2bart}, if \code{TRUE}, plot is subsequently made (by calling \code{plot.*}).
@@ -56,10 +60,22 @@ pd2bart(
   \item{plquants}{
     In the plots, beliefs about \eqn{f(x)} are indicated by plotting the posterior median and a lower and upper quantile. \code{plquants} is a double vector of length two giving the lower and upper quantiles.
   }
+  \item{type}{
+    The scale averaged on, one of \code{predict}'s types for the fit (see \code{\link{predict.bart}}), each row's prediction transformed and then averaged. \code{"auto"} is the link scale, \code{"bart"} (also spelled \code{"link"}), on every family but the hurdle, where it is the mean response, \code{"ev"}. A gaussian or Student-t fit also takes \code{"ev"}, \code{"ppd"} and, with a variance forest, \code{"sigma"}; a probit or logistic fit \code{"ev"}, the probability, and \code{"ppd"}; a negative binomial fit \code{"ev"}, the mean count, and \code{"ppd"}; a hurdle fit \code{"prob"}, the probability of a positive response, \code{"bart"}, the positive part's log scale, and \code{"ppd"}. \code{"forest"} is refused. A sampler passed in takes only \code{"bart"}.
+  }
+  \item{newdata}{
+    Rows to average over in place of the fit's own, coded as \code{\link[=predict.bart]{predict}} codes them, a data frame in a formula fit. The fit's offset is evaluated on them as \code{predict} evaluates it; an offset given as a plain vector cannot be, unless \code{newdata} has as many rows, and is refused. The default grid is taken from these rows.
+  }
+  \item{n.average.rows}{
+    A number of the fit's rows to average over, drawn at random without replacement from those with a positive \code{average.weights} (all rows when none are given); \code{set.seed} beforehand reproduces it. Refused with \code{newdata}.
+  }
+  \item{average.weights}{
+    One finite, non-negative weight per row averaged over - per row of the fit, before any it gives a weight of 0 are left out, or per row of \code{newdata} - not all zero, for a weighted average; normalized. With \code{n.average.rows}, the sampled rows keep their weights, renormalized. Not \code{bart}'s \code{weights}, which go to the fit.
+  }
   \item{\dots}{
-    In \code{pdbart} and \code{pd2bart}, arguments of \code{\link{bart}}, under its names and with its defaults; an argument \code{bart} does not take is an error. \code{pdbart} sets \code{keepTrees} and \code{samplerOnly} itself and has no test rows, so \code{keepTrees = FALSE}, \code{samplerOnly}, \code{test} and \code{offset.test} are refused; \code{keepSampler = FALSE} drops the sampler from the result. With a fit or sampler passed in, only \code{keepSampler} is taken. BayesTree's spellings, as \code{\link{bartBT}} takes them (\code{x.train}, \code{y.train}, \code{ntree}, \code{ndpost}, \code{nskip}, \code{keepevery}, \code{binaryOffset} and the rest), are translated to \code{bart}'s with a once-per-session warning until dbarts 1.1-0, when they are refused; \code{power}, \code{base} and \code{splitprobs} become \code{tree.prior = cgm()}, and \code{proposalprobs} the control's \code{proposal.probs}. A setting given under both spellings is refused.
+    In \code{pdbart} and \code{pd2bart}, arguments of \code{\link{bart}}, under its names and with its defaults; an argument \code{bart} does not take is an error. \code{pdbart} sets \code{keepTrees} and \code{samplerOnly} itself and has no test rows, so \code{keepTrees = FALSE}, \code{samplerOnly}, \code{test} and \code{offset.test} are refused; \code{keepSampler = FALSE} drops the sampler from the result. With a fit or sampler passed in, only \code{keepSampler} is taken, and a sampler takes no \code{newdata}, \code{n.average.rows} or \code{average.weights}. BayesTree's spellings, as \code{\link{bartBT}} takes them (\code{x.train}, \code{y.train}, \code{ntree}, \code{ndpost}, \code{nskip}, \code{keepevery}, \code{binaryOffset} and the rest), are translated to \code{bart}'s with a once-per-session warning until dbarts 1.1-0, when they are refused; \code{power}, \code{base} and \code{splitprobs} become \code{tree.prior = cgm()}, and \code{proposalprobs} the control's \code{proposal.probs}. A setting given under both spellings is refused.
 
-    In \code{plot.pdbart}, arguments are passed on to \code{\link{plot}}, except \code{type}, which is passed to the lines drawn, and \code{xlab} and \code{ylab}, which replace the method's own labels. In \code{plot.pd2bart}, they are passed on to \code{\link{image}}.
+    In \code{plot.pdbart}, arguments are passed on to \code{\link{plot}}, except \code{type}, which is passed to the lines drawn, and \code{xlab} and \code{ylab}, which replace the method's own labels, the vertical one naming the scale. In \code{plot.pd2bart}, a \code{main} replaces the panel titles. In \code{plot.pd2bart}, they are passed on to \code{\link{image}}.
   }
   \item{x}{
     For \code{plot.*}, object returned from \code{pdbart} or \code{pd2bart}.
@@ -79,11 +95,13 @@ pd2bart(
 
    In \code{pdbart} \eqn{x_s} consists of a single variable in \eqn{x} and in \code{pd2bart} it is a pair of variables.
 
-   The rows averaged over are the fit's own: those it was fit to, less any it gives a weight of 0, which for a binary response masks a row out. Each row's offset, \code{bart}'s \code{offset}, is added to its prediction before averaging, so a value equals the row mean of \code{\link[=predict.bart]{predict}(fit, newdata, type = "bart")} with the variable set.
+   The rows averaged over are the fit's own unless \code{newdata} is given: those it was fit to, less any it gives a weight of 0, which for a binary response masks a row out, and less any dropped for a missing response. In a formula fit they are read from the data the fit's call names, re-evaluated, which a fit kept without its call cannot do; give \code{newdata} then. Each row's offset is added to its prediction once: the fit's offset expression or \code{offset()} term evaluated on the row with the variable set, or, for an offset given as a plain vector, the row's own value. A value is therefore the (weighted) row mean of \code{\link[=predict.bart]{predict}(fit, rows, type = type)} with the variable set.
+
+   In \code{pd2bart}, when the fit has two predictors and one offset for every row, each grid point is a single row and is predicted once; \code{newdata}, \code{n.average.rows} and \code{average.weights} then have no effect, with a warning. \code{type = "ppd"}, which draws noise for each row, always averages over the rows.
 
    A data call fits through \code{\link{bart}} at its defaults, keeping trees and sampler, and predicts each grid value from the saved trees, so \code{pdbart(x, y, seed = s)} and \code{pdbart(bart(x, y, seed = s, keepTrees = TRUE))} agree. \code{pdbart(bartBT(x, y, keeptrees = TRUE))} gives the model dbarts 0.9-34 fit. The first data call in a session prints a message saying so; a call from package code does not.
 
-   \code{pdbart} and \code{pd2bart} serve gaussian, Student-t, probit and logistic fits. Multinomial and ordinal fits, whose prediction is a probability per category, are refused; \code{predict} on rows with the variable set gives each category's. Negative binomial, hurdle, accelerated failure time and hazard fits are refused in this version. Each refusal comes before anything is fit, whether the family is named, resolved by \code{family = "auto"} from the response, or that of a fit or sampler passed in.
+   \code{pdbart} and \code{pd2bart} serve gaussian, Student-t, probit, logistic, negative binomial and hurdle fits. Multinomial and ordinal fits, whose prediction is a probability per category, are refused; \code{predict} on rows with the variable set gives each category's. Accelerated failure time and hazard fits are refused in this version. Each refusal comes before anything is fit, whether the family is named, resolved by \code{family = "auto"} from the response, or that of a fit or sampler passed in.
 
    This is a computationally intensive procedure. For example, in \code{pdbart}, to compute the partial dependence plot for 5 \eqn{x_s} values, we need to compute \eqn{f(x_s, x_c)} for all possible \eqn{(x_s, x_{ic})} and there would be \eqn{5n} of these where \eqn{n} is the sample size. All of that computation would be done for each kept BART draw. For this reason thinning the draws with \code{n.thin} larger than 1 (eg. 10) makes the procedure much faster.
 }
@@ -110,8 +128,14 @@ pd2bart(
   \item{n.chains}{
     The number of chains.
   }
+  \item{type}{
+    The scale averaged on, as resolved: \code{"bart"} for \code{"link"} and, except on a hurdle fit, for \code{"auto"}.
+  }
+  \item{family}{
+    The fit's family, which with \code{type} sets the plot labels.
+  }
    
-  The remaining components are passed on from the fit, under \code{\link{bart}}'s own names (see its \sQuote{Value} section) with one rename and several omissions - the fit's call is under \code{bartcall} rather than \code{call}, and not every \code{bart} component is carried over. For a continuous response the remaining components are \code{bartcall}, \code{yhat.train}, \code{first.sigma}, \code{sigma}, \code{yhat.train.mean}, \code{sigest}, \code{y}, and \code{fit}, the sampler, which \code{keepSampler = FALSE} leaves out. For a binary response only \code{bartcall}, \code{yhat.train}, \code{y}, and \code{fit} are present. \code{pd2bart} follows the same rules. The function \code{\link{plot.bart}} can be applied to the object returned by \code{pdbart} or \code{pd2bart} to examine the BART run.
+  The remaining components are passed on from the fit, under \code{\link{bart}}'s own names (see its \sQuote{Value} section) with one rename and several omissions - the fit's call is under \code{bartcall} rather than \code{call}, and not every \code{bart} component is carried over. For a continuous response the remaining components are \code{bartcall}, \code{yhat.train}, \code{first.sigma}, \code{sigma}, \code{yhat.train.mean}, \code{sigest}, \code{y}, and \code{fit}, the sampler, which \code{keepSampler = FALSE} leaves out. For a binary response only \code{bartcall}, \code{yhat.train}, \code{y}, and \code{fit} are present. For a hurdle fit, \code{fit} is a list of the two parts' samplers, \code{zero} and \code{positive}, and no draws are carried over. \code{pd2bart} follows the same rules. The function \code{\link{plot.bart}} can be applied to the object returned by \code{pdbart} or \code{pd2bart} to examine the BART run.
 }
 \references{
 Chipman, H., George, E., and McCulloch, R. (2010)
@@ -188,6 +212,9 @@ bartFit <- bart(
     n.thin = 10, n.trees = 100, n.chains = 2, n.threads = 1, seed = 99,
     keepTrees = TRUE, verbose = FALSE)
 pdb3 <- pdbart(bartFit, xind = rob + ed, pl = FALSE)
+
+## averaged over a subgroup's rows, with the grid from them
+pdb4 <- pdbart(bartFit, xind = "rob", newdata = df[df$hugh > 0, ], pl = FALSE)
 }}
 \keyword{nonparametric}
 \keyword{tree}

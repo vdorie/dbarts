@@ -659,11 +659,6 @@ noFit <- function(...) {
 set.seed(5)
 n <- nrow(x)
 counts <- matrix(rpois(3L * n, 2), n, 3L)
-expect_error(noFit(x, y, family = "nbinom"), "family = \"nbinom\"")
-expect_error(
-  noFit(x, y, family = "hurdle.lognormal"),
-  "family = \"hurdle.lognormal\""
-)
 expect_error(noFit(x, y, family = "aft"), "family = \"aft\"")
 expect_error(noFit(x, y, family = "hazard"), "family = \"hazard\"")
 expect_error(
@@ -685,7 +680,7 @@ expect_error(
   dbarts::pd2bart(
     x,
     y,
-    family = "nbinom",
+    family = "aft",
     pl = FALSE,
     n.trees = -1L,
     verbose = FALSE
@@ -710,9 +705,7 @@ tiny <- function(response, ...) {
 }
 refusedFits <- list(
   multinomial = tiny(factor(sample(letters[1:3], n, TRUE))),
-  ordinal = tiny(factor(sample(letters[1:3], n, TRUE), ordered = TRUE)),
-  nbinom = tiny(rpois(n, 3), family = "nbinom"),
-  hurdle = tiny(pmax(0, y), family = "hurdle.lognormal")
+  ordinal = tiny(factor(sample(letters[1:3], n, TRUE), ordered = TRUE))
 )
 if (requireNamespace("survival", quietly = TRUE)) {
   times <- survival::Surv(rexp(n), rbinom(n, 1L, 0.7))
@@ -845,27 +838,6 @@ pdf(NULL)
 expect_silent(plot(pd2b1))
 dev.off()
 rm(pd2b1, pd2b2, bartFit)
-
-# the four own-class fits used to fall through to a message naming neither
-# the fit nor why it fails; refused by name instead
-negbinFit <- dbarts::bart(
-  testData$x,
-  rpois(nrow(testData$x), 3L),
-  family = "nbinom",
-  n.trees = 5L,
-  n.samples = 10L,
-  n.burn = 5L,
-  n.chains = 1L,
-  n.threads = 1L,
-  verbose = FALSE
-)
-expect_error(
-  dbarts::pdbart(negbinFit, xind = c(1, 2), pl = FALSE),
-  "'pdbart' does not yet serve family = \"nbinom\"",
-  fixed = TRUE
-)
-rm(negbinFit)
-
 
 # A factor predictor is evaluated at every level by default, levels are given
 # and reported by name, and each value equals a direct prediction at the level.

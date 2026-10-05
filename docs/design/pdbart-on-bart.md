@@ -2,7 +2,7 @@
 
 Status: PLANNED 2026-10-04.
 Plan: [pdbart-on-bart.md](../plans/pdbart-on-bart.md). Grown slice by slice;
-this text covers slice 1, the fit route.
+this text covers slices 1 and 2.
 
 ## The fit route
 
@@ -63,3 +63,35 @@ spellings is refused. `bart`'s defaults message and its `sigdf` and
 were found
 ([`holdingBartNotices`](../../R/tombstones.R)); pdbart shows its own
 defaults message instead ([`notePdbartDefaults`](../../R/tombstones.R)).
+
+## The scale and the rows
+
+On a fit, each grid value's rows are predicted through the fit's own
+`predict` method at the resolved `type` and averaged per draw, transformed
+first and averaged last ([`pdbart.fitDrawsAt`](../../R/partialDependence.R)).
+`"auto"` resolves to the link scale, except the mean response on a hurdle
+fit ([`pdbart.resolveType`](../../R/partialDependence.R)). A sampler passed
+in has no fit to transform through and keeps the slice-1 route on the link
+scale. The result records the type and the family, and the plot labels read
+both ([`pdScaleLabel`](../../R/plot.R)).
+
+In a formula fit the rows are the variables of the data, collected as
+`get_all_vars` collects them from the data the call names - re-evaluated
+from the stored call for a fit passed in - and cut to the fit's rows by
+their names ([`pdbart.trainingRows`](../../R/partialDependence.R)); a varied
+variable is set in those rows and `predict` codes them through the stored
+formula, so every term built from it moves with it. A matrix fit's rows are
+its coded predictors.
+
+The averaged rows are `newdata`, or the fit's own less those it weights 0,
+optionally a sample of `n.average.rows` of them drawn once, kept in the
+fit's order, before the grid loop
+([`pdbart.frame`](../../R/partialDependence.R)).
+`average.weights` weight the average, renormalized over a sample. Each row's
+offset is applied once: where the fit's offset argument can be evaluated on
+the rows, `predict` evaluates it there; where it cannot, it was a plain
+vector for the training rows, and each row passes its own stored share
+([`pdbart.storedOffset`](../../R/partialDependence.R)). pd2bart's
+single-row shortcut applies only on two predictors with one offset for
+every row and outside `type = "ppd"`, and then ignores the averaging
+arguments with a warning.

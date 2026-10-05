@@ -438,6 +438,61 @@ pdMergedDraws <- function(fd) {
   if (length(dim(fd)) == 3L) combineChains(fd) else fd
 }
 
+# The response's name as the fit's call wrote it: a formula's left-hand side,
+# or the data argument when it is a name. NULL when neither reads as one.
+pdResponseName <- function(call) {
+  if (!is.call(call)) {
+    return(NULL)
+  }
+  formula <- if ("x.train" %in% names(call)) call$x.train else call$formula
+  if (is.call(formula) && identical(formula[[1L]], as.name("~"))) {
+    return(if (length(formula) == 3L) deparse1(formula[[2L]]))
+  }
+  data <- if ("y.train" %in% names(call)) call$y.train else call$data
+  if (is.name(data)) as.character(data)
+}
+
+# The scale a pdbart or pd2bart result is on, by its type and family; a
+# result that records no type is labelled as it always was.
+pdScaleLabel <- function(x) {
+  type <- x$type
+  family <- if (is.null(x$family)) "" else x$family
+  if (is.null(type)) {
+    return("partial-dependence")
+  }
+  response <- pdResponseName(x$bartcall)
+  if (is.null(response)) {
+    response <- "response"
+  }
+  binary <- family %in% c("probit", "logistic")
+  hurdle <- family == "hurdle.lognormal"
+  switch(
+    type,
+    bart = if (family == "probit") {
+      "probit scale"
+    } else if (family == "logistic") {
+      "logit scale"
+    } else if (family == "nbinom") {
+      paste0("log mean ", response)
+    } else if (hurdle) {
+      paste0("log ", response, " where positive")
+    } else {
+      response
+    },
+    ev = if (binary) {
+      "probability"
+    } else if (hurdle) {
+      "mean response"
+    } else {
+      response
+    },
+    prob = paste0("probability ", response, " is positive"),
+    ppd = paste0("predicted ", response),
+    sigma = paste0("residual sd of ", response),
+    response
+  )
+}
+
 plot.pdbart <- function(
   x,
   xind = seq_along(x$fd),
@@ -450,7 +505,7 @@ plot.pdbart <- function(
   dots <- list(...)
   lineType <- if (is.null(dots$type)) "b" else dots$type
   xlab <- dots$xlab
-  ylab <- if (is.null(dots$ylab)) "partial-dependence" else dots$ylab
+  ylab <- if (is.null(dots$ylab)) pdScaleLabel(x) else dots$ylab
   dots$type <- dots$xlab <- dots$ylab <- NULL
 
   fd <- lapply(x$fd, pdMergedDraws)
@@ -552,6 +607,15 @@ plot.pd2bart <- function(
         col = contour.color
       )
     }
-    title(main = c("Lower quantile", "Median", "Upper quantile")[i])
+    # a caller's main went to image with the other arguments
+    if (is.null(list(...)$main)) {
+      title(
+        main = paste0(
+          c("Lower quantile", "Median", "Upper quantile")[i],
+          ", ",
+          pdScaleLabel(x)
+        )
+      )
+    }
   }
 }
