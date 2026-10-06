@@ -549,7 +549,7 @@ items
     through forests = list(forest(basis = )) stores no formula, so
     nothing is rebuilt at predict and with subset it is evaluated on
     every row (docs/plans/basis-formula-terms.md, landing note).
-  single-forest-vars-leftovers: three things the column restriction on a
+  single-forest-vars-leftovers: two things the column restriction on a
     single declared forest left (docs/design/single-forest-vars.md). A
     zero split probability does not exclude a column once the positive
     ones run out along a path, with split.probs alone and no vars: with
@@ -557,10 +557,9 @@ items
     beside a column given probability zero, that column is split on
     about 45000 times in 2000 sweeps of 20 trees, in nearly every sweep,
     where the default grid of 100 cuts shows none;
-    setmodel-parameters-not-structure carries the fix. All-zero
-    split.probs fails with a raw R error, with or without vars. And the
-    model's forest.columns attribute moves into the first forest's
-    record when the control migration gives every model one.
+    setmodel-parameters-not-structure carries the fix. And the model's
+    forest.columns attribute moves into the first forest's record when
+    the control migration gives every model one.
   weighted-binary: arbitrary real weights on the binary families need
     a real-shape Polya-Gamma sampler; IPW is a pseudo-likelihood trap,
     and the approximate-PG decision is shared with

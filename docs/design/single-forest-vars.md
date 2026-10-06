@@ -101,5 +101,5 @@ kinds of fit that state no `vars` on a single forest draw bit for bit what they 
 
 A zero split probability still does not exclude a column once the columns with positive probability run out,
 with `split.probs` alone and no `vars`; the fix belongs with `setModel`'s treatment of a zero probability on a
-column the trees use. All-zero `split.probs` fails with a raw R error, with or without `vars`. When the control migration gives every
-model a forest record, the `forest.columns` attribute moves into the first forest's record with the rest.
+column the trees use. When the control migration gives every model a forest record, the `forest.columns`
+attribute moves into the first forest's record with the rest.

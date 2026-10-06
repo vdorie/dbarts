@@ -72,6 +72,14 @@ expect_error(
   "missing values for columns 1"
 )
 
+# all zero states no relative probabilities; refused by name, not by the
+# NaN a division by their sum leaves
+probs <- rep.int(0, ncol(testData$x))
+expect_error(
+  eval(fitCall),
+  "'split.probs' must give at least one column a positive probability"
+)
+
 # an explicit vector that normalizes to uniform canonicalizes to the empty
 # spec too, exactly as the scalar spellings above do
 probs <- rep.int(3, ncol(testData$x))

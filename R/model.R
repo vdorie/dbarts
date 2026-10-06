@@ -488,6 +488,11 @@ resolveSplitProbabilities <- function(prior, data) {
       }
     }
 
+    # no positive entry states no relative probabilities, and an all-zero
+    # vector would be divided by its zero sum
+    if (!any(split.probs > 0)) {
+      stop("'split.probs' must give at least one column a positive probability")
+    }
     split.probs <- split.probs / sum(split.probs)
     if (all(split.probs == split.probs[1L])) {
       split.probs <- numeric()
