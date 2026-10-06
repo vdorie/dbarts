@@ -6084,8 +6084,8 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
 
     // a null column argument addresses every column with one entry each, the
-    // list a sampler reports; a factor column's entry is skipped unread, its
-    // grid following its level table
+    // list a sampler reports; a factor column's entry is skipped unread, of
+    // whatever type it is, its grid following its level table
     bool wholeList = Rf_isNull(columnsExpr);
     size_t numEntries = wholeList
       ? numPredictors : static_cast<size_t>(Rf_xlength(columnsExpr));
@@ -6114,6 +6114,8 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       }
 
       SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(k));
+      if (!Rf_isReal(cutsExpr))
+        Rf_error("$setCutPoints: 'cuts' must be numeric");
       R_xlen_t numCuts = Rf_xlength(cutsExpr);
       // codes must fit xint_t with naCode reserved, so a grid past
       // maxNumCutsRepresentable would pool its top bin with missing values
@@ -6126,12 +6128,20 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       if (numCuts < 1)
         Rf_error("$setCutPoints: requires at least one cut point per "
                  "column");
-      // equal neighbours are a grid the store builds itself over a column
-      // whose range is a single value, so a sampler takes its own grid back
+      // a stored split names its cut by value, and on a grid that repeats a
+      // value a restore cannot tell which index it was drawn on, so a caller's
+      // grid strictly increases. The grid the column holds, bit for bit, is
+      // taken as it is: the store builds equal neighbours itself over a
+      // column whose range is a single value, and an undo hands that back
       const double* cuts = REAL(cutsExpr);
-      if (!bartcore::cutGridIsValid(cuts, static_cast<size_t>(numCuts), false))
-        Rf_error("$setCutPoints: 'cuts' must be sorted non-decreasingly and "
-                 "not contain NaN");
+      const std::vector<double>& held =
+        holder.sampler->data().cutPoints[column];
+      bool isHeld = static_cast<size_t>(numCuts) == held.size() &&
+        std::memcmp(cuts, held.data(), held.size() * sizeof(double)) == 0;
+      if (!isHeld &&
+          !bartcore::cutGridIsValid(cuts, static_cast<size_t>(numCuts), true))
+        Rf_error("$setCutPoints: 'cuts' must be strictly increasing and not "
+                 "contain NaN, unless it is the grid the column holds");
       cutPoints.push_back(cuts);
       numCutPoints.push_back(static_cast<std::uint32_t>(numCuts));
       columns.push_back(column);

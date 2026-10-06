@@ -35,26 +35,27 @@ directly on the store as parallel vectors, one entry per predictor:
 - `categoryCounts[j]` - the fixed level count K of a factor column of
   either kind, 0 for a numeric one. Fixed at build: every mask tier,
   reserved missing code and category histogram width derives from it.
-- `cutPoints[j]` - the ascending thresholds (empty for categoricals). An
+- `cutPoints[j]` - the thresholds in non-decreasing order (empty for
+  categoricals). The uniform rule repeats a value over a column narrower
+  than its spacing, a constant one included; a caller's grid
+  (`setCutPoints`) strictly increases unless it is, value for value, the
+  grid the column holds, because a stored split names its cut by value and
+  a repeated value does not say which index it was drawn on. An
   ordered factor's are the K - 1 midpoints between consecutive declared
   level codes, so its code is its own level index and every adjacent
   level pair is separable.
 - `requestedNumCuts[j]` - the count asked for at build (`n.cuts`), fixed
-  for the store's life ([`requestedNumCuts`](../../src/bartcore/data.hpp)).
-  Every derivation of a numeric column's grid, at build and at `setData`,
-  counts from it.
-- `maxNumCuts[j]` - the cap on quantile-induced counts: the larger of
-  `requestedNumCuts[j]` and the length of the grid the column holds, so it
-  is a function of two things a copy and a reload also have. A refresh of
-  a grid set longer than the request therefore keeps its count, and a
-  derivation puts the cap back at the request first. It is itself capped
-  at `maxNumCutsRepresentable` so the reserved missing code `naCode`
-  (0xFFFF) never collides with a real code. An ordered factor RAISES it to
-  K - 1 where the level table asks for more, keeping
-  `numCuts[j] <= maxNumCuts[j]` while the grid follows the levels.
-  The cap once only rose: with `n.cuts = 20`, a 50-point grid set and then
-  set back left a later `setData` deriving 50 points where a twin, a copy
-  and a reload derived 20, the next five draws off by up to 0.158.
+  for the store's life ([`requestedNumCuts`](../../src/bartcore/data.hpp))
+  and at most `maxNumCutsRepresentable`, so the reserved missing code
+  `naCode` (0xFFFF) never collides with a real code. Every derivation of a
+  numeric column's grid, at build and at `setData`, counts from it; a
+  refresh counts from `numCuts[j]`, the count the column holds, above the
+  request or below it; an ordered factor's count is its level table's and
+  may pass the request. The store keeps no other count, so nothing a set
+  grid raised can outlive it. It once kept a cap that only rose: with
+  `n.cuts = 20`, a 50-point grid set and then set back left a later
+  `setData` deriving 50 points where a twin, a copy and a reload derived
+  20, the next five draws off by up to 0.158.
 - `useQuantiles` - grid mode (store-wide).
 - `hasMissing[j]`, `hasPooledCategorical` - derived flags gating the
   NA-aware partition kernel and the pooled-mask machinery.
@@ -269,8 +270,8 @@ A view ([`buildFromParent`](../../src/bartcore/data.hpp)) is a row- and column-s
 a built parent store, used by xbart folds and the data-handle path. It:
 
 - copies the parent's grid fields (`types`, `cutPoints`, `numCuts`,
-  `categoryCounts`, `requestedNumCuts`, `maxNumCuts`) for the spanned
-  columns, so it bins identically by construction;
+  `categoryCounts`, `requestedNumCuts`) for the spanned columns, so it
+  bins identically by construction;
 - DENSIFIES: gathered train and test codes are fully dense whatever the
   parent's per-column storage, so the sparse-specific paths never run in a
   fold (every `sources` entry stays `denseCallSupplied`, `sparseColumns`

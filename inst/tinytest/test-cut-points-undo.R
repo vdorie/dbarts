@@ -1,7 +1,8 @@
 # A cut grid changed with setCutPoints can be put back on any design, and
 # leaves nothing behind: a later setData derives the grid n.cuts names
-# whatever grid was set before it, as a copy and a reload do. The grid in
-# force is read from the stored state.
+# whatever grid was set before it, as a copy and a reload do. A caller's own
+# grid strictly increases; the grid a column holds is taken back as it is,
+# repeated points included. The grid in force is read from the stored state.
 
 cutPointsOf <- function(sampler) {
   sampler$storeState()
@@ -29,15 +30,18 @@ longer <- seq(0.01, 0.99, length.out = 50L)
 
 for (useQuantiles in c(FALSE, TRUE)) {
   rule <- if (useQuantiles) "quantile" else "uniform"
-  control <- dbartsControl(
-    n.chains = 1L,
-    n.threads = 1L,
-    n.trees = 10L,
-    n.cuts = 20L,
-    useQuantiles = useQuantiles,
-    updateState = FALSE,
-    seed = 7L
-  )
+  controlWith <- function(n.trees) {
+    dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = n.trees,
+      n.cuts = 20L,
+      useQuantiles = useQuantiles,
+      updateState = FALSE,
+      seed = 7L
+    )
+  }
+  control <- controlWith(10L)
 
   # the undo leaves no residue: a longer grid set and put back, the state
   # restored, and the sampler derives at setData what an untouched twin, its
@@ -114,11 +118,39 @@ for (useQuantiles in c(FALSE, TRUE)) {
   sampler$setCutPoints(c(0.25, 0.5, 0.75), 1L)
   sampler$setData(newData)
   expect_identical(cutPointsOf(sampler), derived, info = rule)
+
+  # states that come and go leave a longer grid as it was: one on a shorter
+  # grid installed and the longer grid set again, then one refused, and the
+  # column still refreshes at the count it holds
+  sampler <- warmed(x, y, control = control)
+  sampler$setCutPoints(longer, 1L)
+  donor <- warmed(x, y, control = control)
+  expect_true(sampler$setState(donor$state), info = rule)
+  expect_identical(lengths(cutPointsOf(sampler)), c(20L, 20L), info = rule)
+  sampler$setCutPoints(longer, 1L)
+  donor <- warmed(x, y, control = controlWith(7L))
+  expect_error(
+    sampler$setState(donor$state),
+    pattern = "state is not consistent with this sampler",
+    info = rule
+  )
+  refreshed <- outcomeOf(
+    sampler$setPredictor(
+      xNew[, 1L],
+      1L,
+      forceUpdate = TRUE,
+      updateCutPoints = TRUE
+    )
+  )
+  expect_false(is.character(refreshed), info = rule)
+  grid <- cutPointsOf(sampler)[[1L]]
+  expect_identical(length(grid), 50L, info = rule)
+  expect_false(identical(grid, longer), info = rule)
 }
 
 # The uniform rule repeats a point over a column it cannot spread a grid
 # over, a constant one or one narrower than doubles resolve; the sampler
-# takes such a grid back, by column and as the whole list.
+# takes the grid such a column holds back, by column and as the whole list.
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
@@ -138,7 +170,8 @@ o <- factor(
 y <- sin(4 * a) + (f == "b") + as.integer(o) / 2 + rnorm(n, 0, 0.3)
 
 sampler <- warmed(cbind(a, const, narrow), y, control = control)
-own <- attr(sampler$state, "cutPoints")
+stored <- sampler$state
+own <- attr(stored, "cutPoints")
 expect_identical(lengths(own), c(100L, 100L, 100L))
 distinct <- lengths(lapply(own, unique))
 expect_identical(distinct[1L:2L], c(100L, 1L))
@@ -148,33 +181,76 @@ expect_silent(sampler$setCutPoints(own[[3L]], 3L))
 expect_silent(sampler$setCutPoints(own))
 expect_identical(cutPointsOf(sampler), own)
 
-# a caller's grid with equal neighbours is taken too, and the sampler runs,
-# stores and copies on it
-expect_silent(sampler$setCutPoints(c(0.25, 0.5, 0.5, 0.75), 1L))
-repeated <- cutPointsOf(sampler)
-expect_identical(repeated[[1L]], c(0.25, 0.5, 0.5, 0.75))
-expect_true(all(is.finite(sampler$run(0L, 5L)$train)))
-expect_identical(cutPointsOf(sampler$copy()), repeated)
-# a grid no sampler can hold is refused and leaves the grid as it was
-for (cuts in list(c(0.6, 0.5), c(0.2, NaN), c(0.2, NA))) {
+# Any other grid with equal neighbours is refused, on a column whose own grid
+# repeats a point as on one whose grid does not, and so are a decreasing grid
+# and a missing value, by column and as an entry of the whole list. The grid
+# is left as it was.
+refusal <- paste(
+  "$setCutPoints: 'cuts' must be strictly increasing and not contain NaN,",
+  "unless it is the grid the column holds"
+)
+notHeld <- list(c(0.25, 0.5, 0.5, 0.75), c(0.6, 0.5), c(0.2, NaN), c(0.2, NA))
+for (cuts in notHeld) {
+  expect_error(sampler$setCutPoints(cuts, 1L), pattern = refusal, fixed = TRUE)
   expect_error(
-    sampler$setCutPoints(cuts, 1L),
-    pattern = "'cuts' must be sorted non-decreasingly and not contain NaN",
+    sampler$setCutPoints(list(cuts, own[[2L]], own[[3L]])),
+    pattern = refusal,
     fixed = TRUE
   )
 }
-expect_identical(cutPointsOf(sampler), repeated)
+for (cuts in list(rep(2, 100L), own[[3L]], own[[2L]][-1L])) {
+  expect_error(sampler$setCutPoints(cuts, 2L), pattern = refusal, fixed = TRUE)
+}
+expect_identical(cutPointsOf(sampler), own)
+
+# A strictly increasing grid is taken on either kind of column. The constant
+# column's old grid is then no longer the one it holds, so setCutPoints
+# refuses it, and the stored state brings it back.
+expect_silent(sampler$setCutPoints(c(0.25, 0.5, 0.75), 1L))
+expect_silent(sampler$setCutPoints(c(0.5, 1.5), 2L))
+expect_identical(
+  cutPointsOf(sampler),
+  list(c(0.25, 0.5, 0.75), c(0.5, 1.5), own[[3L]])
+)
+expect_error(sampler$setCutPoints(own), pattern = refusal, fixed = TRUE)
+expect_true(sampler$setState(stored))
+expect_identical(cutPointsOf(sampler), own)
+
+# what is not a grid is refused by name
+notNumeric <- "$setCutPoints: 'cuts' must be numeric"
+expect_error(sampler$setCutPoints(mean, 1L), pattern = notNumeric, fixed = TRUE)
+expect_error(
+  sampler$setCutPoints(list(own[[1L]], mean, own[[3L]])),
+  pattern = notNumeric,
+  fixed = TRUE
+)
+expect_identical(cutPointsOf(sampler), own)
 
 # The list a sampler reports has an entry per column, a factor's included.
-# Given the whole list, the factor entries are skipped and not checked;
-# naming a factor column stays refused, and so does a list of another length.
+# Given the whole list, what sits in a factor column's place is not read: it
+# neither warns nor fails, whatever it is. The numeric entries are held to
+# the rule; naming a factor column stays refused, and so does a list of
+# another length.
 sampler <- warmed(y ~ a + f + o, data.frame(y, a, f, o), control = control)
 own <- attr(sampler$state, "cutPoints")
 expect_identical(lengths(own), c(100L, 0L, 2L))
 expect_silent(sampler$setCutPoints(own))
 expect_identical(cutPointsOf(sampler), own)
-expect_silent(sampler$setCutPoints(list(c(0.25, 0.5), c(3, 1, NaN), NULL)))
-expect_identical(cutPointsOf(sampler), c(list(c(0.25, 0.5)), own[-1L]))
+expect_silent(sampler$setCutPoints(list(c(0.25, 0.5), levels(f), mean)))
+set <- c(list(c(0.25, 0.5)), own[-1L])
+expect_identical(cutPointsOf(sampler), set)
+for (cuts in notHeld) {
+  expect_error(
+    sampler$setCutPoints(list(cuts, NULL, NULL)),
+    pattern = refusal,
+    fixed = TRUE
+  )
+}
+expect_error(
+  sampler$setCutPoints(list(mean, NULL, NULL)),
+  pattern = notNumeric,
+  fixed = TRUE
+)
 expect_error(
   sampler$setCutPoints(0.5, 2L),
   pattern = "cannot set cut points for a categorical predictor"
@@ -187,7 +263,16 @@ expect_error(
   sampler$setCutPoints(own[-3L]),
   pattern = "requires one cut point vector per column"
 )
-expect_identical(cutPointsOf(sampler), c(list(c(0.25, 0.5)), own[-1L]))
+expect_identical(cutPointsOf(sampler), set)
+
+# a design of factor columns alone leaves a whole list nothing to install:
+# the call returns and the sampler is as it was
+sampler <- warmed(y ~ f + o, data.frame(y, f, o), control = control)
+stored <- sampler$state
+expect_identical(lengths(attr(stored, "cutPoints")), c(0L, 2L))
+expect_silent(sampler$setCutPoints(list(levels(f), mean)))
+sampler$storeState()
+expect_identical(sampler$state, stored)
 
 # The whole undo on a design with a constant column and a factor: a grid is
 # changed, the stored state's whole list handed back and the state restored,
