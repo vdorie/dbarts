@@ -166,7 +166,7 @@ for (cuts in list(c(0.6, 0.5), c(0.2, NaN), c(0.2, NA))) {
 expect_identical(cutPointsOf(sampler), repeated)
 
 # The list a sampler reports has an entry per column, a factor's included.
-# Given the whole list, the factor entries are skipped whatever they hold;
+# Given the whole list, the factor entries are skipped and not checked;
 # naming a factor column stays refused, and so does a list of another length.
 sampler <- warmed(y ~ a + f + o, data.frame(y, a, f, o), control = control)
 own <- attr(sampler$state, "cutPoints")
