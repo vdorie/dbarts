@@ -877,7 +877,8 @@ resolveModerators <- function(moderators, data, argument = "moderators") {
   if (length(moderators) == 0L) {
     stop("'", argument, "' is empty; omit it to leave the forest unrestricted")
   }
-  if (anyNA(moderators)) {
+  # an atomic vector only: anything else is left to the coercion below
+  if (is.atomic(moderators) && anyNA(moderators)) {
     stop("'", argument, "' contains missing values")
   }
   if (is.character(moderators)) {

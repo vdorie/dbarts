@@ -303,6 +303,22 @@ expect_error(
   ),
   pattern = "'vars' contains missing values"
 )
+# a selection that is not a vector is not read for missing values: it fails
+# in the coercion, as it did before that check, and raises no warning
+for (selection in list(~ a + b, quote(a))) {
+  numWarnings <- 0L
+  expect_error(
+    withCallingHandlers(
+      sampler(x, y, forests = restrictTo(selection)),
+      warning = function(w) {
+        numWarnings <<- numWarnings + 1L
+        invokeRestart("muffleWarning")
+      }
+    ),
+    pattern = "coerce.* (to|to vector of) type 'integer'"
+  )
+  expect_identical(numWarnings, 0L)
+}
 expect_error(
   sampler(
     x,
