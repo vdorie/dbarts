@@ -2595,6 +2595,12 @@ dbartsSampler <- setRefClass(
           "sampler instead"
         )
       }
+      # split probabilities are a parameter, held to what creation holds them
+      # to on a restricted forest
+      refuseNoSplittableColumn(
+        newModel@tree.prior@splitProbabilities,
+        attr(model, "forest.columns", exact = TRUE)
+      )
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 

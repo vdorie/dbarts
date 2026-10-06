@@ -438,6 +438,20 @@ expect_identical(live$model@tree.prior@power, 3)
 expect_identical(attr(live$copy()$model, "forest.columns"), 1:2)
 expect_true(staysWithin(live))
 
+# split probabilities are a parameter setModel may change, held to what
+# creation holds them to: positive on some allowed column
+edited@tree.prior@splitProbabilities <- c(0.25, 0.25, 0.5)
+live$setModel(edited)
+expect_true(staysWithin(live))
+modelBefore <- live$model
+edited@tree.prior@splitProbabilities <- c(0, 0, 1)
+expect_error(
+  live$setModel(edited),
+  pattern = "'split.probs' gives no positive probability to any column"
+)
+expect_identical(live$model, modelBefore)
+expect_true(all(splits(live$run(0L, 100L))[1:2] > 0))
+
 # a model with another restriction or none is refused by name, in both
 # directions, before anything is stored
 otherModel <- sampler(x, y, forests = restrictTo("a"))$model

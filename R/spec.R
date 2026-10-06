@@ -666,18 +666,10 @@ resolveSamplerSpec <- function(
       !is.null(firstColumns) &&
       length(firstColumns) < ncol(data@x)
   ) {
-    # the engine draws a split variable among the allowed columns by their
-    # relative probabilities, which all-zero ones do not state
-    splitProbabilities <- priors$tree.prior@splitProbabilities
-    if (
-      length(splitProbabilities) > 0L &&
-        !any(splitProbabilities[firstColumns] > 0)
-    ) {
-      stop(
-        "'split.probs' gives no positive probability to any column the ",
-        "forest's 'vars' allows; give one of them a positive probability"
-      )
-    }
+    refuseNoSplittableColumn(
+      priors$tree.prior@splitProbabilities,
+      firstColumns
+    )
     attr(model, "forest.columns") <- firstColumns
   }
 

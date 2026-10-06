@@ -890,6 +890,26 @@ resolveModerators <- function(moderators, data, argument = "moderators") {
   sort(unique(as.integer(moderators)))
 }
 
+## A forest restricted to `columns` draws each split variable among them by
+## their relative split probabilities, which a vector giving none of them a
+## positive probability does not state: the engine would split on the first
+## column available. Refused where a model reaches a restricted single forest,
+## at creation and in setModel. `columns` NULL is no restriction, and an empty
+## `splitProbabilities` is the uniform default.
+refuseNoSplittableColumn <- function(splitProbabilities, columns) {
+  if (
+    !is.null(columns) &&
+      length(splitProbabilities) > 0L &&
+      !isTRUE(any(splitProbabilities[columns] > 0))
+  ) {
+    stop(
+      "'split.probs' gives no positive probability to any column the ",
+      "forest's 'vars' allows; give one of them a positive probability"
+    )
+  }
+  invisible(NULL)
+}
+
 ## The `basis` declarations of a `forests` list, one element per forest and
 ## NULL where a forest declares none, or NULL when there is no usable list at
 ## all. Read before the structural validation resolveForests does, so anything
