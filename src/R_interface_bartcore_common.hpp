@@ -514,15 +514,19 @@ void refuseNonFinite(const double* values, std::size_t count,
 
 /// The interrupt poll both run routes hand the engine: R_CheckUserInterrupt
 /// under R_ToplevelExec, so a pending interrupt is reported rather than
-/// longjmped and the sampler can join its workers before the interrupt is raised.
+/// longjmped and the sampler can join its workers before it is raised. An
+/// error that check raises (a time limit) is kept and re-raised by
+/// raiseInterrupt as an error, with its own message.
 /// Main R thread only. While interruptAfterPolls is armed at N > 0 the Nth poll
 /// reports an interrupt without touching R's signal state and disarms it.
 bool userInterrupted();
 
 /// Raises R's interrupt condition after a run the poll cancelled, by
 /// evaluating the namespace's signalInterrupt, which signals a condition of
-/// class c("interrupt", "condition") and, if no handler takes it, invokes the
-/// "abort" restart. Does not return. Like Rf_error it jumps, so the caller
+/// class c("interrupt", "condition") and, if no handler takes it, does what an
+/// unhandled interrupt does and takes the first restart among "browser",
+/// "tryRestart" and "abort". When the poll's jump was an error instead, raises
+/// that error. Does not return. Like Rf_error it jumps, so the caller
 /// has joined every worker and left no object with a destructor in its frame.
 [[noreturn]] void raiseInterrupt();
 

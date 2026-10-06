@@ -1135,9 +1135,131 @@ runSweeps <- function(callback) {
   )
 }
 expectInterruptRaised(function() runSweeps(function(i) FALSE))
-expect_null(runSweeps(function(i) TRUE))
-expect_null(runSweeps(function(i) FALSE))
+# (an interrupt where none belongs fails an expectation, not the process)
+notInterrupted <- function(expr) {
+  tryCatch(expr, interrupt = function(cond) "an interrupt")
+}
+expect_null(notInterrupted(runSweeps(function(i) TRUE)))
+expect_null(notInterrupted(runSweeps(function(i) FALSE)))
+# a callback that raises is an error of its own, not an interrupt
+sink(textConnection("sweepMessages", "w", local = TRUE), type = "message")
+erred <- tryCatch(
+  runSweeps(function(i) stop("boom")),
+  interrupt = function(cond) "an interrupt",
+  error = conditionMessage
+)
+sink(type = "message")
+expect_equal(erred, "error evaluating the sweep callback")
 expect_true(is.list(sampler$run(10L, 1L)))
+
+# What an interrupt nothing handles does, on the entry points' shared path:
+# options("interrupt"), a blank line on stderr, options("error"), and the
+# first restart among "browser", "tryRestart" and "abort". A handled one does
+# none of it. Only the real signal, at home, shows R's own half of the
+# unhandled path (test-interrupt-signal.R).
+unhandledRun <- function(run, restarts) {
+  calls <- c(error = 0L, interrupt = 0L)
+  old <- options(
+    error = function() calls[["error"]] <<- calls[["error"]] + 1L,
+    interrupt = function() calls[["interrupt"]] <<- calls[["interrupt"]] + 1L
+  )
+  on.exit(options(old))
+  messages <- character()
+  sink(textConnection("messages", "w", local = TRUE), type = "message")
+  countHooks(interruptAfterPolls = 1L)
+  taken <- tryCatch(
+    restarts(run),
+    error = function(e) paste("error:", conditionMessage(e))
+  )
+  countHooks(interruptAfterPolls = 0L)
+  sink(type = "message")
+  list(taken = taken, calls = calls, messages = messages)
+}
+errorOptionOnly <- function(run) {
+  old <- options(interrupt = NULL, error = function() ran <<- TRUE)
+  on.exit(options(old))
+  ran <- FALSE
+  countHooks(interruptAfterPolls = 1L)
+  taken <- tryCatch(
+    withRestarts(run(), abort = function() "abort"),
+    error = function(e) paste("error:", conditionMessage(e))
+  )
+  countHooks(interruptAfterPolls = 0L)
+  list(taken = taken, ran = ran)
+}
+abortOnly <- function(run) {
+  withRestarts(run(), abort = function() "abort")
+}
+out <- unhandledRun(function() sampler$run(10L, 1L), abortOnly)
+expect_equal(out$taken, "abort")
+# options("interrupt") as a function stands in for options("error"), as in R
+expect_equal(unname(out$calls), c(0L, 1L))
+expect_equal(out$messages, "")
+out <- errorOptionOnly(function() sampler$run(10L, 1L))
+expect_equal(out$taken, "abort")
+expect_true(out$ran)
+# a browser or tryRestart restart is taken in preference to the abort outside
+out <- unhandledRun(
+  function() sampler$run(10L, 1L),
+  function(run) {
+    withRestarts(
+      withRestarts(run(), browser = function() "browser"),
+      abort = function() "abort"
+    )
+  }
+)
+expect_equal(out$taken, "browser")
+out <- unhandledRun(
+  function() sampler$run(10L, 1L),
+  function(run) {
+    withRestarts(
+      withRestarts(run(), tryRestart = function() "tryRestart"),
+      abort = function() "abort"
+    )
+  }
+)
+expect_equal(out$taken, "tryRestart")
+# handled: no blank line, no option called
+out <- unhandledRun(
+  function() sampler$run(10L, 1L),
+  function(run) {
+    withRestarts(
+      tryCatch(run(), interrupt = function(cond) "handled"),
+      abort = function() "abort"
+    )
+  }
+)
+expect_equal(out$taken, "handled")
+expect_equal(unname(out$calls), c(0L, 0L))
+expect_equal(out$messages, character())
+expect_true(is.list(sampler$run(10L, 1L)))
+
+# A time limit that expires during a run is the error R raises for it, caught
+# by try() and not an interrupt, and the sampler runs again afterwards. The
+# limit is the test's own bound: the run is far longer than it.
+timeLimited <- dbarts::dbarts(
+  xSlow,
+  ySlow,
+  control = dbarts::dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 10L,
+    n.samples = 1L,
+    updateState = FALSE
+  )
+)
+limited <- tryCatch(
+  {
+    setTimeLimit(elapsed = 0.3, transient = TRUE)
+    try(timeLimited$run(2000000L, 1L), silent = TRUE)
+  },
+  interrupt = function(cond) "an interrupt"
+)
+setTimeLimit()
+expect_inherits(limited, "try-error")
+expect_true(grepl("reached elapsed time limit", as.character(limited)))
+expect_true(is.list(timeLimited$run(5L, 1L)))
+rm(timeLimited, limited)
 
 # the R route warns on every run with a slow count, the flag never reaching it
 countHooks(-1)
@@ -1162,7 +1284,7 @@ if (is.null(consumer$skip)) {
   # a callback's stop is not an interrupt: the flat run returns normally
   CALL("capi_draw_reset", 0L)
   CALL("capi_set_draw_callback", ptr, TRUE)
-  expect_true(CALL("capi_run_plain", ptr, 0L, 3L))
+  expect_true(notInterrupted(CALL("capi_run_plain", ptr, 0L, 3L)))
   expect_equal(sum(CALL("capi_draw_report")$calls), 1L)
   CALL("capi_set_draw_callback", ptr, FALSE)
 

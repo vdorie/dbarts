@@ -396,7 +396,7 @@ nStop <- 20L
 xStop <- matrix(runif(nStop * 2L), nStop, 2L)
 yStop <- xStop[, 1L] + rnorm(nStop, 0, 0.2)
 CALL("capi_draw_reset", 2L)
-expect_error(
+stopped <- tryCatch(
   bart(
     xStop,
     yStop,
@@ -408,8 +408,10 @@ expect_error(
     callback = list(fn = callbackFn, context = callbackContext),
     verbose = FALSE
   ),
-  "callback"
+  interrupt = function(cond) "an interrupt",
+  error = conditionMessage
 )
+expect_true(is.character(stopped) && grepl("callback", stopped))
 expect_equal(sum(CALL("capi_draw_report")$calls), 3L)
 CALL("capi_draw_reset", -1L)
 

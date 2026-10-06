@@ -323,21 +323,30 @@ warnOnSlowCount <- function(result) {
 
 # What the bridge evaluates once a cancelled run has joined its workers and
 # left nothing live: the interrupt condition, as base R signals one, handed to
-# any calling or exiting handler for "interrupt" and otherwise taken to top
-# level by the abort restart, after the blank line and the options("error")
-# handler an unhandled interrupt gets. It is not an error, so try() and error
-# handlers leave it alone. Unlike a real one it offers no "resume" restart: the
-# run is over.
+# any calling or exiting handler for "interrupt". Only an interrupt nothing
+# handled gets what follows, as R's own would: options("interrupt"), the blank
+# line, options("error") (unless an interrupt function took its place), then
+# the first of the "browser", "tryRestart" and "abort" restarts. (The poll's
+# own check runs under an exiting handler, so R has done none of that already.)
+# It is not an error, so try() and error handlers leave it alone. Unlike a
+# real one it offers no "resume" restart: the run is over.
 signalInterrupt <- function() {
   signalCondition(structure(class = c("interrupt", "condition"), list()))
-  cat("\n", file = stderr())
-  handler <- getOption("error")
+  handler <- getOption("interrupt")
   if (is.function(handler)) {
     handler()
-  } else if (is.language(handler)) {
+  }
+  cat("\n", file = stderr())
+  # as R's own, an options("interrupt") function stands in for options("error")
+  handler <- getOption("error")
+  if (!is.function(getOption("interrupt")) && !is.null(handler)) {
     eval(handler, globalenv())
   }
-  invokeRestart("abort")
+  for (restart in computeRestarts()) {
+    if (restart[[1L]] %in% c("browser", "tryRestart", "abort")) {
+      invokeRestart(restart)
+    }
+  }
 }
 
 # Sums slow-count tallies: counts add, the slowest count wins.

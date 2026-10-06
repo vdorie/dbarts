@@ -4708,23 +4708,69 @@ std::atomic<int> interruptAfterPolls{0};
 
 // R_CheckUserInterrupt longjmps when an interrupt is pending; running it
 // through R_ToplevelExec catches that jump so the sampler can join its worker
-// threads before the interrupt becomes an error (a bare longjmp would strand
-// them). R_ToplevelExec returns FALSE when the wrapped call jumped, i.e. when
-// an interrupt was pending.
-static void checkInterrupt(void*) { R_CheckUserInterrupt(); }
+// threads before the interrupt is raised (a bare longjmp would strand them).
+// R_ToplevelExec returns FALSE when the wrapped call jumped; the check runs
+// under R_tryCatch inside it, so an interrupt or an error (a time limit)
+// reaches an exiting handler before R's top-level processing of either.
+namespace {
+// what the last poll's jump was: an interrupt, or an error R raised from the
+// same check (a time limit), whose message is kept to be raised as an error
+struct PollOutcome {
+  bool jumped = false;
+  bool isError = false;
+  char message[512];
+};
+PollOutcome lastPoll;
+SEXP pollBody(void*) { R_CheckUserInterrupt(); return R_NilValue; }
+SEXP pollHandler(SEXP cond, void*) {
+  lastPoll.jumped = true;
+  lastPoll.isError = !Rf_inherits(cond, "interrupt");
+  if (lastPoll.isError) {
+    // the fallback stands if the message cannot be had
+    std::snprintf(lastPoll.message, sizeof lastPoll.message, "%s",
+                  "error raised while polling for an interrupt");
+    SEXP call = PROTECT(Rf_lang2(Rf_install("conditionMessage"), cond));
+    SEXP msg = PROTECT(Rf_eval(call, R_BaseEnv));
+    std::snprintf(lastPoll.message, sizeof lastPoll.message, "%s",
+                  CHAR(STRING_ELT(msg, 0)));
+    UNPROTECT(2);
+  }
+  return R_NilValue;
+}
+void checkInterrupt(void*) {
+  SEXP conds = PROTECT(Rf_allocVector(STRSXP, 2));
+  SET_STRING_ELT(conds, 0, Rf_mkChar("interrupt"));
+  SET_STRING_ELT(conds, 1, Rf_mkChar("error"));
+  R_tryCatch(pollBody, nullptr, conds, pollHandler, nullptr, nullptr, nullptr);
+  UNPROTECT(1);
+}
+} // namespace
 bool userInterrupted() {
   int armed = interruptAfterPolls.load();
-  if (armed > 0 && interruptAfterPolls.fetch_sub(1) == 1) return true;
-  return R_ToplevelExec(checkInterrupt, nullptr) == FALSE;
+  if (armed > 0 && interruptAfterPolls.fetch_sub(1) == 1) {
+    lastPoll.jumped = true;
+    lastPoll.isError = false;
+    return true;
+  }
+  lastPoll.jumped = false;
+  // the exiting handler takes an interrupt or an error before R's top-level
+  // processing of either; R_ToplevelExec contains any other jump
+  if (R_ToplevelExec(checkInterrupt, nullptr) == FALSE) {
+    lastPoll.jumped = true;
+    lastPoll.isError = false;
+  }
+  return lastPoll.jumped;
 }
 
 [[noreturn]] void raiseInterrupt() {
+  if (lastPoll.isError) {
+    lastPoll.isError = false;
+    Rf_error("%s", lastPoll.message);
+  }
   SEXP name = PROTECT(Rf_mkString("dbarts"));
   SEXP ns = PROTECT(R_FindNamespace(name));
   SEXP call = PROTECT(Rf_lang1(Rf_install("signalInterrupt")));
   Rf_eval(call, ns);
-  // signalInterrupt invokes the abort restart and never returns; were it to,
-  // the run's contract is still a jump, never a normal return
   Rf_error("sampler run interrupted");
 }
 
