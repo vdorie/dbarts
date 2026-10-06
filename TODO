@@ -606,11 +606,9 @@ items
     was stored, so an install under other weights (setState, a copy,
     a reload) redraws the latent scale of only the rows that enter
     the likelihood, as the same setWeights call would; today it
-    redraws every row in the likelihood, the exact route being to put
-    the stored weights back first. A state stored before this
-    installs as it does now. About 150 lines by the design's
-    estimate; serial with the other work in the state reader and
-    writer. Not planned.
+    redraws every row in the likelihood. A state stored before this
+    installs as it does now. Serial with cut-points-undo and
+    leaf-conversions. Plan: docs/plans/state-zero-weight-rows.md.
   monotone-unforced-refusal: before 1.0-0 (dec-B278, VD 2026-10-06). An
     unforced setPredictor (whole-matrix, by column, row by row) that
     would leave a monotone tree's leaf values out of order is refused
