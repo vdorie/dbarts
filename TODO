@@ -525,14 +525,29 @@ items
     predictor matrix, which marks columns categorical by code; nothing
     documents it, and tests use it to reach codings a factor cannot hold.
     Document it, or refuse it in favour of factor and ordered columns.
-  veto-arc-doors: a per-sweep vetoed-leaf diagnostics counter,
-    R-readable - none exists in src/bartcore, so it is an additive new
-    channel (docs/plans/release-candidate-review.md wave-5a landing
-    note). And aligning sampleTreesFromPrior's all-zero bare-root
-    branch with the mutate path, which draws structures at the prior
-    from the same state: init and mutate disagree about one law
-    deliberately, no baseline reaches the branch, and alignment is its
-    own scoped decision (docs/design/empty-leaf-veto.md).
+  veto-arc-doors: a per-sweep diagnostics counter, R-readable, of
+    leaves that hold rows and none the likelihood sees - none exists in
+    src/bartcore, so it is an additive new channel
+    (docs/plans/release-candidate-review.md wave-5a landing note).
+  membership-battery-entries: two mutation-battery entries for the
+    membership rule, each expected killed by one gate: the moves'
+    empty-leaf test reading weight (killer mask-redraw-exact.R quick
+    gaussian) and setActiveRows handing the redraw a zero fit (killer
+    mask-redraw-exact.R quick probit). Both were run by hand at landing
+    (docs/plans/empty-leaf-membership.md).
+  forest-prior-args: a forest takes the front door's prior arguments
+    (dec-B246, dec-B252), its sd is the forest's own and a numeric
+    multiplier scales it with no centring or scaling by the package
+    (dec-B253, dec-B257), every multiplier defaults to sqrt(2 / K)
+    (dec-B258), and a multiplier in small units is shrunk to no effect
+    at the default with nothing to flag it, which is still to be
+    decided. Design in progress; plans follow its critique.
+  basis-formula-terms: a forest's basis formula predicts at new rows
+    from the training rows' terms, as the predictors do and as lm does
+    with scale(), poly() and ns(). Today the formula is replayed on the
+    new rows, so basis = ~ scale(w) centres them on their own mean and
+    one new row is an error; ~ I(w - 50) is right. Also accept such a
+    call on the left of :forest() (dec-B257).
   weighted-binary: arbitrary real weights on the binary families need
     a real-shape Polya-Gamma sampler; IPW is a pseudo-likelihood trap,
     and the approximate-PG decision is shared with
@@ -631,7 +646,7 @@ frequency weights (decided, VD 2026-09-24; docs/decisions.md dec-B125)
   counts are already binomial trials, a different thing), the
   argument's name and shape on bart, dbarts, the sampler and dbarts.h,
   whether non-integer frequency weights are refused, and zero weights
-  (excluded, as now). The weights docs say which a weight is. The note
+  (left out of the likelihood and kept in the design, as now). The weights docs say which a weight is. The note
   also answers the maintainer's question of 2026-10-05, what the
   package pays for one weights argument meaning a precision (gaussian,
   Student-t), a trial count (logistic) and membership (0/1 on probit and

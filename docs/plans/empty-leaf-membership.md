@@ -1,6 +1,6 @@
 # empty-leaf-membership: a leaf is empty only when no row reaches it
 
-Status: PLANNED.
+Status: LANDED 2026-10-06 (6df2fd36 to 1b7d730c, baselines f9f37df1).
 
 agent: opus implementer, one; opus reviewer.
 rng: POSTERIOR-CHANGING for a fit with a zero case weight, a zero per-forest weight, an active-row mask or a
@@ -140,3 +140,31 @@ every sweep samples the model it assumes.
 - Every exact gate in `.github/workflows/exact-gates.yaml` in quick mode, the new one included.
 - `lintr::lint_package()`, `air format --check .`, the three tools/ checks and
   `Rscript benchmarks/R/mutation-battery.R verify-anchors` clean.
+
+## Landing note
+
+Landed 2026-10-06 as fourteen commits, 6df2fd36 (the rule) to 1b7d730c, and f9f37df1 (the gaussian and BCF
+equivalence baselines re-recorded on the reference build as equivalence-1b7d730c and
+bcf-equivalence-1b7d730c: the scenarios zeroweights, maskprobit and maskordinal, and masked and glue_toggle,
+recorded fresh, the other 52 and 13 carried bit for bit, and the pins moved). Three reviews, each SOUND WITH
+CORRECTIONS, the corrections in the same series. Full tinytest 13964 results, 0 failures; tests/cpp 347
+checks, clean under ASan and UBSan; the four seeded snapshot files unchanged on the reference build;
+equivalence 55 of 55, BCF 15 of 15 and multinomial 11 of 11 bitwise against the new baselines on the
+reference and shipped builds; all 28 exact gates and the four monotone jobs pass in quick mode, the new
+mask-redraw-exact among them (largest |z| 2.3 of 44); `R CMD check --as-cran` one note, the Date field.
+Against the previous baselines the movers' largest z were 3.24, 2.43 and 2.79 (gaussian) and 6.83 and 12.23
+(BCF, single chain, 5.55 and 9.21 adjusted for effective sample size).
+
+What went beyond the plan. A Student-t fit carries a latent scale per row, so `setWeights` redraws the scale
+of a row whose weight leaves zero, and a state installed under weights other than its own (a state carries
+only a digest of them) has the scale of every row in the likelihood redrawn; a state installed under its own
+weights draws nothing. A restore or a reload of a Student-t sampler under other weights is therefore not the
+stored chain in its scales, `setState` still returning `TRUE`, which promises trees and not latents; the
+manual says in which order a weight change is undone exactly. A mask lifted over a row whose weight is still
+zero draws nothing until the weight turns positive. `sampleTreesFromPrior` judges emptiness by membership as
+the moves do, so it ignores weights. A two-forest fit with no weight and no mask shifts its draws without
+changing its posterior where its coefficients are drawn, and changes its posterior where they are held at
+(0, 1), as the rng line says. One NEWS item, the zero-weight warning's text (dec-B251), was
+reworded although Constraints says no entry: the warning is user-visible text in a released function.
+glue_toggle's re-record is an adjudication and not an oracle: no exact gate reaches a leaf of control rows
+only, and the MANIFEST row says so.
