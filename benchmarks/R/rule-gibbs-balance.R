@@ -9,7 +9,7 @@
 # right is the WEIGHT it draws from, and every term of that weight is a term
 # this gate reads:
 #
-#     log w = S                             the scan's rank-admitted marginal
+#     log w = S                             the scan's marginal
 #           + log P(split variable)         constant off DART
 #           - log |SI|                      the node's own rule prior
 #           + log(1 - growth(left))
@@ -100,7 +100,7 @@
 # ---- the confirmation arm ----
 #
 # The prior-only arm never exercises the likelihood term S, which is the whole
-# of what the rank-aware scan contributes. The confirmation arm runs the same
+# of what the scan contributes. The confirmation arm runs the same
 # grid and the same mixture with positive weights and NO mask - the mask is
 # what makes the likelihood constant, so the arms cannot share a configuration
 # - and scores the root (variable, cut) marginal against an exact region

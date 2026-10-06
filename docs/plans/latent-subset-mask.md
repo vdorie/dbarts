@@ -227,7 +227,9 @@ Surfaces:
    covering zero-weight t, and forfeits the arc's cleanest verification property:
    bitwise inert until a mask is installed (T2(a)). And it reintroduces for t the
    UNBOUNDED-AGE latent staleness that annihilation removes - a row inactive for
-   k sweeps would reactivate on a lambda k sweeps old.
+   k sweeps would reactivate on a lambda k sweeps old. (2026-10-05: rule 5 as
+   amended redraws a re-entering row's lambda, so the second count no longer
+   holds; the first does.)
 5. **A reactivated row's latent is REDRAWN by the install** (amended
    2026-10-05). The sweep runs trees first and `refreshLatents` after, so a row
    that REACTIVATED on the latent it left with would condition the next sweep's
@@ -1236,3 +1238,8 @@ PLACE. It said the empty-leaf veto sees an inactive row; the veto has
 counted POSITIVE-WEIGHT members since empty-leaf-veto-fix (21fc29c3),
 so an all-inactive leaf IS vetoed. The rewrite preserves the line
 count, so every line number cited into this file still resolves.
+
+ERRATA 2026-10-05 (empty-leaf-membership, dec-B238): the veto counts MEMBERS
+again, so an all-inactive leaf is legal and its value is a prior draw. Rule 2
+carries the current text; the erratum above describes 2026-08-12 to
+2026-10-05.

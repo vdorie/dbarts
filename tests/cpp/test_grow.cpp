@@ -1257,10 +1257,9 @@ struct CategoricalGrowFixture {
   // every row of category 0 leaves with weight zero. The category is PRESENT
   // at every node holding one of its rows - a histogram bin the partition
   // places and never an absent position - so a whole side of that partition
-  // can carry members and no mass at all. That side is what occupancy vetoes,
-  // the emptiness law being positive WEIGHT (docs/design/empty-leaf-veto.md),
-  // while the coin census must count the category exactly as it does under
-  // uniform weights: the veto removes candidates, never draws.
+  // can carry members and no mass at all. Occupancy admits that side,
+  // emptiness being membership, and the coin census must count the category
+  // exactly as it does under uniform weights.
   bool zeroWeightCategory = false;
 };
 

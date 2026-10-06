@@ -205,8 +205,10 @@ to a branch comparison, and has its value drawn from the prior.
 
 The predicate is [`Tree::leafIsEmpty`](../../src/bartcore/tree.hpp),
 `numObservations() == 0`, the test the veto ran before weights existed, so a
-fit that installs no zero weight, no mask and no zero-trial row keeps its
-decision AND its arithmetic bit for bit.
+single-forest fit that installs no zero weight, no mask and no zero-trial row
+keeps its decision AND its arithmetic bit for bit. A two-forest fit does not:
+its amplitudes zero rows in one forest with nothing installed, and "Measured
+effect" below has what that does to its draws.
 
 ### Why: the prior over trees must not read the mask
 

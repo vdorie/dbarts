@@ -56,7 +56,7 @@ same three consequences; everything below reads on the restricted set.
 
 The weight of a candidate is the tree posterior restricted to `u`'s rule, every factor that does not read it having cancelled:
 
-    log w(v, c) = S(v, c)                                          the two children's collapsed marginals           
+    log w(v, c) = S(v, c)                                          the two children's collapsed marginals
                 + log P_splitvar(v)                                VARIES only under DART
                 - log |SI_v(u)|  (- log 2 if the node routes NAs)  VARIES across variables
                 + log(1 - growth(left)) + log(1 - growth(right))   VARIES across candidates
@@ -114,7 +114,7 @@ house's cheap balance gates run in and section 5's prior-only arm.
 missing rows - with `v` available at `u`, `c` in `SI_v(u)`, and neither child empty. `S(v, c, s)` is the two children's marginals,
 which is `logLikelihoodForBranch`'s log-likelihood for that candidate, candidate for candidate. The set is a function of the
 ancestors and of the node's members, neither of which the move changes, so it is identical from every state in it; and it contains
-the incumbent, since `collectAvailableVariables` and `splitInterval` both ignore `u`'s own rule and no live tree holds an empty
+the incumbent wherever its own variable is still available, since `collectAvailableVariables` and `splitInterval` both ignore `u`'s own rule and no live tree holds an empty
 leaf. **The kernel draws over all of it**, weighting each member by section 2.1's `log w`, and the draw IS the exact full
 conditional of the shipped chain's own target - the posterior truncated to trees with no empty leaf
 ([Which move paths can create an empty leaf](empty-leaf-veto.md#which-move-paths-can-create-an-empty-leaf)) - restricted to the
@@ -731,7 +731,7 @@ four-chain configuration, SETTLED. Nothing waits on perturb's slice 3.
    the test, where the realized draw frequencies must match it** - itself a correctness gate at the kernel level, and the one that
    would catch a mis-assembled weight before any script runs.
 
-   **Landed** (7fb166ca, 2026-09-07), under the rank law section 2.2's last paragraph describes, which this item's text and
+   **Landed** (7fb166ca, 2026-09-07), under the rank law section 2.2's next-to-last paragraph describes, which this item's text and
    its gates name. Three design-versus-code points. (1) [`scanOrdinalCuts`](../../src/bartcore/scan.hpp)
    emits the branch rank alone - the max of the two sides - with the marginal summed over the rank-0 sides, not the two
    sides' own ranks as section 2.2 then specified; that pair is all that law consumed. (2) The cut-only variant of

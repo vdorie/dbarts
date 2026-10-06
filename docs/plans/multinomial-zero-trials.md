@@ -74,6 +74,9 @@ at 0 and kappa = 0. So "inert" means, per quantity:
   reader computes the multinomial log-pmf, which is exactly 0 at an empty row (log `dmultinom` of an empty row);
 - ppd: an R-side draw of one category from the row's probabilities, as for every row; nothing trial-dependent.
 
+Amended 2026-10-05 (dec-B238): the empty-leaf veto counts members, so it counts a zero-trial row present, and a
+leaf holding only zero-trial rows is legal, its value a draw from the prior.
+
 Today's engine does something else. [`MultinomialForestCombiner::drawForestGlue`](../../src/bartcore/combiner.hpp)
 takes one PG(1, psi) variate before its trials loop,
 [src/bartcore/combiner.hpp:1465-1467](https://github.com/vdorie/dbarts/blob/1d873a779c0f9392f404090cab62d072f8ffc930/src/bartcore/combiner.hpp#L1465-L1467),

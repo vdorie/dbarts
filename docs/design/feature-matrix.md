@@ -87,7 +87,8 @@ calibration); test predictors, offsets and `predict()` follow the test-fits colu
 exists, except multinomial blocks the first two ([f9]) and hurdle has none. Three exceptions
 follow from no column:
 
-- Zero-weight subsetting follows the case-weights column except logistic (and bcf's logistic
+- A zero weight, which takes a row out of the likelihood and keeps it in the design, follows
+  the case-weights column except logistic (and bcf's logistic
   sub-case): its weights are positive-integer Polya-Gamma trial counts, so a zero is refused
   although the channel is open ([`enforceBinaryWeightPolicy`](../../src/R_interface_bartcore.cpp)).
 - Whole-data `setData` (n free) is narrower than `setPredictor`: it needs a sampler that owns

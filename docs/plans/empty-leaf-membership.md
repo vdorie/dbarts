@@ -14,9 +14,10 @@ the draws differ exactly when the prior-drawn treatment forest holds a leaf with
 first-sweep move makes one. Measured base against head over 60 seeds: `bart()` on two-forest data differs in
 29 of 60 at 50 rows, 7 of 60 at 200 and 2 of 60 at 1000. NEUTRAL, bit for bit, only for a single-forest fit
 with no zero weight, mask or zero-trial row. Scenario counts run on the shipped build: 52 of 55 of the
-gaussian harness identical (all but zeroweights, maskprobit and maskordinal), 13 of 15 of the BCF harness
-(all but masked and glue_toggle; its samplers start from bare roots and its one `bart()` scenario did not
-meet the case), 11 of 11 multinomial; the four seeded snapshot files pass unchanged on the reference build.
+gaussian harness identical (all but zeroweights, maskprobit and maskordinal; bart2twoforest, its one
+two-forest fit through `bart()`, did not meet the case), 13 of 15 of the BCF harness (all but masked and
+glue_toggle; its samplers start from bare roots), 11 of 11 multinomial; the four seeded snapshot files pass
+unchanged on the reference build.
 window: pre-release (dec-B238).
 budget: ~800 lines (C++ ~150, tests/cpp ~200, tinytest ~150, a tracked exact harness ~200, design notes, manual
 and records ~100). Plans have run 1.5-2x low.
@@ -51,10 +52,12 @@ every sweep samples the model it assumes.
   posterior summary of it moves beyond a standard error, the change being 0.05 treatment-forest leaves per
   sweep that hold control rows only. With drawn amplitudes the fit's draws shift and its posterior does not:
   `bart()` starts from a prior-drawn forest, and base against head over 60 seeds its draws differ in 29 at
-  50 rows, 7 at 200 and 2 at 1000 - in every seed where head's prior-drawn treatment forest holds a leaf with
-  no treated row, which base never drew, and otherwise where a first-sweep move makes one before b0 is drawn.
-  A sampler started from bare roots differs in 3 of 60 at 50 rows and none at 200 or 1000, which is why the
-  BCF harness's drawn-amplitude scenarios were bitwise.
+  50 rows, 7 at 200 and 2 at 1000. The cause was read on a sampler whose trees are drawn from the prior and
+  then swept three times, which differs in 23 of 60 at 50 rows and 3 at 200: in 14 and 2 of those the
+  prior-drawn forest itself differs, exactly the seeds where head's treatment forest holds a leaf with no
+  treated row, which base never drew; the other 9 and 1 are, by elimination, a first-sweep move making one
+  before b0 is drawn. A sampler started from bare roots differs in 3 of 60 at 50 rows and none at 200 or
+  1000, which is why the BCF harness's drawn-amplitude scenarios were bitwise.
 - The same holds, measured the same way, with an unordered factor (the old rule's worst case: membership off
   by 0.21, the new within noise), with zero case weights in place of the mask, with a mask that empties whole
   regions, and after grow-from-root under a mask.

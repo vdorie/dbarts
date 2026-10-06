@@ -6386,8 +6386,8 @@ static void testActiveRowsStudentComposite(ext_rng*) {
 
   // at an active row w a == w, so the two arms' conditionals coincide exactly;
   // at an inactive one the masked arm still DRAWS - lambda leaves its cold 1.0
-  // - from a conditional the row's own residual still enters, which is what
-  // spares t the reactivation staleness the skipping families carry
+  // - from a conditional at weight zero, which the setter that brings the row
+  // back replaces
   bool drawnEverywhere = true, annihilated = true;
   for (std::size_t i = 0; i < n; ++i) {
     if (active[i] != 0.0) {

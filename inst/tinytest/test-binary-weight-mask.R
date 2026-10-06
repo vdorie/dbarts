@@ -350,7 +350,8 @@ expect_identical(countWarnings(ordinalSampler(weights = a)), 0L)
 # a real weight vector with an inert zero among it still warns
 expect_warning(
   dbarts::dbartsData(x, y.binary, weights = replace(runif(n, 0.5, 1.5), 1L, 0)),
-  "rows with 'weights' of 0 are left out of the likelihood but stay in the fit"
+  "rows with 'weights' of 0 are left out of the likelihood but stay in the fit; use 'subset' to drop them",
+  fixed = TRUE
 )
 
 # an ordinal bart fit records the mask too, and its log-likelihood is NaN at

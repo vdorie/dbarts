@@ -2709,7 +2709,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setWeights = function(weights, updateState = NULL) {
-      "Changes the weights with which the sampler is fitted. A row of weight 0 leaves the likelihood but stays in the fit, occupying a leaf. A probit or ordinal sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. A Student-t sampler redraws the scale of each row whose weight leaves zero, from the sampler's own generators. updateState follows control@updateState; see setData."
+      "Changes the weights with which the sampler is fitted. A row of weight 0 leaves the likelihood but stays in the fit, occupying a leaf. A probit, ordinal or nbinom sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. A Student-t sampler redraws the scale of each row whose weight leaves zero, from the sampler's own generators. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
