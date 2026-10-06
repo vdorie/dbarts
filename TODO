@@ -611,6 +611,15 @@ items
     installs as it does now. About 150 lines by the design's
     estimate; serial with the other work in the state reader and
     writer. Not planned.
+  monotone-unforced-refusal: before 1.0-0 (dec-B278, VD 2026-10-06). An
+    unforced setPredictor (whole-matrix, by column, row by row) that
+    would leave a monotone tree's leaf values out of order is refused
+    and rolled back, as one that empties a leaf is; today the one
+    such update, a column's first missing value, is accepted and the
+    tree reset to zero. Forced updates, setData, setCutPoints and a
+    warm start keep the silent reset. The help states both, and
+    tests/cpp testMonotoneMissingArrives turns over. About 200 lines.
+    Not planned.
   forest-after-merge: built after the merge to main, for 1.0-0 still
     (dec-B276, VD 2026-10-06): setForestBasis(updateBasisScale = TRUE),
     which re-derives a default sd from a replaced column during
