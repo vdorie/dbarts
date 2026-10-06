@@ -27,8 +27,8 @@ sampler, a copy and a reload do.
 
 All numbers below were run on the tip's build; a column is numeric unless said otherwise.
 
-- The hidden count. The store keeps, per column, a cap on the cut count
-  ([`maxNumCuts`](../../src/bartcore/data.hpp)). It starts as the count asked for (`n.cuts`).
+- The hidden count. The store keeps, per column, a cap on the cut count, a field this slice removed
+  (retired: [`maxNumCuts`](../../src/bartcore/data.hpp)). It starts as the count asked for (`n.cuts`).
   [`ColumnStore::setCutPointsForColumn`](../../src/bartcore/data.hpp) raises it to a longer grid's length
   and nothing lowers it. [`ColumnStore::setData`](../../src/bartcore/data.hpp) derives through
   [`ColumnStore::buildCutsForColumn`](../../src/bartcore/data.hpp), which reads the cap, under the uniform
@@ -76,18 +76,20 @@ All numbers below were run on the tip's build; a column is numeric unless said o
 ## The rule
 
 - The store remembers the count asked for, per column, for its whole life. Every derivation (creation,
-  `setData`) uses it. The cap is the larger of that count and the length of the grid the column holds now,
-  so it is a function of two things a copy and a reload also have.
-- `setCutPoints` takes any grid a sampler can hold: one to 65533 points, none `NaN`, in non-decreasing
-  order. Given the whole list, the entries of factor columns are skipped, whatever they hold.
+  `setData`) uses it. No cap is kept beside it: a refresh re-cuts at the count the column holds, so a set
+  grid leaves nothing that a copy and a reload do not also have.
+- `setCutPoints` takes a strictly increasing grid of one to 65533 points, none `NaN`, and one grid more:
+  the grid the column holds at the call, value for value, repeated points included. Given the whole list,
+  the entries of factor columns are not read, whatever they are.
 
 ## Constraints
 
 - A sampler that never has a grid longer than `n.cuts` installed draws exactly what it draws now.
 - A refresh keeps the count the column has (`setPredictor(updateCutPoints = TRUE)`), as now, at 3 and at 50.
-- An ordered factor's grid still raises the cap to its level count less one
+- An ordered factor's count is still its level count less one
   ([`ColumnStore::fillCutsAtLevelMidpoints`](../../src/bartcore/data.hpp)); `n.cuts` does not reach it.
-- [`Sampler::setState`](../../src/bartcore/sampler.hpp) keeps its snapshot of the cap for a refused install.
+- A refused [`Sampler::setState`](../../src/bartcore/sampler.hpp) leaves every later refresh of a column
+  served as before it: it puts the grid and its count back, and the asked count never moved.
 - Naming a factor column stays refused with today's two messages. A whole list of the wrong length stays
   refused: `$setCutPoints: requires one cut point vector per column`.
 - No change to the flat C header (it has no entry for cut points), to the state format, or to `data@n.cuts`.
@@ -98,26 +100,28 @@ All numbers below were run on the tip's build; a column is numeric unless said o
 
 ## Steps
 
-1. Store. [`ColumnStore`](../../src/bartcore/data.hpp) gains the asked count per column, filled by
-   [`ColumnStore::build`](../../src/bartcore/data.hpp) beside the cap and copied by
-   [`ColumnStore::buildFromParent`](../../src/bartcore/data.hpp) (the column-subset arm included).
-   [`ColumnStore::setCutPointsForColumn`](../../src/bartcore/data.hpp) sets the cap to the larger of the
-   asked count and the new length. [`ColumnStore::buildCutsForColumn`](../../src/bartcore/data.hpp) puts a
-   numeric column's cap back to the asked count before it derives. tests/cpp, beside
-   [`testSetCutPointsOrphan`](../../tests/cpp/test_data.cpp) and
-   [`testQuantileCutPoints`](../../tests/cpp/test_data.cpp): set longer then shorter, the cap follows the
-   grid and never falls below the asked count; set longer, keep it, `setData`: the derived count is the
-   asked one (fails today: the longer length), under each rule; quantile rule, a set count above the asked
-   one, a refresh onto a column with enough distinct values is accepted and keeps the count; a view built
-   after a longer set carries both numbers
-   ([`testColumnStoreView`](../../tests/cpp/test_data.cpp)); an ordered factor's cap is what it is today.
-2. Bridge and R. [`bartcore_setCutPoints`](../../src/R_interface_bartcore.cpp) holds a grid to the
-   non-strict form of [`cutGridIsValid`](../../src/bartcore/data.hpp) and, when the column argument is
-   `NULL`, takes one entry per predictor and skips those of factor columns; with nothing left to install it
-   returns having changed nothing. [`bartcoreSamplerSetCutPoints`](../../R/bartcore.R) passes `NULL` when
-   `column` is missing instead of naming every column. The refusal for an unusable grid becomes
-   `$setCutPoints: 'cuts' must be sorted non-decreasingly and not contain NaN` (after `findInterval`'s
-   wording; `NA` is refused by the same line).
+1. Store. [`ColumnStore`](../../src/bartcore/data.hpp) gains the asked count per column
+   ([`requestedNumCuts`](../../src/bartcore/data.hpp)), filled by
+   [`ColumnStore::build`](../../src/bartcore/data.hpp) and copied by
+   [`ColumnStore::buildFromParent`](../../src/bartcore/data.hpp) (the column-subset arm included), and
+   loses the cap. The quantile collectors take their bound as an argument:
+   [`ColumnStore::buildCutsForColumn`](../../src/bartcore/data.hpp) gives the asked count, a refresh and
+   its feasibility check the count the column holds. tests/cpp, in
+   [`testRequestedCutCount`](../../tests/cpp/test_data.cpp): set longer, shorter, then the original back,
+   and the store is as one never changed; set longer, keep it, `setData`: the derived count is the asked
+   one (fails today: the longer length), under each rule; a refresh onto a column with enough distinct
+   values keeps a set count above the asked one and below it, each rule; a view of a parent whose columns
+   ask for different counts carries each through the column map
+   ([`testColumnStoreView`](../../tests/cpp/test_data.cpp)); an ordered factor's count is what it is today.
+2. Bridge and R. [`bartcore_setCutPoints`](../../src/R_interface_bartcore.cpp) holds a grid to the strict
+   form of [`cutGridIsValid`](../../src/bartcore/data.hpp) unless it is bit for bit the grid the column
+   holds and, when the column argument is `NULL`, takes one entry per predictor and skips those of factor
+   columns; with nothing left to install it returns having changed nothing.
+   [`bartcoreSamplerSetCutPoints`](../../R/bartcore.R) passes `NULL` when `column` is missing instead of
+   naming every column, and drops the entries of factor columns unread before it coerces the rest. The
+   refusal for an unusable grid becomes `$setCutPoints: 'cuts' must be strictly increasing and not contain
+   NaN, unless it is the grid the column holds`; an entry that is not a vector of numbers is refused as
+   `$setCutPoints: 'cuts' must be numeric`.
 3. tinytest, a new file `test-cut-points-undo.R`; "fails today" names what the tip does.
    - The undo leaves no residue: `n.cuts = 20`; sampler and twin run and store; the sampler sets 50 points,
      sets the stored grid back and restores (`TRUE`); the twin restores its own state; both take the same
@@ -131,23 +135,30 @@ All numbers below were run on the tip's build; a column is numeric unless said o
    - A constant column and a narrow column, uniform rule: the column's own grid is accepted and the grid
      after is identical; the whole own list too. Fails today: refused.
    - An unordered factor and an ordered factor beside numeric columns: the whole own list is accepted and
-     changes nothing; a whole list with junk in the factor entries is accepted and sets the numeric columns;
-     naming the factor column is refused with each of the two messages; a short list is refused. The first
-     two fail today.
-   - A caller's grid with equal neighbours is accepted, the sampler runs to finite draws, stores and copies;
-     a decreasing grid, a `NaN` and an `NA` are refused with the new message and leave the grid as it was.
+     changes nothing; a whole list with the factor's levels and a function in the factor entries is accepted
+     in silence and sets the numeric columns; a bad numeric entry of a whole list is refused; naming the
+     factor column is refused with each of the two messages; a short list is refused. The first two fail
+     today. On a design of factor columns alone the whole list returns and the stored state is unchanged.
+   - Any grid with equal neighbours that is not the one the column holds is refused, on a column whose own
+     grid repeats a point too, as a decreasing grid, a `NaN` and an `NA` are, with the new message, by
+     column and as an entry of the whole list, and the grid is left as it was; a strictly increasing grid
+     is accepted; a function is refused by name. After a constant column's grid is changed its old grid is
+     refused and `setState` brings it back.
+   - A state on a shorter grid installed over a 50-point grid, the 50 points set again, then a state
+     refused: the column still refreshes at 50, each rule.
    - The whole undo on a design with a constant column and a factor: store, set another grid on a numeric
      column, hand the stored state's whole list back, restore (`TRUE`), and the continuation is identical to
      a twin's that restored its own state. Fails today: refused at the second call.
-   Rewrite ["strictly increasing"](../../inst/tinytest/test-bartcore.R)'s expectation: `c(0.5, 0.5)` is
-   accepted, `c(0.6, 0.5)` is refused.
+   ["strictly increasing"](../../inst/tinytest/test-bartcore.R) stays a refusal of `c(0.5, 0.5)`, with the
+   new text.
 4. Mutations (Verification): apply, install with `--preclean`, run, report the failing counts, revert, `touch`.
-5. Records. [`dbartsSampler$setCutPoints`](../../man/dbartsSampler-class.Rd): the `cuts` item (non-decreasing
-   order, equal neighbours allowed, the whole list skips factor columns, a named factor column is refused)
-   and one sentence that a later `setData` derives at `n.cuts` whatever grid was set; the method's docstring
-   in R/dbarts.R to match. [data-store.md](../design/data-store.md): the `numCuts` and `maxNumCuts` items
-   and the new count, with the measured defect in two lines; that file is this change's design record.
-   TODO: rewrite the `state-frame-prior` entry (below).
+5. Records. [`dbartsSampler$setCutPoints`](../../man/dbartsSampler-class.Rd): the `cuts` item (strictly
+   increasing, the held grid excepted, the whole list does not read factor entries, a named factor column
+   is refused) and one sentence that a later `setData` derives at most `n.cuts` points whatever grid was
+   set; the method's docstring in R/dbarts.R to match. [data-store.md](../design/data-store.md): the
+   `numCuts` and `cutPoints` items and the new count in place of the cap, with the measured defect in two
+   lines; that file is this change's design record. TODO: rewrite the `state-frame-prior` entry (below),
+   and add `repeated-cut-restore`.
 
 ## Verification
 
@@ -163,16 +174,21 @@ All numbers below were run on the tip's build; a column is numeric unless said o
   state (it is the posterior of the grid `n.cuts` names, which those gates cover).
 - One script on the base and slice builds digesting seeded draws of fits that set no grid, a `setData`
   under each rule, a refresh, a copy and a reload included: equal.
-- Mutations, each expected to fail the named test:
-  - the cap keeps its old raise (the larger of the old cap and the new length): tests/cpp "set longer then
-    shorter" and tinytest "the undo leaves no residue";
-  - a derivation reads the cap, not the asked count: tests/cpp "set longer, keep it, `setData`" and tinytest
-    "a 50-point grid left in place";
-  - the cap is set to the asked count alone after a longer set: tests/cpp "a refresh ... keeps the count"
-    and tinytest's 50-point refresh pin under the quantile rule (the refresh is refused);
-  - a view does not copy the asked count: tests/cpp's view check;
-  - the bridge holds a grid to the strict form again: tinytest "a constant column and a narrow column";
-  - the whole list does not skip factor columns: tinytest "an unordered factor and an ordered factor".
+- Mutations, each expected to fail the named test. The plan's first, a cap that keeps its old raise, and
+  the reviewer's, a refused `setState` that does not put the cap back, have nothing to change once no cap
+  is stored; while one was, the first failed tests/cpp alone, a cap that is too high being invisible from R.
+  - a derivation counts from the count the column holds, not the asked one, on both arms and on each alone:
+    tests/cpp "set longer, keep it, `setData`" and tinytest "a 50-point grid left in place";
+  - a refresh counts from the asked count: tests/cpp "a refresh keeps the set count" and tinytest's
+    50-point refresh pin and its refresh after a refused state, under the quantile rule (refused);
+  - a view does not copy the asked count, on each arm, and the column-subset arm reads it by its own index:
+    tests/cpp's view checks;
+  - the bridge refuses the held grid too: tinytest "a constant column and a narrow column"; the bridge
+    takes any non-decreasing grid: tinytest's refusals and the pin in test-bartcore.R;
+  - the whole list does not skip factor columns, in the bridge and in R: tinytest "an unordered factor and
+    an ordered factor";
+  - a whole list's numeric entries are not checked: tinytest's whole-list refusals;
+  - a whole list over factor columns alone raises: tinytest's design of factor columns alone.
 - `lintr::lint_package()`, `air format --check .`, `Rscript tools/check-rc-codoc.R .`,
   `Rscript tools/check-win-drift.R .`, `Rscript tools/check-doc-freshness.R .`,
   `Rscript benchmarks/R/mutation-battery.R verify-anchors`, each on its own exit status; `R CMD check
@@ -188,16 +204,22 @@ never installs it; the manual's table of what puts each derived value back befor
 
 ## Calls made in planning
 
-- A caller's grid with equal neighbours is accepted everywhere, not only when it equals a grid the sampler
-  built. It is the design's call; the alternative, accepting a repeated point only on a column whose current
-  grid has one, keeps a typing slip refused but makes the answer depend on call history, and the store runs
-  on such grids either way (measured). Cost: `c(0.5, 0.5)` is no longer an error, and a repeated point
-  counts twice in the choice of split.
-- The whole list skips factor entries in the bridge, where the store's own column kinds are, and R says
-  "whole list" by passing `NULL`. The alternative, R dropping the entries by its own record of column kinds,
-  uses a second table for the same fact.
-- The cap stays as a field and gains the asked count beside it; the alternative, computing the cap from the
-  two where it is read, touches the tests that read the cap by name for no gain.
+- A caller's grid stays strictly increasing, and the one grid taken with equal neighbours is the grid the
+  column holds, value for value (decided after the first review). The alternative, this plan's first call,
+  took any non-decreasing grid. A stored split names its cut by value and a restore puts it on the first
+  index holding that value, so on a grid with every point tripled a store and restore moved the next 30
+  draws by 0.569, and beside missing values it installed trees the prior gives probability zero; the undo
+  needs none of that. Cost: once the grid of a column whose own grid repeats a point has been changed,
+  `setCutPoints` does not take the old one back, and `setState` brings it. The restore is left alone: the
+  same move happens on the store's own grid over a narrow column, which is TODO `repeated-cut-restore`.
+- The bridge skips the factor entries of a whole list by the store's own column kinds, and R drops them
+  unread before it coerces the rest, by `data@varTypes`, the record the bridge builds those kinds from
+  (after the first review). Before it R coerced every entry, so a factor's levels in its own place warned
+  and a function failed with a message naming neither the method nor `cuts`.
+- No cap is stored (after the first review); this plan first kept it as a field beside the asked count.
+  A cap that is too high cannot be seen from R; one that is too low refuses every later quantile refresh
+  of the column, and a stored one is left low by any refused install that does not put it back. Cost: the
+  tests/cpp checks that read the cap by name read the asked count instead.
 - After a 50-point grid is set and kept, `setData` derives `n.cuts` points, not 50: `n.cuts` is the one
   documented count, and the other reading keeps a number no R object shows. Released 0.9-34 had the same
   cap (read from its source, not run), so that one sequence changes against it. No NEWS entry: the manual

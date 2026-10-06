@@ -250,6 +250,24 @@ items
     coefficients, rewrite kept draws at a re-anchor, and refuse the
     calls on a gp sampler that holds kept draws. Plan:
     docs/plans/leaf-conversions.md.
+  repeated-cut-restore: a stored tree names a split by its cut value,
+    and the rebuild (setState, copy(), a reload) puts it on the first
+    index holding that value. On a grid that repeats a value a split
+    drawn on a later copy therefore moves, and the chain no longer
+    continues as the stored one; beside missing values a parent and
+    its left child can land on one index, a tree the prior gives
+    probability zero, whose change moves have a non-numeric ratio
+    until a death prunes it. Reachable only on the grid the uniform
+    rule builds over a column narrower than doubles resolve
+    (setCutPoints refuses any other grid with equal neighbours): on
+    ten data sets with such a column a restore changed the next 30
+    draws on six, by up to 0.665, and with missing values in the
+    column one change move in 7200 sweeps over 12 seeds had a
+    non-numeric ratio. Sketched fix: resolve a repeated value to an
+    index inside the node's interval, the first when missing values go
+    right and the last when they go left, which keeps the tree in the
+    prior's support; the continuation is then still not exact, which
+    takes equal cut values counting as one cut in the tree prior.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
