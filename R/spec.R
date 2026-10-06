@@ -656,23 +656,6 @@ resolveSamplerSpec <- function(
     attr(model, "block.tree.counts") <- blockSpec$block.tree.counts
   }
 
-  # a single forest's column restriction is a model fact and rides a model
-  # attribute the C bridge reads, beside the two constraints above, so a copy
-  # or a reload rebuilds it. Naming every column restricts nothing and stores
-  # nothing; a multi-forest fit carries every forest's columns on the forests
-  # control attribute instead.
-  if (
-    singleForest &&
-      !is.null(firstColumns) &&
-      length(firstColumns) < ncol(data@x)
-  ) {
-    refuseNoSplittableColumn(
-      priors$tree.prior@splitProbabilities,
-      firstColumns
-    )
-    attr(model, "forest.columns") <- firstColumns
-  }
-
   # The K category forests are built from the softmax calibration map and the
   # CONSTANT-leaf instantiation only: a monotone
   # constraint or a non-constant leaf selects an instantiation the multinomial
@@ -704,6 +687,24 @@ resolveSamplerSpec <- function(
         "; drop it or fit a single-forest model"
       )
     }
+  }
+
+  # a single forest's column restriction is a model fact and rides a model
+  # attribute the C bridge reads, beside the two constraints above, so a copy
+  # or a reload rebuilds it. Naming every column restricts nothing and stores
+  # nothing; a multi-forest fit carries every forest's columns on the forests
+  # control attribute instead. After the multinomial refusals above, so a
+  # prior a category forest cannot take is named before its entries are read.
+  if (
+    singleForest &&
+      !is.null(firstColumns) &&
+      length(firstColumns) < ncol(data@x)
+  ) {
+    refuseNoSplittableColumn(
+      priors$tree.prior@splitProbabilities,
+      firstColumns
+    )
+    attr(model, "forest.columns") <- firstColumns
   }
 
   # the AFT survival family reads its per-observation status off this control

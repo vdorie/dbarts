@@ -2198,6 +2198,12 @@ dbartsSampler <- setRefClass(
       if (!inherits(data, "dbartsData")) {
         stop("'data' must inherit from dbartsData")
       }
+      # a model handed in directly is held to what the fitting functions hold
+      # the one they resolve to
+      refuseNoSplittableColumn(
+        model@tree.prior@splitProbabilities,
+        attr(model, "forest.columns", exact = TRUE)
+      )
       .self$control <- control
       .self$model <- model
       .self$data <- data

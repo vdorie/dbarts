@@ -225,6 +225,21 @@ byHand <- plainSpec$model
 attr(byHand, "forest.columns") <- 1:2
 door <- new("dbartsSampler", plainSpec$control, byHand, plainSpec$data)
 expect_identical(unname(splits(door$run(0L, 100L))[3L]), 0)
+# and a model handed in directly is held to creation's rule on split
+# probabilities, whichever of the two was edited
+unsplittable <- spec$model
+unsplittable@tree.prior@splitProbabilities <- c(0, 0, 1)
+expect_error(
+  new("dbartsSampler", spec$control, unsplittable, spec$data),
+  pattern = "'split.probs' gives no positive probability to any column"
+)
+unsplittable <- plainSpec$model
+unsplittable@tree.prior@splitProbabilities <- c(0, 0, 1)
+attr(unsplittable, "forest.columns") <- 1:2
+expect_error(
+  new("dbartsSampler", plainSpec$control, unsplittable, plainSpec$data),
+  pattern = "'split.probs' gives no positive probability to any column"
+)
 attr(byHand, "forest.columns") <- 4L
 expect_error(
   new("dbartsSampler", plainSpec$control, byHand, plainSpec$data),
@@ -343,6 +358,15 @@ expect_identical(dim(restrictedCategories), c(3L, 3L))
 expect_true(all(restrictedCategories[3L, ] == 0))
 expect_true(all(colSums(restrictedCategories[1:2, ]) > 0))
 expect_true(all(categoryCounts()[3L, ] > 0))
+# a prior the category forests cannot take is named before its entries are
+# read against the restriction
+expect_error(
+  categoryCounts(
+    forests = restrictTo(allowed),
+    tree.prior = cgm(split.probs = c(0, 0, 1))
+  ),
+  pattern = "a multinomial \\(softmax\\) model does not support 'split.probs'"
+)
 
 # a hazard fit's own period column stays allowed: the caller did not supply
 # it, and 'vars' restricts the caller's columns
