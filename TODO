@@ -544,8 +544,10 @@ items
     literal per unit, and the coefficient is normal (dec-B261, which
     revises dec-B257 and dec-B258). A 0/1 number is scaled as any
     number and the help says to write a treatment as a factor
-    (dec-B263). Still to settle: a column far from zero, and a
-    replaced column at the default sd. Then the design is rewritten
+    (dec-B263). A column far from zero is the caller's to centre:
+    no warning, no centring inside, the help leads with scale(w)
+    and the fit prints the column's mean and sd (dec-B264). Still to
+    settle: a replaced column at the default sd. Then the design is rewritten
     around the rulings and the slices planned.
   coefficient-law-opt-in: a caller may opt a forest's drawn coefficient
     into a heavy-tailed law (half-Cauchy; half-t(3) was measured too),
