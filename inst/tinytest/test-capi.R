@@ -225,7 +225,14 @@ expect_equal(sum(CALL("capi_draw_report")$calls), 4L)
 # own context and discards the results. This sampler is inconsistent with them
 # afterwards and is not reused.
 CALL("capi_draw_reset", 2L)
-invisible(CALL("capi_run", ptrDraw, 0L, 6L, TRUE, FALSE))
+stopRun <- tryCatch(
+  {
+    CALL("capi_run", ptrDraw, 0L, 6L, TRUE, FALSE)
+    "returned"
+  },
+  interrupt = function(cond) "an interrupt"
+)
+expect_equal(stopRun, "returned")
 expect_equal(sum(CALL("capi_draw_report")$calls), 3L)
 rm(ptrDraw, specDraw)
 invisible(gc(FALSE))
