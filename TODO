@@ -579,8 +579,28 @@ items
     wrapper on the term or a unit on the term) is decided after the
     release; 1.0-0 refuses each spelling by name and fixes the
     column names and the per-column reader shapes so that any of
-    them is an addition (dec-B272). Next: the design amended for the
-    written surface, its critique, then the slices planned.
+    them is an addition (dec-B272). A star in a basis is refused
+    (dec-B273); defaults go by a forest's kind (dec-B274); extract
+    returns a list by forest of vectors named by column (dec-B275).
+    Planned: written-surface. Not yet planned: defaults by kind, the
+    sd unit, the kind by class, the multiplier law and the slices
+    after it.
+  written-surface: before 1.0-0 (dec-B266 to dec-B275). A model of
+    several forests is written as forest() terms, the first
+    included; a multiplier is basis =, the right-hand side of a
+    model formula with no tilde, with lm's meaning at the fit and at
+    new rows; z:forest(x) and update.amplitude go (amplitude =
+    fixed()); one unnamed argument; a longer or named sd, a star, a
+    term times or over a number and a prior's name on a basis term
+    are refused by name. Three pushes. Plan:
+    docs/plans/written-surface.md.
+  forest-defaults-by-kind: before 1.0-0 (dec-B274). A forest with a
+    basis takes the multiplied forest's default tree count and tree
+    prior wherever it is written, at both doors; with no forest
+    without a basis, a tree count or tree prior given to the
+    fitting function is refused by name and the model is accepted.
+    Until it lands such a model takes its forests in written order.
+    Not planned.
   coefficient-law-opt-in: a caller may opt a forest's drawn coefficient
     into a heavy-tailed law (half-Cauchy; half-t(3) was measured too),
     as another value of forest()'s amplitude argument, beside fixed()
