@@ -235,17 +235,20 @@ for (entry in sdValues) {
 # --- the text for each ---
 sdMessage <- function(value, place = c("creation", "writer", "front")) {
   place <- match.arg(place)
-  conditionMessage(tryCatch(
-    switch(
-      place,
-      creation = twoForests(sd = value),
-      writer = writer$setLeafPrior(
-        forests = list(forest(), forest(sd = value))
-      ),
-      front = dbartsPriors$normal(sd = value)
-    ),
-    error = identity
-  ))
+  tryCatch(
+    {
+      switch(
+        place,
+        creation = twoForests(sd = value),
+        writer = writer$setLeafPrior(
+          forests = list(forest(), forest(sd = value))
+        ),
+        front = dbartsPriors$normal(sd = value)
+      )
+      "accepted"
+    },
+    error = conditionMessage
+  )
 }
 for (place in c("creation", "writer")) {
   expect_match(sdMessage("2", place), "must be a number, not a string")
