@@ -4753,12 +4753,11 @@ bool userInterrupted() {
     return true;
   }
   lastPoll.jumped = false;
+  lastPoll.isError = false;
   // the exiting handler takes an interrupt or an error before R's top-level
-  // processing of either; R_ToplevelExec contains any other jump
-  if (R_ToplevelExec(checkInterrupt, nullptr) == FALSE) {
-    lastPoll.jumped = true;
-    lastPoll.isError = false;
-  }
+  // processing of either; R_ToplevelExec contains any other jump, among them
+  // one out of the handler itself, which leaves what the handler recorded
+  if (R_ToplevelExec(checkInterrupt, nullptr) == FALSE) lastPoll.jumped = true;
   return lastPoll.jumped;
 }
 
