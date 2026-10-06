@@ -575,9 +575,12 @@ items
     derived default unless setForestBasis(updateBasisScale = TRUE),
     for burn-in only (dec-B265). The coefficient's law is one
     argument, amplitude: fixed() holds it and update.amplitude goes
-    (dec-B271). Open with the maintainer: how a size per column is
-    stated later. Next: the design amended for the written surface,
-    its critique, then the slices planned.
+    (dec-B271). How a size per column is stated (a named vector, a
+    wrapper on the term or a unit on the term) is decided after the
+    release; 1.0-0 refuses each spelling by name and fixes the
+    column names and the per-column reader shapes so that any of
+    them is an addition (dec-B272). Next: the design amended for the
+    written surface, its critique, then the slices planned.
   coefficient-law-opt-in: a caller may opt a forest's drawn coefficient
     into a heavy-tailed law (half-Cauchy; half-t(3) was measured too),
     as another value of forest()'s amplitude argument, beside fixed()
