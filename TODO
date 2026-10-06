@@ -542,15 +542,17 @@ items
     (dec-B258), and a multiplier in small units is shrunk to no effect
     at the default with nothing to flag it, which is still to be
     decided. Design in progress; plans follow its critique.
-  basis-formula-terms: a forest's basis formula predicts at new rows
-    from the training rows' terms, as the predictors do and as lm does
-    with scale(), poly() and ns(). Today the formula is replayed on the
-    new rows, so basis = ~ scale(w) centres them on their own mean and
-    one new row is an error; ~ I(w - 50) is right (dec-B257). Plan:
-    docs/plans/basis-formula-terms.md. Left for the forest-prior-args
-    plans: a basis formula with +, * or : at its top is evaluated as R
-    code and not as a model formula (~ z + w is one column, the sum,
-    where (z + w):forest() is two), and scale(w):forest(x) is refused.
+  basis-formula-leftovers: for the forest-prior-args plans. A basis
+    formula's right-hand side is R code, not a model formula: ~ z + w is
+    one column, the sum, where (z + w):forest() is two, and : at its
+    top is a sequence. scale(w):forest(x) is refused. A basis given
+    through forests = list(forest(basis = )) stores no formula, so
+    nothing is rebuilt at predict and with subset it is evaluated on
+    every row (docs/plans/basis-formula-terms.md, landing note).
+  cancel-timing-test: the tests/cpp check "multi-chain cancel returns
+    promptly" fails on a loaded machine (once in CI on 2026-10-06,
+    passing on a rerun, and once locally under a mutation run). Bound it
+    by something other than wall time, or widen it.
   weighted-binary: arbitrary real weights on the binary families need
     a real-shape Polya-Gamma sampler; IPW is a pseudo-likelihood trap,
     and the approximate-PG decision is shared with

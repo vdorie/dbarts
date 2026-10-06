@@ -1,6 +1,6 @@
 # basis-formula-terms: a forest's basis formula predicts from the training rows' terms
 
-Status: PLANNED (dec-B257).
+Status: LANDED 2026-10-06 (45df255e, bb80f222, b7986802).
 
 agent: sonnet implementer, one; opus reviewer.
 rng: NEUTRAL. No fit changes; only what `predict` builds for a forest's basis at new rows.
@@ -74,3 +74,26 @@ a term. Today the formula is evaluated again on the new rows.
 - bartCause's suite on a fresh install against this build.
 - `lintr::lint_package()`, `air format --check .`, the three tools/ checks and
   `Rscript benchmarks/R/mutation-battery.R verify-anchors` clean; `R CMD check --as-cran` shows no new note.
+
+## Landing note
+
+Landed 2026-10-06 as 45df255e (the call stored beside the formula and evaluated at new rows), bb80f222
+(review corrections, and the same treatment for a call under arithmetic, parentheses or `cbind()` at the top
+of the right-hand side) and b7986802 (the second evaluation that finds an operand's call no longer moves R's
+generator or repeats a warning). Two reviews, each SOUND WITH CORRECTIONS. Full tinytest 14039 results, 0
+failures; the four seeded snapshot files unchanged on the reference build; equivalence 55 of 55, BCF 15 of 15
+and multinomial 11 of 11 bitwise; `R CMD check --as-cran` with the manual one note, the Date field;
+bartCause's whole suite on a fresh install 1293 passing, 0 failing. Over 69 basis expressions the rebuilt
+basis equals `lm`'s per-variable result at several rows, at one row and stacked with the training rows
+wherever the expression is one the Constraints name, and is evaluated on the new rows otherwise. Sixty fits
+without a random operand are bit for bit the parent build's, 28 with one match it in draws and in R's next
+number, and five fits saved on the parent build predict identically.
+
+Beyond the plan as first written: the descent through `+ - * / ^`, parentheses and `cbind()`, taken when the
+first review showed `~ cbind(scale(w), scale(v))`, the spelling for two standardized columns, still evaluated
+on the new rows. `splines` joined Suggests for the tests of `ns()` and `bs()`.
+
+Reached and tested: `predict`, `pdbart`, `pd2bart`, a sampler re-created after a reload. Not reaching the
+code: `fitted` and `extract` (no new rows), `xbart` (no forest terms), and a basis given through
+`forests = list(forest(basis = ))` or `dbartsData(bases = )`, which stores no formula; with `subset` that
+route evaluates its formula on every row of the data, and the help says so.
