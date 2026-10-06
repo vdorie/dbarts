@@ -550,15 +550,17 @@ items
     nothing is rebuilt at predict and with subset it is evaluated on
     every row (docs/plans/basis-formula-terms.md, landing note).
   single-forest-vars-leftovers: three things the column restriction on a
-    single declared forest left (docs/design/single-forest-vars.md).
-    All-zero split.probs fails with a raw R error, with or without
-    vars. The plan's finding that a zero-probability column is split on
-    once the positive ones run out along a path, which
-    setmodel-parameters-not-structure carries, did not reproduce at
-    implementation (0 such splits in 2000 sweeps of 20 trees on four
-    fixtures); re-run it before scoping from it. And the model's
-    forest.columns attribute moves into the first forest's record when
-    the control migration gives every model one.
+    single declared forest left (docs/design/single-forest-vars.md). A
+    zero split probability does not exclude a column once the positive
+    ones run out along a path, with split.probs alone and no vars: with
+    two 0/1 columns held to one cut each (n.cuts of 1, or quantile cuts)
+    beside a column given probability zero, that column is split on
+    about 45000 times in 2000 sweeps of 20 trees, in nearly every sweep,
+    where the default grid of 100 cuts shows none;
+    setmodel-parameters-not-structure carries the fix. All-zero
+    split.probs fails with a raw R error, with or without vars. And the
+    model's forest.columns attribute moves into the first forest's
+    record when the control migration gives every model one.
   weighted-binary: arbitrary real weights on the binary families need
     a real-shape Polya-Gamma sampler; IPW is a pseudo-likelihood trap,
     and the approximate-PG decision is shared with

@@ -22,21 +22,25 @@ y <- signal + rnorm(n, 0, 0.5)
 y.binary <- as.double(signal + rnorm(n) > 0)
 allowed <- c("a", "b")
 
-control <- dbartsControl(
-  n.chains = 1L,
-  n.threads = 1L,
-  n.trees = 20L,
-  n.samples = 1L,
-  updateState = FALSE,
-  verbose = FALSE
-)
+makeControl <- function(...) {
+  settings <- list(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 20L,
+    n.samples = 1L,
+    updateState = FALSE,
+    verbose = FALSE
+  )
+  do.call(dbartsControl, modifyList(settings, list(...)))
+}
+control <- makeControl()
 # a chain's generator is seeded when its sampler is created, so two samplers
 # created under one seed draw the same stream. sigest is fixed because the
 # residual scale estimate is the data object's, from a linear fit on every
 # column, and so differs between a design and its sub-matrix
-sampler <- function(design, response, ...) {
+sampler <- function(design, response, ..., settings = control) {
   set.seed(7L)
-  dbarts(design, response, ..., control = control, sigest = 1)
+  dbarts(design, response, ..., control = settings, sigest = 1)
 }
 restrictTo <- function(vars, ...) list(forest(vars = vars, ...))
 # total splits per column over a run
@@ -117,15 +121,29 @@ expect_identical(
 expect_true(all(dartFits$onList$varprobs[3L, ] == 0))
 expect_true(all(dartFits$onList$varprobs[1:2, ] != 0.5))
 
-# allowed columns that run out along a path: two 0/1 columns at one cut each
+# allowed columns that run out along a path: two 0/1 columns held to one cut
+# each, which the default grid of 100 cuts would never exhaust. Below a split
+# on each, no allowed column is left. The column list still confines the
+# forest there; zero split probabilities on the same fixture do not, the first
+# column available being proposed whatever its probability
 x.binary <- cbind(a = rbinom(n, 1L, 0.5), b = rbinom(n, 1L, 0.5), c = x[, "c"])
 y.runout <- x.binary[, "a"] + 2 * x.binary[, "c"] + rnorm(n, 0, 0.5)
-runOut <- splits(
-  sampler(x.binary, y.runout, forests = restrictTo(allowed))$run(0L, 2000L)
-)
-expect_identical(unname(runOut[3L]), 0)
-expect_true(all(runOut[1:2] > 0))
-expect_true(splits(sampler(x.binary, y.runout)$run(0L, 200L))[3L] > 0)
+runOut <- function(...) {
+  fit <- sampler(
+    x.binary,
+    y.runout,
+    ...,
+    settings = makeControl(n.cuts = c(1L, 1L, 100L))
+  )
+  expect_equal(fit$data@n.cuts, c(1, 1, 100))
+  splits(fit$run(0L, 2000L))
+}
+listed <- runOut(forests = restrictTo(allowed))
+expect_identical(unname(listed[3L]), 0)
+expect_true(all(listed[1:2] > 0))
+zeroed <- runOut(tree.prior = cgm(split.probs = c(0.5, 0.5, 0)))
+expect_true(zeroed[3L] > 0)
+expect_true(runOut()[3L] > 0)
 
 # ---- how 'vars' is stated ---------------------------------------------------
 

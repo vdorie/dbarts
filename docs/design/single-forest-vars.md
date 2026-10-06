@@ -62,10 +62,10 @@ Giving the excluded columns a split probability of zero needs no engine change. 
   after such a call 4099 of 8267 splits were on the excluded column.
 - It confines a forest only while some allowed column can still be split on. Where none can,
   [`CGMTreePrior::drawSplitVariable`](../../src/bartcore/model.hpp) proposes the first column available,
-  whatever its probability, and the proposal's prior ratio is zero over zero. The plan reports such splits
-  being accepted; on the fixtures run for this note none was (0 in 2000 sweeps of 20 trees, two allowed 0/1
-  columns beside a continuous excluded one, four arrangements). Either way the confinement would rest on how
-  an undefined ratio happens to compare. Under the column list the excluded column is never proposed.
+  whatever its probability, and the split is accepted. With two 0/1 columns held to one cut each beside a
+  continuous column given probability zero, that column is split on 44425 times in 2000 sweeps of 20 trees,
+  in 1995 of the sweeps; the column list gives 0 on the same fixture. On the default grid of 100 cuts a 0/1
+  column never runs out, and there the zeros hold.
 - DART has no split probabilities to zero, and a multi-forest fit refuses `split.probs` and DART outright, so
   one argument would have had two mechanisms and a gap.
 - The caller would read split probabilities they did not write on the stored tree prior.
@@ -79,7 +79,7 @@ On the fixture above, 150 rows and three columns with `vars` naming the first tw
 | before, 300 sweeps of 20 trees | 4463, in every sweep | 4337 |
 | after, 300 sweeps of 20 trees | 0 | 8049 |
 | after, 1000 sweeps of 75 trees | 0 | 102666 |
-| after, allowed columns 0/1 at one cut each, 2000 sweeps of 20 trees | 0 (31462 before) | 45144 |
+| after, allowed columns 0/1 held to one cut each, 2000 sweeps of 20 trees | 0 (30171 before; 44425 under zero split probabilities and no list) | 55069 |
 
 The restricted fit is draw for draw the fit on the two-column matrix - fitted values, sigma and split counts
 identical - for a gaussian and a probit response, with an interaction limit, with `split.probs` of 0.1, 0.3
@@ -91,5 +91,7 @@ kinds of fit that state no `vars` on a single forest draw bit for bit what they 
 
 ## Left out
 
-All-zero `split.probs` fails with a raw R error, with or without `vars`. When the control migration gives every
+A zero split probability still does not exclude a column once the columns with positive probability run out,
+with `split.probs` alone and no `vars`; the fix belongs with `setModel`'s treatment of a zero probability on a
+column the trees use. All-zero `split.probs` fails with a raw R error, with or without `vars`. When the control migration gives every
 model a forest record, the `forest.columns` attribute moves into the first forest's record with the rest.
