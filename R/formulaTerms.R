@@ -473,9 +473,9 @@ ingestFormulaTerms <- function(
   # the order amplitude j is stated against), and the levels of the evaluated
   # value itself when that is categorical, since an expression such as
   # ~ factor(z) derives its own from whatever data it sees and would otherwise
-  # set the width from newdata, and the call that rebuilds the value from the
-  # training rows' centre, scale and knots. A basis given as a value rather than a formula
-  # has no expression to replay and stores none.
+  # set the width from newdata. The call that rebuilds the value from the
+  # training rows' centre, scale and knots is stored too. A basis given as a
+  # value rather than a formula has no expression to replay and stores none.
   basisTerms <- lapply(seq_along(pending), function(i) {
     basis <- pending[[i]]$basisValue
     if (!inherits(basis, "formula")) {
@@ -493,7 +493,12 @@ ingestFormulaTerms <- function(
       # model formula's terms (stats::makepredictcall); an expression with no
       # such method comes back unchanged and is evaluated on whatever rows
       # predict is given, as lm evaluates it
-      predcall = stats::makepredictcall(value, basis[[2L]]),
+      predcall = forestBasisPredictCall(
+        basis[[2L]],
+        basisFrame,
+        environment(basis),
+        value
+      ),
       xlev = if (length(factorVars) > 0L) lapply(factorVars, levels) else NULL,
       levels = if (is.factor(value)) {
         levels(value)
@@ -511,6 +516,32 @@ ingestFormulaTerms <- function(
     bases = bases,
     basisTerms = basisTerms
   )
+}
+
+## The call that rebuilds a basis expression at new rows. model.frame gives
+## every variable of a model formula its own stats::makepredictcall; a basis is
+## one expression, so the same is done for the operands of the arithmetic
+## operators, parentheses and cbind() at its top, and for the call at the top
+## when it is none of those. Anything else, I() and indexing among it, comes
+## back as written. 'value' is the already evaluated expression, which saves
+## evaluating it again.
+forestBasisPredictCall <- function(expr, frame, env, value = NULL) {
+  if (!is.call(expr)) {
+    return(expr)
+  }
+  if (
+    is.name(expr[[1L]]) &&
+      as.character(expr[[1L]]) %in% c("+", "-", "*", "/", "^", "(", "cbind")
+  ) {
+    for (i in seq_along(expr)[-1L]) {
+      expr[[i]] <- forestBasisPredictCall(expr[[i]], frame, env)
+    }
+    return(expr)
+  }
+  if (is.null(value)) {
+    value <- eval(expr, frame, env)
+  }
+  stats::makepredictcall(value, expr)
 }
 
 ## Phase 2: resolve each term's vars against the built design (needs

@@ -55,20 +55,29 @@ forest(
     than aligned to them by position. With no \code{subset}, or one that
     keeps every row, the two counts agree and nothing changes.
 
-    The right-hand side of a formula is evaluated as R code, not read as a
-    model formula, and the forest does not centre or scale a basis, so a
-    multiplier that should be standardized is written so:
-    \code{basis = ~ scale(w)}. At \code{predict} a basis built with
-    \code{scale()}, \code{poly()}, \code{ns()} or \code{bs()} is rebuilt at
-    the new rows from what those functions computed on the rows the fit used,
-    as \code{\link{lm}} does, so a row is standardized by the training
-    centre and scale and not by the new rows' own; when the fit was given
-    \code{subset}, those are the centre and scale of the rows it kept, where \code{lm} uses all of them. Any
-    other expression of a whole column, such as \code{w - mean(w)}, is
+    The right-hand side of a formula is evaluated as R code, and the forest
+    does not centre or scale a basis, so a multiplier that should be
+    standardized is written so: \code{basis = ~ scale(w)}, or
+    \code{basis = ~ cbind(scale(w), scale(v))} for two columns.
+
+    For a \code{forest()} term of a model formula, \code{predict} rebuilds the
+    basis at the new rows from what \code{scale()}, \code{poly()},
+    \code{ns()} or \code{bs()} computed on the training rows, as
+    \code{\link{lm}} does, so a new row is standardized by the training centre
+    and scale and not by the new rows' own. This holds for such a call written
+    alone, or as an operand of \code{+}, \code{-}, \code{*}, \code{/},
+    \code{^}, parentheses or \code{cbind()}; any other expression, such as
+    \code{I(w - mean(w))}, \code{scale(w)[, 1]} or \code{log(scale(w))}, is
     evaluated on the rows given to \code{predict}, as \code{lm} evaluates it,
     so its value at a row depends on the other rows predicted with it; see
-    \code{\link[stats]{SafePrediction}}. A factor level the fit never saw is
-    refused at \code{predict}.
+    \code{\link[stats]{SafePrediction}}. With \code{subset}, the centre and
+    scale are those of the rows \code{subset} kept, where \code{lm} uses all
+    of them; rows dropped for a missing response still enter them. A factor
+    level the fit never saw is refused at \code{predict}.
+
+    A basis declared through \code{forests =} is not rebuilt: the caller gives
+    it at the new rows, and with \code{subset} its formula was evaluated on
+    every row of \code{data}.
   }
   \item{vars}{
     Optional restriction of this forest to a subset of the model matrix, by

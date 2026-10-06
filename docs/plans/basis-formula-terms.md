@@ -30,16 +30,20 @@ a term. Today the formula is evaluated again on the new rows.
 
 - A fit's draws are unchanged: the training basis is evaluated as it is now. The seeded snapshot files and
   every equivalence scenario are identical.
-- As in `lm`, and no stricter: a transformation with a `makepredictcall` method predicts from the training
-  rows; any other expression is evaluated on the new rows, as `lm` evaluates `I(w - mean(w))`. No refusal is
-  added for expressions that depend on the other rows: it cannot be decided reliably from the data.
+- A call with a `makepredictcall` method (`scale()`, `poly()`, `ns()`, `bs()`) predicts from the training rows
+  when it is the whole right-hand side or an operand of `+ - * / ^`, parentheses or `cbind()` at the top of it,
+  each operand given its own `makepredictcall` as `model.frame` gives each variable of a model formula. Any
+  other expression, `I()`, indexing and other functions included, is evaluated on the new rows, as `lm`
+  evaluates `I(w - mean(w))`. No refusal is added for expressions that depend on the other rows: it cannot be
+  decided reliably from the data.
 - With `subset`, the training centre and scale are those of the rows the fit used.
 - A fit object stored before this change, which carries no rebuilt call, predicts as it does now.
 - A level of a factor basis that the fit never saw is refused at predict, as `lm` refuses it; a level seen in
   training and absent from the new rows is not an error.
 - What is accepted on the left of `:forest()` does not change here.
-- Out of scope, each to TODO if not already there: a basis formula with `+`, `*` or `:` at its top, which is
-  evaluated as R code and not as a model formula; `scale(w):forest(x)`.
+- Out of scope, to TODO if not already there: `scale(w):forest(x)`, and a basis formula with `:` at its top,
+  which is evaluated as R code and not as a model formula (`+` and `*` there are arithmetic on the columns, as
+  before).
 
 ## Steps
 
