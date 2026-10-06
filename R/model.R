@@ -1019,7 +1019,10 @@ expandForestBasis <- function(
 ## from the data it sees, so newdata alone would set the width). model.frame
 ## resolves an absent variable in the formula's own scope, which for a
 ## predicted row is a silent wrong answer rather than a missing predictor, so
-## the variables are named up front the way validateXTest names its own.
+## the variables are named up front the way validateXTest names its own. The
+## value is built by the stored call when there is one, which carries the
+## training rows' centre, scale and knots; a term stored without one is
+## evaluated on the new rows.
 replayForestBasis <- function(term, newdata, index) {
   vars <- all.vars(term$formula[[2L]])
   missingVars <- vars[vars %not_in% names(newdata)]
@@ -1047,7 +1050,11 @@ replayForestBasis <- function(term, newdata, index) {
     drop.unused.levels = FALSE,
     xlev = term$xlev
   )
-  value <- evaluateForestBasis(term$formula, frame)
+  value <- if (is.null(term$predcall)) {
+    evaluateForestBasis(term$formula, frame)
+  } else {
+    eval(term$predcall, frame, environment(term$formula))
+  }
   if (!is.null(term$levels)) {
     value <- factor(as.character(value), levels = term$levels)
   }

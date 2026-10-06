@@ -28,7 +28,8 @@ Suggests:
   rmarkdown,
   tinytest (>= 1.4.3),
   Matrix,
-  survival
+  survival,
+  splines
 VignetteBuilder: knitr, rmarkdown
 Config/Needs/check: rcmdcheck
 Config/Needs/dev: lintr, languageserver

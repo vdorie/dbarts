@@ -473,7 +473,8 @@ ingestFormulaTerms <- function(
   # the order amplitude j is stated against), and the levels of the evaluated
   # value itself when that is categorical, since an expression such as
   # ~ factor(z) derives its own from whatever data it sees and would otherwise
-  # set the width from newdata. A basis given as a value rather than a formula
+  # set the width from newdata, and the call that rebuilds the value from the
+  # training rows' centre, scale and knots. A basis given as a value rather than a formula
   # has no expression to replay and stores none.
   basisTerms <- lapply(seq_along(pending), function(i) {
     basis <- pending[[i]]$basisValue
@@ -487,6 +488,12 @@ ingestFormulaTerms <- function(
     value <- evaluated[[i]]
     list(
       formula = basis,
+      # the expression with what scale(), poly(), ns() and the like computed
+      # from the training rows written into the call, as model.frame does for a
+      # model formula's terms (stats::makepredictcall); an expression with no
+      # such method comes back unchanged and is evaluated on whatever rows
+      # predict is given, as lm evaluates it
+      predcall = stats::makepredictcall(value, basis[[2L]]),
       xlev = if (length(factorVars) > 0L) lapply(factorVars, levels) else NULL,
       levels = if (is.factor(value)) {
         levels(value)
