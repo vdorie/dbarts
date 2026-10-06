@@ -3905,7 +3905,10 @@ inline std::size_t drawFromLogWeights(ext_rng* rng, double* logWeights,
 /// normalized gammas. The concentration alpha is optionally sampled on a
 /// fixed grid of lambda = alpha / (alpha + rho) with lambda ~ Beta(a, b);
 /// all lgamma terms of the grid are precomputed, so the per-iteration alpha
-/// update is O(gridSize) multiply-adds.
+/// update is O(gridSize) multiply-adds. Under a column mask the Dirichlet is
+/// laid over the allowed columns alone - p is their count, in the default rho
+/// as well - and every other column's probability is 0, so a restricted
+/// forest draws what DART on the allowed columns draws.
 struct DartPrior {
   double alpha = 1.0;
   bool updateAlpha = true;
@@ -3917,14 +3920,26 @@ struct DartPrior {
   std::size_t updateDelay = 0;
   std::vector<double> probabilities;
 
-  void initialize(std::size_t numPredictors) {
-    probabilities.assign(numPredictors, 1.0 / static_cast<double>(numPredictors));
-    if (rho <= 0.0) rho = static_cast<double>(numPredictors);
+  /// columnMask, when non-null, is a 0/1 byte per predictor (1 = splittable)
+  /// with at least one column allowed; it is copied.
+  void initialize(std::size_t numPredictors,
+                  const std::uint8_t* columnMask = nullptr) {
+    numAllowed_ = numPredictors;
+    if (columnMask != nullptr) {
+      columnMask_.assign(columnMask, columnMask + numPredictors);
+      numAllowed_ = 0;
+      for (std::size_t j = 0; j < numPredictors; ++j)
+        numAllowed_ += columnMask[j] != 0 ? 1 : 0;
+    }
+    double p = static_cast<double>(numAllowed_);
+    probabilities.assign(numPredictors, 1.0 / p);
+    for (std::size_t j = 0; j < columnMask_.size(); ++j)
+      if (columnMask_[j] == 0) probabilities[j] = 0.0;
+    if (rho <= 0.0) rho = p;
     if (updateAlpha) {
       gridAlpha_.resize(gridSize);
       gridConstant_.resize(gridSize);
       gridWeight_.resize(gridSize);
-      double p = static_cast<double>(numPredictors);
       for (std::size_t k = 0; k < gridSize; ++k) {
         double lambda = static_cast<double>(k + 1) / static_cast<double>(gridSize + 1);
         double alphaK = lambda * rho / (1.0 - lambda);
@@ -3943,10 +3958,17 @@ struct DartPrior {
     }
 
     std::size_t numPredictors = probabilities.size();
-    double p = static_cast<double>(numPredictors);
+    double p = static_cast<double>(numAllowed_);
+    const bool masked = !columnMask_.empty();
 
+    // an excluded column takes no draw, and is zeroed rather than skipped: an
+    // installed state may carry a probability there
     double total = 0.0;
     for (std::size_t j = 0; j < numPredictors; ++j) {
+      if (masked && columnMask_[j] == 0) {
+        probabilities[j] = 0.0;
+        continue;
+      }
       double draw = ext_rng_simulateGamma(
         rng, alpha / p + static_cast<double>(splitCounts[j]), 1.0);
       probabilities[j] = draw > 1.0e-300 ? draw : 1.0e-300;
@@ -3958,7 +3980,8 @@ struct DartPrior {
 
     double sumLogProbabilities = 0.0;
     for (std::size_t j = 0; j < numPredictors; ++j)
-      sumLogProbabilities += std::log(probabilities[j]);
+      if (!masked || columnMask_[j] != 0)
+        sumLogProbabilities += std::log(probabilities[j]);
 
     for (std::size_t k = 0; k < gridSize; ++k)
       gridWeight_[k] = gridConstant_[k] + (gridAlpha_[k] / p) * sumLogProbabilities;
@@ -3974,6 +3997,10 @@ struct DartPrior {
 
 private:
   std::vector<double> gridAlpha_, gridConstant_, gridWeight_;
+  // the columns the Dirichlet is laid over (empty = every column) and their
+  // count
+  std::vector<std::uint8_t> columnMask_;
+  std::size_t numAllowed_ = 0;
   std::size_t numUpdatesSkipped_ = 0;
 };
 

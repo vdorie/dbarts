@@ -1082,6 +1082,239 @@ static void testBlockAdditiveConfinement() {
          splitters, violators);
 }
 
+// ---------------------------------------------------------------------------
+// A single forest's column list: SamplerOptions::forestColumns confines the
+// one mean forest, and MultinomialForestSpec::columns every category forest,
+// to the listed columns. The response leans hardest on x2, the excluded
+// column, so an unrestricted chain splits on it in every state read. Asserted:
+// no split outside the list over 500 sweeps on the constant, linear and
+// monotone leaves, under blocks (each tree within its group as well) and on
+// every category forest; the chain is bit for bit the chain on the listed
+// columns alone, under DART too, whose excluded columns report probability 0;
+// an out-of-list donor is refused by both install entries; and an empty list,
+// or one naming every column, is bit for bit the chain without one.
+// RNG-neutral (saves/restores rngState; local seeded generators).
+// ---------------------------------------------------------------------------
+template <typename S>
+static size_t countSplitsOutside(S& sampler, const std::uint8_t* allowed,
+                                 size_t numBlocks = 0, size_t* total = nullptr) {
+  SamplerStateData state;
+  sampler.getState(state);
+  size_t outside = 0;
+  for (const ForestStateData& forest : state.chains[0].forests)
+    for (size_t t = 0; t < forest.trees.size(); ++t)
+      for (const FlatNode& node : forest.trees[t]) {
+        if (node.variable == invalidVariable) continue;
+        if (total != nullptr) ++*total;
+        // under blocks, tree t of the two equal groups may split on its own
+        // group's column alone: column 0 for the first half, 1 for the second
+        bool ok = numBlocks == 0
+          ? allowed[node.variable] != 0
+          : static_cast<size_t>(node.variable) ==
+              (t < forest.trees.size() / 2 ? 0u : 1u);
+        outside += ok ? 0 : 1;
+      }
+  return outside;
+}
+
+static void testSingleForestColumnRestriction() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 717171u;
+
+  const size_t n = 300, p = 3, numTrees = 20, K = 3;
+  std::vector<double> x(n * p), y(n);
+  std::vector<int> counts(n * K, 0), trials(n, 1);
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = 0; j < p; ++j) x[i + j * n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = x[i] + 2.0 * x[i + n] + 4.0 * x[i + 2 * n] + 0.1 * z;
+    counts[(x[i + 2 * n] < 0.34 ? 0 : (x[i + 2 * n] < 0.67 ? 1 : 2)) * n + i] = 1;
+  }
+  const std::vector<size_t> allowed = {0, 1}, everyColumn = {0, 1, 2};
+  const std::uint8_t allowedMask[] = {1, 1, 0};
+  const std::vector<std::int32_t> blockOfColumn = {0, 1, -1};
+  const std::vector<size_t> blockTreeCounts = {numTrees / 2, numTrees / 2};
+  const std::vector<size_t> covariates = {0};
+  const std::int8_t directions[] = {1, 0, 0};
+  const double rawScale = 0.37804942330213542;
+
+  std::vector<ext_rng*> rngs;
+  auto newRng = [&](std::uint32_t seed) {
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return r;
+  };
+  auto restrictTo = [](SamplerOptions& options, const std::vector<size_t>& list,
+                       size_t count) {
+    options.forestColumns = list.data();
+    options.numForestColumns = count;
+  };
+  auto make = [&]<typename L>(SamplerOptions options, std::uint32_t seed,
+                              size_t numColumns = 3) {
+    options.numTrees = numTrees;
+    ext_rng* r = newRng(seed);
+    return std::make_unique<Sampler<L>>(
+      x.data(), y.data(), n, numColumns, nullptr, nullptr,
+      ResponseFamily::gaussian, 1.0, 3.0, rawScale, options, &r);
+  };
+  Results empty;
+  // every sweep's live trees are read, so a split made and undone is seen
+  auto sweepsOutside = [&](auto& sampler, size_t numBlocks, size_t& total) {
+    size_t outside = 0;
+    for (size_t sweep = 0; sweep < 500; ++sweep) {
+      sampler.run(1, 0, empty);
+      outside += countSplitsOutside(sampler, allowedMask, numBlocks, &total);
+    }
+    return outside;
+  };
+
+  SamplerOptions plain, restricted, blocked, linear, monotone;
+  restrictTo(restricted, allowed, allowed.size());
+  blocked = restricted;
+  blocked.numBlocks = blockTreeCounts.size();
+  blocked.blockOfColumn = blockOfColumn.data();
+  blocked.blockTreeCounts = blockTreeCounts.data();
+  linear = restricted;
+  linear.leafCovariateColumns = covariates.data();
+  linear.numLeafCovariates = covariates.size();
+  monotone = restricted;
+  monotone.monotoneDirections = directions;
+
+  size_t total = 0, donorTotal = 0;
+  auto constant = make.operator()<ConstantGaussianLeaf>(restricted, 101);
+  check(sweepsOutside(*constant, 0, total) == 0 && total > 0,
+        "forest columns: a restricted constant-leaf chain stays in its list");
+  auto donor = make.operator()<ConstantGaussianLeaf>(plain, 101);
+  check(sweepsOutside(*donor, 0, donorTotal) > 0,
+        "forest columns: the unrestricted chain splits on the excluded column");
+  total = 0;
+  auto inBlocks = make.operator()<ConstantGaussianLeaf>(blocked, 102);
+  check(sweepsOutside(*inBlocks, 2, total) == 0 && total > 0,
+        "forest columns: under blocks each tree stays in its group");
+  total = 0;
+  auto linearLeaf = make.operator()<LinearGaussianLeaf>(linear, 103);
+  check(sweepsOutside(*linearLeaf, 0, total) == 0 && total > 0,
+        "forest columns: a restricted linear-leaf chain stays in its list");
+  total = 0;
+  auto monotoneLeaf =
+    make.operator()<MonotoneConstantGaussianLeaf>(monotone, 104);
+  check(sweepsOutside(*monotoneLeaf, 0, total) == 0 && total > 0,
+        "forest columns: a restricted monotone chain stays in its list");
+
+  auto makeMultinomial = [&](bool withList, std::uint32_t seed) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    MultinomialSpec spec;
+    spec.numCategories = K;
+    spec.counts = counts.data();
+    spec.trials = trials.data();
+    spec.forest.numTrees = numTrees;
+    if (withList) {
+      spec.forest.columns = allowed.data();
+      spec.forest.numColumns = allowed.size();
+    }
+    ext_rng* r = newRng(seed);
+    return std::make_unique<Sampler<ConstantGaussianLeaf>>(x.data(), n, p,
+                                                           options, spec, &r);
+  };
+  total = donorTotal = 0;
+  auto categories = makeMultinomial(true, 105);
+  check(sweepsOutside(*categories, 0, total) == 0 && total > 0,
+        "forest columns: every category forest stays in its list");
+  auto freeCategories = makeMultinomial(false, 105);
+  check(sweepsOutside(*freeCategories, 0, donorTotal) > 0,
+        "forest columns: unrestricted category forests split outside it");
+
+  // the restricted chain is the chain on the listed columns alone: the list is
+  // the store's first two columns, so the two states compare node for node
+  auto identicalForests = [](const SamplerStateData& a,
+                             const SamplerStateData& b) {
+    const auto& ta = a.chains[0].forests[0].trees;
+    const auto& tb = b.chains[0].forests[0].trees;
+    if (ta.size() != tb.size() || a.chains[0].sigma != b.chains[0].sigma)
+      return false;
+    for (size_t t = 0; t < ta.size(); ++t) {
+      if (ta[t].size() != tb[t].size()) return false;
+      for (size_t i = 0; i < ta[t].size(); ++i)
+        if (ta[t][i].variable != tb[t][i].variable ||
+            ta[t][i].mask != tb[t][i].mask || ta[t][i].flags != tb[t][i].flags)
+          return false;
+    }
+    return true;
+  };
+  SamplerOptions dart, dartRestricted, dartEveryColumn, emptyList;
+  dart.useDart = true;
+  dartRestricted = dart;
+  restrictTo(dartRestricted, allowed, allowed.size());
+  dartEveryColumn = dart;
+  restrictTo(dartEveryColumn, everyColumn, everyColumn.size());
+  restrictTo(emptyList, allowed, 0);
+  auto stateAfter = [&]<typename L>(const SamplerOptions& options,
+                                    size_t numColumns) {
+    auto sampler = make.operator()<L>(options, 106, numColumns);
+    sampler->run(100, 0, empty);
+    SamplerStateData state;
+    sampler->getState(state);
+    return state;
+  };
+  using Constant = ConstantGaussianLeaf;
+  SamplerStateData onList = stateAfter.operator()<Constant>(restricted, 3);
+  SamplerStateData onSubMatrix = stateAfter.operator()<Constant>(plain, 2);
+  check(identicalForests(onList, onSubMatrix),
+        "forest columns: the restricted chain is the chain on its columns");
+  SamplerStateData dartOnList =
+    stateAfter.operator()<Constant>(dartRestricted, 3);
+  SamplerStateData dartOnSubMatrix = stateAfter.operator()<Constant>(dart, 2);
+  const std::vector<double>& probabilities(dartOnList.chains[0].dartProbabilities);
+  check(identicalForests(dartOnList, dartOnSubMatrix) &&
+          probabilities.size() == p &&
+          probabilities[0] == dartOnSubMatrix.chains[0].dartProbabilities[0] &&
+          probabilities[1] == dartOnSubMatrix.chains[0].dartProbabilities[1] &&
+          dartOnList.chains[0].dartAlpha == dartOnSubMatrix.chains[0].dartAlpha,
+        "forest columns: restricted DART is DART on its columns");
+  check(probabilities[2] == 0.0 && probabilities[0] > 0.0 &&
+          probabilities[1] > 0.0,
+        "forest columns: DART reports 0 for an excluded column");
+  SamplerStateData unlisted = stateAfter.operator()<Constant>(plain, 3);
+  SamplerStateData dartUnlisted = stateAfter.operator()<Constant>(dart, 3);
+  check(statesAgree(unlisted, stateAfter.operator()<Constant>(emptyList, 3)) &&
+          identicalForests(unlisted,
+                           stateAfter.operator()<Constant>(emptyList, 3)),
+        "forest columns: an empty list is the chain without one");
+  SamplerStateData dartListed =
+    stateAfter.operator()<Constant>(dartEveryColumn, 3);
+  check(identicalForests(dartUnlisted, dartListed) &&
+          dartUnlisted.chains[0].dartProbabilities ==
+            dartListed.chains[0].dartProbabilities,
+        "forest columns: DART over every column is DART without a list");
+
+  // an out-of-list donor is refused by both install entries, by name, and the
+  // chain's own state is not
+  SamplerStateData donorState, ownState;
+  donor->getState(donorState);
+  constant->getState(ownState);
+  bool columnMaskRefused = false;
+  check(!constant->setState(donorState, nullptr, &columnMaskRefused) &&
+          columnMaskRefused,
+        "forest columns: setState refuses an out-of-list state by name");
+  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  check(constant->installForests(donorState, liveMap) ==
+          WarmStartResult::columnMaskMismatch,
+        "forest columns: warm start refuses an out-of-list donor");
+  SamplerStateData afterRefusals;
+  constant->getState(afterRefusals);
+  check(statesAgree(ownState, afterRefusals) &&
+          constant->setState(ownState, nullptr),
+        "forest columns: a refusal leaves the chain, whose own state restores");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: single-forest column restriction (%zu donor splits outside)\n",
+         donorTotal);
+}
+
 // Cross-grid warm start (docs/plans/warm-starts.md): a donor grown on a fine
 // cut grid seeds a destination on a coarser one. The refusal is lifted; the
 // donor's split indices remap onto the live grid and any the coarser grid
@@ -2643,6 +2876,7 @@ void runStateTests(ext_rng* rng) {
   testDegenerateGridRestores(rng);
   testInteractionContainment();
   testBlockAdditiveConfinement();
+  testSingleForestColumnRestriction();
   testCrossGridWarmStart();
   testVarianceWarmStart();
   testVarianceWarmStartSlot();

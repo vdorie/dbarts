@@ -382,7 +382,7 @@ inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
 
 /// One category forest's calibration for a multinomial sampler; the K forests
 /// are symmetric, so a single spec builds them all (mbart2's convention),
-/// interaction and block constraints included. Node
+/// column, interaction and block constraints included. Node
 /// scale is not spec'd here: the chain constructor sets every forest's leaf
 /// scale from nodeScale (the pi*sqrt(3)/sqrt(2) anchor) and k.
 struct MultinomialForestSpec {
@@ -391,10 +391,12 @@ struct MultinomialForestSpec {
   double birthOrDeathProbability = 0.6, swapProbability = 0.0,
          changeProbability = 0.4, perturbProbability = 0.0,
          ruleGibbsProbability = 0.0, birthProbability = 0.5;
-  // optional interaction and block-additive constraints, the same fields with
-  // the same contracts as ForestStructureSpec's (borrowed, consumed at
-  // construction), installed identically on every category forest. The
+  // optional column, interaction and block-additive constraints, the same
+  // fields with the same contracts as ForestStructureSpec's (borrowed, consumed
+  // at construction), installed identically on every category forest. The
   // defaults leave each forest unconstrained, byte-for-byte.
+  const std::size_t* columns = nullptr;
+  std::size_t numColumns = 0;
   std::size_t interactionMaxOrder = 0;
   const std::size_t* interactionForbiddenPairs = nullptr;
   std::size_t interactionNumForbiddenPairs = 0;

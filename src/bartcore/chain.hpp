@@ -203,6 +203,15 @@ struct SamplerOptions {
   const std::int32_t* blockOfColumn = nullptr;
   const std::size_t* blockTreeCounts = nullptr;
 
+  // optional split-variable restriction for the single mean forest (borrowed
+  // 0-based column indices, consumed at construction): the columns it may
+  // split on. Null or count 0 leaves every column available - byte-for-byte
+  // unchanged. DART's Dirichlet is laid over the listed columns alone, and a
+  // block row is intersected with them. A multi-forest sampler reads each
+  // forest's own list off its spec and never this one.
+  const std::size_t* forestColumns = nullptr;
+  std::size_t numForestColumns = 0;
+
   // heteroscedastic variance forest (HBART): numVarianceTrees > 0 adds a
   // SECOND forest modeling s^2(x) as a product of
   // scaled-inverse-chi-squared leaves, coupled to the mean forest through the
@@ -827,9 +836,22 @@ public:
                      family != ResponseFamily::aft) ||
                     options.sigmaIsFixed;
 
+    // A restricted forest clears the availability of every unlisted column.
+    // The mask is built ahead of the split-variable prior, which DART lays
+    // over the allowed columns alone, and ahead of the block rows, which
+    // intersect it; an empty list leaves the mask empty and every tree
+    // unrestricted (the default availability path, byte-for-byte).
+    if (options.forestColumns != nullptr && options.numForestColumns > 0) {
+      forest.columnMask.assign(data.numPredictors, 0);
+      for (size_t c = 0; c < options.numForestColumns; ++c)
+        forest.columnMask[options.forestColumns[c]] = 1;
+    }
+    options_.forestColumns = nullptr;  // consumed above
+
     if (options.useDart) {
       forest.dart = options.dart;
-      forest.dart.initialize(data.numPredictors);
+      forest.dart.initialize(data.numPredictors, forest.columnMask.empty()
+                               ? nullptr : forest.columnMask.data());
       forest.treePrior.splitProbabilities = forest.dart.probabilities.data();
       forest.splitCounts.resize(data.numPredictors);
     } else if (options.splitProbabilities != nullptr) {
@@ -847,6 +869,9 @@ public:
     for (size_t t = 0; t < forest.numTrees; ++t)
       forest.trees[t].initialize(forest.indexBuffer.data() + t * numObservations,
                                  numObservations);
+    if (!forest.columnMask.empty())
+      for (size_t t = 0; t < forest.numTrees; ++t)
+        forest.trees[t].setColumnMask(forest.columnMask.data());
 
     // Per-forest interaction constraint, installed like the column mask: an
     // unset (or inactive) constraint leaves every tree's pointer null and the
@@ -856,9 +881,9 @@ public:
                        options.interactionNumForbiddenPairs);
     options_.interactionForbiddenPairs = nullptr;  // consumed above
 
-    // Block-additive constraint: confine each tree to one group. The
-    // single-forest path carries no base columnMask, so the block row is the
-    // group membership directly; numBlocks 0 leaves every tree unrestricted.
+    // Block-additive constraint: confine each tree to one group. Each block
+    // row is the group membership intersected with the forest's columnMask,
+    // when it carries one; numBlocks 0 leaves every tree as it is.
     installBlockMasks(forest, data.numPredictors, options.numBlocks,
                       options.blockOfColumn, options.blockTreeCounts);
     options_.blockOfColumn = nullptr;    // consumed above
@@ -1020,6 +1045,7 @@ public:
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
     // the constraints ride spec.forest; these borrowed copies are read by nothing
+    options_.forestColumns = nullptr;
     options_.interactionForbiddenPairs = nullptr;
     options_.blockOfColumn = nullptr;
     options_.blockTreeCounts = nullptr;
@@ -6459,8 +6485,8 @@ private:
 
   /// One symmetric category forest for a multinomial chain: constant leaf, no
   /// DART, fixed k, leaf scale nodeScale/sqrt(numTrees) (the pi*sqrt(3)/sqrt(2)
-  /// anchor), and the spec's interaction and block constraints. Every category
-  /// forest is identical.
+  /// anchor), and the spec's column, interaction and block constraints. Every
+  /// category forest is identical.
   void buildMultinomialForest(const MultinomialForestSpec& spec,
                               double nodeScale, double k) {
     std::size_t n = data_.numObservations;
@@ -6484,6 +6510,15 @@ private:
     forest.trees.resize(spec.numTrees);
     for (std::size_t t = 0; t < spec.numTrees; ++t)
       forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
+    // the spec's column list, as buildSpecifiedForest installs one; the block
+    // rows below intersect it
+    if (spec.columns != nullptr && spec.numColumns > 0) {
+      forest.columnMask.assign(data_.numPredictors, 0);
+      for (std::size_t c = 0; c < spec.numColumns; ++c)
+        forest.columnMask[spec.columns[c]] = 1;
+      for (std::size_t t = 0; t < spec.numTrees; ++t)
+        forest.trees[t].setColumnMask(forest.columnMask.data());
+    }
     installInteraction(forest, data_.numPredictors, spec.interactionMaxOrder,
                        spec.interactionForbiddenPairs,
                        spec.interactionNumForbiddenPairs);
