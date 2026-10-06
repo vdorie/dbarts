@@ -280,7 +280,7 @@ samplerFit <- function(seed) {
     tree.prior = cgm(muPower, muBase),
     leaf.prior = normal(2),
     forests = list(
-      forest(sd = sdControl, update.amplitude = TRUE),
+      forest(sd = sdControl),
       forest(
         basis = ~ factor(z),
         n.trees = 1L,
@@ -288,7 +288,7 @@ samplerFit <- function(seed) {
         power = tauPower,
         sd = sdModerate,
         amplitude.prior.variance = bVar,
-        update.amplitude = FALSE
+        amplitude = fixed()
       )
     )
   )

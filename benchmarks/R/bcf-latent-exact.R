@@ -612,7 +612,7 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
   bcfForests <- list(
     dbarts::dbartsForests$forest(
       sd = sdControl,
-      update.amplitude = updateA
+      amplitude = if (updateA) NULL else dbarts::dbartsForests$fixed()
     ),
     dbarts::dbartsForests$forest(
       basis = ~ factor(arm$z),
@@ -621,7 +621,7 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
       power = tauPower,
       sd = sdModerate,
       amplitude.prior.variance = bVar,
-      update.amplitude = updateB
+      amplitude = if (updateB) NULL else dbarts::dbartsForests$fixed()
     )
   )
   bc <- if (is.null(arm$weights)) {

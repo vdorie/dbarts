@@ -219,12 +219,14 @@ bcfForests <- function(
   update.b = TRUE
 ) {
   list(
-    dbarts::dbartsForests$forest(update.amplitude = update.a),
+    dbarts::dbartsForests$forest(
+      amplitude = if (update.a) NULL else dbarts::dbartsForests$fixed()
+    ),
     dbarts::dbartsForests$forest(
       basis = ~ factor(z),
       n.trees = n.trees.treatment,
       vars = moderators,
-      update.amplitude = update.b
+      amplitude = if (update.b) NULL else dbarts::dbartsForests$fixed()
     )
   )
 }
