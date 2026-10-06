@@ -158,17 +158,44 @@ expect_false(identical(revivedLatents, preSwap))
 expect_true(max(abs(revivedLatents - liveSwap)) <= 1e-13)
 expect_true(max(abs(revivedLatents - preSwap)) > 1e-3)
 
-# --- neutrality: the repair is a measured no-op elsewhere -------------------
-# Every family below takes a MISMATCHED transplant twice - once with the
-# digest present (the repair fires) and once with it stripped (it cannot) -
-# and runs byte-identically either way. Student-t is pinned on the NON-UNIFORM
-# pair: a uniform w = 1 against w = 8 is invariant by construction (sigma^2
-# rescales) and would pin nothing.
+# --- Student-t: the scales are re-derived too -------------------------------
+# A scale is drawn given its row's weight, and one stored for a row at weight
+# zero was drawn without that row's residual. The state does not say which
+# rows those were, so a mismatched restore redraws the scale of every row in
+# the likelihood at the destination and leaves the stored one where the
+# destination's weight is zero. A matched restore draws nothing: it runs
+# byte-identically with the digest stripped, when no repair can fire.
 withoutDigest <- function(state) {
   attr(state, "weights.digest") <- NULL
   state
 }
-for (make in list(gaussianSampler, studentSampler, varianceSampler)) {
+# zeros go in through $setWeights, creation warning about them
+studentAt <- function(weights) {
+  sampler <- studentSampler(wA)
+  sampler$setWeights(weights)
+  sampler
+}
+wFirstOut <- replace(wA, 1:20, 0)
+wLastOut <- replace(wB, 62:81, 0)
+tstate <- storedFrom(studentAt(wFirstOut))
+tstored <- tstate[[1L]][["latents"]]
+tmatched <- studentAt(wFirstOut)
+expect_true(tmatched$setState(tstate))
+expect_identical(tmatched$getLatents(), tstored)
+tinert <- studentAt(wFirstOut)
+tinert$setState(withoutDigest(tstate))
+expect_identical(tmatched$run(0L, 3L)$train, tinert$run(0L, 3L)$train)
+trepaired <- studentAt(wLastOut)
+expect_true(trepaired$setState(tstate))
+expect_true(all(trepaired$getLatents()[wLastOut > 0] != tstored[wLastOut > 0]))
+expect_identical(trepaired$getLatents()[wLastOut == 0], tstored[wLastOut == 0])
+expect_true(all(is.finite(trepaired$run(0L, 3L)$train)))
+
+# --- neutrality: the repair is a measured no-op elsewhere -------------------
+# Every family below takes a MISMATCHED transplant twice - once with the
+# digest present (the repair fires) and once with it stripped (it cannot) -
+# and runs byte-identically either way.
+for (make in list(gaussianSampler, varianceSampler)) {
   donor <- storedFrom(make(wA))
   repaired <- make(wB)
   # other weights leave the chains the stored ones
@@ -311,6 +338,14 @@ rm(
   nullState,
   onesDest,
   nullDest,
+  studentAt,
+  wFirstOut,
+  wLastOut,
+  tstate,
+  tstored,
+  tmatched,
+  tinert,
+  trepaired,
   stripped,
   malformed,
   warmDonor,

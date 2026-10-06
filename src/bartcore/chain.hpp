@@ -1960,16 +1960,19 @@ public:
       append(weights_ != nullptr ? weights_ + i : &unit, sizeof(double));
     return hash;
   }
-  /// Re-installs the weights already in force through the family's own weight
-  /// conduit, which is what "re-derive the weight-dependent latents" means for
-  /// each family in turn: logistic redraws its Polya-Gamma variates against
-  /// these counts, Student-t and gaussian recompose a composite that is
-  /// already what it should be (no row's weight leaves zero, so Student-t
-  /// redraws no scale), and a family that reads no weights takes the
-  /// base class's no-op. Nothing is refused, because nothing changes; the
-  /// caller has installed a state whose latents another weight vector shaped.
+  /// Re-derives the weight-dependent latents against the weights already in
+  /// force, each family in its own way: logistic redraws its Polya-Gamma
+  /// variates against these counts, Student-t redraws the scale of every row
+  /// in the likelihood (a scale stored for a row the other weights had left
+  /// out was drawn without that row's residual, and the state does not say
+  /// which rows those were), gaussian holds nothing to redraw, and a family
+  /// that reads no weights takes the base class's no-op. Nothing is refused,
+  /// because no weight changes; the caller has installed a state whose latents
+  /// another weight vector shaped. Not for a state stored under these weights:
+  /// that one is the chain as stored, and this call would draw. The location
+  /// is the COMBINED fit, for the reason setResponse states.
   void reapplyWeights() {
-    response_->setWeights(weights_, rng_, combinedFits(), sigma_);
+    response_->reapplyWeights(weights_, rng_, combinedFits(), sigma_);
     if constexpr (L::hasVectorParams)
       forests_[0].leaf.invalidateStatistics();
   }

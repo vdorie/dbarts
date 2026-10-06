@@ -3182,19 +3182,20 @@ static void testMembershipAcrossForests() {
   }
 
   // ---- a Student-t scale is redrawn at the chain's fit and sigma ----
-  // Precision weights and an offset in force. The scales a weight setter
-  // redraws are, bitwise, the conditional's own draws at the chain's combined
-  // fit and working sigma, in row order, from a generator cloned ahead of the
-  // call; every other row keeps the scale it held.
+  // Precision weights and an offset in force. The scales a weight setter or a
+  // state re-derivation redraws are, bitwise, the conditional's own draws at
+  // the chain's combined fit and working sigma, in row order, from a generator
+  // cloned ahead of the call; every other row keeps the scale it held.
   {
     const double nu = 5.0;
     SamplerOptions options;
     options.numTrees = 10;
     options.residualDf = nu;
-    std::vector<double> precision(n), zeroed(n);
+    std::vector<double> precision(n), zeroed(n), other(n);
     for (size_t i = 0; i < n; ++i) {
       precision[i] = 0.5 + 0.25 * static_cast<double>(i % 4);
       zeroed[i] = half[i] * precision[i];
+      other[i] = i % 5 == 0 ? 0.0 : precision[i];
     }
     ext_rng* rng = seeded(44u);
     ConstantLeafSampler sampler(x.data(), y.data(), n, p, zeroed.data(),
@@ -3243,6 +3244,41 @@ static void testMembershipAcrossForests() {
     check(rngStreamsAgree(reference, sampler.rng()),
           "taken from the chain's own generator");
     ext_rng_destroy(reference);
+
+    // a state stored under the zeroed weights, re-derived where other rows
+    // are out: every row in the likelihood here is redrawn at the installed
+    // fit, and a row out of it here when its weight next leaves zero
+    ext_rng* sourceRng = seeded(45u);
+    ConstantLeafSampler source(x.data(), y.data(), n, p, zeroed.data(),
+                               offset.data(), ResponseFamily::gaussian, 1.0,
+                               3.0, rawScale, options, &sourceRng);
+    source.run(30, 0, results);
+    SamplerStateData stored;
+    source.getState(stored);
+    sampler.setWeights(other.data());
+    sampler.run(5, 0, results);
+    check(sampler.setState(stored, nullptr) &&
+            scales() == stored.chains[0].latents,
+          "a student-t state stored under other weights installs its scales "
+          "as stored");
+    reference = cloneRng(sampler.rng());
+    expected = conditional(reference, other,
+                           [&](size_t i) { return other[i] != 0.0; });
+    sampler.reapplyWeights();
+    check(scales() == expected,
+          "re-deriving it redraws every scale in the likelihood at the "
+          "installed fit and sigma");
+    check(rngStreamsAgree(reference, sampler.rng()),
+          "taken from the chain's own generator");
+    ext_rng_destroy(reference);
+    reference = cloneRng(sampler.rng());
+    expected = conditional(reference, precision,
+                           [&](size_t i) { return other[i] == 0.0; });
+    sampler.setWeights(precision.data());
+    check(scales() == expected && rngStreamsAgree(reference, sampler.rng()),
+          "and a row out of it there when its weight leaves zero");
+    ext_rng_destroy(reference);
+    ext_rng_destroy(sourceRng);
     ext_rng_destroy(rng);
   }
 

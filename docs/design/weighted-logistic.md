@@ -151,10 +151,13 @@ raw bytes beside `cutPoints`), and `setState` re-derives the latents against
 the DESTINATION's counts when the two disagree. A byte hash, not a moment
 summary - `rep(c(1,4,4), n)` and `rep(c(2,2,5), n)` share mean and sum of
 squares - and a null vector digests as n unit weights, since to this family
-they are one sampler (`lround(1) == 1`). The repair re-runs
-`ResponseModel::setWeights` against the weights already in force, so it
-self-selects: logistic redraws omega, gaussian and Student-t recompose a
-composite that is already right, a weight-refusing family takes the base
-no-op. GATED rather than unconditional: a redraw on a MATCHED restore would
+they are one sampler (`lround(1) == 1`). The repair runs
+`ResponseModel::reapplyWeights` against the weights already in force, which
+is `setWeights` unless a family says otherwise, so it self-selects: logistic
+redraws omega, gaussian recomposes a composite that is already right, a
+weight-refusing family takes the base no-op. Student-t (amended 2026-10-05)
+redraws the scale of every row in the likelihood: a scale stored for a row
+at weight zero was drawn without that row's residual, and the state does not
+say which rows those were. GATED rather than unconditional: a redraw on a MATCHED restore would
 break "the same moves in the same order" dbarts.h promises, and would move
 the `wtlogistic` equivalence scenario - which nothing here does.

@@ -5660,7 +5660,8 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
 // gaussian, and for
 // logistic a model change - the counts are the Polya-Gamma shape, so the
 // engine redraws the latents against them off the chain generator, never R's
-// stream, which is why no GetRNGstate bracket appears here.
+// stream, which is why no GetRNGstate bracket appears here. Student-t draws
+// from the same generator, the scale of each row whose weight leaves zero.
 // refuseBinaryWeightChange refuses the families whose likelihood has no weight
 // slot at all.
 SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
@@ -8165,12 +8166,14 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     Rf_error("state is not consistent with this sampler");
 
   // The latents just installed were drawn against the SOURCE's weights; these
-  // are not them. Re-derive against the weights in force, which is where the
-  // live conduit would have put them: a state install lands where setWeights
-  // lands rather than pairing one vector's latents with another's. Silent and
+  // are not them. Re-derive against the weights in force rather than pairing
+  // one vector's latents with another's: logistic redraws its Polya-Gamma
+  // variates, and Student-t the scale of every row in the likelihood, a
+  // digest not saying which rows the source's weights had left out. Silent and
   // deterministic - it consumes each chain's own restored generator - and
   // self-selecting, since for a family that states nothing against its
-  // weights it is a measured no-op.
+  // weights it is a measured no-op. Equal digests skip it, so a state
+  // installed under its own weights draws nothing.
   if (weightsDiffer) sampler.reapplyWeights();
   // the censoring structure reconciles the same way: a row the donor scored an
   // event and this sampler censors comes back sitting exactly at its bound, so

@@ -4208,6 +4208,16 @@ public:
   /// them and drop them. Default: a no-op (the host rejects earlier).
   virtual void setWeights(const double*, ext_rng*, const double*, double) {}
 
+  /// Re-derive whatever the family states against its weights, for latents a
+  /// state install has just put in place that another weight vector shaped.
+  /// weights is the vector ALREADY in force. Default: setWeights itself, which
+  /// redraws for the one family that redraws wholesale there and is a pointer
+  /// swap onto the same pointer for the rest.
+  virtual void reapplyWeights(const double* weights, ext_rng* rng,
+                              const double* totalFits, double sigma) {
+    setWeights(weights, rng, totalFits, sigma);
+  }
+
   /// Whether this family implements the active-row channel. setActiveRows's
   /// own refusal reads it, so the advertised capability and the refusal
   /// cannot disagree.
@@ -5902,6 +5912,17 @@ public:
     userWeights_ = weights;
     redrawEntering(rng, totalFits, sigma);
     recompose();
+  }
+
+  /// A row the stored weights left out of the likelihood carries a lambda
+  /// drawn without its residual, and a state does not say which rows those
+  /// were. So the record is forgotten and EVERY row in the likelihood here is
+  /// redrawn, each from its conditional at the installed fit, sigma and nu; a
+  /// row out of it here waits for the setter that brings it in.
+  void reapplyWeights(const double* weights, ext_rng* rng,
+                      const double* totalFits, double sigma) override {
+    informative_.assign(numObservations_, 0);
+    setWeights(weights, rng, totalFits, sigma);
   }
 
   bool supportsActiveRows() const override { return true; }
