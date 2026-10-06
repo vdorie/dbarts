@@ -635,9 +635,8 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
   if (continuation != NULL) R_ContinueUnwind(continuation); // does not return
   if (error.failed) Rf_error("dbarts_sampler_run: %s", error.message);
   // a callback's stop keeps its contract and returns normally; a real cancel
-  // leaves the sampler as that stop does and raises
-  if (cancelled && !stoppedByCallback)
-    Rf_error("dbarts_sampler_run: sampler run interrupted");
+  // leaves the sampler as that stop does and raises R's interrupt
+  if (cancelled && !stoppedByCallback) bartcore_bridge::raiseInterrupt();
   // once per holder, last, with nothing of the library's live: any handler
   // that exits on the warning jumps out of a complete run
   if (!sampler->slowCountWarned &&

@@ -321,6 +321,25 @@ warnOnSlowCount <- function(result) {
   invisible(NULL)
 }
 
+# What the bridge evaluates once a cancelled run has joined its workers and
+# left nothing live: the interrupt condition, as base R signals one, handed to
+# any calling or exiting handler for "interrupt" and otherwise taken to top
+# level by the abort restart, after the blank line and the options("error")
+# handler an unhandled interrupt gets. It is not an error, so try() and error
+# handlers leave it alone. Unlike a real one it offers no "resume" restart: the
+# run is over.
+signalInterrupt <- function() {
+  signalCondition(structure(class = c("interrupt", "condition"), list()))
+  cat("\n", file = stderr())
+  handler <- getOption("error")
+  if (is.function(handler)) {
+    handler()
+  } else if (is.language(handler)) {
+    eval(handler, globalenv())
+  }
+  invokeRestart("abort")
+}
+
 # Sums slow-count tallies: counts add, the slowest count wins.
 mergeSlowCountTallies <- function(a, b) {
   if (is.null(a)) {

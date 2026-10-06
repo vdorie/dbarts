@@ -1058,6 +1058,9 @@ countWarnings <- function(expr) {
   )
   list(count = count, last = last)
 }
+# What an interrupted run raises is an interrupt, not an error: it reaches an
+# enclosing tryCatch(interrupt = ), is invisible to try() and error handlers,
+# and runs calling handlers, on.exit and finally on its way out.
 runInterrupted <- function(run) {
   on.exit(countHooks(interruptAfterPolls = 0L))
   countHooks(interruptAfterPolls = 1L)
@@ -1066,15 +1069,74 @@ runInterrupted <- function(run) {
       run()
       "not interrupted"
     },
-    error = conditionMessage
+    interrupt = function(cond) class(cond),
+    error = function(e) paste("error:", conditionMessage(e))
   )
+}
+# the same run under every handler an interrupt must get past or through
+expectInterruptRaised <- function(run) {
+  expect_equal(runInterrupted(run), c("interrupt", "condition"))
+  # try() and an error handler between the run and the receiver do not take it
+  expect_equal(
+    runInterrupted(function() try(run(), silent = TRUE)),
+    c("interrupt", "condition")
+  )
+  expect_equal(
+    runInterrupted(function() tryCatch(run(), error = function(e) "caught")),
+    c("interrupt", "condition")
+  )
+  # a calling handler sees it first, and on.exit and finally run
+  seen <- character()
+  expect_equal(
+    runInterrupted(function() {
+      f <- function() {
+        on.exit(seen <<- c(seen, "on.exit"))
+        withCallingHandlers(
+          tryCatch(run(), finally = seen <<- c(seen, "finally")),
+          interrupt = function(cond) seen <<- c(seen, "calling")
+        )
+      }
+      f()
+    }),
+    c("interrupt", "condition")
+  )
+  expect_equal(seen, c("calling", "finally", "on.exit"))
+  # a loop of runs in try() stops at the first
+  done <- 0L
+  expect_equal(
+    runInterrupted(function() {
+      for (i in 1:3) {
+        try(run(), silent = TRUE)
+        done <- done + 1L
+      }
+    }),
+    c("interrupt", "condition")
+  )
+  expect_equal(done, 0L)
 }
 
 sampler <- slowSampler("leaf")
-expect_true(grepl(
-  "sampler run interrupted",
-  runInterrupted(function() sampler$run(10L, 1L))
-))
+expectInterruptRaised(function() sampler$run(10L, 1L))
+# a burn-in only run is its own entry
+expectInterruptRaised(function() sampler$run(10L, 0L))
+# the sampler runs again afterwards
+expect_true(is.list(sampler$run(10L, 1L)))
+# the per-sweep callback entry: an interrupt is one, a callback's stop is not
+results <- function() list()
+runSweeps <- function(callback) {
+  .Call(
+    dbarts:::C_dbarts_bartcore_runWithCallback,
+    sampler$getPointer(),
+    10L,
+    3L,
+    results(),
+    callback,
+    environment()
+  )
+}
+expectInterruptRaised(function() runSweeps(function(i) FALSE))
+expect_null(runSweeps(function(i) TRUE))
+expect_null(runSweeps(function(i) FALSE))
 expect_true(is.list(sampler$run(10L, 1L)))
 
 # the R route warns on every run with a slow count, the flag never reaching it
@@ -1094,10 +1156,7 @@ if (is.null(consumer$skip)) {
   # the flat run is interruptible, and the handle runs on afterwards
   sampler <- slowSampler("leaf")
   ptr <- sampler$getPointer()
-  expect_true(grepl(
-    "dbarts_sampler_run: sampler run interrupted",
-    runInterrupted(function() CALL("capi_run_plain", ptr, 10L, 1L))
-  ))
+  expectInterruptRaised(function() CALL("capi_run_plain", ptr, 10L, 1L))
   expect_true(CALL("capi_run_plain", ptr, 10L, 1L))
 
   # a callback's stop is not an interrupt: the flat run returns normally

@@ -65,7 +65,8 @@ monotone(directions, prior = c("joint", "leaf"))
   finishes on the stated model, and afterwards a warning of class
   \code{"dbartsSlowCountWarning"} reports counts that took more than about
   a second and names the remedies, more trees or \code{prior = "joint"}. A
-  count can be interrupted, and a
+  count can be interrupted, which raises R's interrupt condition and leaves
+  the pass over the trees partly applied, and a
   count that runs out of memory is an ordinary error; either way the
   sampler is left in a valid state.
 

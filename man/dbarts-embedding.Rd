@@ -114,7 +114,9 @@
     queries a host sizes its results struct from, among them
     \code{dbarts_sampler_numFittedValuesPerObservation} and
     \code{dbarts_sampler_numVariableCountForests}, the widths of a multinomial or multi-forest
-    sampler's fits and split counts; a flat run polls for R's interrupt as \code{$run} does, and
+    sampler's fits and split counts; a flat run polls for R's interrupt as \code{$run} does and, once the workers have joined, raises it
+    as R's interrupt condition (not an error: \code{try()} lets it through), leaving the sampler usable, with any
+    saved results of that call to be discarded and a pass over the trees possibly partly applied; it also
     warns of a slow monotone leaf-order count once per sampler. Everything else in the table above - the
     predictor and weight channels, the active-row mask, the state round trip, tree extraction, the
     multi-forest surface - is an R method on the same object, and the two views drive one engine.

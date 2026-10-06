@@ -4718,6 +4718,16 @@ bool userInterrupted() {
   return R_ToplevelExec(checkInterrupt, nullptr) == FALSE;
 }
 
+[[noreturn]] void raiseInterrupt() {
+  SEXP name = PROTECT(Rf_mkString("dbarts"));
+  SEXP ns = PROTECT(R_FindNamespace(name));
+  SEXP call = PROTECT(Rf_lang1(Rf_install("signalInterrupt")));
+  Rf_eval(call, ns);
+  // signalInterrupt invokes the abort restart and never returns; were it to,
+  // the run's contract is still a jump, never a normal return
+  Rf_error("sampler run interrupted");
+}
+
 void attachSlowCountTally(SEXP target, const bartcore::SamplerBase& sampler) {
   bartcore::SlowCountTally tally = sampler.slowCountTally();
   if (tally.slowCounts == 0) return;
@@ -4903,7 +4913,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
     });
     PutRNGstate();
     if (error.failed) Rf_error("%s", error.message);
-    if (cancelled) Rf_error("sampler run interrupted");
+    if (cancelled) bartcore_bridge::raiseInterrupt();
     // a burn-only run returns NULL, or an empty list carrying the tally
     // when a count was slow
     if (sampler.slowCountTally().slowCounts == 0) return R_NilValue;
@@ -5151,7 +5161,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
     // told apart the way the sweep-callback entry tells its own stop from one:
     // the sampler reports which arm set the flag
     if (stoppedByCallback) Rf_error("sampler run stopped by the callback");
-    Rf_error("sampler run interrupted");
+    bartcore_bridge::raiseInterrupt();
   }
 
   // nothing past the copy-out allocates, so the counts need no early free
@@ -5257,7 +5267,7 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   if (error.failed) Rf_error("%s", error.message);
   if (callbackErrored)
     Rf_error("error evaluating the sweep callback");
-  if (cancelled && !closureStopped) Rf_error("sampler run interrupted");
+  if (cancelled && !closureStopped) bartcore_bridge::raiseInterrupt();
   return R_NilValue;
 }
 
