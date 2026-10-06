@@ -536,12 +536,22 @@ items
     mask-redraw-exact.R quick probit). Both were run by hand at landing
     (docs/plans/empty-leaf-membership.md).
   forest-prior-args: a forest takes the front door's prior arguments
-    (dec-B246, dec-B252), its sd is the forest's own and a numeric
-    multiplier scales it with no centring or scaling by the package
-    (dec-B253, dec-B257), every multiplier defaults to sqrt(2 / K)
-    (dec-B258), and a multiplier in small units is shrunk to no effect
-    at the default with nothing to flag it, which is still to be
-    decided. Design in progress; plans follow its critique.
+    (dec-B246, dec-B252) and its sd is the forest's own (dec-B253). A
+    multiplier is a factor by its class alone (dec-B260). A numeric
+    multiplier is never centred or divided; when no sd is stated the
+    default is sqrt(2 / K) per standard deviation of the column,
+    derived once at creation and kept with the data, a stated sd is
+    literal per unit, and the coefficient is normal (dec-B261, which
+    revises dec-B257 and dec-B258). Still to settle: a 0/1 number's
+    default against the factor's, a column far from zero, and a
+    replaced column at the default sd. Then the design is rewritten
+    around the rulings and the slices planned.
+  coefficient-law-opt-in: a caller may opt a forest's drawn coefficient
+    into a heavy-tailed law (half-Cauchy; half-t(3) was measured too),
+    by one argument on forest() whose spelling is to be decided; the
+    default stays normal (dec-B262). Its user is a caller who redraws
+    the multiplier, whose scale drifts during a run. Wanted for 1.0-0,
+    built after the merge to main (VD 2026-10-06).
   basis-formula-leftovers: for the forest-prior-args plans. A basis
     formula's right-hand side is R code, not a model formula: ~ z + w is
     one column, the sum, where (z + w):forest() is two, and : at its
