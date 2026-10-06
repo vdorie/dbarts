@@ -1,6 +1,6 @@
 # single-forest-vars: one declared forest honours its column restriction
 
-Status: PLANNED.
+Status: LANDED 2026-10-06 (9e691f35).
 
 agent: opus implementer, one; opus reviewer.
 rng: POSTERIOR-CHANGING for a fit that states `vars` on a single declared forest: today the argument is
@@ -200,3 +200,41 @@ every tree prior, DART included: its Dirichlet is laid over C and the other colu
   asked for. The first draft took `vars` literally there.
 - The zero-probability defect is not fixed here; it goes to TODO with the `setModel` work of dec-B254, which
   already has to settle a zero split probability on a column in use.
+
+## Landing note
+
+Landed 2026-10-06 as e5361c48 to 9e691f35 on bartcore, 22 commits, 1302 lines added over 16 files against a
+planned 550 to 900; about two thirds of them are tests. Two reviews, each told to refute: the first SOUND
+WITH CORRECTIONS (nine), the second LAND AFTER THESE CORRECTIONS (five), all made and none rejected.
+
+What the reviews changed. A restricted forest's "fit on the named columns alone" holds given the same
+residual scale estimate, and [`forest`](../../man/forest.Rd) says so. `setModel` and
+`new("dbartsSampler", ...)` refuse split probabilities that are zero on every allowed column, as creation
+does. `vars` with a missing value is refused by name. The run-out test is built on columns that do run out
+(one cut each): there the column list gives no split on the excluded column and zero split probabilities
+give about 45000 in 2000 sweeps of 20 trees, so the test fails when the restriction is written as zeros.
+On the default grid of cut points the zeros leak rarely, not never (3514 splits in one seeded fit of six).
+Two behaviours gained a test, each proved by a mutation: DART zeroing an excluded column on every update,
+and the column-subset view refusing a model that carries a restriction.
+
+Calls made building it, beyond the plan's. The restriction rides the model as the attribute
+`forest.columns`, one-based and sorted, as the variance forest's does. The hazard `period` column is added
+on a single forest only; the first of several forests takes `vars` as written, as before. An installed
+state's probabilities for excluded columns are not zeroed at install: they are state, no draw reads them,
+and DART's first update zeroes them, at most half the burn-in away; until then `varprobs` reports them.
+
+Two defects at the tip were fixed in their own commits. The tests/cpp state fixture
+`testStaleStateMerge` drew its data from the generator state other tests left, so `./test_bartcore 3 state`
+alone failed two checks the full run passed; it now pins its own. And `split.probs` is held to what
+`sample()` holds its `prob`: an entry that is negative or not finite, or a specification with no positive
+entry, is refused by name, a scalar included, where an all-zero vector raised "missing value where
+TRUE/FALSE needed" and released 0.9-34 normalized a vector such as `c(0, -1, 0)` to (0, 1, 0) and ran
+(dec-A168).
+
+Gates at the landed head, run apart from the implementer: tests/cpp 348 checks, none failing, and the state group alone 29; full tinytest at home 14274 results, none failing;
+lintr, air, the three tools checks and verify-anchors clean. No file under src/ changed after the first
+engine commit, at which the four seeded snapshot files passed on a reference build, the three equivalence
+compares were bitwise identical in every scenario (55, 15 and 11) and the 32 exact gates passed in quick
+mode; the second review digested 32 unrestricted fits identically before and after.
+
+Left in TODO: `single-forest-vars-leftovers`.

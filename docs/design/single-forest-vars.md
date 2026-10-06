@@ -1,6 +1,6 @@
 # A single declared forest keeps to its columns
 
-Status: BUILT 2026-10-06, landing pending. Plan: [single-forest-vars.md](../plans/single-forest-vars.md). Rulings: dec-B241
+Status: LANDED 2026-10-06 (9e691f35). Plan: [single-forest-vars.md](../plans/single-forest-vars.md). Rulings: dec-B241
 (one declared forest is the ordinary way to state a single forest) and dec-B254 (a forest's columns are structure)
 in docs/decisions.md.
 
