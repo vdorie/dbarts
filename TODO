@@ -601,6 +601,14 @@ items
     fitting function is refused by name and the model is accepted.
     Until it lands such a model takes its forests in written order.
     Not planned.
+  forest-after-merge: built after the merge to main, for 1.0-0 still
+    (dec-B276, VD 2026-10-06): setForestBasis(updateBasisScale = TRUE),
+    which re-derives a default sd from a replaced column during
+    burn-in (dec-B265), and the long form leaf.prior = normal(sd = )
+    on forest() (dec-B266). Until then the first is absent, a caller
+    who replaces the column of a default-sd forest stating the sd,
+    and the second is R's unused-argument error. Selecting a forest
+    by its label is NOT deferred.
   coefficient-law-opt-in: a caller may opt a forest's drawn coefficient
     into a heavy-tailed law (half-Cauchy; half-t(3) was measured too),
     as another value of forest()'s amplitude argument, beside fixed()
