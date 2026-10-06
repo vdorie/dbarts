@@ -198,6 +198,26 @@ spec <- dbartsSpec(
 expect_identical(attr(spec$model, "forest.columns"), 1:2)
 door <- new("dbartsSampler", spec$control, spec$model, spec$data)
 expect_identical(unname(splits(door$run(0L, 100L))[3L]), 0)
+# a store view over some of the columns, as a cross-validation fold may be
+# built, numbers its columns afresh, so a restricted model is refused there
+# and not read against other columns; a view over every column takes it
+handle <- dbarts:::bartcoreDataHandle(spec$control, spec$data)
+viewOver <- function(columns) {
+  dbarts:::bartcoreSamplerFromHandle(
+    handle,
+    spec$control,
+    spec$model,
+    spec$data,
+    trainRows = seq_len(100L),
+    columns = columns
+  )
+}
+expect_error(
+  viewOver(c(1L, 3L)),
+  pattern = "a column-subset view does not support a column-restricted forest"
+)
+expect_true(is.environment(viewOver(NULL)))
+
 # the attribute alone restricts a model built without it, and the bridge
 # checks what it is handed
 plainSpec <- dbartsSpec(dbartsData(x, y), control, sigest = 1)
