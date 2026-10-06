@@ -189,6 +189,15 @@ items
     model, such as a fast fit on a transformed response seeding a slower
     model on the original scale, with whatever scale or dispersion the
     two do not share translated. After 1.0-0 (VD 2026-10-05, dec-B248).
+  interrupt-is-interrupt: a fit stopped by the user raises R's interrupt
+    condition, not an error (dec-B256). Today every run entry in the
+    bridge and the flat C entry point raise the error "sampler run
+    interrupted", which try() catches, so a loop of fits wrapped in
+    try() cannot be stopped. The sampler is left as it is now: usable,
+    at a valid point of its chain, nothing returned. A stop asked for by
+    a callback stays what it is. Tests that pin the error text move to
+    the condition's class; the help for run and the embedding page say
+    what an interrupt leaves behind.
   warm-start-tree-count: a warm start (bart's warm.start, the sampler's
     installTrees) from a donor with another tree count, partially
     populated: a smaller recipient takes some of the donor's trees, a
