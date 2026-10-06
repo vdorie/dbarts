@@ -57,6 +57,11 @@ struct TestPeer {
   static const double* combinedFits(Chain<L, R>& chain) {
     return chain.combinedFits();
   }
+  /// The per-observation precisions the chain's trees and sigma draw read.
+  template <IntegrableLeafModel L, typename R>
+  static const double* workingWeights(const Chain<L, R>& chain) {
+    return chain.response_->workingWeights();
+  }
   /// The residual scale on the working scale, which is the one the chain
   /// hands a latent redraw.
   template <IntegrableLeafModel L, typename R>

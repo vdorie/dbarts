@@ -2,8 +2,9 @@
 # state; a digest of the ones in force when it was stored does, and setState
 # re-derives the weight-dependent latents against the DESTINATION's weights
 # when the two disagree - so a state install lands where the same setWeights
-# call would, rather than pairing one vector's latents with another's counts.
-# When the two agree, the restore is the identity it has always been.
+# call would for logistic (Student-t redraws more, below), rather than pairing
+# one vector's latents with another's counts. When the two agree, the restore
+# is the identity it has always been.
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
@@ -170,8 +171,14 @@ withoutDigest <- function(state) {
   state
 }
 # zeros go in through $setWeights, creation warning about them
-studentAt <- function(weights) {
-  sampler <- studentSampler(wA)
+studentAt <- function(weights, control = stateControl) {
+  sampler <- dbarts::dbarts(
+    x,
+    yContinuous,
+    weights = wA,
+    control = control,
+    family = dbarts:::student(5)
+  )
   sampler$setWeights(weights)
   sampler
 }
@@ -190,6 +197,21 @@ expect_true(trepaired$setState(tstate))
 expect_true(all(trepaired$getLatents()[wLastOut > 0] != tstored[wLastOut > 0]))
 expect_identical(trepaired$getLatents()[wLastOut == 0], tstored[wLastOut == 0])
 expect_true(all(is.finite(trepaired$run(0L, 3L)$train)))
+# every chain is re-derived, each off its own generator
+twoChains <- dbarts::dbartsControl(
+  n.chains = 2L,
+  n.threads = 1L,
+  n.trees = 20L,
+  updateState = FALSE,
+  seed = 902L
+)
+tstate <- storedFrom(studentAt(wFirstOut, twoChains))
+tstored <- vapply(tstate, function(chain) chain[["latents"]], numeric(n))
+trepaired <- studentAt(wLastOut, twoChains)
+expect_true(trepaired$setState(tstate))
+tredrawn <- trepaired$getLatents()[wLastOut > 0, ]
+expect_true(all(tredrawn != tstored[wLastOut > 0, ]))
+expect_true(all(tredrawn[, 1L] != tredrawn[, 2L]))
 
 # --- neutrality: the repair is a measured no-op elsewhere -------------------
 # Every family below takes a MISMATCHED transplant twice - once with the
@@ -346,6 +368,8 @@ rm(
   tmatched,
   tinert,
   trepaired,
+  twoChains,
+  tredrawn,
   stripped,
   malformed,
   warmDonor,

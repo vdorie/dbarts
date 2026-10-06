@@ -3185,17 +3185,19 @@ static void testMembershipAcrossForests() {
   // Precision weights and an offset in force. The scales a weight setter or a
   // state re-derivation redraws are, bitwise, the conditional's own draws at
   // the chain's combined fit and working sigma, in row order, from a generator
-  // cloned ahead of the call; every other row keeps the scale it held.
+  // cloned ahead of the call; every other row keeps the scale it held, and
+  // the precisions the trees read are composed from the scales now in force.
   {
     const double nu = 5.0;
     SamplerOptions options;
     options.numTrees = 10;
     options.residualDf = nu;
-    std::vector<double> precision(n), zeroed(n), other(n);
+    std::vector<double> precision(n), zeroed(n), other(n), mask(n);
     for (size_t i = 0; i < n; ++i) {
       precision[i] = 0.5 + 0.25 * static_cast<double>(i % 4);
       zeroed[i] = half[i] * precision[i];
       other[i] = i % 5 == 0 ? 0.0 : precision[i];
+      mask[i] = i % 7 == 3 ? 0.0 : 1.0;
     }
     ext_rng* rng = seeded(44u);
     ConstantLeafSampler sampler(x.data(), y.data(), n, p, zeroed.data(),
@@ -3224,6 +3226,17 @@ static void testMembershipAcrossForests() {
       }
       return out;
     };
+    // whether the working precisions are weights x scales (x mask) at every row
+    auto composed = [&](const std::vector<double>& weights,
+                        const double* active) {
+      const double* precisions = TestPeer::workingWeights(sampler.chain(0));
+      std::vector<double> lambda = scales();
+      for (size_t i = 0; i < n; ++i)
+        if (precisions[i] !=
+            weights[i] * lambda[i] * (active != nullptr ? active[i] : 1.0))
+          return false;
+      return true;
+    };
 
     double largestFit = 0.0;
     for (size_t i = 0; i < n; ++i)
@@ -3243,11 +3256,14 @@ static void testMembershipAcrossForests() {
           "chain's fit and sigma");
     check(rngStreamsAgree(reference, sampler.rng()),
           "taken from the chain's own generator");
+    check(composed(precision, nullptr),
+          "and the precisions the trees read carry the redrawn scales");
     ext_rng_destroy(reference);
 
     // a state stored under the zeroed weights, re-derived where other rows
-    // are out: every row in the likelihood here is redrawn at the installed
-    // fit, and a row out of it here when its weight next leaves zero
+    // are out by weight or by mask: every row in the likelihood here is
+    // redrawn at the installed fit, and a row out of it here by the setter
+    // that next brings it in
     ext_rng* sourceRng = seeded(45u);
     ConstantLeafSampler source(x.data(), y.data(), n, p, zeroed.data(),
                                offset.data(), ResponseFamily::gaussian, 1.0,
@@ -3256,20 +3272,32 @@ static void testMembershipAcrossForests() {
     SamplerStateData stored;
     source.getState(stored);
     sampler.setWeights(other.data());
+    sampler.setActiveRows(mask.data());
     sampler.run(5, 0, results);
     check(sampler.setState(stored, nullptr) &&
             scales() == stored.chains[0].latents,
           "a student-t state stored under other weights installs its scales "
           "as stored");
     reference = cloneRng(sampler.rng());
-    expected = conditional(reference, other,
-                           [&](size_t i) { return other[i] != 0.0; });
+    expected = conditional(reference, other, [&](size_t i) {
+      return other[i] != 0.0 && mask[i] != 0.0;
+    });
     sampler.reapplyWeights();
     check(scales() == expected,
           "re-deriving it redraws every scale in the likelihood at the "
           "installed fit and sigma");
     check(rngStreamsAgree(reference, sampler.rng()),
           "taken from the chain's own generator");
+    check(composed(other, mask.data()),
+          "and the precisions the trees read carry the redrawn scales");
+    ext_rng_destroy(reference);
+    reference = cloneRng(sampler.rng());
+    expected = conditional(reference, other, [&](size_t i) {
+      return other[i] != 0.0 && mask[i] == 0.0;
+    });
+    sampler.setActiveRows(nullptr);
+    check(scales() == expected && rngStreamsAgree(reference, sampler.rng()),
+          "a row the mask held out there is redrawn when the mask lifts");
     ext_rng_destroy(reference);
     reference = cloneRng(sampler.rng());
     expected = conditional(reference, precision,

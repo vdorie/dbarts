@@ -1990,7 +1990,7 @@ static void testWeightsDigest() {
   repaired.run(0, draws, resultsRepaired);
   untouched.run(0, draws, resultsUntouched);
   check(sigmaRepaired == sigmaUntouched,
-        "reapplyWeights is inert on a chain that reads weights as precisions");
+        "reapplyWeights is inert on a gaussian chain");
 
   // the engine installs a state stored under other weights as it stands; the
   // repair above is the host's, and moves latents, not the chain
