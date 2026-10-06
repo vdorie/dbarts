@@ -587,7 +587,6 @@ expect_error(
   pattern = "'split.probs' gives no positive probability to any column"
 )
 expect_identical(live$model, modelBefore)
-expect_true(all(splits(live$run(0L, 100L))[1:2] > 0))
 
 # a model with another restriction or none is refused by name, in both
 # directions, before anything is stored

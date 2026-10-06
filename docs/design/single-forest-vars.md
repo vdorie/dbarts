@@ -34,23 +34,11 @@ name, at creation and by `setModel`.
 
 One gap is left open on purpose. A state is installed as it is given, so a state that carries a DART
 probability on an excluded column - an edited one, or an unrestricted DART donor's whose live trees happen to
-lie within the list - reports that probability until the next Dirichlet draw puts it back at 0, and under the
-default delay that draw is half the burn-in away. Zeroing at install was not built: the split weights are
-state and the list is model, a state in the sampler's own units installs bit for bit, and no draw reads the
-weight of an excluded column, the trees listing allowed columns only and the concentration update summing
-over them.
-
-Three things follow from the columns being part of what the model is, not a setting of it.
-
-- The list is stored on the model object, as the `forest.columns` attribute beside the interaction and block
-  constraints, so a copy, a reload and a sampler built from `dbartsSpec`'s pieces rebuild it. Naming every
-  column restricts nothing and stores nothing. A multi-forest fit keeps every forest's columns where it kept
-  them, on the control's forests attribute.
-- [`dbartsSampler$setModel`](../../R/dbarts.R) refuses a model whose list differs from the sampler's, a model
-  with none included, before anything is stored.
-- A state or a warm-start donor holding a tree that splits outside the list is refused with the messages a
-  restricted variance forest gives; the same predicate judges both
-  ([`Chain::columnMaskStateFeasible`](../../src/bartcore/chain.hpp)).
+lie within the list - reports that probability until the next Dirichlet draw puts it back at 0. Under the
+default delay that draw is at most half the burn-in away: the count of updates already skipped rides the
+state. Zeroing at install was not built: the split weights are state and the list is model, a state in the
+sampler's own units installs bit for bit, and no draw reads the weight of an excluded column, the trees
+listing allowed columns only and the concentration update summing over them.
 
 `blocks` beside `vars` partitions the allowed columns, on a single forest and on the first forest of several;
 the first forest of two used to be refused there for not naming the columns it may not split on. The category
