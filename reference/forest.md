@@ -63,6 +63,33 @@ forest(
   by position. With no `subset`, or one that keeps every row, the two
   counts agree and nothing changes.
 
+  The right-hand side of a formula is evaluated as R code, and the
+  forest does not centre or scale a basis, so a multiplier that should
+  be standardized is written so: `basis = ~ scale(w)`, or
+  `basis = ~ cbind(scale(w), scale(v))` for two columns.
+
+  For a `forest()` term of a model formula, `predict` rebuilds the basis
+  at the new rows from what
+  [`scale()`](https://rdrr.io/r/base/scale.html),
+  [`poly()`](https://rdrr.io/r/stats/poly.html), `ns()` or `bs()`
+  computed on the training rows, as
+  [`lm`](https://rdrr.io/r/stats/lm.html) does, so a new row is
+  standardized by the training centre and scale and not by the new rows'
+  own. This holds for such a call written alone, or as an operand of
+  `+`, `-`, `*`, `/`, `^`, parentheses or
+  [`cbind()`](https://rdrr.io/r/base/cbind.html); any other expression,
+  such as `I(w - mean(w))`, `scale(w)[, 1]` or `abs(scale(w))`, is
+  evaluated on the rows given to `predict`, as `lm` evaluates it, so its
+  value at a row depends on the other rows predicted with it; see
+  [`SafePrediction`](https://rdrr.io/r/stats/makepredictcall.html). With
+  `subset`, the centre and scale are those of the rows `subset` kept,
+  where `lm` uses all of them; rows dropped for a missing response still
+  enter them. A factor level the fit never saw is refused at `predict`.
+
+  A basis declared through `forests =` is not rebuilt: the caller gives
+  it at the new rows, and with `subset` its formula was evaluated on
+  every row of `data`.
+
 - vars:
 
   Optional restriction of this forest to a subset of the model matrix,
@@ -279,4 +306,58 @@ basis <- sampler$data@bases[[2L]]
 indexSd <- sqrt(calibration$k.scale^2 *
                 calibration$amplitude.prior.variance *
                 rowSums(basis^2))
+
+# a standardized multiplier: predict centres and scales the new rows by the
+# training rows' mean and sd of w
+d <- data.frame(y = y, x1 = x[, 1], x3 = x[, 3], w = 50 + 10 * rnorm(n))
+fit <- bart(y ~ x1 + x3 + forest(x1 + x3, basis = ~ scale(w), n.trees = 10L),
+            d, n.trees = 10L, n.samples = 10L, n.burn = 10L,
+            n.chains = 1L, n.threads = 1L, keepTrees = TRUE)
+#> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
+#> 
+#> Running BART with numeric y
+#> 
+#> number of trees: 10
+#> number of chains: 1, default number of threads 1
+#> tree thinning rate: 1
+#> Prior:
+#>  k prior fixed to 2.000000
+#>  degrees of freedom in sigma prior: 3.000000
+#>  quantile in sigma prior: 0.900000
+#>  scale in sigma prior: 0.008161
+#>  power and base for tree prior: 2.000000 0.950000
+#>  use quantiles for rule cut points: false
+#>  level fibre gibbs step: auto
+#>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
+#> data:
+#>  number of training observations: 100
+#>  number of test observations: 0
+#>  number of explanatory variables: 2
+#>  init sigma: 0.948004, curr sigma: 0.948004
+#> 
+#> Cutoff rules c in x<=c vs x>c
+#> Number of cutoffs: (var: number of possible c):
+#> (1: 100) (2: 100) 
+#> Running mcmc loop:
+#> total seconds in loop: 0.000505
+#> 
+#> Tree sizes, last iteration:
+#> [1] 2 2 3 3 3 1 4 2 2 2 
+#> 
+#> Variable Usage, last iteration (var:count):
+#> (1: 9) (2: 5) 
+#> DONE BART
+#> 
+predict(fit, d[1:3, ])
+#>              1        2        3
+#>  [1,] 2.665598 1.435529 1.428253
+#>  [2,] 2.718696 1.279158 1.786205
+#>  [3,] 2.825532 1.220816 1.820275
+#>  [4,] 2.639906 1.695266 1.912748
+#>  [5,] 2.711947 1.647589 1.116915
+#>  [6,] 2.533666 1.730959 1.593382
+#>  [7,] 2.268279 2.188020 2.531138
+#>  [8,] 2.679228 1.709843 1.749938
+#>  [9,] 2.466707 1.802121 2.166133
+#> [10,] 2.533577 1.228568 1.915270
 ```

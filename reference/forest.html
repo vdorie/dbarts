@@ -110,7 +110,28 @@ The constructor is not exported: it resolves by bare name inside the
     is; a value already restricted to those rows instead, matching the
     subset's count rather than the full data's, is refused by name rather
     than aligned to them by position. With no <code>subset</code>, or one that
-    keeps every row, the two counts agree and nothing changes.</p></dd>
+    keeps every row, the two counts agree and nothing changes.</p>
+<p>The right-hand side of a formula is evaluated as R code, and the forest
+    does not centre or scale a basis, so a multiplier that should be
+    standardized is written so: <code>basis = ~ scale(w)</code>, or
+    <code>basis = ~ cbind(scale(w), scale(v))</code> for two columns.</p>
+<p>For a <code>forest()</code> term of a model formula, <code>predict</code> rebuilds the
+    basis at the new rows from what <code><a href="https://rdrr.io/r/base/scale.html" class="external-link">scale()</a></code>, <code><a href="https://rdrr.io/r/stats/poly.html" class="external-link">poly()</a></code>,
+    <code>ns()</code> or <code>bs()</code> computed on the training rows, as
+    <code><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></code> does, so a new row is standardized by the training centre
+    and scale and not by the new rows' own. This holds for such a call written
+    alone, or as an operand of <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>,
+    <code>^</code>, parentheses or <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind()</a></code>; any other expression, such as
+    <code>I(w - mean(w))</code>, <code>scale(w)[, 1]</code> or <code>abs(scale(w))</code>, is
+    evaluated on the rows given to <code>predict</code>, as <code>lm</code> evaluates it,
+    so its value at a row depends on the other rows predicted with it; see
+    <code><a href="https://rdrr.io/r/stats/makepredictcall.html" class="external-link">SafePrediction</a></code>. With <code>subset</code>, the centre and
+    scale are those of the rows <code>subset</code> kept, where <code>lm</code> uses all
+    of them; rows dropped for a missing response still enter them. A factor
+    level the fit never saw is refused at <code>predict</code>.</p>
+<p>A basis declared through <code>forests =</code> is not rebuilt: the caller gives
+    it at the new rows, and with <code>subset</code> its formula was evaluated on
+    every row of <code>data</code>.</p></dd>
 
   <dt id="arg-vars">vars<a class="anchor" aria-label="anchor" href="#arg-vars"></a></dt>
 <dd><p>Optional restriction of this forest to a subset of the model matrix, by
@@ -311,6 +332,60 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-in"><span><span class="va">indexSd</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">calibration</span><span class="op">$</span><span class="va">k.scale</span><span class="op">^</span><span class="fl">2</span> <span class="op">*</span></span></span>
 <span class="r-in"><span>                <span class="va">calibration</span><span class="op">$</span><span class="va">amplitude.prior.variance</span> <span class="op">*</span></span></span>
 <span class="r-in"><span>                <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">basis</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># a standardized multiplier: predict centres and scales the new rows by the</span></span></span>
+<span class="r-in"><span><span class="co"># training rows' mean and sd of w</span></span></span>
+<span class="r-in"><span><span class="va">d</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">y</span>, x1 <span class="op">=</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span>, x3 <span class="op">=</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">3</span><span class="op">]</span>, w <span class="op">=</span> <span class="fl">50</span> <span class="op">+</span> <span class="fl">10</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x3</span> <span class="op">+</span> <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span> <span class="op">+</span> <span class="va">x3</span>, basis <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="https://rdrr.io/r/base/scale.html" class="external-link">scale</a></span><span class="op">(</span><span class="va">w</span><span class="op">)</span>, n.trees <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>            <span class="va">d</span>, n.trees <span class="op">=</span> <span class="fl">10L</span>, n.samples <span class="op">=</span> <span class="fl">10L</span>, n.burn <span class="op">=</span> <span class="fl">10L</span>,</span></span>
+<span class="r-in"><span>            n.chains <span class="op">=</span> <span class="fl">1L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>, keepTrees <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Running BART with numeric y</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> number of trees: 10</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> number of chains: 1, default number of threads 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> tree thinning rate: 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Prior:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	k prior fixed to 2.000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	degrees of freedom in sigma prior: 3.000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	quantile in sigma prior: 0.900000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	scale in sigma prior: 0.008161</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	power and base for tree prior: 2.000000 0.950000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	use quantiles for rule cut points: false</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	level fibre gibbs step: auto</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> data:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	number of training observations: 100</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	number of test observations: 0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	number of explanatory variables: 2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	init sigma: 0.948004, curr sigma: 0.948004</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Cutoff rules c in x&lt;=c vs x&gt;c</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000505</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 3 3 1 4 2 2 2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Variable Usage, last iteration (var:count):</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 9) (2: 5) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit</span>, <span class="va">d</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="op">]</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>              1        2        3</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [1,] 2.665598 1.435529 1.428253</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [2,] 2.718696 1.279158 1.786205</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [3,] 2.825532 1.220816 1.820275</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [4,] 2.639906 1.695266 1.912748</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [5,] 2.711947 1.647589 1.116915</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [6,] 2.533666 1.730959 1.593382</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [7,] 2.268279 2.188020 2.531138</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [8,] 2.679228 1.709843 1.749938</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [9,] 2.466707 1.802121 2.166133</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [10,] 2.533577 1.228568 1.915270</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

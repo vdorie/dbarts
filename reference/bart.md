@@ -1374,6 +1374,24 @@ leave nothing to split on. See ‘Value’ below, and
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
 `type = "forest"`, for reading the resulting per-forest fits back out.
 
+The right-hand side of a term's `basis` formula is evaluated as R code,
+and `predict` rebuilds it at the new rows from the training rows as
+[`lm`](https://rdrr.io/r/stats/lm.html) does for a model formula: a call
+to [`scale()`](https://rdrr.io/r/base/scale.html),
+[`poly()`](https://rdrr.io/r/stats/poly.html), `ns()` or `bs()`, written
+alone or as an operand of `+`, `-`, `*`, `/`, `^`, parentheses or
+[`cbind()`](https://rdrr.io/r/base/cbind.html), is centred, scaled or
+spanned by what it computed on the training rows (with `subset`, the
+rows it kept, where `lm` uses all of them; rows dropped for a missing
+response still count). Any other expression, such as `w - mean(w)` or
+`abs(scale(w))`, is evaluated on the rows given to `predict`, as `lm`
+evaluates it, and is not refused; see
+[`SafePrediction`](https://rdrr.io/r/stats/makepredictcall.html). So
+`forest(x1 + x2, basis = ~ scale(w))` standardizes a multiplier by the
+training mean and sd, `basis = ~ cbind(scale(w), scale(v))` standardizes
+two columns, and `~ scale(w) + scale(v)` is one column, their sum. A
+factor level the fit never saw is refused at `predict`.
+
 ## Reproducibility
 
 Every chain runs its own pseudo-random generator. A seeded fit never
@@ -1965,7 +1983,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001377
+#> total seconds in loop: 0.001337
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -2014,7 +2032,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001596
+#> total seconds in loop: 0.001374
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 1 2 2 2 1 2 2 3 2 
