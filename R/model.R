@@ -872,6 +872,9 @@ resolveModerators <- function(moderators, data, argument = "moderators") {
   if (length(moderators) == 0L) {
     stop("'", argument, "' is empty; omit it to leave the forest unrestricted")
   }
+  if (anyNA(moderators)) {
+    stop("'", argument, "' contains missing values")
+  }
   if (is.character(moderators)) {
     columnNames <- colnames(data@x)
     if (is.null(columnNames)) {

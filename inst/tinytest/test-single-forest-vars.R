@@ -233,6 +233,21 @@ expect_error(
   sampler(x, y, forests = restrictTo(4L)),
   pattern = "'vars' column index out of range"
 )
+# a missing value, of any type, on a single forest and on a forest of several
+for (missing in list(NA, NA_integer_, c(1L, NA), c("a", NA))) {
+  expect_error(
+    sampler(x, y, forests = restrictTo(missing)),
+    pattern = "'vars' contains missing values"
+  )
+}
+expect_error(
+  sampler(
+    x,
+    y,
+    forests = list(forest(), forest(basis = rep_len(c(0, 1), n), vars = NA))
+  ),
+  pattern = "'vars' contains missing values"
+)
 expect_error(
   sampler(
     x,
