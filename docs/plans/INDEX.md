@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (79 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (87 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) -
@@ -121,6 +121,8 @@ Columns: `file | STATUS | one-liner`.
 | empty-leaf-membership.md | LANDED | Judges an empty leaf by membership again, as 0.9-34 did, so rows of zero weight and masked rows hold their leaf and a sampler that redraws the mask every sweep samples the model it assumes. |
 | single-forest-vars.md | LANDED | Gives a single declared forest the column mask every other forest has, so `forest(vars = )` on the only forest restricts its splits; before it the argument was ignored there. |
 | consumer-prep.md | LANDED (dec-B239, dec-B240, dec-B241) | Moves stan4bart, bartCause, treatSens and bairrtt onto spellings of the tree count, cut count and family that build the same sampler before and after the control migration. |
+| cut-points-undo.md | PLANNED (dec-B231) | Lets a changed cut grid be put back with `setCutPoints` on any design, a constant column and factor columns included, and makes a later `setData` derive the grid `n.cuts` names whatever grid was set before. |
+| leaf-conversions.md | PLANNED (dec-B200, dec-B231, dec-B233, dec-B237) | Keeps kept draws and seeded forests at the function they held: linear-leaf coefficients are converted when the covariate standardization changes, kept draws are rewritten when the response range is re-derived, and a Gaussian-process sampler holding kept draws refuses those calls by name. |
 | interrupt-is-interrupt.md | LANDED | A run stopped by the user raises R's interrupt condition and not an error, so `try()` around a fit no longer swallows Ctrl-C. |
 | basis-formula-terms.md | LANDED | A forest's basis written with `scale()`, `poly()`, `ns()` or `bs()` predicts at new rows from the training rows' centre, scale and knots, as in `lm`; today the formula is evaluated again on the new rows. |
 | count-cap.md | LANDED 2026-10-04 (ad62c2e0 to 3ecc8281; dec-B202) | Caps logistic count weights and a fixed negative-binomial shape at one million, as the negative-binomial response already is, and lets an interrupt stop a sweep inside its Polya-Gamma draws. |

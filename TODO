@@ -220,13 +220,36 @@ items
     installForest) and check the recipient is restored: trees, sigma, k,
     DART state, transform and the next draws.
   state-frame-prior: the cut grid, a linear or gp leaf's covariate
-    standardization and a heuristic gp lengthscale are derived from data
-    once and then kept while the data moves, so a saved state still brings
-    them, and each shapes a prior - the split rule, the slope prior, the
-    kernel. The response transform, which shaped the leaf prior the same
-    way, became a recorded model value with installs converted into it
-    (docs/design/state-not-model.md, dec-B200); these three are the rest of
-    that question. Not designed.
+    standardization with its default lengthscale, and the response
+    range are data derived once and then held (dec-B231 to dec-B233):
+    they belong on the data object, change only by a call that names
+    them, and are never installed by a state. Landed: setState's
+    return value (docs/plans/restore-status.md). Planned:
+    cut-points-undo, leaf-conversions. Not yet planned: the three
+    records on dbartsData; creation and setData using a carried
+    record (setData's updateCutPoints, updateScale and
+    updateStandardization; setPredictor's updateStandardization); a
+    state install that compares the stored values, moves splits by
+    value and converts slopes instead of installing them; the manual's
+    table of what puts each value back before setState; the gp
+    setData refusal narrowed to the cases that would change a kept
+    draw. The design is not in docs/design yet.
+  cut-points-undo: before 1.0-0 (dec-B231). A cut grid changed with
+    setCutPoints can be put back on any design - a constant numeric
+    column's grid repeats one value and a design with a factor has
+    entries setCutPoints refuses today - and the store's cap on the
+    cut count stops outliving the grid that raised it, so a later
+    setData derives the grid n.cuts names. Plan:
+    docs/plans/cut-points-undo.md.
+  leaf-conversions: before 1.0-0 (dec-B200, dec-B233, dec-B237). Kept
+    draws are replayed through whatever standardization and response
+    range the sampler holds now, so setData moves kept linear and gp
+    draws and a re-derived range returns every kept draw in the new
+    units; a warm start reads a donor's slopes under the recipient's
+    standardization, or replaces the recipient's. Convert linear
+    coefficients, rewrite kept draws at a re-anchor, and refuse the
+    calls on a gp sampler that holds kept draws. Plan:
+    docs/plans/leaf-conversions.md.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
