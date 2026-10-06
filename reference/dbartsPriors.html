@@ -77,6 +77,7 @@ The residual priors chisq and fixed are what a family
       weights the choice of split variable: <code>NULL</code> is uniform, a named
       vector assigns by column or term name (with an optional
       <code>".default"</code> element), an unnamed vector assigns by position.
+      Entries must be non-negative and finite, with at least one positive.
       Named or positional probabilities are matched to the data when a
       sampler is built.</p></dd>
 

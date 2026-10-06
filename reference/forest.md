@@ -94,7 +94,23 @@ forest(
 
   Optional restriction of this forest to a subset of the model matrix,
   by column name or index; `NULL` leaves it reading every predictor. Any
-  forest may be restricted.
+  forest may be restricted, a single declared forest included: given the
+  same residual scale estimate, that fit is the fit on the named columns
+  alone, and its other columns report no splits. The estimate is taken
+  from every column unless `sigest` states it, so the two fits agree
+  draw for draw when it does. On a single forest a `dart` tree prior
+  beside `vars` lays its Dirichlet over the named columns, every other
+  column reporting probability 0, and `split.probs` keeps its ratios
+  among the named columns and must give one of them a positive
+  probability (see
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)).
+  On the single forest of a hazard fit the `period` column the fit
+  appends is always allowed, named or not: `vars` restricts the columns
+  the caller supplied. A hazard fit with several forests takes each
+  forest's `vars` as written, so a restricted forest there splits on
+  `period` only when `vars` names it. The restriction holds for the
+  sampler's life; `$setModel` refuses a model that states another, or
+  none.
 
 - n.trees, base, power:
 
@@ -160,7 +176,7 @@ forest(
   calibrated-additivity idiom - an additive or low-order modulating
   forest beside a free prognostic one. A `blocks` partition covers the
   columns the forest may split on, i.e. the `vars` subset when one is
-  given.
+  given, on the first forest as on any other.
 
 - amplitude.prior.variance:
 
@@ -339,7 +355,7 @@ fit <- bart(y ~ x1 + x3 + forest(x1 + x3, basis = ~ scale(w), n.trees = 10L),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000429
+#> total seconds in loop: 0.000546
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 3 3 1 4 2 2 2 

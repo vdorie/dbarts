@@ -21,8 +21,10 @@ A list of functions:
   The Chipman, George, and McCulloch tree prior. `split.probs` weights
   the choice of split variable: `NULL` is uniform, a named vector
   assigns by column or term name (with an optional `".default"`
-  element), an unnamed vector assigns by position. Named or positional
-  probabilities are matched to the data when a sampler is built.
+  element), an unnamed vector assigns by position. Entries must be
+  non-negative and finite, with at least one positive. Named or
+  positional probabilities are matched to the data when a sampler is
+  built.
 
 - `dart(power = 2, base = 0.95, a = 0.5, b = 1, rho = NULL, alpha = 1, update.alpha = TRUE, update.delay = NULL)`:
 

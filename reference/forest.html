@@ -136,7 +136,21 @@ The constructor is not exported: it resolves by bare name inside the
   <dt id="arg-vars">vars<a class="anchor" aria-label="anchor" href="#arg-vars"></a></dt>
 <dd><p>Optional restriction of this forest to a subset of the model matrix, by
     column name or index; <code>NULL</code> leaves it reading every predictor. Any
-    forest may be restricted.</p></dd>
+    forest may be restricted, a single declared forest included: given the
+    same residual scale estimate, that fit is the fit on the named columns
+    alone, and its other columns report no splits. The estimate is taken from
+    every column unless <code>sigest</code> states it, so the two fits agree draw
+    for draw when it does. On a single forest a <code>dart</code> tree prior beside <code>vars</code>
+    lays its Dirichlet over the named columns, every other column reporting
+    probability 0, and <code>split.probs</code> keeps its ratios among the named
+    columns and must give one of them a positive probability (see
+    <code><a href="dbartsPriors.html">dbartsPriors</a></code>). On the single forest of a hazard fit the
+    <code>period</code> column the fit appends is always allowed, named or not:
+    <code>vars</code> restricts the columns the caller supplied. A hazard fit with
+    several forests takes each forest's <code>vars</code> as written, so a
+    restricted forest there splits on <code>period</code> only when <code>vars</code>
+    names it. The restriction holds for the sampler's
+    life; <code>$setModel</code> refuses a model that states another, or none.</p></dd>
 
   <dt id="arg-n-trees-base-power">n.trees, base, power<a class="anchor" aria-label="anchor" href="#arg-n-trees-base-power"></a></dt>
 <dd><p>This forest's tree count and tree-structure prior. <code>NULL</code> takes the
@@ -193,7 +207,8 @@ The constructor is not exported: it resolves by bare name inside the
     forests to different structures is the calibrated-additivity idiom - an
     additive or low-order modulating forest beside a free prognostic one. A
     <code>blocks</code> partition covers the columns the forest may split on, i.e.
-    the <code>vars</code> subset when one is given.</p></dd>
+    the <code>vars</code> subset when one is given, on the first forest as on any
+    other.</p></dd>
 
   <dt id="arg-amplitude-prior-variance">amplitude.prior.variance<a class="anchor" aria-label="anchor" href="#arg-amplitude-prior-variance"></a></dt>
 <dd><p>Prior variance of the \(N(0, \cdot)\) amplitudes on this
@@ -365,7 +380,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000429</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000546</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 3 3 1 4 2 2 2 </span>
