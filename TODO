@@ -546,8 +546,11 @@ items
     from the training rows' terms, as the predictors do and as lm does
     with scale(), poly() and ns(). Today the formula is replayed on the
     new rows, so basis = ~ scale(w) centres them on their own mean and
-    one new row is an error; ~ I(w - 50) is right. Also accept such a
-    call on the left of :forest() (dec-B257).
+    one new row is an error; ~ I(w - 50) is right (dec-B257). Plan:
+    docs/plans/basis-formula-terms.md. Left for the forest-prior-args
+    plans: a basis formula with +, * or : at its top is evaluated as R
+    code and not as a model formula (~ z + w is one column, the sum,
+    where (z + w):forest() is two), and scale(w):forest(x) is refused.
   weighted-binary: arbitrary real weights on the binary families need
     a real-shape Polya-Gamma sampler; IPW is a pseudo-likelihood trap,
     and the approximate-PG decision is shared with
