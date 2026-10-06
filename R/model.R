@@ -1207,25 +1207,90 @@ validateForestKnobs <- function(spec) {
     }
     spec$base <- base
   }
-  if (!is.null(spec$update.amplitude)) {
-    flag <- suppressWarnings(as.logical(spec$update.amplitude))
-    if (length(flag) != 1L || is.na(flag)) {
-      stop("forest 'update.amplitude' must be TRUE or FALSE")
-    }
-    spec$update.amplitude <- flag
+  if (!is.null(spec$amplitude)) {
+    spec$amplitude <- validateForestAmplitude(spec$amplitude)
   }
   spec
 }
 
-## A forest's 'sd', at creation and on $setLeafPrior: a single positive finite
-## number. Infinity states no prior the map can scale, so it is refused rather
-## than carried into a leaf scale or a half-Cauchy median.
-validateForestSd <- function(sd) {
-  value <- suppressWarnings(as.double(sd))
-  if (length(value) != 1L || is.na(value) || !is.finite(value) || value <= 0) {
-    stop("forest 'sd' must be a single positive finite number")
+## A forest's 'amplitude': NULL, which draws its coefficient, or fixed(), which
+## holds it at the value its forest's shape gives it. Returns "fixed" for the
+## hold. A bare fixed is fixed(), as a constructor given where a value is.
+validateForestAmplitude <- function(amplitude) {
+  if (identical(amplitude, fixed)) {
+    amplitude <- fixed()
   }
-  value
+  if (!is(amplitude, "dbartsFixedPrior")) {
+    stop(
+      "a forest's 'amplitude' must be fixed(), which holds its coefficient, ",
+      "or left out, which draws it"
+    )
+  }
+  value <- amplitude@value
+  if (!is.numeric(value) || length(value) != 1L || value != 1) {
+    stop(
+      "'amplitude = fixed(",
+      paste(deparse(value), collapse = ""),
+      ")': a held coefficient takes the value its forest's shape gives it, ",
+      "and fixed() takes no other here; write fixed(), and state the ",
+      "forest's size with 'sd'"
+    )
+  }
+  "fixed"
+}
+
+## The kind of value a stated 'sd' is when it is one that a number is not read
+## from, for the message, and NULL for any other: nothing is coerced into a
+## number.
+sdKindRefused <- function(sd) {
+  if (is.character(sd)) {
+    "a string"
+  } else if (is.factor(sd)) {
+    "a factor"
+  } else if (inherits(sd, c("Date", "POSIXt", "difftime"))) {
+    "a Date"
+  } else if (is.list(sd)) {
+    "a list"
+  } else if (is.matrix(sd) || is.array(sd)) {
+    "a matrix"
+  } else if (is.logical(sd)) {
+    "a logical"
+  }
+}
+
+## A forest's 'sd', at creation and on $setLeafPrior: one unnamed number, finite
+## and positive. Infinity states no prior the map can scale, so it is refused
+## rather than carried into a leaf scale or a half-Cauchy median.
+validateForestSd <- function(sd) {
+  if (isSingleNA(sd) || (is.numeric(sd) && length(sd) == 1L && is.nan(sd))) {
+    stop("forest 'sd' must not be NA; leave it out for the default")
+  }
+  kind <- sdKindRefused(sd)
+  if (is.null(kind) && !is.numeric(sd)) {
+    kind <- paste0("a ", class(sd)[1L])
+  }
+  if (!is.null(kind)) {
+    stop("forest 'sd' must be a number, not ", kind)
+  }
+  if (length(sd) != 1L) {
+    stop(
+      "forest 'sd' must be a single number, not ",
+      length(sd),
+      ": a forest states one sd, for every column of its basis; to size the ",
+      "columns differently, rescale them in 'basis', as I(dose / 30)"
+    )
+  }
+  if (!is.null(names(sd))) {
+    stop(
+      "forest 'sd' must not be named (\"",
+      names(sd),
+      "\"): it is one number, for every column of a basis"
+    )
+  }
+  if (is.na(sd) || !is.finite(sd) || sd <= 0) {
+    stop("forest 'sd' must be positive and finite")
+  }
+  as.double(sd)
 }
 
 ## Resolve a `forests` declaration into the per-forest knobs a sampler
@@ -1282,20 +1347,18 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 
   first <- resolved[[1L]]
   if (numForests == 1L) {
-    amplitudeKnobs <- if (any(hasBasis)) {
-      character(0L)
-    } else {
-      c("sd", "update.amplitude")
+    if (!is.null(first$sd) && !any(hasBasis)) {
+      stop(
+        "forest 'sd' is stated for a forest of a model of several; a model ",
+        "of one forest states its size as the fitting function's leaf.prior ",
+        "= normal(sd = )"
+      )
     }
-    for (name in amplitudeKnobs) {
-      if (!is.null(first[[name]])) {
-        stop(
-          "'",
-          name,
-          "' configures the amplitudes a model combines its forests with; a ",
-          "single-forest 'forests' has none"
-        )
-      }
+    if (!is.null(first$amplitude) && !any(hasBasis)) {
+      stop(
+        "'amplitude' is the law of the coefficient that a model of several ",
+        "forests gives each of them; a model of one forest has none"
+      )
     }
   }
   if (!is.null(first$interactions) && !is.null(interactions)) {
@@ -1350,7 +1413,7 @@ forestParams <- function(specs, hasBasis, family) {
       if (withBasis) 0.674 else 1,
       if (withBasis) declared(spec$amplitude.prior.variance, 0.5) else 1,
       if (withBasis) 0 else declared(spec$sd, amplitudeScaleDefault),
-      declared(spec$update.amplitude, TRUE)
+      if (identical(spec$amplitude, "fixed")) 0 else 1
     ))
   })
 }
@@ -1746,6 +1809,19 @@ validateLeafSd <- function(sd) {
   if (is.null(sd) || is(sd, "dbartsSdHyperprior")) {
     return(sd)
   }
+  if (!is(sd, "dbartsLeafHyperprior") && !is.character(sd) && !isSingleNA(sd)) {
+    kind <- sdKindRefused(sd)
+    if (!is.null(kind)) {
+      stop("'sd' must be a number or invchi(), not ", kind)
+    }
+    if (length(sd) == 1L && !is.null(names(sd))) {
+      stop(
+        "'sd' must not be named (\"",
+        names(sd),
+        "\"): it is one number, for every column of a basis"
+      )
+    }
+  }
   if (is(sd, "dbartsLeafHyperprior")) {
     stop(
       "'sd' takes a number or invchi(), a law on the sd itself; a law on k ",
@@ -2032,8 +2108,8 @@ blocks <- function(groups, trees.per.group = NULL) {
 ## of the family's latent scale (sd(y) under gaussian, 1 under probit,
 ## pi/sqrt(3) under logistic) per unit of basis row norm;
 ## amplitude.prior.variance is the N(0, .) variance of the amplitudes on
-## its basis; update.amplitude fixes those amplitudes at their prior center
-## when FALSE; interactions and blocks are this forest's own constraints - the
+## its basis; amplitude = fixed() holds those amplitudes at the value
+## their shape gives them, and left out draws them; interactions and blocks are this forest's own constraints - the
 ## arguments of the same names on the fitting function are the FIRST forest's.
 ## Every knob defaults to NULL, "not declared", which is what lets a
 ## declaration that collides with one of those arguments refuse rather than
@@ -2050,7 +2126,7 @@ forest <- function(
   interactions = NULL,
   blocks = NULL,
   amplitude.prior.variance = NULL,
-  update.amplitude = NULL
+  amplitude = NULL
 ) {
   structure(
     list(
@@ -2063,7 +2139,7 @@ forest <- function(
       interactions = interactions,
       blocks = blocks,
       amplitude.prior.variance = amplitude.prior.variance,
-      update.amplitude = update.amplitude
+      amplitude = amplitude
     ),
     class = "dbartsForest"
   )
@@ -2136,14 +2212,15 @@ dbartsForests <- list(
   blocks = blocks,
   monotone = monotone,
   forest = forest,
-  varianceForest = varianceForest
+  varianceForest = varianceForest,
+  fixed = fixed
 )
 
 ## Each door argument taking a forest constructor, and the vocabulary it
 ## resolves over. In the order the doors forced them before they resolved by
 ## name, so that an error names the same argument.
 FOREST_ARGUMENT_VOCABULARIES <- list(
-  forests = c("forest", "interactions", "blocks"),
+  forests = c("forest", "interactions", "blocks", "fixed"),
   interactions = "interactions",
   blocks = "blocks",
   monotone = "monotone",

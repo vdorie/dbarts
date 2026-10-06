@@ -18,7 +18,7 @@ forest(
     basis = NULL, vars = NULL,
     n.trees = NULL, base = NULL, power = NULL, sd = NULL,
     interactions = NULL, blocks = NULL,
-    amplitude.prior.variance = NULL, update.amplitude = NULL)
+    amplitude.prior.variance = NULL, amplitude = NULL)
 }
 \arguments{
   \item{basis}{
@@ -134,7 +134,11 @@ forest(
     statements, \eqn{\sqrt{2/2} = 1}{sqrt(2/2) = 1}. A value declared here
     overrides its default and keeps its per-forest reading at every \eqn{K}{K},
     so \code{sd = 1} on each basis forest recovers the pre-\eqn{K}{K}-aware
-    model exactly. It must be positive and finite.
+    model exactly. It is one unnamed number, positive and finite, the same for
+    every column of the forest's \code{basis}; a vector, a named number, a
+    string, a logical, a factor, a Date, a list and a matrix are refused.
+    A model of one forest states its size as the fitting function's
+    \code{leaf.prior = normal(sd = )}.
 
     It is the one argument a live sampler restates:
     \code{$setLeafPrior(forests = list(forest(sd = ), ...))} writes it in the
@@ -185,12 +189,14 @@ forest(
     \code{forests = list(forest(), forest(basis = ~ z1), forest(basis = ~ z2))},
     or use one forest with \code{linear()} leaves.
   }
-  \item{update.amplitude}{
-    Whether this forest's amplitudes are redrawn each sweep, default
-    \code{TRUE}. \code{FALSE} fixes them at their prior center for the
-    sampler's life; the choice is made at creation and cannot be toggled
-    afterwards. Declaring it needs a model with amplitudes, so it is refused on
-    a single-forest \code{forests}.
+  \item{amplitude}{
+    The law of this forest's amplitudes, the coefficients its \code{basis}
+    columns carry. Left out, they are drawn each sweep. \code{fixed()} holds
+    them at the value the forest's shape gives them, for the sampler's life;
+    the choice is made at creation and cannot be toggled afterwards. Only
+    \code{fixed()}, its bare name \code{fixed} and \code{fixed(1)} are taken,
+    the held value being the one the shape gives and no other. It is stated for
+    a forest of a model of several, and a model of one forest has none.
   }
 }
 \details{

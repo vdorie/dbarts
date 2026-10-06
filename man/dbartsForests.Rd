@@ -34,6 +34,10 @@
     \item{\code{varianceForest}}{
       The heteroscedastic variance forest; see \code{\link{varianceForest}}.
     }
+    \item{\code{fixed}}{
+      Holds a forest's amplitudes, as \code{forest(amplitude = fixed())}; see
+      \code{\link{forest}}.
+    }
   }
 }
 \seealso{

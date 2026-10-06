@@ -360,7 +360,7 @@ processHit <- function(hit, env) {
     knobArgs = lapply(
       named[namedNames %not_in% c("vars", "basis")],
       evalInForestVocabulary,
-      vocabulary = dbartsForests[c("interactions", "blocks")],
+      vocabulary = dbartsForests[c("interactions", "blocks", "fixed")],
       evalEnv = env
     ),
     varsArg = if ("vars" %in% namedNames) {

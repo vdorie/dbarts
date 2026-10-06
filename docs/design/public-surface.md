@@ -547,7 +547,7 @@ and anchors: docs/design/bcf.md, "Public creation surface".
 
 **One knob per forest.** `forest()` carries `basis`, `vars`, `n.trees`,
 `base`, `power`, `sd`, `interactions`, `blocks`,
-`amplitude.prior.variance` and `update.amplitude`, every one defaulting to
+`amplitude.prior.variance` and `amplitude`, every one defaulting to
 NULL - "not declared" - so an omitted knob takes the engine's default and a
 declaration colliding with a top-level argument of the same name refuses
 instead of silently winning. The FIRST forest's structural knobs restate the
