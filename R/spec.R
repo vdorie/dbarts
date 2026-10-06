@@ -634,11 +634,51 @@ resolveSamplerSpec <- function(
   # tree is confined to one declared group, so the ensemble is exactly
   # f = sum_G f_G. Rides two model attributes the C bridge reads (the
   # interactions precedent); absent when no blocks() prior is supplied, so the
-  # path is byte-for-byte unchanged. The partition covers the full design.
-  blockSpec <- resolveBlocks(blocks, data, control@n.trees)
+  # path is byte-for-byte unchanged. The partition covers the columns the
+  # first forest may split on.
+  #
+  # Those columns are the first forest's 'vars', resolved once, here. On a
+  # single forest a hazard fit's own period column, which rides last and which
+  # the caller did not supply, stays allowed whatever 'vars' names.
+  firstColumns <- resolveModerators(firstForest$vars, data, "vars")
+  singleForest <- is.null(declaredBases)
+  if (singleForest && !is.null(firstColumns) && !is.null(hazardPeriods)) {
+    firstColumns <- union(firstColumns, ncol(data@x))
+  }
+  blockSpec <- resolveBlocks(
+    blocks,
+    data,
+    control@n.trees,
+    availableColumns = firstColumns
+  )
   if (!is.null(blockSpec)) {
     attr(model, "block.of.column") <- blockSpec$block.of.column
     attr(model, "block.tree.counts") <- blockSpec$block.tree.counts
+  }
+
+  # a single forest's column restriction is a model fact and rides a model
+  # attribute the C bridge reads, beside the two constraints above, so a copy
+  # or a reload rebuilds it. Naming every column restricts nothing and stores
+  # nothing; a multi-forest fit carries every forest's columns on the forests
+  # control attribute instead.
+  if (
+    singleForest &&
+      !is.null(firstColumns) &&
+      length(firstColumns) < ncol(data@x)
+  ) {
+    # the engine draws a split variable among the allowed columns by their
+    # relative probabilities, which all-zero ones do not state
+    splitProbabilities <- priors$tree.prior@splitProbabilities
+    if (
+      length(splitProbabilities) > 0L &&
+        !any(splitProbabilities[firstColumns] > 0)
+    ) {
+      stop(
+        "'split.probs' gives no positive probability to any column the ",
+        "forest's 'vars' allows; give one of them a positive probability"
+      )
+    }
+    attr(model, "forest.columns") <- firstColumns
   }
 
   # The K category forests are built from the softmax calibration map and the
@@ -957,7 +997,13 @@ resolveSamplerSpec <- function(
     )
     forestColumns <- lapply(
       seq_len(numForests),
-      function(index) resolveModerators(specs[[index]]$vars, data, "vars")
+      function(index) {
+        if (index == 1L) {
+          firstColumns
+        } else {
+          resolveModerators(specs[[index]]$vars, data, "vars")
+        }
+      }
     )
     # a declaration's own per-forest names (forests = list(prognostic = ...,
     # treatment = ...)), distinct from the packaged channels' own

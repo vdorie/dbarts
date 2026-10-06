@@ -140,7 +140,7 @@
     An object inheriting from \code{\link{dbartsControl}}. When passed to \code{setControl}, it cannot change \code{n.trees}, \code{n.chains}, \code{useQuantiles}, \code{treeShift}, or \code{seed} from the values the sampler was created with, and cannot set \code{keepTrees = TRUE} without also giving \code{n.samples}; either is an error. \code{treeShift} is guarded as one of the three values it was given - \code{"always"}, \code{"never"}, or \code{"auto"} - so restating \code{"auto"}, the default, is accepted while turning the step on or off is not; under \code{"auto"} the step follows the mixture, which \code{setModel} may freeze at any point.
   }
   \item{newModel}{
-    An object inheriting from \code{dbartsModel}. When passed to \code{setModel}, it cannot switch a DART tree prior on or off relative to the sampler's creation-time model; recreate the sampler instead.
+    An object inheriting from \code{dbartsModel}. When passed to \code{setModel}, it cannot switch a DART tree prior on or off relative to the sampler's creation-time model, nor change the columns a single forest may split on (its \code{\link{forest}} \code{vars}); recreate the sampler instead.
   }
   \item{newData}{
     An object inheriting from \code{\link{dbartsData}}.

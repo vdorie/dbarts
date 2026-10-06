@@ -374,6 +374,10 @@ struct ParsedModel {
   // the monotone prior, 0 "leaf" or 1 "joint" (bartcore::MonotonePrior);
   // read only with directions
   std::uint8_t monotonePrior = 0;
+  // the single forest's split-variable restriction: the 0-based columns it
+  // may split on, narrowed from the model's resolved 1-based forest.columns;
+  // empty leaves every column available
+  std::vector<size_t> forestColumns;
   // per-forest interaction constraint: interactionMaxOrder caps the
   // distinct split variables on any path (0 = uncapped);
   // interactionForbiddenPairs is a flat 0-based (a, b) stream (two indices
@@ -1582,6 +1586,25 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
       Rf_error("monotone prior must be \"leaf\" or \"joint\"");
   }
 
+  // column restriction: a model attribute the R surface resolves to the
+  // 1-based columns the single forest may split on, as the variance forest's
+  // ride its control attribute. Absent leaves every column available,
+  // byte-for-byte unchanged.
+  REPROTECT_SLOT(slotExpr, modelExpr, "forest.columns", slotIndex);
+  if (!Rf_isNull(slotExpr)) {
+    if (!Rf_isInteger(slotExpr) || rc_getLength(slotExpr) == 0)
+      Rf_error("forest columns must be resolved integer indices");
+    R_xlen_t numColumns = rc_getLength(slotExpr);
+    model.forestColumns.resize(static_cast<size_t>(numColumns));
+    for (R_xlen_t j = 0; j < numColumns; ++j) {
+      int column = INTEGER(slotExpr)[j];
+      if (column < 1 || static_cast<size_t>(column) > numPredictors)
+        Rf_error("forest column index out of range");
+      model.forestColumns[static_cast<size_t>(j)] =
+        static_cast<size_t>(column - 1);
+    }
+  }
+
   // interaction constraint: two model attributes the R surface resolves - a
   // scalar max order and a 2 x k integer matrix of 0-based forbidden pairs
   // (column-major, so INTEGER() is the flat (a, b) pair stream the engine
@@ -2185,6 +2208,11 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.gpLengthscales = model.gpLengthscales.empty()
     ? NULL : model.gpLengthscales.data();  // consumed at construction
   options.gpMaxLeafSize = model.gpMaxLeafSize;
+
+  // the single forest's column restriction, consumed at construction
+  options.forestColumns = model.forestColumns.empty()
+    ? NULL : model.forestColumns.data();
+  options.numForestColumns = model.forestColumns.size();
 
   // per-forest interaction constraint (single-forest path): the resolved max
   // order and flat 0-based forbidden-pair stream, consumed at construction
@@ -3704,8 +3732,11 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   spec.forest.perturbProbability = model.perturbProbability;
   spec.forest.ruleGibbsProbability = model.ruleGibbsProbability;
   spec.forest.birthProbability = model.birthProbability;
-  // interactions() and blocks() apply to every category forest; optionsFromParsed
-  // already checked the block tree counts against the tree count
+  // the column restriction, interactions() and blocks() apply to every
+  // category forest; optionsFromParsed already checked the block tree counts
+  // against the tree count
+  spec.forest.columns = options.forestColumns;
+  spec.forest.numColumns = options.numForestColumns;
   spec.forest.interactionMaxOrder = options.interactionMaxOrder;
   spec.forest.interactionForbiddenPairs = options.interactionForbiddenPairs;
   spec.forest.interactionNumForbiddenPairs =
@@ -4085,6 +4116,11 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
         columns[static_cast<size_t>(j)] = static_cast<size_t>(column - 1);
       }
     }
+    // a forest's column restriction addresses the handle's columns, which a
+    // column subset renumbers
+    if (!columns.empty() && !model.forestColumns.empty())
+      Rf_error("a column-subset view does not support a column-restricted "
+               "forest");
 
     // leaf covariates address the view's own columns; translate the
     // parent-space designation onto the subset (identity for a full-span view)

@@ -2581,6 +2581,20 @@ dbartsSampler <- setRefClass(
           "sampler: recreate it instead"
         )
       }
+      # the columns a forest may split on are structure: its trees were drawn
+      # under them, so a model stating others, or none, is another model
+      if (
+        !identical(
+          attr(newModel, "forest.columns", exact = TRUE),
+          attr(model, "forest.columns", exact = TRUE)
+        )
+      ) {
+        stop(
+          "$setModel cannot change the columns a forest may split on, its ",
+          "'vars': they are fixed when a sampler is created; make a new ",
+          "sampler instead"
+        )
+      }
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 

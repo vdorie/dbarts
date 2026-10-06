@@ -82,7 +82,16 @@ forest(
   \item{vars}{
     Optional restriction of this forest to a subset of the model matrix, by
     column name or index; \code{NULL} leaves it reading every predictor. Any
-    forest may be restricted.
+    forest may be restricted, a single declared forest included: that fit is
+    the fit on the named columns alone, and its other columns report no
+    splits. On a single forest a \code{dart} tree prior beside \code{vars}
+    lays its Dirichlet over the named columns, every other column reporting
+    probability 0, and \code{split.probs} keeps its ratios among the named
+    columns and must give one of them a positive probability (see
+    \code{\link{dbartsPriors}}). On a hazard fit the \code{period} column the
+    fit appends is always allowed, named or not: \code{vars} restricts the
+    columns the caller supplied. The restriction holds for the sampler's
+    life; \code{$setModel} refuses a model that states another, or none.
   }
   \item{n.trees, base, power}{
     This forest's tree count and tree-structure prior. \code{NULL} takes the
@@ -140,7 +149,8 @@ forest(
     forests to different structures is the calibrated-additivity idiom - an
     additive or low-order modulating forest beside a free prognostic one. A
     \code{blocks} partition covers the columns the forest may split on, i.e.
-    the \code{vars} subset when one is given.
+    the \code{vars} subset when one is given, on the first forest as on any
+    other.
   }
   \item{amplitude.prior.variance}{
     Prior variance of the \eqn{N(0, \cdot)}{N(0, .)} amplitudes on this
