@@ -30,7 +30,15 @@ The rule has no exception by tree prior. Under DART the Dirichlet is laid over C
 other column reports probability 0 ([`DartPrior::initialize`](../../src/bartcore/model.hpp),
 [`DartPrior::update`](../../src/bartcore/model.hpp)). Under `split.probs` the caller's ratios hold among the
 allowed columns; a vector that gives none of them a positive probability states no ratios and is refused by
-name.
+name, at creation and by `setModel`.
+
+One gap is left open on purpose. A state is installed as it is given, so a state that carries a DART
+probability on an excluded column - an edited one, or an unrestricted DART donor's whose live trees happen to
+lie within the list - reports that probability until the next Dirichlet draw puts it back at 0, and under the
+default delay that draw is half the burn-in away. Zeroing at install was not built: the split weights are
+state and the list is model, a state in the sampler's own units installs bit for bit, and no draw reads the
+weight of an excluded column, the trees listing allowed columns only and the concentration update summing
+over them.
 
 Three things follow from the columns being part of what the model is, not a setting of it.
 
