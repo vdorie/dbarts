@@ -601,6 +601,16 @@ items
     fitting function is refused by name and the model is accepted.
     Until it lands such a model takes its forests in written order.
     Not planned.
+  state-zero-weight-rows: before 1.0-0 (dec-B277, VD 2026-10-06). A
+    Student-t state records which rows were at weight zero when it
+    was stored, so an install under other weights (setState, a copy,
+    a reload) redraws the latent scale of only the rows that enter
+    the likelihood, as the same setWeights call would; today it
+    redraws every row in the likelihood, the exact route being to put
+    the stored weights back first. A state stored before this
+    installs as it does now. About 150 lines by the design's
+    estimate; serial with the other work in the state reader and
+    writer. Not planned.
   forest-after-merge: built after the merge to main, for 1.0-0 still
     (dec-B276, VD 2026-10-06): setForestBasis(updateBasisScale = TRUE),
     which re-derives a default sd from a replaced column during
