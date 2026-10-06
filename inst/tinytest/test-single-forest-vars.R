@@ -108,13 +108,14 @@ expectSubMatrixFit(
   alone = list(tree.prior = cgm(split.probs = c(0.25, 0.75)))
 )
 # DART's Dirichlet is laid over the allowed columns: the same probabilities
-# there, and none anywhere else
-dartFits <- expectSubMatrixFit(y, tree.prior = dart())
+# there, and none anywhere else. No delay, so every sweep draws them
+dartFits <- expectSubMatrixFit(y, tree.prior = dart(update.delay = 0))
 expect_identical(
   unname(dartFits$onList$varprobs[1:2, ]),
   unname(dartFits$onColumns$varprobs)
 )
 expect_true(all(dartFits$onList$varprobs[3L, ] == 0))
+expect_true(all(dartFits$onList$varprobs[1:2, ] != 0.5))
 
 # allowed columns that run out along a path: two 0/1 columns at one cut each
 x.binary <- cbind(a = rbinom(n, 1L, 0.5), b = rbinom(n, 1L, 0.5), c = x[, "c"])
