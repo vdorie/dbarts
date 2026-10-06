@@ -73,7 +73,8 @@ Giving the excluded columns a split probability of zero needs no engine change. 
   whatever its probability, and the split is accepted. With two 0/1 columns held to one cut each beside a
   continuous column given probability zero, that column is split on 44425 times in 2000 sweeps of 20 trees,
   in 1995 of the sweeps; the column list gives 0 on the same fixture. On the default grid of 100 cuts a 0/1
-  column never runs out, and there the zeros hold.
+  column rarely runs out and the zeros mostly hold: no such split on five fixtures of six, and 3514 of them,
+  in 1335 of the 2000 sweeps, on the sixth.
 - DART has no split probabilities to zero, and a multi-forest fit refuses `split.probs` and DART outright, so
   one argument would have had two mechanisms and a gap.
 - The caller would read split probabilities they did not write on the stored tree prior.

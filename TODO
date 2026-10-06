@@ -555,8 +555,9 @@ items
     ones run out along a path, with split.probs alone and no vars: with
     two 0/1 columns held to one cut each (n.cuts of 1, or quantile cuts)
     beside a column given probability zero, that column is split on
-    about 45000 times in 2000 sweeps of 20 trees, in nearly every sweep,
-    where the default grid of 100 cuts shows none;
+    about 45000 times in 2000 sweeps of 20 trees, in nearly every sweep.
+    On the default grid of 100 cuts it is rare, not absent: none on
+    five fixtures of six and about 3500 such splits on the sixth.
     setmodel-parameters-not-structure carries the fix. And the model's
     forest.columns attribute moves into the first forest's record when
     the control migration gives every model one.
