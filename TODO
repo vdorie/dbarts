@@ -546,9 +546,12 @@ items
     number and the help says to write a treatment as a factor
     (dec-B263). A column far from zero is the caller's to centre:
     no warning, no centring inside, the help leads with scale(w)
-    and the fit prints the column's mean and sd (dec-B264). Still to
-    settle: a replaced column at the default sd. Then the design is rewritten
-    around the rulings and the slices planned.
+    and the fit prints the column's mean and sd (dec-B264). A
+    replaced column keeps the derived default unless
+    setForestBasis(updateBasisScale = TRUE) re-derives it, for
+    burn-in only, and a constant column with no stated sd is refused
+    (dec-B265). Next: the design rewritten around these rulings, its
+    critique, then the slices planned.
   coefficient-law-opt-in: a caller may opt a forest's drawn coefficient
     into a heavy-tailed law (half-Cauchy; half-t(3) was measured too),
     by one argument on forest() whose spelling is to be decided; the
