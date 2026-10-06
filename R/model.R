@@ -399,6 +399,19 @@ resolveLeafCovariates <- function(prior, data) {
   prior
 }
 
+## The entry rules a split.probs specification is held to, as sample() holds
+## its 'prob': no negative and no non-finite entry, and at least one positive
+## one. A missing entry of a vector is refused ahead of this, by column.
+refuseInvalidSplitProbabilities <- function(split.probs) {
+  if (any(!is.finite(split.probs) | split.probs < 0)) {
+    stop("'split.probs' must be non-negative and finite")
+  }
+  if (!any(split.probs > 0)) {
+    stop("'split.probs' must give at least one column a positive probability")
+  }
+  invisible(NULL)
+}
+
 ## Turn a cgm-family prior's raw split.probs specification into normalized
 ## per-column probabilities: NULL or a scalar is uniform, a named vector
 ## assigns by column or term name with an optional ".default", an unnamed
@@ -410,7 +423,9 @@ resolveSplitProbabilities <- function(prior, data) {
   }
 
   if (length(split.probs) == 1L) {
-    # a length-1 spec is a uniform scalar: drop it, uniform is the default
+    # a length-1 spec is a uniform scalar: held to the entry rules like any
+    # other, then dropped, uniform being the default
+    refuseInvalidSplitProbabilities(split.probs)
     split.probs <- numeric()
   } else if (!is.null(names(split.probs))) {
     default <- NA_real_
@@ -488,11 +503,9 @@ resolveSplitProbabilities <- function(prior, data) {
       }
     }
 
-    # no positive entry states no relative probabilities, and an all-zero
-    # vector would be divided by its zero sum
-    if (!any(split.probs > 0)) {
-      stop("'split.probs' must give at least one column a positive probability")
-    }
+    # ahead of the normalization, which a negative sum turns into
+    # probabilities and a zero or infinite one into NaN
+    refuseInvalidSplitProbabilities(split.probs)
     split.probs <- split.probs / sum(split.probs)
     if (all(split.probs == split.probs[1L])) {
       split.probs <- numeric()

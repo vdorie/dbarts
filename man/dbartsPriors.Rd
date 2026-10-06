@@ -23,7 +23,8 @@
       weights the choice of split variable: \code{NULL} is uniform, a named
       vector assigns by column or term name (with an optional
       \code{".default"} element), an unnamed vector assigns by position.
-      At least one probability must be positive. Named or positional probabilities are matched to the data when a
+      Entries must be non-negative and finite, with at least one positive.
+      Named or positional probabilities are matched to the data when a
       sampler is built.
     }
     \item{\code{dart(power = 2, base = 0.95, a = 0.5, b = 1, rho = NULL,

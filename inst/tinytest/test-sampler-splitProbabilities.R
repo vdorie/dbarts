@@ -60,11 +60,21 @@ expect_error(
   "length of input \\(9\\) does not equal number of columns in model matrix \\(10\\)"
 )
 
+# a negative or non-finite entry is refused by name, whatever the others are
+entryRefusal <- "'split.probs' must be non-negative and finite"
 probs <- c(-1, probs)
-expect_error(
-  eval(fitCall),
-  "'splitProbabilities' must form a simplex"
-)
+expect_error(eval(fitCall), entryRefusal)
+probs[1L] <- Inf
+expect_error(eval(fitCall), entryRefusal)
+# among them a vector with no positive entry, which a negative sum would
+# otherwise normalize into probabilities
+probs <- c(0, -1, rep.int(0, ncol(testData$x) - 2L))
+expect_error(eval(fitCall), entryRefusal)
+probs <- -seq_len(ncol(testData$x))
+expect_error(eval(fitCall), entryRefusal)
+probs <- c(1, -1, rep.int(0, ncol(testData$x) - 2L))
+expect_error(eval(fitCall), entryRefusal)
+probs <- c(-1, rep.int(1, ncol(testData$x) - 1L))
 
 probs[1L] <- NA_real_
 expect_error(
@@ -74,10 +84,35 @@ expect_error(
 
 # all zero states no relative probabilities; refused by name, not by the
 # NaN a division by their sum leaves
+positiveRefusal <- "'split.probs' must give at least one column a positive probability"
 probs <- rep.int(0, ncol(testData$x))
+expect_error(eval(fitCall), positiveRefusal)
+
+# a scalar means uniform and is held to the same two rules
+probs <- 0
+expect_error(eval(fitCall), positiveRefusal)
+probs <- -1
+expect_error(eval(fitCall), entryRefusal)
+probs <- Inf
+expect_error(eval(fitCall), entryRefusal)
+
+# a fit that takes no split probabilities at all gives the two refusals in
+# the same order, ahead of its own
+multinomialCall <- quote(dbarts::dbarts(
+  testData$x,
+  cut(testData$y, 3L),
+  family = "multinomial",
+  tree.prior = cgm(split.probs = probs),
+  control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
+))
+probs <- c(-1, rep.int(0, ncol(testData$x) - 1L))
+expect_error(eval(multinomialCall), entryRefusal)
+probs <- rep.int(0, ncol(testData$x))
+expect_error(eval(multinomialCall), positiveRefusal)
+probs <- c(2, rep.int(1, ncol(testData$x) - 1L))
 expect_error(
-  eval(fitCall),
-  "'split.probs' must give at least one column a positive probability"
+  eval(multinomialCall),
+  "a multinomial \\(softmax\\) model does not support 'split.probs'"
 )
 
 # an explicit vector that normalizes to uniform canonicalizes to the empty
@@ -123,10 +158,7 @@ expect_true(
 
 
 fitCall$splitprobs <- quote(c(X4 = -1, X10 = 1.5, .default = 1))
-expect_error(
-  eval(fitCall),
-  "'splitProbabilities' must form a simplex"
-)
+expect_error(eval(fitCall), entryRefusal)
 
 fitCall$splitprobs <- quote(c(X4 = NA_real_, X10 = 1.5, .default = 1))
 expect_error(
