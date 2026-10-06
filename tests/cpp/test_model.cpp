@@ -3382,7 +3382,8 @@ static void testSparseMutationDirectStore() {
                         sizeof(double)) == 0 &&
             !std::signbit(a.cutPoints[0][0]),
           "a degenerate grid over signed zeros stores +0 on both paths");
-    check(!std::signbit(a.quantileGridForColumn(0, zeros.data()).sortedUnique[0]),
+    check(!std::signbit(a.quantileGridForColumn(zeros.data(), a.numCuts[0])
+                         .sortedUnique[0]),
           "the dense quantile collector normalizes -0");
   }
 

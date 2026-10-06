@@ -824,12 +824,10 @@ struct ColumnStore {
   std::vector<std::uint32_t> categoryCounts;
   // per column, the cut count asked for at build. Fixed once built: every
   // derivation of a numeric column's grid (build, setData) counts from it,
-  // whatever grid the column held before.
+  // whatever grid the column held before. It is the only count kept beside
+  // numCuts: a refresh re-cuts at the count the column holds, so a grid set
+  // longer than the request leaves nothing behind once it is replaced.
   std::vector<std::uint32_t> requestedNumCuts;
-  // cap on quantile-induced counts: the larger of requestedNumCuts[j] and
-  // numCuts[j], so a refresh of a grid set longer than the request keeps its
-  // count and nothing outlives the grid that raised it
-  std::vector<std::uint32_t> maxNumCuts;
   // per column, whether any training value is missing; gates the extra
   // missing-direction draw in rules and the NA-aware partition kernel.
   // INVARIANT: a column flagged 0 consumes no missing-direction draw from the
@@ -1061,13 +1059,16 @@ struct ColumnStore {
   }
 
   /// Quantile-mode support: sorted unique finite values of a column and the
-  /// number of cuts they induce, their midpoints capped at maxNumCuts[j].
+  /// number of cuts they induce, their midpoints capped at the maxCuts the
+  /// collector is given: the asked count for a derivation, and for a refresh
+  /// the count the column holds, which is all its feasibility check compares
+  /// against.
   struct QuantileGrid {
     std::vector<double> sortedUnique;
     std::uint32_t inducedNumCuts = 0;
   };
 
-  void finishQuantileGrid(QuantileGrid& grid, size_t j) const {
+  void finishQuantileGrid(QuantileGrid& grid, std::uint32_t maxCuts) const {
     std::sort(grid.sortedUnique.begin(), grid.sortedUnique.end());
     grid.sortedUnique.erase(
       std::unique(grid.sortedUnique.begin(), grid.sortedUnique.end()),
@@ -1081,10 +1082,10 @@ struct ColumnStore {
       // what a uniform grid places over the same column, and it splits
       // nothing for the same reason.
       grid.inducedNumCuts = 1;
-    } else if (numUnique <= static_cast<size_t>(maxNumCuts[j]) + 1) {
+    } else if (numUnique <= static_cast<size_t>(maxCuts) + 1) {
       grid.inducedNumCuts = static_cast<std::uint32_t>(numUnique - 1);
     } else {
-      grid.inducedNumCuts = maxNumCuts[j];
+      grid.inducedNumCuts = maxCuts;
     }
   }
 
@@ -1092,7 +1093,8 @@ struct ColumnStore {
   /// every other double alone: a stored -0 is absent from a CSC pattern, so
   /// without it a degenerate grid over signed zeros would keep a sign bit
   /// that depends on the column's storage.
-  QuantileGrid quantileGridForColumn(size_t j, const double* values) const {
+  QuantileGrid quantileGridForColumn(const double* values,
+                                     std::uint32_t maxCuts) const {
     QuantileGrid grid;
     grid.sortedUnique.reserve(numObservations);
     // NaN would break the sort's ordering, and an infinite value would put an
@@ -1100,7 +1102,7 @@ struct ColumnStore {
     // and an infinite one codes past an end cut, as on the uniform grid
     for (size_t i = 0; i < numObservations; ++i)
       if (std::isfinite(values[i])) grid.sortedUnique.push_back(values[i] + 0.0);
-    finishQuantileGrid(grid, j);
+    finishQuantileGrid(grid, maxCuts);
     return grid;
   }
 
@@ -1109,22 +1111,22 @@ struct ColumnStore {
   /// \p implicitPresent, the same value set the dense collector sees over
   /// the materialized column, so the induced grid is identical. Numeric
   /// columns only, whose implicit rows read zero.
-  QuantileGrid quantileGridForEntries(size_t j, const double* values,
-                                      size_t numNonzero,
-                                      bool implicitPresent) const {
+  QuantileGrid quantileGridForEntries(const double* values, size_t numNonzero,
+                                      bool implicitPresent,
+                                      std::uint32_t maxCuts) const {
     QuantileGrid grid;
     grid.sortedUnique.reserve(numNonzero + 1);
     if (implicitPresent) grid.sortedUnique.push_back(0.0);
     for (size_t k = 0; k < numNonzero; ++k)
       if (std::isfinite(values[k])) grid.sortedUnique.push_back(values[k] + 0.0);
-    finishQuantileGrid(grid, j);
+    finishQuantileGrid(grid, maxCuts);
     return grid;
   }
 
-  QuantileGrid quantileGridForCscColumn(size_t j) const {
+  QuantileGrid quantileGridForCscColumn(size_t j, std::uint32_t maxCuts) const {
     const CscColumnSlice& slice = train.sources[j].slice;
-    return quantileGridForEntries(j, slice.values, slice.numNonzero,
-                                  slice.numNonzero < numObservations);
+    return quantileGridForEntries(slice.values, slice.numNonzero,
+                                  slice.numNonzero < numObservations, maxCuts);
   }
 
   /// Fills column j's numCuts[j] cuts from the grid's M midpoints, midpoint i
@@ -1157,18 +1159,17 @@ struct ColumnStore {
   /// consecutive DECLARED level codes, so every adjacent level pair is
   /// separable, each distinct threshold occupies exactly one index slot (the
   /// grow prior's logCut then normalizes over the real partition set), and a
-  /// level's code is its own index. The cap is RAISED to fit rather than the
-  /// thinning bypassed, keeping numCuts[j] <= maxNumCuts[j] as every other
-  /// externally determined grid does; n.cuts therefore does not apply to the
-  /// column, exactly as it does not to a categorical one. Fewer than two
-  /// levels admit no interior split and take the single degenerate cut a
-  /// column with no cut at all cannot be. The raise needs no representability
-  /// clamp of its own: the level count is bounded by maxLevelsForKind before
-  /// the grid is built, so K - 1 never passes maxNumCutsRepresentable.
+  /// level's code is its own index. The count follows the level table and
+  /// not requestedNumCuts[j], which it may pass; n.cuts therefore does not
+  /// apply to the column, exactly as it does not to a categorical one. Fewer
+  /// than two levels admit no interior split and take the single degenerate
+  /// cut a column with no cut at all cannot be. The count needs no
+  /// representability clamp of its own: the level count is bounded by
+  /// maxLevelsForKind before the grid is built, so K - 1 never passes
+  /// maxNumCutsRepresentable.
   void fillCutsAtLevelMidpoints(size_t j) {
     std::uint32_t numLevels = categoryCounts[j];
     numCuts[j] = numLevels >= 2u ? numLevels - 1u : 1u;
-    if (maxNumCuts[j] < numCuts[j]) maxNumCuts[j] = numCuts[j];
     cutPoints[j].resize(numCuts[j]);
     for (std::uint32_t k = 0; k < numCuts[j]; ++k)
       cutPoints[j][k] = static_cast<double>(k) + 0.5;
@@ -1279,8 +1280,8 @@ struct ColumnStore {
   /// own grid. A categorical column then keeps no cuts at all, and an ordered
   /// factor takes the midpoint grid of that level table rather than a uniform
   /// or quantile grid over its observed values. A numeric column's grid counts
-  /// from requestedNumCuts[j], so the cap a longer set grid raised does not
-  /// reach a later derivation.
+  /// from requestedNumCuts[j] and not from the count the column holds, so a
+  /// grid set longer than the request does not reach a later derivation.
   ///
   /// keepCategoryCount holds a factor column's creation-time level count
   /// against a whole-data replacement, whose new values are a new sample of
@@ -1312,17 +1313,15 @@ struct ColumnStore {
     } else if (types[j] == ColumnKind::orderedFactor) {
       fillCutsAtLevelMidpoints(j);
     } else if (useQuantiles) {
-      maxNumCuts[j] = requestedNumCuts[j];
       // a numeric column's grid is over its real values, which build widens a
       // coded column back to before it gets here
       QuantileGrid grid = columnIsCscBacked(j)
-        ? quantileGridForCscColumn(j)
-        : quantileGridForColumn(j, column.values);
+        ? quantileGridForCscColumn(j, requestedNumCuts[j])
+        : quantileGridForColumn(column.values, requestedNumCuts[j]);
       numCuts[j] = grid.inducedNumCuts;
       fillCutsFromQuantileGrid(j, grid);
     } else {
-      maxNumCuts[j] = requestedNumCuts[j];
-      numCuts[j] = maxNumCuts[j];
+      numCuts[j] = requestedNumCuts[j];
       if (columnIsCscBacked(j)) fillCutsUniformlyCsc(j);
       else fillCutsUniformly(j, column.values);
     }
@@ -1358,7 +1357,7 @@ struct ColumnStore {
   bool refreshCutsForColumn(size_t j, const double* column) {
     if (isFactor(j)) return true;
     if (useQuantiles) {
-      QuantileGrid grid = quantileGridForColumn(j, column);
+      QuantileGrid grid = quantileGridForColumn(column, numCuts[j]);
       if (grid.inducedNumCuts < numCuts[j]) return false;
       fillCutsFromQuantileGrid(j, grid);
     } else {
@@ -1394,7 +1393,7 @@ struct ColumnStore {
   bool refreshCutsForCscColumn(size_t j) {
     if (isFactor(j)) return true;
     if (useQuantiles) {
-      QuantileGrid grid = quantileGridForCscColumn(j);
+      QuantileGrid grid = quantileGridForCscColumn(j, numCuts[j]);
       if (grid.inducedNumCuts < numCuts[j]) return false;
       fillCutsFromQuantileGrid(j, grid);
     } else {
@@ -1420,7 +1419,8 @@ struct ColumnStore {
       return true;
     }
     if (!useQuantiles) return true;
-    return quantileGridForEntries(j, values, numNonzero, implicitPresent)
+    return quantileGridForEntries(values, numNonzero, implicitPresent,
+                                  numCuts[j])
              .inducedNumCuts >= numCuts[j];
   }
 
@@ -1435,7 +1435,8 @@ struct ColumnStore {
       return true;
     }
     if (!useQuantiles) return true;
-    return quantileGridForColumn(j, values).inducedNumCuts >= numCuts[j];
+    return quantileGridForColumn(values, numCuts[j]).inducedNumCuts >=
+           numCuts[j];
   }
 
   /// Install externally chosen cut points (non-decreasing) for a column and
@@ -1443,7 +1444,6 @@ struct ColumnStore {
   /// the raw is read from (ignored for CSC-backed columns, which use their
   /// retained slice). The cut count may shrink or grow, and existing splits
   /// beyond the new range are the caller's problem (the sampler collapses them).
-  /// The cap follows the grid, never below requestedNumCuts[j].
   void setCutPointsForColumn(size_t j, const double* cuts,
                              std::uint32_t numCutPoints, const double* x) {
     // a factor column's grid is the level table's, fixed at build: an
@@ -1453,7 +1453,6 @@ struct ColumnStore {
     if (isFactor(j)) return;
     cutPoints[j].assign(cuts, cuts + numCutPoints);
     numCuts[j] = numCutPoints;
-    maxNumCuts[j] = std::max(requestedNumCuts[j], numCutPoints);
     quantizeColumn(j, rawColumnForRequantize(j, x));
     if (numTestObservations > 0) quantizeTestColumn(j);
   }
@@ -1720,9 +1719,9 @@ struct ColumnStore {
     numCuts.resize(p);
     categoryCounts.assign(p, 0);
     if (maxNumCutsPerColumn != nullptr) {
-      maxNumCuts.assign(maxNumCutsPerColumn, maxNumCutsPerColumn + p);
+      requestedNumCuts.assign(maxNumCutsPerColumn, maxNumCutsPerColumn + p);
     } else {
-      maxNumCuts.assign(p, maxNumCutsScalar);
+      requestedNumCuts.assign(p, maxNumCutsScalar);
     }
     // keep the reserved missing code out of the real code range. A request
     // past the ceiling is REFUSED rather than quantized onto a grid the
@@ -1731,9 +1730,9 @@ struct ColumnStore {
     // have always refused by name. Zero is refused too: the quantile grid
     // divides by it and the uniform one leaves a column no state can hold.
     for (size_t j = 0; j < p; ++j)
-      if (maxNumCuts[j] < 1 || maxNumCuts[j] > maxNumCutsRepresentable)
+      if (requestedNumCuts[j] < 1 ||
+          requestedNumCuts[j] > maxNumCutsRepresentable)
         return false;
-    requestedNumCuts = maxNumCuts;
     train.codeOffsets.assign(p, 0);
     resetTrainStorage();
     if (mapped) {
@@ -2174,14 +2173,12 @@ struct ColumnStore {
       numCuts.resize(numPredictors);
       categoryCounts.resize(numPredictors);
       requestedNumCuts.resize(numPredictors);
-      maxNumCuts.resize(numPredictors);
       for (size_t j = 0; j < numPredictors; ++j) {
         types[j] = parent.types[parentColumns[j]];
         cutPoints[j] = parent.cutPoints[parentColumns[j]];
         numCuts[j] = parent.numCuts[parentColumns[j]];
         categoryCounts[j] = parent.categoryCounts[parentColumns[j]];
         requestedNumCuts[j] = parent.requestedNumCuts[parentColumns[j]];
-        maxNumCuts[j] = parent.maxNumCuts[parentColumns[j]];
       }
     } else {
       types = parent.types;
@@ -2189,7 +2186,6 @@ struct ColumnStore {
       numCuts = parent.numCuts;
       categoryCounts = parent.categoryCounts;
       requestedNumCuts = parent.requestedNumCuts;
-      maxNumCuts = parent.maxNumCuts;
     }
     // views densify: gathered codes are fully dense whatever the parent's
     // per-column storage

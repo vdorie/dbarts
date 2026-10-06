@@ -1208,7 +1208,6 @@ public:
     // defined against them
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
     std::vector<std::uint32_t> oldNumCuts(data_.numCuts);
-    std::vector<std::uint32_t> oldMaxNumCuts(data_.maxNumCuts);
     std::vector<xint_t> oldCodes(data_.train.codes);
     std::vector<xint_t> oldTestCodes(data_.test.codes);
     // rank columns re-quantize into their own storage, not codes; a rank-backed
@@ -1254,7 +1253,6 @@ public:
     auto restoreGrid = [&]() {
       data_.cutPoints = std::move(oldCutPoints);
       data_.numCuts = std::move(oldNumCuts);
-      data_.maxNumCuts = std::move(oldMaxNumCuts);
       data_.train.codes = std::move(oldCodes);
       data_.test.codes = std::move(oldTestCodes);
       data_.train.sparseColumns = std::move(oldSparseColumns);
@@ -1878,7 +1876,7 @@ public:
       columns, numColumns, forceUpdate, updateCutPoints);
   }
 
-  /// Install externally chosen cut points (ascending) for a subset of
+  /// Install externally chosen cut points (non-decreasing) for a subset of
   /// columns and unconditionally refresh the trees: splits that fall out of
   /// range or lose their observations collapse into their parents, exactly
   /// as a forced predictor update does.
