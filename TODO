@@ -189,16 +189,16 @@ items
     model, such as a fast fit on a transformed response seeding a slower
     model on the original scale, with whatever scale or dispersion the
     two do not share translated. After 1.0-0 (VD 2026-10-05, dec-B248).
-  interrupt-is-interrupt: a fit stopped by the user raises R's interrupt
-    condition, not an error (dec-B256). Today every run entry in the
-    bridge and the flat C entry point raise the error "sampler run
-    interrupted", which try() catches, so a loop of fits wrapped in
-    try() cannot be stopped. The sampler is left as it is now: usable,
-    at a valid point of its chain, nothing returned. A stop asked for by
-    a callback stays what it is. Tests that pin the error text move to
-    the condition's class; the help for run and the embedding page say
-    what an interrupt leaves behind.
-    Plan: docs/plans/interrupt-is-interrupt.md.
+  interrupt-gaps: what a user's interrupt still does not reach or
+    reaches as an error (docs/plans/interrupt-is-interrupt.md, landing
+    note). Not polled at all: $sampleTreesFromPrior,
+    $sampleLeafParametersFromPrior, predict and the R-side latent
+    refresh. On the sweep-callback entry a real signal or a time limit
+    arrives while the closure runs under R's evaluator and comes out as
+    "error evaluating the sweep callback": evaluate the closure under a
+    handler for interrupts and errors, as the poll does, an interrupt
+    cancelling the run and an error keeping its message. The entry has
+    no caller in R/ today.
   warm-start-tree-count: a warm start (bart's warm.start, the sampler's
     installTrees) from a donor with another tree count, partially
     populated: a smaller recipient takes some of the donor's trees, a

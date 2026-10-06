@@ -1,6 +1,6 @@
 # interrupt-is-interrupt: an interrupted fit raises R's interrupt
 
-Status: PLANNED (dec-B256).
+Status: LANDED 2026-10-06 (bcae657e, f76a3163, 30675123, 6c890d2d).
 
 agent: sonnet implementer, one; opus reviewer.
 rng: NEUTRAL. No draw changes; only what is raised after a cancelled run.
@@ -73,3 +73,32 @@ chain, the interrupted call returning nothing.
 - `lintr::lint_package()`, `air format --check .`, the three tools/ checks and
   `Rscript benchmarks/R/mutation-battery.R verify-anchors` clean; `R CMD check --as-cran` shows no new
   note.
+
+## Landing note
+
+Landed 2026-10-06 as bcae657e (the interrupt raised from the three bridge run entries and the flat entry),
+f76a3163 and 30675123 (review corrections) and 6c890d2d (a poll error whose message cannot be read stays an
+error), with stan4bart's interrupt test moved to the condition's class in the same push. Two reviews, the
+first SOUND WITH CORRECTIONS with two blocking findings, the second clearing them. Full tinytest 14009
+results, 0 failures; the touched files at home 471 results, 0 failures; tests/cpp 347 checks; the bridge path
+clean under ASan and UBSan; the four seeded snapshot files unchanged on the reference build; equivalence 55 of
+55, BCF 15 of 15 and multinomial 11 of 11 bitwise; `R CMD check --as-cran` one note, the Date field;
+stan4bart's whole suite on a fresh install 495 results, 0 failures. Against a real SIGINT, 25 cells (five
+settings of `options(error = )` and `options(interrupt = )` by five ways of handling) match base R on blank
+lines, option calls and exit status, and a fit started at a `browser()` prompt stays at it. Draws after an
+interrupt are bit for bit the parent build's.
+
+How it is raised: once the workers have joined, the bridge evaluates an unexported R function that signals a
+condition of class `c("interrupt", "condition")` and, if no handler takes it, does what R's top level does
+for an interrupt (the interrupt option or the blank line and the error option) and invokes the first restart
+among `browser`, `tryRestart` and `abort`. Every C entry point called is documented API except
+`R_FindNamespace`, which is experimental API and was already called.
+
+What the first review found and the plan had not seen. The poll read any jump out of the interrupt check as
+an interrupt, so the error `setTimeLimit` raises became one, escaped `try()`, and left a PSOCK master waiting
+on its worker; the check now runs under a handler for interrupts and errors and an error is re-raised as
+itself. And stan4bart's suite pinned the old error, so the interrupt ended its test process.
+
+Not interruptible, as before, and queued in TODO: `$sampleTreesFromPrior`, `$sampleLeafParametersFromPrior`,
+`predict` and the R-side latent refresh are not reached by the poll; on the sweep-callback entry a real
+signal or a time limit arrives while the closure runs and comes out as "error evaluating the sweep callback".
