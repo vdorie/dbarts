@@ -1,7 +1,8 @@
 # One declared forest honours forest(vars = ): the forest splits on the named
 # columns and no others for the sampler's whole life, and the fit is, seed for
-# seed, the fit on those columns alone. The engine's own gates live in
-# tests/cpp/test_state.cpp (testSingleForestColumnRestriction).
+# seed and given the same residual scale estimate, the fit on those columns
+# alone. The engine's own gates live in tests/cpp/test_state.cpp
+# (testSingleForestColumnRestriction).
 
 forest <- dbarts::dbartsForests$forest
 blocks <- dbarts::dbartsForests$blocks
@@ -84,7 +85,26 @@ expect_identical(unname(outside), c(0, 0, 0))
 expect_true(all(inside > 0))
 expect_true(all(plainOutside > 0))
 
-# ---- the rule: the fit on the named columns alone, seed for seed -------------
+# ---- the rule: the fit on the named columns alone, seed for seed, at an ------
+# ---- equal residual scale estimate -------------------------------------------
+
+# left to be estimated, the scale comes from a linear fit on every column of
+# each design, and the two fits differ
+set.seed(7L)
+estimatedOnList <- dbarts(
+  x,
+  y,
+  forests = restrictTo(allowed),
+  control = control
+)
+set.seed(7L)
+estimatedOnColumns <- dbarts(x[, allowed], y, control = control)
+expect_false(estimatedOnList$data@sigma == estimatedOnColumns$data@sigma)
+expect_false(identical(
+  estimatedOnList$run(0L, 20L)$train,
+  estimatedOnColumns$run(0L, 20L)$train
+))
+
 
 expectSubMatrixFit <- function(response, ..., alone = list(...)) {
   onList <- sampler(x, response, forests = restrictTo(allowed), ...)$run(

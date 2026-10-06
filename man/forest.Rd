@@ -82,9 +82,11 @@ forest(
   \item{vars}{
     Optional restriction of this forest to a subset of the model matrix, by
     column name or index; \code{NULL} leaves it reading every predictor. Any
-    forest may be restricted, a single declared forest included: that fit is
-    the fit on the named columns alone, and its other columns report no
-    splits. On a single forest a \code{dart} tree prior beside \code{vars}
+    forest may be restricted, a single declared forest included: given the
+    same residual scale estimate, that fit is the fit on the named columns
+    alone, and its other columns report no splits. The estimate is taken from
+    every column unless \code{sigest} states it, so the two fits agree draw
+    for draw when it does. On a single forest a \code{dart} tree prior beside \code{vars}
     lays its Dirichlet over the named columns, every other column reporting
     probability 0, and \code{split.probs} keeps its ratios among the named
     columns and must give one of them a positive probability (see
