@@ -128,11 +128,11 @@ bcFixed <- dbarts(
   x,
   y,
   forests = list(
-    forest(update.amplitude = FALSE),
+    forest(amplitude = fixed()),
     forest(
       basis = ~ factor(z),
       n.trees = 25L,
-      update.amplitude = FALSE
+      amplitude = fixed()
     )
   ),
   control = control

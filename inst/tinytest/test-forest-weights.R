@@ -53,11 +53,11 @@ runBCF <- function(
     x,
     y,
     forests = list(
-      forest(update.amplitude = !fixed.glue),
+      forest(amplitude = if (fixed.glue) fixed()),
       forest(
         basis = ~ factor(z),
         n.trees = 25L,
-        update.amplitude = !fixed.glue
+        amplitude = if (fixed.glue) fixed()
       )
     ),
     control = control

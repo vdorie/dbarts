@@ -403,10 +403,10 @@ reader's sake; the implementer may name them otherwise.
     the text for each; `2L` accepted.
 1.3 Respell: the 16 code lines in 6 test files and the 12 lines in 6 benchmark scripts become
     `amplitude = fixed()` or `amplitude = if (...) NULL else fixed()`; the two pins of
-    ["single-forest 'forests' has none"](../../inst/tinytest/test-bcf-creation.R) and the three lines
-    (seven assertions as run) that pin
-    ["single positive finite number"](../../inst/tinytest/test-multiforest-leaf-prior-writer.R) take the
-    new texts.
+    ["single-forest 'forests' has none"] in test-bcf-creation.R and the three lines (seven assertions as
+    run) that pin "single positive finite number" in test-multiforest-leaf-prior-writer.R take the new
+    texts: ["forest 'sd' is stated for a forest of a model of several"](../../inst/tinytest/test-bcf-creation.R)
+    and ["forest 'sd' must be positive and finite"](../../inst/tinytest/test-multiforest-leaf-prior-writer.R).
 1.4 Help: man/forest.Rd's usage, its `update.amplitude` item rewritten as `amplitude`, one sentence in
     `sd` (one unnamed number; a longer or named one is refused);
     [`dbartsSampler$setLeafPrior`](../../man/dbartsSampler-class.Rd) where it lists what the writer

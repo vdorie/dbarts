@@ -146,7 +146,7 @@ expect_true(nrow(masked$getTrees(current = TRUE)) > 2L * numTrees)
 # a row, and one may hold only rows the forest's precisions do not reach. The
 # amplitude is held fixed so the composed vector - w * b_z^2 * s - is the same
 # one across every repetition.
-grown <- makeBCF(update.amplitude = FALSE)
+grown <- makeBCF(amplitude = dbartsForests$fixed())
 forestWeight <- as.double(x[, 1L] <= 0.5)
 grown$setForestWeights(2L, forestWeight)
 reached <- treated & forestWeight > 0

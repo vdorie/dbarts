@@ -1,7 +1,7 @@
-# The forest constructors (dec-A67): interactions, blocks, monotone, forest
-# and varianceForest are not exported. Inside the arguments that take them they
-# resolve by bare name, a bare name the caller binds taking the caller's value;
-# outside, dbartsForests is their exported face.
+# The forest constructors (dec-A67): interactions, blocks, monotone, forest,
+# varianceForest and fixed are not exported. Inside the arguments that take
+# them they resolve by bare name, a bare name the caller binds taking the
+# caller's value; outside, dbartsForests is their exported face.
 
 source(
   system.file("common", "friedmanData.R", package = "dbarts"),
@@ -25,7 +25,14 @@ expect_true(is.list(dbartsForests))
 expect_true(all(vapply(dbartsForests, is.function, logical(1L))))
 expect_equal(
   sort(names(dbartsForests)),
-  sort(c("interactions", "blocks", "monotone", "forest", "varianceForest"))
+  sort(c(
+    "interactions",
+    "blocks",
+    "monotone",
+    "forest",
+    "varianceForest",
+    "fixed"
+  ))
 )
 for (name in names(dbartsForests)) {
   expect_false(name %in% getNamespaceExports("dbarts"))

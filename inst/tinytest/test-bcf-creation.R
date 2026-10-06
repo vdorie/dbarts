@@ -131,7 +131,7 @@ knobs <- dbartsSpec(
       base = 0.7,
       power = 1.5,
       sd = 2.5,
-      update.amplitude = FALSE
+      amplitude = fixed()
     ),
     forest(
       basis = ~ factor(z),
@@ -140,7 +140,7 @@ knobs <- dbartsSpec(
       power = 2,
       sd = 1.25,
       amplitude.prior.variance = 0.75,
-      update.amplitude = FALSE
+      amplitude = fixed()
     )
   )
 )
@@ -197,7 +197,7 @@ expect_identical(
   )$run(0L, 5L)$train
 )
 
-# The pinned-amplitude public fit: update.amplitude = FALSE on both forests is
+# The pinned-amplitude public fit: amplitude = fixed() on both forests is
 # the pinned-amplitude model (y = mu + z tau exactly) the on-ramp vignette's
 # continuity falsifier composes against; its glue is exactly (1, 0, 1)
 # (test-bcf.R's bcFixed pins the value, this just confirms the public forest()
@@ -206,8 +206,8 @@ pinnedPublic <- dbarts(
   x,
   y,
   forests = list(
-    forest(update.amplitude = FALSE),
-    forest(basis = ~ factor(z), n.trees = 25L, update.amplitude = FALSE)
+    forest(amplitude = fixed()),
+    forest(basis = ~ factor(z), n.trees = 25L, amplitude = fixed())
   ),
   control = seededControlBcfCreation()
 )
@@ -372,7 +372,7 @@ expect_equal(
 noUpdateViaHasBasis <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
   seededControlBcfCreation(),
-  forests = list(forest(update.amplitude = FALSE))
+  forests = list(forest(amplitude = fixed()))
 )
 expect_equal(
   attr(noUpdateViaHasBasis$control, "bartcore.forests")$params[[1L]][8L],
@@ -740,7 +740,7 @@ expect_error(
 )
 expect_error(
   dbarts(x, y, forests = list(forest(sd = 1.5)), control = control),
-  "single-forest 'forests' has none"
+  "forest 'sd' is stated for a forest of a model of several"
 )
 
 # --- K = 1 THROUGH THE K-FOREST PATH. A lone forest CARRYING A BASIS is a
@@ -784,8 +784,8 @@ expect_error(
   "data object carries 1"
 )
 # a length-1 forests carrying BOTH a basis and an amplitude knob now answers the
-# K = 1 refusal rather than "a single-forest 'forests' has none": hasBasis is
-# TRUE, so the amplitude-knob branch no longer fires. A message change, not an
+# K = 1 refusal rather than the one-forest refusal of the amplitude knobs:
+# hasBasis is TRUE, so that branch no longer fires. A message change, not an
 # acceptance change - the call was refused before and is refused now.
 expect_error(
   dbarts(
@@ -800,10 +800,10 @@ expect_error(
   dbarts(
     x,
     y,
-    forests = list(forest(update.amplitude = FALSE)),
+    forests = list(forest(amplitude = fixed())),
     control = control
   ),
-  "single-forest 'forests' has none"
+  "'amplitude' is the law of the coefficient"
 )
 expect_error(
   dbarts(
@@ -951,11 +951,11 @@ expect_error(
     y,
     forests = list(
       forest(),
-      forest(basis = ~ factor(z), update.amplitude = NA)
+      forest(basis = ~ factor(z), amplitude = FALSE)
     ),
     control = control
   ),
-  "forest 'update.amplitude'"
+  "a forest's 'amplitude' must be fixed()"
 )
 expect_error(
   dbarts(

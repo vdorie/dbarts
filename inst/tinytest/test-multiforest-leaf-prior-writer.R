@@ -280,15 +280,21 @@ expect_error(
   a$setLeafPrior(forests = list(dbartsPriors$normal())),
   "forest\\(\\) specif"
 )
-for (bad in list(0, -1, Inf, NaN, c(1, 2))) {
+for (bad in list(0, -1, Inf)) {
   expect_error(
     a$setLeafPrior(forests = list(forest(sd = bad))),
-    "single positive finite number"
+    "forest 'sd' must be positive and finite"
+  )
+}
+for (bad in list(NaN, NA)) {
+  expect_error(
+    a$setLeafPrior(forests = list(forest(sd = bad))),
+    "forest 'sd' must not be NA"
   )
 }
 expect_error(
-  a$setLeafPrior(forests = list(forest(sd = NA))),
-  "single positive finite number"
+  a$setLeafPrior(forests = list(forest(sd = c(1, 2)))),
+  "forest 'sd' must be a single number, not 2"
 )
 expect_error(
   a$setLeafPrior(normal(), forests = list(forest())),
@@ -317,7 +323,7 @@ expect_error(
     forests = list(forest(sd = Inf), forest(basis = ~ factor(z))),
     control = writerControl()
   ),
-  "single positive finite number"
+  "forest 'sd' must be positive and finite"
 )
 
 expect_identical(numWarnings, 0L)
