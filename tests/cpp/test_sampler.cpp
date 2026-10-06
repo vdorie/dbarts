@@ -1065,25 +1065,32 @@ static void testRunCancellation(ext_rng* rng) {
   // sweep or two, which only scheduling delay on a small, loaded runner
   // inflates. Anything below 100ms discriminates the same; the margin is
   // there so CI noise does not.
+  //
+  // The bound is on the FASTEST of a few runs. A tick wait is charged to
+  // every run, so the fastest still fails it, while a delay the machine adds
+  // - the process's first thread spawn, which this arm pays, or a runner
+  // with fewer cores than chains - has to land on every run to fail an honest
+  // return.
+  const size_t numTimedRuns = 5;
   {
-    std::vector<ext_rng*> rngs = makeRngs(2000);
-    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
-                           ResponseFamily::gaussian, 1.0, 3.0,
-                           0.37804942330213542, workerOptions, rngs.data());
-    std::atomic<int> calls(0);
-    std::function<bool()> always = [&calls]() {
-      calls.fetch_add(1);
-      return true;
-    };
-    std::vector<double> sigmaDraws(numChains * 100000, 0.0);
-    Results results;
-    results.sigma = sigmaDraws.data();
-    auto start = std::chrono::steady_clock::now();
-    bool cancelled = sampler.run(0, 100000, results, always);
-    check(cancelled, "cancellation: multi-chain poll stops all workers");
-    check(msecSince(start) < 75.0,
-          "cancellation: multi-chain cancel returns promptly");
-    destroyRngs(rngs);
+    double fastest = HUGE_VAL;
+    bool allCancelled = true;
+    for (size_t r = 0; r < numTimedRuns; ++r) {
+      std::vector<ext_rng*> rngs = makeRngs(2000);
+      ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                             ResponseFamily::gaussian, 1.0, 3.0,
+                             0.37804942330213542, workerOptions, rngs.data());
+      std::function<bool()> always = []() { return true; };
+      std::vector<double> sigmaDraws(numChains * 100000, 0.0);
+      Results results;
+      results.sigma = sigmaDraws.data();
+      auto start = std::chrono::steady_clock::now();
+      allCancelled &= sampler.run(0, 100000, results, always);
+      fastest = std::min(fastest, msecSince(start));
+      destroyRngs(rngs);
+    }
+    check(allCancelled, "cancellation: multi-chain poll stops all workers");
+    check(fastest < 75.0, "cancellation: multi-chain cancel returns promptly");
   }
 
   // multi-chain latency: a run whose chains take a millisecond returns in a
@@ -1091,23 +1098,29 @@ static void testRunCancellation(ext_rng* rng) {
   // single sweep an embedding host makes in an outer loop included - up to a
   // full 100ms tick, which no load could bring it under.
   {
-    std::vector<ext_rng*> rngs = makeRngs(3000);
-    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
-                           ResponseFamily::gaussian, 1.0, 3.0,
-                           0.37804942330213542, workerOptions, rngs.data());
     const size_t numSamples = 2;
-    std::vector<double> sigmaDraws(numChains * numSamples, 0.0);
-    Results results;
-    results.sigma = sigmaDraws.data();
     std::function<bool()> never = []() { return false; };
-    auto start = std::chrono::steady_clock::now();
-    bool cancelled = sampler.run(0, numSamples, results, never);
-    double msec = msecSince(start);
-    check(!cancelled, "latency: short multi-chain run completes");
-    check(sigmaDraws[(numChains - 1) * numSamples + numSamples - 1] > 0.0,
-          "latency: every chain filled its slab");
-    check(msec < 75.0, "latency: multi-chain run returns without a tick wait");
-    destroyRngs(rngs);
+    double fastest = HUGE_VAL;
+    bool anyCancelled = false, allFilled = true;
+    for (size_t r = 0; r < numTimedRuns; ++r) {
+      std::vector<ext_rng*> rngs = makeRngs(3000);
+      ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                             ResponseFamily::gaussian, 1.0, 3.0,
+                             0.37804942330213542, workerOptions, rngs.data());
+      std::vector<double> sigmaDraws(numChains * numSamples, 0.0);
+      Results results;
+      results.sigma = sigmaDraws.data();
+      auto start = std::chrono::steady_clock::now();
+      anyCancelled |= sampler.run(0, numSamples, results, never);
+      fastest = std::min(fastest, msecSince(start));
+      allFilled &=
+        sigmaDraws[(numChains - 1) * numSamples + numSamples - 1] > 0.0;
+      destroyRngs(rngs);
+    }
+    check(!anyCancelled, "latency: short multi-chain run completes");
+    check(allFilled, "latency: every chain filled its slab");
+    check(fastest < 75.0,
+          "latency: multi-chain run returns without a tick wait");
   }
 
   // verbose: every chain's queued lines reach the console, whatever the
