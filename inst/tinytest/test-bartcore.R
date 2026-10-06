@@ -167,9 +167,12 @@ expect_error(
 sampler.mut$setCutPoints(c(0.25, 0.5, 0.75), 1L)
 result.cuts <- sampler.mut$run(0L, 2L)
 expect_true(all(is.finite(result.cuts$train)))
+# a grid need not be strictly increasing: a sampler can hold equal
+# neighbours, and a decreasing grid is refused
+expect_silent(sampler.mut$setCutPoints(c(0.5, 0.5), 1L))
 expect_error(
-  sampler.mut$setCutPoints(c(0.5, 0.5), 1L),
-  pattern = "strictly increasing"
+  sampler.mut$setCutPoints(c(0.6, 0.5), 1L),
+  pattern = "'cuts' must be sorted non-decreasingly"
 )
 
 # multiple chains: per-chain slabs with a trailing chain dimension, run on

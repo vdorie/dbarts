@@ -923,9 +923,11 @@ bartcoreSamplerSetData <- function(sampler, newData) {
 }
 
 bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
+  # a missing column stays NULL: the bridge then takes one entry per column
+  # and skips those of factor columns, whose kinds it holds
   column <- resolveColumnIndex(sampler$data@x, column, "current X")
-  if (is.null(column)) {
-    column <- seq_len(ncol(sampler$data@x))
+  if (!is.null(column)) {
+    column <- coerceOrError(column, "integer")
   }
 
   if (!is.list(cuts)) {
@@ -934,7 +936,6 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
   cuts <- lapply(cuts, as.double)
 
   # the engine re-quantizes the transient borrow of the current predictors
-  column <- coerceOrError(column, "integer")
   .Call(
     C_dbarts_bartcore_setCutPoints,
     sampler$getPointer(),

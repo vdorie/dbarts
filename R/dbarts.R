@@ -3015,7 +3015,7 @@ dbartsSampler <- setRefClass(
       if (result$visible) result$value else invisible(result$value)
     },
     setCutPoints = function(cuts, column, updateState = NULL) {
-      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty. updateState follows control@updateState; see setData."
+      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing, skipping the entries of factor columns. Cut points are in non-decreasing order; neighbours may be equal. Forces the change by pruning any leaves that end up empty. A later setData derives n.cuts cut points again, whatever grid was set. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
 
       bartcoreSamplerSetCutPoints(

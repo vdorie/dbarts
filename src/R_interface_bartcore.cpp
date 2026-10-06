@@ -6083,25 +6083,35 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
     const double* currentPredictors =
       Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
 
-    size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
-    if (numColumns == 0 ||
-        static_cast<size_t>(Rf_xlength(cutPointsExpr)) != numColumns)
+    // a null column argument addresses every column with one entry each, the
+    // list a sampler reports; a factor column's entry is skipped unread, its
+    // grid following its level table
+    bool wholeList = Rf_isNull(columnsExpr);
+    size_t numEntries = wholeList
+      ? numPredictors : static_cast<size_t>(Rf_xlength(columnsExpr));
+    if (numEntries == 0 ||
+        static_cast<size_t>(Rf_xlength(cutPointsExpr)) != numEntries)
       Rf_error("$setCutPoints: requires one cut point vector per column");
 
-    cutPoints.resize(numColumns);
-    numCutPoints.resize(numColumns);
-    columns.resize(numColumns);
-    for (size_t k = 0; k < numColumns; ++k) {
-      int column = INTEGER(columnsExpr)[k];
-      if (column < 1 || static_cast<size_t>(column) > numPredictors)
-        Rf_error("$setCutPoints: column out of range");
-      columns[k] = static_cast<size_t>(column - 1);
-      // a factor column's grid follows its level table, so an externally
-      // chosen one would strand its codes off their own levels
-      if (holder.sampler->data().isFactor(columns[k]))
-        Rf_error("%s", holder.sampler->data().splitsBySubset(columns[k])
+    cutPoints.reserve(numEntries);
+    numCutPoints.reserve(numEntries);
+    columns.reserve(numEntries);
+    for (size_t k = 0; k < numEntries; ++k) {
+      size_t column = k;
+      if (!wholeList) {
+        int named = INTEGER(columnsExpr)[k];
+        if (named < 1 || static_cast<size_t>(named) > numPredictors)
+          Rf_error("$setCutPoints: column out of range");
+        column = static_cast<size_t>(named - 1);
+      }
+      if (holder.sampler->data().isFactor(column)) {
+        if (wholeList) continue;
+        // a factor column's grid follows its level table, so an externally
+        // chosen one would strand its codes off their own levels
+        Rf_error("%s", holder.sampler->data().splitsBySubset(column)
                    ? "cannot set cut points for a categorical predictor"
                    : "cannot set cut points for an ordered factor predictor");
+      }
 
       SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(k));
       R_xlen_t numCuts = Rf_xlength(cutsExpr);
@@ -6116,16 +6126,21 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       if (numCuts < 1)
         Rf_error("$setCutPoints: requires at least one cut point per "
                  "column");
+      // equal neighbours are a grid the store builds itself over a column
+      // whose range is a single value, so a sampler takes its own grid back
       const double* cuts = REAL(cutsExpr);
-      if (!bartcore::cutGridIsValid(cuts, static_cast<size_t>(numCuts), true))
-        Rf_error("$setCutPoints: requires strictly increasing cut "
-                 "points, none of them NaN");
-      cutPoints[k] = cuts;
-      numCutPoints[k] = static_cast<std::uint32_t>(numCuts);
+      if (!bartcore::cutGridIsValid(cuts, static_cast<size_t>(numCuts), false))
+        Rf_error("$setCutPoints: 'cuts' must be sorted non-decreasingly and "
+                 "not contain NaN");
+      cutPoints.push_back(cuts);
+      numCutPoints.push_back(static_cast<std::uint32_t>(numCuts));
+      columns.push_back(column);
     }
+    // a whole list over factor columns alone names nothing to install
+    if (columns.empty()) return R_NilValue;
 
     holder.sampler->setCutPoints(cutPoints.data(), numCutPoints.data(),
-                                 columns.data(), numColumns,
+                                 columns.data(), columns.size(),
                                  currentPredictors);
     return R_NilValue;
   });
