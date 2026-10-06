@@ -1,6 +1,6 @@
 # consumer-prep: the consumer packages stop depending on what the control migration moves
 
-Status: PLANNED.
+Status: LANDED 2026-10-06.
 
 agent: sonnet implementer, one per package; opus reviewer, one per package.
 rng: NEUTRAL. R only, in four other repositories; no dbarts file changes. Every seeded fit is bit for bit
@@ -155,3 +155,36 @@ One implementer per package, each step verifiable alone. The four are independen
 - Found on the way, not planned here: treatSens's hand-built probit model stores a residual prior the
   family cannot use (it disappears with step 3); stan4bart's test of `n.cuts` asserts the default value, so
   it passes whether or not the argument is honoured (fixed in step 2a).
+
+## Landing note
+
+Landed 2026-10-06, one implementer per package, each change read and its seeded fits rerun under other
+seeds by the orchestrator before the push; no dbarts file changed.
+
+| package | branch | commits | R lines changed | seeded fits identical before and after | suite |
+|---|---|---|---|---|---|
+| bairrtt | main | 3f57f61 | 6 | two-chain fits at three tree counts, two simulations | 207 results, none failing |
+| treatSens | dbarts-1.0 | 82e6652, aecec71 | 45 | `cibart` under one seed with three treatment models; the outcome triple's three slots | 306 expectations, none failing |
+| stan4bart | bartcore | 960f0c7, a9d081b | 25 | six `stan4bart` and six `mvbart` fits, twice over | 582 results, none failing; the posterior comparison passes on all five tiers |
+| bartCause | dbarts-1.0 | 93535f0, dc4e397 | 4 | `bcf` under gaussian, probit and logistic at two tree counts, and `bartc` through `bcf`, twice over | 1406 expectations, none failing; `R CMD check --as-cran` one NOTE (the Date field) |
+
+Each package's new test fails when its new statement is dropped. The search of the Verification section
+finds, in all four, only what it allows: the routing loops that take `bart_args` or extra arguments by the
+control's formals, and tests that pass a count through `bart_args`.
+
+As planned, with these to know. The forest is spelled `dbarts::dbartsForests$forest(n.trees = )` in all
+four, `forest` itself not being exported. stan4bart refuses a `bart_args$n.cuts` that is not one positive
+whole number or one per BART column, naming `n.cuts`, an infinite value and a wrong length included.
+treatSens builds its `dbartsSpec` call with `bquote`, since `dbartsSpec` reads the leaf prior and the
+forests as written in its call. For the propensity model the one slot that differs from the hand-built
+triple is the residual prior, as Context said.
+
+One defect found on the way and fixed with it, in treatSens aecec71: its interrupt test still expected an
+R error from a stopped dbarts run, where since the interrupt landing (dec-B256) the run raises R's
+interrupt condition, so the test halted the suite against the dbarts tip; stan4bart's had been fixed with
+that landing and bartCause and bairrtt have no such test. `R CMD check --as-cran` on treatSens with
+`NOT_CRAN=true` trips the check's two-process limit in the test of the default thread count, which CRAN
+skips; with it unset the check is the one to trust.
+
+Left out, as planned, until dbarts gives them a home: the quantile rule in stan4bart's and `mvbart`'s
+`bart_args`, and `mvbart`'s `bart_args$n.cuts`.
