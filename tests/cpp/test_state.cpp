@@ -2414,6 +2414,13 @@ static void checkStaleStateMerges(Sampler<L>& sampler,
 }
 
 static void testStaleStateMerge() {
+  // The data come from a pinned generator state, not from wherever the tests
+  // before this one left it: a forced update merges a leaf only where a chain
+  // nested two splits on x0, which 40 sweeps leave on some draws of the data
+  // and not on others. Each kind's "merged a stale leaf" check asserts that
+  // premise. The state is left advanced, not restored, so the tests after
+  // this one read the same stream whichever suites ran first.
+  rngState = 303243635367295568ull;
   const size_t n = 200, p = 2;
   std::vector<double> x(n * p), y(n), z(n), xNew;
   for (double& v : x) v = runif01();
