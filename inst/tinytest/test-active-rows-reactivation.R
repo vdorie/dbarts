@@ -129,8 +129,11 @@ expect_identical(weighted$run(0L, 3L)$train, masked$run(0L, 3L)$train)
 # The redrawn Student-t scale is a draw from its conditional at the fit and
 # residual scale in force when the weight comes back: lambda_i is gamma with
 # shape (nu + 1) / 2 and rate (nu + w_i (y_i - f_i)^2 / sigma^2) / 2. Forty
-# rounds of thirty rows; a scale kept from while the row was out sits at a
-# mean probability transform of 0.61.
+# rounds of thirty rows. The bounds are wide because the draws are not the
+# same on every platform, so each is a fresh sample there: six standard errors
+# on the mean, and a p-value a sample from the conditional falls under once in
+# a million. A scale kept from while the row was out has a mean transform of
+# 0.65 and a p-value of 1e-60.
 sampler <- student()
 out <- which(first == 0)
 transformed <- numeric(0)
@@ -149,8 +152,8 @@ for (round in seq_len(40L)) {
   )
   invisible(sampler$run(2L, 1L))
 }
-expect_true(abs(mean(transformed) - 0.5) < 0.03)
-expect_true(ks.test(transformed, "punif")$p.value > 0.01)
+expect_true(abs(mean(transformed) - 0.5) < 0.05)
+expect_true(ks.test(transformed, "punif")$p.value > 1e-6)
 
 rm(
   n,
