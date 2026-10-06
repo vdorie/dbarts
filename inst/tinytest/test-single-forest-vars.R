@@ -306,6 +306,28 @@ expect_identical(attr(hazard$model, "forest.columns"), c(1L, 2L, 4L))
 hazardSplits <- splits(hazard$run(0L, 200L))
 expect_identical(unname(hazardSplits[3L]), 0)
 expect_true(hazardSplits[4L] > 0)
+# with several forests each forest's 'vars' is taken as written: period is
+# split on only where it is named
+hazardFirstForest <- function(vars) {
+  set.seed(7L)
+  fit <- dbarts(
+    x,
+    cbind(time, status),
+    family = "hazard",
+    forests = list(
+      forest(vars = vars),
+      forest(basis = rep_len(c(0, 1), sum(time)))
+    ),
+    control = control
+  )
+  apply(fit$run(0L, 200L)$varcount, 1:2, sum)[, 1L]
+}
+unnamedPeriod <- hazardFirstForest(allowed)
+expect_true(all(unnamedPeriod[3:4] == 0))
+expect_true(all(unnamedPeriod[1:2] > 0))
+namedPeriod <- hazardFirstForest(c("a", "period"))
+expect_true(all(namedPeriod[2:3] == 0))
+expect_true(all(namedPeriod[c(1L, 4L)] > 0))
 
 # ---- beside the other constraints -------------------------------------------
 
