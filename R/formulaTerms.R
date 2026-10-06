@@ -486,6 +486,10 @@ ingestFormulaTerms <- function(
       basisFrame[intersect(all.vars(basis[[2L]]), names(basisFrame))]
     )
     value <- evaluated[[i]]
+    # an operand is evaluated a second time to find its call; a draw it makes
+    # must not move R's generator, which seeds the chains
+    restoreSeed <- protectRandomSeed()
+    on.exit(restoreSeed())
     list(
       formula = basis,
       # the expression with what scale(), poly(), ns() and the like computed
@@ -524,7 +528,11 @@ ingestFormulaTerms <- function(
 ## operators, parentheses and cbind() at its top, and for the call at the top
 ## when it is none of those. Anything else, I() and indexing among it, comes
 ## back as written. 'value' is the already evaluated expression, which saves
-## evaluating it again.
+## evaluating a call at the top again. An operand under the descent is
+## evaluated a second time, so a function with a side effect runs twice at fit;
+## that is safe for the fit because the caller restores R's generator around
+## it and the first evaluation has already raised any warning, so the second
+## is silenced.
 forestBasisPredictCall <- function(expr, frame, env, value = NULL) {
   if (!is.call(expr)) {
     return(expr)
@@ -539,7 +547,7 @@ forestBasisPredictCall <- function(expr, frame, env, value = NULL) {
     return(expr)
   }
   if (is.null(value)) {
-    value <- eval(expr, frame, env)
+    value <- suppressWarnings(eval(expr, frame, env))
   }
   stats::makepredictcall(value, expr)
 }

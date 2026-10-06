@@ -67,7 +67,7 @@ forest(
     and scale and not by the new rows' own. This holds for such a call written
     alone, or as an operand of \code{+}, \code{-}, \code{*}, \code{/},
     \code{^}, parentheses or \code{cbind()}; any other expression, such as
-    \code{I(w - mean(w))}, \code{scale(w)[, 1]} or \code{log(scale(w))}, is
+    \code{I(w - mean(w))}, \code{scale(w)[, 1]} or \code{abs(scale(w))}, is
     evaluated on the rows given to \code{predict}, as \code{lm} evaluates it,
     so its value at a row depends on the other rows predicted with it; see
     \code{\link[stats]{SafePrediction}}. With \code{subset}, the centre and

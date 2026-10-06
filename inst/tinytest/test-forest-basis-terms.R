@@ -228,9 +228,20 @@ fit2 <- bart(
   keepTrees = TRUE,
   verbose = FALSE
 )
+termVars <- vapply(
+  fit2$basis.terms[2:3],
+  function(term) all.vars(term$predcall),
+  ""
+)
+expect_equal(unname(termVars), c("w", "v"))
 expect_equal(fit2$basis.terms[[2L]]$predcall$center, mean(d$w))
 expect_equal(fit2$basis.terms[[3L]]$predcall$center, mean(d$v))
-expect_equal(unname(predict(fit2, d[1:5, ])), unname(predict(fit2, d)[, 1:5]))
+if (identical(unname(termVars), c("w", "v"))) {
+  expect_equal(
+    unname(predict(fit2, d[1:5, ])),
+    unname(predict(fit2, d)[, 1:5])
+  )
+}
 
 ## the stored call is evaluated in the formula's environment: a function that
 ## exists only where the formula was written is found at predict
@@ -286,3 +297,28 @@ byHand <- vapply(
   numeric(1L)
 )
 expect_equal(as.vector(colMeans(pd2$fd)), byHand)
+
+## an operand that draws random numbers is evaluated a second time to find its
+## call, which must not move R's generator: after the fit it stands where one
+## evaluation of the basis leaves it
+set.seed(11)
+fitR <- fitBasisTerms("cbind(scale(w), runif(length(w)))", seed = 3L)
+after <- stats::runif(1L)
+set.seed(11)
+invisible(stats::runif(n))
+expect_equal(after, stats::runif(1L))
+
+## the second evaluation does not repeat an operand's warning
+warny <- function(x) {
+  warning("warny")
+  x
+}
+nWarnings <- 0L
+withCallingHandlers(
+  fitBasisTerms("2 * warny(w)"),
+  warning = function(w) {
+    nWarnings <<- nWarnings + 1L
+    invokeRestart("muffleWarning")
+  }
+)
+expect_equal(nWarnings, 1L)
