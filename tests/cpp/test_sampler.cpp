@@ -3181,6 +3181,71 @@ static void testMembershipAcrossForests() {
     ext_rng_destroy(rng);
   }
 
+  // ---- a Student-t scale is redrawn at the chain's fit and sigma ----
+  // Precision weights and an offset in force. The scales a weight setter
+  // redraws are, bitwise, the conditional's own draws at the chain's combined
+  // fit and working sigma, in row order, from a generator cloned ahead of the
+  // call; every other row keeps the scale it held.
+  {
+    const double nu = 5.0;
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.residualDf = nu;
+    std::vector<double> precision(n), zeroed(n);
+    for (size_t i = 0; i < n; ++i) {
+      precision[i] = 0.5 + 0.25 * static_cast<double>(i % 4);
+      zeroed[i] = half[i] * precision[i];
+    }
+    ext_rng* rng = seeded(44u);
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, zeroed.data(),
+                                offset.data(), ResponseFamily::gaussian, 1.0,
+                                3.0, rawScale, options, &rng);
+    Results results;
+    sampler.run(30, 0, results);
+
+    auto scales = [&]() {
+      return std::vector<double>(sampler.latents(), sampler.latents() + n);
+    };
+    // the scales in force with those of the rows `redrawn` names replaced by
+    // the conditional's draws at `weights`
+    auto conditional = [&](ext_rng* from, const std::vector<double>& weights,
+                           auto&& redrawn) {
+      const double* fits = TestPeer::combinedFits(sampler.chain(0));
+      const double* working = TestPeer::workingResponse(sampler.chain(0));
+      double sigma = TestPeer::workingSigma(sampler.chain(0));
+      std::vector<double> out = scales();
+      for (size_t i = 0; i < n; ++i) {
+        if (!redrawn(i)) continue;
+        double r = working[i] - fits[i];
+        out[i] = ext_rng_simulateGamma(
+          from, 0.5 * (nu + 1.0),
+          2.0 / (nu + weights[i] * r * r / (sigma * sigma)));
+      }
+      return out;
+    };
+
+    double largestFit = 0.0;
+    for (size_t i = 0; i < n; ++i)
+      largestFit = std::max(
+        largestFit, std::fabs(TestPeer::combinedFits(sampler.chain(0))[i]));
+    check(largestFit > 1e-3 &&
+            std::fabs(TestPeer::workingSigma(sampler.chain(0)) - 1.0) > 1e-3,
+          "non-vacuity: the fit is not zero and the working sigma is not one");
+
+    std::vector<double> held = scales();
+    ext_rng* reference = cloneRng(sampler.rng());
+    std::vector<double> expected = conditional(
+      reference, precision, [&](size_t i) { return half[i] == 0.0; });
+    sampler.setWeights(precision.data());
+    check(scales() == expected && scales() != held,
+          "a student-t scale whose weight leaves zero is the draw at the "
+          "chain's fit and sigma");
+    check(rngStreamsAgree(reference, sampler.rng()),
+          "taken from the chain's own generator");
+    ext_rng_destroy(reference);
+    ext_rng_destroy(rng);
+  }
+
   printf("ok: membership rule and redraw across forests\n");
 }
 

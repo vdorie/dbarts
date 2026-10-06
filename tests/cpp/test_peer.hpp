@@ -57,6 +57,12 @@ struct TestPeer {
   static const double* combinedFits(Chain<L, R>& chain) {
     return chain.combinedFits();
   }
+  /// The residual scale on the working scale, which is the one the chain
+  /// hands a latent redraw.
+  template <IntegrableLeafModel L, typename R>
+  static double workingSigma(const Chain<L, R>& chain) {
+    return chain.sigma_;
+  }
   /// The per-observation weight installed on forest f, or null when none is.
   template <IntegrableLeafModel L, typename R>
   static const double* forestWeights(const Chain<L, R>& chain, std::size_t f) {
