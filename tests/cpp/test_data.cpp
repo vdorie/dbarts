@@ -80,6 +80,7 @@ static void testColumnStoreView() {
   check(view.types == parent.types && view.numCuts == parent.numCuts &&
         view.categoryCounts == parent.categoryCounts &&
         view.cutPoints == parent.cutPoints &&
+        view.requestedNumCuts == parent.requestedNumCuts &&
         view.maxNumCuts == parent.maxNumCuts,
         "view copies the parent cut grid");
 
@@ -109,6 +110,27 @@ static void testColumnStoreView() {
   for (size_t i = 0; i < rows.size() && !anyDiffer; ++i)
     anyDiffer = rebuilt.train.codes[i] != view.train.codes[i];
   check(anyDiffer, "subset-built store bins differently than the view");
+
+  // a view built after a grid longer than the asked count was set carries
+  // both the asked count and the raised cap, whichever columns it spans
+  std::vector<double> longer(40);
+  for (size_t k = 0; k < longer.size(); ++k)
+    longer[k] = (static_cast<double>(k) + 0.5) / 40.0;
+  parent.setCutPointsForColumn(1, longer.data(), 40, x.data());
+  ColumnStore viewAfter;
+  viewAfter.buildFromParent(parent, rows.data(), rows.size(), testRows.data(),
+                            testRows.size());
+  check(viewAfter.requestedNumCuts == std::vector<std::uint32_t>{25, 25, 25} &&
+          viewAfter.maxNumCuts == std::vector<std::uint32_t>{25, 40, 25},
+        "a view built after a longer set carries the asked count and the cap");
+  std::vector<size_t> subset = {1, 0};
+  ColumnStore subsetAfter;
+  subsetAfter.buildFromParent(parent, rows.data(), rows.size(),
+                              testRows.data(), testRows.size(), nullptr, 0,
+                              subset.data(), subset.size());
+  check(subsetAfter.requestedNumCuts == std::vector<std::uint32_t>{25, 25} &&
+          subsetAfter.maxNumCuts == std::vector<std::uint32_t>{40, 25},
+        "a column-subset view carries both through the column map");
 
   printf("ok: column store view\n");
 }
@@ -418,6 +440,79 @@ static void testSetCutPointsOrphan() {
   check(inRange, "no split indexes past the shrunken grid");
 
   printf("ok: setCutPoints orphan\n");
+}
+
+// The cap on a column's cut count follows the grid the column holds and never
+// falls below the count asked for at build, and a derivation counts from the
+// asked count whatever grid was set before it.
+static void testCutCapFollowsGrid() {
+  const size_t n = 200, p = 2;
+  const std::uint32_t asked = 20;
+  // distinct values spread over (0, 1) without drawing from the shared stream
+  std::vector<double> x(n * p), replacement(n * p);
+  for (size_t i = 0; i < n * p; ++i) {
+    double step = 0.6180339887498949 * static_cast<double>(i + 1);
+    x[i] = step - std::floor(step);
+    step = 0.7548776662466927 * static_cast<double>(i + 1);
+    replacement[i] = step - std::floor(step);
+  }
+  std::vector<double> longer(50);
+  for (size_t k = 0; k < longer.size(); ++k)
+    longer[k] = (static_cast<double>(k) + 0.5) / 50.0;
+  const double shorter[] = {0.25, 0.5, 0.75};
+
+  for (bool useQuantiles : { false, true }) {
+    ColumnStore store, twin;
+    built(store.build(x.data(), n, p, asked, useQuantiles));
+    built(twin.build(x.data(), n, p, asked, useQuantiles));
+    std::vector<double> original(store.cutPoints[0]);
+    check(store.requestedNumCuts[0] == asked && store.maxNumCuts[0] == asked,
+          "the cap starts at the asked count");
+
+    // set longer then shorter
+    store.setCutPointsForColumn(0, longer.data(), 50, x.data());
+    check(store.numCuts[0] == 50 && store.maxNumCuts[0] == 50,
+          "a longer set grid raises the cap to its length");
+    store.setCutPointsForColumn(0, shorter, 3, x.data());
+    check(store.numCuts[0] == 3 && store.maxNumCuts[0] == asked,
+          "a shorter set grid leaves the cap at the asked count");
+    store.setCutPointsForColumn(0, longer.data(), 50, x.data());
+    store.setCutPointsForColumn(0, original.data(), asked, x.data());
+    check(store.requestedNumCuts == twin.requestedNumCuts &&
+            store.maxNumCuts == twin.maxNumCuts &&
+            store.numCuts == twin.numCuts &&
+            store.cutPoints == twin.cutPoints &&
+            store.train.codes == twin.train.codes,
+          "the original grid set back leaves the store as one never changed");
+
+    // set longer, keep it, setData
+    store.setCutPointsForColumn(0, longer.data(), 50, x.data());
+    check(store.setData(replacement.data(), n) &&
+            twin.setData(replacement.data(), n),
+          "the stores take the replacement");
+    check(store.numCuts[0] == twin.numCuts[0] && store.numCuts[0] == asked &&
+            store.maxNumCuts[0] == asked,
+          "setData derives the asked count over a longer set grid");
+    check(store.cutPoints == twin.cutPoints &&
+            store.train.codes == twin.train.codes,
+          "setData derives the grid of a store that never held the longer one");
+
+    // a refresh keeps a set count above the asked one
+    ColumnStore refreshed;
+    built(refreshed.build(x.data(), n, p, asked, useQuantiles));
+    refreshed.setCutPointsForColumn(1, longer.data(), 50, x.data());
+    size_t column = 1;
+    check(refreshed.cutsWouldRemainValid(1, replacement.data() + n),
+          "a column with enough distinct values can refresh the longer grid");
+    refreshed.setColumns(replacement.data() + n, &column, 1, true);
+    check(refreshed.numCuts[1] == 50 && refreshed.maxNumCuts[1] == 50 &&
+            refreshed.requestedNumCuts[1] == asked,
+          "a refresh keeps the set count and the cap that admits it");
+    check(refreshed.cutPoints[1] != longer,
+          "the refresh re-cut the column rather than keep the set grid");
+  }
+
+  printf("ok: cut cap follows grid\n");
 }
 
 static void testQuantileCutPoints() {
@@ -1574,6 +1669,8 @@ void testOrderedFactorGrid() {
   check(store.maxNumCuts[0] == numLevels - 1 &&
           store.numCuts[0] <= store.maxNumCuts[0],
         "the cap is raised to the grid rather than the thinning bypassed");
+  check(store.requestedNumCuts[0] == cutCap,
+        "the raise leaves the asked count as it was given");
   bool midpoints = true;
   for (std::uint32_t c = 0; c < store.numCuts[0]; ++c)
     midpoints &= store.cutPoints[0][c] == static_cast<double>(c) + 0.5;
@@ -1675,6 +1772,8 @@ void testOrderedFactorGridSurvivesMutation() {
   check(replaced.categoryCounts[0] == numLevels &&
           replaced.cutPoints[0] == originalCuts,
         "setData keeps the level count and rebuilds the same midpoints");
+  check(replaced.maxNumCuts[0] == 100u && replaced.requestedNumCuts[0] == 100u,
+        "setData leaves an ordered factor's cap where the build put it");
 
   printf("ok: ordered factor grid survives mutation\n");
 }
@@ -2596,6 +2695,7 @@ void runDataTests() {
   testColumnStoreMutation();
   testCodeForOrdinalBoundaries();
   testSetCutPointsOrphan();
+  testCutCapFollowsGrid();
   testQuantileCutPoints();
   testQuantileGridSpread();
   testMapOldCutPointsOntoNew();

@@ -822,7 +822,14 @@ struct ColumnStore {
   // channel that says how many levels a column has - numCuts answers only how
   // many cut points it has.
   std::vector<std::uint32_t> categoryCounts;
-  std::vector<std::uint32_t> maxNumCuts;  // cap on quantile-induced counts
+  // per column, the cut count asked for at build. Fixed once built: every
+  // derivation of a numeric column's grid (build, setData) counts from it,
+  // whatever grid the column held before.
+  std::vector<std::uint32_t> requestedNumCuts;
+  // cap on quantile-induced counts: the larger of requestedNumCuts[j] and
+  // numCuts[j], so a refresh of a grid set longer than the request keeps its
+  // count and nothing outlives the grid that raised it
+  std::vector<std::uint32_t> maxNumCuts;
   // per column, whether any training value is missing; gates the extra
   // missing-direction draw in rules and the NA-aware partition kernel.
   // INVARIANT: a column flagged 0 consumes no missing-direction draw from the
@@ -1271,7 +1278,9 @@ struct ColumnStore {
   /// declared count short of an observed code would strand that code past its
   /// own grid. A categorical column then keeps no cuts at all, and an ordered
   /// factor takes the midpoint grid of that level table rather than a uniform
-  /// or quantile grid over its observed values.
+  /// or quantile grid over its observed values. A numeric column's grid counts
+  /// from requestedNumCuts[j], so the cap a longer set grid raised does not
+  /// reach a later derivation.
   ///
   /// keepCategoryCount holds a factor column's creation-time level count
   /// against a whole-data replacement, whose new values are a new sample of
@@ -1303,6 +1312,7 @@ struct ColumnStore {
     } else if (types[j] == ColumnKind::orderedFactor) {
       fillCutsAtLevelMidpoints(j);
     } else if (useQuantiles) {
+      maxNumCuts[j] = requestedNumCuts[j];
       // a numeric column's grid is over its real values, which build widens a
       // coded column back to before it gets here
       QuantileGrid grid = columnIsCscBacked(j)
@@ -1311,6 +1321,7 @@ struct ColumnStore {
       numCuts[j] = grid.inducedNumCuts;
       fillCutsFromQuantileGrid(j, grid);
     } else {
+      maxNumCuts[j] = requestedNumCuts[j];
       numCuts[j] = maxNumCuts[j];
       if (columnIsCscBacked(j)) fillCutsUniformlyCsc(j);
       else fillCutsUniformly(j, column.values);
@@ -1427,11 +1438,12 @@ struct ColumnStore {
     return quantileGridForColumn(j, values).inducedNumCuts >= numCuts[j];
   }
 
-  /// Install externally chosen cut points (ascending) for a column and
+  /// Install externally chosen cut points (non-decreasing) for a column and
   /// re-quantize its codes against them; x is the call-time predictor matrix
   /// the raw is read from (ignored for CSC-backed columns, which use their
   /// retained slice). The cut count may shrink or grow, and existing splits
   /// beyond the new range are the caller's problem (the sampler collapses them).
+  /// The cap follows the grid, never below requestedNumCuts[j].
   void setCutPointsForColumn(size_t j, const double* cuts,
                              std::uint32_t numCutPoints, const double* x) {
     // a factor column's grid is the level table's, fixed at build: an
@@ -1441,7 +1453,7 @@ struct ColumnStore {
     if (isFactor(j)) return;
     cutPoints[j].assign(cuts, cuts + numCutPoints);
     numCuts[j] = numCutPoints;
-    if (maxNumCuts[j] < numCutPoints) maxNumCuts[j] = numCutPoints;
+    maxNumCuts[j] = std::max(requestedNumCuts[j], numCutPoints);
     quantizeColumn(j, rawColumnForRequantize(j, x));
     if (numTestObservations > 0) quantizeTestColumn(j);
   }
@@ -1721,6 +1733,7 @@ struct ColumnStore {
     for (size_t j = 0; j < p; ++j)
       if (maxNumCuts[j] < 1 || maxNumCuts[j] > maxNumCutsRepresentable)
         return false;
+    requestedNumCuts = maxNumCuts;
     train.codeOffsets.assign(p, 0);
     resetTrainStorage();
     if (mapped) {
@@ -2160,12 +2173,14 @@ struct ColumnStore {
       cutPoints.resize(numPredictors);
       numCuts.resize(numPredictors);
       categoryCounts.resize(numPredictors);
+      requestedNumCuts.resize(numPredictors);
       maxNumCuts.resize(numPredictors);
       for (size_t j = 0; j < numPredictors; ++j) {
         types[j] = parent.types[parentColumns[j]];
         cutPoints[j] = parent.cutPoints[parentColumns[j]];
         numCuts[j] = parent.numCuts[parentColumns[j]];
         categoryCounts[j] = parent.categoryCounts[parentColumns[j]];
+        requestedNumCuts[j] = parent.requestedNumCuts[parentColumns[j]];
         maxNumCuts[j] = parent.maxNumCuts[parentColumns[j]];
       }
     } else {
@@ -2173,6 +2188,7 @@ struct ColumnStore {
       cutPoints = parent.cutPoints;
       numCuts = parent.numCuts;
       categoryCounts = parent.categoryCounts;
+      requestedNumCuts = parent.requestedNumCuts;
       maxNumCuts = parent.maxNumCuts;
     }
     // views densify: gathered codes are fully dense whatever the parent's
