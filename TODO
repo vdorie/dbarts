@@ -573,15 +573,15 @@ items
     and the coefficient is normal (dec-B261, dec-B263, dec-B264; the
     sd is the forest's own, dec-B253); a replaced column keeps the
     derived default unless setForestBasis(updateBasisScale = TRUE),
-    for burn-in only (dec-B265). Open with the maintainer: how a size
-    per column is stated later (a named vector or a wrapper on the
-    basis term), and whether update.amplitude moves into the prior
-    object before the release. Next: the design amended for the
-    written surface, its critique, then the slices planned.
+    for burn-in only (dec-B265). The coefficient's law is one
+    argument, amplitude: fixed() holds it and update.amplitude goes
+    (dec-B271). Open with the maintainer: how a size per column is
+    stated later. Next: the design amended for the written surface,
+    its critique, then the slices planned.
   coefficient-law-opt-in: a caller may opt a forest's drawn coefficient
     into a heavy-tailed law (half-Cauchy; half-t(3) was measured too),
-    by one argument on forest() whose spelling is to be decided; the
-    default stays normal (dec-B262). Its user is a caller who redraws
+    as another value of forest()'s amplitude argument, beside fixed()
+    (dec-B271); the default stays normal (dec-B262). Its user is a caller who redraws
     the multiplier, whose scale drifts during a run. Wanted for 1.0-0,
     built after the merge to main (VD 2026-10-06).
   basis-formula-leftovers: for the forest-prior-args plans. A basis
