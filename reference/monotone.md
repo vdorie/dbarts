@@ -73,8 +73,9 @@ for the largest counts seen. There is no limit: the run finishes on the
 stated model, and afterwards a warning of class
 `"dbartsSlowCountWarning"` reports counts that took more than about a
 second and names the remedies, more trees or `prior = "joint"`. A count
-can be interrupted, and a count that runs out of memory is an ordinary
-error; either way the sampler is left in a valid state.
+can be interrupted, which raises R's interrupt condition and leaves the
+pass over the trees partly applied, and a count that runs out of memory
+is an ordinary error; either way the sampler is left in a valid state.
 
 The tree prior is the fit's `tree.prior`, as without a constraint:
 `cgm()` at its defaults, `power = 2` and `base = 0.95` (see

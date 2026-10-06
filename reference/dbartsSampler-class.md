@@ -1383,12 +1383,22 @@ adds `variance`, the per-observation variance surface \\s^2(x_i)\\ on
 the original response scale, shaped as `train`, whose square root is the
 residual scale, and `varianceTest`, the same at the test rows (`NULL`
 without test data). A run can be interrupted with `Ctrl-C`: it stops
-between iterations, or inside an iteration's Polya-Gamma latent draws,
-whose time grows with a logistic, negative-binomial or multinomial fit's
-counts - joining any worker threads first - and signals an error,
-returning no samples from the interrupted run. The sampler's chains are
-left where they stopped, each latent at this iteration's draw or the
-previous one, which is a valid state to run again from. Under
+between iterations, or inside an iteration's Polya-Gamma latent draws or
+a monotone leaf-order count, whose time grows with a logistic,
+negative-binomial or multinomial fit's counts or with a large tree,
+joining any worker threads first. It then raises R's interrupt
+condition, class `c("interrupt", "condition")`, as base R's own long
+computations do: nothing is printed as an error,
+[`try()`](https://rdrr.io/r/base/try.html) and error handlers do not
+catch it, `tryCatch(interrupt = )` does, and calling handlers, `on.exit`
+and `finally` run. A loop of fits inside
+[`try()`](https://rdrr.io/r/base/try.html) stops at the interrupted one.
+The call returns no samples. The sampler's chains are left where they
+stopped and it can be run again; where the stop falls inside a pass over
+the trees (a slow monotone count, a latent refresh) that pass may be
+partly applied, each latent at this iteration's draw or the previous
+one, which is a valid state to run on from. Unlike a base R interrupt,
+it offers no `"resume"` restart: the run is over. Under
 `control@keepFits == FALSE`, `train`, `test`, and (when the model
 carries them) the variance and forest channels come back `NULL` rather
 than an array - present in the list, holding nothing, unlike
@@ -1397,7 +1407,8 @@ see `callback` above and
 [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
 `keepFits`. A `callback` that returns nonzero ABORTS the run the same
 way an interrupt does: the results are discarded and `run` signals an
-error, naming that a callback (rather than an interrupt) stopped it.
+error, naming that a callback stopped it; that is an error, where an
+interrupt is not.
 
 For `setPredictor`, `TRUE`/`FALSE` depending on whether or not the
 operation was successful. The operation can fail if the new predictor

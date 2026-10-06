@@ -122,7 +122,8 @@ The constructor is not exported: it resolves by bare name inside the
   finishes on the stated model, and afterwards a warning of class
   <code>"dbartsSlowCountWarning"</code> reports counts that took more than about
   a second and names the remedies, more trees or <code>prior = "joint"</code>. A
-  count can be interrupted, and a
+  count can be interrupted, which raises R's interrupt condition and leaves
+  the pass over the trees partly applied, and a
   count that runs out of memory is an ordinary error; either way the
   sampler is left in a valid state.</p>
 <p>The tree prior is the fit's <code>tree.prior</code>, as without a constraint:
