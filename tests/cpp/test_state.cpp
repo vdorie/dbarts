@@ -1308,11 +1308,16 @@ static void testSingleForestColumnRestriction() {
   check(statesAgree(ownState, afterRefusals) &&
           constant->setState(ownState, nullptr),
         "forest columns: a refusal leaves the chain, whose own state restores");
+  SamplerStateData freeCategoryState;
+  freeCategories->getState(freeCategoryState);
+  columnMaskRefused = false;
+  check(!categories->setState(freeCategoryState, nullptr, &columnMaskRefused) &&
+          columnMaskRefused,
+        "forest columns: category forests refuse an out-of-list state by name");
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
   rngState = savedRngState;
-  printf("ok: single-forest column restriction (%zu donor splits outside)\n",
-         donorTotal);
+  printf("ok: single-forest column restriction\n");
 }
 
 // Cross-grid warm start (docs/plans/warm-starts.md): a donor grown on a fine
