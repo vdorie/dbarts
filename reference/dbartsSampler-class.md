@@ -456,22 +456,46 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   A numeric vector of case weights, of length equal to that with which
   the sampler was created. What a weight MEANS is family-specific: for a
   gaussian-family sampler it is a precision, non-negative, and a weight
-  of zero excludes an observation from the likelihood while keeping its
-  fitted values; for a `logistic`-family sampler it is an observation
-  COUNT and must be a positive integer no larger than \\10^6\\, a zero
-  count being a dropped row rather than a down-weighted one (`active` is
-  the supported way to take a row out of the data set for a sweep).
-  Installed BETWEEN samples on a forest that has already grown, a vector
-  of zeros can leave leaves that no positive-weight row reaches - the
-  trees were drawn before it existed, and weights are not part of the
-  saved `state` - which is a legal, transient state rather than an
-  error: such a tree keeps moving under the tree prior at a constant
-  likelihood and returns to leaves the likelihood reaches. `setWeights`
-  applies to gaussian- and `logistic`-family samplers. A logistic swap
-  is a model change with a defined meaning rather than a reweighting:
-  the counts are the shape of the Polya-Gamma latents, which are redrawn
-  against the new counts before the call returns - from the sampler's
-  own generators, not R's stream - so an outer sampler can vary exposure
+  of zero takes an observation out of the likelihood and out of the
+  residual degrees of freedom while keeping it in the design, its place
+  in a leaf and its fitted values (see below); for a `logistic`-family
+  sampler it is an observation COUNT and must be a positive integer no
+  larger than \\10^6\\, a zero count being a dropped row rather than a
+  down-weighted one (`active` is the supported way to take a row out of
+  the data set for a sweep). A zero-weight row is IN THE DESIGN BUT NOT
+  IN THE LIKELIHOOD. It counts as a member of its leaf, so the rule that
+  rejects a tree move leaving a leaf empty counts it too: the trees a
+  sampler may hold do not depend on the weights, and a leaf may hold
+  zero-weight rows only, in which case no likelihood term reaches it and
+  its value is a draw from the leaf prior. A fit with zero weights is
+  therefore close to the fit on the remaining rows alone but is not that
+  fit, since the trees can spend splits on regions of zero-weight rows.
+  In one measured case, 300 rows with 50 trees and the cut points and
+  scales held equal: with a random half of the rows at weight zero the
+  posterior mean fit at the remaining rows moved by at most 0.02 of a
+  posterior standard deviation, and with a whole region at weight zero
+  by at most 0.05; the residual standard deviation did not move, and the
+  fit at the zero-weight rows was 1 to 2 percent more variable.
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)'s
+  `subset` drops rows outright, and with them their part in the cut
+  points and the response scale. In exchange, an outer sampler that
+  redraws 0/1 weights or `active` every sweep from its own conditional
+  samples the joint model it assumes, which it would not if the
+  admissible trees moved with the weights. A Student-t sampler holds a
+  scale \\\lambda_i\\ per row, and `setWeights` redraws it for each row
+  whose weight leaves zero, from its conditional given the current fit
+  and from the sampler's own generators, as `setActiveRows` does for a
+  row it switches back in, unless the row is inactive under `active`,
+  when `setActiveRows` redraws it as the mask switches it back in; a
+  call that brings no row back draws nothing. A row whose weight moves
+  between two positive values keeps its scale, which is exact for an
+  outer sampler that draws the weight given that scale and not for one
+  that draws it with the scale integrated out. `setWeights` applies to
+  gaussian- and `logistic`-family samplers. A logistic swap is a model
+  change with a defined meaning rather than a reweighting: the counts
+  are the shape of the Polya-Gamma latents, which are redrawn against
+  the new counts before the call returns - from the sampler's own
+  generators, not R's stream - so an outer sampler can vary exposure
   between runs. `probit`, `ordinal`, `aft` and `nbinom` refuse a
   weighted likelihood by identification: a weighted probit has no
   tractable latent-variable form, `ordinal` inherits that, `aft` fixes
@@ -496,9 +520,16 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   lands where the same `setWeights` call would rather than pairing one
   vector's latents with another's counts, silently and off the restored
   generators. A matched round trip re-derives nothing and installs the
-  stored state unchanged. Only a family whose augmentation is stated
-  against the weights moves under it (`logistic`); for gaussian,
-  Student-t and every weight-refusing family it is a no-op. See
+  stored state unchanged. Two families move under it. `logistic` redraws
+  its Polya-Gamma latents. Student-t redraws the scale of every row at
+  positive weight and active (on a copy or a reload, every row at
+  positive weight, the mask being put back afterwards): a scale stored
+  for a row that was at weight zero was drawn without that row's
+  residual, and the state does not say which rows those were, so a
+  restore under other weights redraws more scales than the same
+  `setWeights` call would; to keep the others, install the state under
+  its own weights and change them with `setWeights`. For gaussian and
+  every weight-refusing family it is a no-op. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
   the family-specific weight rules that apply at creation time.
 
@@ -510,23 +541,24 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   rather than widening either channel, so `s_i = 0` excludes row \\i\\
   from *that forest's own leaf conditionals only* - its occupancy, its
   place in the combination, and the residual degrees of freedom are
-  unaffected, and the reported location still carries the forest's full
-  contribution even when every row is excluded. The third leg of a
-  three-way degenerate-value contrast: `weights` installs and is
-  measurably distinct from carrying none, `active` at all-ones installs
-  nothing and clears any mask in force, and `setForestWeights` at
-  all-ones INSTALLS - a round trip reports it - but is bitwise IDENTICAL
-  to carrying no per-forest weight at all, the null gate its
-  multiplicative composition (\\m_f \times 1 = m_f\\) is built to
-  guarantee. The weight does not ride the sampler's saved `state` - a
-  sampler rebuilt with `setState` from a stored state silently drops it
-  while `statesAgree` still reports agreement - so it is additionally
-  mirrored on an R5 field that `getPointer`, `setState`, and `copy` all
-  reinstall on every re-creation; a caller never reinstalls it by hand.
-  `setData` needs no clearing rule here the way it does for `active`: it
-  is refused outright on any multi-forest sampler (“a multi-forest
-  sampler fixes its data at creation”), so the two channels never
-  interact.
+  unaffected, a leaf of that forest may hold such rows only (its value
+  is then a draw from the leaf prior), and the reported location still
+  carries the forest's full contribution even when every row is
+  excluded. The third leg of a three-way degenerate-value contrast:
+  `weights` installs and is measurably distinct from carrying none,
+  `active` at all-ones installs nothing and clears any mask in force,
+  and `setForestWeights` at all-ones INSTALLS - a round trip reports
+  it - but is bitwise IDENTICAL to carrying no per-forest weight at all,
+  the null gate its multiplicative composition (\\m_f \times 1 = m_f\\)
+  is built to guarantee. The weight does not ride the sampler's saved
+  `state` - a sampler rebuilt with `setState` from a stored state
+  silently drops it while `statesAgree` still reports agreement - so it
+  is additionally mirrored on an R5 field that `getPointer`, `setState`,
+  and `copy` all reinstall on every re-creation; a caller never
+  reinstalls it by hand. `setData` needs no clearing rule here the way
+  it does for `active`: it is refused outright on any multi-forest
+  sampler (“a multi-forest sampler fixes its data at creation”), so the
+  two channels never interact.
 
 - active:
 
@@ -563,17 +595,18 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `getForestFits`, `getFitsWithoutOffset`, and `predict` report
   \\f(x_i)\\ at an inactive row exactly as at an active one, which is
   what makes this channel worth more than physically dropping the row.
-  The empty-leaf VETO is the one exception, and it is conditional: it
-  counts POSITIVE-WEIGHT members rather than members, so it degenerates
-  to the member count exactly when no weight vector is installed - but a
-  mask IS a weight vector, so with one installed a leaf all of whose
-  rows are inactive is vetoed rather than counted as occupied. A mask
-  installed mid-run on a grown forest can therefore strand a leaf the
-  trees were drawn without it: the affected tree keeps moving under the
-  tree prior at a constant likelihood and is absorbed back into the
-  vetoed-free set as those leaves clear. With every row inactive that is
-  the whole forest, which is the exact sense in which it “sits at its
-  prior” - a distribution over structures, not a frozen one.
+  The rule that rejects a tree move leaving a leaf empty is count-based
+  too: an inactive row is in the design but not in the likelihood, so a
+  leaf all of whose rows are inactive is legal, takes no likelihood term
+  and has its value drawn from the leaf prior, and the trees a sampler
+  may hold do not depend on the mask. That is what lets a larger sampler
+  that redraws the mask every sweep, from each row's conditional given
+  the fit, sample the joint model it assumes. Its cost is that a fit
+  under a fixed mask is close to the fit on the active rows alone but is
+  not that fit, by the amounts given under `weights`. With every row
+  inactive every leaf is such a leaf, which is the exact sense in which
+  the forest “sits at its prior” - a distribution over structures, not a
+  frozen one.
 
   An inactive row's own latent draw is SKIPPED - no random numbers are
   consumed for it - for every family except Student-t, whose per-row
@@ -582,13 +615,24 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   composed weight (\\w_i \lambda_i a_i\\). For a skipping family,
   `getLatents` at an inactive row returns its LAST DRAWN value, which is
   stale; the correct read at an inactive row is its fit, not its latent.
-  Reactivating a row (a mask change from inactive to active) is a
-  one-sweep MODEL hazard, not only a read hazard: that sweep's tree
-  moves and leaf draws run against the row's stale latent (or, for
-  Student-t, a \\\lambda_i\\ drawn while the row was out) before that
-  sweep's own latent refresh updates it; this does not disturb the
-  posterior while a mask is held fixed, but a caller that moves the mask
-  every sweep should expect it.
+  A stale latent does not come back into the likelihood: `setActiveRows`
+  REDRAWS the latent of every row it switches from inactive to active -
+  for Student-t its \\\lambda_i\\, unless the row's case weight is zero,
+  when `setWeights` redraws it as that weight turns positive - from the
+  row's conditional given the current fit, before the call returns and
+  from the sampler's own generators, not R's stream. A caller that draws
+  the mask from the fit with the latents integrated out (a probit row's
+  membership from its Bernoulli likelihood, say) thereby draws mask and
+  latents jointly and need not call `setResponse` to refresh them. Rows
+  that stay active keep their latents, and a call that switches no row
+  back in - the first install, the mask already in force, one that only
+  switches rows off - consumes no random numbers, so a fixed mask leaves
+  the stream where a sampler never asked to reinstall it has it. A
+  `multinomial` sampler holds no latent between sweeps and redraws
+  nothing. The redraw follows the mask this sampler holds, not the one a
+  stored `state` was saved under: a state installed over a different
+  mask keeps, at rows that were out when it was stored, the latents they
+  left with, so reinstall the state's own mask before changing it.
 
   An inactive row's pointwise log-likelihood - the value the flat C
   API's `logLikelihood` results field reports (see ‘Mutation cost’ above
@@ -1129,7 +1173,14 @@ the sampler rather than the state - so where the status in force differs
 from the one the state was stored under, the censored latents are
 redrawn off the restored generators before `setState` returns; an event
 row's observed log time is data and is never overwritten by a state at
-all.
+all. To undo a weight change exactly, put the old weights back with
+`setWeights` first and then call `setState`; in the other order a
+Student-t sampler is left, until its next sweep, with scales drawn under
+the weights being undone, and `setState` still returns `TRUE`. A sampler
+saved or copied after its weights changed without a store is re-created
+from the state stored under the earlier weights and has its scales
+redrawn; call `storeState()` after the change to have it reload or copy
+as it stands.
 
 ### Mutation cost
 

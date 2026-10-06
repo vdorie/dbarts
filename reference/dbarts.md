@@ -125,14 +125,19 @@ dbarts(
   it treats them as observation counts and so requires positive integers
   (its Polya-Gamma latent for a count \\w\\ is a sum of \\w\\ unit
   draws, so a sweep's time grows with the total count, and a count above
-  \\10^6\\ is refused). A weight of 0 is honored but adds no information
-  while still costing computation, and is warned about unless every
-  weight is 0 or 1 - a vector of nothing but those states which rows are
-  in the data set rather than carrying an inert value among real
-  weights, and is the active-row mask outright for a `"probit"`,
-  `"ordinal"` or `"nbinom"` fit; the same class covers `weights` going
-  unused for `test` - when the model is not specified as a formula, and
-  when `weights` names a column `test` does not carry.
+  \\10^6\\ is refused). A weight of 0 takes an observation out of the
+  likelihood and out of the residual degrees of freedom but not out of
+  the design: the row still occupies a leaf, which the trees may split
+  around, and still receives a fitted value, so the fit is close to the
+  fit on the remaining rows without being that fit (see the `weights`
+  item of
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md);
+  `subset` drops rows). It is warned about unless every weight is 0 or
+  1 - a vector of nothing but those states which rows are in the data
+  set, and is the active-row mask outright for a `"probit"`, `"ordinal"`
+  or `"nbinom"` fit; the same class covers `weights` going unused for
+  `test` - when the model is not specified as a formula, and when
+  `weights` names a column `test` does not carry.
 
 - offset:
 

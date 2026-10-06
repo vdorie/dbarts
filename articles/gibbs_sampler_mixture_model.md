@@ -306,7 +306,7 @@ c(recovery = cor(rowMeans(keep.g2), g2.true), sigma = sigma.mf, truth = 0.5)
 ```
 
     ##  recovery     sigma     truth 
-    ## 0.8793565 0.4264378 0.5000000
+    ## 0.9056196 0.4290352 0.5000000
 
 ### What it costs
 

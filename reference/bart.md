@@ -261,7 +261,20 @@ print(x, ...)
   An optional vector of weights to be used in the fitting process. For a
   gaussian response, BART fits a model with observations \\y \mid x \sim
   N(f(x), \sigma^2 / w)\\, where \\f(x)\\ is the unknown function. A
-  probit fit (the default binary family here, and
+  weight of 0 takes an observation out of the likelihood and out of the
+  residual degrees of freedom but not out of the design: it still
+  occupies a leaf and receives a fitted value, so a fit with zero
+  weights is close to the fit on the remaining rows alone without being
+  that fit: the trees may split off regions of zero-weight rows, whose
+  fitted values then come from the prior. In one measured case (300
+  rows, 50 trees, the cut points and the response scale held equal) the
+  fitted mean at the remaining rows moved by no more than 0.02 of a
+  posterior standard deviation with a random half of the rows at weight
+  zero, and 0.05 with a whole region at weight zero;
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
+  `weights` item has the figures. `subset` drops rows, and with them
+  their part in the cut points and the response scale. A probit fit (the
+  default binary family here, and
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s)
   does not support weights, except that weights identically 1 are
   treated as absent, and weights that are all 0 and 1 name the rows in
@@ -1952,7 +1965,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001630
+#> total seconds in loop: 0.001662
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -2001,13 +2014,13 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001966
+#> total seconds in loop: 0.001980
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 2 2 3 1 2 2 2 3 2 
+#> [1] 2 1 2 2 2 1 2 2 3 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 8) (2: 3) 
+#> (1: 7) (2: 2) 
 #> DONE BART
 #> 
 fit.bcf$n.forests
