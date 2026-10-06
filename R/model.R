@@ -880,10 +880,16 @@ resolveModerators <- function(moderators, data, argument = "moderators") {
     if (is.null(columnNames)) {
       stop("'", argument, "' given by name but the design has no column names")
     }
-    moderators <- match(moderators, columnNames)
-    if (anyNA(moderators)) {
-      stop("'", argument, "' name not found in the design's column names")
+    found <- match(moderators, columnNames)
+    if (anyNA(found)) {
+      stop(
+        "'",
+        argument,
+        "' name not found in the design's column names: ",
+        paste0("'", unique(moderators[is.na(found)]), "'", collapse = ", ")
+      )
     }
+    moderators <- found
   } else {
     moderators <- coerceOrError(moderators, "integer", name = argument)
     if (any(moderators < 1L | moderators > ncol(data@x))) {

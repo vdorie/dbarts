@@ -141,6 +141,25 @@ expect_identical(
 expect_true(all(dartFits$onList$varprobs[3L, ] == 0))
 expect_true(all(dartFits$onList$varprobs[1:2, ] != 0.5))
 
+# two chains on two threads
+twoChains <- makeControl(n.chains = 2L, n.threads = 2L)
+chainsOnList <- sampler(
+  x,
+  y,
+  forests = restrictTo(allowed),
+  settings = twoChains
+)$run(0L, 60L)
+chainsOnColumns <- sampler(x[, allowed], y, settings = twoChains)$run(0L, 60L)
+expect_identical(chainsOnList$train, chainsOnColumns$train)
+expect_identical(chainsOnList$sigma, chainsOnColumns$sigma)
+expect_identical(dim(chainsOnList$varcount), c(3L, 60L, 2L))
+expect_identical(
+  unname(chainsOnList$varcount[1:2, , ]),
+  unname(chainsOnColumns$varcount)
+)
+expect_true(all(chainsOnList$varcount[3L, , ] == 0L))
+expect_false(identical(chainsOnList$train[,, 1L], chainsOnList$train[,, 2L]))
+
 # allowed columns that run out along a path: two 0/1 columns held to one cut
 # each, which the default grid of 100 cuts would never exhaust. Below a split
 # on each, no allowed column is left. The column list still confines the
@@ -197,7 +216,8 @@ expect_error(
   pattern = "forest columns must be resolved integer indices"
 )
 
-# a factor is one column, named as the formula names it
+# a factor kept as one categorical column, the default, is named as the
+# formula names it
 frame <- data.frame(x, g = factor(sample(c("u", "v", "w"), n, TRUE)))
 frame$y <- y + 2 * (frame$g == "v")
 set.seed(7L)
@@ -222,8 +242,8 @@ expect_identical(
 
 # refused as on any forest, and nothing is dropped unread
 expect_error(
-  sampler(x, y, forests = restrictTo("z")),
-  pattern = "'vars' name not found in the design's column names"
+  sampler(x, y, forests = restrictTo(c("a", "z", "w"))),
+  pattern = "'vars' name not found in the design's column names: 'z', 'w'"
 )
 expect_error(
   sampler(x, y, forests = restrictTo(character(0L))),
