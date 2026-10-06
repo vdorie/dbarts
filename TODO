@@ -558,23 +558,26 @@ items
     gaussian) and setActiveRows handing the redraw a zero fit (killer
     mask-redraw-exact.R quick probit). Both were run by hand at landing
     (docs/plans/empty-leaf-membership.md).
-  forest-prior-args: a forest takes the front door's prior arguments
-    (dec-B246, dec-B252) and its sd is the forest's own (dec-B253). A
-    multiplier is a factor by its class alone (dec-B260). A numeric
-    multiplier is never centred or divided; when no sd is stated the
-    default is sqrt(2 / K) per standard deviation of the column,
-    derived once at creation and kept with the data, a stated sd is
-    literal per unit, and the coefficient is normal (dec-B261, which
-    revises dec-B257 and dec-B258). A 0/1 number is scaled as any
-    number and the help says to write a treatment as a factor
-    (dec-B263). A column far from zero is the caller's to centre:
-    no warning, no centring inside, the help leads with scale(w)
-    and the fit prints the column's mean and sd (dec-B264). A
-    replaced column keeps the derived default unless
-    setForestBasis(updateBasisScale = TRUE) re-derives it, for
-    burn-in only, and a constant column with no stated sd is refused
-    (dec-B265). Next: the design rewritten around these rulings, its
-    critique, then the slices planned.
+  forest-prior-args: how a model of several forests is written, and
+    what a forest's sd means. Written: each forest() is one function,
+    the first included (dec-B268); a multiplier is the basis argument,
+    the right-hand side of a model formula with no tilde, and the
+    colon form goes (dec-B267, dec-B270); sd is a plain argument in
+    the response's units, one number per forest in 1.0, with
+    leaf.prior = normal(sd = ) the long form (dec-B266, dec-B269;
+    dec-B246 as revised; tree.prior as dec-B246, dec-B252). Meant: a
+    multiplier is a factor by its class alone (dec-B260); a numeric
+    multiplier is never centred or divided, its default sd is
+    sqrt(2 / K) per standard deviation of the column, derived once at
+    creation and kept with the data, a stated sd is literal per unit,
+    and the coefficient is normal (dec-B261, dec-B263, dec-B264; the
+    sd is the forest's own, dec-B253); a replaced column keeps the
+    derived default unless setForestBasis(updateBasisScale = TRUE),
+    for burn-in only (dec-B265). Open with the maintainer: how a size
+    per column is stated later (a named vector or a wrapper on the
+    basis term), and whether update.amplitude moves into the prior
+    object before the release. Next: the design amended for the
+    written surface, its critique, then the slices planned.
   coefficient-law-opt-in: a caller may opt a forest's drawn coefficient
     into a heavy-tailed law (half-Cauchy; half-t(3) was measured too),
     by one argument on forest() whose spelling is to be decided; the
