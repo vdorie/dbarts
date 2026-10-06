@@ -198,6 +198,7 @@ items
     a callback stays what it is. Tests that pin the error text move to
     the condition's class; the help for run and the embedding page say
     what an interrupt leaves behind.
+    Plan: docs/plans/interrupt-is-interrupt.md.
   warm-start-tree-count: a warm start (bart's warm.start, the sampler's
     installTrees) from a donor with another tree count, partially
     populated: a smaller recipient takes some of the donor's trees, a
