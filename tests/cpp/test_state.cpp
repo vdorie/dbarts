@@ -1290,6 +1290,25 @@ static void testSingleForestColumnRestriction() {
             dartListed.chains[0].dartProbabilities,
         "forest columns: DART over every column is DART without a list");
 
+  // a state is installed as it is given, a probability on an excluded column
+  // included; the next Dirichlet draw puts that column back at 0
+  auto dartChain = make.operator()<Constant>(dartRestricted, 107);
+  dartChain->run(20, 0, empty);
+  SamplerStateData carried;
+  dartChain->getState(carried);
+  carried.chains[0].dartProbabilities = {0.25, 0.25, 0.5};
+  bool carriedInstalls = dartChain->setState(carried, nullptr);
+  SamplerStateData asInstalled, afterDraw;
+  dartChain->getState(asInstalled);
+  dartChain->run(1, 0, empty);
+  dartChain->getState(afterDraw);
+  const std::vector<double>& redrawn(afterDraw.chains[0].dartProbabilities);
+  check(carriedInstalls &&
+          asInstalled.chains[0].dartProbabilities[2] == 0.5 &&
+          redrawn[2] == 0.0 && redrawn[0] > 0.0 && redrawn[1] > 0.0 &&
+          std::fabs(redrawn[0] + redrawn[1] - 1.0) < 1e-12,
+        "forest columns: a DART draw zeroes an excluded column a state carried");
+
   // an out-of-list donor is refused by both install entries, by name, and the
   // chain's own state is not
   SamplerStateData donorState, ownState;
