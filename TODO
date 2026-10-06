@@ -542,8 +542,9 @@ items
     default is sqrt(2 / K) per standard deviation of the column,
     derived once at creation and kept with the data, a stated sd is
     literal per unit, and the coefficient is normal (dec-B261, which
-    revises dec-B257 and dec-B258). Still to settle: a 0/1 number's
-    default against the factor's, a column far from zero, and a
+    revises dec-B257 and dec-B258). A 0/1 number is scaled as any
+    number and the help says to write a treatment as a factor
+    (dec-B263). Still to settle: a column far from zero, and a
     replaced column at the default sd. Then the design is rewritten
     around the rulings and the slices planned.
   coefficient-law-opt-in: a caller may opt a forest's drawn coefficient
