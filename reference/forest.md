@@ -1,16 +1,18 @@
 # Forest Specification for Multi-Forest Models
 
-Build the specification of one forest of a multi-forest model. Pass a
-list of these as the `forests` argument of
+One forest of a model of several forests. Such a model fits the mean as
+a sum of forests, each multiplied by columns of the data:
+`y ~ forest(x1 + x2) + forest(x1 + x2, basis = dose)` is \\a_1 f_1(x) +
+a_2 \cdot \mathrm{dose} \cdot f_2(x)\\, where each \\f\\ is a forest and
+each \\a\\ a coefficient the sampler draws. A forest is written as a
+term of a [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) formula,
+as in that example, or as an element of the `forests` list of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
-[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
-or write each as a term of a
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
-[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) formula
-(‘Details’); either fits the mean as a weighted sum of the declared
-ensembles. Every knob is per forest and carried on the one constructor,
-so the fitting functions grow exactly one argument however many forests
-a model has.
+[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md):
+`forests = list(forest(), forest(basis = dose))`. Either way `vars` is
+the predictors the forest splits on and `basis` is what it is multiplied
+by. Every setting is per forest and stated on the forest.
 
 The constructor is not exported: it resolves by bare name inside the
 arguments that take it, and elsewhere is written
@@ -31,10 +33,25 @@ forest(
 
 - vars:
 
-  The predictors this forest splits on, and the one argument that may be
-  given without its name: every other argument is given by name. `NULL`,
-  or no first argument at all, leaves the forest every predictor of the
-  fit.
+  The predictors this forest splits on. In short:
+
+  - It is the one argument given without its name: `forest(x1 + x2)`.
+    Every other argument is given by name.
+
+  - Left out, the forest splits on every predictor of the fit.
+
+  - In a formula it is terms joined by `+`, as on the right of any model
+    formula: `forest(x1 + x2)`, `forest(log(x1) + factor(g))`,
+    `forest(. - z)`.
+
+  - In a `forests` list the same terms select among the fit's
+    predictors, `forest(x1 + x3)`, `forest(. - x2)`; names or positions
+    do too, `forest(c("x1", "x3"))`, `forest(c(1, 3))`.
+
+  - A name of a predictor is that predictor. Anything else is read where
+    `forest()` is called, at that moment.
+
+  The rest of this item is the detail of each.
 
   In a formula given to
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
@@ -57,14 +74,14 @@ forest(
   predictors of its own: the forest with no `basis` has the terms of the
   formula with its `forest()` replaced by what is inside it and every
   forest with a `basis` left out. So
-  `y ~ forest(.) - x3 + forest(x3, basis = ~ z)` and
-  `y ~ . - x3 + forest(x3, basis = ~ z)` are one model, in which the
+  `y ~ forest(.) - x3 + forest(x3, basis = z)` and
+  `y ~ . - x3 + forest(x3, basis = z)` are one model, in which the
   second forest alone splits on `x3`; a removal that leaves the first
   forest no predictor is refused. Written with no first argument, that
   forest is every predictor the other forests name, less what is removed
   beside it. A removal of a term the forest with no `basis` does not
   have is passed by, as R passes it by in a plain formula:
-  `y ~ x1 + x2 + forest(x3, basis = ~ z) - x3` is the model without the
+  `y ~ x1 + x2 + forest(x3, basis = z) - x3` is the model without the
   removal. [`update`](https://rdrr.io/r/stats/update.html) cannot take a
   term out of a `forest()`: `update(f, . ~ . - x3)` returns `f`
   unchanged when `x3` stands inside one.
@@ -92,9 +109,9 @@ forest(
   separate that level through the others; remove the factor,
   `forest(. - g)`, to keep it out.
 
-  In short, a name of a predictor is that predictor, and anything else
-  is read where `forest()` is called, at that moment. A forest built in
-  a loop, by `lapply(names, forest, basis = ~ z)` or by
+  A name of a predictor is that predictor, and anything else is read
+  where `forest()` is called, at that moment. A forest built in a loop,
+  by `lapply(names, forest, basis = z)` or by
   [`Map()`](https://rdrr.io/r/base/funprog.html) therefore keeps the
   selection each call was given, whatever its variables hold by the time
   the model is fitted, and a forest saved to a file carries its
@@ -125,68 +142,218 @@ forest(
 
 - basis:
 
-  The data this forest's amplitudes multiply: a one-sided formula
-  (`~ factor(z)`), evaluated against the fit's own `data` and then in
-  its own environment, or an already-evaluated vector or matrix. It
-  expands by R's model-matrix rule - a factor becomes its level
-  indicators, one amplitude per level, with no reference level dropped,
-  since the forest carries no intercept of its own - so the forest
-  enters the mean as \\(\sum_k a_k B_k(x_i)) f(x_i)\\. Any forest may
-  carry one, of any width: a two-level factor gives the pair whose
-  amplitudes are \\(b_0, b_1)\\, a wider factor one amplitude per level,
-  and a numeric vector or matrix is already those columns. Level order
-  is meaningful: the second level is the one \\b_1\\ scales. At
-  creation, a column no observation enters - all zeros, or a factor
-  level no row takes - is refused, since its amplitude would move under
-  its prior alone, as is a basis so large or small that a row's norm is
-  not representable; `$setForestBasis` keeps an empty factor level (see
-  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
-  A forest that declares none takes the implicit intercept its single
-  amplitude \\a\\ scales; every forest past the first needs one, since
-  the amplitudes multiplying it are what distinguish it from the first.
-  Reaching
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-  through an already-built `dbartsData` `formula` is the one route that
-  refuses this argument outright, since the declaration would otherwise
-  have nowhere to ride and be silently discarded;
-  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
-  always takes a pre-built data object and installs the declaration
-  instead, replacing whatever bases it carried. On the formula
-  interface, an already-evaluated vector or matrix must have one row per
-  observation of the FULL `data` - the same rule a formula's own
-  evaluation already follows - and is then restricted to the rows
-  `subset` keeps, exactly as a predictor column is; a value already
-  restricted to those rows instead, matching the subset's count rather
-  than the full data's, is refused by name rather than aligned to them
-  by position. With no `subset`, or one that keeps every row, the two
-  counts agree and nothing changes.
+  What the forest is multiplied by. In short:
 
-  The right-hand side of a formula is evaluated as R code, and the
-  forest does not centre or scale a basis, so a multiplier that should
-  be standardized is written so: `basis = ~ scale(w)`, or
-  `basis = ~ cbind(scale(w), scale(v))` for two columns.
+  - A name of a column of `data` is that column: `basis = dose`.
 
-  For a `forest()` term of a model formula, `predict` rebuilds the basis
-  at the new rows from what
+  - `+` separates columns, each with a coefficient of its own:
+    `dose + age`. `I(dose + age)` is one column, their sum.
+
+  - A factor, a character column or a logical column is one column for
+    each of its levels.
+
+  - Anything that is not a column of `data` is read where `forest()` is
+    called, at that moment, with or without a tilde written in place:
+    `forest(basis = w)`, `forest(basis = ~ w)`.
+
+  - A formula held in a variable, `b <- ~ w` and then
+    `forest(basis = b)`, is read the same way, when `forest()` is
+    called, and is left as you made it.
+
+  - [`cbind()`](https://rdrr.io/r/base/cbind.html) is refused: write the
+    columns with `+`.
+
+  The rest of this item is the detail of each.
+
+  **What it does.** With a basis of columns \\B_1, \ldots, B_K\\ the
+  forest \\f\\ enters the fit as \\(\sum_k a_k B_k(x_i)) f(x_i)\\, each
+  column with a coefficient \\a_k\\ of its own, called its amplitude. A
+  forest with no basis is multiplied by a single coefficient. A model
+  has one forest with no basis, or none; every other forest states one,
+  and a model whose only forest has a basis is refused.
+
+  **Writing it.** A basis is the right-hand side of a model formula,
+  without the tilde, and means what it means in
+  [`lm`](https://rdrr.io/r/stats/lm.html):
+
+  - a name is a column: `basis = dose`;
+
+  - `+` separates columns: `dose + age` is two columns;
+
+  - arithmetic is written inside
+    [`I()`](https://rdrr.io/r/base/AsIs.html): `I(dose + age)` is one
+    column, the sum, and `I(dose / 30)` is `dose` rescaled;
+
+  - a function of columns is a term, as in `lm`: `log(dose)`,
+    `scale(age)`, and `poly(dose, 2)`, which is two columns;
+
+  - a factor, a character column or a logical column gives one column
+    for each of its levels, none left out: `factor(z)` for a `z` of 0
+    and 1 is the two columns whose coefficients are \\(b_0, b_1)\\, in
+    the order of the levels;
+
+  - `dose:age` is one column, the product;
+
+  - there is no constant column unless `1` asks for one: `1 + dose` is a
+    column of ones and `dose`, while `0 + dose` and `dose - 1` are
+    `dose`.
+
+  A basis is either one factor (or character or logical column) or
+  numeric columns; the two are not mixed in one forest. The forest does
+  not centre or scale a basis, so a multiplier that should be
+  standardized is written so: `basis = scale(age)`.
+
+  Some forms a model formula would take are refused, each by name and
+  with what to write instead: `*` between terms (write `I(dose * age)`
+  for the product, or `dose + age + I(dose * age)` for all three
+  columns); a term multiplied or divided by a number (write
+  `I(dose / 30)`); `-` between terms, other than `- 1`; `^`, `/`, `%in%`
+  and `|` between terms; `.`; an
+  [`offset()`](https://rdrr.io/r/stats/offset.html);
+  [`cbind()`](https://rdrr.io/r/base/cbind.html) (write `+`); and a term
+  that calls one of `normal`, `fixed`, `student`, `cauchy`, `linear`,
+  `gp`, `cgm`, `dart`, `chisq`, `chi`, `invchi`, `forest` or
+  `varianceForest`, since a prior is not stated on a term of a basis.
+
+  **Names of the columns.** They are named as
+  `coef(lm(y ~ 0 + <basis>))` names them: `dose`, `age`;
+  `poly(dose, 2)1`, `poly(dose, 2)2`; `factor(z)0`, `factor(z)1`;
+  `(Intercept)` for the column of ones. They are the column names of
+  `data@bases[[f]]` on the sampler. A forest's label, where its place in
+  a `forests` list has no name, is the text of its basis,
+  `"dose + age"`, or `forest<i>` for a forest with no basis or with one
+  given as a value; see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
+
+  **Rows.** A basis has a value for every row of `data`, and is cut to
+  the rows the fit keeps: `data` and `subset` are each evaluated once,
+  for the fit, and the basis is given the same rows in the same order,
+  less those the `na.action` drops. So with
+  `data = d[sample(nrow(d)), ]` or `subset = sample(n, 100)` the basis
+  has the rows the fit has.
   [`scale()`](https://rdrr.io/r/base/scale.html),
-  [`poly()`](https://rdrr.io/r/stats/poly.html), `ns()` or `bs()`
-  computed on the training rows, as
-  [`lm`](https://rdrr.io/r/stats/lm.html) does, so a new row is
-  standardized by the training centre and scale and not by the new rows'
-  own. This holds for such a call written alone, or as an operand of
-  `+`, `-`, `*`, `/`, `^`, parentheses or
-  [`cbind()`](https://rdrr.io/r/base/cbind.html); any other expression,
-  such as `I(w - mean(w))`, `scale(w)[, 1]` or `abs(scale(w))`, is
-  evaluated on the rows given to `predict`, as `lm` evaluates it, so its
-  value at a row depends on the other rows predicted with it; see
-  [`SafePrediction`](https://rdrr.io/r/stats/makepredictcall.html). With
-  `subset`, the centre and scale are those of the rows `subset` kept,
-  where `lm` uses all of them; rows dropped for a missing response still
-  enter them. A factor level the fit never saw is refused at `predict`.
+  [`poly()`](https://rdrr.io/r/stats/poly.html) and anything else a term
+  computes across rows, `I(age - mean(age))` among it, are computed on
+  every row of `data`, as in `lm`, whatever `subset` keeps. A level of a
+  factor that no kept row has gives no column. Refused are a missing
+  value in a row the fit keeps, where `lm` would drop the row; a factor,
+  a character column or a logical column with one level on the rows
+  kept; and a numeric column that is zero on all of them.
 
-  A basis declared through `forests =` is not rebuilt: the caller gives
-  it at the new rows, and with `subset` its formula was evaluated on
-  every row of `data`.
+  **New rows.** `predict` builds the basis again from the new rows, as
+  `predict` does for `lm`. Taken from the fitted rows are the centre,
+  scale and knots of [`scale()`](https://rdrr.io/r/base/scale.html),
+  [`poly()`](https://rdrr.io/r/stats/poly.html), `ns()` and `bs()`, and
+  the levels of a factor. Everything else is computed again on the rows
+  given: `I(age - mean(age))` uses the mean of the new rows, and
+  `factor(dose > median(dose))` their median; see
+  [`SafePrediction`](https://rdrr.io/r/stats/makepredictcall.html).
+  Every column of `data` the basis names must be among the new rows, a
+  factor's columns keep the order of the fit's levels, and a level the
+  fit did not have is refused. A basis given as a value cannot be built
+  again: give it at the new rows through `predict`'s `bases` argument.
+
+  **Where a name is found.** It depends on who wrote the code.
+
+  In a call of `forest()` that you write, as in a `forests` list or for
+  a forest built ahead of the fit, a name of a column of `data` is that
+  column. Every other variable of yours that the code uses is copied
+  when `forest()` is called. This is so whether or not a tilde is
+  written in place: `forest(basis = ~ dose + age)` is
+  `forest(basis = dose + age)`. A forest built in a loop therefore keeps
+  what each call was given,
+
+
+          fs <- list(forest())
+          for (k in c(10, 30))
+            fs[[length(fs) + 1]] <- forest(x1, basis = I(dose / k))
+          
+
+  is one forest multiplied by `dose / 10` and one by `dose / 30`, at the
+  fit and at `predict`, whatever `k` holds later, and a saved forest
+  carries its numbers with it. A variable that does not exist when
+  `forest()` is called is not looked for later, and is refused. What R
+  or an attached package supplies, a function such as `scale` or a
+  constant such as `pi`, is not copied: a basis that names a column of
+  `data` looks it up when the model is fitted. With no data frame, as
+  with the matrix interface and
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
+  there is no column to name and every variable is yours.
+
+  One case needs care: a column of `data` hides a variable of yours with
+  the same name, whether that variable holds a column, a set of names or
+  a one-sided formula. Where the two could meet, hand the value over:
+  `do.call(forest, list(basis = w))` for a column you hold,
+  `list(basis = as.name(nm))` for a column of `data` by its name,
+  `list(basis = f)` for a one-sided formula, and `list(vars = nms)` for
+  predictors by name.
+
+  A formula made elsewhere, held in a variable or handed over as above,
+  is read in the same way and at the same moment, when `forest()` is
+  called: a name of a column of `data` is that column, and every other
+  variable the formula uses is copied, as it is then, from where the
+  formula was made. What counts is when `forest()` is called, not when
+  the formula was made. In
+
+
+          fs <- list(forest())
+          for (k in c(10, 30)) {
+            f <- ~ I(dose / k)
+            fs[[length(fs) + 1]] <- forest(x1, basis = f)
+          }
+          
+
+  each forest has its own `k`, because `forest()` is called inside the
+  loop. Formulas made in a loop and given to `forest()` only after it
+  all see the last `k`: a formula holds its environment and no value, as
+  everywhere in R. A variable changed after `forest()` is called changes
+  neither the fit nor a prediction. The formula itself is not touched:
+  it is the formula you made, in its environment, and nothing is
+  assigned there.
+
+  A `forest()` term inside the formula of
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) is
+  part of that formula and is read with it, as R reads a formula, with a
+  tilde or without: in `data` and then where the formula was written,
+  when the model is fitted and again by `predict`. Change a number such
+  a term uses between the fit and the prediction and the prediction
+  changes, with no message.
+
+  An argument that [`lapply()`](https://rdrr.io/r/base/lapply.html),
+  [`Map()`](https://rdrr.io/r/base/funprog.html) or another function of
+  base R writes for you, as in `lapply(columns, forest, vars = "x1")`,
+  is a value handed over, whatever the data's columns are called. A name
+  or a call that such a function is handed and passes on, as in
+  `Map(forest, nms, MoreArgs = list(basis = quote(dose)))`, is code, as
+  it is through [`do.call()`](https://rdrr.io/r/base/do.call.html).
+
+  **A value.** What is handed over as an object, through
+  [`do.call()`](https://rdrr.io/r/base/do.call.html) or in a call built
+  by a program, is used as it is: a numeric vector or matrix is its
+  columns, and a factor, a character vector or a logical vector is its
+  levels. Its columns keep their names when every column has one, and
+  have none when any column lacks one; two columns of one name are
+  refused. Its forest's label is `forest<i>`. It has one row for every
+  row of `data` and is cut to the rows the fit keeps; a value already
+  cut to those rows is refused by name. A level that no row of `data`
+  has is refused, while one that only `subset` empties keeps a column of
+  zeros, a value not being built again on the rows kept. A value that
+  the rows kept leave with one level, or one numeric column that is zero
+  on all of them, is refused as the same basis written as code is. A
+  single string or number is refused: `basis = "dose"` names no column,
+  so write `basis = dose`.
+
+  A basis is stated here or on the data object, not both:
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) given
+  an already-built `dbartsData` refuses this argument, the data object's
+  own `bases` being where it is stated then, while
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+  takes a data object and installs the bases declared here in place of
+  those it carried. After creation a basis is replaced by
+  `$setForestBasis`, whose formula is read at once, where it was made;
+  see
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
 
 - n.trees, base, power:
 
@@ -231,10 +398,14 @@ forest(
   value declared here overrides its default and keeps its per-forest
   reading at every \\K\\, so `sd = 1` on each basis forest recovers the
   pre-\\K\\-aware model exactly. It is one unnamed number, positive and
-  finite, the same for every column of the forest's `basis`; a vector of
-  any other length, a named number and anything that is not a number are
-  refused. A model of one forest states its size as the fitting
-  function's `leaf.prior = normal(sd = )`.
+  finite. For a basis of several columns that one number is the size
+  stated for each of them, so `forest(basis = dose + age, sd = 2)`
+  states 2 for the column `dose` and 2 for the column `age`; to size two
+  columns differently, rescale one of them in the basis, as
+  `I(dose / 30)`. A vector of any other length, a named number and
+  anything that is not a number are refused. A model of one forest
+  states its size as the fitting function's
+  `leaf.prior = normal(sd = )`.
 
   It is the one argument a live sampler restates:
   `$setLeafPrior(forests = list(forest(sd = ), ...))` writes it in the
@@ -289,8 +460,8 @@ forest(
   the amplitudes being what distinguish a forest from another. For
   varying coefficients declare an intercept forest plus one basis forest
   per covariate,
-  `forests = list(forest(), forest(basis = ~ z1), forest(basis = ~ z2))`,
-  or use one forest with `linear()` leaves.
+  `forests = list(forest(), forest(basis = z1), forest(basis = z2))`, or
+  use one forest with `linear()` leaves.
 
 - amplitude:
 
@@ -354,25 +525,23 @@ is refused there by name rather than dropped.
 In a [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) formula
 each `forest()` term is one forest of the model, without a separate
-`forests =` list: `y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ z)`.
-A term stands at the top of the formula's right-hand side, joined to the
+`forests =` list: `y ~ forest(x1 + x2) + forest(x1 + x2, basis = z)`. A
+term stands at the top of the formula's right-hand side, joined to the
 others by `+`; a `forest()` crossed with another term, as
 `z:forest(x1 + x2)` or `z * forest(x1 + x2)`, is refused with the
 `forest()` to write in its place. The forest with no `basis` is the
 forest with no multiplier and the model's first, wherever it is written.
 It may be left as plain terms,
-`y ~ x1 + x2 + forest(x1 + x2, basis = ~ z)`, which is the same model,
-but a formula has one such forest: plain predictor terms beside a
-`forest()` with no `basis`, and two such terms, are refused. Alone,
+`y ~ x1 + x2 + forest(x1 + x2, basis = z)`, which is the same model, but
+a formula has one such forest: plain predictor terms beside a `forest()`
+with no `basis`, and two such terms, are refused. Alone,
 `y ~ forest(x1 + x2)` is the single-forest fit `y ~ x1 + x2`, in every
 family that takes a formula. The other forests keep the order they are
 written in. `forest()` may also be written there as
-`dbartsForests$forest()`. Every argument but the first is evaluated in
-the formula's environment. A term's basis is evaluated against the fit's
-model frame, after `subset` and any row selection; a `basis` declared
-directly on `forests =` is instead evaluated against the raw `data` and
-then restricted to the same rows - the two routes reach the same rows by
-different timing, so a `subset` lines them up either way.
+`dbartsForests$forest()`. A term's predictors and its basis are read as
+code; every other argument is evaluated where the formula was written.
+The same basis written in a formula's term and in a `forests` list is
+the same columns on the same rows, and so the same model.
 
 ## Value
 
@@ -403,7 +572,7 @@ y <- 2 * x[, 1] + z * (1 + 2 * x[, 3]) + rnorm(n, 0, 0.2)
 
 sampler <- dbarts(x, y,
                   forests = list(forest(),
-                                 forest(x1 + x3, basis = ~ factor(z),
+                                 forest(x1 + x3, basis = factor(z),
                                         n.trees = 25L, sd = 1.5)),
                   control = dbartsControl(n.chains = 1L, n.trees = 25L,
                                           n.samples = 20L, n.burn = 20L))
@@ -418,11 +587,20 @@ indexSd <- sqrt(calibration$k.scale^2 *
                 calibration$amplitude.prior.variance *
                 rowSums(basis^2))
 
+# the same model written in a formula, the first forest written out; the
+# columns of a basis are named as lm() would name them
+d <- data.frame(y = y, x1 = x[, 1], x2 = x[, 2], x3 = x[, 3], z = z,
+                w = 50 + 10 * rnorm(n))
+written <- dbarts(y ~ forest(x1 + x2 + x3) +
+                    forest(x1 + x3, basis = factor(z), n.trees = 25L, sd = 1.5),
+                  d, control = dbartsControl(n.chains = 1L, n.trees = 25L))
+colnames(written$data@bases[[2L]])
+#> [1] "factor(z)0" "factor(z)1"
+
 # a standardized multiplier: predict centres and scales the new rows by the
 # training rows' mean and sd of w
-d <- data.frame(y = y, x1 = x[, 1], x3 = x[, 3], w = 50 + 10 * rnorm(n))
 fit <- bart(y ~ forest(x1 + x3) +
-              forest(x1 + x3, basis = ~ scale(w), n.trees = 10L),
+              forest(x1 + x3, basis = scale(w), n.trees = 10L),
             d, n.trees = 10L, n.samples = 10L, n.burn = 10L,
             n.chains = 1L, n.threads = 1L, keepTrees = TRUE)
 #> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
@@ -451,25 +629,41 @@ fit <- bart(y ~ forest(x1 + x3) +
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000413
+#> total seconds in loop: 0.000643
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 2 3 3 3 1 4 2 2 2 
+#> [1] 3 2 2 3 2 2 3 3 2 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 9) (2: 5) 
+#> (1: 7) (2: 7) 
 #> DONE BART
 #> 
 predict(fit, d[1:3, ])
-#>              1        2        3
-#>  [1,] 2.665598 1.435529 1.428253
-#>  [2,] 2.718696 1.279158 1.786205
-#>  [3,] 2.825532 1.220816 1.820275
-#>  [4,] 2.639906 1.695266 1.912748
-#>  [5,] 2.711947 1.647589 1.116915
-#>  [6,] 2.533666 1.730959 1.593382
-#>  [7,] 2.268279 2.188020 2.531138
-#>  [8,] 2.679228 1.709843 1.749938
-#>  [9,] 2.466707 1.802121 2.166133
-#> [10,] 2.533577 1.228568 1.915270
+#>              1         2         3
+#>  [1,] 2.422435 1.4452523 1.7864288
+#>  [2,] 2.417635 0.8071004 1.4025173
+#>  [3,] 2.917138 0.8665828 1.3632450
+#>  [4,] 2.498875 1.0240818 1.3595190
+#>  [5,] 2.645444 1.2366439 1.6110356
+#>  [6,] 2.261323 1.3595897 1.0811054
+#>  [7,] 2.506594 1.5759485 1.5432470
+#>  [8,] 2.491697 1.3255230 1.6222154
+#>  [9,] 2.185772 1.4219433 1.4804516
+#> [10,] 2.480931 1.3449315 0.8162834
+
+# forests built in a loop: each keeps the number its own call was given
+forest <- dbartsForests$forest
+forests <- list(forest())
+for (k in c(25, 100))
+  forests[[length(forests) + 1L]] <- forest(x1, basis = I(w / k))
+looped <- dbarts(y ~ x1 + x3, d, forests = forests,
+                 control = dbartsControl(n.chains = 1L, n.trees = 10L))
+vapply(looped$data@bases[-1L], function(basis) basis[1L, 1L], 0) * c(25, 100)
+#> [1] 58.93674 58.93674
+
+# two columns, a coefficient each; I() holds arithmetic
+twoColumns <- dbarts(y ~ forest(x1 + x3) + forest(x1, basis = z + I(w / 50)),
+                     d, control = dbartsControl(n.chains = 1L, n.trees = 10L))
+colnames(twoColumns$data@bases[[2L]])
+#> [1] "z"       "I(w/50)"
 ```

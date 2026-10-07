@@ -250,10 +250,11 @@ print(x, ...)
   be missing. A
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
   term's predictors are columns of the same subsetted model frame as
-  every other predictor, and its basis is evaluated inside that frame
-  (‘Formula Terms’); a basis given directly through
+  every other predictor, and its basis, which has a value for every row
+  of `data`, is cut to the same rows (‘Formula Terms’), as is a basis
+  given through
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-  `forests =` instead follows that argument's own subsetting rule (see
+  `forests =` (see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
   `basis` item).
 
@@ -1315,9 +1316,9 @@ a [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
 given together with `forests =` is refused by name):
 
 
-    y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ z)            # numeric z: one amplitude
-    y ~ forest(x1 + x2) + forest(x1, basis = ~ factor(z))         # factor z: one amplitude per level
-    y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ cbind(a, b))  # two-column basis, one forest
+    y ~ forest(x1 + x2) + forest(x1 + x2, basis = z)          # numeric z: one coefficient
+    y ~ forest(x1 + x2) + forest(x1, basis = factor(z))       # factor z: one coefficient per level
+    y ~ forest(x1 + x2) + forest(x1 + x2, basis = a + b)      # two columns, a coefficient each, one forest
 
 A forest's multiplier is its `basis` argument. Every argument of a term
 but the first is the same argument of a
@@ -1331,10 +1332,10 @@ item). A
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) is not
 crossed with another term: `z:forest(x1 + x2)` and `z * forest(x1 + x2)`
 are refused, the message giving the term to write,
-`forest(x1 + x2, basis = ~ z)`.
+`forest(x1 + x2, basis = z)`.
 
 The forest with no `basis` is the forest with no multiplier. It may be
-left as plain terms, `y ~ x1 + x2 + forest(x1 + x2, basis = ~ z)`, which
+left as plain terms, `y ~ x1 + x2 + forest(x1 + x2, basis = z)`, which
 is the same model as the first line above, draw for draw; and written
 alone, `y ~ forest(x1 + x2)` is the single-forest fit `y ~ x1 + x2`, in
 every family that takes a formula. A model has one such forest, so plain
@@ -1355,14 +1356,15 @@ calls such as `log(x1)` and `factor(g)`, `.` for every column of `data`
 but the response, and `-` to remove a term. The fit's predictors are the
 terms of all of its forests, each once and those of the forest with no
 `basis` first, and each forest splits on the columns of its own terms:
-in `y ~ x1 + x2 + forest(x3, basis = ~ z)` the fit has the predictors
+in `y ~ x1 + x2 + forest(x3, basis = z)` the fit has the predictors
 `x1`, `x2` and `x3`, the first forest splits on `x1` and `x2` and the
-second on `x3`. A forest with no first argument, `forest(basis = ~ z)`,
+second on `x3`. A forest with no first argument, `forest(basis = z)`,
 splits on every predictor of the fit. A term that gives several
 columns - a factor under `factors = "indicators"`, `poly(x1, 2)` - is
 all of them. Only the first argument may be given without its name;
-every other argument is given by name and evaluates in the formula's
-environment, exactly as it does for
+every other argument is given by name. A forest's `basis` is read as
+code, like its predictors (below), and the rest are evaluated where the
+formula was written, exactly as they are for
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s own
 `forests =`. Predictors may also be named, as `forest(c("x1", "x2"))`,
 each name of a column of `data` being the term the name written out is.
@@ -1374,21 +1376,31 @@ forest that names predictors of its own: the forest with no `basis` has
 the terms of the formula with its
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
 replaced by what is inside it and every forest with a `basis` left out,
-so `y ~ forest(.) - x3 + forest(x3, basis = ~ z)` and
-`y ~ . - x3 + forest(x3, basis = ~ z)` are one model; a removal that
+so `y ~ forest(.) - x3 + forest(x3, basis = z)` and
+`y ~ . - x3 + forest(x3, basis = z)` are one model; a removal that
 leaves that forest no predictor is refused, and one of a term it does
 not have is passed by, as R passes it by in a plain formula (see
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s `vars`
 item).
 
-A term's basis is evaluated inside the fit's own model frame, so
-`subset`, missing-data handling, and `data` scoping apply to it exactly
-as they do to any predictor - unlike a basis given directly through
-`forests =`, which is evaluated against the raw `data` and then
-restricted to the subsetted rows (see
+A forest's `basis` is what the forest is multiplied by, written as the
+right-hand side of a model formula without the tilde and meaning what it
+means in [`lm`](https://rdrr.io/r/stats/lm.html): `+` separates columns,
+each with a coefficient of its own; arithmetic is written inside
+[`I()`](https://rdrr.io/r/base/AsIs.html), so `I(a + b)` is one column,
+the sum; `factor(z)`, a character column and a logical column give one
+column for each level; `scale(w)` and `poly(w, 2)` are terms as in `lm`.
+Its names are found in `data` and then where the formula was written. It
+has a value for every row of `data` and is cut by `subset` and the
+`na.action` with the predictors,
+[`scale()`](https://rdrr.io/r/base/scale.html) taking its centre from
+every row as in `lm`. The same basis given through
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+`forests =` is the same columns on the same rows.
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
-`basis` item for that route's rule; the two reach the same rows whenever
-`subset` keeps every row unaltered).
+`basis` item is the full account: what is refused, how the columns are
+named, and where a name is found in each of the two ways of writing a
+forest.
 
 A handful of shapes are refused outright rather than silently
 misinterpreted, each error naming the offending expression: a
@@ -1399,10 +1411,13 @@ anywhere other than a top-level additive term (inside
 [`I()`](https://rdrr.io/r/base/AsIs.html), a removal, or the formula's
 left-hand side); a second unnamed argument, a tilde, a position, an
 [`offset()`](https://rdrr.io/r/stats/offset.html) or an intercept term
-in a forest's first argument; a forest with a `basis` and no forest
-beside it; a formula that names no predictors; `test` given together
-with a model of several forests (an amplitude-coupled fit has no
-per-observation test replay in this version); and a model of several
+in a forest's first argument; in a `basis`, `*` between terms, a term
+multiplied or divided by a number,
+[`cbind()`](https://rdrr.io/r/base/cbind.html) and a factor beside other
+terms, each with what to write in its place; a forest with a `basis` and
+no forest beside it; a formula that names no predictors; `test` given
+together with a model of several forests (an amplitude-coupled fit has
+no per-observation test replay in this version); and a model of several
 forests in a family the multiplier model does not support (`"aft"`,
 `"ordinal"`, `"nbinom"`, the hazard families, `"multinomial"`, and
 `"hurdle.lognormal"` - gaussian, probit, and logistic are the only
@@ -1419,23 +1434,19 @@ and say so. See ‘Value’ below, and
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
 `type = "forest"`, for reading the resulting per-forest fits back out.
 
-The right-hand side of a term's `basis` formula is evaluated as R code,
-and `predict` rebuilds it at the new rows from the training rows as
-[`lm`](https://rdrr.io/r/stats/lm.html) does for a model formula: a call
-to [`scale()`](https://rdrr.io/r/base/scale.html),
-[`poly()`](https://rdrr.io/r/stats/poly.html), `ns()` or `bs()`, written
-alone or as an operand of `+`, `-`, `*`, `/`, `^`, parentheses or
-[`cbind()`](https://rdrr.io/r/base/cbind.html), is centred, scaled or
-spanned by what it computed on the training rows (with `subset`, the
-rows it kept, where `lm` uses all of them; rows dropped for a missing
-response still count). Any other expression, such as `w - mean(w)` or
-`abs(scale(w))`, is evaluated on the rows given to `predict`, as `lm`
-evaluates it, and is not refused; see
+`predict` builds a basis again at the new rows as `predict` does for
+`lm`: a call to [`scale()`](https://rdrr.io/r/base/scale.html),
+[`poly()`](https://rdrr.io/r/stats/poly.html), `ns()` or `bs()` is
+centred, scaled or spanned by what it computed on the fitted rows, which
+are every row of `data` whatever `subset` keeps. Arithmetic inside
+[`I()`](https://rdrr.io/r/base/AsIs.html), such as `I(w - mean(w))`, is
+evaluated on the rows given to `predict`, as `lm` evaluates it, and is
+not refused; see
 [`SafePrediction`](https://rdrr.io/r/stats/makepredictcall.html). So
-`forest(x1 + x2, basis = ~ scale(w))` standardizes a multiplier by the
-training mean and sd, `basis = ~ cbind(scale(w), scale(v))` standardizes
-two columns, and `~ scale(w) + scale(v)` is one column, their sum. A
-factor level the fit never saw is refused at `predict`.
+`forest(x1 + x2, basis = scale(w))` standardizes a multiplier by the
+fitted rows' mean and sd, and `basis = scale(w) + scale(v)` is two
+standardized columns. A factor level the fit did not have is refused at
+`predict`.
 
 ## Reproducibility
 
@@ -2028,7 +2039,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001087
+#> total seconds in loop: 0.001522
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -2047,7 +2058,7 @@ n <- 60L
 x1 <- runif(n); x2 <- runif(n)
 z  <- rbinom(n, 1L, 0.5)
 y  <- x1 + z * (1 + x2) + rnorm(n, 0, 0.2)
-fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ z),
+fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
                  n.samples = 20L, n.burn = 20L, n.chains = 1L,
                  n.trees = 10L, n.threads = 1L)
 #> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
@@ -2076,7 +2087,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ z),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001127
+#> total seconds in loop: 0.001656
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 1 2 2 2 1 2 2 3 2 

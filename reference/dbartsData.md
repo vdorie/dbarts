@@ -46,8 +46,10 @@ dbartsData(
   a forest carries the implicit intercept its single amplitude scales.
   Each non-null element is a numeric matrix with one row per observation
   and one amplitude per column, restricted by `subset` exactly as
-  `weights` is. This is the data half of a multi-forest specification,
-  and is normally written by
+  `weights` is: `data` and `subset` are each evaluated once, and each
+  basis is given the rows the data object keeps, in their order, less
+  those the `na.action` drops. This is the data half of a multi-forest
+  specification, and is normally written by
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `forests = ` argument rather than here; supplying it directly selects
   the multi-forest model with the engine's default per-forest

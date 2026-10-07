@@ -113,12 +113,10 @@ summary(fit)
 #>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, 
 #>     n.threads = 1L, verbose = FALSE, factors = "categorical")
 #> 
-#>   variable     mean   median         sd        mad      q5      q95     rhat
-#> 1    sigma 1.062273 1.056108 0.05847884 0.05357023 0.96293 1.145456 1.046318
-#>   ess_bulk ess_tail
-#> 1 51.85035 36.29032
+#>   variable      mean    median         sd        mad        q5      q95
+#> 1    sigma 0.9282111 0.9153438 0.08056062 0.09271487 0.8240338 1.051335
+#>       rhat ess_bulk ess_tail
+#> 1 1.001159 34.91574 40.72398
 #> (Fixed, not sampled: k = 2)
-#> 
-#> Note: some R-hat values exceed 1.01; chains may not have converged.
 # }
 ```

@@ -467,7 +467,7 @@ threads.</li>
 <div class="section level3">
 <h3 id="graduating-to-a-multi-forest-sampler">Graduating to a multi-forest sampler<a class="anchor" aria-label="anchor" href="#graduating-to-a-multi-forest-sampler"></a>
 </h3>
-<p><code>dbarts(..., forests = list(forest(), forest(basis = ~ factor(z))))</code>
+<p><code>dbarts(..., forests = list(forest(), forest(basis = factor(z))))</code>
 fits this model in one sampler, and the question a prototype should be
 able to ask is whether moving to it changes the posterior being
 targeted.</p>

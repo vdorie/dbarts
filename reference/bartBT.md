@@ -588,14 +588,20 @@ family(object, ...)
   `bases = cbind(1 - zstar, zstar)` is the counterfactual arm being
   predicted under. Unlike at fit time, a column of all zeros and a
   single-level factor are accepted, since a constant arm is the point of
-  a counterfactual. `NULL` (the default) re-derives each basis from
-  `newdata` when the fit declared it as a
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
+  a counterfactual. `NULL` (the default) builds each basis again from
+  `newdata` when the fit's forest wrote it as code, in a
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+  formula's
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
-  (which then needs the variables that term names, coded against the
-  fit's own factor levels), and is otherwise an error naming the forest.
-  Refused on a single-forest fit, and with `type = "forest"`, which
-  reports each forest's total before any basis.
+  or in a `forests` list (it then needs the columns of the fit's data
+  that basis names, coded against the fit's own factor levels; see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
+  `basis` item), and is an error naming the forest when the basis was
+  handed over as a value or needs a variable that had a value for every
+  fitted row and is no column of `newdata`. Refused on a single-forest
+  fit, and with `type = "forest"`, which reports each forest's total
+  before any basis.
 
 - contribution:
 
@@ -932,14 +938,13 @@ returned. In the numeric \\y\\ case, the list has components:
   RESPONSE-scale raw total at each draw, i.e. \\\mathrm{response.scale}
   \times f_k(x)\\, with NO amplitude (`glue`) folded in - the same
   quantity the sampler's `$getForestFits` reports, up to that one
-  scalar. The trailing margin is named `forest1`, ..., `forestK`; a
-  declaration's own names (`names(forests)` on the
-  [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-  route; a `bart`
-  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
-  supplies none) ride separately as a `"forest.labels"` attribute on the
-  fit object when given. `glue` is the ragged (`n.chains` \\\times\\,
-  when uncombined) `n.samples` \\\times\\ sum(q_k) matrix of amplitudes
+  scalar. The trailing margin is named `forest1`, ..., `forestK`; each
+  forest's label (a name in `forests`, else the text of the forest's
+  `basis`, else `forest<i>`; see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  `forests` item) rides separately as a `"forest.labels"` attribute on
+  the fit object. `glue` is the ragged (`n.chains` \\\times\\, when
+  uncombined) `n.samples` \\\times\\ sum(q_k) matrix of amplitudes
   multiplying each forest's basis columns, forest-major (the layout
   `$getForestAmplitudes` documents); its `"forest"` attribute names each
   column's forest. `bases` is a length-K list of each forest's expanded
@@ -963,16 +968,19 @@ returned. In the numeric \\y\\ case, the list has components:
   each `bases` entry's replacement - the basis that forest's amplitudes
   multiply at the new rows, for a Bayesian causal forest the \\(1 -
   z^\*, z^\*)\\ indicator pair of whichever assignment is being
-  predicted under - through its own `bases` argument, or re-derived from
-  `newdata` on the
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)
+  predicted under - through its own `bases` argument, or built again
+  from `newdata` for a basis that was written as code. Written out by
+  hand it remains the fallback for a caller holding only these
+  components and no sampler. A fit one of whose bases was written as
+  code, in a
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
-  route. Written out by hand it remains the fallback for a caller
-  holding only these components and no sampler. A fit built through a
-  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
-  additionally carries `basis.terms`, the length-K list of declaring
-  formulas and fit-time factor levels that re-derivation reads; it is
-  absent when the bases arrived as values.
+  of a formula or in a `forests` list, additionally carries
+  `basis.terms`, a length-K list holding for each such basis what builds
+  it again at new rows (R's
+  [`terms`](https://rdrr.io/r/stats/terms.html) object for it, the
+  levels of its factors, its text and the columns of the fit's data it
+  names) and `NULL` for a forest with no basis or with one given as a
+  value; it is absent when no basis was written as code.
 
 - `n.forests`:
 
@@ -1215,7 +1223,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.126661
+#> total seconds in loop: 0.187363
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

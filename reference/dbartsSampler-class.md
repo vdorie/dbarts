@@ -687,20 +687,26 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - basis:
 
   The data the named forest's amplitudes multiply, with as many rows as
-  the sampler was created with and one amplitude per column: a factor
-  (or a one-sided formula naming one) expands to its level indicators
-  with no reference level dropped - a two-level factor giving the pair
-  whose amplitudes are \\(b_0, b_1)\\ - and a numeric vector or matrix
-  is already those columns, which is the same expansion
-  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
-  applies at creation. Any forest takes a basis of any width. Unlike
-  creation, a factor basis may leave a level empty, its column all zeros
-  and its amplitude moving under its prior alone until a row takes it
-  again, so a swap inside a larger sampler can leave a level momentarily
-  unobserved; a numeric column of all zeros is still refused.
-  `setForestBasis` is the *sole* route by which a basis changes after
-  creation, and it applies only to a sampler whose forests carry
-  amplitudes, built with `forests = ` (see
+  the sampler was created with and one amplitude per column. It is a
+  value, or a one-sided formula, which is read as the `basis` of a
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md) is,
+  `~ a + b` being two columns, its names found where the formula was
+  written. A factor expands to its level indicators with no reference
+  level dropped - a two-level factor giving the pair whose amplitudes
+  are \\(b_0, b_1)\\ - and a numeric vector or matrix is already those
+  columns, which is the same expansion `forest` applies at creation. Any
+  forest takes a basis of any width. Columns are taken by position: the
+  names the basis was created with stay, whatever names the replacement
+  has, and a replacement that has those names in another order is
+  refused, since it would put each column under the other's name. A
+  replacement of another width brings its own names. The forest's label
+  does not change. Unlike creation, a factor basis may leave a level
+  empty, its column all zeros and its amplitude moving under its prior
+  alone until a row takes it again, so a swap inside a larger sampler
+  can leave a level momentarily unobserved; a numeric column of all
+  zeros is still refused. `setForestBasis` is the *sole* route by which
+  a basis changes after creation, and it applies only to a sampler whose
+  forests carry amplitudes, built with `forests = ` (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
   amplitudes are preserved and remapped: a width-preserving install
   leaves every one of them bitwise, and a width change carries each

@@ -337,10 +337,9 @@ batch is a separate and much smaller charge, about 1.1x.
 
 ### Graduating to a multi-forest sampler
 
-`dbarts(..., forests = list(forest(), forest(basis = ~ factor(z))))`
-fits this model in one sampler, and the question a prototype should be
-able to ask is whether moving to it changes the posterior being
-targeted.
+`dbarts(..., forests = list(forest(), forest(basis = factor(z))))` fits
+this model in one sampler, and the question a prototype should be able
+to ask is whether moving to it changes the posterior being targeted.
 
 The additive decomposition ports exactly. What does not port by itself
 is prior shape. The two routes agree only if the caller

@@ -104,7 +104,14 @@ dbarts(
 - subset:
 
   An optional vector specifying a subset of observations to be used in
-  the fitting process.
+  the fitting process. Each argument that holds rows, the first
+  argument, `data`, `test`, `subset`, `weights` and `offset`, is
+  evaluated once for a fit, the first argument before `data`. So an
+  expression that draws its rows, as `data = d[sample(nrow(d)), ]`,
+  `subset = sample(n, 100)` or the pair
+  `dbarts(x[i <- sample(n, 100), ], y[i])`, gives the response, the
+  predictors, the weights, the offset and every forest's basis the same
+  rows.
 
 - weights:
 
@@ -347,8 +354,27 @@ dbarts(
   distinguish it from the first. A single declared forest carrying a
   basis is refused: for varying coefficients declare an intercept forest
   plus one basis forest per covariate,
-  `forests = list(forest(), forest(basis = ~ z1), forest(basis = ~ z2))`,
-  or use one forest with `linear()` leaves. Gaussian, `"probit"` and
+  `forests = list(forest(), forest(basis = z1), forest(basis = z2))`, or
+  use one forest with `linear()` leaves. A `basis` is written as the
+  right-hand side of a model formula, without the tilde, and read as
+  [`lm`](https://rdrr.io/r/stats/lm.html) reads one: a name of a column
+  of `data` is that column, `+` separates columns, and anything that
+  names no column is what it was where
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) was
+  called; see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
+  `basis` item. Every forest has a label, fixed when the sampler is
+  created: the name its place in the list has,
+  `forests = list(prognostic = forest(), treatment = forest(basis = factor(z)))`;
+  without one the text of its basis, `"factor(z)"`; and without that,
+  for a forest with no basis or with one handed over as a value,
+  `forest<i>` by its position. Two names alike are refused, as is a name
+  of the form `forest<i>` at another position, and a basis text that
+  repeats an earlier label takes a suffix, `dose`, `dose.1`. The labels
+  are `attr(fit, "forest.labels")` on a
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) fit, and
+  `$setLeafPrior(forests = )` checks a list's names against them; a
+  forest is still selected by its position. Gaussian, `"probit"` and
   `"logistic"` responses: under a latent family the forests combine into
   the index rather than into the mean, on the link's own fixed scale, so
   every forest's `sd` is stated in latent standard deviations, `sigma`
@@ -361,9 +387,10 @@ dbarts(
   `sigma` and the family's latents moving. The result is an ordinary
   `dbartsSampler`; per-forest fits and the per-forest amplitudes are
   read off the sampler rather than from the run's combined `train`
-  channel. The columns a basis expands to are stored on the data object,
-  so they are subset by `subset` and survive a sampler's re-creation. A
-  basis declared here has nowhere to ride when `formula` is already a
+  channel. The columns of each basis are stored on the data object, as
+  `data@bases`, named as `lm` would name them, on the rows `subset` and
+  the `na.action` keep, and survive a sampler's re-creation. A basis
+  declared here has nowhere to ride when `formula` is already a
   `dbartsData` object: `dbarts()` refuses that combination by name
   rather than silently discarding the declaration and fitting a
   single-forest model - build the data object with the bases already on
