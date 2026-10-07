@@ -265,8 +265,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   current fit far from where it was until the sampler has run on them.
   Saved draws are rewritten by the formula in every case, with 1 for the
   scale. The saved draws of a Gaussian-process (`gp`) leaf cannot be
-  rewritten: they are replayed under the new data's centre, scale and
-  response scale, and so change.
+  rewritten: a sampler with such leaves that holds saved draws refuses
+  `newData`, whatever it holds. Make a new sampler instead. One that
+  holds none takes it as any other sampler does.
 
 - y:
 
@@ -374,24 +375,31 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   iterations no longer comparable. Draws already saved (`keepTrees`) are
   rewritten into the new scale, a heteroscedastic sampler's variance
   draws included, so `predict` returns the values it returned before the
-  call; the current fit follows the new scale. The saved draws of a
-  Gaussian-process (`gp`) leaf are the exception when the new scale has
-  another midpoint: they hold no term that could carry it, and come back
-  in the new scale's units. `TRUE` is refused by a multi-forest
-  (`forests`) sampler, whose calibration map is pinned at creation -
-  whatever its response family, and whether or not there is a transform
-  to re-anchor - and is never restated. A heteroscedastic (`variance`)
-  sampler takes it: the variance forest's leaf prior is re-derived from
-  the residual prior on the new scale, exactly as creation on the new
-  response would have stated it, and the drawn \\s^2(x)\\ is carried
-  into the same units, so the surface keeps its meaning in response
-  units across the swap. `setData` carries that restatement too,
-  unconditionally: the whole-data conduit has no `updateScale` to pin
-  the transform with, so a replacement data set always re-anchors it. On
-  `setResponse`, supplying this argument positionally
-  (`setResponse(y, TRUE)`) rather than by name warns once per session -
-  it is the second argument, where a caller porting code written before
-  this order had `updateState` there instead.
+  call; the current fit follows the new scale. `TRUE` is refused by a
+  sampler with Gaussian-process (`gp`) leaves that holds saved draws,
+  whatever the new response or offset: make a new sampler, or leave
+  `updateScale` at `FALSE`. A draw is saved by every sweep run as a
+  sample while trees are kept, warm-up sweeps included, so such a
+  sampler takes a re-anchor during burn-in only as long as its sweeps
+  are run as burn-in, which saves nothing: `run(1, 0)` between
+  re-anchors, not `run(0, 1)`. For a survival (`aft`) sampler the scale
+  is always that of the observed times, a censored row's censoring time
+  among them, and never of a time the sampler has drawn for a censored
+  row. `TRUE` is refused by a multi-forest (`forests`) sampler, whose
+  calibration map is pinned at creation - whatever its response family,
+  and whether or not there is a transform to re-anchor - and is never
+  restated. A heteroscedastic (`variance`) sampler takes it: the
+  variance forest's leaf prior is re-derived from the residual prior on
+  the new scale, exactly as creation on the new response would have
+  stated it, and the drawn \\s^2(x)\\ is carried into the same units, so
+  the surface keeps its meaning in response units across the swap.
+  `setData` carries that restatement too, unconditionally: the
+  whole-data conduit has no `updateScale` to pin the transform with, so
+  a replacement data set always re-anchors it. On `setResponse`,
+  supplying this argument positionally (`setResponse(y, TRUE)`) rather
+  than by name warns once per session - it is the second argument, where
+  a caller porting code written before this order had `updateState`
+  there instead.
 
 - offset.test:
 
