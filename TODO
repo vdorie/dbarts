@@ -617,8 +617,8 @@ items
     new rows; z:forest(x) and update.amplitude go (amplitude =
     fixed()); one unnamed argument; a longer or named sd, a star, a
     term times or over a number and a prior's name on a basis term
-    are refused by name. Three pushes. Plan:
-    docs/plans/written-surface.md.
+    are refused by name. Three pushes, the first (the two
+    arguments) landed. Plan: docs/plans/written-surface.md.
   forest-defaults-by-kind: before 1.0-0 (dec-B274). A forest with a
     basis takes the multiplied forest's default tree count and tree
     prior wherever it is written, at both doors; with no forest
@@ -635,14 +635,32 @@ items
     installs as it does now. Serial with leaf-conversions, and
     before it. Plan: docs/plans/state-zero-weight-rows.md.
   monotone-unforced-refusal: before 1.0-0 (dec-B278, VD 2026-10-06). An
-    unforced setPredictor (whole-matrix, by column, row by row) that
-    would leave a monotone tree's leaf values out of order is refused
-    and rolled back, as one that empties a leaf is; today the one
-    such update, a column's first missing value, is accepted and the
-    tree reset to zero. Forced updates, setData, setCutPoints and a
-    warm start keep the silent reset. The help states both, and
-    tests/cpp testMonotoneMissingArrives turns over. About 200 lines.
-    Not planned.
+    unforced predictor update that would leave a monotone tree's leaf
+    values out of order is refused and rolled back, as one that empties
+    a leaf is: FALSE from the whole-matrix and column forms, FALSE for
+    the row from forceUpdate = "partial" and
+    updatePredictorPerObservationJointly. The one such update is an
+    unordered factor column's first missing value, today accepted with
+    the tree reset to zero; from R it arrives through the whole-matrix
+    form given codes and the joint form, the column forms refusing it
+    by name already. Forced updates, setData, setCutPoints, a warm
+    start and a setState that merges keep the silent reset. The help
+    states both, and tests/cpp testMonotoneMissingArrives turns over.
+    About 450 lines. Serial with state-zero-weight-rows and
+    leaf-conversions. Plan: docs/plans/monotone-unforced-refusal.md.
+  factor-column-update-forms: before 1.0-0 for the joint form
+    (dec-B279, VD 2026-10-06). updatePredictorPerObservationJointly
+    takes codes from 0 and, given a factor, reads R's codes from 1 as
+    the engine's from 0: every level is installed as the next one, in
+    silence, unless the top level is present, when it is refused as
+    not an existing category code. Fix: a factor's labels are matched
+    to the column's levels, as setPredictor by column does, or it is
+    refused by name. The rest is not planned: setPredictor by column
+    and forceUpdate = "partial" take labels and refuse a first missing
+    value by name, while the whole-matrix form takes a numeric matrix
+    with the factor as codes from 0, a missing one included, and a
+    data frame there fails in as.double though the manual's x item
+    speaks of a whole data-frame update. Not planned.
   forest-after-merge: built after the merge to main, for 1.0-0 still
     (dec-B276, VD 2026-10-06): setForestBasis(updateBasisScale = TRUE),
     which re-derives a default sd from a replaced column during

@@ -1,6 +1,6 @@
 # written-surface: a model of several forests is written one way, forest by forest
 
-Status: PLANNED (dec-B266 to dec-B275; dec-B246 as revised).
+Status: PLANNED (dec-B266 to dec-B275; dec-B246 as revised). Push 1 LANDED 2026-10-06 (42b62a54 to f7f73d6e).
 
 agent: three pushes. Push 1 (two arguments): sonnet implementer, opus reviewer. Pushes 2 and 3 (the
 grammar): opus implementer for the R code, sonnet for the respelled tests and the help once the code is
@@ -744,3 +744,36 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   The alternative, landing the help once with push 3, leaves a tip whose help shows the colon.
 - Opus for the grammar's R code. The design said sonnet with an opus review; the reasons are on the
   `agent:` line.
+
+## Landing note
+
+Push 1 (two arguments) landed 2026-10-06 as 42b62a54 to f7f73d6e on bartcore, 10 commits, 946 lines added
+over 24 files against a planned 520; R, the manual, tests and benchmark scripts, nothing under src/. Three
+reviews by one reviewer told to refute, LAND AFTER FIXES twice and then LAND; five rounds of corrections.
+
+What the reviews and the landing run changed (dec-A171).
+- A held coefficient on a basis of one column is held at 0 on the tip, so the forest drops out of the fit
+  in silence. Until the multiplier-law slice makes that value 1, `amplitude = fixed()` on such a basis is
+  refused at creation at every door, and by `$setForestBasis` on a forest created with a basis. A forest
+  with no basis (held at 1), a factor and a basis of several columns (held at 0 for the first and 1 for
+  the rest) are untouched, and the help says what each holds.
+- `fixed` has one public home, `dbartsPriors`. It resolves inside `forests` and a `forest()` term by the
+  vocabulary those arguments are evaluated in, as `interactions` and `blocks` do, so a caller's own
+  variable named `fixed` is the caller's value and a list forwarded through a wrapper's dots resolves. A
+  round that replaced it in the call's text instead overrode a caller's variable and was undone.
+- The two refusals on a model of one forest and the `fixed(2)` refusal were reworded.
+- The fitting function's `normal(sd = )` refuses what `forest(sd = )` refuses by kind (a complex and a raw
+  were taken before) but takes a named single number as before: a number indexed out of a named vector
+  keeps its name, two vignettes pass one, and `R CMD build` failed on them at the landing run.
+  `forest(sd = )` still refuses a named number (dec-B269) and says to drop the name with `unname()`.
+
+Known until push 3 captures a basis unevaluated: `fixed` in the vocabulary shadows an `attach()`ed column
+and, with the matrix interface, a caller's variable of that name used inside a basis formula.
+
+Gates at landing, on a clean copy of the rebased tree in a library of its own (shipped mode), run in
+series: the full tinytest suite 14564 results, 0 failed, 222 files; lintr no lints; air, rc-codoc,
+win-drift, doc-freshness and the mutation battery's anchors clean; `R CMD build` with every vignette
+rebuilt and `R CMD check --as-cran` with the Date NOTE alone. Neutral: the reviewer's 25 pairs of seeded
+fits, the old spelling on the base build against the new on the push's, were identical, as were the 15
+scenarios of the bcf compare, and the four bcf exact gates passed in `quick`. bartCause's `bcf()` was
+respelled the same day.
