@@ -136,12 +136,15 @@ class PredictorUpdateSession {
 public:
   virtual ~PredictorUpdateSession() = default;
   /// Stages observation i's leaf moves against the running occupancy counts;
-  /// true unless some tree's leaf would be left empty.
+  /// true unless some tree's leaf would be left empty or, the value being the
+  /// column's first missing one, some monotone tree's leaf values would be
+  /// left out of order. A false stages nothing the caller has to undo.
   virtual bool observationWouldRemainValid(size_t i) = 0;
   /// Installs observation i's staged value and occupancy moves.
   virtual void commitObservation(size_t i) = 0;
   /// Re-routes all observations and rebuilds fits. The sequential guard
-  /// admits no empty leaves, so false is an internal invariant violation.
+  /// admits no empty leaf and no tree out of order, so false is an internal
+  /// invariant violation.
   virtual bool finalize() = 0;
 };
 
@@ -1844,8 +1847,10 @@ public:
   /// Replace the predictor matrix from a borrowed view of numObservations
   /// rows, read for the call only (the store keeps its old values on
   /// failure). Unless forceUpdate, a leaf that would empty in any tree of any
-  /// chain rolls the whole change back; forceUpdate instead collapses emptied
-  /// leaves into their parents. Any view shape is consumed column by column
+  /// chain, or a monotone tree whose leaf values would be out of order, rolls
+  /// the whole change back; forceUpdate instead collapses emptied leaves into
+  /// their parents and sets every leaf of a monotone tree left out of order
+  /// to zero. Any view shape is consumed column by column
   /// (ColumnStore::mutateColumnFromSource): a CSC column onto a CSC-backed
   /// one as its entries, never densified, and a CSC or coded column onto a
   /// dense-backed one through one reused column of scratch.
@@ -1902,9 +1907,10 @@ public:
 
   /// Install one column's new values observation-by-observation in random
   /// scan order, declining exactly those whose move would empty a leaf in any
-  /// tree of any forest of any chain; installed must have room for a flag per
-  /// observation. Returns finalize() validity, which the guard makes true by
-  /// construction.
+  /// tree of any forest of any chain and, where the column holds no missing
+  /// value and one would leave a monotone tree's leaf values out of order,
+  /// every missing one; installed must have room for a flag per observation.
+  /// Returns finalize() validity, which the guard makes true by construction.
   bool updatePredictorPerObservation(const double* newColumn, size_t column,
                                      bool* installed) {
     size_t n = data_.numObservations;
@@ -2171,7 +2177,8 @@ private:
   }
 
   /// Two-phase transaction over every chain: validate all trees of all
-  /// forests of all chains first, then rebuild fits only if everything holds,
+  /// forests of all chains first - every leaf occupied and every monotone
+  /// tree's leaf values in order - then rebuild fits only if everything holds,
   /// so a failure in a late chain never leaves an early chain's fits
   /// overwritten. columns names the touched columns (null for a whole-matrix
   /// swap), which prunes the trees of forests past the first that cannot be
@@ -2309,12 +2316,13 @@ private:
   /// One predictor-replacement transaction over a strategy's column list:
   /// precheck that the cuts stay representable, then either collapse emptied
   /// leaves under forceUpdate or snapshot-apply and keep the change when
-  /// revalidateAllChains holds, else restore the snapshot and repartition. The
-  /// engine keeps no predictor matrix, so the raw a reject must put back is
-  /// snapshotted here: the gathered leaf-covariate copies and, for a mixed
-  /// store, the owned dense block of the columns the strategy touches (the
-  /// strategy's own records carry no raw). The strategy owns the codes, missing
-  /// flags, and cut grids it moves.
+  /// revalidateAllChains holds, else restore the snapshot and repartition;
+  /// rolledBack reports an emptied leaf and a monotone tree out of order
+  /// alike. The engine keeps no predictor matrix, so the raw a reject must put
+  /// back is snapshotted here: the gathered leaf-covariate copies and, for a
+  /// mixed store, the owned dense block of the columns the strategy touches
+  /// (the strategy's own records carry no raw). The strategy owns the codes,
+  /// missing flags, and cut grids it moves.
   template <typename Strategy>
   PredictorUpdateResult runPredictorTransaction(Strategy& strategy,
                                                 bool forceUpdate,
@@ -2413,6 +2421,14 @@ private:
 
     bool observationWouldRemainValid(size_t i) override {
       size_t n = sampler_.data_.numObservations;
+      // the column's first missing value, by the test setCell marks the
+      // column with; refused before anything is staged, the session having
+      // no way to take a written cell back
+      if constexpr (TreeDrawLeafModel<L>) {
+        if (isNA(newColumn_[i]) && !sampler_.data_.hasMissing[column_] &&
+            !orderHoldsWithMissing())
+          return false;
+      }
       bool valid = true;
       for (size_t t = 0; t < leafCounts_.size() && valid; ++t) {
         const Tree& tree(treeAt(t));
@@ -2450,7 +2466,10 @@ private:
     /// non-splitting trees, whose partitions the revalidation reproduces
     /// unchanged, so no leaf it did not guard can empty and this returns true
     /// by construction. The variance arm is guarded and revalidated on the same
-    /// predicate with no exemption, so the two sets coincide there.
+    /// predicate with no exemption, so the two sets coincide there. The
+    /// monotone order the revalidation also judges can move only with the
+    /// column's has-missing flag, which the guard lets rise only where the
+    /// order holds with it.
     bool finalize() override {
       return sampler_.revalidateAllChains(&column_, 1);
     }
@@ -2462,6 +2481,25 @@ private:
     struct CachedTree {
       size_t chain, forest, tree;
     };
+
+    /// Whether every tree of every chain stays in the monotone order once the
+    /// column holds a missing value. Leaf values and rules do not move within
+    /// a session and the order reads no partition, so the answer is the same
+    /// for whichever row asks and is found once. Asked only while the
+    /// column's flag is clear, and leaves it clear.
+    bool orderHoldsWithMissing() {
+      if (orderWithMissing_ == OrderWithMissing::unknown) {
+        std::uint8_t& flag = sampler_.data_.hasMissing[column_];
+        flag = 1;
+        bool holds = true;
+        for (size_t c = 0; c < sampler_.chains_.size() && holds; ++c)
+          holds = sampler_.chains_[c]->monotoneLeavesInOrder();
+        flag = 0;
+        orderWithMissing_ =
+          holds ? OrderWithMissing::holds : OrderWithMissing::breaks;
+      }
+      return orderWithMissing_ == OrderWithMissing::holds;
+    }
 
     const Tree& treeAt(size_t t) const {
       const CachedTree& entry(cached_[t]);
@@ -2480,6 +2518,8 @@ private:
     std::vector<std::vector<std::uint32_t>> leafCounts_;  // arena-id indexed
     std::vector<int32_t> pendingNewLeaf_;  // invalidNode when no move staged
     std::vector<int32_t> pendingOldLeaf_;
+    enum class OrderWithMissing { unknown, holds, breaks };
+    OrderWithMissing orderWithMissing_ = OrderWithMissing::unknown;
   };
 
   SamplerOptions options_;

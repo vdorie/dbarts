@@ -826,9 +826,12 @@ private:
 
 /// One sequential sweep over samplers sharing an index-aligned predictor
 /// column: each observation is installed in every sampler or in none, so the
-/// fits never diverge. installed receives one flag per observation. Returns
-/// the conjunction of the finalize() validities, true by construction of the
-/// guard.
+/// fits never diverge. An observation is declined when any sampler's session
+/// declines it: its move would empty a leaf there, or its value is that
+/// sampler's column's first missing one and would leave a monotone tree's
+/// leaf values out of order. installed receives one flag per observation.
+/// Returns the conjunction of the finalize() validities, true by construction
+/// of the guard.
 inline bool updatePredictorPerObservationJointly(
   SamplerBase* const* samplers, std::size_t numSamplers,
   const double* newColumn, const std::size_t* columns, bool* installed) {

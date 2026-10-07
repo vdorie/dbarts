@@ -2912,10 +2912,16 @@ public:
   /// persisted blocks for vector ones; function-valued leaves keep their
   /// per-observation fits in place, so nothing is recovered), re-route every
   /// tree of every forest against the store's current codes, and report
-  /// whether all leaves stay occupied. touched names the columns the
-  /// transaction moved (null for a whole-matrix swap); it drives the j-split
-  /// pruning of forests past the first, which forest 0 does not take. A
-  /// single-forest chain therefore runs exactly the loop it always ran.
+  /// whether all leaves stay occupied and, on the monotone leaf, every tree's
+  /// recovered values stay in order as the store now stands. touched names
+  /// the columns the transaction moved (null for a whole-matrix swap); it
+  /// drives the j-split pruning of forests past the first, which forest 0
+  /// does not take. A single-forest chain therefore runs exactly the loop it
+  /// always ran.
+  ///
+  /// Writes no fit, leaf value or rule, so a repartition against the restored
+  /// store undoes it. The order is judged here for that reason: the rebuild
+  /// phase is not undone.
   bool revalidateTrees(ForestRevalidation& state, const std::size_t* touched,
                        std::size_t numTouched) {
     state.params.resize(forests_.size());
@@ -2933,7 +2939,10 @@ public:
         size_t t = survivors[k];
         recoverLeafParameters(forest, t, params[t]);
         forest.trees[t].repartitionSubtree(data_, 0);
-        allValid = forest.trees[t].bottomNodesAreOccupied();
+        // a factor column's first missing value gives its axis a position
+        // that can relate leaves the order did not
+        allValid = forest.trees[t].bottomNodesAreOccupied() &&
+                   monotoneLeavesInOrder(forest, t, params[t].data());
       }
     }
     // the variance forest, appended after the forests_ body: a homoscedastic
@@ -2975,6 +2984,8 @@ public:
 
   /// Second phase of a successful transaction: rewrite tree fits from the
   /// parameters revalidateTrees recovered, over the same survivor lists.
+  /// Those parameters are installed as recovered: revalidateTrees has found
+  /// every monotone tree in order at them, and nothing here is put back.
   /// Node averages are left stale; run() recomputes them from current
   /// residuals before any use. Function-valued leaves only refresh the
   /// covariate gather: their per-observation fits are the parameters and stay
@@ -2999,9 +3010,6 @@ public:
           // cached fits totalFits still sums; the map then tracks the
           // repartition revalidateTrees performed
           subtractTreeFitsFromTotal(forest, t);
-          // a column that gains missing values gains a value on its axis,
-          // which can relate leaves the monotone order did not
-          reseedInfeasibleMonotoneLeaves(forest, t, params[t]);
           setTreeFits(forest, t, params[t]);
           if constexpr (leafIsConstant) {
             installLeafOfAndAddToTotal(forest, t);
@@ -4241,6 +4249,37 @@ public:
     }
   }
 
+  /// Whether every live tree's leaf values lie in the monotone order as the
+  /// store stands, has-missing flags included. Trivially true off the
+  /// monotone leaf.
+  bool monotoneLeavesInOrder() const {
+    if constexpr (TreeDrawLeafModel<L>) {
+      for (const Forest<L, ResidT>& forest : forests_)
+        for (size_t t = 0; t < forest.numTrees; ++t)
+          if (!monotoneLeavesInOrder(forest, t, forest.muByTree[t].data()))
+            return false;
+    }
+    return true;
+  }
+
+  /// Whether tree t's leaf values, indexed by arena id and read at its bottom
+  /// nodes alone, lie in the monotone order as the store stands. Reads the
+  /// rules, the values, the cut and level counts and the has-missing flags,
+  /// never the partition, so it holds for a tree mid-repartition. Trivially
+  /// true off the monotone leaf.
+  bool monotoneLeavesInOrder(const Forest<L, ResidT>& forest, size_t t,
+                             const double* paramByNode) const {
+    if constexpr (TreeDrawLeafModel<L>) {
+      return monotoneTreeIsFeasible(forest.trees[t], data_,
+                                    forest.leaf.directions.data(), paramByNode);
+    } else {
+      (void) forest;
+      (void) t;
+      (void) paramByNode;
+      return true;
+    }
+  }
+
   /// Reseed, then validate: a tree whose leaf values leave the monotone cone
   /// - a warm-start donor grown without the constraint, or leaves a collapse
   /// or a remap merged or newly related - has every leaf set to 0, the
@@ -4253,8 +4292,7 @@ public:
       const Tree& tree(forest.trees[t]);
       if (paramByNode.size() < tree.nodes.size())
         paramByNode.resize(tree.nodes.size(), 0.0);
-      if (!monotoneTreeIsFeasible(tree, data_, forest.leaf.directions.data(),
-                                  paramByNode.data()))
+      if (!monotoneLeavesInOrder(forest, t, paramByNode.data()))
         std::fill(paramByNode.begin(), paramByNode.end(), 0.0);
     } else {
       (void) forest;

@@ -843,97 +843,523 @@ static void testMonotoneCountScale() {
       elapsed, ratioElapsed);
 }
 
-// A factor column that gains missing values gains a value on its axis, which
-// can relate leaves the order did not: x1 constrained, cut once, each half cut
-// on the factor f with the partition {a, b} | {c, d} labelled the other way on
-// the other half. Without missing values the order is two pairs and these
-// leaf values are feasible; once f has one, it goes left at both f rules and
-// relates the two left leaves, whose values then fall along x1. An accepted
-// predictor update, whole-matrix or row by row, reseeds the tree to all-zero.
+namespace {
+
+using MonotoneFacade = SamplerFacade<MonotoneConstantGaussianLeaf>;
+
+// The data of the missing-value tests is f, a 4-level factor with no missing
+// value, x1 uniform and y rising in x1.
+const size_t arrivalRows = 400;
+const std::int8_t arrivalDirections[2] = {0, 1};
+const ColumnKind arrivalTypes[2] = {ColumnKind::categorical,
+                                    ColumnKind::numeric};
+
+// The tree: x1, constrained increasing, cut once, and each half cut on f with
+// the partition {a, b} | {c, d} labelled the other way on the other half.
+// Leaves in pre-order: (low; a, b), (low; c, d), (high; c, d), (high; a, b).
+// Without missing values the order is two pairs, each (low; S) below
+// (high; S). Once f has a missing value it goes left at both f rules and
+// relates the two left leaves, (low; a, b) below (high; c, d).
+const double breaksWithMissing[4] = {0.05, -0.05, -0.04, 0.06};
+const double holdsEitherWay[4] = {-0.05, -0.06, 0.04, 0.06};
+const double resetToZero[4] = {0.0, 0.0, 0.0, 0.0};
+using ArrivalValues = std::vector<const double*>;
+
+// A sampler of one tree per chain over the data above, chain c seeded by c
+// and holding the tree with valuesByChain[c] at its leaves.
+struct Arrival {
+  std::vector<ext_rng*> rngs;
+  std::unique_ptr<MonotoneFacade> facade;
+  size_t numChains;
+  double cut = 0.0;
+
+  Arrival(const std::vector<double>& x, const std::vector<double>& y,
+          const ArrivalValues& valuesByChain)
+      : numChains(valuesByChain.size()) {
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs.push_back(
+          ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr));
+      ext_rng_setSeed(rngs.back(), 20261001u + static_cast<std::uint32_t>(c));
+    }
+    SamplerOptions options;
+    options.numTrees = 1;
+    options.numChains = numChains;
+    options.numThreads = 1;
+    options.birthOrDeathProbability = 1.0;
+    options.swapProbability = 0.0;
+    options.changeProbability = 0.0;
+    options.monotoneDirections = arrivalDirections;
+    options.predictors.columnTypes = arrivalTypes;
+    facade = std::make_unique<MonotoneFacade>(
+        x.data(), y.data(), arrivalRows, size_t(2), nullptr, nullptr,
+        ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options,
+        rngs.data());
+    const std::vector<double>& cuts(sampler().data().cutPoints[1]);
+    cut = *std::lower_bound(cuts.begin(), cuts.end(), 0.5);
+    SamplerStateData state;
+    sampler().getState(state);
+    for (size_t c = 0; c < numChains; ++c) {
+      std::vector<FlatNode> flat(7, FlatNode());
+      const std::uint64_t masks[2] = {0xcu, 0x3u};
+      flat[0].variable = 1;
+      flat[0].value = cut;
+      setFlatKind(flat[0], FlatKind::ordinal);
+      for (int half = 0; half < 2; ++half) {
+        FlatNode& rule = flat[1 + 3 * half];
+        rule.variable = 0;
+        rule.mask = masks[half];
+        setFlatKind(rule, FlatKind::categoricalInline);
+        flat[2 + 3 * half].value = valuesByChain[c][2 * half];
+        flat[3 + 3 * half].value = valuesByChain[c][2 * half + 1];
+      }
+      state.chains[c].forests[0].trees[0] = flat;
+    }
+    check(sampler().setState(state, nullptr),
+          "monotone missing arrives: the state installs");
+  }
+  ~Arrival() {
+    for (ext_rng* rng : rngs) ext_rng_destroy(rng);
+  }
+
+  Sampler<MonotoneConstantGaussianLeaf>& sampler() { return facade->impl(); }
+  bool factorHasMissing() { return sampler().data().hasMissing[0] != 0; }
+  // chain c's leaf values in pre-order
+  std::vector<double> leaves(size_t c) {
+    std::vector<FlatNode> live;
+    std::vector<std::uint32_t> counts;
+    sampler().flattenTree(c, 0, live, counts);
+    std::vector<double> out;
+    for (const FlatNode& node : live)
+      if (node.variable == invalidVariable) out.push_back(node.value);
+    return out;
+  }
+  bool leavesAre(size_t c, const double* values) {
+    std::vector<double> live = leaves(c);
+    return live.size() == 4 && std::equal(live.begin(), live.end(), values);
+  }
+  void sweep(size_t numSweeps) {
+    Results none;
+    sampler().run(numSweeps, 0, none);
+  }
+};
+
+// What of b differs from a among the things a refused update leaves alone,
+// or null: the codes, has-missing flags and cut grids, and per chain the tree
+// with its leaf values, the row-to-leaf map, the cached fits and sigma, all
+// bit for bit. The order a leaf's rows are held in is left out: a refusal
+// re-routes twice and may leave another. Each partition is held to its own
+// chain's map instead.
+const char* arrivalDifference(Arrival& a, Arrival& b) {
+  auto& sa = a.sampler();
+  auto& sb = b.sampler();
+  const ColumnStore& da(sa.data());
+  const ColumnStore& db(sb.data());
+  size_t n = da.numObservations;
+  if (storageDigest(da) != storageDigest(db)) return "codes";
+  if (da.hasMissing != db.hasMissing) return "has-missing flags";
+  if (da.cutPoints != db.cutPoints) return "cut points";
+  for (size_t c = 0; c < a.numChains; ++c) {
+    std::vector<FlatNode> fa, fb;
+    std::vector<std::uint32_t> counts;
+    sa.flattenTree(c, 0, fa, counts);
+    sb.flattenTree(c, 0, fb, counts);
+    if (fa.size() != fb.size()) return "tree";
+    for (size_t i = 0; i < fa.size(); ++i)
+      if (fa[i].variable != fb[i].variable || fa[i].flags != fb[i].flags ||
+          std::memcmp(&fa[i].value, &fb[i].value, sizeof(double)) != 0)
+        return fa[i].variable == invalidVariable ? "leaf values" : "tree";
+    const std::uint32_t* la = TestPeer::leafOf(sa.chain(c), 0);
+    const std::uint32_t* lb = TestPeer::leafOf(sb.chain(c), 0);
+    if (std::memcmp(la, lb, n * sizeof(std::uint32_t)) != 0)
+      return "row-to-leaf map";
+    if (TestPeer::totalFitsInForest(sa.chain(c), 0) !=
+        TestPeer::totalFitsInForest(sb.chain(c), 0))
+      return "fits";
+    if (sa.sigma(c) != sb.sigma(c)) return "sigma";
+    for (int which = 0; which < 2; ++which) {
+      const Tree& tree = (which == 0 ? sa : sb).chain(c).tree(0);
+      const std::uint32_t* leaf = which == 0 ? la : lb;
+      std::vector<std::int32_t> bottoms;
+      tree.fillBottom(0, bottoms);
+      size_t numRows = 0;
+      for (std::int32_t bottom : bottoms) {
+        const Node& node(tree.at(bottom));
+        numRows += node.numObservations();
+        for (size_t m = node.begin; m < node.end; ++m)
+          if (leaf[tree.indices[m]] != static_cast<std::uint32_t>(bottom))
+            return "partition against its map";
+      }
+      if (numRows != n) return "partition against its map";
+    }
+  }
+  return nullptr;
+}
+
+void checkAt(bool condition, const std::string& label, const char* what) {
+  std::string message = "monotone missing arrives: " + label + ": " + what;
+  check(condition, message.c_str());
+}
+
+// a and b are twins, and are twins again after three sweeps of each: the
+// update left no fit, value, rule or generator moved
+void checkTwins(Arrival& a, Arrival& b, const std::string& label) {
+  for (int pass = 0; pass < 2; ++pass) {
+    if (pass == 1) {
+      a.sweep(3);
+      b.sweep(3);
+    }
+    const char* difference = arrivalDifference(a, b);
+    std::string what = pass == 0 ? "the sampler is its twin"
+                                 : "three sweeps later it is still its twin";
+    if (difference != nullptr)
+      what += std::string(", differs in ") + difference;
+    checkAt(difference == nullptr, label, what.c_str());
+  }
+}
+
+size_t countTrue(const bool* flags, size_t n) {
+  size_t count = 0;
+  for (size_t i = 0; i < n; ++i) count += flags[i] ? 1 : 0;
+  return count;
+}
+
+}  // namespace
+
+// A factor column's first missing value on a sampler with a monotone
+// constraint. Unforced, an update that brings it while a tree's leaf values
+// would then be out of order is refused and the sampler is an untouched
+// twin's: whole matrix and by column, with and without a cut refresh, and row
+// by row, where each row bringing the value is refused and the others
+// install. Where the values stay in order it is accepted and they are kept.
+// Forced, and through setData, it is taken and such a tree is set to zero.
 static void testMonotoneMissingArrives() {
-  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
-  ext_rng_setSeed(rng, 20261001u);
-  const size_t n = 400;
+  const double na = std::numeric_limits<double>::quiet_NaN();
+  const size_t n = arrivalRows;
   std::vector<double> x(2 * n), y(n);
   for (size_t i = 0; i < n; ++i) {
     x[i] = static_cast<double>(i % 4);
     x[n + i] = runif01();
     y[i] = x[n + i];
   }
-  const std::int8_t dir[2] = {0, 1};
-  const ColumnKind types[2] = {ColumnKind::categorical, ColumnKind::numeric};
-  SamplerOptions options;
-  options.numTrees = 1;
-  options.birthOrDeathProbability = 1.0;
-  options.swapProbability = 0.0;
-  options.changeProbability = 0.0;
-  options.monotoneDirections = dir;
-  options.predictors.columnTypes = types;
+  const size_t factorColumn = 0;
+  const size_t bothColumns[2] = {0, 1};
 
-  std::vector<double> withMissing(x);
-  withMissing[5] = std::numeric_limits<double>::quiet_NaN();
-  for (int path = 0; path < 2; ++path) {
-    Sampler<MonotoneConstantGaussianLeaf> sampler(
-        x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
-        1.0, 3.0, 0.37804942330213542, options, &rng);
-    const ColumnStore& store(sampler.data());
-    const std::vector<double>& cuts(store.cutPoints[1]);
-    double cut = *std::lower_bound(cuts.begin(), cuts.end(), 0.5);
-    std::vector<FlatNode> flat(7, FlatNode());
-    const double values[4] = {0.05, -0.05, -0.04, 0.06};
-    const std::uint64_t masks[2] = {0xcu, 0x3u};
-    flat[0].variable = 1;
-    flat[0].value = cut;
-    setFlatKind(flat[0], FlatKind::ordinal);
-    for (int half = 0; half < 2; ++half) {
-      FlatNode& rule = flat[1 + 3 * half];
-      rule.variable = 0;
-      rule.mask = masks[half];
-      setFlatKind(rule, FlatKind::categoricalInline);
-      flat[2 + 3 * half].value = values[2 * half];
-      flat[3 + 3 * half].value = values[2 * half + 1];
+  // the row given the missing value is one it moves to another leaf, x1 above
+  // the cut and level a or b, so a fit rebuilt from the new partition shows;
+  // `second` is another such row and `moved` a row whose level changes
+  size_t row = n, second = n, moved = n;
+  {
+    Arrival probe(x, y, {breaksWithMissing});
+    check(probe.leavesAre(0, breaksWithMissing) && !probe.factorHasMissing(),
+          "monotone missing arrives: in order without missing values");
+    for (size_t i = 0; i < n; ++i) {
+      bool moves = x[n + i] > probe.cut && x[i] < 2.0;
+      if (moves && row == n) row = i;
+      else if (moves && second == n) second = i;
+      else if (!moves && moved == n) moved = i;
     }
-    SamplerStateData state;
-    sampler.getState(state);
-    state.chains[0].forests[0].trees[0] = flat;
-    check(sampler.setState(state, nullptr),
-          "monotone missing arrives: the state installs");
-
-    auto liveValues = [&](std::vector<double>& out) {
-      std::vector<FlatNode> live;
-      std::vector<std::uint32_t> counts;
-      sampler.flattenTree(0, 0, live, counts);
-      out.clear();
-      for (const FlatNode& node : live)
-        if (node.variable == invalidVariable) out.push_back(node.value);
-    };
-    std::vector<double> before, after;
-    liveValues(before);
-    check(before.size() == 4 && before[0] == values[0] &&
-              before[2] == values[2],
-          "monotone missing arrives: feasible without missing values");
-    if (path == 0) {
-      check(sampler.setPredictor(withMissing.data(), false, false) ==
-                PredictorUpdateResult::accepted,
-            "monotone missing arrives: the update is accepted");
-    } else {
-      std::unique_ptr<bool[]> installed(new bool[n]);
-      check(sampler.updatePredictorPerObservation(withMissing.data(), 0,
-                                                  installed.get()) &&
-                installed[5],
-            "monotone missing arrives: the row update installs");
-    }
-    check(sampler.data().hasMissing[0] != 0,
-          "monotone missing arrives: the column has a missing value");
-    liveValues(after);
-    bool zero = after.size() == 4;
-    for (double v : after) zero = zero && v == 0.0;
-    check(zero, path == 0
-                    ? "monotone missing arrives: setPredictor reseeds"
-                    : "monotone missing arrives: a row update reseeds");
   }
-  ext_rng_destroy(rng);
-  printf("ok: monotone order gains the missing value an update brings\n");
+  check(row < n && second < n && moved < n,
+        "monotone missing arrives: the fixture has its three rows");
+  if (row == n || second == n || moved == n) return;
+
+  // the matrix with the missing value; the same with x1 rescaled, which keeps
+  // every code under a cut refresh and moves every cut point
+  std::vector<double> withMissing(x), rescaled(x);
+  withMissing[row] = na;
+  rescaled[row] = na;
+  for (size_t i = 0; i < n; ++i) rescaled[n + i] = 0.25 + 0.5 * x[n + i];
+  // the factor column with two missing values and one row moved to another
+  // level, and the column a call that refuses the two leaves behind
+  std::vector<double> twoMissing(x.begin(), x.begin() + n);
+  twoMissing[moved] = std::fmod(twoMissing[moved] + 1.0, 4.0);
+  std::vector<double> twoRefused(twoMissing);
+  twoMissing[row] = na;
+  twoMissing[second] = na;
+  // a matrix whose factor holds a missing value from the start, elsewhere
+  std::vector<double> alreadyMissing(x);
+  alreadyMissing[moved] = na;
+  std::vector<double> anotherMissing(alreadyMissing);
+  anotherMissing[row] = na;
+
+  // one unforced update: whole matrix and by column, each without and with a
+  // cut refresh, then row by row; true when the engine took it
+  std::unique_ptr<bool[]> installed(new bool[n]), twinInstalled(new bool[n]);
+  static const char* const unforcedForms[5] = {
+      ", whole matrix", ", by column", ", whole matrix with a cut refresh",
+      ", by column with a cut refresh", ", row by row"};
+  auto update = [&](Arrival& s, int form, bool* valid) {
+    auto& sampler = s.sampler();
+    PredictorUpdateResult result = PredictorUpdateResult::accepted;
+    *valid = true;
+    if (form == 0)
+      result = sampler.setPredictor(withMissing.data(), false, false);
+    else if (form == 1)
+      result = sampler.updatePredictor(withMissing.data(), &factorColumn, 1,
+                                       false, false);
+    else if (form == 2)
+      result = sampler.setPredictor(rescaled.data(), false, true);
+    else if (form == 3)
+      result =
+          sampler.updatePredictor(rescaled.data(), bothColumns, 2, false, true);
+    else
+      *valid = sampler.updatePredictorPerObservation(twoMissing.data(), 0,
+                                                     installed.get());
+    return result;
+  };
+
+  // every chain out of order once f has a missing value, the second chain
+  // alone, and every chain in order either way
+  const ArrivalValues layouts[5] = {{breaksWithMissing},
+                                    {breaksWithMissing, breaksWithMissing},
+                                    {holdsEitherWay, breaksWithMissing},
+                                    {holdsEitherWay},
+                                    {holdsEitherWay, holdsEitherWay}};
+  static const char* const layoutNames[5] = {
+      "one chain", "two chains", "the second chain alone",
+      "in order, one chain", "in order, two chains"};
+  int numRefused = 0, numAccepted = 0, numForced = 0;
+  for (int l = 0; l < 5; ++l) {
+    const ArrivalValues& values = layouts[l];
+    bool breaks = l < 3;
+    for (int form = 0; form < 5; ++form) {
+      std::string label = std::string(layoutNames[l]) + unforcedForms[form];
+      Arrival s(x, y, values), twin(x, y, values);
+      std::vector<double> cutsBefore(s.sampler().data().cutPoints[1]);
+      bool valid;
+      PredictorUpdateResult result = update(s, form, &valid);
+      checkAt(valid, label, "the session ends valid");
+      if (!breaks) {
+        checkAt(result == PredictorUpdateResult::accepted &&
+                    (form < 4 || countTrue(installed.get(), n) == n),
+                label, "accepted");
+        bool kept = s.factorHasMissing();
+        for (size_t c = 0; c < values.size(); ++c)
+          kept = kept && s.leavesAre(c, holdsEitherWay);
+        checkAt(kept, label, "the values are kept and the flag is set");
+        // the refresh the refused forms roll back is one that moves the grid
+        if (form == 2 || form == 3)
+          checkAt(s.sampler().data().cutPoints[1] != cutsBefore, label,
+                  "the cut points moved");
+        ++numAccepted;
+        continue;
+      }
+      if (form < 4) {
+        checkAt(result == PredictorUpdateResult::rolledBack, label, "refused");
+      } else {
+        // the twin is given the column the call left
+        checkAt(!installed[row] && !installed[second], label,
+                "each row bringing the missing value is refused");
+        checkAt(countTrue(installed.get(), n) == n - 2, label,
+                "every other row installs");
+        checkAt(twin.sampler().updatePredictorPerObservation(
+                    twoRefused.data(), 0, twinInstalled.get()) &&
+                    countTrue(twinInstalled.get(), n) == n,
+                label, "the twin takes the column without the two");
+      }
+      checkAt(!s.factorHasMissing(), label, "the factor's flag is clear");
+      checkTwins(s, twin, label);
+      ++numRefused;
+    }
+
+    // forced whole and by column, and setData: taken, a tree left out of
+    // order set to zero and a tree in order kept
+    for (int form = 0; form < 3; ++form) {
+      static const char* const forms[3] = {", forced whole matrix",
+                                           ", forced by column", ", setData"};
+      std::string label = std::string(layoutNames[l]) + forms[form];
+      Arrival s(x, y, values);
+      auto& sampler = s.sampler();
+      bool taken;
+      if (form == 0)
+        taken = sampler.setPredictor(withMissing.data(), true, false) ==
+                PredictorUpdateResult::accepted;
+      else if (form == 1)
+        taken = sampler.updatePredictor(withMissing.data(), &factorColumn, 1,
+                                        true, false) ==
+                PredictorUpdateResult::accepted;
+      else
+        taken = sampler.setData(withMissing.data(), y.data(), n, nullptr,
+                                nullptr, nullptr, 0);
+      checkAt(taken && s.factorHasMissing(), label, "taken");
+      bool reset = true;
+      for (size_t c = 0; c < values.size(); ++c)
+        reset = reset && s.leavesAre(c, values[c] == breaksWithMissing
+                                            ? resetToZero
+                                            : holdsEitherWay);
+      checkAt(reset, label, "a tree left out of order is zero, another kept");
+      ++numForced;
+    }
+  }
+
+  // two samplers swept jointly, in either order: a row one of them refuses is
+  // declined in both, and each ends a twin swept with the column without it
+  for (int first = 0; first < 2; ++first) {
+    std::string label = first == 0 ? "jointly, the sampler in order first"
+                                   : "jointly, the sampler in order second";
+    const size_t columns[2] = {0, 0};
+    Arrival held(x, y, {holdsEitherWay}), broken(x, y, {breaksWithMissing});
+    Arrival heldTwin(x, y, {holdsEitherWay}),
+        brokenTwin(x, y, {breaksWithMissing});
+    SamplerBase* samplers[2] = {held.facade.get(), broken.facade.get()};
+    SamplerBase* twins[2] = {heldTwin.facade.get(), brokenTwin.facade.get()};
+    if (first == 1) {
+      std::swap(samplers[0], samplers[1]);
+      std::swap(twins[0], twins[1]);
+    }
+    checkAt(updatePredictorPerObservationJointly(
+                samplers, 2, twoMissing.data(), columns, installed.get()),
+            label, "both sessions end valid");
+    checkAt(!installed[row] && !installed[second] &&
+                countTrue(installed.get(), n) == n - 2,
+            label, "the two rows are declined, the others install");
+    checkAt(!held.factorHasMissing() && !broken.factorHasMissing(), label,
+            "neither flag is set");
+    checkAt(updatePredictorPerObservationJointly(
+                twins, 2, twoRefused.data(), columns, twinInstalled.get()),
+            label, "the twins take the column without the two");
+    checkTwins(held, heldTwin, label + ", the one in order");
+    checkTwins(broken, brokenTwin, label + ", the other");
+    ++numRefused;
+  }
+
+  // a column that already holds a missing value takes another
+  for (int form = 0; form < 3; ++form) {
+    static const char* const forms[3] = {", whole matrix", ", by column",
+                                         ", row by row"};
+    std::string label = std::string("a second missing value") + forms[form];
+    Arrival s(alreadyMissing, y, {holdsEitherWay, holdsEitherWay});
+    auto& sampler = s.sampler();
+    checkAt(s.factorHasMissing(), label, "the column holds one from the start");
+    bool accepted;
+    if (form == 0)
+      accepted = sampler.setPredictor(anotherMissing.data(), false, false) ==
+                 PredictorUpdateResult::accepted;
+    else if (form == 1)
+      accepted = sampler.updatePredictor(anotherMissing.data(), &factorColumn,
+                                         1, false, false) ==
+                 PredictorUpdateResult::accepted;
+    else
+      accepted = sampler.updatePredictorPerObservation(anotherMissing.data(), 0,
+                                                       installed.get()) &&
+                 countTrue(installed.get(), n) == n;
+    bool kept = sampler.data().codeAt(0, row) == missingCategoryCode(4) &&
+                s.leavesAre(0, holdsEitherWay) &&
+                s.leavesAre(1, holdsEitherWay);
+    checkAt(accepted && kept, label, "accepted, the values kept");
+    ++numAccepted;
+  }
+  printf("ok: monotone order and the missing value an update brings (%d "
+         "refused against a twin, %d accepted, %d forced)\n",
+         numRefused, numAccepted, numForced);
+}
+
+// Which has-missing flag can relate leaves the order did not, on random trees
+// through the engine's geometry. Over a store with no missing value no rule
+// carries a direction, so a first missing value goes left at every rule on
+// its column: it changes no relation on a numeric or an ordered column, and
+// on an unordered factor's adds some and removes none. A flag that clears
+// adds none, and the relations read the same before and after the
+// directions it strands are dropped.
+static void testMonotoneMissingRelates() {
+  // x0, x1 constrained; x2 numeric, x3 ordered, x4 a 4-level factor and x5 a
+  // 70-level one (pooled), all free
+  const size_t n = 700, p = 6;
+  const std::int8_t dir[p] = {1, -1, 0, 0, 0, 0};
+  const ColumnKind types[p] = {
+      ColumnKind::numeric,       ColumnKind::numeric,
+      ColumnKind::numeric,       ColumnKind::orderedFactor,
+      ColumnKind::categorical,   ColumnKind::categorical};
+  const double levels[p] = {0.0, 0.0, 0.0, 5.0, 4.0, 70.0};
+  const int numTrees = 4000;
+  // per column, the related pairs the flag change adds, removes and reverses
+  struct Tally {
+    long added = 0, removed = 0, reversed = 0;
+  };
+  Tally gained[p], lost[p];
+  long numRelated = 0;
+  bool flagsAsBuilt = true, dropIsUnread = true;
+  std::vector<int> before, after, dropped;
+  auto relations = [&](const Tree& tree, const ColumnStore& store,
+                       std::vector<int>& out) {
+    std::vector<std::int32_t> leaves;
+    tree.fillBottom(0, leaves);
+    MonotoneLeafGeometry geometry;
+    geometry.build(tree, store, leaves);
+    out.assign(leaves.size() * leaves.size(), 0);
+    for (size_t l = 0; l < leaves.size(); ++l)
+      for (size_t r = l + 1; r < leaves.size(); ++r)
+        out[l * leaves.size() + r] = geometry.relation(l, r, dir);
+  };
+  auto compare = [&](Tally& tally) {
+    for (size_t k = 0; k < before.size(); ++k) {
+      if (before[k] == after[k]) continue;
+      if (before[k] == 0) ++tally.added;
+      else if (after[k] == 0) ++tally.removed;
+      else ++tally.reversed;
+    }
+  };
+  for (int withMissing = 0; withMissing < 2; ++withMissing) {
+    const double na = std::numeric_limits<double>::quiet_NaN();
+    std::vector<double> x(n * p);
+    for (size_t i = 0; i < n; ++i)
+      for (size_t j = 0; j < p; ++j) {
+        double u = runif01();
+        x[j * n + i] = j == 5 ? static_cast<double>(i % 70)
+                       : levels[j] > 0.0 ? std::floor(levels[j] * u) : u;
+        if (withMissing && runif01() < 0.15) x[j * n + i] = na;
+      }
+    ColumnStore store;
+    built(store.build(x.data(), n, p, 6, false, types));
+    for (size_t j = 0; j < p; ++j)
+      flagsAsBuilt = flagsAsBuilt && (store.hasMissing[j] != 0) == withMissing;
+    for (int trial = 0; trial < numTrees; ++trial) {
+      TestTree t(store);
+      t.growRandom(2 + trial % 9);
+      relations(t.tree, store, before);
+      for (int relation : before) numRelated += relation != 0;
+      for (size_t j = 0; j < p; ++j) {
+        Tree changed = t.tree;
+        store.hasMissing[j] = withMissing ? 0 : 1;
+        relations(changed, store, after);
+        compare(withMissing ? lost[j] : gained[j]);
+        if (withMissing) {
+          changed.dropStaleMissingDirections(store);
+          relations(changed, store, dropped);
+          dropIsUnread = dropIsUnread && after == dropped;
+        }
+        store.hasMissing[j] = withMissing ? 1 : 0;
+      }
+    }
+  }
+  bool thresholdsUnchanged = true, noneLost = true, noneGained = true;
+  long numRemoved = 0;
+  for (size_t j = 0; j < p; ++j) {
+    thresholdsUnchanged =
+        thresholdsUnchanged && (j > 3 || gained[j].added == 0);
+    noneLost = noneLost && gained[j].removed == 0 && gained[j].reversed == 0;
+    noneGained = noneGained && lost[j].added == 0 && lost[j].reversed == 0;
+    numRemoved += lost[j].removed;
+  }
+  check(flagsAsBuilt && numRelated > 20000,
+        "monotone missing relates: the stores and trees are as described");
+  check(thresholdsUnchanged,
+        "monotone missing relates: a first missing value in a numeric or an "
+        "ordered column adds no relation");
+  check(noneLost, "monotone missing relates: a first missing value removes "
+                  "and reverses no relation");
+  check(gained[4].added > 0, "monotone missing relates: a first missing value "
+                             "in an unordered factor adds relations");
+  check(noneGained && numRemoved > 0,
+        "monotone missing relates: a flag that clears removes relations and "
+        "adds and reverses none");
+  check(dropIsUnread, "monotone missing relates: the order reads the same "
+                      "before and after the stranded directions are dropped");
+  printf("ok: monotone order and a has-missing flag (%d trees each way; a "
+         "first missing value adds %ld pairs through the 4-level factor, "
+         "%ld through the pooled one, none through the others; a flag that "
+         "clears removes %ld)\n",
+         numTrees, gained[4].added, gained[5].added, numRemoved);
 }
 
 namespace {
@@ -1837,6 +2263,7 @@ void runMonotoneTests() {
   testMonotoneCountScale();
   testMonotoneGeometryPoints();
   testMonotoneMissingArrives();
+  testMonotoneMissingRelates();
   testMonotoneMoveClosedForm();
   testMonotoneConeDeepTail();
   testMonotoneSeamDeepTail();
