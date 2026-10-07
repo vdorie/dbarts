@@ -79,8 +79,8 @@ All numbers below were run on the tip's build; a column is numeric unless said o
   `setData`) uses it. No cap is kept beside it: a refresh re-cuts at the count the column holds, so a set
   grid leaves nothing that a copy and a reload do not also have.
 - `setCutPoints` takes a strictly increasing grid of one to 65533 points, none `NaN`, and one grid more:
-  the grid the column holds at the call, value for value, repeated points included. Given the whole list,
-  the entries of factor columns are not read, whatever they are.
+  the grid the column holds at the call, bit for bit (a -0 for a 0 is another grid), repeated points
+  included. Given the whole list, the entries of factor columns are not read, whatever they are.
 
 ## Constraints
 
@@ -110,7 +110,8 @@ All numbers below were run on the tip's build; a column is numeric unless said o
    [`testRequestedCutCount`](../../tests/cpp/test_data.cpp): set longer, shorter, then the original back,
    and the store is as one never changed; set longer, keep it, `setData`: the derived count is the asked
    one (fails today: the longer length), under each rule; a refresh onto a column with enough distinct
-   values keeps a set count above the asked one and below it, each rule; a view of a parent whose columns
+   values keeps a set count above the asked one and below it, each rule, on a dense column and on a
+   CSC-backed one, whose refresh and feasibility check count for themselves; a view of a parent whose columns
    ask for different counts carries each through the column map
    ([`testColumnStoreView`](../../tests/cpp/test_data.cpp)); an ordered factor's count is what it is today.
 2. Bridge and R. [`bartcore_setCutPoints`](../../src/R_interface_bartcore.cpp) holds a grid to the strict
@@ -118,10 +119,15 @@ All numbers below were run on the tip's build; a column is numeric unless said o
    holds and, when the column argument is `NULL`, takes one entry per predictor and skips those of factor
    columns; with nothing left to install it returns having changed nothing.
    [`bartcoreSamplerSetCutPoints`](../../R/bartcore.R) passes `NULL` when `column` is missing instead of
-   naming every column, and drops the entries of factor columns unread before it coerces the rest. The
-   refusal for an unusable grid becomes `$setCutPoints: 'cuts' must be strictly increasing and not contain
-   NaN, unless it is the grid the column holds`; an entry that is not a vector of numbers is refused as
-   `$setCutPoints: 'cuts' must be numeric`.
+   naming every column and takes a data frame as the list of its columns. A list of another length goes to
+   the bridge, which refuses it, with no entry read. Of a list of the right length it drops the entries of
+   factor columns unread and refuses any other entry that is not numeric, as
+   `$setCutPoints: 'cuts' must be numeric`: a function, `NULL`, and what `as.double` would have taken at the
+   tip, a character vector, a logical, a factor (as its codes) and a Date (as its day count), none of which
+   a test pinned. The rest it coerces to double. The bridge keeps the same refusal for another caller of
+   the entry; no call through R reaches it. The refusal for an unusable grid becomes
+   `$setCutPoints: 'cuts' must be strictly increasing and not contain NaN, unless it is the grid the column
+   holds`.
 3. tinytest, a new file `test-cut-points-undo.R`; "fails today" names what the tip does.
    - The undo leaves no residue: `n.cuts = 20`; sampler and twin run and store; the sampler sets 50 points,
      sets the stored grid back and restores (`TRUE`); the twin restores its own state; both take the same
@@ -136,16 +142,20 @@ All numbers below were run on the tip's build; a column is numeric unless said o
      after is identical; the whole own list too. Fails today: refused.
    - An unordered factor and an ordered factor beside numeric columns: the whole own list is accepted and
      changes nothing; a whole list with the factor's levels and a function in the factor entries is accepted
-     in silence and sets the numeric columns; a bad numeric entry of a whole list is refused; naming the
-     factor column is refused with each of the two messages; a short list is refused. The first two fail
+     in silence and sets the numeric columns, and so does a data frame with a column per predictor; a bad
+     numeric entry of a whole list is refused; naming the factor column is refused with each of the two
+     messages; a list shorter or longer than the design is refused with no warning. The first two fail
      today. On a design of factor columns alone the whole list returns and the stored state is unchanged.
    - Any grid with equal neighbours that is not the one the column holds is refused, on a column whose own
      grid repeats a point too, as a decreasing grid, a `NaN` and an `NA` are, with the new message, by
-     column and as an entry of the whole list, and the grid is left as it was; a strictly increasing grid
-     is accepted; a function is refused by name. After a constant column's grid is changed its old grid is
-     refused and `setState` brings it back.
+     column and as an entry of the whole list, and the grid is left as it was; over a column of zeros the
+     held zeros are accepted and as many negative zeros refused; a strictly increasing grid is accepted; a
+     function, a character vector, a logical, a factor, a Date and `NULL` are refused by name, and whole
+     numbers taken; a column named three times has each entry read. After a constant column's grid is
+     changed its old grid is refused and `setState` brings it back.
    - A state on a shorter grid installed over a 50-point grid, the 50 points set again, then a state
      refused: the column still refreshes at 50, each rule.
+   - A sparse column with 50 points set, then 3: each refresh returns `TRUE` and keeps the count, each rule.
    - The whole undo on a design with a constant column and a factor: store, set another grid on a numeric
      column, hand the stored state's whole list back, restore (`TRUE`), and the continuation is identical to
      a twin's that restored its own state. Fails today: refused at the second call.
@@ -180,7 +190,8 @@ All numbers below were run on the tip's build; a column is numeric unless said o
   - a derivation counts from the count the column holds, not the asked one, on both arms and on each alone:
     tests/cpp "set longer, keep it, `setData`" and tinytest "a 50-point grid left in place";
   - a refresh counts from the asked count: tests/cpp "a refresh keeps the set count" and tinytest's
-    50-point refresh pin and its refresh after a refused state, under the quantile rule (refused);
+    50-point refresh pin and its refresh after a refused state, under the quantile rule (refused); the
+    same on the two CSC arms: tests/cpp "a CSC refresh keeps the set count" and tinytest's sparse refresh;
   - a view does not copy the asked count, on each arm, and the column-subset arm reads it by its own index:
     tests/cpp's view checks;
   - the bridge refuses the held grid too: tinytest "a constant column and a narrow column"; the bridge
@@ -188,7 +199,10 @@ All numbers below were run on the tip's build; a column is numeric unless said o
   - the whole list does not skip factor columns, in the bridge and in R: tinytest "an unordered factor and
     an ordered factor";
   - a whole list's numeric entries are not checked: tinytest's whole-list refusals;
-  - a whole list over factor columns alone raises: tinytest's design of factor columns alone.
+  - a whole list over factor columns alone raises: tinytest's design of factor columns alone;
+  - a list longer than the design is taken: tinytest's wrong-length refusals;
+  - the held grid is matched by value, not bit for bit: tinytest's negative zeros over a column of zeros;
+  - R drops entries by position when columns are named: tinytest's column named three times.
 - `lintr::lint_package()`, `air format --check .`, `Rscript tools/check-rc-codoc.R .`,
   `Rscript tools/check-win-drift.R .`, `Rscript tools/check-doc-freshness.R .`,
   `Rscript benchmarks/R/mutation-battery.R verify-anchors`, each on its own exit status; `R CMD check
@@ -205,13 +219,14 @@ never installs it; the manual's table of what puts each derived value back befor
 ## Calls made in planning
 
 - A caller's grid stays strictly increasing, and the one grid taken with equal neighbours is the grid the
-  column holds, value for value (decided after the first review). The alternative, this plan's first call,
+  column holds, bit for bit (decided after the first review). The alternative, this plan's first call,
   took any non-decreasing grid. A stored split names its cut by value and a restore puts it on the first
   index holding that value, so on a grid with every point tripled a store and restore moved the next 30
   draws by 0.569, and beside missing values it installed trees the prior gives probability zero; the undo
   needs none of that. Cost: once the grid of a column whose own grid repeats a point has been changed,
   `setCutPoints` does not take the old one back, and `setState` brings it. The restore is left alone: the
-  same move happens on the store's own grid over a narrow column, which is TODO `repeated-cut-restore`.
+  same move happens on every grid that repeats a value, and the store's two rules, a refresh that keeps a
+  constant column's grid and a state install each produce one, which is TODO `repeated-cut-restore`.
 - The bridge skips the factor entries of a whole list by the store's own column kinds, and R drops them
   unread before it coerces the rest, by `data@varTypes`, the record the bridge builds those kinds from
   (after the first review). Before it R coerced every entry, so a factor's levels in its own place warned
