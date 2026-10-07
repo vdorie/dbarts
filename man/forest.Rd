@@ -262,11 +262,23 @@ forest(
     A formula made elsewhere, held in a variable or handed over as above, is
     read in the same way and at the same moment, when \code{forest()} is
     called: a name of a column of \code{data} is that column, and every other
-    variable the formula uses is copied from where the formula was made. A
-    formula made in a loop and held in a variable therefore gives each forest
-    what its own call saw, and a variable changed afterwards changes neither
-    the fit nor a prediction. The formula itself is not touched: it is the
-    formula you made, in its environment, and nothing is assigned there.
+    variable the formula uses is copied, as it is then, from where the
+    formula was made. What counts is when \code{forest()} is called, not when
+    the formula was made. In
+    \preformatted{
+    fs <- list(forest())
+    for (k in c(10, 30)) {
+      f <- ~ I(dose / k)
+      fs[[length(fs) + 1]] <- forest(x1, basis = f)
+    }
+    }
+    each forest has its own \code{k}, because \code{forest()} is called
+    inside the loop. Formulas made in a loop and given to \code{forest()}
+    only after it all see the last \code{k}: a formula holds its environment
+    and no value, as everywhere in R. A variable changed after
+    \code{forest()} is called changes neither the fit nor a prediction. The
+    formula itself is not touched: it is the formula you made, in its
+    environment, and nothing is assigned there.
 
     A \code{forest()} term inside the formula of \code{\link{bart}} or
     \code{\link{dbarts}} is part of that formula and is read with it, as R
