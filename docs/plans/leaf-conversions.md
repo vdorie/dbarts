@@ -442,6 +442,12 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
   `setOffset(NULL, updateScale = TRUE)` is refused like any other offset. The flat entries' refusal is
   tested in test-capi.R, where the consumer is compiled; everything else in test-leaf-conversions.R.
   The design note's own Status line is left for the landing.
+- After the review, 2026-10-07. The calls step 5 leaves served are each inside an expectation, so a guard
+  that fires where it should not is counted and the file runs on. The help names the one idiom the refusal
+  costs: a gp sampler that keeps trees and re-anchors every sweep of its warm-up is served only while those
+  sweeps are run as burn-in, which keeps no draw; a test holds both halves. The message is left as pinned.
+  The design note and the TODO now give the refusal of a re-derived range to the decision of 2026-10-06
+  above and not to dec-B237, which rules the standardization.
 
 ## Landing note
 

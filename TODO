@@ -406,11 +406,14 @@ items
     predict path reaches, the state writer and reader. Then restate or
     drop the refusal of kept gp draws under another named lengthscale
     (dec-A146), whose reason this removes.
-    The refusals are step 5 of docs/plans/leaf-conversions.md. The
-    kernel record lifts the standardization half of the setData
-    refusal; the range half and the updateScale = TRUE refusals stand
-    until a kept gp draw also records the response range it was drawn
-    under.
+    The refusals are step 5 of docs/plans/leaf-conversions.md. Of
+    them dec-B237 rules the standardization only; refusing a
+    re-derived response range is the coordinator's decision of
+    2026-10-06, recorded in that plan's calls made in planning and
+    not yet marked. The kernel record lifts the standardization half
+    of the setData refusal; the range half and the updateScale = TRUE
+    refusals stand until a kept gp draw also records the response
+    range it was drawn under.
   classic-compare-quantile-row: the compare against 0.9-34 has one
     quantile scenario, 500 distinct values at 20 cuts, and since the
     quantile split points were spread over the whole column (dec-B235)

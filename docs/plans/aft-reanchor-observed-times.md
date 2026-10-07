@@ -7,7 +7,9 @@ agent: one opus implementer (engine and its tests); opus reviewer.
 rng: by call.
 - NEUTRAL for every sampler that is not aft; for an aft sampler that never calls `setOffset` with
   `updateScale = TRUE`; and for that call on an aft sampler with no censored row, or one whose censored
-  rows still sit at their censoring times (straight after creation, or straight after `setResponse`).
+  rows still sit at their censoring times, which is straight after creation only: `setResponse`, a status
+  change and a `setActiveRows` reactivation each redraw censored rows without a sweep, and the call after
+  any of them is in the changed class below (corrected 2026-10-07; see Calls made in planning).
 - POSTERIOR-CHANGING for one sequence: an aft sampler with a censored row, `setOffset(updateScale = TRUE)`
   through the R method or the flat C entry, after a sweep or after a restore of drawn times. Today each
   chain takes its range from its own drawn times; afterwards every chain takes the range of the observed
@@ -197,3 +199,7 @@ Agent-made, for the maintainer's later mark.
   and the flat entry's check uses it. The third mutation moves a bit only where the reordered sum does
   not round back; adding and subtracting 1 left the engine fixture's two extremes as they were (R caught
   it once, through the recorded range), 3.3 did not.
+- After the review, 2026-10-07: both tests gained a sampler with one censored row, the one whose observed
+  time less the offset is the largest. Until then nothing failed when the last censored row was left at
+  its drawn time or when a sampler with a single censored row took the old path (the reviewer's two
+  surviving mutations). The `rng:` line is corrected in place.
