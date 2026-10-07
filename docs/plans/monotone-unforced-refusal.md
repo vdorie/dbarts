@@ -443,3 +443,4 @@ with the new values. Either failure refuses it.
     crossing). ?monotone now says what each call does and names the forced update as the way in.
   - The session's flag is raised and cleared by a scope guard, so a failed allocation in the reader
     cannot leave it set.
+  - Size after this round: about 1290 lines added; tests/cpp 610, the tinytest 450, the help 55.
