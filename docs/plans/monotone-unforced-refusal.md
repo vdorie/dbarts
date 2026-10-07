@@ -405,9 +405,9 @@ with the new values. Either failure refuses it.
     a twin's, by at most 2.2e-16, 3 a sigma and 1 the final state; after one row moved and moved back by
     two accepted updates, 4 seeds. So tests/cpp compares everything bit for bit after the call,
     generators included, and after three sweeps the trees and generators exactly with values, fits and
-    sigma to 1e-12; the tinytest holds state, `data@x` and predictions identical and the next five draws
-    to 1e-12. The fixtures of tests/cpp drew bit for bit through 40 sweeps on arm64 macOS; the tolerance
-    is for other hosts.
+    sigma to 1e-12; the tinytest holds state, `data@x`, predictions and cached fits identical and the
+    next five draws to 1e-12. The fixtures of tests/cpp drew bit for bit through 40 sweeps on arm64
+    macOS; the tolerance is for other hosts.
   - The reset reads the order through the new reader, and the row guard compiles out off the monotone
     leaf as the phase-one check does.
   - tests/cpp goes past step 4: the joint sweep runs through the real function in both orders, the cut
@@ -416,4 +416,4 @@ with the new values. Either failure refuses it.
     stranded directions are dropped, which is what lets phase one judge it before the drop.
   - TODO is untouched, its entry naming this plan already. The design note's Status line names the plan
     without a commit, which the landing adds.
-  - Size: about 1080 lines added against 450 planned; tests/cpp is 510 of them and the tinytest 355.
+  - Size: about 1100 lines added against 450 planned; tests/cpp is 510 of them and the tinytest 370.
