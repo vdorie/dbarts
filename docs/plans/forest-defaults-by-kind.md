@@ -1,7 +1,8 @@
 # forest-defaults-by-kind: a forest's defaults go by its kind, and a forest is selected by its label
 
-Status: PLANNED (dec-B274, dec-B276; dec-B241 and dec-B246 as dec-B274 restates them). Follows push 3 of
-[written-surface.md](written-surface.md), which has not landed. Amended 2026-10-07 after the critique of
+Status: PUSH 1 LANDED 2026-10-07 (dec-B274, dec-B276; dec-B241 and dec-B246 as dec-B274 restates them):
+8ae00bdb to 16069daf. Push 2, selecting a forest by its label, is not built. Followed push 3 of
+[written-surface.md](written-surface.md). Amended 2026-10-07 after the critique of
 the multiplier law and dec-B281 and dec-B282: push 1 gains the interim refusal of the held shapes the tip
 gets wrong (step 1.10).
 
@@ -717,3 +718,26 @@ takes the fitting function's count.
     written with `basis = NULL`.
   - No test creates a model with the hold dropped for a basis of three columns: such a basis is refused
     two slices on.
+
+## Landing note
+
+Push 1 landed 2026-10-07 as 8ae00bdb to 16069daf. Two independent reviews, each told to refute. The first
+found the rule sound at every door and two faults at the edges of what a control carries: a count a
+caller wrote into a control taken from a sampler was put back to the carried count without a message
+(written 20, held 75), and `bartBT` could no longer create a model whose every forest has a basis,
+naming a count, tree prior and leaf prior its own caller had not stated. The fix round puts the carried
+count back only while the slot still holds the first forest's own count, and has `bartBT` record what its
+caller stated, as `bart` does. With every forest holding a basis and nothing stated `bartBT` now gives 50
+and 50 trees, the plan's rule, where the build before the slice gave 200 and 50. The second review said
+land: 72 fits in sequence were right wherever the caller had not written the first forest's own count,
+nine mutations were caught, the three bitwise compares were identical (55, 15, 11) and the four bcf
+exact gates passed. Left, and recorded as dec-A179: a count written into a carried control that equals
+the count it already shows cannot be told from no edit; a control taken from a `bart()` or `bartBT()` fit
+and given to `dbarts()` for a model whose every forest has a basis, and `setControl` given an all-basis
+sampler's control on another sampler, are refused where the build before took them, the refusal naming
+a count nobody stated (root TODO, control-carried-count-edges, for the control migration); the refusal's
+remedy, to state the count on a forest, cannot be written at `bartBT` or at `bart()` given a data object
+(push 2 rewords it). Gates on a clean copy of the rebased head: install, tests/cpp 357 lines passing, the
+suite 18412 results and none failed over 232 files, lint, format, the document checks, the mutation
+anchors, build, and check with the one standing NOTE; bartCause's suite on the landed build is in the
+records commit's message.

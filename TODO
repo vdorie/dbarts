@@ -708,7 +708,22 @@ items
     forest and keep their draws. The first push also refuses, until
     the multiplier law lands, each held shape the engine holds wrong
     by its place among the forests.
-    Plan: docs/plans/forest-defaults-by-kind.md.
+    Plan: docs/plans/forest-defaults-by-kind.md. The first push
+    landed 2026-10-07; left: the second, selecting a forest by its
+    label, which also rewords the count refusal's remedy where it
+    cannot be written (bartBT; bart() given a data object).
+  control-carried-count-edges: with the control migration (dec-A179).
+    A control taken from a bart() or bartBT() fit and given to
+    dbarts() for a model whose every forest has a basis is refused as
+    naming 'n.trees', though nobody named one (those functions build
+    their control by a call that names it), and setControl given an
+    all-basis sampler's control on another sampler is refused as
+    changing the count; both were taken before defaults went by kind.
+    A count written into a carried control that equals the count it
+    shows cannot be told from no edit and is replaced by the carried
+    one. And bart(power = NULL) or bart(base = NULL) stops with
+    "subscript out of bounds" on any model, where a NULL is the
+    default: fix with thread-default-one.
   forest-sd-unit: before 1.0-0 (dec-B246 as revised, dec-B253,
     dec-B266), after forest-defaults-by-kind. A forest's sd is in
     the response's units wherever it is written or read: the units
@@ -897,6 +912,12 @@ items
     at dbartsControl, bart, bartBT, rbart_vi and xbart; a stated NA
     stays refused; the help for n.threads and guessNumCores says so
     (dec-B306, revising dec-A163). R only; before the merge to main.
+  forced-update-returns-null: a forced setPredictor returns NULL
+    invisibly, as 0.9-34's did, where the branch returns TRUE; the
+    forced forms of setState and installTrees do the same when they
+    are built (dec-B310). The unforced value says whether a valid
+    update was made. R, tests and the help's Value; with
+    thread-default-one. Before the merge to main.
   setstate-force-update: setState takes forceUpdate, FALSE by
     default, in setPredictor's idiom: unforced it installs a state
     that goes in cleanly and returns TRUE, or leaves the sampler
@@ -906,7 +927,8 @@ items
     and a larger kept store are not; copy() and a reload force. Before
     the merge to main. Design first, with warm-start-salvage and
     state-store-size-install, which are the same surface: what the
-    forced form returns, one name with installTrees's force argument,
+    forced form returns (ruled: NULL, dec-B310), one name with
+    installTrees's force argument,
     the package's and stan4bart's callers.
   precision-floor-edge-values: the floor that refuses scales and
     Polya-Gamma variates that are not positive and finite passes a
