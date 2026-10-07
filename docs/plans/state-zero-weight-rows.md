@@ -22,7 +22,7 @@ on the base and slice builds, and by the new tests' identity with the same `setW
 window: pre-release, before 1.0-0 (dec-B277). Serial with [cut-points-undo.md](cut-points-undo.md) and
 [leaf-conversions.md](leaf-conversions.md), which edit the same bridge file and manual page, the second
 also chain.hpp, model.hpp, sampler.hpp and the state reader and writer. Recommended order: cut-points-undo
-(in review), then this, then leaf-conversions rebased onto it; see Calls. This slice changes one facade
+(landed), then this, then leaf-conversions rebased onto it; see Calls. This slice changes one facade
 virtual and adds one, so every worktree that rebases over it reinstalls with `--preclean`.
 budget: ~480 lines (C++ engine and facade ~55, bridge ~45, R none, tests/cpp ~110, tinytest ~220, manual,
 design notes, comments and TODO ~50), upper figure 720. Plans have run 1.5-2x low; the design this comes
@@ -372,7 +372,7 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
   and is held to the identity with `setWeights` and the uniformity test, not to a new exact gate; the
   coordinator may prefer an arm in `mask-redraw-exact.R` that proposes and rejects weights (about 150
   lines more).
-- Order with the other two plans. cut-points-undo is in review and touches another function of the bridge
+- Order with the other two plans. cut-points-undo, since landed, touches another function of the bridge
   file and another item of the manual page: first. leaf-conversions edits chain.hpp, model.hpp,
   sampler.hpp, the state reader and writer and the Saving text, in other functions and paragraphs, and is
   three times this size in two pushes: this slice goes before it, or between its pushes if it has already

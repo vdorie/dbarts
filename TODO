@@ -224,8 +224,9 @@ items
     range are data derived once and then held (dec-B231 to dec-B233):
     they belong on the data object, change only by a call that names
     them, and are never installed by a state. Landed: setState's
-    return value (docs/plans/restore-status.md). Planned:
-    cut-points-undo, leaf-conversions. Not yet planned: the three
+    return value (docs/plans/restore-status.md) and a set cut grid
+    that can be put back (docs/plans/cut-points-undo.md). Planned:
+    leaf-conversions. Not yet planned: the three
     records on dbartsData; creation and setData using a carried
     record (setData's updateCutPoints, updateScale and
     updateStandardization; setPredictor's updateStandardization); a
@@ -234,13 +235,6 @@ items
     table of what puts each value back before setState; the gp
     setData refusal narrowed to the cases that would change a kept
     draw. The design is not in docs/design yet.
-  cut-points-undo: before 1.0-0 (dec-B231). A cut grid changed with
-    setCutPoints can be put back on any design - a constant numeric
-    column's grid repeats one value and a design with a factor has
-    entries setCutPoints refuses today - and the store's cap on the
-    cut count stops outliving the grid that raised it, so a later
-    setData derives the grid n.cuts names. Plan:
-    docs/plans/cut-points-undo.md.
   leaf-conversions: before 1.0-0 (dec-B200, dec-B233, dec-B237). Kept
     draws are replayed through whatever standardization and response
     range the sampler holds now, so setData moves kept linear and gp
@@ -635,8 +629,8 @@ items
     a reload) redraws the latent scale of only the rows that enter
     the likelihood, as the same setWeights call would; today it
     redraws every row in the likelihood. A state stored before this
-    installs as it does now. Serial with cut-points-undo and
-    leaf-conversions. Plan: docs/plans/state-zero-weight-rows.md.
+    installs as it does now. Serial with leaf-conversions, and
+    before it. Plan: docs/plans/state-zero-weight-rows.md.
   monotone-unforced-refusal: before 1.0-0 (dec-B278, VD 2026-10-06). An
     unforced setPredictor (whole-matrix, by column, row by row) that
     would leave a monotone tree's leaf values out of order is refused

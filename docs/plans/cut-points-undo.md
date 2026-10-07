@@ -1,6 +1,6 @@
 # cut-points-undo: a set cut grid can be put back, and leaves nothing behind
 
-Status: PLANNED (dec-B231).
+Status: LANDED 2026-10-06 (6cb8b4ee to 224db6c0; dec-B231, dec-A170).
 
 agent: opus implementer, one (the store and the bridge); opus reviewer.
 rng: POSTERIOR-CHANGING on two call sequences: a grid longer than `n.cuts` is installed on a column (by
@@ -13,7 +13,8 @@ window: pre-release; any time. Serial with any other work in the store's cut bui
 [`bartcore_setCutPoints`](../../src/R_interface_bartcore.cpp). The quantile rule's own change
 ([quantile-grid-spread.md](quantile-grid-spread.md)) has landed, so nothing is waiting on that side.
 budget: ~290 lines (C++ store ~25, bridge ~20, R ~10, tests/cpp ~75, tinytest ~120, manual, store reference
-and TODO ~40), upper figure 450. Plans have run 1.5-2x low; the design this comes from estimated 180.
+and TODO ~40), upper figure 450. Plans have run 1.5-2x low; the design this comes from estimated 180. Landed
+at 834 lines added, about two thirds of them tests; see the landing note.
 
 ## Goal
 
@@ -247,3 +248,35 @@ never installs it; the manual's table of what puts each derived value back befor
   series with the quantile rule's change, which has since landed. It names `setCutPoints` as what raises the
   cap; `setState` raises it too (measured), and the rule covers both. It did not list the pin in
   test-bartcore.R that step 3 rewrites. Nothing in this slice was found done already.
+
+## Landing note
+
+Landed 2026-10-06 as 6cb8b4ee to 224db6c0 on bartcore, 9 commits, 834 lines added over 14 files against a
+planned 290 to 450; 558 of them are tests (tests/cpp 176, tinytest 382). Two reviews, each told to refute:
+the first LAND AFTER THESE CORRECTIONS, the second LAND AFTER FIXES with no functional defect found; every
+correction was made and none rejected.
+
+What the reviews changed. The first plan took any non-decreasing grid from a caller. A stored split names
+its cut by value and a restore puts it on the first index holding that value, so a grid that repeats a
+value does not survive a store and restore; the rule became the narrow one (dec-A170): a caller's grid is
+strictly increasing, and the one grid taken with equal neighbours is the grid the column holds, bit for
+bit. The cap on the cut count is no longer stored: a derivation counts from the count asked for at build
+and a refresh from the count the column holds, so nothing a set grid or a refused state install touched
+can go stale. R drops a whole list's factor entries unread. After the second review `setCutPoints` takes
+only numeric vectors, where it coerced a character, a logical, a factor, a Date and `NULL` before; takes
+a data frame as the list of its columns; and hands a list of another length to the bridge with no entry
+read. The sparse arms of the refresh count, a list longer than the design, the bit for bit match (a `-0`
+is not a `0`) and a column named more than once each gained a test, each proved by a mutation. The defect
+the first review found on the tip itself, a restore that moves a split drawn on a repeated cut value, is
+not fixed here: TODO `repeated-cut-restore` carries the four ways a sampler comes to hold such a grid,
+with the measured drifts.
+
+Gates at landing, on a clean copy of the rebased tree in a library of its own (shipped mode): tests/cpp
+349 ok; the full tinytest suite 14414 results, 0 failed, 221 files; lintr no lints; air, rc-codoc,
+win-drift, doc-freshness and the mutation battery's anchors clean. By the implementer before the second
+review's corrections, which changed only comments under src/: the four snapshot files on a reference
+build; the three bitwise compares 55, 15 and 11 scenarios identical with no `max |z|` line; the exact
+gates in `quick` 32 of 32; tests/cpp and the new test file clean under ASan and UBSan; `R CMD check
+--as-cran` with the Date NOTE alone; a seeded digest of 104 fits that never set a grid, equal on the base
+and the slice. The second reviewer ran 600 seeded call sequences against oracles for the derived count
+(0 failures on the slice, 1102 on the base) and 600 neutral ones, bit for bit equal on both.
