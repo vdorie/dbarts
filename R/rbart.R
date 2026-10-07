@@ -110,6 +110,9 @@ rbart_vi <- function(
       "'"
     )
   }
+  if (!missing(formula)) {
+    refuseForestTerm(formula, "rbart_vi")
+  }
 
   n.chains <- coerceOrError(n.chains, "integer")[1L]
   if (is.na(n.chains) || n.chains < 1L) {

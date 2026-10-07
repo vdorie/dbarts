@@ -1772,6 +1772,9 @@ pdbart <- function(
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
+  if (!missing(formula)) {
+    refuseForestTerm(formula, "pdbart")
+  }
   pdbart.checkAveraging(
     type,
     newdata,
@@ -1880,6 +1883,9 @@ pd2bart <- function(
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
+  if (!missing(formula)) {
+    refuseForestTerm(formula, "pd2bart")
+  }
   pdbart.checkAveraging(
     type,
     newdata,

@@ -2501,6 +2501,9 @@ dbartsData <- function(
   }
 
   if (is.formula(formula)) {
+    # the fitting functions hand over a formula whose forest() terms they have
+    # already read; one arriving here was given to a door that reads none
+    refuseForestTerm(formula, "dbartsData")
     if (
       !dataIsMissing &&
         !is.data.frame(data) &&

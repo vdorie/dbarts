@@ -193,6 +193,7 @@ xbart <- function(
     "xbart cross-validates single-forest models"
   )
   refuseResponseFreeFormula(formula, "xbart()")
+  refuseForestTerm(formula, "xbart")
   data <- withMatrixResponseRestated(
     "xbart()",
     family,
