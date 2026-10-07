@@ -735,11 +735,12 @@ fits: one tree reset in 3600 updates built to provoke it. The regained value
 of a 70-level factor is built by hand in
 ["a factor of more than 63 levels that regains a missing value"](../../inst/tinytest/test-monotone-unforced.R).
 
-From R only two calls reach the refusal: `setPredictor` replacing the whole
-matrix, numeric with the factor as codes, with `forceUpdate = FALSE`, and
-`updatePredictorPerObservationJointly` given codes. A named column, with or
-without `"partial"`, stops on a factor's first missing value by name before
-the engine is called.
+From R one call reaches the refusal: `setPredictor` replacing the whole
+matrix, numeric with the factor as codes, with `forceUpdate = FALSE`. A named
+column, with or without `"partial"`, and `updatePredictorPerObservationJointly`,
+which takes a factor as labels only, stop on a factor's first missing value by
+name before the engine is called, so the row decline above is reached by no R
+call; a numeric column's first missing value breaks no order and is installed.
 
 Three things a caller should know. A refusal for order is not cured by other
 values, and running the sampler need not cure it: every update that brings

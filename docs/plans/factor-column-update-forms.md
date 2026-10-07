@@ -24,8 +24,8 @@ build under Context came to 69 lines of R.
 
 `updatePredictorPerObservationJointly` takes, for a column the samplers hold as a factor or an ordered
 factor, what `setPredictor` takes for a named column: labels, matched to the column's levels by name, with
-a label the column lacks and a first missing value refused in the same words. It refuses numbers for such a column, as the
-column form does. Nothing given for such a column is installed as another level
+a label the column lacks and a first missing value refused in the same words. It refuses numbers for such a
+column, as the column form does. Nothing given for such a column is installed as another level
 without a message, and the manual says what each kind of value means.
 
 ## Context
@@ -287,7 +287,9 @@ with a copy and a reload. The refusal for samplers whose levels differ told the 
 which installs a different level in each sampler without a message; samplers that hold the column with
 different level tables now refuse one vector of any kind, labels or numbers, naming the first sampler
 that differs. A refusal raised by a later sampler's levels names that sampler. A factor, a `sparseFactor`
-or text that is not numerals given for a numeric column is refused in the joint form. The help says what is accepted for a factor column and that numbers are refused.
+or text that is not numerals given for a numeric column is refused in the joint form. The help says that
+`as.integer()` of a factor counts from 1 and is not these codes, and that a missing number is installed
+where a missing label is refused.
 
 Left: `setPredictor` by column and `"partial"` still read a factor given for a numeric column through
 its integer codes, the fix sitting in a helper that whole-frame updates share; and a data frame as the
@@ -301,3 +303,6 @@ with every vignette rebuilt and `R CMD check --as-cran` with the Date NOTE alone
 seeded digest of calls that pass numbers, with sweeps between, is equal on the base and the slice (43
 items by the implementer, 312 calls by the reviewer). bairrtt, the one consumer that calls the function,
 passes numbers for a numeric column; two of its test files and a fit digest were equal on both builds.
+
+Since 2026-10-07 (dec-B286, [small-rulings-batch.md](small-rulings-batch.md)): numbers given for a factor column are
+refused, and the help no longer speaks of codes.

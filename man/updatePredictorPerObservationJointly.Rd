@@ -45,9 +45,9 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NULL)
   \code{\link[=dbartsSampler-class]{setPredictor}}. A single sequential sweep installs each
   observation in every sampler at once, and only if its new value keeps every leaf non-empty in every
   tree of every \emph{forest} of every chain of every sampler; otherwise that observation is rolled back to
-  its previous value in all of them. In a sampler with a \code{\link{monotone}} constraint a value is
-  also declined, in every sampler, when installing it would leave a tree's leaf values out of order;
-  that page says which values do this and why proposing them again may never succeed.
+  its previous value in all of them. A \code{\link{monotone}} constraint declines no row for its order here:
+  a factor column takes a missing value only where it already holds one, and a numeric column's first
+  missing value breaks no order.
   Any of the samplers may itself carry more than one forest - a
   Bayesian causal forest, a multinomial sampler, or a heteroscedastic (\code{variance}) sampler - and
   each of its forests is checked on the same terms as an ordinary single-forest sampler's mean forest

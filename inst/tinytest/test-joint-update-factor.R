@@ -469,7 +469,7 @@ expect_identical(snapshot(a), snapA)
 expect_identical(snapshot(b), snapB)
 expect_error(
   updatePredictorPerObservationJointly(list(a, b), codes, "f"),
-  numberRefusal,
+  "column 'f' is categorical in sampler 1 and not in sampler 2, so numbers cannot be installed in both; update them in separate calls",
   fixed = TRUE
 )
 expect_identical(snapshot(a), snapA)

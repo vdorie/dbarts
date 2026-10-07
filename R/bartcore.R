@@ -523,6 +523,17 @@ codeJointColumnUpdate <- function(samplers, x, columnIndices, columnName) {
       )
     }
   }
+  if (is.numeric(x) && is.null(dim(x)) && !all(categorical)) {
+    stop(
+      "column '",
+      columnName,
+      "' is categorical in sampler ",
+      first,
+      " and not in sampler ",
+      which(!categorical)[1L],
+      ", so numbers cannot be installed in both; update them in separate calls"
+    )
+  }
   if (!isLabels || !is.null(dim(x))) {
     stop(
       "column '",

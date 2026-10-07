@@ -2,9 +2,14 @@
 # tree's leaf values out of order. An unforced one is refused and rolled back
 # as one that would empty a leaf is, whichever tree of whichever chain it is
 # and under either direction; the calls that always complete set every leaf
-# of such a tree to zero and say nothing. The engine's side, the column and
-# single-sampler row forms included, is tests/cpp
-# (testMonotoneMissingArrives).
+# of such a tree to zero and say nothing. The only change that can break the
+# order is an unordered factor's first missing value, and from R it is reached
+# by one call, the whole matrix of codes with forceUpdate = FALSE: the column
+# and row forms refuse a missing label in a column that holds none, before the
+# engine is called, and the joint form takes only labels. The engine's row
+# decline of such a value, the column and single-sampler row forms included, is
+# tests/cpp (testMonotoneMissingArrives), which no R call reaches; here the
+# joint form is pinned to refuse it by name and to take a numeric column's.
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
@@ -322,6 +327,13 @@ sampler <- make()
 expect_true(all(sampler$setPredictor(x1Missing, "x1", forceUpdate = "partial")))
 expect_identical(leaves(sampler), breaks)
 
+sampler <- make()
+expect_true(all(
+  dbarts::updatePredictorPerObservationJointly(list(sampler), x1Missing, "x1")
+))
+expect_identical(leaves(sampler), breaks)
+expect_true(is.na(sampler$data@x[naRows[1L], "x1"]))
+
 # ---- the calls that complete: taken in silence, the tree set to zero ----
 
 dfArrived <- df
@@ -475,6 +487,6 @@ expect_error(
     asLabels(xRegained[, "h"], levels70),
     "h"
   ),
-  "column 'h' has missing values, which its training values do not",
+  "column 'h' has missing values",
   fixed = TRUE
 )

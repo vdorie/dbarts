@@ -105,18 +105,12 @@ monotone(directions, prior = c("joint", "leaf"))
       fits, predictors and random number generator are as they were before
       the call. As after any refused update, the draws that follow can
       differ in their last digits from those it would otherwise have made.
-    \item \code{\link{updatePredictorPerObservationJointly}}, given the level
-      codes: returns \code{FALSE} for each row that brings the missing value,
-      which keeps its old value in every sampler, and \code{TRUE} for the
-      other rows, which are installed. No rule or leaf value changes. The
-      call still draws the order in which it visits the rows from the first
-      sampler's random number generator, as every call does, so even when
-      every changed row is refused the draws that follow are not those of a
-      sampler that was not given the call.
     \item \code{setPredictor} with named columns, whatever
-      \code{forceUpdate} is, \code{"partial"} included: an error, and nothing
-      is changed. A named factor column is given as its labels and does not
-      take a missing value when its training values have none.
+      \code{forceUpdate} is, \code{"partial"} included, and
+      \code{\link{updatePredictorPerObservationJointly}}: an error, and
+      nothing is changed. A factor column is given as its labels and does not
+      take a missing value when the column holds none. A numeric column's
+      first missing value breaks no order and is installed.
   }
 
   Such a refusal is not cured by proposing other values, and running the
