@@ -1,7 +1,7 @@
 # A forest's defaults go by its kind
 
-Status: PROPOSED 2026-10-07 (dec-B274); the defaults are built and landed, the selection of a forest by its
-label is built and not yet landed. Plan: [forest-defaults-by-kind.md](../plans/forest-defaults-by-kind.md). Rulings: dec-B274, dec-B241 and
+Status: LANDED 2026-10-07 (dec-B274, dec-B276): the defaults as 8ae00bdb to 16069daf, the selection of a forest
+by its label as 13829fb9 to 3ef31f97. Plan: [forest-defaults-by-kind.md](../plans/forest-defaults-by-kind.md). Rulings: dec-B274, dec-B241 and
 dec-B246 as dec-B274 restates them, dec-B281 and dec-B282 for the held shapes, in docs/decisions.md.
 
 ## The rule

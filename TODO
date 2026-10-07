@@ -656,7 +656,7 @@ items
     them is an addition (dec-B272). A star in a basis is refused
     (dec-B273); defaults go by a forest's kind (dec-B274); extract
     returns a list by forest of vectors named by column (dec-B275).
-    Planned: written-surface, forest-defaults-by-kind,
+    Landed: written-surface, forest-defaults-by-kind. Planned:
     forest-sd-unit, forest-kind-by-class, forest-multiplier-law. Not
     yet planned: tree.prior on forest() and the variance forest, the
     reader's normal() objects.
@@ -687,30 +687,15 @@ items
     forest() is called. A forest built by a wrapper whose formal holds the basis,
     function(b) forest(basis = b), is given the formal's value, so
     such a wrapper cannot pass on a column of the data by its name.
-  forest-defaults-by-kind: before 1.0-0 (dec-B274, dec-B276), directly
-    after written-surface. A forest's default tree count and tree
-    prior go by whether it has a basis: the forest with no basis
-    takes the fitting function's, a forest with a basis 50 trees and
-    cgm(3, 0.25), wherever it is written, in a formula, a forests
-    list and a data object's bases alike; a list and a data object
-    may put the forest with no basis anywhere. With no such forest,
-    a tree count, tree prior, leaf prior, interactions or blocks
-    given to the fitting function is refused by name and the model
-    is accepted; given means named, the default's own value
-    included. The order of a model's forests does not change: until
-    this lands the first forest takes the fitting function's count
-    and prior whatever it is. Every method that takes a forest takes
-    its label as well as its position, and a string is never a
-    position. Two pushes, R only. Changes the posterior of a model
-    whose first forest has a basis and states no count or tree
-    prior; 44 creations in 6 test files are respelled onto the first
-    forest and keep their draws. The first push also refuses, until
-    the multiplier law lands, each held shape the engine holds wrong
-    by its place among the forests.
-    Plan: docs/plans/forest-defaults-by-kind.md. The first push
-    landed 2026-10-07; left: the second, selecting a forest by its
-    label, which also rewords the count refusal's remedy where it
-    cannot be written (bartBT; bart() given a data object).
+  forest-selection-wordings: two texts left by the push that selects
+    a forest by its label (docs/plans/forest-defaults-by-kind.md,
+    landing note): a list given forest by forest that carries a name
+    it may not is told to "select by position, as forest = 3", where a
+    list has no such argument and predict's forest means something
+    else; and in the BayesTree-style help's Extracting Trees, "the
+    returned array always keeps the trailing forest margin" follows a
+    list that now includes trees, which return a data frame. With
+    thread-default-one.
   control-carried-count-edges: with the control migration (dec-A179).
     A control taken from a bart() or bartBT() fit and given to
     dbarts() for a model whose every forest has a basis is refused as

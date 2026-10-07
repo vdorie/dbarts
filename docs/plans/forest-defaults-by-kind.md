@@ -1,7 +1,7 @@
 # forest-defaults-by-kind: a forest's defaults go by its kind, and a forest is selected by its label
 
-Status: PUSH 1 LANDED 2026-10-07 (dec-B274, dec-B276; dec-B241 and dec-B246 as dec-B274 restates them):
-8ae00bdb to 16069daf. Push 2, selecting a forest by its label, is not built. Followed push 3 of
+Status: LANDED 2026-10-07 (dec-B274, dec-B276; dec-B241 and dec-B246 as dec-B274 restates them): push 1 as
+8ae00bdb to 16069daf, push 2, selecting a forest by its label, as 13829fb9 to 3ef31f97. Followed push 3 of
 [written-surface.md](written-surface.md). Amended 2026-10-07 after the critique of
 the multiplier law and dec-B281 and dec-B282: push 1 gains the interim refusal of the held shapes the tip
 gets wrong (step 1.10).
@@ -767,3 +767,24 @@ remedy, to state the count on a forest, cannot be written at `bartBT` or at `bar
 suite 18412 results and none failed over 232 files, lint, format, the document checks, the mutation
 anchors, build, and check with the one standing NOTE; bartCause's suite on the landed build is in the
 records commit's message.
+
+Push 2 landed 2026-10-07 as 13829fb9 to 3ef31f97. Every method that takes a forest reads it through one
+reader, `selectForest`: a string is a label and never a position, a number a position. No draw moved: 41
+seeded fits of the reviewer's own are identical to the build before, by position against by label too.
+The independent review, told to refute, found the reader sound over 16 entry points by 82 inputs and one
+fault in the two lists read forest by forest: a name that is another forest's label was accepted where
+it also spelled this position's `forest<i>`, so on a sampler whose basis columns are literally named
+`forest1` and `forest2` a `setLeafPrior` wrote the wrong forest, and a `predict` with the two names
+exchanged was taken and differed by up to 0.354. Both lists now refuse such a name with the reader's
+ambiguity text; a second look could not get past the fix in 199 calls, and its six surviving mutations
+are now caught but one, a guard that cannot be reached and says so in a comment. With this push, as its
+own commit: where every forest has a basis, the refusal of a count, tree prior, leaf prior, interactions
+or blocks given to `bartBT`, or to `bart()` with a data object, ends "leave it out, or fit with dbarts()",
+the remedy of stating it on a forest not being writable at those two doors. Calls the plan did not
+decide are recorded as dec-A181. Left for the backlog (root TODO, forest-selection-wordings): the list
+refusal's advice to "select by position, as forest = 3", where a list has no such argument, and a
+sentence of the BayesTree-style help on the returned array that now follows a list including trees.
+Gates on a clean copy of the rebased head: install, tests/cpp 358 lines passing, the suite 18844 results
+and none failed over 233 files, lint, format, the document checks, the mutation anchors, build, and
+check with the one standing NOTE; the consumer suites on the landed build are in the records commit's
+message.
