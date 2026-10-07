@@ -550,11 +550,23 @@ expect_equal(ncol(direct$data@bases[[2L]]), 2L)
 # declared level the current data leave empty (test-bcf-r5-surface.R); a row
 # norm that overflows poisons the calibration that divides by it, at either
 emptyLevel <- factor(z, levels = 0:2)
+# written as code, a level no kept row has is no column, as in lm()
+expect_identical(
+  colnames(
+    dbarts(
+      x,
+      y,
+      forests = list(forest(), forest(basis = emptyLevel)),
+      control = seededControlForestBasisR5()
+    )$data@bases[[2L]]
+  ),
+  c("emptyLevel0", "emptyLevel1")
+)
 expect_error(
   dbarts(
     x,
     y,
-    forests = list(forest(), forest(basis = emptyLevel)),
+    forests = list(forest(), do.call(forest, list(basis = emptyLevel))),
     control = seededControlForestBasisR5()
   ),
   "factor level with no observations contributes nothing to a forest: '2'"

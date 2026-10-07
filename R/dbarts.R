@@ -873,10 +873,7 @@ dbarts <- function(
   termIngestion <- ingestFormulaTerms(
     formula,
     family,
-    if (missing(data)) NULL else data,
-    missing(subset),
-    matchedCall$subset,
-    evalEnv
+    if (missing(data)) NULL else data
   )
   if (!is.null(termIngestion)) {
     if (!is.null(forests)) {
@@ -888,7 +885,8 @@ dbarts <- function(
     # a formula whose one forest() has no basis is a single-forest fit, which
     # takes 'test' as the same terms written plainly do
     if (
-      !missing(test) && !all(vapply(termIngestion$bases, is.null, logical(1L)))
+      !missing(test) &&
+        !all(vapply(termIngestion$basisReads, is.null, logical(1L)))
     ) {
       stop(
         "a forest() formula term does not support 'test'; drop the term or ",
@@ -1194,17 +1192,6 @@ dbarts <- function(
   }
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
-  # a forests = declaration's bases are conditioning DATA, so the columns
-  # they expand to ride the data object beside the weights they
-  # mirror. Evaluated here, against this fit's own (pre-subset) data, since a
-  # raw 'bases' entry is otherwise the caller's own value with no index to
-  # restrict it by. The alignment to whatever rows the model frame will keep
-  # - a full-data basis restricted to them, an ambiguous shape refused by
-  # name - is dbartsData()'s own rule (validateForestBases's
-  # 'subsetRows' branch, R/data.R, resolveFormulaBasisSubset/
-  # alignForestBasisToSubset, R/model.R), so it is left unapplied here and
-  # the evaluated basis rides 'bases' at its raw, pre-subset shape.
-  basisDeclarations <- forestBasisDeclarations(forests)
   # a basis declared on 'forests' has nowhere to ride once 'formula' is
   # already a built dbartsData: dbartsData() drops an unmatched 'bases'
   # argument in that case (its own ignored-args warning, R/data.R), which
@@ -1216,6 +1203,7 @@ dbarts <- function(
   # it). The supported composition - a data object already carrying '@bases'
   # plus a knob-only 'forests' - is unaffected: forestBasisDeclarations()
   # returns NULL entries for a forest with no 'basis' of its own.
+  basisDeclarations <- forestBasisDeclarations(forests)
   if (
     !is.null(basisDeclarations) &&
       any(!vapply(basisDeclarations, is.null, logical(1L))) &&
@@ -1228,21 +1216,48 @@ dbarts <- function(
       "dbartsData(bases = )"
     )
   }
-  if (!is.null(basisDeclarations)) {
-    # missing() reads this frame, so it is resolved here rather than inside the
-    # per-forest closure below
-    basisData <- if (missing(data)) NULL else data
-    expanded <- lapply(basisDeclarations, function(declaration) {
-      expandForestBasis(evaluateForestBasis(declaration, basisData))
-    })
+  # The bases of the model's forests, whichever door declared them, are read
+  # by one function against this fit's data (readForestBasis): a term's in
+  # the formula's ingestion, where which forest has one decides which is
+  # which, and a list's here. A basis covers every row of the data. One
+  # handed over as a value rides the data object's own 'bases' argument, where
+  # dbartsData() restricts it to the rows 'subset' and the na.action keep
+  # (validateForestBases's 'subsetRows' branch, R/data.R) or refuses an
+  # ambiguous shape by name. One written as code is built once those rows are
+  # known, below, on exactly them.
+  basisRows <- NULL
+  basisReads <- NULL
+  if (!is.null(termIngestion)) {
+    basisReads <- termIngestion$basisReads
+    basisRows <- termIngestion$basisRows
+  } else if (!is.null(basisDeclarations)) {
+    # missing() reads this frame, so it is resolved here. A hazard fit on the
+    # matrix interface has already been expanded to its person-period rows,
+    # 'subset' applied, and those are the rows a basis covers
+    basisRows <- if (hazardExpandedFirst) {
+      list(data = NULL, full = NROW(matchedCall$formula))
+    } else {
+      fitBasisRows(formula, if (missing(data)) NULL else data)
+    }
+    declared <- readDeclaredBases(forests, basisRows$data, basisRows$full)
+    forests <- declared$forests
+    basisReads <- declared$reads
+  }
+  if (!is.null(basisReads) && all(vapply(basisReads, is.null, logical(1L)))) {
     # a list in which no forest declares a basis is not a multi-forest
     # declaration at all - it names K ensembles with nothing to tell them
     # apart - so it falls through to resolveForests' own refusal by name
-    if (any(!vapply(expanded, is.null, logical(1L)))) {
-      dataCall$bases <- expanded
-    } else {
-      basisDeclarations <- NULL
-    }
+    basisReads <- NULL
+  }
+  basisIsCode <- vapply(
+    basisReads,
+    function(read) !is.null(read$frame),
+    logical(1L)
+  )
+  if (!is.null(basisReads) && !all(basisIsCode | lengths(basisReads) == 0L)) {
+    dataCall$bases <- lapply(basisReads, function(read) {
+      if (is.null(read$frame)) expandValueBasis(read$value)
+    })
   }
   if (!is.null(multinomialCounts)) {
     dataCall$counts <- multinomialCounts
@@ -1250,7 +1265,7 @@ dbarts <- function(
   data <- withMatrixResponseRestated(
     "bart()/dbarts()",
     requestedFamily,
-    if (is.null(basisDeclarations)) {
+    if (is.null(dataCall$bases)) {
       withBinaryResponsePrecision(family, eval(dataCall, evalEnv))
     } else {
       # the bases ride the data object's own 'bases' argument, which this caller
@@ -1416,29 +1431,40 @@ dbarts <- function(
   data@n.cuts <- recycleNumCuts(control@n.cuts, ncol(data@x))
   data@sigma <- sigest
 
-  # a forest() term's bases were already evaluated against the model frame
-  # (R/formulaTerms.R), post-subset - unlike a forests = declaration's, which
-  # dbartsData()'s 'bases' argument expects at the pre-subset shape and
-  # aligns itself. A term's basis needs no such alignment (it is already at
-  # the kept rows), so it rides onto the data object directly rather than
-  # through that argument; 'forests' being NULL here is enforced by the
-  # collision refusal above, so this never collides with a basisDeclarations
-  # assignment
-  if (
-    !is.null(termIngestion) &&
-      !all(vapply(termIngestion$bases, is.null, logical(1L)))
-  ) {
-    # data@bases is read positionally against the forests it distinguishes,
-    # the forest with no basis first. A term's basis was read under na.pass,
-    # so it still carries whatever rows the fit's own na.action dropped -
-    # restricted here, to the rows the model frame kept
-    data@bases <- lapply(termIngestion$bases, function(basis) {
-      if (is.null(basis) || is.null(data@na.action)) {
-        basis
-      } else {
-        basis[-unclass(data@na.action), , drop = FALSE]
+  # A basis written as code is built now, on the rows the fit keeps: those
+  # 'subset' chose of the data's, less the ones the na.action then dropped by
+  # position among them. data@bases is positional against the forests, the
+  # forest with no basis first; the values dbartsData() restricted are
+  # already in their places.
+  basisRecords <- NULL
+  if (any(basisIsCode)) {
+    kept <- if (missing(subset) || hazardExpandedFirst) {
+      NULL
+    } else if (is.formula(formula)) {
+      # the expression as its caller wrote it, one forwarded through a
+      # wrapper's dots included
+      formulaSubsetRows(
+        formula,
+        basisRows$data,
+        recoverForwardedArgument(matchedCall$subset, evalEnv)$expr,
+        basisRows$full
+      )
+    } else {
+      rows <- seq_len(basisRows$full)
+      if (is.character(subset)) {
+        names(rows) <- rownames(formula)
       }
-    })
+      unname(rows[subset])
+    }
+    if (!is.null(data@na.action)) {
+      if (is.null(kept)) {
+        kept <- seq_len(basisRows$full)
+      }
+      kept <- kept[-unclass(data@na.action)]
+    }
+    built <- buildFitBases(basisReads, data@bases, kept, length(data@y))
+    data@bases <- built$bases
+    basisRecords <- built$records
   }
 
   # a term's predictors name design columns, which exist only now
@@ -1479,23 +1505,9 @@ dbarts <- function(
     forests = forests,
     evalEnv = evalEnv,
     residPrior = residPrior,
-    familySpec = familySpec
+    familySpec = familySpec,
+    basisRecords = basisRecords
   )
-
-  # a forest() term's basis is re-evaluable at NEW rows, which the expanded
-  # matrix riding the data object is not: park the declaring formula and the
-  # fit-time levels beside the rest of the forest description, which
-  # resolveSamplerSpec has just written wholesale. Positional against the
-  # forests those bases distinguish, as data@bases is. Inert to the run:
-  # nothing the engine reads.
-  if (!is.null(termIngestion)) {
-    # exact, or a single forest's bartcore.forestsDeclared answers to the name
-    forestInfo <- attr(spec$control, "bartcore.forests", exact = TRUE)
-    if (!is.null(forestInfo)) {
-      forestInfo$basisTerms <- termIngestion$basisTerms
-      attr(spec$control, "bartcore.forests") <- forestInfo
-    }
-  }
 
   sampler <- new("dbartsSampler", spec$control, spec$model, spec$data)
   # a latent family's 0/1 case weights are membership, which the sampler
@@ -2907,7 +2919,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setForestBasis = function(forest, basis, updateState = NULL) {
-      "Changes the basis the named forest's amplitudes multiply, at any forest and any width. forest indexes from 1, as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). A factor (or a one-sided formula naming one) expands to its level indicators, one amplitude per level, with no reference level dropped, and may leave a level empty (a swap can leave one momentarily unobserved); a numeric vector or matrix is already those columns, and one of all zeros is refused. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
+      "Changes the basis the named forest's amplitudes multiply, at any forest and any width. forest indexes from 1, as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. A factor expands to its level indicators, one amplitude per level, with no reference level dropped, and may leave a level empty (a swap can leave one momentarily unobserved); a numeric vector or matrix is already those columns, and one of all zeros is refused. Columns are taken by position: the names the basis was created with stay, whatever names the replacement has, and a replacement that has those names in another order is refused. A replacement of another width brings its own names. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -2930,13 +2942,19 @@ dbartsSampler <- setRefClass(
         stop("forest index out of range")
       }
       values <- validateForestBases(
-        list(expandForestBasis(
-          evaluateForestBasis(basis),
-          allowEmptyLevels = TRUE
-        )),
+        list(replacementForestBasis(basis, length(data@y))),
         length(data@y),
         argument = "basis"
       )[[1L]]
+      # columns are taken by position and the names recorded at creation
+      # stay; a replacement of another width brings its own
+      current <- data@bases[[index + 1L]]
+      refuseReorderedBasisNames(values, current, index + 1L)
+      if (!is.null(current) && ncol(values) == ncol(current)) {
+        dimnames(values) <- if (!is.null(colnames(current))) {
+          list(NULL, colnames(current))
+        }
+      }
 
       forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
       if (

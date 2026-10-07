@@ -152,37 +152,37 @@ expect_silent(dbarts::bart(
 # the model the crossing stood for, a column for each member of a sum
 indicators <- function(f) outer(as.integer(f), seq_len(nlevels(f)), "==") * 1
 crossed <- list(
-  list(y ~ x1 + x2 + z:forest(x1 + x2), "forest(x1 + x2, basis = ~ z)", z),
-  list(y ~ x1 + x2 + forest(x1 + x2):z, "forest(x1 + x2, basis = ~ z)", z),
+  list(y ~ x1 + x2 + z:forest(x1 + x2), "forest(x1 + x2, basis = z)", z),
+  list(y ~ x1 + x2 + forest(x1 + x2):z, "forest(x1 + x2, basis = z)", z),
   list(
     y ~ x1 + x2 + zf:forest(x1 + x2),
-    "forest(x1 + x2, basis = ~ zf)",
+    "forest(x1 + x2, basis = zf)",
     indicators(zf)
   ),
   list(
     y ~ x1 + x2 + factor(z):forest(x1 + x2),
-    "forest(x1 + x2, basis = ~ factor(z))",
+    "forest(x1 + x2, basis = factor(z))",
     indicators(factor(z))
   ),
   list(
     y ~ x1 + x2 + (a + b):forest(x1, sd = 2),
-    "forest(x1, sd = 2, basis = ~ cbind(a, b))",
+    "forest(x1, sd = 2, basis = a + b)",
     cbind(a, b)
   ),
   list(
     y ~ x1 + x2 + (log(a) + b + x3):forest(x1),
-    "forest(x1, basis = ~ cbind(log(a), b, x3))",
+    "forest(x1, basis = log(a) + b + x3)",
     cbind(log(a), b, x3)
   ),
-  list(y ~ x1 + x2 + z * forest(x1 + x2), "forest(x1 + x2, basis = ~ z)", z),
-  list(y ~ x1 + x2 + forest(x1) * z, "forest(x1, basis = ~ z)", z),
+  list(y ~ x1 + x2 + z * forest(x1 + x2), "forest(x1 + x2, basis = z)", z),
+  list(y ~ x1 + x2 + forest(x1) * z, "forest(x1, basis = z)", z),
   list(
     y ~ x1 + x2 + scale(a):forest(x1),
-    "forest(x1, basis = ~ scale(a))",
+    "forest(x1, basis = scale(a))",
     scale(a)
   ),
-  list(y ~ x1 + x2 + (z):forest(x1), "forest(x1, basis = ~ z)", z),
-  list(y ~ x1 + x2 + z:forest(), "forest(basis = ~ z)", z)
+  list(y ~ x1 + x2 + (z):forest(x1), "forest(x1, basis = z)", z),
+  list(y ~ x1 + x2 + z:forest(), "forest(basis = z)", z)
 )
 for (case in crossed) {
   refuses(
@@ -212,7 +212,7 @@ for (formula in list(
     formula,
     paste0(
       "forest(x1)': a forest() is not crossed with another term; a forest's ",
-      "multiplier is its 'basis' argument, as forest(x1 + x2, basis = ~ z)"
+      "multiplier is its 'basis' argument, as forest(x1 + x2, basis = z)"
     )
   )
 }
@@ -245,7 +245,7 @@ for (formula in list(
     formula,
     paste0(
       "a forest() is not crossed with another term; a forest's multiplier ",
-      "is its 'basis' argument, as forest(x1 + x2, basis = ~ z)"
+      "is its 'basis' argument, as forest(x1 + x2, basis = z)"
     )
   )
 }
@@ -279,7 +279,7 @@ for (formula in list(
 }
 refuses(
   y ~ x1 + x2 + z:dbartsForests$forest(x1),
-  "write forest(x1, basis = ~ z)"
+  "write forest(x1, basis = z)"
 )
 # forest() is not exported, so a dbarts::-qualified head is no term
 expect_error(
@@ -1040,8 +1040,8 @@ refuses(
     "a multi-forest model needs at least two forests, and this call's ",
     "'basis' declarations resolve to 1: a forest with a 'basis' stands ",
     "beside another forest. Write the forest with no multiplier too, as ",
-    "y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ z1) or forests = ",
-    "list(forest(), forest(basis = ~ z1)), or use a single forest with ",
+    "y ~ forest(x1 + x2) + forest(x1 + x2, basis = z1) or forests = ",
+    "list(forest(), forest(basis = z1)), or use a single forest with ",
     "linear() leaves; otherwise drop the basis"
   )
 )
@@ -1161,7 +1161,13 @@ expect_identical(written$control@n.trees, 15L)
 writtenInfo <- attr(written$control, "bartcore.forests")
 expect_identical(writtenInfo$params[[2L]][[1L]], 50)
 expect_identical(writtenInfo$vars, list(1L, 2L))
-expect_identical(written$data@bases, list(matrix(a, n, 1L), matrix(b, n, 1L)))
+expect_identical(
+  written$data@bases,
+  list(
+    matrix(a, n, 1L, dimnames = list(NULL, "a")),
+    matrix(b, n, 1L, dimnames = list(NULL, "b"))
+  )
+)
 expect_identical(
   writtenInfo$vars,
   attr(listed$control, "bartcore.forests")$vars

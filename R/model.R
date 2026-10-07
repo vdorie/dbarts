@@ -1347,6 +1347,10 @@ refuseNoSplittableColumn <- function(splitProbabilities, columns) {
 ## length-1 list declaring NO basis still expands to list(NULL), still fails the
 ## any-non-null gate at both call sites, and still falls through to
 ## resolveForests' own refusal by name.
+##
+## A declaration is a value handed over, kept as it is, or code
+## (captureForestBasis), which the fit reads against its data
+## (readForestBasis); the two are told apart by class and never by content.
 forestBasisDeclarations <- function(forests) {
   if (!is.list(forests) || length(forests) < 1L) {
     return(NULL)
@@ -1355,25 +1359,6 @@ forestBasisDeclarations <- function(forests) {
     return(NULL)
   }
   lapply(forests, function(spec) spec$basis)
-}
-
-## Evaluate a `basis` declaration to the vector it names. A one-sided formula
-## is evaluated against the data the fit was given and then in its own
-## environment, as a model formula's terms are; anything else is already a
-## value. `data` is the fitting function's data argument when that is a frame,
-## list or environment, and NULL otherwise (the x/y interface, dbartsSpec).
-evaluateForestBasis <- function(basis, data = NULL) {
-  if (!inherits(basis, "formula")) {
-    return(basis)
-  }
-  if (length(basis) != 2L) {
-    stop("a 'basis' formula must be one-sided, as ~ factor(z)")
-  }
-  if (is.data.frame(data) || is.list(data) || is.environment(data)) {
-    eval(basis[[2L]], data, environment(basis))
-  } else {
-    eval(basis[[2L]], environment(basis))
-  }
 }
 
 ## Expand an evaluated basis to the matrix of columns a forest's amplitudes
@@ -1454,22 +1439,37 @@ expandForestBasis <- function(
   basis
 }
 
-## Re-evaluate one forest's stored basis TERM at new rows: the one-sided
-## formula the forest was declared with, replayed through the same model frame
-## the fit built it from, with the fit-time factor levels imposed so a level
-## set that differs in ORDER cannot silently misalign amplitude j with a
-## different level, and the fit-time levels of a CATEGORICAL basis re-imposed
-## on the value itself (an expression such as ~ factor(z) derives its levels
-## from the data it sees, so newdata alone would set the width). model.frame
-## resolves an absent variable in the formula's own scope, which for a
-## predicted row is a silent wrong answer rather than a missing predictor, so
-## the variables are named up front the way validateXTest names its own. The
-## value is built by the stored call when there is one, which carries the
-## training rows' centre, scale and knots; a term stored without one is
-## evaluated on the new rows.
+## One forest's basis at new rows, from the record its fit kept of a basis
+## written as code (buildCodeBasis): R's terms rebuild every term from what
+## the fitted rows gave it, a centre, a scale or knots, through model.frame(),
+## the fit-time levels of every factor are imposed, so that a level set in
+## another order cannot move a coefficient to another level, and the columns
+## are built as at the fit (basisColumns). model.frame() finds a variable the
+## new rows lack in the terms' own environment, which for a column of the
+## data would be the fitted rows' values taken for the new rows, so each such
+## variable is looked at first: a column of the fit's data and any other
+## variable with a value for every fitted row are refused by name, and
+## anything else, a number written beside a column among it, is used as it is
+## found, as lm() uses it.
 replayForestBasis <- function(term, newdata, index) {
-  vars <- all.vars(term$formula[[2L]])
-  missingVars <- vars[vars %not_in% names(newdata)]
+  terms <- term$terms
+  env <- environment(terms)
+  vars <- basisVariables(terms[[2L]])
+  absent <- vars[vars %not_in% names(newdata)]
+  # a column of the fit's data is a column of the new rows; any other variable
+  # with a value for every fitted row has none for the new ones
+  perRow <- vapply(
+    absent,
+    function(name) {
+      if (name %in% term$columns) {
+        return(TRUE)
+      }
+      found <- tryCatch(eval(as.name(name), env), error = function(e) e)
+      inherits(found, "error") || (term$rows > 1L && NROW(found) == term$rows)
+    },
+    NA
+  )
+  missingVars <- absent[perRow]
   if (length(missingVars) > 0L) {
     stop(
       "'newdata' is missing ",
@@ -1479,30 +1479,25 @@ replayForestBasis <- function(term, newdata, index) {
       "', required by forest ",
       index,
       "'s basis (",
-      deparse(term$formula),
+      term$label,
       "); supply ",
       if (length(missingVars) > 1L) "them" else "it",
       ", or give that basis at the new rows with 'bases ='"
     )
   }
-  basisFormula <- stats::reformulate(vars)
-  environment(basisFormula) <- environment(term$formula)
   frame <- stats::model.frame(
-    formula = basisFormula,
-    data = newdata,
+    terms,
+    newdata,
     na.action = stats::na.pass,
-    drop.unused.levels = FALSE,
     xlev = term$xlev
   )
-  value <- if (is.null(term$predcall)) {
-    evaluateForestBasis(term$formula, frame)
-  } else {
-    eval(term$predcall, frame, environment(term$formula))
-  }
-  if (!is.null(term$levels)) {
-    value <- factor(as.character(value), levels = term$levels)
-  }
-  expandForestBasis(value, atPrediction = TRUE)
+  basisColumns(
+    terms,
+    frame,
+    term$label,
+    levels = term$levels,
+    atPrediction = TRUE
+  )$basis
 }
 
 ## The full (pre-'subset') row count of a formula fit's data, and the exact
@@ -2549,17 +2544,31 @@ forest <- function(
   if (numUnnamed(given) > 1L) {
     refuseSecondUnnamed()
   }
-  written <- captureForestVars(substitute(vars), callingPlace(parent.frame()))
+  place <- callingPlace(parent.frame())
+  written <- captureForestVars(substitute(vars))
   if (inherits(written, "dbartsForestCode")) {
     # the argument's value here and now, taken once: whatever the caller's
     # variables hold later, a forest built in a loop or by lapply() keeps the
     # selection it was given. Code that cannot be evaluated here, terms over
     # predictors among it, is kept as code alone
-    written <- takeAtCall(written, function() vars)
+    written <- takeAtCall(written, function() vars, place)
   }
+  # the basis as its caller wrote it and where: one forwarded through a
+  # wrapper's dots is read where the wrapper's caller wrote it
+  declared <- match.call()[["basis"]]
+  if (is.language(declared)) {
+    recovered <- recoverForwardedArgument(declared, parent.frame())
+    if (isDotsReference(recovered$expr)) {
+      declared <- forwardedBasisValue(substitute(basis), basis)
+    } else {
+      declared <- recovered$expr
+      place <- callingPlace(recovered$env)
+    }
+  }
+  declared <- captureForestBasis(declared, place)
   structure(
     list(
-      basis = basis,
+      basis = declared,
       vars = written,
       n.trees = n.trees,
       base = base,
@@ -2597,19 +2606,22 @@ refuseSecondUnnamed <- function() {
 ##
 ## - a value handed over (names, positions, a column, NULL): the value
 ##   itself, with no wrapper;
-## - code a caller wrote in a call of forest() (forestCode): the code, the
-##   environment it was written in and, once takeAtCall() has run, either the
-##   value it had at the call with the warnings that raised, or the reason it
-##   had none;
-## - the terms of a formula's forest() (forestFormulaTerms): the code, the
-##   formula's environment and the term labels read against the data.
+## - code a caller wrote in a call of forest() (forestCode): the code and,
+##   once takeAtCall() has run, either the value it had at the call with the
+##   warnings that raised, or the reason it had none;
+## - the terms of a formula's forest() (forestFormulaTerms): the code and the
+##   term labels read against the data.
 ##
-## The last two share the class "dbartsForestTerms".
+## The last two share the class "dbartsForestTerms". The predictors' code
+## keeps no environment: in a call its value is taken there and nothing is
+## looked up again, and a formula's terms are labels. So a forest carries no
+## frame of the function that built it. A basis's code (basisCode) keeps the
+## environment its names are looked up in.
 
 ## Code written in a call of forest(), not yet evaluated.
-forestCode <- function(expr, env) {
+forestCode <- function(expr) {
   structure(
-    list(expr = expr, env = env),
+    list(expr = expr),
     class = c("dbartsForestCode", "dbartsForestTerms")
   )
 }
@@ -2618,8 +2630,9 @@ forestCode <- function(expr, env) {
 ## quietly by `evaluate`, and kept beside the code: `value`, `evaluated` and
 ## the `warnings` it raised, which belong to the fit that uses the value. Code
 ## that cannot be evaluated there keeps the `error` and the names it uses
-## that nothing binds, `unbound`; that is no error of forest()'s.
-takeAtCall <- function(code, evaluate) {
+## that nothing binds in `env`, the place of the call, as `unbound`; that is
+## no error of forest()'s.
+takeAtCall <- function(code, evaluate, env) {
   warned <- list()
   taken <- tryCatch(
     withCallingHandlers(list(evaluate()), warning = function(w) {
@@ -2630,9 +2643,7 @@ takeAtCall <- function(code, evaluate) {
   )
   if (inherits(taken, "error")) {
     symbols <- all.vars(code$expr)
-    code$unbound <- symbols[
-      !vapply(symbols, exists, NA, envir = code$env)
-    ]
+    code$unbound <- symbols[!vapply(symbols, exists, NA, envir = env)]
     code$error <- conditionMessage(taken)
   } else {
     code["value"] <- taken
@@ -2648,25 +2659,18 @@ takeAtCall <- function(code, evaluate) {
 ## gives against the data, and `columns`, names of columns the built design
 ## is to resolve. `named` marks terms that came from names given by value,
 ## whose labels are then the code to write for them.
-forestFormulaTerms <- function(
-  expr,
-  env,
-  labels,
-  columns = NULL,
-  named = NULL
-) {
-  terms <- list(expr = expr, env = env, labels = labels)
+forestFormulaTerms <- function(expr, labels, columns = NULL, named = NULL) {
+  terms <- list(expr = expr, labels = labels)
   terms$columns <- columns
   terms$named <- named
   structure(terms, class = c("dbartsFormulaTerms", "dbartsForestTerms"))
 }
 
 ## forest()'s first argument as written. A value (names, positions, NULL) is
-## kept as it is; code is kept unevaluated with the environment it was
-## written in, and forest() puts beside it the value it has at the call. A
-## tilde there is a multiplier written where the predictors go, and is
-## refused rather than read as predictors.
-captureForestVars <- function(expr, env) {
+## kept as it is; code is kept unevaluated, and forest() puts beside it the
+## value it has at the call. A tilde there is a multiplier written where the
+## predictors go, and is refused rather than read as predictors.
+captureForestVars <- function(expr) {
   if (!is.language(expr)) {
     return(expr)
   }
@@ -2677,7 +2681,7 @@ captureForestVars <- function(expr, env) {
       call. = FALSE
     )
   }
-  forestCode(expr, env)
+  forestCode(expr)
 }
 
 ## The heteroscedastic variance forest's own specification, passed as the

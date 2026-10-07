@@ -57,7 +57,7 @@ expect_identical(heldParams(drawn, 2L), 1)
 # the shapes a hold is supported on, each with the values it holds: a forest
 # with no basis at 1, a forest on a factor or on the two columns of a
 # complement pair at 0 for the first column and 1 for the other
-for (basis in list(quote(~ factor(z)), quote(~ cbind(1 - z, z)))) {
+for (basis in list(quote(~ factor(z)), quote(I(1 - z) + z), cbind(1 - z, z))) {
   sampler <- eval(bquote(dbarts(
     x,
     y,
@@ -475,10 +475,17 @@ expect_error(
   fixed = TRUE
 )
 expect_identical(swapped$data@bases, twin$data@bases)
-expect_identical(
-  attr(swapped$control, "bartcore.forests"),
-  attr(twin$control, "bartcore.forests")
-)
+# the stored description too; the record of a basis written as code holds
+# the place its formula was written, which the two builds do not share
+describedBy <- function(sampler) {
+  described <- attr(sampler$control, "bartcore.forests")
+  described$basisTerms <- lapply(described$basisTerms, function(record) {
+    record[c("label", "levels", "xlev", "rows")]
+  })
+  described
+}
+expect_identical(describedBy(swapped), describedBy(twin))
+expect_identical(describedBy(swapped)$basisTerms[[2L]]$label, "factor(z)")
 expect_identical(swapped$run(0L, 5L), twin$run(0L, 5L))
 expect_equal(swapped$getForestAmplitudes()[, 1L], c(1, 0, 1))
 expect_error(swapped$setForestBasis(2L, ~z), "one numeric column")

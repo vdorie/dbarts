@@ -230,8 +230,12 @@ formulaBasisMatrix <- dbarts::dbarts(
 )
 expect_equal(nrow(formulaBasisMatrix$data@bases[[2L]]), keptBasis)
 expect_equal(
-  formulaBasisMatrix$data@bases[[2L]],
-  basisMatrix[-droppedRow, , drop = FALSE]
+  unname(formulaBasisMatrix$data@bases[[2L]]),
+  unname(basisMatrix[-droppedRow, , drop = FALSE])
+)
+expect_identical(
+  colnames(formulaBasisMatrix$data@bases[[2L]]),
+  colnames(stats::model.matrix(~ 0 + basisMatrix))
 )
 
 # matrix path, through dbartsData's own bases argument

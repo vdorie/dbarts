@@ -1,225 +1,958 @@
-# A forest's basis formula is rebuilt at new rows the way lm rebuilds a term of
-# its formula: scale(), poly(), ns() and bs() keep the centre, scale or knots
-# of the training rows (stats::makepredictcall), and any other expression is
-# evaluated on the rows predict is given. The reference is lm's own machinery,
-# model.frame() on the training rows and then on the terms object with the new
-# rows, which evaluates the term's predvars.
+# A forest's basis is the right-hand side of a model formula with no tilde,
+# and means what it means in lm(): '+' separates columns, I() holds
+# arithmetic, a factor gives a column for each level, and scale() and poly()
+# are rebuilt at new rows from the fitted rows. The reference throughout is
+# R's own model frame and model matrix of ~ 0 + <basis>. Block A: the
+# grammar, and what it refuses before anything is evaluated. Block B: the
+# columns and their names. Block C: the texts whose meaning changed. Block D:
+# rows, at both doors. Block E: new rows.
+
+forest <- dbartsForests$forest
 
 set.seed(23)
-n <- 60L
-d <- data.frame(
-  a = runif(n),
-  b = runif(n),
-  w = 50 + 10 * rnorm(n),
-  v = rexp(n),
-  g = factor(sample(c("lo", "mid", "hi"), n, replace = TRUE))
+n <- 80L
+frame <- data.frame(
+  x1 = runif(n),
+  x2 = runif(n),
+  x3 = runif(n),
+  dose = runif(n, 0.5, 2),
+  age = 50 + 10 * rnorm(n),
+  z = rep_len(c(0L, 1L), n),
+  g = sample(c("u", "v", "w"), n, replace = TRUE),
+  stringsAsFactors = FALSE
 )
-d$y <- d$a + rnorm(n, sd = 0.3)
-nd <- data.frame(
-  a = c(0.2, 0.5, 0.8),
-  b = c(0.9, 0.1, 0.4),
-  w = unname(stats::quantile(d$w, c(0.5, 0.75, 0.95))),
-  v = c(0.1, 1, 2),
-  g = factor(c("hi", "lo", "hi"), levels = levels(d$g))
+frame$zl <- frame$z == 1L
+frame$gf <- factor(frame$g, levels = c("u", "v", "w", "never"))
+frame$W <- cbind(p = frame$dose, q = frame$age)
+frame$y <- with(frame, x1 + z * (1 + x2) + 0.2 * dose + rnorm(n, sd = 0.3))
+newRows <- data.frame(
+  x1 = runif(9L),
+  x2 = runif(9L),
+  x3 = runif(9L),
+  dose = runif(9L, 0.5, 2),
+  age = unname(stats::quantile(frame$age, seq(0.1, 0.9, length.out = 9L))),
+  z = rep_len(c(1L, 0L), 9L),
+  g = rep_len(c("v", "u"), 9L),
+  stringsAsFactors = FALSE
 )
-stacked <- rbind(d[1:7, names(nd)], nd)
+newRows$zl <- newRows$z == 1L
+newRows$gf <- factor(newRows$g, levels = levels(frame$gf))
+newRows$W <- cbind(p = newRows$dose, q = newRows$age)
+k <- 30
 
-fitBasisTerms <- function(expr, data = d, ...) {
-  f <- stats::as.formula(
-    paste0("y ~ a + b + forest(a + b, basis = ~ ", expr, ", n.trees = 5L)")
-  )
-  bart(
-    f,
-    data,
-    ...,
+basisControl <- function() {
+  dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
     n.trees = 5L,
-    n.burn = 0L,
     n.samples = 3L,
-    keepTrees = TRUE,
-    verbose = FALSE
+    n.burn = 1L,
+    updateState = FALSE,
+    verbose = FALSE,
+    seed = 23L
   )
 }
-plain <- function(m) matrix(as.vector(m), nrow(m))
-lmBasis <- function(expr, rows) {
-  mf <- stats::model.frame(stats::as.formula(paste("~", expr)), d)
-  tt <- stats::terms(mf)
-  plain(as.matrix(stats::model.frame(tt, rows)[[1L]]))
+asCode <- function(basis) if (is.character(basis)) str2lang(basis) else basis
+# one model at the two doors: a term of the formula, and a 'forests' list
+termFit <- function(basis, data = frame, ...) {
+  formula <- eval(bquote(y ~ x1 + x2 + forest(x1, basis = .(asCode(basis)))))
+  environment(formula) <- parent.frame()
+  call <- quote(dbarts(formula, data, control = basisControl()))
+  eval(as.call(c(as.list(call), list(...))))
 }
-replayAt <- function(fit, rows) {
+listFit <- function(basis, data = frame, ...) {
+  call <- bquote(dbarts(
+    y ~ x1 + x2,
+    data,
+    forests = list(forest(), forest(x1, basis = .(asCode(basis)))),
+    control = basisControl()
+  ))
+  eval(as.call(c(as.list(call), list(...))), list(data = data), parent.frame())
+}
+doors <- list(term = termFit, list = listFit)
+# the same basis handed over as a value, which reads no code
+valueFit <- function(value, data = frame, ...) {
+  forests <- list(forest(), do.call(forest, list("x1", basis = value)))
+  dbarts(y ~ x1 + x2, data, forests = forests, control = basisControl(), ...)
+}
+bartFit <- function(basis, data = frame, ...) {
+  formula <- eval(bquote(y ~ x1 + x2 + forest(x1, basis = .(asCode(basis)))))
+  environment(formula) <- parent.frame()
+  call <- quote(bart(
+    formula,
+    data,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 5L,
+    n.samples = 3L,
+    n.burn = 0L,
+    keepTrees = TRUE,
+    verbose = FALSE,
+    seed = 23L
+  ))
+  eval(as.call(c(as.list(call), list(...))))
+}
+# a sampler as the fit bart() would return of it, for predict
+packaged <- function(sampler) {
+  burn <- dbarts:::runWithBurnIn(sampler, sampler$control, TRUE)
+  dbarts:::packageBartResults(
+    sampler,
+    burn$samples,
+    burn$burnInSigma,
+    burn$burnInK,
+    TRUE,
+    TRUE
+  )
+}
+basisOf <- function(sampler) sampler$data@bases[[2L]]
+draws <- function(sampler) {
+  run <- sampler$run(0L, 10L)
+  list(run$train, run$sigma, sampler$getForestAmplitudes())
+}
+refusal <- function(expr) {
+  tryCatch(
+    {
+      force(expr)
+      NA_character_
+    },
+    error = function(e) conditionMessage(e)
+  )
+}
+# what lm() makes of ~ 0 + <basis> on `rows` of `data`: its model matrix,
+# built on the rows after every term has been evaluated on all of them
+lmFormula <- function(basis) {
+  formula <- call("~", call("+", 0, asCode(basis)))
+  class(formula) <- "formula"
+  environment(formula) <- environment(lmFormula)
+  formula
+}
+lmColumns <- function(basis, data = frame, rows = NULL) {
+  modelFrame <- stats::model.frame(
+    lmFormula(basis),
+    data,
+    na.action = stats::na.pass
+  )
+  if (!is.null(rows)) {
+    terms <- attr(modelFrame, "terms")
+    modelFrame <- modelFrame[rows, , drop = FALSE]
+    attr(modelFrame, "terms") <- terms
+  }
+  design <- stats::model.matrix(attr(modelFrame, "terms"), modelFrame)
+  matrix(
+    as.double(design),
+    nrow(design),
+    dimnames = list(NULL, colnames(design))
+  )
+}
+lmNames <- function(basis, data = frame) {
+  formula <- lmFormula(basis)
+  formula <- eval(call("~", quote(y), formula[[2L]]))
+  environment(formula) <- environment(lmFormula)
+  names(stats::coef(stats::lm(formula, data)))
+}
+
+## --- Block A: the grammar ----------------------------------------------------
+# each refusal with its text, the same at both doors and decided from the
+# code alone: with no data at hand, where forest() is called
+refused <- list(
+  "dose * age" = paste0(
+    "'basis' does not take '*' between its terms ('dose * age'): in a model ",
+    "formula it is both columns and their product. Write I(dose * age) for ",
+    "the product alone, or dose + age + I(dose * age) for all three"
+  ),
+  "poly(dose, 2) * age" = paste0(
+    "'basis' does not take '*' between its terms ('poly(dose, 2) * age')"
+  ),
+  "dose/30" = paste0(
+    "'basis' term 'dose/30' divides a column by a number, which a model ",
+    "formula does not take; write I(dose/30) for the rescaled column"
+  ),
+  "30 * dose" = paste0(
+    "'basis' term '30 * dose' multiplies a column by a number, which a model ",
+    "formula does not take; write I(30 * dose) for the rescaled column"
+  ),
+  "dose * 30" = paste0(
+    "'basis' term 'dose * 30' multiplies a column by a number, which a model ",
+    "formula does not take; write I(dose * 30) for the rescaled column"
+  ),
+  "dose - age" = paste0(
+    "'basis' does not take '-' between its terms ('dose - age'): in a model ",
+    "formula it removes a term and subtracts nothing; write the arithmetic ",
+    "inside I(), as I(dose - age)"
+  ),
+  "dose^2" = paste0(
+    "'basis' does not take '^' between its terms ('dose^2'): in a model ",
+    "formula it crosses terms and raises nothing to a power; write the ",
+    "arithmetic inside I(), as I(dose^2)"
+  ),
+  "dose/age" = paste0(
+    "'basis' does not take '/' between its terms ('dose/age'): in a model ",
+    "formula it nests one term in another and divides nothing; write the ",
+    "arithmetic inside I(), as I(dose/age)"
+  ),
+  "dose %in% age" = paste0(
+    "'basis' does not take '%in%' ('dose %in% age'): in a model formula it ",
+    "nests one term in another"
+  ),
+  "dose | z" = "'basis' does not take '|' ('dose | z')",
+  "dose + ." = paste0(
+    "'basis' does not take '.': name the columns the forest is multiplied by"
+  ),
+  "dose + offset(age)" = "'basis' does not take an offset() term",
+  "dose + 2" = paste0(
+    "'basis' has the number 2 as a term; only 1, a constant column, and 0, ",
+    "none, are terms. Write arithmetic on a column inside I()"
+  ),
+  "dose + TRUE" = paste0(
+    "'basis' has the constant TRUE as a term; a term is a column, and only ",
+    "1, a constant column, and 0, none, are written as numbers"
+  ),
+  "0 + 1" = paste0(
+    "'basis' (0 + 1) is a constant column and nothing else, which multiplies ",
+    "the forest by a constant: leave 'basis' out for the forest with no ",
+    "multiplier"
+  ),
+  "-1" = paste0(
+    "'basis' (-1) names no column; leave 'basis' out for the forest with no ",
+    "multiplier"
+  ),
+  "cbind(dose, age)" = paste0(
+    "'basis' term 'cbind(dose, age)': the columns of a basis are separated ",
+    "by '+'; write dose + age"
+  ),
+  "cbind(1 - z, z)" = paste0(
+    "'basis' term 'cbind(1 - z, z)': the columns of a basis are separated ",
+    "by '+'; write I(1 - z) + z"
+  ),
+  "cbind(1, dose)" = paste0(
+    "'basis' term 'cbind(1, dose)': the columns of a basis are separated by ",
+    "'+'; write 1 + dose"
+  ),
+  "normal(dose, sd = 30)" = paste0(
+    "'basis' term 'normal(dose, sd = 30)' calls normal(), which is not a ",
+    "column: a prior is not stated on a basis term. Give the forest's size ",
+    "as 'sd' and its coefficient's law as 'amplitude'"
+  )
+)
+for (text in names(refused)) {
+  code <- str2lang(text)
+  # forest() itself, which sees no data
+  expect_true(
+    startsWith(
+      refusal(eval(bquote(forest(basis = .(code))))),
+      refused[[text]]
+    ),
+    info = text
+  )
+  for (door in names(doors)) {
+    said <- refusal(doors[[door]](code))
+    expect_true(
+      startsWith(said, refused[[text]]),
+      info = paste(door, text, said)
+    )
+  }
+}
+# what the refusal of cbind() says to write names cbind()'s columns in
+# cbind()'s order, and where no sum of terms does it says none: a model
+# formula keeps one of two terms alike and puts its constant column first
+for (text in c("cbind(dose, dose)", "cbind(dose, 1)", "cbind(dose, 2)")) {
+  for (door in doors) {
+    expect_identical(
+      refusal(door(text)),
+      paste0(
+        "'basis' term '",
+        text,
+        "': the columns of a basis are separated by '+'"
+      ),
+      info = text
+    )
+  }
+}
+for (written in list(
+  c("cbind(dose, age)", "dose + age"),
+  c("cbind(1 - z, z)", "I(1 - z) + z"),
+  c("cbind(1, dose)", "1 + dose"),
+  c("cbind(log(dose), age * 2)", "log(dose) + I(age * 2)")
+)) {
+  expect_identical(
+    unname(basisOf(listFit(written[2L]))),
+    unname(eval(str2lang(written[1L]), frame)),
+    info = written[1L]
+  )
+}
+# a term that calls a name a prior could later be stated with is refused,
+# whoever defines the function; any other function is a column's
+reserved <- c(
+  "normal",
+  "fixed",
+  "student",
+  "cauchy",
+  "linear",
+  "gp",
+  "cgm",
+  "dart",
+  "chisq",
+  "chi",
+  "invchi",
+  "forest",
+  "varianceForest"
+)
+expect_identical(sort(dbarts:::BASIS_RESERVED_CALLS), sort(reserved))
+normal <- function(x) x / 2
+student <- function(x) x
+weights2 <- function(x) x * 2
+for (name in reserved) {
+  code <- as.call(list(as.name(name), quote(dose)))
+  for (door in names(doors)) {
+    expect_true(
+      startsWith(
+        refusal(doors[[door]](code)),
+        paste0(
+          "'basis' term '",
+          name,
+          "(dose)' calls ",
+          name,
+          "(), which is not a column"
+        )
+      ),
+      info = paste(door, name)
+    )
+  }
+}
+expect_error(
+  listFit("dose + normal(age)"),
+  "'basis' term 'normal(age)' calls normal(), which is not a column",
+  fixed = TRUE
+)
+for (door in doors) {
+  expect_identical(
+    basisOf(door("weights2(dose)")),
+    lmColumns("weights2(dose)")
+  )
+}
+rm(normal, student)
+# a column named like one is a column
+named <- frame
+named$normal <- frame$dose
+named$fixed <- frame$age
+named$forest <- frame$dose * 2
+for (door in doors) {
+  expect_identical(
+    basisOf(door("normal + fixed + forest", named)),
+    lmColumns("normal + fixed + forest", named)
+  )
+}
+# cbind() called through its package is a matrix term, as in lm()
+for (door in doors) {
+  expect_identical(
+    basisOf(door("base::cbind(dose, age)")),
+    lmColumns("base::cbind(dose, age)")
+  )
+}
+expect_identical(
+  colnames(basisOf(listFit("base::cbind(dose, age)"))),
+  c("base::cbind(dose, age)dose", "base::cbind(dose, age)age")
+)
+
+# every shape of operator at the top of a basis is either refused or is the
+# columns lm() gives, with one verdict at the two doors
+shapes <- c(
+  "dose %% 2" = TRUE,
+  "dose %/% 30" = FALSE,
+  "dose > 1" = TRUE,
+  "-dose" = FALSE,
+  "+dose" = TRUE,
+  "dose - 0" = FALSE,
+  "dose + dose" = TRUE,
+  "dose:age:x3" = TRUE,
+  "(dose + age):x3" = TRUE,
+  "dose * age * x3" = FALSE,
+  "dose * k" = FALSE,
+  "dose:k" = FALSE,
+  "dose / k" = FALSE,
+  "dose * zl" = FALSE,
+  "dose:zl" = FALSE,
+  "dose:dose" = TRUE,
+  "I(dose) * 2" = FALSE,
+  "dose / 30L" = FALSE,
+  "dose * 1" = FALSE,
+  "dose:1" = FALSE,
+  "dose + 1 - 1" = TRUE,
+  "-1 + dose" = TRUE,
+  "(dose)" = TRUE,
+  "dose + -1" = TRUE,
+  "dose ** 2" = FALSE,
+  "dose + age - age" = FALSE,
+  "log(dose) - 1" = TRUE,
+  "dose %in% age" = FALSE,
+  "(dose + age)^2" = FALSE,
+  "dose + (1 | g)" = FALSE,
+  "!zl" = TRUE,
+  "zl & (x1 > 0.5)" = TRUE,
+  "dose == 1" = FALSE,
+  "z == 1" = TRUE,
+  "ifelse(z == 1, dose, 0)" = TRUE,
+  "dose[]" = TRUE,
+  "frame$dose" = TRUE,
+  "`dose`" = TRUE,
+  "dose + NULL" = FALSE,
+  "c(dose)" = TRUE,
+  "identity(cbind(dose, age))" = TRUE,
+  "base::cbind(dose, age)" = TRUE,
+  "dbarts::normal(dose)" = FALSE,
+  "stats::poly(dose, 2)" = TRUE,
+  "(normal)(dose)" = FALSE,
+  "scale(normal(dose))" = FALSE,
+  "dose %o% 1" = TRUE,
+  "dose * (age + x3)" = FALSE,
+  "dose %*% 1" = FALSE,
+  "1:dose" = FALSE,
+  "dose + I(1)" = FALSE,
+  "TRUE" = FALSE,
+  "dose + TRUE" = FALSE,
+  "NULL + dose" = FALSE,
+  "dose - age:dose" = FALSE,
+  "1 - dose" = FALSE,
+  "0 + 1" = FALSE
+)
+expect_identical(length(shapes), 57L)
+for (text in names(shapes)) {
+  code <- str2lang(text)
+  read <- lapply(doors, function(door) {
+    tryCatch(basisOf(door(code)), error = function(e) conditionMessage(e))
+  })
+  expect_identical(read$term, read$list, info = text)
+  expect_identical(is.matrix(read$list), unname(shapes[[text]]), info = text)
+  if (is.matrix(read$list)) {
+    expect_identical(read$list, lmColumns(code), info = text)
+  }
+}
+
+## --- Block B: the columns and their names -----------------------------------
+# as coef(lm(y ~ 0 + <basis>)) names them, and with lm()'s values
+fitted <- c(
+  "dose",
+  "dose + age",
+  "I(dose + age)",
+  "I(dose/30)",
+  "I(dose / k)",
+  "log(dose)",
+  "scale(age)",
+  "poly(dose, 2)",
+  "scale(age) + poly(dose, 2)",
+  "dose:age",
+  "dose + age + I(dose * age)",
+  "1 + dose",
+  "factor(z)",
+  "g",
+  "zl",
+  "W",
+  "dose + W",
+  "I(age - mean(age))"
+)
+expect_identical(length(fitted), 18L)
+for (text in fitted) {
+  expected <- lmColumns(text)
+  expect_identical(colnames(expected), lmNames(text), info = text)
+  handedOver <- draws(valueFit(
+    if (text %in% c("factor(z)", "g", "zl")) {
+      eval(str2lang(text), frame)
+    } else {
+      unname(expected)
+    }
+  ))
+  for (door in names(doors)) {
+    fit <- doors[[door]](text)
+    expect_identical(basisOf(fit), expected, info = paste(door, text))
+    # the model is the one the same columns handed over as a value fit
+    expect_identical(draws(fit), handedOver, info = paste(door, text))
+  }
+  expect_identical(bartFit(text)$bases[[2L]], expected, info = text)
+}
+expect_identical(lmNames("I(dose/30)"), "I(dose/30)")
+expect_identical(lmNames("1 + dose"), c("(Intercept)", "dose"))
+expect_identical(
+  lmNames("poly(dose, 2)"),
+  c("poly(dose, 2)1", "poly(dose, 2)2")
+)
+expect_identical(lmNames("factor(z)"), c("factor(z)0", "factor(z)1"))
+expect_identical(lmNames("W"), c("Wp", "Wq"))
+# a tilde is taken off and changes nothing
+for (text in c("dose + age", "factor(z)", "scale(age)")) {
+  for (door in doors) {
+    expect_identical(
+      basisOf(door(paste("~", text))),
+      lmColumns(text),
+      info = text
+    )
+  }
+}
+# a factor's columns are every level's, by no contrast: no level is dropped
+expect_identical(ncol(basisOf(listFit("g"))), 3L)
+expect_identical(
+  unname(rowSums(basisOf(listFit("g")))),
+  rep(1, n)
+)
+# one kind in a basis: a factor beside other terms is refused, as are a
+# logical matrix and two columns of one name
+mixes <- paste0(
+  ") mixes a factor with other terms: a basis is one factor, a character ",
+  "or a logical vector, with one coefficient per level, or numeric columns, ",
+  "with one each. Give the other terms a forest() of their own, or write ",
+  "the factor as numbers"
+)
+for (text in c("dose + factor(z)", "g:dose", "1 + factor(z)", "g + zl")) {
+  for (door in doors) {
+    expect_identical(
+      refusal(door(text)),
+      paste0("'basis' (", text, mixes),
+      info = text
+    )
+  }
+}
+frame$L <- cbind(frame$zl, !frame$zl)
+frame$A <- cbind(a = frame$dose, a = frame$age)
+for (door in doors) {
+  expect_identical(
+    refusal(door("L")),
+    paste0(
+      "'basis' (L) has a term that is a logical matrix: a basis is a ",
+      "factor, a character or logical vector, or numeric"
+    )
+  )
+  expect_identical(
+    refusal(door("A")),
+    paste0(
+      "'basis' (A) has two columns named \"Aa\"; the columns of a basis are ",
+      "told apart by name"
+    )
+  )
+}
+frame$L <- NULL
+frame$A <- NULL
+
+## --- Block C: the texts whose meaning changed --------------------------------
+# '+' is columns; the sum is written inside I()
+expect_identical(
+  draws(listFit("~ dose + age")),
+  draws(valueFit(cbind(frame$dose, frame$age)))
+)
+expect_identical(
+  draws(listFit("I(dose + age)")),
+  draws(valueFit(frame$dose + frame$age))
+)
+expect_false(identical(
+  draws(listFit("dose + age")),
+  draws(listFit("I(dose + age)"))
+))
+# '- 1' removes the constant column a basis does not have; the arithmetic is
+# written inside I()
+expect_identical(basisOf(listFit("~ dose - 1")), lmColumns("dose"))
+expect_identical(draws(listFit("~ dose - 1")), draws(valueFit(frame$dose)))
+expect_identical(
+  draws(listFit("I(dose - 1)")),
+  draws(valueFit(frame$dose - 1))
+)
+# '1 +' asks for the constant column
+expect_identical(
+  colnames(basisOf(listFit("~ 1 + dose"))),
+  c("(Intercept)", "dose")
+)
+expect_identical(
+  draws(listFit("~ 1 + dose")),
+  draws(valueFit(cbind(1, frame$dose)))
+)
+expect_identical(
+  draws(listFit("I(1 + dose)")),
+  draws(valueFit(1 + frame$dose))
+)
+# a name is the data's column at both doors, whatever is beside the call
+local({
+  dose <- frame$dose * 100
+  fromData <- draws(valueFit(frame$dose))
+  expect_identical(draws(termFit("dose")), fromData)
+  expect_identical(draws(listFit("dose")), fromData)
+})
+# scale() and poly() under 'subset' take their centre from every row, as lm()
+# does, and so equal the constants written out
+keep <- frame$age < 56
+centre <- mean(frame$age)
+spread <- stats::sd(frame$age)
+for (door in doors) {
+  fit <- door("scale(age)", subset = keep)
+  expect_identical(basisOf(fit), lmColumns("scale(age)", rows = keep))
+  expect_equal(
+    as.vector(basisOf(fit)),
+    (frame$age[keep] - centre) / spread
+  )
+  expect_identical(
+    basisOf(door("poly(dose, 2)", subset = keep)),
+    lmColumns("poly(dose, 2)", rows = keep)
+  )
+}
+expect_false(isTRUE(all.equal(
+  as.vector(basisOf(termFit("scale(age)", subset = keep))),
+  as.vector(scale(frame$age[keep]))
+)))
+
+## --- Block D: rows, at both doors -------------------------------------------
+# one text is one basis and one model at the two doors, under 'subset' and
+# under a response whose missing rows the na.action drops
+noW <- frame$g != "w"
+missingY <- frame
+missingY$y[frame$g == "w"] <- NA
+missingY$y[3:5] <- NA
+keptY <- !is.na(missingY$y)
+for (text in c("factor(g)", "g", "gf", "scale(age)", "dose + age", "zl")) {
+  underSubset <- lapply(doors, function(door) door(text, subset = noW))
+  expect_identical(
+    basisOf(underSubset$term),
+    basisOf(underSubset$list),
+    info = text
+  )
+  expect_identical(
+    basisOf(underSubset$list),
+    lmColumns(text, rows = noW)[,
+      colSums(lmColumns(text, rows = noW) != 0) > 0L,
+      drop = FALSE
+    ],
+    info = text
+  )
+  expect_identical(
+    draws(underSubset$term),
+    draws(underSubset$list),
+    info = text
+  )
+  underMissing <- lapply(doors, function(door) door(text, missingY))
+  expect_identical(nrow(basisOf(underMissing$list)), sum(keptY), info = text)
+  expect_identical(
+    basisOf(underMissing$term),
+    basisOf(underMissing$list),
+    info = text
+  )
+  expect_identical(
+    draws(underMissing$term),
+    draws(underMissing$list),
+    info = text
+  )
+}
+# a level the kept rows leave empty is no column, whatever emptied it: never
+# used, cut by 'subset', or gone with the rows of a missing response
+for (door in doors) {
+  expect_identical(colnames(basisOf(door("gf"))), c("gfu", "gfv", "gfw"))
+  expect_identical(
+    colnames(basisOf(door("gf", subset = noW))),
+    c("gfu", "gfv")
+  )
+  expect_identical(colnames(basisOf(door("g", missingY))), c("gu", "gv"))
+  # the rows are the kept rows, in their order
+  expect_identical(
+    unname(basisOf(door("g", subset = noW))[, 1L]),
+    as.double(frame$g[noW] == "u")
+  )
+  expect_identical(
+    as.vector(basisOf(door("dose", missingY))),
+    frame$dose[keptY]
+  )
+  # a factor left with one level, and a logical left with one value
+  expect_identical(
+    refusal(door("g", subset = frame$g == "u")),
+    "a 'basis' factor must have at least two levels"
+  )
+  expect_identical(
+    refusal(door("zl", subset = frame$zl)),
+    paste0(
+      "'basis' (zl) is TRUE on every row the fit keeps, so its other level ",
+      "has no observations and the forest would be multiplied by a constant"
+    )
+  )
+  expect_identical(
+    refusal(door("dose > 0")),
+    paste0(
+      "'basis' (dose > 0) is TRUE on every row the fit keeps, so its other ",
+      "level has no observations and the forest would be multiplied by a ",
+      "constant"
+    )
+  )
+  expect_identical(
+    refusal(door("z", subset = frame$z == 0L)),
+    "a 'basis' column of all zeros contributes nothing to a forest"
+  )
+}
+# a missing value in a row the fit keeps is refused; in a row 'subset' or the
+# na.action drops it is no value of the basis
+missingDose <- frame
+missingDose$dose[c(2L, 7L)] <- NA
+unknownDose <- is.na(missingDose$dose)
+bothMissing <- missingDose
+bothMissing$y[unknownDose] <- NA
+for (door in doors) {
+  expect_identical(
+    refusal(door("dose", missingDose)),
+    "a 'basis' cannot be NA"
+  )
+  expect_identical(
+    as.vector(basisOf(door("dose", missingDose, subset = !unknownDose))),
+    frame$dose[!unknownDose]
+  )
+  expect_identical(
+    as.vector(basisOf(door("dose", bothMissing))),
+    frame$dose[!unknownDose]
+  )
+}
+# a basis covers every row of the data and is cut with it: one already cut is
+# refused, a value among it
+shortBasis <- frame$dose[noW]
+for (door in doors) {
+  expect_identical(
+    refusal(door("shortBasis", subset = noW)),
+    paste0(
+      "'basis' (shortBasis) must have the same length as the data: it has ",
+      sum(noW),
+      " rows and the data 80; a basis covers every row of the data and is ",
+      "cut by 'subset' and the na.action with it"
+    )
+  )
+}
+fullBasis <- frame$dose * 2
+for (door in doors) {
+  expect_identical(
+    as.vector(basisOf(door("fullBasis", subset = noW))),
+    fullBasis[noW]
+  )
+}
+# 'subset' is read as the fit's own model frame reads it: row names select
+# by name, and one forwarded through a wrapper's dots is read where it was
+# written
+lettered <- frame
+row.names(lettered) <- paste0("r", seq_len(n))
+namedRows <- row.names(lettered)[noW]
+throughDots <- function(...) {
+  dbarts(
+    y ~ x1 + x2 + forest(x1, basis = g),
+    frame,
+    control = basisControl(),
+    ...
+  )
+}
+expect_identical(
+  basisOf(throughDots(subset = noW)),
+  basisOf(termFit("g", subset = noW))
+)
+for (door in doors) {
+  expect_identical(
+    basisOf(door("g", lettered, subset = namedRows)),
+    basisOf(door("g", subset = noW))
+  )
+  expect_identical(
+    basisOf(door("g", subset = which(noW))),
+    basisOf(door("g", subset = noW))
+  )
+  # rows repeated and reordered are the fit's rows, in its order
+  expect_identical(
+    as.vector(basisOf(door("dose", subset = c(5L, 3L, 3L, 60L, 1L)))),
+    frame$dose[c(5L, 3L, 3L, 60L, 1L)]
+  )
+}
+# with the matrix interface too, where 'subset' is the rows themselves
+xMatrix <- as.matrix(frame[c("x1", "x2")])
+yVector <- frame$y
+gVector <- frame$g
+matrixFit <- dbarts(
+  xMatrix,
+  yVector,
+  subset = which(noW),
+  forests = list(forest(), forest(x1, basis = gVector)),
+  control = basisControl()
+)
+expect_identical(
+  basisOf(matrixFit),
+  lmColumns("gVector", rows = noW)[, 1:2, drop = FALSE]
+)
+
+## --- Block E: new rows -------------------------------------------------------
+# the stored record is R's terms, so that each term is rebuilt at new rows
+# from what the fitted rows gave it; at both doors
+replayed <- function(fit, rows) {
   dbarts:::replayForestBasis(fit$basis.terms[[2L]], rows, 2L)
 }
-
+atNewRows <- function(basis, rows) {
+  if (identical(basis, "zl")) {
+    # lm() would give one row's logical a single column
+    return(cbind(zlFALSE = as.double(!rows$zl), zlTRUE = as.double(rows$zl)))
+  }
+  modelFrame <- stats::model.frame(lmFormula(basis), frame)
+  terms <- attr(modelFrame, "terms")
+  again <- stats::model.frame(
+    terms,
+    rows,
+    xlev = stats::.getXlevels(terms, modelFrame)
+  )
+  design <- stats::model.matrix(terms, again)
+  matrix(
+    as.double(design),
+    nrow(design),
+    dimnames = list(NULL, colnames(design))
+  )
+}
 hasSplines <- requireNamespace("splines", quietly = TRUE)
-exprs <- c(
-  "scale(w)",
-  "scale(w, scale = FALSE)",
-  "poly(w, 2)",
-  "poly(w, 2, raw = TRUE)",
-  "scale(log(w))",
-  "scale(cbind(w, v))"
+rebuilt <- c(
+  "scale(age)",
+  "scale(age, scale = FALSE)",
+  "poly(dose, 2)",
+  "poly(dose, 2, raw = TRUE)",
+  "scale(age) + poly(dose, 2)",
+  "scale(log(age))",
+  "I(age - mean(age))",
+  "1 + dose",
+  "dose:age",
+  "factor(z)",
+  "g",
+  "zl"
 )
 if (hasSplines) {
-  exprs <- c(exprs, "splines::ns(w, 3)", "splines::bs(w, df = 4)")
+  rebuilt <- c(rebuilt, "splines::ns(age, 3)", "splines::bs(age, df = 4)")
 }
-
-for (expr in exprs) {
-  fit <- fitBasisTerms(expr)
-  expect_equal(
-    plain(replayAt(fit, nd)),
-    lmBasis(expr, nd),
-    info = paste(expr, "- several rows")
+plainColumns <- c("x1", "x2", "x3", "dose", "age", "z", "g", "zl")
+stacked <- rbind(frame[1:6, plainColumns], newRows[plainColumns])
+for (text in rebuilt) {
+  fits <- list(
+    term = bartFit(text),
+    list = packaged(listFit(text))
   )
-  expect_equal(
-    plain(replayAt(fit, nd[2L, ])),
-    lmBasis(expr, nd[2L, ]),
-    info = paste(expr, "- one row")
-  )
-  expect_equal(
-    plain(replayAt(fit, stacked)),
-    lmBasis(expr, stacked),
-    info = paste(expr, "- among training rows")
-  )
-  # the rebuilt basis at the training rows is the fitted one
-  expect_equal(
-    plain(replayAt(fit, d)),
-    plain(fit$bases[[2L]]),
-    info = paste(expr, "- training rows")
-  )
+  for (door in names(fits)) {
+    fit <- fits[[door]]
+    info <- paste(door, text)
+    expect_identical(
+      replayed(fit, newRows),
+      atNewRows(text, newRows),
+      info = info
+    )
+    expect_identical(
+      replayed(fit, newRows[2L, ]),
+      atNewRows(text, newRows[2L, ]),
+      info = info
+    )
+    expect_identical(
+      replayed(fit, stacked),
+      atNewRows(text, stacked),
+      info = info
+    )
+    # at the fitted rows it is the basis the fit used
+    expect_equal(replayed(fit, frame), fit$bases[[2L]], info = info)
+    # and predict uses it: the same as the basis rebuilt by hand from the new
+    # rows and handed over
+    expect_identical(
+      predict(fit, newRows),
+      predict(fit, newRows, bases = atNewRows(text, newRows)),
+      info = info
+    )
+  }
 }
-
-## predictions at a row do not depend on the rows beside it
-fit <- fitBasisTerms("scale(w)")
-together <- predict(fit, nd)
-for (i in seq_len(nrow(nd))) {
+# the constants are the fitted rows': scale() at new rows is not their own
+scaleFit <- bartFit("scale(age)")
+expect_equal(
+  as.vector(replayed(scaleFit, newRows)),
+  (newRows$age - mean(frame$age)) / stats::sd(frame$age)
+)
+polyFit <- bartFit("poly(dose, 2)")
+expect_equal(
+  as.vector(replayed(polyFit, newRows)),
+  as.vector(stats::predict(stats::poly(frame$dose, 2), newRows$dose))
+)
+# arithmetic inside I() is evaluated on the rows given, as lm() evaluates it
+centred <- bartFit("I(age - mean(age))")
+expect_equal(
+  as.vector(replayed(centred, newRows)),
+  newRows$age - mean(newRows$age)
+)
+# under 'subset' the centre is still every row's
+subsetFit <- bartFit("scale(age)", subset = keep)
+expect_equal(
+  as.vector(replayed(subsetFit, newRows)),
+  (newRows$age - mean(frame$age)) / stats::sd(frame$age)
+)
+# predictions at a row do not depend on the rows beside it
+together <- predict(scaleFit, newRows)
+for (i in seq_len(nrow(newRows))) {
   expect_equal(
-    unname(predict(fit, nd[i, ])),
+    unname(predict(scaleFit, newRows[i, ])),
     unname(together[, i, drop = FALSE])
   )
 }
-expect_equal(
-  unname(predict(fit, stacked)[, 8:10, drop = FALSE]),
-  unname(together)
+# a level the new rows lack is not an error, and the width is the fit's; a
+# level the fit never saw is refused, as is one the fit's rows did not keep
+levelFit <- bartFit("g")
+expect_identical(ncol(replayed(levelFit, newRows)), 3L)
+unseen <- newRows
+unseen$g[2L] <- "new"
+expect_error(predict(levelFit, unseen), "new")
+droppedFit <- bartFit("g", subset = noW)
+expect_identical(colnames(droppedFit$bases[[2L]]), c("gu", "gv"))
+expect_identical(
+  replayed(droppedFit, newRows),
+  atNewRows("g", newRows)[, 1:2, drop = FALSE]
 )
-
-## a basis variable that is also a predictor: the partial dependence grid is a
-## set of rows of one value, which scale() of the grid could not centre
-fitA <- fitBasisTerms("scale(a)")
-pd <- pdbart(
-  fitA,
-  xind = "a",
-  levs = list(c(0.2, 0.5)),
-  newdata = d,
-  pl = FALSE
+withW <- newRows
+withW$g[1L] <- "w"
+expect_error(
+  predict(droppedFit, withW),
+  "'basis' (g) has the level 'w' at a new row, which no row of the fit had",
+  fixed = TRUE
 )
-byHand <- vapply(
-  c(0.2, 0.5),
-  function(level) {
-    rows <- d
-    rows$a <- level
-    rowMeans(predict(fitA, rows))
-  },
-  numeric(3L)
-)
-expect_equal(plain(pd$fd[[1L]]), plain(byHand))
-
-## a fit saved with its sampler state and read back predicts the same
-fit$fit$storeState()
-path <- tempfile(fileext = ".rds")
-saveRDS(fit, path)
-expect_equal(predict(readRDS(path), nd), together)
-unlink(path)
-
-## what is stored: the training centre and scale, written into the call
-stored <- fit$basis.terms[[2L]]$predcall
-expect_equal(stored$center, mean(d$w))
-expect_equal(stored$scale, stats::sd(d$w))
-
-## subset: the centre and scale are those of the rows the fit used
-keep <- d$w < 55
-fitS <- fitBasisTerms("scale(w)", subset = keep)
-expect_equal(fitS$basis.terms[[2L]]$predcall$center, mean(d$w[keep]))
-expect_equal(
-  plain(replayAt(fitS, nd)),
-  matrix((nd$w - mean(d$w[keep])) / stats::sd(d$w[keep]), ncol = 1L)
-)
-
-## a fit stored without the rebuilt call evaluates the expression on the rows
-## it is given
-old <- fit
-old$basis.terms[[2L]]$predcall <- NULL
-expect_equal(
-  plain(replayAt(old, nd)),
-  matrix(as.vector(scale(nd$w)), ncol = 1L)
-)
-
-## an expression with no makepredictcall method is evaluated on the new rows,
-## as lm evaluates it
-fitM <- fitBasisTerms("I(w - mean(w))")
-expect_equal(plain(replayAt(fitM, nd)), lmBasis("I(w - mean(w))", nd))
-expect_equal(
-  plain(replayAt(fitM, nd)),
-  matrix(nd$w - mean(nd$w), ncol = 1L)
-)
-expect_equal(plain(replayAt(fitM, nd[1L, ])), matrix(0, 1L, 1L))
-
-## a factor basis: a level the new rows lack is not an error, and the width is
-## the fit's; a level the fit never saw is refused
-fitG <- fitBasisTerms("g")
-expect_equal(ncol(replayAt(fitG, nd)), nlevels(d$g))
-expect_equal(dim(predict(fitG, nd)), c(3L, 3L))
-bad <- nd
-bad$g <- factor(c("hi", "new", "lo"))
-expect_error(predict(fitG, bad), "new")
-
-## a call under arithmetic or cbind() at the top of the expression is rebuilt
-## from the training rows too, each operand as model.frame rebuilds it
-d$z <- rep(c(0, 1), length.out = n)
-nd$z <- c(1, 0, 1)
-stackedZ <- rbind(d[1:7, names(nd)], nd)
-lmVars <- function(vars, rows) {
-  mf <- stats::model.frame(stats::reformulate(vars), d)
-  tt <- stats::terms(mf)
-  stats::model.frame(tt, rows)
-}
-descended <- list(
-  list(
-    "scale(w) + scale(v)",
-    function(m) m[[1L]] + m[[2L]],
-    c("scale(w)", "scale(v)")
+# a column of the data must be among the new rows
+withoutAge <- newRows
+withoutAge$age <- NULL
+age <- frame$age
+expect_error(
+  predict(scaleFit, withoutAge),
+  paste0(
+    "'newdata' is missing variable 'age', required by forest 2's basis ",
+    "(scale(age)); supply it, or give that basis at the new rows with ",
+    "'bases ='"
   ),
-  list("scale(w) * z", function(m) m[[1L]] * m$z, c("scale(w)", "z")),
-  list("2 * scale(w)", function(m) 2 * m[[1L]], "scale(w)"),
-  list(
-    "cbind(scale(w), scale(v))",
-    function(m) cbind(m[[1L]], m[[2L]]),
-    c("scale(w)", "scale(v)")
-  )
+  fixed = TRUE
 )
-for (item in descended) {
-  fit <- fitBasisTerms(item[[1L]])
-  for (rows in list(nd, nd[2L, ], stackedZ)) {
-    expect_equal(
-      plain(replayAt(fit, rows)),
-      plain(as.matrix(item[[2L]](lmVars(item[[3L]], rows)))),
-      info = item[[1L]]
-    )
-  }
-  expect_equal(
-    plain(replayAt(fit, d)),
-    plain(fit$bases[[2L]]),
-    info = paste(item[[1L]], "- training rows")
-  )
-}
-
-## two basis forests: each term stores the call of its own basis
-fit2 <- bart(
-  y ~ a +
-    b +
-    forest(a + b, basis = ~ scale(w), n.trees = 5L) +
-    forest(a, basis = ~ scale(v), n.trees = 5L),
-  d,
+rm(age)
+# a number found where the formula was written is used, and looked up again;
+# a vector with a value for every fitted row is refused at new rows
+shrink <- 30
+perRow <- frame$dose
+constantFit <- bartFit("I(dose / shrink)")
+expect_identical(
+  as.vector(replayed(constantFit, newRows)),
+  newRows$dose / 30
+)
+shrink <- 3
+expect_identical(
+  as.vector(replayed(constantFit, newRows)),
+  newRows$dose / 3
+)
+perRowFit <- bartFit("I(perRow * 2)")
+expect_error(
+  predict(perRowFit, newRows),
+  paste0(
+    "'newdata' is missing variable 'perRow', required by forest 2's basis ",
+    "(I(perRow * 2)); supply it, or give that basis at the new rows with ",
+    "'bases ='"
+  ),
+  fixed = TRUE
+)
+expect_identical(
+  dim(predict(perRowFit, newRows, bases = newRows$dose * 2)),
+  c(3L, 9L)
+)
+# a basis handed over as a value has no code to build from
+valued <- packaged(valueFit(frame$dose))
+expect_null(valued$basis.terms[[2L]])
+expect_error(predict(valued, newRows), "give them through 'bases ='")
+# two basis forests: each keeps the record of its own
+twoBases <- bart(
+  y ~ x1 +
+    x2 +
+    forest(x1, basis = scale(age), n.trees = 5L) +
+    forest(x2, basis = scale(dose), n.trees = 5L),
+  frame,
   n.chains = 1L,
   n.threads = 1L,
   n.trees = 5L,
@@ -228,28 +961,29 @@ fit2 <- bart(
   keepTrees = TRUE,
   verbose = FALSE
 )
-termVars <- vapply(
-  fit2$basis.terms[2:3],
-  function(term) all.vars(term$predcall),
-  ""
+expect_identical(
+  vapply(twoBases$basis.terms[2:3], function(term) term$label, ""),
+  c("scale(age)", "scale(dose)")
 )
-expect_equal(unname(termVars), c("w", "v"))
-expect_equal(fit2$basis.terms[[2L]]$predcall$center, mean(d$w))
-expect_equal(fit2$basis.terms[[3L]]$predcall$center, mean(d$v))
-if (identical(unname(termVars), c("w", "v"))) {
-  expect_equal(
-    unname(predict(fit2, d[1:5, ])),
-    unname(predict(fit2, d)[, 1:5])
-  )
-}
-
-## the stored call is evaluated in the formula's environment: a function that
-## exists only where the formula was written is found at predict
+expect_equal(
+  as.vector(dbarts:::replayForestBasis(
+    twoBases$basis.terms[[3L]],
+    newRows,
+    3L
+  )),
+  (newRows$dose - mean(frame$dose)) / stats::sd(frame$dose)
+)
+expect_equal(
+  unname(predict(twoBases, frame[1:5, ])),
+  unname(predict(twoBases, frame)[, 1:5])
+)
+# the record keeps the place the formula was written: a function that exists
+# only there is found at predict
 fitLocal <- function() {
   half <- function(x) x / 2
   bart(
-    y ~ a + b + forest(a + b, basis = ~ scale(half(w)), n.trees = 5L),
-    d,
+    y ~ x1 + x2 + forest(x1, basis = scale(half(age)), n.trees = 5L),
+    frame,
     n.chains = 1L,
     n.threads = 1L,
     n.trees = 5L,
@@ -259,66 +993,75 @@ fitLocal <- function() {
     verbose = FALSE
   )
 }
-fitL <- fitLocal()
 expect_equal(
-  plain(replayAt(fitL, nd)),
-  matrix((nd$w - mean(d$w)) / stats::sd(d$w), ncol = 1L)
+  as.vector(replayed(fitLocal(), newRows)),
+  (newRows$age - mean(frame$age)) / stats::sd(frame$age)
 )
-
-## what the descent does not enter is evaluated on the rows given
-fitI <- fitBasisTerms("I(scale(w))")
-expect_equal(
-  plain(replayAt(fitI, nd)),
-  matrix(as.vector(scale(nd$w)), ncol = 1L)
+# a fit saved with its sampler state and read back predicts the same
+scaleFit$fit$storeState()
+path <- tempfile(fileext = ".rds")
+saveRDS(scaleFit, path)
+expect_equal(predict(readRDS(path), newRows), together)
+unlink(path)
+# the partial dependence grids rebuild the basis at their rows, a basis
+# variable that is also a predictor among them
+x1Fit <- bartFit("scale(x1)")
+pd <- pdbart(
+  x1Fit,
+  xind = "x1",
+  levs = list(c(0.2, 0.5)),
+  newdata = frame,
+  pl = FALSE
 )
-
-## the rows a missing response drops still enter the centre, as in lm
-dNA <- d
-dNA$y[1:6] <- NA
-fitNA <- fitBasisTerms("scale(w)", data = dNA)
-expect_equal(fitNA$basis.terms[[2L]]$predcall$center, mean(d$w))
-
-## pd2bart rebuilds the basis at its grid rows
+byHand <- vapply(
+  c(0.2, 0.5),
+  function(level) {
+    rows <- frame
+    rows$x1 <- level
+    rowMeans(predict(x1Fit, rows))
+  },
+  numeric(3L)
+)
+expect_equal(matrix(as.vector(pd$fd[[1L]]), 3L), matrix(as.vector(byHand), 3L))
 pd2 <- pd2bart(
-  fitA,
-  xind = c("a", "b"),
+  x1Fit,
+  xind = c("x1", "x2"),
   levs = list(c(0.2, 0.5), c(0.3, 0.6)),
-  newdata = d,
+  newdata = frame,
   pl = FALSE
 )
 byHand <- vapply(
   list(c(0.2, 0.3), c(0.5, 0.3), c(0.2, 0.6), c(0.5, 0.6)),
   function(level) {
-    rows <- d
-    rows$a <- level[1L]
-    rows$b <- level[2L]
-    mean(predict(fitA, rows))
+    rows <- frame
+    rows$x1 <- level[1L]
+    rows$x2 <- level[2L]
+    mean(predict(x1Fit, rows))
   },
   numeric(1L)
 )
 expect_equal(as.vector(colMeans(pd2$fd)), byHand)
-
-## an operand that draws random numbers is evaluated a second time to find its
-## call, which must not move R's generator: after the fit it stands where one
-## evaluation of the basis leaves it
+# a term that draws random numbers is evaluated once: after the fit R's
+# generator stands where one evaluation of the basis leaves it
 set.seed(11)
-fitR <- fitBasisTerms("cbind(scale(w), runif(length(w)))", seed = 3L)
+invisible(bartFit("scale(age) + runif(length(age))"))
 after <- stats::runif(1L)
 set.seed(11)
 invisible(stats::runif(n))
 expect_equal(after, stats::runif(1L))
-
-## the second evaluation does not repeat an operand's warning
+# and what a term warns of is raised once
 warny <- function(x) {
   warning("warny")
   x
 }
-nWarnings <- 0L
+countWarnings <- 0L
 withCallingHandlers(
-  fitBasisTerms("2 * warny(w)"),
+  bartFit("warny(dose)"),
   warning = function(w) {
-    nWarnings <<- nWarnings + 1L
+    if (identical(conditionMessage(w), "warny")) {
+      countWarnings <<- countWarnings + 1L
+    }
     invokeRestart("muffleWarning")
   }
 )
-expect_equal(nWarnings, 1L)
+expect_identical(countWarnings, 1L)

@@ -1,21 +1,18 @@
-# Formula-path forests = basis declarations, evaluated against the fit's own
-# (pre-subset) data and then aligned to 'subset' (R/model.R
+# A forest's basis covers every row of the data the fit was given and is cut
+# to the rows 'subset' and the na.action keep. With no 'subset', or one that
+# keeps every row, a basis's row count must match the data's, as always. With
+# 'subset' present the basis must cover every row of the FULL data and is
+# restricted to the same rows the model frame keeps; a basis already at the
+# subset's row count - matching only by coincidence, not because it names the
+# pre-subset data - is refused by name. A basis written as code says so in
+# its own text, at either door; one handed over as a value, to forest() or to
+# dbartsData(bases = ), is refused by the data object (R/model.R
 # resolveFormulaBasisSubset/alignForestBasisToSubset, and R/data.R
-# validateForestBases's 'subsetRows' branch - the same rule dbartsData(bases =
-# ) now applies directly on its own formula path). With no 'subset', or one
-# that keeps every row, a basis's row count must match the data's, as always.
-# With 'subset' present the basis must instead cover every row of the FULL
-# data and is restricted to the same rows the model frame keeps; a basis
-# already at the subset's row count - matching only by coincidence, not
-# because it names the pre-subset data - is refused by name, at both
-# dbarts(forests = ) and a direct dbartsData(bases = ) call. At an EQUAL row
-# count (subset selects/reorders exactly as many rows as the full data has),
-# the two are not ambiguous: a full-data match takes priority over a
-# subset-count match, so both read the basis as full-data and reorder it by
-# 'subset'. The x/y matrix interface (already implementing the full-data
-# rule) and the forest() formula term (':') route (evaluated post-subset by
-# construction, and unaffected by this rule) are checked here only as
-# regressions.
+# validateForestBases's 'subsetRows' branch), naming the forest and both
+# counts. At an EQUAL row count (subset selects/reorders exactly as many rows
+# as the full data has), the two are not ambiguous: a full-data match takes
+# priority over a subset-count match, so the basis is read as full-data and
+# reordered by 'subset'.
 
 n <- 40L
 set.seed(11)
@@ -40,6 +37,28 @@ seededControlForestBasisSubset <- function(...) {
 }
 ambiguousPattern <-
   "forest 2's 'basis' has 20 rows, matching 'subset' \\(20\\) but not the full data \\(40 rows\\)"
+# a basis written as code that does not cover the data
+shortCode <- function(code, rows) {
+  paste0(
+    "'basis' (",
+    code,
+    ") must have the same length as the data: it has ",
+    rows,
+    " rows and the data 40; a basis covers every row of the data and is cut ",
+    "by 'subset' and the na.action with it"
+  )
+}
+# the columns of a matrix written as code are named as lm() names them
+named <- function(basis, names) {
+  colnames(basis) <- names
+  basis
+}
+valueForests <- function(value) {
+  list(
+    dbartsForests$forest(),
+    do.call(dbartsForests$forest, list(basis = value))
+  )
+}
 
 ## --- (i) no subset, basis at the data's row count: unchanged --------------
 noSubset <- dbarts(
@@ -59,7 +78,29 @@ subsetFull <- dbarts(
   forests = list(forest(), forest(basis = zBasis)),
   control = seededControlForestBasisSubset()
 )
-expect_identical(subsetFull$data@bases[[2L]], zBasis[idx, ])
+expect_identical(
+  subsetFull$data@bases[[2L]],
+  named(zBasis[idx, ], c("zBasis1", "zBasis2"))
+)
+# the same basis handed over as a value is cut the same way
+subsetValue <- dbarts(
+  y ~ a,
+  d,
+  subset = idx,
+  forests = valueForests(zBasis),
+  control = seededControlForestBasisSubset()
+)
+expect_identical(subsetValue$data@bases[[2L]], zBasis[idx, ])
+expect_identical(
+  subsetValue$run(0L, 4L)$train,
+  dbarts(
+    y ~ a,
+    d,
+    subset = idx,
+    forests = list(forest(), forest(basis = zBasis)),
+    control = seededControlForestBasisSubset()
+  )$run(0L, 4L)$train
+)
 manual <- dbarts(
   y ~ a,
   d[idx, ],
@@ -78,6 +119,17 @@ expect_error(
     d,
     subset = idx,
     forests = list(forest(), forest(basis = zBasis[idx, ])),
+    control = seededControlForestBasisSubset()
+  ),
+  shortCode("zBasis[idx, ]", 20L),
+  fixed = TRUE
+)
+expect_error(
+  dbarts(
+    y ~ a,
+    d,
+    subset = idx,
+    forests = valueForests(zBasis[idx, ]),
     control = seededControlForestBasisSubset()
   ),
   ambiguousPattern
@@ -101,7 +153,10 @@ formulaSubset <- dbarts(
   forests = list(forest(), forest(basis = ~ factor(z))),
   control = seededControlForestBasisSubset()
 )
-expect_identical(formulaSubset$data@bases[[2L]], zBasis[idx, ])
+expect_identical(
+  formulaSubset$data@bases[[2L]],
+  named(zBasis[idx, ], c("factor(z)0", "factor(z)1"))
+)
 manualFormula <- dbarts(
   y ~ a,
   d[idx, ],
@@ -124,18 +179,31 @@ expect_error(
     forests = list(forest(), forest(basis = ~ zBasis[idx, 2L])),
     control = seededControlForestBasisSubset()
   ),
-  ambiguousPattern
+  shortCode("zBasis[idx, 2L]", 20L),
+  fixed = TRUE
 )
 
-## --- regression: the forest() formula term (':') route already implements
-## the post-subset rule and is unaffected by this change --------------------
+## --- a forest() term of the formula is cut the same way ---------------------
 termFit <- dbarts(
   y ~ a + forest(a, basis = ~z),
   d,
   subset = idx,
   control = seededControlForestBasisSubset()
 )
-expect_equal(dim(termFit$data@bases[[2L]]), c(length(idx), 1L))
+expect_identical(
+  termFit$data@bases[[2L]],
+  matrix(as.double(z[idx]), dimnames = list(NULL, "z"))
+)
+expect_error(
+  dbarts(
+    y ~ a + forest(a, basis = zBasis[idx, ]),
+    d,
+    subset = idx,
+    control = seededControlForestBasisSubset()
+  ),
+  shortCode("zBasis[idx, ]", 20L),
+  fixed = TRUE
+)
 
 ## --- regression: the x/y matrix interface keeps its own, already-correct,
 ## contract - a basis must be full-data length, subset automatically -------
@@ -146,13 +214,27 @@ xyFull <- dbarts(
   forests = list(forest(), forest(basis = zBasis)),
   control = seededControlForestBasisSubset()
 )
-expect_identical(xyFull$data@bases[[2L]], zBasis[idx, ])
+expect_identical(
+  xyFull$data@bases[[2L]],
+  named(zBasis[idx, ], c("zBasis1", "zBasis2"))
+)
 expect_error(
   dbarts(
     cbind(a),
     y,
     subset = idx,
     forests = list(forest(), forest(basis = zBasis[idx, ])),
+    control = seededControlForestBasisSubset()
+  ),
+  shortCode("zBasis[idx, ]", 20L),
+  fixed = TRUE
+)
+expect_error(
+  dbarts(
+    cbind(a),
+    y,
+    subset = idx,
+    forests = valueForests(zBasis[idx, ]),
     control = seededControlForestBasisSubset()
   ),
   "'basis' must have the same length"
@@ -194,7 +276,10 @@ equalCountForests <- dbarts(
   control = seededControlForestBasisSubset()
 )
 expect_identical(equalCountDirect@bases[[2L]], zBasis[recycled, ])
-expect_identical(equalCountForests$data@bases[[2L]], zBasis[recycled, ])
+expect_identical(
+  equalCountForests$data@bases[[2L]],
+  named(zBasis[recycled, ], c("zBasis1", "zBasis2"))
+)
 
 ## --- a basis already shortened by the na.action, with no 'subset': the
 ## refusal names the rows the na.action kept, not a 'subset' never given ----
@@ -205,6 +290,16 @@ expect_error(
     y ~ a,
     dMissing,
     forests = list(forest(), forest(basis = zBasis[-3L, ])),
+    control = seededControlForestBasisSubset()
+  ),
+  shortCode("zBasis[-3L, ]", 39L),
+  fixed = TRUE
+)
+expect_error(
+  dbarts(
+    y ~ a,
+    dMissing,
+    forests = valueForests(zBasis[-3L, ]),
     control = seededControlForestBasisSubset()
   ),
   paste0(

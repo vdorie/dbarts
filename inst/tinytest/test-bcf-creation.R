@@ -60,7 +60,7 @@ expect_true(inherits(publicSampler, "dbartsSampler"))
 expect_null(publicSampler$data@bases[[1L]])
 expect_equal(
   publicSampler$data@bases[[2L]],
-  cbind(1 - as.double(z), as.double(z))
+  cbind("factor(z)0" = 1 - as.double(z), "factor(z)1" = as.double(z))
 )
 expect_true(all(is.finite(publicResult$train)))
 expect_true(all(publicResult$sigma > 0))
@@ -79,7 +79,10 @@ swappedSampler <- dbarts(
 )
 expect_equal(
   swappedSampler$data@bases[[2L]],
-  cbind(as.double(z), 1 - as.double(z))
+  cbind(
+    "factor(z, levels = c(1, 0))1" = as.double(z),
+    "factor(z, levels = c(1, 0))0" = 1 - as.double(z)
+  )
 )
 expect_false(identical(
   swappedSampler$run(0L, 10L)$train,
@@ -295,16 +298,32 @@ expect_error(
 
 # ... while a caller who declared a forest's BASIS is refused in that word, on
 # every surface that takes one, rather than in the data object's
+shortBasisRefusal <- paste0(
+  "'basis' (factor(z[1:10])) must have the same length as the data: it has ",
+  "10 rows and the data ",
+  length(y)
+)
 expect_error(
   dbartsSpec(
     dbartsData(x, y),
     seededControlBcfCreation(),
     forests = list(forest(), forest(basis = ~ factor(z[1:10])))
   ),
-  "'basis' must have the same length"
+  shortBasisRefusal,
+  fixed = TRUE
 )
 expect_error(
   dbarts(x, y, forests = list(forest(), forest(basis = ~ factor(z[1:10])))),
+  shortBasisRefusal,
+  fixed = TRUE
+)
+# a value handed over is refused in the same word
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), do.call(forest, list(basis = factor(z[1:10]))))
+  ),
   "'basis' must have the same length"
 )
 expect_error(
@@ -314,7 +333,8 @@ expect_error(
     control = seededControlBcfCreation(),
     forests = list(forest(), forest(basis = ~ factor(z)))
   )$setForestBasis(2L, ~ factor(z[1:10])),
-  "'basis' must have the same length"
+  shortBasisRefusal,
+  fixed = TRUE
 )
 offSlot <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
@@ -352,7 +372,13 @@ subsetForests <- dbarts(
   forests = twoForests,
   control = seededControlBcfCreation()
 )
-expect_equal(subsetForests$data@bases[[2L]], zBasis[1:100, ])
+expect_equal(
+  subsetForests$data@bases[[2L]],
+  structure(
+    zBasis[1:100, ],
+    dimnames = list(NULL, c("factor(z)0", "factor(z)1"))
+  )
+)
 
 # --- the hasBasis escape (model.R's validateForestKnobs/resolveForests): a
 # basis reaching the data through dbartsData(bases=) rather
@@ -1144,7 +1170,10 @@ firstForestSpecBuild <- dbartsSpec(
   control,
   forests = list(forest(basis = ~ factor(z)), forest(basis = ~ factor(z)))
 )
-expect_equal(firstForestSpecBuild$data@bases[[1L]], zBasis)
+expect_equal(
+  firstForestSpecBuild$data@bases[[1L]],
+  structure(zBasis, dimnames = list(NULL, c("factor(z)0", "factor(z)1")))
+)
 # the K = 1 route reaches the pre-existing "needs at least two forests"
 # refusal here, not the pre-built-data one - a different message, so the two
 # refusals are not conflated
@@ -1273,7 +1302,7 @@ expect_error(
 # the p + 1 forest form and linear() leaves ---
 expect_error(
   dbarts(dbartsData(x, y, bases = list(zBasis)), control = control),
-  "forest(basis = ~ z1)",
+  "forest(basis = z1)",
   fixed = TRUE
 )
 expect_error(

@@ -142,17 +142,26 @@ plusTerms <- function(expr) {
   list(expr)
 }
 
-## The basis a crossed operand stands for: a name, factor() of a name, any
-## other call on columns, or a parenthesised sum, which is its members side
-## by side, one column each: cbind() of them, a basis formula being evaluated
-## as R code. NULL where no one forest() can be written for it: the operand is
-## itself crossed or holds a forest(), or the sum has a member cbind() would
-## not keep as a column of numbers, a factor() call or a column that
+## The basis a crossed operand stands for, as it is written in 'basis =': a
+## name, factor() of a name, any other call on columns, or a parenthesised
+## sum, which is its members side by side, one column each. NULL where no one
+## forest() can be written for it: the operand is itself crossed or holds a
+## forest(), a basis's grammar does not take it, or the sum has a member that
+## cannot stand beside numeric columns, a factor() call or a column that
 ## `columnOf`, where the data are at hand, finds to be neither numeric nor
 ## logical.
 crossedOperandBasis <- function(expr, columnOf = NULL) {
   if (containsForestCall(expr)) {
     return(NULL)
+  }
+  takenAsBasis <- function(basis) {
+    tryCatch(
+      {
+        parseBasisGrammar(basis)
+        basis
+      },
+      error = function(e) NULL
+    )
   }
   if (
     is.call(expr) && identical(expr[[1L]], as.name("(")) && length(expr) == 2L
@@ -174,10 +183,15 @@ crossedOperandBasis <- function(expr, columnOf = NULL) {
         as.character(member[[1L]]) %not_in%
           c("factor", "as.factor", "ordered", "as.character", "-", ":", "*")
     }
-    if (!all(vapply(members, isColumn, NA))) {
+    # a model formula keeps one of two terms alike, so a member written
+    # twice has no sum that is a column for each
+    if (
+      !all(vapply(members, isColumn, NA)) ||
+        anyDuplicated(vapply(members, shownCode, "")) > 0L
+    ) {
       return(NULL)
     }
-    return(as.call(c(quote(cbind), members)))
+    return(takenAsBasis(expr[[2L]]))
   }
   if (
     is.call(expr) &&
@@ -189,7 +203,7 @@ crossedOperandBasis <- function(expr, columnOf = NULL) {
   if (identical(expr, as.name("."))) {
     return(NULL)
   }
-  expr
+  takenAsBasis(expr)
 }
 
 ## The refusal of a forest() crossed with another term by ':' or '*'.
@@ -211,7 +225,7 @@ refuseCrossedForest <- function(
     stop(
       lead,
       "a forest's multiplier is its 'basis' argument, as ",
-      "forest(x1 + x2, basis = ~ z)",
+      "forest(x1 + x2, basis = z)",
       call. = FALSE
     )
   }
@@ -241,7 +255,7 @@ refuseCrossedForest <- function(
     lead,
     "a forest's multiplier is its 'basis' argument: write forest(",
     paste(
-      c(arguments, paste0("basis = ~ ", shownCode(basis))),
+      c(arguments, paste0("basis = ", shownCode(basis))),
       collapse = ", "
     ),
     ")",
@@ -453,17 +467,20 @@ writesInterceptTerm <- function(expr) {
 }
 
 ## One forest() term of a formula as a forest() specification: its
-## predictors kept as code with the formula's environment, its basis and
-## every other argument evaluated there, as a basis formula written by hand
-## already resolves, with the constraint constructors and fixed resolved by
-## bare name. `call` is the term as written, for messages.
+## predictors and its basis kept as code, the basis with the formula's
+## environment, where its names are looked up after the data's columns, and
+## every other argument evaluated there, with the constraint constructors and
+## fixed resolved by bare name. A term is no call the caller makes, so
+## nothing of it is evaluated before the model is built. `call` is the term
+## as written, for messages.
 processHit <- function(hit, env) {
   if (numUnnamed(as.list(hit)[-1L]) > 1L) {
     refuseSecondUnnamed()
   }
   arguments <- forestCallArguments(hit)
-  basis <- if ("basis" %in% names(arguments)) {
-    eval(arguments[["basis"]], env)
+  basis <- arguments[["basis"]]
+  if (is.language(basis)) {
+    basis <- basisCode(basis, env)
   }
   spec <- do.call(
     forest,
@@ -474,7 +491,7 @@ processHit <- function(hit, env) {
       evalEnv = env
     )
   )
-  spec["vars"] <- list(captureForestVars(arguments[["vars"]], env))
+  spec["vars"] <- list(captureForestVars(arguments[["vars"]]))
   spec["basis"] <- list(basis)
   list(call = hit, spec = spec)
 }
@@ -512,7 +529,6 @@ readForestTerms <- function(entry, response, data, env) {
     }
     forestFormulaTerms(
       expr,
-      env,
       labels = vapply(
         value[isTerm],
         function(name) deparse(as.name(name), backtick = TRUE),
@@ -602,13 +618,13 @@ readForestTerms <- function(entry, response, data, env) {
       call. = FALSE
     )
   }
-  entry$spec$vars <- forestFormulaTerms(expr, vars$env, read$labels)
+  entry$spec$vars <- forestFormulaTerms(expr, read$labels)
   entry
 }
 
 ## Phase 1, from the formula and its environment: walk, refuse, read every
-## forest's terms, rebuild the fit's own formula from them, and build every
-## basis (ingestFormulaBases). NULL when 'formula' has no
+## forest's terms and its basis, and rebuild the fit's own formula from the
+## terms. NULL when 'formula' has no
 ## forest() term, leaving the caller's formula handling untouched. 'family'
 ## is checked against the multiplier-incompatible set here, for a formula
 ## with a multiplied forest, at the point each entry point has just resolved
@@ -619,15 +635,10 @@ readForestTerms <- function(entry, response, data, env) {
 ## The forest with no basis is the forest with no multiplier: the plain
 ## terms, or the one forest() written without a basis, and forest 1 wherever
 ## it is written. Where every forest has a basis they keep the order written.
-## `forests`, `bases` and `basisTerms` are positional against that order.
-ingestFormulaTerms <- function(
-  formula,
-  family,
-  data,
-  subsetMissing,
-  subsetExpr,
-  evalEnv
-) {
+## `forests` and `basisReads`, each basis as read over every row of the data
+## (readForestBasis), are positional against that order; `basisRows` is the
+## data they were read against and the number of its rows.
+ingestFormulaTerms <- function(formula, family, data) {
   if (!is.formula(formula)) {
     return(NULL)
   }
@@ -651,7 +662,23 @@ ingestFormulaTerms <- function(
   # what '.' expands over, as the fit's own model frame expands it
   termData <- if (is.data.frame(data) || is.list(data)) data else NULL
   written <- lapply(walked$hits, processHit, env = formulaEnv)
-  multiplied <- !vapply(written, function(entry) is.null(entry$spec$basis), NA)
+  # every basis is read here, against the data the fit was given, the code of
+  # one that turns out to state none among them: which forest has a basis
+  # decides which is the forest with no multiplier
+  basisRows <- NULL
+  if (!all(vapply(written, function(entry) is.null(entry$spec$basis), NA))) {
+    basisRows <- fitBasisRows(formula, data)
+  }
+  written <- lapply(written, function(entry) {
+    read <- readForestBasis(entry$spec$basis, basisRows$data, basisRows$full)
+    if (is.null(read)) {
+      entry$spec["basis"] <- list(NULL)
+    } else {
+      entry$read <- read
+    }
+    entry
+  })
+  multiplied <- !vapply(written, function(entry) is.null(entry$read), NA)
   # a formula whose one forest() has no basis is a single-forest fit, in every
   # family; a multiplier is what these families have no fit for
   if (any(multiplied) && family %in% TERM_UNSUPPORTED_FAMILIES) {
@@ -734,7 +761,6 @@ ingestFormulaTerms <- function(
       if (length(others) > 0L) {
         written[[bare]]$spec$vars <- forestFormulaTerms(
           quote(.),
-          formulaEnv,
           labels = others,
           named = TRUE
         )
@@ -800,7 +826,7 @@ ingestFormulaTerms <- function(
     c(written[bare], written[-bare])
   } else if (length(first$labels) > 0L) {
     plainForest <- forest()
-    plainForest$vars <- forestFormulaTerms(reduced, formulaEnv, first$labels)
+    plainForest$vars <- forestFormulaTerms(reduced, first$labels)
     c(list(list(call = NULL, spec = plainForest)), written)
   } else {
     # every forest has a basis: the order written
@@ -832,140 +858,12 @@ ingestFormulaTerms <- function(
   rewritten <- formula
   rewritten[[length(rewritten)]] <- rhs
 
-  c(
-    list(formula = rewritten, forests = forests),
-    ingestFormulaBases(
-      forests,
-      formulaEnv,
-      data,
-      subsetMissing,
-      subsetExpr,
-      evalEnv
-    )
+  list(
+    formula = rewritten,
+    forests = forests,
+    basisReads = lapply(entries, function(entry) entry$read),
+    basisRows = basisRows
   )
-}
-
-## The bases of a formula's forests, in the forests' order: every basis
-## evaluated against a model frame built from the SAME data and subset the fit
-## itself uses (post-subset - the ambiguity a basis evaluated against raw,
-## pre-subset data would otherwise carry), expanded to `bases`, and
-## `basisTerms`, what a blend at new rows needs to build each again. Both are
-## positional against `forests`.
-ingestFormulaBases <- function(
-  forests,
-  formulaEnv,
-  data,
-  subsetMissing,
-  subsetExpr,
-  evalEnv
-) {
-  declared <- lapply(forests, function(spec) spec$basis)
-  basisVars <- unique(unlist(lapply(declared, function(basis) {
-    if (inherits(basis, "formula")) {
-      all.vars(basis[[2L]])
-    } else {
-      NULL
-    }
-  })))
-  basisFrame <- NULL
-  if (length(basisVars) > 0L) {
-    basisFormula <- stats::reformulate(basisVars)
-    environment(basisFormula) <- formulaEnv
-    mfCall <- quote(stats::model.frame(
-      formula = NULL,
-      data = NULL,
-      na.action = stats::na.pass,
-      drop.unused.levels = FALSE
-    ))
-    mfCall$formula <- basisFormula
-    mfCall$data <- data
-    if (!subsetMissing) {
-      mfCall$subset <- subsetExpr
-    }
-    basisFrame <- eval(mfCall, evalEnv)
-  }
-
-  evaluated <- lapply(declared, evaluateForestBasis, data = basisFrame)
-  bases <- lapply(evaluated, expandForestBasis)
-
-  # what a blend at NEW rows needs to rebuild the same basis, which the
-  # expanded matrix alone cannot supply: the declaring formula, the fit-time
-  # levels of every factor it reads (so a replay refuses a new level and keeps
-  # the order amplitude j is stated against), and the levels of the evaluated
-  # value itself when that is categorical, since an expression such as
-  # ~ factor(z) derives its own from whatever data it sees and would otherwise
-  # set the width from newdata. The call that rebuilds the value from the
-  # training rows' centre, scale and knots is stored too. A basis given as a
-  # value rather than a formula has no expression to replay and stores none.
-  basisTerms <- lapply(seq_along(declared), function(i) {
-    basis <- declared[[i]]
-    if (!inherits(basis, "formula")) {
-      return(NULL)
-    }
-    factorVars <- Filter(
-      is.factor,
-      basisFrame[intersect(all.vars(basis[[2L]]), names(basisFrame))]
-    )
-    value <- evaluated[[i]]
-    # an operand is evaluated a second time to find its call; a draw it makes
-    # must not move R's generator, which seeds the chains
-    restoreSeed <- protectRandomSeed()
-    on.exit(restoreSeed())
-    list(
-      formula = basis,
-      # the expression with what scale(), poly(), ns() and the like computed
-      # from the training rows written into the call, as model.frame does for a
-      # model formula's terms (stats::makepredictcall); an expression with no
-      # such method comes back unchanged and is evaluated on whatever rows
-      # predict is given, as lm evaluates it
-      predcall = forestBasisPredictCall(
-        basis[[2L]],
-        basisFrame,
-        environment(basis),
-        value
-      ),
-      xlev = if (length(factorVars) > 0L) lapply(factorVars, levels) else NULL,
-      levels = if (is.factor(value)) {
-        levels(value)
-      } else if (is.character(value)) {
-        levels(factor(value))
-      } else {
-        NULL
-      }
-    )
-  })
-
-  list(bases = bases, basisTerms = basisTerms)
-}
-
-## The call that rebuilds a basis expression at new rows. model.frame gives
-## every variable of a model formula its own stats::makepredictcall; a basis is
-## one expression, so the same is done for the operands of the arithmetic
-## operators, parentheses and cbind() at its top, and for the call at the top
-## when it is none of those. Anything else, I() and indexing among it, comes
-## back as written. 'value' is the already evaluated expression, which saves
-## evaluating a call at the top again. An operand under the descent is
-## evaluated a second time, so a function with a side effect runs twice at fit;
-## that is safe for the fit because the caller restores R's generator around
-## it and the first evaluation has already raised any warning, so the second
-## is silenced.
-forestBasisPredictCall <- function(expr, frame, env, value = NULL) {
-  if (!is.call(expr)) {
-    return(expr)
-  }
-  if (
-    is.name(expr[[1L]]) &&
-      as.character(expr[[1L]]) %in% c("+", "-", "*", "/", "^", "(", "cbind")
-  ) {
-    for (i in seq_along(expr)[-1L]) {
-      expr[[i]] <- forestBasisPredictCall(expr[[i]], frame, env)
-    }
-    return(expr)
-  }
-  if (is.null(value)) {
-    value <- suppressWarnings(eval(expr, frame, env))
-  }
-  stats::makepredictcall(value, expr)
 }
 
 ## Phase 2: each forest's predictors become design columns, which exist only

@@ -561,15 +561,13 @@ packageBartResults <- function(
     # neither run() channel carries them
     result$bases <- fit$data@bases
     forestInfo <- attr(fit$control, "bartcore.forests")
-    # the declaring formula and the fit-time levels of every basis written as a
-    # forest() term, which is what lets the same basis be rebuilt at NEW rows;
-    # the element stays absent on a fit whose bases arrived as values, whose
-    # blend then needs the caller's own at those rows
+    # the record of every basis written as code, at either door, which is
+    # what lets the same basis be rebuilt at NEW rows; the element stays
+    # absent on a fit whose bases all arrived as values, whose blend then
+    # needs the caller's own at those rows
     result$basis.terms <- forestInfo$basisTerms
-    forestLabels <- forestInfo$labels
-    if (!is.null(forestLabels)) {
-      attr(result, "forest.labels") <- forestLabels
-    }
+    # one label for each forest, always
+    attr(result, "forest.labels") <- forestInfo$labels
   }
 
   if (keepSampler) {

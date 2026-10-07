@@ -180,7 +180,10 @@ z2 <- rep(0, n)
 # an explicit level set, so the basis still has the two columns the amplitudes
 # ride on when the data happen to sit entirely in one of them
 mirror$setForestBasis(2L, factor(z2, levels = c(0, 1)))
-expect_equal(mirror$data@bases[[2L]], unname(cbind(1 - z2, z2)))
+expect_equal(
+  mirror$data@bases[[2L]],
+  cbind("factor(z)0" = 1 - z2, "factor(z)1" = z2)
+)
 
 mirror$storeState()
 mirrorFile <- tempfile(fileext = ".rds")
@@ -244,7 +247,7 @@ unlink(controlledFile)
 reloadedControlled$getPointer()
 expect_equal(
   reloadedControlled$data@bases[[2L]],
-  cbind(1 - as.double(z), as.double(z))
+  cbind("factor(z)0" = 1 - as.double(z), "factor(z)1" = as.double(z))
 )
 rerunControlled <- reloadedControlled$run(0L, 1L)
 expect_true(all(is.finite(rerunControlled$train)))

@@ -52,7 +52,7 @@ expect_identical(attr(fit$glue, "forest"), c("forest1", "forest2", "forest2"))
 expect_equal(fit$n.forests, 2L)
 expect_null(fit$bases[[1L]])
 expect_equal(dim(fit$bases[[2L]]), c(n, 2L))
-expect_null(attr(fit, "forest.labels"))
+expect_identical(attr(fit, "forest.labels"), c("forest1", "factor(z)"))
 
 # --- forest.labels rides the declaration's own names ---
 namedFit <- packageFrom(list(

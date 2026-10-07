@@ -274,7 +274,7 @@ expect_error(
 )
 expect_error(
   a$setLeafPrior(forests = list(first = forest(sd = 1))),
-  "created unnamed"
+  "names forest 1 'first', but it was created as 'forest1'"
 )
 expect_error(
   a$setLeafPrior(forests = list(dbartsPriors$normal())),

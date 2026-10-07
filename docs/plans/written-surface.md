@@ -109,7 +109,8 @@ said.
   `cbind(dose, age)` two. `dose:age` is refused ("'basis' must have the same length as 'y'", with R's
   warning that only the first element was used); `dose + factor(z)` is refused ("a 'basis' cannot be NA");
   `normal(dose, sd = 30)` stops with "could not find function". `lm(y ~ 0 + dose / 30)` is R's "invalid
-  model formula in ExtractVars". [`evaluateForestBasis`](../../R/model.R).
+  model formula in ExtractVars". The evaluator was retired: [`evaluateForestBasis`](../../R/model.R),
+  which push 3 removed.
 - Column names. `~ cbind(dose, age)` gives `dose`, `age`; `~ poly(dose, 2)` gives `1`, `2`; `~ dose`,
   `~ scale(age)`, `~ factor(z)`, a character and a logical column give none. A value keeps what it has,
   partial names included: `cbind(1 - z, z)` is `""`, `"z"`, and `cbind(a = , a = )` is accepted.
@@ -610,7 +611,7 @@ reader's sake; the implementer may name them otherwise.
     today at the formula door); a subscripted value refused with the same-length text.
 3.5 New rows. The stored record is R's `terms` object with its environment, at both doors, and
     [`replayForestBasis`](../../R/model.R) rebuilds through `model.frame(terms, newdata, xlev = )`;
-    [`forestBasisPredictCall`](../../R/formulaTerms.R) goes. Tests: `scale()`, `poly()`, both, and
+    retired: [`forestBasisPredictCall`](../../R/formulaTerms.R) goes, and is gone. Tests: `scale()`, `poly()`, both, and
     `I(age - mean(age))` at new rows, each equal to the constants written out; a basis written in a list
     is rebuilt (fails today: stops); a constant beside the call is used and looked up again; a per-row
     vector found beside the call is refused at predict, pointing to `bases =`; a level the fit never saw

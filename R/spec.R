@@ -282,7 +282,8 @@ resolveSamplerSpec <- function(
   forests,
   evalEnv,
   residPrior = NULL,
-  familySpec = NULL
+  familySpec = NULL,
+  basisRecords = NULL
 ) {
   # a caller-supplied control may have been taken from another fit, and the
   # bartcore.* attributes are that fit's model configuration; this call
@@ -854,7 +855,7 @@ resolveSamplerSpec <- function(
             numForests,
             "; for varying coefficients declare an intercept forest plus ",
             "one basis forest per covariate - forests = list(forest(), ",
-            "forest(basis = ~ z1), ...) on dbarts() or dbartsSpec(), or a ",
+            "forest(basis = z1), ...) on dbarts() or dbartsSpec(), or a ",
             "data object with bases = list(NULL, z1, ...) - or use a single ",
             "forest with linear() leaves; otherwise drop the basis"
           )
@@ -864,8 +865,8 @@ resolveSamplerSpec <- function(
             numForests,
             ": a forest with a 'basis' stands beside another forest. Write ",
             "the forest with no multiplier too, as y ~ forest(x1 + x2) + ",
-            "forest(x1 + x2, basis = ~ z1) or forests = list(forest(), ",
-            "forest(basis = ~ z1)), or use a single forest with linear() ",
+            "forest(x1 + x2, basis = z1) or forests = list(forest(), ",
+            "forest(basis = z1)), or use a single forest with linear() ",
             "leaves; otherwise drop the basis"
           )
         }
@@ -1017,24 +1018,21 @@ resolveSamplerSpec <- function(
         }
       }
     )
-    # a declaration's own per-forest names (forests = list(prognostic = ...,
-    # treatment = ...)), distinct from the packaged channels' own
-    # forest1..forestK vocabulary; NULL when the caller named none, "" for a
-    # forest left unnamed among named siblings or reached only through
-    # data@bases
-    forestLabels <- names(forests)
-    if (!is.null(forestLabels)) {
-      length(forestLabels) <- numForests
-      forestLabels[is.na(forestLabels)] <- ""
-    }
+    # every forest's label, fixed here for the life of the sampler: a list's
+    # own name, else the text of a basis written as code, else its position
+    labels <- forestLabels(
+      names(forests),
+      lapply(basisRecords, function(record) record$label),
+      numForests
+    )
     attr(control, "bartcore.forests") <- list(
       # one length-8 numeric per forest; the family selects the basis-free
       # channel's default median and the count the K-aware leaf scale factor
       params = forestParams(specs, hasBasis, family),
       # resolved 1-based column indices per forest, or NULL for unrestricted
       vars = forestColumns,
-      # the declaration's own names, or NULL; see forestLabels above
-      labels = forestLabels,
+      # one label for each forest; see forestLabels()
+      labels = labels,
       # the first forest takes the fit's own interactions()/blocks() arguments,
       # already resolved above; the rest take their own, resolved against the
       # columns they may split on
@@ -1060,6 +1058,15 @@ resolveSamplerSpec <- function(
         )
       )
     )
+    # what builds a basis written as code again at new rows, positional
+    # against the forests as data@bases is and NULL where a forest's basis
+    # is a value, which has no code to build from. Inert to the run: nothing
+    # the engine reads
+    if (!is.null(basisRecords)) {
+      forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
+      forestInfo$basisTerms <- basisRecords
+      attr(control, "bartcore.forests") <- forestInfo
+    }
   }
 
   # every resolution of "auto" is announced once, here, after the refusals
@@ -1194,22 +1201,32 @@ dbartsSpec <- function(
   variance <- forestArguments$variance
 
   # this surface does no data ingestion of its own, so a declared basis is
-  # evaluated here and reaches data@bases through the same validation
-  # dbartsData() applies on the fitting path; the caller's data object has
-  # already had its own 'subset' applied
-  basisDeclarations <- forestBasisDeclarations(forests)
-  basis <- if (is.null(basisDeclarations)) {
-    NULL
-  } else {
-    expanded <- lapply(
-      basisDeclarations,
-      function(declaration) {
-        expandForestBasis(evaluateForestBasis(declaration))
-      }
+  # read here, as dbarts() reads one, and reaches data@bases through the same
+  # validation dbartsData() applies on the fitting path. There is no data
+  # frame for a basis's code to name a column of, so code is the value it had
+  # where forest() was called; the caller's data object has already had its
+  # own 'subset' applied, so a basis covers the rows it holds
+  basis <- NULL
+  basisRecords <- NULL
+  if (!is.null(forestBasisDeclarations(forests))) {
+    declared <- readDeclaredBases(forests, NULL, length(data@y))
+    forests <- declared$forests
+    built <- buildFitBases(
+      declared$reads,
+      lapply(declared$reads, function(read) {
+        if (is.null(read$frame)) expandValueBasis(read$value)
+      }),
+      NULL,
+      length(data@y)
     )
     # as in dbarts(): a list in which no forest declares a basis names no
     # multi-forest model, and falls through to resolveForests' refusal
-    if (any(!vapply(expanded, is.null, logical(1L)))) expanded else NULL
+    if (any(!vapply(built$bases, is.null, logical(1L)))) {
+      basis <- built$bases
+      if (any(!vapply(built$records, is.null, logical(1L)))) {
+        basisRecords <- built$records
+      }
+    }
   }
 
   resolveSamplerSpec(
@@ -1238,6 +1255,7 @@ dbartsSpec <- function(
     forests = forests,
     evalEnv = parentEnv,
     residPrior = residPrior,
-    familySpec = familySpec
+    familySpec = familySpec,
+    basisRecords = basisRecords
   )
 }

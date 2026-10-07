@@ -354,10 +354,25 @@ expect_error(
   ),
   pattern = "which it declares none of"
 )
-# and nothing at all, on a fit whose bases arrived as values rather than as a
-# term there is any expression to replay
+# and nothing at all: the basis's own variable, a vector with a value for
+# every fitted row found where the forest was written, has none for the new
+# rows
 expect_error(
   predict(fit, xNew, type = "bart"),
+  pattern = paste0(
+    "'newdata' is missing variable 'z', required by forest 2's basis ",
+    "(factor(z)); supply it, or give that basis at the new rows with ",
+    "'bases ='"
+  ),
+  fixed = TRUE
+)
+# and on a fit whose basis arrived as a value there is no code to build from
+valueFit <- fitFromPredictBlend(list(
+  dbarts::dbartsForests$forest(),
+  do.call(dbarts::dbartsForests$forest, list(basis = factor(z)))
+))
+expect_error(
+  predict(valueFit, xNew, type = "bart"),
   pattern = "carries a basis, so the blend needs its 2 columns"
 )
 # 'bases' does not reach the pre-basis arm
