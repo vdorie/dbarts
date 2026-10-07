@@ -440,3 +440,38 @@ expect_warning(
 )
 expect_equal(ncol(unseen), 3L)
 rm(groupFrame, characterGroups, characterFit, ranef, unseen, numericFit)
+
+# 'data' is read once: the groups and the rows of the fit are those of one
+# reading of a 'data' that draws its rows. An `id` predictor names the row
+# each row of the fit is.
+set.seed(3L)
+drawnFrame <- data.frame(
+  id = as.double(seq_len(40L)),
+  x = runif(40L),
+  g = rep(1:4, each = 10L)
+)
+drawnFrame$y <- drawnFrame$x + drawnFrame$g + rnorm(40L, sd = 0.1)
+dataDraws <- list()
+drawnFit <- rbart_vi(
+  y ~ x + id,
+  {
+    dataDraws[[length(dataDraws) + 1L]] <- sample(40L)
+    drawnFrame[dataDraws[[length(dataDraws)]], ]
+  },
+  group.by = g,
+  n.samples = 2L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 3L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(length(dataDraws), 1L)
+drawnRows <- as.integer(drawnFit$fit[[1L]]$data@x[, "id"])
+expect_identical(drawnRows, dataDraws[[1L]])
+expect_identical(
+  as.integer(as.character(drawnFit$group.by)),
+  drawnFrame$g[drawnRows]
+)
+rm(drawnFrame, dataDraws, drawnFit, drawnRows)

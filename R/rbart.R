@@ -331,6 +331,13 @@ rbart_vi <- function(
     dataCall$factors <- "indicators"
     dataCall$na.action <- quote(stats::na.omit)
   }
+  # 'data' is evaluated once, by this function's own argument, which
+  # 'group.by' was looked for in above, and the data object is handed that
+  # value: evaluated again, a 'data' that draws its rows would fit other rows
+  # than the groups were read from
+  if (!missing(data)) {
+    dataCall["data"] <- list(data)
+  }
   data <- withMatrixResponseRestated(
     "rbart_vi()",
     "auto",

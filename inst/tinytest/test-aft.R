@@ -693,3 +693,113 @@ rm(
   d.na,
   fit.naFormula
 )
+
+# ---- the matrix interface reads 'subset' once ----
+
+# The log times, the censoring status, the predictors and the offset are
+# those of one reading of 'subset', whatever its expression gives the next
+# time it is read. An `id` predictor names the row each kept row is.
+set.seed(31L)
+onceX <- cbind(x, id = as.double(seq_len(n)))
+onceTime <- exp(log.t)
+onceStatus <- as.double(rbinom(n, 1L, 0.6))
+onceWeights <- runif(n, 0.5, 2)
+onceOffset <- rnorm(n, sd = 0.1)
+subsetDraws <- list()
+drawSubset <- function() {
+  rows <- sample(n, 60L)
+  subsetDraws[[length(subsetDraws) + 1L]] <<- rows
+  rows
+}
+onceDoors <- list(
+  dbarts = function() {
+    dbarts(
+      onceX,
+      cbind(onceTime, onceStatus),
+      family = "aft",
+      subset = drawSubset(),
+      offset = onceOffset,
+      control = control
+    )
+  },
+  bart = function() {
+    bart(
+      onceX,
+      cbind(onceTime, onceStatus),
+      family = "aft",
+      subset = drawSubset(),
+      offset = onceOffset,
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 5L,
+      n.samples = 2L,
+      n.burn = 0L,
+      verbose = FALSE,
+      samplerOnly = TRUE
+    )
+  },
+  # a row dropped for a missing predictor leaves the status of the rows kept
+  na.omit = function() {
+    withMissing <- onceX
+    withMissing[seq(3L, n, by = 7L), 1L] <- NA_real_
+    dbarts(
+      withMissing,
+      cbind(onceTime, onceStatus),
+      family = "aft",
+      subset = drawSubset(),
+      offset = onceOffset,
+      na.action = na.omit,
+      control = control
+    )
+  }
+)
+for (door in names(onceDoors)) {
+  subsetDraws <- list()
+  sampler <- onceDoors[[door]]()
+  expect_identical(length(subsetDraws), 1L, info = door)
+  rows <- as.integer(sampler$data@x[, "id"])
+  expect_identical(
+    rows,
+    if (door == "na.omit") {
+      setdiff(subsetDraws[[1L]], seq(3L, n, by = 7L))
+    } else {
+      subsetDraws[[1L]]
+    },
+    info = door
+  )
+  expect_identical(
+    attr(sampler$control, "bartcore.survival"),
+    onceStatus[rows],
+    info = door
+  )
+  expect_identical(sampler$data@y, log(onceTime)[rows], info = door)
+  expect_identical(sampler$data@offset, onceOffset[rows], info = door)
+}
+# a gaussian fit and a hazard fit read it once as well
+subsetDraws <- list()
+plainOnce <- dbarts(
+  onceX,
+  log(onceTime),
+  subset = drawSubset(),
+  weights = onceWeights,
+  offset = onceOffset,
+  control = control
+)
+expect_identical(length(subsetDraws), 1L)
+rows <- as.integer(plainOnce$data@x[, "id"])
+expect_identical(rows, subsetDraws[[1L]])
+expect_identical(plainOnce$data@y, log(onceTime)[rows])
+expect_identical(plainOnce$data@weights, onceWeights[rows])
+expect_identical(plainOnce$data@offset, onceOffset[rows])
+subsetDraws <- list()
+hazardOnce <- dbarts(
+  onceX,
+  cbind(ceiling(onceTime), onceStatus),
+  family = "hazard",
+  subset = drawSubset(),
+  control = control
+)
+expect_identical(length(subsetDraws), 1L)
+expect_true(all(hazardOnce$data@x[, "id"] %in% subsetDraws[[1L]]))
+rm(onceX, onceTime, onceStatus, onceWeights, onceOffset, subsetDraws)
+rm(drawSubset, onceDoors, door, sampler, rows, plainOnce, hazardOnce)

@@ -2515,6 +2515,15 @@ dbartsData <- function(
       )
     }
 
+    # 'data' is evaluated once, when this function first reads it, and that
+    # value stands in the caller's expression's place in every call built from
+    # the matched one below: the model frame and the readings of 'weights' and
+    # 'test'. Evaluated again by one of them, a 'data' that draws its rows
+    # would give that reader other rows than the ones 'subset' was read
+    # against.
+    if (!dataIsMissing) {
+      matchedCall$data <- data
+    }
     modelFrameArgs <- c("formula", "data", "subset", "weights", "offset")
 
     ## extract offset prematurely, if necessary
@@ -2745,11 +2754,11 @@ dbartsData <- function(
     }
 
     # 'subset' is evaluated once, here, as the model frame would evaluate it,
-    # in the data and then the formula's environment, and every reader below
-    # is given that value: the model frame, the range check and the rows a
-    # basis is cut to. A subset that draws its rows, or has a side effect, is
-    # then one draw for all of them. One that cannot be evaluated here is
-    # left for the model frame to refuse in R's own words.
+    # in the one value of 'data' and then the formula's environment, and every
+    # reader below is given that value: the model frame, the range check and
+    # the rows a basis is cut to. A subset that draws its rows, or has a side
+    # effect, is then one draw for all of them. One that cannot be evaluated
+    # here is left for the model frame to refuse in R's own words.
     subsetValue <- NULL
     if (!is.null(matchedCall$subset)) {
       taken <- tryCatch(
@@ -3399,6 +3408,8 @@ dbartsData <- function(
       environment(testFormula) <- environment(formula)
       modelFrameCall$formula <- testFormula
       modelFrameCall$data <- test
+      # 'subset' selects training rows and never test rows
+      modelFrameCall$subset <- NULL
       tryResult <- tryCatch(
         testFrame <- eval(modelFrameCall, parent.frame()),
         error = function(e) e

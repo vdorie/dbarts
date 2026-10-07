@@ -25,6 +25,10 @@ BASIS_RESERVED_CALLS <- c(
   "varianceForest"
 )
 
+## How many formulas deep a basis is read: a name may hold a formula whose
+## code is a name that holds a formula.
+BASIS_HELD_DEPTH <- 8L
+
 ## The operators whose operands are arithmetic and not terms of a model
 ## formula: a member of cbind() that is one of these calls is written inside
 ## I() when the refusal of cbind() says what to write.
@@ -268,22 +272,22 @@ refuseBoundColumns <- function(expr) {
 ## A basis as code: the right-hand side `expr`, any tilde taken off, with the
 ## environment its names are looked up in after the data's columns, and its
 ## text, which is the forest's label when no other is given. A formula made
-## elsewhere, an object with an environment of its own, is `held`: it brings
-## that environment and is read as R reads a formula. The grammar is checked
-## here, and a basis that could have no column or the constant column alone
-## is refused here, nothing being evaluated for either. As it leaves here the
-## code is read when the model is built; `atCall` marks code that
-## captureForestBasis() bound to a call of forest() instead.
+## elsewhere, an object with an environment of its own, brings that
+## environment: its names are looked up where it was made. Nothing of the
+## formula is changed, and nothing is assigned in its environment. The
+## grammar is checked here, and a basis that could have no column or the
+## constant column alone is refused here, nothing being evaluated for
+## either. As it leaves here the code is read when the model is built;
+## `atCall` marks code that captureForestBasis() bound to a call of forest()
+## instead.
 basisCode <- function(expr, env) {
   isFormula <- is.call(expr) && identical(expr[[1L]], as.name("~"))
-  # a formula made elsewhere brings the environment it was made in; a tilde
-  # written in place is code like any other and has none
-  held <- isFormula && !is.null(environment(expr))
   if (isFormula) {
     if (length(expr) != 2L) {
       stop("a 'basis' formula must be one-sided, as ~ dose", call. = FALSE)
     }
-    if (held) {
+    # a tilde written in place is code like any other and has no environment
+    if (!is.null(environment(expr))) {
       env <- environment(expr)
     }
     expr <- expr[[2L]]
@@ -316,7 +320,7 @@ basisCode <- function(expr, env) {
     )
   }
   structure(
-    list(expr = expr, env = env, label = label, held = held),
+    list(expr = expr, env = env, label = label),
     class = "dbartsForestBasis"
   )
 }
@@ -487,28 +491,37 @@ bindBasisAtCall <- function(expr, place) {
 ## forest()'s 'basis' as written, by the caller in a call of forest(). A
 ## value (a column, a factor, a matrix, NULL) is kept as it is, as is a basis
 ## that came through dots from a call that has returned (forwardedBasis).
-## Code is kept unevaluated. Code written in place, with a tilde or without,
-## is bound to the call (bindBasisAtCall) with the value it has there taken
-## once (takeAtCall), what it warns of while it is bound kept with that
-## value. A formula made elsewhere and held in a variable or handed over is
-## kept with its own environment and read when the model is built, as R
-## reads a formula.
-captureForestBasis <- function(expr, env) {
+## Code is kept unevaluated and is bound to the call (bindBasisAtCall) with
+## the value it has there taken once (takeAtCall), what it warns of while it
+## is bound kept with that value. Every form is bound so: code written in
+## place, with a tilde or without, and a formula made elsewhere, handed over
+## or held in a variable, whose names are those of the environment it was
+## made in. A formula the code holds is itself bound now, `heldCode`, to as
+## many levels as a fit reads (readForestBasis); the formula stays as the
+## caller made it.
+captureForestBasis <- function(expr, env, depth = 1L) {
   if (!is.language(expr) || inherits(expr, "dbartsForwardedBasis")) {
     return(expr)
   }
   code <- basisCode(expr, env)
-  if (code$held) {
-    return(code)
-  }
-  binding <- bindBasisAtCall(code$expr, env)
+  place <- code$env
+  binding <- bindBasisAtCall(code$expr, place)
   code <- takeAtCall(
     code,
     function() evaluateBasisCode(code$expr, binding$env),
-    env
+    place
   )
   if (isTRUE(code$evaluated)) {
     code$warnings <- c(binding$warnings, code$warnings)
+    held <- code$value$held
+    if (inherits(held, "formula") && depth < BASIS_HELD_DEPTH) {
+      heldEnv <- environment(held)
+      code$heldCode <- captureForestBasis(
+        held,
+        if (is.null(heldEnv)) binding$env else heldEnv,
+        depth + 1L
+      )
+    }
   }
   code$atCall <- TRUE
   code$env <- binding$env
@@ -561,9 +574,10 @@ refuseSingleBasisValue <- function(value, holder = NULL) {
 ## columns = ), its model frame over those rows, its text and the columns of
 ## the data it names.
 ##
-## Code a formula holds, a term of the fit's formula included, is read
-## against the data and then the formula's environment, when the model is
-## built. Code written in a call of forest() is read against the data when it
+## The code of a term of the fit's formula, and of the formula given to
+## $setForestBasis, is read against the data and then the formula's
+## environment, when the model is built. Code given to a call of forest(), in
+## place or as a formula made elsewhere, is read against the data when it
 ## names a column of it, a column hiding a variable of the caller's with its
 ## name, and then against what the call bound, nothing being looked up again;
 ## code that names no column is the value taken at the call, whose warnings
@@ -597,12 +611,6 @@ readForestBasis <- function(basis, data, numRows) {
     basis <- basis$value
     if (is.null(basis)) {
       return(NULL)
-    }
-    if (is.language(basis)) {
-      # code handed on as a value: a formula with its environment, or a name
-      # or a call, which has none of its own
-      env <- environment(basis)
-      basis <- basisCode(basis, if (is.null(env)) globalenv() else env)
     }
   }
   if (!inherits(basis, "dbartsForestBasis")) {
@@ -655,7 +663,8 @@ readForestBasis <- function(basis, data, numRows) {
   }
   # a formula may be held by a name a formula holds
   read <- NULL
-  for (depth in seq_len(8L)) {
+  for (depth in seq_len(BASIS_HELD_DEPTH)) {
+    boundAtCall <- NULL
     variables <- basisVariables(code$expr)
     atColumns <- variables[isDataColumn(variables, data)]
     if (!isTRUE(code$atCall) || length(atColumns) > 0L) {
@@ -692,6 +701,8 @@ readForestBasis <- function(basis, data, numRows) {
         warning(kept)
       }
       read <- code$value
+      # a formula the code held at the call was bound there
+      boundAtCall <- code$heldCode
     } else {
       # an argument that could not be evaluated says why before the code that
       # used it does
@@ -706,7 +717,13 @@ readForestBasis <- function(basis, data, numRows) {
     if (is.null(read$held)) {
       return(NULL)
     }
-    code <- basisCode(read$held, environment(read$held))
+    # one found only now, by code read against the data, is read as R reads
+    # a formula
+    code <- if (is.null(boundAtCall)) {
+      basisCode(read$held, environment(read$held))
+    } else {
+      boundAtCall
+    }
     read <- NULL
   }
   if (is.null(read)) {
@@ -1072,7 +1089,17 @@ forwardedBasis <- function(code, evaluate, env) {
     list(expr = code, label = shownCode(code), handOver = handOver),
     class = "dbartsForwardedBasis"
   )
-  takeAtCall(forwarded, evaluate, env)
+  forwarded <- takeAtCall(forwarded, evaluate, env)
+  # code handed on as the value, a formula with its environment or a name or
+  # a call, which has none of its own, is bound now like any other
+  if (isTRUE(forwarded$evaluated) && is.language(forwarded$value)) {
+    valueEnv <- environment(forwarded$value)
+    forwarded$value <- captureForestBasis(
+      forwarded$value,
+      if (is.null(valueEnv)) globalenv() else valueEnv
+    )
+  }
+  forwarded
 }
 
 ## The data a fit's bases are read against and the number of its rows, every
@@ -1118,7 +1145,10 @@ basisRowNumbers <- function(numRows) {
 ## (basisRowNumbers), on which the basis is built (buildCodeBasis) and put in
 ## their place. `bases` is NULL where a fit keeps every row of data it was
 ## given whole. Returns `bases` and, beside them, `records`, the record of
-## each code basis. A basis has one row for each observation the fit keeps.
+## each code basis. A basis has one row for each observation the fit keeps. A
+## value that the kept rows leave multiplying its forest by a constant, or
+## by nothing, is refused as the same basis written as code is
+## (refuseEmptiedValueBasis).
 buildFitBases <- function(reads, bases, numObservations) {
   numForests <- length(reads)
   kept <- bases
@@ -1129,6 +1159,9 @@ buildFitBases <- function(reads, bases, numObservations) {
   for (index in seq_len(numForests)) {
     read <- reads[[index]]
     if (is.null(read$frame)) {
+      if (!is.null(read) && !is.null(kept)) {
+        refuseEmptiedValueBasis(read$value, kept[[index]])
+      }
       next
     }
     rows <- if (!is.null(kept)) as.integer(kept[[index]][, 1L])
@@ -1151,6 +1184,36 @@ buildFitBases <- function(reads, bases, numObservations) {
     records[index] <- list(built$record)
   }
   list(bases = bases, records = records)
+}
+
+## A basis handed over as a value is expanded over every row of the data and
+## cut by the data object, to `kept`, so 'subset' or the na.action can leave
+## it what the same basis written as code is refused for, in these words: a
+## factor, a character or a logical vector with one level among the rows
+## kept, and one numeric column that is zero on every one of them. A factor
+## that keeps two or more of its levels keeps a column of zeros for each
+## level emptied, where code drops it.
+refuseEmptiedValueBasis <- function(value, kept) {
+  hasRow <- colSums(kept != 0) > 0L
+  isLevels <- is.factor(value) ||
+    is.character(value) ||
+    (is.logical(value) && is.null(dim(value)))
+  if (isLevels && sum(hasRow) < 2L) {
+    if (is.logical(value)) {
+      stop(
+        "'basis' is ",
+        if (isTRUE(hasRow[2L])) "TRUE" else "FALSE",
+        " on every row the fit keeps, so its other level has no ",
+        "observations and the forest would be multiplied by a constant",
+        call. = FALSE
+      )
+    }
+    stop("a 'basis' factor must have at least two levels")
+  }
+  if (!isLevels && ncol(kept) == 1L && !hasRow) {
+    stop("a 'basis' column of all zeros contributes nothing to a forest")
+  }
+  invisible(NULL)
 }
 
 ## The basis $setForestBasis installs, expanded to its columns over the

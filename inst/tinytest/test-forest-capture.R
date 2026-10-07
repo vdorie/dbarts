@@ -3,8 +3,9 @@
 # lm() reads one. In a call of forest() the basis is bound to the call: a name
 # of a column of the data is that column, and anything else is what it was
 # where forest() was called, at that moment, with a tilde written in place or
-# without. A formula made elsewhere and held in a variable is read late, as R
-# reads a formula. Block A: where a name is found, at the four doors. Block B:
+# without, a formula made elsewhere and held in a variable or handed over
+# included; the formula is left as it was. Block A: where a name is found, at
+# the four doors. Block B:
 # what is code and what is a value. Block C: what is no basis. Block D: a
 # forest keeps the basis its call was given. Block E: a number written beside
 # a column. Block F: taken once, quietly. Block G: a variable called fixed.
@@ -704,39 +705,157 @@ expect_error(
   "'basis' (I(dose/tildeLate)): object 'tildeLate' not found in 'data' or where forest() was called",
   fixed = TRUE
 )
-# a formula made elsewhere and held in a variable is read as R reads a
-# formula, when the model is built: in a loop every forest reads the last
-# number, and a later one after that
+# a formula made elsewhere is read when forest() is called as well, held in a
+# variable or handed over: in a loop each forest reads its own number, and
+# what the variable holds afterwards changes nothing
 heldLoop <- list(forest())
 for (k in c(10, 30)) {
   heldFormula <- ~ I(dose / k)
   heldLoop[[length(heldLoop) + 1L]] <- forest(basis = heldFormula)
 }
-heldFit <- builtFit(heldLoop, frame)
-expect_identical(basisOf(heldFit, 2L), column(frame$dose / 30, "I(dose/k)"))
-expect_identical(basisOf(heldFit, 3L), column(frame$dose / 30, "I(dose/k)"))
-heldSaved <- unserialize(serialize(heldLoop, NULL))
-k <- 5
-expect_identical(
-  basisOf(builtFit(heldLoop, frame), 2L),
-  column(frame$dose / 5, "I(dose/k)")
-)
-# as is one handed over; a saved one carries the frame it was made in, as a
-# formula does, with the number it held when it was saved
 handedLoop <- list(forest())
 for (k in c(10, 30)) {
   handedLoop[[length(handedLoop) + 1L]] <-
     do.call(forest, list(basis = ~ I(dose / k)))
 }
-expect_identical(
-  basisOf(builtFit(handedLoop, frame), 2L),
-  column(frame$dose / 30, "I(dose/k)")
-)
+heldSaved <- unserialize(serialize(heldLoop, NULL))
 k <- 5
+heldFormula <- ~ I(dose / 7)
+for (made in list(heldLoop, handedLoop, heldSaved)) {
+  madeFit <- builtFit(made, frame)
+  expect_identical(basisOf(madeFit, 2L), column(frame$dose / 10, "I(dose/k)"))
+  expect_identical(basisOf(madeFit, 3L), column(frame$dose / 30, "I(dose/k)"))
+  expect_identical(labelsOf(madeFit), c("forest1", "I(dose/k)", "I(dose/k).1"))
+}
+# at new rows too, and with the variables gone
+heldRecord <- attr(madeFit$control, "bartcore.forests")$basisTerms[[3L]]
+rm(k, heldFormula)
 expect_identical(
-  basisOf(builtFit(heldSaved, frame), 2L),
+  dbarts:::replayForestBasis(heldRecord, newRows, 3L),
+  column(newRows$dose / 30, "I(dose/k)")
+)
+expect_identical(
+  basisOf(builtFit(heldLoop, frame), 3L),
   column(frame$dose / 30, "I(dose/k)")
 )
+# each of a list of columns by a formula over the loop's own variable, with
+# no data to name a column of, and a column of two levels the same way
+perForest <- list(dose = frame$dose, age = frame$age)
+overColumns <- list(forest())
+for (nm in names(perForest)) {
+  overFormula <- ~ perForest[[nm]]
+  overColumns[[length(overColumns) + 1L]] <- forest(basis = overFormula)
+}
+for (cutoff in c(1, 1.5)) {
+  overFormula <- ~ dose > cutoff
+  overColumns[[length(overColumns) + 1L]] <- forest(basis = overFormula)
+}
+rm(nm, cutoff, overFormula)
+overFit <- builtFit(overColumns[1:3])
+expect_identical(basisOf(overFit, 2L), column(frame$dose, "perForest[[nm]]"))
+expect_identical(basisOf(overFit, 3L), column(frame$age, "perForest[[nm]]"))
+overData <- builtFit(overColumns[c(1L, 4L, 5L)], frame)
+expect_identical(
+  unname(basisOf(overData, 2L)),
+  cbind(frame$dose <= 1, frame$dose > 1) + 0
+)
+expect_identical(
+  unname(basisOf(overData, 3L)),
+  cbind(frame$dose <= 1.5, frame$dose > 1.5) + 0
+)
+# a name of a column of the data is still that column, read at the fit and
+# hiding a variable of that name where the formula was made; with no such
+# column the variable is what it was at the call
+hiddenForest <- local({
+  dose <- frame$dose * 100
+  hiddenFormula <- ~dose
+  made <- forest(basis = hiddenFormula)
+  dose <- frame$dose * 3
+  made
+})
+expect_identical(
+  basisOf(builtFit(list(forest(), hiddenForest), frame)),
+  column(frame$dose, "dose")
+)
+expect_identical(
+  basisOf(builtFit(list(forest(), hiddenForest))),
+  column(frame$dose * 100, "dose")
+)
+# and a name bound after the call is not found, as with a tilde in place
+unboundFormula <- ~ I(dose / heldLate)
+heldEarly <- list(forest(), forest(basis = unboundFormula))
+heldLate <- 10
+expect_error(
+  builtFit(heldEarly, frame),
+  "'basis' (I(dose/heldLate)): object 'heldLate' not found in 'data' or where forest() was called",
+  fixed = TRUE
+)
+rm(heldLate)
+# Reading leaves the caller's formula a working formula: identical to a copy
+# taken before, in the same environment, with nothing assigned where it
+# looks; and what a forest and a fit keep of it are ordinary formulas, on
+# which terms() and model.frame() work and whose names resolve.
+watched <- function(env) {
+  names <- ls(env, all.names = TRUE)
+  list(names = names, values = mget(names, envir = env))
+}
+isWorkingFormula <- function(formula, data) {
+  variables <- all.vars(formula)
+  inherits(formula, "formula") &&
+    inherits(stats::terms(formula), "terms") &&
+    nrow(stats::model.frame(formula, data)) == nrow(data) &&
+    all(
+      variables %in%
+        names(data) |
+        vapply(variables, exists, NA, envir = environment(formula))
+    )
+}
+madeIn <- new.env()
+assign("k", 30, envir = madeIn)
+assign("unused", "kept", envir = madeIn)
+keptFormula <- evalq(~ I(dose / k), madeIn)
+attr(keptFormula, "note") <- "the caller's own"
+formulaBefore <- keptFormula
+placeBefore <- watched(madeIn)
+keptForests <- list(
+  held = forest(basis = keptFormula),
+  handed = do.call(forest, list(basis = keptFormula))
+)
+for (form in names(keptForests)) {
+  keptFit <- builtFit(list(forest(), keptForests[[form]]), frame)
+  invisible(draws(keptFit))
+  expect_identical(keptFormula, formulaBefore, info = form)
+  expect_identical(environment(keptFormula), madeIn, info = form)
+  expect_identical(attr(keptFormula, "note"), "the caller's own", info = form)
+  expect_identical(watched(madeIn), placeBefore, info = form)
+  expect_true(isWorkingFormula(keptFormula, frame), info = form)
+  keptRecord <- attr(keptFit$control, "bartcore.forests")$basisTerms[[2L]]
+  expect_true(isWorkingFormula(keptRecord$terms, frame), info = form)
+  expect_identical(
+    get("k", envir = environment(keptRecord$terms)),
+    30,
+    info = form
+  )
+  expect_identical(
+    basisOf(keptFit),
+    column(frame$dose / 30, "I(dose/k)"),
+    info = form
+  )
+}
+# the formula a variable held is kept as the caller made it
+expect_identical(keptForests$held$basis$value$held, keptFormula)
+# a tilde written in place assigns nothing where forest() is called either,
+# and its fit's record is such a formula
+tildePlace <- new.env()
+assign("k", 30, envir = tildePlace)
+tildeBefore <- watched(tildePlace)
+tildeForest <- evalq(forest(basis = ~ I(dose / k)), tildePlace)
+tildeFit <- builtFit(list(forest(), tildeForest), frame)
+expect_identical(watched(tildePlace), tildeBefore)
+tildeRecord <- attr(tildeFit$control, "bartcore.forests")$basisTerms[[2L]]
+expect_true(isWorkingFormula(tildeRecord$terms, frame))
+expect_false(identical(environment(tildeRecord$terms), tildePlace))
+expect_identical(get("k", envir = environment(tildeRecord$terms)), 30)
 # the list's own record rebuilds the basis at new rows with the call's number
 k <- 10
 listRescaled <- builtFit(list(forest(), forest(basis = I(dose / k))), frame)
@@ -990,6 +1109,38 @@ expect_error(
   fixed = TRUE
 )
 rm(i)
+# a name or a call that Map() is handed in MoreArgs and passes on as it is
+# names no variable of Map()'s own: it is the caller's code, as the same name
+# handed over through do.call() is, so a column of the data is that column
+# and hides a variable of the caller's
+dose <- frame$dose * 100
+handedOn <- c(
+  list(forest()),
+  unname(Map(forest, c("x1", "x3"), MoreArgs = list(basis = quote(dose)))),
+  unname(Map(forest, "x1", MoreArgs = list(basis = quote(scale(age)))))
+)
+handedOnFit <- builtFit(handedOn, frame)
+expect_identical(basisOf(handedOnFit, 2L), column(frame$dose, "dose"))
+expect_identical(basisOf(handedOnFit, 3L), column(frame$dose, "dose"))
+expect_identical(
+  basisOf(handedOnFit, 4L),
+  column(as.vector(scale(frame$age)), "scale(age)")
+)
+expect_identical(
+  labelsOf(handedOnFit),
+  c("forest1", "dose", "dose.1", "scale(age)")
+)
+expect_identical(
+  attr(handedOnFit$control, "bartcore.forests")$vars,
+  list(NULL, 1L, 3L, 1L)
+)
+# a value in MoreArgs is a value
+valueOn <- builtFit(
+  c(list(forest()), unname(Map(forest, "x1", MoreArgs = list(basis = dose)))),
+  frame
+)
+expect_identical(basisOf(valueOn), unname(column(frame$dose * 100, "")))
+rm(dose)
 # a basis forwarded through dots by a call that has returned cannot be read
 # where it was written: one that names a column of the data is refused by
 # name, where its value would have been the caller's variable
@@ -1018,3 +1169,12 @@ expect_identical(
   column(as.vector(scale(frame$age)), "scale(age)")
 )
 rm(age)
+# a formula such a call forwards is read when forest() is called, like any
+returnedScale <- 2
+returnedFormula <- list(forest(), returning(basis = ~ I(w1 / returnedScale))())
+returnedScale <- 5
+expect_identical(
+  basisOf(builtFit(returnedFormula)),
+  column(w1 / 2, "I(w1/returnedScale)")
+)
+rm(returnedScale)

@@ -1246,6 +1246,14 @@ bart <- function(
   } else {
     call("NULL")
   }
+  # 'data' is evaluated once for a fit, by this function's own argument, and
+  # every call built from the matched one below is handed that value in the
+  # expression's place; the stored call, taken above, keeps the expression.
+  # 'subset' is not read here and goes on as written, to be evaluated once
+  # where the rows are cut.
+  if (!missing(data)) {
+    matchedCall["data"] <- list(data)
+  }
   # k forwarded through a wrapper's dots arrives as ..N, which the leaf prior
   # built below would force where the wrapper's caller wrote it, outside the
   # prior vocabulary; it is resolved here instead, as dbarts() resolves its

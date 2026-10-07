@@ -6,7 +6,8 @@
 # grammar, and what it refuses before anything is evaluated. Block B: the
 # columns and their names. Block C: the texts whose meaning changed. Block D:
 # rows, at both doors. Block E: new rows. Block F: 'subset' is read once, by
-# the data object, and every basis is cut by the rows it kept.
+# the data object, and every basis is cut by the rows it kept. Block G: 'data'
+# is read once. Block H: a value that the kept rows leave with one level.
 
 forest <- dbartsForests$forest
 
@@ -1447,3 +1448,241 @@ for (door in names(thirdForest)) {
     info = door
   )
 }
+# the rows of the data are counted from the data frame, whatever the formula
+# names first: a number beside the response is no row count
+kTimes <- 2
+scaledResponse <- dbarts(
+  I(kTimes * y) ~ x1 + id + forest(x1, basis = dose),
+  rowed,
+  subset = keptLogical,
+  control = basisControl()
+)
+expect_identical(
+  as.integer(scaledResponse$data@x[, "id"]),
+  which(keptLogical)
+)
+expect_identical(scaledResponse$data@y, 2 * yRowed[keptLogical])
+expect_identical(
+  as.vector(scaledResponse$data@bases[[2L]]),
+  doseRows[keptLogical]
+)
+
+## --- Block G: 'data' is read once --------------------------------------------
+# The 'data' argument is evaluated once for a fit, and 'subset' in that one
+# value of it. A 'data' that draws its rows therefore gives the response, the
+# predictors and every basis read against its columns one draw of them, at
+# each door, with a 'subset' over its columns and without. A basis of one
+# numeric column and one of two levels ride along, and `id` names the row of
+# `twoLevel` each row of the fit is.
+twoLevel <- frame[c("y", "x1", "x2", "dose", "zl")]
+twoLevel$id <- as.double(seq_len(n))
+zlIndicators <- cbind(!twoLevel$zl, twoLevel$zl) + 0
+dataDraws <- list()
+drawData <- function(size = n, replace = FALSE) {
+  rows <- sample(n, size, replace)
+  dataDraws[[length(dataDraws) + 1L]] <<- rows
+  twoLevel[rows, ]
+}
+samplerSettings <- list(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 3L,
+  n.burn = 0L,
+  verbose = FALSE,
+  samplerOnly = TRUE
+)
+dataDoors <- list(
+  term = function(data, subset) {
+    bquote(dbarts(
+      y ~ x1 + id + forest(x1, basis = dose) + forest(x1, basis = zl),
+      .(data),
+      subset = .(subset),
+      control = basisControl()
+    ))
+  },
+  termTilde = function(data, subset) {
+    bquote(dbarts(
+      y ~ x1 + id + forest(x1, basis = ~dose) + forest(x1, basis = ~zl),
+      .(data),
+      subset = .(subset),
+      control = basisControl()
+    ))
+  },
+  bart = function(data, subset) {
+    as.call(c(
+      as.list(bquote(bart(
+        y ~ x1 + id + forest(x1, basis = dose) + forest(x1, basis = zl),
+        .(data),
+        subset = .(subset)
+      ))),
+      samplerSettings
+    ))
+  },
+  list = function(data, subset) {
+    bquote(dbarts(
+      y ~ x1 + id,
+      .(data),
+      subset = .(subset),
+      forests = list(
+        forest(),
+        forest(x1, basis = dose),
+        forest(x1, basis = zl)
+      ),
+      control = basisControl()
+    ))
+  },
+  listTilde = function(data, subset) {
+    bquote(dbarts(
+      y ~ x1 + id,
+      .(data),
+      subset = .(subset),
+      forests = list(
+        forest(),
+        forest(x1, basis = ~dose),
+        forest(x1, basis = ~zl)
+      ),
+      control = basisControl()
+    ))
+  }
+)
+dataKinds <- list(
+  shuffled = quote(drawData()),
+  subsample = quote(drawData(60L)),
+  bootstrap = quote(drawData(replace = TRUE))
+)
+for (door in names(dataDoors)) {
+  for (kind in names(dataKinds)) {
+    for (cut in c("every row", "x1 > 0.3")) {
+      info <- paste(door, kind, cut, sep = ", ")
+      dataDraws <- list()
+      sampler <- eval(dataDoors[[door]](
+        dataKinds[[kind]],
+        if (cut == "every row") NULL else quote(x1 > 0.3)
+      ))
+      expect_identical(length(dataDraws), 1L, info = info)
+      drawn <- dataDraws[[1L]]
+      rows <- as.integer(sampler$data@x[, "id"])
+      expect_identical(
+        rows,
+        if (cut == "every row") drawn else drawn[twoLevel$x1[drawn] > 0.3],
+        info = info
+      )
+      expect_identical(sampler$data@y, twoLevel$y[rows], info = info)
+      expect_identical(
+        as.vector(sampler$data@bases[[2L]]),
+        twoLevel$dose[rows],
+        info = info
+      )
+      expect_identical(
+        unname(sampler$data@bases[[3L]]),
+        zlIndicators[rows, ],
+        info = info
+      )
+    }
+  }
+}
+
+## --- Block H: a value that the kept rows leave with one level ----------------
+# A basis handed over as a value is cut by the data object after it is
+# expanded, so 'subset' or a dropped row can leave a factor, a character or a
+# logical vector one level, or a numeric column nothing but zeros. It is
+# refused then as the same basis written as code is, in the same words, and
+# not fitted with a column of ones beside a column of zeros.
+zlRows <- twoLevel$zl
+armRows <- ifelse(zlRows, "treated", "control")
+xTwo <- as.matrix(twoLevel[c("x1", "x2")])
+yTwo <- twoLevel$y
+refusal <- function(fit) {
+  tryCatch(
+    {
+      fit
+      NA_character_
+    },
+    error = conditionMessage
+  )
+}
+valueForest <- function(value) do.call(forest, list("x1", basis = value))
+emptied <- list(
+  factor = list(value = factor(armRows), code = quote(factor(armRows))),
+  character = list(value = armRows, code = quote(armRows)),
+  logical = list(value = zlRows, code = quote(zlRows)),
+  numeric = list(value = as.double(!zlRows), code = quote(as.double(!zlRows)))
+)
+for (kind in names(emptied)) {
+  value <- emptied[[kind]]$value
+  written <- refusal(eval(bquote(dbarts(
+    xTwo,
+    yTwo,
+    subset = which(zlRows),
+    forests = list(forest(), forest(x1, basis = .(emptied[[kind]]$code))),
+    control = basisControl()
+  ))))
+  expect_false(is.na(written), info = kind)
+  # a value has no text to be named by
+  words <- sub(" (zlRows)", "", written, fixed = TRUE)
+  expect_identical(
+    refusal(dbarts(
+      y ~ x1 + x2,
+      twoLevel,
+      subset = zl,
+      forests = list(forest(), valueForest(value)),
+      control = basisControl()
+    )),
+    words,
+    info = kind
+  )
+  expect_identical(
+    refusal(dbarts(
+      xTwo,
+      yTwo,
+      subset = which(zlRows),
+      forests = list(forest(), valueForest(value)),
+      control = basisControl()
+    )),
+    words,
+    info = kind
+  )
+  # emptied by the rows a missing response drops
+  missingResponse <- twoLevel
+  missingResponse$y[!zlRows] <- NA_real_
+  expect_identical(
+    refusal(dbarts(
+      y ~ x1 + x2,
+      missingResponse,
+      forests = list(forest(), valueForest(value)),
+      control = basisControl()
+    )),
+    words,
+    info = kind
+  )
+}
+expect_identical(
+  refusal(dbarts(
+    xTwo,
+    yTwo,
+    subset = which(zlRows),
+    forests = list(forest(), forest(x1, basis = zlRows)),
+    control = basisControl()
+  )),
+  paste0(
+    "'basis' (zlRows) is TRUE on every row the fit keeps, so its other level ",
+    "has no observations and the forest would be multiplied by a constant"
+  )
+)
+# a value that keeps both levels is cut and fitted as before
+keptBoth <- dbarts(
+  y ~ x1 + x2,
+  twoLevel,
+  subset = x1 > 0.3,
+  forests = list(forest(), valueForest(zlRows), valueForest(twoLevel$dose)),
+  control = basisControl()
+)
+expect_identical(
+  unname(keptBoth$data@bases[[2L]]),
+  zlIndicators[twoLevel$x1 > 0.3, ]
+)
+expect_identical(
+  as.vector(keptBoth$data@bases[[3L]]),
+  twoLevel$dose[twoLevel$x1 > 0.3]
+)

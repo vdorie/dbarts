@@ -726,6 +726,9 @@ dbarts <- function(
   ...
 ) {
   matchedCall <- match.call()
+  # 'data' as the caller wrote it, which tells below whether a response made
+  # of it has since taken its place in the matched call
+  writtenData <- matchedCall$data
 
   evalEnv <- parent.frame(1L)
 
@@ -1112,10 +1115,10 @@ dbarts <- function(
     family <- "aft"
     matchedCall$data <- survival$log.time
     survivalStatus <- survival$status
-    # 'subset' still reaches dbartsData() unchanged (matchedCall$subset) and
-    # subsets x/y itself, reading the same value - aft's row count is
-    # unchanged, unlike hazard's, so only the status vector needs its own
-    # subsetting here
+    # aft's row count is unchanged, unlike hazard's, so the data object
+    # subsets x and the log times itself and only the status vector is cut
+    # here: by the value of 'subset' that the data object is handed below,
+    # so that the two are cut to the same rows
     if (!missing(subset)) {
       survivalStatus <- survivalStatus[subset]
     }
@@ -1197,6 +1200,25 @@ dbarts <- function(
   # it, whose 'subset' could draw other rows
   if (inherits(formula, "dbartsData")) {
     dataCall$formula <- formula
+  }
+  # 'data' and 'subset' are each evaluated once for a fit, and the data
+  # object is handed the value in the expression's place: evaluated again
+  # there, a 'data' or a 'subset' that draws its rows would give the fit other
+  # rows than a basis was read against or the censoring status was cut to.
+  # 'data' has been read above, by this function's own argument. A formula's
+  # 'subset' is an expression over the data's columns, which the data object
+  # evaluates, once, in the value of 'data' it is handed; with the matrix
+  # interface it is an index, evaluated here. A response that a hazard, aft
+  # or multinomial fit has put in the place of 'data' already stands there.
+  if (!missing(data) && identical(matchedCall$data, writtenData)) {
+    dataCall["data"] <- list(data)
+  }
+  if (
+    !is.formula(formula) &&
+      !inherits(formula, "dbartsData") &&
+      "subset" %in% names(dataCall)
+  ) {
+    dataCall["subset"] <- list(subset)
   }
   # a basis declared on 'forests' has nowhere to ride once 'formula' is
   # already a built dbartsData: dbartsData() drops an unmatched 'bases'
@@ -1447,12 +1469,15 @@ dbarts <- function(
   # A basis written as code is built now, on the rows the data object kept,
   # whose numbers it handed back in the basis's place. data@bases is
   # positional against the forests, the forest with no basis first; the
-  # values it cut are already in their places.
+  # values it cut are already in their places, and are looked at there for
+  # what the kept rows leave of them.
   basisRecords <- NULL
-  if (any(basisIsCode)) {
+  if (!is.null(basisReads)) {
     built <- buildFitBases(basisReads, data@bases, length(data@y))
-    data@bases <- built$bases
-    basisRecords <- built$records
+    if (any(basisIsCode)) {
+      data@bases <- built$bases
+      basisRecords <- built$records
+    }
   }
 
   # a term's predictors name design columns, which exist only now
