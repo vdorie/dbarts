@@ -868,8 +868,10 @@ items
     when weights or the mask change, and setWeights and setActiveRows
     take the response setters' argument to re-derive it (dec-B296,
     revising dec-A140). A sampler created with no row in takes them
-    over every row, with a warning (dec-B302). Cut points still span
-    every row. Changes the
+    over every row, with a warning (dec-B302). A linear or gp leaf's
+    covariate centre and scale follow the same rule (dec-B304), and a
+    multiplier's scale does in the multiplier law's plan (dec-B303).
+    Cut points still span every row. Changes the
     draws of every fit created with rows at weight 0. Before 1.0-0,
     and before the merge if it can be: design first, with the
     state-frame slices that give derived data its record and with
