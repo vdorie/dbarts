@@ -7460,11 +7460,11 @@ void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
 //
 // The rule is stated over block names but governs the TOP-LEVEL ATTRIBUTES the
 // same way and for the same reason: they are read by name too, and a reader
-// ignores one it does not know. "weights.digest" and "survival.digest" are
-// such additions - a state written before either carries none, and setState
-// then behaves as it did before the attribute existed. Making one REQUIRED
-// behind a floor bump would buy no compatibility and orphan in-flight states
-// for nothing.
+// ignores one it does not know. "weights.digest", "weights.zero" and
+// "survival.digest" are such additions - a state written before any of them
+// carries none, and setState then behaves as it did before the attribute
+// existed. Making one REQUIRED behind a floor bump would buy no compatibility
+// and orphan in-flight states for nothing.
 static const int stateFormatVersion = 1;
 
 // The oldest ENCODING this reader still understands: additive block additions
@@ -7746,6 +7746,16 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   // destination holds
   setAttribByName(resultExpr, "weights.digest",
                   encodeStateDigest(sampler.weightsDigest()));
+  // and, for a family whose per-row scale a zero weight detaches from the
+  // row's residual (Student-t), which rows were at weight zero: a byte per
+  // row, 1 there and 0 elsewhere, so a restore under other weights can tell
+  // the rows that enter the likelihood from the ones already in it. No other
+  // family writes it, and the active-row mask is not in it
+  SEXP zeroWeightRowsExpr = PROTECT(
+    Rf_allocVector(RAWSXP, static_cast<R_xlen_t>(numObservations)));
+  if (sampler.zeroWeightRows(RAW(zeroWeightRowsExpr)))
+    Rf_setAttrib(resultExpr, Rf_install("weights.zero"), zeroWeightRowsExpr);
+  UNPROTECT(1);
   // and the aft censoring status, on the same terms and for the same reason:
   // it rides the sampler's own creation triple, not the state, so the two can
   // disagree by the time a state is installed
@@ -7889,6 +7899,32 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     else
       weightsDiffer = decodeStateDigest(RAW(weightsDigestExpr)) !=
         sampler.weightsDigest();
+  }
+
+  // Which rows were at weight zero when the state was stored, for the
+  // reconciliation after the install. ABSENT means not known, never no rows.
+  // Whatever the family, a record present is one byte per row of this
+  // sampler, each 0 or 1; another length is a state of another row count.
+  // The bytes are read in place, stateExpr keeping them alive, so nothing is
+  // held across a raised error.
+  const unsigned char* storedZeroWeightRows = NULL;
+  SEXP zeroWeightRowsExpr =
+    Rf_getAttrib(stateExpr, Rf_install("weights.zero"));
+  if (errorMessage == NULL && !Rf_isNull(zeroWeightRowsExpr)) {
+    if (TYPEOF(zeroWeightRowsExpr) != RAWSXP) {
+      errorMessage = "malformed zero-weight rows in bartcore state";
+    } else if (static_cast<size_t>(Rf_xlength(zeroWeightRowsExpr)) !=
+                 shape.numObservations) {
+      errorMessage = "state is not consistent with this sampler";
+    } else {
+      const Rbyte* flags = RAW(zeroWeightRowsExpr);
+      Rbyte seen = 0;
+      for (size_t i = 0; i < shape.numObservations; ++i) seen |= flags[i];
+      if (seen > 1)
+        errorMessage = "malformed zero-weight rows in bartcore state";
+      else
+        storedZeroWeightRows = flags;
+    }
   }
 
   // and the same question of the aft censoring status, absent again meaning
@@ -8287,13 +8323,16 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   // The latents just installed were drawn against the SOURCE's weights; these
   // are not them. Re-derive against the weights in force rather than pairing
   // one vector's latents with another's: logistic redraws its Polya-Gamma
-  // variates, and Student-t the scale of every row in the likelihood, a
-  // digest not saying which rows the source's weights had left out. Silent and
-  // deterministic - it consumes each chain's own restored generator - and
-  // self-selecting, since for a family that states nothing against its
+  // variates, and Student-t the scale of each row the state's record has at
+  // weight zero and the weights and mask in force here have in the
+  // likelihood, as the same setWeights call would - or, for a state carrying
+  // no record, of every row in the likelihood, a digest not saying which rows
+  // the source's weights had left out. Silent and deterministic - it consumes
+  // each chain's own restored generator, and nothing where no row is redrawn -
+  // and self-selecting, since for a family that states nothing against its
   // weights it is a measured no-op. Equal digests skip it, so a state
   // installed under its own weights draws nothing.
-  if (weightsDiffer) sampler.reapplyWeights(NULL);
+  if (weightsDiffer) sampler.reapplyWeights(storedZeroWeightRows);
   // the censoring structure reconciles the same way: a row the donor scored an
   // event and this sampler censors comes back sitting exactly at its bound, so
   // redraw the censored set off each chain's own restored generator. An event
