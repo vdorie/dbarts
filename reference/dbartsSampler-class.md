@@ -524,15 +524,22 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   vector's latents with another's counts, silently and off the restored
   generators. A matched round trip re-derives nothing and installs the
   stored state unchanged. Two families move under it. `logistic` redraws
-  its Polya-Gamma latents. Student-t redraws the scale of every row at
-  positive weight and active (on a copy or a reload, every row at
-  positive weight, the mask being put back afterwards): a scale stored
-  for a row that was at weight zero was drawn without that row's
-  residual, and the state does not say which rows those were, so a
-  restore under other weights redraws more scales than the same
-  `setWeights` call would; to keep the others, install the state under
-  its own weights and change them with `setWeights`. For gaussian and
-  every weight-refusing family it is a no-op. See
+  its Polya-Gamma latents. A Student-t state also records which rows
+  were at weight zero when it was stored, and a restore under other
+  weights redraws the scale of exactly the rows that enter the
+  likelihood, at weight zero then and positive now, as `setWeights` with
+  those weights would on a sampler holding the state under the weights
+  it was stored with: each chain from its own restored generator, in row
+  order. Every other row keeps its stored scale, and a restore between
+  weight vectors with the same zero rows draws nothing. An entering row
+  that is inactive under `active` waits for `setActiveRows`; on a copy
+  or a reload, where the mask is put back after the state, it is redrawn
+  at the install. A state that carries the digest and no such record, as
+  one stored before the record existed does, has the scale of every row
+  at positive weight and active redrawn instead (on a copy or a reload,
+  every row at positive weight, the mask being put back afterwards); a
+  state that carries no digest has none redrawn. For gaussian and every
+  weight-refusing family it is a no-op. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
   the family-specific weight rules that apply at creation time.
 
@@ -1192,14 +1199,32 @@ the sampler rather than the state - so where the status in force differs
 from the one the state was stored under, the censored latents are
 redrawn off the restored generators before `setState` returns; an event
 row's observed log time is data and is never overwritten by a state at
-all. To undo a weight change exactly, put the old weights back with
-`setWeights` first and then call `setState`; in the other order a
-Student-t sampler is left, until its next sweep, with scales drawn under
-the weights being undone, and `setState` still returns `TRUE`. A sampler
-saved or copied after its weights changed without a store is re-created
-from the state stored under the earlier weights and has its scales
-redrawn; call `storeState()` after the change to have it reload or copy
-as it stands.
+all. A weight change is undone by `setWeights` with the old weights and
+`setState` with the stored state, in either order, and `setState`
+returns `TRUE` in both. With the weights put back first the sampler is
+the stored chain bit for bit. With `setState` first it is a valid
+continuation of the stored chain, and the stored chain bit for bit only
+when neither call redraws a latent. A gaussian sampler holds none, so it
+is. A Student-t sampler is when the change left the same rows at weight
+zero. When the change brought a row into the likelihood or took one out
+of it, that row's scale is redrawn - by `setState` for a row the change
+had brought in, by `setWeights` for a row it had taken out, from its
+conditional at the stored fit - while every row at positive weight
+throughout keeps its stored scale; the redraws use the chain's
+generator, so the draws that follow come from another random stream than
+the stored chain's. A `logistic` sampler has its latents redrawn by both
+calls, so in that order it is never the stored chain bit for bit. Where
+`setWeights` installs the mask instead (see `weights`), the rows the old
+vector switches back in have their latents redrawn in that order, as
+`setActiveRows` redraws them. A sampler saved or copied after its
+weights changed without a store is re-created from the last stored
+state, installed under the weights it then holds by the rule for a
+restore under other weights (see `weights`). It is a continuation of the
+stored chain and not a copy of the live sampler: it carries no sweep
+made since the store, and after an undo with `setState` first, when the
+weights are the stored ones again, it is the stored chain exactly,
+without the scales that undo redrew. Call `storeState()` after the
+change to have it reload or copy as it stands.
 
 ### Mutation cost
 
