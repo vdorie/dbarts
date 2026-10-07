@@ -31,7 +31,8 @@ Only the first argument may be given without its name, so that any later argumen
 | `basis = scale(age)`, `poly(dose, 2)`, `log(dose)` | a term as in `lm`, rebuilt at new rows as `lm` rebuilds it |
 | `basis = dose:age` | one column, the product |
 | `basis = 1 + dose`; `0 + dose`, `dose - 1` | a column of ones and `dose`; `dose` |
-| `basis = ~ dose + age`, or a variable that holds that formula | the same columns as without the tilde |
+| `basis = ~ dose + age` | the same as without the tilde, in every respect |
+| `b <- ~ dose + age` and then `basis = b` | the same columns; read late, as R reads a formula |
 | `amplitude = fixed()` | the forest's coefficient is held, not drawn |
 
 The forests of a formula, a forest's predictors and the two arguments `sd` and `amplitude` are pushes 1 and 2
@@ -70,13 +71,22 @@ the environment its names are looked up in, and from there one function reads it
 ([`readForestBasis`](../../R/forestBasis.R)) and one builds it ([`buildCodeBasis`](../../R/forestBasis.R)). The
 two doors cannot disagree about a basis because neither has code of its own for one.
 
-Rows are decided once. A basis is read over every row of the data the fit was given. It is then cut to the rows
-`subset` and the na.action keep, and only on those rows is it decided which levels have a row, whether a value
-is missing and whether a column is all zeros. What `scale()` and `poly()` compute comes from every row, as in
-`lm`. A level that the kept rows leave empty is no column, whatever emptied it.
+Rows are decided once, and in one place. The data object evaluates `subset` once, where it is built, and
+applies the na.action; nothing else reads the caller's `subset`. Every basis rides the data object's `bases`
+argument and is cut there. A value rides as itself. For a basis written as code the numbers of the data's rows
+ride in its place ([`basisRowNumbers`](../../R/forestBasis.R)) and come back as the rows the fit kept, in the
+fit's order ([`buildFitBases`](../../R/forestBasis.R)). So a subset that draws its rows, `subset = sample(n,
+100)`, gives every basis the fit's own rows; read a second time it gave them another draw's, without a message,
+which the first review of this push found at every door.
 
-A basis handed over as a value has no code. It goes to the data object as before, which cuts it to the kept
-rows or refuses a value that was already cut.
+A basis written as code is read over every row of the data the fit was given, and only on the rows kept is it
+decided which levels have a row, whether a value is missing and whether a column is all zeros. What a term
+computes across rows, `scale()`, `poly()` and `I(age - mean(age))` alike, comes from every row, as in `lm`. A
+level that the kept rows leave empty is no column, whatever emptied it.
+
+A basis handed over as a value has no code, and is cut by the data object, which refuses a value that was
+already cut. A value is not built again on the kept rows: a level that `subset` empties keeps a column of
+zeros, where code drops it. Giving a value and code one builder is the kind-by-class slice's.
 
 At new rows the record a fit keeps is R's `terms` object with its environment, and
 [`replayForestBasis`](../../R/model.R) rebuilds the basis through `model.frame()`. This works whichever door
@@ -86,25 +96,39 @@ refused, since its values belong to the fitted rows.
 
 ## Where a name is found
 
-A term of a formula is not a call the caller makes. Its basis is read when the model is built, in `data` and
-then where the formula was written, as `lm` reads a formula. A basis written with a tilde is a formula and is
-read the same way wherever it is written.
+It depends on who wrote the code, and the rule is dec-A173's with the rulings made on the review of this push.
 
 A call of `forest()` is made by the caller, in a `forests` list or ahead of the fit
-([`captureForestBasis`](../../R/forestBasis.R)). There the rule is dec-A173's:
+([`captureForestBasis`](../../R/forestBasis.R)):
 
 - A name of a column of `data` is that column. A column hides a caller's variable of the same name.
 - Anything else is what it was where `forest()` was called, at that moment. The value is taken once, quietly;
   what it warns of is kept and raised by a fit that uses it.
-- Nothing is looked up later than the call. Every name the code uses that the caller binds is copied when
-  `forest()` is called ([`bindBasisAtCall`](../../R/forestBasis.R)), a number written beside a column
-  included, so `for (k in c(10, 30)) forest(basis = I(dose / k))` gives each forest its own `k`. The plan left
-  this case open and push 3 settled it this way; a formula keeps `lm`'s reading, in which `k` is looked up at
-  the fit and again by `predict`.
+- No variable of the caller's is looked up later than the call. Every name the code uses that the caller binds,
+  in the frames from the call's own up to the workspace, is copied when `forest()` is called
+  ([`bindBasisAtCall`](../../R/forestBasis.R)), a number written beside a column included, so
+  `for (k in c(10, 30)) forest(basis = I(dose / k))` gives each forest its own `k`, at the fit and at
+  `predict`. What R or an attached package supplies, `scale` or `pi`, is not copied and is looked up at the
+  fit.
+- A tilde written in place changes none of this: `forest(basis = ~ I(dose / k))` is read exactly as the same
+  code without the tilde.
+
+A formula made elsewhere is R's own object and keeps R's own reading: a formula held in a variable or handed
+over, a `forest()` term inside a fit's formula, and the formula given to `$setForestBasis` are read against the
+data and then in the formula's environment, when the model is built and again by `predict`. A formula made in a
+loop and held in a variable therefore sees the loop's last value in every forest.
+
+Two cases are not the caller's code at all. An argument that a function of base R writes, `lapply()`'s
+`X[[i]]` and `Map()`'s `dots[[2L]][[1L]]`, is a value handed over: its text is no label and its names are not
+looked up in the data ([`isLoopMachinery`](../../R/model.R) tells it by the frame the argument stands in). And a
+basis forwarded through dots by a call that has returned cannot be read where it was written: its value is used
+when its code names no column of the data, and it is refused by name when it names one
+([`forwardedBasis`](../../R/forestBasis.R)).
 
 So a forest built in a loop, by `lapply()` or by `Map()`, a variable changed or removed before the fit, and a
 forest saved and read back each fit the basis the call was given. A forest carries the names its basis uses and
-no frame of the function that built it.
+no frame of the function that built it, except through a held formula, which carries its environment as any
+formula does.
 
 ## Names and labels
 
@@ -134,16 +158,21 @@ text on this one.
 | `basis = ~ 1 + dose` | `dose` plus one | a column of ones and `dose` | `~ cbind(1, dose)` |
 | `basis = dose` in a term, beside a caller's `dose` | the caller's | the data's | `~ dose` |
 | `basis = dose` in a list, beside a caller's `dose` | the caller's | the data's | `~ dose` |
-| `scale()`, `poly()` in a term under `subset` | centre of the rows kept | of every row | the constants written out, to 1e-10 |
+| a term computed across rows (`scale()`, `poly()`, `I(age - mean(age))`, `cut(age, 3)`) in a formula's term under `subset` | computed on the rows kept | on every row | the constants written out, to 1e-10 |
 | `~ factor(g)` in a list, a level emptied by `subset` | a column of zeros for that level | no column | the same text in a formula's term |
 
-The last row was found while building. Before, the two doors differed: the term dropped the level and the list
-kept an all-zero column, whose coefficient the data never touched. The old meaning of each of the first three
-is still written, inside `I()`: `I(dose + age)`, `I(dose - 1)`, `I(1 + dose)`, each identical to the old text.
+The first three rows hold with no tilde too, for a basis written beside the caller's own vectors, which the
+build before took as a value: `basis = dv + av` was one column, the sum, and is two; `dv - 1` and `1 + dv`
+likewise. The last row was found while building. Before, the two doors differed: the term dropped the level and
+the list kept an all-zero column, whose coefficient the data never touched. The old meaning of each of the
+first three is still written, inside `I()`: `I(dose + age)`, `I(dose - 1)`, `I(1 + dose)`, each identical to the
+old text.
 
-Every other model that could be written before and after draws what it drew: 182 comparisons of seeded fits
-over three families, one and two chains, both doors, held and drawn coefficients, factor, two-column and value
-bases, `subset`, weights, an offset and a test set.
+A model whose text is in none of these families, and whose `subset` is the same each time it is read, draws
+what it drew: 218 comparisons of seeded fits over three families, one and two chains, both doors, held
+and drawn coefficients, factor, two-column and value bases, `subset`, weights, an offset and a test set. A
+`subset` that draws its rows is the exception by design: the build before gave its bases the rows of a second
+draw.
 
 ## What is fixed for later
 

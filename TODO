@@ -658,7 +658,17 @@ items
     wrapper's dots when it is an expression over the data's columns,
     nor when the formula was written outside the wrapper: the data
     object's own model frame reads the reference to the dots in the
-    formula's environment (the base build's too). A forest built by a wrapper whose formal holds the basis,
+    formula's environment (the base build's too). On the matrix
+    interface with family "aft", dbarts() reads subset for the
+    censoring status and the data object reads it again for the rows,
+    so a subset that draws its rows gives the status other rows than
+    the fit. predict(bases = ) checks no name of a column or a forest
+    (forest-defaults-by-kind). setForestBasis with a factor whose
+    levels are reordered keeps the old column names, and a factor
+    given as a value under a subset that empties a level keeps a
+    column of zeros (forest-kind-by-class). A name R or an attached
+    package supplies, pi or scale, is looked up at the fit, not when
+    forest() is called. A forest built by a wrapper whose formal holds the basis,
     function(b) forest(basis = b), is given the formal's value, so
     such a wrapper cannot pass on a column of the data by its name.
   forest-defaults-by-kind: before 1.0-0 (dec-B274, dec-B276), directly
