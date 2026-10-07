@@ -607,7 +607,7 @@ items
     them is an addition (dec-B272). A star in a basis is refused
     (dec-B273); defaults go by a forest's kind (dec-B274); extract
     returns a list by forest of vectors named by column (dec-B275).
-    Planned: written-surface. Not yet planned: defaults by kind, the
+    Planned: written-surface, forest-defaults-by-kind. Not yet planned: the
     sd unit, the kind by class, the multiplier law and the slices
     after it.
   written-surface: before 1.0-0 (dec-B266 to dec-B275). A model of
@@ -620,13 +620,25 @@ items
     are refused by name. Three pushes; the first two (the two
     arguments, the forests of a formula) landed, the basis is left.
     Plan: docs/plans/written-surface.md.
-  forest-defaults-by-kind: before 1.0-0 (dec-B274). A forest with a
-    basis takes the multiplied forest's default tree count and tree
-    prior wherever it is written, at both doors; with no forest
-    without a basis, a tree count or tree prior given to the
-    fitting function is refused by name and the model is accepted.
-    Until it lands such a model takes its forests in written order.
-    Not planned.
+  forest-defaults-by-kind: before 1.0-0 (dec-B274, dec-B276), directly
+    after written-surface. A forest's default tree count and tree
+    prior go by whether it has a basis: the forest with no basis
+    takes the fitting function's, a forest with a basis 50 trees and
+    cgm(3, 0.25), wherever it is written, in a formula, a forests
+    list and a data object's bases alike; a list and a data object
+    may put the forest with no basis anywhere. With no such forest,
+    a tree count, tree prior, leaf prior, interactions or blocks
+    given to the fitting function is refused by name and the model
+    is accepted; given means named, the default's own value
+    included. The order of a model's forests does not change: until
+    this lands the first forest takes the fitting function's count
+    and prior whatever it is. Every method that takes a forest takes
+    its label as well as its position, and a string is never a
+    position. Two pushes, R only. Changes the posterior of a model
+    whose first forest has a basis and states no count or tree
+    prior; 44 creations in 6 test files are respelled onto the first
+    forest and keep their draws.
+    Plan: docs/plans/forest-defaults-by-kind.md.
   cross-family-state-install: before 1.0-0. A state of one family
     installs into a sampler of another. Of the 56 ordered pairs among
     the eight families 31 are refused, 18 install and run, 3 leave
