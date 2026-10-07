@@ -291,6 +291,13 @@
             ordinary one. \code{bart} now warns when a supplied
             \code{sigest} has no effect because the family fixes the
             residual scale; 0.9-34 ignored it silently.
+      \item Draws a sampler has saved (\code{keepTrees}) keep their
+            values when the response scale is re-derived: after
+            \code{setResponse} or \code{setOffset} with
+            \code{updateScale = TRUE}, or \code{setData}, \code{predict}
+            returns for them what it returned before the call. 0.9-34
+            replayed saved trees on the scale in force, so they came back
+            in the new response's units.
     }
   }
   \subsection{NEW FEATURES}{

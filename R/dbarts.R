@@ -2665,7 +2665,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setData = function(newData, updateState = NULL) {
-      "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies."
+      "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -3556,7 +3556,8 @@ dbartsSampler <- setRefClass(
     installTrees = function(donor, samples = NULL) {
       "Warm-starts the forests from a donor sampler or bart fit over the same
        predictors, keeping this sampler's model; a donor in other response
-       units is converted into this sampler's. 'samples' maps each chain to a
+       units, or with linear-leaf covariates centred and scaled differently,
+       is converted into this sampler's. 'samples' maps each chain to a
        1-based donor-sample index; NULL spreads the chains across the donor's
        kept samples. Single-forest samplers only."
       ptr <- getPointer()
