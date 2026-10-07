@@ -235,9 +235,10 @@ items
     range are data derived once and then held (dec-B231 to dec-B233):
     they belong on the data object, change only by a call that names
     them, and are never installed by a state. Landed: setState's
-    return value (docs/plans/restore-status.md) and a set cut grid
-    that can be put back (docs/plans/cut-points-undo.md). Planned:
-    leaf-conversions. Not yet planned: the three
+    return value (docs/plans/restore-status.md), a set cut grid
+    that can be put back (docs/plans/cut-points-undo.md) and the leaf
+    conversions (docs/plans/leaf-conversions.md). Not yet planned: the
+    three
     records on dbartsData; creation and setData using a carried
     record (setData's updateCutPoints, updateScale and
     updateStandardization; setPredictor's updateStandardization); a
@@ -246,16 +247,6 @@ items
     table of what puts each value back before setState; the gp
     setData refusal narrowed to the cases that would change a kept
     draw. The design is not in docs/design yet.
-  leaf-conversions: before 1.0-0 (dec-B200, dec-B233, dec-B237). Kept
-    draws are replayed through whatever standardization and response
-    range the sampler holds now, so setData moves kept linear and gp
-    draws and a re-derived range returns every kept draw in the new
-    units; a warm start reads a donor's slopes under the recipient's
-    standardization, or replaces the recipient's. Convert linear
-    coefficients, rewrite kept draws at a re-anchor, and refuse the
-    calls on a gp sampler that holds kept draws. Plan:
-    docs/plans/leaf-conversions.md. The conversions landed
-    2026-10-07; left: step 5, the gp refusals.
   leaf-covariate-single-value-off-centre: a linear leaf's covariate
     that setPredictor moved to another single value counts as having
     spread, so setData or a warm start onto a widely spread column
@@ -880,11 +871,6 @@ items
     section 10). After the multiplier law's held push it is the one
     place left where a sampler runs trees drawn under other held
     values. Not planned.
-  aft-reanchor-observed-times: a survival fit's re-anchor reads the
-    observed times, never a chain's drawn ones (two chains re-anchor
-    to two transforms today). Planned,
-    docs/plans/aft-reanchor-observed-times.md; straight after
-    leaf-conversions.
   response-scale-rows: what a fit takes from the response to place or
     size a prior (the count fit's centre, the gaussian and Student-t
     response scale, the survival fit's, the unit of a forest's sd) is
@@ -901,7 +887,8 @@ items
     and before the merge if it can be: design first, with the
     state-frame slices that give derived data its record and with
     docs/plans/forest-sd-unit.md, which states the unit.
-    Planned as four slices (dec-A176): the aft fix above; creation
+    Planned as four slices (dec-A176): the survival re-anchor from
+    observed times, landed 2026-10-07; creation
     only, docs/plans/response-scale-rows.md; then the two new
     arguments and dec-B304, stated at that plan's end and not planned.
     Fewer than two distinct response values in take the fallback too

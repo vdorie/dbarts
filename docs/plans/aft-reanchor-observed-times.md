@@ -1,6 +1,6 @@
 # aft-reanchor-observed-times: a survival sampler's response range is read from the observed times, always
 
-Status: PLANNED (dec-B296; slice A of the four that work was cut into, see
+Status: LANDED 2026-10-07, 21bbbfd7 to 11377982 (dec-B296; slice A of the four that work was cut into, see
 [response-scale-rows.md](response-scale-rows.md)).
 
 agent: one opus implementer (engine and its tests); opus reviewer.
@@ -203,3 +203,20 @@ Agent-made, for the maintainer's later mark.
   time less the offset is the largest. Until then nothing failed when the last censored row was left at
   its drawn time or when a sampler with a single censored row took the old path (the reviewer's two
   surviving mutations). The `rng:` line is corrected in place.
+
+## Landing note
+
+Landed 2026-10-07 in 21bbbfd7 to 11377982, one push with step 5 of
+[leaf-conversions.md](leaf-conversions.md). The independent review, told to refute, found nothing
+blocking. It reproduced the defect on the build before (two chains at (2.003, 5.536) and (2.032, 5.594)
+where the observed times give (1.383, 4.401)) and found 23 of 23 re-derivation routes on the observed
+times' range afterwards, against 7 of 23 before, with the drawn times unmoved and kept draws holding to
+9e-16, a variance forest included. Of 33 seeded fits compared between the two builds 31 are identical,
+the two that differ being the two built for the changed class; the identical ones cover every family
+built on the gaussian response and every aft call this plan names neutral. Two of the review's ten
+mutations survived the first build's tests, a skipped last censored row and one censored row left on the
+old path; a case with a single censored row holding the largest time, swept and re-anchored, was added
+and fails under both. The `rng:` line's "straight after `setResponse`" was wrong and is corrected:
+`setResponse` redraws every censored row, as a status change and a row brought back by the mask do, so
+straight after creation is the one neutral case with a censored row. Gates: as in the landing note of
+leaf-conversions.md, the same push.

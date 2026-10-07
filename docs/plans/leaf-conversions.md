@@ -1,7 +1,7 @@
 # leaf-conversions: kept draws and seeded forests keep their function when the units under them change
 
-Status: PUSH 1 LANDED 2026-10-07 (dec-B200, dec-B231, dec-B233, dec-B237): steps 1 to 4, a8a72c6b to f668cc86.
-Step 5, the gp refusals, is not built.
+Status: LANDED 2026-10-07 (dec-B200, dec-B231, dec-B233, dec-B237): steps 1 to 4 as a8a72c6b to f668cc86, step 5,
+the gp refusals, in 21bbbfd7 to 11377982.
 
 agent: opus implementer, one (engine, bridge, flat C entries); opus reviewer.
 rng: three classes, by call.
@@ -473,3 +473,20 @@ anchors, build, and check with the one standing NOTE. On the slice's own builds 
 four snapshot files on a reference build, the three bitwise compares identical (55, 15, 11), the exact
 gates 32 of 32, tests/cpp under ASan and UBSan, and stan4bart's suite, 582 results and none failed. The
 monotone help's sentence on fits of very few trees (dec-A133) rode in this landing.
+
+Step 5 landed 2026-10-07 in 21bbbfd7 to 11377982, one push with the survival re-anchor of
+[aft-reanchor-observed-times.md](aft-reanchor-observed-times.md), built in one worktree because both
+change the response setters' re-anchor path. The independent review, told to refute, found nothing
+blocking: every door refuses with the planned text, on six families; after a refusal the sampler's
+fields, cached state and kept draws are what they were and four more sweeps match an untouched twin; a
+sampler is refused exactly when `predict` can replay a draw, across 19 states; and the header changed in
+comment text only, its hash as before. It named a cost the plan had not: a burn-in loop that re-anchors
+and then keeps a draw, `setOffset(updateScale = TRUE); run(0, 1)`, on a gp sampler that keeps trees was
+served before and now stops at its second pass; run as burn-in sweeps, which keep nothing, it is served,
+and the help says so. The refusal of a range re-derivation there is the coordinator's call of
+2026-10-06 (Calls made in planning), not dec-B237, which rules the standardization; the design note and
+TODO were corrected to say so. Gates on a clean copy of the rebased head: install, tests/cpp 358 lines
+passing, the suite 18539 results and none failed over 232 files, lint, format, the document checks, the
+mutation anchors, build, and check with the one standing NOTE; on the slice's own build, the snapshot
+files on a reference build, the three bitwise compares identical (55, 15, 11), the exact gates 32 of 32,
+tests/cpp under ASan and UBSan.

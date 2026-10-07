@@ -1,6 +1,6 @@
 # Kept draws and seeded forests keep their function when the units under them change
 
-Status: PLANNED; steps 1 to 4 of the plan are built, the Gaussian-process refusals (its step 5) are not.
+Status: LANDED 2026-10-07 (the conversions as a8a72c6b to f668cc86, the Gaussian-process refusals in 21bbbfd7 to 11377982).
 Plan: [leaf-conversions.md](../plans/leaf-conversions.md). Rulings: dec-B200, dec-B231, dec-B233 and dec-B237
 in docs/decisions.md.
 
