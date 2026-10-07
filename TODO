@@ -607,9 +607,9 @@ items
     them is an addition (dec-B272). A star in a basis is refused
     (dec-B273); defaults go by a forest's kind (dec-B274); extract
     returns a list by forest of vectors named by column (dec-B275).
-    Planned: written-surface, forest-defaults-by-kind. Not yet planned: the
-    sd unit, the kind by class, the multiplier law and the slices
-    after it.
+    Planned: written-surface, forest-defaults-by-kind,
+    forest-sd-unit, forest-kind-by-class. Not yet planned: the
+    multiplier law and the slices after it.
   written-surface: before 1.0-0 (dec-B266 to dec-B275). A model of
     several forests is written as forest() terms, the first
     included; a multiplier is basis =, the right-hand side of a
@@ -639,6 +639,40 @@ items
     prior; 44 creations in 6 test files are respelled onto the first
     forest and keep their draws.
     Plan: docs/plans/forest-defaults-by-kind.md.
+  forest-sd-unit: before 1.0-0 (dec-B246 as revised, dec-B253,
+    dec-B266), after forest-defaults-by-kind. A forest's sd is in
+    the response's units wherever it is written or read: the units
+    of y, and of the latent index under probit and logistic. The
+    engine divides a stated number by a unit it derives at a first
+    creation (sd(y - offset) over the rows kept, 1, pi/sqrt(3)) and
+    R records beside the anchor; a default does not move, and is
+    reported as the number of response units it comes to. extract's
+    leaf.prior.sd on several forests returns the reader's numbers.
+    The one forest of a single-forest model takes sd as its
+    leaf.prior = normal(sd = ). Engine, bridge and R. Changes the
+    prior of a model that states a forest sd under a gaussian or
+    logistic response and is left as written; respelled, such a
+    call is equal to rounding; a fit that states none is unchanged
+    to the bit. Four BCF exact gates and sbc.R are respelled, and
+    bartCause's sd.moderate defaults to NULL the same day.
+    Plan: docs/plans/forest-sd-unit.md.
+  forest-kind-by-class: before 1.0-0 (dec-B260), after forest-sd-unit
+    and before the multiplier law. What a forest multiplies is
+    decided by the class of its basis and nothing else, at every
+    door: dbartsData(bases = ) takes a factor and reads a logical
+    vector as levels, as forest(basis = ) does. A factor's levels
+    are recorded with the data; setForestBasis and predict(bases = )
+    take the class the forest was created with, a factor is matched
+    to its levels by name, a forest created without a basis takes
+    none, and a held forest keeps its width. A value's empty level
+    or zero column is refused once, after subset. R only, two
+    pushes. Moves no draw but for a logical vector through the data
+    door and a factor swapped or predicted with its levels in
+    another order. The second push respells the 98 blocks of
+    indicator columns in the tests as the factors they stand for,
+    bit for bit, for the multiplier law's sake; bartCause's bcf
+    passes factor(z) any day from the first push to that law.
+    Plan: docs/plans/forest-kind-by-class.md.
   cross-family-state-install: before 1.0-0. A state of one family
     installs into a sampler of another. Of the 56 ordered pairs among
     the eight families 31 are refused, 18 install and run, 3 leave
