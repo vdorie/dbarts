@@ -226,7 +226,7 @@ frame <- data.frame(
 )
 frame$y <- 2 * frame$x1 + frame$z * (1 + frame$x2) + rnorm(nFrame, sd = 0.2)
 termFit <- bart(
-  y ~ x1 + x2 + z:forest(x1 + x2),
+  y ~ x1 + x2 + forest(x1 + x2, basis = ~z),
   data = frame,
   n.trees = 8L,
   n.chains = 1L,

@@ -338,7 +338,7 @@ expect_identical(dim(extract(heteroscedastic, "sigma")), c(2L * nSamples, n))
 dat <- data.frame(x, y = yGaussian + rbinom(n, 1L, 0.5))
 dat$z <- rbinom(n, 1L, 0.5)
 forests <- bart(
-  y ~ x1 + x2 + x3 + z:forest(x1 + x2),
+  y ~ x1 + x2 + x3 + forest(x1 + x2, basis = ~z),
   dat,
   n.trees = 5L,
   n.samples = nSamples,

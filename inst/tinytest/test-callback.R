@@ -242,7 +242,7 @@ dfCoupled <- data.frame(
   z = rbinom(n, 1L, 0.5)
 )
 fitCoupled <- bart(
-  y ~ x1 + x2 + z:forest(x1 + x2),
+  y ~ x1 + x2 + forest(x1 + x2, basis = ~z),
   data = dfCoupled,
   keepFits = FALSE,
   keepTrees = TRUE,

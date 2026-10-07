@@ -364,12 +364,14 @@ expect_identical(
   ))),
   0
 )
-expect_identical(
+# and not by position: only a forest's predictors are given unnamed
+expect_error(
   heldBy(quote(list(
     forest(),
-    forest(~ factor(z), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, fixed())
+    forest(NULL, ~ factor(z), NULL, NULL, NULL, NULL, fixed())
   ))),
-  0
+  "forest() takes one unnamed argument",
+  fixed = TRUE
 )
 # inside a function literal
 expect_identical(

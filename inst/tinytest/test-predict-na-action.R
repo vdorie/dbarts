@@ -367,7 +367,7 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
 
 z <- rep(c(0, 1), length.out = n)
 dfZ <- data.frame(y = y + z, a = x[, "a"], b = x[, "b"], z = z)
-fitZ <- quick(y ~ a + b + z:forest(a + b), dfZ)
+fitZ <- quick(y ~ a + b + forest(a + b, basis = ~z), dfZ)
 newZ <- data.frame(newX, z = rep(c(1, 0), 3L))
 forestPad <- predict(fitZ, newZ, "forest", na.action = na.exclude)
 expect_identical(dimnames(forestPad)[[2L]], newNames)

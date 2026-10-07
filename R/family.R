@@ -16,11 +16,23 @@
 ## An environment in which a package vocabulary resolves by bare name and
 ## everything else falls through to the caller's own frame: the prior
 ## constructors inside the prior arguments (parsePriors), the family
-## constructors inside 'family'.
+## constructors inside 'family'. Marked, so that code a constructor keeps
+## unevaluated is kept with the caller's frame and not with this one
+## (callingPlace).
 vocabularyEnv <- function(vocabulary, evalEnv) {
   env <- new.env(parent = evalEnv)
   for (name in names(vocabulary)) {
     assign(name, vocabulary[[name]], envir = env)
+  }
+  attr(env, "dbarts.vocabulary") <- TRUE
+  env
+}
+
+## Where a constructor's caller wrote the call: `env`, or the frame under it
+## when `env` is one a vocabulary was layered over.
+callingPlace <- function(env) {
+  while (isTRUE(attr(env, "dbarts.vocabulary", exact = TRUE))) {
+    env <- parent.env(env)
   }
   env
 }

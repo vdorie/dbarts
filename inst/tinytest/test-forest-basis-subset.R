@@ -130,7 +130,7 @@ expect_error(
 ## --- regression: the forest() formula term (':') route already implements
 ## the post-subset rule and is unaffected by this change --------------------
 termFit <- dbarts(
-  y ~ a + z:forest(a),
+  y ~ a + forest(a, basis = ~z),
   d,
   subset = idx,
   control = seededControlForestBasisSubset()

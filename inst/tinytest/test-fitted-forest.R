@@ -8,7 +8,7 @@ d$y <- d$x1 + d$z * (1 + d$x2) + rnorm(n, 0, 0.3)
 
 fitForest <- function(data, n.chains = 1L, ...) {
   bart(
-    y ~ x1 + x2 + z:forest(x1 + x2),
+    y ~ x1 + x2 + forest(x1 + x2, basis = ~z),
     data,
     n.chains = n.chains,
     n.threads = 1L,

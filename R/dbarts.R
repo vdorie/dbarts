@@ -885,7 +885,11 @@ dbarts <- function(
         "multi-forest model can only be declared one way - drop one"
       )
     }
-    if (!missing(test)) {
+    # a formula whose one forest() has no basis is a single-forest fit, which
+    # takes 'test' as the same terms written plainly do
+    if (
+      !missing(test) && !all(vapply(termIngestion$bases, is.null, logical(1L)))
+    ) {
       stop(
         "a forest() formula term does not support 'test'; drop the term or ",
         "fit a single-forest model"
@@ -1420,29 +1424,27 @@ dbarts <- function(
   # through that argument; 'forests' being NULL here is enforced by the
   # collision refusal above, so this never collides with a basisDeclarations
   # assignment
-  if (!is.null(termIngestion)) {
-    # data@bases is read positionally against the forests it distinguishes
-    # (forest 1 first); a term never speaks for forest 1, which has none.
-    # A term's basis was read under na.pass, so it still carries whatever
-    # rows the fit's own na.action dropped - restricted here, to the rows
-    # the model frame kept
-    data@bases <- c(
-      list(NULL),
-      lapply(termIngestion$bases, function(basis) {
-        if (is.null(basis) || is.null(data@na.action)) {
-          basis
-        } else {
-          basis[-unclass(data@na.action), , drop = FALSE]
-        }
-      })
-    )
+  if (
+    !is.null(termIngestion) &&
+      !all(vapply(termIngestion$bases, is.null, logical(1L)))
+  ) {
+    # data@bases is read positionally against the forests it distinguishes,
+    # the forest with no basis first. A term's basis was read under na.pass,
+    # so it still carries whatever rows the fit's own na.action dropped -
+    # restricted here, to the rows the model frame kept
+    data@bases <- lapply(termIngestion$bases, function(basis) {
+      if (is.null(basis) || is.null(data@na.action)) {
+        basis
+      } else {
+        basis[-unclass(data@na.action), , drop = FALSE]
+      }
+    })
   }
 
-  # a term's symbolic vars slot names design columns, which exist only now
-  # (R/formulaTerms.R); forest 1 is the fit's own and reads every column, as
-  # it does with no term at all
+  # a term's predictors name design columns, which exist only now
+  # (R/formulaTerms.R)
   if (!is.null(termIngestion)) {
-    forests <- finalizeTermForests(termIngestion$pending, data)
+    forests <- finalizeTermForests(termIngestion$forests, data)
   }
 
   # the matrix interface's own status vector rides outside (x, y) - it was
@@ -1484,12 +1486,13 @@ dbarts <- function(
   # matrix riding the data object is not: park the declaring formula and the
   # fit-time levels beside the rest of the forest description, which
   # resolveSamplerSpec has just written wholesale. Positional against the
-  # forests those bases distinguish, as data@bases is - forest 1 is the fit's
-  # own and declares none. Inert to the run: nothing the engine reads.
+  # forests those bases distinguish, as data@bases is. Inert to the run:
+  # nothing the engine reads.
   if (!is.null(termIngestion)) {
-    forestInfo <- attr(spec$control, "bartcore.forests")
+    # exact, or a single forest's bartcore.forestsDeclared answers to the name
+    forestInfo <- attr(spec$control, "bartcore.forests", exact = TRUE)
     if (!is.null(forestInfo)) {
-      forestInfo$basisTerms <- c(list(NULL), termIngestion$basisTerms)
+      forestInfo$basisTerms <- termIngestion$basisTerms
       attr(spec$control, "bartcore.forests") <- forestInfo
     }
   }

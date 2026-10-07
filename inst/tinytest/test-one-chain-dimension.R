@@ -121,7 +121,7 @@ expect_equal(dim(band), c(6L, 3L))
 z <- rep(c(0, 1), length.out = n)
 dfZ <- data.frame(y = y + z, a = x[, 1L], b = x[, 2L], z = z)
 fitZ <- suppressWarnings(bart(
-  y ~ a + b + z:forest(a + b),
+  y ~ a + b + forest(a + b, basis = ~z),
   dfZ,
   n.samples = 8L,
   n.burn = 4L,

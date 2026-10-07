@@ -964,6 +964,11 @@ bart <- function(
   # frame
   supplied <- dotNames(...)
   refuseForeignFrontDoorArgs(supplied, "bart", names(formals(dbarts::bart)))
+  # the forest with no basis written in the formula states the count this
+  # function's own 'n.trees' states: one of them, not both
+  if (!missing(n.trees) && !missing(formula) && formulaHasForestTerm(formula)) {
+    refuseTreeCountGivenTwice(formula)
+  }
   # ahead of sampler construction below, so a malformed pair fails here
   # rather than after the (possibly expensive) sampler is already built
   validateCallback(callback)
@@ -3703,6 +3708,7 @@ bartBT <- function(
   # word. The dbartsData passthrough is the only route one can arrive by
   refuseCountsCarryingData(x.train, "bartBT()")
   refuseResponseFreeFormula(x.train, "bartBT()")
+  refuseForestTerm(x.train, "bartBT")
 
   # coerce eagerly, naming the argument as the caller typed it - dbartsControl
   # re-coerces its own (already-integer) inputs and would otherwise blame its

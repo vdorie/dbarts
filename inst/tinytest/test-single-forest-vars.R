@@ -303,19 +303,23 @@ expect_error(
   ),
   pattern = "'vars' contains missing values"
 )
-# a selection that is not a vector is not read for missing values: it fails
-# in the coercion, as it did before that check, and raises no warning
-for (selection in list(~ a + b, quote(a))) {
+# a selection that is not a vector is not read for missing values: a held
+# formula is refused by name, a held symbol fails in the coercion as it did
+# before that check, and neither raises a warning
+for (case in list(
+  list(~ a + b, "forest\\(\\)'s first argument, 'vars', holds a formula"),
+  list(quote(a), "coerce.* (to|to vector of) type 'integer'")
+)) {
   numWarnings <- 0L
   expect_error(
     withCallingHandlers(
-      sampler(x, y, forests = restrictTo(selection)),
+      sampler(x, y, forests = restrictTo(case[[1L]])),
       warning = function(w) {
         numWarnings <<- numWarnings + 1L
         invokeRestart("muffleWarning")
       }
     ),
-    pattern = "coerce.* (to|to vector of) type 'integer'"
+    pattern = case[[2L]]
   )
   expect_identical(numWarnings, 0L)
 }

@@ -1340,7 +1340,7 @@ expect_error(
     forests = list(forest(basis = ~ factor(z))),
     control = control
   ),
-  "on dbarts() or dbartsSpec(), or a data object with",
+  "Write the forest with no multiplier too, as y ~ forest(x1 + x2) + ",
   fixed = TRUE
 )
 

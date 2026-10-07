@@ -440,7 +440,7 @@ asymDf <- data.frame(a = a, b = b, z = z, y = y)
 # bart()'s own default n.trees (75) for forest 1, forest()'s own default (50)
 # for forest 2, neither overridden here
 asymFit <- dbarts::bart(
-  y ~ a + b + z:forest(a + b),
+  y ~ a + b + forest(a + b, basis = ~z),
   asymDf,
   keepTrees = TRUE,
   n.chains = 1L,
@@ -454,7 +454,7 @@ expect_equal(range(asymTrees$tree[asymTrees$forest == 1L]), c(1L, 75L))
 expect_equal(range(asymTrees$tree[asymTrees$forest == 2L]), c(1L, 50L))
 # a small n.trees on forest 1 does not truncate forest 2's own, larger count
 asymFitSmall <- dbarts::bart(
-  y ~ a + b + z:forest(a + b),
+  y ~ a + b + forest(a + b, basis = ~z),
   asymDf,
   keepTrees = TRUE,
   n.trees = 7L,

@@ -640,7 +640,7 @@ resolveSamplerSpec <- function(
   # Those columns are the first forest's 'vars', resolved once, here. On a
   # single forest a hazard fit's own period column, which rides last and which
   # the caller did not supply, stays allowed whatever 'vars' names.
-  firstColumns <- resolveModerators(firstForest$vars, data, "vars")
+  firstColumns <- resolveForestVars(firstForest$vars, data)
   singleForest <- is.null(declaredBases)
   if (singleForest && !is.null(firstColumns) && !is.null(hazardPeriods)) {
     firstColumns <- union(firstColumns, ncol(data@x))
@@ -844,22 +844,31 @@ resolveSamplerSpec <- function(
     # is the single site the refusal is owed at. A varying-coefficient model
     # is one forest per coefficient function, intercept included.
     if (numForests < 2L) {
+      fromData <- is.null(bases) &&
+        !any(lengths(forestBasisDeclarations(forests)) > 0L)
       stop(
         "a multi-forest model needs at least two forests, and ",
-        if (
-          is.null(bases) &&
-            !any(lengths(forestBasisDeclarations(forests)) > 0L)
-        ) {
-          "the data object carries "
+        if (fromData) {
+          paste0(
+            "the data object carries ",
+            numForests,
+            "; for varying coefficients declare an intercept forest plus ",
+            "one basis forest per covariate - forests = list(forest(), ",
+            "forest(basis = ~ z1), ...) on dbarts() or dbartsSpec(), or a ",
+            "data object with bases = list(NULL, z1, ...) - or use a single ",
+            "forest with linear() leaves; otherwise drop the basis"
+          )
         } else {
-          "this call's 'basis' declarations resolve to "
-        },
-        numForests,
-        "; for varying coefficients declare an intercept forest plus one ",
-        "basis forest per covariate - forests = list(forest(), ",
-        "forest(basis = ~ z1), ...) on dbarts() or dbartsSpec(), or a data object with ",
-        "bases = list(NULL, z1, ...) - or use a single forest with ",
-        "linear() leaves; otherwise drop the basis"
+          paste0(
+            "this call's 'basis' declarations resolve to ",
+            numForests,
+            ": a forest with a 'basis' stands beside another forest. Write ",
+            "the forest with no multiplier too, as y ~ forest(x1 + x2) + ",
+            "forest(x1 + x2, basis = ~ z1) or forests = list(forest(), ",
+            "forest(basis = ~ z1)), or use a single forest with linear() ",
+            "leaves; otherwise drop the basis"
+          )
+        }
       )
     }
     # a forest past the first with no basis has nothing to distinguish it from
@@ -1004,7 +1013,7 @@ resolveSamplerSpec <- function(
         if (index == 1L) {
           firstColumns
         } else {
-          resolveModerators(specs[[index]]$vars, data, "vars")
+          resolveForestVars(specs[[index]]$vars, data)
         }
       }
     )

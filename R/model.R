@@ -918,6 +918,160 @@ resolveModerators <- function(moderators, data, argument = "moderators") {
   sort(unique(as.integer(moderators)))
 }
 
+## A term label or a column name as a model frame's column is named.
+stripBackticks <- function(labels) {
+  sub("^`(.*)`$", "\\1", labels)
+}
+
+## A name in forest()'s first argument that holds a formula: the terms are
+## written in place, or the names handed over.
+refuseHeldFormula <- function(expr) {
+  stop(
+    "forest()'s first argument, '",
+    paste(deparse(expr, width.cutoff = 500L), collapse = " "),
+    "', holds a formula; write its terms in place, as forest(x1 + x2), or ",
+    "give the predictors' names as a character vector",
+    call. = FALSE
+  )
+}
+
+## A forest's predictors, as forest()'s first argument states them, resolved
+## to sorted 1-based design columns, or NULL for an unrestricted forest.
+##
+## Code is read as the right-hand side of a model formula over the fit's
+## predictors when any name in it is one of them: '.' is every predictor, '-'
+## removes one, and a label is a column or a term's columns. A formula's
+## forest() arrives with its labels already read against the data
+## (readForestTerms). Code naming no predictor is evaluated where forest() was
+## called and gives a value. A value is names or positions; a repeat in it is
+## refused, since a vector with a value for every row, a multiplier written
+## where the predictors go, would otherwise be read as a few columns.
+## `allIsNull` makes a selection of every column NULL, the unrestricted forest
+## it is.
+resolveForestVars <- function(vars, data, allIsNull = FALSE) {
+  if (is.null(vars)) {
+    return(NULL)
+  }
+  columnNames <- colnames(data@x)
+  termLabels <- stripBackticks(attr(data@x, "term.labels"))
+  predictors <- if (length(termLabels) > 0L) termLabels else columnNames
+  refuseUnknown <- function(name) {
+    stop(
+      "'",
+      name,
+      "' is not a predictor of this fit (",
+      paste(predictors, collapse = ", "),
+      "); here a forest()'s first argument selects among them",
+      call. = FALSE
+    )
+  }
+
+  labels <- NULL
+  if (inherits(vars, "dbartsForestTerms")) {
+    expr <- vars$expr
+    shown <- paste(deparse(expr, width.cutoff = 500L), collapse = " ")
+    labels <- vars$labels
+    written <- all.vars(expr)
+    # a term such as log(x1) is a predictor whose name is not its variable's
+    known <- unique(c(
+      ".",
+      predictors,
+      columnNames,
+      unlist(lapply(termLabels, function(label) {
+        tryCatch(all.vars(str2lang(label)), error = function(e) NULL)
+      }))
+    ))
+    if (is.null(labels) && any(written %in% known)) {
+      stub <- as.data.frame(
+        matrix(0, 0L, length(predictors), dimnames = list(NULL, predictors)),
+        optional = TRUE
+      )
+      rhs <- call("~", expr)
+      class(rhs) <- "formula"
+      environment(rhs) <- vars$env
+      read <- tryCatch(stats::terms(rhs, data = stub), error = function(e) {
+        stop(
+          "forest()'s first argument, '",
+          shown,
+          "': ",
+          conditionMessage(e),
+          call. = FALSE
+        )
+      })
+      if (length(attr(read, "offset")) > 0L || attr(read, "intercept") == 0L) {
+        stop(
+          "forest()'s first argument, '",
+          shown,
+          "': an offset() and an intercept term are the fit's and no forest's",
+          call. = FALSE
+        )
+      }
+      labels <- attr(read, "term.labels")
+    }
+    if (is.null(labels)) {
+      unknown <- written[!vapply(written, exists, NA, envir = vars$env)]
+      if (length(unknown) > 0L) {
+        refuseUnknown(unknown[1L])
+      }
+      vars <- eval(expr, vars$env)
+      if (inherits(vars, "formula")) {
+        refuseHeldFormula(expr)
+      }
+      if (is.function(vars)) {
+        refuseUnknown(shown)
+      }
+      if (is.null(vars)) {
+        return(NULL)
+      }
+    }
+  }
+
+  if (!is.null(labels)) {
+    columns <- integer(0L)
+    for (label in stripBackticks(labels)) {
+      found <- resolveTermColumns(label, columnNames, termLabels)
+      if (is.null(found)) {
+        refuseUnknown(label)
+      }
+      columns <- c(columns, found)
+    }
+    columns <- sort(unique(columns))
+    if (length(columns) == 0L) {
+      stop(
+        "forest()'s first argument, '",
+        shown,
+        "', leaves the forest no predictor to split on",
+        call. = FALSE
+      )
+    }
+  } else {
+    if (is.atomic(vars) && !anyNA(vars) && anyDuplicated(vars) > 0L) {
+      repeated <- vars[[anyDuplicated(vars)]]
+      if (!is.character(repeated)) {
+        position <- suppressWarnings(as.integer(repeated))
+        if (
+          !is.na(position) &&
+            position >= 1L &&
+            position <= length(columnNames)
+        ) {
+          repeated <- columnNames[position]
+        }
+      }
+      stop(
+        "forest()'s first argument selects predictors of the fit and names '",
+        format(repeated),
+        "' more than once; name each once. A multiplier is given as 'basis ='",
+        call. = FALSE
+      )
+    }
+    columns <- resolveModerators(vars, data, "vars")
+  }
+  if (allIsNull && length(columns) == ncol(data@x)) {
+    return(NULL)
+  }
+  columns
+}
+
 ## A forest restricted to `columns` draws each split variable among them by
 ## their relative split probabilities, which a vector giving none of them a
 ## positive probability does not state: the engine would split on the first
@@ -2114,18 +2268,22 @@ blocks <- function(groups, trees.per.group = NULL) {
   )
 }
 
-## One forest of a multi-forest model, passed inside the
-## forests = list(forest(), forest(...)) argument of dbarts()/dbartsSpec().
-## Every knob is per forest, so the fitting functions grow exactly one argument
-## however many forests a model has. basis is the data the forest's amplitudes
-## multiply, a one-sided formula or a vector, expanded by R's own model-matrix
-## rule; vars restricts the columns the forest may split on; n.trees, base and
-## power are its tree-structure prior; sd is its total's prior scale in units
-## of the family's latent scale (sd(y) under gaussian, 1 under probit,
-## pi/sqrt(3) under logistic) per unit of basis row norm;
-## amplitude.prior.variance is the N(0, .) variance of the amplitudes on
-## its basis; amplitude = fixed() holds those amplitudes at the value
-## their shape gives them, and left out draws them; interactions and blocks are this forest's own constraints - the
+## One forest of a model, written as a term of a fitting function's formula
+## or inside its forests = list(forest(), forest(...)) argument. Every knob is
+## per forest, so the fitting functions grow exactly one argument however many
+## forests a model has. vars is the predictors the forest splits on and the
+## one argument that may be given unnamed, so that any later formal is an
+## addition: it is kept as code, with the place it was written, and read as
+## the right-hand side of a model formula once the fit's predictors are known
+## (resolveForestVars); a value handed over is names or positions. basis is
+## the data the forest's amplitudes multiply, a one-sided formula or a vector,
+## expanded by R's own model-matrix rule; n.trees, base and power are its
+## tree-structure prior; sd is its total's prior scale in units of the
+## family's latent scale (sd(y) under gaussian, 1 under probit, pi/sqrt(3)
+## under logistic) per unit of basis row norm; amplitude.prior.variance is the
+## N(0, .) variance of the amplitudes on its basis; amplitude = fixed() holds
+## those amplitudes at the value their shape gives them, and left out draws
+## them; interactions and blocks are this forest's own constraints - the
 ## arguments of the same names on the fitting function are the FIRST forest's.
 ## Every knob defaults to NULL, "not declared", which is what lets a
 ## declaration that collides with one of those arguments refuse rather than
@@ -2133,21 +2291,26 @@ blocks <- function(groups, trees.per.group = NULL) {
 ## interactions() and blocks(); a formula's forest() term is recognized by
 ## name.
 forest <- function(
-  basis = NULL,
   vars = NULL,
+  basis = NULL,
+  sd = NULL,
   n.trees = NULL,
   base = NULL,
   power = NULL,
-  sd = NULL,
+  amplitude = NULL,
   interactions = NULL,
   blocks = NULL,
-  amplitude.prior.variance = NULL,
-  amplitude = NULL
+  amplitude.prior.variance = NULL
 ) {
+  # the arguments as the caller gave them, a forwarded '...' spelled out
+  given <- match.call(function(...) NULL, sys.call(), expand.dots = FALSE)$...
+  if (numUnnamed(given) > 1L) {
+    refuseSecondUnnamed()
+  }
   structure(
     list(
       basis = basis,
-      vars = vars,
+      vars = captureForestVars(substitute(vars), callingPlace(parent.frame())),
       n.trees = n.trees,
       base = base,
       power = power,
@@ -2159,6 +2322,41 @@ forest <- function(
     ),
     class = "dbartsForest"
   )
+}
+
+## How many of a call's arguments are given without a name.
+numUnnamed <- function(arguments) {
+  given <- names(arguments)
+  if (is.null(given)) length(arguments) else sum(!nzchar(given))
+}
+
+## The one-unnamed-argument rule, which keeps every later formal of forest()
+## an addition: the text for a second unnamed argument, at either door.
+refuseSecondUnnamed <- function() {
+  stop(
+    "forest() takes one unnamed argument, the predictors the forest splits ",
+    "on, joined by '+' as forest(x1 + x2); every other argument is given by ",
+    "name: a multiplier is 'basis =' and a size is 'sd ='",
+    call. = FALSE
+  )
+}
+
+## forest()'s first argument as written. A value (names, positions, NULL) is
+## kept as it is; code is kept unevaluated with the environment it was
+## written in. A tilde there is a multiplier written where the predictors go,
+## and is refused rather than read as predictors.
+captureForestVars <- function(expr, env) {
+  if (!is.language(expr)) {
+    return(expr)
+  }
+  if (is.call(expr) && identical(expr[[1L]], as.name("~"))) {
+    stop(
+      "forest()'s first argument is the predictors the forest splits on, ",
+      "written without '~', as forest(x1 + x2); a multiplier is 'basis ='",
+      call. = FALSE
+    )
+  }
+  structure(list(expr = expr, env = env), class = "dbartsForestTerms")
 }
 
 ## The heteroscedastic variance forest's own specification, passed as the
