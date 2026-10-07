@@ -474,6 +474,72 @@ codeCategoricalColumnUpdate <- function(x.train, x, column) {
   if (length(column) == 1L) result[, 1L] else result
 }
 
+# The joint row-by-row update's values for its one shared column, as the one
+# vector every sampler installs. Where a sampler holds the column coded from a
+# factor, labels - a factor, character vector or sparseFactor - are matched to
+# that sampler's levels by codeCategoricalColumnUpdate, on its terms and in its
+# words; a number is a code already, counted from 0 as data@x holds the
+# column, and passes through to the engine's own check. Anything else is
+# refused by name, where as.double would read a logical as two codes. One
+# vector goes to every sampler, so labels must code alike in each: a column
+# whose levels differ between samplers, or that only some hold as a factor, is
+# refused for labels. A column no sampler holds as a factor is not touched.
+codeJointColumnUpdate <- function(samplers, x, columnIndices, columnName) {
+  categorical <- vapply(
+    seq_along(samplers),
+    function(i) {
+      factorLevels <- attr(samplers[[i]]$data@x, "factor.levels")
+      !is.null(factorLevels) &&
+        columnIndices[i] <= length(factorLevels) &&
+        !is.null(factorLevels[[columnIndices[i]]])
+    },
+    FALSE
+  )
+  if (!any(categorical) || is.numeric(x)) {
+    return(x)
+  }
+  if (!is.factor(x) && !is.character(x) && !methods::is(x, "sparseFactor")) {
+    stop(
+      "column '",
+      columnName,
+      "' is categorical; give its values as a factor or character vector of ",
+      "its labels, or as numbers for its codes from 0"
+    )
+  }
+  if (!all(categorical)) {
+    stop(
+      "column '",
+      columnName,
+      "' is categorical in sampler ",
+      which(categorical)[1L],
+      " and not in sampler ",
+      which(!categorical)[1L],
+      ", so its labels cannot be installed in both; give numbers"
+    )
+  }
+  codes <- NULL
+  for (i in seq_along(samplers)) {
+    codesHere <- codeCategoricalColumnUpdate(
+      samplers[[i]]$data@x,
+      x,
+      columnIndices[i]
+    )
+    if (is.null(codes)) {
+      codes <- codesHere
+    } else if (!identical(codes, codesHere)) {
+      stop(
+        "column '",
+        columnName,
+        "' has other levels in sampler ",
+        i,
+        " than in sampler 1, so its labels cannot be installed in both; ",
+        "give numbers"
+      )
+    }
+  }
+  codes
+}
+
 bartcoreSamplerSetPredictor <- function(
   sampler,
   x,

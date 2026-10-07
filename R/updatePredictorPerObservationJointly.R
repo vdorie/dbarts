@@ -72,7 +72,7 @@ updatePredictorPerObservationJointly <- function(
     columnIndices[i] <- columnIndex
   }
 
-  x <- as.double(x)
+  x <- as.double(codeJointColumnUpdate(samplers, x, columnIndices, columnName))
 
   ptrs <- lapply(samplers, function(sampler) sampler$getPointer())
   installed <- .Call(

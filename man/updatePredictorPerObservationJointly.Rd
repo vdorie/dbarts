@@ -15,8 +15,18 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NULL)
     same (index-aligned) observations. The samplers are treated as peers; none is privileged.
   }
   \item{x}{
-    A numeric vector of new values for the shared column, of length equal to the number of
-    observations.
+    The new values for the shared column, one per observation. For a numeric column, numbers. For a
+    column the samplers hold as a factor or an ordered factor, its labels: a factor, a character
+    vector or a \code{sparseFactor}, matched to the column's levels by name, as
+    \code{\link[=dbartsSampler-class]{setPredictor}} takes them for a named column. The order of the
+    levels of the factor given does not matter; a label the column does not have is refused by name,
+    and so is a missing value when the column holds none. Such a column also takes numbers, read as
+    the codes each sampler's \code{data@x} holds it in: whole numbers from 0 in the order of the
+    column's levels, so the first level is 0 and a factor \code{f} with those levels is
+    \code{as.integer(f) - 1}. A number is never matched to a label, even where the labels are
+    numerals, so give labels as a factor or as character. With several samplers, labels need the
+    column to have the same levels in the same order in each; where it does not, or where one holds
+    it as a number, give numbers.
   }
   \item{column}{
     A single integer or character string identifying the shared column; it cannot be missing. The
