@@ -1,6 +1,6 @@
 # small-rulings-batch: monotone words abbreviate, setCutPoints sorts, the joint update refuses numbers for a factor
 
-Status: PLANNED (dec-B285, dec-B286, dec-B288).
+Status: LANDED 2026-10-07 (3a89f10f to 9d1d6645; dec-B285, dec-B286, dec-B288).
 
 agent: sonnet implementer, one (R, one bridge message, tinytest, manual); opus reviewer.
 rng: NEUTRAL, bit for bit, for every call accepted before and still accepted. A call that is refused now
@@ -76,3 +76,18 @@ order and refuses a repeated point by name. The joint row update refuses numbers
 
 Install into a private library with `--preclean`; the full tinytest suite with `at_home = TRUE`; the lint
 set of `docs/plans/README.md`; `R CMD check --as-cran`; the bairrtt and stan4bart suites against the build.
+
+## Landing note
+
+Landed 2026-10-07 as 3a89f10f to 9d1d6645. The independent review, told to refute, found the code of
+all three rulings sound under every probe and the faults in the documents: the help still described
+the joint form taking level codes, and two landing notes had been rewritten; both corrected before
+landing. What the review established about the joint form and a monotone sampler: a factor column's
+first missing value cannot be brought by label, R refusing a missing label where the held column has
+none, so the engine's row-by-row decline is reached from R only by a whole matrix of codes with
+forceUpdate = FALSE and is tested in tests/cpp; a numeric column's first missing value is taken. Left
+for the backlog: the refusal of a missing label on a factor column of 70 levels says its training
+values had none when they had two (root TODO, missing-label-refusal-text). Gates on a clean copy of
+the rebased branch: install, tests/cpp 351, the tinytest suite at home 16445 results and none
+failed, lintr, air, rc-codoc, win-drift, anchors, build and check with the Date note alone. On the
+same tree bairrtt's suite gave 207 results and stan4bart's 582, none failed.

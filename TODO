@@ -251,19 +251,13 @@ items
     and rchk runs (dec-A132, VD 2026-10-07); a schedule fires only
     once the workflow is on main. Decide there whether the other exact
     gates' full modes join it.
-  monotone-direction-abbreviations: a direction word of monotone() is
-    matched as base R matches a choice, a unique abbreviation taken, by
-    pmatch (match.arg with several.ok drops what it cannot match, so
-    it is not enough alone); the help says nothing of it (dec-B288).
-    Before the merge to main.
-  joint-update-factor-numbers: updatePredictorPerObservationJointly
-    refuses numbers for a factor column, in setPredictor's words, and
-    takes a factor or labels (dec-B286, revising dec-A172 in part).
-    Before the merge to main; the help's sentence on codes goes.
-  cut-grid-sort: setCutPoints sorts the grid it is given; a repeated
-    point and a grid that is not numeric stay refused, the first with a
-    message pointing to a denser grid (dec-B285). Before the merge to
-    main, with repeated-cut-restore.
+  missing-label-refusal-text: setPredictor and the joint row update
+    refuse a missing label for a factor column with "has missing
+    values, which its training values do not"; on a column of 70
+    levels whose training values had two missing the same words are
+    given, which is false there. Find whether only the words are
+    wrong or the refusal too (docs/plans/small-rulings-batch.md,
+    landing note).
   cut-point-weights: a way to make some cut points likelier than
     others, by repeating a point or by an argument of probabilities
     beside the grid; the engine already picks uniformly among grid
