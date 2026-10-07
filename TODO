@@ -847,6 +847,9 @@ items
     their multipliers; the workaround is a basis column of ones),
     whose the fitting function's tree count and tree prior are
     (dec-B274), a stated sd on one of them, and probit and logistic.
+    Until then a constant basis column with sd stated is created, the
+    one way to write such forests (dec-B307); decide with this item
+    whether it stays a second spelling.
   several-column-basis-meaning: what a basis of several numeric
     columns means, shorthand for a forest each or one shared shape
     times a weighted sum (the curve-times-modifier model of a spline
