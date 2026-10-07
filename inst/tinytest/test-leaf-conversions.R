@@ -809,19 +809,33 @@ for (kind in names(refusing)) {
 sampler <- gpSampler()
 invisible(sampler$run())
 before <- keptDraws(sampler)
-sampler$setResponse(y + 1)
+expect_silent(sampler$setResponse(y + 1))
 expect_identical(keptDraws(sampler), before)
-sampler$setResponse(y + 2, updateScale = FALSE)
+expect_silent(sampler$setResponse(y + 2, updateScale = FALSE))
 expect_identical(keptDraws(sampler), before)
-sampler$setOffset(rep(1, n))
+expect_silent(sampler$setOffset(rep(1, n)))
 expect_identical(keptDraws(sampler), before)
-sampler$setOffset(NULL, updateScale = FALSE)
+expect_silent(sampler$setOffset(NULL, updateScale = FALSE))
 expect_identical(keptDraws(sampler), before)
 # and so are the predictor calls, which name what they change
 expect_true(sampler$setPredictor(x[, 1L] / 2, 1L, forceUpdate = TRUE))
-sampler$setCutPoints(seq(0.1, 0.4, by = 0.1), 1L)
+expect_silent(sampler$setCutPoints(seq(0.1, 0.4, by = 0.1), 1L))
 expect_identical(dim(sampler$predict(x.new)), c(40L, 3L, 2L))
 expect_true(all(is.finite(sampler$run(0L, 2L)$train)))
+
+# sweeps run as burn-in keep no draw, so a sampler that keeps trees takes a
+# re-derived range between them; once a sweep is run as a kept sample it stops
+sampler <- gpSampler()
+for (sweep in 1:3) {
+  expect_silent(sampler$setOffset(rep(sweep, n), updateScale = TRUE))
+  invisible(sampler$run(1L, 0L))
+}
+invisible(sampler$run(0L, 1L))
+expect_error(
+  sampler$setOffset(rep(4, n), updateScale = TRUE),
+  refusedScale("$setOffset"),
+  fixed = TRUE
+)
 
 # with nothing kept every one of the calls is served: trees not kept, trees
 # kept and nothing run, kept draws dropped by a warm start

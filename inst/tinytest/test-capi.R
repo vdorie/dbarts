@@ -1291,18 +1291,22 @@ expect_error(
   fixed = TRUE
 )
 expect_identical(specKernel$predict(x.test), kernelDraws)
-expect_equal(CALL("capi_set_response", ptrKernel, y + 1, FALSE), 1L)
+# a call that is served answers 1; one wrongly refused answers its message
+# here, so that it is counted and the file runs on
+served <- function(...) tryCatch(CALL(...), error = conditionMessage)
+expect_equal(served("capi_set_response", ptrKernel, y + 1, FALSE), 1L)
 expect_identical(specKernel$predict(x.test), kernelDraws)
-expect_equal(CALL("capi_set_offset", ptrKernel, rep(1, n), FALSE), 1L)
+expect_equal(served("capi_set_offset", ptrKernel, rep(1, n), FALSE), 1L)
 expect_identical(specKernel$predict(x.test), kernelDraws)
-expect_equal(CALL("capi_set_offset", ptrKernel, NULL, FALSE), 1L)
+expect_equal(served("capi_set_offset", ptrKernel, NULL, FALSE), 1L)
 expect_identical(specKernel$predict(x.test), kernelDraws)
 # with nothing saved the same entries take the re-derived range
 specBare <- dbarts(x, y, control = control, leaf.prior = gp(columns = 2L))
 ptrBare <- specBare$getPointer()
-expect_equal(CALL("capi_set_response", ptrBare, 3 * y + 10, TRUE), 1L)
-expect_equal(CALL("capi_set_offset", ptrBare, rep(-5, n), TRUE), 1L)
+expect_equal(served("capi_set_response", ptrBare, 3 * y + 10, TRUE), 1L)
+expect_equal(served("capi_set_offset", ptrBare, rep(-5, n), TRUE), 1L)
 rm(specKernel, ptrKernel, kernelDraws, refusedKernel, specBare, ptrBare)
+rm(served)
 
 # a store too large to hold raises from the flat setter rather than aborting,
 # and leaves the store at its previous capacity

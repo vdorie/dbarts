@@ -6180,7 +6180,7 @@ static void testAFTOffsetReanchorObservedTimes() {
   options.numSamplesToStore = numKept;
 
   std::vector<ext_rng*> rngs;
-  rngs.reserve(4 * numChains);
+  rngs.reserve(5 * numChains);
   auto make = [&](const double* creationOffset) {
     for (size_t c = 0; c < numChains; ++c) {
       rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
@@ -6285,6 +6285,27 @@ static void testAFTOffsetReanchorObservedTimes() {
                                       std::max(1.0, std::fabs(kept[i])));
   check(worstKept < 1e-12,
         "aft offset re-anchor: the saved draws replay as they did");
+
+  // one censored row, the one whose observed time less the offset is the
+  // largest: a range that read its drawn time, because the row is the last
+  // censored one or the only one, is not the observed times'
+  {
+    std::vector<double> single(n, 1.0);
+    single[top] = 0.0;
+    options.survivalStatus = single.data();
+    std::unique_ptr<ConstantLeafSampler> lone = make(nullptr);
+    lone->run(20, 0, none);
+    SamplerStateData swept, reanchored;
+    lone->getState(swept);
+    bool above = true;
+    for (const ChainStateData& chain : swept.chains)
+      above = above && chain.latents[top] - offset[top] > observedMax;
+    lone->setOffset(offset.data(), true);
+    lone->getState(reanchored);
+    check(above && inObservedTransform(reanchored),
+          "aft offset re-anchor: a single censored row holding the largest "
+          "time leaves every chain in the observed times' transform");
+  }
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
   printf("ok: an aft offset re-anchor reads the observed times (working %.1e, "

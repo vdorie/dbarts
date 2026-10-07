@@ -822,10 +822,10 @@ rangeOffsets <- list(
   "a new offset" = rep(c(-0.4, 0.2), n / 2L),
   "an offset where there was none" = rep(c(-0.4, 0.2), n / 2L)
 )
-rangeSampler <- function(made = rangeOffsets[[1L]]) {
+rangeSampler <- function(made = rangeOffsets[[1L]], status = rangeStatus) {
   sampler <- dbarts(
     x,
-    cbind(exp(log.t), rangeStatus),
+    cbind(exp(log.t), status),
     offset = made,
     family = "aft",
     control = dbartsControl(
@@ -906,6 +906,15 @@ for (case in names(rangeOffsets)) {
   expect_true(all(is.finite(duplicate$run(0L, 5L)$train)), info = case)
 }
 
+# one censored row, the one whose observed time less the offset is the
+# largest: its drawn time would be the top of a range read from a draw
+offset <- rangeOffsets[[2L]]
+lone <- which.max(log(exp(log.t)) - offset)
+sampler <- rangeSampler(NULL, replace(rep(1L, n), lone, 0L))
+expect_true(all(matrix(sampler$getLatents(), n)[lone, ] > sampler$data@y[lone]))
+sampler$setOffset(offset, updateScale = TRUE)
+expectObservedTransform(sampler, offset, "one censored row")
+
 # and through the flat entry, dbarts_sampler_setOffset
 source(
   system.file("common", "capiConsumer.R", package = "dbarts"),
@@ -924,4 +933,4 @@ if (is.null(consumer$skip)) {
 }
 rm(rangeStatus, rangeOffsets, rangeSampler, chainTransforms, consumer)
 rm(expectObservedTransform, case, offset, sampler, latents, censored, bounds)
-rm(prior, duplicate)
+rm(prior, duplicate, lone)
