@@ -1304,13 +1304,13 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
   forests <- list(
     dbarts::dbartsForests$forest(
       sd = config$sdControl,
-      amplitude = if (fixedGlue) dbarts::dbartsForests$fixed()
+      amplitude = if (fixedGlue) dbarts::dbartsPriors$fixed()
     ),
     dbarts::dbartsForests$forest(
       basis = ~ factor(config$z),
       sd = config$sdModerate,
       amplitude.prior.variance = config$bPriorVariance,
-      amplitude = if (fixedGlue) dbarts::dbartsForests$fixed()
+      amplitude = if (fixedGlue) dbarts::dbartsPriors$fixed()
     )
   )
   # a latent arm builds under its own link, the one route by which a 0/1

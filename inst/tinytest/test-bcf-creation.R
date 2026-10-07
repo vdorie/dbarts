@@ -740,7 +740,7 @@ expect_error(
 )
 expect_error(
   dbarts(x, y, forests = list(forest(sd = 1.5)), control = control),
-  "forest 'sd' is stated for a forest of a model of several"
+  "this model has one forest, so its size is"
 )
 
 # --- K = 1 THROUGH THE K-FOREST PATH. A lone forest CARRYING A BASIS is a
@@ -803,7 +803,7 @@ expect_error(
     forests = list(forest(amplitude = fixed())),
     control = control
   ),
-  "'amplitude' is the law of the coefficient"
+  "this model has one forest, which has no coefficient to hold"
 )
 expect_error(
   dbarts(

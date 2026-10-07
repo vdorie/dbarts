@@ -196,7 +196,7 @@ later slices; `amplitude.prior.variance` goes with the multiplier law. Only `var
 | `basis = 1 + dose`; `0 + dose`, `dose - 1` | a constant column and dose; dose |
 | `basis = ~ dose + age`, `basis = b` where `b <- ~ dose + age` | the same as without the tilde |
 | `sd = 2` | one unnamed number, the size of the forest for every column of its basis; its unit is unchanged by this slice |
-| `amplitude = fixed()`, `fixed(1)` | the coefficient is held; what `update.amplitude = FALSE` is today |
+| `amplitude = fixed()`, a bare `fixed` | the coefficient is held, 1 for a forest with no basis, 0 for a basis's first column and 1 for the rest; what `update.amplitude = FALSE` is today. `fixed(1)` is taken and not advertised. On a basis of one numeric column it is refused until the multiplier-law slice holds that column at 1 |
 
 One written forest and the fitting function's own arguments:
 
@@ -229,14 +229,15 @@ quoted, the form to write given. `<f>` is the forest's text; the push that adds 
     [2] 'n.trees' is given to the fitting function and to the forest with no basis ('<f>'), which are the same count; give one
     [2] a multi-forest model needs at least two forests, and this call's 'basis' declarations resolve to 1: a forest with a 'basis' stands beside another forest. Write the forest with no multiplier too, as y ~ forest(x1 + x2) + forest(x1 + x2, basis = z1) or forests = list(forest(), forest(basis = z1)), or use a single forest with linear() leaves; otherwise drop the basis
     [2] xbart() does not take a forest() term ('<f>'): the forests of a model are written in the formula of bart() or dbarts(), or in a 'forests' list
-    [1] forest 'sd' must be a single number, not 2: a forest states one sd, for every column of its basis; to size the columns differently, rescale them in 'basis', as I(dose / 30)
+    [1] forest 'sd' must be a single number, not a vector of length 2: a forest states one sd, for every column of its basis; to size the columns differently, rescale them in 'basis', as I(dose / 30)
     [1] forest 'sd' must not be named ("dose"): it is one number, for every column of a basis
     [1] forest 'sd' must be a number, not a string            (a logical, a factor, a Date, a list, a matrix)
     [1] forest 'sd' must not be NA; leave it out for the default            forest 'sd' must be positive and finite
-    [1] forest 'sd' is stated for a forest of a model of several; a model of one forest states its size as the fitting function's leaf.prior = normal(sd = )
+    [1] this model has one forest, so its size is the fitting function's leaf.prior = normal(sd = ), not forest(sd = )
     [1] 'amplitude = fixed(2)': a held coefficient takes the value its forest's shape gives it, and fixed() takes no other here; write fixed(), and state the forest's size with 'sd'
     [1] a forest's 'amplitude' must be fixed(), which holds its coefficient, or left out, which draws it
-    [1] 'amplitude' is the law of the coefficient that a model of several forests gives each of them; a model of one forest has none
+    [1] this model has one forest, which has no coefficient to hold; 'amplitude' needs a model of several forests
+    [1] forest 2: amplitude = fixed() on a basis of one numeric column is not supported yet; it would hold the forest at zero. Let the coefficient be drawn, or write the column as a two-level factor
     [3] 'basis' does not take '*' between its terms ('dose * age'): in a model formula it is both columns and their product. Write I(dose * age) for the product alone, or dose + age + I(dose * age) for all three
     [3] 'basis' term 'dose/30' divides a column by a number, which a model formula does not take; write I(dose/30) for the rescaled column
     [3] 'basis' term '30 * dose' multiplies a column by a number, which a model formula does not take; write I(30 * dose) for the rescaled column
@@ -384,19 +385,24 @@ reader's sake; the implementer may name them otherwise.
     other `fixed(v)`, a `normal()`, a string and a logical with the two texts, and stores a flag;
     [`forestParams`](../../R/model.R) reads the flag for its eighth number;
     [`resolveForests`](../../R/model.R) refuses `amplitude` and `sd` on a single forest with the two
-    one-forest texts. [`FOREST_ARGUMENT_VOCABULARIES`](../../R/model.R) lets `fixed` resolve by bare name
-    in `forests`, in a term ([`processHit`](../../R/formulaTerms.R)) and in the writer's `forests`.
+    one-forest texts. `fixed` resolves by bare name in the `amplitude` argument alone, in `forests`
+    (`resolveForestArguments`), in a term ([`processHit`](../../R/formulaTerms.R)) and in the writer's
+    `forests`, as `dbartsPriors$fixed` and without being added to `dbartsForests`, so that a column or
+    variable of that name is the caller's anywhere else. A held coefficient on a basis of one numeric
+    column is refused at creation, every door, with the [1] text naming the forest by its position
+    (`resolveSamplerSpec`), until the multiplier-law slice holds that column at 1.
     [`resolveForestSpreads`](../../R/dbarts.R) names `amplitude` in its fixed-at-creation text.
     Tests, a new file test-forest-arguments.R: `fixed()` on both forests leaves the amplitudes at their
     starting values over 50 sweeps and gives other draws than the drawn model (fails today: could not find
-    function); `fixed`, `fixed(1)`, `fixed(1L)` and `NULL` accepted, `fixed(2)`, `fixed(c(1, 1))`,
+    function); `fixed`, `fixed(1)`, `fixed(1L)` and `NULL` accepted, each asserting the eighth number it gives, `fixed(2)`, `fixed(c(1, 1))`,
     `fixed(TRUE)`, `normal()`, `"fixed"`, `FALSE` refused; `update.amplitude` is R's unused-argument error
     at both doors (fails today: accepted); `fixed()` resolves in a call built where nothing of dbarts is
     bound, as bartCause builds it; `fixed()` is the constructor whatever the caller has bound to the name.
-1.2 One check of a stated sd: a bare numeric or integer of length one, unnamed, finite, positive,
+1.2 One check of a stated sd: a numeric or integer of length one, of whatever class, unnamed, finite, positive,
     nothing coerced. [`validateForestSd`](../../R/model.R) is that check, with the texts marked [1].
     [`validateLeafSd`](../../R/model.R) refuses, ahead of the checks it has, what the forest's check
-    refuses and it accepts today (a logical, a factor, a Date, a list, a matrix, a named number); its
+    refuses and it accepts today (a logical, a factor, a Date, a date-time, a list, a matrix, a named number, and any other
+    value that is not a number); its
     `NULL`, its `invchi()`, its other texts and the check it shares with `k` stay. Tests, same file: the
     15 values of Context at creation, through `$setLeafPrior(forests = )` and in `normal(sd = )`, one
     verdict at the three (fails today: seven accepted on a forest, and five of them at the front door);
@@ -405,7 +411,7 @@ reader's sake; the implementer may name them otherwise.
     `amplitude = fixed()` or `amplitude = if (...) NULL else fixed()`; the two pins of
     ["single-forest 'forests' has none"] in test-bcf-creation.R and the three lines (seven assertions as
     run) that pin "single positive finite number" in test-multiforest-leaf-prior-writer.R take the new
-    texts: ["forest 'sd' is stated for a forest of a model of several"](../../inst/tinytest/test-bcf-creation.R)
+    texts: ["this model has one forest, so its size is"](../../inst/tinytest/test-bcf-creation.R)
     and ["forest 'sd' must be positive and finite"](../../inst/tinytest/test-multiforest-leaf-prior-writer.R).
 1.4 Help: man/forest.Rd's usage, its `update.amplitude` item rewritten as `amplitude`, one sentence in
     `sd` (one unnamed number; a longer or named one is refused);

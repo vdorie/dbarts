@@ -294,7 +294,7 @@ for (bad in list(NaN, NA)) {
 }
 expect_error(
   a$setLeafPrior(forests = list(forest(sd = c(1, 2)))),
-  "forest 'sd' must be a single number, not 2"
+  "forest 'sd' must be a single number, not a vector of length 2"
 )
 expect_error(
   a$setLeafPrior(normal(), forests = list(forest())),

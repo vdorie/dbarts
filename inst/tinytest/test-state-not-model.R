@@ -193,7 +193,7 @@ withBlocks(
 withBlocks(
   "fixed amplitudes",
   function() {
-    twoFixed(amplitude = dbartsForests$fixed())
+    twoFixed(amplitude = dbartsPriors$fixed())
   },
   function(state) {
     editChains(state, function(chain) {
