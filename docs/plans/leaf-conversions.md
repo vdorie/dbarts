@@ -1,6 +1,7 @@
 # leaf-conversions: kept draws and seeded forests keep their function when the units under them change
 
-Status: PLANNED (dec-B200, dec-B231, dec-B233, dec-B237).
+Status: PUSH 1 LANDED 2026-10-07 (dec-B200, dec-B231, dec-B233, dec-B237): steps 1 to 4, a8a72c6b to f668cc86.
+Step 5, the gp refusals, is not built.
 
 agent: opus implementer, one (engine, bridge, flat C entries); opus reviewer.
 rng: three classes, by call.
@@ -425,3 +426,28 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
   differ (7.9 where it reports 9.8 and 8.5; 6.30 where it reports 6.3). The design ran this work in series
   with the `setState` return value because both edit chain.hpp; that has landed, so the constraint is gone.
   Nothing in this slice was found done already.
+
+## Landing note
+
+Push 1, steps 1 to 4, landed 2026-10-07 as a8a72c6b to f668cc86; step 5 follows as its own push. Two
+independent reviews, each told to refute. The first found two regressions in the guard for a leaf
+covariate without spread: with spread on neither side the live fit jumped by the slope times the
+difference of the two centres (8523 against a fit sd of 1.46), and the mark that a column has no spread
+went stale after `setPredictor`, so slopes the data had informed were dropped. The fix round leaves a live
+leaf alone where neither side has spread, and no longer keeps the mark at all: whether a column has spread
+is read off the covariates the leaf holds when it is asked. It also centres a constant column at its
+value exactly, a defect on the base build the plan had not listed: a constant 0.1 over 150 rows got its
+rounding error, 2.5e-16, as its scale, and predicted about 1e14 a little off the constant. That changes
+what such a fit draws and is in the header's posterior-changing class. The second review found both
+regressions closed, ten of ten mutations caught, and one case left: a column that `setPredictor` moved to
+another single value does not sit at its centre, counts as having spread, and has its slope converted by
+the formula, so `setData` onto a widely spread column carries the live fit far (from about 5 either way to
+about 1500) until the sampler has run. The function of the covariate is kept exactly there; the help now
+names the case, and the code change, reading such a side as without spread, is left to the slice that
+moves the centre and scale to the rows in the likelihood (root TODO, leaf-covariate-single-value-off-
+centre; dec-A177). Gates on a clean copy of the rebased head: install, tests/cpp 357 lines passing, the
+suite 18025 results and none failed over 231 files, lint, format, the three document checks, the mutation
+anchors, build, and check with the one standing NOTE. On the slice's own builds before the rebase: the
+four snapshot files on a reference build, the three bitwise compares identical (55, 15, 11), the exact
+gates 32 of 32, tests/cpp under ASan and UBSan, and stan4bart's suite, 582 results and none failed. The
+monotone help's sentence on fits of very few trees (dec-A133) rode in this landing.

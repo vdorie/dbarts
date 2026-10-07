@@ -254,7 +254,20 @@ items
     standardization, or replaces the recipient's. Convert linear
     coefficients, rewrite kept draws at a re-anchor, and refuse the
     calls on a gp sampler that holds kept draws. Plan:
-    docs/plans/leaf-conversions.md.
+    docs/plans/leaf-conversions.md. The conversions landed
+    2026-10-07; left: step 5, the gp refusals.
+  leaf-covariate-single-value-off-centre: a linear leaf's covariate
+    that setPredictor moved to another single value counts as having
+    spread, so setData or a warm start onto a widely spread column
+    converts a slope the data fixed at one point only and carries the
+    live fit far until the sampler runs (about 5 either way to about
+    1500 in the review's case). Read such a side as without spread,
+    the intercept taking the fit at that value; a warm start needs the
+    donor's value, which a state does not record. Also a column
+    constant to the eye but not to the bit keeps a rounding-sized
+    scale: a floor relative to the centre closes it. With the slice
+    that takes the centre and scale from the rows in the likelihood
+    (dec-B304), which moves the same test (dec-A177).
   check-shape-fixes: three things in the benchmark scripts and one
     step (dec-B301, VD 2026-10-07: "Fix the shape."). The count
     model's mixing gate takes a case whose posterior on the shape
@@ -288,35 +301,21 @@ items
     uniformly among grid positions today, in the prior and the
     proposal both.
   repeated-cut-restore: BEFORE THE MERGE TO MAIN (VD 2026-10-07,
-    dec-B285). Plan: docs/plans/repeated-cut-restore.md. A stored tree
-    names a split by its cut value,
-    and the rebuild (setState, copy(), a reload) puts it on the first
-    index holding that value. On a grid that repeats a value a split
-    drawn on a later copy therefore moves, and the chain no longer
-    continues as the stored one; beside missing values a parent and
-    its left child can land on one index, a tree the prior gives
-    probability zero, whose change moves have a non-numeric ratio
-    until a death prunes it. A sampler comes to hold such a grid four
-    ways. The uniform rule builds one over a constant column and over
-    one narrower than doubles resolve: on ten data sets with a narrow
-    column a restore changed the next 30 draws on six, by up to 0.665,
-    and with missing values in it one change move in 7200 sweeps over
-    12 seeds had a non-numeric ratio. The quantile rule builds one
-    where two midpoints round to one double: five adjacent doubles
-    give 4 points, 3 distinct. A constant column given values later by
-    setPredictor, updateCutPoints left at its default, keeps its
-    one-value grid (20 points, 1 distinct, under 300 distinct values):
-    a restore then moved the next 30 draws by 0.39, against 7e-15 for
-    the same data on a one-point grid. And a state brings any
-    non-decreasing grid: one with a column's grid tripled installs,
-    setCutPoints then takes that grid as the one the column holds, and
-    a restore on it moved the next 30 draws by 0.80. setCutPoints
-    itself refuses a grid with equal neighbours the column does not
-    already hold. Sketched fix: resolve a repeated value to an index
-    inside the node's interval, the first when missing values go right
-    and the last when they go left, which keeps the tree in the
-    prior's support; the continuation is then still not exact, which
-    takes equal cut values counting as one cut in the tree prior.
+    dec-B285). Plan: docs/plans/repeated-cut-restore.md, rewritten for
+    dec-B297 to dec-B300. No cut grid repeats a point: a derivation
+    drops equal neighbours, so a constant column holds one point; a
+    refresh, setPredictor(updateCutPoints = TRUE), derives the grid a
+    creation would for the new values, up to n.cuts, and shrinks where
+    they supply fewer; setCutPoints refuses a repeat; and a state or a
+    warm-start donor whose grid repeats one is refused. A stored split
+    then names one position and a restore is exact, where on a grid
+    with repeats a restore moved the next 30 draws by up to 0.80 and a
+    parent and its child could land on one index. Changes the draws
+    of a fit with a column narrower than its n.cuts points resolve, or
+    with one finite value beside missing values; a 0/1 column and a
+    plain constant column keep their bits. Two exact arms are added.
+    After leaf-conversions, in the same engine files (dec-A178 for the
+    plan's calls).
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
@@ -364,11 +363,6 @@ items
     dec-A134). The maintainer noted
     (2026-10-01, dec-B168) that slow-count reporting through the flat C
     run is an argument for it.
-  monotone-few-trees-help: one sentence in the monotone help: with
-    very few trees the constrained sampler moves slowly between tree
-    shapes, a tree that has picked up extra splits keeping them, and
-    can overstate steepness; use more trees (dec-A133, VD
-    2026-10-07). Before the merge to main.
   monotone-structural-move: a tree move beyond birth and death that
     respects a monotone constraint, changing a split's rule while the
     leaves stay in order, so that fits of very few trees mix
