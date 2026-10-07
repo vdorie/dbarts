@@ -38,14 +38,20 @@ nothing moves.
   row missing the covariate is read at the centre in force, so its fit moves by that intercept term; the
   manual says so. A column whose centre and scale agree is not touched, and equal standardizations run no
   arithmetic, so such a call or install is bit for bit what it was.
-- A covariate with no spread is divided by a placeholder scale of 1. The leaf remembers that
-  ([`LeafStandardization`](../../src/bartcore/model.hpp), from
-  [`standardizationMomentsForColumn`](../../src/bartcore/data.hpp)) and the state stores the scale as `NA`
-  beside a finite centre; a state that holds 1 reads as 1. When coefficients a chain will go on drawing from
-  are converted and exactly one side had no spread, the slope is set to zero and the intercept takes the
-  function's value at that side's centre, the one value the covariate held there: a slope no observation
-  informed is not multiplied onto a real scale (0.13 against a constant column at 1000 would become 40 on the
-  scale of 307 that varying data gave). A kept draw is only replayed, so it is converted by the formula with 1.
+- A covariate that holds a single value has no spread: it is centred at that value exactly
+  ([`standardizationMomentsForColumn`](../../src/bartcore/data.hpp)) and divided by a placeholder scale of 1,
+  so the leaf reads zero for it on every training row, its slope adds nothing to the fit and no observation
+  informs it. The state stores the scale as `NA` beside a finite centre; a state that holds 1 reads as 1.
+  Whether a column is one is read from what the leaf holds when it is asked - the scale is 1 and every
+  gathered row is zero ([`standardizedColumnHasSpread`](../../src/bartcore/model.hpp)) - and is not
+  remembered, so a placeholder column that `setPredictor` gave values, a constant moved to another constant
+  and a state installed over other rows are each what they then are. When coefficients a chain will go on
+  drawing from are converted, with spread on neither side nothing moves, the fit being the intercept before
+  and after; with spread on the new side only the intercept stays and the slope is set to zero, a slope no
+  observation informed not being multiplied onto a real scale (0.13 against a constant column at 1000 would
+  become 40 on the scale of 307 that varying data gave); with spread on the old side only the intercept
+  takes the function's value at the new constant and the slope is set to zero. A kept draw is only
+  replayed, so it is converted by the formula with 1 in every case.
 - `setData` on a linear leaf converts the live coefficients, guard on, and every kept draw
   ([`Chain::applyNewData`](../../src/bartcore/chain.hpp)).
 - A re-anchor - `setResponse` or `setOffset` with `updateScale = TRUE`, and every `setData` - rewrites the
@@ -75,6 +81,11 @@ or kernel. For a recipient unchanged since creation re-deriving gave the same nu
 Everything else is either unchanged draw for draw or, on a linear leaf after `setData` or a warm start
 between unequal standardizations, the same posterior reached from converted coefficients.
 
+One kind of fit changes too. A leaf covariate constant at a value its mean missed by rounding (0.1 over 150
+rows) was given that rounding as its scale, 2.5e-16, and read about 1 on every row; a test row at 0.11 was
+predicted at 1.8e14. It is now centred at its value and divided by 1 like a constant at 1000, and such a fit
+draws what the same fit on a constant at 1000 draws.
+
 ## Gaussian-process leaves
 
 A kept gp draw is a set of kernel weights. It replays only under the centre, scale and lengthscale it was
@@ -91,8 +102,10 @@ no kernel, so a warm start copies them on the donor's grid and starts them at ze
 [`testNoSpreadStandardization`](../../tests/cpp/test_model.cpp),
 [`testReanchorKeepsSavedDraws`](../../tests/cpp/test_model.cpp),
 [`testLinearLeafSetDataConversion`](../../tests/cpp/test_moves.cpp),
-[`testWarmStartStandardization`](../../tests/cpp/test_state.cpp), and from R
-["kept draws across a re-anchor"](../../inst/tinytest/test-leaf-conversions.R).
+[`testWarmStartStandardization`](../../tests/cpp/test_state.cpp),
+[`testNoSpreadLiveConversion`](../../tests/cpp/test_state.cpp), and from R
+["kept draws across a re-anchor"](../../inst/tinytest/test-leaf-conversions.R),
+["live coefficients across a covariate without spread"](../../inst/tinytest/test-leaf-conversions.R).
 
 ## Not here
 

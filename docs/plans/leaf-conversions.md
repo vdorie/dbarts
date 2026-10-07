@@ -12,7 +12,11 @@ rng: three classes, by call.
 - POSTERIOR-CHANGING on one sequence: a warm start from a donor on another cut grid into a linear or gp
   sampler whose leaf covariate was replaced after creation by `setPredictor`. Today that install re-derives
   the recipient's standardization (and default lengthscale) from its current predictors; afterwards the
-  recipient keeps the one it had, which shapes its slope prior or kernel.
+  recipient keeps the one it had, which shapes its slope prior or kernel. And on one kind of fit: a linear or
+  gp leaf covariate that holds a single value whose mean, taken through the sum, misses it by rounding (0.1
+  over 150 rows; not 1000, 0 or 0.5). Today such a column gets that rounding as its scale (2.5e-16) and reads
+  about 1 on every row; afterwards it is centred at its value, divided by 1 and reads zero, like any other
+  constant column.
 - Not a generator matter but a changed result: `predict` and every other replay of kept draws after a
   re-anchor or a `setData`, and five new refusals on a gp sampler that holds kept draws.
 Proved by the bitwise gates below (no baseline scenario, exact gate or snapshot file pairs a leaf model
@@ -95,13 +99,21 @@ What already works, and is kept:
   slope' = slope * s' / s, and the intercept gains slope * (m' - m) / s. The function is unchanged wherever
   the covariate is observed. A row missing covariate j is read at the centre in force, so it moves by that
   intercept term; this is stated in the manual, not hidden.
-- No spread. The leaf remembers that a covariate had none; its scale is written to the state as `NA`
-  beside a finite centre, and the engine still divides by 1. When a LIVE coefficient block is converted and
-  exactly one side had no spread, the slope is set to zero and the intercept takes the function's value at
-  that side's centre, the one value the covariate held there: a slope no observation informed is not
-  multiplied onto a real scale (a slope of 0.13 drawn against the constant column above would become 40 on
-  the scale of 307 that varying data gave it). KEPT blocks are converted by the formula with 1 for `NA`:
-  they are only replayed. A state written before this carries 1 and reads as 1.
+- No spread. A column that holds a single value is centred at that value exactly and divided by 1, so the
+  leaf reads zero for it on every training row: its slope adds nothing to the fit and no observation
+  informs it. Whether a column is one is read from what the leaf holds when asked (the scale is 1 and every
+  gathered row is zero), never remembered, so a column given other values by `setPredictor`, or a state
+  installed over other rows, is what it then is. Its scale is written to the state as `NA` beside a finite
+  centre, and the engine still divides by 1. When a LIVE coefficient block is converted:
+  - spread on neither side: the fit is the intercept before and after, so neither the intercept nor the
+    slope moves;
+  - spread on the new side only: the intercept stays (it is the fit) and the slope is set to zero: a slope no
+    observation informed is not multiplied onto a real scale (0.13 drawn against the constant column above
+    would become 40 on the scale of 307 that varying data gave it);
+  - spread on the old side only: the intercept takes the function's value at the new centre, the one value
+    the column now holds, and the slope is set to zero.
+  KEPT blocks are converted by the formula with 1 for `NA` in every case: they are only replayed. A state
+  written before this carries 1 and reads as 1.
 - Equal standardizations, or a donor with no block: no arithmetic at all, so such installs stay bitwise.
 - gp (dec-B237). A kept gp draw replays only under the centre, scale and lengthscale it was drawn with and
   has no mean term. While a gp sampler holds kept draws, `setData` is refused, and `setResponse` and
@@ -121,8 +133,9 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
 ## Constraints
 
 - Every sampler on constant leaves, and every sampler that never calls `setData`, a re-anchor or a warm
-  start, draws exactly what it draws now. On constant leaves the one thing that changes is what a replay of
-  kept draws returns after a re-anchor.
+  start, draws exactly what it draws now, but for the fit named under `rng:` whose leaf covariate is constant
+  at a value its mean misses. On constant leaves the one thing that changes is what a replay of kept draws
+  returns after a re-anchor.
 - The recipient of a warm start keeps its centre, scale and lengthscale on either grid (dec-B231: derived
   data changes only by a call that names it). gp fits at a warm start stay as today: copied on the same
   grid, zero on another.
@@ -148,17 +161,18 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
 ## Steps
 
 1. The conversion and the no-spread mark; no behaviour changes but one stored value.
-   [`standardizationMomentsForColumn`](../../src/bartcore/data.hpp) reports whether the column had spread;
-   both leaf models keep the mark through `reinitialize` and
-   [`LinearGaussianLeaf::restoreCalibration`](../../src/bartcore/model.hpp) (and the gp twin). One routine
-   converts a coefficient block between two standardizations, with a switch for the live guard.
+   [`standardizationMomentsForColumn`](../../src/bartcore/data.hpp) centres a constant column at its value;
+   both leaf models report the mark from their gathered covariates
+   ([`standardizedColumnHasSpread`](../../src/bartcore/model.hpp)), and
+   [`LinearGaussianLeaf::restoreCalibration`](../../src/bartcore/model.hpp) (and the gp twin) reads `NA` as 1.
+   One routine converts a coefficient block between two standardizations, with a switch for the live guard.
    [`Chain::getState`](../../src/bartcore/chain.hpp) writes a marked scale as NaN,
    [`Chain::leafCalibrationIsValid`](../../src/bartcore/chain.hpp) accepts it beside a finite centre, and the
    bridge writes and reads it as `NA`. tests/cpp, beside
    [`testLinearLeafFormats`](../../tests/cpp/test_model.cpp): there and back returns the block to rounding;
    function equality on rows with every covariate observed, two covariates; a row missing covariate j moves
-   by slope_j (m'_j - m_j) / s_j and by nothing else; no spread on the old side and on the new side, live
-   (slope zero, the function's value at the constant kept) and kept (formula with 1); a marked scale
+   by slope_j (m'_j - m_j) / s_j and by nothing else; no spread on the old side, on the new side and on
+   both, live (the three cases under The rules) and kept (formula with 1); a marked scale
    survives a state round trip and still divides by 1; a scale of 0, a negative one and an infinite one are
    still refused. tinytest: a constant leaf covariate's stored scale is `NA` (1 today), and the sampler
    restores, copies and reloads; ["leaf.covariate.scale <- 0"](../../inst/tinytest/test-mutate-then-serialize.R)
@@ -171,7 +185,13 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
    the live fit on the old rows is unchanged to 1e-12 (off by about 1 today), and kept draws replayed at
    fixed raw points are unchanged to 1e-12. tinytest, new file `test-leaf-conversions.R`: kept draws across
    a `setData` on a stretched covariate, one chain and two (off by about 8 today); a constant leaf beside
-   it, identical.
+   it, identical. For the no-spread rule, in tests/cpp
+   ([`testNoSpreadLiveConversion`](../../tests/cpp/test_state.cpp)) and in tinytest
+   (["live coefficients across a covariate without spread"](../../inst/tinytest/test-leaf-conversions.R)),
+   through `setData` and through a warm start: one constant replaced by another; a placeholder of zeros
+   given values by `setPredictor`; a constant moved to another constant and then spread; values made
+   constant; rows appended that give a constant column spread. Each holds the live fit on the old rows and
+   on appended ones, and kept draws at fresh points, to 1e-10.
 3. A re-anchor rewrites kept draws. The arithmetic of
    [`Chain::convertStateUnits`](../../src/bartcore/chain.hpp) is factored so that it also runs over the
    chain's own store; `Chain::setResponse`, `Chain::setOffset` and
@@ -361,11 +381,27 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
   through a negative zero the engine tests plant (the conversion's own test and step 4's "identical to
   the donor's" in tests/cpp); the tinytest twin of that check cannot see it. The whole-forest comparison
   in the warm start is an early exit on top of the per-column one, and removing it alone changes nothing.
-- Neither side with spread, at different centres: the plan's guard is for exactly one side, so the formula
-  runs, live coefficients included, and the intercept gains slope (m' - m). The engine test pins it. For a
-  live chain that is the jump the guard exists to prevent elsewhere (a slope of 0.13 and centres 1000
-  apart give 130); the case is a constant leaf covariate replaced by another constant. Left as the plan
-  has it and reported to the coordinator.
+- Neither side with spread, at different centres (a constant leaf covariate replaced by another constant,
+  through `setData` or a warm start): a live block does not move (the coordinator's ruling, 2026-10-07). The
+  formula would add slope (m' - m) to an intercept that is the whole fit on both sides: with the constant
+  going from 1000 to 2000 a live fit in (-6.1, 0.8) became (-1979, 8519). Kept draws keep the formula.
+- The mark is read, not remembered. A flag set when the centre and scale were derived went stale when
+  `setPredictor` gave a placeholder column of zeros its values: the guard then zeroed slopes the data had
+  informed (the live fit on the old rows moved by 6.25 at `setData`, and a warm start from that sampler
+  seeded a fit 6.25 off its own). The leaf now answers from its gathered covariates each time it is asked,
+  which costs one pass over the rows per column still at the scale 1 and is not on a sweep's path. A column
+  counts as without spread only where the scale is 1 as well as every row zero, so that a column held at its
+  centre under a real scale keeps that scale in the state (an `NA` would restore as 1 and change what its
+  kept draws predict off the centre) and converts by the formula.
+- A constant column is centred at its value exactly. The mean taken through the sum misses 0.1 by rounding
+  over 150 rows, which left such a column a scale of 2.5e-16 and a reading of about 1 on every row: on the
+  base build its test rows at 0.11 are predicted at 1.8e14, and with the conversion built here the live fit
+  after a `setData` that spreads the column ran to 2e16. This changes what such a fit draws without any of
+  the three calls, the one departure from the first constraint; it is its own commit.
+- [`SavedDrawSlots`](../../src/bartcore/chain.hpp) keeps its first slot. No run leaves a part-filled store
+  whose draws start elsewhere, but a state whose write position is not its draw count installs one, the
+  replay reads it from that slot on, and the rewrite must find the same slots;
+  [`testNoSpreadLiveConversion`](../../tests/cpp/test_state.cpp) holds it.
 - A donor's standardization record that does not fit the leaf (a length, a centre that is not finite, a
   scale that is neither positive and finite nor `NA`) is refused by the bridge with the existing
   "malformed parameters in warm-start donor"; the engine, reached without the bridge, answers with its
