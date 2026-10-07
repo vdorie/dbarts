@@ -158,25 +158,21 @@ its own is assigned to the field, as today for any state it refuses. The warm st
    In [test-state-not-model.R](../../inst/tinytest/test-state-not-model.R) the pin under Context stands.
 5. Mutations (Verification): apply, install with `--preclean`, run, report the counts, revert, `touch`.
 6. Records.
-   - Manual, [`dbartsSampler$setState`](../../man/dbartsSampler-class.Rd). The `newState` item opens "For
-     `setState`, a state object previously produced by this sampler, or by another of the same response
-     family over the same data". In the paragraph on restoring, after "a refused restore leaves the
-     sampler exactly as it was": "A state records the response family of the sampler that stored it, and
-     a state of another family is refused, naming both: its trees and latent variables mean something
-     only under the family they were drawn in. To start a sampler from a fit of another family, use
-     `installTrees`, which takes the donor's trees and, where this sampler draws them, its `sigma`, `k`
-     and DART state, and none of its latent variables. A state that carries no such record, as one stored
-     before the record existed, is judged by its contents. A Student-t, logistic or negative-binomial
-     sampler also refuses a state whose latent variables are not all positive and finite." After the
-     sentence on assigning the field directly: "`copy` and a reload install the field by the same rules,
-     so an object whose field holds a state it would refuse cannot be copied, and after a reload raises
-     that refusal at each use until a state of its own is assigned."
-   - Design record: the table under
-     [What a state carries](../design/state-not-model.md#what-a-state-carries) gains the row (`family`:
-     which family's chain this is; model, by name; compared, never installed) and the note a dated
-     paragraph with the rule and the table above. [public-surface.md](../design/public-surface.md) lists
-     `family` with the added attributes and stops saying a state must hold a binary sampler's latents (a
-     gaussian state installs into a probit sampler today, and after this when it carries no record).
+   - Manual, [`dbartsSampler$setState`](../../man/dbartsSampler-class.Rd). In the paragraph on restoring,
+     after "a refused restore leaves the sampler exactly as it was": "A Student-t, logistic or
+     negative-binomial sampler also refuses a state whose latent variables are not all positive and
+     finite. Beyond that a state is not checked against the response family of the sampler that stored
+     it: one whose contents fit this sampler is installed, and what the sampler then holds of another
+     family's state is not promised. To start a sampler from a fit of another family, use `installTrees`,
+     which takes the donor's trees and, where this sampler draws them, its `sigma`, `k` and DART state,
+     and none of its latent variables." After the sentence on assigning the field directly: "`copy` and a
+     reload install the field by the same rules, so an object whose field holds a state it would refuse
+     cannot be copied, and after a reload raises that refusal at each use until a state of its own is
+     assigned."
+   - Design record: [state-not-model.md](../design/state-not-model.md) gains the section
+     [A state of another family](../design/state-not-model.md#a-state-of-another-family), with the rule
+     and the table as it is under the rule. [public-surface.md](../design/public-surface.md) stops saying
+     a state must hold a binary sampler's latents (a gaussian state installs into a probit sampler).
    - TODO: the entry `cross-family-state-install` names this plan.
 
 ## Verification
@@ -215,47 +211,29 @@ its own is assigned to the field, as today for any state it refuses. The warm st
 
 ## Calls made in planning
 
-- A field, not a refusal alone. The blocks cannot tell probit latents from logistic ones, and the message
-  is to name both families. One string at the top level is the smallest thing that does it. It is compared
-  and never installed, as the two digests are, so a state still carries no model.
-- Every family writes it, gaussian included, and every pair of different families is refused, the ones
-  that run today included. The TODO entry's words are "a state whose latents are another family's"; a
-  gaussian state has no latents, installs into a probit, logistic or aft sampler today, and one tinytest
-  pins that. The rule follows dec-B254's line for `setModel` - a chain's trees and latents mean something
-  only under the family they were drawn in - and leaves `installTrees` as the route. The narrower rule, a
-  state with no latent block taken by any family, keeps that pin; it is the question in the coordinator's
-  notes.
-- The name is the user's word for the family: the engine calls a Student-t sampler gaussian and has no
-  value for multinomial. A hazard sampler is named by its link, which is what tells its two forms apart.
-  An absent record is "not known", never a mismatch, which keeps a state stored before this installing.
-- The floor (rule 5) is in the slice. Without it a state with no record, or one edited by hand, can still
-  leave the two breaking installs. It is about 25 lines of engine and can be struck without touching the
-  rest. No sign check is made on probit, ordinal or aft latents: a state stored before a response change
+- A state is not asked its family (dec-B283). The blocks cannot tell probit latents from logistic ones,
+  and nothing is added to a state to say which: one whose blocks fit the sampler installs, a gaussian
+  state into a probit, logistic or aft sampler among them, which one tinytest pins. What the sampler then
+  holds is not promised; `installTrees` is the route across families that promises something.
+- The floor (rule 2) is about 25 lines of engine. It refuses what is plainly broken, by the stored values
+  alone. No sign check is made on probit, ordinal or aft latents: a state stored before a response change
   installs today and is re-drawn at the next sweep, and such a check would refuse it.
 - Order. leaf-conversions edits the state writer and reader at the leaf calibration blocks and model.hpp's
   leaves, in two pushes three times this size: this goes before it or between its pushes, not beside it.
 - The tip against the TODO entry's words: its counts hold for the four families it names; the breaking
   pairs are 15 of 380, not two; the coordinator's notes list the rest. Nothing was found done already.
-- After review, 2026-10-07. The refusal by name ends "; to start one fit from another's trees use
-  installTrees", so the message itself points the way. The stored name is printed up to its first byte
-  outside printable ASCII and to 32 bytes, with dots where it was cut: a width counted in bytes cut a
-  character in two and left a message that was not valid text. A warm start takes more than the trees - the
-  donor's sigma, k and DART state where the sampler draws them - and the help's sentence, first written here
-  as "takes the trees alone", says so; run on a gaussian donor into a Student-t sampler (sigma moves to the
-  donor's), a drawn k and a DART donor, with the latents, the df and the generator left the sampler's own.
-- A hazard sampler's refusal names its link's family, `probit` or `logistic`, and stays so: the expansion to
-  person-period rows is made in R and the engine runs a probit or logistic sampler on them, so the bridge
-  cannot say "hazard" without R code or a second record, and the record must stay the link's for the same
-  states to be accepted. The help says so in one sentence.
-- Known, inside the rule. Rule 4's "installed by today's rules" has the floor as its exception in more pairs
-  than Context counts: of 784 ordered pairs of 28 kinds without the record, 13 that ran finite on the base
-  build are refused by the floor - probit, ordinal and aft states into a Student-t sampler with zero-weight
-  rows or a logistic sampler with count weights, where the weights reconciliation redrew the block right
-  after the install. None is a restore of a state into its own family.
-- Known. The record is one per state, so chains spliced by hand across families are judged by the first
-  chain's record: a probit chain and a logistic chain under `probit` install into a two-chain probit
-  sampler, and only the floor catches a real-valued chain under a precision family's record. stan4bart
-  splices chains of one model only.
+- After review, 2026-10-07. A warm start takes more than the trees - the donor's sigma, k and DART state
+  where the sampler draws them - and the help's sentence, first written here as "takes the trees alone",
+  says so; run on a gaussian donor into a Student-t sampler (sigma moves to the donor's), a drawn k and a
+  DART donor, with the latents, the df and the generator left the sampler's own.
+- Known, inside the rule. The floor refuses more pairs than the 15 that broke: of 784 ordered pairs of 28
+  kinds, 13 that ran finite on the base build are refused by it - probit, ordinal and aft states into a
+  Student-t sampler with zero-weight rows or a logistic sampler with count weights, where the weights
+  reconciliation redrew the block right after the install. None is a restore of a state into its own
+  family.
+- Known. Chains spliced by hand across families are judged as any state is: a probit chain and a
+  logistic chain install into a two-chain probit sampler, and a two-chain logistic sampler refuses them
+  by the floor. stan4bart splices chains of one model only.
 
 ## Landing note
 
