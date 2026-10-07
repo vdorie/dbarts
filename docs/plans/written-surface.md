@@ -85,8 +85,8 @@ said.
   `y ~ x1 + x2 + forest(x1 + x2, basis = ~ z)` are one fit, draw for draw; so are `(dose + age):forest(x1)`
   and `basis = ~ cbind(dose, age)`. The colon takes a name, `factor(name)` or a parenthesised sum of
   names; `scale(age):forest(x1)` is refused ("is not a supported forest() modulator") and `z * forest(x1)`
-  is refused naming the colon. [`walkFormulaTerms`](../../R/formulaTerms.R),
-  [`desugarBasisOperand`](../../R/formulaTerms.R).
+  is refused naming the colon. [`walkFormulaTerms`](../../R/formulaTerms.R); the operand was read by
+  retired: [`desugarBasisOperand`](../../R/formulaTerms.R), which push 2 removed.
 - The first forest cannot be written. `y ~ forest(x1 + x2) + forest(x1, basis = ~ dose)`,
   `y ~ forest(x1 + x2)` and `y ~ forest(x1, basis = ~ dose) + forest(x2, basis = ~ age)` all stop with "a
   formula whose only right-hand-side content is a forest() term has no predictors left for the base
@@ -430,8 +430,9 @@ reader's sake; the implementer may name them otherwise.
 
 2.1 [`walkFormulaTerms`](../../R/formulaTerms.R): a hit is a `forest()` call at the top of the `+` chain
     and nothing else. A colon or star with a forest on either side, at any depth, is refused with the
-    first text, the rewrite built from the operand as [`desugarBasisOperand`](../../R/formulaTerms.R)
-    builds a basis today; that function and [`flattenPlusSymbols`](../../R/formulaTerms.R) go. A trailing
+    first text, the rewrite built from the operand as the tip's reader of a colon operand builds a basis;
+    that reader and its helper are gone with this push:
+    retired: [`desugarBasisOperand`](../../R/formulaTerms.R), [`flattenPlusSymbols`](../../R/formulaTerms.R). A trailing
     `- 1` is the fit's. Plain terms that are an `offset()` or an intercept token stay in the fit's formula
     and count as no forest. Tests (test-formula-terms.R, rewritten): eight colon and star shapes refused,
     each with its rewrite (fail today: fitted); `I(forest(x1))`, a forest in a removal and on the
@@ -744,6 +745,43 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   The alternative, landing the help once with push 3, leaves a tip whose help shows the colon.
 - Opus for the grammar's R code. The design said sonnet with an opus review; the reasons are on the
   `agent:` line.
+- Made while building push 2, none changing what a spelling fits.
+  - Texts added to "Refused forms". A forest whose terms cancel, `forest(. - x1 - x2)`, is refused
+    ("its terms leave the forest no predictor to split on"; in a list "forest()'s first argument, '...',
+    leaves the forest no predictor to split on"): read as no selection it would be the unrestricted
+    forest, in silence. A forest crossed more than once or on both sides of a colon, for which no one
+    `forest()` can be written, gets the first text ending "as forest(x1 + x2, basis = ~ z)", and one
+    that already states a basis "which this one already states". In a list, an `offset()` or an intercept
+    term in the first argument has one text ("an offset() and an intercept term are the fit's and no
+    forest's"), a list forest having no term text to quote. R's own error from `terms()` on a forest's
+    first argument (`forest(x1 + 2)`) is passed on behind the forest's text.
+  - Names given by value keep the tip's text ("'vars' name not found in the design's column names"),
+    which lists every missing name and is pinned in test-single-forest-vars.R; the not-a-predictor text
+    is for terms and for a name found nowhere.
+  - In a list the first argument is read as terms when ANY name in it is a predictor of the fit or a
+    variable of one of its terms (`log(x1)`), so that `forest(x1 + nosuch)` names `nosuch` and does not
+    go looking for a variable `x1`.
+  - The at-least-two text of "Refused forms" replaces the tail of the call's variant only; a data
+    object carrying one basis keeps the text that names `bases = list(NULL, z1, ...)`.
+  - `test` is taken by a formula whose one `forest()` has no basis, the single-forest fit it is, and
+    such a formula with no other argument on the forest declares no `forests` at all, so the fit is the
+    plain one in every attribute. With `n.trees` or a constraint on it, it is the tip's
+    `forests = list(forest(n.trees = ))`.
+  - [`bart`](../../R/bart.R) refuses its own `n.trees` beside the written forest's in a formula only; the
+    same pair through `forests = list(forest(n.trees = ), ...)` is the tip's, the forest's count
+    governing, and goes with the control-migration arc.
+  - Three pins moved with designed texts: the at-least-two tail in test-bcf-creation.R, a held formula
+    in test-single-forest-vars.R, and test-forest-arguments.R's `fixed()` given tenth by position, which
+    is now the one-unnamed refusal. The tests of steps 2.2 and 2.7 are a new file,
+    test-forest-predictors.R, and step 2.8's another, test-forest-term-doors.R.
+  - Kept code is looked up when the sampler is built, as the capture rule says, so a forest built in a
+    `for` loop from the loop variable, or by `lapply(names, forest)`, sees the last value; the help's
+    `vars` item says to hand values over with `do.call`. Forcing the argument once where `forest()` is
+    called would end both and was not done: it is another rule than the one ruled.
+  - Found on the tip and fixed here: a formula with a call that leaves an argument empty,
+    `y ~ m[, 1] + x2`, stopped in [`containsForestCall`](../../R/formulaTerms.R) with "argument \"a\" is
+    missing"; and reading `bartcore.forests` off a control without `exact = TRUE` answers with
+    `bartcore.forestsDeclared` on a single declared forest.
 
 ## Landing note
 
