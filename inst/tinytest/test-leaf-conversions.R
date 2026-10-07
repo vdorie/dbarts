@@ -668,6 +668,18 @@ for (chain in standardization(held)) {
 }
 expect_true(all(slopes(held) == 0))
 expect_true(worstGap(before, liveMatrix(held)) < tolerance)
+# held at its centre exactly, the covariate reads zero under a real scale,
+# which is not the placeholder: the scale stays in the state, so a copy
+# predicts off the centre what the sampler does, and the coefficients convert
+# by the formula
+centred <- madeOn(x, 44L)
+expect_true(centred$setPredictor(rep(own[[2L]]$leaf.covariate.center, n), 2L))
+invisible(centred$run())
+expect_identical(standardization(centred), own)
+expect_identical(centred$copy()$predict(x.new), centred$predict(x.new))
+before <- liveFunction(centred, x.more)
+centred$setData(dbartsData(x.more, y.more))
+expect_true(worstGap(before, liveMatrix(centred)) < tolerance)
 
 # rows appended that give a constant covariate spread, at a constant whose
 # mean rounds: the slopes are dropped and each leaf keeps the value it had at
