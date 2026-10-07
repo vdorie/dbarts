@@ -968,12 +968,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - newState:
 
-  For `setState`, a state object previously produced by this sampler, or
-  by another of the same response family over the same data: its `state`
-  field, calling `storeState()` first to refresh it if a later mutation
-  may have gone unstored (`storeState` itself returns `NULL` invisibly,
-  so its return value cannot be passed here). Must inherit from
-  `bartcoreState`.
+  For `setState`, a state object previously produced by this sampler or
+  another over the same data: its `state` field, calling `storeState()`
+  first to refresh it if a later mutation may have gone unstored
+  (`storeState` itself returns `NULL` invisibly, so its return value
+  cannot be passed here). Must inherit from `bartcoreState`.
 
 - ...:
 
@@ -1150,42 +1149,38 @@ moderator-restricted mean forest, or a `variance = ~ x1 + x2` variance
 forest - is refused with the message `installTrees` gives the same
 donor, the two entries sharing one rule so neither admits what the other
 refuses. Every check runs before any live state is touched, so a refused
-restore leaves the sampler exactly as it was. A state records the
-response family of the sampler that stored it, and a state of another
-family is refused, naming both: its trees and latent variables mean
-something only under the family they were drawn in. A `hazard` sampler
-runs its link's model on the expanded rows, so its state records, and a
-refusal names, `probit` or `logistic`. To start a sampler from a fit of
-another family, use `installTrees`, which takes the donor's trees and,
-where this sampler draws them, its `sigma`, `k` and DART state, and none
-of its latent variables. A state that carries no such record, as one
-stored before the record existed, is judged by its contents. A
-Student-t, logistic or negative-binomial sampler also refuses a state
-whose latent variables are not all positive and finite. The trees are
-restored against the predictors the sampler holds at the call, as a
-forced `setPredictor` leaves them: a split with a side no row of those
-predictors reaches becomes a single leaf, along with everything beneath
-it, and a rule stops recording a side for missing values where its
-column no longer has any. To undo a predictor change exactly, put the
-old predictor back first, with `setPredictor(..., forceUpdate = TRUE)`,
-and then call `setState`. `setState` invisibly returns `TRUE` when the
-state went in as stored and `FALSE` when it did not (see ‘Value’), so
-code that restores in order to reject a proposal can check that the
-rejection was exact. An unforced `setPredictor` can be refused,
-returning `FALSE` and leaving the changed predictor in place; `setState`
-then restores against the changed predictor, as it does when called
-before the predictor is put back, and merges what that predictor leaves
-empty. A factor column does not take missing values back through a
-column update, so a change that filled a factor column's missing values
-is undone by replacing the whole data with `setData` and then calling
-`setState`. Assigning the field directly (`sampler$state <- newState`)
-does *not* restore the sampler - it only overwrites the R-side cache,
-leaving the engine untouched, so the next run continues from the
-engine's own state rather than the assigned one. `copy` and a reload
-install the field by the same rules, so an object whose field holds a
-state it would refuse cannot be copied, and after a reload raises that
-refusal at each use until a state of its own is assigned. Always route a
-restore through `setState`.
+restore leaves the sampler exactly as it was. A Student-t, logistic or
+negative-binomial sampler also refuses a state whose latent variables
+are not all positive and finite. Beyond that a state is not checked
+against the response family of the sampler that stored it: one whose
+contents fit this sampler is installed, and what the sampler then holds
+of another family's state is not promised. To start a sampler from a fit
+of another family, use `installTrees`, which takes the donor's trees
+and, where this sampler draws them, its `sigma`, `k` and DART state, and
+none of its latent variables. The trees are restored against the
+predictors the sampler holds at the call, as a forced `setPredictor`
+leaves them: a split with a side no row of those predictors reaches
+becomes a single leaf, along with everything beneath it, and a rule
+stops recording a side for missing values where its column no longer has
+any. To undo a predictor change exactly, put the old predictor back
+first, with `setPredictor(..., forceUpdate = TRUE)`, and then call
+`setState`. `setState` invisibly returns `TRUE` when the state went in
+as stored and `FALSE` when it did not (see ‘Value’), so code that
+restores in order to reject a proposal can check that the rejection was
+exact. An unforced `setPredictor` can be refused, returning `FALSE` and
+leaving the changed predictor in place; `setState` then restores against
+the changed predictor, as it does when called before the predictor is
+put back, and merges what that predictor leaves empty. A factor column
+does not take missing values back through a column update, so a change
+that filled a factor column's missing values is undone by replacing the
+whole data with `setData` and then calling `setState`. Assigning the
+field directly (`sampler$state <- newState`) does *not* restore the
+sampler - it only overwrites the R-side cache, leaving the engine
+untouched, so the next run continues from the engine's own state rather
+than the assigned one. `copy` and a reload install the field by the same
+rules, so an object whose field holds a state it would refuse cannot be
+copied, and after a reload raises that refusal at each use until a state
+of its own is assigned. Always route a restore through `setState`.
 
 A state never changes the sampler's model. The leaf prior, its `k` where
 fixed, a fixed `sigma`, Student-t df, negative-binomial shape or DART
