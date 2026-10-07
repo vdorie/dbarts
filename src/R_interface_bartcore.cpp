@@ -6144,7 +6144,7 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       if (!isHeld) {
         for (R_xlen_t i = 0; i < numCuts; ++i)
           if (bartcore::isNA(cuts[i]))
-            Rf_error("$setCutPoints: 'cuts' must not contain NaN");
+            Rf_error("$setCutPoints: 'cuts' must not contain NA or NaN");
         if (!bartcore::cutGridIsValid(cuts, static_cast<size_t>(numCuts),
                                       true))
           Rf_error("$setCutPoints: a cut point may appear only once in "

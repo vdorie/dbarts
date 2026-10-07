@@ -80,7 +80,7 @@ All numbers below were run on the tip's build; a column is numeric unless said o
   `setData`) uses it. No cap is kept beside it: a refresh re-cuts at the count the column holds, so a set
   grid leaves nothing that a copy and a reload do not also have.
 - `setCutPoints` takes a grid of one to 65533 distinct points, none `NaN`, sorted if out of order, and one
-  grid more: the grid the column holds at the call, in order and bit for bit (a -0 for a 0 is another
+  grid more: the grid the column holds at the call, bit for bit, in whatever order it is given (a -0 for a 0 is another
   grid), repeated points included. Given the whole list, the entries of factor columns are not read, whatever they are.
 
 ## Constraints
@@ -128,7 +128,7 @@ All numbers below were run on the tip's build; a column is numeric unless said o
    a test pinned. The rest it coerces to double. The bridge keeps the same refusal for another caller of
    the entry; no call through R reaches it. The refusal for an unusable grid becomes
    `$setCutPoints: a cut point may appear only once in 'cuts'; for more splits near a value, give a denser
-   grid around it`, and `$setCutPoints: 'cuts' must not contain NaN`.
+   grid around it`, and `$setCutPoints: 'cuts' must not contain NA or NaN`.
 3. tinytest, a new file `test-cut-points-undo.R`; "fails today" names what the tip does.
    - The undo leaves no residue: `n.cuts = 20`; sampler and twin run and store; the sampler sets 50 points,
      sets the stored grid back and restores (`TRUE`); the twin restores its own state; both take the same
@@ -150,8 +150,8 @@ All numbers below were run on the tip's build; a column is numeric unless said o
    - Any grid with equal neighbours that is not the one the column holds is refused, on a column whose own
      grid repeats a point too, as a `NaN` and an `NA` are, with the new message, by
      column and as an entry of the whole list, and the grid is left as it was; over a column of zeros the
-     held zeros are accepted and as many negative zeros refused; a grid of distinct points is accepted, and sorted when out of order; a
-     function, a character vector, a logical, a factor, a Date and `NULL` are refused by name, and whole
+     held zeros are accepted and as many negative zeros refused; a grid of distinct points is accepted, and
+     sorted when out of order; a function, a character vector, a logical, a factor, a Date and `NULL` are refused by name, and whole
      numbers taken; a column named three times has each entry read. After a constant column's grid is
      changed its old grid is refused and `setState` brings it back.
    - A state on a shorter grid installed over a 50-point grid, the 50 points set again, then a state
@@ -258,8 +258,8 @@ correction was made and none rejected.
 
 What the reviews changed. The first plan took any non-decreasing grid from a caller. A stored split names
 its cut by value and a restore puts it on the first index holding that value, so a grid that repeats a
-value does not survive a store and restore; the rule became the narrow one (dec-A170): a caller's grid holds
-each point once, and the one grid taken with equal neighbours is the grid the column holds, bit for
+value does not survive a store and restore; the rule became the narrow one (dec-A170): a caller's grid is
+strictly increasing, and the one grid taken with equal neighbours is the grid the column holds, bit for
 bit. The cap on the cut count is no longer stored: a derivation counts from the count asked for at build
 and a refresh from the count the column holds, so nothing a set grid or a refused state install touched
 can go stale. R drops a whole list's factor entries unread. After the second review `setCutPoints` takes
@@ -280,3 +280,6 @@ gates in `quick` 32 of 32; tests/cpp and the new test file clean under ASan and 
 --as-cran` with the Date NOTE alone; a seeded digest of 104 fits that never set a grid, equal on the base
 and the slice. The second reviewer ran 600 seeded call sequences against oracles for the derived count
 (0 failures on the slice, 1102 on the base) and 600 neutral ones, bit for bit equal on both.
+
+Since 2026-10-07 (dec-B285, [small-rulings-batch.md](small-rulings-batch.md)): a caller's grid out of order is sorted,
+a repeated point is refused by name, and the held grid is still taken as it is.

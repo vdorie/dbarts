@@ -1,8 +1,8 @@
 # A cut grid changed with setCutPoints can be put back on any design, and
 # leaves nothing behind: a later setData derives the grid n.cuts names
 # whatever grid was set before it, as a copy and a reload do. A caller's own
-# grid is sorted and holds each point once; the grid a column holds, in order
-# and bit for bit, is taken back as it is, repeated points included. The grid in force is read from the
+# grid is sorted and holds each point once; the grid a column holds, bit for
+# bit and in whatever order it is given, is taken back as it is, repeated points included. The grid in force is read from the
 # stored state.
 
 cutPointsOf <- function(sampler) {
@@ -228,7 +228,7 @@ refusal <- paste(
   "$setCutPoints: a cut point may appear only once in 'cuts'; for more",
   "splits near a value, give a denser grid around it"
 )
-nanRefusal <- "$setCutPoints: 'cuts' must not contain NaN"
+nanRefusal <- "$setCutPoints: 'cuts' must not contain NA or NaN"
 notHeld <- list(c(0.25, 0.5, 0.5, 0.75), c(0.6, 0.5, 0.6))
 for (cuts in notHeld) {
   expect_error(sampler$setCutPoints(cuts, 1L), pattern = refusal, fixed = TRUE)
