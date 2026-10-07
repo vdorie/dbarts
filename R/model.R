@@ -640,22 +640,23 @@ resolveLeafHyperprior <- function(
   stop("'k' must be a positive scalar or a hyperprior specification")
 }
 
-## The monotone direction vocabulary, matched exactly and case-sensitively:
-## the words, and the codes as the numbers 1, -1 and 0 or as the strings c()
-## makes of them when words and codes share a vector.
-MONOTONE_DIRECTION_CODES <- c(
-  increasing = 1L,
-  decreasing = -1L,
-  "1" = 1L,
-  "-1" = -1L,
-  "0" = 0L
-)
+## The monotone direction vocabulary: the words, matched as base R matches a
+## choice (case-sensitive, a unique abbreviation taken), and the codes as the
+## numbers 1, -1 and 0 or as the strings c() makes of them when words and codes
+## share a vector.
+MONOTONE_DIRECTION_WORDS <- c("increasing", "decreasing")
+MONOTONE_DIRECTION_CODES <- c("1" = 1L, "-1" = -1L, "0" = 0L)
 
 ## Code of a single monotone direction element, in {-1, 0, 1}.
 parseMonotoneSign <- function(value) {
   direction <- NA_integer_
   if (length(value) == 1L && is.character(value)) {
     direction <- unname(MONOTONE_DIRECTION_CODES[value])
+    if (is.na(direction)) {
+      direction <- c(1L, -1L)[
+        pmatch(value, MONOTONE_DIRECTION_WORDS, duplicates.ok = TRUE)
+      ]
+    }
   } else if (length(value) == 1L && is.numeric(value)) {
     direction <- match(value, c(-1, 0, 1)) - 2L
   }

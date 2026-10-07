@@ -23,8 +23,7 @@ monotone(directions, prior = c("joint", "leaf"))
     model-matrix column name, each element \code{"increasing"} or \code{1},
     \code{"decreasing"} or \code{-1}, or \code{0} for unconstrained. An
     unnamed vector as long as the model matrix is wide assigns the directions
-    by position. Matching is case-sensitive and takes no abbreviations. A
-    predictor named \code{prior} is written like any other,
+    by position. A predictor named \code{prior} is written like any other,
     \code{monotone(c(prior = "increasing"))}.
   }
   \item{prior}{

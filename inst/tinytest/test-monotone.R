@@ -52,10 +52,21 @@ expect_equal(
   monotoneOf(x, y, monotone = c("increasing", 0, -1))$directions,
   c(1L, 0L, -1L)
 )
-# matching is exact and case-sensitive, as match.arg's is: the sign glyphs, a
-# case variant, an abbreviation and a non-code number are refused, naming
-# the vocabulary
-for (bad in list("+", "-", "Increasing", "DECREASING", "inc", 2, 0.5, NA)) {
+# a word matches as base R matches a choice: any unique abbreviation, case
+# sensitive; the sign glyphs, a case variant, a longer word, the empty string
+# and a non-code number are refused, naming the vocabulary
+for (bad in list(
+  "+",
+  "-",
+  "Increasing",
+  "DECREASING",
+  "Inc",
+  "increasingly",
+  "",
+  2,
+  0.5,
+  NA
+)) {
   expect_error(
     monotoneOf(x, y, monotone = list(a = bad)),
     "monotone directions must be one of \"increasing\", \"decreasing\", 1",
@@ -63,6 +74,28 @@ for (bad in list("+", "-", "Increasing", "DECREASING", "inc", 2, 0.5, NA)) {
   )
 }
 rm(bad)
+for (word in c("i", "inc", "increasing")) {
+  expect_equal(
+    monotoneOf(x, y, monotone = c(a = word))$directions,
+    monotoneOf(x, y, monotone = c(a = "increasing"))$directions
+  )
+}
+for (word in c("d", "dec", "decreasing")) {
+  expect_equal(
+    monotoneOf(x, y, monotone = c(c = word))$directions,
+    monotoneOf(x, y, monotone = c(c = "decreasing"))$directions
+  )
+}
+rm(word)
+# an abbreviation shares a vector with codes, and is taken positionally
+expect_equal(
+  monotoneOf(x, y, monotone = c(a = "inc", c = 0))$directions,
+  c(1L, 0L, 0L)
+)
+expect_equal(
+  monotoneOf(x, y, monotone = c("inc", 0, "d"))$directions,
+  c(1L, 0L, -1L)
+)
 
 # monotone() carries the directions and the prior; the plain vector is
 # shorthand for it at the default prior
