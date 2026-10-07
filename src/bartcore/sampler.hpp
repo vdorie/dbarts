@@ -737,6 +737,11 @@ public:
     return (currentSampleNum_ + capacity - recordedDraws_ + drawIndex) %
       capacity;
   }
+  /// The retained draws as the ring slots holding them, for a chain call that
+  /// rewrites them.
+  SavedDrawSlots savedDrawSlots() const {
+    return SavedDrawSlots{savedSlotForDraw(0), recordedDraws_};
+  }
 
   const std::vector<FlatNode>& savedTree(size_t chainNum, size_t slot,
                                          size_t treeNum,
@@ -1298,7 +1303,9 @@ public:
   /// amplitudes this sampler draws transfer - rng and auxiliary state stay
   /// fresh, so each chain evolves independently from its own stream - and a
   /// donor stored in other units is converted into this sampler's, so it
-  /// seeds the function it held. Under a variance forest the scale surface
+  /// seeds the function it held, as are a linear leaf's coefficients drawn
+  /// under another covariate standardization; this sampler's standardization
+  /// and lengthscales stay its own. Under a variance forest the scale surface
   /// rides along, taken from
   /// the same slot as the mean forest. A donor on a different cut grid has its
   /// splits remapped onto this sampler's grid (starved splits collapse), as
@@ -1390,9 +1397,9 @@ public:
                                  sfs.savedTreeMasks.begin() + base + nt);
         }
         dfs.k = sfs.k;
-        // the leaf-covariate calibration is deliberately not copied: a warm
-        // start reads the donor's trees on this sampler's data, as setData
-        // re-derives the constants
+        // the leaf-covariate calibration is not copied: this sampler keeps
+        // its own, and the donor's linear coefficients are restated in it
+        // below
       }
       dst.sigma = src.sigma;
       dst.fitMin = src.fitMin;
@@ -1447,6 +1454,10 @@ public:
       if (chains_[c]->hasVarianceForest() &&
           dst.varianceTrees.size() != chains_[c]->numVarianceTrees())
         return WarmStartResult::varianceShapeMismatch;
+      // the donor's linear coefficients in this sampler's standardization;
+      // a record that does not fit the leaf is the donor's shape
+      if (!chains_[c]->convertDonorStandardization(dst, src))
+        return WarmStartResult::shapeMismatch;
       // the donor's values in this sampler's units; installForest's
       // restoreScale then puts the chain where it already is
       if (unitsDiffer(dst) &&
@@ -1546,13 +1557,16 @@ public:
   }
 
   // Between-sample mutation, fanned out to every chain; new-vector lifetimes
-  // are the caller's problem.
+  // are the caller's problem. A re-anchor restates the retained draws in the
+  // transform it leaves, so a replay returns what it did before.
   void setOffset(const double* offset, bool updateScale) {
-    for (auto& chain : chains_) chain->setOffset(offset, updateScale);
+    SavedDrawSlots kept = savedDrawSlots();
+    for (auto& chain : chains_) chain->setOffset(offset, updateScale, kept);
     if (updateScale) recordAnchor();
   }
   void setResponse(const double* y, bool updateScale) {
-    for (auto& chain : chains_) chain->setResponse(y, updateScale);
+    SavedDrawSlots kept = savedDrawSlots();
+    for (auto& chain : chains_) chain->setResponse(y, updateScale, kept);
     if (updateScale) recordAnchor();
   }
 
@@ -1792,7 +1806,8 @@ public:
   /// transactional: cut points are rebuilt from scratch, existing splits are
   /// remapped onto the value-nearest new cuts, and any subtree left invalid
   /// or empty collapses. Gaussian chains keep sigma and the variance prior
-  /// fixed on the original scale.
+  /// fixed on the original scale. The retained draws stay the functions they
+  /// were (Chain::applyNewData), a gp leaf's excepted.
   ///
   /// False REFUSES the replacement and the sampler is UNTOUCHED: a factor
   /// cell on one side or the other is not a level code of its column's table.
@@ -1837,9 +1852,10 @@ public:
       data_.resetTestStorage();
     }
 
+    SavedDrawSlots kept = savedDrawSlots();
     for (size_t c = 0; c < chains_.size(); ++c)
       chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c],
-                               varianceParams[c]);
+                               varianceParams[c], kept);
     recordAnchor();
     return true;
   }

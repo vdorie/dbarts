@@ -7531,7 +7531,9 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   };
   // the leaf.covariate.* and leaf.lengthscales blocks are a linear or gp
   // leaf's standardization constants and kernel lengthscales, NULL on every
-  // other leaf, likewise appended and read as OPTIONAL
+  // other leaf, likewise appended and read as OPTIONAL. A scale of NA is a
+  // column that had no spread: the leaf divides by 1 there and remembers that
+  // no observation set it.
 
   // append-only slot registry: new blocks go before SLOT_COUNT and do NOT bump
   // the format version (an old state simply lacks the name and decodes as
@@ -7608,6 +7610,10 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
           REALSXP, static_cast<R_xlen_t>(calibration[j]->size())));
         std::memcpy(REAL(valuesExpr), calibration[j]->data(),
                     calibration[j]->size() * sizeof(double));
+        // the engine's mark for a column without spread, as R's missing value
+        if (calibration[j] == &fs.leafCovariateScales)
+          for (R_xlen_t i = 0; i < Rf_xlength(valuesExpr); ++i)
+            if (ISNAN(REAL(valuesExpr)[i])) REAL(valuesExpr)[i] = NA_REAL;
         SET_VECTOR_ELT(forestExpr, FSLOT_LEAF_COVARIATE_CENTER + j, valuesExpr);
         UNPROTECT(1);
       }
@@ -8350,12 +8356,13 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
 // Parses a "bartcoreState" donor into a SamplerStateData for a warm start,
 // validating flat trees against the destination sampler's data. Only the
-// channels a warm start consumes are read (trees, leaf params, masks, k,
-// sigma, the fit scale, DART, and the amplitude glue); latents and rng are
-// left for the destination to redraw. Function-leaf donors seed from
-// their live trees, so their saved channel is skipped. The donor's own chain
-// count is honored (a short donor may seed many chains). Returns an error
-// string, or NULL, rather than longjmping so the caller can free state first.
+// channels a warm start consumes are read (trees, leaf params, a linear
+// leaf's standardization, masks, k, sigma, the fit scale, DART, and the
+// amplitude glue); latents and rng are left for the destination to redraw.
+// Function-leaf donors seed from their live trees, so their saved channel is
+// skipped. The donor's own chain count is honored (a short donor may seed
+// many chains). Returns an error string, or NULL, rather than longjmping so
+// the caller can free state first.
 static const char* readWarmStartState(SEXP stateExpr,
                                       bartcore::SamplerBase& sampler,
                                       bartcore::SamplerStateData& state) {
@@ -8456,9 +8463,37 @@ static const char* readWarmStartState(SEXP stateExpr,
           break;
       }
 
-      // optional as in the setState parser above; the leaf scale and the
-      // leaf-covariate blocks are not read: a warm start keeps this sampler's
-      // model and reads the donor's trees on its data
+      // a linear leaf's standardization, OPTIONAL as in the setState parser
+      // and never installed: the engine restates the donor's coefficients
+      // from it into this sampler's own. A scale of NA is a column that had
+      // no spread. A gp donor's is not read, its fits holding no kernel.
+      if (numLeafCovariates > 0 && !functionLeaves) {
+        SEXP centersExpr =
+          rc_getListElement(forestExpr, "leaf.covariate.center");
+        SEXP scalesExpr = rc_getListElement(forestExpr, "leaf.covariate.scale");
+        if (!Rf_isNull(centersExpr) || !Rf_isNull(scalesExpr)) {
+          bool wellFormed =
+            Rf_isReal(centersExpr) && Rf_isReal(scalesExpr) &&
+            static_cast<size_t>(Rf_xlength(centersExpr)) == numLeafCovariates &&
+            static_cast<size_t>(Rf_xlength(scalesExpr)) == numLeafCovariates;
+          for (size_t j = 0; wellFormed && j < numLeafCovariates; ++j) {
+            double scale = REAL(scalesExpr)[j];
+            wellFormed = R_FINITE(REAL(centersExpr)[j]) &&
+                         (ISNAN(scale) || (R_FINITE(scale) && scale > 0.0));
+          }
+          if (!wellFormed) {
+            errorMessage = "malformed parameters in warm-start donor";
+            break;
+          }
+          fs.leafCovariateCenters.assign(
+            REAL(centersExpr), REAL(centersExpr) + numLeafCovariates);
+          fs.leafCovariateScales.assign(
+            REAL(scalesExpr), REAL(scalesExpr) + numLeafCovariates);
+        }
+      }
+
+      // optional as in the setState parser above; the leaf scale is not read:
+      // a warm start keeps this sampler's model
       SEXP kExpr = rc_getListElement(forestExpr, "k");
       if (!Rf_isNull(kExpr)) {
         if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {
