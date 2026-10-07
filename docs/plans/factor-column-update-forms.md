@@ -24,8 +24,8 @@ build under Context came to 69 lines of R.
 
 `updatePredictorPerObservationJointly` takes, for a column the samplers hold as a factor or an ordered
 factor, what `setPredictor` takes for a named column: labels, matched to the column's levels by name, with
-a label the column lacks and a first missing value refused in the same words. It still takes numbers as the
-codes the sampler holds the column in. Nothing given for such a column is installed as another level
+a label the column lacks and a first missing value refused in the same words. It refuses numbers for such a column, as the
+column form does. Nothing given for such a column is installed as another level
 without a message, and the manual says what each kind of value means.
 
 ## Context
@@ -96,9 +96,8 @@ hold the columns at different positions. Each new value is the row's next level.
 By what is given, and by whether the samplers hold the column as a factor (ordered or not):
 
 1. No sampler holds it as a factor: the values go through `as.double`, as today.
-2. Numbers (integer or double), whatever the samplers hold: installed as today. For a factor column they
-   are its codes, whole numbers from 0 in the order of the column's levels, as `data@x` holds it; a value
-   that is not one is refused in the engine's words, and a missing one is installed as a missing value.
+2. Numbers (integer or double) for a factor column: refused, as the column form refuses them, with the
+   words in 4. For a numeric column they install as they do.
 3. Labels - a factor, an ordered factor, a character vector or a `sparseFactor` - for a column every
    sampler holds as a factor: matched to the column's levels by name, by the column form's helper. The
    order and number of the levels of the factor given do not matter. Refused, in the column form's words:
@@ -106,11 +105,12 @@ By what is given, and by whether the samplers hold the column as a factor (order
    missing value when the column holds none (`column 'f' has missing values, which its training values
    do not`); a column that already holds one takes another.
 4. Anything else for a factor column, a logical among them: refused with `column 'f' is categorical;
-   give its values as a factor or character vector of its labels, or as numbers for its codes from 0`.
+   give its values as a factor or character vector of its labels, not numbers`, the last two words
+   only where the value is a number.
 5. One vector goes to every sampler, so labels must code alike in each. Levels that differ between
    samplers: `column 'f' has other levels in sampler 2 than in sampler 1, so its labels cannot be
-   installed in both; give numbers`. A factor in one and a number in another: `column 'f' is categorical
-   in sampler 1 and not in sampler 2, so its labels cannot be installed in both; give numbers`.
+   installed in both`. A factor in one and a number in another: `column 'f' is categorical
+   in sampler 1 and not in sampler 2, so its labels cannot be installed in both; update them in separate calls`.
 6. Neither is read as the other. A factor is known by its class before anything is coerced, so its integer
    codes are never read. A number is never matched to a label, even where the labels are numerals: for
    levels "1" to "4", the character "2" is the second level and the number 2 is the third.
@@ -168,12 +168,10 @@ By what is given, and by whether the samplers hold the column as a factor (order
      labels: a factor, a character vector or a `sparseFactor`, matched to the column's levels by name,
      as `setPredictor` takes them for a named column. The order of the levels of the factor given does
      not matter; a label the column does not have is refused by name, and so is a missing value when
-     the column holds none. Such a column also takes numbers, read as the codes each sampler's `data@x`
-     holds it in: whole numbers from 0 in the order of the column's levels, so the first level is 0 and
-     a factor `f` with those levels is `as.integer(f) - 1`. A number is never matched to a label, even
-     where the labels are numerals, so give labels as a factor or as character. With several samplers,
+     the column holds none. Numbers are refused for such a column, as `setPredictor` refuses them for a
+     named column, even where the labels are numerals. With several samplers,
      labels need the column to have the same levels in the same order in each; where it does not, or
-     where one holds it as a number, give numbers."
+     where one holds it as a number, update them in separate calls."
    - TODO: the entry `factor-column-update-forms` names this plan for the joint form and keeps its
      sentence on what is not planned.
 
@@ -289,9 +287,7 @@ with a copy and a reload. The refusal for samplers whose levels differ told the 
 which installs a different level in each sampler without a message; samplers that hold the column with
 different level tables now refuse one vector of any kind, labels or numbers, naming the first sampler
 that differs. A refusal raised by a later sampler's levels names that sampler. A factor, a `sparseFactor`
-or text that is not numerals given for a numeric column is refused in the joint form. The help says that
-`as.integer()` of a factor counts from 1 and is not these codes, and that a missing number is installed
-where a missing label is refused.
+or text that is not numerals given for a numeric column is refused in the joint form. The help says what is accepted for a factor column and that numbers are refused.
 
 Left: `setPredictor` by column and `"partial"` still read a factor given for a numeric column through
 its integer codes, the fix sitting in a helper that whole-frame updates share; and a data frame as the

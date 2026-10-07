@@ -21,16 +21,11 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NULL)
     matched to the column's levels by name, as \code{\link[=dbartsSampler-class]{setPredictor}} takes
     them for a named column. The order of the levels of the factor given does not matter; a label the
     column does not have is refused by name, and so is a missing value when the column holds none.
-    Such a column also takes numbers, read as the codes each sampler holds it in: whole numbers from
-    0 in the order of the column's levels, so the first level is 0. \code{as.integer(f)} of a factor
-    counts from 1 and is not these codes, so give the factor itself. A number that is not a code is
-    refused, and a missing number is installed as a missing value, where a missing label is refused
-    in a column that has none. A number is never matched to a label, even where the labels are
-    numerals, so give labels as a factor or as character. One value is one level in every sampler
-    only if they hold the column with the same levels in the same order, so samplers that hold it as
-    a factor with different levels are refused, for labels and numbers alike; update them in separate
-    calls. Labels are also refused when one sampler holds the column as a number, where numbers are
-    each sampler's own.
+    Numbers are refused for such a column, as \code{setPredictor} refuses them for a named column,
+    even where the labels are numerals. One value is one level in every sampler only if they hold the
+    column with the same levels in the same order, so samplers that hold it as a factor with different
+    levels are refused; update them in separate calls. Labels are also refused when one sampler holds
+    the column as a number.
   }
   \item{column}{
     A single integer or character string identifying the shared column; it cannot be missing. The

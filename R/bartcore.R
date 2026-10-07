@@ -480,12 +480,12 @@ codeCategoricalColumnUpdate <- function(x.train, x, column) {
 # coded from a factor with different levels are refused, for numbers as for
 # labels. Then labels - a factor, character vector or sparseFactor - are
 # matched to the levels by codeCategoricalColumnUpdate, in its words, with a
-# refusal raised by a later sampler naming it; a number is a code already,
-# counted from 0 as data@x holds the column, and passes through to the
-# engine's own check. Anything else is refused by name, where as.double would
-# read a logical as two codes. Labels for a column only some samplers hold as a
-# factor are refused. A column no sampler holds as a factor takes numbers, and
-# a factor, a sparseFactor or text that is not numerals is refused for it.
+# refusal raised by a later sampler naming it; a number for a categorical
+# column is refused in the words setPredictor uses, as is anything else that
+# is not labels, where as.double would read a logical as two codes. Labels for
+# a column only some samplers hold as a factor are refused. A column no
+# sampler holds as a factor takes numbers, and a factor, a sparseFactor or
+# text that is not numerals is refused for it.
 codeJointColumnUpdate <- function(samplers, x, columnIndices, columnName) {
   levelTables <- lapply(seq_along(samplers), function(i) {
     factorLevels <- attr(samplers[[i]]$data@x, "factor.levels")
@@ -523,15 +523,13 @@ codeJointColumnUpdate <- function(samplers, x, columnIndices, columnName) {
       )
     }
   }
-  if (is.numeric(x)) {
-    return(x)
-  }
   if (!isLabels || !is.null(dim(x))) {
     stop(
       "column '",
       columnName,
       "' is categorical; give its values as a factor or character vector of ",
-      "its labels, or as numbers for its codes from 0"
+      "its labels",
+      if (is.numeric(x) && is.null(dim(x))) ", not numbers"
     )
   }
   if (!all(categorical)) {
@@ -542,7 +540,8 @@ codeJointColumnUpdate <- function(samplers, x, columnIndices, columnName) {
       first,
       " and not in sampler ",
       which(!categorical)[1L],
-      ", so its labels cannot be installed in both; give numbers"
+      ", so its labels cannot be installed in both; update them in separate ",
+      "calls"
     )
   }
   codes <- NULL

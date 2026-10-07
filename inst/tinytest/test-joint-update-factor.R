@@ -1,6 +1,6 @@
 # updatePredictorPerObservationJointly given a factor column: labels are matched to the column's
-# levels by name, as setPredictor by column matches them; numbers are the codes from 0 the
-# samplers hold the column in.
+# levels by name, as setPredictor by column matches them; numbers are refused, in
+# setPredictor's words.
 
 lv <- c(f = list(letters[1:4]), o = list(c("lo", "mid", "hi")))
 
@@ -123,8 +123,8 @@ countWarn <- function(expr) {
 
 # ---- labels install at their own level, one sampler and several, f and o -----------------------
 # Each case is read on the engine: a twin given the same labels through setPredictor "partial"
-# (one sampler) or the codes from 0 (several, which a shared scan cannot take separately) must
-# return the same mask and hold the same stored state and design, and its next draws must be
+# (one sampler) or the same labels as a character vector (several, which a shared scan cannot
+# take separately) must return the same mask and hold the same stored state and design, and its next draws must be
 # the same, which they cannot be if the engine was handed other codes than the design holds.
 forms <- list(y ~ x1 + f + o, y ~ o + f + x1, y ~ f + x1 + o)
 makeSet <- function(k) {
@@ -138,7 +138,6 @@ for (name in c("f", "o")) {
     for (k in 1:3) {
       given <- kinds(labels, levels, name)[[kind]]
       wantLabels <- as.character(given)
-      codes <- match(wantLabels, levels) - 1
       live <- makeSet(k)
       twin <- makeSet(k)
       info <- paste(name, kind, k, "samplers")
@@ -155,7 +154,7 @@ for (name in c("f", "o")) {
       maskTwin <- if (k == 1L) {
         twin[[1L]]$setPredictor(given, name, forceUpdate = "partial")
       } else {
-        updatePredictorPerObservationJointly(twin, codes, name)
+        updatePredictorPerObservationJointly(twin, wantLabels, name)
       }
       expect_identical(mask, maskTwin, info = info)
       for (i in seq_len(k)) {
@@ -282,7 +281,7 @@ expectRefused(
 expectRefused(
   rep(c(TRUE, FALSE), n / 2L),
   "f",
-  "column 'f' is categorical; give its values as a factor or character vector of its labels, or as numbers for its codes from 0",
+  "column 'f' is categorical; give its values as a factor or character vector of its labels",
   "logical"
 )
 expectRefused(
@@ -336,34 +335,36 @@ expect_true(all(r))
 expect_true(is.na(sNA$data@x[5L, "f"]))
 expect_identical(heldLabels(sNA, "f", lv$f)[-5L], newF[-5L])
 
-# ---- numbers are codes from 0, with or without a missing one --------------------------------
+# ---- numbers are refused for a factor column, in setPredictor's words ------------------------
 codes <- as.integer(factor(newF, levels = lv$f)) - 1L
-for (given in list(codes, as.double(codes))) {
-  s <- plain(d, 9L)
-  r <- updatePredictorPerObservationJointly(list(s), given, "f")
-  expect_true(all(r))
-  expect_identical(s$data@x[, "f"], as.double(given))
-}
-s <- plain(d, 9L)
 withNA <- as.double(codes)
 withNA[2L] <- NA
-r <- updatePredictorPerObservationJointly(list(s), withNA, "f")
-expect_true(is.na(s$data@x[2L, "f"]))
-# a missing number installs, where a missing label in a column with none is refused
-expect_true(r[2L])
+numberRefusal <- paste(
+  "column 'f' is categorical; give its values as a factor or character vector",
+  "of its labels, not numbers"
+)
+for (given in list(codes, as.double(codes), withNA, rep(4, n), rep(0.5, n))) {
+  expectRefused(given, "f", numberRefusal, paste("numbers,", class(given)[1L]))
+  expectRefused(
+    given,
+    "f",
+    numberRefusal,
+    "numbers, one sampler",
+    make = function(seed) list(makeSampler(d, seed))
+  )
+}
+expectRefused(
+  rep(3, n),
+  "o",
+  "column 'o' is categorical; give its values as a factor or character vector of its labels, not numbers",
+  "numbers, ordered"
+)
+# the column form says the same of a number
 s <- plain(d, 9L)
 expect_error(
-  updatePredictorPerObservationJointly(list(s), rep(4, n), "f"),
-  "existing category codes"
-)
-expect_error(
-  updatePredictorPerObservationJointly(list(s), rep(0.5, n), "f"),
-  "existing category codes"
-)
-s <- plain(d, 9L)
-expect_error(
-  updatePredictorPerObservationJointly(list(s), rep(3, n), "o"),
-  "existing level codes"
+  s$setPredictor(codes, "f"),
+  numberRefusal,
+  fixed = TRUE
 )
 
 # ---- numerals as labels ---------------------------------------------------------------------
@@ -373,13 +374,17 @@ labelsNum <- as.character(sample(1:4, n, TRUE))
 s <- plain(dNum, 10L)
 r <- updatePredictorPerObservationJointly(list(s), labelsNum, "f")
 expect_identical(heldLabels(s, "f", as.character(1:4)), labelsNum)
-s <- plain(dNum, 10L)
-r <- updatePredictorPerObservationJointly(list(s), rep(1L, n), "f")
-expect_true(all(s$data@x[, "f"] == 1))
-expect_identical(heldLabels(s, "f", as.character(1:4)), rep("2", n))
+expectRefused(
+  rep(1L, n),
+  "f",
+  "column 'f' is categorical; give its values as a factor or character vector of its labels, not numbers",
+  "numerals as numbers",
+  make = function(seed) list(plain(dNum, seed))
+)
 
 # ---- samplers that hold the column with different levels -----------------------------------
 # one vector would be a different level in each, so neither labels nor numbers are taken
+# (numbers are refused for a factor column on their own, but the tables are named first)
 dRev <- d
 dRev$f <- factor(as.character(d$f), levels = rev(lv$f))
 dSub <- d
@@ -437,9 +442,9 @@ refusedNothingTouched(
   "(sampler 2 differs from sampler 1",
   "a subset of the levels"
 )
-# the same table in every sampler takes labels and numbers
+# the same table in every sampler takes labels
 same <- differing(d, d)
-r <- updatePredictorPerObservationJointly(same, codes, "f")
+r <- updatePredictorPerObservationJointly(same, newF, "f")
 expect_true(all(r))
 expect_identical(same[[1L]]$data@x[, "f"], same[[3L]]$data@x[, "f"])
 
@@ -452,7 +457,7 @@ snapA <- snapshot(a)
 snapB <- snapshot(b)
 expect_error(
   updatePredictorPerObservationJointly(list(a, b), newF, "f"),
-  "column 'f' is categorical in sampler 1 and not in sampler 2, so its labels cannot be installed in both; give numbers",
+  "column 'f' is categorical in sampler 1 and not in sampler 2, so its labels cannot be installed in both; update them in separate calls",
   fixed = TRUE
 )
 expect_error(
@@ -462,14 +467,19 @@ expect_error(
 )
 expect_identical(snapshot(a), snapA)
 expect_identical(snapshot(b), snapB)
-r <- updatePredictorPerObservationJointly(list(a, b), codes, "f")
-expect_true(all(r))
+expect_error(
+  updatePredictorPerObservationJointly(list(a, b), codes, "f"),
+  numberRefusal,
+  fixed = TRUE
+)
+expect_identical(snapshot(a), snapA)
+expect_identical(snapshot(b), snapB)
 
 # ---- a one-column character matrix is refused as a matrix -----------------------------------
 expectRefused(
   matrix(newF, ncol = 1L),
   "f",
-  "column 'f' is categorical; give its values as a factor or character vector of its labels, or as numbers for its codes from 0",
+  "column 'f' is categorical; give its values as a factor or character vector of its labels",
   "character matrix"
 )
 
