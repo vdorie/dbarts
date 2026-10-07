@@ -863,6 +863,45 @@ expect_error(
   "forest()'s first argument has an empty name; a predictor with no name is",
   fixed = TRUE
 )
+# a column whose name is NA is unnamed too, alone and beside an empty one
+for (unnamed in list(c("x1", NA, "x3"), c(NA, "", "x3"), c("", NA, "x3"))) {
+  design <- x
+  colnames(design) <- unnamed
+  shape <- paste(unnamed, collapse = ",")
+  for (case in list(
+    list(quote(forest(basis = ~z, vars = "x3")), 3L),
+    list(quote(forest(x3, basis = ~z)), 3L),
+    list(quote(forest(., basis = ~z)), 1:3),
+    list(quote(forest(. - x3, basis = ~z)), 1:2),
+    list(quote(forest(2:3, basis = ~z)), 2:3)
+  )) {
+    expect_identical(
+      forestColumns(onDesign(design, bquote(list(forest(), .(case[[1L]]))))),
+      list(NULL, case[[2L]]),
+      info = paste(shape, deparse(case[[1L]]))
+    )
+  }
+  expect_identical(
+    attr(
+      onDesign(design, quote(list(forest(vars = "x3"))))$model,
+      "forest.columns"
+    ),
+    3L,
+    info = shape
+  )
+  expect_error(
+    onDesign(design, quote(list(forest(), forest(c("x3", NA), basis = ~z)))),
+    "'vars' contains missing values",
+    fixed = TRUE,
+    info = shape
+  )
+  expect_error(
+    onDesign(design, quote(list(forest(), forest(c("x3", ""), basis = ~z)))),
+    "forest()'s first argument has an empty name",
+    fixed = TRUE,
+    info = shape
+  )
+}
 # with no column names at all, positions and '.'
 expect_identical(
   forestColumns(onDesign(
@@ -913,5 +952,147 @@ for (forests in list(
     "'x1' is the name of 2 predictors of this fit; a name selects one",
     fixed = TRUE,
     info = deparse(forests)
+  )
+}
+
+# a label is also matched as R writes the same code out, so a column named
+# with other spacing is reached by its code; the exact name wins where both
+# are there
+spaced <- cbind(
+  "log( x1 )" = log(x[, 1L]),
+  "x2*x3" = x[, 2L] * x[, 3L],
+  x3 = x[, 3L]
+)
+for (case in list(
+  list(quote(. - log(x1)), 2:3),
+  list(quote(log(x1) + x3), c(1L, 3L)),
+  list(quote(. - x2 * x3), c(1L, 3L)),
+  list(quote(x2 * x3 + x3), 2:3),
+  list(quote(. - `log( x1 )`), 2:3)
+)) {
+  expect_identical(
+    forestColumns(onDesign(
+      spaced,
+      bquote(list(forest(), forest(.(case[[1L]]), basis = ~z)))
+    )),
+    list(NULL, case[[2L]]),
+    info = deparse(case[[1L]])
+  )
+}
+bothSpacings <- cbind(spaced, "log(x1)" = x[, 1L])
+expect_identical(
+  forestColumns(onDesign(
+    bothSpacings,
+    quote(list(forest(), forest(. - log(x1), basis = ~z)))
+  )),
+  list(NULL, 1:3)
+)
+
+# a term's columns are those the term produced, by the design's own layout,
+# and never those whose names begin as the term's does: a factor g under
+# indicators beside predictors named g.total and g2, and beside a numeric
+# predictor g.u, named as an indicator of g is
+clash <- data.frame(frame["y"], x1 = x[, 1L], g = rep_len(c("u", "v", "w"), n))
+clash$g.total <- x[, 2L]
+clash$g2 <- x[, 3L]
+clash$g.u <- dose
+clash$z <- z
+onClash <- function(forests) {
+  eval(
+    bquote(dbarts(
+      y ~ x1 + g + g.total + g2 + g.u,
+      clash,
+      factors = "indicators",
+      forests = .(forests),
+      control = predictorControl()
+    )),
+    parent.frame()
+  )
+}
+expect_identical(
+  colnames(onClash(quote(list(forest(), forest(g, basis = ~z))))$data@x),
+  c("x1", "g.u", "g.v", "g.w", "g.total", "g2", "g.u")
+)
+for (case in list(
+  list(quote(g), 2:4),
+  list(quote(. - g), c(1L, 5:7)),
+  list(quote(g + g2), c(2:4, 6L)),
+  list(quote(g.total), 5L),
+  list(quote(. - g.total), c(1:4, 6:7)),
+  list(quote(g2 + g.total), 5:6),
+  # the numeric predictor is the term of that name; the indicator beside it
+  # is the factor's
+  list(quote(g.u), 7L),
+  list(quote(. - g.u), 1:6),
+  list(quote(. - g - g.u), c(1L, 5:6)),
+  list(quote(g.v + x1), c(1L, 3L)),
+  list(quote(c(2, 7)), c(2L, 7L)),
+  list(quote(c("g.total", "g2")), 5:6)
+)) {
+  expect_identical(
+    forestColumns(onClash(bquote(list(
+      forest(),
+      forest(.(case[[1L]]), basis = ~z)
+    )))),
+    list(NULL, case[[2L]]),
+    info = deparse(case[[1L]])
+  )
+}
+# by value the shared name tells neither column from the other
+expect_error(
+  onClash(quote(list(forest(), forest(c("g.u", "x1"), basis = ~z)))),
+  "'g.u' is the name of 2 predictors of this fit",
+  fixed = TRUE
+)
+# the single forest's constraints read a term the same way
+expect_identical(
+  attr(onClash(quote(list(forest(g + x1))))$model, "forest.columns"),
+  1:4
+)
+# on a matrix a column is its own term, whatever its neighbours are called
+neighbours <- cbind(g = x[, 1L], g.total = x[, 2L], g2 = x[, 3L])
+expect_identical(
+  forestColumns(onDesign(
+    neighbours,
+    quote(list(forest(), forest(. - g, basis = ~z)))
+  )),
+  list(NULL, 2:3)
+)
+expect_identical(
+  forestColumns(onDesign(
+    neighbours,
+    quote(list(forest(), forest(g, basis = ~z)))
+  )),
+  list(NULL, 1L)
+)
+
+# a number alone is a position; among terms it would be a column's name, and
+# is refused unless that name is what is written, backticked
+numbered <- x
+colnames(numbered) <- c("2", "1", "x3")
+numeral <- paste0(
+  "'2' is not a predictor; give positions as the whole argument, as c(2, 3)"
+)
+for (forests in list(
+  quote(list(forest(), forest(. - 2, basis = ~z))),
+  quote(list(forest(), forest(x3 + 2, basis = ~z)))
+)) {
+  expect_error(onDesign(numbered, forests), numeral, fixed = TRUE)
+}
+refusesSelection(quote(list(forest(), forest(x1 + 2, basis = ~z))), numeral)
+for (case in list(
+  list(quote(2), 2L),
+  list(quote(c(2, 3)), 2:3),
+  list(quote("2"), 1L),
+  list(quote(`2` + x3), c(1L, 3L)),
+  list(quote(. - `2`), 2:3)
+)) {
+  expect_identical(
+    forestColumns(onDesign(
+      numbered,
+      bquote(list(forest(), forest(.(case[[1L]]), basis = ~z)))
+    )),
+    list(NULL, case[[2L]]),
+    info = deparse(case[[1L]])
   )
 }

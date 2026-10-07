@@ -670,20 +670,87 @@ parseMonotoneSign <- function(value) {
   direction
 }
 
-## Resolve one predictor selector name to its 1-based model-matrix column
-## indices: an exact column-name match returns that single index; otherwise a
-## bare term label expands to its indicator columns
-## (startsWith(columnNames, "<name>.")). Returns NULL when the name is neither a
-## column nor a term, so each caller can raise its own diagnostic; a recognized
-## term with no indicator columns yields integer(0), not NULL. columnNames may
-## be NULL (no match, and expansion yields none).
-resolveTermColumns <- function(name, columnNames, termLabels) {
-  index <- match(name, columnNames)
-  if (!is.na(index)) {
-    return(index)
+## The columns each term of a design produced, one integer vector per term in
+## `termLabels`' order, read from the design's own layout: its columns stand
+## in its terms' order, each term's as one run, named for the term itself or,
+## where it gave several (a factor's indicators, a matrix's columns), for the
+## term and a suffix. A run is told from its neighbour by position, never by
+## a name's prefix alone: where the NEXT term's label looks like a column of
+## this one ('g' beside 'g.total', or beside a numeric predictor 'g.u'), the
+## run ends where that term's own columns begin. NULL when the names are not
+## such a layout, a test matrix's columns in another order among them.
+termColumnBlocks <- function(columnNames, termLabels) {
+  numColumns <- length(columnNames)
+  numTerms <- length(termLabels)
+  if (numTerms == 0L || numColumns == 0L) {
+    return(NULL)
   }
+  blocks <- vector("list", numTerms)
+  at <- 1L
+  for (j in seq_len(numTerms)) {
+    term <- termLabels[j]
+    if (at <= numColumns && columnNames[at] == term) {
+      blocks[[j]] <- at
+      at <- at + 1L
+      next
+    }
+    prefix <- paste0(term, ".")
+    end <- at
+    while (end <= numColumns && startsWith(columnNames[end], prefix)) {
+      end <- end + 1L
+    }
+    if (j < numTerms && end > at && startsWith(termLabels[j + 1L], prefix)) {
+      # the next term's own columns close the run: its one column, the last
+      # that bears its name, or its several, from the first that does
+      following <- termLabels[j + 1L]
+      run <- seq.int(at, end - 1L)
+      own <- run[columnNames[run] == following]
+      if (length(own) > 0L) {
+        end <- own[length(own)]
+      } else {
+        own <- run[startsWith(columnNames[run], paste0(following, "."))]
+        if (length(own) > 0L) {
+          end <- own[1L]
+        }
+      }
+    }
+    blocks[[j]] <- seq_len(end - at) + (at - 1L)
+    at <- end
+  }
+  if (at != numColumns + 1L) {
+    return(NULL)
+  }
+  blocks
+}
+
+## Resolve one predictor selector name to its 1-based model-matrix column
+## indices: a term label is every column the term produced, by the design's
+## layout (termColumnBlocks), and any other name the column that bears it.
+## Returns NULL when the name is neither a term nor a column, so each caller
+## can raise its own diagnostic; a recognized term with no columns yields
+## integer(0), not NULL. columnNames may be NULL. Names that are no design in
+## its terms' order have no layout to read, and there a term's columns are
+## those named for it.
+resolveTermColumns <- function(name, columnNames, termLabels) {
+  exact <- which(columnNames == name)
   if (name %in% termLabels) {
+    # one column of that name, and none that could be another of the term's
+    if (
+      length(exact) == 1L && !any(startsWith(columnNames, paste0(name, ".")))
+    ) {
+      return(exact)
+    }
+    blocks <- termColumnBlocks(columnNames, termLabels)
+    if (!is.null(blocks)) {
+      return(blocks[[match(name, termLabels)]])
+    }
+    if (length(exact) > 0L) {
+      return(exact[1L])
+    }
     return(which(startsWith(columnNames, paste0(name, "."))))
+  }
+  if (length(exact) > 0L) {
+    return(exact[1L])
   }
   NULL
 }
@@ -937,12 +1004,13 @@ refuseHeldFormula <- function(expr) {
 
 ## The design columns a label names: a predictor by its label exactly as the
 ## fit holds it, the term label on a formula fit (every column the term
-## gives) and the column name on a matrix fit, or else as R writes the same
-## code out. Integer(0) when it names none; a name that two columns carry
-## cannot tell them apart and is refused, positions being what selects them.
+## produced, resolveTermColumns) and the column name on a matrix fit, or else
+## as R writes the same code out. NULL when it names none; a name that two
+## columns carry cannot tell them apart and is refused, positions being what
+## selects them.
 labelColumns <- function(label, columnNames, termLabels) {
   if (!nzchar(label)) {
-    return(integer(0L))
+    return(NULL)
   }
   written <- function(names) {
     vapply(
@@ -957,32 +1025,34 @@ labelColumns <- function(label, columnNames, termLabels) {
       USE.NAMES = FALSE
     )
   }
-  columns <- which(columnNames == label)
-  if (length(columns) == 0L && label %in% termLabels) {
-    return(which(startsWith(columnNames, paste0(label, "."))))
+  term <- match(label, termLabels)
+  if (is.na(term) && !any(columnNames == label)) {
+    term <- match(label, written(termLabels))
   }
+  if (!is.na(term)) {
+    return(resolveTermColumns(termLabels[term], columnNames, termLabels))
+  }
+  columns <- which(columnNames == label)
   if (length(columns) == 0L) {
     columns <- which(nzchar(columnNames) & written(columnNames) == label)
   }
-  if (length(columns) == 0L && label %in% written(termLabels)) {
-    term <- termLabels[match(label, written(termLabels))]
-    columns <- which(columnNames == term)
-    if (length(columns) == 0L) {
-      return(which(startsWith(columnNames, paste0(term, "."))))
-    }
-  }
   if (length(columns) > 1L) {
-    stop(
-      "'",
-      label,
-      "' is the name of ",
-      length(columns),
-      " predictors of this fit; a name selects one, so select these by ",
-      "position",
-      call. = FALSE
-    )
+    refuseSharedName(label, length(columns))
   }
-  columns
+  if (length(columns) == 0L) NULL else columns
+}
+
+## A name that several columns carry selects none of them.
+refuseSharedName <- function(name, count) {
+  stop(
+    "'",
+    name,
+    "' is the name of ",
+    count,
+    " predictors of this fit; a name selects one, so select these by ",
+    "position",
+    call. = FALSE
+  )
 }
 
 ## The columns forest()'s first argument selects in a 'forests' list when it
@@ -1006,14 +1076,21 @@ readSelectionTerms <- function(expr, data, refuseUnknown) {
       call. = FALSE
     )
   }
-  columnNames <- colnames(data@x)
-  if (is.null(columnNames)) {
-    columnNames <- character(ncol(data@x))
-  }
+  columnNames <- designColumnNames(data)
   termLabels <- stripBackticks(attr(data@x, "term.labels"))
   columnsOf <- function(e) {
     if (identical(e, as.name("."))) {
       return(seq_len(ncol(data@x)))
+    }
+    if (is.numeric(e)) {
+      # alone a number is a position; among terms it would be a column's name
+      stop(
+        "'",
+        format(e),
+        "' is not a predictor; give positions as the whole argument, as ",
+        "c(2, 3)",
+        call. = FALSE
+      )
     }
     if (is.call(e) && identical(e[[1L]], as.name("offset"))) {
       stop(
@@ -1029,7 +1106,7 @@ readSelectionTerms <- function(expr, data, refuseUnknown) {
       paste(deparse(e, width.cutoff = 500L), collapse = " ")
     }
     columns <- labelColumns(label, columnNames, termLabels)
-    if (length(columns) == 0L && label %not_in% termLabels) {
+    if (is.null(columns)) {
       refuseUnknown(label)
     }
     columns
@@ -1055,6 +1132,17 @@ readSelectionTerms <- function(expr, data, refuseUnknown) {
   sort(take(expr, integer(0L)))
 }
 
+## A design's column names, one for each column: a column with no name, an
+## NA or an empty one, is "", which no name written by a caller matches.
+designColumnNames <- function(data) {
+  columnNames <- colnames(data@x)
+  if (is.null(columnNames)) {
+    return(character(ncol(data@x)))
+  }
+  columnNames[is.na(columnNames)] <- ""
+  columnNames
+}
+
 ## A forest's predictors, as forest()'s first argument states them, resolved
 ## to sorted 1-based design columns, or NULL for an unrestricted forest.
 ##
@@ -1077,7 +1165,11 @@ resolveForestVars <- function(vars, data, allIsNull = FALSE) {
   if (is.null(vars)) {
     return(NULL)
   }
-  columnNames <- colnames(data@x)
+  columnNames <- if (is.null(colnames(data@x))) {
+    NULL
+  } else {
+    designColumnNames(data)
+  }
   termLabels <- stripBackticks(attr(data@x, "term.labels"))
   predictors <- if (length(termLabels) > 0L) termLabels else columnNames
   refuseUnknown <- function(name) {
@@ -1200,7 +1292,7 @@ resolveForestVars <- function(vars, data, allIsNull = FALSE) {
       }
       for (name in vars) {
         if (sum(columnNames == name) > 1L) {
-          labelColumns(name, columnNames, termLabels)
+          refuseSharedName(name, sum(columnNames == name))
         }
       }
     }

@@ -395,6 +395,29 @@ withoutRemovals <- function(expr) {
   expr
 }
 
+## Whether the top of a right-hand side removes a term: a '-' on anything but
+## the intercept's 1 or 0.
+removesTerms <- function(expr) {
+  if (is.null(expr) || !is.call(expr)) {
+    return(FALSE)
+  }
+  isTerm <- function(removed) {
+    !(is.numeric(removed) && length(removed) == 1L && removed %in% c(0, 1))
+  }
+  if (isBinaryCall(expr, "-")) {
+    return(isTerm(expr[[3L]]) || removesTerms(expr[[2L]]))
+  }
+  if (
+    is.call(expr) && identical(expr[[1L]], as.name("-")) && length(expr) == 2L
+  ) {
+    return(isTerm(expr[[2L]]))
+  }
+  if (isBinaryCall(expr, "+")) {
+    return(removesTerms(expr[[2L]]) || removesTerms(expr[[3L]]))
+  }
+  FALSE
+}
+
 ## The terms of a right-hand side as R's own terms() reads them, '.' expanded
 ## over `data` and '-' applied: the predictor terms' labels, the offset()
 ## calls, and whether the intercept was removed. `response` is the fit's
@@ -703,6 +726,49 @@ ingestFormulaTerms <- function(
   # the forests takes its term from this forest and from no forest with a
   # basis, whose terms are its own. The fit's offset() terms and intercept
   # term are read here too.
+  #
+  # Written with no first argument that forest is every predictor of the
+  # fit, which are the terms of the forests with a basis: those are its
+  # contents, so that a removal beside it takes its term from it as from a
+  # forest that names them. Its predictors given by value may name columns
+  # the fit builds, an indicator of a factor among them, which no formula can
+  # be read against before the design exists: beside a removal that is
+  # refused, not left with a column the removal was meant to take.
+  bare <- which(!multiplied)
+  if (length(bare) == 1L) {
+    bareVars <- written[[bare]]$spec$vars
+    if (is.null(bareVars)) {
+      others <- unique(unlist(lapply(written[multiplied], function(entry) {
+        termLabels(entry$spec$vars)
+      })))
+      if (length(others) > 0L) {
+        written[[bare]]$spec$vars <- structure(
+          list(
+            expr = quote(.),
+            env = formulaEnv,
+            labels = others,
+            named = TRUE
+          ),
+          class = "dbartsForestTerms"
+        )
+      }
+    } else if (
+      inherits(bareVars, "dbartsForestTerms") &&
+        length(bareVars$columns) > 0L &&
+        removesTerms(walked$plain)
+    ) {
+      stop(
+        "'",
+        shownCode(written[[bare]]$call),
+        "': '",
+        bareVars$columns[1L],
+        "' is a column the fit builds, not a column of the data, and what ",
+        "the formula removes beside the forest cannot be read against it; ",
+        "write the forest's predictors as terms, or leave the removal out",
+        call. = FALSE
+      )
+    }
+  }
   position <- 0L
   reduced <- replaceForestTerms(walked$rhs, function(hit) {
     position <<- position + 1L
@@ -718,7 +784,6 @@ ingestFormulaTerms <- function(
   first <- if (!is.null(reduced)) {
     readRhsTerms(reduced, response, termData, formulaEnv)
   }
-  bare <- which(!multiplied)
   bareTerms <- if (length(bare) == 1L) termLabels(written[[bare]]$spec$vars)
   if (length(first$labels) == 0L) {
     if (length(bareTerms) > 0L) {

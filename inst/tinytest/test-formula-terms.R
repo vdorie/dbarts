@@ -393,6 +393,37 @@ indicatorFit <- fit(
 expect_identical(predictors(indicatorFit)[3:5], c("zf.u", "zf.v", "zf.w"))
 expect_identical(forestInfo(indicatorFit)$vars[[2L]], 3:5)
 
+# a term's columns are those the term produced, not those whose names begin
+# as it does: a factor beside predictors named like its columns
+clash <- data.frame(y = y, x1 = x1, g = zf, g.total = x2, g2 = x3, z = z)
+clash$g.u <- a
+clashing <- fit(
+  y ~ x1 + g + g.total + g2 + g.u + forest(g, basis = ~z),
+  data = clash,
+  factors = "indicators"
+)
+expect_identical(
+  predictors(clashing),
+  c("x1", "g.u", "g.v", "g.w", "g.total", "g2", "g.u")
+)
+expect_identical(forestInfo(clashing)$vars, list(NULL, 2:4))
+expect_identical(
+  forestInfo(fit(
+    y ~ forest(. - z - g) + forest(g, basis = ~z),
+    data = clash,
+    factors = "indicators"
+  ))$vars,
+  list(1:4, 5:7)
+)
+expect_identical(
+  forestInfo(fit(
+    y ~ forest(. - z) - g.total + forest(g.total + g.u, basis = ~z),
+    data = clash,
+    factors = "indicators"
+  ))$vars,
+  list(1:6, 6:7)
+)
+
 # '.' is every column of the data but the response, and '-' removes a term:
 # among the plain terms
 dotOutside <- expectSameForest(
@@ -502,6 +533,40 @@ spellings <- list(
     y ~ x1 + x2 - x2 + offset(o) + forest(x2, basis = ~z) - 1,
     list("x1", "x2"),
     d
+  ),
+  # the forest written with no first argument is every predictor of the
+  # fit, and a removal takes its term from it as from one that names them
+  list(
+    y ~ forest() + forest(x1 + x2, basis = ~z) - x1,
+    y ~ x2 + forest(x1 + x2, basis = ~z),
+    list("x2", c("x2", "x1")),
+    d
+  ),
+  list(
+    y ~ forest() - x1 + forest(x1 + x2, basis = ~z) + forest(x3, basis = ~a),
+    y ~ x2 + x3 + forest(x1 + x2, basis = ~z) + forest(x3, basis = ~a),
+    list(c("x2", "x3"), c("x2", "x1"), "x3"),
+    d
+  ),
+  list(
+    y ~ forest() + forest(x1 + x2, basis = ~z),
+    y ~ x1 + x2 + forest(x1 + x2, basis = ~z),
+    list(c("x1", "x2"), c("x1", "x2")),
+    d
+  ),
+  list(
+    y ~ forest() + forest(x1 + x2, basis = ~z) - b - 1,
+    y ~ x1 + x2 + forest(x1 + x2, basis = ~z) - b - 1,
+    list(c("x1", "x2"), c("x1", "x2")),
+    d
+  ),
+  # a forest with a basis and no first argument has no terms of its own: it
+  # is every predictor the fit is left with
+  list(
+    y ~ forest(x1 + x2) + forest(basis = ~z) - x2,
+    y ~ x1 + forest(basis = ~z),
+    list("x1", "x1"),
+    d
   )
 )
 for (spelling in spellings) {
@@ -549,6 +614,50 @@ refuses(
     "the formula removes every plain term it writes (x1 + x2), which ",
     "leaves the forest with no multiplier no predictor to split on"
   )
+)
+refuses(
+  y ~ forest() + forest(x1, basis = ~z) - x1,
+  "'forest()': what the formula removes beside it leaves the forest no"
+)
+# a removal and the first forest's predictors given by value: names of
+# columns of the data are terms, and the removal is read against them
+expectSameForest(
+  y ~ forest(c("x1", "x2")) + forest(x1, basis = ~z) - x2,
+  y ~ x1 + forest(x1, basis = ~z)
+)
+# a name of a column the fit builds, one indicator of a factor, cannot be
+# read against a removal before the design exists: refused, not left in
+refuses(
+  y ~ forest(c("x1", "zf.u")) + forest(zf + x1, basis = ~z) - zf,
+  paste0(
+    "'forest(c(\"x1\", \"zf.u\"))': 'zf.u' is a column the fit builds, not ",
+    "a column of the data, and what the formula removes beside the forest ",
+    "cannot be read against it; write the forest's predictors as terms, or ",
+    "leave the removal out"
+  ),
+  factors = "indicators"
+)
+refuses(
+  y ~ forest(c("x1", "zf.u")) - b + forest(zf + x1, basis = ~z),
+  "'zf.u' is a column the fit builds",
+  factors = "indicators"
+)
+# with no removal, and beside an intercept term, it is the selection written
+for (formula in list(
+  y ~ forest(c("x1", "zf.u")) + forest(zf + x1, basis = ~z),
+  y ~ forest(c("x1", "zf.u")) + forest(zf + x1, basis = ~z) - 1
+)) {
+  expect_identical(
+    splitsOn(fit(formula, factors = "indicators")),
+    list(c("x1", "zf.u"), c("x1", "zf.u", "zf.v", "zf.w")),
+    info = deparse(formula)
+  )
+}
+# update() cannot take a term out of a forest(): it drops a removal of what
+# is no term of the formula's own top, and the formula comes back as it was
+expect_identical(
+  stats::update(y ~ forest(x1 + x2 + x3) + forest(x1, basis = ~z), . ~ . - x3),
+  y ~ forest(x1 + x2 + x3) + forest(x1, basis = ~z)
 )
 # plain terms that a removal takes away are still plain terms beside a forest
 refuses(
