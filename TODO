@@ -821,11 +821,14 @@ items
     section 10). After the multiplier law's held push it is the one
     place left where a sampler runs trees drawn under other held
     values. Not planned.
-  state-family-record-removal: a state stops recording its family and
-    setState, a copy and a reload stop refusing by family; the floor
-    on precisions that are not positive and finite stays (dec-B283,
-    revising dec-A174). Before the merge to main; bridge, tests, help
-    and the design note of cross-family-state-install.
+  precision-floor-edge-values: the floor that refuses scales and
+    Polya-Gamma variates that are not positive and finite passes a
+    value at the edge of what a double holds: a variate of 1e-320 in a
+    logistic or negative-binomial block installs and the next sweep
+    does not return, and the largest finite double as a scale gives
+    fits that are not finite. No stored state holds such a value; a
+    block edited by hand can, within one family as across two
+    (docs/plans/state-family-record-removal.md, landing note).
   single-forest-vars-leftovers: two things the column restriction on a
     single declared forest left (docs/design/single-forest-vars.md). A
     zero split probability does not exclude a column once the positive

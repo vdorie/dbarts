@@ -1,6 +1,6 @@
 # state-family-record-removal: a state stops recording its family and is not refused by family
 
-Status: PLANNED (dec-B283, revising dec-A174).
+Status: LANDED 2026-10-07 (14cfd187 to 7359f4bc; dec-B283, revising dec-A174).
 
 agent: opus implementer, one (bridge, tests, records).
 rng: NEUTRAL, bit for bit: no sweep changes. A stored state loses one attribute and `setState`, `copy` and a
@@ -48,3 +48,18 @@ Only the bridge held the record; the engine and tests/cpp hold only the floor. T
   of its own under a time limit: 325 of the 380 across kinds refused, 55 run, every one returns, fits finite.
 - tests/cpp and the full tinytest suite at home; lintr, air, the rc-codoc, win-drift and doc-freshness checks
   and the mutation battery's anchors; `R CMD check --as-cran` on a clean export; stan4bart's suite.
+
+## Landing note
+
+Landed 2026-10-07 as 14cfd187 to 7359f4bc, 247 lines added and 432 removed. The bridge file is byte for
+byte what it was before the record was added; the engine and tests/cpp are untouched, every line the
+earlier slice added there serving the floor. The independent review, told to refute, found nothing
+blocking: over 400 ordered pairs of twenty kinds of sampler, by `setState`, `copy` and a reload, none
+hung and none gave fits that were not finite; a state written with the record installs with it
+ignored; and two mutations of the floor each failed the tests. What the review found and this slice
+leaves: a value edited by hand to the edge of what a double holds, a Polya-Gamma variate of 1e-320 or
+the largest finite double as a scale, passes the floor and breaks a sweep, within one family as
+across two (root TODO, precision-floor-edge-values). Gates on a clean copy of the rebased branch:
+install, tests/cpp 351, the tinytest suite at home 16370 results and none failed, lintr, air,
+rc-codoc, win-drift, anchors, build and check with the Date note alone. stan4bart's suite against the
+build: 582 results, none failed.
