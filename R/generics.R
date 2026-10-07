@@ -1311,6 +1311,14 @@ refuseMisnamedBases <- function(given, labels, numForests) {
   if (!is.character(labels) || length(labels) != numForests) {
     labels <- paste0("forest", seq_len(numForests))
   }
+  for (index in seq_along(given)) {
+    if (!is.na(given[[index]]) && given[[index]] == paste0("forest", index)) {
+      taken <- forestNameTaken(given[[index]], index, labels)
+      if (!is.null(taken)) {
+        stop(taken)
+      }
+    }
+  }
   wrong <- which(
     !is.na(given) &
       nzchar(given) &

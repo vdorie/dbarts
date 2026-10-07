@@ -1267,6 +1267,32 @@ forestLabelCode <- function(text) {
   paste(deparse(parsed[[1L]], width.cutoff = 500L), collapse = " ")
 }
 
+# The refusal of a string that is the label of forest `labelAt` and also the
+# name forest<i> of position `position`.
+forestLabelConflict <- function(text, labelAt, position) {
+  paste0(
+    "'forest' (",
+    encodeString(text, quote = "\""),
+    ") is the label of forest ",
+    labelAt,
+    " and the name of position ",
+    position,
+    "; select by position, as forest = ",
+    labelAt
+  )
+}
+
+# The refusal of a name in a list given forest by forest that is another
+# forest's label where it is also this position's forest<i>; NULL otherwise.
+# `labels` is every forest's label, "" or NULL where none is recorded.
+forestNameTaken <- function(name, position, labels) {
+  other <- setdiff(which(labels == name), position)
+  if (length(other) == 0L) {
+    return(NULL)
+  }
+  forestLabelConflict(name, other[[1L]], position)
+}
+
 # The one reader of a 'forest' argument that is not NULL, given the labels
 # the model's forests carry (NULL where it records none: a sampler of one
 # forest, a multinomial one) and the number of forests. A number is a
@@ -1306,6 +1332,9 @@ selectForest <- function(forest, labels, numForests, several = FALSE) {
   if (!several && length(forest) != 1L) {
     stop("'forest' must be a single number or a single label")
   }
+  # labels and the forest count come from one record, so they agree; this
+  # fires only if a record were written with the two out of step (a corrupt
+  # restore), when no label can be trusted and forest<i> alone is taken
   if (!is.character(labels) || length(labels) != numForests) {
     labels <- NULL
   }
@@ -1336,16 +1365,7 @@ selectForest <- function(forest, labels, numForests, several = FALSE) {
     exact <- if (!is.null(labels)) which(labels == text)
     if (length(exact) == 1L) {
       if (!is.na(named) && named != exact) {
-        stop(
-          "'forest' (",
-          quote(text),
-          ") is the label of forest ",
-          exact,
-          " and the name of position ",
-          named,
-          "; select by position, as forest = ",
-          exact
-        )
+        stop(forestLabelConflict(text, exact, named))
       }
       return(exact)
     }

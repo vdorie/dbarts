@@ -2117,6 +2117,14 @@ resolveForestSpreads <- function(sampler, forests) {
     if (is.null(labels)) {
       labels <- rep("", numForests)
     }
+    for (index in seq_along(given)) {
+      if (!is.na(given[[index]]) && given[[index]] == paste0("forest", index)) {
+        taken <- forestNameTaken(given[[index]], index, labels)
+        if (!is.null(taken)) {
+          stop(taken)
+        }
+      }
+    }
     labels <- labels[seq_along(given)]
     mismatched <- which(
       nzchar(given) &
@@ -3350,7 +3358,7 @@ dbartsSampler <- setRefClass(
       counts
     },
     getLeafPrior = function(forest = NULL) {
-      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() law) or sd (a number or an invchi() law), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('leaf value', 'coefficient' or 'amplitude'); prior.mean; k.scale, the value k is relative to, so the spread in force on each chain is k.scale / getK() - the data's scale under a k-named prior and under sd = invchi(df, 0), and otherwise, under an sd-named prior, twice the sd or invchi() scale in force; response.scale and response.shift. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1, leaf.prior is the forest(sd = ) creation takes, which goes back into setLeafPrior(forests = ) - the half-Cauchy median on a forest created without a basis (prior.sd.of 'amplitude scale'), the leaf-scale factor otherwise ('forest total') - and the list adds basis.row.norm, leaf.scale.factor and leaf.scale.divisor, and one of amplitude.prior.variance or amplitude.prior.scale; they are absent elsewhere. Every chain runs under the sampler's one prior and response transform, which no state install moves, so every value is shared by the chains; an NA spread is refused on write. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns an unnamed list of one prior per forest; a single-forest sampler's NULL read is bitwise its forest 1 read."
+      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() law) or sd (a number or an invchi() law), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('leaf value', 'coefficient' or 'amplitude'); prior.mean; k.scale, the value k is relative to, so the spread in force on each chain is k.scale / getK() - the data's scale under a k-named prior and under sd = invchi(df, 0), and otherwise, under an sd-named prior, twice the sd or invchi() scale in force; response.scale and response.shift. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1, leaf.prior is the forest(sd = ) creation takes, which goes back into setLeafPrior(forests = ) - the half-Cauchy median on a forest created without a basis (prior.sd.of 'amplitude scale'), the leaf-scale factor otherwise ('forest total') - and the list adds basis.row.norm, leaf.scale.factor and leaf.scale.divisor, and one of amplitude.prior.variance or amplitude.prior.scale; they are absent elsewhere. Every chain runs under the sampler's one prior and response transform, which no state install moves, so every value is shared by the chains; an NA spread is refused on write. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns an unnamed list of one prior per forest; a single-forest sampler's NULL read is bitwise its forest 1 read. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i)."
       ptr <- getPointer()
       read <- function(index) {
         reportLeafPrior(
@@ -3368,7 +3376,7 @@ dbartsSampler <- setRefClass(
       lapply(seq_len(numForests) - 1L, read)
     },
     getK = function(forest = NULL) {
-      "Returns each chain's current leaf-prior k, the value run()$k records per draw, read without running, as getSigmas reports sigma; after a run it is bitwise the last draw. A fixed k repeats per chain, and a forest whose scale a multi-forest calibration map sets reports 1. It is k whatever terms the prior was named in, relative to getLeafPrior()$k.scale. A vector of length n.chains at one forest, or, at the default forest = NULL on a multi-forest sampler, an n.forests x n.chains matrix; a single-forest sampler's NULL read is bitwise its forest 1 read."
+      "Returns each chain's current leaf-prior k, the value run()$k records per draw, read without running, as getSigmas reports sigma; after a run it is bitwise the last draw. A fixed k repeats per chain, and a forest whose scale a multi-forest calibration map sets reports 1. It is k whatever terms the prior was named in, relative to getLeafPrior()$k.scale. A vector of length n.chains at one forest, or, at the default forest = NULL on a multi-forest sampler, an n.forests x n.chains matrix; a single-forest sampler's NULL read is bitwise its forest 1 read. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i)."
       ptr <- getPointer()
       read <- function(index) {
         .Call(C_dbarts_bartcore_getLeafPrior, ptr, index)[, "k"]
@@ -3642,7 +3650,7 @@ dbartsSampler <- setRefClass(
       newdata = NULL,
       forest = NULL
     ) {
-      "Returns a data.frame containing the internal state of the trees, one row per node. A sampler with several forests (a multinomial one, or one declared with forests =, whatever the count) puts a leading 'forest' column (indexed from 1) on it, and stacks every forest forest-major at the default forest = NULL, as the sampler's other per-forest readers stack at their own default; any other sampler returns no forest column, and accepts forest = 1. forest also takes a single index or a vector of them, each validated as getLeafPrior/getForestFits/getForestAmplitudes/getForestVariableCounts validate one. treeNums defaults to, and is validated against, EACH selected forest's own tree count, which need not match forest 1's."
+      "Returns a data.frame containing the internal state of the trees, one row per node. A sampler with several forests (a multinomial one, or one declared with forests =, whatever the count) puts a leading 'forest' column (indexed from 1) on it, and stacks every forest forest-major at the default forest = NULL, as the sampler's other per-forest readers stack at their own default; any other sampler returns no forest column, and accepts forest = 1. forest also takes a single position or label, or a vector of them (positions, or labels as a string is read elsewhere; forest<i> names position i), each validated as getLeafPrior/getForestFits/getForestAmplitudes/getForestVariableCounts validate one. treeNums defaults to, and is validated against, EACH selected forest's own tree count, which need not match forest 1's."
       matchedCall <- match.call()
       current <- isTRUE(current)
       # live working trees have no sample dimension, so treat a current request
@@ -3808,7 +3816,7 @@ dbartsSampler <- setRefClass(
       treePlotPars = c(nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
       ...
     ) {
-      "Minimialist visualization of tree branching and contents. forest, as with getTrees, defaults to the sampler's only forest and is required on a sampler with more than one."
+      "Minimialist visualization of tree branching and contents. forest, as with getTrees, defaults to the sampler's only forest and is required on a sampler with more than one; it is a number, the forest's position from 1, or a string, its label (forest<i> names position i), and one only."
 
       refusePlotTreeArgs(sys.call())
       matchedCall <- match.call()

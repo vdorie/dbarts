@@ -122,6 +122,38 @@ expect_identical(select("a + b", labels, 4L), 4L)
 expect_identical(select("forest1", labels, 4L), 1L)
 expect_identical(select("forest4", labels, 4L), 4L)
 
+# forest0 and the lower bound of forest<i> are positions that do not exist
+labels <- c("forest1", "dose")
+expect_identical(
+  refusal(select("forest0", labels, 2L)),
+  paste0(
+    "'forest' names no forest of this model: \"forest0\"; its forests are ",
+    "\"forest1\", \"dose\""
+  )
+)
+expect_identical(select("forest1", labels, 2L), 1L)
+# three or more labels of one code
+labels <- c("a+b", "a + b", "a  +  b", "forest4")
+expect_identical(
+  refusal(select("a +b", labels, 4L)),
+  paste0(
+    "'forest' (\"a +b\") is the label of forests 1, 2 and 3 (\"a+b\", ",
+    "\"a + b\", \"a  +  b\"); give one exactly, or select by position"
+  )
+)
+# a label that is not R code is found only exactly, and a string that is not
+# R code finds no label by code
+labels <- c("forest1", "(", "a b c")
+expect_identical(select("(", labels, 3L), 2L)
+expect_identical(select("a b c", labels, 3L), 3L)
+expect_match(refusal(select("( ", labels, 3L)), "names no forest", fixed = TRUE)
+expect_match(
+  refusal(select("a  b c", labels, 3L)),
+  "names no forest",
+  fixed = TRUE
+)
+expect_match(refusal(select("b", labels, 3L)), "names no forest", fixed = TRUE)
+
 # NA, an empty string, a factor, a logical, a list
 labels <- c("forest1", "dose")
 for (bad in list(NA, NA_character_, "", c("dose", NA))) {
@@ -228,6 +260,20 @@ for (name in names(readers)) {
     expect_identical(read(sampler, as.double(index)), byPosition)
   }
 }
+# the shared resolver says which forest, so that readers whose answer is the
+# same for every forest (getK, k being pinned at 1) are still told apart
+for (index in seq_along(selectable)) {
+  for (spelling in list(selectable[index], paste0("forest", index), index)) {
+    expect_identical(
+      dbarts:::samplerForestIndex(
+        spelling,
+        sampler$control,
+        sampler$getPointer()
+      ),
+      index - 1L
+    )
+  }
+}
 # and the readers differ by forest, so that the identity is not vacuous
 for (name in c("getLeafPrior", "getForestFits", "getTrees")) {
   read <- readers[[name]]
@@ -258,6 +304,20 @@ expect_identical(
 # plotTree takes one
 pdf(NULL)
 expect_silent(sampler$plotTree(1L, chainNum = 1L, forest = "scale(age)"))
+dev.off()
+
+# plotTree takes one forest, by its own check
+pdf(NULL)
+expect_error(
+  sampler$plotTree(1L, chainNum = 1L, forest = c("a", "forest2")),
+  "'forest' must be a single number or a single label",
+  fixed = TRUE
+)
+expect_error(
+  sampler$plotTree(1L, chainNum = 1L, forest = "dose"),
+  "'forest' names no forest of this model",
+  fixed = TRUE
+)
 dev.off()
 
 # the writers change the forest named and no other
@@ -582,4 +642,79 @@ expect_error(
   sampler$setLeafPrior(forests = list(forest2 = forest(sd = 1.5))),
   "names forest 1 'forest2', but it was created as 'a'",
   fixed = TRUE
+)
+
+# a name that is another forest's label is not read as this position's
+# forest<i>: forests labelled forest2, dose, forest1
+taken <- frame
+taken$forest1 <- frame$age
+taken$forest2 <- frame$dose
+takenSampler <- dbarts(
+  y ~ x1 + x2 + x3,
+  taken,
+  forests = list(
+    forest(basis = forest2, sd = 1),
+    forest(basis = dose, sd = 2),
+    forest(basis = forest1, sd = 3)
+  ),
+  control = selectionControl()
+)
+expect_identical(
+  attr(takenSampler$control, "bartcore.forests", exact = TRUE)$labels,
+  c("forest2", "dose", "forest1")
+)
+expect_identical(
+  refusal(takenSampler$getLeafPrior("forest1")),
+  paste0(
+    "'forest' (\"forest1\") is the label of forest 3 and the name of ",
+    "position 1; select by position, as forest = 3"
+  )
+)
+expect_identical(
+  refusal(takenSampler$setLeafPrior(forests = list(forest1 = forest(sd = 9)))),
+  paste0(
+    "'forest' (\"forest1\") is the label of forest 3 and the name of ",
+    "position 1; select by position, as forest = 3"
+  )
+)
+expect_identical(
+  vapply(1:3, function(i) takenSampler$getLeafPrior(i)$leaf.prior$sd, 0),
+  c(1, 2, 3)
+)
+# its own label at its own position is still accepted
+expect_silent(takenSampler$setLeafPrior(
+  forests = list(forest2 = forest(sd = 9), dose = forest(sd = 8))
+))
+expect_identical(
+  vapply(1:3, function(i) takenSampler$getLeafPrior(i)$leaf.prior$sd, 0),
+  c(9, 8, 3)
+)
+takenFit <- bart(
+  y ~ forest(x1, basis = forest2) + forest(x2, basis = forest1),
+  taken,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.samples = 6L,
+  n.burn = 2L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+expect_identical(attr(takenFit, "forest.labels"), c("forest2", "forest1"))
+takenRows <- taken[1:7, ]
+inOrder <- list(takenRows$forest2, takenRows$forest1)
+expect_silent(predict(takenFit, takenRows, bases = inOrder, n.threads = 1L))
+named <- inOrder
+names(named) <- c("forest2", "forest1")
+expect_identical(
+  predict(takenFit, takenRows, bases = named, n.threads = 1L),
+  predict(takenFit, takenRows, bases = inOrder, n.threads = 1L)
+)
+swapped <- inOrder
+names(swapped) <- c("forest1", "forest2")
+expect_identical(
+  refusal(predict(takenFit, takenRows, bases = swapped, n.threads = 1L)),
+  paste0(
+    "'forest' (\"forest1\") is the label of forest 2 and the name of ",
+    "position 1; select by position, as forest = 2"
+  )
 )

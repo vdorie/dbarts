@@ -504,6 +504,22 @@ expect_identical(
     leaveOut
   )
 )
+expect_identical(
+  refusal(onData, interactions = "interactions(max.order = 1L)"),
+  paste0(
+    "'interactions' given to the fitting function is a constraint on",
+    noPlain,
+    leaveOut
+  )
+)
+expect_identical(
+  refusal(onData, blocks = "blocks(list(\"x1\", c(\"x2\", \"x3\")))"),
+  paste0(
+    "'blocks' given to the fitting function is a constraint on",
+    noPlain,
+    leaveOut
+  )
+)
 expect_identical(refusal(allBasis[2L], n.trees = 100L), countText)
 expect_identical(
   refusal(allBasis[4L], control = "dbartsControl(n.trees = 75L)"),
