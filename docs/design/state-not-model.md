@@ -111,20 +111,27 @@ compared with the sampler's own and never installed, as the two digests are, so 
 model. On an install, by `setState`, by `copy` and by a reload alike:
 
 1. The record is the sampler's family: the state is installed by the other rules.
-2. The record is another family's: the state is refused, naming both families, before anything else of it is
-   read. A state of another family is named as that whatever else about it differs.
+2. The record is another family's: the state is refused, naming both families and pointing to
+   `installTrees`. The state's class, its format version and its chain count are checked before the record,
+   each with its own message; nothing else of the state is read before it, so past those three a state of
+   another family is named as that whatever else about it differs.
 3. The record is present and is not one string: the state is refused as malformed.
 4. There is no record, as on a state stored before it existed: the state is installed by the other rules.
 5. Whatever the record says, a Student-t, logistic or negative-binomial sampler refuses a latent block holding
    a value that is not positive and finite. The other families' latents are real numbers and are not judged.
 
-After any of these refusals the sampler, its stored state and its generators are as they were. Every pair of
+After any of these refusals the sampler, its stored state and its generators are as they were. The record is
+one per state, not one per chain: chains spliced by hand from samplers of different families carry the first
+state's record and are judged by it, and only the floor then stands between a real-valued chain and a sampler
+of precisions. The name in a refusal is printed up to its first byte outside printable ASCII and to 32 bytes,
+with dots where it was cut, so the message is valid text whatever a record edited by hand holds. Every pair of
 different families is refused, the 18 that ran included. A gaussian state holds no latents and used to install
 into a probit, logistic or aft sampler; it is refused with the rest, because a chain's trees mean something
 only under the family they were drawn in, which is the line dec-B254 draws for `setModel`. Pairs of one family
 that differ in a value held fixed - the Student-t df or the negative-binomial shape, fixed in one and drawn in
 the other - or in a leaf constraint install as before. The warm start, `installTrees`, reads neither the
-record nor the latents, and is the way to start a sampler from a fit of another family.
+record nor the latents, and is the way to start a sampler from a fit of another family: it takes the donor's
+trees and, where the sampler draws them, its sigma, k and DART state.
 
 ## Where it lives
 

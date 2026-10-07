@@ -113,8 +113,10 @@ The install, by `setState`, `copy` and a reload alike:
 
 1. The record is the sampler's family: installed by today's rules.
 2. The record is another family's: refused with `state is not consistent with this sampler: its family is
-   "probit" and the sampler's is "student"`. Asked before the digests, the cut points and the blocks are
-   read, so a state of another family is named as that whatever else about it differs.
+   "probit" and the sampler's is "student"; to start one fit from another's trees use installTrees`. Asked
+   after the class, the format version and the chain count, and before the digests, the cut points and the
+   blocks are read, so past those three a state of another family is named as that whatever else about it
+   differs.
 3. The record is present and is not one string: `malformed family in bartcore state`.
 4. No record, as on a state stored before this: installed by today's rules.
 5. Whatever the record says, a Student-t, logistic or negative-binomial sampler refuses a latent block
@@ -193,7 +195,8 @@ its own is assigned to the field, as today for any state it refuses. The warm st
      sampler exactly as it was": "A state records the response family of the sampler that stored it, and
      a state of another family is refused, naming both: its trees and latent variables mean something
      only under the family they were drawn in. To start a sampler from a fit of another family, use
-     `installTrees`, which takes the trees alone. A state that carries no such record, as one stored
+     `installTrees`, which takes the donor's trees and, where this sampler draws them, its `sigma`, `k`
+     and DART state, and none of its latent variables. A state that carries no such record, as one stored
      before the record existed, is judged by its contents. A Student-t, logistic or negative-binomial
      sampler also refuses a state whose latent variables are not all positive and finite." After the
      sentence on assigning the field directly: "`copy` and a reload install the field by the same rules,
@@ -271,3 +274,23 @@ its own is assigned to the field, as today for any state it refuses. The warm st
   leaves, in two pushes three times this size: this goes before it or between its pushes, not beside it.
 - The tip against the TODO entry's words: its counts hold for the four families it names; the breaking
   pairs are 15 of 380, not two; the coordinator's notes list the rest. Nothing was found done already.
+- After review, 2026-10-07. The refusal by name ends "; to start one fit from another's trees use
+  installTrees", so the message itself points the way. The stored name is printed up to its first byte
+  outside printable ASCII and to 32 bytes, with dots where it was cut: a width counted in bytes cut a
+  character in two and left a message that was not valid text. A warm start takes more than the trees - the
+  donor's sigma, k and DART state where the sampler draws them - and the help's sentence, first written here
+  as "takes the trees alone", says so; run on a gaussian donor into a Student-t sampler (sigma moves to the
+  donor's), a drawn k and a DART donor, with the latents, the df and the generator left the sampler's own.
+- A hazard sampler's refusal names its link's family, `probit` or `logistic`, and stays so: the expansion to
+  person-period rows is made in R and the engine runs a probit or logistic sampler on them, so the bridge
+  cannot say "hazard" without R code or a second record, and the record must stay the link's for the same
+  states to be accepted. The help says so in one sentence.
+- Known, inside the rule. Rule 4's "installed by today's rules" has the floor as its exception in more pairs
+  than Context counts: of 784 ordered pairs of 28 kinds without the record, 13 that ran finite on the base
+  build are refused by the floor - probit, ordinal and aft states into a Student-t sampler with zero-weight
+  rows or a logistic sampler with count weights, where the weights reconciliation redrew the block right
+  after the install. None is a restore of a state into its own family.
+- Known. The record is one per state, so chains spliced by hand across families are judged by the first
+  chain's record: a probit chain and a logistic chain under `probit` install into a two-chain probit
+  sampler, and only the floor catches a real-valued chain under a precision family's record. stan4bart
+  splices chains of one model only.
