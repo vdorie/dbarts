@@ -1,6 +1,6 @@
 # state-zero-weight-rows: a Student-t state names its zero-weight rows
 
-Status: PLANNED (dec-B277).
+Status: LANDED 2026-10-07 (88331668 to bee7788e; dec-B277).
 
 agent: opus implementer, one (engine, facade, bridge); opus reviewer.
 rng: by call sequence.
@@ -433,3 +433,36 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
   - dec-A160's "for one sweep" was checked as a law at the tip: clear when the proposed weights are far
     from the old ones, at the edge of detection for a modest change.
   Nothing in this slice was found done already.
+
+## Landing note
+
+Landed 2026-10-07 as 88331668 to bee7788e on bartcore, 8 commits, 877 lines added over 14 files against a
+planned 480 to 720; most of the excess is tests. One review told to refute: LAND AFTER FIXES, with no
+defect found in the engine or the bridge (800 combinations of route, weights, mask, chain count and
+degrees of freedom, each bit for bit the twin that took the state under its own weights and then the same
+`setWeights` call, with exactly the entering rows redrawn; 15 malformed records each refused with the
+sampler untouched). Every correction was made and none rejected.
+
+What the review changed. The manual said that with `setState` first a Student-t sampler differs from the
+stored chain only at rows the change had taken to weight zero. That was false, and this plan's step 5 had
+it: the sampler is the stored chain bit for bit only when the change moved no row into or out of the
+likelihood; otherwise those rows' scales are redrawn, by `setState` for a row the change had brought in
+and by `setWeights` for one it had taken out, and the draws that follow come from another random stream.
+It is a valid continuation in every case. The manual now says so, names the logistic family, whose
+latents both calls redraw, and says that a copy made without a store continues the stored chain, not the
+live sampler. tests/cpp gained a check that the redraw reads the installed fit and sigma and one that a
+row leaving the likelihood at the install is marked out; tinytest gained a malformed record under equal
+digests and a record one byte too long; each is proved by a mutation.
+
+Found outside the slice and the same before it: a state of one family installs into a sampler of
+another in eight of twelve pairs among gaussian, Student-t, probit and logistic, and two of them leave a
+sampler that cannot run (TODO `cross-family-state-install`).
+
+Gates at landing, on a clean copy of the rebased tree in a library of its own (shipped mode), run in
+series: tests/cpp 349 ok, 0 failed; the full tinytest suite 14750 results, 0 failed, 223 files; lintr no
+lints; air, rc-codoc, win-drift, doc-freshness and the mutation battery's anchors clean; `R CMD build`
+with every vignette rebuilt and `R CMD check --as-cran` with the Date NOTE alone. By the implementer
+before the review's corrections, which changed nothing under src/: the four snapshot files on a reference
+build; the three bitwise compares at 55, 15 and 11 scenarios, all identical; the exact gates in `quick`,
+28 of 28; tests/cpp and the two test files clean under ASan and UBSan; a seeded digest of 324 fits and
+restores equal on the base and the slice; fifteen mutations, none surviving.

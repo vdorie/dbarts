@@ -626,14 +626,18 @@ items
     fitting function is refused by name and the model is accepted.
     Until it lands such a model takes its forests in written order.
     Not planned.
-  state-zero-weight-rows: before 1.0-0 (dec-B277, VD 2026-10-06). A
-    Student-t state records which rows were at weight zero when it
-    was stored, so an install under other weights (setState, a copy,
-    a reload) redraws the latent scale of only the rows that enter
-    the likelihood, as the same setWeights call would; today it
-    redraws every row in the likelihood. A state stored before this
-    installs as it does now. Serial with leaf-conversions, and
-    before it. Plan: docs/plans/state-zero-weight-rows.md.
+  cross-family-state-install: before 1.0-0. A state of one family
+    installs into a sampler of another. Of the twelve pairs among
+    gaussian, Student-t, probit and logistic, four are refused (every
+    state into a gaussian sampler; a gaussian state into a Student-t
+    one). A probit state into a Student-t sampler leaves negative
+    scales (minimum -2.62) and fits that are not finite within three
+    sweeps; a probit state into a logistic sampler leaves negative
+    Polya-Gamma latents and the next sweep does not return. The other
+    six install and run. setState should refuse a state whose latents
+    are another family's, in the words it refuses a gaussian state
+    with. Figures: docs/plans/state-zero-weight-rows.md, Out of scope.
+    Not planned.
   monotone-unforced-refusal: before 1.0-0 (dec-B278, VD 2026-10-06). An
     unforced predictor update that would leave a monotone tree's leaf
     values out of order is refused and rolled back, as one that empties
@@ -646,8 +650,7 @@ items
     by name already. Forced updates, setData, setCutPoints, a warm
     start and a setState that merges keep the silent reset. The help
     states both, and tests/cpp testMonotoneMissingArrives turns over.
-    About 450 lines. Serial with state-zero-weight-rows and
-    leaf-conversions. Plan: docs/plans/monotone-unforced-refusal.md.
+    About 450 lines. Serial with leaf-conversions. Plan: docs/plans/monotone-unforced-refusal.md.
   factor-column-update-forms: before 1.0-0 for the joint form
     (dec-B279, VD 2026-10-06). updatePredictorPerObservationJointly
     takes codes from 0 and, given a factor, reads R's codes from 1 as
