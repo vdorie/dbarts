@@ -86,16 +86,17 @@ outcome <- function(value, visible = TRUE) {
   list(value = value, visible = visible, numWarnings = 0L)
 }
 # A refused update leaves the sampler its untouched twin: the stored state
-# (trees, sigma, generator), the predictors and the predictions identical.
-# The next draws are equal to rounding and not bit for bit, as after any
-# refusal: a sweep sums a leaf's rows in the order the leaf holds them, which
-# the refusal's two re-routes can change.
+# (trees, sigma, generator), the predictors, the predictions and the cached
+# fits identical. The next draws are equal to rounding and not bit for bit, as
+# after any refusal: a sweep sums a leaf's rows in the order the leaf holds
+# them, which the refusal's two re-routes can change.
 expectTwin <- function(sampler, twin) {
   sampler$storeState()
   twin$storeState()
   expect_identical(sampler$state, twin$state)
   expect_identical(sampler$data@x, twin$data@x)
   expect_identical(sampler$predict(df), twin$predict(df))
+  expect_identical(sampler$getForestFits(), twin$getForestFits())
   draws <- sampler$run(0L, 5L)
   twinDraws <- twin$run(0L, 5L)
   expect_equal(draws$train, twinDraws$train, tolerance = 1e-12)
@@ -161,6 +162,13 @@ expect_identical(
 )
 expect_identical(leaves(sampler), c(holds, breaks))
 expectTwin(sampler, twin)
+# and row by row, where the first chain's tree alone would take the rows
+installed <- dbarts::updatePredictorPerObservationJointly(
+  list(make(list(holds, breaks))),
+  fMissing,
+  "f"
+)
+expect_identical(which(!installed), naRows)
 
 # ---- the joint form: the rows bringing the value are declined ----
 
@@ -192,13 +200,20 @@ expect_identical(sampler$data@x$dense[[2L]], fMoved)
 
 # ---- proposing again: refused until the trees move ----
 
-# other values with the same missing row are refused too; once the values are
-# in order the first proposal is accepted
+# other values with the same missing row are refused too, whole and row by
+# row, each refusal having left the column without a missing value; once the
+# values are in order the first proposal is accepted
 sampler <- make()
 expect_false(sampler$setPredictor(xMissing, forceUpdate = FALSE))
 xAgain <- xMissing
 xAgain[moved, "f"] <- 2
 expect_false(sampler$setPredictor(xAgain, forceUpdate = FALSE))
+installed <- dbarts::updatePredictorPerObservationJointly(
+  list(sampler),
+  fMissing,
+  "f"
+)
+expect_identical(which(!installed), naRows)
 expect_true(sampler$setState(handState(sampler, list(holds))))
 expect_true(sampler$setPredictor(xMissing, forceUpdate = FALSE))
 expect_identical(leaves(sampler), holds)
