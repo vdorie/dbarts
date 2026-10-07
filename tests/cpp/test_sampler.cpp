@@ -3321,7 +3321,12 @@ static void testMembershipAcrossForests() {
     sampler.setWeights(other.data());
     sampler.setActiveRows(mask.data());
     sampler.run(5, 0, results);
-    sampler.zeroWeightRows(destinationRecord.data());
+    bool reportsWeightsOnly = sampler.zeroWeightRows(destinationRecord.data());
+    for (size_t i = 0; i < n; ++i)
+      reportsWeightsOnly = reportsWeightsOnly &&
+                           destinationRecord[i] == (other[i] == 0.0 ? 1 : 0);
+    check(reportsWeightsOnly,
+          "under a mask it still reports the rows at weight zero and no other");
     size_t numEntering = 0, numEnteringMasked = 0, numStaying = 0;
     for (size_t i = 0; i < n; ++i) {
       if (other[i] == 0.0) continue;
