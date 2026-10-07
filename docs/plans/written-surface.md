@@ -231,6 +231,8 @@ quoted, the form to write given. `<f>` is the forest's text; the push that adds 
     [2] forest()'s first argument is a logical; a selection is names or positions. A multiplier is given as 'basis ='
     [2] 'x1' is the name of 2 predictors of this fit; a name selects one, so select these by position
     [2] forest()'s first argument has an empty name; a predictor with no name is selected by position
+    [2] '2' is not a predictor; give positions as the whole argument, as c(2, 3)
+    [2] '<f>': 'g.u' is a column the fit builds, not a column of the data, and what the formula removes beside the forest cannot be read against it; write the forest's predictors as terms, or leave the removal out
     [2] a forest() term must appear as a top-level additive term, not inside '<text>'
     [2] 'n.trees' is given to the fitting function and to the forest with no basis ('<f>'), which are the same count; give one
     [2] a multi-forest model needs at least two forests, and this call's 'basis' declarations resolve to 1: a forest with a 'basis' stands beside another forest. Write the forest with no multiplier too, as y ~ forest(x1 + x2) + forest(x1 + x2, basis = z1) or forests = list(forest(), forest(basis = z1)), or use a single forest with linear() leaves; otherwise drop the basis
@@ -465,7 +467,11 @@ reader's sake; the implementer may name them otherwise.
     with a basis deleted, so the forest written out and the same forest left as plain terms are one
     reading and agree by construction. A forest with a basis keeps its own terms, a `-` inside it being
     its own, and a term it names is a predictor of the fit whatever the top removes. A removal that
-    leaves the forest with no basis no term is refused by name. Plain terms that are an `offset()` or an
+    leaves the forest with no basis no term is refused by name. Written with no first argument, the
+    forest with no basis has for contents every term the forests with a basis name, so a removal beside
+    it takes its term from it as from `forest(.)`; with its predictors given by value and one of them a
+    column the fit builds (an indicator of a factor), a removal beside it is refused by name, no formula
+    being readable against that column before the design exists. Plain terms that are an `offset()` or an
     intercept token stay in the fit's formula and count as no forest. Tests (test-formula-terms.R, rewritten): eight colon and star shapes refused,
     each with its rewrite (fail today: fitted); `I(forest(x1))`, a forest in a removal and on the
     left-hand side refused; six placements of `offset(off)`, `0 +` and `- 1` give identical draws (fails
@@ -518,8 +524,10 @@ reader's sake; the implementer may name them otherwise.
     design's columns: `.` is every column, and a term names a predictor by its label exactly as the fit
     holds it, the term label on a formula fit and the column name on a matrix fit, written as code or
     backticked, so `. - log(x1)` removes that term or that column; a term that names no predictor is
-    refused, added or removed, and so is a name two columns share. A column with no name is selected by
-    position or by `.` alone. Tests:
+    refused, added or removed, and so is a name two columns share. A column with no name, an NA or an
+    empty one, is selected by position or by `.` alone. A term's columns are those the design's layout
+    gives it ([`termColumnBlocks`](../../R/model.R)), never those whose names begin as it does. A number
+    among terms is refused: it is a position only as the whole argument. Tests:
     `forest(x1 + x3, basis = ~ z)`, `forest(. - x3, ...)`, `vars = c("x1", "x3")`, a variable holding
     that vector, positions, and a call built with the names in it give identical draws; an unknown name;
     `list(forest(z3), forest(basis = ~ dose))`, with z3 a vector of 1s and 2s per row, is refused with
@@ -542,6 +550,24 @@ reader's sake; the implementer may name them otherwise.
 
 ### Push 3: the basis
 
+3.0 Tidy first, as push 3's first commit and with no change of behaviour (the third review of push 2):
+    push 3 doubles each of these for `basis`. (a) Give the captured argument one definition: a
+    `dbartsForestTerms` carries up to ten fields (expr, env, value, evaluated, warnings, unbound, error,
+    labels, columns, named) set at six sites ([`captureForestVars`](../../R/model.R) and the body of
+    [`forest`](../../R/model.R); `namedTerms`, the end of [`readForestTerms`](../../R/formulaTerms.R)
+    and two places in [`ingestFormulaTerms`](../../R/formulaTerms.R)) and told apart in
+    [`resolveForestVars`](../../R/model.R) by which fields are present. One constructor per state (a
+    value handed over; code with its value at the call; a formula's terms) and one function that takes
+    the value at the call, used by both arguments. (b) [`resolveTermColumns`](../../R/model.R) and
+    [`labelColumns`](../../R/model.R) now share the term-to-columns reading; merge what is left of the
+    two (their rules for a shared name and for a backticked label still differ). (c) Split
+    [`ingestFormulaTerms`](../../R/formulaTerms.R) where the forests of a formula end and the bases of a
+    formula begin (the model frame, levels and predict calls), which push 3 replaces whole. Smaller:
+    six walks of one `+` / `-` / `(` chain ([`replaceForestTerms`](../../R/formulaTerms.R),
+    `refuseBuried`, [`withoutRemovals`](../../R/formulaTerms.R), [`plusTerms`](../../R/formulaTerms.R),
+    [`writesInterceptTerm`](../../R/formulaTerms.R), `take`) treat a unary minus and parentheses each a
+    little differently, and a removal has three implementations; they agree under test and are where
+    two rounds of findings came from.
 3.1 Capture. [`forest`](../../R/model.R) reads `basis` as code and takes its value once at the call when
     it can be evaluated, as "The capture rule" says and as push 2 built for `vars`: code that names a
     column of `data` is read against the columns, any other code is the value taken at the call;
@@ -922,6 +948,27 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
     space in it (a data column called `x1:x2`, written backticked) stops in
     [`dbartsData`](../../R/data.R), with "undefined columns selected" or, for a colon, the refusal of an
     interaction. Its backticks are stripped only when the name has a space.
+- Made after the third review of push 2 (LAND AFTER FIXES, two short ones).
+  - A first forest written with no first argument is every predictor of the fit, so its contents in the
+    reduced formula are the terms the forests with a basis name, not `.` over the data's columns: read
+    as the data's `.` it would bring every column of `data` into `y ~ forest() + forest(x1 + x2, basis =
+    ~ z)`, which is today the model of x1 and x2. A removal beside it then takes its term from it
+    (`... - x1` leaves it x2, the plain spelling `y ~ x2 + forest(x1 + x2, basis = ~ z)`).
+  - A first forest whose predictors are given by value and name a column the fit builds, beside a
+    removal at the top, is refused by name. Applying the removal would need the columns each term
+    produces, which exist only once the design is built, after the formula the design is built from;
+    names of data columns are terms and take the removal exactly.
+  - A term's columns come from the design's layout, its columns standing in its terms' order as one run
+    each ([`termColumnBlocks`](../../R/model.R)), in the one resolver every reader of a term shares
+    ([`resolveTermColumns`](../../R/model.R): `forest()`'s first argument at both doors, `interactions`,
+    `blocks`, `monotone`, `variance`). The design keeps no assign-style record and this push adds none
+    to the data object, which other slices and saved fits read; the layout is exact for a design the
+    package builds, and for names that are no such layout (a test matrix's columns) the old reading by
+    name stays. `split.probs` still finds a factor's columns by prefix in its own code
+    ([`resolveSplitProbabilities`](../../R/model.R)); to the backlog with the tip's other defects.
+  - The third surviving mutant is left: multinomial's lone forest by value whose contents are not
+    checked to be names. A position there stops in the model frame with R's message, so nothing is
+    fitted; a test would pin only that message.
 
 ## Landing note
 
