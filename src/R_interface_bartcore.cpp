@@ -6132,19 +6132,25 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
                  "column");
       // a stored split names its cut by value, and on a grid that repeats a
       // value a restore cannot tell which index it was drawn on, so a caller's
-      // grid strictly increases. The grid the column holds, bit for bit, is
-      // taken as it is: a grid the store built or a state brought may hold
-      // equal neighbours, and an undo hands that back. A -0 for a 0 is
-      // another grid
+      // grid strictly increases (the R method has sorted it). The grid the
+      // column holds, bit for bit, is taken as it is: a grid the store built
+      // or a state brought may hold equal neighbours, and an undo hands that
+      // back. A -0 for a 0 is another grid
       const double* cuts = REAL(cutsExpr);
       const std::vector<double>& held =
         holder.sampler->data().cutPoints[column];
       bool isHeld = static_cast<size_t>(numCuts) == held.size() &&
         std::memcmp(cuts, held.data(), held.size() * sizeof(double)) == 0;
-      if (!isHeld &&
-          !bartcore::cutGridIsValid(cuts, static_cast<size_t>(numCuts), true))
-        Rf_error("$setCutPoints: 'cuts' must be strictly increasing and not "
-                 "contain NaN, unless it is the grid the column holds");
+      if (!isHeld) {
+        for (R_xlen_t i = 0; i < numCuts; ++i)
+          if (bartcore::isNA(cuts[i]))
+            Rf_error("$setCutPoints: 'cuts' must not contain NaN");
+        if (!bartcore::cutGridIsValid(cuts, static_cast<size_t>(numCuts),
+                                      true))
+          Rf_error("$setCutPoints: a cut point may appear only once in "
+                   "'cuts'; for more splits near a value, give a denser grid "
+                   "around it");
+      }
       cutPoints.push_back(cuts);
       numCutPoints.push_back(static_cast<std::uint32_t>(numCuts));
       columns.push_back(column);

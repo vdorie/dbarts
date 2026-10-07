@@ -169,7 +169,7 @@ result.cuts <- sampler.mut$run(0L, 2L)
 expect_true(all(is.finite(result.cuts$train)))
 expect_error(
   sampler.mut$setCutPoints(c(0.5, 0.5), 1L),
-  pattern = "'cuts' must be strictly increasing"
+  pattern = "a cut point may appear only once"
 )
 
 # multiple chains: per-chain slabs with a trailing chain dimension, run on

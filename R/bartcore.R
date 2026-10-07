@@ -1042,7 +1042,12 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
       stop("$setCutPoints: 'cuts' must be numeric", call. = FALSE)
     }
     cuts[!isRead] <- list(NULL)
-    cuts[isRead] <- lapply(cuts[isRead], as.double)
+    # a grid is a set of thresholds, so one out of order is sorted; one with a
+    # NaN is left for the bridge to refuse, which sort() would drop it from
+    cuts[isRead] <- lapply(cuts[isRead], function(grid) {
+      grid <- as.double(grid)
+      if (!anyNA(grid) && is.unsorted(grid)) sort(grid) else grid
+    })
   }
 
   # the engine re-quantizes the transient borrow of the current predictors

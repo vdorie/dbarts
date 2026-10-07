@@ -380,7 +380,7 @@ partitioning entirely; a different library sharing only the tree structure).
    reference engine, which errors midway through installation); the
    transactional entry points now return
    accepted/rolledBack/invalidCutPoints. The explicit setCutPoints entry
-   point installs externally chosen (strictly increasing) cuts per column,
+   point installs externally chosen cuts per column (sorted, each point once),
    re-quantizes train and test codes, and force-refreshes trees so
    orphaned splits collapse.
    Multiple chains and threads (DONE 2026-07-02): the engine splits into

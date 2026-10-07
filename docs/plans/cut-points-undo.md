@@ -79,9 +79,9 @@ All numbers below were run on the tip's build; a column is numeric unless said o
 - The store remembers the count asked for, per column, for its whole life. Every derivation (creation,
   `setData`) uses it. No cap is kept beside it: a refresh re-cuts at the count the column holds, so a set
   grid leaves nothing that a copy and a reload do not also have.
-- `setCutPoints` takes a strictly increasing grid of one to 65533 points, none `NaN`, and one grid more:
-  the grid the column holds at the call, bit for bit (a -0 for a 0 is another grid), repeated points
-  included. Given the whole list, the entries of factor columns are not read, whatever they are.
+- `setCutPoints` takes a grid of one to 65533 distinct points, none `NaN`, sorted if out of order, and one
+  grid more: the grid the column holds at the call, in order and bit for bit (a -0 for a 0 is another
+  grid), repeated points included. Given the whole list, the entries of factor columns are not read, whatever they are.
 
 ## Constraints
 
@@ -127,8 +127,8 @@ All numbers below were run on the tip's build; a column is numeric unless said o
    tip, a character vector, a logical, a factor (as its codes) and a Date (as its day count), none of which
    a test pinned. The rest it coerces to double. The bridge keeps the same refusal for another caller of
    the entry; no call through R reaches it. The refusal for an unusable grid becomes
-   `$setCutPoints: 'cuts' must be strictly increasing and not contain NaN, unless it is the grid the column
-   holds`.
+   `$setCutPoints: a cut point may appear only once in 'cuts'; for more splits near a value, give a denser
+   grid around it`, and `$setCutPoints: 'cuts' must not contain NaN`.
 3. tinytest, a new file `test-cut-points-undo.R`; "fails today" names what the tip does.
    - The undo leaves no residue: `n.cuts = 20`; sampler and twin run and store; the sampler sets 50 points,
      sets the stored grid back and restores (`TRUE`); the twin restores its own state; both take the same
@@ -148,9 +148,9 @@ All numbers below were run on the tip's build; a column is numeric unless said o
      messages; a list shorter or longer than the design is refused with no warning. The first two fail
      today. On a design of factor columns alone the whole list returns and the stored state is unchanged.
    - Any grid with equal neighbours that is not the one the column holds is refused, on a column whose own
-     grid repeats a point too, as a decreasing grid, a `NaN` and an `NA` are, with the new message, by
+     grid repeats a point too, as a `NaN` and an `NA` are, with the new message, by
      column and as an entry of the whole list, and the grid is left as it was; over a column of zeros the
-     held zeros are accepted and as many negative zeros refused; a strictly increasing grid is accepted; a
+     held zeros are accepted and as many negative zeros refused; a grid of distinct points is accepted, and sorted when out of order; a
      function, a character vector, a logical, a factor, a Date and `NULL` are refused by name, and whole
      numbers taken; a column named three times has each entry read. After a constant column's grid is
      changed its old grid is refused and `setState` brings it back.
@@ -160,11 +160,11 @@ All numbers below were run on the tip's build; a column is numeric unless said o
    - The whole undo on a design with a constant column and a factor: store, set another grid on a numeric
      column, hand the stored state's whole list back, restore (`TRUE`), and the continuation is identical to
      a twin's that restored its own state. Fails today: refused at the second call.
-   ["strictly increasing"](../../inst/tinytest/test-bartcore.R) stays a refusal of `c(0.5, 0.5)`, with the
-   new text.
+   ["a cut point may appear only once"](../../inst/tinytest/test-bartcore.R) stays a refusal of
+   `c(0.5, 0.5)`, with the new text.
 4. Mutations (Verification): apply, install with `--preclean`, run, report the failing counts, revert, `touch`.
-5. Records. [`dbartsSampler$setCutPoints`](../../man/dbartsSampler-class.Rd): the `cuts` item (strictly
-   increasing, the held grid excepted, the whole list does not read factor entries, a named factor column
+5. Records. [`dbartsSampler$setCutPoints`](../../man/dbartsSampler-class.Rd): the `cuts` item (sorted, each
+   point once, the held grid excepted, the whole list does not read factor entries, a named factor column
    is refused) and one sentence that a later `setData` derives at most `n.cuts` points whatever grid was
    set; the method's docstring in R/dbarts.R to match. [data-store.md](../design/data-store.md): the
    `numCuts` and `cutPoints` items and the new count in place of the cap, with the measured defect in two
@@ -219,7 +219,7 @@ never installs it; the manual's table of what puts each derived value back befor
 
 ## Calls made in planning
 
-- A caller's grid stays strictly increasing, and the one grid taken with equal neighbours is the grid the
+- A caller's grid holds each point once, and the one grid taken with equal neighbours is the grid the
   column holds, bit for bit (decided after the first review). The alternative, this plan's first call,
   took any non-decreasing grid. A stored split names its cut by value and a restore puts it on the first
   index holding that value, so on a grid with every point tripled a store and restore moved the next 30
@@ -258,8 +258,8 @@ correction was made and none rejected.
 
 What the reviews changed. The first plan took any non-decreasing grid from a caller. A stored split names
 its cut by value and a restore puts it on the first index holding that value, so a grid that repeats a
-value does not survive a store and restore; the rule became the narrow one (dec-A170): a caller's grid is
-strictly increasing, and the one grid taken with equal neighbours is the grid the column holds, bit for
+value does not survive a store and restore; the rule became the narrow one (dec-A170): a caller's grid holds
+each point once, and the one grid taken with equal neighbours is the grid the column holds, bit for
 bit. The cap on the cut count is no longer stored: a derivation counts from the count asked for at build
 and a refresh from the count the column holds, so nothing a set grid or a refused state install touched
 can go stale. R drops a whole list's factor entries unread. After the second review `setCutPoints` takes

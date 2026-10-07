@@ -1,8 +1,8 @@
 # A cut grid changed with setCutPoints can be put back on any design, and
 # leaves nothing behind: a later setData derives the grid n.cuts names
 # whatever grid was set before it, as a copy and a reload do. A caller's own
-# grid strictly increases; the grid a column holds, bit for bit, is taken
-# back as it is, repeated points included. The grid in force is read from the
+# grid is sorted and holds each point once; the grid a column holds, in order
+# and bit for bit, is taken back as it is, repeated points included. The grid in force is read from the
 # stored state.
 
 cutPointsOf <- function(sampler) {
@@ -222,19 +222,31 @@ expect_silent(sampler$setCutPoints(own))
 expect_identical(cutPointsOf(sampler), own)
 
 # Any other grid with equal neighbours is refused, on a column whose own grid
-# repeats a point as on one whose grid does not, and so are a decreasing grid
-# and a missing value, by column and as an entry of the whole list. The grid
-# is left as it was.
+# repeats a point as on one whose grid does not, and so is a missing value, by
+# column and as an entry of the whole list. The grid is left as it was.
 refusal <- paste(
-  "$setCutPoints: 'cuts' must be strictly increasing and not contain NaN,",
-  "unless it is the grid the column holds"
+  "$setCutPoints: a cut point may appear only once in 'cuts'; for more",
+  "splits near a value, give a denser grid around it"
 )
-notHeld <- list(c(0.25, 0.5, 0.5, 0.75), c(0.6, 0.5), c(0.2, NaN), c(0.2, NA))
+nanRefusal <- "$setCutPoints: 'cuts' must not contain NaN"
+notHeld <- list(c(0.25, 0.5, 0.5, 0.75), c(0.6, 0.5, 0.6))
 for (cuts in notHeld) {
   expect_error(sampler$setCutPoints(cuts, 1L), pattern = refusal, fixed = TRUE)
   expect_error(
     sampler$setCutPoints(list(cuts, own[[2L]], own[[3L]])),
     pattern = refusal,
+    fixed = TRUE
+  )
+}
+for (cuts in list(c(0.2, NaN), c(0.2, NA), c(0.6, NaN, 0.5))) {
+  expect_error(
+    sampler$setCutPoints(cuts, 1L),
+    pattern = nanRefusal,
+    fixed = TRUE
+  )
+  expect_error(
+    sampler$setCutPoints(list(cuts, own[[2L]], own[[3L]])),
+    pattern = nanRefusal,
     fixed = TRUE
   )
 }
@@ -250,7 +262,33 @@ expect_identical(held, rep(0, 100L))
 expect_silent(zeros$setCutPoints(held, 2L))
 expect_error(zeros$setCutPoints(-held, 2L), pattern = refusal, fixed = TRUE)
 
-# A strictly increasing grid is taken on either kind of column. The constant
+# A grid out of order is sorted and taken, by column, as an entry of the whole
+# list and as a data frame: the sampler holds the sorted grid and draws what
+# one handed the sorted grid draws.
+for (grid in list(c(0.75, 0.25, 0.5), c(0.5, 0.75, 0.25))) {
+  sorted <- warmed(cbind(a, const, narrow), y, control = control)
+  shuffled <- sorted$copy()
+  sorted$setCutPoints(c(0.25, 0.5, 0.75), 1L)
+  shuffled$setCutPoints(grid, 1L)
+  expect_identical(cutPointsOf(shuffled), cutPointsOf(sorted))
+  expect_identical(shuffled$run(0L, 5L)$train, sorted$run(0L, 5L)$train)
+}
+sorted <- warmed(cbind(a, const, narrow), y, control = control)
+shuffled <- sorted$copy()
+sorted$setCutPoints(c(0.25, 0.5, 0.75), 1L)
+shuffled$setCutPoints(list(c(0.75, 0.25, 0.5)), 1L)
+expect_identical(cutPointsOf(shuffled), cutPointsOf(sorted))
+sorted$setCutPoints(own)
+shuffled$setCutPoints(data.frame(
+  own[[1L]][100L:1L],
+  own[[2L]],
+  own[[3L]][100L:1L]
+))
+expect_identical(cutPointsOf(shuffled), own)
+expect_identical(shuffled$run(0L, 5L)$train, sorted$run(0L, 5L)$train)
+rm(grid, sorted, shuffled)
+
+# A grid of distinct points is taken on either kind of column. The constant
 # column's old grid is then no longer the one it holds, so setCutPoints
 # refuses it, and the stored state brings it back.
 expect_silent(sampler$setCutPoints(c(0.25, 0.5, 0.75), 1L))
