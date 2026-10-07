@@ -5,7 +5,10 @@ Follows [forest-defaults-by-kind.md](forest-defaults-by-kind.md) and push 3 of
 [written-surface.md](written-surface.md), neither of which has landed. Amended 2026-10-07 after the
 critique of the multiplier law: this slice takes in what was that law's first push (the engine is handed
 what was stated and holds the rule), gives the reader and `extract` the shape they keep, and takes a
-named single sd (dec-B280).
+named single sd (dec-B280). Amended again 2026-10-07 for dec-B296: the unit is taken over the rows in
+the likelihood when the sampler is created, by slice B of [response-scale-rows.md](response-scale-rows.md),
+which lands first; the Context bullet on L, rule 1, step 3's "L written out", row 13 of the pair
+script and the mutation on the unit's rows are restated below.
 
 agent: one push. Opus implementer for the engine, the bridge and the R code; sonnet for the respelled tests,
 the benchmark scripts and the help once the code is fixed; opus reviewer told to refute, and to read the
@@ -82,7 +85,10 @@ the coefficient is held.
 - L. Under gaussian it is the sample standard deviation of the response net of its offset, n - 1 in the
   divisor, unweighted, over the rows the sampler holds: 3.26736095623188 from the engine against R's
   3.26736095623189 for `sd(y)`, one unit in the last place apart; `sd(y - offset)` with an offset;
-  `sd(y[subset])` under `subset`; unchanged by weights, and rows of weight zero count. Under probit it is
+  `sd(y[subset])` under `subset`. Measured before response-scale-rows: unchanged by weights, rows of
+  weight zero counting. Once that slice has landed it is over the rows of positive weight when the
+  sampler is first created, still unweighted, and held when the weights or a mask change later; where
+  those rows hold fewer than two distinct values it is over every row (dec-B296, dec-B302). Under probit it is
   1 and under logistic pi / sqrt(3), 1.8138. It is computed at a first creation
   ([`scaledResponseSd`](../../src/bartcore/chain.hpp), [`latentScaleAnchor`](../../src/bartcore/chain.hpp)),
   recorded by R as the forests' `anchor` and handed to every re-creation
@@ -185,8 +191,9 @@ the coefficient is held.
 
 1. The unit. A forest's `sd` is in the response's units: the units of y under a gaussian response, and of
    the latent index under probit and logistic. One number of the sampler, the unit, converts it: L in the
-   response's units, which is `sd(y - offset)` over the rows kept under gaussian, 1 under probit and
-   pi / sqrt(3) under logistic.
+   response's units, which under gaussian is `sd(y - offset)` over the rows in the likelihood when the
+   sampler is created (the rows `subset` and the na.action keep, less those of weight zero; dec-B296),
+   1 under probit and pi / sqrt(3) under logistic.
 2. Stated. The engine is handed the number as written and divides it by the unit; what it then does with
    the quotient is what the tip does with a number in units of L. Nothing else of the law changes.
 3. Not stated. The engine is told so and takes the default itself: a multiple of L (2 or 1 for a forest
@@ -355,8 +362,10 @@ factor zf, dose, an offset column and weights of which ten are 0.
      the sampler doors are `identical()` (fails today: `k.scale` is 0.5 sd(y) / 0.674).
    - L written out. With an offset, `subset`, a dropped missing response and weights with zeros, a
      default forest's reader `sd` is `sqrt(2 / K) * sd((y - offset)[kept])` to 1e-12, where `kept` is
-     written in the test and includes the rows of weight zero; and the same four with `sd = 0.5` stated
-     give `k.scale * 0.674 == 0.5` to 1e-12, so a unit from the wrong rows cannot hide in a ratio.
+     written in the test and leaves out the rows of weight zero (dec-B296); the same reader is
+     `identical()` after a later `$setWeights` that brings those rows back, the unit being held; and the
+     same four with `sd = 0.5` stated give `k.scale * 0.674 == 0.5` to 1e-12, so a unit from the wrong
+     rows cannot hide in a ratio.
    - Probit and logistic: `sd = 0.5` gives `k.scale * 0.674 == 0.5` under both (fails today under
      logistic: 0.907).
    - The size, from the engine's own prior draws under a flat likelihood. Always on, one a family, 1500
@@ -515,7 +524,7 @@ rows 29 and 30 must differ.
 | 01 to 04 | no sd stated: two forests; three; under `subset` with weights and an offset; `bart` with a term | the same text |
 | 05, 06 | logistic and probit, no sd stated | the same text |
 | 07 to 10 | `sd = r` on the forest with no basis; on a factor forest; on both; on a numeric column | `sd = r * sd(y)` |
-| 11 to 13 | r stated with an offset; under `subset`; with weights | `r * sd(y - offset)`; `r * sd(y[kept])`; `r * sd(y)` |
+| 11 to 13 | r stated with an offset; under `subset`; with weights | `r * sd(y - offset)`; `r * sd(y[kept])`; `r * sd(y[w > 0])`, which is `r * sd(y)` only where no weight is zero (dec-B296: the base build already holds response-scale-rows, so its unit is over those rows too) |
 | 14, 15 | a held factor; three forests each stating one | the same respelling |
 | 16 to 18 | `$setLeafPrior(forests = )` after 5 sweeps; a copy after 5; a value read and written back | the same respelling; the same text |
 | 19, 20 | logistic, r on both forests; `bart` with a term stating r | `r * pi / sqrt(3)`; `r * sd(y)` |
@@ -549,7 +558,8 @@ Mutations, each expected to fail the named test and no gate before it:
 - the unit carried on a control to other data: step 4's "other data";
 - a write of the number in force skipped whole, the forest left unstated: step 4's `forest(sd = p$sd)`;
   the same write dividing again, so that a bit moves: the same test's twin;
-- the unit computed with weights, or over every row before `subset`: step 3's "L written out";
+- the unit computed with weights, over every row before `subset`, or over the rows of weight zero
+  too: step 3's "L written out";
 - `extract` left returning `k.scale` over k; left a vector; named by position; a list of one where one
   forest is asked for: step 4's `extract` and names tests;
 - the stated number mirrored into the four numbers and not into `sd`: step 4's path "a write, a copy

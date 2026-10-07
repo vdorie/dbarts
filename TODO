@@ -863,6 +863,11 @@ items
     section 10). After the multiplier law's held push it is the one
     place left where a sampler runs trees drawn under other held
     values. Not planned.
+  aft-reanchor-observed-times: a survival fit's re-anchor reads the
+    observed times, never a chain's drawn ones (two chains re-anchor
+    to two transforms today). Planned,
+    docs/plans/aft-reanchor-observed-times.md; straight after
+    leaf-conversions.
   response-scale-rows: what a fit takes from the response to place or
     size a prior (the count fit's centre, the gaussian and Student-t
     response scale, the survival fit's, the unit of a forest's sd) is
@@ -879,6 +884,11 @@ items
     and before the merge if it can be: design first, with the
     state-frame slices that give derived data its record and with
     docs/plans/forest-sd-unit.md, which states the unit.
+    Planned as four slices (dec-A176): the aft fix above; creation
+    only, docs/plans/response-scale-rows.md; then the two new
+    arguments and dec-B304, stated at that plan's end and not planned.
+    Fewer than two distinct response values in take the fallback too
+    (dec-B309).
   state-store-size-install: setState installs a state whose store of
     kept trees is larger or smaller than the sampler's: the live chain
     as from any state, the most recent kept draws that fit, the

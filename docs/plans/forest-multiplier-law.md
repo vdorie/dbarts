@@ -1027,7 +1027,14 @@ otherwise, this section stands.
   rows of weight zero. A later change of weights or of the mask does not move it. With no row in at
   creation it is taken over every row, under the warning of dec-B302. A column constant over the rows in
   is refused where no sd is stated. `updateBasisScale = TRUE`, when it is built, reads the rows in at
-  that call.
+  that call. The places above this replaces, each still in its old words: rule 3 ("rows of weight zero
+  count"); the help's `sd` item ("rows of weight zero included"); step 2.1's test "Which rows", whose
+  `kept` leaves out the rows of weight zero and still ignores a mask set after creation; step 2.2's
+  `basisColumnScale` ("over every row") and step 2.8's oracle ("over every row the sampler holds"),
+  both over the rows in; and the call "the scale is unweighted and counts rows of weight zero, as the
+  response's scale does", whose reason is gone: the response's scale reads the rows in since
+  [response-scale-rows.md](response-scale-rows.md), and the two are still one estimator. The unit U in
+  those steps is that plan's, over the same rows.
 
       forest(x, basis = dose)          # default sd per sd(dose[weights > 0]), held
 
