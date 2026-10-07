@@ -1027,8 +1027,8 @@ otherwise, this section stands.
   range over the rows kept at k = 2, about 1.4 sd(y) for a normal sample of 300, and not the 2 sd(y) of
   the steps above. The drawn forest with no basis keeps 2 sd(y) as the median of its scale. The engine
   holds the rule, as it holds every default, and takes it from the code that gives `bart()` its own, so
-  the two cannot drift; the help states it as "the size bart() gives its forest". The default under
-  probit and logistic is not ruled and stays as planned. bartCause's `bcf(update.a = FALSE)` states
+  the two cannot drift; the help states it as "the size bart() gives its forest". Under probit and
+  logistic the default stays 1 in the link's unit, as planned (dec-B293). bartCause's `bcf(update.a = FALSE)` states
   `sd = 2 sd(y)` on its first forest the day push 1 lands, bcf's own convention (`sd_control`), so its
   fits keep that prior: one line in R/bcf.R and its help.
 
