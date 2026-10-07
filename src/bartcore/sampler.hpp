@@ -1590,8 +1590,16 @@ public:
   /// Re-derive every chain's weight-dependent latents against the weights
   /// already in force, each off its OWN generator, so the draws stay
   /// independent of the thread count exactly as setWeights's do.
-  void reapplyWeights() {
-    for (auto& chain : chains_) chain->reapplyWeights();
+  /// storedZeroWeightRows is the installed state's zeroWeightRows record, or
+  /// null when it carries none; every chain reads the same one.
+  void reapplyWeights(const unsigned char* storedZeroWeightRows = nullptr) {
+    for (auto& chain : chains_) chain->reapplyWeights(storedZeroWeightRows);
+  }
+  /// The rows at a weight that is not positive, a byte each, for a family
+  /// whose state names them; false for every other. Weights are
+  /// chain-invariant, so chain 0 answers for all.
+  bool zeroWeightRows(unsigned char* flags) const {
+    return chains_[0]->zeroWeightRows(flags);
   }
   /// A new per-observation censoring status, fanned to every chain: each
   /// rebuilds its own censoring structure against its own observed times.

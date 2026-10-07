@@ -4237,12 +4237,27 @@ public:
 
   /// Re-derive whatever the family states against its weights, for latents a
   /// state install has just put in place that another weight vector shaped.
-  /// weights is the vector ALREADY in force. Default: setWeights itself, which
-  /// redraws for the one family that redraws wholesale there and is a pointer
-  /// swap onto the same pointer for the rest.
-  virtual void reapplyWeights(const double* weights, ext_rng* rng,
-                              const double* totalFits, double sigma) {
+  /// weights is the vector ALREADY in force. storedZeroWeightRows is the
+  /// state's own record of the rows at weight zero when it was stored, a byte
+  /// per row as zeroWeightRows writes it, or null for a state carrying none;
+  /// only a family that keeps such a record reads it. Default: setWeights
+  /// itself, which redraws for the one family that redraws wholesale there and
+  /// is a pointer swap onto the same pointer for the rest.
+  virtual void reapplyWeights(const double* weights,
+                              const unsigned char* /* storedZeroWeightRows */,
+                              ext_rng* rng, const double* totalFits,
+                              double sigma) {
     setWeights(weights, rng, totalFits, sigma);
+  }
+
+  /// Whether this family holds a per-row latent that a zero weight detaches
+  /// from the row's residual, so that a state must say which rows those were.
+  /// Such a family writes one byte per row to flags, 1 where the weight in
+  /// force is not positive and 0 elsewhere, and returns true; every other
+  /// family returns false and leaves flags alone. The mask is not read: it
+  /// stays out of a state.
+  virtual bool zeroWeightRows(unsigned char* /* flags */) const {
+    return false;
   }
 
   /// Whether this family implements the active-row channel. setActiveRows's
@@ -5942,14 +5957,34 @@ public:
   }
 
   /// A row the stored weights left out of the likelihood carries a lambda
-  /// drawn without its residual, and a state does not say which rows those
-  /// were. So the record is forgotten and EVERY row in the likelihood here is
-  /// redrawn, each from its conditional at the installed fit, sigma and nu; a
-  /// row out of it here waits for the setter that brings it in.
-  void reapplyWeights(const double* weights, ext_rng* rng,
+  /// drawn without its residual. With the state's record of those rows, each
+  /// row is marked in exactly where the record has it at positive weight and
+  /// the call proceeds as setWeights does: a row at zero then and in the
+  /// likelihood here is redrawn from its conditional at the installed fit,
+  /// sigma and nu, every other row keeps the installed lambda, and a call
+  /// that brings no row in consumes no variate. The stored mask is not in the
+  /// record, so a row positive then and masked here is left marked out, for
+  /// setActiveRows to redraw. Without a record nothing says which rows were
+  /// out, so every mark is forgotten and EVERY row in the likelihood here is
+  /// redrawn. Either way a row out of the likelihood here waits for the
+  /// setter that brings it in.
+  void reapplyWeights(const double* weights,
+                      const unsigned char* storedZeroWeightRows, ext_rng* rng,
                       const double* totalFits, double sigma) override {
-    informative_.assign(numObservations_, 0);
+    if (storedZeroWeightRows == nullptr)
+      informative_.assign(numObservations_, 0);
+    else
+      for (std::size_t i = 0; i < numObservations_; ++i)
+        informative_[i] = storedZeroWeightRows[i] == 0 ? 1 : 0;
     setWeights(weights, rng, totalFits, sigma);
+  }
+
+  /// lambda_i is drawn every sweep at every row, a row at weight zero
+  /// included, so the scales alone do not say which rows those were.
+  bool zeroWeightRows(unsigned char* flags) const override {
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      flags[i] = userWeights_ != nullptr && !(userWeights_[i] > 0.0) ? 1 : 0;
+    return true;
   }
 
   bool supportsActiveRows() const override { return true; }

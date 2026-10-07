@@ -8293,7 +8293,7 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   // self-selecting, since for a family that states nothing against its
   // weights it is a measured no-op. Equal digests skip it, so a state
   // installed under its own weights draws nothing.
-  if (weightsDiffer) sampler.reapplyWeights();
+  if (weightsDiffer) sampler.reapplyWeights(NULL);
   // the censoring structure reconciles the same way: a row the donor scored an
   // event and this sampler censors comes back sitting exactly at its bound, so
   // redraw the censored set off each chain's own restored generator. An event

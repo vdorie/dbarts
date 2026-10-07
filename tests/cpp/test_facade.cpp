@@ -34,7 +34,8 @@ namespace {
 /// One enumerator per SamplerBase pure virtual, in declaration order.
 enum class FacadeVirtual {
   shape, run, setOffset, setResponse, setWeights, weightsDigest,
-  reapplyWeights, setSurvivalStatus, survivalDigest, reapplySurvivalStatus,
+  reapplyWeights, zeroWeightRows, setSurvivalStatus, survivalDigest,
+  reapplySurvivalStatus,
   setSigma, setTestData, setTestOffset, setData, setPredictor,
   updatePredictor, setCutPoints, updatePredictorPerObservation,
   beginPredictorUpdate, currentSampleNum, savedSlotForDraw, savedTree,
@@ -105,7 +106,8 @@ public:
   SPY_VOID(setResponse, (const double* y, bool u), (y, u))
   SPY_VOID(setWeights, (const double* w), (w))
   SPY_RET(std::uint64_t, weightsDigest, () const, ())
-  SPY_VOID(reapplyWeights, (), ())
+  SPY_VOID(reapplyWeights, (const unsigned char* z), (z))
+  SPY_RET(bool, zeroWeightRows, (unsigned char* o) const, (o))
   SPY_VOID(setSurvivalStatus, (const double* s), (s))
   SPY_RET(std::uint64_t, survivalDigest, () const, ())
   SPY_VOID(reapplySurvivalStatus, (), ())
@@ -273,12 +275,12 @@ struct Fixtures {
   static constexpr std::size_t n = 120, p = 2, nTest = 6, K = 3, capacity = 3;
 
   std::vector<double> x, y, y3, xTest, xTest2, offset, offset3, weights,
-    yBinary, yCount, logTime, survivalStatus, survivalStatus2, unitBasis, wideBasis, wideBasis2, categoryOffset,
+    zeroedWeights, yBinary, yCount, logTime, survivalStatus, survivalStatus2, unitBasis, wideBasis, wideBasis2, categoryOffset,
     testCategoryOffset, testOffset, newColumn, replacement;
   std::vector<int> counts, trials, counts0;
   std::vector<double> xPooled, newColumn2;
   std::vector<ext_rng*> rngs;
-  Fixture g, gt, d, b, m, v, l, nb, af;
+  Fixture g, gt, d, b, m, v, l, nb, af, t;
   FixtureT<LinearGaussianLeaf> lin;
   std::size_t leafCovariate = 0;
   SamplerOptions gaussianOptions;
@@ -299,6 +301,7 @@ struct Fixtures {
     offset.resize(n);
     offset3.resize(n);
     weights.resize(n);
+    zeroedWeights.resize(n);
     yBinary.resize(n);
     yCount.resize(n);
     logTime.resize(n);
@@ -325,6 +328,7 @@ struct Fixtures {
       offset[i] = 0.1 * static_cast<double>(i % 7);
       offset3[i] = 4.0 * std::sin(0.2 * static_cast<double>(i));
       weights[i] = 1.0 + static_cast<double>(i % 3);
+      zeroedWeights[i] = i % 4 == 0 ? 0.0 : weights[i];  // every fourth out
       yBinary[i] = y[i] > 0.0 ? 1.0 : 0.0;
       yCount[i] = static_cast<double>(i % 4);
       logTime[i] = y[i];
@@ -361,6 +365,7 @@ struct Fixtures {
     buildNegativeBinomial();
     buildSurvival();
     buildVectorLeaf();
+    buildStudentT();
   }
 
   ~Fixtures() {
@@ -442,6 +447,20 @@ struct Fixtures {
             &one);
     Results results;
     v.impl().run(10, 2, results);
+  }
+
+  /// Student-t errors under weights with zeros: the one family whose state
+  /// names its zero-weight rows.
+  void buildStudentT() {
+    SamplerOptions options;
+    options.numTrees = 6;
+    options.residualDf = 5.0;
+    ext_rng* one = newRng(51013u);
+    t.build(x.data(), y.data(), n, p, zeroedWeights.data(), nullptr,
+            ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options,
+            &one);
+    Results results;
+    t.impl().run(5, 1, results);
   }
 
   void buildLogistic() {
@@ -618,11 +637,42 @@ const Row rows[] = {
     // so the omega draws move
     std::vector<double> before(f.l.impl().latents(0),
                                f.l.impl().latents(0) + Fixtures::n);
-    f.l.base().reapplyWeights();
+    f.l.base().reapplyWeights(nullptr);
     bool moved = false;
     for (std::size_t i = 0; i < Fixtures::n; ++i)
       moved |= f.l.impl().latents(0)[i] != before[i];
     check(moved, "facade reapplyWeights: the family redraws its latents");
+    // the record reaches the family: a student-t sampler handed its own zero
+    // rows keeps every scale, and handed none redraws
+    std::vector<unsigned char> record(Fixtures::n);
+    f.t.impl().zeroWeightRows(record.data());
+    before.assign(f.t.impl().latents(0), f.t.impl().latents(0) + Fixtures::n);
+    f.t.base().reapplyWeights(record.data());
+    bool kept = true;
+    for (std::size_t i = 0; i < Fixtures::n; ++i)
+      kept &= f.t.impl().latents(0)[i] == before[i];
+    f.t.base().reapplyWeights(nullptr);
+    moved = false;
+    for (std::size_t i = 0; i < Fixtures::n; ++i)
+      moved |= f.t.impl().latents(0)[i] != before[i];
+    check(kept && moved,
+          "facade reapplyWeights: the record of zero-weight rows is passed on");
+  }},
+  {FacadeVirtual::zeroWeightRows, "zeroWeightRows", [](Fixtures& f) {
+    std::vector<unsigned char> viaBase(Fixtures::n, 7), viaImpl(Fixtures::n, 7);
+    bool kept = f.t.base().zeroWeightRows(viaBase.data());
+    std::size_t numZero = 0;
+    for (std::size_t i = 0; i < Fixtures::n; ++i) {
+      numZero += viaBase[i];
+      kept &= viaBase[i] == (f.zeroedWeights[i] == 0.0 ? 1 : 0);
+    }
+    check(kept && f.t.impl().zeroWeightRows(viaImpl.data()) &&
+            viaBase == viaImpl && numZero > 0 && numZero < Fixtures::n,
+          "facade zeroWeightRows: the boundary reports the impl's flags");
+    std::vector<unsigned char> untouched(Fixtures::n, 7);
+    check(!f.g.base().zeroWeightRows(untouched.data()) &&
+            untouched == std::vector<unsigned char>(Fixtures::n, 7),
+          "facade zeroWeightRows: a family keeping no such scale reports none");
   }},
   {FacadeVirtual::setSurvivalStatus, "setSurvivalStatus", [](Fixtures& f) {
     std::uint64_t digest = f.af.impl().survivalDigest();

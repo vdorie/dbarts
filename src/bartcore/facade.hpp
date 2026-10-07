@@ -165,8 +165,21 @@ public:
   /// is stated against them re-derives it: the counterpart to setWeights for a
   /// state whose latents were shaped by other weights than these. Nothing is
   /// refused, because no weight changes - the guards a weight CHANGE carries
-  /// do not apply. Consumes each chain's own generator.
-  virtual void reapplyWeights() = 0;
+  /// do not apply. storedZeroWeightRows is the record zeroWeightRows wrote
+  /// beside that state, numObservations bytes of 0 and 1 borrowed for the
+  /// call, or null for a state carrying none. With it a Student-t sampler
+  /// redraws the scale of only the rows at weight zero then and in the
+  /// likelihood now, as the same setWeights call would; without it, of every
+  /// row in the likelihood. Consumes each chain's own generator, and nothing
+  /// at all when no row is redrawn.
+  virtual void reapplyWeights(const unsigned char* storedZeroWeightRows) = 0;
+  /// The record a host stores beside a saved state and hands back to
+  /// reapplyWeights: one byte per row into flags (numObservations of them), 1
+  /// where the weight in force is not positive and 0 elsewhere, all 0 for a
+  /// sampler carrying no weights. Returns whether the family keeps a per-row
+  /// latent such a record serves (Student-t's scales); false leaves flags
+  /// untouched and the host stores none. The active-row mask is not in it.
+  virtual bool zeroWeightRows(unsigned char* flags) const = 0;
   /// Install a new per-observation right-censoring status (1 an event, 0 a
   /// right-censored observation), length numObservations, on a family that
   /// carries one; every other family drops it, the host having refused it by
@@ -553,7 +566,12 @@ public:
     impl_.setWeights(weights);
   }
   std::uint64_t weightsDigest() const override { return impl_.weightsDigest(); }
-  void reapplyWeights() override { impl_.reapplyWeights(); }
+  void reapplyWeights(const unsigned char* storedZeroWeightRows) override {
+    impl_.reapplyWeights(storedZeroWeightRows);
+  }
+  bool zeroWeightRows(unsigned char* flags) const override {
+    return impl_.zeroWeightRows(flags);
+  }
   void setSurvivalStatus(const double* status) override {
     impl_.setSurvivalStatus(status);
   }

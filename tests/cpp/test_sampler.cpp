@@ -3274,9 +3274,11 @@ static void testMembershipAcrossForests() {
     ext_rng_destroy(reference);
 
     // a state stored under the zeroed weights, re-derived where other rows
-    // are out by weight or by mask: every row in the likelihood here is
-    // redrawn at the installed fit, and a row out of it here by the setter
-    // that next brings it in
+    // are out by weight or by mask. Without the state's record of its
+    // zero-weight rows every row in the likelihood here is redrawn at the
+    // installed fit; with it, only the rows at zero then and in the
+    // likelihood here. A row out of it here is redrawn by the setter that
+    // next brings it in
     ext_rng* sourceRng = seeded(45u);
     ConstantLeafSampler source(x.data(), y.data(), n, p, zeroed.data(),
                                offset.data(), ResponseFamily::gaussian, 1.0,
@@ -3284,9 +3286,53 @@ static void testMembershipAcrossForests() {
     source.run(30, 0, results);
     SamplerStateData stored;
     source.getState(stored);
+
+    // what a sampler reports for a state to carry: its zero weights, all 0
+    // with no weights, and nothing for a family holding no such scale
+    std::vector<unsigned char> record(n, 7), unweightedRecord(n, 7),
+      gaussianRecord(n, 7), destinationRecord(n, 7);
+    bool reportsZeros = source.zeroWeightRows(record.data());
+    for (size_t i = 0; i < n; ++i)
+      reportsZeros = reportsZeros && record[i] == (zeroed[i] == 0.0 ? 1 : 0);
+    check(reportsZeros,
+          "a student-t sampler reports its rows at weight zero, a byte each");
+    {
+      ext_rng* plainRng = seeded(46u);
+      ext_rng* gaussianRng = seeded(47u);
+      ConstantLeafSampler unweighted(x.data(), y.data(), n, p, nullptr,
+                                     offset.data(), ResponseFamily::gaussian,
+                                     1.0, 3.0, rawScale, options, &plainRng);
+      SamplerOptions gaussianOptions;
+      gaussianOptions.numTrees = 10;
+      ConstantLeafSampler gaussian(x.data(), y.data(), n, p, zeroed.data(),
+                                   offset.data(), ResponseFamily::gaussian,
+                                   1.0, 3.0, rawScale, gaussianOptions,
+                                   &gaussianRng);
+      check(unweighted.zeroWeightRows(unweightedRecord.data()) &&
+              unweightedRecord == std::vector<unsigned char>(n, 0),
+            "an unweighted student-t sampler reports no row at weight zero");
+      check(!gaussian.zeroWeightRows(gaussianRecord.data()) &&
+              gaussianRecord == std::vector<unsigned char>(n, 7),
+            "and a gaussian sampler reports none, its buffer left alone");
+      ext_rng_destroy(gaussianRng);
+      ext_rng_destroy(plainRng);
+    }
+
     sampler.setWeights(other.data());
     sampler.setActiveRows(mask.data());
     sampler.run(5, 0, results);
+    sampler.zeroWeightRows(destinationRecord.data());
+    size_t numEntering = 0, numEnteringMasked = 0, numStaying = 0;
+    for (size_t i = 0; i < n; ++i) {
+      if (other[i] == 0.0) continue;
+      if (record[i] != 0 && mask[i] != 0.0) ++numEntering;
+      if (record[i] != 0 && mask[i] == 0.0) ++numEnteringMasked;
+      if (record[i] == 0 && mask[i] != 0.0) ++numStaying;
+    }
+    check(numEntering > 0 && numEnteringMasked > 0 && numStaying > 0,
+          "non-vacuity: rows enter the likelihood, rows enter under the mask "
+          "and rows stay in it");
+
     check(sampler.setState(stored, nullptr) &&
             scales() == stored.chains[0].latents,
           "a student-t state stored under other weights installs its scales "
@@ -3297,12 +3343,43 @@ static void testMembershipAcrossForests() {
     });
     sampler.reapplyWeights();
     check(scales() == expected,
-          "re-deriving it redraws every scale in the likelihood at the "
-          "installed fit and sigma");
+          "re-deriving it with no record redraws every scale in the "
+          "likelihood at the installed fit and sigma");
     check(rngStreamsAgree(reference, sampler.rng()),
           "taken from the chain's own generator");
     check(composed(other, mask.data()),
           "and the precisions the trees read carry the redrawn scales");
+    ext_rng_destroy(reference);
+
+    // a record under which no row enters: the destination's own zero rows
+    check(sampler.setState(stored, nullptr), "the state installs again");
+    reference = cloneRng(sampler.rng());
+    sampler.reapplyWeights(destinationRecord.data());
+    check(scales() == stored.chains[0].latents &&
+            rngStreamsAgree(reference, sampler.rng()),
+          "re-deriving it with a record under which no row enters keeps "
+          "every stored scale and draws nothing");
+    check(composed(other, mask.data()),
+          "and the precisions the trees read carry the stored scales");
+    ext_rng_destroy(reference);
+
+    // the state's own record: the rows at zero then, positive and active now
+    check(sampler.setState(stored, nullptr), "and a third time");
+    reference = cloneRng(sampler.rng());
+    expected = conditional(reference, other, [&](size_t i) {
+      return record[i] != 0 && other[i] != 0.0 && mask[i] != 0.0;
+    });
+    sampler.reapplyWeights(record.data());
+    size_t numRedrawn = 0;
+    for (size_t i = 0; i < n; ++i)
+      if (scales()[i] != stored.chains[0].latents[i]) ++numRedrawn;
+    check(scales() == expected && numRedrawn == numEntering,
+          "re-deriving it with the record redraws the scale of exactly the "
+          "rows that enter the likelihood, at the installed fit and sigma");
+    check(rngStreamsAgree(reference, sampler.rng()),
+          "taken from the chain's own generator, in row order");
+    check(composed(other, mask.data()),
+          "and the precisions the trees read carry those scales");
     ext_rng_destroy(reference);
     reference = cloneRng(sampler.rng());
     expected = conditional(reference, other, [&](size_t i) {
