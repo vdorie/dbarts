@@ -135,8 +135,8 @@ forest(
     overrides its default and keeps its per-forest reading at every \eqn{K}{K},
     so \code{sd = 1} on each basis forest recovers the pre-\eqn{K}{K}-aware
     model exactly. It is one unnamed number, positive and finite, the same for
-    every column of the forest's \code{basis}; a vector, a named number, a
-    string, a logical, a factor, a Date, a list and a matrix are refused.
+    every column of the forest's \code{basis}; a vector of any other length,
+    a named number and anything that is not a number are refused.
     A model of one forest states its size as the fitting function's
     \code{leaf.prior = normal(sd = )}.
 
@@ -190,13 +190,18 @@ forest(
     or use one forest with \code{linear()} leaves.
   }
   \item{amplitude}{
-    The law of this forest's amplitudes, the coefficients its \code{basis}
-    columns carry. Left out, they are drawn each sweep. \code{fixed()} holds
-    them at the value the forest's shape gives them, for the sampler's life;
-    the choice is made at creation and cannot be toggled afterwards. Only
-    \code{fixed()}, its bare name \code{fixed} and \code{fixed(1)} are taken,
-    the held value being the one the shape gives and no other. It is stated for
-    a forest of a model of several, and a model of one forest has none.
+    The law of this forest's coefficients: the one a forest with no
+    \code{basis} carries, or one for each column of its \code{basis}. Left out,
+    they are drawn each sweep. \code{fixed()} holds them for the sampler's life,
+    the choice being made at creation: a forest with no \code{basis} at 1, and
+    a forest on a factor, a character or a logical vector at 0 for the first
+    level and 1 for each of the others, so that it is the other levels against
+    the first. The same holds for any basis of several columns, the first at 0
+    and the rest at 1. A basis of one numeric column is refused, since it would
+    hold the forest at zero. \code{fixed} alone means \code{fixed()}, and
+    no other value is taken. Outside the argument that takes it the
+    constructor is \code{dbartsPriors$fixed()}. It is stated for a forest of a
+    model of several; a model of one forest has no coefficient to hold.
   }
 }
 \details{

@@ -354,13 +354,20 @@ processHit <- function(hit, env) {
     basisValue <- eval(named[[which(namedNames == "basis")]], env)
   }
 
+  knobExprs <- named[namedNames %not_in% c("vars", "basis")]
+  if ("amplitude" %in% names(knobExprs)) {
+    knobExprs["amplitude"] <- list(inlineAmplitudeValue(knobExprs[[
+      "amplitude"
+    ]]))
+  }
+
   list(
     # a knob may carry the constraint constructors, which resolve by bare
     # name as they do in the fitting function's own arguments
     knobArgs = lapply(
-      named[namedNames %not_in% c("vars", "basis")],
+      knobExprs,
       evalInForestVocabulary,
-      vocabulary = dbartsForests[c("interactions", "blocks", "fixed")],
+      vocabulary = dbartsForests[c("interactions", "blocks")],
       evalEnv = env
     ),
     varsArg = if ("vars" %in% namedNames) {

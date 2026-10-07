@@ -223,7 +223,7 @@ methods::setClass(
   slots = list(value = "numeric")
 )
 methods::setValidity("dbartsFixedPrior", function(object) {
-  if (length(object@value) != 1L) {
+  if (length(object@value) != 1L || is.na(object@value)) {
     return("'value' must be a single positive number")
   }
   if (object@value <= 0.0) {

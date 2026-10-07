@@ -1239,42 +1239,52 @@ validateForestAmplitude <- function(amplitude) {
   "fixed"
 }
 
-## The kind of value a stated 'sd' is when it is one that a number is not read
-## from, for the message, and NULL for any other: nothing is coerced into a
-## number.
+## The kind of value a stated 'sd' is when a number is not read from it, for
+## the message, and NULL for a number: nothing is coerced into one.
 sdKindRefused <- function(sd) {
   if (is.character(sd)) {
     "a string"
   } else if (is.factor(sd)) {
     "a factor"
-  } else if (inherits(sd, c("Date", "POSIXt", "difftime"))) {
+  } else if (inherits(sd, "Date")) {
     "a Date"
+  } else if (inherits(sd, c("POSIXct", "POSIXlt"))) {
+    "a date-time"
+  } else if (inherits(sd, "difftime")) {
+    "a time difference"
   } else if (is.list(sd)) {
     "a list"
   } else if (is.matrix(sd) || is.array(sd)) {
     "a matrix"
   } else if (is.logical(sd)) {
     "a logical"
+  } else if (!is.numeric(sd)) {
+    kind <- class(sd)[1L]
+    paste0(if (grepl("^[aeiouAEIOU]", kind)) "an " else "a ", kind)
   }
 }
 
 ## A forest's 'sd', at creation and on $setLeafPrior: one unnamed number, finite
 ## and positive. Infinity states no prior the map can scale, so it is refused
-## rather than carried into a leaf scale or a half-Cauchy median.
+## rather than carried into a leaf scale or a half-Cauchy median. A number is
+## a numeric or integer, whatever class it carries.
 validateForestSd <- function(sd) {
   if (isSingleNA(sd) || (is.numeric(sd) && length(sd) == 1L && is.nan(sd))) {
     stop("forest 'sd' must not be NA; leave it out for the default")
   }
-  kind <- sdKindRefused(sd)
-  if (is.null(kind) && !is.numeric(sd)) {
-    kind <- paste0("a ", class(sd)[1L])
+  if (is(sd, "dbartsSdHyperprior")) {
+    stop(
+      "forest 'sd' must be a number, not invchi(): a law on a forest's sd is ",
+      "not supported yet"
+    )
   }
+  kind <- sdKindRefused(sd)
   if (!is.null(kind)) {
     stop("forest 'sd' must be a number, not ", kind)
   }
   if (length(sd) != 1L) {
     stop(
-      "forest 'sd' must be a single number, not ",
+      "forest 'sd' must be a single number, not a vector of length ",
       length(sd),
       ": a forest states one sd, for every column of its basis; to size the ",
       "columns differently, rescale them in 'basis', as I(dose / 30)"
@@ -1349,15 +1359,14 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   if (numForests == 1L) {
     if (!is.null(first$sd) && !any(hasBasis)) {
       stop(
-        "forest 'sd' is stated for a forest of a model of several; a model ",
-        "of one forest states its size as the fitting function's leaf.prior ",
-        "= normal(sd = )"
+        "this model has one forest, so its size is the fitting function's ",
+        "leaf.prior = normal(sd = ), not forest(sd = )"
       )
     }
     if (!is.null(first$amplitude) && !any(hasBasis)) {
       stop(
-        "'amplitude' is the law of the coefficient that a model of several ",
-        "forests gives each of them; a model of one forest has none"
+        "this model has one forest, which has no coefficient to hold; ",
+        "'amplitude' needs a model of several forests"
       )
     }
   }
@@ -1815,11 +1824,7 @@ validateLeafSd <- function(sd) {
       stop("'sd' must be a number or invchi(), not ", kind)
     }
     if (length(sd) == 1L && !is.null(names(sd))) {
-      stop(
-        "'sd' must not be named (\"",
-        names(sd),
-        "\"): it is one number, for every column of a basis"
-      )
+      stop("'sd' must not be named (\"", names(sd), "\"): it is one number")
     }
   }
   if (is(sd, "dbartsLeafHyperprior")) {
@@ -2212,15 +2217,14 @@ dbartsForests <- list(
   blocks = blocks,
   monotone = monotone,
   forest = forest,
-  varianceForest = varianceForest,
-  fixed = fixed
+  varianceForest = varianceForest
 )
 
 ## Each door argument taking a forest constructor, and the vocabulary it
 ## resolves over. In the order the doors forced them before they resolved by
 ## name, so that an error names the same argument.
 FOREST_ARGUMENT_VOCABULARIES <- list(
-  forests = c("forest", "interactions", "blocks", "fixed"),
+  forests = c("forest", "interactions", "blocks"),
   interactions = "interactions",
   blocks = "blocks",
   monotone = "monotone",
@@ -2230,6 +2234,44 @@ FOREST_ARGUMENT_VOCABULARIES <- list(
 ## The door arguments that take a forest constructor, resolved from the
 ## caller's own unevaluated arguments in 'matchedCall'. An absent argument is
 ## NULL, every door's default.
+## The constructor an 'amplitude' argument takes, written as fixed() or a bare
+## fixed, put in place of the name in the argument's own code and nowhere else:
+## it is no member of the vocabulary the rest of the forests are written in,
+## so a column or a variable of that name is the caller's everywhere but there.
+inlineAmplitudeValue <- function(expr) {
+  if (is.symbol(expr) && identical(as.character(expr), "fixed")) {
+    return(fixed)
+  }
+  inlineConstructorCalls(expr, list(fixed = fixed))
+}
+
+## An expression holding forest() calls, with the constructor put in each
+## 'amplitude' argument it states.
+inlineAmplitudeConstructors <- function(expr) {
+  if (
+    !is.call(expr) ||
+      isQuotingCall(expr) ||
+      identical(expr[[1L]], as.name("function"))
+  ) {
+    return(expr)
+  }
+  parts <- as.list(expr)
+  given <- names(parts)
+  for (index in seq_along(parts)) {
+    if (identical(parts[[index]], quote(expr = ))) {
+      next
+    }
+    parts[index] <- list(
+      if (identical(given[index], "amplitude")) {
+        inlineAmplitudeValue(parts[[index]])
+      } else {
+        inlineAmplitudeConstructors(parts[[index]])
+      }
+    )
+  }
+  as.call(parts)
+}
+
 resolveForestArguments <- function(
   matchedCall,
   evalEnv,
@@ -2243,7 +2285,11 @@ resolveForestArguments <- function(
         NULL
       } else {
         evalInForestVocabulary(
-          expr,
+          if (identical(name, "forests")) {
+            inlineAmplitudeConstructors(expr)
+          } else {
+            expr
+          },
           dbartsForests[FOREST_ARGUMENT_VOCABULARIES[[name]]],
           evalEnv
         )

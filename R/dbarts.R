@@ -3322,7 +3322,7 @@ dbartsSampler <- setRefClass(
       amplitudes <- samplerCarriesAmplitudes(.self)
       if (!missing(forests)) {
         forests <- evalInForestVocabulary(
-          substitute(forests),
+          inlineAmplitudeConstructors(substitute(forests)),
           dbartsForests[FOREST_ARGUMENT_VOCABULARIES$forests],
           parent.frame()
         )

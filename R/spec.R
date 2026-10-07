@@ -975,6 +975,22 @@ resolveSamplerSpec <- function(
       specs <- c(specs, rep(list(NULL), numForests - length(specs)))
     }
     hasBasis <- !vapply(data@bases, is.null, logical(1L))
+    # a held coefficient is 0 on a basis's first column and 1 on the rest, so
+    # a forest held on one numeric column is multiplied by zero
+    for (index in which(hasBasis)) {
+      if (
+        identical(specs[[index]]$amplitude, "fixed") &&
+          NCOL(data@bases[[index]]) == 1L
+      ) {
+        stop(
+          "forest ",
+          index,
+          ": amplitude = fixed() on a basis of one numeric column is not ",
+          "supported yet; it would hold the forest at zero. Let the ",
+          "coefficient be drawn, or write the column as a two-level factor"
+        )
+      }
+    }
     treeCounts <- vapply(
       seq_len(numForests),
       function(index) {
