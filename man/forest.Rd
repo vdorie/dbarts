@@ -138,9 +138,9 @@ forest(
       \item Anything that is not a column of \code{data} is read where
         \code{forest()} is called, at that moment, with or without a tilde
         written in place: \code{forest(basis = w)}, \code{forest(basis = ~ w)}.
-      \item A formula held in a variable, \code{b <- ~ dose} and then
-        \code{forest(basis = b)}, is read late, when the model is fitted, as
-        R reads formulas.
+      \item A formula held in a variable, \code{b <- ~ w} and then
+        \code{forest(basis = b)}, is read the same way, when \code{forest()}
+        is called, and is left as you made it.
       \item \code{cbind()} is refused: write the columns with \code{+}.
     }
     The rest of this item is the detail of each.
@@ -200,21 +200,26 @@ forest(
     or with one given as a value; see \code{\link{dbarts}}.
 
     \strong{Rows.} A basis has a value for every row of \code{data}, and is
-    cut to the rows the fit keeps: \code{subset} is evaluated once, for the
-    fit, and the basis is given the same rows in the same order, less those
-    the \code{na.action} drops. \code{scale()}, \code{poly()} and anything
+    cut to the rows the fit keeps: \code{data} and \code{subset} are each
+    evaluated once, for the fit, and the basis is given the same rows in the
+    same order, less those the \code{na.action} drops. So with
+    \code{data = d[sample(nrow(d)), ]} or \code{subset = sample(n, 100)} the
+    basis has the rows the fit has. \code{scale()}, \code{poly()} and anything
     else a term computes across rows, \code{I(age - mean(age))} among it, are
     computed on every row of \code{data}, as in \code{lm}, whatever
     \code{subset} keeps. A level of a factor that no kept row has gives no
     column. Refused are a missing value in a row the fit keeps, where
-    \code{lm} would drop the row; a logical column with one value on the rows
-    kept; and a numeric column that is zero on all of them.
+    \code{lm} would drop the row; a factor, a character column or a logical
+    column with one level on the rows kept; and a numeric column that is zero
+    on all of them.
 
     \strong{New rows.} \code{predict} builds the basis again from the new
-    rows, as \code{predict} does for \code{lm}: \code{scale()}, \code{poly()},
-    \code{ns()} and \code{bs()} use the centre, scale and knots the fitted
-    rows gave, and arithmetic inside \code{I()} is evaluated on the rows
-    given, so \code{I(age - mean(age))} uses the mean of the new rows; see
+    rows, as \code{predict} does for \code{lm}. Taken from the fitted rows
+    are the centre, scale and knots of \code{scale()}, \code{poly()},
+    \code{ns()} and \code{bs()}, and the levels of a factor. Everything else
+    is computed again on the rows given: \code{I(age - mean(age))} uses the
+    mean of the new rows, and \code{factor(dose > median(dose))} their
+    median; see
     \code{\link[stats]{SafePrediction}}. Every column of \code{data} the basis
     names must be among the new rows, a factor's columns keep the order of the
     fit's levels, and a level the fit did not have is refused. A basis given
@@ -255,21 +260,27 @@ forest(
     \code{list(vars = nms)} for predictors by name.
 
     A formula made elsewhere, held in a variable or handed over as above, is
-    read as R reads a formula: when the model is fitted, in \code{data} and
-    then where the formula was made, and again by \code{predict}. A formula
-    made in a loop and held in a variable therefore sees the last value of
-    the loop's variable, in every forest. Change a number such a formula
-    uses between the fit and the prediction and the prediction changes, with
-    no message.
+    read in the same way and at the same moment, when \code{forest()} is
+    called: a name of a column of \code{data} is that column, and every other
+    variable the formula uses is copied from where the formula was made. A
+    formula made in a loop and held in a variable therefore gives each forest
+    what its own call saw, and a variable changed afterwards changes neither
+    the fit nor a prediction. The formula itself is not touched: it is the
+    formula you made, in its environment, and nothing is assigned there.
 
     A \code{forest()} term inside the formula of \code{\link{bart}} or
-    \code{\link{dbarts}} is part of that formula and is read the same late
-    way, with a tilde or without: in \code{data} and then where the formula
-    was written, when the model is fitted and again by \code{predict}.
+    \code{\link{dbarts}} is part of that formula and is read with it, as R
+    reads a formula, with a tilde or without: in \code{data} and then where
+    the formula was written, when the model is fitted and again by
+    \code{predict}. Change a number such a term uses between the fit and
+    the prediction and the prediction changes, with no message.
 
     An argument that \code{lapply()}, \code{Map()} or another function of
-    base R writes for you, as in \code{lapply(columns, forest)}, is a value
-    handed over, whatever the data's columns are called.
+    base R writes for you, as in \code{lapply(columns, forest, vars = "x1")},
+    is a value handed over, whatever the data's columns are called. A name
+    or a call that such a function is handed and passes on, as in
+    \code{Map(forest, nms, MoreArgs = list(basis = quote(dose)))}, is code,
+    as it is through \code{do.call()}.
 
     \strong{A value.} What is handed over as an object, through
     \code{do.call()} or in a call built by a program, is used as it is: a
@@ -281,6 +292,9 @@ forest(
     value already cut to those rows is refused by name. A level that no row
     of \code{data} has is refused, while one that only \code{subset} empties
     keeps a column of zeros, a value not being built again on the rows kept.
+    A value that the rows kept leave with one level, or one numeric column
+    that is zero on all of them, is refused as the same basis written as code
+    is.
     A single string or number is refused: \code{basis = "dose"} names no
     column, so write \code{basis = dose}.
 
