@@ -485,3 +485,209 @@ own <- standardization(recipient)
 recipient$installTrees(gp.donor)
 expect_identical(standardization(recipient), own)
 expect_true(diff(range(liveFits(recipient))) == 0)
+
+## --- 6. live coefficients across a covariate without spread ----------------
+## A constant leaf covariate is centred at its one value and divided by 1, so
+## a leaf reads zero for it on every training row and the intercept alone is
+## the fit: between two constants a live leaf does not move, off a constant
+## its intercept stays, onto one it takes the function's value there. Whether
+## a covariate is such a column is read from the values and the centre and
+## scale in force, so one given values, moved or made constant after creation
+## converts as what it then is. Each case reads the fitted function at the
+## training rows and at appended or fresh ones before and after, to 1e-10
+## relative to max(1, |value|), and requires the next draws to stay in the
+## range of a copy taken before the call, widened by twice its width either
+## way.
+tolerance <- 1e-10
+newest <- c(5L, 10L) # each chain's last kept draw, which is its live forest
+withLeafColumn <- function(rows, value) cbind(x1 = rows[, 1L], x2 = value)
+madeOn <- function(rows, seed = 7L, response = y, ...) {
+  dbarts(
+    rows,
+    response,
+    control = control(n.burn = 60L, seed = seed, ...),
+    leaf.prior = linear(columns = 2L)
+  )
+}
+liveFunction <- function(sampler, rows) sampler$predict(rows)[, 5L, ]
+liveMatrix <- function(sampler) matrix(liveFits(sampler), ncol = 2L)
+nextDrawsWithin <- function(sampler, bounds) {
+  drawn <- range(sampler$run(0L, 3L)$train)
+  all(is.finite(drawn)) &&
+    drawn[1L] >= bounds[1L] - 2 * diff(bounds) &&
+    drawn[2L] <= bounds[2L] + 2 * diff(bounds)
+}
+drawsLikeTwin <- function(sampler, twin) {
+  nextDrawsWithin(sampler, range(twin$run(0L, 3L)$train))
+}
+old.rows <- seq_len(n)
+added <- x.more[-old.rows, ]
+
+# neither side has spread: one constant replaced by another, at a value whose
+# mean is exact and at one whose mean rounds. The live fit ran to thousands.
+for (constant in c(1000, 0.1)) {
+  x.constant <- withLeafColumn(x, constant)
+  x.fresh <- withLeafColumn(x.new, constant + x.new[, 2L])
+  constant.fit <- madeOn(x.constant)
+  invisible(constant.fit$run())
+  for (chain in standardization(constant.fit)) {
+    expect_identical(chain$leaf.covariate.center, constant, info = constant)
+    expect_identical(chain$leaf.covariate.scale, NA_real_, info = constant)
+  }
+  expect_true(max(abs(slopes(constant.fit))) > 1e-3, info = constant)
+  twin <- constant.fit$copy()
+  donor <- constant.fit$copy()
+  live <- liveMatrix(constant.fit)
+  trees <- liveTrees(constant.fit)
+  kept <- constant.fit$predict(x.fresh)
+  constant.fit$setData(dbartsData(withLeafColumn(x.more, 2 * constant), y.more))
+  for (chain in standardization(constant.fit)) {
+    expect_identical(chain$leaf.covariate.center, 2 * constant, info = constant)
+    expect_identical(chain$leaf.covariate.scale, NA_real_, info = constant)
+  }
+  expect_true(
+    worstGap(live, liveMatrix(constant.fit)[old.rows, ]) < tolerance,
+    info = constant
+  )
+  expect_identical(liveTrees(constant.fit), trees, info = constant)
+  expect_true(
+    worstGap(kept, constant.fit$predict(x.fresh)) < tolerance,
+    info = constant
+  )
+  expect_true(drawsLikeTwin(constant.fit, twin), info = constant)
+
+  # the same pair through a warm start, and through bart, which runs a sweep
+  # before anything can be read and is held to the donor's range
+  recipient <- madeOn(withLeafColumn(x, 2 * constant), 41L, keepTrees = FALSE)
+  recipient$installTrees(donor, samples = newest)
+  expect_true(
+    worstGap(live, liveMatrix(recipient)) < tolerance,
+    info = constant
+  )
+  donor$storeState()
+  seeded <- bart(
+    withLeafColumn(x, 2 * constant),
+    y,
+    leaf.prior = linear(columns = 2L),
+    n.trees = 8L,
+    n.samples = 3L,
+    n.burn = 0L,
+    n.chains = 2L,
+    n.threads = 1L,
+    warm.start = donor$state,
+    verbose = FALSE,
+    seed = 2L
+  )$yhat.train
+  expect_true(drawsLikeTwin(recipient, donor), info = constant)
+  theirs <- range(live)
+  expect_true(
+    min(seeded) >= theirs[1L] - 2 * diff(theirs) &&
+      max(seeded) <= theirs[2L] + 2 * diff(theirs),
+    info = constant
+  )
+}
+
+# a placeholder of zeros given values after creation: its slopes are informed
+# from then on and convert by the formula. They were all set to zero, and the
+# live fit on the old rows moved by about 6.
+placeholder <- function(seed = 7L, ...) {
+  sampler <- madeOn(withLeafColumn(x, 0), seed, ...)
+  expect_true(sampler$setPredictor(x[, 2L], 2L))
+  invisible(sampler$run())
+  sampler
+}
+given <- placeholder()
+for (chain in standardization(given)) {
+  expect_identical(chain$leaf.covariate.center, 0)
+  expect_identical(chain$leaf.covariate.scale, 1)
+}
+expect_true(max(abs(slopes(given))) > 0.1)
+twin <- given$copy()
+donor <- given$copy()
+copied <- given$copy()
+live <- liveMatrix(given)
+before <- liveFunction(given, x.more)
+expect_true(worstGap(live, before[old.rows, ]) < tolerance)
+kept <- keptDraws(given)
+given$setData(dbartsData(x.more, y.more))
+expect_true(standardization(given)[[2L]]$leaf.covariate.scale != 1)
+expect_true(max(abs(slopes(given))) > 0.1)
+# the old rows and the appended ones
+expect_true(worstGap(before, liveMatrix(given)) < tolerance)
+expect_true(worstGap(kept, keptDraws(given)) < tolerance)
+expect_true(drawsLikeTwin(given, twin))
+# a copy holds what the sampler does, so it converts the same way
+copied$setData(dbartsData(x.more, y.more))
+expect_true(worstGap(before, liveMatrix(copied)) < tolerance)
+# as a donor into a sampler made on the values
+recipient <- madeOn(x, 42L, keepTrees = FALSE)
+recipient$installTrees(donor, samples = newest)
+expect_true(worstGap(live, liveMatrix(recipient)) < tolerance)
+expect_true(max(abs(slopes(recipient))) > 0.1)
+expect_true(drawsLikeTwin(recipient, donor))
+# and through bart: the donor's record and the same forest restated by the
+# rule under a centre and scale of its own are one function
+given <- placeholder(43L, keepTrees = FALSE)
+given$storeState()
+from.recorded <- warmed(given$state)
+expect_true(diff(range(from.recorded)) > 1)
+expect_true(
+  max(abs(warmed(restated(given$state, 0.7, 2.5)) - from.recorded)) < 1e-8
+)
+
+# made on one constant and moved to another: every row reads the same value
+# off the centre, so the function is kept where the next data spreads the
+# covariate about the new constant. The slope's term was dropped: off by 7.
+moved <- madeOn(withLeafColumn(x, 1000))
+expect_true(moved$setPredictor(rep(2000, n), 2L))
+invisible(moved$run())
+for (chain in standardization(moved)) {
+  expect_identical(chain$leaf.covariate.center, 1000)
+  expect_identical(chain$leaf.covariate.scale, 1)
+}
+x.spread <- withLeafColumn(x.more, 2000 + x.more[, 2L])
+before <- liveFunction(moved, x.spread)
+moved$setData(dbartsData(x.spread, y.more))
+expect_true(worstGap(before, liveMatrix(moved)) < tolerance)
+
+# values made constant after creation keep the centre and scale they were
+# given until a replacement re-derives them; onto the constant the slopes are
+# dropped and each leaf takes its function's value there
+held <- madeOn(x)
+own <- standardization(held)
+expect_true(held$setPredictor(rep(0.25, n), 2L))
+invisible(held$run())
+expect_identical(standardization(held), own)
+expect_false(own[[2L]]$leaf.covariate.scale %in% c(1, NA))
+x.held <- withLeafColumn(x.more, 0.25)
+before <- liveFunction(held, x.held)
+held$setData(dbartsData(x.held, y.more))
+for (chain in standardization(held)) {
+  expect_identical(chain$leaf.covariate.center, 0.25)
+  expect_identical(chain$leaf.covariate.scale, NA_real_)
+}
+expect_true(all(slopes(held) == 0))
+expect_true(worstGap(before, liveMatrix(held)) < tolerance)
+
+# rows appended that give a constant covariate spread, at a constant whose
+# mean rounds: the slopes are dropped and each leaf keeps the value it had at
+# the constant, on the old rows and on the appended ones. The live fit ran
+# to 1e16. The appended rows bring the covariate a copy never saw, so the
+# next draws are held to the response's range instead of a copy's.
+grown <- madeOn(withLeafColumn(x, 0.1))
+invisible(grown$run())
+live <- liveMatrix(grown)
+before <- liveFunction(grown, withLeafColumn(x.more, 0.1))
+expect_true(worstGap(live, before[old.rows, ]) < tolerance)
+x.grown <- rbind(
+  withLeafColumn(x, 0.1),
+  withLeafColumn(added, 0.1 + added[, 2L])
+)
+x.fresh <- withLeafColumn(x.new, 0.1 + x.new[, 2L])
+kept <- grown$predict(x.fresh)
+grown$setData(dbartsData(x.grown, y.more))
+expect_true(standardization(grown)[[2L]]$leaf.covariate.scale > 0.1)
+expect_true(all(slopes(grown) == 0))
+expect_true(worstGap(before, liveMatrix(grown)) < tolerance)
+expect_true(worstGap(kept, grown$predict(x.fresh)) < tolerance)
+expect_true(nextDrawsWithin(grown, range(y.more)))

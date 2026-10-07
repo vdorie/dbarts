@@ -1870,6 +1870,436 @@ static void testWarmStartStandardization() {
   printf("ok: warm start across leaf standardizations\n");
 }
 
+// A leaf covariate without spread, across the calls that restate live
+// coefficients. Such a column sits at its centre under the placeholder scale
+// and reads zero on every training row, so the intercept alone is the fit:
+// between two of them a live block does not move, off one the intercept
+// stays, onto one it takes the function's value at the new constant. Whether
+// a column is one is read off the rows and constants in force, so a column
+// that was given values, moved or made constant after creation converts as
+// what it is then. Each case asserts the fitted function - the live fit on
+// rows the call kept and on rows it appended, kept draws at fresh points - to
+// 1e-10 relative to max(1, |value|), and that the next draws stay within the
+// range of a twin made the same way and left alone, widened by twice its
+// width either way. The appended rows sit inside the routing column's range
+// and the response's, so its grid, every route and the response transform
+// stand. Two chains, several trees.
+static void testNoSpreadLiveConversion() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 141421u;
+  const size_t n = 150, n2 = 190, p = 2, numChains = 2, numTrees = 8,
+    numKept = 3;
+  const double tolerance = 1e-10;
+  // column 0 routes; z holds the leaf covariate's real values
+  std::vector<double> route(n2), z(n2), y(n2);
+  double routeMin = 1.0, routeMax = 0.0, yMin = 0.0, yMax = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    route[i] = runif01();
+    z[i] = 2.0 * runif01() - 1.0;
+    y[i] = 2.0 * route[i] + (route[i] > 0.5 ? z[i] : -z[i]) +
+           0.2 * (runif01() - 0.5);
+    routeMin = std::min(routeMin, route[i]);
+    routeMax = std::max(routeMax, route[i]);
+    yMin = i == 0 ? y[i] : std::min(yMin, y[i]);
+    yMax = i == 0 ? y[i] : std::max(yMax, y[i]);
+  }
+  for (size_t i = n; i < n2; ++i) {
+    route[i] = routeMin + (routeMax - routeMin) * (0.05 + 0.9 * runif01());
+    z[i] = 3.0 * runif01() - 1.5;
+    y[i] = yMin + (yMax - yMin) * (0.05 + 0.9 * runif01());
+  }
+  // n2 rows, column-major; a sampler made on fewer reads a prefix of each
+  // column through its own copy
+  auto design = [&](size_t rows, double constant, double slope) {
+    std::vector<double> x(rows * p);
+    for (size_t i = 0; i < rows; ++i) {
+      x[i] = route[i];
+      x[i + rows] = constant + slope * z[i];
+    }
+    return x;
+  };
+  // rows [0, n) at the constant and the appended ones spread about it
+  auto grown = [&](double constant) {
+    std::vector<double> x = design(n2, constant, 0.0);
+    for (size_t i = n; i < n2; ++i) x[i + n2] += z[i];
+    return x;
+  };
+
+  std::vector<ext_rng*> rngs;
+  rngs.reserve(64 * numChains);
+  auto newRngs = [&](std::uint32_t seed) {
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+      ext_rng_setSeed(rngs.back(), seed + static_cast<std::uint32_t>(c));
+    }
+    return rngs.data() + rngs.size() - numChains;
+  };
+  const size_t covariates[] = {1};
+  auto make = [&](const std::vector<double>& x, std::uint32_t seed) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numChains = numChains;
+    options.keepTrees = true;
+    options.numSamplesToStore = numKept;
+    options.leafCovariateColumns = covariates;
+    options.numLeafCovariates = 1;
+    return createSampler(x.data(), y.data(), x.size() / p, p, nullptr, nullptr,
+                         ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, newRngs(seed));
+  };
+  Results none;
+  auto liveFits = [&](SamplerBase& sampler) {
+    size_t rows = sampler.data().numObservations;
+    std::vector<double> fits(rows * numChains);
+    for (size_t c = 0; c < numChains; ++c)
+      sampler.fitsWithoutOffset(c, fits.data() + c * rows);
+    return fits;
+  };
+  auto keptDraws = [&](SamplerBase& sampler, const std::vector<double>& x) {
+    std::vector<double> kept(x.size() / p * numKept * numChains);
+    sampler.predict(x.data(), x.size() / p, 1, kept.data());
+    return kept;
+  };
+  // the newest kept draw of each chain at the rows of x: the live function
+  // while the last sweep run is the last one kept
+  auto newestDraw = [&](SamplerBase& sampler, const std::vector<double>& x) {
+    size_t rows = x.size() / p;
+    std::vector<double> kept = keptDraws(sampler, x), newest(rows * numChains);
+    for (size_t c = 0; c < numChains; ++c)
+      std::copy_n(kept.begin() + rows * (numKept - 1 + numKept * c), rows,
+                  newest.begin() + c * rows);
+    return newest;
+  };
+  // rows [0, count) of each chain's block of rowsA in a against the same of b
+  auto worstGap = [&](const std::vector<double>& a, size_t rowsA,
+                      const std::vector<double>& b, size_t rowsB,
+                      size_t first, size_t count) {
+    double worst = 0.0;
+    for (size_t c = 0; c < a.size() / rowsA; ++c)
+      for (size_t i = first; i < first + count; ++i) {
+        double u = a[i + c * rowsA], v = b[i + c * rowsB];
+        worst = std::max(worst, std::fabs(u - v) / std::max(1.0, std::fabs(v)));
+      }
+    return worst;
+  };
+  auto standardization = [](SamplerBase& sampler, double& center,
+                            double& scale) {
+    SamplerStateData state;
+    sampler.getState(state);
+    center = state.chains.back().forests[0].leafCovariateCenters[0];
+    scale = state.chains.back().forests[0].leafCovariateScales[0];
+  };
+  // the largest live slope, in size, over every chain
+  auto largestSlope = [](SamplerBase& sampler) {
+    SamplerStateData state;
+    sampler.getState(state);
+    double largest = 0.0;
+    for (const ChainStateData& chain : state.chains)
+      for (const std::vector<double>& params : chain.forests[0].treeParams)
+        for (double slope : params)
+          largest = std::max(largest, std::fabs(slope));
+    return largest;
+  };
+  // three more draws of each: the converted sampler's stay within the twin's
+  // range widened by twice its width on either side
+  auto drawsLikeTwin = [&](SamplerBase& sampler, SamplerBase& twin) {
+    double range[2][2];
+    SamplerBase* samplers[] = {&twin, &sampler};
+    for (size_t k = 0; k < 2; ++k) {
+      std::vector<double> fits(samplers[k]->data().numObservations *
+                               numChains * 3);
+      Results results;
+      results.trainingFits = fits.data();
+      samplers[k]->run(0, 3, results);
+      range[k][0] = *std::min_element(fits.begin(), fits.end());
+      range[k][1] = *std::max_element(fits.begin(), fits.end());
+    }
+    double width = 2.0 * (range[0][1] - range[0][0]);
+    return std::isfinite(range[1][0]) && std::isfinite(range[1][1]) &&
+           range[1][0] >= range[0][0] - width &&
+           range[1][1] <= range[0][1] + width;
+  };
+  auto replace = [&](SamplerBase& sampler, const std::vector<double>& x) {
+    double anchorMin, anchorMax, newMin, newMax;
+    sampler.getAnchor(anchorMin, anchorMax);
+    std::vector<double> grid(sampler.data().cutPoints[0]);
+    bool installed = sampler.setData(x.data(), y.data(), x.size() / p, nullptr,
+                                     nullptr, nullptr, 0, nullptr);
+    sampler.getAnchor(newMin, newMax);
+    check(installed && newMin == anchorMin && newMax == anchorMax &&
+            sampler.data().cutPoints[0] == grid,
+          "no-spread conversion: the replacement installs, the routing grid "
+          "and the response transform standing");
+  };
+  const std::vector<std::pair<size_t, int>> liveMap = {{0, -1}, {1, -1}};
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  double center = nan, scale = nan;
+
+  // --- neither side has spread: one constant replaced by another, at values
+  // whose mean is exact (1000) and whose mean rounds (0.1)
+  for (double constant : {1000.0, 0.1}) {
+    const std::vector<double> x = design(n, constant, 0.0),
+      xOther = design(n2, 2.0 * constant, 0.0),
+      xDonee = design(n, 2.0 * constant, 0.0),
+      xFresh = design(n, constant, 1.0);
+    auto build = [&] {
+      std::unique_ptr<SamplerBase> sampler = make(x, 10);
+      sampler->run(60, numKept, none);
+      return sampler;
+    };
+    std::unique_ptr<SamplerBase> sampler = build(), twin = build(),
+      donor = build();
+    standardization(*sampler, center, scale);
+    check(center == constant && std::isnan(scale),
+          "no-spread conversion: a constant column is centred at its value "
+          "and stored without a scale");
+    check(largestSlope(*sampler) > 1e-3,
+          "no-spread conversion: the uninformed slopes are drawn, not zero");
+    SamplerStateData before, after, donorState;
+    sampler->getState(before);
+    const std::vector<double> liveBefore = liveFits(*sampler),
+      keptBefore = keptDraws(*sampler, xFresh);
+    replace(*sampler, xOther);
+    sampler->getState(after);
+    check(worstGap(liveFits(*sampler), n2, liveBefore, n, 0, n) < tolerance,
+          "no-spread conversion: between two constants the live fit does not "
+          "move");
+    bool sameBlocks = true;
+    for (size_t c = 0; c < numChains; ++c) {
+      const ForestStateData& a = before.chains[c].forests[0];
+      const ForestStateData& b = after.chains[c].forests[0];
+      sameBlocks = sameBlocks && a.treeParams == b.treeParams &&
+        a.trees.size() == b.trees.size();
+      for (size_t t = 0; sameBlocks && t < a.trees.size(); ++t)
+        for (size_t i = 0; sameBlocks && i < a.trees[t].size(); ++i)
+          sameBlocks = a.trees[t][i].value == b.trees[t][i].value;
+    }
+    check(sameBlocks, "no-spread conversion: between two constants neither "
+                      "the intercepts nor the slopes move");
+    check(worstGap(keptDraws(*sampler, xFresh), n, keptBefore, n, 0, n) <
+            tolerance,
+          "no-spread conversion: between two constants the kept draws stay "
+          "the functions they were");
+    check(drawsLikeTwin(*sampler, *twin),
+          "no-spread conversion: between two constants the next draws stay "
+          "in the twin's range");
+
+    // the same pair through a warm start
+    donor->getState(donorState);
+    std::unique_ptr<SamplerBase> recipient = make(xDonee, 20);
+    check(recipient->installForests(donorState, liveMap) ==
+            WarmStartResult::ok,
+          "no-spread conversion: a donor at another constant installs");
+    check(worstGap(liveFits(*recipient), n, liveFits(*donor), n, 0, n) <
+            tolerance,
+          "no-spread conversion: between two constants the seeded fit is the "
+          "donor's");
+    check(drawsLikeTwin(*recipient, *donor),
+          "no-spread conversion: and the seeded chains draw in the donor's "
+          "range");
+  }
+
+  // --- a placeholder of zeros given values after creation: the column has
+  // spread from then on, its slopes are informed, and they convert by the
+  // formula
+  {
+    const std::vector<double> xZero = design(n, 0.0, 0.0),
+      xReal = design(n, 0.0, 1.0), xMore = design(n2, 0.0, 1.0);
+    auto build = [&] {
+      std::unique_ptr<SamplerBase> sampler = make(xZero, 30);
+      check(sampler->setPredictor(xReal.data(), true, false) ==
+              PredictorUpdateResult::accepted,
+            "no-spread conversion: the placeholder takes values");
+      sampler->run(60, numKept, none);
+      return sampler;
+    };
+    std::unique_ptr<SamplerBase> sampler = build(), twin = build(),
+      donor = build();
+    standardization(*sampler, center, scale);
+    check(center == 0.0 && scale == 1.0,
+          "no-spread conversion: a placeholder column given values is stored "
+          "with the 1 it is divided by");
+    const std::vector<double> liveBefore = liveFits(*sampler),
+      functionBefore = newestDraw(*sampler, xMore);
+    check(worstGap(functionBefore, n2, liveBefore, n, 0, n) < tolerance,
+          "no-spread conversion: the newest kept draw is the live function");
+    replace(*sampler, xMore);
+    standardization(*sampler, center, scale);
+    check(center != 0.0 && scale != 1.0 && largestSlope(*sampler) > 0.1,
+          "no-spread conversion: the standardization is re-derived and the "
+          "informed slopes are kept");
+    const std::vector<double> liveAfter = liveFits(*sampler);
+    check(worstGap(liveAfter, n2, liveBefore, n, 0, n) < tolerance,
+          "no-spread conversion: a placeholder given values keeps its live "
+          "fit on the old rows");
+    check(worstGap(liveAfter, n2, functionBefore, n2, n, n2 - n) < tolerance,
+          "no-spread conversion: and is the same function on the appended "
+          "rows");
+    check(drawsLikeTwin(*sampler, *twin),
+          "no-spread conversion: a placeholder given values draws on in the "
+          "twin's range");
+
+    // as a donor into a sampler made on the values
+    SamplerStateData donorState;
+    donor->getState(donorState);
+    std::unique_ptr<SamplerBase> recipient = make(xReal, 40);
+    check(recipient->installForests(donorState, liveMap) ==
+            WarmStartResult::ok,
+          "no-spread conversion: a donor whose placeholder took values "
+          "installs");
+    check(worstGap(liveFits(*recipient), n, liveFits(*donor), n, 0, n) <
+            tolerance && largestSlope(*recipient) > 0.1,
+          "no-spread conversion: and seeds its function, slopes included");
+  }
+
+  // --- made on one constant and moved to another: every row reads the same
+  // value off the centre, so the column has spread and the function is kept
+  // where the next data spreads the covariate about the new constant
+  {
+    const std::vector<double> x = design(n, 1000.0, 0.0),
+      xMoved = design(n, 2000.0, 0.0), xSpread = design(n2, 2000.0, 1.0);
+    std::unique_ptr<SamplerBase> sampler = make(x, 50);
+    check(sampler->setPredictor(xMoved.data(), true, false) ==
+            PredictorUpdateResult::accepted,
+          "no-spread conversion: the constant moves");
+    sampler->run(60, numKept, none);
+    standardization(*sampler, center, scale);
+    check(center == 1000.0 && scale == 1.0,
+          "no-spread conversion: a constant column moved off its centre is "
+          "stored with the 1 it is divided by");
+    const std::vector<double> functionBefore = newestDraw(*sampler, xSpread);
+    replace(*sampler, xSpread);
+    check(worstGap(liveFits(*sampler), n2, functionBefore, n2, 0, n2) <
+            tolerance,
+          "no-spread conversion: a constant moved off its centre keeps its "
+          "function on every row of the next data");
+  }
+
+  // --- values made constant after creation. Off the centre the column goes
+  // on reading a value that is not zero under its real scale; at the centre
+  // exactly it reads zero under a real scale, which is not the placeholder.
+  // Either way it has spread until a replacement re-derives the pair
+  {
+    const std::vector<double> xReal = design(n, 0.0, 1.0),
+      xHeld = design(n, 0.25, 0.0), xHeldMore = design(n2, 0.25, 0.0),
+      xMore = design(n2, 0.0, 1.0);
+    std::unique_ptr<SamplerBase> sampler = make(xReal, 60);
+    double realCenter, realScale;
+    standardization(*sampler, realCenter, realScale);
+    check(sampler->setPredictor(xHeld.data(), true, false) ==
+            PredictorUpdateResult::accepted,
+          "no-spread conversion: the values are made constant");
+    sampler->run(60, numKept, none);
+    standardization(*sampler, center, scale);
+    check(center == realCenter && scale == realScale && scale != 1.0,
+          "no-spread conversion: values made constant keep the centre and "
+          "scale they were given");
+    std::vector<double> functionBefore = newestDraw(*sampler, xHeldMore);
+    replace(*sampler, xHeldMore);
+    standardization(*sampler, center, scale);
+    check(center == 0.25 && std::isnan(scale) && largestSlope(*sampler) == 0.0,
+          "no-spread conversion: onto a constant column the slopes are "
+          "dropped");
+    check(worstGap(liveFits(*sampler), n2, functionBefore, n2, 0, n2) <
+            tolerance,
+          "no-spread conversion: and each leaf takes its function's value at "
+          "the constant");
+
+    const std::vector<double> xAtCenter = design(n, realCenter, 0.0);
+    std::unique_ptr<SamplerBase> centred = make(xReal, 70);
+    check(centred->setPredictor(xAtCenter.data(), true, false) ==
+            PredictorUpdateResult::accepted,
+          "no-spread conversion: the values are made the centre");
+    centred->run(60, numKept, none);
+    standardization(*centred, center, scale);
+    check(center == realCenter && scale == realScale,
+          "no-spread conversion: a column held at its centre under a real "
+          "scale keeps that scale in the state");
+    functionBefore = newestDraw(*centred, xMore);
+    replace(*centred, xMore);
+    check(worstGap(liveFits(*centred), n2, functionBefore, n2, 0, n2) <
+            tolerance,
+          "no-spread conversion: a column held at its centre under a real "
+          "scale converts by the formula");
+  }
+
+  // --- rows appended that give a constant column spread, at a constant whose
+  // mean rounds: the slopes are dropped and each leaf keeps the value it had
+  // at the constant, on the old rows and on the appended ones
+  {
+    const std::vector<double> x = design(n, 0.1, 0.0), xGrown = grown(0.1),
+      xAtConstant = design(n2, 0.1, 0.0), xFresh = design(n, 0.1, 1.0);
+    auto build = [&] {
+      std::unique_ptr<SamplerBase> sampler = make(x, 80);
+      sampler->run(60, numKept, none);
+      return sampler;
+    };
+    std::unique_ptr<SamplerBase> sampler = build(), twin = build();
+    const std::vector<double> liveBefore = liveFits(*sampler),
+      atConstant = newestDraw(*sampler, xAtConstant),
+      keptBefore = keptDraws(*sampler, xFresh);
+    replace(*sampler, xGrown);
+    standardization(*sampler, center, scale);
+    check(std::isfinite(scale) && scale > 0.1 && largestSlope(*sampler) == 0.0,
+          "no-spread conversion: off a constant column the slopes are "
+          "dropped");
+    const std::vector<double> liveAfter = liveFits(*sampler);
+    check(worstGap(liveAfter, n2, liveBefore, n, 0, n) < tolerance &&
+            worstGap(liveAfter, n2, atConstant, n2, n, n2 - n) < tolerance,
+          "no-spread conversion: off a constant column each leaf keeps the "
+          "value it had there, on old rows and appended ones");
+    check(worstGap(keptDraws(*sampler, xFresh), n, keptBefore, n, 0, n) <
+            tolerance,
+          "no-spread conversion: off a constant column the kept draws stay "
+          "the functions they were");
+    check(drawsLikeTwin(*sampler, *twin),
+          "no-spread conversion: off a constant column the next draws stay "
+          "in the twin's range");
+  }
+
+  // --- a store whose kept draws neither fill it nor start at its first
+  // slot. No run leaves one; a state whose cursor is not its draw count
+  // installs one, and a rewrite of the kept draws must find them in the
+  // slots a replay reads
+  {
+    const std::vector<double> xReal = design(n, 0.0, 1.0),
+      xStretched = design(n, 5.0, 3.0), xFresh = design(n, 0.7, 2.0);
+    std::unique_ptr<SamplerBase> sampler = make(xReal, 90),
+      shifted = make(xReal, 91);
+    sampler->run(40, numKept - 1, none);
+    SamplerStateData state;
+    sampler->getState(state);
+    for (ChainStateData& chain : state.chains) {
+      ForestStateData& fs = chain.forests[0];
+      std::rotate(fs.savedTrees.begin(), fs.savedTrees.end() - numTrees,
+                  fs.savedTrees.end());
+      std::rotate(fs.savedTreeParams.begin(),
+                  fs.savedTreeParams.end() - numTrees,
+                  fs.savedTreeParams.end());
+    }
+    state.currentSampleNum = 0;
+    check(shifted->setState(state, nullptr) &&
+            shifted->shape().numSavedDraws == numKept - 1 &&
+            shifted->savedSlotForDraw(0) == 1,
+          "no-spread conversion: a state installs kept draws from the "
+          "second slot on");
+    const std::vector<double> keptBefore = keptDraws(*shifted, xFresh);
+    check(keptBefore == keptDraws(*sampler, xFresh),
+          "no-spread conversion: and they replay as the draws they are");
+    check(shifted->setData(xStretched.data(), y.data(), n, nullptr, nullptr,
+                           nullptr, 0, nullptr),
+          "no-spread conversion: the stretched covariate installs");
+    check(worstGap(keptDraws(*shifted, xFresh), n, keptBefore, n, 0, n) <
+            tolerance,
+          "no-spread conversion: kept draws that start past the first slot "
+          "are the ones rewritten");
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: live conversion across a leaf covariate without spread\n");
+}
+
 // Warm start under a variance forest (docs/plans/variance-forest-mutation-
 // routing.md, slice S5). installForests used to reassemble a state carrying no
 // variance trees at all, so the destination adopted the donor's mean forest
@@ -3336,6 +3766,7 @@ void runStateTests(ext_rng* rng) {
   testSingleForestColumnRestriction();
   testCrossGridWarmStart();
   testWarmStartStandardization();
+  testNoSpreadLiveConversion();
   testVarianceWarmStart();
   testVarianceWarmStartSlot();
   testStaleStateMerge();
