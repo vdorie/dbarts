@@ -1814,8 +1814,8 @@ New predictor values can leave a monotone tree's leaf values out of order along 
 Record: docs/plans/monotone-unforced-refusal.md. Marked: blank. [dec-B278]
 
 **The joint row-by-row update is fixed for a factor before the merge to main**
-Planning dec-B278 turned up a defect outside it: updatePredictorPerObservationJointly reads its values as the engine's category codes, from 0, and a factor handed to it arrives as R's codes, from 1, so every level is installed as the next one with no message (200 of 200 rows in the probe), or the call is refused as naming no existing category when the top level is present. The manual says the values are numeric there, so a factor is undocumented input that nothing refuses. Told of it, the maintainer: "Let's fix the updatePredictorPerObservationJointly bug pre-merge." No alternative was put. What the fix does with a factor, match its labels to the column's levels as setPredictor by column does or refuse it by name, is left to the slice's plan. The maintainer on 2026-10-06, as quoted.
-Record: TODO factor-column-update-forms. Marked: blank. [dec-B279]
+Planning dec-B278 turned up a defect outside it: updatePredictorPerObservationJointly reads its values as the engine's category codes, from 0, and a factor handed to it arrives as R's codes, from 1, so every level is installed as the next one with no message (200 of 200 rows in the probe), or the call is refused as naming no existing category when the top level is present. The manual says the values are numeric there, so a factor is undocumented input that nothing refuses. Told of it, the maintainer: "Let's fix the updatePredictorPerObservationJointly bug pre-merge." No alternative was put. What the fix does with a factor was left to the slice's plan, which matches its labels to the column's levels with the helper setPredictor by column uses and keeps numbers as the codes they are today; the plan also found a character vector installed as missing values (199 of 200 rows). The maintainer on 2026-10-06, as quoted.
+Record: docs/plans/factor-column-update-forms.md. Marked: blank. [dec-B279]
 
 ## C. Agent-made decisions with no identified cost
 

@@ -627,17 +627,18 @@ items
     Until it lands such a model takes its forests in written order.
     Not planned.
   cross-family-state-install: before 1.0-0. A state of one family
-    installs into a sampler of another. Of the twelve pairs among
-    gaussian, Student-t, probit and logistic, four are refused (every
-    state into a gaussian sampler; a gaussian state into a Student-t
-    one). A probit state into a Student-t sampler leaves negative
-    scales (minimum -2.62) and fits that are not finite within three
-    sweeps; a probit state into a logistic sampler leaves negative
-    Polya-Gamma latents and the next sweep does not return. The other
-    six install and run. setState should refuse a state whose latents
-    are another family's, in the words it refuses a gaussian state
-    with. Figures: docs/plans/state-zero-weight-rows.md, Out of scope.
-    Not planned.
+    installs into a sampler of another. Of the 56 ordered pairs among
+    the eight families 31 are refused, 18 install and run, 3 leave
+    fits that are not finite and 4 a sweep that does not return
+    (probit, ordinal and aft latents as Student-t scales or as
+    Polya-Gamma variates); the hazard and two-forest forms break the
+    same way. Fix: every state records its family, and setState, copy
+    and a reload refuse another family's state by name before anything
+    is touched; a state without the record installs as today, except
+    that scales and Polya-Gamma variates that are not positive are
+    refused; installTrees keeps taking any family's trees. About 430
+    lines. Serial with leaf-conversions.
+    Plan: docs/plans/cross-family-state-install.md.
   monotone-unforced-refusal: before 1.0-0 (dec-B278, VD 2026-10-06). An
     unforced predictor update that would leave a monotone tree's leaf
     values out of order is refused and rolled back, as one that empties
@@ -653,17 +654,32 @@ items
     About 450 lines. Serial with leaf-conversions. Plan: docs/plans/monotone-unforced-refusal.md.
   factor-column-update-forms: before 1.0-0 for the joint form
     (dec-B279, VD 2026-10-06). updatePredictorPerObservationJointly
-    takes codes from 0 and, given a factor, reads R's codes from 1 as
-    the engine's from 0: every level is installed as the next one, in
-    silence, unless the top level is present, when it is refused as
-    not an existing category code. Fix: a factor's labels are matched
-    to the column's levels, as setPredictor by column does, or it is
-    refused by name. The rest is not planned: setPredictor by column
-    and forceUpdate = "partial" take labels and refuse a first missing
-    value by name, while the whole-matrix form takes a numeric matrix
-    with the factor as codes from 0, a missing one included, and a
-    data frame there fails in as.double though the manual's x item
-    speaks of a whole data-frame update. Not planned.
+    takes codes from 0 and reads a factor through R's codes from 1:
+    every level is installed as the next one, in silence, unless the
+    last level is present; a character vector is installed as missing
+    values. Fix: labels (factor, character, sparseFactor) are matched
+    to the column's levels by setPredictor's own helper, with its
+    refusals; numbers stay codes; a logical, and labels for samplers
+    whose levels differ, are refused by name. About 270 lines, R only.
+    Plan: docs/plans/factor-column-update-forms.md. The rest is not
+    planned: setPredictor by column and forceUpdate = "partial" take
+    labels and refuse numbers and a first missing value by name, while
+    the whole-matrix form and the joint form take codes from 0, a
+    missing one included; a data frame as the whole matrix fails in
+    as.double though the manual's x item speaks of a whole data-frame
+    update; and a numeric column given a factor is read through its
+    integer codes by every form.
+  install-doors-noted: measured while planning the two entries above,
+    none planned and none seen to break a sampler. A DART state and an
+    ordinary one install into each other, and a monotone leaf's state
+    into a plain sampler of its family, though dec-B254 lists both as
+    structure. Latents edited by hand to values that are not finite
+    install into probit, ordinal and aft samplers. A warm start takes
+    a linear or gp donor into a constant-leaf sampler, which then
+    runs. benchmarks/R/composition-matrix.R stops on the tip before
+    any cell runs: its header lookup finds no row for bart2() in
+    docs/design/feature-matrix.md since the rename to bart, so the
+    matrix gates nothing until that is fixed.
   forest-after-merge: built after the merge to main, for 1.0-0 still
     (dec-B276, VD 2026-10-06): setForestBasis(updateBasisScale = TRUE),
     which re-derives a default sd from a replaced column during
