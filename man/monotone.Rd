@@ -57,6 +57,11 @@ monotone(directions, prior = c("joint", "leaf"))
   either prior a constrained fit takes several times the time per sweep of
   the same fit without the constraint: 4.5 to 8.5 times in that study.
 
+  With very few trees a constrained sampler moves slowly between tree
+  shapes under either prior: a tree that has picked up extra splits tends to
+  keep them, and the constraint then holds their leaves apart, which can
+  overstate how steep the fitted function is. Use more trees.
+
   Under \code{"leaf"} the count is negligible at 10 or more trees, but with
   one to five trees a tree can grow large enough that a count takes seconds
   to minutes per move, and its memory grows with it, to hundreds of
