@@ -2935,6 +2935,15 @@ dbartsSampler <- setRefClass(
         argument = "basis"
       )[[1L]]
 
+      forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
+      if (
+        NCOL(values) == 1L &&
+          length(forestInfo$params) > index &&
+          identical(forestInfo$params[[index + 1L]][8L], 0)
+      ) {
+        refuseHeldOneColumn(index + 1L)
+      }
+
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
@@ -3322,8 +3331,8 @@ dbartsSampler <- setRefClass(
       amplitudes <- samplerCarriesAmplitudes(.self)
       if (!missing(forests)) {
         forests <- evalInForestVocabulary(
-          inlineAmplitudeConstructors(substitute(forests)),
-          dbartsForests[FOREST_ARGUMENT_VOCABULARIES$forests],
+          substitute(forests),
+          forestConstructors[FOREST_ARGUMENT_VOCABULARIES$forests],
           parent.frame()
         )
       }

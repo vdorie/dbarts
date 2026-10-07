@@ -151,6 +151,20 @@ expect_error(
   ),
   oneColumn
 )
+# a held FIRST forest of an all-multiplied model is refused as well
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(
+      forest(basis = ~z, amplitude = fixed()),
+      forest(basis = ~ factor(z))
+    ),
+    control = argumentControl()
+  ),
+  "forest 1: amplitude = fixed() on a basis of one numeric column",
+  fixed = TRUE
+)
 # the same column drawn is accepted
 expect_silent(dbarts(
   x,
@@ -185,11 +199,7 @@ for (entry in list(
 }
 expect_error(
   twoForests(amplitude = dbartsPriors$fixed(2)),
-  "a held coefficient takes the value its forest's shape gives it"
-)
-expect_error(
-  twoForests(amplitude = dbartsPriors$fixed(2)),
-  "'amplitude = fixed(2)'",
+  "'amplitude = fixed(2)': a held coefficient is 1 for a forest with no basis, and 0 for the first level of a factor and 1 for the others; fixed() takes no other value here. Write fixed(), and state the forest's size with 'sd'",
   fixed = TRUE
 )
 for (bad in list(c(1, 1), NA_real_, NaN)) {
@@ -260,8 +270,9 @@ expect_error(
   fixed = TRUE
 )
 
-# --- fixed() is the constructor wherever the call is built and whatever the
-# caller has bound to the name; in the argument only ---
+# --- fixed resolves as interactions and blocks do: by the vocabulary the
+# argument is evaluated in, a call being the constructor and a bare name the
+# caller has bound being the caller's value ---
 built <- as.call(list(
   dbarts::dbarts,
   x,
@@ -276,8 +287,149 @@ bareEnv <- list2env(list(z = z), parent = baseenv())
 bareHeld <- eval(built, bareEnv)
 bareHeld$run(0L, 5L)
 expect_equal(bareHeld$getForestAmplitudes()[, 1L], c(1, 0, 1))
-shadowed <- local({
+heldBy <- function(forests) {
+  sampler <- eval(
+    bquote(dbarts(x, y, forests = .(forests), control = argumentControl())),
+    parent.frame()
+  )
+  heldParams(sampler, 2L)
+}
+# a call is the constructor whatever the caller has bound
+local({
   fixed <- TRUE
+  expect_identical(
+    heldBy(quote(list(
+      forest(),
+      forest(basis = ~ factor(z), amplitude = fixed())
+    ))),
+    0
+  )
+})
+# a bare name the caller has bound is the caller's value: NULL draws, anything
+# else is refused as any value that is not fixed() is
+local({
+  fixed <- NULL
+  expect_identical(
+    heldBy(quote(list(
+      forest(),
+      forest(basis = ~ factor(z), amplitude = fixed)
+    ))),
+    1
+  )
+  expect_identical(
+    dbarts(
+      y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z), amplitude = fixed),
+      dataFrame,
+      control = argumentControl()
+    )$control |>
+      attr("bartcore.forests") |>
+      (\(info) info$params[[2L]][8L])(),
+    1
+  )
+})
+local({
+  fixed <- FALSE
+  expect_error(
+    heldBy(quote(list(
+      forest(),
+      forest(basis = ~ factor(z), amplitude = fixed)
+    ))),
+    "a forest's 'amplitude' must be fixed()",
+    fixed = TRUE
+  )
+  expect_error(
+    dbarts(
+      y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z), amplitude = fixed),
+      dataFrame,
+      control = argumentControl()
+    ),
+    "a forest's 'amplitude' must be fixed()",
+    fixed = TRUE
+  )
+})
+# a bare fixed with nothing bound is the constructor, nested or positional
+for (hold in c(TRUE, FALSE)) {
+  expect_identical(
+    heldBy(quote(list(
+      forest(),
+      forest(basis = ~ factor(z), amplitude = if (hold) fixed)
+    ))),
+    if (hold) 0 else 1
+  )
+}
+expect_identical(
+  heldBy(quote(list(
+    forest(),
+    forest(basis = ~ factor(z), amplitude = (fixed))
+  ))),
+  0
+)
+expect_identical(
+  heldBy(quote(list(
+    forest(),
+    forest(~ factor(z), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, fixed())
+  ))),
+  0
+)
+# inside a function literal
+expect_identical(
+  heldBy(quote(lapply(1:2, function(i) {
+    if (i == 1L) forest() else forest(basis = ~ factor(z), amplitude = fixed())
+  }))),
+  0
+)
+# an argument named 'amplitude' of another function is that function's
+local({
+  wave <- function(amplitude) amplitude
+  fixed <- 2
+  sampler <- dbarts(
+    x,
+    y,
+    forests = list(
+      forest(),
+      forest(basis = ~ factor(z), sd = wave(amplitude = fixed))
+    ),
+    control = argumentControl()
+  )
+  expect_identical(
+    attr(sampler$control, "bartcore.forests")$params[[2L]][4L],
+    2
+  )
+})
+# forests forwarded through a wrapper's dots resolve it as they resolve
+# interactions(), one wrapper deep and two
+wrap <- function(...) dbarts(x, y, ..., control = argumentControl())
+wrapTwice <- function(...) wrap(...)
+for (wrapper in list(wrap, wrapTwice)) {
+  sampler <- wrapper(
+    forests = list(
+      forest(interactions = interactions(max.order = 2L)),
+      forest(basis = ~ factor(z), amplitude = fixed())
+    )
+  )
+  expect_identical(heldParams(sampler, 2L), 0)
+}
+# a constructor missing where it is forced points at where it lives
+expect_error(
+  twoForests(amplitude = fixed()),
+  "dbartsPriors$fixed",
+  fixed = TRUE
+)
+# the writer resolves it too, and refuses it as fixed at creation
+writerHeld <- twoForests()
+expect_error(
+  writerHeld$setLeafPrior(
+    forests = list(forest(), forest(amplitude = fixed()))
+  ),
+  "'amplitude' is fixed at creation"
+)
+expect_error(
+  writerHeld$setLeafPrior(forests = list(forest(), forest(amplitude = fixed))),
+  "'amplitude' is fixed at creation"
+)
+
+# --- a hold survives no swap to one numeric column ---
+heldSwap <- function() {
   dbarts(
     x,
     y,
@@ -287,22 +439,41 @@ shadowed <- local({
     ),
     control = argumentControl()
   )
-})
-shadowed$run(0L, 5L)
-expect_equal(shadowed$getForestAmplitudes()[, 1L], c(1, 0, 1))
-# the name is the constructor nowhere else: a column called 'fixed' is a column
-frame <- data.frame(dataFrame, fixed = z)
-columnBasis <- dbarts(
-  y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(fixed), amplitude = fixed()),
-  frame,
-  control = argumentControl()
-)
-columnBasis$run(0L, 5L)
-expect_equal(columnBasis$getForestAmplitudes()[2:3, 1L], c(0, 1))
+}
+swapped <- heldSwap()
+twin <- heldSwap()
 expect_error(
-  dbarts(x, y, interactions = fixed(), control = argumentControl()),
-  "fixed"
+  swapped$setForestBasis(2L, x[, 1L]),
+  "forest 2: amplitude = fixed() on a basis of one numeric column is not supported yet; it would hold the forest at zero. Let the coefficient be drawn; a column of two values can be held if it is written as a factor",
+  fixed = TRUE
 )
+expect_identical(swapped$data@bases, twin$data@bases)
+expect_identical(
+  attr(swapped$control, "bartcore.forests"),
+  attr(twin$control, "bartcore.forests")
+)
+expect_identical(swapped$run(0L, 5L), twin$run(0L, 5L))
+expect_equal(swapped$getForestAmplitudes()[, 1L], c(1, 0, 1))
+expect_error(swapped$setForestBasis(2L, ~z), "one numeric column")
+# a drawn forest swaps as before, and a held one to a factor or two columns
+drawnSwap <- twoForests()
+drawnSwap$setForestBasis(2L, x[, 1L])
+expect_equal(ncol(drawnSwap$data@bases[[2L]]), 1L)
+swapped$setForestBasis(2L, factor(z))
+swapped$setForestBasis(2L, cbind(x[, 1L], x[, 2L]))
+swapped$setForestBasis(2L, factor(z))
+expect_equal(swapped$run(0L, 3L)$train |> dim() |> length(), 2L)
+# a held forest copies, saves and reloads
+copied <- swapped$copy()
+copied$run(0L, 3L)
+expect_equal(copied$getForestAmplitudes()[, 1L], c(1, 0, 1))
+savedFile <- tempfile(fileext = ".rds")
+swapped$storeState()
+saveRDS(swapped, savedFile)
+reloaded <- readRDS(savedFile)
+reloaded$run(0L, 3L)
+expect_equal(reloaded$getForestAmplitudes()[, 1L], c(1, 0, 1))
+unlink(savedFile)
 
 # --- one verdict on a stated sd at the three places ---
 sdValues <- list(

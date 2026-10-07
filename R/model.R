@@ -1213,6 +1213,19 @@ validateForestKnobs <- function(spec) {
   spec
 }
 
+## The refusal of a held coefficient on a basis of one numeric column, which
+## the engine holds at zero, so that the forest would drop out of the model.
+refuseHeldOneColumn <- function(index) {
+  stop(
+    "forest ",
+    index,
+    ": amplitude = fixed() on a basis of one numeric column is not ",
+    "supported yet; it would hold the forest at zero. Let the coefficient be ",
+    "drawn; a column of two values can be held if it is written as a factor",
+    call. = FALSE
+  )
+}
+
 ## A forest's 'amplitude': NULL, which draws its coefficient, or fixed(), which
 ## holds it at the value its forest's shape gives it. Returns "fixed" for the
 ## hold. A bare fixed is fixed(), as a constructor given where a value is.
@@ -1231,9 +1244,9 @@ validateForestAmplitude <- function(amplitude) {
     stop(
       "'amplitude = fixed(",
       paste(deparse(value), collapse = ""),
-      ")': a held coefficient takes the value its forest's shape gives it, ",
-      "and fixed() takes no other here; write fixed(), and state the ",
-      "forest's size with 'sd'"
+      ")': a held coefficient is 1 for a forest with no basis, and 0 for the ",
+      "first level of a factor and 1 for the others; fixed() takes no other ",
+      "value here. Write fixed(), and state the forest's size with 'sd'"
     )
   }
   "fixed"
@@ -2220,11 +2233,16 @@ dbartsForests <- list(
   varianceForest = varianceForest
 )
 
+## What the arguments that take a forest constructor resolve by bare name:
+## dbartsForests and the one prior constructor a forest's 'amplitude' takes,
+## which stays under dbartsPriors for the caller who names it outside.
+forestConstructors <- c(dbartsForests, dbartsPriors["fixed"])
+
 ## Each door argument taking a forest constructor, and the vocabulary it
 ## resolves over. In the order the doors forced them before they resolved by
 ## name, so that an error names the same argument.
 FOREST_ARGUMENT_VOCABULARIES <- list(
-  forests = c("forest", "interactions", "blocks"),
+  forests = c("forest", "interactions", "blocks", "fixed"),
   interactions = "interactions",
   blocks = "blocks",
   monotone = "monotone",
@@ -2234,44 +2252,6 @@ FOREST_ARGUMENT_VOCABULARIES <- list(
 ## The door arguments that take a forest constructor, resolved from the
 ## caller's own unevaluated arguments in 'matchedCall'. An absent argument is
 ## NULL, every door's default.
-## The constructor an 'amplitude' argument takes, written as fixed() or a bare
-## fixed, put in place of the name in the argument's own code and nowhere else:
-## it is no member of the vocabulary the rest of the forests are written in,
-## so a column or a variable of that name is the caller's everywhere but there.
-inlineAmplitudeValue <- function(expr) {
-  if (is.symbol(expr) && identical(as.character(expr), "fixed")) {
-    return(fixed)
-  }
-  inlineConstructorCalls(expr, list(fixed = fixed))
-}
-
-## An expression holding forest() calls, with the constructor put in each
-## 'amplitude' argument it states.
-inlineAmplitudeConstructors <- function(expr) {
-  if (
-    !is.call(expr) ||
-      isQuotingCall(expr) ||
-      identical(expr[[1L]], as.name("function"))
-  ) {
-    return(expr)
-  }
-  parts <- as.list(expr)
-  given <- names(parts)
-  for (index in seq_along(parts)) {
-    if (identical(parts[[index]], quote(expr = ))) {
-      next
-    }
-    parts[index] <- list(
-      if (identical(given[index], "amplitude")) {
-        inlineAmplitudeValue(parts[[index]])
-      } else {
-        inlineAmplitudeConstructors(parts[[index]])
-      }
-    )
-  }
-  as.call(parts)
-}
-
 resolveForestArguments <- function(
   matchedCall,
   evalEnv,
@@ -2285,12 +2265,8 @@ resolveForestArguments <- function(
         NULL
       } else {
         evalInForestVocabulary(
-          if (identical(name, "forests")) {
-            inlineAmplitudeConstructors(expr)
-          } else {
-            expr
-          },
-          dbartsForests[FOREST_ARGUMENT_VOCABULARIES[[name]]],
+          expr,
+          forestConstructors[FOREST_ARGUMENT_VOCABULARIES[[name]]],
           evalEnv
         )
       }

@@ -182,7 +182,10 @@ evalInForestVocabulary <- function(expr, vocabulary, evalEnv) {
 ## vocabulary (a family constructor forced at a prior argument, say) is left
 ## as R's own message: a name that argument could never have meant is not a
 ## hint, it is noise.
-forceCallerCode <- function(value, hintLists = "dbartsForests") {
+forceCallerCode <- function(
+  value,
+  hintLists = c("dbartsForests", "dbartsPriors")
+) {
   restarted <- gettext(
     "restarting interrupted promise evaluation",
     domain = "R"

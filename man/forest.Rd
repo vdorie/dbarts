@@ -190,18 +190,20 @@ forest(
     or use one forest with \code{linear()} leaves.
   }
   \item{amplitude}{
-    The law of this forest's coefficients: the one a forest with no
+    The law of this forest's amplitudes: the one a forest with no
     \code{basis} carries, or one for each column of its \code{basis}. Left out,
     they are drawn each sweep. \code{fixed()} holds them for the sampler's life,
     the choice being made at creation: a forest with no \code{basis} at 1, and
     a forest on a factor, a character or a logical vector at 0 for the first
-    level and 1 for each of the others, so that it is the other levels against
-    the first. The same holds for any basis of several columns, the first at 0
-    and the rest at 1. A basis of one numeric column is refused, since it would
-    hold the forest at zero. \code{fixed} alone means \code{fixed()}, and
-    no other value is taken. Outside the argument that takes it the
-    constructor is \code{dbartsPriors$fixed()}. It is stated for a forest of a
-    model of several; a model of one forest has no coefficient to hold.
+    level and 1 for each of the others. The forest is then held out of the
+    first level and enters at full size for every other level, so it is each
+    other level's difference from the first. A basis of several numeric columns
+    is held the same way, the first column at 0, so that column is not used. A
+    basis of one numeric column would hold the forest at zero and is refused,
+    at creation and by \code{$setForestBasis}. \code{fixed} alone is taken as
+    \code{fixed()}, and no other value is. Outside the argument that takes it
+    the constructor is \code{dbartsPriors$fixed()}. It is stated for a forest
+    of a model of several; a model of one forest has no amplitude to hold.
   }
 }
 \details{

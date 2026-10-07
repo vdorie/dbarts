@@ -982,13 +982,7 @@ resolveSamplerSpec <- function(
         identical(specs[[index]]$amplitude, "fixed") &&
           NCOL(data@bases[[index]]) == 1L
       ) {
-        stop(
-          "forest ",
-          index,
-          ": amplitude = fixed() on a basis of one numeric column is not ",
-          "supported yet; it would hold the forest at zero. Let the ",
-          "coefficient be drawn, or write the column as a two-level factor"
-        )
+        refuseHeldOneColumn(index)
       }
     }
     treeCounts <- vapply(

@@ -234,10 +234,10 @@ quoted, the form to write given. `<f>` is the forest's text; the push that adds 
     [1] forest 'sd' must be a number, not a string            (a logical, a factor, a Date, a list, a matrix)
     [1] forest 'sd' must not be NA; leave it out for the default            forest 'sd' must be positive and finite
     [1] this model has one forest, so its size is the fitting function's leaf.prior = normal(sd = ), not forest(sd = )
-    [1] 'amplitude = fixed(2)': a held coefficient takes the value its forest's shape gives it, and fixed() takes no other here; write fixed(), and state the forest's size with 'sd'
+    [1] 'amplitude = fixed(2)': a held coefficient is 1 for a forest with no basis, and 0 for the first level of a factor and 1 for the others; fixed() takes no other value here. Write fixed(), and state the forest's size with 'sd'
     [1] a forest's 'amplitude' must be fixed(), which holds its coefficient, or left out, which draws it
     [1] this model has one forest, which has no coefficient to hold; 'amplitude' needs a model of several forests
-    [1] forest 2: amplitude = fixed() on a basis of one numeric column is not supported yet; it would hold the forest at zero. Let the coefficient be drawn, or write the column as a two-level factor
+    [1] forest 2: amplitude = fixed() on a basis of one numeric column is not supported yet; it would hold the forest at zero. Let the coefficient be drawn; a column of two values can be held if it is written as a factor
     [3] 'basis' does not take '*' between its terms ('dose * age'): in a model formula it is both columns and their product. Write I(dose * age) for the product alone, or dose + age + I(dose * age) for all three
     [3] 'basis' term 'dose/30' divides a column by a number, which a model formula does not take; write I(dose/30) for the rescaled column
     [3] 'basis' term '30 * dose' multiplies a column by a number, which a model formula does not take; write I(30 * dose) for the rescaled column
@@ -385,12 +385,16 @@ reader's sake; the implementer may name them otherwise.
     other `fixed(v)`, a `normal()`, a string and a logical with the two texts, and stores a flag;
     [`forestParams`](../../R/model.R) reads the flag for its eighth number;
     [`resolveForests`](../../R/model.R) refuses `amplitude` and `sd` on a single forest with the two
-    one-forest texts. `fixed` resolves by bare name in the `amplitude` argument alone, in `forests`
-    (`resolveForestArguments`), in a term ([`processHit`](../../R/formulaTerms.R)) and in the writer's
-    `forests`, as `dbartsPriors$fixed` and without being added to `dbartsForests`, so that a column or
-    variable of that name is the caller's anywhere else. A held coefficient on a basis of one numeric
-    column is refused at creation, every door, with the [1] text naming the forest by its position
-    (`resolveSamplerSpec`), until the multiplier-law slice holds that column at 1.
+    one-forest texts. `fixed` resolves by bare name as `interactions` and `blocks` do: the vocabulary a
+    door's argument is evaluated in is an internal list, dbartsForests and `dbartsPriors$fixed`, indexed
+    by [`FOREST_ARGUMENT_VOCABULARIES`](../../R/model.R) in `forests`, by
+    [`processHit`](../../R/formulaTerms.R) in a term and by the writer's `forests`, so a call is the
+    constructor, a bare name the caller has bound is the caller's value, and `forests` forwarded through a
+    wrapper's dots resolves it. `fixed` is not added to the public `dbartsForests`; outside the argument
+    it is `dbartsPriors$fixed()`, and a constructor missing where it is forced says so. A held coefficient
+    on a basis of one numeric column is refused until the multiplier-law slice holds that column at 1: at
+    creation, every door, with the [1] text naming the forest by its position (`resolveSamplerSpec`), and
+    by `$setForestBasis` on a forest that holds its coefficient, before anything is installed.
     [`resolveForestSpreads`](../../R/dbarts.R) names `amplitude` in its fixed-at-creation text.
     Tests, a new file test-forest-arguments.R: `fixed()` on both forests leaves the amplitudes at their
     starting values over 50 sweeps and gives other draws than the drawn model (fails today: could not find
@@ -710,6 +714,12 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   place; that rewrites the shared check and moves those pins. The other alternative, `forest(sd = )`
   alone until the long form arrives, leaves `normal(sd = TRUE)` accepted and two spellings of one
   statement judged differently.
+- `fixed` resolves through the vocabulary, as `interactions` does, and not by a syntactic replacement in
+  the `amplitude` argument: a replacement overrides a caller's own `fixed`, and misses `forests` forwarded
+  through dots, a function literal and a bare name inside an expression. Two consequences are accepted:
+  `interactions = fixed()` finds the constructor and is refused by that argument's own check, where the
+  tip said "could not find function"; and an `attach()`ed column named `fixed` used as `basis = fixed`
+  finds the constructor, which push 3 ends by capturing a basis unevaluated and looking in `data` first.
 - Doors that take no `forest()` term refuse it by name (step 2.8). It is not in the design. With the
   first forest written as `forest(x1 + x2)` in the help's lead example, a user will write it in `xbart`,
   and today four doors answer with four unrelated messages. The alternative is a TODO entry.
