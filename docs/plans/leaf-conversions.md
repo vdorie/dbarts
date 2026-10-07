@@ -340,6 +340,46 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
   that needs it. The cost is a state that an earlier development build refuses.
 - NEWS carries one item, the re-anchor: released 0.9-34 replayed kept trees in the range in force (read
   from its source, not run). Leaf models are new in 1.0-0 and get none.
+- The tip rechecked before building, 2026-10-07 (five slices had landed in the same files since the plan
+  was written: cut-points-undo, state-zero-weight-rows, monotone-unforced-refusal,
+  cross-family-state-install and the written-surface pushes). Every symbol the plan cites is still there
+  under its name, and the six probes behind Context give the same output to the digit on a build of the
+  tip. What moved is where things sit: `Chain::reapplyWeights` and the bridge's state reader and writer
+  gained the zero-weight record, the state gained a `family` attribute beside the blocks step 1 touches,
+  `Chain::stateIsValid` gained a check of the latents, and the predictor transaction no longer reseeds a
+  monotone tree. None is in a function a step edits, and no rule, refusal or message changes.
+- Which kept draws a rewrite touches. The chain writes the ring of saved slots but only the sampler knows
+  how many of them the runs have filled, so [`Chain::setResponse`](../../src/bartcore/chain.hpp),
+  `Chain::setOffset` and `Chain::applyNewData` are handed the filled slots
+  ([`SavedDrawSlots`](../../src/bartcore/chain.hpp)) and write only those. A slot nothing was recorded
+  into stays the empty slot it was, which keeps "with nothing kept the call does what it does now" true of
+  a sampler that keeps trees and has not run, down to the state it stores. The state conversion still
+  walks every slot of a state, as before.
+- The conversion is written as slope times (s' / s), and a column whose centre, scale and mark agree is
+  skipped. At equal standardizations the arithmetic would therefore be exact anyway, apart from the sign
+  of a zero intercept, so the mutation "the equal-standardization shortcut is removed" is caught only
+  through a negative zero the engine tests plant (the conversion's own test and step 4's "identical to
+  the donor's" in tests/cpp); the tinytest twin of that check cannot see it. The whole-forest comparison
+  in the warm start is an early exit on top of the per-column one, and removing it alone changes nothing.
+- Neither side with spread, at different centres: the plan's guard is for exactly one side, so the formula
+  runs, live coefficients included, and the intercept gains slope (m' - m). The engine test pins it. For a
+  live chain that is the jump the guard exists to prevent elsewhere (a slope of 0.13 and centres 1000
+  apart give 130); the case is a constant leaf covariate replaced by another constant. Left as the plan
+  has it and reported to the coordinator.
+- A donor's standardization record that does not fit the leaf (a length, a centre that is not finite, a
+  scale that is neither positive and finite nor `NA`) is refused by the bridge with the existing
+  "malformed parameters in warm-start donor"; the engine, reached without the bridge, answers with its
+  shape refusal. A gp recipient does not read the record at all, so a gp warm start is exactly as before.
+- A view built from a parent store carries the no-spread mark with the constants it inherits, so a fold
+  sampler's leaf remembers it as a top-level one does.
+- `bart(warm.start = )` runs a sweep before anything can be read, and one sweep at this size brings a
+  cold start as close to the donor as a seeded one (measured), so "the first draw sits by the donor"
+  cannot tell the builds apart. The test instead writes one donor forest under two standardizations, the
+  second restated in R by the rule, and requires the two seeded fits to agree: to 1e-8 after `bart`'s
+  sweeps and to 1e-12 through `installTrees` before any.
+- Between the pushes the manual says what a gp sampler holding saved draws does today (its draws change
+  at `setData` and at a re-anchor that moves the midpoint); step 5 replaces those sentences with the
+  refusals. The two TODO entries are left for step 5 and the landing.
 - The tip against the design. Its three probes were re-run on other fixtures: the facts hold, the sizes
   differ (7.9 where it reports 9.8 and 8.5; 6.30 where it reports 6.3). The design ran this work in series
   with the `setState` return value because both edit chain.hpp; that has landed, so the constraint is gone.
