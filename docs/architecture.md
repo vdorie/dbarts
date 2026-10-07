@@ -54,6 +54,17 @@ family that construction consumes. It is exported as `dbartsSpec()`
 (docs/design/consumer-spec-surface.md). `xbart` builds its per-fold samplers
 itself.
 
+A model of several forests is written as `forest()` terms of the formula or
+as a `forests` list, and the two are one declaration by the time they reach
+that step. [`ingestFormulaTerms`](../R/formulaTerms.R) reads a formula's
+terms into the same `forest()` specifications a list holds, and a forest's
+basis, written as the right-hand side of a model formula, is read by
+[`readForestBasis`](../R/forestBasis.R) and built by
+[`buildCodeBasis`](../R/forestBasis.R) whichever way it was written, on the
+rows the data object keeps. The record that rebuilds a basis at new rows, R's
+own `terms`, rides the forests' configuration on the control
+(docs/design/written-surface.md).
+
 The sampler lives in C++ and the R object holds an external pointer to it, a
 `bartcore::SamplerBase`. `src/bartcore/` is header-only: it compiles into
 whichever translation unit includes it - the R bridge, the C API, `tests/cpp`

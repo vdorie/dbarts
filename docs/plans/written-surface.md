@@ -973,6 +973,65 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   - The third surviving mutant is left: multinomial's lone forest by value whose contents are not
     checked to be names. A position there stops in the model frame with R's message, so nothing is
     fitted; a test would pin only that message.
+- Made while building push 3.
+  - The number beside a column, the open point of "The capture rule", is settled so: in a call of
+    `forest()` every name the basis's code uses that the caller binds is copied when `forest()` is called
+    ([`bindBasisAtCall`](../../R/forestBasis.R)), so `for (k in c(10, 30)) forest(basis = I(dose / k))`
+    gives each forest its own `k`, a changed or removed `k` changes nothing, and predict uses the `k` of
+    the call. A name nothing binds at the call is not looked up later and is refused. A formula keeps
+    `lm`'s reading: a term of the fit's formula, and a basis written with a tilde wherever it is written,
+    is read when the model is built and its `k` looked up again by predict; `for (k in ...) forest(basis =
+    ~ I(dose / k))` therefore gives every forest the last `k`, as on the base build, which the push must
+    not move. The help's warning says both, where the text above has the `lm` reading alone.
+  - A seventh text moves draws, which the table of six does not list: a factor basis in a `forests` list
+    under a `subset` that empties one of its levels. The base build kept an all-zero column for that
+    level at the list door and dropped it at the formula door; step 3.4 drops it at both, so the list's
+    model becomes the term's (identical draws to the same text in a formula's term on the base build). A
+    logical basis in a list left with one value by `subset`, and a numeric one left all zeros, were
+    accepted there with a zero column and are refused, as the formula door refused them.
+  - `cbind()` written as code in a list is refused like any `cbind()` at the top of a basis. The count of
+    Context, "20 lines in 7 test files, each a value today and code afterwards ... each is the same
+    model", missed that one of them, test-forest-arguments.R's `~ cbind(1 - z, z)`, is such a call; it is
+    respelled `I(1 - z) + z`, which the refusal says to write and which draws what the value drew. The
+    refusal gives a form to write only where a sum of terms has the same columns in the same order: not
+    for a member written twice (a model formula keeps one) nor for a constant column that is not first (a
+    model formula puts it first).
+  - Texts added to "Refused forms": `'basis' (-1) names no column; leave 'basis' out for the forest with no
+    multiplier`; at new rows, `'basis' (g) has the level 'w' at a new row, which no row of the fit had`
+    and the two texts for a basis that is a factor at the fit and numeric at the new rows or the reverse;
+    `forest 2's 'basis' (dose) has 150 rows where the fit has 294 observations; a basis has one row for
+    each`, for a fit whose rows are not the data's (a hazard fit written with a formula); `could not find
+    function "f" where forest() was called`; and one for a basis that reached `forest()` through dots
+    whose writer is no longer on the stack. `forest(basis = 2)` and `forest(basis = "dose")` written in
+    place get the single-value texts, a constant written in place being indistinguishable from one handed
+    over. A number on the left of `/`, `30/dose`, gets the `/` text and not the divided-by-a-number one.
+  - A missing value in a basis is looked for on the rows the fit keeps. One in a row that `subset` or the
+    na.action drops is no value of the basis and is accepted at both doors; the base build refused it at
+    one door or the other (in a row `subset` dropped, in a list; in a row dropped for a missing response,
+    in a term).
+  - A basis given as a value in a term of a formula (a formula built with the value in it) goes to the
+    data object like a list's and covers every row of the data; the base build took it at the rows
+    `subset` kept.
+  - At new rows a variable that was a column of the fit's data must be a column of the new rows, whatever
+    is found where the formula was written; any other variable with a value for every fitted row is
+    refused, pointing to `bases =`; anything else found there is used, as in `lm`.
+  - A forest keeps no frame. The predictors' captured code keeps no environment (its value is taken at
+    the call and a formula's terms are labels), and a basis bound to a call keeps the names its code uses.
+    This is the decision the second list above left to push 3; `forest(cols)` built beside a 16 MB object
+    serializes small again. A basis written with a tilde is a formula and keeps its environment.
+  - `$setForestBasis` keeps the recorded names when the replacement has the forest's width; a replacement
+    of another width brings its own. A one-sided formula there is read with no data, its names found
+    where it was written. The writer's refusal of a list name now reads "created as 'forest1'" for a
+    forest that has its position's label, every forest having one.
+  - A basis carried by the data object, `dbartsData(bases = )`, keeps the names its value has; the value
+    rule is applied to a value given to `forest()`. The data door is slice K's.
+  - The fit's `subset`, where a code basis is cut, is read as the fit's own model frame reads it: in the
+    data and then the formula's environment, row names selecting by name, and an argument forwarded
+    through a wrapper's dots read where it was written.
+  - Step 3.0's smaller item: the refusal of a buried forest is folded into the walk that replaces
+    forest terms, and the two readers of a removal share one flattening of the chain; the intercept
+    reader and the list door's `take` are left, their rules for parentheses differing by design.
+  - No benchmark script writes a spelling push 3 re-reads or refuses, so none is respelled.
 
 ## Landing note
 

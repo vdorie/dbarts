@@ -640,8 +640,26 @@ items
     fixed()); one unnamed argument; a longer or named sd, a star, a
     term times or over a number and a prior's name on a basis term
     are refused by name. Three pushes; the first two (the two
-    arguments, the forests of a formula) landed, the basis is left.
-    Plan: docs/plans/written-surface.md.
+    arguments, the forests of a formula) landed, and the basis is
+    built and awaits its landing.
+    Plan: docs/plans/written-surface.md. Design:
+    docs/design/written-surface.md.
+  written-surface-leftovers: what the basis left, none planned. A
+    missing value in a basis on a row the fit keeps is refused where
+    lm drops the row, a departure from "as in lm" that the help
+    names. A hazard fit of several forests does not check that a
+    basis covers the data under subset, its rows being expanded: on
+    the matrix interface a basis covers the expanded rows, and with a
+    formula it is refused for its row count. A basis carried by a
+    data object, dbartsData(bases = ), keeps whatever column names
+    its value has, a partly named one among them, where a value given
+    to forest() is named whole or not at all; the data door is the
+    kind-by-class slice's. A subset written as an expression over the
+    data's columns cannot be forwarded through a wrapper's dots: the
+    data object's own model frame evaluates it where the wrapper was
+    called. A forest built by a wrapper whose formal holds the basis,
+    function(b) forest(basis = b), is given the formal's value, so
+    such a wrapper cannot pass on a column of the data by its name.
   forest-defaults-by-kind: before 1.0-0 (dec-B274, dec-B276), directly
     after written-surface. A forest's default tree count and tree
     prior go by whether it has a basis: the forest with no basis
@@ -762,13 +780,6 @@ items
     (dec-B271); the default stays normal (dec-B262). Its user is a caller who redraws
     the multiplier, whose scale drifts during a run. Wanted for 1.0-0,
     built after the merge to main (VD 2026-10-06).
-  basis-formula-leftovers: for the forest-prior-args plans. A basis
-    formula's right-hand side is R code, not a model formula: ~ z + w is
-    one column, the sum, where (z + w):forest() is two, and : at its
-    top is a sequence. scale(w):forest(x) is refused. A basis given
-    through forests = list(forest(basis = )) stores no formula, so
-    nothing is rebuilt at predict and with subset it is evaluated on
-    every row (docs/plans/basis-formula-terms.md, landing note).
   named-single-sd: forest(sd = ) takes a named single number, its name
     ignored, on every forest (dec-B280, as dec-B282 leaves it).
     Before the merge to main; a step of

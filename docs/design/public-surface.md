@@ -535,8 +535,10 @@ BCF (docs/design/bcf.md) landed inside this document's cutover window but
 outside its numbered proposals. Landed 2026-08-10 to 2026-08-11
 (docs/plans/archive/bcf-public-surface.md S1-S4) and re-skinned into engine vocabulary
 2026-08-13 (docs/plans/archive/multiforest-extension-surface.md M2):
-`dbarts(forests = list(forest(), forest(basis = ~ factor(z), vars =
-)))`/`dbartsSpec()` build an ordinary `dbartsSampler`; the (1 - z, z) pair the
+`dbarts(forests = list(forest(), forest(basis = factor(z), vars =
+)))`/`dbartsSpec()` build an ordinary `dbartsSampler` (the same model is
+written in a formula as `forest()` terms, and a basis is the right-hand side
+of a model formula with no tilde: docs/design/written-surface.md); the (1 - z, z) pair the
 factor basis expands to rides the K-length `data@bases` list (the `weights`
 precedent) and the forests' configuration rides
 `attr(control, "bartcore.forests")` (the `bartcore.variance` precedent),
