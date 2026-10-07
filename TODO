@@ -276,7 +276,8 @@ items
     (dec-B285). Whatever repeated-cut-restore does with equal values
     must leave this an addition.
   repeated-cut-restore: BEFORE THE MERGE TO MAIN (VD 2026-10-07,
-    dec-B285). A stored tree names a split by its cut value,
+    dec-B285). Plan: docs/plans/repeated-cut-restore.md. A stored tree
+    names a split by its cut value,
     and the rebuild (setState, copy(), a reload) puts it on the first
     index holding that value. On a grid that repeats a value a split
     drawn on a later copy therefore moves, and the chain no longer
