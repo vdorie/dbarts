@@ -166,3 +166,27 @@ Agent-made, for the maintainer's later mark.
 - No exact-gate arm and no NEWS item, for the reasons under Verification and step 5.
 - The help gains a sentence although no released behaviour changes: `updateScale` on an aft sampler is
   new in 1.0-0 and the sentence says what it reads.
+- Rechecked against the tip before building, 2026-10-07, after leaf-conversions had landed. Every symbol
+  cited is there under its name and the routines read as Context says. A probe on a build of the tip gave
+  the first measurement to the digit (1.3856 and 5.5858 at creation; 1.8721, 6.2150 and 2.0977, 6.6662
+  after the call; the record chain 1's) and, on an offset of its own, the facts of the second and third:
+  two transforms after sweeps, a copy holding chain 1's in both chains, one transform straight after
+  creation and with no censored row.
+- What the recheck moved: the `rng:` line counts "straight after `setResponse`" with the calls whose
+  censored rows still sit at their censoring times. They do not: `setResponse` redraws every censored row
+  above its bound before it returns (ran: all of them above, on the tip's build). So `setOffset` with
+  `updateScale = TRUE` straight after a `setResponse` belongs with "after a sweep", in the changed class;
+  straight after creation is the one neutral case with a censored row. The rule is as written.
+- Step 2's "neutral" check is built to that. Before any sweep the call's scale and shift are, bit for bit,
+  those of a response swap that re-derives the range under the same offset; its working response is that
+  swap's on every row the swap does not redraw (the events), and on every row it is that of a sampler
+  created at the offset, the other path that reads observed times on both builds.
+- Calls made in building. [`GaussianResponse::setOffset`](../../src/bartcore/model.hpp) gains a second,
+  non-virtual form that carries the vector, and the virtual forwards to it with none, so no virtual
+  changes. The range is taken in the working buffer before the working response is built there, so the
+  one temporary vector is aft's. The engine test censors the row whose observed time less the offset is
+  the largest, so that every chain holds a drawn time above the observed range. The R test reads each
+  chain's transform from the bridge's per-chain leaf-prior matrix, as test-calibration-midchain.R does
+  (`getLeafPrior` reports the first chain's), and reaches the flat entry through the shared consumer in
+  test-aft.R, skipped where there is no compiler, as test-monotone.R does. No landing note is written
+  here before the push.

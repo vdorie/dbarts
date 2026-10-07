@@ -53,8 +53,11 @@ rather than invented:
   refusal to the handle.
 - **updateScale.** The status re-anchors nothing, and a heteroscedastic aft takes either flavor - a re-anchoring swap
   restates the variance forest's scale leaf and surface ([`Chain::reanchorVarianceForest`](../../src/bartcore/chain.hpp)) -
-  with both R entry points defaulting it FALSE. Not an invariant: the transform is over `logT_`, which equals the observed times only just after a `setResponse` -
-  [`AFTResponse::setOffset`](../../src/bartcore/model.hpp) at `updateScale = TRUE` re-anchors on latents.
+  with both R entry points defaulting it FALSE. The range a re-anchor derives is always that of the observed log times
+  less the offset, an event's time and a censored row's censoring time, as at creation: a drawn time never enters it, so
+  every chain holds one transform. Since 2026-10-07 that holds of
+  [`AFTResponse::setOffset`](../../src/bartcore/model.hpp) at `updateScale = TRUE` too, which until then read the times
+  in force and left each chain in a transform of its own.
 - **Latents.** The redraw stays, matching [`AFTResponse::setResponse`](../../src/bartcore/model.hpp) and the probit pattern:
   event to censored takes the row's own observed time as its new bound and redraws above it; censored to event restores that
   time, which is data, not a draw. A caller driving one sweep per call needs the imputed value, the next sweep's mean forest
