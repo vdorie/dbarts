@@ -31,23 +31,35 @@ order and refuses a repeated point by name. The joint row update refuses numbers
    of abbreviation.
 2. dec-B285. A numeric grid out of order is sorted and taken. A grid with a repeated point is refused,
    the message saying a point may appear once and to give a denser grid near the value for more splits
-   there. The grid the column holds, in order and bit for bit, is taken as it is, whether or not it
-   repeats a point. A grid that is not numeric, or holds `NA` or `NaN`, is refused. What a restore does
-   with repeated points is not touched here.
+   there. The grid the column holds, bit for bit and in whatever order it is given, is taken as it is,
+   whether or not it repeats a point. A grid that is not numeric, or holds `NA` or `NaN`, is refused.
+   What a restore does with repeated points is not touched here.
 3. dec-B286. Numbers given for a factor column of the joint update are refused in `setPredictor`'s words;
    a factor or labels are matched to the levels as before. Differing level tables across samplers refuse,
    and a factor or non-numeral text for a numeric column refuses, as before.
 
-## What changed
+## Constraints
 
-- `parseMonotoneSign` tries the codes, then `pmatch`; `MONOTONE_DIRECTION_CODES` no longer holds the words.
-- The R method sorts a grid with no `NA`, since `sort()` would drop one; the bridge refuses a `NaN` and a
-  repeat in two messages.
-- `codeJointColumnUpdate` refuses a number for a categorical column after the level tables are compared.
-  The refusal for a column held as a factor in one sampler and a number in another no longer tells the
-  caller to give numbers.
-- The help of `monotone`, `setCutPoints` and `updatePredictorPerObservationJointly`, and the method's
-  docstring, state the rules.
+- No engine change: the bridge's grid check is the only C++ touched, and a restore's handling of repeated
+  points is another item.
+- The numbers 1, -1 and 0 and their strings stay directions, the prior's name stays under `match.arg`, and
+  the help says nothing of abbreviation.
+- A call accepted before and still accepted draws as before.
+- `docs/decisions.md` and the root TODO are the coordinator's.
+
+## Steps
+
+1. `parseMonotoneSign` tries the codes, then `pmatch` on the two words; `MONOTONE_DIRECTION_CODES` no
+   longer holds the words.
+2. The R method sorts a grid with no `NA`, since `sort()` would drop one; the bridge refuses an `NA` or
+   `NaN` and a repeat in two messages. The held-grid test comes after the sort, so the held grid is taken in
+   any order it is given.
+3. `codeJointColumnUpdate` refuses a number for a categorical column after the level tables are compared; a
+   column held as a factor in one sampler and a number in another says so.
+4. The help of `monotone`, `setCutPoints` and `updatePredictorPerObservationJointly`, and the method's
+   docstring, state the rules. A first missing value is declined by no joint-form call: a factor takes a
+   missing label only where the column holds one, and a numeric column's first missing value breaks no
+   order.
 
 ## Tests
 
