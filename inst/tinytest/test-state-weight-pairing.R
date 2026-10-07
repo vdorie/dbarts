@@ -2,9 +2,8 @@
 # state; a digest of the ones in force when it was stored does, and setState
 # re-derives the weight-dependent latents against the DESTINATION's weights
 # when the two disagree - so a state install lands where the same setWeights
-# call would for logistic (Student-t redraws more, below), rather than pairing
-# one vector's latents with another's counts. When the two agree, the restore
-# is the identity it has always been.
+# call would, rather than pairing one vector's latents with another's counts.
+# When the two agree, the restore is the identity it has always been.
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
@@ -161,11 +160,10 @@ expect_true(max(abs(revivedLatents - preSwap)) > 1e-3)
 
 # --- Student-t: the scales are re-derived too -------------------------------
 # A scale is drawn given its row's weight, and one stored for a row at weight
-# zero was drawn without that row's residual. The state does not say which
-# rows those were, so a mismatched restore redraws the scale of every row in
-# the likelihood at the destination and leaves the stored one where the
-# destination's weight is zero. A matched restore draws nothing: it runs
-# byte-identically with the digest stripped, when no repair can fire.
+# zero was drawn without that row's residual; a mismatched restore redraws
+# the rows that enter the likelihood, which test-state-zero-weight-rows.R
+# holds. A matched restore draws nothing: it runs byte-identically with the
+# digest stripped, when no repair can fire.
 withoutDigest <- function(state) {
   attr(state, "weights.digest") <- NULL
   state
@@ -183,7 +181,6 @@ studentAt <- function(weights, control = stateControl) {
   sampler
 }
 wFirstOut <- replace(wA, 1:20, 0)
-wLastOut <- replace(wB, 62:81, 0)
 tstate <- storedFrom(studentAt(wFirstOut))
 tstored <- tstate[[1L]][["latents"]]
 tmatched <- studentAt(wFirstOut)
@@ -192,32 +189,13 @@ expect_identical(tmatched$getLatents(), tstored)
 tinert <- studentAt(wFirstOut)
 tinert$setState(withoutDigest(tstate))
 expect_identical(tmatched$run(0L, 3L)$train, tinert$run(0L, 3L)$train)
-trepaired <- studentAt(wLastOut)
-expect_true(trepaired$setState(tstate))
-expect_true(all(trepaired$getLatents()[wLastOut > 0] != tstored[wLastOut > 0]))
-expect_identical(trepaired$getLatents()[wLastOut == 0], tstored[wLastOut == 0])
-expect_true(all(is.finite(trepaired$run(0L, 3L)$train)))
-# every chain is re-derived, each off its own generator
-twoChains <- dbarts::dbartsControl(
-  n.chains = 2L,
-  n.threads = 1L,
-  n.trees = 20L,
-  updateState = FALSE,
-  seed = 902L
-)
-tstate <- storedFrom(studentAt(wFirstOut, twoChains))
-tstored <- vapply(tstate, function(chain) chain[["latents"]], numeric(n))
-trepaired <- studentAt(wLastOut, twoChains)
-expect_true(trepaired$setState(tstate))
-tredrawn <- trepaired$getLatents()[wLastOut > 0, ]
-expect_true(all(tredrawn != tstored[wLastOut > 0, ]))
-expect_true(all(tredrawn[, 1L] != tredrawn[, 2L]))
 
 # --- neutrality: the repair is a measured no-op elsewhere -------------------
 # Every family below takes a MISMATCHED transplant twice - once with the
 # digest present (the repair fires) and once with it stripped (it cannot) -
-# and runs byte-identically either way.
-for (make in list(gaussianSampler, varianceSampler)) {
+# and runs byte-identically either way. Student-t is among them because both
+# weight vectors are positive: no row enters the likelihood.
+for (make in list(gaussianSampler, varianceSampler, studentSampler)) {
   donor <- storedFrom(make(wA))
   repaired <- make(wB)
   # other weights leave the chains the stored ones
@@ -362,14 +340,10 @@ rm(
   nullDest,
   studentAt,
   wFirstOut,
-  wLastOut,
   tstate,
   tstored,
   tmatched,
   tinert,
-  trepaired,
-  twoChains,
-  tredrawn,
   stripped,
   malformed,
   warmDonor,
