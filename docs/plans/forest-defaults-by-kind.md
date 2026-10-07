@@ -718,6 +718,32 @@ takes the fitting function's count.
     written with `basis = NULL`.
   - No test creates a model with the hold dropped for a basis of three columns: such a basis is refused
     two slices on.
+- Rechecked on the landed tip of push 1 (c7fab5bc, 2026-10-07) before push 2 was built, by runs on a
+  four-forest sampler (the plain forest second, one list name, two basis texts) and a three-term `bart`
+  fit. Every function the steps name stands, and the table of "Selecting a forest" holds as written for
+  the nine methods and for `extract` and `predict`. What the steps did not say:
+  - The labels live in the forests' record only where a model has several forests: a sampler of one
+    forest, one declared as `forests = list(a = forest())`, and a multinomial one record none, so the
+    third rule's "no labels" is the record's absence and `forest<i>` needs the forest count from the
+    engine. A fit's `attr(fit, "forest.labels")` is there for every fit of several forests.
+  - `extract(type = "k")` and `"leaf.prior.sd"` on a fit of one forest are refused as a model parameter
+    before any selection is read, and `getTrees` takes its vector through `vapply` over
+    `resolveForestIndex`, as `plotTree` takes its one forest; those are the only callers besides the
+    nine methods, and a vector of labels needs a branch in `getTrees`.
+  - `$setLeafPrior(forests = )` accepts a name only equal to its position's label, so `forest1` on a
+    forest labelled `dose` is refused today; the rule of "Lists given by position" accepts `forest<i>`
+    at position i, which is built, a loosening of that one call. `predict(bases = )` reads a named list
+    by position and ignores the names, as the plan says.
+  - Two existing pins change their text: test-forest-labels.R ("must be coercible to type: integer", a
+    string given to a sampler) and test-predict-forest.R ("must name one of", a name given to
+    `predict`).
+  - The suite at the tip is 18412 results over 232 files, as push 1's landing note says.
+- The refusal of a stated argument on a model with no plain forest ends, at `bartBT()` and at `bart()`
+  given a data object, with "leave it out, or fit with dbarts()" (for the control's count, "leave it out
+  of dbartsControl(), or fit with dbarts()"), as the coordinator ruled after the review of push 1, and
+  keeps the remedy of "Refused forms" at the formula doors and at `dbarts()` and `dbartsSpec()`. Built as
+  its own commit, ahead of push 2; the first two lines of "Refused forms" are the text at the doors that
+  keep it.
 
 ## Landing note
 
