@@ -32,20 +32,13 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NULL)
   [`setPredictor`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   takes them for a named column. The order of the levels of the factor
   given does not matter; a label the column does not have is refused by
-  name, and so is a missing value when the column holds none. Such a
-  column also takes numbers, read as the codes each sampler holds it in:
-  whole numbers from 0 in the order of the column's levels, so the first
-  level is 0. `as.integer(f)` of a factor counts from 1 and is not these
-  codes, so give the factor itself. A number that is not a code is
-  refused, and a missing number is installed as a missing value, where a
-  missing label is refused in a column that has none. A number is never
-  matched to a label, even where the labels are numerals, so give labels
-  as a factor or as character. One value is one level in every sampler
-  only if they hold the column with the same levels in the same order,
-  so samplers that hold it as a factor with different levels are
-  refused, for labels and numbers alike; update them in separate calls.
-  Labels are also refused when one sampler holds the column as a number,
-  where numbers are each sampler's own.
+  name, and so is a missing value when the column holds none. Numbers
+  are refused for such a column, as `setPredictor` refuses them for a
+  named column, even where the labels are numerals. One value is one
+  level in every sampler only if they hold the column with the same
+  levels in the same order, so samplers that hold it as a factor with
+  different levels are refused; update them in separate calls. Labels
+  are also refused when one sampler holds the column as a number.
 
 - column:
 
@@ -74,17 +67,16 @@ of
 A single sequential sweep installs each observation in every sampler at
 once, and only if its new value keeps every leaf non-empty in every tree
 of every *forest* of every chain of every sampler; otherwise that
-observation is rolled back to its previous value in all of them. In a
-sampler with a
+observation is rolled back to its previous value in all of them. A
 [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)
-constraint a value is also declined, in every sampler, when installing
-it would leave a tree's leaf values out of order; that page says which
-values do this and why proposing them again may never succeed. Any of
-the samplers may itself carry more than one forest - a Bayesian causal
-forest, a multinomial sampler, or a heteroscedastic (`variance`)
-sampler - and each of its forests is checked on the same terms as an
-ordinary single-forest sampler's mean forest (see ‘Multi-forest and
-heteroscedastic predictor mutation’ in
+constraint declines no row for its order here: a factor column takes a
+missing value only where it already holds one, and a numeric column's
+first missing value breaks no order. Any of the samplers may itself
+carry more than one forest - a Bayesian causal forest, a multinomial
+sampler, or a heteroscedastic (`variance`) sampler - and each of its
+forests is checked on the same terms as an ordinary single-forest
+sampler's mean forest (see ‘Multi-forest and heteroscedastic predictor
+mutation’ in
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
 Like the single-sampler partial mode, the update never changes tree
 structure – it only re-routes observations.

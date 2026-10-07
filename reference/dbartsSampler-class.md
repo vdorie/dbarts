@@ -784,23 +784,25 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   For `setCutPoints`, a numeric vector of cut points for the column
   named, or a list of such vectors, one for each column named; a data
-  frame is taken as the list of its columns. A vector is strictly
-  increasing, with no `NA` or `NaN`. The one exception is the grid the
-  column holds at the call, bit for bit (a `-0` is not a `0`), which is
-  taken as it is: a sampler can hold a grid with equal neighbours, as
-  the one it builds for a constant column when `useQuantiles` is
-  `FALSE`, so the grids a sampler holds can be handed back to it whole.
-  Any other grid with equal neighbours is refused. With `column`
-  missing, `cuts` is a list with one entry for every column of the
-  predictors, and the entries of factor columns are not read, whatever
-  they are. Cut points apply to numeric predictors only: naming a factor
-  column of either kind is refused, naming the kind, its grid following
-  its level table rather than any externally chosen one. A later
-  `setData` derives every numeric column's cut points again whatever
-  grid was set, at most as many as the `n.cuts` the sampler was created
-  with: with `useQuantiles`, a column with no more distinct values than
-  `n.cuts` gets one cut point fewer than it has distinct values, and a
-  constant column gets one.
+  frame is taken as the list of its columns. A vector holds no `NA` or
+  `NaN` and is sorted if it is out of order. A point may appear only
+  once, so a grid with a repeated point is refused; for more splits near
+  a value, give a denser grid around it. The one exception is the grid
+  the column holds at the call, bit for bit, in whatever order it is
+  given (a `-0` is not a `0`), which is taken as it is: a sampler can
+  hold a grid with equal neighbours, as the one it builds for a constant
+  column when `useQuantiles` is `FALSE`, so the grids a sampler holds
+  can be handed back to it whole. With `column` missing, `cuts` is a
+  list with one entry for every column of the predictors, and the
+  entries of factor columns are not read, whatever they are. Cut points
+  apply to numeric predictors only: naming a factor column of either
+  kind is refused, naming the kind, its grid following its level table
+  rather than any externally chosen one. A later `setData` derives every
+  numeric column's cut points again whatever grid was set, at most as
+  many as the `n.cuts` the sampler was created with: with
+  `useQuantiles`, a column with no more distinct values than `n.cuts`
+  gets one cut point fewer than it has distinct values, and a constant
+  column gets one.
 
 - column:
 

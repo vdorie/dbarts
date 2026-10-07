@@ -28,9 +28,8 @@ monotone(directions, prior = c("joint", "leaf"))
   The per-predictor directions. A named vector selects predictors by
   model-matrix column name, each element `"increasing"` or `1`,
   `"decreasing"` or `-1`, or `0` for unconstrained. An unnamed vector as
-  long as the model matrix is wide assigns the directions by position.
-  Matching is case-sensitive and takes no abbreviations. A predictor
-  named `prior` is written like any other,
+  long as the model matrix is wide assigns the directions by position. A
+  predictor named `prior` is written like any other,
   `monotone(c(prior = "increasing"))`.
 
 - prior:
@@ -116,19 +115,12 @@ constraint then orders them. What each call does with such a value:
   refused update, the draws that follow can differ in their last digits
   from those it would otherwise have made.
 
-- [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md),
-  given the level codes: returns `FALSE` for each row that brings the
-  missing value, which keeps its old value in every sampler, and `TRUE`
-  for the other rows, which are installed. No rule or leaf value
-  changes. The call still draws the order in which it visits the rows
-  from the first sampler's random number generator, as every call does,
-  so even when every changed row is refused the draws that follow are
-  not those of a sampler that was not given the call.
-
 - `setPredictor` with named columns, whatever `forceUpdate` is,
-  `"partial"` included: an error, and nothing is changed. A named factor
-  column is given as its labels and does not take a missing value when
-  its training values have none.
+  `"partial"` included, and
+  [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md):
+  an error, and nothing is changed. A factor column is given as its
+  labels and does not take a missing value when the column holds none. A
+  numeric column's first missing value breaks no order and is installed.
 
 Such a refusal is not cured by proposing other values, and running the
 sampler may not cure it either. Every update that brings the missing

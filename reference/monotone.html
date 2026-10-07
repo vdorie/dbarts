@@ -82,8 +82,7 @@ The constructor is not exported: it resolves by bare name inside the
     model-matrix column name, each element <code>"increasing"</code> or <code>1</code>,
     <code>"decreasing"</code> or <code>-1</code>, or <code>0</code> for unconstrained. An
     unnamed vector as long as the model matrix is wide assigns the directions
-    by position. Matching is case-sensitive and takes no abbreviations. A
-    predictor named <code>prior</code> is written like any other,
+    by position. A predictor named <code>prior</code> is written like any other,
     <code>monotone(c(prior = "increasing"))</code>.</p></dd>
 
   <dt id="arg-prior">prior<a class="anchor" aria-label="anchor" href="#arg-prior"></a></dt>
@@ -157,18 +156,12 @@ The constructor is not exported: it resolves by bare name inside the
       fits, predictors and random number generator are as they were before
       the call. As after any refused update, the draws that follow can
       differ in their last digits from those it would otherwise have made.</p></li>
-<li><p><code><a href="updatePredictorPerObservationJointly.html">updatePredictorPerObservationJointly</a></code>, given the level
-      codes: returns <code>FALSE</code> for each row that brings the missing value,
-      which keeps its old value in every sampler, and <code>TRUE</code> for the
-      other rows, which are installed. No rule or leaf value changes. The
-      call still draws the order in which it visits the rows from the first
-      sampler's random number generator, as every call does, so even when
-      every changed row is refused the draws that follow are not those of a
-      sampler that was not given the call.</p></li>
 <li><p><code>setPredictor</code> with named columns, whatever
-      <code>forceUpdate</code> is, <code>"partial"</code> included: an error, and nothing
-      is changed. A named factor column is given as its labels and does not
-      take a missing value when its training values have none.</p></li>
+      <code>forceUpdate</code> is, <code>"partial"</code> included, and
+      <code><a href="updatePredictorPerObservationJointly.html">updatePredictorPerObservationJointly</a></code>: an error, and
+      nothing is changed. A factor column is given as its labels and does not
+      take a missing value when the column holds none. A numeric column's
+      first missing value breaks no order and is installed.</p></li>
 </ul><p>Such a refusal is not cured by proposing other values, and running the
   sampler may not cure it either. Every update that brings the missing value
   is refused while any tree's leaf values would be out of order with it, and
