@@ -27,9 +27,22 @@ forest(
 }
 \arguments{
   \item{vars}{
-    The predictors this forest splits on, and the one argument that may be
-    given without its name: every other argument is given by name. \code{NULL},
-    or no first argument at all, leaves the forest every predictor of the fit.
+    The predictors this forest splits on. In short:
+    \itemize{
+      \item It is the one argument given without its name:
+        \code{forest(x1 + x2)}. Every other argument is given by name.
+      \item Left out, the forest splits on every predictor of the fit.
+      \item In a formula it is terms joined by \code{+}, as on the right of
+        any model formula: \code{forest(x1 + x2)},
+        \code{forest(log(x1) + factor(g))}, \code{forest(. - z)}.
+      \item In a \code{forests} list the same terms select among the fit's
+        predictors, \code{forest(x1 + x3)}, \code{forest(. - x2)}; names or
+        positions do too, \code{forest(c("x1", "x3"))},
+        \code{forest(c(1, 3))}.
+      \item A name of a predictor is that predictor. Anything else is read
+        where \code{forest()} is called, at that moment.
+    }
+    The rest of this item is the detail of each.
 
     In a formula given to \code{\link{bart}} or \code{\link{dbarts}} it is
     written as the right-hand side of a model formula of the forest's own:
@@ -85,7 +98,7 @@ forest(
     that level through the others; remove the factor, \code{forest(. - g)}, to
     keep it out.
 
-    In short, a name of a predictor is that predictor, and anything else is
+    A name of a predictor is that predictor, and anything else is
     read where \code{forest()} is called, at that moment. A forest built in a
     loop, by \code{lapply(names, forest, basis = z)} or by \code{Map()}
     therefore keeps the selection each call was given, whatever its variables
@@ -114,7 +127,25 @@ forest(
     life; \code{$setModel} refuses a model that states another, or none.
   }
   \item{basis}{
-    What the forest is multiplied by. With a basis of columns
+    What the forest is multiplied by. In short:
+    \itemize{
+      \item A name of a column of \code{data} is that column:
+        \code{basis = dose}.
+      \item \code{+} separates columns, each with a coefficient of its own:
+        \code{dose + age}. \code{I(dose + age)} is one column, their sum.
+      \item A factor, a character column or a logical column is one column
+        for each of its levels.
+      \item Anything that is not a column of \code{data} is read where
+        \code{forest()} is called, at that moment, with or without a tilde
+        written in place: \code{forest(basis = w)}, \code{forest(basis = ~ w)}.
+      \item A formula held in a variable, \code{b <- ~ dose} and then
+        \code{forest(basis = b)}, is read late, when the model is fitted, as
+        R reads formulas.
+      \item \code{cbind()} is refused: write the columns with \code{+}.
+    }
+    The rest of this item is the detail of each.
+
+    \strong{What it does.} With a basis of columns
     \eqn{B_1, \ldots, B_K}{B_1, ..., B_K} the forest \eqn{f}{f} enters the fit
     as \eqn{(\sum_k a_k B_k(x_i)) f(x_i)}{(sum_k a_k B_k(x_i)) f(x_i)}, each
     column with a coefficient \eqn{a_k}{a_k} of its own, called its
@@ -122,12 +153,11 @@ forest(
     A model has one forest with no basis, or none; every other forest states
     one, and a model whose only forest has a basis is refused.
 
-    It is written as the right-hand side of a model formula, without the
-    tilde, and means what it means in \code{\link{lm}}:
+    \strong{Writing it.} A basis is the right-hand side of a model formula,
+    without the tilde, and means what it means in \code{\link{lm}}:
     \itemize{
       \item a name is a column: \code{basis = dose};
-      \item \code{+} separates columns: \code{dose + age} is two columns,
-        with a coefficient each;
+      \item \code{+} separates columns: \code{dose + age} is two columns;
       \item arithmetic is written inside \code{I()}: \code{I(dose + age)} is
         one column, the sum, and \code{I(dose / 30)} is \code{dose}
         rescaled;
@@ -155,15 +185,10 @@ forest(
     \code{I(dose / 30)}); \code{-} between terms, other than \code{- 1};
     \code{^}, \code{/}, \code{\%in\%} and \code{|} between terms; \code{.};
     an \code{offset()}; \code{cbind()} (write \code{+}); and a term that
-    calls one of
-    \code{normal}, \code{fixed}, \code{student}, \code{cauchy}, \code{linear},
-    \code{gp}, \code{cgm}, \code{dart}, \code{chisq}, \code{chi},
-    \code{invchi}, \code{forest} or \code{varianceForest}, since a prior is
-    not stated on a term of a basis.
-
-    A tilde may be written and changes no column: \code{basis = ~ dose + age}
-    is \code{basis = dose + age}, and a variable that holds such a formula may
-    be given in its place.
+    calls one of \code{normal}, \code{fixed}, \code{student}, \code{cauchy},
+    \code{linear}, \code{gp}, \code{cgm}, \code{dart}, \code{chisq},
+    \code{chi}, \code{invchi}, \code{forest} or \code{varianceForest}, since
+    a prior is not stated on a term of a basis.
 
     \strong{Names of the columns.} They are named as
     \code{coef(lm(y ~ 0 + <basis>))} names them: \code{dose}, \code{age};
@@ -175,13 +200,15 @@ forest(
     or with one given as a value; see \code{\link{dbarts}}.
 
     \strong{Rows.} A basis has a value for every row of \code{data}, and is
-    cut by \code{subset} and by the \code{na.action} with the rest of the
-    data. \code{scale()} and \code{poly()} take their centre and scale from
-    every row of \code{data}, as in \code{lm}, whatever \code{subset} keeps.
-    A level of a factor that no kept row has gives no column. Refused are a
-    missing value in a row the fit keeps, where \code{lm} would drop the row;
-    a logical column with one value on the rows kept; and a numeric column
-    that is zero on all of them.
+    cut to the rows the fit keeps: \code{subset} is evaluated once, for the
+    fit, and the basis is given the same rows in the same order, less those
+    the \code{na.action} drops. \code{scale()}, \code{poly()} and anything
+    else a term computes across rows, \code{I(age - mean(age))} among it, are
+    computed on every row of \code{data}, as in \code{lm}, whatever
+    \code{subset} keeps. A level of a factor that no kept row has gives no
+    column. Refused are a missing value in a row the fit keeps, where
+    \code{lm} would drop the row; a logical column with one value on the rows
+    kept; and a numeric column that is zero on all of them.
 
     \strong{New rows.} \code{predict} builds the basis again from the new
     rows, as \code{predict} does for \code{lm}: \code{scale()}, \code{poly()},
@@ -189,59 +216,80 @@ forest(
     rows gave, and arithmetic inside \code{I()} is evaluated on the rows
     given, so \code{I(age - mean(age))} uses the mean of the new rows; see
     \code{\link[stats]{SafePrediction}}. Every column of \code{data} the basis
-    names must be among the new rows, and a level the fit did not have is
-    refused. A basis given as a value cannot be built again: give it at the
-    new rows through \code{predict}'s \code{bases} argument.
+    names must be among the new rows, a factor's columns keep the order of the
+    fit's levels, and a level the fit did not have is refused. A basis given
+    as a value cannot be built again: give it at the new rows through
+    \code{predict}'s \code{bases} argument.
 
-    \strong{Where a name is found.} There are two cases.
+    \strong{Where a name is found.} It depends on who wrote the code.
 
-    A \code{forest()} term of a formula is part of the formula. Its basis is
-    read when the model is fitted, in \code{data} and then where the formula
-    was written, as \code{lm} reads a formula. The same holds for a basis
-    written with a tilde, wherever it is written.
+    In a call of \code{forest()} that you write, as in a \code{forests} list
+    or for a forest built ahead of the fit, a name of a column of \code{data}
+    is that column. Every other variable of yours that the code uses is
+    copied when \code{forest()} is called. This is so whether or not a tilde
+    is written in place: \code{forest(basis = ~ dose + age)} is
+    \code{forest(basis = dose + age)}. A forest built in a loop therefore
+    keeps what each call was given,
+    \preformatted{
+    fs <- list(forest())
+    for (k in c(10, 30))
+      fs[[length(fs) + 1]] <- forest(x1, basis = I(dose / k))
+    }
+    is one forest multiplied by \code{dose / 10} and one by \code{dose / 30},
+    at the fit and at \code{predict}, whatever \code{k} holds later, and a
+    saved forest carries its numbers with it. A variable that does not exist
+    when \code{forest()} is called is not looked for later, and is refused.
+    What R or an attached package supplies, a function such as \code{scale}
+    or a constant such as \code{pi}, is not copied: it is looked up when the
+    model is fitted. With no data frame, as with the matrix interface and
+    \code{\link{dbartsSpec}}, there is no column to name and every variable is
+    yours.
 
-    In a call of \code{forest()}, as in a \code{forests} list or a forest
-    built ahead of the fit, a name of a column of \code{data} is that column,
-    and anything else is read where \code{forest()} is called, at that
-    moment. A forest built in a loop, by \code{lapply()} or by \code{Map()}
-    therefore keeps what each call was given, whatever its variables hold when
-    the model is fitted, and a saved forest carries it. A variable that does
-    not exist when \code{forest()} is called is not looked for later. One
-    case needs care: a column of \code{data} hides a variable of yours with
-    the same name, whether that variable holds a column, a set of names or a
-    one-sided formula. Where the two could meet, hand the value over:
+    One case needs care: a column of \code{data} hides a variable of yours
+    with the same name, whether that variable holds a column, a set of names
+    or a one-sided formula. Where the two could meet, hand the value over:
     \code{do.call(forest, list(basis = w))} for a column you hold,
     \code{list(basis = as.name(nm))} for a column of \code{data} by its name,
     \code{list(basis = f)} for a one-sided formula, and
-    \code{list(vars = nms)} for predictors by name. A number written beside a
-    column, the \code{k} of \code{I(dose / k)}, is the number \code{k} holds
-    when \code{forest()} is called, at the fit and at \code{predict}. In a
-    formula's \code{forest()} term, and in a basis written with a tilde, it
-    is instead looked up when the model is fitted and again by
-    \code{predict}, as in \code{lm}: change it between the fit and the
-    prediction and the prediction changes, with no message.
+    \code{list(vars = nms)} for predictors by name.
 
-    With no data frame, as with the matrix interface and
-    \code{\link{dbartsSpec}}, there is no column to name, and every name is
-    read where \code{forest()} is called.
+    A formula made elsewhere, held in a variable or handed over as above, is
+    read as R reads a formula: when the model is fitted, in \code{data} and
+    then where the formula was made, and again by \code{predict}. A formula
+    made in a loop and held in a variable therefore sees the last value of
+    the loop's variable, in every forest. Change a number such a formula
+    uses between the fit and the prediction and the prediction changes, with
+    no message.
+
+    A \code{forest()} term inside the formula of \code{\link{bart}} or
+    \code{\link{dbarts}} is part of that formula and is read the same late
+    way, with a tilde or without: in \code{data} and then where the formula
+    was written, when the model is fitted and again by \code{predict}.
+
+    An argument that \code{lapply()}, \code{Map()} or another function of
+    base R writes for you, as in \code{lapply(columns, forest)}, is a value
+    handed over, whatever the data's columns are called.
 
     \strong{A value.} What is handed over as an object, through
     \code{do.call()} or in a call built by a program, is used as it is: a
     numeric vector or matrix is its columns, and a factor, a character vector
     or a logical vector is its levels. Its columns keep their names when every
-    column has one and no two are alike, and otherwise have none. It has one
-    row for every row of \code{data} and is cut by \code{subset} with it; a
-    value already cut to the rows \code{subset} keeps is refused by name. A
-    level no row has is refused. A single string or number is refused:
-    \code{basis = "dose"} names no column, so write \code{basis = dose}.
+    column has one, and have none when any column lacks one; two columns of
+    one name are refused. Its forest's label is \code{forest<i>}. It has one
+    row for every row of \code{data} and is cut to the rows the fit keeps; a
+    value already cut to those rows is refused by name. A level that no row
+    of \code{data} has is refused, while one that only \code{subset} empties
+    keeps a column of zeros, a value not being built again on the rows kept.
+    A single string or number is refused: \code{basis = "dose"} names no
+    column, so write \code{basis = dose}.
 
-    Reaching \code{\link{dbarts}} through an already-built \code{dbartsData}
-    is the one route that refuses this argument, since the data object is
-    where its bases are stated (\code{dbartsData(bases = )});
-    \code{\link{dbartsSpec}} takes a data object and installs the bases
-    declared here, replacing those it carried. After creation a basis is
-    replaced by \code{$setForestBasis}; see
-    \code{\linkS4class{dbartsSampler}}.
+    A basis is stated here or on the data object, not both:
+    \code{\link{dbarts}} given an already-built \code{dbartsData} refuses
+    this argument, the data object's own \code{bases} being where it is
+    stated then, while \code{\link{dbartsSpec}} takes a data object and
+    installs the bases declared here in place of those it carried. After
+    creation a basis is replaced by \code{$setForestBasis}, whose formula is
+    read at once, where it was made; see \code{\linkS4class{dbartsSampler}}.
   }
   \item{n.trees, base, power}{
     This forest's tree count and tree-structure prior. \code{NULL} takes the
@@ -474,6 +522,15 @@ fit <- bart(y ~ forest(x1 + x3) +
             d, n.trees = 10L, n.samples = 10L, n.burn = 10L,
             n.chains = 1L, n.threads = 1L, keepTrees = TRUE)
 predict(fit, d[1:3, ])
+
+# forests built in a loop: each keeps the number its own call was given
+forest <- dbartsForests$forest
+forests <- list(forest())
+for (k in c(25, 100))
+  forests[[length(forests) + 1L]] <- forest(x1, basis = I(w / k))
+looped <- dbarts(y ~ x1 + x3, d, forests = forests,
+                 control = dbartsControl(n.chains = 1L, n.trees = 10L))
+vapply(looped$data@bases[-1L], function(basis) basis[1L, 1L], 0) * c(25, 100)
 
 # two columns, a coefficient each; I() holds arithmetic
 twoColumns <- dbarts(y ~ forest(x1 + x3) + forest(x1, basis = z + I(w / 50)),
