@@ -3368,8 +3368,23 @@ static void testMembershipAcrossForests() {
           "and the precisions the trees read carry the stored scales");
     ext_rng_destroy(reference);
 
-    // the state's own record: the rows at zero then, positive and active now
+    // the state's own record: the rows at zero then, positive and active now.
+    // The chain is swept away from the state first, so the fit and sigma the
+    // redraw reads must be the installed ones and not the ones it held
+    sampler.run(5, 0, results);
+    double sigmaHeld = TestPeer::workingSigma(sampler.chain(0));
+    std::vector<double> fitsHeld(TestPeer::combinedFits(sampler.chain(0)),
+                                 TestPeer::combinedFits(sampler.chain(0)) + n);
     check(sampler.setState(stored, nullptr), "and a third time");
+    double largestFitMove = 0.0;
+    for (size_t i = 0; i < n; ++i)
+      largestFitMove = std::max(largestFitMove, std::fabs(
+        TestPeer::combinedFits(sampler.chain(0))[i] - fitsHeld[i]));
+    check(largestFitMove > 1e-3 &&
+            std::fabs(TestPeer::workingSigma(sampler.chain(0)) - sigmaHeld) >
+              1e-3,
+          "non-vacuity: the installed fit and sigma are not the ones the "
+          "chain held");
     reference = cloneRng(sampler.rng());
     expected = conditional(reference, other, [&](size_t i) {
       return record[i] != 0 && other[i] != 0.0 && mask[i] != 0.0;
@@ -3400,6 +3415,26 @@ static void testMembershipAcrossForests() {
     sampler.setWeights(precision.data());
     check(scales() == expected && rngStreamsAgree(reference, sampler.rng()),
           "and a row out of it there when its weight leaves zero");
+    ext_rng_destroy(reference);
+
+    // a row that leaves the likelihood at the install - positive when the
+    // state was stored, at weight zero here - is marked out by it: the
+    // weights that bring it back redraw it, with no mask change in between
+    // to mark the rows afresh
+    sampler.setWeights(other.data());
+    check(sampler.setState(stored, nullptr), "and a fourth time, unmasked");
+    sampler.reapplyWeights(record.data());
+    size_t numLeaving = 0;
+    for (size_t i = 0; i < n; ++i)
+      if (record[i] == 0 && other[i] == 0.0) ++numLeaving;
+    reference = cloneRng(sampler.rng());
+    expected = conditional(reference, precision,
+                           [&](size_t i) { return other[i] == 0.0; });
+    sampler.setWeights(precision.data());
+    check(numLeaving > 0 && scales() == expected &&
+            rngStreamsAgree(reference, sampler.rng()),
+          "a row that left the likelihood at the install is redrawn when its "
+          "weight comes back");
     ext_rng_destroy(reference);
     ext_rng_destroy(sourceRng);
     ext_rng_destroy(rng);

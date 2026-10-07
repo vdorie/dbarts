@@ -278,12 +278,29 @@ expect_error(
   restored$setState(malformed),
   pattern = "malformed zero-weight rows in bartcore state"
 )
-attr(malformed, "weights.zero") <- record[-1L]
-expect_error(
-  restored$setState(malformed),
-  pattern = "state is not consistent with this sampler"
-)
+for (wrongLength in list(record[-1L], c(record, as.raw(0L)))) {
+  attr(malformed, "weights.zero") <- wrongLength
+  expect_error(
+    restored$setState(malformed),
+    pattern = "state is not consistent with this sampler"
+  )
+}
 expect_identical(scalesOf(restored), held)
+# the record is checked whether or not it will be used: under the state's own
+# weights, where nothing is redrawn, and on a state with no digest
+matched <- studentAt(wStored)
+invisible(matched$run(3L, 1L))
+twin <- studentAt(wStored)
+invisible(twin$run(3L, 1L))
+attr(malformed, "weights.zero") <- replace(record, 3L, as.raw(2L))
+for (offered in list(malformed, without(malformed, "weights.digest"))) {
+  expect_error(
+    matched$setState(offered),
+    pattern = "malformed zero-weight rows in bartcore state"
+  )
+}
+expect_identical(scalesOf(matched), scalesOf(twin))
+expect_identical(matched$run(0L, 3L), twin$run(0L, 3L))
 # on a gaussian state a well-formed one is read and not used
 withRecord <- gaussianState
 attr(withRecord, "weights.zero") <- record
@@ -298,14 +315,17 @@ expect_error(
   pattern = "malformed zero-weight rows in bartcore state"
 )
 
-# --- the redrawn scale is a draw from its conditional -----------------------
-# lambda_i is gamma with shape (nu + 1) / 2 and rate
-# (nu + w_i (y_i - f_i)^2 / sigma^2) / 2 at the stored fit and sigma. Forty
-# rounds of twenty entering rows. The bounds are wide because the draws are
-# not the same on every platform, so each is a fresh sample there: six
-# standard errors on the mean, and a p-value a sample from the conditional
-# falls under once in a million. A scale kept from while the row was out sits
-# far outside both.
+# --- an entering row does not keep its stored scale -------------------------
+# A scale stored for a row at weight zero was drawn without the row's
+# residual. Transformed by the conditional at the stored fit and sigma - gamma
+# with shape (nu + 1) / 2 and rate (nu + w_i (y_i - f_i)^2 / sigma^2) / 2 - a
+# redrawn scale is uniform, and a kept one has a mean near 0.62. Forty rounds
+# of twenty entering rows. The bound on the mean, 0.05, is 4.9 standard errors
+# at 800 draws, and the p-value is one a sample from the conditional falls
+# under once in a million; both are wide because the draws are not the same on
+# every platform, so each is a fresh sample there. This guards a kept scale
+# and nothing finer: a wrong weight, fit or sigma in the conditional is caught
+# by the bitwise identity with the setWeights twin above, not here.
 source <- studentAt(wStored)
 restored <- studentAt(wB)
 entering <- which(wStored == 0)
@@ -381,6 +401,9 @@ rm(
   back,
   inLikelihood,
   malformed,
+  wrongLength,
+  matched,
+  offered,
   withRecord,
   plain,
   marked,
