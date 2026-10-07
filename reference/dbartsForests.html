@@ -9,7 +9,11 @@ Inside those arguments, and inside a formula's forest() term, the
   constructors resolve by bare name: a call is always the constructor, and a
   bare name the caller has assigned a value to is that value. Anywhere else -
   a specification built ahead of the call, or an argument a wrapper forces
-  before passing it on - write dbartsForests$interactions(...)."><meta property="og:description" content="A list of the constructor functions building the forest specifications that
+  before passing it on - write dbartsForests$interactions(...).
+  forest()'s first argument, the predictors a forest splits on, is
+  read as terms when it names a predictor of the fit and otherwise takes the
+  value it has where and when the constructor is called; see
+  forest."><meta property="og:description" content="A list of the constructor functions building the forest specifications that
   the monotone, interactions, blocks, variance and
   forests arguments of dbarts, dbartsSpec and
   bart accept. The constructors are not exported, so that names
@@ -19,7 +23,11 @@ Inside those arguments, and inside a formula's forest() term, the
   constructors resolve by bare name: a call is always the constructor, and a
   bare name the caller has assigned a value to is that value. Anywhere else -
   a specification built ahead of the call, or an argument a wrapper forces
-  before passing it on - write dbartsForests$interactions(...)."></head><body>
+  before passing it on - write dbartsForests$interactions(...).
+  forest()'s first argument, the predictors a forest splits on, is
+  read as terms when it names a predictor of the fit and otherwise takes the
+  value it has where and when the constructor is called; see
+  forest."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -69,7 +77,11 @@ Inside those arguments, and inside a formula's forest() term, the
   constructors resolve by bare name: a call is always the constructor, and a
   bare name the caller has assigned a value to is that value. Anywhere else -
   a specification built ahead of the call, or an argument a wrapper forces
-  before passing it on - write <code>dbartsForests$interactions(...)</code>.</p>
+  before passing it on - write <code>dbartsForests$interactions(...)</code>.
+  <code><a href="forest.html">forest()</a></code>'s first argument, the predictors a forest splits on, is
+  read as terms when it names a predictor of the fit and otherwise takes the
+  value it has where and when the constructor is called; see
+  <code><a href="forest.html">forest</a></code>.</p>
     </div>
 
 
@@ -85,7 +97,8 @@ Inside those arguments, and inside a formula's forest() term, the
 <dd><p>Monotone constraints and their prior; see <code><a href="monotone.html">monotone</a></code>.</p></dd>
 
     <dt><code>forest</code></dt>
-<dd><p>One forest of a multi-forest model; see <code><a href="forest.html">forest</a></code>.</p></dd>
+<dd><p>One forest of a model, in a <code>forests</code> list or as a term of a
+      formula; see <code><a href="forest.html">forest</a></code>.</p></dd>
 
     <dt><code>varianceForest</code></dt>
 <dd><p>The heteroscedastic variance forest; see <code><a href="varianceForest.html">varianceForest</a></code>.</p></dd>

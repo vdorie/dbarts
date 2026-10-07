@@ -17,6 +17,11 @@ and a bare name the caller has assigned a value to is that value.
 Anywhere else - a specification built ahead of the call, or an argument
 a wrapper forces before passing it on - write
 `dbartsForests$interactions(...)`.
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)'s
+first argument, the predictors a forest splits on, is read as terms when
+it names a predictor of the fit and otherwise takes the value it has
+where and when the constructor is called; see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md).
 
 ## Format
 
@@ -39,8 +44,8 @@ A list of functions:
 
 - `forest`:
 
-  One forest of a multi-forest model; see
-  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md).
+  One forest of a model, in a `forests` list or as a term of a formula;
+  see [`forest`](https://vdorie.github.io/dbarts/reference/forest.md).
 
 - `varianceForest`:
 

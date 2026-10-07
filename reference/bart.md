@@ -212,10 +212,10 @@ print(x, ...)
   data-dependent terms such as
   [`poly()`](https://rdrr.io/r/stats/poly.html) (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-  `formula` item), optionally carrying one or more
+  `formula` item), optionally written as a sum of
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
-  terms that declare additional per-observation-modulated forests (see
-  ‘Formula Terms’ below). For backward compatibility, can also be the
+  terms, each one forest of a model of several (see ‘Formula Terms’
+  below). For backward compatibility, can also be the
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) matrix
   `x.train` (`data` then plays the role of `y.train`); see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
@@ -238,19 +238,20 @@ print(x, ...)
   `data`, or `formula` in backward-compatibility mode; if column names
   are present, a matching algorithm is used, and an unnamed matrix
   against named predictors is matched by position with a warning.
-  Refused, by name, when `formula` carries a
-  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
+  Refused, by name, when `formula` writes a model of several forests
   (‘Formula Terms’): an amplitude-coupled fit has no per-observation
-  test replay in this version.
+  test replay in this version. A formula whose one
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) has
+  no `basis` is a single-forest fit and takes `test`.
 
 - subset:
 
   An optional vector of logicals or indices used to subset the data. Can
   be missing. A
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
-  term's basis is evaluated inside the same subsetted model frame as
-  every other predictor (‘Formula Terms’); a basis given directly
-  through
+  term's predictors are columns of the same subsetted model frame as
+  every other predictor, and its basis is evaluated inside that frame
+  (‘Formula Terms’); a basis given directly through
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `forests =` instead follows that argument's own subsetting rule (see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
@@ -1305,46 +1306,80 @@ print(x, ...)
 
 ## Formula Terms
 
-A [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) call
-written inside `bart`'s `formula` - bare, or as one operand of `:` -
-declares a second forest whose amplitudes multiply a basis, without a
-separate [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-`forests =` list (the two routes are mutually exclusive: a term-bearing
-formula given together with `forests =` is refused by name). The
-canonical spelling uses colon sugar:
+A model of several forests is written in `bart`'s `formula` as a sum of
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) terms,
+each one function of the predictors named inside it, without a separate
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+`forests =` list (the two routes are mutually exclusive: a formula with
+a [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
+given together with `forests =` is refused by name):
 
 
-    y ~ x1 + x2 + z:forest(x1 + x2)             # numeric z: one amplitude
-    y ~ x1 + x2 + factor(z):forest(x1 + x2)     # factor z: one amplitude per level
-    y ~ x1 + x2 + (a + b):forest(x1 + x2)       # two-column basis, one forest
+    y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ z)            # numeric z: one amplitude
+    y ~ forest(x1 + x2) + forest(x1, basis = ~ factor(z))         # factor z: one amplitude per level
+    y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ cbind(a, b))  # two-column basis, one forest
 
-Each desugars to the general named form, `forest(x1 + x2, basis = ~ z)`
-(respectively `~ factor(z)`, `~ cbind(a, b)`) - textually identical to a
-[`forest`](https://vdorie.github.io/dbarts/reference/forest.md) object
-built directly for
+A forest's multiplier is its `basis` argument. Every argument of a term
+but the first is the same argument of a
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md) in
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-`forests =`, so the term route and the constructor route share one
-vocabulary and one validator; write `basis =` explicitly for anything
-the colon sugar cannot say (an arbitrary formula, or an
-already-evaluated vector/matrix). `z * forest(...)` is refused, naming
-both explicit spellings (`z:forest(...)`, or `z + z:forest(...)` to also
-keep `z` as a main effect) instead of guessing which one was meant.
+`forests =` list and is checked the same way; the first, the forest's
+predictors, is read against `data` in a formula and against the fit's
+predictors in a list (see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s `vars`
+item). A
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) is not
+crossed with another term: `z:forest(x1 + x2)` and `z * forest(x1 + x2)`
+are refused, the message giving the term to write,
+`forest(x1 + x2, basis = ~ z)`.
 
-In this position
-[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)'s
-unnamed first slot is a SYMBOLIC predictor set, not `basis`:
-`forest(x1 + x2)` means the variable set `c("x1", "x2")`, read from the
-call and never evaluated - a bare symbol, or symbols joined by `+`, and
-nothing else; a transformation, a removal, `.`, or `:`/`*` inside the
-slot is refused by name, pointing at `vars = ` for what the grammar
-cannot say. A factor name in that slot expands to every column the
-factor produces (all of its indicator columns under
-`factors = "indicators"`). Every NAMED argument inside a term-context
-[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) -
-including `basis` itself, for the general form
-`forest(x1 + x2, basis = ~ z)` - evaluates normally, exactly as it does
-for [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-own `forests =`.
+The forest with no `basis` is the forest with no multiplier. It may be
+left as plain terms, `y ~ x1 + x2 + forest(x1 + x2, basis = ~ z)`, which
+is the same model as the first line above, draw for draw; and written
+alone, `y ~ forest(x1 + x2)` is the single-forest fit `y ~ x1 + x2`, in
+every family that takes a formula. A model has one such forest, so plain
+predictor terms beside a
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) with
+no `basis`, and two such terms, are refused. It is the model's first
+forest wherever it is written, and `bart`'s own `n.trees`, `tree.prior`,
+`interactions` and `blocks` are its: `n.trees`, `interactions` or
+`blocks` stated both on that term and as `bart`'s argument is refused as
+one thing given twice. The other forests keep the order they are written
+in. In a formula whose forests all have a `basis`, the forest written
+first takes the fitting function's tree count and tree prior, so state
+`n.trees` on each forest of such a formula.
+
+A forest's first argument is the predictors it splits on, written as the
+right-hand side of a model formula of its own: names joined by `+`,
+calls such as `log(x1)` and `factor(g)`, `.` for every column of `data`
+but the response, and `-` to remove a term. The fit's predictors are the
+terms of all of its forests, each once and those of the forest with no
+`basis` first, and each forest splits on the columns of its own terms:
+in `y ~ x1 + x2 + forest(x3, basis = ~ z)` the fit has the predictors
+`x1`, `x2` and `x3`, the first forest splits on `x1` and `x2` and the
+second on `x3`. A forest with no first argument, `forest(basis = ~ z)`,
+splits on every predictor of the fit. A term that gives several
+columns - a factor under `factors = "indicators"`, `poly(x1, 2)` - is
+all of them. Only the first argument may be given without its name;
+every other argument is given by name and evaluates in the formula's
+environment, exactly as it does for
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s own
+`forests =`. Predictors may also be named, as `forest(c("x1", "x2"))`,
+each name of a column of `data` being the term the name written out is.
+An [`offset()`](https://rdrr.io/r/stats/offset.html) and an intercept
+term (`1`, `0` or `- 1`) are the fit's and are written beside the
+forests, wherever among them, not inside one. A removal written beside
+the forests takes its term from the forest with no `basis` and from no
+forest that names predictors of its own: the forest with no `basis` has
+the terms of the formula with its
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
+replaced by what is inside it and every forest with a `basis` left out,
+so `y ~ forest(.) - x3 + forest(x3, basis = ~ z)` and
+`y ~ . - x3 + forest(x3, basis = ~ z)` are one model; a removal that
+leaves that forest no predictor is refused, and one of a term it does
+not have is passed by, as R passes it by in a plain formula (see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s `vars`
+item).
 
 A term's basis is evaluated inside the fit's own model frame, so
 `subset`, missing-data handling, and `data` scoping apply to it exactly
@@ -1357,20 +1392,30 @@ restricted to the subsetted rows (see
 
 A handful of shapes are refused outright rather than silently
 misinterpreted, each error naming the offending expression: a
-[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
-anywhere other than a top-level additive term or a `:` operand (inside
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
+crossed with another term by `:` or `*`; a
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
+anywhere other than a top-level additive term (inside
 [`I()`](https://rdrr.io/r/base/AsIs.html), a removal, or the formula's
-left-hand side); a compound `:` operand containing anything other than
-bare numeric/logical symbols joined by `+` (a factor or character
-member, a transformation, a multi-way `:` chain, or a second
-[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) on the
-other side); `test` given together with a term (an amplitude-coupled fit
-has no per-observation test replay in this version); a family the
-multiplier model does not support (`"aft"`, `"ordinal"`, `"nbinom"`, the
-hazard families, `"multinomial"`, and `"hurdle.lognormal"` - gaussian,
-probit, and logistic are the only families a term can join); and a
-formula whose only right-hand-side content is the term, which would
-leave nothing to split on. See ‘Value’ below, and
+left-hand side); a second unnamed argument, a tilde, a position, an
+[`offset()`](https://rdrr.io/r/stats/offset.html) or an intercept term
+in a forest's first argument; a forest with a `basis` and no forest
+beside it; a formula that names no predictors; `test` given together
+with a model of several forests (an amplitude-coupled fit has no
+per-observation test replay in this version); and a model of several
+forests in a family the multiplier model does not support (`"aft"`,
+`"ordinal"`, `"nbinom"`, the hazard families, `"multinomial"`, and
+`"hurdle.lognormal"` - gaussian, probit, and logistic are the only
+families a forest with a `basis` can join).
+[`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md),
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md),
+[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md),
+[`pdbart`](https://vdorie.github.io/dbarts/reference/pdbart.md),
+[`pd2bart`](https://vdorie.github.io/dbarts/reference/pdbart.md) and
+[`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
+take no
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
+and say so. See ‘Value’ below, and
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
 `type = "forest"`, for reading the resulting per-forest fits back out.
 
@@ -1944,9 +1989,9 @@ too.
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for the
 mutable sampler bart builds on,
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md) for the
-constructor
+constructor a
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
-formula terms desugar to, and
+formula term calls, and
 [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) for the
 other formula-first entry point.
 
@@ -1983,7 +2028,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001142
+#> total seconds in loop: 0.001183
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -1994,16 +2039,15 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> DONE BART
 #> 
 
-## a forest() formula term: a second forest whose amplitude is modulated
-## by a binary z, alongside the fit's own (prognostic) forest - the
-## Bayesian causal forest shape, declared inline rather than through
-## dbarts()'s forests =
+## forest() formula terms: a prognostic forest, and a second forest whose
+## amplitude is modulated by a binary z - the Bayesian causal forest shape,
+## written in the formula rather than through dbarts()'s forests =
 set.seed(1)
 n <- 60L
 x1 <- runif(n); x2 <- runif(n)
 z  <- rbinom(n, 1L, 0.5)
 y  <- x1 + z * (1 + x2) + rnorm(n, 0, 0.2)
-fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
+fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ z),
                  n.samples = 20L, n.burn = 20L, n.chains = 1L,
                  n.trees = 10L, n.threads = 1L)
 #> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
@@ -2032,7 +2076,7 @@ fit.bcf <- bart(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001212
+#> total seconds in loop: 0.001334
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 1 2 2 2 1 2 2 3 2 
