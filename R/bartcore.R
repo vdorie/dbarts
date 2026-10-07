@@ -1254,9 +1254,176 @@ validateCategoryOffset <- function(offset, n, K, what = "category offset") {
   offset
 }
 
+# A string as the code it spells, so that "I(dose / 30)" finds the label
+# "I(dose/30)"; NA where it is not one expression of R.
+forestLabelCode <- function(text) {
+  parsed <- tryCatch(
+    parse(text = text, keep.source = FALSE),
+    error = function(e) NULL
+  )
+  if (length(parsed) != 1L) {
+    return(NA_character_)
+  }
+  paste(deparse(parsed[[1L]], width.cutoff = 500L), collapse = " ")
+}
+
+# The one reader of a 'forest' argument that is not NULL, given the labels
+# the model's forests carry (NULL where it records none: a sampler of one
+# forest, a multinomial one) and the number of forests. A number is a
+# position, as `[[` reads one, and is returned untouched for the caller's own
+# checks. A string is never a position: it is the forest with that label;
+# failing that, the forest whose label is the same code; and "forest<i>" is
+# forest i, the name position i has on every per-forest margin. A string that
+# is one forest's label and another position's name, or is the same code as
+# two labels, is refused naming both. NA, an empty string, a factor, a
+# logical and a list are refused by name. With `several` a vector of strings
+# returns a position for each, in the order given.
+selectForest <- function(forest, labels, numForests, several = FALSE) {
+  if (is.numeric(forest)) {
+    return(forest)
+  }
+  if (is.logical(forest) && length(forest) == 1L && is.na(forest)) {
+    stop("'forest' must not be NA or an empty string")
+  }
+  if (!is.character(forest)) {
+    stop(
+      "'forest' must be a number, the forest's position, or a string, its ",
+      "label; not ",
+      if (is.factor(forest)) {
+        "a factor"
+      } else if (is.logical(forest)) {
+        "a logical"
+      } else if (is.list(forest)) {
+        "a list"
+      } else {
+        paste0("a ", class(forest)[[1L]])
+      }
+    )
+  }
+  if (anyNA(forest) || any(!nzchar(forest))) {
+    stop("'forest' must not be NA or an empty string")
+  }
+  if (!several && length(forest) != 1L) {
+    stop("'forest' must be a single number or a single label")
+  }
+  if (!is.character(labels) || length(labels) != numForests) {
+    labels <- NULL
+  }
+  codes <- NULL
+  quote <- function(text) encodeString(text, quote = "\"")
+  listForests <- function(index) {
+    if (length(index) == 2L) {
+      paste(index, collapse = " and ")
+    } else {
+      paste0(
+        paste(index[-length(index)], collapse = ", "),
+        " and ",
+        index[length(index)]
+      )
+    }
+  }
+  one <- function(text) {
+    named <- suppressWarnings(
+      if (grepl("^forest[0-9]+$", text)) {
+        as.integer(substring(text, 7L))
+      } else {
+        NA_integer_
+      }
+    )
+    if (!is.na(named) && (named < 1L || named > numForests)) {
+      named <- NA_integer_
+    }
+    exact <- if (!is.null(labels)) which(labels == text)
+    if (length(exact) == 1L) {
+      if (!is.na(named) && named != exact) {
+        stop(
+          "'forest' (",
+          quote(text),
+          ") is the label of forest ",
+          exact,
+          " and the name of position ",
+          named,
+          "; select by position, as forest = ",
+          exact
+        )
+      }
+      return(exact)
+    }
+    if (!is.na(named)) {
+      return(named)
+    }
+    if (!is.null(labels)) {
+      if (is.null(codes)) {
+        codes <<- vapply(labels, forestLabelCode, "", USE.NAMES = FALSE)
+      }
+      target <- forestLabelCode(text)
+      hits <- if (!is.na(target)) which(codes == target)
+      if (length(hits) == 1L) {
+        return(hits)
+      }
+      if (length(hits) > 1L) {
+        stop(
+          "'forest' (",
+          quote(text),
+          ") is the label of forests ",
+          listForests(hits),
+          " (",
+          paste(quote(labels[hits]), collapse = ", "),
+          "); give one exactly, or select by position"
+        )
+      }
+    }
+    stop(
+      "'forest' names no forest of this model: ",
+      quote(text),
+      if (is.null(labels)) {
+        "; this sampler's forests have no labels, so select one by position"
+      } else {
+        paste0(
+          "; its forests are ",
+          paste(quote(labels), collapse = ", "),
+          if (grepl("^[0-9]+$", text)) {
+            paste0("; a position is given as a number, forest = ", text)
+          }
+        )
+      }
+    )
+  }
+  vapply(forest, one, 0L, USE.NAMES = FALSE)
+}
+
+# The labels a sampler's forests carry, from the forests' record on its
+# control; NULL for a sampler that records none.
+samplerForestLabels <- function(control) {
+  attr(control, "bartcore.forests", exact = TRUE)$labels
+}
+
+# A sampler's reading of its 'forest' argument: its own labels, and its forest
+# count from the engine, asked only when a string needs it. `ptr` is not
+# evaluated for a number.
+samplerForestIndex <- function(forest, control, ptr, several = FALSE) {
+  labels <- samplerForestLabels(control)
+  numForests <- if (is.character(forest)) {
+    bartcoreNumForests(ptr)
+  } else {
+    NA_integer_
+  }
+  if (several) {
+    return(selectForest(forest, labels, numForests, TRUE) - 1L)
+  }
+  resolveForestIndex(forest, labels, numForests)
+}
+
 # The R-level calibration surface indexes forests from 1, as R indexes; the
-# bridge and the flat C entries count from 0, as the engine does.
-resolveForestIndex <- function(forest) {
+# bridge and the flat C entries count from 0, as the engine does. A string is
+# a label, read by selectForest; `labels` and `numForests` are the sampler's
+# and are read only for one.
+resolveForestIndex <- function(
+  forest,
+  labels = NULL,
+  numForests = NA_integer_
+) {
+  forest <- selectForest(forest, labels, numForests)
   forest <- coerceOrError(forest, "integer")
   if (length(forest) != 1L || is.na(forest) || forest < 1L) {
     stop("'forest' must be a single positive integer (1 selects the first)")

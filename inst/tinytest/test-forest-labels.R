@@ -197,16 +197,17 @@ labelled <- bart(
   verbose = FALSE
 )
 expect_identical(attr(labelled, "forest.labels"), c("forest1", "dose"))
-# they select nothing yet: a forest is chosen by position, and the per-forest
-# margins keep forest1, forest2
+# the per-forest margins keep forest1, forest2, and a label selects by position
 expect_identical(
   dimnames(labelled$forestFits)[[length(dim(labelled$forestFits))]],
   c("forest1", "forest2")
 )
 sampler <- listFit(quote(list(forest(), forest(basis = dose))))
+expect_identical(sampler$getLeafPrior("dose"), sampler$getLeafPrior(2L))
 expect_error(
-  sampler$getLeafPrior("dose"),
-  "'forest' must be coercible to type: integer"
+  sampler$getLeafPrior("age"),
+  "'forest' names no forest of this model: \"age\"",
+  fixed = TRUE
 )
 # the writer checks a list's names against them
 expect_silent(sampler$setLeafPrior(

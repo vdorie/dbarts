@@ -905,11 +905,19 @@ extractParameter <- function(
     } else {
       reshapeScalarChannel(object[["k"]], n.chains, combineChains)
     }
-    return(selectForests(anchor / k, forest))
+    return(selectForests(
+      anchor / k,
+      forest,
+      attr(object, "forest.labels", exact = TRUE)
+    ))
   }
   value <- fixed[[type]]
   if (!is.null(value)) {
-    return(selectForests(value, forest))
+    return(selectForests(
+      value,
+      forest,
+      attr(object, "forest.labels", exact = TRUE)
+    ))
   }
   channel <- object[[type]]
   if (is.null(channel)) {
@@ -924,13 +932,13 @@ extractParameter <- function(
   reshapeScalarChannel(channel, n.chains, combineChains)
 }
 
-# one number per forest, named, or the forest selected by index or name
-selectForests <- function(value, forest) {
+# one number per forest, named, or the forest selected by position or label
+selectForests <- function(value, forest, labels = NULL) {
   if (is.null(forest)) {
     return(value)
   }
   perForest <- if (is.matrix(value)) rownames(value) else names(value)
-  index <- resolveForestSelection(forest, perForest)
+  index <- resolveForestSelection(forest, perForest, labels)
   if (is.matrix(value)) {
     return(drop(value[index, , drop = FALSE]))
   }
@@ -1143,24 +1151,15 @@ extract.bart <- function(
 }
 
 # Selects one or more forests from a per-forest channel's trailing margin, by
-# 1-based index or by the shipped forest1..forestK vocabulary; NULL
-# selects every forest, in margin order. A declaration's own forest.labels are
-# not a selector - they are a display attribute, not a second vocabulary.
-resolveForestSelection <- function(forest, forestNames) {
+# 1-based position or by label (selectForest reads a string); NULL selects
+# every forest, in margin order. `labels` are the fit's forest.labels, NULL
+# for a fit that records none. A label is mapped to its position and never
+# matched against the margin's own names, which stay forest1..forestK.
+resolveForestSelection <- function(forest, forestNames, labels = NULL) {
   if (is.null(forest)) {
     return(seq_along(forestNames))
   }
-  if (is.character(forest)) {
-    idx <- match(forest, forestNames)
-    if (anyNA(idx)) {
-      stop(
-        "'forest' must name one of '",
-        paste0(forestNames, collapse = "', '"),
-        "'"
-      )
-    }
-    return(idx)
-  }
+  forest <- selectForest(forest, labels, length(forestNames), several = TRUE)
   idx <- coerceOrError(forest, "integer")
   if (anyNA(idx) || any(idx < 1L | idx > length(forestNames))) {
     stop("'forest' index must be between 1 and ", length(forestNames))
@@ -1217,7 +1216,11 @@ extractForest <- function(object, sample, combineChains, forest, contribution) {
 
   fits <- reshapeChainedChannel(object$forestFits, n.chains, TRUE, 2L)
   forestNames <- dimnames(fits)[[3L]]
-  idx <- resolveForestSelection(forest, forestNames)
+  idx <- resolveForestSelection(
+    forest,
+    forestNames,
+    attr(object, "forest.labels", exact = TRUE)
+  )
 
   if (!contribution) {
     result <- fits[,, idx, drop = FALSE]
@@ -1278,7 +1281,11 @@ predictForest <- function(
   # split across chains), so the forest margin is always the LAST axis rather
   # than a fixed index
   forestNames <- dimnames(object$forestFits)[[length(dim(object$forestFits))]]
-  idx <- resolveForestSelection(forest, forestNames)
+  idx <- resolveForestSelection(
+    forest,
+    forestNames,
+    attr(object, "forest.labels", exact = TRUE)
+  )
   result <- shapeMultinomialChannel(
     raw,
     forestNames,
@@ -1292,6 +1299,37 @@ predictForest <- function(
     combineChains,
     2L
   )
+}
+
+# A list given forest by forest is read by position, so a name on an entry
+# must be that position's label or forest<i>, its name on every per-forest
+# margin; any other would read as a selection the list does not make.
+refuseMisnamedBases <- function(given, labels, numForests) {
+  if (is.null(given)) {
+    return(invisible(NULL))
+  }
+  if (!is.character(labels) || length(labels) != numForests) {
+    labels <- paste0("forest", seq_len(numForests))
+  }
+  wrong <- which(
+    !is.na(given) &
+      nzchar(given) &
+      given != labels &
+      given != paste0("forest", seq_len(numForests))
+  )
+  if (length(wrong) > 0L) {
+    index <- wrong[[1L]]
+    stop(
+      "'bases' names forest ",
+      index,
+      " \"",
+      given[[index]],
+      "\", and its label is \"",
+      labels[[index]],
+      "\"; give the bases in the forests' order"
+    )
+  }
+  invisible(NULL)
 }
 
 # The per-forest bases at the PREDICTED rows. A caller's own 'bases' wins
@@ -1347,6 +1385,11 @@ resolveForestBases <- function(object, bases, newdata, n.new) {
         length(bases)
       )
     }
+    refuseMisnamedBases(
+      names(bases),
+      attr(object, "forest.labels", exact = TRUE),
+      numForests
+    )
   }
   bases <- lapply(bases, expandForestBasis, atPrediction = TRUE)
   bases <- validateForestBases(

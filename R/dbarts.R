@@ -2118,7 +2118,11 @@ resolveForestSpreads <- function(sampler, forests) {
       labels <- rep("", numForests)
     }
     labels <- labels[seq_along(given)]
-    mismatched <- which(nzchar(given) & given != labels)
+    mismatched <- which(
+      nzchar(given) &
+        given != labels &
+        given != paste0("forest", seq_along(given))
+    )
     if (length(mismatched) > 0L) {
       index <- mismatched[[1L]]
       stop(
@@ -2911,7 +2915,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setForestWeights = function(forest, weights, updateState = NULL) {
-      "Sets a per-forest, per-observation weight: a multiplicative precision factor on the named forest's own leaf conditionals, composing with weights and active as (w_i * a_i) * m_f^2 * s_i rather than widening either channel. Only applies to a Bayesian causal forest built with forests = (see dbarts); forest indexes from 1, as with getLeafPrior/getK (the basis forest is 2). The weight does not ride the sampler's saved state; it is mirrored on an R5 field that getPointer and setState both reinstall on every re-creation. updateState follows control@updateState; see setData."
+      "Sets a per-forest, per-observation weight: a multiplicative precision factor on the named forest's own leaf conditionals, composing with weights and active as (w_i * a_i) * m_f^2 * s_i rather than widening either channel. Only applies to a Bayesian causal forest built with forests = (see dbarts); forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with getLeafPrior/getK (the basis forest is 2). The weight does not ride the sampler's saved state; it is mirrored on an R5 field that getPointer and setState both reinstall on every re-creation. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -2929,7 +2933,7 @@ dbartsSampler <- setRefClass(
         stop("forest weights must be finite and non-negative")
       }
 
-      index <- resolveForestIndex(forest)
+      index <- samplerForestIndex(forest, control, getPointer())
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
@@ -2952,7 +2956,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setForestBasis = function(forest, basis, updateState = NULL) {
-      "Changes the basis the named forest's amplitudes multiply, at any forest and any width, a forest whose amplitudes are held keeping the width it was created with. forest indexes from 1, as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. A factor expands to its level indicators, one amplitude per level, with no reference level dropped, and may leave a level empty (a swap can leave one momentarily unobserved); a numeric vector or matrix is already those columns, and one of all zeros is refused. Columns are taken by position: the names the basis was created with stay, whatever names the replacement has, and a replacement that has those names in another order is refused. A replacement of another width brings its own names. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
+      "Changes the basis the named forest's amplitudes multiply, at any forest and any width, a forest whose amplitudes are held keeping the width it was created with. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. A factor expands to its level indicators, one amplitude per level, with no reference level dropped, and may leave a level empty (a swap can leave one momentarily unobserved); a numeric vector or matrix is already those columns, and one of all zeros is refused. Columns are taken by position: the names the basis was created with stay, whatever names the replacement has, and a replacement that has those names in another order is refused. A replacement of another width brings its own names. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -2960,7 +2964,7 @@ dbartsSampler <- setRefClass(
         "its forests are its categories, which carry no amplitudes and so no ",
         "basis for any to multiply"
       )
-      index <- resolveForestIndex(forest)
+      index <- samplerForestIndex(forest, control, getPointer())
       if (is.null(basis)) {
         stop("'basis' cannot be NULL")
       }
@@ -3253,13 +3257,13 @@ dbartsSampler <- setRefClass(
       .Call(C_dbarts_bartcore_getSumsOfSquaredResiduals, ptr)
     },
     getForestFits = function(forest = NULL) {
-      "Returns a sampler's per-forest internal-scale fitted values (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.observations x n.chains at one forest, or, at the default forest = NULL, every forest stacked with the forest margin between the observations and the chains, n.observations x n.forests x n.chains (a single-forest sampler's NULL read is bitwise its forest 1 read). forest indexes from 1, as with setForestWeights/setForestBasis/getLeafPrior/getK."
+      "Returns a sampler's per-forest internal-scale fitted values (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.observations x n.chains at one forest, or, at the default forest = NULL, every forest stacked with the forest margin between the observations and the chains, n.observations x n.forests x n.chains (a single-forest sampler's NULL read is bitwise its forest 1 read). forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestWeights/setForestBasis/getLeafPrior/getK."
       ptr <- getPointer()
       if (!is.null(forest)) {
         return(.Call(
           C_dbarts_bartcore_getForestFits,
           ptr,
-          resolveForestIndex(forest)
+          samplerForestIndex(forest, control, getPointer())
         ))
       }
       # the bridge counts forests from 0, as resolveForestIndex converts to
@@ -3297,16 +3301,20 @@ dbartsSampler <- setRefClass(
       .Call(C_dbarts_bartcore_getVariance, ptr, isTRUE(test))
     },
     getForestAmplitudes = function(forest = NULL) {
-      "Returns the named forest's amplitudes - the scalars its basis columns are multiplied by, one per column - as a q x n.chains matrix, or, at the default forest = NULL, every forest's stacked forest-major into a sum(q) x n.chains matrix, which is the row order the run's own glue channel carries. The vector is RAGGED, forest by forest, which is why a forest can be named: a Bayesian causal forest's forest 1 carries the single a on its implicit intercept and its forest 2 the pair (b0, b1) on its two level indicators, so the stacked read is its shipped (a, b0, b1). forest indexes from 1, as with setForestBasis/setForestWeights/getLeafPrior."
+      "Returns the named forest's amplitudes - the scalars its basis columns are multiplied by, one per column - as a q x n.chains matrix, or, at the default forest = NULL, every forest's stacked forest-major into a sum(q) x n.chains matrix, which is the row order the run's own glue channel carries. The vector is RAGGED, forest by forest, which is why a forest can be named: a Bayesian causal forest's forest 1 carries the single a on its implicit intercept and its forest 2 the pair (b0, b1) on its two level indicators, so the stacked read is its shipped (a, b0, b1). forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestBasis/setForestWeights/getLeafPrior."
       ptr <- getPointer()
       .Call(
         C_dbarts_bartcore_getForestAmplitudes,
         ptr,
-        if (is.null(forest)) NULL else resolveForestIndex(forest)
+        if (is.null(forest)) {
+          NULL
+        } else {
+          samplerForestIndex(forest, control, getPointer())
+        }
       )
     },
     getForestVariableCounts = function(forest = NULL) {
-      "Returns a sampler's per-forest predictor split counts (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.predictors x n.chains at one forest, or, at the default forest = NULL, every forest stacked with the forest margin between the predictors and the chains, n.predictors x n.forests x n.chains (a single-forest sampler's NULL read is bitwise its forest 1 read). Rows are named by the predictor columns when data@x carries colnames, on margin 1 in both shapes. forest indexes from 1, as with setForestWeights/setForestBasis/getLeafPrior/getK."
+      "Returns a sampler's per-forest predictor split counts (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.predictors x n.chains at one forest, or, at the default forest = NULL, every forest stacked with the forest margin between the predictors and the chains, n.predictors x n.forests x n.chains (a single-forest sampler's NULL read is bitwise its forest 1 read). Rows are named by the predictor columns when data@x carries colnames, on margin 1 in both shapes. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestWeights/setForestBasis/getLeafPrior/getK."
       ptr <- getPointer()
       if (is.null(forest)) {
         numForests <- bartcoreNumForests(ptr)
@@ -3332,7 +3340,7 @@ dbartsSampler <- setRefClass(
         counts <- .Call(
           C_dbarts_bartcore_getForestVariableCounts,
           ptr,
-          resolveForestIndex(forest)
+          samplerForestIndex(forest, control, getPointer())
         )
       }
       predictorNames <- colnames(data@x)
@@ -3351,7 +3359,7 @@ dbartsSampler <- setRefClass(
         )
       }
       if (!is.null(forest)) {
-        return(read(resolveForestIndex(forest)))
+        return(read(samplerForestIndex(forest, control, getPointer())))
       }
       numForests <- bartcoreNumForests(ptr)
       if (numForests == 1L) {
@@ -3366,7 +3374,7 @@ dbartsSampler <- setRefClass(
         .Call(C_dbarts_bartcore_getLeafPrior, ptr, index)[, "k"]
       }
       if (!is.null(forest)) {
-        return(read(resolveForestIndex(forest)))
+        return(read(samplerForestIndex(forest, control, getPointer())))
       }
       numForests <- bartcoreNumForests(ptr)
       if (numForests == 1L) {
@@ -3711,9 +3719,14 @@ dbartsSampler <- setRefClass(
       forestIndices <- if (is.null(forest)) {
         seq_len(bartcoreNumForests(ptr)) - 1L
       } else if (length(forest) == 0L) {
-        resolveForestIndex(forest)
+        samplerForestIndex(forest, control, getPointer())
       } else {
-        indices <- vapply(forest, resolveForestIndex, 0L)
+        indices <- if (is.character(forest)) {
+          samplerForestIndex(forest, control, ptr, several = TRUE)
+        } else {
+          selectForest(forest, NULL, NA_integer_)
+          vapply(forest, resolveForestIndex, 0L)
+        }
         if (any(indices >= bartcoreNumForests(ptr))) {
           stop("forest index out of range")
         }
@@ -3820,7 +3833,7 @@ dbartsSampler <- setRefClass(
         # contributes them; resolveForestIndex enforces a single positive
         # integer, its 0-based return unused since getTrees resolves forest
         # again on its own terms
-        resolveForestIndex(forest)
+        samplerForestIndex(forest, control, getPointer())
       }
 
       tree <-

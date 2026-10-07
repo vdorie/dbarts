@@ -103,7 +103,7 @@ expect_identical(byIndex, byName)
 expect_equal(byIndex[,, 1L], predicted[,, 2L])
 expect_error(
   predict(fit, xNew, type = "forest", forest = "forest3"),
-  pattern = "must name one of"
+  pattern = "'forest' names no forest of this model: \"forest3\""
 )
 expect_error(
   predict(fit, xNew, type = "forest", forest = 3L),
