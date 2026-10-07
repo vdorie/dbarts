@@ -639,23 +639,14 @@ items
     refused; installTrees keeps taking any family's trees. About 430
     lines. Serial with leaf-conversions.
     Plan: docs/plans/cross-family-state-install.md.
-  factor-column-update-forms: before 1.0-0 for the joint form
-    (dec-B279, VD 2026-10-06). updatePredictorPerObservationJointly
-    takes codes from 0 and reads a factor through R's codes from 1:
-    every level is installed as the next one, in silence, unless the
-    last level is present; a character vector is installed as missing
-    values. Fix: labels (factor, character, sparseFactor) are matched
-    to the column's levels by setPredictor's own helper, with its
-    refusals; numbers stay codes; a logical, and labels for samplers
-    whose levels differ, are refused by name. About 270 lines, R only.
-    Plan: docs/plans/factor-column-update-forms.md. The rest is not
-    planned: setPredictor by column and forceUpdate = "partial" take
-    labels and refuse numbers and a first missing value by name, while
-    the whole-matrix form and the joint form take codes from 0, a
-    missing one included; a data frame as the whole matrix fails in
-    as.double though the manual's x item speaks of a whole data-frame
-    update; and a numeric column given a factor is read through its
-    integer codes by every form.
+  factor-column-update-forms: what the joint form's fix left
+    (docs/plans/factor-column-update-forms.md, landed). setPredictor by
+    column and forceUpdate = "partial" read a factor given for a
+    NUMERIC column through its integer codes (the column then holds 1
+    to 4, no message); the joint form refuses it. The fix sits in a
+    helper that whole-frame updates share. And a data frame given as
+    the whole matrix fails in as.double, though the manual's x item
+    speaks of a whole data-frame update. Not planned.
   install-doors-noted: measured while planning the two entries above,
     none planned and none seen to break a sampler. A DART state and an
     ordinary one install into each other, and a monotone leaf's state

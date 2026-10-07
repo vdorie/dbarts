@@ -1,6 +1,6 @@
 # factor-column-update-forms: the joint row-by-row update takes a factor column's labels
 
-Status: PLANNED (dec-B279).
+Status: LANDED 2026-10-07 (cde886b9 to e4afbfbd; dec-B279, dec-A172).
 
 agent: sonnet implementer, one (R, tests, manual); opus reviewer.
 rng: by call sequence.
@@ -273,3 +273,35 @@ By what is given, and by whether the samplers hold the column as a factor (order
   twin draws test the samplers' own.
 - Known: codes given as a `Matrix` `sparseVector`, a `Date` or a `difftime` on a factor column were
   installed on the base build and are refused now; only a base numeric vector is read as codes.
+
+## Landing note
+
+Landed 2026-10-07 as cde886b9 to e4afbfbd on bartcore, 4 commits, 628 lines added over 5 files against a
+planned 270 to 420; R, the manual and tests, nothing under src/. One review told to refute: LAND AFTER
+FIXES; what the slice installed was right in every case it ran.
+
+What the review changed (dec-A172). The first tests built samplers with no split and read back the
+R-side copy of the column alone, so a version that handed the engine the passed factor's own codes
+passed all 224; they now run on swept samplers whose trees split on the column and hold every accepted
+input to a twin updated through `setPredictor(forceUpdate = "partial")` or through codes, by its
+predictions and its next draws, for one to three samplers and for the unordered and the ordered column,
+with a copy and a reload. The refusal for samplers whose levels differ told the caller to give numbers,
+which installs a different level in each sampler without a message; samplers that hold the column with
+different level tables now refuse one vector of any kind, labels or numbers, naming the first sampler
+that differs. A refusal raised by a later sampler's levels names that sampler. A factor, a `sparseFactor`
+or text that is not numerals given for a numeric column is refused in the joint form. The help says that
+`as.integer()` of a factor counts from 1 and is not these codes, and that a missing number is installed
+where a missing label is refused.
+
+Left: `setPredictor` by column and `"partial"` still read a factor given for a numeric column through
+its integer codes, the fix sitting in a helper that whole-frame updates share; and a data frame as the
+whole matrix. Both are in TODO `factor-column-update-forms`. Codes given as a `sparseVector`, a `Date` or
+a `difftime` on a factor column were installed before and are refused now.
+
+Gates at landing, on a clean copy of the rebased tree in a library of its own (shipped mode), run in
+series: tests/cpp 350 ok, 0 failed; the full tinytest suite 15378 results, 0 failed, 225 files; lintr no
+lints; air, rc-codoc, win-drift, doc-freshness and the mutation battery's anchors clean; `R CMD build`
+with every vignette rebuilt and `R CMD check --as-cran` with the Date NOTE alone. Neutral for numbers: a
+seeded digest of calls that pass numbers, with sweeps between, is equal on the base and the slice (43
+items by the implementer, 312 calls by the reviewer). bairrtt, the one consumer that calls the function,
+passes numbers for a numeric column; two of its test files and a fit digest were equal on both builds.
