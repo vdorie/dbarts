@@ -155,9 +155,62 @@ they are one sampler (`lround(1) == 1`). The repair runs
 `ResponseModel::reapplyWeights` against the weights already in force, which
 is `setWeights` unless a family says otherwise, so it self-selects: logistic
 redraws omega, gaussian recomposes a composite that is already right, a
-weight-refusing family takes the base no-op. Student-t (amended 2026-10-05)
-redraws the scale of every row in the likelihood: a scale stored for a row
-at weight zero was drawn without that row's residual, and the state does not
-say which rows those were. GATED rather than unconditional: a redraw on a MATCHED restore would
+weight-refusing family takes the base no-op. Student-t (amended 2026-10-06)
+redraws the scale of the rows that enter the likelihood and no other; the
+rule is below. GATED rather than unconditional: a redraw on a MATCHED restore would
 break "the same moves in the same order" dbarts.h promises, and would move
 the `wtlogistic` equivalence scenario - which nothing here does.
+
+### A Student-t state names its zero-weight rows (amended 2026-10-06)
+
+A Student-t scale is drawn every sweep at every row, and at a row of weight
+zero it is drawn without that row's residual. So every Student-t state
+carries, beside the digest, `weights.zero`: a raw vector with a byte per
+row, 1 where the weight in force was zero and 0 elsewhere, all 0 for a
+sampler with no weights
+([`storeState`](../../src/R_interface_bartcore.cpp),
+[`SamplerBase::zeroWeightRows`](../../src/bartcore/facade.hpp)). No other
+family writes it, and the mask is not in it. With Z the recorded rows, and w
+and a the destination's weights and mask in force at the install
+([`setState`](../../src/R_interface_bartcore.cpp)):
+
+1. Digests equal: nothing is drawn.
+2. Digests differ and the state has the record: once the whole state is in,
+   each chain in turn draws, from its own restored generator and in row
+   order, a new scale for each row in Z with w positive and a active, from
+   Gamma((nu + 1) / 2, rate (nu + w r^2 / sigma^2) / 2) at the installed
+   fit, sigma and degrees of freedom
+   ([`TResponse::reapplyWeights`](../../src/bartcore/model.hpp)). Every
+   other row keeps its stored scale, and with no such row no random number
+   is used. It is what `setWeights` does to a sampler holding the state
+   under the stored weights. A row positive then and zero now, and an
+   entering row that is masked, wait for the setter that brings them in. A
+   copy, a reload and a `setState` that makes the engine again put the mask
+   back after the state, so an entering masked row is drawn at the install
+   there.
+3. Digests differ and the state has no record, as one stored before the
+   record has none: every row in the likelihood is redrawn.
+4. No digest: nothing is drawn.
+5. A record that is not a raw vector of 0s and 1s, or not one byte per row
+   of the sampler, is refused before anything is touched, on any family;
+   another family's state does not otherwise use one.
+
+Scales redrawn per chain, 81 rows, 20 at weight zero when the state was
+stored; the same in one and two chains, with the degrees of freedom fixed
+and estimated:
+
+| destination weights | rows in the likelihood | rows entering | redrawn without the record | redrawn with it, and by the same `setWeights` call |
+|---|---|---|---|---|
+| the stored ones | 61 | 0 | 0 | 0 |
+| other positive values, same zero rows | 61 | 0 | 61 | 0 |
+| 20 rows enter, 20 other rows leave | 61 | 20 | 61 | 20 |
+| all positive | 81 | 20 | 81 | 20 |
+| 10 more rows at zero | 51 | 0 | 51 | 0 |
+
+A weight change is then undone by the old weights and the stored state in
+either order. Weights first, the sampler is the stored chain bit for bit.
+State first, it is too when the change moved no row to or from zero;
+otherwise the rows the change had taken to zero are redrawn from their
+conditional at the stored fit as the old weights bring them back, and every
+row positive under both holds its stored scale. `setState` returns `TRUE`
+throughout: it promises the trees, not the scales.

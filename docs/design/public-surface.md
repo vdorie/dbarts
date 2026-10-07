@@ -207,9 +207,10 @@ encoding is refused. Pre-1.0 states are not a compat target and cannot even
 structurally reach the by-name reader (they lack the forests block).
 The rule governs the TOP-LEVEL ATTRIBUTES on the same terms - they are read
 by name too, and an unknown one is ignored - so `weights.digest` (2026-08-24,
-weighted-logistic.md) is an additive addition that moves neither the
-version nor the floor: a state carrying none restores exactly as it did
-before the attribute existed.
+weighted-logistic.md) and `weights.zero` (2026-10-06, the same document; on
+Student-t states only) are additive additions that move neither the
+version nor the floor: a state lacking either restores exactly as it did
+before that attribute existed.
 
 Landed (2026-07-04): reporting format for categorical rules in
 `getTrees`/`plotTree`. The flat format stores the direction mask as a

@@ -141,11 +141,14 @@ switching the row on or `setWeights` taking its weight off zero - and the row
 is redrawn when its composed weight `w_i a_i` turns positive, not before; the
 response keeps its own record of which rows are in, the weights being
 borrowed ([`TResponse::setWeights`](../../src/bartcore/model.hpp)). A state
-installed under other weights than it was stored with gives that record
-nothing to go on - a state does not say which of its rows were out - so the
-reconciliation after the install redraws lambda at every row in the
-likelihood ([`TResponse::reapplyWeights`](../../src/bartcore/model.hpp)); a
-state installed under its own weights draws nothing. A host that draws the mask from the fit with the latents integrated
+names the rows that were at weight zero when it was stored, and not the rows
+its mask had out. Installed under other weights, it has that record set from
+the named rows, so the reconciliation after the install redraws lambda at
+exactly the rows that enter the likelihood, as the same `setWeights` call
+would; a state stored before it named them redraws lambda at every row in
+the likelihood ([`TResponse::reapplyWeights`](../../src/bartcore/model.hpp),
+[A Student-t state names its zero-weight rows (amended 2026-10-06)](weighted-logistic.md#a-student-t-state-names-its-zero-weight-rows-amended-2026-10-06)).
+A state installed under its own weights draws nothing. A host that draws the mask from the fit with the latents integrated
 out thereby draws mask and latents jointly. A row that stays active keeps its
 latent, which is a valid step and not an economy: redrawing it would also be
 valid and would consume variates a fixed mask never asks for. A mask that
