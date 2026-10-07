@@ -836,6 +836,15 @@ items
     section 10). After the multiplier law's held push it is the one
     place left where a sampler runs trees drawn under other held
     values. Not planned.
+  state-store-size-install: setState installs a state whose store of
+    kept trees is larger or smaller than the sampler's: the live chain
+    as from any state, the most recent kept draws that fit, the
+    sampler's n.samples unchanged, and a return that says the install
+    was not exact, where it refuses today with "state is not
+    consistent with this sampler" (dec-B294, revising dec-A138 in
+    part). Before the merge to main; the kept-draw store in the
+    engine and the state's reader, after leaf-conversions, which
+    works in the same store.
   precision-floor-edge-values: the floor that refuses scales and
     Polya-Gamma variates that are not positive and finite passes a
     value at the edge of what a double holds: a variate of 1e-320 in a
