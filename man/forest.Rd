@@ -42,13 +42,21 @@ forest(
     \code{offset()} and an intercept term (\code{1}, \code{0} or \code{- 1})
     belong to the fit and are written beside the forests, not inside one. A
     removal written beside the forests takes its term from the forest with no
-    \code{basis} and from no other: that forest has the terms of the formula
-    with its \code{forest()} replaced by what is inside it and every forest
-    with a \code{basis} left out. So
+    \code{basis} and from no forest that names predictors of its own: the
+    forest with no \code{basis} has the terms of the formula with its
+    \code{forest()} replaced by what is inside it and every forest with a
+    \code{basis} left out. So
     \code{y ~ forest(.) - x3 + forest(x3, basis = ~ z)} and
     \code{y ~ . - x3 + forest(x3, basis = ~ z)} are one model, in which the
     second forest alone splits on \code{x3}; a removal that leaves the first
-    forest no predictor is refused.
+    forest no predictor is refused. Written with no first argument, that
+    forest is every predictor the other forests name, less what is removed
+    beside it. A removal of a term the forest with no \code{basis} does not
+    have is passed by, as R passes it by in a plain formula:
+    \code{y ~ x1 + x2 + forest(x3, basis = ~ z) - x3} is the model without the
+    removal. \code{\link[stats]{update}} cannot take a term out of a
+    \code{forest()}: \code{update(f, . ~ . - x3)} returns \code{f} unchanged
+    when \code{x3} stands inside one.
 
     In a \code{forests} list it selects among the fit's predictors, in one of
     two ways. When a name in it is a predictor of the fit, it is read as terms
@@ -65,7 +73,13 @@ forest(
     fit uses the value. A name or a position given twice is refused, and so
     are a logical, a factor and a formula: the multiplier of a forest is its
     \code{basis}, by name. A column with no name is selected by position or
-    by \code{.} only, and a name that two columns share is refused.
+    by \code{.} only, and a name that two columns share is refused. A number
+    is a position only as the whole argument: among terms, as in
+    \code{forest(. - 2)}, it is refused, and a column named \code{2} is
+    written backticked. With a factor expanded to indicator columns, removing
+    one of them, as \code{forest(. - g.u)}, leaves the forest able to separate
+    that level through the others; remove the factor, \code{forest(. - g)}, to
+    keep it out.
 
     In short, a name of a predictor is that predictor, and anything else is
     read where \code{forest()} is called, at that moment. A forest built in a
