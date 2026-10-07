@@ -244,6 +244,11 @@ items
     coefficients, rewrite kept draws at a re-anchor, and refuse the
     calls on a gp sampler that holds kept draws. Plan:
     docs/plans/leaf-conversions.md.
+  monotone-direction-abbreviations: a direction word of monotone() is
+    matched as base R matches a choice, a unique abbreviation taken, by
+    pmatch (match.arg with several.ok drops what it cannot match, so
+    it is not enough alone); the help says nothing of it (dec-B288).
+    Before the merge to main.
   joint-update-factor-numbers: updatePredictorPerObservationJointly
     refuses numbers for a factor column, in setPredictor's words, and
     takes a factor or labels (dec-B286, revising dec-A172 in part).
@@ -783,6 +788,14 @@ items
     times a weighted sum (the curve-times-modifier model of a spline
     basis is the second), with how a size is stated for each column
     (dec-B272). After 1.0-0 (dec-B282).
+  held-coefficients-in-state: a state from a sampler that draws a
+    two-level factor's coefficients installs into one that holds them,
+    in silence: the trees arrive, the coefficients stay 0 and 1, and
+    the install reports itself exact (test-state-not-model.R pins the
+    rule as "fixed amplitudes"; critique of forest-multiplier-law,
+    section 10). After the multiplier law's held push it is the one
+    place left where a sampler runs trees drawn under other held
+    values. Not planned.
   state-family-record-removal: a state stops recording its family and
     setState, a copy and a reload stop refusing by family; the floor
     on precisions that are not positive and finite stays (dec-B283,
