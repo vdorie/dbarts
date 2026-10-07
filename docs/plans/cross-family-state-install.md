@@ -1,6 +1,6 @@
 # cross-family-state-install: a state goes only into a sampler of the family that stored it
 
-Status: PLANNED.
+Status: LANDED 2026-10-07 (257ce57d to 96251ac7; dec-A174).
 
 agent: opus implementer, one (bridge, engine, tests); opus reviewer.
 rng: by call sequence.
@@ -294,3 +294,38 @@ its own is assigned to the field, as today for any state it refuses. The warm st
   chain's record: a probit chain and a logistic chain under `probit` install into a two-chain probit
   sampler, and only the floor catches a real-valued chain under a precision family's record. stan4bart
   splices chains of one model only.
+
+## Landing note
+
+Landed 2026-10-07 as 257ce57d to 96251ac7 on bartcore, 9 commits, 661 lines added over 10 files against a
+planned 430 to 650. One review told to refute: LAND, with nothing that blocked. On its own build it ran
+every ordered pair of 48 kinds of sampler with and without the record (4608 installs): every pair of
+different families was refused by name and nothing hung or left fits that were not finite; 363 installs
+within one model across 55 routes were all taken; states written before the record installed exactly as
+before (496 installs and 209 same-family pairs equal on the base and the slice); 2495 refusals each left
+the sampler bit for bit as it was; and 729 warm starts were byte for byte the base's, 262 of them pairs
+`setState` now refuses.
+
+What the review changed. Four versions of the code that were wrong passed every test and each now fails
+one: the record written only on a state of one chain, the floor skipped for the last of several chains,
+the floor skipped for rows the mask has out (under which a masked logistic sampler given a zero at an
+inactive row installed and its next sweep did not return), and the family compared by a prefix. The
+refusal ends by naming `installTrees` as the way to start one fit from another's trees. The help said a
+warm start takes the trees alone; it takes the donor's trees and, where the sampler draws them, its sigma,
+k and DART state, and none of its latents, and says so. A name too long or not plain text in a hand-edited
+record is printed cut, so the message is always valid text.
+
+Known and left (dec-A174): a gaussian state, which holds no latents, is refused by every other family
+with the rest; 13 of 784 pairs of a state without the record and a sampler of another family that ran on
+the base build, all with weighted recipients, are refused by the floor; a state spliced by hand across
+families is judged by its first chain's record; a hazard sampler's refusal names its family as probit or
+logistic, the expansion to rows being R's.
+
+Gates at landing, on a clean copy of the rebased tree in a library of its own (shipped mode), run in
+series: tests/cpp 351 ok, 0 failed; the full tinytest suite 16654 results, 0 failed, 228 files; lintr no
+lints; air, rc-codoc, win-drift, doc-freshness and the mutation battery's anchors clean; `R CMD build`
+with every vignette rebuilt and `R CMD check --as-cran` with the Date NOTE alone. By the implementer at
+its last commit: the four snapshot files on a reference build; the three bitwise compares at 55, 15 and
+11 scenarios, all identical; the exact gates in `quick`, 28 of 28, and the monotone gates; the two test
+files clean under ASan; 25 mutations, none surviving. stan4bart, which stores a sampler's state on its
+fit, needs no edit: its fits are gaussian or probit and fits saved on the base build restore.

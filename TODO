@@ -697,19 +697,6 @@ items
     bartCause's bcf loses b.prior.variance the day the second push
     lands. A sampler saved before the first push is refused.
     Plan: docs/plans/forest-multiplier-law.md.
-  cross-family-state-install: before 1.0-0. A state of one family
-    installs into a sampler of another. Of the 56 ordered pairs among
-    the eight families 31 are refused, 18 install and run, 3 leave
-    fits that are not finite and 4 a sweep that does not return
-    (probit, ordinal and aft latents as Student-t scales or as
-    Polya-Gamma variates); the hazard and two-forest forms break the
-    same way. Fix: every state records its family, and setState, copy
-    and a reload refuse another family's state by name before anything
-    is touched; a state without the record installs as today, except
-    that scales and Polya-Gamma variates that are not positive are
-    refused; installTrees keeps taking any family's trees. About 430
-    lines. Serial with leaf-conversions.
-    Plan: docs/plans/cross-family-state-install.md.
   factor-column-update-forms: what the joint form's fix left
     (docs/plans/factor-column-update-forms.md, landed). setPredictor by
     column and forceUpdate = "partial" read a factor given for a
