@@ -141,6 +141,14 @@ captured <- forest(x1 + noSuchName)
 expect_true(inherits(captured$vars, "dbartsForestTerms"))
 expect_identical(captured$vars$expr, quote(x1 + noSuchName))
 expect_identical(captured$vars$env, environment())
+# inside 'forests' too: with the caller's frame, not the frame laid over it
+# in which the constructors resolve by bare name
+capturedInside <- dbarts:::evalInForestVocabulary(
+  quote(forest(x1 + noSuchName)),
+  dbarts:::forestConstructors["forest"],
+  environment()
+)
+expect_identical(capturedInside$vars$env, environment())
 
 ## --- Block B: one selection, six ways ---------------------------------------
 reference <- listed(quote(list(

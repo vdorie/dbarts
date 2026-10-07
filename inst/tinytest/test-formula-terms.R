@@ -467,6 +467,10 @@ expect_identical(splitsOn(swapped), list(c("x1", "x2"), "x1"))
 expect_null(swapped$fit$data@bases[[1L]])
 expect_identical(dim(swapped$fit$data@bases[[2L]]), c(n, 1L))
 # its terms are the first of the fit's predictors
+expectSameForest(
+  y ~ forest(x2, basis = ~z) + forest(x1 + x2),
+  y ~ x1 + x2 + forest(x2, basis = ~z)
+)
 expect_identical(
   predictors(fit(y ~ forest(x1, basis = ~z) + forest(x2 + x1))),
   c("x2", "x1")
