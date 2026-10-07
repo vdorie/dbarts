@@ -1098,29 +1098,30 @@ static void testMonotoneMissingArrives() {
   std::vector<double> anotherMissing(alreadyMissing);
   anotherMissing[row] = na;
 
-  // one unforced update: whole matrix and by column, each without and with a
-  // cut refresh, then row by row; true when the engine took it
+  // one unforced update of `whole` or, row by row, of the factor `column`:
+  // whole matrix and by column, each without and with a cut refresh over the
+  // rescaled matrix, then row by row
   std::unique_ptr<bool[]> installed(new bool[n]), twinInstalled(new bool[n]);
   static const char* const unforcedForms[5] = {
       ", whole matrix", ", by column", ", whole matrix with a cut refresh",
       ", by column with a cut refresh", ", row by row"};
-  auto update = [&](Arrival& s, int form, bool* valid) {
+  auto update = [&](Arrival& s, int form, bool* valid, const double* whole,
+                    const double* column) {
     auto& sampler = s.sampler();
     PredictorUpdateResult result = PredictorUpdateResult::accepted;
     *valid = true;
     if (form == 0)
-      result = sampler.setPredictor(withMissing.data(), false, false);
+      result = sampler.setPredictor(whole, false, false);
     else if (form == 1)
-      result = sampler.updatePredictor(withMissing.data(), &factorColumn, 1,
-                                       false, false);
+      result = sampler.updatePredictor(whole, &factorColumn, 1, false, false);
     else if (form == 2)
       result = sampler.setPredictor(rescaled.data(), false, true);
     else if (form == 3)
       result =
           sampler.updatePredictor(rescaled.data(), bothColumns, 2, false, true);
     else
-      *valid = sampler.updatePredictorPerObservation(twoMissing.data(), 0,
-                                                     installed.get());
+      *valid =
+          sampler.updatePredictorPerObservation(column, 0, installed.get());
     return result;
   };
 
@@ -1143,7 +1144,8 @@ static void testMonotoneMissingArrives() {
       Arrival s(x, y, values), twin(x, y, values);
       std::vector<double> cutsBefore(s.sampler().data().cutPoints[1]);
       bool valid;
-      PredictorUpdateResult result = update(s, form, &valid);
+      PredictorUpdateResult result =
+          update(s, form, &valid, withMissing.data(), twoMissing.data());
       checkAt(valid, label, "the session ends valid");
       if (!breaks) {
         checkAt(result == PredictorUpdateResult::accepted &&
@@ -1240,26 +1242,17 @@ static void testMonotoneMissingArrives() {
   }
 
   // a column that already holds a missing value takes another
-  for (int form = 0; form < 3; ++form) {
-    static const char* const forms[3] = {", whole matrix", ", by column",
-                                         ", row by row"};
-    std::string label = std::string("a second missing value") + forms[form];
+  for (int form : {0, 1, 4}) {
+    std::string label =
+        std::string("a second missing value") + unforcedForms[form];
     Arrival s(alreadyMissing, y, {holdsEitherWay, holdsEitherWay});
-    auto& sampler = s.sampler();
     checkAt(s.factorHasMissing(), label, "the column holds one from the start");
-    bool accepted;
-    if (form == 0)
-      accepted = sampler.setPredictor(anotherMissing.data(), false, false) ==
-                 PredictorUpdateResult::accepted;
-    else if (form == 1)
-      accepted = sampler.updatePredictor(anotherMissing.data(), &factorColumn,
-                                         1, false, false) ==
-                 PredictorUpdateResult::accepted;
-    else
-      accepted = sampler.updatePredictorPerObservation(anotherMissing.data(), 0,
-                                                       installed.get()) &&
-                 countTrue(installed.get(), n) == n;
-    bool kept = sampler.data().codeAt(0, row) == missingCategoryCode(4) &&
+    bool valid;
+    bool accepted = update(s, form, &valid, anotherMissing.data(),
+                           anotherMissing.data()) ==
+                        PredictorUpdateResult::accepted &&
+                    valid && (form < 4 || countTrue(installed.get(), n) == n);
+    bool kept = s.sampler().data().codeAt(0, row) == missingCategoryCode(4) &&
                 s.leavesAre(0, holdsEitherWay) &&
                 s.leavesAre(1, holdsEitherWay);
     checkAt(accepted && kept, label, "accepted, the values kept");
@@ -1359,13 +1352,9 @@ static void testMonotoneMissingRelates() {
   }
   check(flagsAsBuilt && numRelated > 20000,
         "monotone missing relates: the stores and trees are as described");
-  check(thresholdsUnchanged,
-        "monotone missing relates: a first missing value in a numeric or an "
-        "ordered column adds no relation");
-  check(noneLost, "monotone missing relates: a first missing value removes "
-                  "and reverses no relation");
-  check(gained[4].added > 0, "monotone missing relates: a first missing value "
-                             "in an unordered factor adds relations");
+  check(thresholdsUnchanged && noneLost && gained[4].added > 0,
+        "monotone missing relates: a first missing value adds relations "
+        "through an unordered factor alone, and removes and reverses none");
   check(noneGained && numRemoved > 0,
         "monotone missing relates: a flag that clears removes relations and "
         "adds and reverses none");
