@@ -3,9 +3,8 @@
 # anything of the sampler is touched. A state with no record is judged by its
 # blocks, and a latent block of precisions holding a value that is not positive
 # and finite is refused whatever the record says. A warm start takes any
-# family's trees. No sampler here is swept after an install unless the state
-# was of its own family: the draws that follow a refusal are asked only once
-# the sampler has refused.
+# family's trees. The draws that follow a refusal are asked only of a sampler
+# that refused and still stores the state it had.
 
 student <- dbartsFamilies$student
 nbinom <- dbartsFamilies$nbinom
@@ -89,7 +88,8 @@ finite <- function(sampler) {
 }
 # The message an install is refused with, or NA where it went through. After a
 # refusal the sampler is as it was: its state field, the state it stores, its
-# data, and its next three draws, which are those of a twin offered nothing.
+# data, and its next three draws, which are those of a twin offered nothing;
+# the draws are asked only of a sampler whose state is the one before.
 refusal <- function(kind, state, info, ...) {
   sampler <- make(kind, ...)
   twin <- make(kind, ...)
@@ -104,8 +104,11 @@ refusal <- function(kind, state, info, ...) {
   )
   if (!is.na(message)) {
     expect_identical(sampler$state, field, info = info)
-    expect_identical(bytes(sampler), before, info = info)
-    expect_identical(sampler$run(0L, 3L), twin$run(0L, 3L), info = info)
+    untouched <- identical(bytes(sampler), before)
+    expect_true(untouched, info = info)
+    if (untouched) {
+      expect_identical(sampler$run(0L, 3L), twin$run(0L, 3L), info = info)
+    }
   }
   message
 }
@@ -149,6 +152,16 @@ for (pair in pairs) {
     refusal(pair[2L], states[[pair[1L]]], info),
     named(familyOf[[pair[1L]]], familyOf[[pair[2L]]]),
     info = info
+  )
+}
+
+# and as that whatever else about the state differs
+for (name in c("weights.digest", "survival.digest", "cutPoints")) {
+  state <- edited(states$probit, name, 1)
+  expect_identical(
+    refusal("student", state, name),
+    named("probit", "student"),
+    info = name
   )
 }
 
