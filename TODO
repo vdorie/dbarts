@@ -270,11 +270,12 @@ items
     wrong or the refusal too (docs/plans/small-rulings-batch.md,
     landing note).
   cut-point-weights: a way to make some cut points likelier than
-    others, by repeating a point or by an argument of probabilities
-    beside the grid; the engine already picks uniformly among grid
-    positions, in the prior and the proposal both. After 1.0-0
-    (dec-B285). Whatever repeated-cut-restore does with equal values
-    must leave this an addition.
+    others: an argument of probabilities beside the grid,
+    setCutPoints(cuts, column, probs = ), as split.probs weights
+    columns; never by repeating a point, no grid repeating one in any
+    version (dec-B300, dec-B297). After 1.0-0. The engine picks
+    uniformly among grid positions today, in the prior and the
+    proposal both.
   repeated-cut-restore: BEFORE THE MERGE TO MAIN (VD 2026-10-07,
     dec-B285). Plan: docs/plans/repeated-cut-restore.md. A stored tree
     names a split by its cut value,
