@@ -739,6 +739,11 @@ items
     through forests = list(forest(basis = )) stores no formula, so
     nothing is rebuilt at predict and with subset it is evaluated on
     every row (docs/plans/basis-formula-terms.md, landing note).
+  named-single-sd: forest(sd = ) takes a named single number, its name
+    ignored, on a forest whose basis has one column or none, and keeps
+    refusing it on a basis of several columns (dec-B280, revising
+    dec-B269 in part). Before the merge to main; about 60 lines with
+    the help and tests.
   single-forest-vars-leftovers: two things the column restriction on a
     single declared forest left (docs/design/single-forest-vars.md). A
     zero split probability does not exclude a column once the positive
