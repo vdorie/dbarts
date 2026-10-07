@@ -1761,14 +1761,16 @@ static void testWarmStartStandardization() {
   }
 
   // equal standardizations: no arithmetic, down to the sign of a zero in the
-  // last chain's last tree
+  // last chain's last tree, which adding a slope's zero term would flip
   {
     SamplerStateData edited = donorState;
-    for (FlatNode& node : edited.chains[numChains - 1].forests[0].trees.back())
+    ForestStateData& lastForest = edited.chains[numChains - 1].forests[0];
+    for (FlatNode& node : lastForest.trees.back())
       if (flatKindOf(node) == FlatKind::leaf) {
         node.value = -0.0;
         break;
       }
+    lastForest.treeParams.back()[0] = 0.25;
     std::unique_ptr<SamplerBase> recipient = make(x, false, false, 500);
     SamplerStateData before, after;
     recipient->getState(before);
