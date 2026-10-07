@@ -63,7 +63,7 @@ familyOf <- c(
   aftVariance = "aft"
 )
 
-make <- function(kind, seed = 72L, n.chains = 1L) {
+make <- function(kind, seed = 72L, n.chains = 1L, active = NULL) {
   control <- dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
@@ -74,6 +74,9 @@ make <- function(kind, seed = 72L, n.chains = 1L) {
     verbose = FALSE
   )
   sampler <- do.call(dbarts, c(list(x), kinds[[kind]], list(control = control)))
+  if (!is.null(active)) {
+    sampler$setActiveRows(active)
+  }
   sampler$run(3L, 2L)
   sampler
 }
@@ -115,7 +118,10 @@ refusal <- function(kind, state, info, ...) {
 plain <- "state is not consistent with this sampler"
 named <- function(state, own) {
   sprintf(
-    "%s: its family is \"%s\" and the sampler's is \"%s\"",
+    paste0(
+      "%s: its family is \"%s\" and the sampler's is \"%s\"; ",
+      "to start one fit from another's trees use installTrees"
+    ),
     plain,
     state,
     own
@@ -133,6 +139,14 @@ states <- lapply(setNames(nm = names(kinds)), function(kind) {
 
 # --- what a state carries ---
 expect_identical(lapply(states, attr, "family"), as.list(familyOf))
+# a sampler of several chains stores the record too, and its state is refused
+# by another family under it
+severalChains <- stored(make("logistic", 71L, n.chains = 2L))
+expect_identical(attr(severalChains, "family"), "logistic")
+expect_identical(
+  refusal("probit", severalChains, "several chains", n.chains = 2L),
+  named("logistic", "probit")
+)
 
 # --- another family's state is refused by name, the sampler untouched ---
 pairs <- c(
@@ -155,7 +169,7 @@ for (pair in pairs) {
   )
 }
 
-# and as that whatever else about the state differs
+# and as that whatever else of what is read after the record differs
 for (name in c("weights.digest", "survival.digest", "cutPoints")) {
   state <- edited(states$probit, name, 1)
   expect_identical(
@@ -231,18 +245,29 @@ for (value in list(3, c("student", "student"), NA_character_, as.raw(1L))) {
     "malformed family in bartcore state"
   )
 }
-# a name no family has is refused by that name, to a bounded width
-for (value in c("", "Student", strrep("x", 500L))) {
-  state <- edited(states$student, "family", value)
-  expect_identical(
-    refusal("student", state, "unknown"),
-    named(substr(value, 1L, 32L), "student")
-  )
+# A name no family has is refused by that name, compared whole. It is printed
+# up to its first byte outside printable ASCII and to 32 bytes, with dots where
+# it was cut, so the message is valid text whatever the name holds.
+accented <- "\u00e9t\u00e9"
+for (name in list(
+  c("", ""),
+  c("Student", "Student"),
+  c("student ", "student "),
+  c("studentX", "studentX"),
+  c(strrep("x", 500L), paste0(strrep("x", 32L), "...")),
+  c(paste0(strrep("a", 31L), accented), paste0(strrep("a", 31L), "...")),
+  c(paste0("student", accented), "student..."),
+  c(iconv(accented, "UTF-8", "latin1"), "...")
+)) {
+  state <- edited(states$student, "family", name[1L])
+  message <- refusal("student", state, name[2L])
+  expect_identical(message, named(name[2L], "student"), info = name[2L])
+  expect_true(validUTF8(message), info = name[2L])
 }
 
 # --- a latent block edited by hand ---
-withLatent <- function(state, value) {
-  state[[1L]]$latents[7L] <- value
+withLatent <- function(state, value, row = 7L, chain = 1L) {
+  state[[chain]]$latents[row] <- value
   state
 }
 for (value in c(0, -1, NaN, Inf)) {
@@ -256,6 +281,28 @@ for (value in c(0, -1, NaN, Inf)) {
   probit <- make("probit")
   expect_true(probit$setState(state), info = paste("probit", value))
   expect_identical(stored(probit)[[1L]]$latents, state[[1L]]$latents)
+}
+# every chain is asked, the last included, with the record or without
+for (state in list(severalChains, unrecorded(severalChains))) {
+  state <- withLatent(state, -1, chain = 2L)
+  expect_identical(
+    refusal("logistic", state, "last chain", n.chains = 2L),
+    plain
+  )
+}
+# Every row is asked, a row the mask has out included: a variate that is not
+# positive there would leave the sampler's next sweep without return. The
+# install is refused before the engine sweeps, and the draws that follow are
+# asked only of a sampler that refused, so nothing here sweeps such a state.
+active <- rep(c(1, 0, 1), length.out = n)
+masked <- stored(make("logistic", 71L, active = active))
+expect_true(make("logistic", active = active)$setState(masked))
+for (value in c(0, -1)) {
+  state <- withLatent(masked, value, row = 2L)
+  expect_identical(
+    refusal("logistic", state, paste("masked", value), active = active),
+    plain
+  )
 }
 
 # --- copy and a reload install the field by the same rule ---
@@ -286,6 +333,8 @@ expect_identical(
 for (state in list(states$probit, unrecorded(states$probit))) {
   warm <- make("student")
   warm$installTrees(state)
+  taken <- stored(warm)[[1L]]$forests[[1L]]
+  expect_identical(taken$tree.vars, state[[1L]]$forests[[1L]]$tree.vars)
   expect_true(all(stored(warm)[[1L]]$latents > 0))
   expect_true(finite(warm))
 }

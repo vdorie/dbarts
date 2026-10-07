@@ -7910,14 +7910,18 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   bartcore::SamplerStateData state;
   state.chains.resize(shape.numChains);
 
-  // Which family stored the state, against this sampler's own. Asked before
-  // anything else of the state is read, so a state of another family is
-  // refused as that whatever else about it differs, and before the engine is
-  // handed anything. ABSENT (a state written before the attribute existed) is
-  // not known, never a mismatch: such a state is judged by its blocks alone.
-  // The stored name is the caller's and is printed to a bounded width; the
-  // buffer outlives the final Rf_error as blockError does.
-  char familyError[160];
+  // Which family stored the state, against this sampler's own. Asked once the
+  // class, the format version and the chain count above have passed and
+  // before anything else of the state is read, so past those a state of
+  // another family is refused as that whatever else about it differs, and
+  // before the engine is handed anything. ABSENT (a state written before the
+  // attribute existed) is not known, never a mismatch: such a state is judged
+  // by its blocks alone. The stored name is the caller's and may be any bytes
+  // in any encoding: it is printed up to its first byte outside printable
+  // ASCII and to 32 bytes at most, with dots where it was cut, so the message
+  // is valid text whatever the name. The buffer outlives the final Rf_error
+  // as blockError does.
+  char familyError[224];
   SEXP familyExpr = Rf_getAttrib(stateExpr, Rf_install("family"));
   if (!Rf_isNull(familyExpr)) {
     if (TYPEOF(familyExpr) != STRSXP || Rf_xlength(familyExpr) != 1 ||
@@ -7927,10 +7931,16 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       const char* storedFamily = CHAR(STRING_ELT(familyExpr, 0));
       const char* ownFamily = stateFamilyName(shape);
       if (std::strcmp(storedFamily, ownFamily) != 0) {
+        int width = 0;
+        while (width < 32 && storedFamily[width] >= 0x20 &&
+               storedFamily[width] < 0x7f)
+          ++width;
         std::snprintf(familyError, sizeof familyError,
                       "state is not consistent with this sampler: its family "
-                      "is \"%.32s\" and the sampler's is \"%s\"",
-                      storedFamily, ownFamily);
+                      "is \"%.*s%s\" and the sampler's is \"%s\"; to start "
+                      "one fit from another's trees use installTrees",
+                      width, storedFamily,
+                      storedFamily[width] != '\0' ? "..." : "", ownFamily);
         errorMessage = familyError;
       }
     }
