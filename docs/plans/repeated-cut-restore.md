@@ -1,6 +1,11 @@
 # repeated-cut-restore: every split stays on a grid position that holds its value
 
-Status: PLANNED (dec-B285; dec-B283 for what an install refuses).
+Status: PLANNED, TO BE REWORKED before anything is built: dec-B297, ruled after this plan was written, has
+every grid the sampler builds or accepts hold each value once, where this plan keeps the sampler's own
+grids with repeated points and stores each split's position. What stands is the resolver that keeps a
+split inside its node's interval and the merge of a split the grid cannot hold; what goes, while no grid
+repeats a value, is the stored position and its state blocks (dec-B285; dec-B283 for what an install
+refuses).
 
 agent: opus implementer, one (engine, bridge, tests); opus reviewer, told to refute.
 rng: by call sequence.
