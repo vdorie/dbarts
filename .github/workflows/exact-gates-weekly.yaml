@@ -1,0 +1,157 @@
+# The deterministic correctness gates of exact-gates.yaml in their FULL mode,
+# weekly. exact-gates.yaml runs every gate in quick mode on each push and
+# runs full only when dispatched by hand with mode=full; the monotone
+# enumeration gate's full mode (triple the draws, about three times its quick
+# run) passes that workflow's 40-minute job limit and so ran nowhere in CI.
+# This workflow runs it, and the other gates' full modes with it, on a longer
+# limit (dec-A132, dec-B301; docs/plans/check-shape-fixes.md).
+#
+# Two jobs:
+#   gates-full  every gate exact-gates.yaml's main job runs, in full mode,
+#               the gate list read from that file so the two cannot drift.
+#               Timed on the maintainer's laptop, one core: the whole list is
+#               about 28 minutes (mask-redraw-exact 6.7 min, logistic-reference
+#               about 13 min, multinomial-exact 2.6 min, change-balance 1.9 min,
+#               the rest under a minute each); the hosted runner took about
+#               five times as long as the laptop on the monotone gate, so the
+#               limit is 240 minutes. bcf-latent-exact.R stays in quick mode,
+#               as it does under mode=full in exact-gates.yaml: its full grid
+#               is about 40 minutes on the laptop alone and was not timed here.
+#   monotone-enumeration-full
+#               the enumeration gate, one job per prior, and the successive-
+#               conditional check beside it, both in full mode. About 14 minutes
+#               per prior on the laptop (quick: 4.5), so about 70 on the runner;
+#               the limit is 180 minutes.
+#
+# A failing gate fails the job; every gate still runs, so one run shows every
+# failure. The cross-host compares and the seeded-drift snapshot files of
+# exact-gates.yaml are not repeated: they do not depend on the mode.
+#
+# NOTE: GitHub binds `schedule` and `workflow_dispatch` to the repository
+# DEFAULT branch, so neither fires until the workflow lands on main; on
+# bartcore the only trigger is a push touching this file. See valgrind.yaml.
+on:
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [bartcore]
+    paths:
+      - '.github/workflows/exact-gates-weekly.yaml'
+
+name: exact-gates-weekly
+
+permissions: read-all
+
+jobs:
+  gates-full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Bound apt network stalls
+        run: |
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::http::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::https::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+
+      - uses: r-lib/actions/setup-r@v2
+        timeout-minutes: 12
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        timeout-minutes: 15
+        with:
+          needs: check
+          # the independent implementation logistic-reference.R gates against,
+          # as in exact-gates.yaml
+          extra-packages: any::BART
+
+      - name: Install the package
+        run: R CMD INSTALL .
+
+      - name: Run the gates in full mode
+        run: |
+          # the list exact-gates.yaml's main job loops over
+          gates=$(sed -n '/^ *gates="$/,/^ *"$/p' .github/workflows/exact-gates.yaml | grep -v '^ *gates="$' | grep -v '^ *"$')
+          if [ -z "$gates" ]; then
+            echo "::error::no gate list found in exact-gates.yaml"
+            exit 1
+          fi
+          fail=0
+          for g in $gates; do
+            arg=
+            # quick in exact-gates.yaml's mode=full too, for the same reason
+            if [ "$g" = "bcf-latent-exact.R" ]; then arg=quick; fi
+            echo "::group::$g"
+            if Rscript "benchmarks/R/$g" ${arg}; then
+              echo "PASS $g"
+            else
+              echo "::error::gate $g FAILED"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          echo "::group::bd-balance.R zeroweight"
+          if Rscript benchmarks/R/bd-balance.R zeroweight; then
+            echo "PASS bd-balance.R zeroweight"
+          else
+            echo "::error::gate bd-balance.R zeroweight FAILED"
+            fail=1
+          fi
+          echo "::endgroup::"
+          exit $fail
+
+  monotone-enumeration-full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        prior: [leaf, joint]
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Bound apt network stalls
+        run: |
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::http::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::https::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+
+      - uses: r-lib/actions/setup-r@v2
+        timeout-minutes: 12
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        timeout-minutes: 15
+        with:
+          needs: check
+
+      - name: Install the package
+        id: install
+        run: R CMD INSTALL .
+
+      - name: Run the monotone successive-conditional check
+        run: >-
+          Rscript benchmarks/R/monotone-successive-conditional.R
+          ${{ matrix.prior }} ${{ matrix.prior == 'leaf' && 'twin' || '' }}
+
+      # runs even when the check above fails, so one run surfaces both
+      - name: Run the monotone enumeration gate
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: >-
+          Rscript benchmarks/R/monotone-exact-enumeration.R engine
+          ${{ matrix.prior }}

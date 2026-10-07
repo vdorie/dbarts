@@ -39,6 +39,10 @@
 # deep to enumerate) first, about a minute per prior in quick mode, the
 # unconstrained twin with the "leaf" prior.
 #
+# Full mode of every gate here (the main job's list, and the monotone job) runs
+# weekly, on a longer limit, in exact-gates-weekly.yaml, which reads the main
+# job's list from this file.
+#
 # One job installs the package once, then runs every gate in `quick` mode
 # (reduced draws/seeds) so the whole suite shares a single ~4-minute C++20
 # compile instead of recompiling per gate. bcf-latent-exact.R is the long
@@ -310,8 +314,8 @@ jobs:
           ${{ matrix.prior }} ${{ matrix.prior == 'leaf' && 'twin' || '' }}
 
       # every design under the job's prior, quick even under mode=full: full
-      # mode triples the draws and would pass the timeout, so it stays a local
-      # run. Runs even when the check above fails, so one run surfaces both
+      # mode triples the draws and would pass the timeout, so it runs weekly
+      # in exact-gates-weekly.yaml instead. Runs even when the check above fails, so one run surfaces both
       - name: Run the monotone enumeration gate
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: >-

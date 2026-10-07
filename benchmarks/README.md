@@ -234,10 +234,13 @@ host-portable (unlike the equivalence bitwise check). Two further gates,
 hazard-reduction and hurdle-reduction, compare draws bitwise against a
 hand-built reference fit instead of an analytic target, take no `quick`
 argument, and otherwise run and exit like the rest. negbin-mixing is a
-fixed-seed mixing gate rather than an exactness one: at n of 500 and 2000 with
-the default forest, two chains of the negative-binomial shape must leave
-the cold start, agree by split-Rhat, cover the true r and cover fresh counts at
-90% by randomized PIT; `quick` and full differ in seeds only.
+fixed-seed mixing gate rather than an exactness one: on two cells whose
+posterior on r spreads over several grid values (r0 = 8 at n = 400, r0 = 10 at
+n = 500) with the default forest, two chains whose shapes are set apart before
+the run (1 and 50, through the stored state: the sampler has no setter) must
+leave their starts, agree by split-Rhat, cover the true r and cover fresh
+counts at 90% by randomized PIT; a cell with no spread fails as undefined, and
+`quick` and full differ in seeds only.
 
 mask-redraw-exact is the gate for a mask redrawn every sweep by a larger
 sampler: a two-part mixture over ten rows and one tree, whose joint posterior
@@ -264,7 +267,10 @@ posterior in which a leaf of only zero-weight rows is legal and scores nothing.
 
 .github/workflows/exact-gates.yaml runs all of them in `quick` mode on push /
 pull_request (one install, looped, one ::error:: per failing gate); dispatch it
-with mode=full for the long grid. It also carries the two `--cross-host`
+with mode=full for the long grid. exact-gates-weekly.yaml runs the full mode of
+every gate here weekly on a longer limit, reading the main job's gate list from
+exact-gates.yaml and running the monotone enumeration gate in full beside it
+(bcf-latent-exact stays quick). exact-gates.yaml also carries the two `--cross-host`
 compares, outside that loop: the baselines are recorded at full settings and
 the settings guard refuses to compare them against a `quick` run. Contrast the
 STATISTICAL gates (sbc.R, equivalence.R z-mode), which can false-alarm at the
