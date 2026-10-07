@@ -1,8 +1,9 @@
 # Predictor updates on a sampler with a monotone constraint that would leave a
 # tree's leaf values out of order. An unforced one is refused and rolled back
-# as one that would empty a leaf is; the calls that always complete set every
-# leaf of such a tree to zero and say nothing. The engine's side, the column
-# and single-sampler row forms included, is tests/cpp
+# as one that would empty a leaf is, whichever tree of whichever chain it is
+# and under either direction; the calls that always complete set every leaf
+# of such a tree to zero and say nothing. The engine's side, the column and
+# single-sampler row forms included, is tests/cpp
 # (testMonotoneMissingArrives).
 
 source(
@@ -16,9 +17,9 @@ x1 <- runif(n)
 f <- factor(rep(letters[1:4], length.out = n))
 y <- x1 + rnorm(n, sd = 0.1)
 df <- data.frame(y, x1, f)
-controlOf <- function(n.chains = 1L) {
+controlOf <- function(n.chains = 1L, n.trees = 1L) {
   dbarts::dbartsControl(
-    n.trees = 1L,
+    n.trees = n.trees,
     n.chains = n.chains,
     n.threads = 1L,
     updateState = FALSE,
@@ -26,54 +27,80 @@ controlOf <- function(n.chains = 1L) {
   )
 }
 
-# The tree, one per chain: x1 (increasing) cut once near 0.5, the low half
-# split on f as {a, b} | {c, d} and the high half as {c, d} | {a, b}. Leaves
-# in order: (low; a, b), (low; c, d), (high; c, d), (high; a, b). Without a
-# missing value in f the order is each (low; S) below (high; S). A missing
-# value goes left at both f rules and puts (low; a, b) below (high; c, d),
-# which `breaks` violates and `holds` does not. A level mask is 64 bits in the
-# machine's byte order.
+# The hand tree: x1 (increasing) cut once near 0.5, the low half split on f
+# as {a, b} | {c, d} and the high half as {c, d} | {a, b}. Leaves in order:
+# (low; a, b), (low; c, d), (high; c, d), (high; a, b). Without a missing
+# value in f the order is each (low; S) below (high; S). A missing value goes
+# left at both f rules and puts (low; a, b) below (high; c, d), which `breaks`
+# violates and `holds` does not. A decreasing constraint mirrors the order,
+# and the values. A level mask is 64 bits in the machine's byte order.
 breaks <- c(0.05, -0.05, -0.04, 0.06)
 holds <- c(-0.05, -0.06, 0.04, 0.06)
 maskBytes <- function(bits) {
   words <- c(as.integer(bits), 0L)
   writeBin(if (.Platform$endian == "big") rev(words) else words, raw())
 }
-handState <- function(sampler, values) {
+# A state with the hand tree as tree `at` of each chain, values[[chain]] at
+# its leaves, and the chain's other trees single leaves at zero.
+handState <- function(sampler, values, at = 1L) {
   sampler$storeState()
   state <- sampler$state
   cuts <- attr(state, "cutPoints")[[1L]]
   cut <- cuts[which.max(cuts >= 0.5)]
   for (chain in seq_along(values)) {
     forest <- state[[chain]]$forests[[1L]]
-    forest$tree.vars <- c(1L, 2L, -1L, -1L, 2L, -1L, -1L)
+    numBefore <- at - 1L
+    numAfter <- length(forest$tree.sizes) - at
+    forest$tree.vars <- c(
+      rep(-1L, numBefore),
+      c(1L, 2L, -1L, -1L, 2L, -1L, -1L),
+      rep(-1L, numAfter)
+    )
     forest$tree.values <- c(
+      writeBin(numeric(numBefore), raw()),
       writeBin(cut, raw()),
       maskBytes(12L),
       writeBin(values[[chain]][1:2], raw()),
       maskBytes(3L),
-      writeBin(values[[chain]][3:4], raw())
+      writeBin(values[[chain]][3:4], raw()),
+      writeBin(numeric(numAfter), raw())
     )
-    forest$tree.sizes <- 7L
-    forest$tree.flags <- as.raw(c(2L, 4L, 0L, 0L, 4L, 0L, 0L))
+    forest$tree.sizes <- c(rep(1L, numBefore), 7L, rep(1L, numAfter))
+    forest$tree.flags <- as.raw(c(
+      integer(numBefore),
+      c(2L, 4L, 0L, 0L, 4L, 0L, 0L),
+      integer(numAfter)
+    ))
     state[[chain]]$forests[[1L]] <- forest
   }
   state
 }
-make <- function(values = list(breaks), data = df) {
+make <- function(
+  values = list(breaks),
+  data = df,
+  n.trees = 1L,
+  at = 1L,
+  direction = "increasing"
+) {
   sampler <- dbarts::dbarts(
     y ~ x1 + f,
     data,
-    monotone = c(x1 = "increasing"),
-    control = controlOf(length(values)),
+    monotone = c(x1 = direction),
+    control = controlOf(length(values), n.trees),
     seed = 7L
   )
-  stopifnot(isTRUE(sampler$setState(handState(sampler, values))))
+  stopifnot(isTRUE(sampler$setState(handState(sampler, values, at))))
   sampler
 }
+# the leaf values of every tree that has split, in order
 leaves <- function(sampler) {
   trees <- sampler$getTrees()
-  trees$value[trees$var < 0L]
+  trees$value[trees$var < 0L & trees$n < n]
+}
+# the factor column of data@x as codes from 0, however the sampler holds it
+heldCodes <- function(sampler) {
+  held <- sampler$data@x$dense[[2L]]
+  if (is.factor(held)) as.double(as.integer(held) - 1L) else held
 }
 # a call's value, whether it was visible, and how many warnings it raised;
 # `outcome` is that for a call that raised none
@@ -112,13 +139,15 @@ x1Grid <- seq(0, 1, length.out = 101L)
 cut <- with(list(cuts = attr(make()$state, "cutPoints")[[1L]]), {
   cuts[which.max(cuts >= 0.5)]
 })
-# the rows given a missing value are rows it moves to another leaf, so a fit
-# rebuilt from the new partition would show; `moved` changes level instead
-naRows <- which(x1 > cut & f %in% c("a", "b"))[1:2]
+# the rows given a missing value are rows it moves to another leaf, and
+# twenty of them, so that a fit rebuilt from the new partition, or a
+# partition left as the refused values route it, shows in the draws that
+# follow; `moved` changes level instead
+naRows <- which(x1 > cut & f %in% c("a", "b"))[1:20]
 moved <- which(x1 <= cut & f == "a")[1L]
 codes <- cbind(x1 = x1, f = as.double(as.integer(f) - 1L))
 xMissing <- codes
-xMissing[naRows[1L], "f"] <- NA
+xMissing[naRows, "f"] <- NA
 fMoved <- codes[, "f"]
 fMoved[moved] <- 2
 fMissing <- fMoved
@@ -153,22 +182,31 @@ expect_identical(
 )
 expectTwin(sampler, twin)
 
-# two chains, the tree out of order in the second alone
-sampler <- make(list(holds, breaks))
-twin <- make(list(holds, breaks))
+# three trees a chain with the hand tree second, out of order in the second
+# chain alone: neither a chain's first tree nor the first chain shows it
+several <- function() make(list(holds, breaks), n.trees = 3L, at = 2L)
+sampler <- several()
+twin <- several()
 expect_identical(
   observe(sampler$setPredictor(xMissing, forceUpdate = FALSE)),
   outcome(FALSE)
 )
 expect_identical(leaves(sampler), c(holds, breaks))
 expectTwin(sampler, twin)
-# and row by row, where the first chain's tree alone would take the rows
 installed <- dbarts::updatePredictorPerObservationJointly(
-  list(make(list(holds, breaks))),
+  list(several()),
   fMissing,
   "f"
 )
 expect_identical(which(!installed), naRows)
+
+# a decreasing constraint, with the mirrored values
+sampler <- make(list(-breaks), direction = "decreasing")
+expect_false(sampler$setPredictor(xMissing, forceUpdate = FALSE))
+expect_identical(leaves(sampler), -breaks)
+sampler <- make(list(-holds), direction = "decreasing")
+expect_true(sampler$setPredictor(xMissing, forceUpdate = FALSE))
+expect_identical(leaves(sampler), -holds)
 
 # ---- the joint form: the rows bringing the value are declined ----
 
@@ -180,7 +218,7 @@ installed <- observe(
   dbarts::updatePredictorPerObservationJointly(list(sampler), fMissing, "f")
 )
 expect_identical(installed, outcome(!seq_len(n) %in% naRows))
-expect_identical(sampler$data@x$dense[[2L]], fMoved)
+expect_identical(heldCodes(sampler), fMoved)
 expect_true(all(
   dbarts::updatePredictorPerObservationJointly(list(twin), fMoved, "f")
 ))
@@ -195,8 +233,8 @@ installed <- dbarts::updatePredictorPerObservationJointly(
   "f"
 )
 expect_identical(which(!installed), naRows)
-expect_identical(plain$data@x$dense[[2L]], fMoved)
-expect_identical(sampler$data@x$dense[[2L]], fMoved)
+expect_identical(heldCodes(plain), fMoved)
+expect_identical(heldCodes(sampler), fMoved)
 
 # ---- proposing again: refused until the trees move ----
 
@@ -226,13 +264,13 @@ expect_identical(
   outcome(TRUE)
 )
 expect_identical(leaves(sampler), holds)
-expect_true(is.na(sampler$data@x[naRows[1L], "f"]))
+expect_identical(which(is.na(sampler$data@x[, "f"])), naRows)
 sampler <- make(list(holds))
 expect_true(all(
   dbarts::updatePredictorPerObservationJointly(list(sampler), fMissing, "f")
 ))
 expect_identical(leaves(sampler), holds)
-expect_identical(which(is.na(sampler$data@x$dense[[2L]])), naRows)
+expect_identical(which(is.na(heldCodes(sampler))), naRows)
 
 # a factor that holds a missing value from the start takes another
 dfMissing <- df
@@ -264,11 +302,15 @@ expect_identical(leaves(sampler), breaks)
 dfArrived <- df
 dfArrived$f[naRows[1L]] <- NA
 levelGrid <- expand.grid(x1 = x1Grid, f = factor(c(letters[1:4], NA)))
-completes <- function(call, value, onto = make()) {
+# `call` returns `value` invisibly and warns of nothing, the hand tree is
+# left with `numLeaves` leaves at zero, and a sweep later the fit is monotone
+# at every level, the missing one included where the factor holds one
+completes <- function(call, value, onto = make(), numLeaves = 4L) {
   expect_identical(observe(call(onto)), outcome(value, visible = FALSE))
-  expect_identical(leaves(onto), numeric(4L))
+  expect_identical(leaves(onto), numeric(numLeaves))
   invisible(onto$run(0L, 1L))
-  expect_true(maxDrop(onto, levelGrid) <= 1e-8)
+  grid <- levelGrid[numLeaves == 4L | !is.na(levelGrid$f), ]
+  expect_true(maxDrop(onto, grid) <= 1e-8)
 }
 completes(function(s) s$setPredictor(xMissing, forceUpdate = TRUE), TRUE)
 completes(function(s) s$setPredictor(xMissing), TRUE)
@@ -276,17 +318,62 @@ completes(
   function(s) s$setData(dbarts::dbartsData(y ~ x1 + f, dfArrived)),
   NULL
 )
+# a warm start from a donor on another cut grid, onto a sampler whose factor
+# holds a missing value: the route that maps the donor's rules onto the grid
+dfShifted <- dfArrived
+dfShifted$x1 <- 0.05 + 0.9 * x1
+onto <- dbarts::dbarts(
+  y ~ x1 + f,
+  dfShifted,
+  monotone = c(x1 = "increasing"),
+  control = controlOf(),
+  seed = 7L
+)
+onto$storeState()
+expect_false(identical(
+  attr(onto$state, "cutPoints"),
+  attr(make()$state, "cutPoints")
+))
+completes(function(s) s$installTrees(make()), NULL, onto)
+
+# a merge that leaves the tree out of order: with no row left in (high; a, b)
+# the high half becomes one leaf holding the value of (high; c, d), which
+# `breaks` puts below (low; a, b). Forced by column, and a state installed
+# over such predictors, which returns FALSE for the merge.
+fEmptied <- f
+fEmptied[x1 > cut & f %in% c("a", "b")] <- "c"
 completes(
-  function(s) s$installTrees(make()),
-  NULL,
+  function(s) s$setPredictor(fEmptied, "f", forceUpdate = TRUE),
+  TRUE,
+  numLeaves = 3L
+)
+emptied <- function() {
   dbarts::dbarts(
     y ~ x1 + f,
-    dfArrived,
+    data.frame(y, x1, f = fEmptied),
     monotone = c(x1 = "increasing"),
     control = controlOf(),
     seed = 7L
   )
+}
+completes(
+  function(s) s$setState(handState(s, list(breaks))),
+  FALSE,
+  emptied(),
+  numLeaves = 3L
 )
+# where the merged tree stays in order its values are kept
+sampler <- emptied()
+expect_false(sampler$setState(handState(sampler, list(holds))))
+expect_identical(leaves(sampler), holds[1:3])
+# setCutPoints completes in silence too: a grid without the x1 cut leaves
+# the tree a single leaf
+sampler <- make()
+expect_identical(
+  observe(sampler$setCutPoints(c(0.25, 0.75), "x1")),
+  outcome(NULL, visible = FALSE)
+)
+expect_identical(leaves(sampler), numeric())
 
 # by column and "partial" the factor is given as a factor, and its first
 # missing value is refused by name before the engine sees it, forced or not
@@ -302,68 +389,64 @@ for (force in list(FALSE, TRUE, "partial")) {
 }
 expectTwin(sampler, twin)
 
-# ---- a merge that leaves a tree out of order, on numeric predictors ----
+# ---- a factor of more than 63 levels that regains a missing value ----
 
-# x1 at 0.5; the low half splits x2 at 0.3 into J, K and the high half at 0.7
-# into S1, S2, with J and K below S1 and K below S2. Emptying S1 merges the
-# high half into one leaf with S2's value, which then sits below J.
-x2 <- runif(n)
-xNumeric <- cbind(x1 = x1, x2 = x2)
-numericSampler <- function(x) {
-  dbarts::dbarts(
-    x,
-    y,
-    monotone = c(x1 = "increasing"),
-    control = controlOf(),
-    seed = 3L
-  )
+# Such a factor's rules keep their side for a missing value while the column
+# has none, so a regained one can go right. Both rules here send it right:
+# the low half splits levels 1-35 | 36-70 and missing, the high half 36-70 |
+# 1-35 and missing. `crossed` is in order only while the two right-hand
+# leaves share no position.
+levels70 <- sprintf("L%02d", 1:70)
+h <- factor(levels70[rep(1:70, length.out = n)], levels = levels70)
+dfPooled <- data.frame(y, x1, h)
+dfPooled$h[which(x1 > 0.6 & as.integer(h) <= 35L)[1:2]] <- NA
+# the 128-bit level set of a rule as two words in the machine's byte order
+poolBytes <- function(levelCodes) {
+  set <- logical(128L)
+  set[levelCodes + 1L] <- TRUE
+  bytes <- packBits(set, "raw")
+  if (.Platform$endian == "big") bytes[c(matrix(16:1, 8L)[, 2:1])] else bytes
 }
-makeNumeric <- function() {
-  sampler <- numericSampler(xNumeric)
+installPooled <- function(sampler, values) {
   sampler$storeState()
   state <- sampler$state
-  cuts <- attr(state, "cutPoints")
-  at <- function(j, value) cuts[[j]][which.max(cuts[[j]] >= value)]
+  cuts <- attr(state, "cutPoints")[[1L]]
   forest <- state[[1L]]$forests[[1L]]
   forest$tree.vars <- c(1L, 2L, -1L, -1L, 2L, -1L, -1L)
-  forest$tree.values <- writeBin(
-    c(at(1L, 0.5), at(2L, 0.3), 0, -0.2, at(2L, 0.7), 0.01, -0.19),
-    raw()
+  forest$tree.values <- c(
+    writeBin(cuts[which.max(cuts >= 0.5)], raw()),
+    maskBytes(0L),
+    writeBin(values[1:2], raw()),
+    maskBytes(2L),
+    writeBin(values[3:4], raw())
   )
+  forest$tree.flags <- as.raw(c(2L, 7L, 0L, 0L, 7L, 0L, 0L))
   forest$tree.sizes <- 7L
-  forest$tree.flags <- as.raw(c(2L, 2L, 0L, 0L, 2L, 0L, 0L))
+  forest$tree.masks <- c(poolBytes(35:69), poolBytes(0:34))
   state[[1L]]$forests[[1L]] <- forest
-  stopifnot(isTRUE(sampler$setState(state)))
-  list(sampler = sampler, emptied = x1 > at(1L, 0.5) & x2 <= at(2L, 0.7))
+  sampler$setState(state)
 }
-built <- makeNumeric()
-sampler <- built$sampler
-xEmptied <- xNumeric
-xEmptied[built$emptied, "x2"] <- 0.9
-
-# unforced it is refused for the empty leaf; forced by column it resets
-expect_false(sampler$setPredictor(xEmptied[, "x2"], "x2"))
-expect_identical(
-  observe(sampler$setPredictor(xEmptied[, "x2"], "x2", forceUpdate = TRUE)),
-  outcome(TRUE, visible = FALSE)
+pooledCodes <- cbind(x1 = x1, h = as.double(as.integer(h) - 1L))
+sampler <- dbarts::dbarts(
+  y ~ x1 + h,
+  dfPooled,
+  monotone = c(x1 = "increasing"),
+  control = controlOf(),
+  seed = 7L
 )
-expect_identical(leaves(sampler), numeric(3L))
-
-# a setState that has to merge resets too, returning FALSE invisibly
-donor <- makeNumeric()$sampler
-donor$storeState()
-sampler <- numericSampler(xEmptied)
-expect_identical(
-  observe(sampler$setState(donor$state)),
-  outcome(FALSE, visible = FALSE)
+expect_true(installPooled(sampler, holds))
+# the column loses its missing values, and the values may then cross
+expect_true(sampler$setPredictor(pooledCodes, forceUpdate = FALSE))
+crossed <- c(-0.05, 0.05, 0.06, -0.04)
+expect_true(installPooled(sampler, crossed))
+xRegained <- pooledCodes
+regained <- which(x1 <= cut & as.integer(h) <= 35L)[1L]
+xRegained[regained, "h"] <- NA
+expect_false(sampler$setPredictor(xRegained, forceUpdate = FALSE))
+expect_identical(leaves(sampler), crossed)
+installed <- dbarts::updatePredictorPerObservationJointly(
+  list(sampler),
+  xRegained[, "h"],
+  "h"
 )
-expect_identical(leaves(sampler), numeric(3L))
-
-# setCutPoints completes in silence and leaves the fit in order
-sampler <- makeNumeric()$sampler
-expect_identical(
-  observe(sampler$setCutPoints(0.9, "x2")),
-  outcome(NULL, visible = FALSE)
-)
-numericGrid <- as.matrix(expand.grid(x1 = x1Grid, x2 = c(0.1, 0.5, 0.95)))
-expect_true(maxDrop(sampler, numericGrid) <= 1e-8)
+expect_identical(which(!installed), regained)
