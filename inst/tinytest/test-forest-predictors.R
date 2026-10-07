@@ -5,7 +5,8 @@
 # otherwise as the names or positions it gave where forest() was called, at
 # that moment. Block A: one unnamed argument. Block B: one selection, six
 # ways. Block C: what a selection refuses. Block D: a single forest. Block E:
-# a forest keeps the selection it was given at the call.
+# a forest keeps the selection it was given at the call. Block F: a predictor
+# is named by its label as the fit holds it, on a formula and on a matrix.
 
 forest <- dbartsForests$forest
 
@@ -152,8 +153,13 @@ expect_true(taken$vars$evaluated)
 expect_identical(taken$vars$value, c("x1", "x3"))
 expect_true(forest(NULL[1L])$vars$evaluated)
 expect_null(forest(NULL[1L])$vars$value)
-# taken quietly: a warning does not escape, and code that stops is code that
-# could not be evaluated, not an error of forest()'s
+# taken quietly: a warning does not escape at the call, where it is kept for
+# the fit that uses the value, and code that stops is code that could not be
+# evaluated, not an error of forest()'s
+expect_identical(
+  vapply(forest(as.integer("one"))$vars$warnings, conditionMessage, ""),
+  "NAs introduced by coercion"
+)
 expect_silent(forest(as.integer("one")))
 expect_silent(forest(log(-1) + heldAtCall))
 stopped <- forest(stop("not now"))
@@ -671,4 +677,241 @@ for (refused in list(
   list(quote(forest(I(x1), basis = ~z)), notPredictor("I(x1)"))
 )) {
   refusesSelection(bquote(list(forest(), .(refused[[1L]]))), refused[[2L]])
+}
+# what the evaluation at the call warned of is raised by the fit that uses
+# the value, once and as the caller's own; a fit that reads the code as terms
+# does not use the value and raises nothing
+warningsOf <- function(expr) {
+  raised <- character(0L)
+  withCallingHandlers(expr, warning = function(w) {
+    raised <<- c(raised, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  })
+  raised
+}
+careful <- function(names) {
+  warning("check these names")
+  names
+}
+warned <- NULL
+expect_identical(
+  warningsOf(warned <- list(forest(), forest(careful(wanted), basis = ~z))),
+  character(0L)
+)
+expect_identical(warningsOf(built(warned)), "check these names")
+usesValue <- NULL
+expect_identical(
+  warningsOf(usesValue <- built(warned)),
+  "check these names"
+)
+expect_identical(selected(usesValue), bothColumns)
+local({
+  # the caller's vectors of these names add with a warning; as terms they
+  # are the predictors, and the sum is never used
+  x1 <- 1:2
+  x3 <- 1:3
+  asTerms <- NULL
+  expect_identical(
+    warningsOf(asTerms <- list(forest(), forest(x1 + x3, basis = ~z))),
+    character(0L)
+  )
+  expect_identical(length(asTerms[[2L]]$vars$warnings), 1L)
+  expect_identical(warningsOf(built(asTerms)), character(0L))
+})
+
+# a selection is names or positions: a logical and a factor are refused, not
+# read through their codes, as the value of code and as a value handed over
+notSelection <- function(kind) {
+  paste0(
+    "forest()'s first argument is a ",
+    kind,
+    "; a selection is names or positions. A multiplier is given as 'basis ='"
+  )
+}
+codes <- factor(c("x3", "x1"))
+for (refused in list(
+  list(quote(forest(TRUE, basis = ~z)), "logical"),
+  list(quote(forest(c(TRUE, FALSE, TRUE), basis = ~z)), "logical"),
+  list(quote(forest(z == 1L, basis = ~z)), "logical"),
+  list(quote(do.call(forest, list(TRUE, basis = ~z))), "logical"),
+  list(quote(forest(codes, basis = ~z)), "factor"),
+  list(quote(forest(factor(c("x3", "x1")), basis = ~z)), "factor"),
+  list(quote(do.call(forest, list(vars = codes, basis = ~z))), "factor")
+)) {
+  refusesSelection(
+    bquote(list(forest(), .(refused[[1L]]))),
+    notSelection(refused[[2L]])
+  )
+}
+refusesSelection(quote(list(forest(TRUE))), notSelection("logical"))
+
+## --- Block F: a predictor is named by its label as the fit holds it ---------
+# The term label on a formula fit and the column name on a matrix fit,
+# written as code or as a backticked name. The arithmetic of '+', '-' and '.'
+# is on the columns, so a column whose name is itself a call or an operator
+# is not mistaken for that call, and a term that names no predictor is
+# refused wherever it stands.
+onDesign <- function(design, forests) {
+  eval(
+    bquote(dbarts(
+      .(design),
+      y,
+      forests = .(forests),
+      control = predictorControl()
+    )),
+    parent.frame()
+  )
+}
+calls <- cbind("log(x1)" = log(x[, 1L]), x2 = x[, 2L], "I(x3^2)" = x[, 3L]^2)
+crossedName <- cbind(x1 = x[, 1L], "x1:x2" = x[, 1L] * x[, 2L], x3 = x[, 3L])
+# in a formula a column's name is written backticked; a name with ':' in it
+# is no predictor of a formula fit at all, so the operator there is '*'
+namedFrame <- data.frame(y = y, x, crossed = crossedName[, 2L], z = z)
+names(namedFrame)[names(namedFrame) == "crossed"] <- "x1 * x2"
+labelled <- list(
+  # a column named like a call, removed as code and as a backticked name
+  list(calls, quote(. - log(x1)), 2:3),
+  list(calls, quote(. - `log(x1)`), 2:3),
+  list(calls, quote(. - I(x3^2)), 1:2),
+  list(calls, quote(log(x1) + I(x3^2)), c(1L, 3L)),
+  list(calls, quote(`log(x1)` + x2), 1:2),
+  # a column named like an operator on two others
+  list(crossedName, quote(. - x1:x2), c(1L, 3L)),
+  list(crossedName, quote(. - `x1:x2`), c(1L, 3L)),
+  list(crossedName, quote(x1:x2 + x3), 2:3),
+  # the same three on a formula fit, where the label is the term's
+  list(y ~ log(x1) + x2 + x3, quote(. - log(x1)), 2:3),
+  list(y ~ log(x1) + x2 + x3, quote(. - `log(x1)`), 2:3),
+  list(y ~ log(x1) + x2 + x3, quote(`log(x1)` + x3), c(1L, 3L)),
+  list(y ~ x1 + `x1 * x2` + x3, quote(. - x1 * x2), c(1L, 3L)),
+  list(y ~ x1 + `x1 * x2` + x3, quote(. - `x1 * x2`), c(1L, 3L)),
+  list(y ~ x1 + `x1 * x2` + x3, quote(x1 * x2 + x3), 2:3),
+  # terms in the order a model formula reads them, and a group
+  list(y ~ x1 + x2 + x3, quote(-x1 + .), 1:3),
+  list(y ~ x1 + x2 + x3, quote(. - x1 + x1), 1:3),
+  list(y ~ x1 + x2 + x3, quote(. - (x1 + x2)), 3L),
+  list(y ~ x1 + x2 + x3, quote(. - (. - x2)), 2L)
+)
+for (case in labelled) {
+  sampler <- if (inherits(case[[1L]], "formula")) {
+    eval(bquote(dbarts(
+      .(case[[1L]]),
+      namedFrame,
+      forests = list(forest(), forest(.(case[[2L]]), basis = ~z)),
+      control = predictorControl()
+    )))
+  } else {
+    onDesign(
+      case[[1L]],
+      bquote(list(forest(), forest(.(case[[2L]]), basis = ~z)))
+    )
+  }
+  expect_identical(
+    forestColumns(sampler),
+    list(NULL, case[[3L]]),
+    info = paste(
+      if (inherits(case[[1L]], "formula")) "formula" else "matrix",
+      deparse(case[[2L]])
+    )
+  )
+}
+# what names no predictor is refused, on a matrix as on a formula
+expect_error(
+  onDesign(calls, quote(list(forest(), forest(. - log(x9), basis = ~z)))),
+  "'log(x9)' is not a predictor of this fit (log(x1), x2, I(x3^2))",
+  fixed = TRUE
+)
+expect_error(
+  onDesign(calls, quote(list(forest(), forest(. - x1, basis = ~z)))),
+  "'x1' is not a predictor of this fit (log(x1), x2, I(x3^2))",
+  fixed = TRUE
+)
+expect_error(
+  onDesign(crossedName, quote(list(forest(), forest(. - x1:x3, basis = ~z)))),
+  "'x1:x3' is not a predictor of this fit (x1, x1:x2, x3)",
+  fixed = TRUE
+)
+
+# a column with no name is selected by position and is one of '.'; it is
+# never named
+unnamedOne <- x
+colnames(unnamedOne) <- c("x1", "", "x3")
+unnamedCases <- list(
+  list(quote(forest(basis = ~z, vars = c("x1", "x3"))), c(1L, 3L)),
+  list(quote(forest(wanted, basis = ~z)), c(1L, 3L)),
+  list(quote(forest(1:2, basis = ~z)), 1:2),
+  list(quote(forest(x1 + x3, basis = ~z)), c(1L, 3L)),
+  list(quote(forest(., basis = ~z)), 1:3),
+  list(quote(forest(. - x1, basis = ~z)), 2:3)
+)
+for (case in unnamedCases) {
+  expect_identical(
+    forestColumns(onDesign(unnamedOne, bquote(list(forest(), .(case[[1L]]))))),
+    list(NULL, case[[2L]]),
+    info = deparse(case[[1L]])
+  )
+}
+expect_identical(
+  attr(
+    onDesign(unnamedOne, quote(list(forest(vars = wanted))))$model,
+    "forest.columns"
+  ),
+  c(1L, 3L)
+)
+expect_error(
+  onDesign(unnamedOne, quote(list(forest(), forest(c("x1", ""), basis = ~z)))),
+  "forest()'s first argument has an empty name; a predictor with no name is",
+  fixed = TRUE
+)
+# with no column names at all, positions and '.'
+expect_identical(
+  forestColumns(onDesign(
+    unname(x),
+    quote(list(forest(), forest(., basis = ~z)))
+  )),
+  list(NULL, 1:3)
+)
+expect_identical(
+  forestColumns(onDesign(
+    unname(x),
+    quote(list(forest(), forest(c(1, 3), basis = ~z)))
+  )),
+  list(NULL, c(1L, 3L))
+)
+expect_error(
+  onDesign(unname(x), quote(list(forest(), forest(. - nosuch, basis = ~z)))),
+  "'nosuch' is not a predictor of this fit",
+  fixed = TRUE
+)
+
+# two columns with one name: '.' is every column, positions select either,
+# and the name, which cannot tell them apart, is refused
+twice <- x
+colnames(twice) <- c("x1", "x1", "x3")
+twiceCases <- list(
+  list(quote(forest(., basis = ~z)), 1:3),
+  list(quote(forest(. - x3, basis = ~z)), 1:2),
+  list(quote(forest(c(1, 2), basis = ~z)), 1:2),
+  list(quote(forest("x3", basis = ~z)), 3L),
+  list(quote(forest(x3, basis = ~z)), 3L)
+)
+for (case in twiceCases) {
+  expect_identical(
+    forestColumns(onDesign(twice, bquote(list(forest(), .(case[[1L]]))))),
+    list(NULL, case[[2L]]),
+    info = deparse(case[[1L]])
+  )
+}
+for (forests in list(
+  quote(list(forest(), forest(x1, basis = ~z))),
+  quote(list(forest(), forest(. - x1, basis = ~z))),
+  quote(list(forest(), forest(c("x1", "x3"), basis = ~z))),
+  quote(list(forest(), forest(basis = ~z, vars = "x1")))
+)) {
+  expect_error(
+    onDesign(twice, forests),
+    "'x1' is the name of 2 predictors of this fit; a name selects one",
+    fixed = TRUE,
+    info = deparse(forests)
+  )
 }

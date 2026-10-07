@@ -413,37 +413,148 @@ dotBrings <- fit(y ~ x1 + forest(. - z, basis = ~z), data = small)
 expect_identical(predictors(dotBrings), c("x1", "x2", "x3"))
 expect_identical(splitsOn(dotBrings), list("x1", c("x1", "x2", "x3")))
 
-# a removal at the top of the formula is the fit's, as - 1 is, wherever it
-# stands among the forests: no forest splits on the term
-removedAfter <- expectSameForest(
-  y ~ forest(.) + forest(x1, basis = ~z) - z,
-  y ~ . - z + forest(x1, basis = ~z),
-  data = small
+# The forest with no basis has the terms of one formula: the right-hand side
+# with that forest() replaced by its contents and every forest with a basis
+# deleted. So the forest written out and the same forest left as plain terms
+# are one model whatever stands beside them: a removal before, between or
+# after the forests takes its term from that forest alone, a forest with a
+# basis keeping its own.
+spellings <- list(
+  # between the forests, of a term the forest with a basis names
+  list(
+    y ~ forest(.) - x3 + forest(x3, basis = ~z),
+    y ~ . - x3 + forest(x3, basis = ~z),
+    list(c("x1", "x2", "z"), "x3"),
+    small
+  ),
+  list(
+    y ~ forest(x1 + x2) - x2 + forest(x2, basis = ~z),
+    y ~ x1 + x2 - x2 + forest(x2, basis = ~z),
+    list("x1", "x2"),
+    d
+  ),
+  # after the forests
+  list(
+    y ~ forest(.) + forest(x1, basis = ~z) - z,
+    y ~ . - z + forest(x1, basis = ~z),
+    list(c("x1", "x2", "x3"), "x1"),
+    small
+  ),
+  list(
+    y ~ . + forest(x1, basis = ~z) - z,
+    y ~ . - z + forest(x1, basis = ~z),
+    list(c("x1", "x2", "x3"), "x1"),
+    small
+  ),
+  # before them, where a model formula has nothing yet to remove it from
+  list(
+    y ~ -x2 + forest(x1 + x2) + forest(x1, basis = ~z),
+    y ~ -x2 + x1 + x2 + forest(x1, basis = ~z),
+    list(c("x1", "x2"), "x1"),
+    d
+  ),
+  # between two forests with a basis, each of which keeps its own terms
+  list(
+    y ~ forest(x1 + x2 + x3) +
+      forest(x1 + x3, basis = ~z) -
+      x3 +
+      forest(x3, basis = ~a),
+    y ~ x1 +
+      x2 +
+      x3 +
+      forest(x1 + x3, basis = ~z) -
+      x3 +
+      forest(x3, basis = ~a),
+    list(c("x1", "x2"), c("x1", "x3"), "x3"),
+    d
+  ),
+  # of a term nobody names, which is no predictor at all
+  list(
+    y ~ forest(x1 + x2) - b + forest(x1, basis = ~z),
+    y ~ x1 + x2 - b + forest(x1, basis = ~z),
+    list(c("x1", "x2"), "x1"),
+    d
+  ),
+  # of a column that is only a basis
+  list(
+    y ~ forest(x1 + x2) + forest(x1, basis = ~z) - z,
+    y ~ x1 + x2 + forest(x1, basis = ~z) - z,
+    list(c("x1", "x2"), "x1"),
+    d
+  ),
+  # of the one term a forest with a basis has: it is that forest's own
+  list(
+    y ~ forest(x1 + x2) + forest(x3, basis = ~z) - x3,
+    y ~ x1 + x2 + forest(x3, basis = ~z) - x3,
+    list(c("x1", "x2"), "x3"),
+    d
+  ),
+  # with the forest's predictors given by name
+  list(
+    y ~ forest(c("x1", "x2", "x3")) - x3 + forest(x3, basis = ~z),
+    y ~ x1 + x2 + x3 - x3 + forest(x3, basis = ~z),
+    list(c("x1", "x2"), "x3"),
+    d
+  ),
+  # and beside an intercept term and an offset
+  list(
+    y ~ forest(x1 + x2) - x2 + offset(o) + forest(x2, basis = ~z) - 1,
+    y ~ x1 + x2 - x2 + offset(o) + forest(x2, basis = ~z) - 1,
+    list("x1", "x2"),
+    d
+  )
 )
-expect_identical(predictors(removedAfter), c("x1", "x2", "x3"))
-expect_identical(splitsOn(removedAfter), list(c("x1", "x2", "x3"), "x1"))
+for (spelling in spellings) {
+  spelled <- expectSameForest(
+    spelling[[1L]],
+    spelling[[2L]],
+    data = spelling[[4L]]
+  )
+  expect_identical(
+    splitsOn(spelled),
+    spelling[[3L]],
+    info = deparse(spelling[[1L]])
+  )
+  expect_identical(
+    attr(storedTerms(spelled), "intercept"),
+    attr(storedTerms(fit(spelling[[2L]], data = spelling[[4L]])), "intercept"),
+    info = deparse(spelling[[1L]])
+  )
+}
+# what a removal names that no forest without a basis has changes nothing
 expectSameForest(
-  y ~ . + forest(x1, basis = ~z) - z,
-  y ~ . - z + forest(x1, basis = ~z),
-  data = small
+  y ~ forest(x1 + x2) + forest(x3, basis = ~z) - x3 - z - b,
+  y ~ x1 + x2 + forest(x3, basis = ~z)
 )
-removedFromBoth <- expectSameForest(
-  y ~ forest(x1 + x2 + x3) + forest(x1 + x3, basis = ~z) - x3,
-  y ~ x1 + x2 + forest(x1, basis = ~z)
-)
-expect_identical(splitsOn(removedFromBoth), list(c("x1", "x2"), "x1"))
+# alone too
 removedAlone <- fit(y ~ forest(x1 + x2) - x2)
 expect_identical(predictors(removedAlone), "x1")
 expect_identical(removedAlone$yhat.train, fit(y ~ x1)$yhat.train)
-# and a forest left with nothing is refused
+# a removal that leaves the forest with no basis nothing is refused by name,
+# in either spelling
 refuses(
-  y ~ x1 + x2 + forest(x3, basis = ~z) - x3,
+  y ~ forest(x1 + x2) - x1 - x2 + forest(x3, basis = ~z),
   paste0(
-    "'forest(x3, basis = ~z)': what the formula removes at its top leaves ",
-    "the forest no predictor to split on"
+    "'forest(x1 + x2)': what the formula removes beside it leaves the ",
+    "forest no predictor to split on"
   )
 )
-refuses(y ~ forest(x1) - x1, "the formula names no predictors")
+refuses(
+  y ~ forest(x1) - x1,
+  "'forest(x1)': what the formula removes beside it leaves the forest no"
+)
+refuses(
+  y ~ x1 + x2 - x1 - x2 + forest(x3, basis = ~z),
+  paste0(
+    "the formula removes every plain term it writes (x1 + x2), which ",
+    "leaves the forest with no multiplier no predictor to split on"
+  )
+)
+# plain terms that a removal takes away are still plain terms beside a forest
+refuses(
+  y ~ x1 + forest(x2) - x1 + forest(x3, basis = ~z),
+  "the formula has plain terms (x1) and a forest() with no basis"
+)
 
 # plain terms are stored as they are written, so a fit whose forests add no
 # term stores the terms of the same formula with no forest, and predict asks
@@ -749,19 +860,42 @@ reported <- function(result) {
 }
 for (family in names(families)) {
   response <- families[[family]]
-  alone <- fit(
-    stats::as.formula(paste(response, "~ forest(x1 + x2)")),
-    family = family,
-    data = familyData
-  )
   plainly <- fit(
     stats::as.formula(paste(response, "~ x1 + x2")),
     family = family,
     data = familyData
   )
-  expect_identical(class(alone), class(plainly), info = family)
-  expect_identical(reported(alone), reported(plainly), info = family)
-  expect_true(length(reported(alone)) > 3L, info = family)
+  expect_true(length(reported(plainly)) > 3L, info = family)
+  # its predictors written as terms, and given by name
+  for (written in c("forest(x1 + x2)", "forest(c(\"x1\", \"x2\"))")) {
+    alone <- fit(
+      stats::as.formula(paste(response, "~", written)),
+      family = family,
+      data = familyData
+    )
+    info <- paste(family, written)
+    expect_identical(class(alone), class(plainly), info = info)
+    expect_identical(reported(alone), reported(plainly), info = info)
+  }
+}
+# and nothing but that is: a multinomial fit reads its formula before a
+# forest could be declared, and must not read a multiplied forest, a second
+# forest or a forest with an argument of its own as plain terms
+for (formula in list(
+  ym ~ forest(x1 + x2, basis = ~z),
+  ym ~ forest(x1 + x2) + forest(x1, basis = ~z),
+  ym ~ forest(x1, basis = ~z) + forest(x1 + x2),
+  ym ~ x1 + x2 + forest(x1, basis = ~z),
+  ym ~ forest(x1 + x2, n.trees = 4L),
+  ym ~ forest(x1) + forest(x2)
+)) {
+  refuses(
+    formula,
+    "family = \"multinomial\" does not support a forest() formula term",
+    family = "multinomial",
+    data = familyData,
+    n.trees = NULL
+  )
 }
 
 # beside plain predictor terms it is refused, the plain terms named and never
@@ -972,8 +1106,17 @@ expect_error(
 )
 # the family matrix - refused at family resolution, naming the family
 termFormula <- y ~ x1 + x2 + forest(x1 + x2, basis = ~z)
+notDefined <- function(family, term = "forest(x1 + x2, basis = ~z)") {
+  paste0(
+    "family \"",
+    family,
+    "\" does not support a forest() formula term ('",
+    term,
+    "'): an amplitude-coupled fit is not defined for it"
+  )
+}
 for (family in c("hazard", "hazard.probit", "hazard.logistic")) {
-  refuses(termFormula, paste0("family \"", family, "\""), family = family)
+  refuses(termFormula, notDefined(family), family = family)
 }
 refuses(termFormula, "family = \"multinomial\"", family = "multinomial")
 refuses(
@@ -986,5 +1129,11 @@ refuses(
 # looked at
 refuses(termFormula, "'family' should be one of", family = "twopart")
 for (family in c("aft", "ordinal", "nbinom")) {
-  refuses(termFormula, paste0("family \"", family, "\""), family = family)
+  refuses(termFormula, notDefined(family), family = family)
+  # with the first forest written out it is the multiplied term that is named
+  refuses(
+    y ~ forest(x1 + x2) + forest(x1, basis = ~z),
+    notDefined(family, "forest(x1, basis = ~z)"),
+    family = family
+  )
 }

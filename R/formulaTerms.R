@@ -293,8 +293,8 @@ replaceForestTerms <- function(expr, replace) {
 ## it is refused by name. Returns NULL when no forest() is present anywhere,
 ## leaving the caller's formula untouched; otherwise the forest() calls in
 ## the order written, `rhs`, the right-hand side as written, and `plain`, the
-## right-hand side without them, NULL when nothing is left. A removal at the
-## top, after the forests or before, is the fit's: it stays in `plain`.
+## right-hand side without them, NULL when nothing is left. What is written
+## at the top beside the forests, a removal among it, stays in `plain`.
 ## `columnOf` gives a column by its name where the data are at hand, for the
 ## refusal of a crossed forest.
 walkFormulaTerms <- function(formula, columnOf = NULL) {
@@ -365,6 +365,34 @@ walkFormulaTerms <- function(formula, columnOf = NULL) {
     NULL
   })
   list(hits = hits, rhs = rhs, plain = plain)
+}
+
+## A right-hand side with what its top removes left out: the terms it
+## writes. NULL when it writes none.
+withoutRemovals <- function(expr) {
+  if (is.null(expr)) {
+    return(NULL)
+  }
+  if (isBinaryCall(expr, "-")) {
+    return(withoutRemovals(expr[[2L]]))
+  }
+  if (
+    is.call(expr) && identical(expr[[1L]], as.name("-")) && length(expr) == 2L
+  ) {
+    return(NULL)
+  }
+  if (isBinaryCall(expr, "+")) {
+    left <- withoutRemovals(expr[[2L]])
+    right <- withoutRemovals(expr[[3L]])
+    if (is.null(left)) {
+      return(right)
+    }
+    if (is.null(right)) {
+      return(left)
+    }
+    return(call("+", left, right))
+  }
+  expr
 }
 
 ## The terms of a right-hand side as R's own terms() reads them, '.' expanded
@@ -474,7 +502,8 @@ readForestTerms <- function(entry, response, data, env) {
           "",
           USE.NAMES = FALSE
         ),
-        columns = value[!isTerm]
+        columns = value[!isTerm],
+        named = TRUE
       ),
       class = "dbartsForestTerms"
     )
@@ -623,18 +652,30 @@ ingestFormulaTerms <- function(
     )
   }
 
-  # the plain terms: predictors are the forest with no multiplier; an
-  # offset() and an intercept term are the fit's and no forest's
-  plain <- if (is.null(walked$plain)) {
-    NULL
-  } else {
-    readRhsTerms(walked$plain, response, termData, formulaEnv)
+  termLabels <- function(vars) {
+    if (inherits(vars, "dbartsForestTerms")) vars$labels
   }
-  hasPlainForest <- length(plain$labels) > 0L
-  if (hasPlainForest && !all(multiplied)) {
+  joined <- function(terms) {
+    Reduce(function(left, right) call("+", left, right), terms)
+  }
+
+  # the plain terms the formula writes, whatever it then removes: predictor
+  # terms beside a forest() with no basis are two forests with no multiplier
+  written <- lapply(
+    written,
+    readForestTerms,
+    response = response,
+    data = termData,
+    env = formulaEnv
+  )
+  plainWritten <- withoutRemovals(walked$plain)
+  plainWritten <- if (!is.null(plainWritten)) {
+    readRhsTerms(plainWritten, response, termData, formulaEnv)$labels
+  }
+  if (length(plainWritten) > 0L && !all(multiplied)) {
     stop(
       "the formula has plain terms (",
-      paste(plain$labels, collapse = " + "),
+      paste(plainWritten, collapse = " + "),
       ") and a forest() with no basis ('",
       shownCode(written[[which(!multiplied)[1L]]]$call),
       "'): each is the forest with no multiplier, and a model has one. ",
@@ -651,75 +692,70 @@ ingestFormulaTerms <- function(
       call. = FALSE
     )
   }
-  written <- lapply(
-    written,
-    readForestTerms,
-    response = response,
-    data = termData,
-    env = formulaEnv
-  )
 
-  termLabels <- function(vars) {
-    if (inherits(vars, "dbartsForestTerms")) vars$labels
-  }
-
-  # the fit's terms: the right-hand side with every forest() replaced, where
-  # it stands, by its own terms. What is written at the top beside the
-  # forests is the fit's, so a removal there takes a term from every forest,
-  # and an offset() and an intercept term are read here and nowhere else
+  # The forest with no basis. Its terms are those of ONE formula, read by
+  # terms(): the right-hand side with that forest() replaced, where it
+  # stands, by its contents as a group of their own (the call tree keeps
+  # them one operand, as parentheses would) and every forest with a basis
+  # deleted. With the forest left as plain terms that formula is the plain
+  # terms themselves, so the two spellings of a model are one reading and
+  # agree whatever is written beside them: a removal before, between or after
+  # the forests takes its term from this forest and from no forest with a
+  # basis, whose terms are its own. The fit's offset() terms and intercept
+  # term are read here too.
   position <- 0L
-  full <- replaceForestTerms(walked$rhs, function(hit) {
+  reduced <- replaceForestTerms(walked$rhs, function(hit) {
     position <<- position + 1L
-    labels <- termLabels(written[[position]]$spec$vars)
-    if (length(labels) > 0L) {
-      call(
-        "(",
-        Reduce(
-          function(left, right) call("+", left, right),
-          lapply(labels, str2lang)
-        )
+    vars <- written[[position]]$spec$vars
+    if (multiplied[position] || length(termLabels(vars)) == 0L) {
+      NULL
+    } else if (isTRUE(vars$named)) {
+      joined(lapply(vars$labels, str2lang))
+    } else {
+      vars$expr
+    }
+  })
+  first <- if (!is.null(reduced)) {
+    readRhsTerms(reduced, response, termData, formulaEnv)
+  }
+  bare <- which(!multiplied)
+  bareTerms <- if (length(bare) == 1L) termLabels(written[[bare]]$spec$vars)
+  if (length(first$labels) == 0L) {
+    if (length(bareTerms) > 0L) {
+      stop(
+        "'",
+        shownCode(written[[bare]]$call),
+        "': what the formula removes beside it leaves the forest no ",
+        "predictor to split on",
+        call. = FALSE
       )
     }
-  })
-  fit <- if (is.null(full)) {
-    NULL
-  } else {
-    readRhsTerms(full, response, termData, formulaEnv)
-  }
-  if (length(fit$labels) == 0L) {
-    stop(
-      "the formula names no predictors: write them as plain terms or inside ",
-      "a forest(), as forest(x1 + x2)",
-      call. = FALSE
-    )
-  }
-  written <- lapply(written, function(entry) {
-    labels <- termLabels(entry$spec$vars)
-    if (length(labels) > 0L) {
-      kept <- labels[labels %in% fit$labels]
-      if (length(kept) == 0L) {
-        stop(
-          "'",
-          shownCode(entry$call),
-          "': what the formula removes at its top leaves the forest no ",
-          "predictor to split on",
-          call. = FALSE
-        )
-      }
-      entry$spec$vars$labels <- kept
+    if (length(plainWritten) > 0L) {
+      stop(
+        "the formula removes every plain term it writes (",
+        paste(plainWritten, collapse = " + "),
+        "), which leaves the forest with no multiplier no predictor to ",
+        "split on",
+        call. = FALSE
+      )
     }
-    entry
-  })
+  }
 
-  entries <- if (hasPlainForest) {
-    first <- forest()
-    first$vars <- structure(
-      list(expr = walked$plain, env = formulaEnv, labels = plain$labels),
+  entries <- if (length(bare) == 1L) {
+    if (length(bareTerms) > 0L) {
+      written[[bare]]$spec$vars$labels <- first$labels
+    }
+    c(written[bare], written[-bare])
+  } else if (length(first$labels) > 0L) {
+    plainForest <- forest()
+    plainForest$vars <- structure(
+      list(expr = reduced, env = formulaEnv, labels = first$labels),
       class = "dbartsForestTerms"
     )
-    c(list(list(call = NULL, spec = first)), written)
+    c(list(list(call = NULL, spec = plainForest)), written)
   } else {
-    c(written[!multiplied], written[multiplied])
+    # every forest has a basis: the order written
+    written
   }
   forests <- lapply(entries, function(entry) entry$spec)
 
@@ -728,23 +764,22 @@ ingestFormulaTerms <- function(
   labels <- unique(unlist(lapply(forests, function(spec) {
     termLabels(spec$vars)
   })))
-  # the fit's formula. Plain terms stay as they are written, so that a fit
-  # the terms of whose forests are all among them stores the terms it would
-  # with no forest() written, and predict asks of new rows what it asks then;
-  # the terms the other forests add follow. With no plain terms it is the
-  # fit's terms, its offset() terms and its intercept removal
-  rhs <- if (hasPlainForest) {
-    Reduce(
-      function(left, right) call("+", left, right),
-      c(list(walked$plain), lapply(setdiff(labels, plain$labels), str2lang))
+  if (length(labels) == 0L) {
+    stop(
+      "the formula names no predictors: write them as plain terms or inside ",
+      "a forest(), as forest(x1 + x2)",
+      call. = FALSE
     )
-  } else {
-    rhs <- Reduce(
-      function(left, right) call("+", left, right),
-      c(lapply(labels, str2lang), fit$offsets)
-    )
-    if (fit$noIntercept) call("-", rhs, 1) else rhs
   }
+  # the fit's formula: the formula the first forest was read from, as it is
+  # written, and after it the terms the forests with a basis add. A fit all
+  # of whose forests' terms are among its plain terms so stores the terms of
+  # the same formula with no forest() written, and predict asks of new rows
+  # what it asks then
+  rhs <- joined(c(
+    if (!is.null(reduced)) list(reduced),
+    lapply(setdiff(labels, first$labels), str2lang)
+  ))
   rewritten <- formula
   rewritten[[length(rewritten)]] <- rhs
 
@@ -881,10 +916,11 @@ finalizeTermForests <- function(forests, data) {
   forests
 }
 
-## A formula whose one forest() term states its predictors as terms and
-## nothing else, with those terms written in its place: the single-forest
-## formula it is, for a family that reads its formula before any forest could
-## be declared. NULL for every other formula.
+## A formula whose one forest() term states its predictors, as terms or as
+## names, and nothing else, with those predictors written in its place: the
+## single-forest formula it is, for a family that reads its formula before
+## any forest could be declared. NULL for every other formula, one with a
+## second forest() or with any other argument on the one among them.
 loneForestFormula <- function(formula) {
   walked <- tryCatch(walkFormulaTerms(formula), error = function(e) NULL)
   if (length(walked$hits) != 1L) {
@@ -894,14 +930,34 @@ loneForestFormula <- function(formula) {
   arguments <- tryCatch(forestCallArguments(hit), error = function(e) NULL)
   if (
     numUnnamed(as.list(hit)[-1L]) > 1L ||
-      !identical(names(arguments), "vars") ||
-      length(all.vars(arguments[["vars"]])) == 0L ||
-      writesInterceptTerm(arguments[["vars"]])
+      !identical(names(arguments), "vars")
   ) {
     return(NULL)
   }
+  contents <- arguments[["vars"]]
+  if (length(all.vars(contents)) == 0L) {
+    # names by value, each the term the name written out is
+    named <- tryCatch(
+      eval(contents, environment(formula)),
+      error = function(e) NULL
+    )
+    if (
+      !is.character(named) ||
+        length(named) == 0L ||
+        anyNA(named) ||
+        !all(nzchar(named))
+    ) {
+      return(NULL)
+    }
+    contents <- Reduce(
+      function(left, right) call("+", left, right),
+      lapply(named, as.name)
+    )
+  } else if (writesInterceptTerm(contents)) {
+    return(NULL)
+  }
   formula[[length(formula)]] <- replaceForestTerms(walked$rhs, function(hit) {
-    call("(", arguments[["vars"]])
+    contents
   })
   formula
 }
