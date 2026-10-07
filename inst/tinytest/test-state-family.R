@@ -1,10 +1,11 @@
-# A state records the response family of the sampler that stored it. setState,
-# copy and a reload refuse a state of another family, naming both, before
-# anything of the sampler is touched. A state with no record is judged by its
-# blocks, and a latent block of precisions holding a value that is not positive
-# and finite is refused whatever the record says. A warm start takes any
-# family's trees. The draws that follow a refusal are asked only of a sampler
-# that refused and still stores the state it had.
+# What a state of one response family meets in a sampler of another. A state
+# names no family and none is asked: setState, copy and a reload install a
+# state whose blocks fit the sampler, and what the sampler then holds of
+# another family's state is not promised. A latent block of precisions holding
+# a value that is not positive and finite is refused, which is every pair that
+# would leave fits that are not finite or a sweep that does not return. A warm
+# start takes any family's trees. The draws that follow a refusal are asked
+# only of a sampler that refused and still stores the state it had.
 
 student <- dbartsFamilies$student
 nbinom <- dbartsFamilies$nbinom
@@ -42,27 +43,8 @@ kinds <- list(
   probitTwo = list(binary, family = "probit", forests = twoForests),
   logisticTwo = list(binary, family = "logistic", forests = twoForests),
   monotone = list(continuous, family = "gaussian", monotone = c(x1 = 1)),
-  probitMonotone = list(binary, family = "probit", monotone = c(x1 = 1)),
-  aftVariance = list(
-    survival,
-    family = "aft",
-    variance = dbartsForests$varianceForest(n.trees = 3L)
-  )
+  probitMonotone = list(binary, family = "probit", monotone = c(x1 = 1))
 )
-eight <- names(kinds)[1:8]
-familyOf <- c(
-  setNames(eight, eight),
-  studentDrawn = "student",
-  nbinomFixed = "nbinom",
-  hazard = "probit",
-  hazardLogistic = "logistic",
-  probitTwo = "probit",
-  logisticTwo = "logistic",
-  monotone = "gaussian",
-  probitMonotone = "probit",
-  aftVariance = "aft"
-)
-
 make <- function(kind, seed = 72L, n.chains = 1L, active = NULL) {
   control <- dbartsControl(
     n.chains = n.chains,
@@ -116,67 +98,24 @@ refusal <- function(kind, state, info, ...) {
   message
 }
 plain <- "state is not consistent with this sampler"
-named <- function(state, own) {
-  sprintf(
-    paste0(
-      "%s: its family is \"%s\" and the sampler's is \"%s\"; ",
-      "to start one fit from another's trees use installTrees"
-    ),
-    plain,
-    state,
-    own
-  )
-}
-edited <- function(state, name, value) {
-  attr(state, name) <- value
-  state
-}
-unrecorded <- function(state) edited(state, "family", NULL)
-
 states <- lapply(setNames(nm = names(kinds)), function(kind) {
   stored(make(kind, 71L))
 })
 
-# --- what a state carries ---
-expect_identical(lapply(states, attr, "family"), as.list(familyOf))
-# a sampler of several chains stores the record too, and its state is refused
-# by another family under it
+# --- a state names no family ---
 severalChains <- stored(make("logistic", 71L, n.chains = 2L))
-expect_identical(attr(severalChains, "family"), "logistic")
-expect_identical(
-  refusal("probit", severalChains, "several chains", n.chains = 2L),
-  named("logistic", "probit")
-)
-
-# --- another family's state is refused by name, the sampler untouched ---
-pairs <- c(
-  unlist(
-    lapply(eight, function(own) {
-      lapply(setdiff(eight, own), c, own)
-    }),
-    recursive = FALSE
-  ),
-  list(c("hazard", "hazardLogistic"), c("hazardLogistic", "hazard")),
-  list(c("probitTwo", "logisticTwo"), c("logisticTwo", "probitTwo"))
-)
-expect_identical(length(pairs), 60L)
-for (pair in pairs) {
-  info <- paste(pair, collapse = " into ")
-  expect_identical(
-    refusal(pair[2L], states[[pair[1L]]], info),
-    named(familyOf[[pair[1L]]], familyOf[[pair[2L]]]),
-    info = info
-  )
+for (state in c(states, list(severalChains))) {
+  expect_null(attr(state, "family"))
 }
-
-# and as that whatever else of what is read after the record differs
-for (name in c("weights.digest", "survival.digest", "cutPoints")) {
-  state <- edited(states$probit, name, 1)
-  expect_identical(
-    refusal("student", state, name),
-    named("probit", "student"),
-    info = name
-  )
+# and an attribute of that name is not read, whatever it holds: the state
+# installs as the one without it does
+for (value in list("student", "probit", 3)) {
+  labelled <- states$student
+  attr(labelled, "family") <- value
+  with <- make("student")
+  without <- make("student")
+  expect_identical(with$setState(labelled), without$setState(states$student))
+  expect_identical(with$run(0L, 3L), without$run(0L, 3L))
 }
 
 # --- one family, another setting: the state installs ---
@@ -200,69 +139,40 @@ for (pair in list(
   expect_identical(chain(stored(sampler)), chain(state), info = info)
   expect_true(finite(sampler), info = info)
 }
-# a plain state into a monotone sampler is judged by its leaf values
-for (kind in c("gaussian", "probit")) {
-  target <- if (kind == "gaussian") "monotone" else "probitMonotone"
-  message <- refusal(target, states[[kind]], paste(kind, "into", target))
-  expect_false(grepl("family", message, fixed = TRUE), info = kind)
-}
 
-# --- a state from before the record: judged by its blocks ---
-for (kind in names(kinds)) {
-  with <- make(kind)
-  without <- make(kind)
-  expect_identical(
-    without$setState(unrecorded(states[[kind]])),
-    with$setState(states[[kind]]),
-    info = kind
-  )
-  expect_identical(without$run(0L, 3L), with$run(0L, 3L), info = kind)
-}
+# --- latent responses offered as precisions ---
+# a block of precisions is taken from any family that holds one
 logistic <- make("logistic")
-logistic$setState(unrecorded(states$student))
+logistic$setState(states$student)
 expect_true(finite(logistic))
-# latent responses offered as precisions: the pairs that broke the sampler
+# Every pair here whose state has real-valued latents where the sampler holds
+# Student-t scales or Polya-Gamma variates and fits the sampler otherwise:
+# installed, such a block leaves fits that are not finite or a sweep that does
+# not return. Each is refused, and for those values alone: the same state with
+# its latents made positive installs.
 for (pair in list(
   c("probit", "student"),
   c("ordinal", "student"),
   c("aft", "student"),
+  c("probitMonotone", "student"),
+  c("probit", "studentDrawn"),
+  c("ordinal", "studentDrawn"),
+  c("aft", "studentDrawn"),
+  c("probitMonotone", "studentDrawn"),
   c("probit", "logistic"),
   c("ordinal", "logistic"),
   c("aft", "logistic"),
-  c("aft", "nbinom")
+  c("probitMonotone", "logistic"),
+  c("aft", "nbinom"),
+  c("hazard", "hazardLogistic"),
+  c("probitTwo", "logisticTwo")
 )) {
   info <- paste(pair, collapse = " into ")
-  expect_true(any(states[[pair[1L]]][[1L]]$latents <= 0), info = info)
-  message <- refusal(pair[2L], unrecorded(states[[pair[1L]]]), info)
-  expect_identical(message, plain, info = info)
-}
-
-# --- malformed records ---
-for (value in list(3, c("student", "student"), NA_character_, as.raw(1L))) {
-  state <- edited(states$student, "family", value)
-  expect_identical(
-    refusal("student", state, "malformed"),
-    "malformed family in bartcore state"
-  )
-}
-# A name no family has is refused by that name, compared whole. It is printed
-# up to its first byte outside printable ASCII and to 32 bytes, with dots where
-# it was cut, so the message is valid text whatever the name holds.
-accented <- "\u00e9t\u00e9"
-for (name in list(
-  c("", ""),
-  c("Student", "Student"),
-  c("student ", "student "),
-  c("studentX", "studentX"),
-  c(strrep("x", 500L), paste0(strrep("x", 32L), "...")),
-  c(paste0(strrep("a", 31L), accented), paste0(strrep("a", 31L), "...")),
-  c(paste0("student", accented), "student..."),
-  c(iconv(accented, "UTF-8", "latin1"), "...")
-)) {
-  state <- edited(states$student, "family", name[1L])
-  message <- refusal("student", state, name[2L])
-  expect_identical(message, named(name[2L], "student"), info = name[2L])
-  expect_true(validUTF8(message), info = name[2L])
+  state <- states[[pair[1L]]]
+  expect_true(any(state[[1L]]$latents <= 0), info = info)
+  expect_identical(refusal(pair[2L], state, info), plain, info = info)
+  state[[1L]]$latents <- abs(state[[1L]]$latents) + 1
+  expect_identical(refusal(pair[2L], state, info), NA_character_, info = info)
 }
 
 # --- a latent block edited by hand ---
@@ -282,14 +192,16 @@ for (value in c(0, -1, NaN, Inf)) {
   expect_true(probit$setState(state), info = paste("probit", value))
   expect_identical(stored(probit)[[1L]]$latents, state[[1L]]$latents)
 }
-# every chain is asked, the last included, with the record or without
-for (state in list(severalChains, unrecorded(severalChains))) {
-  state <- withLatent(state, -1, chain = 2L)
-  expect_identical(
-    refusal("logistic", state, "last chain", n.chains = 2L),
-    plain
-  )
-}
+# every chain is asked, the last included
+expect_identical(
+  refusal(
+    "logistic",
+    withLatent(severalChains, -1, chain = 2L),
+    "last chain",
+    n.chains = 2L
+  ),
+  plain
+)
 # Every row is asked, a row the mask has out included: a variate that is not
 # positive there would leave the sampler's next sweep without return. The
 # install is refused before the engine sweeps, and the draws that follow are
@@ -309,11 +221,10 @@ for (value in c(0, -1)) {
 original <- make("student")
 twin <- make("student")
 original$state <- states$probit
-refused <- named("probit", "student")
-expect_error(original$copy(), refused, fixed = TRUE)
+expect_error(original$copy(), plain, fixed = TRUE)
 reloaded <- unserialize(serialize(original, NULL))
-expect_error(reloaded$run(0L, 1L), refused, fixed = TRUE)
-expect_error(reloaded$run(0L, 1L), refused, fixed = TRUE)
+expect_error(reloaded$run(0L, 1L), plain, fixed = TRUE)
+expect_error(reloaded$run(0L, 1L), plain, fixed = TRUE)
 reloaded$state <- states$student
 expect_true(finite(reloaded))
 expect_identical(original$run(0L, 3L), twin$run(0L, 3L))
@@ -324,17 +235,11 @@ spliced[[2L]] <- stored(make("logistic", 82L))[[1L]]
 both <- make("logistic", n.chains = 2L)
 expect_true(both$setState(spliced))
 expect_true(finite(both))
-expect_identical(
-  refusal("probit", spliced, "spliced", n.chains = 2L),
-  named("logistic", "probit")
-)
 
-# --- a warm start reads no record and no latents ---
-for (state in list(states$probit, unrecorded(states$probit))) {
-  warm <- make("student")
-  warm$installTrees(state)
-  taken <- stored(warm)[[1L]]$forests[[1L]]
-  expect_identical(taken$tree.vars, state[[1L]]$forests[[1L]]$tree.vars)
-  expect_true(all(stored(warm)[[1L]]$latents > 0))
-  expect_true(finite(warm))
-}
+# --- a warm start reads no latents ---
+warm <- make("student")
+warm$installTrees(states$probit)
+taken <- stored(warm)[[1L]]$forests[[1L]]
+expect_identical(taken$tree.vars, states$probit[[1L]]$forests[[1L]]$tree.vars)
+expect_true(all(stored(warm)[[1L]]$latents > 0))
+expect_true(finite(warm))

@@ -244,15 +244,10 @@ drawnAlpha$setState(alphaState)
 expect_identical(stored(drawnAlpha)[[1L]]$dart.alpha, 0.25)
 
 # a gaussian state leaves a probit sampler's sigma, pinned at 1, where it is
-# (the sampler "binomial" builds is logistic). The state goes in without its
-# family record, as one stored before the record existed: with it, a state of
-# another family is refused
 yb <- as.double(y > median(y))
-binary <- make(response = yb, family = "binomial")
-unrecorded <- stored(make())
-attr(unrecorded, "family") <- NULL
-binary$setState(unrecorded)
-expect_identical(unname(binary$getSigmas()), c(1, 1))
+probit <- make(response = yb, family = "binomial")
+probit$setState(stored(make()))
+expect_identical(unname(probit$getSigmas()), c(1, 1))
 
 # --- a state from one model under another: the recipient's reader stands ---
 underAnother <- function(label, recipientArgs, donorArgs) {
