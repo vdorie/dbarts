@@ -260,14 +260,16 @@ isBinaryCall <- function(expr, operators) {
 ## The top of a right-hand side with each forest() term replaced by what
 ## `replace` gives for it, in the order written, or dropped where that is
 ## NULL. Everything else stays as written, a removal after the forests among
-## it. NULL when nothing is left.
-replaceForestTerms <- function(expr, replace) {
+## it, and is shown to `other` first, piece by piece: a piece is whatever the
+## walk does not enter, which is where a forest() that is no term of the top
+## '+' chain lies. NULL when nothing is left.
+replaceForestTerms <- function(expr, replace, other = identity) {
   if (isForestCall(expr)) {
     return(replace(expr))
   }
   if (isBinaryCall(expr, "+")) {
-    left <- replaceForestTerms(expr[[2L]], replace)
-    right <- replaceForestTerms(expr[[3L]], replace)
+    left <- replaceForestTerms(expr[[2L]], replace, other)
+    right <- replaceForestTerms(expr[[3L]], replace, other)
     if (is.null(left)) {
       return(right)
     }
@@ -277,13 +279,13 @@ replaceForestTerms <- function(expr, replace) {
     return(call("+", left, right))
   }
   if (isBinaryCall(expr, "-") && !containsForestCall(expr[[3L]])) {
-    left <- replaceForestTerms(expr[[2L]], replace)
+    left <- replaceForestTerms(expr[[2L]], replace, other)
     if (is.null(left)) {
       return(call("-", expr[[3L]]))
     }
     return(call("-", left, expr[[3L]]))
   }
-  expr
+  other(expr)
 }
 
 ## Walks 'formula' for forest() terms. A forest() is a term of the right-hand
@@ -331,22 +333,6 @@ walkFormulaTerms <- function(formula, columnOf = NULL) {
     }
     invisible(NULL)
   }
-  # every forest() that is not a term of the top '+' chain
-  refuseBuried <- function(expr) {
-    if (isForestCall(expr)) {
-      return(invisible(NULL))
-    }
-    if (isBinaryCall(expr, "+")) {
-      refuseBuried(expr[[2L]])
-      refuseBuried(expr[[3L]])
-    } else if (isBinaryCall(expr, "-") && !containsForestCall(expr[[3L]])) {
-      refuseBuried(expr[[2L]])
-    } else if (containsForestCall(expr)) {
-      refuseInside(expr)
-    }
-    invisible(NULL)
-  }
-
   hasResponse <- length(formula) == 3L
   lhs <- if (hasResponse) formula[[2L]] else NULL
   rhs <- if (hasResponse) formula[[3L]] else formula[[2L]]
@@ -359,12 +345,40 @@ walkFormulaTerms <- function(formula, columnOf = NULL) {
     )
   }
   refuseCrossed(rhs)
-  refuseBuried(rhs)
+  # every forest() that is not a term of the top '+' chain is refused, before
+  # any is taken
+  replaceForestTerms(rhs, identity, function(piece) {
+    if (containsForestCall(piece)) {
+      refuseInside(piece)
+    }
+    piece
+  })
   plain <- replaceForestTerms(rhs, function(hit) {
     hits[[length(hits) + 1L]] <<- hit
     NULL
   })
   list(hits = hits, rhs = rhs, plain = plain)
+}
+
+## The pieces the top of a right-hand side adds and takes away, in the order
+## written, each list(piece = , removed = ): '+' joins pieces, and what a
+## binary or a unary '-' takes away is one removed piece, whatever it holds.
+topPieces <- function(expr) {
+  if (isBinaryCall(expr, "+")) {
+    return(c(topPieces(expr[[2L]]), topPieces(expr[[3L]])))
+  }
+  if (isBinaryCall(expr, "-")) {
+    return(c(
+      topPieces(expr[[2L]]),
+      list(list(piece = expr[[3L]], removed = TRUE))
+    ))
+  }
+  if (
+    is.call(expr) && identical(expr[[1L]], as.name("-")) && length(expr) == 2L
+  ) {
+    return(list(list(piece = expr[[2L]], removed = TRUE)))
+  }
+  list(list(piece = expr, removed = FALSE))
 }
 
 ## A right-hand side with what its top removes left out: the terms it
@@ -373,26 +387,14 @@ withoutRemovals <- function(expr) {
   if (is.null(expr)) {
     return(NULL)
   }
-  if (isBinaryCall(expr, "-")) {
-    return(withoutRemovals(expr[[2L]]))
-  }
-  if (
-    is.call(expr) && identical(expr[[1L]], as.name("-")) && length(expr) == 2L
-  ) {
+  kept <- Filter(function(entry) !entry$removed, topPieces(expr))
+  if (length(kept) == 0L) {
     return(NULL)
   }
-  if (isBinaryCall(expr, "+")) {
-    left <- withoutRemovals(expr[[2L]])
-    right <- withoutRemovals(expr[[3L]])
-    if (is.null(left)) {
-      return(right)
-    }
-    if (is.null(right)) {
-      return(left)
-    }
-    return(call("+", left, right))
-  }
-  expr
+  Reduce(
+    function(left, right) call("+", left, right),
+    lapply(kept, function(entry) entry$piece)
+  )
 }
 
 ## Whether the top of a right-hand side removes a term: a '-' on anything but
@@ -404,18 +406,11 @@ removesTerms <- function(expr) {
   isTerm <- function(removed) {
     !(is.numeric(removed) && length(removed) == 1L && removed %in% c(0, 1))
   }
-  if (isBinaryCall(expr, "-")) {
-    return(isTerm(expr[[3L]]) || removesTerms(expr[[2L]]))
-  }
-  if (
-    is.call(expr) && identical(expr[[1L]], as.name("-")) && length(expr) == 2L
-  ) {
-    return(isTerm(expr[[2L]]))
-  }
-  if (isBinaryCall(expr, "+")) {
-    return(removesTerms(expr[[2L]]) || removesTerms(expr[[3L]]))
-  }
-  FALSE
+  any(vapply(
+    topPieces(expr),
+    function(entry) entry$removed && isTerm(entry$piece),
+    NA
+  ))
 }
 
 ## The terms of a right-hand side as R's own terms() reads them, '.' expanded
@@ -515,20 +510,17 @@ readForestTerms <- function(entry, response, data, env) {
     } else {
       value %in% names(data)
     }
-    structure(
-      list(
-        expr = expr,
-        env = env,
-        labels = vapply(
-          value[isTerm],
-          function(name) deparse(as.name(name), backtick = TRUE),
-          "",
-          USE.NAMES = FALSE
-        ),
-        columns = value[!isTerm],
-        named = TRUE
+    forestFormulaTerms(
+      expr,
+      env,
+      labels = vapply(
+        value[isTerm],
+        function(name) deparse(as.name(name), backtick = TRUE),
+        "",
+        USE.NAMES = FALSE
       ),
-      class = "dbartsForestTerms"
+      columns = value[!isTerm],
+      named = TRUE
     )
   }
   refusePosition <- function() {
@@ -610,15 +602,13 @@ readForestTerms <- function(entry, response, data, env) {
       call. = FALSE
     )
   }
-  entry$spec$vars$labels <- read$labels
+  entry$spec$vars <- forestFormulaTerms(expr, vars$env, read$labels)
   entry
 }
 
 ## Phase 1, from the formula and its environment: walk, refuse, read every
-## forest's terms, rebuild the fit's own formula from them, and evaluate
-## every basis against a model frame built from the SAME data and subset the
-## fit itself uses (post-subset - the ambiguity a basis evaluated against
-## raw, pre-subset data would otherwise carry). NULL when 'formula' has no
+## forest's terms, rebuild the fit's own formula from them, and build every
+## basis (ingestFormulaBases). NULL when 'formula' has no
 ## forest() term, leaving the caller's formula handling untouched. 'family'
 ## is checked against the multiplier-incompatible set here, for a formula
 ## with a multiplied forest, at the point each entry point has just resolved
@@ -676,7 +666,7 @@ ingestFormulaTerms <- function(
   }
 
   termLabels <- function(vars) {
-    if (inherits(vars, "dbartsForestTerms")) vars$labels
+    if (inherits(vars, "dbartsFormulaTerms")) vars$labels
   }
   joined <- function(terms) {
     Reduce(function(left, right) call("+", left, right), terms)
@@ -742,18 +732,15 @@ ingestFormulaTerms <- function(
         termLabels(entry$spec$vars)
       })))
       if (length(others) > 0L) {
-        written[[bare]]$spec$vars <- structure(
-          list(
-            expr = quote(.),
-            env = formulaEnv,
-            labels = others,
-            named = TRUE
-          ),
-          class = "dbartsForestTerms"
+        written[[bare]]$spec$vars <- forestFormulaTerms(
+          quote(.),
+          formulaEnv,
+          labels = others,
+          named = TRUE
         )
       }
     } else if (
-      inherits(bareVars, "dbartsForestTerms") &&
+      inherits(bareVars, "dbartsFormulaTerms") &&
         length(bareVars$columns) > 0L &&
         removesTerms(walked$plain)
     ) {
@@ -813,10 +800,7 @@ ingestFormulaTerms <- function(
     c(written[bare], written[-bare])
   } else if (length(first$labels) > 0L) {
     plainForest <- forest()
-    plainForest$vars <- structure(
-      list(expr = reduced, env = formulaEnv, labels = first$labels),
-      class = "dbartsForestTerms"
-    )
+    plainForest$vars <- forestFormulaTerms(reduced, formulaEnv, first$labels)
     c(list(list(call = NULL, spec = plainForest)), written)
   } else {
     # every forest has a basis: the order written
@@ -848,6 +832,33 @@ ingestFormulaTerms <- function(
   rewritten <- formula
   rewritten[[length(rewritten)]] <- rhs
 
+  c(
+    list(formula = rewritten, forests = forests),
+    ingestFormulaBases(
+      forests,
+      formulaEnv,
+      data,
+      subsetMissing,
+      subsetExpr,
+      evalEnv
+    )
+  )
+}
+
+## The bases of a formula's forests, in the forests' order: every basis
+## evaluated against a model frame built from the SAME data and subset the fit
+## itself uses (post-subset - the ambiguity a basis evaluated against raw,
+## pre-subset data would otherwise carry), expanded to `bases`, and
+## `basisTerms`, what a blend at new rows needs to build each again. Both are
+## positional against `forests`.
+ingestFormulaBases <- function(
+  forests,
+  formulaEnv,
+  data,
+  subsetMissing,
+  subsetExpr,
+  evalEnv
+) {
   declared <- lapply(forests, function(spec) spec$basis)
   basisVars <- unique(unlist(lapply(declared, function(basis) {
     if (inherits(basis, "formula")) {
@@ -924,12 +935,7 @@ ingestFormulaTerms <- function(
     )
   })
 
-  list(
-    formula = rewritten,
-    forests = forests,
-    bases = bases,
-    basisTerms = basisTerms
-  )
+  list(bases = bases, basisTerms = basisTerms)
 }
 
 ## The call that rebuilds a basis expression at new rows. model.frame gives

@@ -560,7 +560,8 @@ reader's sake; the implementer may name them otherwise.
     [`resolveForestVars`](../../R/model.R) by which fields are present. One constructor per state (a
     value handed over; code with its value at the call; a formula's terms) and one function that takes
     the value at the call, used by both arguments. (b) [`resolveTermColumns`](../../R/model.R) and
-    [`labelColumns`](../../R/model.R) now share the term-to-columns reading; merge what is left of the
+    retired: [`labelColumns`](../../R/model.R), which this step merges into it and which is gone, now
+    share the term-to-columns reading; merge what is left of the
     two (their rules for a shared name and for a backticked label still differ). (c) Split
     [`ingestFormulaTerms`](../../R/formulaTerms.R) where the forests of a formula end and the bases of a
     formula begin (the model frame, levels and predict calls), which push 3 replaces whole. Smaller:
@@ -923,8 +924,9 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
     removal. Plain terms that a removal takes away are still plain terms beside a `forest()` with no
     basis, and refused as two.
   - In a list the arithmetic of `+`, `-` and `.` is done on the design's columns, a term naming a
-    predictor by its label as the fit holds it ([`readSelectionTerms`](../../R/model.R),
-    [`labelColumns`](../../R/model.R)). The first round let `terms()` do it over the fit's terms written
+    predictor by its label as the fit holds it ([`readSelectionTerms`](../../R/model.R); the label's
+    reader was retired: [`labelColumns`](../../R/model.R), gone since push 3 merged it into
+    [`resolveTermColumns`](../../R/model.R)). The first round let `terms()` do it over the fit's terms written
     out as code, which checked a removal by text and then left a column NAMED `log(x1)` or `x1:x2` in,
     R telling a name from a call, and stopped on an empty column name. A term that names no predictor
     is refused wherever it stands, so `x1 + 2` is "'2' is not a predictor" and no longer R's own error.

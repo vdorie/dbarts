@@ -732,28 +732,70 @@ termColumnBlocks <- function(columnNames, termLabels) {
 ## integer(0), not NULL. columnNames may be NULL. Names that are no design in
 ## its terms' order have no layout to read, and there a term's columns are
 ## those named for it.
-resolveTermColumns <- function(name, columnNames, termLabels) {
-  exact <- which(columnNames == name)
-  if (name %in% termLabels) {
+##
+## `asCode` is for a name a caller wrote as code: an empty one names nothing,
+## and one that is no label and no column as it stands is also matched as R
+## writes the same code out. `refuseShared` refuses a name that two columns
+## carry, which cannot tell them apart; without it the first is taken.
+resolveTermColumns <- function(
+  name,
+  columnNames,
+  termLabels,
+  asCode = FALSE,
+  refuseShared = FALSE
+) {
+  if (asCode && !nzchar(name)) {
+    return(NULL)
+  }
+  written <- function(names) {
+    vapply(
+      names,
+      function(name) {
+        tryCatch(
+          paste(deparse(str2lang(name), width.cutoff = 500L), collapse = " "),
+          error = function(e) name
+        )
+      },
+      "",
+      USE.NAMES = FALSE
+    )
+  }
+  term <- match(name, termLabels)
+  if (asCode && is.na(term) && !any(columnNames == name)) {
+    term <- match(name, written(termLabels))
+  }
+  if (!is.na(term)) {
+    label <- termLabels[term]
+    exact <- which(columnNames == label)
     # one column of that name, and none that could be another of the term's
     if (
-      length(exact) == 1L && !any(startsWith(columnNames, paste0(name, ".")))
+      length(exact) == 1L && !any(startsWith(columnNames, paste0(label, ".")))
     ) {
       return(exact)
     }
     blocks <- termColumnBlocks(columnNames, termLabels)
     if (!is.null(blocks)) {
-      return(blocks[[match(name, termLabels)]])
+      return(blocks[[match(label, termLabels)]])
     }
     if (length(exact) > 0L) {
       return(exact[1L])
     }
-    return(which(startsWith(columnNames, paste0(name, "."))))
+    return(which(startsWith(columnNames, paste0(label, "."))))
   }
-  if (length(exact) > 0L) {
-    return(exact[1L])
+  columns <- which(columnNames == name)
+  if (asCode && length(columns) == 0L) {
+    columns <- which(nzchar(columnNames) & written(columnNames) == name)
   }
-  NULL
+  if (length(columns) == 0L) {
+    return(NULL)
+  }
+  if (length(columns) > 1L) {
+    if (refuseShared) {
+      refuseSharedName(name, length(columns))
+    }
+    return(columns[1L])
+  }
+  columns
 }
 
 ## Resolve an interactions()/blocks() column selector -- a character vector of
@@ -1003,46 +1045,6 @@ refuseHeldFormula <- function(expr) {
   )
 }
 
-## The design columns a label names: a predictor by its label exactly as the
-## fit holds it, the term label on a formula fit (every column the term
-## produced, resolveTermColumns) and the column name on a matrix fit, or else
-## as R writes the same code out. NULL when it names none; a name that two
-## columns carry cannot tell them apart and is refused, positions being what
-## selects them.
-labelColumns <- function(label, columnNames, termLabels) {
-  if (!nzchar(label)) {
-    return(NULL)
-  }
-  written <- function(names) {
-    vapply(
-      names,
-      function(name) {
-        tryCatch(
-          paste(deparse(str2lang(name), width.cutoff = 500L), collapse = " "),
-          error = function(e) name
-        )
-      },
-      "",
-      USE.NAMES = FALSE
-    )
-  }
-  term <- match(label, termLabels)
-  if (is.na(term) && !any(columnNames == label)) {
-    term <- match(label, written(termLabels))
-  }
-  if (!is.na(term)) {
-    return(resolveTermColumns(termLabels[term], columnNames, termLabels))
-  }
-  columns <- which(columnNames == label)
-  if (length(columns) == 0L) {
-    columns <- which(nzchar(columnNames) & written(columnNames) == label)
-  }
-  if (length(columns) > 1L) {
-    refuseSharedName(label, length(columns))
-  }
-  if (length(columns) == 0L) NULL else columns
-}
-
 ## A name that several columns carry selects none of them.
 refuseSharedName <- function(name, count) {
   stop(
@@ -1060,8 +1062,9 @@ refuseSharedName <- function(name, count) {
 ## is read as terms over the fit's predictors: '+' adds a term, '-' removes
 ## one, parentheses group, and '.' is every column of the design, in the
 ## order written, as a model formula reads them. A term names a predictor by
-## its label as the fit holds it, written as code or as a backticked name
-## (labelColumns); one that names none is refused, added or removed alike,
+## its label as the fit holds it, the term label on a formula fit and the
+## column name on a matrix fit, written as code or as a backticked name
+## (resolveTermColumns); one that names none is refused, added or removed alike,
 ## where a model formula would pass a removal by. The arithmetic is on
 ## columns, not on R's reading of the code, so that a column whose name is
 ## itself a call or an operator is told from that call, and a column with no
@@ -1106,7 +1109,13 @@ readSelectionTerms <- function(expr, data, refuseUnknown) {
     } else {
       paste(deparse(e, width.cutoff = 500L), collapse = " ")
     }
-    columns <- labelColumns(label, columnNames, termLabels)
+    columns <- resolveTermColumns(
+      label,
+      columnNames,
+      termLabels,
+      asCode = TRUE,
+      refuseShared = TRUE
+    )
     if (is.null(columns)) {
       refuseUnknown(label)
     }
@@ -1188,7 +1197,7 @@ resolveForestVars <- function(vars, data, allIsNull = FALSE) {
   if (inherits(vars, "dbartsForestTerms")) {
     expr <- vars$expr
     shown <- paste(deparse(expr, width.cutoff = 500L), collapse = " ")
-    if (!is.null(vars$labels)) {
+    if (inherits(vars, "dbartsFormulaTerms")) {
       # a formula's forest(): term labels, and names of design columns
       columns <- integer(0L)
       for (label in c(stripBackticks(vars$labels), vars$columns)) {
@@ -2541,33 +2550,12 @@ forest <- function(
     refuseSecondUnnamed()
   }
   written <- captureForestVars(substitute(vars), callingPlace(parent.frame()))
-  if (inherits(written, "dbartsForestTerms")) {
+  if (inherits(written, "dbartsForestCode")) {
     # the argument's value here and now, taken once: whatever the caller's
     # variables hold later, a forest built in a loop or by lapply() keeps the
     # selection it was given. Code that cannot be evaluated here, terms over
-    # predictors among it, is kept as code alone. What it warns of is kept
-    # with the value
-    warned <- list()
-    taken <- tryCatch(
-      withCallingHandlers(list(vars), warning = function(w) {
-        warned[[length(warned) + 1L]] <<- w
-        invokeRestart("muffleWarning")
-      }),
-      error = function(e) e
-    )
-    if (inherits(taken, "error")) {
-      symbols <- all.vars(written$expr)
-      written$unbound <- symbols[
-        !vapply(symbols, exists, NA, envir = written$env)
-      ]
-      written$error <- conditionMessage(taken)
-    } else {
-      written["value"] <- taken
-      written$evaluated <- TRUE
-      # raised when the value is what a fit uses, and never when the code
-      # turns out to be terms
-      written$warnings <- warned
-    }
+    # predictors among it, is kept as code alone
+    written <- takeAtCall(written, function() vars)
   }
   structure(
     list(
@@ -2603,6 +2591,76 @@ refuseSecondUnnamed <- function() {
   )
 }
 
+## An argument of forest() that is read as code, its predictors and its
+## basis, is held in one of three states, which every reader tells apart by
+## class:
+##
+## - a value handed over (names, positions, a column, NULL): the value
+##   itself, with no wrapper;
+## - code a caller wrote in a call of forest() (forestCode): the code, the
+##   environment it was written in and, once takeAtCall() has run, either the
+##   value it had at the call with the warnings that raised, or the reason it
+##   had none;
+## - the terms of a formula's forest() (forestFormulaTerms): the code, the
+##   formula's environment and the term labels read against the data.
+##
+## The last two share the class "dbartsForestTerms".
+
+## Code written in a call of forest(), not yet evaluated.
+forestCode <- function(expr, env) {
+  structure(
+    list(expr = expr, env = env),
+    class = c("dbartsForestCode", "dbartsForestTerms")
+  )
+}
+
+## The value code has where and when forest() is called, taken once and
+## quietly by `evaluate`, and kept beside the code: `value`, `evaluated` and
+## the `warnings` it raised, which belong to the fit that uses the value. Code
+## that cannot be evaluated there keeps the `error` and the names it uses
+## that nothing binds, `unbound`; that is no error of forest()'s.
+takeAtCall <- function(code, evaluate) {
+  warned <- list()
+  taken <- tryCatch(
+    withCallingHandlers(list(evaluate()), warning = function(w) {
+      warned[[length(warned) + 1L]] <<- w
+      invokeRestart("muffleWarning")
+    }),
+    error = function(e) e
+  )
+  if (inherits(taken, "error")) {
+    symbols <- all.vars(code$expr)
+    code$unbound <- symbols[
+      !vapply(symbols, exists, NA, envir = code$env)
+    ]
+    code$error <- conditionMessage(taken)
+  } else {
+    code["value"] <- taken
+    code$evaluated <- TRUE
+    # raised when the value is what a fit uses, and never when the code
+    # turns out to be terms
+    code$warnings <- warned
+  }
+  code
+}
+
+## The terms of a formula's forest(): `labels`, the term labels its code
+## gives against the data, and `columns`, names of columns the built design
+## is to resolve. `named` marks terms that came from names given by value,
+## whose labels are then the code to write for them.
+forestFormulaTerms <- function(
+  expr,
+  env,
+  labels,
+  columns = NULL,
+  named = NULL
+) {
+  terms <- list(expr = expr, env = env, labels = labels)
+  terms$columns <- columns
+  terms$named <- named
+  structure(terms, class = c("dbartsFormulaTerms", "dbartsForestTerms"))
+}
+
 ## forest()'s first argument as written. A value (names, positions, NULL) is
 ## kept as it is; code is kept unevaluated with the environment it was
 ## written in, and forest() puts beside it the value it has at the call. A
@@ -2619,7 +2677,7 @@ captureForestVars <- function(expr, env) {
       call. = FALSE
     )
   }
-  structure(list(expr = expr, env = env), class = "dbartsForestTerms")
+  forestCode(expr, env)
 }
 
 ## The heteroscedastic variance forest's own specification, passed as the
