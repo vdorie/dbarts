@@ -1,0 +1,66 @@
+# small-rulings-batch: monotone words abbreviate, setCutPoints sorts, the joint update refuses numbers for a factor
+
+Status: PLANNED (dec-B285, dec-B286, dec-B288).
+
+agent: sonnet implementer, one (R, one bridge message, tinytest, manual); opus reviewer.
+rng: NEUTRAL, bit for bit, for every call accepted before and still accepted. A call that is refused now
+draws nothing; a grid out of order, which was refused, is sorted and draws as the sorted grid does.
+window: pre-release, before the merge to main.
+budget: ~350 lines.
+
+## Goal
+
+A direction word of `monotone()` matches as base R matches a choice. `setCutPoints` sorts a grid out of
+order and refuses a repeated point by name. The joint row update refuses numbers for a factor column.
+
+## Context
+
+- [`parseMonotoneSign`](../../R/model.R) is the one place a direction is read, for `monotone()` and for the
+  plain vector alike, through `resolveMonotone`.
+- [`bartcoreSamplerSetCutPoints`](../../R/bartcore.R) hands every entry to the bridge, which holds the
+  grid to [`cutGridIsValid`](../../src/bartcore/data.hpp) unless it is the grid the column holds.
+- [`codeJointColumnUpdate`](../../R/bartcore.R) codes the joint form's values;
+  [`codeCategoricalColumnUpdate`](../../R/bartcore.R) holds the words `setPredictor` uses for a number given
+  to a factor column.
+
+## The rules
+
+1. dec-B288. A direction word is any unique abbreviation of "increasing" or "decreasing", case-sensitive,
+   by `pmatch` with `duplicates.ok = TRUE`, a miss refused with the existing message. The numbers 1, -1 and
+   0 and the strings "1", "-1" and "0" are as they were. The help lists the full words and says nothing
+   of abbreviation.
+2. dec-B285. A numeric grid out of order is sorted and taken. A grid with a repeated point is refused,
+   the message saying a point may appear once and to give a denser grid near the value for more splits
+   there. The grid the column holds, in order and bit for bit, is taken as it is, whether or not it
+   repeats a point. A grid that is not numeric, or holds `NA` or `NaN`, is refused. What a restore does
+   with repeated points is not touched here.
+3. dec-B286. Numbers given for a factor column of the joint update are refused in `setPredictor`'s words;
+   a factor or labels are matched to the levels as before. Differing level tables across samplers refuse,
+   and a factor or non-numeral text for a numeric column refuses, as before.
+
+## What changed
+
+- `parseMonotoneSign` tries the codes, then `pmatch`; `MONOTONE_DIRECTION_CODES` no longer holds the words.
+- The R method sorts a grid with no `NA`, since `sort()` would drop one; the bridge refuses a `NaN` and a
+  repeat in two messages.
+- `codeJointColumnUpdate` refuses a number for a categorical column after the level tables are compared.
+  The refusal for a column held as a factor in one sampler and a number in another no longer tells the
+  caller to give numbers.
+- The help of `monotone`, `setCutPoints` and `updatePredictorPerObservationJointly`, and the method's
+  docstring, state the rules.
+
+## Tests
+
+- [test-monotone.R](../../inst/tinytest/test-monotone.R): "i", "inc", "d", "dec" equal the full word; "Inc",
+  "increasingly" and "" are refused; a vector mixing "inc" and 0, named and positional.
+- [test-cut-points-undo.R](../../inst/tinytest/test-cut-points-undo.R): an unsorted grid gives the sampler
+  state and next draws of the sorted one, by column, by list and by data frame; the repeat and `NaN`
+  refusals; a constant column's own grid handed back is accepted.
+- [test-joint-update-factor.R](../../inst/tinytest/test-joint-update-factor.R): numbers refused for an
+  unordered and an ordered column, one sampler and two, with a missing number and a non-code; every label
+  case kept; a numeric column moved by numbers (kept).
+
+## Verification
+
+Install into a private library with `--preclean`; the full tinytest suite with `at_home = TRUE`; the lint
+set of `docs/plans/README.md`; `R CMD check --as-cran`; the bairrtt and stan4bart suites against the build.

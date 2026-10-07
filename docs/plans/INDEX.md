@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (97 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (98 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) -
@@ -133,6 +133,7 @@ Columns: `file | STATUS | one-liner`.
 | cross-family-state-install.md | LANDED 2026-10-07 (257ce57d to 96251ac7) | Has a Student-t, logistic or negative-binomial sampler refuse scales or Polya-Gamma variates that are not positive and finite, by `setState`, `copy` and a reload, where a state of another family could bring them and leave a sampler whose fits are not finite or whose next sweep does not return; a state is not asked which family stored it (dec-B283), and a warm start keeps taking the trees of any family. |
 | state-family-record-removal.md | LANDED 2026-10-07 (14cfd187 to 7359f4bc) | Removes the family record a state carried and the refusal of another family's state by name, so `setState` installs whatever fits the sampler with no guarantee; the floor on precisions that are not positive and finite stays. |
 | factor-column-update-forms.md | LANDED 2026-10-07 (cde886b9 to e4afbfbd) | Has `updatePredictorPerObservationJointly` take a factor column's labels, matched to the column's levels by name as `setPredictor` by column matches them, where today a factor's codes from 1 are read as the engine's codes from 0 and every level is installed as the next one without a message; numbers stay the codes the sampler holds the column in, and a data frame given as the whole matrix stays in the backlog. |
+| small-rulings-batch.md | PLANNED (dec-B285, dec-B286, dec-B288) | Three small rulings: a direction word of `monotone()` abbreviates as base R matches a choice, `setCutPoints` sorts a grid out of order and refuses a repeated point by name, and the joint row update refuses numbers for a factor column. |
 | interrupt-is-interrupt.md | LANDED | A run stopped by the user raises R's interrupt condition and not an error, so `try()` around a fit no longer swallows Ctrl-C. |
 | basis-formula-terms.md | LANDED | A forest's basis written with `scale()`, `poly()`, `ns()` or `bs()` predicts at new rows from the training rows' centre, scale and knots, as in `lm`; today the formula is evaluated again on the new rows. |
 | count-cap.md | LANDED 2026-10-04 (ad62c2e0 to 3ecc8281; dec-B202) | Caps logistic count weights and a fixed negative-binomial shape at one million, as the negative-binomial response already is, and lets an interrupt stop a sweep inside its Polya-Gamma draws. |
