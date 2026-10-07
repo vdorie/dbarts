@@ -475,30 +475,58 @@ codeCategoricalColumnUpdate <- function(x.train, x, column) {
 }
 
 # The joint row-by-row update's values for its one shared column, as the one
-# vector every sampler installs. Where a sampler holds the column coded from a
-# factor, labels - a factor, character vector or sparseFactor - are matched to
-# that sampler's levels by codeCategoricalColumnUpdate, on its terms and in its
-# words; a number is a code already, counted from 0 as data@x holds the
-# column, and passes through to the engine's own check. Anything else is
-# refused by name, where as.double would read a logical as two codes. One
-# vector goes to every sampler, so labels must code alike in each: a column
-# whose levels differ between samplers, or that only some hold as a factor, is
-# refused for labels. A column no sampler holds as a factor is not touched.
+# vector every sampler installs. One vector is one level in every sampler only
+# if they hold the column with the same level table, so samplers that hold it
+# coded from a factor with different levels are refused, for numbers as for
+# labels. Then labels - a factor, character vector or sparseFactor - are
+# matched to the levels by codeCategoricalColumnUpdate, in its words, with a
+# refusal raised by a later sampler naming it; a number is a code already,
+# counted from 0 as data@x holds the column, and passes through to the
+# engine's own check. Anything else is refused by name, where as.double would
+# read a logical as two codes. Labels for a column only some samplers hold as a
+# factor are refused. A column no sampler holds as a factor takes numbers, and
+# a factor, a sparseFactor or text that is not numerals is refused for it.
 codeJointColumnUpdate <- function(samplers, x, columnIndices, columnName) {
-  categorical <- vapply(
-    seq_along(samplers),
-    function(i) {
-      factorLevels <- attr(samplers[[i]]$data@x, "factor.levels")
-      !is.null(factorLevels) &&
-        columnIndices[i] <= length(factorLevels) &&
-        !is.null(factorLevels[[columnIndices[i]]])
-    },
-    FALSE
-  )
-  if (!any(categorical) || is.numeric(x)) {
+  levelTables <- lapply(seq_along(samplers), function(i) {
+    factorLevels <- attr(samplers[[i]]$data@x, "factor.levels")
+    if (columnIndices[i] <= length(factorLevels)) {
+      factorLevels[[columnIndices[i]]]
+    }
+  })
+  categorical <- !vapply(levelTables, is.null, FALSE)
+  isLabels <- is.factor(x) ||
+    is.character(x) ||
+    methods::is(x, "sparseFactor")
+  if (!any(categorical)) {
+    if (
+      is.factor(x) ||
+        methods::is(x, "sparseFactor") ||
+        (is.character(x) &&
+          any(is.na(suppressWarnings(as.double(x))) & !is.na(x)))
+    ) {
+      stop("column '", columnName, "' is numeric and cannot take labels")
+    }
     return(x)
   }
-  if (!is.factor(x) && !is.character(x) && !methods::is(x, "sparseFactor")) {
+  first <- which(categorical)[1L]
+  for (i in which(categorical)) {
+    if (!identical(levelTables[[i]], levelTables[[first]])) {
+      stop(
+        "the samplers hold column '",
+        columnName,
+        "' with different levels (sampler ",
+        i,
+        " differs from sampler ",
+        first,
+        "), so one value would be a different level in each; update them in ",
+        "separate calls, or create them with the same levels in the same order"
+      )
+    }
+  }
+  if (is.numeric(x)) {
+    return(x)
+  }
+  if (!isLabels || !is.null(dim(x))) {
     stop(
       "column '",
       columnName,
@@ -511,7 +539,7 @@ codeJointColumnUpdate <- function(samplers, x, columnIndices, columnName) {
       "column '",
       columnName,
       "' is categorical in sampler ",
-      which(categorical)[1L],
+      first,
       " and not in sampler ",
       which(!categorical)[1L],
       ", so its labels cannot be installed in both; give numbers"
@@ -519,22 +547,22 @@ codeJointColumnUpdate <- function(samplers, x, columnIndices, columnName) {
   }
   codes <- NULL
   for (i in seq_along(samplers)) {
-    codesHere <- codeCategoricalColumnUpdate(
-      samplers[[i]]$data@x,
-      x,
-      columnIndices[i]
+    codesHere <- tryCatch(
+      codeCategoricalColumnUpdate(
+        samplers[[i]]$data@x,
+        x,
+        columnIndices[i]
+      ),
+      error = function(e) {
+        stop(
+          conditionMessage(e),
+          if (length(samplers) > 1L) paste0(" (sampler ", i, ")"),
+          call. = FALSE
+        )
+      }
     )
     if (is.null(codes)) {
       codes <- codesHere
-    } else if (!identical(codes, codesHere)) {
-      stop(
-        "column '",
-        columnName,
-        "' has other levels in sampler ",
-        i,
-        " than in sampler 1, so its labels cannot be installed in both; ",
-        "give numbers"
-      )
     }
   }
   codes

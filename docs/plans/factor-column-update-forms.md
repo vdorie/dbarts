@@ -253,3 +253,23 @@ By what is given, and by whether the samplers hold the column as a factor (order
   fails in a coercion, and a logical is read as two codes. The entry's "refused as not an existing
   category code" is the engine's message for an unordered column; an ordered one has its own.
   Nothing in this slice was found done already.
+- Review changes to rules 4 and 5, and what is known. Samplers that hold the column as a factor with a
+  different level table (levels or their order) are refused for numbers as well as labels, before any
+  sampler is touched: `the samplers hold column 'f' with different levels (sampler 2 differs from sampler
+  1), so one value would be a different level in each; update them in separate calls, or create them with
+  the same levels in the same order`. A subset or superset of levels is refused too, so the help's "same
+  levels in the same order" is exact. A call that passed numbers to such samplers installed a different
+  level in each in silence. Numbers to samplers with one table, and to a factor in one sampler and a
+  number in another, are as before.
+- A refusal the helper raises for a later sampler (a missing value where that sampler's column holds
+  none) ends with `(sampler 3)`, the sampler's position in the list; with one sampler, no suffix.
+- A factor or `sparseFactor` for a column no sampler holds as a factor is refused: `column 'x1' is numeric
+  and cannot take labels`. Text is refused for it only when some element is not numerals, since numerals
+  as text read as numbers today. `setPredictor` by column and `"partial"` read a factor for a numeric
+  column through its codes (x1 holds 1 to 4 afterwards) and are not changed here: the helper returns a
+  numeric column's values untouched at two early exits, and a whole-frame update goes through them.
+- A one-column character matrix gets the joint form's own refusal, not the column form's text about a data
+  frame. The six `.Random.seed` assertions are dropped: no accepted call moves R's generator and the
+  twin draws test the samplers' own.
+- Known: codes given as a `Matrix` `sparseVector`, a `Date` or a `difftime` on a factor column were
+  installed on the base build and are refused now; only a base numeric vector is read as codes.
