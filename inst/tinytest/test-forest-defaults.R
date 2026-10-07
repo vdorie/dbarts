@@ -366,6 +366,90 @@ for (text in allBasis[c(1L, 7L)]) {
 for (text in c(onBart, "bart(y ~ x1 + x2 + x3, frame, n.trees = 9L)")) {
   expect_null(attr(build(text)$control, "dbarts.stated", exact = TRUE))
 }
+# bartBT() builds its control and both priors too, so it records what its own
+# caller stated, under its own names. The data object is its only door to
+# several forests, and what it warns of there is not this file's
+onBartBT <- function(given, ...) {
+  withCallingHandlers(
+    bartBT(
+      dbartsData(x, y, bases = given),
+      NULL,
+      verbose = FALSE,
+      sampleronly = TRUE,
+      ...
+    ),
+    warning = function(condition) {
+      if (startsWith(conditionMessage(condition), "if data supplied as")) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+}
+refusalBT <- function(...) {
+  tryCatch(
+    {
+      onBartBT(list(dose, age), ...)
+      "created"
+    },
+    error = conditionMessage
+  )
+}
+unstatedBT <- onBartBT(list(dose, age))
+expect_identical(forestTable(unstatedBT), tableOf(multiplied, multiplied))
+expect_null(attr(unstatedBT$control, "dbarts.stated", exact = TRUE))
+# the count a later fit inherits is bartBT's own default
+expect_identical(forestInfo(unstatedBT)$control.n.trees, 200L)
+expect_identical(refusalBT(keepcall = FALSE), "created")
+countTextBT <- sub("'n.trees'", "'ntree'", countText, fixed = TRUE)
+expect_identical(refusalBT(ntree = 200L), countTextBT)
+expect_identical(refusalBT(ntree = 20L), countTextBT)
+expect_identical(refusalBT(ntr = 20L), countTextBT)
+expect_identical(refusalBT(ntree = 20L, keepcall = FALSE), countTextBT)
+expect_error(
+  do.call(onBartBT, list(list(dose, age), ntree = 200L)),
+  countTextBT,
+  fixed = TRUE
+)
+statedBT <- list(
+  list("power", "tree", power = 2),
+  list("base", "tree", base = 0.95),
+  list("power", "tree", base = 0.95, power = 2),
+  list("splitprobs", "tree", splitprobs = c(0.5, 0.25, 0.25)),
+  list("k", "leaf", k = 2)
+)
+for (case in statedBT) {
+  expect_match(
+    do.call(refusalBT, case[-(1:2)]),
+    paste0(
+      "'",
+      case[[1L]],
+      "' given to the fitting function is the ",
+      case[[2L]],
+      " prior of the forest with no basis"
+    ),
+    fixed = TRUE
+  )
+}
+# beside a plain forest, at either place, they are that forest's
+fitBT <- c(200, 0.95, 2)
+statedOnBT <- list(ntree = 20L, power = 3, base = 0.8)
+plainBT <- c(20, 0.8, 3)
+expect_identical(
+  forestTable(onBartBT(list(dose, NULL))),
+  tableOf(multiplied, fitBT)
+)
+expect_identical(
+  forestTable(onBartBT(list(NULL, dose))),
+  tableOf(fitBT, multiplied)
+)
+expect_identical(
+  forestTable(do.call(onBartBT, c(list(list(dose, NULL)), statedOnBT))),
+  tableOf(multiplied, plainBT)
+)
+expect_identical(
+  forestTable(do.call(onBartBT, c(list(list(NULL, dose)), statedOnBT))),
+  tableOf(plainBT, multiplied)
+)
 
 ## --- Block D: no plain forest -----------------------------------------------
 # each of the five, at every door, with its text; the retired names as written
@@ -586,6 +670,45 @@ expect_identical(carriedTo(ownSecond), 7)
 expect_identical(carriedTo(ownFirst), 7)
 # a control from a fit whose plain forest is first holds its own count already
 expect_null(forestInfo(ownFirst)$control.n.trees)
+# a count edited on a carried control is the caller's own: it is the next
+# fit's plain forest's wherever that stands, and where every forest has a
+# basis it is refused as any count on a control is
+editedCarry <- function(sampler, count, text = "dbarts(y ~ x1 + x2, frame)") {
+  control <- sampler$control
+  control@n.trees <- count
+  call <- str2lang(text)
+  call$control <- control
+  built <- eval(call)
+  if (is.list(built)) {
+    built <- specSampler(built)
+  }
+  forestTable(built)[, 1L]
+}
+for (carrier in list(allBasisSampler, namedSecond)) {
+  expect_identical(editedCarry(carrier, 20L), 20)
+  expect_identical(
+    editedCarry(carrier, 20L, "dbartsSpec(dbartsData(x, y))"),
+    20
+  )
+  expect_identical(editedCarry(carrier, 20L, plainFirst[2L]), c(20, 50))
+  expect_identical(editedCarry(carrier, 20L, plainSecond[2L]), c(50, 20))
+  expect_error(
+    editedCarry(carrier, 20L, allBasis[1L]),
+    controlText,
+    fixed = TRUE
+  )
+}
+# an edit to anything else leaves the carried count to go back
+carriedOther <- allBasisSampler$control
+carriedOther@n.samples <- 6L
+expect_identical(
+  forestTable(dbarts(y ~ x1 + x2, frame, control = carriedOther))[, 1L],
+  75
+)
+# the limit of what can be told: a slot edited to the first forest's own
+# count reads as untouched, and one edited to the default as not stated
+expect_identical(editedCarry(allBasisSampler, 50L), 75)
+expect_identical(editedCarry(allBasisSampler, 75L, allBasis[1L]), c(50, 50))
 # and $setControl takes the control a sampler was created under, or its own,
 # the slot keeping the first forest's count
 allBasisSampler$setControl(defaultsControl(n.burn = 7L))

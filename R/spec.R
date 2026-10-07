@@ -290,14 +290,14 @@ resolveSamplerSpec <- function(
   # forest's tree count, where the bridge reads it. The count this call is to
   # inherit rides the forests' record and goes back on the slot before the
   # record is cleared with the rest: a multiplied forest's count is never the
-  # next fit's
-  carriedTreeCount <- attr(
-    control,
-    "bartcore.forests",
-    exact = TRUE
-  )$control.n.trees
-  if (!is.null(carriedTreeCount)) {
-    control@n.trees <- carriedTreeCount
+  # next fit's. Only while the slot still holds that forest's count: any
+  # other is the caller's own edit, which stands as a stated count does
+  carried <- attr(control, "bartcore.forests", exact = TRUE)
+  if (
+    !is.null(carried$control.n.trees) &&
+      control@n.trees == carried$params[[1L]][[1L]]
+  ) {
+    control@n.trees <- carried$control.n.trees
   }
   # a caller-supplied control may have been taken from another fit, and the
   # bartcore.* attributes are that fit's model configuration; this call

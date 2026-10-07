@@ -3814,6 +3814,19 @@ bartBT <- function(
     seed = if (is.na(seed)) NULL else seed,
     proposal.probs = proposalprobs
   )
+  # The control built here always names a tree count and the call handed to
+  # dbarts() always a tree prior and a leaf prior, so what this function's
+  # own caller stated of the three is recorded on the control under the names
+  # written here, for the sampler specification to read and take off.
+  attr(control, plainStatedAttr) <- plainForestStated(
+    NULL,
+    names(match.call()),
+    list(
+      n.trees = "ntree",
+      tree.prior = c("power", "base", "splitprobs"),
+      leaf.prior = "k"
+    )
+  )
   matchedCall <- if (keepcall) match.call() else call("NULL")
   control@call <- expandForwardedCall(matchedCall, parent.frame())
   control@n.burn <- control@n.burn %/% control@n.thin

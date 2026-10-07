@@ -1808,11 +1808,12 @@ plainForest <- function(hasBasis) {
 ## The tree count and tree prior of a forest with a basis that states none.
 multipliedForestDefaults <- list(n.trees = 50L, base = 0.25, power = 3)
 
-## The attribute bart() stamps on the control it builds with what its own
-## caller stated (plainForestStated). That control always names a tree count
-## and the call bart() hands dbarts() always a tree prior, so dbarts() cannot
-## read either from what it is given. Not a bartcore.* attribute, which is fit
-## state: the sampler specification takes it off the control it resolves.
+## The attribute bart() and bartBT() stamp on the control they build with
+## what their own caller stated (plainForestStated). That control always names
+## a tree count and the call handed to dbarts() always a tree prior, so
+## dbarts() cannot read either from what it is given. Not a bartcore.*
+## attribute, which is fit state: the sampler specification takes it off the
+## control it resolves.
 plainStatedAttr <- "dbarts.stated"
 
 ## Whether a control states a tree count: its constructor's call named one,
@@ -1824,26 +1825,40 @@ controlStatesTreeCount <- function(control) {
     !identical(control@n.trees, formals(dbarts::dbartsControl)$n.trees)
 }
 
+## The names under which a fitting function takes the three arguments that
+## are the forest with no basis's own, each in the order it is looked for.
+plainForestArgNames <- list(
+  n.trees = "n.trees",
+  tree.prior = c("tree.prior", "power", "base", "split.probs"),
+  leaf.prior = c("leaf.prior", "k", "node.prior")
+)
+
 ## What the caller of a fitting function stated of the three arguments that
 ## are the forest with no basis's own: the tree count, the tree prior and the
 ## leaf prior. Stated means named, the default's own value included. `written`
-## holds the argument names the caller wrote and `control` the control the
-## caller gave, NULL for none. Returns, for each of "n.trees", "tree.prior"
-## and "leaf.prior" that is stated, the name it was stated under, "control"
-## for a count the control states.
-plainForestStated <- function(control, written) {
+## holds the argument names the caller wrote, `control` the control the
+## caller gave, NULL for none, and `argNames` that function's names for the
+## three. Returns, for each of "n.trees", "tree.prior" and "leaf.prior" that
+## is stated, the name it was stated under, "control" for a count the control
+## states.
+plainForestStated <- function(
+  control,
+  written,
+  argNames = plainForestArgNames
+) {
   firstWritten <- function(names) {
     hits <- names[names %in% written]
     if (length(hits) > 0L) hits[[1L]]
   }
+  countName <- firstWritten(argNames$n.trees)
   stated <- c(
-    n.trees = if ("n.trees" %in% written) {
-      "n.trees"
+    n.trees = if (!is.null(countName)) {
+      countName
     } else if (!is.null(control) && controlStatesTreeCount(control)) {
       "control"
     },
-    tree.prior = firstWritten(c("tree.prior", "power", "base", "split.probs")),
-    leaf.prior = firstWritten(c("leaf.prior", "k", "node.prior"))
+    tree.prior = firstWritten(argNames$tree.prior),
+    leaf.prior = firstWritten(argNames$leaf.prior)
   )
   if (is.null(stated)) character(0L) else stated
 }
@@ -1871,7 +1886,11 @@ refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
   if ("n.trees" %in% names(stated)) {
     fromControl <- identical(stated[["n.trees"]], "control")
     refuse(
-      if (fromControl) "the control's 'n.trees'" else given("n.trees"),
+      if (fromControl) {
+        "the control's 'n.trees'"
+      } else {
+        given(stated[["n.trees"]])
+      },
       "the tree count of",
       paste0(
         "state a count on a forest, as forest(x1, basis = a, n.trees = 100)",
