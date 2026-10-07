@@ -92,18 +92,42 @@ monotone(directions, prior = c("joint", "leaf"))
   \code{setData}, \code{setCutPoints}, \code{installTrees}, and a
   \code{setState} that has to merge leaves - set every leaf value of such a
   tree to zero, without a message, and the next iteration draws them again;
-  that suits burn-in and is not a draw from the posterior. An unforced
-  update - \code{setPredictor} with \code{forceUpdate = FALSE} (its default
-  when columns are named) or \code{"partial"}, and
-  \code{\link{updatePredictorPerObservationJointly}} - is refused instead, as
-  one that would empty a leaf is: it returns \code{FALSE}, or \code{FALSE}
-  for each row that would do it, and the sampler is left as it was. One
-  unforced change can do this: the first missing value in an unordered factor
-  column that has none, which gives the column a position that can relate
-  leaves the order did not. While a tree is in that position every update
-  that brings the missing value is refused, whatever its other values, so
-  code that proposes again until an update is accepted should run the
-  sampler, or leave the missing value out, before the next proposal.
+  that suits burn-in and is not a draw from the posterior.
+
+  An unforced update is refused instead, as one that would empty a leaf is.
+  One unforced change can leave a tree out of order: the first missing value
+  in an unordered factor column that has none. Two leaves that share no
+  level of the factor can both be reached by a missing value, and the
+  constraint then orders them. What each call does with such a value:
+  \itemize{
+    \item \code{setPredictor} replacing the whole matrix with
+      \code{forceUpdate = FALSE}, the matrix numeric and holding the factor
+      as its level codes from 0: returns \code{FALSE}. The sampler's trees,
+      fits, predictors and random number generator are as they were before
+      the call. As after any refused update, the draws that follow can
+      differ in their last digits from those it would otherwise have made.
+    \item \code{\link{updatePredictorPerObservationJointly}}, given the level
+      codes: returns \code{FALSE} for each row that brings the missing value,
+      which keeps its old value in every sampler, and \code{TRUE} for the
+      other rows, which are installed. No rule or leaf value changes. The
+      call still draws the order in which it visits the rows from the first
+      sampler's random number generator, as every call does, so even when
+      every changed row is refused the draws that follow are not those of a
+      sampler that was not given the call.
+    \item \code{setPredictor} with named columns, whatever
+      \code{forceUpdate} is, \code{"partial"} included: an error, and nothing
+      is changed. A named factor column is given as its labels and does not
+      take a missing value when its training values have none.
+  }
+
+  Such a refusal is not cured by proposing other values, and running the
+  sampler may not cure it either. Every update that brings the missing value
+  is refused while any tree's leaf values would be out of order with it, and
+  where the data favor such trees that can be for as long as the sampler
+  runs: code that proposes the value again until it is accepted may never
+  finish. The way to bring the value in is to replace the whole matrix with
+  \code{forceUpdate = TRUE}, which completes and sets those trees to zero
+  as above; the alternative is to leave the value as it was.
 
   Only numeric and ordered columns are eligible: a direction on a categorical
   (unordered factor) predictor is an error. Names, positions and every
