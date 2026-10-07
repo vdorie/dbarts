@@ -70,7 +70,8 @@
     <code>$setPredictor(x, column, forceUpdate = "partial")</code>, or
     <code><a href="updatePredictorPerObservationJointly.html">updatePredictorPerObservationJointly</a></code> when several samplers share the column.
     Both return a per-observation install mask, <code>FALSE</code> where the new value would empty a leaf
-    and was rolled back. <strong>That mask is part of a Metropolis accept decision, not a
+    and was rolled back; under a <code><a href="monotone.html">monotone</a></code> constraint the joint form also declines a
+    value that would leave a tree's leaf values out of order. <strong>That mask is part of a Metropolis accept decision, not a
     diagnostic</strong>: a declined observation holds its old value, so the likelihood read after the call
     is its old likelihood, and treating the resulting ratio as an acceptance leaves the host's copy
     of the latent disagreeing with what the samplers hold.</p>

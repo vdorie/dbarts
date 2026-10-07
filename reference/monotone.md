@@ -93,6 +93,52 @@ that predictor is observed, the other predictors at any values, missing
 ones and every factor level included; nothing is claimed where the
 constrained predictor itself is missing.
 
+New predictor values given to a sampler (see
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md))
+can leave a tree's leaf values out of order. The calls that always
+complete - `setPredictor` with `forceUpdate = TRUE` (its default when
+the whole matrix is replaced), `setData`, `setCutPoints`,
+`installTrees`, and a `setState` that has to merge leaves - set every
+leaf value of such a tree to zero, without a message, and the next
+iteration draws them again; that suits burn-in and is not a draw from
+the posterior.
+
+An unforced update is refused instead, as one that would empty a leaf
+is. One unforced change can leave a tree out of order: the first missing
+value in an unordered factor column that has none. Two leaves that share
+no level of the factor can both be reached by a missing value, and the
+constraint then orders them. What each call does with such a value:
+
+- `setPredictor` replacing the whole matrix with `forceUpdate = FALSE`,
+  the matrix numeric and holding the factor as its level codes from 0:
+  returns `FALSE`. The sampler's trees, fits, predictors and random
+  number generator are as they were before the call. As after any
+  refused update, the draws that follow can differ in their last digits
+  from those it would otherwise have made.
+
+- [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md),
+  given the level codes: returns `FALSE` for each row that brings the
+  missing value, which keeps its old value in every sampler, and `TRUE`
+  for the other rows, which are installed. No rule or leaf value
+  changes. The call still draws the order in which it visits the rows
+  from the first sampler's random number generator, as every call does,
+  so even when every changed row is refused the draws that follow are
+  not those of a sampler that was not given the call.
+
+- `setPredictor` with named columns, whatever `forceUpdate` is,
+  `"partial"` included: an error, and nothing is changed. A named factor
+  column is given as its labels and does not take a missing value when
+  its training values have none.
+
+Such a refusal is not cured by proposing other values, and running the
+sampler may not cure it either. Every update that brings the missing
+value is refused while any tree's leaf values would be out of order with
+it, and where the data favor such trees that can be for as long as the
+sampler runs: code that proposes the value again until it is accepted
+may never finish. The way to bring the value in is to replace the whole
+matrix with `forceUpdate = TRUE`, which completes and sets those trees
+to zero as above; the alternative is to leave the value as it was.
+
 Only numeric and ordered columns are eligible: a direction on a
 categorical (unordered factor) predictor is an error. Names, positions
 and every direction are validated against the model matrix at fit time;

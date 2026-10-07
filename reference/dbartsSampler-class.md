@@ -840,13 +840,24 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   nodes; the string `"partial"` installs each observation's new value
   individually and rolls back only those observations whose value would
   empty a leaf in any of those trees, returning a per-observation
-  logical of what was installed. `"partial"` requires a single `column`
-  and cannot be combined with `updateCutPoints`; it also requires a
-  dense-backed column, since a sparse column's storage fixes its nonzero
-  pattern per cell - replace such a column whole instead. When missing,
-  defaults to `TRUE` when the whole predictor matrix is being replaced
-  (`column` is missing) and `FALSE` when a single column is being
-  replaced.
+  logical of what was installed. Under a
+  [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)
+  constraint a new predictor can also leave a tree's leaf values out of
+  order along a constrained predictor (that page says what this is).
+  `TRUE` completes such an update, setting every leaf value of that tree
+  to zero without a message; the next iteration draws them again.
+  `FALSE` refuses it and rolls it back, as for an empty leaf, but only
+  where the whole matrix is replaced: the one unforced change that can
+  do this is a factor column's first missing value, which a named column
+  does not take under any `forceUpdate`, `"partial"` included, stopping
+  with an error instead (see `x`). Row by row it is declined by
+  [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md).
+  `"partial"` requires a single `column` and cannot be combined with
+  `updateCutPoints`; it also requires a dense-backed column, since a
+  sparse column's storage fixes its nonzero pattern per cell - replace
+  such a column whole instead. When missing, defaults to `TRUE` when the
+  whole predictor matrix is being replaced (`column` is missing) and
+  `FALSE` when a single column is being replaced.
 
 - updateCutPoints:
 
@@ -1454,16 +1465,21 @@ way an interrupt does: the results are discarded and `run` signals an
 error, naming that a callback stopped it; that is an error, where an
 interrupt is not.
 
-For `setPredictor`, `TRUE`/`FALSE` depending on whether or not the
-operation was successful. The operation can fail if the new predictor
-results in an empty leaf-node in any tree of any forest of the sampler
-(see ‘Multi-forest and heteroscedastic predictor mutation’). If only
-single columns were replaced, the update is rolled back so that the
-sampler remains in a valid state. When `forceUpdate` is `"partial"`,
-instead returns a logical vector of length equal to the number of
-observations, `TRUE` where that observation's new value was installed
-and `FALSE` where it was rolled back to its previous value to keep every
-tree of every forest valid.
+For `setPredictor`, `TRUE` if the new predictor was installed and
+`FALSE` if it was refused. An unforced update is refused, with no error
+and no warning, when it would leave a leaf empty in any tree of any
+forest of the sampler (see ‘Multi-forest and heteroscedastic predictor
+mutation’) or, under a
+[`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)
+constraint, leave a tree's leaf values out of order. A refused update is
+rolled back, whether it named columns or replaced the whole matrix: the
+sampler's trees, fits, predictors and random number generator are as
+they were before the call. A forced update always installs and returns
+`TRUE` invisibly. When `forceUpdate` is `"partial"`, instead returns a
+logical vector of length equal to the number of observations, `TRUE`
+where that observation's new value was installed and `FALSE` where it
+was rolled back to its previous value to keep every tree of every forest
+valid.
 
 For `setState`, invisibly, `TRUE` when nothing had to be changed to
 install the state and `FALSE` otherwise. It is `FALSE` when, in any tree

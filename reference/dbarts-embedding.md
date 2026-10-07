@@ -47,11 +47,14 @@ A predictor moved per observation rather than wholesale takes
 [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md)
 when several samplers share the column. Both return a per-observation
 install mask, `FALSE` where the new value would empty a leaf and was
-rolled back. **That mask is part of a Metropolis accept decision, not a
-diagnostic**: a declined observation holds its old value, so the
-likelihood read after the call is its old likelihood, and treating the
-resulting ratio as an acceptance leaves the host's copy of the latent
-disagreeing with what the samplers hold.
+rolled back; under a
+[`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)
+constraint the joint form also declines a value that would leave a
+tree's leaf values out of order. **That mask is part of a Metropolis
+accept decision, not a diagnostic**: a declined observation holds its
+old value, so the likelihood read after the call is its old likelihood,
+and treating the resulting ratio as an acceptance leaves the host's copy
+of the latent disagreeing with what the samplers hold.
 
 Not every channel is open on every model. A refusal is part of the model
 rather than a limitation - `setSigma` on a family that fixes the
