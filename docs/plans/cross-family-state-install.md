@@ -1,15 +1,14 @@
-# cross-family-state-install: a state goes only into a sampler of the family that stored it
+# cross-family-state-install: a sampler of precisions refuses latents that are not positive and finite
 
 Status: LANDED 2026-10-07 (257ce57d to 96251ac7; dec-A174).
 
 agent: opus implementer, one (bridge, engine, tests); opus reviewer.
 rng: by call sequence.
 - NEUTRAL, bit for bit, for every sampler that installs no state, for every state installed into a sampler
-  of the family that stored it (by `setState`, `copy` or a reload, with the new record or without it), and
+  of the family that stored it (by `setState`, `copy` or a reload), and
   for every warm start.
-- A changed result, not a generator matter: a state of another family is refused where today it is
-  installed, and a Student-t, logistic or negative-binomial sampler refuses a latent block holding a value
-  that is not positive and finite. A refusal draws nothing.
+- A changed result, not a generator matter: a Student-t, logistic or negative-binomial sampler refuses a
+  latent block holding a value that is not positive and finite. A refusal draws nothing.
 Proved by the bitwise gates below (no baseline scenario, exact gate or snapshot file installs a state across
 families), by a seeded digest of twenty kinds of sampler on the base and slice builds, and by the new
 tests' identity with a twin.
@@ -24,11 +23,11 @@ comments and TODO ~45), upper figure 650. Plans have run 1.5-2x low; the scratch
 
 ## Goal
 
-A state says which response family stored it, and `setState`, `copy` and a reload refuse a state of another
-family by name, before anything is touched, where today most such states install and some leave a sampler
-whose fits are not finite or whose next sweep does not return. A state that carries no such record installs
-as it does today, except that no sampler takes scales or Polya-Gamma variates that are not positive. A warm
-start keeps taking the trees of any family.
+No sampler takes scales or Polya-Gamma variates that are not positive and finite: `setState`, `copy` and a
+reload refuse such a state before anything is touched, where today a state of another family can bring them
+and leave a sampler whose fits are not finite or whose next sweep does not return. A state does not say
+which family stored it and is not asked (dec-B283): one whose blocks fit the sampler installs as it does
+today. A warm start keeps taking the trees of any family.
 
 ## Context
 
@@ -92,54 +91,38 @@ pair ran in a process of its own under a 20-second limit ("no return"): an insta
 - One existing pin installs across families:
   ["a gaussian state leaves a probit sampler's sigma, pinned at 1, where it is"](../../inst/tinytest/test-state-not-model.R)
   (the sampler it builds is logistic).
-- The rule below, tried on a scratch copy of the tip: 372 of the 380 pairs are refused, the 328 of
-  different families by name, and the 8 that install are the pairs of one family above; `copy` and a
-  reload agree on every pair; nothing fails to return. With the record removed from each state 325 are
-  refused, the 15 breaking pairs among them, and 55 run. Own-kind installs with and without the record
-  give identical draws, 20 of 20; the digest under Verification is equal on the two builds; tests/cpp
-  passes unchanged (349); the tinytest suite fails at the one pin only.
+- The rule below, on the build that has it: 325 of the 380 pairs are refused, the 15 breaking pairs among
+  them, and 55 run, 47 of them pairs of different families; `copy` and a reload agree on every pair;
+  nothing fails to return.
 - Consumers (read only). stan4bart splices its per-chain samplers' chains into one state object,
   attributes kept, for a sampler of the same model; that installs on the scratch build. No other consumer
   stores a state.
 
 ## The rule
 
-What is stored. Every state carries a top-level attribute `family`, one string: the response family the
-sampler runs, as the `family` argument spells it - `gaussian`, `student`, `probit`, `logistic`, `ordinal`,
-`nbinom`, `aft` or `multinomial`. A hazard sampler writes its link's family, the model it runs on its
-expanded rows. The leaf model, the forests and a variance forest are not in it.
-
 The install, by `setState`, `copy` and a reload alike:
 
-1. The record is the sampler's family: installed by today's rules.
-2. The record is another family's: refused with `state is not consistent with this sampler: its family is
-   "probit" and the sampler's is "student"; to start one fit from another's trees use installTrees`. Asked
-   after the class, the format version and the chain count, and before the digests, the cut points and the
-   blocks are read, so past those three a state of another family is named as that whatever else about it
-   differs.
-3. The record is present and is not one string: `malformed family in bartcore state`.
-4. No record, as on a state stored before this: installed by today's rules.
-5. Whatever the record says, a Student-t, logistic or negative-binomial sampler refuses a latent block
+1. A state does not say which family stored it and is not asked: one whose blocks fit the sampler is
+   installed by today's rules, and what the sampler then holds of another family's state is not promised.
+2. A Student-t, logistic or negative-binomial sampler refuses a latent block
    holding a value that is not finite and positive, with today's `state is not consistent with this
    sampler`. The other families' latents are real numbers and are not judged.
-6. Rules 2 and 3 are raised before the engine is given the state, and rule 5 with the engine's other
-   validity checks: after any of them the sampler, its stored state and its generators are as they were.
+3. Rule 2 is raised with the engine's other validity checks: after it the sampler, its stored state and
+   its generators are as they were.
 
-Every pair of different families is refused, the 18 of the table that run today included. Pairs of one
+The 18 pairs of the table that run today still run. Pairs of one
 family that differ in a fixed value or a leaf constraint stay accepted, on the evidence under Context.
 `copy` raises the refusal and returns nothing; a reloaded object raises it at each use until a state of
 its own is assigned to the field, as today for any state it refuses. The warm start (`installTrees`,
-`warm.start`) is not changed and does not read the record: it is the route across families.
+`warm.start`) is not changed and reads no latents: it is the route across families.
 
 ## Constraints
 
-- An install into the state's own family draws and returns what it does now, with the record or without.
-- State format: an added top-level attribute; `formatVersion` and the oldest readable version stay 1,
-  under the rule at [`stateFormatVersion`](../../src/R_interface_bartcore.cpp). Every state gains it, so
-  none is byte for byte what it is now; the gates compare draws.
+- An install into the state's own family draws and returns what it does now.
+- State format: unchanged, and a stored state is byte for byte what it is now.
 - No facade virtual changes ([`ResponseModel`](../../src/bartcore/model.hpp) gains one) and
   [`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) does not move; `--preclean` all the same.
-- The message starts with today's words, so a caller matching them still matches. The lines the mutation
+- The message is today's words, so a caller matching them still matches. The lines the mutation
   battery anchors in the state reader stay as they are.
 - No R code changes, and no NEWS entry: the bartcore state is new in 1.0-0.
 
@@ -150,13 +133,7 @@ its own is assigned to the field, as today for any state it refuses. The warm st
    [`TResponse`](../../src/bartcore/model.hpp), [`LogisticResponse`](../../src/bartcore/model.hpp) and
    [`NBResponse`](../../src/bartcore/model.hpp) answer "every value finite and positive".
    [`Chain::stateIsValid`](../../src/bartcore/chain.hpp) asks it where it checks the block's length.
-2. Bridge. One static function names a sampler's family from its
-   [`SamplerShape`](../../src/bartcore/facade.hpp): `multinomial` where `supportsCountsMutation`,
-   `student` where `carriesResidualDf`, else by [`ResponseFamily`](../../src/bartcore/model.hpp), as
-   [`dbarts_sampler_family`](../../src/C_interface.cpp) reads the first and the last.
-   [`storeState`](../../src/R_interface_bartcore.cpp) writes it;
-   [`setState`](../../src/R_interface_bartcore.cpp) reads it by name before the digests and applies rules
-   2 and 3 through the error it already accumulates, printing the stored name to a bounded width.
+2. Bridge. Nothing: the floor is the engine's, and the state's writer and reader stay as they are.
 3. tests/cpp, beside [`testStateValidation`](../../tests/cpp/test_state.cpp),
    [`testStateRoundTripLatents`](../../tests/cpp/test_state.cpp) and
    [`testStateRoundTripStudentT`](../../tests/cpp/test_state.cpp): a logistic, a Student-t and a
@@ -164,29 +141,21 @@ its own is assigned to the field, as today for any state it refuses. The warm st
    back is the one before; 1e-300 installs; a probit state with a negative latent installs. Fails today.
 4. tinytest, a new file `test-state-family.R`: the eight families on one predictor matrix, a hazard
    sampler under each link, and two forests under probit and logistic.
-   - What a state carries: the family's name for each of the eight, `probit` and `logistic` for the
-     hazard states, the response family for two-forest and monotone states. Fails today: absent.
-   - Each of the 56 ordered pairs, the hazard pair and the two-forest pair: an error naming both
-     families, the stored state byte for byte the one before, the next three draws a twin's. Fails today
-     in 25 of the 56 (installed) and by its message in 31. The draws are asked only of a sampler that
-     refused, so the file returns on the tip, where 7 of these installs would not.
+   - A state names no family, and an attribute of that name on a state is not read.
    - One family, another setting: the six pairs that install whatever the state, `TRUE`, trees and
-     latents the state's, three sweeps finite; a plain state into a monotone sampler installs or is
-     refused for its leaf values, never for its family. Holds today.
-   - A state from before, the attribute removed: into its own family it returns and draws what the same
-     state with the attribute does, each family, and a Student-t state into a logistic sampler installs
-     and runs (rule 4; both hold today). A probit state into a Student-t and into a logistic sampler is
-     refused in the plain words, sampler untouched. Fails today: installed.
-   - Malformed records: a number, two strings, `NA_character_` and a raw vector give `malformed family`;
-     an empty string and a name no family has are refused naming it. A latent block edited by hand: 0,
-     -1, `NaN` and `Inf` refused for Student-t, logistic and negative binomial; a probit state edited the
-     same way installs. The sampler untouched after each refusal.
-   - `copy` with another family's state assigned to the field: the error by name, the original's next
+     latents the state's, three sweeps finite. Holds today.
+   - Latent responses offered as precisions: each of the 15 breaking pairs under Context is refused in the
+     plain words, the stored state byte for byte the one before and the next three draws a twin's, and
+     installs once its latents are made positive. Fails today: installed. The draws are asked only of a
+     sampler that refused, so the file returns on the tip. A Student-t state installs into a logistic sampler.
+   - A latent block edited by hand: 0, -1, `NaN` and `Inf` refused for Student-t, logistic and negative
+     binomial, on the last chain and on a row the mask has out too; a probit state edited the same way
+     installs. The sampler untouched after each refusal.
+   - `copy` with a probit state assigned to a Student-t sampler's field: the refusal, the original's next
      draws its twin's. A reload: the error at first use and at the second; its own state assigned back,
-     it runs. Two chains spliced from two samplers of one family install; another family refuses them.
-     `installTrees` takes a probit state into a Student-t sampler, with the attribute and without.
-   In [test-state-not-model.R](../../inst/tinytest/test-state-not-model.R) the pin under Context installs
-   its gaussian state with the attribute removed and says so; its expectation stands.
+     it runs. Two chains spliced from two samplers of one family install. `installTrees` takes a probit
+     state into a Student-t sampler.
+   In [test-state-not-model.R](../../inst/tinytest/test-state-not-model.R) the pin under Context stands.
 5. Mutations (Verification): apply, install with `--preclean`, run, report the counts, revert, `touch`.
 6. Records.
    - Manual, [`dbartsSampler$setState`](../../man/dbartsSampler-class.Rd). The `newState` item opens "For
@@ -213,27 +182,20 @@ its own is assigned to the field, as today for any state it refuses. The warm st
 ## Verification
 
 - `R CMD INSTALL --preclean` into the slice's own library; `tests/cpp` passes, clean under ASan and UBSan;
-  the full tinytest suite; the new file under ASan on the R-loaded path (the bridge prints an R string
-  into a fixed buffer).
+  the full tinytest suite.
 - On a reference build: the four `test-reproducibility-*.R` files pass unchanged, and the three compares
   are bitwise with `EQUIVALENCE_CORES=2`, every scenario reporting identical draws, counted per scenario
   with no `max |z|` line, at the counts the last landing recorded (55, 15 and 11). Nothing is re-recorded.
-- Every gate `.github/workflows/exact-gates.yaml` lists, in `quick` mode, unchanged: a fit's state
-  carries one attribute more, and no gate installs a state across families.
+- Every gate `.github/workflows/exact-gates.yaml` lists, in `quick` mode, unchanged: no gate installs a
+  state across families.
 - One script on the base and slice builds digesting, for each of the twenty kinds, the draws of a run, a
   restore into a second sampler with the value `setState` returns, a copy and a reload, and the stored
-  states with the new attribute removed. Equal.
+  states. Equal.
 - The 400 ordered pairs of the twenty kinds through `setState`, `copy` and a reload, each in a process of
   its own under a time limit: every one returns with finite fits.
 - Mutations, each expected to fail the named test:
-  - the writer omits the attribute, or names a Student-t sampler `gaussian` or a multinomial one by its
-    engine family: tinytest "what a state carries" and those families' pairs;
-  - the reader does not compare: the 56 pairs, the hazard and two-forest pairs, `copy` and the reload;
-  - the reader compares after the engine's install: "byte for byte the one before" and the twin's draws;
-  - the reader refuses a state with no record, or skips the type check: "a state from before",
-    "malformed records";
-  - the floor is removed, or admits zero: tests/cpp step 3, tinytest "a probit state into a Student-t
-    and into a logistic sampler" and "a latent block edited by hand";
+  - the floor is removed, or admits zero: tests/cpp step 3, tinytest "latent responses offered as
+    precisions" and "a latent block edited by hand";
   - the floor is asked of every family: "a probit state edited the same way installs" and every probit,
     ordinal and aft restore in the suite.
 - `lintr::lint_package()`, `air format --check .`, `Rscript tools/check-rc-codoc.R .`,
@@ -329,3 +291,6 @@ its last commit: the four snapshot files on a reference build; the three bitwise
 11 scenarios, all identical; the exact gates in `quick`, 28 of 28, and the monotone gates; the two test
 files clean under ASan; 25 mutations, none surviving. stan4bart, which stores a sampler's state on its
 fit, needs no edit: its fits are gaussian or probit and fits saved on the base build restore.
+
+The family record and the refusal by family, which this note describes, were removed under dec-B283
+([state-family-record-removal.md](state-family-record-removal.md)); the floor on precisions stands.
