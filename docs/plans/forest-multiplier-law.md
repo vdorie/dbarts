@@ -1017,16 +1017,23 @@ Each requirement with what holds it; "test" is the step above that fails if it i
   consumer that creates a sampler of several forests through the shipped header gets a scale taken at
   each creation, there being no R object to record it on (none does).
 
-## Still to be put to the maintainer
+## Ruled after this plan was amended
 
-- The default of a held forest with no basis under a gaussian response. Planned: 2 sd(y), the drawn
-  default's number, one default for a kind whether held or drawn, stated in the help as a number. The
-  tip has sd(y), by a law that ignores the sd. `bart()`'s own default for one forest, a quarter of the
-  response's range over k = 2, is about 1.4 sd(y) for a normal sample of 300. It is permanent once
-  released: a default cannot change without changing fits.
+To be worked into the steps when the plan is rechecked before push 1 is built; where a step above says
+otherwise, this section stands.
 
-      forest(x1 + x2, amplitude = fixed())   # own sd 2 sd(y): planned
-      forest(x1 + x2, amplitude = fixed())   # own sd sd(y): the tip's number
+- dec-B290. Under a gaussian response a held forest with no basis that states no sd takes the default
+  `bart()` gives the one forest of an ordinary fit on the same response, a quarter of the response's
+  range over the rows kept at k = 2, about 1.4 sd(y) for a normal sample of 300, and not the 2 sd(y) of
+  the steps above. The drawn forest with no basis keeps 2 sd(y) as the median of its scale. The engine
+  holds the rule, as it holds every default, and takes it from the code that gives `bart()` its own, so
+  the two cannot drift; the help states it as "the size bart() gives its forest". The default under
+  probit and logistic is not ruled and stays as planned. bartCause's `bcf(update.a = FALSE)` states
+  `sd = 2 sd(y)` on its first forest the day push 1 lands, bcf's own convention (`sd_control`), so its
+  fits keep that prior: one line in R/bcf.R and its help.
+
+      forest(x1 + x2, amplitude = fixed())            # own sd range(y) / 4, as bart()'s forest
+      forest(x1 + x2, amplitude = fixed(), sd = 2 * sd(y))   # what bartCause's bcf passes
 
 ## Calls made in planning
 
