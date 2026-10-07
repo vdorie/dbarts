@@ -335,9 +335,20 @@ items
     count-free Barker move for large "leaf" moves
     (docs/design/monotone-barker-hybrid.md), with stage 4b's order-count
     cache (dec-A134). Only "leaf" fits of one to five trees are slow today;
-    they keep the slow-count warning and interrupt. The maintainer noted
+    they keep the slow-count warning and interrupt. What the cache
+    saves is to be measured when it is built (VD 2026-10-07,
+    dec-A134). The maintainer noted
     (2026-10-01, dec-B168) that slow-count reporting through the flat C
     run is an argument for it.
+  monotone-few-trees-help: one sentence in the monotone help: with
+    very few trees the constrained sampler moves slowly between tree
+    shapes, a tree that has picked up extra splits keeping them, and
+    can overstate steepness; use more trees (dec-A133, VD
+    2026-10-07). Before the merge to main.
+  monotone-structural-move: a tree move beyond birth and death that
+    respects a monotone constraint, changing a split's rule while the
+    leaves stay in order, so that fits of very few trees mix
+    (dec-A133). Research, after 1.0-0.
   monotone-exact-birth-death: before 1.0-0 (VD 2026-09-29,
     docs/decisions.md dec-B144): the monotone birth/death move targets the
     documented prior exactly - the whole tree's cone normalizer ratio in
@@ -632,18 +643,6 @@ items
     forest-sd-unit, forest-kind-by-class, forest-multiplier-law. Not
     yet planned: tree.prior on forest() and the variance forest, the
     reader's normal() objects.
-  written-surface: before 1.0-0 (dec-B266 to dec-B275). A model of
-    several forests is written as forest() terms, the first
-    included; a multiplier is basis =, the right-hand side of a
-    model formula with no tilde, with lm's meaning at the fit and at
-    new rows; z:forest(x) and update.amplitude go (amplitude =
-    fixed()); one unnamed argument; a longer or named sd, a star, a
-    term times or over a number and a prior's name on a basis term
-    are refused by name. Three pushes; the first two (the two
-    arguments, the forests of a formula) landed, and the basis is
-    built and awaits its landing.
-    Plan: docs/plans/written-surface.md. Design:
-    docs/design/written-surface.md.
   written-surface-leftovers: what the basis left, none planned. A
     missing value in a basis on a row the fit keeps is refused where
     lm drops the row, a departure from "as in lm" that the help
@@ -658,15 +657,15 @@ items
     wrapper's dots when it is an expression over the data's columns,
     nor when the formula was written outside the wrapper: the data
     object's own model frame reads the reference to the dots in the
-    formula's environment (the base build's too). On the matrix
-    interface with family "aft", dbarts() reads subset for the
-    censoring status and the data object reads it again for the rows,
-    so a subset that draws its rows gives the status other rows than
-    the fit. predict(bases = ) checks no name of a column or a forest
+    formula's environment (the base build's too). pdbart(fit) on a
+    kept fit reads its stored call's data again, so a call whose data
+    draws its rows averages the curve over other rows; bartBT and the
+    hazard, multinomial and hurdle paths still put values in their
+    inner calls, each read once, and an error there prints them. predict(bases = ) checks no name of a column or a forest
     (forest-defaults-by-kind). setForestBasis with a factor whose
-    levels are reordered keeps the old column names, and a factor
-    given as a value under a subset that empties a level keeps a
-    column of zeros (forest-kind-by-class). A name R or an attached
+    levels are reordered keeps the old column names, and a zero
+    column in a basis given to dbartsData(bases = ) is fitted
+    (forest-kind-by-class). A name R or an attached
     package supplies, pi or scale, is looked up at the fit, not when
     forest() is called. A forest built by a wrapper whose formal holds the basis,
     function(b) forest(basis = b), is given the formal's value, so

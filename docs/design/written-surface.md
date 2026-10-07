@@ -1,8 +1,8 @@
 # A model of several forests is written one way, forest by forest
 
-Status: BUILT; pushes 1 and 2 LANDED 2026-10-06 and 2026-10-07, push 3 not yet landed. Plan:
-[written-surface.md](../plans/written-surface.md). Rulings: dec-B266 to dec-B275, dec-A171 and dec-A173 in
-docs/decisions.md.
+Status: LANDED 2026-10-07 (pushes 1 to 3, 42b62a54 to b0b8b72a). Plan:
+[written-surface.md](../plans/written-surface.md). Rulings: dec-B266 to dec-B275, dec-B284, dec-A171, dec-A173 and
+dec-A175 in docs/decisions.md.
 
 ## What was wrong
 

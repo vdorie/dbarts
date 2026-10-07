@@ -1,7 +1,7 @@
 # written-surface: a model of several forests is written one way, forest by forest
 
-Status: PLANNED (dec-B266 to dec-B275; dec-B246 as revised). Push 1 LANDED 2026-10-06 (42b62a54 to f7f73d6e). Push 2 LANDED
-2026-10-07 (9babcca7 to 9b64051f).
+Status: LANDED 2026-10-07 (dec-B266 to dec-B275; dec-B246 as revised; dec-B284). Push 1 landed 2026-10-06 (42b62a54 to
+f7f73d6e), push 2 2026-10-07 (9babcca7 to 9b64051f), push 3 2026-10-07 (6dfc8656 to b0b8b72a).
 
 agent: three pushes. Push 1 (two arguments): sonnet implementer, opus reviewer. Pushes 2 and 3 (the
 grammar): opus implementer for the R code, sonnet for the respelled tests and the help once the code is
@@ -1278,3 +1278,33 @@ on the push's, identical wherever the same text is one model on both; on a refer
 round the four snapshot files and the three bitwise compares at 55, 15 and 11 scenarios, all identical.
 No consumer needed an edit: against the landed build bartCause ran 1412 expectations, stan4bart 582
 results, bairrtt 207 and treatSens 306, none failing.
+
+Push 3 (the basis) landed 2026-10-07 as 6dfc8656 to b0b8b72a on bartcore, 19 commits, 6685 lines added
+and 952 removed over 45 files against a planned 2400; R, the manual, tests and documents, nothing under
+src/. Four reviews by two reviewers told to refute, LAND AFTER FIXES three times and then LAND, and four
+rounds of corrections by three implementers. Every finding that blocked was a fit on other rows than
+the ones written, with no message, and two of them were regressions a correction round had brought in.
+
+What the reviews and the rulings changed (dec-B284, dec-A175).
+- Every argument that holds rows, the first argument, `data`, `test`, `subset`, `weights` and `offset`,
+  is evaluated once for a fit, the first argument before `data`, at every door: `dbarts`, `bart`,
+  `rbart_vi`, `xbart`, `dbartsData`, `pdbart`. Before, `subset = sample(n, 100)` cut a basis to other
+  rows than the fit, `data = d[sample(n), ]` beside a subset kept rows the subset excluded, and on the
+  matrix interface `dbarts(x[i <- sample(n, 100), ], y[i])` paired a response with other rows'
+  predictors. Values are handed on through an environment, so an error's call stack does not print
+  the data.
+- Every basis is read when `forest()` is called, a formula object held in a variable included
+  (dec-B284), and the caller's formula is left as it was. A name that is a column of the fit's data is
+  that column.
+- A level a subset empties is dropped at every door, and a value of two levels left with one is refused
+  as the same basis written as code is.
+- Left for the backlog (root TODO, written-surface-leftovers): `pdbart(fit)` on a kept fit reads its
+  stored call's data again; `bartBT` and the hazard, multinomial and hurdle paths still put values in
+  their inner calls; a zero column in a basis given to `dbartsData(bases = )` is fitted.
+
+Gates at landing, on a clean copy of the rebased tree in a library of its own, run in series: install,
+tests/cpp 351, the full tinytest suite at home 17835 results, 0 failed, 230 files; lintr no lints; air,
+rc-codoc, win-drift, doc-freshness and the mutation battery's anchors clean; `R CMD build` and
+`R CMD check --as-cran` with the Date NOTE alone. The coordinator's own probe of thirteen of the
+reviewers' failing cases on that build: all right. The four consumers against it: bartCause 1412
+expectations, stan4bart 582 results, bairrtt 207, treatSens 306, none failed.
