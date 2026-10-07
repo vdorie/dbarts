@@ -4693,12 +4693,22 @@ public:
 
   void setOffset(const double* offset, bool updateScale,
                  double* sigmaInOut) override {
+    setOffset(offset, updateScale, sigmaInOut, nullptr);
+  }
+
+  /// setOffset with the vector a re-derived range is read from named by the
+  /// caller: rangeResponse has numObservations values and stands in for the
+  /// response in the range alone, the working response still being built from
+  /// the response itself. Null reads the response, and is the virtual above.
+  /// Ignored when updateScale is false.
+  void setOffset(const double* offset, bool updateScale, double* sigmaInOut,
+                 const double* rangeResponse) {
     if (updateScale) {
       double sigmaUnscaled = *sigmaInOut * range_;
       double priorUnscaled = sigmaSqPrior_.scale * range_ * range_;
 
       offset_ = offset;
-      rescale();
+      rescale(rangeResponse);
 
       sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
       *sigmaInOut = sigmaUnscaled / range_;
@@ -4815,21 +4825,20 @@ private:
     return count;
   }
 
-  void rescale() {
-    // an empty response has no min/max to seed from (yRescaled_[0] is OOB); hold
-    // the identity scale
-    if (numObservations_ == 0) {
-      min_ = 0.0;
-      max_ = 0.0;
-      range_ = 1.0;
-      return;
-    }
+  /// Writes source less the offset in force into the working buffer.
+  void formOffsetAdjusted(const double* source) {
     if (offset_ != nullptr) {
-      misc_subtractVectors(offset_, numObservations_, y_, yRescaled_.data());
+      misc_subtractVectors(offset_, numObservations_, source,
+                           yRescaled_.data());
     } else {
-      std::memcpy(yRescaled_.data(), y_, numObservations_ * sizeof(double));
+      std::memcpy(yRescaled_.data(), source, numObservations_ * sizeof(double));
     }
+  }
 
+  /// The one place a range is taken: the minimum and maximum of the working
+  /// buffer, which the caller has filled with the vector the range is read
+  /// from, less the offset. A range of zero width is held at 1.
+  void readRange() {
     min_ = yRescaled_[0];
     max_ = yRescaled_[0];
     for (std::size_t i = 1; i < numObservations_; ++i) {
@@ -4838,6 +4847,29 @@ private:
     }
     range_ = max_ - min_;
     if (range_ == 0.0) range_ = 1.0;
+  }
+
+  /// Re-derives the range and rebuilds the working response under it. The
+  /// range is read from rangeResponse less the offset, or from the response
+  /// less the offset when rangeResponse is null; the working response is
+  /// built from the response in either case. rangeResponse has
+  /// numObservations values and is not kept. Where it equals the response
+  /// element for element the result is bit for bit the null call's.
+  void rescale(const double* rangeResponse = nullptr) {
+    // an empty response has no min/max to seed from (yRescaled_[0] is OOB); hold
+    // the identity scale
+    if (numObservations_ == 0) {
+      min_ = 0.0;
+      max_ = 0.0;
+      range_ = 1.0;
+      return;
+    }
+    if (rangeResponse != nullptr) {
+      formOffsetAdjusted(rangeResponse);
+      readRange();
+    }
+    formOffsetAdjusted(y_);
+    if (rangeResponse == nullptr) readRange();
 
     misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -min_);
     misc_scalarMultiplyVectorInPlace(yRescaled_.data(), numObservations_,
@@ -5626,6 +5658,12 @@ private:
 /// are unsupported (a weighted truncated-latent draw is not a coherent
 /// likelihood; the host rejects them). State rides the existing `latents`
 /// (logT_) and `fit.scale` (the Gaussian scale) blocks unchanged.
+///
+/// The response range is never read from a draw. At creation and at every
+/// re-derivation (setResponse, setData, setOffset) it is the minimum and
+/// maximum of the observed log-time less the offset, an event's time and a
+/// censored row's censoring time, so chains whose drawn times differ share
+/// one transform.
 class AFTResponse final : public ResponseModel {
 public:
   /// logTime holds log of the observed time (event or censoring time);
@@ -5819,11 +5857,23 @@ public:
   }
 
   /// Offset shifts the fit location, not the (offset-independent) log-times, so
-  /// the Gaussian re-anchors its scale and rebuilds the working response while
-  /// the latents keep their values (redrawn next sweep).
+  /// the working response is rebuilt from the times in force, drawn ones
+  /// included: nothing is drawn and no drawn time moves. A re-derived range
+  /// (updateScale) is that of the OBSERVED log-times less the new offset, each
+  /// censored row at its censoring time, so every chain lands in the transform
+  /// a model created on those times and that offset holds. With no censored
+  /// row the times in force are the observed ones and the call is the
+  /// Gaussian's own.
   void setOffset(const double* offset, bool updateScale,
                  double* sigmaInOut) override {
-    gaussian_->setOffset(offset, updateScale, sigmaInOut);
+    if (!updateScale || censoredIndices_.empty()) {
+      gaussian_->setOffset(offset, updateScale, sigmaInOut);
+      return;
+    }
+    std::vector<double> observed(logT_);
+    for (std::size_t k = 0; k < censoredIndices_.size(); ++k)
+      observed[censoredIndices_[k]] = censorBound_[k];
+    gaussian_->setOffset(offset, true, sigmaInOut, observed.data());
   }
 
   /// Whole-data replacement keeps the censoring structure by index (no new

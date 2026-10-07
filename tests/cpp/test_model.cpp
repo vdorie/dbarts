@@ -6118,6 +6118,180 @@ static void testAFTStatusSetter(ext_rng* rng) {
   printf("ok: aft status setter (ordering, bounds, joint call)\n");
 }
 
+// The response range of an aft sampler is that of the OBSERVED log-times less
+// the offset, an event's time and a censored row's censoring time, at every
+// re-derivation. setOffset with updateScale read it from the times in force,
+// which hold a draw at each censored row, so two chains left the call in two
+// transforms and neither was the observed times'.
+//
+// NEUTRAL. Before any sweep the censored rows sit at their bounds, and the
+// call lands bit for bit where the two paths that always read observed times
+// land: creation at the offset, on every row, and a response swap that
+// re-derives the range under it, whose redraw moves the censored rows' working
+// response and nothing else.
+//
+// AFTER SWEEPS. The row whose observed time less the offset is the largest is
+// censored, so each chain holds a drawn time above the observed range. One
+// transform, the literal from the observed times; nothing drawn, no drawn time
+// moved, the working response those times under the new transform; the
+// residual sd in response units and the replay of the saved draws unchanged.
+static void testAFTOffsetReanchorObservedTimes() {
+  const size_t n = 240, p = 2, numChains = 2, numKept = 3, numTest = 20;
+  std::vector<double> x(n * p), obsLogT(n), status(n), offset(n),
+    xTest(numTest * p);
+  uint64_t seed = 20261007u;
+  auto localUnif = [&seed]() {
+    seed = seed * 6364136223846793005ull + 1442695040888963407ull;
+    return static_cast<double>(seed >> 11) / 9007199254740992.0;
+  };
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = 0; j < p; ++j) x[i + j * n] = localUnif();
+    double f = 1.2 * x[i] - 0.6 * x[i + n];
+    double logT = f + 0.5 * (localUnif() - 0.5) * 3.464;
+    double censTime = f + 0.5 + 0.5 * (localUnif() - 0.5) * 3.464;
+    status[i] = logT <= censTime ? 1.0 : 0.0;
+    obsLogT[i] = logT <= censTime ? logT : censTime;
+    offset[i] = 0.4 * x[i + n] - 0.3;
+  }
+  for (size_t i = 0; i < numTest * p; ++i) xTest[i] = localUnif();
+  // the literal: the range of the observed log-times less the offset
+  size_t top = 0;
+  double observedMin = obsLogT[0] - offset[0], observedMax = observedMin;
+  for (size_t i = 1; i < n; ++i) {
+    double value = obsLogT[i] - offset[i];
+    if (value < observedMin) observedMin = value;
+    if (value > observedMax) {
+      observedMax = value;
+      top = i;
+    }
+  }
+  status[top] = 0.0;
+  size_t numCensored = 0;
+  for (size_t i = 0; i < n; ++i)
+    if (status[i] == 0.0) ++numCensored;
+  check(numCensored > 20 && numCensored < n - 20,
+        "aft offset re-anchor: censored rows and events among the rows");
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numChains = numChains;
+  options.survivalStatus = status.data();
+  options.keepTrees = true;
+  options.numSamplesToStore = numKept;
+
+  std::vector<ext_rng*> rngs;
+  rngs.reserve(4 * numChains);
+  auto make = [&](const double* creationOffset) {
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+      ext_rng_setSeed(rngs.back(), 5150u + static_cast<std::uint32_t>(c));
+    }
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), obsLogT.data(), n, p, nullptr, creationOffset,
+      ResponseFamily::aft, 1.0, 3.0, 0.37804942330213542, options,
+      rngs.data() + rngs.size() - numChains);
+  };
+  auto inObservedTransform = [&](const SamplerStateData& state) {
+    bool all = true;
+    for (const ChainStateData& chain : state.chains)
+      all = all && chain.fitMin == observedMin && chain.fitMax == observedMax;
+    return all;
+  };
+
+  // before any sweep
+  {
+    std::unique_ptr<ConstantLeafSampler> set = make(nullptr),
+      created = make(offset.data()), swapped = make(nullptr);
+    set->setOffset(offset.data(), true);
+    swapped->setOffset(offset.data(), false);
+    swapped->setResponse(obsLogT.data(), true);
+    SamplerStateData setState, createdState, swappedState;
+    set->getState(setState);
+    created->getState(createdState);
+    swapped->getState(swappedState);
+    check(inObservedTransform(setState) && inObservedTransform(createdState) &&
+            inObservedTransform(swappedState),
+          "aft offset re-anchor: before any sweep the call, creation at the "
+          "offset and a re-derived response swap share the observed times' "
+          "transform bit for bit");
+    bool asCreated = true, asSwapped = true;
+    for (size_t c = 0; c < numChains; ++c) {
+      const double* working = TestPeer::workingResponse(set->chain(c));
+      const double* atCreation = TestPeer::workingResponse(created->chain(c));
+      const double* atSwap = TestPeer::workingResponse(swapped->chain(c));
+      for (size_t i = 0; i < n; ++i) {
+        asCreated = asCreated && working[i] == atCreation[i];
+        if (status[i] != 0.0) asSwapped = asSwapped && working[i] == atSwap[i];
+      }
+    }
+    check(asCreated, "aft offset re-anchor: before any sweep the working "
+                     "response is creation's at the offset, bit for bit");
+    check(asSwapped, "aft offset re-anchor: and the response swap's on every "
+                     "row that swap does not redraw");
+  }
+
+  // after 20 sweeps
+  std::unique_ptr<ConstantLeafSampler> sampler = make(nullptr);
+  Results none;
+  sampler->run(20 - numKept, numKept, none);
+  SamplerStateData before, after;
+  sampler->getState(before);
+  std::vector<double> kept(numTest * numKept * numChains), now(kept.size());
+  sampler->predict(xTest.data(), numTest, 1, kept.data());
+  bool drawnAbove = true;
+  for (const ChainStateData& chain : before.chains)
+    drawnAbove =
+      drawnAbove && chain.latents[top] - offset[top] > observedMax;
+  check(drawnAbove && before.chains[0].latents != before.chains[1].latents,
+        "aft offset re-anchor: each chain holds its own drawn times, one of "
+        "them above the observed range");
+
+  sampler->setOffset(offset.data(), true);
+  sampler->getState(after);
+  double anchorMin, anchorMax;
+  sampler->getAnchor(anchorMin, anchorMax);
+  check(inObservedTransform(after) && anchorMin == observedMin &&
+          anchorMax == observedMax,
+        "aft offset re-anchor: every chain is in the one transform of the "
+        "observed log-times less the offset");
+
+  bool timesHeld = true, generatorsHeld = true;
+  double worstWorking = 0.0, worstSigma = 0.0, worstKept = 0.0;
+  double range = observedMax - observedMin;
+  for (size_t c = 0; c < numChains; ++c) {
+    timesHeld = timesHeld && after.chains[c].latents == before.chains[c].latents;
+    generatorsHeld =
+      generatorsHeld && after.chains[c].rngState == before.chains[c].rngState;
+    const double* working = TestPeer::workingResponse(sampler->chain(c));
+    for (size_t i = 0; i < n; ++i) {
+      double expected =
+        (after.chains[c].latents[i] - offset[i] - observedMin) / range - 0.5;
+      worstWorking = std::max(worstWorking, std::fabs(working[i] - expected));
+    }
+    worstSigma = std::max(worstSigma,
+                          std::fabs(after.chains[c].sigma -
+                                    before.chains[c].sigma) /
+                            before.chains[c].sigma);
+  }
+  check(timesHeld, "aft offset re-anchor: no drawn time moved");
+  check(generatorsHeld, "aft offset re-anchor: no generator was read");
+  check(worstWorking < 1e-12, "aft offset re-anchor: the working response is "
+                              "the times in force under the new transform");
+  check(worstSigma < 1e-12,
+        "aft offset re-anchor: the residual sd in response units is unchanged");
+  sampler->predict(xTest.data(), numTest, 1, now.data());
+  for (size_t i = 0; i < kept.size(); ++i)
+    worstKept = std::max(worstKept, std::fabs(now[i] - kept[i]) /
+                                      std::max(1.0, std::fabs(kept[i])));
+  check(worstKept < 1e-12,
+        "aft offset re-anchor: the saved draws replay as they did");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  printf("ok: an aft offset re-anchor reads the observed times (working %.1e, "
+         "sigma %.1e, saved draws %.1e)\n",
+         worstWorking, worstSigma, worstKept);
+}
+
 // lambda_i | z, f, sigma ~ Gamma((nu + 1)/2, rate (nu + w_i r_i^2/sigma^2)/2);
 // over fixed residuals and fixed nu the per-observation draw's mean and
 // variance match that Gamma (the polya-gamma moments precedent). A local
@@ -9635,6 +9809,7 @@ void runModelTests(ext_rng* rng) {
   testAFTCensoredMoments(rng);
   testAFTStateRoundTrip();
   testAFTStatusSetter(rng);
+  testAFTOffsetReanchorObservedTimes();
   testTLambdaMoments(rng);
   testTLogLikelihoodWeighted();
   testTNuGridPosterior(rng);
