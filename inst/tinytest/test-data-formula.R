@@ -257,18 +257,6 @@ drawX <- function() {
 ofDrawn <- function(values) values[xDraws[[length(xDraws)]]]
 onceCounts <- rpois(onceRows, 3)
 onceLevels <- factor(rep_len(c("a", "b", "c"), onceRows))
-bartSampler <- function(...) {
-  bart(
-    ...,
-    n.chains = 1L,
-    n.threads = 1L,
-    n.trees = 3L,
-    n.samples = 2L,
-    n.burn = 0L,
-    verbose = FALSE,
-    samplerOnly = TRUE
-  )$data
-}
 matrixDoors <- list(
   dbartsData = function() dbartsData(drawX(), ofDrawn(onceData$y)),
   dbarts = function() {
@@ -282,12 +270,52 @@ matrixDoors <- list(
       control = onceControl
     )$data
   },
-  bart = function() bartSampler(drawX(), ofDrawn(onceData$y)),
+  bart = function() {
+    # written in the call: an argument handed through a helper's dots is a
+    # promise already forced, and a second reading inside bart() would not show
+    bart(
+      drawX(),
+      ofDrawn(onceData$y),
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 3L,
+      n.samples = 2L,
+      n.burn = 0L,
+      verbose = FALSE,
+      samplerOnly = TRUE
+    )$data
+  },
   nbinom = function() {
-    bartSampler(drawX(), ofDrawn(onceCounts), family = "nbinom")
+    # written in the call: an argument handed through a helper's dots is a
+    # promise already forced, and a second reading inside bart() would not show
+    bart(
+      drawX(),
+      ofDrawn(onceCounts),
+      family = "nbinom",
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 3L,
+      n.samples = 2L,
+      n.burn = 0L,
+      verbose = FALSE,
+      samplerOnly = TRUE
+    )$data
   },
   multinomial = function() {
-    bartSampler(drawX(), ofDrawn(onceLevels), family = "multinomial")
+    # written in the call: an argument handed through a helper's dots is a
+    # promise already forced, and a second reading inside bart() would not show
+    bart(
+      drawX(),
+      ofDrawn(onceLevels),
+      family = "multinomial",
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 3L,
+      n.samples = 2L,
+      n.burn = 0L,
+      verbose = FALSE,
+      samplerOnly = TRUE
+    )$data
   },
   bartBT = function() {
     bartBT(
@@ -378,7 +406,7 @@ expect_true(all(stackSizes > 0))
 expect_true(all(stackSizes < 20000))
 expect_true(all(abs(stackSizes[, 2L] - stackSizes[, 1L]) < 100))
 rm(weightReadings, readWeights, weighted, onceX, xDraws, drawX, ofDrawn)
-rm(onceCounts, onceLevels, bartSampler, matrixDoors, stackSize, stackSizes)
+rm(onceCounts, onceLevels, matrixDoors, stackSize, stackSizes)
 # 'subset' selects training rows and never rows of 'test'
 onceTest <- onceData[1:25, ]
 cutBeside <- dbartsData(
