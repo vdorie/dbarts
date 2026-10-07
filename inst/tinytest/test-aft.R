@@ -803,3 +803,117 @@ expect_identical(length(subsetDraws), 1L)
 expect_true(all(hazardOnce$data@x[, "id"] %in% subsetDraws[[1L]]))
 rm(onceX, onceTime, onceStatus, onceWeights, onceOffset, subsetDraws)
 rm(drawSubset, onceDoors, door, sampler, rows, plainOnce, hazardOnce)
+
+# ---- a re-derived response range is that of the observed times ----
+
+# setOffset with updateScale = TRUE read the range from the log times in
+# force, which hold each chain's own draw at a censored row: two chains left
+# the call under two leaf priors, neither the observed times', and the model
+# recorded the first chain's. The range is the minimum and maximum of the
+# observed log time less the offset, a censored row's censoring time among
+# them, whatever the chains have drawn.
+set.seed(19L)
+rangeStatus <- rbinom(n, 1L, 0.5)
+rangeOffsets <- list(
+  "the offset in force" = 0.6 * (x[, 2L] - 0.5),
+  "a new offset" = rep(c(-0.4, 0.2), n / 2L)
+)
+rangeSampler <- function() {
+  sampler <- dbarts(
+    x,
+    cbind(exp(log.t), rangeStatus),
+    offset = rangeOffsets[[1L]],
+    family = "aft",
+    control = dbartsControl(
+      n.chains = 2L,
+      n.threads = 1L,
+      n.trees = 10L,
+      updateState = FALSE,
+      seed = 19L
+    )
+  )
+  invisible(sampler$run(0L, 20L))
+  sampler
+}
+# each chain's transform as the engine holds it, one row per chain
+chainTransforms <- function(sampler) {
+  .Call(
+    dbarts:::C_dbarts_bartcore_getLeafPrior,
+    sampler$getPointer(),
+    0L
+  )[, c("response.shift", "response.scale"), drop = FALSE]
+}
+expectObservedTransform <- function(sampler, offset, info) {
+  bounds <- range(sampler$data@y - offset)
+  transforms <- chainTransforms(sampler)
+  expect_identical(transforms[1L, ], transforms[2L, ], info = info)
+  expect_equal(
+    unname(transforms[1L, ]),
+    c(bounds[1L] + diff(bounds) / 2, diff(bounds)),
+    tolerance = 1e-14,
+    info = info
+  )
+  bounds
+}
+for (case in names(rangeOffsets)) {
+  offset <- rangeOffsets[[case]]
+  sampler <- rangeSampler()
+  latents <- matrix(sampler$getLatents(), n)
+  censored <- rangeStatus == 0L
+  # each chain holds its own drawn times, above the observed ones
+  expect_true(all(latents[censored, ] > sampler$data@y[censored]), info = case)
+  expect_false(
+    identical(range(latents[, 1L] - offset), range(latents[, 2L] - offset)),
+    info = case
+  )
+
+  sampler$setOffset(offset, updateScale = TRUE)
+  bounds <- expectObservedTransform(sampler, offset, case)
+  expect_identical(
+    as.vector(attr(sampler$model, "response.range")),
+    bounds,
+    info = case
+  )
+  prior <- sampler$getLeafPrior()
+  expect_equal(
+    c(prior$response.shift, prior$response.scale),
+    c(bounds[1L] + diff(bounds) / 2, diff(bounds)),
+    tolerance = 1e-14,
+    info = case
+  )
+  # the call draws nothing and moves no drawn time
+  expect_identical(matrix(sampler$getLatents(), n), latents, info = case)
+  duplicate <- sampler$copy()
+  expect_identical(
+    chainTransforms(duplicate),
+    chainTransforms(sampler),
+    info = case
+  )
+  expect_identical(
+    attr(duplicate$model, "response.range"),
+    attr(sampler$model, "response.range"),
+    info = case
+  )
+  expect_true(all(is.finite(sampler$run(0L, 5L)$train)), info = case)
+  expect_true(all(is.finite(duplicate$run(0L, 5L)$train)), info = case)
+}
+
+# and through the flat entry, dbarts_sampler_setOffset
+source(
+  system.file("common", "capiConsumer.R", package = "dbarts"),
+  local = TRUE
+)
+consumer <- compileCapiConsumer("aft", "the C API consumer")
+if (is.null(consumer$skip)) {
+  sampler <- rangeSampler()
+  offset <- rangeOffsets[[2L]]
+  expect_equal(
+    consumer$CALL("capi_set_offset", sampler$getPointer(), offset, TRUE),
+    1L
+  )
+  expectObservedTransform(sampler, offset, "the flat entry")
+  expect_true(all(is.finite(sampler$run(0L, 5L)$train)))
+}
+rm(rangeStatus, rangeOffsets, rangeSampler, chainTransforms, consumer)
+rm(expectObservedTransform, case, offset, sampler, latents, censored, bounds)
+rm(prior, duplicate)
