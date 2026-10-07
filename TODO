@@ -255,6 +255,17 @@ items
     coefficients, rewrite kept draws at a re-anchor, and refuse the
     calls on a gp sampler that holds kept draws. Plan:
     docs/plans/leaf-conversions.md.
+  check-shape-fixes: three things in the benchmark scripts and one
+    step (dec-B301, VD 2026-10-07: "Fix the shape."). The count
+    model's mixing gate takes a case whose posterior on the shape
+    spreads over several values in place of the one where it is a
+    single value, drops the rule that chains constant at one value
+    agree, and starts its chains apart where the shape's start can be
+    set. The calibration harness gains one arm with k drawn under its
+    default hyperprior, on probit: no correctness check of any family
+    draws k today. And BEFORE THE MERGE TO MAIN the calibration suite
+    is started by hand and read, its weekly schedule not firing until
+    the workflow is on main. With weekly-full-exact-gates, one slice.
   weekly-full-exact-gates: the monotone enumeration gate runs its
     quick mode on every push and its full mode nowhere in CI, the
     full mode passing the job's 40 minutes. Run the full mode on a
