@@ -885,6 +885,17 @@ items
     part). Before the merge to main; the kept-draw store in the
     engine and the state's reader, after leaf-conversions, which
     works in the same store.
+  setstate-force-update: setState takes forceUpdate, FALSE by
+    default, in setPredictor's idiom: unforced it installs a state
+    that goes in cleanly and returns TRUE, or leaves the sampler
+    untouched and returns FALSE; forced it installs, changing what it
+    must (dec-B305, revising dec-B234 and dec-A167). A conversion
+    between response units is clean; a tree that must change to fit
+    and a larger kept store are not; copy() and a reload force. Before
+    the merge to main. Design first, with warm-start-salvage and
+    state-store-size-install, which are the same surface: what the
+    forced form returns, one name with installTrees's force argument,
+    the package's and stan4bart's callers.
   precision-floor-edge-values: the floor that refuses scales and
     Polya-Gamma variates that are not positive and finite passes a
     value at the edge of what a double holds: a variate of 1e-320 in a
